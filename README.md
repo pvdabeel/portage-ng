@@ -1,3 +1,4 @@
+Automate building and maintaining custom operating systems using declarative reasoning.
 
 # Prolog code 
 
