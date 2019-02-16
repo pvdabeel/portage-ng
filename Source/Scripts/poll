@@ -6,7 +6,7 @@ do
 #move into your git repo where your jekyll site is
 cd ~/Repository/portage-git/;
 
-git fetch;
+git fetch --prune;
 LOCAL=$(git rev-parse HEAD);
 REMOTE=$(git rev-parse @{u});
 
