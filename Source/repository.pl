@@ -130,7 +130,8 @@ sync(kb) ::-
   forall(:read_entry(E,L,C,N,V),
          (:read_metadata(E,L,M),
           retractall(cache:entry(Context,E,_,_,_,_,_)),
-          assert(cache:entry(Context,E,L,C,N,V,M)))).
+          assert(cache:entry(Context,E,L,C,N,V,M)),
+          message:inform(['Update prolog cache ',E]))).
 
 
 
