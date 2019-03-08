@@ -48,5 +48,5 @@ os:make_repository_dirs(Repository,Directory) :-
 os:update_repository_dirs(Repository,Directory) :-
   forall(Repository:category(C),
     (os:compose_path(Directory,C,Subdir),
-     system:exists_directory(Subdir);
-     system:make_directory(Subdir))).
+     (system:exists_directory(Subdir);
+     system:make_directory(Subdir)))).
