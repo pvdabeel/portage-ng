@@ -266,6 +266,7 @@ grapher:test(Repository) :-
   config:graph_directory(D),
   system:exists_directory(D),!,
   message:inform(['Directory already exists! Updating...']),
+  os:update_repository_dirs(Repository,D),
   forall((Repository:entry(Id,Time),
            Repository:get_ebuild(Id,Ebuild),
            system:time_file(Ebuild,Modified),
