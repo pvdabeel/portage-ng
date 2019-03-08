@@ -16,8 +16,8 @@ if [ $LOCAL != $REMOTE ]; then
     echo -e ">>> Commit found, updating"
     echo -e "--- `date`" 
     echo
-    portage-ng --sync  # sync repository
-    portage-ng --graph # update graph
+    portage-ng-dev --sync  # sync repository
+    portage-ng-dev --graph # update graph
     
     pushd ~/Graph/ 
 
