@@ -115,8 +115,9 @@ sync(metadata) ::-
            :get_ebuild(Id,Ebuild),
            system:time_file(Ebuild,Modified),
            Modified > Time),
-          (message:inform(['Update metadata cache ',Id]))).
+          (message:scroll([Id]))),
            % script:exec(cache,[Ebuild]),!)).
+  message:inform(['Updated metadata cache']).
 
 
 % repository:sync(kb)
@@ -131,7 +132,8 @@ sync(kb) ::-
          (:read_metadata(E,L,M),
           retractall(cache:entry(Context,E,_,_,_,_,_)),
           assert(cache:entry(Context,E,L,C,N,V,M)),
-          message:inform(['Update prolog cache ',E]))).
+          message:scroll([E]))),
+  message:inform(['Updated prolog cache']).
 
 
 
@@ -170,7 +172,7 @@ read_metadata(Entry,Timestamp,Metadata) ::-
 
 read_metadata(Entry,_,Metadata) ::-
   ::cache(Cache),
-  message:inform(['Reading metadata cache ',Entry]),
+  message:scroll([Entry]),
   reader:invoke(Cache,Entry,Contents),
   parser:invoke(Contents,Metadata),!.
 

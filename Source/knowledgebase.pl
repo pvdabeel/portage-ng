@@ -14,6 +14,7 @@
 :- dpublic(sync/0).
 :- dpublic(save/0).
 :- dpublic(load/0).
+:- dpublic(clear/0).
 
 :- dpublic(query/2).
 
@@ -91,9 +92,25 @@ save ::-
 % public predicate
 
 load ::-
-  exists_file('kb.qlf') -> ensure_loaded('kb.qlf').
+  exists_file('kb.qlf'),!,
+  ensure_loaded('kb.qlf').
+
+load ::-
+  true.
 
 
+% knowledgebase:clear
+%
+% Clear state file
+%
+% public predicate
+
+clear ::-
+  exists_file('kb.qlf'),!,
+  delete_file('kb.qlf'). 
+
+clear ::-
+  true.
 
 
 % knowledgebase:state

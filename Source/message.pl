@@ -86,6 +86,20 @@ message:inform(Message) :-
   nl.
 
 
+% message:scroll(+Message)
+%
+% Informs the user about something - scroll style
+% Message is a list.
+
+message:scroll(Message) :-
+  system:write('% '),
+  forall(member(M,Message),
+    system:write(M)),
+  tty:tty_action(back(100)),
+  tty:tty_action(ce).
+
+
+
 % message:header(+Message)
 %
 % Informs the user about something - header style
@@ -98,7 +112,6 @@ message:header(Message) :-
     system:write(M)),
   message:color(normal),
   nl.
-
 
 
 

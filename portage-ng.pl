@@ -7,6 +7,7 @@
 % **********
 
 :- use_module(library(aggregate)).
+:- use_module(library(tty)).
 
 :- ensure_loaded(library('thread')).
 :- ensure_loaded(library('apply_macros')).
