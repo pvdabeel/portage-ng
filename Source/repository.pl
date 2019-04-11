@@ -176,8 +176,8 @@ read_metadata(Entry,_,Metadata) ::-
   reader:invoke(Cache,Entry,Contents),
   parser:invoke(Contents,Metadata),!.
 
-read_metadata(_,_,[]) ::-
-  message:failure('Failed to parse metadata cache!'),!.
+read_metadata(Entry,_,[]) ::-
+  message:failure(['Failed to parse ',Entry,' metadata cache!']),!.
 
 
 % repository:read_time(+Time)
