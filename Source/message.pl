@@ -119,7 +119,7 @@ message:inform(Message) :-
 message:scroll(Message) :-
   system:write('% '),
   message:print(Message,Len),
-  Prefixed_Len is Len + 3,
+  Prefixed_Len is Len + 2,
   tty:tty_action(back(Prefixed_Len)),
   tty:tty_action(ce).
 
