@@ -1,12 +1,21 @@
 #!/bin/sh
-REPOSITORY=${1}
-CACHE=${2}
 
-cd ${CACHE}
+NAME=${1}
+REPOSITORY=${2}
+METADATA=${3}
+
+cd ${REPOSITORY}
 
 
-# need to regenerate metadata cache from ebuilds here:
+# EAPI:
+#   need to regenerate metadata cache from ebuilds here:
+#   egencache
+#   find . -type f | sed -e "s/.\//metadata(\'/" | sed -e "s/$/\')./"
 
-# egencache
 
-# find . -type f | sed -e "s/.\//metadata(\'/" | sed -e "s/$/\')./" 
+# CMAKE:
+
+mkdir -p ${METADATA}
+mkdir -p ${METADATA}/github
+
+for version in `git tag -l "V*"`; do touch ${METADATA}/github/${NAME}-${version}; done

@@ -118,12 +118,16 @@ sync(metadata) ::-
            Modified > Time),
           (message:scroll([Id]))),
            % script:exec(cache,[Ebuild]),!)).
-  message:inform(['Updated metadata cache']).
+  message:inform(['Updated metadata']).
 
 
 sync(metadata) ::-
   ::type('cmake'),!,
-  message:inform(['Updated metadata cache']).
+  ::location(Local),
+  ::cache(Cache),
+  :this(Context),
+  script:exec(cache,[Context,Local,Cache]),
+  message:inform(['Updated metadata']).
 
 
 
@@ -141,12 +145,12 @@ sync(kb) ::-
           retractall(cache:entry(Context,E,_,_,_,_,_)),
           assert(cache:entry(Context,E,L,C,N,V,M)),
           message:scroll([E]))),
-  message:inform(['Updated prolog cache']).
+  message:inform(['Updated prolog knowledgebase']).
 
 
 sync(kb) ::-
   ::type('cmake'),!,
-  message:inform(['Updated prolog cache']).
+  message:inform(['Updated prolog knowledgebase']).
   
 
 
