@@ -48,7 +48,9 @@ main :-
 
     portage:newinstance(repository),
     overlay:newinstance(repository),    
+
     swipl:newinstance(repository),
+    linux:newinstance(repository);
 
     kb:newinstance(knowledgebase),
 
@@ -84,9 +86,17 @@ main :-
                'https://github.com/swi-prolog/swipl-devel','git','cmake'),
 
 
+    % Example: Github code repository - sync via git
+    % ----------------------------------------------
+    linux:init('/Users/pvdabeel/Repository/linux',
+               '/Users/pvdabeel/Repository/linux/metadata',
+               'https://github.com/torvalds/linux','git','make'),
+
+ 
     kb:register(portage),
     kb:register(overlay),
     kb:register(swipl),
+    kb:register(linux),
 
 
     kb:load,
