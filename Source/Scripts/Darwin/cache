@@ -1,10 +1,10 @@
 #!/bin/sh
 
 NAME=${1}
-REPOSITORY=${2}
+LOCAL=${2}
 METADATA=${3}
 
-cd ${REPOSITORY}
+cd ${LOCAL}
 
 
 # EAPI:
@@ -27,3 +27,6 @@ for version in `git tag -l "v*"`; do
   eapiversion=`echo ${version:1} | sed 's/-rc/_rc/g'`
   touch ${METADATA}/github/${NAME}-${eapiversion}; 
 done
+
+
+touch ${METADATA}/github/${NAME}-9999 # master branch
