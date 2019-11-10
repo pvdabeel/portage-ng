@@ -88,7 +88,6 @@
                      (~)/1,
                      (:)/1, 
                      (::)/1,
-                     (://)/2, 
                      (<-)/1, 
                      (<=)/1, 
                      (<+)/1, 
@@ -96,17 +95,18 @@
                      (<-)/2,
                      (<=)/2,
                      (<+)/2,
+                     (://)/2, 
                      op(600, fx, '~'), 
                      op(600, fx, ':'), 
                      op(600, fx, '::'), 
                      op(600, fx, '<-'), 
                      op(600, fx, '<='), 
                      op(600, fx, '<+'), 
-                     op(600, xfx, '::'),
+                     op(601, xfx, '::'),
                      op(600, xfx, '<-'),
                      op(600, xfx, '<='),
                      op(600, xfx, '<+'),
-                     op(601, xfx, '://'),
+                     op(602, xfx, '://'),
                      op(1200, xfx, '::-')
                     ]).
 
@@ -132,14 +132,15 @@
                       % no destructor since destructor cannot be called directly. e.g. ~pieter(foo). vs pieter:'~'(foo)
                       (:)/1,
                       (::)/1, 
-                      (://)/2, 
                       (<-)/1, 
                       (<=)/1, 
                       (<+)/1, 
                       (::)/2,
                       (<-)/2, 
                       (<=)/2, 
-                      (<+)/2.
+                      (<+)/2,
+                      (://)/2. 
+
 
 
 % CONTEXT is thread-aware. The idea is that a context, class or instance
@@ -164,11 +165,11 @@
 :- op(600, fx, '<-').
 :- op(600, fx, '<=').
 :- op(600, fx, '<+').
-:- op(600, xfx, '::').
+:- op(601, xfx, '::').
 :- op(600, xfx, '<-').
 :- op(600, xfx, '<=').
 :- op(600, xfx, '<+').
-:- op(601, xfx, '://').
+:- op(602, xfx, '://').
 :- op(1200, xfx, '::-').
 
 
@@ -683,8 +684,13 @@ context:newinstance(Context, Constructor) :-
   Context:Predicate.
 
 
+% @form         context:'::'(+Context, +Predicate)
+% @descr        Evaluate predicate within a given context
+% @property     exported, transparent
+
 '://'(Context, Predicate) :-
-  Context://Predicate.
+ Context:Predicate.
+
 
 % @form         context:'<-'(+Context, +Predicate)
 % @descr        retract predicate cache matching Predicate.
