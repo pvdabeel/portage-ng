@@ -1,0 +1,18 @@
+#!/bin/sh
+
+LOCAL=${1}
+
+cd ${LOCAL}
+
+
+# EAPI:
+# Portage ebuild.sh here
+
+
+# CMAKE:
+
+mkdir -p build
+cd build
+CFLAGS="-O3 -march=native -pipe" CXXFLAGS="-O3 -march=native -pipe" cmake -G 'Unix Makefiles' -DSWIPL_PACKAGES_JAVA=OFF -DSWIPL_PACKAGES_X=OFF -DINSTALL_DOCUMENTATION=OFF ..
+CFLAGS="-O3 -march=native -pipe" CXXFLAGS="-O3 -march=native -pipe" make 
+#sudo make install
