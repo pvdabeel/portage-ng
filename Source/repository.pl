@@ -93,7 +93,7 @@ sync ::-
 
 % repository:sync(repository)
 %
-% Updates files in repository by invoking script
+% Updates files in local repository by invoking script to sync with rempte
 %
 % public predicate
 
@@ -106,11 +106,12 @@ sync(repository) ::-
 
 % repository:sync(metadata)
 %
-% Regenerates metadata from repository files by invoking script
+% Regenerates metadata from local repository files by invoking script
 %
 % public predicate
 
 sync(metadata) ::-
+  ::type('eapi'),!,
   forall((:entry(Id,Time),
            :get_ebuild(Id,Ebuild),
            system:time_file(Ebuild,Modified),
@@ -120,13 +121,20 @@ sync(metadata) ::-
   message:inform(['Updated metadata cache']).
 
 
+sync(metadata) ::-
+  ::type('cmake'),!,
+  message:inform(['Updated metadata cache']).
+
+
+
 % repository:sync(kb)
 %
-% Regenerates knowledgebase facts from repository cache
+% Regenerates knowledgebase facts from local repository metadata
 %
 % public predicate
 
 sync(kb) ::-
+  ::type('eapi'),!,
   :this(Context),
   forall(:read_entry(E,L,C,N,V),
          (:read_metadata(E,L,M),
@@ -136,6 +144,10 @@ sync(kb) ::-
   message:inform(['Updated prolog cache']).
 
 
+sync(kb) ::-
+  ::type('cmake'),!,
+  message:inform(['Updated prolog cache']).
+  
 
 
 % repository:read_entry(-Entry,-Timestamp,Category,Name,Version)

@@ -1,4 +1,4 @@
-% Copyright 2005-2017 Pieter Van den Abeele
+% Copyright 2005-2019 Pieter Van den Abeele
 
 :- dynamic cache:entry(_,_,_,_,_,_,_).
 
@@ -48,6 +48,7 @@ main :-
 
     portage:newinstance(repository),
     overlay:newinstance(repository),    
+    github:newinstance(repository),
 
     kb:newinstance(knowledgebase),
 
@@ -75,7 +76,17 @@ main :-
                  '/Users/pvdabeel/Repository/overlay/metadata/md5-cache',
                  '/Users/pvdabeel/Desktop/Prolog/Repository/Overlay/','rsync','eapi'),
 
+
+    % Example: Github code repository - sync via git
+    % ----------------------------------------------
+    github:init('/Users/pvdabeel/Repository/swipl-devel',
+                '/Users/pvdabeel/Repository/swipl-devel/build',
+                'https://github.com/swi-prolog/swipl-devel','git','cmake'),
+
+
     kb:register(portage),
     kb:register(overlay),
+    kb:register(github),
+
     kb:load,
     interface:process_requests.
