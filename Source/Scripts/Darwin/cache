@@ -7,7 +7,6 @@ METADATA=${4}
 
 cd ${LOCAL}
 
-# echo 'http://www.test.com/abc/cscsc/sccsc/def/efg/file.jar ' | rev | cut -d '/' -f 1 | re
 
 # EAPI:
 #   need to regenerate metadata cache from ebuilds here:
