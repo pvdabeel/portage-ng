@@ -124,9 +124,10 @@ sync(metadata) ::-
 sync(metadata) ::-
   ::type('cmake'),!,
   ::location(Local),
+  ::remote(Remote),
   ::cache(Cache),
   :this(Context),
-  script:exec(cache,[Context,Local,Cache]),
+  script:exec(cache,[Context,Remote,Local,Cache]),
   message:inform(['Updated metadata']).
 
 
