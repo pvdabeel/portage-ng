@@ -138,7 +138,6 @@ sync(metadata) ::-
 % public predicate
 
 sync(kb) ::-
-  ::type('eapi'),!,
   :this(Context),
   forall(:read_entry(E,L,C,N,V),
          (:read_metadata(E,L,M),
@@ -147,11 +146,6 @@ sync(kb) ::-
           message:scroll([E]))),
   message:inform(['Updated prolog knowledgebase']).
 
-
-sync(kb) ::-
-  ::type('cmake'),!,
-  message:inform(['Updated prolog knowledgebase']).
-  
 
 
 % repository:read_entry(-Entry,-Timestamp,Category,Name,Version)
