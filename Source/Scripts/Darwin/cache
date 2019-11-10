@@ -18,4 +18,4 @@ cd ${REPOSITORY}
 mkdir -p ${METADATA}
 mkdir -p ${METADATA}/github
 
-for version in `git tag -l "V*"`; do touch ${METADATA}/github/${NAME}-${version}; done
+for version in `git tag -l "V*"`; do touch ${METADATA}/github/${NAME}-${version:1}; done
