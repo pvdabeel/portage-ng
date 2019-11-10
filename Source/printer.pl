@@ -10,10 +10,10 @@ printer:print(Plan) :-
 
 printer:firststep([]) :-  nl, !.
 
-printer:firststep([rule(E:Action,_)|L]) :-
+printer:firststep([rule(Context://E:Action,_)|L]) :-
   !,
   message:color(green),
-  write(E),
+  write(Context://E),
   message:color(blue),
   write(' '),
   write(Action),
@@ -27,11 +27,11 @@ printer:firststep([rule(_,_)|L]) :-
 
 printer:nextstep([]) :- nl,!.
 
-printer:nextstep([rule(E:Action,_)|L]) :- 
+printer:nextstep([rule(Context://E:Action,_)|L]) :- 
   !,
   write('           | '),
   message:color(green),
-  write(E),
+  write(Context://E),
   message:color(blue),
   write(' '),
   write(Action),
@@ -46,8 +46,8 @@ printer:nextstep([rule(_,_)|L]) :-
 printer:test(Repository) :-
   system:time(
               system:forall(cache:entry(Repository,E,_,_,_,_,_),
- 	                    ((nl,message:header(["Planning ",E]),
-                              prover:prove(E:install,[],Proof,[],_),
+ 	                    ((nl,message:header(["Planning ",Repository://E]),
+                              prover:prove(Repository://E:install,[],Proof,[],_),
 			      planner:plan(Proof,[],[],Plan),
                               printer:print(Plan));
 			     (message:failure(E)))

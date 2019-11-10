@@ -35,7 +35,7 @@ planner:test(Repository) :-
   system:time(
               system:forall(cache:entry(Repository,E,_,_,_,_,_),
  	                    ((message:success(E),
-                              prover:prove(E:install,[],Proof,[],_),
+                              prover:prove(Repository://E:install,[],Proof,[],_),
 			      planner:plan(Proof,[],[],_));
 			     (message:failure(E)))
                            )

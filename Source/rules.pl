@@ -7,7 +7,7 @@
 
 % An ebuild can be installed, if its compiletime dependencies are satisfied 
 
-rule(Ebuild:install,Deps) :- 
+rule(_Context://Ebuild:install,Deps) :- 
   ebuild:get(depend,Ebuild,Deps).
 
 % An ebuild can be run, if its runtime dependencies are satisfied 

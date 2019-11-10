@@ -9,15 +9,15 @@ builder:execute(Plan) :-
 
 builder:firststep([]) :-  nl, !.
 
-builder:firststep([rule(E:Action,_)|L]) :-
+builder:firststep([rule(Context://E:Action,_)|L]) :-
   !,
   message:color(green),
-  write(E),
+  write(Context://E),
   message:color(blue),
   write(' '),
   write(Action),
   message:color(normal),
-  builder:build(E),
+  %builder:build(E),
   nl,
   builder:nextstep(L).
 
@@ -27,16 +27,16 @@ builder:firststep([rule(_,_)|L]) :-
 
 builder:nextstep([]) :- nl,!.
 
-builder:nextstep([rule(E:Action,_)|L]) :- 
+builder:nextstep([rule(Context://E:Action,_)|L]) :- 
   !,
   write('           | '),
   message:color(green),
-  write(E),
+  write(Context://E),
   message:color(blue),
   write(' '),
   write(Action),
   message:color(normal),
-  builder:build(E),
+  %builder:build(E),
   nl,
   builder:nextstep(L).
 
@@ -55,8 +55,8 @@ builder:build(Entry) :-
 builder:test(Repository) :-
   system:time(
               system:forall(cache:entry(Repository,E,_,_,_,_,_),
- 	                    ((nl,message:header(["Planning ",E]),
-                              prover:prove(E:install,[],Proof,[],_),
+ 	                    ((nl,message:header(["Building ",Repository://E]),
+                              prover:prove(Repository://E:install,[],Proof,[],_),
 			      planner:plan(Proof,[],[],Plan),
                               builder:execute(Plan));
 			     (message:failure(E)))

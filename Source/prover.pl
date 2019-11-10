@@ -92,7 +92,7 @@ prover:test(Repository) :-
   system:time(
               system:forall(Repository:entry(E),
  	                    ((message:success(E),
-                              prover:prove(E:install,[],_,[],_));
+                              prover:prove(Repository://E:install,[],_,[],_));
 			     (message:failure(E)))
                            )
              ),
