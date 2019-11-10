@@ -90,7 +90,7 @@ main :-
     % ----------------------------------------------
     linux:init('/Users/pvdabeel/Repository/linux',
                '/Users/pvdabeel/Repository/linux/metadata',
-               'https://github.com/torvalds/linux','git','make'),
+               'https://github.com/torvalds/linux','git','cmake'),
 
  
     kb:register(portage),
