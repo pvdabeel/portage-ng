@@ -52,3 +52,4 @@ parser:test(Repository) :-
   %    ),
   Repository:get_size(S), 
   message:inform(['parsed ',S,' cache entries.']).
+
