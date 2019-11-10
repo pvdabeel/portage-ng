@@ -93,7 +93,7 @@ sync ::-
 
 % repository:sync(repository)
 %
-% Updates files in local repository by invoking script to sync with rempte
+% Updates files in local repository by invoking script to sync with remote
 %
 % public predicate
 
