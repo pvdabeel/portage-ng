@@ -17,7 +17,7 @@ builder:firststep([rule(Context://E:Action,_)|L]) :-
   write(' '),
   write(Action),
   message:color(normal),
-  %builder:build(E),
+  builder:build(Context://E:Action),
   nl,
   builder:nextstep(L).
 
@@ -36,7 +36,7 @@ builder:nextstep([rule(Context://E:Action,_)|L]) :-
   write(' '),
   write(Action),
   message:color(normal),
-  %builder:build(E),
+  builder:build(Context://E:Action),
   nl,
   builder:nextstep(L).
 
@@ -44,12 +44,18 @@ builder:nextstep([rule(_,_)|L]) :-
   builder:nextstep(L).
 
 
-builder:build(Entry) :-
+builder:build(Context://Entry:_Action) :-
+  Context:get_type('eapi'),!,
   portage:get_location(L),
   portage:ebuild(Entry,Category,Package,Version),
   atomic_list_concat(['ebuild ',L,'/',Category,'/',Package,'/',Package,'-',Version,'.ebuild install qmerge clean'],Cmd),
   shell(Cmd),!.
 
+
+builder:build(Context://_Entry:_Action) :-
+  Context:get_type('cmake'),!,
+  Context:get_location(Local),
+  script:exec(build,[Local]).
 
 
 builder:test(Repository) :-

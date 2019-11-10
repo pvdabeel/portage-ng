@@ -4,6 +4,7 @@
 
 % Work in progress
 
+% Transition rules...
 
 % An ebuild can be installed, if its compiletime dependencies are satisfied 
 
