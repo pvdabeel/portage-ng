@@ -1,0 +1,40 @@
+					REPO				EAPI			CMAKE
+
+:- dpublic('repository'/0).              x                                       
+:- dpublic('~repository'/0).             x                                       
+                                                                                
+                                                                                
+:- dpublic(init/5).                      x                                       
+:- dpublic(sync/0).                      x                                       
+:- dpublic(sync/1).                      sync(repository)                                       
+                                                                        sync(metadata)          sync(metadata)        
+                                                                        sync(kb)        	sync(kb)
+
+:- dpublic(entry/1).                     x                                       
+:- dpublic(entry/2).                     x                                       
+:- dpublic(category/1).                  x                                       
+:- dpublic(package/2).                   x                                       
+:- dpublic(ebuild/3).                    x                                       
+:- dpublic(ebuild/4).                    x                                       
+:- dpublic(ebuild/5).                    x                                       
+                                                                                
+:- dpublic(query/2).                     x                                       
+                                                                                
+:- dpublic(get_location/1).              x                                       
+:- dpublic(get_cache/1).                 x                                       
+:- dpublic(get_remote/1).                x                                       
+:- dpublic(get_type/1).                  x                                       
+:- dpublic(get_protocol/1).              x                                       
+:- dpublic(get_size/1).                  x                                       
+:- dpublic(get_ebuild/2).                                               x                       x
+                                                                                
+                                                                                
+:- dpublic(read_entry/5).                                               x                       x
+:- dpublic(read_time/1).                                                x                       x 
+:- dprotected(read_metadata/3).                                         x                       x 
+                                                                                
+:- dprotected(location/1).               x                                       
+:- dprotected(cache/1).                  x                                       
+:- dprotected(remote/1).                 x                                       
+:- dprotected(type/1).                   x                                       
+:- dprotected(protocol/1).               x
