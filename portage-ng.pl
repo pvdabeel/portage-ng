@@ -50,7 +50,7 @@ main :-
     overlay:newinstance(repository),    
 
     swipl:newinstance(repository),
-    linux:newinstance(repository);
+    linux:newinstance(repository),
 
     kb:newinstance(knowledgebase),
 
