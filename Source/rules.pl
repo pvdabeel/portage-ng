@@ -79,13 +79,17 @@ rule(package_dependency(no,'virtual','ssh',_,_,_,_),[]) :- !.
 
 % A package dependency is satisfied when a suitable candidate is satisfied
 rule(package_dependency(no,C,N,_,_,_,_),portage://Choice:install) :-
-  cache:entry(_,Choice,_,C,N,_,_). % write(Choice),nl. 
+  cache:entry(_,Choice,_,C,N,_,_). 
 
 
 
-% Ignored for now: The dependencies in a use conditional group need not to be satisfied when the use flag is not set
+% The dependencies in a use conditional group need to be satisfied when the use flag is set
+rule(use_conditional_group(positive,U,D),[D]) :- 
+  preference:use(Enabled),
+  member(U,Enabled),!.
+
+% Ignored for now: Use flag not enabled or non-positive use conditional group
 rule(use_conditional_group(_,_,_),[]) :- !.
-
 
 % Ignored for now: One dependency of an any_of_group should be satisfied
 rule(any_of_group(_Deps),[]) :- !.   
