@@ -1,3 +1,18 @@
+/*                                                                              
+  Author:   Pieter Van den Abeele                                               
+  E-mail:   pvdabeel@mac.com                                                    
+  Copyright (c) 2005-2019, Pieter Van den Abeele                                
+                                                                                
+  Distributed under the terms of the LICENSE file in the root directory of this 
+  project.                                                                      
+*/                                                                              
+                                                                                
+                                                                                
+/** <module> EBUILD                                                            
+The contents of this file needs some rework. Probably to be moved into repository.
+*/   
+
+
 % *******************
 % EBUILD declarations
 % *******************
