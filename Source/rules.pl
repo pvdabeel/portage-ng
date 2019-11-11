@@ -3,9 +3,10 @@
 % ******************
 
 
-% Skip problematic packages
+% Skip masked packages without failing
 
-rule(_Context://'dev-ros/gmapping-1.3.10':install,[]) :- !.
+rule(Context://Identifier:install,[]) :- 
+  preference:masked(Context://Identifier),!.
 
 
 
