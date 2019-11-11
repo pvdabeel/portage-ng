@@ -92,7 +92,7 @@ prover:test(Repository) :-
   system:time(
               system:forall(Repository:entry(E),
  	                    ((message:success(E),
-                              prover:prove(Repository://E:install,[],_,[],_));
+                              call_with_time_limit(10,prover:prove(Repository://E:install,[],_,[],_)));
 			     (message:failure(E)))
                            )
              ),
@@ -102,7 +102,7 @@ prover:test(Repository) :-
 
 
 prover:testparallel(Repository) :-
-  findall(prover:prove(Repository://E:install,[],_,[],_),Repository:entry(E),Calls), 
+  findall(call_with_time_limit(10,prover:prove(Repository://E:install,[],_,[],_)),Repository:entry(E),Calls), 
   current_prolog_flag(cpu_count,Cpus),                                          
   time(concurrent(Cpus,Calls,[])),                                              
   Repository:get_size(S),                                                       
