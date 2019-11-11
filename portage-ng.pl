@@ -76,7 +76,7 @@ main :-
     % ----------------------------------------
     overlay:init('/Users/pvdabeel/Repository/overlay',
                  '/Users/pvdabeel/Repository/overlay/metadata/md5-cache',
-                 '/Users/pvdabeel/Desktop/Prolog/Repository/Overlay','rsync','eapi'),
+                 '/Users/pvdabeel/Desktop/Prolog/Repository/overlay/','rsync','eapi'),
 
 
     % Example: Github code repository - sync via git
