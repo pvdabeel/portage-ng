@@ -22,7 +22,7 @@ rule(Context://Ebuild:run,[Context://Ebuild:install|Deps]) :-
 
 
 
-% Ignored for now: Conflicting package: EAPI 8.2.6.2: a weak block can be ignored by the package manager
+% Conflicting package: EAPI 8.2.6.2: a weak block can be ignored by the package manager
 
 rule(package_dependency(weak,_,_,_,_,_,_),[]) :- !.
 
