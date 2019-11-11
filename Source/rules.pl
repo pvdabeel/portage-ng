@@ -3,7 +3,7 @@
 % ******************
 
 
-% Skip masked packages without failing
+% Skip attempted installation of masked packages without failing
 
 rule(Context://Identifier:install,[]) :- 
   preference:masked(Context://Identifier),!.
