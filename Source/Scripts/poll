@@ -22,7 +22,7 @@ if [ $LOCAL != $REMOTE ]; then
     
     pushd ~/Graph/ 
 
-    git add .
+    git add -u .
     git commit -m "Update" 
     git push -u origin master 
 
