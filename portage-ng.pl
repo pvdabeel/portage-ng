@@ -1,6 +1,28 @@
-% Copyright 2005-2019 Pieter Van den Abeele
+/* 
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2019, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project. 
+*/
+
+
+/** <module> PORTAGE-NG 
+This application is written in Prolog, a language that lends itself for 
+declarative programming. We extend this language to support a declarative 
+object oriented programming paradigm (CONTEXT) and implement a system to reason 
+about large scale software configuration. E.g. operating systems, programming 
+languages, kernels, etc.
+
+We show that our application can retrieve, read, parse, reason, prove, plan, 
+and even build large scale software configrations. 
+
+This file is the main source file in the repository. It loads all other files.
+*/
 
 :- dynamic cache:entry(_,_,_,_,_,_,_).
+
 
 % **********
 % PORTAGE-NG
@@ -11,6 +33,7 @@
 
 :- ensure_loaded(library('thread')).
 :- ensure_loaded(library('apply_macros')).
+:- ensure_loaded(library('time')).
 
 :- ensure_loaded('Source/context.pl').
 :- ensure_loaded('Source/instances.pl').
@@ -38,11 +61,28 @@
 
 :- ensure_loaded('Source/script.pl').
 
-% DEBUG
-% :- ensure_loaded('Source/test.pl').
-% DEBUG
 
-main :- 
+%! main.
+%
+% The main predicate. 
+%
+% We declare (as an example) the following repositories: 
+%
+% - Gentoo Portage github repository 
+% - SWI-prolog source code github repository 
+% - Linus Torvalds, Linux source code Github repository
+%
+% These repositories are instantiated as Prolog classes.
+%
+% The instances have several public/protected/private methods available. For 
+% example: you can sync the remote repository to a local repository, retrieve 
+% metadata (like releases available) from the repository, query the metadata 
+% available oin this repository)
+%
+% @see Source/context extends Prolog with a declarative OO programming paradigm
+% @see Source/repository defines the repository class
+
+main :-
     config:installation_dir(Directory),
     working_directory(_,Directory),
 
