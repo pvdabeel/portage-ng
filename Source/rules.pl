@@ -3,6 +3,12 @@
 % ******************
 
 
+% Skip problematic packages
+
+rule(_Context://'dev-ros/gmapping-1.3.10':install,[]) :- !.
+
+
+
 % An ebuild can be installed, if its compiletime dependencies are satisfied 
 
 rule(Context://Ebuild:install,Deps) :- 
@@ -70,6 +76,7 @@ rule(package_dependency(no,'virtual','shadow',_,_,_,_),[]) :- !.
 rule(package_dependency(no,'virtual','ssh',_,_,_,_),[]) :- !.
 
 
+
 % A package dependency is satisfied when a suitable candidate is satisfied
 rule(package_dependency(no,C,N,_,_,_,_),portage://Choice:install) :-
   cache:entry(_,Choice,_,C,N,_,_). % write(Choice),nl. 
@@ -86,28 +93,4 @@ rule(any_of_group(_Deps),[]) :- !.
 
 % Ignored for now: All dependencies in an all_of_group should be satisfied
 rule(all_of_group(_Deps),[]) :- !. 
-
-
-
-
-
-
-
-
-
-
-
-
-% Archived
-
-
-% DEBUG: what if a package doesn't have a cache entry defined? 
-% rule(package_dependency(_,C,N,_,_,_,_),_) :- 
-%   not(cache:entry(_,_,_,C,N,_,_)),
-%   fail.
-
-% The dependencies in a use conditional group need to be satisfied when the use flag is set
-% rule(use_conditional_group(_,Use,Deps),Deps) :- 
-%  mypreferences:use(Use),!.
-
 
