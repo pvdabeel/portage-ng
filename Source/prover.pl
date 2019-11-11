@@ -98,3 +98,14 @@ prover:test(Repository) :-
              ),
   Repository:get_size(S),
   message:inform(['proved ',S,' cache entries.']).
+
+
+
+prover:testparallel(Repository) :-
+  findall(prover:prove(Repository://E:install,[],_,[],_),Repository:entry(E),Calls), 
+  current_prolog_flag(cpu_count,Cpus),                                          
+  time(concurrent(Cpus,Calls,[])),                                              
+  Repository:get_size(S),                                                       
+  message:inform(['proved ',S,' cache entries.']).   
+
+
