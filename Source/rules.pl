@@ -30,10 +30,6 @@ rule(package_dependency(weak,_,_,_,_,_,_),[]) :- !.
 
 rule(package_dependency(strong,_,_,_,_,_,_),[]) :- !.
 
-% Ignored for now: Virtual package dependencies 
-
-rule(package_dependency(_,'virtual',_,_,_,_,_),[]) :- !.
-
 
 
 % Dependencies on the system profile are assumed satisfied
