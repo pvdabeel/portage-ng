@@ -1,26 +1,34 @@
-% *****************
-% EAPI declarations
-% *****************
-%
-% This file contains a DCG grammar for Gentoo Portage cache files. 
-% This grammar is compatible with EAPI version 6 and earlier.
-%
-% The portage cache is a directory inside the portage repository 
-% that normally has a file for each ebuild in the portage tree. 
-% In this file, metadata regarding the ebuild can be found.
-%
-% The metadata inside this file is represented as KEY=VALUE pairs.
-% Each line has one KEY=VALUE pair. 
-%
-% The specifications of the grammar can be found here:
-% https://projects.gentoo.org/pms/6/pms.html
+/*                                                                              
+  Author:   Pieter Van den Abeele                                               
+  E-mail:   pvdabeel@mac.com                                                    
+  Copyright (c) 2005-2019, Pieter Van den Abeele                                
+                                                                                
+  Distributed under the terms of the LICENSE file in the root directory of this 
+  project.                                                                      
+*/                                                                              
+                                                                                
+                                                                                
+/** <module> EAPI                                                           
+This file contains a DCG grammar for Gentoo Portage cache files. 
+This grammar is compatible with EAPI version 6 and earlier.
+
+The portage cache is a directory inside the portage repository 
+that normally has a file for each ebuild in the portage tree. 
+In this file, metadata regarding the ebuild can be found.
+
+The metadata inside this file is represented as KEY=VALUE pairs.
+Each line has one KEY=VALUE pair. 
+
+The specifications of the grammar can be found here:
+https://projects.gentoo.org/pms/6/pms.html
+*/
 
 
 % ----------
 % EAPI parse
 % ----------
 
-% eapi:parse(+Codes,-Metadata)
+%! eapi:parse(+Codes,-Metadata)
 %
 % Predicate used to invoke the parser on a list of codes
 %
@@ -39,7 +47,7 @@ eapi:parse(Codes,Metadata) :-
 % EAPI keyvalue structure
 % -----------------------
 
-% DCG eapi:keyvalue/1
+%! DCG eapi:keyvalue/1
 %
 % Predicate used to turn eapi key=value pairs into prolog key(value) pairs
 %
@@ -53,7 +61,7 @@ eapi:keyvalue(Metadata) -->
 % EAPI key structure
 % ------------------
 
-% DCG eapi:key/1
+%! DCG eapi:key/1
 %
 % Predicate used to retrieve the key from an eapi key=value pair.
 %
@@ -68,7 +76,7 @@ eapi:key(Key) -->
 % EAPI value structure
 % --------------------
 
-% DCG eapi:value/3
+%! DCG eapi:value/3
 %
 % Predicate used to retrieve the value corresponding to a given key.
 % Also returns corresponding prolog declaration
@@ -161,7 +169,7 @@ eapi:value(_,unused(R)) -->
 % private predicates
 
 
-% DCG depend
+%! DCG depend
 %
 % EAPI 4 - 9.2 defines a dependency as a dependency sequence.
 % Elements of the dependency sequence are packages.
@@ -170,7 +178,7 @@ eapi:depend(D) -->
   eapi:dependencies(package,D).
 
 
-% DCG rdepend
+%! DCG rdepend
 %
 % EAPI 4 - 9.2 defines a runtime dependency as a dependency sequence.
 % Elements of the dependency sequence are packages.
@@ -179,7 +187,7 @@ eapi:rdepend(D) -->
   eapi:dependencies(package,D).
 
 
-% DCG src_uri
+%! DCG src_uri
 %
 % EAPI 4 - 9.2.6 defines a src_uri as a dependency sequence.
 % Elements of the dependency sequence are uri's.
@@ -188,7 +196,7 @@ eapi:src_uri(S) -->
   eapi:dependencies(uri,S).
 
 
-% DCG restrict
+%! DCG restrict
 %
 % EAPI 4 - 9.2.5 defines a restrict as a dependency sequence.
 % Elements of the dependency sequence are restrict strings.
@@ -197,7 +205,7 @@ eapi:restrict(R) -->
   eapi:dependencies(restrict,R).
 
 
-% DCG homepage
+%! DCG homepage
 %
 % EAPI 4 - 9.2 defines a homepage as a dependency sequence. 
 % Elements of the dependency sequence are uri's.
@@ -212,7 +220,7 @@ eapi:homepage(H) -->
   { string_codes(H,Hs) }.
 
 
-% DCG license
+%! DCG license
 %
 % EAPI 4 - 9.2 defines a license as a dependency sequence. 
 % Elements of the dependency sequence are license strings.
@@ -221,7 +229,7 @@ eapi:license(L) -->
   eapi:dependencies(license,L).
 
 
-% DCG description
+%! DCG description
 %
 % EAPI 2.0 defines a description as an unparsed element. This
 % is basically pure text information.
@@ -231,7 +239,7 @@ eapi:description(D) -->
   { string_codes(D,Ds) }. 
 
 
-% DCG unused
+%! DCG unused
 % 
 % Some of the fields in a cache struct are currently unused. 
 % This grammar is used to parse those entries. Basically they
@@ -241,7 +249,7 @@ eapi:unused(U) -->
   eapi:skip(U).
 
 
-% DCG cdepend
+%! DCG cdepend
 %
 % EAPI 4 - 9.2 defines cdepend as a dependency sequence. Elements
 % of the sequence are typically packages.
@@ -250,7 +258,7 @@ eapi:cdepend(D) -->
   eapi:dependencies(package,D).
 
 
-% DCG provide
+%! DCG provide
 %
 % EAPI 4 - 9.2 defines provide as a dependency sequence. Elements
 % of the sequence must be virtuals. 
@@ -261,7 +269,7 @@ eapi:provide(P) -->
   %eapi:dependencies(virtual,P).
 
 
-% DCG dependencies
+%! DCG dependencies
 %
 % EAPI 4 - 9.1 Grammar for parsing DEPEND, RDEPEND and PDEPEND
 %
@@ -276,7 +284,7 @@ eapi:dependencies(_,[]) -->
   [],!.
 
 
-% DCG dependency
+%! DCG dependency
 %
 % EAPI 4 - 9.2 defines 4 types of dependencies
 
@@ -313,7 +321,7 @@ eapi:dependency(uri,D) -->
   eapi:uri(D),!.
 
 
-% DCG qualified_package
+%! DCG qualified_package
 %
 % EAPI 4 - 9.2 defines a qualified package
 
@@ -321,7 +329,7 @@ eapi:qualified_package(C,P,V) -->
   eapi:category(C),eapi:separator,eapi:package(P),eapi:version(V),!.
 
 
-% DCG package_dependency
+%! DCG package_dependency
 %
 % EAPI 4 - 9.2.4 defines package dependency
 
@@ -334,7 +342,7 @@ eapi:package_dependency(package_dependency(B,C,P,O,V,S,U)) -->
   eapi:use_dependencies(U).                           % optional
 
 
-% DCG use_conditional_group
+%! DCG use_conditional_group
 %
 % EAPI 4 - 9.2.2 defines a use conditional dependency
 
@@ -348,7 +356,8 @@ eapi:use_conditional_group(T,use_conditional_group(P,U,D)) -->
   eapi:whites,                                        % optional
   [41].                                               % required char: )
 
-% DCG any_of_group
+
+%! DCG any_of_group
 %
 % EAPI 4 - 9.2.3 defines an any-of-group dependency
 
@@ -361,7 +370,7 @@ eapi:any_of_group(T,any_of_group(D)) -->
   [41].                                               % required char: )
 
 
-% DCG all_of_group
+%! DCG all_of_group
 %
 % EAPI 9.2.1 defines an all-of-group dependency
 
@@ -372,7 +381,7 @@ eapi:all_of_group(T,all_of_group(D)) -->
   [41].                                               % required char: )
 
 
-% DCG exactly_one_of_group
+%! DCG exactly_one_of_group
 %
 % EAPI 5 - 8.2.0 defines an exactly_one_of dependency
 
@@ -385,7 +394,7 @@ eapi:exactly_one_of_group(T,exactly_one_of_group(D)) -->
   [41].                                               % required char: )
 
 
-% DCG at_most_one_of_group
+%! DCG at_most_one_of_group
 %
 % EAPI 5 - 8.2.0 defines an at_most_one_of dependency
 
@@ -398,7 +407,7 @@ eapi:at_most_one_of_group(T,exactly_one_of_group(D)) -->
   [41].                                               % required char: )
 
 
-% DCG blocking
+%! DCG blocking
 %
 % EAPI 4 - 9.2.4 defines the block operator for package dependencies
 
@@ -412,7 +421,7 @@ eapi:blocking(no) -->
   [],!.
 
 
-% DCG operator
+%! DCG operator
 %
 % EAPI 4 - 9.2.4 defines the operators for package dependencies
 
@@ -444,7 +453,7 @@ eapi:operator(none) -->
   [], !.
 
 
-% DCG: category
+%! DCG: category
 %
 % EAPI 4 - 2.1.1 Category Names
 
@@ -463,7 +472,7 @@ eapi:separator -->
   [47].                                               % char: /
 
 
-% DCG: package
+%! DCG: package
 %
 % EAPI 4 - 2.1.1 Package Names
 
@@ -506,7 +515,7 @@ eapi:invalid_package_ending(E,B) :-
 
 
 
-% DCG: version
+%! DCG: version
 %
 % EAPI 5 - 3.2 defines version specification
 
@@ -664,7 +673,7 @@ eapi:version2atom(N,S,A) :-
 
 
 
-% DCG: md5
+%! DCG: md5
 %
 % EAPI 5 - defines _md5_ metadata
 
@@ -672,7 +681,7 @@ eapi:md5(M) -->
   eapi:pchars(M).
 
 
-% DCG: slot_restriction
+%! DCG: slot_restriction
 %
 % EAPI 4 - 9.2.4 defines slot restriction
 
@@ -690,7 +699,7 @@ eapi:slot_restriction([]) -->
   [],!.
 
 
-% DCG: use_dependencies
+%! DCG: use_dependencies
 %
 % EAPI 4 - 9.2.4 defines 2-style use dependencies
 
@@ -705,7 +714,7 @@ eapi:use_dependencies([]) -->
   [],!.
 
 
-% DCG: use_dependency_list
+%! DCG: use_dependency_list
 %
 % EAPI 4 - 9.2.4 defines use dependency list as comma separated
 % list of use flags
@@ -725,7 +734,7 @@ eapi:use_dependency_list([]) -->
   [],!.
 
 
-% DCG: use_dependency
+%! DCG: use_dependency
 %
 % EAPI 4 - 9.2.4 defines 2-style use dependency syntax
 
@@ -761,7 +770,7 @@ eapi:use_dependency(enable(U),D) -->
   eapi:use_default(D).
 
 
-% DCG use_default
+%! DCG use_default
 %
 % EAPI 4 - 9.2.5.4 defines 4-style use default syntax
 
@@ -775,7 +784,7 @@ eapi:use_default(none) -->
   [],!.
 
 
-% DCG use_exclamation
+%! DCG use_exclamation
 %
 % EAPI 4 - 9.2.2 defines use_exclamation
 
@@ -786,7 +795,7 @@ eapi:use_exclamation(positive) -->
   [],!.
 
 
-% DCG iuse
+%! DCG iuse
 %
 % EAPI 4 - 2.1.4 defines iuse as a list of use flags, each possibly
 % prefixed with a '+' or a '-' to indicate status.
@@ -812,7 +821,7 @@ eapi:iuse([]) -->
   [],!.
 
 
-% DCG required_use
+%! DCG required_use
 %
 % EAPI 4 defines required use as a lost of use flags, with 
 % conditional, xor and or relationship.
@@ -822,7 +831,7 @@ eapi:required_use(Ua) -->
   { atom_codes(Ua,U) }.
 
 
-% DCG keywords
+%! DCG keywords
 %
 % EAPI 4 - 2.1.6 defines keywords as a list of individual keywords,
 % each possibly prefixed with a '~' or a '-' char to indicate status.
@@ -836,7 +845,7 @@ eapi:keywords([]) -->
   [],!.
 
 
-% DCG keyword
+%! DCG keyword
 %
 % EAPI 4 - 2.1.6 defines a keyword as a sequence of chars, each 
 % possibly prefixed with a '~' or a '-' char to indicate status.
@@ -856,7 +865,7 @@ eapi:keyword(stable(Ka)) -->
   { atom_codes(Ka,K) }.
 
 
-% DCG inherited
+%! DCG inherited
 %
 % Identical to functions
 
@@ -871,7 +880,7 @@ eapi:inherited([]) -->
   [],!.
 
 
-% DCG functionslist
+%! DCG functionslist
 %
 % A line of functions
 
@@ -884,7 +893,7 @@ eapi:functions([]) -->
   [],!.
 
 
-% DCG function
+%! DCG function
 %
 % Some cache entries have '-' as functions list
 
@@ -896,7 +905,7 @@ eapi:function(F) -->
   { atom_codes(F,FL) }.
 
 
-% DCG string
+%! DCG string
 %
 % Strings are defined as sequences of generic chars, 
 % separated by whites.
@@ -905,7 +914,7 @@ eapi:string(S) -->
   eapi:chars1(s,S).
 
 
-% DCG stringlist
+%! DCG stringlist
 %
 % A list of strings
 
@@ -918,7 +927,7 @@ eapi:stringlist([]) -->
   [],!.
 
 
-% DCG use_flag
+%! DCG use_flag
 %
 % Use flags are defined in EAPI 4 - 9.2.2 and 4 - 9.2.4
 
@@ -929,7 +938,7 @@ eapi:use_flag(Ua) -->
   }.
 
 
-% DCG choice
+%! DCG choice
 %
 % EAPI 4 - 9.2 Used for identifying an any_of_group
 
@@ -937,7 +946,7 @@ eapi:choice -->
   [124,124].                                         % char: ||.
 
 
-% DCG ane_of
+%! DCG ane_of
 %
 % EAPI 5 - 8.2.0 Used for identifying a one_of group
 
@@ -945,7 +954,7 @@ eapi:one_of -->
   [94,94].                                           % char: ^^
 
 
-% DCG at_most_one
+%! DCG at_most_one
 %
 % EAPI 5 - 8.2.0 Used for identifying an at_most group
 
@@ -953,7 +962,7 @@ eapi:at_most_one -->
   [63,63].                                           % char: ??
 
 
-% DCG comma
+%! DCG comma
 %
 % EAPI 4 - 9.2.4 Used for use_dependencies_list
 
@@ -961,7 +970,7 @@ eapi:comma -->
   [44].                                              % char: ,
 
 
-% DCG virtual
+%! DCG virtual
 %
 % EAPI 4 - 2.1.1 defines a virtual
 
@@ -972,7 +981,7 @@ eapi:virtual([virtual(A)]) -->
 
 
 
-% DCG slot
+%! DCG slot
 %
 % EAPI 5 - 8.2.6.3 defines subslot names
 
@@ -989,7 +998,7 @@ eapi:slot([slot(V)]) -->
   eapi:slot_version(V).
 
 
-% DCG slot_version
+%! DCG slot_version
 %
 % EAPI 5 - defines a slot version
 
@@ -1002,7 +1011,7 @@ eapi:slot_version(Va) -->
 
 
 
-% DCG subslot
+%! DCG subslot
 %
 % EAPI 5 - 8.2.6.4 defines subslot names
 
@@ -1011,7 +1020,7 @@ eapi:subslot(S) -->
   eapi:version0(S). 
 
 
-% DCG eapi
+%! DCG eapi
 %
 % EAPI 2.0 defines the eapi as a version. The eapi is used to 
 % indicate syntax version level.
@@ -1061,7 +1070,7 @@ eapi:untilstop1(C) -->
 
 
 
-% DCG uri
+%! DCG uri
 %
 % EAPI 4 - 9.2 defines URI
 
@@ -1441,7 +1450,7 @@ packageversion(Name,_,_) :-
 % The code is depcrecated but kept for historic reasons.
 
 
-% eapi:keys(-Keys)
+%! eapi:keys(-Keys)
 %
 % Predicate representing the key structure of a pms cache entry. 
 % In a pms cache entry, line number defined the key.
@@ -1472,7 +1481,7 @@ eapi:keys(['depend',
            'unused']).
 
 
-% eapi:elem(+Key,+Entry,-Content)
+%! eapi:elem(+Key,+Entry,-Content)
 %
 % Given a key and a pms cache entry, retrieves the element
 % corresponding to the given key.
