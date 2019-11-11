@@ -92,10 +92,10 @@ rule(use_conditional_group(positive,U,D),[D]) :-
 % Ignored for now: Use flag not enabled or non-positive use conditional group
 rule(use_conditional_group(_,_,_),[]) :- !.
 
-% Ignored for now: One dependency of an any_of_group should be satisfied
-rule(any_of_group(_Deps),[]) :- !.   
+% One dependency of an any_of_group should be satisfied
+rule(any_of_group(Deps),[D]) :- 
+  member(D,Deps).   
 
-
-% Ignored for now: All dependencies in an all_of_group should be satisfied
-rule(all_of_group(_Deps),[]) :- !. 
+% All dependencies in an all_of_group should be satisfied
+rule(all_of_group(Deps),Deps) :- !. 
 
