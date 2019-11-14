@@ -1,13 +1,55 @@
+/*                                                                              
+  Author:   Pieter Van den Abeele                                               
+  E-mail:   pvdabeel@mac.com                                                    
+  Copyright (c) 2005-2019, Pieter Van den Abeele                                
+                                                                                
+  Distributed under the terms of the LICENSE file in the root directory of this 
+  project.                                                                      
+*/                                                                              
+                                                                                
+                                                                                
+/** <module> INTERFACE                                                            
+The interface interpretes command line arguments passed to portage-ng. 
+
+The interface is a static class.                                                  
+*/     
+
+:- module(interface, []).
+
 % **********************
 % INTERFACE declarations
 % **********************
 
-
 :- ensure_loaded(library('optparse')).
 
-interface:version(V) :-
-  V = '20190311'.
+:- class.
 
+% public interface
+
+:- dpublic('version/1').
+:- dpublic('specs/1').
+:- dpublic('process_requests/0').
+
+% protected interface
+
+:- dprotected('argv'/2).
+
+
+%! interface:version(:Version)
+%
+% Public predicate
+%
+% Retrieve the current version
+
+interface:version(V) :-
+  V = '20191114'.
+
+
+%! interface:specs(+Specification)
+%
+% Public predicate
+%
+% Retrieve the interface specification
 
 interface:spec(S) :- 
   S = [
@@ -29,9 +71,24 @@ interface:spec(S) :-
       ].
 
 
+%! interface:argv(-Options,-Args)
+%
+% Protected predicate
+%
+% Retrieve the arguments passed on the command line. 
+
 interface:argv(Options,Args) :-
   interface:spec(S),
   opt_arguments(S,Options,Args).
+
+
+%! interface:process_requests
+%
+% Public predicate
+%
+% Processes the arguments passed on the command line.
+% Maps the options declared in interface:specs(S) onto actions defined as 
+% a set of predicates to be called.  
 
 interface:process_requests :-
   interface:version(Version),
