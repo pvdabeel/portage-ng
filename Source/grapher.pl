@@ -1,13 +1,54 @@
+/*                                                                              
+  Author:   Pieter Van den Abeele                                               
+  E-mail:   pvdabeel@mac.com                                                    
+  Copyright (c) 2005-2019, Pieter Van den Abeele                                
+                                                                                
+  Distributed under the terms of the LICENSE file in the root directory of this 
+  project.                                                                      
+*/                                                                              
+                                                                                
+                                                                                
+/** <module> GRAPHER                                                            
+This file contains predicates that convert:
+ - ebuilds into DOT language directed graphs showing ebuild dependencies in detail
+ - ebuilds into DOT language directed graphs showing full dependency tree
+
+We have can output two type of diagrams: High level tree diagrams or detailled
+diagrams showing, for a given ebuild, all dependencies and the ebuilds that 
+could satisfy the dependency.
+
+The grapher is a static class
+*/   
+
+:- module(grapher, []).
+
+load_files(library(gensym),[if(not_loaded),silent(true)]).
+
 % ********************
 % GRAPHER declarations
 % ********************
 
-load_files(library(gensym),[if(not_loaded),silent(true)]).
+:- class
 
-% This file contains predicates that convert:
-% 
-% - ebuilds into DOT language directed graphs showing ebuild dependencies in detail
-% - ebuilds into DOT language directed graphs showing full dependency tree
+% public interface
+
+:- dpublic('graph'/2).
+:- dpublic('test'/1).
+
+
+% private interface
+
+:- dprivate('write_tree'/1).
+:- dprivate('choices'/2).
+:- dprivate('enconvert'/2).
+:- dprivate('handle'/6).
+
+
+%! grapher:graph(+Type,+Id)
+%
+% Public predicate
+%
+% For a given ebuild, identified by an Id, create a Graphviz dot file
 
 grapher:graph(detail,Id) :-
   writeln('digraph prolog {'),
@@ -84,6 +125,12 @@ grapher:graph(detail,Id) :-
   writeln('}').
 
 
+%! grapher:graph(+Type,+Id)
+%
+% Public predicate
+%
+% For a given ebuild, identified by an Id, create a full dependency diagram.
+
 grapher:graph(full,Id) :-
   writeln('digraph prolog {'),
   nl,
@@ -99,6 +146,12 @@ grapher:graph(full,Id) :-
   retractall(graph_visited(_)).
 
 
+%! grapher:write_tree(+Id)
+%
+% Private predicate
+%
+% For a given ebuild, identified by an Id, create a tree diagram.
+
 grapher:write_tree(Id) :-
   not(graph_visited(Id)),!,
   write('\"'),write(Id),write('\" [color=red, href=\"../'),write(Id),write('.svg\"];'),nl,
@@ -113,10 +166,23 @@ grapher:write_tree(Id) :-
   graph_visited(Id),!.
  
 
+%! grapher:enconvert(+Id,-Code)
+%
+% Private predicate
+%
+% Create a unique name for a given ebuild.
+
 grapher:enconvert(Id,Code) :-
   string_codes(Id,List),
   atomic_list_concat([choice|List],Code).
 
+
+%! grapher:choices(+Type,+List)
+%
+% Private predicate
+%
+% Given a graph type (detail or full), outputs a list of ebuilds satisfying 
+% a dependency 
 
 grapher:choices(_,[]) :-
   !,true.
@@ -146,17 +212,17 @@ grapher:choices(full,[arrow(D,[Choice])|Rest]) :-
   write('\"'),write(Choice),write('\"'),nl,
   grapher:choices(full,Rest).
 
-
 grapher:choices(Kind,[L|Rest]) :-
   !,
   grapher:choices(Kind,L),
   grapher:choices(Kind,Rest).
 
 
-
-% *******************
-% HIGH LEVEL GRAPHING
-% *******************
+%! grapher:handle(+Type,+Style,+ArrowStyle,+Master,+Dependency,-Output)
+%
+% Private predicate
+%
+% For a given graph style, create a meta reprensentation of a dependency
 
 grapher:handle(full,_Style,_Arrow,Master,package_dependency(_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Master,[Choice])) :-
   cache:entry(_,Choice,_,Cat,Name,_,_),
@@ -175,10 +241,6 @@ grapher:handle(full,_Style,_Arrow,_Master,at_most_one_of_group(_),[]) :- !.
 grapher:handle(full,_Style,_Arrow,_Master,_,[]) :- !.
 
 
-% ***************
-% DETAIL GRAPHING
-% ***************
-
 grapher:handle(detail,Style,Arrow,Master,package_dependency(Type,Cat,Name,Comp,Ver,_,_),arrow(D,Choices)) :-
   !,
   gensym(pack,P),
@@ -193,7 +255,6 @@ grapher:handle(detail,Style,Arrow,Master,package_dependency(Type,Cat,Name,Comp,V
   % atom_string(Cata,Cat),
   findall(R,cache:entry(_,R,_,Cat,Name,_,_),Choices),
   !, true.
-
 
 
 grapher:handle(detail,Style,Arrow,Master,use_conditional_group(Type,Use,Deps),Choices) :-
@@ -217,7 +278,6 @@ grapher:handle(detail,Style,Arrow,Master,any_of_group(Deps),Choices) :-
   findall(Ch,(member(Dep,Deps),grapher:handle(detail,dotted,oinv,D,Dep,Ch)),Choices),
   write('}'),nl,
   write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl.
-
 
 
 grapher:handle(detail,Style,Arrow,Master,all_of_group(Deps),Choices) :-
@@ -253,7 +313,6 @@ grapher:handle(detail,Style,Arrow,Master,at_most_one_of_group(Deps),Choices) :-
   write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl.
 
 
-
 grapher:handle(detail,_Style,_Arrow,Master,S,[]) :-
   !,
   writeln('# *** BEGIN UNKNOWN DEPENDENCY TYPE (TODO) ***'), 
@@ -261,6 +320,18 @@ grapher:handle(detail,_Style,_Arrow,Master,S,[]) :-
   writeln('# *** END UNKNOWN DEPENDENCY TYPE (TODO) ***'), 
   nl.
 
+
+%! grapher:test(+Repository)
+%
+% For a given 'eapi' repository, create Graphviz dot files in the graph 
+% directory for all ebuilds in the repository. Triggers a script to convert 
+% the dot files into interactive scalable vector graphics (SVG).
+%
+% When an SVG graph is opened in a modern browser, it will show for a given 
+% ebuild what dependencies that ebuild has. The SVG diagram will have links 
+% to ebuilds that can satisfy the dependency. Each ebuild linked to can be 
+% opened by clicking on it in the diagram, enabling manual dependency graph
+% traversal to debug issues with ebuild dependencies.
 
 grapher:test(Repository) :-
   config:graph_directory(D),
@@ -292,6 +363,3 @@ grapher:test(Repository) :-
           told
          )),
   script:exec(graph,['dot',D]).
-
-
-
