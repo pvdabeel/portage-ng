@@ -26,9 +26,9 @@ The interface is a static class.
 
 % public interface
 
-:- dpublic('version/1').
-:- dpublic('specs/1').
-:- dpublic('process_requests/0').
+:- dpublic('version'/1).
+:- dpublic('specs'/1).
+:- dpublic('process_requests'/0).
 
 % protected interface
 

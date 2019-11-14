@@ -65,7 +65,7 @@ builder:execute(Plan) :-
 % Swipl is an example respository of type 'cmake' (see portage-ng.pl main)
 
 builder:build(Context://Entry:_Action) :-
-  Context:get_type('eapi'),!.
+  Context:get_type('eapi'),!,
   portage:get_location(L),
   portage:ebuild(Entry,Category,Package,Version),
   atomic_list_concat(['ebuild ',L,'/',Category,'/',Package,'/',Package,'-',Version,'.ebuild install qmerge clean'],Cmd),

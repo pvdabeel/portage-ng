@@ -28,7 +28,7 @@ load_files(library(gensym),[if(not_loaded),silent(true)]).
 % GRAPHER declarations
 % ********************
 
-:- class
+:- class.
 
 % public interface
 
