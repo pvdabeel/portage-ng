@@ -1,14 +1,31 @@
+/*                                                                              
+  Author:   Pieter Van den Abeele                                               
+  E-mail:   pvdabeel@mac.com                                                    
+  Copyright (c) 2005-2019, Pieter Van den Abeele                                
+                                                                                
+  Distributed under the terms of the LICENSE file in the root directory of this 
+  project.                                                                      
+*/                                                                              
+                                                                                
+                                                                                
+/** <module> KNOWLEDGE BASE
+The Knowledge Base is a concept that enables different repositories to register,
+serialize their rules and facts to disk. This is used as a mechanism to maintain
+state across application relaunches.
+*/     
+
+:- module(knowledgebase,[]).
+
 % **************************
 % KNOWLEDGEBASE declarations
 % **************************
 
-:- module(knowledgebase,[]).
-
 :- class.
+
+% public interface
 
 :- dpublic('knowledgebase'/0).
 :- dpublic('~knowledgebase'/0).
-
 
 :- dpublic(register/1).
 :- dpublic(sync/0).
@@ -17,66 +34,68 @@
 :- dpublic(clear/0).
 
 :- dpublic(query/2).
+:- dpublic(entry/1).
+
+%protected interface
 
 :- dprotected(repository/1).
-:- dpublic(entry/1).
 :- dprotected(state/1).
 
 
-% Constructor
+%! Constructor
 %
-% public predicate
+% Public predicate
 
 'knowledgebase' ::-
   true.
 
 
-% Destructor
+%! Destructor
 %
-% public predicate
+% Public predicate
 
 '~knowledgebase' ::-
   true.
 
 
-% knowledgebase:register(-Repository)
+%! knowledgebase:register(-Repository)
+%
+% Public predicate
 %
 % Register a repository with the knowledge base
-%
-% public predicate
 
-register(Repository) ::-
+knowledgebase:register(Repository) ::-
   <+repository(Repository),!.
 
 
-% knowledgebase:deregister(-Repository)
+%! knowledgebase:deregister(-Repository)
+%
+% Public predicate
 %
 % Deregister a repository with the knowledge base
-%
-% public predicate
 
-deregister(Repository) ::-
+knowledgebase:deregister(Repository) ::-
   <-repository(Repository),!.
 
 
-% knowledgebase:sync
+%! knowledgebase:sync
+%
+% Public predicate
 %
 % Sync all registered repositories 
-%
-% public predicate
 
-sync ::-  
+knowledgebase:sync ::-  
   forall(::repository(Repository),
 	 Repository:sync).
 
 
-% knowledgebase:save
+%! knowledgebase:save
+%
+% Public predicate
 %
 % Save state to file 
-%
-% public predicate
 
-save ::-
+knowledgebase:save ::-
   tell('kb.raw'),
   writeln(':- module(cache,[]).'),
   writeln(':- dynamic cache:entry(_,_,_,_,_,_,_).'),
@@ -91,11 +110,11 @@ save ::-
 %
 % public predicate
 
-load ::-
+knowledgebase:load ::-
   exists_file('kb.qlf'),!,
   ensure_loaded('kb.qlf').
 
-load ::-
+knowledgebase:load ::-
   true.
 
 
@@ -105,11 +124,11 @@ load ::-
 %
 % public predicate
 
-clear ::-
+knowledgebase:clear ::-
   exists_file('kb.qlf'),!,
   delete_file('kb.qlf'). 
 
-clear ::-
+knowledgebase:clear ::-
   true.
 
 
@@ -119,7 +138,7 @@ clear ::-
 %
 % protected predicate
 
-state(File) ::-
+knowledgebase:state(File) ::-
   :this(Context),
   atomic_list_concat([Context,'.raw'],File).
 
@@ -130,7 +149,7 @@ state(File) ::-
 %
 % protected predicate
 
-repository(_Repository) ::-
+knowledgebase:repository(_Repository) ::-
   true.
 
 
@@ -140,5 +159,5 @@ repository(_Repository) ::-
 %
 % protected predicate
 
-entry(_E) ::-
+knowledgebase:entry(_E) ::-
   true.
