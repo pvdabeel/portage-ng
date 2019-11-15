@@ -1,14 +1,22 @@
+/*                                                                              
+  Author:   Pieter Van den Abeele                                               
+  E-mail:   pvdabeel@mac.com                                                    
+  Copyright (c) 2005-2019, Pieter Van den Abeele                                
+                                                                                
+  Distributed under the terms of the LICENSE file in the root directory of this 
+  project.                                                                      
+*/                                                                              
+                                                                                
+                                                                                
+/** <module> MESSAGE                                                            
+This file contains the predicates used for pretty printing messages.                                                   */    
+
 % ********************
 % MESSAGE declarations
 % ********************
 
-% This file contains the predicates used for pretty printing messages. Write and
-% writeln cannot be used in this project except in this file.
 
-% [ <warn>foo</warn> ]
-
-
-% message:color(+Color)
+%! message:color(+Color)
 %
 % Sets the message color. Uses ANSI escape codes.
 
@@ -31,13 +39,17 @@ message:color(normal) :-
   system:write('\033[00m').
 
 
+%! message:eend
+%
+% Jump to the beginning of the line.
+
 message:eend :-
   tty_size(X,Y),
   NewY is Y - 10,
   tty_goto(NewY,X).
 
 
-% message:print(+Message)
+%! message:print(+Message)
 %
 % Write a list or simple message
 
@@ -50,7 +62,7 @@ message:print(Message) :-
   system:write(Message).
 
 
-% message:print(+Message,-Len)
+%! message:print(+Message,-Len)
 %
 % Write a list message and return its length
 
@@ -60,7 +72,7 @@ message:print(Message,Len) :-
   write_length(Concat,Len,[]).
 
 
-% message:failure(+Message)
+%! message:failure(+Message)
 %
 % Informs the user about a failure and fails.
 
@@ -74,7 +86,7 @@ message:failure(Message) :-
   fail.
 
 
-% message:warning(+Message)
+%! message:warning(+Message)
 %
 % Informs the user about a warning and continues.
 
@@ -87,7 +99,7 @@ message:warning(Message) :-
   nl.
 
 
-% message:success(+Message)
+%! message:success(+Message)
 %
 % Informs the user about something that went OK and continues.
 
@@ -100,7 +112,7 @@ message:success(Message) :-
   nl.
 
 
-% message:inform(+Message)
+%! message:inform(+Message)
 %
 % Informs the user about something
 % Message is a list.
@@ -111,7 +123,7 @@ message:inform(Message) :-
   nl.
 
 
-% message:scroll(+Message)
+%! message:scroll(+Message)
 %
 % Informs the user about something - scroll style
 % Message is a list.
@@ -125,7 +137,7 @@ message:scroll(Message) :-
 
 
 
-% message:header(+Message)
+%! message:header(+Message)
 %
 % Informs the user about something - header style
 % Message is a list.
@@ -140,7 +152,7 @@ message:header(Message) :-
 
 
 
-% message:prefix(failure)
+%! message:prefix(failure)
 %
 % Message prefix
 
@@ -148,7 +160,7 @@ message:prefix(_) :-
   system:write('>>> ').
 
 
-% message:wrap(rule)
+%! message:wrap(rule)
 %
 % Informs and executes
 
