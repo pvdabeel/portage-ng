@@ -15,6 +15,7 @@ This file contains the predicates used for pretty printing messages.            
 % MESSAGE declarations
 % ********************
 
+:- module(message, []).
 
 %! message:color(+Color)
 %
