@@ -18,6 +18,7 @@ Eventually this could become a class with different subclasses.
 % OS declarations
 % ***************
 
+:- module(os, []).
 
 %! os:directory_content(+Directory,-Content)
 %
