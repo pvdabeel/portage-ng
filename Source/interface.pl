@@ -10,8 +10,6 @@
                                                                                 
 /** <module> INTERFACE                                                            
 The interface interpretes command line arguments passed to portage-ng. 
-
-The interface is a static class.                                                  
 */     
 
 :- module(interface, []).
@@ -22,22 +20,8 @@ The interface is a static class.
 
 :- ensure_loaded(library('optparse')).
 
-:- class.
-
-% public interface
-
-:- dpublic('version'/1).
-:- dpublic('specs'/1).
-:- dpublic('process_requests'/0).
-
-% protected interface
-
-:- dprotected('argv'/2).
-
 
 %! interface:version(:Version)
-%
-% Public predicate
 %
 % Retrieve the current version
 
@@ -46,8 +30,6 @@ interface:version(V) :-
 
 
 %! interface:specs(+Specification)
-%
-% Public predicate
 %
 % Retrieve the interface specification
 
@@ -73,8 +55,6 @@ interface:spec(S) :-
 
 %! interface:argv(-Options,-Args)
 %
-% Protected predicate
-%
 % Retrieve the arguments passed on the command line. 
 
 interface:argv(Options,Args) :-
@@ -83,8 +63,6 @@ interface:argv(Options,Args) :-
 
 
 %! interface:process_requests
-%
-% Public predicate
 %
 % Processes the arguments passed on the command line.
 % Maps the options declared in interface:specs(S) onto actions defined as 
