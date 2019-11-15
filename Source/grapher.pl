@@ -28,25 +28,8 @@ load_files(library(gensym),[if(not_loaded),silent(true)]).
 % GRAPHER declarations
 % ********************
 
-:- class.
-
-% public interface
-
-:- dpublic('graph'/2).
-:- dpublic('test'/1).
-
-
-% private interface
-
-:- dprivate('write_tree'/1).
-:- dprivate('choices'/2).
-:- dprivate('enconvert'/2).
-:- dprivate('handle'/6).
-
 
 %! grapher:graph(+Type,+Id)
-%
-% Public predicate
 %
 % For a given ebuild, identified by an Id, create a Graphviz dot file
 
@@ -127,8 +110,6 @@ grapher:graph(detail,Id) :-
 
 %! grapher:graph(+Type,+Id)
 %
-% Public predicate
-%
 % For a given ebuild, identified by an Id, create a full dependency diagram.
 
 grapher:graph(full,Id) :-
@@ -148,8 +129,6 @@ grapher:graph(full,Id) :-
 
 %! grapher:write_tree(+Id)
 %
-% Private predicate
-%
 % For a given ebuild, identified by an Id, create a tree diagram.
 
 grapher:write_tree(Id) :-
@@ -168,8 +147,6 @@ grapher:write_tree(Id) :-
 
 %! grapher:enconvert(+Id,-Code)
 %
-% Private predicate
-%
 % Create a unique name for a given ebuild.
 
 grapher:enconvert(Id,Code) :-
@@ -178,8 +155,6 @@ grapher:enconvert(Id,Code) :-
 
 
 %! grapher:choices(+Type,+List)
-%
-% Private predicate
 %
 % Given a graph type (detail or full), outputs a list of ebuilds satisfying 
 % a dependency 
@@ -219,8 +194,6 @@ grapher:choices(Kind,[L|Rest]) :-
 
 
 %! grapher:handle(+Type,+Style,+ArrowStyle,+Master,+Dependency,-Output)
-%
-% Private predicate
 %
 % For a given graph style, create a meta reprensentation of a dependency
 
