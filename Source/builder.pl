@@ -9,29 +9,14 @@
                                                                                 
                                                                                 
 /** <module> BUILDER                                                         
-The Builder takes a plan from the Planner and executes it. 
-
-The builder is a static class. 
+The Builder takes a plan from the Planner and executes it.
 */    
-
-:- module(builder, []).
 
 % ********************
 % BUILDER declarations
 % ********************
 
-:- class.
-
-% public interface
-
-:- dpublic('execute'/1).
-:- dpublic('build'/1).
-:- dpublic('test'/1).
-
-% protected interface
-
-:- dprotected('firststep'/1).
-:- dprotected('nextstep'/1).
+:- module(builder, []).
 
 
 %! builder:execute(+Plan)                                                                        

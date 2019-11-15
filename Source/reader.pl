@@ -1,16 +1,44 @@
+/*                                                                              
+  Author:   Pieter Van den Abeele                                               
+  E-mail:   pvdabeel@mac.com                                                    
+  Copyright (c) 2005-2019, Pieter Van den Abeele                                
+                                                                                
+  Distributed under the terms of the LICENSE file in the root directory of this 
+  project.                                                                      
+*/                                                                              
+                                                                                
+                                                                                
+/** <module> READER                                                            
+The reader reads metadata from a repository.
+
+The provided reader is capable of reading portage metadata
+cache from a local portage tree. Supports the newer md5 cache format.
+
+Input:  The location of a cache entry. 
+Output: A nested list of codes, each sublist represents a line.
+
+The reader is a static class.                                                  
+*/    
+
+:- module(reader, []).
+
 % *******************
 % READER declarations
 % *******************
-%
-% The provided reader is capable of reading portage metadata
-% cache from a local portage tree. Supports the newer md5 cache format.
-%
-% Input:  The location of a cache entry. 
-%
-% Output: A nested list of codes, each sublist represents a line.
+
+:- class.
+
+% public pinterface
+
+:- dpublic('invoke'/3).
+
+% protected interface
+
+:- dprotected('read_lines'/2).
+:- dprotected('read_timestamp'/2).
 
 
-% reader:invoke(+Cache,+Entry,-Contents)
+%! reader:invoke(+Cache,+Entry,-Contents)
 %
 % Cache: The location of the cache.
 %
@@ -28,7 +56,7 @@ reader:invoke(Cache,Entry,Contents) :-
   close(Stream).
 
 
-% reader:read_lines(+Stream,-Lines)
+%! reader:read_lines(+Stream,-Lines)
 %
 % Given a stream, reads all lines from the stream.
 %
@@ -45,7 +73,7 @@ reader:read_lines(Stream,[L|R]) :-
   reader:read_lines(Stream,R).
 
 
-% reader:read_timestamp(File,Time)
+%! reader:read_timestamp(File,Time)
 %
 % Given a timestamp file, reads the timestamp.
 %
@@ -60,7 +88,7 @@ reader:read_timestamp(File,Time) :-
   number_codes(Time,Codes).
 
 
-% reader:test(+Repository)
+%! reader:test(+Repository)
 %
 % Predicate tests whether all cache entries in a given repository
 % can be read correctly.
