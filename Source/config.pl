@@ -16,8 +16,8 @@ configuration. The parameters described typically do not change at runtime.
 % *******************
 % CONFIG declarations
 % *******************
-%
-% Settings used throughout the program.
+
+:- module(config, []).
 
 %! config:installation_dir(+FullPath)
 %
