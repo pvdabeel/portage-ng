@@ -28,6 +28,8 @@ https://projects.gentoo.org/pms/6/pms.html
 % EAPI parse
 % ----------
 
+:- module(eapi, []).
+
 %! eapi:parse(+Codes,-Metadata)
 %
 % Predicate used to invoke the parser on a list of codes
