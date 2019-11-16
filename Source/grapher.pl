@@ -16,8 +16,6 @@ This file contains predicates that convert:
 We have can output two type of diagrams: High level tree diagrams or detailled
 diagrams showing, for a given ebuild, all dependencies and the ebuilds that 
 could satisfy the dependency.
-
-The grapher is a static class
 */   
 
 load_files(library(gensym),[if(not_loaded),silent(true)]).
