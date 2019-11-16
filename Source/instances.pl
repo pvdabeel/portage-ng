@@ -9,7 +9,8 @@
                                                                                 
                                                                                 
 /** <module> INSTANCES                                                           
-This file declares a predicate to list all instances for a given class.                                                */     
+This file declares a predicate to list all instances for a given class.
+*/
 
 :- module(instances, ['instances'/2]).
 
