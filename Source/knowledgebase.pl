@@ -155,7 +155,7 @@ repository(_Repository) ::-
 
 % knowledgebase:repository
 %
-% cache entries
+% knowledgebase entries
 %
 % protected predicate
 

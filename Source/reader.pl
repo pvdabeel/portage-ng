@@ -81,4 +81,4 @@ reader:test(Repository) :-
                (reader:invoke(C,E,_);(message:failure(E)))
 	     )),
   Repository:get_size(S),
-  message:inform(['read ',S,' cache entries.']).
+  message:inform(['read ',S,' repository entries.']).
