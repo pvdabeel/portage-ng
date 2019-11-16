@@ -1,16 +1,23 @@
 #!/bin/bash
 
+# Make sure you have portage-ng installed!
+
+if ! [ -x "$(portage-ng)" ]; then
+  echo "Portage-ng is not installed in your PATH" 
+  exit 1
+fi
+
 while true
 do
 
-#move into your git repo where your jekyll site is
 cd ~/Repository/portage-git/;
 
 git fetch --prune;
 LOCAL=$(git rev-parse HEAD);
 REMOTE=$(git rev-parse @{u});
 
-#if our local revision id doesn't match the remote, we will need to pull the changes
+# If our local revision id doesn't match the remote, we will need to pull the changes
+
 if [ $LOCAL != $REMOTE ]; then
     
     echo -e ">>> Commit found, updating"
