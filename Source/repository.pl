@@ -118,11 +118,10 @@ sync ::-
 % public predicate
 
 sync(repository) ::-
-  ::type(Type),
   ::location(Local),
   ::remote(Remote),
   ::protocol(Protocol),
-  script:exec(sync,[Type,Protocol,Remote,Local]),!.
+  script:exec(sync,[Protocol,Remote,Local]),!.
 
 
 %! repository:sync(+Metadata)
