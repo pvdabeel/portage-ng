@@ -182,7 +182,7 @@ read_entry(Entry,Timestamp,Category,Name,Version) ::-
   os:directory_content(Cache,Category),
   os:compose_path(Cache,Category,CategoryDir),
   os:directory_content(CategoryDir,Package),
-  packageversion(Package,Name,Version),       % BUG
+  eapi:packageversion(Package,Name,Version),       % BUG
   os:compose_path(Category,Package,Entry),
   os:compose_path(Cache,Entry,File),
   system:time_file(File,Timestamp).

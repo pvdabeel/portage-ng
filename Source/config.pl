@@ -19,6 +19,12 @@ configuration. The parameters described typically do not change at runtime.
 % CONFIG declarations
 % *******************
 
+%! config:dry_run_build
+%
+% Declare config:dry_run_build to avoid actually building software.
+
+config:dry_run_build.
+
 
 %! config:installation_dir(+FullPath)
 %
