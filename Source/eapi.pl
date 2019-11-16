@@ -1,23 +1,23 @@
-/*                                                                              
-  Author:   Pieter Van den Abeele                                               
-  E-mail:   pvdabeel@mac.com                                                    
-  Copyright (c) 2005-2019, Pieter Van den Abeele                                
-                                                                                
-  Distributed under the terms of the LICENSE file in the root directory of this 
-  project.                                                                      
-*/                                                                              
-                                                                                
-                                                                                
-/** <module> EAPI                                                           
-This file contains a DCG grammar for Gentoo Portage cache files. 
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2019, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
+
+/** <module> EAPI
+This file contains a DCG grammar for Gentoo Portage cache files.
 This grammar is compatible with EAPI version 6 and earlier.
 
-The portage cache is a directory inside the portage repository 
-that normally has a file for each ebuild in the portage tree. 
+The portage cache is a directory inside the portage repository
+that normally has a file for each ebuild in the portage tree.
 In this file, metadata regarding the ebuild can be found.
 
 The metadata inside this file is represented as KEY=VALUE pairs.
-Each line has one KEY=VALUE pair. 
+Each line has one KEY=VALUE pair.
 
 The specifications of the grammar can be found here:
 https://projects.gentoo.org/pms/6/pms.html
@@ -55,7 +55,7 @@ eapi:parse(Codes,Metadata) :-
 %
 % private predicate
 
-eapi:keyvalue(Metadata) --> 
+eapi:keyvalue(Metadata) -->
   eapi:key(Key),
   eapi:value(Key,Metadata).
 
@@ -67,11 +67,11 @@ eapi:keyvalue(Metadata) -->
 %
 % Predicate used to retrieve the key from an eapi key=value pair.
 %
-% private predicate 
+% private predicate
 
 eapi:key(Key) -->
-  eapi:metachars(Cs), 
-  { string_codes(Key,Cs) }. 
+  eapi:metachars(Cs),
+  { string_codes(Key,Cs) }.
 
 
 % --------------------
@@ -102,7 +102,7 @@ eapi:value("EAPI",eapi(R)) -->
   eapi:eapi(R).
 
 eapi:value("HOMEPAGE",homepage(R)) -->
-  !, 
+  !,
   eapi:homepage(R).
 
 eapi:value("IUSE",iuse(R)) -->
@@ -151,7 +151,7 @@ eapi:value("PROPERTIES",properties(R)) -->
 
 eapi:value("_eclasses_",eclasses(R)) -->
   !,
-  eapi:inherited(R).   		
+  eapi:inherited(R).
 
 eapi:value("_md5_",md5(R)) -->
   !,
@@ -209,7 +209,7 @@ eapi:restrict(R) -->
 
 %! DCG homepage
 %
-% EAPI 4 - 9.2 defines a homepage as a dependency sequence. 
+% EAPI 4 - 9.2 defines a homepage as a dependency sequence.
 % Elements of the dependency sequence are uri's.
 %
 % Homepage uri's tend to include a wide range of non-standard
@@ -224,7 +224,7 @@ eapi:homepage(H) -->
 
 %! DCG license
 %
-% EAPI 4 - 9.2 defines a license as a dependency sequence. 
+% EAPI 4 - 9.2 defines a license as a dependency sequence.
 % Elements of the dependency sequence are license strings.
 
 eapi:license(L) -->
@@ -238,14 +238,14 @@ eapi:license(L) -->
 
 eapi:description(D) -->
   eapi:skip(Ds),
-  { string_codes(D,Ds) }. 
+  { string_codes(D,Ds) }.
 
 
 %! DCG unused
-% 
-% Some of the fields in a cache struct are currently unused. 
+%
+% Some of the fields in a cache struct are currently unused.
 % This grammar is used to parse those entries. Basically they
-% are treated as a char sequence. 
+% are treated as a char sequence.
 
 eapi:unused(U) -->
   eapi:skip(U).
@@ -263,7 +263,7 @@ eapi:cdepend(D) -->
 %! DCG provide
 %
 % EAPI 4 - 9.2 defines provide as a dependency sequence. Elements
-% of the sequence must be virtuals. 
+% of the sequence must be virtuals.
 
 eapi:provide(P) -->
   eapi:skip(Ps),
@@ -461,7 +461,7 @@ eapi:operator(none) -->
 
 eapi:category(Ca) -->
   eapi:chars1(c,C),
-  { 
+  {
     atom_codes(Ca,C)
   }.
 
@@ -504,16 +504,16 @@ eapi:convert_package(L,P) :-
   atomic_list_concat(R,'-',P).
 
 
-% Case: last chunk is a version 
+% Case: last chunk is a version
 
 eapi:invalid_package_ending(E,_) :-
-  phrase(eapi:version2(_),E,[]),!.			
+  phrase(eapi:version2(_),E,[]),!.
 
 % Case: last chunk is a revision AND the chunk before is a version
 
-eapi:invalid_package_ending(E,B) :-			
+eapi:invalid_package_ending(E,B) :-
   phrase(eapi:versionrevision(_),E,[]),
-  phrase(eapi:version2(_),B,[]),!.			
+  phrase(eapi:version2(_),B,[]),!.
 
 
 
@@ -534,7 +534,7 @@ eapi:version(V) -->
 
 
 
-% eapi:version0 starts with '-', and can be empty 
+% eapi:version0 starts with '-', and can be empty
 
 eapi:version0(V) -->
 %  [45],
@@ -548,10 +548,10 @@ eapi:version0('') -->
 
 % eapi:version2 reads a version following EAPI 5 spec
 
-eapi:version2([C,S]) -->                              
-  eapi:versionnumberpart(C), 
+eapi:version2([C,S]) -->
+  eapi:versionnumberpart(C),
   eapi:versionsuffixpart(S).
-  
+
 eapi:version2([]) -->
   [],!.
 
@@ -600,7 +600,7 @@ eapi:versionsuffix([95,97,108,112,104,97|V]) -->
 eapi:versionsuffix([95,98,101,116,97|V]) -->
   [95,98,101,116,97],					% _beta
   !,
-  eapi:versioninteger2(V).	
+  eapi:versioninteger2(V).
 
 eapi:versionsuffix([95,112,114,101|V]) -->
   [95,112,114,101],					% _pre
@@ -633,7 +633,7 @@ eapi:versionrevision([114|V]) -->			% (-)r
   eapi:versioninteger(V).
 
 
-% eapi:versioninteger - reads integers 
+% eapi:versioninteger - reads integers
 
 eapi:versioninteger([42|V]) -->
   [42],
@@ -659,7 +659,7 @@ eapi:versioninteger2([]) -->
 
 % eapi:versionalpha reads alpha
 
-eapi:versionalpha([C]) --> 
+eapi:versionalpha([C]) -->
   [C],
   { code_type(C,alpha), !}.
 
@@ -791,7 +791,7 @@ eapi:use_default(none) -->
 % EAPI 4 - 9.2.2 defines use_exclamation
 
 eapi:use_exclamation(negative) -->
-  [33],!.                                             % char: ! 
+  [33],!.                                             % char: !
 
 eapi:use_exclamation(positive) -->
   [],!.
@@ -825,7 +825,7 @@ eapi:iuse([]) -->
 
 %! DCG required_use
 %
-% EAPI 4 defines required use as a lost of use flags, with 
+% EAPI 4 defines required use as a lost of use flags, with
 % conditional, xor and or relationship.
 
 eapi:required_use(Ua) -->
@@ -849,7 +849,7 @@ eapi:keywords([]) -->
 
 %! DCG keyword
 %
-% EAPI 4 - 2.1.6 defines a keyword as a sequence of chars, each 
+% EAPI 4 - 2.1.6 defines a keyword as a sequence of chars, each
 % possibly prefixed with a '~' or a '-' char to indicate status.
 
 eapi:keyword(unstable(Ka)) -->
@@ -909,7 +909,7 @@ eapi:function(F) -->
 
 %! DCG string
 %
-% Strings are defined as sequences of generic chars, 
+% Strings are defined as sequences of generic chars,
 % separated by whites.
 
 eapi:string(S) -->
@@ -1005,7 +1005,7 @@ eapi:slot([slot(V)]) -->
 % EAPI 5 - defines a slot version
 
 eapi:slot_version(Va) -->
-%  eapi:version0(V). 
+%  eapi:version0(V).
   eapi:chars1(v,V),
   {
     atom_codes(Va,V)
@@ -1019,16 +1019,16 @@ eapi:slot_version(Va) -->
 
 eapi:subslot(S) -->
   [47],                                               % char: /
-  eapi:version0(S). 
+  eapi:version0(S).
 
 
 %! DCG eapi
 %
-% EAPI 2.0 defines the eapi as a version. The eapi is used to 
+% EAPI 2.0 defines the eapi as a version. The eapi is used to
 % indicate syntax version level.
 
 eapi:eapi(E) -->
-  eapi:version2(E). 
+  eapi:version2(E).
 
 
 % DCG untildash
@@ -1047,10 +1047,10 @@ eapi:untildash([C|R]) -->
 %
 % This basically reads all chars until a stopchar is encountered
 
-% EAPI 6 allows for ( and ) in src_uri ! 
+% EAPI 6 allows for ( and ) in src_uri !
 
 eapi:untilstop([]) -->
-  [41,32], { !,fail }.                                   % char: ) 
+  [41,32], { !,fail }.                                   % char: )
 
 eapi:untilstop([]) -->
   [40,32], { !,fail }.                                   % char: (
@@ -1121,8 +1121,8 @@ eapi:local(L) -->
 
 
 % DCG timestamp
-% 
-% metadata/timestamp.x contains a float, followed 
+%
+% metadata/timestamp.x contains a float, followed
 % by human readable datetime
 
 eapi:timestamp(T) -->
@@ -1190,7 +1190,7 @@ eapi:jumprule(v,[46]) :- !.                      % EAPI 2.2: A version may conta
 eapi:jumprule(v,[C]) :- code_type(C,alnum), !.   % EAPI 2.2: A version may contain alphanumeric chars
 eapi:jumprule(r,[45]) :- !.                      % EAPI 9.2.4: A slot restriction may contain '-'
 eapi:jumprule(r,[95]) :- !.                      % EAPI 9.2.4: A slot restriction may contain '_'
-eapi:jumprule(r,[46]) :- !.                      % EAPI 9.2.4: A slot restriction may contain '*'  
+eapi:jumprule(r,[46]) :- !.                      % EAPI 9.2.4: A slot restriction may contain '*'
 eapi:jumprule(r,[46]) :- !.                      % EAPI 9.2.4: A slot restriction may contain '.'
 eapi:jumprule(r,[C]) :- code_type(C,alnum), !.   % EAPI 9.2.4: A slot restriction may contain alphanumeric chars
 eapi:jumprule(f,[45]) :- !.                      % EAPI 9.2.0: A function name may contain '-'
@@ -1288,7 +1288,7 @@ eapi:pcharschunk([C|R]) -->
   eapi:pcharschunk2(R).
 
 
-eapi:pcharschunk2([]) -->		% a chunck ends when '-' is encountered 
+eapi:pcharschunk2([]) -->		% a chunck ends when '-' is encountered
   [45],!.
 
 eapi:pcharschunk2([]) --> 		% a chunck can never contain a '.'
@@ -1433,16 +1433,16 @@ version:sublists(L,S,[E|T]) :-
 % Produces version from a packagename.
 
 packageversion(Name,Package,Version) :-
-  atom_to_chars(Name,N),                    
+  atom_to_chars(Name,N),
   phrase(eapi:package(Package),N,V),
   phrase(eapi:version(Version),V,[]),!.
 
-packageversion(Name,_,_) :- 
+packageversion(Name,_,_) :-
   message:failure(Name).
 
 
 % ***************************
-% HISTORICAL - EAPI PMS cache 
+% HISTORICAL - EAPI PMS cache
 % ***************************
 
 % Prior to the MD5 format where Metadata was represented as KEY=VALUE
@@ -1454,7 +1454,7 @@ packageversion(Name,_,_) :-
 
 %! eapi:keys(-Keys)
 %
-% Predicate representing the key structure of a pms cache entry. 
+% Predicate representing the key structure of a pms cache entry.
 % In a pms cache entry, line number defined the key.
 %
 % public predicate
@@ -1470,7 +1470,7 @@ eapi:keys(['depend',
            'keywords',
            'inherited',
            'iuse',
-           'required_use',    % EAPI 4: REQUIRED_USE 
+           'required_use',    % EAPI 4: REQUIRED_USE
            'cdepend',         % EAPI 4: PDEPEND
            'provide',
            'eapi',
@@ -1492,7 +1492,7 @@ eapi:keys(['depend',
 %
 % Entry:   The pms cache entry
 %
-% Content: The content of the pms cache entry 
+% Content: The content of the pms cache entry
 %
 % public predicate
 
@@ -1508,12 +1508,11 @@ eapi:keys(['depend',
 eapi:elem(K,[E|_],C) :-
   E =.. [K,C],
   !.
-  
+
 eapi:elem(K,[_|R],C) :-
   % not(E =.. [K,C]),
   !,
   eapi:elem(K,R,C).
 
-% eapi:elem(_,[],[]) :- 
+% eapi:elem(_,[],[]) :-
 %    !.
-

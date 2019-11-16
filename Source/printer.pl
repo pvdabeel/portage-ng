@@ -1,16 +1,16 @@
-/*                                                                              
-  Author:   Pieter Van den Abeele                                               
-  E-mail:   pvdabeel@mac.com                                                    
-  Copyright (c) 2005-2019, Pieter Van den Abeele                                
-                                                                                
-  Distributed under the terms of the LICENSE file in the root directory of this 
-  project.                                                                      
-*/                                                                              
-                                                                                
-                                                                                
-/** <module> PRINTER                                                          
-The Printer takes a plan from the Planner and pretty prints it.                      
-*/     
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2019, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
+
+/** <module> PRINTER
+The Printer takes a plan from the Planner and pretty prints it.
+*/
 
 :- module(printer, []).
 
@@ -55,7 +55,7 @@ printer:firststep([rule(_,_)|L]) :-
 
 printer:nextstep([]) :- nl,!.
 
-printer:nextstep([rule(Context://E:Action,_)|L]) :- 
+printer:nextstep([rule(Context://E:Action,_)|L]) :-
   !,
   write('           | '),
   message:color(green),
@@ -67,7 +67,7 @@ printer:nextstep([rule(Context://E:Action,_)|L]) :-
   nl,
   printer:nextstep(L).
 
-printer:nextstep([rule(_,_)|L]) :- 
+printer:nextstep([rule(_,_)|L]) :-
   printer:nextstep(L).
 
 

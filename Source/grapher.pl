@@ -1,22 +1,23 @@
-/*                                                                              
-  Author:   Pieter Van den Abeele                                               
-  E-mail:   pvdabeel@mac.com                                                    
-  Copyright (c) 2005-2019, Pieter Van den Abeele                                
-                                                                                
-  Distributed under the terms of the LICENSE file in the root directory of this 
-  project.                                                                      
-*/                                                                              
-                                                                                
-                                                                                
-/** <module> GRAPHER                                                            
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2019, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
+
+/** <module> GRAPHER
 This file contains predicates that convert:
+
  - ebuilds into DOT language directed graphs showing ebuild dependencies in detail
  - ebuilds into DOT language directed graphs showing full dependency tree
 
 We have can output two type of diagrams: High level tree diagrams or detailled
-diagrams showing, for a given ebuild, all dependencies and the ebuilds that 
+diagrams showing, for a given ebuild, all dependencies and the ebuilds that
 could satisfy the dependency.
-*/   
+*/
 
 :- module(grapher, []).
 
@@ -40,13 +41,13 @@ grapher:graph(detail,Id) :-
   writeln('concentrate=true;'),
   writeln('compound=true;'),
   writeln('graph [rankdir=LR,fontname=Helvetica,fontsize=10,ranksep=1.5];#, ranksep=2.5, nodesep=0.2];'),
-  writeln('edge  [arrowhead=vee];'), 
+  writeln('edge  [arrowhead=vee];'),
   writeln('node  [fontname=Helvetica,fontsize=10];'),
   nl,
   writeln('# **********'),
   writeln('# The ebuild'),
   writeln('# **********'),
-  nl, 
+  nl,
   write('subgraph cluster_leftcol {'),nl,
   write('color=gray;'),nl,
   write('rank=same;'),nl,
@@ -139,7 +140,7 @@ grapher:write_tree(Id) :-
 
 grapher:write_tree(Id) :-
   graph_visited(Id),!.
- 
+
 
 %! grapher:enconvert(+Id,-Code)
 %
@@ -152,13 +153,13 @@ grapher:enconvert(Id,Code) :-
 
 %! grapher:choices(+Type,+List)
 %
-% Given a graph type (detail or full), outputs a list of ebuilds satisfying 
-% a dependency 
+% Given a graph type (detail or full), outputs a list of ebuilds satisfying
+% a dependency
 
 grapher:choices(_,[]) :-
   !,true.
 
-grapher:choices(detail,[arrow(D,Choices)|Rest]) :- 
+grapher:choices(detail,[arrow(D,Choices)|Rest]) :-
   !,
   gensym(choice,C),
   write('subgraph '),write(C),write(' {'),nl,
@@ -171,7 +172,7 @@ grapher:choices(detail,[arrow(D,Choices)|Rest]) :-
   forall(member(Ch,Choices),(
     write(D),
     write(':e -> '),
-    grapher:enconvert(Ch,Code), 
+    grapher:enconvert(Ch,Code),
     write(Code),write(':w [style=dotted,weight=\"100\"];'),nl)),
   writeln('}'),
   grapher:choices(detail,Rest).
@@ -284,21 +285,21 @@ grapher:handle(detail,Style,Arrow,Master,at_most_one_of_group(Deps),Choices) :-
 
 grapher:handle(detail,_Style,_Arrow,Master,S,[]) :-
   !,
-  writeln('# *** BEGIN UNKNOWN DEPENDENCY TYPE (TODO) ***'), 
+  writeln('# *** BEGIN UNKNOWN DEPENDENCY TYPE (TODO) ***'),
   write('# '),write(Master), write(' -> '), write(S),nl,
-  writeln('# *** END UNKNOWN DEPENDENCY TYPE (TODO) ***'), 
+  writeln('# *** END UNKNOWN DEPENDENCY TYPE (TODO) ***'),
   nl.
 
 
 %! grapher:test(+Repository)
 %
-% For a given 'eapi' repository, create Graphviz dot files in the graph 
-% directory for all ebuilds in the repository. Triggers a script to convert 
+% For a given 'eapi' repository, create Graphviz dot files in the graph
+% directory for all ebuilds in the repository. Triggers a script to convert
 % the dot files into interactive scalable vector graphics (SVG).
 %
-% When an SVG graph is opened in a modern browser, it will show for a given 
-% ebuild what dependencies that ebuild has. The SVG diagram will have links 
-% to ebuilds that can satisfy the dependency. Each ebuild linked to can be 
+% When an SVG graph is opened in a modern browser, it will show for a given
+% ebuild what dependencies that ebuild has. The SVG diagram will have links
+% to ebuilds that can satisfy the dependency. Each ebuild linked to can be
 % opened by clicking on it in the diagram, enabling manual dependency graph
 % traversal to debug issues with ebuild dependencies.
 

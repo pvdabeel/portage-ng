@@ -1,15 +1,15 @@
-/*                                                                              
-  Author:   Pieter Van den Abeele                                               
-  E-mail:   pvdabeel@mac.com                                                    
-  Copyright (c) 2005-2019, Pieter Van den Abeele                                
-                                                                                
-  Distributed under the terms of the LICENSE file in the root directory of this 
-  project.                                                                      
-*/                                                                              
-                                                                                
-                                                                                
-/** <module> MESSAGE                                                            
-This file contains the predicates used for pretty printing messages.                                                   */    
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2019, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
+
+/** <module> MESSAGE
+This file contains the predicates used for pretty printing messages.
 */
 
 :- module(message, []).
@@ -59,7 +59,7 @@ message:eend :-
 message:print(Message) :-
   is_list(Message),!,
   forall(member(M,Message),
-    system:write(M)). 
+    system:write(M)).
 
 message:print(Message) :-
   system:write(Message).

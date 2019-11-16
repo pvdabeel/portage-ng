@@ -1,19 +1,19 @@
-/*                                                                              
-  Author:   Pieter Van den Abeele                                               
-  E-mail:   pvdabeel@mac.com                                                    
-  Copyright (c) 2005-2019, Pieter Van den Abeele                                
-                                                                                
-  Distributed under the terms of the LICENSE file in the root directory of this 
-  project.                                                                      
-*/                                                                              
-                                                                                
-                                                                                
-/** <module> URL                                                            
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2019, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
+
+/** <module> URL
 Implements a parser for Universal Resource Locators as described
 in RFC 3986. Successfull parsing results in an url prototype.
 Using RFC 3986 ABNF (page 48) as basis for this grammar. This parser
-does not support IPV6 nor fragments. 
-*/  
+does not support IPV6 nor fragments.
+*/
 
 :- module(url, [url/3]).
 
@@ -43,9 +43,9 @@ scheme_more([U|M])  --> underscore(U), scheme_more(M).
 scheme_more([])     --> [].
 
 
-% <hierarchy> ::= "//" ( <authority> ) <host> ( <port> ) ( <path> ) ( <modules> ) 
+% <hierarchy> ::= "//" ( <authority> ) <host> ( <port> ) ( <path> ) ( <modules> )
 %
-% Parses hierarchy 
+% Parses hierarchy
 
 hierarchy([A,H,P,T,M]) --> "//", authority(A), host(H), port(P), path(T), modules(M).
 
@@ -55,7 +55,7 @@ hierarchy([A,H,P,T,M]) --> "//", authority(A), host(H), port(P), path(T), module
 % Parses authority
 
 authority([A|M])    --> alpha(A), authority_more(M).
-authority([D|M])    --> digit(D), authority_more(M). 
+authority([D|M])    --> digit(D), authority_more(M).
 authority([C|M])    --> colon(C), authority_more(M).
 authority([])       --> [].
 
@@ -65,7 +65,7 @@ authority_more([C|M]) --> colon(C), authority_more(M).
 authority_more([])    --> "@".
 
 
-% <host> ::=  ( <alpha> / <digit> ) *( <dot> <alpha> <digit> <minus> <underscore> ) 
+% <host> ::=  ( <alpha> / <digit> ) *( <dot> <alpha> <digit> <minus> <underscore> )
 %
 % Parses host
 
@@ -77,7 +77,7 @@ host_more([D|M])  --> dot(D), host_more_after_dot(M).
 host_more([A|M])  --> alpha(A), host_more(M).
 host_more([D|M])  --> digit(D), host_more(M).
 host_more([I|M])  --> minus(I), host_more(M).
-host_more([U|M])  --> underscore(U), host_more(M). 
+host_more([U|M])  --> underscore(U), host_more(M).
 host_more([])     --> [].
 
 host_more_after_dot([A|M]) --> alpha(A), host_more(M).
@@ -97,7 +97,7 @@ port_more([])     --> [].
 
 % <path> ::= <slash> *( <dot> / <tilde> / <alpha> / <digit> / <minus> / <slash> / <myplus> / <percent> / <ampersant> / <underscore> / <questionmark> )
 %
-% Parses path 
+% Parses path
 
 path([L|M]) --> slash(L), path_more(M).
 path([])    --> [].
@@ -105,20 +105,20 @@ path([])    --> [].
 path_more([D|M])  --> dot(D), path_more(M).
 path_more([T|M])  --> tilde(T), path_more(M).
 path_more([A|M])  --> alpha(A), path_more(M).
-path_more([D|M])  --> digit(D), path_more(M). 
+path_more([D|M])  --> digit(D), path_more(M).
 path_more([I|M])  --> minus(I), path_more(M).
 path_more([S|M])  --> slash(S), path_more(M).
 path_more([P|M])  --> myplus(P), path_more(M).
 path_more([P|M])  --> percent(P), path_more(M).
-path_more([A|M])  --> ampersant(A), path_more(M). 
+path_more([A|M])  --> ampersant(A), path_more(M).
 path_more([U|M])  --> underscore(U), path_more(M).
 path_more([Q|M])  --> questionmark(Q), path_more(M).
 path_more([])     --> [].
 
 
-% <modules> ::= *( <module> ) 
+% <modules> ::= *( <module> )
 %
-% Parses modules 
+% Parses modules
 
 modules([O|M]) --> module(O), modules(M).
 modules([])    --> [].
@@ -154,7 +154,7 @@ unreserved(T) --> tilde(T).
 %
 % Parses chars
 
-alpha(A)        --> [A], { code_type(A,alpha) }. 
+alpha(A)        --> [A], { code_type(A,alpha) }.
 digit(D)        --> [D], { code_type(D,digit) }.
 dot(D)          --> ".", { [D] = "." }.
 star(S)         --> "*", { [S] = "*" }.
@@ -182,7 +182,7 @@ questionmark(Q) --> "?", { [Q] = "?" }.
 %
 % A test function
 
-urltest(Url) :- 
+urltest(Url) :-
   url([P,H,O,A,T,M],Url,[]),
   string_to_list(PS,P),
   string_to_list(HS,H),

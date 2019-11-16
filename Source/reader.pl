@@ -1,22 +1,22 @@
-/*                                                                              
-  Author:   Pieter Van den Abeele                                               
-  E-mail:   pvdabeel@mac.com                                                    
-  Copyright (c) 2005-2019, Pieter Van den Abeele                                
-                                                                                
-  Distributed under the terms of the LICENSE file in the root directory of this 
-  project.                                                                      
-*/                                                                              
-                                                                                
-                                                                                
-/** <module> READER                                                            
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2019, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
+
+/** <module> READER
 The reader reads metadata from a repository.
 
 The provided reader is capable of reading portage metadata
 cache from a local portage tree. Supports the newer md5 cache format.
 
-Input:  The location of a cache entry. 
+Input:  The location of a cache entry.
 Output: A nested list of codes, each sublist represents a line.
-*/    
+*/
 
 :- module(reader, []).
 

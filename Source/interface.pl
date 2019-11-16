@@ -1,16 +1,16 @@
-/*                                                                              
-  Author:   Pieter Van den Abeele                                               
-  E-mail:   pvdabeel@mac.com                                                    
-  Copyright (c) 2005-2019, Pieter Van den Abeele                                
-                                                                                
-  Distributed under the terms of the LICENSE file in the root directory of this 
-  project.                                                                      
-*/                                                                              
-                                                                                
-                                                                                
-/** <module> INTERFACE                                                            
-The interface interpretes command line arguments passed to portage-ng. 
-*/     
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2019, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
+
+/** <module> INTERFACE
+The interface interpretes command line arguments passed to portage-ng.
+*/
 
 :- module(interface, []).
 
@@ -31,7 +31,7 @@ interface:version(V) :-
 %
 % Retrieve the interface specification
 
-interface:spec(S) :- 
+interface:spec(S) :-
   S = [
         [opt(verbose), type(boolean), default(false), shortflags(['v']), longflags(['verbose'])],  % OPTION
         [opt(pretend), type(boolean), default(false), shortflags(['p']), longflags(['pretend'])],  % OPTION
@@ -53,7 +53,7 @@ interface:spec(S) :-
 
 %! interface:argv(-Options,-Args)
 %
-% Retrieve the arguments passed on the command line. 
+% Retrieve the arguments passed on the command line.
 
 interface:argv(Options,Args) :-
   interface:spec(S),
@@ -63,20 +63,20 @@ interface:argv(Options,Args) :-
 %! interface:process_requests
 %
 % Processes the arguments passed on the command line.
-% Maps the options declared in interface:specs(S) onto actions defined as 
-% a set of predicates to be called.  
+% Maps the options declared in interface:specs(S) onto actions defined as
+% a set of predicates to be called.
 
 interface:process_requests :-
   interface:version(Version),
   interface:argv(Options,Args),
-  ( member(version(true),Options)  -> (message:inform(['portage-ng development version - ',Version]),  halt) ; 
-    member(info(true),Options)     -> (message:inform(['portage-ng development version - ',Version]),  halt) ; 
-    member(clear(true),Options)    -> (kb:clear,                                                       halt) ; 
-    member(sync(true),Options)     -> (kb:sync, kb:save,                                               halt) ; 
-    member(graph(true),Options)    -> (grapher:test(portage),                                          halt) ; 
+  ( member(version(true),Options)  -> (message:inform(['portage-ng development version - ',Version]),  halt) ;
+    member(info(true),Options)     -> (message:inform(['portage-ng development version - ',Version]),  halt) ;
+    member(clear(true),Options)    -> (kb:clear,                                                       halt) ;
+    member(sync(true),Options)     -> (kb:sync, kb:save,                                               halt) ;
+    member(graph(true),Options)    -> (grapher:test(portage),                                          halt) ;
     member(unmerge(true),Options)  -> (message:warning('unmerge action to be implemented'),            halt) ;
     member(depclean(true),Options) -> (message:warning('depclean action to be implemented'),           halt) ;
-    member(search(true),Options)   -> (message:warning('search action to be implemented'),             halt) ; 
+    member(search(true),Options)   -> (message:warning('search action to be implemented'),             halt) ;
     member(sync,Args)              -> (kb:sync, kb:save,                                               halt) ;
     member(_,Args)                 -> (message:inform(['portage-ng shell - ',Version]))
   );true.

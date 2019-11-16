@@ -1,16 +1,16 @@
-/*                                                                              
-  Author:   Pieter Van den Abeele                                               
-  E-mail:   pvdabeel@mac.com                                                    
-  Copyright (c) 2005-2019, Pieter Van den Abeele                                
-                                                                                
-  Distributed under the terms of the LICENSE file in the root directory of this 
-  project.                                                                      
-*/                                                                              
-                                                                                
-                                                                                
-/** <module> RULES                                                          
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2019, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
+
+/** <module> RULES
 This file contains domain-specific rules for dealing with software dependencies
-*/     
+*/
 
 :- module(rules, [rule/2]).
 
@@ -21,16 +21,16 @@ This file contains domain-specific rules for dealing with software dependencies
 
 % Skip attempted installation of masked packages without failing
 
-rule(Context://Identifier:install,[]) :- 
+rule(Context://Identifier:install,[]) :-
   preference:masked(Context://Identifier),!.
 
 
-% An ebuild can be installed, if its compiletime dependencies are satisfied 
+% An ebuild can be installed, if its compiletime dependencies are satisfied
 
-rule(Context://Ebuild:install,Deps) :- 
+rule(Context://Ebuild:install,Deps) :-
   ebuild:get(depend,Context://Ebuild,Deps).
 
-% An ebuild can be run, if it is installed and if its runtime dependencies are satisfied  
+% An ebuild can be run, if it is installed and if its runtime dependencies are satisfied
 
 rule(Context://Ebuild:run,[Context://Ebuild:install|Deps]) :-
   ebuild:get(rdepend,Context://Ebuild,Deps).
@@ -88,11 +88,11 @@ rule(package_dependency(no,'virtual','ssh',_,_,_,_),[]) :- !.
 
 % A package dependency is satisfied when a suitable candidate is satisfied
 rule(package_dependency(no,C,N,_,_,_,_),portage://Choice:install) :-
-  cache:entry(_,Choice,_,C,N,_,_). 
+  cache:entry(_,Choice,_,C,N,_,_).
 
 
 % The dependencies in a use conditional group need to be satisfied when the use flag is set
-rule(use_conditional_group(positive,U,D),[D]) :- 
+rule(use_conditional_group(positive,U,D),[D]) :-
   preference:use(Enabled),
   member(U,Enabled),!.
 
@@ -100,9 +100,8 @@ rule(use_conditional_group(positive,U,D),[D]) :-
 rule(use_conditional_group(_,_,_),[]) :- !.
 
 % One dependency of an any_of_group should be satisfied
-rule(any_of_group(Deps),[D]) :- 
-  member(D,Deps).   
+rule(any_of_group(Deps),[D]) :-
+  member(D,Deps).
 
 % All dependencies in an all_of_group should be satisfied
-rule(all_of_group(Deps),Deps) :- !. 
-
+rule(all_of_group(Deps),Deps) :- !.

@@ -1,22 +1,22 @@
-/* 
+/*
   Author:   Pieter Van den Abeele
   E-mail:   pvdabeel@mac.com
   Copyright (c) 2005-2019, Pieter Van den Abeele
 
   Distributed under the terms of the LICENSE file in the root directory of this
-  project. 
+  project.
 */
 
 
-/** <module> PORTAGE-NG 
-This application is written in Prolog, a language that lends itself for 
-declarative programming. We extend this language to support a declarative 
-object oriented programming paradigm (CONTEXT) and implement a system to reason 
-about large scale software configuration. E.g. operating systems, programming 
+/** <module> PORTAGE-NG
+This application is written in Prolog, a language that lends itself for
+declarative programming. We extend this language to support a declarative
+object oriented programming paradigm (CONTEXT) and implement a system to reason
+about large scale software configuration. E.g. operating systems, programming
 languages, kernels, etc.
 
-We show that our application can retrieve, read, parse, reason, prove, plan, 
-and even build large scale software configrations. 
+We show that our application can retrieve, read, parse, reason, prove, plan,
+and even build large scale software configrations.
 
 This file is the main source file in the repository. It loads all other files.
 */
@@ -34,7 +34,7 @@ This file is the main source file in the repository. It loads all other files.
 :- ensure_loaded(library('thread')).
 :- ensure_loaded(library('apply_macros')).
 :- ensure_loaded(library('time')).
-:- ensure_loaded(library('optparse')). 
+:- ensure_loaded(library('optparse')).
 :- ensure_loaded(library('gensym')).
 
 :- ensure_loaded('Source/context.pl').
@@ -66,19 +66,19 @@ This file is the main source file in the repository. It loads all other files.
 
 %! main.
 %
-% The main predicate. 
+% The main predicate.
 %
-% We declare (as an example) the following repositories: 
+% We declare (as an example) the following repositories:
 %
-% - Gentoo Portage github repository 
-% - SWI-prolog source code github repository 
+% - Gentoo Portage github repository
+% - SWI-prolog source code github repository
 % - Linus Torvalds, Linux source code Github repository
 %
 % These repositories are instantiated as Prolog classes.
 %
-% The instances have several public/protected/private methods available. For 
-% example: you can sync the remote repository to a local repository, retrieve 
-% metadata (like releases available) from the repository, query the metadata 
+% The instances have several public/protected/private methods available. For
+% example: you can sync the remote repository to a local repository, retrieve
+% metadata (like releases available) from the repository, query the metadata
 % available oin this repository)
 %
 % @see Source/context extends Prolog with a declarative OO programming paradigm
@@ -89,7 +89,7 @@ main :-
     system:working_directory(_,Directory),
 
     portage:newinstance(repository),
-    overlay:newinstance(repository),    
+    overlay:newinstance(repository),
 
     swipl:newinstance(repository),
     linux:newinstance(repository),
@@ -100,7 +100,7 @@ main :-
     % --------------------------------------------------
     % portage:init('/Users/pvdabeel/Repository/portage-web','/Users/pvdabeel/Repository/portage-web/metadata/md5-cache',
     %              'http://distfiles.gentoo.org/releases/snapshots/current/portage-latest.tar.bz2','http','eapi'),
-    
+
 
     % Example: Portage repository - sync via rsync
     % --------------------------------------------
@@ -134,7 +134,7 @@ main :-
                '/Users/pvdabeel/Repository/linux/metadata',
                'https://github.com/torvalds/linux','git','cmake'),
 
- 
+
     kb:register(portage),
     kb:register(overlay),
     kb:register(swipl),
@@ -143,3 +143,9 @@ main :-
 
     kb:load,
     interface:process_requests.
+
+testall :-
+  reader:test(portage),
+  parser:test(portage),
+  prover:testparallel(portage),
+  planner:testparallel(portage).

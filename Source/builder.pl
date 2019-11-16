@@ -1,16 +1,16 @@
-/*                                                                              
-  Author:   Pieter Van den Abeele                                               
-  E-mail:   pvdabeel@mac.com                                                    
-  Copyright (c) 2005-2019, Pieter Van den Abeele                                
-                                                                                
-  Distributed under the terms of the LICENSE file in the root directory of this 
-  project.                                                                      
-*/                                                                              
-                                                                                
-                                                                                
-/** <module> BUILDER                                                         
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2019, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
+
+/** <module> BUILDER
 The Builder takes a plan from the Planner and executes it.
-*/    
+*/
 
 :- module(builder, []).
 
@@ -19,11 +19,11 @@ The Builder takes a plan from the Planner and executes it.
 % ********************
 
 
-%! builder:execute(+Plan)                                                                        
+%! builder:execute(+Plan)
 %
-% Given a Plan from the Planner, execute the plan. 
-%                                                                               
-% Example: Invoke builder:execute(+Plan) to build or upgrade your operating 
+% Given a Plan from the Planner, execute the plan.
+%
+% Example: Invoke builder:execute(+Plan) to build or upgrade your operating
 % system, kernel, software application, etc... as described in the given Plan.
 
 builder:execute(Plan) :-
@@ -31,21 +31,21 @@ builder:execute(Plan) :-
     (write(' -  STEP:  | '),builder:firststep(E))).
 
 
-%! builder:build(+Context://Entry:Action)                                                                        
+%! builder:build(+Context://Entry:Action)
 %
 % Public predicate
 %
-% For a given Entry in a given context, execute Action. 
-%                                                                               
-% Example: Invoke builder:build(portage://myebuild:install to install the 
+% For a given Entry in a given context, execute Action.
+%
+% Example: Invoke builder:build(portage://myebuild:install to install the
 % given ebuild in the portage repository in your live system
 % Portage is an example repository of type 'eapi'
 %
 % Example: Invoke builder:build(linux://torvalds/linux-2.4.2:install to install
 % the given Linux kernel release in your live system
-% Linux is an example repository of type 'make' (see portage-ng.pl main)) 
+% Linux is an example repository of type 'make' (see portage-ng.pl main))
 %
-% Example: Invoke builder:build(swipl://swi-prolog/swipl-8.1.5:install to 
+% Example: Invoke builder:build(swipl://swi-prolog/swipl-8.1.5:install to
 % install the given SWI-Prolog release in your live system
 % Swipl is an example respository of type 'cmake' (see portage-ng.pl main)
 
@@ -65,7 +65,7 @@ builder:build(Context://_Entry:_Action) :-
 
 % Helper predicates
 %
-% Protected predicates 
+% Protected predicates
 
 builder:firststep([]) :-  nl, !.
 
@@ -86,7 +86,7 @@ builder:firststep([rule(_,_)|L]) :-
 
 builder:nextstep([]) :- nl,!.
 
-builder:nextstep([rule(Context://E:Action,_)|L]) :- 
+builder:nextstep([rule(Context://E:Action,_)|L]) :-
   !,
   write('           | '),
   message:color(green),
@@ -99,18 +99,18 @@ builder:nextstep([rule(Context://E:Action,_)|L]) :-
   nl,
   builder:nextstep(L).
 
-builder:nextstep([rule(_,_)|L]) :- 
+builder:nextstep([rule(_,_)|L]) :-
   builder:nextstep(L).
 
 
-%! builder:test(+Repository)                                                                        
-%                                                                               
-% Public predicate                                                              
-%                                                                               
-% For a given Repository, build all entries it contains.     
+%! builder:test(+Repository)
 %
-% Example: Invoke builder:test(+Repository) to build everything in a repository. 
-% (E.g. every ebuild in a Gentoo repository, or every release of a given 
+% Public predicate
+%
+% For a given Repository, build all entries it contains.
+%
+% Example: Invoke builder:test(+Repository) to build everything in a repository.
+% (E.g. every ebuild in a Gentoo repository, or every release of a given
 % application)
 
 builder:test(Repository) :-

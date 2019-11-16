@@ -1,17 +1,17 @@
-/*                                                                              
-  Author:   Pieter Van den Abeele                                               
-  E-mail:   pvdabeel@mac.com                                                    
-  Copyright (c) 2005-2019, Pieter Van den Abeele                                
-                                                                                
-  Distributed under the terms of the LICENSE file in the root directory of this 
-  project.                                                                      
-*/                                                                              
-                                                                                
-                                                                                
-/** <module> REPOSITORY                                                        
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2019, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
+
+/** <module> REPOSITORY
 The Repository is a collection of metadata which can be synced, queried, etc.
 Examples of repositories: Gentoo Portage, Github repositories, ...
-*/     
+*/
 
 :- module(repository,[]).
 
@@ -177,12 +177,12 @@ sync(kb) ::-
 %
 % public predicate
 
-read_entry(Entry,Timestamp,Category,Name,Version) ::- 
+read_entry(Entry,Timestamp,Category,Name,Version) ::-
   ::cache(Cache),!,
   os:directory_content(Cache,Category),
   os:compose_path(Cache,Category,CategoryDir),
   os:directory_content(CategoryDir,Package),
-  packageversion(Package,Name,Version),       % BUG 		
+  packageversion(Package,Name,Version),       % BUG
   os:compose_path(Category,Package,Entry),
   os:compose_path(Cache,Entry,File),
   system:time_file(File,Timestamp).
@@ -192,7 +192,7 @@ read_entry(Entry,Timestamp,Category,Name,Version) ::-
 
 % repository:read_metadata(Entry,Timestamp,Metadata)
 %
-% Reads the metadata for a given entry from disk if 
+% Reads the metadata for a given entry from disk if
 % it is new of has been modifed
 %
 % public predicate
@@ -238,7 +238,7 @@ entry(Entry) ::-
 % repository:entry(-Entry,-Time)
 %
 % Retrieves metadata cache entry, and the last modified date
-% of the cache entry 
+% of the cache entry
 % No disk access - initial sync required
 %
 % public predicate
@@ -314,22 +314,22 @@ ebuild(Id,Category,Name,Version,Metadata) ::-
 
 % repository:query(+Query,-Result)
 %
-% Retrieves metadata cache ebuild that satisfies 
+% Retrieves metadata cache ebuild that satisfies
 % a given query
 %
 % public predicate
 
 query([],Id) ::-
-  :this(Repository), 
+  :this(Repository),
   cache:entry(Repository,Id,_,_,_,_,_).
 
 query([name(Name)|Rest],Id) ::-
-  :this(Repository), 
+  :this(Repository),
   cache:entry(Repository,Id,_,_,Name,_,_),
   Repository:query(Rest,Id).
 
 query([category(Category)|Rest],Id) ::-
-  :this(Repository), 
+  :this(Repository),
   cache:entry(Repository,Id,_,Category,_,_,_),
   Repository:query(Rest,Id).
 
@@ -340,12 +340,12 @@ query([version(Version)|Rest],Id) ::-
   Repository:query(Rest,Id).
 
 query([not(Statement)|Rest],Id) ::-
-  :this(Repository), 
+  :this(Repository),
   not(Repository:query([Statement],Id)),
   Repository:query(Rest,Id).
 
 query([Statement|Rest],Id) ::-
-  :this(Repository), 
+  :this(Repository),
   cache:entry(Repository,Id,_,_,_,_,Metadata),
   Statement =.. [Key,Arg],
   eapi:elem(Key,Metadata,Setting),
@@ -429,7 +429,7 @@ get_size(Size) ::-
 
 get_ebuild(Entry,Ebuild) ::-
   ::location(Location),
-  :ebuild(Entry,Category,Name,Version), 
+  :ebuild(Entry,Category,Name,Version),
   atomic_list_concat([Location,'/',Category,'/',Name,'/',Name,'-',Version,'.ebuild'],Ebuild),
   exists_file(Ebuild).
 
@@ -449,7 +449,7 @@ location(Location) ::-
 % repository:cache(+Location)
 %
 % location is an atom, representing a full absolute path
-% to a portage tree cache installed on your local system 
+% to a portage tree cache installed on your local system
 %
 % protected predicate
 

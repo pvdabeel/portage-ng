@@ -1,16 +1,16 @@
-/*                                                                              
-  Author:   Pieter Van den Abeele                                               
-  E-mail:   pvdabeel@mac.com                                                    
-  Copyright (c) 2005-2019, Pieter Van den Abeele                                
-                                                                                
-  Distributed under the terms of the LICENSE file in the root directory of this 
-  project.                                                                      
-*/                                                                              
-                                                                                
-                                                                                
-/** <module> PROVER                                                            
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2019, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
+
+/** <module> PROVER
 The prover computes a proof and a model for a given input
-*/     
+*/
 
 :- module(prover, []).
 
@@ -64,7 +64,7 @@ prover:prove(Literal,Proof,[rule(Literal,[])|Proof],Model,[Literal|Model]) :-
 prover:prove(Literal,Proof,NewProof,Model,[Literal|NewModel]) :-
   not(is_list(Literal)),
   not(prover:proven(Literal,Model)),
-  not(prover:conflicts(Literal,Model)), 
+  not(prover:conflicts(Literal,Model)),
   not(prover:conflictrule(rule(Literal,[]),Proof)),
   rule(Literal,Body),
   not(prover:fact(rule(Literal,Body))),
@@ -123,8 +123,8 @@ prover:test(Repository) :-
 % Prove all entries in a given Repository, but do it concurrently
 
 prover:testparallel(Repository) :-
-  findall(call_with_time_limit(10,prover:prove(Repository://E:install,[],_,[],_)),Repository:entry(E),Calls), 
-  config:number_of_cpus(Cpus),                                          
-  time(concurrent(Cpus,Calls,[])),                                              
-  Repository:get_size(S),                                                       
-  message:inform(['proved ',S,' ',Repository,' entries.']).   
+  findall(call_with_time_limit(10,prover:prove(Repository://E:install,[],_,[],_)),Repository:entry(E),Calls),
+  config:number_of_cpus(Cpus),
+  time(concurrent(Cpus,Calls,[])),
+  Repository:get_size(S),
+  message:inform(['proved ',S,' ',Repository,' entries.']).

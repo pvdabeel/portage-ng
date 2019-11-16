@@ -1,15 +1,15 @@
-/*                                                                              
-  Author:   Pieter Van den Abeele                                               
-  E-mail:   pvdabeel@mac.com                                                    
-  Copyright (c) 2005-2019, Pieter Van den Abeele                                
-                                                                                
-  Distributed under the terms of the LICENSE file in the root directory of this 
-  project.                                                                      
-*/                                                                              
-                                                                                
-                                                                                
-/** <module> PLANNER                                                            
-The Builder takes a plan from the Planner and executes it.                      
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2019, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
+
+/** <module> PLANNER
+The Builder takes a plan from the Planner and executes it.
 
 Given a proof, consider it as graph, apply the following algorithm,
 based on topological sort:
@@ -17,7 +17,7 @@ based on topological sort:
 1. For each rule, determine weight
 2. Filter out rules with zero weight
 3. Continue weighting until there are no more edges in the graph
-*/         
+*/
 
 :- module(planner, []).
 
@@ -42,7 +42,7 @@ planner:zeroweight(ListA,ListB) :-
 	findall(El,planner:notpart(ListA,ListB,El),[]).
 
 
-%! planner:zerorules 
+%! planner:zerorules
 %
 % Iteratively filter out the rules in a list with zero weight
 

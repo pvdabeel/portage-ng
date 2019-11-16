@@ -1,18 +1,18 @@
-/*                                                                              
-  Author:   Pieter Van den Abeele                                               
-  E-mail:   pvdabeel@mac.com                                                    
-  Copyright (c) 2005-2019, Pieter Van den Abeele                                
-                                                                                
-  Distributed under the terms of the LICENSE file in the root directory of this 
-  project.                                                                      
-*/                                                                              
-                                                                                
-                                                                                
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2019, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
+
 /** <module> KNOWLEDGE BASE
 The Knowledge Base is a concept that enables different repositories to register,
 serialize their rules and facts to disk. This is used as a mechanism to maintain
 state across application relaunches.
-*/     
+*/
 
 :- module(knowledgebase,[]).
 
@@ -82,9 +82,9 @@ deregister(Repository) ::-
 %
 % Public predicate
 %
-% Sync all registered repositories 
+% Sync all registered repositories
 
-sync ::-  
+sync ::-
   forall(::repository(Repository),
 	 Repository:sync).
 
@@ -93,7 +93,7 @@ sync ::-
 %
 % Public predicate
 %
-% Save state to file 
+% Save state to file
 
 save ::-
   tell('kb.raw'),
@@ -126,7 +126,7 @@ load ::-
 
 clear ::-
   exists_file('kb.qlf'),!,
-  delete_file('kb.qlf'). 
+  delete_file('kb.qlf').
 
 clear ::-
   true.
