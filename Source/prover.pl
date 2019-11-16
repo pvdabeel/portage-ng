@@ -124,7 +124,7 @@ prover:test(Repository) :-
 
 prover:testparallel(Repository) :-
   findall(call_with_time_limit(10,prover:prove(Repository://E:install,[],_,[],_)),Repository:entry(E),Calls), 
-  current_prolog_flag(cpu_count,Cpus),                                          
+  config:number_of_cpus(Cpus),                                          
   time(concurrent(Cpus,Calls,[])),                                              
   Repository:get_size(S),                                                       
   message:inform(['proved ',S,' cache entries.']).   
