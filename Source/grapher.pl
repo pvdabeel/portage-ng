@@ -18,10 +18,7 @@ diagrams showing, for a given ebuild, all dependencies and the ebuilds that
 could satisfy the dependency.
 */   
 
-load_files(library(gensym),[if(not_loaded),silent(true)]).
-
 :- module(grapher, []).
-
 
 % ********************
 % GRAPHER declarations

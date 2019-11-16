@@ -12,8 +12,6 @@
 The interface interpretes command line arguments passed to portage-ng. 
 */     
 
-:- ensure_loaded(library('optparse')).
-
 :- module(interface, []).
 
 % **********************
