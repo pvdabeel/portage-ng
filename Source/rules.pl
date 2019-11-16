@@ -12,7 +12,7 @@
 This file contains domain-specific rules for dealing with software dependencies
 */     
 
-:- module(rules, []).
+:- module(rules, [rule/2]).
 
 % ******************
 % RULES declarations
