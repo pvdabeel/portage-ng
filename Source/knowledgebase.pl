@@ -106,9 +106,9 @@ save ::-
 
 % knowledgebase:load
 %
-% Load state from file
+% Public predicate
 %
-% public predicate
+% Load state from file
 
 load ::-
   exists_file('kb.qlf'),!,
@@ -120,9 +120,9 @@ load ::-
 
 % knowledgebase:clear
 %
-% Clear state file
+% Public predicate
 %
-% public predicate
+% Clear state file
 
 clear ::-
   exists_file('kb.qlf'),!,
@@ -134,9 +134,9 @@ clear ::-
 
 % knowledgebase:state
 %
-% State file
+% Protected predicate
 %
-% protected predicate
+% State file
 
 state(File) ::-
   :this(Context),
@@ -145,9 +145,9 @@ state(File) ::-
 
 % knowledgebase:repository
 %
-% Registered repositories
+% Protected predicate
 %
-% protected predicate
+% Registered repositories
 
 repository(_Repository) ::-
   true.
@@ -155,9 +155,9 @@ repository(_Repository) ::-
 
 % knowledgebase:repository
 %
-% knowledgebase entries
+% Protected predicate
 %
-% protected predicate
+% knowledgebase entries
 
 entry(_E) ::-
   true.

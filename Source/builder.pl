@@ -33,8 +33,6 @@ builder:execute(Plan) :-
 
 %! builder:build(+Context://Entry:Action)
 %
-% Public predicate
-%
 % For a given Entry in a given context, execute Action.
 %
 % Example: Invoke builder:build(portage://myebuild:install to install the
@@ -66,8 +64,6 @@ builder:build(Context://_Entry:_Action) :-
 
 
 % Helper predicates
-%
-% Protected predicates
 
 builder:firststep([]) :-  nl, !.
 
@@ -106,8 +102,6 @@ builder:nextstep([rule(_,_)|L]) :-
 
 
 %! builder:test(+Repository)
-%
-% Public predicate
 %
 % For a given Repository, build all entries it contains.
 %
