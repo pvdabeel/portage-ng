@@ -78,6 +78,17 @@ planner:test(Repository) :-
 			     (message:failure(E)))
                            )
              ),
-  system:findall(E,Repository:entry(E),L),
-  system:length(L,H),
-  system:write('% created plan for '),system:write(H),system:write(' cache entries.\n').
+  Repository:get_size(S),
+  message:inform(['created plan for ',S,' cache entries.']).
+
+
+%! planner:testparallel(+Repository)
+%
+% Creates a plan for every entry in a repository, concurrently
+
+planner:testparallel(Repository) :-
+  findall(call_with_time_limit(10,(prover:prove(Repository://E:install,[],Proof,[],_),planner:plan(Proof,[],[],_)),Repository:entry(E),Calls),
+  config:number_of_cpus(Cpus),
+  time(concurrent(Cpus,Calls,[])),
+  Repository:get_size(S);
+  message:inform(['created plan for ',S,' cache entries.']).
