@@ -148,4 +148,5 @@ testall :-
   reader:test(portage),
   parser:test(portage),
   prover:testparallel(portage),
-  planner:testparallel(portage).
+  planner:testparallel(portage),
+  builder:test(portage).

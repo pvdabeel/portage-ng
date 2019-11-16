@@ -49,13 +49,15 @@ builder:execute(Plan) :-
 % install the given SWI-Prolog release in your live system
 % Swipl is an example respository of type 'cmake' (see portage-ng.pl main)
 
+builder:build(_) :-
+  config:dry_run_build, !.
+
 builder:build(Context://Entry:_Action) :-
   Context:get_type('eapi'),!,
   portage:get_location(L),
   portage:ebuild(Entry,Category,Package,Version),
   atomic_list_concat(['ebuild ',L,'/',Category,'/',Package,'/',Package,'-',Version,'.ebuild install qmerge clean'],Cmd),
   shell(Cmd),!.
-
 
 builder:build(Context://_Entry:_Action) :-
   Context:get_type('cmake'),!,
