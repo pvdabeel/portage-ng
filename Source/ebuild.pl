@@ -12,12 +12,12 @@
 The contents of this file needs some rework. Probably to be moved into repository.
 */   
 
+:- module(ebuild, []).
 
 % *******************
 % EBUILD declarations
 % *******************
 
-:- module(ebuild, []).
 
 % Case 1: The ebuild has Metadata for the requested key
 

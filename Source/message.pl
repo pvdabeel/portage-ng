@@ -10,12 +10,14 @@
                                                                                 
 /** <module> MESSAGE                                                            
 This file contains the predicates used for pretty printing messages.                                                   */    
+*/
+
+:- module(message, []).
 
 % ********************
 % MESSAGE declarations
 % ********************
 
-:- module(message, []).
 
 %! message:color(+Color)
 %

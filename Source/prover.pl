@@ -12,6 +12,8 @@
 The prover computes a proof and a model for a given input
 */     
 
+:- module(prover, []).
+
 % *******************
 % PROVER declarations
 % *******************

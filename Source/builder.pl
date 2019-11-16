@@ -12,11 +12,11 @@
 The Builder takes a plan from the Planner and executes it.
 */    
 
+:- module(builder, []).
+
 % ********************
 % BUILDER declarations
 % ********************
-
-:- module(builder, []).
 
 
 %! builder:execute(+Plan)                                                                        

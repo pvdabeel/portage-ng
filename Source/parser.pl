@@ -23,11 +23,11 @@ Output: A nested list containing the result of parsing each
         corresponding element from the input.
 */
 
+:- module(parser,[]).
+
 % *******************
 % PARSER declarations
 % *******************
-
-:- module(parser,[]).
 
 
 %! parser:invoke(+Contents,-Result)

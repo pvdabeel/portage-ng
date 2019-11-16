@@ -12,11 +12,11 @@
 The Printer takes a plan from the Planner and pretty prints it.                      
 */     
 
+:- module(printer, []).
+
 % ********************
 % PRINTER declarations
 % ********************
-
-:- module(printer, []).
 
 
 %! printer:print(+Plan)

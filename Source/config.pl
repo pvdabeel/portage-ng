@@ -13,11 +13,12 @@ The config context contains general facts and rules related to the prolog
 configuration. The parameters described typically do not change at runtime. 
 */       
 
+:- module(config, []).
+
 % *******************
 % CONFIG declarations
 % *******************
 
-:- module(config, []).
 
 %! config:installation_dir(+FullPath)
 %

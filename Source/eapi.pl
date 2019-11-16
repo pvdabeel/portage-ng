@@ -23,12 +23,12 @@ The specifications of the grammar can be found here:
 https://projects.gentoo.org/pms/6/pms.html
 */
 
+:- module(eapi, []).
 
 % ----------
 % EAPI parse
 % ----------
 
-:- module(eapi, []).
 
 %! eapi:parse(+Codes,-Metadata)
 %

@@ -36,7 +36,7 @@ state across application relaunches.
 :- dpublic(query/2).
 :- dpublic(entry/1).
 
-%protected interface
+% protected interface
 
 :- dprotected(repository/1).
 :- dprotected(state/1).
@@ -64,7 +64,7 @@ state across application relaunches.
 %
 % Register a repository with the knowledge base
 
-knowledgebase:register(Repository) ::-
+register(Repository) ::-
   <+repository(Repository),!.
 
 
@@ -74,7 +74,7 @@ knowledgebase:register(Repository) ::-
 %
 % Deregister a repository with the knowledge base
 
-knowledgebase:deregister(Repository) ::-
+deregister(Repository) ::-
   <-repository(Repository),!.
 
 
@@ -84,7 +84,7 @@ knowledgebase:deregister(Repository) ::-
 %
 % Sync all registered repositories 
 
-knowledgebase:sync ::-  
+sync ::-  
   forall(::repository(Repository),
 	 Repository:sync).
 
@@ -95,7 +95,7 @@ knowledgebase:sync ::-
 %
 % Save state to file 
 
-knowledgebase:save ::-
+save ::-
   tell('kb.raw'),
   writeln(':- module(cache,[]).'),
   writeln(':- dynamic cache:entry(_,_,_,_,_,_,_).'),
@@ -110,11 +110,11 @@ knowledgebase:save ::-
 %
 % public predicate
 
-knowledgebase:load ::-
+load ::-
   exists_file('kb.qlf'),!,
   ensure_loaded('kb.qlf').
 
-knowledgebase:load ::-
+load ::-
   true.
 
 
@@ -124,11 +124,11 @@ knowledgebase:load ::-
 %
 % public predicate
 
-knowledgebase:clear ::-
+clear ::-
   exists_file('kb.qlf'),!,
   delete_file('kb.qlf'). 
 
-knowledgebase:clear ::-
+clear ::-
   true.
 
 
@@ -138,7 +138,7 @@ knowledgebase:clear ::-
 %
 % protected predicate
 
-knowledgebase:state(File) ::-
+state(File) ::-
   :this(Context),
   atomic_list_concat([Context,'.raw'],File).
 
@@ -149,7 +149,7 @@ knowledgebase:state(File) ::-
 %
 % protected predicate
 
-knowledgebase:repository(_Repository) ::-
+repository(_Repository) ::-
   true.
 
 
@@ -159,5 +159,5 @@ knowledgebase:repository(_Repository) ::-
 %
 % protected predicate
 
-knowledgebase:entry(_E) ::-
+entry(_E) ::-
   true.

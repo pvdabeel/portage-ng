@@ -24,6 +24,7 @@ Output: A nested list of codes, each sublist represents a line.
 % READER declarations
 % *******************
 
+
 %! reader:invoke(+Cache,+Entry,-Contents)
 %
 % Cache: The location of the cache.

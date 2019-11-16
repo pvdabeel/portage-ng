@@ -19,11 +19,12 @@ based on topological sort:
 3. Continue weighting until there are no more edges in the graph
 */         
 
+:- module(planner, []).
+
 % ********************
 % PLANNER declarations
 % ********************
 
-:- module(planner, []).
 
 %! planner:notpart(+List,+List,-Element)
 %

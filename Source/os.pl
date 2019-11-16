@@ -14,11 +14,12 @@ Goal is to get the same behaviour across different platform.
 Eventually this could become a class with different subclasses.
 */    
 
+:- module(os, []).
+
 % ***************
 % OS declarations
 % ***************
 
-:- module(os, []).
 
 %! os:directory_content(+Directory,-Content)
 %

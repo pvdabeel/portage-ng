@@ -14,6 +14,11 @@ The preferences module contains build specific preferences
 
 :- module(preference, []).
 
+% ***********************
+% PREFERENCE declarations
+% ***********************
+
+
 %! preference:env_cflags(+Cflags)
 %
 % Fact which defines the CFLAGS environment variable

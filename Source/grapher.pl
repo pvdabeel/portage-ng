@@ -20,9 +20,10 @@ could satisfy the dependency.
 The grapher is a static class
 */   
 
+load_files(library(gensym),[if(not_loaded),silent(true)]).
+
 :- module(grapher, []).
 
-load_files(library(gensym),[if(not_loaded),silent(true)]).
 
 % ********************
 % GRAPHER declarations
