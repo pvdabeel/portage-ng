@@ -115,7 +115,7 @@ prover:test(Repository) :-
                            )
              ),
   Repository:get_size(S),
-  message:inform(['proved ',S,' cache entries.']).
+  message:inform(['proved ',S,' repository entries.']).
 
 
 %! prover:testparallel(+Repository)
@@ -127,4 +127,4 @@ prover:testparallel(Repository) :-
   config:number_of_cpus(Cpus),                                          
   time(concurrent(Cpus,Calls,[])),                                              
   Repository:get_size(S),                                                       
-  message:inform(['proved ',S,' cache entries.']).   
+  message:inform(['proved ',S,' repository entries.']).   

@@ -78,7 +78,7 @@ planner:test(Repository) :-
                            )
              ),
   Repository:get_size(S),
-  message:inform(['created plan for ',S,' cache entries.']).
+  message:inform(['created plan for ',S,' repository entries.']).
 
 
 %! planner:testparallel(+Repository)
@@ -90,4 +90,4 @@ planner:testparallel(Repository) :-
   config:number_of_cpus(Cpus),
   time(concurrent(Cpus,Calls,[])),
   Repository:get_size(S),
-  message:inform(['created plan for ',S,' cache entries.']).
+  message:inform(['created plan for ',S,' repository entries.']).

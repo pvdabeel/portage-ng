@@ -115,7 +115,7 @@ builder:nextstep([rule(_,_)|L]) :-
 
 builder:test(Repository) :-
   system:time(
-              system:forall(cache:entry(Repository,E,_,_,_,_,_),
+              system:forall(Repository:entry(E),
  	                    ((nl,message:header(["Building ",Repository://E]),
                               prover:prove(Repository://E:install,[],Proof,[],_),
 			      planner:plan(Proof,[],[],Plan),
@@ -123,6 +123,5 @@ builder:test(Repository) :-
 			     (message:failure(E)))
                            )
              ),
-  system:findall(E,Repository:entry(E),L),
-  system:length(L,H),
-  system:write('% built plan for '),system:write(H),system:write(' cache entries.\n').
+  Repository:get_size(S),
+  message:inform(['built plan for ',S,' repository entries.']).
