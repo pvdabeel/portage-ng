@@ -1,11 +1,28 @@
+/*                                                                              
+  Author:   Pieter Van den Abeele                                               
+  E-mail:   pvdabeel@mac.com                                                    
+  Copyright (c) 2005-2019, Pieter Van den Abeele                                
+                                                                                
+  Distributed under the terms of the LICENSE file in the root directory of this 
+  project.                                                                      
+*/                                                                              
+                                                                                
+                                                                                
+/** <module> REPOSITORY                                                        
+The Repository is a collection of metadata which can be synced, queried, etc.
+Examples of repositories: Gentoo Portage, Github repositories, ...
+*/     
+
+:- module(repository,[]).
+
 % ***********************
 % REPOSITORY declarations
 % ***********************
 
 
-:- module(repository,[]).
-
 :- class.
+
+% public interface
 
 :- dpublic('repository'/0).
 :- dpublic('~repository'/0).
@@ -37,6 +54,10 @@
 
 :- dpublic(read_entry/5).
 :- dpublic(read_time/1).
+
+
+% protected interface
+
 :- dprotected(read_metadata/3).
 
 :- dprotected(location/1).
@@ -46,7 +67,7 @@
 :- dprotected(protocol/1).
 
 
-% Constructor
+%! Constructor
 %
 % public predicate
 
@@ -54,7 +75,7 @@
   true.
 
 
-% Destructor
+%! Destructor
 %
 % public predicate
 
@@ -62,8 +83,7 @@
   true.
 
 
-
-% repository:init(-Location,-Cache,-Remote,-Protocol,-Type)
+%! repository:init(+Location,+Cache,+Remote,+Protocol,+Type)
 %
 % Initializes the repository instance with a location,
 % remote and type
@@ -78,7 +98,7 @@ init(Location,Cache,Remote,Protocol,Type) ::-
   <=type(Type),!.
 
 
-% repository:sync
+%! repository:sync
 %
 % Full sync of repository, metadata and rules
 %
@@ -91,7 +111,7 @@ sync ::-
   message:wrap(Context:sync(kb)),!.
 
 
-% repository:sync(repository)
+%! repository:sync(+Repository)
 %
 % Updates files in local repository by invoking script to sync with remote
 %
@@ -104,7 +124,7 @@ sync(repository) ::-
   script:exec(sync,[Protocol,Remote,Local]),!.
 
 
-% repository:sync(metadata)
+%! repository:sync(+Metadata)
 %
 % Regenerates metadata from local repository files by invoking script
 %
