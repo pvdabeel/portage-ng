@@ -85,7 +85,5 @@ printer:test(Repository) :-
 			     (message:failure(E)))
                            )
              ),
-  system:findall(E,Repository:entry(E),L),
-  system:length(L,H),
-  system:write('% printed plan for '),system:write(H),system:write(' cache entries.\n').
-
+  Repository:get_size(S),
+  message:inform(['printed plan for ',S,' repository entries.']).
