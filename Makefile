@@ -17,7 +17,8 @@ TARGET=portage-ng
 help:     ## Show this help.
 	  @sed -ne '/@sed/!s/## //p' $(MAKEFILE_LIST)
 
-all:	  build install
+## all:      build & install
+all:	  build install 
 
 build:	  ## Build the application.
 	  swipl -L8g -G8g -o $(TARGET) -O -q -f portage-ng.pl -g main --stand_alone=true -c portage-ng.pl
