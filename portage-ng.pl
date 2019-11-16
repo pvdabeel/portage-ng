@@ -34,6 +34,8 @@ This file is the main source file in the repository. It loads all other files.
 :- ensure_loaded(library('thread')).
 :- ensure_loaded(library('apply_macros')).
 :- ensure_loaded(library('time')).
+:- ensure_loaded(library('optparse')). 
+:- ensure_loaded(library('gensym')).
 
 :- ensure_loaded('Source/context.pl').
 :- ensure_loaded('Source/instances.pl').
@@ -84,7 +86,7 @@ This file is the main source file in the repository. It loads all other files.
 
 main :-
     config:installation_dir(Directory),
-    working_directory(_,Directory),
+    system:working_directory(_,Directory),
 
     portage:newinstance(repository),
     overlay:newinstance(repository),    
