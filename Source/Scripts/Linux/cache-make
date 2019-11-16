@@ -1,0 +1,25 @@
+#!/bin/bash
+
+NAME=${1}
+REMOTE=${2}
+LOCAL=${3}
+METADATA=${4}
+
+cd ${LOCAL}
+
+CATEGORY=`echo ${REMOTE} | rev | cut -d '/' -f 2 | rev`
+
+mkdir -p ${METADATA}
+mkdir -p ${METADATA}/${CATEGORY}
+
+for version in `git tag -l "V*"`; do 
+  eapiversion=`echo ${version:1} | sed 's/-rc/_rc/g'`
+  touch ${METADATA}/${CATEGORY}/${NAME}-${eapiversion}; 
+done
+
+for version in `git tag -l "v*"`; do 
+  eapiversion=`echo ${version:1} | sed 's/-rc/_rc/g'`
+  touch ${METADATA}/${CATEGORY}/${NAME}-${eapiversion}; 
+done
+
+touch ${METADATA}/${CATEGORY}/${NAME}-9999 # master branch

@@ -1,0 +1,8 @@
+#!/bin/bash
+
+NAME=${1}
+REMOTE=${2}
+LOCAL=${3}
+METADATA=${4}
+
+# update the md5cache for the given repository using egencache
