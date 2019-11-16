@@ -1,27 +1,33 @@
-% Copyright 2005-2012 Pieter Van den Abeele
-%
-% Author: pvdabeel@mac.com
-%
-% $Header$
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2019, Pieter Van den Abeele
 
-% CONTEXT Example - Person
-% ========================
-%
-% The first line of this example is a 'module' statement. A module has its 
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
+
+/** <module> PERSON
+This file contains a CONTEXT example.
+*/
+
+% The first line of a file is a module statement. A module is a namespace for
+% rules.
 
 :- module(person, []).
 
 
-% What follows is a declaration of our class. First, we declare our class.
-% Note that we already named our context 'person', we need to reuse that 
-% context for defining a class.
+% What follows is a declaration this module is a class. A class contains
+% rules of type 'head ::- body' that will be converted on instantiation
+% into guarded predicates in the instance namespace
 
 :- class.
 
-
-% We continue by declaring what predicates are part of the public, private 
+% We continue by declaring what predicates are part of the public, private
 % and protected interface for this context.
-% 
+
+
 % A Public predicate can be called by anyone. A protected predicate can be
 % called by the class itself or any class inheriting the class. A private
 % predicate can only be called by the class and not by any of its children,
@@ -47,14 +53,6 @@
 :- dpublic(verify_age/1).
 :- dpublic(verify_title/1).
 
-
-:- dpublic(cool/0).
-
-
-cool :-
-  ebuild:ctxtest.
-
-
 % protected interface
 
 :- dprotected(name/1).
@@ -66,10 +64,10 @@ cool :-
 :- dprivate(title/1).
 
 
-% Now that we have declared metadata about our class, we can continue to 
-% implement it by providing clauses for each of the predicates we declared
-% metadata for.
 
+% Now that we have declared metadata about our class, we can continue to
+% implement it by providing clauses for each of the predicates we declared
+% in the interface
 
 person(Name) ::-
   %:this(Context),!,
@@ -129,3 +127,12 @@ age(Age) ::-
 
 title(Title) ::-
   atom(Title).
+
+
+% Example of a class method. This method does not use the ::- operator
+% This predicate can be called in the class.
+% In the current context implementation it is unguarded and not copied into
+% the instance context upon instantiation
+
+classmethod :-
+  writeln('This is a class method').
