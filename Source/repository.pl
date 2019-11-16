@@ -118,10 +118,11 @@ sync ::-
 % public predicate
 
 sync(repository) ::-
+  ::type(Type),
   ::location(Local),
   ::remote(Remote),
   ::protocol(Protocol),
-  script:exec(sync,[Protocol,Remote,Local]),!.
+  script:exec(sync,[Type,Protocol,Remote,Local]),!.
 
 
 %! repository:sync(+Metadata)
@@ -147,7 +148,7 @@ sync(metadata) ::-
   ::remote(Remote),
   ::cache(Cache),
   :this(Context),
-  script:exec(cache,[Context,Remote,Local,Cache]),
+  script:exec(cache,[Type,Context,Remote,Local,Cache]),
   message:inform(['Updated metadata']).
 
 
