@@ -1,3 +1,19 @@
+/*                                                                              
+  Author:   Pieter Van den Abeele                                               
+  E-mail:   pvdabeel@mac.com                                                    
+  Copyright (c) 2005-2019, Pieter Van den Abeele                                
+                                                                                
+  Distributed under the terms of the LICENSE file in the root directory of this 
+  project.                                                                      
+*/                                                                              
+                                                                                
+                                                                                
+/** <module> RULES                                                          
+This file contains domain-specific rules for dealing with software dependencies
+*/     
+
+:- module(rules, []).
+
 % ******************
 % RULES declarations
 % ******************
@@ -7,7 +23,6 @@
 
 rule(Context://Identifier:install,[]) :- 
   preference:masked(Context://Identifier),!.
-
 
 
 % An ebuild can be installed, if its compiletime dependencies are satisfied 
@@ -21,7 +36,6 @@ rule(Context://Ebuild:run,[Context://Ebuild:install|Deps]) :-
   ebuild:get(rdepend,Context://Ebuild,Deps).
 
 
-
 % Conflicting package: EAPI 8.2.6.2: a weak block can be ignored by the package manager
 
 rule(package_dependency(weak,_,_,_,_,_,_),[]) :- !.
@@ -29,7 +43,6 @@ rule(package_dependency(weak,_,_,_,_,_,_),[]) :- !.
 % Ignored for now: Conflicting package: EAPI 8.2.6.2: a strong block is satisfied when no suitable candidate is satisfied
 
 rule(package_dependency(strong,_,_,_,_,_,_),[]) :- !.
-
 
 
 % Dependencies on the system profile are assumed satisfied
@@ -73,11 +86,9 @@ rule(package_dependency(no,'virtual','shadow',_,_,_,_),[]) :- !.
 rule(package_dependency(no,'virtual','ssh',_,_,_,_),[]) :- !.
 
 
-
 % A package dependency is satisfied when a suitable candidate is satisfied
 rule(package_dependency(no,C,N,_,_,_,_),portage://Choice:install) :-
   cache:entry(_,Choice,_,C,N,_,_). 
-
 
 
 % The dependencies in a use conditional group need to be satisfied when the use flag is set
