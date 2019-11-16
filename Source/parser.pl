@@ -59,5 +59,5 @@ parser:test(Repository) :-
   %            reader:invoke(C,E,R),parser:invoke(R,_);message:failure(E),true))
   %    ),
   Repository:get_size(S), 
-  message:inform(['parsed ',S,' repository entries.']).
+  message:inform(['parsed ',S,' ',Repository,' entries.']).
 

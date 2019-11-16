@@ -86,4 +86,4 @@ printer:test(Repository) :-
                            )
              ),
   Repository:get_size(S),
-  message:inform(['printed plan for ',S,' repository entries.']).
+  message:inform(['printed plan for ',S,' ',Repository,' entries.']).

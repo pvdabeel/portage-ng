@@ -124,4 +124,4 @@ builder:test(Repository) :-
                            )
              ),
   Repository:get_size(S),
-  message:inform(['built plan for ',S,' repository entries.']).
+  message:inform(['built plan for ',S,' ',Repository,' entries.']).
