@@ -90,5 +90,5 @@ planner:testparallel(Repository) :-
   findall(call_with_time_limit(10,(prover:prove(Repository://E:install,[],Proof,[],_),planner:plan(Proof,[],[],_)),Repository:entry(E),Calls),
   config:number_of_cpus(Cpus),
   time(concurrent(Cpus,Calls,[])),
-  Repository:get_size(S);
+  Repository:get_size(S),
   message:inform(['created plan for ',S,' cache entries.']).
