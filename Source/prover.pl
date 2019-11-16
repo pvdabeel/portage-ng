@@ -128,5 +128,3 @@ prover:testparallel(Repository) :-
   time(concurrent(Cpus,Calls,[])),                                              
   Repository:get_size(S),                                                       
   message:inform(['proved ',S,' cache entries.']).   
-
-

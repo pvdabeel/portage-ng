@@ -71,10 +71,9 @@ planner:plan(Rules,InitialWeights,OldPlan,[ZeroRules|TempPlan]) :-
 
 planner:test(Repository) :-
   system:time(
-              system:forall(cache:entry(Repository,E,_,_,_,_,_),
+              system:forall(Repository:entry(E),
  	                    ((message:success(E),
-                              prover:prove(Repository://E:install,[],Proof,[],_),
-			      planner:plan(Proof,[],[],_));
+                              call_with_time_limit(10,(prover:prove(Repository://E:install,[],Proof,[]),planner:plan(Proof,[],[],_))));
 			     (message:failure(E)))
                            )
              ),
@@ -87,7 +86,7 @@ planner:test(Repository) :-
 % Creates a plan for every entry in a repository, concurrently
 
 planner:testparallel(Repository) :-
-  findall(call_with_time_limit(10,(prover:prove(Repository://E:install,[],Proof,[],_),planner:plan(Proof,[],[],_)),Repository:entry(E),Calls),
+  findall(call_with_time_limit(10,(prover:prove(Repository://E:install,[],Proof,[],_),planner:plan(Proof,[],[],_))),Repository:entry(E),Calls),
   config:number_of_cpus(Cpus),
   time(concurrent(Cpus,Calls,[])),
   Repository:get_size(S),
