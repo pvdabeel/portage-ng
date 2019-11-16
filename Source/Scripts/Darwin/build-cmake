@@ -1,15 +1,17 @@
-#!/bin/sh
+#!/bin/bash
+
+executable=cmake
+
+path_to_executable=$(which $executable)
+
+if ! [ -x "$path_to_executable" ]; then
+  echo "$executable is not installed in your PATH"
+  exit 1
+fi
 
 LOCAL=${1}
 
 cd ${LOCAL}
-
-
-# EAPI:
-# Portage ebuild.sh here
-
-
-# CMAKE:
 
 mkdir -p build
 cd build
