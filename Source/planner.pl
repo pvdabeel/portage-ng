@@ -73,7 +73,7 @@ planner:test(Repository) :-
   system:time(
               system:forall(Repository:entry(E),
  	                    ((message:success(E),
-                              call_with_time_limit(10,(prover:prove(Repository://E:install,[],Proof,[]),planner:plan(Proof,[],[],_))));
+                              call_with_time_limit(10,(prover:prove(Repository://E:install,[],Proof,[],_),planner:plan(Proof,[],[],_))));
 			     (message:failure(E)))
                            )
              ),
