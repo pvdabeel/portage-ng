@@ -77,7 +77,7 @@ printer:nextstep([rule(_,_)|L]) :-
 
 printer:test(Repository) :-
   system:time(
-              system:forall(cache:entry(Repository,E,_,_,_,_,_),
+              system:forall(Repository:entry(E),
  	                    ((nl,message:header(["Planning ",Repository://E]),
                               prover:prove(Repository://E:install,[],Proof,[],_),
 			      planner:plan(Proof,[],[],Plan),
