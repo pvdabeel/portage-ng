@@ -1,6 +1,3 @@
 alias emerge="portage-ng"
 alias portage="portage-ng"
 alias portage-ng-dev="swipl -O --stack_limit=8G --table_space=8G -f /Users/pvdabeel/Desktop/Prolog/portage-ng.pl -g main --"
-export CLICOLOR="true"
-export LC_CTYPE="en_US.UTF-8"
-#export PS1="\[\033[01;32m\]\u \[\033[01;31m\]MacbookPro\[\033[01;34m\] \w \$\[\033[00m\] "
