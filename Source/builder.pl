@@ -120,4 +120,4 @@ builder:test(Repository) :-
                            )
              ),
   Repository:get_size(S),
-  message:inform(['built plan for ',S,' ',Repository,' entries.']).
+  message:inform(['built ',S,' ',Repository,' entries.']).
