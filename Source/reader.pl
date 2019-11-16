@@ -16,8 +16,6 @@ cache from a local portage tree. Supports the newer md5 cache format.
 
 Input:  The location of a cache entry. 
 Output: A nested list of codes, each sublist represents a line.
-
-The reader is a static class.                                                  
 */    
 
 :- module(reader, []).
@@ -26,27 +24,12 @@ The reader is a static class.
 % READER declarations
 % *******************
 
-:- class.
-
-% public pinterface
-
-:- dpublic('invoke'/3).
-
-% protected interface
-
-:- dprotected('read_lines'/2).
-:- dprotected('read_timestamp'/2).
-
-
 %! reader:invoke(+Cache,+Entry,-Contents)
 %
 % Cache: The location of the cache.
-%
 % Entry: The cache entry to read.
 %
 % Contents: A contents of the cache entry.
-%
-% public predicate
 
 reader:invoke(Cache,Entry,Contents) :-
   os:compose_path(Cache,Entry,File),
@@ -59,8 +42,6 @@ reader:invoke(Cache,Entry,Contents) :-
 %! reader:read_lines(+Stream,-Lines)
 %
 % Given a stream, reads all lines from the stream.
-%
-% private predicate
 
 reader:read_lines(Stream,[]) :-
   at_end_of_stream(Stream),
@@ -76,8 +57,6 @@ reader:read_lines(Stream,[L|R]) :-
 %! reader:read_timestamp(File,Time)
 %
 % Given a timestamp file, reads the timestamp.
-%
-% public predicate
 
 reader:read_timestamp(File,Time) :-
   exists_file(File),
@@ -94,8 +73,6 @@ reader:read_timestamp(File,Time) :-
 % can be read correctly.
 %
 % Repository: The repository from which to read all cache entries.
-%
-% public predicate
 
 reader:test(Repository) :-
   Repository:get_cache(C),
