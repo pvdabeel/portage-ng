@@ -62,7 +62,7 @@ builder:build(Context://Entry:_Action) :-
 builder:build(Context://_Entry:_Action) :-
   Context:get_type('cmake'),!,
   Context:get_location(Local),
-  script:exec(build,[Local]).
+  script:exec(build,['cmake', Local]).
 
 
 % Helper predicates
