@@ -1,14 +1,28 @@
+/*                                                                              
+  Author:   Pieter Van den Abeele                                               
+  E-mail:   pvdabeel@mac.com                                                    
+  Copyright (c) 2005-2019, Pieter Van den Abeele                                
+                                                                                
+  Distributed under the terms of the LICENSE file in the root directory of this 
+  project.                                                                      
+*/                                                                              
+                                                                                
+                                                                                
+/** <module> URL                                                            
+Implements a parser for Universal Resource Locators as described
+in RFC 3986. Successfull parsing results in an url prototype.
+Using RFC 3986 ABNF (page 48) as basis for this grammar. This parser
+does not support IPV6 nor fragments. 
+*/  
+
+:- module(url, [url/3]).
+
 % ****************
 % URL declarations
 % ****************
-%
-% Implements a parser for Universal Resource Locators as described
-% in RFC 3986. Successfull parsing results in an url prototype.
-% Using RFC 3986 ABNF (page 48) as basis for this grammar. This parser
-% does not support IPV6 nor fragments. 
 
 
-%  <url> ::= <scheme> <hierarchy>
+% <url> ::= <scheme> <hierarchy>
 %
 % Parses url
 
@@ -164,7 +178,7 @@ exclamation(E)  --> "!", { [E] = "!" }.
 questionmark(Q) --> "?", { [Q] = "?" }.
 
 
-% urltest(-Url)
+%! urltest(-Url)
 %
 % A test function
 
