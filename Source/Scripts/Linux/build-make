@@ -1,0 +1,17 @@
+#!/bin/bash
+
+executable=make
+
+path_to_executable=$(which $executable)
+
+if ! [ -x "$path_to_executable" ]; then
+  echo "$executable is not installed in your PATH"
+  exit 1
+fi
+
+LOCAL=${1}
+
+cd ${LOCAL}
+
+CFLAGS="-O3 -march=native -pipe" CXXFLAGS="-O3 -march=native -pipe" make 
+#sudo make install
