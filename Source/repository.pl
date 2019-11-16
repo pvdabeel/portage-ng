@@ -143,7 +143,7 @@ sync(metadata) ::-
 
 
 sync(metadata) ::-
-  ::type('cmake'),!,
+  ::type(Type),!,
   ::location(Local),
   ::remote(Remote),
   ::cache(Cache),
