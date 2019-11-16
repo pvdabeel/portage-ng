@@ -1,0 +1,12 @@
+#!/bin/bash
+
+executable=ebuild.sh
+
+path_to_executable=$(which $executable)
+
+if ! [ -x "$path_to_executable" ]; then
+  echo "$executable is not installed in your PATH"
+  exit 1
+fi
+
+# ebuild.sh $TARGET install
