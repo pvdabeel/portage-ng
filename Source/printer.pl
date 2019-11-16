@@ -1,12 +1,36 @@
+/*                                                                              
+  Author:   Pieter Van den Abeele                                               
+  E-mail:   pvdabeel@mac.com                                                    
+  Copyright (c) 2005-2019, Pieter Van den Abeele                                
+                                                                                
+  Distributed under the terms of the LICENSE file in the root directory of this 
+  project.                                                                      
+*/                                                                              
+                                                                                
+                                                                                
+/** <module> PRINTER                                                          
+The Printer takes a plan from the Planner and pretty prints it.                      
+*/     
+
 % ********************
 % PRINTER declarations
 % ********************
 
-% Pretty print a build plan
+:- module(printer, []).
+
+
+%! printer:print(+Plan)
+%
+% Print a given plan
 
 printer:print(Plan) :-
   forall(member(E,Plan),
     (write(' -  STEP:  | '),printer:firststep(E))).
+
+
+%! printer:firststep(+Step)
+%
+% Print a step in a plan
 
 printer:firststep([]) :-  nl, !.
 
@@ -25,6 +49,10 @@ printer:firststep([rule(_,_)|L]) :-
   printer:firststep(L).
 
 
+%! printer:nextstep(+Step)
+%
+% Print a step in a plan
+
 printer:nextstep([]) :- nl,!.
 
 printer:nextstep([rule(Context://E:Action,_)|L]) :- 
@@ -42,6 +70,10 @@ printer:nextstep([rule(Context://E:Action,_)|L]) :-
 printer:nextstep([rule(_,_)|L]) :- 
   printer:nextstep(L).
 
+
+%! printer:test(+Repository)
+%
+% Proves and prints every entry in a given repository
 
 printer:test(Repository) :-
   system:time(
