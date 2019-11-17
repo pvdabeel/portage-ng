@@ -112,13 +112,11 @@ prover:conflictrule(rule(Literal,_), Proof) :- !, prover:proving(rule(naf(Litera
 % Prove all entries in a given Repository
 
 prover:test(Repository) :-
-  system:time(
-              system:forall(Repository:entry(E),
- 	                    ((message:success(E),
-                              call_with_time_limit(10,prover:prove(Repository://E:install,[],_,[],_)));
-			     (message:failure(E)))
-                           )
-             ),
+  time(forall(Repository:entry(E),
+ 	      ((message:success(E),
+                call_with_time_limit(10,prover:prove(Repository://E:install,[],_,[],_)));
+               (message:failure(E))))
+      ),
   Repository:get_size(S),
   message:inform(['proved ',S,' ',Repository,' entries.']).
 
@@ -128,7 +126,7 @@ prover:test(Repository) :-
 % Prove all entries in a given Repository, but do it concurrently
 
 prover:testparallel(Repository) :-
-  findall(call_with_time_limit(10,prover:prove(Repository://E:install,[],_,[],_)),Repository:entry(E),Calls),
+  findall(prover:prove(Repository://E:install,[],_,[],_),Repository:entry(E),Calls),
   config:number_of_cpus(Cpus),
   time(concurrent(Cpus,Calls,[])),
   Repository:get_size(S),

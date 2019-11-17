@@ -51,12 +51,24 @@ parser:invoke([X|XX], [Y|YY]) :-
 
 parser:test(Repository) :-
   Repository:get_cache(C),
+  time(forall(Repository:entry(E),
+              ((message:success(E),
+                call_with_time_limit(10,reader:invoke(C,E,R),parser:invoke(R,_)));
+               (message:failure(E))))
+      ),
+  Repository:get_size(S),
+  message:inform(['parsed ',S,' ',Repository,' entries.']).
+
+
+%! parser:testparalell(+Repository)
+%
+% Predicate tests concurrently whether all repository entries can be succesfully
+% parsed. Repository: The repository from which to parse all entries.
+
+parser:testparallel(Repository) :-
+  Repository:get_cache(C),
   findall(parser:invoke(R,_),(Repository:entry(E),reader:invoke(C,E,R)),Calls),
   current_prolog_flag(cpu_count,Cpus),
   time(concurrent(Cpus,Calls,[])),
-  %time(forall(Repository:entry(E),
-  %            (%writeln(E),
-  %            reader:invoke(C,E,R),parser:invoke(R,_);message:failure(E),true))
-  %    ),
   Repository:get_size(S),
   message:inform(['parsed ',S,' ',Repository,' entries.']).
