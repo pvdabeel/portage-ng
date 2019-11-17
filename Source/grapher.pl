@@ -148,7 +148,7 @@ grapher:write_tree(Context://Id) :-
 
 grapher:enconvert(Context://Id,Code) :-
   string_codes(Id,List),
-  atomic_list_concat([choice,'-',Context|List],Code).
+  atomic_list_concat([choice,Context|List],Code).
 
 
 %! grapher:choices(+Type,+List)
