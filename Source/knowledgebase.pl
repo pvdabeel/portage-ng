@@ -58,7 +58,7 @@ state across application relaunches.
   true.
 
 
-%! knowledgebase:register(-Repository)
+%! knowledgebase:register(+Repository)
 %
 % Public predicate
 %
@@ -68,7 +68,7 @@ register(Repository) ::-
   <+repository(Repository),!.
 
 
-%! knowledgebase:deregister(-Repository)
+%! knowledgebase:deregister(+Repository)
 %
 % Public predicate
 %
@@ -132,7 +132,7 @@ clear ::-
   true.
 
 
-% knowledgebase:state
+% knowledgebase:state(+File)
 %
 % Protected predicate
 %
@@ -143,7 +143,7 @@ state(File) ::-
   atomic_list_concat([Context,'.raw'],File).
 
 
-% knowledgebase:repository
+% knowledgebase:repository(?Repository)
 %
 % Protected predicate
 %
@@ -153,11 +153,11 @@ repository(_Repository) ::-
   true.
 
 
-% knowledgebase:repository
+% knowledgebase:entry(?Entry)
 %
 % Protected predicate
 %
-% knowledgebase entries
+% Knowledgebase entries
 
 entry(_E) ::-
   true.
