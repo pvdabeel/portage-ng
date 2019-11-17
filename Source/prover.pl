@@ -19,6 +19,11 @@ The prover computes a proof and a model for a given input
 % *******************
 
 
+%! prover:proof(+Target,-NewProof,+OldProof,-NewModel,+OldModel)
+%
+% prove a given Target starting from OldProof and OldModel, producing NewProof
+% and NewModel
+
 % ------------------------------------------
 % CASE 1: A list of literals to prove, empty
 % ------------------------------------------
