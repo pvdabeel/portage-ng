@@ -85,10 +85,10 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 
 %! repository:init(+Location,+Cache,+Remote,+Protocol,+Type)
 %
+% public predicate
+%
 % Initializes the repository instance with a location,
 % remote and type
-%
-% public predicate
 
 init(Location,Cache,Remote,Protocol,Type) ::-
   <=location(Location),
@@ -100,9 +100,9 @@ init(Location,Cache,Remote,Protocol,Type) ::-
 
 %! repository:sync
 %
-% Full sync of repository, metadata and rules
-%
 % public predicate
+%
+% Full sync of repository, metadata and rules
 
 sync ::-
   :this(Context),
@@ -113,9 +113,9 @@ sync ::-
 
 %! repository:sync(+Repository)
 %
-% Updates files in local repository by invoking script to sync with remote
-%
 % public predicate
+%
+% Updates files in local repository by invoking script to sync with remote
 
 sync(repository) ::-
   ::location(Local),
@@ -126,9 +126,9 @@ sync(repository) ::-
 
 %! repository:sync(+Metadata)
 %
-% Regenerates metadata from local repository files by invoking script
-%
 % public predicate
+%
+% Regenerates metadata from local repository files by invoking script
 
 sync(metadata) ::-
   ::type('eapi'),!,
@@ -154,9 +154,9 @@ sync(metadata) ::-
 
 % repository:sync(kb)
 %
-% Regenerates knowledgebase facts from local repository metadata
-%
 % public predicate
+%
+% Regenerates knowledgebase facts from local repository metadata
 
 sync(kb) ::-
   :this(Context),
@@ -169,13 +169,13 @@ sync(kb) ::-
 
 
 
-% repository:read_entry(-Entry,-Timestamp,Category,Name,Version)
+% repository:read_entry(+Entry, -Timestamp, -Category, -Name, -Version)
+%
+% public predicate
 %
 % Retrieves metadata cache entry, and the last modified date
 % of the cache entry, its category, name and version
 % Disk access required
-%
-% public predicate
 
 read_entry(Entry,Timestamp,Category,Name,Version) ::-
   ::cache(Cache),!,
@@ -190,12 +190,12 @@ read_entry(Entry,Timestamp,Category,Name,Version) ::-
 % read_metadata(Entry,Timestamp,Metadata).
 
 
-% repository:read_metadata(Entry,Timestamp,Metadata)
+% repository:read_metadata(+Entry, -Timestamp, -Metadata)
+%
+% public predicate
 %
 % Reads the metadata for a given entry from disk if
 % it is new of has been modifed
-%
-% public predicate
 
 read_metadata(Entry,Timestamp,Metadata) ::-
   :this(Context),
@@ -211,11 +211,11 @@ read_metadata(Entry,_,[]) ::-
   message:failure(['Failed to parse ',Entry,' metadata cache!']),!.
 
 
-% repository:read_time(+Time)
-%
-% Time is a float, representing the time last synced
+% repository:read_time(-Time)
 %
 % public predicate
+%
+% Time is a float, representing the time last synced
 
 read_time(Time) ::-
   ::location(Location),
@@ -223,37 +223,37 @@ read_time(Time) ::-
   reader:read_timestamp(File,Time).
 
 
-% repository:entry(-Entry)
+% repository:entry(?Entry)
+%
+% public predicate
 %
 % Retrieves metadata cache entry
 % No disk access - initial sync required
-%
-% public predicate
 
 entry(Entry) ::-
   :this(Context),
   cache:entry(Context,Entry,_,_,_,_,_).
 
 
-% repository:entry(-Entry,-Time)
+% repository:entry(?Entry, ?Time)
+%
+% public predicate
 %
 % Retrieves metadata cache entry, and the last modified date
 % of the cache entry
 % No disk access - initial sync required
-%
-% public predicate
 
 entry(Entry,Time) ::-
   :this(Context),
   cache:entry(Context,Entry,Time,_,_,_,_).
 
 
-% repository:category(-Category)
+% repository:category(?Category)
+%
+% public predicate
 %
 % Retrieves metadata cache category
 % No disk access - initial sync required
-%
-% public predicate
 
 category(Category) ::-
   :this(Context),
@@ -262,12 +262,12 @@ category(Category) ::-
   member(Category,Ss).
 
 
-% repository:package(-Category,-Package)
+% repository:package(?Category, ?Package)
+%
+% public predicate
 %
 % Retrieves metadata cache package
 % No disk access - initial sync required
-%
-% public predicate
 
 package(Category,Package) ::-
   :this(Context),
@@ -275,36 +275,36 @@ package(Category,Package) ::-
   atomic_list_concat([Name,'-',Version],Package).
 
 
-% repository:ebuild(-Category,-Name,-Version)
+% repository:ebuild(?Category, ?Name, ?Version)
+%
+% public predicate
 %
 % Retrieves metadata cache ebuild
 % No disk access - initial sync required
-%
-% public predicate
 
 ebuild(Category,Name,Version) ::-
   :this(Context),
   cache:entry(Context,_,_,Category,Name,Version,_).
 
 
-% repository:ebuild(-Id,-Category,-Name,-Version)
+% repository:ebuild(?Id, ?Category, ?Name, ?Version)
+%
+% public predicate
 %
 % Retrieves metadata cache ebuild
 % No disk access - initial sync required
-%
-% public predicate
 
 ebuild(Id,Category,Name,Version) ::-
   :this(Context),
   cache:entry(Context,Id,_,Category,Name,Version,_).
 
 
-% repository:ebuild(-Id,-Category,-Name,-Version,-Metadata)
+% repository:ebuild(?Id, ?Category, ?Name, ?Version, ?Metadata)
+%
+% public predicate
 %
 % Retrieves metadata cache ebuild
 % Disk access
-%
-% public predicate
 
 ebuild(Id,Category,Name,Version,Metadata) ::-
   :this(Context),
@@ -314,10 +314,10 @@ ebuild(Id,Category,Name,Version,Metadata) ::-
 
 % repository:query(+Query,-Result)
 %
+% public predicate
+%
 % Retrieves metadata cache ebuild that satisfies
 % a given query
-%
-% public predicate
 
 query([],Id) ::-
   :this(Repository),
@@ -353,67 +353,67 @@ query([Statement|Rest],Id) ::-
   Repository:query(Rest,Id).
 
 
-% repository:get_location(+Location).
+% repository:get_location(?Location).
+%
+% public predicate
 %
 % Location is an atom, representing a full absolute path
 % to a portage tree installed on your local system.
-%
-% public predicate
 
 get_location(Location) ::-
   ::location(Location).
 
 
-% repository:get_cache(+Location).
+% repository:get_cache(?Location).
+%
+% public predicate
 %
 % Location is an atom, representing a full absolute path
 % to a portage tree cache installed on your local system.
-%
-% public predicate
 
 get_cache(Location) ::-
   ::cache(Location).
 
 
-% repository:get_remote(+Location).
+% repository:get_remote(?Location).
+%
+% public predicate
 %
 % Location is an atom, representing an uri to a remote
 % portage tree.
-%
-% public predicate
 
 get_remote(Location) ::-
   ::remote(Location).
 
 
-% repository:get_protocol(+Protocol).
+% repository:get_protocol(?Protocol).
+%
+% public predicate
 %
 % Protocol is an atom, representing a protocol to sync
 % with the remote portage tree.
-%
-% public predicate
 
 get_protocol(Protocol) ::-
   ::protocol(Protocol).
 
 
-% repository:get_type(+Type)
+% repository:get_type(?Type)
+%
+% public predicate
 %
 % Type is an atom, representing the type of data represented
 % in the repository being processed.
-%
-% public predicate
 
 get_type(Type) ::-
   ::type(Type).
 
 
-% repository:get_type(+Type)
+% repository:get_type(?Type)
+%
+% public predicate
 %
 % Type is an atom, representing the type of data represented
 % in the repository being processed.
-%
-% public predicate
 
 get_size(Size) ::-
   :this(Repository),
@@ -423,9 +423,9 @@ get_size(Size) ::-
 
 % repository:get_ebuild(+Entry,-Ebuild)
 %
-% For a given entry, retrieves the full path to the corresponding ebuild
-%
 % public predicate
+%
+% For a given entry, retrieves the full path to the corresponding ebuild
 
 get_ebuild(Entry,Ebuild) ::-
   ::location(Location),
@@ -434,60 +434,60 @@ get_ebuild(Entry,Ebuild) ::-
   exists_file(Ebuild).
 
 
-% repository:location(+Location)
+% repository:location(?Location)
+%
+% protected predicate
 %
 % location is an atom, representing a full absolute path
 % to a portage tree installed on your local system
-%
-% protected predicate
 
 location(Location) ::-
   atom(Location).
   %is_absolute_file_name(Location).
 
 
-% repository:cache(+Location)
+% repository:cache(?Location)
+%
+% protected predicate
 %
 % location is an atom, representing a full absolute path
 % to a portage tree cache installed on your local system
-%
-% protected predicate
 
 cache(Location) ::-
   atom(Location).
   %is_absolute_file_name(Location).
 
 
-% repository:remote(+Location)
+% repository:remote(?Location)
+%
+% protected predicate
 %
 % Location is an atom, representing an uri to a remote
 % portage tree.
-%
-% protected predicate
 
 remote(Location) ::-
   atom(Location).
   % is_absolute_url(Location).
 
 
-% repository:protocol(+Protocol)
+% repository:protocol(?Protocol)
+%
+% protected predicate
 %
 % Protocol is an atom, representing the protocol to
 % sync with the remote portage tree.
-%
-% protected predicate
 
 protocol(Protocol) ::-
   atom(Protocol).
   % member(Protocol,['git','http','rsync']).
 
 
-% repository:type(+Type)
+% repository:type(?Type)
+%
+% protected predicate
 %
 % Type is an atom, representing the type of data represented
 % in the repository being processed
-%
-% protected predicate
 
 type(Type) ::-
   atom(Type).
