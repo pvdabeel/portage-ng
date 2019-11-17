@@ -38,8 +38,6 @@ https://projects.gentoo.org/pms/6/pms.html
 %           A line contains a key=value pair.
 %
 % Metaata:  A prolog predicate, i.e. key(value)
-%
-% public predicate
 
 eapi:parse(Codes,Metadata) :-
   phrase(eapi:keyvalue(Metadata),Codes).
@@ -52,8 +50,6 @@ eapi:parse(Codes,Metadata) :-
 %! DCG eapi:keyvalue/1
 %
 % Predicate used to turn eapi key=value pairs into prolog key(value) pairs
-%
-% private predicate
 
 eapi:keyvalue(Metadata) -->
   eapi:key(Key),
@@ -1456,8 +1452,6 @@ packageversion(Name,_,_) :-
 %
 % Predicate representing the key structure of a pms cache entry.
 % In a pms cache entry, line number defined the key.
-%
-% public predicate
 
 eapi:keys(['depend',
            'rdepend',
@@ -1493,8 +1487,6 @@ eapi:keys(['depend',
 % Entry:   The pms cache entry
 %
 % Content: The content of the pms cache entry
-%
-% public predicate
 
 % PMS version
 
