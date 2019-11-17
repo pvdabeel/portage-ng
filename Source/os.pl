@@ -42,7 +42,7 @@ os:compose_path(Path,RelativePath,NewPath) :-
   atomic_list_concat([Path,'/',RelativePath],NewPath).
 
 
-%! os:make_repository_dirs(Repository,Directory)
+%! os:make_repository_dirs(+Repository,+Directory)
 %
 % Given a prolog repository, creates a directory with subdirs
 % corresponding to the categories within the prolog repository
@@ -54,7 +54,7 @@ os:make_repository_dirs(Repository,Directory) :-
      system:make_directory(Subdir))).
 
 
-%! os:update_repository_dirs(Repository,Directory)
+%! os:update_repository_dirs(+Repository,+Directory)
 %
 % Given a prolog repository, creates a directory with subdirs
 % corresponding to the categories within the prolog repository
