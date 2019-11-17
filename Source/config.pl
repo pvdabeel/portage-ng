@@ -26,7 +26,7 @@ configuration. The parameters described typically do not change at runtime.
 config:dry_run_build.
 
 
-%! config:installation_dir(+FullPath)
+%! config:installation_dir(?FullPath)
 %
 % Declaration of the installation directory of the application source code.
 % Needs to be a full path. We serialise some Prolog code to this directory.
@@ -35,7 +35,7 @@ config:dry_run_build.
 config:installation_dir('/Users/pvdabeel/Desktop/Prolog').
 
 
-%! config:graph_directory(+FullPath)
+%! config:graph_directory(?FullPath)
 %
 % This application is capable of writing Graphviz dot files and will turn
 % them into interactive scalable vector graphics (svg) to enable you to
@@ -46,7 +46,7 @@ config:installation_dir('/Users/pvdabeel/Desktop/Prolog').
 config:graph_directory('/Users/pvdabeel/Graph/').
 
 
-%! config:number_of_cpus(+Count)
+%! config:number_of_cpus(?Count)
 %
 % This application parallellizes parsing, proving, planning and building.
 % SWI prolog is automatically able to determine the maximum cpu count, but
@@ -55,7 +55,7 @@ config:graph_directory('/Users/pvdabeel/Graph/').
 config:number_of_cpus(C) :- current_prolog_flag(cpu_count,C).
 
 
-%! config:number_of_cpus(+Count)
+%! config:number_of_cpus(?Count)
 %
 % Different verbosity levels may be configured for printing runtime information
 
