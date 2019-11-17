@@ -311,7 +311,7 @@ grapher:prepare_directory(D,Repository) :-
 
 grapher:prepare_directory(D,Repository) :-
   config:graph_directory(D),
-  not(system:exists_directory(D)),!
+  not(system:exists_directory(D)),!,
   os:make_repository_dirs(Repository,D).
 
 grapher:write_dot(D,Repository://Id) :-
@@ -319,8 +319,7 @@ grapher:write_dot(D,Repository://Id) :-
   atomic_list_concat([D,'/',Id,'.dot'],F),
   tell(F),
   grapher:graph(detail,Repository://Id),
-  told
-
+  told.
 
 
 grapher:test(Repository) :-
