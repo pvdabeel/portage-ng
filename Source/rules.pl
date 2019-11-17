@@ -19,9 +19,9 @@ This file contains domain-specific rules for dealing with software dependencies
 % ******************
 
 
-% Skip attempted installation of masked packages without failing
+% Skip masked packages without failing
 
-rule(Context://Identifier:install,[]) :-
+rule(Context://Identifier:_,[]) :-
   preference:masked(Context://Identifier),!.
 
 
