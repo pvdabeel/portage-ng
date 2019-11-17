@@ -44,8 +44,8 @@ Short description:
     meta-predicates. We implement (Multiple) inheritance and cloning.
     We implement operators enabling interaction with context.
 
- Programs written using CONTEXT are much smaller, support team development
- and can still be converted easily to traditional prolog code.
+Programs written using CONTEXT are much smaller, support team development
+and can still be converted easily to traditional prolog code.
 
 Long description:
 
@@ -200,9 +200,9 @@ Examples:
 :- op(1200, xfx, '::-').
 
 
-%! this(:Context)
+%! this(?Context)
 %
-% Form:		context:this(:Context)
+% Form:		context:this(?Context)
 % Property:	Exported, transparant
 % Description:  Retrieves the current context.
 
@@ -214,7 +214,7 @@ this(Context) :-
 %
 % Form          context:class
 % Property      exported, transparent
-% Description        declare a class.
+% Description   declare a class.
 
 class :-
   class([]).
@@ -310,7 +310,7 @@ declare(Fact) :-
 
 %! context:declare(+Context, +Fact)
 %
-% Form         context:declare(+Context,Fact)
+% Form         context:declare(+Context, +Fact)
 % Property     local
 % Description  declare a fact.
 
@@ -342,9 +342,9 @@ context:conflicting(type(_), type(_)) :- !.
 context:conflicting(property(Functor/Arity, _), property(Functor/Arity, _)) :- !.
 
 
-%! declared(:Fact)
+%! declared(?Fact)
 %
-% Form         context:declared(:Fact)
+% Form         context:declared(?Fact)
 % Property     exported, transparent
 % Description  check whether a fact is declared.
 
@@ -423,7 +423,7 @@ context:inherit_predicates(Relation, Context, Parent, [Functor/Arity|Tail]) :-
 context:inherit_predicates(_Relation, _Context, _Parent, []).
 
 
-%! inherit_predicate(+Relation, +Context, +Parent, Functor/Arity)
+%! inherit_predicate(+Relation, +Context, +Parent, +Functor/+Arity)
 %
 % Form         context:inherit_predicate(+Relation, +Context, +Parent, +Functor/+Arity)
 % Property     local
@@ -515,9 +515,9 @@ context:gen_check_invocation(_Context, private, MetaHead, Code) :-
          ).
 
 
-%! translate_call(:MetaCall,:Call)
+%! translate_call(?MetaCall, ?Call)
 %
-% Form         context:translate_call(:MetaCall,:Call)
+% Form         context:translate_call(?MetaCall, ?Call)
 % Property     local
 % Description  translate between call and metacall representation.
 
@@ -665,9 +665,6 @@ context:newinstance(Context, Constructor) :-
   DestructorCall =.. [Context|_Arguments],
   Context:declared(type(class)),
   context:destroy(Context).
-
-% TODO: verify whether destructor exists. Throw exeption if non-existing destructor is called.
-% TODO: check public, private, protected, mutexed destructors???
 
 '~'(DestructorCall) :-
   DestructorCall =.. [Context|Arguments],
