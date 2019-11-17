@@ -334,8 +334,8 @@ grapher:test(Repository) :-
 
 
 grapher:test(Repository) :-
-  grapher:prepare_directory(D),
-  not(config:graph_modified_only),!,
+  grapher:prepare_directory(D,Repository),
+  not(config:graph_modified_only(true)),!,
   forall(Repository:entry(E),
          (grapher:write_dot(D,Repository://E))),
   script:exec(graph,['dot',D]).
