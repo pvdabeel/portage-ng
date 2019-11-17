@@ -25,7 +25,7 @@ Output: A nested list of codes, each sublist represents a line.
 % *******************
 
 
-%! reader:invoke(+Cache,+Entry,-Contents)
+%! reader:invoke(+Cache, +Entry, -Contents)
 %
 % Cache: The location of the cache.
 % Entry: The cache entry to read.
@@ -40,7 +40,7 @@ reader:invoke(Cache,Entry,Contents) :-
   close(Stream).
 
 
-%! reader:read_lines(+Stream,-Lines)
+%! reader:read_lines(+Stream, -Lines)
 %
 % Given a stream, reads all lines from the stream.
 
@@ -55,7 +55,7 @@ reader:read_lines(Stream,[L|R]) :-
   reader:read_lines(Stream,R).
 
 
-%! reader:read_timestamp(File,Time)
+%! reader:read_timestamp(+File, -Time)
 %
 % Given a timestamp file, reads the timestamp.
 
