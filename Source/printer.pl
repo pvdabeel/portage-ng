@@ -76,14 +76,12 @@ printer:nextstep([rule(_,_)|L]) :-
 % Proves and prints every entry in a given repository
 
 printer:test(Repository) :-
-  system:time(
-              system:forall(Repository:entry(E),
- 	                    ((nl,message:header(["Planning ",Repository://E]),
-                              prover:prove(Repository://E:install,[],Proof,[],_),
-			      planner:plan(Proof,[],[],Plan),
-                              printer:print(Plan));
-			     (message:failure(E)))
-                           )
-             ),
+  time(forall(Repository:entry(E),
+ 	      ((nl,message:header(["Planning ",Repository://E]),
+                prover:prove(Repository://E:install,[],Proof,[],_),
+                planner:plan(Proof,[],[],Plan),
+                printer:print(Plan));
+	       (message:failure(E))))
+      ),
   Repository:get_size(S),
   message:inform(['printed plan for ',S,' ',Repository,' entries.']).
