@@ -358,15 +358,15 @@ grapher:write_dot_files(D,Repository://Id) :-
   atomic_list_concat([D,'/',Id,'.dot'],Fdetail),
   tell(Fdetail),
   grapher:graph(detail,Repository://Id),
-  told,
-  atomic_list_concat([D,'/',Id,'-depend.dot'],Fdepend),
-  tell(Fdepend),
-  grapher:graph(depend,Repository://Id),
-  told,
-  atomic_list_concat([D,'/',Id,'-rdepend.dot'],Frdepend),
-  tell(Frdepend),
-  grapher:graph(rdepend,Repository://Id),
   told.
+  %atomic_list_concat([D,'/',Id,'-depend.dot'],Fdepend),
+  %tell(Fdepend),
+  %grapher:graph(depend,Repository://Id),
+  %told,
+  %atomic_list_concat([D,'/',Id,'-rdepend.dot'],Frdepend),
+  %tell(Frdepend),
+  %grapher:graph(rdepend,Repository://Id),
+  %told.
 
 
 
