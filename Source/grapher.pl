@@ -118,6 +118,7 @@ grapher:graph(Type,Context://Id) :-
   writeln('compound=true;'),
   writeln('graph [rankdir=TD];#, ranksep=2.5, nodesep=0.2];'),
   writeln('edge  [arrowhead=vee];'), % arrowsize=0.6 constraint= true
+  writeln('node  [fontname=Helvetica,fontsize=10];'),
   nl,
   retractall(graph_visited(_)),
   grapher:write_tree(Context://Id,Type),
@@ -359,14 +360,14 @@ grapher:write_dot_files(D,Repository://Id) :-
   tell(Fdetail),
   grapher:graph(detail,Repository://Id),
   told.
-  %atomic_list_concat([D,'/',Id,'-depend.dot'],Fdepend),
-  %tell(Fdepend),
-  %grapher:graph(depend,Repository://Id),
-  %told,
-  %atomic_list_concat([D,'/',Id,'-rdepend.dot'],Frdepend),
-  %tell(Frdepend),
-  %grapher:graph(rdepend,Repository://Id),
-  %told.
+%  atomic_list_concat([D,'/',Id,'-depend.dot'],Fdepend),
+%  tell(Fdepend),
+%  grapher:graph(depend,Repository://Id),
+%  told,
+%  atomic_list_concat([D,'/',Id,'-rdepend.dot'],Frdepend),
+%  tell(Frdepend),
+%  grapher:graph(rdepend,Repository://Id),
+%  told.
 
 
 

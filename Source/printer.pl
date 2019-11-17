@@ -25,17 +25,18 @@ The Printer takes a plan from the Planner and pretty prints it.
 
 printer:print(Plan) :-
   forall(member(E,Plan),
-    (write(' -  STEP:  | '),printer:firststep(E))).
+    printer:firststep(E)).
 
 
 %! printer:firststep(+Step)
 %
 % Print a step in a plan
 
-printer:firststep([]) :-  nl, !.
+printer:firststep([]) :- !.
 
 printer:firststep([rule(Context://E:Action,_)|L]) :-
   !,
+  write(' -  STEP:  | '),
   message:color(green),
   write(Context://E),
   message:color(blue),

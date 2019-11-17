@@ -28,7 +28,7 @@ The Builder takes a plan from the Planner and executes it.
 
 builder:execute(Plan) :-
   forall(member(E,Plan),
-    (write(' -  STEP:  | '),builder:firststep(E))).
+    builder:firststep(E)).
 
 
 %! builder:build(+Context://Entry:Action)
@@ -68,10 +68,11 @@ builder:build(Context://_Entry:_Action) :-
 %
 % Builds a part of a build plan
 
-builder:firststep([]) :-  nl, !.
+builder:firststep([]) :-  !.
 
 builder:firststep([rule(Context://E:Action,_)|L]) :-
   !,
+  write(' -  STEP:  | '),
   message:color(green),
   write(Context://E),
   message:color(blue),
@@ -121,7 +122,7 @@ builder:test(Repository) :-
   system:time(
               system:forall(Repository:entry(E),
  	                    ((nl,message:header(["Building ",Repository://E]),
-                              prover:prove(Repository://E:install,[],Proof,[],_),
+                              prover:prove(Repository://E:run,[],Proof,[],_),
 			      planner:plan(Proof,[],[],Plan),
                               builder:execute(Plan));
 			     (message:failure(E)))
