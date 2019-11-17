@@ -132,7 +132,7 @@ grapher:write_tree(Context://Id) :-
   not(graph_visited(Context://Id)),!,
   write('\"'),write(Context://Id),write('\" [color=red, href=\"../'),write(Id),write('.svg\"];'),nl,
   ebuild:get(depend,Context://Id,DS),
-  findall(Ch,(member(D,DS),grapher:handle(full,solid,vee,Id,D,Ch)),AllChoices),
+  findall(Ch,(member(D,DS),grapher:handle(full,solid,vee,Context://Id,D,Ch)),AllChoices),
   assert(graph_visited(Context://Id)),
   grapher:choices(full,AllChoices),
   forall(member(arrow(_,[Chs]),AllChoices),
@@ -194,8 +194,8 @@ grapher:choices(Kind,[L|Rest]) :-
 %
 % For a given graph style, create a meta reprensentation of a dependency
 
-grapher:handle(full,_Style,_Arrow,Master,package_dependency(_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Master,[Context://Choice])) :-
-  cache:entry(Context,Choice,_,Cat,Name,_,_),
+grapher:handle(full,_Style,_Arrow,Mastercontext://Master,package_dependency(_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
+  cache:entry(Choicecontext,Choice,_,Cat,Name,_,_),
   !, true.
 
 grapher:handle(full,_Style,_Arrow,_Master,use_conditional_group(_Type,_Use,_Deps),[]) :- !.
