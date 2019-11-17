@@ -19,7 +19,7 @@ The prover computes a proof and a model for a given input
 % *******************
 
 
-%! prover:proof(+Target,-NewProof,+OldProof,-NewModel,+OldModel)
+%! prover:proof(+Target,+OldProof,-NewProof,+OldModel,-NewModel)
 %
 % prove a given Target starting from OldProof and OldModel, producing NewProof
 % and NewModel
