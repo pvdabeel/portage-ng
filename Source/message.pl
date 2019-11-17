@@ -155,15 +155,15 @@ message:header(Message) :-
 
 
 
-%! message:prefix(failure)
+%! message:prefix(+Message)
 %
 % Message prefix
 
-message:prefix(_) :-
+message:prefix(_Message) :-
   system:write('>>> ').
 
 
-%! message:wrap(rule)
+%! message:wrap(+Rule)
 %
 % Informs and executes
 
