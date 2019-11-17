@@ -63,7 +63,10 @@ builder:build(Context://_Entry:_Action) :-
   script:exec(build,['cmake', Local]).
 
 
-% Helper predicates
+
+%! builder:firststep(+Steps)
+%
+% Builds a part of a build plan
 
 builder:firststep([]) :-  nl, !.
 
@@ -81,6 +84,11 @@ builder:firststep([rule(Context://E:Action,_)|L]) :-
 
 builder:firststep([rule(_,_)|L]) :-
   builder:firststep(L).
+
+
+%! builder:nextstep(+Steps)
+%
+% Builds a part of a build plan
 
 builder:nextstep([]) :- nl,!.
 
