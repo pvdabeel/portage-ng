@@ -19,7 +19,7 @@ This file declares a predicate to list all instances for a given class.
 % **********************
 
 
-%! instances(+Class,:Instance)
+%! instances(+Class,?Instance)
 %
 % For a given class, retrieves its instances
 
