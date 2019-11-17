@@ -70,9 +70,10 @@ planner:plan(Rules,InitialWeights,OldPlan,[ZeroRules|TempPlan]) :-
 % Creates a plan for every entry in a repository
 
 planner:test(Repository) :-
+  config:time_limit(T),
   time(forall(Repository:entry(E),
  	      ((message:success(E),
-                call_with_time_limit(10,(prover:prove(Repository://E:install,[],Proof,[],_),planner:plan(Proof,[],[],_))));
+                call_with_time_limit(T,(prover:prove(Repository://E:install,[],Proof,[],_),planner:plan(Proof,[],[],_))));
                (message:failure(E))))
       ),
   Repository:get_size(S),

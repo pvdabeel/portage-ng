@@ -51,9 +51,10 @@ parser:invoke([X|XX], [Y|YY]) :-
 
 parser:test(Repository) :-
   Repository:get_cache(C),
+  config:time_limit(T),
   time(forall(Repository:entry(E),
               ((message:success(E),
-                call_with_time_limit(10,reader:invoke(C,E,R),parser:invoke(R,_)));
+                call_with_time_limit(T,reader:invoke(C,E,R),parser:invoke(R,_)));
                (message:failure(E))))
       ),
   Repository:get_size(S),

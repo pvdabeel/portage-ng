@@ -60,3 +60,11 @@ config:number_of_cpus(C) :- current_prolog_flag(cpu_count,C).
 % Different verbosity levels may be configured for printing runtime information
 
 config:verbosity(debug).
+
+
+%! config:time_limit(?Limit)
+%
+% When proving use the specified time limit to automatically stop proofs when
+% they take too long. In seconds.
+
+config:time_limit(10).

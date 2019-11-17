@@ -112,9 +112,10 @@ prover:conflictrule(rule(Literal,_), Proof) :- !, prover:proving(rule(naf(Litera
 % Prove all entries in a given Repository
 
 prover:test(Repository) :-
+  config:time_limit(T),
   time(forall(Repository:entry(E),
  	      ((message:success(E),
-                call_with_time_limit(10,prover:prove(Repository://E:install,[],_,[],_)));
+                call_with_time_limit(T,prover:prove(Repository://E:install,[],_,[],_)));
                (message:failure(E))))
       ),
   Repository:get_size(S),
