@@ -87,8 +87,8 @@ rule(package_dependency(no,'virtual','ssh',_,_,_,_),[]) :- !.
 
 
 % A package dependency is satisfied when a suitable candidate is satisfied
-rule(package_dependency(no,C,N,_,_,_,_),portage://Choice:install) :-
-  cache:entry(_,Choice,_,C,N,_,_).
+rule(package_dependency(no,C,N,_,_,_,_),Context://Choice:install) :-
+  cache:entry(Context,Choice,_,C,N,_,_).
 
 
 % The dependencies in a use conditional group need to be satisfied when the use flag is set
