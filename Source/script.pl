@@ -8,7 +8,7 @@
 */
 
 
-/** <module> SCRIPTSi
+/** <module> SCRIPTS
 This file declares a predicate to execute a script inside the scripts directory
 */
 
