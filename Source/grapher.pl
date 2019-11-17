@@ -303,33 +303,40 @@ grapher:handle(detail,_Style,_Arrow,Master,S,[]) :-
 % opened by clicking on it in the diagram, enabling manual dependency graph
 % traversal to debug issues with ebuild dependencies.
 
-grapher:test(Repository) :-
+grapher:prepare_directory(D) :-
   config:graph_directory(D),
   system:exists_directory(D),!,
   message:inform(['Directory already exists! Updating...']),
-  os:update_repository_dirs(Repository,D),
-  forall((Repository:entry(Id,Time),
-           Repository:get_ebuild(Id,Ebuild),
+  os:update_repository_dirs(Repository,D).
+
+grapher:prepare_directory(D) :-
+  config:graph_directory(D),
+  not(system:exists_directory(D)),!
+  os:make_repository_dirs(Repository,D).
+
+grapher:write_dot(D,Repository://Id) :-
+  message:success(Id),
+  atomic_list_concat([D,'/',Id,'.dot'],F),
+  tell(F),
+  grapher:graph(detail,Repository://Id),
+  told
+
+
+
+grapher:test(Repository) :-
+  grapher:prepare_directory(D),
+  config:graph_modified_only,!,
+  forall((Repository:entry(E,Time),
+           Repository:get_ebuild(E,Ebuild),
            system:time_file(Ebuild,Modified),
            Modified > Time),
-         (message:success(Id),
-          atomic_list_concat([D,'/',Id,'.dot'],F),
-          tell(F),
-          grapher:graph(detail,Repository://Id),
-          told
-         )),
+         (grapher:write_dot(D,Repository://E))),
   script:exec(graph,['dot',D]).
 
 
 grapher:test(Repository) :-
-  config:graph_directory(D),
-  not(system:exists_directory(D)),
-  os:make_repository_dirs(Repository,D),
+  grapher:prepare_directory(D),
+  not(config:graph_modified_only),!,
   forall(Repository:entry(E),
-         (message:success(E),
-          atomic_list_concat([D,'/',E,'.dot'],F),
-          tell(F),
-          grapher:graph(detail,Repository://E),
-          told
-         )),
+         (grapher:write_dot(D,Repository://E))),
   script:exec(graph,['dot',D]).

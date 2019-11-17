@@ -68,3 +68,10 @@ config:verbosity(debug).
 % they take too long. In seconds.
 
 config:time_limit(10).
+
+
+%! config:graph_modified_only
+%
+% Set when you want Graphviz dot file to be created for new ebuilds only
+
+% config:graph_modified_only
