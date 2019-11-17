@@ -109,17 +109,18 @@ grapher:graph(detail,Context://Id) :-
 %
 % For a given ebuild, identified by an Id, create a full dependency diagram.
 
-grapher:graph(full,Context://Id) :-
+grapher:graph(Type,Context://Id) :-
+  member(Type,[depend,rdepend]),!,
   writeln('digraph prolog {'),
   nl,
   writeln('newrank=true;'),
   writeln('concentrate=true;'),
   writeln('compound=true;'),
-  writeln('graph [rankdir=LR];#, ranksep=2.5, nodesep=0.2];'),
+  writeln('graph [rankdir=TD];#, ranksep=2.5, nodesep=0.2];'),
   writeln('edge  [arrowhead=vee];'), % arrowsize=0.6 constraint= true
   nl,
   retractall(graph_visited(_)),
-  grapher:write_tree(Context://Id),
+  grapher:write_tree(Context://Id,Type),
   writeln('}'),
   retractall(graph_visited(_)).
 
@@ -128,17 +129,17 @@ grapher:graph(full,Context://Id) :-
 %
 % For a given ebuild, identified by an Id, create a tree diagram.
 
-grapher:write_tree(Context://Id) :-
+grapher:write_tree(Context://Id, Type) :-
   not(graph_visited(Context://Id)),!,
-  write('\"'),write(Context://Id),write('\" [color=red, href=\"../'),write(Id),write('.svg\"];'),nl,
-  ebuild:get(depend,Context://Id,DS),
-  findall(Ch,(member(D,DS),grapher:handle(full,solid,vee,Context://Id,D,Ch)),AllChoices),
+  write('\"'),write(Context://Id),write('\" [color=red, href=\"../'),write(Id),write('-'),write(Type),write('.svg\"];'),nl,
+  ebuild:get(Type,Context://Id,DS),
+  findall(Ch,(member(D,DS),grapher:handle(Type,solid,vee,Context://Id,D,Ch)),AllChoices),
   assert(graph_visited(Context://Id)),
-  grapher:choices(full,AllChoices),
+  grapher:choices(Type,AllChoices),
   forall(member(arrow(_,[Chs]),AllChoices),
-    grapher:write_tree(Chs)).
+    grapher:write_tree(Chs,Type)).
 
-grapher:write_tree(Context://Id) :-
+grapher:write_tree(Context://Id,_Type) :-
   graph_visited(Context://Id),!.
 
 
@@ -177,12 +178,31 @@ grapher:choices(detail,[arrow(D,Choices)|Rest]) :-
   writeln('}'),
   grapher:choices(detail,Rest).
 
-grapher:choices(full,[arrow(D,[Choice])|Rest]) :-
+
+grapher:choices(depend,[arrow(D,[Choice])|Rest]) :-
   !,
   write('\"'),write(D),write('\"'),
   write(' -> '),
   write('\"'),write(Choice),write('\"'),nl,
-  grapher:choices(full,Rest).
+  grapher:choices(depend,Rest).
+
+
+grapher:choices(cdepend,[arrow(D,[Choice])|Rest]) :-
+  !,
+  write('\"'),write(D),write('\"'),
+  write(' -> '),
+  write('\"'),write(Choice),write('\"'),nl,
+  grapher:choices(cdepend,Rest).
+
+
+grapher:choices(rdepend,[arrow(D,[Choice])|Rest]) :-
+  !,
+  write('\"'),write(D),write('\"'),
+  write(' -> '),
+  write('\"'),write(Choice),write('\"'),nl,
+  grapher:choices(rdepend,Rest).
+
+
 
 grapher:choices(Kind,[L|Rest]) :-
   !,
@@ -194,21 +214,40 @@ grapher:choices(Kind,[L|Rest]) :-
 %
 % For a given graph style, create a meta reprensentation of a dependency
 
-grapher:handle(full,_Style,_Arrow,Mastercontext://Master,package_dependency(_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
+grapher:handle(depend,_Style,_Arrow,Mastercontext://Master,package_dependency(_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
   cache:entry(Choicecontext,Choice,_,Cat,Name,_,_),
   !, true.
 
-grapher:handle(full,_Style,_Arrow,_Master,use_conditional_group(_Type,_Use,_Deps),[]) :- !.
+grapher:handle(depend,_Style,_Arrow,_Master,use_conditional_group(_Type,_Use,_Deps),[]) :- !.
 
-grapher:handle(full,_Style,_Arrow,_Master,any_of_group(_),[]) :- !.
+grapher:handle(depend,_Style,_Arrow,_Master,any_of_group(_),[]) :- !.
 
-grapher:handle(full,_Style,_Arrow,_Master,all_of_group(_),[]) :- !.
+grapher:handle(depend,_Style,_Arrow,_Master,all_of_group(_),[]) :- !.
 
-grapher:handle(full,_Style,_Arrow,_Master,exactly_one_of_group(_),[]) :- !.
+grapher:handle(depend,_Style,_Arrow,_Master,exactly_one_of_group(_),[]) :- !.
 
-grapher:handle(full,_Style,_Arrow,_Master,at_most_one_of_group(_),[]) :- !.
+grapher:handle(depend,_Style,_Arrow,_Master,at_most_one_of_group(_),[]) :- !.
 
-grapher:handle(full,_Style,_Arrow,_Master,_,[]) :- !.
+grapher:handle(depend,_Style,_Arrow,_Master,_,[]) :- !.
+
+
+grapher:handle(rdepend,_Style,_Arrow,Mastercontext://Master,package_dependency(_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
+  cache:entry(Choicecontext,Choice,_,Cat,Name,_,_),
+  !, true.
+
+grapher:handle(rdepend,_Style,_Arrow,_Master,use_conditional_group(_Type,_Use,_Deps),[]) :- !.
+
+grapher:handle(rdepend,_Style,_Arrow,_Master,any_of_group(_),[]) :- !.
+
+grapher:handle(rdepend,_Style,_Arrow,_Master,all_of_group(_),[]) :- !.
+
+grapher:handle(rdepend,_Style,_Arrow,_Master,exactly_one_of_group(_),[]) :- !.
+
+grapher:handle(rdepend,_Style,_Arrow,_Master,at_most_one_of_group(_),[]) :- !.
+
+grapher:handle(rdepend,_Style,_Arrow,_Master,_,[]) :- !.
+
+
 
 
 grapher:handle(detail,Style,Arrow,Master,package_dependency(Type,Cat,Name,Comp,Ver,_,_),arrow(D,Choices)) :-
@@ -314,12 +353,21 @@ grapher:prepare_directory(D,Repository) :-
   not(system:exists_directory(D)),!,
   os:make_repository_dirs(Repository,D).
 
-grapher:write_dot(D,Repository://Id) :-
+grapher:write_dot_files(D,Repository://Id) :-
   message:success(Id),
   atomic_list_concat([D,'/',Id,'.dot'],F),
   tell(F),
   grapher:graph(detail,Repository://Id),
+  told,
+  atomic_list_concat([D,'/',Id,'-depend.dot'],F),
+  tell(F),
+  grapher:graph(cdepend,Repository://Id),
+  told,
+  atomic_list_concat([D,'/',Id,'-rdepend.dot'],F),
+  tell(F),
+  grapher:graph(rdepend,Repository://Id),
   told.
+
 
 
 grapher:test(Repository) :-
@@ -329,7 +377,7 @@ grapher:test(Repository) :-
            Repository:get_ebuild(E,Ebuild),
            system:time_file(Ebuild,Modified),
            Modified > Time),
-         (grapher:write_dot(D,Repository://E))),
+         (grapher:write_dot_files(D,Repository://E))),
   script:exec(graph,['dot',D]).
 
 
@@ -337,5 +385,5 @@ grapher:test(Repository) :-
   grapher:prepare_directory(D,Repository),
   not(config:graph_modified_only(true)),!,
   forall(Repository:entry(E),
-         (grapher:write_dot(D,Repository://E))),
+         (grapher:write_dot_files(D,Repository://E))),
   script:exec(graph,['dot',D]).
