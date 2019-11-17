@@ -19,7 +19,7 @@ The interface interpretes command line arguments passed to portage-ng.
 % **********************
 
 
-%! interface:version(:Version)
+%! interface:version(?Version)
 %
 % Retrieve the current version
 
@@ -27,7 +27,7 @@ interface:version(V) :-
   V = '20191114'.
 
 
-%! interface:specs(+Specification)
+%! interface:spec(?Specification)
 %
 % Retrieve the interface specification
 
