@@ -173,7 +173,7 @@ eapi:value(_,unused(R)) -->
 % Elements of the dependency sequence are packages.
 
 eapi:depend(D) -->
-  eapi:dependencies(package,D).
+  eapi:dependencies(package_d,D).
 
 
 %! DCG rdepend
@@ -182,7 +182,7 @@ eapi:depend(D) -->
 % Elements of the dependency sequence are packages.
 
 eapi:rdepend(D) -->
-  eapi:dependencies(package,D).
+  eapi:dependencies(package_r,D).
 
 
 %! DCG src_uri
@@ -253,7 +253,7 @@ eapi:unused(U) -->
 % of the sequence are typically packages.
 
 eapi:cdepend(D) -->
-  eapi:dependencies(package,D).
+  eapi:dependencies(package_c,D).
 
 
 %! DCG provide
@@ -301,8 +301,17 @@ eapi:dependency(T,D) -->
 eapi:dependency(T,D) -->
   eapi:at_most_one_of_group(T,D),!.
 
-eapi:dependency(package,D) -->
-  eapi:package_dependency(D). %!
+eapi:dependency(package_d,D) -->
+  eapi:package_dependency(install,D). %!
+
+eapi:dependency(package_r,D) -->
+  eapi:package_dependency(run,D). %!
+
+eapi:dependency(package_c,D) -->
+  eapi:package_dependency(compile,D). %!
+
+
+
 
 % eapi:dependency(virtual,D) -->   % Virtuals can now also have versions, and are treated via package_dependency
 %  eapi:virtual(D),!.
@@ -331,7 +340,7 @@ eapi:qualified_package(C,P,V) -->
 %
 % EAPI 4 - 9.2.4 defines package dependency
 
-eapi:package_dependency(package_dependency(B,C,P,O,V,S,U)) -->
+eapi:package_dependency(T,package_dependency(T,B,C,P,O,V,S,U)) -->
   eapi:blocking(B),                                   % optional
   eapi:operator(O),                                   % optional
   eapi:category(C),eapi:separator,!,eapi:package(P),  % required

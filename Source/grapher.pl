@@ -214,7 +214,7 @@ grapher:choices(Kind,[L|Rest]) :-
 %
 % For a given graph style, create a meta reprensentation of a dependency
 
-grapher:handle(depend,_Style,_Arrow,Mastercontext://Master,package_dependency(_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
+grapher:handle(depend,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
   cache:entry(Choicecontext,Choice,_,Cat,Name,_,_),
   !, true.
 
@@ -231,7 +231,7 @@ grapher:handle(depend,_Style,_Arrow,_Master,at_most_one_of_group(_),[]) :- !.
 grapher:handle(depend,_Style,_Arrow,_Master,_,[]) :- !.
 
 
-grapher:handle(rdepend,_Style,_Arrow,Mastercontext://Master,package_dependency(_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
+grapher:handle(rdepend,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
   cache:entry(Choicecontext,Choice,_,Cat,Name,_,_),
   !, true.
 
@@ -250,7 +250,7 @@ grapher:handle(rdepend,_Style,_Arrow,_Master,_,[]) :- !.
 
 
 
-grapher:handle(detail,Style,Arrow,Master,package_dependency(Type,Cat,Name,Comp,Ver,_,_),arrow(D,Choices)) :-
+grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,Cat,Name,Comp,Ver,_,_),arrow(D,Choices)) :-
   !,
   gensym(pack,P),
   write('subgraph '),write(P),write(' {'),nl,
