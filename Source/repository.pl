@@ -69,7 +69,7 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 
 %! Constructor
 %
-% public predicate
+% Public predicate
 
 'repository' ::-
   true.
@@ -77,7 +77,7 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 
 %! Destructor
 %
-% public predicate
+% Public predicate
 
 '~repository' ::-
   true.
@@ -85,7 +85,7 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 
 %! repository:init(+Location,+Cache,+Remote,+Protocol,+Type)
 %
-% public predicate
+% Public predicate
 %
 % Initializes the repository instance with a location,
 % remote and type
@@ -100,7 +100,7 @@ init(Location,Cache,Remote,Protocol,Type) ::-
 
 %! repository:sync
 %
-% public predicate
+% Public predicate
 %
 % Full sync of repository, metadata and rules
 
@@ -113,7 +113,7 @@ sync ::-
 
 %! repository:sync(+Repository)
 %
-% public predicate
+% Public predicate
 %
 % Updates files in local repository by invoking script to sync with remote
 
@@ -126,7 +126,7 @@ sync(repository) ::-
 
 %! repository:sync(+Metadata)
 %
-% public predicate
+% Public predicate
 %
 % Regenerates metadata from local repository files by invoking script
 
@@ -154,7 +154,7 @@ sync(metadata) ::-
 
 % repository:sync(kb)
 %
-% public predicate
+% Public predicate
 %
 % Regenerates knowledgebase facts from local repository metadata
 
@@ -171,7 +171,7 @@ sync(kb) ::-
 
 % repository:read_entry(+Entry, -Timestamp, -Category, -Name, -Version)
 %
-% public predicate
+% Public predicate
 %
 % Retrieves metadata cache entry, and the last modified date
 % of the cache entry, its category, name and version
@@ -192,7 +192,7 @@ read_entry(Entry,Timestamp,Category,Name,Version) ::-
 
 % repository:read_metadata(+Entry, -Timestamp, -Metadata)
 %
-% public predicate
+% Public predicate
 %
 % Reads the metadata for a given entry from disk if
 % it is new of has been modifed
@@ -213,7 +213,7 @@ read_metadata(Entry,_,[]) ::-
 
 % repository:read_time(-Time)
 %
-% public predicate
+% Public predicate
 %
 % Time is a float, representing the time last synced
 
@@ -225,7 +225,7 @@ read_time(Time) ::-
 
 % repository:entry(?Entry)
 %
-% public predicate
+% Public predicate
 %
 % Retrieves metadata cache entry
 % No disk access - initial sync required
@@ -237,7 +237,7 @@ entry(Entry) ::-
 
 % repository:entry(?Entry, ?Time)
 %
-% public predicate
+% Public predicate
 %
 % Retrieves metadata cache entry, and the last modified date
 % of the cache entry
@@ -250,7 +250,7 @@ entry(Entry,Time) ::-
 
 % repository:category(?Category)
 %
-% public predicate
+% Public predicate
 %
 % Retrieves metadata cache category
 % No disk access - initial sync required
@@ -264,7 +264,7 @@ category(Category) ::-
 
 % repository:package(?Category, ?Package)
 %
-% public predicate
+% Public predicate
 %
 % Retrieves metadata cache package
 % No disk access - initial sync required
@@ -277,7 +277,7 @@ package(Category,Package) ::-
 
 % repository:ebuild(?Category, ?Name, ?Version)
 %
-% public predicate
+% Public predicate
 %
 % Retrieves metadata cache ebuild
 % No disk access - initial sync required
@@ -289,7 +289,7 @@ ebuild(Category,Name,Version) ::-
 
 % repository:ebuild(?Id, ?Category, ?Name, ?Version)
 %
-% public predicate
+% Public predicate
 %
 % Retrieves metadata cache ebuild
 % No disk access - initial sync required
@@ -301,7 +301,7 @@ ebuild(Id,Category,Name,Version) ::-
 
 % repository:ebuild(?Id, ?Category, ?Name, ?Version, ?Metadata)
 %
-% public predicate
+% Public predicate
 %
 % Retrieves metadata cache ebuild
 % Disk access
@@ -314,7 +314,7 @@ ebuild(Id,Category,Name,Version,Metadata) ::-
 
 % repository:query(+Query,-Result)
 %
-% public predicate
+% Public predicate
 %
 % Retrieves metadata cache ebuild that satisfies
 % a given query
@@ -355,7 +355,7 @@ query([Statement|Rest],Id) ::-
 
 % repository:get_location(?Location).
 %
-% public predicate
+% Public predicate
 %
 % Location is an atom, representing a full absolute path
 % to a portage tree installed on your local system.
@@ -366,7 +366,7 @@ get_location(Location) ::-
 
 % repository:get_cache(?Location).
 %
-% public predicate
+% Public predicate
 %
 % Location is an atom, representing a full absolute path
 % to a portage tree cache installed on your local system.
@@ -377,7 +377,7 @@ get_cache(Location) ::-
 
 % repository:get_remote(?Location).
 %
-% public predicate
+% Public predicate
 %
 % Location is an atom, representing an uri to a remote
 % portage tree.
@@ -388,7 +388,7 @@ get_remote(Location) ::-
 
 % repository:get_protocol(?Protocol).
 %
-% public predicate
+% Public predicate
 %
 % Protocol is an atom, representing a protocol to sync
 % with the remote portage tree.
@@ -399,7 +399,7 @@ get_protocol(Protocol) ::-
 
 % repository:get_type(?Type)
 %
-% public predicate
+% Public predicate
 %
 % Type is an atom, representing the type of data represented
 % in the repository being processed.
@@ -410,7 +410,7 @@ get_type(Type) ::-
 
 % repository:get_type(?Type)
 %
-% public predicate
+% Public predicate
 %
 % Type is an atom, representing the type of data represented
 % in the repository being processed.
@@ -423,7 +423,7 @@ get_size(Size) ::-
 
 % repository:get_ebuild(+Entry,-Ebuild)
 %
-% public predicate
+% Public predicate
 %
 % For a given entry, retrieves the full path to the corresponding ebuild
 
@@ -436,7 +436,7 @@ get_ebuild(Entry,Ebuild) ::-
 
 % repository:location(?Location)
 %
-% protected predicate
+% Protected predicate
 %
 % location is an atom, representing a full absolute path
 % to a portage tree installed on your local system
@@ -448,7 +448,7 @@ location(Location) ::-
 
 % repository:cache(?Location)
 %
-% protected predicate
+% Protected predicate
 %
 % location is an atom, representing a full absolute path
 % to a portage tree cache installed on your local system
@@ -460,7 +460,7 @@ cache(Location) ::-
 
 % repository:remote(?Location)
 %
-% protected predicate
+% Protected predicate
 %
 % Location is an atom, representing an uri to a remote
 % portage tree.
@@ -472,7 +472,7 @@ remote(Location) ::-
 
 % repository:protocol(?Protocol)
 %
-% protected predicate
+% Protected predicate
 %
 % Protocol is an atom, representing the protocol to
 % sync with the remote portage tree.
@@ -484,7 +484,7 @@ protocol(Protocol) ::-
 
 % repository:type(?Type)
 %
-% protected predicate
+% Protected predicate
 %
 % Type is an atom, representing the type of data represented
 % in the repository being processed
