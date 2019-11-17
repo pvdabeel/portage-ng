@@ -30,7 +30,7 @@ could satisfy the dependency.
 %
 % For a given ebuild, identified by an Id, create a Graphviz dot file
 
-grapher:graph(detail,Id) :-
+grapher:graph(detail,Context://Id) :-
   writeln('digraph prolog {'),
   nl,
   writeln('# *************'),
@@ -52,7 +52,7 @@ grapher:graph(detail,Id) :-
   write('color=gray;'),nl,
   write('rank=same;'),nl,
   write('label=<<i>ebuild</i>>;'),nl,
-  write('id [label=\"'),write(Id),write('\", color=red, width=4, href=\"../'),write(Id),write('.svg\"];'),nl,
+  write('id [label=\"'),write(Context://Id),write('\", color=red, width=4, href=\"../'),write(Id),write('.svg\"];'),nl,
   write('}'),nl,
   nl,
   writeln('# ****************'),
@@ -62,8 +62,8 @@ grapher:graph(detail,Id) :-
   write('subgraph cluster_midcol {'),nl,
   write('color=gray;'),nl,
   write('label=<<i>dependencies</i>>;'),nl,
-  ebuild:get(depend,portage://Id,C),
-  ebuild:get(rdepend,portage://Id,R),
+  ebuild:get(depend,Context://Id,C),
+  ebuild:get(rdepend,Context://Id,R),
   list_to_ord_set(C,OC),
   list_to_ord_set(R,OR),
   ord_intersection(OC,OR,OCR,OPR),
@@ -109,7 +109,7 @@ grapher:graph(detail,Id) :-
 %
 % For a given ebuild, identified by an Id, create a full dependency diagram.
 
-grapher:graph(full,Id) :-
+grapher:graph(full,Context://Id) :-
   writeln('digraph prolog {'),
   nl,
   writeln('newrank=true;'),
@@ -119,7 +119,7 @@ grapher:graph(full,Id) :-
   writeln('edge  [arrowhead=vee];'), % arrowsize=0.6 constraint= true
   nl,
   retractall(graph_visited(_)),
-  grapher:write_tree(Id),
+  grapher:write_tree(Context://Id),
   writeln('}'),
   retractall(graph_visited(_)).
 
@@ -128,27 +128,27 @@ grapher:graph(full,Id) :-
 %
 % For a given ebuild, identified by an Id, create a tree diagram.
 
-grapher:write_tree(Id) :-
-  not(graph_visited(Id)),!,
+grapher:write_tree(Context://Id) :-
+  not(graph_visited(Context://Id)),!,
   write('\"'),write(Id),write('\" [color=red, href=\"../'),write(Id),write('.svg\"];'),nl,
-  ebuild:get(depend,portage://Id,DS),
+  ebuild:get(depend,Context://Id,DS),
   findall(Ch,(member(D,DS),grapher:handle(full,solid,vee,Id,D,Ch)),AllChoices),
-  assert(graph_visited(Id)),
+  assert(graph_visited(Context://Id)),
   grapher:choices(full,AllChoices),
   forall(member(arrow(_,[Chs]),AllChoices),
     grapher:write_tree(Chs)).
 
-grapher:write_tree(Id) :-
-  graph_visited(Id),!.
+grapher:write_tree(Context://Id) :-
+  graph_visited(Context://Id),!.
 
 
 %! grapher:enconvert(+Id,-Code)
 %
 % Create a unique name for a given ebuild.
 
-grapher:enconvert(Id,Code) :-
+grapher:enconvert(Context://Id,Code) :-
   string_codes(Id,List),
-  atomic_list_concat([choice|List],Code).
+  atomic_list_concat([choice,'-',Context|List],Code).
 
 
 %! grapher:choices(+Type,+List)
@@ -165,10 +165,10 @@ grapher:choices(detail,[arrow(D,Choices)|Rest]) :-
   write('subgraph '),write(C),write(' {'),nl,
   write('color=black;'),nl,
   write('nodesep=1;'),nl,
-  forall(member(Ch,Choices),(
-    grapher:enconvert(Ch,Code),
+  forall(member(Context://Ch,Choices),(
+    grapher:enconvert(Context://Ch,Code),
     write(Code),
-    write(' [label=\"'),write(Ch),write('\", color=red, width=4,href=\"../'),write(Ch),write('.svg\"];'),nl)),
+    write(' [label=\"'),write(Context://Ch),write('\", color=red, width=4,href=\"../'),write(Ch),write('.svg\"];'),nl)),
   forall(member(Ch,Choices),(
     write(D),
     write(':e -> '),
@@ -223,7 +223,7 @@ grapher:handle(detail,Style,Arrow,Master,package_dependency(Type,Cat,Name,Comp,V
   write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl,
   % findall(R,portage:query([category(Cat),name(Name)],R),Choices),
   % atom_string(Cata,Cat),
-  findall(R,cache:entry(_,R,_,Cat,Name,_,_),Choices),
+  findall(Context://R,cache:entry(Context,R,_,Cat,Name,_,_),Choices),
   !, true.
 
 
@@ -315,7 +315,7 @@ grapher:test(Repository) :-
          (message:success(Id),
           atomic_list_concat([D,'/',Id,'.dot'],F),
           tell(F),
-          grapher:graph(detail,Id),
+          grapher:graph(detail,Repository://Id),
           told
          )),
   script:exec(graph,['dot',D]).
@@ -329,7 +329,7 @@ grapher:test(Repository) :-
          (message:success(E),
           atomic_list_concat([D,'/',E,'.dot'],F),
           tell(F),
-          grapher:graph(detail,E),
+          grapher:graph(detail,Repository://E),
           told
          )),
   script:exec(graph,['dot',D]).
