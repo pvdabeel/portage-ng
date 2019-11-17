@@ -19,6 +19,8 @@ The contents of this file needs some rework. Probably to be moved into repositor
 % *******************
 
 
+%! ebuild:get(+Key, +Context://+Entry, -Content)
+%
 % Case 1: The ebuild has Metadata for the requested key
 
 ebuild:get(Key,Context://Entry,Content) :-
@@ -26,6 +28,8 @@ ebuild:get(Key,Context://Entry,Content) :-
   eapi:elem(Key,Metadata,Content).
 
 
+%! ebuild:get(+Key, +Context://+Entry, -Content)
+%
 % Case 2: The ebuild does not have Metadata for the requested key
 
 ebuild:get(Key,Context://Entry,[]) :-
