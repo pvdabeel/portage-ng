@@ -303,13 +303,13 @@ grapher:handle(detail,_Style,_Arrow,Master,S,[]) :-
 % opened by clicking on it in the diagram, enabling manual dependency graph
 % traversal to debug issues with ebuild dependencies.
 
-grapher:prepare_directory(D) :-
+grapher:prepare_directory(D,Repository) :-
   config:graph_directory(D),
   system:exists_directory(D),!,
   message:inform(['Directory already exists! Updating...']),
   os:update_repository_dirs(Repository,D).
 
-grapher:prepare_directory(D) :-
+grapher:prepare_directory(D,Repository) :-
   config:graph_directory(D),
   not(system:exists_directory(D)),!
   os:make_repository_dirs(Repository,D).
@@ -324,7 +324,7 @@ grapher:write_dot(D,Repository://Id) :-
 
 
 grapher:test(Repository) :-
-  grapher:prepare_directory(D),
+  grapher:prepare_directory(D,Repository),
   config:graph_modified_only,!,
   forall((Repository:entry(E,Time),
            Repository:get_ebuild(E,Ebuild),
