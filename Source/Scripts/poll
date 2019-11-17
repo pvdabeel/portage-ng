@@ -2,10 +2,10 @@
 
 # Make sure you have portage-ng installed!
 
-if ! [ -x "$(portage-ng)" ]; then
-  echo "Portage-ng is not installed in your PATH" 
-  exit 1
-fi
+#if ! [ -x "$(portage-ng -V)" ]; then
+#  echo "Portage-ng is not installed in your PATH" 
+#  exit 1
+#fi
 
 while true
 do
@@ -20,8 +20,8 @@ REMOTE=$(git rev-parse @{u});
 
 if [ $LOCAL != $REMOTE ]; then
     
-    echo -e ">>> Commit found, updating"
-    echo -e "--- `date`" 
+    echo ">>> Commit found, updating"
+    echo "--- `date`" 
     echo
     portage-ng --clear # clear repository
     portage-ng --sync  # sync repository
@@ -36,8 +36,8 @@ if [ $LOCAL != $REMOTE ]; then
     popd
     echo
 else 
-    echo -e ">>> No commit found, sleeping" 
-    echo -e "--- `date`" 
+    echo ">>> No commit found, sleeping" 
+    echo "--- `date`" 
 fi
 sleep 60
 done
