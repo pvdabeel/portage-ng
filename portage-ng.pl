@@ -146,7 +146,7 @@ main :-
 
 testall :-
   reader:test(portage),
-  parser:test(portage),
+  parser:testparallel(portage),
   prover:testparallel(portage),
   planner:testparallel(portage),
   builder:test(portage).
