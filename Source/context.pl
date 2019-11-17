@@ -202,9 +202,9 @@ Examples:
 
 %! this(?Context)
 %
-% Form:		context:this(?Context)
-% Property:	Exported, transparant
-% Description:  Retrieves the current context.
+% Exported, transparant predicate
+%
+% Retrieves the current context.
 
 this(Context) :-
   context_module(Context).
@@ -212,9 +212,9 @@ this(Context) :-
 
 %! class
 %
-% Form          context:class
-% Property      exported, transparent
-% Description   declare a class.
+% Exported, transparent predicate
+%
+% Declare a class.
 
 class :-
   class([]).
@@ -222,9 +222,9 @@ class :-
 
 %! class(+Parents)
 %
-% Form         context:class(+Parents)
-% Property     exported, transparent
-% Description  declare a class.
+% Exported, transparent predicate
+%
+% Declare a class.
 
 class(Parents) :-
   this(Context),
@@ -234,9 +234,9 @@ class(Parents) :-
 
 %! dpublic(+Functor/+Arity)
 %
-% Form         context:dpublic(+Functor/+Arity)
-% Property     exported, transparent
-% Description  declare a public predicate.
+% Exported, transparent predicate
+%
+% Declare a public predicate.
 
 dpublic(Functor/Arity) :-
   declare(property(Functor/Arity, public)).
@@ -244,9 +244,9 @@ dpublic(Functor/Arity) :-
 
 %! dprotected(+Functor/+Arity)
 %
-% Form         context:dprotected(+Functor/+Arity)
-% Property     exported, transparent
-% Description  declare a protected predicate.
+% Exported, transparent predicate
+%
+% Declare a protected predicate.
 
 dprotected(Functor/Arity) :-
   declare(property(Functor/Arity, protected)).
@@ -254,9 +254,9 @@ dprotected(Functor/Arity) :-
 
 %! dprivate(+Functor/+Arity)
 %
-% Form         context:dprivate(+Functor/+Arity)
-% Property     exported, transparent
-% Description  declare a private predicate.
+% Exported, transparent predicate
+%
+% Declare a private predicate.
 
 dprivate(Functor/Arity) :-
   declare(property(Functor/Arity, private)).
@@ -264,9 +264,9 @@ dprivate(Functor/Arity) :-
 
 %! ddynamic(+Functor/+Arity)
 %
-% Form         context:ddynamic(+Functor/+Arity)
-% Property     exported, transparent
-% Description  declare a dynamic predicate.
+% Exported, transparent predicate
+%
+% Declare a dynamic predicate.
 
 ddynamic(_Functor/_Arity) :-
   true.
@@ -274,9 +274,9 @@ ddynamic(_Functor/_Arity) :-
 
 %! mutex(+Functor/+Arity)
 %
-% Form         context:mutex(+Functor/+Arity)
-% Property     exported, transparent
-% Description  declare a mutexed predicate.
+% Exported, transparent predicate
+%
+% Declare a mutexed predicate.
 
 mutex(Functor/Arity) :-
   declare(property(Functor/Arity, mutex)).
@@ -284,19 +284,20 @@ mutex(Functor/Arity) :-
 
 %! declare(+Fact)
 %
-% Form         context:declare(+Fact)
-% Property     exported, transparent
-% Description  declare a fact.
+% Exported, transparent
+%
+% Declare a fact.
 
 declare(Fact) :-
   this(Context),
   context:declare(Context, Fact).
 
 
-% Form         context:declare(+Context, +Fact)
-% Exception    throws an exception on conflicting declaration.
-% Property     local
-% Description  declare a fact.
+% context:declare(+Context, +Fact)
+%
+% local
+%
+% Declare a fact. Throws an exception on conflicting declaration.
 
 % context:declare(Context, Fact) :-
 %   clause(Context:'$__meta'(Fact), true).
@@ -310,18 +311,19 @@ declare(Fact) :-
 
 %! context:declare(+Context, +Fact)
 %
-% Form         context:declare(+Context, +Fact)
-% Property     local
-% Description  declare a fact.
+% Local predicate
+%
+% Declare a fact.
 
 context:declare(Context, Fact) :-
   assert(Context:'$__meta'(Fact)).
 
+
 %! context:undeclare(+Context, +Fact)
 %
-% Form         context:undeclare(+Context, +Fact)
-% Property     local
-% Description  undeclares a fact.
+% Local predicate
+%
+% Undeclares a fact.
 
 context:undeclare(Context, Fact) :-
   retractall(Context:'$__meta'(Fact)).
@@ -329,13 +331,12 @@ context:undeclare(Context, Fact) :-
 
 %! context:conflicting(+Fact,-OtherFact)
 %
-% Form         context:conflicting(+Fact, -OtherFact)
-% Property     local
-% Description  declares a conflict between facts:
+% Local predicate
 %
-%               - A context can only be of one type.
-%               - A predicate can only have one property.
+% Declares a conflict between facts:
 %
+%  - A context can only be of one type.
+%  - A predicate can only have one property.
 
 context:conflicting(type(_), type(_)) :- !.
 
@@ -344,9 +345,9 @@ context:conflicting(property(Functor/Arity, _), property(Functor/Arity, _)) :- !
 
 %! declared(?Fact)
 %
-% Form         context:declared(?Fact)
-% Property     exported, transparent
-% Description  check whether a fact is declared.
+% Exported, transparent predicate
+%
+% Check whether a fact is declared.
 
 declared(Fact) :-
   this(Context),
@@ -355,9 +356,9 @@ declared(Fact) :-
 
 %! implemented(+Functor/+Arity)
 %
-% Form         context:implemented(+Functor/Arity)
-% Property     exported, transparent
-% Description  check whether a fact is implemented.
+% Exported, transparent predicate
+%
+% Check whether a fact is implemented.
 
 implemented(Functor/Arity) :-
   this(Context),
@@ -367,9 +368,9 @@ implemented(Functor/Arity) :-
 
 %! implemented(+Head)
 %
-% Form         context:implemented(+Head)
-% Property     exported, transparent
-% Description  check whether a fact is implemented.
+% Exported, transparent predicate
+%
+% Check whether a fact is implemented.
 
 implemented(Head) :-
   this(Context),
@@ -379,10 +380,10 @@ implemented(Head) :-
 
 %! inherit(+Parents)
 %
-% Form         inherit(+Parents)
-% Property     exported, transparent
-% Exception    throws an error if parent context does not exist.
-% Description  inherit predicates from a number of parent contexts.
+% Exported, transparent predicate
+%
+% Inherit predicates from a number of parent contexts.
+% Throws an error if parent context does not exist.
 
 inherit([Parent|Parents]) :-
   inherit(Parent),
@@ -393,10 +394,10 @@ inherit([]) :- !.
 
 %! inherit(+Parent)
 %
-% Form         inherit(+Parent)
-% Property     exported, transparent
-% Exception    throws an error if parent context does not exist.
-% Description  inherit predicates from a parent context.
+% Exported, transparent predicate
+%
+% Inherit predicates from a parent context.
+% Throws an error if parent context does not exist.
 
 inherit(Parent) :-
   not(Parent:declared(type(class))),
@@ -412,9 +413,9 @@ inherit(Parent) :-
 
 %! inherit_predicates(+Relation, +Context, +Parent, +List)
 %
-% Form         context:inherit_predicates(+Relation, +Context, +Parent, +List)
-% Property     local
-% Description  inherits predicates in List from Parent Context.
+% Local predicate
+%
+% Inherits predicates in List from Parent Context.
 
 context:inherit_predicates(Relation, Context, Parent, [Functor/Arity|Tail]) :-
   context:inherit_predicate(Relation, Context, Parent, Functor/Arity),
@@ -425,10 +426,10 @@ context:inherit_predicates(_Relation, _Context, _Parent, []).
 
 %! inherit_predicate(+Relation, +Context, +Parent, +Functor/+Arity)
 %
-% Form         context:inherit_predicate(+Relation, +Context, +Parent, +Functor/+Arity)
-% Property     local
-% Description  inherit predicate from parent context. Inherits the predicate
-%              properties, corresponding clause and cache.
+% Local predicate
+%
+% Inherit predicate from parent context. Inherits the predicate  properties,
+% corresponding clause and cache.
 
 context:inherit_predicate(Relation, Context, Parent, Functor/Arity) :-
   context:inherit_predicate_property(Relation, Context, Parent, Functor/Arity),
@@ -437,9 +438,9 @@ context:inherit_predicate(Relation, Context, Parent, Functor/Arity) :-
 
 %! inherit_predicate_property(+Relation, +Context, +Parent, +Functor/Arity)
 %
-% Form         context:inherit_predicate_property(+Relation, +Context, +Parent, +Functor/+Arity)
-% Property     local
-% Description  assert property of inherited predicate.
+% Local predicate
+%
+% Assert property of inherited predicate.
 
 context:inherit_predicate_property(Relation, Context, Parent, Functor/Arity) :-
   Parent:declared(property(Functor/Arity, Property)),
@@ -448,9 +449,9 @@ context:inherit_predicate_property(Relation, Context, Parent, Functor/Arity) :-
 
 %! inherit_predicate_property(+Relation, +Property, +Context, +Parent, +Predicate)
 %
-% Form         context:inherit_predicate_property(+Relation, +Property, +Context, +Parent, +Predicate)
-% Property     local
-% Description  assert property of inherited predicate, depending on relationship.
+% Local predicate
+%
+% Assert property of inherited predicate, depending on relationship.
 
 context:inherit_predicate_property(class, private, _Context, _Parent, _Predicate) :-
   !,
@@ -462,9 +463,9 @@ context:inherit_predicate_property(_Relation, Property, Context, _Parent, Predic
 
 %! inherit_predicate_clauses(+Relation, +Context, +Parent, +Functor/+Arity)
 %
-% Form         context:inherit_predicate_clauses(+Relation, +Context, +Parent, +Functor/+Arity)
-% Property     local
-% Description  inherit clauses corresponding with Functor/Arity, guard them if required.
+% Local predicate
+%
+% Inherit clauses corresponding with Functor/Arity, guard them if required.
 
 context:inherit_predicate_clauses(Relation, Context, Parent, Functor/Arity) :-
   Parent:declared(property(Functor/Arity, Property)),
@@ -476,9 +477,9 @@ context:inherit_predicate_clauses(Relation, Context, Parent, Functor/Arity) :-
 
 %! inherit_predicate__metaclause(+Relation, +Parent, +Context, +Head, +Functor/+Arity)
 %
-% Form         context:inherit_predicate__metaclause(+Relation, +Parent, +Context, +Head, +Functor/+Arity)
-% Property     local
-% Description  create a guarded metaclause calling guarded clauses.
+% Local predicate
+%
+% Create a guarded metaclause calling guarded clauses.
 
 context:inherit_predicate__metaclause(class, _Parent, _Context, _Head, _Functor/_Arity) :-
   !,
@@ -492,9 +493,9 @@ context:inherit_predicate__metaclause(instance, Parent, Context, MetaHead, Funct
 
 %! gen_check_invocation(+Context, +Property, +Head, -Code)
 %
-% Form         context:gen_check_invocation(+Context, +Property, +Head, -Code)
-% Property     local
-% Description  code generator for invocation check.
+% Local predicate
+%
+% Code generator for invocation check.
 
 context:gen_check_invocation(Context, public, MetaHead, Code) :-
   context:translate_call(MetaHead,Head),
@@ -517,9 +518,8 @@ context:gen_check_invocation(_Context, private, MetaHead, Code) :-
 
 %! translate_call(?MetaCall, ?Call)
 %
-% Form         context:translate_call(?MetaCall, ?Call)
-% Property     local
-% Description  translate between call and metacall representation.
+% Local predicate
+% Translate between call and metacall representation.
 
 context:translate_call(MetaCall, Call) :-
   MetaCall =.. [MetaFunctor|Args],
@@ -528,9 +528,9 @@ context:translate_call(MetaCall, Call) :-
 
 %! inherit_predicate_clauses(+Relation, +Property, +Context, +Parent, +Clauses)
 %
-% Form         context:inherit_predicate_clauses(+Relation, +Property, +Context, +Parent, +Clauses)
-% Property     local
-% Description  inherit clauses, guard them if required.
+% Local predicate
+%
+% Inherit clauses, guard them if required.
 
 context:inherit_predicate_clauses(Relation, Property, Context, Parent, [[Head,Body]|Clauses]) :-
   context:inherit_predicate_clause(Relation, Property, Context, Parent, Head, Body),
@@ -541,10 +541,10 @@ context:inherit_predicate_clauses(_Relation, _Property, _Context, _Parent, []).
 
 %! inherit_preidcate_clause(+Relation, +Property, +Context, +Parent, +Head, +Body)
 %
-% Form         context:inherit_predicate_clause(+Relation, +Property, +Context, +Parent, +Head, +Body)
-% Property     local
-% Description  rewrites clause body on inherit, depending on whether a class
-%              or an instance is inheriting a clause.
+% Local predicate
+%
+% Rewrites clause body on inherit, depending on whether a class or an instance
+% is inheriting a clause.
 
 context:inherit_predicate_clause(class, private, _Context, _Parent, _Head, _Body) :-
   !,
@@ -560,9 +560,9 @@ context:inherit_predicate_clause(instance, Property, Context, Parent, MetaHead, 
 
 %! guard_predicate_clause(+Property, +Context, +Parent, +Head, +Body, -HeadNew, -BodyNew)
 %
-% Form         context:guard_predicate_clause(+Property, +Context, +Parent, +Head, +Body, -HeadNew, -BodyNew)
-% Property     local
-% Description  given a clause, produces a guarded clause.
+% Local predicate
+%
+% Given a clause, produces a guarded clause.
 
 context:guard_predicate_clause(Property, Context, _Parent, Head, GuardedHead, Body, GuardedBody) :-
   context:translate_call(Head, GuardedHead),
@@ -571,9 +571,9 @@ context:guard_predicate_clause(Property, Context, _Parent, Head, GuardedHead, Bo
 
 %! gen_check_access(+Property, +Context, +Head, -Code)
 %
-% Form         context:gen_check_access(+Property, +Context, +Head, -Code)
-% Property     local
-% Description  code generator for access check.
+% Local predicate
+%
+% Code generator for access check.
 
 context:gen_check_access(private, Context, Head, Body, Code) :-
   Code = (
@@ -602,9 +602,9 @@ context:gen_check_access(_Property, Context, _Head, Body, Code) :-
 
 %! assert_predicate_clause(+Relation, +Context, +Head, +Body)
 %
-% Form         context:assert_predicate_clause(+Relation, +Context, +Head, +Body)
-% Property     local
-% Description  assert predicate clause
+% Local predicate
+%
+% Assert predicate clause
 
 context:assert_predicate_clause(instance, Context, Head, Body) :-
   assert(Context:(Head :- Body)).
@@ -615,9 +615,9 @@ context:assert_predicate_clause(class, Context, Head, Body) :-
 
 %! newinstance(+class)
 %
-% Form         context:newinstance(+Constructor)
-% Property     exported, transparent
-% Description  create an instance from a class.
+% Exported, transparent predicate
+%
+% Create an instance from a class.
 
 newinstance(Class) :-
   this(Context),
@@ -626,9 +626,8 @@ newinstance(Class) :-
 
 %! newinstance(+class, +constructor)
 %
-% Form         context:newinstance(+Context,+Constructor)
-% Property     local
-% Description  create an instance from a class.
+% Local predicate
+% Create an instance from a class.
 
 context:newinstance(Context, _Constructor) :-
   not(atom(Context)),
@@ -652,9 +651,9 @@ context:newinstance(Context, Constructor) :-
 
 %! '~'(+Destructor)
 %
-% Form         context:'~'(+Destructor)
-% Property     exported
-% Description  destroy context, calling destructor.
+% Exported predicate
+%
+% Destroy context, calling destructor.
 
 '~'(DestructorCall) :-
   DestructorCall =.. [Context|_Arguments],
@@ -679,9 +678,9 @@ context:newinstance(Context, Constructor) :-
 
 %! ':'(+Predicate)
 %
-% Form         context:':'(+Predicate)
-% Property     exported, transparent
-% Description  extension of (:)/2 as a reference to 'this', no-cache.
+% Exported, transparent predicate
+%
+% Extension of (:)/2 as a reference to 'this', no-cache.
 
 ':'(Predicate) :-
   this(Context),
@@ -690,21 +689,21 @@ context:newinstance(Context, Constructor) :-
 
 %! ':'(-Instance, +Meta)
 %
-% Form         context:':'(-Instance, +Meta)
-% Property     exported, transparent
-% Description  extension of (:)/2 as a reference to 'this', no-cache.
+% Exported, transparent predicate
+%
+% Extension of (:)/2 as a reference to 'this', no-cache.
 
 % contextcall(Instance,declared(Meta)) :-
-%   %current_module(Instance), ?????
+%   %current_module(Instance),
 %   write('debug ::> '),write(Instance),write(' ::> '),write(Meta),nl,
 %   Instance:clause(Instance:'$__meta'(Meta),true).
 
 
 %! '::'(+Predicate)
 %
-% Form         context:'::'(+Predicate)
-% Property     exported, transparent
-% Description  extension of (::)/2 as a reference to 'this', cache-only.
+% Exported, transparent predicate
+%
+% Extension of (::)/2 as a reference to 'this', cache-only.
 
 '::'(Predicate) :-
   this(Context),
@@ -713,9 +712,9 @@ context:newinstance(Context, Constructor) :-
 
 %! '<-'(+Predicate)
 %
-% Form         context:'<-'(+Predicate)
-% Property     exported, transparent
-% Description  extension of <-/2 as a reference to 'this'.
+% Exported, transparent predicate
+%
+% Extension of <-/2 as a reference to 'this'.
 
 '<-'(Predicate) :-
   this(Context),
@@ -724,9 +723,9 @@ context:newinstance(Context, Constructor) :-
 
 %! '<='(+Predicate)
 %
-% Form         context:'<='(+Predicate)
-% Property     exported, transparent
-% Description  extension of <=/2 as a reference to 'this'.
+% Exported, transparent predicate
+%
+% Extension of <=/2 as a reference to 'this'.
 
 '<='(Predicate) :-
   this(Context),
@@ -735,9 +734,9 @@ context:newinstance(Context, Constructor) :-
 
 %! '<+'(+Predicate)
 %
-% Form         context:'<+'(+Predicate)
-% Property     exported, transparent
-% Description  extension of <+/2 as a reference to 'this'.
+% Exported, transparent predicate
+%
+% Extension of <+/2 as a reference to 'this'.
 
 '<+'(Predicate) :-
   this(Context),
@@ -746,9 +745,9 @@ context:newinstance(Context, Constructor) :-
 
 % '::'(+Context, +Predicate)
 %
-% Form         context:'::'(+Context, +Predicate)
-% Property     exported, transparent
-% Description  call a guarded context predicate.
+% Exported, transparent predicate
+%
+% Call a guarded context predicate.
 
 '::'(Context, Predicate) :-
   Context:declared(cache(Predicate)),
@@ -757,9 +756,9 @@ context:newinstance(Context, Constructor) :-
 
 %! '://'(+Context, +Predicate)
 %
-% Form         context:'::'(+Context, +Predicate)
-% Property     exported, transparent
-% Description  evaluate predicate within a given context
+% Exported, transparent predicate
+%
+% Evaluate predicate within a given context
 
 '://'(Context, Predicate) :-
  Context:Predicate.
@@ -767,9 +766,9 @@ context:newinstance(Context, Constructor) :-
 
 %! '<-'(+Context, +Predicate)
 %
-% Form         context:'<-'(+Context, +Predicate)
-% Property     exported, transparent
-% Description  retract predicate cache matching Predicate.
+% Exported, transparent predicate
+%
+% Retract predicate cache matching Predicate.
 
 '<-'(Context, Predicate) :-
   context:undeclare(Context, cache(Predicate)).
@@ -777,15 +776,15 @@ context:newinstance(Context, Constructor) :-
 
 %! '<='(+Context, +Predicate)
 %
-% Form         context:'<='(+Context, +Predicate)
-% Property     exported, transparent
-% Description  Assert predicate cache, destroying existing cache.
-%              Algorithm:
+% Exported, transparent predicate
 %
-%                -Use Functor/Arity to create query
-%                -Execute
-%                -Retract existing cache
-%                -Assert new cache
+% Assert predicate cache, destroying existing cache.
+% Algorithm:
+%
+%  -Use Functor/Arity to create query
+%  -Execute
+%  -Retract existing cache
+%  -Assert new cache
 
 '<='(Context, Predicate) :-
   functor(Predicate, Functor, Arity),
@@ -797,14 +796,14 @@ context:newinstance(Context, Constructor) :-
 
 %! '<+'(+Context, +Predicate)
 %
-% Form         context:'<+'(+Context, +Predicate)
-% Property     exported, transparent
-% Description  Assert predicate cache.
-%              Algorithm:
+% Exported, transparent predicate
 %
-%                -Use Functor/Arity to create query
-%                -Execute
-%                -Assert new cache if not exists
+% Assert predicate cache.
+% Algorithm:
+%
+%  -Use Functor/Arity to create query
+%  -Execute
+%  -Assert new cache if not exists
 
 '<+'(Context, Predicate) :-
   Context:Predicate,
@@ -813,9 +812,9 @@ context:newinstance(Context, Constructor) :-
 
 %! destroy(+Context)
 %
-% Form         context:destroy(+Context)
-% Property     local
-% Description  destroy a context.
+% Local predicate
+%
+% Destroy a context.
 
 context:destroy(Context) :-
   findall(Functor/Arity, current_predicate(Context:Functor/Arity), List),
@@ -824,9 +823,9 @@ context:destroy(Context) :-
 
 %! destroy_context_clauses(+Context, +List)
 %
-% Form         context:destroy_context_clauses(+Context, +List)
-% Property     local
-% Description  destroy a list of contextual clauses
+% Local predicate
+%
+% Destroy a list of contextual clauses
 
 context:destroy_context_clauses(Context, [Functor/Arity|Preds]) :-
   functor(Head, Functor, Arity),
