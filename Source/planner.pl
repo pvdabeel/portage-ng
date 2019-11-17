@@ -42,7 +42,7 @@ planner:zeroweight(ListA,ListB) :-
 	findall(El,planner:notpart(ListA,ListB,El),[]).
 
 
-%! planner:zerorules
+%! planner:zerorules(+List,-List,+List,+List,-List)
 %
 % Iteratively filter out the rules in a list with zero weight
 
