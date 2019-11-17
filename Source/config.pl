@@ -23,7 +23,7 @@ configuration. The parameters described typically do not change at runtime.
 %
 % Declare config:dry_run_build to avoid actually building software.
 
-config:dry_run_build.
+config:dry_run_build(true).
 
 
 %! config:installation_dir(?FullPath)
@@ -74,4 +74,4 @@ config:time_limit(10).
 %
 % Set when you want Graphviz dot file to be created for new ebuilds only
 
-% config:graph_modified_only
+config:graph_modified_only(false).

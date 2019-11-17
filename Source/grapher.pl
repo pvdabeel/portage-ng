@@ -324,7 +324,7 @@ grapher:write_dot(D,Repository://Id) :-
 
 grapher:test(Repository) :-
   grapher:prepare_directory(D,Repository),
-  config:graph_modified_only,!,
+  config:graph_modified_only(true),!,
   forall((Repository:entry(E,Time),
            Repository:get_ebuild(E,Ebuild),
            system:time_file(Ebuild,Modified),

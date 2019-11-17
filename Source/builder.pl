@@ -48,7 +48,7 @@ builder:execute(Plan) :-
 % Swipl is an example respository of type 'cmake' (see portage-ng.pl main)
 
 builder:build(_) :-
-  config:dry_run_build, !.
+  config:dry_run_build(true), !.
 
 builder:build(Context://Entry:_Action) :-
   Context:get_type('eapi'),!,
