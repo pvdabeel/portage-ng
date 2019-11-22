@@ -127,7 +127,7 @@ prover:test(Repository) :-
 % Prove all entries in a given Repository, but do it concurrently
 
 prover:testparallel(Repository) :-
-  findall(prover:prove(Repository://E:install,[],_,[],_),Repository:entry(E),Calls),
+  findall(prover:prove(Repository://E:run,[],_,[],_),Repository:entry(E),Calls),
   config:number_of_cpus(Cpus),
   time(concurrent(Cpus,Calls,[])),
   Repository:get_size(S),
