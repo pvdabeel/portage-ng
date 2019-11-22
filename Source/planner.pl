@@ -26,32 +26,20 @@ based on topological sort:
 % ********************
 
 
-%! planner:notpart(+List,+List,-Element)
-%
-% Given two lists returns element in the first list but not the second list
-
-planner:notpart(ListA,ListB,El) :-
-	member(El,ListA),
-	not(member(El,ListB)).
-
-%! planner:zeroweight(+List,+List)
-%
-% Given two lists, return all elements in the first list but not the second list.
-
-planner:zeroweight(ListA,ListB) :-
-	findall(El,planner:notpart(ListA,ListB,El),[]).
-
-
 %! planner:zerorules(+List,-List,+List,+List,-List)
 %
 % Iteratively filter out the rules in a list with zero weight
 
 planner:zerorules([],Weights,Weights,[],[]) :- !.
+
 planner:zerorules([rule(Head,Body)|Rest],ZeroWeights,[Head|TempZeroWeights],[rule(Head,Body)|ZeroRules],NonZeroRules) :-
-	planner:zeroweight(Body,ZeroWeights),!,
-	planner:zerorules(Rest,ZeroWeights,TempZeroWeights,ZeroRules,NonZeroRules).
+%	write('a > '),writeln(Head),
+        subtract(Body,ZeroWeights,[]),!,
+        planner:zerorules(Rest,ZeroWeights,TempZeroWeights,ZeroRules,NonZeroRules).
 planner:zerorules([rule(Head,Body)|Rest],ZeroWeights,TempZeroWeights,ZeroRules,[rule(Head,Body)|NonZeroRules]) :-
-	planner:zerorules(Rest,ZeroWeights,TempZeroWeights,ZeroRules,NonZeroRules).
+%	write('b > '),writeln(Head),
+        planner:zerorules(Rest,ZeroWeights,TempZeroWeights,ZeroRules,NonZeroRules).
+
 
 
 %! planner:plan(+Rules,+Weights,+OldPlan,+NewPlan)
