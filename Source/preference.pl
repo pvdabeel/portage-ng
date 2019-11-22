@@ -71,6 +71,7 @@ preference:use(['X','a52','aac','aacplus','aalib','abi_x86_64','account','acl','
 %! preference:masked(?Repository://?Entry)
 %
 % Fact which masks a Repository entry
-preference:masked(portage://'app-editors/kile-2.9.92_p20190716').
-preference:masked(portage://'app-accessibility/simon-9999').
-preference:masked(portage://'dev-ros/gmapping-1.3.10').
+
+preference:masked(portage://'app-editors/kile-2.9.92_p20190716'). % run target
+preference:masked(portage://'app-accessibility/simon-9999').      % run target
+preference:masked(portage://'dev-ros/gmapping-1.3.10').           % install target
