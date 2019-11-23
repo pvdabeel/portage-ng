@@ -81,11 +81,11 @@ preference:masked(Repository://Entry) :- preference:known_broken(Repository://En
 
 
 % run target fail
-preference:masked(portage://'app-xemacs/rmail-1.14').                        % run target fail
-preference:masked(portage://'app-text/sgml-common-0.6.3-r7').                % run target fail (runtime dependency on itself)
+preference:masked(portage://'app-xemacs/rmail-1.14').          % run target fail
+preference:masked(portage://'app-text/sgml-common-0.6.3-r7').  % run target fail (runtime dependency on itself) - gentoo bug #700976
 
 % install target fail
-preference:masked(portage://'dev-ros/gmapping-1.3.10').                      % install target fail
+preference:masked(portage://'dev-ros/gmapping-1.3.10').        % install target fail
 
 
 % run target loop
@@ -150,4 +150,3 @@ preference:known_broken('portage://app-xemacs/psgml-1.44').
 preference:known_broken('portage://app-xemacs/psgml-1.45').
 preference:known_broken('portage://app-xemacs/psgml-1.50').
 preference:known_broken('portage://media-plugins/vdr-skinenigmang-0.1.2_p20130302').
-
