@@ -63,6 +63,8 @@ This file is the main source file in the repository. It loads all other files.
 
 :- ensure_loaded('Source/script.pl').
 
+:- ensure_loaded('Source/test.pl').
+
 
 %! main.
 %
@@ -143,10 +145,3 @@ main :-
 
     kb:load,
     interface:process_requests.
-
-testall :-
-  reader:test(portage),
-  parser:testparallel(portage),
-  prover:testparallel(portage),
-  planner:testparallel(portage),
-  builder:test(portage).
