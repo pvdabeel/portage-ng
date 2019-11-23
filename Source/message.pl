@@ -90,12 +90,20 @@ message:style(normal) :-
 
 %! message:eend(+Message)
 %
-% Jump to the beginning of the line.
+% Append at the end of the line
 
 message:eend(Message) :-
   tty_size(_,Y),
   NewY is Y - 2,
   format('~t~a~*|',[Message,NewY]).
+
+
+%! message:column(+Number,+Message)
+%
+% Writes a message in a given colum
+
+message:column(Number,Message) :-
+  format('~*| ~w',[Number,Message]).
 
 
 %! message:print(+Message)
