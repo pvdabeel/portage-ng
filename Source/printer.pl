@@ -40,8 +40,7 @@ printer:firststep([rule(Context://E:Action,_)|L]) :-
   message:color(green),
   write(Context://E),
   message:color(blue),
-  write(' '),
-  write(Action),
+  message:column(85,Action),
   message:color(normal),
   nl,
   printer:nextstep(L).
