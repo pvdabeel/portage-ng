@@ -77,9 +77,10 @@ printer:nextstep([rule(_,_)|L]) :-
 % Proves and prints every entry in a given repository
 
 printer:test(Repository) :-
+  preference:proving_target(Action),
   time(forall(Repository:entry(E),
- 	      ((nl,message:header(["Planning ",Repository://E]),
-                prover:prove(Repository://E:run,[],Proof,[],_),
+ 	      ((nl,message:header(["Planning ",Repository://E:Action]),
+                prover:prove(Repository://E:Action,[],Proof,[],_),
                 planner:plan(Proof,[],[],Plan),
                 printer:print(Plan));
 	       (message:failure(E))))
