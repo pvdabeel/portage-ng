@@ -23,33 +23,79 @@ This file contains the predicates used for pretty printing messages.
 %
 % Sets the message color. Uses ANSI escape codes.
 
-message:color(green) :-
-  system:write('\033[01;32m').
-
 message:color(red) :-
-  system:write('\033[01;31m').
+  system:write('\033[31m').
 
-message:color(blue) :-
-  system:write('\033[01;34m').
+message:color(green) :-
+  system:write('\033[32m').
 
 message:color(orange) :-
-  system:write('\033[01;33m').
+  system:write('\033[33m').
 
-message:color(pink) :-
-  system:write('').
+message:color(blue) :-
+  system:write('\033[34m').
+
+message:color(magenta) :-
+  system:write('\033[35m').
+
+message:color(cyan) :-
+  system:write('\033[36m').
+
+
+message:color(lightgray) :-
+  system:write('\033[37m').
+
+message:color(lightred) :-
+  system:write('\033[91m').
+
+message:color(lightgreen) :-
+  system:write('\033[92m').
+
+message:color(lightorange) :-
+  system:write('\033[93m').
+
+message:color(lightblue) :-
+  system:write('\033[94m').
+
+message:color(lightmagenta) :-
+  system:write('\033[95m').
+
+message:color(lightcyan) :-
+  system:write('\033[96m').
 
 message:color(normal) :-
   system:write('\033[00m').
 
 
-%! message:eend
+%! message:style(+Style)
+%
+% Sets the message style. Uses ANSI escape codes.
+
+message:style(bold) :-
+  system:write('\033[01m').
+
+message:style(blink) :-
+  system:write('\033[05m').
+
+message:style(underline) :-
+  system:write('\033[04m').
+
+message:style(dim) :-
+  system:write('\033[02m').
+
+message:style(normal) :-
+  system:write('\033[00m').
+
+
+
+%! message:eend(+Message)
 %
 % Jump to the beginning of the line.
 
-message:eend :-
-  tty_size(X,Y),
-  NewY is Y - 10,
-  tty_goto(NewY,X).
+message:eend(Message) :-
+  tty_size(_,Y),
+  NewY is Y - 2,
+  format('~t~a~*|',[Message,NewY]).
 
 
 %! message:print(+Message)
@@ -82,7 +128,9 @@ message:print(Message,Len) :-
 message:failure(Message) :-
   message:prefix(failure),
   message:color(red),
+  message:style(bold),
   system:write('[FAILURE] '),
+  message:style(normal),
   message:color(normal),
   message:print(Message),
   nl,
@@ -96,6 +144,7 @@ message:failure(Message) :-
 message:warning(Message) :-
   message:prefix(warning),
   message:color(orange),
+  message:style(bold),
   system:write('[WARNING] '),
   message:color(normal),
   message:print(Message),
@@ -109,6 +158,7 @@ message:warning(Message) :-
 message:success(Message) :-
   message:prefix(good),
   message:color(green),
+  message:style(bold),
   system:write('[SUCCESS] '),
   message:color(normal),
   message:print(Message),
@@ -147,10 +197,12 @@ message:scroll(Message) :-
 
 message:header(Message) :-
   message:color(orange),
+  message:style(bold).
   system:write('>>> '),
   forall(member(M,Message),
     system:write(M)),
   message:color(normal),
+  message:style(normal),
   nl.
 
 
