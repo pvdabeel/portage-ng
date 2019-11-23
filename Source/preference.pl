@@ -72,6 +72,79 @@ preference:use(['X','a52','aac','aacplus','aalib','abi_x86_64','account','acl','
 %
 % Fact which masks a Repository entry
 
-preference:masked(portage://'app-editors/kile-2.9.92_p20190716'). % run target
-preference:masked(portage://'app-accessibility/simon-9999').      % run target
-preference:masked(portage://'dev-ros/gmapping-1.3.10').           % install target
+
+% The prover uses the dynamic 'proven:broken/1' to mark some entries as broken
+preference:masked(Repository://Entry) :- prover:broken(Repository://Entry).
+
+% The following packages have known broken dependencies in RDEPEND
+preference:masked(Context://Entry) :- preference:known_broken(Repository://Entry).
+
+% run target loop
+preference:known_broken('portage://app-text/docbook-xml-simple-dtd-1.0-r3').
+preference:known_broken('portage://app-text/docbook-xml-simple-dtd-4.1.2.4-r4').
+preference:known_broken('portage://app-text/docbook-xml-simple-dtd-4.1.2.5-r3').
+preference:known_broken('portage://app-cdr/kcdemu-0.7.3').
+preference:known_broken('portage://app-text/linuxdoc-tools-0.9.72').
+preference:known_broken('portage://app-text/linuxdoc-tools-0.9.73').
+preference:known_broken('portage://app-text/linuxdoc-tools-0.9.73-r1').
+preference:known_broken('portage://app-text/openjade-1.3.2-r9').
+preference:known_broken('portage://app-xemacs/auctex-1.51').
+preference:known_broken('portage://app-xemacs/auctex-1.58').
+preference:known_broken('portage://app-xemacs/bbdb-1.32').
+preference:known_broken('portage://app-xemacs/bbdb-1.34').
+preference:known_broken('portage://app-xemacs/build-1.14').
+preference:known_broken('portage://app-xemacs/build-1.15').
+preference:known_broken('portage://app-xemacs/build-1.18').
+preference:known_broken('portage://app-xemacs/cedet-common-1.01').
+preference:known_broken('portage://app-xemacs/cedet-common-1.03').
+preference:known_broken('portage://app-xemacs/clearcase-1.10').
+preference:known_broken('portage://app-xemacs/clearcase-1.12').
+preference:known_broken('portage://app-xemacs/cogre-1.04').
+preference:known_broken('portage://app-xemacs/dired-1.17').
+preference:known_broken('portage://app-xemacs/dired-1.19').
+preference:known_broken('portage://app-xemacs/dired-1.20').
+preference:known_broken('portage://app-xemacs/dired-1.22').
+preference:known_broken('portage://app-xemacs/ecb-1.25').
+preference:known_broken('portage://app-xemacs/edebug-1.22').
+preference:known_broken('portage://app-xemacs/edebug-1.24').
+preference:known_broken('portage://app-xemacs/ediff-1.68').
+preference:known_broken('portage://app-xemacs/ediff-1.77').
+preference:known_broken('portage://app-xemacs/ediff-1.81').
+preference:known_broken('portage://app-xemacs/ediff-1.84').
+preference:known_broken('portage://app-xemacs/edit-utils-2.39').
+preference:known_broken('portage://app-xemacs/edit-utils-2.43').
+preference:known_broken('portage://app-xemacs/edit-utils-2.44').
+preference:known_broken('portage://app-xemacs/edit-utils-2.58').
+preference:known_broken('portage://app-xemacs/erc-0.23').
+preference:known_broken('portage://app-xemacs/erc-0.26').
+preference:known_broken('portage://app-xemacs/eudc-1.39').
+preference:known_broken('portage://app-xemacs/eudc-1.40').
+preference:known_broken('portage://app-xemacs/eudc-1.43').
+preference:known_broken('portage://app-xemacs/gnus-1.99').
+preference:known_broken('portage://app-xemacs/gnus-2.04').
+preference:known_broken('portage://app-xemacs/hyperbole-1.16').
+preference:known_broken('portage://app-xemacs/hyperbole-1.17').
+preference:known_broken('portage://app-xemacs/hyperbole-1.22').
+preference:known_broken('portage://app-xemacs/jde-1.54').
+preference:known_broken('portage://app-xemacs/mailcrypt-2.14').
+preference:known_broken('portage://app-xemacs/mailcrypt-2.16').
+preference:known_broken('portage://app-xemacs/mh-e-1.29').
+preference:known_broken('portage://app-xemacs/mh-e-1.32').
+preference:known_broken('portage://app-xemacs/mh-e-1.35').
+preference:known_broken('portage://app-xemacs/pcl-cvs-1.67').
+preference:known_broken('portage://app-xemacs/pcl-cvs-1.70').
+preference:known_broken('portage://app-xemacs/pcl-cvs-1.73').
+preference:known_broken('portage://app-xemacs/prog-modes-2.10').
+preference:known_broken('portage://app-xemacs/prog-modes-2.20').
+preference:known_broken('portage://app-xemacs/prog-modes-2.33').
+preference:known_broken('portage://app-xemacs/psgml-1.44').
+preference:known_broken('portage://app-xemacs/psgml-1.45').
+preference:known_broken('portage://app-xemacs/psgml-1.50').
+preference:known_broken('portage://media-plugins/vdr-skinenigmang-0.1.2_p20130302').
+
+% run target fail
+preference:masked(portage://'app-xemacs/rmail-1.14').                        % run target fail
+preference:masked(portage://'app-text/sgml-common-0.6.3-r7').                % run target fail (runtime dependency on itself)
+
+% install target fail
+preference:masked(portage://'dev-ros/gmapping-1.3.10').                      % install target fail

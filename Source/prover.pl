@@ -115,7 +115,7 @@ prover:test(Repository) :-
   config:time_limit(T),
   time(forall(Repository:entry(E),
  	      ((message:success(E),
-                call_with_time_limit(T,prover:prove(Repository://E:run,[],_,[],_)));
+                catch(call_with_time_limit(T,prover:prove(Repository://E:run,[],_,[],_)),_,assert(broken(Repository://E))));
                (message:failure(E))))
       ),
   Repository:get_size(S),
