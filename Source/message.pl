@@ -197,7 +197,7 @@ message:scroll(Message) :-
 
 message:header(Message) :-
   message:color(orange),
-  message:style(bold).
+  message:style(bold),
   system:write('>>> '),
   forall(member(M,Message),
     system:write(M)),
