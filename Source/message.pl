@@ -146,8 +146,8 @@ message:scroll(Message) :-
 % Message is a list.
 
 message:header(Message) :-
-  system:write('%%% '),
   message:color(orange),
+  system:write('>>> '),
   forall(member(M,Message),
     system:write(M)),
   message:color(normal),
