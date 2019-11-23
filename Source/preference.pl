@@ -18,6 +18,16 @@ The preferences module contains build specific preferences
 % PREFERENCE declarations
 % ***********************
 
+%! preference:proving_target(?Target)
+%
+% Fact which controls the test target for prover, planner, printer and builder
+% Set to either:
+%
+%  - 'install' : Proof using compile-time dependencies only
+%  - 'run': Proof using compile- and run-time dependencies
+
+preference:proving_target('run').
+
 
 %! preference:env_cflags(?Cflags)
 %
