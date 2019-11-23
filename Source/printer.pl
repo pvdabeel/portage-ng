@@ -37,10 +37,10 @@ printer:firststep([]) :- !.
 printer:firststep([rule(Context://E:Action,_)|L]) :-
   !,
   write(' -  STEP:  | '),
+  message:color(cyan),
+  message:print(Action),
   message:color(green),
-  write(Context://E),
-  message:color(blue),
-  message:column(85,Action),
+  message:column(30,Context://E),
   message:color(normal),
   nl,
   printer:nextstep(L).
@@ -58,10 +58,10 @@ printer:nextstep([]) :- nl,!.
 printer:nextstep([rule(Context://E:Action,_)|L]) :-
   !,
   write('           | '),
+  message:color(cyan),
+  message:print(Action),
   message:color(green),
-  write(Context://E),
-  message:color(blue),
-  message:column(85,Action),
+  message:column(30,Context://E),
   message:color(normal),
   nl,
   printer:nextstep(L).

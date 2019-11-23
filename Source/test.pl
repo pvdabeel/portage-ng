@@ -51,7 +51,13 @@ test:run(cases) :-
           planner:plan(Proof,[],[],Plan),
           %message:inform([' - Model : ',Model]),
           %message:inform([' - Proof : ',Proof]),
-          printer:print(Plan),nl)).
+          printer:print(Plan),
+          message:color(normal),
+          length(Plan,Numberofsteps),
+          message:print(['Total: ', Numberofsteps,' steps, ', Numberofsteps, ' actions (', Numberofsteps,' runs, ',Numberofsteps,' installs)']),nl,
+          nl,nl
+         )).
+
 
 test:run(application) :-
   message:header(['Testing reader: ']),
