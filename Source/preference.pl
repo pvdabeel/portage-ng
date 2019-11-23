@@ -77,7 +77,16 @@ preference:use(['X','a52','aac','aacplus','aalib','abi_x86_64','account','acl','
 preference:masked(Repository://Entry) :- prover:broken(Repository://Entry).
 
 % The following packages have known broken dependencies in RDEPEND
-preference:masked(Context://Entry) :- preference:known_broken(Repository://Entry).
+preference:masked(Repository://Entry) :- preference:known_broken(Repository://Entry).
+
+
+% run target fail
+preference:masked(portage://'app-xemacs/rmail-1.14').                        % run target fail
+preference:masked(portage://'app-text/sgml-common-0.6.3-r7').                % run target fail (runtime dependency on itself)
+
+% install target fail
+preference:masked(portage://'dev-ros/gmapping-1.3.10').                      % install target fail
+
 
 % run target loop
 preference:known_broken('portage://app-text/docbook-xml-simple-dtd-1.0-r3').
@@ -142,9 +151,3 @@ preference:known_broken('portage://app-xemacs/psgml-1.45').
 preference:known_broken('portage://app-xemacs/psgml-1.50').
 preference:known_broken('portage://media-plugins/vdr-skinenigmang-0.1.2_p20130302').
 
-% run target fail
-preference:masked(portage://'app-xemacs/rmail-1.14').                        % run target fail
-preference:masked(portage://'app-text/sgml-common-0.6.3-r7').                % run target fail (runtime dependency on itself)
-
-% install target fail
-preference:masked(portage://'dev-ros/gmapping-1.3.10').                      % install target fail
