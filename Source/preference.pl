@@ -92,7 +92,6 @@ preference:masked(Repository://Entry) :- preference:known_broken(Repository://En
 
 % run target fail
 preference:masked(portage://'app-xemacs/rmail-1.14').          % run target fail
-preference:masked(portage://'app-text/sgml-common-0.6.3-r7').  % run target fail (runtime dependency on itself) - gentoo bug #700976
 
 % install target fail
 preference:masked(portage://'dev-ros/gmapping-1.3.10').        % install target fail
