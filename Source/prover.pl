@@ -91,7 +91,7 @@ prover:prove(Literal,Proof,NewProof,Model,[assumed(Literal)|NewModel]) :-
   rule(Literal,Body),
   not(prover:fact(rule(Literal,Body))),
   prover:proving(rule(Literal,Body),Proof),
-  prover:prove([],[rule(assumed(Literal),Body)|Proof],NewProof,Model,NewModel).
+  prover:prove([],[rule(assumed(Literal),[]),rule(Literal,[])|Proof],NewProof,Model,NewModel).
 
 
 % -----------------------------------------
@@ -106,6 +106,12 @@ prover:fact(rule(_,[])) :- !.
 % ----------------------------------------------------------
 
 prover:proven(Literal, Model) :- member(Literal,Model), !.
+
+% --------------------------------------------
+% PROVEN: A literal is proven if it is assumed
+% --------------------------------------------
+
+prover:proven(Literal, Model) :- member(assumed(Literal),Model), !.
 
 % --------------------------------------------------------------
 % PROVING: A rule is being proven if it is part of a given proof

@@ -49,6 +49,7 @@ planner:plan([],_,OldPlan,OldPlan) :- !.
 
 planner:plan(Rules,InitialWeights,OldPlan,[ZeroRules|TempPlan]) :-
 	planner:zerorules(Rules,InitialWeights,NewWeights,ZeroRules,NonZeroRules),
+        ZeroRules \= [],!,
 	planner:plan(NonZeroRules,NewWeights,OldPlan,TempPlan).
 
 

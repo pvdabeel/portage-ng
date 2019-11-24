@@ -18,14 +18,129 @@ The Printer takes a plan from the Planner and pretty prints it.
 % PRINTER declarations
 % ********************
 
+%! printer:printable(+Literal)
+%
+% Declares which Literals are printable
+
+printer:printable(_Repository://_Entry:_Action) :- !.
+printer:printable(assumed(_Repository://_Entry:_Action)) :- !.
+%printer:printable(assumed(package_dependency(_,_,_,_,_,_,_,_))) :- !.
+
+
+%! printer:prin(+Printable)
+%
+% Prints a printable Literal
+
+printer:print_element(Repository://Entry:Action) :-
+  message:color(cyan),
+  message:print(Action),
+  message:color(green),
+  message:column(30,Repository://Entry),
+  message:color(normal),
+  nl.
+
+printer:print_element(assumed(Repository://Entry:Action)) :-
+  message:color(red),
+  message:print(Action),
+  message:color(green),
+  message:column(30,Repository://Entry),
+  message:color(red),
+  message:print(' (assumed) '),
+  message:color(normal),
+  nl.
+
+printer:print_element(assumed(package_dependency(Action,_,C,N,_,_,_,_))) :-
+  message:color(red),
+  message:print(Action),
+  message:color(green),
+  atomic_list_concat([C,'/',N],P),
+  message:column(30,P),
+  message:color(red),
+  message:print(' (assumed) '),
+  message:color(normal),
+  nl.
+
+
+%! printer:checkassumptions(+Model)
+%
+% Checks whether the Model contains assumptions
+
+printer:check_assumptions(Model) :-
+  member(assumed(_),Model),!.
+
+
+
+% printer:printheader(+Target)
+%
+% Prints the header for a given target
+
+printer:print_header(Target) :-
+  message:header(['Emerging ', Target]),
+  nl,
+  message:color(green),
+  message:print('These are the packages that would be merged, in order:'),nl,
+  nl,
+  message:color(normal),
+  message:print('Calculating dependencies... done!'),nl,
+  nl.
+
+
+% printer:printbody(+Plan,+Model)
+%
+% Prints the body for a given plan and model
+
+printer:print_body(Plan) :-
+  forall(member(E,Plan),
+    printer:firststep(E)).
+
+
+%! printer:printassumptions(+Model)
+%
+% Print the assumptions taken by the prover
+
+printer:print_assumptions(Model) :-
+  printer:check_assumptions(Model),!,
+  message:color(red),message:print('Error: '),
+  message:print('A circular dependency was detected. The following assumptions were taken:'),nl,nl,
+  forall(member(assumed(A),Model),
+    (message:print([' - ',A]),nl)),
+  nl,
+  message:color(normal).
+
+printer:print_assumptions(_Model) :- !.
+
+
+%! printer:printfooter(+Plan)
+%
+% Print the footer for a given plan
+
+printer:print_footer(Plan,Model) :-
+  countlist(assumed(_),Model,_Assumptions),
+  countlist(_://_:_,Model,Actions),
+  countlist(_://_:run,Model,Runs),
+  countlist(_://_:install,Model,Installs),
+  length(Plan,Steps),
+  message:print(['Total: ', Actions, ' actions (', Installs,' installs, ', Runs,' runs), grouped into ',Steps,' steps.' ]),nl,
+  nl,nl.
+
+unify(A,B) :- unifiable(A,B,_),!.
+
+countlist(Predicate,List,Count) :-
+  include(unify(Predicate),List,Sublist),!,
+  length(Sublist,Count).
+
+countlist(_,_,0) :- !.
+
 
 %! printer:print(+Plan)
 %
 % Print a given plan
 
-printer:print(Plan) :-
-  forall(member(E,Plan),
-    printer:firststep(E)).
+printer:print(Target,Plan,Model) :-
+  printer:print_header(Target),
+  printer:print_body(Plan),
+  printer:print_assumptions(Model),
+  printer:print_footer(Plan,Model).
 
 
 %! printer:firststep(+Step)
@@ -34,15 +149,11 @@ printer:print(Plan) :-
 
 printer:firststep([]) :- !.
 
-printer:firststep([rule(Context://E:Action,_)|L]) :-
+printer:firststep([rule(Literal,_)|L]) :-
+  printer:printable(Literal),
   !,
   write(' -  STEP:  | '),
-  message:color(cyan),
-  message:print(Action),
-  message:color(green),
-  message:column(30,Context://E),
-  message:color(normal),
-  nl,
+  printer:print_element(Literal),
   printer:nextstep(L).
 
 printer:firststep([rule(_,_)|L]) :-
@@ -55,15 +166,11 @@ printer:firststep([rule(_,_)|L]) :-
 
 printer:nextstep([]) :- nl,!.
 
-printer:nextstep([rule(Context://E:Action,_)|L]) :-
+printer:nextstep([rule(Literal,_)|L]) :-
+  printer:printable(Literal),
   !,
   write('           | '),
-  message:color(cyan),
-  message:print(Action),
-  message:color(green),
-  message:column(30,Context://E),
-  message:color(normal),
-  nl,
+  printer:print_element(Literal),
   printer:nextstep(L).
 
 printer:nextstep([rule(_,_)|L]) :-
@@ -78,9 +185,9 @@ printer:test(Repository) :-
   preference:proving_target(Action),
   time(forall(Repository:entry(E),
  	      ((nl,message:header(["Planning ",Repository://E:Action]),
-                prover:prove(Repository://E:Action,[],Proof,[],_),
+                prover:prove(Repository://E:Action,[],Proof,[],Model),
                 planner:plan(Proof,[],[],Plan),
-                printer:print(Plan));
+                printer:print(Repository://E:Action,Plan,Model));
 	       (message:failure(E))))
       ),
   Repository:get_size(S),
