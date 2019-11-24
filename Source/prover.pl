@@ -52,9 +52,9 @@ prover:prove(Literal,Proof,Proof,Model,Model) :-
   prover:proven(Literal,Model),!.
 
 
-% ----------------------------------------------------------------------------------------
-% CASE 4: A contextual single literal to prove, not proven, not conflicting, body is empty
-% ----------------------------------------------------------------------------------------
+% -----------------------------------------------------------------------------
+% CASE 4: A single literal to prove, not proven, not conflicting, body is empty
+% -----------------------------------------------------------------------------
 
 prover:prove(Literal,Proof,[rule(Literal,[])|Proof],Model,[Literal|Model]) :-
   not(is_list(Literal)),
@@ -64,9 +64,9 @@ prover:prove(Literal,Proof,[rule(Literal,[])|Proof],Model,[Literal|Model]) :-
   rule(Literal,[]).
 
 
-% ---------------------------------------------------------------------------
-% CASE 5: A single contextual literal to prove, not proven, body is not empty
-% ---------------------------------------------------------------------------
+% -----------------------------------------------------------------------------
+% CASE 5: A single literal to prove, not proven, not proving, body is not empty
+% -----------------------------------------------------------------------------
 
 prover:prove(Literal,Proof,NewProof,Model,[Literal|NewModel]) :-
   not(is_list(Literal)),
@@ -77,6 +77,21 @@ prover:prove(Literal,Proof,NewProof,Model,[Literal|NewModel]) :-
   not(prover:fact(rule(Literal,Body))),
   not(prover:proving(rule(Literal,Body),Proof)),
   prover:prove(Body,[rule(Literal,Body)|Proof],NewProof,Model,NewModel).
+
+
+% -------------------------------------------------------------------------
+% CASE 6: A single literal to prove, not proven, proving, body is not empty
+% -------------------------------------------------------------------------
+
+prover:prove(Literal,Proof,NewProof,Model,[assumed(Literal),Literal|NewModel]) :-
+  not(is_list(Literal)),
+  not(prover:proven(Literal,Model)),
+  not(prover:conflicts(Literal,Model)),
+  not(prover:conflictrule(rule(Literal,[]),Proof)),
+  rule(Literal,Body),
+  not(prover:fact(rule(Literal,Body))),
+  prover:proving(rule(Literal,Body),Proof),
+  prover:prove([],[rule(assumed(Literal),Body),rule(Literal,Body)|Proof],NewProof,Model,NewModel).
 
 
 % -----------------------------------------
