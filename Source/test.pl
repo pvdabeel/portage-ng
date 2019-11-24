@@ -22,14 +22,17 @@ This module implements a few tests
 %
 % Declares a list of cases
 
-test:cases([overlay://'test1/web-1.0':run,
-            overlay://'test2/web-2.0':run,
-            overlay://'test3/web-2.0':run,
-            overlay://'test4/web-2.0':run,
-            overlay://'test5/web-2.0':run,
-            overlay://'test6/web-2.0':run,
-            overlay://'test7/web-2.0':run,
-            overlay://'test8/web-2.0':run]).
+test:cases([overlay://'test01/web-1.0':run,
+            overlay://'test02/web-2.0':run,
+            overlay://'test03/web-2.0':run,
+            overlay://'test04/web-2.0':run,
+            overlay://'test05/web-2.0':run,
+            overlay://'test06/web-2.0':run,
+            overlay://'test07/web-2.0':run,
+            overlay://'test08/web-2.0':run,
+            overlay://'test09/web-2.0':run,
+            overlay://'test10/web-2.0':run,
+            overlay://'test11/web-2.0':run]).
 
 
 %! test:run(+Atom)
@@ -47,15 +50,21 @@ test:run(cases) :-
           message:color(normal),
           message:print('Calculating dependencies... done!'),nl,
           nl,
-          prover:prove(Case,[],Proof,[],_Model),
-          planner:plan(Proof,[],[],Plan),
-          %message:inform([' - Model : ',Model]),
-          %message:inform([' - Proof : ',Proof]),
-          printer:print(Plan),
-          message:color(normal),
-          length(Plan,Numberofsteps),
-          message:print(['Total: ', Numberofsteps,' steps, ', Numberofsteps, ' actions (', Numberofsteps,' runs, ',Numberofsteps,' installs)']),nl,
-          nl,nl
+          (prover:prove(Case,[],Proof,[],_Model),
+           planner:plan(Proof,[],[],Plan),
+           %message:inform([' - Model : ',Model]),
+           %message:inform([' - Proof : ',Proof]),
+           printer:print(Plan),
+           message:color(normal),
+           length(Plan,Numberofsteps),
+           message:print(['Total: ', Numberofsteps,' steps, ', Numberofsteps, ' actions (', Numberofsteps,' runs, ',Numberofsteps,' installs)']),nl,
+           nl,nl);
+          (message:color(red),
+           message:style(bold),
+           message:print('false'),nl,
+           message:color(normal),
+           message:style(normal),
+           nl,nl)
          )).
 
 
