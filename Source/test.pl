@@ -24,15 +24,15 @@ This module implements a few tests
 
 test:cases([overlay://'test01/web-1.0':run,
             overlay://'test02/web-2.0':run,
-            overlay://'test03/web-2.0':run,
-            overlay://'test04/web-2.0':run,
-            overlay://'test05/web-2.0':run,
-            overlay://'test06/web-2.0':run,
-            overlay://'test07/web-2.0':run,
-            overlay://'test08/web-2.0':run,
-            overlay://'test09/web-2.0':run,
-            overlay://'test10/web-2.0':run,
-            overlay://'test11/web-2.0':run]).
+            overlay://'test03/os-1.0':install,
+            overlay://'test04/web-1.0':run,
+            overlay://'test05/web-1.0':run,
+            overlay://'test06/web-1.0':run,
+            overlay://'test07/web-1.0':run,
+            overlay://'test08/web-1.0':run,
+            overlay://'test09/web-1.0':run,
+            overlay://'test10/web-1.0':run,
+            overlay://'test11/web-1.0':run]).
 
 
 %! test:run(+Atom)
@@ -50,14 +50,14 @@ test:run(cases) :-
           message:color(normal),
           message:print('Calculating dependencies... done!'),nl,
           nl,
-          (prover:prove(Case,[],Proof,[],_Model),
-           planner:plan(Proof,[],[],Plan),
-           %message:inform([' - Model : ',Model]),
-           %message:inform([' - Proof : ',Proof]),
-           printer:print(Plan),
-           message:color(normal),
-           length(Plan,Numberofsteps),
-           message:print(['Total: ', Numberofsteps,' steps, ', Numberofsteps, ' actions (', Numberofsteps,' runs, ',Numberofsteps,' installs)']),nl,
+          (prover:prove(Case,[],_Proof,[],Model),
+           message:inform(['Model : ',Model]),nl,
+           %message:inform([' - Proof : ',Proof]),nl,
+           %planner:plan(Proof,[],[],Plan),
+           %printer:print(Plan),
+           %message:color(normal),
+           %length(Plan,Numberofsteps),
+           %message:print(['Total: ', Numberofsteps,' steps, ', Numberofsteps, ' actions (', Numberofsteps,' runs, ',Numberofsteps,' installs)']),nl,
            nl,nl);
           (message:color(red),
            message:style(bold),
