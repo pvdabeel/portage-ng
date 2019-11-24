@@ -47,7 +47,7 @@ test:run(cases) :-
            % message:inform(['Model : ',Model]),nl,
            % message:inform(['Proof : ',Proof]),nl,
            planner:plan(Proof,[],[],Plan),
-           message:inform(['Plan  : ']),nl,nl,
+           message:inform(['Plan  : ']),nl,
            forall(member(X,Plan),(write(' -> '),writeln(X))),nl,
            printer:print(Case,Plan,Model));
           (message:color(red),
