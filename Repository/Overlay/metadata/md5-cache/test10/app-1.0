@@ -1,0 +1,10 @@
+DEFINED_PHASES=compile install unpack
+DEPEND=test10/os
+DESCRIPTION=Description of test package app
+EAPI=0
+HOMEPAGE=http://www.portage-ng.org/
+KEYWORDS=alpha amd64 arm hppa ia64 m68k mips ppc ppc64 s390 sh sparc x86 sparc-fbsd x86-fbsd
+LICENSE=GPL-2
+RDEPEND=test10/db test10/os
+SLOT=0
+_md5_=18c9818da7c0c311cf44a70f28f31985

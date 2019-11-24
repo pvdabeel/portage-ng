@@ -1,0 +1,14 @@
+digraph prolog {
+
+newrank=true;
+concentrate=true;
+compound=true;
+graph [rankdir=TD];#, ranksep=2.5, nodesep=0.2];
+edge  [arrowhead=vee];
+node  [fontname=Helvetica,fontsize=10];
+
+"overlay://test04/db-1.0" [color=red, href="../test04/db-1.0-rdepend.svg"];
+"overlay://test04/db-1.0" -> "overlay://test04/os-1.0"
+"overlay://test04/os-1.0" [color=red, href="../test04/os-1.0-rdepend.svg"];
+"overlay://test04/os-1.0" -> "overlay://test04/os-1.0"
+}

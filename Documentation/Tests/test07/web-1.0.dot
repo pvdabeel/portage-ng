@@ -1,0 +1,100 @@
+digraph prolog {
+
+# *************
+# Graph options
+# *************
+
+newrank=true;
+concentrate=true;
+compound=true;
+graph [rankdir=LR,fontname=Helvetica,fontsize=10,ranksep=1.5];#, ranksep=2.5, nodesep=0.2];
+edge  [arrowhead=vee];
+node  [fontname=Helvetica,fontsize=10];
+
+# **********
+# The ebuild
+# **********
+
+subgraph cluster_leftcol {
+color=gray;
+rank=same;
+label=<<i>ebuild</i>>;
+id [label="overlay://test07/web-1.0", color=red, width=4, href="../test07/web-1.0.svg"];
+}
+
+# ****************
+# The dependencies
+# ****************
+
+subgraph cluster_midcol {
+color=gray;
+label=<<i>dependencies</i>>;
+subgraph cluster_compile {
+fillcolor="#eeeeee";
+style=filled;
+label=<<i>compile</i>>;
+subgraph pack75 {
+dependency75 [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" WIDTH="220"><TR><TD ROWSPAN="6" CELLPADDING="30">pack_dep</TD></TR><TR><TD WIDTH="110">no</TD></TR><TR><TD>test07</TD></TR><TR><TD>os</TD></TR><TR><TD>none</TD></TR><TR><TD></TD></TR></TABLE>>, shape=none, color=blue];
+}
+id:e -> dependency75:w [weight=20,style="solid",arrowhead="vee"];
+}
+subgraph cluster_compileandrun {
+fillcolor="#eeeeee";
+style=filled;
+label=<<i>compile and run</i>>;
+}
+subgraph cluster_run {
+fillcolor="#eeeeee";
+style=filled;
+label=<<i>run</i>>;
+subgraph pack76 {
+dependency76 [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" WIDTH="220"><TR><TD ROWSPAN="6" CELLPADDING="30">pack_dep</TD></TR><TR><TD WIDTH="110">no</TD></TR><TR><TD>test07</TD></TR><TR><TD>app</TD></TR><TR><TD>none</TD></TR><TR><TD></TD></TR></TABLE>>, shape=none, color=blue];
+}
+id:e -> dependency76:w [weight=20,style="solid",arrowhead="odot"];
+subgraph pack77 {
+dependency77 [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" WIDTH="220"><TR><TD ROWSPAN="6" CELLPADDING="30">pack_dep</TD></TR><TR><TD WIDTH="110">no</TD></TR><TR><TD>test07</TD></TR><TR><TD>db</TD></TR><TR><TD>none</TD></TR><TR><TD></TD></TR></TABLE>>, shape=none, color=blue];
+}
+id:e -> dependency77:w [weight=20,style="solid",arrowhead="odot"];
+subgraph pack78 {
+dependency78 [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" WIDTH="220"><TR><TD ROWSPAN="6" CELLPADDING="30">pack_dep</TD></TR><TR><TD WIDTH="110">no</TD></TR><TR><TD>test07</TD></TR><TR><TD>os</TD></TR><TR><TD>none</TD></TR><TR><TD></TD></TR></TABLE>>, shape=none, color=blue];
+}
+id:e -> dependency78:w [weight=20,style="solid",arrowhead="odot"];
+}
+}
+
+# **************
+# The candidates
+# **************
+
+subgraph cluster_choices {
+rank=same;
+color=gray;
+label=<<i>candidates</i>>;
+
+subgraph choice75 {
+color=black;
+nodesep=1;
+choiceoverlay11610111511648554711111545494648 [label="overlay://test07/os-1.0", color=red, width=4,href="../test07/os-1.0.svg"];
+dependency75:e -> choiceoverlay11610111511648554711111545494648:w [style=dotted,weight="100"];
+}
+subgraph choice76 {
+color=black;
+nodesep=1;
+choiceoverlay1161011151164855479711211245494648 [label="overlay://test07/app-1.0", color=red, width=4,href="../test07/app-1.0.svg"];
+dependency76:e -> choiceoverlay1161011151164855479711211245494648:w [style=dotted,weight="100"];
+}
+subgraph choice77 {
+color=black;
+nodesep=1;
+choiceoverlay1161011151164855471009845494648 [label="overlay://test07/db-1.0", color=red, width=4,href="../test07/db-1.0.svg"];
+dependency77:e -> choiceoverlay1161011151164855471009845494648:w [style=dotted,weight="100"];
+}
+subgraph choice78 {
+color=black;
+nodesep=1;
+choiceoverlay11610111511648554711111545494648 [label="overlay://test07/os-1.0", color=red, width=4,href="../test07/os-1.0.svg"];
+dependency78:e -> choiceoverlay11610111511648554711111545494648:w [style=dotted,weight="100"];
+}
+}
+
+}
