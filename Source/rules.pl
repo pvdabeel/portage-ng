@@ -89,7 +89,13 @@ rule(package_dependency(_,no,'virtual','ssh',_,_,_,_),[]) :- !.
 % A package dependency is satisfied when a suitable candidate is satisfied
 rule(package_dependency(Action,no,C,N,_,_,_,_),[Context://Choice:Action]) :-
   cache:entry(Context,Choice,_,C,N,_,_).
-% kb:ebuild(Choice,C,N,_,_). % sorted
+
+
+% A package dependency that has no suitable candidates is assumed satisfied
+% The planner and builder checks for assumptions before execution
+rule(package_dependency(Action,no,C,N,O,V,S,U),[assumed(package_dependency(Action,no,C,N,O,V,S,U))]) :-
+  not(cache:entry(_,_,_,C,N,_,_)),!.
+
 
 % The dependencies in a use conditional group need to be satisfied when the use flag is set
 rule(use_conditional_group(positive,U,D),D) :-
@@ -105,3 +111,7 @@ rule(any_of_group(Deps),[D]) :-
 
 % All dependencies in an all_of_group should be satisfied
 rule(all_of_group(Deps),Deps) :- !.
+
+
+% Assumptions are assumed
+rule(assumed(_),[]) :- !.

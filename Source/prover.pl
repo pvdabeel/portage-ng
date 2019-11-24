@@ -83,7 +83,7 @@ prover:prove(Literal,Proof,NewProof,Model,[Literal|NewModel]) :-
 % CASE 6: A single literal to prove, not proven, proving, body is not empty
 % -------------------------------------------------------------------------
 
-prover:prove(Literal,Proof,NewProof,Model,[assumed(Literal),Literal|NewModel]) :-
+prover:prove(Literal,Proof,NewProof,Model,[assumed(Literal)|NewModel]) :-
   not(is_list(Literal)),
   not(prover:proven(Literal,Model)),
   not(prover:conflicts(Literal,Model)),
@@ -91,7 +91,7 @@ prover:prove(Literal,Proof,NewProof,Model,[assumed(Literal),Literal|NewModel]) :
   rule(Literal,Body),
   not(prover:fact(rule(Literal,Body))),
   prover:proving(rule(Literal,Body),Proof),
-  prover:prove([],[rule(assumed(Literal),Body),rule(Literal,Body)|Proof],NewProof,Model,NewModel).
+  prover:prove([],[rule(assumed(Literal),Body)|Proof],NewProof,Model,NewModel).
 
 
 % -----------------------------------------

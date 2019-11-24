@@ -30,9 +30,9 @@ test:cases([overlay://'test01/web-1.0':run,
             overlay://'test06/web-1.0':run,
             overlay://'test07/web-1.0':run,
             overlay://'test08/web-1.0':run,
-            overlay://'test09/web-1.0':run,
-            overlay://'test10/web-1.0':run,
-            overlay://'test11/web-1.0':run]).
+            overlay://'test09/os-1.0':run,
+            overlay://'test10/os-1.0':run,
+            overlay://'test11/os-1.0':run]).
 
 
 %! test:run(+Atom)
