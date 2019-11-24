@@ -31,7 +31,17 @@ printer:printable(assumed(_Repository://_Entry:_Action)) :- !.
 %
 % Prints a printable Literal
 
-printer:print_element(Repository://Entry:Action) :-
+printer:print_element(Repository://Entry:Action,Repository://Entry:Action) :-
+  !,
+  message:color(cyan),
+  message:print(Action),
+  message:style(bold),
+  message:color(green),
+  message:column(35,Repository://Entry),
+  message:color(normal),
+  nl.
+
+printer:print_element(_://_:_,Repository://Entry:Action) :-
   message:color(cyan),
   message:print(Action),
   message:color(green),
@@ -39,7 +49,7 @@ printer:print_element(Repository://Entry:Action) :-
   message:color(normal),
   nl.
 
-printer:print_element(assumed(Repository://Entry:Action)) :-
+printer:print_element(_,assumed(Repository://Entry:Action)) :-
   message:color(red),
   message:print(Action),
   message:color(green),
@@ -49,7 +59,7 @@ printer:print_element(assumed(Repository://Entry:Action)) :-
   message:color(normal),
   nl.
 
-printer:print_element(assumed(package_dependency(Action,_,C,N,_,_,_,_))) :-
+printer:print_element(_,assumed(package_dependency(Action,_,C,N,_,_,_,_))) :-
   message:color(red),
   message:print(Action),
   message:color(green),
@@ -89,9 +99,9 @@ printer:print_header(Target) :-
 %
 % Prints the body for a given plan and model
 
-printer:print_body(Plan) :-
+printer:print_body(Target,Plan) :-
   forall(member(E,Plan),
-    printer:firststep(E)).
+    printer:firststep(Target,E)).
 
 
 %! printer:printassumptions(+Model)
@@ -138,43 +148,43 @@ countlist(_,_,0) :- !.
 
 printer:print(Target,Plan,Model) :-
   printer:print_header(Target),
-  printer:print_body(Plan),
+  printer:print_body(Target,Plan),
   printer:print_assumptions(Model),
   printer:print_footer(Plan,Model).
 
 
-%! printer:firststep(+Step)
+%! printer:firststep(+Target,+Step)
 %
 % Print a step in a plan
 
-printer:firststep([]) :- !.
+printer:firststep(_,[]) :- !.
 
-printer:firststep([rule(Literal,_)|L]) :-
+printer:firststep(Target, [rule(Literal,_)|L]) :-
   printer:printable(Literal),
   !,
   write(' -  STEP:  | '),
-  printer:print_element(Literal),
-  printer:nextstep(L).
+  printer:print_element(Target,Literal),
+  printer:nextstep(Target,L).
 
-printer:firststep([rule(_,_)|L]) :-
-  printer:firststep(L).
+printer:firststep(Target,[rule(_,_)|L]) :-
+  printer:firststep(Target,L).
 
 
 %! printer:nextstep(+Step)
 %
 % Print a step in a plan
 
-printer:nextstep([]) :- nl,!.
+printer:nextstep(_,[]) :- nl,!.
 
-printer:nextstep([rule(Literal,_)|L]) :-
+printer:nextstep(Target,[rule(Literal,_)|L]) :-
   printer:printable(Literal),
   !,
   write('           | '),
-  printer:print_element(Literal),
-  printer:nextstep(L).
+  printer:print_element(Target,Literal),
+  printer:nextstep(Target,L).
 
-printer:nextstep([rule(_,_)|L]) :-
-  printer:nextstep(L).
+printer:nextstep(Target,[rule(_,_)|L]) :-
+  printer:nextstep(Target,L).
 
 
 %! printer:test(+Repository)
