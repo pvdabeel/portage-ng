@@ -127,7 +127,7 @@ The result using Gentoo emerge:
 ![Emerge Output](../../Documentation/Tests/test08/expected.png)
 
 
-## Test case 09 - Dependency on non-existent package (run)
+## Test case 09 - Dependency on non-existent package (compile)
 
 This scenario defines the following runtime dependencies for "web"
 
@@ -146,7 +146,7 @@ The result using Gentoo emerge:
 ![Emerge Output](../../Documentation/Tests/test09/expected.png)
 
 
-## Test case 10 - Dependency on non-existent package (compile)
+## Test case 10 - Dependency on non-existent package (run)
 
 This scenario defines the following runtime dependencies for "web"
 
