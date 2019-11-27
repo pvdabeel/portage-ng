@@ -24,7 +24,7 @@ This module implements a few tests
 
 test:cases([overlay://'test01/web-1.0':run,
             overlay://'test02/web-2.0':run,
-            overlay://'test03/web-1.0':run,
+            overlay://'test03/os-1.0':install,
             overlay://'test04/web-1.0':run,
             overlay://'test05/web-1.0':run,
             overlay://'test06/web-1.0':run,
@@ -44,12 +44,8 @@ test:run(cases) :-
   forall(member(Case,Cases),
          (
           (prover:prove(Case,[],Proof,[],Model),
-           % message:inform(['Model : ',Model]),nl,
-           % message:inform(['Proof : ',Proof]),nl,
            planner:plan(Proof,[],[],Plan),
-           message:inform(['Plan  : ']),nl,
-           forall(member(X,Plan),(write(' -> '),writeln(X))),nl,
-           printer:print(Case,Plan,Model));
+           printer:print(Case,Model,Proof,Plan));
           (message:color(red),
            message:style(bold),
            message:print('false'),nl,

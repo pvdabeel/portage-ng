@@ -83,7 +83,7 @@ prover:prove(Literal,Proof,NewProof,Model,[Literal|NewModel]) :-
 % CASE 6: A single literal to prove, not proven, proving, body is not empty
 % -------------------------------------------------------------------------
 
-prover:prove(Literal,Proof,NewProof,Model,[assumed(Literal)|NewModel]) :-
+prover:prove(Literal,Proof,NewProof,Model,NewModel) :-
   not(is_list(Literal)),
   not(prover:proven(Literal,Model)),
   not(prover:conflicts(Literal,Model)),
@@ -91,7 +91,7 @@ prover:prove(Literal,Proof,NewProof,Model,[assumed(Literal)|NewModel]) :-
   rule(Literal,Body),
   not(prover:fact(rule(Literal,Body))),
   prover:proving(rule(Literal,Body),Proof),
-  prover:prove([],[rule(assumed(Literal),[]),rule(Literal,[])|Proof],NewProof,Model,NewModel).
+  prover:prove([],[rule(assumed(Literal),[]),rule(Literal,[])|Proof],NewProof,[assumed(Literal)|Model],NewModel).
 
 
 % -----------------------------------------
@@ -119,6 +119,7 @@ prover:proven(Literal, Model) :- member(assumed(Literal),Model), !.
 
 prover:proving(Rule, Proof) :- member(Rule, Proof), !.
 
+%prover:proving(rule(Literal,_), Proof) :- member(rule(assumed(Literal),[]), Proof), !.
 
 % Negation as failure is implemented as a relation between literals in a given model
 % For pruning rules in choicepoints, we also implement conflicts in proof

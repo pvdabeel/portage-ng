@@ -33,11 +33,12 @@ based on topological sort:
 planner:zerorules([],Weights,Weights,[],[]) :- !.
 
 planner:zerorules([rule(Head,Body)|Rest],ZeroWeights,[Head|TempZeroWeights],[rule(Head,Body)|ZeroRules],NonZeroRules) :-
-        subtract(Body,ZeroWeights,[]),!,
-        planner:zerorules(Rest,ZeroWeights,TempZeroWeights,ZeroRules,NonZeroRules).
+  subtract(Body,ZeroWeights,[]),!,
+  planner:zerorules(Rest,ZeroWeights,TempZeroWeights,ZeroRules,NonZeroRules).
+
 planner:zerorules([rule(Head,Body)|Rest],ZeroWeights,TempZeroWeights,ZeroRules,[rule(Head,Body)|NonZeroRules]) :-
-        !,
-        planner:zerorules(Rest,ZeroWeights,TempZeroWeights,ZeroRules,NonZeroRules).
+  !,
+  planner:zerorules(Rest,ZeroWeights,TempZeroWeights,ZeroRules,NonZeroRules).
 
 
 
@@ -48,9 +49,9 @@ planner:zerorules([rule(Head,Body)|Rest],ZeroWeights,TempZeroWeights,ZeroRules,[
 planner:plan([],_,OldPlan,OldPlan) :- !.
 
 planner:plan(Rules,InitialWeights,OldPlan,[ZeroRules|TempPlan]) :-
-	planner:zerorules(Rules,InitialWeights,NewWeights,ZeroRules,NonZeroRules),
-        ZeroRules \= [],!,
-	planner:plan(NonZeroRules,NewWeights,OldPlan,TempPlan).
+  planner:zerorules(Rules,InitialWeights,NewWeights,ZeroRules,NonZeroRules),
+  ZeroRules \= [],!,
+  planner:plan(NonZeroRules,NewWeights,OldPlan,TempPlan).
 
 
 %! planner:test(+Repository)

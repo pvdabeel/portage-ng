@@ -63,7 +63,6 @@ builder:build(Context://_Entry:_Action) :-
   script:exec(build,['cmake', Local]).
 
 
-
 %! builder:firststep(+Steps)
 %
 % Builds a part of a build plan
@@ -120,14 +119,12 @@ builder:nextstep([rule(_,_)|L]) :-
 
 builder:test(Repository) :-
   preference:proving_target(Action),
-  system:time(
-              system:forall(Repository:entry(E),
+  system:time(system:forall(Repository:entry(E),
  	                    ((nl,message:header(["Building ",Repository://E:Action]),
                               prover:prove(Repository://E:Action,[],Proof,[],_),
 			      planner:plan(Proof,[],[],Plan),
                               builder:execute(Plan));
 			     (message:failure(E)))
-                           )
-             ),
+                           )),
   Repository:get_size(S),
   message:inform(['built ',S,' ',Repository,' entries.']).

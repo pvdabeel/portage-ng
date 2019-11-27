@@ -45,6 +45,9 @@ message:color(cyan) :-
 message:color(lightgray) :-
   system:write('\033[37m').
 
+message:color(darkgray) :-
+  system:write('\033[90m').
+
 message:color(lightred) :-
   system:write('\033[91m').
 
