@@ -57,7 +57,7 @@ prover:prove(Literal,Proof,Proof,Model,Model) :-
 
 
 % -----------------------------------------------------------------------------
-% CASE 4: A single literal to prove, not proven, not conflicting, body is empty
+% CASE 4a: A single literal to prove, not proven, not conflicting, body is empty
 % -----------------------------------------------------------------------------
 
 prover:prove(Literal,Proof,[rule(Literal,[])|Proof],Model,[Literal|Model]) :-
@@ -67,6 +67,10 @@ prover:prove(Literal,Proof,[rule(Literal,[])|Proof],Model,[Literal|Model]) :-
   not(prover:conflictrule(rule(Literal,[]),Proof)),
   rule(Literal,[]).
 
+
+% -------------------------------------------------------------------------------
+% CASE 4a: A single literal to prove, not proven, not conflicting, assumed proven
+% -------------------------------------------------------------------------------
 
 prover:prove(Literal,Proof,[rule(Literal,assumed(Literal))|Proof],Model,Model) :-
   not(is_list(Literal)),
@@ -106,7 +110,6 @@ prover:prove(Literal,Proof,NewProof,Model,NewModel) :-
   not(prover:assumed_proving(Literal,Proof)),
   prover:prove([],[assumed(rule(Literal,[]))|Proof],NewProof,[assumed(Literal)|Model],NewModel).
 
-% rule(Literal,[])
 
 % -----------------------------------------
 % FACT: A fact is a rule with an empty body
@@ -121,9 +124,10 @@ prover:fact(rule(_,[])) :- !.
 
 prover:proven(Literal, Model) :- member(Literal,Model), !.
 
-% --------------------------------------------
-% PROVEN: A literal is proven if it is assumed
-% --------------------------------------------
+
+% -----------------------------------------------------------------------------
+% ASSUMED PROVEN: A literal is proven if its assumption is part of a given model
+% -----------------------------------------------------------------------------
 
 prover:assumed_proven(Literal, Model) :- member(assumed(Literal),Model), !.
 
@@ -134,17 +138,28 @@ prover:assumed_proven(Literal, Model) :- member(assumed(Literal),Model), !.
 
 prover:proving(Rule, Proof) :- member(Rule, Proof), !.
 
+
+% ----------------------------------------------------------------------------------
+% ASSUMED PROVING: A rule is being proven if its assumption is part of a given proof
+% ----------------------------------------------------------------------------------
+
 prover:assumed_proving(rule(Literal,_), Proof) :- member(assumed(rule(Literal,[])), Proof) , !.
 
 
 % Negation as failure is implemented as a relation between literals in a given model
 % For pruning rules in choicepoints, we also implement conflicts in proof
 
-prover:conflicts(naf(Literal), Model) :- !, prover:proven(Literal,Model).
-prover:conflicts(Literal, Model) :- prover:proven(naf(Literal),Model).
+prover:conflicts(naf(Literal), Model) :- prover:proven(Literal,Model),!.
+prover:conflicts(naf(Literal), Model) :- prover:assumed_proven(Literal,Model),!.
 
-prover:conflictrule(rule(naf(Literal),_), Proof) :- !, prover:proving(rule(Literal,_),Proof).
+prover:conflicts(Literal, Model) :- prover:proven(naf(Literal),Model),!.
+prover:conflicts(Literal, Model) :- prover:assumed_proven(naf(Literal),Model),!.
+
+prover:conflictrule(rule(naf(Literal),_), Proof) :- prover:proving(rule(Literal,_),Proof),!.
+prover:conflictrule(rule(naf(Literal),_), Proof) :- prover:assumed_proving(rule(Literal,_),Proof),!.
+
 prover:conflictrule(rule(Literal,_), Proof) :- !, prover:proving(rule(naf(Literal),_),Proof).
+prover:conflictrule(rule(Literal,_), Proof) :- !, prover:assumed_proving(rule(naf(Literal),_),Proof),!.
 
 
 %! prover:test(+Repository)
