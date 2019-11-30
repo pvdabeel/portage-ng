@@ -30,7 +30,8 @@ Eventually this could become a class with different subclasses.
 os:directory_content(Directory,Content) :-
   system:directory_files(Directory,UnsortedContent),
   sort(UnsortedContent,['.','..'|Contents]),!,
-  member(Content,Contents).
+  reverse(Contents,RContents),
+  member(Content,RContents).
 
 
 %! os:compose_path(+Path,+RelativePath,-NewPath)

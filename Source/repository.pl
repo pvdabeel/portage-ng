@@ -152,7 +152,7 @@ sync(metadata) ::-
 
 
 
-% repository:sync(kb)
+%! repository:sync(kb)
 %
 % Public predicate
 %
@@ -169,7 +169,7 @@ sync(kb) ::-
 
 
 
-% repository:read_entry(+Entry, -Timestamp, -Category, -Name, -Version)
+%! repository:read_entry(+Entry, -Timestamp, -Category, -Name, -Version)
 %
 % Public predicate
 %
@@ -182,15 +182,13 @@ read_entry(Entry,Timestamp,Category,Name,Version) ::-
   os:directory_content(Cache,Category),
   os:compose_path(Cache,Category,CategoryDir),
   os:directory_content(CategoryDir,Package),
-  eapi:packageversion(Package,Name,Version),       % BUG
+  eapi:packageversion(Package,Name,Version),
   os:compose_path(Category,Package,Entry),
   os:compose_path(Cache,Entry,File),
   system:time_file(File,Timestamp).
 
-% read_metadata(Entry,Timestamp,Metadata).
 
-
-% repository:read_metadata(+Entry, -Timestamp, -Metadata)
+%! repository:read_metadata(+Entry, -Timestamp, -Metadata)
 %
 % Public predicate
 %
@@ -211,7 +209,7 @@ read_metadata(Entry,_,[]) ::-
   message:failure(['Failed to parse ',Entry,' metadata cache!']),!.
 
 
-% repository:read_time(-Time)
+%! repository:read_time(-Time)
 %
 % Public predicate
 %
@@ -223,7 +221,7 @@ read_time(Time) ::-
   reader:read_timestamp(File,Time).
 
 
-% repository:entry(?Entry)
+%! repository:entry(?Entry)
 %
 % Public predicate
 %
@@ -235,7 +233,7 @@ entry(Entry) ::-
   cache:entry(Context,Entry,_,_,_,_,_).
 
 
-% repository:entry(?Entry, ?Time)
+%! repository:entry(?Entry, ?Time)
 %
 % Public predicate
 %
@@ -248,7 +246,7 @@ entry(Entry,Time) ::-
   cache:entry(Context,Entry,Time,_,_,_,_).
 
 
-% repository:category(?Category)
+%! repository:category(?Category)
 %
 % Public predicate
 %
@@ -262,7 +260,7 @@ category(Category) ::-
   member(Category,Ss).
 
 
-% repository:package(?Category, ?Package)
+%! repository:package(?Category, ?Package)
 %
 % Public predicate
 %
@@ -275,7 +273,7 @@ package(Category,Package) ::-
   atomic_list_concat([Name,'-',Version],Package).
 
 
-% repository:ebuild(?Category, ?Name, ?Version)
+%! repository:ebuild(?Category, ?Name, ?Version)
 %
 % Public predicate
 %
@@ -287,7 +285,7 @@ ebuild(Category,Name,Version) ::-
   cache:entry(Context,_,_,Category,Name,Version,_).
 
 
-% repository:ebuild(?Id, ?Category, ?Name, ?Version)
+%! repository:ebuild(?Id, ?Category, ?Name, ?Version)
 %
 % Public predicate
 %
@@ -299,7 +297,7 @@ ebuild(Id,Category,Name,Version) ::-
   cache:entry(Context,Id,_,Category,Name,Version,_).
 
 
-% repository:ebuild(?Id, ?Category, ?Name, ?Version, ?Metadata)
+%! repository:ebuild(?Id, ?Category, ?Name, ?Version, ?Metadata)
 %
 % Public predicate
 %
@@ -312,7 +310,7 @@ ebuild(Id,Category,Name,Version,Metadata) ::-
 
 
 
-% repository:query(+Query,-Result)
+%! repository:query(+Query,-Result)
 %
 % Public predicate
 %
@@ -353,7 +351,7 @@ query([Statement|Rest],Id) ::-
   Repository:query(Rest,Id).
 
 
-% repository:get_location(?Location).
+%! repository:get_location(?Location).
 %
 % Public predicate
 %
@@ -364,7 +362,7 @@ get_location(Location) ::-
   ::location(Location).
 
 
-% repository:get_cache(?Location).
+%! repository:get_cache(?Location).
 %
 % Public predicate
 %
@@ -375,7 +373,7 @@ get_cache(Location) ::-
   ::cache(Location).
 
 
-% repository:get_remote(?Location).
+%! repository:get_remote(?Location).
 %
 % Public predicate
 %
@@ -386,7 +384,7 @@ get_remote(Location) ::-
   ::remote(Location).
 
 
-% repository:get_protocol(?Protocol).
+%! repository:get_protocol(?Protocol).
 %
 % Public predicate
 %
@@ -397,7 +395,7 @@ get_protocol(Protocol) ::-
   ::protocol(Protocol).
 
 
-% repository:get_type(?Type)
+%! repository:get_type(?Type)
 %
 % Public predicate
 %
@@ -408,7 +406,7 @@ get_type(Type) ::-
   ::type(Type).
 
 
-% repository:get_type(?Type)
+%! repository:get_type(?Type)
 %
 % Public predicate
 %
@@ -421,7 +419,7 @@ get_size(Size) ::-
   length(L,Size).
 
 
-% repository:get_ebuild(+Entry,-Ebuild)
+%! repository:get_ebuild(+Entry,-Ebuild)
 %
 % Public predicate
 %
@@ -434,7 +432,7 @@ get_ebuild(Entry,Ebuild) ::-
   exists_file(Ebuild).
 
 
-% repository:location(?Location)
+%! repository:location(?Location)
 %
 % Protected predicate
 %
@@ -446,7 +444,7 @@ location(Location) ::-
   %is_absolute_file_name(Location).
 
 
-% repository:cache(?Location)
+%! repository:cache(?Location)
 %
 % Protected predicate
 %
@@ -458,7 +456,7 @@ cache(Location) ::-
   %is_absolute_file_name(Location).
 
 
-% repository:remote(?Location)
+%! repository:remote(?Location)
 %
 % Protected predicate
 %
@@ -470,7 +468,7 @@ remote(Location) ::-
   % is_absolute_url(Location).
 
 
-% repository:protocol(?Protocol)
+%! repository:protocol(?Protocol)
 %
 % Protected predicate
 %
@@ -482,7 +480,7 @@ protocol(Protocol) ::-
   % member(Protocol,['git','http','rsync']).
 
 
-% repository:type(?Type)
+%! repository:type(?Type)
 %
 % Protected predicate
 %
