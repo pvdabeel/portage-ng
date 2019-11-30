@@ -275,7 +275,7 @@ printer:test(Repository) :-
   preference:proving_target(Action),
   time(forall(Repository:entry(E),
  	      ((nl,message:header(["Planning ",Repository://E:Action]),
-                prover:prove(Repository://E:Action,[],Proof,[],Model),
+                prover:prove(Repository://E:Action,[],Proof,[],Model,[],_Constraints),
                 planner:plan(Proof,[],[],Plan),
                 printer:print(Repository://E:Action,Model,Proof,Plan));
 	       (message:failure(E))))

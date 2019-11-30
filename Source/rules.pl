@@ -24,11 +24,13 @@ rule(Context://Identifier:_,[]) :-
   preference:masked(Context://Identifier),!.
 
 
-% An ebuild can be installed, if its compiletime dependencies are satisfied
+% An ebuild can be installed, if its compiletime dependencies are satisfied and
+% if it can occupy an installation slot
 
-rule(Context://Ebuild:install,Deps) :-
-  ebuild:get(depend,Context://Ebuild,Deps).
-
+rule(Context://Ebuild:install,[constraint(slot(Cat,Name,Slot):{[Ebuild]})|Deps]) :-
+  ebuild:get(depend,Context://Ebuild,Deps),
+  ebuild:get(slot,Context://Ebuild,[Slot]),
+  Context:ebuild(Ebuild,Cat,Name,_).
 
 % An ebuild can be run, if it is installed and if its runtime dependencies are satisfied
 

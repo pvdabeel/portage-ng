@@ -32,12 +32,18 @@ based on topological sort:
 
 planner:zerorules([],Weights,Weights,[],[]) :- !.
 
+planner:zerorules([constraint(C)|Rest],ZeroWeights,[constraint(C)|TempZeroWeights],[constraint(C)|ZeroRules],NonZeroRules) :-
+  !,
+  planner:zerorules(Rest,ZeroWeights,TempZeroWeights,ZeroRules,NonZeroRules).
+
 planner:zerorules([assumed(rule(Head,Body))|Rest],ZeroWeights,[Head|TempZeroWeights],[assumed(rule(Head,Body))|ZeroRules],NonZeroRules) :-
-  subtract(Body,ZeroWeights,[]),!,
+  exclude(prover:is_constraint,Body,TempBody),
+  subtract(TempBody,ZeroWeights,[]),!,
   planner:zerorules(Rest,ZeroWeights,TempZeroWeights,ZeroRules,NonZeroRules).
 
 planner:zerorules([rule(Head,Body)|Rest],ZeroWeights,[Head|TempZeroWeights],[rule(Head,Body)|ZeroRules],NonZeroRules) :-
-  subtract(Body,ZeroWeights,[]),!,
+  exclude(prover:is_constraint,Body,TempBody),
+  subtract(TempBody,ZeroWeights,[]),!,
   planner:zerorules(Rest,ZeroWeights,TempZeroWeights,ZeroRules,NonZeroRules).
 
 planner:zerorules([rule(Head,Body)|Rest],ZeroWeights,TempZeroWeights,ZeroRules,[rule(Head,Body)|NonZeroRules]) :-
@@ -67,7 +73,7 @@ planner:test(Repository) :-
   preference:proving_target(Action),
   time(forall(Repository:entry(E),
  	      ((message:success(E),
-                call_with_time_limit(T,(prover:prove(Repository://E:Action,[],Proof,[],_),planner:plan(Proof,[],[],_))));
+                call_with_time_limit(T,(prover:prove(Repository://E:Action,[],Proof,[],_,[],_),planner:plan(Proof,[],[],_))));
                (message:failure(E))))
       ),
   Repository:get_size(S),
@@ -80,7 +86,7 @@ planner:test(Repository) :-
 
 planner:testparallel(Repository) :-
   preference:proving_target(Action),
-  findall((prover:prove(Repository://E:Action,[],Proof,[],_),planner:plan(Proof,[],[],_)),Repository:entry(E),Calls),
+  findall((prover:prove(Repository://E:Action,[],Proof,[],_,[],_),planner:plan(Proof,[],[],_)),Repository:entry(E),Calls),
   config:number_of_cpus(Cpus),
   time(concurrent(Cpus,Calls,[])),
   Repository:get_size(S),

@@ -121,7 +121,7 @@ builder:test(Repository) :-
   preference:proving_target(Action),
   system:time(system:forall(Repository:entry(E),
  	                    ((nl,message:header(["Building ",Repository://E:Action]),
-                              prover:prove(Repository://E:Action,[],Proof,[],_),
+                              prover:prove(Repository://E:Action,[],Proof,[],_,[],_),
 			      planner:plan(Proof,[],[],Plan),
                               builder:execute(Plan));
 			     (message:failure(E)))

@@ -43,7 +43,7 @@ test:run(cases) :-
   test:cases(Cases),
   forall(member(Case,Cases),
          (
-          (prover:prove(Case,[],Proof,[],Model),
+          (prover:prove(Case,[],Proof,[],Model,[],_Constraints),
            planner:plan(Proof,[],[],Plan),
            printer:print(Case,Model,Proof,Plan));
           (message:color(red),
