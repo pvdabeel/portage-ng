@@ -18,21 +18,23 @@ The Printer takes a plan from the Planner and pretty prints it.
 % PRINTER declarations
 % ********************
 
-%! printer:printable(+Literal)
+%! printer:printable_element(+Literal)
 %
 % Declares which Literals are printable
 
-printer:printable(_Repository://_Entry:_Action) :- !.
-printer:printable(package_dependency(run,_,_,_,_,_,_,_)) :- !.
-printer:printable(assumed(_Repository://_Entry:_Action)) :- !.
-%printer:printable(assumed(package_dependency(_,_,_,_,_,_,_,_))) :- !.
+printer:printable_element(rule(_Repository://_Entry:_Action,_)) :- !.
+%printer:printable_element(rule(package_dependency(run,_,_,_,_,_,_,_),_)) :- !.
+printer:printable_element(assumed(rule(_Repository://_Entry:_Action,_))) :- !.
+printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_),_))) :- !.
+printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_)),_)) :- !.
 
 
-%! printer:prin(+Printable)
+
+%! printer:print_element(+Printable)
 %
 % Prints a printable Literal
 
-% simple package, target
+% simple package, is a target of the plan
 
 printer:print_element(Repository://Entry:Action,rule(Repository://Entry:Action,_)) :-
   !,
@@ -44,7 +46,7 @@ printer:print_element(Repository://Entry:Action,rule(Repository://Entry:Action,_
   message:color(normal),
   nl.
 
-% simple package, non target
+% simple package, is not a target of the plan
 
 printer:print_element(_://_:_,rule(Repository://Entry:Action,_)) :-
   message:color(cyan),
@@ -54,7 +56,7 @@ printer:print_element(_://_:_,rule(Repository://Entry:Action,_)) :-
   message:color(normal),
   nl.
 
-% verify run
+% verify that packages that need to be running are running
 
 printer:print_element(_,rule(package_dependency(run,_,_C,_N,_,_,_,_),[Repository://Entry:_Action])) :-
   !,
@@ -65,53 +67,75 @@ printer:print_element(_,rule(package_dependency(run,_,_C,_N,_,_,_,_),[Repository
   message:color(normal),
   nl.
 
-% a non-existent package
+% an assumed dependency on a non-existent installed package
 
-printer:print_element(_,rule(package_dependency(_Action,_,C,N,_,_,_,_),[])) :-
+printer:print_element(_,rule(assumed(package_dependency(install,_,C,N,_,_,_,_)),[])) :-
   message:color(red),
   message:print('assumed'),
   atomic_list_concat([C,'/',N],P),
-  message:column(30,P),
-  message:print([' (not found)']),
+  message:column(25,P),
+  message:print([' (non-existent, assumed installed)']),
   message:color(normal),
   nl.
 
-% an assumed installed package
+% an assumed dependency on a non-existent running package
 
-printer:print_element(_,rule(assumed(Repository://Entry:install),_Body)) :-
+printer:print_element(_,rule(assumed(package_dependency(run,_,C,N,_,_,_,_)),[])) :-
   message:color(red),
   message:print('assumed'),
-  message:column(30,Repository://Entry),
+  atomic_list_concat([C,'/',N],P),
+  message:column(25,P),
+  message:print([' (non-existent, assumed running)']),
+  message:color(normal),
+  nl.
+
+
+% an assumed installed package
+
+printer:print_element(_,assumed(rule(Repository://Entry:install,_Body))) :-
+  message:color(red),
+  message:print('assumed'),
+  message:column(25,Repository://Entry),
   message:print(' (assumed installed)'),
   message:color(normal),
   nl.
 
 % an assumed running package
 
-printer:print_element(_,rule(assumed(Repository://Entry:run),_Body)) :-
+printer:print_element(_,assumed(rule(Repository://Entry:run,_Body))) :-
   message:color(red),
   message:print('assumed'),
-  message:column(30,Repository://Entry),
+  message:column(25,Repository://Entry),
   message:print(' (assumed running)'),
   message:color(normal),
   nl.
 
+% an assumed installed dependency
 
-% an assumed dependency
-
-printer:print_element(_,rule(assumed(package_dependency(Action,_,C,N,_,_,_,_),_Body))) :-
+printer:print_element(_,assumed(rule(package_dependency(install,_,C,N,_,_,_,_),_Body))) :-
   message:color(red),
-  message:print(Action),
-  message:color(green),
+  message:print('assumed'),
   atomic_list_concat([C,'/',N],P),
-  message:column(30,P),
-  message:color(red),
-  message:print(' (assumed) '),
+  message:column(25,P),
+  message:print(' (assumed installed) '),
   message:color(normal),
   nl.
 
 
-%! printer:checkassumptions(+Model)
+% an assumed running dependency
+
+printer:print_element(_,assumed(rule(package_dependency(run,_,C,N,_,_,_,_),_Body))) :-
+  message:color(red),
+  message:print('assumed'),
+  atomic_list_concat([C,'/',N],P),
+  message:column(30,P),
+  message:print(' (assumed running) '),
+  message:color(normal),
+  nl.
+
+
+
+%! printer:check_assumptions(+Model)
 %
 % Checks whether the Model contains assumptions
 
@@ -131,7 +155,7 @@ printer:print_debug(_Model,_Proof,Plan) :-
   message:color(normal).
 
 
-%! printer:printheader(+Target)
+%! printer:print_header(+Target)
 %
 % Prints the header for a given target
 
@@ -146,7 +170,7 @@ printer:print_header(Target) :-
   nl.
 
 
-%! printer:printbody(+Plan,+Model)
+%! printer:print_body(+Plan,+Model)
 %
 % Prints the body for a given plan and model
 
@@ -155,23 +179,25 @@ printer:print_body(Target,Plan) :-
     printer:firststep(Target,E)).
 
 
-%! printer:printassumptions(+Model)
+%! printer:print_warnings(+Model, +Proof)
 %
 % Print the assumptions taken by the prover
 
-printer:print_assumptions(Model) :-
+printer:print_warnings(Model,Proof) :-
   printer:check_assumptions(Model),!,
   message:color(red),message:print('Error: '),
-  message:print('A circular dependency was detected. The following assumptions were taken:'),nl,nl,
-  forall(member(assumed(A),Model),
-    (message:print([' - ',A]),nl)),
+  message:print('The proof for your build plan contains assumptions. Please verify:'),nl,nl,
+  forall(member(assumed(rule(C,_)),Proof),
+    (message:print([' - Circular dependency: ',C]),nl)),
+  forall(member(rule(assumed(U),_),Proof),
+    (message:print([' - Non-existent ebuild: ',U]),nl)),
   nl,
-  message:color(normal).
+  message:color(normal),nl.
 
-printer:print_assumptions(_Model) :- !.
+printer:print_warnings(_Model,_Proof) :- !, nl.
 
 
-%! printer:printfooter(+Plan)
+%! printer:print_footer(+Plan)
 %
 % Print the footer for a given plan
 
@@ -184,7 +210,7 @@ printer:print_footer(Plan,Model) :-
   Total is Actions + Verifs,
   length(Plan,Steps),
   message:print(['Total: ', Total, ' actions (', Installs,' installs, ', Runs,' runs, ', Verifs,' verifications), grouped into ',Steps,' steps.' ]),nl,
-  nl,nl.
+  nl.
 
 unify(A,B) :- unifiable(A,B,_),!.
 
@@ -201,10 +227,10 @@ countlist(_,_,0) :- !.
 
 printer:print(Target,Model,Proof,Plan) :-
   printer:print_header(Target),
-  printer:print_debug(Model,Proof,Plan),
+% printer:print_debug(Model,Proof,Plan),
   printer:print_body(Target,Plan),
-  printer:print_assumptions(Model),
-  printer:print_footer(Plan,Model).
+  printer:print_footer(Plan,Model),
+  printer:print_warnings(Model,Proof).
 
 
 %! printer:firststep(+Target,+Step)
@@ -213,14 +239,14 @@ printer:print(Target,Model,Proof,Plan) :-
 
 printer:firststep(_,[]) :- !.
 
-printer:firststep(Target, [rule(Literal,Body)|L]) :-
-  printer:printable(Literal),
+printer:firststep(Target, [Rule|L]) :-
+  printer:printable_element(Rule),
   !,
   write(' -  STEP:  | '),
-  printer:print_element(Target,rule(Literal,Body)),
+  printer:print_element(Target,Rule),
   printer:nextstep(Target,L).
 
-printer:firststep(Target,[rule(_,_)|L]) :-
+printer:firststep(Target,[_|L]) :-
   printer:firststep(Target,L).
 
 
@@ -230,14 +256,14 @@ printer:firststep(Target,[rule(_,_)|L]) :-
 
 printer:nextstep(_,[]) :- nl,!.
 
-printer:nextstep(Target,[rule(Literal,Body)|L]) :-
-  printer:printable(Literal),
+printer:nextstep(Target,[Rule|L]) :-
+  printer:printable_element(Rule),
   !,
   write('           | '),
-  printer:print_element(Target,rule(Literal,Body)),
+  printer:print_element(Target,Rule),
   printer:nextstep(Target,L).
 
-printer:nextstep(Target,[rule(_,_)|L]) :-
+printer:nextstep(Target,[_|L]) :-
   printer:nextstep(Target,L).
 
 

@@ -32,6 +32,10 @@ based on topological sort:
 
 planner:zerorules([],Weights,Weights,[],[]) :- !.
 
+planner:zerorules([assumed(rule(Head,Body))|Rest],ZeroWeights,[Head|TempZeroWeights],[assumed(rule(Head,Body))|ZeroRules],NonZeroRules) :-
+  subtract(Body,ZeroWeights,[]),!,
+  planner:zerorules(Rest,ZeroWeights,TempZeroWeights,ZeroRules,NonZeroRules).
+
 planner:zerorules([rule(Head,Body)|Rest],ZeroWeights,[Head|TempZeroWeights],[rule(Head,Body)|ZeroRules],NonZeroRules) :-
   subtract(Body,ZeroWeights,[]),!,
   planner:zerorules(Rest,ZeroWeights,TempZeroWeights,ZeroRules,NonZeroRules).

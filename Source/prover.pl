@@ -51,6 +51,10 @@ prover:prove(Literal,Proof,Proof,Model,Model) :-
   not(is_list(Literal)),
   prover:proven(Literal,Model),!.
 
+prover:prove(Literal,Proof,Proof,Model,Model) :-
+  not(is_list(Literal)),
+  prover:assumed_proven(Literal,Model),!.
+
 
 % -----------------------------------------------------------------------------
 % CASE 4: A single literal to prove, not proven, not conflicting, body is empty
@@ -62,6 +66,14 @@ prover:prove(Literal,Proof,[rule(Literal,[])|Proof],Model,[Literal|Model]) :-
   not(prover:conflicts(Literal,Model)),
   not(prover:conflictrule(rule(Literal,[]),Proof)),
   rule(Literal,[]).
+
+
+prover:prove(Literal,Proof,[rule(Literal,assumed(Literal))|Proof],Model,Model) :-
+  not(is_list(Literal)),
+  not(prover:proven(Literal,Model)),
+  not(prover:conflicts(Literal,Model)),
+  not(prover:conflictrule(rule(Literal,[]),Proof)),
+  prover:assumed_proven(Literal,Model).
 
 
 % -----------------------------------------------------------------------------
@@ -91,8 +103,10 @@ prover:prove(Literal,Proof,NewProof,Model,NewModel) :-
   rule(Literal,Body),
   not(prover:fact(rule(Literal,Body))),
   prover:proving(rule(Literal,Body),Proof),
-  prover:prove([],[rule(assumed(Literal),[]),rule(Literal,[])|Proof],NewProof,[assumed(Literal)|Model],NewModel).
+  not(prover:assumed_proving(Literal,Proof)),
+  prover:prove([],[assumed(rule(Literal,[]))|Proof],NewProof,[assumed(Literal)|Model],NewModel).
 
+% rule(Literal,[])
 
 % -----------------------------------------
 % FACT: A fact is a rule with an empty body
@@ -111,7 +125,8 @@ prover:proven(Literal, Model) :- member(Literal,Model), !.
 % PROVEN: A literal is proven if it is assumed
 % --------------------------------------------
 
-prover:proven(Literal, Model) :- member(assumed(Literal),Model), !.
+prover:assumed_proven(Literal, Model) :- member(assumed(Literal),Model), !.
+
 
 % --------------------------------------------------------------
 % PROVING: A rule is being proven if it is part of a given proof
@@ -119,7 +134,8 @@ prover:proven(Literal, Model) :- member(assumed(Literal),Model), !.
 
 prover:proving(Rule, Proof) :- member(Rule, Proof), !.
 
-%prover:proving(rule(Literal,_), Proof) :- member(rule(assumed(Literal),[]), Proof), !.
+prover:assumed_proving(rule(Literal,_), Proof) :- member(assumed(rule(Literal,[])), Proof) , !.
+
 
 % Negation as failure is implemented as a relation between literals in a given model
 % For pruning rules in choicepoints, we also implement conflicts in proof

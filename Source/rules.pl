@@ -18,7 +18,6 @@ This file contains domain-specific rules for dealing with software dependencies
 % RULES declarations
 % ******************
 
-
 % Skip masked packages without failing
 
 rule(Context://Identifier:_,[]) :-
