@@ -23,18 +23,22 @@ The Printer takes a plan from the Planner and pretty prints it.
 % Declares which Literals are printable
 
 printer:printable_element(rule(_Repository://_Entry:_Action,_)) :- !.
-%printer:printable_element(rule(package_dependency(run,_,_,_,_,_,_,_),_)) :- !.
 printer:printable_element(assumed(rule(_Repository://_Entry:_Action,_))) :- !.
 printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_),_))) :- !.
 printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_)),_)) :- !.
 
+% Uncomment if you want 'verify' steps shown in the plan:
+%
+% printer:printable_element(rule(package_dependency(run,_,_,_,_,_,_,_),_)) :- !.
 
 
 %! printer:print_element(+Printable)
 %
 % Prints a printable Literal
 
-% simple package, is a target of the plan
+% ---------------------------------------------
+% CASE: simple package, is a target of the plan
+% ---------------------------------------------
 
 printer:print_element(Repository://Entry:Action,rule(Repository://Entry:Action,_)) :-
   !,
@@ -46,7 +50,10 @@ printer:print_element(Repository://Entry:Action,rule(Repository://Entry:Action,_
   message:color(normal),
   nl.
 
-% simple package, is not a target of the plan
+
+% -------------------------------------------------
+% CASE: simple package, is not a target of the plan
+% -------------------------------------------------
 
 printer:print_element(_://_:_,rule(Repository://Entry:Action,_)) :-
   message:color(cyan),
@@ -56,7 +63,10 @@ printer:print_element(_://_:_,rule(Repository://Entry:Action,_)) :-
   message:color(normal),
   nl.
 
-% verify that packages that need to be running are running
+
+% --------------------------------------------------------------
+% CASE: verify that packages that need to be running are running
+% --------------------------------------------------------------
 
 printer:print_element(_,rule(package_dependency(run,_,_C,_N,_,_,_,_),[Repository://Entry:_Action])) :-
   !,
@@ -67,7 +77,10 @@ printer:print_element(_,rule(package_dependency(run,_,_C,_N,_,_,_,_),[Repository
   message:color(normal),
   nl.
 
-% an assumed dependency on a non-existent installed package
+
+% ---------------------------------------------------------------
+% CASE: an assumed dependency on a non-existent installed package
+% ---------------------------------------------------------------
 
 printer:print_element(_,rule(assumed(package_dependency(install,_,C,N,_,_,_,_)),[])) :-
   message:color(red),
@@ -78,7 +91,10 @@ printer:print_element(_,rule(assumed(package_dependency(install,_,C,N,_,_,_,_)),
   message:color(normal),
   nl.
 
-% an assumed dependency on a non-existent running package
+
+% -------------------------------------------------------------
+% CASE: an assumed dependency on a non-existent running package
+% -------------------------------------------------------------
 
 printer:print_element(_,rule(assumed(package_dependency(run,_,C,N,_,_,_,_)),[])) :-
   message:color(red),
@@ -90,7 +106,9 @@ printer:print_element(_,rule(assumed(package_dependency(run,_,C,N,_,_,_,_)),[]))
   nl.
 
 
-% an assumed installed package
+% ----------------------------------
+% CASE: an assumed installed package
+% ----------------------------------
 
 printer:print_element(_,assumed(rule(Repository://Entry:install,_Body))) :-
   message:color(red),
@@ -100,7 +118,10 @@ printer:print_element(_,assumed(rule(Repository://Entry:install,_Body))) :-
   message:color(normal),
   nl.
 
-% an assumed running package
+
+% --------------------------------
+% CASE: an assumed running package
+% --------------------------------
 
 printer:print_element(_,assumed(rule(Repository://Entry:run,_Body))) :-
   message:color(red),
@@ -110,7 +131,10 @@ printer:print_element(_,assumed(rule(Repository://Entry:run,_Body))) :-
   message:color(normal),
   nl.
 
-% an assumed installed dependency
+
+% -------------------------------------
+% CASE: an assumed installed dependency
+% -------------------------------------
 
 printer:print_element(_,assumed(rule(package_dependency(install,_,C,N,_,_,_,_),_Body))) :-
   message:color(red),
@@ -122,7 +146,9 @@ printer:print_element(_,assumed(rule(package_dependency(install,_,C,N,_,_,_,_),_
   nl.
 
 
-% an assumed running dependency
+% -----------------------------------
+% CASE: an assumed running dependency
+% -----------------------------------
 
 printer:print_element(_,assumed(rule(package_dependency(run,_,C,N,_,_,_,_),_Body))) :-
   message:color(red),
@@ -143,16 +169,15 @@ printer:check_assumptions(Model) :-
   member(assumed(_),Model),!.
 
 
-%! printer:print_debug(+Model,+Proof,+Plan)
-%
-% Prints debug info for a given Model, Proof and Plan
+%! Some helper predicates
 
-printer:print_debug(_Model,_Proof,Plan) :-
-  message:color(darkgray),
-  % message:inform(['Model : ',Model]),nl,
-  % message:inform(['Proof : ',Proof]),nl,
-  forall(member(X,Plan),(write(' -> '),writeln(X))),nl,
-  message:color(normal).
+unify(A,B) :- unifiable(A,B,_),!.
+
+countlist(Predicate,List,Count) :-
+  include(unify(Predicate),List,Sublist),!,
+  length(Sublist,Count).
+
+countlist(_,_,0) :- !.
 
 
 %! printer:print_header(+Target)
@@ -170,13 +195,41 @@ printer:print_header(Target) :-
   nl.
 
 
+%! printer:print_debug(+Model,+Proof,+Plan)
+%
+% Prints debug info for a given Model, Proof and Plan
+
+printer:print_debug(_Model,_Proof,Plan) :-
+  message:color(darkgray),
+  % message:inform(['Model : ',Model]),nl,
+  % message:inform(['Proof : ',Proof]),nl,
+  forall(member(X,Plan),(write(' -> '),writeln(X))),nl,
+  message:color(normal).
+
+
 %! printer:print_body(+Plan,+Model)
 %
 % Prints the body for a given plan and model
 
 printer:print_body(Target,Plan) :-
   forall(member(E,Plan),
-    printer:firststep(Target,E)).
+    printer:print_firststep(Target,E)).
+
+
+%! printer:print_footer(+Plan)
+%
+% Print the footer for a given plan
+
+printer:print_footer(Plan,Model) :-
+  countlist(assumed(_),Model,_Assumptions),
+  countlist(_://_:_,Model,Actions),
+  countlist(_://_:run,Model,Runs),
+  countlist(_://_:install,Model,Installs),
+  countlist(package_dependency(run,_,_,_,_,_,_,_),Model,Verifs),
+  Total is Actions + Verifs,
+  length(Plan,Steps),
+  message:print(['Total: ', Total, ' actions (', Installs,' installs, ', Runs,' runs, ', Verifs,' verifications), grouped into ',Steps,' steps.' ]),nl,
+  nl.
 
 
 %! printer:print_warnings(+Model, +Proof)
@@ -197,30 +250,6 @@ printer:print_warnings(Model,Proof) :-
 printer:print_warnings(_Model,_Proof) :- !, nl.
 
 
-%! printer:print_footer(+Plan)
-%
-% Print the footer for a given plan
-
-printer:print_footer(Plan,Model) :-
-  countlist(assumed(_),Model,_Assumptions),
-  countlist(_://_:_,Model,Actions),
-  countlist(_://_:run,Model,Runs),
-  countlist(_://_:install,Model,Installs),
-  countlist(package_dependency(run,_,_,_,_,_,_,_),Model,Verifs),
-  Total is Actions + Verifs,
-  length(Plan,Steps),
-  message:print(['Total: ', Total, ' actions (', Installs,' installs, ', Runs,' runs, ', Verifs,' verifications), grouped into ',Steps,' steps.' ]),nl,
-  nl.
-
-unify(A,B) :- unifiable(A,B,_),!.
-
-countlist(Predicate,List,Count) :-
-  include(unify(Predicate),List,Sublist),!,
-  length(Sublist,Count).
-
-countlist(_,_,0) :- !.
-
-
 %! printer:print(+Plan)
 %
 % Print a given plan
@@ -233,52 +262,92 @@ printer:print(Target,Model,Proof,Plan) :-
   printer:print_warnings(Model,Proof).
 
 
-%! printer:firststep(+Target,+Step)
+%! printer:print_firststep(+Target,+Step)
 %
 % Print a step in a plan
 
-printer:firststep(_,[]) :- !.
+printer:print_firststep(_,[]) :- !.
 
-printer:firststep(Target, [Rule|L]) :-
+printer:print_firststep(Target, [Rule|L]) :-
   printer:printable_element(Rule),
   !,
   write(' -  STEP:  | '),
   printer:print_element(Target,Rule),
-  printer:nextstep(Target,L).
+  printer:print_nextstep(Target,L).
 
-printer:firststep(Target,[_|L]) :-
-  printer:firststep(Target,L).
+printer:print_firststep(Target,[_|L]) :-
+  printer:print_firststep(Target,L).
 
 
-%! printer:nextstep(+Step)
+%! printer:print_nextstep(+Step)
 %
 % Print a step in a plan
 
-printer:nextstep(_,[]) :- nl,!.
+printer:print_nextstep(_,[]) :- nl,!.
 
-printer:nextstep(Target,[Rule|L]) :-
+printer:print_nextstep(Target,[Rule|L]) :-
   printer:printable_element(Rule),
   !,
   write('           | '),
   printer:print_element(Target,Rule),
-  printer:nextstep(Target,L).
+  printer:print_nextstep(Target,L).
 
-printer:nextstep(Target,[_|L]) :-
-  printer:nextstep(Target,L).
+printer:print_nextstep(Target,[_|L]) :-
+  printer:print_nextstep(Target,L).
 
 
 %! printer:test(+Repository)
 %
-% Proves and prints every entry in a given repository
+% Proves and prints every entry in a given repository, reports using the default reporting style
 
 printer:test(Repository) :-
-  preference:proving_target(Action),
-  time(forall(Repository:entry(E),
- 	      ((nl,message:header(["Planning ",Repository://E:Action]),
-                prover:prove(Repository://E:Action,[],Proof,[],Model,[],_Constraints),
-                planner:plan(Proof,[],[],Plan),
-                printer:print(Repository://E:Action,Model,Proof,Plan));
-	       (message:failure(E))))
-      ),
+  config:test_style(Style),
+  printer:test(Repository,Style).
+
+
+%! printer:test(+Repository,+Style)
+%
+% Proves and prints every entry in a given repository, reports using a given reporting style
+
+printer:test(Repository,single_verbose) :-
   Repository:get_size(S),
+  count:newinstance(counter),
+  count:init(0,S),
+  config:time_limit(T),
+  config:proving_target(Action),
+  time(forall(Repository:entry(E),
+ 	      (catch(call_with_time_limit(T,(count:increase,
+                                             count:percentage(P),
+                                             nl,message:topheader(['[',P,'] - Printing plan for ',Repository://E:Action]),
+                                             prover:prove(Repository://E:Action,[],Proof,[],Model,[],_Constraints),
+                                             planner:plan(Proof,[],[],Plan),
+                                             printer:print(Repository://E:Action,Model,Proof,Plan))),
+                     time_limit_exceeded,
+                     assert(prover:broken(Repository://E)));
+	       message:failure(E)))),!,
   message:inform(['printed plan for ',S,' ',Repository,' entries.']).
+
+
+printer:test(Repository,parallel_verbose) :-
+  Repository:get_size(S),
+  count:newinstance(counter),
+  count:init(0,S),
+  config:time_limit(T),
+  config:proving_target(Action),
+  config:number_of_cpus(Cpus),
+  findall((catch(call_with_time_limit(T,(prover:prove(Repository://E:Action,[],Proof,[],Model,[],_Constraints),!,
+                                         planner:plan(Proof,[],[],Plan),
+                                         with_mutex(mutex,(count:increase,
+                                                           count:percentage(P),
+                                                           nl,message:topheader(['[',P,'] - Printing plan for ',Repository://E:Action]),
+                                                           printer:print(Repository://E:Action,Model,Proof,Plan))))),
+                 time_limit_exceeded,
+                 assert(prover:broken(Repository://E)))),
+           Repository:entry(E),
+           Calls),
+  time(concurrent(Cpus,Calls,[])),!,
+  message:inform(['printed plan for ',S,' ',Repository,' entries.']).
+
+
+printer:test(Repository,parallel_fast) :-
+  printer:test(Repository,paralell_verbose).

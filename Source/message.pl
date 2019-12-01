@@ -200,6 +200,21 @@ message:scroll(Message) :-
   tty:tty_action(ce).
 
 
+%! message:topheader(+Message)
+%
+% Informs the user about something - header style
+% Message is a list.
+
+message:topheader(Message) :-
+  message:color(cyan),
+  message:style(bold),
+  system:write('### '),
+  forall(member(M,Message),
+    system:write(M)),
+  message:color(normal),
+  message:style(normal),
+  nl,nl.
+
 
 %! message:header(+Message)
 %
