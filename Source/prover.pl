@@ -220,8 +220,10 @@ prover:test(Repository) :-
 % Prove all entries in a given Repository, but do it concurrently
 
 prover:testparallel(Repository) :-
-  findall(prover:prove(Repository://E:run,[],_,[],_,[],_),Repository:entry(E),Calls),
+  Repository:get_size(S),
+  count:newinstance(counter),
+  count:init(0,S),
+  findall((prover:prove(Repository://E:run,[],_,[],_,[],_),with_mutex(mutex,(count:increase,count:percentage(P),message:success([P,' - ',E])))),Repository:entry(E),Calls),
   config:number_of_cpus(Cpus),
   time(concurrent(Cpus,Calls,[])),
-  Repository:get_size(S),
   message:inform(['proved ',S,' ',Repository,' entries.']).
