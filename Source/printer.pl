@@ -27,6 +27,7 @@ printer:printable_element(assumed(rule(_Repository://_Entry:_Action,_))) :- !.
 printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_),_))) :- !.
 printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_)),_)) :- !.
 
+
 % Uncomment if you want 'verify' steps shown in the plan:
 %
 % printer:printable_element(rule(package_dependency(run,_,_,_,_,_,_,_),_)) :- !.
@@ -211,9 +212,44 @@ printer:print_debug(_Model,_Proof,Plan) :-
 %
 % Prints the body for a given plan and model
 
-printer:print_body(Target,Plan) :-
-  forall(member(E,Plan),
-    printer:print_firststep(Target,E)).
+printer:print_body(Target,Plan,Call) :-
+  forall(member(Step,Plan),
+    (printer:print_firststep(Target,Step),
+     call(Call,Step))).
+
+
+%! printer:print_firststep(+Target,+Step,+Call)
+%
+% Print a step in a plan
+
+printer:print_firststep(_,[]) :- !.
+
+printer:print_firststep(Target, [Rule|L]) :-
+  printer:printable_element(Rule),
+  !,
+  write(' -  STEP:  | '),
+  printer:print_element(Target,Rule),
+  printer:print_nextstep(Target,L).
+
+printer:print_firststep(Target,[_|L]) :-
+  printer:print_firststep(Target,L).
+
+
+%! printer:print_nextstep(+Step)
+%
+% Print a step in a plan
+
+printer:print_nextstep(_,[]) :- nl,!.
+
+printer:print_nextstep(Target,[Rule|L]) :-
+  printer:printable_element(Rule),
+  !,
+  write('           | '),
+  printer:print_element(Target,Rule),
+  printer:print_nextstep(Target,L).
+
+printer:print_nextstep(Target,[_|L]) :-
+  printer:print_nextstep(Target,L).
 
 
 %! printer:print_footer(+Plan)
@@ -250,50 +286,38 @@ printer:print_warnings(Model,Proof) :-
 printer:print_warnings(_Model,_Proof) :- !, nl.
 
 
-%! printer:print(+Plan)
+
+%! printer:print(+Target,+Model,+Proof,+Plan)
 %
-% Print a given plan
+% Print a given plan for a given target, with a given model, proof and plan
+% Calls the printer:dry_run predicate for building a step
 
 printer:print(Target,Model,Proof,Plan) :-
+  printer:print(Target,Model,Proof,Plan,printer:dry_run).
+
+
+%! printer:print(+Target,+Model,+Proof,+Plan,+Call)
+%
+% Print a given plan for a given target, with a given model, proof and plan
+% Calls the given call for elements of the build plan
+
+printer:print(Target,Model,Proof,Plan,Call) :-
   printer:print_header(Target),
 % printer:print_debug(Model,Proof,Plan),
-  printer:print_body(Target,Plan),
+  printer:print_body(Target,Plan,Call),
   printer:print_footer(Plan,Model),
   printer:print_warnings(Model,Proof).
 
 
-%! printer:print_firststep(+Target,+Step)
+%! printer:dry_run(+Step)
 %
-% Print a step in a plan
+% Default execution strategy for building steps in a plan
 
-printer:print_firststep(_,[]) :- !.
-
-printer:print_firststep(Target, [Rule|L]) :-
-  printer:printable_element(Rule),
-  !,
-  write(' -  STEP:  | '),
-  printer:print_element(Target,Rule),
-  printer:print_nextstep(Target,L).
-
-printer:print_firststep(Target,[_|L]) :-
-  printer:print_firststep(Target,L).
-
-
-%! printer:print_nextstep(+Step)
-%
-% Print a step in a plan
-
-printer:print_nextstep(_,[]) :- nl,!.
-
-printer:print_nextstep(Target,[Rule|L]) :-
-  printer:printable_element(Rule),
-  !,
-  write('           | '),
-  printer:print_element(Target,Rule),
-  printer:print_nextstep(Target,L).
-
-printer:print_nextstep(Target,[_|L]) :-
-  printer:print_nextstep(Target,L).
+printer:dry_run(_Step) :-
+  true.
+  %message:color(darkgray),
+  %message:print(['building step : ',Step]),nl,
+  %message:color(normal).
 
 
 %! printer:test(+Repository)

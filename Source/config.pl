@@ -19,7 +19,7 @@ configuration. The parameters described typically do not change at runtime.
 % CONFIG declarations
 % *******************
 
-%! config:dry_run_build
+%! config:dry_run_build(?Bool)
 %
 % Declare config:dry_run_build to avoid actually building software.
 
@@ -64,20 +64,29 @@ config:verbosity(debug).
 
 %! config:time_limit(?Limit)
 %
-% When proving use the specified time limit to automatically stop proofs when
-% they take too long. In seconds.
+% When parsing, proving or planning, use the specified time limit to automatically stop
+% computation if it takes too long. In seconds.
 
 config:time_limit(10).
 
 
-%! config:graph_modified_only
+%! config:time_limit(?Limit)
+%
+% When executing a plan (i.e. building) use the specified time limit to automatically stop
+% the build process if it takes too long. Note this limit applies to an entire step in a plan.
+% In seconds.
+
+config:time_limit_build(6000).
+
+
+%! config:graph_modified_only(?Bool)
 %
 % Set when you want Graphviz dot file to be created for new ebuilds only
 
 config:graph_modified_only(true).
 
 
-%! config:proving_target
+%! config:proving_target(?Target)
 %
 % Fact which controls the test target for prover, planner, printer and builder
 % Set to either:
@@ -88,7 +97,7 @@ config:graph_modified_only(true).
 config:proving_target(run).
 
 
-%! config:test_style
+%! config:test_style(?Style)
 %
 % Sets the default test style for executing tests. Can be either:
 % - single_verbose

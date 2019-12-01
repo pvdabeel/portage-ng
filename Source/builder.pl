@@ -14,6 +14,8 @@ The Builder takes a plan from the Planner and executes it.
 
 :- module(builder, []).
 
+:- dynamic builder:broken/1.
+
 % ********************
 % BUILDER declarations
 % ********************
@@ -21,14 +23,26 @@ The Builder takes a plan from the Planner and executes it.
 
 %! builder:execute(+Plan)
 %
-% Given a Plan from the Planner, execute the plan.
+% For a given Plan, prints and executes the plan. The printer is called with
+% builder:buildstep as a strategy for realizing the step in the plan.
 %
 % Example: Invoke builder:execute(+Plan) to build or upgrade your operating
 % system, kernel, software application, etc... as described in the given Plan.
 
-builder:execute(Plan) :-
-  forall(member(E,Plan),
-    builder:firststep(E)).
+builder:execute(Target,Model,Proof,Plan) :-
+  printer:print(Target,Model,Proof,Plan,builder:execute_step).
+
+
+%! builder:execute_step(+Step)
+%
+% For a given Step from a Plan, executes the actions in the step.
+
+builder:execute_step(Step) :-
+  config:number_of_cpus(Cpus),
+  findall(call(builder:build,Action),
+          member(Action,Step),
+          Calls),
+  concurrent(Cpus,Calls,[]),!.
 
 
 %! builder:build(+Repository://Entry:Action)
@@ -50,63 +64,25 @@ builder:execute(Plan) :-
 builder:build(_) :-
   config:dry_run_build(true), !.
 
-builder:build(Repository://Entry:_Action) :-
+builder:build(rule(Repository://Entry:_Action,_)) :-
   Repository:get_type('eapi'),!,
   Repository:get_location(L),
   Repository:ebuild(Entry,Category,Package,Version),
   atomic_list_concat(['ebuild ',L,'/',Category,'/',Package,'/',Package,'-',Version,'.ebuild install qmerge clean'],Cmd),
   shell(Cmd),!.
 
-builder:build(Repository://_Entry:_Action) :-
+builder:build(rule(Repository://_Entry:_Action,_)) :-
   Repository:get_type('cmake'),!,
   Repository:get_location(Local),
   script:exec(build,['cmake', Local]).
 
+builder:build(assumed(rule(_Repository://_Entry:_Action,_))) :-
+  % Verify dependency cycle assumptions
+  true, !.
 
-%! builder:firststep(+Steps)
-%
-% Builds a part of a build plan
-
-builder:firststep([]) :-  !.
-
-builder:firststep([rule(Repository://E:Action,_)|L]) :-
-  !,
-  write(' -  STEP:  | '),
-  message:color(green),
-  write(Repository://E),
-  message:color(blue),
-  write(' '),
-  write(Action),
-  message:color(normal),
-  builder:build(Repository://E:Action),
-  nl,
-  builder:nextstep(L).
-
-builder:firststep([rule(_,_)|L]) :-
-  builder:firststep(L).
-
-
-%! builder:nextstep(+Steps)
-%
-% Builds a part of a build plan
-
-builder:nextstep([]) :- nl,!.
-
-builder:nextstep([rule(Repository://E:Action,_)|L]) :-
-  !,
-  write('           | '),
-  message:color(green),
-  write(Repository://E),
-  message:color(blue),
-  write(' '),
-  write(Action),
-  message:color(normal),
-  builder:build(Repository://E:Action),
-  nl,
-  builder:nextstep(L).
-
-builder:nextstep([rule(_,_)|L]) :-
-  builder:nextstep(L).
+builder:build(rule(assumed(_Repository://_Entry:_Action,_))) :-
+  % Verify non-existent package assumptions
+  true, !.
 
 
 %! builder:test(+Repository)
@@ -118,13 +94,27 @@ builder:nextstep([rule(_,_)|L]) :-
 % application)
 
 builder:test(Repository) :-
-  preference:proving_target(Action),
-  system:time(system:forall(Repository:entry(E),
- 	                    ((nl,message:header(["Building ",Repository://E:Action]),
-                              prover:prove(Repository://E:Action,[],Proof,[],_,[],_),
-			      planner:plan(Proof,[],[],Plan),
-                              builder:execute(Plan));
-			     (message:failure(E)))
-                           )),
   Repository:get_size(S),
-  message:inform(['built ',S,' ',Repository,' entries.']).
+  count:newinstance(counter),
+  count:init(0,S),
+  config:time_limit_build(T),
+  config:proving_target(Action),
+  time(forall(Repository:entry(E),
+              (catch(call_with_time_limit(T,(count:increase,
+                                             count:percentage(P),
+ 	                                     nl,message:topheader(['[',P,'] - Executing plan for ',Repository://E:Action]),
+                                             prover:prove(Repository://E:Action,[],Proof,[],Model,[],_Constraints),
+			                     planner:plan(Proof,[],[],Plan),!,
+                                             builder:execute(Repository://E:Action,Model,Proof,Plan))),
+                     time_limit_exceeded,
+                     assert(builder:broken(Repository://E)));
+	       message:failure(E)))),
+  message:inform(['executed plan ',S,' ',Repository,' entries.']).
+
+
+%! builder:test(+Repository,+Style)
+%
+% For a given Repository, build all entries it contains.
+
+builder:test(Repository,_) :-
+  builder:test(Repository).
