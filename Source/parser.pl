@@ -46,30 +46,61 @@ parser:invoke([X|XX], [Y|YY]) :-
 
 %! parser:test(+Repository)
 %
+% Parses a repository using the default reporting style
+
+parser:test(Repository) :-
+  config:test_style(Style),
+  parser:test(Repository,Style).
+
+
+%! parser:test(+Repository,+Style)
+%
 % Predicate tests whether all repository entries can be succesfully parsed.
 % Repository: The repository from which to parse all entries.
 
-parser:test(Repository) :-
+parser:test(Repository,single_verbose) :-
+  Repository:get_size(S),
   Repository:get_cache(C),
+  count:newinstance(counter),
+  count:init(0,S),
   config:time_limit(T),
   time(forall(Repository:entry(E),
-              ((message:success(E),
-                call_with_time_limit(T,(reader:invoke(C,E,R),parser:invoke(R,_))));
-               (message:failure(E))))
-      ),
-  Repository:get_size(S),
+              (catch(call_with_time_limit(T,(count:increase,
+                                             count:percentage(P),
+                                             reader:invoke(C,E,R),
+                                             parser:invoke(R,_),
+                                             message:success([P,' - ',E]))),
+                     time_limit_exceeded,
+                     message:failure([E,' (time limit exceeded)']));
+               message:failure(E)))),!,
   message:inform(['parsed ',S,' ',Repository,' entries.']).
 
 
-%! parser:testparalell(+Repository)
-%
-% Predicate tests concurrently whether all repository entries can be succesfully
-% parsed. Repository: The repository from which to parse all entries.
-
-parser:testparallel(Repository) :-
-  Repository:get_cache(C),
-  findall(parser:invoke(R,_),(Repository:entry(E),reader:invoke(C,E,R)),Calls),
-  current_prolog_flag(cpu_count,Cpus),
-  time(concurrent(Cpus,Calls,[])),
+parser:test(Repository,parallel_verbose) :-
   Repository:get_size(S),
+  Repository:get_cache(C),
+  count:newinstance(counter),
+  count:init(0,S),
+  config:time_limit(T),
+  config:number_of_cpus(Cpus),
+  findall((catch(call_with_time_limit(T,(parser:invoke(R,_),!,
+                                         with_mutex(mutex,(count:increase,
+                                                           count:percentage(P),
+                                                           message:success([P,' - ',E]))))),
+                 time_limit_exceeded,
+                 message:failure([E,' (time limit exceeded)']))),
+          (Repository:entry(E),reader:invoke(C,E,R)),
+          Calls),
+  time(concurrent(Cpus,Calls,[])),!,
+  message:inform(['parsed ',S,' ',Repository,' entries.']).
+
+
+parser:test(Repository,parallel_fast) :-
+  Repository:get_size(S),
+  Repository:get_cache(C),
+  config:number_of_cpus(Cpus),
+  findall((parser:invoke(R,_),!),
+          (Repository:entry(E),reader:invoke(C,E,R)),
+          Calls),
+  time(concurrent(Cpus,Calls,[])),!,
   message:inform(['parsed ',S,' ',Repository,' entries.']).

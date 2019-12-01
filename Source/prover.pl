@@ -202,9 +202,18 @@ prover:unify_constraints(constraint(Constraint),Constraints,NewConstraints) :-
 
 %! prover:test(+Repository)
 %
-% Prove all entries in a given Repository
+% Prove all entries in a given Repository, using the default style
 
 prover:test(Repository) :-
+  config:test_style(Style),
+  prover:test(Repository,Style).
+
+
+%! prover:test(+Repository,+Style)
+%
+% Prove all entries in a given Repository, according to given style (single threaded, concurrent, verbose)
+
+prover:test(Repository,single_verbose) :-
   Repository:get_size(S),
   count:newinstance(counter),
   count:init(0,S),
@@ -217,22 +226,18 @@ prover:test(Repository) :-
                                              message:success([P,' - ',E:Action]))),
                      time_limit_exceeded,
                      assert(prover:broken(Repository://E)));
-               message:failure(E)))),
+               message:failure(E)))),!,
   message:inform(['proved ',S,' ',Repository,' entries.']).
 
 
-%! prover:testparallel(+Repository)
-%
-% Prove all entries in a given Repository, but do it concurrently
-
-prover:testparallel(Repository) :-
+prover:test(Repository,parallel_verbose) :-
   Repository:get_size(S),
   count:newinstance(counter),
   count:init(0,S),
   config:time_limit(T),
   config:proving_target(Action),
   config:number_of_cpus(Cpus),
-  findall((catch(call_with_time_limit(T,(prover:prove(Repository://E:Action,[],_,[],_,[],_),
+  findall((catch(call_with_time_limit(T,(prover:prove(Repository://E:Action,[],_,[],_,[],_),!,
                                          with_mutex(mutex,(count:increase,
                                                            count:percentage(P),
                                                            message:success([P,' - ',E:Action]))))),
@@ -240,5 +245,16 @@ prover:testparallel(Repository) :-
                  assert(prover:broken(Repository://E)))),
           Repository:entry(E),
           Calls),
-  time(concurrent(Cpus,Calls,[])),
+  time(concurrent(Cpus,Calls,[])),!,
+  message:inform(['proved ',S,' ',Repository,' entries.']).
+
+
+prover:test(Repository,parallel_fast) :-
+  Repository:get_size(S),
+  config:proving_target(Action),
+  config:number_of_cpus(Cpus),
+  findall((prover:prove(Repository://E:Action,[],_,[],_,[],_),!),
+          Repository:entry(E),
+          Calls),
+  time(concurrent(Cpus,Calls,[])),!,
   message:inform(['proved ',S,' ',Repository,' entries.']).

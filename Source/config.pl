@@ -86,3 +86,13 @@ config:graph_modified_only(true).
 %  - 'run': Proof using compile- and run-time dependencies
 
 config:proving_target(run).
+
+
+%! config:test_style
+%
+% Sets the default test style for executing tests. Can be either:
+% - single_verbose
+% - parallel_verbose
+% - parallel_fast
+
+config:test_style(parallel_verbose).

@@ -59,10 +59,10 @@ test:run(application) :-
   message:header(['Testing reader: ']),
   reader:test(portage),nl,
   message:header(['Testing parser: ']),
-  parser:testparallel(portage),nl,
+  parser:test(portage),nl,
   message:header(['Testing prover: ']),
-  prover:testparallel(portage),nl,
+  prover:test(portage),nl,
   message:header(['Testing planner: ']),
-  planner:testparallel(portage),nl,
+  planner:test(portage),nl,
   message:header(['Testing builder: ']),
   builder:test(portage).

@@ -66,9 +66,18 @@ planner:plan(Rules,InitialWeights,OldPlan,[ZeroRules|TempPlan]) :-
 
 %! planner:test(+Repository)
 %
-% Creates a plan for every entry in a repository
+% Creates a plan for every entry in a repository, reports on progress in default style
 
 planner:test(Repository) :-
+  config:test_style(Style),
+  planner:test(Repository,Style).
+
+
+%! planner:test(+Repository,+Style)
+%
+% Creates a plan for every entry in a repository, reports on progress in given style
+
+planner:test(Repository,single_verbose) :-
   Repository:get_size(S),
   count:newinstance(counter),
   count:init(0,S),
@@ -82,22 +91,18 @@ planner:test(Repository) :-
                                              message:success([P,' - ',E:Action]))),
                      time_limit_exceeded,
                      assert(prover:broken(Repository://E)));
-               message:failure(E)))),
+               message:failure(E)))),!,
   message:inform(['created plan for ',S,' ',Repository,' entries.']).
 
 
-%! planner:testparallel(+Repository)
-%
-% Creates a plan for every entry in a repository, concurrently
-
-planner:testparallel(Repository) :-
+planner:test(Repository,parallel_verbose) :-
   Repository:get_size(S),
   count:newinstance(counter),
   count:init(0,S),
   config:time_limit(T),
   config:proving_target(Action),
   config:number_of_cpus(Cpus),
-  findall((catch(call_with_time_limit(T,(prover:prove(Repository://E:Action,[],Proof,[],_,[],_),
+  findall((catch(call_with_time_limit(T,(prover:prove(Repository://E:Action,[],Proof,[],_,[],_),!,
                                          planner:plan(Proof,[],[],_),
                                          with_mutex(mutex,(count:increase,
                                                            count:percentage(P),
@@ -106,5 +111,17 @@ planner:testparallel(Repository) :-
                   assert(prover:broken(Repository://E)))),
           Repository:entry(E),
           Calls),
-  time(concurrent(Cpus,Calls,[])),
+  time(concurrent(Cpus,Calls,[])),!,
+  message:inform(['created plan for ',S,' ',Repository,' entries.']).
+
+
+planner:test(Repository,parallel_fast) :-
+  Repository:get_size(S),
+  config:proving_target(Action),
+  config:number_of_cpus(Cpus),
+  findall((prover:prove(Repository://E:Action,[],Proof,[],_,[],_),
+           planner:plan(Proof,[],[],_),!),
+          Repository:entry(E),
+          Calls),
+  time(concurrent(Cpus,Calls,[])),!,
   message:inform(['created plan for ',S,' ',Repository,' entries.']).
