@@ -209,10 +209,15 @@ prover:test(Repository) :-
   count:newinstance(counter),
   count:init(0,S),
   config:time_limit(T),
+  config:proving_target(Action),
   time(forall(Repository:entry(E),
- 	      (catch(call_with_time_limit(T,(count:increase,count:percentage(P),prover:prove(Repository://E:run,[],_,[],_,[],_),message:success([P,' - ',E]))),_,assert(broken(Repository://E)));
-               message:failure(E)))
-      ),
+ 	      (catch(call_with_time_limit(T,(count:increase,
+                                             count:percentage(P),
+                                             prover:prove(Repository://E:Action,[],_,[],_,[],_),
+                                             message:success([P,' - ',E:Action]))),
+                     time_limit_exceeded,
+                     assert(prover:broken(Repository://E)));
+               message:failure(E)))),
   message:inform(['proved ',S,' ',Repository,' entries.']).
 
 
@@ -224,7 +229,16 @@ prover:testparallel(Repository) :-
   Repository:get_size(S),
   count:newinstance(counter),
   count:init(0,S),
-  findall((prover:prove(Repository://E:run,[],_,[],_,[],_),with_mutex(mutex,(count:increase,count:percentage(P),message:success([P,' - ',E])))),Repository:entry(E),Calls),
+  config:time_limit(T),
+  config:proving_target(Action),
   config:number_of_cpus(Cpus),
+  findall((catch(call_with_time_limit(T,(prover:prove(Repository://E:Action,[],_,[],_,[],_),
+                                         with_mutex(mutex,(count:increase,
+                                                           count:percentage(P),
+                                                           message:success([P,' - ',E:Action]))))),
+                 time_limit_exceeded,
+                 assert(prover:broken(Repository://E)))),
+          Repository:entry(E),
+          Calls),
   time(concurrent(Cpus,Calls,[])),
   message:inform(['proved ',S,' ',Repository,' entries.']).

@@ -75,3 +75,14 @@ config:time_limit(10).
 % Set when you want Graphviz dot file to be created for new ebuilds only
 
 config:graph_modified_only(true).
+
+
+%! config:proving_target
+%
+% Fact which controls the test target for prover, planner, printer and builder
+% Set to either:
+%
+%  - 'install' : Proof using compile-time dependencies only
+%  - 'run': Proof using compile- and run-time dependencies
+
+config:proving_target(run).

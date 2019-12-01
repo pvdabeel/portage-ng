@@ -69,14 +69,20 @@ planner:plan(Rules,InitialWeights,OldPlan,[ZeroRules|TempPlan]) :-
 % Creates a plan for every entry in a repository
 
 planner:test(Repository) :-
-  config:time_limit(T),
-  preference:proving_target(Action),
-  time(forall(Repository:entry(E),
- 	      ((message:success(E),
-                call_with_time_limit(T,(prover:prove(Repository://E:Action,[],Proof,[],_,[],_),planner:plan(Proof,[],[],_))));
-               (message:failure(E))))
-      ),
   Repository:get_size(S),
+  count:newinstance(counter),
+  count:init(0,S),
+  config:time_limit(T),
+  config:proving_target(Action),
+  time(forall(Repository:entry(E),
+ 	      (catch(call_with_time_limit(T,(count:increase,
+                                             count:percentage(P),
+                                             prover:prove(Repository://E:Action,[],Proof,[],_,[],_),
+                                             planner:plan(Proof,[],[],_),
+                                             message:success([P,' - ',E:Action]))),
+                     time_limit_exceeded,
+                     assert(prover:broken(Repository://E)));
+               message:failure(E)))),
   message:inform(['created plan for ',S,' ',Repository,' entries.']).
 
 
@@ -85,9 +91,20 @@ planner:test(Repository) :-
 % Creates a plan for every entry in a repository, concurrently
 
 planner:testparallel(Repository) :-
-  preference:proving_target(Action),
-  findall((prover:prove(Repository://E:Action,[],Proof,[],_,[],_),planner:plan(Proof,[],[],_)),Repository:entry(E),Calls),
-  config:number_of_cpus(Cpus),
-  time(concurrent(Cpus,Calls,[])),
   Repository:get_size(S),
+  count:newinstance(counter),
+  count:init(0,S),
+  config:time_limit(T),
+  config:proving_target(Action),
+  config:number_of_cpus(Cpus),
+  findall((catch(call_with_time_limit(T,(prover:prove(Repository://E:Action,[],Proof,[],_,[],_),
+                                         planner:plan(Proof,[],[],_),
+                                         with_mutex(mutex,(count:increase,
+                                                           count:percentage(P),
+                                                           message:success([P,' - ',E:Action]))))),
+                  time_limit_exceeded,
+                  assert(prover:broken(Repository://E)))),
+          Repository:entry(E),
+          Calls),
+  time(concurrent(Cpus,Calls,[])),
   message:inform(['created plan for ',S,' ',Repository,' entries.']).
