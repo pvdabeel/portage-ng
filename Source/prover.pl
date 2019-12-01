@@ -205,13 +205,14 @@ prover:unify_constraints(constraint(Constraint),Constraints,NewConstraints) :-
 % Prove all entries in a given Repository
 
 prover:test(Repository) :-
+  Repository:get_size(S),
+  count:newinstance(counter),
+  count:init(0,S),
   config:time_limit(T),
   time(forall(Repository:entry(E),
- 	      ((message:success(E),
-                catch(call_with_time_limit(T,prover:prove(Repository://E:run,[],_,[],_,[],_)),_,assert(broken(Repository://E))));
-               (message:failure(E))))
+ 	      (catch(call_with_time_limit(T,(count:increase,count:percentage(P),prover:prove(Repository://E:run,[],_,[],_,[],_),message:success([P,' - ',E]))),_,assert(broken(Repository://E)));
+               message:failure(E)))
       ),
-  Repository:get_size(S),
   message:inform(['proved ',S,' ',Repository,' entries.']).
 
 
