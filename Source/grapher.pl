@@ -179,14 +179,12 @@ grapher:choices(detail,[arrow(D,Choices)|Rest]) :-
   writeln('}'),
   grapher:choices(detail,Rest).
 
-
 grapher:choices(depend,[arrow(D,[Choice])|Rest]) :-
   !,
   write('\"'),write(D),write('\"'),
   write(' -> '),
   write('\"'),write(Choice),write('\"'),nl,
   grapher:choices(depend,Rest).
-
 
 grapher:choices(cdepend,[arrow(D,[Choice])|Rest]) :-
   !,
@@ -195,15 +193,12 @@ grapher:choices(cdepend,[arrow(D,[Choice])|Rest]) :-
   write('\"'),write(Choice),write('\"'),nl,
   grapher:choices(cdepend,Rest).
 
-
 grapher:choices(rdepend,[arrow(D,[Choice])|Rest]) :-
   !,
   write('\"'),write(D),write('\"'),
   write(' -> '),
   write('\"'),write(Choice),write('\"'),nl,
   grapher:choices(rdepend,Rest).
-
-
 
 grapher:choices(Kind,[L|Rest]) :-
   !,
@@ -249,8 +244,6 @@ grapher:handle(rdepend,_Style,_Arrow,_Master,at_most_one_of_group(_),[]) :- !.
 grapher:handle(rdepend,_Style,_Arrow,_Master,_,[]) :- !.
 
 
-
-
 grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,Cat,Name,Comp,Ver,_,_),arrow(D,Choices)) :-
   !,
   gensym(pack,P),
@@ -266,7 +259,6 @@ grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,Cat,Name,Comp
   findall(Repository://R,cache:entry(Repository,R,_,Cat,Name,_,_),Choices),
   !, true.
 
-
 grapher:handle(detail,Style,Arrow,Master,use_conditional_group(Type,Use,Deps),Choices) :-
   !,
   gensym(cond,C),
@@ -278,7 +270,6 @@ grapher:handle(detail,Style,Arrow,Master,use_conditional_group(Type,Use,Deps),Ch
   write('}'),nl,
   write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl.
 
-
 grapher:handle(detail,Style,Arrow,Master,any_of_group(Deps),Choices) :-
   !,
   gensym(any,A),
@@ -288,7 +279,6 @@ grapher:handle(detail,Style,Arrow,Master,any_of_group(Deps),Choices) :-
   findall(Ch,(member(Dep,Deps),grapher:handle(detail,dotted,oinv,D,Dep,Ch)),Choices),
   write('}'),nl,
   write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl.
-
 
 grapher:handle(detail,Style,Arrow,Master,all_of_group(Deps),Choices) :-
   !,
@@ -300,7 +290,6 @@ grapher:handle(detail,Style,Arrow,Master,all_of_group(Deps),Choices) :-
   write('}'),nl,
   write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl.
 
-
 grapher:handle(detail,Style,Arrow,Master,exactly_one_of_group(Deps),Choices) :-
   !,
   gensym(exactlyone,A),
@@ -311,7 +300,6 @@ grapher:handle(detail,Style,Arrow,Master,exactly_one_of_group(Deps),Choices) :-
   write('}'),nl,
   write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl.
 
-
 grapher:handle(detail,Style,Arrow,Master,at_most_one_of_group(Deps),Choices) :-
   !,
   gensym(atmostone,A),
@@ -321,7 +309,6 @@ grapher:handle(detail,Style,Arrow,Master,at_most_one_of_group(Deps),Choices) :-
   findall(Ch,(member(Dep,Deps),grapher:handle(detail,dotted,onormal,D,Dep,Ch)),Choices),
   write('}'),nl,
   write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl.
-
 
 grapher:handle(detail,_Style,_Arrow,Master,S,[]) :-
   !,
@@ -370,6 +357,9 @@ grapher:write_dot_files(D,Repository://Id) :-
 %  told.
 
 
+%! grapher:test(Repository)
+%
+% Create or update a graph for a given repository
 
 grapher:test(Repository) :-
   grapher:prepare_directory(D,Repository),
@@ -380,7 +370,6 @@ grapher:test(Repository) :-
            Modified > Time),
          (grapher:write_dot_files(D,Repository://E))),
   script:exec(graph,['dot',D]).
-
 
 grapher:test(Repository) :-
   grapher:prepare_directory(D,Repository),
