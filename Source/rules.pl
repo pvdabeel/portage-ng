@@ -29,7 +29,8 @@ rule(Context://Identifier:_,[]) :-
 
 rule(Context://Ebuild:install,[constraint(slot(Cat,Name,Slot):{[Ebuild]})|Deps]) :-
   ebuild:get(depend,Context://Ebuild,Deps),
-  ebuild:get(slot,Context://Ebuild,[Slot]),
+  ebuild:get(slot,Context://Ebuild,Slots),
+  member(slot(Slot),Slots),
   Context:ebuild(Ebuild,Cat,Name,_).
 
 % An ebuild can be run, if it is installed and if its runtime dependencies are satisfied

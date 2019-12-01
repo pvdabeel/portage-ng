@@ -53,6 +53,8 @@ This file is the main source file in the repository. It loads all other files.
 :- ensure_loaded('Source/ebuild.pl').
 :- ensure_loaded('Source/preference.pl').
 
+:- ensure_loaded('Source/unify.pl').
+
 :- ensure_loaded('Source/reader.pl').
 :- ensure_loaded('Source/parser.pl').
 :- ensure_loaded('Source/prover.pl').

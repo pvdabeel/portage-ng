@@ -49,12 +49,12 @@ prover:prove([Literal|OtherLiterals],Proof,NewProof,Model,NewModel,Constraints,N
 
 prover:prove(Literal,Proof,Proof,Model,Model,Constraints,Constraints) :-
   not(is_list(Literal)),
-  not(is_constraint(Literal)),
+  not(prover:is_constraint(Literal)),
   prover:proven(Literal,Model),!.
 
 prover:prove(Literal,Proof,Proof,Model,Model,Constraints,Constraints) :-
   not(is_list(Literal)),
-  not(is_constraint(Literal)),
+  not(prover:is_constraint(Literal)),
   prover:assumed_proven(Literal,Model),!.
 
 
@@ -64,7 +64,7 @@ prover:prove(Literal,Proof,Proof,Model,Model,Constraints,Constraints) :-
 
 prover:prove(Literal,Proof,[rule(Literal,[])|Proof],Model,[Literal|Model],Constraints,Constraints) :-
   not(is_list(Literal)),
-  not(is_constraint(Literal)),
+  not(prover:is_constraint(Literal)),
   not(prover:proven(Literal,Model)),
   not(prover:conflicts(Literal,Model)),
   not(prover:conflictrule(rule(Literal,[]),Proof)),
@@ -77,7 +77,7 @@ prover:prove(Literal,Proof,[rule(Literal,[])|Proof],Model,[Literal|Model],Constr
 
 prover:prove(Literal,Proof,[rule(Literal,assumed(Literal))|Proof],Model,Model,Constraints,Constraints) :-
   not(is_list(Literal)),
-  not(is_constraint(Literal)),
+  not(prover:is_constraint(Literal)),
   not(prover:proven(Literal,Model)),
   not(prover:conflicts(Literal,Model)),
   not(prover:conflictrule(rule(Literal,[]),Proof)),
@@ -90,7 +90,7 @@ prover:prove(Literal,Proof,[rule(Literal,assumed(Literal))|Proof],Model,Model,Co
 
 prover:prove(Literal,Proof,NewProof,Model,[Literal|NewModel],Constraints,NewConstraints) :-
   not(is_list(Literal)),
-  not(is_constraint(Literal)),
+  not(prover:is_constraint(Literal)),
   not(prover:proven(Literal,Model)),
   not(prover:conflicts(Literal,Model)),
   not(prover:conflictrule(rule(Literal,[]),Proof)),
@@ -106,7 +106,7 @@ prover:prove(Literal,Proof,NewProof,Model,[Literal|NewModel],Constraints,NewCons
 
 prover:prove(Literal,Proof,NewProof,Model,NewModel,Constraints,NewConstraints) :-
   not(is_list(Literal)),
-  not(is_constraint(Literal)),
+  not(prover:is_constraint(Literal)),
   not(prover:proven(Literal,Model)),
   not(prover:conflicts(Literal,Model)),
   not(prover:conflictrule(rule(Literal,[]),Proof)),
@@ -123,7 +123,7 @@ prover:prove(Literal,Proof,NewProof,Model,NewModel,Constraints,NewConstraints) :
 
 prover:prove(Literal,Proof,Proof,Model,Model,Constraints,NewConstraints) :-
   not(is_list(Literal)),
-  is_constraint(Literal),
+  prover:is_constraint(Literal),
   prover:unify_constraints(Literal,Constraints,NewConstraints).
 
 
