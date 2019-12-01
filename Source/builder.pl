@@ -31,9 +31,9 @@ builder:execute(Plan) :-
     builder:firststep(E)).
 
 
-%! builder:build(+Context://Entry:Action)
+%! builder:build(+Repository://Entry:Action)
 %
-% For a given Entry in a given context, execute Action.
+% For a given Entry in a given repository, execute Action.
 %
 % Example: Invoke builder:build(portage://myebuild:install to install the
 % given ebuild in the portage repository in your live system
@@ -50,16 +50,16 @@ builder:execute(Plan) :-
 builder:build(_) :-
   config:dry_run_build(true), !.
 
-builder:build(Context://Entry:_Action) :-
-  Context:get_type('eapi'),!,
-  Context:get_location(L),
-  Context:ebuild(Entry,Category,Package,Version),
+builder:build(Repository://Entry:_Action) :-
+  Repository:get_type('eapi'),!,
+  Repository:get_location(L),
+  Repository:ebuild(Entry,Category,Package,Version),
   atomic_list_concat(['ebuild ',L,'/',Category,'/',Package,'/',Package,'-',Version,'.ebuild install qmerge clean'],Cmd),
   shell(Cmd),!.
 
-builder:build(Context://_Entry:_Action) :-
-  Context:get_type('cmake'),!,
-  Context:get_location(Local),
+builder:build(Repository://_Entry:_Action) :-
+  Repository:get_type('cmake'),!,
+  Repository:get_location(Local),
   script:exec(build,['cmake', Local]).
 
 
@@ -69,16 +69,16 @@ builder:build(Context://_Entry:_Action) :-
 
 builder:firststep([]) :-  !.
 
-builder:firststep([rule(Context://E:Action,_)|L]) :-
+builder:firststep([rule(Repository://E:Action,_)|L]) :-
   !,
   write(' -  STEP:  | '),
   message:color(green),
-  write(Context://E),
+  write(Repository://E),
   message:color(blue),
   write(' '),
   write(Action),
   message:color(normal),
-  builder:build(Context://E:Action),
+  builder:build(Repository://E:Action),
   nl,
   builder:nextstep(L).
 
@@ -92,16 +92,16 @@ builder:firststep([rule(_,_)|L]) :-
 
 builder:nextstep([]) :- nl,!.
 
-builder:nextstep([rule(Context://E:Action,_)|L]) :-
+builder:nextstep([rule(Repository://E:Action,_)|L]) :-
   !,
   write('           | '),
   message:color(green),
-  write(Context://E),
+  write(Repository://E),
   message:color(blue),
   write(' '),
   write(Action),
   message:color(normal),
-  builder:build(Context://E:Action),
+  builder:build(Repository://E:Action),
   nl,
   builder:nextstep(L).
 

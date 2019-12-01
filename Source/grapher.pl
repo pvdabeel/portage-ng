@@ -30,7 +30,7 @@ could satisfy the dependency.
 %
 % For a given ebuild, identified by an Id, create a Graphviz dot file
 
-grapher:graph(detail,Context://Id) :-
+grapher:graph(detail,Repository://Id) :-
   writeln('digraph prolog {'),
   nl,
   writeln('# *************'),
@@ -52,7 +52,7 @@ grapher:graph(detail,Context://Id) :-
   write('color=gray;'),nl,
   write('rank=same;'),nl,
   write('label=<<i>ebuild</i>>;'),nl,
-  write('id [label=\"'),write(Context://Id),write('\", color=red, width=4, href=\"../'),write(Id),write('.svg\"];'),nl,
+  write('id [label=\"'),write(Repository://Id),write('\", color=red, width=4, href=\"../'),write(Id),write('.svg\"];'),nl,
   write('}'),nl,
   nl,
   writeln('# ****************'),
@@ -62,8 +62,8 @@ grapher:graph(detail,Context://Id) :-
   write('subgraph cluster_midcol {'),nl,
   write('color=gray;'),nl,
   write('label=<<i>dependencies</i>>;'),nl,
-  ebuild:get(depend,Context://Id,C),
-  ebuild:get(rdepend,Context://Id,R),
+  ebuild:get(depend,Repository://Id,C),
+  ebuild:get(rdepend,Repository://Id,R),
   list_to_ord_set(C,OC),
   list_to_ord_set(R,OR),
   ord_intersection(OC,OR,OCR,OPR),
@@ -109,7 +109,7 @@ grapher:graph(detail,Context://Id) :-
 %
 % For a given ebuild, identified by an Id, create a full dependency diagram.
 
-grapher:graph(Type,Context://Id) :-
+grapher:graph(Type,Repository://Id) :-
   member(Type,[depend,rdepend]),!,
   writeln('digraph prolog {'),
   nl,
@@ -121,7 +121,7 @@ grapher:graph(Type,Context://Id) :-
   writeln('node  [fontname=Helvetica,fontsize=10];'),
   nl,
   retractall(graph_visited(_)),
-  grapher:write_tree(Context://Id,Type),
+  grapher:write_tree(Repository://Id,Type),
   writeln('}'),
   retractall(graph_visited(_)).
 
@@ -130,27 +130,27 @@ grapher:graph(Type,Context://Id) :-
 %
 % For a given ebuild, identified by an Id, create a tree diagram.
 
-grapher:write_tree(Context://Id, Type) :-
-  not(graph_visited(Context://Id)),!,
-  write('\"'),write(Context://Id),write('\" [color=red, href=\"../'),write(Id),write('-'),write(Type),write('.svg\"];'),nl,
-  ebuild:get(Type,Context://Id,DS),
-  findall(Ch,(member(D,DS),grapher:handle(Type,solid,vee,Context://Id,D,Ch)),AllChoices),
-  assert(graph_visited(Context://Id)),
+grapher:write_tree(Repository://Id, Type) :-
+  not(graph_visited(Repository://Id)),!,
+  write('\"'),write(Repository://Id),write('\" [color=red, href=\"../'),write(Id),write('-'),write(Type),write('.svg\"];'),nl,
+  ebuild:get(Type,Repository://Id,DS),
+  findall(Ch,(member(D,DS),grapher:handle(Type,solid,vee,Repository://Id,D,Ch)),AllChoices),
+  assert(graph_visited(Repository://Id)),
   grapher:choices(Type,AllChoices),
   forall(member(arrow(_,[Chs]),AllChoices),
     grapher:write_tree(Chs,Type)).
 
-grapher:write_tree(Context://Id,_Type) :-
-  graph_visited(Context://Id),!.
+grapher:write_tree(Repository://Id,_Type) :-
+  graph_visited(Repository://Id),!.
 
 
 %! grapher:enconvert(+Id,-Code)
 %
 % Create a unique name for a given ebuild.
 
-grapher:enconvert(Context://Id,Code) :-
+grapher:enconvert(Repository://Id,Code) :-
   string_codes(Id,List),
-  atomic_list_concat([choice,Context|List],Code).
+  atomic_list_concat([choice,Repository|List],Code).
 
 
 %! grapher:choices(+Type,+List)
@@ -167,10 +167,10 @@ grapher:choices(detail,[arrow(D,Choices)|Rest]) :-
   write('subgraph '),write(C),write(' {'),nl,
   write('color=black;'),nl,
   write('nodesep=1;'),nl,
-  forall(member(Context://Ch,Choices),(
-    grapher:enconvert(Context://Ch,Code),
+  forall(member(Repository://Ch,Choices),(
+    grapher:enconvert(Repository://Ch,Code),
     write(Code),
-    write(' [label=\"'),write(Context://Ch),write('\", color=red, width=4,href=\"../'),write(Ch),write('.svg\"];'),nl)),
+    write(' [label=\"'),write(Repository://Ch),write('\", color=red, width=4,href=\"../'),write(Ch),write('.svg\"];'),nl)),
   forall(member(Ch,Choices),(
     write(D),
     write(':e -> '),
@@ -263,7 +263,7 @@ grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,Cat,Name,Comp
   write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl,
   % findall(R,portage:query([category(Cat),name(Name)],R),Choices),
   % atom_string(Cata,Cat),
-  findall(Context://R,cache:entry(Context,R,_,Cat,Name,_,_),Choices),
+  findall(Repository://R,cache:entry(Repository,R,_,Cat,Name,_,_),Choices),
   !, true.
 
 

@@ -105,10 +105,10 @@ init(Location,Cache,Remote,Protocol,Type) ::-
 % Full sync of repository, metadata and rules
 
 sync ::-
-  :this(Context),
-  message:wrap(Context:sync(repository)),
-  message:wrap(Context:sync(metadata)),
-  message:wrap(Context:sync(kb)),!.
+  :this(Repository),
+  message:wrap(Repository:sync(repository)),
+  message:wrap(Repository:sync(metadata)),
+  message:wrap(Repository:sync(kb)),!.
 
 
 %! repository:sync(+Repository)
@@ -146,8 +146,8 @@ sync(metadata) ::-
   ::location(Local),
   ::remote(Remote),
   ::cache(Cache),
-  :this(Context),
-  script:exec(cache,[Type,Context,Remote,Local,Cache]),
+  :this(Repository),
+  script:exec(cache,[Type,Repository,Remote,Local,Cache]),
   message:inform(['Updated metadata']).
 
 
@@ -159,11 +159,11 @@ sync(metadata) ::-
 % Regenerates knowledgebase facts from local repository metadata
 
 sync(kb) ::-
-  :this(Context),
+  :this(Repository),
   forall(:read_entry(E,L,C,N,V),
          (:read_metadata(E,L,M),
-          retractall(cache:entry(Context,E,_,_,_,_,_)),
-          assert(cache:entry(Context,E,L,C,N,V,M)),
+          retractall(cache:entry(Repository,E,_,_,_,_,_)),
+          assert(cache:entry(Repository,E,L,C,N,V,M)),
           message:scroll([E]))),
   message:inform(['Updated prolog knowledgebase']).
 
@@ -196,8 +196,8 @@ read_entry(Entry,Timestamp,Category,Name,Version) ::-
 % it is new of has been modifed
 
 read_metadata(Entry,Timestamp,Metadata) ::-
-  :this(Context),
-  cache:entry(Context,Entry,Timestamp,_,_,_,Metadata),!.
+  :this(Repository),
+  cache:entry(Repository,Entry,Timestamp,_,_,_,Metadata),!.
 
 read_metadata(Entry,_,Metadata) ::-
   ::cache(Cache),
@@ -229,8 +229,8 @@ read_time(Time) ::-
 % No disk access - initial sync required
 
 entry(Entry) ::-
-  :this(Context),
-  cache:entry(Context,Entry,_,_,_,_,_).
+  :this(Repository),
+  cache:entry(Repository,Entry,_,_,_,_,_).
 
 
 %! repository:entry(?Entry, ?Time)
@@ -242,8 +242,8 @@ entry(Entry) ::-
 % No disk access - initial sync required
 
 entry(Entry,Time) ::-
-  :this(Context),
-  cache:entry(Context,Entry,Time,_,_,_,_).
+  :this(Repository),
+  cache:entry(Repository,Entry,Time,_,_,_,_).
 
 
 %! repository:category(?Category)
@@ -254,8 +254,8 @@ entry(Entry,Time) ::-
 % No disk access - initial sync required
 
 category(Category) ::-
-  :this(Context),
-  findall(C,cache:entry(Context,_,_,C,_,_,_),Cs),
+  :this(Repository),
+  findall(C,cache:entry(Repository,_,_,C,_,_,_),Cs),
   sort(Cs,Ss),!,
   member(Category,Ss).
 
@@ -268,8 +268,8 @@ category(Category) ::-
 % No disk access - initial sync required
 
 package(Category,Package) ::-
-  :this(Context),
-  cache:entry(Context,_,_,Category,Name,Version,_),
+  :this(Repository),
+  cache:entry(Repository,_,_,Category,Name,Version,_),
   atomic_list_concat([Name,'-',Version],Package).
 
 
@@ -281,8 +281,8 @@ package(Category,Package) ::-
 % No disk access - initial sync required
 
 ebuild(Category,Name,Version) ::-
-  :this(Context),
-  cache:entry(Context,_,_,Category,Name,Version,_).
+  :this(Repository),
+  cache:entry(Repository,_,_,Category,Name,Version,_).
 
 
 %! repository:ebuild(?Id, ?Category, ?Name, ?Version)
@@ -293,8 +293,8 @@ ebuild(Category,Name,Version) ::-
 % No disk access - initial sync required
 
 ebuild(Id,Category,Name,Version) ::-
-  :this(Context),
-  cache:entry(Context,Id,_,Category,Name,Version,_).
+  :this(Repository),
+  cache:entry(Repository,Id,_,Category,Name,Version,_).
 
 
 %! repository:ebuild(?Id, ?Category, ?Name, ?Version, ?Metadata)
@@ -305,8 +305,8 @@ ebuild(Id,Category,Name,Version) ::-
 % Disk access
 
 ebuild(Id,Category,Name,Version,Metadata) ::-
-  :this(Context),
-  cache:entry(Context,Id,_,Category,Name,Version,Metadata).
+  :this(Repository),
+  cache:entry(Repository,Id,_,Category,Name,Version,Metadata).
 
 
 

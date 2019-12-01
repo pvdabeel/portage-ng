@@ -20,23 +20,23 @@ This file contains domain-specific rules for dealing with software dependencies
 
 % Skip masked packages without failing
 
-rule(Context://Identifier:_,[]) :-
-  preference:masked(Context://Identifier),!.
+rule(Repository://Identifier:_,[]) :-
+  preference:masked(Repository://Identifier),!.
 
 
 % An ebuild can be installed, if its compiletime dependencies are satisfied and
 % if it can occupy an installation slot
 
-rule(Context://Ebuild:install,[constraint(slot(Cat,Name,Slot):{[Ebuild]})|Deps]) :-
-  ebuild:get(depend,Context://Ebuild,Deps),
-  ebuild:get(slot,Context://Ebuild,Slots),
+rule(Repository://Ebuild:install,[constraint(slot(Cat,Name,Slot):{[Ebuild]})|Deps]) :-
+  ebuild:get(depend,Repository://Ebuild,Deps),
+  ebuild:get(slot,Repository://Ebuild,Slots),
   member(slot(Slot),Slots),
-  Context:ebuild(Ebuild,Cat,Name,_).
+  Repository:ebuild(Ebuild,Cat,Name,_).
 
 % An ebuild can be run, if it is installed and if its runtime dependencies are satisfied
 
-rule(Context://Ebuild:run,[Context://Ebuild:install|Deps]) :-
-  ebuild:get(rdepend,Context://Ebuild,Deps).
+rule(Repository://Ebuild:run,[Repository://Ebuild:install|Deps]) :-
+  ebuild:get(rdepend,Repository://Ebuild,Deps).
 
 
 % Conflicting package: EAPI 8.2.6.2: a weak block can be ignored by the package manager
@@ -92,8 +92,8 @@ rule(package_dependency(_,no,'virtual','ssh',_,_,_,_),[]) :- !.
 
 % A package dependency is satisfied when a suitable candidate is satisfied
 
-rule(package_dependency(Action,no,C,N,_,_,_,_),[Context://Choice:Action]) :-
-  cache:entry(Context,Choice,_,C,N,_,_).
+rule(package_dependency(Action,no,C,N,_,_,_,_),[Repository://Choice:Action]) :-
+  cache:entry(Repository,Choice,_,C,N,_,_).
 
 
 % A package dependency that has no suitable candidates is assumed satisfied
