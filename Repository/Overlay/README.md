@@ -222,11 +222,11 @@ The result using Gentoo emerge:
 
 This scenario defines the following runtime dependencies for "web"
 
-![Runtime Dependencies](../../Documentation/Tests/test14/web-2.0-rdepend.svg)
+![Runtime Dependencies](../../Documentation/Tests/test14/web-1.0-rdepend.svg)
 
 This scenario defines the following compiletime dependencies for "web"
 
-![Compiletime Dependencies](../../Documentation/Tests/test14/web-2.0-depend.svg)
+![Compiletime Dependencies](../../Documentation/Tests/test14/web-1.0-depend.svg)
 
 The result using Gentoo emerge: 
 
