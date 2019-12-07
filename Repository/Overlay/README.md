@@ -165,6 +165,10 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test08/expected.png)
 
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test08/expected-ng-08.png)  
+
 
 ## Test case 09 - Dependency on non-existent package (compile)
 
@@ -183,6 +187,13 @@ The unsatisfiable dependency:
 The result using Gentoo emerge: 
 
 ![Emerge Output](../../Documentation/Tests/test09/expected.png)
+
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test09/expected-ng-09.png)  
+
+Note: Portage-ng takes assumptions about non-existent packages. It produces a 
+plan based on these assumptions
 
 
 ## Test case 10 - Dependency on non-existent package (run)
@@ -203,6 +214,9 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test10/expected.png)
 
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test10/expected-ng-10.png)  
 
 
 ## Test case 11 - Dependency on non-existent package (compile & run)
@@ -222,6 +236,10 @@ The unsatisfiable dependency:
 The result using Gentoo emerge: 
 
 ![Emerge Output](../../Documentation/Tests/test11/expected.png)
+
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test11/expected-ng-11.png)  
 
 
 
