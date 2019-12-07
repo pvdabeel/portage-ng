@@ -11,8 +11,8 @@ SLOT="0"
 KEYWORDS="alpha amd64 arm hppa ia64 m68k mips ppc ppc64 s390 sh sparc x86 sparc-fbsd x86-fbsd"
 IUSE=""
 
-DEPEND="?? (test25/linux test25/bsd test25/windows)"
-RDEPEND="?? (test25/linux test25/bsd test25/windows)"
+DEPEND="?? ( test25/linux test25/bsd test25/windows )"
+RDEPEND="?? ( test25/linux test25/bsd test25/windows )"
 
 src_unpack() {
 	echo "unpacking"
