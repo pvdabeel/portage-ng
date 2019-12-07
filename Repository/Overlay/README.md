@@ -335,4 +335,62 @@ The result using Gentoo emerge:
 
 
 
+## Test case 20 - Any-of-group compile dependency
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test20/web-1.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test20/web-1.0-depend.svg)
+
+The exactly-one-of-group dependency:
+
+![Dependency](../../Documentation/Tests/test20/os-1.0.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test20/expected.png)
+
+
+
+## Test case 21 - Any-of-group runtime dependency
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test21/web-1.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test21/web-1.0-depend.svg)
+
+The exactly-one-of-group dependency:
+
+![Dependency](../../Documentation/Tests/test21/os-1.0.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test21/expected.png)
+
+
+
+## Test case 22 - Any-of-group compile & runtime dependency
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test22/web-1.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test22/web-1.0-depend.svg)
+
+The exactly-one-of-group dependency:
+
+![Dependency](../../Documentation/Tests/test22/os-1.0.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test22/expected.png)
+
 
