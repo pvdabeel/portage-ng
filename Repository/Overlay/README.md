@@ -41,7 +41,7 @@ The result using Portage-ng:
 
 ![Portage-ng Output](../../Documentation/Tests/test02/expected-ng-02.png)  
 
-Note that if the proposed plan is not accepted, Portage-ng will backtrack over
+Note: If the proposed plan is not accepted, Portage-ng will backtrack over
 available package versions and choice points, proposing different plans.
 
 
@@ -62,6 +62,9 @@ The result using Gentoo emerge:
 The result using Portage-ng: 
 
 ![Portage-ng Output](../../Documentation/Tests/test03/expected-ng-03.png)  
+
+Note: Portage-ng takes assumptions and asks to verify the assumption. Using the
+assumptions, it will compute a build plan, instead of giving up. 
 
 
 ## Test case 04 - Self-Dependency (run)
