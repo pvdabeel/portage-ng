@@ -218,7 +218,7 @@ The result using Gentoo emerge:
 
 
 
-## Test case 14 - Use conditional dependency test case
+## Test case 14 - Positive use conditional dependency test case
 
 This scenario defines the following runtime dependencies for "web"
 
@@ -235,5 +235,25 @@ The use conditional dependency:
 The result using Gentoo emerge: 
 
 ![Emerge Output](../../Documentation/Tests/test14/expected.png)
+
+
+
+## Test case 15 - Negative use conditional dependency test case
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test15/web-1.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test15/web-1.0-depend.svg)
+
+The use conditional dependency:
+
+![Dependency](../../Documentation/Tests/test15/app-1.0.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test15/expected.png)
 
 
