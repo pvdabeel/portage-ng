@@ -12,7 +12,7 @@ KEYWORDS="alpha amd64 arm hppa ia64 m68k mips ppc ppc64 s390 sh sparc x86 sparc-
 IUSE=""
 
 DEPEND="test13/os"
-RDEPEND="test13/db-2.0 test13/os"
+RDEPEND="=test13/db-2.0 test13/os"
 
 src_unpack() {
 	echo "unpacking"
