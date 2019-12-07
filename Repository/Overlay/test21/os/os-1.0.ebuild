@@ -12,7 +12,7 @@ KEYWORDS="alpha amd64 arm hppa ia64 m68k mips ppc ppc64 s390 sh sparc x86 sparc-
 IUSE=""
 
 DEPEND=""
-RDEPEND="|| (test21/linux test21/bsd test21/windows)"
+RDEPEND="|| ( test21/linux test21/bsd test21/windows )"
 
 src_unpack() {
 	echo "unpacking"
