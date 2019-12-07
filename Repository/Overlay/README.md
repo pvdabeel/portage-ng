@@ -394,7 +394,7 @@ The result using Gentoo emerge:
 ![Emerge Output](../../Documentation/Tests/test22/expected.png)
 
 
-## Test case 23 - compile dependency
+## Test case 23 - Exactly-one-of compile dependency
 
 This scenario defines the following runtime dependencies for "web"
 
@@ -411,5 +411,162 @@ The exactly-one-of-group dependency:
 The result using Gentoo emerge: 
 
 ![Emerge Output](../../Documentation/Tests/test23/expected.png)
+
+
+## Test case 24 - Exactly-one-of runtime dependency
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test24/web-1.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test24/web-1.0-depend.svg)
+
+The exactly-one-of-group dependency:
+
+![Dependency](../../Documentation/Tests/test24/os-1.0.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test24/expected.png)
+
+
+## Test case 25 - Exactly-one-of compile & runtime dependency
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test25/web-1.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test25/web-1.0-depend.svg)
+
+The exactly-one-of-group dependency:
+
+![Dependency](../../Documentation/Tests/test25/os-1.0.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test25/expected.png)
+
+
+## Test case 26 - Strong blocking runtime dependency
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test26/web-1.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test26/web-1.0-depend.svg)
+
+The strong blocking dependency:
+
+![Dependency](../../Documentation/Tests/test26/app-1.0.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test26/expected.png)
+
+
+
+## Test case 27 - Weak blocking runtime dependency
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test27/web-1.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test27/web-1.0-depend.svg)
+
+The strong blocking dependency:
+
+![Dependency](../../Documentation/Tests/test27/app-1.0.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test27/expected.png)
+
+
+
+## Test case 28 - Weak blocking runtime dependency
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test28/web-1.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test28/web-1.0-depend.svg)
+
+The strong blocking dependency:
+
+![Dependency](../../Documentation/Tests/test28/app-1.0.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test28/expected.png)
+
+
+
+## Test case 29 - Strong blocking compile & runtime dependency
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test29/web-1.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test29/web-1.0-depend.svg)
+
+The strong blocking dependency:
+
+![Dependency](../../Documentation/Tests/test29/app-1.0.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test29/expected.png)
+
+
+
+## Test case 30 - Weak blocking compile dependency
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test30/web-1.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test30/web-1.0-depend.svg)
+
+The strong blocking dependency:
+
+![Dependency](../../Documentation/Tests/test30/app-1.0.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test30/expected.png)
+
+
+
+## Test case 31 - Weak blocking compile & runtime dependency
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test31/web-1.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test31/web-1.0-depend.svg)
+
+The strong blocking dependency:
+
+![Dependency](../../Documentation/Tests/test31/app-1.0.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test31/expected.png)
 
 
