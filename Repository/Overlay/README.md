@@ -262,8 +262,6 @@ The result using Portage-ng:
 ![Portage-ng Output](../../Documentation/Tests/test12/expected-ng-12.png)  
 
 
-
-
 ## Test case 13 - Pinpointed version dependency
 
  This scenario defines the following runtime dependencies for "web"
@@ -277,6 +275,10 @@ This scenario defines the following compiletime dependencies for "web"
 The result using Gentoo emerge: 
 
 ![Emerge Output](../../Documentation/Tests/test13/expected.png)
+
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test13/expected-ng-13.png)  
 
 
 
