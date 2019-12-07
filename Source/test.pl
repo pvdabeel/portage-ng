@@ -32,7 +32,27 @@ test:cases([overlay://'test01/web-1.0':run,
             overlay://'test08/web-1.0':run,
             overlay://'test09/os-1.0':run,
             overlay://'test10/os-1.0':run,
-            overlay://'test11/os-1.0':run]).
+            overlay://'test11/os-1.0':run,
+            overlay://'test12/web-1.0':run,
+            overlay://'test13/web-1.0':run,
+            overlay://'test14/web-1.0':run,
+            overlay://'test15/web-1.0':run,
+            overlay://'test16/web-1.0':run,
+            overlay://'test17/web-1.0':run,
+            overlay://'test18/web-1.0':run,
+            overlay://'test19/web-1.0':run,
+            overlay://'test20/web-1.0':run,
+            overlay://'test21/web-1.0':run,
+            overlay://'test22/web-1.0':run,
+            overlay://'test23/web-1.0':run,
+            overlay://'test24/web-1.0':run,
+            overlay://'test25/web-1.0':run,
+            overlay://'test26/web-1.0':run,
+            overlay://'test27/web-1.0':run,
+            overlay://'test28/web-1.0':run,
+            overlay://'test29/web-1.0':run,
+            overlay://'test30/web-1.0':run,
+            overlay://'test31/web-1.0':run]).
 
 
 %! test:run(+Atom)
