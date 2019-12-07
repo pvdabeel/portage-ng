@@ -18,6 +18,10 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test01/expected.png)
 
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test01/expected-ng-01.png)  
+
 
 ## Test case 02 - Versions
 
@@ -33,6 +37,13 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test02/expected.png)
 
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test02/expected-ng-02.png)  
+
+Note that if the proposed plan is not accepted, Portage-ng will backtrack over
+available package versions and choice points, proposing different plans.
+
 
 ## Test case 03 - Self-Dependency (compile) 
 
@@ -47,6 +58,10 @@ This scenario defines the following compiletime dependencies for "web"
 The result using Gentoo emerge: 
 
 ![Emerge Output](../../Documentation/Tests/test03/expected.png)
+
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test03/expected-ng-03.png)  
 
 
 ## Test case 04 - Self-Dependency (run)
