@@ -183,3 +183,53 @@ The unsatisfiable dependency:
 The result using Gentoo emerge: 
 
 ![Emerge Output](../../Documentation/Tests/test11/expected.png)
+
+
+
+## Test case 12 - Accept keywords test case
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test12/web-1.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test12/web-1.0-depend.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test12/expected.png)
+
+
+
+## Test case 13 - Pinpointed version dependency test case
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test13/web-2.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test13/web-2.0-depend.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test13/expected.png)
+
+
+
+## Test case 14 - Use conditional dependency test case
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test14/web-2.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test14/web-2.0-depend.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test14/expected.png)
+
+
