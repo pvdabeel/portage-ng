@@ -9,7 +9,7 @@ SRC_URI=""
 LICENSE="GPL-2"
 SLOT="0"
 KEYWORDS="alpha amd64 arm hppa ia64 m68k mips ppc ppc64 s390 sh sparc x86 sparc-fbsd x86-fbsd"
-IUSE=""
+IUSE="nolib"
 
 DEPEND="test15/os !nolib? ( test15/lib )"
 RDEPEND="test15/db test15/os"
