@@ -22,6 +22,9 @@ The result using Portage-ng:
 
 ![Portage-ng Output](../../Documentation/Tests/test01/expected-ng-01.png)  
 
+Note: Portage-ng groups actions into steps. Each step contains actions that can
+be executed in parallel.
+
 
 ## Test case 02 - Versions
 
@@ -63,8 +66,8 @@ The result using Portage-ng:
 
 ![Portage-ng Output](../../Documentation/Tests/test03/expected-ng-03.png)  
 
-Note: Portage-ng takes assumptions and asks to verify the assumption. Using the
-assumptions, it will compute a build plan, instead of giving up. 
+Note: Portage-ng takes assumptions and proposes to verify the assumptions taken. 
+In this example it will compute a build plan, instead of giving up. 
 
 
 ## Test case 04 - Self-Dependency (run)
@@ -80,6 +83,10 @@ This scenario defines the following compiletime dependencies for "web"
 The result using Gentoo emerge: 
 
 ![Emerge Output](../../Documentation/Tests/test04/expected.png)
+
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test04/expected-ng-04.png)  
 
 
 
