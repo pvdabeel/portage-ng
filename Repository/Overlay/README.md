@@ -257,3 +257,22 @@ The result using Gentoo emerge:
 ![Emerge Output](../../Documentation/Tests/test15/expected.png)
 
 
+## Test case 16 - all-of-group dependency test case
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test16/web-1.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test16/web-1.0-depend.svg)
+
+The all-of-group dependency:
+
+![Dependency](../../Documentation/Tests/test16/web-1.0.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test16/expected.png)
+
+
