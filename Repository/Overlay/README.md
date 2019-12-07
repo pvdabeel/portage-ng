@@ -202,9 +202,9 @@ The result using Gentoo emerge:
 
 
 
-## Test case 13 - Pinpointed version dependency test case
+## Test case 13 - Pinpointed version dependency
 
-This scenario defines the following runtime dependencies for "web"
+ This scenario defines the following runtime dependencies for "web"
 
 ![Runtime Dependencies](../../Documentation/Tests/test13/web-2.0-rdepend.svg)
 
@@ -218,7 +218,7 @@ The result using Gentoo emerge:
 
 
 
-## Test case 14 - Positive use conditional dependency test case
+## Test case 14 - Positive use conditional dependency
 
 This scenario defines the following runtime dependencies for "web"
 
@@ -238,7 +238,7 @@ The result using Gentoo emerge:
 
 
 
-## Test case 15 - Negative use conditional dependency test case
+## Test case 15 - Negative use conditional dependency
 
 This scenario defines the following runtime dependencies for "web"
 
@@ -257,7 +257,7 @@ The result using Gentoo emerge:
 ![Emerge Output](../../Documentation/Tests/test15/expected.png)
 
 
-## Test case 16 - all-of-group dependency test case
+## Test case 16 - All-of-group dependency
 
 This scenario defines the following runtime dependencies for "web"
 
@@ -274,5 +274,65 @@ The all-of-group dependency:
 The result using Gentoo emerge: 
 
 ![Emerge Output](../../Documentation/Tests/test16/expected.png)
+
+
+## Test case 17 - Exactly-one-of-group compile dependency
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test17/web-1.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test17/web-1.0-depend.svg)
+
+The exactly-one-of-group dependency:
+
+![Dependency](../../Documentation/Tests/test17/os-1.0.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test17/expected.png)
+
+
+## Test case 18 - Exactly-one-of-group runtime dependency
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test18/web-1.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test18/web-1.0-depend.svg)
+
+The exactly-one-of-group dependency:
+
+![Dependency](../../Documentation/Tests/test18/os-1.0.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test18/expected.png)
+
+
+
+## Test case 19 - Exactly-one-of-group compile & runtime dependency
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test19/web-1.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test19/web-1.0-depend.svg)
+
+The exactly-one-of-group dependency:
+
+![Dependency](../../Documentation/Tests/test19/os-1.0.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test19/expected.png)
+
+
 
 
