@@ -1,9 +1,10 @@
 DEFINED_PHASES=compile install unpack
-DEPEND=test09/notexists
-DESCRIPTION=Description of test package os
-EAPI=0
+DEPEND=test28/os !!test28/windows
+DESCRIPTION=Description of test package app
+EAPI=7
 HOMEPAGE=http://www.portage-ng.org/
 KEYWORDS=alpha amd64 arm hppa ia64 m68k mips ppc ppc64 s390 sh sparc x86 sparc-fbsd x86-fbsd
 LICENSE=GPL-2
+RDEPEND=test28/db test28/os
 SLOT=0
-_md5_=301da32169d3552b60c28b696269a735
+_md5_=39abaed07981d5d3bc888b8e42744d4a
