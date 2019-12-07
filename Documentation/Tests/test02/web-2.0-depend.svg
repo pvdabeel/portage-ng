@@ -18,18 +18,18 @@
 </a>
 </g>
 </g>
-<!-- overlay://test02/os&#45;1.0 -->
+<!-- overlay://test02/os&#45;2.0 -->
 <g id="node2" class="node">
-<title>overlay://test02/os&#45;1.0</title>
-<g id="a_node2"><a xlink:href="../test02/os-1.0-depend.svg" xlink:title="overlay://test02/os&#45;1.0">
+<title>overlay://test02/os&#45;2.0</title>
+<g id="a_node2"><a xlink:href="../test02/os-2.0-depend.svg" xlink:title="overlay://test02/os&#45;2.0">
 <ellipse fill="none" stroke="red" cx="73.45" cy="-18" rx="68.54" ry="18"/>
-<text text-anchor="middle" x="73.45" y="-15" font-family="Helvetica,sans-Serif" font-size="10.00">overlay://test02/os&#45;1.0</text>
+<text text-anchor="middle" x="73.45" y="-15" font-family="Helvetica,sans-Serif" font-size="10.00">overlay://test02/os&#45;2.0</text>
 </a>
 </g>
 </g>
-<!-- overlay://test02/web&#45;2.0&#45;&gt;overlay://test02/os&#45;1.0 -->
+<!-- overlay://test02/web&#45;2.0&#45;&gt;overlay://test02/os&#45;2.0 -->
 <g id="edge1" class="edge">
-<title>overlay://test02/web&#45;2.0&#45;&gt;overlay://test02/os&#45;1.0</title>
+<title>overlay://test02/web&#45;2.0&#45;&gt;overlay://test02/os&#45;2.0</title>
 <path fill="none" stroke="black" d="M73.45,-71.7C73.45,-63.98 73.45,-54.71 73.45,-46.11"/>
 <polygon fill="black" stroke="black" points="73.45,-36.1 77.95,-46.1 73.45,-41.1 73.45,-46.1 73.45,-46.1 73.45,-46.1 73.45,-41.1 68.95,-46.1 73.45,-36.1 73.45,-36.1"/>
 </g>

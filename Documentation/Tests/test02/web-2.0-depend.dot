@@ -8,6 +8,6 @@ edge  [arrowhead=vee];
 node  [fontname=Helvetica,fontsize=10];
 
 "overlay://test02/web-2.0" [color=red, href="../test02/web-2.0-depend.svg"];
-"overlay://test02/web-2.0" -> "overlay://test02/os-1.0"
-"overlay://test02/os-1.0" [color=red, href="../test02/os-1.0-depend.svg"];
+"overlay://test02/web-2.0" -> "overlay://test02/os-2.0"
+"overlay://test02/os-2.0" [color=red, href="../test02/os-2.0-depend.svg"];
 }

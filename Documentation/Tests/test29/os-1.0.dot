@@ -1,0 +1,93 @@
+digraph prolog {
+
+# *************
+# Graph options
+# *************
+
+newrank=true;
+concentrate=true;
+compound=true;
+graph [rankdir=LR,fontname=Helvetica,fontsize=10,ranksep=1.5];#, ranksep=2.5, nodesep=0.2];
+edge  [arrowhead=vee];
+node  [fontname=Helvetica,fontsize=10];
+
+# **********
+# The ebuild
+# **********
+
+subgraph cluster_leftcol {
+color=gray;
+rank=same;
+label=<<i>ebuild</i>>;
+id [label="overlay://test29/os-1.0", color=red, width=4, href="../test29/os-1.0.svg"];
+}
+
+# ****************
+# The dependencies
+# ****************
+
+subgraph cluster_midcol {
+color=gray;
+label=<<i>dependencies</i>>;
+subgraph cluster_compile {
+fillcolor="#eeeeee";
+style=filled;
+label=<<i>compile</i>>;
+subgraph any3 {
+dependency34 [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4"><TR><TD CELLPADDING="10">any_of_group</TD></TR></TABLE>>, shape=none, color=red];subgraph pack32 {
+dependency35 [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" WIDTH="220"><TR><TD ROWSPAN="6" CELLPADDING="30">pack_dep</TD></TR><TR><TD WIDTH="110">no</TD></TR><TR><TD>test29</TD></TR><TR><TD>linux</TD></TR><TR><TD>none</TD></TR><TR><TD></TD></TR></TABLE>>, shape=none, color=blue];
+}
+dependency34:e -> dependency35:w [weight=20,style="dotted",arrowhead="oinv"];
+subgraph pack33 {
+dependency36 [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" WIDTH="220"><TR><TD ROWSPAN="6" CELLPADDING="30">pack_dep</TD></TR><TR><TD WIDTH="110">no</TD></TR><TR><TD>test29</TD></TR><TR><TD>bsd</TD></TR><TR><TD>none</TD></TR><TR><TD></TD></TR></TABLE>>, shape=none, color=blue];
+}
+dependency34:e -> dependency36:w [weight=20,style="dotted",arrowhead="oinv"];
+subgraph pack34 {
+dependency37 [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" WIDTH="220"><TR><TD ROWSPAN="6" CELLPADDING="30">pack_dep</TD></TR><TR><TD WIDTH="110">no</TD></TR><TR><TD>test29</TD></TR><TR><TD>windows</TD></TR><TR><TD>none</TD></TR><TR><TD></TD></TR></TABLE>>, shape=none, color=blue];
+}
+dependency34:e -> dependency37:w [weight=20,style="dotted",arrowhead="oinv"];
+}
+id:e -> dependency34:w [weight=20,style="solid",arrowhead="vee"];
+}
+subgraph cluster_compileandrun {
+fillcolor="#eeeeee";
+style=filled;
+label=<<i>compile and run</i>>;
+}
+subgraph cluster_run {
+fillcolor="#eeeeee";
+style=filled;
+label=<<i>run</i>>;
+}
+}
+
+# **************
+# The candidates
+# **************
+
+subgraph cluster_choices {
+rank=same;
+color=gray;
+label=<<i>candidates</i>>;
+
+subgraph choice32 {
+color=black;
+nodesep=1;
+choiceoverlay11610111511650574710810511011712045494648 [label="overlay://test29/linux-1.0", color=red, width=4,href="../test29/linux-1.0.svg"];
+dependency35:e -> choiceoverlay11610111511650574710810511011712045494648:w [style=dotted,weight="100"];
+}
+subgraph choice33 {
+color=black;
+nodesep=1;
+choiceoverlay1161011151165057479811510045494648 [label="overlay://test29/bsd-1.0", color=red, width=4,href="../test29/bsd-1.0.svg"];
+dependency36:e -> choiceoverlay1161011151165057479811510045494648:w [style=dotted,weight="100"];
+}
+subgraph choice34 {
+color=black;
+nodesep=1;
+choiceoverlay11610111511650574711910511010011111911545494648 [label="overlay://test29/windows-1.0", color=red, width=4,href="../test29/windows-1.0.svg"];
+dependency37:e -> choiceoverlay11610111511650574711910511010011111911545494648:w [style=dotted,weight="100"];
+}
+}
+
+}

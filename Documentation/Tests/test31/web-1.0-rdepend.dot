@@ -1,0 +1,22 @@
+digraph prolog {
+
+newrank=true;
+concentrate=true;
+compound=true;
+graph [rankdir=TD];#, ranksep=2.5, nodesep=0.2];
+edge  [arrowhead=vee];
+node  [fontname=Helvetica,fontsize=10];
+
+"overlay://test31/web-1.0" [color=red, href="../test31/web-1.0-rdepend.svg"];
+"overlay://test31/web-1.0" -> "overlay://test31/app-1.0"
+"overlay://test31/web-1.0" -> "overlay://test31/db-1.0"
+"overlay://test31/web-1.0" -> "overlay://test31/os-1.0"
+"overlay://test31/app-1.0" [color=red, href="../test31/app-1.0-rdepend.svg"];
+"overlay://test31/app-1.0" -> "overlay://test31/db-1.0"
+"overlay://test31/app-1.0" -> "overlay://test31/os-1.0"
+"overlay://test31/app-1.0" -> "overlay://test31/windows-1.0"
+"overlay://test31/db-1.0" [color=red, href="../test31/db-1.0-rdepend.svg"];
+"overlay://test31/db-1.0" -> "overlay://test31/os-1.0"
+"overlay://test31/os-1.0" [color=red, href="../test31/os-1.0-rdepend.svg"];
+"overlay://test31/windows-1.0" [color=red, href="../test31/windows-1.0-rdepend.svg"];
+}

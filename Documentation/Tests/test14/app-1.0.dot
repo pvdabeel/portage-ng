@@ -1,0 +1,104 @@
+digraph prolog {
+
+# *************
+# Graph options
+# *************
+
+newrank=true;
+concentrate=true;
+compound=true;
+graph [rankdir=LR,fontname=Helvetica,fontsize=10,ranksep=1.5];#, ranksep=2.5, nodesep=0.2];
+edge  [arrowhead=vee];
+node  [fontname=Helvetica,fontsize=10];
+
+# **********
+# The ebuild
+# **********
+
+subgraph cluster_leftcol {
+color=gray;
+rank=same;
+label=<<i>ebuild</i>>;
+id [label="overlay://test14/app-1.0", color=red, width=4, href="../test14/app-1.0.svg"];
+}
+
+# ****************
+# The dependencies
+# ****************
+
+subgraph cluster_midcol {
+color=gray;
+label=<<i>dependencies</i>>;
+subgraph cluster_compile {
+fillcolor="#eeeeee";
+style=filled;
+label=<<i>compile</i>>;
+subgraph cond2 {
+dependency247 [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4"><TR><TD ROWSPAN="3" CELLPADDING="10">use_conditional</TD></TR><TR><TD>positive</TD></TR><TR><TD>lib</TD></TR></TABLE>>, shape=none, color=red];
+subgraph pack227 {
+dependency248 [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" WIDTH="220"><TR><TD ROWSPAN="6" CELLPADDING="30">pack_dep</TD></TR><TR><TD WIDTH="110">no</TD></TR><TR><TD>test14</TD></TR><TR><TD>lib</TD></TR><TR><TD>none</TD></TR><TR><TD></TD></TR></TABLE>>, shape=none, color=blue];
+}
+dependency247:e -> dependency248:w [weight=20,style="dashed",arrowhead="vee"];
+}
+id:e -> dependency247:w [weight=20,style="solid",arrowhead="vee"];
+subgraph pack228 {
+dependency249 [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" WIDTH="220"><TR><TD ROWSPAN="6" CELLPADDING="30">pack_dep</TD></TR><TR><TD WIDTH="110">no</TD></TR><TR><TD>test14</TD></TR><TR><TD>os</TD></TR><TR><TD>none</TD></TR><TR><TD></TD></TR></TABLE>>, shape=none, color=blue];
+}
+id:e -> dependency249:w [weight=20,style="solid",arrowhead="vee"];
+}
+subgraph cluster_compileandrun {
+fillcolor="#eeeeee";
+style=filled;
+label=<<i>compile and run</i>>;
+}
+subgraph cluster_run {
+fillcolor="#eeeeee";
+style=filled;
+label=<<i>run</i>>;
+subgraph pack229 {
+dependency250 [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" WIDTH="220"><TR><TD ROWSPAN="6" CELLPADDING="30">pack_dep</TD></TR><TR><TD WIDTH="110">no</TD></TR><TR><TD>test14</TD></TR><TR><TD>db</TD></TR><TR><TD>none</TD></TR><TR><TD></TD></TR></TABLE>>, shape=none, color=blue];
+}
+id:e -> dependency250:w [weight=20,style="solid",arrowhead="odot"];
+subgraph pack230 {
+dependency251 [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" WIDTH="220"><TR><TD ROWSPAN="6" CELLPADDING="30">pack_dep</TD></TR><TR><TD WIDTH="110">no</TD></TR><TR><TD>test14</TD></TR><TR><TD>os</TD></TR><TR><TD>none</TD></TR><TR><TD></TD></TR></TABLE>>, shape=none, color=blue];
+}
+id:e -> dependency251:w [weight=20,style="solid",arrowhead="odot"];
+}
+}
+
+# **************
+# The candidates
+# **************
+
+subgraph cluster_choices {
+rank=same;
+color=gray;
+label=<<i>candidates</i>>;
+
+subgraph choice227 {
+color=black;
+nodesep=1;
+choiceoverlay1161011151164952471081059845494648 [label="overlay://test14/lib-1.0", color=red, width=4,href="../test14/lib-1.0.svg"];
+dependency248:e -> choiceoverlay1161011151164952471081059845494648:w [style=dotted,weight="100"];
+}
+subgraph choice228 {
+color=black;
+nodesep=1;
+choiceoverlay11610111511649524711111545494648 [label="overlay://test14/os-1.0", color=red, width=4,href="../test14/os-1.0.svg"];
+dependency249:e -> choiceoverlay11610111511649524711111545494648:w [style=dotted,weight="100"];
+}
+subgraph choice229 {
+color=black;
+nodesep=1;
+choiceoverlay1161011151164952471009845494648 [label="overlay://test14/db-1.0", color=red, width=4,href="../test14/db-1.0.svg"];
+dependency250:e -> choiceoverlay1161011151164952471009845494648:w [style=dotted,weight="100"];
+}
+subgraph choice230 {
+color=black;
+nodesep=1;
+choiceoverlay11610111511649524711111545494648 [label="overlay://test14/os-1.0", color=red, width=4,href="../test14/os-1.0.svg"];
+dependency251:e -> choiceoverlay11610111511649524711111545494648:w [style=dotted,weight="100"];
+}
+}
+
+}

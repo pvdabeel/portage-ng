@@ -8,9 +8,9 @@ edge  [arrowhead=vee];
 node  [fontname=Helvetica,fontsize=10];
 
 "overlay://test02/app-1.0" [color=red, href="../test02/app-1.0-rdepend.svg"];
-"overlay://test02/app-1.0" -> "overlay://test02/db-1.0"
-"overlay://test02/app-1.0" -> "overlay://test02/os-1.0"
-"overlay://test02/db-1.0" [color=red, href="../test02/db-1.0-rdepend.svg"];
-"overlay://test02/db-1.0" -> "overlay://test02/os-1.0"
-"overlay://test02/os-1.0" [color=red, href="../test02/os-1.0-rdepend.svg"];
+"overlay://test02/app-1.0" -> "overlay://test02/db-2.0"
+"overlay://test02/app-1.0" -> "overlay://test02/os-2.0"
+"overlay://test02/db-2.0" [color=red, href="../test02/db-2.0-rdepend.svg"];
+"overlay://test02/db-2.0" -> "overlay://test02/os-2.0"
+"overlay://test02/os-2.0" [color=red, href="../test02/os-2.0-rdepend.svg"];
 }

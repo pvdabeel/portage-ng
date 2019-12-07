@@ -33,10 +33,10 @@ subgraph cluster_compile {
 fillcolor="#eeeeee";
 style=filled;
 label=<<i>compile</i>>;
-subgraph pack53 {
-dependency53 [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" WIDTH="220"><TR><TD ROWSPAN="6" CELLPADDING="30">pack_dep</TD></TR><TR><TD WIDTH="110">no</TD></TR><TR><TD>test05</TD></TR><TR><TD>os</TD></TR><TR><TD>none</TD></TR><TR><TD></TD></TR></TABLE>>, shape=none, color=blue];
+subgraph pack333 {
+dependency354 [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" WIDTH="220"><TR><TD ROWSPAN="6" CELLPADDING="30">pack_dep</TD></TR><TR><TD WIDTH="110">no</TD></TR><TR><TD>test05</TD></TR><TR><TD>os</TD></TR><TR><TD>none</TD></TR><TR><TD></TD></TR></TABLE>>, shape=none, color=blue];
 }
-id:e -> dependency53:w [weight=20,style="solid",arrowhead="vee"];
+id:e -> dependency354:w [weight=20,style="solid",arrowhead="vee"];
 }
 subgraph cluster_compileandrun {
 fillcolor="#eeeeee";
@@ -47,10 +47,10 @@ subgraph cluster_run {
 fillcolor="#eeeeee";
 style=filled;
 label=<<i>run</i>>;
-subgraph pack54 {
-dependency54 [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" WIDTH="220"><TR><TD ROWSPAN="6" CELLPADDING="30">pack_dep</TD></TR><TR><TD WIDTH="110">no</TD></TR><TR><TD>test05</TD></TR><TR><TD>os</TD></TR><TR><TD>none</TD></TR><TR><TD></TD></TR></TABLE>>, shape=none, color=blue];
+subgraph pack334 {
+dependency355 [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" WIDTH="220"><TR><TD ROWSPAN="6" CELLPADDING="30">pack_dep</TD></TR><TR><TD WIDTH="110">no</TD></TR><TR><TD>test05</TD></TR><TR><TD>os</TD></TR><TR><TD>none</TD></TR><TR><TD></TD></TR></TABLE>>, shape=none, color=blue];
 }
-id:e -> dependency54:w [weight=20,style="solid",arrowhead="odot"];
+id:e -> dependency355:w [weight=20,style="solid",arrowhead="odot"];
 }
 }
 
@@ -63,17 +63,17 @@ rank=same;
 color=gray;
 label=<<i>candidates</i>>;
 
-subgraph choice53 {
+subgraph choice333 {
 color=black;
 nodesep=1;
 choiceoverlay11610111511648534711111545494648 [label="overlay://test05/os-1.0", color=red, width=4,href="../test05/os-1.0.svg"];
-dependency53:e -> choiceoverlay11610111511648534711111545494648:w [style=dotted,weight="100"];
+dependency354:e -> choiceoverlay11610111511648534711111545494648:w [style=dotted,weight="100"];
 }
-subgraph choice54 {
+subgraph choice334 {
 color=black;
 nodesep=1;
 choiceoverlay11610111511648534711111545494648 [label="overlay://test05/os-1.0", color=red, width=4,href="../test05/os-1.0.svg"];
-dependency54:e -> choiceoverlay11610111511648534711111545494648:w [style=dotted,weight="100"];
+dependency355:e -> choiceoverlay11610111511648534711111545494648:w [style=dotted,weight="100"];
 }
 }
 
