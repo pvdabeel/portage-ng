@@ -228,6 +228,10 @@ This scenario defines the following compiletime dependencies for "web"
 
 ![Compiletime Dependencies](../../Documentation/Tests/test14/web-1.0-depend.svg)
 
+The use conditional dependency:
+
+![Dependency](../../Documentation/Tests/test14/app-1.0.svg)
+
 The result using Gentoo emerge: 
 
 ![Emerge Output](../../Documentation/Tests/test14/expected.png)
