@@ -128,7 +128,7 @@ printer:print_element(_,assumed(rule(Repository://Entry:run,_Body))) :-
   message:color(red),
   message:print('assumed'),
   message:column(25,Repository://Entry),
-  message:print(' (assumed running)'),
+  message:print(' (assumed running) '),
   message:color(normal),
   nl.
 
@@ -155,7 +155,7 @@ printer:print_element(_,assumed(rule(package_dependency(run,_,C,N,_,_,_,_),_Body
   message:color(red),
   message:print('assumed'),
   atomic_list_concat([C,'/',N],P),
-  message:column(30,P),
+  message:column(25,P),
   message:print(' (assumed running) '),
   message:color(normal),
   nl.
