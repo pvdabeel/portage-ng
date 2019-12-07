@@ -88,6 +88,8 @@ The result using Portage-ng:
 
 ![Portage-ng Output](../../Documentation/Tests/test04/expected-ng-04.png)  
 
+Note: Gentoo emerge is less strict about runtime dependencies. It does not show
+any circular dependencies. 
 
 
 ## Test case 05 - Self-Dependency (compile & run)
@@ -104,6 +106,9 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test05/expected.png)
 
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test05/expected-ng-05.png)  
 
 
 ## Test case 06 - Circular dependency (compile)
@@ -120,6 +125,11 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test06/expected.png)
 
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test06/expected-ng-06.png)  
+
+Note: portage-ng should show origin of circular dependency (todo)
 
 
 ## Test case 07 - Circular dependency (run)
@@ -135,6 +145,10 @@ This scenario defines the following compiletime dependencies for "web"
 The result using Gentoo emerge: 
 
 ![Emerge Output](../../Documentation/Tests/test07/expected.png)
+
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test07/expected-ng-07.png)  
 
 
 ## Test case 08 - Circular dependency (compile & run)
