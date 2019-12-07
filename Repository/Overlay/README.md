@@ -394,3 +394,22 @@ The result using Gentoo emerge:
 ![Emerge Output](../../Documentation/Tests/test22/expected.png)
 
 
+## Test case 23 - compile dependency
+
+This scenario defines the following runtime dependencies for "web"
+
+![Runtime Dependencies](../../Documentation/Tests/test23/web-1.0-rdepend.svg)
+
+This scenario defines the following compiletime dependencies for "web"
+
+![Compiletime Dependencies](../../Documentation/Tests/test23/web-1.0-depend.svg)
+
+The exactly-one-of-group dependency:
+
+![Dependency](../../Documentation/Tests/test23/os-1.0.svg)
+
+The result using Gentoo emerge: 
+
+![Emerge Output](../../Documentation/Tests/test23/expected.png)
+
+
