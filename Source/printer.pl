@@ -169,7 +169,9 @@ printer:print_iuse(Repository://Entry) :-
   preference:use(SystemEnabledFlags),
   subtract(IUseFlags,SystemEnabledFlags,NegativeUse),
   subtract(IUseFlags,NegativeUse,PositiveUse),
-  printer:print_use_flag_sets(PositiveUse,NegativeUse),
+  sort(NegativeUse,NegativeUseSorted),
+  sort(PositiveUse,PositiveUseSorted),
+  printer:print_use_flag_sets(PositiveUseSorted,NegativeUseSorted),
   message:print('"').
 
 
@@ -184,6 +186,7 @@ printer:print_use_flag_set([],Negative) :-
 printer:print_use_flag_sets(Positive,Negative) :-
   !,
   printer:print_use_flag(Positive,positive),
+  write(' '),
   printer:print_use_flag(Negative,negative).
 
 
@@ -200,13 +203,6 @@ printer:print_use_flag([Flag],positive) :-
   message:color(normal),
   !.
 
-printer:print_use_flag([Flag],negative) :-
-  message:color(magenta),
-  message:print('-'),
-  message:print(Flag),
-  message:color(normal),
-  !.
-
 printer:print_use_flag([Flag|Rest],positive) :-
   message:color(red),
   message:print(Flag),
@@ -214,10 +210,19 @@ printer:print_use_flag([Flag|Rest],positive) :-
   message:color(normal),!,
   printer:print_use_flag(Rest,positive).
 
+
+printer:print_use_flag([Flag],negative) :-
+  message:color(magenta),
+  message:print('-'),
+  message:print(Flag),
+  message:color(normal),
+  !.
+
 printer:print_use_flag([Flag|Rest],negative) :-
   message:color(magenta),
+  message:print('-'),
   message:print(Flag),
-  message:print(' -'),
+  message:print(' '),
   message:color(normal),!,
   printer:print_use_flag(Rest,negative).
 
