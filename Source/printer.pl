@@ -28,7 +28,7 @@ printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_),_))) 
 printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_)),_)) :- !.
 
 
-% Uncomment if you want 'verify' steps shown in the plan:
+% Uncomment if you want 'confirm' steps shown in the plan:
 %
 % printer:printable_element(rule(package_dependency(run,_,_,_,_,_,_,_),_)) :- !.
 
@@ -73,7 +73,7 @@ printer:print_element(_://_:_,rule(Repository://Entry:Action,_)) :-
 printer:print_element(_,rule(package_dependency(run,_,_C,_N,_,_,_,_),[Repository://Entry:_Action])) :-
   !,
   message:color(cyan),
-  message:print('verify'),
+  message:print('confirm'),
   message:color(green),
   message:column(30,Repository://Entry),
   message:color(normal).
@@ -85,7 +85,7 @@ printer:print_element(_,rule(package_dependency(run,_,_C,_N,_,_,_,_),[Repository
 
 printer:print_element(_,rule(assumed(package_dependency(install,_,C,N,_,_,_,_)),[])) :-
   message:color(red),
-  message:print('assumed'),
+  message:print('verify'),
   atomic_list_concat([C,'/',N],P),
   message:column(25,P),
   message:print([' (non-existent, assumed installed)']),
@@ -98,7 +98,7 @@ printer:print_element(_,rule(assumed(package_dependency(install,_,C,N,_,_,_,_)),
 
 printer:print_element(_,rule(assumed(package_dependency(run,_,C,N,_,_,_,_)),[])) :-
   message:color(red),
-  message:print('assumed'),
+  message:print('verify'),
   atomic_list_concat([C,'/',N],P),
   message:column(25,P),
   message:print([' (non-existent, assumed running)']),
@@ -111,7 +111,7 @@ printer:print_element(_,rule(assumed(package_dependency(run,_,C,N,_,_,_,_)),[]))
 
 printer:print_element(_,assumed(rule(Repository://Entry:install,_Body))) :-
   message:color(red),
-  message:print('assumed'),
+  message:print('verify'),
   message:column(25,Repository://Entry),
   message:print(' (assumed installed)'),
   message:color(normal).
@@ -123,7 +123,7 @@ printer:print_element(_,assumed(rule(Repository://Entry:install,_Body))) :-
 
 printer:print_element(_,assumed(rule(Repository://Entry:run,_Body))) :-
   message:color(red),
-  message:print('assumed'),
+  message:print('verify'),
   message:column(25,Repository://Entry),
   message:print(' (assumed running) '),
   message:color(normal).
@@ -135,7 +135,7 @@ printer:print_element(_,assumed(rule(Repository://Entry:run,_Body))) :-
 
 printer:print_element(_,assumed(rule(package_dependency(install,_,C,N,_,_,_,_),_Body))) :-
   message:color(red),
-  message:print('assumed'),
+  message:print('verify'),
   atomic_list_concat([C,'/',N],P),
   message:column(25,P),
   message:print(' (assumed installed) '),
@@ -148,7 +148,7 @@ printer:print_element(_,assumed(rule(package_dependency(install,_,C,N,_,_,_,_),_
 
 printer:print_element(_,assumed(rule(package_dependency(run,_,C,N,_,_,_,_),_Body))) :-
   message:color(red),
-  message:print('assumed'),
+  message:print('verify'),
   atomic_list_concat([C,'/',N],P),
   message:column(25,P),
   message:print(' (assumed running) '),
@@ -268,64 +268,68 @@ printer:print_debug(_Model,_Proof,Plan) :-
   message:color(normal).
 
 
-%! printer:print_body(+Plan,+Model)
+%! printer:print_body(+Plan,+Model,-Steps)
 %
-% Prints the body for a given plan and model
+% Prints the body for a given plan and model, returns the number of printed steps
 
-printer:print_body(Target,Plan,Call) :-
-  forall(member(Step,Plan),
-    (printer:print_firststep(Target,Step),
-     call(Call,Step))).
+printer:print_body(Target,Plan,Call,Steps) :-
+  aggregate_all(count,(member(Step,Plan),
+                (printer:print_first_in_step(Target,Step,Printed),
+                 call(Call,Step),
+                 Printed = true)),
+                Steps).
 
 
-%! printer:print_firststep(+Target,+Step,+Call)
+%! printer:print_first_in_step(+Target,+Step,+Call,-Printed)
 %
 % Print a step in a plan
 
-printer:print_firststep(_,[]) :- !.
+printer:print_first_in_step(_,[],false) :- !.
 
-printer:print_firststep(Target, [Rule|L]) :-
+printer:print_first_in_step(Target, [Rule|L],true) :-
   printer:printable_element(Rule),
   !,
   write(' └─ step ─┤ '),
   printer:print_element(Target,Rule),
-  printer:print_nextstep(Target,L).
+  printer:print_next_in_step(Target,L).
 
-printer:print_firststep(Target,[_|L]) :-
-  printer:print_firststep(Target,L).
+printer:print_first_in_step(Target,[_|L],Printed) :-
+  printer:print_first_in_step(Target,L,Printed).
 
 
-%! printer:print_nextstep(+Step)
+%! printer:print_next_in_step(+Step)
 %
 % Print a step in a plan
 
-printer:print_nextstep(_,[]) :- nl,nl,!.
+printer:print_next_in_step(_,[]) :- nl,nl,!.
 
-printer:print_nextstep(Target,[Rule|L]) :-
+printer:print_next_in_step(Target,[Rule|L]) :-
   printer:printable_element(Rule),
   !,
   nl,
   write('          │ '),
   printer:print_element(Target,Rule),
-  printer:print_nextstep(Target,L).
+  printer:print_next_in_step(Target,L).
 
-printer:print_nextstep(Target,[_|L]) :-
-  printer:print_nextstep(Target,L).
+printer:print_next_in_step(Target,[_|L]) :-
+  printer:print_next_in_step(Target,L).
 
 
 %! printer:print_footer(+Plan)
 %
 % Print the footer for a given plan
 
-printer:print_footer(Plan,Model) :-
+printer:print_footer(Plan,Model,PrintedSteps) :-
   countlist(assumed(_),Model,_Assumptions),
+  countlist(constraint(_),Model,_Constraints),
+  countlist(naf(_),Model,_Nafs),
   countlist(_://_:_,Model,Actions),
   countlist(_://_:run,Model,Runs),
   countlist(_://_:install,Model,Installs),
-  countlist(package_dependency(run,_,_,_,_,_,_,_),Model,Verifs),
-  Total is Actions + Verifs,
-  length(Plan,Steps),
-  message:print(['Total: ', Total, ' actions (', Installs,' installs, ', Runs,' runs, ', Verifs,' verifications), grouped into ',Steps,' steps.' ]),nl,
+  countlist(package_dependency(run,_,_,_,_,_,_,_),Model,_Verifs),
+  Total is Actions, % + Verifs,
+  length(Plan,_Steps),
+  message:print(['Total: ', Total, ' actions (', Installs,' installs, ', Runs,' runs), grouped into ',PrintedSteps,' steps.' ]),nl,
   nl.
 
 
@@ -365,8 +369,8 @@ printer:print(Target,Model,Proof,Plan) :-
 printer:print(Target,Model,Proof,Plan,Call) :-
   printer:print_header(Target),
 % printer:print_debug(Model,Proof,Plan),
-  printer:print_body(Target,Plan,Call),
-  printer:print_footer(Plan,Model),
+  printer:print_body(Target,Plan,Call,Steps),
+  printer:print_footer(Plan,Model,Steps),
   printer:print_warnings(Model,Proof).
 
 
