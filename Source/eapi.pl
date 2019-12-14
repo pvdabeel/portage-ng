@@ -1486,6 +1486,49 @@ eapi:keys(['depend',
            'unused']).
 
 
+%! eapi:meta_use(Key)
+%
+% Within the USE flags, some metadata is hidden that we want parsed out
+
+eapi:meta_use('abi').
+eapi:meta_use('python_target').
+eapi:meta_use('python_single_target').
+eapi:meta_use('ruby_target').
+eapi:meta_use('ruby_single_target').
+eapi:meta_use('elibc').
+
+
+%! check_prefix_atom(+Prefix,+Atom)
+%
+% Predicate that checks whether an atom begins with a given Prefix
+
+eapi:check_prefix_atom(_,Atom) :- not(atom(Atom)), !, fail.
+eapi:check_prefix_atom(Prefix,Atom) :- atom_prefix(Atom,Prefix),!.
+
+
+%! eapi:check_meta_atom(+Atom)
+%
+% Predicate that checks whether an atom is a meta atom
+
+eapi:check_meta_atom(Atom) :- eapi:meta_use(Key), eapi:check_prefix_atom(Key,Atom),!.
+
+
+%! eapi:get_meta_use(Key,Use,Filtered)
+%
+% Retrieves meta information from the USE flags
+
+eapi:get_meta_use(Key,Use,Filtered) :-
+  include(eapi:check_prefix_atom(Key),Use,Filtered),!.
+
+
+%! eapi:filter_meta_use(Use,Filtered)
+%
+% Filters meta information from the USE flags
+
+eapi:filter_meta_use(Use,Filtered) :-
+  exclude(eapi:check_meta_atom,Use,Filtered),!.
+
+
 %! eapi:elem(+Key,+Entry,-Content)
 %
 % Given a key and a pms cache entry, retrieves the element

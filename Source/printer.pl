@@ -155,20 +155,19 @@ printer:print_element(_,assumed(rule(package_dependency(run,_,C,N,_,_,_,_),_Body
   message:color(normal).
 
 
-
 %! printer:print_iuse(+Repository://+Entry)
 %
 % Prints the USE flags for a given repository
 
 printer:print_iuse(Repository://Entry) :-
-  ebuild:get(iuse,Repository://Entry,[]),!.
+  ebuild:get(iuse_filtered,Repository://Entry,[]),!.
 
 printer:print_iuse(Repository://Entry) :-
+  ebuild:get(iuse_filtered,Repository://Entry,IUse),
   message:print(' USE="'),
-  ebuild:get(iuse,Repository://Entry,IUseFlags),
-  preference:use(SystemEnabledFlags),
-  subtract(IUseFlags,SystemEnabledFlags,NegativeUse),
-  subtract(IUseFlags,NegativeUse,PositiveUse),
+  preference:use(Use),
+  subtract(IUse,Use,NegativeUse),
+  subtract(IUse,NegativeUse,PositiveUse),
   sort(NegativeUse,NegativeUseSorted),
   sort(PositiveUse,PositiveUseSorted),
   printer:print_use_flag_sets(PositiveUseSorted,NegativeUseSorted),
