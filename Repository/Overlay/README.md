@@ -393,7 +393,6 @@ The result using Portage-ng:
 ![Portage-ng Output](../../Documentation/Tests/test18/expected-ng-18.png)  
 
 
-
 ## Test case 19 - Exactly-one-of-group compile & runtime dependency
 
 This scenario defines the following runtime dependencies for "web"
@@ -438,6 +437,10 @@ The result using Gentoo emerge:
 The result using Portage-ng: 
 
 ![Portage-ng Output](../../Documentation/Tests/test20/expected-ng-20.png)  
+
+Note: If the proposed plan is not accepted, Portage-ng will backtrack over      
+available package versions and choice points, including different realisations 
+in the any-of-group, proposing different plans. 
 
 
 ## Test case 21 - Any-of-group runtime dependency
@@ -508,6 +511,10 @@ The result using Portage-ng:
 
 ![Portage-ng Output](../../Documentation/Tests/test23/expected-ng-23.png)  
 
+Note: If the proposed plan is not accepted, Portage-ng will backtrack over      
+available package versions and choice points, including realisations of the 
+exacly-one-of dependency, proposing different plans. 
+
 
 ## Test case 24 - Exactly-one-of runtime dependency
 
@@ -576,6 +583,10 @@ The result using Gentoo emerge:
 The result using Portage-ng: 
 
 ![Portage-ng Output](../../Documentation/Tests/test26/expected-ng-26.png)  
+
+Note: Portage-ng currently implements strong blocking dependencies through
+negation as failure using grounded facts. It is possible to use constraints 
+with ungrounded facts as well.
 
 
 ## Test case 27 - Weak blocking runtime dependency
