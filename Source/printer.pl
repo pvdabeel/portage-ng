@@ -49,8 +49,8 @@ printer:print_element(Repository://Entry:Action,rule(Repository://Entry:Action,_
   message:color(green),
   message:column(35,Repository://Entry),
   message:color(normal),
-  printer:print_iuse(Repository://Entry),
-  nl.
+  printer:print_iuse(Repository://Entry).
+
 
 
 % -------------------------------------------------
@@ -63,8 +63,7 @@ printer:print_element(_://_:_,rule(Repository://Entry:Action,_)) :-
   message:color(green),
   message:column(30,Repository://Entry),
   message:color(normal),
-  printer:print_iuse(Repository://Entry),
-  nl.
+  printer:print_iuse(Repository://Entry).
 
 
 % --------------------------------------------------------------
@@ -77,8 +76,7 @@ printer:print_element(_,rule(package_dependency(run,_,_C,_N,_,_,_,_),[Repository
   message:print('verify'),
   message:color(green),
   message:column(30,Repository://Entry),
-  message:color(normal),
-  nl.
+  message:color(normal).
 
 
 % ---------------------------------------------------------------
@@ -91,8 +89,7 @@ printer:print_element(_,rule(assumed(package_dependency(install,_,C,N,_,_,_,_)),
   atomic_list_concat([C,'/',N],P),
   message:column(25,P),
   message:print([' (non-existent, assumed installed)']),
-  message:color(normal),
-  nl.
+  message:color(normal).
 
 
 % -------------------------------------------------------------
@@ -105,8 +102,7 @@ printer:print_element(_,rule(assumed(package_dependency(run,_,C,N,_,_,_,_)),[]))
   atomic_list_concat([C,'/',N],P),
   message:column(25,P),
   message:print([' (non-existent, assumed running)']),
-  message:color(normal),
-  nl.
+  message:color(normal).
 
 
 % ----------------------------------
@@ -118,8 +114,7 @@ printer:print_element(_,assumed(rule(Repository://Entry:install,_Body))) :-
   message:print('assumed'),
   message:column(25,Repository://Entry),
   message:print(' (assumed installed)'),
-  message:color(normal),
-  nl.
+  message:color(normal).
 
 
 % --------------------------------
@@ -131,8 +126,7 @@ printer:print_element(_,assumed(rule(Repository://Entry:run,_Body))) :-
   message:print('assumed'),
   message:column(25,Repository://Entry),
   message:print(' (assumed running) '),
-  message:color(normal),
-  nl.
+  message:color(normal).
 
 
 % -------------------------------------
@@ -145,8 +139,7 @@ printer:print_element(_,assumed(rule(package_dependency(install,_,C,N,_,_,_,_),_
   atomic_list_concat([C,'/',N],P),
   message:column(25,P),
   message:print(' (assumed installed) '),
-  message:color(normal),
-  nl.
+  message:color(normal).
 
 
 % -----------------------------------
@@ -159,8 +152,7 @@ printer:print_element(_,assumed(rule(package_dependency(run,_,C,N,_,_,_,_),_Body
   atomic_list_concat([C,'/',N],P),
   message:column(25,P),
   message:print(' (assumed running) '),
-  message:color(normal),
-  nl.
+  message:color(normal).
 
 
 
@@ -295,7 +287,7 @@ printer:print_firststep(_,[]) :- !.
 printer:print_firststep(Target, [Rule|L]) :-
   printer:printable_element(Rule),
   !,
-  write(' -  STEP:  | '),
+  write(' └─ step ─┤ '),
   printer:print_element(Target,Rule),
   printer:print_nextstep(Target,L).
 
@@ -307,12 +299,13 @@ printer:print_firststep(Target,[_|L]) :-
 %
 % Print a step in a plan
 
-printer:print_nextstep(_,[]) :- nl,!.
+printer:print_nextstep(_,[]) :- nl,nl,!.
 
 printer:print_nextstep(Target,[Rule|L]) :-
   printer:printable_element(Rule),
   !,
-  write('           | '),
+  nl,
+  write('          │ '),
   printer:print_element(Target,Rule),
   printer:print_nextstep(Target,L).
 
