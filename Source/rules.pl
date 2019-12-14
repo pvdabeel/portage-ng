@@ -44,9 +44,10 @@ rule(Repository://Ebuild:run,[Repository://Ebuild:install|Deps]) :-
 rule(package_dependency(_,weak,_,_,_,_,_,_),[]) :- !.
 
 
-% Ignored for now: Conflicting package: EAPI 8.2.6.2: a strong block is satisfied when no suitable candidate is satisfied
+% Conflicting package: EAPI 8.2.6.2: a strong block is satisfied when no suitable candidate is satisfied
 
-rule(package_dependency(_,strong,_,_,_,_,_,_),[]) :- !.
+rule(package_dependency(Action,strong,C,N,_,_,_,_),Nafs) :-
+  findall(naf(Repository://Choice:Action),cache:entry(Repository,Choice,_,C,N,_,_),Nafs),!.
 
 
 % Dependencies on the system profile are assumed satisfied
@@ -145,3 +146,8 @@ rule(all_of_group(Deps),Deps) :- !.
 % Assumptions are assumed
 
 rule(assumed(_),[]) :- !.
+
+
+% Negation as failure
+
+rule(naf(_),[]) :- !.
