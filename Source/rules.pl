@@ -103,16 +103,32 @@ rule(package_dependency(Action,no,C,N,O,V,S,U),[assumed(package_dependency(Actio
   not(cache:entry(_,_,_,C,N,_,_)),!.
 
 
-% The dependencies in a use conditional group need to be satisfied when the use flag is set
+% The dependencies in a positive use conditional group need to be satisfied when the use flag is set
 
-rule(use_conditional_group(positive,U,D),D) :-
-  preference:use(Enabled),
-  member(U,Enabled),!.
+rule(use_conditional_group(positive,C,D),D) :-
+  preference:use(Use),
+  member(C,Use),!.
+
+rule(use_conditional_group(positive,C,_),[]) :-
+  preference:use(Use),
+  not(member(C,Use)),!.
 
 
-% Ignored for now: Use flag not enabled or non-positive use conditional group
+% The dependencies in a negative use conditional group need to be satisfied when the use is not set
 
-rule(use_conditional_group(_,_,_),[]) :- !.
+rule(use_conditional_group(negative,C,D),D) :-
+  preference:use(Use),
+  not(member(C,Use)),!.
+
+rule(use_conditional_group(negative,C,_),[]) :-
+  preference:use(Use),
+  member(C,Use),!.
+
+
+% Exactly one of the dependencies in an exactly-one-of-group should be satisfied
+
+rule(exactly_one_of_group(Deps),[D]) :-
+  member(D,Deps).
 
 
 % One dependency of an any_of_group should be satisfied
