@@ -49,6 +49,7 @@ printer:print_element(Repository://Entry:Action,rule(Repository://Entry:Action,_
   message:color(green),
   message:column(35,Repository://Entry),
   message:color(normal),
+  printer:print_iuse(Repository://Entry),
   nl.
 
 
@@ -62,6 +63,7 @@ printer:print_element(_://_:_,rule(Repository://Entry:Action,_)) :-
   message:color(green),
   message:column(30,Repository://Entry),
   message:color(normal),
+  printer:print_iuse(Repository://Entry),
   nl.
 
 
@@ -160,6 +162,72 @@ printer:print_element(_,assumed(rule(package_dependency(run,_,C,N,_,_,_,_),_Body
   message:color(normal),
   nl.
 
+
+
+%! printer:print_iuse(+Repository://+Entry)
+%
+% Prints the USE flags for a given repository
+
+printer:print_iuse(Repository://Entry) :-
+  ebuild:get(iuse,Repository://Entry,[]),!.
+
+printer:print_iuse(Repository://Entry) :-
+  message:print(' USE="'),
+  ebuild:get(iuse,Repository://Entry,IUseFlags),
+  preference:use(SystemEnabledFlags),
+  subtract(IUseFlags,SystemEnabledFlags,NegativeUse),
+  subtract(IUseFlags,NegativeUse,PositiveUse),
+  printer:print_use_flag_sets(PositiveUse,NegativeUse),
+  message:print('"'),nl.
+
+
+%! printer:print_use_flag_sets(+Positive,+Negative)
+%
+% Prints a list of Enabled and Disabled Use flags
+
+printer:print_use_flag_set([],Negative) :-
+  !,
+  printer:print_use_flag(Negative,negative).
+
+printer:print_use_flag_sets(Positive,Negative) :-
+  !,
+  printer:print_use_flag(Positive,positive),
+  printer:print_use_flag(Negative,negative).
+
+
+%! printer:print_use_flag(+Flags)
+%
+% Prints a list of USE flags
+
+printer:print_use_flag([],_) :-
+  !.
+
+printer:print_use_flag([Flag],positive) :-
+  message:color(red),
+  message:print(Flag),
+  message:color(normal),
+  !.
+
+printer:print_use_flag([Flag],negative) :-
+  message:color(magenta),
+  message:print('-'),
+  message:print(Flag),
+  message:color(normal),
+  !.
+
+printer:print_use_flag([Flag|Rest],positive) :-
+  message:color(red),
+  message:print(Flag),
+  message:print(' '),
+  message:color(normal),!,
+  printer:print_use_flag(Rest,positive).
+
+printer:print_use_flag([Flag|Rest],negative) :-
+  message:color(magenta),
+  message:print(Flag),
+  message:print(' -'),
+  message:color(normal),!,
+  printer:print_use_flag(Rest,negative).
 
 
 %! printer:check_assumptions(+Model)
