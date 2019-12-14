@@ -178,7 +178,7 @@ printer:print_iuse(Repository://Entry) :-
   subtract(IUseFlags,SystemEnabledFlags,NegativeUse),
   subtract(IUseFlags,NegativeUse,PositiveUse),
   printer:print_use_flag_sets(PositiveUse,NegativeUse),
-  message:print('"'),nl.
+  message:print('"').
 
 
 %! printer:print_use_flag_sets(+Positive,+Negative)
