@@ -1,8 +1,6 @@
 This is a Portage overlay in which each category contains a few ebuilds 
 set up to example to test package manager behaviour. 
 
-For each category "emerge -vp -e testX/web" to execute the test. 
- 
 
 ## Test case 01 - Dependencies
 
@@ -242,7 +240,6 @@ The result using Portage-ng:
 ![Portage-ng Output](../../Documentation/Tests/test11/expected-ng-11.png)  
 
 
-
 ## Test case 12 - Accept keywords
 
 This scenario defines the following runtime dependencies for "web"
@@ -281,8 +278,7 @@ The result using Portage-ng:
 ![Portage-ng Output](../../Documentation/Tests/test13/expected-ng-13.png)  
 
 
-
-## Test case 14 - Positive use conditional dependency
+## Test case 14 - Use conditional dependency (positive)
 
 This scenario defines the following runtime dependencies for "web"
 
@@ -300,9 +296,12 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test14/expected.png)
 
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test14/expected-ng-14.png)  
 
 
-## Test case 15 - Negative use conditional dependency
+## Test case 15 - Use conditional dependency (negative)
 
 This scenario defines the following runtime dependencies for "web"
 
@@ -319,6 +318,10 @@ The use conditional dependency:
 The result using Gentoo emerge: 
 
 ![Emerge Output](../../Documentation/Tests/test15/expected.png)
+
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test15/expected-ng-15.png)  
 
 
 ## Test case 16 - All-of-group dependency
@@ -339,6 +342,10 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test16/expected.png)
 
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test16/expected-ng-16.png)  
+
 
 ## Test case 17 - Exactly-one-of-group compile dependency
 
@@ -358,6 +365,10 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test17/expected.png)
 
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test17/expected-ng-17.png)  
+
 
 ## Test case 18 - Exactly-one-of-group runtime dependency
 
@@ -376,6 +387,10 @@ The exactly-one-of-group dependency:
 The result using Gentoo emerge: 
 
 ![Emerge Output](../../Documentation/Tests/test18/expected.png)
+
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test18/expected-ng-18.png)  
 
 
 
@@ -397,6 +412,9 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test19/expected.png)
 
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test19/expected-ng-19.png)  
 
 
 ## Test case 20 - Any-of-group compile dependency
@@ -417,6 +435,9 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test20/expected.png)
 
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test20/expected-ng-20.png)  
 
 
 ## Test case 21 - Any-of-group runtime dependency
@@ -437,6 +458,9 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test21/expected.png)
 
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test21/expected-ng-21.png)  
 
 
 ## Test case 22 - Any-of-group compile & runtime dependency
@@ -457,6 +481,10 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test22/expected.png)
 
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test21/expected-ng-22.png)  
+
 
 ## Test case 23 - Exactly-one-of compile dependency
 
@@ -475,6 +503,10 @@ The exactly-one-of-group dependency:
 The result using Gentoo emerge: 
 
 ![Emerge Output](../../Documentation/Tests/test23/expected.png)
+
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test23/expected-ng-23.png)  
 
 
 ## Test case 24 - Exactly-one-of runtime dependency
@@ -495,6 +527,10 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test24/expected.png)
 
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test24/expected-ng-24.png)  
+
 
 ## Test case 25 - Exactly-one-of compile & runtime dependency
 
@@ -513,6 +549,10 @@ The exactly-one-of-group dependency:
 The result using Gentoo emerge: 
 
 ![Emerge Output](../../Documentation/Tests/test25/expected.png)
+
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test25/expected-ng-25.png)  
 
 
 ## Test case 26 - Strong blocking runtime dependency
@@ -533,6 +573,9 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test26/expected.png)
 
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test26/expected-ng-26.png)  
 
 
 ## Test case 27 - Weak blocking runtime dependency
@@ -553,6 +596,9 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test27/expected.png)
 
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test27/expected-ng-27.png)  
 
 
 ## Test case 28 - Weak blocking runtime dependency
@@ -573,6 +619,9 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test28/expected.png)
 
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test28/expected-ng-28.png)  
 
 
 ## Test case 29 - Strong blocking compile & runtime dependency
@@ -593,6 +642,9 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test29/expected.png)
 
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test29/expected-ng-29.png)  
 
 
 ## Test case 30 - Weak blocking compile dependency
@@ -613,6 +665,9 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test30/expected.png)
 
+The result using Portage-ng: 
+
+![Portage-ng Output](../../Documentation/Tests/test30/expected-ng-30.png)  
 
 
 ## Test case 31 - Weak blocking compile & runtime dependency
@@ -633,4 +688,6 @@ The result using Gentoo emerge:
 
 ![Emerge Output](../../Documentation/Tests/test31/expected.png)
 
+The result using Portage-ng: 
 
+![Portage-ng Output](../../Documentation/Tests/test31/expected-ng-31.png)  
