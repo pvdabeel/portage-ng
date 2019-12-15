@@ -49,7 +49,7 @@ printer:print_element(Repository://Entry:Action,rule(Repository://Entry:Action,_
   message:color(green),
   message:column(38,Repository://Entry),
   message:color(normal),
-  printer:print_iuse(Repository://Entry).
+  printer:print_config(Repository://Entry).
 
 
 
@@ -63,7 +63,7 @@ printer:print_element(_://_:_,rule(Repository://Entry:Action,_)) :-
   message:color(green),
   message:column(33,Repository://Entry),
   message:color(normal),
-  printer:print_iuse(Repository://Entry).
+  printer:print_config(Repository://Entry).
 
 
 % --------------------------------------------------------------
@@ -155,22 +155,64 @@ printer:print_element(_,assumed(rule(package_dependency(run,_,C,N,_,_,_,_),_Body
   message:color(normal).
 
 
-%! printer:print_iuse(+Repository://+Entry)
+%! printer:print_conf_header(+Key,+Value)
 %
-% Prints the USE flags for a given repository
+% Prints the USE flags for a given repository entry
 
-printer:print_iuse(Repository://Entry) :-
-  ebuild:get(iuse_filtered,Repository://Entry,[]),!.
+printer:print_conf_header(Key,Value) :-
+  nl,write('             │          '),
+  message:color(darkgray),
+  message:print('└─ conf ─┤ '),
+  message:color(normal),
+  message:print(Key),
+  message:print(' = "'),
+  printer:print_iuse_set(Value),
+  message:print('"').
 
-printer:print_iuse(Repository://Entry) :-
-  ebuild:get(iuse_filtered,Repository://Entry,IUse),
-  message:print(' USE="'),
+
+%! printer:print_iuse_set(+Values)
+%
+% Prints the configuration values (USE or USE Expand flags)
+
+printer:print_iuse_set(Value) :-
   preference:use(Use),
-  subtract(IUse,Use,NegativeUse),
-  subtract(IUse,NegativeUse,PositiveUse),
+  subtract(Value,Use,NegativeUse),
+  subtract(Value,NegativeUse,PositiveUse),
   sort(NegativeUse,NegativeUseSorted),
   sort(PositiveUse,PositiveUseSorted),
-  printer:print_use_flag_sets(PositiveUseSorted,NegativeUseSorted),
+  printer:print_use_flag_sets(PositiveUseSorted,NegativeUseSorted).
+
+
+%! printer:print_config(+Repository://+Entry)
+%
+% Prints the configuration for a given repository entry (USE flags, USE expand, ...)
+
+printer:print_config(Repository://Entry) :-
+  ebuild:get(iuse,Repository://Entry,[]), !.
+
+printer:print_config(Repository://Entry) :-
+  ebuild:get(iuse,Repository://Entry,Iuse),
+  ebuild:get(iuse_filtered,Repository://Entry,Iuse_filtered),
+  printer:print_conf_header('use',Iuse_filtered),
+  forall(eapi:use_expand(Key),
+         (eapi:get_use_expand(Key,Iuse,Value),
+          printer:print_config_item(Key,Value))).
+
+
+%! printer:print_config_item(Key,Value)
+%
+% Prints a configuration item for a given repository entry
+
+printer:print_config_item(_,[]) :- !.
+
+printer:print_config_item(Key,Value) :-
+  nl,write('             │          '),
+  message:color(darkgray),
+  message:print('         │ '),
+  message:color(normal),
+  message:print(Key),
+  message:print(' = "'),
+  printer:print_iuse_set(Value),
   message:print('"').
 
 
@@ -281,11 +323,6 @@ printer:print_debug(_Model,_Proof,Plan) :-
 % Prints the body for a given plan and model, returns the number of printed steps
 
 printer:print_body(Target,Plan,Call,Steps) :-
-%  aggregate_all(count,(member(Step,Plan),
-%                (printer:print_first_in_step(Target,Step,Printed),
-%                 call(Call,Step),
-%                 Printed = true)),
-%                Steps).
   printer:print_steps_in_plan(Target,Plan,Call,0,Steps).
 
 

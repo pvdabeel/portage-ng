@@ -1490,15 +1490,21 @@ eapi:keys(['depend',
 %
 % Within the USE flags, some metadata is hidden that we want parsed out
 
-eapi:use_expand('abi').
+eapi:use_expand('abi_mips').
+eapi:use_expand('abi_ppc').
+eapi:use_expand('abi_riscv').
+eapi:use_expand('abi_s390').
+eapi:use_expand('abi_x86').
+eapi:use_expand('ada_target').
 eapi:use_expand('alsa_cards').
 eapi:use_expand('apache2_modules').
 eapi:use_expand('apache2_mpms').
 eapi:use_expand('calligra_features').
 eapi:use_expand('cameras').
 eapi:use_expand('collectd_plugins').
-eapi:use_expand('cpu_flags_x86').
 eapi:use_expand('cpu_flags_arm').
+eapi:use_expand('cpu_flags_ppc').
+eapi:use_expand('cpu_flags_x86').
 eapi:use_expand('curl_ssl').
 eapi:use_expand('elibc').
 eapi:use_expand('enlightenment_modules').
@@ -1513,13 +1519,13 @@ eapi:use_expand('libreoffice_extensions').
 eapi:use_expand('lirc_devices').
 eapi:use_expand('llvm_targets').
 eapi:use_expand('monkeyd_plugins').
+eapi:use_expand('mpi_fabrics').
 eapi:use_expand('netbeans_modules').
 eapi:use_expand('nginx_modules_http').
 eapi:use_expand('nginx_modules_mail').
 eapi:use_expand('nginx_modules_stream').
 eapi:use_expand('ofed_drivers').
 eapi:use_expand('office_implementation').
-eapi:use_expand('mpi_fabrics').
 eapi:use_expand('openmpi_ofed_features').
 eapi:use_expand('openmpi_rm').
 eapi:use_expand('php_targets').
@@ -1538,12 +1544,23 @@ eapi:use_expand('xfce_plugins').
 eapi:use_expand('xtables_addons').
 
 
-%! check_prefix_atom(+Prefix,+Atom)
+%! eapi:check_prefix_atom(+Prefix,+Atom)
 %
 % Predicate that checks whether an atom begins with a given Prefix
 
 eapi:check_prefix_atom(_,Atom) :- not(atom(Atom)), !, fail.
 eapi:check_prefix_atom(Prefix,Atom) :- atom_prefix(Atom,Prefix),!.
+
+
+%! eapi:strip_prefix_atom(+Prefix,+Atom,-Result)
+%
+% Predicate that strips a given prefix from an atom that begins with a given Prefix
+% Fails otherwise
+
+eapi:strip_prefix_atom(Prefix,Atom,Result) :-
+  sub_atom(Atom,0,A,_,Prefix),
+  B is A+1,
+  sub_atom(Atom,B,_,0,Result).
 
 
 %! eapi:check_use_expand_atom(+Atom)
@@ -1558,7 +1575,8 @@ eapi:check_use_expand_atom(Atom) :- eapi:use_expand(Key), eapi:check_prefix_atom
 % Retrieves use_expand meta information from the USE flags
 
 eapi:get_use_expand(Key,Use,Filtered) :-
-  include(eapi:check_prefix_atom(Key),Use,Filtered),!.
+  include(eapi:check_prefix_atom(Key),Use,FilteredLong),
+  convlist(eapi:strip_prefix_atom(Key),FilteredLong,Filtered),!.
 
 
 %! eapi:filter_use_expand(Use,Filtered)
