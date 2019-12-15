@@ -138,28 +138,28 @@ prover:fact(rule(_,[])) :- !.
 % PROVEN: A literal is proven if it is part of a given model
 % ----------------------------------------------------------
 
-prover:proven(Literal, Model) :- member(Literal,Model), !.
+prover:proven(Literal, Model) :- memberchk(Literal,Model), !.
 
 
 % -----------------------------------------------------------------------------
 % ASSUMED PROVEN: A literal is proven if its assumption is part of a given model
 % -----------------------------------------------------------------------------
 
-prover:assumed_proven(Literal, Model) :- member(assumed(Literal),Model), !.
+prover:assumed_proven(Literal, Model) :- memberchk(assumed(Literal),Model), !.
 
 
 % --------------------------------------------------------------
 % PROVING: A rule is being proven if it is part of a given proof
 % --------------------------------------------------------------
 
-prover:proving(Rule, Proof) :- member(Rule, Proof), !.
+prover:proving(Rule, Proof) :- memberchk(Rule, Proof), !.
 
 
 % ----------------------------------------------------------------------------------
 % ASSUMED PROVING: A rule is being proven if its assumption is part of a given proof
 % ----------------------------------------------------------------------------------
 
-prover:assumed_proving(rule(Literal,_), Proof) :- member(assumed(rule(Literal,[])), Proof) , !.
+prover:assumed_proving(rule(Literal,_), Proof) :- memberchk(assumed(rule(Literal,[])), Proof) , !.
 
 
 % ---------------------------------------------------------------------------------------------
@@ -170,7 +170,6 @@ prover:conflicts(naf(Literal), Model) :- prover:proven(Literal,Model),!.
 prover:conflicts(naf(Literal), Model) :- prover:assumed_proven(Literal,Model),!.
 
 prover:conflicts(Literal, Model) :- prover:proven(naf(Literal),Model),!.
-prover:conflicts(Literal, Model) :- prover:assumed_proven(naf(Literal),Model),!.
 
 
 % ------------------------------------------------------------------
@@ -181,8 +180,6 @@ prover:conflictrule(rule(naf(Literal),_), Proof) :- prover:proving(rule(Literal,
 prover:conflictrule(rule(naf(Literal),_), Proof) :- prover:assumed_proving(rule(Literal,_),Proof),!.
 
 prover:conflictrule(rule(Literal,_), Proof) :- !, prover:proving(rule(naf(Literal),_),Proof).
-prover:conflictrule(rule(Literal,_), Proof) :- !, prover:assumed_proving(rule(naf(Literal),_),Proof),!.
-
 
 
 % ---------------------------------------------------------------------------------------
@@ -244,7 +241,7 @@ prover:test(Repository,parallel_verbose) :-
                  time_limit_exceeded,
                  assert(prover:broken(Repository://E)))),
           Repository:entry(E),
-          Calls),
+          Calls),!,
   time(concurrent(Cpus,Calls,[])),!,
   message:inform(['proved ',S,' ',Repository,' entries.']).
 
