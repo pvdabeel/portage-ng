@@ -22,14 +22,14 @@ The contents of this file needs some rework. Probably to be moved into repositor
 %
 % Retrieves metadata from ebuild
 
-% -------------------------------------------------------------------------------------
-% CASE 1: A request for iuse. We strip meta information contained in the IUSE parameter
-% -------------------------------------------------------------------------------------
+% -------------------------------------------------------------------------------
+% CASE 1: A request for iuse. We strip use_expand contained in the IUSE parameter
+% -------------------------------------------------------------------------------
 
 ebuild:get(iuse_filtered,Repository://Entry,Content) :-
   cache:entry(Repository,Entry,_,_,_,_,Metadata),
   eapi:elem(iuse,Metadata,IUse),!,
-  eapi:filter_meta_use(IUse,Content).
+  eapi:filter_use_expand(IUse,Content).
 
 
 % ---------------------------------------------
@@ -41,23 +41,23 @@ ebuild:get(iuse_filtered,Repository://Entry,[]) :-
   not(eapi:elem(iuse,Metadata,_)),!.
 
 
-% ----------------------------------------------------------------------
-% CASE 3: A request for meta information contained in the IUSE parameter
-% ----------------------------------------------------------------------
+% ----------------------------------------------------------------------------
+% CASE 3: A request for use_expand information contained in the IUSE parameter
+% ----------------------------------------------------------------------------
 
 ebuild:get(Key,Repository://Entry,Content) :-
-  eapi:meta_use(Key),
+  eapi:use_expand(Key),
   cache:entry(Repository,Entry,_,_,_,_,Metadata),
   eapi:elem(iuse,Metadata,IUse),
-  eapi:get_meta_use(Key,IUse,Content),!.
+  eapi:get_use_expand(Key,IUse,Content),!.
 
 
-% ---------------------------------------------------------
-% CASE 4: A request for meta information. Iuse not declared
-% ---------------------------------------------------------
+% ---------------------------------------------------------------
+% CASE 4: A request for use_expand information. Iuse not declared
+% ---------------------------------------------------------------
 
 ebuild:get(Key,Repository://Entry,[]) :-
-  eapi:meta_use(Key),
+  eapi:use_expand(Key),
   cache:entry(Repository,Entry,_,_,_,_,Metadata),
   not(eapi:elem(Key,Metadata,_)),!.
 
@@ -72,7 +72,7 @@ ebuild:get(Key,Repository://Entry,Content) :-
 
 
 % -----------------------------------------------------------------------------
-% Case 6: Other metadata; Ebuild deos not declare metadata for the requested key
+% Case 6: Other metadata; Ebuild does not declare metadata for the requested key
 % ------------------------------------------------------------------------------
 
 ebuild:get(Key,Repository://Entry,[]) :-

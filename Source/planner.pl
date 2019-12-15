@@ -51,7 +51,6 @@ planner:zerorules([rule(Head,Body)|Rest],ZeroWeights,TempZeroWeights,ZeroRules,[
   planner:zerorules(Rest,ZeroWeights,TempZeroWeights,ZeroRules,NonZeroRules).
 
 
-
 %! planner:plan(+Rules,+Weights,+OldPlan,+NewPlan)
 %
 % Creates a plan by weighting rules

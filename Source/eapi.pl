@@ -1486,16 +1486,56 @@ eapi:keys(['depend',
            'unused']).
 
 
-%! eapi:meta_use(Key)
+%! eapi:use_expand(Keys)
 %
 % Within the USE flags, some metadata is hidden that we want parsed out
 
-eapi:meta_use('abi').
-eapi:meta_use('python_target').
-eapi:meta_use('python_single_target').
-eapi:meta_use('ruby_target').
-eapi:meta_use('ruby_single_target').
-eapi:meta_use('elibc').
+eapi:use_expand('abi').
+eapi:use_expand('alsa_cards').
+eapi:use_expand('apache2_modules').
+eapi:use_expand('apache2_mpms').
+eapi:use_expand('calligra_features').
+eapu:use_expand('cameras').
+eapi:use_expand('collectd_plugins').
+eapi:use_expand('cpu_flags_x86').
+eapi:use_expand('cpu_flags_arm').
+eapi:use_expand('curl_ssl').
+eapi:use_expand('elibc').
+eapi:use_expand('enlightenment_modules').
+eapi:use_expand('fftools').
+eapi:use_expand('gpsd_protocols').
+eapi:use_epxand('grub_platforms').
+eapi:use_expand('input_devices').
+eapi:use_expand('kernel').
+eapi:use_expand('l10n').
+eapi:use_expand('lcd_devices').
+eapi:use_expand('libreoffice_extensions').
+eapi:use_expand('lirc_devices').
+eapi:use_expand('llvm_targets').
+eapi:use_expand('monkeyd_plugins').
+eapi:use_expand('netbeans_modules').
+eapi:use_expand('nginx_modules_http').
+eapi:use_expand('nginx_modules_mail').
+eapi:use_expand('nginx_modules_stream').
+eapi:use_expand('ofed_drivers').
+eapi:use_expand('office_implementation').
+eapi:use_expand('mpi_fabrics').
+eapi:use_expand('openmpi_ofed_features').
+eapi:use_expandt'openmpi_rm').
+eapi:use_expand('php_targets').
+eapi:use_expand('postgres_targets').
+eapi:use_expand('python_single_target').
+eapi:use_expand('python_targets').
+eapi:use_expand('qemu_softmmu_targets').
+eapi:use_expand('qemu_user_targets').
+eapi:use_expand('ros_messages').
+eapi:use_expand('sane_backend').
+eapi:use_expand('userland').
+eapi:use_expand('uwsgi_plugins').
+eapi:use_expand('video_cards').
+eapi:use_expand('voicemail_storage').
+eapi:use_expand('xfce_plugins').
+eapi:use_expand('xtables_addons').
 
 
 %! check_prefix_atom(+Prefix,+Atom)
@@ -1506,27 +1546,27 @@ eapi:check_prefix_atom(_,Atom) :- not(atom(Atom)), !, fail.
 eapi:check_prefix_atom(Prefix,Atom) :- atom_prefix(Atom,Prefix),!.
 
 
-%! eapi:check_meta_atom(+Atom)
+%! eapi:check_use_expand_atom(+Atom)
 %
-% Predicate that checks whether an atom is a meta atom
+% Predicate that checks whether an atom is a use_expand atom
 
-eapi:check_meta_atom(Atom) :- eapi:meta_use(Key), eapi:check_prefix_atom(Key,Atom),!.
+eapi:check_use_expand_atom(Atom) :- eapi:use_expand(Key), eapi:check_prefix_atom(Key,Atom),!.
 
 
-%! eapi:get_meta_use(Key,Use,Filtered)
+%! eapi:get_use_expand(Key,Use,Filtered)
 %
-% Retrieves meta information from the USE flags
+% Retrieves use_expand meta information from the USE flags
 
-eapi:get_meta_use(Key,Use,Filtered) :-
+eapi:get_use_expand(Key,Use,Filtered) :-
   include(eapi:check_prefix_atom(Key),Use,Filtered),!.
 
 
-%! eapi:filter_meta_use(Use,Filtered)
+%! eapi:filter_use_expand(Use,Filtered)
 %
-% Filters meta information from the USE flags
+% Filters use_expand meta information from the USE flags
 
-eapi:filter_meta_use(Use,Filtered) :-
-  exclude(eapi:check_meta_atom,Use,Filtered),!.
+eapi:filter_use_expand(Use,Filtered) :-
+  exclude(eapi:check_use_expand_atom,Use,Filtered),!.
 
 
 %! eapi:elem(+Key,+Entry,-Content)
