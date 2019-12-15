@@ -1495,7 +1495,7 @@ eapi:use_expand('alsa_cards').
 eapi:use_expand('apache2_modules').
 eapi:use_expand('apache2_mpms').
 eapi:use_expand('calligra_features').
-eapu:use_expand('cameras').
+eapi:use_expand('cameras').
 eapi:use_expand('collectd_plugins').
 eapi:use_expand('cpu_flags_x86').
 eapi:use_expand('cpu_flags_arm').
@@ -1504,7 +1504,7 @@ eapi:use_expand('elibc').
 eapi:use_expand('enlightenment_modules').
 eapi:use_expand('fftools').
 eapi:use_expand('gpsd_protocols').
-eapi:use_epxand('grub_platforms').
+eapi:use_expand('grub_platforms').
 eapi:use_expand('input_devices').
 eapi:use_expand('kernel').
 eapi:use_expand('l10n').
@@ -1521,7 +1521,7 @@ eapi:use_expand('ofed_drivers').
 eapi:use_expand('office_implementation').
 eapi:use_expand('mpi_fabrics').
 eapi:use_expand('openmpi_ofed_features').
-eapi:use_expandt'openmpi_rm').
+eapi:use_expand('openmpi_rm').
 eapi:use_expand('php_targets').
 eapi:use_expand('postgres_targets').
 eapi:use_expand('python_single_target').
