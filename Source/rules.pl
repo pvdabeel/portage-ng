@@ -127,13 +127,13 @@ rule(use_conditional_group(negative,_,D),D) :- !.
 
 % Exactly one of the dependencies in an exactly-one-of-group should be satisfied
 
-rule(exactly_one_of_group(Deps),D) :-
+rule(exactly_one_of_group(Deps),[D]) :-
   member(D,Deps).
 
 
 % One dependency of an any_of_group should be satisfied
 
-rule(any_of_group(Deps),D) :-
+rule(any_of_group(Deps),[D]) :-
   member(D,Deps).
 
 
