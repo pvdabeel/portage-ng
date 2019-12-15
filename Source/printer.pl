@@ -47,7 +47,7 @@ printer:print_element(Repository://Entry:Action,rule(Repository://Entry:Action,_
   message:print(Action),
   message:style(bold),
   message:color(green),
-  message:column(35,Repository://Entry),
+  message:column(38,Repository://Entry),
   message:color(normal),
   printer:print_iuse(Repository://Entry).
 
@@ -61,7 +61,7 @@ printer:print_element(_://_:_,rule(Repository://Entry:Action,_)) :-
   message:color(cyan),
   message:print(Action),
   message:color(green),
-  message:column(30,Repository://Entry),
+  message:column(33,Repository://Entry),
   message:color(normal),
   printer:print_iuse(Repository://Entry).
 
@@ -75,7 +75,7 @@ printer:print_element(_,rule(package_dependency(run,_,_C,_N,_,_,_,_),[Repository
   message:color(cyan),
   message:print('confirm'),
   message:color(green),
-  message:column(30,Repository://Entry),
+  message:column(33,Repository://Entry),
   message:color(normal).
 
 
@@ -87,7 +87,7 @@ printer:print_element(_,rule(assumed(package_dependency(install,_,C,N,_,_,_,_)),
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
-  message:column(25,P),
+  message:column(28,P),
   message:print([' (non-existent, assumed installed)']),
   message:color(normal).
 
@@ -100,7 +100,7 @@ printer:print_element(_,rule(assumed(package_dependency(run,_,C,N,_,_,_,_)),[]))
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
-  message:column(25,P),
+  message:column(28,P),
   message:print([' (non-existent, assumed running)']),
   message:color(normal).
 
@@ -112,7 +112,7 @@ printer:print_element(_,rule(assumed(package_dependency(run,_,C,N,_,_,_,_)),[]))
 printer:print_element(_,assumed(rule(Repository://Entry:install,_Body))) :-
   message:color(red),
   message:print('verify'),
-  message:column(25,Repository://Entry),
+  message:column(28,Repository://Entry),
   message:print(' (assumed installed)'),
   message:color(normal).
 
@@ -124,7 +124,7 @@ printer:print_element(_,assumed(rule(Repository://Entry:install,_Body))) :-
 printer:print_element(_,assumed(rule(Repository://Entry:run,_Body))) :-
   message:color(red),
   message:print('verify'),
-  message:column(25,Repository://Entry),
+  message:column(28,Repository://Entry),
   message:print(' (assumed running) '),
   message:color(normal).
 
@@ -137,7 +137,7 @@ printer:print_element(_,assumed(rule(package_dependency(install,_,C,N,_,_,_,_),_
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
-  message:column(25,P),
+  message:column(28,P),
   message:print(' (assumed installed) '),
   message:color(normal).
 
@@ -150,7 +150,7 @@ printer:print_element(_,assumed(rule(package_dependency(run,_,C,N,_,_,_,_),_Body
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
-  message:column(25,P),
+  message:column(28,P),
   message:print(' (assumed running) '),
   message:color(normal).
 
@@ -272,51 +272,68 @@ printer:print_debug(_Model,_Proof,Plan) :-
   message:color(normal).
 
 
-%! printer:print_body(+Plan,+Model,-Steps)
+%! printer:print_body(+Plan,+Model,+Call,-Steps)
 %
 % Prints the body for a given plan and model, returns the number of printed steps
 
 printer:print_body(Target,Plan,Call,Steps) :-
-  aggregate_all(count,(member(Step,Plan),
-                (printer:print_first_in_step(Target,Step,Printed),
-                 call(Call,Step),
-                 Printed = true)),
-                Steps).
+%  aggregate_all(count,(member(Step,Plan),
+%                (printer:print_first_in_step(Target,Step,Printed),
+%                 call(Call,Step),
+%                 Printed = true)),
+%                Steps).
+  printer:print_steps_in_plan(Target,Plan,Call,0,Steps).
 
 
-%! printer:print_first_in_step(+Target,+Step,+Call,-Printed)
+
+%! printer:print_steps(+Target,+Plan,+Call,+Count,-NewCount)
+%
+% Print the steps in a plan
+
+printer:print_steps_in_plan(_,[],_,Count,Count) :- !.
+
+printer:print_steps_in_plan(Target,[Step|Rest],Call,Count,CountFinal) :-
+  printer:print_first_in_step(Target,Step,Count,CountNew),
+  call(Call,Step),!,
+  printer:print_steps_in_plan(Target,Rest,Call,CountNew,CountFinal).
+
+
+%! printer:print_first_in_step(+Target,+Step,+Call,+Count,-NewCount)
 %
 % Print a step in a plan
 
-printer:print_first_in_step(_,[],false) :- !.
+printer:print_first_in_step(_,[],Count,Count) :- !.
 
-printer:print_first_in_step(Target, [Rule|L],true) :-
+printer:print_first_in_step(Target,[Rule|Rest],Count,NewCount) :-
   printer:printable_element(Rule),
+  NewCount is Count + 1,
+  format(atom(AtomNewCount),'~t~0f~2|',[NewCount]),
   !,
-  write(' └─ step ─┤ '),
+  write(' └─ step '),write(AtomNewCount), write(' ─┤ '),
   printer:print_element(Target,Rule),
-  printer:print_next_in_step(Target,L).
+  printer:print_next_in_step(Target,Rest).
 
-printer:print_first_in_step(Target,[_|L],Printed) :-
-  printer:print_first_in_step(Target,L,Printed).
+printer:print_first_in_step(Target,[_|Rest],Count,NewCount) :-
+  printer:print_first_in_step(Target,Rest,Count,NewCount).
 
 
-%! printer:print_next_in_step(+Step)
+%! printer:print_next_in_step(+Target,+Step)
 %
 % Print a step in a plan
 
 printer:print_next_in_step(_,[]) :- nl,nl,!.
 
-printer:print_next_in_step(Target,[Rule|L]) :-
+printer:print_next_in_step(Target,[Rule|Rest]) :-
   printer:printable_element(Rule),
   !,
   nl,
-  write('          │ '),
+  write('             │ '),
   printer:print_element(Target,Rule),
-  printer:print_next_in_step(Target,L).
+  printer:print_next_in_step(Target,Rest).
 
-printer:print_next_in_step(Target,[_|L]) :-
-  printer:print_next_in_step(Target,L).
+printer:print_next_in_step(Target,[_|Rest]) :-
+  !,
+  printer:print_next_in_step(Target,Rest).
 
 
 %! printer:print_footer(+Plan)
