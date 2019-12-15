@@ -30,8 +30,9 @@ rule(Repository://Identifier:_,[]) :-
 rule(Repository://Ebuild:install,[constraint(slot(Cat,Name,Slot):{[Ebuild]})|Deps]) :-
   ebuild:get(depend,Repository://Ebuild,Deps),
   ebuild:get(slot,Repository://Ebuild,Slots),
-  member(slot(Slot),Slots),
+  memberchk(slot(Slot),Slots),
   Repository:ebuild(Ebuild,Cat,Name,_).
+
 
 % An ebuild can be run, if it is installed and if its runtime dependencies are satisfied
 
@@ -46,8 +47,10 @@ rule(package_dependency(_,weak,_,_,_,_,_,_),[]) :- !.
 
 % Conflicting package: EAPI 8.2.6.2: a strong block is satisfied when no suitable candidate is satisfied
 
-rule(package_dependency(Action,strong,C,N,_,_,_,_),Nafs) :-
-  findall(naf(Repository://Choice:Action),cache:entry(Repository,Choice,_,C,N,_,_),Nafs),!.
+rule(package_dependency(_Action,strong,_C,_N,_,_,_,_),[]) :- !.
+
+%rule(package_dependency(Action,strong,C,N,_,_,_,_),Nafs) :-
+%  findall(naf(Repository://Choice:Action),cache:entry(Repository,Choice,_,C,N,_,_),Nafs),!.
 
 
 % Dependencies on the system profile are assumed satisfied
@@ -108,33 +111,33 @@ rule(package_dependency(Action,no,C,N,O,V,S,U),[assumed(package_dependency(Actio
 
 rule(use_conditional_group(positive,C,D),D) :-
   preference:use(Use),
-  member(C,Use),!.
+  memberchk(C,Use),!.
 
-rule(use_conditional_group(positive,C,_),[]) :-
-  preference:use(Use),
-  not(member(C,Use)),!.
+rule(use_conditional_group(positive,_,_),[]) :- !.
+  % preference:use(Use),
+  % not(memberchk(C,Use)).
 
 
 % The dependencies in a negative use conditional group need to be satisfied when the use is not set
 
 rule(use_conditional_group(negative,C,D),D) :-
   preference:use(Use),
-  not(member(C,Use)),!.
+  not(memberchk(C,Use)),!.
 
-rule(use_conditional_group(negative,C,_),[]) :-
-  preference:use(Use),
-  member(C,Use),!.
+rule(use_conditional_group(negative,_,_),[]) :- !.
+  % preference:use(Use),
+  % member(C,Use).
 
 
 % Exactly one of the dependencies in an exactly-one-of-group should be satisfied
 
-rule(exactly_one_of_group(Deps),[D]) :-
+rule(exactly_one_of_group(Deps),D) :-
   member(D,Deps).
 
 
 % One dependency of an any_of_group should be satisfied
 
-rule(any_of_group(Deps),[D]) :-
+rule(any_of_group(Deps),D) :-
   member(D,Deps).
 
 
