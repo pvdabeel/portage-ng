@@ -178,9 +178,13 @@ printer:print_iuse(Repository://Entry) :-
 %
 % Prints a list of Enabled and Disabled Use flags
 
-printer:print_use_flag_set([],Negative) :-
+printer:print_use_flag_sets([],Negative) :-
   !,
   printer:print_use_flag(Negative,negative).
+
+printer:print_use_flag_sets(Positive,[]) :-
+  !,
+  printer:print_use_flag(Positive,positive).
 
 printer:print_use_flag_sets(Positive,Negative) :-
   !,
