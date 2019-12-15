@@ -55,15 +55,18 @@ rule(package_dependency(_Action,strong,_C,_N,_,_,_,_),[]) :- !.
 
 % Dependencies on the system profile are assumed satisfied
 
-rule(package_dependency(_,no,'sys-apps','baselayout',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'app-arch','bzip2',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'app-arch','gzip',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'app-arch','tar',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'app-arch','xz-utils',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'app-shells','bash',_,_,_,_),[]) :- !.
+rule(package_dependency(_,no,'dev-lang','perl',_,_,_,_),[]) :- !.
+rule(package_dependency(_,no,'dev-lang','python',_,_,_,_),[]) :- !.
+rule(package_dependency(_,no,'dev-libs','libpcre',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'net-misc','iputils',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'net-misc','rsync',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'net-misc','wget',_,_,_,_),[]) :- !.
+rule(package_dependency(_,no,'sys-apps','baselayout',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'sys-apps','coreutils',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'sys-apps','diffutils',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'sys-apps','file',_,_,_,_),[]) :- !.
@@ -72,15 +75,19 @@ rule(package_dependency(_,no,'sys-apps','gawk',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'sys-apps','grep',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'sys-apps','kbd',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'sys-apps','less',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-process','procps',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-process','psmisc',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'sys-apps','sed',_,_,_,_),[]) :- !.
+rule(package_dependency(_,no,'sys-apps','util-linux',_,_,_,_),[]) :- !.
+rule(package_dependency(_,no,'sys-devel','automake',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'sys-devel','binutils',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'sys-devel','gcc',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'sys-devel','gnuconfig',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'sys-devel','make',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'sys-devel','patch',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'sys-fs','e2fsprogs',_,_,_,_),[]) :- !.
+rule(package_dependency(_,no,'sys-libs','ncurses',_,_,_,_),[]) :- !.
+rule(package_dependency(_,no,'sys-libs','readline',_,_,_,_),[]) :- !.
+rule(package_dependency(_,no,'sys-process','procps',_,_,_,_),[]) :- !.
+rule(package_dependency(_,no,'sys-process','psmisc',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'virtual','dev-manager',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'virtual','editor',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'virtual','libc',_,_,_,_),[]) :- !.
