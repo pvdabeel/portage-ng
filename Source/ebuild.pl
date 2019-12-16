@@ -91,6 +91,22 @@ ebuild:download(Repository://Entry,B,S) :-
   Repository:ebuild(Entry,Category,Name,_),
   Repository:manifest(_,Category,Name,Manifest),
   member(manifest(dist,B,S,_),Manifest),
-  (member(uri(B),U);
-   member(uri(_,_,B),U);
-   (member(uri(_,P,_),U),file_base_name(P,B))).
+  member(uri(Bs),U),
+  atom_string(B,Bs).
+
+ebuild:download(Repository://Entry,B,S) :-
+  ebuild:get(src_uri,Repository://Entry,U),
+  Repository:ebuild(Entry,Category,Name,_),
+  Repository:manifest(_,Category,Name,Manifest),
+  member(manifest(dist,B,S,_),Manifest),
+  member(uri(_,_,Bs),U),
+  atom_string(B,Bs).
+
+ebuild:download(Repository://Entry,B,S) :-
+  ebuild:get(src_uri,Repository://Entry,U),
+  Repository:ebuild(Entry,Category,Name,_),
+  Repository:manifest(_,Category,Name,Manifest),
+  member(manifest(dist,B,S,_),Manifest),
+  member(uri(_,P,_),U),
+  file_base_name(P,Bs),
+  atom_string(Bs,B).
