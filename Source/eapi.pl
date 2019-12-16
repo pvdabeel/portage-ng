@@ -719,14 +719,15 @@ eapi:version2atom(N,S,A) :-
   atomic_list_concat([Naa,Saa],A).
 
 
-
 %! DCG: md5
 %
 % EAPI 5 - defines _md5_ metadata
 
 eapi:md5(M) -->
   eapi:pchars(Ms),
-  { convlist(string_codes,Ms,M) }.
+  { convlist(codes_string,Ms,M) }.
+
+codes_string(A,B) :- string_codes(B,A),!.
 
 
 %! DCG: slot_restriction
