@@ -49,7 +49,7 @@ printer:print_element(Repository://Entry:Action,rule(Repository://Entry:Action,_
   message:color(green),
   message:column(38,Repository://Entry),
   message:color(normal),
-  printer:print_config(Repository://Entry).
+  printer:print_config(Repository://Entry:Action).
 
 
 
@@ -63,7 +63,7 @@ printer:print_element(_://_:_,rule(Repository://Entry:Action,_)) :-
   message:color(green),
   message:column(33,Repository://Entry),
   message:color(normal),
-  printer:print_config(Repository://Entry).
+  printer:print_config(Repository://Entry:Action).
 
 
 % --------------------------------------------------------------
@@ -181,14 +181,24 @@ printer:split_iuse_set(Iuse,PositiveUseSorted,NegativeUseSorted) :-
   sort(PositiveUse,PositiveUseSorted).
 
 
-%! printer:print_config(+Repository://+Entry)
+%! printer:print_config(+Repository://+Entry:+Action)
 %
 % Prints the configuration for a given repository entry (USE flags, USE expand, ...)
 
-printer:print_config(Repository://Entry) :-
+% ------------------------
+% CASE 1 : Download action
+% ------------------------
+
+printer:print_config(Repository://Entry:download) :- !.
+
+% -----------------------
+% CASE 2 : Install action
+% -----------------------
+
+printer:print_config(Repository://Entry:install) :-
   ebuild:get(iuse,Repository://Entry,[]), !.
 
-printer:print_config(Repository://Entry) :-
+printer:print_config(Repository://Entry:install) :-
   ebuild:get(iuse,Repository://Entry,Iuse),
   ebuild:get(iuse_filtered,Repository://Entry,IuseFiltered),
   printer:split_iuse_set(IuseFiltered,Positive,Negative),
@@ -199,6 +209,12 @@ printer:print_config(Repository://Entry) :-
           eapi:shorten_use_expand(Key,LongPosValue,PosValue),
           eapi:shorten_use_expand(Key,LongNegValue,NegValue),
           printer:print_config_item(Key,PosValue,NegValue))).
+
+% -------------------
+% CASE 3 : Run action
+% -------------------
+
+printer:print_config(Repository://Entry:run) :- !.
 
 
 %! printer:print_config_item(Key,Value)
