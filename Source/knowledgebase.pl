@@ -99,7 +99,9 @@ save ::-
   tell('kb.raw'),
   writeln(':- module(cache,[]).'),
   writeln(':- dynamic cache:entry(_,_,_,_,_,_,_).'),
+  writeln(':- dynamic cache:manifest(_,_,_,_,_,_).'),
   prolog_listing:listing(cache:entry(_,_,_,_,_,_,_)),
+  prolog_listing:listing(cache:manifest(_,_,_,_,_,_,_)),
   told,
   qcompile('kb.raw'),!.
 

@@ -53,15 +53,17 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 :- dpublic(get_ebuild/2).
 
 
-:- dpublic(read_entry/5).
+:- dpublic(find_metadata/5).
+:- dpublic(find_manifest/3).
+
 :- dpublic(read_time/1).
 :- dpublic(read_time/1).
-:- dpublic(read_manifest/3).
 
 
 % protected interface
 
-:- dprotected(read_metadata/3).
+:- dpublic(read_metadata/3).
+:- dpublic(read_manifest/5).
 
 :- dprotected(location/1).
 :- dprotected(cache/1).
@@ -163,16 +165,20 @@ sync(metadata) ::-
 
 sync(kb) ::-
   :this(Repository),
-  forall(:read_entry(E,L,C,N,V),
+  forall(:find_metadata(E,L,C,N,V),
          (:read_metadata(E,L,M),
           retractall(cache:entry(Repository,E,_,_,_,_,_)),
           assert(cache:entry(Repository,E,L,C,N,V,M)),
           message:scroll([E]))),
+  forall(:find_manifest(E,C,N),
+         (:read_manifest(E,T,C,N,M),
+          retractall(cache:manifest(Repository,E,_,_,_,_,_)),
+          assert(cache:manifest(Repository,E,T,C,N,M)),
+          message:scroll([E]))),
   message:inform(['Updated prolog knowledgebase']).
 
 
-
-%! repository:read_entry(+Entry, -Timestamp, -Category, -Name, -Version)
+%! repository:find_metadata(?Entry, -Timestamp, -Category, -Name, -Version)
 %
 % Public predicate
 %
@@ -180,7 +186,7 @@ sync(kb) ::-
 % of the cache entry, its category, name and version
 % Disk access required
 
-read_entry(Entry,Timestamp,Category,Name,Version) ::-
+find_metadata(Entry,Timestamp,Category,Name,Version) ::-
   ::cache(Cache),!,
   os:directory_content(Cache,Category),
   os:compose_path(Cache,Category,CategoryDir),
@@ -191,22 +197,24 @@ read_entry(Entry,Timestamp,Category,Name,Version) ::-
   system:time_file(File,Timestamp).
 
 
-%! repository:read_manifest(+Category, +Name, -Manifest)
+%! repository:find_manifest(?Manifest, -Category, -Name)
 %
 % Public predicate
 %
 % Retrieves manifest infofmration
 % Disk access required
 
-read_manifest(Category,Name,Manifest) ::-
+find_manifest(Entry,Category,Name) ::-
   ::location(Location),
   ::cache(Cache),
-  os:directory_content(Cache,Category),
-  os:compose_path(Location,Category,CategoryDir),
-  os:directory_content(CategoryDir,Name),
-  os:compose_path(CategoryDir,Name,PackageDir),
-  exists_directory(PackageDir),
-  os:compose_path(PackageDir,'Manifest',Manifest).
+  catch((
+   os:directory_content(Cache,Category),
+   os:compose_path(Location,Category,CategoryDir),
+   os:directory_content(CategoryDir,Name),
+   os:compose_path(CategoryDir,Name,PackageDir),
+   exists_directory(PackageDir),
+   os:compose_path(PackageDir,'Manifest',Entry)),_,
+  fail).
 
 
 %! repository:read_metadata(+Entry, -Timestamp, -Metadata)
@@ -227,6 +235,26 @@ read_metadata(Entry,_,Metadata) ::-
   parser:invoke(metadata,Contents,Metadata),!.
 
 read_metadata(Entry,_,[]) ::-
+  message:failure(['Failed to parse ',Entry,' metadata cache!']),!.
+
+
+%! repository:read_manifest(+Entry, +Category, +Name, -Manifest)
+%
+% Public predicate
+%
+% Reads the manifest for a given entry from disk if
+% it is new of has been modifed
+
+read_manifest(Entry,Timestamp,Category,Name,Manifest) ::-
+  :this(Repository),
+  cache:manifest(Repository,Entry,Timestamp,Category,Name,Manifest),!.
+
+read_manifest(Entry,_,_,_,Manifest) ::-
+  message:scroll([Entry]),
+  reader:invoke(Entry,Contents),
+  parser:invoke(manifest,Contents,Manifest),!.
+
+read_manifest(Entry,_,_,_,[]) ::-
   message:failure(['Failed to parse ',Entry,' metadata cache!']),!.
 
 
@@ -337,9 +365,9 @@ ebuild(Id,Category,Name,Version,Metadata) ::-
 % Retrieves manifest data
 % No disk access - initial sync required
 
-manifest(Category,Name,Manifest) ::-
+manifest(Id,Category,Name,Manifest) ::-
   :this(Repository),
-  cache:manifest(Repository,Category,Name,Manifest).
+  cache:manifest(Repository,Id,_,Category,Name,Manifest).
 
 
 %! repository:query(+Query,-Result)
