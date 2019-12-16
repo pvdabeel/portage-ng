@@ -725,7 +725,8 @@ eapi:version2atom(N,S,A) :-
 % EAPI 5 - defines _md5_ metadata
 
 eapi:md5(M) -->
-  eapi:pchars(M).
+  eapi:pchars(Ms),
+  { string_codes(M,Ms) }.
 
 
 %! DCG: slot_restriction
