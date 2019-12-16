@@ -1087,10 +1087,11 @@ eapi:uri(uri(P,B,L)) -->
   eapi:arrow(Ls),          % optional
   { string_codes(P,Ps),
     string_codes(B,Bs),
-    string_codes(L,Ls), ! }.
+    string_codes(L,Ls),! }.
 
 eapi:uri(uri(P)) -->
-  eapi:untilstop1(P),!.
+  eapi:untilstop1(Ps),
+  { string_codes(P,Ps),! }.
 
 
 % DCG protocol
