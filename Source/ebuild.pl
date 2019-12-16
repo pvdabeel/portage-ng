@@ -80,3 +80,17 @@ ebuild:get(Key,Repository://Entry,Content) :-
 ebuild:get(Key,Repository://Entry,[]) :-
   cache:entry(Repository,Entry,_,_,_,_,Metadata),
   not(eapi:elem(Key,Metadata,_)),!.
+
+
+%! ebuild:download(+Repository://Entry,B,S)
+%
+% Retrieves download filename and corresponding filesize for a given Entry
+
+ebuild:download(Repository://Entry,B,S) :-
+  ebuild:get(src_uri,Repository://Entry,U),
+  Repository:ebuild(Entry,Category,Name,_),
+  Repository:manifest(_,Category,Name,Manifest),
+  member(manifest(dist,B,S,_),Manifest),
+  (member(uri(B),U);
+   member(uri(_,_,B),U);
+   (member(uri(_,P,_),U),file_base_name(P,B))),!.
