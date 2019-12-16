@@ -93,4 +93,4 @@ ebuild:download(Repository://Entry,B,S) :-
   member(manifest(dist,B,S,_),Manifest),
   (member(uri(B),U);
    member(uri(_,_,B),U);
-   (member(uri(_,P,_),U),file_base_name(P,B))),!.
+   (member(uri(_,P,_),U),file_base_name(P,B))).
