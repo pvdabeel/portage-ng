@@ -164,21 +164,21 @@ eapi:value("_md5_",md5(R)) -->
   !,
   eapi:md5(R).
 
-eapi:value("EBUILD",manifest(ebuild,R)) -->
+eapi:value("EBUILD",manifest(ebuild,F,S,H)) -->
   !,
-  eapi:unused(R).
+  eapi:manifest(F,S,H).
 
-eapi:value("MISC",manifest(misc,R)) -->
+eapi:value("MISC",manifest(misc,F,S,H)) -->
   !,
-  eapi:unused(R).
+  eapi:manifest(F,S,H).
 
-eapi:value("AUX",manifest(aux,R)) -->
+eapi:value("AUX",manifest(aux,F,S,H)) -->
   !,
-  eapi:unused(R).
+  eapi:manifest(F,S,H).
 
-eapi:value("DIST",manifest(dist,R)) -->
+eapi:value("DIST",manifest(dist,F,S,H)) -->
   !,
-  eapi:unused(R).
+  eapi:manifest(F,S,H).
 
 eapi:value(_,unused(R)) -->
   !,
@@ -262,6 +262,19 @@ eapi:license(L) -->
 eapi:description(D) -->
   eapi:skip(Ds),
   { string_codes(D,Ds) }.
+
+
+%! DCG manifest
+%
+% A Manifest contains a filename, file size, and hashes
+
+eapi:manifest(F,S,H) -->
+  eapi:manichars(Fs),
+  eapi:manichars(Ss),
+  eapi:skip(Hs),
+  { string_codes(F,Fs),
+    string_codes(S,Ss),
+    string_codes(H,Hs) }.
 
 
 %! DCG unused
