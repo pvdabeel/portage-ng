@@ -1076,7 +1076,6 @@ eapi:untilstop1(C) -->
   { not(C = []) }.
 
 
-
 %! DCG uri
 %
 % EAPI 4 - 9.2 defines URI
@@ -1085,9 +1084,10 @@ eapi:uri(uri(P,B,L)) -->
   eapi:proto(Ps),          % required
   [58,47,47],!,            % required ://
   eapi:untilstop(Bs),      % required
-  eapi:arrow(L),           % optional
+  eapi:arrow(Ls),          % optional
   { string_codes(P,Ps),
-    string_codes(B,Bs), ! }.
+    string_codes(B,Bs),
+    string_codes(L,Ls), ! }.
 
 eapi:uri(uri(P)) -->
   eapi:untilstop1(P),!.
