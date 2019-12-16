@@ -24,10 +24,18 @@ rule(Repository://Identifier:_,[]) :-
   preference:masked(Repository://Identifier),!.
 
 
-% An ebuild can be installed, if its compiletime dependencies are satisfied and
-% if it can occupy an installation slot
+% An ebuild is downloaded if its sources are downloaded
 
-rule(Repository://Ebuild:install,[constraint(slot(Cat,Name,Slot):{[Ebuild]})|Deps]) :-
+rule(Repository://Ebuild:download,[]) :-
+  ebuild:get(src_uri,Repository://Ebuild,_), !.
+
+
+% An ebuild can be installed, if the following conditions are satisfied:
+% - it is downloaded
+% - its compiletime dependencies are satisfied
+% - it can occupy an installation slot
+
+rule(Repository://Ebuild:install,[Repository://Ebuild:download,constraint(slot(Cat,Name,Slot):{[Ebuild]})|Deps]) :-
   ebuild:get(depend,Repository://Ebuild,Deps),
   ebuild:get(slot,Repository://Ebuild,Slots),
   memberchk(slot(Slot),Slots),

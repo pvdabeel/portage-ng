@@ -186,10 +186,11 @@ printer:split_iuse_set(Iuse,PositiveUseSorted,NegativeUseSorted) :-
 % Prints the configuration for a given repository entry (USE flags, USE expand, ...)
 
 % ------------------------
-% CASE 1 : Download action
+% CASE 1 : download action
 % ------------------------
 
 printer:print_config(_://_:download) :- !.
+
 
 % -----------------------
 % CASE 2 : Install action
@@ -208,13 +209,21 @@ printer:print_config(Repository://Entry:install) :-
           printer:split_iuse_set(LongValue,LongPosValue,LongNegValue),
           eapi:shorten_use_expand(Key,LongPosValue,PosValue),
           eapi:shorten_use_expand(Key,LongNegValue,NegValue),
-          printer:print_config_item(Key,PosValue,NegValue))).
+          printer:print_config_item(Key,PosValue,NegValue))),!.
+
 
 % -------------------
 % CASE 3 : Run action
 % -------------------
 
 printer:print_config(_://_:run) :- !.
+
+
+% ----------------------
+% CASE 4 : Other actions
+% ----------------------
+
+printer:print_config(_://_:_) :- !.
 
 
 %! printer:print_config_item(Key,Value)
