@@ -29,7 +29,8 @@ The contents of this file needs some rework. Probably to be moved into repositor
 ebuild:get(iuse_filtered,Repository://Entry,Content) :-
   cache:entry(Repository,Entry,_,_,_,_,Metadata),
   eapi:elem(iuse,Metadata,IUse),!,
-  eapi:filter_use_expand(IUse,Content).
+  eapi:filter_use_defaults(IUse,IUseFiltered),
+  eapi:filter_use_expand(IUseFiltered,Content).
 
 
 % ---------------------------------------------
@@ -49,7 +50,8 @@ ebuild:get(Key,Repository://Entry,Content) :-
   eapi:use_expand(Key),
   cache:entry(Repository,Entry,_,_,_,_,Metadata),
   eapi:elem(iuse,Metadata,IUse),
-  eapi:get_use_expand(Key,IUse,Content),!.
+  eapi:filter_usedefaults(IUse,IUseFiltered),
+  eapi:get_use_expand(Key,IUseFiltered,Content),!.
 
 
 % ---------------------------------------------------------------

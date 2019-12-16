@@ -1563,6 +1563,15 @@ eapi:strip_prefix_atom(Prefix,Atom,Result) :-
   sub_atom(Atom,B,_,0,Result).
 
 
+%! eapi:strip_use_default(+Use,-NewUse)
+%
+% Strip plus(..) and minus(..) use default information from a use flag
+
+eapi:strip_use_default(plus(Use),Use) :- !.
+eapi:strip_use_default(minus(Use),Use) :- !.
+eapi:strip_use_default(Use,Use) :- !.
+
+
 %! eapi:check_use_expand_atom(+Atom)
 %
 % Predicate that checks whether an atom is a use_expand atom
@@ -1570,16 +1579,31 @@ eapi:strip_prefix_atom(Prefix,Atom,Result) :-
 eapi:check_use_expand_atom(Atom) :- eapi:use_expand(Key), eapi:check_prefix_atom(Key,Atom),!.
 
 
-%! eapi:get_use_expand(Key,Use,Filtered)
+%! eapi:get_use_expand(+Key,+Use,-Filtered)
 %
 % Retrieves use_expand meta information from the USE flags
 
 eapi:get_use_expand(Key,Use,Filtered) :-
-  include(eapi:check_prefix_atom(Key),Use,FilteredLong),
-  convlist(eapi:strip_prefix_atom(Key),FilteredLong,Filtered),!.
+  include(eapi:check_prefix_atom(Key),Use,Filtered).
 
 
-%! eapi:filter_use_expand(Use,Filtered)
+%! eapi:shorten_use_expand(+Key,+Long,-Short)
+%
+% Shortens use_expand meta information for a given prefix.
+
+eapi:shorten_use_expand(Key,Long,Short) :-
+  convlist(eapi:strip_prefix_atom(Key),Long,Short),!.
+
+
+%! eapi:filter_use_defaults(+Use,-Filtered)
+%
+% Filterd use default information from the USE flags
+
+eapi:filter_use_defaults(Use,Filtered) :-
+  convlist(eapi:strip_use_default,Use,Filtered).
+
+
+%! eapi:filter_use_expand(+Use,-Filtered)
 %
 % Filters use_expand meta information from the USE flags
 
