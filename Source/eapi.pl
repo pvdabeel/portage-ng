@@ -726,7 +726,7 @@ eapi:version2atom(N,S,A) :-
 
 eapi:md5(M) -->
   eapi:pchars(Ms),
-  { string_codes(M,Ms) }.
+  { convlist(string_codes,Ms,M) }.
 
 
 %! DCG: slot_restriction
