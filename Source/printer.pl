@@ -159,28 +159,26 @@ printer:print_element(_,assumed(rule(package_dependency(run,_,C,N,_,_,_,_),_Body
 %
 % Prints the USE flags for a given repository entry
 
-printer:print_conf_header(Key,Value) :-
+printer:print_conf_header(Key,Positive,Negative) :-
   nl,write('             │          '),
   message:color(darkgray),
   message:print('└─ conf ─┤ '),
   message:color(normal),
   message:print(Key),
   message:print(' = "'),
-  printer:print_iuse_set(Value),
+  printer:print_use_flag_sets(Positive,Negative),
   message:print('"').
 
-
-%! printer:print_iuse_set(+Values)
+%! printer:split_iuse_set(+Values,-Positive,-Negative)
 %
 % Prints the configuration values (USE or USE Expand flags)
 
-printer:print_iuse_set(Value) :-
+printer:split_iuse_set(Iuse,PositiveUseSorted,NegativeUseSorted) :-
   preference:use(Use),
-  subtract(Value,Use,NegativeUse),
-  subtract(Value,NegativeUse,PositiveUse),
+  subtract(Iuse,Use,NegativeUse),
+  subtract(Iuse,NegativeUse,PositiveUse),
   sort(NegativeUse,NegativeUseSorted),
-  sort(PositiveUse,PositiveUseSorted),
-  printer:print_use_flag_sets(PositiveUseSorted,NegativeUseSorted).
+  sort(PositiveUse,PositiveUseSorted).
 
 
 %! printer:print_config(+Repository://+Entry)
@@ -192,27 +190,34 @@ printer:print_config(Repository://Entry) :-
 
 printer:print_config(Repository://Entry) :-
   ebuild:get(iuse,Repository://Entry,Iuse),
-  ebuild:get(iuse_filtered,Repository://Entry,Iuse_filtered),
-  printer:print_conf_header('use',Iuse_filtered),
+  ebuild:get(iuse_filtered,Repository://Entry,IuseFiltered),
+  printer:split_iuse_set(IuseFiltered,Positive,Negative),
+  printer:print_conf_header('use',Positive,Negative),
   forall(eapi:use_expand(Key),
-         (eapi:get_use_expand(Key,Iuse,Value),
-          printer:print_config_item(Key,Value))).
+         (eapi:get_use_expand(Key,Iuse,LongValue),
+          printer:split_iuse_set(LongValue,LongPosValue,LongNegValue),
+          eapi:shorten_use_expand(Key,LongPosValue,PosValue),
+          eapi:shorten_use_expand(Key,LongNegValue,NegValue),
+          printer:print_config_item(Key,PosValue,NegValue))).
 
 
 %! printer:print_config_item(Key,Value)
 %
 % Prints a configuration item for a given repository entry
 
-printer:print_config_item(_,[]) :- !.
+printer:print_config_item(_,[],[]) :- !.
 
-printer:print_config_item(Key,Value) :-
+printer:print_config_item(Key,_,_) :-
+  preference:use_expand_hidden(Key),!.
+
+printer:print_config_item(Key,Positive,Negative) :-
   nl,write('             │          '),
   message:color(darkgray),
   message:print('         │ '),
   message:color(normal),
   message:print(Key),
   message:print(' = "'),
-  printer:print_iuse_set(Value),
+  printer:print_use_flag_sets(Positive,Negative),
   message:print('"').
 
 
