@@ -189,7 +189,12 @@ printer:split_iuse_set(Iuse,PositiveUseSorted,NegativeUseSorted) :-
 % CASE 1 : download action
 % ------------------------
 
-printer:print_config(_://_:download) :- !.
+printer:print_config(Repository://Ebuild:download) :-
+  not(ebuild:download(Repository://Ebuild,_,_)),!.
+
+printer:print_config(Repository://Ebuild:download) :-
+  forall(ebuild:download(Repository://Ebuild,File,Size),
+         (printer:print_config_item('download',[File],[Size]))).
 
 
 % -----------------------
