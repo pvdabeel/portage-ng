@@ -40,7 +40,7 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 :- dpublic(ebuild/3).
 :- dpublic(ebuild/4).
 :- dpublic(ebuild/5).
-:- dpublic(manifest/3).
+:- dpublic(manifest/4).
 
 :- dpublic(query/2).
 
@@ -62,8 +62,8 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 
 % protected interface
 
-:- dpublic(read_metadata/3).
-:- dpublic(read_manifest/5).
+:- dprotected(read_metadata/3).
+:- dprotected(read_manifest/5).
 
 :- dprotected(location/1).
 :- dprotected(cache/1).
