@@ -189,7 +189,7 @@ printer:split_iuse_set(Iuse,PositiveUseSorted,NegativeUseSorted) :-
 % CASE 1 : Download action
 % ------------------------
 
-printer:print_config(Repository://Entry:download) :- !.
+printer:print_config(_://_:download) :- !.
 
 % -----------------------
 % CASE 2 : Install action
@@ -214,7 +214,7 @@ printer:print_config(Repository://Entry:install) :-
 % CASE 3 : Run action
 % -------------------
 
-printer:print_config(Repository://Entry:run) :- !.
+printer:print_config(_://_:run) :- !.
 
 
 %! printer:print_config_item(Key,Value)
