@@ -30,7 +30,7 @@ Output: A nested list of codes, each sublist represents a line.
 % Cache: The location of the cache.
 % Entry: The cache entry to read.
 %
-% Contents: A contents of the cache entry.
+% Contents: The contents of the cache entry.
 
 reader:invoke(Cache,Entry,Contents) :-
   os:compose_path(Cache,Entry,File),
@@ -38,6 +38,22 @@ reader:invoke(Cache,Entry,Contents) :-
   open(File,read,Stream,[lock(none)]),
   reader:read_lines(Stream,Contents),
   close(Stream).
+
+
+%! reader:invoke(+Manifest, -Contents)
+%
+% Manifest: The full path to a manifest file
+%
+% Contents: The contents of the manifest entry
+
+reader:invoke(Manifest,Contents) :-
+  exists_file(Manifest),!,
+  open(Manifest,read,Stream,[lock(none)]),
+  reader:read_lines(Stream,Contents),
+  close(Stream).
+
+reader:invoke(_,[]) :-
+  !.
 
 
 %! reader:read_lines(+Stream, -Lines)

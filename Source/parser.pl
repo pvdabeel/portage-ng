@@ -30,18 +30,19 @@ Output: A nested list containing the result of parsing each
 % *******************
 
 
-%! parser:invoke(+Contents,-Result)
+%! parser:invoke(+Type,+Contents,-Result)
 %
+% Type: metadata or manifest
 % Contents: A nested list of codes.
 % Result: A prolog predicate representing the metadata.
 
 % parser:invoke(Contents,Metadata) :-
    % maplist(eapi:parse,Contents,Metadata).
 
-parser:invoke([], []).
-parser:invoke([X|XX], [Y|YY]) :-
-  eapi:parse(X,Y),
-  parser:invoke(XX, YY).
+parser:invoke(_,[], []).
+parser:invoke(Type,[X|XX], [Y|YY]) :-
+  eapi:parse(Type,X,Y),
+  parser:invoke(Type,XX, YY).
 
 
 %! parser:test(+Repository)
@@ -68,7 +69,7 @@ parser:test(Repository,single_verbose) :-
               (catch(call_with_time_limit(T,(count:increase,
                                              count:percentage(P),
                                              reader:invoke(C,E,R),
-                                             parser:invoke(R,_),
+                                             parser:invoke(metadata,R,_),
                                              message:success([P,' - ',E]))),
                      time_limit_exceeded,
                      message:failure([E,' (time limit exceeded)']));
@@ -83,7 +84,7 @@ parser:test(Repository,parallel_verbose) :-
   count:init(0,S),
   config:time_limit(T),
   config:number_of_cpus(Cpus),
-  findall((catch(call_with_time_limit(T,(parser:invoke(R,_),!,
+  findall((catch(call_with_time_limit(T,(parser:invoke(metadata,R,_),!,
                                          with_mutex(mutex,(count:increase,
                                                            count:percentage(P),
                                                            message:success([P,' - ',E]))))),
@@ -99,7 +100,7 @@ parser:test(Repository,parallel_fast) :-
   Repository:get_size(S),
   Repository:get_cache(C),
   config:number_of_cpus(Cpus),
-  findall((parser:invoke(R,_),!),
+  findall((parser:invoke(metadata,R,_),!),
           (Repository:entry(E),reader:invoke(C,E,R)),
           Calls),
   time(concurrent(Cpus,Calls,[])),!,

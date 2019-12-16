@@ -10,7 +10,7 @@
 
 /** <module> EAPI
 This file contains a DCG grammar for Gentoo Portage cache files.
-This grammar is compatible with EAPI version 6 and earlier.
+This grammar is compatible with EAPI version 7 and earlier.
 
 The portage cache is a directory inside the portage repository
 that normally has a file for each ebuild in the portage tree.
@@ -19,8 +19,10 @@ In this file, metadata regarding the ebuild can be found.
 The metadata inside this file is represented as KEY=VALUE pairs.
 Each line has one KEY=VALUE pair.
 
-The specifications of the grammar can be found here:
-https://projects.gentoo.org/pms/6/pms.html
+The specifications of the grammar can be found in the documentation
+directory of this project.
+
+The DCG grammar also parses Manifest files.
 */
 
 :- module(eapi, []).
@@ -29,18 +31,19 @@ https://projects.gentoo.org/pms/6/pms.html
 % EAPI parse
 % ----------
 
-
-%! eapi:parse(+Codes,-Metadata)
+%! eapi:parse(+Type,+Codes,-Metadata)
 %
-% Predicate used to invoke the parser on a list of codes
+% Predicate used to invoke the parser on a list of metadata codes
+%
+% Type:     Manifest or Metadata
 %
 % Codes:    A list of codes, representing a line in a cache file
 %           A line contains a key=value pair.
 %
-% Metaata:  A prolog predicate, i.e. key(value)
+% Metadata: A prolog predicate, i.e. key(value)
 
-eapi:parse(Codes,Metadata) :-
-  phrase(eapi:keyvalue(Metadata),Codes).
+eapi:parse(Type,Codes,Metadata) :-
+  phrase(eapi:keyvalue(Type,Metadata),Codes).
 
 
 % -----------------------
@@ -49,24 +52,32 @@ eapi:parse(Codes,Metadata) :-
 
 %! DCG eapi:keyvalue/1
 %
-% Predicate used to turn eapi key=value pairs into prolog key(value) pairs
+% Predicate used to turn eapi key=value and key value pairs into prolog
+% key(value) pairs
 
-eapi:keyvalue(Metadata) -->
-  eapi:key(Key),
+eapi:keyvalue(Type,Metadata) -->
+  eapi:key(Type,Key),
   eapi:value(Key,Metadata).
 
-% ------------------
-% EAPI key structure
-% ------------------
 
-%! DCG eapi:key/1
+% ---------------------------
+% EAPI metadata key structure
+% ---------------------------
+
+%! DCG eapi:metadata_key/1
 %
-% Predicate used to retrieve the key from an eapi key=value pair.
+% Predicate used to retrieve the key from an eapi key=value pair or manifest.
 %
 % private predicate
 
-eapi:key(Key) -->
+eapi:key(metadata,Key) -->
+  !,
   eapi:metachars(Cs),
+  { string_codes(Key,Cs) }.
+
+eapi:key(manifest,Key) -->
+  !,
+  eapi:manichars(Cs),
   { string_codes(Key,Cs) }.
 
 
@@ -152,6 +163,22 @@ eapi:value("_eclasses_",eclasses(R)) -->
 eapi:value("_md5_",md5(R)) -->
   !,
   eapi:md5(R).
+
+eapi:value("EBUILD",manifest(ebuild,R)) -->
+  !,
+  eapi:unused(R).
+
+eapi:value("MISC",manifest(misc,R)) -->
+  !,
+  eapi:unused(R).
+
+eapi:value("AUX",manifest(aux,R)) -->
+  !,
+  eapi:unused(R).
+
+eapi:value("DIST",manifest(dist,R)) -->
+  !,
+  eapi:unused(R).
 
 eapi:value(_,unused(R)) -->
   !,
@@ -1372,6 +1399,7 @@ eapi:skip([C|T]) -->
   [C],!,
   eapi:skip(T).
 
+
 eapi:skip([]) -->
   [],!.
 
@@ -1381,11 +1409,23 @@ eapi:skip([]) -->
 % skip till '=', collecting chars
 
 eapi:metachars([]) -->
-  [61],!.                                          % chars: =
+  [61],!.                                          % chars: '='
 
 eapi:metachars([C|T]) -->
   [C],!,
   eapi:metachars(T).
+
+
+% DCG manichars
+%
+% skip till ' ', collecting chars
+
+eapi:manichars([]) -->
+  [32],!.                                          % chars: ' '
+
+eapi:manichars([C|T]) -->
+  [C],!,
+  eapi:manichars(T).
 
 
 % DCG file:line

@@ -40,6 +40,7 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 :- dpublic(ebuild/3).
 :- dpublic(ebuild/4).
 :- dpublic(ebuild/5).
+:- dpublic(manifest/3).
 
 :- dpublic(query/2).
 
@@ -54,6 +55,8 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 
 :- dpublic(read_entry/5).
 :- dpublic(read_time/1).
+:- dpublic(read_time/1).
+:- dpublic(read_manifest/3).
 
 
 % protected interface
@@ -188,6 +191,24 @@ read_entry(Entry,Timestamp,Category,Name,Version) ::-
   system:time_file(File,Timestamp).
 
 
+%! repository:read_manifest(+Category, +Name, -Manifest)
+%
+% Public predicate
+%
+% Retrieves manifest infofmration
+% Disk access required
+
+read_manifest(Category,Name,Manifest) ::-
+  ::location(Location),
+  ::cache(Cache),
+  os:directory_content(Cache,Category),
+  os:compose_path(Location,Category,CategoryDir),
+  os:directory_content(CategoryDir,Name),
+  os:compose_path(CategoryDir,Name,PackageDir),
+  exists_directory(PackageDir),
+  os:compose_path(PackageDir,'Manifest',Manifest).
+
+
 %! repository:read_metadata(+Entry, -Timestamp, -Metadata)
 %
 % Public predicate
@@ -203,7 +224,7 @@ read_metadata(Entry,_,Metadata) ::-
   ::cache(Cache),
   message:scroll([Entry]),
   reader:invoke(Cache,Entry,Contents),
-  parser:invoke(Contents,Metadata),!.
+  parser:invoke(metadata,Contents,Metadata),!.
 
 read_metadata(Entry,_,[]) ::-
   message:failure(['Failed to parse ',Entry,' metadata cache!']),!.
@@ -302,12 +323,23 @@ ebuild(Id,Category,Name,Version) ::-
 % Public predicate
 %
 % Retrieves metadata cache ebuild
-% Disk access
+% No disk access - initial sync required
 
 ebuild(Id,Category,Name,Version,Metadata) ::-
   :this(Repository),
   cache:entry(Repository,Id,_,Category,Name,Version,Metadata).
 
+
+%! repository:manifest(?Id, ?Type, ?Filename, ?Size, ?Hash)
+%
+% Public predicate
+%
+% Retrieves manifest data
+% No disk access - initial sync required
+
+manifest(Category,Name,Manifest) ::-
+  :this(Repository),
+  cache:manifest(Repository,Category,Name,Manifest).
 
 
 %! repository:query(+Query,-Result)
