@@ -65,7 +65,7 @@ reader:read_lines(Stream,[]) :-
   !.
 
 reader:read_lines(Stream,[L|R]) :-
-  % not(system:at_end_of_stream(Stream)),
+  % not(at_end_of_stream(Stream)),
   !,
   read_line_to_codes(Stream,L),
   reader:read_lines(Stream,R).
