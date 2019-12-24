@@ -32,7 +32,6 @@ category/package.
 The metadata inside this file is representated as KEY VALUE pairs.
 Each line has one KEY VALUE pair. 
 
-
 The specifications of the grammar can be found in the documentation
 directory of this project.
 */
@@ -575,7 +574,7 @@ eapi:invalid_package_ending(E,B) :-
 % eapi:version starts with '-', and cannot be empty
 
 eapi:version(V) -->
-%  [45],!,                                             	% char: -
+%  [45],!,                                            % char: -
   eapi:version2([N,S]),
   { eapi:version2atom(N,S,V) }.
 
@@ -643,31 +642,31 @@ eapi:versionalphapart([C]) -->
 % eapi: versionsuffix following eapi 5 specs
 
 eapi:versionsuffix([95,97,108,112,104,97|V]) -->
-  [95,97,108,112,104,97],				% _alpha
+  [95,97,108,112,104,97],			      % _alpha
   !,
   eapi:versioninteger2(V).
 
 eapi:versionsuffix([95,98,101,116,97|V]) -->
-  [95,98,101,116,97],					% _beta
+  [95,98,101,116,97],				      % _beta
   !,
   eapi:versioninteger2(V).
 
 eapi:versionsuffix([95,112,114,101|V]) -->
-  [95,112,114,101],					% _pre
+  [95,112,114,101],				      % _pre
   !,
   eapi:versioninteger2(V).
 
 eapi:versionsuffix([95,114,99|V]) -->
-  [95,114,99],						% _rc
+  [95,114,99],					      % _rc
   !,
   eapi:versioninteger2(V).
 
 eapi:versionsuffix([95,112|V]) -->
-  [95,112],						% _p
+  [95,112],					      % _p
   !,
   eapi:versioninteger2(V).
 
-eapi:versionsuffix([45,114|V]) -->			% -r
+eapi:versionsuffix([45,114|V]) -->		      % -r
   [45,114],
   !,
   eapi:versioninteger(V).
@@ -677,7 +676,7 @@ eapi:versionsuffix([45,114|V]) -->			% -r
 
 
 
-eapi:versionrevision([114|V]) -->			% (-)r
+eapi:versionrevision([114|V]) -->		      % (-)r
   [114],
   !,
   eapi:versioninteger(V).
@@ -905,12 +904,12 @@ eapi:keywords([]) -->
 % possibly prefixed with a '~' or a '-' char to indicate status.
 
 eapi:keyword(unstable(Ka)) -->
-  [126],!,                                                   % char: ~
+  [126],!,                                            % char: ~
   eapi:kchars(K),
   { atom_codes(Ka,K) }.
 
 eapi:keyword(broken(Ka)) -->
-  [45],!,                                                    % char: -
+  [45],!,                                             % char: -
   eapi:kchars(K),
   { atom_codes(Ka,K) }.
 
@@ -952,7 +951,7 @@ eapi:functions([]) -->
 % Some cache entries have '-' as functions list
 
 eapi:function('-') -->
-  [45],!.                                            % char: -
+  [45],!.                                             % char: -
 
 eapi:function(F) -->
   eapi:chars1(f,FL),
@@ -995,7 +994,7 @@ eapi:use_flag(Ua) -->
 % EAPI 4 - 9.2 Used for identifying an any_of_group
 
 eapi:choice -->
-  [124,124].                                         % char: ||.
+  [124,124].                                          % char: ||.
 
 
 %! DCG ane_of
@@ -1003,7 +1002,7 @@ eapi:choice -->
 % EAPI 5 - 8.2.0 Used for identifying a one_of group
 
 eapi:one_of -->
-  [94,94].                                           % char: ^^
+  [94,94].                                            % char: ^^
 
 
 %! DCG at_most_one
@@ -1011,7 +1010,7 @@ eapi:one_of -->
 % EAPI 5 - 8.2.0 Used for identifying an at_most group
 
 eapi:at_most_one -->
-  [63,63].                                           % char: ??
+  [63,63].                                            % char: ??
 
 
 %! DCG comma
@@ -1019,7 +1018,7 @@ eapi:at_most_one -->
 % EAPI 4 - 9.2.4 Used for use_dependencies_list
 
 eapi:comma -->
-  [44].                                              % char: ,
+  [44].                                               % char: ,
 
 
 %! DCG virtual
@@ -1027,7 +1026,7 @@ eapi:comma -->
 % EAPI 4 - 2.1.1 defines a virtual
 
 eapi:virtual([virtual(A)]) -->
-  [118, 105, 114, 116, 117, 97, 108],!,              % virtual
+  [118, 105, 114, 116, 117, 97, 108],!,               % virtual
   eapi:separator,
   eapi:package(A).
 
@@ -1088,10 +1087,10 @@ eapi:eapi(E) -->
 % EAPI 6 allows for ( and ) in src_uri !.
 
 eapi:uri_chars([]) -->
-  [41,32], { !,fail }.                                   % char: )
+  [41,32], { !,fail }.                                % char: )
 
 eapi:uri_chars([]) -->
-  [40,32], { !,fail }.                                   % char: (
+  [40,32], { !,fail }.                                % char: (
 
 eapi:uri_chars([C|R]) -->
   [C], { not(code_type(C,white)),! },
@@ -1375,7 +1374,7 @@ eapi:uchars2([]) -->
 % an alphanumeric char
 
 eapi:kchars([42]) -->
-  [42],!.                                          % char: *
+  [42],!.                                             % char: *
 
 eapi:kchars([C|T]) -->
   eapi:char(k,C),{ code_type(C,alnum) },!,
@@ -1426,7 +1425,7 @@ eapi:chars_to_end([]) -->
 % collect all chars to '='
 
 eapi:chars_to_equal([]) -->
-  [61],!.                                          % chars: '='
+  [61],!.                                             % chars: '='
 
 eapi:chars_to_equal([C|T]) -->
   [C],!,
@@ -1438,7 +1437,7 @@ eapi:chars_to_equal([C|T]) -->
 % collect all chars to ' '
 
 eapi:chars_to_space([]) -->
-  [32],!.                                          % chars: ' '
+  [32],!.                                             % chars: ' '
 
 eapi:chars_to_space([C|T]) -->
   [C],!,
@@ -1450,7 +1449,7 @@ eapi:chars_to_space([C|T]) -->
 % collect all chars to '-'
 
 eapi:chars_to_dash([45]) -->
-  [45],!.                                          % chars: '-'
+  [45],!.                                             % chars: '-'
 
 eapi:chars_to_dash([C|R]) -->
   [C],
