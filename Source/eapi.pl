@@ -1116,7 +1116,7 @@ eapi:uri_chars1([C|R]) -->
 % EAPI 4 - 9.2 defines URI
 
 % -------------------------
-% CASE 1 - a prototyped uri
+% CASE 1 : a prototyped uri
 % -------------------------
 
 eapi:uri(uri(P,B,L)) -->
@@ -1129,7 +1129,7 @@ eapi:uri(uri(P,B,L)) -->
     string_codes(L,Ls),! }.
 
 % -----------------------------
-% CASE 2 - a non-prototyped uri
+% CASE 2 : a non-prototyped uri
 % -----------------------------
 
 eapi:uri(uri(P)) -->
