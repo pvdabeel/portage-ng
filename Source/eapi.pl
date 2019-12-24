@@ -9,9 +9,11 @@
 
 
 /** <module> EAPI
-This file contains a DCG grammar for Gentoo Portage cache files.
+This file contains a DCG grammar for Gentoo Portage cache files and manifests.
 This grammar is compatible with EAPI version 7 and earlier.
 
+Cache files:
+------------
 The portage cache is a directory inside the portage repository
 that normally has a file for each ebuild in the portage tree.
 In this file, metadata regarding the ebuild can be found.
@@ -19,10 +21,20 @@ In this file, metadata regarding the ebuild can be found.
 The metadata inside this file is represented as KEY=VALUE pairs.
 Each line has one KEY=VALUE pair.
 
+Manifest files:
+---------------
+The DCG grammar also parses Manifest files.
+Manifest files are found in the portage repository in each category/package
+directory. For a given category and package combination, the manifest
+contains hash information for all files referenced by the ebuilds in this 
+category/package. 
+
+The metadata inside this file is representated as KEY VALUE pairs.
+Each line has one KEY VALUE pair. 
+
+
 The specifications of the grammar can be found in the documentation
 directory of this project.
-
-The DCG grammar also parses Manifest files.
 */
 
 :- module(eapi, []).
@@ -52,11 +64,11 @@ eapi:parse(Type,Codes,Metadata) :-
 
 %! DCG eapi:keyvalue/1
 %
-% Predicate used to turn eapi key=value and key value pairs into prolog
+% Predicate used to turn eapi 'key=value' and 'key value' pairs into prolog
 % key(value) pairs
 
 eapi:keyvalue(Type,Metadata) -->
-  eapi:key(Type,Key),
+  eapi:key(Type,Key),!,
   eapi:value(Key,Metadata).
 
 
@@ -66,19 +78,17 @@ eapi:keyvalue(Type,Metadata) -->
 
 %! DCG eapi:metadata_key/1
 %
-% Predicate used to retrieve the key from an eapi key=value pair or manifest.
+% Predicate used to retrieve the key from an eapi 'key=value' pair or 'key value' manifest.
 %
 % private predicate
 
 eapi:key(metadata,Key) -->
-  !,
-  eapi:metachars(Cs),
-  { string_codes(Key,Cs) }.
+  eapi:chars_to_equal(Cs),
+  { string_codes(Key,Cs),! }.
 
 eapi:key(manifest,Key) -->
-  !,
-  eapi:manichars(Cs),
-  { string_codes(Key,Cs) }.
+  eapi:chars_to_space(Cs),
+  { string_codes(Key,Cs),! }.
 
 
 % --------------------
@@ -241,8 +251,8 @@ eapi:restrict(R) -->
 % of this eapi parser, homepages are not parsed, unless needed.
 
 eapi:homepage(H) -->
-  eapi:skip(Hs),
-  { string_codes(H,Hs) }.
+  eapi:chars_to_end(Hs),
+  { string_codes(H,Hs),! }.
 
 
 %! DCG license
@@ -260,8 +270,8 @@ eapi:license(L) -->
 % is basically pure text information.
 
 eapi:description(D) -->
-  eapi:skip(Ds),
-  { string_codes(D,Ds) }.
+  eapi:chars_to_end(Ds),
+  { string_codes(D,Ds),! }.
 
 
 %! DCG manifest
@@ -269,12 +279,12 @@ eapi:description(D) -->
 % A Manifest contains a filename, file size, and hashes
 
 eapi:manifest(F,S,H) -->
-  eapi:manichars(Fs),
-  eapi:manichars(Ss),
-  eapi:skip(Hs),
+  eapi:chars_to_space(Fs),
+  eapi:chars_to_space(Ss),
+  eapi:chars_to_end(Hs),
   { string_codes(F,Fs),
     string_codes(S,Ss),
-    string_codes(H,Hs) }.
+    string_codes(H,Hs),! }.
 
 
 %! DCG unused
@@ -283,8 +293,8 @@ eapi:manifest(F,S,H) -->
 % This grammar is used to parse those entries. Basically they
 % are treated as a char sequence.
 
-eapi:unused(U) -->
-  eapi:skip(U).
+eapi:unused([]) -->
+  eapi:skip_to_end.
 
 
 %! DCG cdepend
@@ -302,8 +312,8 @@ eapi:cdepend(D) -->
 % of the sequence must be virtuals.
 
 eapi:provide(P) -->
-  eapi:skip(Ps),
-  { string_codes(P,Ps) }.
+  eapi:chars_to_end(Ps),
+  { string_codes(P,Ps),! }.
   %eapi:dependencies(virtual,P).
 
 
@@ -315,7 +325,7 @@ eapi:provide(P) -->
 
 eapi:dependencies(T,[D|R]) -->
   eapi:whites,
-  eapi:dependency(T,D), %!
+  eapi:dependency(T,D), !,
   eapi:dependencies(T,R).
 
 eapi:dependencies(_,[]) -->
@@ -351,15 +361,12 @@ eapi:dependency(package_c,D) -->
   eapi:package_dependency(compile,D). %!
 
 
-
-
 % eapi:dependency(virtual,D) -->   % Virtuals can now also have versions, and are treated via package_dependency
 %  eapi:virtual(D),!.
 
 eapi:dependency(license,D) -->
   eapi:string(Ds),
-  { atom_codes(D,Ds) },
-  !.
+  { atom_codes(D,Ds),! }.
 
 eapi:dependency(restrict,D) -->
   eapi:string(D),!.
@@ -506,9 +513,7 @@ eapi:operator(none) -->
 
 eapi:category(Ca) -->
   eapi:chars1(c,C),
-  {
-    atom_codes(Ca,C)
-  }.
+  { atom_codes(Ca,C),! }.
 
 
 % DCG: separator
@@ -526,7 +531,7 @@ eapi:separator -->
 eapi:package(P) -->
   eapi:pchars(L),
   { eapi:check_package(L),
-    eapi:convert_package(L,P) }.
+    eapi:convert_package(L,P),! }.
 
 
 
@@ -653,7 +658,7 @@ eapi:versionsuffix([95,112,114,101|V]) -->
   eapi:versioninteger2(V).
 
 eapi:versionsuffix([95,114,99|V]) -->
-  "_rc",						% _rc
+  [95,114,99],						% _rc
   !,
   eapi:versioninteger2(V).
 
@@ -872,12 +877,12 @@ eapi:iuse([]) -->
 
 %! DCG required_use
 %
-% EAPI 4 defines required use as a lost of use flags, with
+% EAPI 4 defines required use as a list of use flags, with
 % conditional, xor and or relationship.
 
 eapi:required_use(Ua) -->
-  eapi:skip(U),
-  { atom_codes(Ua,U) }.
+  eapi:chars_to_end(U),
+  { atom_codes(Ua,U),! }.
 
 
 %! DCG keywords
@@ -910,7 +915,7 @@ eapi:keyword(broken(Ka)) -->
   { atom_codes(Ka,K) }.
 
 eapi:keyword(stable(Ka)) -->
-  eapi:kchars(K),
+  eapi:kchars(K),!,
   { atom_codes(Ka,K) }.
 
 
@@ -947,11 +952,11 @@ eapi:functions([]) -->
 % Some cache entries have '-' as functions list
 
 eapi:function('-') -->
-  [45],!.                                                    % char: -
+  [45],!.                                            % char: -
 
 eapi:function(F) -->
   eapi:chars1(f,FL),
-  { atom_codes(F,FL) }.
+  { atom_codes(F,FL),! }.
 
 
 %! DCG string
@@ -982,9 +987,7 @@ eapi:stringlist([]) -->
 
 eapi:use_flag(Ua) -->
   eapi:chars1(u,U),
-  {
-    atom_codes(Ua,U)
-  }.
+  { atom_codes(Ua,U),! }.
 
 
 %! DCG choice
@@ -1078,61 +1081,60 @@ eapi:eapi(E) -->
   eapi:version2(E).
 
 
-% DCG untildash
+
+% DCG uri_chars
 %
-% This reads all chars until a dash char is encountered
+% This reads all chars until an uri stopchar stopchar is encountered
+% EAPI 6 allows for ( and ) in src_uri !.
 
-eapi:untildash([45]) -->
-  [45],!.
-
-eapi:untildash([C|R]) -->
-  [C],
-  eapi:untildash(R).
-
-
-% DCG untilstop
-%
-% This basically reads all chars until a stopchar is encountered
-
-% EAPI 6 allows for ( and ) in src_uri !
-
-eapi:untilstop([]) -->
+eapi:uri_chars([]) -->
   [41,32], { !,fail }.                                   % char: )
 
-eapi:untilstop([]) -->
+eapi:uri_chars([]) -->
   [40,32], { !,fail }.                                   % char: (
 
-%eapi:untilstop([]) -->
-%  [C], { code_type(C,white),! }.
-
-eapi:untilstop([C|R]) -->
+eapi:uri_chars([C|R]) -->
   [C], { not(code_type(C,white)),! },
-  eapi:untilstop(R).
+  eapi:uri_chars(R).
 
-
-eapi:untilstop([]) -->
+eapi:uri_chars([]) -->
   [],!.
 
-eapi:untilstop1(C) -->
-  eapi:untilstop(C),
-  { not(C = []) }.
+
+% DCG uri_chars1
+%
+% This reads all chars until an uri specific stopchar is encountered
+% EAPI 6 allows for ( and ) in src uri !.
+% Needs at least 1 char
+
+eapi:uri_chars1([C|R]) -->
+  [C], { not(code_type(C,white)),not(C = 41), !},
+  eapi:uri_chars(R).
 
 
 %! DCG uri
 %
 % EAPI 4 - 9.2 defines URI
 
+% -------------------------
+% CASE 1 - a prototyped uri
+% -------------------------
+
 eapi:uri(uri(P,B,L)) -->
   eapi:proto(Ps),          % required
   [58,47,47],!,            % required ://
-  eapi:untilstop(Bs),      % required
+  eapi:uri_chars(Bs),      % required
   eapi:arrow(Ls),          % optional
   { string_codes(P,Ps),
     string_codes(B,Bs),
     string_codes(L,Ls),! }.
 
+% -----------------------------
+% CASE 2 - a non-prototyped uri
+% -----------------------------
+
 eapi:uri(uri(P)) -->
-  eapi:untilstop1(Ps),
+  eapi:uri_chars1(Ps),
   { string_codes(P,Ps),! }.
 
 
@@ -1165,7 +1167,7 @@ eapi:arrow([]) -->
 % as an allowed URI construct
 
 eapi:local(L) -->
-  eapi:untilstop(L).
+  eapi:uri_chars(L).
 
 
 % DCG timestamp
@@ -1406,41 +1408,65 @@ eapi:whites -->
 % Generic DCGS
 % ------------
 
-% DCG skip
+% DCG chars_to_end
 %
-% skip till end of stream, collecting chars
+% collect all chars to end of stream
 
-eapi:skip([C|T]) -->
+eapi:chars_to_end([C|T]) -->
   [C],!,
-  eapi:skip(T).
+  eapi:chars_to_end(T).
 
 
-eapi:skip([]) -->
+eapi:chars_to_end([]) -->
   [],!.
 
 
-% DCG metachars
+% DCG chars_to_equal
 %
-% skip till '=', collecting chars
+% collect all chars to '='
 
-eapi:metachars([]) -->
+eapi:chars_to_equal([]) -->
   [61],!.                                          % chars: '='
 
-eapi:metachars([C|T]) -->
+eapi:chars_to_equal([C|T]) -->
   [C],!,
-  eapi:metachars(T).
+  eapi:chars_to_equal(T).
 
 
-% DCG manichars
+% DCG chars_to_space
 %
-% skip till ' ', collecting chars
+% collect all chars to ' '
 
-eapi:manichars([]) -->
+eapi:chars_to_space([]) -->
   [32],!.                                          % chars: ' '
 
-eapi:manichars([C|T]) -->
+eapi:chars_to_space([C|T]) -->
   [C],!,
-  eapi:manichars(T).
+  eapi:chars_to_space(T).
+
+
+% DCG chars_to_dash
+%
+% collect all chars to '-'
+
+eapi:chars_to_dash([45]) -->
+  [45],!.                                          % chars: '-'
+
+eapi:chars_to_dash([C|R]) -->
+  [C],
+  eapi:chars_to_dash(R).
+
+
+% DCG skip_to_end
+%
+% skip all chars to end of stream
+
+eapi:skip_to_end -->
+  [_],!,
+  eapi:skip_to_end.
+
+eapi:skip_to_end -->
+  [],!.
 
 
 % DCG file:line
