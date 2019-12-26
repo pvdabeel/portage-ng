@@ -239,18 +239,21 @@ message:header(Message) :-
 message:print_bytes(Bytes) :- 
   Bytes >= 1024 * 1024 * 1024,!,
   Gigabytes is Bytes / 1024 / 1024 / 1024,
-  format('~2f Gb',[Gigabytes]). 
+  format(atom(A),'~t~2f Gb~10|',[Gigabytes]),
+  message:print(A).
 
 message:print_bytes(Bytes) :- 
   Bytes < 1024 * 1024 * 1024,
   Bytes >= 1024 * 1024, !,
   Megabytes is Bytes / 1024 / 1024,
-  format('~2f Mb',[Megabytes]).
+  format(atom(A),'~t~2f Mb~10|',[Megabytes]),
+  message:print(A).
 
  message:print_bytes(Bytes) :- 
   Bytes < 1024 * 1024, !,
   Kilobytes is Bytes / 1024,
-  format('~2f Kb',[Kilobytes]).
+  format(atom(A),'~t~2f Kb~10|',[Kilobytes]),
+  message:print(A).
 
 
 %! message:prefix(+Message)

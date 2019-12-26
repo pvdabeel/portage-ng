@@ -194,7 +194,7 @@ printer:print_config(Repository://Ebuild:download) :-
 
 printer:print_config(Repository://Ebuild:download) :-
   forall(ebuild:download(Repository://Ebuild,File,Size),
-         (printer:print_config_item('download',[File],[Size]))).
+         (printer:print_config_item('download',File,Size))).
 
 
 % -----------------------
@@ -231,20 +231,37 @@ printer:print_config(_://_:run) :- !.
 printer:print_config(_://_:_) :- !.
 
 
-%! printer:print_config_item(Key,Value)
+%! printer:print_config_prefix
+%
+% prints the prefix for a config item
+
+printer:print_config_prefix :- 
+  nl,write('             │          '),
+  message:color(darkgray),
+  message:print('         │ '),
+  message:color(normal).
+ 
+
+%! printer:print_config_item(+Key,+Value)
 %
 % Prints a configuration item for a given repository entry
 
 printer:print_config_item(_,[],[]) :- !.
 
+printer:print_config_item('download',File,Size) :-
+  !,
+  printer:print_config_prefix,
+  message:color(magenta),
+  message:print_bytes(Size),
+  message:color(normal), 
+  message:print(' '),
+  message:print(File).
+
 printer:print_config_item(Key,_,_) :-
   preference:use_expand_hidden(Key),!.
 
 printer:print_config_item(Key,Positive,Negative) :-
-  nl,write('             │          '),
-  message:color(darkgray),
-  message:print('         │ '),
-  message:color(normal),
+  printer:print_config_prefix,
   message:print(Key),
   message:print(' = "'),
   printer:print_use_flag_sets(Positive,Negative),

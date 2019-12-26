@@ -90,26 +90,29 @@ ebuild:download(Repository://Entry,B,S) :-
   ebuild:get(src_uri,Repository://Entry,U),
   Repository:ebuild(Entry,Category,Name,_),
   Repository:manifest(_,Category,Name,Manifest),
-  member(manifest(dist,B,S,_),Manifest),
+  member(manifest(dist,B,Ss,_),Manifest),
   member(uri(Bs),U),
-  atom_string(B,Bs).
+  atom_string(B,Bs),
+  number_string(S,Ss).
 
 ebuild:download(Repository://Entry,B,S) :-
   ebuild:get(src_uri,Repository://Entry,U),
   Repository:ebuild(Entry,Category,Name,_),
   Repository:manifest(_,Category,Name,Manifest),
-  member(manifest(dist,B,S,_),Manifest),
+  member(manifest(dist,B,Ss,_),Manifest),
   member(uri(_,_,Bs),U),
-  atom_string(B,Bs).
+  atom_string(B,Bs),
+  number_string(S,Ss).
 
 ebuild:download(Repository://Entry,B,S) :-
   ebuild:get(src_uri,Repository://Entry,U),
   Repository:ebuild(Entry,Category,Name,_),
   Repository:manifest(_,Category,Name,Manifest),
-  member(manifest(dist,B,S,_),Manifest),
+  member(manifest(dist,B,Ss,_),Manifest),
   member(uri(_,P,_),U),
   file_base_name(P,Bs),
-  atom_string(Bs,B).
+  atom_string(Bs,B),
+  number_string(S,Ss).
 
 
 %! ebuild:download_size(+Repository://+Entry,-T) 
@@ -117,6 +120,6 @@ ebuild:download(Repository://Entry,B,S) :-
 % Retrieve total download size for all files corresponding to a given Entry
 
 ebuild:download_size(Repository://Entry,T) :-
-  aggregate_all(sum(SN),(ebuild:download(Repository://Entry,_,S),number_string(SN,S)),T),!.
+  aggregate_all(sum(S),ebuild:download(Repository://Entry,_,S),T),!.
 
 ebuild:download_size(_://_,0) :- !.
