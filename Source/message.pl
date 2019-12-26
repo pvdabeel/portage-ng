@@ -232,6 +232,26 @@ message:header(Message) :-
   nl.
 
 
+%! message:print_bytes(+Bytes)
+%
+% Pretty print a number of bytes
+
+message:print_bytes(Bytes) :- 
+  Bytes >= 1024 * 1024 * 1024,!,
+  Gigabytes is Bytes / 1024 / 1024 / 1024,
+  format('~2f Gb',[Gigabytes]). 
+
+message:print_bytes(Bytes) :- 
+  Bytes < 1024 * 1024 * 1024,
+  Bytes >= 1024 * 1024, !,
+  Megabytes is Bytes / 1024 / 1024,
+  format('~2f Mb',[Megabytes]).
+
+ message:print_bytes(Bytes) :- 
+  Bytes < 1024 * 1024, !,
+  Kilobytes is Bytes / 1024,
+  format('~2f Kb',[Kilobytes]).
+
 
 %! message:prefix(+Message)
 %

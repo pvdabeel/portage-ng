@@ -82,7 +82,7 @@ ebuild:get(Key,Repository://Entry,[]) :-
   not(eapi:elem(Key,Metadata,_)),!.
 
 
-%! ebuild:download(+Repository://Entry,B,S)
+%! ebuild:download(+Repository://+Entry,-B,-S)
 %
 % Retrieves download filename and corresponding filesize for a given Entry
 
@@ -110,3 +110,13 @@ ebuild:download(Repository://Entry,B,S) :-
   member(uri(_,P,_),U),
   file_base_name(P,Bs),
   atom_string(Bs,B).
+
+
+%! ebuild:download_size(+Repository://+Entry,-T) 
+%
+% Retrieve total download size for all files corresponding to a given Entry
+
+ebuild:download_size(Repository://Entry,T) :-
+  aggregate_all(sum(SN),(ebuild:download(Repository://Entry,_,S),number_string(SN,S)),T),!.
+
+ebuild:download_size(_://_,0) :- !.

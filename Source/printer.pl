@@ -421,12 +421,17 @@ printer:print_footer(Plan,Model,PrintedSteps) :-
   countlist(constraint(_),Model,_Constraints),
   countlist(naf(_),Model,_Nafs),
   countlist(_://_:_,Model,Actions),
+  aggregate_all(sum(T),(member(R://E:download,Model),ebuild:download_size(R://E,T)),TotalDownloadSize),
+  countlist(_://_:download,Model,Downloads),
   countlist(_://_:run,Model,Runs),
   countlist(_://_:install,Model,Installs),
   countlist(package_dependency(run,_,_,_,_,_,_,_),Model,_Verifs),
   Total is Actions, % + Verifs,
   length(Plan,_Steps),
-  message:print(['Total: ', Total, ' actions (', Installs,' installs, ', Runs,' runs), grouped into ',PrintedSteps,' steps.' ]),nl,
+  message:print(['Total: ', Total, ' actions (', Downloads, ' downloads, ', Installs,' installs, ', Runs,' runs), grouped into ',PrintedSteps,' steps.' ]),nl,
+  message:print(['       ']),
+  message:print_bytes(TotalDownloadSize), 
+  message:print([' to be downloaded.']),nl,
   nl.
 
 
