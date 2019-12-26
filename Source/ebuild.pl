@@ -123,3 +123,11 @@ ebuild:download_size(Repository://Entry,T) :-
   aggregate_all(sum(S),ebuild:download(Repository://Entry,_,S),T),!.
 
 ebuild:download_size(_://_,0) :- !.
+
+
+%! ebuild:is_virtual(+Repository://+Entry)
+%
+% True if an entry is a virtual 
+
+ebuild:is_virtual(Repository://Entry) :- 
+  Repository:ebuild(Entry,'virtual',_,_).
