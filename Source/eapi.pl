@@ -1692,6 +1692,19 @@ eapi:filter_use_expand(Use,Filtered) :-
   exclude(eapi:check_use_expand_atom,Use,Filtered),!.
 
 
+%! eapi:split_iuse_set(+Values,-Positive,-Negative)
+%
+% Splits the configuration values (USE or USE Expand flags) into a 
+% positive and negative set
+
+eapi:split_iuse_set(Iuse,PositiveUseSorted,NegativeUseSorted) :-
+  preference:use(Use),
+  subtract(Iuse,Use,NegativeUse),
+  subtract(Iuse,NegativeUse,PositiveUse),
+  sort(NegativeUse,NegativeUseSorted),
+  sort(PositiveUse,PositiveUseSorted).
+
+
 %! eapi:elem(+Key,+Entry,-Content)
 %
 % Given a key and a pms cache entry, retrieves the element

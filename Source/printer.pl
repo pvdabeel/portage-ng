@@ -155,30 +155,30 @@ printer:print_element(_,assumed(rule(package_dependency(run,_,C,N,_,_,_,_),_Body
   message:color(normal).
 
 
-%! printer:print_conf_header(+Key,+Value)
+%! printer:print_config_prefix(+Word)
 %
-% Prints the USE flags for a given repository entry
+% prints the prefix for a config item
 
-printer:print_conf_header(Key,Positive,Negative) :-
+printer:print_config_prefix(Word) :-
   nl,write('             │          '),
   message:color(darkgray),
-  message:print('└─ conf ─┤ '),
-  message:color(normal),
-  message:print(Key),
-  message:print(' = "'),
-  printer:print_use_flag_sets(Positive,Negative),
-  message:print('"').
+  message:print('└─ '),
+  message:print(Word),
+  message:print(' ─┤ '),
+  message:color(normal).
 
-%! printer:split_iuse_set(+Values,-Positive,-Negative)
+
+%! printer:print_config_prefix
 %
-% Prints the configuration values (USE or USE Expand flags)
+% prints the prefix for a config item
 
-printer:split_iuse_set(Iuse,PositiveUseSorted,NegativeUseSorted) :-
-  preference:use(Use),
-  subtract(Iuse,Use,NegativeUse),
-  subtract(Iuse,NegativeUse,PositiveUse),
-  sort(NegativeUse,NegativeUseSorted),
-  sort(PositiveUse,PositiveUseSorted).
+printer:print_config_prefix :- 
+  nl,write('             │          '),
+  message:color(darkgray),
+  message:print('         │ '),
+  message:color(normal).
+
+
 
 
 %! printer:print_config(+Repository://+Entry:+Action)
@@ -193,8 +193,12 @@ printer:print_config(Repository://Ebuild:download) :-
   not(ebuild:download(Repository://Ebuild,_,_)),!.
 
 printer:print_config(Repository://Ebuild:download) :-
-  forall(ebuild:download(Repository://Ebuild,File,Size),
-         (printer:print_config_item('download',File,Size))).
+  findall([File,Size],ebuild:download(Repository://Ebuild,File,Size),[[FirstFile,FirstSize]|Rest]),
+  printer:print_config_prefix('file'),
+  printer:print_config_item('download',FirstFile,FirstSize),
+  forall(member([RestFile,RestSize],Rest),
+         (printer:print_config_prefix,
+          printer:print_config_item('download',RestFile,RestSize))).
 
 
 % -----------------------
@@ -207,14 +211,18 @@ printer:print_config(Repository://Entry:install) :-
 printer:print_config(Repository://Entry:install) :-
   ebuild:get(iuse,Repository://Entry,Iuse),
   ebuild:get(iuse_filtered,Repository://Entry,IuseFiltered),
-  printer:split_iuse_set(IuseFiltered,Positive,Negative),
-  printer:print_conf_header('use',Positive,Negative),
+  eapi:split_iuse_set(IuseFiltered,Positive,Negative),
+  printer:print_config_prefix('conf'),
+  printer:print_config_item('use',Positive,Negative),
   forall(eapi:use_expand(Key),
-         (eapi:get_use_expand(Key,Iuse,LongValue),
-          printer:split_iuse_set(LongValue,LongPosValue,LongNegValue),
-          eapi:shorten_use_expand(Key,LongPosValue,PosValue),
-          eapi:shorten_use_expand(Key,LongNegValue,NegValue),
-          printer:print_config_item(Key,PosValue,NegValue))),!.
+         (preference:use_expand_hidden(Key);
+          (eapi:get_use_expand(Key,Iuse,LongValue),
+           eapi:split_iuse_set(LongValue,LongPosValue,LongNegValue),
+           eapi:shorten_use_expand(Key,LongPosValue,PosValue),
+           eapi:shorten_use_expand(Key,LongNegValue,NegValue),
+           (printer:bothempty(PosValue,NegValue);
+            (printer:print_config_prefix,
+             printer:print_config_item(Key,PosValue,NegValue)))))),!.
 
 
 % -------------------
@@ -231,37 +239,23 @@ printer:print_config(_://_:run) :- !.
 printer:print_config(_://_:_) :- !.
 
 
-%! printer:print_config_prefix
-%
-% prints the prefix for a config item
+printer:bothempty([],[]).
 
-printer:print_config_prefix :- 
-  nl,write('             │          '),
-  message:color(darkgray),
-  message:print('         │ '),
-  message:color(normal).
- 
 
 %! printer:print_config_item(+Key,+Value)
 %
 % Prints a configuration item for a given repository entry
 
-printer:print_config_item(_,[],[]) :- !.
-
 printer:print_config_item('download',File,Size) :-
   !,
-  printer:print_config_prefix,
   message:color(magenta),
   message:print_bytes(Size),
   message:color(normal), 
   message:print(' '),
   message:print(File).
 
-printer:print_config_item(Key,_,_) :-
-  preference:use_expand_hidden(Key),!.
-
 printer:print_config_item(Key,Positive,Negative) :-
-  printer:print_config_prefix,
+  !,
   message:print(Key),
   message:print(' = "'),
   printer:print_use_flag_sets(Positive,Negative),
