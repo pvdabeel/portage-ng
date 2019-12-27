@@ -131,3 +131,24 @@ ebuild:download_size(_://_,0) :- !.
 
 ebuild:is_virtual(Repository://Entry) :- 
   Repository:ebuild(Entry,'virtual',_,_).
+
+
+%! ebuild:is_live(+Repository://+Entry)
+%
+% True if an entry is live
+
+ebuild:is_live(Repository://Entry) :-
+  Repository:ebuild(Entry,_,_,'9999'),!.
+
+ebuild:is_live(Repository://Entry) :-
+  ebuild:get(properties,Repository://Entry,P),
+  memberchk('live',P),!.
+
+
+%! ebuild:is_interactive(+Repository://+Entry)
+%
+% True if an entry is interactive
+
+ebuild:is_live(Repository://Entry) :-
+  ebuild:get(properties,Repository://Entry,P),
+  memberchk('interactive',P),!.
