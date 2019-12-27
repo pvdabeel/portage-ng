@@ -236,6 +236,11 @@ message:header(Message) :-
 %
 % Pretty print a number of bytes
 
+message:print_bytes('live') :-
+  !,
+  format(atom(A),'~t<live>~10|',[]),
+  message:print(A).
+
 message:print_bytes(Bytes) :- 
   Bytes >= 1024 * 1024 * 1024,!,
   Gigabytes is Bytes / 1024 / 1024 / 1024,

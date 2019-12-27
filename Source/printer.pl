@@ -189,11 +189,25 @@ printer:print_config_prefix :-
 % CASE 1 : download action
 % ------------------------
 
+
+% live downloads
+
+printer:print_config(Repository://Ebuild:download) :-
+  ebuild:is_live(Repository://Ebuild),!,
+  printer:print_config_prefix('live'),
+  printer:print_config_item('download','git repository','live').
+
+
+% no downloads
+
 printer:print_config(Repository://Ebuild:download) :-
   not(ebuild:download(Repository://Ebuild,_,_)),!.
 
+
+% at least one download
+
 printer:print_config(Repository://Ebuild:download) :-
-  findall([File,Size],ebuild:download(Repository://Ebuild,File,Size),[[FirstFile,FirstSize]|Rest]),
+  findall([File,Size],ebuild:download(Repository://Ebuild,File,Size),[[FirstFile,FirstSize]|Rest]),!,
   printer:print_config_prefix('file'),
   printer:print_config_item('download',FirstFile,FirstSize),
   forall(member([RestFile,RestSize],Rest),
