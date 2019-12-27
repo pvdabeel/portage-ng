@@ -149,6 +149,6 @@ ebuild:is_live(Repository://Entry) :-
 %
 % True if an entry is interactive
 
-ebuild:is_live(Repository://Entry) :-
+ebuild:is_interactive(Repository://Entry) :-
   ebuild:get(properties,Repository://Entry,P),
   memberchk('interactive',P),!.
