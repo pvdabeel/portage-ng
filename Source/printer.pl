@@ -479,8 +479,8 @@ printer:print_footer(Plan,Model,PrintedSteps) :-
   length(Plan,_Steps),
   message:print(['Total: ', Total, ' actions (', Downloads, ' downloads, ', Installs,' installs, ', Runs,' runs), grouped into ',PrintedSteps,' steps.' ]),nl,
   message:print(['       ']),
-  message:print_bytes(TotalDownloadSize), 
-  message:print([' to be downloaded.']),nl,
+  message:convert_bytes(TotalDownloadSize,A), 
+  message:print([A,' to be downloaded.']),nl,
   nl.
 
 

@@ -232,33 +232,38 @@ message:header(Message) :-
   nl.
 
 
-%! message:print_bytes(+Bytes)
+%! message:convert_bytes(+Bytes,-Output,-Unit)
 %
-% Pretty print a number of bytes
+% Converts a number of bytes into a gigabyte, megabyte or kilobyte 
 
-message:print_bytes('live') :-
-  !,
-  format(atom(A),'~t<live>~10|',[]),
-  message:print(A).
-
-message:print_bytes(Bytes) :- 
+message:convert_bytes(Bytes,Output) :-
   Bytes >= 1024 * 1024 * 1024,!,
   Gigabytes is Bytes / 1024 / 1024 / 1024,
-  format(atom(A),'~t~2f Gb~10|',[Gigabytes]),
-  message:print(A).
+  format(atom(Output),'~2f Gb',[Gigabytes]).
 
-message:print_bytes(Bytes) :- 
+
+message:convert_bytes(Bytes,Output) :-
   Bytes < 1024 * 1024 * 1024,
   Bytes >= 1024 * 1024, !,
   Megabytes is Bytes / 1024 / 1024,
-  format(atom(A),'~t~2f Mb~10|',[Megabytes]),
-  message:print(A).
-
- message:print_bytes(Bytes) :- 
+  format(atom(Output),'~2f Mb',[Megabytes]).
+  
+message:convert_bytes(Bytes,Output) :-
   Bytes < 1024 * 1024, !,
   Kilobytes is Bytes / 1024,
-  format(atom(A),'~t~2f Kb~10|',[Kilobytes]),
-  message:print(A).
+  format(atom(Output),'~2f Kb',[Kilobytes]).
+  
+
+%! message:format_bytes(+Bytes)
+%
+% Formats a given number of bytes
+
+message:print_bytes('live') :-
+  !,
+  format('~t<live>~10|',[]).
+
+message:print_bytes(Bytes) :- 
+  format('~t~w~10|',[Bytes]).
 
 
 %! message:prefix(+Message)
