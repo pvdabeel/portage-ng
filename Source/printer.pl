@@ -28,6 +28,29 @@ printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_),_))) 
 printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_)),_)) :- !.
 
 
+%! printer:element_weight(+Literal)
+%
+% Declares a weight for ordering elements of a step in a plan
+
+printer:element_weight(assumed(_),                                 0) :- !. % assumed
+printer:element_weight(rule(assumed(_),_),                         0) :- !. % assumed
+printer:element_weight(rule(package_dependency(_,_,_,_,_,_,_,_),_),1) :- !. % confirm
+printer:element_weight(rule(_Repository://_Entry:run,_),           2) :- !. % run
+printer:element_weight(rule(_Repository://_Entry:download,_),      3) :- !. % download
+printer:element_weight(rule(_Repository://_Entry:install,_),       4) :- !. % install
+printer:element_weight(_,                                          6) :- !. % everything else
+
+
+%! printer:sort_by_weight(+Comparator,+Literal,+Literal)
+%
+% Sorts elements in a plan by weight
+
+printer:sort_by_weight(C,L1,L2) :- 
+  printer:element_weight(L1,W1),
+  printer:element_weight(L2,W2),
+  compare(C,W1:L1,W2:L2).
+
+
 % Uncomment if you want 'confirm' steps shown in the plan:
 %
 % printer:printable_element(rule(package_dependency(run,_,_,_,_,_,_,_),_)) :- !.
@@ -394,8 +417,9 @@ printer:print_body(Target,Plan,Call,Steps) :-
 printer:print_steps_in_plan(_,[],_,Count,Count) :- !.
 
 printer:print_steps_in_plan(Target,[Step|Rest],Call,Count,CountFinal) :-
-  printer:print_first_in_step(Target,Step,Count,CountNew),
-  call(Call,Step),!,
+  predsort(printer:sort_by_weight,Step,SortedStep), 
+  printer:print_first_in_step(Target,SortedStep,Count,CountNew),
+  call(Call,SortedStep),!,
   printer:print_steps_in_plan(Target,Rest,Call,CountNew,CountFinal).
 
 
