@@ -163,7 +163,7 @@ eapi:value("PROVIDE",provide(R)) -->
 
 eapi:value("PROPERTIES",properties(R)) -->
   !,
-  eapi:unused(R).
+  eapi:properties(R).
 
 eapi:value("_eclasses_",eclasses(R)) -->
   !,
@@ -273,6 +273,15 @@ eapi:description(D) -->
   { string_codes(D,Ds),! }.
 
 
+%! DCG properties
+%
+% EAPI defines properties as a dependency sequence
+% Elements of the dependency sequence are property strings.
+
+eapi:properties(P) --> 
+  eapi:dependencies(property,P).
+
+
 %! DCG manifest
 %
 % A Manifest contains a filename, file size, and hashes
@@ -364,6 +373,10 @@ eapi:dependency(package_c,D) -->
 %  eapi:virtual(D),!.
 
 eapi:dependency(license,D) -->
+  eapi:string(Ds),
+  { atom_codes(D,Ds),! }.
+
+eapi:dependency(property,D) -->
   eapi:string(Ds),
   { atom_codes(D,Ds),! }.
 

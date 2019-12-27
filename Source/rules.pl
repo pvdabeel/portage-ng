@@ -31,7 +31,7 @@ rule(Repository://Ebuild:download,[]) :-
 
 
 % An ebuild can be installed, if the following conditions are satisfied:
-% - if it is not virtual: it is downloaded
+% - if it is not a virtual, a group or a user: it is downloaded
 % - its compiletime dependencies are satisfied
 % - it can occupy an installation slot
 
@@ -39,11 +39,13 @@ rule(Repository://Ebuild:download,[]) :-
 % CASE 1 : Virtual
 % ----------------
 
-rule(Repository://Ebuild:install,[constraint(slot('virtual',Name,Slot):{[Ebuild]})|Deps]) :-
-  Repository:ebuild(Ebuild,'virtual',Name,_),!,
+rule(Repository://Ebuild:install,[constraint(slot(Cat,Name,Slot):{[Ebuild]})|Deps]) :-
+  Repository:ebuild(Ebuild,Cat,Name,_),
+  memberchk(Cat,['virtual','acct-group','acct-user']),!,
   ebuild:get(depend,Repository://Ebuild,Deps),
   ebuild:get(slot,Repository://Ebuild,Slots),
   memberchk(slot(Slot),Slots).
+
 
 % -------------------
 % CASE 2: Non-Virtual
