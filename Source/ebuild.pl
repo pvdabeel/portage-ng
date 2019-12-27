@@ -125,24 +125,35 @@ ebuild:download_size(Repository://Entry,T) :-
 ebuild:download_size(_://_,0) :- !.
 
 
-%! ebuild:use(+Repository://+Entry,-PositiveUse,-NegativeUse)
-%
-% For a given repository entry, returns the positive and negative use sets
-% taking into account use preferences and implicit use defined by the entry
-
-ebuild:use(Repository://Entry, PositiveUseSorted, NegativeUseSorted) :-
-  findall(U,preference:positive_use(U),ExplicitPos),
-  findall(U,preference:negative_use(U),ExplicitNeg),
+ebuild:iuse(Repository://Entry,Use) :-
   ebuild:get(iuse,Repository://Entry,Iuse),
-  ebuild:get(iuse_filtered,Repository://Entry,IuseFiltered),
-  findall(U,member(plus(U),Iuse),ImplicitPos),
-  findall(U,member(minus(U),Iuse),ImplicitNeg),
-  union(ExplicitPos,ImplicitPos,Pos),
-  union(ExplicitNeg,ImplicitNeg,_Neg),
-  subtract(IuseFiltered,Pos,NegativeUse),
-  subtract(IuseFiltered,NegativeUse,PositiveUse),
-  sort(NegativeUse,NegativeUseSorted),
-  sort(PositiveUse,PositiveUseSorted).
+  member(Use,Iuse).
+
+
+ebuild:use(Repository://Entry,Use,'pos:preference') :- 
+  ebuild:iuse(Repository://Entry,Use),
+  preference:positive_use(Use).
+
+ebuild:use(Repository://Entry,Use,'neg:preference') :-
+  ebuild:iuse(Repository://Entry,Use),
+  preference:negative_use(Use).
+
+ebuild:use(Repository://Entry,Use,'pos:ebuild') :-
+  ebuild:iuse(Repository://Entry,plus(Use)),
+  not(preference:positive_use(Use)),
+  not(preference:negative_use(Use)).
+
+ebuild:use(Repository://Entry,Use,'neg:ebuild') :-
+ ebuild:iuse(Repository://Entry,minus(Use)),
+ not(preference:positive_use(Use)),
+ not(preference:negative_use(Use)).
+
+ebuild:use(Repository://Entry,Use,'neg:default') :-
+ ebuild:iuse(Repository://Entry,Use),
+ not(preference:positive_use(Use)),
+ not(preference:negative_use(Use)),
+ not(printer:unify(plus(_),Use)),
+ not(printer:unify(minus(_),Use)).
 
 
 %! ebuild:is_virtual(+Repository://+Entry)
