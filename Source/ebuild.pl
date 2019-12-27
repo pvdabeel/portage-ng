@@ -125,6 +125,26 @@ ebuild:download_size(Repository://Entry,T) :-
 ebuild:download_size(_://_,0) :- !.
 
 
+%! ebuild:use(+Repository://+Entry,-PositiveUse,-NegativeUse)
+%
+% For a given repository entry, returns the positive and negative use sets
+% taking into account use preferences and implicit use defined by the entry
+
+ebuild:use(Repository://Entry, PositiveUseSorted, NegativeUseSorted) :-
+  findall(U,preference:positive_use(U),ExplicitPos),
+  findall(U,preference:negative_use(U),ExplicitNeg),
+  ebuild:get(iuse,Repository://Entry,Iuse),
+  ebuild:get(iuse_filtered,Repository://Entry,IuseFiltered),
+  findall(U,member(plus(U),Iuse),ImplicitPos),
+  findall(U,member(minus(U),Iuse),ImplicitNeg),
+  union(ExplicitPos,ImplicitPos,Pos),
+  union(ExplicitNeg,ImplicitNeg,_Neg),
+  subtract(IuseFiltered,Pos,NegativeUse),
+  subtract(IuseFiltered,NegativeUse,PositiveUse),
+  sort(NegativeUse,NegativeUseSorted),
+  sort(PositiveUse,PositiveUseSorted).
+
+
 %! ebuild:is_virtual(+Repository://+Entry)
 %
 % True if an entry is a virtual 

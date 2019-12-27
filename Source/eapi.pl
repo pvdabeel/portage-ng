@@ -1710,10 +1710,10 @@ eapi:filter_use_expand(Use,Filtered) :-
 % Splits the configuration values (USE or USE Expand flags) into a 
 % positive and negative set
 
-eapi:split_iuse_set(Iuse,PositiveUseSorted,NegativeUseSorted) :-
-  preference:use(Use),
-  subtract(Iuse,Use,NegativeUse),
-  subtract(Iuse,NegativeUse,PositiveUse),
+eapi:split_iuse_set(IuseFiltered,PositiveUseSorted,NegativeUseSorted) :-
+  preference:use(ExplicitUse),
+  subtract(IuseFiltered,ExplicitUse,NegativeUse),
+  subtract(IuseFiltered,NegativeUse,PositiveUse),
   sort(NegativeUse,NegativeUseSorted),
   sort(PositiveUse,PositiveUseSorted).
 

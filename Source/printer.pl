@@ -271,8 +271,13 @@ printer:print_config(Repository://Ebuild:download) :-
 % CASE 2 : Install action
 % -----------------------
 
+
+% iuse empty
+
 printer:print_config(Repository://Entry:install) :-
   ebuild:get(iuse,Repository://Entry,[]), !.
+
+% use flags to show
 
 printer:print_config(Repository://Entry:install) :-
   ebuild:get(iuse,Repository://Entry,Iuse),
