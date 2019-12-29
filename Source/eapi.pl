@@ -26,11 +26,11 @@ Manifest files:
 The DCG grammar also parses Manifest files.
 Manifest files are found in the portage repository in each category/package
 directory. For a given category and package combination, the manifest
-contains hash information for all files referenced by the ebuilds in this 
-category/package. 
+contains hash information for all files referenced by the ebuilds in this
+category/package.
 
 The metadata inside this file is representated as KEY VALUE pairs.
-Each line has one KEY VALUE pair. 
+Each line has one KEY VALUE pair.
 
 The specifications of the grammar can be found in the documentation
 directory of this project.
@@ -278,7 +278,7 @@ eapi:description(D) -->
 % EAPI defines properties as a dependency sequence
 % Elements of the dependency sequence are property strings.
 
-eapi:properties(P) --> 
+eapi:properties(P) -->
   eapi:dependencies(property,P).
 
 
@@ -741,8 +741,8 @@ eapi:version2atom(N,S,A) :-
 % EAPI 5 - defines _md5_ metadata
 
 eapi:md5(M) -->
-  eapi:pchars(Ms),
-  { convlist(codes_string,Ms,M) }.
+  eapi:pchars([Ms]),
+  { atom_codes(M,Ms) }.
 
 codes_string(A,B) :- string_codes(B,A),!.
 
@@ -1707,7 +1707,7 @@ eapi:filter_use_expand(Use,Filtered) :-
 
 %! eapi:split_iuse_set(+Values,-Positive,-Negative)
 %
-% Splits the configuration values (USE or USE Expand flags) into a 
+% Splits the configuration values (USE or USE Expand flags) into a
 % positive and negative set
 
 eapi:split_iuse_set(IuseFiltered,PositiveUseSorted,NegativeUseSorted) :-
