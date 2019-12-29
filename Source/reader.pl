@@ -9,13 +9,13 @@
 
 
 /** <module> READER
-The reader reads metadata from a repository.
+The reader reads:
 
-The provided reader is capable of reading portage metadata
-cache from a local portage tree. Supports the newer md5 cache format.
+- repository cache metadata
+- repository manifest metadata
 
-Input:  The location of a cache entry.
-Output: A nested list of codes, each sublist represents a line.
+Input:  An antry in a repository cache or a full path to a manifest file..
+Output: A nested list of character codes, each sublist represents a line.
 */
 
 :- module(reader, []).
@@ -27,10 +27,11 @@ Output: A nested list of codes, each sublist represents a line.
 
 %! reader:invoke(+Cache, +Entry, -Contents)
 %
-% Cache: The location of the cache.
+% Cache: The full path of the cache.
 % Entry: The cache entry to read.
 %
-% Contents: The contents of the cache entry.
+% Contents: A nested list of character codes, each sublist represents a line of
+%           the cache entry
 
 reader:invoke(Cache,Entry,Contents) :-
   os:compose_path(Cache,Entry,File),
@@ -42,9 +43,10 @@ reader:invoke(Cache,Entry,Contents) :-
 
 %! reader:invoke(+Manifest, -Contents)
 %
-% Manifest: The full path to a manifest file
+% Manifest: The full path to a manifest file.
 %
-% Contents: The contents of the manifest entry
+% Contents: A nested list of character codes, each sublist represents a line of
+%           the manifest file
 
 reader:invoke(Manifest,Contents) :-
   exists_file(Manifest),!,
@@ -73,7 +75,7 @@ reader:read_lines(Stream,[L|R]) :-
 
 %! reader:read_timestamp(+File, -Time)
 %
-% Given a timestamp file, reads the timestamp.
+% Given a timestamp file, reads the timestamp inside this file.
 
 reader:read_timestamp(File,Time) :-
   exists_file(File),
@@ -86,10 +88,10 @@ reader:read_timestamp(File,Time) :-
 
 %! reader:test(+Repository)
 %
-% Predicate tests whether all cache entries in a given repository
-% can be read correctly.
+% Predicate tests whether all cache entries belonging to a given repository
+% instance can be read correctly.
 %
-% Repository: The repository from which to read all cache entries.
+% Repository: The repository instance from which to read all cache entries.
 
 reader:test(Repository) :-
   Repository:get_cache(C),
