@@ -35,12 +35,9 @@ Output: A nested list representing the the result of parsing each line in the
 %
 % Result:   A nested list represnting the parse tree.
 
-% parser:invoke(Type,Contents,Metadata) :-
-   % maplist(eapi:parse(Type),Contents,Metadata).
-
 parser:invoke(_,[], []).
 parser:invoke(Type,[X|XX], [Y|YY]) :-
-  eapi:parse(Type,X,Y),
+  eapi:parse(Type,X,Y),!,
   parser:invoke(Type,XX, YY).
 
 
