@@ -391,6 +391,11 @@ query([],Id) ::-
   :this(Repository),
   cache:entry(Repository,Id,_,_,_,_).
 
+query([repository(Repository)|Rest],Id) ::-
+  :this(Repository),
+  !,
+  Repository:query(Rest,Id).
+
 query([name(Name)|Rest],Id) ::-
   :this(Repository),
   !,

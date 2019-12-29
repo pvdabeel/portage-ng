@@ -187,14 +187,14 @@ query([Statement|Rest],Repository://Id) ::-
 
 
 
-% knowledgebase:entry(?Entry)
+% knowledgebase:entry(?Repository://?Entry)
 %
 % Protected predicate
 %
 % Knowledgebase entries
 
-entry(_E) ::-
-  true.
+entry(Repository://Entry) ::-
+  cache:entry(Repository,Entry,_,_,_,_).
 
 
 % knowledgebase:repository(?Repository)
