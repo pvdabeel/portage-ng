@@ -51,7 +51,7 @@ printer:element_weight(_,                                          6) :- !. % ev
 %
 % Sorts elements in a plan by weight
 
-printer:sort_by_weight(C,L1,L2) :- 
+printer:sort_by_weight(C,L1,L2) :-
   printer:element_weight(L1,W1),
   printer:element_weight(L2,W2),
   compare(C,W1:L1,W2:L2).
@@ -224,7 +224,7 @@ printer:print_config_prefix(Word) :-
 %
 % prints the prefix for a config item
 
-printer:print_config_prefix :- 
+printer:print_config_prefix :-
   nl,write('             │          '),
   message:color(darkgray),
   message:print('         │ '),
@@ -321,7 +321,7 @@ printer:print_config_item('download',File,Size) :-
   !,
   message:color(magenta),
   message:print_bytes(Size),
-  message:color(normal), 
+  message:color(normal),
   message:print(' '),
   message:print(File).
 
@@ -451,7 +451,7 @@ printer:print_body(Target,Plan,Call,Steps) :-
 printer:print_steps_in_plan(_,[],_,Count,Count) :- !.
 
 printer:print_steps_in_plan(Target,[Step|Rest],Call,Count,CountFinal) :-
-  predsort(printer:sort_by_weight,Step,SortedStep), 
+  predsort(printer:sort_by_weight,Step,SortedStep),
   printer:print_first_in_step(Target,SortedStep,Count,CountNew),
   call(Call,SortedStep),!,
   printer:print_steps_in_plan(Target,Rest,Call,CountNew,CountFinal).
@@ -513,7 +513,7 @@ printer:print_footer(Plan,Model,PrintedSteps) :-
   length(Plan,_Steps),
   message:print(['Total: ', Total, ' actions (', Downloads, ' downloads, ', Installs,' installs, ', Runs,' runs), grouped into ',PrintedSteps,' steps.' ]),nl,
   message:print(['       ']),
-  message:convert_bytes(TotalDownloadSize,A), 
+  message:convert_bytes(TotalDownloadSize,A),
   message:print([A,' to be downloaded.']),nl,
   nl.
 
