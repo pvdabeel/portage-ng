@@ -9,18 +9,16 @@
 
 
 /** <module> PARSER
-The DCG parser provided is capable of parsing EAPI-6.0 compliant
-information about ebuilds. This information is found in the cache
-of a portage repository, which is read by the provided reader
-and presented to the parser for parsing.
+The parser provided takes its input from the reader and applies an EAPI-7
+compliant DCG grammar to output a parse tree.
 
-Input:  Contents is a nested list of codes.
+Input:  A nested list of character codes codes.
         Each sublist represents a line.
-        Each line represents a specific cache element.
-        (Cfr. eapi for the key-value structure of these elements.)
+        Each line in a repository cache entry represents a key=value pair.
+        Each line in a manifest file represents a key value pair.
 
-Output: A nested list containing the result of parsing each
-        corresponding element from the input.
+Output: A nested list representing the the result of parsing each line in the
+        input.
 */
 
 :- module(parser,[]).
@@ -32,12 +30,13 @@ Output: A nested list containing the result of parsing each
 
 %! parser:invoke(+Type,+Contents,-Result)
 %
-% Type: metadata or manifest
-% Contents: A nested list of codes.
-% Result: A prolog predicate representing the metadata.
+% Type:     An atom indicated Contents is of type 'metadata' or 'manifest'
+% Contents: A nested list of character codes.
+%
+% Result:   A nested list represnting the parse tree.
 
-% parser:invoke(Contents,Metadata) :-
-   % maplist(eapi:parse,Contents,Metadata).
+% parser:invoke(Type,Contents,Metadata) :-
+   % maplist(eapi:parse(Type),Contents,Metadata).
 
 parser:invoke(_,[], []).
 parser:invoke(Type,[X|XX], [Y|YY]) :-
@@ -46,6 +45,11 @@ parser:invoke(Type,[X|XX], [Y|YY]) :-
 
 
 %! parser:test(+Repository)
+%
+% Predicate tests whether all cache entries belonging to a given repository
+% instance can be succesfully parsed.
+%
+% Repository: The repository instance from which to parse all entries.
 %
 % Parses a repository using the default reporting style
 
@@ -56,8 +60,8 @@ parser:test(Repository) :-
 
 %! parser:test(+Repository,+Style)
 %
-% Predicate tests whether all repository entries can be succesfully parsed.
-% Repository: The repository from which to parse all entries.
+% Same as parser:test(+Repository), but uses a specified reporting style
+% 'single_verbose', 'parallel_verbose' or 'parallel_fast'
 
 parser:test(Repository,single_verbose) :-
   Repository:get_size(S),
@@ -76,7 +80,6 @@ parser:test(Repository,single_verbose) :-
                message:failure(E)))),!,
   message:inform(['parsed ',S,' ',Repository,' entries.']).
 
-
 parser:test(Repository,parallel_verbose) :-
   Repository:get_size(S),
   Repository:get_cache(C),
@@ -94,7 +97,6 @@ parser:test(Repository,parallel_verbose) :-
           Calls),
   time(concurrent(Cpus,Calls,[])),!,
   message:inform(['parsed ',S,' ',Repository,' entries.']).
-
 
 parser:test(Repository,parallel_fast) :-
   Repository:get_size(S),
