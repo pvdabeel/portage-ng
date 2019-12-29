@@ -289,7 +289,7 @@ eapi:properties(P) -->
 eapi:manifest(F,S,H) -->
   eapi:chars_to_space(Fs),
   eapi:chars_to_space(Ss),
-  eapi:chars_to_space(Hs),
+  eapi:chars_to_end(Hs),
   { string_codes(F,Fs),
     string_codes(S,Ss),
     string_codes(H,Hs),! }.
