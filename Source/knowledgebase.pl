@@ -142,14 +142,49 @@ state(File) ::-
   atomic_list_concat([Context,'.raw'],File).
 
 
-% knowledgebase:repository(?Repository)
-%
-% Protected predicate
-%
-% Registered repositories
 
-repository(_Repository) ::-
-  true.
+%! knowledgebase:query(+Query,-Result)
+%
+% Public predicate
+%
+% Retrieves metadata cache ebuild that satisfies
+% a given query
+
+query([],Repository://Id) ::-
+  cache:entry(Repository,Id,_,_,_,_).
+
+query([repository(Repository)|Rest],Repository://Id) ::-
+  !,
+  cache:entry(Repository,Id,_,_,_,_),
+  query(Rest,Repository://Id).
+
+query([name(Name)|Rest],Repository://Id) ::-
+  !,
+  cache:entry(Repository,Id,_,_,Name,_),
+  query(Rest,Repository://Id).
+
+query([category(Category)|Rest],Repository://Id) ::-
+  !,
+  cache:entry(Repository,Id,_,Category,_,_),
+  query(Rest,Repository://Id).
+
+query([version(Version)|Rest],Repository://Id) ::-
+  !,
+  cache:entry(Repository,Id,_,_,_,Version),
+  % compare(C,Version,Providedversion),
+  query(Rest,Repository://Id).
+
+query([not(Statement)|Rest],Repository://Id) ::-
+  !,
+  not(query([Statement],Repository://Id)),
+  query(Rest,Repository://Id).
+
+query([Statement|Rest],Repository://Id) ::-
+  !,
+  Statement =.. [Key,Arg],
+  cache:entry_metadata(Repository,Id,Key,Arg),
+  Repository:query(Rest,Repository://Id).
+
 
 
 % knowledgebase:entry(?Entry)
@@ -159,4 +194,14 @@ repository(_Repository) ::-
 % Knowledgebase entries
 
 entry(_E) ::-
+  true.
+
+
+% knowledgebase:repository(?Repository)
+%
+% Protected predicate
+%
+% Registered repositories
+
+repository(_Repository) ::-
   true.
