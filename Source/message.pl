@@ -1,7 +1,7 @@
 /*
   Author:   Pieter Van den Abeele
   E-mail:   pvdabeel@mac.com
-  Copyright (c) 2005-2019, Pieter Van den Abeele
+  Copyright (c) 2005-2020, Pieter Van den Abeele
 
   Distributed under the terms of the LICENSE file in the root directory of this
   project.
@@ -234,7 +234,7 @@ message:header(Message) :-
 
 %! message:convert_bytes(+Bytes,-Output,-Unit)
 %
-% Converts a number of bytes into a gigabyte, megabyte or kilobyte 
+% Converts a number of bytes into a gigabyte, megabyte or kilobyte
 
 message:convert_bytes(Bytes,Output) :-
   Bytes >= 1024 * 1024 * 1024,!,
@@ -247,12 +247,12 @@ message:convert_bytes(Bytes,Output) :-
   Bytes >= 1024 * 1024, !,
   Megabytes is Bytes / 1024 / 1024,
   format(atom(Output),'~2f Mb',[Megabytes]).
-  
+
 message:convert_bytes(Bytes,Output) :-
   Bytes < 1024 * 1024, !,
   Kilobytes is Bytes / 1024,
   format(atom(Output),'~2f Kb',[Kilobytes]).
-  
+
 
 %! message:format_bytes(+Bytes)
 %
@@ -262,7 +262,7 @@ message:print_bytes('live') :-
   !,
   format('~t<live>~10|',[]).
 
-message:print_bytes(Bytes) :- 
+message:print_bytes(Bytes) :-
   format('~t~w~10|',[Bytes]).
 
 
