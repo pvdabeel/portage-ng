@@ -169,7 +169,7 @@ eapi:value("_eclasses_",eclasses(R)) -->
   !,
   eapi:inherited(R).
 
-eapi:value("_md5_",md5(R)) -->
+  eapi:value("_md5_",md5([R])) -->
   !,
   eapi:md5(R).
 
@@ -249,7 +249,7 @@ eapi:restrict(R) -->
 % homepage is an expensive operation. In the current revision
 % of this eapi parser, homepages are not parsed, unless needed.
 
-eapi:homepage(H) -->
+eapi:homepage([H]) -->
   eapi:chars_to_end(Hs),
   { string_codes(H,Hs),! }.
 
@@ -268,7 +268,7 @@ eapi:license(L) -->
 % EAPI 2.0 defines a description as an unparsed element. This
 % is basically pure text information.
 
-eapi:description(D) -->
+eapi:description([D]) -->
   eapi:chars_to_end(Ds),
   { string_codes(D,Ds),! }.
 
@@ -289,7 +289,7 @@ eapi:properties(P) -->
 eapi:manifest(F,S,H) -->
   eapi:chars_to_space(Fs),
   eapi:chars_to_space(Ss),
-  eapi:chars_to_end(Hs),
+  eapi:chars_to_space(Hs),
   { string_codes(F,Fs),
     string_codes(S,Ss),
     string_codes(H,Hs),! }.
@@ -385,6 +385,9 @@ eapi:dependency(restrict,D) -->
 
 eapi:dependency(uri,D) -->
   eapi:uri(D),!.
+
+eapi:dependency(use,U) -->
+  eapi:use_flag(U),!.
 
 
 %! DCG qualified_package
@@ -892,7 +895,8 @@ eapi:iuse([]) -->
 % EAPI 4 defines required use as a list of use flags, with
 % conditional, xor and or relationship.
 
-eapi:required_use(Ua) -->
+eapi:required_use([Ua]) -->
+%  eapi:dependencies(use,U).
   eapi:chars_to_end(U),
   { atom_codes(Ua,U),! }.
 
@@ -1711,7 +1715,7 @@ eapi:filter_use_expand(Use,Filtered) :-
 % positive and negative set
 
 eapi:split_iuse_set(IuseFiltered,PositiveUseSorted,NegativeUseSorted) :-
-  preference:use(ExplicitUse),
+  findall(Use,preference:positive_use(Use),ExplicitUse),
   subtract(IuseFiltered,ExplicitUse,NegativeUse),
   subtract(IuseFiltered,NegativeUse,PositiveUse),
   sort(NegativeUse,NegativeUseSorted),

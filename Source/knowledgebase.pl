@@ -98,8 +98,7 @@ sync ::-
 save ::-
   tell('kb.raw'),
   writeln(':- module(cache,[]).'),
-  prolog_listing:listing(cache:entry),
-  prolog_listing:listing(cache:manifest),
+  prolog_listing:listing(cache:_),
   told,
   qcompile('kb.raw'),!.
 

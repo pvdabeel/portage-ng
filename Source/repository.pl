@@ -9,7 +9,9 @@
 
 
 /** <module> REPOSITORY
-The Repository is a collection of metadata which can be synced, queried, etc.
+The Repository is a class enabling its instances to manipulate repositories
+and the metadata associated with those repositories.
+
 Examples of repositories: Gentoo Portage, Github repositories, ...
 */
 
@@ -39,7 +41,7 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 :- dpublic(package/2).
 :- dpublic(ebuild/3).
 :- dpublic(ebuild/4).
-:- dpublic(ebuild/5).
+:- dpublic(ebuild/6).
 :- dpublic(manifest/4).
 
 :- dpublic(query/2).
@@ -120,7 +122,8 @@ sync ::-
 %
 % Public predicate
 %
-% Updates files in local repository by invoking script to sync with remote
+% Updates files in local repository by invoking script to sync local repository
+% with remote repository
 
 sync(repository) ::-
   ::location(Local),
@@ -133,7 +136,8 @@ sync(repository) ::-
 %
 % Public predicate
 %
-% Regenerates metadata from local repository files by invoking script
+% Regenerates cache metadata inside the local repository files by invoking a
+% script
 
 sync(metadata) ::-
   ::type('eapi'),!,
@@ -161,20 +165,25 @@ sync(metadata) ::-
 %
 % Public predicate
 %
-% Regenerates knowledgebase facts from local repository metadata
+% Regenerates prolog facts from the local repository cache metadata
 
 sync(kb) ::-
   :this(Repository),
-  forall(:find_metadata(E,L,C,N,V),
-         (:read_metadata(E,L,M),
-          retractall(cache:entry(Repository,E,_,_,_,_,_)),
-          assert(cache:entry(Repository,E,L,C,N,V,M)),
+  forall(:find_metadata(E,T,C,N,V),
+         (:read_metadata(E,T,M),
+          retractall(cache:entry(Repository,E,_,_,_,_)),
+          retractall(cache:entry_metadata(Repository,E,_,_)),
+          asserta(cache:entry(Repository,E,T,C,N,V)),
+          forall(member(L,M),
+                 (L=..[Key,Value],
+                  forall(member(I,Value),
+                         assertz(cache:entry_metadata(Repository,E,Key,I))))),
           message:scroll([E]))),
   forall(:find_manifest(E,C,N),
          (:read_manifest(E,T,C,N,M),
           retractall(cache:manifest(Repository,E,_,_,_,_,_)),
-          assert(cache:manifest(Repository,E,T,C,N,M)),
-          message:scroll([E]))),
+          assertz(cache:manifest(Repository,E,T,C,N,M)),
+          message:scroll([E]))),!,
   message:inform(['Updated prolog knowledgebase']).
 
 
@@ -224,9 +233,9 @@ find_manifest(Entry,Category,Name) ::-
 % Reads the metadata for a given entry from disk if
 % it is new of has been modifed
 
-read_metadata(Entry,Timestamp,Metadata) ::-
-  :this(Repository),
-  cache:entry(Repository,Entry,Timestamp,_,_,_,Metadata),!.
+%read_metadata(Entry,Timestamp,Metadata) ::-
+%  :this(Repository),
+%  cache:entry(Repository,Entry,Timestamp,_,_,_,Metadata),!.
 
 read_metadata(Entry,_,Metadata) ::-
   ::cache(Cache),
@@ -279,7 +288,7 @@ read_time(Time) ::-
 
 entry(Entry) ::-
   :this(Repository),
-  cache:entry(Repository,Entry,_,_,_,_,_).
+  cache:entry(Repository,Entry,_,_,_,_).
 
 
 %! repository:entry(?Entry, ?Time)
@@ -292,7 +301,7 @@ entry(Entry) ::-
 
 entry(Entry,Time) ::-
   :this(Repository),
-  cache:entry(Repository,Entry,Time,_,_,_,_).
+  cache:entry(Repository,Entry,Time,_,_,_).
 
 
 %! repository:category(?Category)
@@ -304,7 +313,7 @@ entry(Entry,Time) ::-
 
 category(Category) ::-
   :this(Repository),
-  findall(C,cache:entry(Repository,_,_,C,_,_,_),Cs),
+  findall(C,cache:entry(Repository,_,_,C,_,_),Cs),
   sort(Cs,Ss),!,
   member(Category,Ss).
 
@@ -318,7 +327,7 @@ category(Category) ::-
 
 package(Category,Package) ::-
   :this(Repository),
-  cache:entry(Repository,_,_,Category,Name,Version,_),
+  cache:entry(Repository,_,_,Category,Name,Version),
   atomic_list_concat([Name,'-',Version],Package).
 
 
@@ -331,7 +340,7 @@ package(Category,Package) ::-
 
 ebuild(Category,Name,Version) ::-
   :this(Repository),
-  cache:entry(Repository,_,_,Category,Name,Version,_).
+  cache:entry(Repository,_,_,Category,Name,Version).
 
 
 %! repository:ebuild(?Id, ?Category, ?Name, ?Version)
@@ -343,19 +352,20 @@ ebuild(Category,Name,Version) ::-
 
 ebuild(Id,Category,Name,Version) ::-
   :this(Repository),
-  cache:entry(Repository,Id,_,Category,Name,Version,_).
+  cache:entry(Repository,Id,_,Category,Name,Version).
 
 
-%! repository:ebuild(?Id, ?Category, ?Name, ?Version, ?Metadata)
+%! repository:ebuild(?Id, ?Category, ?Name, ?Version, ?Key, ?Value)
 %
 % Public predicate
 %
 % Retrieves metadata cache ebuild
 % No disk access - initial sync required
 
-ebuild(Id,Category,Name,Version,Metadata) ::-
+ebuild(Id,Category,Name,Version,Key,Value) ::-
   :this(Repository),
-  cache:entry(Repository,Id,_,Category,Name,Version,Metadata).
+  cache:entry(Repository,Id,_,Category,Name,Version),
+  cache:entry_metadata(Repository,Id,Key,Value).
 
 
 %! repository:manifest(?Id, ?Type, ?Filename, ?Size, ?Hash)
@@ -379,35 +389,38 @@ manifest(Id,Category,Name,Manifest) ::-
 
 query([],Id) ::-
   :this(Repository),
-  cache:entry(Repository,Id,_,_,_,_,_).
+  cache:entry(Repository,Id,_,_,_,_).
 
 query([name(Name)|Rest],Id) ::-
   :this(Repository),
-  cache:entry(Repository,Id,_,_,Name,_,_),
+  !,
+  cache:entry(Repository,Id,_,_,Name,_),
   Repository:query(Rest,Id).
 
 query([category(Category)|Rest],Id) ::-
   :this(Repository),
-  cache:entry(Repository,Id,_,Category,_,_,_),
+  !,
+  cache:entry(Repository,Id,_,Category,_,_),
   Repository:query(Rest,Id).
 
 query([version(Version)|Rest],Id) ::-
   :this(Repository),
-  cache:entry(Repository,Id,_,_,_,Version,_),
+  !,
+  cache:entry(Repository,Id,_,_,_,Version),
   % compare(C,Version,Providedversion),
   Repository:query(Rest,Id).
 
 query([not(Statement)|Rest],Id) ::-
   :this(Repository),
+  !,
   not(Repository:query([Statement],Id)),
   Repository:query(Rest,Id).
 
 query([Statement|Rest],Id) ::-
   :this(Repository),
-  cache:entry(Repository,Id,_,_,_,_,Metadata),
+  !,
   Statement =.. [Key,Arg],
-  eapi:elem(Key,Metadata,Setting),
-  member(Arg,Setting),
+  cache:entry_metadata(Repository,Id,Key,Arg),
   Repository:query(Rest,Id).
 
 

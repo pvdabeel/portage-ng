@@ -21,8 +21,9 @@ and even build large scale software configrations.
 This file is the main source file in the repository. It loads all other files.
 */
 
-:- dynamic cache:entry(_,_,_,_,_,_,_).
-:- dynamic cache:manifest(_,_,_,_,_,_).
+:- dynamic cache:entry/6.
+:- dynamic cache:entry_metadata/4.
+:- dynamic cache:manifest/6.
 
 
 % **********

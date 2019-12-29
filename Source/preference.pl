@@ -15,6 +15,10 @@ The preferences module contains build specific preferences
 :- module(preference, []).
 
 :- dynamic preference:known_broken/1.
+:- dynamic preference:positive_use/1.
+:- dynamic preference:negative_usa/1.
+:- dynamic preference:use_expand_hidden/1.
+:- dynamic preference:masked/1.
 
 % ***********************
 % PREFERENCE declarations

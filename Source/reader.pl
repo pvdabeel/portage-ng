@@ -98,5 +98,5 @@ reader:test(Repository) :-
   time(forall(Repository:entry(E),
                (reader:invoke(C,E,_);(message:failure(E)))
 	     )),
-  Repository:get_size(S),
+  Repository:get_size(S),!,
   message:inform(['read ',S,' ',Repository,' entries.']).
