@@ -31,6 +31,7 @@ state across application relaunches.
 :- dpublic(sync/0).
 :- dpublic(save/0).
 :- dpublic(load/0).
+:- dpublic(compile/0).
 :- dpublic(clear/0).
 
 :- dpublic(query/2).
@@ -101,6 +102,16 @@ save ::-
   prolog_listing:listing(cache:_),
   told,
   qcompile('kb.raw'),!.
+
+
+%! knowledgebase:compile
+%
+% Public predicate
+%
+% Save state to stand-alone program
+
+compile ::-
+  qsave_program(portage-ng,[stand_alone(true),goal(prolog)]).
 
 
 % knowledgebase:load
