@@ -1,7 +1,7 @@
 /*
   Author:   Pieter Van den Abeele
   E-mail:   pvdabeel@mac.com
-  Copyright (c) 2005-2019, Pieter Van den Abeele
+  Copyright (c) 2005-2020, Pieter Van den Abeele
 
   Distributed under the terms of the LICENSE file in the root directory of this
   project.
@@ -193,14 +193,28 @@ repository(_Repository) ::-
 %
 % Retrieves metadata cache which satisfies a given query
 
+% -------------------------
+% Query: Solution generator
+% -------------------------
+
 query([],Repository://Id) :-
   !,
   cache:entry(Repository,Id,_,_,_,_).
+
+
+% ---------------
+% Query: Negation
+% ---------------
 
 query([not(Statement)|Rest],Repository://Id) :-
   !,
   not(query([Statement],Repository://Id)),
   query(Rest,Repository://Id).
+
+
+% --------------------------------------
+% Query: Collection over single argument
+% --------------------------------------
 
 query([all(Statement)|Rest],Repository://Id) :-
   !,
@@ -208,48 +222,128 @@ query([all(Statement)|Rest],Repository://Id) :-
   findall(Value,cache:entry_metadata(Repository,Id,Key,Value),Values),
   query(Rest,Repository://Id).
 
+
+% -----------------
+% Query: Repository
+% -----------------
+
 query([repository(Repository)|Rest],Repository://Id) :-
   !,
   cache:entry(Repository,Id,_,_,_,_),
   query(Rest,Repository://Id).
+
+
+% -----------
+% Query: Name
+% -----------
 
 query([name(Name)|Rest],Repository://Id) :-
   !,
   cache:entry(Repository,Id,_,_,Name,_),
   query(Rest,Repository://Id).
 
+
+% ---------------
+% Query: Category
+% ---------------
+
 query([category(Category)|Rest],Repository://Id) :-
   !,
   cache:entry(Repository,Id,_,Category,_,_),
   query(Rest,Repository://Id).
+
+
+% --------------
+% Query: Version
+% --------------
 
 query([version(Version)|Rest],Repository://Id) :-
   !,
   cache:entry(Repository,Id,_,_,_,Version),
   query(Rest,Repository://Id).
 
+
+% ---------------
+% Query: manifest
+% ---------------
+
 query([manifest(Type,Binary,Size)|Rest],Repository://Id) :-
   cache:entry(Repository,Id,_,Category,Name,_),
   cache:entry_metadata(Repository,Id,src_uri,uri(Binary)),
-  cache:manifest(Repository,_,Category,Name,Manifest),
+  cache:manifest(Repository,_,_,Category,Name,Manifest),
   member(manifest(Type,Binary,Size,_),Manifest),
   query(Rest,Repository://Id).
 
 query([manifest(Type,Binary,Size)|Rest],Repository://Id) :-
   cache:entry(Repository,Id,_,Category,Name,_),
   cache:entry_metadata(Repository,Id,src_uri,uri(_,_,Binary)),
-  cache:manifest(Repository,_,Category,Name,Manifest),
+  cache:manifest(Repository,_,_,Category,Name,Manifest),
   member(manifest(Type,Binary,Size,_),Manifest),
   query(Rest,Repository://Id).
 
 query([manifest(Type,Binary,Size)|Rest],Repository://Id) :-
-  !,
   cache:entry(Repository,Id,_,Category,Name,_),
-  cache:entry_metadata(Repository,Id,src_uri,uri(_,Path,"")),
-  cache:manifest(Repository,_,Category,Name,Manifest),
+  cache:entry_metadata(Repository,Id,src_uri,uri(_,Path,"")),!,
+  cache:manifest(Repository,_,_,Category,Name,Manifest),
   member(manifest(Type,Binary,Size,_),Manifest),
   file_base_name(Path,Binary),
   query(Rest,Repository://Id).
+
+% -----------
+% Query: iuse
+% -----------
+
+query([iuse(Iuse)|Rest],Repository://Id) :-
+  !,
+  cache:entry_metadata(Repository,Id,iuse,Value),
+  eapi:strip_use_default(Value,Iuse),
+  query(Rest,Repository://Id).
+
+
+% -------------------------------
+% Query: iuse with use flag state
+% -------------------------------
+
+query([iuse(Iuse,State)|Rest],Repository://Id) :-
+  !,
+  cache:entry_metadata(Repository,Id,iuse,Value),
+  ebuild:categorize_use(Value,State),
+  eapi:strip_use_default(Value,Iuse),
+  query(Rest,Repository://Id).
+
+
+% -----------------
+% Query: use expand
+% -----------------
+
+query([Statement|Rest],Repository://Id) :-
+  Statement =.. [Key,Value],
+  eapi:use_expand(Key),!,
+  cache:entry_metadata(Repository,Id,iuse,Arg),
+  eapi:strip_use_default(Arg,ArgB),
+  eapi:check_prefix_atom(Key,ArgB),
+  eapi:strip_prefix_atom(Key,ArgB,Value),
+  query(Rest,Repository://Id).
+
+
+% -------------------------------------
+% Query: use expand with use flag state
+% -------------------------------------
+
+query([Statement|Rest],Repository://Id) :-
+  Statement =.. [Key,Value,State],
+  eapi:use_expand(Key),!,
+  cache:entry_metadata(Repository,Id,iuse,Arg),
+  ebuild:categorize_use(Arg,State),
+  eapi:strip_use_default(Arg,ArgB),
+  eapi:check_prefix_atom(Key,ArgB),
+  eapi:strip_prefix_atom(Key,ArgB,Value),
+  query(Rest,Repository://Id).
+
+
+% ---------------------
+% Query: other metadata
+% ---------------------
 
 query([Statement|Rest],Repository://Id) :-
   !,
