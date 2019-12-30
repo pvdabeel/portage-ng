@@ -162,7 +162,19 @@ state(File) ::-
 % a given query
 
 query([],Repository://Id) ::-
+  !,
   cache:entry(Repository,Id,_,_,_,_).
+
+query([not(Statement)|Rest],Repository://Id) ::-
+  !,
+  not(query([Statement],Repository://Id)),
+  query(Rest,Repository://Id).
+
+query([all(Statement)|Rest],Repository://Id) ::-
+  !,
+  Statement =.. [Key,Values],
+  findall(Value,cache:entry_metadata(Repository,Id,Key,Value),Values),
+  query(Rest,Repository://Id).
 
 query([repository(Repository)|Rest],Repository://Id) ::-
   !,
@@ -185,17 +197,11 @@ query([version(Version)|Rest],Repository://Id) ::-
   % compare(C,Version,Providedversion),
   query(Rest,Repository://Id).
 
-query([not(Statement)|Rest],Repository://Id) ::-
-  !,
-  not(query([Statement],Repository://Id)),
-  query(Rest,Repository://Id).
-
 query([Statement|Rest],Repository://Id) ::-
   !,
   Statement =.. [Key,Arg],
   cache:entry_metadata(Repository,Id,Key,Arg),
-  Repository:query(Rest,Repository://Id).
-
+  query(Rest,Repository://Id).
 
 
 % knowledgebase:entry(?Repository://?Entry)

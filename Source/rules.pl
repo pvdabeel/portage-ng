@@ -18,16 +18,16 @@ This file contains domain-specific rules for dealing with software dependencies
 % RULES declarations
 % ******************
 
-% Skip masked packages without failing
+% Skip masked ebuilds without failing
 
-rule(Repository://Identifier:_,[]) :-
-  preference:masked(Repository://Identifier),!.
+rule(Repository://Ebuild:_,[]) :-
+  preference:masked(Repository://Ebuild),!.
 
 
 % An ebuild is downloaded if its sources are downloaded
 
-rule(Repository://Ebuild:download,D) :-
-  ebuild:get(src_uri,Repository://Ebuild,D), !.
+rule(Repository://Ebuild:download,S) :-
+  kb:query([all(src_uri(S))],Repository://Ebuild),!.
 
 
 % Ebuild sources are included in the build plan
@@ -38,7 +38,7 @@ rule(uri(_Local),[]) :- !.
 
 
 % An ebuild can be installed, if the following conditions are satisfied:
-% - if it is not a virtual, a group or a user: it is downloaded
+% - it is downloaded (if it is not a virtual, a group or a user)
 % - its compiletime dependencies are satisfied
 % - it can occupy an installation slot
 
@@ -46,31 +46,25 @@ rule(uri(_Local),[]) :- !.
 % CASE 1 : Virtual
 % ----------------
 
-rule(Repository://Ebuild:install,[constraint(slot(Cat,Name,Slot):{[Ebuild]})|Deps]) :-
-  Repository:ebuild(Ebuild,Cat,Name,_),
-  memberchk(Cat,['virtual','acct-group','acct-user']),!,
-  ebuild:get(depend,Repository://Ebuild,Deps),
-  ebuild:get(slot,Repository://Ebuild,Slots),
-  memberchk(slot(Slot),Slots).
+%rule(Repository://Ebuild:install,[constraint(slot(C,N,S):{[Ebuild]})|D]) :-
+%  kb:query([category(C),name(N),slot(slot(S)),all(depend(D))],Repository://Ebuild),
+%  memberchk(C,['virtual','acct-group','acct-user']),!.
 
 
 % -------------------
 % CASE 2: Non-Virtual
 % -------------------
 
-rule(Repository://Ebuild:install,[Repository://Ebuild:download,constraint(slot(Cat,Name,Slot):{[Ebuild]})|Deps]) :-
-  % not(Repository:ebuild(Ebuild,'virtual',Name,_),!,
+rule(Repository://Ebuild:install,[Repository://Ebuild:download,constraint(slot(C,N,S):{[Ebuild]})|D]) :-
   !,
-  ebuild:get(depend,Repository://Ebuild,Deps),
-  cache:entry_metadata(Repository,Ebuild,'slot',slot(Slot)),
-  Repository:ebuild(Ebuild,Cat,Name,_).
+  kb:query([category(C),name(N),slot(slot(S)),all(depend(D))],Repository://Ebuild).
 
 
 % An ebuild can be run, if it is installed and if its runtime dependencies are satisfied
 
-rule(Repository://Ebuild:run,[Repository://Ebuild:install|Deps]) :-
+rule(Repository://Ebuild:run,[Repository://Ebuild:install|D]) :-
   !,
-  ebuild:get(rdepend,Repository://Ebuild,Deps).
+  kb:query([all(rdepend(D))],Repository://Ebuild).
 
 
 % Conflicting package: EAPI 8.2.6.2: a weak block can be ignored by the package manager
@@ -137,14 +131,14 @@ rule(package_dependency(_,no,'virtual','ssh',_,_,_,_),[]) :- !.
 % A package dependency is satisfied when a suitable candidate is satisfied
 
 rule(package_dependency(Action,no,C,N,_,_,_,_),[Repository://Choice:Action]) :-
-  cache:entry(Repository,Choice,_,C,N,_).
+  kb:query([name(N),category(C)],Repository://Choice).
 
 
 % A package dependency that has no suitable candidates is assumed satisfied
 % The planner and builder checks for assumptions before execution
 
 rule(package_dependency(Action,no,C,N,O,V,S,U),[assumed(package_dependency(Action,no,C,N,O,V,S,U))]) :-
-  not(cache:entry(_,_,_,C,N,_)),!.
+  not(kb:query([name(N),category(C)],_)),!.
 
 
 % The dependencies in a positive use conditional group need to be satisfied when the use flag is set

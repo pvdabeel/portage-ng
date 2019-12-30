@@ -391,6 +391,19 @@ query([],Id) ::-
   :this(Repository),
   cache:entry(Repository,Id,_,_,_,_).
 
+query([not(Statement)|Rest],Id) ::-
+  :this(Repository),
+  !,
+  not(Repository:query([Statement],Id)),
+  Repository:query(Rest,Id).
+
+query([all(Statement)|Rest],Id) ::-
+  :this(Repository),
+  !,
+  Statement =.. [Key,Values],
+  findall(Value,cache:entry_metadata(Repository,Id,Key,Value),Values),
+  Repository:query(Rest,Id).
+
 query([repository(Repository)|Rest],Id) ::-
   :this(Repository),
   !,
@@ -413,12 +426,6 @@ query([version(Version)|Rest],Id) ::-
   !,
   cache:entry(Repository,Id,_,_,_,Version),
   % compare(C,Version,Providedversion),
-  Repository:query(Rest,Id).
-
-query([not(Statement)|Rest],Id) ::-
-  :this(Repository),
-  !,
-  not(Repository:query([Statement],Id)),
   Repository:query(Rest,Id).
 
 query([Statement|Rest],Id) ::-

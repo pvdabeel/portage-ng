@@ -64,7 +64,14 @@ The contents of this file needs some rework. Probably to be moved into repositor
 % Case 5: Other metadata. Ebuild declares metadata for the requested key
 % ----------------------------------------------------------------------
 
-ebuild:get(Key,Repository://Entry,Content) :-
+
+
+
+
+ebuild:get(Key,Repository://Entry,Value) :-
+  cache:entry_metadata(Repository,Entry,Key,Value).
+
+ebuild:get_all(Key,Repository://Entry,Content) :-
   findall(Value,cache:entry_metadata(Repository,Entry,Key,Value),Content).
 
 
