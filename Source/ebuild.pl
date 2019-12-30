@@ -81,52 +81,36 @@ ebuild:get_all(Key,Repository://Entry,Values) :-
 %  not(cache:entry_metadata(Repository,Entry,Key,_)),!.
 
 
-%! ebuild:download(+Repository://+Entry,-B,-S)
-%
-% Retrieves download filename and corresponding filesize for a given Entry
-
-ebuild:download(Repository://Entry,B,S) :-
-  ebuild:get(src_uri,Repository://Entry,uri(B)),
-  Repository:ebuild(Entry,Category,Name,_),
-  Repository:manifest(_,Category,Name,Manifest),
-  member(manifest(dist,B,Ss,_),Manifest),
-  number_string(S,Ss).
-
-ebuild:download(Repository://Entry,B,S) :-
-  ebuild:get(src_uri,Repository://Entry,uri(_,_,B)),
-  Repository:ebuild(Entry,Category,Name,_),
-  Repository:manifest(_,Category,Name,Manifest),
-  member(manifest(dist,B,Ss,_),Manifest),
-  number_string(S,Ss).
-
-ebuild:download(Repository://Entry,B,S) :-
-  ebuild:get(src_uri,Repository://Entry,uri(_,P,"")),
-  Repository:ebuild(Entry,Category,Name,_),
-  Repository:manifest(_,Category,Name,Manifest),
-  member(manifest(dist,B,Ss,_),Manifest),
-  file_base_name(P,Bs),
-  atom_string(Bs,B),
-  number_string(S,Ss).
-
-
 %! ebuild:download_size(+Repository://+Entry,-T)
 %
 % Retrieve total download size for all files corresponding to a given Entry
 
 ebuild:download_size(Repository://Entry,T) :-
-  aggregate_all(sum(S),ebuild:download(Repository://Entry,_,S),T),!.
+  aggregate_all(sum(S),knowledgebase:query([manifest(_,_,S)],Repository://Entry),T),!.
 
 ebuild:download_size(_://_,0) :- !.
 
 
+%! ebuild:iuse(Repository://Entry,Use)
+%
+% Retrieve use flags from ebuild
 
 ebuild:iuse(Repository://Entry,Use) :-
-  cache:entry_metadata(Repository,Entry,iuse,Use).
+  knowledgebase:query([all(iuse(Use))],Repository://Entry).
+
+
+%! ebuild:iuse_filtered(Repository://Entry,Use)
+%
+% Retrieve use flags from ebuild
 
 ebuild:iuse_filtered(Repository://Entry,Use) :-
   ebuild:get(iuse_filtered,Repository://Entry,Iuse),
   member(Use,Iuse).
 
+
+%! ebuild:categorize_use(Use,Type)
+%
+% Retrieve use flags from ebuild
 
 ebuild:categorize_use(plus(Use),'pos:ebuild') :-
   !,

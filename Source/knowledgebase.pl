@@ -219,9 +219,20 @@ query([not(Statement)|Rest],Repository://Id) :-
 % --------------------------------------
 
 query([all(Statement)|Rest],Repository://Id) :-
-  !,
   Statement =.. [Key,Values],
-  findall(Value,cache:entry_metadata(Repository,Id,Key,Value),Values),
+  !,
+  findall(Value,(Statement =.. [Key,Value],knowledgebase:query([Statement],Repository://Id)),Values),
+  query(Rest,Repository://Id).
+
+
+% -------------------------------------
+% Query: Collection over dual arguments
+% -------------------------------------
+
+query([all(Statement)|Rest],Repository://Id) :-
+  Statement =.. [Key,Values,_],
+  !,
+  findall([ValueA,ValueB],(Statement =.. [Key,ValueA,ValueB],knowledgebase:query([Statement],Repository://Id)),Values),
   query(Rest,Repository://Id).
 
 
