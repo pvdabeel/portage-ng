@@ -150,7 +150,7 @@ grapher:write_tree(Repository://Id,_Type) :-
 % Create a unique name for a given ebuild.
 
 grapher:enconvert(Repository://Id,Code) :-
-  string_codes(Id,List),
+  atom_codes(Id,List),
   atomic_list_concat([choice,Repository|List],Code).
 
 

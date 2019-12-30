@@ -253,13 +253,13 @@ printer:print_config(Repository://Ebuild:download) :-
 % no downloads
 
 printer:print_config(Repository://Ebuild:download) :-
-  not(ebuild:download(Repository://Ebuild,_,_)),!.
+  not(knowledgebase:query([manifest(_,_,_)],Repository://Ebuild)),!.
 
 
 % at least one download
 
 printer:print_config(Repository://Ebuild:download) :-
-  findall([File,Size],ebuild:download(Repository://Ebuild,File,Size),[[FirstFile,FirstSize]|Rest]),!,
+  findall([File,Size],knowledgebase:query([manifest(_,File,Size)],Repository://Ebuild),[[FirstFile,FirstSize]|Rest]),!,
   printer:print_config_prefix('file'),
   printer:print_config_item('download',FirstFile,FirstSize),
   forall(member([RestFile,RestSize],Rest),
@@ -275,13 +275,13 @@ printer:print_config(Repository://Ebuild:download) :-
 % iuse empty
 
 printer:print_config(Repository://Entry:install) :-
-  ebuild:get(iuse,Repository://Entry,[]), !.
+  not(knowledgebase:query([iuse(_)],Repository://Entry)),!.
 
 % use flags to show
 
 printer:print_config(Repository://Entry:install) :-
-  ebuild:get(iuse,Repository://Entry,Iuse),
-  ebuild:get(iuse_filtered,Repository://Entry,IuseFiltered),
+  ebuild:get_all(iuse,Repository://Entry,Iuse),
+  ebuild:get_all(iuse_filtered,Repository://Entry,IuseFiltered),
   eapi:split_iuse_set(IuseFiltered,Positive,Negative),
   printer:print_config_prefix('conf'),
   printer:print_config_item('use',Positive,Negative),

@@ -83,11 +83,11 @@ eapi:keyvalue(Type,Metadata) -->
 
 eapi:key(metadata,Key) -->
   eapi:chars_to_equal(Cs),
-  { string_codes(Key,Cs),! }.
+  { atom_codes(Key,Cs),! }.
 
 eapi:key(manifest,Key) -->
   eapi:chars_to_space(Cs),
-  { string_codes(Key,Cs),! }.
+  { atom_codes(Key,Cs),! }.
 
 
 % --------------------
@@ -101,91 +101,91 @@ eapi:key(manifest,Key) -->
 %
 % private predicates
 
-eapi:value("DEFINED_PHASES",defined_phases(R)) -->
+eapi:value('DEFINED_PHASES',defined_phases(R)) -->
   !,
   eapi:functions(R).
 
-eapi:value("DEPEND",depend(R)) -->
+eapi:value('DEPEND',depend(R)) -->
   !,
   eapi:depend(R).
 
-eapi:value("DESCRIPTION",description(R)) -->
+eapi:value('DESCRIPTION',description(R)) -->
   !,
   eapi:description(R).
 
-eapi:value("EAPI",eapi(R)) -->
+eapi:value('EAPI',eapi(R)) -->
   !,
   eapi:eapi(R).
 
-eapi:value("HOMEPAGE",homepage(R)) -->
+eapi:value('HOMEPAGE',homepage(R)) -->
   !,
   eapi:homepage(R).
 
-eapi:value("IUSE",iuse(R)) -->
+eapi:value('IUSE',iuse(R)) -->
   !,
   eapi:iuse(R).
 
-eapi:value("KEYWORDS",keywords(R)) -->
+eapi:value('KEYWORDS',keywords(R)) -->
   !,
   eapi:keywords(R).
 
-eapi:value("LICENSE",license(R)) -->
+eapi:value('LICENSE',license(R)) -->
   !,
   eapi:license(R).
 
-eapi:value("RDEPEND",rdepend(R)) -->
+eapi:value('RDEPEND',rdepend(R)) -->
   !,
   eapi:rdepend(R).
 
-eapi:value("SLOT",slot(R)) -->
+eapi:value('SLOT',slot(R)) -->
   !,
   eapi:slot(R).
 
-eapi:value("SRC_URI",src_uri(R)) -->
+eapi:value('SRC_URI',src_uri(R)) -->
   !,
   eapi:src_uri(R).
 
-eapi:value("RESTRICT",restrict(R)) -->
+eapi:value('RESTRICT',restrict(R)) -->
   !,
   eapi:restrict(R).
 
-eapi:value("REQUIRED_USE",required_use(R)) -->
+eapi:value('REQUIRED_USE',required_use(R)) -->
   !,
   eapi:required_use(R).
 
-eapi:value("PDEPEND",pdepend(R)) -->
+eapi:value('PDEPEND',pdepend(R)) -->
   !,
   eapi:cdepend(R).
 
-eapi:value("PROVIDE",provide(R)) -->
+eapi:value('PROVIDE',provide(R)) -->
   !,
   eapi:provide(R).
 
-eapi:value("PROPERTIES",properties(R)) -->
+eapi:value('PROPERTIES',properties(R)) -->
   !,
   eapi:properties(R).
 
-eapi:value("_eclasses_",eclasses(R)) -->
+eapi:value('_eclasses_',eclasses(R)) -->
   !,
   eapi:inherited(R).
 
-  eapi:value("_md5_",md5([R])) -->
+eapi:value('_md5_',md5([R])) -->
   !,
   eapi:md5(R).
 
-eapi:value("EBUILD",manifest(ebuild,F,S,H)) -->
+eapi:value('EBUILD',manifest(ebuild,F,S,H)) -->
   !,
   eapi:manifest(F,S,H).
 
-eapi:value("MISC",manifest(misc,F,S,H)) -->
+eapi:value('MISC',manifest(misc,F,S,H)) -->
   !,
   eapi:manifest(F,S,H).
 
-eapi:value("AUX",manifest(aux,F,S,H)) -->
+eapi:value('AUX',manifest(aux,F,S,H)) -->
   !,
   eapi:manifest(F,S,H).
 
-eapi:value("DIST",manifest(dist,F,S,H)) -->
+eapi:value('DIST',manifest(dist,F,S,H)) -->
   !,
   eapi:manifest(F,S,H).
 
@@ -251,7 +251,7 @@ eapi:restrict(R) -->
 
 eapi:homepage([H]) -->
   eapi:chars_to_end(Hs),
-  { string_codes(H,Hs),! }.
+  { atom_codes(H,Hs),! }.
 
 
 %! DCG license
@@ -290,7 +290,7 @@ eapi:manifest(F,S,H) -->
   eapi:chars_to_space(Fs),
   eapi:chars_to_space(Ss),
   eapi:chars_to_end(Hs),
-  { string_codes(F,Fs),
+  { atom_codes(F,Fs),
     number_codes(S,Ss),
     string_codes(H,Hs),! }.
 
@@ -321,7 +321,7 @@ eapi:cdepend(D) -->
 
 eapi:provide(P) -->
   eapi:chars_to_end(Ps),
-  { string_codes(P,Ps),! }.
+  { atom_codes(P,Ps),! }.
   %eapi:dependencies(virtual,P).
 
 
@@ -747,8 +747,6 @@ eapi:md5(M) -->
   eapi:pchars([Ms]),
   { atom_codes(M,Ms) }.
 
-codes_string(A,B) :- string_codes(B,A),!.
-
 
 %! DCG: slot_restriction
 %
@@ -1141,9 +1139,9 @@ eapi:uri(uri(P,B,L)) -->
   [58,47,47],!,            % required ://
   eapi:uri_chars(Bs),      % required
   eapi:arrow(Ls),          % optional
-  { string_codes(P,Ps),
-    string_codes(B,Bs),
-    string_codes(L,Ls),! }.
+  { atom_codes(P,Ps),
+    atom_codes(B,Bs),
+    atom_codes(L,Ls),! }.
 
 % -----------------------------
 % CASE 2 : a non-prototyped uri
@@ -1151,7 +1149,7 @@ eapi:uri(uri(P,B,L)) -->
 
 eapi:uri(uri(P)) -->
   eapi:uri_chars1(Ps),
-  { string_codes(P,Ps),! }.
+  { atom_codes(P,Ps),! }.
 
 
 % DCG protocol

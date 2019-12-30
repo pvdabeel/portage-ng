@@ -263,7 +263,8 @@ message:print_bytes('live') :-
   format('~t<live>~10|',[]).
 
 message:print_bytes(Bytes) :-
-  format('~t~w~10|',[Bytes]).
+  message:convert_bytes(Bytes,Output),
+  format('~t~w~10|',[Output]).
 
 
 %! message:prefix(+Message)
