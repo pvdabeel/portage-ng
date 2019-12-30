@@ -65,7 +65,7 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 % protected interface
 
 :- dprotected(read_metadata/3).
-:- dprotected(read_manifest/5).
+:- dpublic(read_manifest/5).
 
 :- dprotected(location/1).
 :- dprotected(cache/1).
@@ -181,7 +181,7 @@ sync(kb) ::-
           message:scroll([E]))),
   forall(:find_manifest(E,C,N),
          (:read_manifest(E,T,C,N,M),
-          retractall(cache:manifest(Repository,E,_,_,_,_,_)),
+          retractall(cache:manifest(Repository,E,_,_,_,_)),
           assertz(cache:manifest(Repository,E,T,C,N,M)),
           message:scroll([E]))),!,
   message:inform(['Updated prolog knowledgebase']).

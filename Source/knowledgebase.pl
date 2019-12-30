@@ -111,7 +111,7 @@ save ::-
 % Save state to stand-alone program
 
 compile ::-
-  qsave_program(portage-ng,[stand_alone(true),goal(prolog)]).
+  qsave_program('portage-ng',[stand_alone(true),goal(prolog)]).
 
 
 % knowledgebase:load
