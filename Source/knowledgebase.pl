@@ -42,6 +42,10 @@ state across application relaunches.
 :- dprotected(repository/1).
 :- dprotected(state/1).
 
+% static interface
+
+:- dstatic(query/2).
+
 
 %! Constructor
 %
@@ -142,6 +146,16 @@ clear ::-
   true.
 
 
+% knowledgebase:query(+Query,-Result)
+%
+% Public predicate
+%
+% Retrieves metadata cache which satisfies a given query
+
+query(Query,Result) ::-
+  knowledgebase:query(Query,Result).
+
+
 % knowledgebase:state(+File)
 %
 % Protected predicate
@@ -151,57 +165,6 @@ clear ::-
 state(File) ::-
   :this(Context),
   atomic_list_concat([Context,'.raw'],File).
-
-
-
-%! knowledgebase:query(+Query,-Result)
-%
-% Public predicate
-%
-% Retrieves metadata cache ebuild that satisfies
-% a given query
-
-query([],Repository://Id) ::-
-  !,
-  cache:entry(Repository,Id,_,_,_,_).
-
-query([not(Statement)|Rest],Repository://Id) ::-
-  !,
-  not(query([Statement],Repository://Id)),
-  query(Rest,Repository://Id).
-
-query([all(Statement)|Rest],Repository://Id) ::-
-  !,
-  Statement =.. [Key,Values],
-  findall(Value,cache:entry_metadata(Repository,Id,Key,Value),Values),
-  query(Rest,Repository://Id).
-
-query([repository(Repository)|Rest],Repository://Id) ::-
-  !,
-  cache:entry(Repository,Id,_,_,_,_),
-  query(Rest,Repository://Id).
-
-query([name(Name)|Rest],Repository://Id) ::-
-  !,
-  cache:entry(Repository,Id,_,_,Name,_),
-  query(Rest,Repository://Id).
-
-query([category(Category)|Rest],Repository://Id) ::-
-  !,
-  cache:entry(Repository,Id,_,Category,_,_),
-  query(Rest,Repository://Id).
-
-query([version(Version)|Rest],Repository://Id) ::-
-  !,
-  cache:entry(Repository,Id,_,_,_,Version),
-  % compare(C,Version,Providedversion),
-  query(Rest,Repository://Id).
-
-query([Statement|Rest],Repository://Id) ::-
-  !,
-  Statement =.. [Key,Arg],
-  cache:entry_metadata(Repository,Id,Key,Arg),
-  query(Rest,Repository://Id).
 
 
 % knowledgebase:entry(?Repository://?Entry)
@@ -222,3 +185,53 @@ entry(Repository://Entry) ::-
 
 repository(_Repository) ::-
   true.
+
+
+%! knowledgebase:query(+Query,-Result)
+%
+% Public class predicate
+%
+% Retrieves metadata cache which satisfies a given query
+
+query([],Repository://Id) :-
+  !,
+  cache:entry(Repository,Id,_,_,_,_).
+
+query([not(Statement)|Rest],Repository://Id) :-
+  !,
+  not(query([Statement],Repository://Id)),
+  query(Rest,Repository://Id).
+
+query([all(Statement)|Rest],Repository://Id) :-
+  !,
+  Statement =.. [Key,Values],
+  findall(Value,cache:entry_metadata(Repository,Id,Key,Value),Values),
+  query(Rest,Repository://Id).
+
+query([repository(Repository)|Rest],Repository://Id) :-
+  !,
+  cache:entry(Repository,Id,_,_,_,_),
+  query(Rest,Repository://Id).
+
+query([name(Name)|Rest],Repository://Id) :-
+  !,
+  cache:entry(Repository,Id,_,_,Name,_),
+  query(Rest,Repository://Id).
+
+query([category(Category)|Rest],Repository://Id) :-
+  !,
+  cache:entry(Repository,Id,_,Category,_,_),
+  query(Rest,Repository://Id).
+
+query([version(Version)|Rest],Repository://Id) :-
+  !,
+  cache:entry(Repository,Id,_,_,_,Version),
+  query(Rest,Repository://Id).
+
+query([Statement|Rest],Repository://Id) :-
+  !,
+  Statement =.. [Key,Arg],
+  cache:entry_metadata(Repository,Id,Key,Arg),
+  query(Rest,Repository://Id).
+
+
