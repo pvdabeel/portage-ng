@@ -27,7 +27,7 @@ rule(Repository://Ebuild:_,[]) :-
 % An ebuild is downloaded if its sources are downloaded
 
 rule(Repository://Ebuild:download,S) :-
-  kb:query([all(src_uri(S))],Repository://Ebuild),!.
+  knowledgebase:query([all(src_uri(S))],Repository://Ebuild),!.
 
 
 % Ebuild sources are included in the build plan
@@ -46,9 +46,9 @@ rule(uri(_Local),[]) :- !.
 % CASE 1 : Virtual
 % ----------------
 
-%rule(Repository://Ebuild:install,[constraint(slot(C,N,S):{[Ebuild]})|D]) :-
-%  kb:query([category(C),name(N),slot(slot(S)),all(depend(D))],Repository://Ebuild),
-%  memberchk(C,['virtual','acct-group','acct-user']),!.
+rule(Repository://Ebuild:install,[constraint(slot(C,N,S):{[Ebuild]})|D]) :-
+  knowledgebase:query([category(C),name(N),slot(slot(S)),all(depend(D))],Repository://Ebuild),
+  memberchk(C,['virtual','acct-group','acct-user']),!.
 
 
 % -------------------
@@ -57,14 +57,14 @@ rule(uri(_Local),[]) :- !.
 
 rule(Repository://Ebuild:install,[Repository://Ebuild:download,constraint(slot(C,N,S):{[Ebuild]})|D]) :-
   !,
-  kb:query([category(C),name(N),slot(slot(S)),all(depend(D))],Repository://Ebuild).
+  knowledgebase:query([category(C),name(N),slot(slot(S)),all(depend(D))],Repository://Ebuild).
 
 
 % An ebuild can be run, if it is installed and if its runtime dependencies are satisfied
 
 rule(Repository://Ebuild:run,[Repository://Ebuild:install|D]) :-
   !,
-  kb:query([all(rdepend(D))],Repository://Ebuild).
+  knowledgebase:query([all(rdepend(D))],Repository://Ebuild).
 
 
 % Conflicting package: EAPI 8.2.6.2: a weak block can be ignored by the package manager
@@ -131,14 +131,14 @@ rule(package_dependency(_,no,'virtual','ssh',_,_,_,_),[]) :- !.
 % A package dependency is satisfied when a suitable candidate is satisfied
 
 rule(package_dependency(Action,no,C,N,_,_,_,_),[Repository://Choice:Action]) :-
-  kb:query([name(N),category(C)],Repository://Choice).
+  knowledgebase:query([name(N),category(C)],Repository://Choice).
 
 
 % A package dependency that has no suitable candidates is assumed satisfied
 % The planner and builder checks for assumptions before execution
 
 rule(package_dependency(Action,no,C,N,O,V,S,U),[assumed(package_dependency(Action,no,C,N,O,V,S,U))]) :-
-  not(kb:query([name(N),category(C)],_)),!.
+  not(knowledgebase:query([name(N),category(C)],_)),!.
 
 
 % The dependencies in a positive use conditional group need to be satisfied when the use flag is set
