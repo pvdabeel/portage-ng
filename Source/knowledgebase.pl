@@ -9,9 +9,11 @@
 
 
 /** <module> KNOWLEDGE BASE
-The Knowledge Base is a concept that enables different repositories to register,
+The Knowledge Base is a class that enables different repositories to register,
 serialize their rules and facts to disk. This is used as a mechanism to maintain
 state across application relaunches.
+
+The knowledge base implements a query mechanism.
 */
 
 :- module(knowledgebase,[]).
