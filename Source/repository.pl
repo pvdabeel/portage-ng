@@ -160,7 +160,6 @@ sync(metadata) ::-
   message:inform(['Updated metadata']).
 
 
-
 %! repository:sync(kb)
 %
 % Public predicate
@@ -179,11 +178,11 @@ sync(kb) ::-
                   forall(member(I,Value),
                          assertz(cache:entry_metadata(Repository,E,Key,I))))),
           message:scroll([E]))),
-  forall(:find_manifest(E,C,N),
-         (:read_manifest(E,T,C,N,M),
-          retractall(cache:manifest(Repository,E,_,_,_,_)),
-          assertz(cache:manifest(Repository,E,T,C,N,M)),
-          message:scroll([E]))),!,
+  forall(:find_manifest(P,C,N),
+         (:read_manifest(P,T,C,N,M),
+          retractall(cache:manifest(Repository,P,_,_,_,_)),
+          assertz(cache:manifest(Repository,P,T,C,N,M)),
+          message:scroll([P]))),!,
   message:inform(['Updated prolog knowledgebase']).
 
 
@@ -247,20 +246,20 @@ read_metadata(Entry,_,[]) ::-
   message:failure(['Failed to parse ',Entry,' metadata cache!']),!.
 
 
-%! repository:read_manifest(+Entry, +Category, +Name, -Manifest)
+%! repository:read_manifest(+Path, +Category, +Name, -Manifest)
 %
 % Public predicate
 %
-% Reads the manifest for a given entry from disk if
+% Reads the manifest for a given path from disk if
 % it is new of has been modifed
 
-read_manifest(Entry,Timestamp,Category,Name,Manifest) ::-
+read_manifest(Path,Timestamp,Category,Name,Manifest) ::-
   :this(Repository),
-  cache:manifest(Repository,Entry,Timestamp,Category,Name,Manifest),!.
+  cache:manifest(Repository,Path,Timestamp,Category,Name,Manifest),!.
 
-read_manifest(Entry,_,_,_,Manifest) ::-
-  message:scroll([Entry]),
-  reader:invoke(Entry,Contents),
+read_manifest(Path,_,_,_,Manifest) ::-
+  message:scroll([Path]),
+  reader:invoke(Path,Contents),
   parser:invoke(manifest,Contents,Manifest),!.
 
 read_manifest(Entry,_,_,_,[]) ::-
@@ -387,53 +386,9 @@ manifest(Id,Category,Name,Manifest) ::-
 % Retrieves metadata cache ebuild that satisfies
 % a given query
 
-query([],Id) ::-
+query(Query,Result) ::-
   :this(Repository),
-  cache:entry(Repository,Id,_,_,_,_).
-
-query([not(Statement)|Rest],Id) ::-
-  :this(Repository),
-  !,
-  not(Repository:query([Statement],Id)),
-  Repository:query(Rest,Id).
-
-query([all(Statement)|Rest],Id) ::-
-  :this(Repository),
-  !,
-  Statement =.. [Key,Values],
-  findall(Value,cache:entry_metadata(Repository,Id,Key,Value),Values),
-  Repository:query(Rest,Id).
-
-query([repository(Repository)|Rest],Id) ::-
-  :this(Repository),
-  !,
-  Repository:query(Rest,Id).
-
-query([name(Name)|Rest],Id) ::-
-  :this(Repository),
-  !,
-  cache:entry(Repository,Id,_,_,Name,_),
-  Repository:query(Rest,Id).
-
-query([category(Category)|Rest],Id) ::-
-  :this(Repository),
-  !,
-  cache:entry(Repository,Id,_,Category,_,_),
-  Repository:query(Rest,Id).
-
-query([version(Version)|Rest],Id) ::-
-  :this(Repository),
-  !,
-  cache:entry(Repository,Id,_,_,_,Version),
-  % compare(C,Version,Providedversion),
-  Repository:query(Rest,Id).
-
-query([Statement|Rest],Id) ::-
-  :this(Repository),
-  !,
-  Statement =.. [Key,Arg],
-  cache:entry_metadata(Repository,Id,Key,Arg),
-  Repository:query(Rest,Id).
+  knowledgebase:query(Query,Repository://Result).
 
 
 %! repository:get_location(?Location).

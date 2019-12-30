@@ -228,10 +228,31 @@ query([version(Version)|Rest],Repository://Id) :-
   cache:entry(Repository,Id,_,_,_,Version),
   query(Rest,Repository://Id).
 
+query([manifest(Type,Binary,Size)|Rest],Repository://Id) :-
+  cache:entry(Repository,Id,_,Category,Name,_),
+  cache:entry_metadata(Repository,Id,src_uri,uri(Binary)),
+  cache:manifest(Repository,_,Category,Name,Manifest),
+  member(manifest(Type,Binary,Size,_),Manifest),
+  query(Rest,Repository://Id).
+
+query([manifest(Type,Binary,Size)|Rest],Repository://Id) :-
+  cache:entry(Repository,Id,_,Category,Name,_),
+  cache:entry_metadata(Repository,Id,src_uri,uri(_,_,Binary)),
+  cache:manifest(Repository,_,Category,Name,Manifest),
+  member(manifest(Type,Binary,Size,_),Manifest),
+  query(Rest,Repository://Id).
+
+query([manifest(Type,Binary,Size)|Rest],Repository://Id) :-
+  !,
+  cache:entry(Repository,Id,_,Category,Name,_),
+  cache:entry_metadata(Repository,Id,src_uri,uri(_,Path,"")),
+  cache:manifest(Repository,_,Category,Name,Manifest),
+  member(manifest(Type,Binary,Size,_),Manifest),
+  file_base_name(Path,Binary),
+  query(Rest,Repository://Id).
+
 query([Statement|Rest],Repository://Id) :-
   !,
   Statement =.. [Key,Arg],
   cache:entry_metadata(Repository,Id,Key,Arg),
   query(Rest,Repository://Id).
-
-

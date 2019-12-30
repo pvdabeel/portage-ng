@@ -64,15 +64,13 @@ The contents of this file needs some rework. Probably to be moved into repositor
 % Case 5: Other metadata. Ebuild declares metadata for the requested key
 % ----------------------------------------------------------------------
 
-
-
-
-
 ebuild:get(Key,Repository://Entry,Value) :-
-  cache:entry_metadata(Repository,Entry,Key,Value).
+  Statement =.. [Key,Value],
+  knowledgebase:query([Statement],Repository://Entry).
 
-ebuild:get_all(Key,Repository://Entry,Content) :-
-  findall(Value,cache:entry_metadata(Repository,Entry,Key,Value),Content).
+ebuild:get_all(Key,Repository://Entry,Values) :-
+  Statement =.. [Key,Values],
+  knowledgebase:query([all(Statement)],Repository://Entry).
 
 
 % -----------------------------------------------------------------------------
@@ -88,29 +86,24 @@ ebuild:get_all(Key,Repository://Entry,Content) :-
 % Retrieves download filename and corresponding filesize for a given Entry
 
 ebuild:download(Repository://Entry,B,S) :-
-  ebuild:get(src_uri,Repository://Entry,U),
+  ebuild:get(src_uri,Repository://Entry,uri(B)),
   Repository:ebuild(Entry,Category,Name,_),
   Repository:manifest(_,Category,Name,Manifest),
   member(manifest(dist,B,Ss,_),Manifest),
-  member(uri(Bs),U),
-  atom_string(B,Bs),
   number_string(S,Ss).
 
 ebuild:download(Repository://Entry,B,S) :-
-  ebuild:get(src_uri,Repository://Entry,U),
+  ebuild:get(src_uri,Repository://Entry,uri(_,_,B)),
   Repository:ebuild(Entry,Category,Name,_),
   Repository:manifest(_,Category,Name,Manifest),
   member(manifest(dist,B,Ss,_),Manifest),
-  member(uri(_,_,Bs),U),
-  atom_string(B,Bs),
   number_string(S,Ss).
 
 ebuild:download(Repository://Entry,B,S) :-
-  ebuild:get(src_uri,Repository://Entry,U),
+  ebuild:get(src_uri,Repository://Entry,uri(_,P,"")),
   Repository:ebuild(Entry,Category,Name,_),
   Repository:manifest(_,Category,Name,Manifest),
   member(manifest(dist,B,Ss,_),Manifest),
-  member(uri(_,P,_),U),
   file_base_name(P,Bs),
   atom_string(Bs,B),
   number_string(S,Ss).
@@ -124,6 +117,7 @@ ebuild:download_size(Repository://Entry,T) :-
   aggregate_all(sum(S),ebuild:download(Repository://Entry,_,S),T),!.
 
 ebuild:download_size(_://_,0) :- !.
+
 
 
 ebuild:iuse(Repository://Entry,Use) :-
