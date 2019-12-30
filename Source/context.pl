@@ -107,6 +107,7 @@ Examples:
                      dprotected/1,
                      dprivate/1,
                      ddynamic/1,
+                     dstatic/1,
                      mutex/1,
                      declare/1,
                      declared/1,
@@ -151,6 +152,7 @@ Examples:
                       dprotected/1,
                       dprivate/1,
                       ddynamic/1,
+                      dstatic/1,
                       mutex/1,
                       declare/1,
                       declared/1,
@@ -270,6 +272,16 @@ dprivate(Functor/Arity) :-
 
 ddynamic(_Functor/_Arity) :-
   true.
+
+
+%! ddynamic(+Functor/+Arity)
+%
+% Exported, transparent predicate
+%
+% Declare a dynamic predicate.
+
+dstatic(Functor/Arity) :-
+  declare(property(Functor/Arity, static)).
 
 
 %! mutex(+Functor/+Arity)
