@@ -581,7 +581,6 @@ eapi:invalid_package_ending(E,B) :-
   phrase(eapi:version2(_),B,[]),!.
 
 
-
 %! DCG: version
 %
 % EAPI 5 - 3.2 defines version specification
@@ -594,10 +593,6 @@ eapi:version(V) -->
   eapi:version2([N,S]),
   { eapi:version2atom(N,S,V) }.
 
-%eapi:version('') -->
-%  [],!.
-
-
 
 % eapi:version0 starts with '-', and can be empty
 
@@ -608,7 +603,6 @@ eapi:version0(V) -->
 
 eapi:version0('') -->
   [].
-
 
 
 % eapi:version2 reads a version following EAPI 5 spec
@@ -689,7 +683,6 @@ eapi:versionsuffix([45,114|V]) -->		      % -r
 
 % eapi:versionsuffix([]) -->
 %   [],!.
-
 
 
 eapi:versionrevision([114|V]) -->		      % (-)r
@@ -1012,7 +1005,7 @@ eapi:choice -->
   [124,124].                                          % char: ||.
 
 
-%! DCG ane_of
+%! DCG one_of
 %
 % EAPI 5 - 8.2.0 Used for identifying a one_of group
 
@@ -1046,7 +1039,6 @@ eapi:virtual([virtual(A)]) -->
   eapi:package(A).
 
 
-
 %! DCG slot
 %
 % EAPI 5 - 8.2.6.3 defines subslot names
@@ -1076,7 +1068,6 @@ eapi:slot_version(Va) -->
   }.
 
 
-
 %! DCG subslot
 %
 % EAPI 5 - 8.2.6.4 defines subslot names
@@ -1093,7 +1084,6 @@ eapi:subslot(S) -->
 
 eapi:eapi(E) -->
   eapi:version2(E).
-
 
 
 % DCG uri_chars
@@ -1130,9 +1120,9 @@ eapi:uri_chars1([C|R]) -->
 %
 % EAPI 4 - 9.2 defines URI
 
-% -------------------------
-% CASE 1 : a prototyped uri
-% -------------------------
+% ----------------------
+% CASE: a prototyped uri
+% ----------------------
 
 eapi:uri(uri(P,B,L)) -->
   eapi:proto(Ps),          % required
@@ -1143,9 +1133,9 @@ eapi:uri(uri(P,B,L)) -->
     atom_codes(B,Bs),
     atom_codes(L,Ls),! }.
 
-% -----------------------------
-% CASE 2 : a non-prototyped uri
-% -----------------------------
+% --------------------------
+% CASE: a non-prototyped uri
+% --------------------------
 
 eapi:uri(uri(P)) -->
   eapi:uri_chars1(Ps),
@@ -1275,6 +1265,7 @@ eapi:jumprule(p,[46]) :- !.                      % EAPI 9.2.0: A uri protocol na
 eapi:jumprule(p,[C]) :- code_type(C,alnum), !.   % EAPI 9.2.0: A uri protocol name may contain alphanumeric chars
 eapi:jumprule(t,[46]) :- !.                      % A timestamp may contain a '.'
 eapi:jumprule(t,[C]) :- code_type(C,digit), !.   % A timestamp may contain digit chars.
+
 
 % ----------------------
 % SPECIAL CHAR SEQUENCES

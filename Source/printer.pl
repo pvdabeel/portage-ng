@@ -31,6 +31,9 @@ printer:printable_element(assumed(rule(_Repository://_Entry:_Action,_))) :- !.
 printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_),_))) :- !.
 printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_)),_)) :- !.
 
+% Uncomment if you want 'confirm' steps shown in the plan:
+% printer:printable_element(rule(package_dependency(run,_,_,_,_,_,_,_),_)) :- !.
+
 
 %! printer:element_weight(+Literal)
 %
@@ -55,11 +58,6 @@ printer:sort_by_weight(C,L1,L2) :-
   printer:element_weight(L1,W1),
   printer:element_weight(L2,W2),
   compare(C,W1:L1,W2:L2).
-
-
-% Uncomment if you want 'confirm' steps shown in the plan:
-%
-% printer:printable_element(rule(package_dependency(run,_,_,_,_,_,_,_),_)) :- !.
 
 
 %! printer:print_element(+Printable)
@@ -126,9 +124,6 @@ printer:print_element(_,rule(uri(Local),_)) :-
   message:color(green),
   message:column(33,Local),
   message:color(normal).
-
-
-
 
 
 % ---------------------------------------------------------------
@@ -211,6 +206,10 @@ printer:print_element(_,assumed(rule(package_dependency(run,_,C,N,_,_,_,_),_Body
 %
 % prints the prefix for a config item
 
+% -------------------------------
+% CASE: Fancy build plan printing
+% -------------------------------
+
 printer:print_config_prefix(Word) :-
   preference:printing_style('fancy'),!,
   nl,write('             │          '),
@@ -220,9 +219,17 @@ printer:print_config_prefix(Word) :-
   message:print(' ─┤ '),
   message:color(normal).
 
+% -------------------------------
+% CASE: Short build plan printing
+% -------------------------------
+
 printer:print_config_prefix(_Word) :-
   preference:printing_style('short'),!,
   write(' ').
+
+% --------------------------------
+% CASE: Column build plan printing
+% --------------------------------
 
 printer:print_config_prefix(_Word) :-
   preference:printing_style('column'),!,
@@ -249,15 +256,13 @@ printer:print_config_prefix :-
   message:column(95,' ').
 
 
-
 %! printer:print_config(+Repository://+Entry:+Action)
 %
 % Prints the configuration for a given repository entry (USE flags, USE expand, ...)
 
-% ------------------------
-% CASE 1 : download action
-% ------------------------
-
+% ---------------------
+% CASE: download action
+% ---------------------
 
 % live downloads
 
@@ -284,10 +289,9 @@ printer:print_config(Repository://Ebuild:download) :-
           printer:print_config_item('download',RestFile,RestSize))).
 
 
-% -----------------------
-% CASE 2 : Install action
-% -----------------------
-
+% --------------------
+% CASE: Install action
+% --------------------
 
 % iuse empty
 
@@ -314,21 +318,18 @@ printer:print_config(Repository://Entry:install) :-
 	     printer:print_config_item(Key,PosValue,NegValue)))))),!.
 
 
-% -------------------
-% CASE 3 : Run action
-% -------------------
+% ----------------
+% CASE: Run action
+% ----------------
 
 printer:print_config(_://_:run) :- !.
 
 
-% ----------------------
-% CASE 4 : Other actions
-% ----------------------
+% -------------------
+% CASE: Other actions
+% -------------------
 
 printer:print_config(_://_:_) :- !.
-
-
-printer:bothempty([],[]).
 
 
 %! printer:print_config_item(+Key,+Value)
@@ -343,7 +344,6 @@ printer:print_config_item('download',File,'live') :-
   message:print(' '),
   message:print(File),
   message:color(normal).
-
 
 printer:print_config_item('download',File,Size) :-
   !,
@@ -430,17 +430,6 @@ printer:check_assumptions(Model) :-
   member(assumed(_),Model),!.
 
 
-%! Some helper predicates
-
-unify(A,B) :- unifiable(A,B,_),!.
-
-countlist(Predicate,List,Count) :-
-  include(unify(Predicate),List,Sublist),!,
-  length(Sublist,Count).
-
-countlist(_,_,0) :- !.
-
-
 %! printer:print_header(+Target)
 %
 % Prints the header for a given target
@@ -474,7 +463,6 @@ printer:print_debug(_Model,_Proof,Plan) :-
 
 printer:print_body(Target,Plan,Call,Steps) :-
   printer:print_steps_in_plan(Target,Plan,Call,0,Steps).
-
 
 
 %! printer:print_steps(+Target,+Plan,+Call,+Count,-NewCount)
@@ -569,7 +557,6 @@ printer:print_warnings(Model,Proof) :-
 printer:print_warnings(_Model,_Proof) :- !, nl.
 
 
-
 %! printer:print(+Target,+Model,+Proof,+Plan)
 %
 % Print a given plan for a given target, with a given model, proof and plan
@@ -601,6 +588,19 @@ printer:dry_run(_Step) :-
   %message:color(darkgray),
   %message:print(['building step : ',Step]),nl,
   %message:color(normal).
+
+
+%! Some helper predicates
+
+unify(A,B) :- unifiable(A,B,_),!.
+
+countlist(Predicate,List,Count) :-
+  include(unify(Predicate),List,Sublist),!,
+  length(Sublist,Count).
+
+countlist(_,_,0) :- !.
+
+bothempty([],[]).
 
 
 %! printer:test(+Repository)
