@@ -1666,49 +1666,43 @@ eapi:strip_use_default(Use,Use) :- !.
 eapi:check_use_expand_atom(Atom) :- eapi:use_expand(Key), eapi:check_prefix_atom(Key,Atom),!.
 
 
-%! eapi:get_use_expand(+Key,+Use,-Filtered)
+%! eapi:categorize_use(+Use,?Type)
 %
-% Retrieves use_expand meta information from the USE flags
+% Categorize a given use flag
 
-%eapi:get_use_expand(Key,Use,Filtered) :-
-%  include(eapi:check_prefix_atom(Key),Use,Filtered).
+eapi:categorize_use(plus(Use),'pos:preference') :-
+  preference:positive_use(Use),!.
 
+eapi:categorize_use(plus(Use),'neg:preference') :-
+  preference:negative_use(Use),!.
 
-%! eapi:shorten_use_expand(+Key,+Long,-Short)
-%
-% Shortens use_expand meta information for a given prefix.
+eapi:categorize_use(plus(Use),'pos:ebuild') :-
+  not(preference:positive_use(Use)),
+  not(preference:negative_use(Use)),
+  !.
 
-%eapi:shorten_use_expand(Key,Long,Short) :-
-%  convlist(eapi:strip_prefix_atom(Key),Long,Short),!.
+eapi:categorize_use(minus(Use),'pos:preference') :-
+  preference:positive_use(Use),!.
 
+eapi:categorize_use(minus(Use),'neg:preference') :-
+  preference:negative_use(Use),!.
 
-%! eapi:filter_use_defaults(+Use,-Filtered)
-%
-% Filterd use default information from the USE flags
+eapi:categorize_use(minus(Use),'neg:ebuild') :-
+  not(preference:positive_use(Use)),
+  not(preference:negative_use(Use)),
+  !.
 
-%eapi:filter_use_defaults(Use,Filtered) :-
-%  convlist(eapi:strip_use_default,Use,Filtered).
+eapi:categorize_use(Use,'pos:preference') :-
+  preference:positive_use(Use),!.
 
+eapi:categorize_use(Use,'neg:preference') :-
+  preference:negative_use(Use),!.
 
-%! eapi:filter_use_expand(+Use,-Filtered)
-%
-% Filters use_expand meta information from the USE flags
-
-%eapi:filter_use_expand(Use,Filtered) :-
-%  exclude(eapi:check_use_expand_atom,Use,Filtered),!.
-
-
-%! eapi:split_iuse_set(+Values,-Positive,-Negative)
-%
-% Splits the configuration values (USE or USE Expand flags) into a
-% positive and negative set
-
-%eapi:split_iuse_set(IuseFiltered,PositiveUseSorted,NegativeUseSorted) :-
-%  findall(Use,preference:positive_use(Use),ExplicitUse),
-%  subtract(IuseFiltered,ExplicitUse,NegativeUse),
-%  subtract(IuseFiltered,NegativeUse,PositiveUse),
-%  sort(NegativeUse,NegativeUseSorted),
-%  sort(PositiveUse,PositiveUseSorted).
+eapi:categorize_use(Use,'neg:default') :-
+  not(preference:positive_use(Use)),
+  not(preference:negative_use(Use)),
+  not(printer:unify(plus(_),Use)),
+  not(printer:unify(minus(_),Use)),!.
 
 
 %! eapi:elem(+Key,+Entry,-Content)

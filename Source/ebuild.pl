@@ -28,45 +28,6 @@ ebuild:download_size(Repository://Entry,T) :-
 ebuild:download_size(_://_,0) :- !.
 
 
-%! ebuild:categorize_use(Use,Type)
-%
-% Retrieve use flags from ebuild
-
-
-ebuild:categorize_use(plus(Use),'pos:preference') :-
-  preference:positive_use(Use),!.
-
-ebuild:categorize_use(plus(Use),'neg:preference') :-
-  preference:negative_use(Use),!.
-
-ebuild:categorize_use(plus(Use),'pos:ebuild') :-
-  not(preference:positive_use(Use)),
-  not(preference:negative_use(Use)),
-  !.
-
-ebuild:categorize_use(minus(Use),'pos:preference') :-
-  preference:positive_use(Use),!.
-
-ebuild:categorize_use(minus(Use),'neg:preference') :-
-  preference:negative_use(Use),!.
-
-ebuild:categorize_use(minus(Use),'neg:ebuild') :-
-  not(preference:positive_use(Use)),
-  not(preference:negative_use(Use)),
-  !.
-
-ebuild:categorize_use(Use,'pos:preference') :-
-  preference:positive_use(Use),!.
-
-ebuild:categorize_use(Use,'neg:preference') :-
-  preference:negative_use(Use),!.
-
-ebuild:categorize_use(Use,'neg:default') :-
-  not(preference:positive_use(Use)),
-  not(preference:negative_use(Use)),
-  not(printer:unify(plus(_),Use)),
-  not(printer:unify(minus(_),Use)),!.
-
 
 %! ebuild:is_virtual(+Repository://+Entry)
 %

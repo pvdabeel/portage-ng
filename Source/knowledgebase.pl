@@ -321,7 +321,7 @@ query([iuse(Iuse)|Rest],Repository://Id) :-
 query([iuse(Iuse,State)|Rest],Repository://Id) :-
   !,
   cache:entry_metadata(Repository,Id,iuse,Value),
-  ebuild:categorize_use(Value,State),
+  eapi:categorize_use(Value,State),
   eapi:strip_use_default(Value,Iuse),
   query(Rest,Repository://Id).
 
@@ -345,7 +345,7 @@ query([iuse_filtered(Iuse)|Rest],Repository://Id) :-
 query([iuse_filtered(Iuse,State)|Rest],Repository://Id) :-
   !,
   cache:entry_metadata(Repository,Id,iuse,Arg),
-  ebuild:categorize_use(Arg,State),
+  eapi:categorize_use(Arg,State),
   eapi:strip_use_default(Arg,Iuse),
   not(eapi:check_use_expand_atom(Iuse)),
   query(Rest,Repository://Id).
@@ -373,7 +373,7 @@ query([Statement|Rest],Repository://Id) :-
   Statement =.. [Key,Value,State],
   eapi:use_expand(Key),!,
   cache:entry_metadata(Repository,Id,iuse,Arg),
-  ebuild:categorize_use(Arg,State),
+  eapi:categorize_use(Arg,State),
   eapi:strip_use_default(Arg,ArgB),
   eapi:check_prefix_atom(Key,ArgB),
   eapi:strip_prefix_atom(Key,ArgB,Value),
