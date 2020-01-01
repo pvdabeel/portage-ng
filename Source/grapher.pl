@@ -255,7 +255,7 @@ grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,Cat,Name,Comp
   write(Comp),write('</TD></TR><TR><TD>'),write(Ver),write('</TD></TR></TABLE>>, shape=none, color=blue];'),nl,
   write('}'),nl,
   write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl,
-  findall(R,knowledgebase:query([category(Cat),name(Name)],Repository://R),Choices),
+  findall(R,knowledgebase:query([category(Cat),name(Name)],_://R),Choices),
   !, true.
 
 grapher:handle(detail,Style,Arrow,Master,use_conditional_group(Type,Use,Deps),Choices) :-
