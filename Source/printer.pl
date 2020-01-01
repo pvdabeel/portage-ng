@@ -280,8 +280,8 @@ printer:print_config(Repository://Entry:install) :-
 % use flags to show
 
 printer:print_config(Repository://Entry:install) :-
-  ebuild:get_all(iuse,Repository://Entry,Iuse),
-  ebuild:get_all(iuse_filtered,Repository://Entry,IuseFiltered),
+  knowledgebase:query([all(iuse(Iuse))],Repository://Entry),
+  knowledgebase:query([all(iuse_filtered(IuseFiltered))],Repository://Entry),
   eapi:split_iuse_set(IuseFiltered,Positive,Negative),
   printer:print_config_prefix('conf'),
   printer:print_config_item('use',Positive,Negative),

@@ -326,6 +326,31 @@ query([iuse(Iuse,State)|Rest],Repository://Id) :-
   query(Rest,Repository://Id).
 
 
+% ------------------------------
+% Query: iuse without use_expand
+% ------------------------------
+
+query([iuse_filtered(Iuse)|Rest],Repository://Id) :-
+  !,
+  cache:entry_metadata(Repository,Id,iuse,Arg),
+  eapi:strip_use_default(Arg,Iuse),
+  not(eapi:check_use_expand_atom(Iuse)),
+  query(Rest,Repository://Id).
+
+
+% ---------------------------------------------------
+% Query: iuse without use_expand, with use flag state
+% ---------------------------------------------------
+
+query([iuse_filtered(Iuse,State)|Rest],Repository://Id) :-
+  !,
+  cache:entry_metadata(Repository,Id,iuse,Arg),
+  ebuild:categorize_use(Arg,State),
+  eapi:strip_use_default(Arg,Iuse),
+  not(eapi:check_use_expand_atom(Iuse)),
+  query(Rest,Repository://Id).
+
+
 % -----------------
 % Query: use expand
 % -----------------
