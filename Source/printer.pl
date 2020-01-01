@@ -657,4 +657,4 @@ printer:test(Repository,parallel_verbose) :-
 
 
 printer:test(Repository,parallel_fast) :-
-  printer:test(Repository,paralell_verbose).
+  printer:test(Repository,parallel_verbose).
