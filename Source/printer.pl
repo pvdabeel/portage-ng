@@ -300,8 +300,9 @@ printer:print_config(Repository://Entry:install) :-
   knowledgebase:query([all(iuse(Iuse))],Repository://Entry),
   knowledgebase:query([all(iuse_filtered(IuseFiltered))],Repository://Entry),
   eapi:split_iuse_set(IuseFiltered,Positive,Negative),
-  printer:print_config_prefix('conf'),
-  printer:print_config_item('use',Positive,Negative),
+  (printer:bothempty(Positive,Negative);
+   (printer:print_config_prefix('conf'),
+    printer:print_config_item('use',Positive,Negative))),
   forall(eapi:use_expand(Key),
          (preference:use_expand_hidden(Key);
           (eapi:get_use_expand(Key,Iuse,LongValue),
@@ -333,6 +334,16 @@ printer:bothempty([],[]).
 %! printer:print_config_item(+Key,+Value)
 %
 % Prints a configuration item for a given repository entry
+
+printer:print_config_item('download',File,'live') :-
+  !,
+  message:color(darkgray),
+  message:print_bytes('live'),
+  message:color(darkgray),
+  message:print(' '),
+  message:print(File),
+  message:color(normal).
+
 
 printer:print_config_item('download',File,Size) :-
   !,

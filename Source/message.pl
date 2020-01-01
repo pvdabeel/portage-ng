@@ -239,19 +239,19 @@ message:header(Message) :-
 message:convert_bytes(Bytes,Output) :-
   Bytes >= 1024 * 1024 * 1024,!,
   Gigabytes is Bytes / 1024 / 1024 / 1024,
-  format(atom(Output),'~2f Gb',[Gigabytes]).
+  format(atom(Output),'~2f Gb~10|',[Gigabytes]).
 
 
 message:convert_bytes(Bytes,Output) :-
   Bytes < 1024 * 1024 * 1024,
   Bytes >= 1024 * 1024, !,
   Megabytes is Bytes / 1024 / 1024,
-  format(atom(Output),'~2f Mb',[Megabytes]).
+  format(atom(Output),'~2f Mb~10|',[Megabytes]).
 
 message:convert_bytes(Bytes,Output) :-
   Bytes < 1024 * 1024, !,
   Kilobytes is Bytes / 1024,
-  format(atom(Output),'~2f Kb',[Kilobytes]).
+  format(atom(Output),'~2f Kb~10|',[Kilobytes]).
 
 
 %! message:format_bytes(+Bytes)
@@ -260,7 +260,7 @@ message:convert_bytes(Bytes,Output) :-
 
 message:print_bytes('live') :-
   !,
-  format('~t<live>~10|',[]).
+  format('~tlive      ~10|',[]).
 
 message:print_bytes(Bytes) :-
   message:convert_bytes(Bytes,Output),
