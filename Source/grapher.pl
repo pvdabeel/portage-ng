@@ -212,7 +212,7 @@ grapher:choices(Kind,[L|Rest]) :-
 % For a given graph style, create a meta reprensentation of a dependency
 
 grapher:handle(depend,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
-  cache:entry(Choicecontext,Choice,_,Cat,Name,_,_),
+  knowledgebase:query([category(Cat),name(Name)],Choicecontext://Choice),
   !, true.
 
 grapher:handle(depend,_Style,_Arrow,_Master,use_conditional_group(_Type,_Use,_Deps),[]) :- !.
@@ -229,7 +229,7 @@ grapher:handle(depend,_Style,_Arrow,_Master,_,[]) :- !.
 
 
 grapher:handle(rdepend,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
-  cache:entry(Choicecontext,Choice,_,Cat,Name,_,_),
+  knowledgebase:query([category(Cat),name(Name)],Choicecontext://Choice),
   !, true.
 
 grapher:handle(rdepend,_Style,_Arrow,_Master,use_conditional_group(_Type,_Use,_Deps),[]) :- !.
@@ -255,9 +255,7 @@ grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,Cat,Name,Comp
   write(Comp),write('</TD></TR><TR><TD>'),write(Ver),write('</TD></TR></TABLE>>, shape=none, color=blue];'),nl,
   write('}'),nl,
   write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl,
-  % findall(R,portage:query([category(Cat),name(Name)],R),Choices),
-  % atom_string(Cata,Cat),
-  findall(Repository://R,cache:entry(Repository,R,_,Cat,Name,_,_),Choices),
+  findall(R,knowledgebase:query([category(Cat),name(Name)],Repository://R),Choices),
   !, true.
 
 grapher:handle(detail,Style,Arrow,Master,use_conditional_group(Type,Use,Deps),Choices) :-
