@@ -625,6 +625,7 @@ printer:test(Repository,single_verbose) :-
   time(forall(Repository:entry(E),
  	      (catch(call_with_time_limit(T,(count:increase,
                                              count:percentage(P),
+                                             message:title(['Test single: ',P]),
                                              nl,message:topheader(['[',P,'] - Printing plan for ',Repository://E:Action]),
                                              prover:prove(Repository://E:Action,[],Proof,[],Model,[],_Constraints),
                                              planner:plan(Proof,[],[],Plan),
@@ -632,6 +633,7 @@ printer:test(Repository,single_verbose) :-
                      time_limit_exceeded,
                      assert(prover:broken(Repository://E)));
 	       message:failure(E)))),!,
+  message:title_reset,
   message:inform(['printed plan for ',S,' ',Repository,' entries.']).
 
 
@@ -646,6 +648,7 @@ printer:test(Repository,parallel_verbose) :-
                                          planner:plan(Proof,[],[],Plan),
                                          with_mutex(mutex,(count:increase,
                                                            count:percentage(P),
+                                                           message:title(['Test parallel: ',P]),
                                                            nl,message:topheader(['[',P,'] - Printing plan for ',Repository://E:Action]),
                                                            printer:print(Repository://E:Action,Model,Proof,Plan))))),
                  time_limit_exceeded,
@@ -653,6 +656,7 @@ printer:test(Repository,parallel_verbose) :-
            Repository:entry(E),
            Calls),
   time(concurrent(Cpus,Calls,[])),!,
+  message:title_reset,
   message:inform(['printed plan for ',S,' ',Repository,' entries.']).
 
 

@@ -19,6 +19,13 @@ configuration. The parameters described typically do not change at runtime.
 % CONFIG declarations
 % *******************
 
+%! config:name(?Name)
+%
+% Declares the name of this program
+
+config:name('portage-ng-dev').
+
+
 %! config:dry_run_build(?Bool)
 %
 % Declare config:dry_run_build to avoid actually building software.

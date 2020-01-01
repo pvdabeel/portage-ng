@@ -19,6 +19,21 @@ This file contains the predicates used for pretty printing messages.
 % ********************
 
 
+%! message:title(+Message)
+%
+% Sets the terminal title.
+
+message:title(MessageList) :-
+  system:write('\033]0;'),
+  atomic_list_concat(MessageList,Message),
+  system:write(Message),
+  system:write('\a').
+
+message:title_reset :-
+  config:name(Name),
+  message:title([Name]).
+
+
 %! message:color(+Color)
 %
 % Sets the message color. Uses ANSI escape codes.

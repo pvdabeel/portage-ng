@@ -92,6 +92,8 @@ This file is the main source file in the repository. It loads all other files.
 % @see Source/repository defines the repository class
 
 main :-
+  message:title_reset,
+
   config:installation_dir(Directory),
   system:working_directory(_,Directory),
 
