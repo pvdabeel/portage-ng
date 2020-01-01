@@ -487,6 +487,7 @@ printer:print_use_flag([[Flag,'neg:ebuild']|Rest]) :-
 
 printer:print_use_flag([[Flag,'neg:default']]) :-
   message:color(darkgray),
+  message:style(italic),
   message:print('-'),
   message:print(Flag),
   message:color(normal),
@@ -494,6 +495,7 @@ printer:print_use_flag([[Flag,'neg:default']]) :-
 
 printer:print_use_flag([[Flag,'neg:default']|Rest]) :-
   message:color(darkgray),
+  message:style(italic),
   message:print('-'),
   message:print(Flag),
   message:print(' '),
