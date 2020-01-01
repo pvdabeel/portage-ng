@@ -98,6 +98,9 @@ message:style(blink) :-
 message:style(underline) :-
   system:write('\033[04m').
 
+message:style(italic) :-
+  system:write('\033[03m').
+
 message:style(dim) :-
   system:write('\033[02m').
 

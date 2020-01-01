@@ -230,7 +230,8 @@ preference:positive_use('xvid').
 preference:positive_use('zeroconf').
 preference:positive_use('zlib').
 
-preference:negative_use('foo').
+preference:negative_use('test').
+preference:negative_use('static-libs').
 
 
 %! preference:use_expand_hidden(?Use)

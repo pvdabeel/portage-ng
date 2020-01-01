@@ -1670,32 +1670,32 @@ eapi:check_use_expand_atom(Atom) :- eapi:use_expand(Key), eapi:check_prefix_atom
 %
 % Retrieves use_expand meta information from the USE flags
 
-eapi:get_use_expand(Key,Use,Filtered) :-
-  include(eapi:check_prefix_atom(Key),Use,Filtered).
+%eapi:get_use_expand(Key,Use,Filtered) :-
+%  include(eapi:check_prefix_atom(Key),Use,Filtered).
 
 
 %! eapi:shorten_use_expand(+Key,+Long,-Short)
 %
 % Shortens use_expand meta information for a given prefix.
 
-eapi:shorten_use_expand(Key,Long,Short) :-
-  convlist(eapi:strip_prefix_atom(Key),Long,Short),!.
+%eapi:shorten_use_expand(Key,Long,Short) :-
+%  convlist(eapi:strip_prefix_atom(Key),Long,Short),!.
 
 
 %! eapi:filter_use_defaults(+Use,-Filtered)
 %
 % Filterd use default information from the USE flags
 
-eapi:filter_use_defaults(Use,Filtered) :-
-  convlist(eapi:strip_use_default,Use,Filtered).
+%eapi:filter_use_defaults(Use,Filtered) :-
+%  convlist(eapi:strip_use_default,Use,Filtered).
 
 
 %! eapi:filter_use_expand(+Use,-Filtered)
 %
 % Filters use_expand meta information from the USE flags
 
-eapi:filter_use_expand(Use,Filtered) :-
-  exclude(eapi:check_use_expand_atom,Use,Filtered),!.
+%eapi:filter_use_expand(Use,Filtered) :-
+%  exclude(eapi:check_use_expand_atom,Use,Filtered),!.
 
 
 %! eapi:split_iuse_set(+Values,-Positive,-Negative)
@@ -1703,12 +1703,12 @@ eapi:filter_use_expand(Use,Filtered) :-
 % Splits the configuration values (USE or USE Expand flags) into a
 % positive and negative set
 
-eapi:split_iuse_set(IuseFiltered,PositiveUseSorted,NegativeUseSorted) :-
-  findall(Use,preference:positive_use(Use),ExplicitUse),
-  subtract(IuseFiltered,ExplicitUse,NegativeUse),
-  subtract(IuseFiltered,NegativeUse,PositiveUse),
-  sort(NegativeUse,NegativeUseSorted),
-  sort(PositiveUse,PositiveUseSorted).
+%eapi:split_iuse_set(IuseFiltered,PositiveUseSorted,NegativeUseSorted) :-
+%  findall(Use,preference:positive_use(Use),ExplicitUse),
+%  subtract(IuseFiltered,ExplicitUse,NegativeUse),
+%  subtract(IuseFiltered,NegativeUse,PositiveUse),
+%  sort(NegativeUse,NegativeUseSorted),
+%  sort(PositiveUse,PositiveUseSorted).
 
 
 %! eapi:elem(+Key,+Entry,-Content)
