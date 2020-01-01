@@ -246,6 +246,13 @@ preference:use_expand_hidden('cpu_flags_arm').
 preference:use_expand_hidden('cpu_flags_ppc').
 
 
+%! preference:printing_style(?Setting)
+%
+% Fact which defines the printing style ('short', 'column' or 'fancy')
+
+preference:printing_style('column').
+
+
 %! preference:masked(?Repository://?Entry)
 %
 % Fact which masks a Repository entry
@@ -262,19 +269,3 @@ preference:masked(portage://'app-xemacs/rmail-1.14').          % run target fail
 
 % install target fail
 preference:masked(portage://'dev-ros/gmapping-1.3.10').        % install target fail
-
-
-% ---------------------
-% Preference predicates
-% ---------------------
-
-%preference:positive_use(Flag) :-
-%  preference:use(Use),
-%  member(Flag,Use),
-%  not(atom_prefix(Flag,'-')).
-
-%preference:negative_use(Flag) :-
-%  preference:use(Use),
-%  member(PreFlag,Use),
-%  atom_prefix(PreFlag,'-'),
-%  sub_atom(PreFlag,1,_,0,Flag).

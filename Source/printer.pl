@@ -212,6 +212,7 @@ printer:print_element(_,assumed(rule(package_dependency(run,_,C,N,_,_,_,_),_Body
 % prints the prefix for a config item
 
 printer:print_config_prefix(Word) :-
+  preference:printing_style('fancy'),!,
   nl,write('             │          '),
   message:color(darkgray),
   message:print('└─ '),
@@ -219,17 +220,33 @@ printer:print_config_prefix(Word) :-
   message:print(' ─┤ '),
   message:color(normal).
 
+printer:print_config_prefix(_Word) :-
+  preference:printing_style('short'),!,
+  write(' ').
+
+printer:print_config_prefix(_Word) :-
+  preference:printing_style('column'),!,
+  message:column(95,' ').
+
 
 %! printer:print_config_prefix
 %
 % prints the prefix for a config item
 
 printer:print_config_prefix :-
+  preference:printing_style('fancy'),!,
   nl,write('             │          '),
   message:color(darkgray),
   message:print('         │ '),
   message:color(normal).
 
+printer:print_config_prefix :-
+  preference:printing_style('short'),!,
+  write(' ').
+
+printer:print_config_prefix :-
+  preference:printing_style('column'),!,
+  message:column(95,' ').
 
 
 
@@ -293,7 +310,7 @@ printer:print_config(Repository://Entry:install) :-
            eapi:shorten_use_expand(Key,LongNegValue,NegValue),
            (printer:bothempty(PosValue,NegValue);
             (printer:print_config_prefix,
-             printer:print_config_item(Key,PosValue,NegValue)))))),!.
+	     printer:print_config_item(Key,PosValue,NegValue)))))),!.
 
 
 % -------------------
@@ -327,8 +344,9 @@ printer:print_config_item('download',File,Size) :-
 
 printer:print_config_item(Key,Positive,Negative) :-
   !,
-  message:print(Key),
-  message:print(' = "'),
+  upcase_atom(Key,KeyU),
+  message:print(KeyU),
+  message:print('="'),
   printer:print_use_flag_sets(Positive,Negative),
   message:print('"').
 
@@ -361,12 +379,14 @@ printer:print_use_flag([],_) :-
 
 printer:print_use_flag([Flag],positive) :-
   message:color(red),
+  message:style(bold),
   message:print(Flag),
   message:color(normal),
   !.
 
 printer:print_use_flag([Flag|Rest],positive) :-
   message:color(red),
+  message:style(bold),
   message:print(Flag),
   message:print(' '),
   message:color(normal),!,
@@ -375,6 +395,7 @@ printer:print_use_flag([Flag|Rest],positive) :-
 
 printer:print_use_flag([Flag],negative) :-
   message:color(magenta),
+  message:style(bold),
   message:print('-'),
   message:print(Flag),
   message:color(normal),
@@ -382,6 +403,7 @@ printer:print_use_flag([Flag],negative) :-
 
 printer:print_use_flag([Flag|Rest],negative) :-
   message:color(magenta),
+  message:style(bold),
   message:print('-'),
   message:print(Flag),
   message:print(' '),
