@@ -69,6 +69,7 @@ parser:test(Repository,single_verbose) :-
   time(forall(Repository:entry(E),
               (catch(call_with_time_limit(T,(count:increase,
                                              count:percentage(P),
+                                             message:title(['Parsing (Single thread): ',P,' complete']),
                                              reader:invoke(C,E,R),
                                              parser:invoke(metadata,R,_),
                                              message:success([P,' - ',E]))),
@@ -86,7 +87,8 @@ parser:test(Repository,parallel_verbose) :-
   config:number_of_cpus(Cpus),
   findall((catch(call_with_time_limit(T,(parser:invoke(metadata,R,_),!,
                                          with_mutex(mutex,(count:increase,
-                                                           count:percentage(P),
+                                                           count:percentage(P),i
+                                                           message:title(['Parsing (',Cpus,' threads): ',P,' complete']),
                                                            message:success([P,' - ',E]))))),
                  time_limit_exceeded,
                  message:failure([E,' (time limit exceeded)']))),
