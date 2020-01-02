@@ -26,16 +26,16 @@ rule(Repository://Ebuild:_,[]) :-
 
 % An ebuild is downloaded if its sources are downloaded
 
-rule(Repository://Ebuild:download,S) :-
-  !,
-  knowledgebase:query([all(src_uri(S))],Repository://Ebuild).
+rule(_Repository://_Ebuild:download,[]) :-
+  !.
+  %knowledgebase:query([all(src_uri(S))],Repository://Ebuild).
 
 
 % Ebuild sources are included in the build plan
 
-rule(uri(_Protocol,_Remote,_Local),[]) :- !.
+% rule(uri(_Protocol,_Remote,_Local),[]) :- !.
 
-rule(uri(_Local),[]) :- !.
+% rule(uri(_Local),[]) :- !.
 
 
 % An ebuild can be installed, if the following conditions are satisfied:
