@@ -92,6 +92,7 @@ planner:test(Repository,single_verbose) :-
                      time_limit_exceeded,
                      assert(prover:broken(Repository://E)));
                message:failure(E)))),!,
+  message:title_reset,
   message:inform(['created plan for ',S,' ',Repository,' entries.']).
 
 
@@ -113,6 +114,7 @@ planner:test(Repository,parallel_verbose) :-
           Repository:entry(E),
           Calls),
   time(concurrent(Cpus,Calls,[])),!,
+  message:title_reset,
   message:inform(['created plan for ',S,' ',Repository,' entries.']).
 
 

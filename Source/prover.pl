@@ -225,6 +225,7 @@ prover:test(Repository,single_verbose) :-
                      time_limit_exceeded,
                      assert(prover:broken(Repository://E)));
                message:failure(E)))),!,
+  message:title_reset,
   message:inform(['proved ',S,' ',Repository,' entries.']).
 
 
@@ -245,6 +246,7 @@ prover:test(Repository,parallel_verbose) :-
           Repository:entry(E),
           Calls),!,
   time(concurrent(Cpus,Calls,[])),!,
+  message:title_reset,
   message:inform(['proved ',S,' ',Repository,' entries.']).
 
 

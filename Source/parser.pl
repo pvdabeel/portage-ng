@@ -76,6 +76,8 @@ parser:test(Repository,single_verbose) :-
                      time_limit_exceeded,
                      message:failure([E,' (time limit exceeded)']));
                message:failure(E)))),!,
+  message:title_reset,
+  message:title_reset,
   message:inform(['parsed ',S,' ',Repository,' entries.']).
 
 parser:test(Repository,parallel_verbose) :-
