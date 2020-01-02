@@ -27,7 +27,8 @@ rule(Repository://Ebuild:_,[]) :-
 % An ebuild is downloaded if its sources are downloaded
 
 rule(Repository://Ebuild:download,S) :-
-  knowledgebase:query([all(src_uri(S))],Repository://Ebuild),!.
+  !,
+  knowledgebase:query([all(src_uri(S))],Repository://Ebuild).
 
 
 % Ebuild sources are included in the build plan

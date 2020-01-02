@@ -221,7 +221,7 @@ query([not(Statement)|Rest],Repository://Id) :-
 query([all(Statement)|Rest],Repository://Id) :-
   Statement =.. [Key,Values],
   !,
-  findall(Value,(Statement =.. [Key,Value],knowledgebase:query([Statement],Repository://Id)),Values),
+  findall(InnerValue,(InnerStatement =.. [Key,InnerValue],knowledgebase:query([InnerStatement],Repository://Id)),Values),
   query(Rest,Repository://Id).
 
 
@@ -232,7 +232,7 @@ query([all(Statement)|Rest],Repository://Id) :-
 query([all(Statement)|Rest],Repository://Id) :-
   Statement =.. [Key,Values,_],
   !,
-  findall([ValueA,ValueB],(Statement =.. [Key,ValueA,ValueB],knowledgebase:query([Statement],Repository://Id)),Values),
+  findall([InnerValueA,InnerValueB],(InnerStatement =.. [Key,InnerValueA,InnerValueB],knowledgebase:query([InnerStatement],Repository://Id)),Values),
   query(Rest,Repository://Id).
 
 
