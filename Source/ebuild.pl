@@ -9,7 +9,8 @@
 
 
 /** <module> EBUILD
-The contents of this file needs some rework. Probably to be moved into repository.
+This file currently contains some syntactic sugar for common knowledgebase
+queries.
 */
 
 :- module(ebuild, []).
@@ -26,7 +27,6 @@ ebuild:download_size(Repository://Entry,T) :-
   aggregate_all(sum(S),knowledgebase:query([manifest(_,_,S)],Repository://Entry),T),!.
 
 ebuild:download_size(_://_,0) :- !.
-
 
 
 %! ebuild:is_virtual(+Repository://+Entry)

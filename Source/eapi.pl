@@ -387,7 +387,7 @@ eapi:dependency(uri,D) -->
   eapi:uri(D),!.
 
 eapi:dependency(use,U) -->
-  eapi:use_flag(U),!.
+  eapi:required_use_flag(U),!.
 
 
 %! DCG qualified_package
@@ -886,10 +886,22 @@ eapi:iuse([]) -->
 % EAPI 4 defines required use as a list of use flags, with
 % conditional, xor and or relationship.
 
-eapi:required_use([Ua]) -->
-%  eapi:dependencies(use,U).
-  eapi:chars_to_end(U),
-  { atom_codes(Ua,U),! }.
+eapi:required_use(U) -->
+  eapi:dependencies(use,U).
+  %eapi:chars_to_end(U),
+  %{ atom_codes(Ua,U),! }.
+
+
+%! DCG required use flag
+%
+% Required use flag syntax
+
+eapi:required_use_flag(blocking(U)) -->
+  [33],!,
+  eapi:use_flag(U).
+
+eapi:required_use_flag(required(U)) -->
+  eapi:use_flag(U).
 
 
 %! DCG keywords
