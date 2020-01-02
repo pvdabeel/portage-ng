@@ -77,7 +77,6 @@ parser:test(Repository,single_verbose) :-
                      message:failure([E,' (time limit exceeded)']));
                message:failure(E)))),!,
   message:title_reset,
-  message:title_reset,
   message:inform(['parsed ',S,' ',Repository,' entries.']).
 
 parser:test(Repository,parallel_verbose) :-
@@ -89,7 +88,7 @@ parser:test(Repository,parallel_verbose) :-
   config:number_of_cpus(Cpus),
   findall((catch(call_with_time_limit(T,(parser:invoke(metadata,R,_),!,
                                          with_mutex(mutex,(count:increase,
-                                                           count:percentage(P),i
+                                                           count:percentage(P),
                                                            message:title(['Parsing (',Cpus,' threads): ',P,' complete']),
                                                            message:success([P,' - ',E]))))),
                  time_limit_exceeded,
@@ -97,6 +96,7 @@ parser:test(Repository,parallel_verbose) :-
           (Repository:entry(E),reader:invoke(C,E,R)),
           Calls),
   time(concurrent(Cpus,Calls,[])),!,
+  message:title_reset,
   message:inform(['parsed ',S,' ',Repository,' entries.']).
 
 parser:test(Repository,parallel_fast) :-
