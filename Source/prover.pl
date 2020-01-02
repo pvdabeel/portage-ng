@@ -201,7 +201,7 @@ prover:unify_constraints(constraint(Constraint),Constraints,NewConstraints) :-
 % MODEL
 % -----
 
-prover:smodel(Literals,Grounded) :-
+prover:model(Literals,Model) :-
   prover:prove(Literals,[],_,[],Model,[],_).
 
 
