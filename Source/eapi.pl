@@ -737,7 +737,7 @@ eapi:version2atom(N,S,A) :-
 % EAPI 5 - defines _md5_ metadata
 
 eapi:md5(M) -->
-  eapi:pchars([Ms]),
+  eapi:chars1(m,Ms),
   { atom_codes(M,Ms) }.
 
 
@@ -1277,6 +1277,7 @@ eapi:jumprule(p,[46]) :- !.                      % EAPI 9.2.0: A uri protocol na
 eapi:jumprule(p,[C]) :- code_type(C,alnum), !.   % EAPI 9.2.0: A uri protocol name may contain alphanumeric chars
 eapi:jumprule(t,[46]) :- !.                      % A timestamp may contain a '.'
 eapi:jumprule(t,[C]) :- code_type(C,digit), !.   % A timestamp may contain digit chars.
+eapi:jumprule(m,[C]) :- code_type(C,alnum), !.   % An MD5 sum may contain alnum chars
 
 
 % ----------------------
@@ -1308,25 +1309,29 @@ eapi:pchar(95) -->
 % deprecated in EAPI 5
 
 
-%eapi:pchar([45,D]) -->
-%  [45,D],
-%  { code_type(D,digit)  }. % digit -> fail
+% eapi:pchar([45,D]) -->
+%   [45,D],
+%   { code_type(D,digit)  }. % digit -> fail
 
-%eapi:pchar([45]) -->
-%  [45],!.
+% eapi:pchar([45]) -->
+%   [45],!.
 
 
 % EAPI 4 - 2.1.2-strict: A package name may contain '-', if the char
 %                        following it is an alphabetical char
+% deprecated in EAPI 5
 
-%eapi:pchar([45,C]) -->
-%  [45,C],
-%  { code_type(C,alpha), ! }.
+% eapi:pchar([45,C]) -->
+%   [45,C],
+%   { code_type(C,alpha), ! }.
+
 
 % EAPI 4 - 2.1.2-strict: A package name may not contain '.'
+%
+% deprecated in EAPI 5
 
-%eapi:pchar(46) -->
-%  [46], { fail }.
+% eapi:pchar(46) -->
+%   [46], { fail }.
 
 % EAPI 4 - 2.1.2: A package name may contain '+'
 
@@ -1349,11 +1354,9 @@ eapi:pchars2([H|T]) -->
 eapi:pchars2([]) -->
   [],!.
 
-
 eapi:pcharschunk([C|R]) -->
   eapi:pchar(C),!,
   eapi:pcharschunk2(R).
-
 
 eapi:pcharschunk2([]) -->		% a chunck ends when '-' is encountered
   [45],!.
@@ -1502,9 +1505,9 @@ file:lines([L|R]) --> file:line(L),!, file:lines(R).
 file:lines([])    --> [],!.
 
 
-% *************************
+% -------------------------
 % EAPI version declarations
-% *************************
+% -------------------------
 
 % VERSION sublist
 %
@@ -1545,45 +1548,9 @@ packageversion(Name,_,_) :-
   message:failure(Name).
 
 
-% ***************************
-% HISTORICAL - EAPI PMS cache
-% ***************************
-
-% Prior to the MD5 format where Metadata was represented as KEY=VALUE
-% pairs inside a file, another format was used. This formwat was called
-% the PMS format. In a pms cache file, the line number defines the key.
-%
-% The code is depcrecated but kept for historic reasons.
-
-
-%! eapi:keys(-Keys)
-%
-% Predicate representing the key structure of a pms cache entry.
-% In a pms cache entry, line number defined the key.
-
-eapi:keys(['depend',
-           'rdepend',
-           'slot',
-           'src_uri',
-           'restrict',
-           'homepage',
-           'license',
-           'description',
-           'keywords',
-           'inherited',
-           'iuse',
-           'required_use',    % EAPI 4: REQUIRED_USE
-           'cdepend',         % EAPI 4: PDEPEND
-           'provide',
-           'eapi',
-           'unused',          % EAPI 4: PROPERTIES
-           'functions',       % EAPI 4: DEFINED_PHASES
-           'unused',
-           'unused',
-           'unused',
-           'unused',
-           'unused']).
-
+% ----------------------------
+% EAPI USE expand declarations
+% ----------------------------
 
 %! eapi:use_expand(Keys)
 %
@@ -1717,6 +1684,46 @@ eapi:categorize_use(Use,'neg:default') :-
   not(printer:unify(minus(_),Use)),!.
 
 
+% ***************************
+% HISTORICAL - EAPI PMS cache
+% ***************************
+
+% Prior to the MD5 format where Metadata was represented as KEY=VALUE
+% pairs inside a file, another format was used. This formwat was called
+% the PMS format. In a pms cache file, the line number defines the key.
+%
+% The code is depcrecated but kept for historic reasons.
+
+
+%! eapi:keys(-Keys)
+%
+% Predicate representing the key structure of a pms cache entry.
+% In a pms cache entry, line number defined the key.
+
+eapi:keys(['depend',
+           'rdepend',
+           'slot',
+           'src_uri',
+           'restrict',
+           'homepage',
+           'license',
+           'description',
+           'keywords',
+           'inherited',
+           'iuse',
+           'required_use',    % EAPI 4: REQUIRED_USE
+           'cdepend',         % EAPI 4: PDEPEND
+           'provide',
+           'eapi',
+           'unused',          % EAPI 4: PROPERTIES
+           'functions',       % EAPI 4: DEFINED_PHASES
+           'unused',
+           'unused',
+           'unused',
+           'unused',
+           'unused']).
+
+
 %! eapi:elem(+Key,+Entry,-Content)
 %
 % Given a key and a pms cache entry, retrieves the element
@@ -1728,23 +1735,23 @@ eapi:categorize_use(Use,'neg:default') :-
 %
 % Content: The content of the pms cache entry
 
-% PMS version
+% ------------------------------------
+% CASE: PMS cache version (deprecated)
+% ------------------------------------
 
 % eapi:elem(K,E,C) :-
 %   eapi:keys(S),
 %   system:nth1(N,S,K),
 %   system:nth1(N,E,C).
 
-% MD5 version
+% -----------------
+% CASE: MD5 version
+% -----------------
 
 eapi:elem(K,[E|_],C) :-
   E =.. [K,C],
   !.
 
 eapi:elem(K,[_|R],C) :-
-  % not(E =.. [K,C]),
   !,
   eapi:elem(K,R,C).
-
-% eapi:elem(_,[],[]) :-
-%    !.
