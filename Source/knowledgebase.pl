@@ -380,9 +380,21 @@ query([Statement|Rest],Repository://Id) :-
   query(Rest,Repository://Id).
 
 
-% ---------------------
-% Query: other metadata
-% ---------------------
+% ----------------------------------------------
+% Query: other metadata, contextualized response
+% ----------------------------------------------
+
+query([Statement|Rest],Repository://Id) :-
+  Statement =.. [':', Compound],
+  !,
+  Compound =.. [Key, Repository://Id:Arg],
+  cache:entry_metadata(Repository,Id,Key,Arg),
+  query(Rest,Repository://Id).
+
+
+% --------------------------------------------------
+% Query: other metadata, non-contextualized response
+% --------------------------------------------------
 
 query([Statement|Rest],Repository://Id) :-
   !,
