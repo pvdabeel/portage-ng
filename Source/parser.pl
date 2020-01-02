@@ -28,17 +28,17 @@ Output: A nested list representing the the result of parsing each line in the
 % *******************
 
 
-%! parser:invoke(+Type,+Contents,-Result)
+%! parser:invoke(+Type,+Context://+Entry,+Contents,-Result)
 %
 % Type:     An atom indicated Contents is of type 'metadata' or 'manifest'
 % Contents: A nested list of character codes.
 %
 % Result:   A nested list represnting the parse tree.
 
-parser:invoke(_,[], []).
-parser:invoke(Type,[X|XX], [Y|YY]) :-
-  eapi:parse(Type,X,Y),!,
-  parser:invoke(Type,XX, YY).
+parser:invoke(_,_,[], []).
+parser:invoke(Type,Context://Entry,[X|XX], [Y|YY]) :-
+  eapi:parse(Type,Context://Entry,X,Y),!,
+  parser:invoke(Type,Context://Entry,XX, YY).
 
 
 %! parser:test(+Repository)
@@ -71,7 +71,7 @@ parser:test(Repository,single_verbose) :-
                                              count:percentage(P),
                                              message:title(['Parsing (Single thread): ',P,' complete']),
                                              reader:invoke(C,E,R),
-                                             parser:invoke(metadata,R,_),
+                                             parser:invoke(metadata,Repository://E,R,_),
                                              message:success([P,' - ',E]))),
                      time_limit_exceeded,
                      message:failure([E,' (time limit exceeded)']));
@@ -86,7 +86,7 @@ parser:test(Repository,parallel_verbose) :-
   count:init(0,S),
   config:time_limit(T),
   config:number_of_cpus(Cpus),
-  findall((catch(call_with_time_limit(T,(parser:invoke(metadata,R,_),!,
+  findall((catch(call_with_time_limit(T,(parser:invoke(metadata,Repository://E,R,_),!,
                                          with_mutex(mutex,(count:increase,
                                                            count:percentage(P),
                                                            message:title(['Parsing (',Cpus,' threads): ',P,' complete']),
@@ -103,7 +103,7 @@ parser:test(Repository,parallel_fast) :-
   Repository:get_size(S),
   Repository:get_cache(C),
   config:number_of_cpus(Cpus),
-  findall((parser:invoke(metadata,R,_),!),
+  findall((parser:invoke(metadata,Repository://E,R,_),!),
           (Repository:entry(E),reader:invoke(C,E,R)),
           Calls),
   time(concurrent(Cpus,Calls,[])),!,

@@ -237,10 +237,11 @@ find_manifest(Entry,Category,Name) ::-
 %  cache:entry(Repository,Entry,Timestamp,_,_,_,Metadata),!.
 
 read_metadata(Entry,_,Metadata) ::-
+  :this(Repository),
   ::cache(Cache),
   message:scroll([Entry]),
   reader:invoke(Cache,Entry,Contents),
-  parser:invoke(metadata,Contents,Metadata),!.
+  parser:invoke(metadata,Repository://Entry,Contents,Metadata),!.
 
 read_metadata(Entry,_,[]) ::-
   message:failure(['Failed to parse ',Entry,' metadata cache!']),!.
@@ -260,7 +261,7 @@ read_manifest(Path,Timestamp,Category,Name,Manifest) ::-
 read_manifest(Path,_,_,_,Manifest) ::-
   message:scroll([Path]),
   reader:invoke(Path,Contents),
-  parser:invoke(manifest,Contents,Manifest),!.
+  parser:invoke(manifest,_,Contents,Manifest),!.
 
 read_manifest(Entry,_,_,_,[]) ::-
   message:failure(['Failed to parse ',Entry,' metadata cache!']),!.

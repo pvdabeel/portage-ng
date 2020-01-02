@@ -82,14 +82,14 @@ rule(Repository://Ebuild:run,[Repository://Ebuild:install|D]) :-
 %
 % EAPI 8.2.6.2: a weak block can be ignored by the package manager
 
-rule(package_dependency(_,weak,_,_,_,_,_,_),[]) :- !.
+rule(_Repo://_Ebuild:package_dependency(_,weak,_,_,_,_,_,_),[]) :- !.
 
 
 % Conflicting package:
 %
 % EAPI 8.2.6.2: a strong block is satisfied when no suitable candidate is satisfied
 
-rule(package_dependency(_Action,strong,_,_,_,_,_,_),[]) :- !.
+rule(_Repo://_Ebuild:package_dependency(_Action,strong,_,_,_,_,_,_),[]) :- !.
 
 % rule(package_dependency(Action,strong,C,N,_,_,_,_),Nafs) :-
 %   findall(naf(Repository://Choice:Action),cache:entry(Repository,Choice,_,C,N,_,_),Nafs),!.
@@ -100,55 +100,55 @@ rule(package_dependency(_Action,strong,_,_,_,_,_,_),[]) :- !.
 % These type of dependencies are assumed satisfied. If they are not defined,
 % portage-ng will detect a circular dependency (e.g. your compiler needs a compiler)
 
-rule(package_dependency(_,no,'app-arch','bzip2',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'app-arch','gzip',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'app-arch','tar',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'app-arch','xz-utils',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'app-shells','bash',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'dev-lang','perl',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'dev-lang','python',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'dev-libs','libpcre',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'net-misc','iputils',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'net-misc','rsync',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'net-misc','wget',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-apps','baselayout',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-apps','coreutils',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-apps','diffutils',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-apps','file',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-apps','findutils',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-apps','gawk',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-apps','grep',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-apps','kbd',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-apps','less',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-apps','sed',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-apps','util-linux',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-devel','automake',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-devel','binutils',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-devel','gcc',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-devel','gnuconfig',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-devel','make',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-devel','patch',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-fs','e2fsprogs',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-libs','ncurses',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-libs','readline',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-process','procps',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'sys-process','psmisc',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'virtual','dev-manager',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'virtual','editor',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'virtual','libc',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'virtual','man',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'virtual','modutils',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'virtual','os-headers',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'virtual','package-manager',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'virtual','pager',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'virtual','service-manager',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'virtual','shadow',_,_,_,_),[]) :- !.
-rule(package_dependency(_,no,'virtual','ssh',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'app-arch','bzip2',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'app-arch','gzip',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'app-arch','tar',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'app-arch','xz-utils',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'app-shells','bash',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'dev-lang','perl',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'dev-lang','python',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'dev-libs','libpcre',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'net-misc','iputils',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'net-misc','rsync',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'net-misc','wget',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-apps','baselayout',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-apps','coreutils',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-apps','diffutils',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-apps','file',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-apps','findutils',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-apps','gawk',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-apps','grep',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-apps','kbd',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-apps','less',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-apps','sed',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-apps','util-linux',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-devel','automake',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-devel','binutils',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-devel','gcc',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-devel','gnuconfig',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-devel','make',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-devel','patch',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-fs','e2fsprogs',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-libs','ncurses',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-libs','readline',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-process','procps',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'sys-process','psmisc',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'virtual','dev-manager',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'virtual','editor',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'virtual','libc',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'virtual','man',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'virtual','modutils',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'virtual','os-headers',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'virtual','package-manager',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'virtual','pager',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'virtual','service-manager',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'virtual','shadow',_,_,_,_),[]) :- !.
+rule(_://_:package_dependency(_,no,'virtual','ssh',_,_,_,_),[]) :- !.
 
 
 % A package dependency is satisfied when a suitable candidate is satisfied
 
-rule(package_dependency(Action,no,C,N,_,_,_,_),[Repository://Choice:Action]) :-
+rule(_Repo://_Ebuild:package_dependency(Action,no,C,N,_,_,_,_),[Repository://Choice:Action]) :-
   knowledgebase:query([name(N),category(C)],Repository://Choice).
 
 
@@ -157,25 +157,25 @@ rule(package_dependency(Action,no,C,N,_,_,_,_),[Repository://Choice:Action]) :-
 % Portage-ng will identify these assumptions in its proof and show them to the
 % user prior to continuing to the next stage (e.g. building the plan).
 
-rule(package_dependency(Action,no,C,N,O,V,S,U),[assumed(package_dependency(Action,no,C,N,O,V,S,U))]) :-
+rule(Repo://Ebuild:package_dependency(Action,no,C,N,O,V,S,U),[assumed(Repo://Ebuild:package_dependency(Action,no,C,N,O,V,S,U))]) :-
   not(knowledgebase:query([name(N),category(C)],_)),!.
 
 
 % The dependencies in a positive use conditional group need to be satisfied when the use flag is set
 
-rule(use_conditional_group(positive,Use,_),_) :-
+rule(_Repo://_Ebuild:use_conditional_group(positive,Use,_),_) :-
   not(preference:positive_use(Use)),!.
 
-rule(use_conditional_group(positive,_,D),D) :- !.
+rule(_Repo://_Ebuild:use_conditional_group(positive,_,D),D) :- !.
 
 
 % The dependencies in a negative use conditional group need to be satisfied when the use is not set
 
-rule(use_conditional_group(negative,Use,_),[]) :-
+rule(_Repo://_Ebuild:use_conditional_group(negative,Use,_),[]) :-
   preference:positive_use(Use),!.
   % todo : check ebuild default
 
-rule(use_conditional_group(negative,_,D),D) :- !.
+rule(_Repo://_Ebuild:use_conditional_group(negative,_,D),D) :- !.
 
 
 % Exactly one of the dependencies in an exactly-one-of-group should be satisfied
