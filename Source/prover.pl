@@ -197,6 +197,18 @@ prover:unify_constraints(constraint(Constraint),Constraints,NewConstraints) :-
   feature_unifation:unify([Constraint],Constraints,NewConstraints).
 
 
+% -----
+% MODEL
+% -----
+
+prover:smodel(Literals,Grounded) :-
+  prover:prove(Literals,[],_,[],Model,[],_).
+
+
+% ----
+% TEST
+% ----
+
 %! prover:test(+Repository)
 %
 % Prove all entries in a given Repository, using the default style
