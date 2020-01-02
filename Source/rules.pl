@@ -9,58 +9,58 @@
 
 
 /** <module> RULES
-This file contains domain-specific rules for dealing with software dependencies
+This file contains domain-specific rules
 */
 
 :- module(rules, [rule/2]).
+
 
 % ******************
 % RULES declarations
 % ******************
 
-% Skip masked ebuilds without failing
+% ----------------------
+% Ruleset: Ebuild states
+% ----------------------
 
-rule(Repository://Ebuild:_,[]) :-
+% MASKED:
+%
+% Skip masked ebuilds
+
+rule(Repository://Ebuild:_Action,[]) :-
   preference:masked(Repository://Ebuild),!.
 
 
+% DOWNLOAD:
+%
 % An ebuild is downloaded if its sources are downloaded
 
-rule(_Repository://_Ebuild:download,[]) :-
-  !.
-  %knowledgebase:query([all(src_uri(S))],Repository://Ebuild).
+rule(_Repository://_Ebuild:download,[]) :- !.
 
 
-% Ebuild sources are included in the build plan
-
-% rule(uri(_Protocol,_Remote,_Local),[]) :- !.
-
-% rule(uri(_Local),[]) :- !.
-
-
-% An ebuild can be installed, if the following conditions are satisfied:
-% - it is downloaded (if it is not a virtual, a group or a user)
-% - its compiletime dependencies are satisfied
+% INSTALL:
+%
+% An ebuild is installed, if the following conditions are satisfied:
+%
+% - It is downloaded (Only when it is not a virtual, a group or a user)
+% - It compile-time dependencies are satisfied
 % - it can occupy an installation slot
 
-% ----------------
-% CASE 1 : Virtual
-% ----------------
+% Virtual
 
 rule(Repository://Ebuild:install,[constraint(slot(C,N,S):{[Ebuild]})|D]) :-
   knowledgebase:query([category(C),name(N),slot(slot(S)),all(depend(D))],Repository://Ebuild),
   memberchk(C,['virtual','acct-group','acct-user']),!.
 
-
-% -------------------
-% CASE 2: Non-Virtual
-% -------------------
+% Non-Virtual
 
 rule(Repository://Ebuild:install,[Repository://Ebuild:download,constraint(slot(C,N,S):{[Ebuild]})|D]) :-
   !,
   knowledgebase:query([category(C),name(N),slot(slot(S)),all(depend(D))],Repository://Ebuild).
 
 
+% RUN:
+%
 % An ebuild can be run, if it is installed and if its runtime dependencies are satisfied
 
 rule(Repository://Ebuild:run,[Repository://Ebuild:install|D]) :-
@@ -68,20 +68,37 @@ rule(Repository://Ebuild:run,[Repository://Ebuild:install|D]) :-
   knowledgebase:query([all(rdepend(D))],Repository://Ebuild).
 
 
-% Conflicting package: EAPI 8.2.6.2: a weak block can be ignored by the package manager
+% ------------------------------
+% Ruleset: Dependency resolution
+% ------------------------------
+
+% PACKAGE_DEPENDENCY
+%
+% Ebuilds use package dependencies to express relations (conflicts or requirements) on
+% other ebuilds.
+
+
+% Conflicting package:
+%
+% EAPI 8.2.6.2: a weak block can be ignored by the package manager
 
 rule(package_dependency(_,weak,_,_,_,_,_,_),[]) :- !.
 
 
-% Conflicting package: EAPI 8.2.6.2: a strong block is satisfied when no suitable candidate is satisfied
+% Conflicting package:
+%
+% EAPI 8.2.6.2: a strong block is satisfied when no suitable candidate is satisfied
 
-rule(package_dependency(_Action,strong,_C,_N,_,_,_,_),[]) :- !.
+rule(package_dependency(_Action,strong,_,_,_,_,_,_),[]) :- !.
 
-%rule(package_dependency(Action,strong,C,N,_,_,_,_),Nafs) :-
-%  findall(naf(Repository://Choice:Action),cache:entry(Repository,Choice,_,C,N,_,_),Nafs),!.
+% rule(package_dependency(Action,strong,C,N,_,_,_,_),Nafs) :-
+%   findall(naf(Repository://Choice:Action),cache:entry(Repository,Choice,_,C,N,_,_),Nafs),!.
 
 
-% Dependencies on the system profile are assumed satisfied
+% Dependencies on the system profile
+%
+% These type of dependencies are assumed satisfied. If they are not defined,
+% portage-ng will detect a circular dependency (e.g. your compiler needs a compiler)
 
 rule(package_dependency(_,no,'app-arch','bzip2',_,_,_,_),[]) :- !.
 rule(package_dependency(_,no,'app-arch','gzip',_,_,_,_),[]) :- !.
@@ -135,8 +152,10 @@ rule(package_dependency(Action,no,C,N,_,_,_,_),[Repository://Choice:Action]) :-
   knowledgebase:query([name(N),category(C)],Repository://Choice).
 
 
-% A package dependency that has no suitable candidates is assumed satisfied
-% The planner and builder checks for assumptions before execution
+% A package dependency that has no suitable candidates is "assumed" satisfied
+%
+% Portage-ng will identify these assumptions in its proof and show them to the
+% user prior to continuing to the next stage (e.g. building the plan).
 
 rule(package_dependency(Action,no,C,N,O,V,S,U),[assumed(package_dependency(Action,no,C,N,O,V,S,U))]) :-
   not(knowledgebase:query([name(N),category(C)],_)),!.
@@ -176,7 +195,11 @@ rule(any_of_group(Deps),[D]) :-
 rule(all_of_group(Deps),Deps) :- !.
 
 
-% Assumptions are assumed
+% ------------------
+% Ruleset: Grounding
+% ------------------
+
+% Assumptions
 
 rule(assumed(_),[]) :- !.
 
@@ -184,3 +207,19 @@ rule(assumed(_),[]) :- !.
 % Negation as failure
 
 rule(naf(_),[]) :- !.
+
+
+% Atoms
+
+rule(Literal,[]) :-
+  atom(Literal),!.
+
+
+% Blocking use
+
+rule(blocking(Use),[naf(Use)]) :- !.
+
+
+% Required use
+
+rule(required(Use),[Use]) :- !.
