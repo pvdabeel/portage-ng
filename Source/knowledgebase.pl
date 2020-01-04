@@ -230,9 +230,9 @@ query([all(Statement)|Rest],Repository://Id) :-
 % -------------------------------------
 
 query([all(Statement)|Rest],Repository://Id) :-
-  Statement =.. [Key,Values,_],
+  Statement =.. [Key,Values,Filter],
   !,
-  findall([InnerValueA,InnerValueB],(InnerStatement =.. [Key,InnerValueA,InnerValueB],knowledgebase:query([InnerStatement],Repository://Id)),Values),
+  findall([InnerValueA,Filter],(InnerStatement =.. [Key,InnerValueA,Filter],knowledgebase:query([InnerStatement],Repository://Id)),Values),
   query(Rest,Repository://Id).
 
 
@@ -295,13 +295,13 @@ query([manifest(Type,Binary,Size)|Rest],Repository://Id) :-
   file_base_name(Path,Binary),
   query(Rest,Repository://Id).
 
-
 query([manifest(Type,Binary,Size)|Rest],Repository://Id) :-
   cache:entry(Repository,Id,_,Category,Name,_),
   cache:entry_metadata(Repository,Id,src_uri,uri(_,_,Binary)),
   cache:manifest(Repository,_,_,Category,Name,Manifest),
   member(manifest(Type,Binary,Size,_),Manifest),
   query(Rest,Repository://Id).
+
 
 % -----------
 % Query: iuse
@@ -318,10 +318,10 @@ query([iuse(Iuse)|Rest],Repository://Id) :-
 % Query: iuse with use flag state
 % -------------------------------
 
-query([iuse(Iuse,State)|Rest],Repository://Id) :-
+query([iuse(Iuse,State:Reason)|Rest],Repository://Id) :-
   !,
   cache:entry_metadata(Repository,Id,iuse,Value),
-  eapi:categorize_use(Value,State),
+  eapi:categorize_use(Value,State,Reason),
   eapi:strip_use_default(Value,Iuse),
   query(Rest,Repository://Id).
 
@@ -342,10 +342,10 @@ query([iuse_filtered(Iuse)|Rest],Repository://Id) :-
 % Query: iuse without use_expand, with use flag state
 % ---------------------------------------------------
 
-query([iuse_filtered(Iuse,State)|Rest],Repository://Id) :-
+query([iuse_filtered(Iuse,State:Reason)|Rest],Repository://Id) :-
   !,
   cache:entry_metadata(Repository,Id,iuse,Arg),
-  eapi:categorize_use(Arg,State),
+  eapi:categorize_use(Arg,State,Reason),
   eapi:strip_use_default(Arg,Iuse),
   not(eapi:check_use_expand_atom(Iuse)),
   query(Rest,Repository://Id).
@@ -370,10 +370,10 @@ query([Statement|Rest],Repository://Id) :-
 % -------------------------------------
 
 query([Statement|Rest],Repository://Id) :-
-  Statement =.. [Key,Value,State],
+  Statement =.. [Key,Value,State:Reason],
   eapi:use_expand(Key),!,
   cache:entry_metadata(Repository,Id,iuse,Arg),
-  eapi:categorize_use(Arg,State),
+  eapi:categorize_use(Arg,State,Reason),
   eapi:strip_use_default(Arg,ArgB),
   eapi:check_prefix_atom(Key,ArgB),
   eapi:strip_prefix_atom(Key,ArgB,Value),

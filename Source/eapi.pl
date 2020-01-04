@@ -1635,39 +1635,39 @@ eapi:strip_use_default(Use,Use) :- !.
 eapi:check_use_expand_atom(Atom) :- eapi:use_expand(Key), eapi:check_prefix_atom(Key,Atom),!.
 
 
-%! eapi:categorize_use(+Use,?Type)
+%! eapi:categorize_use(+Use,?State,?Reason))
 %
 % Categorize a given use flag
 
-eapi:categorize_use(plus(Use),'pos:preference') :-
+eapi:categorize_use(plus(Use),positive,preference) :-
   preference:positive_use(Use),!.
 
-eapi:categorize_use(plus(Use),'neg:preference') :-
+eapi:categorize_use(plus(Use),negative,preference) :-
   preference:negative_use(Use),!.
 
-eapi:categorize_use(plus(Use),'pos:ebuild') :-
+eapi:categorize_use(plus(Use),positive,ebuild) :-
   not(preference:positive_use(Use)),
   not(preference:negative_use(Use)),
   !.
 
-eapi:categorize_use(minus(Use),'pos:preference') :-
+eapi:categorize_use(minus(Use),positive,preference) :-
   preference:positive_use(Use),!.
 
-eapi:categorize_use(minus(Use),'neg:preference') :-
+eapi:categorize_use(minus(Use),negative,preference) :-
   preference:negative_use(Use),!.
 
-eapi:categorize_use(minus(Use),'neg:ebuild') :-
+eapi:categorize_use(minus(Use),negative,ebuild) :-
   not(preference:positive_use(Use)),
   not(preference:negative_use(Use)),
   !.
 
-eapi:categorize_use(Use,'pos:preference') :-
+eapi:categorize_use(Use,positive,preference) :-
   preference:positive_use(Use),!.
 
-eapi:categorize_use(Use,'neg:preference') :-
+eapi:categorize_use(Use,negative,preference) :-
   preference:negative_use(Use),!.
 
-eapi:categorize_use(Use,'neg:default') :-
+eapi:categorize_use(Use,negative,default) :-
   not(preference:positive_use(Use)),
   not(preference:negative_use(Use)),
   not(printer:unify(plus(_),Use)),

@@ -301,26 +301,26 @@ printer:print_config(Repository://Entry:install) :-
 % use flags to show
 
 printer:print_config(Repository://Entry:install) :-
-  knowledgebase:query([all(iuse_filtered(PosPref,'pos:preference'))],Repository://Entry), %broken
-  knowledgebase:query([all(iuse_filtered(PosEbui,'pos:ebuild'))],Repository://Entry),     %broken
-  knowledgebase:query([all(iuse_filtered(NegPref,'neg:preference'))],Repository://Entry), %broken
-  knowledgebase:query([all(iuse_filtered(NegEbui,'neg:ebuild'))],Repository://Entry),     %broken
-  knowledgebase:query([all(iuse_filtered(NegDefa,'neg:default'))],Repository://Entry),    %broken
+  knowledgebase:query([all(iuse_filtered(PosPref,positive:preference))],Repository://Entry),
+  knowledgebase:query([all(iuse_filtered(PosEbui,positive:ebuild))],Repository://Entry),
+  knowledgebase:query([all(iuse_filtered(NegPref,negative:preference))],Repository://Entry),
+  knowledgebase:query([all(iuse_filtered(NegEbui,negative:ebuild))],Repository://Entry),
+  knowledgebase:query([all(iuse_filtered(NegDefa,negative:default))],Repository://Entry),
   (allempty(PosPref,PosEbui,NegPref,NegEbui,NegDefa);
    (printer:print_config_prefix('conf'),
     printer:print_config_item('use',PosPref,PosEbui,NegPref,NegEbui,NegDefa))),
   forall(eapi:use_expand(Key),
          (preference:use_expand_hidden(Key);
-          (StatementPp =.. [Key,PosP,'pos:preference'],
-           StatementPe =.. [Key,PosE,'pos:ebuild'],
-           StatementNp =.. [Key,NegP,'neg:preference'],
-           StatementNe =.. [Key,NegE,'neg:ebuild'],
-           StatementNd =.. [Key,NegD,'neg:default'],
-           knowledgebase:query([all(StatementPp)],Repository://Entry), %broken
-           knowledgebase:query([all(StatementPe)],Repository://Entry), %broken
-           knowledgebase:query([all(StatementNp)],Repository://Entry), %broken
-           knowledgebase:query([all(StatementNe)],Repository://Entry), %broken
-           knowledgebase:query([all(StatementNd)],Repository://Entry), %broken
+          (StatementPp =.. [Key,PosP,positive:preference],
+           StatementPe =.. [Key,PosE,positive:ebuild],
+           StatementNp =.. [Key,NegP,negative:preference],
+           StatementNe =.. [Key,NegE,negative:ebuild],
+           StatementNd =.. [Key,NegD,negative:default],
+           knowledgebase:query([all(StatementPp)],Repository://Entry),
+           knowledgebase:query([all(StatementPe)],Repository://Entry),
+           knowledgebase:query([all(StatementNp)],Repository://Entry),
+           knowledgebase:query([all(StatementNe)],Repository://Entry),
+           knowledgebase:query([all(StatementNd)],Repository://Entry),
            (allempty(PosP,PosE,NegP,NegE,NegD);
             (printer:print_config_prefix,
 	     printer:print_config_item(Key,PosP,PosE,NegP,NegE,NegD)))))),!.
@@ -420,14 +420,14 @@ printer:print_use_flag_set(Flags,_,' ') :-
 printer:print_use_flag([]) :-
   !.
 
-printer:print_use_flag([[Flag,'pos:preference']]) :-
+printer:print_use_flag([[Flag,positive:preference]]) :-
   message:color(lightred),
   message:style(bold),
   message:print(Flag),
   message:color(normal),
   !.
 
-printer:print_use_flag([[Flag,'pos:preference']|Rest]) :-
+printer:print_use_flag([[Flag,positive:preference]|Rest]) :-
   message:color(lightred),
   message:style(bold),
   message:print(Flag),
@@ -435,14 +435,14 @@ printer:print_use_flag([[Flag,'pos:preference']|Rest]) :-
   message:color(normal),!,
   printer:print_use_flag(Rest).
 
-printer:print_use_flag([[Flag,'pos:ebuild']]) :-
+printer:print_use_flag([[Flag,positive:ebuild]]) :-
   message:color(red),
   message:style(italic),
   message:print(Flag),
   message:color(normal),
   !.
 
-printer:print_use_flag([[Flag,'pos:ebuild']|Rest]) :-
+printer:print_use_flag([[Flag,positive:ebuild]|Rest]) :-
   message:color(red),
   message:style(italic),
   message:print(Flag),
@@ -451,7 +451,7 @@ printer:print_use_flag([[Flag,'pos:ebuild']|Rest]) :-
   printer:print_use_flag(Rest).
 
 
-printer:print_use_flag([[Flag,'neg:preference']]) :-
+printer:print_use_flag([[Flag,negative:preference]]) :-
   message:color(blue),
   message:style(bold),
   message:print('-'),
@@ -459,7 +459,7 @@ printer:print_use_flag([[Flag,'neg:preference']]) :-
   message:color(normal),
   !.
 
-printer:print_use_flag([[Flag,'neg:preference']|Rest]) :-
+printer:print_use_flag([[Flag,negative:preference]|Rest]) :-
   message:color(blue),
   message:style(bold),
   message:print('-'),
@@ -468,7 +468,7 @@ printer:print_use_flag([[Flag,'neg:preference']|Rest]) :-
   message:color(normal),!,
   printer:print_use_flag(Rest).
 
-printer:print_use_flag([[Flag,'neg:ebuild']]) :-
+printer:print_use_flag([[Flag,negative:ebuild]]) :-
   message:color(lightblue),
   message:style(italic),
   message:print('-'),
@@ -476,7 +476,7 @@ printer:print_use_flag([[Flag,'neg:ebuild']]) :-
   message:color(normal),
   !.
 
-printer:print_use_flag([[Flag,'neg:ebuild']|Rest]) :-
+printer:print_use_flag([[Flag,negative:ebuild]|Rest]) :-
   message:color(lightblue),
   message:style(italic),
   message:print('-'),
@@ -485,7 +485,7 @@ printer:print_use_flag([[Flag,'neg:ebuild']|Rest]) :-
   message:color(normal),!,
   printer:print_use_flag(Rest).
 
-printer:print_use_flag([[Flag,'neg:default']]) :-
+printer:print_use_flag([[Flag,negative:default]]) :-
   message:color(darkgray),
   message:style(italic),
   message:print('-'),
@@ -493,7 +493,7 @@ printer:print_use_flag([[Flag,'neg:default']]) :-
   message:color(normal),
   !.
 
-printer:print_use_flag([[Flag,'neg:default']|Rest]) :-
+printer:print_use_flag([[Flag,negative:default]|Rest]) :-
   message:color(darkgray),
   message:style(italic),
   message:print('-'),
