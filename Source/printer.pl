@@ -301,11 +301,11 @@ printer:print_config(Repository://Entry:install) :-
 % use flags to show
 
 printer:print_config(Repository://Entry:install) :-
-  knowledgebase:query([all(iuse_filtered(PosPref,'pos:preference'))],Repository://Entry),
-  knowledgebase:query([all(iuse_filtered(PosEbui,'pos:ebuild'))],Repository://Entry),
-  knowledgebase:query([all(iuse_filtered(NegPref,'neg:preference'))],Repository://Entry),
-  knowledgebase:query([all(iuse_filtered(NegEbui,'neg:ebuild'))],Repository://Entry),
-  knowledgebase:query([all(iuse_filtered(NegDefa,'neg:default'))],Repository://Entry),
+  knowledgebase:query([all(iuse_filtered(PosPref,'pos:preference'))],Repository://Entry), %broken
+  knowledgebase:query([all(iuse_filtered(PosEbui,'pos:ebuild'))],Repository://Entry),     %broken
+  knowledgebase:query([all(iuse_filtered(NegPref,'neg:preference'))],Repository://Entry), %broken
+  knowledgebase:query([all(iuse_filtered(NegEbui,'neg:ebuild'))],Repository://Entry),     %broken
+  knowledgebase:query([all(iuse_filtered(NegDefa,'neg:default'))],Repository://Entry),    %broken
   (allempty(PosPref,PosEbui,NegPref,NegEbui,NegDefa);
    (printer:print_config_prefix('conf'),
     printer:print_config_item('use',PosPref,PosEbui,NegPref,NegEbui,NegDefa))),
@@ -316,11 +316,11 @@ printer:print_config(Repository://Entry:install) :-
            StatementNp =.. [Key,NegP,'neg:preference'],
            StatementNe =.. [Key,NegE,'neg:ebuild'],
            StatementNd =.. [Key,NegD,'neg:default'],
-           knowledgebase:query([all(StatementPp)],Repository://Entry),
-           knowledgebase:query([all(StatementPe)],Repository://Entry),
-           knowledgebase:query([all(StatementNp)],Repository://Entry),
-           knowledgebase:query([all(StatementNe)],Repository://Entry),
-           knowledgebase:query([all(StatementNd)],Repository://Entry),
+           knowledgebase:query([all(StatementPp)],Repository://Entry), %broken
+           knowledgebase:query([all(StatementPe)],Repository://Entry), %broken
+           knowledgebase:query([all(StatementNp)],Repository://Entry), %broken
+           knowledgebase:query([all(StatementNe)],Repository://Entry), %broken
+           knowledgebase:query([all(StatementNd)],Repository://Entry), %broken
            (allempty(PosP,PosE,NegP,NegE,NegD);
             (printer:print_config_prefix,
 	     printer:print_config_item(Key,PosP,PosE,NegP,NegE,NegD)))))),!.

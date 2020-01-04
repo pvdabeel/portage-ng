@@ -42,22 +42,22 @@ directory of this project.
 % EAPI parse
 % ----------
 
-%! eapi:parse(+Type,+Context://+Entry,+Codes,-Metadata)
+%! eapi:parse(+Type,+Repository://+Entry,+Codes,-Metadata)
 %
 % Predicate used to invoke the parser on a list of metadata codes
 %
-% Type:     Manifest or Metadata
+% Type:       Manifest or Metadata
 %
-% Context:  An atom describing the context being parsed
-% Entry:    An atom describing the context being parsed
+% Repository: An atom describing the Repository being parsed
+% Entry:      An atom describing the Entry being parsed
 %
-% Codes:    A list of codes, representing a line in a cache file
-%           A line contains a key=value pair.
+% Codes:      A list of codes, representing a line in a cache file
+%             A line contains a key=value pair.
 %
-% Metadata: A prolog predicate, i.e. key(value)
+% Metadata:   A prolog predicate, i.e. key(value)
 
-eapi:parse(Type,Context://Entry,Codes,Metadata) :-
-  phrase(eapi:keyvalue(Type,Context://Entry,Metadata),Codes).
+eapi:parse(Type,Repository://Entry,Codes,Metadata) :-
+  phrase(eapi:keyvalue(Type,Repository://Entry,Metadata),Codes).
 
 
 % -----------------------
@@ -69,9 +69,9 @@ eapi:parse(Type,Context://Entry,Codes,Metadata) :-
 % Predicate used to turn eapi 'key=value' and 'key value' pairs into prolog
 % key(value) pairs
 
-eapi:keyvalue(Type,Context://Entry,Metadata) -->
+eapi:keyvalue(Type,Repository://Entry,Metadata) -->
   eapi:key(Type,Key),!,
-  eapi:value(Key,Context://Entry,Metadata).
+  eapi:value(Key,Repository://Entry,Metadata).
 
 
 % ---------------------------
@@ -104,75 +104,75 @@ eapi:key(manifest,Key) -->
 %
 % private predicates
 
-eapi:value('DEFINED_PHASES',_Context://_Entry,defined_phases(R)) -->
+eapi:value('DEFINED_PHASES',_,defined_phases(P)) -->
   !,
-  eapi:functions(R).
+  eapi:functions(P).
 
-eapi:value('DEPEND',Context://Entry,depend(R)) -->
+eapi:value('DEPEND',R://E,depend(D)) -->
   !,
-  eapi:depend(Context://Entry,R).
+  eapi:depend(R://E,D).
 
-eapi:value('DESCRIPTION',_Context://_Entry,description(R)) -->
+eapi:value('DESCRIPTION',_,description(D)) -->
   !,
-  eapi:description(R).
+  eapi:description(D).
 
-eapi:value('EAPI',_Context://_Entry,eapi(R)) -->
+eapi:value('EAPI',_,eapi(E)) -->
   !,
-  eapi:eapi(R).
+  eapi:eapi(E).
 
-eapi:value('HOMEPAGE',_Context://_Entry,homepage(R)) -->
+eapi:value('HOMEPAGE',_,homepage(H)) -->
   !,
-  eapi:homepage(R).
+  eapi:homepage(H).
 
-eapi:value('IUSE',Context://Entry,iuse(R)) -->
+eapi:value('IUSE',R://E,iuse(I)) -->
   !,
-  eapi:iuse(Context://Entry,R).
+  eapi:iuse(R://E,I).
 
-eapi:value('KEYWORDS',_Context://_Entry,keywords(R)) -->
+eapi:value('KEYWORDS',_,keywords(K)) -->
   !,
-  eapi:keywords(R).
+  eapi:keywords(K).
 
-eapi:value('LICENSE',Context://Entry,license(R)) -->
+eapi:value('LICENSE',R://E,license(L)) -->
   !,
-  eapi:license(Context://Entry,R).
+  eapi:license(R://E,L).
 
-eapi:value('RDEPEND',Context://Entry,rdepend(R)) -->
+eapi:value('RDEPEND',R://E,rdepend(D)) -->
   !,
-  eapi:rdepend(Context://Entry,R).
+  eapi:rdepend(R://E,D).
 
-eapi:value('SLOT',_Context://_Entry,slot(R)) -->
+eapi:value('SLOT',_,slot(S)) -->
   !,
-  eapi:slot(R).
+  eapi:slot(S).
 
-eapi:value('SRC_URI',Context://Entry,src_uri(R)) -->
+eapi:value('SRC_URI',R://E,src_uri(S)) -->
   !,
-  eapi:src_uri(Context://Entry,R).
+  eapi:src_uri(R://E,S).
 
-eapi:value('RESTRICT',Context://Entry,restrict(R)) -->
+eapi:value('RESTRICT',R://E,restrict(S)) -->
   !,
-  eapi:restrict(Context://Entry,R).
+  eapi:restrict(R://E,S).
 
-eapi:value('REQUIRED_USE',Context://Entry,required_use(R)) -->
+eapi:value('REQUIRED_USE',R://E,required_use(U)) -->
   !,
-  eapi:required_use(Context://Entry,R).
+  eapi:required_use(R://E,U).
 
-eapi:value('PDEPEND',Context://Entry,pdepend(R)) -->
+eapi:value('PDEPEND',R://E,pdepend(D)) -->
   !,
-  eapi:cdepend(Context://Entry,R).
+  eapi:cdepend(R://E,D).
 
-eapi:value('PROVIDE',Context://Entry,provide(R)) -->
+eapi:value('PROVIDE',R://E,provide(P)) -->
   !,
-  eapi:provide(Context://Entry,R).
+  eapi:provide(R://E,P).
 
-eapi:value('PROPERTIES',Context://Entry,properties(R)) -->
+eapi:value('PROPERTIES',R://E,properties(P)) -->
   !,
-  eapi:properties(Context://Entry,R).
+  eapi:properties(R://E,P).
 
-eapi:value('_eclasses_',_Context://_Entry,eclasses(R)) -->
+eapi:value('_eclasses_',_,eclasses(C)) -->
   !,
-  eapi:inherited(R).
+  eapi:inherited(C).
 
-eapi:value('_md5_',_Context://_Entry,md5([R])) -->
+eapi:value('_md5_',_,md5([R])) -->
   !,
   eapi:md5(R).
 
@@ -192,9 +192,9 @@ eapi:value('DIST',_,manifest(dist,F,S,H)) -->
   !,
   eapi:manifest(F,S,H).
 
-eapi:value(_,_,unused(R)) -->
+eapi:value(_,_,unused(U)) -->
   !,
-  eapi:unused(R).
+  eapi:unused(U).
 
 
 % --------------------
@@ -211,8 +211,8 @@ eapi:value(_,_,unused(R)) -->
 % EAPI 4 - 9.2 defines a dependency as a dependency sequence.
 % Elements of the dependency sequence are packages.
 
-eapi:depend(Context://Entry,D) -->
-  eapi:dependencies(package_d,Context://Entry,D).
+eapi:depend(R://E,D) -->
+  eapi:dependencies(package_d,R://E,D).
 
 
 %! DCG rdepend
@@ -220,8 +220,8 @@ eapi:depend(Context://Entry,D) -->
 % EAPI 4 - 9.2 defines a runtime dependency as a dependency sequence.
 % Elements of the dependency sequence are packages.
 
-eapi:rdepend(Context://Entry,D) -->
-  eapi:dependencies(package_r,Context://Entry,D).
+eapi:rdepend(R://E,D) -->
+  eapi:dependencies(package_r,R://E,D).
 
 
 %! DCG src_uri
@@ -229,8 +229,8 @@ eapi:rdepend(Context://Entry,D) -->
 % EAPI 4 - 9.2.6 defines a src_uri as a dependency sequence.
 % Elements of the dependency sequence are uri's.
 
-eapi:src_uri(Context://Entry,S) -->
-  eapi:dependencies(uri,Context://Entry,S).
+eapi:src_uri(R://E,S) -->
+  eapi:dependencies(uri,R://E,S).
 
 
 %! DCG restrict
@@ -238,8 +238,8 @@ eapi:src_uri(Context://Entry,S) -->
 % EAPI 4 - 9.2.5 defines a restrict as a dependency sequence.
 % Elements of the dependency sequence are restrict strings.
 
-eapi:restrict(Context://Entry,R) -->
-  eapi:dependencies(restrict,Context://Entry,R).
+eapi:restrict(R://E,S) -->
+  eapi:dependencies(restrict,R://E,S).
 
 
 %! DCG homepage
@@ -262,8 +262,8 @@ eapi:homepage([H]) -->
 % EAPI 4 - 9.2 defines a license as a dependency sequence.
 % Elements of the dependency sequence are license strings.
 
-eapi:license(Context://Entry,L) -->
-  eapi:dependencies(license,Context://Entry,L).
+eapi:license(R://E,L) -->
+  eapi:dependencies(license,R://E,L).
 
 
 %! DCG description
@@ -281,8 +281,8 @@ eapi:description([D]) -->
 % EAPI defines properties as a dependency sequence
 % Elements of the dependency sequence are property strings.
 
-eapi:properties(Context://Entry,P) -->
-  eapi:dependencies(property,Context://Entry,P).
+eapi:properties(R://E,P) -->
+  eapi:dependencies(property,R://E,P).
 
 
 %! DCG manifest
@@ -313,8 +313,8 @@ eapi:unused([]) -->
 % EAPI 4 - 9.2 defines cdepend as a dependency sequence. Elements
 % of the sequence are typically packages.
 
-eapi:cdepend(Context://Entry,D) -->
-  eapi:dependencies(package_c,Context://Entry,D).
+eapi:cdepend(R://E,D) -->
+  eapi:dependencies(package_c,R://E,D).
 
 
 %! DCG provide
@@ -322,7 +322,7 @@ eapi:cdepend(Context://Entry,D) -->
 % EAPI 4 - 9.2 defines provide as a dependency sequence. Elements
 % of the sequence must be virtuals.
 
-eapi:provide(_Context://_Entry,P) -->
+eapi:provide(_,P) -->
   eapi:chars_to_end(Ps),
   { atom_codes(P,Ps),! }.
   %eapi:dependencies(virtual,P).
@@ -334,10 +334,10 @@ eapi:provide(_Context://_Entry,P) -->
 %
 % Parses zero or more dependencies, separated by whites
 
-eapi:dependencies(T,Context://Entry,[D|R]) -->
+eapi:dependencies(T,R://E,[D|Rs]) -->
   eapi:whites,
-  eapi:dependency(T,Context://Entry,D), !,
-  eapi:dependencies(T,Context://Entry,R).
+  eapi:dependency(T,R://E,D), !,
+  eapi:dependencies(T,R://E,Rs).
 
 eapi:dependencies(_,_,[]) -->
   [],!.
@@ -347,50 +347,46 @@ eapi:dependencies(_,_,[]) -->
 %
 % EAPI 4 - 9.2 defines 4 types of dependencies
 
-eapi:dependency(T,Context://Entry,Context://Entry:D) -->
-  eapi:use_conditional_group(T,Context://Entry,D),!.
+eapi:dependency(T,R://E,D) -->
+  eapi:use_conditional_group(T,R://E,D),!.
 
-eapi:dependency(T,Context://Entry,D) -->
-  eapi:any_of_group(T,Context://Entry,D),!.
+eapi:dependency(T,R://E,D) -->
+  eapi:any_of_group(T,R://E,D),!.
 
-eapi:dependency(T,Context://Entry,D) -->
-  eapi:all_of_group(T,Context://Entry,D),!.
+eapi:dependency(T,R://E,D) -->
+  eapi:all_of_group(T,R://E,D),!.
 
-eapi:dependency(T,Context://Entry,D) -->
-  eapi:exactly_one_of_group(T,Context://Entry,D),!.
+eapi:dependency(T,R://E,D) -->
+  eapi:exactly_one_of_group(T,R://E,D),!.
 
-eapi:dependency(T,Context://Entry,D) -->
-  eapi:at_most_one_of_group(T,Context://Entry,D),!.
+eapi:dependency(T,R://E,D) -->
+  eapi:at_most_one_of_group(T,R://E,D),!.
 
-eapi:dependency(package_d,Context://Entry,Context://Entry:D) -->
-  eapi:package_dependency(install,D). %!
+eapi:dependency(package_d,R://E,D) -->
+  eapi:package_dependency(install,R://E,D). %!
 
-eapi:dependency(package_r,Context://Entry,Context://Entry:D) -->
-  eapi:package_dependency(run,D). %!
+eapi:dependency(package_r,R://E,D) -->
+  eapi:package_dependency(run,R://E,D). %!
 
-eapi:dependency(package_c,Context://Entry,Context://Entry:D) -->
-  eapi:package_dependency(compile,D). %!
+eapi:dependency(package_c,R://E,D) -->
+  eapi:package_dependency(compile,R://E,D). %!
 
-
-% eapi:dependency(virtual,D) -->   % Virtuals can now also have versions, and are treated via package_dependency
-%  eapi:virtual(D),!.
-
-eapi:dependency(license,Context://Entry,Context://Entry:D) -->
+eapi:dependency(license,_,D) -->
   eapi:string(Ds),
   { atom_codes(D,Ds),! }.
 
-eapi:dependency(property,Context://Entry,Context://Entry:D) -->
+eapi:dependency(property,_,D) -->
   eapi:string(Ds),
   { atom_codes(D,Ds),! }.
 
-eapi:dependency(restrict,Context://Entry,Context://Entry:D) -->
+eapi:dependency(restrict,_,D) -->
   eapi:string(D),!.
 
-eapi:dependency(uri,Context://Entry,Context://Entry:D) -->
+eapi:dependency(uri,_,D) -->
   eapi:uri(D),!.
 
-eapi:dependency(use,Context://Entry,Context://Entry:U) -->
-  eapi:required_use_flag(U),!.
+eapi:dependency(use,_,D) -->
+  eapi:required_use_flag(D),!.
 
 
 %! DCG qualified_package
@@ -405,7 +401,7 @@ eapi:qualified_package(C,P,V) -->
 %
 % EAPI 4 - 9.2.4 defines package dependency
 
-eapi:package_dependency(T,package_dependency(T,B,C,P,O,V,S,U)) -->
+eapi:package_dependency(T,R://E,package_dependency(R://E,T,B,C,P,O,V,S,U)) -->
   eapi:blocking(B),                                   % optional
   eapi:operator(O),                                   % optional
   eapi:category(C),eapi:separator,!,eapi:package(P),  % required
@@ -418,13 +414,13 @@ eapi:package_dependency(T,package_dependency(T,B,C,P,O,V,S,U)) -->
 %
 % EAPI 4 - 9.2.2 defines a use conditional dependency
 
-eapi:use_conditional_group(T,C://E,use_conditional_group(P,U,D)) -->
+eapi:use_conditional_group(T,R://E,use_conditional_group(P,U,R://E,D)) -->
   eapi:use_exclamation(P),                            % optional
   eapi:use_flag(U),                                   % required
   [63],!,                                             % required char: ?
   eapi:whites,                                        % optional
   [40],                                               % required char: (
-  eapi:dependencies(T,C://E,D),                       % optional
+  eapi:dependencies(T,R://E,D),                       % optional
   eapi:whites,                                        % optional
   [41].                                               % required char: )
 
@@ -433,11 +429,11 @@ eapi:use_conditional_group(T,C://E,use_conditional_group(P,U,D)) -->
 %
 % EAPI 4 - 9.2.3 defines an any-of-group dependency
 
-eapi:any_of_group(T,C://E,any_of_group(D)) -->
+eapi:any_of_group(T,R://E,any_of_group(D)) -->
   eapi:choice,!,                                      % required
   eapi:whites,                                        % optional
   [40],                                               % required char: (
-  eapi:dependencies(T,C://E,D),                       % optional
+  eapi:dependencies(T,R://E,D),                       % optional
   eapi:whites,                                        % optional
   [41].                                               % required char: )
 
@@ -446,9 +442,9 @@ eapi:any_of_group(T,C://E,any_of_group(D)) -->
 %
 % EAPI 9.2.1 defines an all-of-group dependency
 
-eapi:all_of_group(T,C://E,all_of_group(D)) -->
+eapi:all_of_group(T,R://E,all_of_group(D)) -->
   [40],!,                                             % required char: (
-  eapi:dependencies(T,C://E,D),                       % optional
+  eapi:dependencies(T,R://E,D),                       % optional
   eapi:whites,                                        % optional
   [41].                                               % required char: )
 
@@ -457,11 +453,11 @@ eapi:all_of_group(T,C://E,all_of_group(D)) -->
 %
 % EAPI 5 - 8.2.0 defines an exactly_one_of dependency
 
-eapi:exactly_one_of_group(T,C://E,exactly_one_of_group(D)) -->
+eapi:exactly_one_of_group(T,R://E,exactly_one_of_group(D)) -->
   eapi:one_of,!,
   eapi:whites,
   [40],!,                                             % required char: (
-  eapi:dependencies(T,C://E,D),                       % optional
+  eapi:dependencies(T,R://E,D),                       % optional
   eapi:whites,                                        % optional
   [41].                                               % required char: )
 
@@ -470,11 +466,11 @@ eapi:exactly_one_of_group(T,C://E,exactly_one_of_group(D)) -->
 %
 % EAPI 5 - 8.2.0 defines an at_most_one_of dependency
 
-eapi:at_most_one_of_group(T,C://E,exactly_one_of_group(D)) -->
+eapi:at_most_one_of_group(T,R://E,exactly_one_of_group(D)) -->
   eapi:at_most_one,!,
   eapi:whites,
   [40],!,                                             % required char: (
-  eapi:dependencies(T,C://E,D),                       % optional
+  eapi:dependencies(T,R://E,D),                       % optional
   eapi:whites,                                        % optional
   [41].                                               % required char: )
 
@@ -591,7 +587,6 @@ eapi:invalid_package_ending(E,B) :-
 % eapi:version starts with '-', and cannot be empty
 
 eapi:version(V) -->
-%  [45],!,                                            % char: -
   eapi:version2([N,S]),
   { eapi:version2atom(N,S,V) }.
 
@@ -599,7 +594,6 @@ eapi:version(V) -->
 % eapi:version0 starts with '-', and can be empty
 
 eapi:version0(V) -->
-%  [45],
   eapi:version2([N,S]),
   { eapi:version2atom(N,S,V) }.
 
@@ -683,10 +677,6 @@ eapi:versionsuffix([45,114|V]) -->		      % -r
   !,
   eapi:versioninteger(V).
 
-% eapi:versionsuffix([]) -->
-%   [],!.
-
-
 eapi:versionrevision([114|V]) -->		      % (-)r
   [114],
   !,
@@ -698,7 +688,6 @@ eapi:versionrevision([114|V]) -->		      % (-)r
 eapi:versioninteger([42|V]) -->
   [42],
   eapi:versioninteger2(V).
-
 
 eapi:versioninteger([C|V]) -->
   [C],
@@ -857,39 +846,13 @@ eapi:use_exclamation(positive) -->
   [],!.
 
 
-%! DCG iuse
-%
-% EAPI 4 - 2.1.4 defines iuse as a list of use flags, each possibly
-% prefixed with a '+' or a '-' to indicate status.
-
-eapi:iuse(C://E,[plus(U)|R]) -->
-  [43],!,                                             % char: +
-  eapi:use_flag(U),
-  eapi:whites,
-  eapi:iuse(C://E,R).
-
-eapi:iuse(C://E,[minus(U)|R]) -->
-  [45],!,                                             % char: -
-  eapi:use_flag(U),
-  eapi:whites,
-  eapi:iuse(C://E,R).
-
-eapi:iuse(C://E,[U|R]) -->
-  eapi:use_flag(U),!,
-  eapi:whites,
-  eapi:iuse(C://E,R).
-
-eapi:iuse(_,[]) -->
-  [],!.
-
-
 %! DCG required_use
 %
 % EAPI 4 defines required use as a list of use flags, with
 % conditional, xor and or relationship.
 
-eapi:required_use(C://E,U) -->
-  eapi:dependencies(use,C://E,U).
+eapi:required_use(Hash,U) -->
+  eapi:dependencies(use,Hash,U).
   %eapi:chars_to_end(U),
   %{ atom_codes(Ua,U),! }.
 
@@ -904,6 +867,32 @@ eapi:required_use_flag(blocking(U)) -->
 
 eapi:required_use_flag(required(U)) -->
   eapi:use_flag(U).
+
+
+%! DCG iuse
+%
+% EAPI 4 - 2.1.4 defines iuse as a list of use flags, each possibly
+% prefixed with a '+' or a '-' to indicate status.
+
+eapi:iuse(R://E,[plus(U)|Rs]) -->
+  [43],!,                                             % char: +
+  eapi:use_flag(U),
+  eapi:whites,
+  eapi:iuse(R://E,Rs).
+
+eapi:iuse(R://E,[minus(U)|Rs]) -->
+  [45],!,                                             % char: -
+  eapi:use_flag(U),
+  eapi:whites,
+  eapi:iuse(R://E,Rs).
+
+eapi:iuse(R://E,[U|Rs]) -->
+  eapi:use_flag(U),!,
+  eapi:whites,
+  eapi:iuse(R://E,Rs).
+
+eapi:iuse(_,[]) -->
+  [],!.
 
 
 %! DCG keywords
@@ -1075,7 +1064,6 @@ eapi:slot([slot(V)]) -->
 % EAPI 5 - defines a slot version
 
 eapi:slot_version(Va) -->
-%  eapi:version0(V).
   eapi:chars1(v,V),
   {
     atom_codes(Va,V)

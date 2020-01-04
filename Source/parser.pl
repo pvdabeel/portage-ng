@@ -28,17 +28,19 @@ Output: A nested list representing the the result of parsing each line in the
 % *******************
 
 
-%! parser:invoke(+Type,+Context://+Entry,+Contents,-Result)
+%! parser:invoke(+Type,+Repository://+Entry,+Contents,-Result)
 %
 % Type:     An atom indicated Contents is of type 'metadata' or 'manifest'
+%
 % Contents: A nested list of character codes.
 %
 % Result:   A nested list represnting the parse tree.
 
-parser:invoke(_,_,[], []).
-parser:invoke(Type,Context://Entry,[X|XX], [Y|YY]) :-
-  eapi:parse(Type,Context://Entry,X,Y),!,
-  parser:invoke(Type,Context://Entry,XX, YY).
+parser:invoke(_,_,[],[]).
+
+parser:invoke(Type,Repository://Entry,[X|XX],[Y|YY]) :-
+  eapi:parse(Type,Repository://Entry,X,Y),!,
+  parser:invoke(Type,Repository://Entry,XX,YY).
 
 
 %! parser:test(+Repository)
