@@ -164,17 +164,18 @@ rule(package_dependency(R://E,Action,no,C,N,O,V,S,U),[assumed(package_dependency
 
 % The dependencies in a positive use conditional group need to be satisfied when the use flag is set
 
-rule(use_conditional_group(positive,Use,_,_),_) :-
-  not(preference:positive_use(Use)),!.
+rule(use_conditional_group(positive,Use,R://E,_),[]) :-
+  not(knowledgebase:query([iuse(Use,positive:_)],R://E)),!.
+  %not(preference:positive_use(Use)),!.
 
 rule(use_conditional_group(positive,_,_,D),D) :- !.
 
 
 % The dependencies in a negative use conditional group need to be satisfied when the use is not set
 
-rule(use_conditional_group(negative,Use,_,_),[]) :-
-  preference:positive_use(Use),!.
-  % todo : check ebuild default
+rule(use_conditional_group(negative,Use,R://E,_),[]) :-
+  knowledgebase:query([iuse(Use,positive:_)],R://E),!.
+  % preference:positive_use(Use),!.
 
 rule(use_conditional_group(negative,_,_,D),D) :- !.
 
