@@ -214,6 +214,27 @@ query([not(Statement)|Rest],Repository://Id) :-
   query(Rest,Repository://Id).
 
 
+% ------------
+% Query: Model
+% ------------
+
+query([model(Statement)|Rest],Repository://Id) :-
+  Statement =.. [Key,Model],
+  !,
+  StatementA =.. [Key,AllValues],
+  query([all(StatementA)],Repository://Id),
+  prover:model(AllValues,ModelValues),
+  findall(V,
+   (member(V,ModelValues),
+    not(V =.. [package_dependency|_]),
+    not(V =.. [use_conditional_group|_]),
+    not(V =.. [exactly_one_of_group|_]),
+    not(V =.. [any_of_group|_]),
+    not(V =.. [all_of_group|_])),
+   Model),
+  query(Rest,Repository://Id).
+
+
 % --------------------------------------
 % Query: Collection over single argument
 % --------------------------------------
@@ -280,6 +301,11 @@ query([version(Version)|Rest],Repository://Id) :-
 % Query: manifest
 % ---------------
 
+
+%query([download(Binary,Size)|Rest],Repository://Id) :-
+%  knowledgebase:query([all(src_uri(S))],Repository://Id),
+%  prover:model(S,M),
+
 query([manifest(Type,Binary,Size)|Rest],Repository://Id) :-
   cache:entry(Repository,Id,_,Category,Name,_),
   cache:entry_metadata(Repository,Id,src_uri,uri(Binary)),
@@ -289,7 +315,7 @@ query([manifest(Type,Binary,Size)|Rest],Repository://Id) :-
 
 query([manifest(Type,Binary,Size)|Rest],Repository://Id) :-
   cache:entry(Repository,Id,_,Category,Name,_),
-  cache:entry_metadata(Repository,Id,src_uri,uri(_,Path,'')),!,
+  cache:entry_metadata(Repository,Id,src_uri,uri(_,Path,'')),
   cache:manifest(Repository,_,_,Category,Name,Manifest),
   member(manifest(Type,Binary,Size,_),Manifest),
   file_base_name(Path,Binary),
@@ -298,6 +324,7 @@ query([manifest(Type,Binary,Size)|Rest],Repository://Id) :-
 query([manifest(Type,Binary,Size)|Rest],Repository://Id) :-
   cache:entry(Repository,Id,_,Category,Name,_),
   cache:entry_metadata(Repository,Id,src_uri,uri(_,_,Binary)),
+  not(Binary = ''),
   cache:manifest(Repository,_,_,Category,Name,Manifest),
   member(manifest(Type,Binary,Size,_),Manifest),
   query(Rest,Repository://Id).

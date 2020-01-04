@@ -196,31 +196,34 @@ rule(any_of_group(Deps),[D]) :-
 rule(all_of_group(Deps),Deps) :- !.
 
 
-% ------------------
-% Ruleset: Grounding
-% ------------------
+% ---------------
+% Ruleset: Models
+% ---------------
 
-% Assumptions
+% The following can occur within a proof:
+
+% Assumptions:
 
 rule(assumed(_),[]) :- !.
 
+% Src_uri:
 
-% Negation as failure
+rule(uri(_,_,_),[]) :- !.
+rule(uri(_),[]) :- !.
+
+% Negation as failure:
 
 rule(naf(_),[]) :- !.
 
-
 % Atoms
 
-%rule(Literal,[]) :-
-%  atom(Literal),!.
-
+rule(Literal,[]) :-
+  atom(Literal),!.
 
 % Blocking use
 
-%rule(blocking(Use),[naf(Use)]) :- !.
-
+rule(blocking(Use),[naf(Use)]) :- !.
 
 % Required use
 
-%rule(required(Use),[Use]) :- !.
+rule(required(Use),[Use]) :- !.

@@ -281,6 +281,10 @@ printer:print_config(Repository://Ebuild:download) :-
 % at least one download
 
 printer:print_config(Repository://Ebuild:download) :-
+
+  % knowledgebase:query([all(src_uri(S))],Repository://Ebuild),
+  % prover:model(S,E).
+
   findall([File,Size],knowledgebase:query([manifest(_,File,Size)],Repository://Ebuild),[[FirstFile,FirstSize]|Rest]),!,
   printer:print_config_prefix('file'),
   printer:print_config_item('download',FirstFile,FirstSize),
