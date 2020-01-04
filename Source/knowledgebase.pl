@@ -301,30 +301,10 @@ query([version(Version)|Rest],Repository://Id) :-
 % Query: manifest
 % ---------------
 
-
-%query([download(Binary,Size)|Rest],Repository://Id) :-
-%  knowledgebase:query([all(src_uri(S))],Repository://Id),
-%  prover:model(S,M),
-
 query([manifest(Type,Binary,Size)|Rest],Repository://Id) :-
   cache:entry(Repository,Id,_,Category,Name,_),
-  cache:entry_metadata(Repository,Id,src_uri,uri(Binary)),
-  cache:manifest(Repository,_,_,Category,Name,Manifest),
-  member(manifest(Type,Binary,Size,_),Manifest),
-  query(Rest,Repository://Id).
-
-query([manifest(Type,Binary,Size)|Rest],Repository://Id) :-
-  cache:entry(Repository,Id,_,Category,Name,_),
-  cache:entry_metadata(Repository,Id,src_uri,uri(_,Path,'')),
-  cache:manifest(Repository,_,_,Category,Name,Manifest),
-  member(manifest(Type,Binary,Size,_),Manifest),
-  file_base_name(Path,Binary),
-  query(Rest,Repository://Id).
-
-query([manifest(Type,Binary,Size)|Rest],Repository://Id) :-
-  cache:entry(Repository,Id,_,Category,Name,_),
-  cache:entry_metadata(Repository,Id,src_uri,uri(_,_,Binary)),
-  not(Binary = ''),
+  knowledgebase:query([all(src_uri(Model))],Repository://Id),
+  member(uri(_,_,Binary),Model),
   cache:manifest(Repository,_,_,Category,Name,Manifest),
   member(manifest(Type,Binary,Size,_),Manifest),
   query(Rest,Repository://Id).

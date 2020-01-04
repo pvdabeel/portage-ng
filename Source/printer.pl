@@ -253,7 +253,8 @@ printer:print_config_prefix :-
 
 printer:print_config_prefix :-
   preference:printing_style('column'),!,
-  message:column(95,' ').
+  nl,write('             │ '),
+  message:column(80,' ').
 
 
 %! printer:print_config(+Repository://+Entry:+Action)
@@ -281,10 +282,6 @@ printer:print_config(Repository://Ebuild:download) :-
 % at least one download
 
 printer:print_config(Repository://Ebuild:download) :-
-
-  % knowledgebase:query([all(src_uri(S))],Repository://Ebuild),
-  % prover:model(S,E).
-
   findall([File,Size],knowledgebase:query([manifest(_,File,Size)],Repository://Ebuild),[[FirstFile,FirstSize]|Rest]),!,
   printer:print_config_prefix('file'),
   printer:print_config_item('download',FirstFile,FirstSize),
@@ -326,7 +323,9 @@ printer:print_config(Repository://Entry:install) :-
            knowledgebase:query([all(StatementNe)],Repository://Entry),
            knowledgebase:query([all(StatementNd)],Repository://Entry),
            (allempty(PosP,PosE,NegP,NegE,NegD);
-            (printer:print_config_prefix,
+            ((allempty(PosPref,PosEbui,NegPref,NegEbui,NegDefa) ->
+              printer:print_config_prefix('conf');
+              printer:print_config_prefix),
 	     printer:print_config_item(Key,PosP,PosE,NegP,NegE,NegD)))))),!.
 
 

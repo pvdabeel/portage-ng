@@ -1133,13 +1133,13 @@ eapi:uri(uri(P,B,L)) -->
   eapi:arrow(Ls),          % optional
   { atom_codes(P,Ps),
     atom_codes(B,Bs),
-    atom_codes(L,Ls),! }.
+    Ls = [] -> file_base_name(B,L) ; atom_codes(L,Ls),! }.
 
 % --------------------------
 % CASE: a non-prototyped uri
 % --------------------------
 
-eapi:uri(uri(P)) -->
+eapi:uri(uri('','',P)) -->
   eapi:uri_chars1(Ps),
   { atom_codes(P,Ps),! }.
 
