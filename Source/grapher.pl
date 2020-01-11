@@ -149,9 +149,15 @@ grapher:write_tree(Repository://Id,_Type) :-
 %
 % Create a unique name for a given ebuild.
 
-grapher:enconvert(Repository://Id,Code) :-
+grapher:enconvert(_Repository://Id,Code) :-
+  !,
   atom_codes(Id,List),
-  atomic_list_concat([choice,Repository|List],Code).
+  atomic_list_concat([choice|List],Code).
+
+grapher:enconvert(Id,Code) :-
+  !,
+  atom_codes(Id,List),
+  atomic_list_concat([choice|List],Code).
 
 
 %! grapher:choices(+Type,+List)
@@ -172,10 +178,10 @@ grapher:choices(detail,[arrow(D,Choices)|Rest]) :-
     grapher:enconvert(Repository://Ch,Code),
     write(Code),
     write(' [label=\"'),write(Repository://Ch),write('\", color=red, width=4,href=\"../'),write(Ch),write('.svg\"];'),nl)),
-  forall(member(Ch,Choices),(
+  forall(member(Repository://Ch,Choices),(
     write(D),
     write(':e -> '),
-    grapher:enconvert(Ch,Code),
+    grapher:enconvert(Repository://Ch,Code),
     write(Code),write(':w [style=dotted,weight=\"100\"];'),nl)),
   writeln('}'),
   grapher:choices(detail,Rest).
@@ -211,11 +217,11 @@ grapher:choices(Kind,[L|Rest]) :-
 %
 % For a given graph style, create a meta reprensentation of a dependency
 
-grapher:handle(depend,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
+grapher:handle(depend,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
   knowledgebase:query([category(Cat),name(Name)],Choicecontext://Choice),
   !, true.
 
-grapher:handle(depend,_Style,_Arrow,_Master,use_conditional_group(_Type,_Use,_Deps),[]) :- !.
+grapher:handle(depend,_Style,_Arrow,_Master,use_conditional_group(_,_Type,_Use,_Deps),[]) :- !.
 
 grapher:handle(depend,_Style,_Arrow,_Master,any_of_group(_),[]) :- !.
 
@@ -228,11 +234,11 @@ grapher:handle(depend,_Style,_Arrow,_Master,at_most_one_of_group(_),[]) :- !.
 grapher:handle(depend,_Style,_Arrow,_Master,_,[]) :- !.
 
 
-grapher:handle(rdepend,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
+grapher:handle(rdepend,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
   knowledgebase:query([category(Cat),name(Name)],Choicecontext://Choice),
   !, true.
 
-grapher:handle(rdepend,_Style,_Arrow,_Master,use_conditional_group(_Type,_Use,_Deps),[]) :- !.
+grapher:handle(rdepend,_Style,_Arrow,_Master,use_conditional_group(_,_Type,_Use,_Deps),[]) :- !.
 
 grapher:handle(rdepend,_Style,_Arrow,_Master,any_of_group(_),[]) :- !.
 
@@ -245,7 +251,7 @@ grapher:handle(rdepend,_Style,_Arrow,_Master,at_most_one_of_group(_),[]) :- !.
 grapher:handle(rdepend,_Style,_Arrow,_Master,_,[]) :- !.
 
 
-grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,Cat,Name,Comp,Ver,_,_),arrow(D,Choices)) :-
+grapher:handle(detail,Style,Arrow,Master,package_dependency(_,_,Type,Cat,Name,Comp,Ver,_,_),arrow(D,Choices)) :-
   !,
   gensym(pack,P),
   write('subgraph '),write(P),write(' {'),nl,
@@ -255,10 +261,10 @@ grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,Cat,Name,Comp
   write(Comp),write('</TD></TR><TR><TD>'),write(Ver),write('</TD></TR></TABLE>>, shape=none, color=blue];'),nl,
   write('}'),nl,
   write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl,
-  findall(R,knowledgebase:query([category(Cat),name(Name)],_://R),Choices),
+  findall(R,knowledgebase:query([category(Cat),name(Name)],R),Choices),
   !, true.
 
-grapher:handle(detail,Style,Arrow,Master,use_conditional_group(Type,Use,Deps),Choices) :-
+grapher:handle(detail,Style,Arrow,Master,use_conditional_group(Type,Use,_,Deps),Choices) :-
   !,
   gensym(cond,C),
   write('subgraph '),write(C),write(' {'),nl,
