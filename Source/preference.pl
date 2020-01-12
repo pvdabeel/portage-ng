@@ -64,7 +64,7 @@ preference:env_features('sign -ccache -buildpkg -sandbox -usersandbox -ebuild-lo
 %
 % Fact which defines the ACCEPT_KEYWORDS variable
 
-preference:accept_keywords('stable(amd64)').
+preference:accept_keywords(stable(amd64)).
 
 
 %! preference:use(?Use)
