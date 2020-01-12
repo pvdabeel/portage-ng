@@ -43,21 +43,22 @@ rule(_Repository://_Ebuild:download,[]) :- !.
 %
 % An ebuild is installed, if the following conditions are satisfied:
 %
+% - Its require_use dependencies are satisfied
 % - It is downloaded (Only when it is not a virtual, a group or a user)
-% - It compile-time dependencies are satisfied
+% - Its compile-time dependencies are satisfied
 % - it can occupy an installation slot
 
 % Virtual
 
-rule(Repository://Ebuild:install,[constraint(slot(C,N,S):{[Ebuild]})|D]) :-
-  knowledgebase:query([category(C),name(N),slot(slot(S)),all(depend(D))],Repository://Ebuild),
+rule(Repository://Ebuild:install,[constraint(use(Repository://Ebuild):{M}),constraint(slot(C,N,S):{[Ebuild]})|D]) :-
+  knowledgebase:query([category(C),name(N),slot(slot(S)),model(required_use(M)),all(depend(D))],Repository://Ebuild),
   memberchk(C,['virtual','acct-group','acct-user']),!.
 
 % Non-Virtual
 
-rule(Repository://Ebuild:install,[Repository://Ebuild:download,constraint(slot(C,N,S):{[Ebuild]})|D]) :-
+rule(Repository://Ebuild:install,[constraint(use(Repository://Ebuild):{M}),Repository://Ebuild:download,constraint(slot(C,N,S):{[Ebuild]})|D]) :-
   !,
-  knowledgebase:query([category(C),name(N),slot(slot(S)),all(depend(D))],Repository://Ebuild).
+  knowledgebase:query([category(C),name(N),slot(slot(S)),model(required_use(M)),all(depend(D))],Repository://Ebuild).
 
 
 % RUN
@@ -156,13 +157,17 @@ rule(package_dependency(_,Action,no,C,N,_,_,_,_),[Repository://Choice:Action]) :
 % A package dependency that has no suitable candidates is "assumed" satisfied
 %
 % Portage-ng will identify these assumptions in its proof and show them to the
-% user prior to continuing to the next stage (e.g. building the plan).
+% user prior to continuing to the next stage (i.e. executing the plan).
 
 rule(package_dependency(R://E,Action,no,C,N,O,V,S,U),[assumed(package_dependency(R://E,Action,no,C,N,O,V,S,U))]) :-
   not(knowledgebase:query([name(N),category(C)],_)),!.
 
 
-% The dependencies in a positive use conditional group need to be satisfied when the use flag is set
+% The dependencies in a positive use conditional group need to be satisfied when
+% the use flag is positive through required use constraint, preference or ebuild
+% default
+
+rule(use_conditional_group(positive,Use,R://E,D),[constraint(use(R://E)):Use|D]) :- !.
 
 rule(use_conditional_group(positive,Use,R://E,_),[]) :-
   not(knowledgebase:query([iuse(Use,positive:_)],R://E)),!.
@@ -171,7 +176,11 @@ rule(use_conditional_group(positive,Use,R://E,_),[]) :-
 rule(use_conditional_group(positive,_,_,D),D) :- !.
 
 
-% The dependencies in a negative use conditional group need to be satisfied when the use is not set
+% The dependencies in a negative use conditional group need to be satisfied when
+% the use flag is not positive through required use constraint, preference or
+% ebuild default
+
+rule(use_conditional_group(negative,Use,R://E,D),[constraint(use(R://E)):naf(Use)|D]) :- !.
 
 rule(use_conditional_group(negative,Use,R://E,_),[]) :-
   knowledgebase:query([iuse(Use,positive:_)],R://E),!.
@@ -179,11 +188,14 @@ rule(use_conditional_group(negative,Use,R://E,_),[]) :-
 
 rule(use_conditional_group(negative,_,_,D),D) :- !.
 
+% Example: feature:unification:unify([constraint(use(os)):darwin],[constraint(use(os)):{[linux,darwin]}],Result).
+
 
 % Exactly one of the dependencies in an exactly-one-of-group should be satisfied
 
-rule(exactly_one_of_group(Deps),[D]) :-
-  member(D,Deps).
+rule(exactly_one_of_group(Deps),[D|NafDeps]) :-
+  member(D,Deps),
+  findall(naf(N),(member(N,Deps), not(D = N)),NafDeps).
 
 
 % One dependency of an any_of_group should be satisfied
@@ -203,14 +215,27 @@ rule(all_of_group(Deps),Deps) :- !.
 
 % The following can occur within a proof:
 
-% Assumptions:
-
-rule(assumed(_),[]) :- !.
-
 % Src_uri:
 
 rule(uri(_,_,_),[]) :- !.
 rule(uri(_),[]) :- !.
+
+% Blocking use
+
+rule(blocking(Use),[naf(Use)]) :- !.
+
+% Required use
+
+rule(required(Use),[Use]) :- !.
+
+
+% ----------------------
+% Rules needed by prover
+% ----------------------
+
+% Assumptions:
+
+rule(assumed(_),[]) :- !.
 
 % Negation as failure:
 
@@ -220,11 +245,3 @@ rule(naf(_),[]) :- !.
 
 rule(Literal,[]) :-
   atom(Literal),!.
-
-% Blocking use
-
-rule(blocking(Use),[naf(Use)]) :- !.
-
-% Required use
-
-rule(required(Use),[Use]) :- !.
