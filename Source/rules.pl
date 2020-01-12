@@ -48,17 +48,16 @@ rule(_Repository://_Ebuild:download,[]) :- !.
 % - Its compile-time dependencies are satisfied
 % - it can occupy an installation slot
 
-% Virtual
-
-rule(Repository://Ebuild:install,[constraint(use(Repository://Ebuild):{M}),constraint(slot(C,N,S):{[Ebuild]})|D]) :-
+rule(Repository://Ebuild:install,Conditions) :-
   knowledgebase:query([category(C),name(N),slot(slot(S)),model(required_use(M)),all(depend(D))],Repository://Ebuild),
-  memberchk(C,['virtual','acct-group','acct-user']),!.
-
-% Non-Virtual
-
-rule(Repository://Ebuild:install,[constraint(use(Repository://Ebuild):{M}),Repository://Ebuild:download,constraint(slot(C,N,S):{[Ebuild]})|D]) :-
-  !,
-  knowledgebase:query([category(C),name(N),slot(slot(S)),model(required_use(M)),all(depend(D))],Repository://Ebuild).
+  ( memberchk(C,['virtual','acct-group','acct-user']) ->
+    Conditions = [constraint(use(Repository://Ebuild):{M}),
+                  constraint(slot(C,N,S):{[Ebuild]})
+                  |D];
+    Conditions = [constraint(use(Repository://Ebuild):{M}),
+                  Repository://Ebuild:download,
+                  constraint(slot(C,N,S):{[Ebuild]})
+                  |D] ).
 
 
 % RUN
@@ -149,21 +148,21 @@ rule(package_dependency(_,_,no,'virtual','shadow',_,_,_,_),[]) :- !.
 rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_),[]) :- !.
 
 
-% A package dependency is satisfied when a suitable candidate is satisfied
-
-rule(package_dependency(_,Action,no,C,N,_,_,_,_),[Repository://Choice:Action]) :-
-  preference:accept_keywords(K),
-  knowledgebase:query([name(N),category(C),keywords(K)],Repository://Choice).
-
-
-% A package dependency that has no suitable candidates is "assumed" satisfied
+% A package dependency is satisfied when a suitable candidate is satisfied,
+% a package dependency that has no suitable candidates is "assumed" satisfied
 %
 % Portage-ng will identify these assumptions in its proof and show them to the
 % user prior to continuing to the next stage (i.e. executing the plan).
 
-rule(package_dependency(R://E,Action,no,C,N,O,V,S,U),[assumed(package_dependency(R://E,Action,no,C,N,O,V,S,U))]) :-
+rule(package_dependency(_R://_E,Action,no,C,N,_O,_V,_S,_U),Conditions) :-
   preference:accept_keywords(K),
-  not(knowledgebase:query([name(N),category(C),keywords(K)],_)),!.
+  knowledgebase:query([name(N),category(C),keywords(K)],Repository://Choice),
+  Conditions = [Repository://Choice:Action].
+
+rule(package_dependency(R://E,Action,no,C,N,O,V,S,U),Conditions) :-
+  preference:accept_keywords(K),
+  not(knowledgebase:query([name(N),category(C),keywords(K)],_)),
+  Conditions = [assumed(package_dependency(R://E,Action,no,C,N,O,V,S,U))],!.
 
 
 % The dependencies in a positive use conditional group need to be satisfied when
