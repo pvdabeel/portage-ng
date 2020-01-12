@@ -28,26 +28,26 @@ printer:printable_element(rule(_Repository://_Entry:run,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:download,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:install,_)) :- !.
 printer:printable_element(assumed(rule(_Repository://_Entry:_Action,_))) :- !.
-printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_),_))) :- !.
-printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_)),_)) :- !.
+printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_,_),_))) :- !.
+printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_,_)),_)) :- !.
 
 % Uncomment if you want 'confirm' steps shown in the plan:
-% printer:printable_element(rule(package_dependency(run,_,_,_,_,_,_,_),_)) :- !.
+% printer:printable_element(rule(package_dependency(_,run,_,_,_,_,_,_,_),_)) :- !.
 
 
 %! printer:element_weight(+Literal)
 %
 % Declares a weight for ordering elements of a step in a plan
 
-printer:element_weight(assumed(_),                                 0) :- !. % assumed
-printer:element_weight(rule(assumed(_),_),                         0) :- !. % assumed
-printer:element_weight(rule(uri(_),_),                             0) :- !. % provide
-printer:element_weight(rule(uri(_,_,_),_),                         1) :- !. % fetch
-printer:element_weight(rule(package_dependency(_,_,_,_,_,_,_,_),_),1) :- !. % confirm
-printer:element_weight(rule(_Repository://_Entry:run,_),           2) :- !. % run
-printer:element_weight(rule(_Repository://_Entry:download,_),      3) :- !. % download
-printer:element_weight(rule(_Repository://_Entry:install,_),       4) :- !. % install
-printer:element_weight(_,                                          6) :- !. % everything else
+printer:element_weight(assumed(_),                                   0) :- !. % assumed
+printer:element_weight(rule(assumed(_),_),                           0) :- !. % assumed
+printer:element_weight(rule(uri(_),_),                               0) :- !. % provide
+printer:element_weight(rule(uri(_,_,_),_),                           1) :- !. % fetch
+printer:element_weight(rule(package_dependency(_,_,_,_,_,_,_,_,_),_),1) :- !. % confirm
+printer:element_weight(rule(_Repository://_Entry:run,_),             2) :- !. % run
+printer:element_weight(rule(_Repository://_Entry:download,_),        3) :- !. % download
+printer:element_weight(rule(_Repository://_Entry:install,_),         4) :- !. % install
+printer:element_weight(_,                                            6) :- !. % everything else
 
 
 %! printer:sort_by_weight(+Comparator,+Literal,+Literal)
@@ -97,7 +97,7 @@ printer:print_element(_://_:_,rule(Repository://Entry:Action,_)) :-
 % CASE: verify that packages that need to be running are running
 % --------------------------------------------------------------
 
-printer:print_element(_,rule(package_dependency(run,_,_C,_N,_,_,_,_),[Repository://Entry:_Action])) :-
+printer:print_element(_,rule(package_dependency(_,run,_,_C,_N,_,_,_,_),[Repository://Entry:_Action])) :-
   !,
   message:color(cyan),
   message:print('confirm'),
@@ -130,7 +130,7 @@ printer:print_element(_,rule(uri(Local),_)) :-
 % CASE: an assumed dependency on a non-existent installed package
 % ---------------------------------------------------------------
 
-printer:print_element(_,rule(assumed(package_dependency(install,_,C,N,_,_,_,_)),[])) :-
+printer:print_element(_,rule(assumed(package_dependency(_,install,_,C,N,_,_,_,_)),[])) :-
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
@@ -143,7 +143,7 @@ printer:print_element(_,rule(assumed(package_dependency(install,_,C,N,_,_,_,_)),
 % CASE: an assumed dependency on a non-existent running package
 % -------------------------------------------------------------
 
-printer:print_element(_,rule(assumed(package_dependency(run,_,C,N,_,_,_,_)),[])) :-
+printer:print_element(_,rule(assumed(package_dependency(_,run,_,C,N,_,_,_,_)),[])) :-
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
@@ -180,7 +180,7 @@ printer:print_element(_,assumed(rule(Repository://Entry:run,_Body))) :-
 % CASE: an assumed installed dependency
 % -------------------------------------
 
-printer:print_element(_,assumed(rule(package_dependency(install,_,C,N,_,_,_,_),_Body))) :-
+printer:print_element(_,assumed(rule(package_dependency(_,install,_,C,N,_,_,_,_),_Body))) :-
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
@@ -193,7 +193,7 @@ printer:print_element(_,assumed(rule(package_dependency(install,_,C,N,_,_,_,_),_
 % CASE: an assumed running dependency
 % -----------------------------------
 
-printer:print_element(_,assumed(rule(package_dependency(run,_,C,N,_,_,_,_),_Body))) :-
+printer:print_element(_,assumed(rule(package_dependency(_,run,_,C,N,_,_,_,_),_Body))) :-
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),

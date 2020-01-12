@@ -167,7 +167,7 @@ rule(package_dependency(R://E,Action,no,C,N,O,V,S,U),[assumed(package_dependency
 % the use flag is positive through required use constraint, preference or ebuild
 % default
 
-rule(use_conditional_group(positive,Use,R://E,D),[constraint(use(R://E)):Use|D]) :- !.
+rule(use_conditional_group(positive,Use,R://E,D),[constraint(use(R://E)):Use|D]).
 
 rule(use_conditional_group(positive,Use,R://E,_),[]) :-
   not(knowledgebase:query([iuse(Use,positive:_)],R://E)),!.
@@ -180,7 +180,7 @@ rule(use_conditional_group(positive,_,_,D),D) :- !.
 % the use flag is not positive through required use constraint, preference or
 % ebuild default
 
-rule(use_conditional_group(negative,Use,R://E,D),[constraint(use(R://E)):naf(Use)|D]) :- !.
+rule(use_conditional_group(negative,Use,R://E,D),[constraint(use(R://E)):naf(Use)|D]).
 
 rule(use_conditional_group(negative,Use,R://E,_),[]) :-
   knowledgebase:query([iuse(Use,positive:_)],R://E),!.
