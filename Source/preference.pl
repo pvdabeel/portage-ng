@@ -64,7 +64,7 @@ preference:env_features('sign -ccache -buildpkg -sandbox -usersandbox -ebuild-lo
 %
 % Fact which defines the ACCEPT_KEYWORDS variable
 
-preference:accept_keywords('amd64').
+preference:accept_keywords('stable(amd64)').
 
 
 %! preference:use(?Use)
@@ -265,8 +265,6 @@ preference:masked(Repository://Entry) :- prover:broken(Repository://Entry).
 preference:masked(Repository://Entry) :- preference:known_broken(Repository://Entry).
 
 
-% run target fail
-preference:masked(portage://'app-xemacs/rmail-1.14').          % run target fail
 
-% install target fail
-preference:masked(portage://'dev-ros/gmapping-1.3.10').        % install target fail
+% run target fail
+preference:masked(portage://'app-crypt/tpm2-tss-2.2.3-r1').

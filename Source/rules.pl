@@ -152,7 +152,8 @@ rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_),[]) :- !.
 % A package dependency is satisfied when a suitable candidate is satisfied
 
 rule(package_dependency(_,Action,no,C,N,_,_,_,_),[Repository://Choice:Action]) :-
-  knowledgebase:query([name(N),category(C)],Repository://Choice).
+  preference:accept_keywords(K),
+  knowledgebase:query([name(N),category(C),keywords(K)],Repository://Choice).
 
 
 % A package dependency that has no suitable candidates is "assumed" satisfied
@@ -161,7 +162,8 @@ rule(package_dependency(_,Action,no,C,N,_,_,_,_),[Repository://Choice:Action]) :
 % user prior to continuing to the next stage (i.e. executing the plan).
 
 rule(package_dependency(R://E,Action,no,C,N,O,V,S,U),[assumed(package_dependency(R://E,Action,no,C,N,O,V,S,U))]) :-
-  not(knowledgebase:query([name(N),category(C)],_)),!.
+  preference:accept_keywords(K),
+  not(knowledgebase:query([name(N),category(C),keywords(K)],_)),!.
 
 
 % The dependencies in a positive use conditional group need to be satisfied when
