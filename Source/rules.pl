@@ -131,7 +131,7 @@ rule(package_dependency(_,_,no,'sys-devel','gnuconfig',_,_,_,_),[]) :- !.
 rule(package_dependency(_,_,no,'sys-devel','make',_,_,_,_),[]) :- !.
 rule(package_dependency(_,_,no,'sys-devel','patch',_,_,_,_),[]) :- !.
 rule(package_dependency(_,_,no,'sys-fs','e2fsprogs',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-libs','libpcap',_,_,_,_),[]) :- !.
+rule(package_dependency(_,_,no,'sys-libs','libcap',_,_,_,_),[]) :- !.
 rule(package_dependency(_,_,no,'sys-libs','ncurses',_,_,_,_),[]) :- !.
 rule(package_dependency(_,_,no,'sys-libs','readline',_,_,_,_),[]) :- !.
 rule(package_dependency(_,_,no,'sys-process','procps',_,_,_,_),[]) :- !.
