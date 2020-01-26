@@ -1109,7 +1109,7 @@ eapi:eapi(E) -->
   eapi:version2(E).
 
 
-% DCG uri_chars
+%! DCG uri_chars
 %
 % This reads all chars until an uri stopchar stopchar is encountered
 % EAPI 6 allows for ( and ) in src_uri !.
@@ -1128,7 +1128,7 @@ eapi:uri_chars([]) -->
   [],!.
 
 
-% DCG uri_chars1
+%! DCG uri_chars1
 %
 % This reads all chars until an uri specific stopchar is encountered
 % EAPI 6 allows for ( and ) in src uri !.
@@ -1165,7 +1165,7 @@ eapi:uri(uri('','',P)) -->
   { atom_codes(P,Ps),! }.
 
 
-% DCG protocol
+%! DCG protocol
 %
 % EAPI 4 - 9.2 defines proto as part of an URI
 
@@ -1173,7 +1173,7 @@ eapi:proto(P) -->
   eapi:chars1(p,P).
 
 
-% DCG arrow
+%! DCG arrow
 %
 % EAPI 4 - 9.2. defines '->' followed by a string
 % as an allowed URI construct.
@@ -1188,7 +1188,7 @@ eapi:arrow([]) -->
   [],!.
 
 
-% DCG local
+%! DCG local
 %
 % EAPI 4 - 9.2 defines '->' followed by a string
 % as an allowed URI construct
@@ -1197,7 +1197,7 @@ eapi:local(L) -->
   eapi:uri_chars(L).
 
 
-% DCG timestamp
+%! DCG timestamp
 %
 % metadata/timestamp.x contains a float, followed
 % by human readable datetime
@@ -1210,7 +1210,7 @@ eapi:timestamp(T) -->
 % REGULAR CHAR SEQUENCES
 % ----------------------
 
-% DCG chars1
+%! DCG chars1
 %
 % Reads one or more chars of the specified type
 
@@ -1219,7 +1219,7 @@ eapi:chars1(Type,[C|T]) -->
   eapi:chars0(Type,T).
 
 
-% DCG chars0
+%! DCG chars0
 %
 % Reads none or more chars of the specified type
 
@@ -1230,7 +1230,7 @@ eapi:chars0(_,[]) -->
   [],!.
 
 
-% DCG char
+%! DCG char
 %
 % Reads a char of a specified type
 
@@ -1295,7 +1295,7 @@ eapi:jumprule(m,[C]) :- code_type(C,alnum), !.   % An MD5 sum may contain alnum 
 % SPECIAL CHAR SEQUENCES
 % ----------------------
 
-% DCG pchar
+%! DCG pchar
 %
 % The individual characters allowed in a 'Package'
 
@@ -1350,7 +1350,7 @@ eapi:pchar(43) -->
   [43],!.
 
 
-% DCG pchars
+%! DCG pchars
 %
 % A package contains one or more pchars
 
@@ -1383,7 +1383,7 @@ eapi:pcharschunk2([]) -->
   [],!.
 
 
-% DCG uchars
+%! DCG uchars
 %
 % A use flag contains one or more uchars and must begin
 % with an alphanumeric char, according to EAPI 2.1.4
@@ -1400,7 +1400,7 @@ eapi:uchars2([]) -->
   [],!.
 
 
-% DCG kchars
+%! DCG kchars
 %
 % A keyword consists out of multiple kchars, the first char must be
 % an alphanumeric char
@@ -1419,7 +1419,7 @@ eapi:kchars2([]) -->
   [],!.
 
 
-% DCG whites
+%! DCG whites
 %
 % Whites is a sequence of zero or more white characters.
 
@@ -1439,7 +1439,7 @@ eapi:whites -->
 % Generic DCGS
 % ------------
 
-% DCG chars_to_end
+%! DCG chars_to_end
 %
 % collect all chars to end of stream
 
@@ -1452,7 +1452,7 @@ eapi:chars_to_end([]) -->
   [],!.
 
 
-% DCG chars_to_equal
+%! DCG chars_to_equal
 %
 % collect all chars to '='
 
@@ -1464,7 +1464,7 @@ eapi:chars_to_equal([C|T]) -->
   eapi:chars_to_equal(T).
 
 
-% DCG chars_to_space
+%! DCG chars_to_space
 %
 % collect all chars to ' '
 
@@ -1476,7 +1476,7 @@ eapi:chars_to_space([C|T]) -->
   eapi:chars_to_space(T).
 
 
-% DCG chars_to_dash
+%! DCG chars_to_dash
 %
 % collect all chars to '-'
 
@@ -1488,7 +1488,7 @@ eapi:chars_to_dash([C|R]) -->
   eapi:chars_to_dash(R).
 
 
-% DCG skip_to_end
+%! DCG skip_to_end
 %
 % skip all chars to end of stream
 
@@ -1500,7 +1500,7 @@ eapi:skip_to_end -->
   [],!.
 
 
-% DCG file:line
+%! DCG file:line
 %
 % From a given char list, reads one line
 
@@ -1508,7 +1508,7 @@ file:line([])    --> [10],!.
 file:line([C|R]) --> [C],!,file:line(R).
 
 
-% DCG file:lines
+%! DCG file:lines
 %
 % From a given char list, reads all lines
 
@@ -1520,7 +1520,7 @@ file:lines([])    --> [],!.
 % EAPI version declarations
 % -------------------------
 
-% VERSION sublist
+%! VERSION sublist
 %
 % This function is used to split up a version into different subparts.
 %
@@ -1533,7 +1533,7 @@ version:sublist([H|T],S,R,[H|RT]) :-
   version:sublist(T,S,R,RT).
 
 
-% VERSION sublists
+%! VERSION sublists
 %
 % Produces all sublists of a given list.
 %
@@ -1546,7 +1546,7 @@ version:sublists(L,S,[E|T]) :-
   version:sublists(R,S,T).
 
 
-% VERSION packageversion
+%! VERSION packageversion
 %
 % Produces version from a packagename.
 
