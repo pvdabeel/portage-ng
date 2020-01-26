@@ -54,6 +54,18 @@ os:make_repository_dirs(Repository,Directory) :-
      system:make_directory(Subdir))).
 
 
+%! os:installed_pkg(+Entry)
+%
+% Retrieves installed packages on the system
+
+os:installed_pkg(Entry) :-
+  config:pkg_directory(Directory),
+  os:directory_content(Directory,Category),
+  os:compose_path(Directory,Category,CategoryDir),
+  os:directory_content(CategoryDir,Package),
+  os:compose_path(Category,Package,Entry).
+
+
 %! os:update_repository_dirs(+Repository,+Directory)
 %
 % Given a prolog repository, creates a directory with subdirs

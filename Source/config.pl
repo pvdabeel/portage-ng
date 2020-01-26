@@ -53,6 +53,14 @@ config:installation_dir('/Users/pvdabeel/Desktop/Prolog').
 config:graph_directory('/Users/pvdabeel/Graph/').
 
 
+%! config:pkg_directory(?FullPath)
+%
+% Declaration of the pkg db directory on a system. This holds metadata
+% for all packages installed on a system
+
+config:pkg_directory('/Users/pvdabeel/Repository/pkg').
+
+
 %! config:number_of_cpus(?Count)
 %
 % This application parallellizes parsing, proving, planning and building.
