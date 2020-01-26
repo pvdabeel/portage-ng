@@ -121,7 +121,7 @@ compile ::-
   qsave_program('portage-ng',[stand_alone(true),goal(prolog)]).
 
 
-% knowledgebase:load
+%! knowledgebase:load
 %
 % Public predicate
 %
@@ -135,7 +135,7 @@ load ::-
   true.
 
 
-% knowledgebase:clear
+%! knowledgebase:clear
 %
 % Public predicate
 %
@@ -149,7 +149,7 @@ clear ::-
   true.
 
 
-% knowledgebase:query(+Query,-Result)
+%! knowledgebase:query(+Query,-Result)
 %
 % Public predicate
 %
@@ -159,7 +159,7 @@ query(Query,Result) ::-
   knowledgebase:query(Query,Result).
 
 
-% knowledgebase:state(+File)
+%! knowledgebase:state(+File)
 %
 % Protected predicate
 %
@@ -170,7 +170,7 @@ state(File) ::-
   atomic_list_concat([Context,'.raw'],File).
 
 
-% knowledgebase:entry(?Repository://?Entry)
+%! knowledgebase:entry(?Repository://?Entry)
 %
 % Protected predicate
 %
@@ -180,7 +180,7 @@ entry(Repository://Entry) ::-
   cache:entry(Repository,Entry,_,_,_,_).
 
 
-% knowledgebase:repository(?Repository)
+%! knowledgebase:repository(?Repository)
 %
 % Protected predicate
 %
