@@ -24,8 +24,15 @@ The interface interpretes command line arguments passed to portage-ng.
 % Retrieve the current version
 
 interface:version(V) :-
-  V = '20191127'.
+  V = '2020.01.26'.
 
+
+%! interface:status(?Status)
+%
+% Retrieve the current status (alpha,beta,testing,development,release)
+
+interface:status(S) :-
+  S = 'development'.
 
 %! interface:spec(?Specification)
 %
@@ -33,21 +40,21 @@ interface:version(V) :-
 
 interface:spec(S) :-
   S = [
-       [opt(verbose), type(boolean), default(false), shortflags(['v']), longflags(['verbose'])],  % OPTION
-       [opt(pretend), type(boolean), default(false), shortflags(['p']), longflags(['pretend'])],  % OPTION
-       [opt(update),  type(boolean), default(false), shortflags(['u']), longflags(['update'])],   % OPTION
-       [opt(deep),    type(boolean), default(false), shortflags(['d']), longflags(['deep'])],     % OPTION
-       [opt(resume),  type(boolean), default(false), shortflags(['r']), longflags(['resume'])],   % OPTION
-       [opt(newuse),  type(boolean), default(false), shortflags(['n']), longflags(['newuse'])],   % OPTION
-       [opt(sync),    type(boolean), default(false),                    longflags(['sync'])],     % ACTION
-       [opt(clear),   type(boolean), default(false),                    longflags(['clear'])],    % ACTION
-       [opt(graph),   type(boolean), default(false),                    longflags(['graph'])],    % ACTION
-       [opt(depclean),type(boolean), default(false), shortflags(['c']), longflags(['depclean'])], % ACTION
-       [opt(info),    type(boolean), default(false),                    longflags(['info'])],     % ACTION
-       [opt(search),  type(boolean), default(false), shortflags(['s']), longflags(['search'])],   % ACTION
-       [opt(unmerge), type(boolean), default(false), shortflags(['C']), longflags(['unmerge'])],  % ACTION
-       [opt(shell),   type(boolean), default(false),                    longflags(['shell'])],    % ACTION
-       [opt(version), type(boolean), default(false), shortflags(['V']), longflags(['version'])]   % ACTION
+       [opt(verbose), type(boolean), default(false), shortflags(['v']), longflags(['verbose']),  help('Turn on verbose mode')],                       % OPTION
+       [opt(pretend), type(boolean), default(false), shortflags(['p']), longflags(['pretend']),  help('Turn on pretend mode')],                       % OPTION
+       [opt(update),  type(boolean), default(false), shortflags(['u']), longflags(['update']),   help('Update target package')],                      % OPTION
+       [opt(deep),    type(boolean), default(false), shortflags(['d']), longflags(['deep']),     help('Update target package and its dependencies')], % OPTION
+       [opt(resume),  type(boolean), default(false), shortflags(['r']), longflags(['resume']),   help('Resume previous command')],                    % OPTION
+       [opt(newuse),  type(boolean), default(false), shortflags(['n']), longflags(['newuse']),   help('Take into account new use flags')],            % OPTION
+       [opt(sync),    type(boolean), default(false),                    longflags(['sync']),     help('Sync repository')],                            % ACTION
+       [opt(clear),   type(boolean), default(false),                    longflags(['clear']),    help('Clear knowledge base')],                       % ACTION
+       [opt(graph),   type(boolean), default(false),                    longflags(['graph']),    help('Create graph')],                               % ACTION
+       [opt(depclean),type(boolean), default(false), shortflags(['c']), longflags(['depclean']), help('Clean dependencies')],                         % ACTION
+       [opt(info),    type(boolean), default(false),                    longflags(['info']),     help('Show package version')],                       % ACTION
+       [opt(search),  type(boolean), default(false), shortflags(['s']), longflags(['search']),   help('Search for a target')],                        % ACTION
+       [opt(unmerge), type(boolean), default(false), shortflags(['C']), longflags(['unmerge']),  help('Unmerge target')],                             % ACTION
+       [opt(shell),   type(boolean), default(false),                    longflags(['shell']),    help('Go to shell')],                                % ACTION
+       [opt(version), type(boolean), default(false), shortflags(['V']), longflags(['version']),  help('Show version')]                                % ACTION
       ].
 
 
@@ -68,15 +75,16 @@ interface:argv(Options,Args) :-
 
 interface:process_requests :-
   interface:version(Version),
-  interface:argv(Options,Args),
-  ( member(version(true),Options)  -> (message:inform(['portage-ng development version - ',Version]),  halt) ;
-    member(info(true),Options)     -> (message:inform(['portage-ng development version - ',Version]),  halt) ;
+  interface:status(Status),
+  catch(interface:argv(Options,_Args),_,true),
+  ( member(version(true),Options)  -> (message:inform(['portage-ng ',Status,' version - ',Version]),   halt) ;
+    member(info(true),Options)     -> (message:inform(['portage-ng ',Status,' version - ',Version]),   halt) ;
     member(clear(true),Options)    -> (kb:clear,                                                       halt) ;
     member(sync(true),Options)     -> (kb:sync, kb:save,                                               halt) ;
     member(graph(true),Options)    -> (grapher:test(portage),                                          halt) ;
     member(unmerge(true),Options)  -> (message:warning('unmerge action to be implemented'),            halt) ;
     member(depclean(true),Options) -> (message:warning('depclean action to be implemented'),           halt) ;
     member(search(true),Options)   -> (message:warning('search action to be implemented'),             halt) ;
-    member(sync,Args)              -> (kb:sync, kb:save,                                               halt) ;
-    member(_,Args)                 -> (message:inform(['portage-ng shell - ',Version]))
+    member(sync(true),Options)     -> (kb:sync, kb:save,                                               halt) ;
+    member(shell(true),Options)    -> (message:inform(['portage-ng shell - ',Version]),                prolog)
   );true.
