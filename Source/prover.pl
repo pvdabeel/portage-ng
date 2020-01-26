@@ -15,6 +15,7 @@ The prover computes a proof and a model for a given input
 :- module(prover, []).
 
 :- dynamic prover:broken/1.
+:- dynamic prover:flag/1.
 
 % *******************
 % PROVER declarations

@@ -56,9 +56,29 @@ os:make_repository_dirs(Repository,Directory) :-
 
 %! os:installed_pkg(+Entry)
 %
+% Retrieves installed packages on the system (cached)
+
+os:installed_pkg(Repository://Entry) :-
+  cache:entry_metadata(Repository,Entry,installed,true).
+
+
+%! os:sync
+%
+% Syncs the installed packages to prolog metadata
+
+os:sync :-
+  retractall(cache:entry_metadata(portage,_,installed,_)),
+  forall(os:find_installed_pkg(portage://Entry),
+         (asserta(cache:entry_metadata(portage,Entry,installed,true)),
+          message:scroll([Entry]))),
+  message:inform(['Updated system package database']).
+
+
+%! os:installed_pkg(+Entry)
+%
 % Retrieves installed packages on the system
 
-os:installed_pkg(Entry) :-
+os:find_installed_pkg(portage://Entry) :-
   config:pkg_directory(Directory),
   os:directory_content(Directory,Category),
   os:compose_path(Directory,Category,CategoryDir),

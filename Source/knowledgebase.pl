@@ -93,7 +93,8 @@ deregister(Repository) ::-
 
 sync ::-
   forall(::repository(Repository),
-	 Repository:sync).
+	 Repository:sync),
+  os:sync.
 
 
 %! knowledgebase:save

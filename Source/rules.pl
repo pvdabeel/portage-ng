@@ -41,12 +41,20 @@ rule(_Repository://_Ebuild:download,[]) :- !.
 
 % INSTALL
 %
-% An ebuild is installed, if the following conditions are satisfied:
+% An ebuild is installed, either:
+%
+% - The os reports it as installed
+%
+% or, if the following conditions are satisfied:
 %
 % - Its require_use dependencies are satisfied
 % - It is downloaded (Only when it is not a virtual, a group or a user)
 % - Its compile-time dependencies are satisfied
 % - it can occupy an installation slot
+
+rule(Repository://Ebuild:install,[]) :-
+  not(prover:flag(emptytree)),
+  os:installed_pkg(Repository://Ebuild),!.
 
 rule(Repository://Ebuild:install,Conditions) :-
   knowledgebase:query([category(C),name(N),slot(slot(S)),model(required_use(M)),all(depend(D))],Repository://Ebuild),
@@ -62,7 +70,17 @@ rule(Repository://Ebuild:install,Conditions) :-
 
 % RUN
 %
-% An ebuild can be run, if it is installed and if its runtime dependencies are satisfied
+% An ebuild can be run, either:
+%
+% - The os reports it as runnable
+%
+% or:
+%
+% - if it is installed and if its runtime dependencies are satisfied
+
+rule(Repository://Ebuild:run,[]) :-
+  not(prover:flag(emptytree)),
+  os:installed_pkg(Repository://Ebuild),!.
 
 rule(Repository://Ebuild:run,[Repository://Ebuild:install|D]) :-
   !,
@@ -153,6 +171,14 @@ rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_),[]) :- !.
 %
 % Portage-ng will identify these assumptions in its proof and show them to the
 % user prior to continuing to the next stage (i.e. executing the plan).
+
+% Preference: prefer installed packages over new packages, unless 'deep' flag
+% is used
+
+rule(package_dependency(_R://_E,Action,no,C,N,_O,_V,_S,_U),Conditions) :-
+  not(prover:flag(deep)),
+  knowledgebase:query([installed(true),name(N),category(C)],Repository://Choice),
+  Conditions = [Repository://Choice:Action].
 
 rule(package_dependency(_R://_E,Action,no,C,N,_O,_V,_S,_U),Conditions) :-
   preference:accept_keywords(K),
