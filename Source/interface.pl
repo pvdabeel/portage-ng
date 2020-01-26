@@ -42,8 +42,9 @@ interface:spec(S) :-
   S = [
        [opt(verbose), type(boolean), default(false), shortflags(['v']), longflags(['verbose']),  help('Turn on verbose mode')],                       % OPTION
        [opt(pretend), type(boolean), default(false), shortflags(['p']), longflags(['pretend']),  help('Turn on pretend mode')],                       % OPTION
+       [opt(merge),   type(boolean), default(true),  shortflags(['m']), longflags(['merge']),    help('Merge target package')],                       % OPTION
        [opt(update),  type(boolean), default(false), shortflags(['u']), longflags(['update']),   help('Update target package')],                      % OPTION
-       [opt(deep),    type(boolean), default(false), shortflags(['d']), longflags(['deep']),     help('Update target package and its dependencies')], % OPTION
+       [opt(deep),    type(boolean), default(false), shortflags(['d']), longflags(['deep']),     help('Also consider dependencies')],                 % OPTION
        [opt(resume),  type(boolean), default(false), shortflags(['r']), longflags(['resume']),   help('Resume previous command')],                    % OPTION
        [opt(newuse),  type(boolean), default(false), shortflags(['n']), longflags(['newuse']),   help('Take into account new use flags')],            % OPTION
        [opt(sync),    type(boolean), default(false),                    longflags(['sync']),     help('Sync repository')],                            % ACTION
@@ -76,7 +77,7 @@ interface:argv(Options,Args) :-
 interface:process_requests :-
   interface:version(Version),
   interface:status(Status),
-  catch(interface:argv(Options,_Args),_,true),
+  catch(interface:argv(Options,Args),_,true),
   ( member(version(true),Options)  -> (message:inform(['portage-ng ',Status,' version - ',Version]),   halt) ;
     member(info(true),Options)     -> (message:inform(['portage-ng ',Status,' version - ',Version]),   halt) ;
     member(clear(true),Options)    -> (kb:clear,                                                       halt) ;
@@ -86,5 +87,13 @@ interface:process_requests :-
     member(depclean(true),Options) -> (message:warning('depclean action to be implemented'),           halt) ;
     member(search(true),Options)   -> (message:warning('search action to be implemented'),             halt) ;
     member(sync(true),Options)     -> (kb:sync, kb:save,                                               halt) ;
-    member(shell(true),Options)    -> (message:inform(['portage-ng shell - ',Version]),                prolog)
+    member(shell(true),Options)    -> (message:inform(['portage-ng shell - ',Version]),                prolog);
+    member(merge(true),Options)    -> ((Args == []) -> true ;
+                                       (message:header(['Emerging '|Args]),
+                                        message:title(['Emerging '|Args]),
+                                        prover:prove(Args,[],Proof,[],Model,[],_Constraints),
+                                        planner:plan(Proof,[],[],Plan),
+                                        printer:print(Args,Model,Proof,Plan),
+                                        message:title([''])),
+                                        halt)
   );true.
