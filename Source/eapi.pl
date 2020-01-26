@@ -92,6 +92,10 @@ eapi:key(manifest,Key) -->
   eapi:chars_to_space(Cs),
   { atom_codes(Key,Cs),! }.
 
+eapi:key(query,Key) -->
+  eapi:chars_to_equal(Cs),
+  { atom_codes(Key,Cs),! }.
+
 
 % --------------------
 % EAPI value structure
@@ -521,6 +525,15 @@ eapi:operator(none) -->
   [], !.
 
 
+%! DCG: repository
+%
+% Repository Names
+
+eapi:repository(Ra) -->
+  eapi:chars1(c,R),
+  { atom_codes(Ra,R),! }.
+
+
 %! DCG: category
 %
 % EAPI 4 - 2.1.1 Category Names
@@ -536,6 +549,14 @@ eapi:category(Ca) -->
 
 eapi:separator -->
   [47].                                               % char: /
+
+
+% DCG: repositoryseparator
+%
+% Repository separator
+
+eapi:repositoryseparator -->
+  [58,47,47].                                         % char: ://
 
 
 %! DCG: package
@@ -1672,6 +1693,63 @@ eapi:categorize_use(Use,negative,default) :-
   not(preference:negative_use(Use)),
   not(printer:unify(plus(_),Use)),
   not(printer:unify(minus(_),Use)),!.
+
+
+%! eapi:qualifiedtarget
+%
+% Parses command line targets:
+%
+%  Name
+%  Category/Name
+%  Category/Name-Version
+%  Repository://Category/Name
+%  Repository://Category/Name-Version
+%
+% Returns a knowledgebase query
+
+eapi:qualifiedtarget(Q) -->
+  eapi:repository(R),                                 % required
+  eapi:repositoryseparator,                           % required
+  eapi:category(C),eapi:separator,!,eapi:package(P),  % required
+  eapi:version0(V),
+  { ((V == '') ->                                     % optional
+     (Q = [name(P),category(C),repository(R)],!);
+     (Q = [name(P),category(C),version(V),repository(R)])) }.
+
+
+eapi:qualifiedtarget(Q) -->
+  eapi:category(C),eapi:separator,!,                  % required
+  eapi:package(P),!,                                  % required
+  eapi:version0(V),                                   % optional
+  { ((V == '') ->
+     (Q = [name(P),category(C)],!);
+     (Q = [name(P),category(C),version(V)]),!) }.
+
+
+eapi:qualifiedtarget(Q) -->
+  eapi:package(P),!,                                  % required
+  eapi:version0(V),                                   % optional
+  { ((V == '') ->
+     (Q = [name(P)],!);
+     (Q = [name(P),version(V)]),!) }.
+
+
+%! eapi:query(R)
+%
+% Turns a key=value query into a key(value) query
+
+eapi:query([Q|R]) -->
+  [Part],
+  eapi:query(R),
+  { atom_codes(Part,Codes), phrase(eapi:querypart(Q),Codes),! }.
+
+eapi:query([]) -->
+  [].
+
+eapi:querypart(P) -->
+  eapi:key(query,Key),
+  eapi:chars_to_end(Codes),
+  { atom_codes(Value,Codes), P =.. [Key,Value] }.
 
 
 % ***************************

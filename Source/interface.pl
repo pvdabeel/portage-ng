@@ -85,15 +85,21 @@ interface:process_requests :-
     member(graph(true),Options)    -> (grapher:test(portage),                                          halt) ;
     member(unmerge(true),Options)  -> (message:warning('unmerge action to be implemented'),            halt) ;
     member(depclean(true),Options) -> (message:warning('depclean action to be implemented'),           halt) ;
-    member(search(true),Options)   -> (message:warning('search action to be implemented'),             halt) ;
+    member(search(true),Options)   -> ((Args == []) -> true ;
+                                       (phrase(eapi:query(Q),Args),
+                                        forall(knowledgebase:query(Q,R://E),writeln(R://E))),
+                                        halt) ;
     member(sync(true),Options)     -> (kb:sync, kb:save,                                               halt) ;
     member(shell(true),Options)    -> (message:inform(['portage-ng shell - ',Version]),                prolog);
     member(merge(true),Options)    -> ((Args == []) -> true ;
-                                       (message:header(['Emerging '|Args]),
-                                        message:title(['Emerging '|Args]),
-                                        prover:prove(Args,[],Proof,[],Model,[],_Constraints),
-                                        planner:plan(Proof,[],[],Plan),
-                                        printer:print(Args,Model,Proof,Plan),
-                                        message:title([''])),
+                                       (forall(member(Arg,Args),
+                                        (atom_codes(Arg,Codes),
+                                         phrase(eapi:qualifiedtarget(Q),Codes),
+                                         knowledgebase:query(Q,R://E),
+                                         config:proving_target(T),
+                                         prover:prove(R://E:T,[],Proof,[],Model,[],_Constraints),
+                                         planner:plan(Proof,[],[],Plan),
+                                         printer:print(R://E:T,Model,Proof,Plan)
+                                         ))),
                                         halt)
   );true.
