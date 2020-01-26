@@ -43,7 +43,7 @@ rule(_Repository://_Ebuild:download,[]) :- !.
 %
 % An ebuild is installed, either:
 %
-% - The os reports it as installed
+% - The os reports it as installed, and we are not proving emptytree
 %
 % or, if the following conditions are satisfied:
 %
@@ -72,7 +72,7 @@ rule(Repository://Ebuild:install,Conditions) :-
 %
 % An ebuild can be run, either:
 %
-% - The os reports it as runnable
+% - The os reports it as runnable, and we are not proving emptytree
 %
 % or:
 %
@@ -177,7 +177,8 @@ rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_),[]) :- !.
 
 rule(package_dependency(_R://_E,Action,no,C,N,_O,_V,_S,_U),Conditions) :-
   not(prover:flag(deep)),
-  knowledgebase:query([installed(true),name(N),category(C)],Repository://Choice),
+  preference:accept_keywords(K),
+  knowledgebase:query([installed(true),name(N),category(C),keywords(K)],Repository://Choice),
   Conditions = [Repository://Choice:Action].
 
 rule(package_dependency(_R://_E,Action,no,C,N,_O,_V,_S,_U),Conditions) :-
