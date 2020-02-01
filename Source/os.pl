@@ -28,8 +28,8 @@ Eventually this could become a class with different subclasses.
 % filtered.
 
 os:directory_content(Directory,Content) :-
-  system:directory_files(Directory,['.','..'|UnsortedContents]),!,
-  sort(UnsortedContents,Contents),
+  system:directory_files(Directory,UnsortedContents),!,
+  sort(UnsortedContents,['.','..'|Contents]),
   member(Content,Contents).
 
 
