@@ -268,3 +268,5 @@ preference:masked(Repository://Entry) :- preference:known_broken(Repository://En
 
 % run target fail
 preference:masked(portage://'app-crypt/tpm2-tss-2.2.3-r1').
+preference:masked(portage://'dev-vcs/mercurial-9999').
+preference:masked(portage://'dev-java/xom-1.3.2').
