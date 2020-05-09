@@ -90,8 +90,9 @@ planner:test(Repository,single_verbose) :-
                                              planner:plan(Proof,[],[],_),
                                              message:success([P,' - ',E:Action]))),
                      time_limit_exceeded,
-                     assert(prover:broken(Repository://E)));
-               message:failure(E)))),!,
+                     (message:failure([E:Action,' (time limit exceeded)']),
+                      assert(prover:broken(Repository://E))));
+               message:failure(E:Action)))),!,
   message:title_reset,
   message:inform(['created plan for ',S,' ',Repository,' entries.']).
 
@@ -110,9 +111,11 @@ planner:test(Repository,parallel_verbose) :-
                                                            message:title(['Planning (',Cpus,' threads): ',P,' complete']),
                                                            message:success([P,' - ',E:Action]))))),
                   time_limit_exceeded,
-                  assert(prover:broken(Repository://E)))),
+                  (message:failure([E:Action,' (time limit exceeded)']),
+                   assert(prover:broken(Repository://E))));
+           message:failure(E:Action)),
           Repository:entry(E),
-          Calls),
+          Calls),!,
   time(concurrent(Cpus,Calls,[])),!,
   message:title_reset,
   message:inform(['created plan for ',S,' ',Repository,' entries.']).
@@ -123,7 +126,8 @@ planner:test(Repository,parallel_fast) :-
   config:proving_target(Action),
   config:number_of_cpus(Cpus),
   findall((prover:prove(Repository://E:Action,[],Proof,[],_,[],_),
-           planner:plan(Proof,[],[],_),!),
+           planner:plan(Proof,[],[],_),!;
+           message:failure(E:Action)),
           Repository:entry(E),
           Calls),
   time(concurrent(Cpus,Calls,[])),!,
