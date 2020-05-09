@@ -267,6 +267,9 @@ preference:masked(Repository://Entry) :- preference:known_broken(Repository://En
 
 
 % run target fail
-preference:masked(portage://'app-crypt/tpm2-tss-2.2.3-r1').
-preference:masked(portage://'dev-vcs/mercurial-9999').
-preference:masked(portage://'dev-java/xom-1.3.2').
+preference:masked(portage://'sci-libs/hdf5-1.10.5-r1').     % 2020-05-09
+preference:masked(portage://'dev-vcs/mercurial-9999').      % 2020-05-09
+preference:masked(portage://'dev-java/xom-1.3.2').          % 2020-05-09
+preference:masked(portage://'dev-lang/scala-2.12.10').      % 2020-05-09
+preference:masked(portage://'app-crypt/tpm2-tss-2.2.3-r2'). % 2020-05-09
+preference:masked(portage://'app-crypt/tpm2-tss-2.2.3-r1'). % 2020-05-09
