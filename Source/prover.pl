@@ -236,11 +236,11 @@ prover:test(Repository,single_verbose) :-
                                              prover:prove(Repository://E:Action,[],_,[],_,[],_),
                                              message:success([P,' - ',E:Action]))),
                      time_limit_exceeded,
-                     assert(prover:broken(Repository://E)));
-               message:failure(E)))),!,
+                     (message:failure([E:Action,' (time limit exceeded)']),
+                      assert(prover:broken(Repository://E))));
+               message:failure(E:Action)))),!,
   message:title_reset,
   message:inform(['proved ',S,' ',Repository,' entries.']).
-
 
 prover:test(Repository,parallel_verbose) :-
   Repository:get_size(S),
@@ -255,19 +255,21 @@ prover:test(Repository,parallel_verbose) :-
                                                            message:title(['Proving (',Cpus,' threads): ',P,' complete']),
                                                            message:success([P,' - ',E:Action]))))),
                  time_limit_exceeded,
-                 assert(prover:broken(Repository://E)))),
+                 (message:failure([E:Action,' (time limit exceeded)']),
+                  assert(prover:broken(Repository://E))));
+           message:failure(E:Action)),
           Repository:entry(E),
           Calls),!,
   time(concurrent(Cpus,Calls,[])),!,
   message:title_reset,
   message:inform(['proved ',S,' ',Repository,' entries.']).
 
-
 prover:test(Repository,parallel_fast) :-
   Repository:get_size(S),
   config:proving_target(Action),
   config:number_of_cpus(Cpus),
-  findall((prover:prove(Repository://E:Action,[],_,[],_,[],_),!),
+  findall((prover:prove(Repository://E:Action,[],_,[],_,[],_),!;
+           message:failure(E:Action)),
           Repository:entry(E),
           Calls),
   time(concurrent(Cpus,Calls,[])),!,

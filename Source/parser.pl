@@ -94,9 +94,10 @@ parser:test(Repository,parallel_verbose) :-
                                                            message:title(['Parsing (',Cpus,' threads): ',P,' complete']),
                                                            message:success([P,' - ',E]))))),
                  time_limit_exceeded,
-                 message:failure([E,' (time limit exceeded)']))),
+                 message:failure([E,' (time limit exceeded)']));
+           message:failure(E)),
           (Repository:entry(E),reader:invoke(C,E,R)),
-          Calls),
+          Calls),!,
   time(concurrent(Cpus,Calls,[])),!,
   message:title_reset,
   message:inform(['parsed ',S,' ',Repository,' entries.']).
@@ -105,7 +106,8 @@ parser:test(Repository,parallel_fast) :-
   Repository:get_size(S),
   Repository:get_cache(C),
   config:number_of_cpus(Cpus),
-  findall((parser:invoke(metadata,Repository://E,R,_),!),
+  findall((parser:invoke(metadata,Repository://E,R,_),!;
+           message:failure(E)),
           (Repository:entry(E),reader:invoke(C,E,R)),
           Calls),
   time(concurrent(Cpus,Calls,[])),!,
