@@ -286,3 +286,4 @@ preference:masked(portage://'dev-lang/mono-6.0.0.334').         % 2020-05-09
 preference:masked(portage://'dev-lang/mono-5.18.1.0').          % 2020-05-09
 preference:masked(portage://'dev-lang/mono-6.4.0.198').         % 2020-05-09
 preference:masked(portage://'dev-dotnet/libgdiplus-2.10.9-r3'). % 2020-05-09
+preference:masked(portage://'app-xemacs/edit-utils-2.44').      % 2020-05-09
