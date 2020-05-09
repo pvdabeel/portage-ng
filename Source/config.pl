@@ -82,7 +82,7 @@ config:verbosity(debug).
 % When parsing, proving or planning, use the specified time limit to automatically stop
 % computation if it takes too long. In seconds.
 
-config:time_limit(20).
+config:time_limit(60).
 
 
 %! config:time_limit(?Limit)
