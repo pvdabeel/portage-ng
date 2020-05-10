@@ -721,7 +721,8 @@ printer:test(Repository,single_verbose) :-
                                              planner:plan(Proof,[],[],Plan),
                                              printer:print(Repository://E:Action,Model,Proof,Plan))),
                      time_limit_exceeded,
-                     assert(prover:broken(Repository://E)));
+                     (message:failure([E,' (time limit exceeded)']),
+                      assert(prover:broken(Repository://E))));
 	       message:failure(E)))),!,
   message:title_reset,
   message:inform(['printed plan for ',S,' ',Repository,' entries.']).
@@ -742,7 +743,8 @@ printer:test(Repository,parallel_verbose) :-
                                                            nl,message:topheader(['[',P,'] - Printing plan for ',Repository://E:Action]),
                                                            printer:print(Repository://E:Action,Model,Proof,Plan))))),
                  time_limit_exceeded,
-                 assert(prover:broken(Repository://E)))),
+                 (message:failure([E,' (time limit exceeded)']),
+                  assert(prover:broken(Repository://E))))),
            Repository:entry(E),
            Calls),
   time(concurrent(Cpus,Calls,[])),!,
