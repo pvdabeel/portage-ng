@@ -28,8 +28,8 @@ Eventually this could become a class with different subclasses.
 % filtered.
 
 os:directory_content(Directory,Content) :-
-  system:directory_files(Directory,['.','..'|UnsortedContents]),!,
-  sort(UnsortedContents,Contents),
+  system:directory_files(Directory,UnsortedContents),!,
+  sort(UnsortedContents,['.','..'|Contents]),
   member(Content,Contents).
 
 
@@ -69,9 +69,9 @@ os:installed_pkg(Repository://Entry) :-
 os:sync :-
   retractall(cache:entry_metadata(portage,_,installed,_)),
   forall(os:find_installed_pkg(portage://Entry),
-         (asserta(cache:entry_metadata(portage,Entry,installed,true)),
-          message:scroll([Entry]))),
-  message:inform(['Updated system package database']).
+         (asserta(cache:entry_metadata(portage,Entry,installed,true)))).
+          %message:scroll([Entry]))),
+	  %message:inform(['Updated system package database']).
 
 
 %! os:installed_pkg(+Entry)

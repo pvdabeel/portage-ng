@@ -92,14 +92,14 @@ interface:process_requests :-
     member(sync(true),Options)     -> (kb:sync, kb:save,                                               halt) ;
     member(shell(true),Options)    -> (message:inform(['portage-ng shell - ',Version]),                prolog);
     member(merge(true),Options)    -> ((Args == []) -> true ;
-                                       (forall(member(Arg,Args),
+                                       (os:sync,forall(member(Arg,Args),
                                         (atom_codes(Arg,Codes),
                                          phrase(eapi:qualifiedtarget(Q),Codes),
                                          knowledgebase:query(Q,R://E),
                                          config:proving_target(T),
                                          prover:prove(R://E:T,[],Proof,[],Model,[],_Constraints),
                                          planner:plan(Proof,[],[],Plan),
-                                         printer:print(R://E:T,Model,Proof,Plan)
+                                         builder:build(R://E:T,Model,Proof,Plan)
                                          ))),
                                         halt)
   );true.
