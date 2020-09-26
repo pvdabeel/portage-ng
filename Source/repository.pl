@@ -187,7 +187,7 @@ sync(kb) ::-
           assertz(cache:manifest(Repository,P,T,C,N,M)),
           message:scroll([P]))),!,
   message:sc,nl,
-  message:inform(['Updated prolog knowledgebase']).
+  message:scroll(['Updated prolog knowledgebase']).
 
 
 %! repository:find_metadata(?Entry, -Timestamp, -Category, -Name, -Version)
