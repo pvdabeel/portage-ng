@@ -186,7 +186,7 @@ sync(kb) ::-
           retractall(cache:manifest(Repository,P,_,_,_,_)),
           assertz(cache:manifest(Repository,P,T,C,N,M)),
           message:scroll([P]))),!,
-  message:sc,nl,
+  message:sc,
   message:scroll(['Updated prolog knowledgebase']).
 
 
