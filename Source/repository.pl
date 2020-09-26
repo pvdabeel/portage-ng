@@ -115,7 +115,7 @@ sync ::-
   :this(Repository),
   message:wrap(Repository:sync(repository)),
   message:wrap(Repository:sync(metadata)),
-  message:wrap(Repository:sync(kb)),!.
+  message:wrap(Repository:sync(kb)),nl,!.
 
 
 %! repository:sync(+Repository)
@@ -149,7 +149,7 @@ sync(metadata) ::-
           (message:scroll([Id]))),
            % script:exec(cache,[Ebuild]),!)).
   message:sc,
-  message:inform(['Updated metadata']).
+  message:scroll(['Updated metadata']),nl.
 
 
 sync(metadata) ::-
@@ -159,7 +159,7 @@ sync(metadata) ::-
   ::cache(Cache),
   :this(Repository),
   script:exec(cache,[Type,Repository,Remote,Local,Cache]),
-  message:inform(['Updated metadata']).
+  message:scroll(['Updated metadata']),nl.
 
 
 %! repository:sync(kb)
@@ -187,7 +187,7 @@ sync(kb) ::-
           assertz(cache:manifest(Repository,P,T,C,N,M)),
           message:scroll([P]))),!,
   message:sc,
-  message:scroll(['Updated prolog knowledgebase']).
+  message:scroll(['Updated prolog knowledgebase']),nl.
 
 
 %! repository:find_metadata(?Entry, -Timestamp, -Category, -Name, -Version)

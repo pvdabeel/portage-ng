@@ -92,8 +92,10 @@ deregister(Repository) ::-
 % Sync all registered repositories
 
 sync ::-
+  message:topheader(['Syncing repositories']),
   forall(::repository(Repository),
-	 Repository:sync),
+	 (message:header(['Syncing ',Repository]),nl,
+          Repository:sync)),!,
   os:sync.
 
 

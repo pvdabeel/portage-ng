@@ -179,7 +179,7 @@ message:print(Message,Len) :-
 % Informs the user about a failure and fails.
 
 message:failure(Message) :-
-  message:prefix(failure),
+  %message:prefix(failure),
   message:color(red),
   message:style(bold),
   system:write('[FAILURE] '),
@@ -195,7 +195,7 @@ message:failure(Message) :-
 % Informs the user about a warning and continues.
 
 message:warning(Message) :-
-  message:prefix(warning),
+  %message:prefix(warning),
   message:color(orange),
   message:style(bold),
   system:write('[WARNING] '),
@@ -209,7 +209,7 @@ message:warning(Message) :-
 % Informs the user about something that went OK and continues.
 
 message:success(Message) :-
-  message:prefix(good),
+  %message:prefix(good),
   message:color(green),
   message:style(bold),
   system:write('[SUCCESS] '),
