@@ -85,6 +85,30 @@ message:color(normal) :-
   system:write('\033[00m').
 
 
+%! message:el
+%
+% Clears all characters from the cursor position to the end of line
+
+message:el :-
+  system:write('\033[K').
+
+
+%! message:hc
+%
+% Hides cursor
+
+message:hc :-
+  system:write('\033[?25l').
+
+
+%! message:sc
+%
+% Show cursor
+
+message:sc :-
+  system:write('\033[?25h').
+
+
 %! message:style(+Style)
 %
 % Sets the message style. Uses ANSI escape codes.
@@ -213,9 +237,9 @@ message:inform(Message) :-
 message:scroll(Message) :-
   system:write('% '),
   message:print(Message,Len),
+  message:el,
   Prefixed_Len is Len + 2,
-  tty:tty_action(back(Prefixed_Len)),
-  tty:tty_action(ce).
+  tty:tty_action(back(Prefixed_Len)).
 
 
 %! message:topheader(+Message)
