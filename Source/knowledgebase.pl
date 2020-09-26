@@ -92,9 +92,12 @@ deregister(Repository) ::-
 % Sync all registered repositories
 
 sync ::-
-  message:topheader(['Syncing repositories']),
+  aggregate_all(count, ::repository(_), Count),
+  (Count == 1 ->
+   message:topheader(['Syncing ',Count,' registered repository']);
+   message:topheader(['Syncing ',Count,' registered repositories'])),
   forall(::repository(Repository),
-	 (message:header(['Syncing ',Repository]),nl,
+	 (message:header(['Syncing repository \"',Repository,'\"']),nl,
           Repository:sync)),!,
   os:sync.
 
