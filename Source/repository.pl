@@ -141,12 +141,14 @@ sync(repository) ::-
 
 sync(metadata) ::-
   ::type('eapi'),!,
+  message:hc,
   forall((:entry(Id,Time),
            :get_ebuild(Id,Ebuild),
            system:time_file(Ebuild,Modified),
            Modified > Time),
           (message:scroll([Id]))),
            % script:exec(cache,[Ebuild]),!)).
+  message:sc,
   message:inform(['Updated metadata']).
 
 
@@ -168,6 +170,7 @@ sync(metadata) ::-
 
 sync(kb) ::-
   :this(Repository),
+  message:hc,
   forall(:find_metadata(E,T,C,N,V),
          (:read_metadata(E,T,M),
           retractall(cache:entry(Repository,E,_,_,_,_)),
@@ -183,6 +186,7 @@ sync(kb) ::-
           retractall(cache:manifest(Repository,P,_,_,_,_)),
           assertz(cache:manifest(Repository,P,T,C,N,M)),
           message:scroll([P]))),!,
+  message:sc,
   message:inform(['Updated prolog knowledgebase']).
 
 
