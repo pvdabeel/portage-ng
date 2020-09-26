@@ -4,7 +4,7 @@
 # ${2} = local
 
 if [ -d "${2}" ]; then 
-  git -C "${2}" pull 
+  git -C "${2}" pull --no-rebase
 else
   git -C "`dirname ${2}`" clone "${1}"
 fi
