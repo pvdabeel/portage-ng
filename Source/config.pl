@@ -120,3 +120,12 @@ config:proving_target(run).
 % - parallel_fast
 
 config:test_style(parallel_verbose).
+
+
+%! config:failsilenton(?Key)
+%
+% Fails silently (i.e. without messaging failure on the termimal.
+% Key can be:
+% - version : fails silently when trying to parse versions from git repositories
+
+config:failsilenton(version).

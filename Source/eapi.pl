@@ -1555,7 +1555,11 @@ packageversion(Name,Package,Version) :-
   phrase(eapi:package(Package),N,V),
   phrase(eapi:version(Version),V,[]),!.
 
-packageversion(Name,_,_) :-
+packageversion(_,_,_) :-
+  config:failsilenton(version),!,
+  fail.
+
+pacakgeversion(Name,_,_) :-
   message:failure(Name).
 
 
