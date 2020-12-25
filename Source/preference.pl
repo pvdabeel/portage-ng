@@ -148,7 +148,7 @@ preference:positive_use('gif').
 preference:positive_use('git').
 preference:positive_use('glitz').
 preference:positive_use('gmp').
-preference:positive_use('gpg').
+%preference:positive_use('gpg').
 preference:positive_use('gpm').
 preference:positive_use('http').
 preference:positive_use('iconv').
