@@ -148,7 +148,7 @@ preference:positive_use('gif').
 preference:positive_use('git').
 preference:positive_use('glitz').
 preference:positive_use('gmp').
-%preference:positive_use('gpg').
+preference:positive_use('gpg').
 preference:positive_use('gpm').
 preference:positive_use('http').
 preference:positive_use('iconv').
@@ -267,6 +267,8 @@ preference:masked(Repository://Entry) :- preference:known_broken(Repository://En
 
 
 % run target fail
+preference:masked(portage://'net-fs/samba-4.13.2-r1').           % 2020-12-25
+preference:masked(portage://'net-fs/samba-4.13.1-r1').           % 2020-12-25
 preference:masked(portage://'sci-libs/hdf5-1.10.5-r1').          % 2020-05-09
 preference:masked(portage://'dev-vcs/mercurial-9999').           % 2020-05-09
 preference:masked(portage://'dev-java/xom-1.3.2').               % 2020-05-09
