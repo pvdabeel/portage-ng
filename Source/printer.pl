@@ -754,3 +754,36 @@ printer:test(Repository,parallel_verbose) :-
 
 printer:test(Repository,parallel_fast) :-
   printer:test(Repository,parallel_verbose).
+
+
+
+%! printer:write_plans(+Directory,+Repository)
+%
+% Proves and writes plan for every entry in a given repository to a proof file
+% Assumes graph directory exists. (grapher:prepare_directory)
+
+printer:write_plans(D,Repository) :-
+  Repository:get_size(S),
+  count:newinstance(counter),
+  count:init(0,S),
+  config:time_limit(T),
+  config:proving_target(Action),
+  config:number_of_cpus(Cpus),
+  findall((catch(call_with_time_limit(T,(prover:prove(Repository://E:Action,[],Proof,[],Model,[],_Constraints),!,
+                                         planner:plan(Proof,[],[],Plan),
+                                         atomic_list_concat([D,'/',E,'.emptytree-plan'],File),
+                                         with_mutex(mutex,(count:increase,
+                                                           count:percentage(P),
+                                                           message:title(['Printing plan (',Cpus,' threads): ',P,' complete']),
+                                                           tell(File),
+                                                           nl,message:topheader(['[',P,'] - Printing plan for ',Repository://E:Action]),
+                                                           printer:print(Repository://E:Action,Model,Proof,Plan),
+                                                           told)))),
+                 time_limit_exceeded,
+                 (message:failure([E,' (time limit exceeded)']),
+                  assert(prover:broken(Repository://E))))),
+           Repository:entry(E),
+           Calls),
+  time(concurrent(Cpus,Calls,[])),!,
+  message:title_reset,
+  message:inform(['wrote plan for ',S,' ',Repository,' entries.']).
