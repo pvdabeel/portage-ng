@@ -65,6 +65,8 @@ preference:env_features('sign -ccache -buildpkg -sandbox -usersandbox -ebuild-lo
 % Fact which defines the ACCEPT_KEYWORDS variable
 
 preference:accept_keywords(stable(amd64)).
+preference:accept_keywords(unstable(amd64)).
+
 
 
 %! preference:use(?Use)
@@ -258,26 +260,48 @@ preference:printing_style('column').
 %
 % Fact which masks a Repository entry
 
+% Disabled for now (performance)
+%
 % The prover uses the dynamic 'proven:broken/1' to mark some entries as broken
-preference:masked(Repository://Entry) :- prover:broken(Repository://Entry).
-
+% preference:masked(Repository://Entry) :- prover:broken(Repository://Entry).
+%
 % The following packages have known broken dependencies in RDEPEND
-preference:masked(Repository://Entry) :- preference:known_broken(Repository://Entry).
+% preference:masked(Repository://Entry) :- preference:known_broken(Repository://Entry).
 
 
-preference:masked(portage://'app-xemacs/dired-1.19').                  % 2020-05-09
-preference:masked(portage://'app-xemacs/ediff-1.77').                  % 2020-05-09
-preference:masked(portage://'app-xemacs/edit-utils-2.44').             % 2020-05-09
-preference:masked(portage://'dev-java/xom-1.3.2').                     % 2020-05-09
-preference:masked(portage://'dev-lang/mono-6.10.0.104').               % 2020-12-25
-preference:masked(portage://'dev-lang/mono-6.6.0.161').                % 2020-05-09
-preference:masked(portage://'dev-lang/scala-2.12.10').                 % 2020-05-09
+% The following packages fail:
+
+% 1. KEYWORD-related failure:
+%
+% Fails when only accept_keywords(stable(amd64)) is set
+% Fixed temporarily by adding unstable keyword to default config
+%
+% preference:masked(portage://'app-xemacs/dired-1.19').                % 2020-05-09
+% preference:masked(portage://'app-xemacs/ediff-1.77').                % 2020-05-09
+% preference:masked(portage://'app-xemacs/edit-utils-2.44').           % 2020-05-09
+% preference:masked(portage://'dev-java/xom-1.3.2').                   % 2020-05-09
+% preference:masked(portage://'dev-lang/mono-6.10.0.104').             % 2020-12-25
+% preference:masked(portage://'dev-lang/mono-6.6.0.161').              % 2020-05-09
+% preference:masked(portage://'dev-lang/scala-2.12.10').               % 2020-05-09
+% preference:masked(portage://'media-libs/openimageio-2.2.10.0').      % 2021-01-08
+% preference:masked(portage://'media-libs/openimageio-2.2.9.0-r1').    % 2020-12-25
+%
+% We should set accept_keywords(_) for the following:
 preference:masked(portage://'dev-vcs/mercurial-9999').                 % 2020-05-09
-preference:masked(portage://'kde-apps/kde-apps-meta-20.08.3').         % 2021-01-08
-preference:masked(portage://'kde-apps/kde-apps-meta-20.12.1').         % 2021-01-08
-preference:masked(portage://'kde-apps/kde-meta-20.08.3').              % 2020-12-25
-preference:masked(portage://'media-libs/openimageio-2.2.10.0').        % 2021-01-08
-preference:masked(portage://'media-libs/openimageio-2.2.9.0-r1').      % 2020-12-25
+
+% 2. Timeout fails
+%
+% Fixed by setting timeout to 120 seconds
+% Need better handling of large lists across backtracking to improve this
+% or keep lists smaller
+%
+% preference:masked(portage://'kde-apps/kde-apps-meta-20.08.3').       % 2021-01-08
+% preference:masked(portage://'kde-apps/kde-apps-meta-20.12.1').       % 2021-01-08
+% preference:masked(portage://'kde-apps/kde-meta-20.08.3').            % 2020-12-25
+
+% 3. To be investigated fails
+%
+% To be investigated (keyword constraint failure?)
 preference:masked(portage://'net-fs/samba-4.13.2-r1').                 % 2021-01-08
 preference:masked(portage://'net-fs/samba-4.13.3').                    % 2021-01-08
 preference:masked(portage://'sci-libs/hdf5-1.10.5-r1').                % 2020-05-09
