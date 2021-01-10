@@ -267,24 +267,39 @@ preference:masked(Repository://Entry) :- preference:known_broken(Repository://En
 
 
 % run target fail
-preference:masked(portage://'net-fs/samba-4.13.2-r1').           % 2020-12-25
-preference:masked(portage://'net-fs/samba-4.13.1-r1').           % 2020-12-25
-preference:masked(portage://'sci-libs/hdf5-1.10.5-r1').          % 2020-05-09
-preference:masked(portage://'dev-vcs/mercurial-9999').           % 2020-05-09
-preference:masked(portage://'dev-java/xom-1.3.2').               % 2020-05-09
-preference:masked(portage://'dev-lang/scala-2.12.10').           % 2020-05-09
+preference:masked(portage://'kde-apps/kdepim-meta-20.12.1').           % 2021-01-08
+preference:masked(portage://'kde-apps/kde-apps-meta-20.12.1').         % 2021-01-08
+preference:masked(portage://'kde-apps/kde-apps-meta-20.08.3').         % 2021-01-08
+preference:masked(portage://'kde-apps/kdepim-meta-20.12.1').           % 2021-01-08
+preference:masked(portage://'kde-apps/kdepim-meta-20.08.3').           % 2021-01-08
+preference:masked(portage://'kde-apps/plasma-telepathy-meta-20.08.3'). % 2021-01-08
+preference:masked(portage://'kde-misc/zanshin-0.5.71-r2').             % 2021-01-08
+preference:masked(portage://'kde-plasma/plasma-meta-5.20.5').          % 2021-01-08
+preference:masked(portage://'kde-plasma/plasma-meta-5.19.5').          % 2021-01-08
+preference:masked(portage://'kde-plasma/plasma-workspace-5.20.5').     % 2021-01-08
+preference:masked(portage://'kde-plasma/plasma-workspace-5.19.5-r2').  % 2021-01-08
+preference:masked(portage://'media-libs/openimageio-2.2.9.0-r1').      % 2021-01-08
+preference:masked(portage://'media-libs/openimageio-2.2.10.0').        % 2021-01-08
+preference:masked(portage://'net-fs/samba-4.13.3').                    % 2021-01-08
+preference:masked(portage://'net-fs/samba-4.13.2-r1').                 % 2021-01-08
+preference:masked(portage://'net-fs/samba-4.13.2-r1').                 % 2020-12-25
+preference:masked(portage://'net-fs/samba-4.13.1-r1').                 % 2020-12-25
+preference:masked(portage://'sci-libs/hdf5-1.10.5-r1').                % 2020-05-09
+preference:masked(portage://'dev-vcs/mercurial-9999').                 % 2020-05-09
+preference:masked(portage://'dev-java/xom-1.3.2').                     % 2020-05-09
+preference:masked(portage://'dev-lang/scala-2.12.10').                 % 2020-05-09
 
 % time limit fail
-preference:masked(portage://'media-libs/openimageio-2.2.9.0-r1').% 2020-12-25
-preference:masked(portage://'kde-apps/kde-meta-20.08.3').        % 2020-12-25
-preference:masked(portage://'kde-apps/kde-meta-20.04.0').        % 2020-05-09
-preference:masked(portage://'kde-apps/kde-meta-19.12.3').        % 2020-05-09
-preference:masked(portage://'kde-apps/kde-apps-meta-20.12.0').   % 2020-12-25
-preference:masked(portage://'kde-apps/kde-apps-meta-20.08.3').   % 2020-12-25
-preference:masked(portage://'kde-apps/kde-apps-meta-20.04.0').   % 2020-05-09
-preference:masked(portage://'kde-apps/kde-apps-meta-19.12.3').   % 2020-05-09
-preference:masked(portage://'dev-lang/mono-6.10.0.104').         % 2020-12-25
-preference:masked(portage://'dev-lang/mono-6.6.0.161').          % 2020-05-09
-preference:masked(portage://'app-xemacs/edit-utils-2.44').       % 2020-05-09
-preference:masked(portage://'app-xemacs/ediff-1.77').            % 2020-05-09
-preference:masked(portage://'app-xemacs/dired-1.19').           % 2020-05-09
+preference:masked(portage://'media-libs/openimageio-2.2.9.0-r1').      % 2020-12-25
+preference:masked(portage://'kde-apps/kde-meta-20.08.3').              % 2020-12-25
+preference:masked(portage://'kde-apps/kde-meta-20.04.0').              % 2020-05-09
+preference:masked(portage://'kde-apps/kde-meta-19.12.3').              % 2020-05-09
+preference:masked(portage://'kde-apps/kde-apps-meta-20.12.0').         % 2020-12-25
+preference:masked(portage://'kde-apps/kde-apps-meta-20.08.3').         % 2020-12-25
+preference:masked(portage://'kde-apps/kde-apps-meta-20.04.0').         % 2020-05-09
+preference:masked(portage://'kde-apps/kde-apps-meta-19.12.3').         % 2020-05-09
+preference:masked(portage://'dev-lang/mono-6.10.0.104').               % 2020-12-25
+preference:masked(portage://'dev-lang/mono-6.6.0.161').                % 2020-05-09
+preference:masked(portage://'app-xemacs/edit-utils-2.44').             % 2020-05-09
+preference:masked(portage://'app-xemacs/ediff-1.77').                  % 2020-05-09
+preference:masked(portage://'app-xemacs/dired-1.19').                  % 2020-05-09
