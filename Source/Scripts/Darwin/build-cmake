@@ -9,9 +9,9 @@ if ! [ -x "$path_to_executable" ]; then
   exit 1
 fi
 
-LOCAL=${1}
+LOCAL="${1}"
 
-cd ${LOCAL}
+cd "${LOCAL}"
 
 mkdir -p build
 cd build

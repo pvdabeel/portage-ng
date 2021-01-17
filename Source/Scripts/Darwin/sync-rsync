@@ -4,7 +4,7 @@
 # ${2} = local
 
 rsync \
-           ${1} \
+           "${1}" \
            --recursive \
            --links \
            --safe-links \
@@ -22,4 +22,4 @@ rsync \
            --no-motd \
            --human-readable \
            --out-format ">>> %n %L" \
-            ${2}
+            "${2}"
