@@ -1,7 +1,7 @@
 /*
   Author:   Pieter Van den Abeele
   E-mail:   pvdabeel@mac.com
-  Copyright (c) 2005-2019, Pieter Van den Abeele
+  Copyright (c) 2005-2021, Pieter Van den Abeele
 
   Distributed under the terms of the LICENSE file in the root directory of this
   project.
@@ -119,28 +119,28 @@ main :-
 
   % Example: Portage repository - sync via git
   % ------------------------------------------
-  portage:init('/Users/pvdabeel/Repository/portage-git','/Users/pvdabeel/Repository/portage-git/metadata/md5-cache',
+  portage:init('/Volumes/Disk 1/Repository/portage-git','/Volumes/Disk 1/Repository/portage-git/metadata/md5-cache',
                'https://github.com/gentoo-mirror/gentoo','git','eapi'),
 
 
   % Example: Overlay repository - local sync
   % ----------------------------------------
-  overlay:init('/Users/pvdabeel/Repository/overlay',
-               '/Users/pvdabeel/Repository/overlay/metadata/md5-cache',
+  overlay:init('/Volumes/Disk 1/Repository/overlay',
+               '/Volumes/Disk 1/Repository/overlay/metadata/md5-cache',
                '/Users/pvdabeel/Desktop/Prolog/Repository/overlay/','rsync','eapi'),
 
 
   % Example: Github code repository - sync via git
   % ----------------------------------------------
-  swipl:init('/Users/pvdabeel/Repository/swipl-devel',
-             '/Users/pvdabeel/Repository/swipl-devel/metadata',
+  swipl:init('/Volumes/Disk 1/Repository/swipl-devel',
+             '/Volumes/Disk 1/Repository/swipl-devel/metadata',
              'https://github.com/swi-prolog/swipl-devel','git','cmake'),
 
 
   % Example: Github code repository - sync via git
   % ----------------------------------------------
-  linux:init('/Users/pvdabeel/Repository/linux',
-             '/Users/pvdabeel/Repository/linux/metadata',
+  linux:init('/Volumes/Disk 1/Repository/linux',
+             '/Volumes/Disk 1/Repository/linux/metadata',
              'https://github.com/torvalds/linux','git','cmake'),
 
 

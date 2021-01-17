@@ -10,7 +10,7 @@
 while true
 do
 
-cd ~/Repository/portage-git/;
+cd '/Volumes/Disk 1/Repository/portage-git/';
 
 git fetch --prune;
 LOCAL=$(git rev-parse HEAD);
@@ -27,7 +27,7 @@ if [ $LOCAL != $REMOTE ]; then
     portage-ng --sync  # sync repository
     portage-ng --graph # update graph
     
-    pushd ~/Graph/ 
+    pushd '/Volumes/Disk 1/Graph/'
 
     git add .
     git commit -m "Update" 
