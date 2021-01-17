@@ -23,8 +23,15 @@ This file declares a predicate to execute a script inside the scripts directory
 %
 % Call script with arguments
 
+
+script:exec(S,[]) :-
+  !,
+  atomic_list_concat(['Source/Scripts/',S],Script),
+  shell(Script),!.
+
 script:exec(S,Args) :-
   is_list(Args),
-  atomic_list_concat(['Source/Scripts/',S],Call),
-  atomic_list_concat([Call|Args],' ',Cmd),
+  atomic_list_concat(['Source/Scripts/',S],Script),
+  atomic_list_concat(Args,'\' \'',QuotedArgs),
+  atomic_list_concat([Script,' \'',QuotedArgs,'\''],'',Cmd),
   shell(Cmd),!.
