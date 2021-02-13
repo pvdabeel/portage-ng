@@ -22,21 +22,17 @@ The prover computes a proof and a model for a given input
 % *******************
 
 
-%! prover:proof(+Target,+OldProof,-NewProof,+OldModel,-NewModel,+OldConstraints,+NewConstraints)
+%! prover:prove(+Literal,+OldProof,-NewProof,+OldModel,-NewModel,+OldConstraints,-NewConstraints)
 %
-% prove a given Target starting from OldProof and OldModel, producing NewProof
-% and NewModel
+% prove a given Literal starting from a given Proof, Model, Assumptions Constraints,
+% producing a new Proof, Model, Assumptions and Constraints
 
-% ------------------------------------------
-% CASE 1: A list of literals to prove, empty
-% ------------------------------------------
+
+% -----------------------------------
+% CASE 1: A list of literals to prove
+% -----------------------------------
 
 prover:prove([],Proof,Proof,Model,Model,Constraints,Constraints) :- !.
-
-
-% ----------------------------------------------
-% CASE 2: A list of literals to prove, not empty
-% ----------------------------------------------
 
 prover:prove([Literal|OtherLiterals],Proof,NewProof,Model,NewModel,Constraints,NewConstraints) :-
   !,
@@ -44,88 +40,84 @@ prover:prove([Literal|OtherLiterals],Proof,NewProof,Model,NewModel,Constraints,N
   prover:prove(OtherLiterals,TempProof,NewProof,TempModel,NewModel,TempConstraints,NewConstraints).
 
 
-% -------------------------------------------------
-% CASE 3: A single literal to prove, already proven
-% -------------------------------------------------
+% ---------------------------------
+% CASE 2: A single literal to prove
+% ---------------------------------
+
+% CASE 2a: Literal is a constraint
+
+prover:prove(constraint(Literal),Proof,Proof,Model,Model,Constraints,NewConstraints) :-
+  % not(is_list(Literal)),				% green cut
+  !,
+  prover:unify_constraints(constraint(Literal),Constraints,NewConstraints).
+  % todo: revalidate model against constraints
+
+
+% CASE 2b: already proven
 
 prover:prove(Literal,Proof,Proof,Model,Model,Constraints,Constraints) :-
-  not(is_list(Literal)),
-  not(prover:is_constraint(Literal)),
+  % not(is_list(Literal)),				% green cut
+  % not(prover:is_constraint(Literal)),			% green cut
   prover:proven(Literal,Model),!.
 
+
+% CASE 2c: assumed proven
+
 prover:prove(Literal,Proof,Proof,Model,Model,Constraints,Constraints) :-
-  not(is_list(Literal)),
-  not(prover:is_constraint(Literal)),
+  % not(is_list(Literal)),				% green cut
+  % not(prover:is_constraint(Literal)),			% green cut
   prover:assumed_proven(Literal,Model),!.
 
 
-% ------------------------------------------------------------------------------------------------
-% CASE 4a: A single literal to prove, not proven, not conflicting, body is empty
-% ------------------------------------------------------------------------------------------------
+% CASE 2d: not proven, rule with empty body
 
 prover:prove(Literal,Proof,[rule(Literal,[])|Proof],Model,[Literal|Model],Constraints,Constraints) :-
-  not(is_list(Literal)),
-  not(prover:is_constraint(Literal)),
-  not(prover:proven(Literal,Model)),
+  % not(is_list(Literal)),				% green cut
+  % not(prover:is_constraint(Literal)),			% green cut
+  % not(prover:proven(Literal,Model)),			% green cut
+  rule(Literal,[]),!,
   not(prover:conflicts(Literal,Model)),
-  not(prover:conflictrule(rule(Literal,[]),Proof)),
-  rule(Literal,[]).
+  not(prover:conflictrule(rule(Literal,[]),Proof)).
 
 
-% -------------------------------------------------------------------------------
-% CASE 4a: A single literal to prove, not proven, not conflicting, assumed proven
-% -------------------------------------------------------------------------------
+% CASE 2e: not proven, no rule, make assumption
 
-prover:prove(Literal,Proof,[rule(Literal,assumed(Literal))|Proof],Model,Model,Constraints,Constraints) :-
-  not(is_list(Literal)),
-  not(prover:is_constraint(Literal)),
-  not(prover:proven(Literal,Model)),
-  not(prover:conflicts(Literal,Model)),
-  not(prover:conflictrule(rule(Literal,[]),Proof)),
-  prover:assumed_proven(Literal,Model).
+%prover:prove(Literal,Proof,[rule(assumed(rule(Literal,[])))|Proof],Model,[assumed(Literal)|Model],Constraints,Constraints) :-
+%   not(is_list(Literal)),				% green cut
+%   not(prover:is_constraint(Literal)),			% green cut
+%   not(prover:proven(Literal,Model)),			% green cut
+%   not(prover:conflicts(Literal,Model)),
+%   not(prover:conflictrule(rule(Literal,[]),Proof)),
+%   not(rule(Literal,_)),!.
 
 
-% -----------------------------------------------------------------------------
-% CASE 5: A single literal to prove, not proven, not proving, body is not empty
-% -----------------------------------------------------------------------------
-
-prover:prove(Literal,Proof,NewProof,Model,[Literal|NewModel],Constraints,NewConstraints) :-
-  not(is_list(Literal)),
-  not(prover:is_constraint(Literal)),
-  not(prover:proven(Literal,Model)),
-  not(prover:conflicts(Literal,Model)),
-  not(prover:conflictrule(rule(Literal,[]),Proof)),
-  rule(Literal,Body),
-  not(prover:fact(rule(Literal,Body))),
-  not(prover:proving(rule(Literal,Body),Proof)),
-  prover:prove(Body,[rule(Literal,Body)|Proof],NewProof,Model,NewModel,Constraints,NewConstraints).
-
-
-% -------------------------------------------------------------------------
-% CASE 6: A single literal to prove, not proven, proving, body is not empty
-% -------------------------------------------------------------------------
+% CASE 2f: not proven, proving, make assumption
 
 prover:prove(Literal,Proof,NewProof,Model,NewModel,Constraints,NewConstraints) :-
-  not(is_list(Literal)),
-  not(prover:is_constraint(Literal)),
-  not(prover:proven(Literal,Model)),
+  % not(is_list(Literal)),				% green cut
+  % not(prover:is_constraint(Literal)),			% green cut
+  % not(prover:proven(Literal,Model)),			% green cut
+  % rule(Literal,Body),
+  % not(prover:fact(rule(Literal,Body))),		% green cut
+  prover:proving(rule(Literal,_),Proof),
+  not(prover:assumed_proving(Literal,Proof)),!,
   not(prover:conflicts(Literal,Model)),
   not(prover:conflictrule(rule(Literal,[]),Proof)),
-  rule(Literal,Body),
-  not(prover:fact(rule(Literal,Body))),
-  prover:proving(rule(Literal,Body),Proof),
-  not(prover:assumed_proving(Literal,Proof)),
   prover:prove([],[assumed(rule(Literal,[]))|Proof],NewProof,[assumed(Literal)|Model],NewModel,Constraints,NewConstraints).
 
 
-% -----------------------------
-% CASE 7: A constraint to prove
-% -----------------------------
+% CASE 2g: not proven, not proving, prove body
 
-prover:prove(Literal,Proof,Proof,Model,Model,Constraints,NewConstraints) :-
-  not(is_list(Literal)),
-  prover:is_constraint(Literal),
-  prover:unify_constraints(Literal,Constraints,NewConstraints).
+prover:prove(Literal,Proof,NewProof,Model,[Literal|NewModel],Constraints,NewConstraints) :-
+  % not(is_list(Literal)),				% green cut
+  % not(prover:is_constraint(Literal)),			% green cut
+  % not(prover:proven(Literal,Model)),			% green cut
+  not(prover:conflicts(Literal,Model)),
+  not(prover:conflictrule(rule(Literal,[]),Proof)),
+  rule(Literal,Body),
+  % not(prover:fact(rule(Literal,Body))),		% green cut
+  % not(prover:proving(rule(Literal,Body),Proof)),	% green cut
+  prover:prove(Body,[rule(Literal,Body)|Proof],NewProof,Model,NewModel,Constraints,NewConstraints).
 
 
 % -----------------------------------------
@@ -170,7 +162,7 @@ prover:assumed_proving(rule(Literal,_), Proof) :- memberchk(assumed(rule(Literal
 prover:conflicts(naf(Literal), Model) :- prover:proven(Literal,Model),!.
 prover:conflicts(naf(Literal), Model) :- prover:assumed_proven(Literal,Model),!.
 
-prover:conflicts(Literal, Model) :- prover:proven(naf(Literal),Model),!.
+prover:conflicts(Literal, Model) :- prover:proven(naf(Literal),Model),!. % reformulate as constraint
 
 
 % ------------------------------------------------------------------
