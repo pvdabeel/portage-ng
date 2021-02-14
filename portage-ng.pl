@@ -57,7 +57,7 @@ This file is the main source file in the repository. It loads all other files.
 
 :- ensure_loaded('Source/unify.pl').
 
-:- ensure_loaded('Source/counter.pl').
+:- ensure_loaded('Source/stat.pl').
 :- ensure_loaded('Source/reader.pl').
 :- ensure_loaded('Source/parser.pl').
 :- ensure_loaded('Source/prover.pl').
@@ -65,6 +65,7 @@ This file is the main source file in the repository. It loads all other files.
 :- ensure_loaded('Source/printer.pl').
 :- ensure_loaded('Source/builder.pl').
 :- ensure_loaded('Source/grapher.pl').
+:- ensure_loaded('Source/worker.pl').
 
 :- ensure_loaded('Source/script.pl').
 

@@ -8,22 +8,22 @@
 */
 
 
-/** <module> COUNTER
-This class is used for outputting parallel process progress
+/** <module> STAT
+This class is used for measuring progress and statistics
 */
 
-:- module(counter, []).
+:- module(stat, []).
 
-% *******************
-% EBUILD declarations
-% *******************
+% *****************
+% STAT declarations
+% *****************
 
 :- class.
 
 % public interface
 
-:- dpublic('counter'/0).
-:- dpublic('~counter'/0).
+:- dpublic('stat'/0).
+:- dpublic('~stat'/0).
 
 :- dpublic('init'/2).
 :- dpublic('increase'/0).
@@ -42,7 +42,7 @@ This class is used for outputting parallel process progress
 %
 % Public predicate
 
-'counter' ::-
+'stat' ::-
   true.
 
 
@@ -50,11 +50,11 @@ This class is used for outputting parallel process progress
 %
 % Public predicate
 
-'~knowledgebase' ::-
+'~stat' ::-
   true.
 
 
-%! counter:init(+Count,+Total)
+%! stat:init(+Count,+Total)
 %
 % Public predicate
 %
@@ -67,7 +67,7 @@ init(Count,Total) ::-
   <=timestamp(T).
 
 
-%! counter:increase
+%! stat:increase
 %
 % Public predicate
 %
@@ -78,7 +78,7 @@ increase ::-
   NewCount is CurrentCount + 1,
   <=count(NewCount).
 
-%! counter:percentage(-Percentage)
+%! stat:percentage(-Percentage)
 %
 % Public predicate
 %
@@ -90,7 +90,7 @@ percentage(Percentage) ::-
   P is Count/Total * 100,
   format(atom(Percentage),'~t~2f~w~7|',[P,'%']).
 
-%! counter:runningtime(-Min,-Sec)
+%! stat:runningtime(-Min,-Sec)
 %
 % Public predicate
 %
@@ -103,7 +103,7 @@ runningtime(Min,Sec) ::-
   Sec is Seconds mod 60,
   Min is Seconds div 60.
 
-%!counter:total
+%! stat:total
 %
 % Private predicate
 %
@@ -113,7 +113,7 @@ total(Total) ::-
   number(Total).
 
 
-%!counter:count
+%! stat:count
 %
 % Private predicate
 %
