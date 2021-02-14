@@ -117,5 +117,5 @@ parser:test(Repository,parallel_fast) :-
           (Repository:entry(E),reader:invoke(C,E,R)),
           Calls),
   time(concurrent(Cpus,Calls,[])),!,
-  statistics:runningtime(Min,Sec),
+  stats:runningtime(Min,Sec),
   message:inform(['parsed ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
