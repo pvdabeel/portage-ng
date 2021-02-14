@@ -29,11 +29,13 @@ This class is used for outputting parallel process progress
 :- dpublic('increase'/0).
 
 :- dpublic('percentage'/1).
+:- dpublic('runningtime'/2).
 
 % private interface
 
 :- dprivate('count'/1).
 :- dprivate('total'/1).
+:- dprivate('timestamp'/1).
 
 
 %! Constructor
@@ -59,8 +61,10 @@ This class is used for outputting parallel process progress
 % Sets the count and total to a given number
 
 init(Count,Total) ::-
+  get_time(T),
   <=count(Count),
-  <=total(Total).
+  <=total(Total),
+  <=timestamp(T).
 
 
 %! counter:increase
@@ -86,6 +90,18 @@ percentage(Percentage) ::-
   P is Count/Total * 100,
   format(atom(Percentage),'~t~2f~w~7|',[P,'%']).
 
+%! counter:runningtime(-Min,-Sec)
+%
+% Public predicate
+%
+% Retrieves the runningtime
+
+runningtime(Min,Sec) ::-
+  ::timestamp(T1),
+  get_time(T2),
+  Seconds is integer(T2-T1),
+  Sec is Seconds mod 60,
+  Min is Seconds div 60.
 
 %!counter:total
 %
@@ -105,3 +121,13 @@ total(Total) ::-
 
 count(Count) ::-
   number(Count).
+
+
+%!counter:timestamp
+%
+% Private predicate
+%
+% The timestamp
+
+timestamp(Timestamp) ::-
+  number(Timestamp).
