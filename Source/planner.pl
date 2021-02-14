@@ -32,23 +32,32 @@ based on topological sort:
 
 planner:zerorules([],Weights,Weights,[],[]) :- !.
 
-planner:zerorules([constraint(C)|Rest],ZeroWeights,[constraint(C)|TempZeroWeights],[constraint(C)|ZeroRules],NonZeroRules) :-
+planner:zerorules([constraint(_)|Rest],ZeroWeights,TempZeroWeights,ZeroRules,NonZeroRules) :-
   !,
   planner:zerorules(Rest,ZeroWeights,TempZeroWeights,ZeroRules,NonZeroRules).
 
 planner:zerorules([assumed(rule(Head,Body))|Rest],ZeroWeights,[Head|TempZeroWeights],[assumed(rule(Head,Body))|ZeroRules],NonZeroRules) :-
-  exclude(prover:is_constraint,Body,TempBody),
-  subtract(TempBody,ZeroWeights,[]),!,
+  planner:is_zero(Body,ZeroWeights),!,
   planner:zerorules(Rest,ZeroWeights,TempZeroWeights,ZeroRules,NonZeroRules).
 
 planner:zerorules([rule(Head,Body)|Rest],ZeroWeights,[Head|TempZeroWeights],[rule(Head,Body)|ZeroRules],NonZeroRules) :-
-  exclude(prover:is_constraint,Body,TempBody),
-  subtract(TempBody,ZeroWeights,[]),!,
+  planner:is_zero(Body,ZeroWeights),!,
   planner:zerorules(Rest,ZeroWeights,TempZeroWeights,ZeroRules,NonZeroRules).
 
-planner:zerorules([rule(Head,Body)|Rest],ZeroWeights,TempZeroWeights,ZeroRules,[rule(Head,Body)|NonZeroRules]) :-
+planner:zerorules([Rule|Rest],ZeroWeights,TempZeroWeights,ZeroRules,[Rule|NonZeroRules]) :-
   !,
   planner:zerorules(Rest,ZeroWeights,TempZeroWeights,ZeroRules,NonZeroRules).
+
+
+%! planner:is_zero(+Body,+Weights)
+%
+% Check whether a body has zero weight
+
+planner:is_zero([],_) :- !.
+
+% planner:is_zero([constraint(_)|R],W) :- !, planner:is_zero(R,W).
+
+planner:is_zero([E|R],W) :- memberchk(E,[constraint(_)|W]),!, planner:is_zero(R,W).
 
 
 %! planner:plan(+Rules,+Weights,+OldPlan,+NewPlan)
