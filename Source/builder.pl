@@ -224,7 +224,8 @@ builder:test(Repository) :-
                      time_limit_exceeded,
                      assert(builder:broken(Repository://E)));
 	       message:failure(E)))),!,
-  message:inform(['executed plan ',S,' ',Repository,' entries.']).
+  count:runningtime(Min,Sec),
+  message:inform(['executed plan for ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
 
 
 %! builder:test(+Repository,+Style)

@@ -715,7 +715,8 @@ printer:test(Repository,single_verbose) :-
   time(forall(Repository:entry(E),
  	      (catch(call_with_time_limit(T,(count:increase,
                                              count:percentage(P),
-                                             message:title(['Printing plan (Single thread): ',P,' complete']),
+                                             count:runningtime(Min,Sec),
+                                             message:title(['Printing plan (Single thread): ',P,' processed in ',Min,'m ',Sec,'s']),
                                              nl,message:topheader(['[',P,'] - Printing plan for ',Repository://E:Action]),
                                              prover:prove(Repository://E:Action,[],Proof,[],Model,[],_Constraints),
                                              planner:plan(Proof,[],[],Plan),
@@ -724,8 +725,9 @@ printer:test(Repository,single_verbose) :-
                      (message:failure([E,' (time limit exceeded)']),
                       assert(prover:broken(Repository://E))));
 	       message:failure(E)))),!,
+  count:runningtime(Min,Sec),
   message:title_reset,
-  message:inform(['printed plan for ',S,' ',Repository,' entries.']).
+  message:inform(['printed plan for ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
 
 
 printer:test(Repository,parallel_verbose) :-
@@ -739,7 +741,8 @@ printer:test(Repository,parallel_verbose) :-
                                          planner:plan(Proof,[],[],Plan),
                                          with_mutex(mutex,(count:increase,
                                                            count:percentage(P),
-                                                           message:title(['Printing plan (',Cpus,' threads): ',P,' complete']),
+                                                           count:runningtime(Min,Sec),
+                                                           message:title(['Printing plan (',Cpus,' threads): ',P,' processed in ',Min,'m ',Sec,'s']),
                                                            nl,message:topheader(['[',P,'] - Printing plan for ',Repository://E:Action]),
                                                            printer:print(Repository://E:Action,Model,Proof,Plan))))),
                  time_limit_exceeded,
@@ -748,8 +751,9 @@ printer:test(Repository,parallel_verbose) :-
            Repository:entry(E),
            Calls),
   time(concurrent(Cpus,Calls,[])),!,
+  count:runningtime(Min,Sec),
   message:title_reset,
-  message:inform(['printed plan for ',S,' ',Repository,' entries.']).
+  message:inform(['printed plan for ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
 
 
 printer:test(Repository,parallel_fast) :-
@@ -774,7 +778,8 @@ printer:write_plans(D,Repository) :-
                                          atomic_list_concat([D,'/',E,'.emptytree-plan'],File),
                                          with_mutex(mutex,(count:increase,
                                                            count:percentage(P),
-                                                           message:title(['Printing plan (',Cpus,' threads): ',P,' complete']),
+                                                           count:runningtime(Min,Sec),
+                                                           message:title(['Printing plan (',Cpus,' threads): ',P,' processed in ',Min,'m ',Sec,'s']),
                                                            tell(File),
                                                            nl,message:topheader(['[',P,'] - Printing plan for ',Repository://E:Action]),
                                                            printer:print(Repository://E:Action,Model,Proof,Plan),
@@ -785,5 +790,6 @@ printer:write_plans(D,Repository) :-
            Repository:entry(E),
            Calls),
   time(concurrent(Cpus,Calls,[])),!,
+  count:runningtime(Min,Sec),
   message:title_reset,
-  message:inform(['wrote plan for ',S,' ',Repository,' entries.']).
+  message:inform(['wrote plan for ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).

@@ -22,10 +22,21 @@ The prover computes a proof and a model for a given input
 % *******************
 
 
-%! prover:prove(+Literal,+OldProof,-NewProof,+OldModel,-NewModel,+OldConstraints,-NewConstraints)
+%! prover:proof(+Literal,+OldProof,-NewProof,+OldModel,-NewModel,+OldConstraints,-NewConstraints)
 %
 % prove a given Literal starting from a given Proof, Model, Assumptions Constraints,
 % producing a new Proof, Model, Assumptions and Constraints
+
+prover:prove_targets([],Proof,Proof,Model,Model,Constraints,Constraints) :- !.
+
+prover:prove_targets([portage://Entry:run|OtherLiterals],Proof,NewProof,Model,NewModel,Constraints,NewConstraints) :-
+  !,
+  write(Entry),write(' -> '),
+  portage:entry(Entry),
+  write('Found '),
+  prover:prove(portage://Entry:run,Proof,TempProof,Model,TempModel,Constraints,TempConstraints),!,
+  write('& Proven '),nl,
+  prover:prove_targets(OtherLiterals,TempProof,NewProof,TempModel,NewModel,TempConstraints,NewConstraints).
 
 
 % -----------------------------------
@@ -224,15 +235,17 @@ prover:test(Repository,single_verbose) :-
   time(forall(Repository:entry(E),
  	      (catch(call_with_time_limit(T,(count:increase,
                                              count:percentage(P),
-                                             message:title(['Proving (Single thread): ',P,' complete']),
+                                             count:runningtime(Min,Sec),
+                                             message:title(['Proving (Single thread): ',P,' processed in ',Min,'m ',Sec,'s']),
                                              prover:prove(Repository://E:Action,[],_,[],_,[],_),
                                              message:success([P,' - ',E:Action]))),
                      time_limit_exceeded,
                      (message:failure([E:Action,' (time limit exceeded)']),
                       assert(prover:broken(Repository://E))));
                message:failure(E:Action)))),!,
+  count:runningtime(Min,Sec),
   message:title_reset,
-  message:inform(['proved ',S,' ',Repository,' entries.']).
+  message:inform(['proved ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
 
 prover:test(Repository,parallel_verbose) :-
   Repository:get_size(S),
@@ -244,7 +257,8 @@ prover:test(Repository,parallel_verbose) :-
   findall((catch(call_with_time_limit(T,(prover:prove(Repository://E:Action,[],_,[],_,[],_),!,
                                          with_mutex(mutex,(count:increase,
                                                            count:percentage(P),
-                                                           message:title(['Proving (',Cpus,' threads): ',P,' complete']),
+                                                           count:runningtime(Min,Sec),
+                                                           message:title(['Proving (',Cpus,' threads): ',P,' processed in ',Min,'m ',Sec,'s']),
                                                            message:success([P,' - ',E:Action]))))),
                  time_limit_exceeded,
                  (message:failure([E:Action,' (time limit exceeded)']),
@@ -253,11 +267,14 @@ prover:test(Repository,parallel_verbose) :-
           Repository:entry(E),
           Calls),!,
   time(concurrent(Cpus,Calls,[])),!,
+  count:runningtime(Min,Sec),
   message:title_reset,
-  message:inform(['proved ',S,' ',Repository,' entries.']).
+  message:inform(['proved ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
 
 prover:test(Repository,parallel_fast) :-
   Repository:get_size(S),
+  count:newinstance(counter),
+  count:init(0,S),
   config:proving_target(Action),
   config:number_of_cpus(Cpus),
   findall((prover:prove(Repository://E:Action,[],_,[],_,[],_),!;
@@ -265,4 +282,5 @@ prover:test(Repository,parallel_fast) :-
           Repository:entry(E),
           Calls),
   time(concurrent(Cpus,Calls,[])),!,
-  message:inform(['proved ',S,' ',Repository,' entries.']).
+  count:runningtime(Min,Sec),
+  message:inform(['proved ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
