@@ -110,7 +110,7 @@ planner:test(Repository,single_verbose) :-
 
 planner:test(Repository,parallel_verbose) :-
   Repository:get_size(S),
-  stats:newinstance(counter),
+  stats:newinstance(stat),
   stats:init(0,S),
   config:time_limit(T),
   config:proving_target(Action),
