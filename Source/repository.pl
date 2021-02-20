@@ -42,7 +42,7 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 :- dpublic(ebuild/3).
 :- dpublic(ebuild/4).
 :- dpublic(ebuild/6).
-:- dpublic(manifest/4).
+:- dpublic(manifest/7).
 
 :- dpublic(query/2).
 
@@ -174,7 +174,7 @@ sync(kb) ::-
 
   forall((:find_metadata(E,T,C,N,V),
           :read_metadata(E,T,M)),
-          (message:scroll([E]),
+          (message:scroll(['Ebuild: ',E]),
            retractall(cache:entry(Repository,E,_,_,_,_)),
            retractall(cache:entry_metadata(Repository,E,_,_)),
            assert(cache:entry(Repository,E,T,C,N,V)),
@@ -187,9 +187,11 @@ sync(kb) ::-
 
   forall((:find_manifest(P,T,C,N),
           :read_manifest(P,T,C,N,M)),
-         (message:scroll([P]),
-          retractall(cache:manifest(Repository,P,_,_,_,_)),
-          assert(cache:manifest(Repository,P,T,C,N,M)))),
+         (message:scroll(['Manifest: ',P]),
+          retractall(cache:manifest(Repository,P,_,_,_)),
+          assert(cache:manifest(Repository,P,T,C,N)),
+          forall(member(manifest(Filetype,Filename,Filesize,Checksums),M),
+                 assert(cache:manifest_metadata(Repository,P,Filetype,Filename,Filesize,Checksums))))),
 
   % re-create cache:repository, cache:category and cache:package facts
   % for the repository. These facts are used by the knowledgebase query
@@ -236,6 +238,7 @@ find_metadata(Entry,Timestamp,Category,Name,Version) ::-
   eapi:packageversion(Package,Name,Version),
   os:compose_path(Category,Package,Entry),
   os:compose_path(Cache,Entry,File),
+  exists_file(File),
   system:time_file(File,Timestamp).
 
 
@@ -249,15 +252,14 @@ find_metadata(Entry,Timestamp,Category,Name,Version) ::-
 find_manifest(Entry,Timestamp,Category,Name) ::-
   ::location(Location),
   ::cache(Cache),
-  catch((
-   os:directory_content(Cache,Category),
-   os:compose_path(Location,Category,CategoryDir),
-   os:directory_content(CategoryDir,Name),
-   os:compose_path(CategoryDir,Name,PackageDir),
-   exists_directory(PackageDir),
-   os:compose_path(PackageDir,'Manifest',Entry),
-   system:time_file(Entry,Timestamp)),_,
-  fail).
+  os:directory_content(Cache,Category),
+  os:compose_path(Location,Category,CategoryDir),
+  os:directory_content(CategoryDir,Name),
+  os:compose_path(CategoryDir,Name,PackageDir),
+  exists_directory(PackageDir),
+  os:compose_path(PackageDir,'Manifest',Entry),
+  exists_file(Entry),
+  system:time_file(Entry,Timestamp).
 
 
 %! repository:read_metadata(+Entry, -Timestamp, -Metadata)
@@ -283,24 +285,24 @@ read_metadata(Entry,_,[]) ::-
   fail.
 
 
-%! repository:read_manifest(+Path, +Category, +Name, -Manifest)
+%! repository:read_manifest(+Path, +Category, +Name, -Metadata)
 %
 % Public predicate
 %
 % Reads the manifest for a given path from disk if
 % it is new of has been modifed
 
-read_manifest(Path,Timestamp,Category,Name,Manifest) ::-
+read_manifest(Path,Timestamp,Category,Name,[]) ::-
   :this(Repository),
-  cache:manifest(Repository,Path,Timestamp,Category,Name,Manifest),!,
+  cache:manifest(Repository,Path,Timestamp,Category,Name),!,
   fail.
 
-read_manifest(Path,_,_,_,Manifest) ::-
+read_manifest(Path,_,_,_,Metadata) ::-
   reader:invoke(Path,Contents),
-  parser:invoke(manifest,_,Contents,Manifest),!.
+  parser:invoke(manifest,_,Contents,Metadata),!.
 
-read_manifest(Entry,_,_,_,[]) ::-
-  message:failure(['Failed to parse ',Entry,' metadata cache!']),
+read_manifest(Path,_,_,_,[]) ::-
+  message:failure(['Failed to parse ',Path,' metadata cache!']),
   fail.
 
 
@@ -408,9 +410,10 @@ ebuild(Id,Category,Name,Version,Key,Value) ::-
 % Retrieves manifest data
 % No disk access - initial sync required
 
-manifest(Id,Category,Name,Manifest) ::-
+manifest(Id,Category,Name,Filetype,Filename,Filesize,Checksums) ::-
   :this(Repository),
-  cache:manifest(Repository,Id,_,Category,Name,Manifest).
+  cache:manifest(Repository,Id,_,Category,Name),
+  cache:manifest_metadata(Repository,Id,Filetype,Filename,Filesize,Checksums).
 
 
 %! repository:query(+Query,-Result)

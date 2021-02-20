@@ -311,8 +311,8 @@ query([manifest(Type,Binary,Size)|Rest],Repository://Id) :-
   cache:entry(Repository,Id,_,Category,Name,_),
   knowledgebase:query([all(src_uri(Model))],Repository://Id),
   member(uri(_,_,Binary),Model),
-  cache:manifest(Repository,_,_,Category,Name,Manifest),
-  member(manifest(Type,Binary,Size,_),Manifest),
+  cache:manifest(Repository,P,_,Category,Name),
+  cache:manifest_metadata(Repository,P,Type,Binary,Size,_Checksums),
   query(Rest,Repository://Id).
 
 
