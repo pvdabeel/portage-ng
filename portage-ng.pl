@@ -21,10 +21,6 @@ and even build large scale software configrations.
 This file is the main source file in the repository. It loads all other files.
 */
 
-:- dynamic cache:entry/6.
-:- dynamic cache:entry_metadata/4.
-:- dynamic cache:manifest/6.
-
 
 % **********
 % PORTAGE-NG
@@ -47,6 +43,7 @@ This file is the main source file in the repository. It loads all other files.
 
 :- ensure_loaded('Source/config.pl').
 :- ensure_loaded('Source/os.pl').
+:- ensure_loaded('Source/cache.pl').
 :- ensure_loaded('Source/repository.pl').
 :- ensure_loaded('Source/knowledgebase.pl').
 
