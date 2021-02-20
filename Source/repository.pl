@@ -38,7 +38,7 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 :- dpublic(entry/1).
 :- dpublic(entry/2).
 :- dpublic(category/1).
-:- dpublic(package/3).
+:- dpublic(package/2).
 :- dpublic(ebuild/3).
 :- dpublic(ebuild/4).
 :- dpublic(ebuild/6).
@@ -350,35 +350,18 @@ entry(Entry,Time) ::-
 
 category(Category) ::-
   :this(Repository),
-  findall(C,cache:entry(Repository,_,_,C,_,_),Cs),
-  sort(Cs,Ss),!,
-  member(Category,Ss).
+  cache:category(Repository,Category).
 
 
-%! repository:packname(?Category,?Packname)
+%! repository:package(?Category,?Packname)
 %
 % Public predicate
 %
-% Retrieves packname
-
-packname(Category,Packname) ::-
-  :this(Repository),
-  :category(Category),
-  findall(P,cache:entry(Repository,_,_,Category,P,_),Ps),
-  sort(Ps,Ss),!,
-  member(Packname,Ss).
-
-%! repository:package(?Category, ?Package)
-%
-% Public predicate
-%
-% Retrieves metadata cache package
-% No disk access - initial sync required
+% Retrieves package
 
 package(Category,Package) ::-
   :this(Repository),
-  cache:entry(Repository,_,_,Category,Name,Version),
-  atomic_list_concat([Name,'-',Version],Package).
+  cache:package(Repository,Category,Package).
 
 
 %! repository:ebuild(?Category, ?Name, ?Version)
