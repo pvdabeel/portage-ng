@@ -102,9 +102,9 @@ planner:test(Repository,single_verbose) :-
                      time_limit_exceeded,
                      (message:failure([E:Action,' (time limit exceeded)']),
                       assert(prover:broken(Repository://E))));
-               message:failure(E:Action)))),!,
+               message:failure(E:Action)))),
   stats:runningtime(Min,Sec),
-  message:title_reset,
+  message:title_reset,!,
   message:inform(['created plan for ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
 
 
@@ -127,10 +127,10 @@ planner:test(Repository,parallel_verbose) :-
                    assert(prover:broken(Repository://E))));
            message:failure(E:Action)),
           Repository:entry(E),
-          Calls),!,
-  time(concurrent(Cpus,Calls,[])),!,
+          Calls),
+  time(concurrent(Cpus,Calls,[])),
   stats:runningtime(Min,Sec),
-  message:title_reset,
+  message:title_reset,!,
   message:inform(['created plan for ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
 
 
@@ -145,6 +145,6 @@ planner:test(Repository,parallel_fast) :-
            message:failure(E:Action)),
           Repository:entry(E),
           Calls),
-  time(concurrent(Cpus,Calls,[])),!,
-  stats:runningtime(Min,Sec),
+  time(concurrent(Cpus,Calls,[])),
+  stats:runningtime(Min,Sec),!,
   message:inform(['created plan for ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).

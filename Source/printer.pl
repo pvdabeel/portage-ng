@@ -724,9 +724,9 @@ printer:test(Repository,single_verbose) :-
                      time_limit_exceeded,
                      (message:failure([E,' (time limit exceeded)']),
                       assert(prover:broken(Repository://E))));
-	       message:failure(E)))),!,
+	       message:failure(E)))),
   stats:runningtime(Min,Sec),
-  message:title_reset,
+  message:title_reset,!,
   message:inform(['printed plan for ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
 
 
@@ -750,9 +750,9 @@ printer:test(Repository,parallel_verbose) :-
                   assert(prover:broken(Repository://E))))),
            Repository:entry(E),
            Calls),
-  time(concurrent(Cpus,Calls,[])),!,
+  time(concurrent(Cpus,Calls,[])),
   stats:runningtime(Min,Sec),
-  message:title_reset,
+  message:title_reset,!,
   message:inform(['printed plan for ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
 
 
@@ -789,7 +789,7 @@ printer:write_plans(D,Repository) :-
                   assert(prover:broken(Repository://E))))),
            Repository:entry(E),
            Calls),
-  time(concurrent(Cpus,Calls,[])),!,
+  time(concurrent(Cpus,Calls,[])),
   stats:runningtime(Min,Sec),
-  message:title_reset,
+  message:title_reset,!,
   message:inform(['wrote plan for ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).

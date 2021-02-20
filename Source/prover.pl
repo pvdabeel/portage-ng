@@ -242,9 +242,9 @@ prover:test(Repository,single_verbose) :-
                      time_limit_exceeded,
                      (message:failure([E:Action,' (time limit exceeded)']),
                       assert(prover:broken(Repository://E))));
-               message:failure(E:Action)))),!,
+               message:failure(E:Action)))),
   stats:runningtime(Min,Sec),
-  message:title_reset,
+  message:title_reset,!,
   message:inform(['proved ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
 
 prover:test(Repository,parallel_verbose) :-
@@ -266,9 +266,9 @@ prover:test(Repository,parallel_verbose) :-
            message:failure(E:Action)),
           Repository:entry(E),
           Calls),!,
-  time(concurrent(Cpus,Calls,[])),!,
+  time(concurrent(Cpus,Calls,[])),
   stats:runningtime(Min,Sec),
-  message:title_reset,
+  message:title_reset,!,
   message:inform(['proved ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
 
 prover:test(Repository,parallel_fast) :-
@@ -281,6 +281,6 @@ prover:test(Repository,parallel_fast) :-
            message:failure(E:Action)),
           Repository:entry(E),
           Calls),
-  time(concurrent(Cpus,Calls,[])),!,
-  stats:runningtime(Min,Sec),
+  time(concurrent(Cpus,Calls,[])),
+  stats:runningtime(Min,Sec),!,
   message:inform(['proved ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).

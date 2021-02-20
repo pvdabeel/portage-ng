@@ -101,7 +101,7 @@ runningtime(Min,Sec) ::-
   get_time(T2),
   Seconds is integer(T2-T1),
   Sec is Seconds mod 60,
-  Min is Seconds div 60.
+  Min is Seconds div 60,!.
 
 %! stat:total
 %

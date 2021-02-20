@@ -101,9 +101,9 @@ parser:test(Repository,parallel_verbose) :-
            message:failure(E)),
           (Repository:entry(E),reader:invoke(C,E,R)),
           Calls),!,
-  time(concurrent(Cpus,Calls,[])),!,
+  time(concurrent(Cpus,Calls,[])),
   stats:runningtime(Min,Sec),
-  message:title_reset,
+  message:title_reset,!,
   message:inform(['parsed ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
 
 parser:test(Repository,parallel_fast) :-
@@ -116,6 +116,6 @@ parser:test(Repository,parallel_fast) :-
            message:failure(E)),
           (Repository:entry(E),reader:invoke(C,E,R)),
           Calls),
-  time(concurrent(Cpus,Calls,[])),!,
-  stats:runningtime(Min,Sec),
+  time(concurrent(Cpus,Calls,[])),
+  stats:runningtime(Min,Sec),!,
   message:inform(['parsed ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).

@@ -223,8 +223,8 @@ builder:test(Repository) :-
                                              builder:execute(Repository://E:Action,Model,Proof,Plan))),
                      time_limit_exceeded,
                      assert(builder:broken(Repository://E)));
-	       message:failure(E)))),!,
-  stats:runningtime(Min,Sec),
+	       message:failure(E)))),
+  stats:runningtime(Min,Sec),!,
   message:inform(['executed plan for ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
 
 

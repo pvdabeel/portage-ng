@@ -27,11 +27,11 @@ message:title(MessageList) :-
   system:write('\033]0;'),
   atomic_list_concat(MessageList,Message),
   system:write(Message),
-  system:write('\a').
+  system:write('\a'),!.
 
 message:title_reset :-
   config:name(Name),
-  message:title([Name]).
+  message:title([Name]),!.
 
 
 %! message:color(+Color)
@@ -140,7 +140,7 @@ message:style(normal) :-
 message:eend(Message) :-
   tty_size(_,Y),
   NewY is Y - 2,
-  format('~t~a~*|',[Message,NewY]).
+  format('~t~a~*|',[Message,NewY]),!.
 
 
 %! message:column(+Number,+Message)
@@ -148,7 +148,7 @@ message:eend(Message) :-
 % Writes a message in a given colum
 
 message:column(Number,Message) :-
-  format('~*| ~w',[Number,Message]).
+  format('~*| ~w',[Number,Message]),!.
 
 
 %! message:print(+Message)
