@@ -64,7 +64,7 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 
 % protected interface
 
-:- dprotected(read_metadata/4).
+:- dprotected(read_metadata/3).
 :- dprotected(read_manifest/5).
 
 :- dprotected(location/1).
@@ -171,21 +171,20 @@ sync(metadata) ::-
 sync(kb) ::-
   :this(Repository),
   message:hc,
-  forall(:find_metadata(E,T,C,N,V),
-         (:read_metadata(E,T,M,F),
-          (F -> (message:scroll([E]),
-                 retractall(cache:entry(Repository,E,_,_,_,_)),
-                 retractall(cache:entry_metadata(Repository,E,_,_)),
-                 asserta(cache:entry(Repository,E,T,C,N,V)),
-                 forall(member(L,M),
-                       (L=..[Key,Value],
-                        forall(member(I,Value),
-                               assertz(cache:entry_metadata(Repository,E,Key,I))))));
-                true))),
+  forall((:find_metadata(E,T,C,N,V),
+          :read_metadata(E,T,M)),
+          (message:scroll([E]),
+           retractall(cache:entry(Repository,E,_,_,_,_)),
+           retractall(cache:entry_metadata(Repository,E,_,_)),
+           asserta(cache:entry(Repository,E,T,C,N,V)),
+           forall(member(L,M),
+                  (L=..[Key,Value],
+                   forall(member(I,Value),
+                   asserta(cache:entry_metadata(Repository,E,Key,I))))))),
   forall(:find_manifest(P,C,N),
          (:read_manifest(P,T,C,N,M),
           retractall(cache:manifest(Repository,P,_,_,_,_)),
-          assertz(cache:manifest(Repository,P,T,C,N,M)),
+          asserta(cache:manifest(Repository,P,T,C,N,M)),
           message:scroll([P]))),!,
   message:sc,
   message:scroll(['Updated prolog knowledgebase']),nl.
@@ -237,18 +236,20 @@ find_manifest(Entry,Category,Name) ::-
 % Reads the metadata for a given entry from disk if
 % it is new of has been modifed
 
-read_metadata(Entry,Timestamp,[],false) ::-
+read_metadata(Entry,Timestamp,[]) ::-
   :this(Repository),
-  cache:entry(Repository,Entry,Timestamp,_,_,_),!.
+  cache:entry(Repository,Entry,Timestamp,_,_,_),!,
+  fail.
 
-read_metadata(Entry,_,Metadata,true) ::-
+read_metadata(Entry,_,Metadata) ::-
   :this(Repository),
   ::cache(Cache),
   reader:invoke(Cache,Entry,Contents),
   parser:invoke(metadata,Repository://Entry,Contents,Metadata),!.
 
-read_metadata(Entry,_,[],false) ::-
-  message:failure(['Failed to parse ',Entry,' metadata cache!']),!.
+read_metadata(Entry,_,[]) ::-
+  message:failure(['Failed to parse ',Entry,' metadata cache!']),
+  fail.
 
 
 %! repository:read_manifest(+Path, +Category, +Name, -Manifest)
