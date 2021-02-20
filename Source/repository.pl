@@ -57,8 +57,8 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 
 % protected interface
 
-:- dprotected(find_metadata/5).
-:- dprotected(find_manifest/4).
+:- dpublic(find_metadata/5).
+:- dpublic(find_manifest/4).
 
 :- dprotected(read_time/1).
 :- dprotected(read_metadata/3).
@@ -254,6 +254,7 @@ find_manifest(Entry,Timestamp,Category,Name) ::-
   ::cache(Cache),
   os:directory_content(Cache,Category),
   os:compose_path(Location,Category,CategoryDir),
+  exists_directory(CategoryDir),
   os:directory_content(CategoryDir,Name),
   os:compose_path(CategoryDir,Name,PackageDir),
   exists_directory(PackageDir),
