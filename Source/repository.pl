@@ -38,6 +38,7 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 :- dpublic(entry/1).
 :- dpublic(entry/2).
 :- dpublic(category/1).
+:- dpublic(packname/2).
 :- dpublic(package/2).
 :- dpublic(ebuild/3).
 :- dpublic(ebuild/4).
@@ -59,13 +60,12 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 :- dpublic(find_manifest/3).
 
 :- dpublic(read_time/1).
-:- dpublic(read_time/1).
 
 
 % protected interface
 
-:- dprotected(read_metadata/3).
-:- dpublic(read_manifest/5).
+:- dprotected(read_metadata/4).
+:- dprotected(read_manifest/5).
 
 :- dprotected(location/1).
 :- dprotected(cache/1).
@@ -172,15 +172,16 @@ sync(kb) ::-
   :this(Repository),
   message:hc,
   forall(:find_metadata(E,T,C,N,V),
-         (:read_metadata(E,T,M),
-          retractall(cache:entry(Repository,E,_,_,_,_)),
-          retractall(cache:entry_metadata(Repository,E,_,_)),
-          asserta(cache:entry(Repository,E,T,C,N,V)),
-          forall(member(L,M),
-                 (L=..[Key,Value],
-                  forall(member(I,Value),
-                         assertz(cache:entry_metadata(Repository,E,Key,I))))),
-          message:scroll([E]))),
+         (:read_metadata(E,T,M,F),
+          (F -> (message:scroll([E]),
+                 retractall(cache:entry(Repository,E,_,_,_,_)),
+                 retractall(cache:entry_metadata(Repository,E,_,_)),
+                 asserta(cache:entry(Repository,E,T,C,N,V)),
+                 forall(member(L,M),
+                       (L=..[Key,Value],
+                        forall(member(I,Value),
+                               assertz(cache:entry_metadata(Repository,E,Key,I))))));
+                true))),
   forall(:find_manifest(P,C,N),
          (:read_manifest(P,T,C,N,M),
           retractall(cache:manifest(Repository,P,_,_,_,_)),
@@ -236,18 +237,17 @@ find_manifest(Entry,Category,Name) ::-
 % Reads the metadata for a given entry from disk if
 % it is new of has been modifed
 
-%read_metadata(Entry,Timestamp,Metadata) ::-
-%  :this(Repository),
-%  cache:entry(Repository,Entry,Timestamp,_,_,_,Metadata),!.
+read_metadata(Entry,Timestamp,[],false) ::-
+  :this(Repository),
+  cache:entry(Repository,Entry,Timestamp,_,_,_),!.
 
-read_metadata(Entry,_,Metadata) ::-
+read_metadata(Entry,_,Metadata,true) ::-
   :this(Repository),
   ::cache(Cache),
-  message:scroll([Entry]),
   reader:invoke(Cache,Entry,Contents),
   parser:invoke(metadata,Repository://Entry,Contents,Metadata),!.
 
-read_metadata(Entry,_,[]) ::-
+read_metadata(Entry,_,[],false) ::-
   message:failure(['Failed to parse ',Entry,' metadata cache!']),!.
 
 
@@ -321,6 +321,19 @@ category(Category) ::-
   sort(Cs,Ss),!,
   member(Category,Ss).
 
+
+%! repository:packname(?Category,?Packname)
+%
+% Public predicate
+%
+% Retrieves packname
+
+packname(Category,Packname) ::-
+  :this(Repository),
+  :category(Category),
+  findall(P,cache:entry(Repository,_,_,Category,P,_),Ps),
+  sort(Ps,Ss),!,
+  member(Packname,Ss).
 
 %! repository:package(?Category, ?Package)
 %

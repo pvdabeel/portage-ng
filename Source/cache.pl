@@ -22,6 +22,6 @@ performance cache context.
 :- dynamic cache:repository/1.		% e.g. 'portage'
 :- dynamic cache:category/2.		% e.g. 'portage','sys-kernel'
 :- dynamic cache:package/3.		% e.g. 'portage','sys-kernel','linux-sources'
-:- dynamic cache:entry/6.		% e.g. 'portage','sys-kernel/linux-sources-5.11.0',Timestamp,'sys-kernel',linux-sources','5.11.0'
-:- dynamic cache:entry_metadata/4.	% e.g. 'portage','sys-kernel/linux-sources-5.11.0','use','build'
+:- dynamic cache:entry/6.		% e.g. 'portage',Id,Timestamp,'sys-kernel',linux-sources','5.11.0'
+:- dynamic cache:entry_metadata/4.	% e.g. 'portage',Id,'use','build'
 :- dynamic cache:manifest/6.
