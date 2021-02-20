@@ -38,8 +38,7 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 :- dpublic(entry/1).
 :- dpublic(entry/2).
 :- dpublic(category/1).
-:- dpublic(packname/2).
-:- dpublic(package/2).
+:- dpublic(package/3).
 :- dpublic(ebuild/3).
 :- dpublic(ebuild/4).
 :- dpublic(ebuild/6).
@@ -56,14 +55,12 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 :- dpublic(get_ebuild/2).
 
 
-:- dpublic(find_metadata/5).
-:- dpublic(find_manifest/3).
-
-:- dpublic(read_time/1).
-
-
 % protected interface
 
+:- dprotected(find_metadata/5).
+:- dprotected(find_manifest/4).
+
+:- dprotected(read_time/1).
 :- dprotected(read_metadata/3).
 :- dprotected(read_manifest/5).
 
@@ -149,7 +146,7 @@ sync(metadata) ::-
           (message:scroll([Id]))),
            % script:exec(cache,[Ebuild]),!)).
   message:sc,
-  message:scroll(['Updated metadata']),nl.
+  message:scroll(['Updated metadata.']),nl.
 
 
 sync(metadata) ::-
@@ -159,7 +156,7 @@ sync(metadata) ::-
   ::cache(Cache),
   :this(Repository),
   script:exec(cache,[Type,Repository,Remote,Local,Cache]),
-  message:scroll(['Updated metadata']),nl.
+  message:scroll(['Updated metadata.']),nl.
 
 
 %! repository:sync(kb)
@@ -171,6 +168,10 @@ sync(metadata) ::-
 sync(kb) ::-
   :this(Repository),
   message:hc,
+
+  % update cache:entry and cache:entry_metadata facts for
+  % changed ebuilds in the repository
+
   forall((:find_metadata(E,T,C,N,V),
           :read_metadata(E,T,M)),
           (message:scroll([E]),
@@ -181,25 +182,42 @@ sync(kb) ::-
                   (L=..[Key,Value],
                    forall(member(I,Value),
                    assert(cache:entry_metadata(Repository,E,Key,I))))))),
-  forall(:find_manifest(P,C,N),
-         (:read_manifest(P,T,C,N,M),
+
+  % update cache:manifest facts for changed manifests in the repository
+
+  forall((:find_manifest(P,T,C,N),
+          :read_manifest(P,T,C,N,M)),
+         (message:scroll([P]),
           retractall(cache:manifest(Repository,P,_,_,_,_)),
-          assert(cache:manifest(Repository,P,T,C,N,M)),
-          message:scroll([P]))),!,
+          assert(cache:manifest(Repository,P,T,C,N,M)))),
+
+  % re-create cache:repository, cache:category and cache:package facts
+  % for the repository. These facts are used by the knowledgebase query
+  % mechanism
+
   retractall(cache:repository(Repository)),
   retractall(cache:category(Repository,_)),
   retractall(cache:package(Repository,_,_)),
+
+  % cache:category creation
+
   findall(Ca,cache:entry(Repository,_,_,Ca,_,_),Cu),
   sort(Cu,Cs),
   forall(member(Ca,Cs),
          assert(cache:category(Repository,Ca))),
+
+  % cache:package creation
+
   findall([Ca,Pa],cache:entry(Repository,_,_,Ca,Pa,_),Pu),
   sort(Pu,Ps),
   forall(member([Ca,Pa],Ps),
          assert(cache:package(Repository,Ca,Pa))),
+
+  % cache:repository creation
+
   assert(cache:repository(Repository)),
   message:sc,
-  message:scroll(['Updated prolog knowledgebase']),nl.
+  message:scroll(['Updated prolog knowledgebase.']),nl.
 
 
 %! repository:find_metadata(?Entry, -Timestamp, -Category, -Name, -Version)
@@ -221,14 +239,14 @@ find_metadata(Entry,Timestamp,Category,Name,Version) ::-
   system:time_file(File,Timestamp).
 
 
-%! repository:find_manifest(?Manifest, -Category, -Name)
+%! repository:find_manifest(?Manifest,-Timestamp, -Category, -Name)
 %
 % Public predicate
 %
-% Retrieves manifest infofmration
+% Retrieves manifest information
 % Disk access required
 
-find_manifest(Entry,Category,Name) ::-
+find_manifest(Entry,Timestamp,Category,Name) ::-
   ::location(Location),
   ::cache(Cache),
   catch((
@@ -237,7 +255,8 @@ find_manifest(Entry,Category,Name) ::-
    os:directory_content(CategoryDir,Name),
    os:compose_path(CategoryDir,Name,PackageDir),
    exists_directory(PackageDir),
-   os:compose_path(PackageDir,'Manifest',Entry)),_,
+   os:compose_path(PackageDir,'Manifest',Entry),
+   system:time_file(Entry,Timestamp)),_,
   fail).
 
 
@@ -273,15 +292,16 @@ read_metadata(Entry,_,[]) ::-
 
 read_manifest(Path,Timestamp,Category,Name,Manifest) ::-
   :this(Repository),
-  cache:manifest(Repository,Path,Timestamp,Category,Name,Manifest),!.
+  cache:manifest(Repository,Path,Timestamp,Category,Name,Manifest),!,
+  fail.
 
 read_manifest(Path,_,_,_,Manifest) ::-
-  message:scroll([Path]),
   reader:invoke(Path,Contents),
   parser:invoke(manifest,_,Contents,Manifest),!.
 
 read_manifest(Entry,_,_,_,[]) ::-
-  message:failure(['Failed to parse ',Entry,' metadata cache!']),!.
+  message:failure(['Failed to parse ',Entry,' metadata cache!']),
+  fail.
 
 
 %! repository:read_time(-Time)
