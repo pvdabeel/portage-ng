@@ -208,7 +208,10 @@ sync(kb) ::-
   forall(member(Ca,Cs),
          assert(cache:category(Repository,Ca))),
 
-  % cache:package creation
+  % cache:package creation. Here we create an ordering on the versions
+  % of a given package. By default we prefer newer versions over older
+  % versions. This ordering is stored in the cache, from which facts
+  % will be retrieved
 
   findall([Ca,Pa],cache:entry(Repository,_,_,Ca,Pa,_),Pu),
   sort(Pu,Ps),
