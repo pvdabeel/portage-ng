@@ -384,7 +384,7 @@ package(Category,Package) ::-
 
 ebuild(Category,Name,Version) ::-
   :this(Repository),
-  cache:entry(Repository,_,_,Category,Name,Version).
+  cache:entry(Repository,_,_,Category,Name,[_,_,_,Version]).
 
 
 %! repository:ebuild(?Id, ?Category, ?Name, ?Version)
@@ -396,7 +396,7 @@ ebuild(Category,Name,Version) ::-
 
 ebuild(Id,Category,Name,Version) ::-
   :this(Repository),
-  cache:entry(Repository,Id,_,Category,Name,Version).
+  cache:entry(Repository,Id,_,Category,Name,[_,_,_,Version]).
 
 
 %! repository:ebuild(?Id, ?Category, ?Name, ?Version, ?Key, ?Value)
@@ -408,7 +408,7 @@ ebuild(Id,Category,Name,Version) ::-
 
 ebuild(Id,Category,Name,Version,Key,Value) ::-
   :this(Repository),
-  cache:entry(Repository,Id,_,Category,Name,Version),
+  cache:entry(Repository,Id,_,Category,Name,[_,_,_,Version]),
   cache:entry_metadata(Repository,Id,Key,Value).
 
 
