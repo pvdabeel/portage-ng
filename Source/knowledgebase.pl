@@ -37,6 +37,7 @@ The knowledge base implements a query mechanism.
 :- dpublic(clear/0).
 
 :- dpublic(query/2).
+:- dpublic(query/1).
 :- dpublic(entry/1).
 
 % protected interface
@@ -46,7 +47,7 @@ The knowledge base implements a query mechanism.
 
 % static interface
 
-:- dstatic(query/2).
+:- dstatic(query/1).
 
 
 %! Constructor
@@ -160,8 +161,8 @@ clear ::-
 %
 % Retrieves metadata cache which satisfies a given query
 
-query(Query,Result) ::-
-  knowledgebase:query(Query,Result).
+%query(Query,Result) ::-
+%  knowledgebase:query(Query,Result).
 
 
 %! knowledgebase:state(+File)
@@ -263,13 +264,14 @@ query([all(Statement)|Rest],Repository://Id) :-
   query(Rest,Repository://Id).
 
 
-% -----------------
-% Query: Repository
-% -----------------
+% ---------------
+% Query: Category
+% ---------------
 
-query([repository(Repository)|Rest],Repository://Id) :-
+query([category(Category)|Rest],Repository://Id) :-
   !,
-  cache:entry(Repository,Id,_,_,_,_),
+  %cache:category(Repository,Category),
+  cache:entry(Repository,Id,_,Category,_,_),
   query(Rest,Repository://Id).
 
 
@@ -283,15 +285,6 @@ query([name(Name)|Rest],Repository://Id) :-
   query(Rest,Repository://Id).
 
 
-% ---------------
-% Query: Category
-% ---------------
-
-query([category(Category)|Rest],Repository://Id) :-
-  !,
-  cache:entry(Repository,Id,_,Category,_,_),
-  query(Rest,Repository://Id).
-
 
 % --------------
 % Query: Version
@@ -299,7 +292,7 @@ query([category(Category)|Rest],Repository://Id) :-
 
 query([version(Version)|Rest],Repository://Id) :-
   !,
-  cache:entry(Repository,Id,_,_,_,Version),
+  cache:entry(Repository,Id,_,_,_,[_,_,_,Version]),
   query(Rest,Repository://Id).
 
 
