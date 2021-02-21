@@ -608,24 +608,25 @@ eapi:invalid_package_ending(E,B) :-
 % eapi:version starts with '-', and cannot be empty
 
 eapi:version(V) -->
-  eapi:version2([N,S]),
-  { eapi:version2atom(N,S,V) }.
+  eapi:version2([N,A,S]),
+  { eapi:version2atom(N,A,S,V) }.
 
 
 % eapi:version0 starts with '-', and can be empty
 
 eapi:version0(V) -->
-  eapi:version2([N,S]),
-  { eapi:version2atom(N,S,V) }.
+  eapi:version2([N,A,S]),
+  { eapi:version2atom(N,A,S,V) }.
 
-eapi:version0('') -->
+eapi:version0(['','','']) -->
   [].
 
 
 % eapi:version2 reads a version following EAPI 5 spec
 
-eapi:version2([C,S]) -->
+eapi:version2([C,A,S]) -->
   eapi:versionnumberpart(C),
+  eapi:versionalphapart(A),
   eapi:versionsuffixpart(S).
 
 eapi:version2([]) -->
@@ -647,23 +648,31 @@ eapi:versionsuffixpart([]) -->
 eapi:versionnumberpart([C,[46]|V]) -->
   eapi:versioninteger(C),
   [46],!,
-  eapi:versionnumberpart(V).
-
-eapi:versionnumberpart([C|V]) -->
-  eapi:versioninteger(C),
-  eapi:versionalphapart(V),!.
+  eapi:versionnumberpart0(V).
 
 eapi:versionnumberpart([C]) -->
   eapi:versioninteger(C),!.
 
-eapi:versionnumberpart([]) -->
+
+eapi:versionnumberpart0([C,[46]|V]) -->
+  eapi:versioninteger(C),
+  [46],!,
+  eapi:versionnumberpart0(V).
+
+eapi:versionnumberpart0([C]) -->
+  eapi:versioninteger(C),!.
+
+eapi:versionnumberpart0([]) -->
   [],!.
 
 
 % eapi: versionalphapart following eapi 5 specs
 
 eapi:versionalphapart([C]) -->
-  eapi:versionalpha(C).
+  eapi:versionalpha(C),!.
+
+eapi:versionalphapart([]) -->
+  [],!.
 
 
 % eapi: versionsuffix following eapi 5 specs
@@ -736,12 +745,20 @@ eapi:versionalpha([C]) -->
 
 % eapi:version2atom converts version format to atom
 
-eapi:version2atom(N,S,A) :-
+eapi:version2atom(N,A,S,[Numberpart,Alphapart,Suffixpart,Fullversion]) :-
   maplist(atom_codes,Na,N),
+  maplist(atom_codes,Aa,A),
   maplist(atom_codes,Sa,S),
-  atomic_list_concat(Na,Naa),
-  atomic_list_concat(Sa,Saa),
-  atomic_list_concat([Naa,Saa],A).
+  atomic_list_concat(Na,Numberpart),
+  atomic_list_concat(Aa,Alphapart),
+  atomic_list_concat(Sa,Suffixpart),
+  atomic_list_concat([Numberpart,Alphapart,Suffixpart],Fullversion).
+
+eapi:version2numberlist('',[]) :- !.
+
+eapi:version2numberlist(NumberAtom,NumberList) :-
+  atomic_list_concat(SplitAtoms,'.',NumberAtom),
+  maplist(atom_number,SplitAtoms,NumberList).
 
 
 %! DCG: md5
@@ -1716,7 +1733,7 @@ eapi:qualifiedtarget(Q) -->
   eapi:repositoryseparator,                           % required
   eapi:category(C),eapi:separator,!,eapi:package(P),  % required
   eapi:version0(V),
-  { ((V == '') ->                                     % optional
+  { ((V == ['','','']) ->                                     % optional
      (Q = [name(P),category(C),repository(R)],!);
      (Q = [name(P),category(C),version(V),repository(R)])) }.
 
@@ -1725,7 +1742,7 @@ eapi:qualifiedtarget(Q) -->
   eapi:category(C),eapi:separator,!,                  % required
   eapi:package(P),!,                                  % required
   eapi:version0(V),                                   % optional
-  { ((V == '') ->
+  { ((V == ['','','']) ->
      (Q = [name(P),category(C)],!);
      (Q = [name(P),category(C),version(V)]),!) }.
 
@@ -1733,7 +1750,7 @@ eapi:qualifiedtarget(Q) -->
 eapi:qualifiedtarget(Q) -->
   eapi:package(P),!,                                  % required
   eapi:version0(V),                                   % optional
-  { ((V == '') ->
+  { ((V == ['','','']) ->
      (Q = [name(P)],!);
      (Q = [name(P),version(V)]),!) }.
 

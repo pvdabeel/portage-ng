@@ -199,7 +199,7 @@ sync(kb) ::-
 
   retractall(cache:repository(Repository)),
   retractall(cache:category(Repository,_)),
-  retractall(cache:package(Repository,_,_)),
+  retractall(cache:package(Repository,_,_,_)),
 
   % cache:category creation
 
@@ -213,7 +213,12 @@ sync(kb) ::-
   findall([Ca,Pa],cache:entry(Repository,_,_,Ca,Pa,_),Pu),
   sort(Pu,Ps),
   forall(member([Ca,Pa],Ps),
-         assert(cache:package(Repository,Ca,Pa))),
+         (findall([Vl,Va,Vs,Vf,Id],
+                  (cache:entry(Repository,Id,_,Ca,Pa,[Vn,Va,Vs,Vf]),
+                   eapi:version2numberlist(Vn,Vl)),
+                  Vu),
+          sort(0,@>=,Vu,Vs),
+          assert(cache:package(Repository,Ca,Pa,Vs)))),
 
   % cache:repository creation
 
