@@ -54,6 +54,8 @@ This file is the main source file in the repository. It loads all other files.
 
 :- ensure_loaded('Source/unify.pl').
 
+:- ensure_loaded('Source/query.pl').
+
 :- ensure_loaded('Source/stat.pl').
 :- ensure_loaded('Source/reader.pl').
 :- ensure_loaded('Source/parser.pl').
@@ -63,6 +65,7 @@ This file is the main source file in the repository. It loads all other files.
 :- ensure_loaded('Source/builder.pl').
 :- ensure_loaded('Source/grapher.pl').
 :- ensure_loaded('Source/worker.pl').
+:- ensure_loaded('Source/tester.pl').
 
 :- ensure_loaded('Source/script.pl').
 
@@ -96,8 +99,8 @@ main :-
   system:working_directory(_,Directory),
 
   portage:newinstance(repository),
-  overlay:newinstance(repository),
 
+  overlay:newinstance(repository),
   swipl:newinstance(repository),
   linux:newinstance(repository),
 
@@ -123,29 +126,30 @@ main :-
 
   % Example: Overlay repository - local sync
   % ----------------------------------------
-  overlay:init('/Volumes/Disk 1/Repository/overlay',
-               '/Volumes/Disk 1/Repository/overlay/metadata/md5-cache',
-               '/Users/pvdabeel/Desktop/Prolog/Repository/overlay/','rsync','eapi'),
+  % overlay:init('/Volumes/Disk 1/Repository/overlay',
+  %             '/Volumes/Disk 1/Repository/overlay/metadata/md5-cache',
+  %             '/Users/pvdabeel/Desktop/Prolog/Repository/overlay/','rsync','eapi'),
 
 
   % Example: Github code repository - sync via git
   % ----------------------------------------------
-  swipl:init('/Volumes/Disk 1/Repository/swipl-devel',
-             '/Volumes/Disk 1/Repository/swipl-devel/metadata',
-             'https://github.com/swi-prolog/swipl-devel','git','cmake'),
+  %swipl:init('/Volumes/Disk 1/Repository/swipl-devel',
+  %           '/Volumes/Disk 1/Repository/swipl-devel/metadata',
+  %           'https://github.com/swi-prolog/swipl-devel','git','cmake'),
 
 
   % Example: Github code repository - sync via git
   % ----------------------------------------------
-  linux:init('/Volumes/Disk 1/Repository/linux',
-             '/Volumes/Disk 1/Repository/linux/metadata',
-             'https://github.com/torvalds/linux','git','cmake'),
+  %linux:init('/Volumes/Disk 1/Repository/linux',
+  %           '/Volumes/Disk 1/Repository/linux/metadata',
+  %           'https://github.com/torvalds/linux','git','cmake'),
 
 
   kb:register(portage),
-  kb:register(overlay),
-  kb:register(swipl),
-  kb:register(linux),
+
+  %kb:register(overlay),
+  %kb:register(swipl),
+  %kb:register(linux),
 
 
   kb:load,

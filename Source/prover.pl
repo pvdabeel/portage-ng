@@ -14,7 +14,6 @@ The prover computes a proof and a model for a given input.
 
 :- module(prover, []).
 
-:- dynamic prover:broken/1.
 :- dynamic prover:flag/1.
 
 % *******************
@@ -226,61 +225,10 @@ prover:test(Repository) :-
 %
 % Prove all entries in a given Repository, according to given style (single threaded, concurrent, verbose)
 
-prover:test(Repository,single_verbose) :-
-  Repository:get_size(S),
-  stats:newinstance(stat),
-  stats:init(0,S),
-  config:time_limit(T),
+prover:test(Repository,Style) :-
   config:proving_target(Action),
-  time(forall(Repository:entry(E),
- 	      (catch(call_with_time_limit(T,(stats:increase,
-                                             stats:percentage(P),
-                                             stats:runningtime(Min,Sec),
-                                             message:title(['Proving (Single thread): ',P,' processed in ',Min,'m ',Sec,'s']),
-                                             prover:prove(Repository://E:Action,[],_,[],_,[],_),
-                                             message:success([P,' - ',E:Action]))),
-                     time_limit_exceeded,
-                     (message:failure([E:Action,' (time limit exceeded)']),
-                      assert(prover:broken(Repository://E))));
-               message:failure(E:Action)))),
-  stats:runningtime(Min,Sec),
-  message:title_reset,!,
-  message:inform(['proved ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
-
-prover:test(Repository,parallel_verbose) :-
-  Repository:get_size(S),
-  stats:newinstance(stat),
-  stats:init(0,S),
-  config:time_limit(T),
-  config:proving_target(Action),
-  config:number_of_cpus(Cpus),
-  findall((catch(call_with_time_limit(T,(prover:prove(Repository://E:Action,[],_,[],_,[],_),!,
-                                         with_mutex(mutex,(stats:increase,
-                                                           stats:percentage(P),
-                                                           stats:runningtime(Min,Sec),
-                                                           message:title(['Proving (',Cpus,' threads): ',P,' processed in ',Min,'m ',Sec,'s']),
-                                                           message:success([P,' - ',E:Action]))))),
-                 time_limit_exceeded,
-                 (message:failure([E:Action,' (time limit exceeded)']),
-                  assert(prover:broken(Repository://E))));
-           message:failure(E:Action)),
-          Repository:entry(E),
-          Calls),!,
-  time(concurrent(Cpus,Calls,[])),
-  stats:runningtime(Min,Sec),
-  message:title_reset,!,
-  message:inform(['proved ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
-
-prover:test(Repository,parallel_fast) :-
-  Repository:get_size(S),
-  stats:newinstance(stat),
-  stats:init(0,S),
-  config:proving_target(Action),
-  config:number_of_cpus(Cpus),
-  findall((prover:prove(Repository://E:Action,[],_,[],_,[],_),!;
-           message:failure(E:Action)),
-          Repository:entry(E),
-          Calls),
-  time(concurrent(Cpus,Calls,[])),
-  stats:runningtime(Min,Sec),!,
-  message:inform(['proved ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
+  tester:test(Style,
+              'Proving',
+              Repository://Entry,
+              (Repository:entry(Entry)),
+              (prover:prove(Repository://Entry:Action,[],_,[],_,[],_))).

@@ -62,57 +62,9 @@ parser:test(Repository) :-
 % Same as parser:test(+Repository), but uses a specified reporting style
 % 'single_verbose', 'parallel_verbose' or 'parallel_fast'.
 
-parser:test(Repository,single_verbose) :-
-  Repository:get_size(S),
-  stats:newinstance(stat),
-  stats:init(0,S),
-  config:time_limit(T),
-  time(forall(Repository:get_cache_file(E,C),
-              (catch(call_with_time_limit(T,(stats:increase,
-                                             stats:percentage(P),
-                                             stats:runningtime(Min,Sec),
-                                             message:title(['Parsing (Single thread): ',P,' processed in ',Min,'m ',Sec,'s']),
-                                             reader:invoke(C,R),
-                                             parser:invoke(metadata,Repository://E,R,_),
-                                             message:success([P,' - ',E]))),
-                     time_limit_exceeded,
-                     message:failure([E,' (time limit exceeded)']));
-               message:failure(E)))),!,
-  stats:runningtime(Min,Sec),
-  message:title_reset,
-  message:inform(['parsed ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
-
-parser:test(Repository,parallel_verbose) :-
-  Repository:get_size(S),
-  stats:newinstance(stat),
-  stats:init(0,S),
-  config:time_limit(T),
-  config:number_of_cpus(Cpus),
-  findall((catch(call_with_time_limit(T,(parser:invoke(metadata,Repository://E,R,_),!,
-                                         with_mutex(mutex,(stats:increase,
-                                                           stats:percentage(P),
-                                                           stats:runningtime(Min,Sec),
-                                                           message:title(['Parsing (',Cpus,' threads): ',P,' processed in ',Min,'m ',Sec,'s']),
-                                                           message:success([P,' - ',E]))))),
-                 time_limit_exceeded,
-                 message:failure([E,' (time limit exceeded)']));
-           message:failure(E)),
-          (Repository:get_cache_file(E,C),reader:invoke(C,R)),
-          Calls),!,
-  time(concurrent(Cpus,Calls,[])),
-  stats:runningtime(Min,Sec),
-  message:title_reset,!,
-  message:inform(['parsed ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
-
-parser:test(Repository,parallel_fast) :-
-  Repository:get_size(S),
-  stats:newinstance(stat),
-  stats:init(0,S),
-  config:number_of_cpus(Cpus),
-  findall((parser:invoke(metadata,Repository://E,R,_),!;
-           message:failure(E)),
-          (Repository:get_cache_file(E,C),reader:invoke(C,R)),
-          Calls),
-  time(concurrent(Cpus,Calls,[])),
-  stats:runningtime(Min,Sec),!,
-  message:inform(['parsed ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
+parser:test(Repository,Style) :-
+  tester:test(Style,
+              'Parsing',
+              Repository://Entry,
+              (Repository:get_cache_file(Entry,File),reader:invoke(File,Codes)),
+              (parser:invoke(metadata,Repository://Entry,Codes,_))),!.
