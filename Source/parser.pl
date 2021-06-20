@@ -39,7 +39,7 @@ Output: A nested list representing the the result of parsing each line in the
 parser:invoke(_,_,[],[]).
 
 parser:invoke(Type,Repository://Entry,[X|XX],[Y|YY]) :-
-  eapi:parse(Type,Repository://Entry,X,Y),!,
+  phrase(eapi:keyvalue(Type,Repository://Entry,Y),X),!,
   parser:invoke(Type,Repository://Entry,XX,YY).
 
 
@@ -64,16 +64,15 @@ parser:test(Repository) :-
 
 parser:test(Repository,single_verbose) :-
   Repository:get_size(S),
-  Repository:get_cache(C),
   stats:newinstance(stat),
   stats:init(0,S),
   config:time_limit(T),
-  time(forall(Repository:entry(E),
+  time(forall(Repository:get_cache_file(E,C),
               (catch(call_with_time_limit(T,(stats:increase,
                                              stats:percentage(P),
                                              stats:runningtime(Min,Sec),
                                              message:title(['Parsing (Single thread): ',P,' processed in ',Min,'m ',Sec,'s']),
-                                             reader:invoke(C,E,R),
+                                             reader:invoke(C,R),
                                              parser:invoke(metadata,Repository://E,R,_),
                                              message:success([P,' - ',E]))),
                      time_limit_exceeded,
@@ -85,7 +84,6 @@ parser:test(Repository,single_verbose) :-
 
 parser:test(Repository,parallel_verbose) :-
   Repository:get_size(S),
-  Repository:get_cache(C),
   stats:newinstance(stat),
   stats:init(0,S),
   config:time_limit(T),
@@ -99,7 +97,7 @@ parser:test(Repository,parallel_verbose) :-
                  time_limit_exceeded,
                  message:failure([E,' (time limit exceeded)']));
            message:failure(E)),
-          (Repository:entry(E),reader:invoke(C,E,R)),
+          (Repository:get_cache_file(E,C),reader:invoke(C,R)),
           Calls),!,
   time(concurrent(Cpus,Calls,[])),
   stats:runningtime(Min,Sec),
@@ -108,13 +106,12 @@ parser:test(Repository,parallel_verbose) :-
 
 parser:test(Repository,parallel_fast) :-
   Repository:get_size(S),
-  Repository:get_cache(C),
   stats:newinstance(stat),
   stats:init(0,S),
   config:number_of_cpus(Cpus),
   findall((parser:invoke(metadata,Repository://E,R,_),!;
            message:failure(E)),
-          (Repository:entry(E),reader:invoke(C,E,R)),
+          (Repository:get_cache_file(E,C),reader:invoke(C,R)),
           Calls),
   time(concurrent(Cpus,Calls,[])),
   stats:runningtime(Min,Sec),!,
