@@ -1220,7 +1220,8 @@ eapi:local(L) -->
 % by human readable datetime
 
 eapi:timestamp(T) -->
-  eapi:chars1(t,T).
+  eapi:chars1(t,C),
+  { number_codes(T,C) }.
 
 
 % ----------------------

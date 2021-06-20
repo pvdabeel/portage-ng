@@ -52,15 +52,16 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 :- dpublic(get_type/1).
 :- dpublic(get_protocol/1).
 :- dpublic(get_size/1).
-:- dpublic(get_ebuild/2).
 
+:- dpublic(get_ebuild_file/2).
+:- dpublic(get_cache_file/2).
 
 % protected interface
 
 :- dprotected(find_metadata/5).
 :- dprotected(find_manifest/4).
 
-:- dprotected(read_time/1).
+:- dpublic(read_time/1).
 :- dprotected(read_metadata/3).
 :- dprotected(read_manifest/5).
 
@@ -140,7 +141,7 @@ sync(metadata) ::-
   ::type('eapi'),!,
   message:hc,
   forall((:entry(Id,Time),
-           :get_ebuild(Id,Ebuild),
+           :get_ebuild_file(Id,Ebuild),
            system:time_file(Ebuild,Modified),
            Modified > Time),
           (message:scroll([Id]))),
@@ -286,7 +287,8 @@ read_metadata(Entry,Timestamp,[]) ::-
 read_metadata(Entry,_,Metadata) ::-
   :this(Repository),
   ::cache(Cache),
-  reader:invoke(Cache,Entry,Contents),
+  os:compose_path(Cache,Entry,File),
+  reader:invoke(File,Contents),
   parser:invoke(metadata,Repository://Entry,Contents,Metadata),!.
 
 read_metadata(Entry,_,[]) ::-
@@ -323,8 +325,8 @@ read_manifest(Path,_,_,_,[]) ::-
 
 read_time(Time) ::-
   ::location(Location),
-  os:compose_path(Location,'metadata/timestamp.x',File),
-  reader:read_timestamp(File,Time).
+  os:compose_path(Location,'metadata/timestamp.chk',File),
+  system:time_file(File,Time).
 
 
 %! repository:entry(?Entry)
@@ -505,17 +507,28 @@ get_size(Size) ::-
   length(L,Size).
 
 
-%! repository:get_ebuild(+Entry,-Ebuild)
+%! repository:get_ebuild_file(+Entry,-Ebuild)
 %
 % Public predicate
 %
 % For a given entry, retrieves the full path to the corresponding ebuild
 
-get_ebuild(Entry,Ebuild) ::-
+get_ebuild_file(Entry,File) ::-
   ::location(Location),
   :ebuild(Entry,Category,Name,Version),
-  atomic_list_concat([Location,'/',Category,'/',Name,'/',Name,'-',Version,'.ebuild'],Ebuild),
-  exists_file(Ebuild).
+  atomic_list_concat([Location,'/',Category,'/',Name,'/',Name,'-',Version,'.ebuild'],File).
+
+
+%! repository:get_cache_file(+Entry,-Cache)
+%
+% Public predicate
+%
+% For a given entry, retrieves the full path to the corresponding cache file
+
+get_cache_file(Entry,File) ::-
+  ::cache(Cache),
+  :entry(Entry),
+  atomic_list_concat([Cache,'/',Entry],File).
 
 
 %! repository:location(?Location)
