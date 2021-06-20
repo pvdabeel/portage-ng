@@ -12,46 +12,56 @@
 An implementation of a query language for the knowledge base
 */
 
+:- module(query,[]).
+
 
 % ******************
 % QUERY declarations
 % ******************
 
-perform_query([]) :- !.
+%! query:execute(+List)
+%
+% Executes a query
 
-perform_query([Literal|Rest]) :-
-  query_literal(Literal),
-  perform_query(Rest).
+execute([]) :- !.
 
+execute([Literal|Rest]) :-
+  !,
+  execute(Literal),
+  execute(Rest).
 
-query_literal(repository(R)) :-
+execute(repository(R)) :-
   !,
   cache:repository(R).
 
-query_literal(category(R,C)) :-
+execute(category(R,C)) :-
   !,
   cache:category(R,C).
 
-query_literal(package(C,N,R://Id)) :-
+execute(package(C,N,R://Id)) :-
   !,
   cache:package(R,C,N,V),
   member([_,_,_,_,Id],V).
 
-query_literal(version(R://Id,Ver)) :-
+execute(version(R://Id,Ver)) :-
   !,
   cache:entry(R,Id,_,_,_,[_,_,_,Ver]).
 
-query_literal(entry(R://Id,Cat,Name,Ver)) :-
+execute(entry(R://Id,Cat,Name,Ver)) :-
   !,
   cache:entry(R,Id,_,Cat,Name,[_,_,_,Ver]).
 
-query_literal(metadata(R://Id,Key,Value)) :-
+execute(metadata(R://Id,Key,Value)) :-
   !,
   cache:entry_metadata(R,Id,Key,Value).
 
-query_literal(not(Literal)) :-
+execute(installed(R://Id)) :-
   !,
-  not(query_literal(Literal)).
+  cache:entry_metadata(R,Id,installed,true).
 
-query_literal(Prolog) :-
+execute(not(Literal)) :-
+  !,
+  not(execute(Literal)).
+
+execute(Prolog) :-
   Prolog.
