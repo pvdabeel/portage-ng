@@ -214,7 +214,11 @@ prover:model(Literals,Model) :-
 
 %! prover:test(+Repository)
 %
-% Prove all entries in a given Repository, using the default style
+% Prove all entries in a given Repository
+%
+% Repository: The repository instance from which to parse all entries.
+%
+% Proves a repository using the default reporting style.
 
 prover:test(Repository) :-
   config:test_style(Style),
@@ -223,7 +227,8 @@ prover:test(Repository) :-
 
 %! prover:test(+Repository,+Style)
 %
-% Prove all entries in a given Repository, according to given style (single threaded, concurrent, verbose)
+% Same as prover:test(+Repository), but uses a specified reporting style
+% 'single_verbose', 'parallel_verbose' or 'parallel_fast'.
 
 prover:test(Repository,Style) :-
   config:proving_target(Action),
