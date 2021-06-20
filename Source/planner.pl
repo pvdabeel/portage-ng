@@ -85,66 +85,11 @@ planner:test(Repository) :-
 %
 % Creates a plan for every entry in a repository, reports on progress in given style
 
-planner:test(Repository,single_verbose) :-
-  Repository:get_size(S),
-  stats:newinstance(stat),
-  stats:init(0,S),
-  config:time_limit(T),
+planner:test(Repository,Style) :-
   config:proving_target(Action),
-  time(forall(Repository:entry(E),
- 	      (catch(call_with_time_limit(T,(stat:increase,
-                                             stat:percentage(P),
-                                             stat:runningtime(Min,Sec),
-                                             message:title(['Planning (Single thread): ',P,' processed in ',Min,'m ',Sec,'s']),
-                                             prover:prove(Repository://E:Action,[],Proof,[],_,[],_),
-                                             planner:plan(Proof,[],[],_),
-                                             message:success([P,' - ',E:Action]))),
-                     time_limit_exceeded,
-                     (message:failure([E:Action,' (time limit exceeded)']),
-                      assert(prover:broken(Repository://E))));
-               message:failure(E:Action)))),
-  stats:runningtime(Min,Sec),
-  message:title_reset,!,
-  message:inform(['created plan for ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
-
-
-planner:test(Repository,parallel_verbose) :-
-  Repository:get_size(S),
-  stats:newinstance(stat),
-  stats:init(0,S),
-  config:time_limit(T),
-  config:proving_target(Action),
-  config:number_of_cpus(Cpus),
-  findall((catch(call_with_time_limit(T,(prover:prove(Repository://E:Action,[],Proof,[],_,[],_),!,
-                                         planner:plan(Proof,[],[],_),
-                                         with_mutex(mutex,(stats:increase,
-                                                           stats:percentage(P),
-                                                           stats:runningtime(Min,Sec),
-                                                           message:title(['Planning (',Cpus,' threads): ',P,' processed in ',Min,'m ',Sec,'s']),
-                                                           message:success([P,' - ',E:Action]))))),
-                  time_limit_exceeded,
-                  (message:failure([E:Action,' (time limit exceeded)']),
-                   assert(prover:broken(Repository://E))));
-           message:failure(E:Action)),
-          Repository:entry(E),
-          Calls),
-  time(concurrent(Cpus,Calls,[])),
-  stats:runningtime(Min,Sec),
-  message:title_reset,!,
-  message:inform(['created plan for ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
-
-
-planner:test(Repository,parallel_fast) :-
-  Repository:get_size(S),
-  stats:newinstance(stat),
-  stats:init(0,S),
-  config:proving_target(Action),
-  config:number_of_cpus(Cpus),
-  findall((prover:prove(Repository://E:Action,[],Proof,[],_,[],_),
-           planner:plan(Proof,[],[],_),!;
-           message:failure(E:Action)),
-          Repository:entry(E),
-          Calls),
-  time(concurrent(Cpus,Calls,[])),
-  stats:runningtime(Min,Sec),!,
-  message:inform(['created plan for ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
+  tester:test(Style,
+              'Planning',
+              Repository://Entry,
+              (Repository:entry(Entry)),
+              (prover:prove(Repository://Entry:Action,[],Proof,[],_,[],_),
+               planner:plan(Proof,[],[],_))),!.
