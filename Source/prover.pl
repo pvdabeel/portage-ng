@@ -9,7 +9,7 @@
 
 
 /** <module> PROVER
-The prover computes a proof and a model for a given input
+The prover computes a proof and a model for a given input.
 */
 
 :- module(prover, []).
