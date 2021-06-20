@@ -14,7 +14,7 @@ The reader reads:
 - repository cache metadata
 - repository manifest metadata
 
-Input:  An antry in a repository cache or a full path to a manifest file..
+Input:  An antry in a repository cache or a full path to a manifest file.
 Output: A nested list of character codes, each sublist represents a line.
 */
 
@@ -31,7 +31,7 @@ Output: A nested list of character codes, each sublist represents a line.
 % Entry: The cache entry to read.
 %
 % Contents: A nested list of character codes, each sublist represents a line of
-%           the cache entry
+%           the cache entry.
 
 reader:invoke(Cache,Entry,Contents) :-
   os:compose_path(Cache,Entry,File),
@@ -46,7 +46,7 @@ reader:invoke(Cache,Entry,Contents) :-
 % Manifest: The full path to a manifest file.
 %
 % Contents: A nested list of character codes, each sublist represents a line of
-%           the manifest file
+%           the manifest file.
 
 reader:invoke(Manifest,Contents) :-
   exists_file(Manifest),!,
