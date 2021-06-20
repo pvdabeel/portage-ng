@@ -61,7 +61,7 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 :- dprotected(find_metadata/5).
 :- dprotected(find_manifest/4).
 
-:- dpublic(read_time/1).
+:- dprotected(read_time/1).
 :- dprotected(read_metadata/3).
 :- dprotected(read_manifest/5).
 
