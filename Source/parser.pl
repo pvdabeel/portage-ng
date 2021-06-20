@@ -9,13 +9,13 @@
 
 
 /** <module> PARSER
-The parser provided takes its input from the reader and applies an EAPI-7
-compliant DCG grammar to output a parse tree.
+The parser takes its input from the reader and applies an EAPI-7 compliant DCG
+grammar to output a parse tree.
 
 Input:  A nested list of character codes codes.
         Each sublist represents a line.
-        Each line in a repository cache entry represents a key=value pair.
-        Each line in a manifest file represents a key value pair.
+        Each line in a repository cache entry represents a 'key=value' pair.
+        Each line in a manifest file represents a 'key value' pair.
 
 Output: A nested list representing the the result of parsing each line in the
         input.
@@ -30,7 +30,7 @@ Output: A nested list representing the the result of parsing each line in the
 
 %! parser:invoke(+Type,+Repository://+Entry,+Contents,-Result)
 %
-% Type:     An atom indicated Contents is of type 'metadata' or 'manifest'
+% Type:     An atom indicated Contents is of type 'metadata' or 'manifest'.
 %
 % Contents: A nested list of character codes.
 %
@@ -50,7 +50,7 @@ parser:invoke(Type,Repository://Entry,[X|XX],[Y|YY]) :-
 %
 % Repository: The repository instance from which to parse all entries.
 %
-% Parses a repository using the default reporting style
+% Parses a repository using the default reporting style.
 
 parser:test(Repository) :-
   config:test_style(Style),
@@ -60,7 +60,7 @@ parser:test(Repository) :-
 %! parser:test(+Repository,+Style)
 %
 % Same as parser:test(+Repository), but uses a specified reporting style
-% 'single_verbose', 'parallel_verbose' or 'parallel_fast'
+% 'single_verbose', 'parallel_verbose' or 'parallel_fast'.
 
 parser:test(Repository,single_verbose) :-
   Repository:get_size(S),
