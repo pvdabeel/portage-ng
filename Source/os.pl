@@ -59,8 +59,8 @@ os:make_repository_dirs(Repository,Directory) :-
 % Retrieves installed packages on the system (cached)
 
 os:installed_pkg(Repository://Entry) :-
-  cache:entry_metadata(Repository,Entry,installed,true).
-
+  % cache:entry_metadata(Repository,Entry,installed,true).
+  query:execute(installed(Repository://Entry)).
 
 %! os:sync
 %
