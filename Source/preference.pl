@@ -271,6 +271,8 @@ preference:printing_style('column').
 
 % The following packages fail:
 
+preference:masked(portage://'dev-perl/Filesys-SmbClient-3.200.0-r4').  % 2021-05-20
+
 % 1. KEYWORD-related failure:
 %
 % Fails when only accept_keywords(stable(amd64)) is set
