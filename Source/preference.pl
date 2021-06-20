@@ -302,11 +302,14 @@ preference:masked(portage://'net-fs/samba-4.13.2-r1').                 % 2021-01
 preference:masked(portage://'net-fs/samba-4.13.3').                    % 2021-01-20
 preference:masked(portage://'net-fs/samba-4.13.3-r1').                 % 2021-02-20
 preference:masked(portage://'net-fs/samba-4.13.4').                    % 2021-02-20
+preference:masked(portage://'net-fs/samba-4.13.9').                    % 2021-06-20
+preference:masked(portage://'net-fs/samba-4.14.4').                    % 2021-06-20
+preference:masked(portage://'net-fs/samba-4.14.5').                    % 2021-06-20
 preference:masked(portage://'net-fs/samba-4.14.0_rc2').                % 2021-02-20
 preference:masked(portage://'net-fs/samba-4.14.0_rc3').		       % 2021-02-20
 preference:masked(portage://'sci-libs/eccodes-2.18.0').                % 2021-02-20
 preference:masked(portage://'sci-libs/hdf5-1.10.5-r1').                % 2020-05-09
-
+preference:masked(portage://'net-fs/smbnetfs-0.6.3').                  % 2021-06-20
 
 % 2. Timeout fails
 %
