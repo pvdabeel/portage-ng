@@ -274,6 +274,8 @@ preference:printing_style('column').
 preference:masked(portage://'dev-perl/Filesys-SmbClient-3.200.0-r4').  % 2021-05-20
 preference:masked(portage://'net-im/corebird-1.7.4-r1').               % 2021-05-20
 preference:masked(portage://'net-ftp/filezilla-3.54.1').               % 2021-01-20
+preference:masked(portage://'net-ftp/pureadmin-0.4-r2').               % 2021-06-20
+
 
 % 1. KEYWORD-related failure:
 %
