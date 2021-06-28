@@ -370,7 +370,7 @@ grapher:test(Repository) :-
   grapher:prepare_directory(D,Repository),
   config:graph_modified_only(true),!,
   forall((Repository:entry(E,Time),
-           Repository:get_ebuild(E,Ebuild),
+           Repository:get_ebuild_file(E,Ebuild),
            system:time_file(Ebuild,Modified),
            Modified > Time),
          (grapher:write_dot_files(D,Repository://E))),
