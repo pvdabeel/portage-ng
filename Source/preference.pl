@@ -298,7 +298,7 @@ preference:masked(portage://'dev-vcs/mercurial-9999').                 % 2020-05
 % Negation as failure related:
 preference:masked(portage://'net-fs/samba-4.14.12-r2').		       % 2022-04-09
 preference:masked(portage://'net-fs/samba-4.15.4-r2').		       % 2022-04-09
-preference:masked(portage://'net-fs/samba-4.14.5-r2').		       % 2022-04-09
+preference:masked(portage://'net-fs/samba-4.15.5-r2').		       % 2022-04-09
 preference:masked(portage://'net-fs/samba-4.15.6').		       % 2022-04-09
 preference:masked(portage://'net-fs/samba-4.16.0').		       % 2022-04-09
 
