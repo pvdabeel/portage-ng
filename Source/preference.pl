@@ -296,13 +296,11 @@ preference:masked(portage://'net-ftp/pureadmin-0.4-r2').               % 2021-06
 preference:masked(portage://'dev-vcs/mercurial-9999').                 % 2020-05-09
 
 % Negation as failure related:
-preference:masked(portage://'net-fs/samba-4.14.10-r3').		       % 2022-03-08
-preference:masked(portage://'net-fs/samba-4.14.12-r1').		       % 2022-03-08
-preference:masked(portage://'net-fs/samba-4.15.2-r3').		       % 2022-03-08
-preference:masked(portage://'net-fs/samba-4.15.3-r2').		       % 2022-03-08
-preference:masked(portage://'net-fs/samba-4.15.4-r1').		       % 2022-03-08
-preference:masked(portage://'net-fs/samba-4.15.5-r1').		       % 2022-03-08
-preference:masked(portage://'net-fs/samba-4.16.0_rc4').		       % 2022-03-08
+preference:masked(portage://'net-fs/samba-4.14.12-r2').		       % 2022-04-09
+preference:masked(portage://'net-fs/samba-4.15.4-r2').		       % 2022-04-09
+preference:masked(portage://'net-fs/samba-4.14.5-r2').		       % 2022-04-09
+preference:masked(portage://'net-fs/samba-4.15.6').		       % 2022-04-09
+preference:masked(portage://'net-fs/samba-4.16.0').		       % 2022-04-09
 
 preference:masked(portage://'sci-libs/eccodes-2.18.0').                % 2021-02-20
 preference:masked(portage://'sci-libs/hdf5-1.10.5-r1').                % 2020-05-09
