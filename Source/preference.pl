@@ -297,6 +297,8 @@ preference:masked(portage://'dev-vcs/mercurial-9999').                 % 2020-05
 
 % Negation as failure related:
 
+preference:masked(portage://'app-emulation/libvirt-9999').
+
 preference:masked(portage://'net-fs/samba-4.15.12-r2').                % 2022-11-27
 preference:masked(portage://'net-fs/samba-4.15.9-r1').                 % 2022-11-27
 preference:masked(portage://'net-fs/samba-4.16.7-r2').                 % 2022-11-27
