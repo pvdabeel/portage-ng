@@ -272,9 +272,6 @@ preference:printing_style('column').
 % The following packages fail:
 
 preference:masked(portage://'dev-perl/Filesys-SmbClient-3.200.0-r4').  % 2021-05-20
-preference:masked(portage://'net-im/corebird-1.7.4-r1').               % 2021-05-20
-preference:masked(portage://'net-ftp/filezilla-3.54.1').               % 2021-01-20
-preference:masked(portage://'net-ftp/pureadmin-0.4-r2').               % 2021-06-20
 
 
 % 1. KEYWORD-related failure:
@@ -299,20 +296,15 @@ preference:masked(portage://'dev-vcs/mercurial-9999').                 % 2020-05
 
 preference:masked(portage://'app-emulation/libvirt-9999').
 
-preference:masked(portage://'net-fs/samba-4.15.12-r2').                % 2022-11-27
-preference:masked(portage://'net-fs/samba-4.15.9-r1').                 % 2022-11-27
-preference:masked(portage://'net-fs/samba-4.16.7-r2').                 % 2022-11-27
 
-preference:masked(portage://'net-fs/samba-4.14.12-r3').		       % 2022-04-09
-preference:masked(portage://'net-fs/samba-4.15.4-r3').		       % 2022-04-09
-preference:masked(portage://'net-fs/samba-4.15.5-r3').		       % 2022-04-09
-preference:masked(portage://'net-fs/samba-4.15.6-r1').		       % 2022-04-09
-preference:masked(portage://'net-fs/samba-4.16.0-r1').		       % 2022-04-09
-preference:masked(portage://'net-fs/samba-4.14.12-r2').		       % 2022-04-09
-preference:masked(portage://'net-fs/samba-4.15.4-r2').		       % 2022-04-09
-preference:masked(portage://'net-fs/samba-4.15.5-r2').		       % 2022-04-09
-preference:masked(portage://'net-fs/samba-4.15.6').		       % 2022-04-09
-preference:masked(portage://'net-fs/samba-4.16.0').		       % 2022-04-09
+preference:masked(portage://'net-fs/samba-4.14.12-r3').		       % 2024-03-23
+preference:masked(portage://'net-fs/samba-4.15.4-r3').		       % 2024-03-23
+preference:masked(portage://'net-fs/samba-4.15.5-r3').		       % 2024-03-23
+preference:masked(portage://'net-fs/samba-4.15.6-r1').		       % 2024-03-23
+preference:masked(portage://'net-fs/samba-4.18.10').		       % 2024-03-23
+preference:masked(portage://'net-fs/samba-4.18.8').		       % 2024-03-23
+preference:masked(portage://'net-fs/samba-4.18.9').                    % 2024-03-23
+preference:masked(portage://'net-fs/samba-4.19.4').                    % 2024-03-23
 
 preference:masked(portage://'sci-libs/eccodes-2.18.0').                % 2021-02-20
 preference:masked(portage://'sci-libs/hdf5-1.10.5-r1').                % 2020-05-09
