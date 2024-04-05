@@ -164,6 +164,14 @@ eapi:value('PDEPEND',R://E,pdepend(D)) -->
   !,
   eapi:cdepend(R://E,D).
 
+eapi:value('IDEPEND',R://E,idepend(D)) -->
+  !,
+  eapi:depend(R://E,D).
+
+eapi:value('BDEPEND',R://E,bdepend(D)) -->
+  !,
+  eapi:depend(R://E,D).
+
 eapi:value('PROVIDE',R://E,provide(P)) -->
   !,
   eapi:provide(R://E,P).
@@ -1084,17 +1092,41 @@ eapi:virtual([virtual(A)]) -->
 %
 % EAPI 5 - 8.2.6.3 defines subslot names
 
-eapi:slot([slot(V),subslot(SV)]) -->
-  eapi:slot_version(V),
-  [47],                                               % char: /
-  eapi:slot_version(SV).
+% Rewritten to avoid backtracking
 
-eapi:slot([slot(V),equal]) -->
-  eapi:slot_version(V),
-  [61].                                               % char: =
+%eapi:slot([slot(V),subslot(SV),equal]) -->
+%  eapi:slot_version(V),
+%  [47],                                              % char: /
+%  eapi:slot_version(SV),
+%  [61].				              % char: =
 
-eapi:slot([slot(V)]) -->
-  eapi:slot_version(V).
+%eapi:slot([slot(V),subslot(SV)]) -->
+%  eapi:slot_version(V),
+%  [47],					      % char: /
+%  eapi:slot_version(SV).
+
+%eapi:slot([slot(V),equal]) -->
+%  eapi:slot_version(V),
+%  [61].                                              % char: =
+
+%eapi:slot([slot(V)]) -->
+%  eapi:slot_version(V).
+
+
+eapi:slot([slot(V)|Cont]) -->
+  eapi:slot_version(V),
+  eapi:slot_cont(Cont).
+
+eapi:slot_cont([equal]) -->
+  [61].						      % char: =
+
+eapi:slot_cont([subslot(V)|Cont]) -->
+  [47],						      % char: /
+  eapi:slot_version(V),
+  eapi:slot_cont(Cont).
+
+eapi:slot_cont([]) -->
+  {!}.
 
 
 %! DCG slot_version
