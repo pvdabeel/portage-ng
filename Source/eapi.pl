@@ -1118,10 +1118,10 @@ eapi:slot([slot(V)|Cont]) -->
   eapi:slot_cont(Cont).
 
 eapi:slot_cont([equal]) -->
-  [61].						      % char: =
+  [61],{!}.					      % char: =
 
 eapi:slot_cont([subslot(V)|Cont]) -->
-  [47],						      % char: /
+  [47],{!},					      % char: /
   eapi:slot_version(V),
   eapi:slot_cont(Cont).
 
