@@ -5,7 +5,7 @@ Automate building and maintaining custom operating systems using declarative rea
 This repository contains Prolog code:
 
 - [context](Source/context.pl): An implementation of a Contextual Object Oriented Logic Programming paradigm for SWI-Prolog,
-- [eapi](Source/eapi.pl): A DCG Grammar for reading EAPI-7 (or earlier) compliant Gentoo ebuild information into Prolog facts and rules,
+- [eapi](Source/eapi.pl): A DCG Grammar for reading EAPI-8 (or earlier) compliant Gentoo ebuild information into Prolog facts and rules,
 - [knowledgebase](Source/knowledgebase.pl): A structure to which Gentoo overlays and repositories can be registered. 
 - [repository](Source/repository.pl): A Prolog class representing a Gentoo Portage repository. Offers datalog-style querying and Git, Rsync or Webrsync syncing.
 
