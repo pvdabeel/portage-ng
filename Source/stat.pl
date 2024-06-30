@@ -56,7 +56,7 @@ This class is used for measuring progress and statistics
   true.
 
 
-%! stat:init(+Count,+Total)
+%! stat:init(+Count,+Generator)
 %
 % Public predicate
 %
@@ -80,6 +80,7 @@ increase ::-
   NewCount is CurrentCount + 1,
   <=count(NewCount).
 
+
 %! stat:percentage(-Percentage)
 %
 % Public predicate
@@ -91,6 +92,7 @@ percentage(Percentage) ::-
   ::total(Total),
   P is Count/Total * 100,
   format(atom(Percentage),'~t~2f~w~7|',[P,'%']).
+
 
 %! stat:runningtime(-Min,-Sec)
 %
@@ -105,15 +107,17 @@ runningtime(Min,Sec) ::-
   Sec is Seconds mod 60,
   Min is Seconds div 60,!.
 
-%! stat:count(+Generator,-Count)
+
+%! stat:count(+Generator,?Count)
 %
 % Public predicate
 %
-% Counts how many times a Generator predicate is satisfied
+% Counts how many times Generator predicate is true
 
 count(Generator,Count) ::-
   findall(1,Generator,List),
   length(List,Count).
+
 
 %! stat:total
 %
