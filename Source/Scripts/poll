@@ -19,6 +19,7 @@ REMOTE=$(git rev-parse @{u});
 # If our local revision id doesn't match the remote, we will need to pull the changes
 
 if [ $LOCAL != $REMOTE ]; then
+#if [ true ]; then
     
     echo ">>> Commit found, updating"
     echo "--- `date`" 
@@ -35,6 +36,7 @@ if [ $LOCAL != $REMOTE ]; then
 
     popd
     echo
+    echo ">>> Done processing"
 else 
     echo ">>> No commit found, sleeping" 
     echo "--- `date`" 
