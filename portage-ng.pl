@@ -125,9 +125,9 @@ main :-
 
   % Example: Overlay repository - local sync
   % ----------------------------------------
-  % overlay:init('/Volumes/Disk 1/Repository/overlay',
-  %             '/Volumes/Disk 1/Repository/overlay/metadata/md5-cache',
-  %             '/Users/pvdabeel/Desktop/Prolog/Repository/overlay/','rsync','eapi'),
+  overlay:init('/Volumes/Disk 1/Repository/overlay',
+               '/Volumes/Disk 1/Repository/overlay/metadata/md5-cache',
+               '/Users/pvdabeel/Desktop/Prolog/Repository/overlay/','rsync','eapi'),
 
 
   % Example: Github code repository - sync via git
@@ -146,7 +146,7 @@ main :-
   
   kb:register(portage),
 
-  %kb:register(overlay),
+  kb:register(overlay),
   %kb:register(swipl),
   %kb:register(linux),
 

@@ -134,8 +134,8 @@ sync(repository) ::-
 %
 % Public predicate
 %
-% Regenerates cache metadata inside the local repository files by invoking a
-% script
+% Regenerates cache metadata for changed files inside the local repository files 
+% by invoking a script
 
 sync(metadata) ::-
   ::type('eapi'),!,
@@ -170,8 +170,7 @@ sync(kb) ::-
   :this(Repository),
   message:hc,
 
-  % update cache:entry and cache:entry_metadata facts for
-  % changed ebuilds in the repository
+  % Step 1: update cache:entry and cache:entry_metadata facts
 
   forall((:find_metadata(E,T,C,N,V),
           :read_metadata(E,T,M)),
@@ -184,7 +183,7 @@ sync(kb) ::-
                    forall(member(I,Value),
                    assert(cache:entry_metadata(Repository,E,Key,I))))))),
 
-  % update cache:manifest facts for changed manifests in the repository
+  % Step 2: update cache:manifest facts for manifests in the repository
 
   forall((:find_manifest(P,T,C,N),
           :read_manifest(P,T,C,N,M)),
@@ -196,20 +195,21 @@ sync(kb) ::-
 
   % re-create cache:repository, cache:category and cache:package facts
   % for the repository. These facts are used by the knowledgebase query
-  % mechanism
+  % mechanism for fast retrieval of metadata, avoidance of sorting versions,
+  % etc.
 
   retractall(cache:repository(Repository)),
   retractall(cache:category(Repository,_)),
   retractall(cache:package(Repository,_,_,_)),
 
-  % cache:category creation
+  % Step3: cache:category creation
 
   findall(Ca,cache:entry(Repository,_,_,Ca,_,_),Cu),
   sort(Cu,Cs),
   forall(member(Ca,Cs),
          assert(cache:category(Repository,Ca))),
 
-  % cache:package creation. Here we create an ordering on the versions
+  % Step 4: cache:package creation. Here we create an ordering on the versions
   % of a given package. By default we prefer newer versions over older
   % versions. This ordering is stored in the cache, from which facts
   % will be retrieved
@@ -224,7 +224,7 @@ sync(kb) ::-
           sort(0,@>=,Vu,Vs),
           assert(cache:package(Repository,Ca,Pa,Vs)))),
 
-  % cache:repository creation
+  % Step 5: cache:repository creation for each repository in the knowledge base
 
   assert(cache:repository(Repository)),
   message:sc,
