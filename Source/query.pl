@@ -40,16 +40,16 @@ execute(category(R,C)) :-
 
 execute(package(C,N,R://Id)) :-
   !,
-  cache:package(R,C,N,V),
-  member([_,_,_,_,Id],V).
+  cache:package(R,C,N),
+  cache:ordered_entry(R,Id,C,N,_).
 
 execute(version(R://Id,Ver)) :-
   !,
-  cache:entry(R,Id,_,_,_,[_,_,_,Ver]).
+  cache:ordered_entry(R,Id,_,_,[_,_,_,Ver]).
 
 execute(entry(R://Id,Cat,Name,Ver)) :-
   !,
-  cache:entry(R,Id,_,Cat,Name,[_,_,_,Ver]).
+  cache:ordered_entry(R,Id,_,Cat,Name,[_,_,_,Ver]).
 
 execute(metadata(R://Id,Key,Value)) :-
   !,

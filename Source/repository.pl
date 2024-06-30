@@ -170,65 +170,76 @@ sync(kb) ::-
   :this(Repository),
   message:hc,
 
-  % Step 1: update cache:entry and cache:entry_metadata facts
+  % Step 1: clean cache
+
+  retractall(cache:repository(Repository)),
+  retractall(cache:category(Repository,_)),
+  retractall(cache:entry(Repository,_,_,_,_)),
+  retractall(cache:ordered_entry(Repository,_,_,_,_)),
+  retractall(cache:entry_metadata(Repository,_,_,_)),
+  retractall(cache:manifest(Repository,_,_,_,_)),
+
+  % Step 2: update cache:entry and cache:entry_metadata facts
 
   forall((:find_metadata(E,T,C,N,V),
           :read_metadata(E,T,M)),
           (message:scroll(['Ebuild: ',E]),
-           retractall(cache:entry(Repository,E,_,_,_,_)),
-           retractall(cache:entry_metadata(Repository,E,_,_)),
-           assert(cache:entry(Repository,E,T,C,N,V)),
+           assert(cache:entry(Repository,E,C,N,V)),
+           assert(cache:entry_metadata(Repository,E,timestamp,T)),
            forall(member(L,M),
                   (L=..[Key,Value],
                    forall(member(I,Value),
                    assert(cache:entry_metadata(Repository,E,Key,I))))))),
 
-  % Step 2: update cache:manifest facts for manifests in the repository
+  % Step 3: update cache:manifest facts for manifests in the repository
 
   forall((:find_manifest(P,T,C,N),
           :read_manifest(P,T,C,N,M)),
          (message:scroll(['Manifest: ',P]),
-          retractall(cache:manifest(Repository,P,_,_,_)),
           assert(cache:manifest(Repository,P,T,C,N)),
           forall(member(manifest(Filetype,Filename,Filesize,Checksums),M),
                  assert(cache:manifest_metadata(Repository,P,Filetype,Filename,Filesize,Checksums))))),
 
-  % re-create cache:repository, cache:category and cache:package facts
-  % for the repository. These facts are used by the knowledgebase query
-  % mechanism for fast retrieval of metadata, avoidance of sorting versions,
-  % etc.
+  % Step 4: Ordered cache:category creation
 
-  retractall(cache:repository(Repository)),
-  retractall(cache:category(Repository,_)),
-  retractall(cache:package(Repository,_,_,_)),
-
-  % Step3: cache:category creation
-
-  findall(Ca,cache:entry(Repository,_,_,Ca,_,_),Cu),
+  findall(Ca,cache:entry(Repository,_,Ca,_,_),Cu),
   sort(Cu,Cs),
   forall(member(Ca,Cs),
          assert(cache:category(Repository,Ca))),
 
-  % Step 4: cache:package creation. Here we create an ordering on the versions
-  % of a given package. By default we prefer newer versions over older
-  % versions. This ordering is stored in the cache, from which facts
-  % will be retrieved
+  % Step 4: We create a unique cache:package and create cache:ordered_entry.
+  % The cache package allows us to retrieve individual package names efficiently.
+  % (without duplicates). We impose an ordering on cache:entry using 
+  % the versions of a given package. 
+  % 
+  % By default we prefer newer versions over older versions. We sort category, and 
+  % package alphabetically, then order versions using EAPI version sorting specs. 
+  % The ordered entries are stored in the cache, from which facts will later be 
+  % retrieved in the right order, avoiding costly sorting or list traversals.
 
-  findall([Ca,Pa],cache:entry(Repository,_,_,Ca,Pa,_),Pu),
+  findall([Ca,Pa],cache:entry(Repository,_,Ca,Pa,_),Pu),
   sort(Pu,Ps),
   forall(member([Ca,Pa],Ps),
          (findall([Vl,Va,Vs,Vf,Id],
-                  (cache:entry(Repository,Id,_,Ca,Pa,[Vn,Va,Vs,Vf]),
+                  (cache:entry(Repository,Id,Ca,Pa,[Vn,Va,Vs,Vf]),
                    eapi:version2numberlist(Vn,Vl)),
                   Vu),
           sort(0,@>=,Vu,Vs),
-          assert(cache:package(Repository,Ca,Pa,Vs)))),
+          ( assert(cache:package(Repository,Ca,Pa)),
+            forall(member([OVl,OVa,OVs,OVf,OrderedId],Vs),
+                 assert(cache:ordered_entry(Repository,OrderedId,Ca,Pa,[OVl,OVa,OVs,OVf])))))),
 
-  % Step 5: cache:repository creation for each repository in the knowledge base
+  % Step 5 : We retract the origanal unordered cache entries.
+
+  retractall(cache:entry(Repository,_,_,_,_)),
+
+  % Step 6: We end by creating cache:repository
 
   assert(cache:repository(Repository)),
+
   message:sc,
   message:scroll(['Updated prolog knowledgebase.']),nl.
+
 
 %! repository:find_metadata(?Entry, -Timestamp, -Category, -Name, -Version)
 %
@@ -280,7 +291,8 @@ find_manifest(Entry,Timestamp,Category,Name) ::-
 
 read_metadata(Entry,Timestamp,[]) ::-
   :this(Repository),
-  cache:entry(Repository,Entry,Timestamp,_,_,_),!,
+  cache:entry(Repository,Entry,_,_,_),
+  cache:entry_metadata(Repository,Entry,timestamp,Timestamp),!,
   fail.
 
 read_metadata(Entry,_,Metadata) ::-
@@ -337,7 +349,7 @@ read_time(Time) ::-
 
 entry(Entry) ::-
   :this(Repository),
-  cache:entry(Repository,Entry,_,_,_,_).
+  cache:ordered_entry(Repository,Entry,_,_,_).
 
 
 %! repository:entry(?Entry, ?Time)
@@ -350,7 +362,8 @@ entry(Entry) ::-
 
 entry(Entry,Time) ::-
   :this(Repository),
-  cache:entry(Repository,Entry,Time,_,_,_).
+  cache:ordered_entry(Repository,Entry,_,_,_),
+  cache:entry_metadata(Repository,Entry,'timestamp',Time).
 
 
 %! repository:category(?Category)
@@ -385,7 +398,7 @@ package(Category,Package) ::-
 
 ebuild(Category,Name,Version) ::-
   :this(Repository),
-  cache:entry(Repository,_,_,Category,Name,[_,_,_,Version]).
+  cache:ordered_entry(Repository,_,Category,Name,[_,_,_,Version]).
 
 
 %! repository:ebuild(?Id, ?Category, ?Name, ?Version)
@@ -397,7 +410,7 @@ ebuild(Category,Name,Version) ::-
 
 ebuild(Id,Category,Name,Version) ::-
   :this(Repository),
-  cache:entry(Repository,Id,_,Category,Name,[_,_,_,Version]).
+  cache:ordered_entry(Repository,Id,Category,Name,[_,_,_,Version]).
 
 
 %! repository:ebuild(?Id, ?Category, ?Name, ?Version, ?Key, ?Value)
@@ -409,7 +422,7 @@ ebuild(Id,Category,Name,Version) ::-
 
 ebuild(Id,Category,Name,Version,Key,Value) ::-
   :this(Repository),
-  cache:entry(Repository,Id,_,Category,Name,[_,_,_,Version]),
+  cache:ordered_entry(Repository,Id,Category,Name,[_,_,_,Version]),
   cache:entry_metadata(Repository,Id,Key,Value).
 
 
