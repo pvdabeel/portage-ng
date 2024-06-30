@@ -183,7 +183,7 @@ state(File) ::-
 % Knowledgebase entries
 
 entry(Repository://Entry) ::-
-  cache:entry(Repository,Entry,_,_,_,_).
+  cache:ordered_entry(Repository,Entry,_,_,_).
 
 
 %! knowledgebase:repository(?Repository)
@@ -208,7 +208,7 @@ repository(_Repository) ::-
 
 query([],Repository://Id) :-
   !,
-  cache:entry(Repository,Id,_,_,_,_).
+  cache:ordered_entry(Repository,Id,_,_,_).
 
 
 % ---------------
@@ -279,7 +279,7 @@ query([latest(S)|Rest],Repository://Id) :-
 query([category(Category)|Rest],Repository://Id) :-
   !,
   %cache:category(Repository,Category),
-  cache:entry(Repository,Id,_,Category,_,_),
+  cache:ordered_entry(Repository,Id,Category,_,_),
   query(Rest,Repository://Id).
 
 
@@ -289,7 +289,7 @@ query([category(Category)|Rest],Repository://Id) :-
 
 query([name(Name)|Rest],Repository://Id) :-
   !,
-  cache:entry(Repository,Id,_,_,Name,_),
+  cache:ordered_entry(Repository,Id,_,Name,_),
   query(Rest,Repository://Id).
 
 
@@ -300,7 +300,7 @@ query([name(Name)|Rest],Repository://Id) :-
 
 query([version(Version)|Rest],Repository://Id) :-
   !,
-  cache:entry(Repository,Id,_,_,_,[_,_,_,Version]),
+  cache:ordered_entry(Repository,Id,_,_,[_,_,_,Version]),
   query(Rest,Repository://Id).
 
 
@@ -309,7 +309,7 @@ query([version(Version)|Rest],Repository://Id) :-
 % ---------------
 
 query([manifest(Type,Binary,Size)|Rest],Repository://Id) :-
-  cache:entry(Repository,Id,_,Category,Name,_),
+  cache:ordered_entry(Repository,Id,Category,Name,_),
   knowledgebase:query([all(src_uri(Model))],Repository://Id),
   member(uri(_,_,Binary),Model),
   cache:manifest(Repository,P,_,Category,Name),

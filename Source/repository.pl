@@ -291,7 +291,7 @@ find_manifest(Entry,Timestamp,Category,Name) ::-
 
 read_metadata(Entry,Timestamp,[]) ::-
   :this(Repository),
-  cache:entry(Repository,Entry,_,_,_),
+  cache:ordered_entry(Repository,Entry,_,_,_),
   cache:entry_metadata(Repository,Entry,timestamp,Timestamp),!,
   fail.
 
@@ -386,7 +386,7 @@ category(Category) ::-
 
 package(Category,Package) ::-
   :this(Repository),
-  cache:package(Repository,Category,Package,_).
+  cache:package(Repository,Category,Package).
 
 
 %! repository:ebuild(?Category, ?Name, ?Version)
