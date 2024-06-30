@@ -237,3 +237,17 @@ prover:test(Repository,Style) :-
               Repository://Entry,
               (Repository:entry(Entry)),
               (prover:prove(Repository://Entry:Action,[],_,[],_,[],_))).
+
+
+%! prover:test_latest(+Repository,+Style)
+%
+% Same as prover:test(+Repository,+Style), but only tests highest version
+% of every package.
+
+prover:test_latest(Repository,Style) :-
+  config:proving_target(Action),
+  tester:test(Style,
+              'Proving latest',
+              Repository://Entry,
+              (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
+              (prover:prove(Repository://Entry:Action,[],_,[],_,[],_))).

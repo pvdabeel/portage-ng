@@ -31,6 +31,8 @@ This class is used for measuring progress and statistics
 :- dpublic('percentage'/1).
 :- dpublic('runningtime'/2).
 
+:- dpublic('count'/2).
+
 % private interface
 
 :- dprivate('count'/1).
@@ -102,6 +104,16 @@ runningtime(Min,Sec) ::-
   Seconds is integer(T2-T1),
   Sec is Seconds mod 60,
   Min is Seconds div 60,!.
+
+%! stat:count(+Generator,-Count)
+%
+% Public predicate
+%
+% Counts how many times a Generator predicate is satisfied
+
+count(Generator,Count) ::-
+  findall(1,Generator,List),
+  length(List,Count).
 
 %! stat:total
 %

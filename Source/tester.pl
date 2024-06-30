@@ -24,8 +24,8 @@ Output:
 % *******************
 
 tester:test(single_verbose,Name,Repository://Item,Generator,Test) :-
-  Repository:get_size(S),
-  stats:newinstance(stat),
+  stat:count(Generator,S),
+  stat:newinstance(stats),
   stats:init(0,S),
   config:time_limit(T),
   time(forall(Generator,
@@ -44,8 +44,8 @@ tester:test(single_verbose,Name,Repository://Item,Generator,Test) :-
 
 
 tester:test(parallel_verbose,Name,Repository://Item,Generator,Test) :-
-  Repository:get_size(S),
-  stats:newinstance(stat),
+  stat:count(Generator,S),
+  stat:newinstance(stats),
   stats:init(0,S),
   config:time_limit(T),
   config:number_of_cpus(Cpus),
@@ -67,8 +67,8 @@ tester:test(parallel_verbose,Name,Repository://Item,Generator,Test) :-
 
 
 tester:test(parallel_fast,Name,Repository://Item,Generator,Test) :-
-  Repository:get_size(S),
-  stats:newinstance(stat),
+  stat:count(Generator,S),
+  stat:newinstance(stats),
   stats:init(0,S),
   config:number_of_cpus(Cpus),
   findall((Test,!;

@@ -1,7 +1,7 @@
 /*
   Author:   Pieter Van den Abeele
   E-mail:   pvdabeel@mac.com
-  Copyright (c) 2005-2021, Pieter Van den Abeele
+  Copyright (c) 2005-2024, Pieter Van den Abeele
 
   Distributed under the terms of the LICENSE file in the root directory of this
   project.
@@ -373,7 +373,7 @@ category(Category) ::-
 
 package(Category,Package) ::-
   :this(Repository),
-  cache:package(Repository,Category,Package).
+  cache:package(Repository,Category,Package,_).
 
 
 %! repository:ebuild(?Category, ?Name, ?Version)
@@ -438,12 +438,16 @@ query(Query,Result) ::-
   knowledgebase:query(Query,Repository://Result).
 
 
+
+
+
 %! repository:get_location(?Location).
 %
 % Public predicate
 %
 % Location is an atom, representing a full absolute path
-% to a portage tree installed on your local system.
+% to a portage tree i%! repository:count(+Query,-Count)
+% installed on your local system.
 
 get_location(Location) ::-
   ::location(Location).
@@ -493,12 +497,11 @@ get_type(Type) ::-
   ::type(Type).
 
 
-%! repository:get_type(?Type)
+%! repository:get_size(?Size)
 %
 % Public predicate
 %
-% Type is an atom, representing the type of data represented
-% in the repository being processed.
+% Size is an integer, representing the number of entries in a repository
 
 get_size(Size) ::-
   :this(Repository),
