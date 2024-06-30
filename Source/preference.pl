@@ -1,7 +1,7 @@
 /*
   Author:   Pieter Van den Abeele
   E-mail:   pvdabeel@mac.com
-  Copyright (c) 2005-2021, Pieter Van den Abeele
+  Copyright (c) 2005-2024, Pieter Van den Abeele
 
   Distributed under the terms of the LICENSE file in the root directory of this
   project.
@@ -270,57 +270,6 @@ preference:printing_style('column').
 % preference:masked(Repository://Entry) :- preference:known_broken(Repository://Entry).
 
 
-% The following packages fail:
-
-preference:masked(portage://'dev-perl/Filesys-SmbClient-3.200.0-r4').  % 2021-05-20
-
-
-% 1. KEYWORD-related failure:
-%
-% Fails when only accept_keywords(stable(amd64)) is set
-% Fixed temporarily by adding unstable keyword to default config
-%
-% preference:masked(portage://'app-xemacs/dired-1.19').                % 2020-05-09
-% preference:masked(portage://'app-xemacs/ediff-1.77').                % 2020-05-09
-% preference:masked(portage://'app-xemacs/edit-utils-2.44').           % 2020-05-09
-% preference:masked(portage://'dev-java/xom-1.3.2').                   % 2020-05-09
-% preference:masked(portage://'dev-lang/mono-6.10.0.104').             % 2020-12-25
-% preference:masked(portage://'dev-lang/mono-6.6.0.161').              % 2020-05-09
-% preference:masked(portage://'dev-lang/scala-2.12.10').               % 2020-05-09
-% preference:masked(portage://'media-libs/openimageio-2.2.10.0').      % 2021-01-08
-% preference:masked(portage://'media-libs/openimageio-2.2.9.0-r1').    % 2020-12-25
-%
-% We should set accept_keywords(_) for the following:
-preference:masked(portage://'dev-vcs/mercurial-9999').                 % 2020-05-09
-
-% Negation as failure related:
-
-preference:masked(portage://'app-emulation/libvirt-9999').
-
-preference:masked(portage://'net-fs/samba-4.18.10').
-preference:masked(portage://'net-fs/samba-4.18.11').
-preference:masked(portage://'net-fs/samba-4.18.8').
-preference:masked(portage://'net-fs/samba-4.18.9').
-preference:masked(portage://'net-fs/samba-4.19.4').
-preference:masked(portage://'net-fs/samba-4.19.6').
-preference:masked(portage://'net-fs/samba-4.20.0').
-preference:masked(portage://'net-fs/samba-4.20.1').
-
-preference:masked(portage://'sci-libs/eccodes-2.18.0').                % 2021-02-20
-preference:masked(portage://'sci-libs/hdf5-1.10.5-r1').                % 2020-05-09
-preference:masked(portage://'net-fs/smbnetfs-0.6.3').                  % 2021-06-20
-
-% 2. Timeout fails
-%
-% Fixed by setting timeout to 120 seconds
-% Need better handling of large lists across backtracking to improve this
-% or keep lists smaller
-%
-% preference:masked(portage://'kde-apps/kde-apps-meta-20.08.3').       % 2021-01-08
-% preference:masked(portage://'kde-apps/kde-apps-meta-20.12.1').       % 2021-01-08
-% preference:masked(portage://'kde-apps/kde-meta-20.08.3').            % 2020-12-25
-
-% 3. To be investigated fails
 
 
 %! preference:world(?List)
