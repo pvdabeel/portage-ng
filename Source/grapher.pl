@@ -1,7 +1,7 @@
 /*
   Author:   Pieter Van den Abeele
   E-mail:   pvdabeel@mac.com
-  Copyright (c) 2005-2021, Pieter Van den Abeele
+  Copyright (c) 2005-2024, Pieter Van den Abeele
 
   Distributed under the terms of the LICENSE file in the root directory of this
   project.
@@ -251,7 +251,7 @@ grapher:handle(rdepend,_Style,_Arrow,_Master,at_most_one_of_group(_),[]) :- !.
 grapher:handle(rdepend,_Style,_Arrow,_Master,_,[]) :- !.
 
 
-grapher:handle(detail,Style,Arrow,Master,package_dependency(_,_,Type,Cat,Name,Comp,[_,_,_,Ver],_,_),arrow(D,Choices)) :-
+grapher:handle(detail,Style,Arrow,Master,package_dependency(_,_,Type,Cat,Name,Comp,Ver,_,_),arrow(D,Choices)) :-
   !,
   gensym(pack,P),
   write('subgraph '),write(P),write(' {'),nl,

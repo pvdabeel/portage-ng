@@ -1,7 +1,7 @@
 /*
   Author:   Pieter Van den Abeele
   E-mail:   pvdabeel@mac.com
-  Copyright (c) 2005-2021, Pieter Van den Abeele
+  Copyright (c) 2005-2024, Pieter Van den Abeele
 
   Distributed under the terms of the LICENSE file in the root directory of this
   project.
@@ -98,7 +98,7 @@ config:time_limit_build(6000).
 %
 % Set when you want Graphviz dot file to be created for new ebuilds only
 
-config:graph_modified_only(true).
+config:graph_modified_only(false).
 
 
 %! config:proving_target(?Target)

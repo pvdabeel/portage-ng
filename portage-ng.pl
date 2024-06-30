@@ -1,7 +1,7 @@
 /*
   Author:   Pieter Van den Abeele
   E-mail:   pvdabeel@mac.com
-  Copyright (c) 2005-2021, Pieter Van den Abeele
+  Copyright (c) 2005-2024, Pieter Van den Abeele
 
   Distributed under the terms of the LICENSE file in the root directory of this
   project.
@@ -26,9 +26,8 @@ This file is the main source file in the repository. It loads all other files.
 % PORTAGE-NG
 % **********
 
-:- use_module(library(aggregate)).
-:- use_module(library(tty)).
-
+:- ensure_loaded(library('aggregate')).
+:- ensure_loaded(library('tty')).
 :- ensure_loaded(library('thread')).
 :- ensure_loaded(library('apply_macros')).
 :- ensure_loaded(library('time')).
@@ -97,7 +96,7 @@ main :-
 
   config:installation_dir(Directory),
   system:working_directory(_,Directory),
-
+ 
   portage:newinstance(repository),
 
   overlay:newinstance(repository),
@@ -144,13 +143,13 @@ main :-
   %           '/Volumes/Disk 1/Repository/linux/metadata',
   %           'https://github.com/torvalds/linux','git','cmake'),
 
-
+  
   kb:register(portage),
 
   %kb:register(overlay),
   %kb:register(swipl),
   %kb:register(linux),
 
-
   kb:load,
+
   interface:process_requests.
