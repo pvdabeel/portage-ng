@@ -54,18 +54,29 @@ rule(_Repository://_Ebuild:download,[]) :- !.
 
 rule(Repository://Ebuild:install,[]) :-
   not(prover:flag(emptytree)),
-  os:installed_pkg(Repository://Ebuild),!.
+  cache:entry_metadata(Repository,Ebuild,installed,true),!.
+  %os:installed_pkg(Repository://Ebuild),!.
 
 rule(Repository://Ebuild:install,Conditions) :-
-  knowledgebase:query([category(C),name(N),slot(slot(S)),model(required_use(M)),all(depend(D))],Repository://Ebuild),
+  cache:ordered_entry(Repository,Ebuild,C,N,_),
+  cache:entry_metadata(Repository,Ebuild,slot,slot(S)),
+  findall(Depend,cache:entry_metadata(Repository,Ebuild,depend,Depend),D),
+  % knowledgebase:query([category(C),name(N),slot(slot(S)),model(required_use(M)),all(depend(D))],Repository://Ebuild),
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
-    Conditions = [constraint(use(Repository://Ebuild):{M}),
+    Conditions = [constraint(use(Repository://Ebuild):{[]}), %M removed
                   constraint(slot(C,N,S):{[Ebuild]})
                   |D];
-    Conditions = [constraint(use(Repository://Ebuild):{M}),
+    Conditions = [constraint(use(Repository://Ebuild):{[]}), %M removed
                   Repository://Ebuild:download,
                   constraint(slot(C,N,S):{[Ebuild]})
                   |D] ).
+
+% ?- knowledgebase:query([category('sys-apps'),name('portage'),model(required_use(M))],portage://'sys-apps/portage-3.0.63-r1').
+% M = [required(python_targets_pypy3), python_targets_pypy3] ;
+% M = [required(python_targets_python3_10), python_targets_python3_10] ;
+% M = [required(python_targets_python3_11), python_targets_python3_11] ;
+% M = [required(python_targets_python3_12), python_targets_python3_12] ;
+
 
 
 % RUN
@@ -80,11 +91,13 @@ rule(Repository://Ebuild:install,Conditions) :-
 
 rule(Repository://Ebuild:run,[]) :-
   not(prover:flag(emptytree)),
-  os:installed_pkg(Repository://Ebuild),!.
+  cache:entry_metadata(Repository,Ebuild,installed,true),!.
+  %os:installed_pkg(Repository://Ebuild),!.
 
 rule(Repository://Ebuild:run,[Repository://Ebuild:install|D]) :-
   !,
-  knowledgebase:query([all(rdepend(D))],Repository://Ebuild).
+  findall(Depend,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),D).
+  %knowledgebase:query([all(rdepend(D))],Repository://Ebuild).
 
 
 % ------------------------------
@@ -178,17 +191,20 @@ rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_),[]) :- !.
 rule(package_dependency(_R://_E,Action,no,C,N,_O,_V,_S,_U),Conditions) :-
   not(prover:flag(deep)),
   preference:accept_keywords(K),
-  knowledgebase:query([installed(true),name(N),category(C),keywords(K)],Repository://Choice),
+  cache:ordered_entry(Repository,Choice,C,N,_),cache:entry_metadata(Repository,Choice,installed,true),cache:entry_metadata(Repository,Choice,keywords,K),
+  %knowledgebase:query([installed(true),name(N),category(C),keywords(K)],Repository://Choice),
   Conditions = [Repository://Choice:Action].
 
 rule(package_dependency(_R://_E,Action,no,C,N,_O,_V,_S,_U),Conditions) :-
   preference:accept_keywords(K),
-  knowledgebase:query([name(N),category(C),keywords(K)],Repository://Choice),
+  cache:ordered_entry(Repository,Choice,C,N,_),cache:entry_metadata(Repository,Choice,keywords,K),
+  %knowledgebase:query([name(N),category(C),keywords(K)],Repository://Choice),
   Conditions = [Repository://Choice:Action].
 
 rule(package_dependency(R://E,Action,no,C,N,O,V,S,U),Conditions) :-
   preference:accept_keywords(K),
-  not(knowledgebase:query([name(N),category(C),keywords(K)],_)),
+  not((cache:ordered_entry(Repository,Choice,C,N,_),cache:entry_metadata(Repository,Choice,keywords,K))),
+ %not(knowledgebase:query([name(N),category(C),keywords(K)],_)),
   Conditions = [assumed(package_dependency(R://E,Action,no,C,N,O,V,S,U))],!.
 
 
@@ -200,7 +216,7 @@ rule(use_conditional_group(positive,Use,R://E,D),[constraint(use(R://E)):Use|D])
 
 rule(use_conditional_group(positive,Use,R://E,_),[]) :-
   not(knowledgebase:query([iuse(Use,positive:_)],R://E)),!.
-  %not(preference:positive_use(Use)),!.
+  %% old: not(preference:positive_use(Use)),!.
 
 rule(use_conditional_group(positive,_,_,D),D) :- !.
 
