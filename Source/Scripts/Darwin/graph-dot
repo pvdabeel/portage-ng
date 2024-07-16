@@ -15,7 +15,7 @@ touch "${1}/.lastgraph"
 # Graphviz sometimes produces incorrect output (indeterministicly) 
 # We can detect the incorrect graphs, and recreate them
 
-while find "." -iname "*.svg" -exec grep -m1 -n -H candidates\<\/text\> {} \; -quit >/dev/null
+while find "${1}" -iname "*.svg" -exec grep -m1 -n -H candidates\<\/text\> {} \; -quit >/dev/null
 do
 echo "Fixing incorrect graphs..."
 find "${1}" -iname "*.svg" -exec grep -m1 -n -H candidates\<\/text\> {} \; | cut -f1 -f2 -d: | grep :15 | cut -f1 -d: | parallel --no-notice dot -Tsvg {.}.dot -o {}
