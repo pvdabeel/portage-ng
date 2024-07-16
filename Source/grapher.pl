@@ -50,7 +50,7 @@ grapher:graph(detail,Repository://Id) :-
   nl,
   write('subgraph cluster_leftcol {'),nl,
   write('color=gray;'),nl,
-  write('rank=same;'),nl,
+  %write('rank=same;'),nl,
   write('label=<<i>ebuild</i>>;'),nl,
   write('id [label=\"'),write(Repository://Id),write('\", color=red, width=4, href=\"../'),write(Id),write('.svg\"];'),nl,
   write('}'),nl,
