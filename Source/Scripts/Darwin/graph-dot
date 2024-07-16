@@ -15,4 +15,12 @@ touch "${1}/.lastgraph"
 # Graphviz sometimes produces incorrect output (indeterministicly) 
 # We can detect the incorrect graphs, and recreate them
 
-# find "${1}" -iname "*.svg" -exec grep -m1 -n -H candidates\<\/text\> {} \; | cut -f1 -f2 -d: | grep :15 | cut -f1 -d: | parallel --no-notice dot -Tsvg {.}.dot -o {}
+find "${1}" -iname "*.svg" -exec grep -m1 -n -H candidates\<\/text\> {} \; | cut -f1 -f2 -d: | grep :15 | cut -f1 -d: | parallel --no-notice dot -Tsvg {.}.dot -o {}
+find "${1}" -iname "*.svg" -exec grep -m1 -n -H candidates\<\/text\> {} \; | cut -f1 -f2 -d: | grep :15 | cut -f1 -d: | parallel --no-notice dot -Tsvg {.}.dot -o {}
+find "${1}" -iname "*.svg" -exec grep -m1 -n -H candidates\<\/text\> {} \; | cut -f1 -f2 -d: | grep :15 | cut -f1 -d: | parallel --no-notice dot -Tsvg {.}.dot -o {}
+find "${1}" -iname "*.svg" -exec grep -m1 -n -H candidates\<\/text\> {} \; | cut -f1 -f2 -d: | grep :15 | cut -f1 -d: | parallel --no-notice dot -Tsvg {.}.dot -o {}
+find "${1}" -iname "*.svg" -exec grep -m1 -n -H candidates\<\/text\> {} \; | cut -f1 -f2 -d: | grep :15 | cut -f1 -d: | parallel --no-notice dot -Tsvg {.}.dot -o {}
+find "${1}" -iname "*.svg" -exec grep -m1 -n -H candidates\<\/text\> {} \; | cut -f1 -f2 -d: | grep :15 | cut -f1 -d: | parallel --no-notice dot -Tsvg {.}.dot -o {}
+find "${1}" -iname "*.svg" -exec grep -m1 -n -H candidates\<\/text\> {} \; | cut -f1 -f2 -d: | grep :15 | cut -f1 -d: | parallel --no-notice dot -Tsvg {.}.dot -o {}
+find "${1}" -iname "*.svg" -exec grep -m1 -n -H candidates\<\/text\> {} \; | cut -f1 -f2 -d: | grep :15 | cut -f1 -d: | parallel --no-notice dot -Tsvg {.}.dot -o {}
+find "${1}" -iname "*.svg" -exec grep -m1 -n -H candidates\<\/text\> {} \; | cut -f1 -f2 -d: | grep :15 | cut -f1 -d: | parallel --no-notice dot -Tsvg {.}.dot -o {}
