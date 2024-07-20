@@ -25,6 +25,7 @@ The Printer takes a plan from the Planner and pretty prints it.
 printer:printable_element(rule(uri(_,_,_),_)) :- !.
 printer:printable_element(rule(uri(_),_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:run,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:run,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:download,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:install,_)) :- !.
 printer:printable_element(assumed(rule(_Repository://_Entry:_Action,_))) :- !.
@@ -44,9 +45,10 @@ printer:element_weight(rule(assumed(_),_),                           0) :- !. % 
 printer:element_weight(rule(uri(_),_),                               0) :- !. % provide
 printer:element_weight(rule(uri(_,_,_),_),                           1) :- !. % fetch
 printer:element_weight(rule(package_dependency(_,_,_,_,_,_,_,_,_),_),1) :- !. % confirm
-printer:element_weight(rule(_Repository://_Entry:run,_),             2) :- !. % run
-printer:element_weight(rule(_Repository://_Entry:download,_),        3) :- !. % download
-printer:element_weight(rule(_Repository://_Entry:install,_),         4) :- !. % install
+printer:element_weight(rule(_Repository://_Entry:verify,_),          2) :- !. % verify
+printer:element_weight(rule(_Repository://_Entry:run,_),             3) :- !. % run
+printer:element_weight(rule(_Repository://_Entry:download,_),        4) :- !. % download
+printer:element_weight(rule(_Repository://_Entry:install,_),         5) :- !. % install
 printer:element_weight(_,                                            6) :- !. % everything else
 
 
