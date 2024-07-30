@@ -21,7 +21,7 @@ help:     ## Show this help.
 all:	  build install 
 
 build:	  ## Build the application.
-	  swipl -L8g -G8g -o $(TARGET) -O -q -f portage-ng.pl -g main --stand_alone=true -c portage-ng.pl
+	  swipl --stack_limit=32G -o $(TARGET) -O -q -f portage-ng.pl -g main --stand_alone=true -c portage-ng.pl
 
 install:  ## Install the application.
 	  $(SUDO) cp $(TARGET) /usr/local/bin
