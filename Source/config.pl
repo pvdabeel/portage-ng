@@ -50,7 +50,7 @@ config:installation_dir('/Users/pvdabeel/Desktop/Prolog').
 %
 % We store the generated dot and svg files in the following directory.
 
-config:graph_directory('/Volumes/Disk 1/Graph/').
+config:graph_directory('/Users/pvdabeel/Graph/').
 
 
 %! config:pkg_directory(?FullPath)
@@ -58,7 +58,7 @@ config:graph_directory('/Volumes/Disk 1/Graph/').
 % Declaration of the pkg db directory on a system. This holds metadata
 % for all packages installed on a system
 
-config:pkg_directory('/Volumes/Disk 1/Repository/pkg').
+config:pkg_directory('/Users/pvdabeel/Repository/pkg').
 
 
 %! config:number_of_cpus(?Count)
@@ -98,7 +98,7 @@ config:time_limit_build(6000).
 %
 % Set when you want Graphviz dot file to be created for new ebuilds only
 
-config:graph_modified_only(true).
+config:graph_modified_only(false).
 
 
 %! config:proving_target(?Target)
@@ -129,3 +129,18 @@ config:test_style(parallel_verbose).
 % - version : fails silently when trying to parse versions from git repositories
 
 config:failsilenton(version).
+
+%! config:server_port(?Number)
+%
+% Declares the port on which the server needs to be launched.
+% Always launches on localhost, using https/ssl.
+
+config:server_port(4000).
+
+
+%! config:server_url(?Url)
+%
+% Declares the server url, including protocol (https) and port
+% the client needs to connect on.
+
+config:server_url('http://localhost:4000').
