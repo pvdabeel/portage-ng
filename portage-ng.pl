@@ -90,9 +90,8 @@ load_server :-
    ensure_loaded(library('http/http_open')),
    ensure_loaded(library('http/http_ssl_plugin')),
    ensure_loaded(library('http/thread_httpd')),
-   use_module(swi(doc/packages/examples/http/demo_body)),
 
-   ensure_loaded(library('pengines')),
+   %ensure_loaded(library('pengines')),
    ensure_loaded('Source/server.pl').
 
 
