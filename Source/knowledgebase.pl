@@ -148,12 +148,16 @@ load ::-
 % Clear state file
 
 clear ::-
-  exists_file('kb.qlf'),!,
-  delete_file('kb.qlf').
+  exists_file('kb.qlf'),
+  delete_file('kb.qlf'),
+  fail.
+
+clear ::-
+  exists_file('kb.raw'),!,
+  delete_file('kb.raw').
 
 clear ::-
   true.
-
 
 %! knowledgebase:query(+Query,-Result)
 %
