@@ -37,6 +37,7 @@ if [ $LOCAL != $REMOTE ]; then
     popd
     echo
     echo ">>> Done processing"
+    echo "--- `date`" 
 else 
     echo ">>> No commit found, sleeping" 
     echo "--- `date`" 

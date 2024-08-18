@@ -5,9 +5,9 @@
 # ${1} = remote
 # ${2} = local
 if [ -f "${1}/.lastgraph" ]; then
-  find "${1}" -iname *.dot -mnewer "${1}/.lastgraph" | parallel --no-notice dot -Tsvg {} -o {.}.svg >/dev/null 2>/dev/null
+  find "${1}" -iname *.dot -mnewer "${1}/.lastgraph" | parallel --no-notice dot -Tsvg {} -o {.}.svg
 else 
-  find "${1}" -iname *.dot | parallel --no-notice dot -Tsvg {} -o {.}.svg >/dev/null 2>/dev/null
+  find "${1}" -iname *.dot | parallel --no-notice dot -Tsvg {} -o {.}.svg
 fi
 touch "${1}/.lastgraph"
 
@@ -15,8 +15,27 @@ touch "${1}/.lastgraph"
 # Graphviz sometimes produces incorrect output (indeterministicly) 
 # We can detect the incorrect graphs, and recreate them
 
-while find "${1}" -iname "*.svg" -exec grep -m1 -n -H candidates\<\/text\> {} \; -quit >/dev/null
-do
-echo "Fixing incorrect graphs..."
-find "${1}" -iname "*.svg" -exec grep -m1 -n -H candidates\<\/text\> {} \; | cut -f1 -f2 -d: | grep :15 | cut -f1 -d: | parallel --no-notice dot -Tsvg {.}.dot -o {}
-done
+#while find "${1}" -iname "*.svg" -exec grep -m1 -n -H candidates\<\/text\> {} \; -quit >/dev/null
+#do
+#echo "Fixing incorrect graphs..."
+#find "${1}" -iname "*.svg" -exec grep -m1 -n -H candidates\<\/text\> {} \; | cut -f1 -f2 -d: | grep :15 | cut -f1 -d: | parallel --no-notice dot -Tsvg {.}.dot -o {} >/dev/null 2>/dev/null
+#done
+
+# Run some quality checks: 
+
+# SVG files which don't have a leftcol cluster should be recreated
+#while find "${1}" -iname "*.svg" -exec grep -L leftcol {} \; -quit >/dev/null
+#do 
+#echo "Fixing graphs without leftcol..."
+#find "${1}" -iname "*.svg" -exec grep -L leftcol {} \; | cut -f1 -f2 -d: | parallel --no-notice dot -Tsvg {.}.dot -o {} >/dev/null 2>/dev/null
+#done
+
+# SVG files which don't have a midcol cluster should be recreated
+# while find "${1}" -iname "*.svg" -exec grep -L midcol {} \; -quit >/dev/null
+# do 
+# echo "Fixing graphs without midcol..."
+# find "${1}" -iname "*.svg" -exec grep -L midcol {} \; | cut -f1 -f2 -d: | parallel --no-notice dot -Tsvg {.}.dot -o {} >/dev/null 2>/dev/null
+# done
+
+
+# find . -iname "*.dot" -exec perl -0777 -i -pe 's/rank=same;\nlabel=<<i>ebuild/label=<<i>ebuild/igs' {} \;

@@ -100,6 +100,18 @@ rule(Repository://Ebuild:run,[Repository://Ebuild:install|D]) :-
   %knowledgebase:query([all(rdepend(D))],Repository://Ebuild).
 
 
+
+% VERIFY
+%
+% An ebuild is verified if it can be run and its posttime dependencies are satsified
+
+%rule(Repository://Ebuild:verify,[Repository://Ebuild:run|P]) :-
+%  !,
+%  findall(Depend,cache:entry_metadata(Repository,Ebuild,pdepend,Depend),P).
+
+
+
+
 % ------------------------------
 % Ruleset: Dependency resolution
 % ------------------------------

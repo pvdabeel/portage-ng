@@ -38,9 +38,9 @@ Output: A nested list representing the the result of parsing each line in the
 
 parser:invoke(_,_,[],[]).
 
-parser:invoke(Type,Repository://Entry,[X|XX],[Y|YY]) :-
-  phrase(eapi:keyvalue(Type,Repository://Entry,Y),X),!,
-  parser:invoke(Type,Repository://Entry,XX,YY).
+parser:invoke(Type,Repository://Entry,[Line|Lines],[KeyValue|KeyValues]) :-
+  phrase(eapi:keyvalue(Type,Repository://Entry,KeyValue),Line),!,
+  parser:invoke(Type,Repository://Entry,Lines,KeyValues).
 
 
 %! parser:test(+Repository)

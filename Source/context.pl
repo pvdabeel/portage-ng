@@ -179,7 +179,7 @@ Examples:
 % the thread using the class, otherwise access could be granted to a thread
 % which should not have had access to a particular clause.
 
-:- thread_local '$__token'/1.
+:- thread_local '$_token'/1.
 
 
 % CONTEXT uses a dynamic predicate called meta.

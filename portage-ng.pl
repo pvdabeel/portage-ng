@@ -30,7 +30,6 @@ create_prolog_flag(system_cacert_filename,'/tmp/cacert.pem',[access(read_only)])
 
 load_common :-
    writeln('Loading common modules...'),
-
    ensure_loaded(library('optparse')),
    ensure_loaded(library('tty')),
    ensure_loaded(library('time')),
@@ -45,7 +44,6 @@ load_client :-
    ensure_loaded(library('http/http_open')),
    ensure_loaded(library('http/http_ssl_plugin')),
    ensure_loaded(library('http/thread_httpd')),
-   use_module(swi(doc/packages/examples/http/demo_body)),
    ensure_loaded('Source/client.pl').
 
 
@@ -95,9 +93,11 @@ load_server :-
    ensure_loaded('Source/server.pl').
 
 
-%! main.
+%! main(+Mode).
 %
 % The main predicate.
+%
+% Mode is one of standalone, client or server
 %
 % We declare (as an example) the following repositories:
 %
@@ -183,6 +183,13 @@ main(standalone) :-
   %            'https://github.com/torvalds/linux','git','cmake'),
   % kb:register(linux),
 
+
+  kb:register(portage),
+
+  %kb:register(overlay),
+  %kb:register(swipl),
+  %kb:register(linux),
+
   kb:load,
   interface:process_requests(standalone).
 
@@ -193,3 +200,6 @@ main(server) :-
   server:start_server,
   interface:process_requests(server).
 
+
+emerge(R://E,Plan) :-
+  prover:prove(R://E:run,[],Proof,[],Model,[],_Constraints),planner:plan(Proof,[],[],Plan),printer:print(R://E:run,Model,Proof,Plan).

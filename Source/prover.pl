@@ -197,7 +197,7 @@ prover:is_constraint(constraint(_)) :- !.
 % -----------------------------------------
 
 prover:unify_constraints(constraint(Constraint),Constraints,NewConstraints) :-
-  feature_unifation:unify([Constraint],Constraints,NewConstraints).
+  feature_unification:unify([Constraint],Constraints,NewConstraints).
 
 
 % -----

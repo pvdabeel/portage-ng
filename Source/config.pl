@@ -50,7 +50,7 @@ config:installation_dir('/Users/pvdabeel/Desktop/Prolog').
 %
 % We store the generated dot and svg files in the following directory.
 
-config:graph_directory('/Users/pvdabeel/Graph/').
+config:graph_directory('/Volumes/Disk 1//Graph/').
 
 
 %! config:pkg_directory(?FullPath)
@@ -58,7 +58,7 @@ config:graph_directory('/Users/pvdabeel/Graph/').
 % Declaration of the pkg db directory on a system. This holds metadata
 % for all packages installed on a system
 
-config:pkg_directory('/Users/pvdabeel/Repository/pkg').
+config:pkg_directory('/Volumes/Disk 1/Repository/pkg/').
 
 
 %! config:number_of_cpus(?Count)
