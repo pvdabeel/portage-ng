@@ -42,57 +42,10 @@ os:compose_path(Path,RelativePath,NewPath) :-
   atomic_list_concat([Path,'/',RelativePath],NewPath).
 
 
-%! os:make_repository_dirs(+Repository,+Directory)
+%! os:compose_path(+List,-Path)
 %
-% Given a prolog repository, creates a directory with subdirs
-% corresponding to the categories within the prolog repository
+% Given a list of path components, composes a new path by combining
+% path segments using correct OS seperator
 
-os:make_repository_dirs(Repository,Directory) :-
-  system:make_directory(Directory),
-  forall(Repository:category(C),
-    (os:compose_path(Directory,C,Subdir),
-     system:make_directory(Subdir))).
-
-
-%! os:installed_pkg(+Entry)
-%
-% Retrieves installed packages on the system (cached)
-
-os:installed_pkg(Repository://Entry) :-
-  cache:entry_metadata(Repository,Entry,installed,true).
-  %query:execute(installed(Repository://Entry)).
-
-%! os:sync
-%
-% Syncs the installed packages to prolog metadata
-
-os:sync :-
-  retractall(cache:entry_metadata(portage,_,installed,_)),
-  forall(os:find_installed_pkg(portage://Entry),
-         (asserta(cache:entry_metadata(portage,Entry,installed,true)))).
-          %message:scroll([Entry]))),
-	  %message:inform(['Updated system package database']).
-
-
-%! os:installed_pkg(+Entry)
-%
-% Retrieves installed packages on the system
-
-os:find_installed_pkg(portage://Entry) :-
-  config:pkg_directory(Directory),
-  os:directory_content(Directory,Category),
-  os:compose_path(Directory,Category,CategoryDir),
-  os:directory_content(CategoryDir,Package),
-  os:compose_path(Category,Package,Entry).
-
-
-%! os:update_repository_dirs(+Repository,+Directory)
-%
-% Given a prolog repository, creates a directory with subdirs
-% corresponding to the categories within the prolog repository
-
-os:update_repository_dirs(Repository,Directory) :-
-  forall(Repository:category(C),
-    (os:compose_path(Directory,C,Subdir),
-     (system:exists_directory(Subdir);
-     system:make_directory(Subdir)))).
+os:compose_path(List,Path) :-
+  atomic_list_concat(List,'/',Path).

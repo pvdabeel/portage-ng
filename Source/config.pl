@@ -21,9 +21,16 @@ configuration. The parameters described typically do not change at runtime.
 
 %! config:name(?Name)
 %
-% Declares the name of this program
+% Declares the name of this program.
 
 config:name('portage-ng-dev').
+
+
+%! config:hostname(?Hostname)
+%
+% Declares the hostname this program is running on.
+
+config:hostname(Hostname) :- system:gethostname(Hostname).
 
 
 %! config:dry_run_build(?Bool)
@@ -33,16 +40,53 @@ config:name('portage-ng-dev').
 config:dry_run_build(true).
 
 
-%! config:installation_dir(?FullPath)
+%! config:installation_dir(?Hostname,?FullPath)
 %
 % Declaration of the installation directory of the application source code.
 % Needs to be a full path. We serialise some Prolog code to this directory.
-% May change in a a later release.
+% Needs to be passed to prolog as a system flag (See portage-ng.pl)
 
-config:installation_dir('/Users/pvdabeel/Desktop/Prolog').
+config:installation_dir(Dir) :-
+  file_search_path(portage,Dir),!.
 
 
-%! config:graph_directory(?FullPath)
+%! config:systemconfig(?Filename)
+%
+% Declares the systemconfig for the host this program is running on
+
+config:systemconfig(Filename) :-
+  config:installation_dir(Dir),
+  config:hostname(Hostname),
+  os:compose_path([Dir,'Source/Config',Hostname],Filename).
+
+
+%! config:initialize_cacert
+%
+% Initializes the certificate authority
+
+config:initialize_cacert :-
+  config:certificate('cacert.pem',Fullpath),
+  create_prolog_flag(system_cacert_filename,Fullpath,[access(read_only)]).
+
+
+%! config:certificate(+Certificate,-Fullpath)
+%
+% Returns an absolute path for a given certificate name
+
+config:certificate(Certificate,Fullpath) :-
+  config:installation_dir(Dir),
+  os:compose_path([Dir,'Source/Certificates',Certificate],Fullpath).
+
+
+%! config:password(?Key,?Pass)
+%
+% Declares the password for the client/server certificates
+
+config:password(server,'apenoot1').
+config:password(client,'apenoot2').
+
+
+%! config:graph_directory(?Hostname,?FullPath)
 %
 % This application is capable of writing Graphviz dot files and will turn
 % them into interactive scalable vector graphics (svg) to enable you to
@@ -50,15 +94,21 @@ config:installation_dir('/Users/pvdabeel/Desktop/Prolog').
 %
 % We store the generated dot and svg files in the following directory.
 
-config:graph_directory('/Volumes/Disk 1//Graph/').
+config:graph_directory('imac-pro.local',    '/Volumes/Disk 1/Graph/') :- !.
+config:graph_directory('mac-pro.local',     '/Users/pvdabeel/Graph/') :- !.
+config:graph_directory('macbook-pro.local', '/Users/pvdabeel/Graph/') :- !.
+config:graph_directory('vm-linux.local',    '/root/Graph/')           :- !.
 
 
-%! config:pkg_directory(?FullPath)
+%! config:pkg_directory(?Hostname,?FullPath)
 %
 % Declaration of the pkg db directory on a system. This holds metadata
 % for all packages installed on a system
 
-config:pkg_directory('/Volumes/Disk 1/Repository/pkg/').
+config:pkg_directory('imac-pro.local',      '/Volumes/Disk 1/Repository/pkg/') :- !.
+config:pkg_directory('mac-pro.local',       '/Users/pvdabeel/Repository/pkg/') :- !.
+config:pkg_directory('macbook-pro.local',   '/Users/pvdabeel/Repository/pkg/') :- !.
+config:pkg_directory('vm-linux.local',      '/var/db/portage/pkg/') :- !.
 
 
 %! config:number_of_cpus(?Count)
@@ -129,6 +179,7 @@ config:test_style(parallel_verbose).
 % - version : fails silently when trying to parse versions from git repositories
 
 config:failsilenton(version).
+
 
 %! config:server_port(?Number)
 %

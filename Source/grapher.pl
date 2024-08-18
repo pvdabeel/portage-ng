@@ -336,13 +336,15 @@ grapher:handle(detail,_Style,_Arrow,Master,S,[]) :-
 % traversal to debug issues with ebuild dependencies.
 
 grapher:prepare_directory(D,Repository) :-
-  config:graph_directory(D),
+  config:hostname(H),
+  config:graph_directory(H,D),
   system:exists_directory(D),!,
   message:inform(['Directory already exists! Updating...']),
-  os:update_repository_dirs(Repository,D).
+  os:create_repository_dirs(Repository,D).
 
 grapher:prepare_directory(D,Repository) :-
-  config:graph_directory(D),
+  config:hostname(H),
+  config:graph_directory(H,D),
   not(system:exists_directory(D)),!,
   os:make_repository_dirs(Repository,D).
 

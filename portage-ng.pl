@@ -19,6 +19,18 @@ We show that our application can retrieve, read, parse, reason, prove, plan,
 and even build large scale software configrations.
 
 This file is the main source file in the repository. It loads all other files.
+
+Launch using
+
+swipl
+  -O                -> turns on Prolog performance optimizations
+  --stack_limit=32G -> if you want to prove the all packages in the portage tree
+                       you will need 32G stack space
+  --
+  -f /Users/pvdabeel/Desktop/Prolog/portage-ng.pl  -> load the main file
+  -p portage=/Users/pvdabeel/Desktop/Prolog        -> set application home
+  -g main					   -> execute main
+  --
 */
 
 
@@ -26,71 +38,78 @@ This file is the main source file in the repository. It loads all other files.
 % PORTAGE-NG
 % **********
 
-create_prolog_flag(system_cacert_filename,'/tmp/cacert.pem',[access(read_only)]).
 
-load_common :-
+load_common_modules :-
    writeln('Loading common modules...'),
+
    ensure_loaded(library('optparse')),
    ensure_loaded(library('tty')),
    ensure_loaded(library('time')),
    ensure_loaded(library('thread')),
 
-   ensure_loaded('Source/config.pl'),
-   ensure_loaded('Source/interface.pl'),
-   ensure_loaded('Source/message.pl').
+   ensure_loaded(portage('Source/os.pl')),
+   ensure_loaded(portage('Source/config')),
+   ensure_loaded(portage('Source/interface.pl')),
+   ensure_loaded(portage('Source/message.pl')).
 
-load_client :-
+
+load_client_modules :-
    writeln('Loading client modules...'),
+
    ensure_loaded(library('http/http_open')),
    ensure_loaded(library('http/http_ssl_plugin')),
    ensure_loaded(library('http/thread_httpd')),
-   ensure_loaded('Source/client.pl').
+
+   %ensure_loaded(portage('Source/pkg.pl')),
+   ensure_loaded(portage('Source/client.pl')).
 
 
-load_standalone :-
+load_standalone_modules :-
    writeln('Loading standalone modules...'),
+
    ensure_loaded(library('aggregate')),
    ensure_loaded(library('apply_macros')),
    ensure_loaded(library('gensym')),
 
-   ensure_loaded('Source/context.pl'),
-   ensure_loaded('Source/instances.pl'),
-   ensure_loaded('Source/cache.pl'),
-   ensure_loaded('Source/repository.pl'),
-   ensure_loaded('Source/knowledgebase.pl'),
-   ensure_loaded('Source/query.pl'),
+   ensure_loaded(portage('Source/context.pl')),
+   ensure_loaded(portage('Source/instances.pl')),
+   ensure_loaded(portage('Source/cache.pl')),
+   ensure_loaded(portage('Source/repository.pl')),
+   ensure_loaded(portage('Source/knowledgebase.pl')),
+   ensure_loaded(portage('Source/query.pl')),
 
-   ensure_loaded('Source/eapi.pl'),
-   ensure_loaded('Source/rules.pl'),
-   ensure_loaded('Source/ebuild.pl'),
-   ensure_loaded('Source/preference.pl'),
-   ensure_loaded('Source/unify.pl'),
-   ensure_loaded('Source/script.pl'),
-   ensure_loaded('Source/stat.pl'),
-   ensure_loaded('Source/os.pl'),
+   ensure_loaded(portage('Source/eapi.pl')),
+   ensure_loaded(portage('Source/rules.pl')),
+   ensure_loaded(portage('Source/ebuild.pl')),
+   ensure_loaded(portage('Source/preference.pl')),
+   ensure_loaded(portage('Source/unify.pl')),
+   ensure_loaded(portage('Source/script.pl')),
+   ensure_loaded(portage('Source/stat.pl')),
+   ensure_loaded(portage('Source/pkg.pl')),
 
-   ensure_loaded('Source/reader.pl'),
-   ensure_loaded('Source/parser.pl'),
-   ensure_loaded('Source/prover.pl'),
-   ensure_loaded('Source/planner.pl'),
-   ensure_loaded('Source/printer.pl'),
-   ensure_loaded('Source/builder.pl'),
-   ensure_loaded('Source/grapher.pl'),
-   ensure_loaded('Source/worker.pl'),
-   ensure_loaded('Source/tester.pl'),
+   ensure_loaded(portage('Source/reader.pl')),
+   ensure_loaded(portage('Source/parser.pl')),
+   ensure_loaded(portage('Source/prover.pl')),
+   ensure_loaded(portage('Source/planner.pl')),
+   ensure_loaded(portage('Source/printer.pl')),
+   ensure_loaded(portage('Source/builder.pl')),
+   ensure_loaded(portage('Source/grapher.pl')),
+   ensure_loaded(portage('Source/worker.pl')),
+   ensure_loaded(portage('Source/tester.pl')),
 
-   ensure_loaded('Source/test.pl').
+   ensure_loaded(portage('Source/test.pl')).
 
 
-load_server :-
+load_server_modules :-
    writeln('Loading server modules...'),
+
    ensure_loaded(library('http/http_server')),
    ensure_loaded(library('http/http_open')),
    ensure_loaded(library('http/http_ssl_plugin')),
    ensure_loaded(library('http/thread_httpd')),
-
    %ensure_loaded(library('pengines')),
-   ensure_loaded('Source/server.pl').
+
+   ensure_loaded(portage('Source/server.pl')).
 
 
 %! main(+Mode).
@@ -117,89 +136,32 @@ load_server :-
 
 main :-
   time(
-    (load_common,
+    (load_common_modules,
+     config:initialize_cacert,
      interface:process_mode(Mode),
      message:title_reset,
      main(Mode))).
 
 
 main(client) :-
-  load_client.
+  load_client_modules.
 
 
 main(standalone) :-
-  load_standalone,
-
-  config:installation_dir(Directory),
-  system:working_directory(_,Directory),
-
+  load_standalone_modules,
   kb:newinstance(knowledgebase),
-
-  % Example: Portage repository - sync vie web tarball
-  % --------------------------------------------------
-  % portage:newinstance(repository),
-  % portage:init('/Users/pvdabeel/Repository/portage-web','/Users/pvdabeel/Repository/portage-web/metadata/md5-cache',
-  %              'http://distfiles.gentoo.org/releases/snapshots/current/portage-latest.tar.bz2','http','eapi'),
-
-
-  % Example: Portage repository - sync via rsync
-  % --------------------------------------------
-  % portage:newinstance(repository),
-  % portage:init('/Users/pvdabeel/Repository/portage-rsync','/Users/pvdabeel/Repository/portage-rsync/metadata/md5-cache',
-  %             'rsync://rsync.gentoo.org/gentoo-portage','rsync','eapi'),
-
-
-  % Example: Portage repository - sync via git
-  % ------------------------------------------
-  portage:newinstance(repository),
-  portage:init('/Users/pvdabeel/Repository/portage-git','/Users/pvdabeel/Repository/portage-git/metadata/md5-cache',
-                'https://github.com/gentoo-mirror/gentoo','git','eapi'),
-  kb:register(portage),
-
-
-  % Example: Overlay repository - local sync
-  % ----------------------------------------
-  % overlay:newinstance(repository),
-  % overlay:init('/Volumes/Disk 1/Repository/overlay',
-  %             '/Volumes/Disk 1/Repository/overlay/metadata/md5-cache',
-  %             '/Users/pvdabeel/Desktop/Prolog/Repository/overlay/','rsync','eapi'),
-  % kb:register(overlay),
-
-
-  % Example: Github code repository - sync via git
-  % ----------------------------------------------
-  % swipl:newinstance(repository),
-  % swipl:init('/Volumes/Disk 1/Repository/swipl-devel',
-  %            '/Volumes/Disk 1/Repository/swipl-devel/metadata',
-  %            'https://github.com/swi-prolog/swipl-devel','git','cmake'),
-  % kb:register(swipl),
-
-
-  % Example: Github code repository - sync via git
-  % ----------------------------------------------
-  % linux:newinstance(repository),
-  % linux:init('/Volumes/Disk 1/Repository/linux',
-  %            '/Volumes/Disk 1/Repository/linux/metadata',
-  %            'https://github.com/torvalds/linux','git','cmake'),
-  % kb:register(linux),
-
-
-  kb:register(portage),
-
-  %kb:register(overlay),
-  %kb:register(swipl),
-  %kb:register(linux),
-
+  config:systemconfig(Config),
+  ensure_loaded(Config),
   kb:load,
   interface:process_requests(standalone).
 
 
 main(server) :-
   main(standalone),
-  load_server,
+  load_server_modules,
   server:start_server,
   interface:process_requests(server).
 
 
-emerge(R://E,Plan) :-
-  prover:prove(R://E:run,[],Proof,[],Model,[],_Constraints),planner:plan(Proof,[],[],Plan),printer:print(R://E:run,Model,Proof,Plan).
+%emerge(R://E,Plan) :-
+%  prover:prove(R://E:run,[],Proof,[],Model,[],_Constraints),planner:plan(Proof,[],[],Plan),printer:print(R://E:run,Model,Proof,Plan).

@@ -44,11 +44,15 @@ query_server(Cmd) :-
 
 https_client(Port, Page) :-
     format(atom(URL), 'https://localhost:~d~w', [Port, Page]),
+    config:certificate('cacert.pem',CaCert),
+    config:certificate('client-cert.pem',ClientCert),
+    config:certificate('client-key.pem',ClientKey),
+    config:password(client,Pass),
     http:http_open(URL, In,
-              [ cacerts([file('/tmp/cacert.pem')]),
-                certificate_file('/tmp/client-cert.pem'),
-                key_file('/tmp/client-key.pem'),
-                password('apenoot2')
+              [ cacerts([file(CaCert)]),
+                certificate_file(ClientCert),
+                key_file(ClientKey),
+                password(Pass)
               ]),
     copy_stream_data(In, current_output),
     close(In).
