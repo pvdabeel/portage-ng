@@ -130,13 +130,33 @@ server:reply(Request) :-
     prover:test_latest(portage,parallel_verbose),
     format('</html>~n', []).
 
+
+server:reply(Request) :-
+    member(path('/clear'), Request),
+    !,
+    format('Transfer-encoding: chunked~n~n', []),
+    format('Content-type: text/html~n~n', []),
+    format('<html>~n', []),
+    kb:clear,
+    format('</html>~n', []).
+
+server:reply(Request) :-
+    member(path('/halt'), Request),
+    !,
+    format('Transfer-encoding: chunked~n~n', []),
+    format('Content-type: text/html~n~n', []),
+    format('<html>~n', []),
+    http_stop_server(4000,[]),
+    format('</html>~n', []).
+
+
 server:reply(Request) :-
     member(path('/sync'), Request),
     !,
     format('Transfer-encoding: chunked~n~n', []),
     format('Content-type: text/html~n~n', []),
     format('<html>~n', []),
-    kb:clear,kb:sync,kb:save,
+    kb:sync,kb:save,
     format('</html>~n', []).
 
 
@@ -145,6 +165,7 @@ server:reply(Request) :-
 % Every other case: print the request.
 
 server:reply(Request) :-
+    format('Transfer-encoding: chunked~n~n', []),
     format('Content-type: text/html~n~n', []),
     format('<html>~n', []),
     format('<table border=1>~n'),
