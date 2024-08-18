@@ -40,7 +40,7 @@ config:hostname(Hostname) :- system:gethostname(Hostname).
 config:dry_run_build(true).
 
 
-%! config:installation_dir(?Hostname,?FullPath)
+%! config:installation_dir(?FullPath)
 %
 % Declaration of the installation directory of the application source code.
 % Needs to be a full path. We serialise some Prolog code to this directory.
@@ -48,6 +48,14 @@ config:dry_run_build(true).
 
 config:installation_dir(Dir) :-
   file_search_path(portage,Dir),!.
+
+
+%! config:working_dir(+FullPath)
+%
+% Declares the current working directory
+
+config:working_dir(Dir) :-
+  config:installation_dir(Dir).
 
 
 %! config:systemconfig(?Filename)
