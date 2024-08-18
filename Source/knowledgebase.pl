@@ -100,7 +100,7 @@ sync ::-
   forall(::repository(Repository),
 	 (message:header(['Syncing repository \"',Repository,'\"']),nl,
           Repository:sync)),!,
-  os:sync.
+  pkg:sync.
 
 
 %! knowledgebase:save
@@ -149,7 +149,12 @@ load ::-
 
 clear ::-
   exists_file('kb.qlf'),!,
-  delete_file('kb.qlf').
+  delete_file('kb.qlf'),
+  fail.
+
+clear ::-
+  exists_file('kb.raw'),!,
+  delete_file('kb.raw').
 
 clear ::-
   true.
