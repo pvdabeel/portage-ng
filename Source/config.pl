@@ -90,8 +90,8 @@ config:certificate(Certificate,Fullpath) :-
 %
 % Declares the password for the client/server certificates
 
-config:password(server,'apenoot1').
-config:password(client,'apenoot2').
+config:password(server,'demoServer').
+config:password(client,'demoClient').
 
 
 %! config:graph_directory(?Hostname,?FullPath)
