@@ -49,7 +49,8 @@ https_client(Hostname,Port,Page) :-
     config:certificate(Hostname,'client-key.pem',ClientKey),
     config:password(client,Pass),
     http:http_open(URL, In,
-              [ cacerts([file(CaCert)]),
+              [ host(Hostname),
+                cacerts([file(CaCert)]),
                 certificate_file(ClientCert),
                 key_file(ClientKey),
                 password(Pass)
