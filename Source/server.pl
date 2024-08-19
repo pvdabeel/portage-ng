@@ -46,7 +46,7 @@ server:start_server  :-
   config:certificate(Hostname,'server-key.pem',ServerKey),
   config:password(server,Pass),
   http:http_server(server:reply,
-                   [ port(Hostname:Port),
+                   [ port(Port),
                      ssl([ host(Hostname),
                            certificate_file(ServerCert),
                            key_file(ServerKey),
@@ -67,10 +67,13 @@ server:reply(Request) :-
     !,
     format('Content-type: text/html~n~n', []),
     format('<html>~n', []),
-    format('<h1>Some simple demo queries</h1>', []),
+    format('<h1>Portage-ng remote interface</h1>', []),
     format('<ul>~n', []),
-    format('  <li><a href="quit">Say bye bye</a>'),
+    format('  <li><a href="prove">Prove all latest ebuilds in knowledge base.</a>'),
+    format('  <li><a href="sync">Sync server knowledge base.</a>'),
+    format('  <li><a href="info">Returns server info.</a>'),
     format('  <li><a href="upload">Upload some data</a>'),
+    format('  <li><a href="quit">Say bye bye</a>'),
     format('  <li><a href="otherwise">Otherwise, print request</a>'),
     format('</ul>~n', []),
     format('</html>~n', []).
@@ -121,36 +124,24 @@ server:reply(Request) :-
 
 %! server:reply(+Request)
 %
-% Every other case: print the request.
+% Run a test prove run
 
 server:reply(Request) :-
     member(path('/prove'), Request),
     !,
     format('Transfer-encoding: chunked~n~n', []),
-    format('Content-type: text/html~n~n', []),
-    format('<html>~n', []),
+    current_output(S),
+    set_stream(S,buffer(false)),
+    %format('Content-type: text/html~n~n', []),
+    %format('<html>~n', []),
     prover:test_latest(portage,parallel_verbose),
-    format('</html>~n', []).
+    %format('</html>~n', []).
+    format('~n', []).
 
 
-server:reply(Request) :-
-    member(path('/clear'), Request),
-    !,
-    format('Transfer-encoding: chunked~n~n', []),
-    format('Content-type: text/html~n~n', []),
-    format('<html>~n', []),
-    kb:clear,
-    format('</html>~n', []).
-
-server:reply(Request) :-
-    member(path('/halt'), Request),
-    !,
-    format('Transfer-encoding: chunked~n~n', []),
-    format('Content-type: text/html~n~n', []),
-    format('<html>~n', []),
-    http_stop_server(4000,[]),
-    format('</html>~n', []).
-
+%! server:reply(+Request)
+%
+% Sync server repositories. Warning: needs locking
 
 server:reply(Request) :-
     member(path('/sync'), Request),
@@ -159,6 +150,22 @@ server:reply(Request) :-
     format('Content-type: text/html~n~n', []),
     format('<html>~n', []),
     kb:sync,kb:save,
+    format('</html>~n', []).
+
+
+%! server:reply(+Request)
+%
+% Sync server repositories. Warning: needs locking
+
+server:reply(Request) :-
+    member(path('/info'), Request),
+    !,
+    config:hostname(Hostname),
+    config:number_of_cpus(Cpu),
+    format('Transfer-encoding: chunked~n~n', []),
+    format('Content-type: text/html~n~n', []),
+    format('<html>~n', []),
+    format('Host ~w has ~w cpu cores available.~n', [Hostname, Cpu]),
     format('</html>~n', []).
 
 
