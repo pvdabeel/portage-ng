@@ -42,9 +42,8 @@ query_server(Cmd) :-
   pengine_rpc(S,Cmd).
 
 
-https_client(Port, Page) :-
-    format(atom(URL), 'https://imac-pro.local:~d~w', [Port, Page]),
-    config:hostname(Hostname),
+https_client(Hostname,Port,Page) :-
+    format(atom(URL), 'https://~w:~d~w', [Hostname,Port, Page]),
     config:certificate('cacert.pem',CaCert),
     config:certificate(Hostname,'client-cert.pem',ClientCert),
     config:certificate(Hostname,'client-key.pem',ClientKey),
