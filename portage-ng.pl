@@ -137,7 +137,6 @@ load_server_modules :-
 main :-
   time(
     (load_common_modules,
-     config:initialize_cacert,
      interface:process_mode(Mode),
      message:title_reset,
      main(Mode))).
