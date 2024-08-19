@@ -86,6 +86,16 @@ config:certificate(Certificate,Fullpath) :-
   os:compose_path([Dir,'Source/Certificates',Certificate],Fullpath).
 
 
+%! config:certificate(+Hostname,+Certificate,-Fullpath)
+%
+% Return an absolute path for a given hostname certificate name
+
+config:certificate(Hostname,Certificate,FullPath) :-
+  atomic_list_concat([Hostname,Certificate],'.',HostCertificate),
+  config:certificate(HostCertificate,FullPath).
+
+
+
 %! config:password(?Key,?Pass)
 %
 % Declares the password for the client/server certificates

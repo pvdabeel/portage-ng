@@ -43,10 +43,11 @@ query_server(Cmd) :-
 
 
 https_client(Port, Page) :-
-    format(atom(URL), 'https://localhost:~d~w', [Port, Page]),
+    format(atom(URL), 'https://imac-pro.local:~d~w', [Port, Page]),
+    config:hostname(Hostname),
     config:certificate('cacert.pem',CaCert),
-    config:certificate('client-cert.pem',ClientCert),
-    config:certificate('client-key.pem',ClientKey),
+    config:certificate(Hostname,'client-cert.pem',ClientCert),
+    config:certificate(Hostname,'client-key.pem',ClientKey),
     config:password(client,Pass),
     http:http_open(URL, In,
               [ cacerts([file(CaCert)]),

@@ -39,14 +39,16 @@ as a Makefile).
 % Start a http server on the given port and listens for commands
 
 server:start_server  :-
-  config:server_port(P),
-  config:certificate('server-cert.pem',ServerCert),
-  config:certificate('server-key.pem',ServerKey),
+  config:server_port(Port),
+  config:hostname(Hostname),
   config:certificate('cacert.pem',CaCert),
+  config:certificate(Hostname,'server-cert.pem',ServerCert),
+  config:certificate(Hostname,'server-key.pem',ServerKey),
   config:password(server,Pass),
   http:http_server(server:reply,
-                   [ port(P),
-                     ssl([ certificate_file(ServerCert),
+                   [ port(Hostname:Port),
+                     ssl([ host(Hostname),
+                           certificate_file(ServerCert),
                            key_file(ServerKey),
                            password(Pass),
                            peer_cert(true),
