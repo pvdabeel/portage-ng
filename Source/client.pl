@@ -37,9 +37,19 @@ as a Makefile).
 % Declares the url of the server
 
 
-query_server(Cmd) :-
-  config:server_url(S),
-  pengine_rpc(S,Cmd).
+query_server(Hostname,Port,Cmd) :-
+  format(atom(URL), 'https://~w:~d', [Hostname,Port]),
+  config:certificate('cacert.pem',CaCert),
+  config:certificate(Hostname,'client-cert.pem',ClientCert),
+  config:certificate(Hostname,'client-key.pem',ClientKey),
+  config:password(client,Pass),
+  pengine_rpc(URL,Cmd,
+              [ host(Hostname),
+                cacerts([file(CaCert)]),
+                certificate_file(ClientCert),
+                key_file(ClientKey),
+                password(Pass)
+              ]).
 
 
 https_client(Hostname,Port,Page) :-
