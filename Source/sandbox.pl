@@ -37,7 +37,7 @@ sandbox:safe_primitive(prover:is_constraint(_)).
 sandbox:safe_primitive(prover:unify_constraints(_,_,_)).
 sandbox:safe_primitive(prover:model(_,_)).
 
-sandbox:safe_primitive(rule:rule(_,_)).
+sandbox:safe_primitive(rules:rule(_,_)).
 
 sandbox:safe_primitive(planner:zerorules(_,_,_,_,_)).
 sandbox:safe_primitive(planner:is_zero(_,_)).
