@@ -12,6 +12,18 @@
 % SANDBOX declarations
 % ********************
 
+sandbox:safe_primitive(cache:repository(_)).
+sandbox:safe_primitive(cache:category(_,_)).
+sandbox:safe_primitive(cache:entry(_,_,_,_,_)).
+sandbox:safe_primitive(cache:package(_,_,_)).
+sandbox:safe_primitive(cache:ordered_entry(_,_,_,_,_)).
+sandbox:safe_primitive(cache:entry_metadata(_,_,_,_)).
+sandbox:safe_primitive(cache:entry_metadata(_,_,_,_)).
+sandbox:safe_primitive(cache:manifest(_,_,_,_,_)).
+sandbox:safe_primitive(cache:manifest_metadata(_,_,_,_,_,_)).
+
+sandbox:safe_primitive(query:execute(_)).
+
 sandbox:safe_primitive(prover:prove_targets(_,_,_,_,_,_,_)).
 sandbox:safe_primitive(prover:prove(_,_,_,_,_,_,_)).
 sandbox:safe_primitive(prover:fact(_)).
@@ -24,6 +36,8 @@ sandbox:safe_primitive(prover:conflictrule(_,_)).
 sandbox:safe_primitive(prover:is_constraint(_)).
 sandbox:safe_primitive(prover:unify_constraints(_,_,_)).
 sandbox:safe_primitive(prover:model(_,_)).
+
+sandbox:safe_primitive(rule:rule(_,_)).
 
 sandbox:safe_primitive(planner:zerorules(_,_,_,_,_)).
 sandbox:safe_primitive(planner:is_zero(_,_)).
