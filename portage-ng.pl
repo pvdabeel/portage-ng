@@ -140,6 +140,8 @@ main :-
     (load_common_modules,
      interface:process_mode(Mode),
      message:title_reset,
+     config:working_dir(Dir),
+     cd(Dir),
      main(Mode))).
 
 
