@@ -38,7 +38,6 @@ swipl
 % PORTAGE-NG
 % **********
 
-
 load_common_modules :-
    writeln('Loading common modules...'),
 
@@ -59,6 +58,7 @@ load_client_modules :-
    ensure_loaded(library('http/http_open')),
    ensure_loaded(library('http/http_ssl_plugin')),
    ensure_loaded(library('http/thread_httpd')),
+   ensure_loaded(library('pengines')),
 
    %ensure_loaded(portage('Source/pkg.pl')),
    ensure_loaded(portage('Source/client.pl')).
@@ -107,8 +107,9 @@ load_server_modules :-
    ensure_loaded(library('http/http_open')),
    ensure_loaded(library('http/http_ssl_plugin')),
    ensure_loaded(library('http/thread_httpd')),
-   %ensure_loaded(library('pengines')),
+   ensure_loaded(library('pengines')),
 
+   ensure_loaded(portage('Source/sandbox.pl')).
    ensure_loaded(portage('Source/server.pl')).
 
 
