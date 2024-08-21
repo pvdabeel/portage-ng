@@ -19,13 +19,13 @@ sandbox:safe_primitive(prover:proven(_,_)).
 sandbox:safe_primitive(prover:assumed_proven(_,_)).
 sandbox:safe_primitive(prover:proving(_,_)).
 sandbox:safe_primitive(prover:assumed_proving(_,_)).
-sandbox:safe_primitive(prover:conflict(_,_)).
+sandbox:safe_primitive(prover:conflicts(_,_)).
 sandbox:safe_primitive(prover:conflictrule(_,_)).
-sandbox:safe_primitive(prover:is_constraint(_,_)).
+sandbox:safe_primitive(prover:is_constraint(_)).
 sandbox:safe_primitive(prover:unify_constraints(_,_,_)).
 sandbox:safe_primitive(prover:model(_,_)).
 
 sandbox:safe_primitive(planner:zerorules(_,_,_,_,_)).
-sandbox:safe_primitive(planner:is_zero(_,_,_,_,_)).
+sandbox:safe_primitive(planner:is_zero(_,_)).
 sandbox:safe_primitive(planner:plan(_,_,_,_)).
 
