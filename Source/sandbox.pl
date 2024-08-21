@@ -1,0 +1,31 @@
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2024, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
+
+% ********************
+% SANDBOX declarations
+% ********************
+
+sandbox:safe_primitive(prover:prove_targets(_,_,_,_,_,_,_)).
+sandbox:safe_primitive(prover:prove(_,_,_,_,_,_,_)).
+sandbox:safe_primitive(prover:fact(_)).
+sandbox:safe_primitive(prover:proven(_,_)).
+sandbox:safe_primitive(prover:assumed_proven(_,_)).
+sandbox:safe_primitive(prover:proving(_,_)).
+sandbox:safe_primitive(prover:assumed_proving(_,_)).
+sandbox:safe_primitive(prover:conflict(_,_)).
+sandbox:safe_primitive(prover:conflictrule(_,_)).
+sandbox:safe_primitive(prover:is_constraint(_,_)).
+sandbox:safe_primitive(prover:unify_constraints(_,_,_)).
+sandbox:safe_primitive(prover:model(_,_)).
+
+sandbox:safe_primitive(planner:zerorules(_,_,_,_,_)).
+sandbox:safe_primitive(planner:is_zero(_,_,_,_,_)).
+sandbox:safe_primitive(planner:plan(_,_,_,_)).
+
