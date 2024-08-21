@@ -12,6 +12,29 @@
 % SANDBOX declarations
 % ********************
 
+
+sandbox:safe_primitive(config:certificate(_,_)).
+sandbox:safe_primitive(config:certificate(_,_,_)).
+sandbox:safe_primitive(config:dry_run_build(_)).
+sandbox:safe_primitive(config:failsilenton(_)).
+sandbox:safe_primitive(config:graph_directory(_,_)).
+sandbox:safe_primitive(config:graph_modified_only(_)).
+sandbox:safe_primitive(config:hostname(_)).
+sandbox:safe_primitive(config:installation_dir(_)).
+sandbox:safe_primitive(config:name(_)).
+sandbox:safe_primitive(config:number_of_cpus(_)).
+sandbox:safe_primitive(config:password(_,_)).
+sandbox:safe_primitive(config:pkg_directory(_,_)).
+sandbox:safe_primitive(config:proving_target(_)).
+sandbox:safe_primitive(config:server_port(_)).
+sandbox:safe_primitive(config:server_url(_)).
+sandbox:safe_primitive(config:systemconfig(_)).
+sandbox:safe_primitive(config:test_style(_)).
+sandbox:safe_primitive(config:time_limit(_)).
+sandbox:safe_primitive(config:time_limit_build(_)).
+sandbox:safe_primitive(config:verbosity(_)).
+sandbox:safe_primitive(config:working_dir(_)).
+
 sandbox:safe_primitive(cache:repository(_)).
 sandbox:safe_primitive(cache:category(_,_)).
 sandbox:safe_primitive(cache:entry(_,_,_,_,_)).
