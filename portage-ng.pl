@@ -109,7 +109,7 @@ load_server_modules :-
    ensure_loaded(library('http/thread_httpd')),
    ensure_loaded(library('pengines')),
 
-   ensure_loaded(portage('Source/sandbox.pl')).
+   ensure_loaded(portage('Source/sandbox.pl')),
    ensure_loaded(portage('Source/server.pl')).
 
 
