@@ -126,7 +126,7 @@ config:graph_directory('vm-linux.local',    '/root/Graph/')           :- !.
 config:pkg_directory('imac-pro.local',      '/Volumes/Disk 1/Repository/pkg/') :- !.
 config:pkg_directory('mac-pro.local',       '/Users/pvdabeel/Repository/pkg/') :- !.
 config:pkg_directory('macbook-pro.local',   '/Users/pvdabeel/Repository/pkg/') :- !.
-config:pkg_directory('vm-linux.local',      '/var/db/portage/pkg/') :- !.
+config:pkg_directory('vm-linux.local',      '/var/db/pkg/') :- !.
 
 
 %! config:number_of_cpus(?Count)
