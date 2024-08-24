@@ -77,8 +77,7 @@ interface:argv(Options,Args) :-
 
 interface:process_mode(Mode) :-
   interface:argv(Options,_),
-  member(mode(Mode),Options).
-
+  lists:member(mode(Mode),Options).
 
 %! interface:process_requests(Options,Args,Mode)
 %
@@ -90,20 +89,20 @@ interface:process_requests(_Mode) :-
   interface:version(Version),
   interface:status(Status),
   interface:argv(Options,_Args),
-  ( member(version(true),Options)    -> (message:inform(['portage-ng ',Status,' version - ',Version]),   halt) ;
-    member(info(true),Options)       -> (message:inform(['portage-ng ',Status,' version - ',Version]),   halt) ;
-    member(clear(true),Options)      -> (kb:clear,                                                       halt) ;
-    member(sync(true),Options)       -> (kb:sync, kb:save,                                               halt) ;
-    member(graph(true),Options)      -> (grapher:test(portage),                                          halt) ;
-    member(unmerge(true),Options)    -> (message:warning('unmerge action to be implemented'),            halt) ;
-    member(depclean(true),Options)   -> (message:warning('depclean action to be implemented'),           halt) ;
-%    member(search(true),Options)     -> ((Args == []) -> true ;
+  ( lists:member(version(true),Options)    -> (message:inform(['portage-ng ',Status,' version - ',Version]),   halt) ;
+    lists:member(info(true),Options)       -> (message:inform(['portage-ng ',Status,' version - ',Version]),   halt) ;
+    lists:member(clear(true),Options)      -> (kb:clear,                                                       halt) ;
+    lists:member(sync(true),Options)       -> (kb:sync, kb:save,                                               halt) ;
+    lists:member(graph(true),Options)      -> (grapher:test(portage),                                          halt) ;
+    lists:member(unmerge(true),Options)    -> (message:warning('unmerge action to be implemented'),            halt) ;
+    lists:member(depclean(true),Options)   -> (message:warning('depclean action to be implemented'),           halt) ;
+%    lists:member(search(true),Options)     -> ((Args == []) -> true ;
 %                                         (phrase(eapi:query(Q),Args),
 %                                          forall(knowledgebase:query(Q,R://E),writeln(R://E))),          halt) ;
-    member(sync(true),Options)       -> (kb:sync, kb:save,                                               halt) ;
-    member(shell(true),Options)      -> (message:inform(['portage-ng shell - ',Version]),                prolog)
-%    member(merge(true),Options)      -> ((Args == []) -> true ;
-%                                       (os:sync,forall(member(Arg,Args),
+    lists:member(sync(true),Options)       -> (kb:sync, kb:save,                                               halt) ;
+    lists:member(shell(true),Options)      -> (message:inform(['portage-ng shell - ',Version]),                prolog)
+%    lists:member(merge(true),Options)      -> ((Args == []) -> true ;
+%                                       (os:sync,forall(lists:member(Arg,Args),
 %                                        (atom_codes(Arg,Codes),
 %                                         phrase(eapi:qualifiedtarget(Q),Codes),
 %                                         knowledgebase:query(Q,R://E),
