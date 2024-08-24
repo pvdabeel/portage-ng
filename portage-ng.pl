@@ -70,6 +70,7 @@ load_standalone_modules :-
    ensure_loaded(library('aggregate')),
    ensure_loaded(library('apply_macros')),
    ensure_loaded(library('gensym')),
+   ensure_loaded(library('socket')),	% gethostname
 
    ensure_loaded(portage('Source/context.pl')),
    ensure_loaded(portage('Source/instances.pl')),
