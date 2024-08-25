@@ -2,7 +2,7 @@
 
 ## ----------------------------------------------------------------------
 ## You need to have a recent version of SWI-Prolog installed. Preferably 
-## a development version (version 8 or higher). This Makefile will help
+## a development version (version 9.3 or higher). This Makefile will help
 ## you create a 'portage-ng' binary that can be installed in /usr/local
 ## The resulting binary can be passed several arguments (like --sync). 
 ## When no arguments are supplied, you are dumped into a shell allowing 
@@ -14,6 +14,8 @@
 SUDO=sudo
 TARGET=portage-ng
 
+BUILDDIR=$(shell pwd)
+
 help:     ## Show this help.
 	  @sed -ne '/@sed/!s/## //p' $(MAKEFILE_LIST)
 
@@ -21,7 +23,7 @@ help:     ## Show this help.
 all:	  build install 
 
 build:	  ## Build the application.
-	  swipl --stack_limit=32G -o $(TARGET) -O -q -f portage-ng.pl -g main --stand_alone=true -c portage-ng.pl
+	  swipl --stack_limit=32G -o $(TARGET) -O -q -f portage-ng.pl -p portage=${BUILDDIR} -g main --stand_alone=true -c portage-ng.pl
 
 install:  ## Install the application.
 	  $(SUDO) cp $(TARGET) /usr/local/bin

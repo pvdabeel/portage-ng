@@ -30,7 +30,7 @@ config:name('portage-ng-dev').
 %
 % Declares the hostname this program is running on.
 
-config:hostname(Hostname) :- system:gethostname(Hostname).
+config:hostname(Hostname) :- socket:gethostname(Hostname).
 
 
 %! config:dry_run_build(?Bool)

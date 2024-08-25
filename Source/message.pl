@@ -157,7 +157,7 @@ message:column(Number,Message) :-
 
 message:print(Message) :-
   is_list(Message),!,
-  forall(member(M,Message),
+  forall(lists:member(M,Message),
     system:write(M)).
 
 message:print(Message) :-
@@ -251,7 +251,7 @@ message:topheader(Message) :-
   message:color(cyan),
   message:style(bold),
   system:write('### '),
-  forall(member(M,Message),
+  forall(lists:member(M,Message),
     system:write(M)),
   message:color(normal),
   message:style(normal),
@@ -267,7 +267,7 @@ message:header(Message) :-
   message:color(orange),
   message:style(bold),
   system:write('>>> '),
-  forall(member(M,Message),
+  forall(lists:member(M,Message),
     system:write(M)),
   message:color(normal),
   message:style(normal),
