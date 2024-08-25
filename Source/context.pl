@@ -135,8 +135,8 @@ Examples:
                      op(600, xfx, '<-'),
                      op(600, xfx, '<='),
                      op(600, xfx, '<+'),
-                     op(602, xfx, '://'),
-                     op(1200, xfx, '::-')
+                     op(602, xfx, '://')
+%                     op(1200, xfx, '::-')
                     ]).
 
 
@@ -168,8 +168,8 @@ Examples:
                       (::)/2,
                       (<-)/2,
                       (<=)/2,
-                      (<+)/2,
-                      (://)/2.
+                      (<+)/2.
+%                      (://)/2.
 
 
 
@@ -198,7 +198,7 @@ Examples:
 :- op(600, xfx, '<-').
 :- op(600, xfx, '<=').
 :- op(600, xfx, '<+').
-:- op(602, xfx, '://').
+%:- op(602, xfx, '://').
 :- op(1200, xfx, '::-').
 
 
@@ -772,8 +772,8 @@ context:newinstance(Context, Constructor) :-
 %
 % Evaluate predicate within a given context
 
-'://'(Context, Predicate) :-
- Context:Predicate.
+%'://'(Context, Predicate) :-
+% Context:Predicate.
 
 
 %! '<-'(+Context, +Predicate)
