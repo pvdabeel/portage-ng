@@ -47,6 +47,7 @@ load_common_modules :-
    ensure_loaded(library('thread')),
    ensure_loaded(library('readline')),
 
+   ensure_loaded(portage('Source/context.pl')),
    ensure_loaded(portage('Source/os.pl')),
    ensure_loaded(portage('Source/config')),
    ensure_loaded(portage('Source/interface.pl')),

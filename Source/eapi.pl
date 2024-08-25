@@ -36,13 +36,7 @@ The specifications of the grammar can be found in the documentation
 directory of this project.
 */
 
-:- module(eapi, [(://)/2]).
-
-:- module_transparent (://)/2.
-
-:- op(602, xfx, '://').
-
-'://'(_,_).
+:- module(eapi, []).
 
 % ----------
 % EAPI parse
