@@ -20,8 +20,6 @@ performance cache context.
 % ******************
 
 
-% Update to:
-
 :- dynamic cache:repository/1.		% e.g. 'portage'
 :- dynamic cache:category/2.		% e.g. 'portage','sys-kernel'
 :- dynamic cache:entry/5.		% e.g. 'portage',Id,'sys-kernel',linux-sources','5.11.0'
