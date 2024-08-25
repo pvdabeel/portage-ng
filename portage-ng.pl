@@ -45,6 +45,7 @@ load_common_modules :-
    ensure_loaded(library('tty')),
    ensure_loaded(library('time')),
    ensure_loaded(library('thread')),
+   ensure_loaded(library('readline')),
 
    ensure_loaded(portage('Source/os.pl')),
    ensure_loaded(portage('Source/config')),
@@ -146,7 +147,8 @@ main :-
 
 
 main(client) :-
-  load_client_modules.
+  load_client_modules,
+  interface:process_requests(client).
 
 
 main(standalone) :-
