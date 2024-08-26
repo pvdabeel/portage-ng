@@ -1785,7 +1785,13 @@ eapi:qualifiedtarget(Q) -->			      % @set
   { Q = [set(S)] }.
 
 
+eapi:qualifiedtarget([path(Qa)]) -->		      % relative path, either tbz or ebuild
+  [46],uri_chars(Q),
+  { atom_codes(Qa,[46|Q]),! }.
 
+eapi:qualifiedtarget([path(Qa)]) -->		      % absolute path, either tbz or ebuild
+  [47],uri_chars(Q),
+  { atom_codes(Qa,[47|Q]),! }.
 
 
 eapi:qualifiedtarget(Q) -->
