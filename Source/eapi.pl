@@ -542,6 +542,16 @@ eapi:repository(Ra) -->
   { atom_codes(Ra,R),! }.
 
 
+%! DCG: set
+%
+% Set Names
+
+eapi:set(Sa) -->
+  [64],
+  eapi:chars1(c,S),
+  { atom_codes(Sa,S),! }.
+
+
 %! DCG: category
 %
 % EAPI 4 - 2.1.1 Category Names
@@ -1753,6 +1763,12 @@ eapi:categorize_use(Use,negative,default) :-
 %
 % Parses command line targets:
 %
+%  world
+%  @set
+%  /path/file.ebuild
+%  ./path/file.ebuild
+%  /path/file.tbz2
+%  ./path/file.tbz2
 %  Name
 %  Category/Name
 %  Category/Name-Version
@@ -1761,12 +1777,23 @@ eapi:categorize_use(Use,negative,default) :-
 %
 % Returns a knowledgebase query
 
+eapi:qualifiedtarget([world]) -->
+  [119, 111, 114, 108, 100],!.			      % world
+
+eapi:qualifiedtarget(Q) -->			      % @set
+  eapi:set(S),
+  { Q = [set(S)] }.
+
+
+
+
+
 eapi:qualifiedtarget(Q) -->
   eapi:repository(R),                                 % required
   eapi:repositoryseparator,                           % required
   eapi:category(C),eapi:separator,!,eapi:package(P),  % required
   eapi:version0(V),
-  { ((V == ['','','']) ->                                     % optional
+  { ((V == ['','','']) ->                             % optional
      (Q = [name(P),category(C),repository(R)],!);
      (Q = [name(P),category(C),version(V),repository(R)])) }.
 
