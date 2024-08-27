@@ -1784,7 +1784,6 @@ eapi:qualifiedtarget(Q) -->			      % @set
   eapi:set(S),
   { Q = [set(S)] }.
 
-
 eapi:qualifiedtarget([path(Qa)]) -->		      % relative path, either tbz or ebuild
   [46],uri_chars(Q),
   { atom_codes(Qa,[46|Q]),! }.
@@ -1793,32 +1792,37 @@ eapi:qualifiedtarget([path(Qa)]) -->		      % absolute path, either tbz or ebuil
   [47],uri_chars(Q),
   { atom_codes(Qa,[47|Q]),! }.
 
-
 eapi:qualifiedtarget(Q) -->
   eapi:repository(R),                                 % required
   eapi:repositoryseparator,                           % required
   eapi:category(C),eapi:separator,!,eapi:package(P),  % required
-  eapi:version0(V),
+  eapi:version0(V),				      % optional
   { ((V == ['','','']) ->                             % optional
      (Q = [name(P),category(C),repository(R)],!);
      (Q = [name(P),category(C),version(V),repository(R)])) }.
 
 
 eapi:qualifiedtarget(Q) -->
+  eapi:operator(O),				      % optional
   eapi:category(C),eapi:separator,!,                  % required
   eapi:package(P),!,                                  % required
   eapi:version0(V),                                   % optional
+  eapi:slot_restriction(S),			      % optional
+  eapi:use_dependencies(U),			      % optional
   { ((V == ['','','']) ->
-     (Q = [name(P),category(C)],!);
-     (Q = [name(P),category(C),version(V)]),!) }.
+     (Q = [name(P),category(C),slot(S),use_dep(U)],!);
+     (Q = [name(P),category(C),version(V),slot(S),use_dep(U),operator(O)]),!) }.
 
 
 eapi:qualifiedtarget(Q) -->
+  eapi:operator(O),				      % optional
   eapi:package(P),!,                                  % required
   eapi:version0(V),                                   % optional
+  eapi:slot_restrictions(S),			      % optional
+  eapi:use_dependencies(U),			      % optional
   { ((V == ['','','']) ->
      (Q = [name(P)],!);
-     (Q = [name(P),version(V)]),!) }.
+     (Q = [name(P),version(V),slot(S),use_dep(U),operator(O)]),!) }.
 
 
 %! eapi:query(R)
