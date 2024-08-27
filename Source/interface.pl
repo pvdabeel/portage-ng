@@ -113,7 +113,7 @@ interface:process_requests(_Mode) :-
   					  %write('Options: '), writeln(Options),
                                           forall(member(Arg,Args),
                                                  (atom_codes(Arg,Codes),
-                                                  phrase(eapi:qualifiedtarget(Q),Codes),
+                                                  phrase(eapi:qualified_target(Q),Codes),
   						  writeln(Q)
                                                   %knowledgebase:query(Q,R://E),
                                                   %config:proving_target(T),

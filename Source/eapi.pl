@@ -1759,7 +1759,7 @@ eapi:categorize_use(Use,negative,default) :-
   not(printer:unify(minus(_),Use)),!.
 
 
-%! eapi:qualifiedtarget
+%! eapi:qualified_target
 %
 % Parses command line targets:
 %
@@ -1778,31 +1778,42 @@ eapi:categorize_use(Use,negative,default) :-
 %
 % Returns a knowledgebase query
 
-eapi:qualifiedtarget([world]) -->
+eapi:qualified_target([world]) -->
   [119, 111, 114, 108, 100],!.			      % world
 
-eapi:qualifiedtarget(Q) -->			      % @set
+eapi:qualified_target(Q) -->			      % @set
   eapi:set(S),
   { Q = [set(S)] }.
 
-eapi:qualifiedtarget([path(Qa)]) -->		      % relative path, either tbz or ebuild
+eapi:qualified_target([path(Qa)]) -->		      % relative path, either tbz or ebuild
   [46],uri_chars(Q),
   { atom_codes(Qa,[46|Q]),! }.
 
-eapi:qualifiedtarget([path(Qa)]) -->		      % absolute path, either tbz or ebuild
+eapi:qualified_target([path(Qa)]) -->		      % absolute path, either tbz or ebuild
   [47],uri_chars(Q),
   { atom_codes(Qa,[47|Q]),! }.
 
-eapi:qualifiedtarget(Q) -->
+eapi:qualified_target(Q) -->
+  eapi:operator(O),
   eapi:repository(R),                                 % required
-  eapi:repositoryseparator,                           % required
-  eapi:category(C),eapi:separator,!,eapi:package(P),  % required
+  eapi:repositoryseparator,!,                         % required
+  eapi:category(C),eapi:separator,eapi:package(P),    % required
   eapi:version0(V),				      % optional
-  { ((V == ['','','']) ->                             % optional
-     (Q = [repository(R),name(P),category(C)],!);
-     (Q = [repository(R),name(P),category(C),version(V)])) }.
+  eapi:slot_restriction(S),			      % optional
+  eapi:use_dependencies(U),			      % optional
+  { ((U == []) ->
+     (Qa = [],!);
+     (Qa = [use_deps(U)])),
+    ((S == []) ->
+     (Qb = Qa,!);
+     (Qb = [slot(S)|Qa])),
+    ((V == ['','','']) ->
+     (Q = [repository(R),name(P),category(C)|Qb],!);
+     ((O == 'none') ->
+      (Q = [repository(R),name(P),category(C),version(V)|Qb],!);
+      (Q = [repository(R),name(P),category(C),operator(O,version(V))|Qb]))) }.
 
-eapi:qualifiedtarget(Q) -->
+eapi:qualified_target(Q) -->
   eapi:operator(O),				      % optional
   eapi:category(C),eapi:separator,!,                  % required
   eapi:package(P),!,                                  % required
@@ -1821,7 +1832,7 @@ eapi:qualifiedtarget(Q) -->
       (Q = [name(P),category(C),version(V)|Qb],!);
       (Q = [name(P),category(C),operator(O,version(V))|Qb]))) }.
 
-eapi:qualifiedtarget(Q) -->
+eapi:qualified_target(Q) -->
   eapi:operator(O),				      % optional
   eapi:package(P),!,                                  % required
   eapi:version0(V),                                   % optional
