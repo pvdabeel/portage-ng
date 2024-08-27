@@ -1774,6 +1774,7 @@ eapi:categorize_use(Use,negative,default) :-
 %  Category/Name-Version
 %  Repository://Category/Name
 %  Repository://Category/Name-Version
+%  previous five with slot, operator and use deps
 %
 % Returns a knowledgebase query
 
@@ -1798,9 +1799,8 @@ eapi:qualifiedtarget(Q) -->
   eapi:category(C),eapi:separator,!,eapi:package(P),  % required
   eapi:version0(V),				      % optional
   { ((V == ['','','']) ->                             % optional
-     (Q = [name(P),category(C),repository(R)],!);
-     (Q = [name(P),category(C),version(V),repository(R)])) }.
-
+     (Q = [repository(R),name(P),category(C)],!);
+     (Q = [repository(R),name(P),category(C),version(V)])) }.
 
 eapi:qualifiedtarget(Q) -->
   eapi:operator(O),				      % optional
@@ -1809,20 +1809,36 @@ eapi:qualifiedtarget(Q) -->
   eapi:version0(V),                                   % optional
   eapi:slot_restriction(S),			      % optional
   eapi:use_dependencies(U),			      % optional
-  { ((V == ['','','']) ->
-     (Q = [name(P),category(C),slot(S),use_dep(U)],!);
-     (Q = [name(P),category(C),version(V),slot(S),use_dep(U),operator(O)]),!) }.
-
+  { ((U == []) ->
+     (Qa = [],!);
+     (Qa = [use_deps(U)])),
+    ((S == []) ->
+     (Qb = Qa,!);
+     (Qb = [slot(S)|Qa])),
+    ((V == ['','','']) ->
+     (Q = [name(P),category(C)|Qb],!);
+     ((O == 'none') ->
+      (Q = [name(P),category(C),version(V)|Qb],!);
+      (Q = [name(P),category(C),operator(O,version(V))|Qb]))) }.
 
 eapi:qualifiedtarget(Q) -->
   eapi:operator(O),				      % optional
   eapi:package(P),!,                                  % required
   eapi:version0(V),                                   % optional
-  eapi:slot_restrictions(S),			      % optional
+  eapi:slot_restriction(S),			      % optional
   eapi:use_dependencies(U),			      % optional
-  { ((V == ['','','']) ->
-     (Q = [name(P)],!);
-     (Q = [name(P),version(V),slot(S),use_dep(U),operator(O)]),!) }.
+  { ((U == []) ->
+     (Qa = [],!);
+     (Qa = [use_deps(U)])),
+    ((S == []) ->
+     (Qb = Qa,!);
+     (Qb = [slot(S)|Qa])),
+    ((V == ['','','']) ->
+     (Q = [name(P)|Qb],!);
+     ((O == 'none') ->
+      (Q = [name(P),version(V)|Qb],!);
+      (Q = [name(P),operator(O,version(V))|Qb]))) }.
+
 
 
 %! eapi:query(R)

@@ -109,8 +109,8 @@ interface:process_requests(_Mode) :-
     member(shell(true),Options)      -> (message:inform(['portage-ng shell - ',Version]),                prolog);
     member(merge(true),Options)      -> ((Args == []) -> true ;
                                          (%os:sync,
-   					  write('Args:    '), writeln(Args),
-  					  write('Options: '), writeln(Options),
+   					  %write('Args:    '), writeln(Args),
+  					  %write('Options: '), writeln(Options),
                                           forall(member(Arg,Args),
                                                  (atom_codes(Arg,Codes),
                                                   phrase(eapi:qualifiedtarget(Q),Codes),
