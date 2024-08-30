@@ -1759,7 +1759,7 @@ eapi:categorize_use(Use,negative,default) :-
   not(printer:unify(minus(_),Use)),!.
 
 
-%! eapi:qualified_target
+%! eapi:qualified_target(Query)
 %
 % Parses command line targets:
 %
@@ -1778,18 +1778,17 @@ eapi:categorize_use(Use,negative,default) :-
 %
 % Returns a knowledgebase query
 
-eapi:qualified_target([world]) -->
+eapi:qualified_target(world) -->
   [119, 111, 114, 108, 100],!.			      % world
 
-eapi:qualified_target(Q) -->			      % @set
-  eapi:set(S),
-  { Q = [set(S)] }.
+eapi:qualified_target(set(S)) -->		      % @set
+  eapi:set(S),!.
 
-eapi:qualified_target([path(Qa)]) -->		      % relative path, either tbz or ebuild
+eapi:qualified_target(path(Qa)) -->	              % relative path, either tbz or ebuild
   [46],uri_chars(Q),
   { atom_codes(Qa,[46|Q]),! }.
 
-eapi:qualified_target([path(Qa)]) -->		      % absolute path, either tbz or ebuild
+eapi:qualified_target(path(Qa)) -->	              % absolute path, either tbz or ebuild
   [47],uri_chars(Q),
   { atom_codes(Qa,[47|Q]),! }.
 
@@ -1801,17 +1800,7 @@ eapi:qualified_target(Q) -->
   eapi:version0(V),				      % optional
   eapi:slot_restriction(S),			      % optional
   eapi:use_dependencies(U),			      % optional
-  { ((U == []) ->
-     (Qa = [],!);
-     (Qa = [use_deps(U)])),
-    ((S == []) ->
-     (Qb = Qa,!);
-     (Qb = [slot(S)|Qa])),
-    ((V == ['','','']) ->
-     (Q = [repository(R),name(P),category(C)|Qb],!);
-     ((O == 'none') ->
-      (Q = [repository(R),name(P),category(C),version(V)|Qb],!);
-      (Q = [repository(R),name(P),category(C),operator(O,version(V))|Qb]))) }.
+  { Q = query(O,R,C,P,V,[S,U]) }.
 
 eapi:qualified_target(Q) -->
   eapi:operator(O),				      % optional
@@ -1820,17 +1809,7 @@ eapi:qualified_target(Q) -->
   eapi:version0(V),                                   % optional
   eapi:slot_restriction(S),			      % optional
   eapi:use_dependencies(U),			      % optional
-  { ((U == []) ->
-     (Qa = [],!);
-     (Qa = [use_deps(U)])),
-    ((S == []) ->
-     (Qb = Qa,!);
-     (Qb = [slot(S)|Qa])),
-    ((V == ['','','']) ->
-     (Q = [name(P),category(C)|Qb],!);
-     ((O == 'none') ->
-      (Q = [name(P),category(C),version(V)|Qb],!);
-      (Q = [name(P),category(C),operator(O,version(V))|Qb]))) }.
+  { Q = query(O,_,C,P,V,[S,U]) }.
 
 eapi:qualified_target(Q) -->
   eapi:operator(O),				      % optional
@@ -1838,18 +1817,7 @@ eapi:qualified_target(Q) -->
   eapi:version0(V),                                   % optional
   eapi:slot_restriction(S),			      % optional
   eapi:use_dependencies(U),			      % optional
-  { ((U == []) ->
-     (Qa = [],!);
-     (Qa = [use_deps(U)])),
-    ((S == []) ->
-     (Qb = Qa,!);
-     (Qb = [slot(S)|Qa])),
-    ((V == ['','','']) ->
-     (Q = [name(P)|Qb],!);
-     ((O == 'none') ->
-      (Q = [name(P),version(V)|Qb],!);
-      (Q = [name(P),operator(O,version(V))|Qb]))) }.
-
+  { Q = query(O,_,_,P,V,[S,U]) }.
 
 
 %! eapi:query(R)

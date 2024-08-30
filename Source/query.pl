@@ -19,7 +19,13 @@ An implementation of a query language for the knowledge base
 % QUERY declarations
 % ******************
 
-%! query:execute(+List)
+% EAPI qualifiedtarget generates a query and filter of the form:
+%
+% query(Operator,Repository,Category,Package,Version,Filter)
+%   where is Filter = a list of Slot , Usedep , Manifest , ...
+
+
+%! query:execute(Query)
 %
 % Executes a query
 
@@ -29,6 +35,14 @@ execute([Literal|Rest]) :-
   !,
   execute(Literal),
   execute(Rest).
+
+
+% query
+
+% execute(query(none,R,C,P,V,F)) :-
+%   cache:ordered_entry(R,I,C,P,V),
+%   apply_filters(R://I
+
 
 execute(repository(R)) :-
   !,
