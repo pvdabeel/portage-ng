@@ -113,15 +113,14 @@ interface:process_requests(_Mode) :-
   					  write('Options: '), writeln(Options),
                                           forall(member(Arg,Args),
                                                  (atom_codes(Arg,Codes),
-                                                  phrase(eapi:qualified_target(Q),Codes),
+                                                  time((phrase(eapi:qualified_target(Q),Codes),
   						  %write('Query:   '),writeln(Q),
                                                   query:execute(Q,R://E),
                                                   %write('Id:      '),writeln(R://E),
-                                                  config:proving_target(T),
-                                                  prover:prove(R://E:T,[],Proof,[],Model,[],_Constraints),
+						  prover:prove(R://E:run,[],Proof,[],Model,[],_Constraints),
                                                   planner:plan(Proof,[],[],Plan),
-                                                  printer:print(R://E,T,Model,Proof,Plan)
+                                                  printer:print(R://E:run,Model,Proof,Plan)))
                                                   %builder:build(R://E:T,Model,Proof,Plan)
                                           ))),
-                                         prolog)
+                                         halt)
   );true.
