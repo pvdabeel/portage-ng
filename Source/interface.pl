@@ -24,7 +24,7 @@ The interface interpretes command line arguments passed to portage-ng.
 % Retrieve the current version
 
 interface:version(V) :-
-  V = '2024.08.16'.
+  V = '2024.08.31'.
 
 
 %! interface:status(?Status)
@@ -109,16 +109,18 @@ interface:process_requests(_Mode) :-
     member(shell(true),Options)      -> (message:inform(['portage-ng shell - ',Version]),                prolog);
     member(merge(true),Options)      -> ((Args == []) -> true ;
                                          (%os:sync,
-   					  %write('Args:    '), writeln(Args),
-  					  %write('Options: '), writeln(Options),
+   					  write('Args:    '), writeln(Args),
+  					  write('Options: '), writeln(Options),
                                           forall(member(Arg,Args),
                                                  (atom_codes(Arg,Codes),
                                                   phrase(eapi:qualified_target(Q),Codes),
-  						  writeln(Q)
-                                                  %knowledgebase:query(Q,R://E),
-                                                  %config:proving_target(T),
-                                                  %prover:prove(R://E:T,[],Proof,[],Model,[],_Constraints),
-                                                  %planner:plan(Proof,[],[],Plan),
+  						  %write('Query:   '),writeln(Q),
+                                                  query:execute(Q,R://E),
+                                                  %write('Id:      '),writeln(R://E),
+                                                  config:proving_target(T),
+                                                  prover:prove(R://E:T,[],Proof,[],Model,[],_Constraints),
+                                                  planner:plan(Proof,[],[],Plan),
+                                                  printer:print(R://E,T,Model,Proof,Plan)
                                                   %builder:build(R://E:T,Model,Proof,Plan)
                                           ))),
                                          prolog)

@@ -134,7 +134,7 @@ sync(repository) ::-
 %
 % Public predicate
 %
-% Regenerates cache metadata for changed files inside the local repository files 
+% Regenerates cache metadata for changed files inside the local repository files
 % by invoking a script
 
 sync(metadata) ::-
@@ -209,25 +209,25 @@ sync(kb) ::-
 
   % Step 4: We create a unique cache:package and create cache:ordered_entry.
   % The cache package allows us to retrieve individual package names efficiently.
-  % (without duplicates). We impose an ordering on cache:entry using 
-  % the versions of a given package. 
-  % 
-  % By default we prefer newer versions over older versions. We sort category, and 
-  % package alphabetically, then order versions using EAPI version sorting specs. 
-  % The ordered entries are stored in the cache, from which facts will later be 
+  % (without duplicates). We impose an ordering on cache:entry using
+  % the versions of a given package.
+  %
+  % By default we prefer newer versions over older versions. We sort category, and
+  % package alphabetically, then order versions using EAPI version sorting specs.
+  % The ordered entries are stored in the cache, from which facts will later be
   % retrieved in the right order, avoiding costly sorting or list traversals.
 
   findall([Ca,Pa],cache:entry(Repository,_,Ca,Pa,_),Pu),
   sort(Pu,Ps),
   forall(member([Ca,Pa],Ps),
-         (findall([Vl,Va,Vs,Vf,Id],
-                  (cache:entry(Repository,Id,Ca,Pa,[Vn,Va,Vs,Vf]),
-                   eapi:version2numberlist(Vn,Vl)),
+         (findall([Vn,Va,Vs,Vf,Id],
+                  (cache:entry(Repository,Id,Ca,Pa,[Vn,Va,Vs,Vf])),
+                   % eapi:version2numberlist(Vn,Vl)),
                   Vu),
           sort(0,@>=,Vu,Vs),
           ( assert(cache:package(Repository,Ca,Pa)),
-            forall(member([OVl,OVa,OVs,OVf,OrderedId],Vs),
-                 assert(cache:ordered_entry(Repository,OrderedId,Ca,Pa,[OVl,OVa,OVs,OVf])))))),
+            forall(member([OVn,OVa,OVs,OVf,OrderedId],Vs),
+                 assert(cache:ordered_entry(Repository,OrderedId,Ca,Pa,[OVn,OVa,OVs,OVf])))))),
 
   % Step 5 : We retract the origanal unordered cache entries.
 

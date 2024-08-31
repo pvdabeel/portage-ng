@@ -1,4 +1,4 @@
-/*
+/**
   Author:   Pieter Van den Abeele
   E-mail:   pvdabeel@mac.com
   Copyright (c) 2005-2024, Pieter Van den Abeele
@@ -547,7 +547,7 @@ eapi:repository(Ra) -->
 % Set Names
 
 eapi:set(Sa) -->
-  [64],
+  [64],!,
   eapi:chars1(c,S),
   { atom_codes(Sa,S),! }.
 
@@ -636,7 +636,7 @@ eapi:version0(V) -->
   eapi:version2([N,A,S]),
   { eapi:version2atom(N,A,S,V) }.
 
-eapi:version0(['','','']) -->
+eapi:version0(['','','','']) -->
   [].
 
 
@@ -647,7 +647,7 @@ eapi:version2([C,A,S]) -->
   eapi:versionalphapart(A),
   eapi:versionsuffixpart(S).
 
-eapi:version2([]) -->
+eapi:version2(['','','']) -->
   [],!.
 
 
@@ -1611,7 +1611,7 @@ version:sublists(L,S,[E|T]) :-
 % Produces version from a packagename.
 
 packageversion(Name,Package,Version) :-
-  atom_to_chars(Name,N),
+  atom_codes(Name,N),
   phrase(eapi:package(Package),N,V),
   phrase(eapi:version(Version),V,[]),!.
 
@@ -1619,7 +1619,7 @@ packageversion(_,_,_) :-
   config:failsilenton(version),!,
   fail.
 
-pacakgeversion(Name,_,_) :-
+packageversion(Name,_,_) :-
   message:failure(Name).
 
 
@@ -1785,11 +1785,13 @@ eapi:qualified_target(set(S)) -->		      % @set
   eapi:set(S),!.
 
 eapi:qualified_target(path(Qa)) -->	              % relative path, either tbz or ebuild
-  [46],uri_chars(Q),
+  [46],!,
+  uri_chars(Q),
   { atom_codes(Qa,[46|Q]),! }.
 
 eapi:qualified_target(path(Qa)) -->	              % absolute path, either tbz or ebuild
-  [47],uri_chars(Q),
+  [47],!,
+  uri_chars(Q),
   { atom_codes(Qa,[47|Q]),! }.
 
 eapi:qualified_target(Q) -->
@@ -1806,7 +1808,7 @@ eapi:qualified_target(Q) -->
   eapi:operator(O),				      % optional
   eapi:category(C),eapi:separator,!,                  % required
   eapi:package(P),!,                                  % required
-  eapi:version0(V),                                   % optional
+  eapi:version0(V),				      % optional
   eapi:slot_restriction(S),			      % optional
   eapi:use_dependencies(U),			      % optional
   { Q = query(O,_,C,P,V,[S,U]) }.
@@ -1814,7 +1816,7 @@ eapi:qualified_target(Q) -->
 eapi:qualified_target(Q) -->
   eapi:operator(O),				      % optional
   eapi:package(P),!,                                  % required
-  eapi:version0(V),                                   % optional
+  eapi:version0(V),				      % optional
   eapi:slot_restriction(S),			      % optional
   eapi:use_dependencies(U),			      % optional
   { Q = query(O,_,_,P,V,[S,U]) }.

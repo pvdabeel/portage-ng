@@ -29,53 +29,69 @@ An implementation of a query language for the knowledge base
 %
 % Executes a query
 
-execute([]) :- !.
+%execute([]) :- !.
 
-execute([Literal|Rest]) :-
-  !,
-  execute(Literal),
-  execute(Rest).
+%execute([Literal|Rest]) :-
+%  !,
+%  execute(Literal),
+%  execute(Rest).
 
 
 % query
 
-% execute(query(none,R,C,P,V,F)) :-
-%   cache:ordered_entry(R,I,C,P,V),
-%   apply_filters(R://I
+execute(query(none,R,C,P,['','','',''],F),R://I) :-
+   !,
+   cache:ordered_entry(R,I,C,P,_),
+   apply_filters(R://I,F).
+
+execute(query(none,R,C,P,V,F),R://I) :-
+   cache:ordered_entry(R,I,C,P,V),
+   apply_filters(R://I,F).
 
 
-execute(repository(R)) :-
+
+
+apply_filters(_R://_I,[]) :- !.
+
+apply_filters(R://I,[H|T]) :-
   !,
-  cache:repository(R).
+  apply_filter(R://I,H),
+  apply_filters(R://I,T).
 
-execute(category(R,C)) :-
-  !,
-  cache:category(R,C).
+apply_filter(_R://_I,[]) :- !.
 
-execute(package(C,N,R://Id)) :-
-  !,
-  cache:package(R,C,N),
-  cache:ordered_entry(R,Id,C,N,_).
+%execute(repository(R)) :-
+%  !,
+%  cache:repository(R).
 
-execute(version(R://Id,Ver)) :-
-  !,
-  cache:ordered_entry(R,Id,_,_,[_,_,_,Ver]).
+%execute(category(R,C)) :-
+%  !,
+%  cache:category(R,C).
 
-execute(entry(R://Id,Cat,Name,Ver)) :-
-  !,
-  cache:ordered_entry(R,Id,_,Cat,Name,[_,_,_,Ver]).
+%execute(package(C,N,R://Id)) :-
+%  !,
+%  cache:package(R,C,N),
+%  cache:ordered_entry(R,Id,C,N,_).
 
-execute(metadata(R://Id,Key,Value)) :-
-  !,
-  cache:entry_metadata(R,Id,Key,Value).
+%execute(version(R://Id,Ver)) :-
+%  !,
+%  cache:ordered_entry(R,Id,_,_,[_,_,_,Ver]).
 
-execute(installed(R://Id)) :-
-  !,
-  cache:entry_metadata(R,Id,installed,true).
+%execute(entry(R://Id,Cat,Name,Ver)) :-
+%  !,
+%  cache:ordered_entry(R,Id,_,Cat,Name,[_,_,_,Ver]).
 
-execute(not(Literal)) :-
-  !,
-  not(execute(Literal)).
+%execute(metadata(R://Id,Key,Value)) :-
+%  !,
+%  cache:entry_metadata(R,Id,Key,Value).
 
-execute(Prolog) :-
-  Prolog.
+%execute(installed(R://Id)) :-
+%  !,
+%  cache:entry_metadata(R,Id,installed,true).
+
+%execute(not(Literal)) :-
+%  !,
+%  not(execute(Literal)).
+
+%execute(Prolog) :-
+%  Prolog.
