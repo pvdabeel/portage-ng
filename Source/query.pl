@@ -264,7 +264,7 @@ search(qualified_target(O,R,C,P,V,F),R://I) :-
 
 search(manifest(Type,Binary,Size),R://I) :-
    !,
-   cache:ordered_entry(R,Id,Category,Name,_),
+   cache:ordered_entry(R,I,Category,Name,_),
    knowledgebase:query(all(src_uri(Model)),R://I),
    member(uri(_,_,Binary),Model),
    cache:manifest(R,P,_,Category,Name),
