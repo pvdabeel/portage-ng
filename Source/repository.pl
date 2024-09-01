@@ -448,10 +448,7 @@ manifest(Id,Category,Name,Filetype,Filename,Filesize,Checksums) ::-
 
 query(Query,Result) ::-
   :this(Repository),
-  knowledgebase:query(Query,Repository://Result).
-
-
-
+  query:search(Query,Repository://Result).
 
 
 %! repository:get_location(?Location).

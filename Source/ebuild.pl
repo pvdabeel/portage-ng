@@ -24,7 +24,7 @@ queries.
 % Retrieve total download size for all files corresponding to a given Entry
 
 ebuild:download_size(Repository://Entry,T) :-
-  aggregate_all(sum(S),knowledgebase:query([manifest(_,_,S)],Repository://Entry),T),!.
+  aggregate_all(sum(S),query:search(manifest(_,_,S),Repository://Entry),T),!.
 
 ebuild:download_size(_://_,0) :- !.
 
@@ -35,7 +35,7 @@ ebuild:download_size(_://_,0) :- !.
 
 ebuild:is_virtual(Repository://Entry) :-
   cache:ordered_entry(Repository,Entry,virtual,_,_).
-  %knowledgebase:query([category('virtual')],Repository://Entry).
+  %query:search(category(equal('virtual')),Repository://Entry).
 
 
 %! ebuild:is_live(+Repository://+Entry)
@@ -44,7 +44,7 @@ ebuild:is_virtual(Repository://Entry) :-
 
 ebuild:is_live(Repository://Entry) :-
   cache:entry_metadata(Repository,Entry,properties,live).
-  %knowledgebase:query([properties('live')],Repository://Entry).
+  %query:search(properties(equal(live)),Repository://Entry).
 
 
 %! ebuild:is_interactive(+Repository://+Entry)
@@ -53,4 +53,4 @@ ebuild:is_live(Repository://Entry) :-
 
 ebuild:is_interactive(Repository://Entry) :-
   cache:entry_metadata(Repository,Entry,properties,interactive).
-  %knowledgebase:query([properties('interactive')],Repository://Entry).
+  %query:search(properties(equal(interactive)),Repository://Entry).

@@ -227,7 +227,7 @@ rule(package_dependency(R://E,Action,no,C,N,O,V,S,U),Conditions) :-
 rule(use_conditional_group(positive,Use,R://E,D),[constraint(use(R://E)):Use|D]).
 
 rule(use_conditional_group(positive,Use,R://E,_),[]) :-
-  not(knowledgebase:query([iuse(Use,positive:_)],R://E)),!.
+  not(query:search(iuse(Use,positive:_),R://E)),!.
   %% old: not(preference:positive_use(Use)),!.
 
 rule(use_conditional_group(positive,_,_,D),D) :- !.
@@ -240,7 +240,7 @@ rule(use_conditional_group(positive,_,_,D),D) :- !.
 rule(use_conditional_group(negative,Use,R://E,D),[constraint(use(R://E)):naf(Use)|D]).
 
 rule(use_conditional_group(negative,Use,R://E,_),[]) :-
-  knowledgebase:query([iuse(Use,positive:_)],R://E),!.
+  query:search(iuse(Use,positive:_),R://E),!.
   % preference:positive_use(Use),!.
 
 rule(use_conditional_group(negative,_,_,D),D) :- !.

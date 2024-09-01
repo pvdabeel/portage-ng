@@ -13,7 +13,7 @@ The Knowledge Base is a class that enables different repositories to register,
 serialize their rules and facts to disk. This is used as a mechanism to maintain
 state across application relaunches.
 
-The knowledge base implements a query mechanism.
+The knowledge base query mechanism is implemented by Query
 */
 
 :- module(knowledgebase,[]).
@@ -35,19 +35,12 @@ The knowledge base implements a query mechanism.
 :- dpublic(load/0).
 :- dpublic(compile/0).
 :- dpublic(clear/0).
-
 :- dpublic(query/2).
-:- dpublic(query/1).
-:- dpublic(entry/1).
 
 % protected interface
 
 :- dprotected(repository/1).
 :- dprotected(state/1).
-
-% static interface
-
-:- dstatic(query/1).
 
 
 %! Constructor
@@ -159,14 +152,16 @@ clear ::-
 clear ::-
   true.
 
+
 %! knowledgebase:query(+Query,-Result)
 %
 % Public predicate
 %
-% Retrieves metadata cache which satisfies a given query
+% Retrieves metadata cache ebuild that satisfies
+% a given query
 
-%query(Query,Result) ::-
-%  knowledgebase:query(Query,Result).
+query(Query,Repository://Result) ::-
+  query:search(Query,Repository://Result).
 
 
 %! knowledgebase:state(+File)
@@ -198,212 +193,3 @@ entry(Repository://Entry) ::-
 
 repository(_Repository) ::-
   true.
-
-
-%! knowledgebase:query(+Query,-Result)
-%
-% Public class predicate
-%
-% Retrieves metadata cache which satisfies a given query
-
-% -------------------------
-% Query: Solution generator
-% -------------------------
-
-% query([],Repository://Id) :-
-%   !,
-%  cache:ordered_entry(Repository,Id,_,_,_).
-
-
-% ---------------
-% Query: Negation
-% ---------------
-
-% query([not(Statement)|Rest],Repository://Id) :-
-%  !,
-%  not(query([Statement],Repository://Id)),
-%  query(Rest,Repository://Id).
-
-
-% ------------
-% Query: Model
-% ------------
-
-%query([model(Statement)|Rest],Repository://Id) :-
-%  Statement =.. [Key,Model],
-%  !,
-%  StatementA =.. [Key,AllValues],
-%  query([all(StatementA)],Repository://Id),
-%  prover:model(AllValues,ModelValues),
-%  findall(V,
-%   (member(V,ModelValues),
-%    not(V =.. [package_dependency|_]),
-%    not(V =.. [use_conditional_group|_]),
-%    not(V =.. [exactly_one_of_group|_]),
-%    not(V =.. [any_of_group|_]),
-%    not(V =.. [all_of_group|_])),
-%   Model),
-%  query(Rest,Repository://Id).
-
-
-% --------------------------------------
-% Query: Collection over single argument
-% --------------------------------------
-
-%query([all(Statement)|Rest],Repository://Id) :-
-%  Statement =.. [Key,Values],
-%  !,
-%  findall(InnerValue,(InnerStatement =.. [Key,InnerValue],knowledgebase:query([InnerStatement],Repository://Id)),Values),
-%  query(Rest,Repository://Id).
-
-
-% -------------------------------------
-% Query: Collection over dual arguments
-% -------------------------------------
-
-%query([all(Statement)|Rest],Repository://Id) :-
-%  Statement =.. [Key,Values,Filter],
-%  !,
-%  findall([InnerValueA,Filter],(InnerStatement =.. [Key,InnerValueA,Filter],knowledgebase:query([InnerStatement],Repository://Id)),Values),
-%  query(Rest,Repository://Id).
-
-% -------------
-% Query: Latest
-% -------------
-
-%query([latest(S)|Rest],Repository://Id) :-
-%  query(S,Repository://Id),!,
-%  query(Rest,Repository://Id).
-
-
-% ---------------
-% Query: Category
-% ---------------
-
-%query([category(Category)|Rest],Repository://Id) :-
-%  !,
-%  %cache:category(Repository,Category),
-%  cache:ordered_entry(Repository,Id,Category,_,_),
-%  query(Rest,Repository://Id).
-
-
-% -----------
-% Query: Name
-% -----------
-
-%query([name(Name)|Rest],Repository://Id) :-
-%  !,
-%  cache:ordered_entry(Repository,Id,_,Name,_),
-%  query(Rest,Repository://Id).
-
-
-
-% --------------
-% Query: Version
-% --------------
-
-%query([version(Version)|Rest],Repository://Id) :-
-%  !,
-%  cache:ordered_entry(Repository,Id,_,_,[_,_,_,Version]),
-%  query(Rest,Repository://Id).
-
-
-% ---------------
-% Query: manifest
-% ---------------
-
-%query([manifest(Type,Binary,Size)|Rest],Repository://Id) :-
-%  cache:ordered_entry(Repository,Id,Category,Name,_),
-%  knowledgebase:query([all(src_uri(Model))],Repository://Id),
-%  member(uri(_,_,Binary),Model),
-%  cache:manifest(Repository,P,_,Category,Name),
-%  cache:manifest_metadata(Repository,P,Type,Binary,Size,_Checksums),
-%  query(Rest,Repository://Id).
-
-
-% -----------
-% Query: iuse
-% -----------
-
-%query([iuse(Iuse)|Rest],Repository://Id) :-
-%  !,
-%  cache:entry_metadata(Repository,Id,iuse,Value),
-%  eapi:strip_use_default(Value,Iuse),
-%  query(Rest,Repository://Id).
-
-
-% -------------------------------
-% Query: iuse with use flag state
-% -------------------------------
-
-%query([iuse(Iuse,State:Reason)|Rest],Repository://Id) :-
-%  !,
-%  cache:entry_metadata(Repository,Id,iuse,Value),
-%  eapi:categorize_use(Value,State,Reason),
-%  eapi:strip_use_default(Value,Iuse),
-%  query(Rest,Repository://Id).
-
-
-% ------------------------------
-% Query: iuse without use_expand
-% ------------------------------
-
-%query([iuse_filtered(Iuse)|Rest],Repository://Id) :-
-%  !,
-%  cache:entry_metadata(Repository,Id,iuse,Arg),
-%  eapi:strip_use_default(Arg,Iuse),
-%  not(eapi:check_use_expand_atom(Iuse)),
-%  query(Rest,Repository://Id).
-
-
-% ---------------------------------------------------
-% Query: iuse without use_expand, with use flag state
-% ---------------------------------------------------
-
-%query([iuse_filtered(Iuse,State:Reason)|Rest],Repository://Id) :-
-%  !,
-%  cache:entry_metadata(Repository,Id,iuse,Arg),
-%  eapi:categorize_use(Arg,State,Reason),
-%  eapi:strip_use_default(Arg,Iuse),
-%  not(eapi:check_use_expand_atom(Iuse)),
-%  query(Rest,Repository://Id).
-
-
-% -----------------
-% Query: use expand
-% -----------------
-
-%query([Statement|Rest],Repository://Id) :-
-%  Statement =.. [Key,Value],
-%  eapi:use_expand(Key),!,
-%  cache:entry_metadata(Repository,Id,iuse,Arg),
-%  eapi:strip_use_default(Arg,ArgB),
-%  eapi:check_prefix_atom(Key,ArgB),
-%  eapi:strip_prefix_atom(Key,ArgB,Value),
-%  query(Rest,Repository://Id).
-
-
-% -------------------------------------
-% Query: use expand with use flag state
-% -------------------------------------
-
-%query([Statement|Rest],Repository://Id) :-
-%  Statement =.. [Key,Value,State:Reason],
-%  eapi:use_expand(Key),!,
-%  cache:entry_metadata(Repository,Id,iuse,Arg),
-%  eapi:categorize_use(Arg,State,Reason),
-%  eapi:strip_use_default(Arg,ArgB),
-%  eapi:check_prefix_atom(Key,ArgB),
-%  eapi:strip_prefix_atom(Key,ArgB,Value),
-%  query(Rest,Repository://Id).
-
-
-% ---------------------
-% Query: other metadata
-% ---------------------
-
-%query([Statement|Rest],Repository://Id) :-
-%  !,
-%  Statement =.. [Key,Arg],
-%  cache:entry_metadata(Repository,Id,Key,Arg),
-%  query(Rest,Repository://Id).

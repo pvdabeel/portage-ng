@@ -62,8 +62,8 @@ grapher:graph(detail,Repository://Id) :-
   write('subgraph cluster_midcol {'),nl,
   write('color=gray;'),nl,
   write('label=<<i>dependencies</i>>;'),nl,
-  knowledgebase:query([all(depend(C))],Repository://Id),
-  knowledgebase:query([all(rdepend(R))],Repository://Id),
+  query:search(all(depend(C)),Repository://Id),
+  query:search(all(rdepend(R)),Repository://Id),
   list_to_ord_set(C,OC),
   list_to_ord_set(R,OR),
   ord_intersection(OC,OR,OCR,OPR),
@@ -134,7 +134,7 @@ grapher:write_tree(Repository://Id, Type) :-
   not(graph_visited(Repository://Id)),!,
   write('\"'),write(Repository://Id),write('\" [color=red, href=\"../'),write(Id),write('-'),write(Type),write('.svg\"];'),nl,
   Statement =.. [Type,DS],
-  knowledgebase:query([Statement],Repository://Id),
+  query:search(Statement,Repository://Id),
   findall(Ch,(member(D,DS),grapher:handle(Type,solid,vee,Repository://Id,D,Ch)),AllChoices),
   assert(graph_visited(Repository://Id)),
   grapher:choices(Type,AllChoices),
@@ -218,7 +218,7 @@ grapher:choices(Kind,[L|Rest]) :-
 % For a given graph style, create a meta reprensentation of a dependency
 
 grapher:handle(depend,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
-  knowledgebase:query([category(Cat),name(Name)],Choicecontext://Choice),
+  query:search([name(Name),category(Cat)],Choicecontext://Choice),
   !, true.
 
 grapher:handle(depend,_Style,_Arrow,_Master,use_conditional_group(_,_Type,_Use,_Deps),[]) :- !.
@@ -235,7 +235,7 @@ grapher:handle(depend,_Style,_Arrow,_Master,_,[]) :- !.
 
 
 grapher:handle(rdepend,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
-  knowledgebase:query([category(Cat),name(Name)],Choicecontext://Choice),
+  query:search([name(Name),category(Cat)],Choicecontext://Choice),
   !, true.
 
 grapher:handle(rdepend,_Style,_Arrow,_Master,use_conditional_group(_,_Type,_Use,_Deps),[]) :- !.
@@ -261,7 +261,7 @@ grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,_,Cat,Name,Co
   write(Comp),write('</TD></TR><TR><TD>'),write(Ver),write('</TD></TR></TABLE>>, shape=none, color=blue];'),nl,
   write('}'),nl,
   write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl,
-  findall(R,knowledgebase:query([category(Cat),name(Name)],R),Choices),
+  findall(R,query:search([name(Name),category(Cat)],R),Choices),
   !, true.
 
 grapher:handle(detail,Style,Arrow,Master,use_conditional_group(Type,Use,_,Deps),Choices) :-

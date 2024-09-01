@@ -278,13 +278,13 @@ printer:print_config(Repository://Ebuild:download) :-
 % no downloads
 
 printer:print_config(Repository://Ebuild:download) :-
-  not(knowledgebase:query([manifest(_,_,_)],Repository://Ebuild)),!.
+  not(query:search(manifest(_,_,_),Repository://Ebuild)),!.
 
 
 % at least one download
 
 printer:print_config(Repository://Ebuild:download) :-
-  findall([File,Size],knowledgebase:query([manifest(_,File,Size)],Repository://Ebuild),[[FirstFile,FirstSize]|Rest]),!,
+  findall([File,Size],query:search(manifest(_,File,Size),Repository://Ebuild),[[FirstFile,FirstSize]|Rest]),!,
   printer:print_config_prefix('file'),
   printer:print_config_item('download',FirstFile,FirstSize),
   forall(member([RestFile,RestSize],Rest),
@@ -299,16 +299,16 @@ printer:print_config(Repository://Ebuild:download) :-
 % iuse empty
 
 printer:print_config(Repository://Entry:install) :-
-  not(knowledgebase:query([iuse(_)],Repository://Entry)),!.
+  not(query:search(iuse(_),Repository://Entry)),!.
 
 % use flags to show
 
 printer:print_config(Repository://Entry:install) :-
-  knowledgebase:query([all(iuse_filtered(PosPref,positive:preference))],Repository://Entry),
-  knowledgebase:query([all(iuse_filtered(PosEbui,positive:ebuild))],Repository://Entry),
-  knowledgebase:query([all(iuse_filtered(NegPref,negative:preference))],Repository://Entry),
-  knowledgebase:query([all(iuse_filtered(NegEbui,negative:ebuild))],Repository://Entry),
-  knowledgebase:query([all(iuse_filtered(NegDefa,negative:default))],Repository://Entry),
+  query:search(all(iuse_filtered(PosPref,positive:preference)),Repository://Entry),
+  query:search(all(iuse_filtered(PosEbui,positive:ebuild)),Repository://Entry),
+  query:search(all(iuse_filtered(NegPref,negative:preference)),Repository://Entry),
+  query:search(all(iuse_filtered(NegEbui,negative:ebuild)),Repository://Entry),
+  query:search(all(iuse_filtered(NegDefa,negative:default)),Repository://Entry),
   (allempty(PosPref,PosEbui,NegPref,NegEbui,NegDefa);
    (printer:print_config_prefix('conf'),
     printer:print_config_item('use',PosPref,PosEbui,NegPref,NegEbui,NegDefa))),
@@ -319,11 +319,11 @@ printer:print_config(Repository://Entry:install) :-
            StatementNp =.. [Key,NegP,negative:preference],
            StatementNe =.. [Key,NegE,negative:ebuild],
            StatementNd =.. [Key,NegD,negative:default],
-           knowledgebase:query([all(StatementPp)],Repository://Entry),
-           knowledgebase:query([all(StatementPe)],Repository://Entry),
-           knowledgebase:query([all(StatementNp)],Repository://Entry),
-           knowledgebase:query([all(StatementNe)],Repository://Entry),
-           knowledgebase:query([all(StatementNd)],Repository://Entry),
+           query:search(all(StatementPp),Repository://Entry),
+           query:search(all(StatementPe),Repository://Entry),
+           query:search(all(StatementNp),Repository://Entry),
+           query:search(all(StatementNe),Repository://Entry),
+           query:search(all(StatementNd),Repository://Entry),
            (allempty(PosP,PosE,NegP,NegE,NegD);
             ((allempty(PosPref,PosEbui,NegPref,NegEbui,NegDefa) ->
               printer:print_config_prefix('conf');
