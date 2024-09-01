@@ -66,8 +66,8 @@ apply_version_filter(smallerequal,ProposedVersion,Version) :-
   compare(=,ProposedVersion,Version);
   compare(<,ProposedVersion,Version).
 
-apply_version_filter(notequal,Version,Version) :-
-  fail.
+apply_version_filter(notequal,VersionA,VersionB) :-
+  VersionA == VersionB -> fail;true.
 
 apply_version_filter(equal,Version,Version) :-
   !.
