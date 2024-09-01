@@ -1,4 +1,4 @@
-/**
+/*
   Author:   Pieter Van den Abeele
   E-mail:   pvdabeel@mac.com
   Copyright (c) 2005-2024, Pieter Van den Abeele
@@ -626,28 +626,28 @@ eapi:invalid_package_ending(E,B) :-
 % eapi:version starts with '-', and cannot be empty
 
 eapi:version(V) -->
-  eapi:version2([N,A,S]),
-  { eapi:version2atom(N,A,S,V) }.
+  eapi:version2([N,W,A,S]),
+  { eapi:version2atom(N,W,A,S,V) }.
 
 
 % eapi:version0 starts with '-', and can be empty
 
 eapi:version0(V) -->
-  eapi:version2([N,A,S]),
-  { eapi:version2atom(N,A,S,V) }.
+  eapi:version2([N,W,A,S]),
+  { eapi:version2atom(N,W,A,S,V) }.
 
-eapi:version0(['','','','']) -->
+eapi:version0([[],'','','','']) -->
   [].
 
 
 % eapi:version2 reads a version following EAPI 5 spec
 
-eapi:version2([C,A,S]) -->
-  eapi:versionnumberpart(C),
+eapi:version2([N,W,A,S]) -->
+  eapi:versionnumberpart(N,W),
   eapi:versionalphapart(A),
   eapi:versionsuffixpart(S).
 
-eapi:version2(['','','']) -->
+eapi:version2([[],'','','']) -->
   [],!.
 
 
@@ -663,24 +663,24 @@ eapi:versionsuffixpart([]) -->
 
 % eapi: versionnumberpart following eapi 5 specs
 
-eapi:versionnumberpart([C,[46]|V]) -->
-  eapi:versioninteger(C),
+eapi:versionnumberpart([C|V],W) -->
+  eapi:versioninteger(C,_),
   [46],!,
-  eapi:versionnumberpart0(V).
+  eapi:versionnumberpart0(V,W).
 
-eapi:versionnumberpart([C]) -->
-  eapi:versioninteger(C),!.
+eapi:versionnumberpart([C],W) -->
+  eapi:versioninteger(C,W),!.
 
 
-eapi:versionnumberpart0([C,[46]|V]) -->
-  eapi:versioninteger(C),
+eapi:versionnumberpart0([C|V],W) -->
+  eapi:versioninteger(C,_),
   [46],!,
-  eapi:versionnumberpart0(V).
+  eapi:versionnumberpart0(V,W).
 
-eapi:versionnumberpart0([C]) -->
-  eapi:versioninteger(C),!.
+eapi:versionnumberpart0([C],W) -->
+  eapi:versioninteger(C,W),!.
 
-eapi:versionnumberpart0([]) -->
+eapi:versionnumberpart0([],_) -->
   [],!.
 
 
@@ -698,59 +698,61 @@ eapi:versionalphapart([]) -->
 eapi:versionsuffix([95,97,108,112,104,97|V]) -->
   [95,97,108,112,104,97],			      % _alpha
   !,
-  eapi:versioninteger2(V).
+  eapi:versioninteger2(V,_).
 
 eapi:versionsuffix([95,98,101,116,97|V]) -->
   [95,98,101,116,97],				      % _beta
   !,
-  eapi:versioninteger2(V).
+  eapi:versioninteger2(V,_).
 
 eapi:versionsuffix([95,112,114,101|V]) -->
   [95,112,114,101],				      % _pre
   !,
-  eapi:versioninteger2(V).
+  eapi:versioninteger2(V,_).
 
 eapi:versionsuffix([95,114,99|V]) -->
   [95,114,99],					      % _rc
   !,
-  eapi:versioninteger2(V).
+  eapi:versioninteger2(V,_).
 
 eapi:versionsuffix([95,112|V]) -->
   [95,112],					      % _p
   !,
-  eapi:versioninteger2(V).
+  eapi:versioninteger2(V,_).
 
 eapi:versionsuffix([45,114|V]) -->		      % -r
   [45,114],
   !,
-  eapi:versioninteger(V).
+  eapi:versioninteger(V,_).
 
 eapi:versionrevision([114|V]) -->		      % (-)r
   [114],
   !,
-  eapi:versioninteger(V).
+  eapi:versioninteger(V,_).
 
 
-% eapi:versioninteger - reads integers
+% eapi:versioninteger - reads integers (and detect integer wildcard)
 
-eapi:versioninteger([42|V]) -->
-  [42],
-  eapi:versioninteger2(V).
+eapi:versioninteger([],'*') -->
+  [42],!.
+  %eapi:versioninteger2(V,_).
 
-eapi:versioninteger([C|V]) -->
+eapi:versioninteger([C|V],W) -->
   [C],
   { code_type(C,digit),! },
-  eapi:versioninteger2(V).
+  eapi:versioninteger2(V,W).
 
 
-eapi:versioninteger2([42|V]) -->
-  [42],
-  eapi:versioninteger(V).
+eapi:versioninteger2([],'*') -->
+  [42],!.
+  %eapi:versioninteger(V,_).
 
-eapi:versioninteger2(V) -->
-  eapi:versioninteger(V),!.
+eapi:versioninteger2([C|V],W) -->
+  [C],
+  { code_type(C,digit),! },
+  eapi:versioninteger2(V,W).
 
-eapi:versioninteger2([]) -->
+eapi:versioninteger2([],'') -->
   [].
 
 
@@ -763,14 +765,15 @@ eapi:versionalpha([C]) -->
 
 % eapi:version2atom converts version format to atom
 
-eapi:version2atom(N,A,S,[Numberpart,Alphapart,Suffixpart,Fullversion]) :-
+eapi:version2atom(N,W,A,S,[Nn,Alphapart,Suffixpart,Fullversion]) :-
   maplist(atom_codes,Na,N),
   maplist(atom_codes,Aa,A),
   maplist(atom_codes,Sa,S),
-  atomic_list_concat(Na,Numberpart),
+  maplist(atom_number,Na,Nn),
+  atomic_list_concat(Na,'.',Numberpart),
   atomic_list_concat(Aa,Alphapart),
   atomic_list_concat(Sa,Suffixpart),
-  atomic_list_concat([Numberpart,Alphapart,Suffixpart],Fullversion).
+  atomic_list_concat([Numberpart,W,Alphapart,Suffixpart],Fullversion).
 
 eapi:version2numberlist('',[]) :- !.
 
@@ -1842,7 +1845,7 @@ eapi:qualified_target(Q) -->
   eapi:version0(V),				      % optional
   eapi:slot_restriction(S),			      % optional
   eapi:use_dependencies(U),			      % optional
-  { Q = query(O,R,C,P,V,[S,U]) }.
+  { Q = qualified_target(O,R,C,P,V,[S,U]) }.
 
 eapi:qualified_target(Q) -->
   eapi:operator(O),				      % optional
@@ -1851,7 +1854,7 @@ eapi:qualified_target(Q) -->
   eapi:version0(V),				      % optional
   eapi:slot_restriction(S),			      % optional
   eapi:use_dependencies(U),			      % optional
-  { Q = query(O,_,C,P,V,[S,U]) }.
+  { Q = qualified_target(O,_,C,P,V,[S,U]) }.
 
 eapi:qualified_target(Q) -->
   eapi:operator(O),				      % optional
@@ -1859,7 +1862,7 @@ eapi:qualified_target(Q) -->
   eapi:version0(V),				      % optional
   eapi:slot_restriction(S),			      % optional
   eapi:use_dependencies(U),			      % optional
-  { Q = query(O,_,_,P,V,[S,U]) }.
+  { Q = qualified_target(O,_,_,P,V,[S,U]) }.
 
 
 %! eapi:query(R)
@@ -1873,6 +1876,9 @@ eapi:query([Q|R]) -->
 
 eapi:query([]) -->
   [].
+
+eapi:querypart(world) -->
+  [119, 111, 114, 108, 100],!.
 
 eapi:querypart(P) -->
   eapi:key(query,[Key,Comparator]),

@@ -34,7 +34,8 @@ ebuild:download_size(_://_,0) :- !.
 % True if an entry is a virtual
 
 ebuild:is_virtual(Repository://Entry) :-
-  knowledgebase:query([category('virtual')],Repository://Entry).
+  cache:ordered_entry(Repository,Entry,virtual,_,_).
+  %knowledgebase:query([category('virtual')],Repository://Entry).
 
 
 %! ebuild:is_live(+Repository://+Entry)
@@ -42,7 +43,8 @@ ebuild:is_virtual(Repository://Entry) :-
 % True if an entry is live
 
 ebuild:is_live(Repository://Entry) :-
-  knowledgebase:query([properties('live')],Repository://Entry).
+  cache:entry_metadata(Repository,Entry,properties,live).
+  %knowledgebase:query([properties('live')],Repository://Entry).
 
 
 %! ebuild:is_interactive(+Repository://+Entry)
@@ -50,4 +52,5 @@ ebuild:is_live(Repository://Entry) :-
 % True if an entry is interactive
 
 ebuild:is_interactive(Repository://Entry) :-
-  knowledgebase:query([properties('interactive')],Repository://Entry).
+  cache:entry_metadata(Repository,Entry,properties,interactive).
+  %knowledgebase:query([properties('interactive')],Repository://Entry).

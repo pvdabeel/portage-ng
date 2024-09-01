@@ -24,7 +24,7 @@ The interface interpretes command line arguments passed to portage-ng.
 % Retrieve the current version
 
 interface:version(V) :-
-  V = '2024.08.31'.
+  V = '2024.09.01'.
 
 
 %! interface:status(?Status)
@@ -112,15 +112,21 @@ interface:process_requests(_Mode) :-
     memberchk(info(true),Options)     -> (message:inform(['portage-ng ',Status,' version - ',Version]), Continue) ;
     memberchk(clear(true),Options)    -> (kb:clear, 							Continue) ;
     memberchk(sync(true),Options)     -> (kb:sync, kb:save, 						Continue) ;
-    memberchk(graph(true),Options)    -> (grapher:test(portage), Continue) ;
+    memberchk(graph(true),Options)    -> (grapher:test(portage), 				  	Continue) ;
     memberchk(unmerge(true),Options)  -> (message:warning('unmerge action to be implemented'), 		Continue) ;
     memberchk(depclean(true),Options) -> (message:warning('depclean action to be implemented'), 	Continue) ;
     member(search(true),Options)      -> ((Args == []) -> true ;
-                                          (writeln(Args),
+                                          (
+    					   (memberchk(verbose(true),Options) ->
+					  	( write('Args:    '), writeln(Args),
+  					          write('Options: '), writeln(Options) );
+ 						true),
  	 			           phrase(eapi:query(Q),Args),
-				           writeln(Q),
+		                           (memberchk(verbose(true),Options) ->
+   						     (write('Query:   '),write(Q),nl);
+ 					             true),
                                            forall(query:search(Q,R://E),
-                                            writeln(R://E))),						Continue) ;
+                                                  writeln(R://E))),					Continue) ;
     memberchk(sync(true),Options)     -> (kb:sync, kb:save, 						Continue) ;
     memberchk(merge(true),Options)    -> ((Args == []) -> true ;
                                          (
@@ -132,7 +138,10 @@ interface:process_requests(_Mode) :-
                                                  (atom_codes(Arg,Codes),
                                                   time(
                                                    (phrase(eapi:qualified_target(Q),Codes),
-                                                    query:qualified_target(Q,R://E),
+						    (memberchk(verbose(true),Options) ->
+   						     (write('Query:   '),write(Q),nl);
+ 					             true),
+                                                    query:search(Q,R://E),
 						    (memberchk(emptytree(true),Options) ->
  						     assert(prover:flag(emptytree));
 						     true),

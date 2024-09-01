@@ -283,6 +283,14 @@ preference:masked(portage://'net-fs/samba-4.20.2').
 preference:masked(portage://'sci-libs/eccodes-2.18.0').
 preference:masked(portage://'sci-libs/hdf5-1.10.5-r1').
 
+
+%! preference:set(?Name,?List)
+%
+% A sample set for testing merging different packages
+
+preference:set(prolog,[ portage://'dev-lang/swi-prolog-9.1.2-r1':run, portage://'dev-lang/qu-prolog-10.8':run ]).
+
+
 %! preference:world(?List)
 %
 % A sample world list for testing merging different packages
