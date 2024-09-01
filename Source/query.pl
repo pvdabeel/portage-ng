@@ -45,9 +45,42 @@ execute(query(none,R,C,P,['','','',''],F),R://I) :-
    apply_filters(R://I,F).
 
 execute(query(none,R,C,P,V,F),R://I) :-
+   !,
    cache:ordered_entry(R,I,C,P,V),
    apply_filters(R://I,F).
 
+execute(query(O,R,C,P,V,F),R://I) :-
+   !,
+   cache:ordered_entry(R,I,C,P,PV),
+   apply_version_filter(O,PV,V),
+   apply_filters(R://I,F).
+
+
+% version filter
+
+apply_version_filter(greater,ProposedVersion,Version) :-
+  !,
+  compare(>,ProposedVersion,Version).
+
+apply_version_filter(greaterequal,ProposedVersion,Version) :-
+  !,
+  compare(=,ProposedVersion,Version);
+  compare(>,ProposedVersion,Version).
+
+apply_version_filter(smaller,ProposedVersion,Version) :-
+  !,
+  compare(<,ProposedVersion,Version).
+
+apply_version_filter(smallerequal,ProposedVersion,Version) :-
+  !,
+  compare(=,ProposedVersion,Version);
+  compare(<,ProposedVersion,Version).
+
+apply_version_filter(equal,Version,Version) :-
+  !.
+
+apply_version_filter(tilde,[Version,_,_,_],[Version,_,_,_]) :-
+  !.
 
 
 
@@ -59,6 +92,9 @@ apply_filters(R://I,[H|T]) :-
   apply_filters(R://I,T).
 
 apply_filter(_R://_I,[]) :- !.
+
+
+
 
 %execute(repository(R)) :-
 %  !,

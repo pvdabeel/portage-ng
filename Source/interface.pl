@@ -83,7 +83,19 @@ interface:argv(Options,Args) :-
 
 interface:process_mode(Mode) :-
   interface:argv(Options,_),
-  lists:member(mode(Mode),Options).
+  lists:memberchk(mode(Mode),Options).
+
+
+%! interface:process_mode(Options,_Args,Mode)
+%
+% Retrieve the mode to be used to start portage-ng
+
+interface:process_continue(Continue) :-
+  interface:argv(Options,_),
+  lists:memberchk(shell(true),Options) ->
+    Continue = prolog;
+    Continue = halt.
+
 
 %! interface:process_requests(Options,Args,Mode)
 %
@@ -94,33 +106,36 @@ interface:process_mode(Mode) :-
 interface:process_requests(_Mode) :-
   interface:version(Version),
   interface:status(Status),
+  interface:process_continue(Continue),
   interface:argv(Options,Args),
-  ( member(version(true),Options)    -> (message:inform(['portage-ng ',Status,' version - ',Version]),   halt) ;
-    member(info(true),Options)       -> (message:inform(['portage-ng ',Status,' version - ',Version]),   halt) ;
-    member(clear(true),Options)      -> (kb:clear,                                                       halt) ;
-    member(sync(true),Options)       -> (kb:sync, kb:save,                                               halt) ;
-    member(graph(true),Options)      -> (grapher:test(portage),                                          halt) ;
-    member(unmerge(true),Options)    -> (message:warning('unmerge action to be implemented'),            halt) ;
-    member(depclean(true),Options)   -> (message:warning('depclean action to be implemented'),           halt) ;
-%    member(search(true),Options)     -> ((Args == []) -> true ;
-%                                         (phrase(eapi:query(Q),Args),
-%                                          forall(knowledgebase:query(Q,R://E),writeln(R://E))),          halt) ;
-    member(sync(true),Options)       -> (kb:sync, kb:save,                                               halt) ;
-    member(shell(true),Options)      -> (message:inform(['portage-ng shell - ',Version]),                prolog);
-    member(merge(true),Options)      -> ((Args == []) -> true ;
-                                         (%os:sync,
-   					  write('Args:    '), writeln(Args),
-  					  write('Options: '), writeln(Options),
+  ( memberchk(version(true),Options)  -> (message:inform(['portage-ng ',Status,' version - ',Version]), Continue) ;
+    memberchk(info(true),Options)     -> (message:inform(['portage-ng ',Status,' version - ',Version]), Continue) ;
+    memberchk(clear(true),Options)    -> (kb:clear, 							Continue) ;
+    memberchk(sync(true),Options)     -> (kb:sync, kb:save, 						Continue) ;
+    memberchk(graph(true),Options)    -> (grapher:test(portage), Continue) ;
+    memberchk(unmerge(true),Options)  -> (message:warning('unmerge action to be implemented'), 		Continue) ;
+    memberchk(depclean(true),Options) -> (message:warning('depclean action to be implemented'), 	Continue) ;
+    member(search(true),Options)      -> ((Args == []) -> true ;
+                                          (phrase(eapi:query(Q),Args),
+                                           forall(knowledgebase:query(Q,R://E),
+                                            writeln(R://E))),						Continue) ;
+    memberchk(sync(true),Options)     -> (kb:sync, kb:save, 						Continue) ;
+    memberchk(merge(true),Options)    -> ((Args == []) -> true ;
+                                         (
+   					  (memberchk(verbose(true),Options) ->
+					  	( write('Args:    '), writeln(Args),
+  					          write('Options: '), writeln(Options) );
+ 						true),
                                           forall(member(Arg,Args),
                                                  (atom_codes(Arg,Codes),
-                                                  time((phrase(eapi:qualified_target(Q),Codes),
-  						  %write('Query:   '),writeln(Q),
-                                                  query:execute(Q,R://E),
-                                                  %write('Id:      '),writeln(R://E),
-						  prover:prove(R://E:run,[],Proof,[],Model,[],_Constraints),
-                                                  planner:plan(Proof,[],[],Plan),
-                                                  printer:print(R://E:run,Model,Proof,Plan)))
+                                                  time(
+                                                   (phrase(eapi:qualified_target(Q),Codes),
+                                                    query:execute(Q,R://E),
+						    (memberchk(emptytree(true),Options) ->
+ 						     assert(prover:flag(emptytree));
+						     true),
+  						    prover:prove(R://E:run,[],Proof,[],Model,[],_Constraints),
+                                                    planner:plan(Proof,[],[],Plan),
+                                                    printer:print(R://E:run,Model,Proof,Plan)))))), 	Continue) ;
                                                   %builder:build(R://E:T,Model,Proof,Plan)
-                                          ))),
-                                         halt)
-  );true.
+    memberchk(shell(true),Options)    -> (message:inform(['portage-ng shell - ',Version]),		prolog)).
