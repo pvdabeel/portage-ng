@@ -92,8 +92,8 @@ eapi:key(manifest,Key) -->
   eapi:chars_to_space(Cs),
   { atom_codes(Key,Cs),! }.
 
-eapi:key(query,Key) -->
-  eapi:chars_to_equal(Cs),
+eapi:key(query,[Key,M]) -->
+  eapi:chars_to_comparator(Cs,M),
   { atom_codes(Key,Cs),! }.
 
 
@@ -1524,6 +1524,46 @@ eapi:chars_to_equal([C|T]) -->
   eapi:chars_to_equal(T).
 
 
+%! DCG chars_to_comparator
+%
+% collect all chars to '=','>','<','!','~'
+
+eapi:chars_to_comparator([],smallerequal) -->
+  [61],[60],!.                                        % chars: '=<'
+
+eapi:chars_to_comparator([],greaterequal) -->
+  [61],[62],!.                                        % chars: '=<'
+
+
+eapi:chars_to_comparator([],smallerequal) -->
+  [60],[61],!.                                        % chars: '<='
+
+eapi:chars_to_comparator([],greaterequal) -->
+  [62],[61],!.                                        % chars: '>='
+
+
+eapi:chars_to_comparator([],smaller) -->
+  [60],!.                                             % chars: '<'
+
+eapi:chars_to_comparator([],greater) -->
+  [62],!.                                             % chars: '>'
+
+eapi:chars_to_comparator([],tilde) -->
+  [126],!.                                            % chars: '~'
+
+eapi:chars_to_comparator([],notequal) -->
+  [33],[61],!.                                        % chars: '!='
+
+eapi:chars_to_comparator([],equal) -->
+  [61],!.                                             % chars: '='
+
+
+eapi:chars_to_comparator([C|T],M) -->
+  [C],!,
+  eapi:chars_to_comparator(T,M).
+
+
+
 %! DCG chars_to_space
 %
 % collect all chars to ' '
@@ -1835,9 +1875,18 @@ eapi:query([]) -->
   [].
 
 eapi:querypart(P) -->
-  eapi:key(query,Key),
+  eapi:key(query,[Key,Comparator]),
+  eapi:querypartcont(Key,Value),
+  { CompValue =.. [Comparator,Value],
+    P =.. [Key,CompValue] }.
+
+eapi:querypartcont(version,V) -->
+  !,
+  eapi:version0(V).
+
+eapi:querypartcont(_,Value) -->
   eapi:chars_to_end(Codes),
-  { atom_codes(Value,Codes), P =.. [Key,Value] }.
+  { atom_codes(Value,Codes) }.
 
 
 % ***************************

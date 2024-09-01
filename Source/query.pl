@@ -25,38 +25,28 @@ An implementation of a query language for the knowledge base
 %   where is Filter = a list of Slot , Usedep , Manifest , ...
 
 
-%! query:execute(Query)
-%
-% Executes a query
+% Command line qualified target
 
-%execute([]) :- !.
+% query - Qualified target EAPI spec via command line interface
 
-%execute([Literal|Rest]) :-
-%  !,
-%  execute(Literal),
-%  execute(Rest).
-
-
-% query
-
-execute(query(none,R,C,P,['','','',''],F),R://I) :-
+qualified_target(query(none,R,C,P,['','','',''],F),R://I) :-
    !,
    cache:ordered_entry(R,I,C,P,_),
    apply_filters(R://I,F).
 
-execute(query(none,R,C,P,V,F),R://I) :-
+qualified_target(query(none,R,C,P,V,F),R://I) :-
    !,
    cache:ordered_entry(R,I,C,P,V),
    apply_filters(R://I,F).
 
-execute(query(O,R,C,P,V,F),R://I) :-
+qualified_target(query(O,R,C,P,V,F),R://I) :-
    !,
    cache:ordered_entry(R,I,C,P,PV),
    apply_version_filter(O,PV,V),
    apply_filters(R://I,F).
 
 
-% version filter
+% filter - Qualified target EAPI spec version filter
 
 apply_version_filter(greater,ProposedVersion,Version) :-
   !,
@@ -76,6 +66,9 @@ apply_version_filter(smallerequal,ProposedVersion,Version) :-
   compare(=,ProposedVersion,Version);
   compare(<,ProposedVersion,Version).
 
+apply_version_filter(notequal,Version,Version) :-
+  fail.
+
 apply_version_filter(equal,Version,Version) :-
   !.
 
@@ -83,6 +76,7 @@ apply_version_filter(tilde,[Version,_,_,_],[Version,_,_,_]) :-
   !.
 
 
+% other filters - Slot & usedep to be implemented for command line interface
 
 apply_filters(_R://_I,[]) :- !.
 
@@ -95,39 +89,62 @@ apply_filter(_R://_I,[]) :- !.
 
 
 
+% Searching via command line
 
-%execute(repository(R)) :-
-%  !,
-%  cache:repository(R).
 
-%execute(category(R,C)) :-
-%  !,
-%  cache:category(R,C).
+%! query:search(Query)
+%
+% Executes a query
 
-%execute(package(C,N,R://Id)) :-
-%  !,
-%  cache:package(R,C,N),
-%  cache:ordered_entry(R,Id,C,N,_).
+search([],_://_) :- !.
 
-%execute(version(R://Id,Ver)) :-
-%  !,
-%  cache:ordered_entry(R,Id,_,_,[_,_,_,Ver]).
+search([Literal|Rest],R://I) :-
+  !,
+  search(Literal,R://I),
+  search(Rest,R://I).
 
-%execute(entry(R://Id,Cat,Name,Ver)) :-
-%  !,
-%  cache:ordered_entry(R,Id,_,Cat,Name,[_,_,_,Ver]).
 
-%execute(metadata(R://Id,Key,Value)) :-
-%  !,
-%  cache:entry_metadata(R,Id,Key,Value).
 
-%execute(installed(R://Id)) :-
-%  !,
-%  cache:entry_metadata(R,Id,installed,true).
+% search - Searching via command line
 
-%execute(not(Literal)) :-
-%  !,
-%  not(execute(Literal)).
+search(repository(notequal(R)),R://I) :-
+  !,
+  \+ cache:ordered_entry(R,I,_,_,_).
+
+search(repository(equal(R)),R://I) :-
+  !,
+  cache:ordered_entry(R,I,_,_,_).
+
+search(category(notequal(C)),R://I) :-
+  !,
+  \+ cache:ordered_entry(R,I,C,_,_).
+
+search(category(equal(C)),R://I) :-
+  !,
+  cache:ordered_entry(R,I,C,_,_).
+
+search(name(notequal(N)),R://I) :-
+  !,
+  \+ cache:ordered_entry(R,I,_,N,_).
+
+search(name(equal(N)),R://I) :-
+  !,
+  cache:ordered_entry(R,I,_,N,_).
+
+search(version(V),R://I) :-
+  !,
+  V =.. [Comparator,RequestedVersion],
+  cache:ordered_entry(R,I,_,_,ProposedVersion),
+  apply_version_filter(Comparator,ProposedVersion,RequestedVersion).
+
+search(Q,R://I) :-
+  !,
+  Q =.. [Key,Value],
+  Value =.. [equal,PureValue],
+  cache:entry_metadata(R,I,Key,PureValue).
+
+
+
 
 %execute(Prolog) :-
 %  Prolog.
