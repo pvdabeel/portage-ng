@@ -39,8 +39,6 @@ swipl
 % **********
 
 load_common_modules :-
-   writeln('Loading common modules...'),
-
    ensure_loaded(library('optparse')),
    ensure_loaded(library('tty')),
    ensure_loaded(library('time')),
@@ -52,23 +50,24 @@ load_common_modules :-
    ensure_loaded(portage('Source/config')),
    ensure_loaded(portage('Source/interface.pl')),
    ensure_loaded(portage('Source/message.pl')),
-   ensure_loaded(portage('Source/eapi.pl')).
+   ensure_loaded(portage('Source/eapi.pl')),
+
+   message:inform('Loaded common modules...').
 
 
 load_client_modules :-
-   writeln('Loading client modules...'),
-
    ensure_loaded(library('http/http_open')),
    ensure_loaded(library('http/http_ssl_plugin')),
    ensure_loaded(library('http/thread_httpd')),
    ensure_loaded(library('pengines')),
 
    %ensure_loaded(portage('Source/pkg.pl')),
-   ensure_loaded(portage('Source/client.pl')).
+   ensure_loaded(portage('Source/client.pl')),
+
+   message:inform('Loaded client modules...').
 
 
 load_standalone_modules :-
-   writeln('Loading standalone modules...'),
 
    ensure_loaded(library('aggregate')),
    ensure_loaded(library('apply_macros')),
@@ -101,11 +100,12 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/worker.pl')),
    ensure_loaded(portage('Source/tester.pl')),
 
-   ensure_loaded(portage('Source/test.pl')).
+   ensure_loaded(portage('Source/test.pl')),
+
+   message:inform('Loaded standalone modules...').
 
 
 load_server_modules :-
-   writeln('Loading server modules...'),
 
    ensure_loaded(library('http/http_server')),
    ensure_loaded(library('http/http_open')),
@@ -114,7 +114,9 @@ load_server_modules :-
    ensure_loaded(library('pengines')),
 
    ensure_loaded(portage('Source/sandbox.pl')),
-   ensure_loaded(portage('Source/server.pl')).
+   ensure_loaded(portage('Source/server.pl')),
+
+   message:inform('Loaded server modules...').
 
 
 %! main(+Mode).
