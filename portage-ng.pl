@@ -63,6 +63,7 @@ load_client_modules :-
 
    %ensure_loaded(portage('Source/pkg.pl')),
    ensure_loaded(portage('Source/client.pl')),
+   ensure_loaded(portage('Source/printer.pl')),
 
    message:inform('Loaded client modules...').
 

@@ -45,8 +45,10 @@ sandbox:safe_primitive(cache:entry_metadata(_,_,_,_)).
 sandbox:safe_primitive(cache:manifest(_,_,_,_,_)).
 sandbox:safe_primitive(cache:manifest_metadata(_,_,_,_,_,_)).
 
-sandbox:safe_primitive(query:qualified_target(_,_)).
 sandbox:safe_primitive(query:search(_,_)).
+sandbox:safe_primitive(query:apply_version_filter(_,_,_)).
+sandbox:safe_primitive(query:apply_filters(_,_)).
+sandbox:safe_primitive(query:apply_filter(_,_)).
 
 sandbox:safe_primitive(prover:prove_targets(_,_,_,_,_,_,_)).
 sandbox:safe_primitive(prover:prove(_,_,_,_,_,_,_)).

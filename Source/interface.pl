@@ -24,7 +24,7 @@ The interface interpretes command line arguments passed to portage-ng.
 % Retrieve the current version
 
 interface:version(V) :-
-  V = '2024.09.01'.
+  V = '2024.09.03'.
 
 
 %! interface:status(?Status)
@@ -63,6 +63,8 @@ interface:spec(S) :-
        [opt(unmerge),  type(boolean),   default(false),    shortflags(['C']), longflags(['unmerge']),   help('Unmerge target')],
        [opt(usepkg),   type(boolean),   default(false),    shortflags(['k']), longflags(['usepkg']),    help('Use prebuilt packages')],
        [opt(quiet),    type(boolean),   default(false),    shortflags(['q']), longflags(['quiet']),     help('Reduced output')],
+       [opt(server),   type(atom),      default(localhost),                   longflags(['server']),    help('Set Server hostname')],
+       [opt(port),     type(integer),   default(4000),                        longflags(['port']),      help('Set Server port')],
        [opt(shell),    type(boolean),   default(false),                       longflags(['shell']),     help('Go to shell')],
        [opt(version),  type(boolean),   default(false),    shortflags(['V']), longflags(['version']),   help('Show version')]
       ].
@@ -103,11 +105,18 @@ interface:process_continue(Continue) :-
 % Maps the options declared in interface:specs(S) onto actions defined as
 % a set of predicates to be called.
 
-interface:process_requests(_Mode) :-
+interface:process_requests(Mode) :-
   interface:version(Version),
   interface:status(Status),
   interface:process_continue(Continue),
   interface:argv(Options,Args),
+
+
+  ( memberchk(verbose(true),Options) ->
+      ( message:inform(['Args:    ',Args]),
+  	message:inform(['Options: ',Options]) );
+      true ) ,
+
   ( memberchk(version(true),Options)  -> (message:inform(['portage-ng ',Status,' version - ',Version]), Continue) ;
     memberchk(info(true),Options)     -> (message:inform(['portage-ng ',Status,' version - ',Version]), Continue) ;
     memberchk(clear(true),Options)    -> (kb:clear, 							Continue) ;
@@ -117,36 +126,40 @@ interface:process_requests(_Mode) :-
     memberchk(depclean(true),Options) -> (message:warning('depclean action to be implemented'), 	Continue) ;
     member(search(true),Options)      -> ((Args == []) -> true ;
                                           (
-    					   (memberchk(verbose(true),Options) ->
-					  	( write('Args:    '), writeln(Args),
-  					          write('Options: '), writeln(Options) );
- 						true),
- 	 			           phrase(eapi:query(Q),Args),
+    					    (Mode == 'client' ->
+                                            client:query_server('imac-pro.local',4000,phrase(eapi:query(Q),Args));
+					    phrase(eapi:query(Q),Args)),
 		                           (memberchk(verbose(true),Options) ->
-   						     (write('Query:   '),write(Q),nl);
- 					             true),
-                                           forall(query:search(Q,R://E),
-                                                  writeln(R://E))),					Continue) ;
+   						( message:inform(['Query:   ',Q]));
+ 					        true),
+					   (Mode == 'client' ->
+                                            forall(client:query_server('imac-pro.local',4000,query:search(Q,R://E)),
+ 						   writeln(R://E));
+                                            forall(query:search(Q,R://E),
+                                                  writeln(R://E)))
+                                          ),								Continue) ;
     memberchk(sync(true),Options)     -> (kb:sync, kb:save, 						Continue) ;
     memberchk(merge(true),Options)    -> ((Args == []) -> true ;
-                                         (
-   					  (memberchk(verbose(true),Options) ->
-					  	( write('Args:    '), writeln(Args),
-  					          write('Options: '), writeln(Options) );
- 						true),
+                                          (
                                           forall(member(Arg,Args),
                                                  (atom_codes(Arg,Codes),
-                                                  time(
-                                                   (phrase(eapi:qualified_target(Q),Codes),
-						    (memberchk(verbose(true),Options) ->
-   						     (write('Query:   '),write(Q),nl);
- 					             true),
-                                                    query:search(Q,R://E),
-						    (memberchk(emptytree(true),Options) ->
- 						     assert(prover:flag(emptytree));
-						     true),
-  						    prover:prove(R://E:run,[],Proof,[],Model,[],_Constraints),
-                                                    planner:plan(Proof,[],[],Plan),
-                                                    printer:print(R://E:run,Model,Proof,Plan)))))), 	Continue) ;
+                                                  (
+ 					           (Mode == 'client' ->
+                                                    client:query_server('imac-pro.local',4000,phrase(eapi:qualified_target(Q),Codes));
+						    phrase(eapi:qualified_target(Q),Codes)),
+						   (memberchk(verbose(true),Options) ->
+   						    (write('Query:   '),write(Q),nl);
+ 					            true),
+  						   (memberchk(emptytree(true),Options) ->
+ 						    assert(prover:flag(emptytree));
+						    true),
+  						   (Mode == 'client' ->
+						    (client:query_server('imac-pro.local',4000,query:search(Q,R://E)),
+  						     client:query_server('imac-pro.local',4000,prover:prove(R://E:run,[],Proof,[],Model,[],_)),
+                                                     client:query_server('imac-pro.local',4000,planner:plan(Proof,[],[],Plan)));
+                                                    (query:search(Q,R://E),
+  						     prover:prove(R://E:run,[],Proof,[],Model,[],_),
+                                                     planner:plan(Proof,[],[],Plan))),
+                                                   printer:print(R://E:run,Model,Proof,Plan))))),      Continue) ;
                                                   %builder:build(R://E:T,Model,Proof,Plan)
     memberchk(shell(true),Options)    -> (message:inform(['portage-ng shell - ',Version]),		prolog)).
