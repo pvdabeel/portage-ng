@@ -32,12 +32,13 @@ as a Makefile).
 % CLIENT declarations
 % *******************
 
-%! server(?Url)
+%! client:rpc_execute(Host,Port,Cmd)
 %
-% Declares the url of the server
+% Use pengine_rpc to remotely call a sandboxed predicate.
+% Use to run computationally expensive procedures on a server
+% but retrieve the result in Prolog Term locally.
 
-
-query_server(Hostname,Port,Cmd) :-
+rpc_execute(Hostname,Port,Cmd) :-
   format(atom(URL), 'https://~w:~d', [Hostname,Port]),
   config:certificate('cacert.pem',CaCert),
   config:certificate(Hostname,'client-cert.pem',ClientCert),
@@ -51,8 +52,12 @@ query_server(Hostname,Port,Cmd) :-
                 password(Pass)
               ]).
 
+%! client:execute_remotely(Host,Port,Page)
+%
+% Triggers are pre-defined action remotely and output
+% locally. Output is streamed over https in realtime
 
-https_client(Hostname,Port,Page) :-
+execute_remotely(Hostname,Port,Page) :-
     format(atom(URL), 'https://~w:~d~w', [Hostname,Port, Page]),
     config:certificate('cacert.pem',CaCert),
     config:certificate(Hostname,'client-cert.pem',ClientCert),

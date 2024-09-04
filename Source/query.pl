@@ -36,16 +36,20 @@ An implementation of a query language for the knowledge base
 %    - negation (filtering of results)
 %    - all (collecting all results)
 %    - model (backtracks over solutions for a given statement))
-
+%
+% We expect query to be called from the knowledge base, which may
+% be instantiated as a local knowledge base (standalone, server mode)
+% or a remote knowledge base (client or mixed mode)
 
 % -------------
 % Query: Search
 % -------------
 
-% Traverse a list of statements that narrow down the search results.
-
 
 %! query:search(Query)
+%
+% Search - iterate over list
+% Traverse a list of statements that narrow down the search results.
 
 search([],_Repository://_Entry) :- !.
   % cache:ordered_entry(_Repository,_Entry,_,_,_).
@@ -56,7 +60,9 @@ search([Statement|Rest],Repository://Entry) :-
   search(Rest,Repository://Entry).
 
 
-% Search predicates
+% ----------------------
+% Search predicate cases
+% ----------------------
 
 % Case : a not statement
 
@@ -291,6 +297,7 @@ search(iuse(Iuse,State:Reason),R://I) :-
   eapi:categorize_use(Value,State,Reason),
   eapi:strip_use_default(Value,Iuse).
 
+
 % -------------------------------
 % Search: iuse without use_expand
 % -------------------------------
@@ -357,7 +364,6 @@ search(Q,R://I) :-
 % -------------------------
 % Search: Filter predicates
 % -------------------------
-
 
 % Filter out versions based on comparison
 

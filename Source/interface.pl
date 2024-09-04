@@ -127,13 +127,13 @@ interface:process_requests(Mode) :-
     member(search(true),Options)      -> ((Args == []) -> true ;
                                           (
     					    (Mode == 'client' ->
-                                            client:query_server('imac-pro.local',4000,phrase(eapi:query(Q),Args));
+                                            client:rpc_execute('imac-pro.local',4000,phrase(eapi:query(Q),Args));
 					    phrase(eapi:query(Q),Args)),
 		                           (memberchk(verbose(true),Options) ->
    						( message:inform(['Query:   ',Q]));
  					        true),
 					   (Mode == 'client' ->
-                                            forall(client:query_server('imac-pro.local',4000,query:search(Q,R://E)),
+                                            forall(client:rpc_execute('imac-pro.local',4000,query:search(Q,R://E)),
  						   writeln(R://E));
                                             forall(query:search(Q,R://E),
                                                   writeln(R://E)))
@@ -145,7 +145,7 @@ interface:process_requests(Mode) :-
                                                  (atom_codes(Arg,Codes),
                                                   (
  					           (Mode == 'client' ->
-                                                    client:query_server('imac-pro.local',4000,phrase(eapi:qualified_target(Q),Codes));
+                                                    client:rpc_execute('imac-pro.local',4000,phrase(eapi:qualified_target(Q),Codes));
 						    phrase(eapi:qualified_target(Q),Codes)),
 						   (memberchk(verbose(true),Options) ->
    						    (write('Query:   '),write(Q),nl);
@@ -154,9 +154,9 @@ interface:process_requests(Mode) :-
  						    assert(prover:flag(emptytree));
 						    true),
   						   (Mode == 'client' ->
-						    (client:query_server('imac-pro.local',4000,query:search(Q,R://E)),
-  						     client:query_server('imac-pro.local',4000,prover:prove(R://E:run,[],Proof,[],Model,[],_)),
-                                                     client:query_server('imac-pro.local',4000,planner:plan(Proof,[],[],Plan)));
+						    (client:rpc_execute('imac-pro.local',4000,query:search(Q,R://E)),
+  						     client:rpc_execute('imac-pro.local',4000,prover:prove(R://E:run,[],Proof,[],Model,[],_)),
+                                                     client:rpc_execute('imac-pro.local',4000,planner:plan(Proof,[],[],Plan)));
                                                     (query:search(Q,R://E),
   						     prover:prove(R://E:run,[],Proof,[],Model,[],_),
                                                      planner:plan(Proof,[],[],Plan))),
