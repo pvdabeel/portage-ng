@@ -25,7 +25,8 @@ Launch using
 swipl
   -O                -> turns on Prolog performance optimizations
   --stack_limit=32G -> if you want to prove the all packages in the portage tree
-                       you will need 32G stack space
+                       you will need 32G stack space. Only needed in standalone
+		       and server mode. Client mode works fine with default.
   --
   -f /Users/pvdabeel/Desktop/Prolog/portage-ng.pl  -> load the main file
   -p portage=/Users/pvdabeel/Desktop/Prolog        -> set application home
@@ -62,8 +63,11 @@ load_client_modules :-
    ensure_loaded(library('pengines')),
 
    %ensure_loaded(portage('Source/pkg.pl')),
-   ensure_loaded(portage('Source/client.pl')),
+   ensure_loaded(portage('Source/knowledgebase.pl')),
+   ensure_loaded(portage('Source/ebuild.pl')),
    ensure_loaded(portage('Source/printer.pl')),
+   ensure_loaded(portage('Source/preference')),
+   ensure_loaded(portage('Source/client.pl')),
 
    message:inform('Loaded client modules...').
 
@@ -73,7 +77,7 @@ load_standalone_modules :-
    ensure_loaded(library('aggregate')),
    ensure_loaded(library('apply_macros')),
    ensure_loaded(library('gensym')),
-   ensure_loaded(library('socket')),	% gethostname
+   ensure_loaded(library('socket')),
 
    ensure_loaded(portage('Source/context.pl')),
    ensure_loaded(portage('Source/instances.pl')),
@@ -154,6 +158,8 @@ main :-
 
 main(client) :-
   load_client_modules,
+  interface:process_server(Host,Port),
+  kb:newinstance(knowledgebase(Host,Port)),
   interface:process_requests(client).
 
 

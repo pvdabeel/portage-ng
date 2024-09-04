@@ -99,6 +99,16 @@ interface:process_continue(Continue) :-
     Continue = halt.
 
 
+%! interface:process_server(Host,Port)
+%
+% Retrieve the host and port from the command line
+
+interface:process_server(Host,Port) :-
+  interface:argv(Options,_),
+  (lists:memberchk(host(Host),  Options) ; config:server_host(Host)),
+  (lists:memberchk(port(Port),  Options) ; config:server_port(Port)).
+
+
 %! interface:process_requests(Options,Args,Mode)
 %
 % Processes the arguments passed on the command line.
@@ -154,12 +164,14 @@ interface:process_requests(Mode) :-
  						    assert(prover:flag(emptytree));
 						    true),
   						   (Mode == 'client' ->
-						    (client:rpc_execute('imac-pro.local',4000,query:search(Q,R://E)),
-  						     client:rpc_execute('imac-pro.local',4000,prover:prove(R://E:run,[],Proof,[],Model,[],_)),
-                                                     client:rpc_execute('imac-pro.local',4000,planner:plan(Proof,[],[],Plan)));
+						    (client:rpc_execute('imac-pro.local',4000,
+                                                     (query:search(Q,R://E),
+  						      prover:prove(R://E:run,[],Proof,[],Model,[],_),
+                                                      planner:plan(Proof,[],[],Plan))),
+                                                     printer:print(R://E:run,Model,Proof,Plan));
                                                     (query:search(Q,R://E),
   						     prover:prove(R://E:run,[],Proof,[],Model,[],_),
-                                                     planner:plan(Proof,[],[],Plan))),
-                                                   printer:print(R://E:run,Model,Proof,Plan))))),      Continue) ;
+                                                     planner:plan(Proof,[],[],Plan),
+                                                     printer:print(R://E:run,Model,Proof,Plan))))))),      Continue) ;
                                                   %builder:build(R://E:T,Model,Proof,Plan)
     memberchk(shell(true),Options)    -> (message:inform(['portage-ng shell - ',Version]),		prolog)).

@@ -45,8 +45,10 @@ server:start_server  :-
   config:certificate(Hostname,'server-cert.pem',ServerCert),
   config:certificate(Hostname,'server-key.pem',ServerKey),
   config:password(server,Pass),
-  http:http_server(%(http_handler,% server:reply,
+  http:http_server( %(http_handler,% server:reply,
                    [ port(Port) ,
+                     workers(36) ,
+		     keep_alive_timeout(10),
                      ssl([ certificate_file(ServerCert),
                            key_file(ServerKey),
                            password(Pass),
@@ -168,6 +170,9 @@ server:reply(Request) :-
     format('</html>~n', []).
 
 
+server:reply(Request) :-
+  http_handler(Request).
+
 %! server:reply(+Request)
 %
 % Every other case: print the request.
@@ -180,6 +185,8 @@ server:reply(Request) :-
     server:print_request(Request),
     format('~n</table>~n'),
     format('</html>~n', []).
+
+
 
 %! server:print_request(+Request)
 %

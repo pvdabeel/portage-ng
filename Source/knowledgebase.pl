@@ -30,31 +30,35 @@ Query module.
 
 % public interface
 
-:- dpublic('knowledgebase'/3).
+:- dpublic('knowledgebase'/2).
 :- dpublic('knowledgebase'/0).
 :- dpublic('~knowledgebase'/0).
 
 :- dpublic(register/1).
+:- dpublic(deregister/1).
 :- dpublic(sync/0).
 :- dpublic(save/0).
 :- dpublic(load/0).
-:- dpublic(compile/0).
 :- dpublic(clear/0).
+:- dpublic(compile/0).
+
+:- dpublic(entry/1).
 :- dpublic(query/2).
 
 % protected interface
 
-:- dprotected(repository/1).
-:- dprotected(state/1).
+:- dprotected(proxy/0).
+:- dprotected(rpc_wrapper/1).
 
 % private interface
 
+:- dprivate(repository/1).
+:- dprivate(state/1).
 :- dprivate(host/1).
 :- dprivate(port/1).
-:- dprivate(proxy/1).
 
 
-%! Constructor(Server,Port,Name)
+%! Constructor(Host,Port)
 %
 % Public predicate
 %
@@ -62,10 +66,9 @@ Query module.
 % knowledge base with a given Name.
 % Running at Server:Port
 
-'knowledgebase'(Server,Port,Name) ::-
-  <=server(Server),
-  <=port(Port),
-  <=proxy(Name).
+'knowledgebase'(Host,Port) ::-
+  <=host(Host),
+  <=port(Port).
 
 
 %! Constructor
@@ -95,7 +98,7 @@ Query module.
 % Register a local repository with the knowledge base
 
 register(Repository) ::-
-  \+ ::proxy(false),
+  \+ ::proxy,
   <+repository(Repository),!.
 
 
@@ -106,7 +109,7 @@ register(Repository) ::-
 % Deregister a local repository with the knowledge base
 
 deregister(Repository) ::-
-  \+ ::proxy(false),
+  \+ ::proxy,
   <-repository(Repository),!.
 
 
@@ -117,22 +120,15 @@ deregister(Repository) ::-
 % Sync all registered repositories
 
 sync ::-
-  ::proxy(Name),!,
-  ::host(Host),
-  ::port(Port),
-  client:execute_remotely(Host,Port,Name:sync).
-
-
-sync ::-
+  \+ ::proxy,
   aggregate_all(count, ::repository(_), Count),
   (Count == 1 ->
    message:topheader(['Syncing ',Count,' registered repository']);
    message:topheader(['Syncing ',Count,' registered repositories'])),
   forall(::repository(Repository),
-	 (message:header(['Syncing repository \"',Repository,'\"']),nl,
-          Repository:sync)),!,
+	(message:header(['Syncing repository \"',Repository,'\"']),nl,
+        Repository:sync)),!,
   pkg:sync.
-
 
 
 %! knowledgebase:save
@@ -142,13 +138,7 @@ sync ::-
 % Save state to file
 
 save ::-
-  ::proxy(Name),!,
-  ::host(Host),
-  ::port(Port),
-  client:execute_remotely(Host,Port,Name:save).
-
-
-save ::-
+  \+ ::proxy,
   tell('kb.raw'),
   writeln(':- module(cache,[]).'),
   prolog_listing:listing(cache:_),
@@ -156,34 +146,12 @@ save ::-
   qcompile('kb.raw'),!.
 
 
-%! knowledgebase:compile
-%
-% Public predicate
-%
-% Save state to stand-alone program
-
-compile ::-
-  ::proxy(Name),!,
-  ::host(Host),
-  ::port(Port),
-  client:execute_remotely(Host,Port,Name:compile).
-
-
-compile ::-
-  qsave_program('portage-ng',[stand_alone(true),goal(prolog)]).
-
 
 %! knowledgebase:load
 %
 % Public predicate
 %
 % Load state from file
-
-load ::-
-  ::proxy(Name),!,
-  ::host(Host),
-  ::port(Port),
-  client:execute_remotely(Host,Port,Name:load).
 
 load ::-
   exists_file('kb.qlf'),!,
@@ -200,12 +168,6 @@ load ::-
 % Clear state file
 
 clear ::-
-  ::proxy(Name),!,
-  ::host(Host),
-  ::port(Port),
-  client:execute_remotely(Host,Port,Name:clear).
-
-clear ::-
   exists_file('kb.qlf'),
   delete_file('kb.qlf'),
   fail.
@@ -218,6 +180,27 @@ clear ::-
   true.
 
 
+%! knowledgebase:compile
+%
+% Public predicate
+%
+% Save state to stand-alone program
+
+compile ::-
+  \+ ::proxy,
+  qsave_program('portage-ng',[stand_alone(true),goal(prolog)]).
+
+
+%! knowledgebase:entry(?Repository://?Entry)
+%
+% Public predicate
+%
+% Knowledgebase entries
+
+entry(Repository://Entry) ::-
+  rpc_wrapper(cache:ordered_entry(Repository,Entry,_,_,_)).
+
+
 %! knowledgebase:query(+Query,-Result)
 %
 % Public predicate
@@ -226,56 +209,55 @@ clear ::-
 % a given query
 
 query(Query,Repository://Result) ::-
-  ::proxy(Name),!,
-  ::host(Host),
-  ::port(Port),
-  client:rpc_execute(Host,Port,Name:query(Query,Repository://Result)).
-
-query(Query,Repository://Result) ::-
-  query:search(Query,Repository://Result).
+  rpc_wrapper(query:search(Query,Repository://Result)).
 
 
-%! knowledgebase:entry(?Repository://?Entry)
+%! knowledgebase:proxy
 %
 % Protected predicate
 %
-% Knowledgebase entries
+% Checks whether the repository is a proxy to a knowledge base
+% running on a remote server
 
-entry(Repository://Entry) ::-
-  ::proxy(Name),!,
-  ::host(Host),
-  ::port(Port),
-  client:rpc_execute(Host,Port,Name:entry(Repository://Result)).
-
-entry(Repository://Entry) ::-
-  cache:ordered_entry(Repository,Entry,_,_,_).
+proxy ::-
+  ::host(_).
 
 
-%! knowledgebase:state(+File)
+%! knowledgebase:rpc_wrapper(Term)
 %
 % Protected predicate
 %
-% State file
+% Wrap predicates into a remote procedure call if host,
+% port and proxy are set.
 
-state(File) ::-
-  ::proxy(Name),!,
-  ::host(Host),
+rpc_wrapper(Term) ::-
+  ::host(Host),!,
   ::port(Port),
-  client:rpc_execute(Host,Port,Name:state(File)).
+  client:rpc_execute(Host,Port,Term).
 
-state(File) ::-
-  :this(Context),
-  atomic_list_concat([Context,'.raw'],File).
+rpc_wrapper(Term) ::-
+  Term.
 
 
 %! knowledgebase:repository(?Repository)
 %
-% Protected predicate
+% Private predicate
 %
 % Registered repositories
 
 repository(_Repository) ::-
   true.
+
+
+%! knowledgebase:state(+File)
+%
+% Private predicate
+%
+% State file
+
+state(File) ::-
+  :this(Context),
+  atomic_list_concat([Context,'.raw'],File).
 
 
 %! knowledgebase:host(+Host)
@@ -294,16 +276,5 @@ host(Host) ::-
 %
 % Port at which remote knowledge base is running
 
-port(_Port) ::-
+port(Port) ::-
   integer(Port).
-
-
-%! knowledgebase:proxy(+Name)
-%
-% Private predicate
-%
-% Name of remote knowledge base
-
-proxy(Name) ::-
-  atom(Name).
-

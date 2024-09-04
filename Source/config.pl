@@ -162,6 +162,13 @@ config:time_limit(6000).
 config:time_limit_build(6000).
 
 
+%! confg:printing_style(?Setting)
+%
+% Defines the printing style ('short', 'column' or 'fancy')
+
+config:printing_style('fancy').
+
+
 %! config:graph_modified_only(?Bool)
 %
 % Set when you want Graphviz dot file to be created for new ebuilds only
@@ -207,9 +214,17 @@ config:failsilenton(version).
 config:server_port(4000).
 
 
-%! config:server_url(?Url)
+%! config:server_host(?Url)
 %
 % Declares the server url, including protocol (https) and port
 % the client needs to connect on.
 
-config:server_url('http://localhost:4000').
+config:server_host('imac-pro.local').
+
+
+%! config:server_name(Name)
+%
+% Declares the server knowledge base name
+% the client needs to connect on.
+
+config:server_name('kb').

@@ -213,7 +213,7 @@ printer:print_element(_,assumed(rule(package_dependency(_,run,_,C,N,_,_,_,_),_Bo
 % -------------------------------
 
 printer:print_config_prefix(Word) :-
-  preference:printing_style('fancy'),!,
+  config:printing_style('fancy'),!,
   nl,write('             │          '),
   message:color(darkgray),
   message:print('└─ '),
@@ -226,7 +226,7 @@ printer:print_config_prefix(Word) :-
 % -------------------------------
 
 printer:print_config_prefix(_Word) :-
-  preference:printing_style('short'),!,
+  config:printing_style('short'),!,
   write(' ').
 
 % --------------------------------
@@ -234,7 +234,7 @@ printer:print_config_prefix(_Word) :-
 % --------------------------------
 
 printer:print_config_prefix(_Word) :-
-  preference:printing_style('column'),!,
+  config:printing_style('column'),!,
   message:column(95,' ').
 
 
@@ -243,18 +243,18 @@ printer:print_config_prefix(_Word) :-
 % prints the prefix for a config item
 
 printer:print_config_prefix :-
-  preference:printing_style('fancy'),!,
+  config:printing_style('fancy'),!,
   nl,write('             │          '),
   message:color(darkgray),
   message:print('         │ '),
   message:color(normal).
 
 printer:print_config_prefix :-
-  preference:printing_style('short'),!,
+  config:printing_style('short'),!,
   write(' ').
 
 printer:print_config_prefix :-
-  preference:printing_style('column'),!,
+  config:printing_style('column'),!,
   nl,write('             │ '),
   message:column(80,' ').
 
@@ -278,13 +278,13 @@ printer:print_config(Repository://Ebuild:download) :-
 % no downloads
 
 printer:print_config(Repository://Ebuild:download) :-
-  not(query:search(manifest(_,_,_),Repository://Ebuild)),!.
+  not(kb:query(manifest(_,_,_),Repository://Ebuild)),!.
 
 
 % at least one download
 
 printer:print_config(Repository://Ebuild:download) :-
-  findall([File,Size],query:search(manifest(_,File,Size),Repository://Ebuild),[[FirstFile,FirstSize]|Rest]),!,
+  findall([File,Size],kb:query(manifest(_,File,Size),Repository://Ebuild),[[FirstFile,FirstSize]|Rest]),!,
   printer:print_config_prefix('file'),
   printer:print_config_item('download',FirstFile,FirstSize),
   forall(member([RestFile,RestSize],Rest),
@@ -299,16 +299,12 @@ printer:print_config(Repository://Ebuild:download) :-
 % iuse empty
 
 printer:print_config(Repository://Entry:install) :-
-  not(query:search(iuse(_),Repository://Entry)),!.
+  not(kb:query(iuse(_),Repository://Entry)),!.
 
-% use flags to show
+% use flags to show - to rework: performance
 
 printer:print_config(Repository://Entry:install) :-
-  query:search(all(iuse_filtered(PosPref,positive:preference)),Repository://Entry),
-  query:search(all(iuse_filtered(PosEbui,positive:ebuild)),Repository://Entry),
-  query:search(all(iuse_filtered(NegPref,negative:preference)),Repository://Entry),
-  query:search(all(iuse_filtered(NegEbui,negative:ebuild)),Repository://Entry),
-  query:search(all(iuse_filtered(NegDefa,negative:default)),Repository://Entry),
+  kb:query([all(iuse_filtered(PosPref,positive:preference)),all(iuse_filtered(PosEbui,positive:ebuild)),all(iuse_filtered(NegPref,negative:preference)),all(iuse_filtered(NegEbui,negative:ebuild)),all(iuse_filtered(NegDefa,negative:default))],Repository://Entry),
   (allempty(PosPref,PosEbui,NegPref,NegEbui,NegDefa);
    (printer:print_config_prefix('conf'),
     printer:print_config_item('use',PosPref,PosEbui,NegPref,NegEbui,NegDefa))),
@@ -319,11 +315,7 @@ printer:print_config(Repository://Entry:install) :-
            StatementNp =.. [Key,NegP,negative:preference],
            StatementNe =.. [Key,NegE,negative:ebuild],
            StatementNd =.. [Key,NegD,negative:default],
-           query:search(all(StatementPp),Repository://Entry),
-           query:search(all(StatementPe),Repository://Entry),
-           query:search(all(StatementNp),Repository://Entry),
-           query:search(all(StatementNe),Repository://Entry),
-           query:search(all(StatementNd),Repository://Entry),
+           kb:query([all(StatementPp),all(StatementPe),all(StatementNp),all(StatementNe),all(StatementNd)],Repository://Entry),
            (allempty(PosP,PosE,NegP,NegE,NegD);
             ((allempty(PosPref,PosEbui,NegPref,NegEbui,NegDefa) ->
               printer:print_config_prefix('conf');

@@ -249,12 +249,6 @@ preference:use_expand_hidden('cpu_flags_arm').
 preference:use_expand_hidden('cpu_flags_ppc').
 
 
-%! preference:printing_style(?Setting)
-%
-% Fact which defines the printing style ('short', 'column' or 'fancy')
-
-preference:printing_style('column').
-
 
 %! preference:masked(?Repository://?Entry)
 %
