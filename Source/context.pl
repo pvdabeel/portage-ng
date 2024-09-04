@@ -499,7 +499,7 @@ context:inherit_predicate__metaclause(class, _Parent, _Context, _Head, _Functor/
 
 context:inherit_predicate__metaclause(instance, Parent, Context, MetaHead, Functor/Arity) :-
   Parent:declared(property(Functor/Arity,Property)),
-  context:gen_check_invocation(Context, Property, MetaHead, MetaBody),
+  context:gen_check_invocation(Context, Parent, Property, MetaHead, MetaBody),
   context:assert_predicate_clause(instance, Context, MetaHead, MetaBody).
 
 
@@ -509,22 +509,27 @@ context:inherit_predicate__metaclause(instance, Parent, Context, MetaHead, Funct
 %
 % Code generator for invocation check.
 
-context:gen_check_invocation(Context, public, MetaHead, Code) :-
+context:gen_check_invocation(Context, _Parent, public, MetaHead, Code) :-
   context:translate_call(MetaHead,Head),
   Code = (
            call_cleanup(Head, retract(Context:'$_token'(thread_access)))
          ).
 
-context:gen_check_invocation(_Context, protected, MetaHead, Code) :-
+context:gen_check_invocation(_Context, _Parent, protected, MetaHead, Code) :-
   context:translate_call(MetaHead,Head),
   Code = (
            Head
          ).
 
-context:gen_check_invocation(_Context, private, MetaHead, Code) :-
+context:gen_check_invocation(_Context, _Parent, private, MetaHead, Code) :-
   context:translate_call(MetaHead,Head),
   Code = (
            Head
+         ).
+
+context:gen_check_invocation(_Context, Parent, static, Head, Code) :-
+  Code = (
+	   Parent:Head
          ).
 
 
@@ -603,6 +608,11 @@ context:gen_check_access(protected, Context, Head, Body, Code) :-
                   Body )
             ;     ( functor(Head,H,A),
                     throw(error(permission_error(access, protected, H/A), context(Context, _))) )
+         ).
+
+context:gen_check_access(static, _Context, _Head, Body, Code) :-
+  Code = (
+            Body
          ).
 
 context:gen_check_access(_Property, Context, _Head, Body, Code) :-

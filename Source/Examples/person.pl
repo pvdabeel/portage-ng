@@ -63,6 +63,10 @@ This file contains a CONTEXT example.
 :- dprivate(age/1).
 :- dprivate(title/1).
 
+% static interface
+
+:- dstatic(classmethod/0).
+
 
 
 % Now that we have declared metadata about our class, we can continue to
@@ -129,10 +133,12 @@ title(Title) ::-
   atom(Title).
 
 
-% Example of a class method. This method does not use the ::- operator
-% This predicate can be called in the class.
-% In the current context implementation it is unguarded and not copied into
-% the instance context upon instantiation
+% Example of a class method.
+%
+% This method does not use ::-
+% When this class is instanciated, the instance method calls the
+% class method. Everything is unguarded and executed in context
+% of the class. So no access to instance state.
 
 classmethod :-
   writeln('This is a class method').
