@@ -304,23 +304,24 @@ printer:print_config(Repository://Entry:install) :-
 % use flags to show - to rework: performance
 
 printer:print_config(Repository://Entry:install) :-
-  kb:query([all(iuse_filtered(PosPref,positive:preference)),all(iuse_filtered(PosEbui,positive:ebuild)),all(iuse_filtered(NegPref,negative:preference)),all(iuse_filtered(NegEbui,negative:ebuild)),all(iuse_filtered(NegDefa,negative:default))],Repository://Entry),
-  (allempty(PosPref,PosEbui,NegPref,NegEbui,NegDefa);
-   (printer:print_config_prefix('conf'),
-    printer:print_config_item('use',PosPref,PosEbui,NegPref,NegEbui,NegDefa))),
-  forall(eapi:use_expand(Key),
-         (preference:use_expand_hidden(Key);
-          (StatementPp =.. [Key,PosP,positive:preference],
-           StatementPe =.. [Key,PosE,positive:ebuild],
-           StatementNp =.. [Key,NegP,negative:preference],
-           StatementNe =.. [Key,NegE,negative:ebuild],
-           StatementNd =.. [Key,NegD,negative:default],
-           kb:query([all(StatementPp),all(StatementPe),all(StatementNp),all(StatementNe),all(StatementNd)],Repository://Entry),
-           (allempty(PosP,PosE,NegP,NegE,NegD);
-            ((allempty(PosPref,PosEbui,NegPref,NegEbui,NegDefa) ->
-              printer:print_config_prefix('conf');
-              printer:print_config_prefix),
-	     printer:print_config_item(Key,PosP,PosE,NegP,NegE,NegD)))))),!.
+
+  findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
+  findall([Key,Keyflags], ( preference:use_expand_hidden(Key),
+			      Statement =.. [Key,Use,Reason],
+                              (findall([Reason,Group],
+                                       group_by(Reason,Use,kb:query(Statement,Repository://Entry), Group),
+                                       Keyflags ) ),
+                               not(Keyflags == [])),
+                            Expandedkeys),
+  (Useflags == [] ;
+   (printer:print_config_prefix('conf'),	    % Use flags not empty
+    printer:print_config_item('use',Useflags))),    % Use flags not empty
+
+  (forall(member([Key,Keyflags],Expandedkeys),
+   ((Useflags == [] ->				    % Expandedkeys not empty
+     printer:print_config_prefix('conf');	    % Expandedkeys not empty, use flags empty
+     printer:print_config_prefix),		    % Expandedkeys not empty, use flags not empty
+    printer:print_config_item(Key,Keyflags)))),!.   % Expandedkeys not empty
 
 
 % ----------------
@@ -359,34 +360,39 @@ printer:print_config_item('download',File,Size) :-
   message:print(File).
 
 
-%! printer:print_config_item(+Key,PosPref,PosEbui,NegPref,NegEbui,NegDefa)
+%! printer:print_config_item(+Key,List) % PosPref,PosEbui,NegPref,NegEbui,NegDefa)
 %
 % Prints a configuration item for a given repository entry
 
-printer:print_config_item(Key,PosPref,PosEbui,NegPref,NegEbui,NegDefa) :-
+printer:print_config_item(Key,List) :- % PosPref,PosEbui,NegPref,NegEbui,NegDefa) :-
   !,
   upcase_atom(Key,KeyU),
   message:print(KeyU),
   message:print('="'),
-  printer:print_use_flag_sets(PosPref,PosEbui,NegPref,NegEbui,NegDefa),
+  printer:print_use_flag_sets(List),
   message:print('"').
 
 
-%! printer:print_use_flag_sets(+PosPref,+PosEbui,+NefPref,+NegEbui,+NegDefa)
+%! printer:print_use_flag_sets(+List)
 %
 % Prints a list of Enabled and Disabled Use flags
 
-printer:print_use_flag_sets(PosPref,PosEbui,NegPref,NegEbui,NegDefa) :-
+printer:print_use_flag_sets(List) :-
   !,
-  printer:print_use_flag_set(PosPref,'',D1),
+  (memberchk([negative:default,NegDefa],List);    NegDefa=[]),
+  (memberchk([negative:ebuild,NegEbui],List);     NegEbui=[]),
+  (memberchk([negative:preference,NegPref],List); NegPref=[]),
+  (memberchk([positive:ebuild,PosEbui],List);     PosEbui=[]),
+  (memberchk([positive:preference,PosPref],List); PosPref=[]),
+  printer:print_use_flag_set(positive:preference,PosPref,'',D1),
   printer:print_between(D1,PosEbui),
-  printer:print_use_flag_set(PosEbui,D1,D2),
+  printer:print_use_flag_set(positive:ebuild,PosEbui,D1,D2),
   printer:print_between(D2,NegPref),
-  printer:print_use_flag_set(NegPref,D2,D3),
+  printer:print_use_flag_set(negative:preference,NegPref,D2,D3),
   printer:print_between(D3,NegEbui),
-  printer:print_use_flag_set(NegEbui,D3,D4),
+  printer:print_use_flag_set(negative:ebuild,NegEbui,D3,D4),
   printer:print_between(D4,NegDefa),
-  printer:print_use_flag_set(NegDefa,D4,_).
+  printer:print_use_flag_set(negative:default,NegDefa,D4,_).
 
 
 %! printer:print_between_use_flag_set(D,Future)
@@ -403,52 +409,52 @@ printer:print_between(D,_) :- !,
 %
 % Sorts, then prints a list of USE flags
 
-printer:print_use_flag_set([],D,D) :- !.
+printer:print_use_flag_set(_,[],D,D) :- !.
 
-printer:print_use_flag_set(Flags,_,' ') :-
+printer:print_use_flag_set(Type,Flags,_,' ') :-
   sort(Flags,Orderedflags),
-  printer:print_use_flag(Orderedflags).
+  printer:print_use_flag(Type,Orderedflags).
 
 
 %! printer:print_use_flag(+Flags)
 %
 % Prints a list of USE flags
 
-printer:print_use_flag([]) :-
+printer:print_use_flag(_,[]) :-
   !.
 
-printer:print_use_flag([[Flag,positive:preference]]) :-
+printer:print_use_flag(positive:preference,[Flag]) :-
   message:color(lightred),
   message:style(bold),
   message:print(Flag),
   message:color(normal),
   !.
 
-printer:print_use_flag([[Flag,positive:preference]|Rest]) :-
+printer:print_use_flag(positive:preference,[Flag|Rest]) :-
   message:color(lightred),
   message:style(bold),
   message:print(Flag),
   message:print(' '),
   message:color(normal),!,
-  printer:print_use_flag(Rest).
+  printer:print_use_flag(positive:preference,Rest).
 
-printer:print_use_flag([[Flag,positive:ebuild]]) :-
+printer:print_use_flag(positive:ebuild,[Flag]) :-
   message:color(red),
   message:style(italic),
   message:print(Flag),
   message:color(normal),
   !.
 
-printer:print_use_flag([[Flag,positive:ebuild]|Rest]) :-
+printer:print_use_flag(positive:ebuild,[Flag|Rest]) :-
   message:color(red),
   message:style(italic),
   message:print(Flag),
   message:print(' '),
   message:color(normal),!,
-  printer:print_use_flag(Rest).
+  printer:print_use_flag(positive:ebuild,Rest).
 
 
-printer:print_use_flag([[Flag,negative:preference]]) :-
+printer:print_use_flag(negative:preference,[Flag]) :-
   message:color(blue),
   message:style(bold),
   message:print('-'),
@@ -456,16 +462,16 @@ printer:print_use_flag([[Flag,negative:preference]]) :-
   message:color(normal),
   !.
 
-printer:print_use_flag([[Flag,negative:preference]|Rest]) :-
+printer:print_use_flag(negative:preference,[Flag|Rest]) :-
   message:color(blue),
   message:style(bold),
   message:print('-'),
   message:print(Flag),
   message:print(' '),
   message:color(normal),!,
-  printer:print_use_flag(Rest).
+  printer:print_use_flag(negative:preference,Rest).
 
-printer:print_use_flag([[Flag,negative:ebuild]]) :-
+printer:print_use_flag(negative:ebuild,[Flag]) :-
   message:color(lightblue),
   message:style(italic),
   message:print('-'),
@@ -473,16 +479,16 @@ printer:print_use_flag([[Flag,negative:ebuild]]) :-
   message:color(normal),
   !.
 
-printer:print_use_flag([[Flag,negative:ebuild]|Rest]) :-
+printer:print_use_flag(negative:ebuild,[Flag|Rest]) :-
   message:color(lightblue),
   message:style(italic),
   message:print('-'),
   message:print(Flag),
   message:print(' '),
   message:color(normal),!,
-  printer:print_use_flag(Rest).
+  printer:print_use_flag(negative:ebuild,Rest).
 
-printer:print_use_flag([[Flag,negative:default]]) :-
+printer:print_use_flag(negative:default,[Flag]) :-
   message:color(darkgray),
   message:style(italic),
   message:print('-'),
@@ -490,14 +496,14 @@ printer:print_use_flag([[Flag,negative:default]]) :-
   message:color(normal),
   !.
 
-printer:print_use_flag([[Flag,negative:default]|Rest]) :-
+printer:print_use_flag(negative:default,[Flag|Rest]) :-
   message:color(darkgray),
   message:style(italic),
   message:print('-'),
   message:print(Flag),
   message:print(' '),
   message:color(normal),!,
-  printer:print_use_flag(Rest).
+  printer:print_use_flag(negative:default,Rest).
 
 
 %! printer:check_assumptions(+Model)

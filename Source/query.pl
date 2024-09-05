@@ -78,7 +78,7 @@ search(all(Statement),Repository://Entry) :-
   !,
   findall(InnerValue,
           (InnerStatement =.. [Key,InnerValue],
-           search([InnerStatement],
+           search(InnerStatement,
            Repository://Entry)),
           Values).
 
@@ -90,7 +90,7 @@ search(all(Statement),Repository://Entry) :-
   !,
   findall([InnerValueA,Filter],
           (InnerStatement =.. [Key,InnerValueA,Filter],
-           search([InnerStatement],
+           search(InnerStatement,
            Repository://Entry)),
           Values).
 
