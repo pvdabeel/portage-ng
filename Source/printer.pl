@@ -305,23 +305,26 @@ printer:print_config(Repository://Entry:install) :-
 
 printer:print_config(Repository://Entry:install) :-
 
-  findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
-  findall([Key,Keyflags], ( preference:use_expand_hidden(Key),
-			      Statement =.. [Key,Use,Reason],
-                              (findall([Reason,Group],
-                                       group_by(Reason,Use,kb:query(Statement,Repository://Entry), Group),
-                                       Keyflags ) ),
-                               not(Keyflags == [])),
-                            Expandedkeys),
-  (Useflags == [] ;
-   (printer:print_config_prefix('conf'),	    % Use flags not empty
-    printer:print_config_item('use',Useflags))),    % Use flags not empty
+ findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
 
-  (forall(member([Key,Keyflags],Expandedkeys),
-   ((Useflags == [] ->				    % Expandedkeys not empty
-     printer:print_config_prefix('conf');	    % Expandedkeys not empty, use flags empty
-     printer:print_config_prefix),		    % Expandedkeys not empty, use flags not empty
-    printer:print_config_item(Key,Keyflags)))),!.   % Expandedkeys not empty
+ (Useflags == [] ;
+   (printer:print_config_prefix('conf'),	    % Use flags not empty
+    printer:print_config_item('use',Useflags))).    % Use flags not empty
+
+  % config:print_expand_use(false) ; (
+  % findall([Key,Keyflags], ( preference:use_expand_hidden(Key),
+  %			      Statement =.. [Key,Use,Reason],
+  %                            (findall([Reason,Group],
+  %                                     group_by(Reason,Use,kb:query(Statement,Repository://Entry), Group),
+  %                                     Keyflags ) ),
+  %                             not(Keyflags == [])),
+  %                          Expandedkeys),
+
+  % (forall(member([Key,Keyflags],Expandedkeys),
+  %  ((Useflags == [] ->				    % Expandedkeys not empty
+  %    printer:print_config_prefix('conf');	    % Expandedkeys not empty, use flags empty
+  %    printer:print_config_prefix),		    % Expandedkeys not empty, use flags not empty
+  %   printer:print_config_item(Key,Keyflags))))),!. % Expandedkeys not empty
 
 
 % ----------------

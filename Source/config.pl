@@ -169,6 +169,13 @@ config:time_limit_build(6000).
 config:printing_style('fancy').
 
 
+%! configu:print_expand_use(?Bool)
+%
+% Defines whether we print information that is normally not printed
+
+config:print_expand_use(false).
+
+
 %! config:graph_modified_only(?Bool)
 %
 % Set when you want Graphviz dot file to be created for new ebuilds only
