@@ -44,13 +44,23 @@ rpc_execute(Hostname,Port,Cmd) :-
   config:certificate(Hostname,'client-cert.pem',ClientCert),
   config:certificate(Hostname,'client-key.pem',ClientKey),
   config:password(client,Pass),
-  pengine_rpc(URL,Cmd,
+  pengine_rpc(URL,sandbox:Cmd,
               [ host(Hostname),
                 cacerts([file(CaCert)]),
                 certificate_file(ClientCert),
                 key_file(ClientKey),
                 password(Pass)
               ]).
+
+
+%! client:rpc_execute(Host,Port,Command,Output)
+%
+% Sames as rpc_execute/3 but captures output to Terminal in
+% in Output string.
+
+rpc_execute(Hostname,Port,Cmd,Output) :-
+  rpc_execute(Hostname,Port,streams:with_output_to(string(Output),Cmd,[capture([user_output,user_error]), color(true)])).
+
 
 %! client:execute_remotely(Host,Port,Page)
 %
@@ -63,12 +73,12 @@ execute_remotely(Hostname,Port,Page) :-
     config:certificate(Hostname,'client-cert.pem',ClientCert),
     config:certificate(Hostname,'client-key.pem',ClientKey),
     config:password(client,Pass),
-    http:http_open(URL, In,
+    http:http_open(URL, Out,
               [ host(Hostname),
                 cacerts([file(CaCert)]),
                 certificate_file(ClientCert),
                 key_file(ClientKey),
                 password(Pass)
               ]),
-    copy_stream_data(In, current_output),
-    close(In).
+    copy_stream_data(Out, current_output),
+    close(Out).

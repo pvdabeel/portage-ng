@@ -311,8 +311,8 @@ printer:print_config(Repository://Entry:install) :-
    (printer:print_config_prefix('conf'),	    % Use flags not empty
     printer:print_config_item('use',Useflags))).    % Use flags not empty
 
-  % config:print_expand_use(false) ; (
-  % findall([Key,Keyflags], ( preference:use_expand_hidden(Key),
+  %config:print_expand_use(false) ; (
+  %findall([Key,Keyflags], ( preference:use_expand_hidden(Key),
   %			      Statement =.. [Key,Use,Reason],
   %                            (findall([Reason,Group],
   %                                     group_by(Reason,Use,kb:query(Statement,Repository://Entry), Group),

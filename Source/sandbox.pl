@@ -12,7 +12,6 @@
 % SANDBOX declarations
 % ********************
 
-
 sandbox:safe_primitive(config:certificate(_,_)).
 sandbox:safe_primitive(config:certificate(_,_,_)).
 sandbox:safe_primitive(config:dry_run_build(_)).
@@ -94,4 +93,4 @@ sandbox:safe_primitive(message:print_bytes(_)).
 sandbox:safe_primitive(message:prefix(_)).
 sandbox:safe_primitive(message:wrap(_)).
 
-
+sandbox:safe_primitive(streams:with_output_to(_,_,_)).

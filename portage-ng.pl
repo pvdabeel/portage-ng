@@ -53,7 +53,7 @@ load_common_modules :-
    ensure_loaded(portage('Source/message.pl')),
    ensure_loaded(portage('Source/eapi.pl')),
 
-   message:inform('Loaded common modules...').
+   message:notice('Loaded common modules...').
 
 
 load_client_modules :-
@@ -69,7 +69,7 @@ load_client_modules :-
    ensure_loaded(portage('Source/preference')),
    ensure_loaded(portage('Source/client.pl')),
 
-   message:inform('Loaded client modules...').
+   message:notice('Loaded client modules...').
 
 
 load_standalone_modules :-
@@ -107,7 +107,7 @@ load_standalone_modules :-
 
    ensure_loaded(portage('Source/test.pl')),
 
-   message:inform('Loaded standalone modules...').
+   message:notice('Loaded standalone modules...').
 
 
 load_server_modules :-
@@ -116,12 +116,13 @@ load_server_modules :-
    ensure_loaded(library('http/http_open')),
    ensure_loaded(library('http/http_ssl_plugin')),
    ensure_loaded(library('http/thread_httpd')),
+   ensure_loaded(library('streams')),
    ensure_loaded(library('pengines')),
 
    ensure_loaded(portage('Source/sandbox.pl')),
    ensure_loaded(portage('Source/server.pl')),
 
-   message:inform('Loaded server modules...').
+   message:notice('Loaded server modules...').
 
 
 %! main(+Mode).
@@ -147,13 +148,12 @@ load_server_modules :-
 % @see Source/repository defines the repository class
 
 main :-
-  time(
-    (load_common_modules,
-     interface:process_mode(Mode),
-     message:title_reset,
-     config:working_dir(Dir),
-     cd(Dir),
-     main(Mode))).
+  load_common_modules,
+  interface:process_mode(Mode),
+  message:title_reset,
+  config:working_dir(Dir),
+  cd(Dir),
+  main(Mode).
 
 
 main(client) :-
@@ -177,7 +177,3 @@ main(server) :-
   load_server_modules,
   server:start_server,
   interface:process_requests(server).
-
-
-%emerge(R://E,Plan) :-
-%  prover:prove(R://E:run,[],Proof,[],Model,[],_Constraints),planner:plan(Proof,[],[],Plan),printer:print(R://E:run,Model,Proof,Plan).

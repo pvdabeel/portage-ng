@@ -229,6 +229,21 @@ message:inform(Message) :-
   nl.
 
 
+%! message:notice(+Message)
+%
+% Informs the user about something
+% Message is a list.
+
+message:notice(Message) :-
+  message:style(italic),
+  message:color(darkgray),
+  system:write('% '),
+  message:print(Message),
+  message:color(normal),
+  message:style(normal),
+  nl.
+
+
 %! message:scroll(+Message)
 %
 % Informs the user about something - scroll style
