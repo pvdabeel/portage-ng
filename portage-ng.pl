@@ -60,6 +60,7 @@ load_client_modules :-
    ensure_loaded(library('http/http_open')),
    ensure_loaded(library('http/http_ssl_plugin')),
    ensure_loaded(library('http/thread_httpd')),
+   ensure_loaded(library('http/http_digest')),
    ensure_loaded(library('pengines')),
 
    %ensure_loaded(portage('Source/pkg.pl')),
@@ -115,6 +116,7 @@ load_server_modules :-
    ensure_loaded(library('http/http_server')),
    ensure_loaded(library('http/http_open')),
    ensure_loaded(library('http/http_ssl_plugin')),
+   ensure_loaded(library('http/http_digest')),
    ensure_loaded(library('http/thread_httpd')),
    ensure_loaded(library('streams')),
    ensure_loaded(library('pengines')),
