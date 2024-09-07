@@ -22,7 +22,6 @@ sandbox:safe_primitive(config:hostname(_)).
 sandbox:safe_primitive(config:installation_dir(_)).
 sandbox:safe_primitive(config:name(_)).
 sandbox:safe_primitive(config:number_of_cpus(_)).
-sandbox:safe_primitive(config:password(_,_)).
 sandbox:safe_primitive(config:pkg_directory(_,_)).
 sandbox:safe_primitive(config:proving_target(_)).
 sandbox:safe_primitive(config:server_port(_)).
@@ -93,4 +92,4 @@ sandbox:safe_primitive(message:print_bytes(_)).
 sandbox:safe_primitive(message:prefix(_)).
 sandbox:safe_primitive(message:wrap(_)).
 
-sandbox:safe_primitive(streams:with_output_to(_,_,_)).
+sandbox:safe_meta(streams:with_output_to(_,_,_),_).

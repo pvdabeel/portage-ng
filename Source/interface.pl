@@ -123,8 +123,8 @@ interface:process_requests(Mode) :-
 
 
   ( memberchk(verbose(true),Options) ->
-      ( message:inform(['Args:    ',Args]),
-  	message:inform(['Options: ',Options]) );
+      ( message:notice(['Args:    ',Args]),
+  	message:notice(['Options: ',Options]) );
       true ) ,
 
   ( memberchk(version(true),Options)  -> (message:inform(['portage-ng ',Status,' version - ',Version]), Continue) ;
@@ -140,7 +140,7 @@ interface:process_requests(Mode) :-
                                             client:rpc_execute('imac-pro.local',4000,phrase(eapi:query(Q),Args));
 					    phrase(eapi:query(Q),Args)),
 		                           (memberchk(verbose(true),Options) ->
-   						( message:inform(['Query:   ',Q]));
+   						( message:notice(['Query:   ',Q]));
  					        true),
 					   (Mode == 'client' ->
                                             forall(client:rpc_execute('imac-pro.local',4000,query:search(Q,R://E)),
@@ -158,7 +158,7 @@ interface:process_requests(Mode) :-
                                                     client:rpc_execute('imac-pro.local',4000,phrase(eapi:qualified_target(Q),Codes));
 						    phrase(eapi:qualified_target(Q),Codes)),
 						   (memberchk(verbose(true),Options) ->
-   						    (write('Query:   '),write(Q),nl);
+   						    (message:notice(['Query:   ',Q]));
  					            true),
   						   (memberchk(emptytree(true),Options) ->
  						    assert(prover:flag(emptytree));
@@ -167,8 +167,10 @@ interface:process_requests(Mode) :-
 						    (client:rpc_execute('imac-pro.local',4000,
                                                      (query:search(Q,R://E),
   						      prover:prove(R://E:run,[],Proof,[],Model,[],_),
-                                                      planner:plan(Proof,[],[],Plan))),
-                                                     printer:print(R://E:run,Model,Proof,Plan));
+                                                      planner:plan(Proof,[],[],Plan),
+                                                      printer:print(R://E:run,Model,Proof,Plan)),
+                                                     Output),
+                                                     write(Output));
                                                     (query:search(Q,R://E),
   						     prover:prove(R://E:run,[],Proof,[],Model,[],_),
                                                      planner:plan(Proof,[],[],Plan),

@@ -96,12 +96,35 @@ config:certificate(Hostname,Certificate,FullPath) :-
 
 
 
-%! config:password(?Key,?Pass)
+%! config:certificate_password(?Key,?Pass)
 %
-% Declares the password for the client/server certificates
+% Declares the password for the SSL client/server certificates
 
-config:password(server,'demoServer').
-config:password(client,'demoClient').
+config:certificate_password(server,'demoServer').
+config:certificate_password(client,'demoClient').
+
+
+%! config:digest_passwordfile(?File)
+%
+% Declares the password file for http(s) digest user authentication
+
+config:digest_passwordfile(Filename) :-
+  config:installation_dir(Dir),
+  os:compose_path([Dir,'Source/Certificates/passwordfile'],Filename).
+
+
+%! config:digestpassword(?User,?Pass)
+%
+% Declares the password for digest user authentication
+
+config:digest_password('portage-ng','portage-ng').
+
+
+%! config:realm(?Pass)
+%
+% Declares the realm for digest user authentication
+
+config:digest_realm('portage-ng').
 
 
 %! config:graph_directory(?Hostname,?FullPath)
