@@ -147,7 +147,7 @@ sync ::-
 save ::-
   \+ ::proxy,
   :this(Context),
-  with_mutex(Context:save,
+  with_mutex(save,
   (tell('kb.raw'),
    writeln(':- module(cache,[]).'),
    prolog_listing:listing(cache:_),
