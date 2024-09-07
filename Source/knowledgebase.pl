@@ -120,13 +120,13 @@ deregister(Repository) ::-
 % Sync all registered repositories
 
 sync ::-
-  proxy,
+  proxy,!,
   ::host(Host),
   ::port(Port),
-  client:execute_remotely(Host,Port,'/sync').
+  client:execute_remotely(Host,Port,'/sync'),!.
 
 sync ::-
-  \+ ::proxy,
+  \+ ::proxy,!,
   with_mutex(sync,
   (aggregate_all(count, ::repository(_), Count),
    (Count == 1 ->

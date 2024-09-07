@@ -78,8 +78,7 @@ server:reply(Request) :-
     format('Transfer-encoding: chunked~n~n', []),
     current_output(S),
     set_stream(S,buffer(false)),
-    prover:test_latest(portage,parallel_verbose),
-    format('~n', []).
+    prover:test_latest(portage,parallel_verbose).
 
 
 %! server:reply(+Request)
@@ -92,8 +91,7 @@ server:reply(Request) :-
     format('Transfer-encoding: chunked~n~n', []),
     current_output(S),
     set_stream(S,buffer(false)),
-    kb:sync,
-    format('~n', []).
+    kb:sync.
 
 
 %! server:reply(+Request)
@@ -106,5 +104,4 @@ server:reply(Request) :-
     config:hostname(Hostname),
     config:number_of_cpus(Cpu),
     format('Transfer-encoding: chunked~n~n', []),
-    format('Host ~w has ~w cpu cores available.~n', [Hostname, Cpu]),
-    format('~n', []).
+    format('Host ~w has ~w cpu cores available.~n', [Hostname, Cpu]).
