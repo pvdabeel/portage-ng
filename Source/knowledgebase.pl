@@ -120,15 +120,22 @@ deregister(Repository) ::-
 % Sync all registered repositories
 
 sync ::-
+  proxy,
+  ::host(Host),
+  ::port(Port),
+  client:execute_remotely(Host,Port,'/sync').
+
+sync ::-
   \+ ::proxy,
-  aggregate_all(count, ::repository(_), Count),
-  (Count == 1 ->
-   message:topheader(['Syncing ',Count,' registered repository']);
-   message:topheader(['Syncing ',Count,' registered repositories'])),
-  forall(::repository(Repository),
-	(message:header(['Syncing repository \"',Repository,'\"']),nl,
-        Repository:sync)),!,
-  pkg:sync.
+  with_mutex(sync,
+  (aggregate_all(count, ::repository(_), Count),
+   (Count == 1 ->
+    message:topheader(['Syncing ',Count,' registered repository']);
+    message:topheader(['Syncing ',Count,' registered repositories'])),
+   forall(::repository(Repository),
+ 	 (message:header(['Syncing repository \"',Repository,'\"']),nl,
+         Repository:sync)),!,
+   pkg:sync)).
 
 
 %! knowledgebase:save
@@ -139,11 +146,13 @@ sync ::-
 
 save ::-
   \+ ::proxy,
-  tell('kb.raw'),
-  writeln(':- module(cache,[]).'),
-  prolog_listing:listing(cache:_),
-  told,
-  qcompile('kb.raw'),!.
+  :this(Context),
+  with_mutex(Context:save,
+  (tell('kb.raw'),
+   writeln(':- module(cache,[]).'),
+   prolog_listing:listing(cache:_),
+   told,
+   qcompile('kb.raw'))),!.
 
 
 
@@ -188,7 +197,8 @@ clear ::-
 
 compile ::-
   \+ ::proxy,
-  qsave_program('portage-ng',[stand_alone(true),goal(prolog)]).
+  with_mutex(compile,
+   qsave_program('portage-ng',[stand_alone(true),goal(prolog)])).
 
 
 %! knowledgebase:entry(?Repository://?Entry)

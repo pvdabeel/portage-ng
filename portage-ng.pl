@@ -39,6 +39,8 @@ swipl
 % PORTAGE-NG
 % **********
 
+:- pengine_application('portage-ng').
+
 load_common_modules :-
    ensure_loaded(library('optparse')),
    ensure_loaded(library('tty')),

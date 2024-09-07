@@ -76,13 +76,14 @@ execute_remotely(Hostname,Port,Page) :-
     config:certificate(Hostname,'client-key.pem',ClientKey),
     config:certificate_password(client,Pass),
     config:digest_password(User,Digestpwd),
-    http:http_open(URL, Out,
+    http:http_open(URL, In,
               [ host(Hostname),
 		authorization(digest(User,Digestpwd)),
                 cacerts([file(CaCert)]),
                 certificate_file(ClientCert),
                 key_file(ClientKey),
-                password(Pass)
+                password(Pass),
+                chunked
               ]),
-    copy_stream_data(Out, current_output),
-    close(Out).
+    copy_stream_data(In, current_output),
+    close(In).

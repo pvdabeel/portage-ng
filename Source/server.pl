@@ -33,6 +33,11 @@ as a Makefile).
 % SERVER declarations
 % *******************
 
+:- http_handler('/',reply,[id('portage-ng'),methods([get])]).
+:- http_handler('/info',reply,[id('info'),methods([get])]).
+:- http_handler('/sync',reply,[id('sync'),methods([get])]).
+:- http_handler('/prove',reply,[id('prove'),methods([get])]).
+
 
 %! server:start_server
 %
@@ -47,7 +52,7 @@ server:start_server  :-
   config:certificate_password(server,Pass),
   config:digest_passwordfile(Pwdfile),
   config:digest_realm(Realm),
-  http:http_server( %(http_handler,% server:reply,
+  http:http_server(http_dispatch,
                    [ port(Port) ,
  		     authentication(digest(Pwdfile,Realm)),
 		     chuncked(true),
@@ -65,70 +70,6 @@ server:start_server  :-
 
 %! server:reply(+Request)
 %
-% Root: Show available locations
-
-server:reply(Request) :-
-    memberchk(path('/'), Request),
-    !,
-    format('Content-type: text/html~n~n', []),
-    format('<html>~n', []),
-    format('<h1>Portage-ng remote interface</h1>', []),
-    format('<ul>~n', []),
-    format('  <li><a href="prove">Prove all latest ebuilds in knowledge base.</a>'),
-    format('  <li><a href="sync">Sync server knowledge base.</a>'),
-    format('  <li><a href="info">Returns server info.</a>'),
-    format('  <li><a href="upload">Upload some data</a>'),
-    format('  <li><a href="quit">Say bye bye</a>'),
-    format('  <li><a href="otherwise">Otherwise, print request</a>'),
-    format('</ul>~n', []),
-    format('</html>~n', []).
-
-
-%! server:reply(+Request)
-%
-% Quit: Explicitely close the connection
-
-server:reply(Request) :-
-    member(path('/quit'), Request),
-    !,
-    format('Connection: close~n', []),
-    format('Content-type: text/html~n~n', []),
-    format('Bye Bye~n').
-
-
-%! server:upload(+Request)
-%! serverupload_reply(+Request)
-%
-% Provide a form for uploading a KB QLF file, and deal with the resulting
-% upload.
-
-server:reply(Request) :-
-    member(path('/upload'), Request),
-    !,
-    format('Content-type: text/html~n~n', []),
-    format('<html>~n', []),
-    format('<form action="/upload_reply" enctype="multipart/form-data" method="post">~n', []),
-    format('<input type="file" name="datafile">'),
-    format('<input type="submit" name="sent">'),
-    format('</body>~n', []),
-    format('</html>~n', []).
-
-server:reply(Request) :-
-    member(path('/upload_reply'), Request),
-    !,
-    format('Content-type: text/html~n~n', []),
-    format('<html>~n', []),
-    format('<pre>~n', []),
-    write( req(Request) ), nl,
-    http_read_data(Request, Data, []),
-    write( data(Data) ), nl,
-    format('</pre>'),
-    format('</body>~n', []),
-    format('</html>~n', []).
-
-
-%! server:reply(+Request)
-%
 % Run a test prove run
 
 server:reply(Request) :-
@@ -137,10 +78,7 @@ server:reply(Request) :-
     format('Transfer-encoding: chunked~n~n', []),
     current_output(S),
     set_stream(S,buffer(false)),
-    %format('Content-type: text/html~n~n', []),
-    %format('<html>~n', []),
     prover:test_latest(portage,parallel_verbose),
-    %format('</html>~n', []).
     format('~n', []).
 
 
@@ -152,10 +90,10 @@ server:reply(Request) :-
     member(path('/sync'), Request),
     !,
     format('Transfer-encoding: chunked~n~n', []),
-    format('Content-type: text/html~n~n', []),
-    format('<html>~n', []),
-    kb:sync,kb:save,
-    format('</html>~n', []).
+    current_output(S),
+    set_stream(S,buffer(false)),
+    kb:sync,
+    format('~n', []).
 
 
 %! server:reply(+Request)
@@ -168,40 +106,5 @@ server:reply(Request) :-
     config:hostname(Hostname),
     config:number_of_cpus(Cpu),
     format('Transfer-encoding: chunked~n~n', []),
-    format('Content-type: text/html~n~n', []),
-    format('<html>~n', []),
     format('Host ~w has ~w cpu cores available.~n', [Hostname, Cpu]),
-    format('</html>~n', []).
-
-
-server:reply(Request) :-
-  http_handler(Request).
-
-%! server:reply(+Request)
-%
-% Every other case: print the request.
-
-server:reply(Request) :-
-    format('Transfer-encoding: chunked~n~n', []),
-    format('Content-type: text/html~n~n', []),
-    format('<html>~n', []),
-    format('<table border=1>~n'),
-    server:print_request(Request),
-    format('~n</table>~n'),
-    format('</html>~n', []).
-
-
-
-%! server:print_request(+Request)
-%
-% Print the request
-
-server:print_request([]).
-server:print_request([H|T]) :-
-    H =.. [Name, Value],
-    format('<tr><td>~w<td>~w~n', [Name, Value]),
-    server:print_request(T).
-
-
-
-
+    format('~n', []).
