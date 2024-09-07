@@ -146,7 +146,6 @@ sync ::-
 
 save ::-
   \+ ::proxy,
-  :this(Context),
   with_mutex(save,
   (tell('kb.raw'),
    writeln(':- module(cache,[]).'),
