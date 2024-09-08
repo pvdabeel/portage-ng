@@ -250,11 +250,3 @@ config:server_port(4000).
 % the client needs to connect on.
 
 config:server_host('imac-pro.local').
-
-
-%! config:server_name(Name)
-%
-% Declares the server knowledge base name
-% the client needs to connect on.
-
-config:server_name('kb').

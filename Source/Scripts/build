@@ -4,4 +4,4 @@ STRATEGY=`uname -s`
 DIRECTORY=`dirname ${0}`
 SCRIPT=`basename ${0}`
 
-$DIRECTORY/$STRATEGY/$SCRIPT-${1} "${2}" "${3}" "${4}"
+$DIRECTORY/$STRATEGY/$SCRIPT-${1} "${2}" "${3}" "${4}" 2>&1
