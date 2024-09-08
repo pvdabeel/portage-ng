@@ -288,6 +288,23 @@ message:header(Message) :-
   message:style(normal),
   nl.
 
+message:header(Header,[E|R]) :-
+  message:color(orange),
+  message:style(bold),
+  system:write('>>> '),
+  system:write(Header),
+  system:write(': '),
+  system:write(E),nl,
+  forall(member(M,R),
+   (message:write('               '),
+    message:write(M),
+    nl)),
+  message:color(normal),
+  message:style(normal),
+  nl.
+
+
+
 
 %! message:convert_bytes(+Bytes,-Output,-Unit)
 %

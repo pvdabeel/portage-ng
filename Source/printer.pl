@@ -70,7 +70,9 @@ printer:sort_by_weight(C,L1,L2) :-
 % CASE: simple package, is a target of the plan
 % ---------------------------------------------
 
-printer:print_element(Repository://Entry:Action,rule(Repository://Entry:Action,_)) :-
+%printer:print_element(Repository://Entry:Action,rule(Repository://Entry:Action,_)) :-
+printer:print_element(Target,rule(Repository://Entry:Action,_)) :-
+  member(Repository://Entry:Action,Target),
   !,
   message:color(cyan),
   message:print(Action),
@@ -86,7 +88,7 @@ printer:print_element(Repository://Entry:Action,rule(Repository://Entry:Action,_
 % CASE: simple package, is not a target of the plan
 % -------------------------------------------------
 
-printer:print_element(_://_:_,rule(Repository://Entry:Action,_)) :-
+printer:print_element(_,rule(Repository://Entry:Action,_)) :-
   message:color(cyan),
   message:print(Action),
   message:color(green),
@@ -522,8 +524,7 @@ printer:check_assumptions(Model) :-
 % Prints the header for a given target
 
 printer:print_header(Target) :-
-  message:header(['Emerging ', Target]),
-  nl,
+  message:header('Emerging ',Target),
   message:color(green),
   message:print('These are the packages that would be merged, in order:'),nl,
   nl,

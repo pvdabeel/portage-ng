@@ -24,7 +24,7 @@ The interface interpretes command line arguments passed to portage-ng.
 % Retrieve the current version
 
 interface:version(V) :-
-  V = '2024.09.03'.
+  V = '2024.09.08'.
 
 
 %! interface:status(?Status)
@@ -33,6 +33,7 @@ interface:version(V) :-
 
 interface:status(S) :-
   S = 'development'.
+
 
 %! interface:spec(?Specification)
 %
@@ -79,7 +80,7 @@ interface:argv(Options,Args) :-
   catch(opt_arguments(S,Options,Args),_,true).
 
 
-%! interface:process_mode(Options,_Args,Mode)
+%! interface:process_mode(-Mode)
 %
 % Retrieve the mode to be used to start portage-ng
 
@@ -88,15 +89,19 @@ interface:process_mode(Mode) :-
   lists:memberchk(mode(Mode),Options).
 
 
-%! interface:process_mode(Options,_Args,Mode)
+%! interface:process_continue(-Continue)
 %
-% Retrieve the mode to be used to start portage-ng
+% Defines what needs to happen after executing a command.
+% We either launch prolog, or we halt, depending on
+% option passed via the command line.
 
 interface:process_continue(Continue) :-
   interface:argv(Options,_),
-  lists:memberchk(shell(true),Options) ->
-    Continue = prolog;
-    Continue = halt.
+  (lists:memberchk(mode(server),Options) ->
+    Continue = true;
+    (lists:memberchk(shell(true),Options) ->
+     Continue = prolog;
+     Continue = halt)).
 
 
 %! interface:process_server(Host,Port)
@@ -109,18 +114,17 @@ interface:process_server(Host,Port) :-
   (lists:memberchk(port(Port),  Options) ; config:server_port(Port)).
 
 
-%! interface:process_requests(Options,Args,Mode)
+%! interface:process_requests(+Mode)
 %
-% Processes the arguments passed on the command line.
+% Processes the options passed on the command line.
 % Maps the options declared in interface:specs(S) onto actions defined as
 % a set of predicates to be called.
 
-interface:process_requests(Mode) :-
+interface:process_requests(_Mode) :-
   interface:version(Version),
   interface:status(Status),
   interface:process_continue(Continue),
   interface:argv(Options,Args),
-
 
   ( memberchk(verbose(true),Options) ->
       ( message:notice(['Args:    ',Args]),
@@ -130,50 +134,68 @@ interface:process_requests(Mode) :-
   ( memberchk(version(true),Options)  -> (message:inform(['portage-ng ',Status,' version - ',Version]), Continue) ;
     memberchk(info(true),Options)     -> (message:inform(['portage-ng ',Status,' version - ',Version]), Continue) ;
     memberchk(clear(true),Options)    -> (kb:clear, 							Continue) ;
-    memberchk(sync(true),Options)     -> (kb:sync, kb:save, 						Continue) ;
     memberchk(graph(true),Options)    -> (grapher:test(portage), 				  	Continue) ;
     memberchk(unmerge(true),Options)  -> (message:warning('unmerge action to be implemented'), 		Continue) ;
     memberchk(depclean(true),Options) -> (message:warning('depclean action to be implemented'), 	Continue) ;
-    member(search(true),Options)      -> ((Args == []) -> true ;
-                                          (
-    					    (Mode == 'client' ->
-                                            client:rpc_execute('imac-pro.local',4000,phrase(eapi:query(Q),Args));
-					    phrase(eapi:query(Q),Args)),
-		                           (memberchk(verbose(true),Options) ->
-   						( message:notice(['Query:   ',Q]));
- 					        true),
-					   (Mode == 'client' ->
-                                            forall(client:rpc_execute('imac-pro.local',4000,query:search(Q,R://E)),
- 						   writeln(R://E));
-                                            forall(query:search(Q,R://E),
-                                                  writeln(R://E)))
-                                          ),								Continue) ;
+    memberchk(search(true),Options)   -> (interface:process_action(search,Args,Options),                Continue) ;
     memberchk(sync(true),Options)     -> (kb:sync, kb:save, 						Continue) ;
-    memberchk(merge(true),Options)    -> ((Args == []) -> true ;
-                                          (
-                                          forall(member(Arg,Args),
-                                                 (atom_codes(Arg,Codes),
-                                                  (
- 					           (Mode == 'client' ->
-                                                    client:rpc_execute('imac-pro.local',4000,phrase(eapi:qualified_target(Q),Codes));
-						    phrase(eapi:qualified_target(Q),Codes)),
-						   (memberchk(verbose(true),Options) ->
-   						    (message:notice(['Query:   ',Q]));
- 					            true),
-  						   (memberchk(emptytree(true),Options) ->
- 						    assert(prover:flag(emptytree));
-						    true),
-  						   (Mode == 'client' ->
-						    (client:rpc_execute('imac-pro.local',4000,
-                                                     (query:search(Q,R://E),
-  						      prover:prove(R://E:run,[],Proof,[],Model,[],_),
-                                                      planner:plan(Proof,[],[],Plan),
-                                                      printer:print(R://E:run,Model,Proof,Plan)),
-                                                     Output),
-                                                     write(Output));
-                                                    (query:search(Q,R://E),
-  						     prover:prove(R://E:run,[],Proof,[],Model,[],_),
-                                                     planner:plan(Proof,[],[],Plan),
-                                                     printer:print(R://E:run,Model,Proof,Plan))))))),      Continue) ;
-                                                  %builder:build(R://E:T,Model,Proof,Plan)
-    memberchk(shell(true),Options)    -> (message:inform(['portage-ng shell - ',Version]),		prolog)).
+    memberchk(merge(true),Options)    -> (interface:process_action(merge,Args,Options),                 Continue) ;
+    memberchk(shell(true),Options)    -> (message:inform(['portage-ng shell - ',Version]),		prolog)),
+
+  Continue.
+
+
+%! interface:process_action(+Action,+Args,+Options)
+%
+% Processes a specific action.
+
+% ------
+% SEARCH
+% ------
+
+interface:process_action(search,[],_) :-
+  !,
+  message:inform('Need more arguments').
+
+interface:process_action(search,Args,Options) :-
+  phrase(eapi:query(Q),Args),
+  (memberchk(verbose(true),Options) -> ( message:notice(['Query:   ',Q]) ); true),
+  forall(kb:query(Q,R://E), writeln(R://E)).
+
+% todo: do the 'all' on the server side
+% process results.
+% give some explanation on expected input
+
+
+% -----
+% MERGE
+% -----
+
+interface:process_action(merge,[],_) :- !.
+
+interface:process_action(merge,Args,Options) :-
+  config:proving_target(T),
+  findall(R://E:T, (member(Arg,Args),
+                    atom_codes(Arg,Codes),
+                    phrase(eapi:qualified_target(Q),Codes),
+                    once(kb:query(Q,R://E))),
+          Proposal),!,
+  (memberchk(verbose(true),Options)   -> ( message:notice(['Proposal: ',Proposal]) ); true),
+  (memberchk(emptytree(true),Options) -> ( assert(prover:flag(emptytree)) );  true),
+
+  memberchk(mode(Mode),Options),
+  (Mode == 'client' ->
+    (client:rpc_execute('imac-pro.local',4000,
+     (prover:prove(Proposal,[],Proof,[],Model,[],_),
+      planner:plan(Proof,[],[],Plan),
+      printer:print(Proposal,Model,Proof,Plan)),
+     Output),
+     writeln(Output));
+    ( prover:prove(Proposal,[],Proof,[],Model,[],_),
+      planner:plan(Proof,[],[],Plan),
+      printer:print(Proposal,Model,Proof,Plan))).
+
+% todo: rpc_wrapper
+% process results
+% give some explaantion on expected input
+% pass emptytree to rpc server

@@ -26,7 +26,6 @@ sandbox:safe_primitive(config:pkg_directory(_,_)).
 sandbox:safe_primitive(config:proving_target(_)).
 sandbox:safe_primitive(config:server_port(_)).
 sandbox:safe_primitive(config:server_host(_)).
-sandbox:safe_primitive(config:server_name(_)).
 sandbox:safe_primitive(config:systemconfig(_)).
 sandbox:safe_primitive(config:test_style(_)).
 sandbox:safe_primitive(config:time_limit(_)).
