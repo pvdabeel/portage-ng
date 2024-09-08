@@ -245,6 +245,7 @@ rpc_wrapper(Term) ::-
   client:rpc_execute(Host,Port,Term).
 
 rpc_wrapper(Term) ::-
+  \+ ::proxy,!,
   Term.
 
 

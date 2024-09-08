@@ -57,11 +57,20 @@ rpc_execute(Hostname,Port,Cmd) :-
 
 %! client:rpc_execute(Host,Port,Command,Output)
 %
-% Sames as rpc_execute/3 but captures output to Terminal in
+% Same as rpc_execute/3 but captures output to Terminal in
 % in Output string.
 
 rpc_execute(Hostname,Port,Cmd,Output) :-
   rpc_execute(Hostname,Port,streams:with_output_to(string(Output),Cmd,[capture([user_output,user_error]), color(true)])).
+
+
+%! client:rpc_execute(Host,Port,Command,Output,Srclist)
+%
+% Same as rpc_execute/4 but pushes a list of predicates to
+% remote server
+
+rpc_execute(Hostname,Port,Cmd,Output,Srclist) :-
+  rpc_execute(Hostname,Port,streams:with_output_to(string(Output),Cmd,[src_list(Srclist),capture([user_output,user_error]), color(true)])).
 
 
 %! client:execute_remotely(Host,Port,Page)

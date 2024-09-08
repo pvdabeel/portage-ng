@@ -28,6 +28,9 @@ os:installed_pkg(Repository://Entry) :-
   cache:entry_metadata(Repository,Entry,installed,true).
   %query:execute(installed(Repository://Entry)).
 
+os:installed_pkgs(L) :-
+  findall(R://E,os:installed_pkg(R://E),L).
+
 
 %! pkg:sync
 %
