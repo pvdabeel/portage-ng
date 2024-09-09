@@ -27,8 +27,13 @@ An implementation of a query language for the knowledge base
 %
 % We deal with queries from command line:
 %
-%    1. qualified target searches
-%    2. key=value search pairs
+%    1. a list of qualified target searches
+%       each qualified target search identifies a proposed knowledge
+%       base entry that needs to be realised by the proof / build plan
+%
+%    2. a list of key=value search pairs, where = can be any of
+%       <,>,<=,>=,!=,~,:=. The last two implement fuzzy search
+%       and wildcard search respectively on the value provided.
 %
 % As well as other queries from ebuild, printer, grapher, builder
 % through a flexible query language which includes:
@@ -121,16 +126,20 @@ search(latest(Statement),R://I) :-
 
 % Case : world
 
-search(world,R://I) :-
-  preference:world(World),
-  member(R://I:_,World).
+%search(world,R://I) :-
+%  preference:world(World),
+%  member(R://I:_,World).
 
 
 % Case : set
 
-search(set(Name),R://I) :-
-  preference:set(Name,Set),
-  member(R://I:_,Set).
+%search(set(Name),R://I) :-
+%  preference:set(Name,Set),
+%  writeln('set found'),
+%  member(Ta,Set),
+%  atom_codes(Ta,Tc),
+%  phrase(eapi:qualified_target(Q),Tc),
+%  search(Q,R://I).
 
 
 
@@ -194,15 +203,36 @@ search(name(wildcard(N)),R://I) :-
   cache:ordered_entry(R,I,_,M,_),
   wildcard_match(N,M).
 
-search(set(notequal(S)),R://I) :-
-  !,
-  preference:set(S,Set),
-  \+ member(R://I:_,Set).
-
 search(set(equal(S)),R://I) :-
   !,
   preference:set(S,Set),
-  member(R://I:_,Set).
+  member(Ta,Set),
+  atom_codes(Ta,Tc),
+  phrase(eapi:qualified_target(Q),Tc),
+  search(Q,R://I).
+
+search(set(tilde(N)),R://I) :-
+  !,
+  preference:set(S,Set),
+  dwim_match(N,S),
+  member(Ta,Set),
+  atom_codes(Ta,Tc),
+  phrase(eapi:qualified_target(Q),Tc),
+  search(Q,R://I).
+
+search(set(wildcard(N)),R://I) :-
+  !,
+  preference:set(S,Set),
+  wildcard_match(N,S),
+  member(Ta,Set),
+  atom_codes(Ta,Tc),
+  phrase(eapi:qualified_target(Q),Tc),
+  search(Q,R://I).
+
+search(version(wildcard([_,_,_,V])),R://I) :-
+  !,
+  cache:ordered_entry(R,I,_,_,[_,_,_,ProposedVersion]),
+  wildcard_match(V,ProposedVersion).
 
 search(version(V),R://I) :-
   !,
@@ -211,7 +241,6 @@ search(version(V),R://I) :-
   apply_version_filter(Comparator,ProposedVersion,RequestedVersion).
 
 
-% todo: version wildcard
 
 % ------------------------
 % Search: Qualified target
@@ -437,4 +466,6 @@ apply_filters(R://I,[H|T]) :-
   apply_filters(R://I,T).
 
 apply_filter(_R://_I,[]) :- !.
+
+
 

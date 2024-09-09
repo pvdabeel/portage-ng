@@ -550,7 +550,7 @@ eapi:repository(Ra) -->
 %
 % Set Names
 
-eapi:set(Sa) -->
+eapi:set([64|Sa]) -->
   [64],!,
   eapi:chars1(c,S),
   { atom_codes(Sa,S),! }.
@@ -1832,7 +1832,7 @@ eapi:categorize_use(Use,negative,default) :-
 eapi:qualified_target(world) -->
   [119, 111, 114, 108, 100],!.			      % world
 
-eapi:qualified_target(set(S)) -->		      % @set
+eapi:qualified_target(S) -->		      	      % @set
   eapi:set(S),!.
 
 eapi:qualified_target(path(Qa)) -->	              % relative path, either tbz or ebuild
@@ -1901,6 +1901,27 @@ eapi:querypartcont(version,V) -->
 eapi:querypartcont(_,Value) -->
   eapi:chars_to_end(Codes),
   { atom_codes(Value,Codes) }.
+
+
+%! eapi:substitute_sets(Query,Result)
+%
+% Replace world and set references in query with their content.
+
+eapi:substitute_sets([],[]) :- !.
+
+eapi:substitute_sets([world|Tail],Result) :-
+  preference:world(Targets),!,
+  append(Targets,NewResult,Result),
+  eapi:substitute_sets(Tail,NewResult).
+
+eapi:substitute_sets([Set|Tail],Result) :-
+  preference:set(Set,Targets),!,
+  append(Targets,NewResult,Result),
+  eapi:substitute_sets(Tail,NewResult).
+
+eapi:substitute_sets([Query|Tail],[Query|Rest]) :-
+  !,
+  eapi:substitute_sets(Tail,Rest).
 
 
 % ***************************

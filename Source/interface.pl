@@ -173,8 +173,10 @@ interface:process_action(search,Args,Options) :-
 
 interface:process_action(merge,[],_) :- !.
 
-interface:process_action(merge,Args,Options) :-
+interface:process_action(merge,ArgsSets,Options) :-
   config:proving_target(T),
+  eapi:substitute_sets(ArgsSets,Args),
+  (memberchk(verbose(true),Options)   -> ( message:notice(['Full args:',Args]) ); true),
   findall(R://E:T, (member(Arg,Args),
                     atom_codes(Arg,Codes),
                     phrase(eapi:qualified_target(Q),Codes),
@@ -199,3 +201,4 @@ interface:process_action(merge,Args,Options) :-
 % process results
 % give some explaantion on expected input
 % pass emptytree to rpc server
+% pass world and set to rpc server
