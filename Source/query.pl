@@ -148,6 +148,16 @@ search(repository(equal(R)),R://I) :-
   !,
   cache:ordered_entry(R,I,_,_,_).
 
+search(repository(tilde(R)),M://I) :-
+  !,
+  cache:ordered_entry(M,I,_,_,_),
+  dwim_match(R,M).
+
+search(repository(wildcard(R)),M://I) :-
+  !,
+  cache:ordered_entry(M,I,_,_,_),
+  wildcard_match(R,M).
+
 search(category(notequal(C)),R://I) :-
   !,
   \+ cache:ordered_entry(R,I,C,_,_).
@@ -156,6 +166,16 @@ search(category(equal(C)),R://I) :-
   !,
   cache:ordered_entry(R,I,C,_,_).
 
+search(category(tilde(C)),R://I) :-
+  !,
+  cache:ordered_entry(R,I,M,_,_),
+  dwim_match(C,M).
+
+search(category(wildcard(C)),R://I) :-
+  !,
+  cache:ordered_entry(R,I,M,_,_),
+  wildcard_match(C,M).
+
 search(name(notequal(N)),R://I) :-
   !,
   \+ cache:ordered_entry(R,I,_,N,_).
@@ -163,6 +183,16 @@ search(name(notequal(N)),R://I) :-
 search(name(equal(N)),R://I) :-
   !,
   cache:ordered_entry(R,I,_,N,_).
+
+search(name(tilde(N)),R://I) :-
+  !,
+  cache:ordered_entry(R,I,_,M,_),
+  dwim_match(N,M).
+
+search(name(wildcard(N)),R://I) :-
+  !,
+  cache:ordered_entry(R,I,_,M,_),
+  wildcard_match(N,M).
 
 search(set(notequal(S)),R://I) :-
   !,
@@ -180,6 +210,8 @@ search(version(V),R://I) :-
   cache:ordered_entry(R,I,_,_,ProposedVersion),
   apply_version_filter(Comparator,ProposedVersion,RequestedVersion).
 
+
+% todo: version wildcard
 
 % ------------------------
 % Search: Qualified target

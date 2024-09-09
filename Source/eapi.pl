@@ -526,6 +526,10 @@ eapi:operator(smaller) -->
 eapi:operator(tilde) -->
   [126], !.                                           % char: ~
 
+eapi:operator(tilde) -->
+  [58,61], !.                                         % char: :=
+
+
 eapi:operator(equal) -->
   [61], !.                                            % char: =
 
@@ -1529,7 +1533,7 @@ eapi:chars_to_equal([C|T]) -->
 
 %! DCG chars_to_comparator
 %
-% collect all chars to '=','>','<','!','~'
+% collect all chars to '=','>','<','!','~','?'
 
 eapi:chars_to_comparator([],smallerequal) -->
   [61],[60],!.                                        % chars: '=<'
@@ -1553,6 +1557,10 @@ eapi:chars_to_comparator([],greater) -->
 
 eapi:chars_to_comparator([],tilde) -->
   [126],!.                                            % chars: '~'
+
+eapi:chars_to_comparator([],wildcard) -->
+  [58,61],!.                                          % chars: ':='
+
 
 eapi:chars_to_comparator([],notequal) -->
   [33],[61],!.                                        % chars: '!='
