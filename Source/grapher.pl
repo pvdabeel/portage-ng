@@ -72,19 +72,19 @@ grapher:graph(detail,Repository://Id) :-
   writeln('fillcolor="#eeeeee";'),
   writeln('style=filled;'),
   writeln('label=<<i>compile</i>>;'),
-  findall(Ch,(member(D,OPC),grapher:handle(detail,solid,vee,id,D,Ch)),AllChoices1),
+  findall(Ch,(member(equal(D),OPC),grapher:handle(detail,solid,vee,id,D,Ch)),AllChoices1),
   writeln('}'),
   writeln('subgraph cluster_compileandrun {'),
   writeln('fillcolor="#eeeeee";'),
   writeln('style=filled;'),
   writeln('label=<<i>compile and run</i>>;'),
-  findall(Ch,(member(D,OCR),grapher:handle(detail,solid,odotvee,id,D,Ch)),AllChoices2),
+  findall(Ch,(member(equal(D),OCR),grapher:handle(detail,solid,odotvee,id,D,Ch)),AllChoices2),
   writeln('}'),
   writeln('subgraph cluster_run {'),
   writeln('fillcolor="#eeeeee";'),
   writeln('style=filled;'),
   writeln('label=<<i>run</i>>;'),
-  findall(Ch,(member(D,OPR),grapher:handle(detail,solid,odot,id,D,Ch)),AllChoices3),
+  findall(Ch,(member(equal(D),OPR),grapher:handle(detail,solid,odot,id,D,Ch)),AllChoices3),
   writeln('}'),
   union(AllChoices1,AllChoices2,AllChoices12),
   union(AllChoices12,AllChoices3,AllChoices),
@@ -133,7 +133,7 @@ grapher:graph(Type,Repository://Id) :-
 grapher:write_tree(Repository://Id, Type) :-
   not(graph_visited(Repository://Id)),!,
   write('\"'),write(Repository://Id),write('\" [color=red, href=\"../'),write(Id),write('-'),write(Type),write('.svg\"];'),nl,
-  Statement =.. [Type,DS],
+  Statement =.. [Type,equal(DS)],
   query:search(Statement,Repository://Id),
   findall(Ch,(member(D,DS),grapher:handle(Type,solid,vee,Repository://Id,D,Ch)),AllChoices),
   assert(graph_visited(Repository://Id)),
@@ -218,7 +218,7 @@ grapher:choices(Kind,[L|Rest]) :-
 % For a given graph style, create a meta reprensentation of a dependency
 
 grapher:handle(depend,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
-  query:search([name(Name),category(Cat)],Choicecontext://Choice),
+  query:search([name(equal(Name)),category(equal(Cat))],Choicecontext://Choice),
   !, true.
 
 grapher:handle(depend,_Style,_Arrow,_Master,use_conditional_group(_,_Type,_Use,_Deps),[]) :- !.
@@ -235,7 +235,7 @@ grapher:handle(depend,_Style,_Arrow,_Master,_,[]) :- !.
 
 
 grapher:handle(rdepend,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
-  query:search([name(Name),category(Cat)],Choicecontext://Choice),
+  query:search([name(equal(Name)),category(equal(Cat))],Choicecontext://Choice),
   !, true.
 
 grapher:handle(rdepend,_Style,_Arrow,_Master,use_conditional_group(_,_Type,_Use,_Deps),[]) :- !.
@@ -261,7 +261,7 @@ grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,_,Cat,Name,Co
   write(Comp),write('</TD></TR><TR><TD>'),write(Ver),write('</TD></TR></TABLE>>, shape=none, color=blue];'),nl,
   write('}'),nl,
   write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl,
-  findall(R,query:search([name(Name),category(Cat)],R),Choices),
+  findall(R,query:search([name(equal(Name)),category(equal(Cat))],R),Choices),
   !, true.
 
 grapher:handle(detail,Style,Arrow,Master,use_conditional_group(Type,Use,_,Deps),Choices) :-
@@ -340,13 +340,13 @@ grapher:prepare_directory(D,Repository) :-
   config:graph_directory(H,D),
   system:exists_directory(D),!,
   message:inform(['Directory already exists! Updating...']),
-  os:create_repository_dirs(Repository,D).
+  pkg:create_repository_dirs(Repository,D).
 
 grapher:prepare_directory(D,Repository) :-
   config:hostname(H),
   config:graph_directory(H,D),
   not(system:exists_directory(D)),!,
-  os:make_repository_dirs(Repository,D).
+  pkg:make_repository_dirs(Repository,D).
 
 grapher:write_dot_files(D,Repository://Id) :-
   message:success(Id),
