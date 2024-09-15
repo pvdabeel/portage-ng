@@ -138,7 +138,7 @@ interface:process_requests(_Mode) :-
     memberchk(unmerge(true),Options)  -> (message:warning('unmerge action to be implemented'), 		Continue) ;
     memberchk(depclean(true),Options) -> (message:warning('depclean action to be implemented'), 	Continue) ;
     memberchk(search(true),Options)   -> (interface:process_action(search,Args,Options),                Continue) ;
-    memberchk(sync(true),Options)     -> (kb:sync, kb:save, 						Continue) ;
+    memberchk(sync(true),Options)     -> (kb:sync, kb:save,!, 						Continue) ;
     memberchk(merge(true),Options)    -> (interface:process_action(merge,Args,Options),                 Continue) ;
     memberchk(shell(true),Options)    -> (message:inform(['portage-ng shell - ',Version]),		prolog)),
 

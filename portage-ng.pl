@@ -51,6 +51,7 @@ load_common_modules :-
    ensure_loaded(library('readline')),
    ensure_loaded(library('process')),
    ensure_loaded(library('readutil')),
+   ensure_loaded(library('ordsets')),
 
    ensure_loaded(portage('Source/context.pl')),
    ensure_loaded(portage('Source/os.pl')),
