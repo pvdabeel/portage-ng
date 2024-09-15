@@ -24,9 +24,9 @@ if [ $LOCAL != $REMOTE ]; then
     echo ">>> Commit found, updating"
     echo "--- `date`" 
     echo
-    portage-ng --clear # clear repository
-    portage-ng --sync  # sync repository
-    portage-ng --graph # update graph
+    portage-ng --mode standalone --clear # clear repository
+    portage-ng --mode standalone --sync  # sync repository
+    portage-ng --mode standalone --graph  # update graph
     
     pushd '/Volumes/Disk 1/Graph/'
 

@@ -599,7 +599,7 @@ eapi:check_package(L) :-
 % Case: check if package is valid, if there are more than one chunck
 
 eapi:check_package(L) :-
-  reverse(L,[E,B|_]),
+  lists:reverse(L,[E,B|_]),
   not(eapi:invalid_package_ending(E,B)).
 
 

@@ -43,11 +43,14 @@ swipl
 
 
 load_common_modules :-
+   ensure_loaded(library('lists')),
    ensure_loaded(library('optparse')),
    ensure_loaded(library('tty')),
    ensure_loaded(library('time')),
    ensure_loaded(library('thread')),
    ensure_loaded(library('readline')),
+   ensure_loaded(library('process')),
+   ensure_loaded(library('readutil')),
 
    ensure_loaded(portage('Source/context.pl')),
    ensure_loaded(portage('Source/os.pl')),
@@ -108,6 +111,7 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/grapher.pl')),
    ensure_loaded(portage('Source/worker.pl')),
    ensure_loaded(portage('Source/tester.pl')),
+   ensure_loaded(portage('Source/cluster.pl')),
 
    ensure_loaded(portage('Source/test.pl')),
 
