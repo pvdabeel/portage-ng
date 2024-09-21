@@ -249,4 +249,4 @@ config:server_port(4000).
 % Declares the server url, including protocol (https) and port
 % the client needs to connect on.
 
-config:server_host('imac-pro.local').
+config:server_host('mac-pro.local').

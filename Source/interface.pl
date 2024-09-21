@@ -186,8 +186,9 @@ interface:process_action(merge,ArgsSets,Options) :-
   (memberchk(emptytree(true),Options) -> ( assert(prover:flag(emptytree)) );  true),
 
   memberchk(mode(Mode),Options),
+  interface:process_server(Host,Port),
   (Mode == 'client' ->
-    (client:rpc_execute('imac-pro.local',4000,
+    (client:rpc_execute(Host,Port,
      (prover:prove(Proposal,[],Proof,[],Model,[],_),
       planner:plan(Proof,[],[],Plan),
       printer:print(Proposal,Model,Proof,Plan)),
