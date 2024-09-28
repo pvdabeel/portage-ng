@@ -241,8 +241,12 @@ class(Parents) :-
 % Declare a public predicate.
 
 dpublic(Functor/Arity) :-
+  !,
   declare(property(Functor/Arity, public)).
 
+dpublic(List) :-
+  !,
+  maplist(dpublic,List).
 
 %! dprotected(+Functor/+Arity)
 %
@@ -251,7 +255,12 @@ dpublic(Functor/Arity) :-
 % Declare a protected predicate.
 
 dprotected(Functor/Arity) :-
+  !,
   declare(property(Functor/Arity, protected)).
+
+dprotected(List) :-
+  !,
+  maplist(dprotected,List).
 
 
 %! dprivate(+Functor/+Arity)
@@ -261,7 +270,12 @@ dprotected(Functor/Arity) :-
 % Declare a private predicate.
 
 dprivate(Functor/Arity) :-
+  !,
   declare(property(Functor/Arity, private)).
+
+dprivate(List) :-
+  !,
+  maplist(dprivate,List).
 
 
 %! ddynamic(+Functor/+Arity)
@@ -271,8 +285,12 @@ dprivate(Functor/Arity) :-
 % Declare a dynamic predicate.
 
 ddynamic(_Functor/_Arity) :-
+  !,
   true.
 
+ddynamic(List) :-
+  !,
+  maplist(ddynamic,List).
 
 %! ddynamic(+Functor/+Arity)
 %
@@ -281,7 +299,12 @@ ddynamic(_Functor/_Arity) :-
 % Declare a dynamic predicate.
 
 dstatic(Functor/Arity) :-
+  !,
   declare(property(Functor/Arity, static)).
+
+dstatic(List) :-
+  !,
+  maplist(dstatic,List).
 
 
 %! mutex(+Functor/+Arity)
@@ -291,7 +314,12 @@ dstatic(Functor/Arity) :-
 % Declare a mutexed predicate.
 
 mutex(Functor/Arity) :-
+  !,
   declare(property(Functor/Arity, mutex)).
+
+mutex(List) :-
+  !,
+  maplist(mutex,List).
 
 
 %! declare(+Fact)
