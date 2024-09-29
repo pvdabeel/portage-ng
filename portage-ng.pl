@@ -59,6 +59,8 @@ load_common_modules :-
    ensure_loaded(portage('Source/interface.pl')),
    ensure_loaded(portage('Source/message.pl')),
    ensure_loaded(portage('Source/eapi.pl')),
+   ensure_loaded(portage('Source/reader.pl')),
+   ensure_loaded(portage('Source/bonjour.pl')),
 
    message:notice('Loaded common modules...').
 
@@ -185,4 +187,5 @@ main(server) :-
   main(standalone),
   load_server_modules,
   server:start_server,
+  bonjour:advertise,
   interface:process_requests(server).
