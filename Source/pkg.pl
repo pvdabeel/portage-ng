@@ -9,8 +9,7 @@
 
 
 /** <module> PKG
-This file contains predicates used to identify installed packages
-on a system
+This module is reponsible for tracking installed packages on the system.
 */
 
 :- module(pkg, []).
