@@ -30,26 +30,41 @@ Output: A nested list of character codes, each sublist represents a line.
 reader:invoke(File,Contents) :-
   exists_file(File),!,
   open(File,read,Stream,[lock(none)]),
-  reader:read_lines(Stream,Contents),
+  reader:read_lines_to_codes(Stream,Contents),
   close(Stream).
 
 reader:invoke(_,[]) :-
   !.
 
 
-%! reader:read_lines(+Stream, -Lines)
+%! reader:read_lines_to_codes(+Stream, -Lines)
 %
-% Given a stream, reads all lines from the stream.
+% Given a stream, reads all lines from the stream and return as a list of codes
 
-reader:read_lines(Stream,[]) :-
+reader:read_lines_to_codes(Stream,[]) :-
   at_end_of_stream(Stream),
   !.
 
-reader:read_lines(Stream,[L|R]) :-
+reader:read_lines_to_codes(Stream,[L|R]) :-
   % not(at_end_of_stream(Stream)),
   !,
   read_line_to_codes(Stream,L),
-  reader:read_lines(Stream,R).
+  reader:read_lines_to_codes(Stream,R).
+
+
+%! reader:read_lines_to_string(+Stream, -Lines)
+%
+% Given a stream, reads all lines from the stream and return as a list of strings
+
+reader:read_lines_to_string(Stream,[]) :-
+  at_end_of_stream(Stream),
+  !.
+
+reader:read_lines_to_string(Stream,[L|R]) :-
+  % not(at_end_of_stream(Stream)),
+  !,
+  read_line_to_string(Stream,L),
+  reader:read_lines_to_codes(Stream,R).
 
 
 %! reader:test(+Repository)
