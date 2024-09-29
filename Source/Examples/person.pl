@@ -42,8 +42,8 @@ This file contains a CONTEXT example.
 
 % public interface
 
-:- dpublic(get_name/1).
-:- dpublic(set_name/1).
+:- dpublic([get_name/1,set_name/1]).
+%:- dpublic(set_name/1).
 :- dpublic(get_age/1).
 :- dpublic(set_age/1).
 :- dpublic(get_title/1).
