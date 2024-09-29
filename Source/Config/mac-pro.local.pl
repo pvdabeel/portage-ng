@@ -7,7 +7,7 @@
 % Portage repository - sync via git
 % ---------------------------------
 :- portage:newinstance(repository).
-:- portage:init('/Users/pvdabeel/Repository/portage-git','/Users/pvdabeel/Repository/portage-git/metadata/md5-cache',
+:- portage:init('/Volumes/Disk 1/Repository/portage-git','/Volumes/Disk 1/Repository/portage-git/metadata/md5-cache',
                 'https://github.com/gentoo-mirror/gentoo','git','eapi').
 :- kb:register(portage).
 
