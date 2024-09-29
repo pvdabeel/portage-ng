@@ -40,7 +40,7 @@ interface:status(S) :-
 % Retrieve the interface specification
 
 interface:spec(S) :-
-  S = [[opt(mode),     type(atom),    default('server'),                    longflags(['mode'] ),
+  S = [[opt(mode),     type(atom),    default('server'),                      longflags(['mode'] ),
         help([ '  server:     start as server'
              , '  standalone: start standalone client, not requireing running server'
              , '  client:     start lightweight client, requiring running server'])],
@@ -78,6 +78,14 @@ interface:spec(S) :-
 interface:argv(Options,Args) :-
   interface:spec(S),
   catch(opt_arguments(S,Options,Args),_,true).
+
+
+%! interface:get_env(+Name,-Value)
+%
+% Retrieve content of environment variable
+
+interface:getenv(Name,Value) :-
+  system:getenv(Name,Value).
 
 
 %! interface:process_mode(-Mode)
