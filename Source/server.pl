@@ -44,8 +44,7 @@ as a Makefile).
 % Start a http server on the given port and listens for commands
 
 server:start_server  :-
-  config:server_port(Port),
-  config:hostname(Hostname),
+  interface:process_server(Hostname,Port),
   config:certificate('cacert.pem',CaCert),
   config:certificate(Hostname,'server-cert.pem',ServerCert),
   config:certificate(Hostname,'server-key.pem',ServerKey),
