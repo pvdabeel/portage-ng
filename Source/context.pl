@@ -101,7 +101,6 @@ Examples:
 
 :- module(context, [ class/0,
                      class/1,
-                     %endclass/0,
                      newinstance/1,
                      dpublic/1,
                      dprotected/1,
@@ -146,7 +145,6 @@ Examples:
 
 :- module_transparent class/0,
                       class/1,
-                      endclass/0,
                       newinstance/1,
                       dpublic/1,
                       dprotected/1,
