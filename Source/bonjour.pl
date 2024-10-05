@@ -52,6 +52,6 @@ discover(Services) :-
 % Discover services of a specified type
 
 discover(Service,Services) :-
-    format(string(Command), 'dns-sd -t 1 -lo -L ~w _prolog._tcp . | grep \'reached at\' | sed -e \'s/.*reached at //\' | sed -e \'s/ (interface.*//\' | sed -e \'s/.:/:/\'', [Service]),
+    format(string(Command), 'dns-sd -t 1 -L ~w _prolog._tcp . | grep \'reached at\' | sed -e \'s/.*reached at //\' | sed -e \'s/ (interface.*//\' | sed -e \'s/.:/:/\'', [Service]),
     process_create(path(bash), ['-c', Command], [stdout(pipe(Stream))]),
     reader:read_lines_to_string(Stream,Services).

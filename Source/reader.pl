@@ -64,7 +64,7 @@ reader:read_lines_to_string(Stream,[L|R]) :-
   % not(at_end_of_stream(Stream)),
   !,
   read_line_to_string(Stream,L),
-  reader:read_lines_to_codes(Stream,R).
+  reader:read_lines_to_string(Stream,R).
 
 
 %! reader:test(+Repository)
