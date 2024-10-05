@@ -54,4 +54,5 @@ discover(Services) :-
 discover(Service,Services) :-
     format(string(Command), 'dns-sd -t 1 -L ~w _prolog._tcp . | grep \'reached at\' | sed -e \'s/.*reached at //\' | sed -e \'s/ (interface.*//\' | sed -e \'s/.:/:/\'', [Service]),
     process_create(path(bash), ['-c', Command], [stdout(pipe(Stream))]),
-    reader:read_lines_to_string(Stream,Services).
+    reader:read_lines_to_string(Stream,ServicesWithDuplicates),
+    sort(ServicesWithDuplicates,Services).
