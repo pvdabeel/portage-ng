@@ -250,3 +250,11 @@ config:server_port(4000).
 % the client needs to connect on.
 
 config:server_host('mac-pro.local').
+
+
+%! config:trust_metadata(?Bool)
+%
+% When set to false, we regenerate locally the cache entries
+% after syncing with the remote repository.
+
+config:trust_metadata(true).
