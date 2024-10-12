@@ -171,7 +171,7 @@ message:print(Message) :-
 message:print(Message,Len) :-
   message:print(Message),
   atomic_list_concat(Message,Concat),
-  write_length(Concat,Len,[]).
+  system:write_length(Concat,Len,[]).
 
 
 %! message:failure(+Message)
@@ -254,6 +254,7 @@ message:scroll(Message) :-
   message:print(Message,Len),
   message:el,
   Prefixed_Len is Len + 2,
+  flush_output,
   tty:tty_action(back(Prefixed_Len)).
 
 
