@@ -29,13 +29,15 @@ This file declares a predicate to execute a script inside the scripts directory
 %  atomic_list_concat(['Source/Scripts/',S],Script),
 %  shell(Script),!.
 
-script:exec(S,Args) :-
+script:exec(S,Args,Env) :-
   !,
   atomic_list_concat(['Source/Scripts/',S],Script),
-    process_create(portage(Script),Args,[stdout(pipe(Out)),stderr(pipe(Out))]),
+    process_create(portage(Script),Args,[stdout(pipe(Out)),stderr(pipe(Out))|Env]),
     copy_stream_data(Out, current_output),
     !.
 
+script:exec(S,Args) :-
+  script:exec(S,Args,[]).
 
 
 %script:exec(S,Args) :-
