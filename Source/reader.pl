@@ -27,6 +27,10 @@ Output: A nested list of character codes, each sublist represents a line.
 %
 % Contents: A nested list of character codes, each sublist represents a line
 
+reader:invoke(string(Out),Contents) :-
+  !,
+  reader:read_lines_to_codes(Out,Contents).
+
 reader:invoke(File,Contents) :-
   exists_file(File),!,
   open(File,read,Stream,[lock(none)]),

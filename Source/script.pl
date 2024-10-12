@@ -29,6 +29,11 @@ This file declares a predicate to execute a script inside the scripts directory
 %  atomic_list_concat(['Source/Scripts/',S],Script),
 %  shell(Script),!.
 
+script:exec(S,Args,Env,Out) :-
+  with_output_to(string(Out),
+    script:exec(S,Args,Env),
+    [capture([user_output]), color(false)]).
+
 script:exec(S,Args,Env) :-
   !,
   atomic_list_concat(['Source/Scripts/',S],Script),

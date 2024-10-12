@@ -28,6 +28,7 @@ Eventually this could become a class with different subclasses.
 % filtered.
 
 os:directory_content(Directory,Content) :-
+  exists_directory(Directory),
   system:directory_files(Directory,UnsortedContents),!,
   sort(UnsortedContents,['.','..'|Contents]),
   lists:member(Content,Contents).

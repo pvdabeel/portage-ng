@@ -58,15 +58,14 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 
 % protected interface
 
-:- dprotected(find_metadata/5).
+:- dpublic(find_metadata/5).
 :- dpublic(find_manifest/4).
 :- dpublic(find_ebuild/5).
 
 :- dprotected(read_time/1).
 :- dprotected(read_metadata/3).
 :- dprotected(read_manifest/5).
-
-:- dpublic(complete_metadata/3).
+:- dprotected(read_ebuild/2).
 
 :- dprotected(location/1).
 :- dprotected(cache/1).
@@ -143,12 +142,14 @@ sync(repository) ::-
 sync(metadata) ::-
   ::type('eapi'),!,
   message:hc,
-  forall((:entry(Id,Time),
-           :get_ebuild_file(Id,Ebuild),
-           system:time_file(Ebuild,Modified),
-           Modified > Time),
-          (message:scroll([Id]))),
-           % script:exec(cache,[Ebuild]),!)).
+  ( config:trust_metadata(false)
+    -> forall((:entry(Id,Time),
+               :get_ebuild_file(Id,Ebuild),
+               system:time_file(Ebuild,Modified),
+               Modified > Time),
+              (message:scroll([Id]),
+               script:exec(cache,[eapi,Ebuild]),!))
+    ; true ),
   message:sc,
   message:scroll(['Updated metadata.']),nl.
 
@@ -249,8 +250,8 @@ sync(kb) ::-
 % Public predicate
 %
 % Retrieves metadata cache entry, and the last modified date
-% of the cache entry, its category, name and version
-% Disk access required
+% of the cache entry, its category, name and version.
+% Disk access required.
 
 find_metadata(Entry,Timestamp,Category,Name,Version) ::-
   ::cache(Cache),!,
@@ -268,8 +269,8 @@ find_metadata(Entry,Timestamp,Category,Name,Version) ::-
 %
 % Public predicate
 %
-% Retrieves manifest information
-% Disk access required
+% Retrieves manifest information.
+% Disk access required.
 
 find_manifest(Entry,Timestamp,Category,Name) ::-
   ::location(Location),
@@ -290,7 +291,7 @@ find_manifest(Entry,Timestamp,Category,Name) ::-
 % Public predicate
 %
 % Find ebuild file in repository.
-% Disk access required
+% Disk access required.
 
 find_ebuild(Entry,Timestamp,Category,Name,Version) ::-
   ::location(Location),
@@ -306,19 +307,14 @@ find_ebuild(Entry,Timestamp,Category,Name,Version) ::-
   system:time_file(EbuildFile,Timestamp).
 
 
-%! repository:complete_metadata(?Entry, -Timestamp, -Category, -Name, -Verson)
-%
-% Public predicate
-%
-% Completes missing metadata cache entry.
-
-
 %! repository:read_metadata(+Entry, -Timestamp, -Metadata)
 %
 % Public predicate
 %
-% Reads the metadata for a given entry from disk if
-% it is new of has been modifed
+% Reads the metadata for a given entry from the metadata cache
+% inside the repository on and update it if it is new of has
+% been modifed.
+% Disk access required.
 
 read_metadata(Entry,Timestamp,[]) ::-
   :this(Repository),
@@ -343,7 +339,8 @@ read_metadata(Entry,_,[]) ::-
 % Public predicate
 %
 % Reads the manifest for a given path from disk if
-% it is new of has been modifed
+% it is new of has been modifed.
+% Disk access required.
 
 read_manifest(Path,Timestamp,Category,Name,[]) ::-
   :this(Repository),
@@ -359,11 +356,29 @@ read_manifest(Path,_,_,_,[]) ::-
   fail.
 
 
+%! repository:read_ebuild(?Entry, -Metadata))
+%
+% Public predicate
+%
+% Reads metadata for a given entry directly from the ebuild file
+% bypassing the metadata cache inside the repository.
+% Disk access required.
+
+read_ebuild(Entry,Metadata) ::-
+  :this(Repository),
+  ::location(Location),
+  os:compose_path([Location,Entry,'.ebuild'],Ebuild),
+  script:exec(cache,[eapi,Ebuild],[],Out),!,
+  reader:invoke(string(Out),Contents),
+  parser:invoke(metadata,Repository://Entry,Contents,Metadata),!.
+
+
 %! repository:read_time(-Time)
 %
 % Public predicate
 %
 % Time is a float, representing the time last synced
+% Disk access required.
 
 read_time(Time) ::-
   ::location(Location),
