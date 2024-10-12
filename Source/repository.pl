@@ -60,10 +60,13 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 
 :- dprotected(find_metadata/5).
 :- dpublic(find_manifest/4).
+:- dpublic(find_ebuild/5).
 
 :- dprotected(read_time/1).
 :- dprotected(read_metadata/3).
 :- dprotected(read_manifest/5).
+
+:- dpublic(complete_metadata/3).
 
 :- dprotected(location/1).
 :- dprotected(cache/1).
@@ -280,6 +283,34 @@ find_manifest(Entry,Timestamp,Category,Name) ::-
   os:compose_path(PackageDir,'Manifest',Entry),
   exists_file(Entry),
   system:time_file(Entry,Timestamp).
+
+
+%! repository:find_ebuild(?Entry, -Timestamp, -Category, -Name, -Version)
+%
+% Public predicate
+%
+% Find ebuild file in repository.
+% Disk access required
+
+find_ebuild(Entry,Timestamp,Category,Name,Version) ::-
+  ::location(Location),
+  os:directory_content(Location,Category),
+  os:compose_path(Location,Category,CategoryDir),
+  os:directory_content(CategoryDir,Name),
+  os:compose_path(CategoryDir,Name,NameDir),
+  os:directory_content(NameDir,Ebuild),
+  system:file_name_extension(Package,'ebuild',Ebuild),
+  os:compose_path(Category,Package,Entry),
+  eapi:packageversion(Package,Name,Version),
+  os:compose_path(NameDir,Ebuild,EbuildFile),
+  system:time_file(EbuildFile,Timestamp).
+
+
+%! repository:complete_metadata(?Entry, -Timestamp, -Category, -Name, -Verson)
+%
+% Public predicate
+%
+% Completes missing metadata cache entry.
 
 
 %! repository:read_metadata(+Entry, -Timestamp, -Metadata)
