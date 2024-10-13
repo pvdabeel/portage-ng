@@ -253,9 +253,18 @@ message:scroll(Message) :-
   system:write('% '),
   message:print(Message,Len),
   message:el,
-  Prefixed_Len is Len + 2,
   flush_output,
+  Prefixed_Len is Len + 2 + 3,
   tty:tty_action(back(Prefixed_Len)).
+
+%! message:clean
+%
+% Cleans the current line without moving the cursor
+
+message:clean :-
+  message:el,
+  Len is 3,
+  tty:tty_action(back(Len)).
 
 
 %! message:topheader(+Message)

@@ -242,8 +242,8 @@ sync(kb) ::-
   assert(cache:repository(Repository)),
 
   message:sc,
-  message:scroll(['Updated prolog knowledgebase.']),nl.
-
+  message:scroll(['Updated prolog knowledgebase.']),nl,
+  message:clean.
 
 %! repository:find_metadata(?Entry, -Timestamp, -Category, -Name, -Version)
 %
@@ -368,7 +368,7 @@ read_ebuild(Entry,Metadata) ::-
   :this(Repository),
   ::location(Location),
   split_string(Entry,"/","/",[Category,Package]),
-  eapi:packageversion(Package,Name,Version),
+  eapi:packageversion(Package,Name,_Version),
   atomic_list_concat([Location,'/',Category,"/",Name,"/",Package,'.ebuild'],Ebuild),
   script:exec(cache,[eapi,Ebuild],[],Out),!,
   reader:invoke(string(Out),Contents),
