@@ -37,8 +37,8 @@ script:exec(S,Args,Env,Out) :-
 script:exec(S,Args,Env) :-
   !,
   atomic_list_concat(['Source/Scripts/',S],Script),
-    process_create(portage(Script),Args,[stdout(pipe(Out)),stderr(pipe(Out))|Env]),
-    copy_stream_data(Out, current_output),
+    process_create(portage(Script),Args,[stdout(std),stderr(std)|Env]),
+    %copy_stream_data(Out, current_output),
     !.
 
 script:exec(S,Args) :-
