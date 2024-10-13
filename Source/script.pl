@@ -19,35 +19,33 @@ This file declares a predicate to execute a script inside the scripts directory
 % *******************
 
 
-%! script:exec(+Name,+Args)
+%! script:exec(+Name,+Args,+Env,-Out)
 %
-% Call script with arguments
+% Call script with arguments, Env can be used to set environment variables using
+% [environment([key=value|...])]. Stream is a stream to which stdout is piped.
+%
+% Caller needs to close stream, to avoid getting leaking open_files
+
+script:exec(S,Args,Env,Stream) :-
+  !,
+  atomic_list_concat(['Source/Scripts/',S],Script),
+    process_create(portage(Script),Args,[stdout(pipe(Stream)),stderr(null)|Env]),
+    !.
 
 
-%script:exec(S,[]) :-
-%  !,
-%  atomic_list_concat(['Source/Scripts/',S],Script),
-%  shell(Script),!.
-
-script:exec(S,Args,Env,Out) :-
-  with_output_to(string(Out),
-    script:exec(S,Args,Env),
-    [capture([user_output]), color(false)]).
+%! script:exec(+Name,+Args,+Env)
+%
+% Same as previous, but outputs to stdout and stderr
 
 script:exec(S,Args,Env) :-
   !,
   atomic_list_concat(['Source/Scripts/',S],Script),
     process_create(portage(Script),Args,[stdout(std),stderr(std)|Env]),
-    %copy_stream_data(Out, current_output),
     !.
+
+%! script:exec(+Name,+Args)
+%
+% Same as previous, simple version
 
 script:exec(S,Args) :-
   script:exec(S,Args,[]).
-
-
-%script:exec(S,Args) :-
-%  is_list(Args),
-%  atomic_list_concat(['Source/Scripts/',S],Script),
-%  atomic_list_concat(Args,'\' \'',QuotedArgs),
-%  atomic_list_concat([Script,' \'',QuotedArgs,'\''],'',Cmd),
-	%  shell(Cmd),!.
