@@ -367,7 +367,9 @@ read_manifest(Path,_,_,_,[]) ::-
 read_ebuild(Entry,Metadata) ::-
   :this(Repository),
   ::location(Location),
-  os:compose_path([Location,Entry,'.ebuild'],Ebuild),
+  split_string(Entry,"/","/",[Category,Package]),
+  eapi:packageversion(Package,Name,Version),
+  atomic_list_concat([Location,'/',Category,"/",Name,"/",Package,'.ebuild'],Ebuild),
   script:exec(cache,[eapi,Ebuild],[],Out),!,
   reader:invoke(string(Out),Contents),
   parser:invoke(metadata,Repository://Entry,Contents,Metadata),!.
