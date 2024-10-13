@@ -174,7 +174,7 @@ sync(kb) ::-
   :this(Repository),
   message:hc,
 
-  % Step 1: clean cache
+  % Step 1: clean prolog cache
 
   retractall(cache:repository(Repository)),
   retractall(cache:category(Repository,_)),
@@ -183,7 +183,9 @@ sync(kb) ::-
   retractall(cache:entry_metadata(Repository,_,_,_)),
   retractall(cache:manifest(Repository,_,_,_,_)),
 
-  % Step 2: update cache:entry and cache:entry_metadata facts
+  % Step 2: update prolog cache:entry and cache:entry_metadata facts
+
+  % Step 2.a: read repository cache
 
   forall((:find_metadata(E,T,C,N,V),
           :read_metadata(E,T,M)),
@@ -195,7 +197,35 @@ sync(kb) ::-
                    forall(member(I,Value),
                    assert(cache:entry_metadata(Repository,E,Key,I))))))),
 
-  % Step 3: update cache:manifest facts for manifests in the repository
+  % Step 2.b: read ebuilds without repository cache
+
+  forall((:find_ebuild(E,T,C,N,V),not(cache:entry_metadata(Repository,E,_,_)),
+          :read_ebuild(E,M)),
+          (message:scroll(['Ebuild (local): ',E]),
+           assert(cache:entry(Repository,E,C,N,V)),
+           assert(cache:entry_metadata(Repository,E,timestamp,T)),
+           assert(cache:entry_metadata(Repository,E,local,true)),
+           forall(member(L,M),
+                  (L=..[Key,Value],
+                   forall(member(I,Value),
+                   assert(cache:entry_metadata(Repository,E,Key,I))))))),
+
+
+  % Step 2.c: read ebuilds with outdated repository cache
+
+  forall((:find_ebuild(E,TE,C,N,V),cache:entry_metadata(Repository,E,timestamp,TC), TE > TC + 60, % time writing to disk
+          :read_ebuild(E,M)),
+          (message:scroll(['Ebuild (changed): ',E]),
+           assert(cache:entry(Repository,E,C,N,V)),
+           assert(cache:entry_metadata(Repository,E,timestamp,T)),
+           assert(cache:entry_metadata(Repository,E,changed,true)),
+           forall(member(L,M),
+                  (L=..[Key,Value],
+                   forall(member(I,Value),
+                   assert(cache:entry_metadata(Repository,E,Key,I))))))),
+
+
+  % Step 3: update prolog cache:manifest facts for manifests in the repository
 
   forall((:find_manifest(P,T,C,N),
           :read_manifest(P,T,C,N,M)),
@@ -204,14 +234,18 @@ sync(kb) ::-
           forall(member(manifest(Filetype,Filename,Filesize,Checksums),M),
                  assert(cache:manifest_metadata(Repository,P,Filetype,Filename,Filesize,Checksums))))),
 
-  % Step 4: Ordered cache:category creation
+
+  % Step 4: Ordered prolog cache:category creation
 
   findall(Ca,cache:entry(Repository,_,Ca,_,_),Cu),
   sort(Cu,Cs),
   forall(member(Ca,Cs),
          assert(cache:category(Repository,Ca))),
 
-  % Step 4: We create a unique cache:package and create cache:ordered_entry.
+
+  % Step 5:
+  %
+  % We create a unique prolog cache:package and create cache:ordered_entry.
   % The cache package allows us to retrieve individual package names efficiently.
   % (without duplicates). We impose an ordering on cache:entry using
   % the versions of a given package.
@@ -233,17 +267,18 @@ sync(kb) ::-
             forall(member([OVn,OVa,OVs,OVf,OrderedId],Vs),
                  assert(cache:ordered_entry(Repository,OrderedId,Ca,Pa,[OVn,OVa,OVs,OVf])))))),
 
-  % Step 5 : We retract the origanal unordered cache entries.
+  % Step 6 : We retract the original unordered prolog cache entries.
 
   retractall(cache:entry(Repository,_,_,_,_)),
 
-  % Step 6: We end by creating cache:repository
+  % Step 7: We end by creating a prolog cache:repository
 
   assert(cache:repository(Repository)),
 
   message:sc,
   message:scroll(['Updated prolog knowledgebase.']),nl,
   message:clean.
+
 
 %! repository:find_metadata(?Entry, -Timestamp, -Category, -Name, -Version)
 %
@@ -370,8 +405,8 @@ read_ebuild(Entry,Metadata) ::-
   split_string(Entry,"/","/",[Category,Package]),
   eapi:packageversion(Package,Name,_Version),
   atomic_list_concat([Location,'/',Category,"/",Name,"/",Package,'.ebuild'],Ebuild),
-  script:exec(cache,[eapi,Ebuild],[],Out),!,
-  reader:invoke(string(Out),Contents),
+  script:exec(cache,[eapi,Ebuild],[],Stream),!,
+  reader:invoke(Stream,Contents),
   parser:invoke(metadata,Repository://Entry,Contents,Metadata),!.
 
 
