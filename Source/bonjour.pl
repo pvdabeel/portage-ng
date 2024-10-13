@@ -24,7 +24,7 @@ Advertise and discover services on the network using multi-cast DNS (Apple Bonjo
 
 advertise :-
   interface:process_server(_,Port),
-  config:name(Service),
+  config:hostname(Service),
   advertise(Service,Port).
 
 
@@ -43,16 +43,15 @@ advertise(Service,Port) :-
 % Discover services
 
 discover(Services) :-
-  config:name(Service),
-  discover(Service,Services).
+  format(string(CommandA), 'dns-sd -t 1 -B _prolog._tcp | grep _prolog._tcp. | sed -e \'s/.*tcp.        //\'', []),
+  process_create(path(bash), ['-c', CommandA], [stdout(pipe(StreamA))]),
+  reader:read_lines_to_string(StreamA,Hosts),
+  findall(Service,
+   (member(Host,Hosts),
+    format(string(CommandB), 'dns-sd -t 1 -L ~w _prolog._tcp . | grep \'reached at\' | sed -e \'s/.*reached at //\' | sed -e \'s/ (interface.*//\' | sed -e \'s/.:/:/\'', [Host]),
+    process_create(path(bash), ['-c', CommandB], [stdout(pipe(StreamB))]),
+    reader:read_lines_to_string(StreamB,Service)),
+   UnsortedServices),
+  flatten(UnsortedServices,FlatServices),
+  sort(FlatServices,Services).
 
-
-%! discover(Service,Services)
-%
-% Discover services of a specified type
-
-discover(Service,Services) :-
-    format(string(Command), 'dns-sd -t 1 -L ~w _prolog._tcp . | grep \'reached at\' | sed -e \'s/.*reached at //\' | sed -e \'s/ (interface.*//\' | sed -e \'s/.:/:/\'', [Service]),
-    process_create(path(bash), ['-c', Command], [stdout(pipe(Stream))]),
-    reader:read_lines_to_string(Stream,ServicesWithDuplicates),
-    sort(ServicesWithDuplicates,Services).
