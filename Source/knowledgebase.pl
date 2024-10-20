@@ -149,7 +149,7 @@ save ::-
   with_mutex(save,
   (tell('kb.raw'),
    writeln(':- module(cache,[]).'),
-   prolog_listing:listing(cache:_),
+   prolog_listing:listing(cache:_,[variable_names(generated),source(false)]),
    told,
    qcompile('kb.raw'))),!.
 
