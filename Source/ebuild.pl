@@ -19,6 +19,32 @@ queries.
 % EBUILD declarations
 % *******************
 
+%! ebuild:invoke(cache,+Location,+Entry,-Stream)
+%
+% Sources the ebuild, its eclasses in a bash session and exports the
+% variables relevant to create a repository cache entry
+
+ebuild:invoke(cache,Location,Entry,Stream) :-
+  split_string(Entry,"/","/",[Category,Package]),
+  eapi:packageversion(Package,Name,[_,_,Revision,Version]),
+  string_concat(UpstreamVersion,Revision,Version),
+  string_concat(UpstreamPackage,Revision,Package),
+  atomic_list_concat([Location,'/',Category,"/",Name,"/",Package,'.ebuild'],Ebuild),
+  script:exec(cache,[eapi,Ebuild],
+    [environment([ 'PORTAGE_ECLASS_LOCATIONS'=Location,
+                   'EBUILD'=Ebuild,
+                   'EBUILD_PHASE'='depend',
+                   'P'=UpstreamPackage,
+                   'PV'=UpstreamVersion,
+                   'PN'=Name,
+                   'PR'=Revision,
+                   'PVR'=Version,
+                   'PF'=Package,
+                   'CATEGORY'=Category ])],Stream),!.
+
+
+
+
 %! ebuild:download_size(+Repository://+Entry,-T)
 %
 % Retrieve total download size for all files corresponding to a given Entry

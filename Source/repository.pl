@@ -402,22 +402,7 @@ read_manifest(Path,_,_,_,[]) ::-
 read_ebuild(Entry,Metadata) ::-
   :this(Repository),
   ::location(Location),
-  split_string(Entry,"/","/",[Category,Package]),
-  eapi:packageversion(Package,Name,[_,_,Revision,Version]),
-  string_concat(UpstreamVersion,Revision,Version),
-  string_concat(UpstreamPackage,Revision,Package),
-  atomic_list_concat([Location,'/',Category,"/",Name,"/",Package,'.ebuild'],Ebuild),
-  script:exec(cache,[eapi,Ebuild],
-    [environment([ 'PORTAGE_ECLASS_LOCATIONS'=Location,
-                   'EBUILD'=Ebuild,
-                   'EBUILD_PHASE'='depend',
-                   'P'=UpstreamPackage,
-                   'PV'=UpstreamVersion,
-                   'PN'=Name,
-                   'PR'=Revision,
-                   'PVR'=Version,
-                   'PF'=Package,
-                   'CATEGORY'=Category ])],Stream),!,
+  ebuild:invoke(cache,Location,Entry,Stream),
   reader:invoke(Stream,Contents),
   parser:invoke(metadata,Repository://Entry,Contents,Metadata),!.
 
