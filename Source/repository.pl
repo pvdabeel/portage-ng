@@ -141,6 +141,7 @@ sync(repository) ::-
 
 sync(metadata) ::-
   ::type('eapi'),!,
+  ::location(Location),
   message:hc,
   ( config:trust_metadata(false)
     -> forall((:entry(Id,Time),
@@ -148,7 +149,7 @@ sync(metadata) ::-
                system:time_file(Ebuild,Modified),
                Modified > Time),
               (message:scroll([Id]),
-               script:exec(cache,[eapi,Ebuild]),!))
+               script:exec(cache,[eapi,cachewrite,Ebuild,Location]),!)) % todo: generate the entries on disk in the script
     ; true ),
   message:sc,
   message:scroll(['Updated metadata.']),nl.

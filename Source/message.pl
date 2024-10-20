@@ -257,6 +257,69 @@ message:scroll(Message) :-
   Prefixed_Len is Len + 2,% + 3,
   tty:tty_action(back(Prefixed_Len)).
 
+
+%! message:scroll(+Message)
+%
+% Informs the user about a success - scroll style
+% Message is a list.
+
+message:scroll_success(Message) :-
+  %system:write('% '),
+  message:color(green),
+  message:style(bold),
+  message:print(['[SUCCESS] '],LenA),
+  message:color(normal),
+  message:print(Message,LenB),
+  message:el,
+  flush_output,
+  Prefixed_Len is LenA + LenB,
+  tty:tty_action(back(Prefixed_Len)).
+
+message:scroll_failure(Message) :-
+  %system:write('% '),
+  message:color(red),
+  message:style(bold),
+  message:print(['[FAILURE] '],LenA),
+  message:color(normal),
+  message:print(Message,LenB),
+  message:el,
+  flush_output,
+  Prefixed_Len is LenA + LenB,
+  tty:tty_action(back(Prefixed_Len)).
+
+message:scroll_warning(Message) :-
+  %system:write('% '),
+  message:color(orange),
+  message:style(bold),
+  message:print(['[WARNING] '],LenA),
+  message:color(normal),
+  message:print(Message,LenB),
+  message:el,
+  flush_output,
+  Prefixed_Len is LenA + LenB,
+  tty:tty_action(back(Prefixed_Len)).
+
+message:scroll_inform(Message) :-
+  system:write('% '),
+  message:print(Message,Len),
+  message:el,
+  flush_output,
+  Prefixed_Len is Len + 2,
+  tty:tty_action(back(Prefixed_Len)).
+
+message:scroll_notice(Message) :-
+  message:style(italic),
+  message:color(darkgray),
+  system:write('% '),
+  message:print(Message,Len),
+  message:color(normal),
+  message:style(normal),
+  message:el,
+  flush_output,
+  Prefixed_Len is Len + 2,
+  tty:tty_action(back(Prefixed_Len)).
+
+
 %! message:clean
 %
 % Cleans the current line without moving the cursor
