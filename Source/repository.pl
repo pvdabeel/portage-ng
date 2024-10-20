@@ -403,7 +403,7 @@ read_ebuild(Entry,Metadata) ::-
   :this(Repository),
   ::location(Location),
   split_string(Entry,"/","/",[Category,Package]),
-  eapi:packageversion(Package,Name,Version),
+  eapi:packageversion(Package,Name,[_,_,_,Version]),
   atomic_list_concat([Location,'/',Category,"/",Name,"/",Package,'.ebuild'],Ebuild),
   script:exec(cache,[eapi,Ebuild,Package,Name,Version],[],Stream),!,
   reader:invoke(Stream,Contents),
