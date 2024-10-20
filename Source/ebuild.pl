@@ -30,19 +30,14 @@ ebuild:invoke(cache,Location,Entry,Stream) :-
   string_concat(UpstreamVersion,Revision,Version),
   string_concat(UpstreamPackage,Revision,Package),
   atomic_list_concat([Location,'/',Category,"/",Name,"/",Package,'.ebuild'],Ebuild),
-  script:exec(cache,[eapi,Ebuild],
-    [environment([ 'PORTAGE_ECLASS_LOCATIONS'=Location,
-                   'EBUILD'=Ebuild,
-                   'EBUILD_PHASE'='depend',
-                   'P'=UpstreamPackage,
+  script:exec(cache,[eapi,depend,Ebuild,Location],
+    [environment([ 'P'=UpstreamPackage,
                    'PV'=UpstreamVersion,
                    'PN'=Name,
                    'PR'=Revision,
                    'PVR'=Version,
                    'PF'=Package,
                    'CATEGORY'=Category ])],Stream),!.
-
-
 
 
 %! ebuild:download_size(+Repository://+Entry,-T)

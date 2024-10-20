@@ -43,6 +43,7 @@ script:exec(S,Args,Env) :-
     process_create(portage(Script),Args,[stdout(std),stderr(std)|Env]),
     !.
 
+
 %! script:exec(+Name,+Args)
 %
 % Same as previous, simple version

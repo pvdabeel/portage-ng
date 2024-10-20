@@ -2,4 +2,4 @@
 
 # This script requires portage ebuild.sh to be available in PATH
 
-PORTAGE_PIPE_FD=1 EBUILD="${1}" ebuild.sh 2>/dev/null
+EBUILD_PHASE="${1}" EBUILD="${2}" PORTAGE_ECLASS_LOCATIONS=$(printf %q "${3}") PORTAGE_PIPE_FD=1 ebuild.sh 2>/dev/null
