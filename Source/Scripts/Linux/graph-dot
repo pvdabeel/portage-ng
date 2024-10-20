@@ -2,17 +2,13 @@
 
 # Calls graphviz to turn exported .dot files into interactive .svg 
 
+# Make sure you have at least Graphviz v11.
+
 # ${1} = remote
 # ${2} = local
 if [ -f "${1}/.lastgraph" ]; then
-  find "${1}" -iname *.dot -cnewer "${1}/.lastgraph" | parallel --no-notice dot -Tsvg {} -o {.}.svg
+  find "${1}" -iname *.dot -mnewer "${1}/.lastgraph" | parallel --no-notice dot -Tsvg {} -o {.}.svg
 else 
   find "${1}" -iname *.dot | parallel --no-notice dot -Tsvg {} -o {.}.svg
 fi
 touch "${1}/.lastgraph"
-
-
-# Graphviz sometimes produces incorrect output (indeterministicly) 
-# We can detect the incorrect graphs, and recreate them
-
-# find "${1}" -iname "*.svg" -exec grep -m1 -n -H candidates\<\/text\> {} \; | cut -f1 -f2 -d: | grep :15 | cut -f1 -d: | parallel --no-notice dot -Tsvg {.}.dot -o {}

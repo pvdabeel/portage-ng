@@ -1,8 +1,5 @@
 #!/bin/bash
 
-NAME="${1}"
-REMOTE="${2}"
-LOCAL="${3}"
-METADATA="${4}"
+# This script requires portage ebuild.sh to be available in PATH
 
-# update the md5cache for the given repository using egencache
+EBUILD_PHASE="${1}" EBUILD="${2}" PORTAGE_ECLASS_LOCATIONS=$(printf %q "${3}") PORTAGE_PIPE_FD=1 ebuild.sh 2>/dev/null
