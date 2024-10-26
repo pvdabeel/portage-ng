@@ -255,6 +255,22 @@ config:server_host('mac-pro.local').
 %! config:trust_metadata(?Bool)
 %
 % When set to false, we regenerate locally the cache entries
-% after syncing with the remote repository.
+% after syncing with the remote repository. This is expensive,
+% so by default we trust and regenerate only for locally changed
+% ebuilds or ebuilds with missing cache.
 
 config:trust_metadata(true).
+
+
+%! config:write_metadata(?Bool)
+%
+% When ebuilds are changed locally or new ebuilds are created locally
+% this will be detected during syncing, and portage will parse the
+% ebuild metadata after running it through ebuild.sh.
+%
+% Prolog facts are updated with the updated metadata.
+% If this variable is set to true, we will also create an on-disk
+% cache entry for these ebuilds. This cache entry may be overwritten
+% by a sync later on by remotely generated cache.
+
+config:write_metadata(false).

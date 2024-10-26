@@ -130,7 +130,7 @@ sync ::-
 % Public predicate
 %
 % Updates files in local repository by invoking script to sync local repository
-% with remote repository
+% with remote repository (e.g. git / rsync / http tarball / ...)
 
 sync(repository) ::-
   ::location(Local),
@@ -143,20 +143,27 @@ sync(repository) ::-
 %
 % Public predicate
 %
-% Regenerates cache metadata for changed files inside the local repository files
-% by invoking a script
+% Regenerates cache metadata on disk for all ebuilds files inside the local repository
+% by invoking a script. This is an exensive operation. Portage repositories typically
+% ship with a prebuilt cache. Use config:trust_metadata to change behaviour. Trusting
+% the vendor shipped cache is faster, as only changed ebuilds or ebuilds missing a
+% cache entry will have their cache entry on disk regenerated.
+%
+% For non-eapi repositories, generates on-disk metadata cache by calling a script
+% For a git repository, this for example creates a metadata entry for each release.
 
 sync(metadata) ::-
   ::type('eapi'),!,
-  ::location(Location),
+  config:number_of_cpus(Cpus),
   message:hc,
   ( config:trust_metadata(false)
-    -> forall((:entry(Id,Time),
-               :get_ebuild_file(Id,Ebuild),
-               system:time_file(Ebuild,Modified),
-               Modified > Time),
-              (message:scroll([Id]),
-               script:exec(cache,[eapi,cachewrite,Ebuild,Location]),!)) % todo: generate the entries on disk in the script
+    -> (:update_cache,
+        findall((:read_ebuild(E,Cd,_),
+                 :update_metadata(E,Cd),
+                  with_mutex(mutex,message:scroll(['Ebuild (local): ',E]))),
+		:find_ebuild(E,_,_,_,_),
+		Calls),
+        concurrent(Cpus,Calls,[]))
     ; true ),
   message:sc,
   message:scroll(['Updated metadata.']),nl.
@@ -176,11 +183,14 @@ sync(metadata) ::-
 %
 % Public predicate
 %
-% Regenerates prolog facts from the local repository cache metadata
+% Regenerates prolog facts from the local repository cache
 
 sync(kb) ::-
   :this(Repository),
   message:hc,
+
+  % We sync in parallel
+
   config:number_of_cpus(Cpus),
 
   % Step 1: clean prolog cache
@@ -195,16 +205,6 @@ sync(kb) ::-
   % Step 2: update prolog cache:entry and cache:entry_metadata facts
 
   % Step 2.a: read repository cache
-
-  %forall((:find_metadata(E,T,C,N,V),
-  %        :read_metadata(E,T,M)),
-  %        (message:scroll(['Ebuild: ',E]),
-  %         assert(cache:entry(Repository,E,C,N,V)),
-  %         assert(cache:entry_metadata(Repository,E,timestamp,T)),
-  %         forall(member(L,M),
-  %                (L=..[Key,Value],
-  %                 forall(member(I,Value),
-  %                        assert(cache:entry_metadata(Repository,E,Key,I))))))),
 
   findall((:read_metadata(E,T,M),
            with_mutex(mutex,message:scroll(['Ebuild: ',E])),
@@ -221,18 +221,7 @@ sync(kb) ::-
 
   % Step 2.b: read ebuilds without repository cache
 
-  %forall((:find_ebuild(E,T,C,N,V),not(cache:entry_metadata(Repository,E,_,_)),
-  %        :read_ebuild(E,M)),
-  %        (message:scroll(['Ebuild (local): ',E]),
-  %         assert(cache:entry(Repository,E,C,N,V)),
-  %         assert(cache:entry_metadata(Repository,E,timestamp,T)),
-  %         assert(cache:entry_metadata(Repository,E,local,true)),
-  %         forall(member(L,M),
-  %                (L=..[Key,Value],
-  %                 forall(member(I,Value),
-  %                        assert(cache:entry_metadata(Repository,E,Key,I))))))),
-
-  :update_cache,
+  (config:write_metadata(true) -> :update_cache ; true),
 
   findall((:read_ebuild(E,Cd,M),
            with_mutex(mutex,message:scroll(['Ebuild (local): ',E])),
@@ -243,7 +232,7 @@ sync(kb) ::-
                   (L=..[Key,Value],
                    forall(member(I,Value),
                           assert(cache:entry_metadata(Repository,E,Key,I))))),
-           :update_metadata(E,Cd)),
+           (config:write_metadata(true) -> :update_metadata(E,Cd) ; true)),
           (:find_ebuild(E,T,C,N,V),not(cache:entry_metadata(Repository,E,_,_))),
           CallsB),
 
@@ -251,17 +240,6 @@ sync(kb) ::-
 
 
   % Step 2.c: read ebuilds with outdated repository cache
-
-  %forall((:find_ebuild(E,TE,C,N,V),cache:entry_metadata(Repository,E,timestamp,TC), TE > TC + 60, % time writing to disk
-  %        :read_ebuild(E,M)),
-  %        (message:scroll(['Ebuild (changed): ',E]),
-  %         assert(cache:entry(Repository,E,C,N,V)),
-  %         assert(cache:entry_metadata(Repository,E,timestamp,T)),
-  %         assert(cache:entry_metadata(Repository,E,changed,true)),
-  %         forall(member(L,M),
-  %                (L=..[Key,Value],
-  %                 forall(member(I,Value),
-  %                 assert(cache:entry_metadata(Repository,E,Key,I))))))),
 
   findall((:read_ebuild(E,Cd,M),
            with_mutex(mutex,message:scroll(['Ebuild (changed): ',E])),
@@ -272,7 +250,7 @@ sync(kb) ::-
                   (L=..[Key,Value],
                    forall(member(I,Value),
                           assert(cache:entry_metadata(Repository,E,Key,I))))),
-           :update_metadata(E,Cd)),
+           (config:write_metadata(true) -> :update_metadata(E,Cd) ; true)),
           (:find_ebuild(E,TE,C,N,V),cache:entry_metadata(Repository,E,timestamp,TC), TE > TC + 60), % time writing to disk
           CallsC),
 
@@ -280,13 +258,6 @@ sync(kb) ::-
 
 
   % Step 3: update prolog cache:manifest facts for manifests in the repository
-
-  %forall((:find_manifest(P,T,C,N),
-  %        :read_manifest(P,T,C,N,M)),
-  %       (message:scroll(['Manifest: ',P]),
-  %        assert(cache:manifest(Repository,P,T,C,N)),
-  %        forall(member(manifest(Filetype,Filename,Filesize,Checksums),M),
-  %               assert(cache:manifest_metadata(Repository,P,Filetype,Filename,Filesize,Checksums))))),
 
   findall((:read_manifest(P,T,C,N,M),
            with_mutex(mutex,message:scroll(['Manifest: ',P])),
