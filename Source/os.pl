@@ -21,6 +21,28 @@ Eventually this could become a class with different subclasses.
 % ***************
 
 
+%! os:make_directory(+Directory)
+%
+% Makes a directory if it doesn't exist already
+
+os:make_directory(Directory) :-
+  catch(system:make_directory(Directory),
+        _,
+        true).
+
+
+%! os:contains(+File,+Directory)
+%
+% Check whether a given directory contains a file
+
+os:contains(File,Directory) :-
+  catch((exists_directory(Directory),
+         os:compose_path(Directory,File,Path),
+         exists_file(Path)),
+        _,
+        false).
+
+
 %! os:directory_content(+Directory,-Content)
 %
 % For a given directory, returns an alphabetical list containing the

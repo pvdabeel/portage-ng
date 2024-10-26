@@ -56,6 +56,7 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 :- dpublic(get_ebuild_file/2).
 :- dpublic(get_cache_file/2).
 
+:- dpublic(find_category/1).
 :- dpublic(find_metadata/5).
 :- dpublic(find_manifest/4).
 :- dpublic(find_ebuild/5).
@@ -69,6 +70,7 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 % private interface
 
 :- dpublic(update_metadata/2).
+:- dpublic(update_cache/0).
 
 % protected interface
 
@@ -230,6 +232,8 @@ sync(kb) ::-
   %                 forall(member(I,Value),
   %                        assert(cache:entry_metadata(Repository,E,Key,I))))))),
 
+  :update_cache,
+
   findall((:read_ebuild(E,Cd,M),
            with_mutex(mutex,message:scroll(['Ebuild (local): ',E])),
            assert(cache:entry(Repository,E,C,N,V)),
@@ -259,7 +263,7 @@ sync(kb) ::-
   %                 forall(member(I,Value),
   %                 assert(cache:entry_metadata(Repository,E,Key,I))))))),
 
-  findall((:read_ebuild(E,M),
+  findall((:read_ebuild(E,Cd,M),
            with_mutex(mutex,message:scroll(['Ebuild (changed): ',E])),
            assert(cache:entry(Repository,E,C,N,V)),
            assert(cache:entry_metadata(Repository,E,timestamp,T)),
@@ -267,7 +271,8 @@ sync(kb) ::-
            forall(member(L,M),
                   (L=..[Key,Value],
                    forall(member(I,Value),
-                          assert(cache:entry_metadata(Repository,E,Key,I)))))),
+                          assert(cache:entry_metadata(Repository,E,Key,I))))),
+           :update_metadata(E,Cd)),
           (:find_ebuild(E,TE,C,N,V),cache:entry_metadata(Repository,E,timestamp,TC), TE > TC + 60), % time writing to disk
           CallsC),
 
@@ -337,6 +342,19 @@ sync(kb) ::-
   message:sc,
   message:scroll(['Updated prolog knowledgebase.']),nl,
   message:clean.
+
+
+%! repository:find_category(?Category)
+%
+% Public predicate
+%
+% Retrieves category, directly from the on-disk repository
+
+find_category(Category) ::-
+  ::location(Location),
+  os:directory_content(Location,Category),
+  os:compose_path(Location,Category,Path),
+  os:contains('metadata.xml',Path).
 
 
 %! repository:find_metadata(?Entry, -Timestamp, -Category, -Name, -Version)
@@ -475,15 +493,27 @@ read_ebuild(Entry,Codes,Metadata) ::-
 %
 % Update the repository on-disk cache with codes
 % read by the reader from the ebuild.sh stream.
+% Cache directory assumed to exist and prepopulated
 
 update_metadata(Entry,Codes) ::-
   ::cache(Cache),
   os:compose_path(Cache,Entry,File),
-  system:file_directory_name(File,Directory),
-  (system:exists_directory(Directory) -> true ; system:make_directory(Directory)),
   tell(File),
   forall(member(Line,Codes),(atom_codes(Atom,Line),writeln(Atom))),
   told.
+
+
+%! repository:update_cace
+%
+% Private predicate
+%
+% Creates a category structure in the on-disk cache.
+
+update_cache ::-
+  ::cache(Cache),
+  forall(:find_category(Category),
+         (os:compose_path(Cache,Category,Path),
+          os:make_directory(Path))).
 
 
 %! repository:read_time(-Time)
