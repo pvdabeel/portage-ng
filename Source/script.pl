@@ -29,8 +29,9 @@ This file declares a predicate to execute a script inside the scripts directory
 script:exec(S,Args,Env,Stream) :-
   !,
   atomic_list_concat(['Source/Scripts/',S],Script),
-    process_create(portage(Script),Args,[stdout(pipe(Stream)),stderr(null)|Env]),
-    !.
+  process_set_method(vfork),
+  process_create(portage(Script),Args,[stdout(pipe(Stream)),stderr(null)|Env]),
+  !.
 
 
 %! script:exec(+Name,+Args,+Env)
@@ -40,8 +41,9 @@ script:exec(S,Args,Env,Stream) :-
 script:exec(S,Args,Env) :-
   !,
   atomic_list_concat(['Source/Scripts/',S],Script),
-    process_create(portage(Script),Args,[stdout(std),stderr(std)|Env]),
-    !.
+  process_set_method(vfork),
+  process_create(portage(Script),Args,[stdout(std),stderr(std)|Env]),
+  !.
 
 
 %! script:exec(+Name,+Args)

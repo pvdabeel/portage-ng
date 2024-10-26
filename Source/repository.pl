@@ -56,8 +56,6 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 :- dpublic(get_ebuild_file/2).
 :- dpublic(get_cache_file/2).
 
-% protected interface
-
 :- dpublic(find_metadata/5).
 :- dpublic(find_manifest/4).
 :- dpublic(find_ebuild/5).
@@ -66,6 +64,13 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 :- dpublic(read_metadata/3).
 :- dpublic(read_manifest/5).
 :- dpublic(read_ebuild/2).
+:- dpublic(read_ebuild/3).
+
+% private interface
+
+:- dpublic(update_metadata/2).
+
+% protected interface
 
 :- dprotected(location/1).
 :- dprotected(cache/1).
@@ -225,7 +230,7 @@ sync(kb) ::-
   %                 forall(member(I,Value),
   %                        assert(cache:entry_metadata(Repository,E,Key,I))))))),
 
-  findall((:read_ebuild(E,M),
+  findall((:read_ebuild(E,Cd,M),
            with_mutex(mutex,message:scroll(['Ebuild (local): ',E])),
            assert(cache:entry(Repository,E,C,N,V)),
            assert(cache:entry_metadata(Repository,E,timestamp,T)),
@@ -233,7 +238,8 @@ sync(kb) ::-
            forall(member(L,M),
                   (L=..[Key,Value],
                    forall(member(I,Value),
-                          assert(cache:entry_metadata(Repository,E,Key,I)))))),
+                          assert(cache:entry_metadata(Repository,E,Key,I))))),
+           :update_metadata(E,Cd)),
           (:find_ebuild(E,T,C,N,V),not(cache:entry_metadata(Repository,E,_,_))),
           CallsB),
 
@@ -444,7 +450,7 @@ read_manifest(Path,_,_,_,[]) ::-
   fail.
 
 
-%! repository:read_ebuild(?Entry, -Metadata))
+%! repository:read_ebuild(?Entry, -Contents, -Metadata))
 %
 % Public predicate
 %
@@ -453,11 +459,31 @@ read_manifest(Path,_,_,_,[]) ::-
 % Disk access required.
 
 read_ebuild(Entry,Metadata) ::-
+  read_ebuild(Entry,_,Metadata).
+
+read_ebuild(Entry,Codes,Metadata) ::-
   :this(Repository),
   ::location(Location),
   ebuild:invoke(cache,Location,Entry,Stream),
-  reader:invoke(Stream,Contents),
-  parser:invoke(metadata,Repository://Entry,Contents,Metadata),!.
+  reader:invoke(Stream,Codes),
+  parser:invoke(metadata,Repository://Entry,Codes,Metadata),!.
+
+
+%! repository:update_metadata(+Entry, +Codes)
+%
+% Private predicate
+%
+% Update the repository on-disk cache with codes
+% read by the reader from the ebuild.sh stream.
+
+update_metadata(Entry,Codes) ::-
+  ::cache(Cache),
+  os:compose_path(Cache,Entry,File),
+  system:file_directory_name(File,Directory),
+  (system:exists_directory(Directory) -> true ; system:make_directory(Directory)),
+  tell(File),
+  forall(member(Line,Codes),(atom_codes(Atom,Line),writeln(Atom))),
+  told.
 
 
 %! repository:read_time(-Time)
