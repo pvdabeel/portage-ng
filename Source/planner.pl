@@ -93,3 +93,18 @@ planner:test(Repository,Style) :-
               (Repository:entry(Entry)),
               (prover:prove(Repository://Entry:Action,[],Proof,[],_,[],_),
                planner:plan(Proof,[],[],_))),!.
+
+
+%! planner:test_latest(+Repository,+Style)
+%
+% Same as planner:test(+Repository,+Style), but only tests highest version
+% of every package.
+
+planner:test_latest(Repository,Style) :-
+  config:proving_target(Action),
+  tester:test(Style,
+              'Planning latest',
+              Repository://Entry,
+              (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
+              (prover:prove(Repository://Entry:Action,[],Proof,[],_,[],_),
+               planner:plan(Proof,[],[],_))),!.
