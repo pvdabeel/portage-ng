@@ -213,7 +213,7 @@ config:print_expand_use(false).
 %
 % Set when you want Graphviz dot file to be created for new ebuilds only
 
-config:graph_modified_only(false).
+config:graph_modified_only(true).
 
 
 %! config:proving_target(?Target)
