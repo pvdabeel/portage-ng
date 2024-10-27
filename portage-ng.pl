@@ -60,6 +60,7 @@ load_common_modules :-
    ensure_loaded(portage('Source/message.pl')),
    ensure_loaded(portage('Source/eapi.pl')),
    ensure_loaded(portage('Source/reader.pl')),
+   ensure_loaded(portage('Source/set.pl')),
    ensure_loaded(portage('Source/bonjour.pl')),
 
    message:notice('Loaded common modules...').
@@ -164,6 +165,9 @@ main :-
   interface:process_mode(Mode),
   config:working_dir(Dir),
   cd(Dir),
+  config:world_file(File),
+  world:newinstance(set(File)),
+  world:load,
   main(Mode).
 
 
