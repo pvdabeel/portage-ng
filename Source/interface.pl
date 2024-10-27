@@ -143,7 +143,7 @@ interface:process_requests(_Mode) :-
   ( memberchk(version(true),Options)  -> (message:inform(['portage-ng ',Status,' version - ',Version]), Continue) ;
     memberchk(info(true),Options)     -> (message:inform(['portage-ng ',Status,' version - ',Version]), Continue) ;
     memberchk(clear(true),Options)    -> (kb:clear, 							Continue) ;
-    memberchk(graph(true),Options)    -> (grapher:test(portage), 				  	Continue) ;
+    memberchk(graph(true),Options)    -> (grapher:test(portage),nl, 				  	Continue) ;
     memberchk(unmerge(true),Options)  -> (message:warning('unmerge action to be implemented'), 		Continue) ;
     memberchk(depclean(true),Options) -> (message:warning('depclean action to be implemented'), 	Continue) ;
     memberchk(search(true),Options)   -> (interface:process_action(search,Args,Options),                Continue) ;
