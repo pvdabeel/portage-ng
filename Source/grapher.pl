@@ -339,7 +339,7 @@ grapher:prepare_directory(D,Repository) :-
   config:hostname(H),
   config:graph_directory(H,D),
   system:exists_directory(D),!,
-  message:inform(['Directory already exists! Updating...']),
+  message:scroll_notice(['Directory already exists! Updating...']),
   pkg:create_repository_dirs(Repository,D).
 
 grapher:prepare_directory(D,Repository) :-
@@ -349,7 +349,7 @@ grapher:prepare_directory(D,Repository) :-
   pkg:make_repository_dirs(Repository,D).
 
 grapher:write_dot_files(D,Repository://Id) :-
-  message:success(Id),
+  with_mutex(mutex,message:scroll_notice(['Graphing - Ebuild: ',Id])),
   atomic_list_concat([D,'/',Id,'.dot'],Fdetail),
   tell(Fdetail),
   grapher:graph(detail,Repository://Id),
@@ -369,18 +369,35 @@ grapher:write_dot_files(D,Repository://Id) :-
 % Create or update a graph for a given repository
 
 grapher:test(Repository) :-
-  grapher:prepare_directory(D,Repository),
   config:graph_modified_only(true),!,
-  forall((Repository:entry(E,Time),
+  config:number_of_cpus(Cpus),
+  grapher:prepare_directory(D,Repository),
+  message:title(['Graphing (',Cpus,' threads) - Changed ebuilds only']),
+  flush_output,
+  findall((grapher:write_dot_files(D,Repository://E)),
+          (Repository:entry(E,Time),
            Repository:get_ebuild_file(E,Ebuild),
+           system:exists_file(Ebuild),
            system:time_file(Ebuild,Modified),
            Modified > Time),
-         (grapher:write_dot_files(D,Repository://E))),
+          Calls),
+  concurrent(Cpus,Calls,[]),
+  length(Calls,L),
+  message:title_reset,
+  message:scroll_notice(['Graphed ',L,' ebuilds (',Cpus,' threads). Now running Graphviz dot.']),
   script:exec(graph,['dot',D]).
 
 grapher:test(Repository) :-
-  grapher:prepare_directory(D,Repository),
   not(config:graph_modified_only(true)),!,
-  forall(Repository:entry(E),
-         (grapher:write_dot_files(D,Repository://E))),
+  config:number_of_cpus(Cpus),
+  grapher:prepare_directory(D,Repository),
+  message:title(['Graphing (',Cpus,' threads) - All ebuilds']),
+  flush_output,
+  findall((grapher:write_dot_files(D,Repository://E)),
+          Repository:entry(E),
+          Calls),
+  concurrent(Cpus,Calls,[]),
+  length(Calls,L),
+  message:title_reset,
+  message:scroll_notice(['Graphed ',L,' ebuilds (',Cpus,' threads). Now running Graphviz dot.']),
   script:exec(graph,['dot',D]).
