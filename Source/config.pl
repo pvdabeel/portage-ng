@@ -152,6 +152,16 @@ config:pkg_directory('macbook-pro.local',   '/Users/pvdabeel/Repository/pkg/') :
 config:pkg_directory('vm-linux.local',      '/var/db/pkg/') :- !.
 
 
+%! config:workd_file(Path)
+%
+% Declaration of the world file path
+
+config:world_file(Filename) :-
+  config:installation_dir(Dir),
+  config:hostname(Hostname),
+  os:compose_path([Dir,'Source/Sets/world',Hostname],Filename).
+
+
 %! config:number_of_cpus(?Count)
 %
 % This application parallellizes parsing, proving, planning and building.

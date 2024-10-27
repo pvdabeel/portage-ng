@@ -1910,7 +1910,7 @@ eapi:querypartcont(_,Value) -->
 eapi:substitute_sets([],[]) :- !.
 
 eapi:substitute_sets([world|Tail],Result) :-
-  preference:world(Targets),!,
+  findall(E,world::entry(E),Targets),
   append(Targets,NewResult,Result),
   eapi:substitute_sets(Tail,NewResult).
 
