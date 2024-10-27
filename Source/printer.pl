@@ -764,8 +764,8 @@ printer:test(Repository,parallel_fast) :-
 
 
 printer:test_latest(Repository,parallel_verbose) :-
-  Repository:get_size(S),
   stats:newinstance(stat),
+  stats:count((Repository:package(C,N),once(Repository:ebuild(E,C,N,_))),S),
   stats:init(0,S),
   config:time_limit(T),
   config:proving_target(Action),
