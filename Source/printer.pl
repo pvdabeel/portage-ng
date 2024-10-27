@@ -759,10 +759,38 @@ printer:test(Repository,parallel_verbose) :-
   message:title_reset,!,
   message:inform(['printed plan for ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
 
-
 printer:test(Repository,parallel_fast) :-
   printer:test(Repository,parallel_verbose).
 
+
+printer:test_latest(Repository,parallel_verbose) :-
+  Repository:get_size(S),
+  stats:newinstance(stat),
+  stats:init(0,S),
+  config:time_limit(T),
+  config:proving_target(Action),
+  config:number_of_cpus(Cpus),
+  findall((catch(call_with_time_limit(T,(prover:prove(Repository://E:Action,[],Proof,[],Model,[],_Constraints),!,
+                                         planner:plan(Proof,[],[],Plan),
+                                         with_mutex(mutex,(stats:increase,
+                                                           stats:percentage(P),
+                                                           stats:runningtime(Min,Sec),
+                                                           message:title(['Printing plan (',Cpus,' threads): ',P,' processed in ',Min,'m ',Sec,'s']),
+                                                           nl,message:topheader(['[',P,'] - Printing plan for ',Repository://E:Action]),
+                                                           printer:print([Repository://E:Action],Model,Proof,Plan))))),
+                 time_limit_exceeded,
+                 (message:failure([E,' (time limit exceeded)']),
+                  assert(prover:broken(Repository://E))))),
+           (Repository:package(C,N),once(Repository:ebuild(E,C,N,_))),
+           Calls),
+  time(concurrent(Cpus,Calls,[])),
+  stats:runningtime(Min,Sec),
+  message:title_reset,!,
+  message:inform(['printed plan for ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
+
+
+printer:test_latest(Repository,parallel_fast) :-
+  printer:test(Repository,parallel_verbose).
 
 
 %! printer:write_plans(+Directory,+Repository)
