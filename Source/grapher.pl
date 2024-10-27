@@ -385,7 +385,9 @@ grapher:test(Repository) :-
   length(Calls,L),
   message:title_reset,
   message:scroll_notice(['Graphed ',L,' ebuilds (',Cpus,' threads). Now running Graphviz dot.']),
-  script:exec(graph,['dot',D]).
+  script:exec(graph,['dot',D]),
+  message:clean,
+  message:scroll_notice(['Graphed ',L,' ebuilds (',Cpus,' threads). Done running Graphviz dot.']),
 
 grapher:test(Repository) :-
   not(config:graph_modified_only(true)),!,
@@ -400,4 +402,6 @@ grapher:test(Repository) :-
   length(Calls,L),
   message:title_reset,
   message:scroll_notice(['Graphed ',L,' ebuilds (',Cpus,' threads). Now running Graphviz dot.']),
-  script:exec(graph,['dot',D]).
+  script:exec(graph,['dot',D]),
+  message:clean,
+  message:scroll_notice(['Graphed ',L,' ebuilds (',Cpus,' threads). Done running Graphviz dot.']),
