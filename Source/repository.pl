@@ -198,10 +198,11 @@ sync(kb) ::-
   retractall(cache:repository(Repository)),
   retractall(cache:category(Repository,_)),
   retractall(cache:entry(Repository,_,_,_,_)),
-  retractall(cache:ordered_entry(Repository,_,_,_,_)),
   retractall(cache:package(Repository,_,_)),
+  retractall(cache:ordered_entry(Repository,_,_,_,_)),
   retractall(cache:entry_metadata(Repository,_,_,_)),
   retractall(cache:manifest(Repository,_,_,_,_)),
+  retractall(cache:manifest_metadata(Repository,_;_,_,_,_)),
 
   % Step 2: update prolog cache:entry and cache:entry_metadata facts
 
