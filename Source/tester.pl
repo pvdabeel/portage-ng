@@ -28,6 +28,7 @@ tester:test(single_verbose,Name,Repository://Item,Generator,Test) :-
   stats:count(Generator,S),
   stats:init(0,S),
   config:time_limit(T),
+  message:hc,
   forall(Generator,
               (catch(call_with_time_limit(T,(stats:increase,
                                              stats:percentage(P),
@@ -38,6 +39,7 @@ tester:test(single_verbose,Name,Repository://Item,Generator,Test) :-
                      time_limit_exceeded,
                      message:scroll_failure([Item,' (time limit exceeded)']));
 	       (message:clean,message:failure(Item)))),!,
+  message:sc,
   stats:runningtime(Min,Sec),
   message:title_reset,!,
   message:scroll_notice([Name,' ',S,' ',Repository,' entries took ',Min,'m ',Sec,'s. (single thread)']).
@@ -61,7 +63,9 @@ tester:test(parallel_verbose,Name,Repository://Item,Generator,Test) :-
            (sleep(1),message:clean,message:failure(Item))),
           Generator,
           Calls),!,
+  message:hc,
   concurrent(Cpus,Calls,[]),
+  message:sc,
   stats:runningtime(Min,Sec),
   message:title_reset,!,
   message:clean,
@@ -79,7 +83,9 @@ tester:test(parallel_fast,Name,Repository://Item,Generator,Test) :-
            message:failure(Item)),
           Generator,
           Calls),
+  message:hc,
   concurrent(Cpus,Calls,[]),
+  message:sc,
   stats:runningtime(Min,Sec),!,
   message:title_reset,!,
   message:scroll_notice([Name,' ',S,' ',Repository,' entries took ',Min,'m ',Sec,'s. (',Cpus,' threads)']).
