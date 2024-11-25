@@ -191,5 +191,6 @@ main(server) :-
   main(standalone),
   load_server_modules,
   server:start_server,
+  at_halt(server:stop_server),
   bonjour:advertise,
   interface:process_requests(server).

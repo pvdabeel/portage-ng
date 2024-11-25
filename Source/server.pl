@@ -66,6 +66,14 @@ server:start_server  :-
                    ]).
 
 
+%! server:stop_server
+%
+% Stop a http server on the given port and stops listening for commands
+
+server:stop_server :-
+  interface:process_server(_Hostname,Port),
+  http:http_stop_server(Port,[]).
+
 
 %! server:reply(+Request)
 %
