@@ -72,7 +72,7 @@ server:start_server  :-
 
 server:stop_server :-
   interface:process_server(_Hostname,Port),
-  http:http_stop_server(Port,[]).
+  catch(http:http_stop_server(Port,[]),_,true).
 
 
 %! server:reply(+Request)
