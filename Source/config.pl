@@ -136,7 +136,7 @@ config:digest_realm('portage-ng').
 % We store the generated dot and svg files in the following directory.
 
 config:graph_directory('imac-pro.local',    '/Volumes/Disk 1/Graph/') :- !.
-config:graph_directory('mac-pro.local',     '/Volumes/Disk 1/Graph/') :- !.
+config:graph_directory('mac-pro.local',     '/Volumes/Storage/Graph/') :- !.
 config:graph_directory('macbook-pro.local', '/Users/pvdabeel/Graph/') :- !.
 config:graph_directory('vm-linux.local',    '/root/Graph/')           :- !.
 
@@ -147,7 +147,7 @@ config:graph_directory('vm-linux.local',    '/root/Graph/')           :- !.
 % for all packages installed on a system
 
 config:pkg_directory('imac-pro.local',      '/Volumes/Disk 1/Repository/pkg/') :- !.
-config:pkg_directory('mac-pro.local',       '/Volumes/Disk 1/Repository/pkg/') :- !.
+config:pkg_directory('mac-pro.local',       '/Volumes/Storage/Repository/pkg/') :- !.
 config:pkg_directory('macbook-pro.local',   '/Users/pvdabeel/Repository/pkg/') :- !.
 config:pkg_directory('vm-linux.local',      '/var/db/pkg/') :- !.
 
