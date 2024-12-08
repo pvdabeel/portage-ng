@@ -743,7 +743,7 @@ printer:test_latest(Repository,Style) :-
               (prover:prove(Repository://Entry:Action,[],Proof,[],Model,[],_Constraints),
                planner:plan(Proof,[],[],Plan)),
               (printer:print([Repository://Entry:Action],Model,Proof,Plan)),
-               false).
+              false).
 
 
 %! printer:write_plans(+Directory,+Repository)
@@ -751,30 +751,17 @@ printer:test_latest(Repository,Style) :-
 % Proves and writes plan for every entry in a given repository to a proof file
 % Assumes graph directory exists. (grapher:prepare_directory)
 
-printer:write_plans(D,Repository) :-
-  Repository:get_size(S),
-  stats:newinstance(stat),
-  stats:init(0,S),
-  config:time_limit(T),
+printer:write_plans(Repository,Directory) :-
+  pkg:create_repository_dirs(Repository,Directory),
   config:proving_target(Action),
-  config:number_of_cpus(Cpus),
-  findall((catch(call_with_time_limit(T,(prover:prove(Repository://E:Action,[],Proof,[],Model,[],_Constraints),!,
-                                         planner:plan(Proof,[],[],Plan),
-                                         atomic_list_concat([D,'/',E,'.emptytree-plan'],File),
-                                         with_mutex(mutex,(stats:increase,
-                                                           stats:percentage(P),
-                                                           stats:runningtime(Min,Sec),
-                                                           message:title(['Printing plan (',Cpus,' threads): ',P,' processed in ',Min,'m ',Sec,'s']),
-                                                           tell(File),
-                                                           nl,message:topheader(['[',P,'] - Printing plan for ',Repository://E:Action]),
-                                                           printer:print(Repository://E:Action,Model,Proof,Plan),
-                                                           told)))),
-                 time_limit_exceeded,
-                 (message:failure([E,' (time limit exceeded)']),
-                  assert(prover:broken(Repository://E))))),
-           Repository:entry(E),
-           Calls),
-  time(concurrent(Cpus,Calls,[])),
-  stats:runningtime(Min,Sec),
-  message:title_reset,!,
-  message:inform(['wrote plan for ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
+  tester:test(parallel_verbose,
+              'Writing plan for',
+              Repository://Entry,
+              (Repository:entry(Entry)),
+              (prover:prove(Repository://Entry:Action,[],Proof,[],Model,[],_Constraints),!,
+               planner:plan(Proof,[],[],Plan),
+               atomic_list_concat([Directory,'/',Entry,'.plan'],File)),
+              (tell(File),
+               printer:print([Repository://Entry:Action],Model,Proof,Plan),
+               told),
+              true).
