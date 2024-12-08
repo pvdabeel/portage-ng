@@ -23,7 +23,12 @@ Output:
 % TESTER declarations
 % *******************
 
-tester:test(single_verbose,Name,Repository://Item,Generator,Test) :-
+tester:test(Style,Name,Repository://Item,Generator,Test) :-
+  !,
+  tester:test(Style,Name,Repository://Item,Generator,Test,true,true).
+
+
+tester:test(single_verbose,Name,Repository://Item,Generator,Test,Report,Scroll) :-
   stats:newinstance(stat),
   stats:count(Generator,S),
   stats:init(0,S),
@@ -34,8 +39,10 @@ tester:test(single_verbose,Name,Repository://Item,Generator,Test) :-
                                              stats:percentage(P),
                                              stats:runningtime(Min,Sec),
                                              message:title([Name,' (Single thread): ',P,' processed in ',Min,'m ',Sec,'s']),
-                                             Test,!,
-                                             message:scroll_notice([Name,' at:',P,' - Ebuild: ',Item]))),
+                                             (Scroll
+ 				              -> message:scroll_notice(['[',P,'] - ', Name,' ',Repository,'://',Item])
+                                              ;  message:topheader(['[',P,'] - ',Name,' ',Repository;'://',Item])),
+					     Test,!,Report)),
                      time_limit_exceeded,
                      message:scroll_failure([Item,' (time limit exceeded)']));
 	       (message:clean,message:failure(Item)))),!,
@@ -45,7 +52,7 @@ tester:test(single_verbose,Name,Repository://Item,Generator,Test) :-
   message:scroll_notice([Name,' ',S,' ',Repository,' entries took ',Min,'m ',Sec,'s. (single thread)']).
 
 
-tester:test(parallel_verbose,Name,Repository://Item,Generator,Test) :-
+tester:test(parallel_verbose,Name,Repository://Item,Generator,Test,Report,Scroll) :-
   stats:newinstance(stat),
   stats:count(Generator,S),
   stats:init(0,S),
@@ -56,7 +63,10 @@ tester:test(parallel_verbose,Name,Repository://Item,Generator,Test) :-
                                                            stats:percentage(P),
                                                            stats:runningtime(Min,Sec),
                                                            message:title([Name,' (',Cpus,' threads): ',P,' processed in ',Min,'m ',Sec,'s']),
-                                                           message:scroll_notice([Name,' at:',P,' - Ebuild: ',Item])
+                                                           (Scroll
+ 							    -> message:scroll_notice(['[',P,'] - ', Name,' ',Repository,'://',Item])
+                                                            ;  message:topheader(['[',P,'] - ',Name,' ',Repository,'://',Item])),
+  							   Report
                                                           )))),
                  time_limit_exceeded,
                  message:scroll_failure([Item,' (time limit exceeded)']));
@@ -72,14 +82,14 @@ tester:test(parallel_verbose,Name,Repository://Item,Generator,Test) :-
   message:scroll_notice([Name,' ',S,' ',Repository,' entries took ',Min,'m ',Sec,'s. (',Cpus,' threads)']).
 
 
-tester:test(parallel_fast,Name,Repository://Item,Generator,Test) :-
+tester:test(parallel_fast,Name,Repository://Item,Generator,Test,Result,_) :-
   stats:newinstance(stat),
   stats:count(Generator,S),
   stats:init(0,S),
   config:number_of_cpus(Cpus),
   message:title([Name,' (',Cpus,' threads) - No intermediate output']),
   flush_output,
-  findall((Test,!;
+  findall((Test,!,Result;
            message:failure(Item)),
           Generator,
           Calls),

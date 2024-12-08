@@ -247,7 +247,7 @@ prover:test(Repository,Style) :-
 prover:test_latest(Repository,Style) :-
   config:proving_target(Action),
   tester:test(Style,
-              'Proving latest',
+              'Proving',
               Repository://Entry,
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
               (prover:prove(Repository://Entry:Action,[],_,[],_,[],_))).
