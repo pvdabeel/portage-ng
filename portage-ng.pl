@@ -41,6 +41,7 @@ swipl
 
 :- pengine_application('portage-ng').
 
+:- doc_collect(false).
 
 load_common_modules :-
    ensure_loaded(library('lists')),
