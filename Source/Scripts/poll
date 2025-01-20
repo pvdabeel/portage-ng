@@ -1,5 +1,7 @@
 #!/bin/sh
 
+alias portage-ng-dev='swipl -O --stack_limit=32G -f /Users/pvdabeel/Desktop/Prolog/portage-ng.pl -p portage=/Users/pvdabeel/Desktop/Prolog -g main --'
+
 # Make sure you have portage-ng installed!
 
 #if ! [ -x "$(portage-ng -V)" ]; then
@@ -25,13 +27,13 @@ if [ $LOCAL != $REMOTE ]; then
     echo "--- `date`" 
     echo
     echo "--- Clearing portage knowledge base"
-    portage-ng --mode standalone --clear # clear repository
+    portage-ng-dev --mode standalone --clear # clear repository
     echo  
     echo "--- Syncing portage ebuilds"
-    portage-ng --mode standalone --sync  # sync repository
+    portage-ng-dev --mode standalone --sync  # sync repository
     echo  
     echo "--- Graphing portage ebuilds"
-    portage-ng --mode standalone --graph  # update graph
+    portage-ng-dev --mode standalone --graph  # update graph
     
     pushd '/Volumes/Storage/Graph/'
     echo  
