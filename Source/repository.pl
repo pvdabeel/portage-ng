@@ -154,16 +154,14 @@ sync(repository) ::-
 
 sync(metadata) ::-
   ::type('eapi'),!,
-  config:number_of_cpus(Cpus),
+  %config:number_of_cpus(Cpus),
   message:hc,
   ( config:trust_metadata(false)
     -> (:update_cache,
-        findall((:read_ebuild(E,Cd,_),
+        concurrent_forall(:find_ebuild(E,_,_,_,_),
+                (:read_ebuild(E,Cd,_),
                  :update_metadata(E,Cd),
-                  with_mutex(mutex,message:scroll(['Ebuild (local): ',E]))),
-		:find_ebuild(E,_,_,_,_),
-		Calls),
-        concurrent(Cpus,Calls,[]))
+                  with_mutex(mutex,message:scroll(['Ebuild (local): ',E])))))
     ; true ),
   message:sc,
   message:scroll(['Updated metadata.']),nl.
@@ -191,7 +189,7 @@ sync(kb) ::-
 
   % We sync in parallel
 
-  config:number_of_cpus(Cpus),
+  % config:number_of_cpus(Cpus),
 
   % Step 1: clean prolog cache
 
@@ -208,24 +206,22 @@ sync(kb) ::-
 
   % Step 2.a: read repository cache
 
-  findall((:read_metadata(E,T,M),
+  concurrent_forall(:find_metadata(E,T,C,N,V),
+          (:read_metadata(E,T,M),
            with_mutex(mutex,message:scroll(['Ebuild: ',E])),
            assert(cache:entry(Repository,E,C,N,V)),
            assert(cache:entry_metadata(Repository,E,timestamp,T)),
            forall(member(L,M),
                   (L=..[Key,Value],
                    forall(member(I,Value),
-                          assert(cache:entry_metadata(Repository,E,Key,I)))))),
-          :find_metadata(E,T,C,N,V),
-          CallsA),
-
-  concurrent(Cpus,CallsA,[]),
+                          assert(cache:entry_metadata(Repository,E,Key,I))))))),
 
   % Step 2.b: read ebuilds without repository cache
 
   (config:write_metadata(true) -> :update_cache ; true),
 
-  findall((:read_ebuild(E,Cd,M),
+  concurrent_forall((:find_ebuild(E,T,C,N,V),not(cache:entry_metadata(Repository,E,_,_))),
+          (:read_ebuild(E,Cd,M),
            with_mutex(mutex,message:scroll(['Ebuild (local): ',E])),
            assert(cache:entry(Repository,E,C,N,V)),
            assert(cache:entry_metadata(Repository,E,timestamp,T)),
@@ -234,16 +230,13 @@ sync(kb) ::-
                   (L=..[Key,Value],
                    forall(member(I,Value),
                           assert(cache:entry_metadata(Repository,E,Key,I))))),
-           (config:write_metadata(true) -> :update_metadata(E,Cd) ; true)),
-          (:find_ebuild(E,T,C,N,V),not(cache:entry_metadata(Repository,E,_,_))),
-          CallsB),
-
-   concurrent(Cpus,CallsB,[]),
+           (config:write_metadata(true) -> :update_metadata(E,Cd) ; true))),
 
 
   % Step 2.c: read ebuilds with outdated repository cache
 
-  findall((:read_ebuild(E,Cd,M),
+  concurrent_forall((:find_ebuild(E,TE,C,N,V),cache:entry_metadata(Repository,E,timestamp,TC), TE > TC + 60), % time writing to disk
+          (:read_ebuild(E,Cd,M),
            with_mutex(mutex,message:scroll(['Ebuild (changed): ',E])),
            assert(cache:entry(Repository,E,C,N,V)),
            assert(cache:entry_metadata(Repository,E,timestamp,T)),
@@ -252,24 +245,17 @@ sync(kb) ::-
                   (L=..[Key,Value],
                    forall(member(I,Value),
                           assert(cache:entry_metadata(Repository,E,Key,I))))),
-           (config:write_metadata(true) -> :update_metadata(E,Cd) ; true)),
-          (:find_ebuild(E,TE,C,N,V),cache:entry_metadata(Repository,E,timestamp,TC), TE > TC + 60), % time writing to disk
-          CallsC),
-
-   concurrent(Cpus,CallsC,[]),
+           (config:write_metadata(true) -> :update_metadata(E,Cd) ; true))),
 
 
   % Step 3: update prolog cache:manifest facts for manifests in the repository
 
-  findall((:read_manifest(P,T,C,N,M),
+  concurrent_forall(:find_manifest(P,T,C,N),
+          (:read_manifest(P,T,C,N,M),
            with_mutex(mutex,message:scroll(['Manifest: ',P])),
            assert(cache:manifest(Repository,P,T,C,N)),
            forall(member(manifest(Filetype,Filename,Filesize,Checksums),M),
-                 assert(cache:manifest_metadata(Repository,P,Filetype,Filename,Filesize,Checksums)))),
-          :find_manifest(P,T,C,N),
-          CallsD),
-
-   concurrent(Cpus,CallsD,[]),
+                 assert(cache:manifest_metadata(Repository,P,Filetype,Filename,Filesize,Checksums))))),
 
 
   % Step 4: Ordered prolog cache:category creation
