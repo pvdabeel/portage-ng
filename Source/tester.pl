@@ -58,7 +58,9 @@ tester:test(parallel_verbose,Name,Repository://Item,Generator,Test,Report,Scroll
   stats:init(0,S),
   config:time_limit(T),
   config:number_of_cpus(Cpus),
-  findall((catch(call_with_time_limit(T,(Test,!,
+  message:hc,
+  concurrent_forall(Generator,
+                        (catch(call_with_time_limit(T,(Test,!,
                                          with_mutex(mutex,(stats:increase,
                                                            stats:percentage(P),
                                                            stats:runningtime(Min,Sec),
@@ -70,11 +72,7 @@ tester:test(parallel_verbose,Name,Repository://Item,Generator,Test,Report,Scroll
                                                           )))),
                  time_limit_exceeded,
                  message:scroll_failure([Item,' (time limit exceeded)']));
-           (sleep(1),message:clean,message:failure(Item))),
-          Generator,
-          Calls),!,
-  message:hc,
-  concurrent(Cpus,Calls,[]),
+           (sleep(1),message:clean,message:failure(Item)))),!,
   message:sc,
   stats:runningtime(Min,Sec),
   message:title_reset,!,
@@ -89,13 +87,11 @@ tester:test(parallel_fast,Name,Repository://Item,Generator,Test,Result,_) :-
   config:number_of_cpus(Cpus),
   message:title([Name,' (',Cpus,' threads) - No intermediate output']),
   flush_output,
-  findall((Test,!,Result;
-           message:failure(Item)),
-          Generator,
-          Calls),
   message:hc,
-  concurrent(Cpus,Calls,[]),
+  concurrent_forall(Generator,(Test,!,Result;message:failure(Item))),
   message:sc,
   stats:runningtime(Min,Sec),!,
   message:title_reset,!,
   message:scroll_notice([Name,' ',S,' ',Repository,' entries took ',Min,'m ',Sec,'s. (',Cpus,' threads)']).
+
+
