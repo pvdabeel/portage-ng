@@ -210,12 +210,12 @@ builder:build_element(assumed(rule(package_dependency(_,run,_,_C,_N,_,_,_,_),_Bo
 
 builder:test(Repository) :-
   Repository:get_size(S),
-  stats:init(0,S,Id),
+  stats:init(0,S),
   config:time_limit_build(T),
   config:proving_target(Action),
   time(forall(Repository:entry(E),
-              (catch(call_with_time_limit(T,(stats:increase(Id),
-                                             stats:percentage(Id,P),
+              (catch(call_with_time_limit(T,(stats:increase,
+                                             stats:percentage(P),
  	                                     nl,message:topheader(['[',P,'] - Executing plan for ',Repository://E:Action]),
                                              prover:prove(Repository://E:Action,[],Proof,[],Model,[],_Constraints),
 			                     planner:plan(Proof,[],[],Plan),!,
@@ -223,8 +223,7 @@ builder:test(Repository) :-
                      time_limit_exceeded,
                      assert(builder:broken(Repository://E)));
 	       message:failure(E)))),
-  stats:runningtime(Id,Min,Sec),!,
-  stats:release(Id),
+  stats:runningtime(Min,Sec),!,
   message:inform(['executed plan for ',S,' ',Repository,' entries in ',Min,'m ',Sec,'s.']).
 
 

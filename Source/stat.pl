@@ -25,22 +25,22 @@ This class is used for measuring progress and statistics
 :- dpublic('stat'/0).
 :- dpublic('~stat'/0).
 
-:- dpublic('init'/3).
-:- dpublic('increase'/1).
-:- dpublic('decrease'/1).
+:- dpublic('init'/2).
+:- dpublic('increase'/0).
+:- dpublic('decrease'/0).
 
-:- dpublic('release'/1).
+:- dpublic('release'/0).
 
-:- dpublic('percentage'/2).
-:- dpublic('runningtime'/3).
+:- dpublic('percentage'/1).
+:- dpublic('runningtime'/2).
 
 :- dpublic('times'/2).
 
 % private interface
 
-:- dprivate('count'/2).
-:- dprivate('total'/2).
-:- dprivate('timestamp'/2).
+:- dpublic('count'/1).
+:- dpublic('total'/1).
+:- dpublic('timestamp'/1).
 
 
 %! Constructor
@@ -59,77 +59,76 @@ This class is used for measuring progress and statistics
   true.
 
 
-%! stat:init(+Count,+Generator,-Id)
+%! stat:init(+Count,+Generator)
 %
 % Public predicate
 %
 % Sets the count and total to a given number
 
-init(Count,Total,Id) ::-
-  gensym(stat,Id),
+init(Count,Total) ::-
   get_time(T),
-  <=count(Id,Count),
-  <=total(Id,Total),
-  <=timestamp(Id,T).
+  <=count(Count),
+  <=total(Total),
+  <=timestamp(T).
 
 
-%! stat:increase(+Id)
+%! stat:increase
 %
 % Public predicate
 %
 % Increases the count
 
-increase(Id) ::-
-  ::count(Id,CurrentCount),
+increase ::-
+  ::count(CurrentCount),
   NewCount is CurrentCount + 1,
-  <=count(Id,NewCount).
+  <=count(NewCount).
 
 
-%! stat:decrease(+Id)
+%! stat:decrease
 %
 % Public predicate
 %
 % Decreases the count
 
-decrease(Id) ::-
-  ::count(Id,CurrentCount),
+decrease ::-
+  ::count(CurrentCount),
   NewCount is CurrentCount - 1,
-  <=count(Id,NewCount).
+  <=count(NewCount).
 
 
-%! stat:release(+Id)
+%! stat:release
 %
 % Public predicate
 %
-% Releases all statistics related to a given Id
+% Explicitely releases all statistics
 
-release(Id) ::-
-  <-total(Id,_),
-  <-count(Id,_),
-  <-timestamp(Id,_).
+release ::-
+  <-total(_),
+  <-count(_),
+  <-timestamp(_).
 
 
-%! stat:percentage(+Id,-Percentage)
+%! stat:percentage(-Percentage)
 %
 % Public predicate
 %
 % Retrieves the Percentage as count / total
 
-percentage(Id,Percentage) ::-
-  ::count(Id,Count),
-  ::total(Id,Total),
+percentage(Percentage) ::-
+  ::count(Count),
+  ::total(Total),
   P is Count/Total * 100,
   format(atom(Percentage),'~t~2f~w~7|',[P,'%']).
 
 
-%! stat:runningtime(+Id,-Min,-Sec)
+%! stat:runningtime(-Min,-Sec)
 %
 % Public predicate
 %
 % Retrieves the runningtime
 
-runningtime(Id,Min,Sec) ::-
-  ::timestamp(Id,T1),
+runningtime(Min,Sec) ::-
+  ::timestamp(T1),
   get_time(T2),
   Seconds is integer(T2-T1),
   Sec is Seconds mod 60,
@@ -153,8 +152,7 @@ times(Generator,Count) ::-
 %
 % The total
 
-total(Id,Total) ::-
-  atom(Id),
+total(Total) ::-
   number(Total).
 
 
@@ -164,8 +162,7 @@ total(Id,Total) ::-
 %
 % The count
 
-count(Id,Count) ::-
-  atom(Id),
+count(Count) ::-
   number(Count).
 
 
@@ -175,6 +172,5 @@ count(Id,Count) ::-
 %
 % The timestamp
 
-timestamp(Id,Timestamp) ::-
-  atom(Id),
+timestamp(Timestamp) ::-
   number(Timestamp).
