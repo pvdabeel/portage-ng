@@ -26,28 +26,28 @@ worker:master :-
 
 worker:create_jobs :-
   portage:get_size(S),
-  stats:newinstance(stat),
-  stats:init(0,S),
+  stats:init(0,S,Id),
   config:proving_target(Action),
   config:number_of_cpus(Cpus),
   findall((prover:prove(portage://E:Action,[],Proof,[],Model,[],_Constraints),!,
            planner:plan(Proof,[],[],Plan),
            thread_send_message('worker:jobqueue',
-                               (stats:increase,
-                                stats:percentage(P),
-                                stats:runningtime(Min,Sec),
+                               (stats:increase(Id),
+                                stats:percentage(Id,P),
+                                stats:runningtime(Id,Min,Sec),
                                 message:title(['Printing plan (',Cpus,' threads): ',P,' processed in ',Min,'m ',Sec,'s']),
                                 nl,message:topheader(['[',P,'] - Printing plan for ',portage://E:Action]),
                                 printer:print(portage://E:Action,Model,Proof,Plan)),
                                [timeout(60)])),
           portage:entry(E),
           Calls),
-  concurrent(36,Calls,[]),!,
+  concurrent(Cpus,Calls,[]),!,
   thread_send_message('worker:jobqueue',
-                      (stats:runningtime(Min,Sec),
+                      (stats:runningtime(Id,Min,Sec),
                        message:title_reset,
                        message:inform(['printed plan for ',S,' portage entries in ',Min,'m ',Sec,'s.'])),
-                      [timeout(60)]).
+                      [timeout(60)]),
+  stats:release(Id).
 
 worker:execute_jobs :-
   repeat,
