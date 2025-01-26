@@ -116,7 +116,7 @@ prover:prove(Literal,Proof,NewProof,Model,NewModel,Constraints,NewConstraints) :
   prover:prove([],[assumed(rule(Literal,[]))|Proof],NewProof,[assumed(Literal)|Model],NewModel,Constraints,NewConstraints).
 
 
-% CASE 2g: not proven, not proving, prove body
+% CASE 2g: not proven, not proving, check if oracle knows otherwise prove body
 
 prover:prove(Literal,Proof,NewProof,Model,[Literal|NewModel],Constraints,NewConstraints) :-
   % not(is_list(Literal)),				% green cut
@@ -127,6 +127,7 @@ prover:prove(Literal,Proof,NewProof,Model,[Literal|NewModel],Constraints,NewCons
   rule(Literal,Body),
   % not(prover:fact(rule(Literal,Body))),		% green cut
   % not(prover:proving(rule(Literal,Body),Proof)),	% green cut
+  % prover:prove(Body,[rule(Literal,Body)|Proof],NewProof,Model,NewModel,Constraints,NewConstraints).
   prover:prove(Body,[rule(Literal,Body)|Proof],NewProof,Model,NewModel,Constraints,NewConstraints).
 
 
@@ -236,7 +237,9 @@ prover:test(Repository,Style) :-
               'Proving',
               Repository://Entry,
               (Repository:entry(Entry)),
-              (prover:prove(Repository://Entry:Action,[],_,[],_,[],_))).
+              (q:knows(Repository://Entry:Action,_) -> true,! ;
+               (prover:prove(Repository://Entry:Action,[],Proof,[],Model,[],Constraint),
+                assert(q:knows(Repository://Entry:Action,[Proof,Model,Constraint]))))).
 
 
 %! prover:test_latest(+Repository,+Style)
@@ -250,4 +253,6 @@ prover:test_latest(Repository,Style) :-
               'Proving',
               Repository://Entry,
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
-              (prover:prove(Repository://Entry:Action,[],_,[],_,[],_))).
+              (q:knows(Repository://Entry:Action,_) -> true,! ;
+               (prover:prove(Repository://Entry:Action,[],Proof,[],Model,[],Constraint),
+                assert(q:knows(Repository://Entry:Action,[Proof,Model,Constraint]))))).

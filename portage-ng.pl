@@ -43,6 +43,8 @@ swipl
 
 :- doc_collect(false).
 
+:- dynamic(q:knows/2).
+
 load_common_modules :-
    ensure_loaded(library('lists')),
    ensure_loaded(library('optparse')),
@@ -97,6 +99,7 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/repository.pl')),
    ensure_loaded(portage('Source/knowledgebase.pl')),
    ensure_loaded(portage('Source/query.pl')),
+   ensure_loaded(portage('Source/oracle.pl')),
 
    ensure_loaded(portage('Source/eapi.pl')),
    ensure_loaded(portage('Source/rules.pl')),
@@ -181,6 +184,7 @@ main(client) :-
 
 main(standalone) :-
   load_standalone_modules,
+  stats:newinstance(stat),
   kb:newinstance(knowledgebase),
   config:systemconfig(Config),
   ensure_loaded(Config),
