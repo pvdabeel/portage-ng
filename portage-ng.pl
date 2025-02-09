@@ -43,7 +43,7 @@ swipl
 
 :- doc_collect(false).
 
-:- dynamic(q:knows/2).
+:- dynamic(q:knows/1).
 
 load_common_modules :-
    ensure_loaded(library('lists')),
