@@ -198,8 +198,8 @@ interface:process_action(merge,ArgsSets,Options) :-
   interface:process_server(Host,Port),
   (Mode == 'client' ->
     (client:rpc_execute(Host,Port,
-     (prover:prove(Proposal,[],Proof,[],Model,[],_),
-      planner:plan(Proof,[],[],Plan),
+     (oracle:with_q(prover:prove(Proposal,[],Proof,[],Model,[],_)),
+      oracle:with_q(planner:plan(Proof,[],[],Plan)),
       printer:print(Proposal,Model,Proof,Plan)),
      Output),
      writeln(Output));

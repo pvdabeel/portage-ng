@@ -237,9 +237,7 @@ prover:test(Repository,Style) :-
               'Proving',
               Repository://Entry,
               (Repository:entry(Entry)),
-              (q:knows(proof(Repository://Entry:Action,_)) -> true,! ;
-               (prover:prove(Repository://Entry:Action,[],Proof,[],Model,[],Constraint),
-                assert(q:knows(proof(Repository://Entry:Action,[Proof,Model,Constraint])))))).
+              (with_q(prover:prove(Repository://Entry:Action,[],_Proof,[],_Model,[],_Constraint)))).
 
 
 %! prover:test_latest(+Repository,+Style)
@@ -253,6 +251,4 @@ prover:test_latest(Repository,Style) :-
               'Proving',
               Repository://Entry,
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
-              (q:knows(proof(Repository://Entry:Action,_)) -> true,! ;
-               (prover:prove(Repository://Entry:Action,[],Proof,[],Model,[],Constraint),
-                assert(q:knows(proof(Repository://Entry:Action,[Proof,Model,Constraint])))))).
+              (with_q(prover:prove(Repository://Entry:Action,[],_Proof,[],_Model,[],_Constraint)))).

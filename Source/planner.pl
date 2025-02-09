@@ -91,12 +91,8 @@ planner:test(Repository,Style) :-
               'Planning',
               Repository://Entry,
               (Repository:entry(Entry)),
-               ((q:knows(proof(Repository://Entry:Action,[Proof,_,_])) -> true, ! ;
-                 prover:prove(Repository://Entry:Action,[],Proof,[],Model,[],Constraint), !,
-                 assert(q:knows(proof(Repository://Entry:Action,[Proof,Model,Constraint])))),
-                (q:knows(plan(Repository://Entry:Action,Plan)) -> true, ! ;
-                 planner:plan(Proof,[],[],Plan))), !,
-                 assert(q:knows(plan(Repository://Entry:Action,Plan)))).
+              (with_q(prover:prove(Repository://Entry:Action,[],Proof,[],_Model,[],_Constraint)),
+               with_q(planner:plan(Proof,[],[],_Plan)))).
 
 
 %! planner:test_latest(+Repository,+Style)
@@ -110,9 +106,5 @@ planner:test_latest(Repository,Style) :-
               'Planning latest',
               Repository://Entry,
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
-               ((q:knows(proof(Repository://Entry:Action,[Proof,_,_])) -> true, ! ;
-                 prover:prove(Repository://Entry:Action,[],Proof,[],Model,[],Constraint),
-                 assert(q:knows(proof(Repository://Entry:Action,[Proof,Model,Constraint])))),
-                (q:knows(plan(Repository://Entry:Action,Plan)) -> true, ! ;
-                 planner:plan(Proof,[],[],Plan))), !,
-                 assert(q:knows(plan(Repository://Entry:Action,Plan)))).
+              (with_q(prover:prove(Repository://Entry:Action,[],Proof,[],_Model,[],_Constraint)),
+	       with_q(planner:plan(Proof,[],[],_Plan)))).

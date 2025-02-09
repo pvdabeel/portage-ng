@@ -720,8 +720,8 @@ printer:test(Repository,Style) :-
               'Printing',
               Repository://Entry,
               (Repository:entry(Entry)),
-              (prover:prove(Repository://Entry:Action,[],Proof,[],Model,[],_Constraints),
-               planner:plan(Proof,[],[],Plan)),
+              (with_q(prover:prove(Repository://Entry:Action,[],Proof,[],Model,[],_Constraints)),
+               with_q(planner:plan(Proof,[],[],Plan))),
               (printer:print([Repository://Entry:Action],Model,Proof,Plan)),
 	      false).
 
@@ -732,7 +732,7 @@ printer:test(Repository,Style) :-
 
 printer:test_latest(Repository,parallel_fast) :-
   !,
-  printer:test(Repository,parallel_verbose).
+  printer:test_latest(Repository,parallel_verbose).
 
 printer:test_latest(Repository,Style) :-
   config:proving_target(Action),
@@ -740,8 +740,8 @@ printer:test_latest(Repository,Style) :-
               'Printing plan for',
               Repository://Entry,
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
-              (prover:prove(Repository://Entry:Action,[],Proof,[],Model,[],_Constraints),
-               planner:plan(Proof,[],[],Plan)),
+              (with_q(prover:prove(Repository://Entry:Action,[],Proof,[],Model,[],_Constraints)),
+               with_q(planner:plan(Proof,[],[],Plan))),
               (printer:print([Repository://Entry:Action],Model,Proof,Plan)),
               false).
 
@@ -758,8 +758,8 @@ printer:write_plans(Repository,Directory) :-
               'Writing plan for',
               Repository://Entry,
               (Repository:entry(Entry)),
-              (prover:prove(Repository://Entry:Action,[],Proof,[],Model,[],_Constraints),!,
-               planner:plan(Proof,[],[],Plan),
+              (with_q(prover:prove(Repository://Entry:Action,[],Proof,[],Model,[],_Constraints)),
+               with_q(planner:plan(Proof,[],[],Plan)),
                atomic_list_concat([Directory,'/',Entry,'.plan'],File)),
               (tell(File),
                printer:print([Repository://Entry:Action],Model,Proof,Plan),
