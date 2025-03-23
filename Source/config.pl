@@ -65,7 +65,12 @@ config:working_dir(Dir) :-
 config:systemconfig(Filename) :-
   config:installation_dir(Dir),
   config:hostname(Hostname),
-  os:compose_path([Dir,'Source/Config',Hostname],Filename).
+  os:compose_path([Dir,'Source/Config','default'],Default),
+  os:compose_path([Dir,'Source/Config',Hostname],Configuration),
+  system:file_name_extension(Configuration,'pl',ConfigFile),
+  ( system:exists_file(ConfigFile)
+    -> Filename = ConfigFile
+    ;  Filename = Default ).
 
 
 %! config:initialize_cacert
