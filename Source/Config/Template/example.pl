@@ -4,7 +4,7 @@
 % ------------------------------------------
 
 
-% Example: Portage repository - sync vie web tarball
+% Example: Portage repository - sync via web tarball
 % --------------------------------------------------
 % :- portage:newinstance(repository).
 % :- portage:init('/Users/pvdabeel/Repository/portage-web','/Users/pvdabeel/Repository/portage-web/metadata/md5-cache',
