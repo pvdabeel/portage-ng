@@ -24,7 +24,7 @@ The interface interpretes command line arguments passed to portage-ng.
 % Retrieve the current version
 
 interface:version(V) :-
-  V = '2024.09.08'.
+  V = '2025.03.23'.
 
 
 %! interface:status(?Status)
@@ -40,7 +40,7 @@ interface:status(S) :-
 % Retrieve the interface specification
 
 interface:spec(S) :-
-  S = [[opt(mode),     type(atom),    default('server'),                      longflags(['mode'] ),
+  S = [[opt(mode),     type(atom),    default('standalone'),                  longflags(['mode'] ),
         help([ '  server:     start as server'
              , '  standalone: start standalone client, not requireing running server'
              , '  client:     start lightweight client, requiring running server'])],
