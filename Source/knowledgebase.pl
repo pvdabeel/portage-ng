@@ -135,7 +135,8 @@ sync ::-
    forall(::repository(Repository),
  	 (message:header(['Syncing repository \"',Repository,'\"']),nl,
          Repository:sync)),!,
-   pkg:sync)).
+   pkg:sync,
+   oracle:vanish_q)).
 
 
 %! knowledgebase:save
