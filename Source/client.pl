@@ -45,13 +45,15 @@ rpc_execute(Hostname,Port,Cmd) :-
   config:certificate(Hostname,'client-key.pem',ClientKey),
   config:certificate_password(client,Pass),
   config:digest_password(User,Digestpwd),
+  config:chunk(ChunkSize),
   pengine_rpc(URL,sandbox:Cmd,
               [ host(Hostname),
                 authorization(digest(User,Digestpwd)),
                 cacerts([file(CaCert)]),
                 certificate_file(ClientCert),
                 key_file(ClientKey),
-                password(Pass)
+                password(Pass),
+                chunk(ChunkSize)
               ]).
 
 

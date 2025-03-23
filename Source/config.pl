@@ -259,6 +259,18 @@ config:failsilenton(version).
 config:server_port(4000).
 
 
+%! config:chunck(?Chunksize)
+%
+% When set to false, when working in client-server mode, one
+% RPC call is performed per solution. When generating large
+% number of solutions, such as backtracking over a goal, it
+% is best to transfer multiple solutions in one chunck over one
+% rpc call. Setting this to a higher value speeds up searching
+% in client-server mode. Shouldn't be higher than the total number
+% of entries in your repositories.
+
+config:chunk(50000).
+
 %! config:server_host(?Url)
 %
 % Declares the server url, including protocol (https) and port

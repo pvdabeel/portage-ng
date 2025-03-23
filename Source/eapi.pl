@@ -1875,24 +1875,19 @@ eapi:qualified_target(Q) -->
 
 %! eapi:query(R)
 %
-% Turns a key=value query into a key(value) query
+% Turns a key=value command line query into a select(Key,Comparator,Value) query
 
-eapi:query([Q|R]) -->
-  [Part],
-  eapi:query(R),
-  { atom_codes(Part,Codes), phrase(eapi:querypart(Q),Codes),! }.
+eapi:query([select(Key,Comparator,Value)|R]) -->
+  [Atom],
+  { atom_codes(Atom,Codes), phrase(eapi:querypart(Key,Comparator,Value),Codes),! },
+  eapi:query(R).
 
 eapi:query([]) -->
   [].
 
-eapi:querypart(world) -->
-  [119, 111, 114, 108, 100],!.
-
-eapi:querypart(P) -->
+eapi:querypart(Key,Comparator,Value) -->
   eapi:key(query,[Key,Comparator]),
-  eapi:querypartcont(Key,Value),
-  { CompValue =.. [Comparator,Value],
-    P =.. [Key,CompValue] }.
+  eapi:querypartcont(Key,Value).
 
 eapi:querypartcont(version,V) -->
   !,
