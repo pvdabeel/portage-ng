@@ -57,7 +57,6 @@ An implementation of a query language for the knowledge base
 % Traverse a list of statements that narrow down the search results.
 
 search([],_Repository://_Entry) :- !.
-  % cache:ordered_entry(_Repository,_Entry,_,_,_).
 
 search([Statement|Rest],Repository://Entry) :-
   !,
@@ -106,7 +105,7 @@ search(model(Statement),Repository://Id) :-
   Statement =.. [Key,Model],
   !,
   StatementA =.. [Key,AllValues],
-  query([all(StatementA)],Repository://Id),
+  search(all(StatementA),Repository://Id),
   prover:model(AllValues,ModelValues),
   findall(V,
    (member(V,ModelValues),
@@ -147,104 +146,8 @@ search(latest(Statement),R://I) :-
 % Search: command line key=value pairs
 % ------------------------------------
 
-% Searching via command line key=value pairs
-
-search(repository(notequal(R)),R://I) :-
-  !,
-  \+ cache:ordered_entry(R,I,_,_,_).
-
-search(repository(equal(R)),R://I) :-
-  !,
-  cache:ordered_entry(R,I,_,_,_).
-
-search(repository(tilde(R)),M://I) :-
-  !,
-  cache:ordered_entry(M,I,_,_,_),
-  dwim_match(R,M).
-
-search(repository(wildcard(R)),M://I) :-
-  !,
-  cache:ordered_entry(M,I,_,_,_),
-  wildcard_match(R,M).
-
-search(category(notequal(C)),R://I) :-
-  !,
-  \+ cache:ordered_entry(R,I,C,_,_).
-
-search(category(equal(C)),R://I) :-
-  !,
-  cache:ordered_entry(R,I,C,_,_).
-
-search(category(tilde(C)),R://I) :-
-  !,
-  cache:ordered_entry(R,I,M,_,_),
-  dwim_match(C,M).
-
-search(category(wildcard(C)),R://I) :-
-  !,
-  cache:ordered_entry(R,I,M,_,_),
-  wildcard_match(C,M).
-
-search(name(notequal(N)),R://I) :-
-  !,
-  \+ cache:ordered_entry(R,I,_,N,_).
-
-search(name(equal(N)),R://I) :-
-  !,
-  cache:ordered_entry(R,I,_,N,_).
-
-search(name(tilde(N)),R://I) :-
-  !,
-  cache:ordered_entry(R,I,_,M,_),
-  dwim_match(N,M).
-
-search(name(wildcard(N)),R://I) :-
-  !,
-  cache:ordered_entry(R,I,_,M,_),
-  wildcard_match(N,M).
-
-search(set(equal(S)),R://I) :-
-  !,
-  preference:set(S,Set),
-  member(Ta,Set),
-  atom_codes(Ta,Tc),
-  phrase(eapi:qualified_target(Q),Tc),
-  search(Q,R://I).
-
-search(set(tilde(N)),R://I) :-
-  !,
-  preference:set(S,Set),
-  dwim_match(N,S),
-  member(Ta,Set),
-  atom_codes(Ta,Tc),
-  phrase(eapi:qualified_target(Q),Tc),
-  search(Q,R://I).
-
-search(set(wildcard(N)),R://I) :-
-  !,
-  preference:set(S,Set),
-  wildcard_match(N,S),
-  member(Ta,Set),
-  atom_codes(Ta,Tc),
-  phrase(eapi:qualified_target(Q),Tc),
-  search(Q,R://I).
-
-search(version(wildcard([_,_,_,V])),R://I) :-
-  !,
-  cache:ordered_entry(R,I,_,_,[_,_,_,ProposedVersion]),
-  wildcard_match(V,ProposedVersion).
-
-search(version(V),R://I) :-
-  !,
-  V =.. [Comparator,RequestedVersion],
-  cache:ordered_entry(R,I,_,_,ProposedVersion),
-  apply_version_filter(Comparator,ProposedVersion,RequestedVersion).
-
-%search(Metadata,R://I) :-
-%  Metadata =.. [Key,Comparator],
-%  Comparator =.. [S,Value],
-%  subsearch
-%  !.
+search(select(Key,Comparator,Value),R://I) :-
+  select(Key,Comparator,Value,R://I).
 
 
 % ------------------------
@@ -474,3 +377,147 @@ apply_filter(_R://_I,[]) :- !.
 
 
 
+
+
+% ------------------------------------------
+% Searching via command line key=value pairs
+% ------------------------------------------
+
+% Entry - repository
+
+select(repository,notequal,R,O://I) :-
+  !,
+  cache:ordered_entry(O,I,_,_,_),
+  \+ R=O.
+
+select(repository,equal,R,R://I) :-
+  !,
+  cache:ordered_entry(R,I,_,_,_).
+
+select(repository,tilde,R,M://I) :-
+  !,
+  cache:ordered_entry(M,I,_,_,_),
+  dwim_match(R,M).
+
+select(repository,wildcard,R,M://I) :-
+  !,
+  cache:ordered_entry(M,I,_,_,_),
+  wildcard_match(R,M).
+
+
+% Entry - category
+
+select(category,notequal,C,R://I) :-
+  !,
+  cache:ordered_entry(R,I,O,_,_),
+  \+ C=O.
+
+select(category,equal,C,R://I) :-
+  !,
+  cache:ordered_entry(R,I,C,_,_).
+
+select(category,tilde,C,R://I) :-
+  !,
+  cache:ordered_entry(R,I,M,_,_),
+  dwim_match(C,M).
+
+select(category,wildcard,C,R://I) :-
+  !,
+  cache:ordered_entry(R,I,M,_,_),
+  wildcard_match(C,M).
+
+
+% Entry - name
+
+select(name,notequal,N,R://I) :-
+  !,
+  cache:ordered_entry(R,I,_,O,_),
+  \+ N=O.
+
+select(name,equal,N,R://I) :-
+  !,
+  cache:ordered_entry(R,I,_,N,_).
+
+select(name,tilde,N,R://I) :-
+  !,
+  cache:ordered_entry(R,I,_,M,_),
+  dwim_match(N,M).
+
+select(name,wildcard,N,R://I) :-
+  !,
+  cache:ordered_entry(R,I,_,M,_),
+  wildcard_match(N,M).
+
+
+% Entry - version
+
+select(version,wildcard,[_,_,_,V],R://I) :-
+  !,
+  cache:ordered_entry(R,I,_,_,[_,_,_,ProposedVersion]),
+  wildcard_match(V,ProposedVersion).
+
+select(version,Comparator,RequestedVersion,R://I) :-
+  !,
+  cache:ordered_entry(R,I,_,_,ProposedVersion),
+  apply_version_filter(Comparator,ProposedVersion,RequestedVersion).
+
+
+% Special case - set membership
+
+select(set,notequal,S,R://I) :-
+  !,
+  preference:set(S,Set),
+  findall(Rc://Ic,(member(Ta,Set),
+                   atom_codes(Ta,Tc),
+                   phrase(eapi:qualified_target(Q),Tc),
+                   search(Q,Rc://Ic)),
+          Candidates),
+  cache:ordered_entry(R,I,_,_,_),
+  not(memberchk(R://I,Candidates)).
+
+select(set,equal,S,R://I) :-
+  !,
+  preference:set(S,Set),
+  member(Ta,Set),
+  atom_codes(Ta,Tc),
+  phrase(eapi:qualified_target(Q),Tc),
+  search(Q,R://I).
+
+select(set,tilde,N,R://I) :-
+  !,
+  preference:set(S,Set),
+  dwim_match(N,S),
+  member(Ta,Set),
+  atom_codes(Ta,Tc),
+  phrase(eapi:qualified_target(Q),Tc),
+  search(Q,R://I).
+
+select(set,wildcard,N,R://I) :-
+  !,
+  preference:set(S,Set),
+  wildcard_match(N,S),
+  member(Ta,Set),
+  atom_codes(Ta,Tc),
+  phrase(eapi:qualified_target(Q),Tc),
+  search(Q,R://I).
+
+
+% Entry Metadata
+
+select(Key,notequal,Value,R://I) :-
+  !,
+  \+cache:entry_metadata(R,I,Key,Value).
+
+select(Key,equal,Value,R://I) :-
+  !,
+  cache:entry_metadata(R,I,Key,Value).
+
+select(Key,tilde,Value,R://I) :-
+  !,
+  cache:entry_metadata(R,I,Key,Match),
+  dwim_match(Value,Match).
+
+select(Key,wildcard,Value,R://I) :-
+  !,
+  cache:entry_metadata(R,I,Key,Match),
+  wildcard_match(Value,Match).
