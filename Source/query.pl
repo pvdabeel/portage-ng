@@ -502,6 +502,28 @@ select(set,wildcard,N,R://I) :-
   search(Q,R://I).
 
 
+% Special case - eapi version
+
+select(eapi,notequal,[_,_,_,Version],R://I) :-
+  !,
+  \+cache:entry_metadata(R,I,eapi,[_,_,_,Version]).
+
+select(eapi,equal,[_,_,_,Version],R://I) :-
+  !,
+  cache:entry_metadata(R,I,eapi,[_,_,_,Version]).
+
+select(eapi,wildcard,[_,_,_,V],R://I) :-
+  !,
+  cache:entry_metadata(R,I,eapi,[_,_,_,ProposedVersion]),
+  wildcard_match(V,ProposedVersion).
+
+select(eapi,Comparator,RequestedVersion,R://I) :-
+  !,
+  cache:entry_metadata(R,I,eapi,ProposedVersion),
+  apply_version_filter(Comparator,ProposedVersion,RequestedVersion).
+
+
+
 % Entry Metadata
 
 select(Key,notequal,Value,R://I) :-

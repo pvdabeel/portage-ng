@@ -1171,8 +1171,9 @@ eapi:subslot(S) -->
 % EAPI 2.0 defines the eapi as a version. The eapi is used to
 % indicate syntax version level.
 
-eapi:eapi([E]) -->
-  eapi:version2(E).
+eapi:eapi([V]) -->
+  eapi:version2([N,W,A,S]),
+  { eapi:version2atom(N,W,A,S,V) }.
 
 
 %! DCG uri_chars
@@ -1890,6 +1891,10 @@ eapi:querypart(Key,Comparator,Value) -->
   eapi:querypartcont(Key,Value).
 
 eapi:querypartcont(version,V) -->
+  !,
+  eapi:version0(V).
+
+eapi:querypartcont(eapi,V) -->
   !,
   eapi:version0(V).
 
