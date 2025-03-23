@@ -1171,7 +1171,7 @@ eapi:subslot(S) -->
 % EAPI 2.0 defines the eapi as a version. The eapi is used to
 % indicate syntax version level.
 
-eapi:eapi(E) -->
+eapi:eapi([E]) -->
   eapi:version2(E).
 
 

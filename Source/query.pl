@@ -521,9 +521,3 @@ select(Key,wildcard,Value,R://I) :-
   !,
   cache:entry_metadata(R,I,Key,Match),
   wildcard_match(Value,Match).
-
-
-index_pred :-
-  cache:ordered_entry(Repository,Id,_Cat,portage,_Version),
-  cache:entry_metadata(Repository,Id,installed,true).
-
