@@ -1,7 +1,7 @@
 /*
   Author:   Pieter Van den Abeele
   E-mail:   pvdabeel@mac.com
-  Copyright (c) 2005-2024, Pieter Van den Abeele
+  Copyright (c) 2005-2025, Pieter Van den Abeele
 
   Distributed under the terms of the LICENSE file in the root directory of this
   project.
@@ -240,6 +240,11 @@ search(version(V),R://I) :-
   cache:ordered_entry(R,I,_,_,ProposedVersion),
   apply_version_filter(Comparator,ProposedVersion,RequestedVersion).
 
+%search(Metadata,R://I) :-
+%  Metadata =.. [Key,Comparator],
+%  Comparator =.. [S,Value],
+%  subsearch
+%  !.
 
 
 % ------------------------

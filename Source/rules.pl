@@ -1,7 +1,7 @@
 /*
   Author:   Pieter Van den Abeele
   E-mail:   pvdabeel@mac.com
-  Copyright (c) 2005-2024, Pieter Van den Abeele
+  Copyright (c) 2005-2025, Pieter Van den Abeele
 
   Distributed under the terms of the LICENSE file in the root directory of this
   project.
@@ -98,6 +98,41 @@ rule(Repository://Ebuild:run,[Repository://Ebuild:install|D]) :-
   !,
   findall(Depend,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),D).
   %knowledgebase:query([all(rdepend(D))],Repository://Ebuild).
+
+
+% UPDATE
+%
+% An ebuild can be updated:
+%
+% - The os reports it as installed
+%   and a higher version in the same slot is available
+
+%rule(Repository://Ebuild:update,[]) :-
+%  cache:entry_metadata(Repository,Ebuild,installed,true),!,
+%  cache:ordered_entry(Repository,Ebuild,C,N,Vinstalled),
+%  cache:entry_metadata(Repository,Ebuild,slot,slot(S)),
+%  cache:ordered_entry(Repository,NewestEbuild,C,N,Vnewer),
+%  compare(newer,Vnewer,Vinstalled),
+%  findall(Depend,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),D).
+
+
+% UPGRADE
+%
+% An ebuild can be upgraded:
+%
+% - The os reports it as installed,
+%   and a higher version is available. Slots are disregarded.
+
+
+% UNINSTALL
+%
+% An ebuild can be uninstalled:
+%
+% - The os reports it as installed
+
+
+% DEEP UPDATE
+% DEEP UPGRADe
 
 
 
