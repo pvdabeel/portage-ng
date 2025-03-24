@@ -523,7 +523,7 @@ select(eapi,Comparator,RequestedVersion,R://I) :-
   apply_version_filter(Comparator,ProposedVersion,RequestedVersion).
 
 
-% Special case - eclasses version
+% Special case - eclasses
 
 select(eclasses,notequal,Eclass,R://I) :-
   !,
@@ -542,6 +542,30 @@ select(eclasses,wildcard,Eclass,R://I) :-
   !,
   cache:entry_metadata(R,I,eclasses,Match),
   wildcard_match(Eclass,Match).
+
+
+% Special case - download
+
+select(download,notequal,Filename,R://I) :-
+  !,
+  \+cache:entry_metadata(R,I,src_uri,uri(_,_,Filename)).
+
+select(download,equal,Filename,R://I) :-
+  !,
+  cache:entry_metadata(R,I,src_uri,uri(_,_,Filename)).
+
+select(download,tilde,Filename,R://I) :-
+  !,
+  cache:entry_metadata(R,I,src_uri,uri(_,_,Match)),
+  dwim_match(Filename,Match).
+
+select(download,wildcard,Filename,R://I) :-
+  !,
+  cache:entry_metadata(R,I,src_uri,uri(_,_,Match)),
+  wildcard_match(Filename,Match).
+
+
+
 
 
 % Entry Metadata
