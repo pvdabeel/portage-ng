@@ -523,6 +523,26 @@ select(eapi,Comparator,RequestedVersion,R://I) :-
   apply_version_filter(Comparator,ProposedVersion,RequestedVersion).
 
 
+% Special case - eclasses version
+
+select(eclass,notequal,Eclass,R://I) :-
+  !,
+  \+cache:entry_metadata(R,I,eclasses,[eclass(Eclass),_]).
+
+select(eclass,equal,Eclass,R://I) :-
+  !,
+  cache:entry_metadata(R,I,eclasses,[eclass(Eclass),_]).
+
+select(eclass,tilde,Eclass,R://I) :-
+  !,
+  cache:entry_metadata(R,I,eclasses,[eclass(Match),_]),
+  dwim_match(Eclass,Match).
+
+select(eclass,wildcard,Eclass,R://I) :-
+  !,
+  cache:entry_metadata(R,I,eclasses,Match),
+  wildcard_match(Eclass,Match).
+
 
 % Entry Metadata
 
