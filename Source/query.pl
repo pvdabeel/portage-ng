@@ -552,7 +552,6 @@ select(Key,notequal,Value,R://I) :-
 
 select(Key,equal,Value,R://I) :-
   !,
-  writeln(Value),
   cache:entry_metadata(R,I,Key,Value).
 
 select(Key,tilde,Value,R://I) :-

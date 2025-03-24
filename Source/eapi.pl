@@ -1902,6 +1902,10 @@ eapi:querypartcont(keywords,V) -->
   !,
   eapi:keyword(V).
 
+eapi:querypartcont(iuse,V) -->
+  !,
+  eapi:iuse(_,[V]).
+
 eapi:querypartcont(_,Value) -->
   eapi:chars_to_end(Codes),
   { atom_codes(Value,Codes) }.
