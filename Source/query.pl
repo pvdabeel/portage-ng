@@ -383,7 +383,9 @@ apply_filter(_R://_I,[]) :- !.
 % Searching via command line key=value pairs
 % ------------------------------------------
 
+% ------------------
 % Entry - repository
+% ------------------
 
 select(repository,notequal,R,O://I) :-
   !,
@@ -405,7 +407,9 @@ select(repository,wildcard,R,M://I) :-
   wildcard_match(R,M).
 
 
+% ----------------
 % Entry - category
+% ----------------
 
 select(category,notequal,C,R://I) :-
   !,
@@ -427,7 +431,9 @@ select(category,wildcard,C,R://I) :-
   wildcard_match(C,M).
 
 
+% ------------
 % Entry - name
+% ------------
 
 select(name,notequal,N,R://I) :-
   !,
@@ -449,7 +455,9 @@ select(name,wildcard,N,R://I) :-
   wildcard_match(N,M).
 
 
+% ---------------
 % Entry - version
+% ---------------
 
 select(version,wildcard,[_,_,_,V],R://I) :-
   !,
@@ -462,7 +470,9 @@ select(version,Comparator,RequestedVersion,R://I) :-
   apply_version_filter(Comparator,ProposedVersion,RequestedVersion).
 
 
+% -----------------------------
 % Special case - set membership
+% -----------------------------
 
 select(set,notequal,S,R://I) :-
   !,
@@ -502,7 +512,9 @@ select(set,wildcard,N,R://I) :-
   search(Q,R://I).
 
 
+% ---------------------------
 % Special case - eapi version
+% ---------------------------
 
 select(eapi,notequal,[_,_,_,Version],R://I) :-
   !,
@@ -523,7 +535,18 @@ select(eapi,Comparator,RequestedVersion,R://I) :-
   apply_version_filter(Comparator,ProposedVersion,RequestedVersion).
 
 
+% ---------------------
+% Special case - eclass
+% ---------------------
+
+select(eclass,Operator,Eclass,R://I) :-
+  !,
+  select(eclasses,Operator,Eclass,R://I).
+
+
+% -----------------------
 % Special case - eclasses
+% -----------------------
 
 select(eclasses,notequal,Eclass,R://I) :-
   !,
@@ -544,7 +567,9 @@ select(eclasses,wildcard,Eclass,R://I) :-
   wildcard_match(Eclass,Match).
 
 
-% Special case - download
+% ----------------------------------------
+% Special case - Entry metadata - download
+% ----------------------------------------
 
 select(download,notequal,Filename,R://I) :-
   !,
@@ -565,10 +590,64 @@ select(download,wildcard,Filename,R://I) :-
   wildcard_match(Filename,Match).
 
 
+% ------------------------------------
+% Special case - Entry Metadata - slot
+% ------------------------------------
+
+select(slot,notequal,Slot,R://I) :-
+  !,
+  \+cache:entry_metadata(R,I,slot,slot(Slot)).
+
+select(slot,equal,Slot,R://I) :-
+  !,
+  cache:entry_metadata(R,I,slot,slot(Slot)).
+
+select(slot,tilde,Slot,R://I) :-
+  !,
+  cache:entry_metadata(R,I,slot,slot(Match)),
+  dwim_match(Slot,Match).
+
+select(slot,wildcard,Slot,R://I) :-
+  !,
+  cache:entry_metadata(R,I,slot,slot(Match)),
+  wildcard_match(Slot,Match).
 
 
+% ---------------------------------------
+% Special case - Entry Metadata - subslot
+% ---------------------------------------
 
-% Entry Metadata
+select(subslot,notequal,Slot,R://I) :-
+  !,
+  \+cache:entry_metadata(R,I,slot,slot(Slot)).
+
+select(subslot,equal,Slot,R://I) :-
+  !,
+  cache:entry_metadata(R,I,slot,slot(Slot)).
+
+select(subslot,tilde,Slot,R://I) :-
+  !,
+  cache:entry_metadata(R,I,slot,slot(Match)),
+  dwim_match(Slot,Match).
+
+select(subslot,wildcard,Slot,R://I) :-
+  !,
+  cache:entry_metadata(R,I,slot,slot(Match)),
+  wildcard_match(Slot,Match).
+
+
+% ---------------------------------------
+% Special case - Entry Metadata - keyword
+% ---------------------------------------
+
+select(keyword,Operator,Key,R://I) :-
+  !,
+  select(keywords,Operator,Key,R://I).
+
+
+% ------------------------
+% Default - Entry Metadata
+% ------------------------
 
 select(Key,notequal,Value,R://I) :-
   !,
