@@ -39,21 +39,25 @@ swipl
 % PORTAGE-NG
 % **********
 
-:- pengine_application('portage-ng').
-
-:- doc_collect(false).
 
 :- dynamic(q:knows/1).
 
+%:- pengine_application('portage-ng').
+
 load_common_modules :-
-   ensure_loaded(library('lists')),
+
+   ensure_loaded(library('apply_macros')),
    ensure_loaded(library('optparse')),
+   ensure_loaded(library('lists')),
+   ensure_loaded(library('error')),
+   ensure_loaded(library('option')),
+   ensure_loaded(library('shell')),
    ensure_loaded(library('tty')),
    ensure_loaded(library('time')),
-   ensure_loaded(library('thread')),
-   ensure_loaded(library('readline')),
-   ensure_loaded(library('process')),
+   ensure_loaded(library('editline')),
    ensure_loaded(library('readutil')),
+   ensure_loaded(library('process')),
+   ensure_loaded(library('thread')),
    ensure_loaded(library('ordsets')),
 
    ensure_loaded(portage('Source/context.pl')),
@@ -70,6 +74,10 @@ load_common_modules :-
 
 
 load_client_modules :-
+   ensure_loaded(library('socket')),
+   ensure_loaded(library('broadcast')),
+
+   ensure_loaded(library('http/http_path')),
    ensure_loaded(library('http/http_open')),
    ensure_loaded(library('http/http_ssl_plugin')),
    ensure_loaded(library('http/thread_httpd')),

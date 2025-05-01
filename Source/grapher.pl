@@ -217,8 +217,8 @@ grapher:choices(Kind,[L|Rest]) :-
 %
 % For a given graph style, create a meta reprensentation of a dependency
 
-grapher:handle(depend,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
-  query:search([select(name,equal(Name)),select(category,equal,Cat)],Choicecontext://Choice),
+grapher:handle(depend,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,_Type,Cat,Name,Comp,Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
+  query:search([select(name,equal(Name)),select(category,equal,Cat),select(version,Comp,Ver)],Choicecontext://Choice),
   !, true.
 
 grapher:handle(depend,_Style,_Arrow,_Master,use_conditional_group(_,_Type,_Use,_Deps),[]) :- !.
@@ -234,8 +234,8 @@ grapher:handle(depend,_Style,_Arrow,_Master,at_most_one_of_group(_),[]) :- !.
 grapher:handle(depend,_Style,_Arrow,_Master,_,[]) :- !.
 
 
-grapher:handle(rdepend,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,_Type,Cat,Name,_Comp,_Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
-  query:search([select(name,equal,Name),select(category,equal,Cat)],Choicecontext://Choice),
+grapher:handle(rdepend,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,_Type,Cat,Name,Comp,Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
+  query:search([select(name,equal,Name),select(category,equal,Cat),select(version,Comp,Ver)],Choicecontext://Choice),
   !, true.
 
 grapher:handle(rdepend,_Style,_Arrow,_Master,use_conditional_group(_,_Type,_Use,_Deps),[]) :- !.
@@ -261,7 +261,7 @@ grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,_,Cat,Name,Co
   write(Comp),write('</TD></TR><TR><TD>'),write(Ver),write('</TD></TR></TABLE>>, shape=none, color=blue];'),nl,
   write('}'),nl,
   write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl,
-  findall(R,query:search([select(name,equal,Name),select(category,equal,Cat)],R),Choices),
+  findall(R,query:search([select(name,equal,Name),select(category,equal,Cat),select(version,Comp,Ver)],R),Choices),
   !, true.
 
 grapher:handle(detail,Style,Arrow,Master,use_conditional_group(Type,Use,_,Deps),Choices) :-

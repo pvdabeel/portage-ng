@@ -81,7 +81,7 @@ search(all(Statement),Repository://Entry) :-
   Statement =.. [Key,Values],
   !,
   findall(InnerValue,
-          (InnerStatement =.. [Key,InnerValue],
+          (InnerStatement =.. [Key,equal(InnerValue)],
            search(InnerStatement,
            Repository://Entry)),
           Values).
@@ -93,7 +93,7 @@ search(all(Statement),Repository://Entry) :-
   Statement =.. [Key,Values,Filter],
   !,
   findall([InnerValueA,Filter],
-          (InnerStatement =.. [Key,InnerValueA,Filter],
+          (InnerStatement =.. [Key,equal(InnerValueA),Filter],
            search(InnerStatement,
            Repository://Entry)),
           Values).
@@ -338,21 +338,25 @@ search(Q,R://I) :-
 
 apply_version_filter(greater,ProposedVersion,Version) :-
   !,
-  compare(>,ProposedVersion,Version).
+  system:compare(>,ProposedVersion,Version).
+
+apply_version_filter(greaterequal,ProposedVersion,Version) :-
+  system:compare(>,ProposedVersion,Version),!.
 
 apply_version_filter(greaterequal,ProposedVersion,Version) :-
   !,
-  compare(=,ProposedVersion,Version);
-  compare(>,ProposedVersion,Version).
+  system:compare(=,ProposedVersion,Version).
 
 apply_version_filter(smaller,ProposedVersion,Version) :-
   !,
-  compare(<,ProposedVersion,Version).
+  system:compare(<,ProposedVersion,Version).
+
+apply_version_filter(smallerequal,ProposedVersion,Version) :-
+  system:compare(<,ProposedVersion,Version),!.
 
 apply_version_filter(smallerequal,ProposedVersion,Version) :-
   !,
-  compare(=,ProposedVersion,Version);
-  compare(<,ProposedVersion,Version).
+  symtem:compare(=,ProposedVersion,Version).
 
 apply_version_filter(notequal,VersionA,VersionB) :-
   VersionA == VersionB -> fail;true.
@@ -459,10 +463,18 @@ select(name,wildcard,N,R://I) :-
 % Entry - version
 % ---------------
 
+select(version,none,_,R://I) :-
+  !,
+  cache:ordered_entry(R,I,_,_,_).
+
 select(version,wildcard,[_,_,_,V],R://I) :-
   !,
   cache:ordered_entry(R,I,_,_,[_,_,_,ProposedVersion]),
   wildcard_match(V,ProposedVersion).
+
+select(version,tilde,[Version,_,_,_],R://I) :-
+  !,
+  cache:ordered_entry(R,I,_,_,[Version,_,_,_]).
 
 select(version,Comparator,RequestedVersion,R://I) :-
   !,
