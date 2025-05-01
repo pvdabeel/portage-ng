@@ -24,7 +24,7 @@ The interface interpretes command line arguments passed to portage-ng.
 % Retrieve the current version
 
 interface:version(V) :-
-  V = '2025.03.23'.
+  V = '2025.05.01'.
 
 
 %! interface:status(?Status)
@@ -141,7 +141,7 @@ interface:process_requests(_Mode) :-
       true ) ,
 
   ( memberchk(version(true),Options)  -> (message:inform(['portage-ng ',Status,' version - ',Version]), Continue) ;
-    memberchk(info(true),Options)     -> (message:inform(['portage-ng ',Status,' version - ',Version]), Continue) ;
+    memberchk(info(true),Options)     -> (interface:process_action(info,Args,Options),                  Continue) ;
     memberchk(clear(true),Options)    -> (kb:clear, 							Continue) ;
     memberchk(graph(true),Options)    -> (grapher:test(portage),nl, 				  	Continue) ;
     memberchk(unmerge(true),Options)  -> (message:warning('unmerge action to be implemented'), 		Continue) ;
@@ -157,6 +157,22 @@ interface:process_requests(_Mode) :-
 %! interface:process_action(+Action,+Args,+Options)
 %
 % Processes a specific action.
+
+% ----
+% INFO
+% ----
+
+interface:process_action(info,[],_) :-
+  !,
+  % todo: display general information
+  message:inform('General information placeholder').
+
+interface:process_action(info,Args,_Options) :-
+  forall(member(Arg,Args),(atom_codes(Arg,Codes),
+                           phrase(eapi:qualified_target(Q),Codes),
+			   once(kb:query(Q,R://E)),
+                           printer:print_entry(R://E))).
+
 
 % ------
 % SEARCH
@@ -212,3 +228,4 @@ interface:process_action(merge,ArgsSets,Options) :-
 % give some explaantion on expected input
 % pass emptytree to rpc server
 % pass world and set to rpc server
+

@@ -207,11 +207,19 @@ config:time_limit_build(6000).
 config:printing_style('fancy').
 
 
-%! configu:print_expand_use(?Bool)
+%! config:print_expand_use(?Bool)
 %
 % Defines whether we print information that is normally not printed
 
 config:print_expand_use(false).
+
+
+%! config:printable_metadata(?List)
+%
+% Defines which elements in which order to print out when printing ebuild information
+% Use 'blank' to put blank lines in output
+
+config:printable_metadata([description,homepage,blank,license,eapi,iuse,properties,eclasses,defined_phases]).
 
 
 %! config:graph_modified_only(?Bool)

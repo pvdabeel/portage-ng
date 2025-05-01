@@ -62,6 +62,39 @@ printer:sort_by_weight(C,L1,L2) :-
   compare(C,W1:L1,W2:L2).
 
 
+%! printer:print_entry(Repository://Entry)
+%
+% Prints information an a repository entry
+
+printer:print_entry(Repository://Entry) :-
+  !,
+  message:color(cyan),
+  message:print(Repository://Entry),
+  message:color(normal),nl,
+  printer:print_metadata(Repository://Entry).
+
+
+%! printer:print_metadata(Repository://Entry)
+%
+% Prints information an a repository entry metadata
+
+%printer:print_metadata(Repository://Entry)
+
+printer:print_metadata(Repository://Entry) :-
+  config:printable_metadata(List),
+  forall(member(I,List),printer:print_metadata_item(I,Repository://Entry)).
+
+
+printer:print_metadata_item(blank,_) :- !,true.
+
+printer:print_metadata_item(Item,Repository://Entry) :-
+  message:style(bold),
+  write(Item),write(' : '),
+  message:style(normal),
+  nl,
+  forall((Statement =.. [Item, Value], kb:query(Statement,Repository://Entry)),(write('  '),writeln(Value))).
+
+
 %! printer:print_element(+Printable)
 %
 % Prints a printable Literal
@@ -286,6 +319,7 @@ printer:print_config(Repository://Ebuild:download) :-
 % at least one download
 
 printer:print_config(Repository://Ebuild:download) :-
+  !,
   findall([File,Size],kb:query(manifest(_,File,Size),Repository://Ebuild),[[FirstFile,FirstSize]|Rest]),!,
   printer:print_config_prefix('file'),
   printer:print_config_item('download',FirstFile,FirstSize),
@@ -306,7 +340,7 @@ printer:print_config(Repository://Entry:install) :-
 % use flags to show - to rework: performance
 
 printer:print_config(Repository://Entry:install) :-
-
+ !,
  findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
 
  (Useflags == [] ;
@@ -316,10 +350,10 @@ printer:print_config(Repository://Entry:install) :-
   %config:print_expand_use(false) ; (
   %findall([Key,Keyflags], ( preference:use_expand_hidden(Key),
   %			      Statement =.. [Key,Use,Reason],
-  %                            (findall([Reason,Group],
+  %                           (findall([Reason,Group],
   %                                     group_by(Reason,Use,kb:query(Statement,Repository://Entry), Group),
   %                                     Keyflags ) ),
-  %                             not(Keyflags == [])),
+  %                            not(Keyflags == [])),
   %                          Expandedkeys),
 
   % (forall(member([Key,Keyflags],Expandedkeys),
@@ -336,11 +370,38 @@ printer:print_config(Repository://Entry:install) :-
 printer:print_config(_://_:run) :- !.
 
 
+% --------------
+% CASE: All info
+% --------------
+
+printer:print_config(Repository://Entry:all) :-
+ !,
+
+ findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
+
+ (Useflags == [] ;
+   (message:print('└─ '),
+    message:print(' ─┤ '),
+    printer:print_config_item('use',Useflags))),
+
+  findall([File,Size],kb:query(manifest(_,File,Size),Repository://Entry),[[FirstFile,FirstSize]|Rest]),!,
+
+  printer:print_config_item('download',FirstFile,FirstSize),
+  forall(member([RestFile,RestSize],Rest),
+        (printer:print_config_prefix,
+         printer:print_config_item('download',RestFile,RestSize))).
+
+
+
+
+
 % -------------------
 % CASE: Other actions
 % -------------------
 
 printer:print_config(_://_:_) :- !.
+
+
 
 
 %! printer:print_config_item(+Key,+Value)
@@ -383,12 +444,11 @@ printer:print_config_item(Key,List) :- % PosPref,PosEbui,NegPref,NegEbui,NegDefa
 % Prints a list of Enabled and Disabled Use flags
 
 printer:print_use_flag_sets(List) :-
-  !,
-  (memberchk([negative:default,NegDefa],List);    NegDefa=[]),
-  (memberchk([negative:ebuild,NegEbui],List);     NegEbui=[]),
-  (memberchk([negative:preference,NegPref],List); NegPref=[]),
-  (memberchk([positive:ebuild,PosEbui],List);     PosEbui=[]),
-  (memberchk([positive:preference,PosPref],List); PosPref=[]),
+  (memberchk([negative:default,NegDefa],List);    NegDefa=[]),!,
+  (memberchk([negative:ebuild,NegEbui],List);     NegEbui=[]),!,
+  (memberchk([negative:preference,NegPref],List); NegPref=[]),!,
+  (memberchk([positive:ebuild,PosEbui],List);     PosEbui=[]),!,
+  (memberchk([positive:preference,PosPref],List); PosPref=[]),!,
   printer:print_use_flag_set(positive:preference,PosPref,'',D1),
   printer:print_between(D1,PosEbui),
   printer:print_use_flag_set(positive:ebuild,PosEbui,D1,D2),
@@ -397,16 +457,17 @@ printer:print_use_flag_sets(List) :-
   printer:print_between(D3,NegEbui),
   printer:print_use_flag_set(negative:ebuild,NegEbui,D3,D4),
   printer:print_between(D4,NegDefa),
-  printer:print_use_flag_set(negative:default,NegDefa,D4,_).
+  printer:print_use_flag_set(negative:default,NegDefa,D4,_),!.
 
 
 %! printer:print_between_use_flag_set(D,Future)
 %
-% Prints a delayed char is future is non-empty
+% Prints a delayed char if future is non-empty
 
 printer:print_between(_,[]) :- !.
 
-printer:print_between(D,_) :- !,
+printer:print_between(D,_) :-
+  !,
   write(D).
 
 
@@ -417,6 +478,7 @@ printer:print_between(D,_) :- !,
 printer:print_use_flag_set(_,[],D,D) :- !.
 
 printer:print_use_flag_set(Type,Flags,_,' ') :-
+  !,
   sort(Flags,Orderedflags),
   printer:print_use_flag(Type,Orderedflags).
 
@@ -429,28 +491,30 @@ printer:print_use_flag(_,[]) :-
   !.
 
 printer:print_use_flag(positive:preference,[Flag]) :-
+  !,
   message:color(lightred),
   message:style(bold),
   message:print(Flag),
-  message:color(normal),
-  !.
+  message:color(normal).
 
 printer:print_use_flag(positive:preference,[Flag|Rest]) :-
+  !,
   message:color(lightred),
   message:style(bold),
   message:print(Flag),
   message:print(' '),
-  message:color(normal),!,
+  message:color(normal),
   printer:print_use_flag(positive:preference,Rest).
 
 printer:print_use_flag(positive:ebuild,[Flag]) :-
+  !,
   message:color(red),
   message:style(italic),
   message:print(Flag),
-  message:color(normal),
-  !.
+  message:color(normal).
 
 printer:print_use_flag(positive:ebuild,[Flag|Rest]) :-
+  !,
   message:color(red),
   message:style(italic),
   message:print(Flag),
@@ -458,50 +522,52 @@ printer:print_use_flag(positive:ebuild,[Flag|Rest]) :-
   message:color(normal),!,
   printer:print_use_flag(positive:ebuild,Rest).
 
-
 printer:print_use_flag(negative:preference,[Flag]) :-
+  !,
   message:color(blue),
   message:style(bold),
   message:print('-'),
   message:print(Flag),
-  message:color(normal),
-  !.
+  message:color(normal).
 
 printer:print_use_flag(negative:preference,[Flag|Rest]) :-
+  !,
   message:color(blue),
   message:style(bold),
   message:print('-'),
   message:print(Flag),
   message:print(' '),
-  message:color(normal),!,
+  message:color(normal),
   printer:print_use_flag(negative:preference,Rest).
 
 printer:print_use_flag(negative:ebuild,[Flag]) :-
+  !,
   message:color(lightblue),
   message:style(italic),
   message:print('-'),
   message:print(Flag),
-  message:color(normal),
-  !.
+  message:color(normal).
 
 printer:print_use_flag(negative:ebuild,[Flag|Rest]) :-
+  !,
   message:color(lightblue),
   message:style(italic),
   message:print('-'),
   message:print(Flag),
   message:print(' '),
-  message:color(normal),!,
+  message:color(normal),
   printer:print_use_flag(negative:ebuild,Rest).
 
 printer:print_use_flag(negative:default,[Flag]) :-
+  !,
   message:color(darkgray),
   message:style(italic),
   message:print('-'),
   message:print(Flag),
-  message:color(normal),
-  !.
+  message:color(normal).
 
 printer:print_use_flag(negative:default,[Flag|Rest]) :-
+  !,
   message:color(darkgray),
   message:style(italic),
   message:print('-'),
