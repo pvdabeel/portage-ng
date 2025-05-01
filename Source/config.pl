@@ -219,7 +219,7 @@ config:print_expand_use(false).
 % Defines which elements in which order to print out when printing ebuild information
 % Use 'blank' to put blank lines in output
 
-config:printable_metadata([description,homepage,license,eapi,iuse,keywords,properties,eclasses,defined_phases,installed,blank]).
+config:printable_metadata([description,homepage,license,eapi,iuse,keywords,properties,eclasses,defined_phases,installed,src_uri,blank]).
 
 
 %! config:graph_modified_only(?Bool)
