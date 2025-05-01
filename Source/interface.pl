@@ -44,30 +44,30 @@ interface:spec(S) :-
         help([ '  server:     start as server'
              , '  standalone: start standalone client, not requireing running server'
              , '  client:     start lightweight client, requiring running server'])],
-       [opt(verbose),  type(boolean),   default(false),    shortflags(['v']), longflags(['verbose']),   help('Turn on verbose mode')],
-       [opt(pretend),  type(boolean),   default(false),    shortflags(['p']), longflags(['pretend']),   help('Turn on pretend mode')],
-       [opt(merge),    type(boolean),   default(true),     shortflags(['m']), longflags(['merge']),     help('Merge target package')],
-       [opt(update),   type(boolean),   default(false),    shortflags(['u']), longflags(['update']),    help('Update target package')],
-       [opt(deep),     type(boolean),   default(false),    shortflags(['d']), longflags(['deep']),      help('Also consider dependencies')],
-       [opt(emptytree),type(boolean),   default(false),    shortflags(['e']), longflags(['emptytree']), help('Pretend no other packages are installed')],
-       [opt(buildpkg), type(boolean),   default(false),    shortflags(['b']), longflags(['buildpkg']),  help('Build packages')],
-       [opt(resume),   type(boolean),   default(false),    shortflags(['r']), longflags(['resume']),    help('Resume previous command')],
-       [opt(newuse),   type(boolean),   default(false),    shortflags(['N']), longflags(['newuse']),    help('Take into account new use flags')],
-       [opt(oneshot),  type(boolean),   default(false),    shortflags(['1']), longflags(['oneshot']),   help('Do not add package to world')],
-       [opt(prefix),   type(atom),      default('/'),                         longflags(['prefix']),    help('Set the prefix directory')],
-       [opt(sync),     type(boolean),   default(false),                       longflags(['sync']),      help('Sync repository')],
-       [opt(clear),    type(boolean),   default(false),                       longflags(['clear']),     help('Clear knowledge base')],
-       [opt(graph),    type(boolean),   default(false),                       longflags(['graph']),     help('Create graph')],
-       [opt(depclean), type(boolean),   default(false),    shortflags(['c']), longflags(['depclean']),  help('Clean dependencies')],
-       [opt(info),     type(boolean),   default(false),                       longflags(['info']),      help('Show package version')],
-       [opt(search),   type(boolean),   default(false),    shortflags(['s']), longflags(['search']),    help('Search for a target')],
-       [opt(unmerge),  type(boolean),   default(false),    shortflags(['C']), longflags(['unmerge']),   help('Unmerge target')],
-       [opt(usepkg),   type(boolean),   default(false),    shortflags(['k']), longflags(['usepkg']),    help('Use prebuilt packages')],
-       [opt(quiet),    type(boolean),   default(false),    shortflags(['q']), longflags(['quiet']),     help('Reduced output')],
-       [opt(server),   type(atom),      default(localhost),                   longflags(['server']),    help('Set Server hostname')],
-       [opt(port),     type(integer),   default(4000),                        longflags(['port']),      help('Set Server port')],
-       [opt(shell),    type(boolean),   default(false),                       longflags(['shell']),     help('Go to shell')],
-       [opt(version),  type(boolean),   default(false),    shortflags(['V']), longflags(['version']),   help('Show version')]
+       [opt(verbose),  type(boolean),   default(false),       shortflags(['v']), longflags(['verbose']),   help('Turn on verbose mode')],
+       [opt(pretend),  type(boolean),   default(false),       shortflags(['p']), longflags(['pretend']),   help('Turn on pretend mode')],
+       [opt(merge),    type(boolean),   default(true),        shortflags(['m']), longflags(['merge']),     help('Merge target package')],
+       [opt(update),   type(boolean),   default(false),       shortflags(['u']), longflags(['update']),    help('Update target package')],
+       [opt(deep),     type(boolean),   default(false),       shortflags(['d']), longflags(['deep']),      help('Also consider dependencies')],
+       [opt(emptytree),type(boolean),   default(false),       shortflags(['e']), longflags(['emptytree']), help('Pretend no other packages are installed')],
+       [opt(buildpkg), type(boolean),   default(false),       shortflags(['b']), longflags(['buildpkg']),  help('Build packages')],
+       [opt(resume),   type(boolean),   default(false),       shortflags(['r']), longflags(['resume']),    help('Resume previous command')],
+       [opt(newuse),   type(boolean),   default(false),       shortflags(['N']), longflags(['newuse']),    help('Take into account new use flags')],
+       [opt(oneshot),  type(boolean),   default(false),       shortflags(['1']), longflags(['oneshot']),   help('Do not add package to world')],
+       [opt(prefix),   type(atom),      default('/'),                            longflags(['prefix']),    help('Set the prefix directory')],
+       [opt(sync),     type(boolean),   default(false),                          longflags(['sync']),      help('Sync repository')],
+       [opt(clear),    type(boolean),   default(false),                          longflags(['clear']),     help('Clear knowledge base')],
+       [opt(graph),    type(boolean),   default(false),                          longflags(['graph']),     help('Create graph')],
+       [opt(depclean), type(boolean),   default(false),       shortflags(['c']), longflags(['depclean']),  help('Clean dependencies')],
+       [opt(info),     type(boolean),   default(false),                          longflags(['info']),      help('Show package version')],
+       [opt(search),   type(boolean),   default(false),       shortflags(['s']), longflags(['search']),    help('Search for a target')],
+       [opt(unmerge),  type(boolean),   default(false),       shortflags(['C']), longflags(['unmerge']),   help('Unmerge target')],
+       [opt(usepkg),   type(boolean),   default(false),       shortflags(['k']), longflags(['usepkg']),    help('Use prebuilt packages')],
+       [opt(quiet),    type(boolean),   default(false),       shortflags(['q']), longflags(['quiet']),     help('Reduced output')],
+       [opt(server),   type(atom),      default(localhost),                      longflags(['server']),    help('Set Server hostname')],
+       [opt(port),     type(integer),   default(4000),                           longflags(['port']),      help('Set Server port')],
+       [opt(shell),    type(boolean),   default(false),                          longflags(['shell']),     help('Go to shell')],
+       [opt(version),  type(boolean),   default(false),       shortflags(['V']), longflags(['version']),   help('Show version')]
       ].
 
 
@@ -121,6 +121,16 @@ interface:process_server(Host,Port) :-
   (lists:memberchk(host(Host),  Options) ; config:server_host(Host)),
   (lists:memberchk(port(Port),  Options) ; config:server_port(Port)),
   !.
+
+
+%! interface:process_metadata(List)
+%
+% Retrieve the list of metadata to show from the command line
+
+% interface:process_metadata(List) :-
+%  interface:argv(Options,_),
+%  (lists:memberchk(metadata(List),  Options) ; config:printable_metadata(List)),
+%  !.
 
 
 %! interface:process_requests(+Mode)

@@ -68,8 +68,8 @@ printer:sort_by_weight(C,L1,L2) :-
 
 printer:print_entry(Repository://Entry) :-
   !,
-  message:color(cyan),
-  message:print(Repository://Entry),
+  message:color(green),
+  write(Repository://Entry),
   message:color(normal),nl,
   printer:print_metadata(Repository://Entry).
 
@@ -85,14 +85,22 @@ printer:print_metadata(Repository://Entry) :-
   forall(member(I,List),printer:print_metadata_item(I,Repository://Entry)).
 
 
-printer:print_metadata_item(blank,_) :- !,true.
+printer:print_metadata_item(blank,_) :- nl,!,true.
 
 printer:print_metadata_item(Item,Repository://Entry) :-
   message:style(bold),
   write(Item),write(' : '),
   message:style(normal),
   nl,
-  forall((Statement =.. [Item, Value], kb:query(Statement,Repository://Entry)),(write('  '),writeln(Value))).
+  forall(kb:query(select(Item,equal,Value),Repository://Entry),(write('  '),printer:print_metadata_item_detail(Item,Value),nl)).
+
+
+
+printer:print_metadata_item_detail(eapi,[_,_,_,Value]) :-
+  write(Value).
+
+printer:print_metadata_item_detail(_,Value) :-
+  write(Value).
 
 
 %! printer:print_element(+Printable)
