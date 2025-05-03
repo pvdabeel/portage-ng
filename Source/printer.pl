@@ -95,9 +95,20 @@ printer:print_metadata_item(Item,Repository://Entry) :-
   forall(kb:query(select(Item,equal,Value),Repository://Entry),(write('  '),printer:print_metadata_item_detail(Item,Value),nl)).
 
 
-
 printer:print_metadata_item_detail(eapi,[_,_,_,Value]) :-
   write(Value).
+
+printer:print_metadata_item_detail(src_uri,uri(_,_,Value)) :-
+  !,
+  write(Value).
+
+printer:print_metadata_item_detail(src_uri,use_conditional_group(Type,Use,_Id,Values)) :-
+  !,
+  %nl,
+  write('['),write(Type),write(':'),write(Use),write(']:'),
+  forall(member(V,Values),(nl,write('   '),printer:print_metadata_item_detail(src_uri,V))).
+  % todo: support deep use_conditional_group
+
 
 printer:print_metadata_item_detail(_,Value) :-
   write(Value).
