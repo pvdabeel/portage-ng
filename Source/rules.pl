@@ -113,6 +113,20 @@ rule(Repository://Ebuild:reinstall,[]) :-
   %os:installed_pkg(Repository://Ebuild),!.
 
 
+% UNINSTALL
+%
+% An ebuild can be uninstalled if:
+%
+% - the OS reports it as installed, and we are not proving emptytree
+
+rule(Repository://Ebuild:uninstall,[]) :-
+  not(prover:flag(emptytree)),
+  cache:entry_metadata(Repository,Ebuild,installed,true),!.
+  %os:installed_pkg(Repository://Ebuild),!.
+
+% Note: this may leave the Model and Proof for the other packages incomplete.
+
+
 
 % UPDATE
 %
