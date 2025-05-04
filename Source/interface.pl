@@ -48,11 +48,11 @@ interface:spec(S) :-
        [opt(pretend),  type(boolean),   default(false),       shortflags(['p']), longflags(['pretend']),   help('Turn on pretend mode')],
        [opt(merge),    type(boolean),   default(true),        shortflags(['m']), longflags(['merge']),     help('Merge target package')],
        [opt(update),   type(boolean),   default(false),       shortflags(['u']), longflags(['update']),    help('Update target package')],
-       [opt(reinstall),type(boolean),   default(false),       shortflags(['r']), longflags(['reinstall']), help('Reinstall target package')],
+      %[opt(reinstall),type(boolean),   default(false),       shortflags(['r']), longflags(['reinstall']), help('Reinstall target package')],
        [opt(deep),     type(boolean),   default(false),       shortflags(['d']), longflags(['deep']),      help('Also consider dependencies')],
        [opt(emptytree),type(boolean),   default(false),       shortflags(['e']), longflags(['emptytree']), help('Pretend no other packages are installed')],
        [opt(buildpkg), type(boolean),   default(false),       shortflags(['b']), longflags(['buildpkg']),  help('Build packages')],
-       [opt(resume),   type(boolean),   default(false),                          longflags(['resume']),    help('Resume previous command')],
+       [opt(resume),   type(boolean),   default(false),       shortflags(['r']), longflags(['resume']),    help('Resume previous command')],
        [opt(newuse),   type(boolean),   default(false),       shortflags(['N']), longflags(['newuse']),    help('Take into account new use flags')],
        [opt(oneshot),  type(boolean),   default(false),       shortflags(['1']), longflags(['oneshot']),   help('Do not add package to world')],
        [opt(prefix),   type(atom),      default('/'),                            longflags(['prefix']),    help('Set the prefix directory')],
@@ -159,7 +159,7 @@ interface:process_requests(_Mode) :-
     memberchk(depclean(true),Options) -> (message:warning('depclean action to be implemented'), 	Continue) ;
     memberchk(search(true),Options)   -> (interface:process_action(search,Args,Options),                Continue) ;
     memberchk(sync(true),Options)     -> (kb:sync, kb:save,!, 						Continue) ;
-    memberchk(reinstall(true),Options)-> (interface:process_action(reinstall,Args,Options),             Continue) ;
+   %memberchk(reinstall(true),Options)-> (interface:process_action(reinstall,Args,Options),             Continue) ;
     memberchk(merge(true),Options)    -> (interface:process_action(merge,Args,Options),                 Continue) ;
     memberchk(shell(true),Options)    -> (message:inform(['portage-ng shell - ',Version]),		prolog)),
 
@@ -204,23 +204,24 @@ interface:process_action(search,Args,Options) :-
 % give some explanation on expected input
 
 
-% -----------------
-% MERGE & REINSTALL
-% -----------------
+% -----
+% MERGE
+% -----
 
-interface:process_action(merge,[],_) :- !.
+%interface:process_action(merge,[],_) :- !.
+%interface:process_action(merge,ArgsSets,Options) :-
+%  !,
+%  config:proving_target(T),
+%  interface:process_action_mr(T,ArgsSets,Options).
+
+%interface:process_action(reinstall,[],_) :- !.
+%interface:process_action(reinstall,ArgsSets,Options) :-
+%  !,
+%  interface:process_action_mr(reinstall,ArgsSets,Options).
+
+
 interface:process_action(merge,ArgsSets,Options) :-
-  !,
   config:proving_target(T),
-  interface:process_action_mr(T,ArgsSets,Options).
-
-interface:process_action(reinstall,[],_) :- !.
-interface:process_action(reinstall,ArgsSets,Options) :-
-  !,
-  interface:process_action_mr(reinstall,ArgsSets,Options).
-
-
-interface:process_action_mr(T,ArgsSets,Options) :-
   eapi:substitute_sets(ArgsSets,Args),
   (memberchk(verbose(true),Options)   -> ( message:notice(['Full args:',Args]) ); true),
   findall(R://E:T, (member(Arg,Args),

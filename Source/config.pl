@@ -240,6 +240,15 @@ config:graph_modified_only(true).
 config:proving_target(run).
 
 
+%! config:avoid_reinstall(?Bool)
+%
+% If a package is already installed, when this config item is set to true,
+% we will verify installation, rather than reinstall the package.
+
+config:avoid_reinstall(false).
+
+
+
 %! config:test_style(?Style)
 %
 % Sets the default test style for executing tests. Can be either:

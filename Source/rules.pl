@@ -89,9 +89,10 @@ rule(Repository://Ebuild:install,Conditions) :-
 %
 % - if it is installed and if its runtime dependencies are satisfied
 
-rule(Repository://Ebuild:run,[]) :-
+rule(Repository://Ebuild:run,Conditions) :-
   not(prover:flag(emptytree)),
-  cache:entry_metadata(Repository,Ebuild,installed,true),!.
+  cache:entry_metadata(Repository,Ebuild,installed,true),!,
+  (config:avoid_reinstall(true) -> Conditions = [] ; Conditions = [Repository://Ebuild:reinstall]).
   %os:installed_pkg(Repository://Ebuild),!.
 
 rule(Repository://Ebuild:run,[Repository://Ebuild:install|D]) :-
