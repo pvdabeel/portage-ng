@@ -235,23 +235,28 @@ rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_),[]) :- !.
 % Preference: prefer installed packages over new packages, unless 'deep' flag
 % is used
 
-rule(package_dependency(_R://_E,Action,no,C,N,_O,_V,_S,_U),Conditions) :-
+rule(package_dependency(_R://_E,_Action,no,C,N,_O,_V,_S,_U),Conditions) :-
   not(prover:flag(deep)),
   preference:accept_keywords(K),
-  cache:ordered_entry(Repository,Choice,C,N,_),cache:entry_metadata(Repository,Choice,installed,true),cache:entry_metadata(Repository,Choice,keywords,K),
+  cache:ordered_entry(Repository,Choice,C,N,_),
+  cache:entry_metadata(Repository,Choice,installed,true),
+  cache:entry_metadata(Repository,Choice,keywords,K),!,
   %knowledgebase:query([installed(true),name(N),category(C),keywords(K)],Repository://Choice),
-  Conditions = [Repository://Choice:Action].
+  %Conditions = [Repository://Choice:Action].
+  Conditions = [].
 
 rule(package_dependency(_R://_E,Action,no,C,N,_O,_V,_S,_U),Conditions) :-
   preference:accept_keywords(K),
-  cache:ordered_entry(Repository,Choice,C,N,_),cache:entry_metadata(Repository,Choice,keywords,K),
+  cache:ordered_entry(Repository,Choice,C,N,_),
+  cache:entry_metadata(Repository,Choice,keywords,K),
   %knowledgebase:query([name(N),category(C),keywords(K)],Repository://Choice),
   Conditions = [Repository://Choice:Action].
 
 rule(package_dependency(R://E,Action,no,C,N,O,V,S,U),Conditions) :-
   preference:accept_keywords(K),
-  not((cache:ordered_entry(Repository,Choice,C,N,_),cache:entry_metadata(Repository,Choice,keywords,K))),
- %not(knowledgebase:query([name(N),category(C),keywords(K)],_)),
+  not((cache:ordered_entry(Repository,Choice,C,N,_),
+  cache:entry_metadata(Repository,Choice,keywords,K))),
+  %not(knowledgebase:query([name(N),category(C),keywords(K)],_)),
   Conditions = [assumed(package_dependency(R://E,Action,no,C,N,O,V,S,U))],!.
 
 
