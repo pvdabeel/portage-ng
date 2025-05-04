@@ -132,7 +132,7 @@ printer:print_element(Target,rule(Repository://Entry:Action,_)) :-
   message:print(Action),
   message:style(bold),
   message:color(green),
-  message:column(34,Repository://Entry),
+  message:column(39,Repository://Entry),
   message:color(normal),
   printer:print_config(Repository://Entry:Action).
 
