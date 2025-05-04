@@ -100,12 +100,29 @@ rule(Repository://Ebuild:run,[Repository://Ebuild:install|D]) :-
   %knowledgebase:query([all(rdepend(D))],Repository://Ebuild).
 
 
+% REINSTALL
+%
+% An ebuild can be reinstalled if:
+%
+% - the OS reports it as runnable, and we are not proving emptyttree
+
+rule(Repository://Ebuild:reinstall,[]) :-
+  not(prover:flag(emptytree)),
+  cache:entry_metadata(Repository,Ebuild,installed,true),!.
+  %os:installed_pkg(Repository://Ebuild),!.
+
+
+
 % UPDATE
 %
 % An ebuild can be updated:
 %
 % - The os reports it as installed
 %   and a higher version in the same slot is available
+
+
+
+
 
 %rule(Repository://Ebuild:update,[]) :-
 %  cache:entry_metadata(Repository,Ebuild,installed,true),!,

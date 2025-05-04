@@ -28,12 +28,13 @@ printer:printable_element(rule(_Repository://_Entry:run,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:run,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:download,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:install,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:reinstall,_)) :- !.
 printer:printable_element(assumed(rule(_Repository://_Entry:_Action,_))) :- !.
 printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_,_),_))) :- !.
 printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_,_)),_)) :- !.
 
 % Uncomment if you want 'confirm' steps shown in the plan:
-% printer:printable_element(rule(package_dependency(_,run,_,_,_,_,_,_,_),_)) :- !.
+%printer:printable_element(rule(package_dependency(_,run,_,_,_,_,_,_,_),_)) :- !.
 
 
 %! printer:element_weight(+Literal)
@@ -49,6 +50,7 @@ printer:element_weight(rule(_Repository://_Entry:verify,_),          2) :- !. % 
 printer:element_weight(rule(_Repository://_Entry:run,_),             3) :- !. % run
 printer:element_weight(rule(_Repository://_Entry:download,_),        4) :- !. % download
 printer:element_weight(rule(_Repository://_Entry:install,_),         5) :- !. % install
+printer:element_weight(rule(_Repository://_Entry:reinstall,_),       5) :- !. % install
 printer:element_weight(_,                                            6) :- !. % everything else
 
 
@@ -130,7 +132,7 @@ printer:print_element(Target,rule(Repository://Entry:Action,_)) :-
   message:print(Action),
   message:style(bold),
   message:color(green),
-  message:column(38,Repository://Entry),
+  message:column(34,Repository://Entry),
   message:color(normal),
   printer:print_config(Repository://Entry:Action).
 
@@ -144,7 +146,7 @@ printer:print_element(_,rule(Repository://Entry:Action,_)) :-
   message:color(cyan),
   message:print(Action),
   message:color(green),
-  message:column(33,Repository://Entry),
+  message:column(34,Repository://Entry),
   message:color(normal),
   printer:print_config(Repository://Entry:Action).
 
@@ -158,7 +160,7 @@ printer:print_element(_,rule(package_dependency(_,run,_,_C,_N,_,_,_,_),[Reposito
   message:color(cyan),
   message:print('confirm'),
   message:color(green),
-  message:column(33,Repository://Entry),
+  message:column(34,Repository://Entry),
   message:color(normal).
 
 % ----------------
@@ -170,7 +172,7 @@ printer:print_element(_,rule(uri(Protocol,Remote,_Local),_)) :-
   message:color(cyan),
   message:print('fetch'),
   message:color(green),
-  message:column(33,Protocol://Remote),
+  message:column(34,Protocol://Remote),
   message:color(normal).
 
 printer:print_element(_,rule(uri(Local),_)) :-
@@ -178,7 +180,7 @@ printer:print_element(_,rule(uri(Local),_)) :-
   message:color(cyan),
   message:print('provide'),
   message:color(green),
-  message:column(33,Local),
+  message:column(34,Local),
   message:color(normal).
 
 
@@ -268,7 +270,7 @@ printer:print_element(_,assumed(rule(package_dependency(_,run,_,C,N,_,_,_,_),_Bo
 
 printer:print_config_prefix(Word) :-
   config:printing_style('fancy'),!,
-  nl,write('             │          '),
+  nl,write('             │           '),
   message:color(darkgray),
   message:print('└─ '),
   message:print(Word),
