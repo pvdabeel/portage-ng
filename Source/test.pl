@@ -70,7 +70,7 @@ test:run(cases) :-
          (
           (prover:prove(Case,[],Proof,[],Model,[],_Constraints),
            planner:plan(Proof,[],[],Plan),
-           printer:print(Case,Model,Proof,Plan));
+           printer:print([Case],Model,Proof,Plan));
           (message:color(red),
            message:style(bold),
            message:print('false'),nl,
