@@ -208,7 +208,6 @@ interface:process_action(search,Args,Options) :-
 % MERGE
 % -----
 
-%interface:process_action(merge,[],_) :- !.
 %interface:process_action(merge,ArgsSets,Options) :-
 %  !,
 %  config:proving_target(T),
@@ -219,6 +218,7 @@ interface:process_action(search,Args,Options) :-
 %  !,
 %  interface:process_action_mr(reinstall,ArgsSets,Options).
 
+interface:process_action(merge,[],_) :- !.
 
 interface:process_action(merge,ArgsSets,Options) :-
   config:proving_target(T),
