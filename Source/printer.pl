@@ -29,6 +29,7 @@ printer:printable_element(rule(_Repository://_Entry:run,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:download,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:install,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:reinstall,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:uninstall,_)) :- !.
 printer:printable_element(assumed(rule(_Repository://_Entry:_Action,_))) :- !.
 printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_,_),_))) :- !.
 printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_,_)),_)) :- !.
@@ -51,6 +52,7 @@ printer:element_weight(rule(_Repository://_Entry:run,_),             3) :- !. % 
 printer:element_weight(rule(_Repository://_Entry:download,_),        4) :- !. % download
 printer:element_weight(rule(_Repository://_Entry:install,_),         5) :- !. % install
 printer:element_weight(rule(_Repository://_Entry:reinstall,_),       5) :- !. % install
+printer:element_weight(rule(_Repository://_Entry:uninstall,_),       5) :- !. % install
 printer:element_weight(_,                                            6) :- !. % everything else
 
 

@@ -155,12 +155,12 @@ interface:process_requests(_Mode) :-
     memberchk(info(true),Options)     -> (interface:process_action(info,Args,Options),                  Continue) ;
     memberchk(clear(true),Options)    -> (kb:clear, 							Continue) ;
     memberchk(graph(true),Options)    -> (grapher:test(portage),nl, 				  	Continue) ;
-    memberchk(unmerge(true),Options)  -> (message:warning('unmerge action to be implemented'), 		Continue) ;
+    memberchk(unmerge(true),Options)  -> (interface:process_action(uninstall,Args,Options), 		Continue) ;
     memberchk(depclean(true),Options) -> (message:warning('depclean action to be implemented'), 	Continue) ;
     memberchk(search(true),Options)   -> (interface:process_action(search,Args,Options),                Continue) ;
     memberchk(sync(true),Options)     -> (kb:sync, kb:save,!, 						Continue) ;
    %memberchk(reinstall(true),Options)-> (interface:process_action(reinstall,Args,Options),             Continue) ;
-    memberchk(merge(true),Options)    -> (interface:process_action(merge,Args,Options),                 Continue) ;
+    memberchk(merge(true),Options)    -> (interface:process_action(run,Args,Options),                   Continue) ;
     memberchk(shell(true),Options)    -> (message:inform(['portage-ng shell - ',Version]),		prolog)),
 
   Continue.
@@ -218,16 +218,15 @@ interface:process_action(search,Args,Options) :-
 %  !,
 %  interface:process_action_mr(reinstall,ArgsSets,Options).
 
-interface:process_action(merge,[],_) :- !.
+interface:process_action(_Action,[],_) :- !.
 
-interface:process_action(merge,ArgsSets,Options) :-
-  config:proving_target(T),
+interface:process_action(Action,ArgsSets,Options) :-
   eapi:substitute_sets(ArgsSets,Args),
   (memberchk(verbose(true),Options)   -> ( message:notice(['Full args:',Args]) ); true),
-  findall(R://E:T, (member(Arg,Args),
-                    atom_codes(Arg,Codes),
-                    phrase(eapi:qualified_target(Q),Codes),
-                    once(kb:query(Q,R://E))),
+  findall(R://E:Action, (member(Arg,Args),
+                         atom_codes(Arg,Codes),
+                         phrase(eapi:qualified_target(Q),Codes),
+                         once(kb:query(Q,R://E))),
           Proposal),!,
   (memberchk(verbose(true),Options)   -> ( message:notice(['Proposal: ',Proposal]) ); true),
   (memberchk(emptytree(true),Options) -> ( assert(prover:flag(emptytree)) );  true),
