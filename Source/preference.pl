@@ -259,8 +259,6 @@ preference:use_expand_hidden('cpu_flags_ppc').
 % The prover uses the dynamic 'proven:broken/1' to mark some entries as broken
 % preference:masked(Repository://Entry) :- prover:broken(Repository://Entry).
 
-preference:masked(portage://'dev-perl/Filesys-SmbClient-3.200.0-r4').
-
 
 %! preference:set(?Name,?List)
 %
