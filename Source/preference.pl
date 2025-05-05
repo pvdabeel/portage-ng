@@ -261,22 +261,6 @@ preference:use_expand_hidden('cpu_flags_ppc').
 
 preference:masked(portage://'dev-perl/Filesys-SmbClient-3.200.0-r4').
 
-preference:masked(portage://'net-fs/samba-4.18.10').
-preference:masked(portage://'net-fs/samba-4.18.11').
-
-preference:masked(portage://'net-fs/samba-4.18.10').
-preference:masked(portage://'net-fs/samba-4.18.11').
-preference:masked(portage://'net-fs/samba-4.18.8').
-preference:masked(portage://'net-fs/samba-4.18.9').
-preference:masked(portage://'net-fs/samba-4.19.4').
-preference:masked(portage://'net-fs/samba-4.19.6').
-preference:masked(portage://'net-fs/samba-4.19.7').
-preference:masked(portage://'net-fs/samba-4.20.0').
-preference:masked(portage://'net-fs/samba-4.20.1').
-preference:masked(portage://'net-fs/samba-4.20.2').
-preference:masked(portage://'sci-libs/eccodes-2.18.0').
-preference:masked(portage://'sci-libs/hdf5-1.10.5-r1').
-
 
 %! preference:set(?Name,?List)
 %
