@@ -16,8 +16,6 @@ The preferences module contains build specific preferences
 
 :- dynamic preference:known_broken/1.
 :- dynamic preference:use/1.
-:- dynamic preference:positive_use/1.
-:- dynamic preference:negative_use/1.
 :- dynamic preference:use_expand_hidden/1.
 :- dynamic preference:masked/1.
 
@@ -97,7 +95,9 @@ preference:init :-
   preference:env_use(List),
   retractall(preference:use(_)),
   forall(member(Use,List),assert(preference:use(Use))),
-  forall(preference:profile_use(Use),assert(preference:use(Use))). % todo: check overrides
+  forall(preference:profile_use(minus(Use)), (preference:use(Use);        assert(preference:use(minus(Use))))),
+  forall(preference:profile_use(Use),        (preference:use(minus(Use)); assert(preference:use(Use)))).
+
 
 
 %! preference:profile_use(?Use)
