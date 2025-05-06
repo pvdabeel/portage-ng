@@ -74,9 +74,9 @@ load_common_modules :-
 
 
 load_client_modules :-
+
    ensure_loaded(library('socket')),
    ensure_loaded(library('broadcast')),
-
    ensure_loaded(library('http/http_path')),
    ensure_loaded(library('http/http_open')),
    ensure_loaded(library('http/http_ssl_plugin')),
@@ -187,6 +187,7 @@ main(client) :-
   load_client_modules,
   interface:process_server(Host,Port),
   kb:newinstance(knowledgebase(Host,Port)),
+  preference:init,
   interface:process_requests(client).
 
 
@@ -197,6 +198,7 @@ main(standalone) :-
   config:systemconfig(Config),
   ensure_loaded(Config),
   kb:load,
+  preference:init,
   interface:process_requests(standalone).
 
 

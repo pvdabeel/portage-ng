@@ -15,8 +15,9 @@ The preferences module contains build specific preferences
 :- module(preference, []).
 
 :- dynamic preference:known_broken/1.
+:- dynamic preference:use/1.
 :- dynamic preference:positive_use/1.
-:- dynamic preference:negative_usa/1.
+:- dynamic preference:negative_use/1.
 :- dynamic preference:use_expand_hidden/1.
 :- dynamic preference:masked/1.
 
@@ -60,6 +61,18 @@ preference:env_makeopts('-j36').
 preference:env_features('sign -ccache -buildpkg -sandbox -usersandbox -ebuild-locks parallel-fetch parallel-install').
 
 
+%! preference:env_use(?Use)
+%
+% Fact which defines the USE variable
+
+preference:env_use(List) :-
+  interface:getenv('USE',Atom),!,
+  atom_codes(Atom,Codes),
+  phrase(eapi:iuse(_://_,List),Codes).
+
+preference:env_use([]) :- !.
+
+
 %! preference:accept_keywords(?Keyword)
 %
 % Fact which defines the ACCEPT_KEYWORDS variable
@@ -68,172 +81,190 @@ preference:accept_keywords(stable(amd64)).
 preference:accept_keywords(unstable(amd64)).
 
 
-
-%! preference:use(?Use)
+%! preference:use(Use)
 %
-% Fact which defines the USE flags to be used
+% Fact which defines the USE variable
+%
+% Dynamic, set by preference:init
+
+
+
+%! preference:init
+%
+% Sets the active use flags according to environment and profile
+
+preference:init :-
+  preference:env_use(List),
+  retractall(preference:use(_)),
+  forall(member(Use,List),assert(preference:use(Use))),
+  forall(preference:profile_use(Use),assert(preference:use(Use))). % todo: check overrides
+
+
+%! preference:profile_use(?Use)
+%
+% Fact which defines the profile USE flags to be used
 
 %preference:use(['X','a52','aac','aacplus','aalib','abi_x86_64','account','acl','aio','alsa','alsa_cards_ens1371','amd64','apache2_modules_auth_basic','apache2_modules_authn_core','apache2_modules_authn_file','apache2_modules_authz_core','apache2_modules_authz_host','apache2_modules_dir','apache2_modules_mime','apache2_modules_socache_shmcb','apache2_modules_unixd','apng','avahi','bzip2','cairo','calligra_features_karbon','calligra_features_sheets','calligra_features_words','cli','collectd_plugins_df','collectd_plugins_interface','collectd_plugins_irq','collectd_plugins_load','collectd_plugins_memory','collectd_plugins_rrdtool','collectd_plugins_swap','collectd_plugins_syslog','container','cpu_flags_x86_aes','cpu_flags_x86_avx','cpu_flags_x86_avx2','cpu_flags_x86_avx512bw','cpu_flags_x86_avx512cd','cpu_flags_x86_avx512dq','cpu_flags_x86_avx512f','cpu_flags_x86_avx512vl','cpu_flags_x86_f16c','cpu_flags_x86_fma3','cpu_flags_x86_mmx','cpu_flags_x86_mmxext','cpu_flags_x86_pclmul','cpu_flags_x86_popcnt','cpu_flags_x86_sse','cpu_flags_x86_sse2','cpu_flags_x86_sse3','cpu_flags_x86_sse4_1','cpu_flags_x86_sse4_2','cpu_flags_x86_ssse3','crypt','cvs','cxx','dbus','directfb','dri','dts','elibc_glibc','elogind','fbcondecor','fontconfig','fortran','gdbm','gif','git','glitz','gmp','gpg','gpm','http','iconv','icu','imap','input_devices_evdev','input_devices_keyboard','input_devices_mouse','input_devices_vmmouse','ipv6','jpeg','jpeg2k','json','kernel_linux','libkms','libtirpc','md5sum','mdnsresponder-compat','messages','mmx','mmxext','mp3','ncurses','nova','npm','nptl','object','opengl','openmp','openssl','pam','pcre','pcre16','pkcs11','png','policykit','pop','proxy','python','python_single_target_python3_7','python_targets_python3_7','qemu','readline','ruby_targets_ruby25','seccomp','sidebar','smime','smp','smtp','split-usr','sqlite','sse','sse2','sse3','sse4','sse4_2','ssh','ssl','ssse3','svg','tcpd','threads','tiff','truetype','unicode','userland_GNU','video_cards_vesa','video_cards_vga','video_cards_vmware','x264','x265','x86emu','xa','xattr','xcb','xkb','xlib-xcb','xvid','zeroconf','zlib']).
 
-preference:positive_use('a52').
-preference:positive_use('aac').
-preference:positive_use('aacplus').
-preference:positive_use('aalib').
-preference:positive_use('abi_x86_64').
-preference:positive_use('account').
-preference:positive_use('acl').
-preference:positive_use('aio').
-preference:positive_use('alsa').
-preference:positive_use('alsa_cards_ens1371').
-preference:positive_use('amd64').
-preference:positive_use('apache2_modules_auth_basic').
-preference:positive_use('apache2_modules_authn_core').
-preference:positive_use('apache2_modules_authn_file').
-preference:positive_use('apache2_modules_authz_core').
-preference:positive_use('apache2_modules_authz_host').
-preference:positive_use('apache2_modules_dir').
-preference:positive_use('apache2_modules_mime').
-preference:positive_use('apache2_modules_socache_shmcb').
-preference:positive_use('apache2_modules_unixd').
-preference:positive_use('addc').
-preference:positive_use('apng').
-preference:positive_use('avahi').
-preference:positive_use('bzip2').
-preference:positive_use('cairo').
-preference:positive_use('calligra_features_karbon').
-preference:positive_use('calligra_features_sheets').
-preference:positive_use('calligra_features_words').
-preference:positive_use('cli').
-preference:positive_use('collectd_plugins_df').
-preference:positive_use('collectd_plugins_interface').
-preference:positive_use('collectd_plugins_irq').
-preference:positive_use('collectd_plugins_load').
-preference:positive_use('collectd_plugins_memory').
-preference:positive_use('collectd_plugins_rrdtool').
-preference:positive_use('collectd_plugins_swap').
-preference:positive_use('collectd_plugins_syslog').
-preference:positive_use('container').
-preference:positive_use('cpu_flags_x86_aes').
-preference:positive_use('cpu_flags_x86_avx').
-preference:positive_use('cpu_flags_x86_avx2').
-preference:positive_use('cpu_flags_x86_avx512bw').
-preference:positive_use('cpu_flags_x86_avx512cd').
-preference:positive_use('cpu_flags_x86_avx512dq').
-preference:positive_use('cpu_flags_x86_avx512f').
-preference:positive_use('cpu_flags_x86_avx512vl').
-preference:positive_use('cpu_flags_x86_f16c').
-preference:positive_use('cpu_flags_x86_fma3').
-preference:positive_use('cpu_flags_x86_mmx').
-preference:positive_use('cpu_flags_x86_mmxext').
-preference:positive_use('cpu_flags_x86_pclmul').
-preference:positive_use('cpu_flags_x86_popcnt').
-preference:positive_use('cpu_flags_x86_sse').
-preference:positive_use('cpu_flags_x86_sse2').
-preference:positive_use('cpu_flags_x86_sse3').
-preference:positive_use('cpu_flags_x86_sse4_1').
-preference:positive_use('cpu_flags_x86_sse4_2').
-preference:positive_use('cpu_flags_x86_ssse3').
-preference:positive_use('crypt').
-preference:positive_use('cvs').
-preference:positive_use('cxx').
-preference:positive_use('dbus').
-preference:positive_use('directfb').
-preference:positive_use('dri').
-preference:positive_use('dts').
-preference:positive_use('elibc_glibc').
-preference:positive_use('elogind').
-preference:positive_use('fbcondecor').
-preference:positive_use('fontconfig').
-preference:positive_use('fortran').
-preference:positive_use('gdbm').
-preference:positive_use('gif').
-preference:positive_use('git').
-preference:positive_use('glitz').
-preference:positive_use('gmp').
-preference:positive_use('gpg').
-preference:positive_use('gpm').
-preference:positive_use('http').
-preference:positive_use('iconv').
-preference:positive_use('icu').
-preference:positive_use('imap').
-preference:positive_use('input_devices_evdev').
-preference:positive_use('input_devices_keyboard').
-preference:positive_use('input_devices_mouse').
-preference:positive_use('input_devices_vmmouse').
-preference:positive_use('ipv6').
-preference:positive_use('jpeg').
-preference:positive_use('jpeg2k').
-preference:positive_use('json').
-preference:positive_use('kernel_linux').
-preference:positive_use('libkms').
-preference:positive_use('libtirpc').
-preference:positive_use('md5sum').
-preference:positive_use('mdnsresponder-compat').
-preference:positive_use('messages').
-preference:positive_use('mmx').
-preference:positive_use('mmxext').
-preference:positive_use('mp3').
-preference:positive_use('ncurses').
-preference:positive_use('nova').
-preference:positive_use('npm').
-preference:positive_use('nptl').
-preference:positive_use('object').
-preference:positive_use('opengl').
-preference:positive_use('openmp').
-preference:positive_use('openssl').
-preference:positive_use('pam').
-preference:positive_use('pcre').
-preference:positive_use('pcre16').
-preference:positive_use('pkcs11').
-preference:positive_use('png').
-preference:positive_use('policykit').
-preference:positive_use('pop').
-preference:positive_use('proxy').
-preference:positive_use('python').
-preference:positive_use('python_single_target_python3_7').
-preference:positive_use('python_targets_python3_7').
-preference:positive_use('qemu').
-preference:positive_use('readline').
-preference:positive_use('ruby_targets_ruby25').
-preference:positive_use('seccomp').
-preference:positive_use('sidebar').
-preference:positive_use('smime').
-preference:positive_use('smp').
-preference:positive_use('smtp').
-preference:positive_use('split-usr').
-preference:positive_use('sqlite').
-preference:positive_use('sse').
-preference:positive_use('sse2').
-preference:positive_use('sse3').
-preference:positive_use('sse4').
-preference:positive_use('sse4_2').
-preference:positive_use('ssh').
-preference:positive_use('ssl').
-preference:positive_use('ssse3').
-preference:positive_use('svg').
-preference:positive_use('tcpd').
-preference:positive_use('threads').
-preference:positive_use('tiff').
-preference:positive_use('truetype').
-preference:positive_use('unicode').
-preference:positive_use('userland_GNU').
-preference:positive_use('video_cards_vesa').
-preference:positive_use('video_cards_vga').
-preference:positive_use('video_cards_vmware').
-preference:positive_use('x264').
-preference:positive_use('x265').
-preference:positive_use('x86emu').
-preference:positive_use('xa').
-preference:positive_use('xattr').
-preference:positive_use('xcb').
-preference:positive_use('xkb').
-preference:positive_use('xlib-xcb').
-preference:positive_use('xvid').
-preference:positive_use('zeroconf').
-preference:positive_use('zlib').
+preference:profile_use('a52').
+preference:profile_use('aac').
+preference:profile_use('aacplus').
+preference:profile_use('aalib').
+preference:profile_use('abi_x86_64').
+preference:profile_use('account').
+preference:profile_use('acl').
+preference:profile_use('aio').
+preference:profile_use('alsa').
+preference:profile_use('alsa_cards_ens1371').
+preference:profile_use('amd64').
+preference:profile_use('apache2_modules_auth_basic').
+preference:profile_use('apache2_modules_authn_core').
+preference:profile_use('apache2_modules_authn_file').
+preference:profile_use('apache2_modules_authz_core').
+preference:profile_use('apache2_modules_authz_host').
+preference:profile_use('apache2_modules_dir').
+preference:profile_use('apache2_modules_mime').
+preference:profile_use('apache2_modules_socache_shmcb').
+preference:profile_use('apache2_modules_unixd').
+preference:profile_use('addc').
+preference:profile_use('apng').
+preference:profile_use('avahi').
+preference:profile_use('bzip2').
+preference:profile_use('cairo').
+preference:profile_use('calligra_features_karbon').
+preference:profile_use('calligra_features_sheets').
+preference:profile_use('calligra_features_words').
+preference:profile_use('cli').
+preference:profile_use('collectd_plugins_df').
+preference:profile_use('collectd_plugins_interface').
+preference:profile_use('collectd_plugins_irq').
+preference:profile_use('collectd_plugins_load').
+preference:profile_use('collectd_plugins_memory').
+preference:profile_use('collectd_plugins_rrdtool').
+preference:profile_use('collectd_plugins_swap').
+preference:profile_use('collectd_plugins_syslog').
+preference:profile_use('container').
+preference:profile_use('cpu_flags_x86_aes').
+preference:profile_use('cpu_flags_x86_avx').
+preference:profile_use('cpu_flags_x86_avx2').
+preference:profile_use('cpu_flags_x86_avx512bw').
+preference:profile_use('cpu_flags_x86_avx512cd').
+preference:profile_use('cpu_flags_x86_avx512dq').
+preference:profile_use('cpu_flags_x86_avx512f').
+preference:profile_use('cpu_flags_x86_avx512vl').
+preference:profile_use('cpu_flags_x86_f16c').
+preference:profile_use('cpu_flags_x86_fma3').
+preference:profile_use('cpu_flags_x86_mmx').
+preference:profile_use('cpu_flags_x86_mmxext').
+preference:profile_use('cpu_flags_x86_pclmul').
+preference:profile_use('cpu_flags_x86_popcnt').
+preference:profile_use('cpu_flags_x86_sse').
+preference:profile_use('cpu_flags_x86_sse2').
+preference:profile_use('cpu_flags_x86_sse3').
+preference:profile_use('cpu_flags_x86_sse4_1').
+preference:profile_use('cpu_flags_x86_sse4_2').
+preference:profile_use('cpu_flags_x86_ssse3').
+preference:profile_use('crypt').
+preference:profile_use('cvs').
+preference:profile_use('cxx').
+preference:profile_use('dbus').
+preference:profile_use('directfb').
+preference:profile_use('dri').
+preference:profile_use('dts').
+preference:profile_use('elibc_glibc').
+preference:profile_use('elogind').
+preference:profile_use('fbcondecor').
+preference:profile_use('fontconfig').
+preference:profile_use('fortran').
+preference:profile_use('gdbm').
+preference:profile_use('gif').
+preference:profile_use('git').
+preference:profile_use('glitz').
+preference:profile_use('gmp').
+preference:profile_use('gpg').
+preference:profile_use('gpm').
+preference:profile_use('http').
+preference:profile_use('iconv').
+preference:profile_use('icu').
+preference:profile_use('imap').
+preference:profile_use('input_devices_evdev').
+preference:profile_use('input_devices_keyboard').
+preference:profile_use('input_devices_mouse').
+preference:profile_use('input_devices_vmmouse').
+preference:profile_use('ipv6').
+preference:profile_use('jpeg').
+preference:profile_use('jpeg2k').
+preference:profile_use('json').
+preference:profile_use('kernel_linux').
+preference:profile_use('libkms').
+preference:profile_use('libtirpc').
+preference:profile_use('md5sum').
+preference:profile_use('mdnsresponder-compat').
+preference:profile_use('messages').
+preference:profile_use('mmx').
+preference:profile_use('mmxext').
+preference:profile_use('mp3').
+preference:profile_use('ncurses').
+preference:profile_use('nova').
+preference:profile_use('npm').
+preference:profile_use('nptl').
+preference:profile_use('object').
+preference:profile_use('opengl').
+preference:profile_use('openmp').
+preference:profile_use('openssl').
+preference:profile_use('pam').
+preference:profile_use('pcre').
+preference:profile_use('pcre16').
+preference:profile_use('pkcs11').
+preference:profile_use('png').
+preference:profile_use('policykit').
+preference:profile_use('pop').
+preference:profile_use('proxy').
+preference:profile_use('python').
+preference:profile_use('python_single_target_python3_7').
+preference:profile_use('python_targets_python3_7').
+preference:profile_use('qemu').
+preference:profile_use('readline').
+preference:profile_use('ruby_targets_ruby25').
+preference:profile_use('seccomp').
+preference:profile_use('sidebar').
+preference:profile_use('smime').
+preference:profile_use('smp').
+preference:profile_use('smtp').
+preference:profile_use('split-usr').
+preference:profile_use('sqlite').
+preference:profile_use('sse').
+preference:profile_use('sse2').
+preference:profile_use('sse3').
+preference:profile_use('sse4').
+preference:profile_use('sse4_2').
+preference:profile_use('ssh').
+preference:profile_use('ssl').
+preference:profile_use('ssse3').
+preference:profile_use('svg').
+preference:profile_use('tcpd').
+preference:profile_use('threads').
+preference:profile_use('tiff').
+preference:profile_use('truetype').
+preference:profile_use('unicode').
+preference:profile_use('userland_GNU').
+preference:profile_use('video_cards_vesa').
+preference:profile_use('video_cards_vga').
+preference:profile_use('video_cards_vmware').
+preference:profile_use('x264').
+preference:profile_use('x265').
+preference:profile_use('x86emu').
+preference:profile_use('xa').
+preference:profile_use('xattr').
+preference:profile_use('xcb').
+preference:profile_use('xkb').
+preference:profile_use('xlib-xcb').
+preference:profile_use('xvid').
+preference:profile_use('zeroconf').
+preference:profile_use('zlib').
 
-preference:negative_use('test').
-preference:negative_use('static-libs').
+preference:profile_use('minus(test)').
+preference:profile_use('minus(static-libs)').
 
 
 %! preference:use_expand_hidden(?Use)
