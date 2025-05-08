@@ -91,4 +91,7 @@ sandbox:safe_primitive(message:print_bytes(_)).
 sandbox:safe_primitive(message:prefix(_)).
 sandbox:safe_primitive(message:wrap(_)).
 
+sandbox:safe_primitive(preference:use(_)).
+sandbox:safe_primitive(preference:accept_keywords(_)).
+
 sandbox:safe_meta(streams:with_output_to(_,_,_),_).

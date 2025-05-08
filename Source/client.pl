@@ -46,14 +46,16 @@ rpc_execute(Hostname,Port,Cmd) :-
   config:certificate_password(client,Pass),
   config:digest_password(User,Digestpwd),
   config:chunk(ChunkSize),
-  pengine_rpc(URL,sandbox:Cmd,
+  findall(remote_use(X),preference:use(X),Preferences),
+  pengine_rpc(URL,Cmd,
               [ host(Hostname),
                 authorization(digest(User,Digestpwd)),
                 cacerts([file(CaCert)]),
                 certificate_file(ClientCert),
                 key_file(ClientKey),
                 password(Pass),
-                chunk(ChunkSize)
+                chunk(ChunkSize),
+                src_list(Preferences)
               ]).
 
 
