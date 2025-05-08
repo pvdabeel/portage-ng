@@ -39,11 +39,6 @@ swipl
 % PORTAGE-NG
 % **********
 
-
-:- dynamic(q:knows/1).
-
-%:- pengine_application('portage-ng').
-
 load_common_modules :-
 
    ensure_loaded(library('apply_macros')),

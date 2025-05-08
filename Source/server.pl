@@ -33,6 +33,8 @@ as a Makefile).
 % SERVER declarations
 % *******************
 
+:- pengine_application('portage-ng').
+
 :- http_handler('/',reply,[id('portage-ng'),methods([get])]).
 :- http_handler('/info',reply,[id('info'),methods([get])]).
 :- http_handler('/sync',reply,[id('sync'),methods([get])]).

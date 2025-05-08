@@ -14,14 +14,19 @@ The oracle is essentially a mechanism to store answers to complex questions.
 
 :- module(oracle, [with_q/1]).
 
+:- dynamic(q:knows/1).
+
 % *******************
 % ORACLE declarations
 % *******************
 
 with_q(Predicate) :-
-  q:knows(Predicate);
-  Predicate,
-  assert(q:knows(Predicate)),!.
+  Predicate.
+
+%with_q(Predicate) :-
+%  q:knows(Predicate);
+%  Predicate,
+%  assert(q:knows(Predicate)),!.
 
 vanish_q :-
   retractall(q:knows(_)),!.
