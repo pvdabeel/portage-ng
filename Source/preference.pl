@@ -16,6 +16,7 @@ The preferences module contains build specific preferences
 
 :- dynamic preference:known_broken/1.
 :- dynamic preference:use/1.
+:- dynamic preference:accept_keywords/1.
 :- dynamic preference:use_expand_hidden/1.
 :- dynamic preference:masked/1.
 
@@ -71,12 +72,24 @@ preference:env_use(List) :-
 preference:env_use([]) :- !.
 
 
-%! preference:accept_keywords(?Keyword)
+%! preference:env_accept_keywords(?Use)
 %
 % Fact which defines the ACCEPT_KEYWORDS variable
 
-preference:accept_keywords(stable(amd64)).
-preference:accept_keywords(unstable(amd64)).
+preference:env_accept_keywords(List) :-
+  interface:getenv('ACCEPT_KEYWORDS',Atom),!,
+  atom_codes(Atom,Codes),
+  phrase(eapi:keywords(List),Codes).
+
+preference:env_accept_keywords([]) :- !.
+
+
+%! preference:default_accept_keywords(?Keyword)
+%
+% Fact which defines the default ACCEPT_KEYWORDS variable
+
+preference:default_accept_keywords(stable(amd64)).
+preference:default_accept_keywords(unstable(amd64)).
 
 
 %! preference:use(Use)
@@ -86,18 +99,34 @@ preference:accept_keywords(unstable(amd64)).
 % Dynamic, set by preference:init
 
 
+%! preference:accept_keywords(Keyword)
+%
+% Fact which defines the ACCEPT_KEYWORDS variable
+%
+% Dynamic, set by preference:init
+
+
+
 
 %! preference:init
 %
 % Sets the active use flags according to environment and profile
 
 preference:init :-
-  preference:env_use(List),
-  retractall(preference:use(_)),
-  forall(member(Use,List),assert(preference:use(Use))),
-  forall(preference:profile_use(minus(Use)), (preference:use(Use);        assert(preference:use(minus(Use))))),
-  forall(preference:profile_use(Use),        (preference:use(minus(Use)); assert(preference:use(Use)))).
 
+  % 1. Set use flags
+
+  preference:env_use(List_USE),
+  forall(member(Use,List_USE),assert(preference:use(Use))),
+  forall(preference:profile_use(minus(Use)), (preference:use(Use);        assert(preference:use(minus(Use))))),
+  forall(preference:profile_use(Use),        (preference:use(minus(Use)); assert(preference:use(Use)))),
+
+  % 2. Set accept_keywords
+
+   preference:env_accept_keywords(List_KEY),
+   (List_KEY == []
+    -> forall(preference:default_accept_keywords(Key), assert(preference:accept_keywords(Key)))
+    ;  forall(member(Key,List_KEY),assert(preference:accept_keywords(Key)))).
 
 
 %! preference:profile_use(?Use)
