@@ -60,7 +60,7 @@ interface:spec(S) :-
        [opt(clear),    type(boolean),   default(false),                          longflags(['clear']),     help('Clear knowledge base')],
        [opt(graph),    type(boolean),   default(false),                          longflags(['graph']),     help('Create graph')],
        [opt(depclean), type(boolean),   default(false),       shortflags(['c']), longflags(['depclean']),  help('Clean dependencies')],
-       [opt(info),     type(boolean),   default(false),                          longflags(['info']),      help('Show package version')],
+       [opt(info),     type(boolean),   default(false),       shortflags(['i']), longflags(['info']),      help('Show package version')],
        [opt(search),   type(boolean),   default(false),       shortflags(['s']), longflags(['search']),    help('Search for a target')],
        [opt(unmerge),  type(boolean),   default(false),       shortflags(['C']), longflags(['unmerge']),   help('Unmerge target')],
        [opt(usepkg),   type(boolean),   default(false),       shortflags(['k']), longflags(['usepkg']),    help('Use prebuilt packages')],
