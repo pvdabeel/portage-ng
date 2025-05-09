@@ -241,7 +241,7 @@ search(manifest(Type,Binary,Size),R://I) :-
    !,
    cache:ordered_entry(R,I,Category,Name,_),
    search(all(src_uri(Model)),R://I),
-   member(equal(uri(_,_,Binary)),Model),
+   member(uri(_,_,Binary),Model),
    cache:manifest(R,P,_,Category,Name),
    cache:manifest_metadata(R,P,Type,Binary,Size,_Checksums).
 

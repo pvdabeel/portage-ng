@@ -304,7 +304,7 @@ printer:print_config_prefix :-
   config:printing_style('fancy'),!,
   nl,write('             │          '),
   message:color(darkgray),
-  message:print('         │ '),
+  message:print('          │ '),
   message:color(normal).
 
 printer:print_config_prefix :-
