@@ -433,12 +433,12 @@ printer:print_config(_://_:_) :- !.
 
 printer:print_config_item('download',File,'live') :-
   !,
-  message:color(darkgray),
+  message:color(magenta),
   message:print_bytes('live'),
-  message:color(darkgray),
+  message:color(normal),
   message:print(' '),
-  message:print(File),
-  message:color(normal).
+  message:print(File).
+  %message:color(normal).
 
 printer:print_config_item('download',File,Size) :-
   !,
