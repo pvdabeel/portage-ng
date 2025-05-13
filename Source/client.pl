@@ -46,9 +46,11 @@ rpc_execute(Hostname,Port,Cmd) :-
   config:certificate_password(client,Pass),
   config:digest_password(User,Digestpwd),
   config:chunk(ChunkSize),
+  config:printing_style(Style),
   findall(remote_use(X),preference:use(X),PreferencesA),				% todo: dynamically collect relevant predicates
   findall(remote_accept_keywords(X),preference:accept_keywords(X),PreferencesB),
-  append(PreferencesA,PreferencesB,Preferences),
+  append(PreferencesA,PreferencesB,PreferencesC),
+  Preferences = [remote_printing_style(Style)|PreferencesC],
   pengine_rpc(URL,Cmd,
               [ host(Hostname),
                 authorization(digest(User,Digestpwd)),

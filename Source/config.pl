@@ -202,9 +202,40 @@ config:time_limit_build(6000).
 
 %! confg:printing_style(?Setting)
 %
-% Defines the printing style ('short', 'column' or 'fancy')
+% Retrieves the printing style ('short', 'column' or 'fancy')
+%
+% 1. Running as a server, use client style
 
-config:printing_style('fancy').
+config:printing_style(Style) :-
+  pengine_self(M),
+  !,
+  M:remote_printing_style(Style).
+
+
+% 2. Not running as a server, use interface style when specified
+
+config:printing_style(Style) :-
+  %\+pengine_self(M),
+  config:interface_printing_style(Style),
+  !.
+
+
+% 3. Not running as a server, use default printing style.
+
+config:printing_style(Style) :-
+  %\+pengine_style(M),
+  !,
+  config:default_printing_style(Style).
+
+
+% Interface can dynamically set the printing style
+
+:- dynamic config:interface_printing_style/1.
+
+% The default printing style
+
+config:default_printing_style('fancy').
+
 
 
 %! config:print_expand_use(?Bool)

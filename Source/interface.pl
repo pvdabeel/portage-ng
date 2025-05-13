@@ -56,6 +56,7 @@ interface:spec(S) :-
        [opt(newuse),   type(boolean),   default(false),       shortflags(['N']), longflags(['newuse']),    help('Take into account new use flags')],
        [opt(oneshot),  type(boolean),   default(false),       shortflags(['1']), longflags(['oneshot']),   help('Do not add package to world')],
        [opt(prefix),   type(atom),      default('/'),                            longflags(['prefix']),    help('Set the prefix directory')],
+       [opt(style),    type(atom),      default('fancy'),                        longflags(['style']),     help('Set the printing style: fancy, column or short')],
        [opt(sync),     type(boolean),   default(false),                          longflags(['sync']),      help('Sync repository')],
        [opt(clear),    type(boolean),   default(false),                          longflags(['clear']),     help('Clear knowledge base')],
        [opt(graph),    type(boolean),   default(false),                          longflags(['graph']),     help('Create graph')],
@@ -230,7 +231,7 @@ interface:process_action(Action,ArgsSets,Options) :-
           Proposal),!,
   (memberchk(verbose(true),Options)   -> ( message:notice(['Proposal: ',Proposal]) ); true),
   (memberchk(emptytree(true),Options) -> ( assert(prover:flag(emptytree)) );  true),
-
+  (memberchk(style(Style),Options)    -> ( assert(config:interface_printing_style(Style)) ) ; true),
   memberchk(mode(Mode),Options),
   interface:process_server(Host,Port),
   (Mode == 'client' ->
