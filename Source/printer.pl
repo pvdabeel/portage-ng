@@ -27,6 +27,7 @@ printer:printable_element(rule(uri(_),_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:run,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:run,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:download,_)) :- !.
+%printer:printable_element(rule(_Repository://_Entry:fetchonly,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:install,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:reinstall,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:uninstall,_)) :- !.
@@ -50,6 +51,7 @@ printer:element_weight(rule(package_dependency(_,_,_,_,_,_,_,_,_),_),1) :- !. % 
 printer:element_weight(rule(_Repository://_Entry:verify,_),          2) :- !. % verify
 printer:element_weight(rule(_Repository://_Entry:run,_),             3) :- !. % run
 printer:element_weight(rule(_Repository://_Entry:download,_),        4) :- !. % download
+printer:element_weight(rule(_Repository://_Entry:fetchonly,_),       5) :- !. % fetchonly
 printer:element_weight(rule(_Repository://_Entry:install,_),         5) :- !. % install
 printer:element_weight(rule(_Repository://_Entry:reinstall,_),       5) :- !. % install
 printer:element_weight(rule(_Repository://_Entry:uninstall,_),       5) :- !. % install
@@ -320,6 +322,16 @@ printer:print_config_prefix :-
 %! printer:print_config(+Repository://+Entry:+Action)
 %
 % Prints the configuration for a given repository entry (USE flags, USE expand, ...)
+
+% ----------------------
+% CASE: fetchonly action
+% ----------------------
+
+printer:print_config(_Repository://_Ebuild:fetchonly).% :-
+  %printer:print_config_prefix('done'),
+  %printer:print_config_item('fetchonly','fetching all','downloads').
+
+
 
 % ---------------------
 % CASE: download action

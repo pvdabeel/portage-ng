@@ -39,6 +39,33 @@ rule(Repository://Ebuild:_Action,[]) :-
 rule(_Repository://_Ebuild:download,[]) :- !.
 
 
+% FETCHONLY
+%
+% Same as download, but also download all dependencies
+
+rule(Repository://Ebuild:fetchonly,[]) :-
+  not(prover:flag(emptytree)),
+  cache:entry_metadata(Repository,Ebuild,installed,true),!.
+  %os:installed_pkg(Repository://Ebuild),!.
+
+rule(Repository://Ebuild:fetchonly,Conditions) :-
+  cache:ordered_entry(Repository,Ebuild,C,N,_),
+  cache:entry_metadata(Repository,Ebuild,slot,slot(S)),
+  findall(Depend:fetchonly,cache:entry_metadata(Repository,Ebuild,depend,Depend),CD),
+  findall(Depend:fetchonly,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),RD),
+  append(CD,RD,D),
+  % knowledgebase:query([category(C),name(N),slot(slot(S)),model(required_use(M)),all(depend(D))],Repository://Ebuild),
+  ( memberchk(C,['virtual','acct-group','acct-user']) ->
+    Conditions = [constraint(use(Repository://Ebuild):{[]}), %M removed
+                  constraint(slot(C,N,S):{[Ebuild]})
+                  |D];
+    Conditions = [constraint(use(Repository://Ebuild):{[]}), %M removed
+                  Repository://Ebuild:download,
+                  constraint(slot(C,N,S):{[Ebuild]})
+                  |D] ).
+
+
+
 % INSTALL
 %
 % An ebuild is installed, either:
@@ -60,7 +87,7 @@ rule(Repository://Ebuild:install,[]) :-
 rule(Repository://Ebuild:install,Conditions) :-
   cache:ordered_entry(Repository,Ebuild,C,N,_),
   cache:entry_metadata(Repository,Ebuild,slot,slot(S)),
-  findall(Depend,cache:entry_metadata(Repository,Ebuild,depend,Depend),D),
+  findall(Depend:install,cache:entry_metadata(Repository,Ebuild,depend,Depend),D),
   % knowledgebase:query([category(C),name(N),slot(slot(S)),model(required_use(M)),all(depend(D))],Repository://Ebuild),
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
     Conditions = [constraint(use(Repository://Ebuild):{[]}), %M removed
@@ -97,7 +124,7 @@ rule(Repository://Ebuild:run,Conditions) :-
 
 rule(Repository://Ebuild:run,[Repository://Ebuild:install|D]) :-
   !,
-  findall(Depend,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),D).
+  findall(Depend:run,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),D).
   %knowledgebase:query([all(rdepend(D))],Repository://Ebuild).
 
 
@@ -193,14 +220,14 @@ rule(Repository://Ebuild:uninstall,[]) :-
 %
 % EAPI 8.2.6.2: a weak block can be ignored by the package manager
 
-rule(package_dependency(_,_,weak,_,_,_,_,_,_),[]) :- !.
+rule(package_dependency(_,_,weak,_,_,_,_,_,_):_,[]) :- !.
 
 
 % Conflicting package:
 %
 % EAPI 8.2.6.2: a strong block is satisfied when no suitable candidate is satisfied
 
-rule(package_dependency(_,_,strong,_,_,_,_,_,_),[]) :- !.
+rule(package_dependency(_,_,strong,_,_,_,_,_,_):_,[]) :- !.
 
 % rule(package_dependency(Action,strong,C,N,_,_,_,_),Nafs) :-
 %   findall(naf(Repository://Choice:Action),cache:entry(Repository,Choice,_,C,N,_,_),Nafs),!.
@@ -211,51 +238,51 @@ rule(package_dependency(_,_,strong,_,_,_,_,_,_),[]) :- !.
 % These type of dependencies are assumed satisfied. If they are not defined,
 % portage-ng will detect a circular dependency (e.g. your compiler needs a compiler)
 
-rule(package_dependency(_,_,no,'app-arch','bzip2',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'app-arch','gzip',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'app-arch','tar',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'app-arch','xz-utils',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'app-shells','bash',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'dev-lang','perl',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'dev-lang','python',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'dev-libs','libpcre',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'net-misc','iputils',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'net-misc','rsync',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'net-misc','wget',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','baselayout',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','coreutils',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','diffutils',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','file',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','findutils',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','gawk',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','grep',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','kbd',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','less',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','sed',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','util-linux',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-devel','automake',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-devel','binutils',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-devel','gcc',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-devel','gnuconfig',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-devel','make',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-devel','patch',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-fs','e2fsprogs',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-libs','libcap',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-libs','ncurses',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-libs','readline',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-process','procps',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'sys-process','psmisc',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'virtual','dev-manager',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'virtual','editor',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'virtual','libc',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'virtual','man',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'virtual','modutils',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'virtual','os-headers',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'virtual','package-manager',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'virtual','pager',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'virtual','service-manager',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'virtual','shadow',_,_,_,_),[]) :- !.
-rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_),[]) :- !.
+rule(package_dependency(_,_,no,'app-arch','bzip2',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'app-arch','gzip',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'app-arch','tar',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'app-arch','xz-utils',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'app-shells','bash',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'dev-lang','perl',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'dev-lang','python',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'dev-libs','libpcre',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'net-misc','iputils',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'net-misc','rsync',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'net-misc','wget',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','baselayout',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','coreutils',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','diffutils',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','file',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','findutils',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','gawk',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','grep',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','kbd',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','less',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','sed',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','util-linux',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-devel','automake',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-devel','binutils',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-devel','gcc',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-devel','gnuconfig',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-devel','make',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-devel','patch',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-fs','e2fsprogs',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-libs','libcap',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-libs','ncurses',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-libs','readline',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-process','procps',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'sys-process','psmisc',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'virtual','dev-manager',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'virtual','editor',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'virtual','libc',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'virtual','man',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'virtual','modutils',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'virtual','os-headers',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'virtual','package-manager',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'virtual','pager',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'virtual','service-manager',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'virtual','shadow',_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_):_,[]) :- !.
 
 
 % A package dependency is satisfied when a suitable candidate is satisfied,
@@ -267,7 +294,7 @@ rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_),[]) :- !.
 % Preference: prefer installed packages over new packages, unless 'deep' flag
 % is used
 
-rule(package_dependency(_R://_E,_Action,no,C,N,_O,_V,_S,_U),Conditions) :-
+rule(package_dependency(_R://_E,_T,no,C,N,_O,_V,_S,_U):_Action,Conditions) :-
   not(prover:flag(deep)),
   preference:accept_keywords(K),
   cache:ordered_entry(Repository,Choice,C,N,_),
@@ -277,14 +304,14 @@ rule(package_dependency(_R://_E,_Action,no,C,N,_O,_V,_S,_U),Conditions) :-
   %Conditions = [Repository://Choice:Action].
   Conditions = [].
 
-rule(package_dependency(_R://_E,Action,no,C,N,_O,_V,_S,_U),Conditions) :-
+rule(package_dependency(_R://_E,_T,no,C,N,_O,_V,_S,_U):Action,Conditions) :-
   preference:accept_keywords(K),
   cache:ordered_entry(Repository,Choice,C,N,_),
   cache:entry_metadata(Repository,Choice,keywords,K),
   %knowledgebase:query([name(N),category(C),keywords(K)],Repository://Choice),
   Conditions = [Repository://Choice:Action].
 
-rule(package_dependency(R://E,Action,no,C,N,O,V,S,U),Conditions) :-
+rule(package_dependency(R://E,_T,no,C,N,O,V,S,U):Action,Conditions) :-
   preference:accept_keywords(K),
   not((cache:ordered_entry(Repository,Choice,C,N,_),
   cache:entry_metadata(Repository,Choice,keywords,K))),
@@ -296,46 +323,52 @@ rule(package_dependency(R://E,Action,no,C,N,O,V,S,U),Conditions) :-
 % the use flag is positive through required use constraint, preference or ebuild
 % default
 
-rule(use_conditional_group(positive,Use,R://E,D),[constraint(use(R://E)):Use|D]).
+rule(use_conditional_group(positive,Use,R://E,Deps):Action,[constraint(use(R://E)):Use|Result]) :-
+  findall(D:Action,member(D,Deps),Result).
 
-rule(use_conditional_group(positive,Use,R://E,_),[]) :-
+rule(use_conditional_group(positive,Use,R://E,_):_,[]) :-
   not(query:search(iuse(Use,positive:_),R://E)),!.
   %% old: not(preference:positive_use(Use)),!.
 
-rule(use_conditional_group(positive,_,_,D),D) :- !.
+rule(use_conditional_group(positive,_,_,Deps):Action,Result) :- !, %todo: isn't this double?
+  findall(D:Action,member(D,Deps),Result).
 
 
 % The dependencies in a negative use conditional group need to be satisfied when
 % the use flag is not positive through required use constraint, preference or
 % ebuild default
 
-rule(use_conditional_group(negative,Use,R://E,D),[constraint(use(R://E)):naf(Use)|D]).
+rule(use_conditional_group(negative,Use,R://E,Deps):Action,[constraint(use(R://E)):naf(Use)|Result]) :-
+  findall(D:Action,member(D,Deps),Result).
 
-rule(use_conditional_group(negative,Use,R://E,_),[]) :-
+rule(use_conditional_group(negative,Use,R://E,_):_,[]) :-
   query:search(iuse(Use,positive:_),R://E),!.
   % preference:positive_use(Use),!.
 
-rule(use_conditional_group(negative,_,_,D),D) :- !.
+rule(use_conditional_group(negative,_,_,Deps):Action,Result) :- !, %todo: isn't this double?
+  findall(D:Action,member(D,Deps),Result).
+
 
 % Example: feature:unification:unify([constraint(use(os)):darwin],[constraint(use(os)):{[linux,darwin]}],Result).
 
 
 % Exactly one of the dependencies in an exactly-one-of-group should be satisfied
 
-rule(exactly_one_of_group(Deps),[D|NafDeps]) :-
+rule(exactly_one_of_group(Deps):Action,[D:Action|NafDeps]) :-
   member(D,Deps),
   findall(naf(N),(member(N,Deps), not(D = N)),NafDeps).
 
 
 % One dependency of an any_of_group should be satisfied
 
-rule(any_of_group(Deps),[D]) :-
+rule(any_of_group(Deps):Action,[D:Action]) :-
   member(D,Deps).
 
 
 % All dependencies in an all_of_group should be satisfied
 
-rule(all_of_group(Deps),Deps) :- !.
+rule(all_of_group(Deps):Action,Result) :-
+  findall(D:Action,member(D,Deps),Result),!.
 
 
 % ---------------

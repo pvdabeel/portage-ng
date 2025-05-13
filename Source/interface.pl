@@ -46,6 +46,7 @@ interface:spec(S) :-
              , '  client:     start lightweight client, requiring running server'])],
        [opt(verbose),  type(boolean),   default(false),       shortflags(['v']), longflags(['verbose']),   help('Turn on verbose mode')],
        [opt(pretend),  type(boolean),   default(false),       shortflags(['p']), longflags(['pretend']),   help('Turn on pretend mode')],
+       [opt(fetchonly),type(boolean),   default(false),       shortflags(['f']), longflags(['fetchonly']), help('Turn on fetchonly mode')],
        [opt(merge),    type(boolean),   default(true),        shortflags(['m']), longflags(['merge']),     help('Merge target package')],
        [opt(update),   type(boolean),   default(false),       shortflags(['u']), longflags(['update']),    help('Update target package')],
       %[opt(reinstall),type(boolean),   default(false),       shortflags(['r']), longflags(['reinstall']), help('Reinstall target package')],
@@ -161,6 +162,7 @@ interface:process_requests(_Mode) :-
     memberchk(search(true),Options)   -> (interface:process_action(search,Args,Options),                Continue) ;
     memberchk(sync(true),Options)     -> (kb:sync, kb:save,!, 						Continue) ;
    %memberchk(reinstall(true),Options)-> (interface:process_action(reinstall,Args,Options),             Continue) ;
+    memberchk(fetchonly(true),Options)-> (interface:process_action(fetchonly,Args,Options),             Continue) ;
     memberchk(merge(true),Options)    -> (interface:process_action(run,Args,Options),                   Continue) ;
     memberchk(shell(true),Options)    -> (message:inform(['portage-ng shell - ',Version]),		prolog)),
 
