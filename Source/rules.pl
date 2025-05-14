@@ -44,7 +44,7 @@ rule(_Repository://_Ebuild:download,[]) :- !.
 % Same as download, but also download all dependencies
 
 rule(Repository://Ebuild:fetchonly,[]) :-
-  not(prover:flag(emptytree)),
+  not(preference:flag(emptytree)),
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
   %os:installed_pkg(Repository://Ebuild),!.
 
@@ -80,7 +80,7 @@ rule(Repository://Ebuild:fetchonly,Conditions) :-
 % - it can occupy an installation slot
 
 rule(Repository://Ebuild:install,[]) :-
-  not(prover:flag(emptytree)),
+  not(preference:flag(emptytree)),
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
   %os:installed_pkg(Repository://Ebuild),!.
 
@@ -117,7 +117,7 @@ rule(Repository://Ebuild:install,Conditions) :-
 % - if it is installed and if its runtime dependencies are satisfied
 
 rule(Repository://Ebuild:run,Conditions) :-
-  not(prover:flag(emptytree)),
+  not(preference:flag(emptytree)),
   cache:entry_metadata(Repository,Ebuild,installed,true),!,
   (config:avoid_reinstall(true) -> Conditions = [] ; Conditions = [Repository://Ebuild:reinstall]).
   %os:installed_pkg(Repository://Ebuild),!.
@@ -135,7 +135,7 @@ rule(Repository://Ebuild:run,[Repository://Ebuild:install|D]) :-
 % - the OS reports it as runnable, and we are not proving emptyttree
 
 rule(Repository://Ebuild:reinstall,[]) :-
-  not(prover:flag(emptytree)),
+  not(preference:flag(emptytree)),
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
   %os:installed_pkg(Repository://Ebuild),!.
 
@@ -147,7 +147,7 @@ rule(Repository://Ebuild:reinstall,[]) :-
 % - the OS reports it as installed, and we are not proving emptytree
 
 rule(Repository://Ebuild:uninstall,[]) :-
-  not(prover:flag(emptytree)),
+  not(preference:flag(emptytree)),
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
   %os:installed_pkg(Repository://Ebuild),!.
 
@@ -295,7 +295,7 @@ rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_):_,[]) :- !.
 % is used
 
 rule(package_dependency(_R://_E,_T,no,C,N,_O,_V,_S,_U):_Action,Conditions) :-
-  not(prover:flag(deep)),
+  not(preference:flag(deep)),
   preference:accept_keywords(K),
   cache:ordered_entry(Repository,Choice,C,N,_),
   cache:entry_metadata(Repository,Choice,installed,true),

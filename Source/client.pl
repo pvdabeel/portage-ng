@@ -49,8 +49,10 @@ rpc_execute(Hostname,Port,Cmd) :-
   config:printing_style(Style),
   findall(remote_use(X),preference:use(X),PreferencesA),				% todo: dynamically collect relevant predicates
   findall(remote_accept_keywords(X),preference:accept_keywords(X),PreferencesB),
-  append(PreferencesA,PreferencesB,PreferencesC),
-  Preferences = [remote_printing_style(Style)|PreferencesC],
+  findall(remote_flag(X),preference:flag(X),PreferencesC),
+  append(PreferencesA,PreferencesB,PreferencesAB),
+  append(PreferencesC,PreferencesAB,PreferenceABC),
+  Preferences = [remote_printing_style(Style)|PreferencesABC],
   pengine_rpc(URL,Cmd,
               [ host(Hostname),
                 authorization(digest(User,Digestpwd)),

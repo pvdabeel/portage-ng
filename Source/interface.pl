@@ -24,7 +24,7 @@ The interface interpretes command line arguments passed to portage-ng.
 % Retrieve the current version
 
 interface:version(V) :-
-  V = '2025.05.04'.
+  V = '2025.05.14'.
 
 
 %! interface:status(?Status)
@@ -232,7 +232,8 @@ interface:process_action(Action,ArgsSets,Options) :-
                          once(kb:query(Q,R://E))),
           Proposal),!,
   (memberchk(verbose(true),Options)   -> ( message:notice(['Proposal: ',Proposal]) ); true),
-  (memberchk(emptytree(true),Options) -> ( assert(prover:flag(emptytree)) );  true),
+  (memberchk(emptytree(true),Options) -> ( assert(preference:local_flag(emptytree)) );  true),
+  (memberchk(deep(true),Options)      -> ( assert(preference:local_flag(deep)) );  true),
   (memberchk(style(Style),Options)    -> ( assert(config:interface_printing_style(Style)) ) ; true),
   memberchk(mode(Mode),Options),
   interface:process_server(Host,Port),
@@ -247,9 +248,6 @@ interface:process_action(Action,ArgsSets,Options) :-
       planner:plan(Proof,[],[],Plan),
       printer:print(Proposal,Model,Proof,Plan))).
 
-% todo: rpc_wrapper
-% process results
-% give some explaantion on expected input
-% pass emptytree to rpc server
-% pass world and set to rpc server
+% todo: give some explantion on expected input
+% todo: pass world and set to rpc server?
 
