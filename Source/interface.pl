@@ -202,10 +202,6 @@ interface:process_action(search,Args,Options) :-
   (memberchk(verbose(true),Options) -> ( message:notice(['Query:   ',Q]) ); true),
   forall(kb:query(Q,R://E), writeln(R://E)).
 
-% todo: do the 'all' on the server side
-% process results.
-% give some explanation on expected input
-
 
 % -----
 % MERGE
@@ -247,7 +243,3 @@ interface:process_action(Action,ArgsSets,Options) :-
     ( prover:prove(Proposal,[],Proof,[],Model,[],_),
       planner:plan(Proof,[],[],Plan),
       printer:print(Proposal,Model,Proof,Plan))).
-
-% todo: give some explantion on expected input
-% todo: pass world and set to rpc server?
-

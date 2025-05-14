@@ -51,7 +51,7 @@ rpc_execute(Hostname,Port,Cmd) :-
   findall(remote_accept_keywords(X),preference:accept_keywords(X),PreferencesB),
   findall(remote_flag(X),preference:flag(X),PreferencesC),
   append(PreferencesA,PreferencesB,PreferencesAB),
-  append(PreferencesC,PreferencesAB,PreferenceABC),
+  append(PreferencesC,PreferencesAB,PreferencesABC),
   Preferences = [remote_printing_style(Style)|PreferencesABC],
   pengine_rpc(URL,Cmd,
               [ host(Hostname),
