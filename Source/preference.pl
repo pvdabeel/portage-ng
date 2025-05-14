@@ -159,6 +159,7 @@ preference:flag(Flag) :-
 %
 % Dynamic, set by the interface
 
+preference:local_flag(dummy).
 
 %! preference:init
 %
