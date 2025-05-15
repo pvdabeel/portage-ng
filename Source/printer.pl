@@ -196,7 +196,7 @@ printer:print_element(_,rule(assumed(package_dependency(_,install,_,C,N,_,_,_,_)
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
-  message:column(28,P),
+  message:column(29,P),
   message:print([' (non-existent, assumed installed)']),
   message:color(normal).
 
@@ -209,7 +209,7 @@ printer:print_element(_,rule(assumed(package_dependency(_,run,_,C,N,_,_,_,_)),[]
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
-  message:column(28,P),
+  message:column(29,P),
   message:print([' (non-existent, assumed running)']),
   message:color(normal).
 
@@ -221,7 +221,7 @@ printer:print_element(_,rule(assumed(package_dependency(_,run,_,C,N,_,_,_,_)),[]
 printer:print_element(_,assumed(rule(Repository://Entry:install,_Body))) :-
   message:color(red),
   message:print('verify'),
-  message:column(28,Repository://Entry),
+  message:column(29,Repository://Entry),
   message:print(' (assumed installed)'),
   message:color(normal).
 
@@ -233,9 +233,22 @@ printer:print_element(_,assumed(rule(Repository://Entry:install,_Body))) :-
 printer:print_element(_,assumed(rule(Repository://Entry:run,_Body))) :-
   message:color(red),
   message:print('verify'),
-  message:column(28,Repository://Entry),
+  message:column(29,Repository://Entry),
   message:print(' (assumed running) '),
   message:color(normal).
+
+
+% --------------------------------
+% CASE: an assumed fetched package
+% --------------------------------
+
+printer:print_element(_,assumed(rule(Repository://Entry:fetchonly,_Body))) :-
+  message:color(red),
+  message:print('verify'),
+  message:column(29,Repository://Entry),
+  message:print(' (assumed fetched) '),
+  message:color(normal).
+
 
 
 % -------------------------------------

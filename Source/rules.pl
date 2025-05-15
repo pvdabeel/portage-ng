@@ -49,11 +49,11 @@ rule(Repository://Ebuild:fetchonly,[]) :-
   %os:installed_pkg(Repository://Ebuild),!.
 
 rule(Repository://Ebuild:fetchonly,Conditions) :-
-  cache:ordered_entry(Repository,Ebuild,C,N,_),
+  cache:ordered_entry(Repository,Ebuild,C,N,_V),
   cache:entry_metadata(Repository,Ebuild,slot,slot(S)),
-  findall(Depend:fetchonly,cache:entry_metadata(Repository,Ebuild,depend,Depend),CD),
-  findall(Depend:fetchonly,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),RD),
-  append(CD,RD,D),
+  findall(Depend:fetchonly,cache:entry_metadata(Repository,Ebuild,depend,Depend),D),
+%  findall(Depend:fetchonly,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),RD),
+%  append(CD,RD,D),
   % knowledgebase:query([category(C),name(N),slot(slot(S)),model(required_use(M)),all(depend(D))],Repository://Ebuild),
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
     Conditions = [constraint(use(Repository://Ebuild):{[]}), %M removed
@@ -63,7 +63,6 @@ rule(Repository://Ebuild:fetchonly,Conditions) :-
                   Repository://Ebuild:download,
                   constraint(slot(C,N,S):{[Ebuild]})
                   |D] ).
-
 
 
 % INSTALL
@@ -85,7 +84,7 @@ rule(Repository://Ebuild:install,[]) :-
   %os:installed_pkg(Repository://Ebuild),!.
 
 rule(Repository://Ebuild:install,Conditions) :-
-  cache:ordered_entry(Repository,Ebuild,C,N,_),
+  cache:ordered_entry(Repository,Ebuild,C,N,_V),
   cache:entry_metadata(Repository,Ebuild,slot,slot(S)),
   findall(Depend:install,cache:entry_metadata(Repository,Ebuild,depend,Depend),D),
   % knowledgebase:query([category(C),name(N),slot(slot(S)),model(required_use(M)),all(depend(D))],Repository://Ebuild),
@@ -295,7 +294,7 @@ rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_):_,[]) :- !.
 % is used
 
 rule(package_dependency(_R://_E,_T,no,C,N,_O,_V,_S,_U):_Action,Conditions) :-
-  not(preference:flag(deep)),
+  not(preference:flag(deep)), % todo: emptytree?
   preference:accept_keywords(K),
   cache:ordered_entry(Repository,Choice,C,N,_),
   cache:entry_metadata(Repository,Choice,installed,true),
@@ -356,7 +355,7 @@ rule(use_conditional_group(negative,_,_,Deps):Action,Result) :- !, %todo: isn't 
 
 rule(exactly_one_of_group(Deps):Action,[D:Action|NafDeps]) :-
   member(D,Deps),
-  findall(naf(N),(member(N,Deps), not(D = N)),NafDeps).
+  findall(naf(N:Action),(member(N,Deps), not(D = N)),NafDeps).
 
 
 % One dependency of an any_of_group should be satisfied
