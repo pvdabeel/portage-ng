@@ -32,11 +32,27 @@ as a Makefile).
 % CLIENT declarations
 % *******************
 
+%! client:remote_predicate(?Predicate)
+%
+% Declares which predicates need to be injected in the remote pengines
+% context.
+
+remote_predicate(preference:local_use(_)).
+remote_predicate(preference:local_accept_keywords(_)).
+remote_predicate(preference:local_flag(_)).
+remote_predicate(config:printing_style(_)).
+
+% todo: world, set and pkg definitions - only when really running remote
+
+
 %! client:rpc_execute(Host,Port,Cmd)
 %
 % Use pengine_rpc to remotely call a sandboxed predicate.
 % Use to run computationally expensive procedures on a server
 % but retrieve the result in Prolog Term locally.
+%
+% Predicates declared as remote_predicate/1 will be injected
+% in the remote server pengines context
 
 rpc_execute(Hostname,Port,Cmd) :-
   format(atom(URL), 'https://~w:~d', [Hostname,Port]),
@@ -46,13 +62,8 @@ rpc_execute(Hostname,Port,Cmd) :-
   config:certificate_password(client,Pass),
   config:digest_password(User,Digestpwd),
   config:chunk(ChunkSize),
-  config:printing_style(Style),
-  findall(remote_use(X),preference:use(X),PreferencesA),				% todo: dynamically collect relevant predicates
-  findall(remote_accept_keywords(X),preference:accept_keywords(X),PreferencesB),
-  findall(remote_flag(X),preference:flag(X),PreferencesC),
-  append(PreferencesA,PreferencesB,PreferencesAB),
-  append(PreferencesC,PreferencesAB,PreferencesABC),
-  Preferences = [remote_printing_style(Style)|PreferencesABC],
+  findall(Pred,(remote_predicate(Local:Pred),call(Local:Pred)),Context),
+  forall(member(M,Context),writeln(M)),
   pengine_rpc(URL,Cmd,
               [ host(Hostname),
                 authorization(digest(User,Digestpwd)),
@@ -61,7 +72,7 @@ rpc_execute(Hostname,Port,Cmd) :-
                 key_file(ClientKey),
                 password(Pass),
                 chunk(ChunkSize),
-                src_list(Preferences)
+                src_list(Context)
               ]).
 
 

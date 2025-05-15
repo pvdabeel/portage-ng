@@ -209,23 +209,16 @@ config:time_limit_build(6000).
 config:printing_style(Style) :-
   pengine_self(M),
   !,
-  M:remote_printing_style(Style).
+  M:printing_style(Style).
 
 
-% 2. Not running as a server, use interface style when specified
+% 2. Not running as a server, use interface style when specified, otherwise default
 
 config:printing_style(Style) :-
   %\+pengine_self(M),
-  config:interface_printing_style(Style),
-  !.
-
-
-% 3. Not running as a server, use default printing style.
-
-config:printing_style(Style) :-
-  %\+pengine_style(M),
   !,
-  config:default_printing_style(Style).
+  config:interface_printing_style(Config) -> Style = Config ; config:default_printing_style(Style).
+
 
 
 % Interface can dynamically set the printing style
