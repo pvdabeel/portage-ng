@@ -96,7 +96,7 @@ preference:env_accept_keywords([]) :- !.
 
 preference:use(X) :-
   pengine_self(M),!,
-  M:remote_use(X).                       % use client USE flags
+  M:local_use(X).                        % use client USE flags
 
 preference:use(X) :-
   %\+pengine_self(_),
@@ -113,7 +113,7 @@ preference:use(X) :-
 
 preference:accept_keywords(X) :-
   pengine_self(M),!,
-  M:remote_accept_keywords(X).           % use client USE flags
+  M:local_accept_keywords(X).            % use client USE flags
 
 preference:accept_keywords(X) :-
   %\+pengine_self(_),
@@ -130,7 +130,7 @@ preference:accept_keywords(X) :-
 
 preference:flag(Flag) :-
   pengine_self(M),!,
-  M:remote_flag(Flag).
+  M:local_flag(Flag).
 
 preference:flag(Flag) :-
   %\+pengine_self(_),

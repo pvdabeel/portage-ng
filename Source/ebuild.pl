@@ -45,7 +45,7 @@ ebuild:invoke(cache,Location,Entry,Stream) :-
 % Retrieve total download size for all files corresponding to a given Entry
 
 ebuild:download_size(Repository://Entry,T) :-
-  aggregate_all(sum(S),kb:query(manifest(_,_,S),Repository://Entry),T),!.
+  aggregate_all(sum(S),F,kb:query(manifest(_,F,S),Repository://Entry),T),!.
 
 ebuild:download_size(_://_,0) :- !.
 

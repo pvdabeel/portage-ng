@@ -368,7 +368,8 @@ printer:print_config(Repository://Ebuild:download) :-
 
 printer:print_config(Repository://Ebuild:download) :-
   !,
-  findall([File,Size],kb:query(manifest(_,File,Size),Repository://Ebuild),[[FirstFile,FirstSize]|Rest]),!,
+  findall([File,Size],kb:query(manifest(_,File,Size),Repository://Ebuild),Downloads),
+  sort(Downloads,[[FirstFile,FirstSize]|Rest]),
   printer:print_config_prefix('file'),
   printer:print_config_item('download',FirstFile,FirstSize),
   forall(member([RestFile,RestSize],Rest),
