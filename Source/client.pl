@@ -63,7 +63,6 @@ rpc_execute(Hostname,Port,Cmd) :-
   config:digest_password(User,Digestpwd),
   config:chunk(ChunkSize),
   findall(Pred,(remote_predicate(Local:Pred),call(Local:Pred)),Context),
-  forall(member(M,Context),writeln(M)),
   pengine_rpc(URL,Cmd,
               [ host(Hostname),
                 authorization(digest(User,Digestpwd)),
