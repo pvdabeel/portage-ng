@@ -51,9 +51,9 @@ rule(Repository://Ebuild:fetchonly,[]) :-
 rule(Repository://Ebuild:fetchonly,Conditions) :-
   cache:ordered_entry(Repository,Ebuild,C,N,_V),
   cache:entry_metadata(Repository,Ebuild,slot,slot(S)),
-  findall(Depend:fetchonly,cache:entry_metadata(Repository,Ebuild,depend,Depend),D),
-%  findall(Depend:fetchonly,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),RD),
-%  append(CD,RD,D),
+  findall(Depend:fetchonly,cache:entry_metadata(Repository,Ebuild,depend,Depend),CD),
+  findall(Depend:fetchonly,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),RD),
+  append(CD,RD,D),
   % knowledgebase:query([category(C),name(N),slot(slot(S)),model(required_use(M)),all(depend(D))],Repository://Ebuild),
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
     Conditions = [constraint(use(Repository://Ebuild):{[]}), %M removed
