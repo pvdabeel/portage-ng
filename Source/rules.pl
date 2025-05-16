@@ -322,30 +322,42 @@ rule(package_dependency(R://E,_T,no,C,N,O,V,S,U):Action,Conditions) :-
 % the use flag is positive through required use constraint, preference or ebuild
 % default
 
-rule(use_conditional_group(positive,Use,R://E,Deps):Action,[constraint(use(R://E)):Use|Result]) :-
-  findall(D:Action,member(D,Deps),Result).
+%rule(use_conditional_group(positive,Use,R://E,Deps):Action,[constraint(use(R://E):Use)|Result]) :-
+%  message:color(cyan),write('constraining use:  '),write(Use),write(' - for: '),write(R://E),message:color(normal),nl,
+%  findall(D:Action,member(D,Deps),Result).
 
-rule(use_conditional_group(positive,Use,R://E,_):_,[]) :-
-  not(query:search(iuse(Use,positive:_),R://E)),!.
-  %% old: not(preference:positive_use(Use)),!.
 
-rule(use_conditional_group(positive,_,_,Deps):Action,Result) :- !, %todo: isn't this double?
+% 1. The USE is explicitely enabled, either by preference or ebuild -> process deps
+
+rule(use_conditional_group(positive,Use,R://E,Deps):Action,Result) :-
+  query:search(iuse(Use,positive:_Reason),R://E),!,
   findall(D:Action,member(D,Deps),Result).
+  %(Reason == preference
+  % -> findall(D:Action,member(D,Deps),Result)
+  % ;  findall(D:Action,member(D,Deps),Temp), Result = [constraint(use(R://E):Use)|Temp]).
+
+% 2. The USE is not enabled -> no deps
+
+rule(use_conditional_group(positive,_Use,_R://_E,_):_Action,[]) :-
+  !.
 
 
 % The dependencies in a negative use conditional group need to be satisfied when
 % the use flag is not positive through required use constraint, preference or
 % ebuild default
 
-rule(use_conditional_group(negative,Use,R://E,Deps):Action,[constraint(use(R://E)):naf(Use)|Result]) :-
-  findall(D:Action,member(D,Deps),Result).
+%rule(use_conditional_group(negative,Use,R://E,Deps):Action,[constraint(use(R://E):naf(Use))|Result]) :-
+%  findall(D:Action,member(D,Deps),Result).
 
-rule(use_conditional_group(negative,Use,R://E,_):_,[]) :-
-  query:search(iuse(Use,positive:_),R://E),!.
-  % preference:positive_use(Use),!.
-
-rule(use_conditional_group(negative,_,_,Deps):Action,Result) :- !, %todo: isn't this double?
+rule(use_conditional_group(negative,Use,R://E,Deps):Action,Result) :-
+  query:search(iuse(Use,negative:_Reason),R://E),!,
   findall(D:Action,member(D,Deps),Result).
+  %(Reason == preference
+  % -> findall(D:Action,member(D,Deps),Result)
+  % ;  findall(D:Action,member(D,Deps),Temp), Result = [constraint(use(R://E):naf(Use))|Temp]).
+
+rule(use_conditional_group(negative,_Use,_R://_E,_):_Action,[]) :-
+  !.
 
 
 % Example: feature:unification:unify([constraint(use(os)):darwin],[constraint(use(os)):{[linux,darwin]}],Result).
@@ -378,8 +390,8 @@ rule(all_of_group(Deps):Action,Result) :-
 
 % Src_uri:
 
-rule(uri(_,_,_),[]) :- !.
-rule(uri(_),[]) :- !.
+rule(uri(_,_,_):_,[]) :- !.
+rule(uri(_):_,[]) :- !.
 
 % Blocking use
 

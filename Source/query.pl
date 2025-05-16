@@ -240,7 +240,7 @@ search(qualified_target(O,R,C,P,V,F),R://I) :-
 search(manifest(Type,Binary,Size),R://I) :-
    !,
    cache:ordered_entry(R,I,Category,Name,_),
-   search(all(src_uri(Model)),R://I),
+   search(all(src_uri(Model)),R://I), % todo: add support for use_conditional_group, taking into account preference:use(X)
    member(uri(_,_,Binary),Model),
    cache:manifest(R,P,_,Category,Name),
    cache:manifest_metadata(R,P,Type,Binary,Size,_Checksums).
