@@ -693,7 +693,7 @@ model_member(all,Predicate,Model) :-
 model_member(preference,Predicate,Model) :-
   member(Predicate,Model);
   (member(use_conditional_group(Sign,Use,_,Conditional),Model),
-   (Sign == positive -> preference:use(Use) ; preference(minus(Use))),
+   (Sign == positive -> preference:use(Use) ; preference:use(minus(Use))),
      model_member(preference,Predicate,Conditional)).
 
 
