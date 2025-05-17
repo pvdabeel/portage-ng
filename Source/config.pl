@@ -269,7 +269,7 @@ config:proving_target(run).
 % If a package is already installed, when this config item is set to true,
 % we will verify installation, rather than reinstall the package.
 
-config:avoid_reinstall(false).
+config:avoid_reinstall(true).
 
 
 

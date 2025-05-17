@@ -24,6 +24,7 @@ This file contains domain-specific rules
 % Ruleset: Ebuild states
 % ----------------------
 
+
 % MASKED
 %
 % Skip masked ebuilds
@@ -46,7 +47,6 @@ rule(_Repository://_Ebuild:download,[]) :- !.
 rule(Repository://Ebuild:fetchonly,[]) :-
   not(preference:flag(emptytree)),
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
-  %os:installed_pkg(Repository://Ebuild),!.
 
 rule(Repository://Ebuild:fetchonly,Conditions) :-
   cache:ordered_entry(Repository,Ebuild,C,N,_V),
@@ -81,7 +81,6 @@ rule(Repository://Ebuild:fetchonly,Conditions) :-
 rule(Repository://Ebuild:install,[]) :-
   not(preference:flag(emptytree)),
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
-  %os:installed_pkg(Repository://Ebuild),!.
 
 rule(Repository://Ebuild:install,Conditions) :-
   cache:ordered_entry(Repository,Ebuild,C,N,_V),
@@ -119,10 +118,8 @@ rule(Repository://Ebuild:run,Conditions) :-
   not(preference:flag(emptytree)),
   cache:entry_metadata(Repository,Ebuild,installed,true),!,
   (config:avoid_reinstall(true) -> Conditions = [] ; Conditions = [Repository://Ebuild:reinstall]).
-  %os:installed_pkg(Repository://Ebuild),!.
 
 rule(Repository://Ebuild:run,[Repository://Ebuild:install|D]) :-
-  !,
   findall(Depend:run,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),D).
   %knowledgebase:query([all(rdepend(D))],Repository://Ebuild).
 
@@ -150,8 +147,7 @@ rule(Repository://Ebuild:uninstall,[]) :-
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
   %os:installed_pkg(Repository://Ebuild),!.
 
-% Note: this may leave the Model and Proof for the other packages incomplete.
-
+% Note: this may leave the Model and Proof for the other packages incomplete - todo: implement depclean.
 
 
 % UPDATE
@@ -160,18 +156,22 @@ rule(Repository://Ebuild:uninstall,[]) :-
 %
 % - The os reports it as installed
 %   and a higher version in the same slot is available
+%   taking into account accept_keywords filter
 
+rule(Repository://Ebuild:update,Conditions) :-
+  not(preference:flag(emptytree)),
+  preference:accept_keywords(K),
+  cache:entry_metadata(Repository,Ebuild,installed,true),!,
+  cache:entry_metadata(Repository,Ebuild,slot,S),
+  cache:ordered_entry(Repository,Ebuild,Category,Name,VersionInstalled),
+  cache:ordered_entry(Repository,LatestEbuild,Category,Name,VersionLatest),
+  cache:entry_metadata(Repository,LatestEbuild,slot,S),
+  cache:entry_metadata(Repository,LatestEbuild,keywords,K),!,
+  compare(>,VersionLatest,VersionInstalled)
+  -> Conditions = [Repository://Ebuild:uninstall,Repository://Ebuild:install]
+  ;  Conditions = [].
 
-
-
-
-%rule(Repository://Ebuild:update,[]) :-
-%  cache:entry_metadata(Repository,Ebuild,installed,true),!,
-%  cache:ordered_entry(Repository,Ebuild,C,N,Vinstalled),
-%  cache:entry_metadata(Repository,Ebuild,slot,slot(S)),
-%  cache:ordered_entry(Repository,NewestEbuild,C,N,Vnewer),
-%  compare(newer,Vnewer,Vinstalled),
-%  findall(Depend,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),D).
+% todo: deep
 
 
 % UPGRADE
@@ -181,16 +181,20 @@ rule(Repository://Ebuild:uninstall,[]) :-
 % - The os reports it as installed,
 %   and a higher version is available. Slots are disregarded.
 
+rule(Repository://Ebuild:update,Conditions) :-
+  not(preference:flag(emptytree)),
+  preference:accept_keywords(K),
+  cache:entry_metadata(Repository,Ebuild,installed,true),!,
+  %cache:entry_metadata(Repository,Ebuild,slot,S),
+  cache:ordered_entry(Repository,Ebuild,Category,Name,VersionInstalled),
+  cache:ordered_entry(Repository,LatestEbuild,Category,Name,VersionLatest),
+  %cache:entry_metadata(Repository,LatestEbuild,slot,S),
+  cache:entry_metadata(Repository,LatestEbuild,keywords,K),!,
+  compare(>,VersionLatest,VersionInstalled)
+  -> Conditions = [Repository://Ebuild:uninstall,Repository://Ebuild:install]
+  ;  Conditions = [].
 
-% UNINSTALL
-%
-% An ebuild can be uninstalled:
-%
-% - The os reports it as installed
-
-
-% DEEP UPDATE
-% DEEP UPGRADe
+% todo: deep
 
 
 
@@ -290,20 +294,29 @@ rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_):_,[]) :- !.
 % Portage-ng will identify these assumptions in its proof and show them to the
 % user prior to continuing to the next stage (i.e. executing the plan).
 
-% Preference: prefer installed packages over new packages, unless 'deep' flag
+% Preference: prefer installed packages over new packages, unless 'emptytree' flag
 % is used
 
 rule(package_dependency(_R://_E,_T,no,C,N,_O,_V,_S,_U):_Action,Conditions) :-
-  not(preference:flag(deep)), % todo: emptytree?
+  not(preference:flag(deep)),
+  not(preference:flag(emptytree)),
   preference:accept_keywords(K),
+  %knowledgebase:query([installed(true),name(N),category(C),keywords(K)],Repository://Choice),
+  %cache:ordered_entry(Repository,Latest,C,N,VL),
+  %cache:entry_metadata(Repository,Latest,keyword,K),
   cache:ordered_entry(Repository,Choice,C,N,_),
   cache:entry_metadata(Repository,Choice,installed,true),
   cache:entry_metadata(Repository,Choice,keywords,K),!,
-  %knowledgebase:query([installed(true),name(N),category(C),keywords(K)],Repository://Choice),
-  %Conditions = [Repository://Choice:Action].
+  %writeln(VL),writeln(VI),
+  %((preference:flag(deep),compare(>,VL,VI))
+  % -> Conditions = [Repository://Latest:Action]
+  % ;
   Conditions = [].
+  %writeln(Conditions).
+
 
 rule(package_dependency(_R://_E,_T,no,C,N,_O,_V,_S,_U):Action,Conditions) :-
+  %preference:flag(emptytree),
   preference:accept_keywords(K),
   cache:ordered_entry(Repository,Choice,C,N,_),
   cache:entry_metadata(Repository,Choice,keywords,K),
@@ -311,6 +324,7 @@ rule(package_dependency(_R://_E,_T,no,C,N,_O,_V,_S,_U):Action,Conditions) :-
   Conditions = [Repository://Choice:Action].
 
 rule(package_dependency(R://E,_T,no,C,N,O,V,S,U):Action,Conditions) :-
+  %preference:flag(emptytree)
   preference:accept_keywords(K),
   not((cache:ordered_entry(Repository,Choice,C,N,_),
   cache:entry_metadata(Repository,Choice,keywords,K))),
