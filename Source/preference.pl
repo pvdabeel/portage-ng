@@ -353,8 +353,8 @@ preference:profile_use('xvid').
 preference:profile_use('zeroconf').
 preference:profile_use('zlib').
 
-preference:profile_use('minus(test)').
-preference:profile_use('minus(static-libs)').
+preference:profile_use(minus(test)).
+preference:profile_use(minus(static-libs)).
 
 
 %! preference:use_expand_hidden(?Use)
