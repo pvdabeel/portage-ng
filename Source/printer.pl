@@ -27,7 +27,7 @@ printer:printable_element(rule(uri(_),_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:run,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:run,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:download,_)) :- !.
-printer:printable_element(rule(_Repository://_Entry:fetchonly,_)) :- !.
+%printer:printable_element(rule(_Repository://_Entry:fetchonly,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:install,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:reinstall,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:uninstall,_)) :- !.
@@ -388,6 +388,16 @@ printer:print_config(Repository://Ebuild:download) :-
 
 printer:print_config(Repository://Ebuild:download) :-
   !,
+
+  % If you want to show use flags right before the downloads:
+
+  % findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Ebuild), Group), Useflags),
+
+  % (Useflags == [] ;
+  %  (printer:print_config_prefix('conf'),	    % Use flags not empty
+  %   printer:print_config_item('use',Useflags))),    % Use flags not empty
+
+
   findall([File,Size],kb:query(manifest(preference,_,File,Size),Repository://Ebuild),Downloads),
   sort(Downloads,[[FirstFile,FirstSize]|Rest]),
   printer:print_config_prefix('file'),
