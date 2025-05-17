@@ -298,7 +298,7 @@ rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_):_,[]) :- !.
 % is used
 
 rule(package_dependency(_R://_E,_T,no,C,N,_O,_V,_S,_U):_Action,Conditions) :-
-  not(preference:flag(deep)),
+  %not(preference:flag(deep)),
   not(preference:flag(emptytree)),
   preference:accept_keywords(K),
   %knowledgebase:query([installed(true),name(N),category(C),keywords(K)],Repository://Choice),

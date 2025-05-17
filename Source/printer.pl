@@ -27,10 +27,12 @@ printer:printable_element(rule(uri(_),_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:run,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:run,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:download,_)) :- !.
-%printer:printable_element(rule(_Repository://_Entry:fetchonly,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:fetchonly,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:install,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:reinstall,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:uninstall,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:update,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:upgrade,_)) :- !.
 printer:printable_element(assumed(rule(_Repository://_Entry:_Action,_))) :- !.
 printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_,_),_))) :- !.
 printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_,_)),_)) :- !.
@@ -53,9 +55,11 @@ printer:element_weight(rule(_Repository://_Entry:run,_),             3) :- !. % 
 printer:element_weight(rule(_Repository://_Entry:download,_),        4) :- !. % download
 printer:element_weight(rule(_Repository://_Entry:fetchonly,_),       5) :- !. % fetchonly
 printer:element_weight(rule(_Repository://_Entry:install,_),         5) :- !. % install
-printer:element_weight(rule(_Repository://_Entry:reinstall,_),       5) :- !. % install
-printer:element_weight(rule(_Repository://_Entry:uninstall,_),       5) :- !. % install
-printer:element_weight(_,                                            6) :- !. % everything else
+printer:element_weight(rule(_Repository://_Entry:reinstall,_),       6) :- !. % install
+printer:element_weight(rule(_Repository://_Entry:uninstall,_),       6) :- !. % install
+printer:element_weight(rule(_Repository://_Entry:update,_),          6) :- !. % install
+printer:element_weight(rule(_Repository://_Entry:upgrade,_),         6) :- !. % install
+printer:element_weight(_,                                            7) :- !. % everything else
 
 
 %! printer:sort_by_weight(+Comparator,+Literal,+Literal)
@@ -340,9 +344,25 @@ printer:print_config_prefix :-
 % CASE: fetchonly action
 % ----------------------
 
-printer:print_config(_Repository://_Ebuild:fetchonly).% :-
+%printer:print_config(_Repository://_Ebuild:fetchonly).% :-
   %printer:print_config_prefix('done'),
   %printer:print_config_item('fetchonly','fetching all','downloads').
+
+
+% iuse empty
+
+printer:print_config(Repository://Entry:fetchonly) :-
+  not(kb:query(iuse(_),Repository://Entry)),!.
+
+% use flags to show - to rework: performance
+
+printer:print_config(Repository://Entry:fetchonly) :-
+ !,
+ findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
+
+ (Useflags == [] ;
+   (printer:print_config_prefix('conf'),	    % Use flags not empty
+    printer:print_config_item('use',Useflags))).    % Use flags not empty
 
 
 
