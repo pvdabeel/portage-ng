@@ -237,11 +237,11 @@ search(qualified_target(O,R,C,P,V,F),R://I) :-
 % Search: Manifest
 % ----------------
 
-search(manifest(Type,Binary,Size),R://I) :-
+search(manifest(Scope,Type,Binary,Size),R://I) :-
    !,
    cache:ordered_entry(R,I,Category,Name,_),
-   search(all(src_uri(Model)),R://I), % todo: add support for use_conditional_group, taking into account preference:use(X)
-   member(uri(_,_,Binary),Model),
+   search(all(src_uri(Model)),R://I),
+   model_member(Scope,uri(_,_,Binary),Model),
    cache:manifest(R,P,_,Category,Name),
    cache:manifest_metadata(R,P,Type,Binary,Size,_Checksums).
 
@@ -678,3 +678,22 @@ select(Key,wildcard,Value,R://I) :-
   !,
   cache:entry_metadata(R,I,Key,Match),
   wildcard_match(Value,Match).
+
+
+%! model_member(Type,Predicate,Model)
+%
+% Recursively searches model for a predicate, taking into account
+% use_conditional_group
+
+model_member(all,Predicate,Model) :-
+  member(Predicate,Model);
+  (member(use_conditional_group(_,_,_,Conditional),Model),
+   model_member(all,Predicate,Conditional)).
+
+model_member(preference,Predicate,Model) :-
+  member(Predicate,Model);
+  (member(use_conditional_group(Sign,Use,_,Conditional),Model),
+   (Sign == positive -> preference:use(Use) ; preference(minus(Use))),
+     model_member(preference,Predicate,Conditional)).
+
+

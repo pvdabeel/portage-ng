@@ -361,14 +361,14 @@ printer:print_config(Repository://Ebuild:download) :-
 % no downloads
 
 printer:print_config(Repository://Ebuild:download) :-
-  not(kb:query(manifest(_,_,_),Repository://Ebuild)),!.
+  not(kb:query(manifest(preference,_,_,_),Repository://Ebuild)),!.
 
 
 % at least one download
 
 printer:print_config(Repository://Ebuild:download) :-
   !,
-  findall([File,Size],kb:query(manifest(_,File,Size),Repository://Ebuild),Downloads),
+  findall([File,Size],kb:query(manifest(preference,_,File,Size),Repository://Ebuild),Downloads),
   sort(Downloads,[[FirstFile,FirstSize]|Rest]),
   printer:print_config_prefix('file'),
   printer:print_config_item('download',FirstFile,FirstSize),
@@ -433,7 +433,7 @@ printer:print_config(Repository://Entry:all) :-
     message:print(' ─┤ '),
     printer:print_config_item('use',Useflags))),
 
-  findall([File,Size],kb:query(manifest(_,File,Size),Repository://Entry),[[FirstFile,FirstSize]|Rest]),!,
+  findall([File,Size],kb:query(manifest(preference,_,File,Size),Repository://Entry),[[FirstFile,FirstSize]|Rest]),!,
 
   printer:print_config_item('download',FirstFile,FirstSize),
   forall(member([RestFile,RestSize],Rest),
@@ -729,7 +729,7 @@ printer:print_footer(Plan,Model,PrintedSteps) :-
   countlist(naf(_),Model,_Nafs),
   countlist(_://_:_,Model,Actions),
   countlist(_://_:fetchonly,Model,Fetches),
-  aggregate_all(sum(T),(member(R://E:download,Model),ebuild:download_size(R://E,T)),TotalDownloadSize),
+  aggregate_all(sum(T),(member(R://E:download,Model),ebuild:download_size(preference,R://E,T)),TotalDownloadSize),
   countlist(_://_:download,Model,Downloads),
   countlist(_://_:run,Model,Runs),
   countlist(_://_:install,Model,PureInstalls),
