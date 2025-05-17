@@ -37,12 +37,19 @@ as a Makefile).
 % Declares which predicates need to be injected in the remote pengines
 % context.
 
-remote_predicate(preference:local_use(_)).
-remote_predicate(preference:local_accept_keywords(_)).
-remote_predicate(preference:local_flag(_)).
-remote_predicate(config:printing_style(_)).
+remote_predicate_template(preference:local_use(_)).
+remote_predicate_template(preference:local_accept_keywords(_)).
+remote_predicate_template(preference:local_flag(_)).
 
-% todo: world, set and pkg definitions - only when really running remote
+% These are optional, only when client:server are not on the same machine
+
+remote_predicate_template(preference:world(_)).
+remote_predicate_template(preference:set(_,_)).
+%remote_predicate_template(cache:entry_metadata(_,_,installed,true)). % todo: needs client handling
+
+% We don't pass the predicate definition, but the answers
+
+remote_predicate_instance(config:printing_style(_)).
 
 
 %! client:rpc_execute(Host,Port,Cmd)
@@ -62,7 +69,8 @@ rpc_execute(Hostname,Port,Cmd) :-
   config:certificate_password(client,Pass),
   config:digest_password(User,Digestpwd),
   config:chunk(ChunkSize),
-  findall(Pred,(remote_predicate(Local:Pred),call(Local:Pred)),Context),
+  findall(Template,(remote_predicate_template(Template)),Templates),
+  findall(Instance,(remote_predicate_instance(Local:Instance),call(Local:Instance)),Context),
   pengine_rpc(URL,Cmd,
               [ host(Hostname),
                 authorization(digest(User,Digestpwd)),
@@ -71,6 +79,7 @@ rpc_execute(Hostname,Port,Cmd) :-
                 key_file(ClientKey),
                 password(Pass),
                 chunk(ChunkSize),
+                src_predicates(Templates),
                 src_list(Context)
               ]).
 

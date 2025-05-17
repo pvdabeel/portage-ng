@@ -159,7 +159,6 @@ preference:flag(Flag) :-
 %
 % Dynamic, set by the interface
 
-preference:local_flag(dummy).
 
 %! preference:init
 %
@@ -181,7 +180,6 @@ preference:init :-
    (List_KEY == []
     -> forall(preference:default_accept_keywords(Key), assert(preference:local_accept_keywords(Key)))
     ;  forall(member(Key,List_KEY),                    assert(preference:local_accept_keywords(Key)))).
-
 
 
 %! preference:default_accept_keywords(?Keyword)
