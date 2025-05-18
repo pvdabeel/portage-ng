@@ -37,8 +37,8 @@ rule(Repository://Ebuild:_Action,[]) :-
 %
 % An ebuild is downloaded if its sources are downloaded
 
-rule(_Repository://_Ebuild:download,[]) :-
-  %cache:ordered_entry(_Repository://_Ebuild,_,_,_),
+rule(Repository://Ebuild:download,[]) :-
+  cache:ordered_entry(Repository,Ebuild,_,_,_),
   !.
 
 
