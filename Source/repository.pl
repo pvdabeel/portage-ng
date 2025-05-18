@@ -136,7 +136,9 @@ sync(repository) ::-
   ::location(Local),
   ::remote(Remote),
   ::protocol(Protocol),
-  script:exec(sync,[Protocol,Remote,Local]),!.
+  script:exec(sync,[Protocol,Remote,Local],[],Stream),
+  copy_stream_data(Stream,current_output),
+  !.
 
 
 %! repository:sync(+Metadata)
