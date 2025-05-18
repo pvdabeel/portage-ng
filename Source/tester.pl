@@ -40,7 +40,7 @@ tester:test(single_verbose,Name,Repository://Item,Generator,Test,Report,Scroll) 
                                              message:title([Name,' (Single thread): ',P,' processed in ',Min,'m ',Sec,'s']),
                                              (Scroll
  				              -> message:scroll_notice(['[',P,'] - ', Name,' ',Repository,'://',Item])
-                                              ;  message:topheader(['[',P,'] - ',Name,' ',Repository;'://',Item])),
+                                              ;  message:topheader(['[',P,'] - ',Name,' ',Repository,'://',Item])),
 					     Test,!,Report)),
                      time_limit_exceeded,
                      message:scroll_failure([Item,' (time limit exceeded)']));

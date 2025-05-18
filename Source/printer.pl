@@ -890,7 +890,7 @@ printer:test_latest(Repository,parallel_fast) :-
 printer:test_latest(Repository,Style) :-
   config:proving_target(Action),
   tester:test(Style,
-              'Printing plan for',
+              'Printing',
               Repository://Entry,
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
               (with_q(prover:prove(Repository://Entry:Action,[],Proof,[],Model,[],_Constraints)),
