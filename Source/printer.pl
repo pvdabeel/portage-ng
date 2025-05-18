@@ -565,7 +565,7 @@ printer:print_use_flag(_,[]) :-
 
 printer:print_use_flag(positive:preference,[Flag]) :-
   preference:use(Flag,env),!,
-  message:color(orange),
+  message:color(green),
   message:style(bold),
   message:print(Flag),
   message:color(normal),
@@ -581,7 +581,7 @@ printer:print_use_flag(positive:preference,[Flag]) :-
 
 printer:print_use_flag(positive:preference,[Flag|Rest]) :-
   preference:use(Flag,env),!,
-  message:color(orange),
+  message:color(green),
   message:style(bold),
   message:print(Flag),
   message:color(normal),
@@ -616,7 +616,7 @@ printer:print_use_flag(positive:ebuild,[Flag|Rest]) :-
 
 printer:print_use_flag(negative:preference,[Flag]) :-
   preference:use(minus(Flag),env),!,
-  message:color(orange),
+  message:color(green),
   message:style(bold),
   message:print('-'),
   message:print(Flag),
@@ -634,7 +634,7 @@ printer:print_use_flag(negative:preference,[Flag]) :-
 
 printer:print_use_flag(negative:preference,[Flag|Rest]) :-
   preference:use(minus(Flag),env),!,
-  message:color(orange),
+  message:color(green),
   message:style(bold),
   message:print('-'),
   message:print(Flag),
