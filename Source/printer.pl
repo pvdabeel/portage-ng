@@ -99,28 +99,42 @@ printer:print_metadata_item(blank,_) :- nl,!,true.
 
 printer:print_metadata_item(Item,Repository://Entry) :-
   message:style(bold),
+  message:color(darkgray),
   write(Item),write(' : '),
   message:style(normal),
   nl,
-  forall(kb:query(select(Item,equal,Value),Repository://Entry),(write('  '),printer:print_metadata_item_detail(Item,Value),nl)).
+  forall(kb:query(select(Item,equal,Value),Repository://Entry),(printer:print_metadata_item_detail(Item,'   ',Value),nl)).
 
 
-printer:print_metadata_item_detail(eapi,[_,_,_,Value]) :-
+
+
+printer:print_metadata_item_detail(eapi,Prefix,[_,_,_,Value]) :-
+  write(Prefix),
   write(Value).
 
-printer:print_metadata_item_detail(src_uri,uri(_,_,Value)) :-
+
+printer:print_metadata_item_detail(src_uri,Prefix,uri(_,_,Value)) :-
   !,
+  write(Prefix),
   write(Value).
 
-printer:print_metadata_item_detail(src_uri,use_conditional_group(Type,Use,_Id,Values)) :-
+printer:print_metadata_item_detail(src_uri,Prefix,use_conditional_group(Type,Use,_Id,Values)) :-
   !,
-  %nl,
-  write('['),write(Type),write(':'),write(Use),write(']:'),
-  forall(member(V,Values),(nl,write('   '),printer:print_metadata_item_detail(src_uri,V))).
-  % todo: support deep use_conditional_group
+  write(Prefix),
+  message:color(darkgray),
+  message:style(italic),
+  write('[use: '),
+  (Type == negative
+   -> (message:color(red),write('-'))
+   ;   message:color(green)),
+  write(Use),
+  message:color(darkgray),write('] :'),message:color(normal),
+  atom_concat('   ',Prefix,NewPrefix),
+  forall(member(V,Values),(nl,message:color(darkgray),message:color(normal),printer:print_metadata_item_detail(src_uri,NewPrefix,V))).
 
 
-printer:print_metadata_item_detail(_,Value) :-
+printer:print_metadata_item_detail(_,Prefix,Value) :-
+  write(Prefix),
   write(Value).
 
 
@@ -143,7 +157,6 @@ printer:print_element(Target,rule(Repository://Entry:Action,_)) :-
   message:column(39,Repository://Entry),
   message:color(normal),
   printer:print_config(Repository://Entry:Action).
-
 
 
 % -------------------------------------------------
@@ -170,6 +183,7 @@ printer:print_element(_,rule(package_dependency(_,run,_,_C,_N,_,_,_,_),[Reposito
   message:color(green),
   message:column(34,Repository://Entry),
   message:color(normal).
+
 
 % ----------------
 % CASE: a download
@@ -252,7 +266,6 @@ printer:print_element(_,assumed(rule(Repository://Entry:fetchonly,_Body))) :-
   message:column(29,Repository://Entry),
   message:print(' (assumed fetched) '),
   message:color(normal).
-
 
 
 % -------------------------------------
