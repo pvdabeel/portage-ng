@@ -38,6 +38,7 @@ as a Makefile).
 % context.
 
 remote_predicate_template(preference:local_use(_)).
+remote_predicate_template(preference:local_env_use(_)).
 remote_predicate_template(preference:local_accept_keywords(_)).
 remote_predicate_template(preference:local_flag(_)).
 

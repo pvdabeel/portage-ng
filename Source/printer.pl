@@ -471,17 +471,11 @@ printer:print_config(Repository://Entry:all) :-
          printer:print_config_item('download',RestFile,RestSize))).
 
 
-
-
-
 % -------------------
 % CASE: Other actions
 % -------------------
 
 printer:print_config(_://_:_) :- !.
-
-
-
 
 %! printer:print_config_item(+Key,+Value)
 %
@@ -570,19 +564,38 @@ printer:print_use_flag(_,[]) :-
   !.
 
 printer:print_use_flag(positive:preference,[Flag]) :-
+  preference:use(Flag,env),!,
+  message:color(orange),
+  message:style(bold),
+  message:print(Flag),
+  message:color(normal),
+  message:print('*').
+
+printer:print_use_flag(positive:preference,[Flag]) :-
   !,
+  %\+preference:use(Flag,env)
   message:color(lightred),
   message:style(bold),
   message:print(Flag),
   message:color(normal).
 
 printer:print_use_flag(positive:preference,[Flag|Rest]) :-
-  !,
-  message:color(lightred),
+  preference:use(Flag,env),!,
+  message:color(orange),
   message:style(bold),
   message:print(Flag),
-  message:print(' '),
   message:color(normal),
+  message:print('* '),
+  printer:print_use_flag(positive:preference,Rest).
+
+printer:print_use_flag(positive:preference,[Flag|Rest]) :-
+  !,
+  %\+preference:use(Flag,env),
+  message:color(red),
+  message:style(bold),
+  message:print(Flag),
+  message:color(normal),
+  message:print(' '),
   printer:print_use_flag(positive:preference,Rest).
 
 printer:print_use_flag(positive:ebuild,[Flag]) :-
@@ -602,7 +615,17 @@ printer:print_use_flag(positive:ebuild,[Flag|Rest]) :-
   printer:print_use_flag(positive:ebuild,Rest).
 
 printer:print_use_flag(negative:preference,[Flag]) :-
+  preference:use(minus(Flag),env),!,
+  message:color(orange),
+  message:style(bold),
+  message:print('-'),
+  message:print(Flag),
+  message:color(normal),
+  message:print('*').
+
+printer:print_use_flag(negative:preference,[Flag]) :-
   !,
+  %\+preference:use(minus(Flag),env),
   message:color(blue),
   message:style(bold),
   message:print('-'),
@@ -610,13 +633,24 @@ printer:print_use_flag(negative:preference,[Flag]) :-
   message:color(normal).
 
 printer:print_use_flag(negative:preference,[Flag|Rest]) :-
+  preference:use(minus(Flag),env),!,
+  message:color(orange),
+  message:style(bold),
+  message:print('-'),
+  message:print(Flag),
+  message:color(normal),
+  message:print('* '),
+  printer:print_use_flag(negative:preference,Rest).
+
+printer:print_use_flag(negative:preference,[Flag|Rest]) :-
   !,
+  %\+preference:use(minus(Flag),env),
   message:color(blue),
   message:style(bold),
   message:print('-'),
   message:print(Flag),
-  message:print(' '),
   message:color(normal),
+  message:print(' '),
   printer:print_use_flag(negative:preference,Rest).
 
 printer:print_use_flag(negative:ebuild,[Flag]) :-
