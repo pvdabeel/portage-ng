@@ -128,7 +128,8 @@ printer:print_metadata_item_detail(src_uri,Prefix,use_conditional_group(Type,Use
    -> (message:color(red),write('-'))
    ;   message:color(green)),
   write(Use),
-  message:color(darkgray),write('] :'),message:color(normal),
+  message:color(darkgray),
+  write('] :'),message:color(normal),
   atom_concat('   ',Prefix,NewPrefix),
   forall(member(V,Values),(nl,message:color(darkgray),message:color(normal),printer:print_metadata_item_detail(src_uri,NewPrefix,V))).
 
