@@ -55,10 +55,10 @@ printer:element_weight(rule(_Repository://_Entry:run,_),             3) :- !. % 
 printer:element_weight(rule(_Repository://_Entry:download,_),        4) :- !. % download
 printer:element_weight(rule(_Repository://_Entry:fetchonly,_),       5) :- !. % fetchonly
 printer:element_weight(rule(_Repository://_Entry:install,_),         5) :- !. % install
-printer:element_weight(rule(_Repository://_Entry:reinstall,_),       6) :- !. % install
-printer:element_weight(rule(_Repository://_Entry:uninstall,_),       6) :- !. % install
-printer:element_weight(rule(_Repository://_Entry:update,_),          6) :- !. % install
-printer:element_weight(rule(_Repository://_Entry:upgrade,_),         6) :- !. % install
+printer:element_weight(rule(_Repository://_Entry:reinstall,_),       6) :- !. % reinstall
+printer:element_weight(rule(_Repository://_Entry:uninstall,_),       6) :- !. % uninstall
+printer:element_weight(rule(_Repository://_Entry:update,_),          6) :- !. % update
+printer:element_weight(rule(_Repository://_Entry:upgrade,_),         6) :- !. % upgrade
 printer:element_weight(_,                                            7) :- !. % everything else
 
 

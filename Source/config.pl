@@ -217,8 +217,8 @@ config:printing_style(Style) :-
 config:printing_style(Style) :-
   %\+pengine_self(M),
   !,
-  config:interface_printing_style(Style);
-  config:default_printing_style(Style).
+  (config:interface_printing_style(Style);
+   config:default_printing_style(Style)).
 
 
 % Interface can dynamically set the printing style
