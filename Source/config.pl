@@ -243,9 +243,9 @@ config:print_expand_use(false).
 %! config:printable_metadata(?List)
 %
 % Defines which elements in which order to print out when printing ebuild information
-% Use 'blank' to put blank lines in output
+% Use 'blank' to put blank lines in output. Use 'hl' to output a horizontal line.
 
-config:printable_metadata([description,homepage,license,eapi,iuse,keywords,properties,eclasses,defined_phases,installed,src_uri,blank]).
+config:printable_metadata([blank,hl,description,homepage,license,eapi,hl,blank,iuse,keywords,properties,eclasses,defined_phases,installed,hl,blank,src_uri,hl,bdepend,blank,depend,blank,idepend,blank,rdepend,blank,pdepend,blank]).
 
 
 %! config:graph_modified_only(?Bool)

@@ -151,6 +151,22 @@ message:column(Number,Message) :-
   format('~*| ~w',[Number,Message]),!.
 
 
+%! message:hl(C)
+%
+% Writes a horizontal line with a given char
+
+message:hl(C) :-
+  tty_size(_,Y),
+  forall(between(1,Y,_),write(C)).
+
+%! message:hl
+%
+% Write a horizontal line
+
+message:hl :-
+  message:hl('-').
+
+
 %! message:print(+Message)
 %
 % Write a list or simple message

@@ -78,9 +78,8 @@ printer:sort_by_weight(C,L1,L2) :-
 
 printer:print_entry(Repository://Entry) :-
   !,
-  message:color(green),
-  write(Repository://Entry),
-  message:color(normal),nl,
+  nl,
+  message:header(['Printing information for: ',Repository://Entry]),
   printer:print_metadata(Repository://Entry).
 
 
@@ -88,14 +87,22 @@ printer:print_entry(Repository://Entry) :-
 %
 % Prints information an a repository entry metadata
 
-%printer:print_metadata(Repository://Entry)
-
 printer:print_metadata(Repository://Entry) :-
   config:printable_metadata(List),
   forall(member(I,List),printer:print_metadata_item(I,Repository://Entry)).
 
 
-printer:print_metadata_item(blank,_) :- nl,!,true.
+%! printer:print_metadata_item(Item,Repository://Entry)
+%
+% Prints specific metadata item
+
+printer:print_metadata_item(blank,_) :-
+  !,
+  nl.
+
+printer:print_metadata_item(hl,_) :-
+  !,
+  message:hl.
 
 printer:print_metadata_item(Item,Repository://Entry) :-
   message:style(bold),
@@ -103,40 +110,145 @@ printer:print_metadata_item(Item,Repository://Entry) :-
   write(Item),write(' : '),
   message:style(normal),
   nl,
-  forall(kb:query(select(Item,equal,Value),Repository://Entry),(printer:print_metadata_item_detail(Item,'   ',Value),nl)).
+  findall(Value,kb:query(select(Item,equal,Value),Repository://Entry),Values),
+  printer:print_metadata_item_details(Item,Values).
 
 
+%! printer:print_metadata_item_details(Item,List)
+%
+% Prints specific metadata item detail list
 
+printer:print_metadata_item_details(_Item,[]) :-
+  !,
+  Prefix = '   ',
+  message:style(italic),
+  message:color(lightgray),
+  write(Prefix),
+  write('[not set]'),
+  message:style(normal),
+  message:color(normal),
+  nl.
+
+printer:print_metadata_item_details(Item,List) :-
+  Prefix = '   ',
+  forall(member(Value,List),(printer:print_metadata_item_detail(Item,Prefix,Value),nl)).
+
+
+%! printer:print_metadata_item_detail(Item,Prefix,Value)
+%
+% Prints specific metadata item detail
 
 printer:print_metadata_item_detail(eapi,Prefix,[_,_,_,Value]) :-
   write(Prefix),
   write(Value).
-
 
 printer:print_metadata_item_detail(src_uri,Prefix,uri(_,_,Value)) :-
   !,
   write(Prefix),
   write(Value).
 
-printer:print_metadata_item_detail(src_uri,Prefix,use_conditional_group(Type,Use,_Id,Values)) :-
+printer:print_metadata_item_detail(Item,Prefix,use_conditional_group(Type,Use,_Id,Values)) :-
   !,
   write(Prefix),
-  message:color(darkgray),
+  message:color(lightgray),
   message:style(italic),
-  write('[use: '),
+  write('[use] '),
   (Type == negative
    -> (message:color(red),write('-'))
    ;   message:color(green)),
   write(Use),
-  message:color(darkgray),
-  write('] :'),message:color(normal),
+  message:color(lightgray),
+  message:color(normal),
   atom_concat('   ',Prefix,NewPrefix),
-  forall(member(V,Values),(nl,message:color(darkgray),message:color(normal),printer:print_metadata_item_detail(src_uri,NewPrefix,V))).
+  forall(member(V,Values),(nl,message:color(darkgray),message:color(normal),printer:print_metadata_item_detail(Item,NewPrefix,V))).
 
+printer:print_metadata_item_detail(Item,Prefix,any_of_group(Values)) :-
+  !,
+  write(Prefix),
+  message:color(lightgray),
+  message:style(italic),
+  write('[any] '),
+  message:color(normal),
+  atom_concat('   ',Prefix,NewPrefix),
+  forall(member(V,Values),(nl,message:color(darkgray),message:color(normal),printer:print_metadata_item_detail(Item,NewPrefix,V))).
+
+printer:print_metadata_item_detail(Item,Prefix,all_of_group(Values)) :-
+  !,
+  write(Prefix),
+  message:color(lightgray),
+  message:style(italic),
+  write('[all] '),
+  message:color(normal),
+  atom_concat('   ',Prefix,NewPrefix),
+  forall(member(V,Values),(nl,message:color(darkgray),message:color(normal),printer:print_metadata_item_detail(Item,NewPrefix,V))).
+
+printer:print_metadata_item_detail(Item,Prefix,exactly_one_of_group(Values)) :-
+  !,
+  write(Prefix),
+  message:color(lightgray),
+  message:style(italic),
+  write('[one] '),
+  message:color(normal),
+  atom_concat('   ',Prefix,NewPrefix),
+  forall(member(V,Values),(nl,message:color(darkgray),message:color(normal),printer:print_metadata_item_detail(Item,NewPrefix,V))).
+
+
+printer:print_metadata_item_detail(_,Prefix,package_dependency(_,_,Blocking,Category,Name,none,[[],_,_,_,_],_,_)) :-
+  !,
+  write(Prefix),
+  printer:print_blocking(Blocking),
+  write(Category),
+  write('/'),
+  write(Name).
+
+printer:print_metadata_item_detail(_,Prefix,package_dependency(_,_,Blocking,Category,Name,Comparator,[_,_,_,Version],_,_)) :-
+  !,
+  write(Prefix),
+  printer:print_blocking(Blocking),
+  printer:print_comparator(Comparator),
+  write(Category),
+  write('/'),
+  write(Name),
+  write('-'),
+  write(Version).
 
 printer:print_metadata_item_detail(_,Prefix,Value) :-
   write(Prefix),
   write(Value).
+
+
+%! printer:print_blocking(Type)
+%
+% Prints metadata for a blocking dependency
+
+printer:print_blocking(no) :- !.
+
+printer:print_blocking(weak) :-
+  message:color(lightgray),
+  message:style(italic),
+  write('[weak block] '),
+  message:style(normal),
+  message:color(normal).
+
+printer:print_blocking(strong) :-
+  message:color(lightgray),
+  message:style(italic),
+  write('[strong block] '),
+  message:style(normal),
+  message:color(normal).
+
+
+%! printer:print_comparator(Type)
+%
+% Prints short version of comparator
+
+printer:print_comparator(greaterequal) :- write('>=').
+printer:print_comparator(greater)      :- write('>').
+printer:print_comparator(smallerequal) :- write('<=').
+printer:print_comparator(smaller)      :- write('>').
+printer:print_comparator(equal)        :- write('=').
+printer:print_comparator(tilde)        :- write('~').
+printer:print_comparator(none)         :- write('').
 
 
 %! printer:print_element(+Printable)
