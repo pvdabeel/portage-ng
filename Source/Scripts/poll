@@ -25,12 +25,10 @@ if [ $LOCAL != $REMOTE ]; then
     
     echo ">>> Commit found, updating"
     echo "--- `date`" 
-    #echo
-    #echo "--- Clearing portage knowledge base"
-    #portage-ng-dev --mode standalone --clear # clear repository
     echo  
     echo "--- Syncing portage ebuilds"
     portage-ng-dev --mode client --sync  # sync repository
+    # portage-ng-dev --mode client --save  # save repository - not necessary, we can keep things in memory in client-server mode
     echo  
     echo "--- Graphing portage ebuilds"
     portage-ng-dev --mode client --graph  # update graph
