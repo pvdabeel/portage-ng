@@ -202,15 +202,16 @@ printer:print_metadata_item_detail(Item,Prefix,at_most_one_of_group(Values)) :-
   atom_concat('   ',Prefix,NewPrefix),
   forall(member(V,Values),(nl,message:color(darkgray),message:color(normal),printer:print_metadata_item_detail(Item,NewPrefix,V))).
 
-printer:print_metadata_item_detail(_,Prefix,package_dependency(_,_,Blocking,Category,Name,none,[[],_,_,_,_],_,_)) :-
+printer:print_metadata_item_detail(_,Prefix,package_dependency(_,_,Blocking,Category,Name,none,[[],_,_,_,_],_,Use)) :-
   !,
   write(Prefix),
   printer:print_blocking(Blocking),
   write(Category),
   write('/'),
-  write(Name).
+  write(Name),
+  printer:print_use_dependencies(Use).
 
-printer:print_metadata_item_detail(_,Prefix,package_dependency(_,_,Blocking,Category,Name,Comparator,[_,_,_,Version],_,_)) :-
+printer:print_metadata_item_detail(_,Prefix,package_dependency(_,_,Blocking,Category,Name,Comparator,[_,_,_,Version],_,Use)) :-
   !,
   write(Prefix),
   printer:print_blocking(Blocking),
@@ -219,7 +220,8 @@ printer:print_metadata_item_detail(_,Prefix,package_dependency(_,_,Blocking,Cate
   write('/'),
   write(Name),
   write('-'),
-  write(Version).
+  write(Version),
+  printer:print_use_dependencies(Use).
 
 printer:print_metadata_item_detail(_,Prefix,Value) :-
   write(Prefix),
@@ -258,6 +260,68 @@ printer:print_comparator(smaller)      :- write('>').
 printer:print_comparator(equal)        :- write('=').
 printer:print_comparator(tilde)        :- write('~').
 printer:print_comparator(none)         :- write('').
+
+
+%! printer:print_use_dependencies(Use)
+%
+% Prints use dependencies
+
+printer:print_use_dependencies([]) :- !.
+
+printer:print_use_dependencies(Use) :-
+  message:color(cyan),
+  write(' ['),
+  forall(member(D,Use),printer:print_use_dependency(D)),
+  write(']'),
+  message:color(normal).
+
+
+%! printer:print_use_dependency(Use)
+%
+% Print use dependency
+
+printer:print_use_dependency(use(inverse(U),D)) :-
+  write('!'),
+  write(U),
+  print_use_default(D).
+
+printer:print_use_dependency(use(equal(U),D)) :-
+  write(U),
+  print_use_default(D),
+  write('=').
+
+printer:print_use_dependency(use(optdisable(U),D)) :-
+  write('!'),
+  write(U),
+  print_use_default(D),
+  write('?').
+
+printer:print_use_dependency(use(optenable(U),D)) :-
+  write(U),
+  print_use_default(D),
+  write('?').
+
+printer:print_use_dependency(use(disable(U),D)) :-
+  write('-'),
+  write(U),
+  print_use_default(D).
+
+printer:print_use_dependency(use(enable(U),D)) :-
+  write(U),
+  print_use_default(D).
+
+
+%! printer:print_use_default(D)
+%
+% Prints use default for a use dependency
+
+printer:print_use_default(positive) :-
+  write('(+)').
+
+printer:print_use_default(negative) :-
+  write('(-)').
+
+printer:print_use_default(none) :- !.
 
 
 %! printer:print_element(+Printable)
