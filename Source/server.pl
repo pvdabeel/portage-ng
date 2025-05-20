@@ -140,7 +140,7 @@ server:reply(Request) :-
 % Clear knowledgebase files
 
 server:reply(Request) :-
-    member(path('/clear'), Request),
+    member(path('/graph'), Request),
     !,
     format('Transfer-encoding: chunked~n~n', []),
     current_output(S),
