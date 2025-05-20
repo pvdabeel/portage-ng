@@ -35,11 +35,14 @@ as a Makefile).
 
 :- pengine_application('portage-ng').
 
-:- http_handler('/',reply,[id('portage-ng'),methods([get])]).
-:- http_handler('/sync',reply,[id('sync'),methods([get])]).
-:- http_handler('/graph',reply,[id('graph'),methods([get])]).
-:- http_handler('/prove',reply,[id('prove'),methods([get])]).
-:- http_handler('/info',reply,[id('info'),methods([get])]).
+:- http_handler('/',      reply, [id('portage-ng'), methods([get])]).
+:- http_handler('/sync',  reply, [id('sync'),       methods([get])]).
+:- http_handler('/save',  reply, [id('save'),       methods([get])]).
+:- http_handler('/load',  reply, [id('load'),       methods([get])]).
+:- http_handler('/clear', reply, [id('clear'),      methods([get])]).
+:- http_handler('/graph', reply, [id('graph'),      methods([get])]).
+:- http_handler('/prove', reply, [id('prove'),      methods([get])]).
+:- http_handler('/info',  reply, [id('info'),       methods([get])]).
 
 
 %! server:start_server
@@ -95,15 +98,41 @@ server:reply(Request) :-
 
 %! server:reply(+Request)
 %
-% Run a test prove run
+% Save knowledgebase to file
 
 server:reply(Request) :-
-    member(path('/graph'), Request),
+    member(path('/save'), Request),
     !,
     format('Transfer-encoding: chunked~n~n', []),
     current_output(S),
     set_stream(S,buffer(false)),
-    grapher:test(portage).
+    kb:save.
+
+
+%! server:reply(+Request)
+%
+% Load knowledgebase from file
+
+server:reply(Request) :-
+    member(path('/load'), Request),
+    !,
+    format('Transfer-encoding: chunked~n~n', []),
+    current_output(S),
+    set_stream(S,buffer(false)),
+    kb:load.
+
+
+%! server:reply(+Request)
+%
+% Clear knowledgebase files
+
+server:reply(Request) :-
+    member(path('/clear'), Request),
+    !,
+    format('Transfer-encoding: chunked~n~n', []),
+    current_output(S),
+    set_stream(S,buffer(false)),
+    kb:clear.
 
 
 %! server:reply(+Request)

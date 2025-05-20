@@ -99,7 +99,7 @@ Query module.
 % Register a local repository with the knowledge base
 
 register(Repository) ::-
-  \+ ::proxy,
+  \+ proxy,
   <+repository(Repository),!.
 
 
@@ -110,7 +110,7 @@ register(Repository) ::-
 % Deregister a local repository with the knowledge base
 
 deregister(Repository) ::-
-  \+ ::proxy,
+  \+ proxy,
   <-repository(Repository),!.
 
 
@@ -127,7 +127,7 @@ sync ::-
   client:execute_remotely(Host,Port,'/sync'),!.
 
 sync ::-
-  \+ ::proxy,!,
+  \+ proxy,!,
   with_mutex(sync,
   (aggregate_all(count, ::repository(_), Count),
    (Count == 1 ->
@@ -147,14 +147,19 @@ sync ::-
 % Save state to file
 
 save ::-
-  \+ ::proxy,
+  proxy,!,
+  ::host(Host),
+  ::port(Port),
+  client:execute_remotely(Host,Port,'/save'),!.
+
+save ::-
+  \+ proxy,!,
   with_mutex(save,
   (tell('kb.raw'),
    writeln(':- module(cache,[]).'),
    prolog_listing:listing(cache:_,[variable_names(generated),source(false)]),
    told,
    qcompile('kb.raw'))),!.
-
 
 
 %! knowledgebase:load
@@ -164,10 +169,18 @@ save ::-
 % Load state from file
 
 load ::-
+  proxy,!,
+  ::host(Host),
+  ::port(Port),
+  client:execute_remotely(Host,Port,'/load'),!.
+
+load ::-
+  \+ proxy,
   exists_file('kb.qlf'),!,
   ensure_loaded('kb.qlf').
 
 load ::-
+  \+ proxy,
   true.
 
 
@@ -178,28 +191,25 @@ load ::-
 % Clear state file
 
 clear ::-
+  proxy,!,
+  ::host(Host),
+  ::port(Port),
+  client:execute_remotely(Host,Port,'/clear'),!.
+
+clear ::-
+  \+ proxy,
   exists_file('kb.qlf'),
   delete_file('kb.qlf'),
   fail.
 
 clear ::-
+  \+ proxy,
   exists_file('kb.raw'),!,
   delete_file('kb.raw').
 
 clear ::-
+  \+ proxy,
   true.
-
-
-%! knowledgebase:compile
-%
-% Public predicate
-%
-% Save state to stand-alone program
-
-compile ::-
-  \+ ::proxy,
-  with_mutex(compile,
-   qsave_program('portage-ng',[stand_alone(true),goal(prolog)])).
 
 
 %! knowledgebase:graph
@@ -215,9 +225,21 @@ graph ::-
   client:execute_remotely(Host,Port,'/graph'),!.
 
 graph ::-
-  \+ ::proxy,!,
+  \+ proxy,!,
   with_mutex(graph,
     grapher:test(portage)).
+
+
+%! knowledgebase:compile
+%
+% Public predicate
+%
+% Save state to stand-alone program
+
+compile ::-
+  \+ proxy,
+  with_mutex(compile,
+   qsave_program('portage-ng',[stand_alone(true),goal(prolog)])).
 
 
 %! knowledgebase:entry(?Repository://?Entry)
@@ -265,7 +287,7 @@ rpc_wrapper(Term) ::-
   client:rpc_execute(Host,Port,Term).
 
 rpc_wrapper(Term) ::-
-  \+ ::proxy,!,
+  \+ proxy,!,
   Term.
 
 

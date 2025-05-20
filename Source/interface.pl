@@ -70,6 +70,8 @@ interface:spec(S) :-
        [opt(server),    type(atom),      default(localhost),                      longflags(['server']),    help('Set Server hostname')],
        [opt(port),      type(integer),   default(4000),                           longflags(['port']),      help('Set Server port')],
        [opt(shell),     type(boolean),   default(false),                          longflags(['shell']),     help('Go to shell')],
+       [opt(save),      type(boolean),   default(false),                          longflags(['save']),      help('Save knowledgebase (only relevant in client mode')],
+       [opt(load),      type(boolean),   default(false),                          longflags(['save']),      help('Load knowledgebase (only relevant in client mode)')],
        [opt(version),   type(boolean),   default(false),       shortflags(['V']), longflags(['version']),   help('Show version')]
       ].
 
@@ -160,7 +162,11 @@ interface:process_requests(_Mode) :-
     memberchk(unmerge(true),Options)  -> (interface:process_action(uninstall,Args,Options), 		Continue) ;
     memberchk(depclean(true),Options) -> (message:warning('depclean action to be implemented'), 	Continue) ;
     memberchk(search(true),Options)   -> (interface:process_action(search,Args,Options),                Continue) ;
-    memberchk(sync(true),Options)     -> (kb:sync, kb:save,!, 						Continue) ;
+    memberchk(sync(true),Options)     -> ((lists:memberchk(mode(standalone),Options)
+                                           -> (kb:sync, kb:save)
+                                           ;  (kb:sync)),!, 						Continue) ;
+    memberchk(save(true),Options)     -> (kb:save,!, 							Continue) ;
+    memberchk(save(true),Options)     -> (kb:load,!, 							Continue) ;
    %memberchk(reinstall(true),Options)-> (interface:process_action(reinstall,Args,Options),             Continue) ;
     memberchk(fetchonly(true),Options)-> (interface:process_action(fetchonly,Args,Options),             Continue) ;
     memberchk(merge(true),Options)    -> (interface:process_action(run,Args,Options),                   Continue) ;
