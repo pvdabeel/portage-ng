@@ -202,16 +202,17 @@ printer:print_metadata_item_detail(Item,Prefix,at_most_one_of_group(Values)) :-
   atom_concat('   ',Prefix,NewPrefix),
   forall(member(V,Values),(nl,message:color(darkgray),message:color(normal),printer:print_metadata_item_detail(Item,NewPrefix,V))).
 
-printer:print_metadata_item_detail(_,Prefix,package_dependency(_,_,Blocking,Category,Name,none,[[],_,_,_,_],_,Use)) :-
+printer:print_metadata_item_detail(_,Prefix,package_dependency(_,_,Blocking,Category,Name,none,[[],_,_,_,_],Slot,Use)) :-
   !,
   write(Prefix),
   printer:print_blocking(Blocking),
   write(Category),
   write('/'),
   write(Name),
+  printer:print_slot_restriction(Slot),
   printer:print_use_dependencies(Use).
 
-printer:print_metadata_item_detail(_,Prefix,package_dependency(_,_,Blocking,Category,Name,Comparator,[_,_,_,Version],_,Use)) :-
+printer:print_metadata_item_detail(_,Prefix,package_dependency(_,_,Blocking,Category,Name,Comparator,[_,_,_,Version],Slot,Use)) :-
   !,
   write(Prefix),
   printer:print_blocking(Blocking),
@@ -221,6 +222,7 @@ printer:print_metadata_item_detail(_,Prefix,package_dependency(_,_,Blocking,Cate
   write(Name),
   write('-'),
   write(Version),
+  printer:print_slot_restriction(Slot),
   printer:print_use_dependencies(Use).
 
 printer:print_metadata_item_detail(_,Prefix,Value) :-
@@ -322,6 +324,53 @@ printer:print_use_default(negative) :-
   write('(-)').
 
 printer:print_use_default(none) :- !.
+
+
+%! printer:print_slot_restriction(S)
+%
+% Prints slot restriction for a package dependency
+
+printer:print_slot_restriction([]) :- !.
+
+printer:print_slot_restriction(any_different_slot) :-
+  message:color(lightgray),
+  write(':*'),
+  message:color(normal).
+
+printer:print_slot_restriction(any_same_slot) :-
+  message:color(lightgray),
+  write(':='),
+  message:color(normal).
+
+printer:print_slot_restriction([slot(Slot)]) :-
+  message:color(lightgray),
+  write(':'),
+  write(Slot),
+  message:color(normal).
+
+printer:print_slot_restriction([slot(Slot),equal]) :-
+  message:color(lightgray),
+  write(':'),
+  write(Slot),
+  write('='),
+  message:color(normal).
+
+printer:print_slot_restriction([slot(Slot),subslot(Subslot)]) :-
+  message:color(lightgray),
+  write(':'),
+  write(Slot),
+  write('/'),
+  write(Subslot),
+  message:color(normal).
+
+printer:print_slot_restriction([slot(Slot),subslot(Subslot),equal]) :-
+  message:color(lightgray),
+  write(':'),
+  write(Slot),
+  write('/'),
+  write(Subslot),
+  write('='),
+  message:color(normal).
 
 
 %! printer:print_element(+Printable)
