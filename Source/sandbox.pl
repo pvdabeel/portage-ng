@@ -78,7 +78,6 @@ sandbox:safe_primitive(message:style(_)).
 sandbox:safe_primitive(message:eend(_)).
 sandbox:safe_primitive(message:column(_,_)).
 sandbox:safe_primitive(message:print(_)).
-sandbox:safe_primitive(message:print(_,_)).
 sandbox:safe_primitive(message:failure(_)).
 sandbox:safe_primitive(message:warning(_)).
 sandbox:safe_primitive(message:success(_)).
