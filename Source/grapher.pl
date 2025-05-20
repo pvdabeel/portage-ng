@@ -399,9 +399,9 @@ grapher:write_dot_files(D,Repository://Id) :-
 grapher:test(Repository) :-
   config:graph_modified_only(true),!,
   config:number_of_cpus(Cpus),
+  message:hc,
   grapher:prepare_directory(D,Repository),
   message:title(['Graphing (',Cpus,' threads) - Changed ebuilds only']),
-  flush_output,
   concurrent_forall((Repository:entry(E,Time),
                      Repository:get_ebuild_file(E,Ebuild),
                      system:exists_file(Ebuild),
@@ -409,21 +409,25 @@ grapher:test(Repository) :-
                      Modified > Time),
           (grapher:write_dot_files(D,Repository://E))),
   message:title_reset,
-  message:scroll_notice(['Graphed changed ebuilds only (',Cpus,' threads). Now running Graphviz dot.']),
+  message:el,
+  message:notice(['Graphed changed ebuilds only (',Cpus,' threads).']),
+  message:scroll_notice(['Now running Graphviz dot...']),
   script:exec(graph,['dot',D]),
-  message:clean,
-  message:scroll_notice(['Graphed changed ebuilds only (',Cpus,' threads). Done running Graphviz dot.']).
+  message:scroll_notice(['Done running Graphviz dot.']),
+  message:sc.
 
 grapher:test(Repository) :-
   not(config:graph_modified_only(true)),!,
   config:number_of_cpus(Cpus),
+  message:hc,
   grapher:prepare_directory(D,Repository),
   message:title(['Graphing (',Cpus,' threads) - All ebuilds']),
-  flush_output,
   concurrent_forall(Repository:entry(E),(grapher:write_dot_files(D,Repository://E))),
   Repository:get_size(L),
   message:title_reset,
-  message:scroll_notice(['Graphed ',L,' ebuilds (',Cpus,' threads). Now running Graphviz dot.']),
+  message:el,
+  message:notice(['Graphed ',L,' ebuilds (',Cpus,' threads).']),
+  message:scroll_notice(['Now running Graphviz dot...']),
   script:exec(graph,['dot',D]),
-  message:clean,
-  message:scroll_notice(['Graphed ',L,' ebuilds (',Cpus,' threads). Done running Graphviz dot.']).
+  message:scroll_notice(['Done running Graphviz dot.']),
+  message:sc.

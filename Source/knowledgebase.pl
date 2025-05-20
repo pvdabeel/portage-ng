@@ -41,6 +41,7 @@ Query module.
 :- dpublic(load/0).
 :- dpublic(clear/0).
 :- dpublic(compile/0).
+:- dpublic(graph/0).
 
 :- dpublic(entry/1).
 :- dpublic(query/2).
@@ -199,6 +200,24 @@ compile ::-
   \+ ::proxy,
   with_mutex(compile,
    qsave_program('portage-ng',[stand_alone(true),goal(prolog)])).
+
+
+%! knowledgebase:graph
+%
+% Public predicate
+%
+% Create svg dependency graphs for all entries
+
+graph ::-
+  proxy,!,
+  ::host(Host),
+  ::port(Port),
+  client:execute_remotely(Host,Port,'/graph'),!.
+
+graph ::-
+  \+ ::proxy,!,
+  with_mutex(graph,
+    grapher:test(portage)).
 
 
 %! knowledgebase:entry(?Repository://?Entry)

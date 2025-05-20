@@ -156,7 +156,7 @@ interface:process_requests(_Mode) :-
   ( memberchk(version(true),Options)  -> (message:inform(['portage-ng ',Status,' version - ',Version]), Continue) ;
     memberchk(info(true),Options)     -> (interface:process_action(info,Args,Options),                  Continue) ;
     memberchk(clear(true),Options)    -> (kb:clear, 							Continue) ;
-    memberchk(graph(true),Options)    -> (grapher:test(portage),nl, 				  	Continue) ;
+    memberchk(graph(true),Options)    -> (kb:graph,nl, 				  			Continue) ;
     memberchk(unmerge(true),Options)  -> (interface:process_action(uninstall,Args,Options), 		Continue) ;
     memberchk(depclean(true),Options) -> (message:warning('depclean action to be implemented'), 	Continue) ;
     memberchk(search(true),Options)   -> (interface:process_action(search,Args,Options),                Continue) ;
