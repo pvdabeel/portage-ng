@@ -36,9 +36,10 @@ as a Makefile).
 :- pengine_application('portage-ng').
 
 :- http_handler('/',reply,[id('portage-ng'),methods([get])]).
-:- http_handler('/info',reply,[id('info'),methods([get])]).
 :- http_handler('/sync',reply,[id('sync'),methods([get])]).
+:- http_handler('/graph',reply,[id('graph'),methods([get])]).
 :- http_handler('/prove',reply,[id('prove'),methods([get])]).
+:- http_handler('/info',reply,[id('info'),methods([get])]).
 
 
 %! server:start_server
@@ -79,19 +80,6 @@ server:stop_server :-
 
 %! server:reply(+Request)
 %
-% Run a test prove run
-
-server:reply(Request) :-
-    member(path('/prove'), Request),
-    !,
-    format('Transfer-encoding: chunked~n~n', []),
-    current_output(S),
-    set_stream(S,buffer(false)),
-    prover:test_latest(portage,parallel_verbose).
-
-
-%! server:reply(+Request)
-%
 % Sync server repositories. Warning: needs locking
 
 server:reply(Request) :-
@@ -101,6 +89,32 @@ server:reply(Request) :-
     current_output(S),
     set_stream(S,buffer(false)),
     kb:sync.
+
+
+%! server:reply(+Request)
+%
+% Run a test prove run
+
+server:reply(Request) :-
+    member(path('/graph'), Request),
+    !,
+    format('Transfer-encoding: chunked~n~n', []),
+    current_output(S),
+    set_stream(S,buffer(false)),
+    grapher:test(portage).
+
+
+%! server:reply(+Request)
+%
+% Run a test prove run
+
+server:reply(Request) :-
+    member(path('/prove'), Request),
+    !,
+    format('Transfer-encoding: chunked~n~n', []),
+    current_output(S),
+    set_stream(S,buffer(false)),
+    prover:test_latest(portage,parallel_verbose).
 
 
 %! server:reply(+Request)
