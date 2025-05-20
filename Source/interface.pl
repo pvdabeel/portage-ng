@@ -71,7 +71,7 @@ interface:spec(S) :-
        [opt(port),      type(integer),   default(4000),                           longflags(['port']),      help('Set Server port')],
        [opt(shell),     type(boolean),   default(false),                          longflags(['shell']),     help('Go to shell')],
        [opt(save),      type(boolean),   default(false),                          longflags(['save']),      help('Save knowledgebase (only relevant in client mode')],
-       [opt(load),      type(boolean),   default(false),                          longflags(['save']),      help('Load knowledgebase (only relevant in client mode)')],
+       [opt(load),      type(boolean),   default(false),                          longflags(['load']),      help('Load knowledgebase (only relevant in client mode)')],
        [opt(version),   type(boolean),   default(false),       shortflags(['V']), longflags(['version']),   help('Show version')]
       ].
 
@@ -166,7 +166,7 @@ interface:process_requests(_Mode) :-
                                            -> (kb:sync, kb:save)
                                            ;  (kb:sync)),!, 						Continue) ;
     memberchk(save(true),Options)     -> (kb:save,!, 							Continue) ;
-    memberchk(save(true),Options)     -> (kb:load,!, 							Continue) ;
+    memberchk(load(true),Options)     -> (kb:load,!, 							Continue) ;
    %memberchk(reinstall(true),Options)-> (interface:process_action(reinstall,Args,Options),             Continue) ;
     memberchk(fetchonly(true),Options)-> (interface:process_action(fetchonly,Args,Options),             Continue) ;
     memberchk(merge(true),Options)    -> (interface:process_action(run,Args,Options),                   Continue) ;

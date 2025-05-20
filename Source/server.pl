@@ -137,6 +137,19 @@ server:reply(Request) :-
 
 %! server:reply(+Request)
 %
+% Clear knowledgebase files
+
+server:reply(Request) :-
+    member(path('/clear'), Request),
+    !,
+    format('Transfer-encoding: chunked~n~n', []),
+    current_output(S),
+    set_stream(S,buffer(false)),
+    kb:graph.
+
+
+%! server:reply(+Request)
+%
 % Run a test prove run
 
 server:reply(Request) :-
