@@ -192,6 +192,15 @@ printer:print_metadata_item_detail(Item,Prefix,exactly_one_of_group(Values)) :-
   atom_concat('   ',Prefix,NewPrefix),
   forall(member(V,Values),(nl,message:color(darkgray),message:color(normal),printer:print_metadata_item_detail(Item,NewPrefix,V))).
 
+printer:print_metadata_item_detail(Item,Prefix,at_most_one_of_group(Values)) :-
+  !,
+  write(Prefix),
+  message:color(lightgray),
+  message:style(italic),
+  write('[one] '),
+  message:color(normal),
+  atom_concat('   ',Prefix,NewPrefix),
+  forall(member(V,Values),(nl,message:color(darkgray),message:color(normal),printer:print_metadata_item_detail(Item,NewPrefix,V))).
 
 printer:print_metadata_item_detail(_,Prefix,package_dependency(_,_,Blocking,Category,Name,none,[[],_,_,_,_],_,_)) :-
   !,
