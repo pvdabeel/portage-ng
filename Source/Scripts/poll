@@ -30,10 +30,10 @@ if [ $LOCAL != $REMOTE ]; then
     #portage-ng-dev --mode standalone --clear # clear repository
     echo  
     echo "--- Syncing portage ebuilds"
-    portage-ng-dev --mode standalone --sync  # sync repository
+    portage-ng-dev --mode client --sync  # sync repository
     echo  
     echo "--- Graphing portage ebuilds"
-    portage-ng-dev --mode standalone --graph  # update graph
+    portage-ng-dev --mode client --graph  # update graph
     
     pushd '/Volumes/Storage/Graph/'
     echo  
