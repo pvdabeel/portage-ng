@@ -402,6 +402,15 @@ message:convert_bytes(Bytes,Output) :-
   format(atom(Output),'~2f Kb~10|',[Kilobytes]).
 
 
+%! message:datetime(Datetime)
+%
+% Return current time & date as an atom
+
+message:datetime(Datetime) :-
+  get_time(Stamp),stamp_date_time(Stamp,X,'local'),
+  format_time(atom(Datetime),'%a %d %b %Y %T',X).
+
+
 %! message:format_bytes(+Bytes)
 %
 % Formats a given number of bytes

@@ -66,7 +66,9 @@ server:start_server  :-
                            peer_cert(true),
                            cacerts([file(CaCert)])
                          ])
-                   ]).
+                   ]),
+  message:datetime(T),
+  message:notice([T]).
 
 
 %! server:stop_server
