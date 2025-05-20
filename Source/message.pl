@@ -109,6 +109,14 @@ message:sc :-
   system:write('\033[?25h').
 
 
+%! message:bl
+%
+% Return cursor to beginning of line
+
+message:bl :-
+  system:write('\033[1G').
+
+
 %! message:style(+Style)
 %
 % Sets the message style. Uses ANSI escape codes.
@@ -130,7 +138,6 @@ message:style(dim) :-
 
 message:style(normal) :-
   system:write('\033[00m').
-
 
 
 %! message:eend(+Message)
@@ -159,6 +166,7 @@ message:hl(C) :-
   tty_size(_,Y),
   forall(between(1,Y,_),write(C)).
 
+
 %! message:hl
 %
 % Write a horizontal line
@@ -178,16 +186,6 @@ message:print(Message) :-
 
 message:print(Message) :-
   system:write(Message).
-
-
-%! message:print(+Message,-Len)
-%
-% Write a list message and return its length
-
-message:print(Message,Len) :-
-  message:print(Message),
-  atomic_list_concat(Message,Concat),
-  system:write_length(Concat,Len,[]).
 
 
 %! message:failure(+Message)
@@ -267,11 +265,10 @@ message:notice(Message) :-
 
 message:scroll(Message) :-
   system:write('% '),
-  message:print(Message,Len),
+  message:print(Message),
   message:el,
   flush_output,
-  Prefixed_Len is Len + 2,% + 3,
-  tty:tty_action(back(Prefixed_Len)).
+  message:bl.
 
 
 %! message:scroll(+Message)
@@ -280,60 +277,52 @@ message:scroll(Message) :-
 % Message is a list.
 
 message:scroll_success(Message) :-
-  %system:write('% '),
   message:color(green),
   message:style(bold),
-  message:print(['[SUCCESS] '],LenA),
+  message:print(['[SUCCESS] ']),
   message:color(normal),
-  message:print(Message,LenB),
+  message:print(Message),
   message:el,
-  flush_output,
-  Prefixed_Len is LenA + LenB,
-  tty:tty_action(back(Prefixed_Len)).
+  message:bl,
+  flush_output.
 
 message:scroll_failure(Message) :-
-  %system:write('% '),
   message:color(red),
   message:style(bold),
-  message:print(['[FAILURE] '],LenA),
+  message:print(['[FAILURE] ']),
   message:color(normal),
-  message:print(Message,LenB),
+  message:print(Message),
   message:el,
-  flush_output,
-  Prefixed_Len is LenA + LenB,
-  tty:tty_action(back(Prefixed_Len)).
+  message:bl,
+  flush_output.
 
 message:scroll_warning(Message) :-
-  %system:write('% '),
   message:color(orange),
   message:style(bold),
-  message:print(['[WARNING] '],LenA),
+  message:print(['[WARNING] ']),
   message:color(normal),
-  message:print(Message,LenB),
+  message:print(Message),
   message:el,
-  flush_output,
-  Prefixed_Len is LenA + LenB,
-  tty:tty_action(back(Prefixed_Len)).
+  message:bl,
+  flush_output.
 
 message:scroll_inform(Message) :-
   system:write('% '),
-  message:print(Message,Len),
+  message:print(Message),
   message:el,
-  flush_output,
-  Prefixed_Len is Len + 2,
-  tty:tty_action(back(Prefixed_Len)).
+  message:bl,
+  flush_output.
 
 message:scroll_notice(Message) :-
   message:style(italic),
   message:color(darkgray),
   system:write('% '),
-  message:print(Message,Len),
+  message:print(Message),
   message:color(normal),
   message:style(normal),
   message:el,
-  flush_output,
-  Prefixed_Len is Len + 2,
-  tty:tty_action(back(Prefixed_Len)).
+  message:bl,
+  flush_output.
 
 
 %! message:clean
@@ -342,8 +331,6 @@ message:scroll_notice(Message) :-
 
 message:clean :-
   message:el.
-  %Len is 3,
-  %tty:tty_action(back(Len)).
 
 
 %! message:topheader(+Message)
@@ -385,14 +372,12 @@ message:header(Header,[E|R]) :-
   system:write(': '),
   system:write(E),nl,
   forall(member(M,R),
-   (message:write('               '),
-    message:write(M),
+   (system:write('               '),
+    system:write(M),
     nl)),
   message:color(normal),
   message:style(normal),
   nl.
-
-
 
 
 %! message:convert_bytes(+Bytes,-Output,-Unit)
