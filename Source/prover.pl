@@ -16,6 +16,7 @@ The prover computes a proof and a model for a given input.
 
 :- dynamic prover:flag/1.
 
+
 % *******************
 % PROVER declarations
 % *******************
@@ -86,8 +87,8 @@ prover:prove(Literal,Proof,[rule(Literal,[])|Proof],Model,[Literal|Model],Constr
   % not(prover:is_constraint(Literal)),			% green cut
   % not(prover:proven(Literal,Model)),			% green cut
   rule(Literal,[]),!,
-  not(prover:conflicts(Literal,Model)),
-  not(prover:conflictrule(rule(Literal,[]),Proof)).
+  \+(prover:conflicts(Literal,Model)),
+  \+(prover:conflictrule(rule(Literal,[]),Proof)).
 
 
 % CASE 2e: not proven, no rule, make assumption
@@ -110,9 +111,9 @@ prover:prove(Literal,Proof,NewProof,Model,NewModel,Constraints,NewConstraints) :
   % rule(Literal,Body),
   % not(prover:fact(rule(Literal,Body))),		% green cut
   prover:proving(rule(Literal,_),Proof),
-  not(prover:assumed_proving(Literal,Proof)),!,
-  not(prover:conflicts(Literal,Model)),
-  not(prover:conflictrule(rule(Literal,[]),Proof)),
+  \+(prover:assumed_proving(Literal,Proof)),!,
+  \+(prover:conflicts(Literal,Model)),
+  \+(prover:conflictrule(rule(Literal,[]),Proof)),
   prover:prove([],[assumed(rule(Literal,[]))|Proof],NewProof,[assumed(Literal)|Model],NewModel,Constraints,NewConstraints).
 
 
@@ -122,8 +123,8 @@ prover:prove(Literal,Proof,NewProof,Model,[Literal|NewModel],Constraints,NewCons
   % not(is_list(Literal)),				% green cut
   % not(prover:is_constraint(Literal)),			% green cut
   % not(prover:proven(Literal,Model)),			% green cut
-  not(prover:conflicts(Literal,Model)),
-  not(prover:conflictrule(rule(Literal,[]),Proof)),
+  \+(prover:conflicts(Literal,Model)),
+  \+(prover:conflictrule(rule(Literal,[]),Proof)),
   rule(Literal,Body),
   % not(prover:fact(rule(Literal,Body))),		% green cut
   % not(prover:proving(rule(Literal,Body),Proof)),	% green cut
