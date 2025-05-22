@@ -38,6 +38,7 @@ directory of this project.
 
 :- module(eapi, []).
 
+
 % ----------
 % EAPI parse
 % ----------
@@ -600,7 +601,7 @@ eapi:check_package(L) :-
 
 eapi:check_package(L) :-
   lists:reverse(L,[E,B|_]),
-  not(eapi:invalid_package_ending(E,B)).
+  \+(eapi:invalid_package_ending(E,B)).
 
 
 % Converts a list of chuncks to atom
@@ -1188,7 +1189,7 @@ eapi:uri_chars([]) -->
   [40,32], { !,fail }.                                % char: (
 
 eapi:uri_chars([C|R]) -->
-  [C], { not(code_type(C,white)),! },
+  [C], { \+(code_type(C,white)),! },
   eapi:uri_chars(R).
 
 eapi:uri_chars([]) -->
@@ -1202,7 +1203,7 @@ eapi:uri_chars([]) -->
 % Needs at least 1 char
 
 eapi:uri_chars1([C|R]) -->
-  [C], { not(code_type(C,white)),not(C = 41), !},
+  [C], { \+(code_type(C,white)),\+(C = 41), !},
   eapi:uri_chars(R).
 
 
@@ -1304,59 +1305,58 @@ eapi:chars0(_,[]) -->
 
 eapi:char(T,C) -->
   [C],
-  { eapi:jumprule(T,[C]),! }.
-
+  { jumprule(T,C),! }.
 
 % CHAR jumptable
 
-eapi:jumprule(c,[45]) :- !.                      % EAPI 2.1.1: A category name may contain '-'
-eapi:jumprule(c,[95]) :- !.                      % EAPI 2.1.1: A category name may contain '_'
-eapi:jumprule(c,[43]) :- !.                      % EAPI 2.1.1: A category name may contain '+'
-eapi:jumprule(c,[46]) :- !.                      % EAPI 2.1.1: A category name may contain '.'
-eapi:jumprule(c,[C]) :- code_type(C,alnum), !.   % EAPI 2.1.1: A category name may contain alphanumeric chars
-eapi:jumprule(u,[45]) :- !.                      % EAPI 2.1.4: A use flag name may contain '-'
-eapi:jumprule(u,[95]) :- !.                      % EAPI 2.1.4: A use flag name may contain '_'
-eapi:jumprule(u,[43]) :- !.                      % EAPI 2.1.4: A use flag name may contain '+'
-eapi:jumprule(u,[64]) :- !.                      % EAPI 2.1.4: A use flag name may contain '@'
-eapi:jumprule(u,[46]) :- !.                      % EAPI PROGRESS: A use flag name may contain '.'
-eapi:jumprule(u,[C]) :- code_type(C,alnum), !.   % EAPI 2.1.4: A use flag name may contain alphanumeric chars
-eapi:jumprule(s,[45]) :- !.                      % EAPI 2.1.3: A slot name may contain '-'
-eapi:jumprule(s,[95]) :- !.                      % EAPI 2.1.3: A slot name may contain '_'
-eapi:jumprule(s,[43]) :- !.                      % EAPI 2.1.3: A slot name may contain '+'
-eapi:jumprule(s,[46]) :- !.                      % EAPI 2.1.3: A slot name may contain '.'
-eapi:jumprule(s,[C]) :- code_type(C,alnum), !.   % EAPI 2.1.3: A slot name may contain alphanumeric chars
-eapi:jumprule(k,[45]) :- !.                      % EAPI 2.1.6: A keyword name may contain '-'
-eapi:jumprule(k,[95]) :- !.                      % EAPI 2.1.6: A keyword name may contain '_'
-eapi:jumprule(k,[C]) :- code_type(C,alnum), !.   % EAPI 2.1.6: A keyword name may contain alphanumeric chars
-eapi:jumprule(v,[45]) :- !.                      % EAPI 2.2: A version may contain '-'
-eapi:jumprule(v,[95]) :- !.                      % EAPI 2.2: A version may contain '_'
-eapi:jumprule(v,[42]) :- !.                      % EAPI 2.2: A version may contain '*'
-eapi:jumprule(v,[46]) :- !.                      % EAPI 2.2: A version may contain '.'
-eapi:jumprule(v,[C]) :- code_type(C,alnum), !.   % EAPI 2.2: A version may contain alphanumeric chars
-eapi:jumprule(r,[45]) :- !.                      % EAPI 9.2.4: A slot restriction may contain '-'
-eapi:jumprule(r,[95]) :- !.                      % EAPI 9.2.4: A slot restriction may contain '_'
-eapi:jumprule(r,[46]) :- !.                      % EAPI 9.2.4: A slot restriction may contain '*'
-eapi:jumprule(r,[46]) :- !.                      % EAPI 9.2.4: A slot restriction may contain '.'
-eapi:jumprule(r,[C]) :- code_type(C,alnum), !.   % EAPI 9.2.4: A slot restriction may contain alphanumeric chars
-eapi:jumprule(f,[45]) :- !.                      % EAPI 9.2.0: A function name may contain '-'
-eapi:jumprule(f,[95]) :- !.                      % EAPI 9.2.0: A function name may contain '_'
-eapi:jumprule(f,[43]) :- !.                      % EAPI 9.2.0: A function name may contain '+'
-eapi:jumprule(f,[46]) :- !.                      % EAPI 9.2.0: A function name may contain '.'
-eapi:jumprule(f,[C]) :- code_type(C,alnum), !.   % EAPI 9.2.0: A function name may contain alphanumeric chars
-eapi:jumprule(s,[45]) :- !.                      % EAPI 2.1.4: A string name may contain '-'
-eapi:jumprule(s,[95]) :- !.                      % EAPI 2.1.4: A string name may contain '_'
-eapi:jumprule(s,[43]) :- !.                      % EAPI 2.1.4: A string name may contain '+'
-eapi:jumprule(s,[46]) :- !.                      % EAPI 2.1.4: A string name may contain '@'
-eapi:jumprule(s,[C]) :- code_type(C,alnum), !.   % EAPI 2.1.4: A string name may contain alphanumeric chars
-eapi:jumprule(p,[45]) :- !.                      % EAPI 9.2.0: A uri protocol name may contain '-'
-eapi:jumprule(p,[95]) :- !.                      % EAPI 9.2.0: A uri protocol name may contain '_'
-eapi:jumprule(p,[43]) :- !.                      % EAPI 9.2.0: A uri protocol name may contain '+'
-eapi:jumprule(p,[46]) :- !.                      % EAPI 9.2.0: A uri protocol name may contain '.'
-eapi:jumprule(p,[46]) :- !.                      % EAPI 9.2.0: A uri protocol name may contain '@'
-eapi:jumprule(p,[C]) :- code_type(C,alnum), !.   % EAPI 9.2.0: A uri protocol name may contain alphanumeric chars
-eapi:jumprule(t,[46]) :- !.                      % A timestamp may contain a '.'
-eapi:jumprule(t,[C]) :- code_type(C,digit), !.   % A timestamp may contain digit chars.
-eapi:jumprule(m,[C]) :- code_type(C,alnum), !.   % An MD5 sum may contain alnum chars
+eapi:jumprule(c,45) :- !.                      % EAPI 2.1.1: A category name may contain '-'
+eapi:jumprule(c,95) :- !.                      % EAPI 2.1.1: A category name may contain '_'
+eapi:jumprule(c,43) :- !.                      % EAPI 2.1.1: A category name may contain '+'
+eapi:jumprule(c,46) :- !.                      % EAPI 2.1.1: A category name may contain '.'
+eapi:jumprule(c,C) :- code_type(C,alnum), !.   % EAPI 2.1.1: A category name may contain alphanumeric chars
+eapi:jumprule(u,45) :- !.                      % EAPI 2.1.4: A use flag name may contain '-'
+eapi:jumprule(u,95) :- !.                      % EAPI 2.1.4: A use flag name may contain '_'
+eapi:jumprule(u,43) :- !.                      % EAPI 2.1.4: A use flag name may contain '+'
+eapi:jumprule(u,64) :- !.                      % EAPI 2.1.4: A use flag name may contain '@'
+eapi:jumprule(u,46) :- !.                      % EAPI PROGRESS: A use flag name may contain '.'
+eapi:jumprule(u,C) :- code_type(C,alnum), !.   % EAPI 2.1.4: A use flag name may contain alphanumeric chars
+eapi:jumprule(s,45) :- !.                      % EAPI 2.1.3: A slot name may contain '-'
+eapi:jumprule(s,95) :- !.                      % EAPI 2.1.3: A slot name may contain '_'
+eapi:jumprule(s,43) :- !.                      % EAPI 2.1.3: A slot name may contain '+'
+eapi:jumprule(s,46) :- !.                      % EAPI 2.1.3: A slot name may contain '.'
+eapi:jumprule(s,C) :- code_type(C,alnum), !.   % EAPI 2.1.3: A slot name may contain alphanumeric chars
+eapi:jumprule(k,45) :- !.                      % EAPI 2.1.6: A keyword name may contain '-'
+eapi:jumprule(k,95) :- !.                      % EAPI 2.1.6: A keyword name may contain '_'
+eapi:jumprule(k,C) :- code_type(C,alnum), !.   % EAPI 2.1.6: A keyword name may contain alphanumeric chars
+eapi:jumprule(v,45) :- !.                      % EAPI 2.2: A version may contain '-'
+eapi:jumprule(v,95) :- !.                      % EAPI 2.2: A version may contain '_'
+eapi:jumprule(v,42) :- !.                      % EAPI 2.2: A version may contain '*'
+eapi:jumprule(v,46) :- !.                      % EAPI 2.2: A version may contain '.'
+eapi:jumprule(v,C) :- code_type(C,alnum), !.   % EAPI 2.2: A version may contain alphanumeric chars
+eapi:jumprule(r,45) :- !.                      % EAPI 9.2.4: A slot restriction may contain '-'
+eapi:jumprule(r,95) :- !.                      % EAPI 9.2.4: A slot restriction may contain '_'
+eapi:jumprule(r,42) :- !.                      % EAPI 9.2.4: A slot restriction may contain '*'
+eapi:jumprule(r,46) :- !.                      % EAPI 9.2.4: A slot restriction may contain '.'
+eapi:jumprule(r,C) :- code_type(C,alnum), !.   % EAPI 9.2.4: A slot restriction may contain alphanumeric chars
+eapi:jumprule(f,45) :- !.                      % EAPI 9.2.0: A function name may contain '-'
+eapi:jumprule(f,95) :- !.                      % EAPI 9.2.0: A function name may contain '_'
+eapi:jumprule(f,43) :- !.                      % EAPI 9.2.0: A function name may contain '+'
+eapi:jumprule(f,46) :- !.                      % EAPI 9.2.0: A function name may contain '.'
+eapi:jumprule(f,C) :- code_type(C,alnum), !.   % EAPI 9.2.0: A function name may contain alphanumeric chars
+eapi:jumprule(s,45) :- !.                      % EAPI 2.1.4: A string name may contain '-'  % BUG
+eapi:jumprule(s,95) :- !.                      % EAPI 2.1.4: A string name may contain '_'  % BUG
+eapi:jumprule(s,43) :- !.                      % EAPI 2.1.4: A string name may contain '+'  % BUG
+eapi:jumprule(s,46) :- !.                      % EAPI 2.1.4: A string name may contain '@'  % BUG
+eapi:jumprule(s,C) :- code_type(C,alnum), !.   % EAPI 2.1.4: A string name may contain alphanumeric chars
+eapi:jumprule(p,45) :- !.                      % EAPI 9.2.0: A uri protocol name may contain '-'
+eapi:jumprule(p,95) :- !.                      % EAPI 9.2.0: A uri protocol name may contain '_'
+eapi:jumprule(p,43) :- !.                      % EAPI 9.2.0: A uri protocol name may contain '+'
+eapi:jumprule(p,46) :- !.                      % EAPI 9.2.0: A uri protocol name may contain '.'
+eapi:jumprule(p,64) :- !.                      % EAPI 9.2.0: A uri protocol name may contain '@'
+eapi:jumprule(p,C) :- code_type(C,alnum), !.   % EAPI 9.2.0: A uri protocol name may contain alphanumeric chars
+eapi:jumprule(t,46) :- !.                      % A timestamp may contain a '.'
+eapi:jumprule(t,C) :- code_type(C,digit), !.   % A timestamp may contain digit chars.
+eapi:jumprule(m,C) :- code_type(C,alnum), !.   % An MD5 sum may contain alnum chars
 
 
 % ----------------------
@@ -1640,7 +1640,7 @@ file:lines([])    --> [],!.
 
 version:sublist([], _,[],[]) :- !.
 version:sublist([E|T],S,T,[]) :-
-  system:member(E,S),!.
+  system:memberchk(E,S),!.
 version:sublist([H|T],S,R,[H|RT]) :-
   version:sublist(T,S,R,RT).
 
@@ -1741,7 +1741,7 @@ eapi:use_expand('xtables_addons').
 %
 % Predicate that checks whether an atom begins with a given Prefix
 
-eapi:check_prefix_atom(_,Atom) :- not(atom(Atom)), !, fail.
+eapi:check_prefix_atom(_,Atom) :- \+(atom(Atom)), !, fail.
 eapi:check_prefix_atom(Prefix,Atom) :- atom_prefix(Atom,Prefix),!.
 
 
@@ -1783,8 +1783,8 @@ eapi:categorize_use(plus(Use),negative,preference) :-
   preference:use(minus(Use)),!.
 
 eapi:categorize_use(plus(Use),positive,ebuild) :-
-  not(preference:use(Use)),
-  not(preference:use(minus(Use))),
+  \+(preference:use(Use)),
+  \+(preference:use(minus(Use))),
   !.
 
 eapi:categorize_use(minus(Use),positive,preference) :-
@@ -1794,8 +1794,8 @@ eapi:categorize_use(minus(Use),negative,preference) :-
   preference:use(minus(Use)),!.
 
 eapi:categorize_use(minus(Use),negative,ebuild) :-
-  not(preference:use(Use)),
-  not(preference:use(minus(Use))),
+  \+(preference:use(Use)),
+  \+(preference:use(minus(Use))),
   !.
 
 eapi:categorize_use(Use,positive,preference) :-
@@ -1805,10 +1805,10 @@ eapi:categorize_use(Use,negative,preference) :-
   preference:use(minus(Use)),!.
 
 eapi:categorize_use(Use,negative,default) :-
-  not(preference:use(Use)),
-  not(preference:use(minus(Use))),
-  not(printer:unify(plus(_),Use)),
-  not(printer:unify(minus(_),Use)),!.
+  \+(preference:use(Use)),
+  \+(preference:use(minus(Use))),
+  \+(printer:unify(plus(_),Use)),
+  \+(printer:unify(minus(_),Use)),!.
 
 
 %! eapi:qualified_target(Query)
