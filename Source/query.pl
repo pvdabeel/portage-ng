@@ -72,6 +72,7 @@ search([Statement|Rest],Repository://Entry) :-
 
 search(not(Statement),Repository://Entry) :-
   !,
+  cache:ordered_entry(Repository,Entry,_,_,_),
   \+(search(Statement,Repository://Entry)).
 
 
@@ -229,6 +230,15 @@ search(qualified_target(O,R,C,P,V,F),R://I) :-
    cache:ordered_entry(R,I,C,P,PV),
    apply_version_filter(O,PV,V),
    apply_filters(R://I,F).
+
+
+% --------------
+% Search: Ebuild
+% --------------
+
+search(ebuild(Ebuild),R://Ebuild) :-
+  !,
+  cache:ordered_entry(R,Ebuild,_,_,_).
 
 
 % ----------------
