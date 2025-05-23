@@ -95,15 +95,16 @@ rule(Repository://Ebuild:install,[]) :-
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
 
 rule(Repository://Ebuild:install,Conditions) :-
-  % knowledgebase:query([category(C),name(N),slot(slot(S)),model(required_use(M)),all(depend(D))],Repository://Ebuild),
+  % query:search([not(installed(true)),category(C),name(N),slot(S),model(required_use(M)),all(depend(CD)),all(rdepend(RD))],Repository://Ebuild),
   cache:ordered_entry(Repository,Ebuild,C,N,_V),
   cache:entry_metadata(Repository,Ebuild,slot,slot(S)),
   findall(Depend:install,cache:entry_metadata(Repository,Ebuild,depend,Depend),D),
+  M = [],
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
-    Conditions = [constraint(use(Repository://Ebuild):{[]}), %M removed
+    Conditions = [constraint(use(Repository://Ebuild):{M}),
                   constraint(slot(C,N,S):{[Ebuild]})
                   |D];
-    Conditions = [constraint(use(Repository://Ebuild):{[]}), %M removed
+    Conditions = [constraint(use(Repository://Ebuild):{M}),
                   Repository://Ebuild:download,
                   constraint(slot(C,N,S):{[Ebuild]})
                   |D] ).
@@ -127,11 +128,13 @@ rule(Repository://Ebuild:install,Conditions) :-
 % - if it is installed and if its runtime dependencies are satisfied
 
 rule(Repository://Ebuild:run,Conditions) :-
-  not(preference:flag(emptytree)),
+  \+(preference:flag(emptytree)),
+  % query:search([installed(true)],Repository://Ebuild),!,
   cache:entry_metadata(Repository,Ebuild,installed,true),!,
   (config:avoid_reinstall(true) -> Conditions = [] ; Conditions = [Repository://Ebuild:reinstall]).
 
 rule(Repository://Ebuild:run,[Repository://Ebuild:install|D]) :-
+  % query:search([all(rdepend(Depend))],Repository:Ebuild).
   findall(Depend:run,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),D).
   %knowledgebase:query([all(rdepend(D))],Repository://Ebuild).
 
@@ -143,9 +146,9 @@ rule(Repository://Ebuild:run,[Repository://Ebuild:install|D]) :-
 % - the OS reports it as runnable, and we are not proving emptyttree
 
 rule(Repository://Ebuild:reinstall,[]) :-
-  not(preference:flag(emptytree)),
+  \+(preference:flag(emptytree)),
+  % query:search([installed(true)],Repository://Ebuild),!.
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
-  %os:installed_pkg(Repository://Ebuild),!.
 
 
 % UNINSTALL
@@ -155,9 +158,9 @@ rule(Repository://Ebuild:reinstall,[]) :-
 % - the OS reports it as installed, and we are not proving emptytree
 
 rule(Repository://Ebuild:uninstall,[]) :-
-  not(preference:flag(emptytree)),
+  \+(preference:flag(emptytree)),
+  % query:search([installed(true)],Repository://Ebuild),!.
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
-  %os:installed_pkg(Repository://Ebuild),!.
 
 % Note: this may leave the Model and Proof for the other packages incomplete - todo: implement depclean.
 
@@ -171,16 +174,18 @@ rule(Repository://Ebuild:uninstall,[]) :-
 %   taking into account accept_keywords filter
 
 rule(Repository://Ebuild:update,Conditions) :-
-  not(preference:flag(emptytree)),
+  \+(preference:flag(emptytree)),
   preference:accept_keywords(K),
+  % query:search([installed(true),keywords(K),slot(S),version(VersionInstalled),category(Category),name(Name)],Repository://Ebuild),
   cache:entry_metadata(Repository,Ebuild,installed,true),!,
   cache:entry_metadata(Repository,Ebuild,slot,S),
   cache:ordered_entry(Repository,Ebuild,Category,Name,VersionInstalled),
+  % query:search([name(Name),category(Category),version(VersionLatest),keywords(K),slot(S)]],Repository://LatestEbuild),
   cache:ordered_entry(Repository,LatestEbuild,Category,Name,VersionLatest),
   cache:entry_metadata(Repository,LatestEbuild,slot,S),
   cache:entry_metadata(Repository,LatestEbuild,keywords,K),!,
   compare(>,VersionLatest,VersionInstalled)
-  -> Conditions = [Repository://Ebuild:uninstall,Repository://Ebuild:install]
+  -> Conditions = [Repository://Ebuild:uninstall,Repository://LatestEbuild:install]
   ;  Conditions = [].
 
 % todo: deep
@@ -194,13 +199,13 @@ rule(Repository://Ebuild:update,Conditions) :-
 %   and a higher version is available. Slots are disregarded.
 
 rule(Repository://Ebuild:update,Conditions) :-
-  not(preference:flag(emptytree)),
+  \+(preference:flag(emptytree)),
   preference:accept_keywords(K),
+  % query:search([installed(true),keywords(K),version(VersionInstalled),category(Category),name(Name)],Repository://Ebuild),
   cache:entry_metadata(Repository,Ebuild,installed,true),!,
-  %cache:entry_metadata(Repository,Ebuild,slot,S),
   cache:ordered_entry(Repository,Ebuild,Category,Name,VersionInstalled),
+  % query:search([name(Name),category(Category),version(VersionLatest),keywords(K)]],Repository://LatestEbuild),
   cache:ordered_entry(Repository,LatestEbuild,Category,Name,VersionLatest),
-  %cache:entry_metadata(Repository,LatestEbuild,slot,S),
   cache:entry_metadata(Repository,LatestEbuild,keywords,K),!,
   compare(>,VersionLatest,VersionInstalled)
   -> Conditions = [Repository://Ebuild:uninstall,Repository://Ebuild:install]
@@ -310,21 +315,13 @@ rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_):_,[]) :- !.
 % is used
 
 rule(package_dependency(_R://_E,_T,no,C,N,_O,_V,_S,_U):_Action,Conditions) :-
-  %not(preference:flag(deep)),
-  not(preference:flag(emptytree)),
+  \+(preference:flag(emptytree)),
   preference:accept_keywords(K),
-  %knowledgebase:query([installed(true),name(N),category(C),keywords(K)],Repository://Choice),
-  %cache:ordered_entry(Repository,Latest,C,N,VL),
-  %cache:entry_metadata(Repository,Latest,keyword,K),
+  % query:search([installed(true),name(N),category(C),keywords(K)],Repository://Choice),
   cache:ordered_entry(Repository,Choice,C,N,_),
   cache:entry_metadata(Repository,Choice,installed,true),
   cache:entry_metadata(Repository,Choice,keywords,K),!,
-  %writeln(VL),writeln(VI),
-  %((preference:flag(deep),compare(>,VL,VI))
-  % -> Conditions = [Repository://Latest:Action]
-  % ;
   Conditions = [].
-  %writeln(Conditions).
 
 
 rule(package_dependency(_R://_E,_T,no,C,N,_O,_V,_S,_U):Action,Conditions) :-
