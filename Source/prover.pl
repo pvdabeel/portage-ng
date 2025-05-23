@@ -58,7 +58,7 @@ prover:prove([Literal|OtherLiterals],Proof,NewProof,Model,NewModel,Constraints,N
 % CASE 2a: Literal is a constraint
 
 prover:prove(constraint(Literal),Proof,Proof,Model,Model,Constraints,NewConstraints) :-
-  % not(is_list(Literal)),				% green cut
+  % \+(is_list(Literal)),				% green cut
   !,
   prover:unify_constraints(constraint(Literal),Constraints,NewConstraints).
   % todo: revalidate model against constraints
@@ -67,25 +67,25 @@ prover:prove(constraint(Literal),Proof,Proof,Model,Model,Constraints,NewConstrai
 % CASE 2b: already proven
 
 prover:prove(Literal,Proof,Proof,Model,Model,Constraints,Constraints) :-
-  % not(is_list(Literal)),				% green cut
-  % not(prover:is_constraint(Literal)),			% green cut
+  % \+(is_list(Literal)),				% green cut
+  % \+(prover:is_constraint(Literal)),			% green cut
   prover:proven(Literal,Model),!.
 
 
 % CASE 2c: assumed proven
 
 prover:prove(Literal,Proof,Proof,Model,Model,Constraints,Constraints) :-
-  % not(is_list(Literal)),				% green cut
-  % not(prover:is_constraint(Literal)),			% green cut
+  % \+(is_list(Literal)),				% green cut
+  % \+(prover:is_constraint(Literal)),			% green cut
   prover:assumed_proven(Literal,Model),!.
 
 
 % CASE 2d: not proven, rule with empty body
 
 prover:prove(Literal,Proof,[rule(Literal,[])|Proof],Model,[Literal|Model],Constraints,Constraints) :-
-  % not(is_list(Literal)),				% green cut
-  % not(prover:is_constraint(Literal)),			% green cut
-  % not(prover:proven(Literal,Model)),			% green cut
+  % \+(is_list(Literal)),				% green cut
+  % \+(prover:is_constraint(Literal)),			% green cut
+  % \+(prover:proven(Literal,Model)),			% green cut
   rule(Literal,[]),!,
   \+(prover:conflicts(Literal,Model)),
   \+(prover:conflictrule(rule(Literal,[]),Proof)).
@@ -94,22 +94,22 @@ prover:prove(Literal,Proof,[rule(Literal,[])|Proof],Model,[Literal|Model],Constr
 % CASE 2e: not proven, no rule, make assumption
 
 %prover:prove(Literal,Proof,[rule(assumed(rule(Literal,[])))|Proof],Model,[assumed(Literal)|Model],Constraints,Constraints) :-
-%   not(is_list(Literal)),				% green cut
-%   not(prover:is_constraint(Literal)),			% green cut
-%   not(prover:proven(Literal,Model)),			% green cut
-%   not(prover:conflicts(Literal,Model)),
-%   not(prover:conflictrule(rule(Literal,[]),Proof)),
-%   not(rule(Literal,_)),!.
+%   \+(is_list(Literal)),				% green cut
+%   \+(prover:is_constraint(Literal)),			% green cut
+%   \+(prover:proven(Literal,Model)),			% green cut
+%   \+(prover:conflicts(Literal,Model)),
+%   \+(prover:conflictrule(rule(Literal,[]),Proof)),
+%   \+(rule(Literal,_)),!.
 
 
 % CASE 2f: not proven, proving, make assumption
 
 prover:prove(Literal,Proof,NewProof,Model,NewModel,Constraints,NewConstraints) :-
-  % not(is_list(Literal)),				% green cut
-  % not(prover:is_constraint(Literal)),			% green cut
-  % not(prover:proven(Literal,Model)),			% green cut
+  % \+(is_list(Literal)),				% green cut
+  % \+(prover:is_constraint(Literal)),			% green cut
+  % \+(prover:proven(Literal,Model)),			% green cut
   % rule(Literal,Body),
-  % not(prover:fact(rule(Literal,Body))),		% green cut
+  % \+(prover:fact(rule(Literal,Body))),		% green cut
   prover:proving(rule(Literal,_),Proof),
   \+(prover:assumed_proving(Literal,Proof)),!,
   \+(prover:conflicts(Literal,Model)),
@@ -120,14 +120,14 @@ prover:prove(Literal,Proof,NewProof,Model,NewModel,Constraints,NewConstraints) :
 % CASE 2g: not proven, not proving, check if oracle knows otherwise prove body
 
 prover:prove(Literal,Proof,NewProof,Model,[Literal|NewModel],Constraints,NewConstraints) :-
-  % not(is_list(Literal)),				% green cut
-  % not(prover:is_constraint(Literal)),			% green cut
-  % not(prover:proven(Literal,Model)),			% green cut
+  % \+(is_list(Literal)),				% green cut
+  % \+(prover:is_constraint(Literal)),			% green cut
+  % \+(prover:proven(Literal,Model)),			% green cut
   \+(prover:conflicts(Literal,Model)),
   \+(prover:conflictrule(rule(Literal,[]),Proof)),
   rule(Literal,Body),
-  % not(prover:fact(rule(Literal,Body))),		% green cut
-  % not(prover:proving(rule(Literal,Body),Proof)),	% green cut
+  % \+(prover:fact(rule(Literal,Body))),		% green cut
+  % \+(prover:proving(rule(Literal,Body),Proof)),	% green cut
   % prover:prove(Body,[rule(Literal,Body)|Proof],NewProof,Model,NewModel,Constraints,NewConstraints).
   prover:prove(Body,[rule(Literal,Body)|Proof],NewProof,Model,NewModel,Constraints,NewConstraints).
 

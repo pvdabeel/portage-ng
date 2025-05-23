@@ -438,7 +438,7 @@ inherit([]) :- !.
 % Throws an error if parent context does not exist.
 
 inherit(Parent) :-
-  not(Parent:declared(type(class))),
+  \+(Parent:declared(type(class))),
   this(Context),
   throw(error(existence_error(class, Parent), context(Context, inherit))).
 
@@ -678,12 +678,12 @@ newinstance(Class) :-
 % Create an instance from a class.
 
 context:newinstance(Context, _Constructor) :-
-  not(atom(Context)),
+  \+(atom(Context)),
   throw(error(type_error(atom, Context), context(instance, _))).
 
 context:newinstance(Context, Constructor) :-
   Constructor =.. [Parent|_],
-  not(Parent:declared(type(class))),
+  \+(Parent:declared(type(class))),
   throw(error(existence_error(class, Parent), context(Context, instance))).
 
 context:newinstance(Context, Constructor) :-

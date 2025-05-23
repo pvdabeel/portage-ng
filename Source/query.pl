@@ -283,7 +283,7 @@ search(iuse_filtered(Iuse),R://I) :-
   !,
   cache:entry_metadata(R,I,iuse,Arg),
   eapi:strip_use_default(Arg,Iuse),
-  not(eapi:check_use_expand_atom(Iuse)).
+  \+(eapi:check_use_expand_atom(Iuse)).
 
 
 % ----------------------------------------------------
@@ -295,7 +295,7 @@ search(iuse_filtered(Iuse,State:Reason),R://I) :-
   cache:entry_metadata(R,I,iuse,Arg),
   eapi:categorize_use(Arg,State,Reason),
   eapi:strip_use_default(Arg,Iuse),
-  not(eapi:check_use_expand_atom(Iuse)).
+  \+(eapi:check_use_expand_atom(Iuse)).
 
 
 % ------------------
@@ -503,7 +503,7 @@ select(set,notequal,S,R://I) :-
                    search(Q,Rc://Ic)),
           Candidates),
   cache:ordered_entry(R,I,_,_,_),
-  not(memberchk(R://I,Candidates)).
+  \+(memberchk(R://I,Candidates)).
 
 select(set,equal,S,R://I) :-
   !,

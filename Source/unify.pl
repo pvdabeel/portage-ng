@@ -77,10 +77,10 @@ feature_unification:val(V,V,V) :- !.            	% green cut, all other cases
 % -------------------------
 
 feature_unification:val({V1},{V2},{V3}) :-
-  % not(V1 == V2),                			% excludes rule 1
+  % \+(V1 == V2),                			% excludes rule 1
   !,			          			% green cut
   intersection(V1,V2,V3),
-  not(empty(V3)).                 			% Consistency: {..} cannot be empty
+  \+(empty(V3)).                 			% Consistency: {..} cannot be empty
 
 
 % --------------------------
@@ -88,7 +88,7 @@ feature_unification:val({V1},{V2},{V3}) :-
 % --------------------------
 
 feature_unification:val([V1|V1r],[V2|V2r],V3) :-      	% rule 2
-  % not([V1|V1r] == [V2|V2r]),    			% rule 1
+  % \+([V1|V1r] == [V2|V2r]),    			% rule 1
   !,                              			% green cut
   feature_unification:unify([V1|V1r],[V2|V2r],V3).
 
@@ -109,7 +109,7 @@ feature_unification:val([V1|V1r],{V2},{V2}) :- 	  	% rules 1,2 and 3
 
 feature_unification:val([],{V2},{V2}) :-
   !,
-  not(empty(V2)).
+  \+(empty(V2)).
 
 
 % --------------------------
@@ -135,8 +135,8 @@ feature_unification:val({V1},[],{V1}) :- !.		% subset of the universe
 % -------------------------
 
 feature_unification:val(V1,[V2|V2r],V3) :-		% rules 2 and 4
-  % not(is_list(V1)),             			% rules 1 and 3
-  % not(V1 =.. [ {} | _ ]),       			% rule 5
+  % \+(is_list(V1)),             			% rules 1 and 3
+  % \+(V1 =.. [ {} | _ ]),       			% rule 5
   !,				  			% green cut
   feature_unification:unify([V1],[V2|V2r],V3).
 
@@ -146,8 +146,8 @@ feature_unification:val(V1,[V2|V2r],V3) :-		% rules 2 and 4
 % -------------------------
 
 feature_unification:val([V1|V1r],V2,V3) :-		% rules 2 and 5
-  % not(is_list(V2)),		  			% rules 1, 3 and 6
-  % not(V1 =.. [ {} | _ ]),       			% rule 4
+  % \+(is_list(V2)),		  			% rules 1, 3 and 6
+  % \+(V1 =.. [ {} | _ ]),       			% rule 4
   !,				  			% green cut
   feature_unification:unify([V1|V1r],[V2],V3).
 
@@ -157,11 +157,11 @@ feature_unification:val([V1|V1r],V2,V3) :-		% rules 2 and 5
 % -------------------------
 
 feature_unification:val(V1,{V2},V3) :-          	% rules 3, 5 and 6
-  % not(V1 =.. [ {} | _ ]),       			% rules 1 and 2
-  % not(is_list(V1)),		  			% rules 4 and 7
+  % \+(V1 =.. [ {} | _ ]),       			% rules 1 and 2
+  % \+(is_list(V1)),		  			% rules 4 and 7
   !,                              			% green cut
   intersection([V1],V2,[V3]),
-  not(empty(V3)).		  			% Consistency: {..} cannot be empty
+  \+(empty(V3)).		  			% Consistency: {..} cannot be empty
 
 
 % -------------------------
@@ -169,11 +169,11 @@ feature_unification:val(V1,{V2},V3) :-          	% rules 3, 5 and 6
 % -------------------------
 
 feature_unification:val({V1},V2,V3) :-		  	% rules 3, 4 and 7
-  % not(V2 =.. [ {} | _ ]),       			% rules 1, 2 and 4
-  % not(is_list(V2)),		  			% rules 5 and 6
+  % \+(V2 =.. [ {} | _ ]),       			% rules 1, 2 and 4
+  % \+(is_list(V2)),		  			% rules 5 and 6
   !,				  			% green cut
   intersection(V1,[V2],[V3]),
-  not(empty(V3)).		  			% Consistency: {..} cannot be empty
+  \+(empty(V3)).		  			% Consistency: {..} cannot be empty
 
 empty([]) :-!.
 
@@ -205,7 +205,7 @@ feature_unification:vunify(F:V1,[F:V2|R],[],U) :-
 % ---------------------------------------------------------
 
 feature_unification:vunify(F1:V1,[_:_|R],S,U) :-
-  % not( F1 == F2 ),		  			% rule 1a
+  % \+( F1 == F2 ),		  			% rule 1a
   !,				  			% green cut
   feature_unification:vunify(F1:V1,R,S,U).	  	% Skipped remains unchanged
 
@@ -215,7 +215,7 @@ feature_unification:vunify(F1:V1,[_:_|R],S,U) :-
 % -----------------------------------------------------------------
 
 feature_unification:vunify(Nocolon,[Nocolon|R],[],U) :-
-  % not( Nocolon =.. [ ':' | _ ] ),			% rules 1a and 1b
+  % \+( Nocolon =.. [ ':' | _ ] ),			% rules 1a and 1b
   !,							% green cut
   feature_unification:vunify(Nocolon,R,[],U).		% cfr. 1a
 
@@ -225,7 +225,7 @@ feature_unification:vunify(Nocolon,[Nocolon|R],[],U) :-
 % -----------------------------------------------------------------
 
 feature_unification:vunify(Nocolon,[_|R],S,U) :-
-  % not( Nocolon == Nocolon2 ),				% rules 1a, 1b and 2a
+  % \+( Nocolon == Nocolon2 ),				% rules 1a, 1b and 2a
   !,							% green cut
   feature_unification:vunify(Nocolon,R,S,U).		% cfr. 2a
 
@@ -316,16 +316,16 @@ genterm(0,[]).
 genterm(N,[N:N|R]) :- N > 0, N1 is N - 1, genterm(N1,R).
 
 
-unify_failtest1 :- not(unify([a:foo],[a:bar],_)).
+unify_failtest1 :- \+(unify([a:foo],[a:bar],_)).
 
-unify_failtest2 :- not(unify([a:{[foo]}],[a:{[bar]}],_)).
+unify_failtest2 :- \+(unify([a:{[foo]}],[a:{[bar]}],_)).
 
-unify_failtest3 :- not(unify([a:{[foo]}],[a:bar],_)).
+unify_failtest3 :- \+(unify([a:{[foo]}],[a:bar],_)).
 
-unify_failtest4 :- not(unify([a:foo],[a:foo,a:{[bar,cow]}],_)).
+unify_failtest4 :- \+(unify([a:foo],[a:foo,a:{[bar,cow]}],_)).
 
-unify_failtest5 :- not(unify([a:{foo}],[a:[bar]],_)). % syntax error
+unify_failtest5 :- \+(unify([a:{foo}],[a:[bar]],_)). % syntax error
 
-unify_failtest6 :- not(unify([a:foo],[a:{[foo,bar]},a:bar],_)).
+unify_failtest6 :- \+(unify([a:foo],[a:{[foo,bar]},a:bar],_)).
 
-unify_failtest7 :- not(unify([a:{[]}],[a:[]],_)).
+unify_failtest7 :- \+(unify([a:{[]}],[a:[]],_)).

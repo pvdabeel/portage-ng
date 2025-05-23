@@ -222,7 +222,7 @@ sync(kb) ::-
 
   (config:write_metadata(true) -> :update_cache ; true),
 
-  concurrent_forall((:find_ebuild(E,T,C,N,V),not(cache:entry_metadata(Repository,E,_,_))),
+  concurrent_forall((:find_ebuild(E,T,C,N,V),\+(cache:entry_metadata(Repository,E,_,_))),
           (:read_ebuild(E,Cd,M),
            with_mutex(mutex,message:scroll(['Ebuild (local): ',E])),
            assert(cache:entry(Repository,E,C,N,V)),

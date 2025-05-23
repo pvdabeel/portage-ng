@@ -220,7 +220,7 @@ config:printing_style(Style) :-
 
 config:printing_style(Style) :-
   %\+pengine_self(M),
-  not(config:interface_printing_style(_)),
+  \+(config:interface_printing_style(_)),
   config:default_printing_style(Style).
 
 

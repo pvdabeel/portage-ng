@@ -131,7 +131,7 @@ grapher:graph(Type,Repository://Id) :-
 % For a given ebuild, identified by an Id, create a tree diagram.
 
 grapher:write_tree(Repository://Id, Type) :-
-  not(graph_visited(Repository://Id)),!,
+  \+(graph_visited(Repository://Id)),!,
   write('\"'),write(Repository://Id),write('\" [color=red, href=\"../'),write(Id),write('-'),write(Type),write('.svg\"];'),nl,
   Statement =.. [Type,equal(DS)],
   query:search(Statement,Repository://Id),
@@ -373,7 +373,7 @@ grapher:prepare_directory(D,Repository) :-
 grapher:prepare_directory(D,Repository) :-
   config:hostname(H),
   config:graph_directory(H,D),
-  not(system:exists_directory(D)),!,
+  \+(system:exists_directory(D)),!,
   pkg:make_repository_dirs(Repository,D).
 
 grapher:write_dot_files(D,Repository://Id) :-
@@ -417,7 +417,7 @@ grapher:test(Repository) :-
   message:sc.
 
 grapher:test(Repository) :-
-  not(config:graph_modified_only(true)),!,
+  \+(config:graph_modified_only(true)),!,
   config:number_of_cpus(Cpus),
   message:hc,
   grapher:prepare_directory(D,Repository),

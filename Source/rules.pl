@@ -335,9 +335,9 @@ rule(package_dependency(_R://_E,_T,no,C,N,_O,_V,_S,_U):Action,Conditions) :-
 rule(package_dependency(R://E,_T,no,C,N,O,V,S,U):Action,Conditions) :-
   %preference:flag(emptytree)
   preference:accept_keywords(K),
-  not((cache:ordered_entry(Repository,Choice,C,N,_),
+  \+((cache:ordered_entry(Repository,Choice,C,N,_),
   cache:entry_metadata(Repository,Choice,keywords,K))),
-  %not(knowledgebase:query([name(N),category(C),keywords(K)],_)),
+  %\+(knowledgebase:query([name(N),category(C),keywords(K)],_)),
   Conditions = [assumed(package_dependency(R://E,Action,no,C,N,O,V,S,U))],!.
 
 
@@ -432,11 +432,11 @@ rule(use_conditional_group(negative,_Use,_R://_E,_),[]) :-
 
 rule(exactly_one_of_group(Deps):Action,[D:Action|NafDeps]) :-
   member(D,Deps),
-  findall(naf(N:Action),(member(N,Deps), not(D = N)),NafDeps).
+  findall(naf(N:Action),(member(N,Deps), \+(D = N)),NafDeps).
 
 rule(exactly_one_of_group(Deps),[D|NafDeps]) :-
   member(D,Deps),
-  findall(naf(N),(member(N,Deps), not(D = N)),NafDeps).
+  findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
 
 
 

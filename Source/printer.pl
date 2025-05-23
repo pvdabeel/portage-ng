@@ -621,7 +621,7 @@ printer:print_config_prefix :-
 % iuse empty
 
 printer:print_config(Repository://Entry:fetchonly) :-
-  not(kb:query(iuse(_),Repository://Entry)),!.
+  \+(kb:query(iuse(_),Repository://Entry)),!.
 
 % use flags to show - to rework: performance
 
@@ -650,7 +650,7 @@ printer:print_config(Repository://Ebuild:download) :-
 % no downloads
 
 printer:print_config(Repository://Ebuild:download) :-
-  not(kb:query(manifest(preference,_,_,_),Repository://Ebuild)),!.
+  \+(kb:query(manifest(preference,_,_,_),Repository://Ebuild)),!.
 
 
 % at least one download
@@ -683,7 +683,7 @@ printer:print_config(Repository://Ebuild:download) :-
 % iuse empty
 
 printer:print_config(Repository://Entry:install) :-
-  not(kb:query(iuse(_),Repository://Entry)),!.
+  \+(kb:query(iuse(_),Repository://Entry)),!.
 
 % use flags to show - to rework: performance
 
@@ -701,7 +701,7 @@ printer:print_config(Repository://Entry:install) :-
   %                           (findall([Reason,Group],
   %                                     group_by(Reason,Use,kb:query(Statement,Repository://Entry), Group),
   %                                     Keyflags ) ),
-  %                            not(Keyflags == [])),
+  %                            \+(Keyflags == [])),
   %                          Expandedkeys),
 
   % (forall(member([Key,Keyflags],Expandedkeys),
