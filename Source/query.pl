@@ -72,7 +72,7 @@ search([Statement|Rest],Repository://Entry) :-
 
 search(not(Statement),Repository://Entry) :-
   !,
-  not(search(Statement,Repository://Entry)).
+  \+(search(Statement,Repository://Entry)).
 
 
 % Case : an all statement (single argument)
@@ -81,7 +81,7 @@ search(all(Statement),Repository://Entry) :-
   Statement =.. [Key,Values],
   !,
   findall(InnerValue,
-          (InnerStatement =.. [Key,equal(InnerValue)],
+          (InnerStatement =.. [Key,InnerValue],
            search(InnerStatement,
            Repository://Entry)),
           Values).
@@ -93,7 +93,7 @@ search(all(Statement),Repository://Entry) :-
   Statement =.. [Key,Values,Filter],
   !,
   findall([InnerValueA,Filter],
-          (InnerStatement =.. [Key,equal(InnerValueA),Filter],
+          (InnerStatement =.. [Key,InnerValueA,Filter],
            search(InnerStatement,
            Repository://Entry)),
           Values).
@@ -326,8 +326,8 @@ search(Statement,R://I) :-
 search(Q,R://I) :-
   !,
   Q =.. [Key,Value],
-  Value =.. [equal,PureValue],
-  cache:entry_metadata(R,I,Key,PureValue).
+  select(Key,equal,Value,R://I).
+  %cache:entry_metadata(R,I,Key,Value).
 
 
 % -------------------------
