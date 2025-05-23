@@ -18,59 +18,10 @@ The Printer takes a plan from the Planner and pretty prints it.
 % PRINTER declarations
 % ********************
 
-%! printer:printable_element(+Literal)
-%
-% Declares which Literals are printable
 
-printer:printable_element(rule(uri(_,_,_),_)) :- !.
-printer:printable_element(rule(uri(_),_)) :- !.
-printer:printable_element(rule(_Repository://_Entry:run,_)) :- !.
-printer:printable_element(rule(_Repository://_Entry:run,_)) :- !.
-printer:printable_element(rule(_Repository://_Entry:download,_)) :- !.
-%printer:printable_element(rule(_Repository://_Entry:fetchonly,_)) :- !.
-printer:printable_element(rule(_Repository://_Entry:install,_)) :- !.
-printer:printable_element(rule(_Repository://_Entry:reinstall,_)) :- !.
-printer:printable_element(rule(_Repository://_Entry:uninstall,_)) :- !.
-printer:printable_element(rule(_Repository://_Entry:update,_)) :- !.
-printer:printable_element(rule(_Repository://_Entry:upgrade,_)) :- !.
-printer:printable_element(assumed(rule(_Repository://_Entry:_Action,_))) :- !.
-printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_,_),_))) :- !.
-printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_,_)),_)) :- !.
-
-% Uncomment if you want 'confirm' steps shown in the plan:
-%printer:printable_element(rule(package_dependency(_,run,_,_,_,_,_,_,_),_)) :- !.
-
-
-%! printer:element_weight(+Literal)
-%
-% Declares a weight for ordering elements of a step in a plan
-
-printer:element_weight(assumed(_),                                   0) :- !. % assumed
-printer:element_weight(rule(assumed(_),_),                           0) :- !. % assumed
-printer:element_weight(rule(uri(_),_),                               0) :- !. % provide
-printer:element_weight(rule(uri(_,_,_),_),                           1) :- !. % fetch
-printer:element_weight(rule(package_dependency(_,_,_,_,_,_,_,_,_),_),1) :- !. % confirm
-printer:element_weight(rule(_Repository://_Entry:verify,_),          2) :- !. % verify
-printer:element_weight(rule(_Repository://_Entry:run,_),             3) :- !. % run
-printer:element_weight(rule(_Repository://_Entry:download,_),        4) :- !. % download
-printer:element_weight(rule(_Repository://_Entry:fetchonly,_),       5) :- !. % fetchonly
-printer:element_weight(rule(_Repository://_Entry:install,_),         5) :- !. % install
-printer:element_weight(rule(_Repository://_Entry:reinstall,_),       6) :- !. % reinstall
-printer:element_weight(rule(_Repository://_Entry:uninstall,_),       6) :- !. % uninstall
-printer:element_weight(rule(_Repository://_Entry:update,_),          6) :- !. % update
-printer:element_weight(rule(_Repository://_Entry:upgrade,_),         6) :- !. % upgrade
-printer:element_weight(_,                                            7) :- !. % everything else
-
-
-%! printer:sort_by_weight(+Comparator,+Literal,+Literal)
-%
-% Sorts elements in a plan by weight
-
-printer:sort_by_weight(C,L1,L2) :-
-  printer:element_weight(L1,W1),
-  printer:element_weight(L2,W2),
-  compare(C,W1:L1,W2:L2).
-
+% --------------------
+% Ebuild INFO printing
+% --------------------
 
 %! printer:print_entry(Repository://Entry)
 %
@@ -373,6 +324,65 @@ printer:print_slot_restriction([slot(Slot),subslot(Subslot),equal]) :-
   message:color(normal).
 
 
+% -------------
+% Plan printing
+% -------------
+
+%! printer:printable_element(+Literal)
+%
+% Declares which Literals are printable
+
+printer:printable_element(rule(uri(_,_,_),_)) :- !.
+printer:printable_element(rule(uri(_),_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:run,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:run,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:download,_)) :- !.
+%printer:printable_element(rule(_Repository://_Entry:fetchonly,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:install,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:reinstall,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:uninstall,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:update,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:upgrade,_)) :- !.
+printer:printable_element(assumed(rule(_Repository://_Entry:_,_))) :- !.
+printer:printable_element(rule(assumed(_Repository://_Entry:_),_)) :- !.
+printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_,_),_))) :- !.
+printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_,_)),_)) :- !.
+
+% Uncomment if you want 'confirm' steps shown in the plan:
+% printer:printable_element(rule(package_dependency(_,run,_,_,_,_,_,_,_),_)) :- !.
+
+
+%! printer:element_weight(+Literal)
+%
+% Declares a weight for ordering elements of a step in a plan
+
+printer:element_weight(assumed(_),                                   0) :- !. % assumed
+printer:element_weight(rule(assumed(_),_),                           0) :- !. % assumed
+printer:element_weight(rule(uri(_),_),                               0) :- !. % provide
+printer:element_weight(rule(uri(_,_,_),_),                           1) :- !. % fetch
+printer:element_weight(rule(package_dependency(_,_,_,_,_,_,_,_,_),_),1) :- !. % confirm
+printer:element_weight(rule(_Repository://_Entry:verify,_),          2) :- !. % verify
+printer:element_weight(rule(_Repository://_Entry:run,_),             3) :- !. % run
+printer:element_weight(rule(_Repository://_Entry:download,_),        4) :- !. % download
+printer:element_weight(rule(_Repository://_Entry:fetchonly,_),       5) :- !. % fetchonly
+printer:element_weight(rule(_Repository://_Entry:install,_),         5) :- !. % install
+printer:element_weight(rule(_Repository://_Entry:reinstall,_),       6) :- !. % reinstall
+printer:element_weight(rule(_Repository://_Entry:uninstall,_),       6) :- !. % uninstall
+printer:element_weight(rule(_Repository://_Entry:update,_),          6) :- !. % update
+printer:element_weight(rule(_Repository://_Entry:upgrade,_),         6) :- !. % upgrade
+printer:element_weight(_,                                            7) :- !. % everything else
+
+
+%! printer:sort_by_weight(+Comparator,+Literal,+Literal)
+%
+% Sorts elements in a plan by weight
+
+printer:sort_by_weight(C,L1,L2) :-
+  printer:element_weight(L1,W1),
+  printer:element_weight(L2,W2),
+  compare(C,W1:L1,W2:L2).
+
+
 %! printer:print_element(+Printable)
 %
 % Prints a printable Literal
@@ -381,7 +391,6 @@ printer:print_slot_restriction([slot(Slot),subslot(Subslot),equal]) :-
 % CASE: simple package, is a target of the plan
 % ---------------------------------------------
 
-%printer:print_element(Repository://Entry:Action,rule(Repository://Entry:Action,_)) :-
 printer:print_element(Target,rule(Repository://Entry:Action,_)) :-
   member(Repository://Entry:Action,Target),
   !,
@@ -464,6 +473,18 @@ printer:print_element(_,rule(assumed(package_dependency(_,run,_,C,N,_,_,_,_)),[]
   atomic_list_concat([C,'/',N],P),
   message:column(29,P),
   message:print([' (non-existent, assumed running)']),
+  message:color(normal).
+
+
+% ---------------------------------
+% CASE: an assumed unmasked package
+% ---------------------------------
+
+printer:print_element(_,rule(assumed(Repository://Entry:unmask),_Body)) :-
+  message:color(red),
+  message:print('verify'),
+  message:column(29,Repository://Entry),
+  message:print(' (masked)'),
   message:color(normal).
 
 
@@ -1072,8 +1093,8 @@ printer:print_warnings(Model,Proof) :-
   message:print('The proof for your build plan contains assumptions. Please verify:'),nl,nl,
   forall(member(assumed(rule(C,_)),Proof),
     (message:print([' - Circular dependency: ',C]),nl)),
-  forall(member(rule(assumed(U),_),Proof),
-    (message:print([' - Non-existent ebuild: ',U]),nl)),
+  forall(member(rule(assumed(R://E:Reason),_),Proof),
+    (message:print([' - Ebuild ',Reason,': ',R://E]),nl)),
   nl,
   message:color(normal),nl.
 

@@ -398,6 +398,8 @@ preference:use_expand_hidden('cpu_flags_ppc').
 % The prover uses the dynamic 'proven:broken/1' to mark some entries as broken
 % preference:masked(Repository://Entry) :- prover:broken(Repository://Entry).
 
+preference:masked(portage://'sys-kernel/gentoo-sources-6.14.7').
+
 
 %! preference:set(?Name,?List)
 %

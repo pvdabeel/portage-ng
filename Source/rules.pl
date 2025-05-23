@@ -27,30 +27,36 @@ This file contains domain-specific rules
 
 % MASKED
 %
-% Skip masked ebuilds
+% If an action on a masked ebuild is explicitely requested, unmasking is needed.
 
-rule(Repository://Ebuild:_Action,[]) :-
+rule(Repository://Ebuild:_Action,[assumed(Repository://Ebuild:unmask)]) :-
   preference:masked(Repository://Ebuild),!.
 
 
 % DOWNLOAD
 %
-% An ebuild is downloaded if its sources are downloaded
+% Any ebuild can be downloaded.
 
 rule(Repository://Ebuild:download,[]) :-
-  cache:ordered_entry(Repository,Ebuild,_,_,_),
-  !.
+  cache:ordered_entry(Repository,Ebuild,_,_,_),!.
 
 
 % FETCHONLY
 %
-% Same as download, but also download all dependencies
+% Same as download, but also downloads all dependencies
+
+% 1. Don't perform downloads for already installed packages,
+%    unless emptytree is specified.
 
 rule(Repository://Ebuild:fetchonly,[]) :-
-  not(preference:flag(emptytree)),
+  \+(preference:flag(emptytree)),
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
 
+% 2. Package is not installed, consider its dependencies,
+%    taking into account slot and use restrictions
+
 rule(Repository://Ebuild:fetchonly,Conditions) :-
+  %\+cache:entry_metadata(Repository,Ebuild,installed,true)
   cache:ordered_entry(Repository,Ebuild,C,N,_V),
   cache:entry_metadata(Repository,Ebuild,slot,slot(S)),
   findall(Depend:fetchonly,cache:entry_metadata(Repository,Ebuild,depend,Depend),CD),
