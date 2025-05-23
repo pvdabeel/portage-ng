@@ -38,6 +38,7 @@ rule(Repository://Ebuild:_Action,[assumed(Repository://Ebuild:unmask)]) :-
 % Any ebuild can be downloaded.
 
 rule(Repository://Ebuild:download,[]) :-
+  % query:search([ebuild(Ebuild)],Repository://Ebuild),!.
   cache:ordered_entry(Repository,Ebuild,_,_,_),!.
 
 
@@ -50,24 +51,26 @@ rule(Repository://Ebuild:download,[]) :-
 
 rule(Repository://Ebuild:fetchonly,[]) :-
   \+(preference:flag(emptytree)),
+  % query:search([installed(true)],Repository://Ebuild),!.
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
 
 % 2. Package is not installed, consider its dependencies,
 %    taking into account slot and use restrictions
 
 rule(Repository://Ebuild:fetchonly,Conditions) :-
+  % query:search([not(installed(true)),category(C),name(N),slot(S),model(required_use(M)),all(depend(CD)),all(rdepend(RD))],Repository://Ebuild),
   %\+cache:entry_metadata(Repository,Ebuild,installed,true)
   cache:ordered_entry(Repository,Ebuild,C,N,_V),
   cache:entry_metadata(Repository,Ebuild,slot,slot(S)),
   findall(Depend:fetchonly,cache:entry_metadata(Repository,Ebuild,depend,Depend),CD),
   findall(Depend:fetchonly,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),RD),
   append(CD,RD,D),
-  % query:search([category(C),name(N),slot(S),model(required_use(M)),all(depend(CD)),all(rdepend(RD))],Repository://Ebuild),
+  M = [],
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
-    Conditions = [constraint(use(Repository://Ebuild):{[]}), %M removed
+    Conditions = [constraint(use(Repository://Ebuild):{M}),
                   constraint(slot(C,N,S):{[Ebuild]})
                   |D];
-    Conditions = [constraint(use(Repository://Ebuild):{[]}), %M removed
+    Conditions = [constraint(use(Repository://Ebuild):{M}),
                   Repository://Ebuild:download,
                   constraint(slot(C,N,S):{[Ebuild]})
                   |D] ).
@@ -87,14 +90,15 @@ rule(Repository://Ebuild:fetchonly,Conditions) :-
 % - it can occupy an installation slot
 
 rule(Repository://Ebuild:install,[]) :-
-  not(preference:flag(emptytree)),
+  \+(preference:flag(emptytree)),
+  % query:search([installed(true)],Repository://Ebuild),!.
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
 
 rule(Repository://Ebuild:install,Conditions) :-
+  % knowledgebase:query([category(C),name(N),slot(slot(S)),model(required_use(M)),all(depend(D))],Repository://Ebuild),
   cache:ordered_entry(Repository,Ebuild,C,N,_V),
   cache:entry_metadata(Repository,Ebuild,slot,slot(S)),
   findall(Depend:install,cache:entry_metadata(Repository,Ebuild,depend,Depend),D),
-  % knowledgebase:query([category(C),name(N),slot(slot(S)),model(required_use(M)),all(depend(D))],Repository://Ebuild),
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
     Conditions = [constraint(use(Repository://Ebuild):{[]}), %M removed
                   constraint(slot(C,N,S):{[Ebuild]})
@@ -477,7 +481,12 @@ rule(blocking(Use),[naf(Use)]) :- !.
 
 % Required use
 
-rule(required(Use),[Use]) :- !.
+rule(required(Use),[]) :-
+  preference:use(Use),!.
+
+rule(required(Use),[assumed(use(Use))]) :- !.
+  %\+preferences(Use).
+
 
 
 % ----------------------
