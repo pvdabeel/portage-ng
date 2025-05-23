@@ -82,8 +82,7 @@ search(all(Statement),Repository://Entry) :-
   !,
   findall(InnerValue,
           (InnerStatement =.. [Key,InnerValue],
-           search(InnerStatement,
-           Repository://Entry)),
+           search(InnerStatement,Repository://Entry)),
           Values).
 
 
@@ -94,8 +93,7 @@ search(all(Statement),Repository://Entry) :-
   !,
   findall([InnerValueA,Filter],
           (InnerStatement =.. [Key,InnerValueA,Filter],
-           search(InnerStatement,
-           Repository://Entry)),
+           search(InnerStatement,Repository://Entry)),
           Values).
 
 
@@ -109,11 +107,11 @@ search(model(Statement),Repository://Id) :-
   prover:model(AllValues,ModelValues),
   findall(V,
    (member(V,ModelValues),
-    not(V =.. [package_dependency|_]),
-    not(V =.. [use_conditional_group|_]),
-    not(V =.. [exactly_one_of_group|_]),
-    not(V =.. [any_of_group|_]),
-    not(V =.. [all_of_group|_])),
+    \+(V =.. [package_dependency|_]),
+    \+(V =.. [use_conditional_group|_]),
+    \+(V =.. [exactly_one_of_group|_]),
+    \+(V =.. [any_of_group|_]),
+    \+(V =.. [all_of_group|_])),
    Model).
 
 

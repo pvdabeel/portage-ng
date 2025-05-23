@@ -62,7 +62,7 @@ rule(Repository://Ebuild:fetchonly,Conditions) :-
   findall(Depend:fetchonly,cache:entry_metadata(Repository,Ebuild,depend,Depend),CD),
   findall(Depend:fetchonly,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),RD),
   append(CD,RD,D),
-  % knowledgebase:query([category(C),name(N),slot(slot(S)),model(required_use(M)),all(depend(D))],Repository://Ebuild),
+  % query:search([category(C),name(N),slot(S),model(required_use(M)),all(depend(CD)),all(rdepend(RD))],Repository://Ebuild),
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
     Conditions = [constraint(use(Repository://Ebuild):{[]}), %M removed
                   constraint(slot(C,N,S):{[Ebuild]})
@@ -340,6 +340,9 @@ rule(package_dependency(R://E,_T,no,C,N,O,V,S,U):Action,Conditions) :-
   Conditions = [assumed(package_dependency(R://E,Action,no,C,N,O,V,S,U))],!.
 
 
+% Use conditional dependencies as package dependencies.
+
+
 % The dependencies in a positive use conditional group need to be satisfied when
 % the use flag is positive through required use constraint, preference or ebuild
 % default
@@ -382,6 +385,45 @@ rule(use_conditional_group(negative,_Use,_R://_E,_):_Action,[]) :-
   !.
 
 
+% Use conditional dependencies in other metadata
+
+% 1. The USE is explicitely enabled, either by preference or ebuild -> process deps
+
+rule(use_conditional_group(positive,Use,R://E,Deps),Result) :-
+  query:search(iuse(Use,positive:_Reason),R://E),!,
+  findall(D,member(D,Deps),Result).
+  %(Reason == preference
+  % -> findall(D:Action,member(D,Deps),Result)
+  % ;  findall(D:Action,member(D,Deps),Temp), Result = [constraint(use(R://E):Use)|Temp]).
+
+% 2. The USE is not enabled -> no deps
+
+rule(use_conditional_group(positive,_Use,_R://_E,_),[]) :-
+  !.
+
+
+% The dependencies in a negative use conditional group need to be satisfied when
+% the use flag is not positive through required use constraint, preference or
+% ebuild default
+
+%rule(use_conditional_group(negative,Use,R://E,Deps):Action,[constraint(use(R://E):naf(Use))|Result]) :-
+%  findall(D:Action,member(D,Deps),Result).
+
+rule(use_conditional_group(negative,Use,R://E,Deps),Result) :-
+  query:search(iuse(Use,negative:_Reason),R://E),!,
+  findall(D,member(D,Deps),Result).
+  %(Reason == preference
+  % -> findall(D:Action,member(D,Deps),Result)
+  % ;  findall(D:Action,member(D,Deps),Temp), Result = [constraint(use(R://E):naf(Use))|Temp]).
+
+rule(use_conditional_group(negative,_Use,_R://_E,_),[]) :-
+  !.
+
+
+
+
+
+
 % Example: feature:unification:unify([constraint(use(os)):darwin],[constraint(use(os)):{[linux,darwin]}],Result).
 
 
@@ -391,17 +433,31 @@ rule(exactly_one_of_group(Deps):Action,[D:Action|NafDeps]) :-
   member(D,Deps),
   findall(naf(N:Action),(member(N,Deps), not(D = N)),NafDeps).
 
+rule(exactly_one_of_group(Deps),[D|NafDeps]) :-
+  member(D,Deps),
+  findall(naf(N),(member(N,Deps), not(D = N)),NafDeps).
+
+
+
+
 
 % One dependency of an any_of_group should be satisfied
 
 rule(any_of_group(Deps):Action,[D:Action]) :-
   member(D,Deps).
 
+rule(any_of_group(Deps),[D]) :-
+  member(D,Deps).
+
+
 
 % All dependencies in an all_of_group should be satisfied
 
 rule(all_of_group(Deps):Action,Result) :-
   findall(D:Action,member(D,Deps),Result),!.
+
+rule(all_of_group(Deps),Result) :-
+  findall(D,member(D,Deps),Result),!.
 
 
 % ---------------
