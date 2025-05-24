@@ -7,8 +7,8 @@
 # ${1} = remote
 # ${2} = local
 if [ -f "${1}/.lastgraph" ]; then
-  find "${1}" -iname *.dot -mnewer "${1}/.lastgraph" | parallel --no-notice dot -Tsvg {} -o {.}.svg
+  find "${1}" -iname *.dot -mnewer "${1}/.lastgraph" | parallel --no-notice --bar --eta --progress --color --jobs +75% dot -Tsvg {} -o {.}.svg
 else 
-  find "${1}" -iname *.dot | parallel --no-notice dot -Tsvg {} -o {.}.svg
+  find "${1}" -iname *.dot | parallel --no-notice --bar --eta --progress --color --jobs +75% dot -Tsvg {} -o {.}.svg
 fi
 touch "${1}/.lastgraph"
