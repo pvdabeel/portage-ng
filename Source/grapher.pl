@@ -21,6 +21,8 @@ could satisfy the dependency.
 
 :- module(grapher, []).
 
+:- thread_local graph_visited/1.
+
 % ********************
 % GRAPHER declarations
 % ********************
@@ -50,7 +52,6 @@ grapher:graph(detail,Repository://Id) :-
   nl,
   write('subgraph cluster_leftcol {'),nl,
   write('color=gray;'),nl,
-  %write('rank=same;'),nl,
   write('label=<<i>ebuild</i>>;'),nl,
   write('id [label=\"'),write(Repository://Id),write('\", color=red, width=4, href=\"../'),write(Id),write('.svg\"];'),nl,
   write('}'),nl,
@@ -110,15 +111,17 @@ grapher:graph(detail,Repository://Id) :-
 % For a given ebuild, identified by an Id, create a full dependency diagram.
 
 grapher:graph(Type,Repository://Id) :-
-  member(Type,[depend,rdepend]),!,
+  member(Type,[bdepend,cdepend,depend,idepend,rdepend,pdepend]),!,
   writeln('digraph prolog {'),
   nl,
   writeln('newrank=true;'),
   writeln('concentrate=true;'),
   writeln('compound=true;'),
-  writeln('graph [rankdir=TD];#, ranksep=2.5, nodesep=0.2];'),
-  writeln('edge  [arrowhead=vee];'), % arrowsize=0.6 constraint= true
+  writeln('graph [rankdir=TD, ranksep=1, nodesep=0.2];'),
+  writeln('edge  [arrowhead=vee arrowsize=0.6, constraint=true];'),
   writeln('node  [fontname=Helvetica,fontsize=10];'),
+  nl,
+  writeln('graph [labelloc=t, labeljust=l, fontcolor=blue, fontname=Helvetica, fontsize=10, label=<<TABLE BORDER=\'0\' CELLBORDER=\'1\' CELLSPACING=\'0\' CELLPADDING=\'6\'><TR><TD COLSPAN=\'6\'><FONT COLOR=\'black\'><B>full dependency graph</B></FONT></TD></TR><TR><TD>bdepend</TD><TD>cdepend</TD><TD><u>depend</u></TD><TD>idepend</TD><TD>rdepend</TD><TD>pdepend</TD></TR></TABLE>>];'),
   nl,
   retractall(graph_visited(_)),
   grapher:write_tree(Repository://Id,Type),
@@ -133,8 +136,8 @@ grapher:graph(Type,Repository://Id) :-
 grapher:write_tree(Repository://Id, Type) :-
   \+(graph_visited(Repository://Id)),!,
   write('\"'),write(Repository://Id),write('\" [color=red, href=\"../'),write(Id),write('-'),write(Type),write('.svg\"];'),nl,
-  Statement =.. [Type,equal(DS)],
-  query:search(Statement,Repository://Id),
+  Statement =.. [Type,DS],
+  query:search(all(Statement),Repository://Id),
   findall(Ch,(member(D,DS),grapher:handle(Type,solid,vee,Repository://Id,D,Ch)),AllChoices),
   assert(graph_visited(Repository://Id)),
   grapher:choices(Type,AllChoices),
@@ -186,28 +189,15 @@ grapher:choices(detail,[arrow(D,Choices)|Rest]) :-
   writeln('}'),
   grapher:choices(detail,Rest).
 
-grapher:choices(depend,[arrow(D,[Choice])|Rest]) :-
+grapher:choices(Deptype,[arrow(D,[Choice])|Rest]) :-
   !,
   write('\"'),write(D),write('\"'),
   write(' -> '),
   write('\"'),write(Choice),write('\"'),nl,
-  grapher:choices(depend,Rest).
-
-grapher:choices(cdepend,[arrow(D,[Choice])|Rest]) :-
-  !,
-  write('\"'),write(D),write('\"'),
-  write(' -> '),
-  write('\"'),write(Choice),write('\"'),nl,
-  grapher:choices(cdepend,Rest).
-
-grapher:choices(rdepend,[arrow(D,[Choice])|Rest]) :-
-  !,
-  write('\"'),write(D),write('\"'),
-  write(' -> '),
-  write('\"'),write(Choice),write('\"'),nl,
-  grapher:choices(rdepend,Rest).
+  grapher:choices(Deptype,Rest).
 
 grapher:choices(Kind,[L|Rest]) :-
+  \+L =..[arrow,_,_],
   !,
   grapher:choices(Kind,L),
   grapher:choices(Kind,Rest).
@@ -217,39 +207,7 @@ grapher:choices(Kind,[L|Rest]) :-
 %
 % For a given graph style, create a meta reprensentation of a dependency
 
-grapher:handle(depend,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,_Type,Cat,Name,Comp,Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
-  query:search([select(name,equal(Name)),select(category,equal,Cat),select(version,Comp,Ver)],Choicecontext://Choice),
-  !, true.
-
-grapher:handle(depend,_Style,_Arrow,_Master,use_conditional_group(_,_Type,_Use,_Deps),[]) :- !.
-
-grapher:handle(depend,_Style,_Arrow,_Master,any_of_group(_),[]) :- !.
-
-grapher:handle(depend,_Style,_Arrow,_Master,all_of_group(_),[]) :- !.
-
-grapher:handle(depend,_Style,_Arrow,_Master,exactly_one_of_group(_),[]) :- !.
-
-grapher:handle(depend,_Style,_Arrow,_Master,at_most_one_of_group(_),[]) :- !.
-
-grapher:handle(depend,_Style,_Arrow,_Master,_,[]) :- !.
-
-
-grapher:handle(rdepend,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,_Type,Cat,Name,Comp,Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
-  query:search([select(name,equal,Name),select(category,equal,Cat),select(version,Comp,Ver)],Choicecontext://Choice),
-  !, true.
-
-grapher:handle(rdepend,_Style,_Arrow,_Master,use_conditional_group(_,_Type,_Use,_Deps),[]) :- !.
-
-grapher:handle(rdepend,_Style,_Arrow,_Master,any_of_group(_),[]) :- !.
-
-grapher:handle(rdepend,_Style,_Arrow,_Master,all_of_group(_),[]) :- !.
-
-grapher:handle(rdepend,_Style,_Arrow,_Master,exactly_one_of_group(_),[]) :- !.
-
-grapher:handle(rdepend,_Style,_Arrow,_Master,at_most_one_of_group(_),[]) :- !.
-
-grapher:handle(rdepend,_Style,_Arrow,_Master,_,[]) :- !.
-
+% detail tree graphing
 
 grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,no,Cat,Name,Comp,Ver,_,_),arrow(D,Choices)) :-
   !,
@@ -289,8 +247,6 @@ grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,strong,Cat,Na
   write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl,
   findall(R,query:search([select(name,equal,Name),select(category,equal,Cat),select(version,Comp,Ver)],R),Choices),
   !, true.
-
-
 
 grapher:handle(detail,Style,Arrow,Master,use_conditional_group(Type,Use,_,Deps),Choices) :-
   !,
@@ -350,6 +306,25 @@ grapher:handle(detail,_Style,_Arrow,Master,S,[]) :-
   writeln('# *** END UNKNOWN DEPENDENCY TYPE (TODO) ***'),
   nl.
 
+% Full tree graphing
+
+grapher:handle(_Deptype,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,_Type,Cat,Name,Comp,Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice])) :-
+  query:search([name(Name),category(Cat),select(version,Comp,Ver)],Choicecontext://Choice),
+  !, true.
+
+grapher:handle(_Deptype,_Style,_Arrow,_Master,use_conditional_group(_,_Type,_Use,_Deps),[]) :- !.
+
+grapher:handle(_Deptype,_Style,_Arrow,_Master,any_of_group(_),[]) :- !.
+
+grapher:handle(_Deptype,_Style,_Arrow,_Master,all_of_group(_),[]) :- !.
+
+grapher:handle(_Deptype,_Style,_Arrow,_Master,exactly_one_of_group(_),[]) :- !.
+
+grapher:handle(_Deptype,_Style,_Arrow,_Master,at_most_one_of_group(_),[]) :- !.
+
+grapher:handle(_Deptype,_Style,_Arrow,_Master,_,[]) :- !.
+
+
 
 %! grapher:test(+Repository)
 %
@@ -380,16 +355,19 @@ grapher:write_dot_files(D,Repository://Id) :-
   with_mutex(mutex,message:scroll_notice(['Graphing - Ebuild: ',Id])),
   atomic_list_concat([D,'/',Id,'.dot'],Fdetail),
   tell(Fdetail),
-  grapher:graph(detail,Repository://Id),
-  told.
-%  atomic_list_concat([D,'/',Id,'-depend.dot'],Fdepend),
-%  tell(Fdepend),
-%  grapher:graph(depend,Repository://Id),
-%  told,
-%  atomic_list_concat([D,'/',Id,'-rdepend.dot'],Frdepend),
-%  tell(Frdepend),
-%  grapher:graph(rdepend,Repository://Id),
-%  told.
+  (grapher:graph(detail,Repository://Id)
+   -> told
+   ;  (told,message:warning([Repository://Id,' ',detail]))),
+  atomic_list_concat([D,'/',Id,'-depend.dot'],Fdepend),
+  tell(Fdepend),
+  (grapher:graph(depend,Repository://Id)
+   -> told
+   ;  (told,message:warning([Repository://Id,' ',depend]))),
+  atomic_list_concat([D,'/',Id,'-rdepend.dot'],Frdepend),
+  tell(Frdepend),
+  (grapher:graph(rdepend,Repository://Id)
+   -> told
+   ; (told,message:warning([Repository://Id,' ',rdepend]))).
 
 
 %! grapher:test(Repository)
@@ -412,7 +390,8 @@ grapher:test(Repository) :-
   message:el,
   message:notice(['Graphed changed ebuilds only (',Cpus,' threads).']),
   message:scroll_notice(['Now running Graphviz dot...']),
-  script:exec(graph,['dot',D]),
+  script:exec(graph,['dot',D],[],Stream),
+  copy_stream_data(Stream,current_output),
   message:scroll_notice(['Done running Graphviz dot.']),
   message:sc.
 
@@ -428,6 +407,7 @@ grapher:test(Repository) :-
   message:el,
   message:notice(['Graphed ',L,' ebuilds (',Cpus,' threads).']),
   message:scroll_notice(['Now running Graphviz dot...']),
-  script:exec(graph,['dot',D]),
+  script:exec(graph,['dot',D],[],Stream),
+  copy_stream_data(Stream,current_output),
   message:scroll_notice(['Done running Graphviz dot.']),
   message:sc.
