@@ -95,11 +95,12 @@ rule(Repository://Ebuild:install,[]) :-
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
 
 rule(Repository://Ebuild:install,Conditions) :-
-  % query:search([not(installed(true)),category(C),name(N),slot(S),model(required_use(M)),all(depend(CD)),all(rdepend(RD))],Repository://Ebuild),
-  cache:ordered_entry(Repository,Ebuild,C,N,_V),
-  cache:entry_metadata(Repository,Ebuild,slot,slot(S)),
+  %query:search([category(C),name(N),slot(S),model(required_use(M)),all(depend(D))],Repository://Ebuild),
+  query:search([category(C),name(N),slot(S),model(required_use(M))],Repository://Ebuild),
+  %cache:ordered_entry(Repository,Ebuild,C,N,_V),
+  %cache:entry_metadata(Repository,Ebuild,slot,slot(S)),
   findall(Depend:install,cache:entry_metadata(Repository,Ebuild,depend,Depend),D),
-  M = [],
+  %M = [],
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
     Conditions = [constraint(use(Repository://Ebuild):{M}),
                   constraint(slot(C,N,S):{[Ebuild]})
@@ -391,11 +392,11 @@ rule(use_conditional_group(negative,_Use,_R://_E,_):_Action,[]) :-
 % 1. The USE is explicitely enabled, either by preference or ebuild -> process deps
 
 rule(use_conditional_group(positive,Use,R://E,Deps),Result) :-
-  query:search(iuse(Use,positive:_Reason),R://E),!,
+  query:search(iuse(Use,positive:preference),R://E),!,
   findall(D,member(D,Deps),Result).
   %(Reason == preference
-  % -> findall(D:Action,member(D,Deps),Result)
-  % ;  findall(D:Action,member(D,Deps),Temp), Result = [constraint(use(R://E):Use)|Temp]).
+  % -> findall(D,member(D,Deps),Result)
+  % ;  findall(D,member(D,Deps),Temp), writeln(Use:Reason), Result = [constraint(use(R://E):{[assumed(Use)]})|Temp]).
 
 % 2. The USE is not enabled -> no deps
 
@@ -411,7 +412,7 @@ rule(use_conditional_group(positive,_Use,_R://_E,_),[]) :-
 %  findall(D:Action,member(D,Deps),Result).
 
 rule(use_conditional_group(negative,Use,R://E,Deps),Result) :-
-  query:search(iuse(Use,negative:_Reason),R://E),!,
+  query:search(iuse(Use,negative:preference),R://E),!,
   findall(D,member(D,Deps),Result).
   %(Reason == preference
   % -> findall(D:Action,member(D,Deps),Result)
@@ -472,18 +473,63 @@ rule(all_of_group(Deps),Result) :-
 rule(uri(_,_,_):_,[]) :- !.
 rule(uri(_):_,[]) :- !.
 
-% Blocking use
-
-rule(blocking(Use),[naf(Use)]) :- !.
 
 % Required use
 
-rule(required(Use),[]) :-
+rule(required(minus(Use)),[minus(Use)]) :-
+  \+Use =.. [minus,_],
+  preference:use(minus(Use)),!.
+
+rule(required(Use),[Use]) :-
+  \+Use =.. [minus,_],
   preference:use(Use),!.
 
-rule(required(Use),[assumed(use(Use))]) :- !.
-  %\+preferences(Use).
+rule(required(Use),[assumed(conflict(required,Use))]) :-
+  \+Use =.. [minus,_],
+  preference:use(minus(Use)),!.
 
+rule(required(minus(Use)),[assumed(conflict(required,minus(Use)))]) :-
+  \+Use =.. [minus,_],
+  preference:use(Use),!.
+
+rule(required(minus(Use)),[assumed(minus(Use))]) :-
+  \+Use =.. [minus,_],
+  \+preference:use(Use),
+  \+preference:use(minus(Use)),!.
+
+rule(required(Use),[assumed(Use)]) :-
+  \+Use =.. [minus,_],
+  \+preference:use(Use),
+  \+preference:use(minus(Use)),!.
+
+
+% Blocking use
+
+rule(blocking(minus(Use)),[Use]) :-
+  \+Use =.. [minus,_],
+  preference:use(Use),!.
+
+rule(blocking(Use),[minus(Use)]) :-
+  \+Use =.. [minus,_],
+  preference:use(minus(Use)),!.
+
+rule(blocking(Use),[assumed(conflict(blocking,Use))]) :-
+  \+Use =.. [minus,_],
+  preference:use(Use),!.
+
+rule(blocking(minus(Use)),[assumed(conflict(blocking,minus(Use)))]) :-
+  \+Use =.. [minus,_],
+  preference:use(minus(Use)),!.
+
+rule(blocking(minus(Use)),[assumed(minus(Use))]) :-
+  \+Use =.. [minus,_],
+  \+preference:use(Use),
+  \+preference:use(minus(Use)),!.
+
+rule(blocking(Use),[assumed(minus(Use))]) :-
+  \+Use =.. [minus,_],
+  \+preference:use(Use),
+  \+preference:use(minus(Use)),!.
 
 
 % ----------------------
@@ -495,6 +541,23 @@ rule(required(Use),[assumed(use(Use))]) :- !.
 rule(assumed(_),[]) :- !.
 
 % Negation as failure:
+
+% We add some conflict resolution information:
+
+rule(naf(Statement),C) :-
+  Statement =.. [required,Use],!,
+  ( preference:use(Use) -> C = [conflict(Use,naf(required(Use)))] ; C = []).
+
+rule(naf(Statement),C) :-
+  Statement =.. [blocking,Use],!,
+  ( preference:use(minus(Use)) -> C = [conflict(Use,naf(blocking(Use)))] ; C = [] ).
+
+% Conflicts:
+
+rule(conflict(_,_),[]) :- !,
+  fail.
+
+% The default rule, prover takes care of negation
 
 rule(naf(_),[]) :- !.
 
