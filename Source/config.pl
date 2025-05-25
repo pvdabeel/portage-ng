@@ -259,7 +259,7 @@ config:graph_modified_only(false).
 %
 % Defines the dependency types for which you want a full graph
 
-config:graph_dependency_type([bdepend,cdepend,depend,idepend,rdepend,pdepend]).
+config:graph_dependency_type([detail,bdepend,cdepend,depend,idepend,rdepend,pdepend]).
 
 
 %! config:proving_target(?Target)
