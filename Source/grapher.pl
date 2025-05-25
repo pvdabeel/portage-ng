@@ -119,15 +119,11 @@ grapher:graph_legend_version(Type,Repository://Id) :-
   (last(Es,Oldest)         ; Oldest = []),!,
   (once(member(Newest,Eg)) ; Newest = []),!,
   (once(member(Older,Es))  ; Older  = []),!,
-  write('<TD BORDER=\'0\'></TD><TD'),
-  grapher:graph_legend_href(Type,Repository://Newest),
-  write('>&lt;&lt; newest</TD><TD'),
-  grapher:graph_legend_href(Type,Repository://Newer),
-  write('>&lt; newer</TD><TD'),
-  grapher:graph_legend_href(Type,Repository://Older),
-  write('>older &gt;</TD><TD'),
-  grapher:graph_legend_href(Type,Repository://Oldest),
-  write('>oldest &gt;&gt;</TD>').
+  write('<TD BORDER=\'0\'></TD>'),
+  grapher:graph_legend_href(Type,Repository://Newest,'&lt;&lt; newest'),
+  grapher:graph_legend_href(Type,Repository://Newer,'&lt; newer'),
+  grapher:graph_legend_href(Type,Repository://Older,'older &gt;'),
+  grapher:graph_legend_href(Type,Repository://Oldest,'oldest &gt;&gt;').
 
 
 %! grapher:graph_legend_types(Type,List,Repository://Id)
@@ -139,12 +135,13 @@ grapher:graph_legend_types(_Type,[],_Repository://_Id) :- !.
 
 grapher:graph_legend_types(Type,[Type|Rest],Repository://Id) :-
   !,
-  write('<TD'),grapher:graph_legend_href(Type,Repository://Id),write('>'),write('<u>'),write(Type),write('</u></TD>'),
+  atomic_list_concat(['<u>',Type,'</u>'],Name),
+  grapher:graph_legend_href(Type,Repository://Id,Name),
   grapher:graph_legend_types(Type,Rest,Repository://Id).
 
 grapher:graph_legend_types(Type,[OtherType|Rest],Repository://Id) :-
   !,
-  write('<TD'),grapher:graph_legend_href(OtherType,Repository://Id),write('>'),write(OtherType),write('</TD>'),
+  grapher:graph_legend_href(OtherType,Repository://Id,Type),
   grapher:graph_legend_types(Type,Rest,Repository://Id).
 
 
@@ -152,16 +149,17 @@ grapher:graph_legend_types(Type,[OtherType|Rest],Repository://Id) :-
 %
 % For a given ebuild, identified by an Id, return the correct href URL to be included in the legend of a depedency graph
 
-grapher:graph_legend_href(_,_://[]) :-
+grapher:graph_legend_href(_,_://[],Name) :-
+  write('<TD><FONT color=\"gray\">'),write(Name),write('</FONT></TD>'),
   !.
 
-grapher:graph_legend_href(detail,Repository://Id) :-
+grapher:graph_legend_href(detail,Repository://Id,Name) :-
   !,
-  write(' title=\"'),write(Repository://Id),write('\" href=\"../'),write(Id),write('.svg'),write('\"').
+  write('<TD title=\"'),write(Repository://Id),write('\" href=\"../'),write(Id),write('.svg'),write('\">'),write(Name),write('</TD>').
 
-grapher:graph_legend_href(Depend,Repository://Id) :-
+grapher:graph_legend_href(Depend,Repository://Id,Name) :-
   !,
-  write(' title=\"'),write(Repository://Id),write('\" href=\"../'),write(Id),write('-'),write(Depend),write('.svg'),write('\"').
+  write('<TD title=\"'),write(Repository://Id),write('\" href=\"../'),write(Id),write('-'),write(Depend),write('.svg'),write('\">'),write(Name),write('</TD>').
 
 
 %! grapher:graph_ebuild(detail,Repository://Id)
