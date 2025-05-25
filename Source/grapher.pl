@@ -14,8 +14,8 @@ This file contains predicates that convert:
  - ebuilds into DOT language directed graphs showing ebuild dependencies in detail
  - ebuilds into DOT language directed graphs showing full dependency tree
 
-We have can output two type of diagrams: High level tree diagrams or detailled
-diagrams showing, for a given ebuild, all dependencies and the ebuilds that
+We have can output two type of graphs: High level tree diagrams or detailled
+graphs showing, for a given ebuild, all dependencies and the ebuilds that
 could satisfy the dependency.
 */
 
@@ -108,44 +108,124 @@ grapher:graph(detail,Repository://Id) :-
 
 %! grapher:graph(+Type,+Id)
 %
-% For a given ebuild, identified by an Id, create a full dependency diagram.
+% For a given ebuild, identified by an Id, create a full dependency graph.
 
 grapher:graph(Type,Repository://Id) :-
   member(Type,[bdepend,cdepend,depend,idepend,rdepend,pdepend]),!,
+  grapher:graph_header(Type,Repository://Id),
+  grapher:graph_legend(Type,Repository://Id),
+  grapher:graph_root(Type,Repository://Id),
+  grapher:graph_tree(Type,Repository://Id),
+  grapher:graph_footer(Type,Repository://Id).
+
+
+%! grapher:graph_header(+Type,+Id)
+%
+% For a given ebuild, identified by an Id, create the header of the full dependency graph.
+
+grapher:graph_header(_Type,_Repository://_Id) :-
   writeln('digraph prolog {'),
   nl,
   writeln('newrank=true;'),
   writeln('concentrate=true;'),
   writeln('compound=true;'),
+  nl,
   writeln('graph [rankdir=TD, ranksep=1, nodesep=0.2];'),
   writeln('edge  [arrowhead=vee arrowsize=0.6, constraint=true];'),
   writeln('node  [fontname=Helvetica,fontsize=10];'),
-  nl,
-  writeln('graph [labelloc=t, labeljust=l, fontcolor=blue, fontname=Helvetica, fontsize=10, label=<<TABLE BORDER=\'0\' CELLBORDER=\'1\' CELLSPACING=\'0\' CELLPADDING=\'6\'><TR><TD COLSPAN=\'6\'><FONT COLOR=\'black\'><B>full dependency graph</B></FONT></TD></TR><TR><TD>bdepend</TD><TD>cdepend</TD><TD><u>depend</u></TD><TD>idepend</TD><TD>rdepend</TD><TD>pdepend</TD></TR></TABLE>>];'),
-  nl,
+  nl.
+
+
+%! grapher:graph_root(+Type,+Id)
+%
+% For a given ebuild, identified by an Id, create the root of the full dependency graph.
+
+grapher:graph_root(_Type,Repository://Id) :-
+  write('root [style=invis];'),nl,
+  write('root -> \"'),write(Repository://Id),write('\"[minlen=0.2, headport=n, tailport=s, style=invis];'),nl,
+  nl.
+
+
+%! grapher:graph_root(+Type,+Id)
+%
+% For a given ebuild, identified by an Id, create the footer of the full dependency graph.
+
+grapher:graph_footer(_Type,_Repository://_Id) :-
+  write('}'),nl.
+
+
+%! grapher:graph_legend(+Type,+Id)
+%
+% For a given ebuild, identified by an Id, create legend to be included in the full dependency graph.
+
+grapher:graph_legend(Type,Repository://Id) :-
+  config:graph_dependency_type(List),
+  length(List,Len),
+  write('graph [labelloc=t, labeljust=l, fontcolor=blue, fontname=Helvetica, fontsize=10, label='),
+  write('<<TABLE BORDER=\'0\' CELLBORDER=\'1\' CELLSPACING=\'0\' CELLPADDING=\'6\'>'),
+  write('<TR><TD COLSPAN=\''),write(Len),write('\'><FONT COLOR=\'black\'><B>full dependency graph</B></FONT></TD></TR><TR>'),
+  grapher:graph_legend_types(Type,List,Repository://Id),
+  write('</TR></TABLE>>];'),nl,
+  nl.
+
+
+%! grapher:graph_legend_types(+Type,+List,+Id)
+%
+% For a given ebuild, identified by an Id, create revelevant legend entries  to be included in the legend of a full dependency graph.
+
+grapher:graph_legend_types(_Type,[],_Repository://_Id) :- !.
+
+grapher:graph_legend_types(Type,[Type|Rest],Repository://Id) :-
+  !,
+  write('<TD href=\"../'),write(Id),write('-'),write(Type),write('.svg'),write('\">'),write('<u>'),write(Type),write('</u></TD>'),
+  grapher:graph_legend_types(Type,Rest,Repository://Id).
+
+grapher:graph_legend_types(Type,[OtherType|Rest],Repository://Id) :-
+  !,
+  write('<TD href=\"../'),write(Id),write('-'),write(OtherType),write('.svg'),write('\">'),write(OtherType),write('</TD>'),
+  grapher:graph_legend_types(Type,Rest,Repository://Id).
+
+
+%! grapher:graph_tree(+Type,+Id),
+%
+% For a given ebuild, identified by an Id, create the full dependency graph
+
+grapher:graph_tree(Type,Repository://Id) :-
   retractall(graph_visited(_)),
-  grapher:write_tree(Repository://Id,Type),
-  writeln('}'),
+  grapher:graph_tree(Type,Repository://Id,Repository://Id),
   retractall(graph_visited(_)).
 
 
-%! grapher:write_tree(+Id)
+%! grapher:graph_tree(+Type,+Root,Id)
 %
-% For a given ebuild, identified by an Id, create a tree diagram.
+% For a given ebuild, identified by an Id, create the full dependency graph
 
-grapher:write_tree(Repository://Id, Type) :-
+grapher:graph_tree(Type,RootRep://RootId,Repository://Id) :-
   \+(graph_visited(Repository://Id)),!,
-  write('\"'),write(Repository://Id),write('\" [color=red, href=\"../'),write(Id),write('-'),write(Type),write('.svg\"];'),nl,
+  grapher:graph_node(Type,RootRep://RootId,Repository://Id),
   Statement =.. [Type,DS],
   query:search(all(Statement),Repository://Id),
   findall(Ch,(member(D,DS),grapher:handle(Type,solid,vee,Repository://Id,D,Ch)),AllChoices),
   assert(graph_visited(Repository://Id)),
   grapher:choices(Type,AllChoices),
   forall(member(arrow(_,[Chs]),AllChoices),
-    grapher:write_tree(Chs,Type)).
+    grapher:graph_tree(Type,RootRep://RootId,Chs)).
 
-grapher:write_tree(Repository://Id,_Type) :-
+grapher:graph_tree(_,_,Repository://Id) :-
   graph_visited(Repository://Id),!.
+
+
+%! grapher:graph_node(+Type,+Root,+Id)
+%
+% For a given ebuild, create its node in the full dependency graph
+
+grapher:graph_node(Type,Repository://Id,Repository://Id) :-
+  !,
+  write('\"'),write(Repository://Id),write('\" [color=red, penwidth=2, href=\"../'),write(Id),write('-'),write(Type),write('.svg\"];'),nl.
+
+grapher:graph_node(Type,_://_,Repository://Id) :-
+  !,
+  write('\"'),write(Repository://Id),write('\" [color=red, penwidth=1, href=\"../'),write(Id),write('-'),write(Type),write('.svg\"];'),nl.
 
 
 %! grapher:enconvert(+Id,-Code)
@@ -333,9 +413,9 @@ grapher:handle(_Deptype,_Style,_Arrow,_Master,_,[]) :- !.
 % the dot files into interactive scalable vector graphics (SVG).
 %
 % When an SVG graph is opened in a modern browser, it will show for a given
-% ebuild what dependencies that ebuild has. The SVG diagram will have links
+% ebuild what dependencies that ebuild has. The SVG graph will have links
 % to ebuilds that can satisfy the dependency. Each ebuild linked to can be
-% opened by clicking on it in the diagram, enabling manual dependency graph
+% opened by clicking on it in the graph, enabling manual dependency graph
 % traversal to debug issues with ebuild dependencies.
 
 grapher:prepare_directory(D,Repository) :-
@@ -358,16 +438,13 @@ grapher:write_dot_files(D,Repository://Id) :-
   (grapher:graph(detail,Repository://Id)
    -> told
    ;  (told,message:warning([Repository://Id,' ',detail]))),
-  atomic_list_concat([D,'/',Id,'-depend.dot'],Fdepend),
-  tell(Fdepend),
-  (grapher:graph(depend,Repository://Id)
-   -> told
-   ;  (told,message:warning([Repository://Id,' ',depend]))),
-  atomic_list_concat([D,'/',Id,'-rdepend.dot'],Frdepend),
-  tell(Frdepend),
-  (grapher:graph(rdepend,Repository://Id)
-   -> told
-   ; (told,message:warning([Repository://Id,' ',rdepend]))).
+  config:graph_dependency_type(Deptypes),
+  (forall(member(Deptype,Deptypes),
+      (atomic_list_concat([D,'/',Id,'-',Deptype,'.dot'],F),
+       tell(F),
+       (grapher:graph(Deptype,Repository://Id)
+        -> told
+        ;  (told,message:warning([Repository://Id,' ',Deptype])))))).
 
 
 %! grapher:test(Repository)
@@ -390,8 +467,7 @@ grapher:test(Repository) :-
   message:el,
   message:notice(['Graphed changed ebuilds only (',Cpus,' threads).']),
   message:scroll_notice(['Now running Graphviz dot...']),
-  script:exec(graph,['dot',D],[],Stream),
-  copy_stream_data(Stream,current_output),
+  script:exec(graph,['dot',D]),
   message:scroll_notice(['Done running Graphviz dot.']),
   message:sc.
 
@@ -407,7 +483,6 @@ grapher:test(Repository) :-
   message:el,
   message:notice(['Graphed ',L,' ebuilds (',Cpus,' threads).']),
   message:scroll_notice(['Now running Graphviz dot...']),
-  script:exec(graph,['dot',D],[],Stream),
-  copy_stream_data(Stream,current_output),
+  script:exec(graph,['dot',D]),
   message:scroll_notice(['Done running Graphviz dot.']),
   message:sc.

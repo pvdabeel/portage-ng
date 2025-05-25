@@ -252,7 +252,14 @@ config:printable_metadata([blank,hl,description,homepage,license,eapi,slot,hl,bl
 %
 % Set when you want Graphviz dot file to be created for new ebuilds only
 
-config:graph_modified_only(true).
+config:graph_modified_only(false).
+
+
+%! config:graph_dependency_type(?Bool)
+%
+% Defines the dependency types for which you want a full graph
+
+config:graph_dependency_type([bdepend,cdepend,depend,idepend,rdepend,pdepend]).
 
 
 %! config:proving_target(?Target)
