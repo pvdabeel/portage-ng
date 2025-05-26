@@ -55,7 +55,7 @@ ebuild:download_size(_,_://_,0) :- !.
 % True if an entry is a virtual
 
 ebuild:is_virtual(Repository://Entry) :-
-  kb:query(category(equal('virtual')),Repository://Entry).
+  kb:query(category('virtual'),Repository://Entry).
 
 
 %! ebuild:is_live(+Repository://+Entry)
@@ -63,7 +63,7 @@ ebuild:is_virtual(Repository://Entry) :-
 % True if an entry is live
 
 ebuild:is_live(Repository://Entry) :-
-  kb:query(properties(equal(live)),Repository://Entry).
+  kb:query(properties(live),Repository://Entry).
 
 
 %! ebuild:is_interactive(+Repository://+Entry)
@@ -71,4 +71,4 @@ ebuild:is_live(Repository://Entry) :-
 % True if an entry is interactive
 
 ebuild:is_interactive(Repository://Entry) :-
-  kb:query(properties(equal(interactive)),Repository://Entry).
+  kb:query(properties(interactive),Repository://Entry).
