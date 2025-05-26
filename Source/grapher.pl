@@ -141,7 +141,7 @@ grapher:graph_legend_types(Type,[Type|Rest],Repository://Id) :-
 
 grapher:graph_legend_types(Type,[OtherType|Rest],Repository://Id) :-
   !,
-  grapher:graph_legend_href(OtherType,Repository://Id,Type),
+  grapher:graph_legend_href(OtherType,Repository://Id,OtherType),
   grapher:graph_legend_types(Type,Rest,Repository://Id).
 
 
