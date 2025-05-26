@@ -393,7 +393,8 @@ eapi:dependency(property,_,D) -->
   { atom_codes(D,Ds),! }.
 
 eapi:dependency(restrict,_,D) -->
-  eapi:string(D),!.
+  eapi:string(Ds),
+  { atom_codes(D,Ds),! }.
 
 eapi:dependency(uri,_,D) -->
   eapi:uri(D),!.
