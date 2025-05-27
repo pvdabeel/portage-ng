@@ -91,7 +91,7 @@ planner:test(Repository,Style) :-
               'Planning',
               Repository://Entry,
               (Repository:entry(Entry)),
-              (with_q(prover:prove(Repository://Entry:Action,[],Proof,[],_Model,[],_Constraint)),
+              (with_q(prover:prove(Repository://Entry:Action:{[]},[],Proof,[],_Model,[],_Constraint)),
                with_q(planner:plan(Proof,[],[],_Plan)))).
 
 
@@ -106,5 +106,5 @@ planner:test_latest(Repository,Style) :-
               'Planning latest',
               Repository://Entry,
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
-              (with_q(prover:prove(Repository://Entry:Action,[],Proof,[],_Model,[],_Constraint)),
+              (with_q(prover:prove(Repository://Entry:Action:{[]},[],Proof,[],_Model,[],_Constraint)),
 	       with_q(planner:plan(Proof,[],[],_Plan)))).

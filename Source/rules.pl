@@ -29,7 +29,7 @@ This file contains domain-specific rules
 %
 % If an action on a masked ebuild is explicitely requested, unmasking is needed.
 
-rule(Repository://Ebuild:_Action,[assumed(Repository://Ebuild:unmask)]) :-
+rule(Repository://Ebuild:_Action:Context,[assumed(Repository://Ebuild:unmask:Context)]) :-
   preference:masked(Repository://Ebuild),!.
 
 
@@ -37,7 +37,7 @@ rule(Repository://Ebuild:_Action,[assumed(Repository://Ebuild:unmask)]) :-
 %
 % Any ebuild can be downloaded.
 
-rule(Repository://Ebuild:download,[]) :-
+rule(Repository://Ebuild:download:_Context,[]) :-
   % query:search([ebuild(Ebuild)],Repository://Ebuild),!.
   cache:ordered_entry(Repository,Ebuild,_,_,_),!.
 
@@ -49,7 +49,7 @@ rule(Repository://Ebuild:download,[]) :-
 % 1. Don't perform downloads for already installed packages,
 %    unless emptytree is specified.
 
-rule(Repository://Ebuild:fetchonly,[]) :-
+rule(Repository://Ebuild:fetchonly:_Context,[]) :-
   \+(preference:flag(emptytree)),
   % query:search([installed(true)],Repository://Ebuild),!.
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
@@ -57,13 +57,13 @@ rule(Repository://Ebuild:fetchonly,[]) :-
 % 2. Package is not installed, consider its dependencies,
 %    taking into account slot and use restrictions
 
-rule(Repository://Ebuild:fetchonly,Conditions) :-
+rule(Repository://Ebuild:fetchonly:Context,Conditions) :-
   % query:search([not(installed(true)),category(C),name(N),slot(S),model(required_use(M)),all(depend(CD)),all(rdepend(RD))],Repository://Ebuild),
   %\+cache:entry_metadata(Repository,Ebuild,installed,true)
   cache:ordered_entry(Repository,Ebuild,C,N,_V),
   cache:entry_metadata(Repository,Ebuild,slot,slot(S)),
-  findall(Depend:fetchonly,cache:entry_metadata(Repository,Ebuild,depend,Depend),CD),
-  findall(Depend:fetchonly,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),RD),
+  findall(Depend:fetchonly:Context,cache:entry_metadata(Repository,Ebuild,depend,Depend),CD),
+  findall(Depend:fetchonly:Context,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),RD),
   append(CD,RD,D),
   M = [],
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
@@ -71,7 +71,7 @@ rule(Repository://Ebuild:fetchonly,Conditions) :-
                   constraint(slot(C,N,S):{[Ebuild]})
                   |D];
     Conditions = [constraint(use(Repository://Ebuild):{M}),
-                  Repository://Ebuild:download,
+                  Repository://Ebuild:download:Context,
                   constraint(slot(C,N,S):{[Ebuild]})
                   |D] ).
 
@@ -89,24 +89,24 @@ rule(Repository://Ebuild:fetchonly,Conditions) :-
 % - Its compile-time dependencies are satisfied
 % - it can occupy an installation slot
 
-rule(Repository://Ebuild:install,[]) :-
+rule(Repository://Ebuild:install:_Context,[]) :-
   \+(preference:flag(emptytree)),
   % query:search([installed(true)],Repository://Ebuild),!.
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
 
-rule(Repository://Ebuild:install,Conditions) :-
+rule(Repository://Ebuild:install:Context,Conditions) :-
   %query:search([category(C),name(N),slot(S),model(required_use(M)),all(depend(D))],Repository://Ebuild),
   query:search([category(C),name(N),slot(S),model(required_use(M))],Repository://Ebuild),
   %cache:ordered_entry(Repository,Ebuild,C,N,_V),
   %cache:entry_metadata(Repository,Ebuild,slot,slot(S)),
-  findall(Depend:install,cache:entry_metadata(Repository,Ebuild,depend,Depend),D),
+  findall(Depend:install:Context,cache:entry_metadata(Repository,Ebuild,depend,Depend),D),
   %M = [],
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
     Conditions = [constraint(use(Repository://Ebuild):{M}),
                   constraint(slot(C,N,S):{[Ebuild]})
                   |D];
     Conditions = [constraint(use(Repository://Ebuild):{M}),
-                  Repository://Ebuild:download,
+                  Repository://Ebuild:download:Context,
                   constraint(slot(C,N,S):{[Ebuild]})
                   |D] ).
 
@@ -128,15 +128,15 @@ rule(Repository://Ebuild:install,Conditions) :-
 %
 % - if it is installed and if its runtime dependencies are satisfied
 
-rule(Repository://Ebuild:run,Conditions) :-
+rule(Repository://Ebuild:run:Context,Conditions) :-
   \+(preference:flag(emptytree)),
   % query:search([installed(true)],Repository://Ebuild),!,
   cache:entry_metadata(Repository,Ebuild,installed,true),!,
-  (config:avoid_reinstall(true) -> Conditions = [] ; Conditions = [Repository://Ebuild:reinstall]).
+  (config:avoid_reinstall(true) -> Conditions = [] ; Conditions = [Repository://Ebuild:reinstall:Context]).
 
-rule(Repository://Ebuild:run,[Repository://Ebuild:install|D]) :-
+rule(Repository://Ebuild:run:Context,[Repository://Ebuild:install:Context|D]) :-
   % query:search([all(rdepend(Depend))],Repository:Ebuild).
-  findall(Depend:run,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),D).
+  findall(Depend:run:Context,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),D).
   %knowledgebase:query([all(rdepend(D))],Repository://Ebuild).
 
 
@@ -146,7 +146,7 @@ rule(Repository://Ebuild:run,[Repository://Ebuild:install|D]) :-
 %
 % - the OS reports it as runnable, and we are not proving emptyttree
 
-rule(Repository://Ebuild:reinstall,[]) :-
+rule(Repository://Ebuild:reinstall:_Context,[]) :-
   \+(preference:flag(emptytree)),
   % query:search([installed(true)],Repository://Ebuild),!.
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
@@ -158,7 +158,7 @@ rule(Repository://Ebuild:reinstall,[]) :-
 %
 % - the OS reports it as installed, and we are not proving emptytree
 
-rule(Repository://Ebuild:uninstall,[]) :-
+rule(Repository://Ebuild:uninstall:_Context,[]) :-
   \+(preference:flag(emptytree)),
   % query:search([installed(true)],Repository://Ebuild),!.
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
@@ -174,7 +174,7 @@ rule(Repository://Ebuild:uninstall,[]) :-
 %   and a higher version in the same slot is available
 %   taking into account accept_keywords filter
 
-rule(Repository://Ebuild:update,Conditions) :-
+rule(Repository://Ebuild:update:Context,Conditions) :-
   \+(preference:flag(emptytree)),
   preference:accept_keywords(K),
   % query:search([installed(true),keywords(K),slot(S),version(VersionInstalled),category(Category),name(Name)],Repository://Ebuild),
@@ -186,7 +186,7 @@ rule(Repository://Ebuild:update,Conditions) :-
   cache:entry_metadata(Repository,LatestEbuild,slot,S),
   cache:entry_metadata(Repository,LatestEbuild,keywords,K),!,
   compare(>,VersionLatest,VersionInstalled)
-  -> Conditions = [Repository://Ebuild:uninstall,Repository://LatestEbuild:install]
+  -> Conditions = [Repository://Ebuild:uninstall:Context,Repository://LatestEbuild:install:Context]
   ;  Conditions = [].
 
 % todo: deep
@@ -199,7 +199,7 @@ rule(Repository://Ebuild:update,Conditions) :-
 % - The os reports it as installed,
 %   and a higher version is available. Slots are disregarded.
 
-rule(Repository://Ebuild:update,Conditions) :-
+rule(Repository://Ebuild:update:Context,Conditions) :-
   \+(preference:flag(emptytree)),
   preference:accept_keywords(K),
   % query:search([installed(true),keywords(K),version(VersionInstalled),category(Category),name(Name)],Repository://Ebuild),
@@ -209,7 +209,7 @@ rule(Repository://Ebuild:update,Conditions) :-
   cache:ordered_entry(Repository,LatestEbuild,Category,Name,VersionLatest),
   cache:entry_metadata(Repository,LatestEbuild,keywords,K),!,
   compare(>,VersionLatest,VersionInstalled)
-  -> Conditions = [Repository://Ebuild:uninstall,Repository://Ebuild:install]
+  -> Conditions = [Repository://Ebuild:uninstall:Context,Repository://Ebuild:install:Context]
   ;  Conditions = [].
 
 % todo: deep

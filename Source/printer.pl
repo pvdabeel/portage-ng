@@ -334,15 +334,15 @@ printer:print_slot_restriction([slot(Slot),subslot(Subslot),equal]) :-
 
 printer:printable_element(rule(uri(_,_,_),_)) :- !.
 printer:printable_element(rule(uri(_),_)) :- !.
-printer:printable_element(rule(_Repository://_Entry:run,_)) :- !.
-printer:printable_element(rule(_Repository://_Entry:run,_)) :- !.
-printer:printable_element(rule(_Repository://_Entry:download,_)) :- !.
-%printer:printable_element(rule(_Repository://_Entry:fetchonly,_)) :- !.
-printer:printable_element(rule(_Repository://_Entry:install,_)) :- !.
-printer:printable_element(rule(_Repository://_Entry:reinstall,_)) :- !.
-printer:printable_element(rule(_Repository://_Entry:uninstall,_)) :- !.
-printer:printable_element(rule(_Repository://_Entry:update,_)) :- !.
-printer:printable_element(rule(_Repository://_Entry:upgrade,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:run:_,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:run:_,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:download:_,_)) :- !.
+%printer:printable_element(rule(_Repository://_Entry:fetchonly:_,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:install:_,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:reinstall:_,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:uninstall:_,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:update:_,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:upgrade:_,_)) :- !.
 printer:printable_element(assumed(rule(_Repository://_Entry:_,_))) :- !.
 printer:printable_element(rule(assumed(_Repository://_Entry:_),_)) :- !.
 printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_,_),_))) :- !.
@@ -356,21 +356,21 @@ printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_,_)),_)
 %
 % Declares a weight for ordering elements of a step in a plan
 
-printer:element_weight(assumed(_),                                   0) :- !. % assumed
-printer:element_weight(rule(assumed(_),_),                           0) :- !. % assumed
-printer:element_weight(rule(uri(_),_),                               0) :- !. % provide
-printer:element_weight(rule(uri(_,_,_),_),                           1) :- !. % fetch
-printer:element_weight(rule(package_dependency(_,_,_,_,_,_,_,_,_),_),1) :- !. % confirm
-printer:element_weight(rule(_Repository://_Entry:verify,_),          2) :- !. % verify
-printer:element_weight(rule(_Repository://_Entry:run,_),             3) :- !. % run
-printer:element_weight(rule(_Repository://_Entry:download,_),        4) :- !. % download
-printer:element_weight(rule(_Repository://_Entry:fetchonly,_),       5) :- !. % fetchonly
-printer:element_weight(rule(_Repository://_Entry:install,_),         5) :- !. % install
-printer:element_weight(rule(_Repository://_Entry:reinstall,_),       6) :- !. % reinstall
-printer:element_weight(rule(_Repository://_Entry:uninstall,_),       6) :- !. % uninstall
-printer:element_weight(rule(_Repository://_Entry:update,_),          6) :- !. % update
-printer:element_weight(rule(_Repository://_Entry:upgrade,_),         6) :- !. % upgrade
-printer:element_weight(_,                                            7) :- !. % everything else
+printer:element_weight(assumed(_),                                      0) :- !. % assumed
+printer:element_weight(rule(assumed(_),_),                              0) :- !. % assumed
+printer:element_weight(rule(uri(_),_),                                  0) :- !. % provide
+printer:element_weight(rule(uri(_,_,_),_),                              1) :- !. % fetch
+printer:element_weight(rule(package_dependency(_,_,_,_,_,_,_,_,_),_),   1) :- !. % confirm
+printer:element_weight(rule(_Repository://_Entry:verify:_,_),           2) :- !. % verify
+printer:element_weight(rule(_Repository://_Entry:run:_,_),              3) :- !. % run
+printer:element_weight(rule(_Repository://_Entry:download:_,_),         4) :- !. % download
+printer:element_weight(rule(_Repository://_Entry:fetchonly:_,_),        5) :- !. % fetchonly
+printer:element_weight(rule(_Repository://_Entry:install:_,_),          5) :- !. % install
+printer:element_weight(rule(_Repository://_Entry:reinstall:_,_),        6) :- !. % reinstall
+printer:element_weight(rule(_Repository://_Entry:uninstall:_,_),        6) :- !. % uninstall
+printer:element_weight(rule(_Repository://_Entry:update:_,_),           6) :- !. % update
+printer:element_weight(rule(_Repository://_Entry:upgrade:_,_),          6) :- !. % upgrade
+printer:element_weight(_,                                               7) :- !. % everything else
 
 
 %! printer:sort_by_weight(+Comparator,+Literal,+Literal)
@@ -391,8 +391,8 @@ printer:sort_by_weight(C,L1,L2) :-
 % CASE: simple package, is a target of the plan
 % ---------------------------------------------
 
-printer:print_element(Target,rule(Repository://Entry:Action,_)) :-
-  member(Repository://Entry:Action,Target),
+printer:print_element(Target,rule(Repository://Entry:Action:Context,_)) :-
+  member(Repository://Entry:Action:_,Target),
   !,
   message:color(cyan),
   message:print(Action),
@@ -400,27 +400,27 @@ printer:print_element(Target,rule(Repository://Entry:Action,_)) :-
   message:color(green),
   message:column(39,Repository://Entry),
   message:color(normal),
-  printer:print_config(Repository://Entry:Action).
+  printer:print_config(Repository://Entry:Action:Context).
 
 
 % -------------------------------------------------
 % CASE: simple package, is not a target of the plan
 % -------------------------------------------------
 
-printer:print_element(_,rule(Repository://Entry:Action,_)) :-
+printer:print_element(_,rule(Repository://Entry:Action:Context,_)) :-
   message:color(cyan),
   message:print(Action),
   message:color(green),
   message:column(34,Repository://Entry),
   message:color(normal),
-  printer:print_config(Repository://Entry:Action).
+  printer:print_config(Repository://Entry:Action:Context).
 
 
 % --------------------------------------------------------------
 % CASE: verify that packages that need to be running are running
 % --------------------------------------------------------------
 
-printer:print_element(_,rule(package_dependency(_,run,_,_C,_N,_,_,_,_),[Repository://Entry:_Action])) :-
+printer:print_element(_,rule(package_dependency(_,run,_,_C,_N,_,_,_,_),[Repository://Entry:_Action:_Context])) :-
   !,
   message:color(cyan),
   message:print('confirm'),
@@ -480,7 +480,7 @@ printer:print_element(_,rule(assumed(package_dependency(_,run,_,C,N,_,_,_,_)),[]
 % CASE: an assumed unmasked package
 % ---------------------------------
 
-printer:print_element(_,rule(assumed(Repository://Entry:unmask),_Body)) :-
+printer:print_element(_,rule(assumed(Repository://Entry:unmask:_Context),_Body)) :-
   message:color(red),
   message:print('verify'),
   message:column(29,Repository://Entry),
@@ -492,7 +492,7 @@ printer:print_element(_,rule(assumed(Repository://Entry:unmask),_Body)) :-
 % CASE: an assumed installed package
 % ----------------------------------
 
-printer:print_element(_,assumed(rule(Repository://Entry:install,_Body))) :-
+printer:print_element(_,assumed(rule(Repository://Entry:install:_Context,_Body))) :-
   message:color(red),
   message:print('verify'),
   message:column(29,Repository://Entry),
@@ -504,7 +504,7 @@ printer:print_element(_,assumed(rule(Repository://Entry:install,_Body))) :-
 % CASE: an assumed running package
 % --------------------------------
 
-printer:print_element(_,assumed(rule(Repository://Entry:run,_Body))) :-
+printer:print_element(_,assumed(rule(Repository://Entry:run:_Context,_Body))) :-
   message:color(red),
   message:print('verify'),
   message:column(29,Repository://Entry),
@@ -516,7 +516,7 @@ printer:print_element(_,assumed(rule(Repository://Entry:run,_Body))) :-
 % CASE: an assumed fetched package
 % --------------------------------
 
-printer:print_element(_,assumed(rule(Repository://Entry:fetchonly,_Body))) :-
+printer:print_element(_,assumed(rule(Repository://Entry:fetchonly:_Context,_Body))) :-
   message:color(red),
   message:print('verify'),
   message:column(29,Repository://Entry),
@@ -605,7 +605,7 @@ printer:print_config_prefix :-
   message:column(80,' ').
 
 
-%! printer:print_config(+Repository://+Entry:+Action)
+%! printer:print_config(+Repository://+Entry:+Action:+Context)
 %
 % Prints the configuration for a given repository entry (USE flags, USE expand, ...)
 
@@ -613,19 +613,19 @@ printer:print_config_prefix :-
 % CASE: fetchonly action
 % ----------------------
 
-%printer:print_config(_Repository://_Ebuild:fetchonly).% :-
+%printer:print_config(_Repository://_Ebuild:fetchonly:_Context).% :-
   %printer:print_config_prefix('done'),
   %printer:print_config_item('fetchonly','fetching all','downloads').
 
 
 % iuse empty
 
-printer:print_config(Repository://Entry:fetchonly) :-
+printer:print_config(Repository://Entry:fetchonly:_Context) :-
   \+(kb:query(iuse(_),Repository://Entry)),!.
 
 % use flags to show - to rework: performance
 
-printer:print_config(Repository://Entry:fetchonly) :-
+printer:print_config(Repository://Entry:fetchonly:_Context) :-
  !,
  findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
 
@@ -641,7 +641,7 @@ printer:print_config(Repository://Entry:fetchonly) :-
 
 % live downloads
 
-printer:print_config(Repository://Ebuild:download) :-
+printer:print_config(Repository://Ebuild:download:_Context) :-
   ebuild:is_live(Repository://Ebuild),!,
   printer:print_config_prefix('live'),
   printer:print_config_item('download','git repository','live').
@@ -649,13 +649,13 @@ printer:print_config(Repository://Ebuild:download) :-
 
 % no downloads
 
-printer:print_config(Repository://Ebuild:download) :-
+printer:print_config(Repository://Ebuild:download:_Context) :-
   \+(kb:query(manifest(preference,_,_,_),Repository://Ebuild)),!.
 
 
 % at least one download
 
-printer:print_config(Repository://Ebuild:download) :-
+printer:print_config(Repository://Ebuild:download:_Context) :-
   !,
 
   % If you want to show use flags right before the downloads:
@@ -682,12 +682,12 @@ printer:print_config(Repository://Ebuild:download) :-
 
 % iuse empty
 
-printer:print_config(Repository://Entry:install) :-
+printer:print_config(Repository://Entry:install:_Context) :-
   \+(kb:query(iuse(_),Repository://Entry)),!.
 
 % use flags to show - to rework: performance
 
-printer:print_config(Repository://Entry:install) :-
+printer:print_config(Repository://Entry:install:_Context) :-
  !,
  findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
 
@@ -715,14 +715,14 @@ printer:print_config(Repository://Entry:install) :-
 % CASE: Run action
 % ----------------
 
-printer:print_config(_://_:run) :- !.
+printer:print_config(_://_:run:_Context) :- !.
 
 
 % --------------
 % CASE: All info
 % --------------
 
-printer:print_config(Repository://Entry:all) :-
+printer:print_config(Repository://Entry:all:_Context) :-
  !,
 
  findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
@@ -744,7 +744,7 @@ printer:print_config(Repository://Entry:all) :-
 % CASE: Other actions
 % -------------------
 
-printer:print_config(_://_:_) :- !.
+printer:print_config(_://_:_:_) :- !.
 
 %! printer:print_config_item(+Key,+Value)
 %
@@ -1176,9 +1176,9 @@ printer:test(Repository,Style) :-
               'Printing',
               Repository://Entry,
               (Repository:entry(Entry)),
-              (with_q(prover:prove(Repository://Entry:Action,[],Proof,[],Model,[],_Constraints)),
+              (with_q(prover:prove(Repository://Entry:Action:{[]},[],Proof,[],Model,[],_Constraints)),
                with_q(planner:plan(Proof,[],[],Plan))),
-              (printer:print([Repository://Entry:Action],Model,Proof,Plan)),
+              (printer:print([Repository://Entry:Action:{[]}],Model,Proof,Plan)),
 	      false).
 
 
@@ -1196,9 +1196,9 @@ printer:test_latest(Repository,Style) :-
               'Printing',
               Repository://Entry,
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
-              (with_q(prover:prove(Repository://Entry:Action,[],Proof,[],Model,[],_Constraints)),
+              (with_q(prover:prove(Repository://Entry:Action:{[]},[],Proof,[],Model,[],_Constraints)),
                with_q(planner:plan(Proof,[],[],Plan))),
-              (printer:print([Repository://Entry:Action],Model,Proof,Plan)),
+              (printer:print([Repository://Entry:Action:{[]}],Model,Proof,Plan)),
               false).
 
 
@@ -1214,10 +1214,10 @@ printer:write_plans(Repository,Directory) :-
               'Writing plan for',
               Repository://Entry,
               (Repository:entry(Entry)),
-              (with_q(prover:prove(Repository://Entry:Action,[],Proof,[],Model,[],_Constraints)),
+              (with_q(prover:prove(Repository://Entry:Action:{[]},[],Proof,[],Model,[],_Constraints)),
                with_q(planner:plan(Proof,[],[],Plan)),
                atomic_list_concat([Directory,'/',Entry,'.plan'],File)),
               (tell(File),
-               printer:print([Repository://Entry:Action],Model,Proof,Plan),
+               printer:print([Repository://Entry:Action:{[]}],Model,Proof,Plan),
                told),
               true).
