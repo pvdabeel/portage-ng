@@ -76,7 +76,18 @@ search(not(Statement),Repository://Entry) :-
   \+(search(Statement,Repository://Entry)).
 
 
-% Case : an all statement (single argument)
+% Case : an all statement (single argument, contextualized)
+
+search(all(Statement):Context,Repository://Entry) :-
+  Statement =.. [Key,Values],
+  !,
+  findall(InnerValueA:Context,
+          (InnerStatement =.. [Key,InnerValueA],
+           search(InnerStatement,Repository://Entry)),
+          Values).
+
+
+% Case : an all statement (single argument, no context)
 
 search(all(Statement),Repository://Entry) :-
   Statement =.. [Key,Values],
@@ -87,7 +98,7 @@ search(all(Statement),Repository://Entry) :-
           Values).
 
 
-% Case : an all statement (dual argument)
+% Case : an all statement (dual argument, no context)
 
 search(all(Statement),Repository://Entry) :-
   Statement =.. [Key,Values,Filter],

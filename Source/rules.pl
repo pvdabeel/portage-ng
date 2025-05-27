@@ -29,7 +29,7 @@ This file contains domain-specific rules
 %
 % If an action on a masked ebuild is explicitely requested, unmasking is needed.
 
-rule(Repository://Ebuild:_Action:Context,[assumed(Repository://Ebuild:unmask:Context)]) :-
+rule(Repository://Ebuild:_Action?{Context},[assumed(Repository://Ebuild:unmask?{Context})]) :-
   preference:masked(Repository://Ebuild),!.
 
 
@@ -37,9 +37,8 @@ rule(Repository://Ebuild:_Action:Context,[assumed(Repository://Ebuild:unmask:Con
 %
 % Any ebuild can be downloaded.
 
-rule(Repository://Ebuild:download:_Context,[]) :-
-  % query:search([ebuild(Ebuild)],Repository://Ebuild),!.
-  cache:ordered_entry(Repository,Ebuild,_,_,_),!.
+rule(Repository://Ebuild:download?{_},[]) :-
+  query:search(ebuild(Ebuild),Repository://Ebuild),!.
 
 
 % FETCHONLY
@@ -48,30 +47,25 @@ rule(Repository://Ebuild:download:_Context,[]) :-
 
 % 1. Don't perform downloads for already installed packages,
 %    unless emptytree is specified.
-
-rule(Repository://Ebuild:fetchonly:_Context,[]) :-
-  \+(preference:flag(emptytree)),
-  % query:search([installed(true)],Repository://Ebuild),!.
-  cache:entry_metadata(Repository,Ebuild,installed,true),!.
-
+%
 % 2. Package is not installed, consider its dependencies,
 %    taking into account slot and use restrictions
 
-rule(Repository://Ebuild:fetchonly:Context,Conditions) :-
-  % query:search([not(installed(true)),category(C),name(N),slot(S),model(required_use(M)),all(depend(CD)),all(rdepend(RD))],Repository://Ebuild),
-  %\+cache:entry_metadata(Repository,Ebuild,installed,true)
-  cache:ordered_entry(Repository,Ebuild,C,N,_V),
-  cache:entry_metadata(Repository,Ebuild,slot,slot(S)),
-  findall(Depend:fetchonly:Context,cache:entry_metadata(Repository,Ebuild,depend,Depend),CD),
-  findall(Depend:fetchonly:Context,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),RD),
+rule(Repository://Ebuild:fetchonly?{_},[]) :-
+  \+(preference:flag(emptytree)),
+  query:search(installed(true),Repository://Ebuild),!.
+
+rule(Repository://Ebuild:fetchonly?{Context},Conditions) :-
+  query:search([category(C),name(N),slot(S),model(required_use(R))],Repository://Ebuild),
+  feature_unification:unify(Context,R,ForwardContext),
+  query:search([all(depend(CD)):fetchonly?{ForwardContext},all(rdepend(RD)):fetchonly?{ForwardContext}],Repository://Ebuild),
   append(CD,RD,D),
-  M = [],
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
-    Conditions = [constraint(use(Repository://Ebuild):{M}),
+    Conditions = [constraint(use(Repository://Ebuild):{ForwardContext}),
                   constraint(slot(C,N,S):{[Ebuild]})
                   |D];
-    Conditions = [constraint(use(Repository://Ebuild):{M}),
-                  Repository://Ebuild:download:Context,
+    Conditions = [constraint(use(Repository://Ebuild):{ForwardContext}),
+                  Repository://Ebuild:download?{ForwardContext},
                   constraint(slot(C,N,S):{[Ebuild]})
                   |D] ).
 
@@ -89,79 +83,63 @@ rule(Repository://Ebuild:fetchonly:Context,Conditions) :-
 % - Its compile-time dependencies are satisfied
 % - it can occupy an installation slot
 
-rule(Repository://Ebuild:install:_Context,[]) :-
+rule(Repository://Ebuild:install?{_},[]) :-
   \+(preference:flag(emptytree)),
-  % query:search([installed(true)],Repository://Ebuild),!.
-  cache:entry_metadata(Repository,Ebuild,installed,true),!.
+  query:search(installed(true),Repository://Ebuild),!.
 
-rule(Repository://Ebuild:install:Context,Conditions) :-
-  %query:search([category(C),name(N),slot(S),model(required_use(M)),all(depend(D))],Repository://Ebuild),
-  query:search([category(C),name(N),slot(S),model(required_use(M))],Repository://Ebuild),
-  %cache:ordered_entry(Repository,Ebuild,C,N,_V),
-  %cache:entry_metadata(Repository,Ebuild,slot,slot(S)),
-  findall(Depend:install:Context,cache:entry_metadata(Repository,Ebuild,depend,Depend),D),
-  %M = [],
+rule(Repository://Ebuild:install?{Context},Conditions) :-
+  query:search([category(C),name(N),slot(S),model(required_use(R))],Repository://Ebuild),
+  feature_unification:unify(Context,R,ForwardContext),
+  query:search([all(depend(D)):install?{ForwardContext}],Repository://Ebuild),
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
-    Conditions = [constraint(use(Repository://Ebuild):{M}),
+    Conditions = [constraint(use(Repository://Ebuild):{ForwardContext}),
                   constraint(slot(C,N,S):{[Ebuild]})
                   |D];
-    Conditions = [constraint(use(Repository://Ebuild):{M}),
-                  Repository://Ebuild:download:Context,
+    Conditions = [constraint(use(Repository://Ebuild):{ForwardContext}),
+                  Repository://Ebuild:download?{ForwardContext},
                   constraint(slot(C,N,S):{[Ebuild]})
                   |D] ).
-
-% ?- knowledgebase:query([category('sys-apps'),name('portage'),model(required_use(M))],portage://'sys-apps/portage-3.0.63-r1').
-% M = [required(python_targets_pypy3), python_targets_pypy3] ;
-% M = [required(python_targets_python3_10), python_targets_python3_10] ;
-% M = [required(python_targets_python3_11), python_targets_python3_11] ;
-% M = [required(python_targets_python3_12), python_targets_python3_12] ;
-
 
 
 % RUN
 %
 % An ebuild can be run, either:
 %
-% - The os reports it as runnable, and we are not proving emptytree
+% - it is reportedly installed, and we are not proving emptytree
 %
 % or:
 %
 % - if it is installed and if its runtime dependencies are satisfied
 
-rule(Repository://Ebuild:run:Context,Conditions) :-
+rule(Repository://Ebuild:run?{Context},Conditions) :-
   \+(preference:flag(emptytree)),
-  % query:search([installed(true)],Repository://Ebuild),!,
-  cache:entry_metadata(Repository,Ebuild,installed,true),!,
-  (config:avoid_reinstall(true) -> Conditions = [] ; Conditions = [Repository://Ebuild:reinstall:Context]).
+  query:search(installed(true),Repository://Ebuild),!,
+  (config:avoid_reinstall(true) -> Conditions = [] ; Conditions = [Repository://Ebuild:reinstall?{Context}]).
 
-rule(Repository://Ebuild:run:Context,[Repository://Ebuild:install:Context|D]) :-
-  % query:search([all(rdepend(Depend))],Repository:Ebuild).
-  findall(Depend:run:Context,cache:entry_metadata(Repository,Ebuild,rdepend,Depend),D).
-  %knowledgebase:query([all(rdepend(D))],Repository://Ebuild).
+rule(Repository://Ebuild:run?{Context},[Repository://Ebuild:install?{Context}|D]) :-
+  query:search([all(rdepend(D)):run?{Context}],Repository://Ebuild).
 
 
 % REINSTALL
 %
 % An ebuild can be reinstalled if:
 %
-% - the OS reports it as runnable, and we are not proving emptyttree
+% - it is reportedly installed, and we are not proving emptyttree
 
-rule(Repository://Ebuild:reinstall:_Context,[]) :-
+rule(Repository://Ebuild:reinstall?{_},[]) :-
   \+(preference:flag(emptytree)),
-  % query:search([installed(true)],Repository://Ebuild),!.
-  cache:entry_metadata(Repository,Ebuild,installed,true),!.
+  query:search(installed(true),Repository://Ebuild),!. % todo: retrieve installation context
 
 
 % UNINSTALL
 %
 % An ebuild can be uninstalled if:
 %
-% - the OS reports it as installed, and we are not proving emptytree
+% - it is reportedly installed, and we are not proving emptytree
 
-rule(Repository://Ebuild:uninstall:_Context,[]) :-
+rule(Repository://Ebuild:uninstall?{_},[]) :-
   \+(preference:flag(emptytree)),
-  % query:search([installed(true)],Repository://Ebuild),!.
-  cache:entry_metadata(Repository,Ebuild,installed,true),!.
+  query:search(installed(true),Repository://Ebuild),!.
 
 % Note: this may leave the Model and Proof for the other packages incomplete - todo: implement depclean.
 
@@ -170,23 +148,17 @@ rule(Repository://Ebuild:uninstall:_Context,[]) :-
 %
 % An ebuild can be updated:
 %
-% - The os reports it as installed
+% - it is reportedly installed
 %   and a higher version in the same slot is available
 %   taking into account accept_keywords filter
 
-rule(Repository://Ebuild:update:Context,Conditions) :-
+rule(Repository://Ebuild:update?{Context},Conditions) :-
   \+(preference:flag(emptytree)),
   preference:accept_keywords(K),
-  % query:search([installed(true),keywords(K),slot(S),version(VersionInstalled),category(Category),name(Name)],Repository://Ebuild),
-  cache:entry_metadata(Repository,Ebuild,installed,true),!,
-  cache:entry_metadata(Repository,Ebuild,slot,S),
-  cache:ordered_entry(Repository,Ebuild,Category,Name,VersionInstalled),
-  % query:search([name(Name),category(Category),version(VersionLatest),keywords(K),slot(S)]],Repository://LatestEbuild),
-  cache:ordered_entry(Repository,LatestEbuild,Category,Name,VersionLatest),
-  cache:entry_metadata(Repository,LatestEbuild,slot,S),
-  cache:entry_metadata(Repository,LatestEbuild,keywords,K),!,
+  query:search([name(Name),category(Category),keywords(K),slot(S),installed(true),version(VersionInstalled)],Repository://Ebuild),
+  query:search([name(Name),category(Category),keywords(K),slot(S),version(VersionLatest)],Repository://LatestEbuild),!, % todo: check cut
   compare(>,VersionLatest,VersionInstalled)
-  -> Conditions = [Repository://Ebuild:uninstall:Context,Repository://LatestEbuild:install:Context]
+  -> Conditions = [Repository://Ebuild:uninstall?{Context},Repository://LatestEbuild:install?{Context}]
   ;  Conditions = [].
 
 % todo: deep
@@ -199,32 +171,27 @@ rule(Repository://Ebuild:update:Context,Conditions) :-
 % - The os reports it as installed,
 %   and a higher version is available. Slots are disregarded.
 
-rule(Repository://Ebuild:update:Context,Conditions) :-
+rule(Repository://Ebuild:update?{Context},Conditions) :-
   \+(preference:flag(emptytree)),
   preference:accept_keywords(K),
-  % query:search([installed(true),keywords(K),version(VersionInstalled),category(Category),name(Name)],Repository://Ebuild),
-  cache:entry_metadata(Repository,Ebuild,installed,true),!,
-  cache:ordered_entry(Repository,Ebuild,Category,Name,VersionInstalled),
-  % query:search([name(Name),category(Category),version(VersionLatest),keywords(K)]],Repository://LatestEbuild),
-  cache:ordered_entry(Repository,LatestEbuild,Category,Name,VersionLatest),
-  cache:entry_metadata(Repository,LatestEbuild,keywords,K),!,
+  query:search([name(Name),category(Category),keywords(K),installed(true),version(VersionInstalled)],Repository://Ebuild),
+  query:search([name(Name),category(Category),keywords(K),version(VersionLatest)],Repository://LatestEbuild),!, % todo: check cut
   compare(>,VersionLatest,VersionInstalled)
-  -> Conditions = [Repository://Ebuild:uninstall:Context,Repository://Ebuild:install:Context]
+  -> Conditions = [Repository://Ebuild:uninstall?{Context},Repository://LatestEbuild:install?{Context}]
   ;  Conditions = [].
 
 % todo: deep
 
 
-
 % VERIFY
 %
 % An ebuild is verified if it can be run and its posttime dependencies are satsified
+%
+% Todo: do we still need this? remove
 
 %rule(Repository://Ebuild:verify,[Repository://Ebuild:run|P]) :-
 %  !,
 %  findall(Depend,cache:entry_metadata(Repository,Ebuild,pdepend,Depend),P).
-
-
 
 
 % ------------------------------
@@ -241,14 +208,14 @@ rule(Repository://Ebuild:update:Context,Conditions) :-
 %
 % EAPI 8.2.6.2: a weak block can be ignored by the package manager
 
-rule(package_dependency(_,_,weak,_,_,_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,weak,_,_,_,_,_,_):_?{_},[]) :- !.
 
 
 % Conflicting package:
 %
 % EAPI 8.2.6.2: a strong block is satisfied when no suitable candidate is satisfied
 
-rule(package_dependency(_,_,strong,_,_,_,_,_,_):_,[]) :- !.
+rule(package_dependency(_,_,strong,_,_,_,_,_,_):_?{_},[]) :- !.
 
 % rule(package_dependency(Action,strong,C,N,_,_,_,_),Nafs) :-
 %   findall(naf(Repository://Choice:Action),cache:entry(Repository,Choice,_,C,N,_,_),Nafs),!.
@@ -259,51 +226,53 @@ rule(package_dependency(_,_,strong,_,_,_,_,_,_):_,[]) :- !.
 % These type of dependencies are assumed satisfied. If they are not defined,
 % portage-ng will detect a circular dependency (e.g. your compiler needs a compiler)
 
-rule(package_dependency(_,_,no,'app-arch','bzip2',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'app-arch','gzip',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'app-arch','tar',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'app-arch','xz-utils',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'app-shells','bash',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'dev-lang','perl',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'dev-lang','python',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'dev-libs','libpcre',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'net-misc','iputils',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'net-misc','rsync',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'net-misc','wget',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','baselayout',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','coreutils',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','diffutils',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','file',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','findutils',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','gawk',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','grep',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','kbd',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','less',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','sed',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','util-linux',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-devel','automake',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-devel','binutils',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-devel','gcc',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-devel','gnuconfig',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-devel','make',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-devel','patch',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-fs','e2fsprogs',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-libs','libcap',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-libs','ncurses',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-libs','readline',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-process','procps',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'sys-process','psmisc',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'virtual','dev-manager',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'virtual','editor',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'virtual','libc',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'virtual','man',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'virtual','modutils',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'virtual','os-headers',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'virtual','package-manager',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'virtual','pager',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'virtual','service-manager',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'virtual','shadow',_,_,_,_):_,[]) :- !.
-rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_):_,[]) :- !.
+% todo: Remove? This is mostly for emptytree? because otherwise installed(true) will catch these?
+
+rule(package_dependency(_,_,no,'app-arch','bzip2',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'app-arch','gzip',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'app-arch','tar',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'app-arch','xz-utils',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'app-shells','bash',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'dev-lang','perl',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'dev-lang','python',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'dev-libs','libpcre',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'net-misc','iputils',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'net-misc','rsync',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'net-misc','wget',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','baselayout',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','coreutils',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','diffutils',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','file',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','findutils',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','gawk',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','grep',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','kbd',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','less',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','sed',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-apps','util-linux',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-devel','automake',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-devel','binutils',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-devel','gcc',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-devel','gnuconfig',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-devel','make',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-devel','patch',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-fs','e2fsprogs',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-libs','libcap',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-libs','ncurses',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-libs','readline',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-process','procps',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'sys-process','psmisc',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'virtual','dev-manager',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'virtual','editor',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'virtual','libc',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'virtual','man',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'virtual','modutils',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'virtual','os-headers',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'virtual','package-manager',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'virtual','pager',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'virtual','service-manager',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'virtual','shadow',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_):_?{_},[]) :- !.
 
 
 % A package dependency is satisfied when a suitable candidate is satisfied,
@@ -315,7 +284,7 @@ rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_):_,[]) :- !.
 % Preference: prefer installed packages over new packages, unless 'emptytree' flag
 % is used
 
-rule(package_dependency(_R://_E,_T,no,C,N,_O,_V,_S,_U):_Action,Conditions) :-
+rule(package_dependency(_R://_E,_T,no,C,N,_O,_V,_S,_U):_Action?{_},Conditions) :-
   \+(preference:flag(emptytree)),
   preference:accept_keywords(K),
   % query:search([installed(true),name(N),category(C),keywords(K)],Repository://Choice),
@@ -325,21 +294,23 @@ rule(package_dependency(_R://_E,_T,no,C,N,_O,_V,_S,_U):_Action,Conditions) :-
   Conditions = [].
 
 
-rule(package_dependency(_R://_E,_T,no,C,N,_O,_V,_S,_U):Action,Conditions) :-
+rule(package_dependency(_R://_E,_T,no,C,N,_O,_V,_S,_U):Action?{_Context},Conditions) :-
   %preference:flag(emptytree),
   preference:accept_keywords(K),
   cache:ordered_entry(Repository,Choice,C,N,_),
   cache:entry_metadata(Repository,Choice,keywords,K),
   %knowledgebase:query([name(N),category(C),keywords(K)],Repository://Choice),
-  Conditions = [Repository://Choice:Action].
+  NewContext = [], % todo: Pass use dependencies onto choice as new context
+  Conditions = [Repository://Choice:Action?{NewContext}].
 
-rule(package_dependency(R://E,_T,no,C,N,O,V,S,U):Action,Conditions) :-
+rule(package_dependency(R://E,_T,no,C,N,O,V,S,U):Action?{_Context},Conditions) :-
   %preference:flag(emptytree)
   preference:accept_keywords(K),
   \+((cache:ordered_entry(Repository,Choice,C,N,_),
   cache:entry_metadata(Repository,Choice,keywords,K))),
   %\+(knowledgebase:query([name(N),category(C),keywords(K)],_)),
-  Conditions = [assumed(package_dependency(R://E,Action,no,C,N,O,V,S,U))],!.
+  NewContext = [], % todo: Pass use dependencies onto choice as new context
+  Conditions = [assumed(package_dependency(R://E,Action,no,C,N,O,V,S,U):Action?{NewContext})],!.
 
 
 % Use conditional dependencies as package dependencies.
@@ -356,16 +327,16 @@ rule(package_dependency(R://E,_T,no,C,N,O,V,S,U):Action,Conditions) :-
 
 % 1. The USE is explicitely enabled, either by preference or ebuild -> process deps
 
-rule(use_conditional_group(positive,Use,R://E,Deps):Action,Result) :-
-  query:search(iuse(Use,positive:_Reason),R://E),!,
-  findall(D:Action,member(D,Deps),Result).
+rule(use_conditional_group(positive,Use,R://E,Deps):Action?{Context},Result) :-
+  query:search(iuse(Use,positive:_Reason),R://E),!, % todo: add Context enabled use flags here
+  findall(D:Action?{Context},member(D,Deps),Result).
   %(Reason == preference
   % -> findall(D:Action,member(D,Deps),Result)
   % ;  findall(D:Action,member(D,Deps),Temp), Result = [constraint(use(R://E):Use)|Temp]).
 
 % 2. The USE is not enabled -> no deps
 
-rule(use_conditional_group(positive,_Use,_R://_E,_):_Action,[]) :-
+rule(use_conditional_group(positive,_Use,_R://_E,_):_?{_},[]) :-
   !.
 
 
@@ -376,18 +347,20 @@ rule(use_conditional_group(positive,_Use,_R://_E,_):_Action,[]) :-
 %rule(use_conditional_group(negative,Use,R://E,Deps):Action,[constraint(use(R://E):naf(Use))|Result]) :-
 %  findall(D:Action,member(D,Deps),Result).
 
-rule(use_conditional_group(negative,Use,R://E,Deps):Action,Result) :-
-  query:search(iuse(Use,negative:_Reason),R://E),!,
-  findall(D:Action,member(D,Deps),Result).
+rule(use_conditional_group(negative,Use,R://E,Deps):Action?{Context},Result) :-
+  query:search(iuse(Use,negative:_Reason),R://E),!, % todo: add Context enabled use flags here
+  findall(D:Action?{Context},member(D,Deps),Result).
   %(Reason == preference
   % -> findall(D:Action,member(D,Deps),Result)
   % ;  findall(D:Action,member(D,Deps),Temp), Result = [constraint(use(R://E):naf(Use))|Temp]).
 
-rule(use_conditional_group(negative,_Use,_R://_E,_):_Action,[]) :-
+rule(use_conditional_group(negative,_Use,_R://_E,_):_?{_},[]) :-
   !.
 
 
-% Use conditional dependencies in other metadata
+% Use conditional dependencies in other metadata.
+
+% todo: the 'action-less' duplicated rules are annoying, find an elegant solution that avoids duplication
 
 % 1. The USE is explicitely enabled, either by preference or ebuild -> process deps
 
