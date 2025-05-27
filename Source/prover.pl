@@ -21,24 +21,6 @@ The prover computes a proof and a model for a given input.
 % PROVER declarations
 % *******************
 
-
-%! prover:proof(+Literal,+OldProof,-NewProof,+OldModel,-NewModel,+OldConstraints,-NewConstraints)
-%
-% prove a given Literal starting from a given Proof, Model, Assumptions Constraints,
-% producing a new Proof, Model, Assumptions and Constraints
-
-prover:prove_targets([],Proof,Proof,Model,Model,Constraints,Constraints) :- !.
-
-prover:prove_targets([portage://Entry:run|OtherLiterals],Proof,NewProof,Model,NewModel,Constraints,NewConstraints) :-
-  !,
-  write(Entry),write(' -> '),
-  portage:entry(Entry),
-  write('Found '),
-  prover:prove(portage://Entry:run,Proof,TempProof,Model,TempModel,Constraints,TempConstraints),!,
-  write('& Proven '),nl,
-  prover:prove_targets(OtherLiterals,TempProof,NewProof,TempModel,NewModel,TempConstraints,NewConstraints).
-
-
 % -----------------------------------
 % CASE 1: A list of literals to prove
 % -----------------------------------
@@ -143,28 +125,32 @@ prover:fact(rule(_,[])) :- !.
 % PROVEN: A literal is proven if it is part of a given model
 % ----------------------------------------------------------
 
-prover:proven(Literal, Model) :- memberchk(Literal,Model), !.
+prover:proven(Literal?_, Model) :- !, memberchk(Literal?_,Model).
+prover:proven(Literal, Model) :- !, memberchk(Literal,Model).
 
 
 % -----------------------------------------------------------------------------
 % ASSUMED PROVEN: A literal is proven if its assumption is part of a given model
 % -----------------------------------------------------------------------------
 
-prover:assumed_proven(Literal, Model) :- memberchk(assumed(Literal),Model), !.
+prover:assumed_proven(Literal?_, Model) :- !, memberchk(assumed(Literal?_),Model).
+prover:assumed_proven(Literal, Model) :- !, memberchk(assumed(Literal),Model).
 
 
 % --------------------------------------------------------------
 % PROVING: A rule is being proven if it is part of a given proof
 % --------------------------------------------------------------
 
-prover:proving(Rule, Proof) :- memberchk(Rule, Proof), !.
+prover:proving(rule(Head?_,Body), Proof) :- !, memberchk(rule(Head?_,Body), Proof).
+prover:proving(Rule, Proof) :- !, memberchk(Rule, Proof).
 
 
 % ----------------------------------------------------------------------------------
 % ASSUMED PROVING: A rule is being proven if its assumption is part of a given proof
 % ----------------------------------------------------------------------------------
 
-prover:assumed_proving(rule(Literal,_), Proof) :- memberchk(assumed(rule(Literal,[])), Proof) , !.
+prover:assumed_proving(rule(Literal?_,_), Proof) :- !, memberchk(assumed(rule(Literal?_,[])), Proof).
+prover:assumed_proving(rule(Literal,_), Proof) :- !, memberchk(assumed(rule(Literal,[])), Proof).
 
 
 % ---------------------------------------------------------------------------------------------
@@ -238,7 +224,7 @@ prover:test(Repository,Style) :-
               'Proving',
               Repository://Entry,
               (Repository:entry(Entry)),
-              (with_q(prover:prove(Repository://Entry:Action:{[]},[],_Proof,[],_Model,[],_Constraint)))).
+              (with_q(prover:prove(Repository://Entry:Action?{[]},[],_Proof,[],_Model,[],_Constraint)))).
 
 
 %! prover:test_latest(+Repository,+Style)
@@ -252,4 +238,4 @@ prover:test_latest(Repository,Style) :-
               'Proving',
               Repository://Entry,
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
-              (with_q(prover:prove(Repository://Entry:Action:{[]},[],_Proof,[],_Model,[],_Constraint)))).
+              (with_q(prover:prove(Repository://Entry:Action?{[]},[],_Proof,[],_Model,[],_Constraint)))).
