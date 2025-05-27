@@ -344,9 +344,9 @@ printer:printable_element(rule(_Repository://_Entry:uninstall:_,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:update:_,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:upgrade:_,_)) :- !.
 printer:printable_element(assumed(rule(_Repository://_Entry:_,_))) :- !.
-printer:printable_element(rule(assumed(_Repository://_Entry:_),_)) :- !.
-printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_,_),_))) :- !.
-printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_,_)),_)) :- !.
+printer:printable_element(rule(assumed(_Repository://_Entry:_:_),_)) :- !.
+printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_,_):_;_,_))) :- !.
+printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_,_):_:_),_)) :- !.
 
 % Uncomment if you want 'confirm' steps shown in the plan:
 % printer:printable_element(rule(package_dependency(_,run,_,_,_,_,_,_,_),_)) :- !.
@@ -454,7 +454,7 @@ printer:print_element(_,rule(uri(Local),_)) :-
 % CASE: an assumed dependency on a non-existent installed package
 % ---------------------------------------------------------------
 
-printer:print_element(_,rule(assumed(package_dependency(_,install,_,C,N,_,_,_,_)),[])) :-
+printer:print_element(_,rule(assumed(package_dependency(_,install,_,C,N,_,_,_,_):_,_),[])) :-
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
@@ -467,7 +467,7 @@ printer:print_element(_,rule(assumed(package_dependency(_,install,_,C,N,_,_,_,_)
 % CASE: an assumed dependency on a non-existent running package
 % -------------------------------------------------------------
 
-printer:print_element(_,rule(assumed(package_dependency(_,run,_,C,N,_,_,_,_)),[])) :-
+printer:print_element(_,rule(assumed(package_dependency(_,run,_,C,N,_,_,_,_):_,_),[])) :-
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
