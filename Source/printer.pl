@@ -61,7 +61,8 @@ printer:print_metadata_item(Item,Repository://Entry) :-
   write(Item),write(' : '),
   message:style(normal),
   nl,
-  findall(Value,kb:query(select(Item,equal,Value),Repository://Entry),Values),
+  Query =.. [Item,Value],
+  findall(Value,kb:query(Query,Repository://Entry),Values),
   printer:print_metadata_item_details(Item,Values).
 
 
