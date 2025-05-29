@@ -39,6 +39,7 @@ swipl
 % PORTAGE-NG
 % **********
 
+
 load_common_modules :-
 
    ensure_loaded(library('apply_macros')),
@@ -175,6 +176,7 @@ main :-
   config:world_file(File),
   world:newinstance(set(File)),
   world:load,
+  prolog_history(enable),
   main(Mode).
 
 
