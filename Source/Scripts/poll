@@ -49,5 +49,5 @@ else
     echo ">>> No commit found, sleeping" 
     echo "--- `date`" 
 fi
-sleep 60
+sleep 15m
 done
