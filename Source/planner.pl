@@ -95,11 +95,20 @@ planner:test(Repository,Style) :-
                with_q(planner:plan(Proof,[],[],_Plan)))).
 
 
+%! planner:test_latest(+Repository)
+%
+% Same as planner:test(+Repository), but only tests highest version
+% of every package.
+
+planner:test_latest(Repository) :-
+  config:test_style(Style),
+  planner:test(Repository,Style).
+
+
 %! planner:test_latest(+Repository,+Style)
 %
 % Same as planner:test(+Repository,+Style), but only tests highest version
 % of every package.
-
 planner:test_latest(Repository,Style) :-
   config:proving_target(Action),
   tester:test(Style,

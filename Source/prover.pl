@@ -233,10 +233,21 @@ prover:test(Repository,Style) :-
               (with_q(prover:prove(Repository://Entry:Action?{[]},[],_Proof,[],_Model,[],_Constraint)))).
 
 
+%! prover:test_latest(+Repository)
+%
+% Same as prover:test(+Repository), but only tests highest version
+% of every package.
+
+prover:test_latest(Repository) :-
+  config:test_style(Style),
+  prover:test_latest(Repository,Style).
+
+
 %! prover:test_latest(+Repository,+Style)
 %
 % Same as prover:test(+Repository,+Style), but only tests highest version
 % of every package.
+
 
 prover:test_latest(Repository,Style) :-
   config:proving_target(Action),

@@ -1193,9 +1193,18 @@ printer:test(Repository,Style) :-
 	      false).
 
 
+%! printer:test_latest(+Repository)
+%
+% Same as printer:test(+Repository), but only tests highest version of every package
+
+printer:test_latest(Repository) :-
+  !,
+  printer:test_latest(Repository,parallel_verbose).
+
+
 %! printer:test_latest(+Repository,+Style)
 %
-% Same as printer:test(+Repository,+Style), but only tests highest version of very package
+% Same as printer:test(+Repository,+Style), but only tests highest version of every package
 
 printer:test_latest(Repository,parallel_fast) :-
   !,
