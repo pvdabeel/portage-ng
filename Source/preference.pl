@@ -373,6 +373,7 @@ preference:profile_use('zlib').
 
 preference:profile_use(minus(test)).
 preference:profile_use(minus(static-libs)).
+preference:profile_use(minus(static)).
 
 
 %! preference:use_expand_hidden(?Use)
@@ -396,6 +397,10 @@ preference:use_expand_hidden('cpu_flags_ppc').
 % preference:masked(Repository://Entry) :- prover:broken(Repository://Entry).
 
 preference:masked(portage://'dev-vcs/mercurial-9999').
+
+% linked to minus(static) use flag:
+preference:masked(portage://'net-misc/dropbear-2025.88-r1').  % blocks static when pam is set, and pam is in our default use set
+preference:masked(portage://'sys-apps/busybox-9999').         % blocks static when pam is set, and pam is in our default use set
 
 
 %! preference:set(?Name,?List)
