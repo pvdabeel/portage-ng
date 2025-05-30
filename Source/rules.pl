@@ -98,8 +98,13 @@ rule(Repository://Ebuild:fetchonly?{_},[]) :-
 rule(Repository://Ebuild:fetchonly?{Context},Conditions) :-
   query:search([category(C),name(N),slot(S),model(required_use(R))],Repository://Ebuild),
   feature_unification:unify(Context,R,ForwardContext),
-  query:search([all(depend(CD)):fetchonly?{ForwardContext},all(rdepend(RD)):fetchonly?{ForwardContext}],Repository://Ebuild),
-  append(CD,RD,D),
+  query:search(model(depend(CD)):fetchonly?{ForwardContext},Repository://Ebuild),
+  query:search(model(depend(BD)):fetchonly?{ForwardContext},Repository://Ebuild),
+  query:search(model(rdepend(RD)):fetchonly?{ForwardContext},Repository://Ebuild),
+  query:search(model(idepend(ID)):fetchonly?{ForwardContext},Repository://Ebuild),
+  append(CD,BD,D1),
+  append(RD,ID,D2),
+  union(D1,D2,D),
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
     Conditions = [constraint(use(Repository://Ebuild):{ForwardContext}),
                   constraint(slot(C,N,S):{[Ebuild]})
@@ -136,7 +141,7 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
   feature_unification:unify(Context,R,ForwardContext),
   query:search(model(depend(CD)):install?{ForwardContext},Repository://Ebuild),
   query:search(model(bdepend(BD)):install?{ForwardContext},Repository://Ebuild),
-  append(CD,BD,D),
+  union(CD,BD,D),
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
     Conditions = [constraint(use(Repository://Ebuild):{ForwardContext}),
                   constraint(slot(C,N,S):{[Ebuild]})
@@ -164,7 +169,9 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   (config:avoid_reinstall(true) -> Conditions = [] ; Conditions = [Repository://Ebuild:reinstall?{Context}]).
 
 rule(Repository://Ebuild:run?{Context},[Repository://Ebuild:install?{Context}|D]) :-
-  query:search(model(rdepend(D)):run?{Context},Repository://Ebuild).
+  query:search(model(rdepend(RD)):run?{Context},Repository://Ebuild),
+  query:search(model(idepend(ID)):run?{Context},Repository://Ebuild),
+  union(ID,RD,D).
 
 
 % REINSTALL
