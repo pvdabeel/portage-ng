@@ -65,7 +65,7 @@ search([Statement|Rest],Repository://Entry) :-
 
 
 % ----------------------
-% Search predicate cases
+% Search meta predicates
 % ----------------------
 
 % Case : a not statement
@@ -98,18 +98,66 @@ search(all(Statement),Repository://Entry) :-
           Values).
 
 
-% Case : an all statement (dual argument, no context)
+% Case : an all statement (dual argument, contextualized)
 
-search(all(Statement),Repository://Entry) :-
+search(all(Statement):Context,Repository://Entry) :-
   Statement =.. [Key,Values,Filter],
   !,
-  findall([InnerValueA,Filter],
+  findall(InnerValueA:Context,
           (InnerStatement =.. [Key,InnerValueA,Filter],
            search(InnerStatement,Repository://Entry)),
           Values).
 
 
-% Case : a model statement,
+% Case : an all statement (dual argument, no context)
+
+search(all(Statement),Repository://Entry) :-
+  Statement =.. [Key,Values,Filter],
+  !,
+  findall(InnerValueA,
+          (InnerStatement =.. [Key,InnerValueA,Filter],
+           search(InnerStatement,Repository://Entry)),
+          Values).
+
+
+% Case : a model statement (dual argument, contextualized),
+
+search(model(Statement):Context,Repository://Id) :-
+  Statement =.. [Key,Model,Arg],
+  !,
+  StatementA =.. [Key,AllValues,Arg],
+  search(all(StatementA),Repository://Id),
+  prover:model(AllValues,ModelValues),
+  findall(V:Context,
+   (member(V,ModelValues),
+    V =.. [package_dependency|_]),		% todo: make this a filter value, to ensure domain-independence
+    %\+(V =.. [package_dependency|_]),
+    %\+(V =.. [use_conditional_group|_]),
+    %\+(V =.. [exactly_one_of_group|_]),
+    %\+(V =.. [any_of_group|_]),
+    %\+(V =.. [all_of_group|_])),
+   Model).
+
+% Case : a model statement (dual argument, no context),
+
+search(model(Statement),Repository://Id) :-
+  Statement =.. [Key,Model,Arg],
+  !,
+  StatementA =.. [Key,AllValues,Arg],
+  search(all(StatementA),Repository://Id),
+  prover:model(AllValues,ModelValues),
+  findall(V,
+   (member(V,ModelValues),
+    V =.. [package_dependency|_]),		% todo: make this a filter value, to ensure domain-independence
+    %\+(V =.. [package_dependency|_]),
+    %\+(V =.. [use_conditional_group|_]),
+    %\+(V =.. [exactly_one_of_group|_]),
+    %\+(V =.. [any_of_group|_]),
+    %\+(V =.. [all_of_group|_])),
+   Model).
+
+
+% Case : a model statement (single argument, contextualized)
 
 search(model(Statement):Context,Repository://Id) :-
   Statement =.. [Key,Model],
@@ -119,13 +167,15 @@ search(model(Statement):Context,Repository://Id) :-
   prover:model(AllValues,ModelValues),
   findall(V:Context,
    (member(V,ModelValues),
-    V =.. [package_dependency|_]),
+    V =.. [package_dependency|_]),		% todo: make this a filter value, to ensure domain-independence
     %\+(V =.. [package_dependency|_]),
     %\+(V =.. [use_conditional_group|_]),
     %\+(V =.. [exactly_one_of_group|_]),
     %\+(V =.. [any_of_group|_]),
     %\+(V =.. [all_of_group|_])),
    Model).
+
+% Case : a model statement (single argument, no context)
 
 search(model(Statement),Repository://Id) :-
   Statement =.. [Key,Model],
@@ -134,7 +184,7 @@ search(model(Statement),Repository://Id) :-
   search(all(StatementA),Repository://Id),
   prover:model(AllValues,ModelValues),
   findall(V,
-   (member(V,ModelValues),
+   (member(V,ModelValues), 			% todo: make this a filter value, to ensure domain-independence
     \+(V =.. [package_dependency|_]),
     \+(V =.. [use_conditional_group|_]),
     \+(V =.. [exactly_one_of_group|_]),
@@ -148,6 +198,10 @@ search(model(Statement),Repository://Id) :-
 search(latest(Statement),R://I) :-
   search(Statement,R://I),!.
 
+
+% ------------------------
+% Search domain predicates
+% ------------------------
 
 % Case : world
 
@@ -166,6 +220,25 @@ search(latest(Statement),R://I) :-
 %  phrase(eapi:qualified_target(Q),Tc),
 %  search(Q,R://I).
 
+
+search(dependency(D,run_compile),R://I) :-
+  !,
+  ( cache:entry_metadata(R,I,bdepend,D)
+  ; cache:entry_metadata(R,I,cdepend,D)
+  ; cache:entry_metadata(R,I,depend,D)
+  ; cache:entry_metadata(R,I,idepend,D)
+  ; cache:entry_metadata(R,I,rdepend,D) ).
+
+search(dependency(D,compile),R://I) :-
+  !,
+  ( cache:entry_metadata(R,I,bdepend,D)
+  ; cache:entry_metadata(R,I,cdepend,D)
+  ; cache:entry_metadata(R,I,depend,D) ).
+
+search(dependency(D,run),R://I) :-
+  !,
+  ( cache:entry_metadata(R,I,idepend,D)
+  ; cache:entry_metadata(R,I,rdepend,D) ).
 
 
 % ------------------------------------
