@@ -111,6 +111,22 @@ search(all(Statement),Repository://Entry) :-
 
 % Case : a model statement,
 
+search(model(Statement):Context,Repository://Id) :-
+  Statement =.. [Key,Model],
+  !,
+  StatementA =.. [Key,AllValues],
+  search(all(StatementA),Repository://Id),
+  prover:model(AllValues,ModelValues),
+  findall(V:Context,
+   (member(V,ModelValues),
+    V =.. [package_dependency|_]),
+    %\+(V =.. [package_dependency|_]),
+    %\+(V =.. [use_conditional_group|_]),
+    %\+(V =.. [exactly_one_of_group|_]),
+    %\+(V =.. [any_of_group|_]),
+    %\+(V =.. [all_of_group|_])),
+   Model).
+
 search(model(Statement),Repository://Id) :-
   Statement =.. [Key,Model],
   !,
