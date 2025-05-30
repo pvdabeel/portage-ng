@@ -157,19 +157,25 @@ prover:assumed_proving(rule(Literal,_), Proof) :- !, memberchk(assumed(rule(Lite
 % CONFLICTS: Negation as failure is implemented as a relation between literals in a given model
 % ---------------------------------------------------------------------------------------------
 
+prover:conflicts(naf(Literal?_), Model) :- prover:proven(Literal?_,Model),!.
+prover:conflicts(naf(Literal?_), Model) :- prover:assumed_proven(Literal?_,Model),!.
+prover:conflicts(Literal?_, Model) :- !, prover:proven(naf(Literal?_),Model),!. % reformulate as constraint
+
 prover:conflicts(naf(Literal), Model) :- prover:proven(Literal,Model),!.
 prover:conflicts(naf(Literal), Model) :- prover:assumed_proven(Literal,Model),!.
-
-prover:conflicts(Literal, Model) :- prover:proven(naf(Literal),Model),!. % reformulate as constraint
+prover:conflicts(Literal, Model) :- !, prover:proven(naf(Literal),Model),!. % reformulate as constraint
 
 
 % ------------------------------------------------------------------
 % CONFLICT RULE: Negation as failure can be triggered during proving
 % ------------------------------------------------------------------
 
+prover:conflictrule(rule(naf(Literal?_),_), Proof) :- prover:proving(rule(Literal?_,_),Proof),!.
+prover:conflictrule(rule(naf(Literal?_),_), Proof) :- prover:assumed_proving(rule(Literal?_,_),Proof),!.
+prover:conflictrule(rule(Literal?_,_), Proof) :- !, prover:proving(rule(naf(Literal?_),_),Proof).
+
 prover:conflictrule(rule(naf(Literal),_), Proof) :- prover:proving(rule(Literal,_),Proof),!.
 prover:conflictrule(rule(naf(Literal),_), Proof) :- prover:assumed_proving(rule(Literal,_),Proof),!.
-
 prover:conflictrule(rule(Literal,_), Proof) :- !, prover:proving(rule(naf(Literal),_),Proof).
 
 
