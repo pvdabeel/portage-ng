@@ -96,7 +96,10 @@ rule(Repository://Ebuild:fetchonly?{_},[]) :-
   query:search(installed(true),Repository://Ebuild),!.
 
 rule(Repository://Ebuild:fetchonly?{Context},Conditions) :-
-  query:search([category(C),name(N),slot(S),model(required_use(R))],Repository://Ebuild),
+  cache:ordered_entry(Repository,Ebuild,C,N,_),
+  cache:entry_metadata(Repository,Ebuild,slot,S),
+  query:search(model(required_use(R)),Repository://Ebuild),
+  %query:search([category(C),name(N),slot(S),model(required_use(R))],Repository://Ebuild),
   feature_unification:unify(Context,R,ForwardContext),
   query:search(model(depend(CD)):fetchonly?{ForwardContext},Repository://Ebuild),
   query:search(model(depend(BD)):fetchonly?{ForwardContext},Repository://Ebuild),
@@ -240,8 +243,6 @@ rule(Repository://Ebuild:update?{Context},Conditions) :-
 % VERIFY
 %
 % An ebuild is verified if it can be run and its posttime dependencies are satsified
-%
-% Todo: do we still need this? remove
 
 %rule(Repository://Ebuild:verify,[Repository://Ebuild:run|P]) :-
 %  !,
@@ -366,11 +367,6 @@ rule(package_dependency(R://E,T,no,C,N,O,V,S,U):Action?{Context},Conditions) :-
 % the use flag is positive through required use constraint, preference or ebuild
 % default
 
-%rule(use_conditional_group(positive,Use,R://E,Deps):Action,[constraint(use(R://E):Use)|Result]) :-
-%  message:color(cyan),write('constraining use:  '),write(Use),write(' - for: '),write(R://E),message:color(normal),nl,
-%  findall(D:Action,member(D,Deps),Result).
-
-
 % 1. The USE is explicitely enabled, either by preference or ebuild -> process deps
 
 rule(use_conditional_group(positive,Use,R://E,Deps):Action?{Context},Result) :-
@@ -390,9 +386,6 @@ rule(use_conditional_group(positive,_Use,_R://_E,_):_?{_},[]) :-
 % the use flag is not positive through required use constraint, preference or
 % ebuild default
 
-%rule(use_conditional_group(negative,Use,R://E,Deps):Action,[constraint(use(R://E):naf(Use))|Result]) :-
-%  findall(D:Action,member(D,Deps),Result).
-
 rule(use_conditional_group(negative,Use,R://E,Deps):Action?{Context},Result) :-
   query:search(iuse(Use,negative:_Reason),R://E),!, % todo: add Context enabled use flags here
   findall(D:Action?{Context},member(D,Deps),Result).
@@ -404,50 +397,6 @@ rule(use_conditional_group(negative,_Use,_R://_E,_):_?{_},[]) :-
   !.
 
 
-/**
-
-% Use conditional dependencies in other metadata.
-
-% todo: the 'action-less' duplicated rules are annoying, find an elegant solution that avoids duplication
-
-% 1. The USE is explicitely enabled, either by preference or ebuild -> process deps
-
-rule(use_conditional_group(positive,Use,R://E,Deps),Result) :-
-  query:search(iuse(Use,positive:preference),R://E),!,
-  findall(D,member(D,Deps),Result).
-  %(Reason == preference
-  % -> findall(D,member(D,Deps),Result)
-  % ;  findall(D,member(D,Deps),Temp), writeln(Use:Reason), Result = [constraint(use(R://E):{[assumed(Use)]})|Temp]).
-
-% 2. The USE is not enabled -> no deps
-
-rule(use_conditional_group(positive,_Use,_R://_E,_),[]) :-
-  !.
-
-
-% The dependencies in a negative use conditional group need to be satisfied when
-% the use flag is not positive through required use constraint, preference or
-% ebuild default
-
-%rule(use_conditional_group(negative,Use,R://E,Deps):Action,[constraint(use(R://E):naf(Use))|Result]) :-
-%  findall(D:Action,member(D,Deps),Result).
-
-rule(use_conditional_group(negative,Use,R://E,Deps),Result) :-
-  query:search(iuse(Use,negative:preference),R://E),!,
-  findall(D,member(D,Deps),Result).
-  %(Reason == preference
-  % -> findall(D:Action,member(D,Deps),Result)
-  % ;  findall(D:Action,member(D,Deps),Temp), Result = [constraint(use(R://E):naf(Use))|Temp]).
-
-rule(use_conditional_group(negative,_Use,_R://_E,_),[]) :-
-  !.
-
-*/
-
-
-
-
-% Example: feature:unification:unify([constraint(use(os)):darwin],[constraint(use(os)):{[linux,darwin]}],Result).
 
 
 % Exactly one of the dependencies in an exactly-one-of-group should be satisfied
@@ -461,9 +410,6 @@ rule(exactly_one_of_group(Deps),[D|NafDeps]) :-
   findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
 
 
-
-
-
 % One dependency of an any_of_group should be satisfied
 
 rule(any_of_group(Deps):Action,[D:Action]) :-
@@ -471,7 +417,6 @@ rule(any_of_group(Deps):Action,[D:Action]) :-
 
 rule(any_of_group(Deps),[D]) :-
   member(D,Deps).
-
 
 
 % All dependencies in an all_of_group should be satisfied
