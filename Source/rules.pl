@@ -20,6 +20,45 @@ This file contains domain-specific rules
 % ******************
 
 
+% CONFIGURE
+%
+% We configure the ebuild by essentially comming up with a Model for its dependencies:
+% 1. We create choicepoints for different required use models
+% 2. We create choicepoints for different dependency configurations (Use conditional,
+%    exactly one of, any of, all of groups)
+%
+/*
+rule(Repository://Ebuild:configure?{Requirements},[Repository://Ebuild:configured?{Configuration}|Conditions) :-
+  query:search(model(required_use(Use),Repository://Ebuild),
+  feature_unification:unify(Requirements,Use,Configuration),
+  query:search(model(bdepend(B)):,Repository://Ebuild),
+  findall(package_dependency(R://E,T,no,C,N,O,V,S,U),
+          member(package_dependency(R://E,T,no,C,N,O,V,S,U),B),
+          Conditions).
+
+
+rule(Repository://Ebuild:configured?{Use},[]) :- !.
+
+*/
+rule(package_dependency(_://_,_,_,_,_,_,_,_,_),[]) :- !.
+
+rule(use_conditional_group(positive,Use,_://_,Deps),Conditions) :-
+  preference:use(Use),!,
+  findall(D,member(D,Deps),Conditions).
+
+rule(use_conditional_group(positive,_,_://_,_),[]) :- !.
+
+rule(use_conditional_group(negative,Use,_://_,Deps),Conditions) :-
+  preference:use(minus(Use)),!,
+  findall(D,member(D,Deps),Conditions).
+
+rule(use_conditional_group(negative,_,_://_,_),[]) :- !.
+
+
+
+
+
+
 % ----------------------
 % Ruleset: Ebuild states
 % ----------------------
@@ -38,7 +77,8 @@ rule(Repository://Ebuild:_Action?{Context},[assumed(Repository://Ebuild:unmask?{
 % Any ebuild can be downloaded.
 
 rule(Repository://Ebuild:download?{_},[]) :-
-  query:search(ebuild(Ebuild),Repository://Ebuild),!.
+  cache:ordered_entry(Repository,Ebuild,_,_,_),!.
+  %query:search(ebuild(Ebuild),Repository://Ebuild),!.
 
 
 % FETCHONLY
@@ -85,12 +125,18 @@ rule(Repository://Ebuild:fetchonly?{Context},Conditions) :-
 
 rule(Repository://Ebuild:install?{_},[]) :-
   \+(preference:flag(emptytree)),
-  query:search(installed(true),Repository://Ebuild),!.
+  cache:entry_metadata(Repository,Ebuild,installed,true),!.
+  %query:search(installed(true),Repository://Ebuild),!.
 
 rule(Repository://Ebuild:install?{Context},Conditions) :-
-  query:search([category(C),name(N),slot(S),model(required_use(R))],Repository://Ebuild),
+  cache:ordered_entry(Repository,Ebuild,C,N,_),
+  cache:entry_metadata(Repository,Ebuild,slot,S),
+  query:search(model(required_use(R)),Repository://Ebuild),
+  %query:search([category(C),name(N),slot(S),model(required_use(R))],Repository://Ebuild),
   feature_unification:unify(Context,R,ForwardContext),
-  query:search([all(depend(D)):install?{ForwardContext}],Repository://Ebuild),
+  query:search(model(depend(CD)):install?{ForwardContext},Repository://Ebuild),
+  query:search(model(bdepend(BD)):install?{ForwardContext},Repository://Ebuild),
+  append(CD,BD,D),
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
     Conditions = [constraint(use(Repository://Ebuild):{ForwardContext}),
                   constraint(slot(C,N,S):{[Ebuild]})
@@ -113,11 +159,12 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
 
 rule(Repository://Ebuild:run?{Context},Conditions) :-
   \+(preference:flag(emptytree)),
-  query:search(installed(true),Repository://Ebuild),!,
+  cache:entry_metadata(Repository,Ebuild,installed,true),!,
+  %query:search(installed(true),Repository://Ebuild),!,
   (config:avoid_reinstall(true) -> Conditions = [] ; Conditions = [Repository://Ebuild:reinstall?{Context}]).
 
 rule(Repository://Ebuild:run?{Context},[Repository://Ebuild:install?{Context}|D]) :-
-  query:search([all(rdepend(D)):run?{Context}],Repository://Ebuild).
+  query:search(model(rdepend(D)):run?{Context},Repository://Ebuild).
 
 
 % REINSTALL
@@ -222,17 +269,13 @@ rule(package_dependency(_,_,strong,_,_,_,_,_,_):_?{_},[]) :- !.
 
 
 % Dependencies on the system profile
-%
-% These type of dependencies are assumed satisfied. If they are not defined,
-% portage-ng will detect a circular dependency (e.g. your compiler needs a compiler)
-
-% todo: Remove? This is mostly for emptytree? because otherwise installed(true) will catch these?
 
 rule(package_dependency(_,_,no,'app-arch','bzip2',_,_,_,_):_?{_},[]) :- !.
 rule(package_dependency(_,_,no,'app-arch','gzip',_,_,_,_):_?{_},[]) :- !.
 rule(package_dependency(_,_,no,'app-arch','tar',_,_,_,_):_?{_},[]) :- !.
 rule(package_dependency(_,_,no,'app-arch','xz-utils',_,_,_,_):_?{_},[]) :- !.
 rule(package_dependency(_,_,no,'app-shells','bash',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,'dev-build','cmake',_,_,_,_):_?{_},[]) :- !.
 rule(package_dependency(_,_,no,'dev-lang','perl',_,_,_,_):_?{_},[]) :- !.
 rule(package_dependency(_,_,no,'dev-lang','python',_,_,_,_):_?{_},[]) :- !.
 rule(package_dependency(_,_,no,'dev-libs','libpcre',_,_,_,_):_?{_},[]) :- !.
@@ -284,33 +327,29 @@ rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_):_?{_},[]) :- !.
 % Preference: prefer installed packages over new packages, unless 'emptytree' flag
 % is used
 
-rule(package_dependency(_R://_E,_T,no,C,N,_O,_V,_S,_U):_Action?{_},Conditions) :-
+rule(package_dependency(_://_,_,no,C,N,_,_,_,_):_?{_},Conditions) :-
   \+(preference:flag(emptytree)),
   preference:accept_keywords(K),
-  % query:search([installed(true),name(N),category(C),keywords(K)],Repository://Choice),
+  %query:search([name(N),category(C),keywords(K),installed(true)],_Repository://_Choice),!,
   cache:ordered_entry(Repository,Choice,C,N,_),
   cache:entry_metadata(Repository,Choice,installed,true),
   cache:entry_metadata(Repository,Choice,keywords,K),!,
   Conditions = [].
 
-
-rule(package_dependency(_R://_E,_T,no,C,N,_O,_V,_S,_U):Action?{_Context},Conditions) :-
-  %preference:flag(emptytree),
+rule(package_dependency(_://_,_,no,C,N,_,_,_,_):Action?{_},Conditions) :-
   preference:accept_keywords(K),
+  %query:search([name(N),category(C),keywords(K)],Repository://Choice),
   cache:ordered_entry(Repository,Choice,C,N,_),
   cache:entry_metadata(Repository,Choice,keywords,K),
-  %knowledgebase:query([name(N),category(C),keywords(K)],Repository://Choice),
-  NewContext = [], % todo: Pass use dependencies onto choice as new context
-  Conditions = [Repository://Choice:Action?{NewContext}].
+  Conditions = [Repository://Choice:Action?{[]}].
 
-rule(package_dependency(R://E,_T,no,C,N,O,V,S,U):Action?{_Context},Conditions) :-
-  %preference:flag(emptytree)
+rule(package_dependency(R://E,T,no,C,N,O,V,S,U):Action?{Context},Conditions) :-
   preference:accept_keywords(K),
+  %\+((query:search([name(N),category(C)],Repository://Choice),
+  %    query:search([keywords(K)],Repository://Choice))),
   \+((cache:ordered_entry(Repository,Choice,C,N,_),
-  cache:entry_metadata(Repository,Choice,keywords,K))),
-  %\+(knowledgebase:query([name(N),category(C),keywords(K)],_)),
-  NewContext = [], % todo: Pass use dependencies onto choice as new context
-  Conditions = [assumed(package_dependency(R://E,Action,no,C,N,O,V,S,U):Action?{NewContext})],!.
+     cache:entry_metadata(Repository,Choice,keywords,K))),
+  Conditions = [assumed(package_dependency(R://E,T,no,C,N,O,V,S,U):Action?{Context})].
 
 
 % Use conditional dependencies as package dependencies.
@@ -358,6 +397,8 @@ rule(use_conditional_group(negative,_Use,_R://_E,_):_?{_},[]) :-
   !.
 
 
+/**
+
 % Use conditional dependencies in other metadata.
 
 % todo: the 'action-less' duplicated rules are annoying, find an elegant solution that avoids duplication
@@ -394,7 +435,7 @@ rule(use_conditional_group(negative,Use,R://E,Deps),Result) :-
 rule(use_conditional_group(negative,_Use,_R://_E,_),[]) :-
   !.
 
-
+*/
 
 
 
