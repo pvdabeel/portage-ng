@@ -281,7 +281,6 @@ preference:profile_use('directfb').
 preference:profile_use('dri').
 preference:profile_use('dts').
 preference:profile_use('elibc_glibc').
-%preference:profile_use('elogind').
 preference:profile_use('fbcondecor').
 preference:profile_use('fontconfig').
 preference:profile_use('fortran').
@@ -393,23 +392,10 @@ preference:use_expand_hidden('cpu_flags_ppc').
 %
 % Fact which masks a Repository entry
 
-% Disabled for now (performance)
-%
 % The prover uses the dynamic 'proven:broken/1' to mark some entries as broken
 % preference:masked(Repository://Entry) :- prover:broken(Repository://Entry).
 
-% fixed (ebuild default use bug) :       preference:masked(portage://'dev-games/mygui-3.4.3').
-% idem  			         preference:masked(portage://'dev-libs/cutlass-3.9.1').
-% idem				         preference:masked(portage://'dev-perl/Filesys-SmbClient-3.200.0-r4').
-% idem 				         preference:masked(portage://'dev-python/h5py-3.13.0').
-% idem 				         preference:masked(portage://'dev-python/netcdf4-1.7.2').
-% idem 				         preference:masked(portage://'media-libs/vigra-9999').
-% idem				         preference:masked(portage://'net-fs/samba-4.22.0').
-% idem 				         preference:masked(portage://'sci-libs/HighFive-2.10.1').
-% idem				         preference:masked(portage://'sci-libs/hdf5-1.14.6-r1').
-% fixed (ebuild conflict resolution)     preference:masked(portage://'sci-libs/eccodes-2.18.0').
-% idem                                   preference:masked(portage://'sci-libs/mathgl-8.0.1-r3').
-% fixed (profile contained elogind use)  preference:masked(portage://'sys-apps/fwupd-2.0.3-r1').
+preference:masked(portage://'dev-vcs/mercurial-9999').
 
 
 %! preference:set(?Name,?List)
