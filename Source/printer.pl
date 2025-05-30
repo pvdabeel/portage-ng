@@ -455,7 +455,7 @@ printer:print_element(_,rule(uri(Local),_)) :-
 % CASE: an assumed dependency on a non-existent installed package
 % ---------------------------------------------------------------
 
-printer:print_element(_,rule(assumed(package_dependency(_,install,_,C,N,_,_,_,_):_,_),[])) :-
+printer:print_element(_,rule(assumed(package_dependency(_,install,no,C,N,_,_,_,_):install?{_Context}),[])) :-
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
@@ -468,7 +468,7 @@ printer:print_element(_,rule(assumed(package_dependency(_,install,_,C,N,_,_,_,_)
 % CASE: an assumed dependency on a non-existent running package
 % -------------------------------------------------------------
 
-printer:print_element(_,rule(assumed(package_dependency(_,run,_,C,N,_,_,_,_):_,_),[])) :-
+printer:print_element(_,rule(assumed(package_dependency(_,run,no,C,N,_,_,_,_):run?{_Context}),[])) :-
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
@@ -1061,13 +1061,13 @@ printer:print_footer(Plan,Model,PrintedSteps) :-
   countlist(assumed(_),Model,_Assumptions),
   countlist(constraint(_),Model,_Constraints),
   countlist(naf(_),Model,_Nafs),
-  countlist(_://_:_,Model,Actions),
-  countlist(_://_:fetchonly,Model,Fetches),
-  aggregate_all(sum(T),(member(R://E:download,Model),ebuild:download_size(preference,R://E,T)),TotalDownloadSize),
-  countlist(_://_:download,Model,Downloads),
-  countlist(_://_:run,Model,Runs),
-  countlist(_://_:install,Model,PureInstalls),
-  countlist(_://_:reinstall,Model,Reinstalls),
+  countlist(_://_:_?_,Model,Actions),
+  countlist(_://_:fetchonly?_,Model,Fetches),
+  aggregate_all(sum(T),(member(R://E:download?_,Model),ebuild:download_size(preference,R://E,T)),TotalDownloadSize),
+  countlist(_://_:download?_,Model,Downloads),
+  countlist(_://_:run?_,Model,Runs),
+  countlist(_://_:install?_,Model,PureInstalls),
+  countlist(_://_:reinstall?_,Model,Reinstalls),
   Installs is PureInstalls + Reinstalls,
   countlist(package_dependency(run,_,_,_,_,_,_,_):_Action,Model,_Verifs),
   Total is Actions - Fetches, % + Verifs,
@@ -1092,10 +1092,20 @@ printer:print_warnings(Model,Proof) :-
   printer:check_assumptions(Model),!,
   message:color(red),message:print('Error: '),
   message:print('The proof for your build plan contains assumptions. Please verify:'),nl,nl,
+  message:color(cyan),
+  forall(member(assumed(X),Proof),
+    (message:print([' - assumed(',X,')']),nl)),
+  nl,
+  forall(member(rule(assumed(X),_),Proof),
+    (message:print([' - rule(assumed(',X,'))']),nl)),
+  nl,
+  message:color(red),
   forall(member(assumed(rule(C,_)),Proof),
     (message:print([' - Circular dependency: ',C]),nl)),
   forall(member(rule(assumed(R://E:Reason),_),Proof),
     (message:print([' - Ebuild ',Reason,': ',R://E]),nl)),
+  forall(member(rule(assumed(package_dependency(R://E,T,_,C,N,_,_,_,_):_?_),_),Proof),
+    (message:print([' - Non-existent ebuild ',T,' dependency: ',C,'/',N,' in ebuild ',R://E]),nl)),
   nl,
   message:color(normal),nl.
 
