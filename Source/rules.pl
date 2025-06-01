@@ -57,10 +57,11 @@ rule(Repository://Ebuild:fetchonly?{_},[]) :-
   \+(preference:flag(emptytree)),
   query:search(installed(true),Repository://Ebuild),!.
 
-rule(Repository://Ebuild:fetchonly?{Context},Conditions) :-
+rule(Repository://Ebuild:fetchonly?{Context},Conditions) :- % todo: to be updated along the lines of :install
   cache:ordered_entry(Repository,Ebuild,C,N,_),
   cache:entry_metadata(Repository,Ebuild,slot,S),
-  query:search(model(required_use(R)),Repository://Ebuild),
+  query:search(model(required_use(M)),Repository://Ebuild),
+  query:filter(M,R),
   feature_unification:unify(Context,R,ForwardContext),
   query:search(model(dependency(D,run_compile)):fetchonly?{ForwardContext},Repository://Ebuild),
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
@@ -93,19 +94,43 @@ rule(Repository://Ebuild:install?{_},[]) :-
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
 
 rule(Repository://Ebuild:install?{Context},Conditions) :-
+  % \+Conditions == [],
+  !,
+
+  % 1. Get some metadata we need further down
+
   cache:ordered_entry(Repository,Ebuild,C,N,_),
   cache:entry_metadata(Repository,Ebuild,slot,S),
-  query:search(model(required_use(R)),Repository://Ebuild),
+
+  % 2. Compute required_use stable model, if not already passed on by run
+
+  (Context == []
+   -> ( query:search(model(required_use(Mr)),Repository://Ebuild),
+        query:filter(Mr,R) )
+   ;  R = [] ),
+
+  % 3. Pass use model onto dependencies to calculate corresponding dependency  model,
+  %    We pass using config action to avoid package_dependency from generating choices.
+  %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
+  %    all_of_group ... choice point generation
+
   feature_unification:unify(Context,R,ForwardContext),
-  query:search(model(dependency(D,compile)):install?{ForwardContext},Repository://Ebuild),
-  ( memberchk(C,['virtual','acct-group','acct-user']) ->
-    Conditions = [constraint(use(Repository://Ebuild):{ForwardContext}),
-                  constraint(slot(C,N,S):{[Ebuild]})
-                  |D];
-    Conditions = [constraint(use(Repository://Ebuild):{ForwardContext}),
-                  Repository://Ebuild:download?{ForwardContext},
-                  constraint(slot(C,N,S):{[Ebuild]})
-                  |D] ).
+  query:search(model(dependency(Md,compile)):config?{ForwardContext},Repository://Ebuild),
+
+  % 4. Filter out package dependencies, and set action to install
+
+  query:filter(package_dependency,install,Md,D),
+
+  % 5. Pass on relevant package dependencies and constraints to prover
+
+  ( memberchk(C,['virtual','acct-group','acct-user'])
+    -> Conditions = [ constraint(use(Repository://Ebuild):{ForwardContext}),
+                      constraint(slot(C,N,S):{[Ebuild]})
+                      |D]
+    ;  Conditions = [constraint(use(Repository://Ebuild):{ForwardContext}),
+                     Repository://Ebuild:download?{ForwardContext},
+                     constraint(slot(C,N,S):{[Ebuild]})
+                     |D] ).
 
 
 % RUN
@@ -123,8 +148,33 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   cache:entry_metadata(Repository,Ebuild,installed,true),!,
   (config:avoid_reinstall(true) -> Conditions = [] ; Conditions = [Repository://Ebuild:reinstall?{Context}]).
 
-rule(Repository://Ebuild:run?{Context},[Repository://Ebuild:install?{Context}|D]) :-
-  query:search(model(dependency(D,run)):run?{Context},Repository://Ebuild).
+rule(Repository://Ebuild:run?{Context},[Repository://Ebuild:install?{ForwardContext}|D]) :-
+
+  % 1. Get some metadata we need further down
+
+  % cache:ordered_entry(Repository,Ebuild,C,N,_),
+  % cache:entry_metadata(Repository,Ebuild,slot,S),
+
+  % 2. Compute required_use stable model
+
+  query:search(model(required_use(Mr)),Repository://Ebuild),
+  query:filter(Mr,R),
+
+  % 3. Pass use model onto dependencies to calculate corresponding dependency  model,
+  %    We pass using config action to avoid package_dependency from generating choices.
+  %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
+  %    all_of_group ... choice point generation
+
+  feature_unification:unify(Context,R,ForwardContext),
+  query:search(model(dependency(Md,run)):config?{ForwardContext},Repository://Ebuild),
+
+  % 4. Filter out package dependencies, and set action to install
+
+  query:filter(package_dependency,run,Md,D).
+
+
+
+
 
 
 % REINSTALL
@@ -285,7 +335,12 @@ rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_):_?{_},[]) :- !.
 % Preference: prefer installed packages over new packages, unless 'emptytree' flag
 % is used
 
-rule(package_dependency(_://_,_,no,C,N,_,_,_,_):_?{_},Conditions) :-
+rule(package_dependency(_://_,_,_,_,_,_,_,_,_):config?{_},[]) :- !.
+
+rule(package_dependency(_://_,_,no,_,_,_,_,_,_),[]) :- !.
+
+rule(package_dependency(_://_,_,no,C,N,_,_,_,_):Action?{_},Conditions) :-
+  \+(Action == config),
   \+(preference:flag(emptytree)),
   preference:accept_keywords(K),
   cache:ordered_entry(Repository,Choice,C,N,_),
@@ -294,15 +349,23 @@ rule(package_dependency(_://_,_,no,C,N,_,_,_,_):_?{_},Conditions) :-
   Conditions = [].
 
 rule(package_dependency(_://_,_,no,C,N,_,_,_,_):Action?{_},Conditions) :-
+  \+(Action == config),
   preference:accept_keywords(K),
   cache:ordered_entry(Repository,Choice,C,N,_),
   cache:entry_metadata(Repository,Choice,keywords,K),
-  Conditions = [Repository://Choice:Action?{[]}].
+  Conditions = [Repository://Choice:Action?{[]}].						% todo: pass on use deps, and transitive required use?
 
-rule(package_dependency(R://E,T,no,C,N,O,V,S,U):Action?{Context},Conditions) :-
-  preference:accept_keywords(K),
+rule(package_dependency(R://E,T,no,C,N,O,V,S,U):Action?{Context},Conditions) :-			% todo: performance? (integrate with regular install)
+  \+(Action == config),
+  \+(cache:ordered_entry(_Repository,_Choice,C,N,_)),
+  Conditions = [assumed(package_dependency(R://E,T,no,C,N,O,V,S,U):Action?{Context})].
+
+rule(package_dependency(R://E,T,no,C,N,O,V,S,U):Action?{Context},Conditions) :-			% todo: performance? (integrate with regular install)
+  \+(Action == config),
+  findall(K,preference:accept_keywords(K),Ks),
   \+((cache:ordered_entry(Repository,Choice,C,N,_),
-     cache:entry_metadata(Repository,Choice,keywords,K))),
+     cache:entry_metadata(Repository,Choice,keywords,I),
+     member(I,Ks))),
   Conditions = [assumed(package_dependency(R://E,T,no,C,N,O,V,S,U):Action?{Context})].
 
 
@@ -313,18 +376,32 @@ rule(package_dependency(R://E,T,no,C,N,O,V,S,U):Action?{Context},Conditions) :-
 % the use flag is positive through required use constraint, preference or ebuild
 % default
 
-% 1. The USE is explicitely enabled, either by preference or ebuild -> process deps
+% 1. The USE is enabled in the context (dependency induced, or required_use)
 
-rule(use_conditional_group(positive,Use,R://E,Deps):Action?{Context},Result) :-
-  query:search(iuse(Use,positive:_Reason),R://E),!, % todo: add Context enabled use flags here
-  findall(D:Action?{Context},member(D,Deps),Result).
-  %(Reason == preference
-  % -> findall(D:Action,member(D,Deps),Result)
-  % ;  findall(D:Action,member(D,Deps),Temp), Result = [constraint(use(R://E):Use)|Temp]).
+rule(use_conditional_group(positive,Use,_R://_E,Deps):Action?{Context},Conditions) :-
+  memberchk(assumed(Use),Context),!,
+  %write('Context use found: '),write(Use),nl,
+  findall(D:Action?{Context},member(D,Deps),Conditions).
 
-% 2. The USE is not enabled -> no deps
+
+% 2. The USE is explicitely enabled, either by preference or ebuild -> process deps
+
+rule(use_conditional_group(positive,Use,R://E,Deps):Action?{Context},Conditions) :-
+  query:search(iuse(Use,positive:_Reason),R://E),!,
+  %write('Use preference found: '),write(Use),nl,
+  findall(D:Action?{Context},member(D,Deps),Result),
+  %write(' - Result: '),write(Result),nl,
+  Conditions = Result.
+
+%  (Reason == preference
+%   -> Conditions = Result
+%   ;  Conditions = [constraint(use(R://E):{[Use]})|Result] ).
+
+
+% 3. The USE is not enabled -> no deps
 
 rule(use_conditional_group(positive,_Use,_R://_E,_):_?{_},[]) :-
+  %write('Use not enabled: '),write(Use),nl,
   !.
 
 
@@ -332,12 +409,23 @@ rule(use_conditional_group(positive,_Use,_R://_E,_):_?{_},[]) :-
 % the use flag is not positive through required use constraint, preference or
 % ebuild default
 
-rule(use_conditional_group(negative,Use,R://E,Deps):Action?{Context},Result) :-
-  query:search(iuse(Use,negative:_Reason),R://E),!, % todo: add Context enabled use flags here
-  findall(D:Action?{Context},member(D,Deps),Result).
+% 1. The USE is enabled in the context (dependency induced, or required_use)
+
+rule(use_conditional_group(negative,Use,_R://_E,Deps):Action?{Context},Conditions) :-
+  memberchk(naf(use(Use)),Context),!,
+  findall(D:Action?{Context},member(D,Deps),Conditions).
+
+% 2. The USE is explicitely enabled, either by preference or ebuild -> process deps
+
+rule(use_conditional_group(negative,Use,R://E,Deps):Action?{Context},Conditions) :-
+  query:search(iuse(Use,negative:_Reason),R://E),!,
+  findall(D:Action?{Context},member(D,Deps),Result),
+  Conditions = Result.
   %(Reason == preference
-  % -> findall(D:Action,member(D,Deps),Result)
-  % ;  findall(D:Action,member(D,Deps),Temp), Result = [constraint(use(R://E):naf(Use))|Temp]).
+  % -> Conditions = Result
+  % ;  Conditions = [constraint(use(R://E):{[naf(Use)]})|Result] ).
+
+% 3. The USE is not enabled -> no deps
 
 rule(use_conditional_group(negative,_Use,_R://_E,_):_?{_},[]) :-
   !.
@@ -345,7 +433,6 @@ rule(use_conditional_group(negative,_Use,_R://_E,_):_?{_},[]) :-
 
 % Dependency model (contextless)
 
-rule(package_dependency(_://_,_,_,_,_,_,_,_,_),[]) :- !.
 
 rule(use_conditional_group(positive,Use,_://_,Deps),Conditions) :-
   preference:use(Use),!,
@@ -362,9 +449,9 @@ rule(use_conditional_group(negative,_,_://_,_),[]) :- !.
 
 % Exactly one of the dependencies in an exactly-one-of-group should be satisfied
 
-rule(exactly_one_of_group(Deps):Action,[D:Action|NafDeps]) :-
+rule(exactly_one_of_group(Deps):Action?{Context},[D:Action?{Context}|NafDeps]) :-
   member(D,Deps),
-  findall(naf(N:Action),(member(N,Deps), \+(D = N)),NafDeps).
+  findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
 
 rule(exactly_one_of_group(Deps),[D|NafDeps]) :-
   member(D,Deps),
@@ -373,7 +460,7 @@ rule(exactly_one_of_group(Deps),[D|NafDeps]) :-
 
 % One dependency of an any_of_group should be satisfied
 
-rule(any_of_group(Deps):Action,[D:Action]) :-
+rule(any_of_group(Deps):Action?{Context},[D:Action?{Context}]) :-
   member(D,Deps).
 
 rule(any_of_group(Deps),[D]) :-
@@ -382,8 +469,8 @@ rule(any_of_group(Deps),[D]) :-
 
 % All dependencies in an all_of_group should be satisfied
 
-rule(all_of_group(Deps):Action,Result) :-
-  findall(D:Action,member(D,Deps),Result),!.
+rule(all_of_group(Deps):Action?{Context},Result) :-
+  findall(D:Action?{Context},member(D,Deps),Result),!.
 
 rule(all_of_group(Deps),Result) :-
   findall(D,member(D,Deps),Result),!.
@@ -466,6 +553,10 @@ rule(blocking(Use),[assumed(minus(Use))]) :-
 % Assumptions:
 
 rule(assumed(_),[]) :- !.
+
+% Constraints:
+
+rule(constraint(_),[]) :- !.
 
 % Negation as failure:
 
