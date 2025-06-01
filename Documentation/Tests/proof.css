@@ -1,0 +1,32 @@
+@font-face {
+  src: url("https://github.com/kalaschnik/meslolgs-nf-template/raw/refs/heads/main/MesloLGS-NF-Regular.ttf");
+  font-family: "Meslo";
+  font-style:  large;
+}
+body         {color: white; background-color: black; font: 1rem "Meslo";}
+.reset       {color: white;}
+.bg-reset    {background-color: black;}
+.inverted    {color: black;}
+.bg-inverted {background-color: white;}
+.dimgray     {color: dimgray;}
+.red         {color: red; filter: contrast(70%) brightness(100%);}
+.green       {color: green; filter: brightness(140%);}
+.yellow      {color: yellow; filter: brightness(80%);}
+.blue        {color: #3333FF;}
+.purple      {color: fuchsia;}
+.cyan        {color: aqua;}
+.white       {color: white;}
+.bg-black    {background-color: black;}
+.bg-red      {background-color: red;}
+.bg-green    {background-color: lime;}
+.bg-yellow   {background-color: yellow;}
+.bg-blue     {background-color: #3333FF;}
+.bg-purple   {background-color: fuchsia;}
+.bg-cyan     {background-color: aqua;}
+.bg-white    {background-color: white;}
+.underline   {text-decoration: underline;}
+.bold        {font-weight: bold; filter: contrast(80%) brightness(200%);}
+.italic      {font-style: italic; filter: brightness(70%);}
+.blink       {text-decoration: blink;}
+.crossed-out {text-decoration: line-through;}
+.highlighted {filter: contrast(70%) brightness(150%);}
