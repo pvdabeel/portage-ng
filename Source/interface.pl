@@ -246,9 +246,10 @@ interface:process_action(Action,ArgsSets,Options) :-
       printer:print(Proposal,Model,Proof,Plan)),
      Output),
      writeln(Output));
-    ( prover:prove(Proposal,[],Proof,[],Model,[],Constraints),
+    ( prover:prove(Proposal,[],Proof,[],Model,[],_Constraints),
       planner:plan(Proof,[],[],Plan),
-      printer:print(Proposal,Model,Proof,Plan),
-      message:color(cyan),nl,
-      forall(member(Con,Constraints),writeln(Con)),
-      message:color(normal))).
+      printer:print(Proposal,Model,Proof,Plan))).
+
+%      message:color(cyan),nl,
+%      forall(member(Con,Constraints),writeln(Con)),
+%      message:color(normal))).
