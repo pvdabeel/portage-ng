@@ -884,7 +884,7 @@ printer:print_use_flag(positive:preference,[Flag],_Assumed) :-
 
 printer:print_use_flag(positive:preference,[Flag],_Assumed) :-
   !,
-  message:color(lightred),
+  message:color(red),
   message:style(bold),
   message:print(Flag),
   message:color(normal).
@@ -1010,6 +1010,7 @@ printer:check_assumptions(Model) :-
 % Prints the header for a given target
 
 printer:print_header(Target) :-
+  nl,
   message:header('Emerging ',Target),
   message:color(green),
   message:print('These are the packages that would be merged, in order:'),nl,
@@ -1129,13 +1130,13 @@ printer:print_warnings(Model,Proof) :-
   printer:check_assumptions(Model),!,
   message:color(red),message:print('Error: '),
   message:print('The proof for your build plan contains assumptions. Please verify:'),nl,nl,
-  message:color(cyan),
-  forall(member(assumed(X),Proof),
-    (message:print([' - assumed(',X,')']),nl)),
-  nl,
-  forall(member(rule(assumed(X),_),Proof),
-    (message:print([' - rule(assumed(',X,'))']),nl)),
-  nl,
+  %message:color(cyan),
+  %forall(member(assumed(X),Proof),
+  %  (message:print([' - assumed(',X,')']),nl)),
+  %nl,
+  %forall(member(rule(assumed(X),_),Proof),
+  %  (message:print([' - rule(assumed(',X,'))']),nl)),
+  %nl,
   message:color(red),
   forall(member(assumed(rule(C,_)),Proof),
     (message:print([' - Circular dependency: ',C]),nl)),
