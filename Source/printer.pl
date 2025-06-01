@@ -1260,12 +1260,14 @@ printer:test_latest(Repository,Style) :-
               false).
 
 
-%! printer:write_plans(+Directory,+Repository)
+%! printer:write_merge_files(+Directory,+Repository)
 %
 % Proves and writes plan for every entry in a given repository to a proof file
 % Assumes graph directory exists. (grapher:prepare_directory)
+%
+% todo: grapher:prepare_directory(D,portage),printer:write_merge_files(D,portage).
 
-printer:write_plans(Repository,Directory) :-
+printer:write_merge_files(Directory,Repository) :-
   pkg:create_repository_dirs(Repository,Directory),
   config:proving_target(Action),
   tester:test(parallel_verbose,
@@ -1274,7 +1276,29 @@ printer:write_plans(Repository,Directory) :-
               Repository:entry(Entry),
               (with_q(prover:prove(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
                with_q(planner:plan(Proof,[],[],Plan)),
-               atomic_list_concat([Directory,'/',Entry,'.plan'],File)),
+               atomic_list_concat([Directory,'/',Entry,'.merge'],File)),
+              (tell(File),
+               printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan),
+               told),
+              true).
+
+
+
+%! printer:write_fetchonly_files(+Directory,+Repository)
+%
+% Proves and writes plan for every entry in a given repository to a proof file
+% Assumes graph directory exists. (grapher:prepare_directory)
+
+printer:write_fetchonly_files(Directory,Repository) :-
+  pkg:create_repository_dirs(Repository,Directory),
+  Action = fetchonly,
+  tester:test(parallel_verbose,
+              'Writing plan for',
+              Repository://Entry,
+              Repository:entry(Entry),
+              (with_q(prover:prove(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
+               with_q(planner:plan(Proof,[],[],Plan)),
+               atomic_list_concat([Directory,'/',Entry,'.fetchonly'],File)),
               (tell(File),
                printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan),
                told),
