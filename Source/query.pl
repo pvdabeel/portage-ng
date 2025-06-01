@@ -122,21 +122,13 @@ search(all(Statement),Repository://Entry) :-
 
 % Case : a model statement (dual argument, contextualized),
 
-search(model(Statement):Context,Repository://Id) :-
+search(model(Statement):Action?{Context},Repository://Id) :-
   Statement =.. [Key,Model,Arg],
   !,
   StatementA =.. [Key,AllValues,Arg],
-  search(all(StatementA),Repository://Id),
-  prover:model(AllValues,ModelValues),
-  findall(V:Context,
-   (member(V,ModelValues),
-    V =.. [package_dependency|_]),		% todo: make this a filter value, to ensure domain-independence
-    %\+(V =.. [package_dependency|_]),
-    %\+(V =.. [use_conditional_group|_]),
-    %\+(V =.. [exactly_one_of_group|_]),
-    %\+(V =.. [any_of_group|_]),
-    %\+(V =.. [all_of_group|_])),
-   Model).
+  search(all(StatementA):Action?{Context},Repository://Id),
+  prover:model(AllValues,Model).
+
 
 % Case : a model statement (dual argument, no context),
 
@@ -145,35 +137,18 @@ search(model(Statement),Repository://Id) :-
   !,
   StatementA =.. [Key,AllValues,Arg],
   search(all(StatementA),Repository://Id),
-  prover:model(AllValues,ModelValues),
-  findall(V,
-   (member(V,ModelValues),
-    V =.. [package_dependency|_]),		% todo: make this a filter value, to ensure domain-independence
-    %\+(V =.. [package_dependency|_]),
-    %\+(V =.. [use_conditional_group|_]),
-    %\+(V =.. [exactly_one_of_group|_]),
-    %\+(V =.. [any_of_group|_]),
-    %\+(V =.. [all_of_group|_])),
-   Model).
+  prover:model(AllValues,Model).
 
 
 % Case : a model statement (single argument, contextualized)
 
-search(model(Statement):Context,Repository://Id) :-
+search(model(Statement):Action?{Context},Repository://Id) :-
   Statement =.. [Key,Model],
   !,
   StatementA =.. [Key,AllValues],
-  search(all(StatementA),Repository://Id),
-  prover:model(AllValues,ModelValues),
-  findall(V:Context,
-   (member(V,ModelValues),
-    V =.. [package_dependency|_]),		% todo: make this a filter value, to ensure domain-independence
-    %\+(V =.. [package_dependency|_]),
-    %\+(V =.. [use_conditional_group|_]),
-    %\+(V =.. [exactly_one_of_group|_]),
-    %\+(V =.. [any_of_group|_]),
-    %\+(V =.. [all_of_group|_])),
-   Model).
+  search(all(StatementA):Action?{Context},Repository://Id),
+  prover:model(AllValues,Model).
+
 
 % Case : a model statement (single argument, no context)
 
@@ -182,15 +157,7 @@ search(model(Statement),Repository://Id) :-
   !,
   StatementA =.. [Key,AllValues],
   search(all(StatementA),Repository://Id),
-  prover:model(AllValues,ModelValues),
-  findall(V,
-   (member(V,ModelValues), 			% todo: make this a filter value, to ensure domain-independence
-    \+(V =.. [package_dependency|_]),
-    \+(V =.. [use_conditional_group|_]),
-    \+(V =.. [exactly_one_of_group|_]),
-    \+(V =.. [any_of_group|_]),
-    \+(V =.. [all_of_group|_])),
-   Model).
+  prover:model(AllValues,Model).
 
 
 % Case : a latest statement, returs only latest version
@@ -803,5 +770,25 @@ model_member(preference,Predicate,Model) :-
   (member(use_conditional_group(Sign,Use,_,Conditional),Model),
    (Sign == positive -> preference:use(Use) ; preference:use(minus(Use))),
      model_member(preference,Predicate,Conditional)).
+
+% Filtering
+%
+% todo: documentation
+
+filter(Type,Action,Model,FilteredModel) :-
+  findall(V:Action?{Context},
+   (member(V:_?{Context},Model),
+    V =.. [Type|_]),
+   FilteredModel).
+
+filter(Model,Result) :-
+  findall(V,
+   (member(V,Model),
+    \+(V =.. [package_dependency|_]),
+    \+(V =.. [use_conditional_group|_]),
+    \+(V =.. [exactly_one_of_group|_]),
+    \+(V =.. [any_of_group|_]),
+    \+(V =.. [all_of_group|_])),
+   Result).
 
 
