@@ -392,7 +392,7 @@ printer:sort_by_weight(C,L1,L2) :-
 % CASE: simple package, is a target of the plan
 % ---------------------------------------------
 
-printer:print_element(Target,rule(Repository://Entry:Action?Context,_)) :-
+printer:print_element(Target,rule(Repository://Entry:Action?{Context},_)) :-
   member(Repository://Entry:Action?_,Target),
   !,
   message:color(cyan),
@@ -401,27 +401,27 @@ printer:print_element(Target,rule(Repository://Entry:Action?Context,_)) :-
   message:color(green),
   message:column(39,Repository://Entry),
   message:color(normal),
-  printer:print_config(Repository://Entry:Action?Context).
+  printer:print_config(Repository://Entry:Action?{Context}).
 
 
 % -------------------------------------------------
 % CASE: simple package, is not a target of the plan
 % -------------------------------------------------
 
-printer:print_element(_,rule(Repository://Entry:Action?Context,_)) :-
+printer:print_element(_,rule(Repository://Entry:Action?{Context},_)) :-
   message:color(cyan),
   message:print(Action),
   message:color(green),
   message:column(34,Repository://Entry),
   message:color(normal),
-  printer:print_config(Repository://Entry:Action?Context).
+  printer:print_config(Repository://Entry:Action?{Context}).
 
 
 % --------------------------------------------------------------
 % CASE: verify that packages that need to be running are running
 % --------------------------------------------------------------
 
-printer:print_element(_,rule(package_dependency(_,run,_,_C,_N,_,_,_,_),[Repository://Entry:_Action?_Context])) :-
+printer:print_element(_,rule(package_dependency(_,run,_,_C,_N,_,_,_,_),[Repository://Entry:_Action?{_Context}])) :-
   !,
   message:color(cyan),
   message:print('confirm'),
@@ -481,7 +481,7 @@ printer:print_element(_,rule(assumed(package_dependency(_,run,no,C,N,_,_,_,_):ru
 % CASE: an assumed unmasked package
 % ---------------------------------
 
-printer:print_element(_,rule(assumed(Repository://Entry:unmask?_Context),_Body)) :-
+printer:print_element(_,rule(assumed(Repository://Entry:unmask?{_Context}),_Body)) :-
   message:color(red),
   message:print('verify'),
   message:column(29,Repository://Entry),
@@ -493,7 +493,7 @@ printer:print_element(_,rule(assumed(Repository://Entry:unmask?_Context),_Body))
 % CASE: an assumed installed package
 % ----------------------------------
 
-printer:print_element(_,assumed(rule(Repository://Entry:install?_Context,_Body))) :-
+printer:print_element(_,assumed(rule(Repository://Entry:install?{_Context},_Body))) :-
   message:color(red),
   message:print('verify'),
   message:column(29,Repository://Entry),
@@ -505,7 +505,7 @@ printer:print_element(_,assumed(rule(Repository://Entry:install?_Context,_Body))
 % CASE: an assumed running package
 % --------------------------------
 
-printer:print_element(_,assumed(rule(Repository://Entry:run?_Context,_Body))) :-
+printer:print_element(_,assumed(rule(Repository://Entry:run?{_Context},_Body))) :-
   message:color(red),
   message:print('verify'),
   message:column(29,Repository://Entry),
@@ -517,7 +517,7 @@ printer:print_element(_,assumed(rule(Repository://Entry:run?_Context,_Body))) :-
 % CASE: an assumed fetched package
 % --------------------------------
 
-printer:print_element(_,assumed(rule(Repository://Entry:fetchonly?_Context,_Body))) :-
+printer:print_element(_,assumed(rule(Repository://Entry:fetchonly?{_Context},_Body))) :-
   message:color(red),
   message:print('verify'),
   message:column(29,Repository://Entry),
@@ -621,18 +621,19 @@ printer:print_config_prefix :-
 
 % iuse empty
 
-printer:print_config(Repository://Entry:fetchonly?_Context) :-
+printer:print_config(Repository://Entry:fetchonly?{_Context}) :-
   \+(kb:query(iuse(_),Repository://Entry)),!.
 
 % use flags to show - to rework: performance
 
-printer:print_config(Repository://Entry:fetchonly?_Context) :-
+printer:print_config(Repository://Entry:fetchonly?{Context}) :-
  !,
+ findall(Use, member(assumed(Use),Context), Assumed),
  findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
 
  (Useflags == [] ;
-   (printer:print_config_prefix('conf'),	    % Use flags not empty
-    printer:print_config_item('use',Useflags))).    % Use flags not empty
+   (printer:print_config_prefix('conf'),	            % Use flags not empty
+    printer:print_config_item('use',Useflags,Assumed))).    % Use flags not empty
 
 
 
@@ -642,7 +643,7 @@ printer:print_config(Repository://Entry:fetchonly?_Context) :-
 
 % live downloads
 
-printer:print_config(Repository://Ebuild:download?_Context) :-
+printer:print_config(Repository://Ebuild:download?{_Context}) :-
   ebuild:is_live(Repository://Ebuild),!,
   printer:print_config_prefix('live'),
   printer:print_config_item('download','git repository','live').
@@ -650,22 +651,23 @@ printer:print_config(Repository://Ebuild:download?_Context) :-
 
 % no downloads
 
-printer:print_config(Repository://Ebuild:download?_Context) :-
+printer:print_config(Repository://Ebuild:download?{_Context}) :-
   \+(kb:query(manifest(preference,_,_,_),Repository://Ebuild)),!.
 
 
 % at least one download
 
-printer:print_config(Repository://Ebuild:download?_Context) :-
+printer:print_config(Repository://Ebuild:download?{_Context}) :-
   !,
 
   % If you want to show use flags right before the downloads:
 
+  % findall(Use, member(assumed(Use),Context), Assumed),
   % findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Ebuild), Group), Useflags),
 
   % (Useflags == [] ;
-  %  (printer:print_config_prefix('conf'),	    % Use flags not empty
-  %   printer:print_config_item('use',Useflags))),    % Use flags not empty
+  %  (printer:print_config_prefix('conf'),	    	      % Use flags not empty
+  %   printer:print_config_item('use',Useflags,Assumed))),    % Use flags not empty
 
 
   findall([File,Size],kb:query(manifest(preference,_,File,Size),Repository://Ebuild),Downloads),
@@ -683,18 +685,19 @@ printer:print_config(Repository://Ebuild:download?_Context) :-
 
 % iuse empty
 
-printer:print_config(Repository://Entry:install?_Context) :-
+printer:print_config(Repository://Entry:install?{_Context}) :-
   \+(kb:query(iuse(_),Repository://Entry)),!.
 
 % use flags to show - to rework: performance
 
-printer:print_config(Repository://Entry:install?_Context) :-
+printer:print_config(Repository://Entry:install?{Context}) :-
  !,
+ findall(Use, member(assumed(Use),Context), Assumed),
  findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
 
  (Useflags == [] ;
-   (printer:print_config_prefix('conf'),	    % Use flags not empty
-    printer:print_config_item('use',Useflags))).    % Use flags not empty
+   (printer:print_config_prefix('conf'),	            % Use flags not empty
+    printer:print_config_item('use',Useflags,Assumed))).    % Use flags not empty
 
   %config:print_expand_use(false) ; (
   %findall([Key,Keyflags], ( preference:use_expand_hidden(Key),
@@ -707,31 +710,32 @@ printer:print_config(Repository://Entry:install?_Context) :-
 
   % (forall(member([Key,Keyflags],Expandedkeys),
   %  ((Useflags == [] ->				    % Expandedkeys not empty
-  %    printer:print_config_prefix('conf');	    % Expandedkeys not empty, use flags empty
-  %    printer:print_config_prefix),		    % Expandedkeys not empty, use flags not empty
-  %   printer:print_config_item(Key,Keyflags))))),!. % Expandedkeys not empty
+  %    printer:print_config_prefix('conf');	            % Expandedkeys not empty, use flags empty
+  %    printer:print_config_prefix),		            % Expandedkeys not empty, use flags not empty
+  %   printer:print_config_item(Key,Keyflags))))),!.        % Expandedkeys not empty
 
 
 % ----------------
 % CASE: Run action
 % ----------------
 
-printer:print_config(_://_:run?_Context) :- !.
+printer:print_config(_://_:run?{_Context}) :- !.
 
 
 % --------------
 % CASE: All info
 % --------------
 
-printer:print_config(Repository://Entry:all?_Context) :-
+printer:print_config(Repository://Entry:all?{Context}) :-
  !,
 
+ findall(Use, member(assumed(Use),Context), Assumed),
  findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
 
  (Useflags == [] ;
    (message:print('└─ '),
     message:print(' ─┤ '),
-    printer:print_config_item('use',Useflags))),
+    printer:print_config_item('use',Useflags,Assumed))),
 
   findall([File,Size],kb:query(manifest(preference,_,File,Size),Repository://Entry),[[FirstFile,FirstSize]|Rest]),!,
 
@@ -769,38 +773,38 @@ printer:print_config_item('download',File,Size) :-
   message:print(File).
 
 
-%! printer:print_config_item(+Key,List) % PosPref,PosEbui,NegPref,NegEbui,NegDefa)
+%! printer:print_config_item(+Key,List,Assumed) % PosPref,PosEbui,NegPref,NegEbui,NegDefa)
 %
 % Prints a configuration item for a given repository entry
 
-printer:print_config_item(Key,List) :- % PosPref,PosEbui,NegPref,NegEbui,NegDefa) :-
+printer:print_config_item(Key,List,Assumed) :- % PosPref,PosEbui,NegPref,NegEbui,NegDefa) :-
   !,
   upcase_atom(Key,KeyU),
   message:print(KeyU),
   message:print('="'),
-  printer:print_use_flag_sets(List),
+  printer:print_use_flag_sets(List,Assumed),
   message:print('"').
 
 
-%! printer:print_use_flag_sets(+List)
+%! printer:print_use_flag_sets(+List,+Assumed)
 %
 % Prints a list of Enabled and Disabled Use flags
 
-printer:print_use_flag_sets(List) :-
+printer:print_use_flag_sets(List,Assumed) :-
   (memberchk([negative:default,NegDefa],List);    NegDefa=[]),!,
   (memberchk([negative:ebuild,NegEbui],List);     NegEbui=[]),!,
   (memberchk([negative:preference,NegPref],List); NegPref=[]),!,
   (memberchk([positive:ebuild,PosEbui],List);     PosEbui=[]),!,
   (memberchk([positive:preference,PosPref],List); PosPref=[]),!,
-  printer:print_use_flag_set(positive:preference,PosPref,'',D1),
+  printer:print_use_flag_set(positive:preference,PosPref,Assumed,'',D1),
   printer:print_between(D1,PosEbui),
-  printer:print_use_flag_set(positive:ebuild,PosEbui,D1,D2),
+  printer:print_use_flag_set(positive:ebuild,PosEbui,Assumed,D1,D2),
   printer:print_between(D2,NegPref),
-  printer:print_use_flag_set(negative:preference,NegPref,D2,D3),
+  printer:print_use_flag_set(negative:preference,NegPref,Assumed,D2,D3),
   printer:print_between(D3,NegEbui),
-  printer:print_use_flag_set(negative:ebuild,NegEbui,D3,D4),
+  printer:print_use_flag_set(negative:ebuild,NegEbui,Assumed,D3,D4),
   printer:print_between(D4,NegDefa),
-  printer:print_use_flag_set(negative:default,NegDefa,D4,_),!.
+  printer:print_use_flag_set(negative:default,NegDefa,Assumed,D4,_),!.
 
 
 %! printer:print_between_use_flag_set(D,Future)
@@ -814,26 +818,63 @@ printer:print_between(D,_) :-
   write(D).
 
 
-%! printer:print_use_flag_set(+Flags)
+%! printer:print_use_flag_set(+Type,+Flags,+Assumed,Char,NextChar))
 %
 % Sorts, then prints a list of USE flags
 
-printer:print_use_flag_set(_,[],D,D) :- !.
+printer:print_use_flag_set(_,[],_,D,D) :- !.
 
-printer:print_use_flag_set(Type,Flags,_,' ') :-
+printer:print_use_flag_set(Type,Flags,Assumed,_,' ') :-
   !,
   sort(Flags,Orderedflags),
-  printer:print_use_flag(Type,Orderedflags).
+  printer:print_use_flag(Type,Orderedflags,Assumed).
 
 
-%! printer:print_use_flag(+Flags)
+%! printer:print_use_flag(+Reason,+Flags,Assumed)
 %
 % Prints a list of USE flags
 
-printer:print_use_flag(_,[]) :-
+printer:print_use_flag(_,[],_) :-
   !.
 
-printer:print_use_flag(positive:preference,[Flag]) :-
+printer:print_use_flag(_Reason,[Flag],Assumed) :-
+  memberchk(minus(Flag),Assumed),!,
+  message:color(orange),
+  %message:style(bold),
+  message:print('-'),
+  message:print(Flag),
+  message:color(normal),
+  message:print('').
+
+printer:print_use_flag(_Reason,[Flag|Rest],Assumed) :-
+  memberchk(minus(Flag),Assumed),!,
+  message:color(orange),
+  %message:style(bold),
+  message:print('-'),
+  message:print(Flag),
+  message:color(normal),
+  message:print(' '),
+  printer:print_use_flag(positive:preference,Rest,Assumed).
+
+
+printer:print_use_flag(_Reason,[Flag],Assumed) :-
+  memberchk(Flag,Assumed),!,
+  message:color(orange),
+  %message:style(bold),
+  message:print(Flag),
+  message:color(normal),
+  message:print('').
+
+printer:print_use_flag(_Reason,[Flag|Rest],Assumed) :-
+  member(Flag,Assumed),!,
+  message:color(orange),
+  %message:style(bold),
+  message:print(Flag),
+  message:color(normal),
+  message:print(' '),
+  printer:print_use_flag(positive:preference,Rest,Assumed).
+
+printer:print_use_flag(positive:preference,[Flag],_Assumed) :-
   preference:use(Flag,env),!,
   message:color(green),
   message:style(bold),
@@ -841,50 +882,48 @@ printer:print_use_flag(positive:preference,[Flag]) :-
   message:color(normal),
   message:print('*').
 
-printer:print_use_flag(positive:preference,[Flag]) :-
+printer:print_use_flag(positive:preference,[Flag],_Assumed) :-
   !,
-  %\+preference:use(Flag,env)
   message:color(lightred),
   message:style(bold),
   message:print(Flag),
   message:color(normal).
 
-printer:print_use_flag(positive:preference,[Flag|Rest]) :-
+printer:print_use_flag(positive:preference,[Flag|Rest],Assumed) :-
   preference:use(Flag,env),!,
   message:color(green),
   message:style(bold),
   message:print(Flag),
   message:color(normal),
   message:print('* '),
-  printer:print_use_flag(positive:preference,Rest).
+  printer:print_use_flag(positive:preference,Rest,Assumed).
 
-printer:print_use_flag(positive:preference,[Flag|Rest]) :-
+printer:print_use_flag(positive:preference,[Flag|Rest],Assumed) :-
   !,
-  %\+preference:use(Flag,env),
   message:color(red),
   message:style(bold),
   message:print(Flag),
   message:color(normal),
   message:print(' '),
-  printer:print_use_flag(positive:preference,Rest).
+  printer:print_use_flag(positive:preference,Rest,Assumed).
 
-printer:print_use_flag(positive:ebuild,[Flag]) :-
+printer:print_use_flag(positive:ebuild,[Flag],_Assumed) :-
   !,
   message:color(red),
   message:style(italic),
   message:print(Flag),
   message:color(normal).
 
-printer:print_use_flag(positive:ebuild,[Flag|Rest]) :-
+printer:print_use_flag(positive:ebuild,[Flag|Rest],Assumed) :-
   !,
   message:color(red),
   message:style(italic),
   message:print(Flag),
   message:print(' '),
   message:color(normal),!,
-  printer:print_use_flag(positive:ebuild,Rest).
+  printer:print_use_flag(positive:ebuild,Rest,Assumed).
 
-printer:print_use_flag(negative:preference,[Flag]) :-
+printer:print_use_flag(negative:preference,[Flag],_Assumed) :-
   preference:use(minus(Flag),env),!,
   message:color(green),
   message:style(bold),
@@ -893,16 +932,15 @@ printer:print_use_flag(negative:preference,[Flag]) :-
   message:color(normal),
   message:print('*').
 
-printer:print_use_flag(negative:preference,[Flag]) :-
+printer:print_use_flag(negative:preference,[Flag],_Assumed) :-
   !,
-  %\+preference:use(minus(Flag),env),
   message:color(blue),
   message:style(bold),
   message:print('-'),
   message:print(Flag),
   message:color(normal).
 
-printer:print_use_flag(negative:preference,[Flag|Rest]) :-
+printer:print_use_flag(negative:preference,[Flag|Rest],Assumed) :-
   preference:use(minus(Flag),env),!,
   message:color(green),
   message:style(bold),
@@ -910,20 +948,19 @@ printer:print_use_flag(negative:preference,[Flag|Rest]) :-
   message:print(Flag),
   message:color(normal),
   message:print('* '),
-  printer:print_use_flag(negative:preference,Rest).
+  printer:print_use_flag(negative:preference,Rest,Assumed).
 
-printer:print_use_flag(negative:preference,[Flag|Rest]) :-
+printer:print_use_flag(negative:preference,[Flag|Rest],Assumed) :-
   !,
-  %\+preference:use(minus(Flag),env),
   message:color(blue),
   message:style(bold),
   message:print('-'),
   message:print(Flag),
   message:color(normal),
   message:print(' '),
-  printer:print_use_flag(negative:preference,Rest).
+  printer:print_use_flag(negative:preference,Rest,Assumed).
 
-printer:print_use_flag(negative:ebuild,[Flag]) :-
+printer:print_use_flag(negative:ebuild,[Flag],_Assumed) :-
   !,
   message:color(lightblue),
   message:style(italic),
@@ -931,7 +968,7 @@ printer:print_use_flag(negative:ebuild,[Flag]) :-
   message:print(Flag),
   message:color(normal).
 
-printer:print_use_flag(negative:ebuild,[Flag|Rest]) :-
+printer:print_use_flag(negative:ebuild,[Flag|Rest],Assumed) :-
   !,
   message:color(lightblue),
   message:style(italic),
@@ -939,9 +976,9 @@ printer:print_use_flag(negative:ebuild,[Flag|Rest]) :-
   message:print(Flag),
   message:print(' '),
   message:color(normal),
-  printer:print_use_flag(negative:ebuild,Rest).
+  printer:print_use_flag(negative:ebuild,Rest,Assumed).
 
-printer:print_use_flag(negative:default,[Flag]) :-
+printer:print_use_flag(negative:default,[Flag],_Assumed) :-
   !,
   message:color(darkgray),
   message:style(italic),
@@ -949,7 +986,7 @@ printer:print_use_flag(negative:default,[Flag]) :-
   message:print(Flag),
   message:color(normal).
 
-printer:print_use_flag(negative:default,[Flag|Rest]) :-
+printer:print_use_flag(negative:default,[Flag|Rest],Assumed) :-
   !,
   message:color(darkgray),
   message:style(italic),
@@ -957,7 +994,7 @@ printer:print_use_flag(negative:default,[Flag|Rest]) :-
   message:print(Flag),
   message:print(' '),
   message:color(normal),!,
-  printer:print_use_flag(negative:default,Rest).
+  printer:print_use_flag(negative:default,Rest,Assumed).
 
 
 %! printer:check_assumptions(+Model)
