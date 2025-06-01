@@ -364,14 +364,14 @@ message:header(Message) :-
   message:style(normal),
   nl.
 
-message:header(Header,[E|R]) :-
+message:header(Header,[E?_|R]) :-
   message:color(orange),
   message:style(bold),
   system:write('>>> '),
   system:write(Header),
   system:write(': '),
   system:write(E),nl,
-  forall(member(M,R),
+  forall(member(M?_,R),
    (system:write('               '),
     system:write(M),
     nl)),

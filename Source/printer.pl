@@ -1271,7 +1271,7 @@ printer:write_plans(Repository,Directory) :-
   tester:test(parallel_verbose,
               'Writing plan for',
               Repository://Entry,
-              (Repository:entry(Entry)),
+              Repository:entry(Entry),
               (with_q(prover:prove(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
                with_q(planner:plan(Proof,[],[],Plan)),
                atomic_list_concat([Directory,'/',Entry,'.plan'],File)),
