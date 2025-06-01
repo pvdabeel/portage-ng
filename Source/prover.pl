@@ -33,85 +33,157 @@ prover:prove([Literal|OtherLiterals],Proof,NewProof,Model,NewModel,Constraints,N
   prover:prove(OtherLiterals,TempProof,NewProof,TempModel,NewModel,TempConstraints,NewConstraints).
 
 
-% ---------------------------------
-% CASE 2: A single literal to prove
-% ---------------------------------
+% -------------------------------------------------------
+% CASE 2a: “If it’s a constraint(L), unify it and return”
+% -------------------------------------------------------
 
-% CASE 2a: Literal is a constraint
-
-prover:prove(constraint(Literal),Proof,Proof,Model,Model,Constraints,NewConstraints) :-
-  % \+(is_list(Literal)),				% green cut
+prover:prove(constraint(Lit),
+             Proof, Proof,
+             Model, Model,
+             Constraints, NewConstraints) :-
   !,
-  prover:unify_constraints(constraint(Literal),Constraints,NewConstraints).
-  % todo: revalidate model against constraints
+  prover:unify_constraints(constraint(Lit), Constraints, NewConstraints).
 
 
-% CASE 2b: already proven
-
-prover:prove(Literal,Proof,Proof,Model,Model,Constraints,Constraints) :-
-  % \+(is_list(Literal)),				% green cut
-  % \+(prover:is_constraint(Literal)),			% green cut
-  prover:proven(Literal,Model),!.
-
-
-% CASE 2c: assumed proven
-
-prover:prove(Literal,Proof,Proof,Model,Model,Constraints,Constraints) :-
-  % \+(is_list(Literal)),				% green cut
-  % \+(prover:is_constraint(Literal)),			% green cut
-  prover:assumed_proven(Literal,Model),!.
+% ------------------------------------------------------------
+% CASE 2b: “If Literal is already in Model as proven, succeed”
+% ------------------------------------------------------------
+prover:prove(Literal,
+             Proof, Proof,
+             Model, Model,
+             Constraints, Constraints) :-
+  prover:proven(Literal, Model),
+  !.
 
 
-% CASE 2d: not proven, rule with empty body
-
-prover:prove(Literal,Proof,[rule(Literal,[])|Proof],Model,[Literal|Model],Constraints,Constraints) :-
-  % \+(is_list(Literal)),				% green cut
-  % \+(prover:is_constraint(Literal)),			% green cut
-  % \+(prover:proven(Literal,Model)),			% green cut
-  rule(Literal,[]),!,
-  \+(prover:conflicts(Literal,Model)),
-  \+(prover:conflictrule(rule(Literal,[]),Proof)).
-
-
-% CASE 2e: not proven, no rule, make assumption
-
-%prover:prove(Literal,Proof,[rule(assumed(rule(Literal,[])))|Proof],Model,[assumed(Literal)|Model],Constraints,Constraints) :-
-%   \+(is_list(Literal)),				% green cut
-%   \+(prover:is_constraint(Literal)),			% green cut
-%   \+(prover:proven(Literal,Model)),			% green cut
-%   \+(prover:conflicts(Literal,Model)),
-%   \+(prover:conflictrule(rule(Literal,[]),Proof)),
-%   \+(rule(Literal,_)),!.
+% -------------------------------------------------------------
+% CASE 2c: “If Literal is already in Model as assumed, succeed”
+% -------------------------------------------------------------
+prover:prove(Literal,
+             Proof, Proof,
+             Model, Model,
+             Constraints, Constraints) :-
+  prover:assumed_proven(Literal, Model),
+  !.
 
 
-% CASE 2f: not proven, proving, make assumption
+% ----------------------------------------------------------------
+% COMBINED CASE (2d+2f+2g) for context‐annotated Literal?{Context}
+% ----------------------------------------------------------------
+prover:prove(Literal?{Context},
+             Proof,
+             NewProof,
+             Model,
+             NewModel,
+             Constraints,
+             NewConstraints) :-
 
-prover:prove(Literal,Proof,NewProof,Model,NewModel,Constraints,NewConstraints) :-
-  % \+(is_list(Literal)),				% green cut
-  % \+(prover:is_constraint(Literal)),			% green cut
-  % \+(prover:proven(Literal,Model)),			% green cut
-  % rule(Literal,Body),
-  % \+(prover:fact(rule(Literal,Body))),		% green cut
-  prover:proving(rule(Literal,_),Proof),
-  \+(prover:assumed_proving(Literal,Proof)),!,
-  \+(prover:conflicts(Literal,Model)),
-  \+(prover:conflictrule(rule(Literal,[]),Proof)),
-  prover:prove([],[assumed(rule(Literal,[]))|Proof],NewProof,[assumed(Literal)|Model],NewModel,Constraints,NewConstraints).
+    %— skip constraint goals —%
+    \+ prover:is_constraint(Literal?{Context}),
+
+    %— skip if already proven or already assumed —%
+    \+ prover:proven(Literal?{Context}, Model),
+    \+ prover:assumed_proven(Literal?{Context}, Model),
+
+    %— skip if NAF conflict would arise —%
+    \+ prover:conflicts(Literal?{Context}, Model),
+
+    %— skip if there’s an in‐proof conflict for rule(Literal?{Context},[]) —%
+    \+ prover:conflictrule(rule(Literal?{Context}, []), Proof),
+
+    %— two branches: (A) cycle→assume, or (B) pick/apply a rule —%
+    (
+      % (A) We’re already in the middle of proving this same head → assume
+      prover:proving(rule(Literal?{Context}, _), Proof),
+      \+ prover:assumed_proving(Literal?{Context}, Proof)
+    ->
+      !,  % commit to assumption
+      NewProof       = [ assumed(rule(Literal?{Context}, [])) | Proof ],
+      NewModel       = [ assumed(Literal?{Context})           | Model ],
+      NewConstraints = Constraints
+
+    ; % (B) Not in a cycle: lookup any rule(Literal?{Context}, Body)
+      rule(Literal?{Context}, Body),
+
+      ( Body = []
+      ->  % (B1) Fact case: add fact and cut
+         !,
+         NewProof       = [ rule(Literal?{Context}, [])  | Proof ],
+         NewModel       = [ Literal?{Context}            | Model ],
+         NewConstraints = Constraints
+
+      ;  % (B2) Non‐empty body: prove each subgoal
+         prover:prove(Body,
+                      [ rule(Literal?{Context}, Body) | Proof ],
+                      NewProof,
+                      Model,
+                      ModelAfterBody,
+                      Constraints,
+                      NewConstraints),
+         NewModel = [ Literal?{Context} | ModelAfterBody ]
+      )
+    ).
 
 
-% CASE 2g: not proven, not proving, check if oracle knows otherwise prove body
+% -----------------------------------------------------------
+% COMBINED CASE (2d+2f+2g) for a plain (non‐compound) Literal
+% -----------------------------------------------------------
+prover:prove(Literal,
+             Proof,
+             NewProof,
+             Model,
+             NewModel,
+             Constraints,
+             NewConstraints) :-
 
-prover:prove(Literal,Proof,NewProof,Model,[Literal|NewModel],Constraints,NewConstraints) :-
-  % \+(is_list(Literal)),				% green cut
-  % \+(prover:is_constraint(Literal)),			% green cut
-  % \+(prover:proven(Literal,Model)),			% green cut
-  \+(prover:conflicts(Literal,Model)),
-  \+(prover:conflictrule(rule(Literal,[]),Proof)),
-  rule(Literal,Body),
-  % \+(prover:fact(rule(Literal,Body))),		% green cut
-  % \+(prover:proving(rule(Literal,Body),Proof)),	% green cut
-  % prover:prove(Body,[rule(Literal,Body)|Proof],NewProof,Model,NewModel,Constraints,NewConstraints).
-  prover:prove(Body,[rule(Literal,Body)|Proof],NewProof,Model,NewModel,Constraints,NewConstraints).
+    %— ensure this is not context‐annotated —%
+    \+ prover:test_compound(Literal),
+
+    %— skip constraint goals —%
+    \+ prover:is_constraint(Literal),
+
+    %— skip if already proven or assumed —%
+    \+ prover:proven(Literal, Model),
+    \+ prover:assumed_proven(Literal, Model),
+
+    %— skip if NAF conflict would arise —%
+    \+ prover:conflicts(Literal, Model),
+
+    %— skip if in‐proof conflict for rule(Literal,[]) —%
+    \+ prover:conflictrule(rule(Literal, []), Proof),
+
+    %— two branches: (A) cycle→assume, or (B) pick/apply a rule —%
+    (
+      % (A) We’re already “proving rule(Literal,_)” → assume
+      prover:proving(rule(Literal, _), Proof),
+      \+ prover:assumed_proving(Literal, Proof)
+    ->
+      !,  % commit to assumption
+      NewProof       = [ assumed(rule(Literal, [])) | Proof ],
+      NewModel       = [ assumed(Literal)           | Model ],
+      NewConstraints = Constraints
+
+    ; % (B) Not in a cycle: lookup any rule(Literal, Body)
+      rule(Literal, Body),
+
+      ( Body = []
+      ->  % (B1) Fact: add fact, then cut
+         !,
+         NewProof       = [ rule(Literal, []) | Proof ],
+         NewModel       = [ Literal           | Model ],
+         NewConstraints = Constraints
+
+      ;  % (B2) Non‐empty body: prove each subgoal (no cut here)
+         prover:prove(Body,
+                      [ rule(Literal, Body) | Proof ],
+                      NewProof,
+                      Model,
+                      ModelAfterBody,
+                      Constraints,
+                      NewConstraints),
+         NewModel = [ Literal | ModelAfterBody ]
+      )
+    ).
 
 
 % -----------------------------------------
@@ -121,12 +193,14 @@ prover:prove(Literal,Proof,NewProof,Model,[Literal|NewModel],Constraints,NewCons
 prover:fact(rule(_,[])) :- !.
 
 
+prover:test_compound(_?_) :- !.
+
 % ----------------------------------------------------------
 % PROVEN: A literal is proven if it is part of a given model
 % ----------------------------------------------------------
 
 prover:proven(Literal?_, Model) :- !, memberchk(Literal?_,Model).
-prover:proven(Literal, Model) :- !, memberchk(Literal,Model).
+prover:proven(Literal, Model) :- \+ prover:test_compound(Literal),!, memberchk(Literal,Model).
 
 
 % -----------------------------------------------------------------------------
@@ -134,7 +208,7 @@ prover:proven(Literal, Model) :- !, memberchk(Literal,Model).
 % -----------------------------------------------------------------------------
 
 prover:assumed_proven(Literal?_, Model) :- !, memberchk(assumed(Literal?_),Model).
-prover:assumed_proven(Literal, Model) :- !, memberchk(assumed(Literal),Model).
+prover:assumed_proven(Literal, Model) :- \+ prover:test_compound(Literal),!, memberchk(assumed(Literal),Model).
 
 
 % --------------------------------------------------------------
@@ -142,7 +216,7 @@ prover:assumed_proven(Literal, Model) :- !, memberchk(assumed(Literal),Model).
 % --------------------------------------------------------------
 
 prover:proving(rule(Head?_,Body), Proof) :- !, memberchk(rule(Head?_,Body), Proof).
-prover:proving(Rule, Proof) :- !, memberchk(Rule, Proof).
+prover:proving(rule(Head,Body), Proof) :- \+ prover:test_compound(Head),!, memberchk(rule(Head,Body), Proof).
 
 
 % ----------------------------------------------------------------------------------
@@ -150,7 +224,7 @@ prover:proving(Rule, Proof) :- !, memberchk(Rule, Proof).
 % ----------------------------------------------------------------------------------
 
 prover:assumed_proving(rule(Literal?_,_), Proof) :- !, memberchk(assumed(rule(Literal?_,[])), Proof).
-prover:assumed_proving(rule(Literal,_), Proof) :- !, memberchk(assumed(rule(Literal,[])), Proof).
+prover:assumed_proving(rule(Literal,_), Proof) :- \+ prover:test_compound(Literal),!, memberchk(assumed(rule(Literal,[])), Proof).
 
 
 % ---------------------------------------------------------------------------------------------
