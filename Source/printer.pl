@@ -1271,7 +1271,7 @@ printer:write_merge_files(Directory,Repository) :-
   pkg:create_repository_dirs(Repository,Directory),
   config:proving_target(Action),
   tester:test(parallel_verbose,
-              'Writing plan for',
+              'Writing merge plan for',
               Repository://Entry,
               Repository:entry(Entry),
               (with_q(prover:prove(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
@@ -1293,7 +1293,7 @@ printer:write_fetchonly_files(Directory,Repository) :-
   pkg:create_repository_dirs(Repository,Directory),
   Action = fetchonly,
   tester:test(parallel_verbose,
-              'Writing plan for',
+              'Writing fetchonly plan for',
               Repository://Entry,
               Repository:entry(Entry),
               (with_q(prover:prove(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
@@ -1301,5 +1301,23 @@ printer:write_fetchonly_files(Directory,Repository) :-
                atomic_list_concat([Directory,'/',Entry,'.fetchonly'],File)),
               (tell(File),
                printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan),
+               told),
+              true).
+
+
+%! printer:write_info_files(+Directory,+Repository)
+%
+% Proves and writes info for every entry in a given repository to an info file
+% Assumes graph directory exists. (grapher:prepare_directory)
+
+printer:write_info_files(Directory,Repository) :-
+  pkg:create_repository_dirs(Repository,Directory),
+  tester:test(parallel_verbose,
+              'Writing info for',
+              Repository://Entry,
+              Repository:entry(Entry),
+              (atomic_list_concat([Directory,'/',Entry,'.info'],File)),
+              (tell(File),
+               printer:print_entry(Repository://Entry),
                told),
               true).
