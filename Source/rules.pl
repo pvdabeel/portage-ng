@@ -55,15 +55,33 @@ rule(Repository://Ebuild:download?{_},[]) :-
 
 rule(Repository://Ebuild:fetchonly?{_},[]) :-
   \+(preference:flag(emptytree)),
-  query:search(installed(true),Repository://Ebuild),!.
+  cache:entry_metadata(Repository,Ebuild,installed,true),!.
 
 rule(Repository://Ebuild:fetchonly?{Context},Conditions) :- % todo: to be updated along the lines of :install
+  % \+Conditions == [],
+  !,
+
+  % 1. Get some metadata we need further down
+
   cache:ordered_entry(Repository,Ebuild,C,N,_),
   cache:entry_metadata(Repository,Ebuild,slot,S),
-  query:search(model(required_use(M)),Repository://Ebuild),
-  query:filter(M,R),
+
+  % 2. Compute required_use stable model
+   query:search(model(required_use(Mr)),Repository://Ebuild),
+   query:filter(Mr,R),
+
+  % 3. Pass use model onto dependencies to calculate corresponding dependency  model,
+  %    We pass using config action to avoid package_dependency from generating choices.
+  %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
+  %    all_of_group ... choice point generation
+
   feature_unification:unify(Context,R,ForwardContext),
-  query:search(model(dependency(D,run_compile)):fetchonly?{ForwardContext},Repository://Ebuild),
+  query:search(model(dependency(Md,run_compile)):config?{ForwardContext},Repository://Ebuild),
+
+  % 4. Filter out package dependencies, and set action to install
+
+  query:filter(package_dependency,fetchonly,Md,D),
+
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
     Conditions = [constraint(use(Repository://Ebuild):{ForwardContext}),
                   constraint(slot(C,N,S):{[Ebuild]})
