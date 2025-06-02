@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# Converts terminal output merge, fetchonly and info raw ansi files to .html 
+
+if [ -f "${1}/.lastproof" ]; then
+ find . -iname '*.merge' -mnewer "${1}/.lastproof" \
+  | parallel --no-notice --bar --progress --eta \
+      'aha -s -c ../.proof.css -t {} -f {} > {.}-merge.html'
+ find . -iname '*.fetchonly' -mnewer "${1}/.lastproof" \
+  | parallel --no-notice --bar --progress --eta \
+      'aha -s -c ../.proof.css -t {} -f {} > {.}-fetchonly.html'
+ find . -iname '*.info' -mnewer "${1}/.lastproof" \
+  | parallel --no-notice --bar --progress --eta \
+      'aha -s -c ../.proof.css -t {} -f {} > {.}-info.html'
+else 
+ find . -iname '*.merge' \
+  | parallel --no-notice --bar --progress --eta \
+      'aha -s -c ../.proof.css -t {} -f {} > {.}-merge.html'
+ find . -iname '*.fetchonly' \
+  | parallel --no-notice --bar --progress --eta \
+      'aha -s -c ../.proof.css -t {} -f {} > {.}-fetchonly.html'
+ find . -iname '*.info' \
+  | parallel --no-notice --bar --progress --eta \
+      'aha -s -c ../.proof.css -t {} -f {} > {.}-info.html'
+fi
+touch "${1}/.lastproof"
