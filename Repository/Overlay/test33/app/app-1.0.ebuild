@@ -13,7 +13,7 @@ SLOT="0"
 KEYWORDS="alpha amd64 arm hppa ia64 m68k mips ppc ppc64 s390 sh sparc x86 sparc-fbsd x86-fbsd"
 IUSE=""
 
-DEPEND="test33/os[threads]"
+DEPEND="test33/os[linux]"
 RDEPEND=""
 
 src_unpack() {
