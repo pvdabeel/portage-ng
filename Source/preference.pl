@@ -404,6 +404,12 @@ preference:masked(portage://'net-misc/dropbear-2025.87').     % blocks static wh
 preference:masked(portage://'sys-apps/busybox-9999').         % blocks static when pam is set, and pam is in our default use set
 preference:masked(portage://'sys-apps/busybox-1.36.1-r3').    % blocks static when pam is set, and pam is in our default use set
 
+preference:masked(portage://'www-apps/rt-5.0.6').
+preference:masked(portage://'kde-plasma/plasma-meta-6.3.5-r1').
+preference:masked(portage://'kde-apps/kde-apps-meta-25.04.1').
+preference:masked(portage://'x11-misc/gpaste-3.42.5').
+
+
 
 %! preference:set(?Name,?List)
 %
