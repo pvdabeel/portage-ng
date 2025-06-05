@@ -56,7 +56,12 @@ test:cases([overlay://'test01/web-1.0':run?{[]},
             overlay://'test32/os-1.0':run?{[]},
             overlay://'test33/app-1.0':run?{[]},
             overlay://'test34/app-1.0':run?{[]},
-            overlay://'test35/app-1.0':run?{[]}
+            overlay://'test35/app-1.0':run?{[]},
+            overlay://'test36/app-1.0':run?{[]},
+            overlay://'test37/app-1.0':run?{[]},
+            overlay://'test38/app-1.0':run?{[]},
+            overlay://'test39/app-1.0':run?{[]},
+            overlay://'test40/os-1.0':run?{[]}
             ]).
 
 
