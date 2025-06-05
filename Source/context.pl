@@ -695,8 +695,23 @@ context:newinstance(Context, Constructor) :-
   findall(Predicate, Parent:declared(property(Predicate,_)), List),
   context:inherit_predicates(instance, Context, Parent, List),
   length(Arguments, Arity),
+  freeze(Context),
   !,
   ( Context:declared(property(Parent/Arity, _)) -> Context:Constructor ; true ).
+
+
+%! freeze(Context)
+%
+% Local predicate
+% Freezes the dynamically generated predicates in an instance to
+% ensure optimal performance.
+
+context:freeze(Context) :-
+  findall(Context:F/A,
+          ( Context:declared(property(F/A,Prop)),
+            Prop \= static ),
+          DynList),
+  compile_predicates(DynList).
 
 
 %! '~'(+Destructor)
