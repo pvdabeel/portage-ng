@@ -70,7 +70,7 @@ tester:test(parallel_verbose,Name,Repository://Item,Generator,Test,Report,Scroll
                                                           )))),
                  time_limit_exceeded,
                  message:scroll_failure([Item,' (time limit exceeded)']));
-           (sleep(1),message:clean,message:failure(Item)))),!,
+           (sleep(1),message:clean,message:warning(Item)))),!,
   message:sc,
   stats:runningtime(Min,Sec),
   message:title_reset,!,
