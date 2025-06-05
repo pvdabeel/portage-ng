@@ -225,7 +225,7 @@ printer:print_use_dependencies([]) :- !.
 printer:print_use_dependencies(Use) :-
   message:color(cyan),
   write(' ['),
-  forall(member(D,Use),printer:print_use_dependency(D)),
+  forall(member(D,Use),(printer:print_use_dependency(D),write(' '))),
   write(']'),
   message:color(normal).
 
