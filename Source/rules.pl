@@ -191,10 +191,6 @@ rule(Repository://Ebuild:run?{Context},[Repository://Ebuild:install?{ForwardCont
   query:filter(package_dependency,run,Md,D).
 
 
-
-
-
-
 % REINSTALL
 %
 % An ebuild can be reinstalled if:
@@ -366,12 +362,18 @@ rule(package_dependency(_://_,_,no,C,N,_,_,_,_):Action?{_},Conditions) :-
   cache:entry_metadata(Repository,Choice,keywords,K),!,
   Conditions = [].
 
-rule(package_dependency(_://_,_,no,C,N,_,_,_,_):Action?{_},Conditions) :-			% todo: some more fine-grained behaviour w.r.t. slots is needed
+rule(package_dependency(_://_,_,no,C,N,_,_,_,U):Action?{Context},Conditions) :-			% todo: some more fine-grained behaviour w.r.t. slots is needed
   \+(Action == config),
   preference:accept_keywords(K),
   cache:ordered_entry(Repository,Choice,C,N,_),
   cache:entry_metadata(Repository,Choice,keywords,K),
-  Conditions = [Repository://Choice:Action?{[]}].						% todo: pass on use deps
+  process_build_with_use(U,Context,NewContext),
+  /*message:color(cyan),
+  (\+ NewContext == []
+   -> (write(R://E),write(': Pushing '),write(NewContext),write(' to: '),write(Repository://Choice),nl)
+   ;  true),
+  message:color(normal),*/
+  Conditions = [Repository://Choice:Action?{NewContext}].
 
 rule(package_dependency(R://E,T,no,C,N,O,V,S,U):Action?{Context},Conditions) :-
   \+(Action == config),
@@ -615,101 +617,106 @@ rule(Literal,[]) :-
 
 process_build_with_use([],_Context,[]) :- !.
 
+
 % 2. use should be enabled for target
 
 process_build_with_use([use(enable(Use),_)|Rest],Context,[required(Use),assumed(Use)|Others]) :-
-  process_build_with_use(Rest,Context,Others),!.
+  !,process_build_with_use(Rest,Context,Others).
 
 % 3. use should be disabled for target
 
 process_build_with_use([use(disable(Use),_)|Rest],Context,[naf(required(Use)),assumed(minus(Use))|Others]) :-
-  process_build_with_use(Rest,Context,Others),!.
+  !,process_build_with_use(Rest,Context,Others).
+
 
 % 4. use should set equal in target as in current ebuild
 
 process_build_with_use([use(equal(Use),_)|Rest],Context,[required(Use),assumed(Use)|Others]) :-
   memberchk(assumed(Use),Context),
-  process_build_with_use(Rest,Context,Others),!.
+  !,process_build_with_use(Rest,Context,Others).
 
 % 4.1 use should be set equal in target, but isn't set in current, follow indicated default (none)
 
 process_build_with_use([use(equal(_Use),none)|Rest],Context,Others) :-
-  process_build_with_use(Rest,Context,Others),!.
+  !,process_build_with_use(Rest,Context,Others).
 
 % 4.2 use should be set equal in target, but isn't set in current, follow indicated default (positive)
 
 process_build_with_use([use(equal(Use),positive)|Rest],Context,[required(Use),assumed(Use)|Others]) :-
-  process_build_with_use(Rest,Context,Others),!.
+  !,process_build_with_use(Rest,Context,Others).
 
 % 4.3 use should be set equal in target, but isn't set in current, follow indicated default (negative)
 
 process_build_with_use([use(equal(Use),negative)|Rest],Context,[naf(required(Use)),assumed(minus(Use))|Others]) :-
-  process_build_with_use(Rest,Context,Others),!.
+  !,process_build_with_use(Rest,Context,Others).
 
 
-% 4. use should set in target to the inverse of current ebuild
+% 5. use should set in target to the inverse of current ebuild
 
 process_build_with_use([use(inverse(Use),_)|Rest],Context,[naf(required(Use)),assumed(minus(Use))|Others]) :-
   (memberchk(assumed(Use),Context);preference:use(Use)),
-  process_build_with_use(Rest,Context,Others),!.
+  !,process_build_with_use(Rest,Context,Others).
 
-% 4.1. use should be set inverse in target, but isn't set in current, following indicated default (none)
+% 5.1. use should be set inverse in target, but isn't set in current, following indicated default (none)
 
 process_build_with_use([use(inverse(_Use),none)|Rest],Context,Others) :-
-  process_build_with_use(Rest,Context,Others),!.
+  !,process_build_with_use(Rest,Context,Others).
 
-% 4.2. use should be set inverse in target, but isn't set in current, following indicated default (positive)
+% 5.2. use should be set inverse in target, but isn't set in current, following indicated default (positive)
 
 process_build_with_use([use(inverse(Use),positive)|Rest],Context,[required(Use),assumed(Use)|Others]) :-
-  process_build_with_use(Rest,Context,Others),!.
+  !,process_build_with_use(Rest,Context,Others).
 
-% 4.3. use should be set inverse in target, but isn't set in current, following indicated default (negative)
+% 5.3. use should be set inverse in target, but isn't set in current, following indicated default (negative)
 
 process_build_with_use([use(inverse(Use),negative)|Rest],Context,[naf(required(Use)),assumed(minus(Use))|Others]) :-
-  process_build_with_use(Rest,Context,Others),!.
+  !,process_build_with_use(Rest,Context,Others).
 
 
-% 5. use should be enabled in target if enabled in current ebuild
+% 6. use should be enabled in target if enabled in current ebuild
 
-process_build_with_use([use(optenable(Use),none)|Rest],Context,[required(Use),assumed(Use)|Others]) :-
+process_build_with_use([use(optenable(Use),_)|Rest],Context,[required(Use),assumed(Use)|Others]) :-
   (memberchk(assumed(Use),Context);preference:use(Use)),
-  process_build_with_use(Rest,Context,Others),!.
+  !,process_build_with_use(Rest,Context,Others).
 
-% 5.1 use should be enabled in target if enabled in current ebuild, but isn't set in current, following indicated default (none)
+% 6.1 use should be enabled in target if enabled in current ebuild, but isn't set in current, following indicated default (none)
 
 process_build_with_use([use(optenable(_Use),none)|Rest],Context,Others) :-
-  process_build_with_use(Rest,Context,Others),!.
+  !,process_build_with_use(Rest,Context,Others).
 
-% 5.2 use should be enabled in target if enabled in current ebuild, but isn't set in current, following indicated default (positive)
+% 6.2 use should be enabled in target if enabled in current ebuild, but isn't set in current, following indicated default (positive)
 
 process_build_with_use([use(optenable(Use),positive)|Rest],Context,[required(Use),assumed(Use)|Others]) :-
-  process_build_with_use(Rest,Context,Others),!.
+  !,process_build_with_use(Rest,Context,Others).
 
-% 5.3 use should be enabled in target if enabled in current ebuild, but isn't set in current, following indicated default (negative)
+% 6.3 use should be enabled in target if enabled in current ebuild, but isn't set in current, following indicated default (negative)
 
 process_build_with_use([use(optenable(Use),negative)|Rest],Context,[naf(required(Use)),assumed(minus(Use))|Others]) :-
-  process_build_with_use(Rest,Context,Others),!.
+  !,process_build_with_use(Rest,Context,Others).
 
 
-% 6. use should be disabled in target if disabled in current ebuild
+% 7. use should be disabled in target if disabled in current ebuild
 
 process_build_with_use([use(optdisable(Use),_)|Rest],Context,[naf(required(Use)),assumed(minus(Use))|Others]) :-
   memberchk(assumed(minus(Use)),Context),
-  process_build_with_use(Rest,Context,Others),!.
+  !,process_build_with_use(Rest,Context,Others).
 
-% 6.1 use should be disabled in target if disabled in current ebuild, but isn't set in current, following indicated default (none)
+% 7.1 use should be disabled in target if disabled in current ebuild, but isn't set in current, following indicated default (none)
 
 process_build_with_use([use(optdisable(_Use),none)|Rest],Context,Others) :-
-  process_build_with_use(Rest,Context,Others),!.
+  !,process_build_with_use(Rest,Context,Others).
 
-% 6.2 use should be disabled in target if disabled in current ebuild, but isn't set in current, following indicated default (positive)
+% 7.2 use should be disabled in target if disabled in current ebuild, but isn't set in current, following indicated default (positive)
 
 process_build_with_use([use(optdisable(Use),positive)|Rest],Context,[required(Use),assumed(Use)|Others]) :-
-  process_build_with_use(Rest,Context,Others),!.
+  !,process_build_with_use(Rest,Context,Others).
 
-% 6.3 use should be disabled in target if disabled in current ebuild, but isn't set in current, following indicated default (negative)
+% 7.3 use should be disabled in target if disabled in current ebuild, but isn't set in current, following indicated default (negative)
 
 process_build_with_use([use(optdisable(Use),negative)|Rest],Context,[naf(required(Use)),assumed(minus(Use))|Others]) :-
-  process_build_with_use(Rest,Context,Others),!.
+  !,process_build_with_use(Rest,Context,Others).
 
 
+process_build_with_use([_|Rest],Context,Others) :-
+  !,
+  process_build_with_use(Rest,Context,Others).
