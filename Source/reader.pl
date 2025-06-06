@@ -10,8 +10,8 @@
 
 /** <module> READER
 The reader reads lines from a file.
-Input:  An full path to a file
-Output: A nested list of character codes, each sublist represents a line.
+Input:  A full path to a file
+Output: A list of strings, each string represents a line.
 */
 
 :- module(reader, []).
@@ -25,52 +25,46 @@ Output: A nested list of character codes, each sublist represents a line.
 %
 % File: The full path of the cache.
 %
-% Contents: A nested list of character codes, each sublist represents a line
+% Contents: A list of strings, each string represents a line
 
-reader:invoke(Stream,Contents) :-
-  is_stream(Stream),!,
-  reader:read_lines_to_codes(Stream,Contents),
+reader:invoke(Stream, Contents) :-
+  is_stream(Stream), !,
+  reader:read_lines_to_strings(Stream, Contents),
   close(Stream).
 
-reader:invoke(File,Contents) :-
-  exists_file(File),!,
-  open(File,read,Stream,[lock(none)]),
-  reader:read_lines_to_codes(Stream,Contents),
+reader:invoke(File, Contents) :-
+  exists_file(File), !,
+  open(File, read, Stream, [lock(none)]),
+  reader:read_lines_to_strings(Stream, Contents),
   close(Stream).
 
-reader:invoke(_,[]) :-
+reader:invoke(_, []) :-
   !.
 
+
+%! reader:read_lines_to_strings(+Stream, -Lines)
+%
+% Given a stream, reads all lines from the stream and returns them as a list of strings
+
+reader:read_lines_to_strings(Stream, Lines) :-
+  system:read_line_to_string(Stream, L),
+  ( L == end_of_file
+    ->  Lines = []
+    ;   Lines = [L|Rest],
+        reader:read_lines_to_strings(Stream, Rest) ).
 
 %! reader:read_lines_to_codes(+Stream, -Lines)
 %
-% Given a stream, reads all lines from the stream and return as a list of codes
+% Retained for compatibility with code expecting character codes
+% Given a stream, reads all lines from the stream and returns as a list of codes
 
-reader:read_lines_to_codes(Stream,[]) :-
-  at_end_of_stream(Stream),
-  !.
-
-reader:read_lines_to_codes(Stream,[L|R]) :-
-  % \+(at_end_of_stream(Stream)),
-  !,
-  read_line_to_codes(Stream,L),
-  reader:read_lines_to_codes(Stream,R).
-
-
-%! reader:read_lines_to_string(+Stream, -Lines)
-%
-% Given a stream, reads all lines from the stream and return as a list of strings
-
-reader:read_lines_to_string(Stream,[]) :-
-  at_end_of_stream(Stream),
-  !.
-
-reader:read_lines_to_string(Stream,[L|R]) :-
-  % \+(at_end_of_stream(Stream)),
-  !,
-  read_line_to_string(Stream,L),
-  reader:read_lines_to_string(Stream,R).
-
+reader:read_lines_to_codes(Stream, Lines) :-
+  system:read_line_to_codes(Stream, L),
+  ( L == end_of_file
+    ->  Lines = []
+    ;   Lines = [L|Rest],
+        reader:read_lines_to_codes(Stream, Rest)
+    ).
 
 %! reader:test(+Repository)
 %
@@ -80,8 +74,8 @@ reader:read_lines_to_string(Stream,[L|R]) :-
 % Repository: The repository instance from which to read all cache entries.
 
 reader:test(Repository) :-
-  time(forall(Repository:get_cache_file(E,C),
-               (reader:invoke(C,_);(message:failure(E)))
-	     )),
-  Repository:get_size(S),!,
-  message:inform(['read ',S,' ',Repository,' entries.']).
+  time(forall(Repository:get_cache_file(E, C),
+              (reader:invoke(C, _); (message:failure(E)))
+            )),
+  Repository:get_size(S), !,
+  message:inform(['read ', S, ' ', Repository, ' entries.']).
