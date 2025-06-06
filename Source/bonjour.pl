@@ -45,7 +45,7 @@ advertise(Service,Port) :-
 discover(Services) :-
   format(string(CommandA), 'dns-sd -t 1 -B _prolog._tcp | grep _prolog._tcp. | sed -e \'s/.*tcp.        //\'', []),
   process_create(path(bash), ['-c', CommandA], [stdout(pipe(StreamA))]),
-  reader:read_lines_to_string(StreamA,Hosts),
+  reader:read_lines_to_strings(StreamA,Hosts),
   findall(Service,
    (member(Host,Hosts),
     format(string(CommandB), 'dns-sd -t 1 -L ~w _prolog._tcp . | grep \'reached at\' | sed -e \'s/.*reached at //\' | sed -e \'s/ (interface.*//\' | sed -e \'s/.:/:/\'', [Host]),

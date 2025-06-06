@@ -89,7 +89,7 @@ load ::-
   <-entry(_),
   see(File),
   current_input(Stream),
-  reader:read_lines_to_string(Stream,Result),
+  reader:read_lines_to_strings(Stream,Result),
   seen,
   forall(member(E,Result),
          <+entry(E)),!.
