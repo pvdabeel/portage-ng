@@ -1,445 +1,250 @@
 /*
   Author:   Pieter Van den Abeele
   E-mail:   pvdabeel@mac.com
-  Copyright (c) 2005-2025, Pieter Van den Abeele
+  Copyright (c) 2005‑2025, Pieter Van den Abeele
 
-  Distributed under the terms of the LICENSE file in the root directory of this
-  project.
-*/
-
-
-/** <module> MESSAGE
-This file contains the predicates used for pretty printing messages.
+  Distributed under the terms of the LICENSE file in the root directory of
+  this project.
 */
 
 :- module(message, []).
 
-% ********************
-% MESSAGE declarations
-% ********************
-
-
-%! message:title(+Message)
-%
-% Sets the terminal title.
-
-message:title(MessageList) :-
-  system:write('\033]0;'),
-  atomic_list_concat(MessageList,Message),
-  system:write(Message),
-  system:write('\a'),!.
-
-message:title_reset :-
-  config:name(Name),
-  message:title([Name]),!.
-
-
-%! message:color(+Color)
-%
-% Sets the message color. Uses ANSI escape codes.
-
-message:color(red) :-
-  system:write('\033[31m').
-
-message:color(green) :-
-  system:write('\033[32m').
-
-message:color(orange) :-
-  system:write('\033[33m').
-
-message:color(blue) :-
-  system:write('\033[34m').
-
-message:color(magenta) :-
-  system:write('\033[35m').
-
-message:color(cyan) :-
-  system:write('\033[36m').
-
-
-message:color(lightgray) :-
-  system:write('\033[37m').
-
-message:color(darkgray) :-
-  system:write('\033[90m').
-
-message:color(lightred) :-
-  system:write('\033[91m').
-
-message:color(lightgreen) :-
-  system:write('\033[92m').
-
-message:color(lightorange) :-
-  system:write('\033[93m').
-
-message:color(lightblue) :-
-  system:write('\033[94m').
-
-message:color(lightmagenta) :-
-  system:write('\033[95m').
-
-message:color(lightcyan) :-
-  system:write('\033[96m').
-
-message:color(normal) :-
-  system:write('\033[00m').
-
-
-%! message:el
-%
-% Clears all characters from the cursor position to the end of line
-
-message:el :-
-  system:write('\033[K').
-
-
-%! message:hc
-%
-% Hides cursor
-
-message:hc :-
-  system:write('\033[?25l').
-
-
-%! message:sc
-%
-% Show cursor
-
-message:sc :-
-  system:write('\033[?25h').
-
-
-%! message:bl
-%
-% Return cursor to beginning of line
-
-message:bl :-
-  system:write('\033[1G').
-
-
-%! message:style(+Style)
-%
-% Sets the message style. Uses ANSI escape codes.
-
-message:style(bold) :-
-  system:write('\033[01m').
-
-message:style(blink) :-
-  system:write('\033[05m').
-
-message:style(underline) :-
-  system:write('\033[04m').
-
-message:style(italic) :-
-  system:write('\033[03m').
-
-message:style(dim) :-
-  system:write('\033[02m').
-
-message:style(normal) :-
-  system:write('\033[00m').
-
-
-%! message:eend(+Message)
-%
-% Append at the end of the line
-
-message:eend(Message) :-
-  tty_size(_,Y),
-  NewY is Y - 2,
-  format('~t~a~*|',[Message,NewY]),!.
-
-
-%! message:column(+Number,+Message)
-%
-% Writes a message in a given colum
-
-message:column(Number,Message) :-
-  format('~*| ~w',[Number,Message]),!.
-
-
-%! message:hl(C)
-%
-% Writes a horizontal line with a given char
-
-message:hl(C) :-
-  tty_size(_,Y),
-  forall(between(1,Y,_),write(C)).
-
-
-%! message:hl
-%
-% Write a horizontal line
-
-message:hl :-
-  message:hl('-').
-
-
-%! message:print(+Message)
-%
-% Write a list or simple message
-
-message:print(Message) :-
-  is_list(Message),!,
-  forall(lists:member(M,Message),
-    system:write(M)).
-
-message:print(Message) :-
-  system:write(Message).
-
-
-%! message:failure(+Message)
-%
-% Informs the user about a failure and fails.
-
-message:failure(Message) :-
-  %message:prefix(failure),
-  message:color(red),
-  message:style(bold),
-  system:write('[FAILURE] '),
-  message:style(normal),
-  message:color(normal),
-  message:print(Message),
-  nl,
-  fail.
-
-
-%! message:warning(+Message)
-%
-% Informs the user about a warning and continues.
-
-message:warning(Message) :-
-  %message:prefix(warning),
-  message:color(orange),
-  message:style(bold),
-  system:write('[WARNING] '),
-  message:color(normal),
-  message:print(Message),
-  nl.
-
-
-%! message:success(+Message)
-%
-% Informs the user about something that went OK and continues.
-
-message:success(Message) :-
-  %message:prefix(good),
-  message:color(green),
-  message:style(bold),
-  system:write('[SUCCESS] '),
-  message:color(normal),
-  message:print(Message),
-  nl.
-
-
-%! message:inform(+Message)
-%
-% Informs the user about something
-% Message is a list.
-
-message:inform(Message) :-
-  system:write('% '),
-  message:print(Message),
-  nl.
-
-
-%! message:notice(+Message)
-%
-% Informs the user about something
-% Message is a list.
-
-message:notice(Message) :-
-  message:style(italic),
-  message:color(darkgray),
-  system:write('% '),
-  message:print(Message),
-  message:color(normal),
-  message:style(normal),
-  nl.
-
-
-%! message:scroll(+Message)
-%
-% Informs the user about something - scroll style
-% Message is a list.
-
-message:scroll(Message) :-
-  system:write('% '),
-  message:print(Message),
-  message:el,
-  flush_output,
-  message:bl.
-
-
-%! message:scroll(+Message)
-%
-% Informs the user about a success - scroll style
-% Message is a list.
-
-message:scroll_success(Message) :-
-  message:color(green),
-  message:style(bold),
-  message:print(['[SUCCESS] ']),
-  message:color(normal),
-  message:print(Message),
-  message:el,
-  message:bl,
-  flush_output.
-
-message:scroll_failure(Message) :-
-  message:color(red),
-  message:style(bold),
-  message:print(['[FAILURE] ']),
-  message:color(normal),
-  message:print(Message),
-  message:el,
-  message:bl,
-  flush_output.
-
-message:scroll_warning(Message) :-
-  message:color(orange),
-  message:style(bold),
-  message:print(['[WARNING] ']),
-  message:color(normal),
-  message:print(Message),
-  message:el,
-  message:bl,
-  flush_output.
-
-message:scroll_inform(Message) :-
-  system:write('% '),
-  message:print(Message),
-  message:el,
-  message:bl,
-  flush_output.
-
-message:scroll_notice(Message) :-
-  message:style(italic),
-  message:color(darkgray),
-  system:write('% '),
-  message:print(Message),
-  message:color(normal),
-  message:style(normal),
-  message:el,
-  message:bl,
-  flush_output.
-
-
-%! message:clean
-%
-% Cleans the current line without moving the cursor
-
-message:clean :-
-  message:el.
-
-
-%! message:topheader(+Message)
-%
-% Informs the user about something - header style
-% Message is a list.
-
-message:topheader(Message) :-
-  message:color(cyan),
-  message:style(bold),
-  system:write('### '),
-  forall(lists:member(M,Message),
-    system:write(M)),
-  message:color(normal),
-  message:style(normal),
-  nl,nl.
-
-
-%! message:header(+Message)
-%
-% Informs the user about something - header style
-% Message is a list.
-
-message:header(Message) :-
-  message:color(orange),
-  message:style(bold),
-  system:write('>>> '),
-  forall(lists:member(M,Message),
-    system:write(M)),
-  message:color(normal),
-  message:style(normal),
-  nl.
-
-message:header(Header,[E|R]) :-
-  message:color(orange),
-  message:style(bold),
-  system:write('>>> '),
-  system:write(Header),
-  system:write(': '),
-  system:write(E),nl,
-  forall(member(M,R),
-   (system:write('               '),
-    system:write(M),
-    nl)),
-  message:color(normal),
-  message:style(normal),
-  nl.
-
-
-%! message:convert_bytes(+Bytes,-Output,-Unit)
-%
-% Converts a number of bytes into a gigabyte, megabyte or kilobyte
-
-message:convert_bytes(Bytes,Output) :-
-  Bytes >= 1024 * 1024 * 1024,!,
-  Gigabytes is Bytes / 1024 / 1024 / 1024,
-  format(atom(Output),'~2f Gb~10|',[Gigabytes]).
-
-
-message:convert_bytes(Bytes,Output) :-
-  Bytes < 1024 * 1024 * 1024,
-  Bytes >= 1024 * 1024, !,
-  Megabytes is Bytes / 1024 / 1024,
-  format(atom(Output),'~2f Mb~10|',[Megabytes]).
-
-message:convert_bytes(Bytes,Output) :-
-  Bytes < 1024 * 1024, !,
-  Kilobytes is Bytes / 1024,
-  format(atom(Output),'~2f Kb~10|',[Kilobytes]).
-
-
-%! message:datetime(Datetime)
-%
-% Return current time & date as an atom
-
-message:datetime(Datetime) :-
-  get_time(Stamp),stamp_date_time(Stamp,X,'local'),
-  format_time(atom(Datetime),'%a %d %b %Y %T',X).
-
-
-%! message:format_bytes(+Bytes)
-%
-% Formats a given number of bytes
-
-message:print_bytes('live') :-
-  !,
-  format('~tlive      ~10|',[]).
-
-message:print_bytes(Bytes) :-
-  message:convert_bytes(Bytes,Output),
-  format('~t~w~10|',[Output]).
-
-
-%! message:prefix(+Message)
-%
-% Message prefix
-
-message:prefix(_Message) :-
-  system:write('>>> ').
-
-
-%! message:wrap(+Rule)
-%
-% Informs and executes
-
-message:wrap(Rule) :-
-  message:color(green),
-  system:write('--- Executing '),
-  message:color(normal),
-  system:write(Rule),nl,
-  Rule,
-  nl.
+:- use_module(library(lists)).
+:- use_module(library(ansi_term)).
+:- use_module(library(readutil)).
+
+:- dynamic term_width_/1.
+
+%------------------------------------------------------------------------------
+%  Low‑level helpers
+%------------------------------------------------------------------------------
+
+%! term_width(-Width) is det.
+%  Cached variant of tty_size/2. Falls back to 80 when not a TTY.
+term_width(W) :-
+    term_width_(W),
+    !.
+term_width(W) :-
+    (   tty_size(_, W0)
+    ->  W = W0
+    ;   W = 80
+    ),
+    asserta(term_width_(W)).
+
+%------------------------------------------------------------------------------
+%  Colour & style tables
+%------------------------------------------------------------------------------
+
+:- multifile color_code/2, style_code/2.
+
+color_code(red,          "31").
+color_code(green,        "32").
+color_code(orange,       "33").
+color_code(blue,         "34").
+color_code(magenta,      "35").
+color_code(cyan,         "36").
+color_code(lightgray,    "37").
+color_code(darkgray,     "90").
+color_code(lightred,     "91").
+color_code(lightgreen,   "92").
+color_code(lightorange,  "93").
+color_code(lightblue,    "94").
+color_code(lightmagenta, "95").
+color_code(lightcyan,    "96").
+color_code(normal,       "00").
+
+style_code(bold,      "01").
+style_code(blink,     "05").
+style_code(underline, "04").
+style_code(italic,    "03").
+style_code(dim,       "02").
+style_code(normal,    "00").
+
+color(Name) :-
+    color_code(Name, Code),
+    format('\e[~sm', [Code]).
+
+style(Name) :-
+    style_code(Name, Code),
+    format('\e[~sm', [Code]).
+
+%------------------------------------------------------------------------------
+%  Cursor helpers
+%------------------------------------------------------------------------------
+
+el :- write('\e[K').
+hc :- write('\e[?25l').
+sc :- write('\e[?25h').
+bl :- write('\e[1G').
+
+%------------------------------------------------------------------------------
+%  Title helpers
+%------------------------------------------------------------------------------
+
+title(Parts) :-
+    msg_atom(Parts, Atom),
+    format('\e]0;~s\a', [Atom]).
+
+title_reset :-
+    catch(config:name(Name), _, fail),
+    !,
+    title([Name]).
+
+title_reset.
+
+%------------------------------------------------------------------------------
+%  Printing helpers
+%------------------------------------------------------------------------------
+
+print(Item) :-
+    msg_atom(Item, Atom),
+    write(Atom).
+
+column(N, Msg) :-
+    format('~*| ~w', [N, Msg]).
+
+eend(Msg) :-
+    term_width(W),
+    Col is W - 2,
+    msg_atom(Msg, Atom),
+    format('~t~a~*|', [Atom, Col]).
+
+hl(Char) :-
+    term_width(W),
+    atom_chars(Char, [C]),
+    atomic_list_concat(['~`', C, 't~*|\n'], Fmt),
+    format(Fmt, [W]).
+
+hl :- hl('-').
+
+%------------------------------------------------------------------------------
+%  Byte helpers
+%------------------------------------------------------------------------------
+
+convert_bytes(Bytes, Atom) :-
+    (   Bytes >= 1 << 30
+    ->  Unit = 'Gb', Value is Bytes / (1 << 30)
+    ;   Bytes >= 1 << 20
+    ->  Unit = 'Mb', Value is Bytes / (1 << 20)
+    ;   Unit = 'Kb',  Value is Bytes / (1 << 10)
+    ),
+    format(atom(Atom), '~2f ~w~10|', [Value, Unit]).
+
+print_bytes(live) :-
+    format('~tlive      ~10|', []).
+
+print_bytes(Bytes) :-
+    convert_bytes(Bytes, Atom),
+    format('~t~w~10|', [Atom]).
+
+%------------------------------------------------------------------------------
+%  Date/time
+%------------------------------------------------------------------------------
+
+datetime(Datetime) :-
+    get_time(Stamp),
+    stamp_date_time(Stamp, DT, 'local'),
+    format_time(atom(Datetime), '%a %d %b %Y %T', DT).
+
+%------------------------------------------------------------------------------
+%  Messaging backend
+%------------------------------------------------------------------------------
+
+:- meta_predicate
+        msg(+,+),
+        msg_scroll(+,+).
+
+level_attrs(success, [bold, fg(green)],     '[SUCCESS] ').
+level_attrs(warning, [bold, fg(yellow)],    '[WARNING] ').
+level_attrs(failure, [bold, fg(red)],       '[FAILURE] ').
+level_attrs(inform,  [],                    '% ').
+level_attrs(notice,  [faint, fg(white)],    '% ').
+
+msg(Level, Text) :-
+    level_attrs(Level, Attrs, Prefix),
+    msg_atom(Text, Atom),
+    ansi_format(Attrs, '~s~s', [Prefix, Atom]),
+    nl,
+    ( Level == failure -> fail ; true ).
+
+msg_scroll(Level, Text) :-
+    level_attrs(Level, Attrs, Prefix),
+    msg_atom(Text, Atom),
+    ansi_format(Attrs, '~s~s', [Prefix, Atom]),
+    el,
+    bl,
+    flush_output,
+    ( Level == failure -> fail ; true ).
+
+failure(T)        :- msg(failure, T).
+warning(T)        :- msg(warning, T).
+success(T)        :- msg(success, T).
+inform(T)         :- msg(inform,  T).
+notice(T)         :- msg(notice,  T).
+
+scroll_failure(T) :- msg_scroll(failure, T).
+scroll_warning(T) :- msg_scroll(warning, T).
+scroll_success(T) :- msg_scroll(success, T).
+scroll_inform(T)  :- msg_scroll(inform,  T).
+scroll_notice(T)  :- msg_scroll(notice,  T).
+scroll(T)         :- msg_scroll(inform,  T).
+
+%------------------------------------------------------------------------------
+%  Header helpers
+%------------------------------------------------------------------------------
+
+%! msg_atom(+Any, -Atom) is det.
+%  Convert any printable term to a flat atom.
+msg_atom(List, Atom) :-
+    is_list(List),
+    !,
+    maplist(msg_atom, List, Atoms),
+    atomic_list_concat(Atoms, Atom).
+msg_atom(Atomic, Atomic) :-
+    atomic(Atomic),
+    !.
+msg_atom(Var, Atom) :-
+    var(Var),
+    !,
+    term_to_atom(Var, Atom).
+msg_atom(Compound, Atom) :-
+    term_to_atom(Compound, Atom).
+
+topheader(Message) :-
+    msg_atom(Message, Atom),
+    ansi_format([bold, fg(cyan)], '### ~s', [Atom]),
+    nl, nl.
+
+header(Message) :-
+    msg_atom(Message, Atom),
+    ansi_format([bold, fg(yellow)], '>>> ~s', [Atom]),
+    nl.
+
+header(Header, [First | Rest]) :-
+    msg_atom(First, FirstAtom),
+    ansi_format([bold, fg(yellow)], '>>> ~w: ~s', [Header, FirstAtom]),
+    nl,
+    forall(member(Item, Rest),
+           ( msg_atom(Item, ItemAtom),
+             ansi_format([bold, fg(yellow)], '               ~s~n', [ItemAtom]) )),
+    nl.
+
+%------------------------------------------------------------------------------
+%  Misc helpers
+%------------------------------------------------------------------------------
+
+clean :- el.
+
+prefix(_) :- write('>>> ').
+
+:- meta_predicate wrap(0).
+wrap(Goal) :-
+    color(green),
+    write('--- Executing '),
+    color(normal),
+    write(Goal),
+    nl,
+    call(Goal),
+    nl.
+
+% end of file
