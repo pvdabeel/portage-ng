@@ -412,6 +412,9 @@ preference:masked(portage://'app-portage/elt-patches-99999999').
 preference:masked(portage://'dev-build/libtool-9999').
 preference:masked(portage://'dev-build/meson-9999').
 preference:masked(portage://'dev-vcs/git-9999-r3').
+preference:masked(portage://'dev-vcs/git-9999-r2').
+preference:masked(portage://'dev-vcs/git-9999-r1').
+preference:masked(portage://'dev-vcs/git-9999').
 preference:masked(portage://'net-libs/libssh2-9999').
 preference:masked(portage://'net-misc/curl-9999').
 
