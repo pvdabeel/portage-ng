@@ -1094,32 +1094,62 @@ printer:print_next_in_step(Target,[_|Rest]) :-
 %! printer:print_footer(+Plan)
 %
 % Print the footer for a given plan
+% print_footer/3 - Optimized version with streamlined string handling
 
-printer:print_footer(Plan,Model,PrintedSteps) :-
-  countlist(assumed(_),Model,_Assumptions),
-  countlist(constraint(_),Model,_Constraints),
-  countlist(naf(_),Model,_Nafs),
-  countlist(_://_:_?_,Model,Actions),
-  countlist(_://_:fetchonly?_,Model,Fetches),
-  aggregate_all(sum(T),(member(R://E:download?_,Model),ebuild:download_size(preference,R://E,T)),TotalDownloadSize),
-  countlist(_://_:download?_,Model,Downloads),
-  countlist(_://_:run?_,Model,Runs),
-  countlist(_://_:install?_,Model,PureInstalls),
-  countlist(_://_:reinstall?_,Model,Reinstalls),
-  Installs is PureInstalls + Reinstalls,
-  countlist(package_dependency(run,_,_,_,_,_,_,_):_Action,Model,_Verifs),
-  Total is Actions - Fetches, % + Verifs,
-  length(Plan,_Steps),
-  (Total     == 1 -> Total_str     = 'action' ;   Total_str    = 'actions'),
-  (Downloads == 1 -> Download_str  = 'download' ; Download_str = 'downloads'),
-  (Installs  == 1 -> Install_str   = 'install' ;  Install_str  = 'installs'),
-  (Runs      == 1 -> Run_str       = 'run' ;      Run_str      = 'runs'),
-  (PrintedSteps == 1 -> Ps_str     = 'step';      Ps_str       = 'steps'),
-  message:print(['Total: ', Total, ' ',Total_str,' (', Downloads, ' ',Download_str,', ', Installs,' ',Install_str,', ', Runs,' ',Run_str,'), grouped into ',PrintedSteps,' ',Ps_str,'.' ]),nl,
-  message:print(['       ']),
-  message:convert_bytes(TotalDownloadSize,A),
-  message:print([A,' to be downloaded.']),nl,
-  nl.
+printer:print_footer(_Plan, Model, PrintedSteps) :-
+  footer_stats(Model, S),
+  pluralize(S.actions, action, actions, TotalStr),
+  pluralize(S.downloads, download, downloads, DStr),
+  pluralize(S.installs, install, installs, IStr),
+  pluralize(S.reinstalls, reinstall, reinstalls, RIStr),
+  pluralize(S.runs, run, runs, RStr),
+  pluralize(PrintedSteps, step, steps, PStr),
+  format('Total: ~d ~w (~d ~w, ~d ~w, ~d ~w, ~d ~w), grouped into ~d ~w.~n',
+         [S.actions, TotalStr, S.downloads, DStr, S.installs, IStr, S.reinstalls, RIStr, S.runs, RStr, PrintedSteps, PStr]),
+  message:convert_bytes(S.total_dl, BytesStr),
+  format('~7|~w to be downloaded.~n~n', [BytesStr]).
+
+% pluralize/4 - Helper to handle singular/plural forms
+pluralize(1, Singular, _, Singular) :- !.
+pluralize(_, _, Plural, Plural).
+
+% footer_stats/2 - Uses foldl/4 with update_stats/3
+footer_stats(Model, Stats) :-
+  foldl(printer:update_stats, Model,
+        stats{ass:0, con:0, naf:0, actions:0, fetches:0,
+              downloads:0, runs:0, installs:0, reinstalls:0, total_dl:0},
+        Stats).
+
+% update_stats/3 - Increments actions for downloads, installs, and runs
+printer:update_stats(assumed(_), S0, S) :-
+  S = S0.put(ass, S0.ass+1).
+
+printer:update_stats(constraint(_), S0, S) :-
+  S = S0.put(con, S0.con+1).
+
+printer:update_stats(naf(_), S0, S) :-
+  S = S0.put(naf, S0.naf+1).
+
+printer:update_stats(_://_:fetchonly?_, S0, S) :-
+  S = S0.put(fetches, S0.fetches+1, actions:S0.actions+1).
+
+printer:update_stats(R://E:download?_, S0, S) :-
+  ebuild:download_size(preference, R://E, Bytes),
+  S = S0.put(_{downloads:S0.downloads+1, total_dl:S0.total_dl+Bytes, actions:S0.actions+1}).
+
+printer:update_stats(_://_:run?_, S0, S) :-
+  S = S0.put(_{runs:S0.runs+1, actions:S0.actions+1}).
+
+printer:update_stats(_://_:install?_, S0, S) :-
+  S = S0.put(_{installs:S0.installs+1, actions:S0.actions+1}).
+
+printer:update_stats(_://_:reinstall?_, S0, S) :-
+  S = S0.put(_{reinstalls:S0.reinstalls+1, actions:S0.actions+1}).
+
+printer:update_stats(_://_:_?_, S0, S) :-
+  S = S0.put(actions, actions:S0.actions+1).
+
+printer:update_stats(_, S, S).
 
 
 %! printer:print_warnings(+Model, +Proof)
@@ -1187,7 +1217,7 @@ printer:dry_run(_Step) :-
 
 unify(A,B) :- unifiable(A,B,_),!.
 
-countlist(Predicate,List,Count) :-
+/*countlist(Predicate,List,Count) :-
   include(unify(Predicate),List,Sublist),!,
   length(Sublist,Count).
 
@@ -1200,7 +1230,7 @@ allempty([],[],[],[]).
 allempty([],[],[],[],[]).
 allempty([],[],[],[],[],[]).
 allempty([],[],[],[],[],[],[]).
-
+*/
 
 %! printer:test(+Repository)
 %
