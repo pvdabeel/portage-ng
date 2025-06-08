@@ -1131,7 +1131,7 @@ printer:update_stats(naf(_), S0, S) :-
   S = S0.put(naf, S0.naf+1).
 
 printer:update_stats(_://_:fetchonly?_, S0, S) :-
-  S = S0.put(fetches, S0.fetches+1, actions:S0.actions+1).
+  S = S0.put(_{fetches:S0.fetches+1}).
 
 printer:update_stats(R://E:download?_, S0, S) :-
   ebuild:download_size(preference, R://E, Bytes),
@@ -1147,7 +1147,7 @@ printer:update_stats(_://_:reinstall?_, S0, S) :-
   S = S0.put(_{reinstalls:S0.reinstalls+1, actions:S0.actions+1}).
 
 printer:update_stats(_://_:_?_, S0, S) :-
-  S = S0.put(actions, actions:S0.actions+1).
+  S = S0.put(actions, S0.actions+1).
 
 printer:update_stats(_, S, S).
 
