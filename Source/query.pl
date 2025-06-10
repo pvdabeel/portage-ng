@@ -14,40 +14,269 @@ An implementation of a query language for the knowledge base
 
 :- module(query,[]).
 
+
+% ************
+% QUERY MACROS
+% ************
+
+% During compilation of the prolog code, we substitute calls to query predicates
+% with relevant cache:ordered_entry and cache:entry_metadata predicates, which
+% have been indexed by the JIT indexer and essentially provide O(1) lookup.
+%
+% Over 50% of proving time is spent querying, by using Macros and working with
+% an indexed data structure, we keep calling overhead to a minimum.
+
 :- multifile user:goal_expansion/2.
 
-% Expand only when the query (first argument) is ground
-user:goal_expansion(query:search(Q, Repo://Id), Expanded) :-
-    ground(Q),
-    compile_query(Q, Repo://Id, Expanded).
+% We treat both list queries and compound queries
 
-% Turn a list of statements into a conjunction of cache calls
-compile_query([], _Entry, true).
-compile_query([S|Ss], Entry, (One, Rest)) :-
-    compile_statement(S, Entry, One),
-    compile_query(Ss, Entry, Rest).
+user:goal_expansion(search(Q, Repo://Id), Expanded) :-
+  is_list(Q),!,
+  write('Inside list macro: '),write(Q),nl,
+  compile_query_list(Q, Repo://Id, Expanded),
+  write('Turned list into: '),write(Expanded),nl,nl,
+  message:color(normal).
 
-% A few common statements — extend as needed
-compile_statement(name(Name),        Repo://Id,
-                  cache:ordered_entry(Repo,Id,_,Name,_)).
-compile_statement(category(Cat),     Repo://Id,
-                  cache:ordered_entry(Repo,Id,Cat,_,_)).
-compile_statement(slot(Slot),        Repo://Id,
-                  cache:entry_metadata(Repo,Id,slot,slot(Slot))).
-compile_statement(keywords(KW),      Repo://Id,
-                  cache:entry_metadata(Repo,Id,keywords,KW)).
-compile_statement(installed(Bool),   Repo://Id,
-                  cache:entry_metadata(Repo,Id,installed,Bool)).
-
-% Fallback – if you haven't added a compile rule, leave it alone
-compile_statement(Stmt, Entry,
-                  query:search(Stmt,Entry)).
+user:goal_expansion(search(Q, Repo://Id), Expanded) :-
+  compound(Q),!,
+  write('Inside compound macro: '),write(Q),nl,
+  compile_query_compound(Q, Repo://Id, Expanded),
+  write('Turned compound into: '),write(Expanded),nl,nl,
+  message:color(normal).
 
 
+% We turn list queries into joined compound queries
 
-% ******************
-% QUERY declarations
-% ******************
+compile_query_list([], _Repo://_Id, true).
+
+compile_query_list([S|Ss], Repo://Id, (One, Rest)) :-
+  compile_query_compound(S, Repo://Id, One),
+  compile_query_list(Ss, Repo://Id, Rest).
+
+
+% We turn compound queries into cache statements
+
+compile_query_compound(name(Name),        		Repo://Id,
+  cache:ordered_entry(Repo,Id,_,Name,_))          	:- message:color(green).
+
+compile_query_compound(category(Cat),     		Repo://Id,
+  cache:ordered_entry(Repo,Id,Cat,_,_))           	:- message:color(green).
+
+compile_query_compound(version(Ver),      		Repo://Id,
+  cache:ordered_entry(Repo,Id,_,_,Ver))           	:- message:color(green).
+
+compile_query_compound(slot(Slot),        		Repo://Id,
+  cache:entry_metadata(Repo,Id,slot,slot(Slot)))  	:- message:color(green).
+
+compile_query_compound(keywords(KW),      		Repo://Id,
+  cache:entry_metadata(Repo,Id,keywords,KW))      	:- message:color(green).
+
+compile_query_compound(installed(Bool),   		Repo://Id,
+  cache:entry_metadata(Repo,Id,installed,Bool))   	:- message:color(green).
+
+compile_query_compound(required_use(Use), 		Repo://Id,
+  cache:entry_metadata(Repo,Id,required_use,Use)) 	:- message:color(green).
+
+compile_query_compound(src_uri(Uri),      		Repo://Id,
+  cache:entry_metadata(Repo,Id,src_uri,Uri))      	:- message:color(green).
+
+compile_query_compound(bdepend(B),        		Repo://Id,
+  cache:entry_metadata(Repo,Id,bdepend,B))        	:- message:color(green).
+
+compile_query_compound(cdepend(C),         		Repo://Id,
+  cache:entry_metadata(Repo,Id,cdepend,C))         	:- message:color(green).
+
+compile_query_compound(depend(D),         		Repo://Id,
+  cache:entry_metadata(Repo,Id,depend,D))         	:- message:color(green).
+
+compile_query_compound(idepend(I),        		Repo://Id,
+  cache:entry_metadata(Repo,Id,idepend,I))        	:- message:color(green).
+
+compile_query_compound(pdepend(P),        		Repo://Id,
+  cache:entry_metadata(Repo,Id,pdepend,P))        	:- message:color(green).
+
+compile_query_compound(rdepend(P),        		Repo://Id,
+  cache:entry_metadata(Repo,Id,rdepend,P))        	:- message:color(green).
+
+compile_query_compound(defined_phases(P), 		Repo://Id,
+  cache:entry_metadata(Repo,Id,defined_phases,P)) 	:- message:color(green).
+
+compile_query_compound(description(D),    		Repo://Id,
+  cache:entry_metadata(Repo,Id,description,D))    	:- message:color(green).
+
+compile_query_compound(eapi(E),           		Repo://Id,
+  cache:entry_metadata(Repo,Id,eapi,E))           	:- message:color(green).
+
+compile_query_compound(homepage(H),       		Repo://Id,
+  cache:entry_metadata(Repo,Id,homepage,H))       	:- message:color(green).
+
+compile_query_compound(license(L),        		Repo://Id,
+  cache:entry_metadata(Repo,Id,license,L))        	:- message:color(green).
+
+compile_query_compound(license(L),        		Repo://Id,
+  cache:entry_metadata(Repo,Id,license,L))        	:- message:color(green).
+
+compile_query_compound(local(L),          		Repo://Id,
+  cache:entry_metadata(Repo,Id,local,L))          	:- message:color(green).
+
+compile_query_compound(properties(P),     		Repo://Id,
+  cache:entry_metadata(Repo,Id,properties,P))     	:- message:color(green).
+
+compile_query_compound(restrict(R),       		Repo://Id,
+  cache:entry_metadata(Repo,Id,restrict,R))           	:- message:color(green).
+
+compile_query_compound(timestamp(T),      		Repo://Id,
+  cache:entry_metadata(Repo,Id,timestamp,T))          	:- message:color(green).
+
+compile_query_compound(dependency(D,run), 		Repo://Id,
+  ( cache:entry_metadata(Repo,Id,idepend,D)
+  ; cache:entry_metadata(Repo,Id,rdepend,D) ))        	:- message:color(green).
+
+compile_query_compound(dependency(D,compile), 		Repo://Id,
+  ( cache:entry_metadata(Repo,Id,bdepend,D)
+  ; cache:entry_metadata(Repo,Id,cdepend,D)
+  ; cache:entry_metadata(Repo,Id,depend,D) ))         	:- message:color(green).
+
+compile_query_compound(dependency(D,run_compile),       Repo://Id,
+  ( cache:entry_metadata(Repo,Id,bdepend,D)
+  ; cache:entry_metadata(Repo,Id,cdepend,D)
+  ; cache:entry_metadata(Repo,Id,depend,D)
+  ; cache:entry_metadata(Repo,Id,idepend,D)
+  ; cache:entry_metadata(Repo,Id,rdepend,D) ))        	:- message:color(green).
+
+% still missing: version , eclasses, iuse, md5
+
+compile_query_compound(select(name,equal,N),            Repo://Id,
+  cache:ordered_entry(Repo,Id,_,N,_))                 	:- message:color(green).
+
+compile_query_compound(select(category,equal,C),        Repo://Id,
+  cache:ordered_entry(Repo,Id,C,_,_))                 	:- message:color(green).
+
+compile_query_compound(select(version,equal,Ver),      	Repo://Id,
+  cache:ordered_entry(Repo,Id,_,_,Ver))               	:- message:color(green).
+
+compile_query_compound(select(version,equal,Ver),      	Repo://Id,
+  cache:ordered_entry(Repo,Id,_,_,Ver))               	:- message:color(green).
+
+compile_query_compound(select(version,smaller,ReqVer),  Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
+    system:compare(<,ProposedVersion,ReqVer) ))         :- message:color(green).
+
+compile_query_compound(select(version,greater,ReqVer),  Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
+    system:compare(>,ProposedVersion,ReqVer) ))         :- message:color(green).
+
+compile_query_compound(select(version,smallerequal,ReqVer),  Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
+    system:compare(=<,ProposedVersion,ReqVer) ))        :- message:color(green).
+
+compile_query_compound(select(version,greaterequal,ReqVer),  Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
+    system:compare(>=,ProposedVersion,ReqVer) ))        :- message:color(green).
+
+compile_query_compound(all(S),                         	Repo://Id,
+  query:search(all(S),Repo://Id)) 			:- var(S),!, message:color(cyan).
+
+compile_query_compound(all(S):A?{C},                   	Repo://Id,
+  query:search(all(S):A?{C},Repo://Id)) 		:- var(S),!, message:color(cyan).
+
+
+compile_query_compound(all(src_uri(U)),      		Repo://Id,
+  findall(Uri,
+          cache:entry_metadata(Repo,Id,src_uri,Uri),
+          U)) 						:- message:color(green).
+
+compile_query_compound(all(required_use(U)),      	Repo://Id,
+  findall(Use,
+          cache:entry_metadata(Repo,Id,required_use,Use),
+          U)) 						:- message:color(green).
+
+compile_query_compound(all(bdepend(B)),                 Repo://Id,
+  findall(Dep,
+          cache:entry_metadata(Repo,Id,bdepend,Dep),
+          B))                                           :- message:color(green).
+
+compile_query_compound(all(depend(D)),      		Repo://Id,
+  findall(Dep,
+          cache:entry_metadata(Repo,Id,depend,Dep),
+          D)) 						:- message:color(green).
+
+compile_query_compound(all(cdepend(C)),      		Repo://Id,
+  findall(Dep,
+          cache:entry_metadata(Repo,Id,cdepend,Dep),
+          C)) 						:- message:color(green).
+
+compile_query_compound(all(idepend(I)),                 Repo://Id,
+  findall(Dep,
+          cache:entry_metadata(Repo,Id,idepend,Dep),
+          I))                                           :- message:color(green).
+
+compile_query_compound(all(rdepend(R)),      		Repo://Id,
+  findall(Dep,
+          cache:entry_metadata(Repo,Id,rdepend,Dep),
+          R)) 						:- message:color(green).
+
+compile_query_compound(all(pdepend(P)),                 Repo://Id,
+  findall(Dep,
+          cache:entry_metadata(Repo,Id,pdepend,Dep),
+          P))                                           :- message:color(green).
+
+
+
+compile_query_compound(all(dependency(D,run)),          Repo://Id,
+  findall(Dep,
+          ( cache:entry_metadata(Repo,Id,idepend,Dep)
+          ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
+          D))          					:- message:color(green).
+
+compile_query_compound(all(dependency(D,compile)),      Repo://Id,
+  findall(Dep,
+          ( cache:entry_metadata(Repo,Id,bdepend,Dep)
+          ; cache:entry_metadata(Repo,Id,cdepend,Dep)
+          ; cache:entry_metadata(Repo,Id,depend,Dep) ),
+          D))          					:- message:color(green).
+
+compile_query_compound(all(dependency(D,run_compile)),  Repo://Id,
+  findall(Dep,
+          ( cache:entry_metadata(Repo,Id,bdepend,Dep)
+          ; cache:entry_metadata(Repo,Id,cdepend,Dep)
+          ; cache:entry_metadata(Repo,Id,depend,Dep)
+          ; cache:entry_metadata(Repo,Id,idepend,Dep)
+          ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
+          D))          					:- message:color(green).
+
+compile_query_compound(all(dependency(D,run)):A?{C},    Repo://Id,
+  findall(Dep:A?{C},
+          ( cache:entry_metadata(Repo,Id,idepend,Dep)
+          ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
+          D))                                           :- message:color(green).
+
+compile_query_compound(all(dependency(D,compile)):A?{C},Repo://Id,
+  findall(Dep:A?{C},
+          ( cache:entry_metadata(Repo,Id,bdepend,Dep)
+          ; cache:entry_metadata(Repo,Id,cdepend,Dep)
+          ; cache:entry_metadata(Repo,Id,depend,Dep) ),
+          D))                                           :- message:color(green).
+
+compile_query_compound(all(dependency(D,run_compile)):A?{C},  Repo://Id,
+  findall(Dep:A?{C},
+          ( cache:entry_metadata(Repo,Id,bdepend,Dep)
+          ; cache:entry_metadata(Repo,Id,cdepend,Dep)
+          ; cache:entry_metadata(Repo,Id,depend,Dep)
+          ; cache:entry_metadata(Repo,Id,idepend,Dep)
+          ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
+          D))                                           :- message:color(green).
+
+% Fallback – Stuff for which a macro doesn't exist, we fall back to regular predicates
+
+compile_query_compound(Stmt, Entry,
+  query:search(Stmt,Entry)) :- message:color(orange).
+
+
+
+% ****************
+% QUERY PREDICATES
+% ****************
 
 % Query essentially queries the cache facts, which are maintained
 % by the knowledge base.
@@ -100,11 +329,11 @@ search([Statement|Rest],Repository://Entry) :-
 
 % Case : a not statement
 
-search(not(Statement),Repository://Entry) :-
+/*search(not(Statement),Repository://Entry) :-
   !,
   cache:ordered_entry(Repository,Entry,_,_,_),
   \+(search(Statement,Repository://Entry)).
-
+*/
 
 % Case : an all statement (single argument, contextualized)
 
