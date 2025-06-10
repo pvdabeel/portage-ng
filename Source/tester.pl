@@ -44,7 +44,7 @@ tester:test(single_verbose,Name,Repository://Item,Generator,Test,Report,Scroll) 
 					     Test,!,Report)),
                      time_limit_exceeded,
                      message:scroll_failure([Item,' (time limit exceeded)']));
-	       (message:clean,message:failure(Item)))),!,
+	       (message:clean,message:warning(Item)))),!,
   message:sc,
   stats:runningtime(Min,Sec),
   message:title_reset,!,
@@ -90,5 +90,3 @@ tester:test(parallel_fast,Name,Repository://Item,Generator,Test,Result,_) :-
   stats:runningtime(Min,Sec),!,
   message:title_reset,!,
   message:scroll_notice([Name,' ',S,' ',Repository,' entries took ',Min,'m ',Sec,'s. (',Cpus,' threads)']).
-
-

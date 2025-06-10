@@ -396,20 +396,27 @@ preference:use_expand_hidden('cpu_flags_ppc').
 % The prover uses the dynamic 'proven:broken/1' to mark some entries as broken
 % preference:masked(Repository://Entry) :- prover:broken(Repository://Entry).
 
-preference:masked(portage://'dev-vcs/mercurial-9999').
-
 % linked to minus(static) use flag:
 preference:masked(portage://'net-misc/dropbear-2025.88-r1').  % blocks static when pam is set, and pam is in our default use set
 preference:masked(portage://'net-misc/dropbear-2025.87').     % blocks static when pam is set, and pam is in our default use set
 preference:masked(portage://'sys-apps/busybox-9999').         % blocks static when pam is set, and pam is in our default use set
 preference:masked(portage://'sys-apps/busybox-1.36.1-r3').    % blocks static when pam is set, and pam is in our default use set
 
-preference:masked(portage://'www-apps/rt-5.0.6').
-preference:masked(portage://'kde-plasma/plasma-meta-6.3.5-r1').
-preference:masked(portage://'kde-apps/kde-apps-meta-25.04.1').
-preference:masked(portage://'x11-misc/gpaste-3.42.5').
+%preference:masked(portage://'www-apps/rt-5.0.6').
+%preference:masked(portage://'kde-plasma/plasma-meta-6.3.5-r1').
+%preference:masked(portage://'kde-apps/kde-apps-meta-25.04.1').
+%preference:masked(portage://'x11-misc/gpaste-3.42.5').
 
-
+preference:masked(portage://'dev-vcs/mercurial-9999').
+preference:masked(portage://'app-portage/elt-patches-99999999').
+preference:masked(portage://'dev-build/libtool-9999').
+preference:masked(portage://'dev-build/meson-9999').
+preference:masked(portage://'dev-vcs/git-9999-r3').
+preference:masked(portage://'dev-vcs/git-9999-r2').
+preference:masked(portage://'dev-vcs/git-9999-r1').
+preference:masked(portage://'dev-vcs/git-9999').
+preference:masked(portage://'net-libs/libssh2-9999').
+preference:masked(portage://'net-misc/curl-9999').
 
 %! preference:set(?Name,?List)
 %
