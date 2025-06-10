@@ -68,8 +68,9 @@ rule(Repository://Ebuild:fetchonly?{Context},Conditions) :- % todo: to be update
   cache:entry_metadata(Repository,Ebuild,slot,S),
 
   % 2. Compute required_use stable model
-   query:search(model(required_use(Mr)),Repository://Ebuild),
-   query:filter(Mr,R),
+  query:search(all(required_use(AR)),Repository://Ebuild),
+  prover:prove_assoc(AR,[],_,[],MR,[],_),
+  query:filter(MR,R),
 
   % 3. Pass use model onto dependencies to calculate corresponding dependency  model,
   %    We pass using config action to avoid package_dependency from generating choices.
@@ -77,11 +78,13 @@ rule(Repository://Ebuild:fetchonly?{Context},Conditions) :- % todo: to be update
   %    all_of_group ... choice point generation
 
   feature_unification:unify(Context,R,ForwardContext),
-  query:search(model(dependency(Md,run_compile)):config?{ForwardContext},Repository://Ebuild),
+  query:search(all(dependency(AD,run_compile)):config?{ForwardContext},Repository://Ebuild),
+  prover:prove_assoc(AD,[],_,[],MD,[],_),
+
 
   % 4. Filter out package dependencies, and set action to install
 
-  query:filter(package_dependency,fetchonly,Md,D),
+  query:filter(package_dependency,fetchonly,MD,D),
 
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
     Conditions = [constraint(use(Repository://Ebuild):{ForwardContext}),
@@ -124,8 +127,9 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
   % 2. Compute required_use stable model, if not already passed on by run
 
   (Context == []
-   -> ( query:search(model(required_use(Mr)),Repository://Ebuild),
-        query:filter(Mr,R) )
+   -> ( query:search(all(required_use(AR)),Repository://Ebuild),
+        prover:prove_assoc(AR,[],_,[],MR,[],_),
+        query:filter(MR,R) )
    ;  R = [] ),
 
   % 3. Pass use model onto dependencies to calculate corresponding dependency  model,
@@ -134,11 +138,12 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
   %    all_of_group ... choice point generation
 
   feature_unification:unify(Context,R,ForwardContext),
-  query:search(model(dependency(Md,compile)):config?{ForwardContext},Repository://Ebuild),
+  query:search(all(dependency(AD,compile)):config?{ForwardContext},Repository://Ebuild),
+  prover:prove_assoc(AD,[],_,[],MD,[],_),
 
   % 4. Filter out package dependencies, and set action to install
 
-  query:filter(package_dependency,install,Md,D),
+  query:filter(package_dependency,install,MD,D),
 
   % 5. Pass on relevant package dependencies and constraints to prover
 
@@ -176,8 +181,9 @@ rule(Repository://Ebuild:run?{Context},[Repository://Ebuild:install?{ForwardCont
 
   % 2. Compute required_use stable model
 
-  query:search(model(required_use(Mr)),Repository://Ebuild),
-  query:filter(Mr,R),
+  query:search(all(required_use(AR)),Repository://Ebuild),
+  prover:prove_assoc(AR,[],_,[],MR,[],_),
+  query:filter(MR,R),
 
   % 3. Pass use model onto dependencies to calculate corresponding dependency  model,
   %    We pass using config action to avoid package_dependency from generating choices.
@@ -185,11 +191,12 @@ rule(Repository://Ebuild:run?{Context},[Repository://Ebuild:install?{ForwardCont
   %    all_of_group ... choice point generation
 
   feature_unification:unify(Context,R,ForwardContext),
-  query:search(model(dependency(Md,run)):config?{ForwardContext},Repository://Ebuild),
+  query:search(all(dependency(AD,run)):config?{ForwardContext},Repository://Ebuild),
+  prover:prove_assoc(AD,[],_,[],MD,[],_),
 
   % 4. Filter out package dependencies, and set action to install
 
-  query:filter(package_dependency,run,Md,D).
+  query:filter(package_dependency,run,MD,D).
 
 
 % REINSTALL
