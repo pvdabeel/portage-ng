@@ -11,7 +11,9 @@
 /** <module> CACHE
 Cache is an unguarded, dynamic Prolog context that will hold our database
 structure. Repository and Knowledgebase are both interfaces to the high
-performance cache context.
+performance cache context. Query defines (inlined) queries on this database.
+
+Indexing of these predicates is performed JIT bu the swi-prolog JIT indexer.
 */
 
 
