@@ -10,34 +10,22 @@
 /** <module> PROVER
     The prover computes a proof and a model for a given input.
 
-    This version removes the code duplication that was necessary to handle two
-    syntactic variants of literals (plain vs. context‑annotated).  A small
-    helper, canon_literal/4, turns every literal into a *canonical* form; all
-    other predicates are now written once and work for both variants.
+    ASSOC version with AVL trees.
 */
 
 :- module(prover, []).
 :- dynamic prover:flag/1.
 
-
-% =============================================================================
-%  Helper: canonicalise literals
-% =============================================================================
-
-%% canon_literal(+Raw, -Full, -Core, -Ctx)
-%%   Raw   – literal as it appears in the caller.
-%%   Full  – identical to Raw; kept because we still need the *full* term when
-%%            checking membership in the model or proof.
-%%   Core  – part *before* the context annotation.
-%%   Ctx   – the context ({} for the “no‑context” case).
-
-canon_literal(L?{Ctx}, L?{Ctx}, L,  Ctx) :- !.
-canon_literal(L,       L,       L,  {}).
-
-
 % =============================================================================
 %  PROVER declarations
 % =============================================================================
+
+prover:prove_assoc(Target,[],Proof,[],Model,[],Constraints) :-
+  empty_assoc(InitialProof),
+  empty_assoc(InitialModel),
+  prover:prove(Target,InitialProof,ProofAssoc,InitialModel,ModelAssoc,[],Constraints),
+  proof_to_list(ProofAssoc,Proof),
+  model_to_list(ModelAssoc,Model).
 
 % -----------------------------------------------------------------------------
 % CASE 1: A list of literals to prove
@@ -55,18 +43,18 @@ prover:prove([Literal|Rest],Proof0,Proof,Model0,Model,Cons0,Cons) :-
 % CASE 2: A single literal (plain or context‑annotated)
 % -----------------------------------------------------------------------------
 
-prover:prove(Raw, Proof, NewProof,
-                    Model, NewModel,
-                    Constraints, NewConstraints) :-
-    canon_literal(Raw, Lit, _Core, _Ctx),
+prover:prove(Full, Proof, NewProof,
+                  Model, NewModel,
+                  Constraints, NewConstraints) :-
+    canon_literal(Full, Lit, Ctx),
     (   %-------------------------------------------------------------
         % Constraint goals unify directly with the global constraint set
         %-------------------------------------------------------------
         prover:is_constraint(Lit) ->
         !,
-        prover:unify_constraints(Lit, Constraints, NewConstraints),
         Proof  = NewProof,
-        Model  = NewModel
+        Model  = NewModel,
+        prover:unify_constraints(Lit, Constraints, NewConstraints)
 
     ;   %-------------------------------------------------------------
         % Already proven (fact or derived)
@@ -103,26 +91,29 @@ prover:prove(Raw, Proof, NewProof,
         %-------------------------------------------------------------
         (   prover:proving(rule(Lit,_), Proof),
             \+ prover:assumed_proving(Lit, Proof)
-        ->  !,   % (A) Cycle → assume once and for all
-            NewProof       = [ assumed(rule(Lit,[])) | Proof ],
-            NewModel       = [ assumed(Lit)           | Model ],
+        ->  !,
+            % (A) Cycle → assume once and for all
+            put_assoc(assumed(rule(Lit)),Proof,[]?Ctx,NewProof),
+            put_assoc(assumed(Lit),Model,Ctx,NewModel),
             NewConstraints = Constraints
         ;   % (B) Select rule/2 from program
-            rule(Lit, Body),
+            rule(Full, Body),
             (   Body = []
-            ->  !,  % fact – commit to first fact found
-                NewProof       = [ rule(Lit,[]) | Proof ],
-                NewModel       = [ Lit         | Model ],
+            ->  !,
+                % fact – commit to first fact found
+                put_assoc(rule(Lit),Proof,[]?Ctx,NewProof),
+                put_assoc(Lit,Model,Ctx,NewModel),
                 NewConstraints = Constraints
             ;   % non‑empty body – prove sequentially
-                prover:prove(Body,
-                             [ rule(Lit,Body) | Proof ],
+ 		put_assoc(rule(Lit),Proof,Body?Ctx,Proof1),
+ 		prover:prove(Body,
+                             Proof1,
                              NewProof,
                              Model,
                              BodyModel,
                              Constraints,
                              BodyConstraints),
-                NewModel       = [ Lit | BodyModel ],
+		put_assoc(Lit,BodyModel,Ctx,NewModel),
                 NewConstraints = BodyConstraints
             )
         )
@@ -133,29 +124,24 @@ prover:prove(Raw, Proof, NewProof,
 %  Helper predicates – now single‑clause versions
 % =============================================================================
 
-% A literal is proven if it (exact) appears in the model.
-prover:proven(Raw, Model) :-
-    canon_literal(Raw, Lit, _Core, _),
-    memberchk(Lit, Model).
+% A literal is proven if it appears in the model.
+prover:proven(Lit, Model) :-
+    get_assoc(Lit,Model,_).
 
 % Ditto for assumed literals.
-prover:assumed_proven(Raw, Model) :-
-    canon_literal(Raw, Lit, _Core, _),
-    memberchk(assumed(Lit), Model).
+prover:assumed_proven(Lit, Model) :-
+    get_assoc(assumed(Lit), Model, _).
 
 % A rule is "being proven" if it appears in the current proof.
-prover:proving(rule(Raw,Body), Proof) :-
-    canon_literal(Raw, Lit, _Core, _),
-    memberchk(rule(Lit,Body), Proof).
+prover:proving(rule(Lit, Body), Proof) :-
+    get_assoc(rule(Lit),Proof,Body?_).
 
 % Likewise for assumed rules.
-prover:assumed_proving(Raw, Proof) :-
-    canon_literal(Raw, Lit, _Core, _),
-    memberchk(assumed(rule(Lit,[])), Proof).
+prover:assumed_proving(Lit, Proof) :-
+    get_assoc(assumed(rule(Lit)),Proof,[]?_).
 
 % Negation‑as‑failure conflicts.
-prover:conflicts(Raw, Model) :-
-    canon_literal(Raw, Lit, _Core, _),
+prover:conflicts(Lit, Model) :-
     (   Lit = naf(Inner) ->
         (   prover:proven(Inner, Model)
         ;   prover:assumed_proven(Inner, Model)
@@ -164,8 +150,7 @@ prover:conflicts(Raw, Model) :-
     ), !.
 
 % Conflict *during* proving (rule vs. naf(rule))
-prover:conflictrule(rule(Raw,_), Proof) :-
-    canon_literal(Raw, Lit, _Core, _),
+prover:conflictrule(rule(Lit,_), Proof) :-
     (   Lit = naf(Inner) ->
         (   prover:proving(rule(Inner,_), Proof)
         ;   prover:assumed_proving(Inner, Proof)
@@ -175,11 +160,10 @@ prover:conflictrule(rule(Raw,_), Proof) :-
 
 
 % =============================================================================
-%  Miscellaneous utilities (unchanged)
+%  Miscellaneous utilities
 % =============================================================================
 
 % A constraint literal recogniser
-a:- op(200, xfx, ?).      % ensure the ?{}/2 syntax exists – adjust as needed
 prover:is_constraint(constraint(_)).
 
 % Constraint unification delegates to feature_unification/3.
@@ -190,15 +174,70 @@ prover:unify_constraints(constraint(Constraint),Constraints,NewConstraints) :-
 prover:fact(rule(_,[])).
 
 % Quick test to recognise context‑annotated literals.
-prover:test_compound(_?_) :- !.
+% prover:test_compound(_?_) :- !.
 
 % Build a model by proving a list of literals from scratch.
 prover:model(Literals,Model) :-
-    prover:prove(Literals,[],_,[],Model,[],_).
+    prover:prove_assoc(Literals,[],_,[],Model,[],_).
+    %forall(member(I,Proof),writeln(I)).
+
+% =============================================================================
+%  Helper: canonicalise literals
+% =============================================================================
+
+%% canon_literal(+Full, -Core, -Ctx)
+%%   Full  – full format
+%%   Core  – part *before* the context annotation.
+%%   Ctx   – the context ({} for the “no‑context” case).
+
+canon_literal(R://L:A?{Ctx}, R://L:A,  Ctx) :- !.
+canon_literal(R://L:A,       R://L:A,  {})  :- !.
+canon_literal(R://L?{Ctx},   R://L,    Ctx) :- !.
+canon_literal(R://L,         R://L,    {})  :- !.
+canon_literal(L:A?{Ctx},     L:A,      Ctx) :- !.
+canon_literal(L:A,           L:A,      {})  :- !.
+canon_literal(L?{Ctx},       L,        Ctx) :- !.
+canon_literal(L,             L,        {})  :- !.
+
+%% list_to_assoc_set(+List, -Assoc)
+% Convert a list to an assoc with elements as keys and true as values.
+list_to_assoc_set(List, Assoc) :-
+    empty_assoc(Empty),
+    foldl(put_assoc_key, List, Empty, Assoc).
+
+put_assoc_key(Key, Assoc0, Assoc) :-
+    put_assoc(Key, Assoc0, true, Assoc).
+
+%% assoc_to_list_set(+Assoc, -List)
+% Convert an assoc to a list of keys.
+proof_to_list(Assoc, List) :-
+  assoc_to_list(Assoc, Pairs),
+  maplist(fst, Pairs, List).
+
+% To enable fast lookup, we store things differently in an assoc.
+% We need to be able to recompose to original format
+
+fst(assumed(rule(R://L:A))-(B?Ctx), assumed(rule(R://L:A?{Ctx},B))) :- !.
+fst(rule(R://L:A)-(B?Ctx), rule(R://L:A?{Ctx},B)) :- !.
+fst(rule(L:A)-(B?Ctx), rule(L:A?{Ctx},B)) :- !.
+fst(rule(L)-(B?_), rule(L,B)) :- !.
+fst(A-B,unknown([A,B])).
+
+model_to_list(Assoc, List) :-
+  assoc_to_list(Assoc, Pairs),
+  maplist(snd, Pairs, List).
+
+snd(assumed(R://L:A)-Ctx,assumed(R://L:A?{Ctx})) :- !.
+snd((R://L:A)-[],R://L:A?{[]}) :- !.
+snd((L:A)-[],L:A?{[]}) :- !.
+snd(R://L:A-Ctx,R://L:A?{Ctx}) :- !.
+snd(L:A-Ctx,L:A?{Ctx}) :- !.
+snd(A-_,A).
+
 
 
 % =============================================================================
-%  Automated testing helpers (forwarded untouched)
+%  Automated testing helpers
 % =============================================================================
 
 %! prover:test(+Repository)
@@ -213,8 +252,10 @@ prover:test(Repository,Style) :-
                 'Proving',
                 Repository://Entry,
                 (Repository:entry(Entry)),
-                ( with_q(prover:prove(Repository://Entry:Action?{[]},
-                                       [],_,[],_,[],_)))).
+                ( empty_assoc(EmptyProof),
+                  empty_assoc(EmptyModel),
+                  with_q(prover:prove(Repository://Entry:Action?{[]},
+                                       EmptyProof,_,EmptyModel,_,[],_)))).
 
 %! prover:test_latest(+Repository)
 prover:test_latest(Repository) :-
@@ -228,6 +269,8 @@ prover:test_latest(Repository,Style) :-
                 'Proving',
                 Repository://Entry,
                 (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
-                ( with_q(prover:prove(Repository://Entry:Action?{[]},
-                                       [],_,[],_,[],_)))).
+                ( empty_assoc(EmptyProof),
+                  empty_assoc(EmptyModel),
+                  with_q(prover:prove(Repository://Entry:Action?{[]},
+                                       EmptyProof,_,EmptyModel,_,[],_)))).
 
