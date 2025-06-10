@@ -14,6 +14,36 @@ An implementation of a query language for the knowledge base
 
 :- module(query,[]).
 
+:- multifile user:goal_expansion/2.
+
+% Expand only when the query (first argument) is ground
+user:goal_expansion(query:search(Q, Repo://Id), Expanded) :-
+    ground(Q),
+    compile_query(Q, Repo://Id, Expanded).
+
+% Turn a list of statements into a conjunction of cache calls
+compile_query([], _Entry, true).
+compile_query([S|Ss], Entry, (One, Rest)) :-
+    compile_statement(S, Entry, One),
+    compile_query(Ss, Entry, Rest).
+
+% A few common statements — extend as needed
+compile_statement(name(Name),        Repo://Id,
+                  cache:ordered_entry(Repo,Id,_,Name,_)).
+compile_statement(category(Cat),     Repo://Id,
+                  cache:ordered_entry(Repo,Id,Cat,_,_)).
+compile_statement(slot(Slot),        Repo://Id,
+                  cache:entry_metadata(Repo,Id,slot,slot(Slot))).
+compile_statement(keywords(KW),      Repo://Id,
+                  cache:entry_metadata(Repo,Id,keywords,KW)).
+compile_statement(installed(Bool),   Repo://Id,
+                  cache:entry_metadata(Repo,Id,installed,Bool)).
+
+% Fallback – if you haven't added a compile rule, leave it alone
+compile_statement(Stmt, Entry,
+                  query:search(Stmt,Entry)).
+
+
 
 % ******************
 % QUERY declarations
