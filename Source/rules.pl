@@ -54,8 +54,9 @@ rule(Repository://Ebuild:download?{_},[]) :-
 % We don't trigger downloads for virtual, acct-group or acct-user.
 
 rule(Repository://Ebuild:fetchonly?{_},[]) :-
-  \+(preference:flag(emptytree)),
-  cache:entry_metadata(Repository,Ebuild,installed,true),!.
+  (preference:flag(emptytree)
+   -> fail
+   ; cache:entry_metadata(Repository,Ebuild,installed,true)),!.
 
 rule(Repository://Ebuild:fetchonly?{Context},Conditions) :- % todo: to be updated along the lines of :install
   % \+Conditions == [],
@@ -292,52 +293,8 @@ rule(package_dependency(_,_,strong,_,_,_,_,_,_):_?{_},[]) :- !.
 
 % Dependencies on the system profile
 
-rule(package_dependency(_,_,no,'app-arch','bzip2',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'app-arch','gzip',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'app-arch','tar',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'app-arch','xz-utils',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'app-shells','bash',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'dev-build','cmake',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'dev-lang','perl',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'dev-lang','python',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'dev-libs','libpcre',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'net-misc','iputils',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'net-misc','rsync',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'net-misc','wget',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','baselayout',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','coreutils',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','diffutils',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','file',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','findutils',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','gawk',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','grep',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','kbd',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','less',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','sed',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-apps','util-linux',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-devel','automake',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-devel','binutils',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-devel','gcc',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-devel','gnuconfig',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-devel','make',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-devel','patch',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-fs','e2fsprogs',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-libs','libcap',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-libs','ncurses',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-libs','readline',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-process','procps',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'sys-process','psmisc',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'virtual','dev-manager',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'virtual','editor',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'virtual','libc',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'virtual','man',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'virtual','modutils',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'virtual','os-headers',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'virtual','package-manager',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'virtual','pager',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'virtual','service-manager',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'virtual','shadow',_,_,_,_):_?{_},[]) :- !.
-rule(package_dependency(_,_,no,'virtual','ssh',_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,_,no,C,N,_,_,_,_):_?{_}, []) :-
+    core_pkg(C,N), !.
 
 
 % A package dependency is satisfied when a suitable candidate is satisfied,
@@ -605,6 +562,94 @@ rule(naf(_),[]) :- !.
 rule(Literal,[]) :-
   atom(Literal),!.
 
+core_pkg('app-arch','bzip2').
+core_pkg('app-arch','gzip').
+core_pkg('app-arch','tar').
+core_pkg('app-arch','xz-utils').
+core_pkg('app-shells','bash').
+core_pkg('dev-build','cmake').
+core_pkg('dev-lang','perl').
+core_pkg('dev-lang','python').
+core_pkg('dev-libs','libpcre').
+core_pkg('net-misc','iputils').
+core_pkg('net-misc','rsync').
+core_pkg('net-misc','wget').
+core_pkg('sys-apps','baselayout').
+core_pkg('sys-apps','coreutils').
+core_pkg('sys-apps','diffutils').
+core_pkg('sys-apps','file').
+core_pkg('sys-apps','findutils').
+core_pkg('sys-apps','gawk').
+core_pkg('sys-apps','grep').
+core_pkg('sys-apps','kbd').
+core_pkg('sys-apps','less').
+core_pkg('sys-apps','sed').
+core_pkg('sys-apps','util-linux').
+core_pkg('sys-devel','automake').
+core_pkg('sys-devel','binutils').
+core_pkg('sys-devel','gcc').
+core_pkg('sys-devel','gnuconfig').
+core_pkg('sys-devel','make').
+core_pkg('sys-devel','patch').
+core_pkg('sys-fs','e2fsprogs').
+core_pkg('sys-libs','libcap').
+core_pkg('sys-libs','ncurses').
+core_pkg('sys-libs','readline').
+core_pkg('sys-process','procps').
+core_pkg('sys-process','psmisc').
+core_pkg('virtual','dev-manager').
+core_pkg('virtual','editor').
+core_pkg('virtual','libc').
+core_pkg('virtual','man').
+core_pkg('virtual','modutils').
+core_pkg('virtual','os-headers').
+core_pkg('virtual','package-manager').
+core_pkg('virtual','pager').
+core_pkg('virtual','service-manager').
+core_pkg('virtual','shadow').
+core_pkg('virtual','ssh').
+core_pkg('sys-libs','pam').
+core_pkg('dev-lang','pypy').
+
+
+% Main predicate using foldl/3
+process_build_with_use(Directives, Context, Result) :-
+    foldl(process_use(Context), Directives, [], Result).
+/*
+% Helper predicate for foldl/3
+process_use(_Context, use(enable(Use), _), Acc, [required(Use), assumed(Use)|Acc]).
+process_use(_Context, use(disable(Use), _), Acc, [naf(required(Use)), assumed(minus(Use))|Acc]).
+
+process_use(Context,  use(equal(Use), _), Acc, [required(Use), assumed(Use)|Acc]) :-
+    memberchk(assumed(Use), Context), !.
+process_use(_Context, use(equal(_Use), none), Acc, Acc).
+process_use(_Context, use(equal(Use), positive), Acc, [required(Use), assumed(Use)|Acc]).
+process_use(_Context, use(equal(Use), negative), Acc, [naf(required(Use)), assumed(minus(Use))|Acc]).
+
+process_use(Context,  use(inverse(Use), _), Acc, [naf(required(Use)), assumed(minus(Use))|Acc]) :-
+    (memberchk(assumed(Use), Context); preference:use(Use)), !.
+process_use(_Context, use(inverse(_Use), none), Acc, Acc).
+process_use(_Context, use(inverse(Use), positive), Acc, [required(Use), assumed(Use)|Acc]).
+process_use(_Context, use(inverse(Use), negative), Acc, [naf(required(Use)), assumed(minus(Use))|Acc]).
+
+process_use(Context,  use(optenable(Use), _), Acc, [required(Use), assumed(Use)|Acc]) :-
+    (memberchk(assumed(Use), Context); preference:use(Use)), !.
+process_use(_Context, use(optenable(_Use), none), Acc, Acc).
+process_use(_Context, use(optenable(Use), positive), Acc, [required(Use), assumed(Use)|Acc]).
+process_use(_Context, use(optenable(Use), negative), Acc, [naf(required(Use)), assumed(minus(Use))|Acc]).
+
+process_use(Context,  use(optdisable(Use), _), Acc, [naf(required(Use)), assumed(minus(Use))|Acc]) :-
+    memberchk(assumed(minus(Use)), Context), !.
+process_use(_Context, use(optdisable(_Use), none), Acc, Acc).
+process_use(_Context, use(optdisable(Use), positive), Acc, [required(Use), assumed(Use)|Acc]).
+process_use(_Context, use(optdisable(Use), negative), Acc, [naf(required(Use)), assumed(minus(Use))|Acc]).
+*/
+% Catch-all for unrecognized directives
+process_use(_Context, _, Acc, Acc).
+
+
+
+/*
 
 % Predicates used within rules
 
@@ -720,3 +765,5 @@ process_build_with_use([use(optdisable(Use),negative)|Rest],Context,[naf(require
 process_build_with_use([_|Rest],Context,Others) :-
   !,
   process_build_with_use(Rest,Context,Others).
+
+*/
