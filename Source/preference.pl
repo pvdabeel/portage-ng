@@ -402,21 +402,13 @@ preference:masked(portage://'net-misc/dropbear-2025.87').     % blocks static wh
 preference:masked(portage://'sys-apps/busybox-9999').         % blocks static when pam is set, and pam is in our default use set
 preference:masked(portage://'sys-apps/busybox-1.36.1-r3').    % blocks static when pam is set, and pam is in our default use set
 
-%preference:masked(portage://'www-apps/rt-5.0.6').
-%preference:masked(portage://'kde-plasma/plasma-meta-6.3.5-r1').
-%preference:masked(portage://'kde-apps/kde-apps-meta-25.04.1').
-%preference:masked(portage://'x11-misc/gpaste-3.42.5').
+% circular, with build with use dep, different slot
+preference:masked(portage://'dev-vcs/mercurial-9999').	      % bdepend on itself, added by eclass, with build_with_use dep (curl)
+preference:masked(portage://'dev-vcs/git-9999-r3').	      % bdepend on itself, added by eclass, with build_with_use dep (curl)
+preference:masked(portage://'dev-vcs/git-9999-r2').	      % bdepend on itself, added by eclass, with build_with_use dep (curl)
+preference:masked(portage://'dev-vcs/git-9999-r1').	      % bdepend on itself, added by eclass, with build_with_use dep (curl)
+preference:masked(portage://'dev-vcs/git-9999').	      % bdepend on itself, added by eclass, with build_with_use dep (curl)
 
-preference:masked(portage://'dev-vcs/mercurial-9999').
-preference:masked(portage://'app-portage/elt-patches-99999999').
-preference:masked(portage://'dev-build/libtool-9999').
-preference:masked(portage://'dev-build/meson-9999').
-preference:masked(portage://'dev-vcs/git-9999-r3').
-preference:masked(portage://'dev-vcs/git-9999-r2').
-preference:masked(portage://'dev-vcs/git-9999-r1').
-preference:masked(portage://'dev-vcs/git-9999').
-preference:masked(portage://'net-libs/libssh2-9999').
-preference:masked(portage://'net-misc/curl-9999').
 
 %! preference:set(?Name,?List)
 %
