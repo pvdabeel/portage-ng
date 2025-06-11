@@ -58,7 +58,7 @@ rule(Repository://Ebuild:fetchonly?{_},[]) :-
    -> fail
    ; cache:entry_metadata(Repository,Ebuild,installed,true)),!.
 
-rule(Repository://Ebuild:fetchonly?{Context},Conditions) :- % todo: to be updated along the lines of :install
+rule(Repository://Ebuild:fetchonly?{_Context},Conditions) :- % todo: to be updated along the lines of :install
   % \+Conditions == [],
   !,
 
@@ -68,30 +68,25 @@ rule(Repository://Ebuild:fetchonly?{Context},Conditions) :- % todo: to be update
   cache:entry_metadata(Repository,Ebuild,slot,S),
 
   % 2. Compute required_use stable model
-  query:search(all(required_use(AR)),Repository://Ebuild),
-  prover:prove_assoc(AR,[],_,[],MR,[],_),
-  query:filter(MR,R),
+  query:search(model(required_use(R)),Repository://Ebuild),
 
   % 3. Pass use model onto dependencies to calculate corresponding dependency  model,
   %    We pass using config action to avoid package_dependency from generating choices.
   %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
   %    all_of_group ... choice point generation
 
-  feature_unification:unify(Context,R,ForwardContext),
-  query:search(all(dependency(AD,run_compile)):config?{ForwardContext},Repository://Ebuild),
-  prover:prove_assoc(AD,[],_,[],MD,[],_),
+  %feature_unification:unify(Context,R,ForwardContext),
+  %ForwardContext = R,
+  query:search(model(dependency(D,run_compile)):config?{R},Repository://Ebuild),
 
-
-  % 4. Filter out package dependencies, and set action to install
-
-  query:filter(package_dependency,fetchonly,MD,D),
+  % 4. Pass on relevant package dependencies and constraints to prover
 
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
-    Conditions = [constraint(use(Repository://Ebuild):{ForwardContext}),
+    Conditions = [constraint(use(Repository://Ebuild):{R}),
                   constraint(slot(C,N,S):{[Ebuild]})
                   |D];
-    Conditions = [constraint(use(Repository://Ebuild):{ForwardContext}),
-                  Repository://Ebuild:download?{ForwardContext},
+    Conditions = [constraint(use(Repository://Ebuild):{R}),
+                  Repository://Ebuild:download?{R},
                   constraint(slot(C,N,S):{[Ebuild]})
                   |D] ).
 
@@ -115,7 +110,7 @@ rule(Repository://Ebuild:install?{_},[]) :-
   \+(preference:flag(emptytree)),
   cache:entry_metadata(Repository,Ebuild,installed,true),!.
 
-rule(Repository://Ebuild:install?{Context},Conditions) :-
+rule(Repository://Ebuild:install?{R},Conditions) :-
   % \+Conditions == [],
   !,
 
@@ -126,33 +121,27 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
 
   % 2. Compute required_use stable model, if not already passed on by run
 
-  (Context == []
-   -> ( query:search(all(required_use(AR)),Repository://Ebuild),
-        prover:prove_assoc(AR,[],_,[],MR,[],_),
-        query:filter(MR,R) )
-   ;  R = [] ),
+  %(Context == []
+  % -> query:search(model(required_use(R)),Repository://Ebuild)
+  % ;  R = Context ),
 
   % 3. Pass use model onto dependencies to calculate corresponding dependency  model,
   %    We pass using config action to avoid package_dependency from generating choices.
   %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
   %    all_of_group ... choice point generation
 
-  feature_unification:unify(Context,R,ForwardContext),
-  query:search(all(dependency(AD,compile)):config?{ForwardContext},Repository://Ebuild),
-  prover:prove_assoc(AD,[],_,[],MD,[],_),
+  %feature_unification:unify(Context,R,ForwardContext),
+  %ForwardContext = R,
+  query:search(model(dependency(D,compile)):config?{R},Repository://Ebuild),
 
-  % 4. Filter out package dependencies, and set action to install
-
-  query:filter(package_dependency,install,MD,D),
-
-  % 5. Pass on relevant package dependencies and constraints to prover
+  % 4. Pass on relevant package dependencies and constraints to prover
 
   ( memberchk(C,['virtual','acct-group','acct-user'])
-    -> Conditions = [ constraint(use(Repository://Ebuild):{ForwardContext}),
+    -> Conditions = [ constraint(use(Repository://Ebuild):{R}),
                       constraint(slot(C,N,S):{[Ebuild]})
                       |D]
-    ;  Conditions = [constraint(use(Repository://Ebuild):{ForwardContext}),
-                     Repository://Ebuild:download?{ForwardContext},
+    ;  Conditions = [constraint(use(Repository://Ebuild):{R}),
+                     Repository://Ebuild:download?{R},
                      constraint(slot(C,N,S):{[Ebuild]})
                      |D] ).
 
@@ -172,7 +161,7 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   cache:entry_metadata(Repository,Ebuild,installed,true),!,
   (config:avoid_reinstall(true) -> Conditions = [] ; Conditions = [Repository://Ebuild:reinstall?{Context}]).
 
-rule(Repository://Ebuild:run?{Context},[Repository://Ebuild:install?{ForwardContext}|D]) :-
+rule(Repository://Ebuild:run?{_Context},[Repository://Ebuild:install?{R}|D]) :-
 
   % 1. Get some metadata we need further down
 
@@ -181,22 +170,16 @@ rule(Repository://Ebuild:run?{Context},[Repository://Ebuild:install?{ForwardCont
 
   % 2. Compute required_use stable model
 
-  query:search(all(required_use(AR)),Repository://Ebuild),
-  prover:prove_assoc(AR,[],_,[],MR,[],_),
-  query:filter(MR,R),
+  query:search(model(required_use(R)),Repository://Ebuild),
 
   % 3. Pass use model onto dependencies to calculate corresponding dependency  model,
   %    We pass using config action to avoid package_dependency from generating choices.
   %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
   %    all_of_group ... choice point generation
 
-  feature_unification:unify(Context,R,ForwardContext),
-  query:search(all(dependency(AD,run)):config?{ForwardContext},Repository://Ebuild),
-  prover:prove_assoc(AD,[],_,[],MD,[],_),
-
-  % 4. Filter out package dependencies, and set action to install
-
-  query:filter(package_dependency,run,MD,D).
+  %feature_unification:unify(Context,R,ForwardContext),
+  %ForwardContext = R,
+  query:search(model(dependency(D,run)):config?{R},Repository://Ebuild).
 
 
 % REINSTALL
