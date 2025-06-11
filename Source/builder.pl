@@ -217,9 +217,9 @@ builder:test(Repository) :-
               (catch(call_with_time_limit(T,(stats:increase,
                                              stats:percentage(P),
  	                                     nl,message:topheader(['[',P,'] - Executing plan for ',Repository://E:Action]),
-                                             prover:prove(Repository://E:Action,[],Proof,[],Model,[],_Constraints),
-			                     planner:plan(Proof,[],[],Plan),!,
-                                             builder:execute(Repository://E:Action,Model,Proof,Plan))),
+                                             prover:prove(Repository://E:Action,[],Proof,[],_Model,[],_Constraints),
+			                     planner:plan(Proof,[],[],_Plan),!)),
+                                             %builder:execute(Repository://E:Action,Model,Proof,Plan))),
                      time_limit_exceeded,
                      assert(builder:broken(Repository://E)));
 	       message:failure(E)))),
