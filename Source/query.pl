@@ -28,6 +28,7 @@ An implementation of a query language for the knowledge base
 
 :- multifile user:goal_expansion/2.
 
+
 % We treat both list queries and compound queries
 
 user:goal_expansion(search(Q, Repo://Id), Expanded) :-
@@ -56,6 +57,12 @@ compile_query_list([S|Ss], Repo://Id, (One, Rest)) :-
 
 % We turn compound queries into cache statements
 
+compile_query_compound(repository(Repo),       		Repo://Id,
+  cache:ordered_entry(Repo,Id,_,_,_))          		:- message:color(green).
+
+compile_query_compound(ebuild(Id),        		Repo://Id,
+  cache:ordered_entry(Repo,Id,_,_,_))          		:- message:color(green).
+
 compile_query_compound(name(Name),        		Repo://Id,
   cache:ordered_entry(Repo,Id,_,Name,_))          	:- message:color(green).
 
@@ -68,6 +75,12 @@ compile_query_compound(version(Ver),      		Repo://Id,
 compile_query_compound(slot(Slot),        		Repo://Id,
   cache:entry_metadata(Repo,Id,slot,slot(Slot)))  	:- message:color(green).
 
+compile_query_compound(subslot(Slot),        		Repo://Id,
+  cache:entry_metadata(Repo,Id,slot,subslot(Slot)))  	:- message:color(green).
+
+compile_query_compound(keyword(KW),      		Repo://Id,
+  cache:entry_metadata(Repo,Id,keywords,KW))      	:- message:color(green).
+
 compile_query_compound(keywords(KW),      		Repo://Id,
   cache:entry_metadata(Repo,Id,keywords,KW))      	:- message:color(green).
 
@@ -79,6 +92,9 @@ compile_query_compound(required_use(Use), 		Repo://Id,
 
 compile_query_compound(src_uri(Uri),      		Repo://Id,
   cache:entry_metadata(Repo,Id,src_uri,Uri))      	:- message:color(green).
+
+compile_query_compound(download(D),      		Repo://Id,
+  cache:entry_metadata(Repo,Id,src_uri,uri(_,_,D)))     :- message:color(green).
 
 compile_query_compound(bdepend(B),        		Repo://Id,
   cache:entry_metadata(Repo,Id,bdepend,B))        	:- message:color(green).
@@ -113,8 +129,11 @@ compile_query_compound(homepage(H),       		Repo://Id,
 compile_query_compound(license(L),        		Repo://Id,
   cache:entry_metadata(Repo,Id,license,L))        	:- message:color(green).
 
-compile_query_compound(license(L),        		Repo://Id,
-  cache:entry_metadata(Repo,Id,license,L))        	:- message:color(green).
+compile_query_compound(eclass(E),        		Repo://Id,
+  cache:entry_metadata(Repo,Id,eclasses,[eclass(E),_])) :- message:color(green).
+
+compile_query_compound(eclasses(E),        		Repo://Id,
+  cache:entry_metadata(Repo,Id,eclasses,[eclass(E),_]))	:- message:color(green).
 
 compile_query_compound(local(L),          		Repo://Id,
   cache:entry_metadata(Repo,Id,local,L))          	:- message:color(green).
@@ -127,6 +146,9 @@ compile_query_compound(restrict(R),       		Repo://Id,
 
 compile_query_compound(timestamp(T),      		Repo://Id,
   cache:entry_metadata(Repo,Id,timestamp,T))          	:- message:color(green).
+
+compile_query_compound(md5(M),      			Repo://Id,
+  cache:entry_metadata(Repo,Id,md5,M))          	:- message:color(green).
 
 compile_query_compound(dependency(D,run), 		Repo://Id,
   ( cache:entry_metadata(Repo,Id,idepend,D)
@@ -144,16 +166,53 @@ compile_query_compound(dependency(D,run_compile),       Repo://Id,
   ; cache:entry_metadata(Repo,Id,idepend,D)
   ; cache:entry_metadata(Repo,Id,rdepend,D) ))        	:- message:color(green).
 
-% still missing: version , eclasses, iuse, md5
+compile_query_compound(select(repository,notequal,R),   Repo://Id,
+  ( cache:ordered_entry(R,Id,_,_,_),
+    R \== Repo ) )					:- message:color(green).
+
+compile_query_compound(select(repository,equal,Repo),   Repo://Id,
+  cache:ordered_entry(Repo,Id,_,_,_) )			:- message:color(green).
+
+compile_query_compound(select(repository,tilde,R),      Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,_,_),
+    dwim_match(R,Repo) ) )				:- message:color(green).
+
+compile_query_compound(select(repository,wildcard,R),   Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,_,_),
+    wildcard_match(R,Repo) ) )                          :- message:color(green).
 
 compile_query_compound(select(name,equal,N),            Repo://Id,
   cache:ordered_entry(Repo,Id,_,N,_))                 	:- message:color(green).
 
+compile_query_compound(select(name,notequal,N),         Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,O,_),
+    N \== O ) )						:- message:color(green).
+
+compile_query_compound(select(name,tilde,N),            Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,M,_),
+    dwim_match(N,M) ) )					:- message:color(green).
+
+compile_query_compound(select(name,wildcard,N),         Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,M,_),
+    wildcard_match(N,M) ) )				:- message:color(green).
+
 compile_query_compound(select(category,equal,C),        Repo://Id,
   cache:ordered_entry(Repo,Id,C,_,_))                 	:- message:color(green).
 
-compile_query_compound(select(version,equal,Ver),      	Repo://Id,
-  cache:ordered_entry(Repo,Id,_,_,Ver))               	:- message:color(green).
+compile_query_compound(select(category,notequal,C),     Repo://Id,
+  ( cache:ordered_entry(Repo,Id,O,_,_),
+    C \== O ) )						:- message:color(green).
+
+compile_query_compound(select(category,tilde,C),	Repo://Id,
+  ( cache:ordered_entry(Repo,Id,M,_,_),
+    dwim_match(C,M) ) )                                 :- message:color(green).
+
+compile_query_compound(select(category,wildcard,C),	Repo://Id,
+  ( cache:ordered_entry(Repo,Id,M,_,_),
+    wildcard_match(C,M) ) )				:- message:color(green).
+
+compile_query_compound(select(version,none,_),      	Repo://Id,
+  cache:ordered_entry(Repo,Id,_,_,_))               	:- message:color(green).
 
 compile_query_compound(select(version,equal,Ver),      	Repo://Id,
   cache:ordered_entry(Repo,Id,_,_,Ver))               	:- message:color(green).
@@ -168,18 +227,140 @@ compile_query_compound(select(version,greater,ReqVer),  Repo://Id,
 
 compile_query_compound(select(version,smallerequal,ReqVer),  Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
-    system:compare(=<,ProposedVersion,ReqVer) ))        :- message:color(green).
+    ( system:compare(<,ProposedVersion,ReqVer);
+      system:compare(=,ProposedVersion,ReqVer) ) ))     :- message:color(green).
 
 compile_query_compound(select(version,greaterequal,ReqVer),  Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
-    system:compare(>=,ProposedVersion,ReqVer) ))        :- message:color(green).
+    ( system:compare(>,ProposedVersion,ReqVer);
+      system:compare(=,ProposedVersion,ReqVer) ) ))     :- message:color(green).
+
+compile_query_compound(select(version,notequal,ReqVer), Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
+    ProposedVersion \== ReqVer ))        		:- message:color(green).
+
+compile_query_compound(select(version,wildcard,[_,_,_,V]),Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,_,[_,_,_,ProposedVersion]),
+    wildcard_match(V,ProposedVersion) ))                :- message:color(green).
+
+compile_query_compound(select(version,tilde,[V,_,_,_]), Repo://Id,
+  cache:ordered_entry(Repo,Id,_,_,[V,_,_,_]))           :- message:color(green).
+
+compile_query_compound(select(eapi,notequal,[_,_,_,V]), Repo://Id,
+  ( cache:entry_metadata(Repo,Id,eapi,[_,_,_,O]),
+    O \== V ) )						:- message:color(green).
+
+compile_query_compound(select(eapi,equal,[_,_,_,V]),    Repo://Id,
+  cache:entry_metadata(Repo,Id,eapi,[_,_,_,V]) )	:- message:color(green).
+
+compile_query_compound(select(eapi,wildcard,[_,_,_,V]), Repo://Id,
+  ( cache:entry_metadata(Repo,Id,eapi,[_,_,_,ProposedVersion]),
+    wildcard_match(V,ProposedVersion) ) )		:- message:color(green).
+
+compile_query_compound(select(eapi,smaller,ReqVer), 	Repo://Id,
+  ( cache:entry_metadata(Repo,Id,eapi,ProposedVersion),
+    system:compare(<,ProposedVersion,ReqVer) ) )        :- message:color(green).
+
+compile_query_compound(select(eapi,greater,ReqVer), 	Repo://Id,
+  ( cache:entry_metadata(Repo,Id,eapi,ProposedVersion),
+    system:compare(>,ProposedVersion,ReqVer) ) )        :- message:color(green).
+
+compile_query_compound(select(eapi,smallerequal,ReqVer),Repo://Id,
+  ( cache:entry_metadata(Repo,Id,eapi,ProposedVersion),
+    ( system:compare(<,ProposedVersion,ReqVer);
+      system:compare(=,ProposedVersion,ReqVer) ) ))     :- message:color(green).
+
+compile_query_compound(select(eapi,greaterequal,ReqVer),Repo://Id,
+  ( cache:entry_metadata(Repo,Id,eapi,ProposedVersion),
+    ( system:compare(>,ProposedVersion,ReqVer);
+      system:compare(=,ProposedVersion,ReqVer) ) ))     :- message:color(green).
+
+compile_query_compound(select(eclass,notequal,E),	Repo://Id,
+  ( cache:entry_metadata(Repo,Id,eclasses,[eclass(O),_]),
+    O \== E ))						:- message:color(green).
+
+compile_query_compound(select(eclass,equal,E),	Repo://Id,
+  cache:entry_metadata(Repo,Id,eclasses,[eclass(E),_])) :- message:color(green).
+
+compile_query_compound(select(eclass,tilde,E),	Repo://Id,
+  ( cache:entry_metadata(Repo,Id,eclasses,[eclass(M),_]),
+    dwim_match(E,M) ) )					:- message:color(green).
+
+compile_query_compound(select(eclass,wildcard,E),	Repo://Id,
+  ( cache:entry_metadata(Repo,Id,eclasses,[eclass(M),_]),
+    wildcard_match(E,M) ) )				:- message:color(green).
+
+compile_query_compound(select(eclasses,notequal,E),	Repo://Id,
+  ( cache:entry_metadata(Repo,Id,eclasses,[eclass(O),_]),
+    O \== E ))						:- message:color(green).
+
+compile_query_compound(select(eclasses,equal,E),	Repo://Id,
+  cache:entry_metadata(Repo,Id,eclasses,[eclass(E),_])) :- message:color(green).
+
+compile_query_compound(select(eclasses,tilde,E),	Repo://Id,
+  ( cache:entry_metadata(Repo,Id,eclasses,[eclass(M),_]),
+    dwim_match(E,M) ) )					:- message:color(green).
+
+compile_query_compound(select(eclasses,wildcard,E),	Repo://Id,
+  ( cache:entry_metadata(Repo,Id,eclasses,[eclass(M),_]),
+    wildcard_match(E,M) ) )				:- message:color(green).
+
+compile_query_compound(select(download,notequal,F),	Repo://Id,
+  ( cache:entry_metadata(Repo,Id,src_uri,uri(_,_,O)),
+    O \== F ) )						:- message:color(green).
+
+compile_query_compound(select(download,equal,F),	Repo://Id,
+  cache:entry_metadata(Repo,Id,src_uri,uri(_,_,F)))	:- message:color(green).
+
+compile_query_compound(select(download,tilde,F),	Repo://Id,
+  ( cache:entry_metadata(Repo,Id,src_uri,uri(_,_,M)),
+    dwim_match(F,M) ) )					:- message:color(green).
+
+compile_query_compound(select(download,wildcard,F),	Repo://Id,
+  ( cache:entry_metadata(Repo,Id,src_uri,uri(_,_,M)),
+    wildcard_match(F,M) ) )				:- message:color(green).
+
+compile_query_compound(select(slot,notequal,S),		Repo://Id,
+  ( cache:entry_metadata(Repo,Id,slot,slot(O)),
+    O \== S ) )						:- message:color(green).
+
+compile_query_compound(select(slot,equal,S),		Repo://Id,
+  cache:entry_metadata(Repo,Id,slot,slot(S)))		:- message:color(green).
+
+compile_query_compound(select(slot,tilde,S),		Repo://Id,
+  ( cache:entry_metadata(Repo,Id,slot,slot(M)),
+    dwim_match(S,M) ) )					:- message:color(green).
+
+compile_query_compound(select(slot,wildcard,S),		Repo://Id,
+  ( cache:entry_metadata(Repo,Id,slot,slot(M)),
+    wildcard_match(S,M) ) )				:- message:color(green).
+
+compile_query_compound(select(subslot,notequal,S),	Repo://Id,
+  ( cache:entry_metadata(Repo,Id,slot,subslot(O)),
+    O \== S ) )						:- message:color(green).
+
+compile_query_compound(select(subslot,equal,S),		Repo://Id,
+  cache:entry_metadata(Repo,Id,slot,subslot(S)))	:- message:color(green).
+
+compile_query_compound(select(subslot,tilde,S),		Repo://Id,
+  ( cache:entry_metadata(Repo,Id,slot,subslot(M)),
+    dwim_match(S,M) ) )					:- message:color(green).
+
+compile_query_compound(select(subslot,wildcard,S),	Repo://Id,
+  ( cache:entry_metadata(Repo,Id,slot,subslot(M)),
+    wildcard_match(S,M) ) )				:- message:color(green).
+
+compile_query_compound(select(keyword,equal,K),		Repo://Id,
+  cache:entry_metadata(Repo,Id,keyword,K))		:- message:color(green).
+
+compile_query_compound(select(keywords,equal,K),	Repo://Id,
+  cache:entry_metadata(Repo,Id,keyword,K))		:- message:color(green).
 
 compile_query_compound(all(S),                         	Repo://Id,
   query:search(all(S),Repo://Id)) 			:- var(S),!, message:color(cyan).
 
 compile_query_compound(all(S):A?{C},                   	Repo://Id,
   query:search(all(S):A?{C},Repo://Id)) 		:- var(S),!, message:color(cyan).
-
 
 compile_query_compound(all(src_uri(U)),      		Repo://Id,
   findall(Uri,
@@ -220,8 +401,6 @@ compile_query_compound(all(pdepend(P)),                 Repo://Id,
   findall(Dep,
           cache:entry_metadata(Repo,Id,pdepend,Dep),
           P))                                           :- message:color(green).
-
-
 
 compile_query_compound(all(dependency(D,run)),          Repo://Id,
   findall(Dep,
@@ -266,6 +445,54 @@ compile_query_compound(all(dependency(D,run_compile)):A?{C},  Repo://Id,
           ; cache:entry_metadata(Repo,Id,idepend,Dep)
           ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
           D))                                           :- message:color(green).
+
+compile_query_compound(model(required_use(Model)),	Repo://Id,
+  ( findall(ReqUse,
+            cache:entry_metadata(Repo,Id,required_use,ReqUse),
+            AllReqUse),
+    prover:prove(AllReqUse,t,AvlProof,t,_,[],_),
+    findall(Fact,
+            gen_assoc(rule(Fact),AvlProof,[]?_),
+            Model) ) ) 					:- message:color(green).
+
+
+compile_query_compound(model(dependency(Model,run)):config?{Context},  Repo://Id,
+  ( findall(Dep:config?{Context},
+          ( cache:entry_metadata(Repo,Id,idepend,Dep)
+          ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
+          Deps),
+  prover:prove(Deps,t,_,t,AvlModel,[],_),
+  findall(Fact:run?{[]},
+          (gen_assoc(Fact:_,AvlModel,_),
+           Fact =.. [package_dependency|_]),
+          Model) ) )					:- message:color(green).
+
+compile_query_compound(model(dependency(Model,compile)):config?{Context},  Repo://Id,
+  ( findall(Dep:config?{Context},
+          ( cache:entry_metadata(Repo,Id,bdepend,Dep)
+          ; cache:entry_metadata(Repo,Id,cdepend,Dep)
+          ; cache:entry_metadata(Repo,Id,depend,Dep) ),
+          Deps),
+  prover:prove(Deps,t,_,t,AvlModel,[],_),
+  findall(Fact:install?{[]},
+           (gen_assoc(Fact:_,AvlModel,_),
+            Fact =.. [package_dependency|_]),
+          Model) ) )                                    :- message:color(green).
+
+compile_query_compound(model(dependency(Model,run_compile)):config?{Context},  Repo://Id,
+  ( findall(Dep:config?{Context},
+    	  ( cache:entry_metadata(Repo,Id,bdepend,Dep)
+          ; cache:entry_metadata(Repo,Id,cdepend,Dep)
+          ; cache:entry_metadata(Repo,Id,depend,Dep)
+          ; cache:entry_metadata(Repo,Id,idepend,Dep)
+          ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
+          Deps),
+  prover:prove(Deps,t,_,t,AvlModel,[],_),
+  findall(Fact:fetchonly?{Context},
+          (gen_assoc(Fact:_,AvlModel,_),
+           Fact =.. [package_dependency|_]),
+          Model) ) )                                    :- message:color(green).
+
 
 % Fallback – Stuff for which a macro doesn't exist, we fall back to regular predicates
 
@@ -378,93 +605,10 @@ search(all(Statement),Repository://Entry) :-
            search(InnerStatement,Repository://Entry)),
           Values).
 
-
-% Case : a model statement (dual argument, contextualized),
-
-search(model(Statement):Action?{Context},Repository://Id) :-
-  Statement =.. [Key,Model,Arg],
-  !,
-  StatementA =.. [Key,AllValues,Arg],
-  search(all(StatementA):Action?{Context},Repository://Id),
-  prover:model(AllValues,Model).
-
-
-% Case : a model statement (dual argument, no context),
-
-search(model(Statement),Repository://Id) :-
-  Statement =.. [Key,Model,Arg],
-  !,
-  StatementA =.. [Key,AllValues,Arg],
-  search(all(StatementA),Repository://Id),
-  prover:model(AllValues,Model).
-
-
-% Case : a model statement (single argument, contextualized)
-
-search(model(Statement):Action?{Context},Repository://Id) :-
-  Statement =.. [Key,Model],
-  !,
-  StatementA =.. [Key,AllValues],
-  search(all(StatementA):Action?{Context},Repository://Id),
-  prover:model(AllValues,Model).
-
-
-% Case : a model statement (single argument, no context)
-
-search(model(Statement),Repository://Id) :-
-  Statement =.. [Key,Model],
-  !,
-  StatementA =.. [Key,AllValues],
-  search(all(StatementA),Repository://Id),
-  prover:model(AllValues,Model).
-
-
 % Case : a latest statement, returs only latest version
 
 search(latest(Statement),R://I) :-
   search(Statement,R://I),!.
-
-
-% ------------------------
-% Search domain predicates
-% ------------------------
-
-% Case : world
-
-%search(world,R://I) :-
-%  preference:world(World),
-%  member(R://I:_,World).
-
-
-% Case : set
-
-%search(set(Name),R://I) :-
-%  preference:set(Name,Set),
-%  writeln('set found'),
-%  member(Ta,Set),
-%  atom_codes(Ta,Tc),
-%  phrase(eapi:qualified_target(Q),Tc),
-%  search(Q,R://I).
-
-
-search(dependency(D,run_compile),R://I) :-
-  !,
-  ( cache:entry_metadata(R,I,bdepend,D)
-  ; cache:entry_metadata(R,I,cdepend,D)
-  ; cache:entry_metadata(R,I,depend,D)
-  ; cache:entry_metadata(R,I,idepend,D)
-  ; cache:entry_metadata(R,I,rdepend,D) ).
-
-search(dependency(D,compile),R://I) :-
-  !,
-  ( cache:entry_metadata(R,I,bdepend,D)
-  ; cache:entry_metadata(R,I,cdepend,D)
-  ; cache:entry_metadata(R,I,depend,D) ).
-
-search(dependency(D,run),R://I) :-
-  !,
-  ( cache:entry_metadata(R,I,idepend,D)
-  ; cache:entry_metadata(R,I,rdepend,D) ).
 
 
 % ------------------------------------
@@ -556,15 +700,6 @@ search(qualified_target(O,R,C,P,V,F),R://I) :-
    cache:ordered_entry(R,I,C,P,PV),
    apply_version_filter(O,PV,V),
    apply_filters(R://I,F).
-
-
-% --------------
-% Search: Ebuild
-% --------------
-
-search(ebuild(Ebuild),R://Ebuild) :-
-  !,
-  cache:ordered_entry(R,Ebuild,_,_,_).
 
 
 % ----------------
@@ -675,10 +810,8 @@ apply_version_filter(greater,ProposedVersion,Version) :-
   system:compare(>,ProposedVersion,Version).
 
 apply_version_filter(greaterequal,ProposedVersion,Version) :-
-  system:compare(>,ProposedVersion,Version),!.
-
-apply_version_filter(greaterequal,ProposedVersion,Version) :-
   !,
+  system:compare(>,ProposedVersion,Version);
   system:compare(=,ProposedVersion,Version).
 
 apply_version_filter(smaller,ProposedVersion,Version) :-
@@ -686,14 +819,13 @@ apply_version_filter(smaller,ProposedVersion,Version) :-
   system:compare(<,ProposedVersion,Version).
 
 apply_version_filter(smallerequal,ProposedVersion,Version) :-
-  system:compare(<,ProposedVersion,Version),!.
-
-apply_version_filter(smallerequal,ProposedVersion,Version) :-
   !,
-  symtem:compare(=,ProposedVersion,Version).
+  system:compare(<,ProposedVersion,Version);
+  system:compare(=,ProposedVersion,Version).
 
 apply_version_filter(notequal,VersionA,VersionB) :-
-  VersionA == VersionB -> fail;true.
+  !,
+  VersionA \== VersionB.
 
 apply_version_filter(equal,Version,Version) :-
   !.
@@ -714,107 +846,9 @@ apply_filters(R://I,[H|T]) :-
 apply_filter(_R://_I,[]) :- !.
 
 
-
-
-
 % ------------------------------------------
 % Searching via command line key=value pairs
 % ------------------------------------------
-
-% ------------------
-% Entry - repository
-% ------------------
-
-select(repository,notequal,R,O://I) :-
-  !,
-  cache:ordered_entry(O,I,_,_,_),
-  \+ R=O.
-
-select(repository,equal,R,R://I) :-
-  !,
-  cache:ordered_entry(R,I,_,_,_).
-
-select(repository,tilde,R,M://I) :-
-  !,
-  cache:ordered_entry(M,I,_,_,_),
-  dwim_match(R,M).
-
-select(repository,wildcard,R,M://I) :-
-  !,
-  cache:ordered_entry(M,I,_,_,_),
-  wildcard_match(R,M).
-
-
-% ----------------
-% Entry - category
-% ----------------
-
-select(category,notequal,C,R://I) :-
-  !,
-  cache:ordered_entry(R,I,O,_,_),
-  \+ C=O.
-
-select(category,equal,C,R://I) :-
-  !,
-  cache:ordered_entry(R,I,C,_,_).
-
-select(category,tilde,C,R://I) :-
-  !,
-  cache:ordered_entry(R,I,M,_,_),
-  dwim_match(C,M).
-
-select(category,wildcard,C,R://I) :-
-  !,
-  cache:ordered_entry(R,I,M,_,_),
-  wildcard_match(C,M).
-
-
-% ------------
-% Entry - name
-% ------------
-
-select(name,notequal,N,R://I) :-
-  !,
-  cache:ordered_entry(R,I,_,O,_),
-  \+ N=O.
-
-select(name,equal,N,R://I) :-
-  !,
-  cache:ordered_entry(R,I,_,N,_).
-
-select(name,tilde,N,R://I) :-
-  !,
-  cache:ordered_entry(R,I,_,M,_),
-  dwim_match(N,M).
-
-select(name,wildcard,N,R://I) :-
-  !,
-  cache:ordered_entry(R,I,_,M,_),
-  wildcard_match(N,M).
-
-
-% ---------------
-% Entry - version
-% ---------------
-
-select(version,none,_,R://I) :-
-  !,
-  cache:ordered_entry(R,I,_,_,_).
-
-select(version,wildcard,[_,_,_,V],R://I) :-
-  !,
-  cache:ordered_entry(R,I,_,_,[_,_,_,ProposedVersion]),
-  wildcard_match(V,ProposedVersion).
-
-select(version,tilde,[Version,_,_,_],R://I) :-
-  !,
-  cache:ordered_entry(R,I,_,_,[Version,_,_,_]).
-
-select(version,Comparator,RequestedVersion,R://I) :-
-  !,
-  cache:ordered_entry(R,I,_,_,ProposedVersion),
-  apply_version_filter(Comparator,ProposedVersion,RequestedVersion).
-
 
 % -----------------------------
 % Special case - set membership
@@ -858,139 +892,6 @@ select(set,wildcard,N,R://I) :-
   search(Q,R://I).
 
 
-% ---------------------------
-% Special case - eapi version
-% ---------------------------
-
-select(eapi,notequal,[_,_,_,Version],R://I) :-
-  !,
-  \+cache:entry_metadata(R,I,eapi,[_,_,_,Version]).
-
-select(eapi,equal,[_,_,_,Version],R://I) :-
-  !,
-  cache:entry_metadata(R,I,eapi,[_,_,_,Version]).
-
-select(eapi,wildcard,[_,_,_,V],R://I) :-
-  !,
-  cache:entry_metadata(R,I,eapi,[_,_,_,ProposedVersion]),
-  wildcard_match(V,ProposedVersion).
-
-select(eapi,Comparator,RequestedVersion,R://I) :-
-  !,
-  cache:entry_metadata(R,I,eapi,ProposedVersion),
-  apply_version_filter(Comparator,ProposedVersion,RequestedVersion).
-
-
-% ---------------------
-% Special case - eclass
-% ---------------------
-
-select(eclass,Operator,Eclass,R://I) :-
-  !,
-  select(eclasses,Operator,Eclass,R://I).
-
-
-% -----------------------
-% Special case - eclasses
-% -----------------------
-
-select(eclasses,notequal,Eclass,R://I) :-
-  !,
-  \+cache:entry_metadata(R,I,eclasses,[eclass(Eclass),_]).
-
-select(eclasses,equal,Eclass,R://I) :-
-  !,
-  cache:entry_metadata(R,I,eclasses,[eclass(Eclass),_]).
-
-select(eclasses,tilde,Eclass,R://I) :-
-  !,
-  cache:entry_metadata(R,I,eclasses,[eclass(Match),_]),
-  dwim_match(Eclass,Match).
-
-select(eclasses,wildcard,Eclass,R://I) :-
-  !,
-  cache:entry_metadata(R,I,eclasses,Match),
-  wildcard_match(Eclass,Match).
-
-
-% ----------------------------------------
-% Special case - Entry metadata - download
-% ----------------------------------------
-
-select(download,notequal,Filename,R://I) :-
-  !,
-  \+cache:entry_metadata(R,I,src_uri,uri(_,_,Filename)).
-
-select(download,equal,Filename,R://I) :-
-  !,
-  cache:entry_metadata(R,I,src_uri,uri(_,_,Filename)).
-
-select(download,tilde,Filename,R://I) :-
-  !,
-  cache:entry_metadata(R,I,src_uri,uri(_,_,Match)),
-  dwim_match(Filename,Match).
-
-select(download,wildcard,Filename,R://I) :-
-  !,
-  cache:entry_metadata(R,I,src_uri,uri(_,_,Match)),
-  wildcard_match(Filename,Match).
-
-
-% ------------------------------------
-% Special case - Entry Metadata - slot
-% ------------------------------------
-
-select(slot,notequal,Slot,R://I) :-
-  !,
-  \+cache:entry_metadata(R,I,slot,slot(Slot)).
-
-select(slot,equal,Slot,R://I) :-
-  !,
-  cache:entry_metadata(R,I,slot,slot(Slot)).
-
-select(slot,tilde,Slot,R://I) :-
-  !,
-  cache:entry_metadata(R,I,slot,slot(Match)),
-  dwim_match(Slot,Match).
-
-select(slot,wildcard,Slot,R://I) :-
-  !,
-  cache:entry_metadata(R,I,slot,slot(Match)),
-  wildcard_match(Slot,Match).
-
-
-% ---------------------------------------
-% Special case - Entry Metadata - subslot
-% ---------------------------------------
-
-select(subslot,notequal,Slot,R://I) :-
-  !,
-  \+cache:entry_metadata(R,I,slot,slot(Slot)).
-
-select(subslot,equal,Slot,R://I) :-
-  !,
-  cache:entry_metadata(R,I,slot,slot(Slot)).
-
-select(subslot,tilde,Slot,R://I) :-
-  !,
-  cache:entry_metadata(R,I,slot,slot(Match)),
-  dwim_match(Slot,Match).
-
-select(subslot,wildcard,Slot,R://I) :-
-  !,
-  cache:entry_metadata(R,I,slot,slot(Match)),
-  wildcard_match(Slot,Match).
-
-
-% ---------------------------------------
-% Special case - Entry Metadata - keyword
-% ---------------------------------------
-
-select(keyword,Operator,Key,R://I) :-
-  !,
-  select(keywords,Operator,Key,R://I).
-
-
 % ------------------------
 % Default - Entry Metadata
 % ------------------------
@@ -1029,25 +930,3 @@ model_member(preference,Predicate,Model) :-
   (member(use_conditional_group(Sign,Use,_,Conditional),Model),
    (Sign == positive -> preference:use(Use) ; preference:use(minus(Use))),
      model_member(preference,Predicate,Conditional)).
-
-% Filtering
-%
-% todo: documentation
-
-filter(Type,Action,Model,FilteredModel) :-
-  findall(V:Action?{Context},
-   (member(V:_?{Context},Model),
-    V =.. [Type|_]),
-   FilteredModel).
-
-filter(Model,Result) :-
-  findall(V,
-   (member(V,Model),
-    \+(V =.. [package_dependency|_]),
-    \+(V =.. [use_conditional_group|_]),
-    \+(V =.. [exactly_one_of_group|_]),
-    \+(V =.. [any_of_group|_]),
-    \+(V =.. [all_of_group|_])),
-   Result).
-
-
