@@ -305,7 +305,7 @@ grapher:graph_tree(Type,RootRep://RootId,Repository://Id) :-
   \+(graph_visited(Repository://Id)),!,
   grapher:graph_node(Type,RootRep://RootId,Repository://Id),
   Statement =.. [Type,DS],
-  query:search(all(Statement),Repository://Id),
+  query:search(all(Statement),Repository://Id), % todo: this does not get optimized by the compiler
   findall(Ch,(member(D,DS),grapher:handle(Type,solid,vee,Repository://Id,D,Ch)),AllChoices),
   assert(graph_visited(Repository://Id)),
   grapher:choices(Type,AllChoices),
