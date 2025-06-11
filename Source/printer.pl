@@ -1256,7 +1256,7 @@ printer:test(Repository,Style) :-
               Repository://Entry,
               (Repository:entry(Entry)),
               (with_q(prover:prove_assoc(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
-               with_q(planner:plan(Proof,[],Plan))),
+               with_q(planner:plan(Proof,[],[],Plan))),
               (printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan)),
 	      false).
 
@@ -1285,7 +1285,7 @@ printer:test_latest(Repository,Style) :-
               Repository://Entry,
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
               (with_q(prover:prove_assoc(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
-               with_q(planner:plan(Proof,[],Plan))),
+               with_q(planner:plan(Proof,[],[],Plan))),
               (printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan)),
               false).
 
@@ -1305,7 +1305,7 @@ printer:write_merge_files(Directory,Repository) :-
               Repository://Entry,
               Repository:entry(Entry),
               (with_q(prover:prove_assoc(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
-               with_q(planner:plan(Proof,[],Plan)),
+               with_q(planner:plan(Proof,[],[],Plan)),
                atomic_list_concat([Directory,'/',Entry,'.merge'],File)),
               (tell(File),
                printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan),
@@ -1327,7 +1327,7 @@ printer:write_fetchonly_files(Directory,Repository) :-
               Repository://Entry,
               Repository:entry(Entry),
               (with_q(prover:prove_assoc(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
-               with_q(planner:plan(Proof,[],Plan)),
+               with_q(planner:plan(Proof,[],[],Plan)),
                atomic_list_concat([Directory,'/',Entry,'.fetchonly'],File)),
               (tell(File),
                printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan),
