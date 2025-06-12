@@ -27,8 +27,8 @@ This file contains domain-specific rules
 %
 % If an action on a masked ebuild is explicitely requested, unmasking is needed.
 
-rule(Repository://Ebuild:_Action?{Context},[assumed(Repository://Ebuild:unmask?{Context})]) :-
-  preference:masked(Repository://Ebuild),!.
+%rule(Repository://Ebuild:_Action?{Context},[assumed(Repository://Ebuild:unmask?{Context})]) :-
+%  preference:masked(Repository://Ebuild),!.
 
 
 % DOWNLOAD
@@ -36,7 +36,8 @@ rule(Repository://Ebuild:_Action?{Context},[assumed(Repository://Ebuild:unmask?{
 % Any ebuild can be downloaded.
 
 rule(Repository://Ebuild:download?{_},[]) :-
-  cache:ordered_entry(Repository,Ebuild,_,_,_),!.
+  !,
+  query:search(ebuild(Ebuild),Repository://Ebuild).
 
 
 % FETCHONLY
@@ -53,14 +54,15 @@ rule(Repository://Ebuild:download?{_},[]) :-
 %
 % We don't trigger downloads for virtual, acct-group or acct-user.
 
-rule(Repository://Ebuild:fetchonly?{_},[]) :-
-  (preference:flag(emptytree)
-   -> fail
-   ; cache:entry_metadata(Repository,Ebuild,installed,true)),!.
+%rule(Repository://Ebuild:fetchonly?{_},[]) :-
+%  (preference:flag(emptytree)
+%   -> fail
+%   ; cache:entry_metadata(Repository,Ebuild,installed,true)),!.
 
-rule(Repository://Ebuild:fetchonly?{_Context},Conditions) :- % todo: to be updated along the lines of :install
-  % \+Conditions == [],
+rule(Repository://Ebuild:fetchonly?{_Context},Conditions) :-
   !,
+  query:search(masked(true),   Repository://Ebuild) -> Conditions = [] ;
+  query:search(installed(true),Repository://Ebuild) -> \+preference:flag(emptytree), Conditions = [] ;
 
   % 1. Get some metadata we need further down
 
@@ -83,11 +85,11 @@ rule(Repository://Ebuild:fetchonly?{_Context},Conditions) :- % todo: to be updat
 
   ( memberchk(C,['virtual','acct-group','acct-user']) ->
     Conditions = [constraint(use(Repository://Ebuild):{R}),
-                  constraint(slot(C,N,S):{[Ebuild]})
+                  constraint(slot(C,N,S):{Ebuild})
                   |D];
     Conditions = [constraint(use(Repository://Ebuild):{R}),
                   Repository://Ebuild:download?{R},
-                  constraint(slot(C,N,S):{[Ebuild]})
+                  constraint(slot(C,N,S):{Ebuild})
                   |D] ).
 
 
@@ -106,13 +108,14 @@ rule(Repository://Ebuild:fetchonly?{_Context},Conditions) :- % todo: to be updat
 %
 % We don't trigger downloads for virtual, acct-group or acct-user.
 
-rule(Repository://Ebuild:install?{_},[]) :-
-  \+(preference:flag(emptytree)),
-  cache:entry_metadata(Repository,Ebuild,installed,true),!.
+%rule(Repository://Ebuild:install?{_},[]) :-
+%  \+(preference:flag(emptytree)),
+%  cache:entry_metadata(Repository,Ebuild,installed,true),!.
 
 rule(Repository://Ebuild:install?{R},Conditions) :-
-  % \+Conditions == [],
   !,
+  query:search(masked(true),   Repository://Ebuild) -> Conditions = [] ;
+  query:search(installed(true),Repository://Ebuild) -> \+preference:flag(emptytree), Conditions = [] ;
 
   % 1. Get some metadata we need further down
 
@@ -134,15 +137,20 @@ rule(Repository://Ebuild:install?{R},Conditions) :-
   %ForwardContext = R,
   query:search(model(dependency(D,compile)):config?{R},Repository://Ebuild),
 
+  %message:color(orange),
+  %write(Repository://Ebuild),write('  -->  '),write(R),nl,
+  %write(Repository://Ebuild),write('  -->  '),write(D),nl,
+  %message:color(normal),
+
   % 4. Pass on relevant package dependencies and constraints to prover
 
   ( memberchk(C,['virtual','acct-group','acct-user'])
     -> Conditions = [ constraint(use(Repository://Ebuild):{R}),
-                      constraint(slot(C,N,S):{[Ebuild]})
+                      constraint(slot(C,N,S):{Ebuild})
                       |D]
     ;  Conditions = [constraint(use(Repository://Ebuild):{R}),
                      Repository://Ebuild:download?{R},
-                     constraint(slot(C,N,S):{[Ebuild]})
+                     constraint(slot(C,N,S):{Ebuild})
                      |D] ).
 
 
@@ -156,12 +164,15 @@ rule(Repository://Ebuild:install?{R},Conditions) :-
 %
 % - if it is installed and if its runtime dependencies are satisfied
 
-rule(Repository://Ebuild:run?{Context},Conditions) :-
-  \+(preference:flag(emptytree)),
-  cache:entry_metadata(Repository,Ebuild,installed,true),!,
-  (config:avoid_reinstall(true) -> Conditions = [] ; Conditions = [Repository://Ebuild:reinstall?{Context}]).
+%rule(Repository://Ebuild:run?{Context},Conditions) :-
+%  \+(preference:flag(emptytree)),
+%  cache:entry_metadata(Repository,Ebuild,installed,true),!,
+%  (config:avoid_reinstall(true) -> Conditions = [] ; Conditions = [Repository://Ebuild:reinstall?{Context}]).
 
-rule(Repository://Ebuild:run?{_Context},[Repository://Ebuild:install?{R}|D]) :-
+rule(Repository://Ebuild:run?{Context},Conditions) :-
+  !,
+  query:search(masked(true),   Repository://Ebuild) -> Conditions = [] ;
+  query:search(installed(true),Repository://Ebuild) -> (config:avoid_reinstall(true) -> Conditions = [] ;  Conditions = [Repository://Ebuild:reinstall?{Context}]) ;
 
   % 1. Get some metadata we need further down
 
@@ -179,7 +190,9 @@ rule(Repository://Ebuild:run?{_Context},[Repository://Ebuild:install?{R}|D]) :-
 
   %feature_unification:unify(Context,R,ForwardContext),
   %ForwardContext = R,
-  query:search(model(dependency(D,run)):config?{R},Repository://Ebuild).
+  query:search(model(dependency(D,run)):config?{R},Repository://Ebuild),
+
+  Conditions = [Repository://Ebuild:install?{R}|D].
 
 
 % REINSTALL
