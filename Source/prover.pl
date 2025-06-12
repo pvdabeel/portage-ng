@@ -10,20 +10,21 @@
 /** <module> PROVER
     The prover computes a proof and a model for a given input.
 
-    ASSOC version with AVL trees.
+    ASSOC version with AVL trees for proof, model and constraints.
 */
 
 :- module(prover, []).
 :- dynamic prover:flag/1.
 
 % =============================================================================
-%  PROVER declarations
+% PROVER declarations
 % =============================================================================
 
 prover:prove_lists(Target,[],Proof,[],Model,[],Constraints) :-
-  prover:prove(Target,t,ProofAssoc,t,ModelAssoc,t,Constraints),
-  proof_to_list(ProofAssoc,Proof),
-  model_to_list(ModelAssoc,Model).
+  prover:prove(Target,t,AvlProof,t,AvlModel,t,AvlConstraints),
+  proof_to_list(AvlProof,Proof),
+  model_to_list(AvlModel,Model),
+  constraints_to_list(AvlConstraints,Constraints).
 
 % -----------------------------------------------------------------------------
 % CASE 1: A list of literals to prove
@@ -54,12 +55,6 @@ prover:prove(Full, Proof,       NewProof,
       !,
       Proof  = NewProof,
       Model  = NewModel,
-      %message:color(magenta),
-      %write('Constraint to unify: '),write(Lit),nl,
-      %write('           with:     '),nl,
-      %forall(gen_assoc(Key,Constraints,Value),
-      % (write('           '),write(Key),write(' '),write(Value),nl)),
-      %message:color(normal),
       prover:unify_constraints(Lit, Constraints, NewConstraints)
 
   ;   %-------------------------------------------------------------
@@ -131,7 +126,7 @@ prover:prove(Full, Proof,       NewProof,
 
 
 % =============================================================================
-%  Helper predicates – now single‑clause versions
+% Proof helper predicates
 % =============================================================================
 
 % A literal is proven if it appears in the model.
@@ -170,11 +165,12 @@ prover:conflictrule(rule(Lit,_), Proof) :-
 
 
 % =============================================================================
-%  Miscellaneous utilities
+% CONSTRAINT
 % =============================================================================
 
 % A constraint literal recogniser
 prover:is_constraint(constraint(_)).
+
 
 % -----------------------------------------------------------------------------
 % Constraints unification
@@ -182,87 +178,61 @@ prover:is_constraint(constraint(_)).
 
 % Case: Key exists → update or fail
 prover:unify_constraints(constraint(Key:{Value}),Constraints,NewConstraints) :-
-  %writeln('Checking if constraint key exists'),
   get_assoc(Key,Constraints,CurrentValue,NewConstraints,NewValue),!,
-  %writeln('Found constraint'),
   prover:unify_constraint(Value,CurrentValue,NewValue).
 
 % Case: Key doesn't exist → insert
 prover:unify_constraints(constraint(Key:{Value}),Constraints,NewConstraints) :-
-  %writeln('Dit not find constraint key'),
   prover:unify_constraint(Value,{},NewValue),
   put_assoc(Key,Constraints,NewValue,NewConstraints).
 
 
-% -----------------------------------------------------------------------------
-% Constraint unification
-% -----------------------------------------------------------------------------
-
-
 % Case: empty input, no existing constraints
 prover:unify_constraint([],{},Assoc) :-		% []    + {}     → t
-  %writeln('test A'),
-  empty_assoc(Assoc),
-  %writeln('test A succeed'),
-  !.
+  empty_assoc(Assoc),!.
 
 % Case: atom input, no existing constraints
 prover:unify_constraint(Atom,{},Atom) :-        % atom  + {}     → atom
-  %writeln('test B'),
-  is_of_type(atom,Atom),
-  %writeln('test B succeed'),
-  !.
+  is_of_type(atom,Atom),!.
 
 % Case: atom input, no existing constraints
 prover:unify_constraint(List,{},Assoc) :-       % list  + {}     → t{..}
-  %writeln('test C'),
   is_list(List),!,
-  %writeln('test C succeed'),
-  list_to_assoc(List,Assoc).
+  prover:list_to_assoc(List,Assoc).
 
 % Case: empty input, existing constraints
 prover:unify_constraint([],Assoc,Assoc) :-	% []    + t{..}  → t{..}
-  %writeln('test D'),
-  is_assoc(Assoc),
-  %writeln('test D succeed'),
-  !.
+  is_assoc(Assoc),!.
 
 % Case: atom input, existing constraints
 prover:unify_constraint(Atom,Atom,Atom) :-	% atom  + atom   → atom
-  %writeln('test E'),
-  is_of_type(atom,Atom),
-  %writeln('test E succeed'),
-  !.
+  is_of_type(atom,Atom),!.
 
 % Case: list input, empty constraints
 prover:unify_constraint(List,E,Assoc) :-	% list  + t      → t{..}
-  %writeln('test F'),
   is_list(List),
   empty_assoc(E),!,
-  %writeln('test F succeed'),
-  list_to_assoc(List,Assoc).
+  prover:list_to_assoc(List,Assoc).
 
 % Case list input, existing constraints
 prover:unify_constraint(List,M,Assoc) :-	% list  + t{..}  → t{..} (proven)
-  %writeln('test G'),
   is_of_type(list,List),
   is_assoc(M),!,
-  %writeln('test G succeed'),
   prover:prove(List,t,_,M,Assoc,t,_).
 
 
-% constraint(use(R://E):{[required_use_model]})
-% constraint(slot(C,N,S):{Ebuild})
-
-
 % =============================================================================
-%  Helper: canonicalise literals
+% Helper: canonicalise literals and rules
 % =============================================================================
 
-%% canon_literal(?Full, ?Core, ?Ctx)
-%%   Full  – full format
-%%   Core  – part *before* the context annotation.
-%%   Ctx   – the context ({} for the “no‑context” case).
+% canon_literal(?Full, ?Core, ?Ctx)
+%
+%   Full  – full format
+%   Core  – part *before* the context annotation.
+%   Ctx   – the context ({} for the “no‑context” case).
+%
+% Convert between full format and key-value pair used
+% for the AVL model tree
 
 canon_literal(R://L:A,       R://L:A,  {})  :- !.
 canon_literal(R://L:A?{Ctx}, R://L:A,  Ctx) :- !.
@@ -273,6 +243,10 @@ canon_literal(L:A?{Ctx},     L:A,      Ctx) :- !.
 canon_literal(L,             L,        {})  :- !.
 canon_literal(L?{Ctx},       L,        Ctx) :- !.
 
+% canon_rule(?Full, ?Key, ?Value
+%
+% Convert between full format and key-value pair used
+% for the AVL proof tree
 
 canon_rule(assumed(rule(L,B)),     assumed(rule(L)), B?{})   :- !.
 canon_rule(assumed(rule(L?Ctx,B)), assumed(rule(L)), B?Ctx)  :- !.
@@ -280,6 +254,11 @@ canon_rule(rule(L,B),              rule(L),          B?{})   :- !.
 canon_rule(rule(L?Ctx,B),          rule(L),          B?Ctx)  :- !.
 
 
+% =============================================================================
+%  Helper: AVL assoc convertors
+% =============================================================================
+
+% AVL proof to List proof
 proof_to_list(Assoc, List) :-
   findall(Full,
           (gen_assoc(Key,Assoc,Value),
@@ -287,6 +266,7 @@ proof_to_list(Assoc, List) :-
           List).
 
 
+% AVL model to List model
 model_to_list(Assoc, List) :-
   findall(Full,
           (gen_assoc(Key,Assoc,Value),
@@ -294,15 +274,51 @@ model_to_list(Assoc, List) :-
           List).
 
 
+% AVL constraints to List model
+constraints_to_list(Assoc, List) :-
+  findall(Full,
+          (gen_assoc(Key,Assoc,Value),
+           canon_literal(Full,Key,Value)),
+          List).
+
+
+% List proof to AVL proof
+list_to_proof(List, Assoc) :-
+  empty_assoc(Empty),
+  foldl(add_to_proof, List, Empty, Assoc).
+
+add_to_proof(Full, InAssoc, OutAssoc) :-
+  canon_rule(Full, Key, Value),
+  put_assoc(Key, InAssoc, Value, OutAssoc).
+
+
+% List model to AVL model
+list_to_model(List, Assoc) :-
+  empty_assoc(Empty),
+  foldl(add_to_model, List, Empty, Assoc).
+
+add_to_model(Full, InAssoc, OutAssoc) :-
+  canon_literals(Full, Key, Value),
+  put_assoc(Key, InAssoc, Value, OutAssoc).
+
+
+% List constraints to AVL constraints
+list_to_constraints(List, Assoc) :-
+  empty_assoc(Empty),
+  foldl(add_to_constraints, List, Empty, Assoc).
+
+add_to_cpnstraints(Full, InAssoc, OutAssoc) :-
+  canon_literals(Full, Key, Value),
+  put_assoc(Key, InAssoc, Value, OutAssoc).
+
+
+% Generic list to Generic Assoc, with {} as value
 list_to_assoc(List, Assoc) :-
   empty_assoc(Empty),
-  list_to_assoc_(List, Empty, Assoc).
+  foldl(add_to_assoc, List, Empty, Assoc).
 
-list_to_assoc_([], Assoc, Assoc).
-list_to_assoc_([Key|Tail], AccAssoc, FinalAssoc) :-
-  put_assoc(Key, AccAssoc,{}, NewAssoc),
-  list_to_assoc_(Tail, NewAssoc, FinalAssoc).
-
+add_to_assoc(Key,InAssoc,OutAssoc) :-
+  put_assoc(Key,InAssoc,{},OutAssoc).
 
 
 % =============================================================================
@@ -320,12 +336,8 @@ prover:test(Repository,Style) :-
   tester:test(Style,
               'Proving',
               Repository://Entry,
-              (Repository:entry(Entry)),
-              ( empty_assoc(EmptyProof),
-                empty_assoc(EmptyModel),
-                empty_assoc(EmptyConstraints),
-                with_q(prover:prove(Repository://Entry:Action?{[]},
-                                    EmptyProof,_,EmptyModel,_,EmptyConstraints,_)))).
+              Repository:entry(Entry),
+              ( with_q(prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_)) )).
 
 %! prover:test_latest(+Repository)
 prover:test_latest(Repository) :-
@@ -338,10 +350,5 @@ prover:test_latest(Repository,Style) :-
   tester:test(Style,
               'Proving',
               Repository://Entry,
-              (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
-              ( empty_assoc(EmptyProof),
-                empty_assoc(EmptyModel),
-                empty_assoc(EmptyConstraints),
-                with_q(prover:prove(Repository://Entry:Action?{[]},
-                                    EmptyProof,_,EmptyModel,_,EmptyConstraints,_)))).
-
+              ( Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_)) ),
+              ( with_q(prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_)) )).
