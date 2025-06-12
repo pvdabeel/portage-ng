@@ -39,6 +39,21 @@ The specifications of the grammar can be found in the PMS EAPI 8 document
 
 :- module(eapi, []).
 
+% --------------------
+% EAPI abstract syntax
+% --------------------
+
+% The result of parsing my contain the following abstract syntax constructs:
+
+eapi:abstract_syntax_construct(package_dependency(_,_,_,_,_,_,_,_,_)) :- !.
+eapi:abstract_syntax_construct(use_conditional_group(_,_,_,_)) :- !.
+eapi:abstract_syntax_construct(any_of_group(_)) :- !.
+eapi:abstract_syntax_construct(all_of_group(_)) :- !.
+eapi:abstract_syntax_construct(at_most_one_of_group(_)) :- !.
+eapi:abstract_syntax_construct(exactly_one_of_group(_)) :- !.
+
+% See cache.pl for the data structure in the parser output is stored.
+
 % ----------
 % EAPI parse
 % ----------
