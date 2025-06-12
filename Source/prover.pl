@@ -20,10 +20,8 @@
 %  PROVER declarations
 % =============================================================================
 
-prover:prove_assoc(Target,[],Proof,[],Model,[],Constraints) :-
-  empty_assoc(InitialProof),
-  empty_assoc(InitialModel),
-  prover:prove(Target,InitialProof,ProofAssoc,InitialModel,ModelAssoc,[],Constraints),
+prover:prove_lists(Target,[],Proof,[],Model,[],Constraints) :-
+  prover:prove(Target,t,ProofAssoc,t,ModelAssoc,t,Constraints),
   proof_to_list(ProofAssoc,Proof),
   model_to_list(ModelAssoc,Model).
 
@@ -33,10 +31,10 @@ prover:prove_assoc(Target,[],Proof,[],Model,[],Constraints) :-
 
 prover:prove([],Proof,Proof,Model,Model,Constraints,Constraints) :- !.
 
-prover:prove([Literal|Rest],Proof0,Proof,Model0,Model,Cons0,Cons) :-
+prover:prove([Literal|Rest],Proof,NewProof,Model,NewModel,Cons,NewCons) :-
   !,
-  prover:prove(Literal, Proof0,MidProof, Model0,MidModel, Cons0,MidCons),
-  prover:prove(Rest,    MidProof,Proof,  MidModel,Model,  MidCons,Cons).
+  prover:prove(Literal, Proof,MidProof,    Model,MidModel,    Cons,MidCons),
+  prover:prove(Rest,    MidProof,NewProof, MidModel,NewModel, MidCons,NewCons).
 
 
 % -----------------------------------------------------------------------------
@@ -56,6 +54,12 @@ prover:prove(Full, Proof,       NewProof,
       !,
       Proof  = NewProof,
       Model  = NewModel,
+      %message:color(magenta),
+      %write('Constraint to unify: '),write(Lit),nl,
+      %write('           with:     '),nl,
+      %forall(gen_assoc(Key,Constraints,Value),
+      % (write('           '),write(Key),write(' '),write(Value),nl)),
+      %message:color(normal),
       prover:unify_constraints(Lit, Constraints, NewConstraints)
 
   ;   %-------------------------------------------------------------
@@ -172,16 +176,83 @@ prover:conflictrule(rule(Lit,_), Proof) :-
 % A constraint literal recogniser
 prover:is_constraint(constraint(_)).
 
-% Constraint unification delegates to feature_unification/3.
-prover:unify_constraints(constraint(Constraint),Constraints,NewConstraints) :-
-  feature_unification:unify([Constraint],Constraints,NewConstraints).
+% -----------------------------------------------------------------------------
+% Constraints unification
+% -----------------------------------------------------------------------------
 
-% Facts are rules with an empty body.
-prover:fact(rule(_,[])).
+% Case: Key exists → update or fail
+prover:unify_constraints(constraint(Key:{Value}),Constraints,NewConstraints) :-
+  %writeln('Checking if constraint key exists'),
+  get_assoc(Key,Constraints,CurrentValue,NewConstraints,NewValue),!,
+  %writeln('Found constraint'),
+  prover:unify_constraint(Value,CurrentValue,NewValue).
 
-% Build a model by proving a list of literals from scratch.
-prover:model(Literals,Model) :-
-  prover:prove_assoc(Literals,[],_,[],Model,[],_).
+% Case: Key doesn't exist → insert
+prover:unify_constraints(constraint(Key:{Value}),Constraints,NewConstraints) :-
+  %writeln('Dit not find constraint key'),
+  prover:unify_constraint(Value,{},NewValue),
+  put_assoc(Key,Constraints,NewValue,NewConstraints).
+
+
+% -----------------------------------------------------------------------------
+% Constraint unification
+% -----------------------------------------------------------------------------
+
+
+% Case: empty input, no existing constraints
+prover:unify_constraint([],{},Assoc) :-		% []    + {}     → t
+  %writeln('test A'),
+  empty_assoc(Assoc),
+  %writeln('test A succeed'),
+  !.
+
+% Case: atom input, no existing constraints
+prover:unify_constraint(Atom,{},Atom) :-        % atom  + {}     → atom
+  %writeln('test B'),
+  is_of_type(atom,Atom),
+  %writeln('test B succeed'),
+  !.
+
+% Case: atom input, no existing constraints
+prover:unify_constraint(List,{},Assoc) :-       % list  + {}     → t{..}
+  %writeln('test C'),
+  is_list(List),!,
+  %writeln('test C succeed'),
+  list_to_assoc(List,Assoc).
+
+% Case: empty input, existing constraints
+prover:unify_constraint([],Assoc,Assoc) :-	% []    + t{..}  → t{..}
+  %writeln('test D'),
+  is_assoc(Assoc),
+  %writeln('test D succeed'),
+  !.
+
+% Case: atom input, existing constraints
+prover:unify_constraint(Atom,Atom,Atom) :-	% atom  + atom   → atom
+  %writeln('test E'),
+  is_of_type(atom,Atom),
+  %writeln('test E succeed'),
+  !.
+
+% Case: list input, empty constraints
+prover:unify_constraint(List,E,Assoc) :-	% list  + t      → t{..}
+  %writeln('test F'),
+  is_list(List),
+  empty_assoc(E),!,
+  %writeln('test F succeed'),
+  list_to_assoc(List,Assoc).
+
+% Case list input, existing constraints
+prover:unify_constraint(List,M,Assoc) :-	% list  + t{..}  → t{..} (proven)
+  %writeln('test G'),
+  is_of_type(list,List),
+  is_assoc(M),!,
+  %writeln('test G succeed'),
+  prover:prove(List,t,_,M,Assoc,t,_).
+
+
+% constraint(use(R://E):{[required_use_model]})
+% constraint(slot(C,N,S):{Ebuild})
 
 
 % =============================================================================
@@ -217,11 +288,20 @@ proof_to_list(Assoc, List) :-
 
 
 model_to_list(Assoc, List) :-
- findall(Full,
-         (gen_assoc(Key,Assoc,Value),
-          canon_literal(Full,Key,Value)),
-         List).
+  findall(Full,
+          (gen_assoc(Key,Assoc,Value),
+           canon_literal(Full,Key,Value)),
+          List).
 
+
+list_to_assoc(List, Assoc) :-
+  empty_assoc(Empty),
+  list_to_assoc_(List, Empty, Assoc).
+
+list_to_assoc_([], Assoc, Assoc).
+list_to_assoc_([Key|Tail], AccAssoc, FinalAssoc) :-
+  put_assoc(Key, AccAssoc,{}, NewAssoc),
+  list_to_assoc_(Tail, NewAssoc, FinalAssoc).
 
 
 
@@ -243,8 +323,9 @@ prover:test(Repository,Style) :-
               (Repository:entry(Entry)),
               ( empty_assoc(EmptyProof),
                 empty_assoc(EmptyModel),
+                empty_assoc(EmptyConstraints),
                 with_q(prover:prove(Repository://Entry:Action?{[]},
-                                    EmptyProof,_,EmptyModel,_,[],_)))).
+                                    EmptyProof,_,EmptyModel,_,EmptyConstraints,_)))).
 
 %! prover:test_latest(+Repository)
 prover:test_latest(Repository) :-
@@ -260,6 +341,7 @@ prover:test_latest(Repository,Style) :-
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
               ( empty_assoc(EmptyProof),
                 empty_assoc(EmptyModel),
+                empty_assoc(EmptyConstraints),
                 with_q(prover:prove(Repository://Entry:Action?{[]},
-                                    EmptyProof,_,EmptyModel,_,[],_)))).
+                                    EmptyProof,_,EmptyModel,_,EmptyConstraints,_)))).
 
