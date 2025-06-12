@@ -60,8 +60,15 @@ compile_query_list([S|Ss], Repo://Id, (One, Rest)) :-
 compile_query_compound(repository(Repo),       		Repo://Id,
   cache:ordered_entry(Repo,Id,_,_,_))          		:- message:color(green).
 
+compile_query_compound(entry(Id),        		Repo://Id,
+  cache:ordered_entry(Repo,Id,_,_,_))          		:- message:color(green).
+
 compile_query_compound(ebuild(Id),        		Repo://Id,
   cache:ordered_entry(Repo,Id,_,_,_))          		:- message:color(green).
+
+compile_query_compound(package(C,N),        		Repo://Id,
+  ( cache:package(Repo,C,N),
+    once(cache:ordered_entry(Repo,Id,C,N,_)) ))   	:- message:color(green).
 
 compile_query_compound(name(Name),        		Repo://Id,
   cache:ordered_entry(Repo,Id,_,Name,_))          	:- message:color(green).
@@ -165,6 +172,13 @@ compile_query_compound(dependency(D,run_compile),       Repo://Id,
   ; cache:entry_metadata(Repo,Id,depend,D)
   ; cache:entry_metadata(Repo,Id,idepend,D)
   ; cache:entry_metadata(Repo,Id,rdepend,D) ))        	:- message:color(green).
+
+compile_query_compound(masked(true),   			Repo://Id,
+  preference:masked(Repo://Id) )   			:- message:color(green).
+
+compile_query_compound(masked(false),  			Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,_,_),
+    \+ preference:masked(Repo://Id) ))		        :- message:color(green).
 
 compile_query_compound(select(repository,notequal,R),   Repo://Id,
   ( cache:ordered_entry(R,Id,_,_,_),
@@ -356,6 +370,20 @@ compile_query_compound(select(keyword,equal,K),		Repo://Id,
 compile_query_compound(select(keywords,equal,K),	Repo://Id,
   cache:entry_metadata(Repo,Id,keyword,K))		:- message:color(green).
 
+compile_query_compound(select(masked,equal,true),       Repo://Id,
+  preference:masked(Repo://Id) )                        :- message:color(green).
+
+compile_query_compound(select(masked,equal,false),      Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,_,_),
+    \+ preference:masked(Repo://Id) ))                  :- message:color(green).
+
+compile_query_compound(select(masked,notequal,false),   Repo://Id,
+  preference:masked(Repo://Id) )                        :- message:color(green).
+
+compile_query_compound(select(masked,notequal,true),    Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,_,_),
+    \+ preference:masked(Repo://Id) ))                  :- message:color(green).
+
 compile_query_compound(all(S),                         	Repo://Id,
   query:search(all(S),Repo://Id)) 			:- var(S),!, message:color(cyan).
 
@@ -450,9 +478,10 @@ compile_query_compound(model(required_use(Model)),	Repo://Id,
   ( findall(ReqUse,
             cache:entry_metadata(Repo,Id,required_use,ReqUse),
             AllReqUse),
-    prover:prove(AllReqUse,t,AvlProof,t,_,[],_),
-    findall(Fact,
-            gen_assoc(rule(Fact),AvlProof,[]?_),
+    prover:prove(AllReqUse,t,_,t,AvlModel,t,_),
+    findall(Key,
+            (gen_assoc(Key,AvlModel,_Value),
+   	     \+eapi:abstract_syntax_construct(Key)),
             Model) ) ) 					:- message:color(green).
 
 
@@ -461,7 +490,7 @@ compile_query_compound(model(dependency(Model,run)):config?{Context},  Repo://Id
           ( cache:entry_metadata(Repo,Id,idepend,Dep)
           ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
           Deps),
-  prover:prove(Deps,t,_,t,AvlModel,[],_),
+  prover:prove(Deps,t,_,t,AvlModel,t,_),
   findall(Fact:run?{[]},
           (gen_assoc(Fact:_,AvlModel,_),
            Fact =.. [package_dependency|_]),
@@ -473,7 +502,7 @@ compile_query_compound(model(dependency(Model,compile)):config?{Context},  Repo:
           ; cache:entry_metadata(Repo,Id,cdepend,Dep)
           ; cache:entry_metadata(Repo,Id,depend,Dep) ),
           Deps),
-  prover:prove(Deps,t,_,t,AvlModel,[],_),
+  prover:prove(Deps,t,_,t,AvlModel,t,_),
   findall(Fact:install?{[]},
            (gen_assoc(Fact:_,AvlModel,_),
             Fact =.. [package_dependency|_]),
@@ -487,7 +516,7 @@ compile_query_compound(model(dependency(Model,run_compile)):config?{Context},  R
           ; cache:entry_metadata(Repo,Id,idepend,Dep)
           ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
           Deps),
-  prover:prove(Deps,t,_,t,AvlModel,[],_),
+  prover:prove(Deps,t,_,t,AvlModel,t,_),
   findall(Fact:fetchonly?{Context},
           (gen_assoc(Fact:_,AvlModel,_),
            Fact =.. [package_dependency|_]),
@@ -498,7 +527,6 @@ compile_query_compound(model(dependency(Model,run_compile)):config?{Context},  R
 
 compile_query_compound(Stmt, Entry,
   query:search(Stmt,Entry)) :- message:color(orange).
-
 
 
 % ****************
