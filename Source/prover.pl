@@ -298,7 +298,7 @@ list_to_model(List, Assoc) :-
   foldl(add_to_model, List, Empty, Assoc).
 
 add_to_model(Full, InAssoc, OutAssoc) :-
-  canon_literals(Full, Key, Value),
+  canon_literal(Full, Key, Value),
   put_assoc(Key, InAssoc, Value, OutAssoc).
 
 
@@ -307,8 +307,8 @@ list_to_constraints(List, Assoc) :-
   empty_assoc(Empty),
   foldl(add_to_constraints, List, Empty, Assoc).
 
-add_to_cpnstraints(Full, InAssoc, OutAssoc) :-
-  canon_literals(Full, Key, Value),
+add_to_constraints(Full, InAssoc, OutAssoc) :-
+  canon_literal(Full, Key, Value),
   put_assoc(Key, InAssoc, Value, OutAssoc).
 
 

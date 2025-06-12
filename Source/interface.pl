@@ -241,12 +241,12 @@ interface:process_action(Action,ArgsSets,Options) :-
   interface:process_server(Host,Port),
   (Mode == 'client' ->
     (client:rpc_execute(Host,Port,
-     (oracle:with_q(prover:prove(Proposal,[],Proof,[],Model,[],_Constraints)),
+     (oracle:with_q(prover:prove_lists(Proposal,[],Proof,[],Model,[],_Constraints)),
       oracle:with_q(planner:plan(Proof,[],[],Plan)),
       printer:print(Proposal,Model,Proof,Plan)),
      Output),
      writeln(Output));
-    ( prover:prove_assoc(Proposal,[],Proof,[],Model,[],Constraints),
+    ( prover:prove_lists(Proposal,[],Proof,[],Model,[],Constraints),
       planner:plan(Proof,[],[],Plan),
       printer:print(Proposal,Model,Proof,Plan),
       message:color(cyan),nl,
