@@ -73,7 +73,7 @@ test:run(cases) :-
   test:cases(Cases),
   forall(member(Case,Cases),
          (
-          (prover:prove_assoc(Case,[],Proof,[],Model,[],_Constraints),
+          (prover:prove_lists(Case,[],Proof,[],Model,[],_Constraints),
            planner:plan(Proof,[],[],Plan),
            printer:print([Case],Model,Proof,Plan));
           (message:color(red),
