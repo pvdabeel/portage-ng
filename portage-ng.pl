@@ -109,7 +109,7 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/rules.pl')),
    ensure_loaded(portage('Source/ebuild.pl')),
    ensure_loaded(portage('Source/preference.pl')),
-   ensure_loaded(portage('Source/unify.pl')),
+   %ensure_loaded(portage('Source/unify.pl')),
    ensure_loaded(portage('Source/script.pl')),
    ensure_loaded(portage('Source/stat.pl')),
    ensure_loaded(portage('Source/pkg.pl')),
@@ -126,6 +126,8 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/cluster.pl')),
 
    ensure_loaded(portage('Source/test.pl')),
+
+   ensure_loaded(portage('Source/grok.pl')),
 
    message:notice('Loaded standalone modules...').
 
