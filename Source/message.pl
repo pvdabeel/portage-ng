@@ -114,6 +114,7 @@ hl(Char) :-
     term_width(W),
     atom_chars(Char, [C]),
     atomic_list_concat(['~`', C, 't~*|\n'], Fmt),
+    write('\r'),
     format(Fmt, [W]).
 
 hl :- hl('-').
