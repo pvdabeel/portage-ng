@@ -7,7 +7,7 @@
   this project.
 */
 
-:- module(message, []).
+:- module(message, [clear/0]).
 
 :- use_module(library(lists)).
 :- use_module(library(ansi_term)).
@@ -28,8 +28,8 @@ term_width(W) :-
     (   tty_size(_, W0)
     ->  W = W0
     ;   W = 80
-    ),
-    asserta(term_width_(W)).
+    ).
+    %asserta(term_width_(W)).
 
 %------------------------------------------------------------------------------
 %  Colour & style tables
@@ -76,6 +76,7 @@ el :- write('\e[K').
 hc :- write('\e[?25l').
 sc :- write('\e[?25h').
 bl :- write('\e[1G').
+cl :- write('\e[2J\e[H').
 
 %------------------------------------------------------------------------------
 %  Title helpers
@@ -232,6 +233,8 @@ header(Header, [First | Rest]) :-
 %------------------------------------------------------------------------------
 %  Misc helpers
 %------------------------------------------------------------------------------
+
+clear :- cl.
 
 clean :- el.
 
