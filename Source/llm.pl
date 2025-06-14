@@ -46,7 +46,7 @@ LLM service specific code can be found in the files inside the 'Llm' subdirector
 % LLM declarations
 % ****************
 
-:- module(llm, [stream/5, process_stream/3, process_line/2, get_content_from_dict/2, get_input/1, extract_swi_prolog_calls/2, execute_and_get_output/2, make_function_message/2, find_first_assistant/2, handle_response/6]).
+:- module(llm, [get_input/1]).
 
 :- use_module(library(http/http_open)).
 :- use_module(library(http/json)).
@@ -188,7 +188,7 @@ execute_and_get_output(Code, Output) :-
     Output = OutputStr.
 
 % Make function message
-make_function_message(Content, Message) :-
+make_function_message(Service,Content, Message) :-
     %atomic_list_concat(['<command_output:swi_prolog>', Output, '</command_output:swi_prolog>'], Content),
     nl,
     message:hl('computer'),
@@ -197,7 +197,10 @@ make_function_message(Content, Message) :-
     message:color(normal),
     message:hl,
     nl,
-    Message = _{role: 'function', name: 'swi_prolog_exec', content: Content}.
+    (Service = gemini
+     -> Message = _{ role: 'user', parts: [ _{function_response: _{ name: 'swi_prolog_exec',response: _{ result_key: Content }}}]}
+     ;  Message = _{role: 'function', name: 'swi_prolog_exec', content: Content}).
+
 
 % Helper to find the first assistant message from the end
 find_first_assistant([Message|_Rest], Message) :-
@@ -211,7 +214,7 @@ handle_response(ServiceAPIKey, ServiceModel, ServiceEndpoint, Service:UpdateHist
   ( extract_swi_prolog_calls(ResponseContent, Codes),
     Codes \= []
     ->  maplist(execute_and_get_output, Codes, Outputs),
-        maplist(make_function_message, Outputs, FunctionMessages),
+        maplist(make_function_message(Service), Outputs, FunctionMessages),
         append(History, FunctionMessages, UpdatedHistory),
         stream(ServiceEndpoint, ServiceAPIKey, ServiceModel, UpdatedHistory, NewResponse),
         (
@@ -235,7 +238,7 @@ get_input(Msg) :-
 
 % Informs the LLM about our capabilities
 prompt(Capabilities) :-
-  Capabilities = "If you send me SWI-prolog code, embedded between <TAG> and </TAG> where TAG is replaced with call:swi_prolog, this code will be executed locally and the output will be send back to you automatically. Do not mention the tags if you have not got swi-prolog code in between. After I have send you the output, you can also embed SWI-prolog code in your response between the tags. The code you write between tags is executed in a temporary module, in which your source code is loaded; write your code like it would be loaded from a separate source file. This implies you have to trigger execution of own main function using :- <yourmainfunction>. Like you would in separate source file. This is a prompt, no need to confirm or aknowledge. Everthing behind this is not a prompt and can be aknowledged or reacted to. ".
+  Capabilities = "If you send me SWI-prolog code, embedded between <TAG> and </TAG> where TAG is replaced with call:swi_prolog, this code will be executed locally and the output will be send back to you automatically. Do not mention the tags if you have not got swi-prolog code in between. After I have send you the output, you can also embed SWI-prolog code in your response between the tags. The code you write between tags is executed in a temporary module, in which your source code is loaded; write your code like it would be loaded from a separate source file. This implies you have to trigger execution of own main function using :- <yourmainfunction>. Like you would in separate source file. This is a prompt, no need to confirm or aknowledge. Everthing behind this is not a prompt and can be aknowledged or reacted to. Note: if you are google gemini, then you need to wrap your response as a function_call for function named swi_prolog_exec".
 
 % Adds prompt tp to the first message to the LLM
 

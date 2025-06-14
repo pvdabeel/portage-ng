@@ -109,7 +109,6 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/rules.pl')),
    ensure_loaded(portage('Source/ebuild.pl')),
    ensure_loaded(portage('Source/preference.pl')),
-   %ensure_loaded(portage('Source/unify.pl')),
    ensure_loaded(portage('Source/script.pl')),
    ensure_loaded(portage('Source/stat.pl')),
    ensure_loaded(portage('Source/pkg.pl')),
@@ -127,7 +126,6 @@ load_standalone_modules :-
 
    ensure_loaded(portage('Source/test.pl')),
 
-   ensure_loaded(portage('Source/grok.pl')),
 
    message:notice('Loaded standalone modules...').
 
@@ -146,6 +144,19 @@ load_server_modules :-
    ensure_loaded(portage('Source/server.pl')),
 
    message:notice('Loaded server modules...').
+
+
+load_llm_modules :-
+
+   ensure_loaded(portage('Source/llm.pl')),
+   ensure_loaded(portage('Source/Llm/grok.pl')),
+   ensure_loaded(portage('Source/Llm/chatgpt.pl')),
+   ensure_loaded(portage('Source/Llm/claude.pl')),
+   ensure_loaded(portage('Source/Llm/gemini.pl')),
+   ensure_loaded(portage('Source/Llm/llama.pl')),
+   ensure_loaded(portage('Source/Llm/ollama.pl')),
+
+   message:notice('Loaded llm modules...').
 
 
 %! main(+Mode).
@@ -192,6 +203,7 @@ main(client) :-
 
 main(standalone) :-
   load_standalone_modules,
+  load_llm_modules,
   stats:newinstance(stat),
   kb:newinstance(knowledgebase),
   config:systemconfig(Config),
