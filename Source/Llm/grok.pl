@@ -34,12 +34,16 @@ update_history('grok', History) :-
     assertz(grok_history(History)).
 
 % Main entry points for Grok
-grok(Msg) :-
+grok(Input) :-
     Service = 'grok',
     config:llm_api_key(Service,Key),
     config:llm_model(Service,Model),
     config:llm_endpoint(Service,Endpoint),
     service_history(Service,History),
+    (History == []
+     -> llm:prompt(Prompt),
+        string_concat(Prompt,Input,Msg)
+     ; Msg = Input),
     UserMessage = _{role: 'user', content: Msg},
     append(History, [UserMessage], Messages),
     llm:llm_stream(Endpoint, Key, Model, Messages, Response),

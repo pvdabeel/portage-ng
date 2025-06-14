@@ -85,7 +85,7 @@ llm_stream(Endpoint, APIKey, Model, Messages, Response) :-
 
             message:color(lightgray),
             message:style(italic),
-            write('--- '),write(Model),write(' '),message:hl,
+            message:hl(Model),
 
             process_stream(In, Contents),
             close(In),
@@ -159,13 +159,22 @@ extract_swi_prolog_calls(ResponseContent, Matches) :-
 get_group(Match, Acc, [Group|Acc]) :-
     get_dict(1, Match, Group).
 
+% Sandboxed execution in a temporary module
+execute_llm_code(Src) :-
+  open_chars_stream(Src,Stream),
+        in_temporary_module(Module,
+    load_files(Module,[stream(Stream),module(Module),sandboxed(true)]),
+    true),
+  close(Stream).
+
 % Execute SWI-Prolog code safely and capture output
 execute_and_get_output(Code, Output) :-
     catch(
         (
-            read_term_from_atom(Code, Term, [variable_names(_)]),
+            %read_term_from_atom(Code, Term, [variable_names(_)]),
             catch(
-                with_output_to(string(OutputStr), (call(Term) -> true ; format(string(OutputStr), 'Goal failed', []))),
+                with_output_to(string(OutputStr), %(call(Term) -> true ; format(string(OutputStr), 'Goal failed', []))),
+                  execute_llm_code(Code)),
                 SafeError,
                 format(string(OutputStr), 'Execution error: ~w', [SafeError])
             )
@@ -176,14 +185,15 @@ execute_and_get_output(Code, Output) :-
     Output = OutputStr.
 
 % Make function message
-make_function_message(Output, Message) :-
-    atomic_list_concat(['<command_output:swi_prolog>', Output, '</command_output:swi_prolog>'], Content),
+make_function_message(Content, Message) :-
+    %atomic_list_concat(['<command_output:swi_prolog>', Output, '</command_output:swi_prolog>'], Content),
     nl,
-    write('--- Sending back '),message:hl,
+    message:hl('computer'),
     message:color(green),
     writeln(Content),
     message:color(normal),
     message:hl,
+    nl,
     Message = _{role: 'function', name: 'swi_prolog_exec', content: Content}.
 
 % Helper to find the first assistant message from the end
@@ -218,3 +228,8 @@ get_input(Msg) :-
     edit(File),
     read_file_to_string(File, Msg, []),
     delete_file(File).
+
+% Informs the LLM about our capabilities
+prompt(Capabilities) :-
+  Capabilities = "If you send me SWI-prolog code, embedded between <TAG> and </TAG> where TAG is replaced with call:swi_prolog, this code will be executed locally and the output will be send back to you automatically. Do not mention the tags if you have not got swi-prolog code in between. After I have send you the output, you can also embed SWI-prolog code in your response between the tags. The code you write between tags is executed in a temporary module, in which your source code is loaded; write your code like it would be loaded from a separate source file. This implies you have to trigger execution of own main function using :- <yourmainfunction>. Like you would in separate source file. This is a prompt, no need to confirm or aknowledge. Everthing behind this is not a prompt and can be aknowledged or reacted to. ".
+
