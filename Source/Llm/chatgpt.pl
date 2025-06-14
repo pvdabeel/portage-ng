@@ -8,31 +8,32 @@
 */
 
 
-/** <module> GROK
-Implements interaction with x.AI Grok
+/** <module> CHATGPT
+Implements interaction with OpenAI ChatGPT
 We implement real-time streaming.
 
-We support any model available, default is set to 'gpt-3'.
+We support any model available, default is set to 'gpt-4'.
 */
 
 
-% *****************
-% GROK declarations
-% *****************
+% ********************
+% CHATGPT declarations
+% ********************
 
-:- module(grok, [grok/0, grok/1]).
+:- module(chatgpt, [chatgpt/0, chatgpt/1]).
 
 % Dynamic predicate for conversation history
 :- dynamic history/1.
+
 history([]).
 
 update_history(History) :-
-  retractall(grok:history(_)),
-  assertz(grok:history(History)).
+  retractall(chatgpt:history(_)),
+  assertz(chatgpt:history(History)).
 
-% Main entry points for Grok
-grok(Input) :-
-  Service = 'grok',
+% Main entry points for ChatGPT
+chatgpt(Input) :-
+  Service = 'chatgpt',
   config:llm_api_key(Service,Key),
   config:llm_model(Service,Model),
   config:llm_endpoint(Service,Endpoint),
@@ -41,10 +42,10 @@ grok(Input) :-
   llm:stream(Endpoint, Key, Model, Messages, Response),
   (Response = _{contents: Contents, history: NewHistory}
    ->  atomic_list_concat(Contents, ResponseContent),
-       llm:handle_response(Key, Model, Endpoint, Service:update_history, ResponseContent, NewHistory)
+       handle_response(Key, Model, Endpoint, Service:update_history, ResponseContent, NewHistory)
    ;   Response = _{error: Error, history: _}
        ->  write('Error: '), write(Error), nl ).
 
-grok :-
-    llm:get_input(Msg),
-    grok(Msg).
+chatgpt :-
+    get_input(Msg),
+    chatgpt(Msg).

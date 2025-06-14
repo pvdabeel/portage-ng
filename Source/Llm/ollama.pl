@@ -8,31 +8,31 @@
 */
 
 
-/** <module> GROK
-Implements interaction with x.AI Grok
+/** <module> OLLAMA
+Implements interaction with Ollama (typically locally running)
 We implement real-time streaming.
 
-We support any model available, default is set to 'gpt-3'.
+We support any model available, default is set to 'llama3.2'.
 */
 
 
-% *****************
-% GROK declarations
-% *****************
+% *******************
+% OLLAMA declarations
+% *******************
 
-:- module(grok, [grok/0, grok/1]).
+:- module(ollama, [ollama/0, ollama/1]).
 
 % Dynamic predicate for conversation history
 :- dynamic history/1.
 history([]).
 
 update_history(History) :-
-  retractall(grok:history(_)),
-  assertz(grok:history(History)).
+  retractall(ollama:history(_)),
+  assertz(ollama:history(History)).
 
-% Main entry points for Grok
-grok(Input) :-
-  Service = 'grok',
+% Main entry points for Ollama
+ollama(Input) :-
+  Service = 'ollama',
   config:llm_api_key(Service,Key),
   config:llm_model(Service,Model),
   config:llm_endpoint(Service,Endpoint),
@@ -45,6 +45,6 @@ grok(Input) :-
    ;   Response = _{error: Error, history: _}
        ->  write('Error: '), write(Error), nl ).
 
-grok :-
-    llm:get_input(Msg),
-    grok(Msg).
+ollama :-
+    get_input(Msg),
+    ollama(Msg).

@@ -46,7 +46,7 @@ LLM service specific code can be found in the files inside the 'Llm' subdirector
 % LLM declarations
 % ****************
 
-:- module(llm, [llm_stream/5, process_stream/3, process_line/2, get_content_from_dict/2, get_input/1, extract_swi_prolog_calls/2, execute_and_get_output/2, make_function_message/2, find_first_assistant/2, handle_response/6]).
+:- module(llm, [stream/5, process_stream/3, process_line/2, get_content_from_dict/2, get_input/1, extract_swi_prolog_calls/2, execute_and_get_output/2, make_function_message/2, find_first_assistant/2, handle_response/6]).
 
 :- use_module(library(http/http_open)).
 :- use_module(library(http/json)).
@@ -56,31 +56,28 @@ LLM service specific code can be found in the files inside the 'Llm' subdirector
 
 
 % Streaming chat function for OpenAI-compatible services
-llm_stream(Endpoint, APIKey, Model, Messages, Response) :-
+stream(Endpoint, APIKey, Model, Messages, Response) :-
+    config:llm_max_tokens(Max),
+    config:llm_temperature(Temperature),
     set_stream(current_output, encoding(utf8)),
     Payload = _{
         model: Model,
         messages: Messages,
         stream: json_true,
-        max_tokens: 500,
-        temperature: 0.7
+        max_tokens: Max,
+        temperature: Temperature
     },
     with_output_to(string(JsonString),
-                         json_write_dict(current_output, Payload, [true(json_true), width(0)])),
-    %Headers = ['Content-Type'='application/json', 'Accept'='text/event-stream'],
-    %(   APIKey \= ''
-    %->  atomic_list_concat(['Bearer ', APIKey], AuthHeader),
-    %    Headers = ['Authorization'=AuthHeader | BaseHeaders],
-    %    writeln(Headers)
-    %;   Headers = BaseHeaders
-    %),
+                   json_write_dict(current_output, Payload, [true(json_true), width(0)])),
+    Headers = [method(post),
+               post(string(JsonString)),
+               authorization(bearer(APIKey)),
+               request_header('Content-Type'='application/json'),
+               request_header('Accept'='text/event-stream')],
+
     catch(
         (
-            http_open(Endpoint, In, [method(post),
-				     post(string(JsonString)),
-				     authorization(bearer(APIKey)),
-                                     request_header('Content-Type'='application/json'),
-                                     request_header('Accept'='text/event-stream')]),
+            http_open(Endpoint, In, Headers),
             set_stream(In, encoding(utf8)),
 
             message:color(lightgray),
@@ -161,9 +158,10 @@ get_group(Match, Acc, [Group|Acc]) :-
 
 % Sandboxed execution in a temporary module
 execute_llm_code(Src) :-
+  config:llm_sandboxed_execution(Bool),
   open_chars_stream(Src,Stream),
         in_temporary_module(Module,
-    load_files(Module,[stream(Stream),module(Module),sandboxed(true)]),
+    load_files(Module,[stream(Stream),module(Module),sandboxed(Bool)]),
     true),
   close(Stream).
 
@@ -173,8 +171,11 @@ execute_and_get_output(Code, Output) :-
         (
             %read_term_from_atom(Code, Term, [variable_names(_)]),
             catch(
-                with_output_to(string(OutputStr), %(call(Term) -> true ; format(string(OutputStr), 'Goal failed', []))),
-                  execute_llm_code(Code)),
+                with_output_to(
+                  string(OutputStr), %(call(Term) -> true ; format(string(OutputStr), 'Goal failed', []))),
+                  execute_llm_code(Code)
+                  %[capture([user_output,user_error]),color(true)]
+                ),
                 SafeError,
                 format(string(OutputStr), 'Execution error: ~w', [SafeError])
             )
@@ -210,7 +211,7 @@ handle_response(ServiceAPIKey, ServiceModel, ServiceEndpoint, Service:UpdateHist
     ->  maplist(execute_and_get_output, Codes, Outputs),
         maplist(make_function_message, Outputs, FunctionMessages),
         append(History, FunctionMessages, UpdatedHistory),
-        llm_stream(ServiceEndpoint, ServiceAPIKey, ServiceModel, UpdatedHistory, NewResponse),
+        stream(ServiceEndpoint, ServiceAPIKey, ServiceModel, UpdatedHistory, NewResponse),
         (   NewResponse = _{contents: NewContents, history: NewerHistory}
         ->
             atomic_list_concat(NewContents, NewResponseContent),
@@ -232,4 +233,18 @@ get_input(Msg) :-
 % Informs the LLM about our capabilities
 prompt(Capabilities) :-
   Capabilities = "If you send me SWI-prolog code, embedded between <TAG> and </TAG> where TAG is replaced with call:swi_prolog, this code will be executed locally and the output will be send back to you automatically. Do not mention the tags if you have not got swi-prolog code in between. After I have send you the output, you can also embed SWI-prolog code in your response between the tags. The code you write between tags is executed in a temporary module, in which your source code is loaded; write your code like it would be loaded from a separate source file. This implies you have to trigger execution of own main function using :- <yourmainfunction>. Like you would in separate source file. This is a prompt, no need to confirm or aknowledge. Everthing behind this is not a prompt and can be aknowledged or reacted to. ".
+
+% Adds prompt tp to the first message to the LLM
+
+prepare_message(History,Role,Input,Messages) :-
+  add_prompt(History,Input,Msg),
+  UserMessage = _{role: Role, content: Msg},
+  append(History,[UserMessage],Messages).
+
+add_prompt([],Msg,NewMsg) :-
+  !,
+  prompt(P),
+  string_concat(P,Msg,NewMsg).
+
+add_prompt(_,Msg,Msg) :- !.
 
