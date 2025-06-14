@@ -160,10 +160,12 @@ get_group(Match, Acc, [Group|Acc]) :-
 execute_llm_code(Src) :-
   config:llm_sandboxed_execution(Bool),
   open_chars_stream(Src,Stream),
-        in_temporary_module(Module,
-    load_files(Module,[stream(Stream),module(Module),sandboxed(Bool)]),
-    true),
-  close(Stream).
+  call_cleanup(catch((in_temporary_module(Module,
+                                   load_files(Module,[stream(Stream),module(Module),sandboxed(Bool)]),
+                                   true);true),
+                      _Exception,
+                      true),
+               close(Stream)).
 
 % Execute SWI-Prolog code safely and capture output
 execute_and_get_output(Code, Output) :-
@@ -173,8 +175,8 @@ execute_and_get_output(Code, Output) :-
             catch(
                 with_output_to(
                   string(OutputStr), %(call(Term) -> true ; format(string(OutputStr), 'Goal failed', []))),
-                  execute_llm_code(Code)
-                  %[capture([user_output,user_error]),color(true)]
+                  execute_llm_code(Code),
+                  [capture([user_output,user_error]),color(true)]
                 ),
                 SafeError,
                 format(string(OutputStr), 'Execution error: ~w', [SafeError])
@@ -212,7 +214,8 @@ handle_response(ServiceAPIKey, ServiceModel, ServiceEndpoint, Service:UpdateHist
         maplist(make_function_message, Outputs, FunctionMessages),
         append(History, FunctionMessages, UpdatedHistory),
         stream(ServiceEndpoint, ServiceAPIKey, ServiceModel, UpdatedHistory, NewResponse),
-        (   NewResponse = _{contents: NewContents, history: NewerHistory}
+        (
+            NewResponse = _{contents: NewContents, history: NewerHistory}
         ->
             atomic_list_concat(NewContents, NewResponseContent),
             handle_response(ServiceAPIKey, ServiceModel, ServiceEndpoint, Service:UpdateHistory, NewResponseContent, NewerHistory)
