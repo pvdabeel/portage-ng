@@ -23,12 +23,7 @@ configuration. The parameters described typically do not change at runtime.
 %
 % Declares the private API key for each large language model.
 
-config:llm_api_key(grok,     'set here').
-config:llm_api_key(chatgpt,  'set here').
-config:llm_api_key(claude,   'set here').
-config:llm_api_key(gemini,   'set here').
-config:llm_api_key(llama,    'set here').
-config:llm_api_key(ollama,   '').
+:- include(portage(source/private/api_key)).
 
 
 %! config:llm_max_tokens(?Max)
