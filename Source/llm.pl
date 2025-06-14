@@ -191,7 +191,7 @@ make_function_message(Content, Message) :-
     nl,
     message:hl('computer'),
     message:color(green),
-    writeln(Content),
+    write(Content),
     message:color(normal),
     message:hl,
     nl,
