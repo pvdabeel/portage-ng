@@ -27,9 +27,9 @@ Advertise and discover services on the network using multi-cast DNS (Apple Bonjo
 % Advertises a service on mDNS
 
 advertise :-
-    interface:process_server(_,Port),
-    config:hostname(Service),
-    advertise(Service,Port).
+  interface:process_server(_,Port),
+  config:hostname(Service),
+  advertise(Service,Port).
 
 
 %! advertise(+Service,+Port)
@@ -37,9 +37,9 @@ advertise :-
 % Advertise a service on mDNS
 
 advertise(Service, Port) :-
-    format(string(Cmd),'dns-sd -R ~w _prolog._tcp local ~w',[Service,Port]),
-    Thread = process_create(path(bash),['-c',Cmd],[stdout(null),stderr(null)]),
-    thread_create(Thread,_,[detached(true)]).
+  format(string(Cmd),'dns-sd -R ~w _prolog._tcp local ~w',[Service,Port]),
+  Thread = process_create(path(bash),['-c',Cmd],[stdout(null),stderr(null)]),
+  thread_create(Thread,_,[detached(true)]).
 
 
 % --------
@@ -52,11 +52,11 @@ advertise(Service, Port) :-
 % list of Host and Port.
 
 discover(Services) :-
-    browse_hosts(Hosts),
-    setof([H,Port],
-          (member(H,Hosts),resolve_host(H,Port)),
-          Services),
-    !.
+  browse_hosts(Hosts),
+  setof([H,Port],
+        (member(H,Hosts),resolve_host(H,Port)),
+        Services),
+  !.
 discover([]).
 
 
@@ -114,8 +114,8 @@ resolve_line_port(Line,Port) :-
 % Returns lines of strings (output of the command)
 
 bash_dns_sd(ArgList,Lines) :-
-    atomic_list_concat(['dns-sd'|ArgList],' ',Cmd),
-    bash_lines(Cmd,Lines).
+  atomic_list_concat(['dns-sd'|ArgList],' ',Cmd),
+  bash_lines(Cmd,Lines).
 
 
 %! bash_lines(+Cmd,-Lines)
@@ -124,5 +124,5 @@ bash_dns_sd(ArgList,Lines) :-
 % Returns lines of strings (output of the command)
 
 bash_lines(Cmd,Lines) :-
-    process_create(path(bash),['-c',Cmd],[stdout(pipe(Out)),process(Pid)]),
-    call_cleanup(reader:read_lines_to_strings(Out,Lines),(close(Out),process_wait(Pid,_))).
+  process_create(path(bash),['-c',Cmd],[stdout(pipe(Out)),process(Pid)]),
+  call_cleanup(reader:read_lines_to_strings(Out,Lines),(close(Out),process_wait(Pid,_))).
