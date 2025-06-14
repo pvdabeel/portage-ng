@@ -110,14 +110,24 @@ eend(Msg) :-
     msg_atom(Msg, Atom),
     format('~t~a~*|', [Atom, Col]).
 
-hl(Char) :-
+
+
+hl(Title) :-
     term_width(W),
-    atom_chars(Char, [C]),
+    atom_chars('-', [C]),
+    atomic_list_concat(['--- ',Title,' ~`', C, 't~*|\n'], Fmt),
+    write('\r'),
+    format(Fmt, [W]).
+
+
+hl :-
+    term_width(W),
+    atom_chars('-', [C]),
     atomic_list_concat(['~`', C, 't~*|\n'], Fmt),
     write('\r'),
     format(Fmt, [W]).
 
-hl :- hl('-').
+%hl :- hl('-').
 
 %------------------------------------------------------------------------------
 %  Byte helpers
