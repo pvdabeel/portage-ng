@@ -12,7 +12,7 @@
 Implements interaction with OpenAI ChatGPT
 We implement real-time streaming.
 
-We support any model available, default is set to 'gpt-4'.
+We support any model available, default is set to 'gpt-4.1'.
 */
 
 
@@ -42,7 +42,7 @@ chatgpt(Input) :-
   llm:stream(Endpoint, Key, Model, Messages, Response),
   (Response = _{contents: Contents, history: NewHistory}
    ->  atomic_list_concat(Contents, ResponseContent),
-       handle_response(Key, Model, Endpoint, Service:update_history, ResponseContent, NewHistory)
+       llm:handle_response(Key, Model, Endpoint, Service:update_history, ResponseContent, NewHistory)
    ;   Response = _{error: Error, history: _}
        ->  write('Error: '), write(Error), nl ).
 
