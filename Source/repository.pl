@@ -211,12 +211,12 @@ sync(kb) ::-
   concurrent_forall(:find_metadata(E,T,C,N,V),
           (:read_metadata(E,T,M),
            with_mutex(mutex,message:scroll(['Ebuild: ',E])),
-           assert(cache:entry(Repository,E,C,N,V)),
-           assert(cache:entry_metadata(Repository,E,timestamp,T)),
+           assertz(cache:entry(Repository,E,C,N,V)),
+           assertz(cache:entry_metadata(Repository,E,timestamp,T)),
            forall(member(L,M),
                   (L=..[Key,Value],
                    forall(member(I,Value),
-                          assert(cache:entry_metadata(Repository,E,Key,I))))))),
+                          assertz(cache:entry_metadata(Repository,E,Key,I))))))),
 
   % Step 2.b: read ebuilds without repository cache
 
@@ -225,13 +225,13 @@ sync(kb) ::-
   concurrent_forall((:find_ebuild(E,T,C,N,V),\+(cache:entry_metadata(Repository,E,_,_))),
           (:read_ebuild(E,Cd,M),
            with_mutex(mutex,message:scroll(['Ebuild (local): ',E])),
-           assert(cache:entry(Repository,E,C,N,V)),
-           assert(cache:entry_metadata(Repository,E,timestamp,T)),
-           assert(cache:entry_metadata(Repository,E,local,true)),
+           assertz(cache:entry(Repository,E,C,N,V)),
+           assertz(cache:entry_metadata(Repository,E,timestamp,T)),
+           assertz(cache:entry_metadata(Repository,E,local,true)),
            forall(member(L,M),
                   (L=..[Key,Value],
                    forall(member(I,Value),
-                          assert(cache:entry_metadata(Repository,E,Key,I))))),
+                          assertz(cache:entry_metadata(Repository,E,Key,I))))),
            (config:write_metadata(true) -> :update_metadata(E,Cd) ; true))),
 
 
@@ -240,13 +240,13 @@ sync(kb) ::-
   concurrent_forall((:find_ebuild(E,TE,C,N,V),cache:entry_metadata(Repository,E,timestamp,TC), TE > TC + 60), % time writing to disk
           (:read_ebuild(E,Cd,M),
            with_mutex(mutex,message:scroll(['Ebuild (changed): ',E])),
-           assert(cache:entry(Repository,E,C,N,V)),
-           assert(cache:entry_metadata(Repository,E,timestamp,T)),
-           assert(cache:entry_metadata(Repository,E,changed,true)),
+           assertz(cache:entry(Repository,E,C,N,V)),
+           assertz(cache:entry_metadata(Repository,E,timestamp,T)),
+           assertz(cache:entry_metadata(Repository,E,changed,true)),
            forall(member(L,M),
                   (L=..[Key,Value],
                    forall(member(I,Value),
-                          assert(cache:entry_metadata(Repository,E,Key,I))))),
+                          assertz(cache:entry_metadata(Repository,E,Key,I))))),
            (config:write_metadata(true) -> :update_metadata(E,Cd) ; true))),
 
 
@@ -255,9 +255,9 @@ sync(kb) ::-
   concurrent_forall(:find_manifest(P,T,C,N),
           (:read_manifest(P,T,C,N,M),
            with_mutex(mutex,message:scroll(['Manifest: ',P])),
-           assert(cache:manifest(Repository,P,T,C,N)),
+           assertz(cache:manifest(Repository,P,T,C,N)),
            forall(member(manifest(Filetype,Filename,Filesize,Checksums),M),
-                 assert(cache:manifest_metadata(Repository,P,Filetype,Filename,Filesize,Checksums))))),
+                 assertz(cache:manifest_metadata(Repository,P,Filetype,Filename,Filesize,Checksums))))),
 
 
   % Step 4: Ordered prolog cache:category creation
@@ -265,7 +265,7 @@ sync(kb) ::-
   findall(Ca,cache:entry(Repository,_,Ca,_,_),Cu),
   sort(Cu,Cs),
   forall(member(Ca,Cs),
-         assert(cache:category(Repository,Ca))),
+         assertz(cache:category(Repository,Ca))),
 
 
   % Step 5:
@@ -288,9 +288,9 @@ sync(kb) ::-
                    % eapi:version2numberlist(Vn,Vl)),
                   Vu),
           sort(0,@>=,Vu,Vs),
-          ( assert(cache:package(Repository,Ca,Pa)),
+          ( assertz(cache:package(Repository,Ca,Pa)),
             forall(member([OVn,OVa,OVs,OVf,OrderedId],Vs),
-                 assert(cache:ordered_entry(Repository,OrderedId,Ca,Pa,[OVn,OVa,OVs,OVf])))))),
+                 assertz(cache:ordered_entry(Repository,OrderedId,Ca,Pa,[OVn,OVa,OVs,OVf])))))),
 
   % Step 6 : We retract the original unordered prolog cache entries.
 
@@ -298,7 +298,7 @@ sync(kb) ::-
 
   % Step 7: We end by creating a prolog cache:repository
 
-  assert(cache:repository(Repository)),
+  assertz(cache:repository(Repository)),
 
   message:sc,
   message:scroll(['Updated prolog knowledgebase.']),nl,
