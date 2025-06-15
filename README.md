@@ -21,6 +21,13 @@ This repository also contains some bash [scripts](.bash_profile) to emulate Gent
 
 ## Some examples: 
 
+This README is a bit outdated. While I work on updating it, let me tease you with two screenshots:
+
+![Buildplan](https://i.imgur.com/PSwHnLQ.png)
+
+![Generative AI](https://i.imgur.com/Cj5xdeh.png)
+ 
+
 ## Portage SVG Graphs
 
 The code is able to automatically generate interactive SVG graphs for all ebuilds, allowing you to walk
