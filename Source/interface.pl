@@ -252,6 +252,10 @@ interface:process_action(Action,ArgsSets,_Options) :-
                          once(kb:query(Q,R://E))),
           Proposal),!,
   message:log(['Proposal:  ',Proposal]),
+  (Proposal == []
+   -> ( atomic_list_concat(['I get no result trying to emerge the following ebuilds, please find me the correct one, or propose to write one. Give me a short answer now, until I tell you to write an ebuild \''|Args],'\'',Prompt),
+        chatgpt(Prompt),fail )
+   ;  true),
   (Mode == 'client' ->
     (client:rpc_execute(Host,Port,
      (oracle:with_q(prover:prove_lists(Proposal,[],Proof,[],Model,[],_Constraints)),
