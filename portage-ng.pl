@@ -57,8 +57,8 @@ load_common_modules :-
    ensure_loaded(library('ordsets')),
 
    ensure_loaded(portage('Source/context.pl')),
-   ensure_loaded(portage('Source/os.pl')),
    ensure_loaded(portage('Source/config')),
+   ensure_loaded(portage('Source/os.pl')),
    ensure_loaded(portage('Source/interface.pl')),
    ensure_loaded(portage('Source/message.pl')),
    ensure_loaded(portage('Source/eapi.pl')),
@@ -66,7 +66,7 @@ load_common_modules :-
    ensure_loaded(portage('Source/set.pl')),
    ensure_loaded(portage('Source/bonjour.pl')),
 
-   message:notice('Loaded common modules...').
+   message:log('Loaded common modules...').
 
 
 load_client_modules :-
@@ -80,14 +80,13 @@ load_client_modules :-
    ensure_loaded(library('http/http_digest')),
    ensure_loaded(library('pengines')),
 
-   %ensure_loaded(portage('Source/pkg.pl')),
    ensure_loaded(portage('Source/knowledgebase.pl')),
    ensure_loaded(portage('Source/ebuild.pl')),
    ensure_loaded(portage('Source/printer.pl')),
    ensure_loaded(portage('Source/preference')),
    ensure_loaded(portage('Source/client.pl')),
 
-   message:notice('Loaded client modules...').
+   message:log('Loaded client modules...').
 
 
 load_standalone_modules :-
@@ -108,10 +107,10 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/eapi.pl')),
    ensure_loaded(portage('Source/rules.pl')),
    ensure_loaded(portage('Source/ebuild.pl')),
-   ensure_loaded(portage('Source/preference.pl')),
    ensure_loaded(portage('Source/script.pl')),
    ensure_loaded(portage('Source/stat.pl')),
    ensure_loaded(portage('Source/pkg.pl')),
+   ensure_loaded(portage('Source/preference')),
 
    ensure_loaded(portage('Source/reader.pl')),
    ensure_loaded(portage('Source/parser.pl')),
@@ -126,8 +125,7 @@ load_standalone_modules :-
 
    ensure_loaded(portage('Source/test.pl')),
 
-
-   message:notice('Loaded standalone modules...').
+   message:log('Loaded standalone modules...').
 
 
 load_server_modules :-
@@ -143,7 +141,7 @@ load_server_modules :-
    ensure_loaded(portage('Source/sandbox.pl')),
    ensure_loaded(portage('Source/server.pl')),
 
-   message:notice('Loaded server modules...').
+   message:log('Loaded server modules...').
 
 
 load_llm_modules :-
@@ -156,7 +154,7 @@ load_llm_modules :-
    ensure_loaded(portage('Source/Llm/llama.pl')),
    ensure_loaded(portage('Source/Llm/ollama.pl')),
 
-   message:notice('Loaded llm modules...').
+   message:log('Loaded Generative AI modules...').
 
 
 %! main(+Mode).
