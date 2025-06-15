@@ -15,6 +15,7 @@
 
 :- dynamic term_width_/1.
 
+
 %------------------------------------------------------------------------------
 %  Low‑level helpers
 %------------------------------------------------------------------------------
@@ -28,8 +29,8 @@ term_width(W) :-
     (   tty_size(_, W0)
     ->  W = W0
     ;   W = 80
-    ).
-    %asserta(term_width_(W)).
+    ),
+    asserta(term_width_(W)).
 
 %------------------------------------------------------------------------------
 %  Colour & style tables
@@ -140,14 +141,14 @@ convert_bytes(Bytes, Atom) :-
     ->  Unit = 'Mb', Value is Bytes / (1 << 20)
     ;   Unit = 'Kb',  Value is Bytes / (1 << 10)
     ),
-    format(atom(Atom), '~2f ~w~10|', [Value, Unit]).
+    format(atom(Atom), '~2f ~w', [Value, Unit]).
 
 print_bytes(live) :-
-    format('~tlive      ~10|', []).
+    format('live\t', []).
 
 print_bytes(Bytes) :-
     convert_bytes(Bytes, Atom),
-    format('~t~w~10|', [Atom]).
+    format('~w\t', [Atom]).
 
 %------------------------------------------------------------------------------
 %  Date/time
@@ -171,6 +172,8 @@ level_attrs(warning, [bold, fg(yellow)],    '[WARNING] ').
 level_attrs(failure, [bold, fg(red)],       '[FAILURE] ').
 level_attrs(inform,  [],                    '% ').
 level_attrs(notice,  [faint, fg(white)],    '% ').
+level_attrs(debug,   [fg(magenta)],         '[DEBUG] ').
+level_attrs(log,     [faint, fg(white)],    '% ').
 
 msg(Level, Text) :-
     level_attrs(Level, Attrs, Prefix),
@@ -193,12 +196,15 @@ warning(T)        :- msg(warning, T).
 success(T)        :- msg(success, T).
 inform(T)         :- msg(inform,  T).
 notice(T)         :- msg(notice,  T).
+debug(T)          :- msg(debug,   T).
+log(T)            :- ( config:verbose(true) -> msg(log,T) ; true ).
 
 scroll_failure(T) :- msg_scroll(failure, T).
 scroll_warning(T) :- msg_scroll(warning, T).
 scroll_success(T) :- msg_scroll(success, T).
 scroll_inform(T)  :- msg_scroll(inform,  T).
 scroll_notice(T)  :- msg_scroll(notice,  T).
+scroll_debug(T)   :- msg_scroll(debug,   T).
 scroll(T)         :- msg_scroll(inform,  T).
 
 %------------------------------------------------------------------------------
