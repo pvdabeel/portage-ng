@@ -79,7 +79,7 @@ rule(Repository://Ebuild:fetchonly?{_Context},Conditions) :-
 
   %feature_unification:unify(Context,R,ForwardContext),
   %ForwardContext = R,
-  query:search(model(dependency(D,run_compile)):config?{R},Repository://Ebuild),
+  query:search(model(dependency(D,fetchonly)):config?{R},Repository://Ebuild),
 
   % 4. Pass on relevant package dependencies and constraints to prover
 
@@ -135,7 +135,7 @@ rule(Repository://Ebuild:install?{R},Conditions) :-
 
   %feature_unification:unify(Context,R,ForwardContext),
   %ForwardContext = R,
-  query:search(model(dependency(D,compile)):config?{R},Repository://Ebuild),
+  query:search(model(dependency(D,install)):config?{R},Repository://Ebuild),
 
   %message:color(orange),
   %write(Repository://Ebuild),write('  -->  '),write(R),nl,
