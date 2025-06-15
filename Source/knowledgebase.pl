@@ -288,7 +288,7 @@ rpc_wrapper(Context:Term) ::-
 
 rpc_wrapper(Context:Term) ::-
   \+ proxy,!,
-  goal_expansion(Term,Expanded),
+  once(goal_expansion(Term,Expanded)),
   Context:Expanded.
 
 
