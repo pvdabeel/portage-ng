@@ -19,6 +19,37 @@ An implementation of a query language for the knowledge base
 % QUERY MACROS
 % ************
 
+% Query essentially queries the cache facts, which are maintained
+% by the knowledge base.
+%
+% All access to cache should happen through this module, as queries
+% are optimized for efficiency at compile time using Prolog goal
+% expansion (macro's). A fallback to runtime queries is provided
+% if no goal_expansion macro is available.
+%
+% We deal with queries from command line:
+%
+%    1. a list of qualified target searches (--merge, --unmerge, --info)
+%       each qualified target search identifies a proposed knowledge
+%       base entry that needs to be realised by the proof / build plan
+%
+%    2. a list of key=value search pairs, (--search)
+%       where = can be any of<,>,<=,>=,!=,~,:=. The last two implement
+%       fuzzy search and wildcard search respectively on the value provided.
+%
+% We also support other queries from ebuild, printer, grapher, builder
+% through a flexible query language which includes:
+%
+%    - negation (filtering of results)
+%    - all (collecting all results)
+%    - model (backtracks over solutions for a given statement))
+%
+% We expect query to be called from the knowledge base, which may
+% be instantiated as a local knowledge base (standalone, server mode)
+% or a remote knowledge base (client or mixed mode)
+%
+% A word on performance:
+%
 % During compilation of the prolog code, we substitute calls to query predicates
 % with relevant cache:ordered_entry and cache:entry_metadata predicates, which
 % have been indexed by the JIT indexer and essentially provide O(1) lookup.
@@ -28,6 +59,9 @@ An implementation of a query language for the knowledge base
 
 :- multifile user:goal_expansion/2.
 
+% --------------
+% GOAL EXPANSION
+% --------------
 
 % We treat both list queries and compound queries
 
@@ -46,6 +80,10 @@ user:goal_expansion(search(Q, Repo://Id), Expanded) :-
   message:color(normal).
 
 
+% ----------
+% LIST QUERY
+% ----------
+
 % We turn list queries into joined compound queries
 
 compile_query_list([], _Repo://_Id, true).
@@ -55,7 +93,14 @@ compile_query_list([S|Ss], Repo://Id, (One, Rest)) :-
   compile_query_list(Ss, Repo://Id, Rest).
 
 
+% --------------
+% COMPOUND QUERY
+% --------------
+
 % We turn compound queries into cache statements
+
+
+% 1. syntactic suggar
 
 compile_query_compound(repository(Repo),       		Repo://Id,
   cache:ordered_entry(Repo,Id,_,_,_)).			%%:- message:color(green).
@@ -70,6 +115,9 @@ compile_query_compound(package(C,N),        		Repo://Id,
   ( cache:package(Repo,C,N),
     once(cache:ordered_entry(Repo,Id,C,N,_)) )).   	%:- message:color(green).
 
+
+% 2. queries on ordered_entry metadata
+
 compile_query_compound(name(Name),        		Repo://Id,
   cache:ordered_entry(Repo,Id,_,Name,_)).         	%:- message:color(green).
 
@@ -78,6 +126,9 @@ compile_query_compound(category(Cat),     		Repo://Id,
 
 compile_query_compound(version(Ver),      		Repo://Id,
   cache:ordered_entry(Repo,Id,_,_,Ver)).          	%:- message:color(green).
+
+
+% 3. queries on entry_metadata
 
 compile_query_compound(slot(Slot),        		Repo://Id,
   cache:entry_metadata(Repo,Id,slot,slot(Slot))).  	%:- message:color(green).
@@ -142,9 +193,6 @@ compile_query_compound(eclass(E),        		Repo://Id,
 compile_query_compound(eclasses(E),        		Repo://Id,
   cache:entry_metadata(Repo,Id,eclasses,[eclass(E),_])).%:- message:color(green).
 
-compile_query_compound(local(L),          		Repo://Id,
-  cache:entry_metadata(Repo,Id,local,L)).         	%:- message:color(green).
-
 compile_query_compound(properties(P),     		Repo://Id,
   cache:entry_metadata(Repo,Id,properties,P)).    	%:- message:color(green).
 
@@ -156,6 +204,25 @@ compile_query_compound(timestamp(T),      		Repo://Id,
 
 compile_query_compound(md5(M),      			Repo://Id,
   cache:entry_metadata(Repo,Id,md5,M)).         	%:- message:color(green).
+
+
+% 4. special case: indicator for md5_cache that was generated locally
+
+compile_query_compound(local(L),          		Repo://Id,
+  cache:entry_metadata(Repo,Id,local,L)).         	%:- message:color(green).
+
+
+% 5. special case: masked ebuilds
+
+compile_query_compound(masked(true),   			Repo://Id,
+  preference:masked(Repo://Id) ).   			%:- message:color(green).
+
+compile_query_compound(masked(false),  			Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,_,_),
+    \+ preference:masked(Repo://Id) )).		        %:- message:color(green).
+
+
+% 6. rule helpers: dependency query for fetchonly, install & run rules
 
 compile_query_compound(dependency(D,run), 		Repo://Id,
   ( cache:entry_metadata(Repo,Id,idepend,D)
@@ -173,12 +240,8 @@ compile_query_compound(dependency(D,run_compile),       Repo://Id,
   ; cache:entry_metadata(Repo,Id,idepend,D)
   ; cache:entry_metadata(Repo,Id,rdepend,D) )).       	%:- message:color(green).
 
-compile_query_compound(masked(true),   			Repo://Id,
-  preference:masked(Repo://Id) ).   			%:- message:color(green).
 
-compile_query_compound(masked(false),  			Repo://Id,
-  ( cache:ordered_entry(Repo,Id,_,_,_),
-    \+ preference:masked(Repo://Id) )).		        %:- message:color(green).
+% 7. key=value queries needed for --search
 
 compile_query_compound(select(repository,notequal,R),   Repo://Id,
   ( cache:ordered_entry(R,Id,_,_,_),
@@ -384,11 +447,17 @@ compile_query_compound(select(masked,notequal,true),    Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,_),
     \+ preference:masked(Repo://Id) )).                 %:- message:color(green).
 
+
+% 8. all query is treated at runtime, except for a few exceptions
+
 compile_query_compound(all(S),                         	Repo://Id,
-  query:search(all(S),Repo://Id)) 			:- var(S),!, message:color(cyan).
+  query:search(all(S),Repo://Id)) 			:- var(S),!. %message:color(cyan).
 
 compile_query_compound(all(S):A?{C},                   	Repo://Id,
-  query:search(all(S):A?{C},Repo://Id)) 		:- var(S),!, message:color(cyan).
+  query:search(all(S):A?{C},Repo://Id)) 		:- var(S),!. %message:color(cyan).
+
+
+% 9. the exceptions for all
 
 compile_query_compound(all(src_uri(U)),      		Repo://Id,
   findall(Uri,
@@ -474,6 +543,9 @@ compile_query_compound(all(dependency(D,fetchonly)):A?{C},  Repo://Id,
           ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
           D)).                                          %:- message:color(green).
 
+
+% 10. some model queries are rewritten
+
 compile_query_compound(model(required_use(Model)),	Repo://Id,
   ( findall(ReqUse,
             cache:entry_metadata(Repo,Id,required_use,ReqUse),
@@ -483,7 +555,6 @@ compile_query_compound(model(required_use(Model)),	Repo://Id,
             (gen_assoc(Key,AvlModel,_Value),
    	     \+eapi:abstract_syntax_construct(Key)),
             Model) ) ).					%:- message:color(green).
-
 
 compile_query_compound(model(dependency(Model,run)):config?{Context},  Repo://Id,
   ( findall(Dep:config?{Context},
@@ -523,47 +594,70 @@ compile_query_compound(model(dependency(Model,fetchonly)):config?{Context},  Rep
           Model) ) ).                                   %:- message:color(green).
 
 
-% Fallback – Stuff for which a macro doesn't exist, we fall back to regular predicates
+% 11. qualified_target queries, generated by --merge, --unmerge and --info
+
+compile_query_compound(qualified_target(none,Repo,C,P,[[],'','','',''],F), Repo://Id,
+ ( cache:ordered_entry(Repo,Id,C,P,_),
+   apply_filters(Repo://Id,F) ))			:- !. %message:color(green).
+
+search(qualified_target(none,Repo,C,P,V,F), Repo://Id,
+  ( cache:ordered_entry(Repo,Id,C,P,V),
+    apply_filters(Repo://Id,F) ))                       :- !. %message:color(green).
+
+search(qualified_target(greater,Repo,C,P,V,F), Repo://Id,
+  ( cache:ordered_entry(Repo,Id,C,P,PV),
+    system:compare(>,ProposedVersion,Version),
+    apply_filters(Repo://Id,F) ))                       :- !. %message:color(green).
+
+search(qualified_target(greaterequal,Repo,C,P,V,F), Repo://Id,
+  ( cache:ordered_entry(Repo,Id,C,P,PV),
+    (system:compare(>,ProposedVersion,Version);
+     system:compare(=,ProposedVersion,Version)),
+    apply_filters(Repo://Id,F) ))                       :- !. %message:color(green).
+
+search(qualified_target(smaller,Repo,C,P,V,F), Repo://Id,
+  ( cache:ordered_entry(Repo,Id,C,P,PV),
+    system:compare(<,ProposedVersion,Version),
+    apply_filters(Repo://Id,F) ))                       :- !. %message:color(green).
+
+search(qualified_target(smallerequal,Repo,C,P,V,F), Repo://Id,
+  ( cache:ordered_entry(Repo,Id,C,P,PV),
+    (system:compare(<,ProposedVersion,Version);
+     system:compare(=,ProposedVersion,Version)),
+    apply_filters(Repo://Id,F) ))                       :- !. %message:color(green).
+
+search(qualified_target(equal,Repo,C,P,V,F), Repo://Id,
+  ( cache:ordered_entry(Repo,Id,C,P,V),
+    apply_filters(Repo://Id,F) ) )                      :- !. %message:color(green).
+
+search(qualified_target(notequal,Repo,C,P,V,F), Repo://Id,
+  ( cache:ordered_entry(Repo,Id,C,P,PV),
+    PV \== V,
+    apply_filters(Repo://Id,F) ))                       :- !. %message:color(green).
+
+search(qualified_target(tilde,Repo,C,P,[Version,_,_,_],F), Repo://Id,
+  ( cache:ordered_entry(Repo,Id,C,P,[Version,_,_,_]),
+    apply_filters(Repo://Id,F) ))                       :- !. %message:color(green).
+
+
+
+% 12. Fallback – Stuff for which a macro doesn't exist, we fall back to regular predicates
 
 compile_query_compound(Stmt, Entry,
-  query:search(Stmt,Entry)) :- message:color(orange).
+  query:search(Stmt,Entry)).				%:- message:color(orange).
+
 
 
 % ****************
 % QUERY PREDICATES
 % ****************
 
-% Query essentially queries the cache facts, which are maintained
-% by the knowledge base.
-%
-% All access to cache should happen through this module, as queries
-% are optimized for efficiency.
-%
-% We deal with queries from command line:
-%
-%    1. a list of qualified target searches
-%       each qualified target search identifies a proposed knowledge
-%       base entry that needs to be realised by the proof / build plan
-%
-%    2. a list of key=value search pairs, where = can be any of
-%       <,>,<=,>=,!=,~,:=. The last two implement fuzzy search
-%       and wildcard search respectively on the value provided.
-%
-% As well as other queries from ebuild, printer, grapher, builder
-% through a flexible query language which includes:
-%
-%    - negation (filtering of results)
-%    - all (collecting all results)
-%    - model (backtracks over solutions for a given statement))
-%
-% We expect query to be called from the knowledge base, which may
-% be instantiated as a local knowledge base (standalone, server mode)
-% or a remote knowledge base (client or mixed mode)
+% These are evaluated at runtime.
+
 
 % -------------
 % Query: Search
 % -------------
-
 
 %! query:search(Query)
 %
@@ -579,16 +673,16 @@ search([Statement|Rest],Repository://Entry) :-
 
 
 % ----------------------
-% Search meta predicates
+% Query  meta predicates
 % ----------------------
 
 % Case : a not statement
 
-/*search(not(Statement),Repository://Entry) :-
+search(not(Statement),Repository://Entry) :-
   !,
   cache:ordered_entry(Repository,Entry,_,_,_),
   \+(search(Statement,Repository://Entry)).
-*/
+
 
 % Case : an all statement (single argument, contextualized)
 
@@ -633,10 +727,56 @@ search(all(Statement),Repository://Entry) :-
            search(InnerStatement,Repository://Entry)),
           Values).
 
+
+% Case : a model statement (dual argument, contextualized),Add commentMore actions
+
+search(model(Statement):Action?{Context},Repository://Id) :-
+  Statement =.. [Key,Model,Arg],
+  !,
+  StatementA =.. [Key,AllValues,Arg],
+  search(all(StatementA):Action?{Context},Repository://Id),
+  prover:model(AllValues,t,_,t,AvlModel,t,_),
+  prover:model_to_list(AvlModel,Model).
+
+
+% Case : a model statement (dual argument, no context),
+
+search(model(Statement),Repository://Id) :-
+  Statement =.. [Key,Model,Arg],
+  !,
+  StatementA =.. [Key,AllValues,Arg],
+  search(all(StatementA),Repository://Id),
+  prover:model(AllValues,t,_,t,AvlModel,t,_),
+  prover:model_to_list(AvlModel,Model).
+
+
+% Case : a model statement (single argument, contextualized)
+
+search(model(Statement):Action?{Context},Repository://Id) :-
+  Statement =.. [Key,Model],
+  !,
+  StatementA =.. [Key,AllValues],
+  search(all(StatementA):Action?{Context},Repository://Id),
+  prover:model(AllValues,t,_,t,AvlModel,t,_),
+  prover:model_to_list(AvlModel,Model).
+
+
+% Case : a model statement (single argument, no context)
+
+search(model(Statement),Repository://Id) :-
+  Statement =.. [Key,Model],
+  !,
+  StatementA =.. [Key,AllValues],
+  search(all(StatementA),Repository://Id),
+  prover:model(AllValues,t,_,t,AvlModel,t,_),
+  prover:model_to_list(AvlModel,Model).
+
+
+
 % Case : a latest statement, returs only latest version
 
 search(latest(Statement),R://I) :-
-  search(Statement,R://I),!.
+  search(Statement,R://I),!. % deliberate choicepoint cut (once)
 
 
 % ------------------------------------
@@ -707,28 +847,6 @@ search(select(Key,Comparator,Value),R://I) :-
 % apply filtering on the remaining choicepoints.
 
 
-% Case 1: No operator, no version
-
-search(qualified_target(none,R,C,P,[[],'','','',''],F),R://I) :-
-   !,
-   cache:ordered_entry(R,I,C,P,_),
-   apply_filters(R://I,F).
-
-% Case 2: No operator, version
-
-search(qualified_target(none,R,C,P,V,F),R://I) :-
-   !,
-   cache:ordered_entry(R,I,C,P,V),
-   apply_filters(R://I,F).
-
-% Case 3: Operator, version
-
-search(qualified_target(O,R,C,P,V,F),R://I) :-
-   !,
-   cache:ordered_entry(R,I,C,P,PV),
-   apply_version_filter(O,PV,V),
-   apply_filters(R://I,F).
-
 
 % ----------------
 % Search: Manifest
@@ -738,7 +856,7 @@ search(manifest(Scope,Type,Binary,Size),R://I) :-
    !,
    cache:ordered_entry(R,I,Category,Name,_),
    search(all(src_uri(Model)),R://I),
-   model_member(Scope,uri(_,_,Binary),Model),
+   deep_member(Scope,uri(_,_,Binary),Model),
    cache:manifest(R,P,_,Category,Name),
    cache:manifest_metadata(R,P,Type,Binary,Size,_Checksums).
 
@@ -833,34 +951,6 @@ search(Q,R://I) :-
 
 % Filter out versions based on comparison
 
-apply_version_filter(greater,ProposedVersion,Version) :-
-  !,
-  system:compare(>,ProposedVersion,Version).
-
-apply_version_filter(greaterequal,ProposedVersion,Version) :-
-  !,
-  system:compare(>,ProposedVersion,Version);
-  system:compare(=,ProposedVersion,Version).
-
-apply_version_filter(smaller,ProposedVersion,Version) :-
-  !,
-  system:compare(<,ProposedVersion,Version).
-
-apply_version_filter(smallerequal,ProposedVersion,Version) :-
-  !,
-  system:compare(<,ProposedVersion,Version);
-  system:compare(=,ProposedVersion,Version).
-
-apply_version_filter(notequal,VersionA,VersionB) :-
-  !,
-  VersionA \== VersionB.
-
-apply_version_filter(equal,Version,Version) :-
-  !.
-
-apply_version_filter(tilde,[Version,_,_,_,_],[Version,_,_,_,_]) :-
-  !.
-
 
 % Filtering of slot & usedep for qualified_target
 
@@ -873,10 +963,6 @@ apply_filters(R://I,[H|T]) :-
 
 apply_filter(_R://_I,[]) :- !.
 
-
-% ------------------------------------------
-% Searching via command line key=value pairs
-% ------------------------------------------
 
 % -----------------------------
 % Special case - set membership
@@ -943,18 +1029,22 @@ select(Key,wildcard,Value,R://I) :-
   wildcard_match(Value,Match).
 
 
-%! model_member(Type,Predicate,Model)
+% -----------------
+% Helper predicates
+% -----------------
+
+%! deep_member(Type,Predicate,Model)
 %
 % Recursively searches model for a predicate, taking into account
 % use_conditional_group
 
-model_member(all,Predicate,Model) :-
+deep_member(all,Predicate,Model) :-
   member(Predicate,Model);
   (member(use_conditional_group(_,_,_,Conditional),Model),
-   model_member(all,Predicate,Conditional)).
+   deep_member(all,Predicate,Conditional)).
 
-model_member(preference,Predicate,Model) :-
+deep_member(preference,Predicate,Model) :-
   member(Predicate,Model);
   (member(use_conditional_group(Sign,Use,_,Conditional),Model),
    (Sign == positive -> preference:use(Use) ; preference:use(minus(Use))),
-     model_member(preference,Predicate,Conditional)).
+     deep_member(preference,Predicate,Conditional)).
