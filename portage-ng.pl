@@ -193,6 +193,7 @@ main :-
 
 main(client) :-
   load_client_modules,
+  load_llm_modules,
   interface:process_server(Host,Port),
   kb:newinstance(knowledgebase(Host,Port)),
   preference:init,
