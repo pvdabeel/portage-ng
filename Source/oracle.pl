@@ -26,7 +26,7 @@ with_q(Predicate) :-
 %with_q(Predicate) :-
 %  q:knows(Predicate);
 %  Predicate,
-%  assert(q:knows(Predicate)),!.
+%  assertz(q:knows(Predicate)),!.
 
 vanish_q :-
   retractall(q:knows(_)),!.
