@@ -276,6 +276,13 @@ config:printing_style(Style) :-
   config:default_printing_style(Style).
 
 
+% Interface can dynamically adjust the verbosity
+
+:- dynamic config:verbose/1.
+
+config:verbose(false).
+
+
 % Interface can dynamically set the printing style
 
 :- dynamic config:interface_printing_style/1.
