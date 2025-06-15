@@ -24,7 +24,7 @@ The interface interpretes command line arguments passed to portage-ng.
 % Retrieve the current version
 
 interface:version(V) :-
-  V = '2025.05.27'.
+  V = '2025.06.15'.
 
 
 %! interface:status(?Status)
@@ -49,7 +49,6 @@ interface:spec(S) :-
        [opt(fetchonly), type(boolean),   default(false),       shortflags(['f']), longflags(['fetchonly']), help('Turn on fetchonly mode')],
        [opt(merge),     type(boolean),   default(true),        shortflags(['m']), longflags(['merge']),     help('Merge target package')],
        [opt(update),    type(boolean),   default(false),       shortflags(['u']), longflags(['update']),    help('Update target package')],
-      %[opt(reinstall), type(boolean),   default(false),       shortflags(['r']), longflags(['reinstall']), help('Reinstall target package')],
        [opt(deep),      type(boolean),   default(false),       shortflags(['d']), longflags(['deep']),      help('Also consider dependencies')],
        [opt(emptytree), type(boolean),   default(false),       shortflags(['e']), longflags(['emptytree']), help('Pretend no other packages are installed')],
        [opt(buildpkg),  type(boolean),   default(false),       shortflags(['b']), longflags(['buildpkg']),  help('Build packages')],
@@ -80,9 +79,15 @@ interface:spec(S) :-
 %
 % Retrieve the arguments passed on the command line.
 
+:- dynamic interface:argv_/2.
+
+intarface:argv(Options,Args) :-
+  interface:argv_(Options,Args),!.
+
 interface:argv(Options,Args) :-
   interface:spec(S),
-  catch(opt_arguments(S,Options,Args),_,true).
+  catch(opt_arguments(S,Options,Args),_,true),
+  assertz(interface:argv_(Options,Args)).
 
 
 %! interface:get_env(+Name,-Value)
@@ -91,6 +96,18 @@ interface:argv(Options,Args) :-
 
 interface:getenv(Name,Value) :-
   system:getenv(Name,Value).
+
+
+%! interface:process_flags
+%
+% Retrieve the flags to be used to start portage-ng
+
+interface:process_flags:-
+  interface:argv(Options,_),
+  (lists:memberchk(deep(true),      Options) -> asserta(preference:local_flag(deep))            ; true),
+  (lists:memberchk(emptytree(true), Options) -> asserta(preference:local_flag(emptytree))       ; true),
+  (lists:memberchk(verbose(true),   Options) -> asserta(config:verbose(true))                   ; true),
+  (lists:memberchk(style(Style),    Options) -> asserta(config:interface_printing_style(Style)) ; true).
 
 
 %! interface:process_mode(-Mode)
@@ -124,8 +141,7 @@ interface:process_continue(Continue) :-
 interface:process_server(Host,Port) :-
   interface:argv(Options,_),
   (lists:memberchk(host(Host),  Options) ; config:server_host(Host)),
-  (lists:memberchk(port(Port),  Options) ; config:server_port(Port)),
-  !.
+  (lists:memberchk(port(Port),  Options) ; config:server_port(Port)).
 
 
 %! interface:process_metadata(List)
@@ -144,16 +160,16 @@ interface:process_server(Host,Port) :-
 % Maps the options declared in interface:specs(S) onto actions defined as
 % a set of predicates to be called.
 
-interface:process_requests(_Mode) :-
+interface:process_requests(Mode) :-
   interface:version(Version),
   interface:status(Status),
+
+  interface:process_flags,
   interface:process_continue(Continue),
   interface:argv(Options,Args),
 
-  ( memberchk(verbose(true),Options) ->
-      ( message:notice(['Args:    ',Args]),
-  	message:notice(['Options: ',Options]) );
-      true ) ,
+  message:log(['Args:      ',Args]),
+  message:log(['Options:   ',Options]),
 
   ( memberchk(version(true),Options)  -> (message:inform(['portage-ng ',Status,' version - ',Version]), Continue) ;
     memberchk(info(true),Options)     -> (interface:process_action(info,Args,Options),                  Continue) ;
@@ -162,12 +178,11 @@ interface:process_requests(_Mode) :-
     memberchk(unmerge(true),Options)  -> (interface:process_action(uninstall?{[]},Args,Options), 	Continue) ;
     memberchk(depclean(true),Options) -> (message:warning('depclean action to be implemented'), 	Continue) ;
     memberchk(search(true),Options)   -> (interface:process_action(search,Args,Options),                Continue) ;
-    memberchk(sync(true),Options)     -> ((lists:memberchk(mode(standalone),Options)
+    memberchk(sync(true),Options)     -> ((Mode == standalone
                                            -> (kb:sync, kb:save)
                                            ;  (kb:sync)),!, 						Continue) ;
     memberchk(save(true),Options)     -> (kb:save,!, 							Continue) ;
     memberchk(load(true),Options)     -> (kb:load,!, 							Continue) ;
-   %memberchk(reinstall(true),Options)-> (interface:process_action(reinstall?{[]},Args,Options),        Continue) ;
     memberchk(fetchonly(true),Options)-> (interface:process_action(fetchonly?{[]},Args,Options),        Continue) ;
     memberchk(merge(true),Options)    -> (interface:process_action(run?{[]},Args,Options),              Continue) ;
     memberchk(shell(true),Options)    -> (message:inform(['portage-ng shell - ',Version]),		prolog)),
@@ -189,6 +204,7 @@ interface:process_action(info,[],_) :-
   message:inform('General information placeholder').
 
 interface:process_action(info,Args,_Options) :-
+  !,
   forall(member(Arg,Args),(atom_codes(Arg,Codes),
                            phrase(eapi:qualified_target(Q),Codes),
 			   once(kb:query(Q,R://E)),
@@ -203,9 +219,10 @@ interface:process_action(search,[],_) :-
   !,
   message:inform('Need more arguments').
 
-interface:process_action(search,Args,Options) :-
-  phrase(eapi:query(Q),Args),
-  (memberchk(verbose(true),Options) -> ( message:notice(['Query:   ',Q]) ); true),
+interface:process_action(search,Args,_Options) :-
+  !,
+  phrase(eapi:query([Q]),Args),
+  message:log(['Query:   ',Q]),
   forall(kb:query(Q,R://E), writeln(R://E)).
 
 
@@ -225,20 +242,16 @@ interface:process_action(search,Args,Options) :-
 
 interface:process_action(_Action,[],_) :- !.
 
-interface:process_action(Action,ArgsSets,Options) :-
+interface:process_action(Action,ArgsSets,_Options) :-
+  interface:process_mode(Mode),
+  interface:process_server(Host,Port),
   eapi:substitute_sets(ArgsSets,Args),
-  (memberchk(verbose(true),Options)   -> ( message:notice(['Full args:',Args]) ); true),
   findall(R://E:Action, (member(Arg,Args),
                          atom_codes(Arg,Codes),
                          phrase(eapi:qualified_target(Q),Codes),
                          once(kb:query(Q,R://E))),
           Proposal),!,
-  (memberchk(verbose(true),Options)   -> ( message:notice(['Proposal: ',Proposal]) ); true),
-  (memberchk(emptytree(true),Options) -> ( assert(preference:local_flag(emptytree)) );  true),
-  (memberchk(deep(true),Options)      -> ( assert(preference:local_flag(deep)) );  true),
-  (memberchk(style(Style),Options)    -> ( assert(config:interface_printing_style(Style)) ) ; true),
-  memberchk(mode(Mode),Options),
-  interface:process_server(Host,Port),
+  message:log(['Proposal:  ',Proposal]),
   (Mode == 'client' ->
     (client:rpc_execute(Host,Port,
      (oracle:with_q(prover:prove_lists(Proposal,[],Proof,[],Model,[],_Constraints)),
@@ -246,13 +259,6 @@ interface:process_action(Action,ArgsSets,Options) :-
       printer:print(Proposal,Model,Proof,Plan)),
      Output),
      writeln(Output));
-    ( prover:prove_lists(Proposal,[],Proof,[],Model,[],Constraints),
-      planner:plan(Proof,[],[],Plan),
-      printer:print(Proposal,Model,Proof,Plan),
-      message:color(cyan),nl,
-      forall(member(Con,Constraints),writeln(Con)),
-      nl,
-      forall(member(P,Proof),writeln(P)),
-      nl,
-      forall(member(M,Model),writeln(M)),
-      message:color(normal))).
+    (prover:prove_lists(Proposal,[],Proof,[],Model,[],_Constraints),
+     planner:plan(Proof,[],[],Plan),
+     printer:print(Proposal,Model,Proof,Plan) )).
