@@ -115,7 +115,7 @@ rule(Repository://Ebuild:fetchonly?{_Context},Conditions) :-
 rule(Repository://Ebuild:install?{R},Conditions) :-
   !,
   query:search(masked(true),   Repository://Ebuild) -> Conditions = [] ;
-  query:search(installed(true),Repository://Ebuild) -> \+preference:flag(emptytree), Conditions = [] ;
+  query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) -> Conditions = [] ;
 
   % 1. Get some metadata we need further down
 
@@ -172,7 +172,7 @@ rule(Repository://Ebuild:install?{R},Conditions) :-
 rule(Repository://Ebuild:run?{Context},Conditions) :-
   !,
   query:search(masked(true),   Repository://Ebuild) -> Conditions = [] ;
-  query:search(installed(true),Repository://Ebuild) -> (config:avoid_reinstall(true) -> Conditions = [] ;  Conditions = [Repository://Ebuild:reinstall?{Context}]) ;
+  query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) -> (config:avoid_reinstall(true) -> Conditions = [] ; Conditions = [Repository://Ebuild:reinstall?{Context}]) ;
 
   % 1. Get some metadata we need further down
 
