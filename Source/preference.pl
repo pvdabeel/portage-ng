@@ -192,15 +192,15 @@ preference:init :-
 
   % 1. Set use flags
 
-  forall(preference:env_use(Use),            (assert(preference:local_env_use(Use)), assert(preference:local_use(Use)))),
-  forall(preference:profile_use(minus(Use)), (preference:local_use(Use);             assert(preference:local_use(minus(Use))))),
-  forall(preference:profile_use(Use),        (preference:local_use(minus(Use));      assert(preference:local_use(Use)))),
+  forall(preference:env_use(Use),            (assertz(preference:local_env_use(Use)), assertz(preference:local_use(Use)))),
+  forall(preference:profile_use(minus(Use)), (preference:local_use(Use);              assertz(preference:local_use(minus(Use))))),
+  forall(preference:profile_use(Use),        (preference:local_use(minus(Use));       assertz(preference:local_use(Use)))),
 
   % 2. Set accept_keywords
 
    (preference:env_accept_keywords(_)
-    -> forall(preference:env_accept_keywords(Key),      assert(preference:local_accept_keywords(Key)))
-    ;  forall(preference:default_accept_keywords(Key),  assert(preference:local_accept_keywords(Key)))).
+    -> forall(preference:env_accept_keywords(Key),      assertz(preference:local_accept_keywords(Key)))
+    ;  forall(preference:default_accept_keywords(Key),  assertz(preference:local_accept_keywords(Key)))).
 
 
 %! preference:default_accept_keywords(?Keyword)
