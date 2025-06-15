@@ -356,7 +356,7 @@ declare(Fact) :-
 % Declare a fact.
 
 context:declare(Context, Fact) :-
-  assert(Context:'$__meta'(Fact)).
+  assertz(Context:'$__meta'(Fact)).
 
 
 %! context:undeclare(+Context, +Fact)
@@ -623,7 +623,7 @@ context:guard_predicate_clause(Property, Context, _Parent, Head, GuardedHead, Bo
 context:gen_check_access(private, Context, Head, Body, Code) :-
   Code = (
             clause(Context:'$_token'(thread_access), true)
-            ->	( % assert(Context:'$_token'(thread_access)), % reasoning: only public functions can call protected or private functions
+            ->	( % assertz(Context:'$_token'(thread_access)), % reasoning: only public functions can call protected or private functions
                   Body )
             ;   ( functor(Head,H,A),
                   throw(error(permission_error(access, private, H/A), context(Context, _))) )
@@ -632,7 +632,7 @@ context:gen_check_access(private, Context, Head, Body, Code) :-
 context:gen_check_access(protected, Context, Head, Body, Code) :-
   Code = (
             clause(Context:'$_token'(thread_access), true)
-            ->	( % assert(Context:'$_token'(thread_access)), % reasoning: only public functions can call protected or private functions
+            ->	( % assertz(Context:'$_token'(thread_access)), % reasoning: only public functions can call protected or private functions
                   Body )
             ;     ( functor(Head,H,A),
                     throw(error(permission_error(access, protected, H/A), context(Context, _))) )
@@ -645,7 +645,7 @@ context:gen_check_access(static, _Context, _Head, Body, Code) :-
 
 context:gen_check_access(_Property, Context, _Head, Body, Code) :-
   Code = (
-            assert(Context:'$_token'(thread_access)),
+            assertz(Context:'$_token'(thread_access)),
             Body
          ).
 
@@ -657,10 +657,10 @@ context:gen_check_access(_Property, Context, _Head, Body, Code) :-
 % Assert predicate clause
 
 context:assert_predicate_clause(instance, Context, Head, Body) :-
-  assert(Context:(Head :- Body)).
+  assertz(Context:(Head :- Body)).
 
 context:assert_predicate_clause(class, Context, Head, Body) :-
-  assert(Context:(Head ::- Body)).
+  assertz(Context:(Head ::- Body)).
 
 
 %! newinstance(+class)
