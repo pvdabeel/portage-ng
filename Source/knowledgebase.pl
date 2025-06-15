@@ -281,14 +281,15 @@ proxy ::-
 % Wrap predicates into a remote procedure call if host,
 % port and proxy are set.
 
-rpc_wrapper(Term) ::-
+rpc_wrapper(Context:Term) ::-
   ::host(Host),!,
   ::port(Port),
-  client:rpc_execute(Host,Port,Term).
+  client:rpc_execute(Host,Port,Context:Term).
 
-rpc_wrapper(Term) ::-
+rpc_wrapper(Context:Term) ::-
   \+ proxy,!,
-  Term.
+  goal_expansion(Term,Expanded),
+  Context:Expanded.
 
 
 %! knowledgebase:repository(?Repository)
