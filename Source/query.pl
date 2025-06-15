@@ -600,43 +600,43 @@ compile_query_compound(qualified_target(none,Repo,C,P,[[],'','','',''],F), Repo:
  ( cache:ordered_entry(Repo,Id,C,P,_),
    apply_filters(Repo://Id,F) ))			:- !. %message:color(green).
 
-search(qualified_target(none,Repo,C,P,V,F), Repo://Id,
+compile_query_compound(qualified_target(none,Repo,C,P,V,F), Repo://Id,
   ( cache:ordered_entry(Repo,Id,C,P,V),
     apply_filters(Repo://Id,F) ))                       :- !. %message:color(green).
 
-search(qualified_target(greater,Repo,C,P,V,F), Repo://Id,
+compile_query_compound(qualified_target(greater,Repo,C,P,V,F), Repo://Id,
   ( cache:ordered_entry(Repo,Id,C,P,PV),
-    system:compare(>,ProposedVersion,Version),
+    system:compare(>,PV,V),
     apply_filters(Repo://Id,F) ))                       :- !. %message:color(green).
 
-search(qualified_target(greaterequal,Repo,C,P,V,F), Repo://Id,
+compile_query_compound(qualified_target(greaterequal,Repo,C,P,V,F), Repo://Id,
   ( cache:ordered_entry(Repo,Id,C,P,PV),
-    (system:compare(>,ProposedVersion,Version);
-     system:compare(=,ProposedVersion,Version)),
+    (system:compare(>,PV,V);
+     system:compare(=,PV,V)),
     apply_filters(Repo://Id,F) ))                       :- !. %message:color(green).
 
-search(qualified_target(smaller,Repo,C,P,V,F), Repo://Id,
+compile_query_compound(qualified_target(smaller,Repo,C,P,V,F), Repo://Id,
   ( cache:ordered_entry(Repo,Id,C,P,PV),
-    system:compare(<,ProposedVersion,Version),
+    system:compare(<,PV,V),
     apply_filters(Repo://Id,F) ))                       :- !. %message:color(green).
 
-search(qualified_target(smallerequal,Repo,C,P,V,F), Repo://Id,
+compile_query_compound(qualified_target(smallerequal,Repo,C,P,V,F), Repo://Id,
   ( cache:ordered_entry(Repo,Id,C,P,PV),
-    (system:compare(<,ProposedVersion,Version);
-     system:compare(=,ProposedVersion,Version)),
+    (system:compare(<,PV,V);
+     system:compare(=,PV,V)),
     apply_filters(Repo://Id,F) ))                       :- !. %message:color(green).
 
-search(qualified_target(equal,Repo,C,P,V,F), Repo://Id,
+compile_query_compound(qualified_target(equal,Repo,C,P,V,F), Repo://Id,
   ( cache:ordered_entry(Repo,Id,C,P,V),
     apply_filters(Repo://Id,F) ) )                      :- !. %message:color(green).
 
-search(qualified_target(notequal,Repo,C,P,V,F), Repo://Id,
+compile_query_compound(qualified_target(notequal,Repo,C,P,V,F), Repo://Id,
   ( cache:ordered_entry(Repo,Id,C,P,PV),
     PV \== V,
     apply_filters(Repo://Id,F) ))                       :- !. %message:color(green).
 
-search(qualified_target(tilde,Repo,C,P,[Version,_,_,_],F), Repo://Id,
-  ( cache:ordered_entry(Repo,Id,C,P,[Version,_,_,_]),
+compile_query_compound(qualified_target(tilde,Repo,C,P,[V,_,_,_],F), Repo://Id,
+  ( cache:ordered_entry(Repo,Id,C,P,[V,_,_,_]),
     apply_filters(Repo://Id,F) ))                       :- !. %message:color(green).
 
 
