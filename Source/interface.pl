@@ -221,7 +221,7 @@ interface:process_action(search,[],_) :-
 
 interface:process_action(search,Args,_Options) :-
   !,
-  phrase(eapi:query([Q]),Args),
+  phrase(eapi:query(Q),Args),
   message:log(['Query:   ',Q]),
   forall(kb:query(Q,R://E), writeln(R://E)).
 
