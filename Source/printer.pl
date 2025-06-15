@@ -582,7 +582,7 @@ printer:print_config_prefix(_Word) :-
 
 printer:print_config_prefix(_Word) :-
   config:printing_style('column'),!,
-  message:column(95,' ').
+  message:column(110,' ').
 
 
 %! printer:print_config_prefix
