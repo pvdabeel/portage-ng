@@ -240,7 +240,7 @@ config:verbosity(debug).
 % When parsing, proving or planning, use the specified time limit to automatically stop
 % computation if it takes too long. In seconds.
 
-config:time_limit(30).
+config:time_limit(60).
 
 
 %! config:time_limit(?Limit)
@@ -311,7 +311,7 @@ config:printable_metadata([blank,hl,description,homepage,license,eapi,slot,hl,bl
 %
 % Set when you want Graphviz dot file to be created for new ebuilds only
 
-config:graph_modified_only(true).
+config:graph_modified_only(false).
 
 
 %! config:graph_dependency_type(?Bool)
@@ -319,6 +319,13 @@ config:graph_modified_only(true).
 % Defines the dependency types for which you want a full graph
 
 config:graph_dependency_type([detail,bdepend,cdepend,depend,idepend,rdepend,pdepend]).
+
+
+%! config:graph_proof_type(?Bool)
+%
+% Defines the proof types for which you want to create svg
+
+config:graph_proof_type([merge,fetchonly,info]).
 
 
 %! config:proving_target(?Target)

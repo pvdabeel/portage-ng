@@ -12,7 +12,8 @@
 This file contains predicates that convert:
 
  - ebuilds into DOT language directed graphs showing ebuild dependencies in detail
- - ebuilds into DOT language directed graphs showing full dependency tree
+ - ebuilds into DOT language directed graphs showing full dependency tree for the
+   different dependency types
 
 We have can output two type of graphs: High level tree diagrams or detailled
 graphs showing, for a given ebuild, all dependencies and the ebuilds that
@@ -44,6 +45,27 @@ grapher:graph(detail,Repository://Id) :-
   grapher:graph_ebuild(detail,Repository://Id),
   grapher:graph_detail(details,Repository://Id),
   grapher:graph_footer(details,Repository://Id).
+
+grapher:graph(merge,Repository://Id) :-
+  !,
+  grapher:graph_header(merge,Repository://Id),
+  grapher:graph_legend(merge,Repository://Id),
+  grapher:graph_root(merge,Repository://Id),
+  grapher:graph_footer(merge,Repository://Id).
+
+grapher:graph(fetchonly,Repository://Id) :-
+  !,
+  grapher:graph_header(fetchonly,Repository://Id),
+  grapher:graph_legend(fetchonly,Repository://Id),
+  grapher:graph_root(fetchonly,Repository://Id),
+  grapher:graph_footer(fetchonly,Repository://Id).
+
+grapher:graph(info,Repository://Id) :-
+  !,
+  grapher:graph_header(info,Repository://Id),
+  grapher:graph_legend(info,Repository://Id),
+  grapher:graph_root(info,Repository://Id),
+  grapher:graph_footer(info,Repository://Id).
 
 grapher:graph(Type,Repository://Id) :-
   member(Type,[bdepend,cdepend,depend,idepend,rdepend,pdepend]),!,
@@ -94,18 +116,23 @@ grapher:graph_header(_Type,_Repository://_Id) :-
 % For a given ebuild, identified by an Id, create legend to be included in the full dependency graph.
 
 grapher:graph_legend(Type,Repository://Id) :-
-  config:graph_dependency_type(List),
-  length(List,Len),
+  config:graph_dependency_type(DepList),
+  config:graph_proof_type(ProofList),
+  length(DepList,DepLen),
+  length(ProofList,ProofLen),
   write('graph [labelloc=t, labeljust=l, fontcolor=blue, fontname=Helvetica, fontsize=10, label='),
-  write('<<TABLE BORDER=\'0\' CELLBORDER=\'1\' CELLSPACING=\'0\' CELLPADDING=\'6\'>'),
-  write('<TR><TD COLSPAN=\''),write(Len),write('\'><FONT COLOR=\'black\'><B>dependency graph</B></FONT></TD>'),
+  write('<<TABLE BORDER=\'0\' CELLBORDER=\'1\' CELLSPACING=\'0\' CELLPADDING=\'6\'><TR>'),
+  write('<TD COLSPAN=\''),write(DepLen),write('\'><FONT COLOR=\'black\'><B>dependency graph</B></FONT></TD>'),
   write('<TD BORDER=\'0\' WIDTH=\'30\'></TD>'),
   write('<TD COLSPAN=\'4\'><FONT COLOR=\'black\'><B>version control</B></FONT></TD>'),
   write('<TD BORDER=\'0\' WIDTH=\'30\'></TD>'),
-  write('<TD COLSPAN=\'3\'><FONT COLOR=\'black\'><B>command line</B></FONT></TD></TR><TR>'),
-  grapher:graph_legend_types(Type,List,Repository://Id),
+  write('<TD COLSPAN=\''),write(ProofLen),write('\'><FONT COLOR=\'black\'><B>command line</B></FONT></TD>'),
+  write('</TR><TR>'),
+  grapher:graph_legend_types(Type,DepList,Repository://Id),
+  write('<TD BORDER=\'0\'></TD>'),
   grapher:graph_legend_version(Type,Repository://Id),
-  grapher:graph_legend_proof(Type,Repository://Id),
+  write('<TD BORDER=\'0\'></TD>'),
+  grapher:graph_legend_proof(Type,ProofList,Repository://Id),
   write('</TR></TABLE>>];'),nl,
   nl.
 
@@ -122,7 +149,6 @@ grapher:graph_legend_version(Type,Repository://Id) :-
   (last(Es,Oldest)         ; Oldest = []),!,
   (once(member(Newest,Eg)) ; Newest = []),!,
   (once(member(Older,Es))  ; Older  = []),!,
-  write('<TD BORDER=\'0\'></TD>'),
   grapher:graph_legend_href(Type,Repository://Newest,'&lt;&lt; newest'),
   grapher:graph_legend_href(Type,Repository://Newer,'&lt; newer'),
   grapher:graph_legend_href(Type,Repository://Older,'older &gt;'),
@@ -133,12 +159,23 @@ grapher:graph_legend_version(Type,Repository://Id) :-
 %
 % For a given ebuild, identified by an Id, create links to proofs to be included in legend.
 
-grapher:graph_legend_proof(_,Repository://Id) :-
-  write('<TD BORDER=\'0\'></TD>'),
-  grapher:graph_legend_href(merge,Repository://Id,'merge'),
-  grapher:graph_legend_href(fetchonly,Repository://Id,'fetchonly'),
-  grapher:graph_legend_href(info,Repository://Id,'info').
+%grapher:graph_legend_proof(_,Repository://Id) :-
+%  grapher:graph_legend_href(merge,Repository://Id,'merge'),
+%  grapher:graph_legend_href(fetchonly,Repository://Id,'fetchonly'),
+%  grapher:graph_legend_href(info,Repository://Id,'info').
 
+grapher:graph_legend_proof(_Type,[],_Repository://_Id) :- !.
+
+grapher:graph_legend_proof(Type,[Type|Rest],Repository://Id) :-
+  !,
+  atomic_list_concat(['<u>',Type,'</u>'],Name),
+  grapher:graph_legend_href(Type,Repository://Id,Name),
+  grapher:graph_legend_proof(Type,Rest,Repository://Id).
+
+grapher:graph_legend_proof(Type,[OtherType|Rest],Repository://Id) :-
+  !,
+  grapher:graph_legend_href(OtherType,Repository://Id,OtherType),
+  grapher:graph_legend_proof(Type,Rest,Repository://Id).
 
 
 %! grapher:graph_legend_types(Type,List,Repository://Id)
@@ -170,15 +207,15 @@ grapher:graph_legend_href(_,_://[],Name) :-
 
 grapher:graph_legend_href(merge,Repository://Id,Name) :-
   !,
-  write('<TD title=\"'),write(Repository://Id),write('\" href=\"../'),write(Id),write('-merge.html'),write('\">--'),write(Name),write('&nbsp;</TD>').
+  write('<TD title=\"'),write(Repository://Id),write('\" href=\"../'),write(Id),write('-merge.svg'),write('\">--'),write(Name),write('&nbsp;</TD>').
 
 grapher:graph_legend_href(fetchonly,Repository://Id,Name) :-
   !,
-  write('<TD title=\"'),write(Repository://Id),write('\" href=\"../'),write(Id),write('-fetchonly.html'),write('\">--'),write(Name),write('&nbsp;</TD>').
+  write('<TD title=\"'),write(Repository://Id),write('\" href=\"../'),write(Id),write('-fetchonly.svg'),write('\">--'),write(Name),write('&nbsp;</TD>').
 
 grapher:graph_legend_href(info,Repository://Id,Name) :-
   !,
-  write('<TD title=\"'),write(Repository://Id),write('\" href=\"../'),write(Id),write('-info.html'),write('\">--'),write(Name),write('&nbsp;</TD>').
+  write('<TD title=\"'),write(Repository://Id),write('\" href=\"../'),write(Id),write('-info.svg'),write('\">--'),write(Name),write('&nbsp;</TD>').
 
 grapher:graph_legend_href(detail,Repository://Id,Name) :-
   !,
@@ -272,6 +309,14 @@ grapher:graph_detail(details,Repository://Id) :-
 %! grapher:graph_root(Type,Repository://Id)
 %
 % For a given ebuild, identified by an Id, create the root of the full dependency graph.
+
+grapher:graph_root(Type,_Repository://_Id) :-
+  config:graph_proof_type(Types),
+  memberchk(Type,Types),!,
+  write('root [style=invis];'),nl,
+  write('placeholder [style=invis, width=1600, heigth=14400];'),nl,
+  write('root -> \"'),write(placeholder),write('\"[minlen=0.2, headport=n, tailport=s, style=invis];'),nl,
+  nl.
 
 grapher:graph_root(_Type,Repository://Id) :-
   write('root [style=invis];'),nl,
@@ -560,14 +605,16 @@ grapher:prepare_directory(D,Repository) :-
 grapher:write_dot_files(D,Repository://Id) :-
   with_mutex(mutex,message:scroll_notice(['Graphing - Ebuild: ',Id])),
   config:graph_dependency_type(Deptypes),
-  (forall(member(Deptype,Deptypes),
-      ((Deptype == detail
+  config:graph_proof_type(Prooftypes),
+  append(Deptypes,Prooftypes,Types),
+  (forall(member(Type,Types),
+      ((Type == detail
         -> atomic_list_concat([D,'/',Id,'.dot'],F)
-        ;  atomic_list_concat([D,'/',Id,'-',Deptype,'.dot'],F)),
+        ;  atomic_list_concat([D,'/',Id,'-',Type,'.dot'],F)),
        tell(F),
-       (grapher:graph(Deptype,Repository://Id)
+       (grapher:graph(Type,Repository://Id)
         -> told
-        ;  (told,message:warning([Repository://Id,' ',Deptype])))))).
+        ;  (told,message:warning([Repository://Id,' ',Type])))))).
 
 
 %! grapher:test(Repository)
