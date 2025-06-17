@@ -3,7 +3,32 @@
   font-family: "Meslo";
   font-style:  large;
 }
-body         {color: white; background-color: black; font: 1rem "Meslo";}
+
+html {
+  overflow-y: scroll; /* Forces vertical scrollbar to always appear */
+  scrollbar-width: auto; /* Firefox: standard scrollbar width */
+}
+
+/* WebKit browsers (Safari, Chrome) */
+::-webkit-scrollbar {
+  -webkit-appearance: none;
+  width: 7px; /* Customize scrollbar width */
+}
+
+::-webkit-scrollbar-track {
+  background: white; /* Track color */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888; /* Thumb color */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: red; /* Thumb color on hover */
+}
+
+body         {color: white; background-color: black; font: 0.6rem "Meslo";}
 .reset       {color: white;}
 .bg-reset    {background-color: black;}
 .inverted    {color: black;}
@@ -13,8 +38,8 @@ body         {color: white; background-color: black; font: 1rem "Meslo";}
 .green       {color: green; filter: brightness(140%);}
 .yellow      {color: yellow; filter: brightness(80%);}
 .blue        {color: #3333FF;}
-.purple      {color: fuchsia;}
-.cyan        {color: aqua;}
+.purple      {color: magenta; filter: brightness(160%)}
+.cyan        {color: cyan; filter: brightness(140%);}
 .white       {color: white;}
 .bg-black    {background-color: black;}
 .bg-red      {background-color: red;}
@@ -25,7 +50,7 @@ body         {color: white; background-color: black; font: 1rem "Meslo";}
 .bg-cyan     {background-color: aqua;}
 .bg-white    {background-color: white;}
 .underline   {text-decoration: underline;}
-.bold        {font-weight: bold; filter: contrast(80%) brightness(200%);}
+.bold        {font-weight: bold; filter: contrast(90%) brightness(200%);}
 .italic      {font-style: italic; filter: brightness(70%);}
 .blink       {text-decoration: blink;}
 .crossed-out {text-decoration: line-through;}

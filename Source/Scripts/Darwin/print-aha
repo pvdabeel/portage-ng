@@ -5,7 +5,7 @@
 modify_svg() {
     local svg_file="$1"
     local base_name="$2"
-    sed -i '' "s|</svg>|<foreignObject x=\"4\" y=\"80\" width=\"1600\" height=\"1000\"><body xmlns=\"http://www.w3.org/1999/xhtml\"><iframe src=\"./${base_name}.html\" width=\"1600\" height=\"1000\" style=\"border: 1px solid black;\"></iframe></body></foreignObject></svg>|" ${svg_file}    
+    sed -i '' "s|</svg>|<foreignObject x=\"4\" y=\"80\" width=\"1620\" height=\"1020\"><body xmlns=\"http://www.w3.org/1999/xhtml\"><iframe src=\"./${base_name}.html\" width=\"1600\" height=\"1000\" style=\"border: 1px solid black;\"></iframe></body></foreignObject></svg>|" ${svg_file}    
 }
 
 export -f modify_svg
