@@ -190,12 +190,14 @@ config:digest_realm('portage-ng').
 % them into interactive scalable vector graphics (svg) to enable you to
 % browse through a dependency graph.
 %
+% Directory doesn't need a trailing '/'.
+%
 % We store the generated dot and svg files in the following directory.
 
-config:graph_directory('imac-pro.local',    '/Volumes/Disk 1/Graph/') :- !.
-config:graph_directory('mac-pro.local',     '/Volumes/Storage/Graph/') :- !.
-config:graph_directory('macbook-pro.local', '/Users/pvdabeel/Graph/') :- !.
-config:graph_directory('vm-linux.local',    '/root/Graph/')           :- !.
+config:graph_directory('imac-pro.local',    '/Volumes/Disk 1/Graph') :- !.
+config:graph_directory('mac-pro.local',     '/Volumes/Storage/Graph') :- !.
+config:graph_directory('macbook-pro.local', '/Users/pvdabeel/Graph') :- !.
+config:graph_directory('vm-linux.local',    '/root/Graph')           :- !.
 
 
 %! config:pkg_directory(?Hostname,?FullPath)
@@ -203,10 +205,10 @@ config:graph_directory('vm-linux.local',    '/root/Graph/')           :- !.
 % Declaration of the pkg db directory on a system. This holds metadata
 % for all packages installed on a system
 
-config:pkg_directory('imac-pro.local',      '/Volumes/Disk 1/Repository/pkg/') :- !.
-config:pkg_directory('mac-pro.local',       '/Volumes/Storage/Repository/pkg/') :- !.
-config:pkg_directory('macbook-pro.local',   '/Users/pvdabeel/Repository/pkg/') :- !.
-config:pkg_directory('vm-linux.local',      '/var/db/pkg/') :- !.
+config:pkg_directory('imac-pro.local',      '/Volumes/Disk 1/Repository/pkg') :- !.
+config:pkg_directory('mac-pro.local',       '/Volumes/Storage/Repository/pkg') :- !.
+config:pkg_directory('macbook-pro.local',   '/Users/pvdabeel/Repository/pkg') :- !.
+config:pkg_directory('vm-linux.local',      '/var/db/pkg') :- !.
 
 
 %! config:workd_file(Path)
@@ -240,7 +242,7 @@ config:verbosity(debug).
 % When parsing, proving or planning, use the specified time limit to automatically stop
 % computation if it takes too long. In seconds.
 
-config:time_limit(60).
+config:time_limit(300).
 
 
 %! config:time_limit(?Limit)
