@@ -577,82 +577,100 @@ grapher:handle(_Deptype,_Style,_Arrow,_Master,_,[]) :- !.
 
 
 
-%! grapher:test(+Repository)
+
+%! grapher:write_graph_file(+Directory,+Repository://Entry)
 %
-% For a given 'eapi' repository, create Graphviz dot files in the graph
-% directory for all ebuilds in the repository. Triggers a script to convert
-% the dot files into interactive scalable vector graphics (SVG).
-%
-% When an SVG graph is opened in a modern browser, it will show for a given
-% ebuild what dependencies that ebuild has. The SVG graph will have links
-% to ebuilds that can satisfy the dependency. Each ebuild linked to can be
-% opened by clicking on it in the graph, enabling manual dependency graph
-% traversal to debug issues with ebuild dependencies.
+% Create graphviz dot file(s) for an entry in a repository
+% Assumes directory exists. (See repository:prepare_directory)
 
-grapher:prepare_directory(D,Repository) :-
-  config:hostname(H),
-  config:graph_directory(H,D),
-  system:exists_directory(D),!,
-  message:scroll_notice(['Directory already exists! Updating...']),
-  pkg:create_repository_dirs(Repository,D).
-
-grapher:prepare_directory(D,Repository) :-
-  config:hostname(H),
-  config:graph_directory(H,D),
-  \+(system:exists_directory(D)),!,
-  pkg:make_repository_dirs(Repository,D).
-
-grapher:write_dot_files(D,Repository://Id) :-
-  with_mutex(mutex,message:scroll_notice(['Graphing - Ebuild: ',Id])),
+grapher:write_graph_file(D,Repository://Entry) :-
   config:graph_dependency_type(Deptypes),
   config:graph_proof_type(Prooftypes),
   append(Deptypes,Prooftypes,Types),
   (forall(member(Type,Types),
       ((Type == detail
-        -> atomic_list_concat([D,'/',Id,'.dot'],F)
-        ;  atomic_list_concat([D,'/',Id,'-',Type,'.dot'],F)),
+        -> atomic_list_concat([D,'/',Entry,'.dot'],F)
+        ;  atomic_list_concat([D,'/',Entry,'-',Type,'.dot'],F)),
        tell(F),
-       (grapher:graph(Type,Repository://Id)
+       (grapher:graph(Type,Repository://Entry)
         -> told
-        ;  (told,message:warning([Repository://Id,' ',Type])))))).
+        ;  (told,message:warning([Repository://Entry,' ',Type])))))).
 
 
-%! grapher:test(Repository)
+%! printer:write_graph_files(+Directory,+Repository)
 %
-% Create or update a graph for a given repository
+% Create graphviz dot file(s) for all entries in a repository
+% Assumes directory exists. (See repository:prepare_directory)
 
-grapher:test(Repository) :-
-  config:graph_modified_only(true),!,
-  config:number_of_cpus(Cpus),
-  message:hc,
-  grapher:prepare_directory(D,Repository),
-  message:title(['Graphing (',Cpus,' threads) - Changed ebuilds only']),
-  concurrent_forall((Repository:entry(E,Time),
-                     Repository:get_ebuild_file(E,Ebuild),
-                     system:exists_file(Ebuild),
-                     system:time_file(Ebuild,Modified),
-                     Modified > Time),
-          (grapher:write_dot_files(D,Repository://E))),
-  message:title_reset,
-  message:el,
-  message:notice(['Graphed changed ebuilds only (',Cpus,' threads).']),
+grapher:write_graph_files(Directory,Repository) :-
+  tester:test(parallel_verbose,
+              'Writing graphs for',
+              Repository://Entry,
+              (Repository:entry(Entry),
+               (config:graph_modified_only(true)
+                -> Repository:entry(Entry,Time),
+                   Repository:get_ebuild_file(Entry,Ebuild),
+                   system:exists_file(Ebuild),
+                   system:time_file(Ebuild,Modified),
+                   Modified > Time
+                ;  true)),
+              (grapher:write_graph_file(Directory,Repository://Entry))).
+
+
+%! grapher:produce_svg(+Directory)
+%
+% For a given directory with dot files, convert the dot files into interactive
+% scalable vector graphics (SVG).
+
+grapher:produce_svg(Directory) :-
   message:scroll_notice(['Now running Graphviz dot...']),
-  script:exec(graph,['dot',D]),
+  script:exec(graph,['dot',Directory]),
   message:scroll_notice(['Done running Graphviz dot.']),
   message:sc.
 
-grapher:test(Repository) :-
-  \+(config:graph_modified_only(true)),!,
-  config:number_of_cpus(Cpus),
-  message:hc,
-  grapher:prepare_directory(D,Repository),
-  message:title(['Graphing (',Cpus,' threads) - All ebuilds']),
-  concurrent_forall(Repository:entry(E),(grapher:write_dot_files(D,Repository://E))),
-  Repository:get_size(L),
-  message:title_reset,
-  message:el,
-  message:notice(['Graphed ',L,' ebuilds (',Cpus,' threads).']),
-  message:scroll_notice(['Now running Graphviz dot...']),
-  script:exec(graph,['dot',D]),
-  message:scroll_notice(['Done running Graphviz dot.']),
-  message:sc.
+
+%! grapher:test(+Repository)
+%
+% Outputs dot file for every entry in a given repository, reports using the default reporting style
+
+grapherr:test(Repository) :-
+  config:test_style(Style),
+  grapher:test(Repository,Style).
+
+
+%! grapher:test(+Repository,+Style)
+%
+% Outputs dot file for  every entry in a given repository, reports using a given reporting style
+
+grapher:test(Repository,Style) :-
+  config:graph_dependency_type(D),
+  config:graph_proof_type(P),
+  tester:test(Style,
+              'Graphing',
+              Repository://Entry,
+              Repository:entry(Entry),
+              (forall(member(I,D),
+               with_output_to(string(_),grapher:graph(I,Repository://Entry))),
+               forall(member(I,P),
+               with_output_to(string(_),grapher:graph(I,Repository://Entry))))).
+
+
+%! grapher:test_latest(+Repository)
+%
+% Same as grapher:test(+Repository), but only tests highest version of every package
+
+grapher:test_latest(Repository) :-
+  !,
+  grapher:test_latest(Repository,parallel_verbose).
+
+grapher:test_latest(Repository,Style) :-
+  config:graph_dependency_type(D),
+  config:graph_proof_type(P),
+  tester:test(Style,
+              'Graphing',
+              Repository://Entry,
+              (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
+              (forall(member(I,D),
+               with_output_to(string(_),grapher:graph(I,Repository://Entry))),
+               forall(member(I,P),
+               with_output_to(string(_),grapher:graph(I,Repository://Entry))))).

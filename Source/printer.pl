@@ -1218,6 +1218,86 @@ printer:dry_run(_Step) :-
 unify(A,B) :- unifiable(A,B,_),!.
 
 
+%! printer:write_merge_file(+Directory,+Repository://Entry)
+%
+% Print merge plan to file for an entry in a repository
+% Assumes directory exists. (See repository:prepare_directory)
+
+printer:write_merge_file(Directory,Repository://Entry) :-
+  Action = run,
+  Extension = '.merge',
+  (with_q(prover:prove_lists(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
+   with_q(planner:plan(Proof,[],[],Plan)),
+   atomic_list_concat([Directory,'/',Entry,Extension],File)),
+  (tell(File),
+   printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan)
+   -> told
+   ; (told,with_mutex(mutex,message:warning([Repository://Entry,' ',Action])))).
+
+
+%! printer:write_fetchonly_file(+Directory,+Repository://Entry)
+%
+% Print fetchonly plan to file for an entry in a repository
+% Assumes directory exists. (See repository:prepare_directory)
+
+printer:write_fetchonly_file(Directory,Repository://Entry) :-
+  Action = fetchonly,
+  Extension = '.fetchonly',
+  (with_q(prover:prove_lists(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
+   with_q(planner:plan(Proof,[],[],Plan)),
+   atomic_list_concat([Directory,'/',Entry,Extension],File)),
+  (tell(File),
+   printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan)
+   -> told
+   ;  (told,with_mutex(mutex,message:warning([Repository://Entry,' ',Action])))).
+
+
+%! printer:write_info_file(+Directory,+Repository://Entry)
+%
+% Print info to file for an entry in a repository
+% Assumes directory exists. (See repository:prepare_directory)
+
+printer:write_info_file(Directory,Repository://Entry) :-
+  (atomic_list_concat([Directory,'/',Entry,'.info'],File)),
+  (tell(File),
+   printer:print_entry(Repository://Entry)
+   -> told
+   ;  (told,with_mutextmutex,message:warning([Repository://Entry,' ',info]))).
+
+
+%! printer:write_proof_files(+Directory,+Repository)
+%
+% Print merge, fetchonly & info to file for all entries in a repository
+% Assumes directory exists. (See repository:prepare_directory)
+
+printer:write_proof_files(Directory,Repository) :-
+  tester:test(parallel_verbose,
+              'Writing proofs for',
+              Repository://Entry,
+              (Repository:entry(Entry),
+               (config:graph_modified_only(true)
+                -> Repository:entry(Entry,Time),
+                   Repository:get_ebuild_file(Entry,Ebuild),
+                   system:exists_file(Ebuild),
+                   system:time_file(Ebuild,Modified),
+                   Modified > Time
+                ;  true)),
+              (printer:write_merge_file(Directory,Repository://Entry),
+	       printer:write_fetchonly_file(Directory,Repository://Entry),
+               printer:write_info_file(Directory,Repository://Entry))).
+
+
+%! printer:produce_html(+Directory)
+%
+% For a given directory with proof files, convert the files into html.
+
+printer:produce_html(Directory) :-
+  message:scroll_notice(['Now running Aha ...']),
+  script:exec(print,['aha',Directory]),
+  message:scroll_notice(['Done running Aha.']),
+  message:sc.
+
+
 %! printer:test(+Repository)
 %
 % Proves and prints every entry in a given repository, reports using the default reporting style
@@ -1243,6 +1323,7 @@ printer:test(Repository,Style) :-
               (Repository:entry(Entry)),
               (with_q(prover:prove_lists(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
                with_q(planner:plan(Proof,[],[],Plan))),
+              %(with_output_to(string(_),
               (printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan)),
 	      false).
 
@@ -1255,15 +1336,6 @@ printer:test_latest(Repository) :-
   !,
   printer:test_latest(Repository,parallel_verbose).
 
-
-%! printer:test_latest(+Repository,+Style)
-%
-% Same as printer:test(+Repository,+Style), but only tests highest version of every package
-
-printer:test_latest(Repository,parallel_fast) :-
-  !,
-  printer:test_latest(Repository,parallel_verbose).
-
 printer:test_latest(Repository,Style) :-
   config:proving_target(Action),
   tester:test(Style,
@@ -1272,74 +1344,8 @@ printer:test_latest(Repository,Style) :-
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
               (with_q(prover:prove_lists(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
                with_q(planner:plan(Proof,[],[],Plan))),
+              %(with_output_to(string(_),
               (printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan)),
               false).
 
 
-%! printer:write_merge_file(+Directory,+Repository://Entry)
-%
-% Print merge plan to file for an entry in a repository
-% Assumes directory exists. (See grapher:prepare_directory)
-
-printer:write_merge_file(Directory,Repository://Entry) :-
-  Action = run,
-  Extension = '.merge',
-  (with_q(prover:prove_lists(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
-   with_q(planner:plan(Proof,[],[],Plan)),
-   atomic_list_concat([Directory,'/',Entry,Extension],File)),
-  (tell(File),
-   printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan)
-   -> told
-   ; (told,with_mutex(mutex,message:warning([Repository://Entry,' ',Action])))).
-
-
-%! printer:write_fetchonly_file(+Directory,+Repository://Entry)
-%
-% Print fetchonly plan to file for an entry in a repository
-% Assumes directory exists. (See grapher:prepare_directory)
-
-printer:write_fetchonly_file(Directory,Repository://Entry) :-
-  Action = fetchonly,
-  Extension = '.fetchonly',
-  (with_q(prover:prove_lists(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
-   with_q(planner:plan(Proof,[],[],Plan)),
-   atomic_list_concat([Directory,'/',Entry,Extension],File)),
-  (tell(File),
-   printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan)
-   -> told
-   ;  (told,with_mutex(mutex,message:warning([Repository://Entry,' ',Action])))).
-
-
-%! printer:write_info_file(+Directory,+Repository://Entry)
-%
-% Print info to file for an entry in a repository
-% Assumes directory exists. (See grapher:prepare_directory)
-
-printer:write_info_file(Directory,Repository://Entry) :-
-  (atomic_list_concat([Directory,'/',Entry,'.info'],File)),
-  (tell(File),
-   printer:print_entry(Repository://Entry)
-   -> told
-   ;  (told,with_mutextmutex,message:warning([Repository://Entry,' ',info]))).
-
-
-%! printer:write_proof_files(+Directory,+Repository://Id)
-%
-% Print merge, fetchonly & info to file for all entries in a repository
-% Assumes directory exists. (See grapher:prepare_directory)
-
-printer:write_proof_files(Directory,Repository) :-
-  tester:test(parallel_verbose,
-              'Writing proofs for',
-              Repository://Entry,
-              (Repository:entry(Entry),
-               (config:graph_modified_only(true)
-                -> Repository:entry(Entry,Time),
-                   Repository:get_ebuild_file(Entry,Ebuild),
-                   system:exists_file(Ebuild),
-                   system:time_file(Ebuild,Modified),
-                   Modified > Time
-                ;  true)),
-              (printer:write_merge_file(Directory,Repository://Entry),
-	       printer:write_fetchonly_file(Directory,Repository://Entry),
-               printer:write_info_file(Directory,Repository://Entry))).

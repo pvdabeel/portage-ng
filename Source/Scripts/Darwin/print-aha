@@ -1,0 +1,85 @@
+#!/bin/bash
+
+# Converts terminal output merge, fetchonly and info raw ansi files to .html 
+
+modify_svg() {
+    local svg_file="$1"
+    local base_name="$2"
+    sed -i '' "s|</svg>|<foreignObject x=\"4\" y=\"80\" width=\"1600\" height=\"1000\"><body xmlns=\"http://www.w3.org/1999/xhtml\"><iframe src=\"./${base_name}.html\" width=\"1600\" height=\"1000\" style=\"border: 1px solid black;\"></iframe></body></foreignObject></svg>|" ${svg_file}    
+}
+
+export -f modify_svg
+
+if [ -z "$1" ]; then
+    echo "Error: Directory argument required"
+    exit 1
+fi
+
+if [ -f "${1}/.lastprint" ]; then
+
+  # turn ascii colored text files into html 
+
+  find "${1}" -iname '*.merge' -mnewer "${1}/.lastprint" \
+  | parallel --no-notice --bar --progress --eta \
+      'aha -s -c ../.proof.css -t {} -f {} > {.}-merge.html'
+  find "${1}" -iname '*.fetchonly' -mnewer "${1}/.lastprint" \
+  | parallel --no-notice --bar --progress --eta \
+      'aha -s -c ../.proof.css -t {} -f {} > {.}-fetchonly.html'
+  find "${1}" -iname '*.info' -mnewer "${1}/.lastprint" \
+  | parallel --no-notice --bar --progress --eta \
+      'aha -s -c ../.proof.css -t {} -f {} > {.}-info.html'
+
+  # fixup html
+
+  find "${1}" -iname '*-info.html'  -mnewer "${1}/.lastprint" \
+     -exec perl -pi'' -e "s/-------<span/-------\n<span/g" {} \;
+
+  # embed html into existing svg templates
+
+  find "${1}" -iname '*-merge.svg' -mnewer "${1}/.lastprint" \
+  | parallel -q --no-notice --bar --progress --eta \
+      modify_svg '{}' '{/.}'
+
+  find "${1}" -iname '*-fetchonly.svg' -mnewer "${1}/.lastprint" \
+  | parallel -q --no-notice --bar --progress --eta \
+      modify_svg '{}' '{/.}'
+  
+  find "${1}" -iname '*-info.svg' -mnewer "${1}/.lastprint" \
+  | parallel -q --no-notice --bar --progress --eta \
+      modify_svg '{}' '{/.}'
+
+else 
+
+  # turn ascii colored text files into html
+
+  find "${1}" -iname '*.merge' \
+  | parallel --no-notice --bar --progress --eta \
+      'aha -s -c ../.proof.css -t {} -f {} > {.}-merge.html'
+  find "${1}" -iname '*.fetchonly' \
+  | parallel --no-notice --bar --progress --eta \
+      'aha -s -c ../.proof.css -t {} -f {} > {.}-fetchonly.html'
+  find "${1}" -iname '*.info' \
+  | parallel --no-notice --bar --progress --eta \
+      'aha -s -c ../.proof.css -t {} -f {} > {.}-info.html'
+
+  # fixup html
+
+  find "${1}" -iname '*-info.html' -exec perl -pi'' -e "s/-------<span/-------\n<span/g" {} \;
+
+ 
+  # embed html into existing svg templates
+
+  find "${1}" -iname '*-merge.svg' \
+  | parallel -q --no-notice --bar --progress --eta \
+      modify_svg '{}' '{/.}'
+
+  find "${1}" -iname '*-fetchonly.svg' \
+  | parallel -q --no-notice --bar --progress --eta \
+      modify_svg '{}' '{/.}'
+
+  find "${1}" -iname '*-info.svg' \
+  | parallel -q --no-notice --bar --progress --eta \
+      modify_svg '{}' '{/.}'
+
+fi
+touch "${1}/.lastprint"

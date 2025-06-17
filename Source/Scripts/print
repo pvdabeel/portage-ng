@@ -1,0 +1,8 @@
+#!/bin/sh
+
+STRATEGY=`uname -s`
+DIRECTORY=`dirname ${0}`
+SCRIPT=`basename ${0}`
+
+$DIRECTORY/$STRATEGY/$SCRIPT-${1} "${2}" "${3}" 2>&1
+true

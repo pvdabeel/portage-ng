@@ -67,6 +67,9 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 :- dpublic(read_ebuild/2).
 :- dpublic(read_ebuild/3).
 
+:- dpublic(prepare_directory/1).
+
+
 % private interface
 
 :- dpublic(update_metadata/2).
@@ -488,6 +491,31 @@ read_time(Time) ::-
   ::location(Location),
   os:compose_path(Location,'metadata/timestamp.chk',File),
   system:time_file(File,Time).
+
+
+%! repository:prepare_directory(D)
+%
+% Public predicate
+%
+% Creates or updates the repository directory structure
+
+prepare_directory(D) ::-
+  :this(Repository),
+  config:hostname(H),
+  config:graph_directory(H,G),
+  os:compose_path(G,Repository,D),
+  system:exists_directory(D),!,
+  message:scroll_notice(['Directory already exists! Updating...']),
+  pkg:create_repository_dirs(Repository,D).
+
+prepare_directory(D) ::-
+  :this(Repository),
+  config:hostname(H),
+  config:graph_directory(H,G),
+  os:compose_path(G,Repository,D),
+  \+(system:exists_directory(D)),!,
+  message:scroll_notice(['Directory does not exist! Creating...']),
+  pkg:make_repository_dirs(Repository,D).
 
 
 %! repository:entry(?Entry)
