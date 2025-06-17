@@ -227,11 +227,7 @@ graph ::-
 graph ::-
   \+ proxy,!,
   with_mutex(graph, % todo: this should interate over all registered repositories
-    (portage:prepare_directory(D),
-     grapher:write_graph_files(D,portage),
-     grapher:produce_svg(D),
-     printer:write_proof_files(D,portage),
-     printer:produce_html(D))).
+    (portage:graph)).
 
 
 %! knowledgebase:compile

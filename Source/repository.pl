@@ -67,6 +67,7 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 :- dpublic(read_ebuild/2).
 :- dpublic(read_ebuild/3).
 
+:- dpublic(graph/0).
 :- dpublic(prepare_directory/1).
 
 
@@ -516,6 +517,21 @@ prepare_directory(D) ::-
   \+(system:exists_directory(D)),!,
   message:scroll_notice(['Directory does not exist! Creating...']),
   pkg:make_repository_dirs(Repository,D).
+
+
+%! repository:graph
+%
+% Creates graph and proof files for the repository
+
+graph ::-
+  :this(Repository),
+  atomic_concat(graph,Repository,Mutex),
+  with_mutex(Mutex,
+    (:prepare_directory(D),
+     grapher:write_graph_files(D,Repository),
+     grapher:produce_svg(D),
+     printer:write_proof_files(D,Repository),
+     printer:produce_html(D))).
 
 
 %! repository:entry(?Entry)
