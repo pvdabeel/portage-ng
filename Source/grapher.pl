@@ -314,7 +314,7 @@ grapher:graph_root(Type,_Repository://_Id) :-
   config:graph_proof_type(Types),
   memberchk(Type,Types),!,
   write('root [style=invis];'),nl,
-  write('placeholder [style=invis, width=1600, heigth=14400];'),nl,
+  write('placeholder [style=invis, width=22, height=15];'),nl, % enough space to put an iframe with html inside
   write('root -> \"'),write(placeholder),write('\"[minlen=0.2, headport=n, tailport=s, style=invis];'),nl,
   nl.
 
