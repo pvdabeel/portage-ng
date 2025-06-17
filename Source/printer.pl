@@ -1217,20 +1217,6 @@ printer:dry_run(_Step) :-
 
 unify(A,B) :- unifiable(A,B,_),!.
 
-/*countlist(Predicate,List,Count) :-
-  include(unify(Predicate),List,Sublist),!,
-  length(Sublist,Count).
-
-countlist(_,_,0) :- !.
-
-
-allempty([],[]).
-allempty([],[],[]).
-allempty([],[],[],[]).
-allempty([],[],[],[],[]).
-allempty([],[],[],[],[],[]).
-allempty([],[],[],[],[],[],[]).
-*/
 
 %! printer:test(+Repository)
 %
@@ -1290,64 +1276,70 @@ printer:test_latest(Repository,Style) :-
               false).
 
 
-%! printer:write_merge_files(+Directory,+Repository)
+%! printer:write_merge_file(+Directory,+Repository://Entry)
 %
-% Proves and writes plan for every entry in a given repository to a proof file
-% Assumes graph directory exists. (grapher:prepare_directory)
+% Print merge plan to file for an entry in a repository
+% Assumes directory exists. (See grapher:prepare_directory)
+
+printer:write_merge_file(Directory,Repository://Entry) :-
+  Action = run,
+  Extension = '.merge',
+  (with_q(prover:prove_lists(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
+   with_q(planner:plan(Proof,[],[],Plan)),
+   atomic_list_concat([Directory,'/',Entry,Extension],File)),
+  (tell(File),
+   printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan)
+   -> told
+   ; (told,with_mutex(mutex,message:warning([Repository://Entry,' ',Action])))).
+
+
+%! printer:write_fetchonly_file(+Directory,+Repository://Entry)
 %
-% todo: grapher:prepare_directory(D,portage),printer:write_merge_files(D,portage).
+% Print fetchonly plan to file for an entry in a repository
+% Assumes directory exists. (See grapher:prepare_directory)
 
-printer:write_merge_files(Directory,Repository) :-
-  pkg:create_repository_dirs(Repository,Directory),
-  config:proving_target(Action),
-  tester:test(parallel_verbose,
-              'Writing merge plan for',
-              Repository://Entry,
-              Repository:entry(Entry),
-              (with_q(prover:prove_lists(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
-               with_q(planner:plan(Proof,[],[],Plan)),
-               atomic_list_concat([Directory,'/',Entry,'.merge'],File)),
-              (tell(File),
-               printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan),
-               told),
-              true).
-
-
-
-%! printer:write_fetchonly_files(+Directory,+Repository)
-%
-% Proves and writes plan for every entry in a given repository to a proof file
-% Assumes graph directory exists. (grapher:prepare_directory)
-
-printer:write_fetchonly_files(Directory,Repository) :-
-  pkg:create_repository_dirs(Repository,Directory),
+printer:write_fetchonly_file(Directory,Repository://Entry) :-
   Action = fetchonly,
-  tester:test(parallel_verbose,
-              'Writing fetchonly plan for',
-              Repository://Entry,
-              Repository:entry(Entry),
-              (with_q(prover:prove_lists(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
-               with_q(planner:plan(Proof,[],[],Plan)),
-               atomic_list_concat([Directory,'/',Entry,'.fetchonly'],File)),
-              (tell(File),
-               printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan),
-               told),
-              true).
+  Extension = '.fetchonly',
+  (with_q(prover:prove_lists(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
+   with_q(planner:plan(Proof,[],[],Plan)),
+   atomic_list_concat([Directory,'/',Entry,Extension],File)),
+  (tell(File),
+   printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan)
+   -> told
+   ;  (told,with_mutex(mutex,message:warning([Repository://Entry,' ',Action])))).
 
 
-%! printer:write_info_files(+Directory,+Repository)
+%! printer:write_info_file(+Directory,+Repository://Entry)
 %
-% Proves and writes info for every entry in a given repository to an info file
-% Assumes graph directory exists. (grapher:prepare_directory)
+% Print info to file for an entry in a repository
+% Assumes directory exists. (See grapher:prepare_directory)
 
-printer:write_info_files(Directory,Repository) :-
-  pkg:create_repository_dirs(Repository,Directory),
+printer:write_info_file(Directory,Repository://Entry) :-
+  (atomic_list_concat([Directory,'/',Entry,'.info'],File)),
+  (tell(File),
+   printer:print_entry(Repository://Entry)
+   -> told
+   ;  (told,with_mutextmutex,message:warning([Repository://Entry,' ',info]))).
+
+
+%! printer:write_proof_files(+Directory,+Repository://Id)
+%
+% Print merge, fetchonly & info to file for all entries in a repository
+% Assumes directory exists. (See grapher:prepare_directory)
+
+printer:write_proof_files(Directory,Repository) :-
   tester:test(parallel_verbose,
-              'Writing info for',
+              'Writing proofs for',
               Repository://Entry,
-              Repository:entry(Entry),
-              (atomic_list_concat([Directory,'/',Entry,'.info'],File)),
-              (tell(File),
-               printer:print_entry(Repository://Entry),
-               told),
-              true).
+              (Repository:entry(Entry),
+               (config:graph_modified_only(true)
+                -> Repository:entry(Entry,Time),
+                   Repository:get_ebuild_file(Entry,Ebuild),
+                   system:exists_file(Ebuild),
+                   system:time_file(Ebuild,Modified),
+                   Modified > Time
+                ;  true)),
+              (printer:write_merge_file(Directory,Repository://Entry),
+	       printer:write_fetchonly_file(Directory,Repository://Entry),
+               printer:write_info_file(Directory,Repository://Entry))).
