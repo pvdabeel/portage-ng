@@ -1230,6 +1230,7 @@ printer:write_merge_file(Directory,Repository://Entry) :-
    with_q(planner:plan(Proof,[],[],Plan)),
    atomic_list_concat([Directory,'/',Entry,Extension],File)),
   (tell(File),
+   set_stream(current_output,tty(true)), % otherwise we lose color
    printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan)
    -> told
    ; (told,with_mutex(mutex,message:warning([Repository://Entry,' ',Action])))).
@@ -1247,6 +1248,7 @@ printer:write_fetchonly_file(Directory,Repository://Entry) :-
    with_q(planner:plan(Proof,[],[],Plan)),
    atomic_list_concat([Directory,'/',Entry,Extension],File)),
   (tell(File),
+   set_stream(current_output,tty(true)), % otherwise we lose color
    printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan)
    -> told
    ;  (told,with_mutex(mutex,message:warning([Repository://Entry,' ',Action])))).
@@ -1260,6 +1262,7 @@ printer:write_fetchonly_file(Directory,Repository://Entry) :-
 printer:write_info_file(Directory,Repository://Entry) :-
   (atomic_list_concat([Directory,'/',Entry,'.info'],File)),
   (tell(File),
+   set_stream(current_output,tty(true)), % otherwise we lose color
    printer:print_entry(Repository://Entry)
    -> told
    ;  (told,with_mutextmutex,message:warning([Repository://Entry,' ',info]))).
