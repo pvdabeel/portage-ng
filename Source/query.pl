@@ -228,12 +228,12 @@ compile_query_compound(dependency(D,run), 		Repo://Id,
   ( cache:entry_metadata(Repo,Id,idepend,D)
   ; cache:entry_metadata(Repo,Id,rdepend,D) )) :- !.       	%:- message:color(green).
 
-compile_query_compound(dependency(D,compile), 		Repo://Id,
+compile_query_compound(dependency(D,install), 		Repo://Id,
   ( cache:entry_metadata(Repo,Id,bdepend,D)
   ; cache:entry_metadata(Repo,Id,cdepend,D)
   ; cache:entry_metadata(Repo,Id,depend,D) )) :- !.        	%:- message:color(green).
 
-compile_query_compound(dependency(D,run_compile),       Repo://Id,
+compile_query_compound(dependency(D,fetchonly),       Repo://Id,
   ( cache:entry_metadata(Repo,Id,bdepend,D)
   ; cache:entry_metadata(Repo,Id,cdepend,D)
   ; cache:entry_metadata(Repo,Id,depend,D)
