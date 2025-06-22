@@ -53,10 +53,10 @@ config:llm_sandboxed_execution(false).
 
 config:llm_model(grok,       'grok-3').
 config:llm_model(chatgpt,    'gpt-4.1').
-config:llm_model(claude,     'claude-3-7-sonnet-20250219').
+config:llm_model(claude,     'claude-sonnet-4-20250514').
 config:llm_model(gemini ,    'gemini-1.5-flash').
 config:llm_model(llama ,     'Llama-4-Maverick-17B-128E-Instruct-FP8').
-config:llm_model(ollama ,    'devstral').
+config:llm_model(ollama ,    'llama3.2').
 
 
 %! config:llm_endpoint(?LLM,?Endpoint)
@@ -68,7 +68,7 @@ config:llm_endpoint(chatgpt, 'https://api.openai.com/v1/chat/completions').
 config:llm_endpoint(claude,  'https://api.anthropic.com/v1/messages').
 config:llm_endpoint(gemini,  'https://generativelanguage.googleapis.com/v1beta/chat/completions').
 config:llm_endpoint(llama,   'https://api.llama.com/v1/chat/completions').
-config:llm_endpoint(ollama,  'http://macbook-pro.local:11434/v1/chat/completions').
+config:llm_endpoint(ollama,  'http://localhost:11434/v1/chat/completions').
 
 
 %! config:name(?Name)
