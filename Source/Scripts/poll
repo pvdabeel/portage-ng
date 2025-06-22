@@ -28,12 +28,12 @@ if [ $LOCAL != $REMOTE ]; then
     echo  
     echo "--- Syncing portage ebuilds"
     portage-ng-dev --mode client --sync  # sync repository
-    # portage-ng-dev --mode client --save  # save repository - not necessary, we can keep things in memory in client-server mode
+    portage-ng-dev --mode client --save  # save repository - not necessary, we can keep things in memory in client-server mode
     echo  
     echo "--- Graphing portage ebuilds"
-    portage-ng-dev --mode client --graph  # update graph
+    portage-ng-dev --mode standalone --graph  # update graph
     
-    pushd '/Volumes/Storage/Graph/'
+    pushd '/Volumes/Storage/Graph/portage/'
     echo  
     echo "--- Updating git repository"
  
