@@ -25,6 +25,13 @@ We define the Claude specific protocol in this file.
 
 :- module(claude, [claude/0, claude/1]).
 
+:- use_module(library(http/http_open)).
+:- use_module(library(http/json)).
+:- use_module(library(edit)).
+:- use_module(library(pcre)).
+:- use_module(library(sandbox)).
+
+
 % Dynamic predicate for conversation history
 :- dynamic history/1.
 history([]).
@@ -34,14 +41,14 @@ update_history(History) :-
   assertz(claude:history(History)).
 
 % Claude-specific streaming chat function
-chat_stream_claude(Endpoint, APIKey, Model, Messages, Response) :-
+llm_stream_claude(Endpoint, APIKey, Model, Messages, Response) :-
     config:llm_max_tokens(Max),
     config:llm_temperature(Temperature),
     set_stream(current_output, encoding(utf8)),
     Payload = _{
         model: Model,
         messages: Messages,
-        stream: true,
+        stream: json_true,
         max_tokens: Max,
         temperature: Temperature
     },
@@ -72,9 +79,10 @@ chat_stream_claude(Endpoint, APIKey, Model, Messages, Response) :-
             message:style(normal),
 
             atomic_list_concat(Contents, ResponseContent),
+
             % Find the last assistant message
             reverse(Messages, Reversed),
-            find_first_assistant(Reversed, LastAssistantMessage),
+            llm:find_first_assistant(Reversed, LastAssistantMessage),
             % Update the last assistant message with full content
             put_dict(content, LastAssistantMessage, ResponseContent, UpdatedAssistantMessage),
             % Replace the last message in Messages with UpdatedAssistantMessage
@@ -91,56 +99,54 @@ chat_stream_claude(Endpoint, APIKey, Model, Messages, Response) :-
 
 % Process the streaming response for Claude
 process_stream_claude(In, Contents) :-
-    process_stream_claude(In, Contents, [], no).
+    process_stream_claude(In, Contents, []). % Initial call with accumulator
 
-process_stream_claude(In, Contents, Acc, ExpectingData) :-
+process_stream_claude(In, Contents, Acc) :-
     read_line_to_string(In, Line),
     (   Line == end_of_file
     ->  reverse(Acc, Contents)
-    ;   (   ExpectingData == yes,
-            sub_string(Line, 0, 6, _, "data: ")
+    ;   % Handle 'event:' lines
+        (   sub_string(Line, 0, 7, _, 'event: ')
+        ->  % We can log the event type if needed for debugging
+            % sub_string(Line, 7, _, 0, EventType),
+            % format('~NEvent: ~w~n', [EventType]),
+            process_stream_claude(In, Contents, Acc) % Continue reading after an event
+        % Handle 'data:' lines
+        ;   sub_string(Line, 0, 6, _, "data: ")
         ->  sub_string(Line, 6, _, 0, Data),
             (   Data == "[DONE]"
-            ->  Content = ""
-            ;   catch(json_read_dict(Data, Dict), _, fail),
-                (   get_dict(type, Dict, "content_block_delta")
-                ->  get_dict(delta, Dict, Delta),
-                    get_dict(text, Delta, Content)
-                ;   Content = ""
-                )
-            ),
-            (   Content \= ""
-            ->  write(Content), flush_output,
-                NewAcc = [Content | Acc]
-            ;   NewAcc = Acc
-            ),
-            process_stream_claude(In, Contents, NewAcc, no)
-        ;   sub_string(Line, 0, 7, _, 'event: '),
-            sub_string(Line, 7, _, 0, Event),
-            (   Event == "content_block_delta"
-            ->  process_stream_claude(In, Contents, Acc, yes)
-            ;   Event == "error"
-            ->  read_line_to_string(In, ErrorLine),
-                (   sub_string(ErrorLine, 0, 6, _, "data: ")
-                ->  sub_string(ErrorLine, 6, _, 0, ErrorData),
-                    catch(json_read_dict(ErrorData, ErrorDict), _, fail),
-                    (   get_dict(error, ErrorDict, ErrorInfo)
-                    ->  get_dict(message, ErrorInfo, ErrorMessage),
-                        write('Error: '), write(ErrorMessage), nl
-                    ;   true
+            ->  reverse(Acc, Contents) % Stream is done
+            ;   % Attempt to parse JSON data
+                (   atom_json_dict(Data, Dict, []) % Use atom_json_dict for direct JSON atom parsing
+                ->  (   get_dict(type, Dict, "content_block_delta") % Look for content delta specifically
+                    ->  get_dict(delta, Dict, Delta),
+                        get_dict(text, Delta, Content)
+                    ;   % Handle other data types or ignore if not content delta
+                        % For example, message_delta might also have content
+                        (   get_dict(type, Dict, "message_delta"),
+                            get_dict(delta, Dict, MessageDelta),
+                            get_dict(text, MessageDelta, Content)
+                        )
+                        ->  true
+                        ;   Content = "" % No relevant content found in this data block
                     )
-                ;   true
+                ;   Content = "" % JSON parsing failed
                 ),
-                process_stream_claude(In, Contents, Acc, no)
-            ;   process_stream_claude(In, Contents, Acc, no)
+                (   Content \= ""
+                ->  write(Content), flush_output,
+                    process_stream_claude(In, Contents, [Content | Acc])
+                ;   process_stream_claude(In, Contents, Acc) % No content, just continue
+                )
             )
-        ;   process_stream_claude(In, Contents, Acc, no)
+        % Ignore empty lines or other non-event/non-data lines
+        ;   process_stream_claude(In, Contents, Acc)
         )
     ).
 
+
 % Claude specific streaming chat callback
 claude_llm_stream(APIKey, Model, History, Query, Response) :-
-    claude_endpoint(Endpoint),
+    config:llm_endpoint(claude,Endpoint),
     UserMessage = _{role: user, content: Query},
     append(History, [UserMessage], Messages),
     llm_stream_claude(Endpoint, APIKey, Model, Messages, Response).
@@ -156,7 +162,7 @@ claude(Input) :-
   llm_stream_claude(Endpoint, Key, Model, Messages, Response),
   (Response = _{contents: Contents, history: NewHistory}
    ->  atomic_list_concat(Contents, ResponseContent),
-       handle_response(Key, Model, Endpoint, Service:update_history, ResponseContent, NewHistory)
+       llm:handle_response(Key, Model, Endpoint, Service:update_history, ResponseContent, NewHistory)
    ;   Response = _{error: Error, history: _}
        ->  write('Error: '), write(Error), nl ).
 
