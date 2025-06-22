@@ -23,6 +23,7 @@ could satisfy the dependency.
 :- module(grapher, []).
 
 :- thread_local graph_visited/1.
+:- thread_local counter/2.
 
 % ********************
 % GRAPHER declarations
@@ -40,6 +41,7 @@ could satisfy the dependency.
 
 grapher:graph(detail,Repository://Id) :-
   !,
+  grapher:tl_gensym_reset(_),
   grapher:graph_header(detail,Repository://Id),
   grapher:graph_legend(detail,Repository://Id),
   grapher:graph_ebuild(detail,Repository://Id),
@@ -463,16 +465,6 @@ grapher:graph_node(Type,_://_,Repository://Id) :-
   write('\"'),write(Repository://Id),write('\" [color=red, penwidth=1, href=\"../'),write(Id),write('-'),write(Type),write('.svg\"];'),nl.
 
 
-%! grapher:enconvert(Prefix,Term,Code)
-%
-% Convert a term to unique prefix-<codes> atom
-
-grapher:enconvert(Prefix,Term,Code) :-
-  term_to_atom(Term,Atom),
-  atom_codes(Atom,Codes),
-  atomic_list_concat([Prefix|Codes],Code).
-
-
 %! grapher:choices(Type,List)
 %
 % Given a graph type (detail or full), outputs a list of ebuilds satisfying
@@ -487,14 +479,12 @@ grapher:choices(detail,[arrow(D,Choices)|Rest]) :-
   write('color=black;'),nl,
   write('nodesep=1;'),nl,
   forall(member(Repository://Ch,Choices),(
-    grapher:enconvert(choice,Ch,Code),
-    write(Code),
+    write('\"'),write(Ch),write('\"'),
     write(' [label=\"'),write(Repository://Ch),write('\", color=red, width=4,href=\"../'),write(Ch),write('.svg\"];'),nl)),
   forall(member(Repository://Ch,Choices),(
     write(D),
     write(':e -> '),
-    grapher:enconvert(choice,Ch,Code),
-    write(Code),write(':w [style=dotted,weight=\"100\"];'),nl)),
+    write('\"'),write(Ch),write('\"'),write(':w [style=dotted,weight=\"100\"];'),nl)),
   writeln('}'),
   grapher:choices(detail,Rest).
 
@@ -532,11 +522,10 @@ grapher:choice_type(strong) :-
 %
 % todo: refactor, this needs to be shorter
 
-
-grapher:handle(detail,Style,Arrow,Master,package_dependency(A,Type,no,Cat,Name,Comp,Ver,Slot,Bwu),arrow(D,Choices)) :-
+grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,no,Cat,Name,Comp,Ver,_Slot,_Bwu),arrow(D,Choices)) :-
   !,
   write('subgraph '),write(' {'),nl,
-  enconvert(dependency,package_dependency(A,Type,no,Cat,Name,Comp,Ver,Slot,Bwu),D),
+  tl_gensym(package_dependency,D),
   write(D),write(' [label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\" WIDTH=\"220\"><TR><TD ROWSPAN=\"6\" CELLPADDING=\"30\">pack_dep</TD></TR><TR><TD WIDTH=\"110\">'),
   write(Type),write('</TD></TR><TR><TD>'),write(Cat),write('</TD></TR><TR><TD>'),write(Name),write('</TD></TR><TR><TD>'),
   write(Comp),write('</TD></TR><TR><TD>'),write(Ver),write('</TD></TR></TABLE>>, shape=none, color=blue];'),nl,
@@ -545,10 +534,10 @@ grapher:handle(detail,Style,Arrow,Master,package_dependency(A,Type,no,Cat,Name,C
   findall(R,query:search([select(name,equal,Name),select(category,equal,Cat),select(version,Comp,Ver)],R),Choices),
   !, true.
 
-grapher:handle(detail,Style,Arrow,Master,package_dependency(A,Type,weak,Cat,Name,Comp,Ver,Slot,Bwu),arrow(D,Choices)) :-
+grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,weak,Cat,Name,Comp,Ver,_Slot,_Bwu),arrow(D,Choices)) :-
   !,
   write('subgraph '),write(' {'),nl,
-  enconvert(dependency,package_dependency(A,Type,weak,Cat,Name,Comp,Ver,Slot,Bwu),D),
+  tl_gensym(package_dependency,D),
   write(D),write(' [label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\" WIDTH=\"220\"><TR><TD ROWSPAN=\"6\" CELLPADDING=\"30\">blocking (weak)</TD></TR><TR><TD WIDTH=\"110\">'),
   write(Type),write('</TD></TR><TR><TD>'),write(Cat),write('</TD></TR><TR><TD>'),write(Name),write('</TD></TR><TR><TD>'),
   write(Comp),write('</TD></TR><TR><TD>'),write(Ver),write('</TD></TR></TABLE>>, shape=none, color=orange];'),nl,
@@ -557,10 +546,10 @@ grapher:handle(detail,Style,Arrow,Master,package_dependency(A,Type,weak,Cat,Name
   findall(R,query:search([select(name,equal,Name),select(category,equal,Cat),select(version,Comp,Ver)],R),Choices),
   !, true.
 
-grapher:handle(detail,Style,Arrow,Master,package_dependency(A,Type,strong,Cat,Name,Comp,Ver,Slot,Bwu),arrow(D,Choices)) :-
+grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,strong,Cat,Name,Comp,Ver,_Slot,_Bwu),arrow(D,Choices)) :-
   !,
   write('subgraph '),write(' {'),nl,
-  enconvert(dependency,package_dependency(A,Type,strong,Cat,Name,Comp,Ver,Slot,Bwu),D),
+  tl_gensym(package_dependency,D),
   write(D),write(' [label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\" WIDTH=\"220\"><TR><TD ROWSPAN=\"6\" CELLPADDING=\"30\">blocking (strong)</TD></TR><TR><TD WIDTH=\"110\">'),
   write(Type),write('</TD></TR><TR><TD>'),write(Cat),write('</TD></TR><TR><TD>'),write(Name),write('</TD></TR><TR><TD>'),
   write(Comp),write('</TD></TR><TR><TD>'),write(Ver),write('</TD></TR></TABLE>>, shape=none, color=red];'),nl,
@@ -569,10 +558,10 @@ grapher:handle(detail,Style,Arrow,Master,package_dependency(A,Type,strong,Cat,Na
   findall(R,query:search([select(name,equal,Name),select(category,equal,Cat),select(version,Comp,Ver)],R),Choices),
   !, true.
 
-grapher:handle(detail,Style,Arrow,Master,use_conditional_group(Type,Use,A,Deps),Choices) :-
+grapher:handle(detail,Style,Arrow,Master,use_conditional_group(Type,Use,_,Deps),Choices) :-
   !,
   write('subgraph '),write(' {'),nl,
-  enconvert(dependency,use_conditional_group(Type,Use,A,Deps),D),
+  tl_gensym(use_conditional_group,D),
   write(D),write(' [label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\"><TR><TD ROWSPAN=\"3\" CELLPADDING=\"10\">use_conditional</TD></TR><TR><TD>'),write(Type),write('</TD></TR><TR><TD>'),write(Use),
   write('</TD></TR></TABLE>>, shape=none, color=red];'),nl,
   findall(Ch,(member(Dep,Deps),grapher:handle(detail,dashed,vee,D,Dep,Ch)),Choices),
@@ -582,7 +571,7 @@ grapher:handle(detail,Style,Arrow,Master,use_conditional_group(Type,Use,A,Deps),
 grapher:handle(detail,Style,Arrow,Master,any_of_group(Deps),Choices) :-
   !,
   write('subgraph '),write(' {'),nl,
-  enconvert(dependency,any_of_group(Deps),D),
+  tl_gensym(any_of_group,D),
   write(D),write(' [label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\"><TR><TD CELLPADDING=\"10\">any_of_group</TD></TR></TABLE>>, shape=none, color=red];'),% nl, % nl
   findall(Ch,(member(Dep,Deps),grapher:handle(detail,dotted,oinv,D,Dep,Ch)),Choices),
   write('}'),nl,
@@ -591,7 +580,7 @@ grapher:handle(detail,Style,Arrow,Master,any_of_group(Deps),Choices) :-
 grapher:handle(detail,Style,Arrow,Master,all_of_group(Deps),Choices) :-
   !,
   write('subgraph '),write(' {'),nl,
-  enconvert(dependency,all_of_group(Deps),D),
+  tl_gensym(all_of_group,D),
   write(D),write(' [label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\"><TR><TD CELLPADDING=\"10\">all_of_group</TD></TR></TABLE>>, shape=none, color=red];'),% nl, % nl
   findall(Ch,(member(Dep,Deps),grapher:handle(detail,solid,inv,D,Dep,Ch)),Choices),
   write('}'),nl,
@@ -600,7 +589,7 @@ grapher:handle(detail,Style,Arrow,Master,all_of_group(Deps),Choices) :-
 grapher:handle(detail,Style,Arrow,Master,exactly_one_of_group(Deps),Choices) :-
   !,
   write('subgraph '),write(' {'),nl,
-  enconvert(dependency,exactly_one_of_group(Deps),D),
+  tl_gensym(exactly_one_of_group,D),
   write(D),write(' [label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\"><TR><TD CELLPADDING=\"10\">exactly_one_of_group</TD></TR></TABLE>>, shape=none, color=red];'), % nl, % nl,
   findall(Ch,(member(Dep,Deps),grapher:handle(detail,dotted,tee,D,Dep,Ch)),Choices),
   write('}'),nl,
@@ -609,7 +598,7 @@ grapher:handle(detail,Style,Arrow,Master,exactly_one_of_group(Deps),Choices) :-
 grapher:handle(detail,Style,Arrow,Master,at_most_one_of_group(Deps),Choices) :-
   !,
   write('subgraph '),write(' {'),nl,
-  enconvert(dependency,at_most_one_of_group(Deps),D),
+  tl_gensym(at_most_one_of_group,D),
   write(D),write(' [label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\"><TR><TD CELLPADDING=\"10\">at_most_one_of_group</TD></TR></TABLE>>, shape=none, color=red];'), %nl, % nl,
   findall(Ch,(member(Dep,Deps),grapher:handle(detail,dotted,onormal,D,Dep,Ch)),Choices),
   write('}'),nl,
@@ -647,6 +636,27 @@ grapher:handle(_Deptype,_Style,_Arrow,_Master,exactly_one_of_group(_),[]) :- !.
 grapher:handle(_Deptype,_Style,_Arrow,_Master,at_most_one_of_group(_),[]) :- !.
 
 grapher:handle(_Deptype,_Style,_Arrow,_Master,_,[]) :- !.
+
+
+%! grapher:tl_gensym(Atom,AtomCount)
+%
+% Thread-local implementation of gensym counter
+
+grapher:tl_gensym(Atom,AtomCount) :-
+  \+ counter(Atom,_),!,
+  assert(counter(Atom,1)),
+  atomic_concat(Atom,1,AtomCount).
+
+grapher:tl_gensym(Atom,AtomCount) :-
+  retract(counter(Atom,Count)),
+  NewCount is Count + 1,
+  assertz(counter(Atom,NewCount)),
+  atomic_concat(Atom,NewCount,AtomCount).
+
+grapher:tl_gensym_reset(Atom) :-
+  retractall(counter(Atom,_)).
+
+
 
 
 %! grapher:write_graph_file(+Directory,+Repository://Entry)
