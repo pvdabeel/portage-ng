@@ -76,6 +76,45 @@ grapher:graph(Type,Repository://Id) :-
   grapher:graph_footer(Type,Repository://Id).
 
 
+%! grapher:graph(repository,Repository://Category)
+%
+% For a given repository, create a dot graph showing all categories
+
+grapher:graph(repository,Repository) :-
+  !,
+  grapher:graph_header(repository,Repository://_),
+  grapher:graph_legend(repository,Repository://_),
+  grapher:graph_root(repository,Repository://_),
+  grapher:graph_tree(repository,Repository://_),
+  grapher:graph_footer(repository,Repository://_).
+
+
+%! grapher:graph(category,Repository://Category)
+%
+% For a given category of a repository, create a dot graph showing all packages
+
+grapher:graph(category,Repository://Category) :-
+  !,
+  grapher:graph_header(category,Repository://Category),
+  grapher:graph_legend(category,Repository://Category),
+  grapher:graph_root(category,Repository://Category),
+  grapher:graph_tree(category,Repository://Category),
+  grapher:graph_footer(category,Repository://Category).
+
+
+%! grapher:graph(package,Repository://Package)
+%
+% For a given package in a category in a repository, create a dot graph showing all ebuilds
+
+grapher:graph(package,Repository://Package) :-
+  !,
+  grapher:graph_header(package,Repository://Package),
+  grapher:graph_legend(package,Repository://Package),
+  grapher:graph_root(package,Repository://Package),
+  grapher:graph_tree(package,Repository://Package),
+  grapher:graph_footer(package,Repository://Package).
+
+
 %! grapher:graph_header(Type,Repository://Id)
 %
 % For a given ebuild, identified by an Id, create the header of the requested dependency graph.
@@ -111,7 +150,7 @@ grapher:graph_header(_Type,_Repository://_Id) :-
   nl.
 
 
-%! grapher:graph_legend(Type,Repository://Id)
+%! grapher:graph_legend(Type,Target)
 %
 % For a given ebuild, identified by an Id, create legend to be included in the full dependency graph.
 
@@ -137,47 +176,6 @@ grapher:graph_legend(Type,Repository://Id) :-
   nl.
 
 
-%! grapher:graph_legend_version(Type,Repository://Id)
-%
-% For a given ebuild, identified by an Id, create version control bar to be included in legend.
-
-grapher:graph_legend_version(Type,Repository://Id) :-
-  query:search([category(C),name(N),select(version,equal,V)],Repository://Id),
-  findall(E,query:search([category(C),name(N),select(version,greater,V)],Repository://E),Eg),
-  findall(E,query:search([category(C),name(N),select(version,smaller,V)],Repository://E),Es),
-  (last(Eg,Newer)          ; Newer  = []),!,
-  (last(Es,Oldest)         ; Oldest = []),!,
-  (once(member(Newest,Eg)) ; Newest = []),!,
-  (once(member(Older,Es))  ; Older  = []),!,
-  grapher:graph_legend_href(Type,Repository://Newest,'&lt;&lt; newest'),
-  grapher:graph_legend_href(Type,Repository://Newer,'&lt; newer'),
-  grapher:graph_legend_href(Type,Repository://Older,'older &gt;'),
-  grapher:graph_legend_href(Type,Repository://Oldest,'oldest &gt;&gt;').
-
-
-%! grapher:graph_legend_proof(Type,Repository://Id)
-%
-% For a given ebuild, identified by an Id, create links to proofs to be included in legend.
-
-%grapher:graph_legend_proof(_,Repository://Id) :-
-%  grapher:graph_legend_href(merge,Repository://Id,'merge'),
-%  grapher:graph_legend_href(fetchonly,Repository://Id,'fetchonly'),
-%  grapher:graph_legend_href(info,Repository://Id,'info').
-
-grapher:graph_legend_proof(_Type,[],_Repository://_Id) :- !.
-
-grapher:graph_legend_proof(Type,[Type|Rest],Repository://Id) :-
-  !,
-  atomic_list_concat(['<u>',Type,'</u>'],Name),
-  grapher:graph_legend_href(Type,Repository://Id,Name),
-  grapher:graph_legend_proof(Type,Rest,Repository://Id).
-
-grapher:graph_legend_proof(Type,[OtherType|Rest],Repository://Id) :-
-  !,
-  grapher:graph_legend_href(OtherType,Repository://Id,OtherType),
-  grapher:graph_legend_proof(Type,Rest,Repository://Id).
-
-
 %! grapher:graph_legend_types(Type,List,Repository://Id)
 %
 % For a given ebuild, identified by an Id, create revelevant legend entries (as represented by List) to be included in the legend
@@ -197,25 +195,85 @@ grapher:graph_legend_types(Type,[OtherType|Rest],Repository://Id) :-
   grapher:graph_legend_types(Type,Rest,Repository://Id).
 
 
+%! grapher:graph_legend_version(Type,Repository://Id)
+%
+% For a given ebuild, identified by an Id, create version control bar to be included in legend.
+
+grapher:graph_legend_version(Type,Repository://_Id) :-
+  memberchk(Type,[repository,category,package]),!,
+  Newer  = [],
+  Oldest = [],
+  Newest = [],
+  Older  = [],
+  grapher:graph_legend_href(Type,Repository://Newest,'&lt;&lt; newest'),
+  grapher:graph_legend_href(Type,Repository://Newer,'&lt; newer'),
+  grapher:graph_legend_href(Type,Repository://Older,'older &gt;'),
+  grapher:graph_legend_href(Type,Repository://Oldest,'oldest &gt;&gt;').
+
+grapher:graph_legend_version(Type,Repository://Id) :-
+  query:search([category(C),name(N),select(version,equal,V)],Repository://Id),
+  findall(E,query:search([category(C),name(N),select(version,greater,V)],Repository://E),Eg),
+  findall(E,query:search([category(C),name(N),select(version,smaller,V)],Repository://E),Es),
+  (last(Eg,Newer)          ; Newer  = []),!,
+  (last(Es,Oldest)         ; Oldest = []),!,
+  (once(member(Newest,Eg)) ; Newest = []),!,
+  (once(member(Older,Es))  ; Older  = []),!,
+  grapher:graph_legend_href(Type,Repository://Newest,'&lt;&lt; newest'),
+  grapher:graph_legend_href(Type,Repository://Newer,'&lt; newer'),
+  grapher:graph_legend_href(Type,Repository://Older,'older &gt;'),
+  grapher:graph_legend_href(Type,Repository://Oldest,'oldest &gt;&gt;').
+
+
+%! grapher:graph_legend_proof(Type,Repository://Id)
+%
+% For a given ebuild, identified by an Id, create links to proofs to be included in legend.
+
+grapher:graph_legend_proof(_Type,[],_Repository://_Id) :- !.
+
+grapher:graph_legend_proof(Type,[Type|Rest],Repository://Id) :-
+  !,
+  atomic_list_concat(['--<u>',Type,'</u>&nbsp;'],Name),
+  grapher:graph_legend_href(Type,Repository://Id,Name),
+  grapher:graph_legend_proof(Type,Rest,Repository://Id).
+
+grapher:graph_legend_proof(Type,[OtherType|Rest],Repository://Id) :-
+  !,
+  atomic_list_concat(['--',OtherType,'&nbsp;'],Name),
+  grapher:graph_legend_href(OtherType,Repository://Id,Name),
+  grapher:graph_legend_proof(Type,Rest,Repository://Id).
+
+
 %! grapher:graph_legend_href(Type,Repository://Id)
 %
 % For a given ebuild, identified by an Id, return the correct href URL to be included in the legend of a depedency graph
 
 grapher:graph_legend_href(_,_://[],Name) :-
-  write('<TD><FONT color=\"gray\">'),write(Name),write('</FONT></TD>'),
-  !.
+  !,
+  write('<TD><FONT color=\"gray\">'),write(Name),write('</FONT></TD>').
+
+grapher:graph_legend_href(repository,_Repository://_Id,Name) :-
+  !,
+  write('<TD><FONT color=\"gray\">'),write(Name),write('</FONT></TD>').
+
+grapher:graph_legend_href(category,_Repository://_Id,Name) :-
+  !,
+  write('<TD><FONT color=\"gray\">'),write(Name),write('</FONT></TD>').
+
+grapher:graph_legend_href(package,_Repository://_Id,Name) :-
+  !,
+  write('<TD><FONT color=\"gray\">'),write(Name),write('</FONT></TD>').
 
 grapher:graph_legend_href(merge,Repository://Id,Name) :-
   !,
-  write('<TD title=\"'),write(Repository://Id),write('\" href=\"../'),write(Id),write('-merge.svg'),write('\">--'),write(Name),write('&nbsp;</TD>').
+  write('<TD title=\"'),write(Repository://Id),write('\" href=\"../'),write(Id),write('-merge.svg'),write('\">'),write(Name),write('</TD>').
 
 grapher:graph_legend_href(fetchonly,Repository://Id,Name) :-
   !,
-  write('<TD title=\"'),write(Repository://Id),write('\" href=\"../'),write(Id),write('-fetchonly.svg'),write('\">--'),write(Name),write('&nbsp;</TD>').
+  write('<TD title=\"'),write(Repository://Id),write('\" href=\"../'),write(Id),write('-fetchonly.svg'),write('\">'),write(Name),write('</TD>').
 
 grapher:graph_legend_href(info,Repository://Id,Name) :-
   !,
-  write('<TD title=\"'),write(Repository://Id),write('\" href=\"../'),write(Id),write('-info.svg'),write('\">--'),write(Name),write('&nbsp;</TD>').
+  write('<TD title=\"'),write(Repository://Id),write('\" href=\"../'),write(Id),write('-info.svg'),write('\">'),write(Name),write('</TD>').
 
 grapher:graph_legend_href(detail,Repository://Id,Name) :-
   !,
@@ -263,22 +321,22 @@ grapher:graph_detail(details,Repository://Id) :-
   write('label=<<i>dependencies</i>>;'),nl,
   write('labelloc=t;'),nl,
   write('labeljust=c'),nl,
-  query:search(all(depend(C)),Repository://Id),
-  query:search(all(rdepend(R)),Repository://Id),
+  query:search(all(dependency(C,install)),Repository://Id),
+  query:search(all(dependency(R,run)),Repository://Id),
   list_to_ord_set(C,OC),
   list_to_ord_set(R,OR),
   ord_intersection(OC,OR,OCR,OPR),
   ord_intersection(OR,OC,OCR,OPC),
-  writeln('subgraph cluster_compile {'),
+  writeln('subgraph cluster_install {'),
   writeln('fillcolor="#eeeeee";'),
   writeln('style=filled;'),
-  writeln('label=<<i>compile</i>>;'),
+  writeln('label=<<i>install</i>>;'),
   findall(Ch,(member(D,OPC),grapher:handle(detail,solid,vee,id,D,Ch)),AllChoices1),
   writeln('}'),
-  writeln('subgraph cluster_compileandrun {'),
+  writeln('subgraph cluster_install_and_run {'),
   writeln('fillcolor="#eeeeee";'),
   writeln('style=filled;'),
-  writeln('label=<<i>compile and run</i>>;'),
+  writeln('label=<<i>install and run</i>>;'),
   findall(Ch,(member(D,OCR),grapher:handle(detail,solid,odotvee,id,D,Ch)),AllChoices2),
   writeln('}'),
   writeln('subgraph cluster_run {'),
@@ -318,6 +376,12 @@ grapher:graph_root(Type,_Repository://_Id) :-
   write('root -> \"'),write(placeholder),write('\"[minlen=0.2, headport=n, tailport=s, style=invis];'),nl,
   nl.
 
+grapher:graph_root(repository,Repository://_Id) :-
+  write('root [style=invis];'),nl,
+  write(Repository),write(' [color=red, penwidth=2, fontname=\"Helvetica-Bold\"];'),nl,
+  write('root -> \"'),write(Repository),write('\"[minlen=0.2, headport=n, tailport=s, style=invis];'),nl,
+  nl.
+
 grapher:graph_root(_Type,Repository://Id) :-
   write('root [style=invis];'),nl,
   write('root -> \"'),write(Repository://Id),write('\"[minlen=0.2, headport=n, tailport=s, style=invis];'),nl,
@@ -335,6 +399,34 @@ grapher:graph_footer(_Type,_Repository://_Id) :-
 %! grapher:graph_tree(Type,Repository://Id),
 %
 % For a given ebuild, identified by an Id, create the full dependency graph
+
+grapher:graph_tree(repository,Repository://_) :-
+  !,
+  forall(cache:category(Repository,Category),
+    (write('\"'),write(Category),write('\" [color=red, penwidth=1, href=\"./'),write(Category),write('.svg\"];'),nl,
+     write(Repository),write(' -> \"'),write(Category),write('\"'),nl)).
+
+
+grapher:graph_tree(category,Repository://Category) :-
+  !,
+  write(Category),write(' [color=red, penwidth=2, fontname=\"Helvetica-Bold\"];'),nl,
+  write(Repository),write(' -> \"'),write(Category),write('\"'),nl,
+  forall(cache:package(Repository,Category,name),
+    (write(Name),write(' [color=red, penwidth=1, href=\"./'),write(Name),write('.svg\"];'),nl,
+     write(Category),write(' -> \"'),write(Name),write('\"'),nl)).
+
+
+grapher:graph_tree(package,Repository://Package) :-
+  !,
+  % split Package into Category / Name
+  write(Category),write(' [color=red, penwidth=2, fontname=\"Helvetica-Bold\"];'),nl,
+  write(Repository),write(' -> \"'),write(Category),write('\"'),nl,
+  write(Package),write(' [color=red, penwidth=2, fontname=\"Helvetica-Bold\"];'),nl,
+  write(Category),write(' -> \"'),write(Package),write('\"'),nl,
+  forall(cache:ordered_entry(Repository,Id,Category,Name,[_,_,_,_,Version]),
+    (write(Id),write(' [color=red, penwidth=1, href=\"./'),write(Name),write('-'),write(Version),write('.svg\"];'),nl,
+     write(Package),write(' -> \"'),write(Id),write('\"'),nl)).
+
 
 grapher:graph_tree(Type,Repository://Id) :-
   retractall(graph_visited(_)),
@@ -574,8 +666,6 @@ grapher:handle(_Deptype,_Style,_Arrow,_Master,exactly_one_of_group(_),[]) :- !.
 grapher:handle(_Deptype,_Style,_Arrow,_Master,at_most_one_of_group(_),[]) :- !.
 
 grapher:handle(_Deptype,_Style,_Arrow,_Master,_,[]) :- !.
-
-
 
 
 %! grapher:write_graph_file(+Directory,+Repository://Entry)
