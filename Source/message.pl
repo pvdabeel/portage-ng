@@ -239,12 +239,12 @@ header(Message) :-
     nl.
 
 header(Header, [First | Rest]) :-
-    msg_atom(First, FirstAtom),
-    ansi_format([bold, fg(yellow)], '>>> ~w: ~s', [Header, FirstAtom]),
+    %msg_atom(First, FirstAtom),
+    ansi_format([bold, fg(yellow)], '>>> ~w: ~w', [Header, First]),
     nl,
     forall(member(Item, Rest),
-           ( msg_atom(Item, ItemAtom),
-             ansi_format([bold, fg(yellow)], '               ~s~n', [ItemAtom]) )),
+           ( %msg_atom(Item, ItemAtom),
+             ansi_format([bold, fg(yellow)], '               ~s~n', [Item]) )),
     nl.
 
 %------------------------------------------------------------------------------
