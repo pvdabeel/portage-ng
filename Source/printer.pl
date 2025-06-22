@@ -19,6 +19,77 @@ The Printer takes a plan from the Planner and pretty prints it.
 % ********************
 
 
+% --------------
+% INDEX printing
+% --------------
+
+%! printer:print_index(Generator)
+%
+% Print an index for a given Generator (repository:category, repository:package)
+
+printer:print_index(Type,Title,TitleHtml,Generator,Template,Stylesheet) :-
+  print_index_header(Title,TitleHtml,Stylesheet),
+  forall(Generator,print_index_element(Type,Template)),
+  print_index_footer.
+
+
+%! printer:print_index_header(Name,Stylesheet)
+%
+% Print an index header with a given Name and Stylesheet
+
+printer:print_index_header(Title,TitleHtml,Stylesheet) :-
+  writeln('<?xml version=\"1.0\" encoding=\"UTF-8\" ?>'),
+  writeln('<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">'),
+  writeln('<html xmlns=\"http://www.w3.org/1999/xhtml\">'),
+  writeln('<head>'),
+  writeln('<meta http-equiv=\"Content-Type\" content=\"application/xml+xhtml; charset=UTF-8\"/>'),
+  write('<title>'),write(Title),write('</title>'),nl,
+  write('<link rel=\"stylesheet\" href=\"'),write(Stylesheet),write('"/>'),
+  writeln('</head>'),
+  writeln('<body>'),
+  write('<h1>'),write(TitleHtml),write('</h1>'),nl,
+  writeln('<ul>').
+
+
+%! printer:print_index_footer
+%
+% Print an index footer
+
+printer:print_index_footer :-
+  writeln('</ul>'),
+  writeln('</body>'),
+  writeln('</html>').
+
+
+%! printer:print_index_element(E,Relpath)
+%
+% Print an element in the index
+
+printer:print_index_element(repository,E) :-
+  write('<li class=\"element\"><a href=\"./'),
+  write(E),
+  write('/index.html\">'),
+  write(E),
+  write('</a></li>'),
+  nl.
+
+printer:print_index_element(category,E) :-
+  write('<li class=\"element\"><a href=\"./'),
+  write(E),
+  write('.html\">'),
+  write(E),
+  write('</a></li>'),
+  nl.
+
+printer:print_index_element(package,[E,V]) :-
+  write('<li class=\"element\"><a href=\"./'),
+  write(E),write('-'),write(V),
+  write('.svg\">'),
+  write(V),
+  write('</a></li>'),
+  nl.
+
+
 % --------------------
 % Ebuild INFO printing
 % --------------------
@@ -1218,6 +1289,44 @@ printer:dry_run(_Step) :-
 unify(A,B) :- unifiable(A,B,_),!.
 
 
+%! printer:write_repository_index_file(+Directory,+Repository)
+%
+% Write the index file for a given repository, listing all categories.
+
+printer:write_repository_index_file(Directory,Repository) :-
+  atomic_list_concat(['Repository: ',Repository],Title),
+  atomic_list_concat([Directory,'/index.html'],File),
+  tell(File),
+  print_index(repository,Title,Title,cache:category(Repository,Category),Category,'./.index.css'),
+  told.
+
+
+%! printer:write_category_index_file(+Directory,+Repository,+Category)
+%
+% Write the index file for a given category, listing all packages.
+
+printer:write_category_index_file(Directory,Repository,Category) :-
+  atomic_list_concat(['Category: ',Repository,'://',Category],Title),
+  atomic_list_concat(['Category: <a href=\"../index.html\">',Repository,'</a>://',Category],TitleHtml),
+  atomic_list_concat([Directory,'/',Category,'/index.html'],File),
+  tell(File),
+  print_index(category,Title,TitleHtml,cache:package(Repository,Category,Name),Name,'../.index.css'),
+  told.
+
+
+%! printer:write_package_index_file(+Directory,+Repository,+Category,+Name)
+%
+% Write the index file for a given package, listing all entries
+
+printer:write_package_index_file(Directory,Repository,Category,Name) :-
+  atomic_list_concat(['Package: ',Repository,'://',Category,'/',Name],Title),
+  atomic_list_concat(['Package: <a href=\"../index.html\">',Repository,'</a>://<a href=\"./index.html\">',Category,'</a>/',Name],TitleHtml),
+  atomic_list_concat([Directory,'/',Category,'/',Name,'.html'],File),
+  tell(File),
+  print_index(package,Title,TitleHtml,cache:ordered_entry(Repository,_,Category,Name,[_,_,_,Version]),[Name,Version],'../.index.css'),
+  told.
+
+
 %! printer:write_merge_file(+Directory,+Repository://Entry)
 %
 % Print merge plan to file for an entry in a repository
@@ -1268,6 +1377,28 @@ printer:write_info_file(Directory,Repository://Entry) :-
    ;  (told,with_mutextmutex,message:warning([Repository://Entry,' ',info]))).
 
 
+%! printer:write_index_files(+Directory,+Repository)
+%
+% Print index files for repository, its categories and packages.
+% Assumes directory exists. (See repository:prepare_directory)
+
+printer:write_index_files(Directory,Repository) :-
+
+  printer:write_repository_index_file(Directory,Repository),
+
+  tester:test(parallel_verbose,
+              'Writing index files',
+              Repository://Category,
+              cache:category(Repository,Category),
+              printer:write_category_index_file(Directory,Repository,Category)),
+
+  tester:test(parallel_verbose,
+              'Writing index files',
+              Repository://Category/Name,
+              cache:package(Repository,Category,Name),
+              printer:write_package_index_file(Directory,Repository,Category,Name)).
+
+
 %! printer:write_proof_files(+Directory,+Repository)
 %
 % Print merge, fetchonly & info to file for all entries in a repository
@@ -1275,7 +1406,7 @@ printer:write_info_file(Directory,Repository://Entry) :-
 
 printer:write_proof_files(Directory,Repository) :-
   tester:test(parallel_verbose,
-              'Writing proofs for',
+              'Writing proof files',
               Repository://Entry,
               (Repository:entry(Entry),
                (config:graph_modified_only(true)
