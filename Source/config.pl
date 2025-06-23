@@ -26,6 +26,34 @@ configuration. The parameters described typically do not change at runtime.
 :- include(portage(source/private/api_key)).
 
 
+%! config:llm_capability(+Name,-Capability)
+%
+% Declares prompts to be passed to the LLM
+
+config:llm_capability(chat,Capability) :-
+  Description="When formulating a response, you may optionally enclose a message (e.g., a question)
+              in <call:chatgpt>, <call:gemini>, <call:ollama>, or <call:claude> tags to send it to
+              the respective LLM. The response is automatically returned to you, with each LLM
+              maintaining its own history of your queries.",
+  normalize_space(string(Capability),Description).
+
+config:llm_capability(code,Capability) :-
+  Description="When asked to write SWI-Prolog code, you may optionally enclose the code
+              in <call:swi_prolog> XML tags. Any code within these tags will be executed locally
+              in a temporary module, with the output automatically returned to you. Do not mention
+              the XML tags unless you include SWI-Prolog code between them. Write the code as if it
+              were loaded from a separate source file, including triggering execution of your main
+              function using a :- directive, such as :- main. The temporary module is destroyed after
+	      execution.",
+  normalize_space(string(Capability),Description).
+
+%! config:llm_use_tools(?Bool)
+%
+% Declares whether or not to enable to code execution integration
+
+config:llm_use_tools(true).
+
+
 %! config:llm_max_tokens(?Max)
 %
 % Declares the maximum tokens returned by an LLM
@@ -67,6 +95,7 @@ config:llm_endpoint(grok,    'https://api.x.ai/v1/chat/completions').
 config:llm_endpoint(chatgpt, 'https://api.openai.com/v1/chat/completions').
 config:llm_endpoint(claude,  'https://api.anthropic.com/v1/messages').
 config:llm_endpoint(gemini,  'https://generativelanguage.googleapis.com/v1beta/chat/completions').
+%config:llm_endpoint(gemini,  'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash').
 config:llm_endpoint(llama,   'https://api.llama.com/v1/chat/completions').
 config:llm_endpoint(ollama,  'http://localhost:11434/v1/chat/completions').
 
