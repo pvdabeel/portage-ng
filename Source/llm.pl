@@ -236,9 +236,13 @@ get_input(Msg) :-
     read_file_to_string(File, Msg, []),
     delete_file(File).
 
+
 % Informs the LLM about our capabilities
-prompt(Capabilities) :-
-  Capabilities = "". %If you send me SWI-prolog code, embedded between <TAG> and </TAG> where TAG is replaced with call:swi_prolog, this code will be executed locally and the output will be send back to you automatically. Do not mention the tags if you have not got swi-prolog code in between. After I have send you the output, you can also embed SWI-prolog code in your response between the tags. The code you write between tags is executed in a temporary module, in which your source code is loaded; write your code like it would be loaded from a separate source file. This implies you have to trigger execution of own main function using :- <yourmainfunction>. Like you would in separate source file. This is a prompt, no need to confirm or aknowledge. Everthing behind this is not a prompt and can be aknowledged or reacted to. Note: if you are google gemini, then you need to wrap your response as a function_call for function named swi_prolog_exec".
+prompt(Prompt) :-
+  findall(Capability, config:llm_capability(_, Capability), Cs),
+  atomic_list_concat(Cs, ' ', Capabilities),
+  string_concat(Capabilities," This was a prompt message, no need to acknowledge or respond to the previous sentences. Everything behind this final sentence is not a prompt and can be reacted to and acknowledged as regular input.",Prompt).
+
 
 % Adds prompt tp to the first message to the LLM
 
