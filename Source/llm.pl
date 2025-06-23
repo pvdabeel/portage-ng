@@ -149,12 +149,25 @@ get_content_from_dict(_,"") :- !.
 
 
 % Extract SWI-Prolog calls from response content
-extract_swi_prolog_calls(ResponseContent, Matches) :-
-    pcre:re_compile('<call:swi_prolog>(.*?)</call:swi_prolog>', Re, [dotall(true)]),
-    pcre:re_foldl(llm:get_group,Re, ResponseContent, [], Matches, [optimize(true),capture_type(string)]).
+%extract_swi_prolog_calls(ResponseContent, Matches) :-
+%    pcre:re_compile('<call:swi_prolog>(.*?)</call:swi_prolog>', Re, [dotall(true)]),
+%    pcre:re_foldl(llm:get_group,Re, ResponseContent, [], Matches, [optimize(true),capture_type(string)]).
 
-get_group(Match, Acc, [Group|Acc]) :-
-    get_dict(1, Match, Group).
+%get_group(Match, Acc, [Group|Acc]) :-
+%    get_dict(1, Match, Group).
+
+
+% Extract calls with dynamic keys from response content
+extract_calls(ResponseContent, Matches) :-
+    pcre:re_compile('<call:([a-zA-Z0-9_]+)>(.*?)</call:\\1>', Re, [dotall(true)]),
+    pcre:re_foldl(llm:extract_key_value, Re, ResponseContent, [], Matches, [optimize(true), capture_type(string)]).
+
+% Helper predicate to extract key-value pairs from regex matches
+extract_key_value(Match, Acc, [Key-Value|Acc]) :-
+    %pcre:re_matchsub(Re, Match, Groups, []),
+    get_dict(1, Match, Key),
+    get_dict(2, Match, Value).
+
 
 % Sandboxed execution in a temporary module
 execute_llm_code(Src) :-
@@ -167,8 +180,25 @@ execute_llm_code(Src) :-
                       true),
                close(Stream)).
 
+
+execute_and_get_output("grok"-Msg, Output) :-
+  grok(Msg,Output).
+
+execute_and_get_output("gemini"-Msg, Output) :-
+  gemini(Msg,Output).
+
+execute_and_get_output("claude"-Msg, Output) :-
+  claude(Msg,Output).
+
+execute_and_get_output("chatgpt"-Msg, Output) :-
+  chatgpt(Msg,Output).
+
+execute_and_get_output("ollama"-Msg, Output) :-
+  ollama(Msg,Output).
+
+
 % Execute SWI-Prolog code safely and capture output
-execute_and_get_output(Code, Output) :-
+execute_and_get_output("swi_prolog"-Code, Output) :-
     catch(
         (
             %read_term_from_atom(Code, Term, [variable_names(_)]),
@@ -211,9 +241,9 @@ find_first_assistant([], _{role: 'assistant', content: ''}).
 
 % Handle response with code execution
 handle_response(ServiceAPIKey, ServiceModel, ServiceEndpoint, Service:UpdateHistory, ResponseContent, History) :-
-  ( extract_swi_prolog_calls(ResponseContent, Codes),
-    Codes \= []
-    ->  maplist(execute_and_get_output, Codes, Outputs),
+  ( extract_calls(ResponseContent, Pairs),
+    Pairs \= []
+    ->  maplist(execute_and_get_output, Pairs, Outputs),
         maplist(make_function_message(Service), Outputs, FunctionMessages),
         append(History, FunctionMessages, UpdatedHistory),
         stream(ServiceEndpoint, ServiceAPIKey, ServiceModel, UpdatedHistory, NewResponse),

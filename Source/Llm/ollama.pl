@@ -20,7 +20,7 @@ We support any model available, default is set to 'llama3.2'.
 % OLLAMA declarations
 % *******************
 
-:- module(ollama, [ollama/0, ollama/1]).
+:- module(ollama, [ollama/0, ollama/1, ollama/2]).
 
 % Dynamic predicate for conversation history
 :- dynamic history/1.
@@ -31,7 +31,7 @@ update_history(History) :-
   assertz(ollama:history(History)).
 
 % Main entry points for Ollama
-ollama(Input) :-
+ollama(Input,ResponseContent) :-
   Service = 'ollama',
   config:llm_api_key(Service,Key),
   config:llm_model(Service,Model),
@@ -43,8 +43,11 @@ ollama(Input) :-
    ->  atomic_list_concat(Contents, ResponseContent),
        llm:handle_response(Key, Model, Endpoint, Service:update_history, ResponseContent, NewHistory)
    ;   Response = _{error: Error, history: _}
-       ->  write('Error: '), write(Error), nl ).
+       ->  write('Error: '), write(Error), nl ),!.
+
+ollama(Input) :-
+  ollama(Input,_).
 
 ollama :-
-    get_input(Msg),
-    ollama(Msg).
+  get_input(Msg),
+  ollama(Msg).

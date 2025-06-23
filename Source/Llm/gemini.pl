@@ -20,7 +20,7 @@ We support any model available, default is set to 'gemini-1.5-flash'.
 % GEMINI declarations
 % *******************
 
-:- module(gemini, [gemini/0, gemini/1]).
+:- module(gemini, [gemini/0, gemini/1, gemini/2]).
 
 % Dynamic predicate for conversation history
 :- dynamic history/1.
@@ -31,7 +31,7 @@ update_history(History) :-
   assertz(gemini:history(History)).
 
 % Main entry points for Gemini
-gemini(Input) :-
+gemini(Input,ResponseContent) :-
   Service = 'gemini',
   config:llm_api_key(Service, Key),
   config:llm_model(Service, Model),
@@ -43,8 +43,11 @@ gemini(Input) :-
   ->  atomic_list_concat(Contents, ResponseContent),
       llm:handle_response(Key, Model, Endpoint, Service:update_history, ResponseContent, NewHistory)
   ;   Response = _{error: Error, history: _}
-      ->  write('Error: '), write(Error), nl ).
+      ->  write('Error: '), write(Error), nl ),!.
+
+gemini(Input) :-
+  gemini(Input,_).
 
 gemini :-
-    get_input(Msg),
-    gemini(Msg).
+  get_input(Msg),
+  gemini(Msg).

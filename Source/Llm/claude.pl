@@ -23,7 +23,7 @@ We define the Claude specific protocol in this file.
 % CLAUDE declarations
 % *******************
 
-:- module(claude, [claude/0, claude/1]).
+:- module(claude, [claude/0, claude/1, claude/2]).
 
 :- use_module(library(http/http_open)).
 :- use_module(library(http/json)).
@@ -152,7 +152,7 @@ claude_llm_stream(APIKey, Model, History, Query, Response) :-
     llm_stream_claude(Endpoint, APIKey, Model, Messages, Response).
 
 % Main entry points for Claude
-claude(Input) :-
+claude(Input,ResponseContent) :-
   Service = 'claude',
   config:llm_api_key(Service,Key),
   config:llm_model(Service,Model),
@@ -164,8 +164,11 @@ claude(Input) :-
    ->  atomic_list_concat(Contents, ResponseContent),
        llm:handle_response(Key, Model, Endpoint, Service:update_history, ResponseContent, NewHistory)
    ;   Response = _{error: Error, history: _}
-       ->  write('Error: '), write(Error), nl ).
+       ->  write('Error: '), write(Error), nl ),!.
+
+claude(Input) :-
+  claude(Input,_).
 
 claude :-
-    get_input(Msg),
-    claude(Msg).
+  get_input(Msg),
+  claude(Msg).
