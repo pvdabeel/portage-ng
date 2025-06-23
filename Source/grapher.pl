@@ -522,40 +522,40 @@ grapher:choice_type(strong) :-
 %
 % todo: refactor, this needs to be shorter
 
-grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,no,Cat,Name,Comp,Ver,_Slot,_Bwu),arrow(D,Choices)) :-
+grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,no,Cat,Name,Cmpr,Ver,_,_),arrow(D,Choices)) :-
   !,
   write('subgraph '),write(' {'),nl,
   tl_gensym(package_dependency,D),
   write(D),write(' [label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\" WIDTH=\"220\"><TR><TD ROWSPAN=\"6\" CELLPADDING=\"30\">pack_dep</TD></TR><TR><TD WIDTH=\"110\">'),
   write(Type),write('</TD></TR><TR><TD>'),write(Cat),write('</TD></TR><TR><TD>'),write(Name),write('</TD></TR><TR><TD>'),
-  write(Comp),write('</TD></TR><TR><TD>'),write(Ver),write('</TD></TR></TABLE>>, shape=none, color=blue];'),nl,
+  write(Cmpr),write('</TD></TR><TR><TD>'),write(Ver),write('</TD></TR></TABLE>>, shape=none, color=blue];'),nl,
   write('}'),nl,
   write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl,
-  findall(R,query:search([select(name,equal,Name),select(category,equal,Cat),select(version,Comp,Ver)],R),Choices),
+  findall(R,query:search([select(name,equal,Name),select(category,equal,Cat),select(version,Cmpr,Ver)],R),Choices),
   !, true.
 
-grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,weak,Cat,Name,Comp,Ver,_Slot,_Bwu),arrow(D,Choices)) :-
+grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,weak,Cat,Name,Cmpr,Ver,_,_),arrow(D,Choices)) :-
   !,
   write('subgraph '),write(' {'),nl,
-  tl_gensym(package_dependency,D),
+  tl_gensym(weak_blocker,D),
   write(D),write(' [label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\" WIDTH=\"220\"><TR><TD ROWSPAN=\"6\" CELLPADDING=\"30\">blocking (weak)</TD></TR><TR><TD WIDTH=\"110\">'),
   write(Type),write('</TD></TR><TR><TD>'),write(Cat),write('</TD></TR><TR><TD>'),write(Name),write('</TD></TR><TR><TD>'),
-  write(Comp),write('</TD></TR><TR><TD>'),write(Ver),write('</TD></TR></TABLE>>, shape=none, color=orange];'),nl,
+  write(Cmpr),write('</TD></TR><TR><TD>'),write(Ver),write('</TD></TR></TABLE>>, shape=none, color=orange];'),nl,
   write('}'),nl,
   write(Master),write(':e -> '),write(D),write(':w [weight=20, color="orange", style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl,
-  findall(R,query:search([select(name,equal,Name),select(category,equal,Cat),select(version,Comp,Ver)],R),Choices),
+  findall(R,query:search([select(name,equal,Name),select(category,equal,Cat),select(version,Cmpr,Ver)],R),Choices),
   !, true.
 
-grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,strong,Cat,Name,Comp,Ver,_Slot,_Bwu),arrow(D,Choices)) :-
+grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,strong,Cat,Name,Cmpr,Ver,_,_),arrow(D,Choices)) :-
   !,
   write('subgraph '),write(' {'),nl,
-  tl_gensym(package_dependency,D),
+  tl_gensym(strong_blocker,D),
   write(D),write(' [label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\" WIDTH=\"220\"><TR><TD ROWSPAN=\"6\" CELLPADDING=\"30\">blocking (strong)</TD></TR><TR><TD WIDTH=\"110\">'),
   write(Type),write('</TD></TR><TR><TD>'),write(Cat),write('</TD></TR><TR><TD>'),write(Name),write('</TD></TR><TR><TD>'),
-  write(Comp),write('</TD></TR><TR><TD>'),write(Ver),write('</TD></TR></TABLE>>, shape=none, color=red];'),nl,
+  write(Cmpr),write('</TD></TR><TR><TD>'),write(Ver),write('</TD></TR></TABLE>>, shape=none, color=red];'),nl,
   write('}'),nl,
   write(Master),write(':e -> '),write(D),write(':w [weight=20, color="red", style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl,
-  findall(R,query:search([select(name,equal,Name),select(category,equal,Cat),select(version,Comp,Ver)],R),Choices),
+  findall(R,query:search([select(name,equal,Name),select(category,equal,Cat),select(version,Cmpr,Ver)],R),Choices),
   !, true.
 
 grapher:handle(detail,Style,Arrow,Master,use_conditional_group(Type,Use,_,Deps),Choices) :-
@@ -613,16 +613,16 @@ grapher:handle(detail,_Style,_Arrow,Master,S,[]) :-
 
 % Full tree graphing
 
-grapher:handle(_Deptype,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,no,Cat,Name,Comp,Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice:no])) :-
-  query:search([name(Name),category(Cat),select(version,Comp,Ver)],Choicecontext://Choice),
+grapher:handle(_Deptype,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,no,Cat,Name,Cmpr,Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice:no])) :-
+  query:search([name(Name),category(Cat),select(version,Cmpr,Ver)],Choicecontext://Choice),
   !, true.
 
-grapher:handle(_Deptype,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,weak,Cat,Name,Comp,Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice:weak])) :-
-  query:search([name(Name),category(Cat),select(version,Comp,Ver)],Choicecontext://Choice),
+grapher:handle(_Deptype,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,weak,Cat,Name,Cmpr,Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice:weak])) :-
+  query:search([name(Name),category(Cat),select(version,Cmpr,Ver)],Choicecontext://Choice),
   !, true.
 
-grapher:handle(_Deptype,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,strong,Cat,Name,Comp,Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice:strong])) :-
-  query:search([name(Name),category(Cat),select(version,Comp,Ver)],Choicecontext://Choice),
+grapher:handle(_Deptype,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,strong,Cat,Name,Cmpr,Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice:strong])) :-
+  query:search([name(Name),category(Cat),select(version,Cmpr,Ver)],Choicecontext://Choice),
   !, true.
 
 grapher:handle(_Deptype,_Style,_Arrow,_Master,use_conditional_group(_,_Type,_Use,_Deps),[]) :- !.
