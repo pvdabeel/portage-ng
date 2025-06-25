@@ -18,13 +18,16 @@ The interface interpretes command line arguments passed to portage-ng.
 % INTERFACE declarations
 % **********************
 
+% -----------------
+% Interface version
+% -----------------
 
 %! interface:version(?Version)
 %
 % Retrieve the current version
 
 interface:version(V) :-
-  V = '2025.06.15'.
+  V = '2025.06.25'.
 
 
 %! interface:status(?Status)
@@ -34,6 +37,10 @@ interface:version(V) :-
 interface:status(S) :-
   S = 'development'.
 
+
+% ------------------------
+% Interface specifications
+% ------------------------
 
 %! interface:spec(?Specification)
 %
@@ -75,6 +82,10 @@ interface:spec(S) :-
       ].
 
 
+% --------------------
+% Command line reading
+% --------------------
+
 %! interface:argv(-Options,-Args)
 %
 % Retrieve the arguments passed on the command line.
@@ -97,6 +108,10 @@ interface:argv(Options,Args) :-
 interface:getenv(Name,Value) :-
   system:getenv(Name,Value).
 
+
+% ---------------
+% Option handling
+% ---------------
 
 %! interface:process_flags
 %
@@ -144,16 +159,6 @@ interface:process_server(Host,Port) :-
   (lists:memberchk(port(Port),  Options) ; config:server_port(Port)).
 
 
-%! interface:process_metadata(List)
-%
-% Retrieve the list of metadata to show from the command line
-
-% interface:process_metadata(List) :-
-%  interface:argv(Options,_),
-%  (lists:memberchk(metadata(List),  Options) ; config:printable_metadata(List)),
-%  !.
-
-
 %! interface:process_requests(+Mode)
 %
 % Processes the options passed on the command line.
@@ -190,13 +195,17 @@ interface:process_requests(Mode) :-
   Continue.
 
 
+% -----------------
+% Action processing
+% -----------------
+
 %! interface:process_action(+Action,+Args,+Options)
 %
 % Processes a specific action.
 
-% ----
-% INFO
-% ----
+% ------------
+% Action: INFO
+% ------------
 
 interface:process_action(info,[],_) :-
   !,
@@ -211,9 +220,9 @@ interface:process_action(info,Args,_Options) :-
                            printer:print_entry(R://E))).
 
 
-% ------
-% SEARCH
-% ------
+% --------------
+% Action: SEARCH
+% --------------
 
 interface:process_action(search,[],_) :-
   !,
@@ -226,19 +235,9 @@ interface:process_action(search,Args,_Options) :-
   forall(kb:query(Q,R://E), writeln(R://E)).
 
 
-% -----
-% MERGE
-% -----
-
-%interface:process_action(merge,ArgsSets,Options) :-
-%  !,
-%  config:proving_target(T),
-%  interface:process_action_mr(T,ArgsSets,Options).
-
-%interface:process_action(reinstall,[],_) :- !.
-%interface:process_action(reinstall,ArgsSets,Options) :-
-%  !,
-%  interface:process_action_mr(reinstall,ArgsSets,Options).
+% -------------
+% Action: MERGE
+% -------------
 
 interface:process_action(_Action,[],_) :- !.
 
@@ -253,8 +252,9 @@ interface:process_action(Action,ArgsSets,_Options) :-
           Proposal),!,
   message:log(['Proposal:  ',Proposal]),
   (Proposal == []
-   -> ( atomic_list_concat(['I get no result trying to emerge the following ebuilds, please find me the correct one, or propose to write one. Give me a short answer now, until I tell you to write an ebuild \''|Args],'\'',Prompt),
-        chatgpt(Prompt),fail )
+   -> ( config:llm_support(Prompt),
+        atomic_list_concat([Prompt|Args],Message),
+        chatgpt(Message),fail )
    ;  true),
   (Mode == 'client' ->
     (client:rpc_execute(Host,Port,

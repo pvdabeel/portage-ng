@@ -481,7 +481,7 @@ config:llm_support(Capability) :-
   Description="I get no result trying to emerge the following ebuilds, please find me the correct one,
                or propose to write one. Give me a short answer now, until I tell you to write an ebuild.
                Here is what I was trying to do: ",
-  normalize_space(string(Capability),Destruction).
+  normalize_space(string(Capability),Description).
 
 
 %! config:llm_use_tools(?Bool)
