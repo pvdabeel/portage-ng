@@ -9,32 +9,76 @@
 
 
 /** <module> EAPI
-This file contains a DCG grammar for Gentoo Portage cache files and manifests.
-This grammar is compatible with EAPI version 8 and earlier (PMS EAPI 8,
-Sections 7, 12.1, and 12.2).
+A  DCG Grammar for Parsing Gentoo EAPI Metadata
+-----------------------------------------------
 
-Cache files:
-------------
-The portage cache is a directory inside the portage repository
-that normally has a file for each ebuild in the portage tree.
-In this file, metadata regarding the ebuild can be found.
+This file implements a Definite Clause Grammar (DCG) for parsing metadata in Gentoo's
+md5-cache and Manifest files, compatible with EAPI version 8 and earlier (verified
+against the PMS specifications for EAPI 8, Sections 7, 12.1, and 12.2).
 
-The metadata inside this file is represented as KEY=VALUE pairs.
-Each line has one KEY=VALUE pair (PMS EAPI 8, Section 12.1).
+It is part of portage-ng, a next-generation replacement for Gentoo's Portage package
+manager, written in SWI-prolog.
 
-Manifest files:
----------------
-The DCG grammar also parses Manifest files.
-Manifest files are found in the portage repository in each category/package
-directory. For a given category and package combination, the manifest
-contains hash information for all files referenced by the ebuilds in this
-category/package.
+Overview
+--------
 
-The metadata inside this file is represented as KEY VALUE pairs.
-Each line has one KEY VALUE pair (PMS EAPI 8, Section 12.2).
+The Gentoo ebuild repository consists of a directory structure containing ebuild files
+(bash scripts) and a metadata/md5-cache subdirectory. Each ebuild defines environment
+variables that represent metadata about a software package. The md5-cache directory
+contains files corresponding to each ebuild, capturing the values of these environment
+variables after the ebuild is processed by bash (sourcing its eclasses and functions).
 
-The specifications of the grammar can be found in the PMS EAPI 8 document
-(pms-8.pdf) in the documentation directory of this project.
+These cache files are distributed with ebuilds to end-users for package installation.
+If an md5-cache file is missing or outdated (e.g., due to an ebuild update), the package
+manager will regenerate it.
+
+Additionally, Gentoo repositories include Manifest files in each category/package directory,
+which store information for files referenced by ebuilds.
+
+This DCG grammar parses both md5-cache and Manifest files, converting their metadata into
+prolog facts which are stored in the cache database structure. (Cfr. cache.pl)
+
+The knowledge base ensures these predicates remain synchronized with the md5-cache files
+in the repository, and will regenerated missing or outdated md5-cache.
+
+
+Valid input
+-----------
+
+1. md5-cache Files
+
+Location: Inside the metadata/md5-cache directory of a Gentoo repository.
+Purpose:  Store metadata for each ebuild, reflecting.
+Format:   Each file contains KEY=VALUE pairs, with one pair per line (PMS EAPI 8, Section 12.1).
+
+
+2. Manifest Files
+
+Location: In each category/package directory of the repository.
+Purpose:  Contain hash information for files referenced by ebuilds in the category/package.
+Format:   Each file contains KEY VALUE pairs, with one pair per line (PMS EAPI 8, Section 12.2).
+
+
+Grammar Specifications
+----------------------
+
+The DCG grammar adheres to the specifications in the PMS EAPI 8 document (pms-8.pdf), located in
+the project's documentation directory.
+
+
+Reading & Parsing
+-----------------
+
+These lines are read by the reader (cfr. reader.pl) and then parsed by the parser (cfr. parser.pl)
+using the grammar described in this file. The output is stored in the cache (cfr. cache.pl) by
+during execution of the knowledgebase (cfr knowledgebase.pl) sync command.
+
+Output
+------
+
+The grammar produces SWI-Prolog facts representing the metadata from md5-cache and Manifest files.
+These facts are stored in dynamic cache predicates, which the portage-ng knowledge base keeps
+synchronized with the repository's md5-cache files.
 */
 
 :- module(eapi, []).
@@ -53,6 +97,7 @@ eapi:abstract_syntax_construct(at_most_one_of_group(_)) :- !.
 eapi:abstract_syntax_construct(exactly_one_of_group(_)) :- !.
 
 % See cache.pl for the data structure in the parser output is stored.
+
 
 % ----------
 % EAPI parse
@@ -509,7 +554,7 @@ eapi:exactly_one_of_group(T, R://E, exactly_one_of_group(D)) -->
 % EAPI 8 - 8.2.5 defines an at_most_one_of dependency
 % (PMS EAPI 8, Section 8.2.5).
 
-eapi:at_most_one_of_group(T, R://E, exactly_one_of_group(D)) -->   % todo: mapped on exactly - should fully implement
+eapi:at_most_one_of_group(T, R://E, at_most_one_of_group(D)) -->
   eapi:at_most_one, !,
   eapi:whites,
   [40], !,                                            % required char: (
@@ -629,6 +674,7 @@ eapi:package(P) -->
 
 eapi:check_package(L) :-
   length(L, 1), !.
+
 
 %! eapi:check_package(+L)
 %
@@ -1516,7 +1562,6 @@ eapi:uchars2([]) -->
   [],!.
 
 
-
 %! DCG kchars
 %
 % EAPI 8 - 7.2.8 Reads a keyword name (PMS EAPI 8, Section 7.2.8).
@@ -1577,7 +1622,6 @@ eapi:chars_to_dash([C|R]) -->
   eapi:chars_to_dash(R).
 
 
-
 %! DCG chars_to_comparator
 %
 % Reads chars until a comparator is found (PMS EAPI 8, Section 8.2.6).
@@ -1588,13 +1632,11 @@ eapi:chars_to_comparator([],smallerequal) -->
 eapi:chars_to_comparator([],greaterequal) -->
   [61],[62],!.                                        % chars: '=<'
 
-
 eapi:chars_to_comparator([],smallerequal) -->
   [60],[61],!.                                        % chars: '<='
 
 eapi:chars_to_comparator([],greaterequal) -->
   [62],[61],!.                                        % chars: '>='
-
 
 eapi:chars_to_comparator([],smaller) -->
   [60],!.                                             % chars: '<'
@@ -1608,18 +1650,15 @@ eapi:chars_to_comparator([],tilde) -->
 eapi:chars_to_comparator([],wildcard) -->
   [58,61],!.                                          % chars: ':='
 
-
 eapi:chars_to_comparator([],notequal) -->
   [33],[61],!.                                        % chars: '!='
 
 eapi:chars_to_comparator([],equal) -->
   [61],!.                                             % chars: '='
 
-
 eapi:chars_to_comparator([C|T],M) -->
   [C],!,
   eapi:chars_to_comparator(T,M).
-
 
 
 %! DCG chars_to_equal
@@ -1681,32 +1720,6 @@ file:lines([])    --> [],!.
 % -------------------------
 % EAPI version declarations
 % -------------------------
-
-%! VERSION sublist
-%
-% This function is used to split up a version into different subparts.
-%
-% Deprecated
-
-version:sublist([], _,[],[]) :- !.
-version:sublist([E|T],S,T,[]) :-
-  system:memberchk(E,S),!.
-version:sublist([H|T],S,R,[H|RT]) :-
-  version:sublist(T,S,R,RT).
-
-
-%! VERSION sublists
-%
-% Produces all sublists of a given list.
-%
-% Deprecated
-
-version:sublists([],_,[]) :- !.
-
-version:sublists(L,S,[E|T]) :-
-  version:sublist(L,S,R,E),!,
-  version:sublists(R,S,T).
-
 
 %! VERSION packageversion
 %
@@ -1981,38 +1994,40 @@ eapi:substitute_sets([Query|Tail],[Query|Rest]) :-
   eapi:substitute_sets(Tail,Rest).
 
 
-
-
-% ----------------
-% EAPI keys (PMS cache, deprecated in EAPI 8)
-% ----------------
+% ---------
+% EAPI keys
+% ---------
 
 %! eapi:keys(-Keys)
 %
 % Returns the list of metadata keys (PMS EAPI 8, Section 7).
 
-eapi:keys(['depend',
-           'rdepend',
-           'slot',
-           'src_uri',
-           'restrict',
-           'homepage',
-           'license',
-           'description',
-           'keywords',
-           'inherited',
-           'iuse',
-           'required_use',    % EAPI 4: REQUIRED_USE
-           'cdepend',         % EAPI 4: PDEPEND
-           'provide',
-           'eapi',
-           'unused',          % EAPI 4: PROPERTIES
-           'functions',       % EAPI 4: DEFINED_PHASES
-           'unused',
-           'unused',
-           'unused',
-           'unused',
-           'unused']).
+% ------------------------------------
+% CASE: PMS cache version (deprecated)
+% ------------------------------------
+
+% eapi:keys(['depend',
+%           'rdepend',
+%           'slot',
+%           'src_uri',
+%           'restrict',
+%           'homepage',
+%           'license',
+%           'description',
+%           'keywords',
+%           'inherited',
+%           'iuse',
+%           'required_use',    % EAPI 4: REQUIRED_USE
+%           'cdepend',         % EAPI 4: PDEPEND
+%           'provide',
+%           'eapi',
+%           'unused',          % EAPI 4: PROPERTIES
+%           'functions',       % EAPI 4: DEFINED_PHASES
+%           'unused',
+%           'unused',
+%           'unused',
+%           'unused',
+%           'unused']).
 
 
 %! eapi:elem(+Key,+Entry,-Content)
@@ -2026,14 +2041,11 @@ eapi:keys(['depend',
 %
 % Content: The content of the pms cache entry
 
-% ------------------------------------
-% CASE: PMS cache version (deprecated)
-% ------------------------------------
-
 % eapi:elem(K,E,C) :-
 %   eapi:keys(S),
 %   system:nth1(N,S,K),
 %   system:nth1(N,E,C).
+
 
 % -----------------
 % CASE: MD5 version
