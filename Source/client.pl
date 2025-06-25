@@ -69,7 +69,7 @@ rpc_execute(Hostname,Port,Cmd) :-
   config:certificate(Hostname,'client-key.pem',ClientKey),
   config:certificate_password(client,Pass),
   config:digest_password(User,Digestpwd),
-  config:chunk(ChunkSize),
+  config:server_chunk(ChunkSize),
   findall(Template,(remote_predicate_template(Template)),Templates),
   findall(Instance,(remote_predicate_instance(Local:Instance),call(Local:Instance)),Context),
   pengine_rpc(URL,Cmd,
