@@ -17,7 +17,7 @@ The knowledge base can be instantiated as a local proxy for a remotely running
 knowledge base, using pengine rpc and 2-way SSL (https) communication.
 
 The knowledge base query mechanism for local cache  is implemented by in the
-Query module.
+Query module. The knowledge base is typically initialized as a singleton instance.
 */
 
 :- module(knowledgebase,[]).
