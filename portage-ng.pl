@@ -52,6 +52,7 @@ load_common_modules :-
    ensure_loaded(library('time')),
    ensure_loaded(library('editline')),
    ensure_loaded(library('readutil')),
+   ensure_loaded(library('ansi_term')),
    ensure_loaded(library('process')),
    ensure_loaded(library('thread')),
    ensure_loaded(library('ordsets')),
@@ -144,6 +145,12 @@ load_server_modules :-
 
 
 load_llm_modules :-
+
+   ensure_loaded(library(http/http_open)),
+   ensure_loaded(library(http/json)),
+   ensure_loaded(library(edit)),
+   ensure_loaded(library(pcre)),
+   ensure_loaded(library(sandbox)),
 
    ensure_loaded(portage('Source/llm.pl')),
    ensure_loaded(portage('Source/Llm/grok.pl')),
