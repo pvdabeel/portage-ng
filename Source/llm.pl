@@ -52,12 +52,6 @@ LLM service specific code can be found in the files inside the 'Llm' subdirector
 
 :- module(llm, [get_input/1]).
 
-:- use_module(library(http/http_open)).
-:- use_module(library(http/json)).
-:- use_module(library(edit)).
-:- use_module(library(pcre)).
-:- use_module(library(sandbox)).
-
 
 %! llm:stream(+Endpoint,+APIkey,+Model,+Message,-Response)
 %
