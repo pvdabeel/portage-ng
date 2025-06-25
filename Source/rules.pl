@@ -439,6 +439,17 @@ rule(exactly_one_of_group(Deps),[D|NafDeps]) :-
   findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
 
 
+% At most one of the dependencies in an at-most-one-of-group should be satisfied
+
+rule(at_most_one_of_group(Deps):Action?{Context},[D:Action?{Context}|NafDeps]) :-
+  member(D,Deps),
+  findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
+
+rule(at_most_one_of_group(Deps),[D|NafDeps]) :-
+  member(D,Deps),
+  findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
+
+
 % One dependency of an any_of_group should be satisfied
 
 rule(any_of_group(Deps):Action?{Context},[D:Action?{Context}]) :-
