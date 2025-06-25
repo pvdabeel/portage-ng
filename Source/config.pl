@@ -458,20 +458,30 @@ config:time_limit_build(6000).
 
 config:llm_capability(chat,Capability) :-
   Description="When formulating a response, you may optionally enclose a message (e.g., a question)
-              in <call:chatgpt>, <call:gemini>, <call:ollama>, or <call:claude> tags to send it to
-              the respective LLM. The response is automatically returned to you, with each LLM
-              maintaining its own history of your queries.",
+               in <call:chatgpt>, <call:gemini>, <call:ollama>, or <call:claude> tags to send it to
+               the respective LLM. The response is automatically returned to you, with each LLM
+               maintaining its own history of your queries.",
   normalize_space(string(Capability),Description).
 
 config:llm_capability(code,Capability) :-
   Description="When asked to write SWI-Prolog code, you may optionally enclose the code
-              in <call:swi_prolog> XML tags. Any code within these tags will be executed locally
-              in a temporary module, with the output automatically returned to you. Do not mention
-              the XML tags unless you include SWI-Prolog code between them. Write the code as if it
-              were loaded from a separate source file, including triggering execution of your main
-              function using a :- directive, such as :- main. The temporary module is destroyed after
-	      execution.",
+               in <call:swi_prolog> XML tags. Any code within these tags will be executed locally
+               in a temporary module, with the output automatically returned to you. Do not mention
+               the XML tags unless you include SWI-Prolog code between them. Write the code as if it
+               were loaded from a separate source file, including triggering execution of your main
+               function using a :- directive, such as :- main. The temporary module is destroyed after
+	       execution.",
   normalize_space(string(Capability),Description).
+
+%! config:llm_support(-Prompt)
+%
+% Declares prompts to be passed to the LLM in case of merge failure
+
+config:llm_support(Capability) :-
+  Description="I get no result trying to emerge the following ebuilds, please find me the correct one,
+               or propose to write one. Give me a short answer now, until I tell you to write an ebuild.
+               Here is what I was trying to do: ",
+  normalize_space(string(Capability),Destruction).
 
 
 %! config:llm_use_tools(?Bool)
