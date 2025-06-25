@@ -25,6 +25,9 @@ In short, a clever mechanism to enable:
 Contexts can be unified and can serve as powerfull Feature Terms describing
 Software Configurations. (A. Zeller - Unified Versioning through Feature Logic)
 
+The syntax is comparable to LogTalk, but logtalk takes a compilation approach,
+translating to regular prolog. This implementation works at runtime.
+
 
 CONTEXT - Contextual Object Oriented Logic Programming
 ------------------------------------------------------
@@ -331,22 +334,6 @@ mutex(List) :-
 declare(Fact) :-
   this(Context),
   context:declare(Context, Fact).
-
-
-% context:declare(+Context, +Fact)
-%
-% local
-%
-% Declare a fact. Throws an exception on conflicting declaration.
-
-% context:declare(Context, Fact) :-
-%   clause(Context:'$__meta'(Fact), true).
-
-% context:declare(Context, Fact) :-
-%   context:conflicting(Fact, OtherFact),
-%   clause(Context:'$__meta'(OtherFact), true),
-%   OtherFact =.. [Key|Args],
-%   throw(error(permission_error(modify, Key, Args), context(Context, _))).
 
 
 %! context:declare(+Context, +Fact)
@@ -750,18 +737,6 @@ context:freeze(Context) :-
 ':'(Predicate) :-
   this(Context),
   Context:Predicate.
-
-
-%! ':'(-Instance, +Meta)
-%
-% Exported, transparent predicate
-%
-% Extension of (:)/2 as a reference to 'this', no-cache.
-
-% contextcall(Instance,declared(Meta)) :-
-%   %current_module(Instance),
-%   write('debug ::> '),write(Instance),write(' ::> '),write(Meta),nl,
-%   Instance:clause(Instance:'$__meta'(Meta),true).
 
 
 %! '::'(+Predicate)
