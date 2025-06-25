@@ -9,15 +9,24 @@
 
 
 /** <module> CACHE
-Cache database structure that holds information about repositories, categories, packages,
+Database structure that holds information about repositories, categories, packages,
 repository entries, repository entry metadata, etc.
 
-Query, Repository and Knowledgebase are interfaces to this high performance cache
-context. Query defines (inlined) queries on this database, Repository and Knowledgebase
-define operations like sync, save, etc.
+Information is read from disk using the reader, parsed by the parser (e.g. using the
+EAPI grammar), then stored into this database. No disk access happens when querying
+the database.
 
-Indexing of the facts in the cache database is performed JIT by the swi-prolog JIT indexer.
-This allows for O(1) lookups.
+Indexing of the facts in the cache database is performed JIT by the swi-prolog JIT
+indexer. This allows for O(1) lookups.
+
+Query, Repository and Knowledgebase are interfaces to this high performance cache
+context:
+
+- Query defines high-performance (inlined) queries on this database,
+- Repository and Knowledgebase define operations like sync, load & save, etc.
+
+Different repositories can be registered to the knowledgebase and stored in this
+database.
 */
 
 
