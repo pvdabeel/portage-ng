@@ -409,6 +409,9 @@ preference:masked(portage://'dev-vcs/git-9999-r2').	      % bdepend on itself, a
 preference:masked(portage://'dev-vcs/git-9999-r1').	      % bdepend on itself, added by eclass, with build_with_use dep (curl)
 preference:masked(portage://'dev-vcs/git-9999').	      % bdepend on itself, added by eclass, with build_with_use dep (curl)
 
+% to be investigated
+preference:masked(portage://'net-misc/curl-9999').	      % to be investigated
+
 
 %! preference:set(?Name,?List)
 %
