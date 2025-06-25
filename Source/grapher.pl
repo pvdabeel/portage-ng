@@ -9,15 +9,28 @@
 
 
 /** <module> GRAPHER
-This file contains predicates that convert:
+Outputs DOT language.
 
- - ebuilds into DOT language directed graphs showing ebuild dependencies in detail
- - ebuilds into DOT language directed graphs showing full dependency tree for the
-   different dependency types
+For a given ebuild, the following output can be produced:
 
-We have can output two type of graphs: High level tree diagrams or detailled
-graphs showing, for a given ebuild, all dependencies and the ebuilds that
-could satisfy the dependency.
+ - detail:     A graph showing the ebuild, its run and compile dependencies, including
+               strong and weak blockers and the potential ebuild candidates for realizing
+               the dependencies.
+
+ - depend:     A graph showing the full dependency tree for an ebuild; its dependencies as
+               well as the dependencies of its dependencies and so on. Available for the
+               different dependency types of an ebuild: bdepend, cdepend, depend, idepend,
+               rdepend and pdepend.
+
+ - merge:      A minimal dot file intended to show the output of merging the ebuild.
+
+ - fetchonly:  A minimal dot file intended to show the output of fetching the ebuild.
+
+ - info:       A minimal dot file intended to show the output of displaying ebuild info.
+
+The DOT output is intended to be converted into scalable vector graphics (SVG). The output
+contains interactive elements, enabling the user to click through to a dependency, change
+the version, watch the output of a specific command, etc.
 */
 
 :- module(grapher, []).
@@ -29,8 +42,11 @@ could satisfy the dependency.
 % GRAPHER declarations
 % ********************
 
+% -----------
+% Graph types
+% -----------
 
-%! grapher:graph(Type,Repository://Id)
+%! grapher:graph(+Type,+Repository://Id)
 %
 % For a given ebuild, identified by an Id, create a depedency graph.
 %
@@ -45,8 +61,8 @@ grapher:graph(detail,Repository://Id) :-
   grapher:graph_header(detail,Repository://Id),
   grapher:graph_legend(detail,Repository://Id),
   grapher:graph_ebuild(detail,Repository://Id),
-  grapher:graph_detail(details,Repository://Id),
-  grapher:graph_footer(details,Repository://Id).
+  grapher:graph_detail(detail,Repository://Id),
+  grapher:graph_footer(detail,Repository://Id).
 
 grapher:graph(merge,Repository://Id) :-
   !,
@@ -78,44 +94,11 @@ grapher:graph(Type,Repository://Id) :-
   grapher:graph_footer(Type,Repository://Id).
 
 
-%! grapher:graph(repository,Repository://Category)
-%
-% For a given repository, create a dot graph showing all categories
+% -----------------------
+% Graph component: header
+% -----------------------
 
-grapher:graph(repository,Repository) :-
-  !,
-  grapher:graph_header(repository,Repository://_),
-  grapher:graph_legend(repository,Repository://_),
-  grapher:graph_root(repository,Repository://_),
-  grapher:graph_footer(repository,Repository://_).
-
-
-%! grapher:graph(category,Repository://Category)
-%
-% For a given category of a repository, create a dot graph showing all packages
-
-grapher:graph(category,Repository://Category) :-
-  !,
-  grapher:graph_header(category,Repository://Category),
-  grapher:graph_legend(category,Repository://Category),
-  grapher:graph_root(category,Repository://Category),
-  grapher:graph_footer(category,Repository://Category).
-
-
-%! grapher:graph(package,Repository://Package)
-%
-% For a given package in a category in a repository, create a dot graph showing all ebuilds
-
-grapher:graph(package,Repository://Package) :-
-  !,
-  grapher:graph_header(package,Repository://Package),
-  grapher:graph_legend(package,Repository://Package),
-  grapher:graph_root(package,Repository://Package),
-  grapher:graph_tree(package,Repository://Package),
-  grapher:graph_footer(package,Repository://Package).
-
-
-%! grapher:graph_header(Type,Repository://Id)
+%! grapher:graph_header(Type,+Repository://Id)
 %
 % For a given ebuild, identified by an Id, create the header of the requested dependency graph.
 
@@ -149,6 +132,10 @@ grapher:graph_header(_Type,_Repository://_Id) :-
   writeln('node  [fontname=Helvetica,fontsize=10];'),
   nl.
 
+
+% -----------------------
+% Graph component: legend
+% -----------------------
 
 %! grapher:graph_legend(Type,Target)
 %
@@ -194,7 +181,7 @@ grapher:graph_legend_navigation(_Type,Repository://Id) :-
 %! grapher:graph_legend_types(Type,List,Repository://Id)
 %
 % For a given ebuild, identified by an Id, create revelevant legend entries (as represented by List) to be included in the legend
-% of a dependency graph.
+% of a dependency graph. (detail, bdepend, cdepend, depend, idepend, rdepend, pdepend)
 
 grapher:graph_legend_types(_Type,[],_Repository://_Id) :- !.
 
@@ -212,18 +199,8 @@ grapher:graph_legend_types(Type,[OtherType|Rest],Repository://Id) :-
 
 %! grapher:graph_legend_version(Type,Repository://Id)
 %
-% For a given ebuild, identified by an Id, create version control bar to be included in legend.
-
-grapher:graph_legend_version(Type,Repository://_Id) :-
-  memberchk(Type,[repository,category,package]),!,
-  Newer  = [],
-  Oldest = [],
-  Newest = [],
-  Older  = [],
-  grapher:graph_legend_href(Type,Repository://Newest,'&lt;&lt; newest'),
-  grapher:graph_legend_href(Type,Repository://Newer,'&lt; newer'),
-  grapher:graph_legend_href(Type,Repository://Older,'older &gt;'),
-  grapher:graph_legend_href(Type,Repository://Oldest,'oldest &gt;&gt;').
+% For a given ebuild, identified by an Id, create version control bar to be included in legend. Enables
+% changing the version of the ebuild graph shown.
 
 grapher:graph_legend_version(Type,Repository://Id) :-
   query:search([category(C),name(N),select(version,equal,V)],Repository://Id),
@@ -311,6 +288,10 @@ grapher:graph_legend_href(Depend,Repository://Id,Name) :-
   write('<TD title=\"'),write(Repository://Id),write('\" href=\"../'),write(Id),write('-'),write(Depend),write('.svg'),write('\">'),write(Name),write('</TD>').
 
 
+% --------------------------
+% Graph subcomponent: detail
+% --------------------------
+
 %! grapher:graph_ebuild(detail,Repository://Id)
 %
 % For a given ebuild, identified by an Id, create leftmost column showing ebuild information in the detail dependency graph.
@@ -325,19 +306,17 @@ grapher:graph_ebuild(detail,Repository://Id) :-
   write('fontcolor=gray;'),nl,
   write('label=<<i>ebuild</i>>;'),nl,
   write('labelloc=t;'),nl,
-  write('labeljust=c'),nl,
+  write('labeljust=c;'),nl,
   write('id [label=\"'),write(Repository://Id),write('\", color=red, width=4, penwidth=2, fontname=\"Helvetica-Bold\", href=\"../'),write(Id),write('.svg\"];'),nl,
   write('}'),nl,
   nl.
 
 
-%! grapher:graph_details(details,Repository://Id)
+%! grapher:graph_detail(detail,Repository://Id)
 %
-% For a given ebuild, represented by Id, graph its details (compile & runtime dependencies, corresponding candidates)
-%
-% todo: refactor, this needs to be shorter
+% For a given ebuild, represented by Id, graph its compile and runtime dependencies.
 
-grapher:graph_detail(details,Repository://Id) :-
+grapher:graph_detail(detail,Repository://Id) :-
   !,
   writeln('# ****************'),
   writeln('# The dependencies'),
@@ -354,42 +333,55 @@ grapher:graph_detail(details,Repository://Id) :-
   list_to_ord_set(R,OR),
   ord_intersection(OC,OR,OCR,OPR),
   ord_intersection(OR,OC,OCR,OPC),
-  writeln('subgraph cluster_install {'),
-  writeln('fillcolor="#eeeeee";'),
-  writeln('style=filled;'),
-  writeln('label=<<i>install</i>>;'),
+  write('subgraph cluster_install {'),nl,
+  write('fillcolor="#eeeeee";'),nl,
+  write('style=filled;'),nl,
+  write('label=<<i>install</i>>;'),nl,
   findall(Ch,(member(D,OPC),grapher:handle(detail,solid,vee,id,D,Ch)),AllChoices1),
-  writeln('}'),
-  writeln('subgraph cluster_install_and_run {'),
-  writeln('fillcolor="#eeeeee";'),
-  writeln('style=filled;'),
-  writeln('label=<<i>install and run</i>>;'),
+  write('}'),nl,
+  write('subgraph cluster_install_and_run {'),nl,
+  write('fillcolor="#eeeeee";'),nl,
+  write('style=filled;'),nl,
+  write('label=<<i>install and run</i>>;'),nl,
   findall(Ch,(member(D,OCR),grapher:handle(detail,solid,odotvee,id,D,Ch)),AllChoices2),
-  writeln('}'),
-  writeln('subgraph cluster_run {'),
-  writeln('fillcolor="#eeeeee";'),
-  writeln('style=filled;'),
-  writeln('label=<<i>run</i>>;'),
+  write('}'),nl,
+  write('subgraph cluster_run {'),nl,
+  write('fillcolor="#eeeeee";'),nl,
+  write('style=filled;'),nl,
+  write('label=<<i>run</i>>;'),nl,
   findall(Ch,(member(D,OPR),grapher:handle(detail,solid,odot,id,D,Ch)),AllChoices3),
-  writeln('}'),
+  write('}'),nl,
   union(AllChoices1,AllChoices2,AllChoices12),
   union(AllChoices12,AllChoices3,AllChoices),
   write('}'),nl,
   nl,
+  grapher:graph_candidates(detail,AllChoices).
+
+
+%! grapher:graph_candidates(details,AllChoices)
+%
+% For a given set of dependency choices, graph the corresponding candidates.
+
+grapher:graph_candidates(detail,AllChoices) :-
+  !,
   writeln('# **************'),
   writeln('# The candidates'),
   writeln('# **************'),
   nl,
-  writeln('subgraph cluster_choices {'),
-  writeln('rank=same;'),
-  writeln('fontcolor=gray;'),
+  write('subgraph cluster_choices {'),nl,
+  write('rank=same;'),nl,
+  write('fontcolor=gray;'),nl,
   write('label=<<i>candidates</i>>;'),nl,
   write('labelloc=t;'),nl,
   write('labeljust=c'),nl,
   nl,
   grapher:choices(detail,AllChoices),
-  writeln('}').
+  write('}'),nl.
 
+
+% ---------------------
+% Graph component: root
+% ---------------------
 
 %! grapher:graph_root(Type,Repository://Id)
 %
@@ -403,25 +395,16 @@ grapher:graph_root(Type,_Repository://_Id) :-
   write('root -> \"'),write(placeholder),write('\"[minlen=0.2, headport=n, tailport=s, style=invis];'),nl,
   nl.
 
-grapher:graph_root(repository,Repository://_Id) :-
-  write('root [style=invis];'),nl,
-  write(Repository),write(' [color=red, penwidth=2, fontname=\"Helvetica-Bold\"];'),nl,
-  write('root -> \"'),write(Repository),write('\"[minlen=0.2, headport=n, tailport=s, style=invis];'),nl,
-  nl.
-
 grapher:graph_root(_Type,Repository://Id) :-
   write('root [style=invis];'),nl,
   write('root -> \"'),write(Repository://Id),write('\"[minlen=0.2, headport=n, tailport=s, style=invis];'),nl,
   nl.
 
 
-%! grapher:graph_root(Type,Repository://Id)
-%
-% For a given ebuild, identified by an Id, create the footer of the full dependency graph.
 
-grapher:graph_footer(_Type,_Repository://_Id) :-
-  write('}'),nl.
-
+% ---------------------
+% Graph component: tree
+% ---------------------
 
 %! grapher:graph_tree(Type,Repository://Id),
 %
@@ -441,7 +424,7 @@ grapher:graph_tree(Type,RootRep://RootId,Repository://Id) :-
   \+(graph_visited(Repository://Id)),!,
   grapher:graph_node(Type,RootRep://RootId,Repository://Id),
   Statement =.. [Type,DS],
-  query:search(all(Statement),Repository://Id), % todo: this does not get optimized by the compiler
+  query:search(all(Statement),Repository://Id),
   findall(Ch,(member(D,DS),grapher:handle(Type,solid,vee,Repository://Id,D,Ch)),AllChoices),
   assertz(graph_visited(Repository://Id)),
   grapher:choices(Type,AllChoices),
@@ -465,10 +448,26 @@ grapher:graph_node(Type,_://_,Repository://Id) :-
   write('\"'),write(Repository://Id),write('\" [color=red, penwidth=1, href=\"../'),write(Id),write('-'),write(Type),write('.svg\"];'),nl.
 
 
+% -----------------------
+% Graph component: footer
+% -----------------------
+
+%! grapher:graph_footer(Type,Repository://Id)
+%
+% For a given ebuild, identified by an Id, create the footer of the full dependency graph.
+
+grapher:graph_footer(_Type,_Repository://_Id) :-
+  write('}'),nl.
+
+
+% -------
+% Helpers
+% -------
+
 %! grapher:choices(Type,List)
 %
-% Given a graph type (detail or full), outputs a list of ebuilds satisfying
-% a dependency
+% Given a graph type outputs a list of ebuilds satisfying a dependency, while writing
+% dot representing the different choices in the graph type format to the output stream.
 
 grapher:choices(_,[]) :-
   !,true.
@@ -504,6 +503,10 @@ grapher:choices(Kind,[L|Rest]) :-
   grapher:choices(Kind,Rest).
 
 
+%! grapher:choice_type(Type)
+%
+% Correctly set attributes for strong and weak blockers
+
 grapher:choice_type(no) :-
   !.
 
@@ -514,129 +517,123 @@ grapher:choice_type(strong) :-
   write(' [style=dashed, color=red];').
 
 
+% ----------------------
+% Node and edge handling
+% ----------------------
+
 %! grapher:handle(+Type,+Style,+ArrowStyle,+Master,+Dependency,-Output)
 %
 % For a given graph style, create a meta representation of a dependency
 
-% detail tree graphing
-%
-% todo: refactor, this needs to be shorter
+% Common table attributes
 
-grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,no,Cat,Name,Cmpr,Ver,_,_),arrow(D,Choices)) :-
+grapher:format_table_attrs(F) :-
+  F = "BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\"".
+
+% Edge format
+
+grapher:format_edge_attrs(Master, D, Style, Arrow, Color, Weight) :-
+  format("~w:e -> ~w:w [weight=~w, ~wstyle=\"~w\",arrowhead=\"~w\"];~n",
+         [Master, D, Weight, Color, Style, Arrow]).
+
+% Package dependency html node format
+
+grapher:format_package_dep(D, Label, Type, Cat, Name, Cmpr, Ver, Color, Width) :-
+  grapher:format_table_attrs(F),
+  format("~w [label=<<TABLE ~w WIDTH=\"~w\"><TR><TD ROWSPAN=\"6\" CELLPADDING=\"30\">~w</TD></TR>
+                     <TR><TD WIDTH=\"110\">~w</TD></TR><TR><TD>~w</TD></TR><TR><TD>~w</TD></TR>
+                     <TR><TD>~w</TD></TR><TR><TD>~w</TD></TR></TABLE>>, shape=none, color=~w];~n",
+             [D, F, Width, Label, Type, Cat, Name, Cmpr, Ver, Color]).
+
+% Group html node format
+
+grapher:format_group(D, Label, Color) :-
+  grapher:format_table_attrs(F),
+  format("~w [label=<<TABLE ~w><TR><TD CELLPADDING=\"10\">~w</TD></TR></TABLE>>, shape=none, color=~w];~n",
+         [D, F, Label, Color]).
+
+
+% Detail graph - Case: Package dependency
+
+grapher:handle(detail, Style, Arrow, Master, package_dependency(_, Type, Strength, Cat, Name, Cmpr, Ver, _, _), arrow(D, Choices)) :-
   !,
-  write('subgraph '),write(' {'),nl,
-  tl_gensym(package_dependency,D),
-  write(D),write(' [label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\" WIDTH=\"220\"><TR><TD ROWSPAN=\"6\" CELLPADDING=\"30\">pack_dep</TD></TR><TR><TD WIDTH=\"110\">'),
-  write(Type),write('</TD></TR><TR><TD>'),write(Cat),write('</TD></TR><TR><TD>'),write(Name),write('</TD></TR><TR><TD>'),
-  write(Cmpr),write('</TD></TR><TR><TD>'),write(Ver),write('</TD></TR></TABLE>>, shape=none, color=blue];'),nl,
-  write('}'),nl,
-  write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl,
-  findall(R,query:search([select(name,equal,Name),select(category,equal,Cat),select(version,Cmpr,Ver)],R),Choices),
-  !, true.
+  ( Strength = no,     Label = "pack_dep",          Color = blue,   Sym = package_dependency, EdgeColor = ""
+  ; Strength = weak,   Label = "blocking (weak)",   Color = orange, Sym = weak_blocker,       EdgeColor = "color=\"orange\", "
+  ; Strength = strong, Label = "blocking (strong)", Color = red,    Sym = strong_blocker,     EdgeColor = "color=\"red\", "
+  ),
+  write("subgraph  {"), nl,
+  tl_gensym(Sym, D),
+  grapher:format_package_dep(D, Label, Type, Cat, Name, Cmpr, Ver, Color, 220),
+  write("}"), nl,
+  grapher:format_edge_attrs(Master, D, Style, Arrow, EdgeColor, 20),
+  findall(R, query:search([name(Name), category(Cat), select(version, Cmpr, Ver)], R), Choices).
 
-grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,weak,Cat,Name,Cmpr,Ver,_,_),arrow(D,Choices)) :-
+
+% Detail graph - Case: Use conditional group
+
+grapher:handle(detail, Style, Arrow, Master, use_conditional_group(Type, Use, _, Deps), Choices) :-
   !,
-  write('subgraph '),write(' {'),nl,
-  tl_gensym(weak_blocker,D),
-  write(D),write(' [label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\" WIDTH=\"220\"><TR><TD ROWSPAN=\"6\" CELLPADDING=\"30\">blocking (weak)</TD></TR><TR><TD WIDTH=\"110\">'),
-  write(Type),write('</TD></TR><TR><TD>'),write(Cat),write('</TD></TR><TR><TD>'),write(Name),write('</TD></TR><TR><TD>'),
-  write(Cmpr),write('</TD></TR><TR><TD>'),write(Ver),write('</TD></TR></TABLE>>, shape=none, color=orange];'),nl,
-  write('}'),nl,
-  write(Master),write(':e -> '),write(D),write(':w [weight=20, color="orange", style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl,
-  findall(R,query:search([select(name,equal,Name),select(category,equal,Cat),select(version,Cmpr,Ver)],R),Choices),
-  !, true.
+  grapher:format_table_attrs(F),
+  write("subgraph  {"), nl,
+  tl_gensym(use_conditional_group, D),
+  format("~w [label=<<TABLE ~w><TR><TD ROWSPAN=\"3\" CELLPADDING=\"10\">use_conditional</TD></TR>
+          <TR><TD>~w</TD></TR><TR><TD>~w</TD></TR></TABLE>>, shape=none, color=red];~n",
+         [D, F, Type, Use]),
+  findall(Ch, (member(Dep, Deps), grapher:handle(detail, dashed, vee, D, Dep, Ch)), Choices),
+  write("}"), nl,
+  grapher:format_edge_attrs(Master, D, Style, Arrow, "", 20).
 
-grapher:handle(detail,Style,Arrow,Master,package_dependency(_,Type,strong,Cat,Name,Cmpr,Ver,_,_),arrow(D,Choices)) :-
+
+% Detail graph - Case: Any_of, all_of, exactly_one_of and at_most_one_of group
+
+grapher:handle(detail, Style, Arrow, Master, Group, Choices) :-
+  Group =.. [Type, Deps],
+  member(Type, [any_of_group, all_of_group, exactly_one_of_group, at_most_one_of_group]),
   !,
-  write('subgraph '),write(' {'),nl,
-  tl_gensym(strong_blocker,D),
-  write(D),write(' [label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\" WIDTH=\"220\"><TR><TD ROWSPAN=\"6\" CELLPADDING=\"30\">blocking (strong)</TD></TR><TR><TD WIDTH=\"110\">'),
-  write(Type),write('</TD></TR><TR><TD>'),write(Cat),write('</TD></TR><TR><TD>'),write(Name),write('</TD></TR><TR><TD>'),
-  write(Cmpr),write('</TD></TR><TR><TD>'),write(Ver),write('</TD></TR></TABLE>>, shape=none, color=red];'),nl,
-  write('}'),nl,
-  write(Master),write(':e -> '),write(D),write(':w [weight=20, color="red", style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl,
-  findall(R,query:search([select(name,equal,Name),select(category,equal,Cat),select(version,Cmpr,Ver)],R),Choices),
-  !, true.
+  write("subgraph  {"), nl,
+  tl_gensym(Type, D),
+  grapher:format_group(D, Type, red),
+  (   Type = any_of_group, SubStyle = dotted, SubArrow = oinv
+  ;   Type = all_of_group, SubStyle = solid, SubArrow = inv
+  ;   Type = exactly_one_of_group, SubStyle = dotted, SubArrow = tee
+  ;   Type = at_most_one_of_group, SubStyle = dotted, SubArrow = onormal
+  ),
+  findall(Ch, (member(Dep, Deps), grapher:handle(detail, SubStyle, SubArrow, D, Dep, Ch)), Choices),
+  write("}"), nl,
+  grapher:format_edge_attrs(Master, D, Style, Arrow, "", 20).
 
-grapher:handle(detail,Style,Arrow,Master,use_conditional_group(Type,Use,_,Deps),Choices) :-
+
+% Detail graph - Case: Unknown dependency
+
+grapher:handle(detail, _, _, Master, S, []) :-
   !,
-  write('subgraph '),write(' {'),nl,
-  tl_gensym(use_conditional_group,D),
-  write(D),write(' [label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\"><TR><TD ROWSPAN=\"3\" CELLPADDING=\"10\">use_conditional</TD></TR><TR><TD>'),write(Type),write('</TD></TR><TR><TD>'),write(Use),
-  write('</TD></TR></TABLE>>, shape=none, color=red];'),nl,
-  findall(Ch,(member(Dep,Deps),grapher:handle(detail,dashed,vee,D,Dep,Ch)),Choices),
-  write('}'),nl,
-  write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl.
+  format("# *** UNKNOWN DEPENDENCY TYPE (TODO) ***~n# ~w -> ~w~n# *** END ***~n~n", [Master, S]).
 
-grapher:handle(detail,Style,Arrow,Master,any_of_group(Deps),Choices) :-
-  !,
-  write('subgraph '),write(' {'),nl,
-  tl_gensym(any_of_group,D),
-  write(D),write(' [label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\"><TR><TD CELLPADDING=\"10\">any_of_group</TD></TR></TABLE>>, shape=none, color=red];'),% nl, % nl
-  findall(Ch,(member(Dep,Deps),grapher:handle(detail,dotted,oinv,D,Dep,Ch)),Choices),
-  write('}'),nl,
-  write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl.
 
-grapher:handle(detail,Style,Arrow,Master,all_of_group(Deps),Choices) :-
-  !,
-  write('subgraph '),write(' {'),nl,
-  tl_gensym(all_of_group,D),
-  write(D),write(' [label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\"><TR><TD CELLPADDING=\"10\">all_of_group</TD></TR></TABLE>>, shape=none, color=red];'),% nl, % nl
-  findall(Ch,(member(Dep,Deps),grapher:handle(detail,solid,inv,D,Dep,Ch)),Choices),
-  write('}'),nl,
-  write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl.
+% Full graph - package dependency
 
-grapher:handle(detail,Style,Arrow,Master,exactly_one_of_group(Deps),Choices) :-
-  !,
-  write('subgraph '),write(' {'),nl,
-  tl_gensym(exactly_one_of_group,D),
-  write(D),write(' [label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\"><TR><TD CELLPADDING=\"10\">exactly_one_of_group</TD></TR></TABLE>>, shape=none, color=red];'), % nl, % nl,
-  findall(Ch,(member(Dep,Deps),grapher:handle(detail,dotted,tee,D,Dep,Ch)),Choices),
-  write('}'),nl,
-  write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl.
+grapher:handle(_, _, _, Mastercontext://Master, package_dependency(_, _, Strength, Cat, Name, Cmpr, Ver, _, _),
+  arrow(Mastercontext://Master, [Choicecontext://Choice:Strength])) :-
+  query:search([name(Name), category(Cat), select(version, Cmpr, Ver)], Choicecontext://Choice), !.
 
-grapher:handle(detail,Style,Arrow,Master,at_most_one_of_group(Deps),Choices) :-
-  !,
-  write('subgraph '),write(' {'),nl,
-  tl_gensym(at_most_one_of_group,D),
-  write(D),write(' [label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\"><TR><TD CELLPADDING=\"10\">at_most_one_of_group</TD></TR></TABLE>>, shape=none, color=red];'), %nl, % nl,
-  findall(Ch,(member(Dep,Deps),grapher:handle(detail,dotted,onormal,D,Dep,Ch)),Choices),
-  write('}'),nl,
-  write(Master),write(':e -> '),write(D),write(':w [weight=20,style="'),write(Style),write('",arrowhead="'),write(Arrow),write('"];'),nl.
 
-grapher:handle(detail,_Style,_Arrow,Master,S,[]) :-
-  !,
-  writeln('# *** BEGIN UNKNOWN DEPENDENCY TYPE (TODO) ***'),
-  write('# '),write(Master), write(' -> '), write(S),nl,
-  writeln('# *** END UNKNOWN DEPENDENCY TYPE (TODO) ***'),
-  nl.
+% Full tree - different groups
 
-% Full tree graphing
+grapher:handle(_, _, _, _, Group, []) :-
+  member(Group, [use_conditional_group(_, _, _, _),
+                 any_of_group(_),
+                 all_of_group(_),
+                 exactly_one_of_group(_),
+                 at_most_one_of_group(_)]), !.
 
-grapher:handle(_Deptype,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,no,Cat,Name,Cmpr,Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice:no])) :-
-  query:search([name(Name),category(Cat),select(version,Cmpr,Ver)],Choicecontext://Choice),
-  !, true.
+% Catch-all
 
-grapher:handle(_Deptype,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,weak,Cat,Name,Cmpr,Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice:weak])) :-
-  query:search([name(Name),category(Cat),select(version,Cmpr,Ver)],Choicecontext://Choice),
-  !, true.
+grapher:handle(_, _, _, _, _, []) :- !.
 
-grapher:handle(_Deptype,_Style,_Arrow,Mastercontext://Master,package_dependency(_,_,strong,Cat,Name,Cmpr,Ver,_,_),arrow(Mastercontext://Master,[Choicecontext://Choice:strong])) :-
-  query:search([name(Name),category(Cat),select(version,Cmpr,Ver)],Choicecontext://Choice),
-  !, true.
 
-grapher:handle(_Deptype,_Style,_Arrow,_Master,use_conditional_group(_,_Type,_Use,_Deps),[]) :- !.
-
-grapher:handle(_Deptype,_Style,_Arrow,_Master,any_of_group(_),[]) :- !.
-
-grapher:handle(_Deptype,_Style,_Arrow,_Master,all_of_group(_),[]) :- !.
-
-grapher:handle(_Deptype,_Style,_Arrow,_Master,exactly_one_of_group(_),[]) :- !.
-
-grapher:handle(_Deptype,_Style,_Arrow,_Master,at_most_one_of_group(_),[]) :- !.
-
-grapher:handle(_Deptype,_Style,_Arrow,_Master,_,[]) :- !.
-
+% -------------
+% Graph helpers
+% -------------
 
 %! grapher:tl_gensym(Atom,AtomCount)
 %
@@ -657,7 +654,9 @@ grapher:tl_gensym_reset(Atom) :-
   retractall(counter(Atom,_)).
 
 
-
+% -----------------
+% Graph file output
+% -----------------
 
 %! grapher:write_graph_file(+Directory,+Repository://Entry)
 %
@@ -698,6 +697,10 @@ grapher:write_graph_files(Directory,Repository) :-
               (grapher:write_graph_file(Directory,Repository://Entry))).
 
 
+% ------------------------------
+% Graph conversion script caller
+% ------------------------------
+
 %! grapher:produce_svg(+Directory)
 %
 % For a given directory with dot files, convert the dot files into interactive
@@ -709,6 +712,10 @@ grapher:produce_svg(Directory) :-
   message:scroll_notice(['Done running Graphviz dot.']),
   message:sc.
 
+
+% -------
+% Testers
+% -------
 
 %! grapher:test(+Repository)
 %
