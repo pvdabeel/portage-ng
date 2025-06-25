@@ -24,20 +24,29 @@ Advertise and discover services on the network using multi-cast DNS (Apple Bonjo
 
 %! advertise
 %
-% Advertises a service on mDNS
+% Advertises a service using mDNS
 
 advertise :-
-  interface:process_server(_,Port),
-  config:hostname(Service),
-  advertise(Service,Port).
+  interface:process_server(Host,Port),
+  config:bonjour_service(Service),
+  advertise(Service,Host,Port).
 
 
-%! advertise(+Service,+Port)
+%! advertise(+Host,+Port)
 %
-% Advertise a service on mDNS
+% Advertise a Host and Port using mDNS
 
-advertise(Service, Port) :-
-  format(string(Cmd),'dns-sd -R ~w _prolog._tcp local ~w',[Service,Port]),
+advertise(Host, Port) :-
+  config:bonjour_service(Service),
+  advertise(Service,Host,Port).
+
+
+%! advertise(+Service,+Host,+Port)
+%
+% Advertise a Service on Host and Port using mDNS
+
+advertise(Service, Host, Port) :-
+  format(string(Cmd),'dns-sd -R ~w ~w local ~w',[Host,Service,Port]),
   Thread = process_create(path(bash),['-c',Cmd],[stdout(null),stderr(null)]),
   thread_create(Thread,_,[detached(true)]).
 
@@ -46,50 +55,60 @@ advertise(Service, Port) :-
 % Discover
 % --------
 
-%! discover(-Services)
+%! discover(-Hosts)
 %
-% Discover services. Services is a prolog lists containing
-% list of Host and Port.
+% Discover Hosts announced using mDNS.
+% Hosts is a prolog list containing list pairs of Host and Port.
 
-discover(Services) :-
-  browse_hosts(Hosts),
-  setof([H,Port],
-        (member(H,Hosts),resolve_host(H,Port)),
-        Services),
+discover(Hosts) :-
+  config:bonjour_service(Service),
+  discover(Service,Hosts).
+
+
+%! discover(+Service,-Hosts)
+%
+% Discover Hosts providing Service, announced using mDNS.
+% Hosts is a prolog list containing list pairs of Host and Port.
+
+discover(Service,Hosts) :-
+  browse_hostnames(Service,Hostnames),
+  setof([Host,Port],
+        (member(Host,Hostnames),resolve_hostname(Service,Host,Port)),
+        Hosts),
   !.
-discover([]).
+discover(_Service,[]).
 
 
 % -------
 % Helpers
 % -------
 
-%! browse_hosts(-Hosts)
+%! browse_hostnames(-Hostnames)
 %
-% Called by discover, returns a set of hosts providing service.
+% Called by discover, returns a set of hostnames providing service.
 
-browse_hosts(Hosts) :-
-  bash_dns_sd(['-t','1','-B', '_prolog._tcp'],Lines),
-  findall(Host,(member(Line, Lines), browse_line_host(Line, Host)),Raw),
-  list_to_set(Raw, Hosts).
+browse_hostnames(Service,Hostnames) :-
+  bash_dns_sd(['-t','1','-B', Service],Lines),
+  findall(Hostname,(member(Line, Lines), browse_line_hostname(Service,Line, Hostname)),Raw),
+  list_to_set(Raw, Hostnames).
 
 
-%! browse_line_host(+Line,-Host)
+%! browse_line_hostname(+Line,-Hostname)
 %
-% Given a line of output from dns-sd, parses host information.
+% Given a line of output from dns-sd, parses hostname information.
 
-browse_line_host(Line,Host) :-
-  sub_string(Line,_,_,_,'_prolog._tcp.'),
+browse_line_hostname(Service,Line,Host) :-
+  sub_string(Line,_,_,_,Service),
   split_string(Line," \t"," \t",Parts),
   last(Parts,Host).
 
 
-%! resolve_host(+Host,-Port)
+%! resolve_hostname(+Hostname,-Port)
 %
-% Given a host, retrieves port number on which the service is running..
+% Given a hostname, retrieves port number on which the service is running.
 
-resolve_host(Host,Port) :-
-  format(string(Cmd),'dns-sd -t 1 -L ~w _prolog._tcp.',[Host]),
+resolve_hostname(Service,Hostname,Port) :-
+  format(string(Cmd),'dns-sd -t 1 -L ~w ~w',[Hostname,Service]),
   bash_lines(Cmd,Lines),
   member(Line,Lines),
   resolve_line_port(Line,Port),!.
