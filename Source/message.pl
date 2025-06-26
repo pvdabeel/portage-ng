@@ -17,87 +17,223 @@ This file contains the predicates used for pretty printing messages.
 % MESSAGE declarations
 % ********************
 
+
+% ------------
+% Declarations
+% ------------
+
+% The following predicates can be called, but depend on goal expansion
+% to expand them into low level output predicates directly manipulating
+% the output stream
+
+:- multifile user:goal_expansion/2.
+
+message:color(_).
+message:style(_).
+message:el.
+message:hc.
+message:sc.
+message:bl.
+message:cl.
+message:clean.
+message:title_reset.
+message:title(_).
+message:print(_).
+message:column(_,_).
+message:level(_).
+message:msg(_,_,_).
+message:msg(_,_).
+message:scroll_msg(_,_).
+message:failure(_).
+message:warning(_).
+message:success(_).
+message:inform(_).
+message:notice(_).
+message:debug(_).
+message:log(_).
+message:scroll(_).
+message:scroll_failure(_).
+message:scroll_warning(_).
+message:scroll_success(_).
+message:scroll_inform(_).
+message:scroll_notice(_).
+message:scroll_debug(_).
+message:scroll_log(_).
+
+
 % ---------------------
-% Colour & style tables
+% Goal expansion: Color
 % ---------------------
 
-color_code(red,          "31").
-color_code(green,        "32").
-color_code(orange,       "33").
-color_code(blue,         "34").
-color_code(magenta,      "35").
-color_code(cyan,         "36").
-color_code(lightgray,    "37").
-color_code(darkgray,     "90").
-color_code(lightred,     "91").
-color_code(lightgreen,   "92").
-color_code(lightorange,  "93").
-color_code(lightblue,    "94").
-color_code(lightmagenta, "95").
-color_code(lightcyan,    "96").
-color_code(normal,       "00").
-
-style_code(normal,       "00").
-style_code(bold,         "01").
-style_code(dim,          "02").
-style_code(italic,       "03").
-style_code(underline,    "04").
-style_code(blink,        "05").
-
-color(Name) :-
-  color_code(Name, Code),
-  format('\e[~sm', [Code]).
-
-style(Name) :-
-  style_code(Name, Code),
-  format('\e[~sm', [Code]).
+user:goal_expansion(color(red),            format("\e[31m",[])).
+user:goal_expansion(color(green),          format("\e[32m",[])).
+user:goal_expansion(color(orange),         format("\e[33m",[])).
+user:goal_expansion(color(blue),           format("\e[34m",[])).
+user:goal_expansion(color(magenta),        format("\e[35m",[])).
+user:goal_expansion(color(cyan),           format("\e[36m",[])).
+user:goal_expansion(color(lightgray),      format("\e[37m",[])).
+user:goal_expansion(color(darkgray),       format("\e[90m",[])).
+user:goal_expansion(color(lightred),       format("\e[91m",[])).
+user:goal_expansion(color(lightgreen),     format("\e[92m",[])).
+user:goal_expansion(color(lightorange),    format("\e[93m",[])).
+user:goal_expansion(color(lightblue),      format("\e[94m",[])).
+user:goal_expansion(color(lightmagenta),   format("\e[95m",[])).
+user:goal_expansion(color(lightcyan),      format("\e[96m",[])).
+user:goal_expansion(color(normal),         format("\e[00m",[])).
 
 
-% --------------
-% Cursor helpers
-% --------------
+% ---------------------
+% Goal expansion: Style
+% ---------------------
 
-el :- write('\e[K').
-hc :- write('\e[?25l').
-sc :- write('\e[?25h').
-bl :- write('\e[1G').
-cl :- write('\e[2J\e[H').
-
-
-% -------------
-% Title helpers
-% -------------
-
-title(Parts) :-
-  msg_atom(Parts, Atom),
-  format('\e]0;~s\a', [Atom]).
-
-title_reset :-
-  catch(config:name(Name), _, fail),
-  !,
-  title([Name]).
-
-title_reset.
+user:goal_expansion(style(normal),         format("\e[00m",[])).
+user:goal_expansion(style(bold),           format("\e[01m",[])).
+user:goal_expansion(style(dim),            format("\e[02m",[])).
+user:goal_expansion(style(italic),         format("\e[03m",[])).
+user:goal_expansion(style(underline),      format("\e[04m",[])).
+user:goal_expansion(style(blink),          format("\e[05m",[])).
 
 
-% ----------------
-% Printing helpers
-% ----------------
+% ----------------------
+% Goal expansion: Cursor
+% ----------------------
 
-print(Item) :-
-  msg_atom(Item, Atom),
-  write(Atom).
+user:goal_expansion(el,                    format("\e[K",[])).
+user:goal_expansion(hc,                    format("\e[?25l",[])).
+user:goal_expansion(sc,                    format("\e[?25h",[])).
+user:goal_expansion(bl,                    format("\e[1G",[])).
+user:goal_expansion(cl,                    format("\e[2J\e[H",[])).
+user:goal_expansion(clean,                 format("\e[K",[])).
 
-column(N, Msg) :-
-  format('~*| ~w', [N, Msg]).
+
+% ---------------------
+% Goal expansion: Label
+% ---------------------
+
+user:goal_expansion(label(success),
+  ( style(bold),
+    color(green),
+    format('[SUCCESS] ',[]) )).
+
+user:goal_expansion(label(warning),
+  ( style(bold),
+    color(orange),
+    format('[WARNING] ',[]) )).
+
+user:goal_expansion(label(failure),
+  ( style(bold),
+    format('[FAILURE] ',[]) )).
+
+user:goal_expansion(label(inform),
+  ( format('% ',[]) )).
+
+user:goal_expansion(label(notice),
+  ( color(darkgray),
+    format('% ',[]) )).
+
+user:goal_expansion(label(debug),
+  ( color(magenta),
+    format('[DEBUG]   ',[]) )).
+
+user:goal_expansion(label(log),
+  ( color(darkgray),
+    format('% ',[]) )).
+
+
+% ------------------------------
+% Goal expansion: Core messaging
+% ------------------------------
+
+user:goal_expansion(msg(Scroll,Level,Msg),
+  ( label(Level),
+    Prepare,
+    format(String,[]),
+    Post,
+    Continue )) :-
+  ( ( is_list(Msg)
+      -> Prepare = atomic_list_concat(Msg,String)
+      ;  Prepare = (String = Msg)  ),
+    ( Scroll == true
+      -> Post = (el,bl,flush_output)
+      ;  Post = nl ),
+    ( Level == failure
+      -> Continue = fail
+      ;  Continue = true ) ).
+
+user:goal_expansion(msg(Level,Msg),        msg(false,Level,Msg)).
+user:goal_expansion(scroll_msg(Level,Msg), msg(true,Level,Msg)).
+
+
+% -------------------------
+% Goal expansion: Shortcuts
+% -------------------------
+
+user:goal_expansion(failure(T),            msg(failure, T)).
+user:goal_expansion(warning(T),            msg(warning, T)).
+user:goal_expansion(success(T),            msg(success, T)).
+user:goal_expansion(inform(T),             msg(inform,  T)).
+user:goal_expansion(notice(T),             msg(notice,  T)).
+user:goal_expansion(debug(T),              msg(debug,   T)).
+
+user:goal_expansion(scroll(T),             scroll_msg(inform,  T)).
+user:goal_expansion(scroll_failure(T),     scroll_msg(failure, T)).
+user:goal_expansion(scroll_warning(T),     scroll_msg(warning, T)).
+user:goal_expansion(scroll_success(T),     scroll_msg(success, T)).
+user:goal_expansion(scroll_inform(T),      scroll_msg(inform,  T)).
+user:goal_expansion(scroll_notice(T),      scroll_msg(notice,  T)).
+user:goal_expansion(scroll_debug(T),       scroll_msg(debug,   T)).
+
+user:goal_expansion(log(T),                Expanded) :-
+  ( config:verbose(true)
+    -> Expanded = msg(log,T)
+    ;  Expanded = true ).
+
+user:goal_expansion(scroll_log(T),         Expanded) :-
+  ( config:verbose(true)
+    -> Expanded = scroll_msg(log,T)
+    ;  Expanded = true ).
+
+
+% ---------------------
+% Goal expansion: Title
+% ---------------------
+
+user:goal_expansion(title_reset,           format(Expanded,[])) :-
+  config:name(String),
+  format(string(Expanded),'\e]0;~s\a',
+         [String]).
+
+user:goal_expansion(title(List),           Expanded) :-
+  is_list(List),!,
+  Expanded = (atomic_list_concat(List,String),
+              format('\e]0;~s\a',[String])).
+
+user:goal_expansion(title(String),         format(Expanded,[])) :-
+  format(string(Expanded),'\e]0;~s\a',
+         [String]).
+
+
+% ------------------------
+% Goal expansion: Printing
+% ------------------------
+
+user:goal_expansion(print(Term),           Expanded) :-
+  ( atomic(Term)
+    ->  Expanded = format(Term,[])
+    ;   Expanded = write(Term) ).
+
+
+user:goal_expansion(column(N, Msg),        format('~*| ~w', [N, Msg])).
+
+
+% -------------------------
+% Runtime: Lines and colums
+% -------------------------
 
 eend(Msg) :-
   tty_size(_,W),
   Col is W - 2,
-  msg_atom(Msg, Atom),
-  format('~t~a~*|', [Atom, Col]).
-
-
+  format('~t~a~*|', [Msg, Col]).
 
 hl(Title) :-
   tty_size(_,W),
@@ -105,7 +241,6 @@ hl(Title) :-
   atomic_list_concat(['--- ',Title,' ~`', C, 't~*|\n'], Fmt),
   write('\r'),
   format(Fmt, [W]).
-
 
 hl :-
   tty_size(_,W),
@@ -115,18 +250,71 @@ hl :-
   format(Fmt, [W]).
 
 
+% ----------------
+% Runtime: Headers
+% ----------------
+
+topheader(Message) :-
+  color(cyan),
+  style(bold),
+  msg_atom(Message, Atom),
+  format('### ~s', [Atom]),
+  color(normal),
+  nl, nl.
+
+header(Message) :-
+  color(lightorange),
+  style(bold),
+  msg_atom(Message, Atom),
+  format('>>> ~s', [Atom]),
+  color(normal),
+  nl.
+
+header(Header, [First | Rest]) :-
+  color(lightorange),
+  color(bold),
+  format('>>> ~w: ~w', [Header, First]),
+  nl,
+  forall(member(Item, Rest),
+         ( format('               ~s~n', [Item]) )),
+  color(normal),
+  nl.
+
+
+% --------------
+% Header helpers
+% --------------
+
+msg_atom(List, Atom) :-
+  is_list(List),
+  !,
+  atomic_list_concat(List,Atom).
+
+msg_atom(Atomic, Atomic) :-
+  atomic(Atomic),
+  !.
+
+msg_atom(Var, Atom) :-
+  var(Var),
+  !,
+  term_to_atom(Var, Atom).
+
+msg_atom(Compound, Atom) :-
+  term_to_atom(Compound, Atom).
+
+
 % ---------------
 % Convertor: Byte
 % ---------------
 
-convert_bytes(Bytes, Atom) :-
+convert_bytes(Bytes, String) :-
   (   Bytes >= 1 << 30
   ->  Unit = 'Gb', Value is Bytes / (1 << 30)
   ;   Bytes >= 1 << 20
   ->  Unit = 'Mb', Value is Bytes / (1 << 20)
   ;   Unit = 'Kb',  Value is Bytes / (1 << 10)
   ),
-  format(atom(Atom), '~2f ~w', [Value, Unit]).
+  format(string(String), '~2f ~w', [Value, Unit]).
 
 print_bytes(live) :-
   format('live\t', []).
@@ -146,114 +334,15 @@ datetime(Datetime) :-
   format_time(atom(Datetime), '%a %d %b %Y %T', DT).
 
 
-% -----------------
-% Messaging backend
-% -----------------
-
-:- meta_predicate
-        msg(+,+),
-        msg_scroll(+,+).
-
-msg(Level, Text) :-
-  level_attrs(Level, Attrs, Prefix),
-  msg_atom(Text, Atom),
-  ansi_format(Attrs, '~s~s', [Prefix, Atom]),
-  nl,
-  ( Level == failure -> fail ; true ).
-
-msg_scroll(Level, Text) :-
-  level_attrs(Level, Attrs, Prefix),
-  msg_atom(Text, Atom),
-  ansi_format(Attrs, '~s~s', [Prefix, Atom]),
-  el,
-  bl,
-  flush_output,
-  ( Level == failure -> fail ; true ).
-
-
-level_attrs(success, [bold, fg(green)],     '[SUCCESS] ').
-level_attrs(warning, [bold, fg(yellow)],    '[WARNING] ').
-level_attrs(failure, [bold, fg(red)],       '[FAILURE] ').
-level_attrs(inform,  [],                    '% ').
-level_attrs(notice,  [faint, fg(white)],    '% ').
-level_attrs(debug,   [fg(magenta)],         '[DEBUG] ').
-level_attrs(log,     [faint, fg(white)],    '% ').
-
-failure(T)        :- msg(failure, T).
-warning(T)        :- msg(warning, T).
-success(T)        :- msg(success, T).
-inform(T)         :- msg(inform,  T).
-notice(T)         :- msg(notice,  T).
-debug(T)          :- msg(debug,   T).
-log(T)            :- ( config:verbose(true) -> msg(log,T) ; true ).
-
-scroll_failure(T) :- msg_scroll(failure, T).
-scroll_warning(T) :- msg_scroll(warning, T).
-scroll_success(T) :- msg_scroll(success, T).
-scroll_inform(T)  :- msg_scroll(inform,  T).
-scroll_notice(T)  :- msg_scroll(notice,  T).
-scroll_debug(T)   :- msg_scroll(debug,   T).
-scroll(T)         :- msg_scroll(inform,  T).
-
-
-% --------------
-% Header helpers
-% --------------
-
-%! msg_atom(+Any, -Atom) is det.
-%  Convert any printable term to a flat atom.
-msg_atom(List, Atom) :-
-  is_list(List),
-  !,
-  maplist(msg_atom, List, Atoms),
-  atomic_list_concat(Atoms, Atom).
-
-msg_atom(Atomic, Atomic) :-
-  atomic(Atomic),
-  !.
-
-msg_atom(Var, Atom) :-
-  var(Var),
-  !,
-  term_to_atom(Var, Atom).
-
-msg_atom(Compound, Atom) :-
-  term_to_atom(Compound, Atom).
-
-
-topheader(Message) :-
-  msg_atom(Message, Atom),
-  ansi_format([bold, fg(cyan)], '### ~s', [Atom]),
-  nl, nl.
-
-header(Message) :-
-  msg_atom(Message, Atom),
-  ansi_format([bold, fg(yellow)], '>>> ~s', [Atom]),
-  nl.
-
-header(Header, [First | Rest]) :-
-  ansi_format([bold, fg(yellow)], '>>> ~w: ~w', [Header, First]),
-  nl,
-  forall(member(Item, Rest),
-         ( %msg_atom(Item, ItemAtom),
-           ansi_format([bold, fg(yellow)], '               ~s~n', [Item]) )),
-  nl.
-
-
 % ------------
 % Misc helpers
 % ------------
 
 clear :- cl.
 
-clean :- el.
-
-prefix(_) :- write('>>> ').
-
-:- meta_predicate wrap(0).
 wrap(Goal) :-
   color(green),
-  write('--- Executing '),
+  format('--- Executing ',[]),
   color(normal),
   write(Goal),
   nl,
