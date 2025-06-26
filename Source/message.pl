@@ -288,7 +288,8 @@ header(Header, [First | Rest]) :-
 msg_atom(List, Atom) :-
   is_list(List),
   !,
-  atomic_list_concat(List,Atom).
+  maplist(msg_atom,List,Atoms),
+  atomic_list_concat(Atoms,Atom).
 
 msg_atom(Atomic, Atomic) :-
   atomic(Atomic),
