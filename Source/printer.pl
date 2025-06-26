@@ -1374,7 +1374,7 @@ printer:write_info_file(Directory,Repository://Entry) :-
    set_stream(current_output,tty(true)), % otherwise we lose color
    printer:print_entry(Repository://Entry)
    -> told
-   ;  (told,with_mutextmutex,message:warning([Repository://Entry,' ',info]))).
+   ;  (told,with_mutex(mutex,message:warning([Repository://Entry,' ',info])))).
 
 
 %! printer:write_index_files(+Directory,+Repository)
