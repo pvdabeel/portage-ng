@@ -536,3 +536,14 @@ config:llm_endpoint(llama,   'https://api.llama.com/v1/chat/completions').
 config:llm_endpoint(ollama,  'http://localhost:11434/v1/chat/completions').
 
 
+% ---------
+% Debugging
+% ---------
+
+%! config:q_enabled(?Bool)
+%
+% The Q oracle caches proofs and plans. This is useful when you are working on
+% the printer or the builder, and don't want to wait for the prover or planner
+% to reproduce the same proof or plan over and over again.
+
+config:q_enabled(false).

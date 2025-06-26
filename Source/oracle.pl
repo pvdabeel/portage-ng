@@ -9,12 +9,14 @@
 
 
 /** <module> ORACLE
-The oracle is essentially a mechanism to store answers to complex questions.
+The oracle is a caching mechanism for proofs and plans.
+Allows to cache complex proofs and plans when debugging printer or builder.
 */
 
 :- module(oracle, [with_q/1]).
 
 :- dynamic(q:knows/1).
+
 
 % *******************
 % ORACLE declarations
