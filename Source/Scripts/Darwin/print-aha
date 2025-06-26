@@ -20,13 +20,13 @@ if [ -f "${1}/.lastprint" ]; then
   # turn ascii colored text files into html 
 
   find "${1}" -iname '*.merge' -mnewer "${1}/.lastprint" \
-  | parallel --no-notice --bar --progress --eta \
+  | parallel --no-notice --bar --jobs 200% \
       'aha -s -c ../.proof.css -t {} -f {} > {.}-merge.html'
   find "${1}" -iname '*.fetchonly' -mnewer "${1}/.lastprint" \
-  | parallel --no-notice --bar --progress --eta \
+  | parallel --no-notice --bar --jobs 200% \
       'aha -s -c ../.proof.css -t {} -f {} > {.}-fetchonly.html'
   find "${1}" -iname '*.info' -mnewer "${1}/.lastprint" \
-  | parallel --no-notice --bar --progress --eta \
+  | parallel --no-notice --bar --jobs 200% \
       'aha -s -c ../.proof.css -t {} -f {} > {.}-info.html'
 
   # fixup html
@@ -37,15 +37,15 @@ if [ -f "${1}/.lastprint" ]; then
   # embed html into existing svg templates
 
   find "${1}" -iname '*-merge.svg' -mnewer "${1}/.lastprint" \
-  | parallel -q --no-notice --bar --progress --eta \
+  | parallel -q --no-notice --bar --jobs 200% \
       modify_svg '{}' '{/.}'
 
   find "${1}" -iname '*-fetchonly.svg' -mnewer "${1}/.lastprint" \
-  | parallel -q --no-notice --bar --progress --eta \
+  | parallel -q --no-notice --bar --jobs 200% \
       modify_svg '{}' '{/.}'
   
   find "${1}" -iname '*-info.svg' -mnewer "${1}/.lastprint" \
-  | parallel -q --no-notice --bar --progress --eta \
+  | parallel -q --no-notice --bar --jobs 200% \
       modify_svg '{}' '{/.}'
 
 else 
@@ -53,13 +53,13 @@ else
   # turn ascii colored text files into html
 
   find "${1}" -iname '*.merge' \
-  | parallel --no-notice --bar --progress --eta \
+  | parallel --no-notice --bar --jobs 200% \
       'aha -s -c ../.proof.css -t {} -f {} > {.}-merge.html'
   find "${1}" -iname '*.fetchonly' \
-  | parallel --no-notice --bar --progress --eta \
+  | parallel --no-notice --bar --jobs 200% \
       'aha -s -c ../.proof.css -t {} -f {} > {.}-fetchonly.html'
   find "${1}" -iname '*.info' \
-  | parallel --no-notice --bar --progress --eta \
+  | parallel --no-notice --bar --jobs 200% \
       'aha -s -c ../.proof.css -t {} -f {} > {.}-info.html'
 
   # fixup html
@@ -70,15 +70,15 @@ else
   # embed html into existing svg templates
 
   find "${1}" -iname '*-merge.svg' \
-  | parallel -q --no-notice --bar --progress --eta \
+  | parallel -q --no-notice --bar --jobs 200% \
       modify_svg '{}' '{/.}'
 
   find "${1}" -iname '*-fetchonly.svg' \
-  | parallel -q --no-notice --bar --progress --eta \
+  | parallel -q --no-notice --bar --jobs 200% \
       modify_svg '{}' '{/.}'
 
   find "${1}" -iname '*-info.svg' \
-  | parallel -q --no-notice --bar --progress --eta \
+  | parallel -q --no-notice --bar --jobs 200% \
       modify_svg '{}' '{/.}'
 
 fi

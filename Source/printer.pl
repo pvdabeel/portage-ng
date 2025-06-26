@@ -1394,8 +1394,9 @@ printer:write_index_files(Directory,Repository) :-
 
   tester:test(parallel_verbose,
               'Writing index files',
-              Repository://Category/Name,
-              cache:package(Repository,Category,Name),
+              Repository://CategoryName,
+              (cache:package(Repository,Category,Name),
+               atomic_list_concat([Category,'/',Name],CategoryName)),
               printer:write_package_index_file(Directory,Repository,Category,Name)).
 
 
