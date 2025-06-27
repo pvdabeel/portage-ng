@@ -81,6 +81,7 @@ load_client_modules :-
    ensure_loaded(library('http/http_digest')),
    ensure_loaded(library('pengines')),
 
+   ensure_loaded(portage('Source/stubs.pl')),
    ensure_loaded(portage('Source/knowledgebase.pl')),
    ensure_loaded(portage('Source/ebuild.pl')),
    ensure_loaded(portage('Source/printer.pl')),
@@ -96,6 +97,7 @@ load_standalone_modules :-
    ensure_loaded(library('apply_macros')),
    ensure_loaded(library('socket')),
 
+   ensure_loaded(portage('Source/stubs.pl')),
    ensure_loaded(portage('Source/context.pl')),
    ensure_loaded(portage('Source/instances.pl')),
    ensure_loaded(portage('Source/cache.pl')),
