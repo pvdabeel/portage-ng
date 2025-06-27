@@ -24,8 +24,7 @@ This module is reponsible for tracking installed packages on the system.
 % Retrieves installed packages on the system (cached)
 
 os:installed_pkg(Repository://Entry) :-
-  cache:entry_metadata(Repository,Entry,installed,true).
-  %query:execute(installed(Repository://Entry)).
+  query:search(installed(true),Repository://Entry).
 
 os:installed_pkgs(L) :-
   findall(R://E,os:installed_pkg(R://E),L).
