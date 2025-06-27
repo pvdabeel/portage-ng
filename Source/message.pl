@@ -225,6 +225,76 @@ user:goal_expansion(print(Term),           Expanded) :-
 
 user:goal_expansion(column(N, Msg),        format('~*| ~w', [N, Msg])).
 
+% ------------------
+% Runtime: Gradients
+% ------------------
+
+% --- Color definitions ---
+
+message:gradient_start_color(R, G, B) :- R = 120,  G = 255,  B = 255.
+message:gradient_end_color(R, G, B)   :- R = 60,   G = 255,  B = 40.
+
+
+% --- Predicate to print a string with a gradient ---
+
+message:print_gradient(Text) :-
+  string_chars(Text, Chars),
+  length(Chars, Length),
+  (  Length > 0
+  -> message:gradient_print_chars(Chars, 0, Length)
+  ;  true
+  ).
+
+
+% --- Helper predicate to iterate through characters ---
+
+message:gradient_print_chars([], _, _).
+message:gradient_print_chars([Char|Chars], Index, Length) :-
+
+  % Calculate interpolated RGB color
+  message:gradient_interpolate_color(Index, Length, R, G, B),
+
+  % Convert RGB to the nearest 8-bit color code
+  message:gradient_rgb_to_8bit(R, G, B, ColorCode),
+
+  % Print the character with the 8-bit color
+  ansi_format([fg8(ColorCode)], '~s', [Char]),
+
+  % Process the rest of the string
+  NextIndex is Index + 1,
+  message:gradient_print_chars(Chars, NextIndex, Length).
+
+
+% --- Color interpolation logic ---
+
+message:gradient_interpolate_color(Index, Length, R, G, B) :-
+    message:gradient_start_color(R1, G1, B1),
+    message:gradient_end_color(R2, G2, B2),
+    Ratio is Index / max(1, Length - 1),
+    R is round(R1 + (R2 - R1) * Ratio),
+    G is round(G1 + (G2 - G1) * Ratio),
+    B is round(B1 + (B2 - B1) * Ratio).
+
+
+% --- RGB to 8-bit (256 color) conversion ---
+
+message:gradient_rgb_to_8bit(R, G, B, Code) :-
+
+  % Scale RGB values from 0-255 to 0-5
+  R_scaled is round(R / 255 * 5),
+  G_scaled is round(G / 255 * 5),
+  B_scaled is round(B / 255 * 5),
+
+  % Calculate the color code in the 6x6x6 cube
+  Code is 16 + (36 * R_scaled) + (6 * G_scaled) + B_scaled.
+
+
+% --- Main entry point for execution ---
+
+message:logo(List) :-
+  atomic_list_concat(List,String),
+  message:print_gradient(String),nl.
+
 
 % -------------------------
 % Runtime: Lines and colums
@@ -276,7 +346,7 @@ header(Header, [First | Rest]) :-
   format('>>> ~w: ~w', [Header, First]),
   nl,
   forall(member(Item, Rest),
-         ( format('               ~s~n', [Item]) )),
+         ( msg_atom(Item,String), format('               ~s~n', [String]) )),
   color(normal),
   nl.
 
