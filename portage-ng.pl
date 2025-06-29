@@ -181,7 +181,7 @@ load_llm_modules :-
 % The instances have several public/protected/private methods available. For
 % example: you can sync the remote repository to a local repository, retrieve
 % metadata (like releases available) from the repository, query the metadata
-% available oin this repository)
+% available in this repository)
 %
 % @see Source/context extends Prolog with a declarative OO programming paradigm
 % @see Source/repository defines the repository class
