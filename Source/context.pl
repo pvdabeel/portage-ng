@@ -137,8 +137,9 @@ Examples:
                      op(600, xfx, '<-'),
                      op(600, xfx, '<='),
                      op(600, xfx, '<+'),
-		     op(600, xfx, '?'),
-                     op(602, xfx, '://'),
+                     op(601, xfx, ':'),
+		     op(602, xfx, '?'),
+                     op(603, xfx, '://'),
                      op(1200, xfx, '::-')
                     ]).
 
@@ -200,8 +201,9 @@ Examples:
 :- op(600, xfx, '<-').
 :- op(600, xfx, '<=').
 :- op(600, xfx, '<+').
-:- op(600, xfx, '?').
-%:- op(602, xfx, '://').
+:- op(601, xfx, ':').
+:- op(602, xfx, '?').
+:- op(603, xfx, '://').
 :- op(1200, xfx, '::-').
 
 
@@ -644,7 +646,8 @@ context:gen_check_access(_Property, Context, _Head, Body, Code) :-
 % Assert predicate clause
 
 context:assert_predicate_clause(instance, Context, Head, Body) :-
-  assertz(Context:(Head :- Body)).
+  expand_goal(Body,ExpandedBody),
+  assertz(Context:(Head :- ExpandedBody)).
 
 context:assert_predicate_clause(class, Context, Head, Body) :-
   assertz(Context:(Head ::- Body)).
