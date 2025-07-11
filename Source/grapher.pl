@@ -146,6 +146,22 @@ grapher:graph_legend(Type,Repository://Id) :-
   config:graph_proof_type(ProofList),
   length(DepList,DepLen),
   length(ProofList,ProofLen),
+  grapher:graph_legend_header(DepLen,ProofLen),
+  grapher:graph_legend_navigation(Type,Repository://Id),
+  grapher:graph_legend_space,
+  grapher:graph_legend_types(Type,DepList,Repository://Id),
+  grapher:graph_legend_space,
+  grapher:graph_legend_version(Type,Repository://Id),
+  grapher:graph_legend_space,
+  grapher:graph_legend_proof(Type,ProofList,Repository://Id),
+  grapher:graph_legend_footer.
+
+
+%! grapher:graph_legend_header(Deplen,Prooflen)
+% 
+% Create the header of the legend.
+
+grapher:graph_legend_header(Deplen,Prooflen) :-
   write('graph [labelloc=t, labeljust=l, fontcolor=blue, fontname=Helvetica, fontsize=10, label='),
   write('<<TABLE BORDER=\'0\' CELLBORDER=\'1\' CELLSPACING=\'0\' CELLPADDING=\'6\'><TR>'),
   write('<TD COLSPAN=\'3\'><FONT COLOR=\'black\'><B>navigation</B></FONT></TD>'),
@@ -156,13 +172,20 @@ grapher:graph_legend(Type,Repository://Id) :-
   write('<TD BORDER=\'0\' WIDTH=\'30\'></TD>'),
   write('<TD COLSPAN=\''),write(ProofLen),write('\'><FONT COLOR=\'black\'><B>command line</B></FONT></TD>'),
   write('</TR><TR>'),
-  grapher:graph_legend_navigation(Type,Repository://Id),
-  write('<TD BORDER=\'0\'></TD>'),
-  grapher:graph_legend_types(Type,DepList,Repository://Id),
-  write('<TD BORDER=\'0\'></TD>'),
-  grapher:graph_legend_version(Type,Repository://Id),
-  write('<TD BORDER=\'0\'></TD>'),
-  grapher:graph_legend_proof(Type,ProofList,Repository://Id),
+
+%! grapher:graph_legend_space
+% 
+% Create a space in the legend.
+
+grapher:graph_legend_space :- 
+  write('<TD BORDER=\'0\'></TD>').
+
+
+%! grapher:graph_legend_footer
+% 
+% Create the footer of the legend.
+
+grapher:graph_legend_footer :- 
   write('</TR></TABLE>>];'),nl,
   nl.
 
