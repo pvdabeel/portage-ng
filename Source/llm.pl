@@ -46,9 +46,9 @@ LLM service specific code can be found in the files inside the 'Llm' subdirector
 */
 
 
-% ****************
-% LLM declarations
-% ****************
+% =============================================================================
+%  LLM declarations
+% =============================================================================
 
 :- module(llm, [get_input/1]).
 

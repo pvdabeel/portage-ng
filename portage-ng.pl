@@ -26,19 +26,26 @@ swipl
   -O                -> turns on Prolog performance optimizations
   --stack_limit=32G -> if you want to prove the all packages in the portage tree
                        you will need 32G stack space. Only needed in standalone
-		       and server mode. Client mode works fine with default.
+		                  and server mode. Client mode works fine with default.
   --
   -f /Users/pvdabeel/Desktop/Prolog/portage-ng.pl  -> load the main file
   -p portage=/Users/pvdabeel/Desktop/Prolog        -> set application home
-  -g main					   -> execute main
+  -g main					                                 -> execute main
   --
 */
 
 
-% **********
-% PORTAGE-NG
-% **********
+% =============================================================================
+%  PORTAGE-NG
+% =============================================================================
 
+% -----------------------------------------------------------------------------
+%  Module loading
+% -----------------------------------------------------------------------------
+
+%! load_common_modules
+%
+% Loads the common modules.
 
 load_common_modules :-
 
@@ -70,6 +77,10 @@ load_common_modules :-
    message:log('Loaded common modules...').
 
 
+%! load_client_modules
+%
+% Loads the client modules.
+
 load_client_modules :-
 
    ensure_loaded(library('socket')),
@@ -91,6 +102,10 @@ load_client_modules :-
    message:log('Loaded client modules...').
 
 
+%! load_standalone_modules
+%
+% Loads the standalone modules.
+
 load_standalone_modules :-
 
    ensure_loaded(library('aggregate')),
@@ -99,7 +114,6 @@ load_standalone_modules :-
 
    ensure_loaded(portage('Source/stubs.pl')),
    ensure_loaded(portage('Source/context.pl')),
-   ensure_loaded(portage('Source/instances.pl')),
    ensure_loaded(portage('Source/cache.pl')),
    ensure_loaded(portage('Source/repository.pl')),
    ensure_loaded(portage('Source/knowledgebase.pl')),
@@ -130,6 +144,10 @@ load_standalone_modules :-
    message:log('Loaded standalone modules...').
 
 
+%! load_server_modules
+%
+% Loads the server modules.
+
 load_server_modules :-
 
    ensure_loaded(library('http/http_server')),
@@ -145,6 +163,10 @@ load_server_modules :-
 
    message:log('Loaded server modules...').
 
+
+%! load_llm_modules
+%
+% Loads the LLM modules.
 
 load_llm_modules :-
 
@@ -163,6 +185,10 @@ load_llm_modules :-
 
    message:log('Loaded Generative AI modules...').
 
+
+% -----------------------------------------------------------------------------
+%  Main predicate
+% -----------------------------------------------------------------------------
 
 %! main(+Mode).
 %

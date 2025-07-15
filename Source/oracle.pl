@@ -18,9 +18,9 @@ Allows to cache complex proofs and plans when debugging printer or builder.
 :- dynamic(q:knows/1).
 
 
-% *******************
-% ORACLE declarations
-% *******************
+% -----------------------------------------------------------------------------
+%  ORACLE declarations
+% -----------------------------------------------------------------------------
 
 with_q(Predicate) :-
   Predicate.

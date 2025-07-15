@@ -22,9 +22,9 @@ The preferences module contains build specific preferences
 :- dynamic preference:local_flag/1.
 
 
-% ***********************
-% PREFERENCE declarations
-% ***********************
+% =============================================================================
+%  PREFERENCE declarations
+% =============================================================================
 
 %! preference:env_cflags(?Cflags)
 %
@@ -404,13 +404,13 @@ preference:masked(portage://'sys-apps/busybox-1.36.1-r3').    % blocks static wh
 
 % circular, with build with use dep, different slot
 preference:masked(portage://'dev-vcs/mercurial-9999').	      % bdepend on itself, added by eclass, with build_with_use dep (curl)
-preference:masked(portage://'dev-vcs/git-9999-r3').	      % bdepend on itself, added by eclass, with build_with_use dep (curl)
-preference:masked(portage://'dev-vcs/git-9999-r2').	      % bdepend on itself, added by eclass, with build_with_use dep (curl)
-preference:masked(portage://'dev-vcs/git-9999-r1').	      % bdepend on itself, added by eclass, with build_with_use dep (curl)
-preference:masked(portage://'dev-vcs/git-9999').	      % bdepend on itself, added by eclass, with build_with_use dep (curl)
+preference:masked(portage://'dev-vcs/git-9999-r3').	          % bdepend on itself, added by eclass, with build_with_use dep (curl)
+preference:masked(portage://'dev-vcs/git-9999-r2').	          % bdepend on itself, added by eclass, with build_with_use dep (curl)
+preference:masked(portage://'dev-vcs/git-9999-r1').	          % bdepend on itself, added by eclass, with build_with_use dep (curl)
+preference:masked(portage://'dev-vcs/git-9999').	            % bdepend on itself, added by eclass, with build_with_use dep (curl)
 
 % to be investigated
-preference:masked(portage://'net-misc/curl-9999').	      % to be investigated
+preference:masked(portage://'net-misc/curl-9999').	          % to be investigated
 
 
 %! preference:set(?Name,?List)

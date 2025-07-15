@@ -14,9 +14,9 @@ This module implements a few tests
 
 :- module(test, []).
 
-% *****************
-% TEST declarations
-% *****************
+% =============================================================================
+%  TEST declarations
+% =============================================================================
 
 %! test:cases(?List)
 %
@@ -73,9 +73,26 @@ test:run(cases) :-
   test:cases(Cases),
   forall(member(Case,Cases),
          (
-          (prover:prove_lists(Case,[],Proof,[],Model,[],_Constraints),
-           planner:plan(Proof,[],[],Plan),
-           printer:print([Case],Model,Proof,Plan));
+          (prover:prove(Case,t,Proof,t,Model,t,Constraints,t,Triggers),
+           planner:plan(Proof,Triggers,t,Plan),
+           printer:print([Case],Model,Proof,Plan),
+	   message:color(cyan),
+           writeln('Proof:'),
+           message:color(darkgray),forall(gen_assoc(Key,Proof,Value),(write(Key),write(' - '),write(Value),nl)),nl,
+           message:color(cyan),
+           writeln('Model:'),
+           message:color(darkgray),forall(gen_assoc(Key,Model,Value),(write(Key),write(' - '),write(Value),nl)),nl,
+           message:color(cyan),
+           writeln('Constraints:'),
+           message:color(darkgray),forall(gen_assoc(Key,Constraints,Value),(write(Key),write(' - '),write(Value),nl)),nl,
+           message:color(cyan),
+           writeln('Triggers:'),
+           message:color(darkgray),forall(gen_assoc(Key,Triggers,Value),(write(Key),write(' - '),write(Value),nl)),nl,
+           message:color(cyan),
+           writeln('Plan:'),
+           message:color(darkgray),forall(member(Step,Plan),writeln(Step)),nl,nl,
+           message:color(normal))
+ ;
           (message:color(red),
            message:style(bold),
            message:print('false'),nl,

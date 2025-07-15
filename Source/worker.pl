@@ -15,9 +15,9 @@ printing to the printer
 
 :- module(worker, []).
 
-% *******************
-% WORKER declarations
-% *******************
+% =============================================================================
+%  WORKER declarations
+% =============================================================================
 
 worker:master :-
   message_queue_create('worker:jobqueue'),

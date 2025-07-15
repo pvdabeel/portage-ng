@@ -19,9 +19,13 @@ Output:
 
 :- module(tester,[]).
 
-% *******************
-% TESTER declarations
-% *******************
+% =============================================================================
+%  TESTER declarations
+% =============================================================================
+
+% -----------------------------------------------------------------------------
+%  Sequential testing
+% -----------------------------------------------------------------------------
 
 tester:test(Style,Name,Repository://Item,Generator,Test) :-
   !,
@@ -50,6 +54,10 @@ tester:test(single_verbose,Name,Repository://Item,Generator,Test,Report,Scroll) 
   message:title_reset,!,
   message:scroll_notice([Name,' ',S,' ',Repository,' entries took ',Min,'m ',Sec,'s. (single thread)']).
 
+
+% -----------------------------------------------------------------------------
+%  Parallel testing
+% -----------------------------------------------------------------------------
 
 tester:test(parallel_verbose,Name,Repository://Item,Generator,Test,Report,Scroll) :-
   stats:times(Generator,S),

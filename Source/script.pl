@@ -14,9 +14,9 @@ This file declares a predicate to execute a script inside the scripts directory
 
 :- module(script,[]).
 
-% *******************
-% SCRIPT declarations
-% *******************
+% =============================================================================
+%  SCRIPT declarations
+% =============================================================================
 
 
 %! script:exec(+Name,+Args,+Env,-Out)

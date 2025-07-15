@@ -8,9 +8,9 @@
 */
 
 
-% ********************
-% SANDBOX declarations
-% ********************
+% =============================================================================
+%  SANDBOX declarations
+% =============================================================================
 
 sandbox:safe_primitive(config:certificate(_,_)).
 sandbox:safe_primitive(config:certificate(_,_,_)).
@@ -47,7 +47,7 @@ sandbox:safe_primitive(query:search(_,_)).
 sandbox:safe_primitive(query:apply_filters(_,_)).
 pandbox:safe_primitive(query:apply_filter(_,_)).
 
-sandbox:safe_primitive(prover:prove(_,_,_,_,_,_,_)).
+sandbox:safe_primitive(prover:prove(_,_,_,_,_,_,_,_,_)).
 sandbox:safe_primitive(prover:proven(_,_)).
 sandbox:safe_primitive(prover:assumed_proven(_,_)).
 sandbox:safe_primitive(prover:proving(_,_)).
@@ -59,8 +59,6 @@ sandbox:safe_primitive(prover:unify_constraints(_,_,_)).
 
 sandbox:safe_primitive(rules:rule(_,_)).
 
-sandbox:safe_primitive(planner:zerorules(_,_,_,_,_)).
-sandbox:safe_primitive(planner:is_zero(_,_)).
 sandbox:safe_primitive(planner:plan(_,_,_,_)).
 
 sandbox:safe_primitive(message:title(_)).
@@ -83,7 +81,6 @@ sandbox:safe_primitive(message:topheader(_)).
 sandbox:safe_primitive(message:header(_)).
 sandbox:safe_primitive(message:convert_bytes(_,_)).
 sandbox:safe_primitive(message:print_bytes(_)).
-sandbox:safe_primitive(message:prefix(_)).
 
 sandbox:safe_primitive(preference:use(_)).
 sandbox:safe_primitive(preference:accept_keywords(_)).

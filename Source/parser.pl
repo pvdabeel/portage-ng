@@ -22,10 +22,9 @@ Output: A nested list representing the result of parsing each line in the input.
 
 :- module(parser, []).
 
-% *******************
-% PARSER declarations
-% *******************
-
+% =============================================================================
+%  PARSER declarations
+% =============================================================================
 
 %! parser:invoke(+Type, +Repository://+Entry, +Contents, -Result)
 %

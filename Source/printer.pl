@@ -14,14 +14,13 @@ The Printer takes a plan from the Planner and pretty prints it.
 
 :- module(printer, []).
 
-% ********************
-% PRINTER declarations
-% ********************
+% =============================================================================
+%  PRINTER declarations
+% =============================================================================
 
-
-% --------------
-% INDEX printing
-% --------------
+% -----------------------------------------------------------------------------
+%  INDEX printing
+% -----------------------------------------------------------------------------
 
 %! printer:print_index(Generator)
 %
@@ -90,9 +89,9 @@ printer:print_index_element(package,[E,V]) :-
   nl.
 
 
-% --------------------
-% Ebuild INFO printing
-% --------------------
+% -----------------------------------------------------------------------------
+%  Ebuild INFO printing
+% -----------------------------------------------------------------------------
 
 %! printer:print_entry(Repository://Entry)
 %
@@ -396,9 +395,9 @@ printer:print_slot_restriction([slot(Slot),subslot(Subslot),equal]) :-
   message:color(normal).
 
 
-% -------------
-% Plan printing
-% -------------
+% -----------------------------------------------------------------------------
+%  Plan printing
+% -----------------------------------------------------------------------------
 
 %! printer:printable_element(+Literal)
 %
@@ -433,15 +432,15 @@ printer:element_weight(rule(assumed(_),_),                              0) :- !.
 printer:element_weight(rule(uri(_),_),                                  0) :- !. % provide
 printer:element_weight(rule(uri(_,_,_),_),                              1) :- !. % fetch
 printer:element_weight(rule(package_dependency(_,_,_,_,_,_,_,_,_),_),   1) :- !. % confirm
-printer:element_weight(rule(_Repository://_Entry:verify:_,_),           2) :- !. % verify
-printer:element_weight(rule(_Repository://_Entry:run:_,_),              3) :- !. % run
-printer:element_weight(rule(_Repository://_Entry:download:_,_),         4) :- !. % download
-printer:element_weight(rule(_Repository://_Entry:fetchonly:_,_),        5) :- !. % fetchonly
-printer:element_weight(rule(_Repository://_Entry:install:_,_),          5) :- !. % install
-printer:element_weight(rule(_Repository://_Entry:reinstall:_,_),        6) :- !. % reinstall
-printer:element_weight(rule(_Repository://_Entry:uninstall:_,_),        6) :- !. % uninstall
-printer:element_weight(rule(_Repository://_Entry:update:_,_),           6) :- !. % update
-printer:element_weight(rule(_Repository://_Entry:upgrade:_,_),          6) :- !. % upgrade
+printer:element_weight(rule(_Repository://_Entry:verify?_,_),           2) :- !. % verify
+printer:element_weight(rule(_Repository://_Entry:run?_,_),              3) :- !. % run
+printer:element_weight(rule(_Repository://_Entry:download?_,_),         4) :- !. % download
+printer:element_weight(rule(_Repository://_Entry:fetchonly?_,_),        5) :- !. % fetchonly
+printer:element_weight(rule(_Repository://_Entry:install?_,_),          5) :- !. % install
+printer:element_weight(rule(_Repository://_Entry:reinstall?_,_),        6) :- !. % reinstall
+printer:element_weight(rule(_Repository://_Entry:uninstall?_,_),        6) :- !. % uninstall
+printer:element_weight(rule(_Repository://_Entry:update?_,_),           6) :- !. % update
+printer:element_weight(rule(_Repository://_Entry:upgrade?_,_),          6) :- !. % upgrade
 printer:element_weight(_,                                               7) :- !. % everything else
 
 
@@ -1091,43 +1090,29 @@ printer:print_header(Target) :-
   nl.
 
 
-%! printer:print_debug(+Model,+Proof,+Plan)
+%! printer:print_body(+Target,+Plan,+Call,-Steps)
 %
-% Prints debug info for a given Model, Proof and Plan
-
-printer:print_debug(_Model,_Proof,Plan) :-
-  message:color(darkgray),
-  % message:inform(['Model : ',Model]),nl,
-  % message:inform(['Proof : ',Proof]),nl,
-  forall(member(X,Plan),(write(' -> '),writeln(X))),nl,
-  message:color(normal).
+% Prints the body for a given plan.
+printer:print_body(Target, Plan, Call, Steps) :-
+    printer:print_steps_in_plan(Target, Plan, Call, 0, Steps).
 
 
-%! printer:print_body(+Plan,+Model,+Call,-Steps)
+%! printer:print_steps_in_plan(+Target,+Plan,+Call,+Count,-NewCount)
 %
-% Prints the body for a given plan and model, returns the number of printed steps
+% Print the steps in a plan.
 
-printer:print_body(Target,Plan,Call,Steps) :-
-  printer:print_steps_in_plan(Target,Plan,Call,0,Steps).
+printer:print_steps_in_plan(_, [], _, Count, Count) :- !.
 
-
-%! printer:print_steps(+Target,+Plan,+Call,+Count,-NewCount)
-%
-% Print the steps in a plan
-
-printer:print_steps_in_plan(_,[],_,Count,Count) :- !.
-
-printer:print_steps_in_plan(Target,[Step|Rest],Call,Count,CountFinal) :-
-  predsort(printer:sort_by_weight,Step,SortedStep),
-  printer:print_first_in_step(Target,SortedStep,Count,CountNew),
-  call(Call,SortedStep),!,
-  printer:print_steps_in_plan(Target,Rest,Call,CountNew,CountFinal).
+printer:print_steps_in_plan(Target, [Step|Rest], Call, Count, CountFinal) :-
+    predsort(printer:sort_by_weight, Step, SortedRules),
+    printer:print_first_in_step(Target, SortedRules, Count, CountNew),
+    call(Call, SortedRules), !,
+    printer:print_steps_in_plan(Target, Rest, Call, CountNew, CountFinal).
 
 
-%! printer:print_first_in_step(+Target,+Step,+Call,+Count,-NewCount)
+%! printer:print_first_in_step(+Target,+Step,+Count,-NewCount)
 %
 % Print a step in a plan
-
 printer:print_first_in_step(_,[],Count,Count) :- !.
 
 printer:print_first_in_step(Target,[Rule|Rest],Count,NewCount) :-
@@ -1146,7 +1131,6 @@ printer:print_first_in_step(Target,[_|Rest],Count,NewCount) :-
 %! printer:print_next_in_step(+Target,+Step)
 %
 % Print a step in a plan
-
 printer:print_next_in_step(_,[]) :- nl,nl,!.
 
 printer:print_next_in_step(Target,[Rule|Rest]) :-
@@ -1162,115 +1146,149 @@ printer:print_next_in_step(Target,[_|Rest]) :-
   printer:print_next_in_step(Target,Rest).
 
 
-%! printer:print_footer(+Plan)
-%
-% Print the footer for a given plan
-% print_footer/3 - Optimized version with streamlined string handling
-
-printer:print_footer(_Plan, Model, PrintedSteps) :-
-  footer_stats(Model, S),
-  pluralize(S.actions, action, actions, TotalStr),
-  pluralize(S.downloads, download, downloads, DStr),
-  pluralize(S.installs, install, installs, IStr),
-  pluralize(S.reinstalls, reinstall, reinstalls, RIStr),
-  pluralize(S.runs, run, runs, RStr),
-  pluralize(PrintedSteps, step, steps, PStr),
+%! printer:print_footer(+Plan, +ModelAVL, +PrintedSteps)
+printer:print_footer(_Plan, ModelAVL, PrintedSteps) :-
+  footer_stats(ModelAVL, S),
+  printer:pluralize(S.actions, action, actions, TotalStr),
+  printer:pluralize(S.downloads, download, downloads, DStr),
+  printer:pluralize(S.installs, install, installs, IStr),
+  printer:pluralize(S.reinstalls, reinstall, reinstalls, RIStr),
+  printer:pluralize(S.runs, run, runs, RStr),
+  printer:pluralize(PrintedSteps, step, steps, PStr),
   format('Total: ~d ~w (~d ~w, ~d ~w, ~d ~w, ~d ~w), grouped into ~d ~w.~n',
          [S.actions, TotalStr, S.downloads, DStr, S.installs, IStr, S.reinstalls, RIStr, S.runs, RStr, PrintedSteps, PStr]),
   message:convert_bytes(S.total_dl, BytesStr),
   format('~7|~w to be downloaded.~n~n', [BytesStr]).
 
-% pluralize/4 - Helper to handle singular/plural forms
-pluralize(1, Singular, _, Singular) :- !.
-pluralize(_, _, Plural, Plural).
 
-% footer_stats/2 - Uses foldl/4 with update_stats/3
-footer_stats(Model, Stats) :-
-  foldl(printer:update_stats, Model,
-        stats{ass:0, con:0, naf:0, actions:0, fetches:0,
-              downloads:0, runs:0, installs:0, reinstalls:0, total_dl:0},
-        Stats).
-
-% update_stats/3 - Increments actions for downloads, installs, and runs
-printer:update_stats(assumed(_), S0, S) :-
-  S = S0.put(ass, S0.ass+1).
-
-printer:update_stats(constraint(_), S0, S) :-
-  S = S0.put(con, S0.con+1).
-
-printer:update_stats(naf(_), S0, S) :-
-  S = S0.put(naf, S0.naf+1).
-
-printer:update_stats(_://_:fetchonly?_, S0, S) :-
-  S = S0.put(_{fetches:S0.fetches+1}).
-
-printer:update_stats(R://E:download?_, S0, S) :-
-  ebuild:download_size(preference, R://E, Bytes),
-  S = S0.put(_{downloads:S0.downloads+1, total_dl:S0.total_dl+Bytes, actions:S0.actions+1}).
-
-printer:update_stats(_://_:run?_, S0, S) :-
-  S = S0.put(_{runs:S0.runs+1, actions:S0.actions+1}).
-
-printer:update_stats(_://_:install?_, S0, S) :-
-  S = S0.put(_{installs:S0.installs+1, actions:S0.actions+1}).
-
-printer:update_stats(_://_:reinstall?_, S0, S) :-
-  S = S0.put(_{reinstalls:S0.reinstalls+1, actions:S0.actions+1}).
-
-printer:update_stats(_://_:_?_, S0, S) :-
-  S = S0.put(actions, S0.actions+1).
-
-printer:update_stats(_, S, S).
-
-
-%! printer:print_warnings(+Model, +Proof)
+%! printer:pluralize(+Count, +Singular, +Plural, -Result)
 %
-% Print the assumptions taken by the prover
+% Pluralizes a word based on a count.
 
-printer:print_warnings(Model,Proof) :-
-  printer:check_assumptions(Model),!,
-  message:color(red),message:print('Error: '),
-  message:print('The proof for your build plan contains assumptions. Please verify:'),nl,nl,
-  %message:color(cyan),
-  %forall(member(assumed(X),Proof),
-  %  (message:print([' - assumed(',X,')']),nl)),
-  %nl,
-  %forall(member(rule(assumed(X),_),Proof),
-  %  (message:print([' - rule(assumed(',X,'))']),nl)),
-  %nl,
+printer:pluralize(1, Singular, _, Singular) :- !.
+printer:pluralize(_, _, Plural, Plural).
+
+
+%! printer:footer_stats(+ModelAVL, -Stats)
+%
+% Calculates statistics by iterating over the ModelAVL using gen_assoc.
+
+printer:footer_stats(ModelAVL, Stats) :-
+   StatsInitial = stats{ass:0, con:0, naf:0, actions:0, fetches:0,
+                         downloads:0, runs:0, installs:0, reinstalls:0, total_dl:0},
+   findall(Key, assoc:gen_assoc(Key, ModelAVL, _), Keys),
+   foldl(update_stats, Keys, StatsInitial, Stats).
+
+%! printer:update_stats(+Key, +StatsIn, -StatsOut)
+%
+% Foldl helper
+
+update_stats(Key, S0, S) :-
+  update_stats_clauses(Key, S0, S).
+
+%! printer:update_stats_clauses(+Key, +StatsIn, -StatsOut)
+%
+% The logic for updating stats based on a key.
+
+update_stats_clauses(assumed(_), S0, S) :-
+  NewAss is S0.ass + 1, S = S0.put(ass, NewAss).
+update_stats_clauses(constraint(_), S0, S) :-
+  NewCon is S0.con + 1, S = S0.put(con, NewCon).
+update_stats_clauses(naf(_), S0, S) :-
+  NewNaf is S0.naf + 1, S = S0.put(naf, NewNaf).
+update_stats_clauses(_://_:fetchonly?_, S0, S) :-
+  NewFetches is S0.fetches + 1, NewActions is S0.actions + 1,
+  S = S0.put(_{fetches:NewFetches, actions:NewActions}).
+update_stats_clauses(R://E:download?_, S0, S) :-
+  (ebuild:download_size(preference, R://E, Bytes) -> true ; Bytes = 0),
+  NewDownloads is S0.downloads + 1, NewTotalDl is S0.total_dl + Bytes, NewActions is S0.actions + 1,
+  S = S0.put(_{downloads:NewDownloads, total_dl:NewTotalDl, actions:NewActions}).
+update_stats_clauses(_://_:run?_, S0, S) :-
+  NewRuns is S0.runs + 1, NewActions is S0.actions + 1,
+  S = S0.put(_{runs:NewRuns, actions:NewActions}).
+update_stats_clauses(_://_:install?_, S0, S) :-
+  NewInstalls is S0.installs + 1, NewActions is S0.actions + 1,
+  S = S0.put(_{installs:NewInstalls, actions:NewActions}).
+update_stats_clauses(_://_:reinstall?_, S0, S) :-
+  NewReinstalls is S0.reinstalls + 1, NewActions is S0.actions + 1,
+  S = S0.put(_{reinstalls:NewReinstalls, actions:NewActions}).
+update_stats_clauses(_://_:_?_, S0, S) :-
+  NewActions is S0.actions + 1, S = S0.put(actions, NewActions).
+update_stats_clauses(_, S, S).
+
+
+%! printer:print_warnings(+ModelAVL, +ProofAVL)
+%
+% Efficiently checks and prints assumptions using library predicates.
+
+printer:print_warnings(ModelAVL, ProofAVL) :-
+  once((assoc:gen_assoc(Key, ModelAVL, _), Key = assumed(_))),
+  !,
+  message:color(red), message:print('Error: The proof for your build plan contains assumptions. Please verify:'), nl, nl,
   message:color(red),
-  forall(member(assumed(rule(C,_)),Proof),
-    (message:print([' - Circular dependency: ',C]),nl)),
-  forall(member(rule(assumed(R://E:Reason),_),Proof),
-    (message:print([' - Ebuild ',Reason,': ',R://E]),nl)),
-  forall(member(rule(assumed(package_dependency(R://E,T,_,C,N,_,_,_,_):_?_),_),Proof),
-    (message:print([' - Non-existent ebuild ',T,' dependency: ',C,'/',N,' in ebuild ',R://E]),nl)),
+  forall(assoc:gen_assoc(ProofKey, ProofAVL, _ProofValue),
+         printer:handle_assumption(ProofKey)
+  ),
   nl,
   message:color(normal),nl.
 
-printer:print_warnings(_Model,_Proof) :- !, nl.
+printer:print_warnings(_,_) :- !, nl.
 
 
-%! printer:print(+Target,+Model,+Proof,+Plan)
+%! printer:handle_assumption(+ProofKey)
 %
-% Print a given plan for a given target, with a given model, proof and plan
-% Calls the printer:dry_run predicate for building a step
+% Helper to print details for both correct and inconsistent assumption formats.
 
-printer:print(Target,Model,Proof,Plan) :-
-  printer:print(Target,Model,Proof,Plan,printer:dry_run).
+handle_assumption(ProofKey) :-
+    % Case 1: Handles the inconsistent key format: rule(assumed(CONTENT))
+    (   ProofKey = rule(assumed(Content)) ->
+        % Reconstruct a rule/2 term to pass to the detail printer.
+        printer:print_assumption_detail(rule(Content, []))
+    % Case 2: Handles the correct key format: assumed(rule(CONTENT))
+    ;   ProofKey = assumed(rule(Content)) ->
+        % Reconstruct a rule/2 term to pass to the detail printer.
+        printer:print_assumption_detail(rule(Content, []))
+    ;
+        true
+    ).
 
 
-%! printer:print(+Target,+Model,+Proof,+Plan,+Call)
+%! printer:print_assumption_detail(+RuleTerm)
 %
-% Print a given plan for a given target, with a given model, proof and plan
-% Calls the given call for elements of the build plan
+% Prints formatted, non-garbled assumption details.
 
-printer:print(Target,Model,Proof,Plan,Call) :-
+printer:print_assumption_detail(rule(package_dependency(R://E,T,_,C,N,_,_,_,_),_)) :- !,
+    message:print(' - Non-existent or failed '), message:print(T),
+    message:print(' dependency: '), message:print(C), message:print('/'), message:print(N),
+    message:print(' for ebuild '), message:print(R://E), nl.
+printer:print_assumption_detail(rule(R://E:install?_,_)) :- !,
+    message:print(' - Assumed installed (not in world file or proof failed): '),
+    message:print(R://E), nl.
+printer:print_assumption_detail(rule(R://E:run?_,_)) :- !,
+    message:print(' - Assumed running (not in world file or proof failed): '),
+    message:print(R://E), nl.
+printer:print_assumption_detail(rule(R://E:unmask?_,_)) :- !,
+    message:print(' - Assumed unmasked (ebuild is masked): '),
+    message:print(R://E), nl.
+printer:print_assumption_detail(rule(C,_)) :-
+    message:print(' - General assumption made: '), message:print(C), nl.
+
+
+
+%! printer:print(+Target,+ModelAVL,+ProofAVL,+Plan)
+%
+% Prints a plan.
+
+printer:print(Target,ModelAVL,ProofAVL,Plan) :-
+  printer:print(Target,ModelAVL,ProofAVL,Plan,printer:dry_run).
+
+%! printer:print(+Target,+ModelAVL,+ProofAVL,+Plan,+Call)
+printer:print(Target,ModelAVL,ProofAVL,Plan,Call) :-
   printer:print_header(Target),
-% printer:print_debug(Model,Proof,Plan),
   printer:print_body(Target,Plan,Call,Steps),
-  printer:print_footer(Plan,Model,Steps),
-  printer:print_warnings(Model,Proof).
+  printer:print_footer(Plan,ModelAVL,Steps),
+  printer:print_warnings(ModelAVL,ProofAVL).
+
 
 
 %! printer:dry_run(+Step)
@@ -1284,7 +1302,9 @@ printer:dry_run(_Step) :-
   %message:color(normal).
 
 
-%! Some helper predicates
+%! printer:unify(+A,+B)
+%
+% Helper predicate to check if two terms are unifiable.
 
 unify(A,B) :- unifiable(A,B,_),!.
 
@@ -1335,8 +1355,8 @@ printer:write_package_index_file(Directory,Repository,Category,Name) :-
 printer:write_merge_file(Directory,Repository://Entry) :-
   Action = run,
   Extension = '.merge',
-  (with_q(prover:prove_lists(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
-   with_q(planner:plan(Proof,[],[],Plan)),
+  (with_q(prover:prove(Repository://Entry:Action?{[]},t,Proof,t,Model,t,_Constraints,t,Triggers)),
+   with_q(planner:plan(Proof,Triggers,t,Plan)),
    atomic_list_concat([Directory,'/',Entry,Extension],File)),
   (tell(File),
    set_stream(current_output,tty(true)), % otherwise we lose color
@@ -1353,8 +1373,8 @@ printer:write_merge_file(Directory,Repository://Entry) :-
 printer:write_fetchonly_file(Directory,Repository://Entry) :-
   Action = fetchonly,
   Extension = '.fetchonly',
-  (with_q(prover:prove_lists(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
-   with_q(planner:plan(Proof,[],[],Plan)),
+  (with_q(prover:prove(Repository://Entry:Action?{[]},t,Proof,t,Model,t,_Constraints,t,Triggers)),
+   with_q(planner:plan(Proof,Triggers,t,Plan)),
    atomic_list_concat([Directory,'/',Entry,Extension],File)),
   (tell(File),
    set_stream(current_output,tty(true)), % otherwise we lose color
@@ -1433,6 +1453,10 @@ printer:produce_html(Directory) :-
   message:sc.
 
 
+% -----------------------------------------------------------------------------
+%  Testing
+% -----------------------------------------------------------------------------
+
 %! printer:test(+Repository)
 %
 % Proves and prints every entry in a given repository, reports using the default reporting style
@@ -1456,11 +1480,15 @@ printer:test(Repository,Style) :-
               'Printing',
               Repository://Entry,
               (Repository:entry(Entry)),
-              (with_q(prover:prove_lists(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
-               with_q(planner:plan(Proof,[],[],Plan))),
-              %(with_output_to(string(_),
-              (printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan)),
-	      false).
+              ( % --- REFACTORED LOGIC ---
+                % 1. Call prover and planner.
+                with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
+                with_q(planner:plan(ProofAVL,Triggers,t,Plan))
+                % No conversion here! AVLs are kept as-is.
+              ),
+              % 2. Call the newly refactored print predicate.
+              printer:print([Repository://Entry:Action?{[]}],ModelAVL,ProofAVL,Plan),
+              false).
 
 
 %! printer:test_latest(+Repository)
@@ -1474,13 +1502,12 @@ printer:test_latest(Repository) :-
 printer:test_latest(Repository,Style) :-
   config:proving_target(Action),
   tester:test(Style,
-              'Printing',
+              'Printing latest',
               Repository://Entry,
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
-              (with_q(prover:prove_lists(Repository://Entry:Action?{[]},[],Proof,[],Model,[],_Constraints)),
-               with_q(planner:plan(Proof,[],[],Plan))),
-              %(with_output_to(string(_),
-              (printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan)),
+              ( % --- REFACTORED LOGIC ---
+                with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
+                with_q(planner:plan(ProofAVL,Triggers,t,Plan))
+              ),
+              (printer:print([Repository://Entry:Action?{[]}],ModelAVL,ProofAVL,Plan)),
               false).
-
-

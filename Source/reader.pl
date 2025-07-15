@@ -16,10 +16,9 @@ Output: A list of strings, each string represents a line.
 
 :- module(reader, []).
 
-% *******************
-% READER declarations
-% *******************
-
+% =============================================================================
+%  READER declarations
+% =============================================================================
 
 %! reader:invoke(+File, -Contents)
 %

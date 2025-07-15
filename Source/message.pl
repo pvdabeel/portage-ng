@@ -13,14 +13,14 @@ This file contains the predicates used for pretty printing messages.
 
 :- module(message, [clear/0]).
 
-% ********************
-% MESSAGE declarations
-% ********************
+% =============================================================================
+%  MESSAGE declarations
+% =============================================================================
 
 
-% ------------
-% Declarations
-% ------------
+% -----------------------------------------------------------------------------
+%  Declarations
+% -----------------------------------------------------------------------------
 
 % The following predicates can be called, but depend on goal expansion
 % to expand them into low level output predicates directly manipulating
@@ -61,9 +61,9 @@ message:scroll_debug(_).
 message:scroll_log(_).
 
 
-% ---------------------
-% Goal expansion: Color
-% ---------------------
+% -----------------------------------------------------------------------------
+%  Goal expansion: Color
+% -----------------------------------------------------------------------------
 
 user:goal_expansion(color(red),            format("\e[31m",[])).
 user:goal_expansion(color(green),          format("\e[32m",[])).
@@ -82,9 +82,9 @@ user:goal_expansion(color(lightcyan),      format("\e[96m",[])).
 user:goal_expansion(color(normal),         format("\e[00m",[])).
 
 
-% ---------------------
-% Goal expansion: Style
-% ---------------------
+% -----------------------------------------------------------------------------
+%  Goal expansion: Style
+% -----------------------------------------------------------------------------
 
 user:goal_expansion(style(normal),         format("\e[00m",[])).
 user:goal_expansion(style(bold),           format("\e[01m",[])).
@@ -94,9 +94,9 @@ user:goal_expansion(style(underline),      format("\e[04m",[])).
 user:goal_expansion(style(blink),          format("\e[05m",[])).
 
 
-% ----------------------
-% Goal expansion: Cursor
-% ----------------------
+% -----------------------------------------------------------------------------
+%  Goal expansion: Cursor
+% -----------------------------------------------------------------------------
 
 user:goal_expansion(el,                    format("\e[K",[])).
 user:goal_expansion(hc,                    format("\e[?25l",[])).
@@ -106,55 +106,57 @@ user:goal_expansion(cl,                    format("\e[2J\e[H",[])).
 user:goal_expansion(clean,                 format("\e[K",[])).
 
 
-% ---------------------
-% Goal expansion: Label
-% ---------------------
+% -----------------------------------------------------------------------------
+%  Goal expansion: Label
+% -----------------------------------------------------------------------------
 
 user:goal_expansion(label(success),
   ( style(bold),
     color(green),
-    format('[SUCCESS] ',[]) )).
+    format('[SUCCESS] ',[]) )) :- !.
 
 user:goal_expansion(label(warning),
   ( style(bold),
     color(orange),
-    format('[WARNING] ',[]) )).
+    format('[WARNING] ',[]) )) :- !.
 
 user:goal_expansion(label(failure),
   ( style(bold),
-    format('[FAILURE] ',[]) )).
+    format('[FAILURE] ',[]) )) :- !.
 
 user:goal_expansion(label(inform),
-  ( format('% ',[]) )).
+  ( format('% ',[]) )) :- !.
 
 user:goal_expansion(label(notice),
   ( color(darkgray),
-    format('% ',[]) )).
+    format('% ',[]) )) :- !.
 
 user:goal_expansion(label(debug),
   ( color(magenta),
-    format('[DEBUG]   ',[]) )).
+    format('[DEBUG]   ',[]) )) :- !.
 
 user:goal_expansion(label(log),
   ( color(darkgray),
-    format('% ',[]) )).
+    format('% ',[]) )) :- !.
+
+user:goal_expansion(label(_),
+  ( true )).
 
 
-% ------------------------------
-% Goal expansion: Core messaging
-% ------------------------------
+% -----------------------------------------------------------------------------
+%  Goal expansion: Core messaging
+% -----------------------------------------------------------------------------
 
 user:goal_expansion(msg(Scroll,Level,Msg),
-  ( label(Level),
-    Prepare,
-    format(String,[]),
+  ( message:label(Level),
+    Output,
     Post,
     Continue )) :-
   ( ( is_list(Msg)
-      -> Prepare = atomic_list_concat(Msg,String)
-      ;  Prepare = (String = Msg)  ),
+      -> Output = (atomic_list_concat(Msg,String),format(String,[]))
+      ;  Output = (format(Msg,[])) ),
     ( Scroll == true
-      -> Post = (el,bl,flush_output)
+      -> Post = (message:el,message:bl,flush_output)
       ;  Post = nl ),
     ( Level == failure
       -> Continue = fail
@@ -164,9 +166,9 @@ user:goal_expansion(msg(Level,Msg),        msg(false,Level,Msg)).
 user:goal_expansion(scroll_msg(Level,Msg), msg(true,Level,Msg)).
 
 
-% -------------------------
-% Goal expansion: Shortcuts
-% -------------------------
+% -----------------------------------------------------------------------------
+%  Goal expansion: Shortcuts
+% -----------------------------------------------------------------------------
 
 user:goal_expansion(failure(T),            msg(failure, T)).
 user:goal_expansion(warning(T),            msg(warning, T)).
@@ -194,9 +196,9 @@ user:goal_expansion(scroll_log(T),         Expanded) :-
     ;  Expanded = true ).
 
 
-% ---------------------
-% Goal expansion: Title
-% ---------------------
+% -----------------------------------------------------------------------------
+%  Goal expansion: Title
+% -----------------------------------------------------------------------------
 
 user:goal_expansion(title_reset,           format(Expanded,[])) :-
   config:name(String),
@@ -213,9 +215,9 @@ user:goal_expansion(title(String),         format(Expanded,[])) :-
          [String]).
 
 
-% ------------------------
-% Goal expansion: Printing
-% ------------------------
+% -----------------------------------------------------------------------------
+%  Goal expansion: Printing
+% -----------------------------------------------------------------------------
 
 user:goal_expansion(print(Term),           Expanded) :-
   ( atomic(Term)
@@ -225,9 +227,9 @@ user:goal_expansion(print(Term),           Expanded) :-
 
 user:goal_expansion(column(N, Msg),        format('~*| ~w', [N, Msg])).
 
-% ------------------
-% Runtime: Gradients
-% ------------------
+% -----------------------------------------------------------------------------
+%  Runtime: Gradients
+% -----------------------------------------------------------------------------
 
 % --- Color definitions ---
 
@@ -296,9 +298,9 @@ message:logo(List) :-
   message:print_gradient(String),nl.
 
 
-% -------------------------
-% Runtime: Lines and colums
-% -------------------------
+% -----------------------------------------------------------------------------
+%  Runtime: Lines and colums
+% -----------------------------------------------------------------------------
 
 eend(Msg) :-
   tty_size(_,W),
@@ -320,9 +322,9 @@ hl :-
   format(Fmt, [W]).
 
 
-% ----------------
-% Runtime: Headers
-% ----------------
+% -----------------------------------------------------------------------------
+%  Runtime: Headers
+% -----------------------------------------------------------------------------
 
 topheader(Message) :-
   color(cyan),
@@ -351,9 +353,9 @@ header(Header, [First | Rest]) :-
   nl.
 
 
-% --------------
-% Header helpers
-% --------------
+% -----------------------------------------------------------------------------
+%  Header helpers
+% -----------------------------------------------------------------------------
 
 msg_atom(List, Atom) :-
   is_list(List),
@@ -374,9 +376,9 @@ msg_atom(Compound, Atom) :-
   term_to_atom(Compound, Atom).
 
 
-% ---------------
-% Convertor: Byte
-% ---------------
+% -----------------------------------------------------------------------------
+%  Convertor: Byte
+% -----------------------------------------------------------------------------
 
 convert_bytes(Bytes, String) :-
   (   Bytes >= 1 << 30
@@ -395,9 +397,9 @@ print_bytes(Bytes) :-
   format('~w\t', [Atom]).
 
 
-% --------------------
-% Convertor: Date/time
-% --------------------
+% -----------------------------------------------------------------------------
+%  Convertor: Date/time
+% -----------------------------------------------------------------------------
 
 datetime(Datetime) :-
   get_time(Stamp),
@@ -405,9 +407,9 @@ datetime(Datetime) :-
   format_time(atom(Datetime), '%a %d %b %Y %T', DT).
 
 
-% ------------
-% Misc helpers
-% ------------
+% -----------------------------------------------------------------------------
+%  Misc helpers
+% -----------------------------------------------------------------------------
 
 clear :- cl.
 

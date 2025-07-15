@@ -15,9 +15,9 @@ An implementation of a query language for the knowledge base
 :- module(query,[]).
 
 
-% ************
-% QUERY MACROS
-% ************
+% =============================================================================
+%  QUERY MACROS
+% =============================================================================
 
 % Query essentially queries the cache facts, which are maintained
 % by the knowledge base.
@@ -59,9 +59,9 @@ An implementation of a query language for the knowledge base
 
 :- multifile user:goal_expansion/2.
 
-% --------------
-% GOAL EXPANSION
-% --------------
+% -----------------------------------------------------------------------------
+%  GOAL EXPANSION
+% -----------------------------------------------------------------------------
 
 % We treat both list queries and compound queries
 
@@ -80,9 +80,9 @@ user:goal_expansion(search(Q, Repo://Id), Expanded) :-
   message:color(normal).
 
 
-% ----------
-% LIST QUERY
-% ----------
+% -----------------------------------------------------------------------------
+%  LIST QUERY
+% -----------------------------------------------------------------------------
 
 % We turn list queries into joined compound queries
 
@@ -93,147 +93,147 @@ compile_query_list([S|Ss], Repo://Id, (One, Rest)) :-
   compile_query_list(Ss, Repo://Id, Rest).
 
 
-% --------------
-% COMPOUND QUERY
-% --------------
+% -----------------------------------------------------------------------------
+%  COMPOUND QUERY
+% -----------------------------------------------------------------------------
 
 % We turn compound queries into cache statements
 
 
 % 1. syntactic suggar
 
-compile_query_compound(repository(Repo),       		Repo://Id,
+compile_query_compound(repository(Repo), Repo://Id,
   cache:ordered_entry(Repo,Id,_,_,_)) :- !.
 
-compile_query_compound(entry(Id),        		Repo://Id,
+compile_query_compound(entry(Id), Repo://Id,
   cache:ordered_entry(Repo,Id,_,_,_)) :- !.
 
-compile_query_compound(ebuild(Id),        		Repo://Id,
+compile_query_compound(ebuild(Id), Repo://Id,
   cache:ordered_entry(Repo,Id,_,_,_)) :- !.
 
-compile_query_compound(package(C,N),        		Repo://Id,
+compile_query_compound(package(C,N), Repo://Id,
   ( cache:package(Repo,C,N),
     once(cache:ordered_entry(Repo,Id,C,N,_)) )) :- !.
 
 
 % 2. queries on ordered_entry metadata
 
-compile_query_compound(name(Name),        		Repo://Id,
+compile_query_compound(name(Name), Repo://Id,
   cache:ordered_entry(Repo,Id,_,Name,_)) :- !.
 
-compile_query_compound(category(Cat),     		Repo://Id,
+compile_query_compound(category(Cat), Repo://Id,
   cache:ordered_entry(Repo,Id,Cat,_,_)) :- !.
 
-compile_query_compound(version(Ver),      		Repo://Id,
+compile_query_compound(version(Ver), Repo://Id,
   cache:ordered_entry(Repo,Id,_,_,Ver)) :- !.
 
 
 % 3. queries on entry_metadata
 
-compile_query_compound(slot(Slot),        		Repo://Id,
+compile_query_compound(slot(Slot), Repo://Id,
   cache:entry_metadata(Repo,Id,slot,slot(Slot))) :- !.
 
-compile_query_compound(subslot(Slot),        		Repo://Id,
+compile_query_compound(subslot(Slot),	Repo://Id,
   cache:entry_metadata(Repo,Id,slot,subslot(Slot))) :- !.
 
-compile_query_compound(keyword(KW),      		Repo://Id,
+compile_query_compound(keyword(KW), Repo://Id,
   cache:entry_metadata(Repo,Id,keywords,KW)) :- !.
 
-compile_query_compound(keywords(KW),      		Repo://Id,
+compile_query_compound(keywords(KW), Repo://Id,
   cache:entry_metadata(Repo,Id,keywords,KW)) :- !.
 
-compile_query_compound(installed(Bool),   		Repo://Id,
+compile_query_compound(installed(Bool),	Repo://Id,
   cache:entry_metadata(Repo,Id,installed,Bool)) :- !.
 
-compile_query_compound(required_use(Use), 		Repo://Id,
+compile_query_compound(required_use(Use),	Repo://Id,
   cache:entry_metadata(Repo,Id,required_use,Use)) :- !.
 
-compile_query_compound(src_uri(Uri),      		Repo://Id,
+compile_query_compound(src_uri(Uri), Repo://Id,
   cache:entry_metadata(Repo,Id,src_uri,Uri)) :- !.
 
-compile_query_compound(download(D),      		Repo://Id,
+compile_query_compound(download(D), Repo://Id,
   cache:entry_metadata(Repo,Id,src_uri,uri(_,_,D))) :- !.
 
-compile_query_compound(bdepend(B),        		Repo://Id,
+compile_query_compound(bdepend(B), Repo://Id,
   cache:entry_metadata(Repo,Id,bdepend,B)) :- !.
 
-compile_query_compound(cdepend(C),         		Repo://Id,
+compile_query_compound(cdepend(C), Repo://Id,
   cache:entry_metadata(Repo,Id,cdepend,C)) :- !.
 
-compile_query_compound(depend(D),         		Repo://Id,
+compile_query_compound(depend(D), Repo://Id,
   cache:entry_metadata(Repo,Id,depend,D)) :- !.
 
-compile_query_compound(idepend(I),        		Repo://Id,
+compile_query_compound(idepend(I), Repo://Id,
   cache:entry_metadata(Repo,Id,idepend,I)) :- !.
 
-compile_query_compound(pdepend(P),        		Repo://Id,
+compile_query_compound(pdepend(P), Repo://Id,
   cache:entry_metadata(Repo,Id,pdepend,P)) :- !.
 
-compile_query_compound(rdepend(P),        		Repo://Id,
+compile_query_compound(rdepend(P), Repo://Id,
   cache:entry_metadata(Repo,Id,rdepend,P)) :- !.
 
-compile_query_compound(defined_phases(P), 		Repo://Id,
+compile_query_compound(defined_phases(P), Repo://Id,
   cache:entry_metadata(Repo,Id,defined_phases,P)) :- !.
 
-compile_query_compound(description(D),    		Repo://Id,
+compile_query_compound(description(D), Repo://Id,
   cache:entry_metadata(Repo,Id,description,D)) :- !.
 
-compile_query_compound(eapi(E),           		Repo://Id,
+compile_query_compound(eapi(E), Repo://Id,
   cache:entry_metadata(Repo,Id,eapi,E)) :- !.
 
-compile_query_compound(homepage(H),       		Repo://Id,
+compile_query_compound(homepage(H), Repo://Id,
   cache:entry_metadata(Repo,Id,homepage,H)) :- !.
 
-compile_query_compound(license(L),        		Repo://Id,
+compile_query_compound(license(L), Repo://Id,
   cache:entry_metadata(Repo,Id,license,L)) :- !.
 
-compile_query_compound(eclass(E),        		Repo://Id,
+compile_query_compound(eclass(E), Repo://Id,
   cache:entry_metadata(Repo,Id,eclasses,[eclass(E),_])) :- !.
 
-compile_query_compound(eclasses(E),        		Repo://Id,
+compile_query_compound(eclasses(E), Repo://Id,
   cache:entry_metadata(Repo,Id,eclasses,[eclass(E),_])) :- !.
 
-compile_query_compound(properties(P),     		Repo://Id,
+compile_query_compound(properties(P), Repo://Id,
   cache:entry_metadata(Repo,Id,properties,P)) :- !.
 
-compile_query_compound(restrict(R),       		Repo://Id,
+compile_query_compound(restrict(R), Repo://Id,
   cache:entry_metadata(Repo,Id,restrict,R)) :- !.
 
-compile_query_compound(timestamp(T),      		Repo://Id,
+compile_query_compound(timestamp(T), Repo://Id,
   cache:entry_metadata(Repo,Id,timestamp,T)) :- !.
 
-compile_query_compound(md5(M),      			Repo://Id,
+compile_query_compound(md5(M), Repo://Id,
   cache:entry_metadata(Repo,Id,md5,M)) :- !.
 
 
 % 4. special case: indicator for md5_cache that was generated locally
 
-compile_query_compound(local(L),          		Repo://Id,
+compile_query_compound(local(L), Repo://Id,
   cache:entry_metadata(Repo,Id,local,L)) :- !.
 
 
 % 5. special case: masked ebuilds
 
-compile_query_compound(masked(true),   			Repo://Id,
+compile_query_compound(masked(true), Repo://Id,
   preference:masked(Repo://Id) ) :- !.
 
-compile_query_compound(masked(false),  			Repo://Id,
+compile_query_compound(masked(false), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,_),
     \+ preference:masked(Repo://Id) )) :- !.
 
 
 % 6. rule helpers: dependency query for fetchonly, install & run rules
 
-compile_query_compound(dependency(D,run), 		Repo://Id,
+compile_query_compound(dependency(D,run), Repo://Id,
   ( cache:entry_metadata(Repo,Id,idepend,D)
   ; cache:entry_metadata(Repo,Id,rdepend,D) )) :- !.
 
-compile_query_compound(dependency(D,install), 		Repo://Id,
+compile_query_compound(dependency(D,install), Repo://Id,
   ( cache:entry_metadata(Repo,Id,bdepend,D)
   ; cache:entry_metadata(Repo,Id,cdepend,D)
   ; cache:entry_metadata(Repo,Id,depend,D) )) :- !.
 
-compile_query_compound(dependency(D,fetchonly),         Repo://Id,
+compile_query_compound(dependency(D,fetchonly), Repo://Id,
   ( cache:entry_metadata(Repo,Id,bdepend,D)
   ; cache:entry_metadata(Repo,Id,cdepend,D)
   ; cache:entry_metadata(Repo,Id,depend,D)
@@ -243,47 +243,48 @@ compile_query_compound(dependency(D,fetchonly),         Repo://Id,
 
 % 7. key=value queries needed for --search
 
-compile_query_compound(select(Key,Cmp,Value),           Repo://Id,
-  ( query:search(select(Key,Cmp,Value), Repo://Id ) ))        :- var(Cmp),!.   % Important: filter out runtime bound Cmp
+compile_query_compound(select(Key,Cmp,Value), Repo://Id,
+  ( query:search(select(Key,Cmp,Value), Repo://Id ) ))  :- 
+  var(Cmp),!.   % Important: filter out runtime bound Cmp
 
-compile_query_compound(select(repository,notequal,R),   Repo://Id,
+compile_query_compound(select(repository,notequal,R), Repo://Id,
   ( cache:ordered_entry(R,Id,_,_,_),
     R \== Repo ) ) :- !.
 
-compile_query_compound(select(repository,equal,Repo),   Repo://Id,
+compile_query_compound(select(repository,equal,Repo), Repo://Id,
   cache:ordered_entry(Repo,Id,_,_,_) ) :- !.
 
-compile_query_compound(select(repository,tilde,R),      Repo://Id,
+compile_query_compound(select(repository,tilde,R), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,_),
     dwim_match(R,Repo) ) ) :- !.
 
-compile_query_compound(select(repository,wildcard,R),   Repo://Id,
+compile_query_compound(select(repository,wildcard,R), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,_),
     wildcard_match(R,Repo) ) ) :- !.
 
-compile_query_compound(select(name,equal,N),            Repo://Id,
+compile_query_compound(select(name,equal,N), Repo://Id,
   cache:ordered_entry(Repo,Id,_,N,_)) :- !.
 
-compile_query_compound(select(name,notequal,N),         Repo://Id,
+compile_query_compound(select(name,notequal,N), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,O,_),
     N \== O ) ) :- !.
 
-compile_query_compound(select(name,tilde,N),            Repo://Id,
+compile_query_compound(select(name,tilde,N), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,M,_),
     dwim_match(N,M) ) ) :- !.
 
-compile_query_compound(select(name,wildcard,N),         Repo://Id,
+compile_query_compound(select(name,wildcard,N), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,M,_),
     wildcard_match(N,M) ) ) :- !.
 
-compile_query_compound(select(category,equal,C),        Repo://Id,
+compile_query_compound(select(category,equal,C), Repo://Id,
   cache:ordered_entry(Repo,Id,C,_,_)) :- !.
 
-compile_query_compound(select(category,notequal,C),     Repo://Id,
+compile_query_compound(select(category,notequal,C), Repo://Id,
   ( cache:ordered_entry(Repo,Id,O,_,_),
     C \== O ) ) :- !.
 
-compile_query_compound(select(category,tilde,C),	Repo://Id,
+compile_query_compound(select(category,tilde,C), Repo://Id,
   ( cache:ordered_entry(Repo,Id,M,_,_),
     dwim_match(C,M) ) ) :- !.
 
@@ -291,26 +292,26 @@ compile_query_compound(select(category,wildcard,C),	Repo://Id,
   ( cache:ordered_entry(Repo,Id,M,_,_),
     wildcard_match(C,M) ) ) :- !.
 
-compile_query_compound(select(version,none,_),      	Repo://Id,
+compile_query_compound(select(version,none,_), Repo://Id,
   cache:ordered_entry(Repo,Id,_,_,_)) :- !.
 
-compile_query_compound(select(version,equal,Ver),      	Repo://Id,
+compile_query_compound(select(version,equal,Ver), Repo://Id,
   cache:ordered_entry(Repo,Id,_,_,Ver)) :- !.
 
-compile_query_compound(select(version,smaller,ReqVer),  Repo://Id,
+compile_query_compound(select(version,smaller,ReqVer), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
     system:compare(<,ProposedVersion,ReqVer) )) :- !.
 
-compile_query_compound(select(version,greater,ReqVer),  Repo://Id,
+compile_query_compound(select(version,greater,ReqVer), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
     system:compare(>,ProposedVersion,ReqVer) )) :- !.
 
-compile_query_compound(select(version,smallerequal,ReqVer),  Repo://Id,
+compile_query_compound(select(version,smallerequal,ReqVer), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
     ( system:compare(<,ProposedVersion,ReqVer);
       system:compare(=,ProposedVersion,ReqVer) ) )) :- !.
 
-compile_query_compound(select(version,greaterequal,ReqVer),  Repo://Id,
+compile_query_compound(select(version,greaterequal,ReqVer), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
     ( system:compare(>,ProposedVersion,ReqVer);
       system:compare(=,ProposedVersion,ReqVer) ) )) :- !.
@@ -330,27 +331,27 @@ compile_query_compound(select(eapi,notequal,[_,_,_,V]), Repo://Id,
   ( cache:entry_metadata(Repo,Id,eapi,[_,_,_,O]),
     O \== V ) ) :- !.
 
-compile_query_compound(select(eapi,equal,[_,_,_,V]),    Repo://Id,
+compile_query_compound(select(eapi,equal,[_,_,_,V]), Repo://Id,
   cache:entry_metadata(Repo,Id,eapi,[_,_,_,V]) ) :- !.
 
 compile_query_compound(select(eapi,wildcard,[_,_,_,V]), Repo://Id,
   ( cache:entry_metadata(Repo,Id,eapi,[_,_,_,ProposedVersion]),
     wildcard_match(V,ProposedVersion) ) ) :- !.
 
-compile_query_compound(select(eapi,smaller,ReqVer), 	Repo://Id,
+compile_query_compound(select(eapi,smaller,ReqVer), Repo://Id,
   ( cache:entry_metadata(Repo,Id,eapi,ProposedVersion),
     system:compare(<,ProposedVersion,ReqVer) ) ) :- !.
 
-compile_query_compound(select(eapi,greater,ReqVer), 	Repo://Id,
+compile_query_compound(select(eapi,greater,ReqVer), Repo://Id,
   ( cache:entry_metadata(Repo,Id,eapi,ProposedVersion),
     system:compare(>,ProposedVersion,ReqVer) ) ) :- !.
 
-compile_query_compound(select(eapi,smallerequal,ReqVer),Repo://Id,
+compile_query_compound(select(eapi,smallerequal,ReqVer), Repo://Id,
   ( cache:entry_metadata(Repo,Id,eapi,ProposedVersion),
     ( system:compare(<,ProposedVersion,ReqVer);
       system:compare(=,ProposedVersion,ReqVer) ) )) :- !.
 
-compile_query_compound(select(eapi,greaterequal,ReqVer),Repo://Id,
+compile_query_compound(select(eapi,greaterequal,ReqVer), Repo://Id,
   ( cache:entry_metadata(Repo,Id,eapi,ProposedVersion),
     ( system:compare(>,ProposedVersion,ReqVer);
       system:compare(=,ProposedVersion,ReqVer) ) )) :- !.
@@ -359,10 +360,10 @@ compile_query_compound(select(eclass,notequal,E),	Repo://Id,
   ( cache:entry_metadata(Repo,Id,eclasses,[eclass(O),_]),
     O \== E )) :- !.
 
-compile_query_compound(select(eclass,equal,E),	Repo://Id,
+compile_query_compound(select(eclass,equal,E), Repo://Id,
   cache:entry_metadata(Repo,Id,eclasses,[eclass(E),_])) :- !.
 
-compile_query_compound(select(eclass,tilde,E),	Repo://Id,
+compile_query_compound(select(eclass,tilde,E), Repo://Id,
   ( cache:entry_metadata(Repo,Id,eclasses,[eclass(M),_]),
     dwim_match(E,M) ) ) :- !.
 
@@ -374,10 +375,10 @@ compile_query_compound(select(eclasses,notequal,E),	Repo://Id,
   ( cache:entry_metadata(Repo,Id,eclasses,[eclass(O),_]),
     O \== E )) :- !.
 
-compile_query_compound(select(eclasses,equal,E),	Repo://Id,
+compile_query_compound(select(eclasses,equal,E), Repo://Id,
   cache:entry_metadata(Repo,Id,eclasses,[eclass(E),_])) :- !.
 
-compile_query_compound(select(eclasses,tilde,E),	Repo://Id,
+compile_query_compound(select(eclasses,tilde,E), Repo://Id,
   ( cache:entry_metadata(Repo,Id,eclasses,[eclass(M),_]),
     dwim_match(E,M) ) ) :- !.
 
@@ -389,10 +390,10 @@ compile_query_compound(select(download,notequal,F),	Repo://Id,
   ( cache:entry_metadata(Repo,Id,src_uri,uri(_,_,O)),
     O \== F ) ) :- !.
 
-compile_query_compound(select(download,equal,F),	Repo://Id,
+compile_query_compound(select(download,equal,F), Repo://Id,
   cache:entry_metadata(Repo,Id,src_uri,uri(_,_,F))) :- !.
 
-compile_query_compound(select(download,tilde,F),	Repo://Id,
+compile_query_compound(select(download,tilde,F), Repo://Id,
   ( cache:entry_metadata(Repo,Id,src_uri,uri(_,_,M)),
     dwim_match(F,M) ) ) :- !.
 
@@ -400,122 +401,124 @@ compile_query_compound(select(download,wildcard,F),	Repo://Id,
   ( cache:entry_metadata(Repo,Id,src_uri,uri(_,_,M)),
     wildcard_match(F,M) ) ) :- !.
 
-compile_query_compound(select(slot,notequal,S),		Repo://Id,
+compile_query_compound(select(slot,notequal,S),	Repo://Id,
   ( cache:entry_metadata(Repo,Id,slot,slot(O)),
     O \== S ) ) :- !.
 
-compile_query_compound(select(slot,equal,S),		Repo://Id,
+compile_query_compound(select(slot,equal,S), Repo://Id,
   cache:entry_metadata(Repo,Id,slot,slot(S))) :- !.
 
-compile_query_compound(select(slot,tilde,S),		Repo://Id,
+compile_query_compound(select(slot,tilde,S), Repo://Id,
   ( cache:entry_metadata(Repo,Id,slot,slot(M)),
     dwim_match(S,M) ) ) :- !.
 
-compile_query_compound(select(slot,wildcard,S),		Repo://Id,
+compile_query_compound(select(slot,wildcard,S),	Repo://Id,
   ( cache:entry_metadata(Repo,Id,slot,slot(M)),
     wildcard_match(S,M) ) ) :- !.
 
-compile_query_compound(select(subslot,notequal,S),	Repo://Id,
+compile_query_compound(select(subslot,notequal,S), Repo://Id,
   ( cache:entry_metadata(Repo,Id,slot,subslot(O)),
     O \== S ) ) :- !.
 
-compile_query_compound(select(subslot,equal,S),		Repo://Id,
+compile_query_compound(select(subslot,equal,S),	Repo://Id,
   cache:entry_metadata(Repo,Id,slot,subslot(S))) :- !.
 
-compile_query_compound(select(subslot,tilde,S),		Repo://Id,
+compile_query_compound(select(subslot,tilde,S),	Repo://Id,
   ( cache:entry_metadata(Repo,Id,slot,subslot(M)),
     dwim_match(S,M) ) ) :- !.
 
-compile_query_compound(select(subslot,wildcard,S),	Repo://Id,
+compile_query_compound(select(subslot,wildcard,S), Repo://Id,
   ( cache:entry_metadata(Repo,Id,slot,subslot(M)),
     wildcard_match(S,M) ) ) :- !.
 
-compile_query_compound(select(keyword,equal,K),		Repo://Id,
+compile_query_compound(select(keyword,equal,K),	Repo://Id,
   cache:entry_metadata(Repo,Id,keyword,K)) :- !.
 
-compile_query_compound(select(keywords,equal,K),	Repo://Id,
+compile_query_compound(select(keywords,equal,K), Repo://Id,
   cache:entry_metadata(Repo,Id,keyword,K)) :- !.
 
-compile_query_compound(select(masked,equal,true),       Repo://Id,
+compile_query_compound(select(masked,equal,true), Repo://Id,
   preference:masked(Repo://Id) ) :- !.
 
-compile_query_compound(select(masked,equal,false),      Repo://Id,
+compile_query_compound(select(masked,equal,false), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,_),
     \+ preference:masked(Repo://Id) )) :- !.
 
-compile_query_compound(select(masked,notequal,false),   Repo://Id,
+compile_query_compound(select(masked,notequal,false), Repo://Id,
   preference:masked(Repo://Id) ) :- !.
 
-compile_query_compound(select(masked,notequal,true),    Repo://Id,
+compile_query_compound(select(masked,notequal,true), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,_),
     \+ preference:masked(Repo://Id) )) :- !.
 
 
 % 8. all query is treated at runtime, except for a few exceptions
 
-compile_query_compound(all(S),                         	Repo://Id,
-  query:search(all(S),Repo://Id)) 			:- var(S),!.
+compile_query_compound(all(S), Repo://Id,
+  query:search(all(S),Repo://Id))	:- 
+  var(S),!.
 
-compile_query_compound(all(S):A?{C},                   	Repo://Id,
-  query:search(all(S):A?{C},Repo://Id)) 		:- var(S),!.
+compile_query_compound(all(S):A?{C}, Repo://Id,
+  query:search(all(S):A?{C},Repo://Id)) :-
+  var(S),!.
 
 
 % 9. the exceptions for all
 
-compile_query_compound(all(src_uri(U)),      		Repo://Id,
+compile_query_compound(all(src_uri(U)), Repo://Id,
   findall(Uri,
           cache:entry_metadata(Repo,Id,src_uri,Uri),
           U)) :- !.
 
-compile_query_compound(all(required_use(U)),      	Repo://Id,
+compile_query_compound(all(required_use(U)), Repo://Id,
   findall(Use,
           cache:entry_metadata(Repo,Id,required_use,Use),
           U)) :- !.
 
-compile_query_compound(all(bdepend(B)),                 Repo://Id,
+compile_query_compound(all(bdepend(B)), Repo://Id,
   findall(Dep,
           cache:entry_metadata(Repo,Id,bdepend,Dep),
           B)) :- !.
 
-compile_query_compound(all(depend(D)),      		Repo://Id,
+compile_query_compound(all(depend(D)), Repo://Id,
   findall(Dep,
           cache:entry_metadata(Repo,Id,depend,Dep),
           D)) :- !.
 
-compile_query_compound(all(cdepend(C)),      		Repo://Id,
+compile_query_compound(all(cdepend(C)), Repo://Id,
   findall(Dep,
           cache:entry_metadata(Repo,Id,cdepend,Dep),
           C)) :- !.
 
-compile_query_compound(all(idepend(I)),                 Repo://Id,
+compile_query_compound(all(idepend(I)), Repo://Id,
   findall(Dep,
           cache:entry_metadata(Repo,Id,idepend,Dep),
           I)) :- !.
 
-compile_query_compound(all(rdepend(R)),      		Repo://Id,
+compile_query_compound(all(rdepend(R)), Repo://Id,
   findall(Dep,
           cache:entry_metadata(Repo,Id,rdepend,Dep),
           R)) :- !.
 
-compile_query_compound(all(pdepend(P)),                 Repo://Id,
+compile_query_compound(all(pdepend(P)), Repo://Id,
   findall(Dep,
           cache:entry_metadata(Repo,Id,pdepend,Dep),
           P)) :- !.
 
-compile_query_compound(all(dependency(D,run)),          Repo://Id,
+compile_query_compound(all(dependency(D,run)), Repo://Id,
   findall(Dep,
           ( cache:entry_metadata(Repo,Id,idepend,Dep)
           ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
           D)) :- !.
 
-compile_query_compound(all(dependency(D,install)),      Repo://Id,
+compile_query_compound(all(dependency(D,install)), Repo://Id,
   findall(Dep,
           ( cache:entry_metadata(Repo,Id,bdepend,Dep)
           ; cache:entry_metadata(Repo,Id,cdepend,Dep)
           ; cache:entry_metadata(Repo,Id,depend,Dep) ),
           D)) :- !.
 
-compile_query_compound(all(dependency(D,fetchonly)),    Repo://Id,
+compile_query_compound(all(dependency(D,fetchonly)), Repo://Id,
   findall(Dep,
           ( cache:entry_metadata(Repo,Id,bdepend,Dep)
           ; cache:entry_metadata(Repo,Id,cdepend,Dep)
@@ -524,20 +527,20 @@ compile_query_compound(all(dependency(D,fetchonly)),    Repo://Id,
           ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
           D)) :- !.
 
-compile_query_compound(all(dependency(D,run)):A?{C},    Repo://Id,
+compile_query_compound(all(dependency(D,run)):A?{C}, Repo://Id,
   findall(Dep:A?{C},
           ( cache:entry_metadata(Repo,Id,idepend,Dep)
           ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
           D)) :- !.
 
-compile_query_compound(all(dependency(D,install)):A?{C},Repo://Id,
+compile_query_compound(all(dependency(D,install)):A?{C}, Repo://Id,
   findall(Dep:A?{C},
           ( cache:entry_metadata(Repo,Id,bdepend,Dep)
           ; cache:entry_metadata(Repo,Id,cdepend,Dep)
           ; cache:entry_metadata(Repo,Id,depend,Dep) ),
           D)) :- !.
 
-compile_query_compound(all(dependency(D,fetchonly)):A?{C},  Repo://Id,
+compile_query_compound(all(dependency(D,fetchonly)):A?{C}, Repo://Id,
   findall(Dep:A?{C},
           ( cache:entry_metadata(Repo,Id,bdepend,Dep)
           ; cache:entry_metadata(Repo,Id,cdepend,Dep)
@@ -549,40 +552,40 @@ compile_query_compound(all(dependency(D,fetchonly)):A?{C},  Repo://Id,
 
 % 10. some model queries are rewritten
 
-compile_query_compound(model(required_use(Model)),	Repo://Id,
+compile_query_compound(model(required_use(Model)), Repo://Id,
   ( findall(ReqUse,
             cache:entry_metadata(Repo,Id,required_use,ReqUse),
             AllReqUse),
-    prover:prove(AllReqUse,t,_,t,AvlModel,t,_),
+    prover:prove(AllReqUse,t,_,t,AvlModel,t,_,t,_),
     findall(Key,
             (gen_assoc(Key,AvlModel,_Value),
    	     \+eapi:abstract_syntax_construct(Key)),
             Model) ) ) :- !.
 
-compile_query_compound(model(dependency(Model,run)):config?{Context},  Repo://Id,
+compile_query_compound(model(dependency(Model,run)):config?{Context}, Repo://Id,
   ( findall(Dep:config?{Context},
           ( cache:entry_metadata(Repo,Id,idepend,Dep)
           ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
           Deps),
-  prover:prove(Deps,t,_,t,AvlModel,t,_),
+  prover:prove(Deps,t,_,t,AvlModel,t,_,t,_),
   findall(Fact:run?{[]},
           (gen_assoc(Fact:_,AvlModel,_),
            Fact =.. [package_dependency|_]),
           Model) ) ) :- !.
 
-compile_query_compound(model(dependency(Model,install)):config?{Context},  Repo://Id,
+compile_query_compound(model(dependency(Model,install)):config?{Context}, Repo://Id,
   ( findall(Dep:config?{Context},
           ( cache:entry_metadata(Repo,Id,bdepend,Dep)
           ; cache:entry_metadata(Repo,Id,cdepend,Dep)
           ; cache:entry_metadata(Repo,Id,depend,Dep) ),
           Deps),
-  prover:prove(Deps,t,_,t,AvlModel,t,_),
+  prover:prove(Deps,t,_,t,AvlModel,t,_,t,_),
   findall(Fact:install?{[]},
            (gen_assoc(Fact:_,AvlModel,_),
             Fact =.. [package_dependency|_]),
           Model) ) ) :- !.
 
-compile_query_compound(model(dependency(Model,fetchonly)):config?{Context},  Repo://Id,
+compile_query_compound(model(dependency(Model,fetchonly)):config?{Context}, Repo://Id,
   ( findall(Dep:config?{Context},
     	  ( cache:entry_metadata(Repo,Id,bdepend,Dep)
           ; cache:entry_metadata(Repo,Id,cdepend,Dep)
@@ -590,7 +593,7 @@ compile_query_compound(model(dependency(Model,fetchonly)):config?{Context},  Rep
           ; cache:entry_metadata(Repo,Id,idepend,Dep)
           ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
           Deps),
-  prover:prove(Deps,t,_,t,AvlModel,t,_),
+  prover:prove(Deps,t,_,t,AvlModel,t,_,t,_),
   findall(Fact:fetchonly?{Context},
           (gen_assoc(Fact:_,AvlModel,_),
            Fact =.. [package_dependency|_]),
@@ -608,37 +611,37 @@ compile_query_compound(qualified_target(none,Repo,C,P,V,_F), Repo://Id,
 compile_query_compound(qualified_target(greater,Repo,C,P,V,F), Repo://Id,
   ( cache:ordered_entry(Repo,Id,C,P,PV),
     system:compare(>,PV,V),
-    query:apply_filters(Repo://Id,F) ))                 :- !.
+    query:apply_filters(Repo://Id,F) )) :- !.
 
 compile_query_compound(qualified_target(greaterequal,Repo,C,P,V,F), Repo://Id,
   ( cache:ordered_entry(Repo,Id,C,P,PV),
     (system:compare(>,PV,V);
      system:compare(=,PV,V)),
-    query:apply_filters(Repo://Id,F) ))                 :- !.
+    query:apply_filters(Repo://Id,F) )) :- !.
 
 compile_query_compound(qualified_target(smaller,Repo,C,P,V,F), Repo://Id,
   ( cache:ordered_entry(Repo,Id,C,P,PV),
     system:compare(<,PV,V),
-    query:apply_filters(Repo://Id,F) ))                 :- !.
+    query:apply_filters(Repo://Id,F) )) :- !.
 
 compile_query_compound(qualified_target(smallerequal,Repo,C,P,V,F), Repo://Id,
   ( cache:ordered_entry(Repo,Id,C,P,PV),
     (system:compare(<,PV,V);
      system:compare(=,PV,V)),
-    query:apply_filters(Repo://Id,F) ))                 :- !.
+    query:apply_filters(Repo://Id,F) )) :- !.
 
 compile_query_compound(qualified_target(equal,Repo,C,P,V,F), Repo://Id,
   ( cache:ordered_entry(Repo,Id,C,P,V),
-    query:apply_filters(Repo://Id,F) ) )                :- !.
+    query:apply_filters(Repo://Id,F) ) ) :- !.
 
 compile_query_compound(qualified_target(notequal,Repo,C,P,V,F), Repo://Id,
   ( cache:ordered_entry(Repo,Id,C,P,PV),
     PV \== V,
-    query:apply_filters(Repo://Id,F) ))                 :- !.
+    query:apply_filters(Repo://Id,F) )) :- !.
 
 compile_query_compound(qualified_target(tilde,Repo,C,P,[V,_,_,_,_],F), Repo://Id,
   ( cache:ordered_entry(Repo,Id,C,P,[V,_,_,_,_]),
-    query:apply_filters(Repo://Id,F) ))                 :- !.
+    query:apply_filters(Repo://Id,F) )) :- !.
 
 
 
@@ -649,16 +652,15 @@ compile_query_compound(Stmt, Entry,
 
 
 
-% ****************
-% QUERY PREDICATES
-% ****************
+% =============================================================================
+%  QUERY PREDICATES
+% =============================================================================
 
 % These are evaluated at runtime.
 
-
-% -------------
-% Query: Search
-% -------------
+% -----------------------------------------------------------------------------
+%  Query: Search
+% -----------------------------------------------------------------------------
 
 %! query:search(Query)
 %
@@ -673,9 +675,9 @@ search([Statement|Rest],Repository://Entry) :-
   search(Rest,Repository://Entry).
 
 
-% ----------------------
-% Query  meta predicates
-% ----------------------
+% -----------------------------------------------------------------------------
+%  Query  meta predicates
+% -----------------------------------------------------------------------------
 
 % Case : a not statement
 
@@ -736,7 +738,7 @@ search(model(Statement):Action?{Context},Repository://Id) :-
   !,
   StatementA =.. [Key,AllValues,Arg],
   search(all(StatementA):Action?{Context},Repository://Id),
-  prover:prove(AllValues,t,_,t,AvlModel,t,_),
+  prover:prove(AllValues,t,_,t,AvlModel,t,_,t,_),
   prover:model_to_list(AvlModel,Model).
 
 
@@ -747,7 +749,7 @@ search(model(Statement),Repository://Id) :-
   !,
   StatementA =.. [Key,AllValues,Arg],
   search(all(StatementA),Repository://Id),
-  prover:prove(AllValues,t,_,t,AvlModel,t,_),
+  prover:prove(AllValues,t,_,t,AvlModel,t,_,t,_),
   prover:model_to_list(AvlModel,Model).
 
 
@@ -758,7 +760,7 @@ search(model(Statement):Action?{Context},Repository://Id) :-
   !,
   StatementA =.. [Key,AllValues],
   search(all(StatementA):Action?{Context},Repository://Id),
-  prover:prove(AllValues,t,_,t,AvlModel,t,_),
+  prover:prove(AllValues,t,_,t,AvlModel,t,_,t,_),
   prover:model_to_list(AvlModel,Model).
 
 
@@ -769,9 +771,8 @@ search(model(Statement),Repository://Id) :-
   !,
   StatementA =.. [Key,AllValues],
   search(all(StatementA),Repository://Id),
-  prover:prove(AllValues,t,_,t,AvlModel,t,_),
+  prover:prove(AllValues,t,_,t,AvlModel,t,_,t,_),
   prover:model_to_list(AvlModel,Model).
-
 
 
 % Case : a latest statement, returs only latest version
@@ -780,17 +781,17 @@ search(latest(Statement),R://I) :-
   search(Statement,R://I),!. % deliberate choicepoint cut (once)
 
 
-% ------------------------------------
-% Search: command line key=value pairs
-% ------------------------------------
+% -----------------------------------------------------------------------------
+%  Search: command line key=value pairs
+% -----------------------------------------------------------------------------
 
 search(select(Key,Comparator,Value),R://I) :-
   select(Key,Comparator,Value,R://I).
 
 
-% ------------------------
-% Search: Qualified target
-% ------------------------
+% -----------------------------------------------------------------------------
+%  Search: Qualified target
+% -----------------------------------------------------------------------------
 
 % A Qualified target is defined in the EAPI spec as:
 %
@@ -847,9 +848,9 @@ search(select(Key,Comparator,Value),R://I) :-
 % This search based on qualified_target makes lookup initial lookup very fast. We
 % apply filtering on the remaining choicepoints.
 
-% ---------------
-% Search: Version
-% ---------------
+% -----------------------------------------------------------------------------
+%  Search: Version
+% -----------------------------------------------------------------------------
 
 search(select(version,none,_),Repo://Id) :-
   !,
@@ -894,9 +895,9 @@ search(select(version,tilde,[V,_,_,_]),Repo://Id) :-
   cache:ordered_entry(Repo,Id,_,_,[V,_,_,_]).
 
 
-% ----------------
-% Search: Manifest
-% ----------------
+% -----------------------------------------------------------------------------
+%  Search: Manifest
+% -----------------------------------------------------------------------------
 
 search(manifest(Scope,Type,Binary,Size),R://I) :-
    !,
@@ -907,9 +908,9 @@ search(manifest(Scope,Type,Binary,Size),R://I) :-
    cache:manifest_metadata(R,P,Type,Binary,Size,_Checksums).
 
 
-% ------------
-% Search: iuse
-% ------------
+% -----------------------------------------------------------------------------
+%  Search: iuse
+% -----------------------------------------------------------------------------
 
 search(iuse(Iuse),R://I) :-
   !,
@@ -917,9 +918,9 @@ search(iuse(Iuse),R://I) :-
   eapi:strip_use_default(Value,Iuse).
 
 
-% --------------------------------
-% Search: iuse with use flag state
-% --------------------------------
+% -----------------------------------------------------------------------------
+%  Search: iuse with use flag state
+% -----------------------------------------------------------------------------
 
 search(iuse(Iuse,State:Reason),R://I) :-
   !,
@@ -928,9 +929,9 @@ search(iuse(Iuse,State:Reason),R://I) :-
   eapi:strip_use_default(Value,Iuse).
 
 
-% -------------------------------
-% Search: iuse without use_expand
-% -------------------------------
+% -----------------------------------------------------------------------------
+%  Search: iuse without use_expand
+% -----------------------------------------------------------------------------
 
 search(iuse_filtered(Iuse),R://I) :-
   !,
@@ -939,9 +940,9 @@ search(iuse_filtered(Iuse),R://I) :-
   \+(eapi:check_use_expand_atom(Iuse)).
 
 
-% ----------------------------------------------------
-% Search: iuse without use_expand, with use flag state
-% ----------------------------------------------------
+% -----------------------------------------------------------------------------
+%  Search: iuse without use_expand, with use flag state
+% -----------------------------------------------------------------------------
 
 search(iuse_filtered(Iuse,State:Reason),R://I) :-
   !,
@@ -951,9 +952,9 @@ search(iuse_filtered(Iuse,State:Reason),R://I) :-
   \+(eapi:check_use_expand_atom(Iuse)).
 
 
-% ------------------
-% Search: use expand
-% ------------------
+% -----------------------------------------------------------------------------
+%  Search: use expand
+% -----------------------------------------------------------------------------
 
 search(Statement,R://I) :-
   Statement =.. [Key,Value],
@@ -964,9 +965,9 @@ search(Statement,R://I) :-
   eapi:strip_prefix_atom(Key,ArgB,Value).
 
 
-% --------------------------------------
-% Search: use expand with use flag state
-% --------------------------------------
+% -----------------------------------------------------------------------------
+%  Search: use expand with use flag state
+% -----------------------------------------------------------------------------
 
 search(Statement,R://I) :-
   Statement =.. [Key,Value,State:Reason],
@@ -978,9 +979,9 @@ search(Statement,R://I) :-
   eapi:strip_prefix_atom(Key,ArgB,Value).
 
 
-% ----------------
-% Search: Metadata
-% ----------------
+% -----------------------------------------------------------------------------
+%  Search: Metadata
+% -----------------------------------------------------------------------------
 
 % metadata can be anything, so this needs to be at the bottom
 
@@ -991,9 +992,9 @@ search(Q,R://I) :-
   %cache:entry_metadata(R,I,Key,Value).
 
 
-% -------------------------
-% Search: Filter predicates
-% -------------------------
+% -----------------------------------------------------------------------------
+%  Search: Filter predicates
+% -----------------------------------------------------------------------------
 
 % Filter out versions based on comparison
 
@@ -1010,9 +1011,9 @@ apply_filters(R://I,[H|T]) :-
 apply_filter(_R://_I,[]) :- !.
 
 
-% -----------------------------
-% Special case - set membership
-% -----------------------------
+% -----------------------------------------------------------------------------
+%  Special case - set membership
+% -----------------------------------------------------------------------------
 
 select(set,notequal,S,R://I) :-
   !,
@@ -1052,9 +1053,9 @@ select(set,wildcard,N,R://I) :-
   search(Q,R://I).
 
 
-% ------------------------
-% Default - Entry Metadata
-% ------------------------
+% -----------------------------------------------------------------------------
+%  Default - Entry Metadata
+% -----------------------------------------------------------------------------
 
 select(Key,notequal,Value,R://I) :-
   !,
@@ -1075,9 +1076,9 @@ select(Key,wildcard,Value,R://I) :-
   wildcard_match(Value,Match).
 
 
-% -----------------
-% Helper predicates
-% -----------------
+% -----------------------------------------------------------------------------
+%  Helper predicates
+% -----------------------------------------------------------------------------
 
 %! deep_member(Type,Predicate,Model)
 %

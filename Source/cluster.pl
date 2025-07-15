@@ -14,9 +14,9 @@ Allows to create a cluster that uses several nodes in a cluster to prove entries
 
 :- module(cluster, []).
 
-% ********************
-% CLUSTER declarations
-% ********************
+% =============================================================================
+%  CLUSTER declarations
+% =============================================================================
 
 create_result_queue :-
   message_queue_create('result').
@@ -49,7 +49,7 @@ init_work :-
 do_work :-
   repeat,
    get_job(Job),
-   ( catch((prover:prove(Job,[],Proof,[],_,[],_),
+   ( catch((prover:prove(Job,[],Proof,[],_,[],_,[],_),
             post_result([Job,Proof])),
            E, print_message(error, E))
       ->  true

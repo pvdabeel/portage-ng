@@ -22,9 +22,9 @@ Query module. The knowledge base is typically initialized as a singleton instanc
 
 :- module(knowledgebase,[]).
 
-% **************************
-% KNOWLEDGEBASE declarations
-% **************************
+% =============================================================================
+%  KNOWLEDGEBASE declarations
+% =============================================================================
 
 :- class.
 

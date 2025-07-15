@@ -25,12 +25,13 @@ In short, a clever mechanism to enable:
 Contexts can be unified and can serve as powerfull Feature Terms describing
 Software Configurations. (A. Zeller - Unified Versioning through Feature Logic)
 
-The syntax is comparable to LogTalk, but logtalk takes a compilation approach,
-translating to regular prolog. This implementation works at runtime.
+The syntax is comparable to LogTalk, but LogTalk takes a compilation approach,
+translating to regular prolog. This implementation works at runtime by
+dynamically generating the necessary predicates.
 
-
-CONTEXT - Contextual Object Oriented Logic Programming
-------------------------------------------------------
+-------------------------------------------------------------------------------
+ CONTEXT - Contextual Object Oriented Logic Programming
+-------------------------------------------------------------------------------
 
 CONTEXT implements a declarative contextual logic programming paradigm
 that aims to facilitate Prolog software engineering.
@@ -50,7 +51,9 @@ Short description:
 Programs written using CONTEXT are much smaller, support team development
 and can still be converted easily to traditional prolog code.
 
-Long description:
+-------------------------------------------------------------------------------
+ Long description:
+-------------------------------------------------------------------------------
 
 A context groups together clauses of a prolog application. By default,
 clauses are local to their context i.e. not seen by other contexts, unless
@@ -64,41 +67,44 @@ their context from the predicate that is calling them.
 Note that contexts are created ex nihilo. Referencing them is enough to
 create one.
 
-The contextual logic programming paradigm as implemented by CONTEXT,
-adds a number of features that stem from Object Oriented programming.
-Classes and their instances are contexts.
+The contextual logic programming paradigm as implemented by CONTEXT, adds a 
+number of features that stem from Object Oriented programming. Classes and 
+their instances are contexts.
 
-A class is a special type of context which declares public, protected,
-and private meta-predicates. Predicate properties are interpreted differently
+A class is a special type of context which declares public, protected, and 
+private meta-predicates. Predicate properties are interpreted differently
 for each of the following actions:
 
   - instantiation
   - inheritance
   - calling a predicate
 
-Instances are dynamically created from a class. Predicates declared by
-the corresponding class as private, public or protected are "guarded"
-correspondingly in the instance context that is dynamically created
-and populated with the necessary guarded predicates in order to prevent
+Instances are dynamically created from a class. Predicates declared by the 
+corresponding class as private, public or protected are "guarded" 
+correspondingly in the instance context that is dynamically created and 
+populated with the necessary guarded predicates in order to prevent 
 unauthorized access.
 
-An instance enables data-member-like behaviour. This functionality is
-achieved through the use of special operators. These operators allow one to
-cache a successful evaluation of a unified context predicate.
+An instance enables data-member-like behaviour. This functionality is achieved 
+through the use of special operators. These operators allow one to cache a 
+successful evaluation of a unified context predicate.
 
 This implementation is thread-safe and supports serialization.
 
-
-Examples:
-
+-------------------------------------------------------------------------------
+ Examples:
+-------------------------------------------------------------------------------
 @see examples/person.pl for an example 'person' class.
 */
 
 
-% ********************
-% CONTEXT declarations
-% ********************
+% =============================================================================
+%  CONTEXT declarations
+% =============================================================================
 
+% -----------------------------------------------------------------------------
+%  Exported predicates and operators
+% -----------------------------------------------------------------------------
 
 % CONTEXT exports a number of predicates and operator declarations.
 
@@ -110,10 +116,11 @@ Examples:
                      dprivate/1,
                      ddynamic/1,
                      dstatic/1,
-                     mutex/1,
+                     dmutex/1,
                      declare/1,
                      declared/1,
                      implemented/1,
+                     instances/2,
                      inherit/1,
                      this/1,
                      (~)/1,
@@ -138,11 +145,15 @@ Examples:
                      op(600, xfx, '<='),
                      op(600, xfx, '<+'),
                      op(601, xfx, ':'),
-		     op(602, xfx, '?'),
+		                 op(602, xfx, '?'),
                      op(603, xfx, '://'),
                      op(1200, xfx, '::-')
                     ]).
 
+
+% -----------------------------------------------------------------------------
+%  Transparent predicates and operators
+% -----------------------------------------------------------------------------
 
 % CONTEXT declares a number of rules as module transparent. The
 % clauses corresponding with these predicates require access to the context
@@ -156,13 +167,14 @@ Examples:
                       dprivate/1,
                       ddynamic/1,
                       dstatic/1,
-                      mutex/1,
+                      dmutex/1,
                       declare/1,
                       declared/1,
                       implemented/1,
                       inherit/1,
                       this/1,
-                      % no destructor since destructor cannot be called directly. e.g. ~pieter(foo). vs pieter:'~'(foo)
+                      % no destructor since destructor cannot be called directly. 
+                      % e.g. ~pieter(foo). vs pieter:'~'(foo)
                       (:)/1,
                       (::)/1,
                       (<-)/1,
@@ -175,20 +187,31 @@ Examples:
                       (://)/2.
 
 
+% -----------------------------------------------------------------------------
+%  Thread-awareness
+% -----------------------------------------------------------------------------
 
-% CONTEXT is thread-aware. The idea is that a context, class or instance
-% can be used by different threads at the same time. Tokens are issued by a
-% class to verify access and invocation methods. They need to be local to
-% the thread using the class, otherwise access could be granted to a thread
-% which should not have had access to a particular clause.
+% CONTEXT is thread-aware. The idea is that a context, class or instance can be 
+% used by different threads at the same time. Tokens are issued by a class to 
+% verify access and invocation methods. They need to be local to the thread 
+% using the class, otherwise access could be granted to a thread which should 
+% not have had access to a particular clause.
 
 :- thread_local '$_token'/1.
 
+
+% -----------------------------------------------------------------------------
+%  Dynamic meta predicates
+% -----------------------------------------------------------------------------
 
 % CONTEXT uses a dynamic predicate called meta.
 
 :- dynamic '$__meta'/1.
 
+
+% -----------------------------------------------------------------------------
+%  Operator declarations
+% -----------------------------------------------------------------------------
 
 % CONTEXT operator declarations.
 
@@ -206,6 +229,10 @@ Examples:
 :- op(603, xfx, '://').
 :- op(1200, xfx, '::-').
 
+
+% -----------------------------------------------------------------------------
+%  Exported predicates (this, class)
+% -----------------------------------------------------------------------------
 
 %! this(?Context)
 %
@@ -239,6 +266,10 @@ class(Parents) :-
   inherit(Parents).
 
 
+% -----------------------------------------------------------------------------
+%  Exported predicates (dpublic, dprotected, dprivate, ddyn, dstatic, dmutex)
+% -----------------------------------------------------------------------------
+
 %! dpublic(+Functor/+Arity)
 %
 % Exported, transparent predicate
@@ -252,6 +283,7 @@ dpublic(Functor/Arity) :-
 dpublic(List) :-
   !,
   maplist(dpublic,List).
+
 
 %! dprotected(+Functor/+Arity)
 %
@@ -297,6 +329,7 @@ ddynamic(List) :-
   !,
   maplist(ddynamic,List).
 
+
 %! ddynamic(+Functor/+Arity)
 %
 % Exported, transparent predicate
@@ -312,20 +345,76 @@ dstatic(List) :-
   maplist(dstatic,List).
 
 
-%! mutex(+Functor/+Arity)
+%! dmutex(+Functor/+Arity)
 %
 % Exported, transparent predicate
 %
 % Declare a mutexed predicate.
 
-mutex(Functor/Arity) :-
+dmutex(Functor/Arity) :-
   !,
   declare(property(Functor/Arity, mutex)).
 
-mutex(List) :-
+dmutex(List) :-
   !,
-  maplist(mutex,List).
+  maplist(dmutex,List).
 
+
+% -----------------------------------------------------------------------------
+%  Exported predicates (inheritance)
+% -----------------------------------------------------------------------------
+
+%! inherit(+Parents)
+%
+% Exported, transparent predicate
+%
+% Inherit predicates from a number of parent contexts.
+% Throws an error if parent context does not exist.
+
+inherit([Parent|Parents]) :-
+  inherit(Parent),
+  inherit(Parents).
+
+inherit([]) :- !.
+
+
+%! inherit(+Parent)
+%
+% Exported, transparent predicate
+%
+% Inherit predicates from a parent context.
+% Throws an error if parent context does not exist.
+
+inherit(Parent) :-
+  \+(Parent:declared(type(class))),
+  this(Context),
+  throw(error(existence_error(class, Parent), context(Context, inherit))).
+
+inherit(Parent) :-
+  findall(Functor/Arity, Parent:declared(property(Functor/Arity,_)), List),
+  this(Context),
+  Context:declare(parent(Parent)),
+  context:inherit_predicates(class, Context, Parent, List).
+
+
+% -----------------------------------------------------------------------------
+%  Exported predicates (newinstance)
+% -----------------------------------------------------------------------------
+
+%! newinstance(+class)
+%
+% Exported, transparent predicate
+%
+% Create an instance from a class.
+
+newinstance(Class) :-
+  this(Context),
+  context:newinstance(Context, Class).
+
+
+% -----------------------------------------------------------------------------
+%  Exported predicates (declare, declared, implemented)
+% -----------------------------------------------------------------------------
 
 %! declare(+Fact)
 %
@@ -336,40 +425,6 @@ mutex(List) :-
 declare(Fact) :-
   this(Context),
   context:declare(Context, Fact).
-
-
-%! context:declare(+Context, +Fact)
-%
-% Local predicate
-%
-% Declare a fact.
-
-context:declare(Context, Fact) :-
-  assertz(Context:'$__meta'(Fact)).
-
-
-%! context:undeclare(+Context, +Fact)
-%
-% Local predicate
-%
-% Undeclares a fact.
-
-context:undeclare(Context, Fact) :-
-  retractall(Context:'$__meta'(Fact)).
-
-
-%! context:conflicting(+Fact,-OtherFact)
-%
-% Local predicate
-%
-% Declares a conflict between facts:
-%
-%  - A context can only be of one type.
-%  - A predicate can only have one property.
-
-context:conflicting(type(_), type(_)) :- !.
-
-context:conflicting(property(Functor/Arity, _), property(Functor/Arity, _)) :- !.
 
 
 %! declared(?Fact)
@@ -407,292 +462,14 @@ implemented(Head) :-
   clause(Context:GuardedHead,_).
 
 
-%! inherit(+Parents)
-%
-% Exported, transparent predicate
-%
-% Inherit predicates from a number of parent contexts.
-% Throws an error if parent context does not exist.
-
-inherit([Parent|Parents]) :-
-  inherit(Parent),
-  inherit(Parents).
-
-inherit([]) :- !.
-
-
-%! inherit(+Parent)
-%
-% Exported, transparent predicate
-%
-% Inherit predicates from a parent context.
-% Throws an error if parent context does not exist.
-
-inherit(Parent) :-
-  \+(Parent:declared(type(class))),
-  this(Context),
-  throw(error(existence_error(class, Parent), context(Context, inherit))).
-
-inherit(Parent) :-
-  findall(Functor/Arity, Parent:declared(property(Functor/Arity,_)), List),
-  this(Context),
-  Context:declare(parent(Parent)),
-  context:inherit_predicates(class, Context, Parent, List).
-
-
-%! inherit_predicates(+Relation, +Context, +Parent, +List)
-%
-% Local predicate
-%
-% Inherits predicates in List from Parent Context.
-
-context:inherit_predicates(Relation, Context, Parent, [Functor/Arity|Tail]) :-
-  context:inherit_predicate(Relation, Context, Parent, Functor/Arity),
-  context:inherit_predicates(Relation, Context, Parent, Tail).
-
-context:inherit_predicates(_Relation, _Context, _Parent, []).
-
-
-%! inherit_predicate(+Relation, +Context, +Parent, +Functor/+Arity)
-%
-% Local predicate
-%
-% Inherit predicate from parent context. Inherits the predicate  properties,
-% corresponding clause and cache.
-
-context:inherit_predicate(Relation, Context, Parent, Functor/Arity) :-
-  context:inherit_predicate_property(Relation, Context, Parent, Functor/Arity),
-  context:inherit_predicate_clauses(Relation, Context, Parent, Functor/Arity).
-
-
-%! inherit_predicate_property(+Relation, +Context, +Parent, +Functor/Arity)
-%
-% Local predicate
-%
-% Assert property of inherited predicate.
-
-context:inherit_predicate_property(Relation, Context, Parent, Functor/Arity) :-
-  Parent:declared(property(Functor/Arity, Property)),
-  context:inherit_predicate_property(Relation, Property, Context, Parent, Functor/Arity).
-
-
-%! inherit_predicate_property(+Relation, +Property, +Context, +Parent, +Predicate)
-%
-% Local predicate
-%
-% Assert property of inherited predicate, depending on relationship.
-
-context:inherit_predicate_property(class, private, _Context, _Parent, _Predicate) :-
-  !,
-  true.
-
-context:inherit_predicate_property(_Relation, Property, Context, _Parent, Predicate) :-
-  context:declare(Context, property(Predicate, Property)).
-
-
-%! inherit_predicate_clauses(+Relation, +Context, +Parent, +Functor/+Arity)
-%
-% Local predicate
-%
-% Inherit clauses corresponding with Functor/Arity, guard them if required.
-
-context:inherit_predicate_clauses(Relation, Context, Parent, Functor/Arity) :-
-  Parent:declared(property(Functor/Arity, Property)),
-  functor(Head, Functor, Arity),
-  context:inherit_predicate__metaclause(Relation, Parent, Context, Head, Functor/Arity),
-  findall([Head, Body], clause(Parent:'::-'(Head, Body), true), Clauses),
-  context:inherit_predicate_clauses(Relation, Property, Context, Parent, Clauses).
-
-
-%! inherit_predicate__metaclause(+Relation, +Parent, +Context, +Head, +Functor/+Arity)
-%
-% Local predicate
-%
-% Create a guarded metaclause calling guarded clauses.
-
-context:inherit_predicate__metaclause(class, _Parent, _Context, _Head, _Functor/_Arity) :-
-  !,
-  true.
-
-context:inherit_predicate__metaclause(instance, Parent, Context, MetaHead, Functor/Arity) :-
-  Parent:declared(property(Functor/Arity,Property)),
-  context:gen_check_invocation(Context, Parent, Property, MetaHead, MetaBody),
-  context:assert_predicate_clause(instance, Context, MetaHead, MetaBody).
-
-
-%! gen_check_invocation(+Context, +Property, +Head, -Code)
-%
-% Local predicate
-%
-% Code generator for invocation check.
-
-context:gen_check_invocation(Context, _Parent, public, MetaHead, Code) :-
-  context:translate_call(MetaHead,Head),
-  Code = (
-           call_cleanup(Head, retract(Context:'$_token'(thread_access)))
-         ).
-
-context:gen_check_invocation(_Context, _Parent, protected, MetaHead, Code) :-
-  context:translate_call(MetaHead,Head),
-  Code = (
-           Head
-         ).
-
-context:gen_check_invocation(_Context, _Parent, private, MetaHead, Code) :-
-  context:translate_call(MetaHead,Head),
-  Code = (
-           Head
-         ).
-
-context:gen_check_invocation(_Context, Parent, static, Head, Code) :-
-  Code = (
-	   Parent:Head
-         ).
-
-
-%! translate_call(?MetaCall, ?Call)
-%
-% Local predicate
-% Translate between call and metacall representation.
-
-context:translate_call(MetaCall, Call) :-
-  MetaCall =.. [MetaFunctor|Args],
-  Call =.. ['$__meta',guarded_implementation(MetaFunctor,Args)].
-
-
-%! inherit_predicate_clauses(+Relation, +Property, +Context, +Parent, +Clauses)
-%
-% Local predicate
-%
-% Inherit clauses, guard them if required.
-
-context:inherit_predicate_clauses(Relation, Property, Context, Parent, [[Head,Body]|Clauses]) :-
-  context:inherit_predicate_clause(Relation, Property, Context, Parent, Head, Body),
-  context:inherit_predicate_clauses(Relation, Property, Context, Parent, Clauses).
-
-context:inherit_predicate_clauses(_Relation, _Property, _Context, _Parent, []).
-
-
-%! inherit_preidcate_clause(+Relation, +Property, +Context, +Parent, +Head, +Body)
-%
-% Local predicate
-%
-% Rewrites clause body on inherit, depending on whether a class or an instance
-% is inheriting a clause.
-
-context:inherit_predicate_clause(class, private, _Context, _Parent, _Head, _Body) :-
-  !,
-  true.
-
-context:inherit_predicate_clause(class, _Property, Context, _Parent, Head, Body) :-
-  context:assert_predicate_clause(class, Context, Head, Body).
-
-context:inherit_predicate_clause(instance, Property, Context, Parent, MetaHead, Body) :-
-  context:guard_predicate_clause(Property, Context, Parent, MetaHead, GuardedHead, Body, GuardedBody),
-  context:assert_predicate_clause(instance, Context, GuardedHead, GuardedBody).
-
-
-%! guard_predicate_clause(+Property, +Context, +Parent, +Head, +Body, -HeadNew, -BodyNew)
-%
-% Local predicate
-%
-% Given a clause, produces a guarded clause.
-
-context:guard_predicate_clause(Property, Context, _Parent, Head, GuardedHead, Body, GuardedBody) :-
-  context:translate_call(Head, GuardedHead),
-  context:gen_check_access(Property, Context, Head, Body, GuardedBody).
-
-
-%! gen_check_access(+Property, +Context, +Head, -Code)
-%
-% Local predicate
-%
-% Code generator for access check.
-
-context:gen_check_access(private, Context, Head, Body, Code) :-
-  Code = (
-            clause(Context:'$_token'(thread_access), true)
-            ->	( % assertz(Context:'$_token'(thread_access)), % reasoning: only public functions can call protected or private functions
-                  Body )
-            ;   ( functor(Head,H,A),
-                  throw(error(permission_error(access, private, H/A), context(Context, _))) )
-         ).
-
-context:gen_check_access(protected, Context, Head, Body, Code) :-
-  Code = (
-            clause(Context:'$_token'(thread_access), true)
-            ->	( % assertz(Context:'$_token'(thread_access)), % reasoning: only public functions can call protected or private functions
-                  Body )
-            ;     ( functor(Head,H,A),
-                    throw(error(permission_error(access, protected, H/A), context(Context, _))) )
-         ).
-
-context:gen_check_access(static, _Context, _Head, Body, Code) :-
-  Code = (
-            Body
-         ).
-
-context:gen_check_access(_Property, Context, _Head, Body, Code) :-
-  Code = (
-            assertz(Context:'$_token'(thread_access)),
-            Body
-         ).
-
-
-%! assert_predicate_clause(+Relation, +Context, +Head, +Body)
-%
-% Local predicate
-%
-% Assert predicate clause
-
-context:assert_predicate_clause(instance, Context, Head, Body) :-
-  expand_goal(Body,ExpandedBody),
-  assertz(Context:(Head :- ExpandedBody)).
-
-context:assert_predicate_clause(class, Context, Head, Body) :-
-  assertz(Context:(Head ::- Body)).
-
-
-%! newinstance(+class)
-%
-% Exported, transparent predicate
-%
-% Create an instance from a class.
-
-newinstance(Class) :-
-  this(Context),
-  context:newinstance(Context, Class).
-
-
-%! newinstance(+class, +constructor)
-%
-% Local predicate
-% Create an instance from a class.
-
-context:newinstance(Context, _Constructor) :-
-  \+(atom(Context)),
-  throw(error(type_error(atom, Context), context(instance, _))).
-
-context:newinstance(Context, Constructor) :-
-  Constructor =.. [Parent|_],
-  \+(Parent:declared(type(class))),
-  throw(error(existence_error(class, Parent), context(Context, instance))).
-
-context:newinstance(Context, Constructor) :-
-  Constructor =.. [Parent|Arguments],
-  thread_local(Context:'$_token'/1),
-  context:declare(Context, type(instance(Parent))),
-  findall(Predicate, Parent:declared(property(Predicate,_)), List),
-  context:inherit_predicates(instance, Context, Parent, List),
-  length(Arguments, Arity),
-  freeze(Context),
-  !,
-  ( Context:declared(property(Parent/Arity, _)) -> Context:Constructor ; true ).
-
+% -----------------------------------------------------------------------------
+%  Exported predicates (freeze)
+% -----------------------------------------------------------------------------
 
 %! freeze(Context)
 %
-% Local predicate
+% Exported predicate
+%
 % Freezes the dynamically generated predicates in an instance to
 % ensure optimal performance.
 
@@ -703,6 +480,10 @@ context:freeze(Context) :-
           DynList),
   compile_predicates(DynList).
 
+
+% -----------------------------------------------------------------------------
+%  Exported predicates (destroy)
+% -----------------------------------------------------------------------------
 
 %! '~'(+Destructor)
 %
@@ -730,6 +511,10 @@ context:freeze(Context) :-
   !,
   context:destroy(Context).
 
+
+% -----------------------------------------------------------------------------
+%  Exported predicates (operator implementations)
+% -----------------------------------------------------------------------------
 
 %! ':'(+Predicate)
 %
@@ -853,6 +638,275 @@ context:freeze(Context) :-
   context:declare(Context, cache(Predicate)).
 
 
+% -----------------------------------------------------------------------------
+%  Local helper predicates (newinstance)
+% -----------------------------------------------------------------------------
+
+%! newinstance(+class, +constructor)
+%
+% Local predicate
+%
+% Create an instance from a class.
+
+context:newinstance(Context, _Constructor) :-
+  \+(atom(Context)),
+  throw(error(type_error(atom, Context), context(instance, _))).
+
+context:newinstance(Context, Constructor) :-
+  Constructor =.. [Parent|_],
+  \+(Parent:declared(type(class))),
+  throw(error(existence_error(class, Parent), context(Context, instance))).
+
+context:newinstance(Context, Constructor) :-
+  Constructor =.. [Parent|Arguments],
+  thread_local(Context:'$_token'/1),
+  context:declare(Context, type(instance(Parent))),
+  findall(Predicate, Parent:declared(property(Predicate,_)), List),
+  context:inherit_predicates(instance, Context, Parent, List),
+  length(Arguments, Arity),
+  freeze(Context),
+  !,
+  ( Context:declared(property(Parent/Arity, _)) -> Context:Constructor ; true ).
+
+
+% -----------------------------------------------------------------------------
+%  Local helper predicates (inheritance)
+% -----------------------------------------------------------------------------
+
+%! inherit_predicates(+Relation, +Context, +Parent, +List)
+%
+% Local predicate
+%
+% Inherits predicates in List from Parent Context.
+
+context:inherit_predicates(Relation, Context, Parent, [Functor/Arity|Tail]) :-
+  context:inherit_predicate(Relation, Context, Parent, Functor/Arity),
+  context:inherit_predicates(Relation, Context, Parent, Tail).
+
+context:inherit_predicates(_Relation, _Context, _Parent, []).
+
+
+%! inherit_predicate(+Relation, +Context, +Parent, +Functor/+Arity)
+%
+% Local predicate
+%
+% Inherit predicate from parent context. Inherits the predicate  properties,
+% corresponding clause and cache.
+
+context:inherit_predicate(Relation, Context, Parent, Functor/Arity) :-
+  context:inherit_predicate_property(Relation, Context, Parent, Functor/Arity),
+  context:inherit_predicate_clauses(Relation, Context, Parent, Functor/Arity).
+
+
+%! inherit_predicate_property(+Relation, +Context, +Parent, +Functor/Arity)
+%
+% Local predicate
+%
+% Assert property of inherited predicate.
+
+context:inherit_predicate_property(Relation, Context, Parent, Functor/Arity) :-
+  Parent:declared(property(Functor/Arity, Property)),
+  context:inherit_predicate_property(Relation, Property, Context, Parent, Functor/Arity).
+
+
+%! inherit_predicate_property(+Relation, +Property, +Context, +Parent, +Predicate)
+%
+% Local predicate
+%
+% Assert property of inherited predicate, depending on relationship.
+
+context:inherit_predicate_property(class, private, _Context, _Parent, _Predicate) :-
+  !,
+  true.
+
+context:inherit_predicate_property(_Relation, Property, Context, _Parent, Predicate) :-
+  context:declare(Context, property(Predicate, Property)).
+
+
+%! inherit_predicate_clauses(+Relation, +Context, +Parent, +Functor/+Arity)
+%
+% Local predicate
+%
+% Inherit clauses corresponding with Functor/Arity, guard them if required.
+
+context:inherit_predicate_clauses(Relation, Context, Parent, Functor/Arity) :-
+  Parent:declared(property(Functor/Arity, Property)),
+  functor(Head, Functor, Arity),
+  context:inherit_predicate__metaclause(Relation, Parent, Context, Head, Functor/Arity),
+  findall([Head, Body], clause(Parent:'::-'(Head, Body), true), Clauses),
+  context:inherit_predicate_clauses(Relation, Property, Context, Parent, Clauses).
+
+
+%! inherit_predicate__metaclause(+Relation, +Parent, +Context, +Head, +Functor/+Arity)
+%
+% Local predicate
+%
+% Create a guarded metaclause calling guarded clauses.
+
+context:inherit_predicate__metaclause(class, _Parent, _Context, _Head, _Functor/_Arity) :-
+  !,
+  true.
+
+context:inherit_predicate__metaclause(instance, Parent, Context, MetaHead, Functor/Arity) :-
+  Parent:declared(property(Functor/Arity,Property)),
+  context:gen_check_invocation(Context, Parent, Property, MetaHead, MetaBody),
+  context:assert_predicate_clause(instance, Context, MetaHead, MetaBody).
+
+
+%! inherit_predicate_clauses(+Relation, +Property, +Context, +Parent, +Clauses)
+%
+% Local predicate
+%
+% Inherit clauses, guard them if required.
+
+context:inherit_predicate_clauses(Relation, Property, Context, Parent, [[Head,Body]|Clauses]) :-
+  context:inherit_predicate_clause(Relation, Property, Context, Parent, Head, Body),
+  context:inherit_predicate_clauses(Relation, Property, Context, Parent, Clauses).
+
+context:inherit_predicate_clauses(_Relation, _Property, _Context, _Parent, []).
+
+
+%! inherit_preidcate_clause(+Relation, +Property, +Context, +Parent, +Head, +Body)
+%
+% Local predicate
+%
+% Rewrites clause body on inherit, depending on whether a class or an instance
+% is inheriting a clause.
+
+context:inherit_predicate_clause(class, private, _Context, _Parent, _Head, _Body) :-
+  !,
+  true.
+
+context:inherit_predicate_clause(class, _Property, Context, _Parent, Head, Body) :-
+  context:assert_predicate_clause(class, Context, Head, Body).
+
+context:inherit_predicate_clause(instance, Property, Context, Parent, MetaHead, Body) :-
+  context:guard_predicate_clause(Property, Context, Parent, MetaHead, GuardedHead, Body, GuardedBody),
+  context:assert_predicate_clause(instance, Context, GuardedHead, GuardedBody).
+
+
+%! guard_predicate_clause(+Property, +Context, +Parent, +Head, +Body, -HeadNew, -BodyNew)
+%
+% Local predicate
+%
+% Given a clause, produces a guarded clause.
+
+context:guard_predicate_clause(Property, Context, _Parent, Head, GuardedHead, Body, GuardedBody) :-
+  context:translate_call(Head, GuardedHead),
+  context:gen_check_access(Property, Context, Head, Body, GuardedBody).
+
+
+% -----------------------------------------------------------------------------
+%  Local helper predicates (assert_predicate_clause)
+% -----------------------------------------------------------------------------
+
+%! assert_predicate_clause(+Relation, +Context, +Head, +Body)
+%
+% Local predicate
+%
+% Assert predicate clause
+
+context:assert_predicate_clause(instance, Context, Head, Body) :-
+  expand_goal(Body,ExpandedBody),
+  assertz(Context:(Head :- ExpandedBody)).
+
+context:assert_predicate_clause(class, Context, Head, Body) :-
+  assertz(Context:(Head ::- Body)).
+
+
+% -----------------------------------------------------------------------------
+%  Local helper predicates (code generation: predicate guarding, access check)
+% -----------------------------------------------------------------------------
+
+%! gen_check_invocation(+Context, +Property, +Head, -Code)
+%
+% Local predicate
+%
+% Code generator for invocation check.
+
+context:gen_check_invocation(Context, _Parent, public, MetaHead, Code) :-
+  context:translate_call(MetaHead,Head),
+  Code = (
+           call_cleanup(Head, retract(Context:'$_token'(thread_access)))
+         ).
+
+context:gen_check_invocation(_Context, _Parent, protected, MetaHead, Code) :-
+  context:translate_call(MetaHead,Head),
+  Code = (
+           Head
+         ).
+
+context:gen_check_invocation(_Context, _Parent, private, MetaHead, Code) :-
+  context:translate_call(MetaHead,Head),
+  Code = (
+           Head
+         ).
+
+context:gen_check_invocation(_Context, Parent, static, Head, Code) :-
+  Code = (
+	   Parent:Head
+         ).
+
+
+%! gen_check_access(+Property, +Context, +Head, -Code)
+%
+% Local predicate
+%
+% Code generator for access check.
+
+context:gen_check_access(private, Context, Head, Body, Code) :-
+  Code = (
+            clause(Context:'$_token'(thread_access), true)
+            ->	( % assertz(Context:'$_token'(thread_access)), 
+                  % reasoning: only public functions can call protected 
+                  % or private functions
+                  Body )
+            ;   ( functor(Head,H,A),
+                  throw(error(permission_error(access, private, H/A), context(Context, _))) )
+         ).
+
+context:gen_check_access(protected, Context, Head, Body, Code) :-
+  Code = (
+            clause(Context:'$_token'(thread_access), true)
+            ->	( % assertz(Context:'$_token'(thread_access)), 
+                  % reasoning: only public functions can call protected 
+                  % or private functions
+                  Body )
+            ;     ( functor(Head,H,A),
+                    throw(error(permission_error(access, protected, H/A), context(Context, _))) )
+         ).
+
+context:gen_check_access(static, _Context, _Head, Body, Code) :-
+  Code = (
+            Body
+         ).
+
+context:gen_check_access(_Property, Context, _Head, Body, Code) :-
+  Code = (
+            assertz(Context:'$_token'(thread_access)),
+            Body
+         ).
+
+
+% -----------------------------------------------------------------------------
+%  Local helper predicates (code generation: translate_call)
+% -----------------------------------------------------------------------------
+
+%! translate_call(?MetaCall, ?Call)
+%
+% Local predicate
+%
+% Translate between call and metacall representation.
+
+context:translate_call(MetaCall, Call) :-
+  MetaCall =.. [MetaFunctor|Args],
+  Call =.. ['$__meta',guarded_implementation(MetaFunctor,Args)].
+
+
+% -----------------------------------------------------------------------------
+%  Local helper predicates (destroy)
+% -----------------------------------------------------------------------------
+
 %! destroy(+Context)
 %
 % Local predicate
@@ -881,3 +935,56 @@ context:destroy_context_clauses(Context, [_Functor/_Arity|Preds]) :-
   context:destroy_context_clauses(Context, Preds).
 
 context:destroy_context_clauses(_, []) :- !.
+
+
+% -----------------------------------------------------------------------------
+%  Helper predicates (declare, undeclare, conflicting)
+% -----------------------------------------------------------------------------
+
+%! context:declare(+Context, +Fact)
+%
+% Local predicate
+%
+% Declare a fact.
+
+context:declare(Context, Fact) :-
+  assertz(Context:'$__meta'(Fact)).
+
+
+%! context:undeclare(+Context, +Fact)
+%
+% Local predicate
+%
+% Undeclares a fact.
+
+context:undeclare(Context, Fact) :-
+  retractall(Context:'$__meta'(Fact)).
+
+
+%! context:conflicting(+Fact,-OtherFact)
+%
+% Local predicate
+%
+% Declares a conflict between facts:
+%
+%  - A context can only be of one type.
+%  - A predicate can only have one property.
+
+context:conflicting(type(_), type(_)) :- !.
+
+context:conflicting(property(Functor/Arity, _), property(Functor/Arity, _)) :- !.
+
+
+% -----------------------------------------------------------------------------
+%  Exported predicates (instances)
+% -----------------------------------------------------------------------------
+
+%! instances(+Class,?Instance)
+%
+% Exported predicate
+%
+% List instances of a class.
+
+instances(Class,Instance) :-
+  current_module(Instance),
+  clause(Instance:'$__meta'(type(instance(Class))),true).

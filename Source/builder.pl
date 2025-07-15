@@ -16,10 +16,9 @@ The Builder takes a plan from the Planner and executes it.
 
 :- dynamic builder:broken/1.
 
-% ********************
-% BUILDER declarations
-% ********************
-
+% =============================================================================
+%  BUILDER declarations
+% =============================================================================
 
 %! builder:build(+Plan)
 %
@@ -217,7 +216,7 @@ builder:test(Repository) :-
               (catch(call_with_time_limit(T,(stats:increase,
                                              stats:percentage(P),
  	                                     nl,message:topheader(['[',P,'] - Executing plan for ',Repository://E:Action]),
-                                             prover:prove(Repository://E:Action,[],Proof,[],_Model,[],_Constraints),
+                                             prover:prove(Repository://E:Action,[],Proof,[],_Model,[],_Constraints,[],_),
 			                     planner:plan(Proof,[],[],_Plan),!)),
                                              %builder:execute(Repository://E:Action,Model,Proof,Plan))),
                      time_limit_exceeded,

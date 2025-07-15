@@ -14,9 +14,9 @@ This module is reponsible for tracking installed packages on the system.
 
 :- module(pkg, []).
 
-% ****************
-% PKG declarations
-% ****************
+% =============================================================================
+%  PKG declarations
+% =============================================================================
 
 
 %! pkg:installed_pkg(+Entry)

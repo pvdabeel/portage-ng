@@ -17,9 +17,9 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 
 :- module(repository,[]).
 
-% ***********************
-% REPOSITORY declarations
-% ***********************
+% =============================================================================
+%  REPOSITORY declarations
+% =============================================================================
 
 
 :- class.
@@ -160,14 +160,13 @@ sync(repository) ::-
 
 sync(metadata) ::-
   ::type('eapi'),!,
-  %config:number_of_cpus(Cpus),
   message:hc,
   ( config:trust_metadata(false)
     -> (:update_cache,
         concurrent_forall(:find_ebuild(E,_,_,_,_),
                 (:read_ebuild(E,Cd,_),
                  :update_metadata(E,Cd),
-                  with_mutex(mutex,message:scroll(['Ebuild (local): ',E])))))
+                 with_mutex(mutex,message:scroll(['Ebuild (local): ',E])))))
     ; true ),
   message:sc,
   message:scroll(['Updated metadata.']),nl.

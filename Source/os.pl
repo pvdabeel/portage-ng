@@ -16,10 +16,35 @@ Eventually this could become a class with different subclasses.
 
 :- module(os, []).
 
-% ***************
-% OS declarations
-% ***************
+% =============================================================================
+%  OS declarations
+% =============================================================================
 
+% -----------------------------------------------------------------------------
+%  Path operations  
+% -----------------------------------------------------------------------------
+
+%! os:compose_path(+Path,+RelativePath,-NewPath)
+%
+% Given a path (relative or absolute) and a relative path, composes a
+% new path by combining both paths and a separator.
+
+os:compose_path(Path,RelativePath,NewPath) :-
+  atomic_list_concat([Path,'/',RelativePath],NewPath).
+
+
+%! os:compose_path(+List,-Path)
+%
+% Given a list of path components, composes a new path by combining
+% path segments using correct OS seperator
+
+os:compose_path(List,Path) :-
+  atomic_list_concat(List,'/',Path).
+
+
+% -----------------------------------------------------------------------------
+%  Directory operations
+% -----------------------------------------------------------------------------
 
 %! os:make_directory(+Directory)
 %
@@ -56,19 +81,25 @@ os:directory_content(Directory,Content) :-
   lists:member(Content,Contents).
 
 
-%! os:compose_path(+Path,+RelativePath,-NewPath)
+% -----------------------------------------------------------------------------
+%  Bash wrappers
+% -----------------------------------------------------------------------------
+
+%! os:bash_dns_sd(+ArgList,-Lines)
 %
-% Given a path (relative or absolute) and a relative path, composes a
-% new path by combining both paths and a separator.
+% Calls dns-sd command in bash with given ArgList
+% Returns lines of strings (output of the command)
 
-os:compose_path(Path,RelativePath,NewPath) :-
-  atomic_list_concat([Path,'/',RelativePath],NewPath).
+os:bash_dns_sd(ArgList, Lines) :-
+  atomic_list_concat(['dns-sd'|ArgList],' ',Cmd),
+  os:bash_lines(Cmd,Lines).
 
 
-%! os:compose_path(+List,-Path)
+%! os:bash_lines(+Cmd,-Lines)
 %
-% Given a list of path components, composes a new path by combining
-% path segments using correct OS seperator
+% Runs a given command in bash
+% Returns lines of strings (output of the command)
 
-os:compose_path(List,Path) :-
-  atomic_list_concat(List,'/',Path).
+os:bash_lines(Cmd, Lines) :-
+  process_create(path(bash),['-c',Cmd],[stdout(pipe(Out)),process(Pid)]),
+  call_cleanup(reader:read_lines_to_strings(Out,Lines),(close(Out),process_wait(Pid,_))).

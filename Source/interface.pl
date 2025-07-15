@@ -14,20 +14,20 @@ The interface interpretes command line arguments passed to portage-ng.
 
 :- module(interface, []).
 
-% **********************
-% INTERFACE declarations
-% **********************
+% =============================================================================
+%  INTERFACE declarations
+% =============================================================================
 
-% -----------------
-% Interface version
-% -----------------
+% -----------------------------------------------------------------------------
+%  Interface version
+% -----------------------------------------------------------------------------
 
 %! interface:version(?Version)
 %
 % Retrieve the current version
 
 interface:version(V) :-
-  V = '2025.06.25'.
+  V = '2025.07.01'.
 
 
 %! interface:status(?Status)
@@ -38,9 +38,9 @@ interface:status(S) :-
   S = 'development'.
 
 
-% ------------------------
-% Interface specifications
-% ------------------------
+% -----------------------------------------------------------------------------
+%  Interface specifications
+% -----------------------------------------------------------------------------
 
 %! interface:spec(?Specification)
 %
@@ -82,9 +82,9 @@ interface:spec(S) :-
       ].
 
 
-% --------------------
-% Command line reading
-% --------------------
+% -----------------------------------------------------------------------------
+%  Command line reading
+% -----------------------------------------------------------------------------
 
 %! interface:argv(-Options,-Args)
 %
@@ -109,9 +109,9 @@ interface:getenv(Name,Value) :-
   system:getenv(Name,Value).
 
 
-% ---------------
-% Option handling
-% ---------------
+% -----------------------------------------------------------------------------
+%  Option handling
+% -----------------------------------------------------------------------------
 
 %! interface:process_flags
 %
@@ -167,7 +167,6 @@ interface:process_server(Host,Port) :-
 
 interface:process_requests(Mode) :-
   interface:version(Version),
-  interface:status(Status),
 
   interface:process_flags,
   interface:process_continue(Continue),
@@ -176,36 +175,36 @@ interface:process_requests(Mode) :-
   message:log(['Args:      ',Args]),
   message:log(['Options:   ',Options]),
 
-  ( memberchk(version(true),Options)  -> (message:inform(['portage-ng ',Status,' version - ',Version]), Continue) ;
-    memberchk(info(true),Options)     -> (interface:process_action(info,Args,Options),                  Continue) ;
-    memberchk(clear(true),Options)    -> (kb:clear, 							Continue) ;
-    memberchk(graph(true),Options)    -> (kb:graph,nl, 				  			Continue) ;
-    memberchk(unmerge(true),Options)  -> (interface:process_action(uninstall?{[]},Args,Options), 	Continue) ;
-    memberchk(depclean(true),Options) -> (message:warning('depclean action to be implemented'), 	Continue) ;
-    memberchk(search(true),Options)   -> (interface:process_action(search,Args,Options),                Continue) ;
+  ( memberchk(version(true),Options)  -> (message:logo(['::- portage-ng ',Version]),                Continue) ;
+    memberchk(info(true),Options)     -> (interface:process_action(info,Args,Options),              Continue) ;
+    memberchk(clear(true),Options)    -> (kb:clear, 							                                  Continue) ;
+    memberchk(graph(true),Options)    -> (kb:graph,nl, 				  			                              Continue) ;
+    memberchk(unmerge(true),Options)  -> (interface:process_action(uninstall?{[]},Args,Options), 	  Continue) ;
+    memberchk(depclean(true),Options) -> (message:warning('depclean action to be implemented'), 	  Continue) ;
+    memberchk(search(true),Options)   -> (interface:process_action(search,Args,Options),            Continue) ;
     memberchk(sync(true),Options)     -> ((Mode == standalone
                                            -> (kb:sync, kb:save)
-                                           ;  (kb:sync)),!, 						Continue) ;
-    memberchk(save(true),Options)     -> (kb:save,!, 							Continue) ;
-    memberchk(load(true),Options)     -> (kb:load,!, 							Continue) ;
-    memberchk(fetchonly(true),Options)-> (interface:process_action(fetchonly?{[]},Args,Options),        Continue) ;
-    memberchk(merge(true),Options)    -> (interface:process_action(run?{[]},Args,Options),              Continue) ;
-    memberchk(shell(true),Options)    -> (message:inform(['portage-ng shell - ',Version]),		prolog)),
+                                           ;  (kb:sync)),!, 						                            Continue) ;
+    memberchk(save(true),Options)     -> (kb:save,!, 							                                  Continue) ;
+    memberchk(load(true),Options)     -> (kb:load,!, 							                                  Continue) ;
+    memberchk(fetchonly(true),Options)-> (interface:process_action(fetchonly?{[]},Args,Options),    Continue) ;
+    memberchk(merge(true),Options)    -> (interface:process_action(run?{[]},Args,Options),          Continue) ;
+    memberchk(shell(true),Options)    -> (message:logo(['::- portage-ng shell - ',Version]),		    prolog)),
 
   Continue.
 
 
-% -----------------
-% Action processing
-% -----------------
+% -----------------------------------------------------------------------------
+%  Action processing
+% -----------------------------------------------------------------------------
 
 %! interface:process_action(+Action,+Args,+Options)
 %
 % Processes a specific action.
 
-% ------------
-% Action: INFO
-% ------------
+% -----------------------------------------------------------------------------
+%  Action: INFO
+% -----------------------------------------------------------------------------
 
 interface:process_action(info,[],_) :-
   !,
@@ -220,9 +219,9 @@ interface:process_action(info,Args,_Options) :-
                            printer:print_entry(R://E))).
 
 
-% --------------
-% Action: SEARCH
-% --------------
+% -----------------------------------------------------------------------------
+%  Action: SEARCH
+% -----------------------------------------------------------------------------
 
 interface:process_action(search,[],_) :-
   !,
@@ -235,9 +234,9 @@ interface:process_action(search,Args,_Options) :-
   forall(kb:query(Q,R://E), writeln(R://E)).
 
 
-% -------------
-% Action: MERGE
-% -------------
+% -----------------------------------------------------------------------------
+%  Action: MERGE
+% -----------------------------------------------------------------------------
 
 interface:process_action(_Action,[],_) :- !.
 
@@ -258,11 +257,11 @@ interface:process_action(Action,ArgsSets,_Options) :-
    ;  true),
   (Mode == 'client' ->
     (client:rpc_execute(Host,Port,
-     (oracle:with_q(prover:prove_lists(Proposal,[],Proof,[],Model,[],_Constraints)),
-      oracle:with_q(planner:plan(Proof,[],[],Plan)),
-      printer:print(Proposal,Model,Proof,Plan)),
+     (oracle:with_q(prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
+      oracle:with_q(planner:plan(ProofAVL,Triggers,t,Plan)),
+      printer:print(Proposal,ModelAVL,ProofAVL,Plan)),
      Output),
      writeln(Output));
-    (prover:prove_lists(Proposal,[],Proof,[],Model,[],_Constraints),
-     planner:plan(Proof,[],[],Plan),
-     printer:print(Proposal,Model,Proof,Plan) )).
+    (prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers),
+     planner:plan(ProofAVL,Triggers,t,Plan),
+     printer:print(Proposal,ModelAVL,ProofAVL,Plan) )).

@@ -16,9 +16,9 @@ We support any model available, default is set to 'gemini-1.5-flash'.
 */
 
 
-% *******************
-% GEMINI declarations
-% *******************
+% =============================================================================
+%  GEMINI declarations
+% =============================================================================
 
 :- module(gemini, [gemini/0, gemini/1, gemini/2]).
 

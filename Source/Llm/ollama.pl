@@ -16,9 +16,9 @@ We support any model available, default is set to 'llama3.2'.
 */
 
 
-% *******************
-% OLLAMA declarations
-% *******************
+% =============================================================================
+%  OLLAMA declarations
+% =============================================================================
 
 :- module(ollama, [ollama/0, ollama/1, ollama/2]).
 

@@ -14,7 +14,13 @@ compiled in standalone mode without generating warnings about undefined
 predicates.
 */
 
-% Stubs for client calls.
+% =============================================================================
+%  STUBS declarations
+% =============================================================================
+
+% -----------------------------------------------------------------------------
+%  Stubs for client calls.
+% -----------------------------------------------------------------------------
 
 :- dynamic client:rpc_execute/3.
 :- dynamic client:rpc_execute/4.
@@ -35,11 +41,12 @@ client:rpc_execute(_,_,_,_) :-
 client:execute_remotely(_,_,_) :-
     print_message(error,"Client module not loaded, cannot execute remotely").
 
-
 :- endif.
 
 
-% Stubs for server calls.
+% -----------------------------------------------------------------------------
+%  Stubs for server calls.
+% -----------------------------------------------------------------------------
 
 :- dynamic server:start_server/0.
 :- dynamic server:stop_server/0.

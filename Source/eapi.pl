@@ -7,85 +7,105 @@
   project.
 */
 
+% -----------------------------------------------------------------------------
+
 
 /** <module> EAPI
 A  DCG Grammar for Parsing Gentoo EAPI Metadata
 -----------------------------------------------
 
-This file implements a Definite Clause Grammar (DCG) for parsing metadata in Gentoo's
-md5-cache and Manifest files, compatible with EAPI version 8 and earlier (verified
-against the PMS specifications for EAPI 8, Sections 7, 12.1, and 12.2).
+This file implements a Definite Clause Grammar (DCG) for parsing metadata in 
+Gentoo's md5-cache and Manifest files, compatible with EAPI version 8 and earlier
+(verified against the PMS specifications for EAPI 8, Sections 7, 12.1, and 12.2).
 
-It is part of portage-ng, a next-generation replacement for Gentoo's Portage package
-manager, written in SWI-prolog.
+It is part of portage-ng, a next-generation replacement for Gentoo's Portage 
+package manager, written in SWI-prolog.
 
-Overview
---------
+-------------------------------------------------------------------------------
+ * Overview
+-------------------------------------------------------------------------------
 
-The Gentoo ebuild repository consists of a directory structure containing ebuild files
-(bash scripts) and a metadata/md5-cache subdirectory. Each ebuild defines environment
-variables that represent metadata about a software package. The md5-cache directory
-contains files corresponding to each ebuild, capturing the values of these environment
-variables after the ebuild is processed by bash (sourcing its eclasses and functions).
+The Gentoo ebuild repository consists of a directory structure containing ebuild
+(bash scripts) and a metadata/md5-cache subdirectory. Each ebuild defines 
+environment variables that represent metadata about a software package. The 
+md5-cache directory contains files corresponding to each ebuild, capturing the 
+values of these environment variables after the ebuild is processed by bash 
+(sourcing its eclasses and functions).
 
-These cache files are distributed with ebuilds to end-users for package installation.
-If an md5-cache file is missing or outdated (e.g., due to an ebuild update), the package
-manager will regenerate it.
+These cache files are distributed with ebuilds to end-users for package 
+installation. If an md5-cache file is missing or outdated (e.g., due to an ebuild 
+update), the package manager will regenerate it.
 
-Additionally, Gentoo repositories include Manifest files in each category/package directory,
-which store information for files referenced by ebuilds.
+Additionally, Gentoo repositories include Manifest files in each category/package
+directory, which store information for files referenced by ebuilds.
 
-This DCG grammar parses both md5-cache and Manifest files, converting their metadata into
-prolog facts which are stored in the cache database structure. (Cfr. cache.pl)
+This DCG grammar parses both md5-cache and Manifest files, converting their 
+metadata into prolog facts which are stored in the cache database structure. 
+(Cfr. cache.pl).
 
-The knowledge base ensures these predicates remain synchronized with the md5-cache files
-in the repository, and will regenerated missing or outdated md5-cache.
+The knowledge base ensures these predicates remain synchronized with the md5-cache 
+files in the repository, and will regenerate missing or outdated md5-cache.
 
 
-Valid input
------------
+-------------------------------------------------------------------------------
+ * Valid input
+-------------------------------------------------------------------------------
 
 1. md5-cache Files
 
 Location: Inside the metadata/md5-cache directory of a Gentoo repository.
 Purpose:  Store metadata for each ebuild, reflecting.
-Format:   Each file contains KEY=VALUE pairs, with one pair per line (PMS EAPI 8, Section 12.1).
+Format:   Each file contains KEY=VALUE pairs, with one pair per line (PMS EAPI 8,
+          Section 12.1).
 
 
 2. Manifest Files
 
 Location: In each category/package directory of the repository.
-Purpose:  Contain hash information for files referenced by ebuilds in the category/package.
-Format:   Each file contains KEY VALUE pairs, with one pair per line (PMS EAPI 8, Section 12.2).
+Purpose:  Contain hash information for files referenced by ebuilds in the 
+          category/package.
+Format:   Each file contains KEY VALUE pairs, with one pair per line (PMS EAPI 8,
+          Section 12.2).
 
 
-Grammar Specifications
-----------------------
+-------------------------------------------------------------------------------
+ * Grammar Specifications
+-------------------------------------------------------------------------------
 
-The DCG grammar adheres to the specifications in the PMS EAPI 8 document (pms-8.pdf), located in
-the project's documentation directory.
+The DCG grammar adheres to the specifications in the PMS EAPI 8 document 
+(pms-8.pdf), located in the project's documentation directory.
 
 
-Reading & Parsing
------------------
+-------------------------------------------------------------------------------
+ * Reading & Parsing
+-------------------------------------------------------------------------------
 
-These lines are read by the reader (cfr. reader.pl) and then parsed by the parser (cfr. parser.pl)
-using the grammar described in this file. The output is stored in the cache (cfr. cache.pl) by
-during execution of the knowledgebase (cfr knowledgebase.pl) sync command.
+These lines are read by the reader (cfr. reader.pl) and then parsed by the parser 
+(cfr. parser.pl) using the grammar described in this file. The output is stored 
+in the cache (cfr. cache.pl) by during execution of the knowledgebase (cfr 
+knowledgebase.pl) sync command.
 
-Output
-------
 
-The grammar produces SWI-Prolog facts representing the metadata from md5-cache and Manifest files.
-These facts are stored in dynamic cache predicates, which the portage-ng knowledge base keeps
-synchronized with the repository's md5-cache files.
+-------------------------------------------------------------------------------
+ * Output
+-------------------------------------------------------------------------------
+
+The grammar produces SWI-Prolog facts representing the metadata from md5-cache 
+and Manifest files. These facts are stored in dynamic cache predicates, which 
+the portage-ng knowledge base keeps synchronized with the repository's md5-cache 
+files.
 */
 
 :- module(eapi, []).
 
-% --------------------
-% EAPI abstract syntax
-% --------------------
+
+% =============================================================================
+%  EAPI declarations
+% =============================================================================
+
+% ----------------------------------------------------------------------------- 
+%  EAPI abstract syntax
+% -----------------------------------------------------------------------------
 
 % The result of parsing my contain the following abstract syntax constructs:
 
@@ -99,9 +119,9 @@ eapi:abstract_syntax_construct(exactly_one_of_group(_)) :- !.
 % See cache.pl for the data structure in the parser output is stored.
 
 
-% ----------
-% EAPI parse
-% ----------
+% -----------------------------------------------------------------------------
+%  EAPI parse
+% -----------------------------------------------------------------------------
 
 %! eapi:parse(+Type, +Repository://+Entry, +Codes, -Metadata)
 %
@@ -122,9 +142,9 @@ eapi:parse(Type, Repository://Entry, Codes, Metadata) :-
   phrase(eapi:keyvalue(Type, Repository://Entry, Metadata), Codes).
 
 
-% -----------------------
-% EAPI keyvalue structure
-% -----------------------
+% -----------------------------------------------------------------------------
+%  EAPI keyvalue structure
+% -----------------------------------------------------------------------------
 
 %! DCG eapi:keyvalue/1
 %
@@ -136,9 +156,9 @@ eapi:keyvalue(Type, Repository://Entry, Metadata) -->
   eapi:value(Key, Repository://Entry, Metadata).
 
 
-% ---------------------------
-% EAPI metadata key structure
-% ---------------------------
+% -----------------------------------------------------------------------------
+%  EAPI metadata key structure
+% -----------------------------------------------------------------------------
 
 %! DCG eapi:key/3
 %
@@ -160,9 +180,9 @@ eapi:key(query, [Key, M]) -->
   { atom_codes(Key, Cs), ! }.
 
 
-% --------------------
-% EAPI value structure
-% --------------------
+% -----------------------------------------------------------------------------
+%  EAPI value structure
+% -----------------------------------------------------------------------------
 
 %! DCG eapi:value/3
 %
@@ -171,115 +191,137 @@ eapi:key(query, [Key, M]) -->
 %
 % private predicates
 
+% PMS EAPI 8, Section 7.2.2
 eapi:value('DEFINED_PHASES', _, defined_phases(P)) -->
   !,
-  eapi:functions(P). % PMS EAPI 8, Section 7.2.2
+  eapi:functions(P). 
 
+% PMS EAPI 8, Section 7.2.3
 eapi:value('DEPEND', R://E, depend(D)) -->
   !,
-  eapi:depend(R://E, D). % PMS EAPI 8, Section 7.2.3
+  eapi:depend(R://E, D). 
 
+% PMS EAPI 8, Section 7.2.4
 eapi:value('DESCRIPTION', _, description(D)) -->
   !,
-  eapi:description(D). % PMS EAPI 8, Section 7.2.4
+  eapi:description(D). 
 
+% PMS EAPI 8, Section 7.2.5
 eapi:value('EAPI', _, eapi(E)) -->
   !,
-  eapi:eapi(E). % PMS EAPI 8, Section 7.2.5
+  eapi:eapi(E). 
 
+% PMS EAPI 8, Section 7.2.6
 eapi:value('HOMEPAGE', _, homepage(H)) -->
   !,
-  eapi:homepage(H). % PMS EAPI 8, Section 7.2.6
+  eapi:homepage(H). 
 
+% PMS EAPI 8, Section 7.2.7
 eapi:value('IUSE', R://E, iuse(I)) -->
   !,
-  eapi:iuse(R://E, I). % PMS EAPI 8, Section 7.2.7
+  eapi:iuse(R://E, I). 
 
+% PMS EAPI 8, Section 7.2.8
 eapi:value('KEYWORDS', _, keywords(K)) -->
   !,
-  eapi:keywords(K). % PMS EAPI 8, Section 7.2.8
+  eapi:keywords(K). 
 
+% PMS EAPI 8, Section 7.2.9
 eapi:value('LICENSE', R://E, license(L)) -->
   !,
-  eapi:license(R://E, L). % PMS EAPI 8, Section 7.2.9
+  eapi:license(R://E, L). 
 
+% PMS EAPI 8, Section 7.2.3
 eapi:value('RDEPEND', R://E, rdepend(D)) -->
   !,
-  eapi:rdepend(R://E, D). % PMS EAPI 8, Section 7.2.3
+  eapi:rdepend(R://E, D). 
 
+% PMS EAPI 8, Section 7.2.11
 eapi:value('SLOT', _, slot(S)) -->
   !,
-  eapi:slot(S). % PMS EAPI 8, Section 7.2.11
+  eapi:slot(S). 
 
+% PMS EAPI 8, Section 7.2.12
 eapi:value('SRC_URI', R://E, src_uri(S)) -->
   !,
-  eapi:src_uri(R://E, S). % PMS EAPI 8, Section 7.2.12
+  eapi:src_uri(R://E, S).
 
+% PMS EAPI 8, Section 7.2.10
 eapi:value('RESTRICT', R://E, restrict(S)) -->
   !,
-  eapi:restrict(R://E, S). % PMS EAPI 8, Section 7.2.10
+  eapi:restrict(R://E, S). 
 
+% PMS EAPI 8, Section 7.2.13
 eapi:value('REQUIRED_USE', R://E, required_use(U)) -->
   !,
-  eapi:required_use(R://E, U). % PMS EAPI 8, Section 7.2.13
+  eapi:required_use(R://E, U). 
 
+% PMS EAPI 8, Section 7.2.3
 eapi:value('PDEPEND', R://E, pdepend(D)) -->
   !,
-  eapi:cdepend(R://E, D). % PMS EAPI 8, Section 7.2.3
+  eapi:cdepend(R://E, D). 
 
+% PMS EAPI 8, Section 7.2.3
 eapi:value('IDEPEND', R://E, idepend(D)) -->
   !,
-  eapi:depend(R://E, D). % PMS EAPI 8, Section 7.2.3
+  eapi:depend(R://E, D). 
 
+% PMS EAPI 8, Section 7.2.3
 eapi:value('BDEPEND', R://E, bdepend(D)) -->
   !,
-  eapi:depend(R://E, D). % PMS EAPI 8, Section 7.2.3
+  eapi:depend(R://E, D). 
 
+% Deprecated in PMS EAPI 8, Section 7.2.3
 eapi:value('PROVIDE', R://E, provide(P)) -->
   !,
-  eapi:provide(R://E, P). % Deprecated in PMS EAPI 8, Section 7.2.3
+  eapi:provide(R://E, P). 
 
+% PMS EAPI 8, Section 7.2.14
 eapi:value('PROPERTIES', R://E, properties(P)) -->
   !,
-  eapi:properties(R://E, P). % PMS EAPI 8, Section 7.2.14
+  eapi:properties(R://E, P). 
 
+% PMS EAPI 8, Section 12.1
 eapi:value('_eclasses_', _, eclasses(C)) -->
   !,
-  eapi:inherited(C). % PMS EAPI 8, Section 12.1
+  eapi:inherited(C). 
 
+% PMS EAPI 8, Section 12.1
 eapi:value('_md5_', _, md5([R])) -->
   !,
-  eapi:md5(R). % PMS EAPI 8, Section 12.1
+  eapi:md5(R). 
 
+ % PMS EAPI 8, Section 12.2
 eapi:value('EBUILD', _, manifest(ebuild, F, S, H)) -->
   !,
-  eapi:manifest(F, S, H). % PMS EAPI 8, Section 12.2
+  eapi:manifest(F, S, H).
 
+% PMS EAPI 8, Section 12.2
 eapi:value('MISC', _, manifest(misc, F, S, H)) -->
   !,
-  eapi:manifest(F, S, H). % PMS EAPI 8, Section 12.2
+  eapi:manifest(F, S, H). 
 
+ % PMS EAPI 8, Section 12.2
 eapi:value('AUX', _, manifest(aux, F, S, H)) -->
   !,
-  eapi:manifest(F, S, H). % PMS EAPI 8, Section 12.2
+  eapi:manifest(F, S, H).
 
+% PMS EAPI 8, Section 12.2
 eapi:value('DIST', _, manifest(dist, F, S, H)) -->
   !,
-  eapi:manifest(F, S, H). % PMS EAPI 8, Section 12.2
+  eapi:manifest(F, S, H). 
 
+% PMS EAPI 8, Section 12.1
 eapi:value(_, _, unused(U)) -->
   !,
-  eapi:unused(U). % PMS EAPI 8, Section 12.1
+  eapi:unused(U). 
 
 
-% --------------------
-% EAPI DCG value types
-% --------------------
+% -----------------------------------------------------------------------------
+%  EAPI DCG value types
+% -----------------------------------------------------------------------------
 %
 % Grammars invoked for parsing the different value types
-%
-% private predicates
-
 
 %! DCG depend
 %
@@ -470,6 +512,10 @@ eapi:dependency(use, _, D) -->
   eapi:required_use_flag(D), !.
 
 
+% -----------------------------------------------------------------------------
+%  DCG qualified_package
+% -----------------------------------------------------------------------------
+
 %! DCG qualified_package
 %
 % EAPI 8 - 8.2.6 defines a qualified package
@@ -479,18 +525,130 @@ eapi:qualified_package(C, P, V) -->
   eapi:category(C), eapi:separator, eapi:package(P), eapi:version(V), !.
 
 
+% -----------------------------------------------------------------------------
+%  DCG qualified_target
+% -----------------------------------------------------------------------------
+
+%! eapi:qualified_target(Query)
+%
+% Parses command line targets:
+%
+%  world
+%  @set
+%  /path/file.ebuild
+%  ./path/file.ebuild
+%  /path/file.tbz2
+%  ./path/file.tbz2
+%  Name
+%  Category/Name
+%  Category/Name-Version
+%  Repository://Category/Name
+%  Repository://Category/Name-Version
+%  previous five with slot, operator and use deps
+%
+% Returns a knowledgebase query
+
+eapi:qualified_target(world) -->
+  [119, 111, 114, 108, 100],!.                           % world
+
+eapi:qualified_target(S) -->                             % @set
+  eapi:set(S),!.
+
+eapi:qualified_target(path(Qa)) -->                      % relative path, either tbz or ebuild
+  [46],!,
+  uri_chars(Q),
+  { atom_codes(Qa,[46|Q]),! }.
+
+eapi:qualified_target(path(Qa)) -->                      % absolute path, either tbz or ebuild
+  [47],!,
+  uri_chars(Q),
+  { atom_codes(Qa,[47|Q]),! }.
+
+eapi:qualified_target(Q) -->
+  eapi:operator(O),
+  eapi:repository(R),                                    % required
+  eapi:repositoryseparator,!,                            % required
+  eapi:category(C),eapi:separator,eapi:package(P),       % required
+  eapi:version0(V),                                      % optional
+  eapi:slot_restriction(S),                              % optional
+  eapi:use_dependencies(U),                              % optional
+  { Q = qualified_target(O,R,C,P,V,[S,U]) }.
+
+eapi:qualified_target(Q) -->
+  eapi:operator(O),                                      % optional
+  eapi:category(C),eapi:separator,!,                     % required
+  eapi:package(P),!,                                     % required
+  eapi:version0(V),                                      % optional
+  eapi:slot_restriction(S),                              % optional
+  eapi:use_dependencies(U),                              % optional
+  { Q = qualified_target(O,_,C,P,V,[S,U]) }.
+
+eapi:qualified_target(Q) -->
+  eapi:operator(O),                                      % optional
+  eapi:package(P),!,                                     % required
+  eapi:version0(V),                                      % optional
+  eapi:slot_restriction(S),                              % optional
+  eapi:use_dependencies(U),                              % optional
+  { Q = qualified_target(O,_,_,P,V,[S,U]) }.
+
+
+% -----------------------------------------------------------------------------
+%  DCG query
+% -----------------------------------------------------------------------------
+
+%! eapi:query(R)
+%
+% Turns a key=value command line query into a select(Key,Comparator,Value) query
+
+eapi:query([select(Key,Comparator,Value)|R]) -->
+  [Atom],
+  { atom_codes(Atom,Codes), phrase(eapi:querypart(Key,Comparator,Value),Codes),! },
+  eapi:query(R).
+
+eapi:query([]) -->
+  [].
+
+eapi:querypart(Key,Comparator,Value) -->
+  eapi:key(query,[Key,Comparator]),
+  eapi:querypartcont(Key,Value).
+
+eapi:querypartcont(version,V) -->
+  !,
+  eapi:version0(V).
+
+eapi:querypartcont(eapi,V) -->
+  !,
+  eapi:version0(V).
+
+eapi:querypartcont(keywords,V) -->
+  !,
+  eapi:keyword(V).
+
+eapi:querypartcont(iuse,V) -->
+  !,
+  eapi:iuse(_,[V]).
+
+eapi:querypartcont(_,Value) -->
+  eapi:chars_to_end(Codes),
+  { atom_codes(Value,Codes) }.
+
+
+% -----------------------------------------------------------------------------
+%  DCG dependency types
+% -----------------------------------------------------------------------------
+
 %! DCG package_dependency
 %
 % EAPI 8 - 8.2.6 defines package dependency
 % (PMS EAPI 8, Section 8.2.6).
 
 eapi:package_dependency(T, R://E, package_dependency(R://E, T, B, C, P, O, V, S, U)) -->
-  eapi:blocking(B),                                   % optional
-  eapi:operator(O),                                   % optional
+  eapi:blocking(B),                                      % optional
+  eapi:operator(O),                                      % optional
   eapi:category(C), eapi:separator, !, eapi:package(P),  % required
-  eapi:version0(V),                                   % optional
-  eapi:slot_restriction(S),                           % optional
-  eapi:use_dependencies(U).                           % optional
+  eapi:version0(V),                                      % optional
+  eapi:slot_restriction(S),                              % optional
+  eapi:use_dependencies(U).                              % optional
 
 
 %! DCG use_conditional_group
@@ -499,14 +657,14 @@ eapi:package_dependency(T, R://E, package_dependency(R://E, T, B, C, P, O, V, S,
 % (PMS EAPI 8, Section 8.2.3).
 
 eapi:use_conditional_group(T, R://E, use_conditional_group(P, U, R://E, D)) -->
-  eapi:use_exclamation(P),                            % optional
-  eapi:use_flag(U),                                   % required
-  [63], !,                                            % required char: ?
-  eapi:whites,                                        % optional
-  [40],                                               % required char: (
-  eapi:dependencies(T, R://E, D),                     % optional
-  eapi:whites,                                        % optional
-  [41].                                               % required char: )
+  eapi:use_exclamation(P),                               % optional
+  eapi:use_flag(U),                                      % required
+  [63], !,                                               % required char: ?
+  eapi:whites,                                           % optional
+  [40],                                                  % required char: (
+  eapi:dependencies(T, R://E, D),                        % optional
+  eapi:whites,                                           % optional
+  [41].                                                  % required char: )
 
 
 %! DCG any_of_group
@@ -515,12 +673,12 @@ eapi:use_conditional_group(T, R://E, use_conditional_group(P, U, R://E, D)) -->
 % (PMS EAPI 8, Section 8.2.2).
 
 eapi:any_of_group(T, R://E, any_of_group(D)) -->
-  eapi:choice, !,                                     % required
-  eapi:whites,                                        % optional
-  [40],                                               % required char: (
-  eapi:dependencies(T, R://E, D),                     % optional
-  eapi:whites,                                        % optional
-  [41].                                               % required char: )
+  eapi:choice, !,                                        % required
+  eapi:whites,                                           % optional
+  [40],                                                  % required char: (
+  eapi:dependencies(T, R://E, D),                        % optional
+  eapi:whites,                                           % optional
+  [41].                                                  % required char: )
 
 
 %! DCG all_of_group
@@ -529,10 +687,10 @@ eapi:any_of_group(T, R://E, any_of_group(D)) -->
 % (PMS EAPI 8, Section 8.2.1).
 
 eapi:all_of_group(T, R://E, all_of_group(D)) -->
-  [40], !,                                            % required char: (
-  eapi:dependencies(T, R://E, D),                     % optional
-  eapi:whites,                                        % optional
-  [41].                                               % required char: )
+  [40], !,                                               % required char: (
+  eapi:dependencies(T, R://E, D),                        % optional
+  eapi:whites,                                           % optional
+  [41].                                                  % required char: )
 
 
 %! DCG exactly_one_of_group
@@ -543,10 +701,10 @@ eapi:all_of_group(T, R://E, all_of_group(D)) -->
 eapi:exactly_one_of_group(T, R://E, exactly_one_of_group(D)) -->
   eapi:one_of, !,
   eapi:whites,
-  [40], !,                                            % required char: (
-  eapi:dependencies(T, R://E, D),                     % optional
-  eapi:whites,                                        % optional
-  [41].                                               % required char: )
+  [40], !,                                               % required char: (
+  eapi:dependencies(T, R://E, D),                        % optional
+  eapi:whites,                                           % optional
+  [41].                                                  % required char: )
 
 
 %! DCG at_most_one_of_group
@@ -557,11 +715,15 @@ eapi:exactly_one_of_group(T, R://E, exactly_one_of_group(D)) -->
 eapi:at_most_one_of_group(T, R://E, at_most_one_of_group(D)) -->
   eapi:at_most_one, !,
   eapi:whites,
-  [40], !,                                            % required char: (
-  eapi:dependencies(T, R://E, D),                     % optional
-  eapi:whites,                                        % optional
-  [41].                                               % required char: )
+  [40], !,                                               % required char: (
+  eapi:dependencies(T, R://E, D),                        % optional
+  eapi:whites,                                           % optional
+  [41].                                                  % required char: )
 
+
+% -----------------------------------------------------------------------------
+%  DCG blocking types
+% -----------------------------------------------------------------------------
 
 %! DCG blocking
 %
@@ -569,14 +731,18 @@ eapi:at_most_one_of_group(T, R://E, at_most_one_of_group(D)) -->
 % (PMS EAPI 8, Section 8.2.6).
 
 eapi:blocking(strong) -->
-  [33,33], !.                                         % char: !!
+  [33,33], !.                                            % char: !!
 
 eapi:blocking(weak) -->
-  [33], !.                                            % char: !
+  [33], !.                                               % char: !
 
 eapi:blocking(no) -->
   [], !.
 
+
+% -----------------------------------------------------------------------------
+%  DCG operator types
+% -----------------------------------------------------------------------------
 
 %! DCG operator
 %
@@ -584,35 +750,39 @@ eapi:blocking(no) -->
 % (PMS EAPI 8, Section 8.2.6).
 
 eapi:operator(greaterequal) -->
-  [62,61], !.                                         % char: >=
+  [62,61], !.                                            % char: >=
 
 eapi:operator(greaterequal) -->
-  [61,62], !.                                         % char: =>
+  [61,62], !.                                            % char: =>
 
 eapi:operator(smallerequal) -->
-  [60,61], !.                                         % char: <=
+  [60,61], !.                                            % char: <=
 
 eapi:operator(smallerequal) -->
-  [61,60], !.                                         % char: =<
+  [61,60], !.                                            % char: =<
 
 eapi:operator(greater) -->
-  [62], !.                                            % char: >
+  [62], !.                                               % char: >
 
 eapi:operator(smaller) -->
-  [60], !.                                            % char: <
+  [60], !.                                               % char: <
 
 eapi:operator(tilde) -->
-  [126], !.                                           % char: ~
+  [126], !.                                              % char: ~
 
 eapi:operator(tilde) -->
-  [58,61], !.                                         % char: :=
+  [58,61], !.                                            % char: :=
 
 eapi:operator(equal) -->
-  [61], !.                                            % char: =
+  [61], !.                                               % char: =
 
 eapi:operator(none) -->
   [], !.
 
+
+% -----------------------------------------------------------------------------
+%  DCG subtypes
+% -----------------------------------------------------------------------------
 
 %! DCG repository
 %
@@ -647,7 +817,7 @@ eapi:category(Ca) -->
 % EAPI 8 - 8.2.6 Package dependency specification (PMS EAPI 8, Section 8.2.6).
 
 eapi:separator -->
-  [47].                                               % char: /
+  [47].                                                   % char: /
 
 
 %! DCG repositoryseparator
@@ -655,7 +825,7 @@ eapi:separator -->
 % Repository separator (PMS EAPI 8, Section 8.2.6).
 
 eapi:repositoryseparator -->
-  [58,47,47].                                         % char: ://
+  [58,47,47].                                            % char: ://
 
 
 %! DCG package
@@ -801,36 +971,36 @@ eapi:versionalphapart([]) -->
 % eapi: versionsuffix following EAPI 8 specs
 
 eapi:versionsuffix([95,97,108,112,104,97|V]) -->
-  [95,97,108,112,104,97],                            % _alpha
+  [95,97,108,112,104,97],                               % _alpha
   !,
   eapi:versioninteger2(V, _).
 
 eapi:versionsuffix([95,98,101,116,97|V]) -->
-  [95,98,101,116,97],                                % _beta
+  [95,98,101,116,97],                                   % _beta
   !,
   eapi:versioninteger2(V, _).
 
 eapi:versionsuffix([95,112,114,101|V]) -->
-  [95,112,114,101],                                  % _pre
+  [95,112,114,101],                                     % _pre
   !,
   eapi:versioninteger2(V, _).
 
 eapi:versionsuffix([95,114,99|V]) -->
-  [95,114,99],                                       % _rc
+  [95,114,99],                                          % _rc
   !,
   eapi:versioninteger2(V, _).
 
 eapi:versionsuffix([95,112|V]) -->
-  [95,112],                                          % _p
+  [95,112],                                             % _p
   !,
   eapi:versioninteger2(V, _).
 
-eapi:versionsuffix([45,114|V]) -->                  % -r
+eapi:versionsuffix([45,114|V]) -->                      % -r
   [45,114],
   !,
   eapi:versioninteger(V, _).
 
-eapi:versionrevision([114|V]) -->                   % (-)r
+eapi:versionrevision([114|V]) -->                       % (-)r
   [114],
   !,
   eapi:versioninteger(V, _).
@@ -874,27 +1044,6 @@ eapi:versionalpha([C]) -->
   { code_type(C, alpha), ! }.
 
 
-%! eapi:version2atom(+N, +W, +A, +S, -V)
-%
-% eapi:version2atom converts version format to atom
-
-eapi:version2atom(N, W, A, S, [Nn, Alphapart, Suffixpart, Fullversion]) :-
-  maplist(atom_codes, Na, N),
-  maplist(atom_codes, Aa, A),
-  maplist(atom_codes, Sa, S),
-  maplist(atom_number, Na, Nn),
-  atomic_list_concat(Na, '.', Numberpart),
-  atomic_list_concat(Aa, Alphapart),
-  atomic_list_concat(Sa, Suffixpart),
-  atomic_list_concat([Numberpart, W, Alphapart, Suffixpart], Fullversion).
-
-eapi:version2numberlist('', []) :- !.
-
-eapi:version2numberlist(NumberAtom, NumberList) :-
-  atomic_list_concat(SplitAtoms, '.', NumberAtom),
-  maplist(atom_number, SplitAtoms, NumberList).
-
-
 %! DCG md5
 %
 % EAPI 8 - 12.1 defines _md5_ metadata (PMS EAPI 8, Section 12.1).
@@ -909,13 +1058,13 @@ eapi:md5(M) -->
 % EAPI 8 - 8.2.6 defines slot restriction (PMS EAPI 8, Section 8.2.6).
 
 eapi:slot_restriction(any_different_slot) -->
-  [58,42], !.                                         % char: :*
+  [58,42], !.                                            % char: :*
 
 eapi:slot_restriction(any_same_slot) -->
-  [58,61], !.                                         % char: :=
+  [58,61], !.                                            % char: :=
 
 eapi:slot_restriction(S) -->
-  [58], !,                                            % char: :
+  [58], !,                                               % char: :
   eapi:slot(S).
 
 eapi:slot_restriction([]) -->
@@ -927,11 +1076,11 @@ eapi:slot_restriction([]) -->
 % EAPI 8 - 8.2.6 defines use dependencies (PMS EAPI 8, Section 8.2.6).
 
 eapi:use_dependencies(U) -->
-  [91], !,                                            % char: [
+  [91], !,                                               % char: [
   eapi:whites,
   eapi:use_dependency_list(U),
   eapi:whites,
-  [93].                                               % char: ]
+  [93].                                                  % char: ]
 
 eapi:use_dependencies([]) -->
   [], !.
@@ -963,29 +1112,29 @@ eapi:use_dependency_list([]) -->
 % (PMS EAPI 8, Section 8.2.6).
 
 eapi:use_dependency(inverse(U), D) -->
-  [33],                                               % char: !
+  [33],                                                  % char: !
   eapi:use_flag(U),
   eapi:use_default(D),
-  [61].                                               % char: =
+  [61].                                                  % char: =
 
 eapi:use_dependency(equal(U), D) -->
   eapi:use_flag(U),
   eapi:use_default(D),
-  [61].                                               % char: =
+  [61].                                                  % char: =
 
 eapi:use_dependency(optdisable(U), D) -->
-  [33], !,                                            % char: !
+  [33], !,                                               % char: !
   eapi:use_flag(U),
   eapi:use_default(D),
-  [63].                                               % char: ?
+  [63].                                                  % char: ?
 
 eapi:use_dependency(optenable(U), D) -->
   eapi:use_flag(U),
   eapi:use_default(D),
-  [63], !.                                            % char: ?
+  [63], !.                                               % char: ?
 
 eapi:use_dependency(disable(U), D) -->
-  [45], !,                                            % char: -
+  [45], !,                                               % char: -
   eapi:use_flag(U),
   eapi:use_default(D).
 
@@ -1000,10 +1149,10 @@ eapi:use_dependency(enable(U), D) -->
 % (PMS EAPI 8, Section 8.2.6).
 
 eapi:use_default(positive) -->
-  [40,43,41], !.                                      % chars: (+)
+  [40,43,41], !.                                         % chars: (+)
 
 eapi:use_default(negative) -->
-  [40,45,41], !.                                      % chars: (-)
+  [40,45,41], !.                                         % chars: (-)
 
 eapi:use_default(none) -->
   [], !.
@@ -1014,7 +1163,7 @@ eapi:use_default(none) -->
 % EAPI 8 - 8.2.3 defines use_exclamation (PMS EAPI 8, Section 8.2.3).
 
 eapi:use_exclamation(negative) -->
-  [33], !.                                            % char: !
+  [33], !.                                               % char: !
 
 eapi:use_exclamation(positive) -->
   [], !.
@@ -1048,13 +1197,13 @@ eapi:required_use_flag(required(U)) -->
 % (PMS EAPI 8, Section 7.2.7).
 
 eapi:iuse(R://E, [plus(U)|Rs]) -->
-  [43], !,                                            % char: +
+  [43], !,                                               % char: +
   eapi:use_flag(U),
   eapi:whites,
   eapi:iuse(R://E, Rs).
 
 eapi:iuse(R://E, [minus(U)|Rs]) -->
-  [45], !,                                            % char: -
+  [45], !,                                               % char: -
   eapi:use_flag(U),
   eapi:whites,
   eapi:iuse(R://E, Rs).
@@ -1090,12 +1239,12 @@ eapi:keywords([]) -->
 % (PMS EAPI 8, Section 7.2.8).
 
 eapi:keyword(unstable(Ka)) -->
-  [126], !,                                           % char: ~
+  [126], !,                                              % char: ~
   eapi:kchars(K),
   { atom_codes(Ka, K) }.
 
 eapi:keyword(broken(Ka)) -->
-  [45], !,                                            % char: -
+  [45], !,                                               % char: -
   eapi:kchars(K),
   { atom_codes(Ka, K) }.
 
@@ -1137,7 +1286,7 @@ eapi:functions([]) -->
 % Some cache entries have '-' as functions list (PMS EAPI 8, Section 7.2.2).
 
 eapi:function('-') -->
-  [45], !.                                            % char: -
+  [45], !.                                               % char: -
 
 eapi:function(F) -->
   eapi:chars1(f, FL),
@@ -1182,7 +1331,7 @@ eapi:use_flag(Ua) -->
 % (PMS EAPI 8, Section 8.2.2).
 
 eapi:choice -->
-  [124,124].                                          % char: ||
+  [124,124].                                             % char: ||
 
 
 %! DCG one_of
@@ -1191,7 +1340,7 @@ eapi:choice -->
 % (PMS EAPI 8, Section 8.2.4).
 
 eapi:one_of -->
-  [94,94].                                            % char: ^^
+  [94,94].                                              % char: ^^
 
 
 %! DCG at_most_one
@@ -1200,7 +1349,7 @@ eapi:one_of -->
 % (PMS EAPI 8, Section 8.2.5).
 
 eapi:at_most_one -->
-  [63,63].                                            % char: ??
+  [63,63].                                               % char: ??
 
 
 %! DCG comma
@@ -1209,7 +1358,7 @@ eapi:at_most_one -->
 % (PMS EAPI 8, Section 8.2.6).
 
 eapi:comma -->
-  [44].                                               % char: ,
+  [44].                                                  % char: ,
 
 
 %! DCG virtual
@@ -1218,7 +1367,7 @@ eapi:comma -->
 % Deprecated in EAPI 8 (PMS EAPI 8, Section 7.2.3).
 
 eapi:virtual([virtual(A)]) -->
-  [118, 105, 114, 116, 117, 97, 108], !,             % virtual
+  [118, 105, 114, 116, 117, 97, 108], !,                % virtual
   eapi:separator,
   eapi:package(A).
 
@@ -1232,10 +1381,10 @@ eapi:slot([slot(V)|Cont]) -->
   eapi:slot_cont(Cont).
 
 eapi:slot_cont([equal]) -->
-  [61], {!}.                                          % char: =
+  [61], {!}.                                             % char: =
 
 eapi:slot_cont([subslot(V)|Cont]) -->
-  [47], {!},                                          % char: /
+  [47], {!},                                             % char: /
   eapi:slot_version(V),
   eapi:slot_cont(Cont).
 
@@ -1257,7 +1406,7 @@ eapi:slot_version(Va) -->
 % EAPI 8 - 7.2.11 defines subslot names (PMS EAPI 8, Section 7.2.11).
 
 eapi:subslot(S) -->
-  [47],                                               % char: /
+  [47],                                                  % char: /
   eapi:version0(S).
 
 
@@ -1271,56 +1420,24 @@ eapi:eapi([V]) -->
   { eapi:version2atom(N, W, A, S, V) }.
 
 
-%! DCG uri_chars
-%
-% This reads all chars until a URI stopchar is encountered
-% EAPI 8 allows for ( and ) in src_uri (PMS EAPI 8, Section 7.2.12).
-
-eapi:uri_chars([]) -->
-  [41,32], { !, fail }.                               % char: )
-
-eapi:uri_chars([]) -->
-  [40,32], { !, fail }.                               % char: (
-
-eapi:uri_chars([C|R]) -->
-  [C], { \+(code_type(C, white)), ! },
-  eapi:uri_chars(R).
-
-eapi:uri_chars([]) -->
-  [], !.
-
-
-%! DCG uri_chars1
-%
-% This reads all chars until a URI-specific stopchar is encountered
-% EAPI 8 allows for ( and ) in src URI (PMS EAPI 8, Section 7.2.12).
-% Needs at least 1 char
-
-eapi:uri_chars1([C|R]) -->
-  [C], { \+(code_type(C, white)), \+(C = 41), ! },
-  eapi:uri_chars(R).
-
-
 %! DCG uri
 %
 % EAPI 8 - 7.2.12 defines URI (PMS EAPI 8, Section 7.2.12).
 
-% ----------------------
-% CASE: a prototyped URI
-% ----------------------
+
+% DCG uri CASE: a prototyped URI
 
 eapi:uri(uri(P, B, L)) -->
-  eapi:proto(Ps),          % required
-  [58,47,47], !,           % required ://
-  eapi:uri_chars(Bs),      % required
-  eapi:arrow(Ls),          % optional
+  eapi:proto(Ps),                                        % required
+  [58,47,47], !,                                         % required ://
+  eapi:uri_chars(Bs),                                    % required
+  eapi:arrow(Ls),                                        % optional
   { atom_codes(P, Ps),
     atom_codes(B, Bs),
     Ls = [] -> file_base_name(B, L) ; atom_codes(L, Ls), ! }.
 
-% --------------------------
-% CASE: a non-prototyped URI
-% --------------------------
+
+% DCG uriCASE: a non-prototyped URI
 
 eapi:uri(uri('', '', P)) -->
   eapi:uri_chars1(Ps),
@@ -1342,7 +1459,7 @@ eapi:proto(P) -->
 
 eapi:arrow(L) -->
   eapi:whites,
-  [45,62], !,               % chars: ->
+  [45,62], !,                                            % chars: ->
   eapi:whites,
   eapi:local(L).
 
@@ -1369,9 +1486,39 @@ eapi:timestamp(T) -->
   { number_codes(T, C) }.
 
 
-% ----------------------
-% REGULAR CHAR SEQUENCES
-% ----------------------
+% -----------------------------------------------------------------------------
+%  REGULAR CHAR SEQUENCES
+% -----------------------------------------------------------------------------
+
+%! DCG uri_chars
+%
+% This reads all chars until a URI stopchar is encountered
+% EAPI 8 allows for ( and ) in src_uri (PMS EAPI 8, Section 7.2.12).
+
+eapi:uri_chars([]) -->
+  [41,32], { !, fail }.                                  % char: )
+
+eapi:uri_chars([]) -->
+  [40,32], { !, fail }.                                  % char: (
+
+eapi:uri_chars([C|R]) -->
+  [C], { \+(code_type(C, white)), ! },
+  eapi:uri_chars(R).
+
+eapi:uri_chars([]) -->
+  [], !.
+
+
+%! DCG uri_chars1
+%
+% This reads all chars until a URI-specific stopchar is encountered
+% EAPI 8 allows for ( and ) in src URI (PMS EAPI 8, Section 7.2.12).
+% Needs at least 1 char
+
+eapi:uri_chars1([C|R]) -->
+  [C], { \+(code_type(C, white)), \+(C = 41), ! },
+  eapi:uri_chars(R).
+
 
 %! DCG chars1
 %
@@ -1401,61 +1548,117 @@ eapi:char(T, C) -->
   [C],
   { jumprule(T, C), ! }.
 
+
+%! DCG jumprule
+%
 % CHAR jumptable
 
-eapi:jumprule(c, 45) :- !.                     % EAPI 8 - 3.1.1: A category name may contain '-' (PMS EAPI 8, Section 3.1.1)
-eapi:jumprule(c, 95) :- !.                     % EAPI 8 - 3.1.1: A category name may contain '_' (PMS EAPI 8, Section 3.1.1)
-eapi:jumprule(c, 43) :- !.                     % EAPI 8 - 3.1.1: A category name may contain '+' (PMS EAPI 8, Section 3.1.1)
-eapi:jumprule(c, 46) :- !.                     % EAPI 8 - 3.1.1: A category name may contain '.' (PMS EAPI 8, Section 3.1.1)
-eapi:jumprule(c, C) :- code_type(C, alnum), !. % EAPI 8 - 3.1.1: A category name may contain alphanumeric chars (PMS EAPI 8, Section 3.1.1)
-eapi:jumprule(u, 45) :- !.                     % EAPI 8 - 7.2.7: A use flag name may contain '-' (PMS EAPI 8, Section 7.2.7)
-eapi:jumprule(u, 95) :- !.                     % EAPI 8 - 7.2.7: A use flag name may contain '_' (PMS EAPI 8, Section 7.2.7)
-eapi:jumprule(u, 43) :- !.                     % EAPI 8 - 7.2.7: A use flag name may contain '+' (PMS EAPI 8, Section 7.2.7)
-eapi:jumprule(u, 64) :- !.                     % EAPI 8 - 7.2.7: A use flag name may contain '@' (PMS EAPI 8, Section 7.2.7)
-eapi:jumprule(u, 46) :- !.                     % EAPI 8 - 7.2.7: A use flag name may contain '.' (PMS EAPI 8, Section 7.2.7)
-eapi:jumprule(u, C) :- code_type(C, alnum), !. % EAPI 8 - 7.2.7: A use flag name may contain alphanumeric chars (PMS EAPI 8, Section 7.2.7)
-eapi:jumprule(s, 45) :- !.                     % EAPI 8 - 7.2.11: A slot name may contain '-' (PMS EAPI 8, Section 7.2.11)
-eapi:jumprule(s, 95) :- !.                     % EAPI 8 - 7.2.11: A slot name may contain '_' (PMS EAPI 8, Section 7.2.11)
-eapi:jumprule(s, 43) :- !.                     % EAPI 8 - 7.2.11: A slot name may contain '+' (PMS EAPI 8, Section 7.2.11)
-eapi:jumprule(s, 46) :- !.                     % EAPI 8 - 7.2.11: A slot name may contain '.' (PMS EAPI 8, Section 7.2.11)
-eapi:jumprule(s, C) :- code_type(C, alnum), !. % EAPI 8 - 7.2.11: A slot name may contain alphanumeric chars (PMS EAPI 8, Section 7.2.11)
-eapi:jumprule(k, 45) :- !.                     % EAPI 8 - 7.2.8: A keyword name may contain '-' (PMS EAPI 8, Section 7.2.8)
-eapi:jumprule(k, 95) :- !.                     % EAPI 8 - 7.2.8: A keyword name may contain '_' (PMS EAPI 8, Section 7.2.8)
-eapi:jumprule(k, C) :- code_type(C, alnum), !. % EAPI 8 - 7.2.8: A keyword name may contain alphanumeric chars (PMS EAPI 8, Section 7.2.8)
-eapi:jumprule(v, 45) :- !.                     % EAPI 8 - 3.2: A version may contain '-' (PMS EAPI 8, Section 3.2)
-eapi:jumprule(v, 95) :- !.                     % EAPI 8 - 3.2: A version may contain '_' (PMS EAPI 8, Section 3.2)
-eapi:jumprule(v, 42) :- !.                     % EAPI 8 - 3.2: A version may contain '*' (PMS EAPI 8, Section 3.2)
-eapi:jumprule(v, 46) :- !.                     % EAPI 8 - 3.2: A version may contain '.' (PMS EAPI 8, Section 3.2)
-eapi:jumprule(v, C) :- code_type(C, alnum), !. % EAPI 8 - 3.2: A version may contain alphanumeric chars (PMS EAPI 8, Section 3.2)
-eapi:jumprule(r, 45) :- !.                     % EAPI 8 - 8.2.6: A slot restriction may contain '-' (PMS EAPI 8, Section 8.2.6)
-eapi:jumprule(r, 95) :- !.                     % EAPI 8 - 8.2.6: A slot restriction may contain '_' (PMS EAPI 8, Section 8.2.6)
-eapi:jumprule(r, 42) :- !.                     % EAPI 8 - 8.2.6: A slot restriction may contain '*' (PMS EAPI 8, Section 8.2.6)
-eapi:jumprule(r, 46) :- !.                     % EAPI 8 - 8.2.6: A slot restriction may contain '.' (PMS EAPI 8, Section 8.2.6)
-eapi:jumprule(r, C) :- code_type(C, alnum), !. % EAPI 8 - 8.2.6: A slot restriction may contain alphanumeric chars (PMS EAPI 8, Section 8.2.6)
-eapi:jumprule(f, 45) :- !.                     % EAPI 8 - 7.2.2: A function name may contain '-' (PMS EAPI 8, Section 7.2.2)
-eapi:jumprule(f, 95) :- !.                     % EAPI 8 - 7.2.2: A function name may contain '_' (PMS EAPI 8, Section 7.2.2)
-eapi:jumprule(f, 43) :- !.                     % EAPI 8 - 7.2.2: A function name may contain '+' (PMS EAPI 8, Section 7.2.2)
-eapi:jumprule(f, 46) :- !.                     % EAPI 8 - 7.2.2: A function name may contain '.' (PMS EAPI 8, Section 7.2.2)
-eapi:jumprule(f, C) :- code_type(C, alnum), !. % EAPI 8 - 7.2.2: A function name may contain alphanumeric chars (PMS EAPI 8, Section 7.2.2)
-eapi:jumprule(s, 45) :- !.                     % EAPI 8 - 7.2.9, 7.2.10, 7.2.14: A string name may contain '-' (PMS EAPI 8, Sections 7.2.9, 7.2.10, 7.2.14)
-eapi:jumprule(s, 95) :- !.                     % EAPI 8 - 7.2.9, 7.2.10, 7.2.14: A string name may contain '_' (PMS EAPI 8, Sections 7.2.9, 7.2.10, 7.2.14)
-eapi:jumprule(s, 43) :- !.                     % EAPI 8 - 7.2.9, 7.2.10, 7.2.14: A string name may contain '+' (PMS EAPI 8, Sections 7.2.9, 7.2.10, 7.2.14)
-eapi:jumprule(s, 46) :- !.                     % EAPI 8 - 7.2.9, 7.2.10, 7.2.14: A string name may contain '.' (PMS EAPI 8, Sections 7.2.9, 7.2.10, 7.2.14)
-eapi:jumprule(s, C) :- code_type(C, alnum), !. % EAPI 8 - 7.2.9, 7.2.10, 7.2.14: A string name may contain alphanumeric chars (PMS EAPI 8, Sections 7.2.9, 7.2.10, 7.2.14)
-eapi:jumprule(p, 45) :- !.                     % EAPI 8 - 7.2.12: A URI protocol name may contain '-' (PMS EAPI 8, Section 7.2.12)
-eapi:jumprule(p, 95) :- !.                     % EAPI 8 - 7.2.12: A URI protocol name may contain '_' (PMS EAPI 8, Section 7.2.12)
-eapi:jumprule(p, 43) :- !.                     % EAPI 8 - 7.2.12: A URI protocol name may contain '+' (PMS EAPI 8, Section 7.2.12)
-eapi:jumprule(p, 46) :- !.                     % EAPI 8 - 7.2.12: A URI protocol name may contain '.' (PMS EAPI 8, Section 7.2.12)
-eapi:jumprule(p, 64) :- !.                     % EAPI 8 - 7.2.12: A URI protocol name may contain '@' (PMS EAPI 8, Section 7.2.12)
-eapi:jumprule(p, C) :- code_type(C, alnum), !. % EAPI 8 - 7.2.12: A URI protocol name may contain alphanumeric chars (PMS EAPI 8, Section 7.2.12)
-eapi:jumprule(t, 46) :- !.                     % EAPI 8 - 12.1: A timestamp may contain '.' (PMS EAPI 8, Section 12.1)
-eapi:jumprule(t, C) :- code_type(C, digit), !. % EAPI 8 - 12.1: A timestamp may contain digits (PMS EAPI 8, Section 12.1)
-eapi:jumprule(m, C) :- code_type(C, alnum), !. % EAPI 8 - 12.1: An md5 may contain hexadecimal chars (PMS EAPI 8, Section 12.1)
+% EAPI 8 - 3.1.1: A category name may contain '-','_','+','.' and alphanumeric chars 
+% (PMS EAPI 8, Section 3.1.1)
+
+eapi:jumprule(c, 45) :- !.                               % char: '-'
+eapi:jumprule(c, 95) :- !.                               % char: '_'
+eapi:jumprule(c, 43) :- !.                               % char: '+'
+eapi:jumprule(c, 46) :- !.                               % char: '.'
+eapi:jumprule(c, C) :- code_type(C, alnum), !.           % char: alphanumeric
 
 
-% ------------------
-% SPECIAL CHAR SEQS
-% ------------------
+% EAPI 8 - 7.2.7: A use flag name may contain '-','_','+','@','.', and alphanumeric chars 
+% (PMS EAPI 8, Section 7.2.7)
+
+eapi:jumprule(u, 45) :- !.                               % char: '-'
+eapi:jumprule(u, 95) :- !.                               % char: '_'
+eapi:jumprule(u, 43) :- !.                               % char: '+'
+eapi:jumprule(u, 64) :- !.                               % char: '@'
+eapi:jumprule(u, 46) :- !.                               % char: '.'
+eapi:jumprule(u, C) :- code_type(C, alnum), !.           % char: alphanumeric
+
+
+% EAPI 8 - 7.2.11: A slot name may contain '-','_','+','.', and alphanumeric chars 
+% (PMS EAPI 8, Section 7.2.11)
+
+eapi:jumprule(s, 45) :- !.                               % char: '-'
+eapi:jumprule(s, 95) :- !.                               % char: '_'
+eapi:jumprule(s, 43) :- !.                               % char: '+'
+eapi:jumprule(s, 46) :- !.                               % char: '.'
+eapi:jumprule(s, C) :- code_type(C, alnum), !.           % char: alphanumeric
+
+
+% EAPI 8 - 7.2.8: A keyword name may contain '-','_','+','@','.', and alphanumeric chars 
+% (PMS EAPI 8, Section 7.2.8)
+
+eapi:jumprule(k, 45) :- !.                               % char: '-'
+eapi:jumprule(k, 95) :- !.                               % char: '_'
+eapi:jumprule(k, C) :- code_type(C, alnum), !.           % char: alphanumeric
+
+
+% EAPI 8 - 3.2: A version may contain '-','_','*','.', and alphanumeric chars 
+% (PMS EAPI 8, Section 3.2)
+
+eapi:jumprule(v, 45) :- !.                               % char: '-'
+eapi:jumprule(v, 95) :- !.                               % char: '_'
+eapi:jumprule(v, 42) :- !.                               % char: '*'
+eapi:jumprule(v, 46) :- !.                               % char: '.'
+eapi:jumprule(v, C) :- code_type(C, alnum), !.           % char: alphanumeric
+
+
+% EAPI 8 - 8.2.6: A slot restriction may contain '-','_','*','.', and alphanumeric chars 
+% (PMS EAPI 8, Section 8.2.6)
+
+eapi:jumprule(r, 45) :- !.                               % char: '-'
+eapi:jumprule(r, 95) :- !.                               % char: '_'
+eapi:jumprule(r, 42) :- !.                               % char: '*'
+eapi:jumprule(r, 46) :- !.                               % char: '.'
+eapi:jumprule(r, C) :- code_type(C, alnum), !.           % char: alphanumeric
+
+
+% EAPI 8 - 7.2.2: A function name may contain '-','_','+','.', and alphanumeric chars 
+% (PMS EAPI 8, Section 7.2.2)
+
+eapi:jumprule(f, 45) :- !.                               % char: '-'
+eapi:jumprule(f, 95) :- !.                               % char: '_'
+eapi:jumprule(f, 43) :- !.                               % char: '+'
+eapi:jumprule(f, 46) :- !.                               % char: '.'
+eapi:jumprule(f, C) :- code_type(C, alnum), !.           % char: alphanumeric
+
+
+% EAPI 8 - 7.2.9, 7.2.10, 7.2.14: A string name may contain '-','_','+','.', and alphanumeric chars 
+% (PMS EAPI 8, Sections 7.2.9, 7.2.10, 7.2.14)
+
+eapi:jumprule(s, 45) :- !.                               % char: '-'
+eapi:jumprule(s, 95) :- !.                               % char: '_'
+eapi:jumprule(s, 43) :- !.                               % char: '+'
+eapi:jumprule(s, 46) :- !.                               % char: '.'
+eapi:jumprule(s, C) :- code_type(C, alnum), !.           % char: alphanumeric
+
+
+% EAPI 8 - 7.2.12: A URI protocol name may contain '-','_','+','@','.', and alphanumeric chars 
+% (PMS EAPI 8, Section 7.2.12)
+
+eapi:jumprule(p, 45) :- !.                               % char: '-'
+eapi:jumprule(p, 95) :- !.                               % char: '_'
+eapi:jumprule(p, 43) :- !.                               % char: '+'
+eapi:jumprule(p, 46) :- !.                               % char: '.'
+eapi:jumprule(p, 64) :- !.                               % char: '@'
+eapi:jumprule(p, C) :- code_type(C, alnum), !.           % char: alphanumeric
+
+
+% EAPI 8 - 12.1: A timestamp may contain '.' and digits 
+% (PMS EAPI 8, Section 12.1)
+
+eapi:jumprule(t, 46) :- !.                               % char: '.'
+eapi:jumprule(t, C) :- code_type(C, digit), !.           % char: digit
+
+
+% EAPI 8 - 12.1: An md5 may contain hexadecimal chars 
+% (PMS EAPI 8, Section 12.1)
+
+eapi:jumprule(m, C) :- code_type(C, alnum), !.           % char: hexadecimal
+
+
+% -----------------------------------------------------------------------------
+%  SPECIAL CHAR SEQS
+% -----------------------------------------------------------------------------
 
 %! DCG pchars
 %
@@ -1476,35 +1679,6 @@ eapi:pchar(58) -->
 
 eapi:pchar(95) -->
   [95],!.
-
-% EAPI 4 - 2.1.2-strict: A package name may contain '-', if the char
-%                        following it is not a digit
-% deprecated in EAPI 5
-
-
-% eapi:pchar([45,D]) -->
-%   [45,D],
-%   { code_type(D,digit)  }. % digit -> fail
-
-% eapi:pchar([45]) -->
-%   [45],!.
-
-
-% EAPI 4 - 2.1.2-strict: A package name may contain '-', if the char
-%                        following it is an alphabetical char
-% deprecated in EAPI 5
-
-% eapi:pchar([45,C]) -->
-%   [45,C],
-%   { code_type(C,alpha), ! }.
-
-
-% EAPI 4 - 2.1.2-strict: A package name may not contain '.'
-%
-% deprecated in EAPI 5
-
-% eapi:pchar(46) -->
-%   [46], { fail }.
 
 % EAPI 4 - 2.1.2: A package name may contain '+'
 
@@ -1531,10 +1705,10 @@ eapi:pcharschunk([C|R]) -->
   eapi:pchar(C),!,
   eapi:pcharschunk2(R).
 
-eapi:pcharschunk2([]) -->               % a chunck ends when '-' is encountered
+eapi:pcharschunk2([]) -->                                % a chunck ends when '-' is encountered
   [45],!.
 
-eapi:pcharschunk2([]) -->               % a chunck can never contain a '.'
+eapi:pcharschunk2([]) -->                                % a chunck can never contain a '.'
   [46],!, { fail }.
 
 eapi:pcharschunk2([C|R]) -->
@@ -1570,7 +1744,7 @@ eapi:uchars2([]) -->
 % an alphanumeric char
 
 eapi:kchars([42]) -->
-  [42],!.                                             % char: *
+  [42],!.                                                % char: *
 
 eapi:kchars([C|T]) -->
   eapi:char(k,C),{ code_type(C,alnum) },!,
@@ -1615,7 +1789,7 @@ eapi:chars_to_space([]) -->
 % collect all chars to '-'
 
 eapi:chars_to_dash([45]) -->
-  [45],!.                                             % chars: '-'
+  [45],!.                                                % chars: '-'
 
 eapi:chars_to_dash([C|R]) -->
   [C],
@@ -1627,34 +1801,34 @@ eapi:chars_to_dash([C|R]) -->
 % Reads chars until a comparator is found (PMS EAPI 8, Section 8.2.6).
 
 eapi:chars_to_comparator([],smallerequal) -->
-  [61],[60],!.                                        % chars: '=<'
+  [61],[60],!.                                           % chars: '=<'
 
 eapi:chars_to_comparator([],greaterequal) -->
-  [61],[62],!.                                        % chars: '=<'
+  [61],[62],!.                                          % chars: '=<'
 
 eapi:chars_to_comparator([],smallerequal) -->
-  [60],[61],!.                                        % chars: '<='
+  [60],[61],!.                                           % chars: '<='
 
 eapi:chars_to_comparator([],greaterequal) -->
-  [62],[61],!.                                        % chars: '>='
+  [62],[61],!.                                           % chars: '>='
 
 eapi:chars_to_comparator([],smaller) -->
-  [60],!.                                             % chars: '<'
+  [60],!.                                                % chars: '<'
 
 eapi:chars_to_comparator([],greater) -->
-  [62],!.                                             % chars: '>'
+  [62],!.                                                % chars: '>'
 
 eapi:chars_to_comparator([],tilde) -->
-  [126],!.                                            % chars: '~'
+  [126],!.                                               % chars: '~'
 
 eapi:chars_to_comparator([],wildcard) -->
-  [58,61],!.                                          % chars: ':='
+  [58,61],!.                                             % chars: ':='
 
 eapi:chars_to_comparator([],notequal) -->
-  [33],[61],!.                                        % chars: '!='
+  [33],[61],!.                                           % chars: '!='
 
 eapi:chars_to_comparator([],equal) -->
-  [61],!.                                             % chars: '='
+  [61],!.                                                % chars: '='
 
 eapi:chars_to_comparator([C|T],M) -->
   [C],!,
@@ -1697,50 +1871,9 @@ eapi:skip_to_end -->
   [], !.
 
 
-% -------------------------
-% Various helper predicates
-% -------------------------
-
-%! DCG file:line
-%
-% From a given char list, reads one line
-
-file:line([])    --> [10],!.
-file:line([C|R]) --> [C],!,file:line(R).
-
-
-%! DCG file:lines
-%
-% From a given char list, reads all lines
-
-file:lines([L|R]) --> file:line(L),!, file:lines(R).
-file:lines([])    --> [],!.
-
-
-% -------------------------
-% EAPI version declarations
-% -------------------------
-
-%! VERSION packageversion
-%
-% Produces version from a packagename.
-
-packageversion(Name,Package,Version) :-
-  atom_codes(Name,N),
-  phrase(eapi:package(Package),N,V),
-  phrase(eapi:version(Version),V,[]),!.
-
-packageversion(_,_,_) :-
-  config:failsilenton(version),!,
-  fail.
-
-packageversion(Name,_,_) :-
-  message:failure(Name).
-
-
-% ----------------------------
-% EAPI USE expand declarations
-% ----------------------------
+% -----------------------------------------------------------------------------
+%  EAPI USE expand declarations
+% -----------------------------------------------------------------------------
 
 %! eapi:use_expand(Keys)
 %
@@ -1798,6 +1931,43 @@ eapi:use_expand('video_cards').
 eapi:use_expand('voicemail_storage').
 eapi:use_expand('xfce_plugins').
 eapi:use_expand('xtables_addons').
+
+
+% -----------------------------------------------------------------------------
+%  Various helper predicates
+% -----------------------------------------------------------------------------
+
+%! DCG file:line
+%
+% From a given char list, reads one line
+
+file:line([])    --> [10],!.
+file:line([C|R]) --> [C],!,file:line(R).
+
+
+%! DCG file:lines
+%
+% From a given char list, reads all lines
+
+file:lines([L|R]) --> file:line(L),!, file:lines(R).
+file:lines([])    --> [],!.
+
+
+%! VERSION packageversion
+%
+% Produces version from a packagename.
+
+packageversion(Name,Package,Version) :-
+  atom_codes(Name,N),
+  phrase(eapi:package(Package),N,V),
+  phrase(eapi:version(Version),V,[]),!.
+
+packageversion(_,_,_) :-
+  config:failsilenton(version),!,
+  fail.
+
+packageversion(Name,_,_) :-
+  message:failure(Name).
 
 
 %! eapi:check_prefix_atom(+Prefix,+Atom)
@@ -1873,104 +2043,30 @@ eapi:categorize_use(Use,negative,default) :-
   \+(printer:unify(minus(_),Use)),!.
 
 
-%! eapi:qualified_target(Query)
+% -----------------------------------------------------------------------------
+%  Helper predicates
+% -----------------------------------------------------------------------------
+
+%! eapi:version2atom(+N, +W, +A, +S, -V)
 %
-% Parses command line targets:
-%
-%  world
-%  @set
-%  /path/file.ebuild
-%  ./path/file.ebuild
-%  /path/file.tbz2
-%  ./path/file.tbz2
-%  Name
-%  Category/Name
-%  Category/Name-Version
-%  Repository://Category/Name
-%  Repository://Category/Name-Version
-%  previous five with slot, operator and use deps
-%
-% Returns a knowledgebase query
+% eapi:version2atom converts version format to atom
 
-eapi:qualified_target(world) -->
-  [119, 111, 114, 108, 100],!.                        % world
+eapi:version2atom(N, W, A, S, [Nn, Alphapart, Suffixpart, Fullversion]) :-
+  maplist(atom_codes, Na, N),
+  maplist(atom_codes, Aa, A),
+  maplist(atom_codes, Sa, S),
+  maplist(atom_number, Na, Nn),
+  atomic_list_concat(Na, '.', Numberpart),
+  atomic_list_concat(Aa, Alphapart),
+  atomic_list_concat(Sa, Suffixpart),
+  atomic_list_concat([Numberpart, W, Alphapart, Suffixpart], Fullversion).
 
-eapi:qualified_target(S) -->                          % @set
-  eapi:set(S),!.
+eapi:version2numberlist('', []) :- !.
 
-eapi:qualified_target(path(Qa)) -->                   % relative path, either tbz or ebuild
-  [46],!,
-  uri_chars(Q),
-  { atom_codes(Qa,[46|Q]),! }.
+eapi:version2numberlist(NumberAtom, NumberList) :-
+  atomic_list_concat(SplitAtoms, '.', NumberAtom),
+  maplist(atom_number, SplitAtoms, NumberList).
 
-eapi:qualified_target(path(Qa)) -->                   % absolute path, either tbz or ebuild
-  [47],!,
-  uri_chars(Q),
-  { atom_codes(Qa,[47|Q]),! }.
-
-eapi:qualified_target(Q) -->
-  eapi:operator(O),
-  eapi:repository(R),                                 % required
-  eapi:repositoryseparator,!,                         % required
-  eapi:category(C),eapi:separator,eapi:package(P),    % required
-  eapi:version0(V),                                   % optional
-  eapi:slot_restriction(S),                           % optional
-  eapi:use_dependencies(U),                           % optional
-  { Q = qualified_target(O,R,C,P,V,[S,U]) }.
-
-eapi:qualified_target(Q) -->
-  eapi:operator(O),                                   % optional
-  eapi:category(C),eapi:separator,!,                  % required
-  eapi:package(P),!,                                  % required
-  eapi:version0(V),                                   % optional
-  eapi:slot_restriction(S),                           % optional
-  eapi:use_dependencies(U),                           % optional
-  { Q = qualified_target(O,_,C,P,V,[S,U]) }.
-
-eapi:qualified_target(Q) -->
-  eapi:operator(O),                                   % optional
-  eapi:package(P),!,                                  % required
-  eapi:version0(V),                                   % optional
-  eapi:slot_restriction(S),                           % optional
-  eapi:use_dependencies(U),                           % optional
-  { Q = qualified_target(O,_,_,P,V,[S,U]) }.
-
-
-%! eapi:query(R)
-%
-% Turns a key=value command line query into a select(Key,Comparator,Value) query
-
-eapi:query([select(Key,Comparator,Value)|R]) -->
-  [Atom],
-  { atom_codes(Atom,Codes), phrase(eapi:querypart(Key,Comparator,Value),Codes),! },
-  eapi:query(R).
-
-eapi:query([]) -->
-  [].
-
-eapi:querypart(Key,Comparator,Value) -->
-  eapi:key(query,[Key,Comparator]),
-  eapi:querypartcont(Key,Value).
-
-eapi:querypartcont(version,V) -->
-  !,
-  eapi:version0(V).
-
-eapi:querypartcont(eapi,V) -->
-  !,
-  eapi:version0(V).
-
-eapi:querypartcont(keywords,V) -->
-  !,
-  eapi:keyword(V).
-
-eapi:querypartcont(iuse,V) -->
-  !,
-  eapi:iuse(_,[V]).
-
-eapi:querypartcont(_,Value) -->
-  eapi:chars_to_end(Codes),
-  { atom_codes(Value,Codes) }.
 
 
 %! eapi:substitute_sets(Query,Result)
@@ -1994,17 +2090,15 @@ eapi:substitute_sets([Query|Tail],[Query|Rest]) :-
   eapi:substitute_sets(Tail,Rest).
 
 
-% ---------
-% EAPI keys
-% ---------
+% -----------------------------------------------------------------------------
+%  EAPI keys
+% -----------------------------------------------------------------------------
 
 %! eapi:keys(-Keys)
 %
 % Returns the list of metadata keys (PMS EAPI 8, Section 7).
 
-% ------------------------------------
 % CASE: PMS cache version (deprecated)
-% ------------------------------------
 
 % eapi:keys(['depend',
 %           'rdepend',
@@ -2029,7 +2123,6 @@ eapi:substitute_sets([Query|Tail],[Query|Rest]) :-
 %           'unused',
 %           'unused']).
 
-
 %! eapi:elem(+Key,+Entry,-Content)
 %
 % Given a key and a pms cache entry, retrieves the element
@@ -2047,9 +2140,7 @@ eapi:substitute_sets([Query|Tail],[Query|Rest]) :-
 %   system:nth1(N,E,C).
 
 
-% -----------------
 % CASE: MD5 version
-% -----------------
 
 eapi:elem(K,[E|_],C) :-
   E =.. [K,C],
