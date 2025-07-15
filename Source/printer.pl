@@ -1175,7 +1175,7 @@ printer:pluralize(_, _, Plural, Plural).
 
 printer:footer_stats(ModelAVL, Stats) :-
    StatsInitial = stats{ass:0, con:0, naf:0, actions:0, fetches:0,
-                         downloads:0, runs:0, installs:0, reinstalls:0, total_dl:0},
+                        downloads:0, runs:0, installs:0, reinstalls:0, total_dl:0},
    findall(Key, assoc:gen_assoc(Key, ModelAVL, _), Keys),
    foldl(update_stats, Keys, StatsInitial, Stats).
 
@@ -1196,23 +1196,23 @@ update_stats_clauses(constraint(_), S0, S) :-
   NewCon is S0.con + 1, S = S0.put(con, NewCon).
 update_stats_clauses(naf(_), S0, S) :-
   NewNaf is S0.naf + 1, S = S0.put(naf, NewNaf).
-update_stats_clauses(_://_:fetchonly?_, S0, S) :-
+update_stats_clauses(_://_:fetchonly, S0, S) :-
   NewFetches is S0.fetches + 1, NewActions is S0.actions + 1,
   S = S0.put(_{fetches:NewFetches, actions:NewActions}).
-update_stats_clauses(R://E:download?_, S0, S) :-
+update_stats_clauses(R://E:download, S0, S) :-
   (ebuild:download_size(preference, R://E, Bytes) -> true ; Bytes = 0),
   NewDownloads is S0.downloads + 1, NewTotalDl is S0.total_dl + Bytes, NewActions is S0.actions + 1,
   S = S0.put(_{downloads:NewDownloads, total_dl:NewTotalDl, actions:NewActions}).
-update_stats_clauses(_://_:run?_, S0, S) :-
+update_stats_clauses(_://_:run, S0, S) :-
   NewRuns is S0.runs + 1, NewActions is S0.actions + 1,
   S = S0.put(_{runs:NewRuns, actions:NewActions}).
-update_stats_clauses(_://_:install?_, S0, S) :-
+update_stats_clauses(_://_:install, S0, S) :-
   NewInstalls is S0.installs + 1, NewActions is S0.actions + 1,
   S = S0.put(_{installs:NewInstalls, actions:NewActions}).
-update_stats_clauses(_://_:reinstall?_, S0, S) :-
+update_stats_clauses(_://_:reinstall, S0, S) :-
   NewReinstalls is S0.reinstalls + 1, NewActions is S0.actions + 1,
   S = S0.put(_{reinstalls:NewReinstalls, actions:NewActions}).
-update_stats_clauses(_://_:_?_, S0, S) :-
+update_stats_clauses(_://_:_, S0, S) :-
   NewActions is S0.actions + 1, S = S0.put(actions, NewActions).
 update_stats_clauses(_, S, S).
 
