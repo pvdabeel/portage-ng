@@ -627,8 +627,8 @@ core_pkg('dev-lang','pypy').
 
 
 % Main predicate using foldl/3
-process_build_with_use(Directives, Context, Result) :-
-    foldl(process_use(Context), Directives, [], Result).
+%process_build_with_use(Directives, Context, Result) :-
+%    foldl(process_use(Context), Directives, [], Result).
 /*
 % Helper predicate for foldl/3
 process_use(_Context, use(enable(Use), _), Acc, [required(Use), assumed(Use)|Acc]).
@@ -659,7 +659,7 @@ process_use(_Context, use(optdisable(Use), positive), Acc, [required(Use), assum
 process_use(_Context, use(optdisable(Use), negative), Acc, [naf(required(Use)), assumed(minus(Use))|Acc]).
 */
 % Catch-all for unrecognized directives
-process_use(_Context, _, Acc, Acc).
+%process_use(_Context, _, Acc, Acc).
 
 
 
@@ -781,3 +781,70 @@ process_build_with_use([_|Rest],Context,Others) :-
   process_build_with_use(Rest,Context,Others).
 
 */
+
+% =============================================================================
+%  Helper for process_build_with_use
+% =============================================================================
+
+% Main predicate using foldl/4 to process USE directives.
+process_build_with_use(Directives, Context, Result) :-
+    foldl(process_use(Context), Directives, [], Result).
+
+% Helper predicate for foldl/4.
+% It processes a single USE directive.
+
+% Handles [opt] - The flag must be enabled.
+process_use(_Context, use(enable(Use), _), Acc, [required(Use), assumed(Use)|Acc]).
+
+% Handles [-opt] - The flag must be disabled.
+process_use(_Context, use(disable(Use), _), Acc, [naf(required(Use)), assumed(minus(Use))|Acc]).
+
+% Handles [opt=] - The flag must be enabled if enabled in the parent, disabled otherwise.
+process_use(Context, use(equal(Use), _), Acc, [required(Use), assumed(Use)|Acc]) :-
+    memberchk(assumed(Use), Context), !.
+process_use(Context, use(equal(Use), _), Acc, [naf(required(Use)), assumed(minus(Use))|Acc]) :-
+    \+ memberchk(assumed(Use), Context).
+
+% Handles [!opt=] - The flag must be disabled if enabled in the parent, enabled otherwise.
+process_use(Context, use(inverse(Use), _), Acc, [naf(required(Use)), assumed(minus(Use))|Acc]) :-
+    memberchk(assumed(Use), Context), !.
+process_use(Context, use(inverse(Use), _), Acc, [required(Use), assumed(Use)|Acc]) :-
+    \+ memberchk(assumed(Use), Context).
+
+% Handles [opt?] - The flag must be enabled if enabled in the parent.
+process_use(Context, use(optenable(Use), _), Acc, [required(Use), assumed(Use)|Acc]) :-
+    (memberchk(assumed(Use), Context); preference:use(Use)), !.
+process_use(_Context, use(optenable(_Use), _), Acc, Acc).
+
+% Handles [!opt?] - The flag must be disabled if disabled in the parent.
+process_use(Context, use(optdisable(Use), _), Acc, [naf(required(Use)), assumed(minus(Use))|Acc]) :-
+    (memberchk(assumed(minus(Use)), Context); preference:use(minus(Use))), !.
+process_use(_Context, use(optdisable(_Use), _), Acc, Acc).
+
+% 4-style USE dependency defaults
+% These are consulted when the conditional dependency is on a flag not in the parent's context.
+
+% For [opt=](+) or [!opt=](+)
+process_use(_Context, use(equal(Use), positive), Acc, [required(Use), assumed(Use)|Acc]).
+process_use(_Context, use(inverse(Use), positive), Acc, [required(Use), assumed(Use)|Acc]).
+process_use(_Context, use(optenable(Use), positive), Acc, [required(Use), assumed(Use)|Acc]).
+process_use(_Context, use(optdisable(Use), positive), Acc, [required(Use), assumed(Use)|Acc]).
+
+
+% For [opt=](-) or [!opt=](-)
+process_use(_Context, use(equal(Use), negative), Acc, [naf(required(Use)), assumed(minus(Use))|Acc]).
+process_use(_Context, use(inverse(Use), negative), Acc, [naf(required(Use)), assumed(minus(Use))|Acc]).
+process_use(_Context, use(optenable(Use), negative), Acc, [naf(required(Use)), assumed(minus(Use))|Acc]).
+process_use(_Context, use(optdisable(Use), negative), Acc, [naf(required(Use)), assumed(minus(Use))|Acc]).
+
+% For [opt=](none) or no default specified
+process_use(_Context, use(equal(_Use), none), Acc, Acc).
+process_use(_Context, use(inverse(_Use), none), Acc, Acc).
+process_use(_Context, use(optenable(_Use), none), Acc, Acc).
+process_use(_Context, use(optdisable(_Use), none), Acc, Acc).
+
+
+% Catch-all for any other directives
+process_use(_Context, _, Acc, Acc).
+
+
