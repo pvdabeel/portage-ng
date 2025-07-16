@@ -187,8 +187,8 @@ interface:process_requests(Mode) :-
                                            ;  (kb:sync)),!, 						                            Continue) ;
     memberchk(save(true),Options)     -> (kb:save,!, 							                                  Continue) ;
     memberchk(load(true),Options)     -> (kb:load,!, 							                                  Continue) ;
-    memberchk(fetchonly(true),Options)-> (interface:process_action(fetchonly?{[]},Args,Options),    Continue) ;
-    memberchk(merge(true),Options)    -> (interface:process_action(run?{[]},Args,Options),          Continue) ;
+    memberchk(fetchonly(true),Options)-> (interface:process_action(fetchonly,Args,Options),    Continue) ;
+    memberchk(merge(true),Options)    -> (interface:process_action(run,Args,Options),          Continue) ;
     memberchk(shell(true),Options)    -> (message:logo(['::- portage-ng shell - ',Version]),		    prolog)),
 
   Continue.
@@ -244,11 +244,11 @@ interface:process_action(Action,ArgsSets,_Options) :-
   interface:process_mode(Mode),
   interface:process_server(Host,Port),
   eapi:substitute_sets(ArgsSets,Args),
-  findall(R://E:Action, (member(Arg,Args),
-                         atom_codes(Arg,Codes),
-                         phrase(eapi:qualified_target(Q),Codes),
-                         once(kb:query(Q,R://E))),
-          Proposal),!,
+  findall(R://E:Action?{[]}, (member(Arg,Args),
+                              atom_codes(Arg,Codes),
+                              phrase(eapi:qualified_target(Q),Codes),
+                              once(kb:query(Q,R://E))),
+          Proposal),!,    
   message:log(['Proposal:  ',Proposal]),
   (Proposal == []
    -> ( config:llm_support(Prompt),
