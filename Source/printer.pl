@@ -1257,17 +1257,17 @@ handle_assumption(ProofKey) :-
 %
 % Prints formatted, non-garbled assumption details.
 
-printer:print_assumption_detail(rule(package_dependency(R://E,T,_,C,N,_,_,_,_),_)) :- !,
+printer:print_assumption_detail(rule(package_dependency(R://E,T,_,C,N,_,_,_,_):_?{_},_)) :- !,
     message:print(' - Non-existent or failed '), message:print(T),
     message:print(' dependency: '), message:print(C), message:print('/'), message:print(N),
     message:print(' for ebuild '), message:print(R://E), nl.
-printer:print_assumption_detail(rule(R://E:install?_,_)) :- !,
+printer:print_assumption_detail(rule(R://E:install,_)) :- !,
     message:print(' - Assumed installed (not in world file or proof failed): '),
     message:print(R://E), nl.
-printer:print_assumption_detail(rule(R://E:run?_,_)) :- !,
+printer:print_assumption_detail(rule(R://E:run,_)) :- !,
     message:print(' - Assumed running (not in world file or proof failed): '),
     message:print(R://E), nl.
-printer:print_assumption_detail(rule(R://E:unmask?_,_)) :- !,
+printer:print_assumption_detail(rule(R://E:unmask,_)) :- !,
     message:print(' - Assumed unmasked (ebuild is masked): '),
     message:print(R://E), nl.
 printer:print_assumption_detail(rule(C,_)) :-
