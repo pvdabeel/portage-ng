@@ -394,7 +394,7 @@ print_bytes(live) :-
 
 print_bytes(Bytes) :-
   convert_bytes(Bytes, Atom),
-  format('~w\t', [Atom]).
+  format('~w  \t', [Atom]).
 
 
 % -----------------------------------------------------------------------------

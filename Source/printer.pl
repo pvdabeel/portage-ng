@@ -650,6 +650,10 @@ printer:print_config_prefix(_Word) :-
 % CASE: Column build plan printing
 % --------------------------------
 
+printer:print_config_prefix(file) :-
+  config:printing_style('column'),!,
+  message:column(115,' ').
+
 printer:print_config_prefix(_Word) :-
   config:printing_style('column'),!,
   message:column(110,' ').
@@ -673,7 +677,7 @@ printer:print_config_prefix :-
 printer:print_config_prefix :-
   config:printing_style('column'),!,
   nl,write('             │ '),
-  message:column(80,' ').
+  message:column(85,' ').
 
 
 %! printer:print_config(+Repository://+Entry:+Action:+Context)
