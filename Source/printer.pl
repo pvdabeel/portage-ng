@@ -770,7 +770,7 @@ printer:print_config(Repository://Entry:install?{Context}) :-
  findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
 
  (Useflags == [] ;
-   (printer:print_config_prefix('conf'),	            % Use flags not empty
+   (printer:print_config_prefix('conf'),	                  % Use flags not empty
     printer:print_config_item('use',Useflags,Assumed))).    % Use flags not empty
 
   %config:print_expand_use(false) ; (
@@ -847,158 +847,186 @@ printer:print_config_item('download',File,Size) :-
   message:print(File).
 
 
-%! printer:print_config_item(+Key,List,Assumed) % PosPref,PosEbui,NegPref,NegEbui,NegDefa)
+%! printer:print_config_item(+Key,List,Assumed)
 %
-% Prints a configuration item for a given repository entry
+% Prints a configuration item. The 'use' key is special-cased to
+% provide word-wrapping for the flag list.
 
-printer:print_config_item(Key,List,Assumed) :- % PosPref,PosEbui,NegPref,NegEbui,NegDefa) :-
-  !,
+printer:print_config_item(Key,List,Assumed) :-
   upcase_atom(Key,KeyU),
   message:print(KeyU),
   message:print('="'),
-  printer:print_use_flag_sets(List,Assumed),
+  catch(
+      ( tty_size(_, TermWidth),
+        line_position(current_output, StartCol),
+        collect_all_flags(List, Assumed, AllFlags),
+        print_flags_wrapped(AllFlags, StartCol, TermWidth, StartCol)
+      ),
+      error(io_error(check, stream(_)), _),
+      ( collect_all_flags(List, Assumed, AllFlags),
+        print_flags_unwrapped(AllFlags)
+      )
+  ),
   message:print('"').
 
 
-%! printer:print_use_flag_sets(+List,+Assumed)
+%! printer:print_flags_wrapped(+AllFlags, +StartCol, +TermWidth, +IndentForWrap)
 %
-% Prints a list of Enabled and Disabled Use flags
+% Prints a list of use flags, wrapped if necessary.
 
-printer:print_use_flag_sets(List,Assumed) :-
-  (memberchk([negative:default,NegDefa],List);    NegDefa=[]),!,
-  (memberchk([negative:ebuild,NegEbui],List);     NegEbui=[]),!,
-  (memberchk([negative:preference,NegPref],List); NegPref=[]),!,
-  (memberchk([positive:ebuild,PosEbui],List);     PosEbui=[]),!,
-  (memberchk([positive:preference,PosPref],List); PosPref=[]),!,
-  printer:print_use_flag_set(positive:preference,PosPref,Assumed,'',D1),
-  printer:print_between(D1,PosEbui),
-  printer:print_use_flag_set(positive:ebuild,PosEbui,Assumed,D1,D2),
-  printer:print_between(D2,NegPref),
-  printer:print_use_flag_set(negative:preference,NegPref,Assumed,D2,D3),
-  printer:print_between(D3,NegEbui),
-  printer:print_use_flag_set(negative:ebuild,NegEbui,Assumed,D3,D4),
-  printer:print_between(D4,NegDefa),
-  printer:print_use_flag_set(negative:default,NegDefa,Assumed,D4,_),!.
+printer:print_flags_wrapped([], _, _, _) :- !.
+printer:print_flags_wrapped(AllFlags, StartCol, TermWidth, IndentForWrap) :-
+    foldl(print_one_flag_wrapped(TermWidth, IndentForWrap),
+          AllFlags,
+          [StartCol, true],
+          _).
 
-
-%! printer:print_between_use_flag_set(D,Future)
+%! printer:print_one_flag_wrapped(+TermWidth, +IndentForWrap, +FlagTerm, +StateIn, -StateOut)
 %
-% Prints a delayed char if future is non-empty
+% Prints a single use flag, wrapped if necessary.
 
-printer:print_between(_,[]) :- !.
+printer:print_one_flag_wrapped(TermWidth, IndentForWrap, flag(Type, Flag, Assumed), [ColIn, IsFirst], [ColOut, false]) :-
+    get_flag_length(Type, Flag, Assumed, FlagLen),
+    (IsFirst -> SpaceLen = 0 ; SpaceLen = 1),
+    (   % Entire if-then-else must be parenthesized to form a single goal.
+        ( ColIn + SpaceLen + FlagLen > TermWidth, \+ IsFirst )
+    ->  % Wrap
+        (
+            NewIndentForWrap is IndentForWrap - 25,
+            print_continuation_prefix(NewIndentForWrap),
+            print_use_flag(Type, Flag, Assumed),
+            ColOut is NewIndentForWrap + FlagLen
+        )
+    ;   % No wrap
+        (
+            (IsFirst -> true ; write(' ')),
+            print_use_flag(Type, Flag, Assumed),
+            ColOut is ColIn + SpaceLen + FlagLen
+        )
+    ).
 
-printer:print_between(D,_) :-
-  !,
-  write(D).
 
-
-%! printer:print_use_flag_set(+Type,+Flags,+Assumed,Char,NextChar))
+%! printer:print_continuation_prefix(+IndentColumn)
 %
-% Sorts, then prints a list of USE flags
+% Prints a continuation prefix.
 
-printer:print_use_flag_set(_,[],_,D,D) :- !.
+printer:print_continuation_prefix(IndentColumn) :-
+    (   config:printing_style('fancy')
+    ->  nl, write('             │                           ') ) ; 
+    (   config:printing_style('column')
+    ->  nl, format('~*|', [IndentColumn]) ) ;
+    (   config:printing_style('short')
+    ->  write(' ') ).
 
-printer:print_use_flag_set(Type,Flags,Assumed,_,' ') :-
-  !,
-  sort(Flags,Orderedflags),
-  printer:print_use_flag(Type,Orderedflags,Assumed).
 
-
-%! printer:print_use_flag(+Reason,+Flags,Assumed)
+%! printer:collect_all_flags(+List, +Assumed, -AllFlags)
 %
-% Prints a list of USE flags
+% Collects all use flags from a list.
 
-printer:print_use_flag(_,[],_) :-
-  !.
+printer:collect_all_flags(List, Assumed, AllFlags) :-
+    (memberchk([negative:default,NegDefa],List);    NegDefa=[]),
+    (memberchk([negative:ebuild,NegEbui],List);     NegEbui=[]),
+    (memberchk([negative:preference,NegPref],List); NegPref=[]),
+    (memberchk([positive:ebuild,PosEbui],List);     PosEbui=[]),
+    (memberchk([positive:preference,PosPref],List); PosPref=[]),
+    sort(PosPref, OPosPref),
+    sort(PosEbui, OPosEbui),
+    sort(NegPref, ONegPref),
+    sort(NegEbui, ONegEbui),
+    sort(NegDefa, ONegDefa),
+    maplist(to_flag_term(positive:preference, Assumed), OPosPref, FlagsPosPref),
+    maplist(to_flag_term(positive:ebuild, Assumed), OPosEbui, FlagsPosEbui),
+    maplist(to_flag_term(negative:preference, Assumed), ONegPref, FlagsNegPref),
+    maplist(to_flag_term(negative:ebuild, Assumed), ONegEbui, FlagsNegEbui),
+    maplist(to_flag_term(negative:default, Assumed), ONegDefa, FlagsNegDefa),
+    append([FlagsPosPref, FlagsPosEbui, FlagsNegPref, FlagsNegEbui, FlagsNegDefa], AllFlags).
 
-printer:print_use_flag(_Reason,[Flag],Assumed) :-
-  memberchk(minus(Flag),Assumed),!,
+to_flag_term(Type, Assumed, Flag, flag(Type, Flag, Assumed)).
+
+
+%! printer:print_flags_unwrapped(+AllFlags)
+%
+% Prints a list of use flags.
+
+printer:print_flags_unwrapped([]) :- !.
+printer:print_flags_unwrapped([flag(Type, Flag, Assumed)|Rest]) :-
+    print_use_flag(Type, Flag, Assumed),
+    (Rest == [] -> true ; write(' ')),
+    print_flags_unwrapped(Rest).
+
+%! printer:get_flag_length(+Type, +Flag, +Assumed, -Length)
+%
+% Gets the length of a use flag.
+
+printer:get_flag_length(Type, Flag, Assumed, Length) :-
+    (   memberchk(minus(Flag), Assumed) -> atom_length(Flag, L), Length is L + 1
+    ;   memberchk(Flag, Assumed) -> atom_length(Flag, Length)
+    ;   get_flag_length_typed(Type, Flag, Length)
+    ).
+
+printer:get_flag_length_typed(positive:preference, Flag, Length) :-
+    atom_length(Flag, L),
+    ( preference:use(Flag,env) -> Length is L + 1 ; Length is L).
+
+printer:get_flag_length_typed(positive:ebuild, Flag, Length) :-
+    atom_length(Flag, Length).
+
+printer:get_flag_length_typed(negative:preference, Flag, Length) :-
+    atom_length(Flag, L),
+    ( preference:use(minus(Flag),env) -> Length is L + 2 ; Length is L + 1).
+
+printer:get_flag_length_typed(negative:ebuild, Flag, Length) :-
+    atom_length(Flag, L),
+    Length is L + 1.
+
+printer:get_flag_length_typed(negative:default, Flag, Length) :-
+    atom_length(Flag, L),
+    Length is L + 1.
+
+
+%! printer:print_use_flag(+Reason,+Flag,Assumed)
+%
+% Prints a use flag.
+
+printer:print_use_flag(_Reason, Flag, Assumed) :-
+  memberchk(minus(Flag), Assumed), !,
   message:color(orange),
   %message:style(bold),
   message:print('-'),
   message:print(Flag),
-  message:color(normal),
-  message:print('').
+  message:color(normal).
 
-printer:print_use_flag(_Reason,[Flag|Rest],Assumed) :-
-  memberchk(minus(Flag),Assumed),!,
-  message:color(orange),
-  %message:style(bold),
-  message:print('-'),
-  message:print(Flag),
-  message:color(normal),
-  message:print(' '),
-  printer:print_use_flag(positive:preference,Rest,Assumed).
-
-
-printer:print_use_flag(_Reason,[Flag],Assumed) :-
-  memberchk(Flag,Assumed),!,
+printer:print_use_flag(_Reason, Flag, Assumed) :-
+  memberchk(Flag, Assumed), !,
   message:color(orange),
   %message:style(bold),
   message:print(Flag),
-  message:color(normal),
-  message:print('').
+  message:color(normal).
 
-printer:print_use_flag(_Reason,[Flag|Rest],Assumed) :-
-  member(Flag,Assumed),!,
-  message:color(orange),
-  %message:style(bold),
-  message:print(Flag),
-  message:color(normal),
-  message:print(' '),
-  printer:print_use_flag(positive:preference,Rest,Assumed).
-
-printer:print_use_flag(positive:preference,[Flag],_Assumed) :-
-  preference:use(Flag,env),!,
+printer:print_use_flag(positive:preference, Flag, _Assumed) :-
+  preference:use(Flag,env), !,
   message:color(green),
   message:style(bold),
   message:print(Flag),
   message:color(normal),
   message:print('*').
 
-printer:print_use_flag(positive:preference,[Flag],_Assumed) :-
+printer:print_use_flag(positive:preference, Flag, _Assumed) :-
   !,
   message:color(red),
   message:style(bold),
   message:print(Flag),
   message:color(normal).
 
-printer:print_use_flag(positive:preference,[Flag|Rest],Assumed) :-
-  preference:use(Flag,env),!,
-  message:color(green),
-  message:style(bold),
-  message:print(Flag),
-  message:color(normal),
-  message:print('* '),
-  printer:print_use_flag(positive:preference,Rest,Assumed).
-
-printer:print_use_flag(positive:preference,[Flag|Rest],Assumed) :-
-  !,
-  message:color(red),
-  message:style(bold),
-  message:print(Flag),
-  message:color(normal),
-  message:print(' '),
-  printer:print_use_flag(positive:preference,Rest,Assumed).
-
-printer:print_use_flag(positive:ebuild,[Flag],_Assumed) :-
+printer:print_use_flag(positive:ebuild, Flag, _Assumed) :-
   !,
   message:color(red),
   message:style(italic),
   message:print(Flag),
   message:color(normal).
 
-printer:print_use_flag(positive:ebuild,[Flag|Rest],Assumed) :-
-  !,
-  message:color(red),
-  message:style(italic),
-  message:print(Flag),
-  message:print(' '),
-  message:color(normal),!,
-  printer:print_use_flag(positive:ebuild,Rest,Assumed).
-
-printer:print_use_flag(negative:preference,[Flag],_Assumed) :-
-  preference:use(minus(Flag),env),!,
+printer:print_use_flag(negative:preference, Flag, _Assumed) :-
+  preference:use(minus(Flag),env), !,
   message:color(green),
   message:style(bold),
   message:print('-'),
@@ -1006,7 +1034,7 @@ printer:print_use_flag(negative:preference,[Flag],_Assumed) :-
   message:color(normal),
   message:print('*').
 
-printer:print_use_flag(negative:preference,[Flag],_Assumed) :-
+printer:print_use_flag(negative:preference, Flag, _Assumed) :-
   !,
   message:color(blue),
   message:style(bold),
@@ -1014,27 +1042,7 @@ printer:print_use_flag(negative:preference,[Flag],_Assumed) :-
   message:print(Flag),
   message:color(normal).
 
-printer:print_use_flag(negative:preference,[Flag|Rest],Assumed) :-
-  preference:use(minus(Flag),env),!,
-  message:color(green),
-  message:style(bold),
-  message:print('-'),
-  message:print(Flag),
-  message:color(normal),
-  message:print('* '),
-  printer:print_use_flag(negative:preference,Rest,Assumed).
-
-printer:print_use_flag(negative:preference,[Flag|Rest],Assumed) :-
-  !,
-  message:color(blue),
-  message:style(bold),
-  message:print('-'),
-  message:print(Flag),
-  message:color(normal),
-  message:print(' '),
-  printer:print_use_flag(negative:preference,Rest,Assumed).
-
-printer:print_use_flag(negative:ebuild,[Flag],_Assumed) :-
+printer:print_use_flag(negative:ebuild, Flag, _Assumed) :-
   !,
   message:color(lightblue),
   message:style(italic),
@@ -1042,33 +1050,13 @@ printer:print_use_flag(negative:ebuild,[Flag],_Assumed) :-
   message:print(Flag),
   message:color(normal).
 
-printer:print_use_flag(negative:ebuild,[Flag|Rest],Assumed) :-
-  !,
-  message:color(lightblue),
-  message:style(italic),
-  message:print('-'),
-  message:print(Flag),
-  message:print(' '),
-  message:color(normal),
-  printer:print_use_flag(negative:ebuild,Rest,Assumed).
-
-printer:print_use_flag(negative:default,[Flag],_Assumed) :-
+printer:print_use_flag(negative:default, Flag, _Assumed) :-
   !,
   message:color(darkgray),
   message:style(italic),
   message:print('-'),
   message:print(Flag),
   message:color(normal).
-
-printer:print_use_flag(negative:default,[Flag|Rest],Assumed) :-
-  !,
-  message:color(darkgray),
-  message:style(italic),
-  message:print('-'),
-  message:print(Flag),
-  message:print(' '),
-  message:color(normal),!,
-  printer:print_use_flag(negative:default,Rest,Assumed).
 
 
 %! printer:check_assumptions(+Model)
