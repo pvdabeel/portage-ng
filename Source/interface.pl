@@ -27,7 +27,7 @@ The interface interpretes command line arguments passed to portage-ng.
 % Retrieve the current version
 
 interface:version(V) :-
-  V = '2025.07.01'.
+  V = '2025.07.22'.
 
 
 %! interface:status(?Status)
@@ -180,7 +180,7 @@ interface:process_requests(Mode) :-
     memberchk(info(true),Options)     -> (interface:process_action(info,Args,Options),              Continue) ;
     memberchk(clear(true),Options)    -> (kb:clear, 							                                  Continue) ;
     memberchk(graph(true),Options)    -> (kb:graph,nl, 				  			                              Continue) ;
-    memberchk(unmerge(true),Options)  -> (interface:process_action(uninstall?{[]},Args,Options), 	  Continue) ;
+    memberchk(unmerge(true),Options)  -> (interface:process_action(uninstall,Args,Options), 	  Continue) ;
     memberchk(depclean(true),Options) -> (message:warning('depclean action to be implemented'), 	  Continue) ;
     memberchk(search(true),Options)   -> (interface:process_action(search,Args,Options),            Continue) ;
     memberchk(sync(true),Options)     -> ((Mode == standalone
@@ -248,7 +248,11 @@ interface:process_action(Action,ArgsSets,_Options) :-
   findall(R://E:Action?{[]}, (member(Arg,Args),
                               atom_codes(Arg,Codes),
                               phrase(eapi:qualified_target(Q),Codes),
-                              once(kb:query(Q,R://E))),
+                              once((kb:query(Q,R://E),
+                                    (Action = 'uninstall'
+                                    -> kb:query(installed(true),R://E)
+                                    ;  true))
+                              )),
           Proposal),!,
   message:log(['Proposal:  ',Proposal]),
   (Proposal == []
@@ -268,4 +272,7 @@ interface:process_action(Action,ArgsSets,_Options) :-
      planner:plan(ProofAVL,Triggers,t,Plan),
      printer:print(Proposal,ModelAVL,ProofAVL,Plan),
      pkg:sync )),
-  \+preference:flag(oneshot) -> world:register(Args).
+  \+preference:flag(oneshot)
+  -> (Action = 'uninstall'
+      -> world:unregister(Args)
+      ;  world:register(Args)).

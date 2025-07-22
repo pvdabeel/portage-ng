@@ -123,6 +123,7 @@ register(List) ::-
 % Public predicate
 
 register(Entry) ::-
+  ::entry(Entry);
   <+entry(Entry),!.
 
 
