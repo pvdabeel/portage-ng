@@ -107,12 +107,33 @@ save ::-
   told,!.
 
 
+%! set:register(+List)
+%
+% Public predicate
+
+register(List) ::-
+  is_list(List),!,
+  forall(member(Entry,List),
+    <+entry(Entry)).
+
+
+
 %! set:register(+Entry)
 %
 % Public predicate
 
 register(Entry) ::-
   <+entry(Entry),!.
+
+
+%! set:unregister(+Entry)
+%
+% Public predicate
+
+unregister(List) ::-
+  is_list(List),!,
+  forall(member(Entry,List),
+    <+entry(Entry)).
 
 
 %! set:unregister(+Entry)

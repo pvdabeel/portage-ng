@@ -121,6 +121,7 @@ interface:process_flags:-
   interface:argv(Options,_),
   (lists:memberchk(deep(true),      Options) -> asserta(preference:local_flag(deep))            ; true),
   (lists:memberchk(emptytree(true), Options) -> asserta(preference:local_flag(emptytree))       ; true),
+  (lists:memberchk(oneshot(true),   Options) -> asserta(preference:local_flag(oneshot))         ; true),
   (lists:memberchk(verbose(true),   Options) -> asserta(config:verbose(true))                   ; true),
   (lists:memberchk(style(Style),    Options) -> asserta(config:interface_printing_style(Style)) ; true).
 
@@ -248,7 +249,7 @@ interface:process_action(Action,ArgsSets,_Options) :-
                               atom_codes(Arg,Codes),
                               phrase(eapi:qualified_target(Q),Codes),
                               once(kb:query(Q,R://E))),
-          Proposal),!,    
+          Proposal),!,
   message:log(['Proposal:  ',Proposal]),
   (Proposal == []
    -> ( config:llm_support(Prompt),
@@ -259,9 +260,12 @@ interface:process_action(Action,ArgsSets,_Options) :-
     (client:rpc_execute(Host,Port,
      (oracle:with_q(prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
       oracle:with_q(planner:plan(ProofAVL,Triggers,t,Plan)),
-      printer:print(Proposal,ModelAVL,ProofAVL,Plan)),
+      printer:print(Proposal,ModelAVL,ProofAVL,Plan),
+      pkg:sync),
      Output),
      writeln(Output));
     (prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers),
      planner:plan(ProofAVL,Triggers,t,Plan),
-     printer:print(Proposal,ModelAVL,ProofAVL,Plan) )).
+     printer:print(Proposal,ModelAVL,ProofAVL,Plan),
+     pkg:sync )),
+  \+preference:flag(oneshot) -> world:register(Args).
