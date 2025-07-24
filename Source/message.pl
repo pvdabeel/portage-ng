@@ -390,17 +390,11 @@ convert_bytes(Bytes, String) :-
   format(string(String), '~2f ~w', [Value, Unit]).
 
 print_bytes(live) :-
-  config:printing_style('fancy')
-  -> format('live\t', [])
-  ;  format('live ', []).
+  format('live   \t', []).
 
 print_bytes(Bytes) :-
     convert_bytes(Bytes, Atom),
-    (   config:printing_style('short')
-    ->  FormatString = '~w '
-    ;   FormatString = '~w  \t'
-    ),
-    format(FormatString, [Atom]).
+    format('~w  \t', [Atom]).
 
 
 % -----------------------------------------------------------------------------

@@ -408,7 +408,6 @@ printer:printable_element(rule(uri(_),_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:run?_,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:run?_,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:download?_,_)) :- !.
-%printer:printable_element(rule(_Repository://_Entry:fetchonly?_,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:install?_,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:reinstall?_,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:uninstall?_,_)) :- !.
@@ -644,7 +643,7 @@ printer:print_config_prefix(Word) :-
 
 printer:print_config_prefix(_Word) :-
   config:printing_style('short'),!,
-  write(' ').
+  nl,write('             │           ').
 
 % --------------------------------
 % CASE: Column build plan printing
@@ -652,11 +651,15 @@ printer:print_config_prefix(_Word) :-
 
 printer:print_config_prefix(file) :-
   config:printing_style('column'),!,
-  message:column(115,' ').
+  message:column(104,' ').
 
-printer:print_config_prefix(_Word) :-
+printer:print_config_prefix(live) :-
   config:printing_style('column'),!,
-  message:column(110,' ').
+  message:column(97,' ').
+
+printer:print_config_prefix('conf') :-
+  config:printing_style('column'), !,
+  message:column(108,' ').
 
 
 %! printer:print_config_prefix
@@ -672,12 +675,12 @@ printer:print_config_prefix :-
 
 printer:print_config_prefix :-
   config:printing_style('short'),!,
-  write(' ').
+  nl,write('             │           ').
 
 printer:print_config_prefix :-
   config:printing_style('column'),!,
   nl,write('             │ '),
-  message:column(85,' ').
+  message:column(72,' ').
 
 
 %! printer:print_config(+Repository://+Entry:+Action:+Context)
@@ -687,11 +690,6 @@ printer:print_config_prefix :-
 % ----------------------
 % CASE: fetchonly action
 % ----------------------
-
-%printer:print_config(_Repository://_Ebuild:fetchonly:_Context).% :-
-  %printer:print_config_prefix('done'),
-  %printer:print_config_item('fetchonly','fetching all','downloads').
-
 
 % iuse empty
 
@@ -706,7 +704,7 @@ printer:print_config(Repository://Entry:fetchonly?{Context}) :-
  findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
 
  (Useflags == [] ;
-   (printer:print_config_prefix('conf'),	            % Use flags not empty
+   (printer:print_config_prefix('conf'),	                  % Use flags not empty
     printer:print_config_item('use',Useflags,Assumed))).    % Use flags not empty
 
 
@@ -740,9 +738,8 @@ printer:print_config(Repository://Ebuild:download?{_Context}) :-
   % findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Ebuild), Group), Useflags),
 
   % (Useflags == [] ;
-  %  (printer:print_config_prefix('conf'),	    	      % Use flags not empty
+  %  (printer:print_config_prefix('conf'),	    	            % Use flags not empty
   %   printer:print_config_item('use',Useflags,Assumed))),    % Use flags not empty
-
 
   findall([File,Size],kb:query(manifest(preference,_,File,Size),Repository://Ebuild),Downloads),
   sort(Downloads,[[FirstFile,FirstSize]|Rest]),
@@ -783,9 +780,9 @@ printer:print_config(Repository://Entry:install?{Context}) :-
   %                          Expandedkeys),
 
   % (forall(member([Key,Keyflags],Expandedkeys),
-  %  ((Useflags == [] ->				    % Expandedkeys not empty
-  %    printer:print_config_prefix('conf');	            % Expandedkeys not empty, use flags empty
-  %    printer:print_config_prefix),		            % Expandedkeys not empty, use flags not empty
+  %  ((Useflags == [] ->				                            % Expandedkeys not empty
+  %    printer:print_config_prefix('conf');	                % Expandedkeys not empty, use flags empty
+  %    printer:print_config_prefix),		                    % Expandedkeys not empty, use flags not empty
   %   printer:print_config_item(Key,Keyflags))))),!.        % Expandedkeys not empty
 
 
@@ -846,14 +843,8 @@ printer:print_config_item('download',File,Size) :-
   message:print(' '),
   message:print(File).
 
-
-%! printer:print_config_item(+Key,List,Assumed)
-%
-% Prints a configuration item. The 'use' key is special-cased to
-% provide word-wrapping for the flag list.
-
-printer:print_config_item(Key,List,Assumed) :-
-  upcase_atom(Key,KeyU),
+printer:print_config_item('use',List,Assumed) :- !,
+  upcase_atom('use',KeyU),
   message:print(KeyU),
   message:print('="'),
   catch(
@@ -872,35 +863,35 @@ printer:print_config_item(Key,List,Assumed) :-
 
 %! printer:print_flags_wrapped(+AllFlags, +StartCol, +TermWidth, +IndentForWrap)
 %
-% Prints a list of use flags, wrapped if necessary.
+% Prints a list of flags wrapped to the terminal width.
 
 printer:print_flags_wrapped([], _, _, _) :- !.
 printer:print_flags_wrapped(AllFlags, StartCol, TermWidth, IndentForWrap) :-
-    foldl(print_one_flag_wrapped(TermWidth, IndentForWrap),
+    foldl(printer:print_one_flag_wrapped(TermWidth, IndentForWrap),
           AllFlags,
           [StartCol, true],
           _).
 
+
 %! printer:print_one_flag_wrapped(+TermWidth, +IndentForWrap, +FlagTerm, +StateIn, -StateOut)
 %
-% Prints a single use flag, wrapped if necessary.
+% Prints a single flag wrapped to the terminal width.
 
 printer:print_one_flag_wrapped(TermWidth, IndentForWrap, flag(Type, Flag, Assumed), [ColIn, IsFirst], [ColOut, false]) :-
-    get_flag_length(Type, Flag, Assumed, FlagLen),
+    printer:get_flag_length(Type, Flag, Assumed, FlagLen),
     (IsFirst -> SpaceLen = 0 ; SpaceLen = 1),
-    (   % Entire if-then-else must be parenthesized to form a single goal.
+    (   
         ( ColIn + SpaceLen + FlagLen > TermWidth, \+ IsFirst )
     ->  % Wrap
         (
-            NewIndentForWrap is IndentForWrap - 25,
-            print_continuation_prefix(NewIndentForWrap),
-            print_use_flag(Type, Flag, Assumed),
-            ColOut is NewIndentForWrap + FlagLen
+            printer:print_continuation_prefix(IndentForWrap),
+            printer:print_use_flag(Type, Flag, Assumed),
+            ColOut is IndentForWrap + FlagLen
         )
     ;   % No wrap
         (
             (IsFirst -> true ; write(' ')),
-            print_use_flag(Type, Flag, Assumed),
+            printer:print_use_flag(Type, Flag, Assumed),
             ColOut is ColIn + SpaceLen + FlagLen
         )
     ).
@@ -908,20 +899,21 @@ printer:print_one_flag_wrapped(TermWidth, IndentForWrap, flag(Type, Flag, Assume
 
 %! printer:print_continuation_prefix(+IndentColumn)
 %
-% Prints a continuation prefix.
+% Prints the continuation prefix for wrapped flags.
 
-printer:print_continuation_prefix(IndentColumn) :-
-    (   config:printing_style('fancy')
-    ->  nl, write('             │                           ') ) ; 
-    (   config:printing_style('column')
-    ->  nl, format('~*|', [IndentColumn]) ) ;
-    (   config:printing_style('short')
-    ->  write(' ') ).
+printer:print_continuation_prefix(_IndentColumn) :-
+    nl,
+    ( config:printing_style('short')  -> write('             │                '));
+    ( config:printing_style('column') -> write('             │                                                                            '));
+    ( config:printing_style('fancy')  -> write('             │                    '),
+                                         message:color(darkgray),
+                                         write('│      '));
+    true.
 
 
 %! printer:collect_all_flags(+List, +Assumed, -AllFlags)
 %
-% Collects all use flags from a list.
+% Collects all flags from the list and assumed flags.
 
 printer:collect_all_flags(List, Assumed, AllFlags) :-
     (memberchk([negative:default,NegDefa],List);    NegDefa=[]),
@@ -941,27 +933,33 @@ printer:collect_all_flags(List, Assumed, AllFlags) :-
     maplist(to_flag_term(negative:default, Assumed), ONegDefa, FlagsNegDefa),
     append([FlagsPosPref, FlagsPosEbui, FlagsNegPref, FlagsNegEbui, FlagsNegDefa], AllFlags).
 
-to_flag_term(Type, Assumed, Flag, flag(Type, Flag, Assumed)).
+
+%! printer:to_flag_term(+Type, +Assumed, +Flag, -FlagTerm)
+%
+% Converts a flag to a flag term.
+
+printer:to_flag_term(Type, Assumed, Flag, flag(Type, Flag, Assumed)).
 
 
 %! printer:print_flags_unwrapped(+AllFlags)
 %
-% Prints a list of use flags.
+% Prints a list of flags unwrapped.
 
 printer:print_flags_unwrapped([]) :- !.
 printer:print_flags_unwrapped([flag(Type, Flag, Assumed)|Rest]) :-
-    print_use_flag(Type, Flag, Assumed),
+    printer:print_use_flag(Type, Flag, Assumed),
     (Rest == [] -> true ; write(' ')),
-    print_flags_unwrapped(Rest).
+    printer:print_flags_unwrapped(Rest).
+
 
 %! printer:get_flag_length(+Type, +Flag, +Assumed, -Length)
 %
-% Gets the length of a use flag.
+% Gets the length of a flag.
 
 printer:get_flag_length(Type, Flag, Assumed, Length) :-
     (   memberchk(minus(Flag), Assumed) -> atom_length(Flag, L), Length is L + 1
     ;   memberchk(Flag, Assumed) -> atom_length(Flag, Length)
-    ;   get_flag_length_typed(Type, Flag, Length)
+    ;   printer:get_flag_length_typed(Type, Flag, Length)
     ).
 
 printer:get_flag_length_typed(positive:preference, Flag, Length) :-
@@ -986,7 +984,7 @@ printer:get_flag_length_typed(negative:default, Flag, Length) :-
 
 %! printer:print_use_flag(+Reason,+Flag,Assumed)
 %
-% Prints a use flag.
+% Prints a single flag.
 
 printer:print_use_flag(_Reason, Flag, Assumed) :-
   memberchk(minus(Flag), Assumed), !,
@@ -1086,7 +1084,7 @@ printer:print_header(Target) :-
 %
 % Prints the body for a given plan.
 printer:print_body(Target, Plan, Call, Steps) :-
-    printer:print_steps_in_plan(Target, Plan, Call, 0, Steps).
+  printer:print_steps_in_plan(Target, Plan, Call, 0, Steps).
 
 
 %! printer:print_steps_in_plan(+Target,+Plan,+Call,+Count,-NewCount)
@@ -1096,10 +1094,10 @@ printer:print_body(Target, Plan, Call, Steps) :-
 printer:print_steps_in_plan(_, [], _, Count, Count) :- !.
 
 printer:print_steps_in_plan(Target, [Step|Rest], Call, Count, CountFinal) :-
-    predsort(printer:sort_by_weight, Step, SortedRules),
-    printer:print_first_in_step(Target, SortedRules, Count, CountNew),
-    call(Call, SortedRules), !,
-    printer:print_steps_in_plan(Target, Rest, Call, CountNew, CountFinal).
+  predsort(printer:sort_by_weight, Step, SortedRules),
+  printer:print_first_in_step(Target, SortedRules, Count, CountNew),
+  call(Call, SortedRules), !,
+  printer:print_steps_in_plan(Target, Rest, Call, CountNew, CountFinal).
 
 
 %! printer:print_first_in_step(+Target,+Step,+Count,-NewCount)
@@ -1139,8 +1137,11 @@ printer:print_next_in_step(Target,[_|Rest]) :-
 
 
 %! printer:print_footer(+Plan, +ModelAVL, +PrintedSteps)
+%
+% Prints the footer for a given plan.
+
 printer:print_footer(_Plan, ModelAVL, PrintedSteps) :-
-  footer_stats(ModelAVL, S),
+  printer:footer_stats(ModelAVL, S),
   printer:pluralize(S.actions, action, actions, TotalStr),
   printer:pluralize(S.downloads, download, downloads, DStr),
   printer:pluralize(S.installs, install, installs, IStr),
@@ -1169,44 +1170,45 @@ printer:footer_stats(ModelAVL, Stats) :-
    StatsInitial = stats{ass:0, con:0, naf:0, actions:0, fetches:0,
                         downloads:0, runs:0, installs:0, reinstalls:0, total_dl:0},
    findall(Key, assoc:gen_assoc(Key, ModelAVL, _), Keys),
-   foldl(update_stats, Keys, StatsInitial, Stats).
+   foldl(printer:update_stats, Keys, StatsInitial, Stats).
 
 %! printer:update_stats(+Key, +StatsIn, -StatsOut)
 %
-% Foldl helper
+% Foldl helper to update stats
 
-update_stats(Key, S0, S) :-
-  update_stats_clauses(Key, S0, S).
+printer:update_stats(Key, S0, S) :-
+  printer:update_stats_clauses(Key, S0, S).
+
 
 %! printer:update_stats_clauses(+Key, +StatsIn, -StatsOut)
 %
 % The logic for updating stats based on a key.
 
-update_stats_clauses(assumed(_), S0, S) :-
+printer:update_stats_clauses(assumed(_), S0, S) :-
   NewAss is S0.ass + 1, S = S0.put(ass, NewAss).
-update_stats_clauses(constraint(_), S0, S) :-
+printer:update_stats_clauses(constraint(_), S0, S) :-
   NewCon is S0.con + 1, S = S0.put(con, NewCon).
-update_stats_clauses(naf(_), S0, S) :-
+printer:update_stats_clauses(naf(_), S0, S) :-
   NewNaf is S0.naf + 1, S = S0.put(naf, NewNaf).
-update_stats_clauses(_://_:fetchonly, S0, S) :-
+printer:update_stats_clauses(_://_:fetchonly, S0, S) :-
   NewFetches is S0.fetches + 1, NewActions is S0.actions + 1,
   S = S0.put(_{fetches:NewFetches, actions:NewActions}).
-update_stats_clauses(R://E:download, S0, S) :-
+printer:update_stats_clauses(R://E:download, S0, S) :-
   (ebuild:download_size(preference, R://E, Bytes) -> true ; Bytes = 0),
   NewDownloads is S0.downloads + 1, NewTotalDl is S0.total_dl + Bytes, NewActions is S0.actions + 1,
   S = S0.put(_{downloads:NewDownloads, total_dl:NewTotalDl, actions:NewActions}).
-update_stats_clauses(_://_:run, S0, S) :-
+printer:update_stats_clauses(_://_:run, S0, S) :-
   NewRuns is S0.runs + 1, NewActions is S0.actions + 1,
   S = S0.put(_{runs:NewRuns, actions:NewActions}).
-update_stats_clauses(_://_:install, S0, S) :-
+printer:update_stats_clauses(_://_:install, S0, S) :-
   NewInstalls is S0.installs + 1, NewActions is S0.actions + 1,
   S = S0.put(_{installs:NewInstalls, actions:NewActions}).
-update_stats_clauses(_://_:reinstall, S0, S) :-
+printer:update_stats_clauses(_://_:reinstall, S0, S) :-
   NewReinstalls is S0.reinstalls + 1, NewActions is S0.actions + 1,
   S = S0.put(_{reinstalls:NewReinstalls, actions:NewActions}).
-update_stats_clauses(_://_:_, S0, S) :-
+printer:update_stats_clauses(_://_:_, S0, S) :-
   NewActions is S0.actions + 1, S = S0.put(actions, NewActions).
-update_stats_clauses(_, S, S).
+printer:update_stats_clauses(_, S, S).
 
 
 %! printer:print_warnings(+ModelAVL, +ProofAVL)
@@ -1216,7 +1218,8 @@ update_stats_clauses(_, S, S).
 printer:print_warnings(ModelAVL, ProofAVL) :-
   once((assoc:gen_assoc(Key, ModelAVL, _), Key = assumed(_))),
   !,
-  message:color(red), message:print('Error: The proof for your build plan contains assumptions. Please verify:'), nl, nl,
+  message:color(red), 
+  message:print('Error: The proof for your build plan contains assumptions. Please verify:'), nl, nl,
   message:color(red),
   forall(assoc:gen_assoc(ProofKey, ProofAVL, _ProofValue),
          printer:handle_assumption(ProofKey)
@@ -1231,18 +1234,16 @@ printer:print_warnings(_,_) :- !, nl.
 %
 % Helper to print details for both correct and inconsistent assumption formats.
 
-handle_assumption(ProofKey) :-
-    % Case 1: Handles the inconsistent key format: rule(assumed(CONTENT))
-    (   ProofKey = rule(assumed(Content)) ->
-        % Reconstruct a rule/2 term to pass to the detail printer.
-        printer:print_assumption_detail(rule(Content, []))
-    % Case 2: Handles the correct key format: assumed(rule(CONTENT))
-    ;   ProofKey = assumed(rule(Content)) ->
-        % Reconstruct a rule/2 term to pass to the detail printer.
-        printer:print_assumption_detail(rule(Content, []))
-    ;
-        true
-    ).
+printer:handle_assumption(ProofKey) :-
+  % Case 1: key format: rule(assumed(...))
+  (   ProofKey = rule(assumed(Content)) ->
+      printer:print_assumption_detail(rule(Content, []))
+  % Case 2: key format: assumed(rule(...))
+  ;   ProofKey = assumed(rule(Content)) ->
+      printer:print_assumption_detail(rule(Content, []))
+  ;
+      true
+  ).
 
 
 %! printer:print_assumption_detail(+RuleTerm)
@@ -1266,7 +1267,6 @@ printer:print_assumption_detail(rule(C,_)) :-
     message:print(' - General assumption made: '), message:print(C), nl.
 
 
-
 %! printer:print(+Target,+ModelAVL,+ProofAVL,+Plan)
 %
 % Prints a plan.
@@ -1282,7 +1282,6 @@ printer:print(Target,ModelAVL,ProofAVL,Plan,Call) :-
   printer:print_warnings(ModelAVL,ProofAVL).
 
 
-
 %! printer:dry_run(+Step)
 %
 % Default execution strategy for building steps in a plan
@@ -1292,13 +1291,6 @@ printer:dry_run(_Step) :-
   %message:color(darkgray),
   %message:print(['building step : ',Step]),nl,
   %message:color(normal).
-
-
-%! printer:unify(+A,+B)
-%
-% Helper predicate to check if two terms are unifiable.
-
-unify(A,B) :- unifiable(A,B,_),!.
 
 
 %! printer:write_repository_index_file(+Directory,+Repository)
@@ -1443,6 +1435,13 @@ printer:produce_html(Directory) :-
   script:exec(print,['aha',Directory]),
   message:scroll_notice(['Done running Aha.']),
   message:sc.
+
+
+%! unify(+A,+B)
+%
+% Helper predicate to check if two terms are unifiable.
+
+unify(A,B) :- unifiable(A,B,_),!.
 
 
 % -----------------------------------------------------------------------------
