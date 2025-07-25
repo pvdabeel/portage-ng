@@ -1,8 +1,8 @@
-# Copyright 2013 Pieter Van den Abeele
+# Copyright 2025 Pieter Van den Abeele
 # Distributed under the terms of the GNU General Public License v2
 # $Header$
 
-EAPI="7"
+EAPI="8"
 DESCRIPTION="Description of test package os"
 HOMEPAGE="http://www.portage-ng.org/"
 SRC_URI=""

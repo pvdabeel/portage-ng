@@ -1,4 +1,4 @@
-# Copyright 2013 Pieter Van den Abeele
+# Copyright 2025 Pieter Van den Abeele
 # Distributed under the terms of the GNU General Public License v2
 # $Header$
 
