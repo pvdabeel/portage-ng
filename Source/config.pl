@@ -171,7 +171,7 @@ config:bonjour_service('_prolog._tcp.').
 
 %! config:server_host(?Url)
 %
-% Declares the server url, including protocol (https) and port the client needs 
+% Declares the server url, including protocol (https) and port the client needs
 % to connect on. This can be overridden using the --host option in the interface.
 
 config:server_host('mac-pro.local').
@@ -188,12 +188,12 @@ config:server_port(4000).
 
 %! config:server_chunck(?Chunksize)
 %
-% When set to false, when working in client-server mode, one % RPC call is 
-% performed per solution. When generating large number of solutions, such as 
-% backtracking over a goal, it is best to transfer multiple solutions in one 
+% When set to false, when working in client-server mode, one % RPC call is
+% performed per solution. When generating large number of solutions, such as
+% backtracking over a goal, it is best to transfer multiple solutions in one
 % chunck over one rpc call.
 
-% Setting this to a higher value speeds up searching in client-server mode. 
+% Setting this to a higher value speeds up searching in client-server mode.
 % Shouldn't be higher than the total number of entries in your repositories.
 
 config:server_chunk(50000).
@@ -293,8 +293,8 @@ config:graph_proof_type([merge,fetchonly,info]).
 
 %! config:time_limit(?Limit)
 %
-% When parsing, proving or planning, use the specified time limit to 
-% automatically stop computation if it takes too long. 
+% When parsing, proving or planning, use the specified time limit to
+% automatically stop computation if it takes too long.
 %In seconds.
 
 config:time_limit(10).
@@ -350,7 +350,7 @@ config:printing_style(Style) :-
   !,
   M:printing_style(Style).
 
-% 2. Not running as a server, use interface style when specified, 
+% 2. Not running as a server, use interface style when specified,
 %    otherwise default
 
 config:printing_style(Style) :-
@@ -370,8 +370,8 @@ config:print_expand_use(false).
 
 %! config:printable_metadata(?List)
 %
-% Defines which elements in which order to print out when printing ebuild 
-% information. Use 'blank' to put blank lines in output. Use 'hl' to output 
+% Defines which elements in which order to print out when printing ebuild
+% information. Use 'blank' to put blank lines in output. Use 'hl' to output
 % a horizontal line.
 
 config:printable_metadata([blank,
@@ -440,8 +440,8 @@ config:dry_run_build(true).
 
 %! config:time_limit_build(?Limit)
 %
-% When executing a plan (i.e. building) use the specified time limit to 
-% automatically stop the build process if it takes too long. Note this limit 
+% When executing a plan (i.e. building) use the specified time limit to
+% automatically stop the build process if it takes too long. Note this limit
 % applies to an entire step in a plan.
 % In seconds.
 
@@ -464,21 +464,21 @@ config:time_limit_build(6000).
 % Declares prompts to be passed to the LLM
 
 config:llm_capability(chat,Capability) :-
-  Description="When formulating a response, you may optionally enclose a message 
-               (e.g., a question) in <call:chatgpt>, <call:gemini>, <call:ollama>, 
-               or <call:claude> tags to send it to the respective LLM. The response 
-               is automatically returned to you, with each LLM maintaining its own 
+  Description="When formulating a response, you may optionally enclose a message
+               (e.g., a question) in <call:chatgpt>, <call:gemini>, <call:ollama>,
+               or <call:claude> tags to send it to the respective LLM. The response
+               is automatically returned to you, with each LLM maintaining its own
                history of your queries.",
   normalize_space(string(Capability),Description).
 
 config:llm_capability(code,Capability) :-
-  Description="When asked to write SWI-Prolog code, you may optionally enclose the 
-               code in <call:swi_prolog> XML tags. Any code within these tags will 
-               be executed locally in a temporary module, with the output 
-               automatically returned to you. Do not mention the XML tags unless 
+  Description="When asked to write SWI-Prolog code, you may optionally enclose the
+               code in <call:swi_prolog> XML tags. Any code within these tags will
+               be executed locally in a temporary module, with the output
+               automatically returned to you. Do not mention the XML tags unless
                you include SWI-Prolog code between them. Write the code as if it
-               were loaded from a separate source file, including triggering 
-               execution of your main function using a :- directive, such as 
+               were loaded from a separate source file, including triggering
+               execution of your main function using a :- directive, such as
                :- main. The temporary module is destroyed after execution.",
   normalize_space(string(Capability),Description).
 
@@ -488,9 +488,9 @@ config:llm_capability(code,Capability) :-
 % Declares prompts to be passed to the LLM in case of merge failure
 
 config:llm_support(Capability) :-
-  Description="I get no result trying to emerge the following ebuilds, please find 
-               me the correct one, or propose to write one. Give me a short answer 
-               now, until I tell you to write an ebuild. Here is what I was trying 
+  Description="I get no result trying to emerge the following ebuilds, please find
+               me the correct one, or propose to write one. Give me a short answer
+               now, until I tell you to write an ebuild. Here is what I was trying
                to do: ",
   normalize_space(string(Capability),Description).
 
