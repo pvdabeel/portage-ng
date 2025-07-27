@@ -880,7 +880,7 @@ printer:print_flags_wrapped(AllFlags, StartCol, TermWidth, IndentForWrap) :-
 printer:print_one_flag_wrapped(TermWidth, IndentForWrap, flag(Type, Flag, Assumed), [ColIn, IsFirst], [ColOut, false]) :-
     printer:get_flag_length(Type, Flag, Assumed, FlagLen),
     (IsFirst -> SpaceLen = 0 ; SpaceLen = 1),
-    (   
+    (
         ( ColIn + SpaceLen + FlagLen > TermWidth, \+ IsFirst )
     ->  % Wrap
         (
@@ -1218,7 +1218,7 @@ printer:update_stats_clauses(_, S, S).
 printer:print_warnings(ModelAVL, ProofAVL) :-
   once((assoc:gen_assoc(Key, ModelAVL, _), Key = assumed(_))),
   !,
-  message:color(red), 
+  message:color(red),
   message:print('Error: The proof for your build plan contains assumptions. Please verify:'), nl, nl,
   message:color(red),
   forall(assoc:gen_assoc(ProofKey, ProofAVL, _ProofValue),
@@ -1250,10 +1250,11 @@ printer:handle_assumption(ProofKey) :-
 %
 % Prints formatted, non-garbled assumption details.
 
-printer:print_assumption_detail(rule(package_dependency(R://E,T,_,C,N,_,_,_,_):_?{_},_)) :- !,
+printer:print_assumption_detail(rule(package_dependency(R://E,T,_A,C,N,_X,_Y,_Z,_XX):_YY?{_ZZ},_)) :- !,
     message:print(' - Non-existent or failed '), message:print(T),
     message:print(' dependency: '), message:print(C), message:print('/'), message:print(N),
-    message:print(' for ebuild '), message:print(R://E), nl.
+    message:print(' for ebuild '), message:print(R://E), nl,
+    message:print('   - '),writeln(package_dependency(R://E,T,_A,C,N,_X,_Y,_Z,_XX):_YY?{_ZZ}).
 printer:print_assumption_detail(rule(R://E:install,_)) :- !,
     message:print(' - Assumed installed (not in world file or proof failed): '),
     message:print(R://E), nl.
