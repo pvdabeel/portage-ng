@@ -325,6 +325,9 @@ add_to_assoc(Key,InAssoc,OutAssoc) :-
   put_assoc(Key,InAssoc,{},OutAssoc).
 
 
+prover:debug :-
+  forall(current_predicate(prover:X),trace(prover:X)).
+
 % =============================================================================
 %  Automated testing helpers
 % =============================================================================
