@@ -22,7 +22,12 @@ This module implements a few tests
 %
 % Declares a list of cases
 
-test:cases([overlay://'test01/web-1.0':run?{[]},
+test:cases([overlay://'test01/os-1.0':download?{[]},
+            overlay://'test01/os-1.0':install?{[]},
+            overlay://'test01/os-1.0':run?{[]},
+            overlay://'test01/app-1.0':download?{[]},
+            overlay://'test01/app-1.0':install?{[]},
+            overlay://'test01/web-1.0':run?{[]},
             overlay://'test02/web-2.0':run?{[]},
             overlay://'test03/web-1.0':run?{[]},
             overlay://'test04/web-1.0':run?{[]},
@@ -61,21 +66,31 @@ test:cases([overlay://'test01/web-1.0':run?{[]},
             overlay://'test37/app-1.0':run?{[]},
             overlay://'test38/app-1.0':run?{[]},
             overlay://'test39/app-1.0':run?{[]},
-            overlay://'test40/os-1.0':run?{[]}
+            overlay://'test40/os-1.0':run?{[]},
+            overlay://'test41/app-1.0':run?{[]},
+            overlay://'test42/app-1.0':run?{[]},
+            overlay://'test43/app-1.0':run?{[]},
+            overlay://'test44/app-1.0':run?{[]}
             ]).
+
+%test:problem([overlay://'test43/app-1.0':run?{[]}]).
+
+test:problem([portage://'app-containers/apptainer-1.4.1':run?{[]}]).
 
 
 %! test:run(+Atom)
 %
 % Runs specific test cases
 
-test:run(cases) :-
-  test:cases(Cases),
-  forall(member(Case,Cases),
+test:run(Cases) :-
+  Inner =.. [Cases,List],
+  Outer =.. [:, test, Inner],
+  call(Outer),
+  forall(member(Case,List),
          (
-          (prover:prove(Case,t,Proof,t,Model,t,Constraints,t,Triggers),
+          (writeln(Case),
+           prover:prove(Case,t,Proof,t,Model,t,Constraints,t,Triggers),
            planner:plan(Proof,Triggers,t,Plan),
-           printer:print([Case],Model,Proof,Plan),
 	   message:color(cyan),
            writeln('Proof:'),
            message:color(darkgray),forall(gen_assoc(Key,Proof,Value),(write(Key),write(' - '),write(Value),nl)),nl,
@@ -91,7 +106,8 @@ test:run(cases) :-
            message:color(cyan),
            writeln('Plan:'),
            message:color(darkgray),forall(member(Step,Plan),writeln(Step)),nl,nl,
-           message:color(normal))
+           message:color(normal)),
+           printer:print([Case],Model,Proof,Plan)
  ;
           (message:color(red),
            message:style(bold),
