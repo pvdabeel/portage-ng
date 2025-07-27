@@ -180,7 +180,7 @@ interface:process_requests(Mode) :-
     memberchk(info(true),Options)     -> (interface:process_action(info,Args,Options),              Continue) ;
     memberchk(clear(true),Options)    -> (kb:clear, 							                                  Continue) ;
     memberchk(graph(true),Options)    -> (kb:graph,nl, 				  			                              Continue) ;
-    memberchk(unmerge(true),Options)  -> (interface:process_action(uninstall,Args,Options), 	  Continue) ;
+    memberchk(unmerge(true),Options)  -> (interface:process_action(uninstall,Args,Options), 	      Continue) ;
     memberchk(depclean(true),Options) -> (message:warning('depclean action to be implemented'), 	  Continue) ;
     memberchk(search(true),Options)   -> (interface:process_action(search,Args,Options),            Continue) ;
     memberchk(sync(true),Options)     -> ((Mode == standalone
@@ -188,8 +188,8 @@ interface:process_requests(Mode) :-
                                            ;  (kb:sync)),!, 						                            Continue) ;
     memberchk(save(true),Options)     -> (kb:save,!, 							                                  Continue) ;
     memberchk(load(true),Options)     -> (kb:load,!, 							                                  Continue) ;
-    memberchk(fetchonly(true),Options)-> (interface:process_action(fetchonly,Args,Options),    Continue) ;
-    memberchk(merge(true),Options)    -> (interface:process_action(run,Args,Options),          Continue) ;
+    memberchk(fetchonly(true),Options)-> (interface:process_action(fetchonly,Args,Options),         Continue) ;
+    memberchk(merge(true),Options)    -> (interface:process_action(run,Args,Options),               Continue) ;
     memberchk(shell(true),Options)    -> (message:logo(['::- portage-ng shell - ',Version]),		    prolog)),
 
   Continue.
