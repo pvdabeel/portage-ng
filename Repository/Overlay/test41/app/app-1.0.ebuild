@@ -11,7 +11,7 @@ SRC_URI=""
 LICENSE="GPL-2"
 SLOT="0"
 KEYWORDS="~*"
-IUSE="linux"
+IUSE=""
 
 DEPEND="test41/lib:1"
 RDEPEND="${DEPEND}"
