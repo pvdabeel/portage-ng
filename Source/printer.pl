@@ -19,6 +19,80 @@ The Printer takes a plan from the Planner and pretty prints it.
 % =============================================================================
 
 % -----------------------------------------------------------------------------
+%  PROVER state printing
+% -----------------------------------------------------------------------------
+
+printer:display_state([],_,_,_) :- !.
+printer:display_state(Target, Proof, Model, Constraints) :-
+
+    % prepare aguments
+
+    ( Target = [ Current | Queue ]
+      -> true
+      ;  Current = Target, Queue = [] ),
+
+    prover:proof_to_list(Proof,ProofList),
+    prover:model_to_list(Model,ModelList),
+    prover:constraints_to_list(Constraints,ConstraintList),
+
+    tty_clear,
+
+    % proving subtitle
+
+    message:color(yellow), message:style(bold),
+    format('--- Proving ---~n'),
+    message:color(normal), message:style(normal),
+    format('  ~w~n~n', [Current]),
+
+    % proving stack subtitle
+
+    message:color(magenta), message:style(bold),
+    format('--- Proving Stack (In Progress) ---~n'),
+    message:color(normal), message:style(normal),
+    ( ProofList == [] -> writeln('  (empty)') ;
+      ( reverse(ProofList, Tmp),
+        forall(member(rule(P,_), Tmp), format('  ~w~n', [P]))
+      )
+    ),
+    nl,
+
+    % to be proven queue subtitle
+
+    message:color(cyan), message:style(bold),
+    format('--- Proving Queue (To Do) ---~n'),
+    message:color(normal), message:style(normal),
+    ( Queue == [] -> writeln('  (empty)') ; forall(member(Q, Queue), format('  ~w~n', [Q])) ),
+    nl,
+
+    % model subtitle
+
+    message:color(green), message:style(bold),
+    format('--- Model (Completed) ---~n'),
+    message:color(normal), message:style(normal),
+
+    ( ModelList  == [] -> writeln('  (empty)')
+    ; forall(member(M, ModelList), ( format('  ~w~n', [M]) ))),
+    nl,
+
+    % constraints subtitle
+
+    message:color(green), message:style(bold),
+    format('--- Constraints (Completed) ---~n'),
+    message:color(normal), message:style(normal),
+
+    ( ConstraintList  == [] -> writeln('  (empty)')
+    ; forall(member(M, ConstraintList), ( format('  ~w~n', [M]) ))),
+
+    wait_for_input.
+
+
+% Helper to wait for the user to press Enter.
+printer:wait_for_input :-
+    format('~nPress Enter to continue...'),
+    get_char(_).
+
+
+% -----------------------------------------------------------------------------
 %  INDEX printing
 % -----------------------------------------------------------------------------
 
@@ -224,7 +298,7 @@ printer:print_metadata_item_detail(Item,Prefix,at_most_one_of_group(Values)) :-
   atom_concat('   ',Prefix,NewPrefix),
   forall(member(V,Values),(nl,message:color(darkgray),message:color(normal),printer:print_metadata_item_detail(Item,NewPrefix,V))).
 
-printer:print_metadata_item_detail(_,Prefix,package_dependency(_,_,Blocking,Category,Name,none,[[],_,_,_,_],Slot,Use)) :-
+printer:print_metadata_item_detail(_,Prefix,package_dependency(_,Blocking,Category,Name,none,[[],_,_,_,_],Slot,Use)) :-
   !,
   write(Prefix),
   printer:print_blocking(Blocking),
@@ -234,7 +308,7 @@ printer:print_metadata_item_detail(_,Prefix,package_dependency(_,_,Blocking,Cate
   printer:print_slot_restriction(Slot),
   printer:print_use_dependencies(Use).
 
-printer:print_metadata_item_detail(_,Prefix,package_dependency(_,_,Blocking,Category,Name,Comparator,[_,_,_,Version],Slot,Use)) :-
+printer:print_metadata_item_detail(_,Prefix,package_dependency(_,Blocking,Category,Name,Comparator,[_,_,_,Version],Slot,Use)) :-
   !,
   write(Prefix),
   printer:print_blocking(Blocking),
@@ -415,11 +489,11 @@ printer:printable_element(rule(_Repository://_Entry:update?_,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:upgrade?_,_)) :- !.
 printer:printable_element(assumed(rule(_Repository://_Entry:_?_,_))) :- !.
 printer:printable_element(rule(assumed(_Repository://_Entry:_?_,_))) :- !.
-printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_,_):_?_,_))) :- !.
-printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_,_):_?_,_))) :- !.
+printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_):_?_,_))) :- !.
+printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_):_?_,_))) :- !.
 
 % Uncomment if you want 'confirm' steps shown in the plan:
-% printer:printable_element(rule(package_dependency(_,run,_,_,_,_,_,_,_),_)) :- !.
+% printer:printable_element(rule(package_dependency(run,_,_,_,_,_,_,_),_)) :- !.
 
 
 %! printer:element_weight(+Literal)
@@ -430,7 +504,7 @@ printer:element_weight(assumed(_),                                      0) :- !.
 printer:element_weight(rule(assumed(_),_),                              0) :- !. % assumed
 printer:element_weight(rule(uri(_),_),                                  0) :- !. % provide
 printer:element_weight(rule(uri(_,_,_),_),                              1) :- !. % fetch
-printer:element_weight(rule(package_dependency(_,_,_,_,_,_,_,_,_),_),   1) :- !. % confirm
+printer:element_weight(rule(package_dependency(_,_,_,_,_,_,_,_),_),   1) :- !. % confirm
 printer:element_weight(rule(_Repository://_Entry:verify?_,_),           2) :- !. % verify
 printer:element_weight(rule(_Repository://_Entry:run?_,_),              3) :- !. % run
 printer:element_weight(rule(_Repository://_Entry:download?_,_),         4) :- !. % download
@@ -456,6 +530,17 @@ printer:sort_by_weight(C,L1,L2) :-
 %! printer:print_element(+Printable)
 %
 % Prints a printable Literal
+
+
+printer:print_element(_,rule(package_dependency(run_post,_,_C,_N,_,_,_,_),[Repository://Entry:_Action?{_Context}])) :-
+  !,
+  message:color(cyan),
+  message:print('confirm'),
+  message:color(green),
+  message:column(34,Repository://Entry),
+  message:color(normal).
+
+
 
 % ---------------------------------------------
 % CASE: simple package, is a target of the plan
@@ -490,7 +575,7 @@ printer:print_element(_,rule(Repository://Entry:Action?{Context},_)) :-
 % CASE: verify that packages that need to be running are running
 % --------------------------------------------------------------
 
-printer:print_element(_,rule(package_dependency(_,run,_,_C,_N,_,_,_,_),[Repository://Entry:_Action?{_Context}])) :-
+printer:print_element(_,rule(package_dependency(run,_,_C,_N,_,_,_,_),[Repository://Entry:_Action?{_Context}])) :-
   !,
   message:color(cyan),
   message:print('confirm'),
@@ -524,7 +609,7 @@ printer:print_element(_,rule(uri(Local),_)) :-
 % CASE: an assumed dependency on a non-existent installed package
 % ---------------------------------------------------------------
 
-printer:print_element(_,rule(assumed(package_dependency(_,install,no,C,N,_,_,_,_):install?{_Context}),[])) :-
+printer:print_element(_,rule(assumed(package_dependency(install,no,C,N,_,_,_,_):install?{_Context}),[])) :-
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
@@ -537,7 +622,7 @@ printer:print_element(_,rule(assumed(package_dependency(_,install,no,C,N,_,_,_,_
 % CASE: an assumed dependency on a non-existent running package
 % -------------------------------------------------------------
 
-printer:print_element(_,rule(assumed(package_dependency(_,run,no,C,N,_,_,_,_):run?{_Context}),[])) :-
+printer:print_element(_,rule(assumed(package_dependency(run,no,C,N,_,_,_,_):run?{_Context}),[])) :-
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
@@ -598,11 +683,11 @@ printer:print_element(_,assumed(rule(Repository://Entry:fetchonly?{_Context},_Bo
 % CASE: an assumed installed dependency
 % -------------------------------------
 
-printer:print_element(_,assumed(rule(package_dependency(_,install,_,C,N,_,_,_,_),_Body))) :-
+printer:print_element(_,assumed(rule(package_dependency(install,_,C,N,_,_,_,_):_Action?{_Context},_Body))) :-
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
-  message:column(28,P),
+  message:column(29,P),
   message:print(' (assumed installed) '),
   message:color(normal).
 
@@ -611,11 +696,11 @@ printer:print_element(_,assumed(rule(package_dependency(_,install,_,C,N,_,_,_,_)
 % CASE: an assumed running dependency
 % -----------------------------------
 
-printer:print_element(_,assumed(rule(package_dependency(_,run,_,C,N,_,_,_,_),_Body))) :-
+printer:print_element(_,assumed(rule(package_dependency(run,_,C,N,_,_,_,_):_Action?{_Context},_Body))) :-
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
-  message:column(28,P),
+  message:column(29,P),
   message:print(' (assumed running) '),
   message:color(normal).
 
@@ -1250,11 +1335,11 @@ printer:handle_assumption(ProofKey) :-
 %
 % Prints formatted, non-garbled assumption details.
 
-printer:print_assumption_detail(rule(package_dependency(R://E,T,_A,C,N,_X,_Y,_Z,_XX):_YY?{_ZZ},_)) :- !,
+printer:print_assumption_detail(rule(package_dependency(T,A,C,N,X,Y,Z,XX):YY?{ZZ},_)) :- !,
     message:print(' - Non-existent or failed '), message:print(T),
     message:print(' dependency: '), message:print(C), message:print('/'), message:print(N),
-    message:print(' for ebuild '), message:print(R://E), nl,
-    message:print('   - '),writeln(package_dependency(R://E,T,_A,C,N,_X,_Y,_Z,_XX):_YY?{_ZZ}).
+    %message:print(' for ebuild '), message:print(R://E), nl,
+    message:print('   - '),writeln(package_dependency(T,A,C,N,X,Y,Z,XX):YY?{ZZ}).
 printer:print_assumption_detail(rule(R://E:install,_)) :- !,
     message:print(' - Assumed installed (not in world file or proof failed): '),
     message:print(R://E), nl.

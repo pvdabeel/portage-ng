@@ -13,26 +13,26 @@ Outputs DOT language.
 
 For a given ebuild, the following output can be produced:
 
- - detail:     A graph showing the ebuild, its run and compile dependencies, 
-               including strong and weak blockers and the potential ebuild 
+ - detail:     A graph showing the ebuild, its run and compile dependencies,
+               including strong and weak blockers and the potential ebuild
                candidates for realizing the dependencies.
 
- - depend:     A graph showing the full dependency tree for an ebuild; its 
-               dependencies as well as the dependencies of its dependencies and 
-               so on. Available for the different dependency types of an ebuild: 
+ - depend:     A graph showing the full dependency tree for an ebuild; its
+               dependencies as well as the dependencies of its dependencies and
+               so on. Available for the different dependency types of an ebuild:
                bdepend, cdepend, depend, idepend, rdepend and pdepend.
 
- - merge:      A minimal dot file intended to show the output of merging the 
+ - merge:      A minimal dot file intended to show the output of merging the
                ebuild.
 
- - fetchonly:  A minimal dot file intended to show the output of fetching the 
+ - fetchonly:  A minimal dot file intended to show the output of fetching the
                ebuild.
 
- - info:       A minimal dot file intended to show the output of displaying 
+ - info:       A minimal dot file intended to show the output of displaying
                ebuild info.
 
-The DOT output is intended to be converted into scalable vector graphics (SVG). 
-The output contains interactive elements, enabling the user to click through to 
+The DOT output is intended to be converted into scalable vector graphics (SVG).
+The output contains interactive elements, enabling the user to click through to
 a dependency, change the version, watch the output of a specific command, etc.
 */
 
@@ -103,7 +103,7 @@ grapher:graph(Type,Repository://Id) :-
 
 %! grapher:graph_header(Type,+Repository://Id)
 %
-% For a given ebuild, identified by an Id, create the header of the requested 
+% For a given ebuild, identified by an Id, create the header of the requested
 % dependency graph.
 
 grapher:graph_header(detail,_Repository://_Id) :-
@@ -139,7 +139,7 @@ grapher:graph_header(_Type,_Repository://_Id) :-
 
 %! grapher:graph_legend(Type,Target)
 %
-% For a given ebuild, identified by an Id, create legend to be included in the 
+% For a given ebuild, identified by an Id, create legend to be included in the
 % full dependency graph.
 
 grapher:graph_legend(Type,Repository://Id) :-
@@ -194,7 +194,7 @@ grapher:graph_legend_footer :-
 
 %! grapher:graph_legend_navigation(Type,Repository://Id)
 %
-% Show a navigation pane in the legend enabling navigation to the repository, 
+% Show a navigation pane in the legend enabling navigation to the repository,
 %category or package index page.
 
 grapher:graph_legend_navigation(_Type,Repository://Id) :-
@@ -206,8 +206,8 @@ grapher:graph_legend_navigation(_Type,Repository://Id) :-
 
 %! grapher:graph_legend_types(Type,List,Repository://Id)
 %
-% For a given ebuild, identified by an Id, create revelevant legend entries 
-% (as represented by List) to be included in the legend of a dependency graph. 
+% For a given ebuild, identified by an Id, create revelevant legend entries
+% (as represented by List) to be included in the legend of a dependency graph.
 % (detail, bdepend, cdepend, depend, idepend, rdepend, pdepend)
 
 grapher:graph_legend_types(_Type,[],_Repository://_Id) :- !.
@@ -226,7 +226,7 @@ grapher:graph_legend_types(Type,[OtherType|Rest],Repository://Id) :-
 
 %! grapher:graph_legend_version(Type,Repository://Id)
 %
-% For a given ebuild, identified by an Id, create version control bar to be 
+% For a given ebuild, identified by an Id, create version control bar to be
 % included in legend. Enables changing the version of the ebuild graph shown.
 
 grapher:graph_legend_version(Type,Repository://Id) :-
@@ -245,7 +245,7 @@ grapher:graph_legend_version(Type,Repository://Id) :-
 
 %! grapher:graph_legend_proof(Type,Repository://Id)
 %
-% For a given ebuild, identified by an Id, create links to proofs to be included 
+% For a given ebuild, identified by an Id, create links to proofs to be included
 %in legend.
 
 grapher:graph_legend_proof(_Type,[],_Repository://_Id) :- !.
@@ -265,7 +265,7 @@ grapher:graph_legend_proof(Type,[OtherType|Rest],Repository://Id) :-
 
 %! grapher:graph_legend_href(Type,Repository://Id)
 %
-% For a given ebuild, identified by an Id, return the correct href URL to be 
+% For a given ebuild, identified by an Id, return the correct href URL to be
 %included in the legend of a depedency graph
 
 grapher:graph_legend_href(_,_://[],Name) :-
@@ -340,7 +340,7 @@ grapher:graph_legend_href(Depend,Repository://Id,Name) :-
 
 %! grapher:graph_ebuild(detail,Repository://Id)
 %
-% For a given ebuild, identified by an Id, create leftmost column showing ebuild 
+% For a given ebuild, identified by an Id, create leftmost column showing ebuild
 % information in the detail dependency graph.
 
 grapher:graph_ebuild(detail,Repository://Id) :-
@@ -363,7 +363,7 @@ grapher:graph_ebuild(detail,Repository://Id) :-
 
 %! grapher:graph_depend(detail,Repository://Id)
 %
-% For a given ebuild, represented by Id, graph its compile and runtime 
+% For a given ebuild, represented by Id, graph its compile and runtime
 % dependencies.
 
 grapher:graph_depend(detail,Repository://Id) :-
@@ -467,14 +467,14 @@ grapher:graph_candidates(detail,AllChoices1,AllChoices2,AllChoices3) :-
 
 %! grapher:graph_root(Type,Repository://Id)
 %
-% For a given ebuild, identified by an Id, create the root of the full 
+% For a given ebuild, identified by an Id, create the root of the full
 % dependency graph.
 
 grapher:graph_root(Type,_Repository://_Id) :-
   config:graph_proof_type(Types),
   memberchk(Type,Types),!,
   write('root [style=invis];'),nl,
-  write('placeholder [style=invis, width=22, height=15];'),nl, 
+  write('placeholder [style=invis, width=22, height=15];'),nl,
   % enough space to put an iframe with html inside
   write('root -> \"'),write(placeholder),write('\"[minlen=0.2, headport=n, tailport=s, style=invis];'),nl,
   nl.
@@ -541,7 +541,7 @@ grapher:graph_node(Type,_://_,Repository://Id) :-
 
 %! grapher:graph_footer(Type,Repository://Id)
 %
-% For a given ebuild, identified by an Id, create the footer of the full 
+% For a given ebuild, identified by an Id, create the footer of the full
 % dependency graph.
 
 grapher:graph_footer(_Type,_Repository://_Id) :-
@@ -554,8 +554,8 @@ grapher:graph_footer(_Type,_Repository://_Id) :-
 
 %! grapher:choices(Type,List)
 %
-% Given a graph type outputs a list of ebuilds satisfying a dependency, while 
-% writing dot representing the different choices in the graph type format to the 
+% Given a graph type outputs a list of ebuilds satisfying a dependency, while
+% writing dot representing the different choices in the graph type format to the
 % output stream.
 
 grapher:choices(_,[]) :-
@@ -646,7 +646,7 @@ grapher:format_group(D, Label, Color) :-
 
 % Detail graph - Case: Package dependency
 
-grapher:handle(detail, Style, Arrow, Master, package_dependency(_, Type, Strength, Cat, Name, Cmpr, Ver, _, _), arrow(D, Choices)) :-
+grapher:handle(detail, Style, Arrow, Master, package_dependency(Type, Strength, Cat, Name, Cmpr, Ver, _, _), arrow(D, Choices)) :-
   !,
   ( Strength = no,     Label = "pack_dep",          Color = blue,   Sym = package_dependency, EdgeColor = ""
   ; Strength = weak,   Label = "blocking (weak)",   Color = orange, Sym = weak_blocker,       EdgeColor = "color=\"orange\", "
@@ -703,7 +703,7 @@ grapher:handle(detail, _, _, Master, S, []) :-
 
 % Full graph - package dependency
 
-grapher:handle(_, _, _, Mastercontext://Master, package_dependency(_, _, Strength, Cat, Name, Cmpr, Ver, _, _),
+grapher:handle(_, _, _, Mastercontext://Master, package_dependency(_, Strength, Cat, Name, Cmpr, Ver, _, _),
   arrow(Mastercontext://Master, [Choicecontext://Choice:Strength])) :-
   query:search([name(Name), category(Cat), select(version, Cmpr, Ver)], Choicecontext://Choice), !.
 
@@ -810,17 +810,17 @@ grapher:produce_svg(Directory) :-
 
 %! grapher:test(+Repository)
 %
-% Outputs dot file for every entry in a given repository, reports using the 
+% Outputs dot file for every entry in a given repository, reports using the
 % default reporting style
 
-grapherr:test(Repository) :-
+grapher:test(Repository) :-
   config:test_style(Style),
   grapher:test(Repository,Style).
 
 
 %! grapher:test(+Repository,+Style)
 %
-% Outputs dot file for  every entry in a given repository, reports using a 
+% Outputs dot file for  every entry in a given repository, reports using a
 % given reporting style
 
 grapher:test(Repository,Style) :-
@@ -838,7 +838,7 @@ grapher:test(Repository,Style) :-
 
 %! grapher:test_latest(+Repository)
 %
-% Same as grapher:test(+Repository), but only tests highest version of every 
+% Same as grapher:test(+Repository), but only tests highest version of every
 %package
 
 grapher:test_latest(Repository) :-

@@ -14,11 +14,11 @@
 A  DCG Grammar for Parsing Gentoo EAPI Metadata
 -----------------------------------------------
 
-This file implements a Definite Clause Grammar (DCG) for parsing metadata in 
+This file implements a Definite Clause Grammar (DCG) for parsing metadata in
 Gentoo's md5-cache and Manifest files, compatible with EAPI version 8 and earlier
 (verified against the PMS specifications for EAPI 8, Sections 7, 12.1, and 12.2).
 
-It is part of portage-ng, a next-generation replacement for Gentoo's Portage 
+It is part of portage-ng, a next-generation replacement for Gentoo's Portage
 package manager, written in SWI-prolog.
 
 -------------------------------------------------------------------------------
@@ -26,24 +26,24 @@ package manager, written in SWI-prolog.
 -------------------------------------------------------------------------------
 
 The Gentoo ebuild repository consists of a directory structure containing ebuild
-(bash scripts) and a metadata/md5-cache subdirectory. Each ebuild defines 
-environment variables that represent metadata about a software package. The 
-md5-cache directory contains files corresponding to each ebuild, capturing the 
-values of these environment variables after the ebuild is processed by bash 
+(bash scripts) and a metadata/md5-cache subdirectory. Each ebuild defines
+environment variables that represent metadata about a software package. The
+md5-cache directory contains files corresponding to each ebuild, capturing the
+values of these environment variables after the ebuild is processed by bash
 (sourcing its eclasses and functions).
 
-These cache files are distributed with ebuilds to end-users for package 
-installation. If an md5-cache file is missing or outdated (e.g., due to an ebuild 
+These cache files are distributed with ebuilds to end-users for package
+installation. If an md5-cache file is missing or outdated (e.g., due to an ebuild
 update), the package manager will regenerate it.
 
 Additionally, Gentoo repositories include Manifest files in each category/package
 directory, which store information for files referenced by ebuilds.
 
-This DCG grammar parses both md5-cache and Manifest files, converting their 
-metadata into prolog facts which are stored in the cache database structure. 
+This DCG grammar parses both md5-cache and Manifest files, converting their
+metadata into prolog facts which are stored in the cache database structure.
 (Cfr. cache.pl).
 
-The knowledge base ensures these predicates remain synchronized with the md5-cache 
+The knowledge base ensures these predicates remain synchronized with the md5-cache
 files in the repository, and will regenerate missing or outdated md5-cache.
 
 
@@ -62,7 +62,7 @@ Format:   Each file contains KEY=VALUE pairs, with one pair per line (PMS EAPI 8
 2. Manifest Files
 
 Location: In each category/package directory of the repository.
-Purpose:  Contain hash information for files referenced by ebuilds in the 
+Purpose:  Contain hash information for files referenced by ebuilds in the
           category/package.
 Format:   Each file contains KEY VALUE pairs, with one pair per line (PMS EAPI 8,
           Section 12.2).
@@ -72,7 +72,7 @@ Format:   Each file contains KEY VALUE pairs, with one pair per line (PMS EAPI 8
  * Grammar Specifications
 -------------------------------------------------------------------------------
 
-The DCG grammar adheres to the specifications in the PMS EAPI 8 document 
+The DCG grammar adheres to the specifications in the PMS EAPI 8 document
 (pms-8.pdf), located in the project's documentation directory.
 
 
@@ -80,9 +80,9 @@ The DCG grammar adheres to the specifications in the PMS EAPI 8 document
  * Reading & Parsing
 -------------------------------------------------------------------------------
 
-These lines are read by the reader (cfr. reader.pl) and then parsed by the parser 
-(cfr. parser.pl) using the grammar described in this file. The output is stored 
-in the cache (cfr. cache.pl) by during execution of the knowledgebase (cfr 
+These lines are read by the reader (cfr. reader.pl) and then parsed by the parser
+(cfr. parser.pl) using the grammar described in this file. The output is stored
+in the cache (cfr. cache.pl) by during execution of the knowledgebase (cfr
 knowledgebase.pl) sync command.
 
 
@@ -90,9 +90,9 @@ knowledgebase.pl) sync command.
  * Output
 -------------------------------------------------------------------------------
 
-The grammar produces SWI-Prolog facts representing the metadata from md5-cache 
-and Manifest files. These facts are stored in dynamic cache predicates, which 
-the portage-ng knowledge base keeps synchronized with the repository's md5-cache 
+The grammar produces SWI-Prolog facts representing the metadata from md5-cache
+and Manifest files. These facts are stored in dynamic cache predicates, which
+the portage-ng knowledge base keeps synchronized with the repository's md5-cache
 files.
 */
 
@@ -103,13 +103,13 @@ files.
 %  EAPI declarations
 % =============================================================================
 
-% ----------------------------------------------------------------------------- 
+% -----------------------------------------------------------------------------
 %  EAPI abstract syntax
 % -----------------------------------------------------------------------------
 
 % The result of parsing my contain the following abstract syntax constructs:
 
-eapi:abstract_syntax_construct(package_dependency(_,_,_,_,_,_,_,_,_)) :- !.
+eapi:abstract_syntax_construct(package_dependency(_,_,_,_,_,_,_,_)) :- !.
 eapi:abstract_syntax_construct(use_conditional_group(_,_,_,_)) :- !.
 eapi:abstract_syntax_construct(any_of_group(_)) :- !.
 eapi:abstract_syntax_construct(all_of_group(_)) :- !.
@@ -194,52 +194,52 @@ eapi:key(query, [Key, M]) -->
 % PMS EAPI 8, Section 7.2.2
 eapi:value('DEFINED_PHASES', _, defined_phases(P)) -->
   !,
-  eapi:functions(P). 
+  eapi:functions(P).
 
 % PMS EAPI 8, Section 7.2.3
 eapi:value('DEPEND', R://E, depend(D)) -->
   !,
-  eapi:depend(R://E, D). 
+  eapi:depend(R://E, D).
 
 % PMS EAPI 8, Section 7.2.4
 eapi:value('DESCRIPTION', _, description(D)) -->
   !,
-  eapi:description(D). 
+  eapi:description(D).
 
 % PMS EAPI 8, Section 7.2.5
 eapi:value('EAPI', _, eapi(E)) -->
   !,
-  eapi:eapi(E). 
+  eapi:eapi(E).
 
 % PMS EAPI 8, Section 7.2.6
 eapi:value('HOMEPAGE', _, homepage(H)) -->
   !,
-  eapi:homepage(H). 
+  eapi:homepage(H).
 
 % PMS EAPI 8, Section 7.2.7
 eapi:value('IUSE', R://E, iuse(I)) -->
   !,
-  eapi:iuse(R://E, I). 
+  eapi:iuse(R://E, I).
 
 % PMS EAPI 8, Section 7.2.8
 eapi:value('KEYWORDS', _, keywords(K)) -->
   !,
-  eapi:keywords(K). 
+  eapi:keywords(K).
 
 % PMS EAPI 8, Section 7.2.9
 eapi:value('LICENSE', R://E, license(L)) -->
   !,
-  eapi:license(R://E, L). 
+  eapi:license(R://E, L).
 
 % PMS EAPI 8, Section 7.2.3
 eapi:value('RDEPEND', R://E, rdepend(D)) -->
   !,
-  eapi:rdepend(R://E, D). 
+  eapi:rdepend(R://E, D).
 
 % PMS EAPI 8, Section 7.2.11
 eapi:value('SLOT', _, slot(S)) -->
   !,
-  eapi:slot(S). 
+  eapi:slot(S).
 
 % PMS EAPI 8, Section 7.2.12
 eapi:value('SRC_URI', R://E, src_uri(S)) -->
@@ -249,47 +249,47 @@ eapi:value('SRC_URI', R://E, src_uri(S)) -->
 % PMS EAPI 8, Section 7.2.10
 eapi:value('RESTRICT', R://E, restrict(S)) -->
   !,
-  eapi:restrict(R://E, S). 
+  eapi:restrict(R://E, S).
 
 % PMS EAPI 8, Section 7.2.13
 eapi:value('REQUIRED_USE', R://E, required_use(U)) -->
   !,
-  eapi:required_use(R://E, U). 
+  eapi:required_use(R://E, U).
 
 % PMS EAPI 8, Section 7.2.3
 eapi:value('PDEPEND', R://E, pdepend(D)) -->
   !,
-  eapi:cdepend(R://E, D). 
+  eapi:cdepend(R://E, D).
 
 % PMS EAPI 8, Section 7.2.3
 eapi:value('IDEPEND', R://E, idepend(D)) -->
   !,
-  eapi:depend(R://E, D). 
+  eapi:depend(R://E, D).
 
 % PMS EAPI 8, Section 7.2.3
 eapi:value('BDEPEND', R://E, bdepend(D)) -->
   !,
-  eapi:depend(R://E, D). 
+  eapi:depend(R://E, D).
 
 % Deprecated in PMS EAPI 8, Section 7.2.3
 eapi:value('PROVIDE', R://E, provide(P)) -->
   !,
-  eapi:provide(R://E, P). 
+  eapi:provide(R://E, P).
 
 % PMS EAPI 8, Section 7.2.14
 eapi:value('PROPERTIES', R://E, properties(P)) -->
   !,
-  eapi:properties(R://E, P). 
+  eapi:properties(R://E, P).
 
 % PMS EAPI 8, Section 12.1
 eapi:value('_eclasses_', _, eclasses(C)) -->
   !,
-  eapi:inherited(C). 
+  eapi:inherited(C).
 
 % PMS EAPI 8, Section 12.1
 eapi:value('_md5_', _, md5([R])) -->
   !,
-  eapi:md5(R). 
+  eapi:md5(R).
 
  % PMS EAPI 8, Section 12.2
 eapi:value('EBUILD', _, manifest(ebuild, F, S, H)) -->
@@ -299,7 +299,7 @@ eapi:value('EBUILD', _, manifest(ebuild, F, S, H)) -->
 % PMS EAPI 8, Section 12.2
 eapi:value('MISC', _, manifest(misc, F, S, H)) -->
   !,
-  eapi:manifest(F, S, H). 
+  eapi:manifest(F, S, H).
 
  % PMS EAPI 8, Section 12.2
 eapi:value('AUX', _, manifest(aux, F, S, H)) -->
@@ -309,12 +309,12 @@ eapi:value('AUX', _, manifest(aux, F, S, H)) -->
 % PMS EAPI 8, Section 12.2
 eapi:value('DIST', _, manifest(dist, F, S, H)) -->
   !,
-  eapi:manifest(F, S, H). 
+  eapi:manifest(F, S, H).
 
 % PMS EAPI 8, Section 12.1
 eapi:value(_, _, unused(U)) -->
   !,
-  eapi:unused(U). 
+  eapi:unused(U).
 
 
 % -----------------------------------------------------------------------------
@@ -642,7 +642,7 @@ eapi:querypartcont(_,Value) -->
 % EAPI 8 - 8.2.6 defines package dependency
 % (PMS EAPI 8, Section 8.2.6).
 
-eapi:package_dependency(T, R://E, package_dependency(R://E, T, B, C, P, O, V, S, U)) -->
+eapi:package_dependency(T, _R://_E, package_dependency(T, B, C, P, O, V, S, U)) -->
   eapi:blocking(B),                                      % optional
   eapi:operator(O),                                      % optional
   eapi:category(C), eapi:separator, !, eapi:package(P),  % required
@@ -1057,10 +1057,10 @@ eapi:md5(M) -->
 %
 % EAPI 8 - 8.2.6 defines slot restriction (PMS EAPI 8, Section 8.2.6).
 
-eapi:slot_restriction(any_different_slot) -->
+eapi:slot_restriction([any_different_slot]) -->
   [58,42], !.                                            % char: :*
 
-eapi:slot_restriction(any_same_slot) -->
+eapi:slot_restriction([any_same_slot]) -->
   [58,61], !.                                            % char: :=
 
 eapi:slot_restriction(S) -->
@@ -1553,7 +1553,7 @@ eapi:char(T, C) -->
 %
 % CHAR jumptable
 
-% EAPI 8 - 3.1.1: A category name may contain '-','_','+','.' and alphanumeric chars 
+% EAPI 8 - 3.1.1: A category name may contain '-','_','+','.' and alphanumeric chars
 % (PMS EAPI 8, Section 3.1.1)
 
 eapi:jumprule(c, 45) :- !.                               % char: '-'
@@ -1563,7 +1563,7 @@ eapi:jumprule(c, 46) :- !.                               % char: '.'
 eapi:jumprule(c, C) :- code_type(C, alnum), !.           % char: alphanumeric
 
 
-% EAPI 8 - 7.2.7: A use flag name may contain '-','_','+','@','.', and alphanumeric chars 
+% EAPI 8 - 7.2.7: A use flag name may contain '-','_','+','@','.', and alphanumeric chars
 % (PMS EAPI 8, Section 7.2.7)
 
 eapi:jumprule(u, 45) :- !.                               % char: '-'
@@ -1574,7 +1574,7 @@ eapi:jumprule(u, 46) :- !.                               % char: '.'
 eapi:jumprule(u, C) :- code_type(C, alnum), !.           % char: alphanumeric
 
 
-% EAPI 8 - 7.2.11: A slot name may contain '-','_','+','.', and alphanumeric chars 
+% EAPI 8 - 7.2.11: A slot name may contain '-','_','+','.', and alphanumeric chars
 % (PMS EAPI 8, Section 7.2.11)
 
 eapi:jumprule(s, 45) :- !.                               % char: '-'
@@ -1584,7 +1584,7 @@ eapi:jumprule(s, 46) :- !.                               % char: '.'
 eapi:jumprule(s, C) :- code_type(C, alnum), !.           % char: alphanumeric
 
 
-% EAPI 8 - 7.2.8: A keyword name may contain '-','_','+','@','.', and alphanumeric chars 
+% EAPI 8 - 7.2.8: A keyword name may contain '-','_','+','@','.', and alphanumeric chars
 % (PMS EAPI 8, Section 7.2.8)
 
 eapi:jumprule(k, 45) :- !.                               % char: '-'
@@ -1592,7 +1592,7 @@ eapi:jumprule(k, 95) :- !.                               % char: '_'
 eapi:jumprule(k, C) :- code_type(C, alnum), !.           % char: alphanumeric
 
 
-% EAPI 8 - 3.2: A version may contain '-','_','*','.', and alphanumeric chars 
+% EAPI 8 - 3.2: A version may contain '-','_','*','.', and alphanumeric chars
 % (PMS EAPI 8, Section 3.2)
 
 eapi:jumprule(v, 45) :- !.                               % char: '-'
@@ -1602,7 +1602,7 @@ eapi:jumprule(v, 46) :- !.                               % char: '.'
 eapi:jumprule(v, C) :- code_type(C, alnum), !.           % char: alphanumeric
 
 
-% EAPI 8 - 8.2.6: A slot restriction may contain '-','_','*','.', and alphanumeric chars 
+% EAPI 8 - 8.2.6: A slot restriction may contain '-','_','*','.', and alphanumeric chars
 % (PMS EAPI 8, Section 8.2.6)
 
 eapi:jumprule(r, 45) :- !.                               % char: '-'
@@ -1612,7 +1612,7 @@ eapi:jumprule(r, 46) :- !.                               % char: '.'
 eapi:jumprule(r, C) :- code_type(C, alnum), !.           % char: alphanumeric
 
 
-% EAPI 8 - 7.2.2: A function name may contain '-','_','+','.', and alphanumeric chars 
+% EAPI 8 - 7.2.2: A function name may contain '-','_','+','.', and alphanumeric chars
 % (PMS EAPI 8, Section 7.2.2)
 
 eapi:jumprule(f, 45) :- !.                               % char: '-'
@@ -1622,7 +1622,7 @@ eapi:jumprule(f, 46) :- !.                               % char: '.'
 eapi:jumprule(f, C) :- code_type(C, alnum), !.           % char: alphanumeric
 
 
-% EAPI 8 - 7.2.9, 7.2.10, 7.2.14: A string name may contain '-','_','+','.', and alphanumeric chars 
+% EAPI 8 - 7.2.9, 7.2.10, 7.2.14: A string name may contain '-','_','+','.', and alphanumeric chars
 % (PMS EAPI 8, Sections 7.2.9, 7.2.10, 7.2.14)
 
 eapi:jumprule(s, 45) :- !.                               % char: '-'
@@ -1632,7 +1632,7 @@ eapi:jumprule(s, 46) :- !.                               % char: '.'
 eapi:jumprule(s, C) :- code_type(C, alnum), !.           % char: alphanumeric
 
 
-% EAPI 8 - 7.2.12: A URI protocol name may contain '-','_','+','@','.', and alphanumeric chars 
+% EAPI 8 - 7.2.12: A URI protocol name may contain '-','_','+','@','.', and alphanumeric chars
 % (PMS EAPI 8, Section 7.2.12)
 
 eapi:jumprule(p, 45) :- !.                               % char: '-'
@@ -1643,14 +1643,14 @@ eapi:jumprule(p, 64) :- !.                               % char: '@'
 eapi:jumprule(p, C) :- code_type(C, alnum), !.           % char: alphanumeric
 
 
-% EAPI 8 - 12.1: A timestamp may contain '.' and digits 
+% EAPI 8 - 12.1: A timestamp may contain '.' and digits
 % (PMS EAPI 8, Section 12.1)
 
 eapi:jumprule(t, 46) :- !.                               % char: '.'
 eapi:jumprule(t, C) :- code_type(C, digit), !.           % char: digit
 
 
-% EAPI 8 - 12.1: An md5 may contain hexadecimal chars 
+% EAPI 8 - 12.1: An md5 may contain hexadecimal chars
 % (PMS EAPI 8, Section 12.1)
 
 eapi:jumprule(m, C) :- code_type(C, alnum), !.           % char: hexadecimal
