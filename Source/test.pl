@@ -70,13 +70,37 @@ test:cases([overlay://'test01/os-1.0':download?{[]},
             overlay://'test41/app-1.0':run?{[]},
             overlay://'test42/app-1.0':run?{[]},
             overlay://'test43/app-1.0':run?{[]},
-            overlay://'test44/app-1.0':run?{[]}
+            overlay://'test44/app-1.0':run?{[]},
+            overlay://'test45/app-1.0':run?{[]},
+            overlay://'test46/app-1.0':run?{[]},
+            overlay://'test47/api-docs-1.0':run?{[]},
+            overlay://'test48/app-1.0':run?{[]},
+            overlay://'test49/app-1.0':run?{[]}
             ]).
 
 %test:problem([overlay://'test43/app-1.0':run?{[]}]).
 
-test:problem([portage://'app-containers/apptainer-1.4.1':run?{[]}]).
+%test:problem([portage://'app-containers/apptainer-1.4.1':run?{[]}]).
 
+%test:problem([overlay://'test09/os-1.0':run?{[]},
+%              overlay://'test10/os-1.0':run?{[]},
+%              overlay://'test11/os-1.0':run?{[]}]).
+
+test:problem([portage://'app-backup/backuppc-4.4.0-r3':run?{[]},
+              portage://'dev-libs/glib-2.84.0':run?{[]},
+              portage://'dev-haskell/cabal-3.4.1.0-r1':run?{[]}]).
+
+test:slotreq([overlay://'test41/app-1.0':run?{[]},
+              overlay://'test42/app-1.0':run?{[]},
+              overlay://'test43/app-1.0':run?{[]},
+              overlay://'test44/app-1.0':run?{[]}]).
+
+test:diamond([overlay://'test45/app-1.0':run?{[]}]).
+
+%test:slow([portage://'dev-erlang/p1_pgsql-1.1.32':run?{[]}]).
+%           portage://'dev-erlang/xmpp-1.10.1':run?{[]}]).
+
+%test:cow([portage://'kde-frameworks/kglobalaccel-5.116.0-r2':run?{[]}]).
 
 %! test:run(+Atom)
 %
@@ -87,8 +111,8 @@ test:run(Cases) :-
   Outer =.. [:, test, Inner],
   call(Outer),
   forall(member(Case,List),
-         (
-          (writeln(Case),
+         ((
+           writeln(Case),
            prover:prove(Case,t,Proof,t,Model,t,Constraints,t,Triggers),
            planner:plan(Proof,Triggers,t,Plan),
 	   message:color(cyan),
@@ -106,8 +130,8 @@ test:run(Cases) :-
            message:color(cyan),
            writeln('Plan:'),
            message:color(darkgray),forall(member(Step,Plan),writeln(Step)),nl,nl,
-           message:color(normal)),
-           printer:print([Case],Model,Proof,Plan)
+           message:color(normal),
+           printer:print([Case],Model,Proof,Plan))
  ;
           (message:color(red),
            message:style(bold),
