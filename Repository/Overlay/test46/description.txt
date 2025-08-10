@@ -1,0 +1,2 @@
+test46: Double Diamond USE Conflict
+This tests the prover's ability to trace a USE flag contradiction through multiple dependency layers.
