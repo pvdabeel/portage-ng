@@ -15,9 +15,67 @@
       optimizing for backtracking by building the Triggers tree at the end.
     - Otherwise, it performs an incremental build, updating the Triggers
       tree as it proves, which is efficient for small additions.
+    
+    DEBUG SYSTEM:
+    - Debug hooks can be enabled/disabled using prover:enable_debug/0 and prover:disable_debug/0
+    - When disabled, debug_hook calls expand to 'true' (zero overhead)
+    - When enabled, debug_hook calls expand to printer:display_state/4
+    - Uses user:goal_expansion for compile-time optimization
+    - Requires preference:flag/1 system to be available
 */
 
 :- module(prover, [canon_rule/3]).
+
+% =============================================================================
+%  PROVER declarations
+% =============================================================================
+
+% Conditional debug hook expansion - zero overhead when disabled
+:- multifile user:goal_expansion/2.
+:- dynamic user:goal_expansion/2.
+
+
+
+% When debug is enabled, expand debug_hook calls to actual debug code
+user:goal_expansion(prover:debug_hook(Target, Proof, Model, Constraints), 
+                    printer:display_state(Target, Proof, Model, Constraints)) :-
+    preference:flag(debug).
+
+% When debug is disabled, expand debug_hook calls to true (zero overhead)
+user:goal_expansion(prover:debug_hook(_, _, _, _), true) :-
+    preference:flag(debug) -> fail ; true.
+
+%! prover:enable_debug
+% Enable debug mode by setting the debug flag
+prover:enable_debug :-
+    preference:flag(debug).
+
+%! prover:disable_debug  
+% Disable debug mode by removing the debug flag
+prover:disable_debug :-
+    retractall(preference:flag(debug)).
+
+%! prover:is_debug_enabled
+% Check if debug mode is enabled
+prover:is_debug_enabled :-
+    preference:flag(debug).
+
+
+
+% =============================================================================
+% Example Usage:
+% =============================================================================
+% 
+% % Enable debug mode:
+% ?- prover:enable_debug.
+% 
+% % Disable debug mode:
+% ?- prover:disable_debug.
+% 
+% % Check debug status:
+% ?- prover:is_debug_enabled.
+% 
+% % Note: Requires preference:flag/1 system to be available
 
 % =============================================================================
 %  PROVER declarations
@@ -36,6 +94,7 @@
 prover:prove(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers) :-
 
   % Call the core recursive engine.
+  prover:debug_hook(Target, InProof, InModel, InCons),
   prover:prove_recursive(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, MidTriggers),
 
   % Check the flag to determine the final trigger-building action.
@@ -56,9 +115,12 @@ prover:prove(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTr
 % CASE 1: A list of literals to prove (Recursive Step)
 % -----------------------------------------------------------------------------
 
-prover:prove_recursive([],Proof,Proof,Model,Model,Constraints,Constraints,Triggers,Triggers) :- !.
+prover:prove_recursive([],Proof,Proof,Model,Model,Constraints,Constraints,Triggers,Triggers) :-
+  !.
+
 prover:prove_recursive([Literal|Rest],Proof,NewProof,Model,NewModel,Cons,NewCons,Trig,NewTrig) :-
   !,
+  prover:debug_hook([Literal|Rest], Proof, Model, Cons),
   prover:prove_recursive(Literal, Proof,MidProof,    Model,MidModel,    Cons,MidCons,    Trig,MidTrig),
   prover:prove_recursive(Rest,    MidProof,NewProof, MidModel,NewModel, MidCons,NewCons, MidTrig,NewTrig).
 
@@ -68,24 +130,27 @@ prover:prove_recursive([Literal|Rest],Proof,NewProof,Model,NewModel,Cons,NewCons
 % -----------------------------------------------------------------------------
 
 prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewConstraints, Triggers, NewTriggers) :-
+
+  %prover:debug_hook(Full, Proof, Model, Constraints),
+
   canon_literal(Full, Lit, Ctx),
   (   prover:is_constraint(Lit) ->
       !,
-      Proof  = NewProof,
-      Model  = NewModel,
-      Triggers = NewTriggers,
+      Proof       = NewProof,
+      Model       = NewModel,
+      Triggers    = NewTriggers,
       prover:unify_constraints(Lit, Constraints, NewConstraints)
 
   ;   prover:proven(Lit, Model) ->
-      Proof = NewProof,
-      Model = NewModel,
-      Triggers = NewTriggers,
+      Proof       = NewProof,
+      Model       = NewModel,
+      Triggers    = NewTriggers,
       Constraints = NewConstraints
 
   ;   prover:assumed_proven(Lit, Model) ->
-      Proof = NewProof,
-      Model = NewModel,
-      Triggers = NewTriggers,
+      Proof       = NewProof,
+      Model       = NewModel,
+      Triggers    = NewTriggers,
       Constraints = NewConstraints
 
   ;   prover:conflicts(Lit, Model) ->
@@ -114,6 +179,12 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
           NewConstraints = BodyConstraints
       )
   ).
+
+
+% This predicate is expanded by user:goal_expansion based on debug flag
+% When debug is enabled: expands to printer:display_state/4
+% When debug is disabled: expands to true (zero overhead)
+prover:debug_hook(_, _, _, _).
 
 
 % =============================================================================
@@ -327,6 +398,7 @@ add_to_assoc(Key,InAssoc,OutAssoc) :-
 
 prover:debug :-
   forall(current_predicate(prover:X),trace(prover:X)).
+
 
 % =============================================================================
 %  Automated testing helpers
