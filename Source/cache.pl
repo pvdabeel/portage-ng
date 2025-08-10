@@ -13,7 +13,7 @@ Database structure that holds information about repositories, categories, packag
 repository entries, repository entry metadata, etc.
 
 Information is first read from disk using the reader, then parsed by the parser
-(for example using the EAPI grammar), then stored into this prolog "database". 
+(for example using the EAPI grammar), then stored into this prolog "database".
 No disk access happens when querying the database.
 
 Indexing of the facts in the cache database is performed JIT by the swi-prolog JIT
@@ -40,4 +40,5 @@ database structure. See examples below.
 :- dynamic cache:ordered_entry/5.       % e.g. 'portage','sys-kernel/linux-sources-6.15.0','sys-kernel',linux-sources',[[6.15.0],,,'6.15.0'] (Versions ordered)
 :- dynamic cache:entry_metadata/4.	    % e.g. 'portage','sys-kernel/linux-sources-6.15.0','use','build'
 :- dynamic cache:manifest/5.		        % e.g. 'portage',Path,Timestamp,'sys-kernel','linux-sources'
-:- dynamic cache:manifest_metadata/6.	  % e.g. 'portage',Path,Filetype,Filename,Filesize,Checksums
+:- dynamic cache:manifest_metadata/6.	  % e.g. 'portage',Path,Filetype,Filename,Filesize,Checksum
+:- dynamic cache:memo_model/4.
