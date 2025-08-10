@@ -30,6 +30,8 @@ This file contains domain-specific rules
 
 rule(Repository://Ebuild:download?{_},[]) :-
   !,
+  message:debug_write(Repository://Ebuild),
+  message:debug_msg(' DOWNLOAD: finished'),
   query:search(ebuild(Ebuild),Repository://Ebuild).
 
 
@@ -44,12 +46,12 @@ rule(Repository://Ebuild:download?{_},[]) :-
 % 1. Don't perform downloads for already installed packages, unless the emptytree
 %    flag is specified.
 %
-% 2. When a package is not installed, consider its dependencies, taking into 
-%    account slot and use restrictions. We consider both runtime as well as 
+% 2. When a package is not installed, consider its dependencies, taking into
+%    account slot and use restrictions. We consider both runtime as well as
 %    compile time dependencies at the same time, since downloading doesn't impose
 %    a specific order on handling the dependencies.
 %
-% We don't trigger downloads for virtual, acct-group or acct-user, since they 
+% We don't trigger downloads for virtual, acct-group or acct-user, since they
 % don't have any downloads.
 
 rule(Repository://Ebuild:fetchonly?{_Context},Conditions) :-
@@ -70,7 +72,7 @@ rule(Repository://Ebuild:fetchonly?{_Context},Conditions) :-
   %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
   %    all_of_group ... choice point generation
 
-  query:search(model(dependency(D,fetchonly)):config?{R},Repository://Ebuild),
+  query:memoized_search(model(dependency(D,fetchonly)):config?{R},Repository://Ebuild),
 
   % 4. Pass on relevant package dependencies and constraints to prover
 
@@ -121,18 +123,27 @@ rule(Repository://Ebuild:install?{R},Conditions) :-
   %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
   %    all_of_group ... choice point generation
 
-  query:search(model(dependency(D,install)):config?{R},Repository://Ebuild),
+  message:debug_write(Repository://Ebuild),
+  message:debug_msg(' INSTALL : computing install dependency model using context passed from RUN'),
+
+  query:memoized_search(model(dependency(D,install)):config?{R},Repository://Ebuild),
 
   % 4. Pass on relevant package dependencies and constraints to prover
+
+  message:debug_write(Repository://Ebuild),
+  message:debug_msg(' INSTALL : record required_use as global constraint, push download record slot as global constraint, handle install dependencies'),
+
+  message:debug_write(Repository://Ebuild),
+  message:debug_msg(' INSTALL : next up download, install and run dependencies. (ignoring constraints)'),
 
   ( memberchk(C,['virtual','acct-group','acct-user'])
     -> Conditions = [ constraint(use(Repository://Ebuild):{R}),
                       constraint(slot(C,N,S):{Ebuild})
                       |D]
-    ;  Conditions = [constraint(use(Repository://Ebuild):{R}),
-                     Repository://Ebuild:download?{R},
-                     constraint(slot(C,N,S):{Ebuild})
-                     |D] ).
+    ;  Conditions = [ constraint(use(Repository://Ebuild):{R}),
+                      Repository://Ebuild:download?{R},
+                      constraint(slot(C,N,S):{Ebuild})
+                      |D] ).
 
 
 % -----------------------------------------------------------------------------
@@ -158,14 +169,23 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
 
   % 2. Compute required_use stable model
 
-  query:search(model(required_use(R)),Repository://Ebuild),
+  message:debug_write(Repository://Ebuild),
+  message:debug_msg(' RUN : computing required_use'),
+
+  query:search(model(required_use(R)):config?{Context},Repository://Ebuild),
 
   % 3. Pass use model onto dependencies to calculate corresponding dependency  model,
   %    We pass using config action to avoid package_dependency from generating choices.
   %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
   %    all_of_group ... choice point generation
 
-  query:search(model(dependency(D,run)):config?{R},Repository://Ebuild),
+  message:debug_write(Repository://Ebuild),
+  message:debug_msg(' RUN : computing run dependency model'),
+
+  query:memoized_search(model(dependency(D,run)):config?{R},Repository://Ebuild),
+
+  message:debug_write(Repository://Ebuild),
+  message:debug_msg(' RUN : next up: install + run deps'),
 
   Conditions = [Repository://Ebuild:install?{R}|D].
 
@@ -254,7 +274,7 @@ rule(Repository://Ebuild:update?{Context},Conditions) :-
 % -----------------------------------------------------------------------------
 % EAPI 8.2.6.2: a weak block can be ignored by the package manager
 
-rule(package_dependency(_,_,weak,_,_,_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,weak,_,_,_,_,_,_):_?{_},[]) :- !.
 
 
 % -----------------------------------------------------------------------------
@@ -262,14 +282,14 @@ rule(package_dependency(_,_,weak,_,_,_,_,_,_):_?{_},[]) :- !.
 % -----------------------------------------------------------------------------
 % EAPI 8.2.6.2: a strong block is satisfied when no suitable candidate is satisfied
 
-rule(package_dependency(_,_,strong,_,_,_,_,_,_):_?{_},[]) :- !.
+rule(package_dependency(_,strong,_,_,_,_,_,_):_?{_},[]) :- !.
 
 
 % -----------------------------------------------------------------------------
 %  Rule: Dependencies on the system profile
 % -----------------------------------------------------------------------------
 
-rule(package_dependency(_,_,no,C,N,_,_,_,_):_?{_}, []) :-
+rule(package_dependency(_,no,C,N,_,_,_,_):_?{_}, []) :-
     core_pkg(C,N), !.
 
 
@@ -285,39 +305,65 @@ rule(package_dependency(_,_,no,C,N,_,_,_,_):_?{_}, []) :-
 % Preference: prefer installed packages over new packages, unless 'emptytree' flag
 % is used
 
-rule(package_dependency(_://_,_,_,_,_,_,_,_,_):config?{_},[]) :- !.
 
-rule(package_dependency(_://_,_,no,_,_,_,_,_,_),[]) :- !.
+% package dependency rules for dependency model creation
 
-rule(package_dependency(_://_,_,no,C,N,_,_,_,_):Action?{_},Conditions) :-
+rule(package_dependency(_,_,_,_,_,_,_,_):config?{_},[]) :- !.
+rule(package_dependency(_,no,_,_,_,_,_,_),[]) :- !.
+
+
+
+% =============================================================================
+%  Rule: Package dependencies (REFACTORED)
+% =============================================================================
+
+rule(package_dependency(_,no,C,N,O,V,S,U):Action?{Context}, Conditions) :-
+  !, % Cut to ensure the entire predicate is deterministic once a path is chosen.
   \+(Action == config),
-  \+(preference:flag(emptytree)),
-  preference:accept_keywords(K),
-  cache:ordered_entry(Repository,Choice,C,N,_),
-  cache:entry_metadata(Repository,Choice,installed,true),					% todo: if build-with-use-dependency triggers a new use in chosen and installed ebuild, then reinstall with new use
-  cache:entry_metadata(Repository,Choice,keywords,K),!,
-  Conditions = [].
 
-rule(package_dependency(_://_,_,no,C,N,_,_,_,U):Action?{Context},Conditions) :-			% todo: some more fine-grained behaviour w.r.t. slots is needed
-  \+(Action == config),
-  preference:accept_keywords(K),
-  cache:ordered_entry(Repository,Choice,C,N,_),
-  cache:entry_metadata(Repository,Choice,keywords,K),
-  process_build_with_use(U,Context,NewContext),
-  Conditions = [Repository://Choice:Action?{NewContext}].
+  ( % IF: The package is already installed and we are not doing a full tree build...
+    \+(preference:flag(emptytree)),
+    cache:ordered_entry(Repository, Ebuild, C, N, _),
+    cache:entry_metadata(Repository, Ebuild, installed, true)
+    %cache:entry_metadata(Repository, Ebuild, keywords, K)
+  ->
+    % THEN: Succeed immediately with no further conditions.
+    message:debug_msg('PACKDEP ~s (confirmed : already installed)', [Action]),
+    !,
+    Conditions = []
 
-rule(package_dependency(R://E,T,no,C,N,O,V,S,U):Action?{Context},Conditions) :-
-  \+(Action == config),
-  \+(cache:ordered_entry(_Repository,_Choice,C,N,_)),
-  Conditions = [assumed(package_dependency(R://E,T,no,C,N,O,V,S,U):Action?{Context})].
+  ; % ELSE: Proceed with the general resolution logic.
+    (
+      message:debug_msg('PACKDEP ~s (checking : general case)', [Action]),
+      preference:accept_keywords(K),
+      (memberchk(slot(C,N,Ss):{_}, Context) -> true ; true),
+      query:search([name(N),category(C),keyword(K),select(version,O,V),select(slot,constraint(S),Ss)], FoundRepo://Candidate)
+    ->
+      % THEN: If a candidate is found...
+      message:debug_msg('PACKDEP ~s (confirmed : general case)', [Action]),
+      message:debug_msg(' - Candidate   : ~w', [Candidate]),
 
-rule(package_dependency(R://E,T,no,C,N,O,V,S,U):Action?{Context},Conditions) :-
-  \+(Action == config),
-  findall(K,preference:accept_keywords(K),Ks),
-  \+((cache:ordered_entry(Repository,Choice,C,N,_),
-     cache:entry_metadata(Repository,Choice,keywords,I),
-     member(I,Ks))),
-  Conditions = [assumed(package_dependency(R://E,T,no,C,N,O,V,S,U):Action?{Context})].
+      message:debug_msg('PACKDEP Preparing context for forwarding'),
+      message:debug_msg(' - context: ~w', [Context]),
+      message:debug_msg(' - slotreq: ~w', [S]),
+      message:debug_msg(' - slot   : ~w', [Ss]),
+
+      process_build_with_use(U,Context,NewContext,Constraints,FoundRepo://Candidate),
+      message:debug_msg('PACKDEP process use  : ~w', [NewContext]),
+      process_slot(S,Ss,C,N,FoundRepo://Candidate,NewContext,NewerContext),
+      message:debug_msg('PACKDEP process slot : ~w', [NewerContext]),
+
+      % Add build_with_use constraints to Conditions
+      append(Constraints, [FoundRepo://Candidate:Action?{NewerContext}], AllConditions),
+      Conditions = AllConditions,
+      message:debug_msg('PACKDEP Candidate Conditions: ~w', [Conditions])
+
+    ; % ELSE: If no candidate can be found, assume it's non-existent.
+      message:debug_msg('PACKDEP ~s (checking : non-existent)', [Action]),
+      message:debug_msg('PACKDEP ~s (assumed : non-existent)', [Action]),
+      Conditions = [assumed(package_dependency(Action,no,C,N,O,V,S,U):Action?{Context})]
+    )
+  ).
 
 
 % -----------------------------------------------------------------------------
@@ -446,10 +492,10 @@ rule(all_of_group(Deps),Result) :-
 % -----------------------------------------------------------------------------
 %  Rule: Uri
 % -----------------------------------------------------------------------------
-% It is possible to put uri's in the proof, and verify at proof time whether 
+% It is possible to put uri's in the proof, and verify at proof time whether
 % downloads exists, are valid, etc. This makes the proofs unnecessarily large.
 % In practice it is better to verify downloadability of a uri at proof execution
-% time. 
+% time.
 
 rule(uri(_,_,_):_,[]) :- !.
 rule(uri(_):_,[]) :- !.
@@ -612,15 +658,53 @@ core_pkg('dev-lang','pypy').
 
 
 % -----------------------------------------------------------------------------
+%  Helper for process_slot
+% -----------------------------------------------------------------------------
+
+process_slot([any_different_slot], _, _, _, _, Context, Context) :- !.
+process_slot(_, Slot, C, N, Candidate, Context, [slot(C, N, Slot):{Candidate}|Context]).
+
+%process_slot([any_same_slot],Slot,Context,[slot(Slot)|Context]) :- !.
+%process_slot([slot(X),equal],[slot(X)],Context,[slot([slot(X)])|Context]) :- !.
+%process_slot(_,_,Context,Context).
+
+
+
+% -----------------------------------------------------------------------------
 %  Helper for process_build_with_use
 % -----------------------------------------------------------------------------
-% When processing build with use directives, we are given the current context 
-% as well as the directives. We extend the current context with the directives 
-% prior to passing it on to the child dependencies.
+% When processing build with use directives, we are given the current context
+% as well as the directives. We extend the current context with the directives
+% prior to passing it on to the child dependencies. We also return build_with_use
+% constraints that should be added to the global constraint list.
 
 % Main predicate using foldl/4 to process USE directives.
-process_build_with_use(Directives, Context, Result) :-
-    foldl(process_use(Context), Directives, [], Result).
+process_build_with_use(Directives, Context, Result, Conditions, Candidate) :-
+    foldl(process_use(Context), Directives, [], Result),
+    build_with_use_constraints(Directives, Conditions, Candidate).
+
+% Helper predicate to generate build_with_use constraints
+% Collects all USE requirements into a single list to avoid data duplication
+build_with_use_constraints([], [], _).
+build_with_use_constraints(Directives, [constraint(use(Candidate):{UseRequirements})], Candidate) :-
+    collect_use_requirements(Directives, UseRequirements).
+
+% Helper predicate to collect all USE requirements into a single list
+collect_use_requirements([], []).
+collect_use_requirements([use(enable(Use), _)|Rest], [required(Use)|RestRequirements]) :-
+    collect_use_requirements(Rest, RestRequirements).
+collect_use_requirements([use(disable(Use), _)|Rest], [naf(required(Use))|RestRequirements]) :-
+    collect_use_requirements(Rest, RestRequirements).
+collect_use_requirements([use(equal(Use), _)|Rest], [required(Use)|RestRequirements]) :-
+    collect_use_requirements(Rest, RestRequirements).
+collect_use_requirements([use(inverse(Use), _)|Rest], [naf(required(Use))|RestRequirements]) :-
+    collect_use_requirements(Rest, RestRequirements).
+collect_use_requirements([use(optenable(Use), _)|Rest], [required(Use)|RestRequirements]) :-
+    collect_use_requirements(Rest, RestRequirements).
+collect_use_requirements([use(optdisable(Use), _)|Rest], [naf(required(Use))|RestRequirements]) :-
+    collect_use_requirements(Rest, RestRequirements).
+collect_use_requirements([_|Rest], RestRequirements) :-
+    collect_use_requirements(Rest, RestRequirements).
 
 % Helper predicate for foldl/4.
 % It processes a single USE directive.

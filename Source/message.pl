@@ -28,6 +28,53 @@ This file contains the predicates used for pretty printing messages.
 
 :- multifile user:goal_expansion/2.
 
+% Debug messaging system using goal_expansion
+% When debug is enabled, expand debug_msg calls to actual debug output
+% When debug is disabled, expand debug_msg calls to true (zero overhead)
+% Uses SWI-Prolog's -Ddebug flag system
+
+% Debug message with single argument
+user:goal_expansion(debug_msg(Msg), Expanded) :-
+    current_prolog_flag(debug, true) -> 
+        Expanded = (message:label(debug), format(Msg, []), nl)
+    ;   
+        Expanded = true.
+
+% Debug message with format and arguments
+user:goal_expansion(debug_msg(Fmt, Args), Expanded) :-
+    current_prolog_flag(debug, true) -> 
+        Expanded = (message:label(debug), format(Fmt, Args), nl)
+    ;   
+        Expanded = true.
+
+% Debug message with write (for complex terms)
+user:goal_expansion(debug_write(Term), Expanded) :-
+    current_prolog_flag(debug, true) -> 
+        Expanded = (message:label(debug), write(Term))
+    ;   
+        Expanded = true.
+
+% Debug message with writeln (for complex terms with newline)
+user:goal_expansion(debug_writeln(Term), Expanded) :-
+    current_prolog_flag(debug, true) -> 
+        Expanded = (message:label(debug), write(Term), nl)
+    ;   
+        Expanded = true.
+
+% Debug message with custom label
+user:goal_expansion(debug_msg(Label, Msg), Expanded) :-
+    current_prolog_flag(debug, true) -> 
+        Expanded = (message:label(debug), format('~s: ', [Label]), format(Msg, []), nl)
+    ;   
+        Expanded = true.
+
+% Debug message with custom label and format arguments
+user:goal_expansion(debug_msg(Label, Fmt, Args), Expanded) :-
+    current_prolog_flag(debug, true) -> 
+        Expanded = (message:label(debug), format('~s: ', [Label]), format(Fmt, Args), nl)
+    ;   
+        Expanded = true.
+
 message:color(_).
 message:style(_).
 message:el.
@@ -325,6 +372,21 @@ hl :-
 % -----------------------------------------------------------------------------
 %  Runtime: Headers
 % -----------------------------------------------------------------------------
+
+%! message:enable_debug
+% Enable debug mode by setting the debug flag
+message:enable_debug :-
+    set_prolog_flag(debug, true).
+
+%! message:disable_debug  
+% Disable debug mode by removing the debug flag
+message:disable_debug :-
+    set_prolog_flag(debug, false).
+
+%! message:is_debug_enabled
+% Check if debug mode is enabled
+message:is_debug_enabled :-
+    current_prolog_flag(debug, true).
 
 topheader(Message) :-
   color(cyan),
