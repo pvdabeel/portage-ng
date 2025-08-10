@@ -133,7 +133,7 @@ compile_query_compound(version(Ver), Repo://Id,
 compile_query_compound(slot(Slot), Repo://Id,
   cache:entry_metadata(Repo,Id,slot,slot(Slot))) :- !.
 
-compile_query_compound(subslot(Slot),	Repo://Id,
+compile_query_compound(subslot(Slot), Repo://Id,
   cache:entry_metadata(Repo,Id,slot,subslot(Slot))) :- !.
 
 compile_query_compound(keyword(KW), Repo://Id,
@@ -244,8 +244,8 @@ compile_query_compound(dependency(D,fetchonly), Repo://Id,
 % 7. key=value queries needed for --search
 
 compile_query_compound(select(Key,Cmp,Value), Repo://Id,
-  ( query:search(select(Key,Cmp,Value), Repo://Id ) ))  :- 
-  var(Cmp),!.   % Important: filter out runtime bound Cmp
+  ( query:search(select(Key,Cmp,Value), Repo://Id ) ))  :-
+  nonground(Cmp,_),!.   % Important: filter out runtime bound Cmp
 
 compile_query_compound(select(repository,notequal,R), Repo://Id,
   ( cache:ordered_entry(R,Id,_,_,_),
@@ -294,6 +294,9 @@ compile_query_compound(select(category,wildcard,C),	Repo://Id,
 
 compile_query_compound(select(version,none,_), Repo://Id,
   cache:ordered_entry(Repo,Id,_,_,_)) :- !.
+
+compile_query_compound(select(version,equal,[[], '', '', '', '']), Repo://Id,
+ cache:ordered_entry(Repo,Id,_,_,_)) :- !.
 
 compile_query_compound(select(version,equal,Ver), Repo://Id,
   cache:ordered_entry(Repo,Id,_,_,Ver)) :- !.
@@ -397,7 +400,7 @@ compile_query_compound(select(download,tilde,F), Repo://Id,
   ( cache:entry_metadata(Repo,Id,src_uri,uri(_,_,M)),
     dwim_match(F,M) ) ) :- !.
 
-compile_query_compound(select(download,wildcard,F),	Repo://Id,
+compile_query_compound(select(download,wildcard,F), Repo://Id,
   ( cache:entry_metadata(Repo,Id,src_uri,uri(_,_,M)),
     wildcard_match(F,M) ) ) :- !.
 
@@ -420,16 +423,50 @@ compile_query_compound(select(subslot,notequal,S), Repo://Id,
   ( cache:entry_metadata(Repo,Id,slot,subslot(O)),
     O \== S ) ) :- !.
 
-compile_query_compound(select(subslot,equal,S),	Repo://Id,
+compile_query_compound(select(subslot,equal,S), Repo://Id,
   cache:entry_metadata(Repo,Id,slot,subslot(S))) :- !.
 
-compile_query_compound(select(subslot,tilde,S),	Repo://Id,
+compile_query_compound(select(slot,tilde,S), Repo://Id,
   ( cache:entry_metadata(Repo,Id,slot,subslot(M)),
     dwim_match(S,M) ) ) :- !.
 
 compile_query_compound(select(subslot,wildcard,S), Repo://Id,
   ( cache:entry_metadata(Repo,Id,slot,subslot(M)),
     wildcard_match(S,M) ) ) :- !.
+
+
+
+compile_query_compound(select(slot,constraint([]),Sn), Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,_,_),
+    findall(R,cache:entry_metadata(Repo,Id,slot,R),Sn)) ) :- !. 				% will work: test40
+
+compile_query_compound(select(slot,constraint([slot(S)]),Sn), Repo://Id,
+  ( cache:entry_metadata(Repo,Id,slot,slot(S)),
+    findall(R,cache:entry_metadata(Repo,Id,slot,R),Sn)) ) :- !. 				% will work: test41
+
+compile_query_compound(select(slot,constraint([slot(S),subslot(Ss)]),Sn), Repo://Id,
+  ( cache:entry_metadata(Repo,Id,slot,slot(S)),
+    cache:entry_metadata(Repo,Id,slot,subslot(Ss)),
+    findall(R,cache:entry_metadata(Repo,Id,slot,R),Sn)) ) :- !. 				% will work: test44
+
+compile_query_compound(select(slot,constraint([slot(S),equal]),Sn), Repo://Id,
+  ( cache:entry_metadata(Repo,Id,slot,slot(S)),
+    findall(R,cache:entry_metadata(Repo,Id,slot,R),Sn)) ) :- !.					% adds chosen slot as a requirement to context - no test yet
+
+compile_query_compound(select(slot,constraint([slot(S),subslot(Ss),equal]),Sn), Repo://Id,
+  ( cache:entry_metadata(Repo,Id,slot,slot(S)),
+    cache:entry_metadata(Repo,Id,slot,subslot(Ss)),
+    findall(R,cache:entry_metadata(Repo,Id,slot,R),Sn)) ) :- !.					% adds chosen slot and subslot as a requirement to context - no test yet
+
+compile_query_compound(select(slot,constraint([any_same_slot]),Sn), Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,_,_),
+    findall(R,cache:entry_metadata(Repo,Id,slot,R),Sn)) ) :- !.					% adds chosen slot as a requirement to context - test43
+
+compile_query_compound(select(slot,constraint([any_different_slot]),Sn), Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,_,_),
+    findall(R,cache:entry_metadata(Repo,Id,slot,R),Sn)) ) :- !.					% adds chosen slot as a requirement to context - test 42
+
+
 
 compile_query_compound(select(keyword,equal,K),	Repo://Id,
   cache:entry_metadata(Repo,Id,keyword,K)) :- !.
@@ -455,7 +492,7 @@ compile_query_compound(select(masked,notequal,true), Repo://Id,
 % 8. all query is treated at runtime, except for a few exceptions
 
 compile_query_compound(all(S), Repo://Id,
-  query:search(all(S),Repo://Id))	:- 
+  query:search(all(S),Repo://Id))	:-
   var(S),!.
 
 compile_query_compound(all(S):A?{C}, Repo://Id,
@@ -552,11 +589,23 @@ compile_query_compound(all(dependency(D,fetchonly)):A?{C}, Repo://Id,
 
 % 10. some model queries are rewritten
 
+% Contextualized required_use model - filters models based on context
+compile_query_compound(model(required_use(Model)):config?{Context}, Repo://Id,
+  ( findall(ReqUse:config?{Context},
+            cache:entry_metadata(Repo,Id,required_use,ReqUse),
+            AllReqUse),
+    prover:prove_recursive(AllReqUse,t,_,t,AvlModel,t,_,t,_),
+    findall(Key,
+            (gen_assoc(Key,AvlModel,_Value),
+   	     \+eapi:abstract_syntax_construct(Key)),
+            Model) ) ) :- !.
+
+% Non-contextualized required_use model (for backward compatibility)
 compile_query_compound(model(required_use(Model)), Repo://Id,
   ( findall(ReqUse,
             cache:entry_metadata(Repo,Id,required_use,ReqUse),
             AllReqUse),
-    prover:prove(AllReqUse,t,_,t,AvlModel,t,_,t,_),
+    prover:prove_recursive(AllReqUse,t,_,t,AvlModel,t,_,t,_),
     findall(Key,
             (gen_assoc(Key,AvlModel,_Value),
    	     \+eapi:abstract_syntax_construct(Key)),
@@ -567,7 +616,7 @@ compile_query_compound(model(dependency(Model,run)):config?{Context}, Repo://Id,
           ( cache:entry_metadata(Repo,Id,idepend,Dep)
           ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
           Deps),
-  prover:prove(Deps,t,_,t,AvlModel,t,_,t,_),
+  prover:prove_recursive(Deps,t,_,t,AvlModel,t,_,t,_),
   findall(Fact:run?{[]},
           (gen_assoc(Fact:_,AvlModel,_),
            Fact =.. [package_dependency|_]),
@@ -579,7 +628,7 @@ compile_query_compound(model(dependency(Model,install)):config?{Context}, Repo:/
           ; cache:entry_metadata(Repo,Id,cdepend,Dep)
           ; cache:entry_metadata(Repo,Id,depend,Dep) ),
           Deps),
-  prover:prove(Deps,t,_,t,AvlModel,t,_,t,_),
+  prover:prove_recursive(Deps,t,_,t,AvlModel,t,_,t,_),
   findall(Fact:install?{[]},
            (gen_assoc(Fact:_,AvlModel,_),
             Fact =.. [package_dependency|_]),
@@ -593,7 +642,7 @@ compile_query_compound(model(dependency(Model,fetchonly)):config?{Context}, Repo
           ; cache:entry_metadata(Repo,Id,idepend,Dep)
           ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
           Deps),
-  prover:prove(Deps,t,_,t,AvlModel,t,_,t,_),
+  prover:prove_recursive(Deps,t,_,t,AvlModel,t,_,t,_),
   findall(Fact:fetchonly?{Context},
           (gen_assoc(Fact:_,AvlModel,_),
            Fact =.. [package_dependency|_]),
@@ -675,6 +724,7 @@ search([Statement|Rest],Repository://Entry) :-
   search(Rest,Repository://Entry).
 
 
+
 % -----------------------------------------------------------------------------
 %  Query  meta predicates
 % -----------------------------------------------------------------------------
@@ -738,7 +788,7 @@ search(model(Statement):Action?{Context},Repository://Id) :-
   !,
   StatementA =.. [Key,AllValues,Arg],
   search(all(StatementA):Action?{Context},Repository://Id),
-  prover:prove(AllValues,t,_,t,AvlModel,t,_,t,_),
+  prover:prove_recursive(AllValues,t,_,t,AvlModel,t,_,t,_),
   prover:model_to_list(AvlModel,Model).
 
 
@@ -749,7 +799,7 @@ search(model(Statement),Repository://Id) :-
   !,
   StatementA =.. [Key,AllValues,Arg],
   search(all(StatementA),Repository://Id),
-  prover:prove(AllValues,t,_,t,AvlModel,t,_,t,_),
+  prover:prove_recursive(AllValues,t,_,t,AvlModel,t,_,t,_),
   prover:model_to_list(AvlModel,Model).
 
 
@@ -760,7 +810,7 @@ search(model(Statement):Action?{Context},Repository://Id) :-
   !,
   StatementA =.. [Key,AllValues],
   search(all(StatementA):Action?{Context},Repository://Id),
-  prover:prove(AllValues,t,_,t,AvlModel,t,_,t,_),
+  prover:prove_recursive(AllValues,t,_,t,AvlModel,t,_,t,_),
   prover:model_to_list(AvlModel,Model).
 
 
@@ -771,7 +821,7 @@ search(model(Statement),Repository://Id) :-
   !,
   StatementA =.. [Key,AllValues],
   search(all(StatementA),Repository://Id),
-  prover:prove(AllValues,t,_,t,AvlModel,t,_,t,_),
+  prover:prove_recursive(AllValues,t,_,t,AvlModel,t,_,t,_),
   prover:model_to_list(AvlModel,Model).
 
 
@@ -856,6 +906,10 @@ search(select(version,none,_),Repo://Id) :-
   !,
   cache:ordered_entry(Repo,Id,_,_,_).
 
+search(select(version,equal,[[], '', '', '', '']),Repo://Id) :-
+  !,
+  cache:ordered_entry(Repo,Id,_,_,_).
+
 search(select(version,equal,Ver),Repo://Id) :-
   !,
   cache:ordered_entry(Repo,Id,_,_,Ver).
@@ -893,6 +947,44 @@ search(select(version,wildcard,[_,_,_,V]),Repo://Id) :-
 
 search(select(version,tilde,[V,_,_,_]),Repo://Id) :-
   cache:ordered_entry(Repo,Id,_,_,[V,_,_,_]).
+
+
+search(select(slot,constraint([]),Sn), Repo://Id) :-
+  !,
+  ( cache:ordered_entry(Repo,Id,_,_,_),
+    findall(R,cache:entry_metadata(Repo,Id,slot,R),Sn)). 					% will work: test40
+
+search(select(slot,constraint([slot(S)]),Sn), Repo://Id) :-
+  !,
+  ( cache:entry_metadata(Repo,Id,slot,slot(S)),
+    findall(R,cache:entry_metadata(Repo,Id,slot,R),Sn)). 					% will work: test41
+
+search(select(slot,constraint([slot(S),subslot(Ss)]),Sn), Repo://Id) :-
+  !,
+  ( cache:entry_metadata(Repo,Id,slot,slot(S)),
+    cache:entry_metadata(Repo,Id,slot,subslot(Ss)),
+    findall(R,cache:entry_metadata(Repo,Id,slot,R),Sn)). 					% will work: test44
+
+search(select(slot,constraint([slot(S),equal]),Sn), Repo://Id) :-
+  !,
+  ( cache:entry_metadata(Repo,Id,slot,slot(S)),
+    findall(R,cache:entry_metadata(Repo,Id,slot,R),Sn)).					% adds chosen slot as a requirement to context - no test yet
+
+search(select(slot,constraint([slot(S),subslot(Ss),equal]),Sn), Repo://Id) :-
+  !,
+  ( cache:entry_metadata(Repo,Id,slot,slot(S)),
+    cache:entry_metadata(Repo,Id,slot,subslot(Ss)),
+    findall(R,cache:entry_metadata(Repo,Id,slot,R),Sn)).					% adds chosen slot and subslot as a requirement to context - no test yet
+
+search(select(slot,constraint([any_same_slot]),Sn), Repo://Id) :-
+  !,
+  ( cache:ordered_entry(Repo,Id,_,_,_),
+    findall(R,cache:entry_metadata(Repo,Id,slot,R),Sn)).					% adds chosen slot as a requirement to context - test43
+
+search(select(slot,constraint([any_different_slot]),Sn), Repo://Id) :-
+  !,
+  ( cache:ordered_entry(Repo,Id,_,_,_),
+    findall(R,cache:entry_metadata(Repo,Id,slot,R),Sn)).					% adds chosen slot as a requirement to context - test 42
 
 
 % -----------------------------------------------------------------------------
@@ -990,6 +1082,43 @@ search(Q,R://I) :-
   Q =.. [Key,Value],
   select(Key,equal,Value,R://I).
   %cache:entry_metadata(R,I,Key,Value).
+
+
+% -----------------------------------------------------------------------------
+%  Query: Memoized Search - only dependency models for now
+% -----------------------------------------------------------------------------
+
+%! query:memoized_search(+Query, +Target)
+%
+%  A wrapper for query:search that provides memoization for expensive
+%  model computations.
+
+memoized_search(model(dependency(D,install)):config?{R}, Repository://Ebuild) :-
+  !,
+  ( cache:memo_model(Repository, Ebuild, install, D)
+    ->  true % Succeed with the cached model
+    ; % Otherwise, compute, assert, and then succeed.
+      query:search(model(dependency(D,install)):config?{R},Repository://Ebuild),
+      assertz(cache:memo_model(Repository, Ebuild, install, D))
+  ).
+
+memoized_search(model(dependency(D,run)):config?{R}, Repository://Ebuild) :-
+  !,
+  ( cache:memo_model(Repository, Ebuild, run, D)
+    ->  true % Succeed with the cached model
+    ; % Otherwise, compute, assert, and then succeed.
+      query:search(model(dependency(D,run)):config?{R},Repository://Ebuild),
+      assertz(cache:memo_model(Repository, Ebuild, run, D))
+  ).
+
+memoized_search(model(dependency(D,fetchonly)):config?{R}, Repository://Ebuild) :-
+  !,
+  ( cache:memo_model(Repository, Ebuild, fetchonly, D)
+    ->  true % Succeed with the cached model
+    ; % Otherwise, compute, assert, and then succeed.
+      query:search(model(dependency(D,fetchonly)):config?{R},Repository://Ebuild),
+      assertz(cache:memo_model(Repository, Ebuild, fetchonly, D))
+  ).
 
 
 % -----------------------------------------------------------------------------
