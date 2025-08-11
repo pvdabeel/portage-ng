@@ -15,67 +15,9 @@
       optimizing for backtracking by building the Triggers tree at the end.
     - Otherwise, it performs an incremental build, updating the Triggers
       tree as it proves, which is efficient for small additions.
-    
-    DEBUG SYSTEM:
-    - Debug hooks can be enabled/disabled using prover:enable_debug/0 and prover:disable_debug/0
-    - When disabled, debug_hook calls expand to 'true' (zero overhead)
-    - When enabled, debug_hook calls expand to printer:display_state/4
-    - Uses user:goal_expansion for compile-time optimization
-    - Requires preference:flag/1 system to be available
 */
 
-:- module(prover, [canon_rule/3]).
-
-% =============================================================================
-%  PROVER declarations
-% =============================================================================
-
-% Conditional debug hook expansion - zero overhead when disabled
-:- multifile user:goal_expansion/2.
-:- dynamic user:goal_expansion/2.
-
-
-
-% When debug is enabled, expand debug_hook calls to actual debug code
-user:goal_expansion(prover:debug_hook(Target, Proof, Model, Constraints), 
-                    printer:display_state(Target, Proof, Model, Constraints)) :-
-    preference:flag(debug).
-
-% When debug is disabled, expand debug_hook calls to true (zero overhead)
-user:goal_expansion(prover:debug_hook(_, _, _, _), true) :-
-    preference:flag(debug) -> fail ; true.
-
-%! prover:enable_debug
-% Enable debug mode by setting the debug flag
-prover:enable_debug :-
-    preference:flag(debug).
-
-%! prover:disable_debug  
-% Disable debug mode by removing the debug flag
-prover:disable_debug :-
-    retractall(preference:flag(debug)).
-
-%! prover:is_debug_enabled
-% Check if debug mode is enabled
-prover:is_debug_enabled :-
-    preference:flag(debug).
-
-
-
-% =============================================================================
-% Example Usage:
-% =============================================================================
-% 
-% % Enable debug mode:
-% ?- prover:enable_debug.
-% 
-% % Disable debug mode:
-% ?- prover:disable_debug.
-% 
-% % Check debug status:
-% ?- prover:is_debug_enabled.
-% 
-% % Note: Requires preference:flag/1 system to be available
+:- module(prover, []).
 
 % =============================================================================
 %  PROVER declarations
@@ -181,37 +123,67 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
   ).
 
 
-% This predicate is expanded by user:goal_expansion based on debug flag
-% When debug is enabled: expands to printer:display_state/4
-% When debug is disabled: expands to true (zero overhead)
-prover:debug_hook(_, _, _, _).
+% =============================================================================
+% Debug Hook
+% =============================================================================
+
+%! prover:debug_hook(+Target, +Proof, +Model, +Constraints)
+%
+% This predicate is expanded by user:goal_expansion
+
+prover:debug_hook(Target, Proof, Model, Constraints) :- !.
+  %printer:display_state(Target, Proof, Model, Constraints).
+
+
+%! prover:debug
+%
+% Debug all predicates in the prover module.
+
+prover:debug :-
+  forall(current_predicate(prover:X),trace(prover:X)).
 
 
 % =============================================================================
 % Triggers Helpers
 % =============================================================================
 
-build_triggers_from_proof(ProofAVL, TriggersAVL) :-
+%! build_triggers_from_proof(+ProofAVL, -TriggersAVL)
+%
+% Build the Triggers tree from the Proof AVL tree.
+
+prover:build_triggers_from_proof(ProofAVL, TriggersAVL) :-
     empty_assoc(EmptyTriggers),
     assoc_to_list(ProofAVL, RulesAsList),
-    foldl(add_rule_triggers, RulesAsList, EmptyTriggers, TriggersAVL).
+    foldl(prover:add_rule_triggers, RulesAsList, EmptyTriggers, TriggersAVL).
 
-add_rule_triggers(HeadKey-Value, InTriggers, OutTriggers) :-
+
+%! prover:add_rule_triggers(+HeadKey-Value, +InTriggers, -OutTriggers)
+%
+% Add the triggers for a rule to the Triggers tree.
+
+prover:add_rule_triggers(HeadKey-Value, InTriggers, OutTriggers) :-
     ( prover:canon_rule(rule(Head, Body), HeadKey, Value) ; prover:canon_rule(assumed(rule(Head, Body)), HeadKey, Value) ),
     !,
     ( Value = dep(_, _)?Ctx -> prover:canon_literal(FullHead, Head, Ctx) ; FullHead = Head ),
     prover:add_triggers(FullHead, Body, InTriggers, OutTriggers).
-add_rule_triggers(_, InTriggers, InTriggers).
+
+prover:add_rule_triggers(_, InTriggers, InTriggers).
+
+
+%! prover:add_triggers(+Head, +Body, +InTriggers, -OutTriggers)
+%
+% Add the triggers for a rule to the Triggers tree.
 
 prover:add_triggers(_, [], Triggers, Triggers) :- !.
-prover:add_triggers(Head, Body, InTriggers, OutTriggers) :-
-    foldl(add_trigger(Head), Body, InTriggers, OutTriggers).
 
-add_trigger(Head, Dep, InTriggers, OutTriggers) :-
+prover:add_triggers(Head, Body, InTriggers, OutTriggers) :-
+    foldl(prover:add_trigger(Head), Body, InTriggers, OutTriggers).
+
+prover:add_trigger(Head, Dep, InTriggers, OutTriggers) :-
     (   prover:is_constraint(Dep)
     ->  OutTriggers = InTriggers
     ;
-        canon_literal(Dep, DepLit, _),
+        prover:canon_literal(Dep, DepLit, _),
         (get_assoc(DepLit, InTriggers, Dependents) -> true ; Dependents = []),
         (memberchk(Head, Dependents) -> NewDependents = Dependents ; NewDependents = [Head | Dependents]),
         put_assoc(DepLit, InTriggers, NewDependents, OutTriggers)
@@ -242,8 +214,16 @@ prover:conflictrule(rule(Lit,_), Proof) :-
 % CONSTRAINT
 % =============================================================================
 
+%! prover:is_constraint(+Literal)
+%
+% Check if a literal is a constraint.
+
 prover:is_constraint(constraint(_)).
 
+
+%! prover:unify_constraints(+Constraint, +Constraints, -NewConstraints)
+%
+% Unify a constraint with the current constraints.
 
 prover:unify_constraints(constraint(Key:{Value}),Constraints,NewConstraints) :-
   get_assoc(Key,Constraints,CurrentValue,NewConstraints,NewValue),!,
@@ -282,7 +262,7 @@ prover:unify_constraint(List,M,Assoc) :-
 % =============================================================================
 
 
-% canon_literal(?Full, ?Core, ?Ctx)
+%! prover:canon_literal(?Full, ?Core, ?Ctx)
 %
 %   Full  – full format
 %   Core  – part *before* the context annotation.
@@ -291,113 +271,117 @@ prover:unify_constraint(List,M,Assoc) :-
 % Convert between full format and key-value pair used
 % for the AVL model tree
 
-canon_literal(R://L:A,       R://L:A,  {})  :- !.
-canon_literal(R://L:A?{Ctx}, R://L:A,  Ctx) :- !.
-canon_literal(R://L,         R://L,    {})  :- !.
-canon_literal(R://L?{Ctx},   R://L,    Ctx) :- !.
-canon_literal(L:A,           L:A,      {})  :- !.
-canon_literal(L:A?{Ctx},     L:A,      Ctx) :- !.
-canon_literal(L,             L,        {})  :- !.
-canon_literal(L?{Ctx},       L,        Ctx) :- !.
+prover:canon_literal(R://L:A,       R://L:A,  {})  :- !.
+prover:canon_literal(R://L:A?{Ctx}, R://L:A,  Ctx) :- !.
+prover:canon_literal(R://L,         R://L,    {})  :- !.
+prover:canon_literal(R://L?{Ctx},   R://L,    Ctx) :- !.
+prover:canon_literal(L:A,           L:A,      {})  :- !.
+prover:canon_literal(L:A?{Ctx},     L:A,      Ctx) :- !.
+prover:canon_literal(L,             L,        {})  :- !.
+prover:canon_literal(L?{Ctx},       L,        Ctx) :- !.
 
 
-% canon_rule(?Full, ?Key, ?Value
+%! prover:canon_rule(?Full, ?Key, ?Value)
 %
 % Convert between full format and key-value pair used
 % for the AVL proof tree
 
-canon_rule(assumed(rule(R://L,B)),       assumed(rule(R://L)), dep(_,B)?{})   :- !.
-canon_rule(assumed(rule(R://L?{Ctx},B)), assumed(rule(R://L)), dep(_,B)?Ctx)  :- !.
-canon_rule(rule(R://L,B),                rule(R://L),          dep(_,B)?{})   :- !.
-canon_rule(rule(R://L?{Ctx},B),          rule(R://L),          dep(_,B)?Ctx)  :- !.
-canon_rule(assumed(rule(L,B)),           assumed(rule(L)),     dep(_,B)?{})   :- !.
-canon_rule(assumed(rule(L?{Ctx},B)),     assumed(rule(L)),     dep(_,B)?Ctx)  :- !.
-canon_rule(rule(L,B),                    rule(L),              dep(_,B)?{})   :- !.
-canon_rule(rule(L?{Ctx},B),              rule(L),              dep(_,B)?Ctx)  :- !.
-
-
-% =============================================================================
-% Compatibility Layer for list-based I/O
-% =============================================================================
-
-prover:prove_lists(Target,[],ProofList,[],ModelList,[],ConstraintList,[],TriggersList) :-
-  empty_assoc(InProof), empty_assoc(InModel), empty_assoc(InCons), empty_assoc(InTriggers),
-  prover:prove(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers),
-  proof_to_list(OutProof,ProofList),
-  model_to_list(OutModel,ModelList),
-  constraints_to_list(OutCons,ConstraintList),
-  assoc_to_list(OutTriggers, TriggersList).
+prover:canon_rule(assumed(rule(R://L,B)),       assumed(rule(R://L)), dep(_,B)?{})   :- !.
+prover:canon_rule(assumed(rule(R://L?{Ctx},B)), assumed(rule(R://L)), dep(_,B)?Ctx)  :- !.
+prover:canon_rule(rule(R://L,B),                rule(R://L),          dep(_,B)?{})   :- !.
+prover:canon_rule(rule(R://L?{Ctx},B),          rule(R://L),          dep(_,B)?Ctx)  :- !.
+prover:canon_rule(assumed(rule(L,B)),           assumed(rule(L)),     dep(_,B)?{})   :- !.
+prover:canon_rule(assumed(rule(L?{Ctx},B)),     assumed(rule(L)),     dep(_,B)?Ctx)  :- !.
+prover:canon_rule(rule(L,B),                    rule(L),              dep(_,B)?{})   :- !.
+prover:canon_rule(rule(L?{Ctx},B),              rule(L),              dep(_,B)?Ctx)  :- !.
 
 
 % =============================================================================
 %  Helper: AVL assoc convertors
 % =============================================================================
 
-% AVL proof to List proof
-proof_to_list(Assoc, List) :-
+%! prover:proof_to_list(+Assoc, -List)
+%
+% Convert an AVL proof tree to a list.
+
+prover:proof_to_list(Assoc, List) :-
   findall(Full,
           (gen_assoc(Key,Assoc,Value),
-           canon_rule(Full,Key,Value)),
+           prover:canon_rule(Full,Key,Value)),
           List).
 
 
-% AVL model to List model
-model_to_list(Assoc, List) :-
+%! prover:model_to_list(+Assoc, -List)
+%
+% Convert an AVL model tree to a list.
+
+prover:model_to_list(Assoc, List) :-
+  findall(Full,
+          (gen_assoc(Key,Assoc,Value),
+           prover:canon_literal(Full,Key,Value)),
+          List).
+
+
+%! prover:constraints_to_list(+Assoc, -List)
+%
+% Convert an AVL constraints tree to a list.
+
+prover:constraints_to_list(Assoc, List) :-
   findall(Full,
           (gen_assoc(Key,Assoc,Value),
            canon_literal(Full,Key,Value)),
           List).
 
 
-% AVL constraints to List model
-constraints_to_list(Assoc, List) :-
-  findall(Full,
-          (gen_assoc(Key,Assoc,Value),
-           canon_literal(Full,Key,Value)),
-          List).
+%! prover:list_to_proof(+List, -Assoc)
+%
+% Convert a list to an AVL proof tree.
 
-
-% List proof to AVL proof
-list_to_proof(List, Assoc) :-
+prover:list_to_proof(List, Assoc) :-
   empty_assoc(Empty),
-  foldl(add_to_proof, List, Empty, Assoc).
+  foldl(prover:add_to_proof, List, Empty, Assoc).
 
-add_to_proof(Full, InAssoc, OutAssoc) :-
-  canon_rule(Full, Key, Value),
+prover:add_to_proof(Full, InAssoc, OutAssoc) :-
+  prover:canon_rule(Full, Key, Value),
   put_assoc(Key, InAssoc, Value, OutAssoc).
 
 
-% List model to AVL model
-list_to_model(List, Assoc) :-
-  empty_assoc(Empty),
-  foldl(add_to_model, List, Empty, Assoc).
+%! prover:list_to_model(+List, -Assoc)
+%
+% Convert a list to an AVL model tree.
 
-add_to_model(Full, InAssoc, OutAssoc) :-
-  canon_literal(Full, Key, Value),
+prover:list_to_model(List, Assoc) :-
+  empty_assoc(Empty),
+  foldl(prover:add_to_model, List, Empty, Assoc).
+
+prover:add_to_model(Full, InAssoc, OutAssoc) :-
+  prover:canon_literal(Full, Key, Value),
   put_assoc(Key, InAssoc, Value, OutAssoc).
 
 
-% List constraints to AVL constraints
-list_to_constraints(List, Assoc) :-
-  empty_assoc(Empty),
-  foldl(add_to_constraints, List, Empty, Assoc).
+%! prover:list_to_constraints(+List, -Assoc)
+%
+% Convert a list to an AVL constraints tree.
 
-add_to_constraints(Full, InAssoc, OutAssoc) :-
-  canon_literal(Full, Key, Value),
+prover:list_to_constraints(List, Assoc) :-
+  empty_assoc(Empty),
+  foldl(prover:add_to_constraints, List, Empty, Assoc).
+
+prover:add_to_constraints(Full, InAssoc, OutAssoc) :-
+  prover:canon_literal(Full, Key, Value),
   put_assoc(Key, InAssoc, Value, OutAssoc).
 
 
-% Generic list to Generic Assoc, with {} as value
-list_to_assoc(List, Assoc) :-
-  empty_assoc(Empty),
-  foldl(add_to_assoc, List, Empty, Assoc).
+%! prover:list_to_assoc(+List, -Assoc)
+%
+% Convert a list to an AVL tree.
 
-add_to_assoc(Key,InAssoc,OutAssoc) :-
+prover:list_to_assoc(List, Assoc) :-
+  empty_assoc(Empty),
+  foldl(prover:add_to_assoc, List, Empty, Assoc).
+
+prover:add_to_assoc(Key,InAssoc,OutAssoc) :-
   put_assoc(Key,InAssoc,{},OutAssoc).
-
-
-prover:debug :-
-  forall(current_predicate(prover:X),trace(prover:X)).
 
 
 % =============================================================================
