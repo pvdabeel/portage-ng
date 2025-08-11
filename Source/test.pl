@@ -76,7 +76,8 @@ test:cases([overlay://'test01/os-1.0':download?{[]},
             overlay://'test46/app-1.0':run?{[]},
             overlay://'test47/api-docs-1.0':run?{[]},
             overlay://'test48/app-1.0':run?{[]},
-            overlay://'test49/app-1.0':run?{[]}
+            overlay://'test49/app-1.0':run?{[]},
+            overlay://'test50/app-1.0':run?{[]}
             ]).
 
 %test:problem([overlay://'test43/app-1.0':run?{[]}]).
@@ -97,6 +98,9 @@ test:slotreq([overlay://'test41/app-1.0':run?{[]},
               overlay://'test44/app-1.0':run?{[]}]).
 
 test:diamond([overlay://'test45/app-1.0':run?{[]}]).
+
+test:pms([overlay://'test50/app-1.0':run?{[]}]).
+
 
 %test:slow([portage://'dev-erlang/p1_pgsql-1.1.32':run?{[]}]).
 %           portage://'dev-erlang/xmpp-1.10.1':run?{[]}]).
@@ -147,45 +151,51 @@ test:run_single_case(Repo://Id:Action?{Context}) :-
   split_string(Id,'/','',[Category,Package]),
   atomic_list_concat([Repo, Category,Package, Action], '_', TestName),
   atomic_list_concat([Dir, '/Source/Tests/', TestName, '.txt'], FilePath),
-  prover:prove(Case,t,Proof,t,Model,t,Constraints,t,Triggers),         
-  planner:plan(Proof,Triggers,t,Plan),  
   open(FilePath, write, Stream),
-  with_output_to(Stream, 
+  prover:prove(Repo://Id:Action?{Context},t,Proof,t,Model,t,Constraints,t,Triggers),
+  with_output_to(Stream,
        ((writeln(Repo://Id:Action?{Context}),
-        nl,
-        message:color(cyan),
-        writeln('Proof:'),
-        message:color(normal),
-        write_proof(Proof),
-        nl,
-        message:color(cyan),
-        writeln('Model:'),
-        message:color(normal),
-        write_model(Model),
-        nl,
-        message:color(cyan),
-        writeln('Constraints:'),
-        message:color(normal),
-        write_constraints(Constraints),
-        nl,
-        message:color(cyan),
-        writeln('Triggers:'),
-        message:color(normal),
-        write_triggers(Triggers),
-        nl,
-        message:color(cyan),
-        writeln('Plan:'),
-        message:color(normal),
-        write_plan(Plan),
-        nl,
-        printer:print([Case],Model,Proof,Plan));
-       (message:color(red),                                                  
-        message:style(bold),                                                 
-        message:print('false'),nl,                                           
-        message:color(normal),                                               
-        message:style(normal),                                               
-        nl,nl))),    
-  close(Stream).
+         planner:plan(Proof,Triggers,t,Plan),
+         nl,
+         message:color(cyan),
+         writeln('Proof:'),
+         message:color(normal),
+         write_proof(Proof),
+         nl,
+         message:color(cyan),
+         writeln('Model:'),
+         message:color(normal),
+         write_model(Model),
+         nl,
+         message:color(cyan),
+         writeln('Constraints:'),
+         message:color(normal),
+         write_constraints(Constraints),
+         nl,
+         message:color(cyan),
+         writeln('Triggers:'),
+         message:color(normal),
+         write_triggers(Triggers),
+         nl,
+         message:color(cyan),
+         writeln('Plan:'),
+         message:color(normal),
+         write_plan(Plan),
+         nl,
+         printer:print([Repo://Id:Action?{Context}],Model,Proof,Plan));
+        (Failure = true,
+         message:color(red),
+         message:style(bold),
+         message:print('false'),nl,
+         message:color(normal),
+         message:style(normal),
+         nl,nl))),
+  close(Stream),
+  (Failure == true
+   -> message:color(red),message:color(bold),
+      message:print('false'),nl,
+      message:color(normal),message:style(normal),nl,nl
+   ;  (printer:print([Repo://Id:Action?{Context}],Model,Proof,Plan);true)).
 
 
 %! write_proof(+Proof)
@@ -198,7 +208,7 @@ write_proof(Proof) :-
      (write(Key),write(' - '),write(Value),nl)),nl,
   message:color(cyan).
 
-           
+
 %! write_model(+Model)
 %
 % Writes model information to current output
@@ -207,7 +217,7 @@ write_model(Model) :-
   message:color(darkgray),
   forall(gen_assoc(Key,Model,Value),
       (write(Key),write(' - '),write(Value),nl)),nl,
-  message:color(cyan).   
+  message:color(cyan).
 
 
 %! write_constraints(+Constraints)
@@ -239,4 +249,4 @@ write_plan(Plan) :-
   message:color(darkgray),
   forall(member(Step,Plan),
       writeln(Step)),nl,nl,
-  message:color(normal).      
+  message:color(normal).
