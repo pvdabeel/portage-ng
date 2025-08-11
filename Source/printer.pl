@@ -39,7 +39,7 @@ printer:display_state(Target, Proof, Model, Constraints) :-
 
     % proving subtitle
 
-    message:color(yellow), message:style(bold),
+    message:color(orange), message:style(bold),
     format('--- Proving ---~n'),
     message:color(normal), message:style(normal),
     format('  ~w~n~n', [Current]),
