@@ -15,7 +15,7 @@ traversing the ProofAVL directly and fetches rule details from the ProofAVL
 "just-in-time" within the main planning loop.
 */
 
-:- module(planner, [plan/4]).
+:- module(planner, []).
 
 % =============================================================================
 %  PLANNER declarations
