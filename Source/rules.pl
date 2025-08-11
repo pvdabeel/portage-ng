@@ -172,7 +172,7 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   message:debug_write(Repository://Ebuild),
   message:debug_msg(' RUN : computing required_use'),
 
-  query:search(model(required_use(R)):config?{Context},Repository://Ebuild),
+  query:search(model(required_use(R)),Repository://Ebuild),
 
   % 3. Pass use model onto dependencies to calculate corresponding dependency  model,
   %    We pass using config action to avoid package_dependency from generating choices.
