@@ -1,12 +1,13 @@
 /*
+
   Author:   Pieter Van den Abeele
   E-mail:   pvdabeel@mac.com
   Copyright (c) 2005-2025, Pieter Van den Abeele
 
   Distributed under the terms of the LICENSE file in the root directory of this
   project.
-*/
 
+*/
 
 /** <module> TEST
 This module implements a few tests
@@ -102,45 +103,26 @@ test:diamond([overlay://'test45/app-1.0':run?{[]}]).
 
 %test:cow([portage://'kde-frameworks/kglobalaccel-5.116.0-r2':run?{[]}]).
 
+
 %! test:run(+Atom)
 %
-% Runs specific test cases
+% Runs specific test cases and outputs individual results to files in Tests directory
 
 test:run(Cases) :-
+  % Ensure Tests directory exists
+  config:working_dir(Dir),
+  atomic_list_concat([Dir, '/Source/Tests'], TestsDir),
+  (exists_directory(TestsDir) -> true ; make_directory(TestsDir)),
   Inner =.. [Cases,List],
   Outer =.. [:, test, Inner],
   call(Outer),
   forall(member(Case,List),
-         ((
-           writeln(Case),
-           prover:prove(Case,t,Proof,t,Model,t,Constraints,t,Triggers),
-           planner:plan(Proof,Triggers,t,Plan),
-	   message:color(cyan),
-           writeln('Proof:'),
-           message:color(darkgray),forall(gen_assoc(Key,Proof,Value),(write(Key),write(' - '),write(Value),nl)),nl,
-           message:color(cyan),
-           writeln('Model:'),
-           message:color(darkgray),forall(gen_assoc(Key,Model,Value),(write(Key),write(' - '),write(Value),nl)),nl,
-           message:color(cyan),
-           writeln('Constraints:'),
-           message:color(darkgray),forall(gen_assoc(Key,Constraints,Value),(write(Key),write(' - '),write(Value),nl)),nl,
-           message:color(cyan),
-           writeln('Triggers:'),
-           message:color(darkgray),forall(gen_assoc(Key,Triggers,Value),(write(Key),write(' - '),write(Value),nl)),nl,
-           message:color(cyan),
-           writeln('Plan:'),
-           message:color(darkgray),forall(member(Step,Plan),writeln(Step)),nl,nl,
-           message:color(normal),
-           printer:print([Case],Model,Proof,Plan))
- ;
-          (message:color(red),
-           message:style(bold),
-           message:print('false'),nl,
-           message:color(normal),
-           message:style(normal),
-           nl,nl)
-         )).
+         test:run_single_case(Case)).
 
+
+%! test:run(application)
+%
+% Runs application tests
 
 test:run(application) :-
   message:header(['Testing reader: ']),
@@ -153,3 +135,108 @@ test:run(application) :-
   planner:test(portage),nl,
   message:header(['Testing builder: ']),
   builder:test(portage).
+
+
+%! test:run_single_case(+Atom)
+%
+% Runs a single test case and outputs result to file with proper error handling
+
+test:run_single_case(Repo://Id:Action?{Context}) :-
+  writeln(Repo://Id:Action?{Context}),
+  config:working_dir(Dir),
+  split_string(Id,'/','',[Category,Package]),
+  atomic_list_concat([Repo, Category,Package, Action], '_', TestName),
+  atomic_list_concat([Dir, '/Source/Tests/', TestName, '.txt'], FilePath),
+  prover:prove(Case,t,Proof,t,Model,t,Constraints,t,Triggers),         
+  planner:plan(Proof,Triggers,t,Plan),  
+  open(FilePath, write, Stream),
+  with_output_to(Stream, 
+       ((writeln(Repo://Id:Action?{Context}),
+        nl,
+        message:color(cyan),
+        writeln('Proof:'),
+        message:color(normal),
+        write_proof(Proof),
+        nl,
+        message:color(cyan),
+        writeln('Model:'),
+        message:color(normal),
+        write_model(Model),
+        nl,
+        message:color(cyan),
+        writeln('Constraints:'),
+        message:color(normal),
+        write_constraints(Constraints),
+        nl,
+        message:color(cyan),
+        writeln('Triggers:'),
+        message:color(normal),
+        write_triggers(Triggers),
+        nl,
+        message:color(cyan),
+        writeln('Plan:'),
+        message:color(normal),
+        write_plan(Plan),
+        nl,
+        printer:print([Case],Model,Proof,Plan));
+       (message:color(red),                                                  
+        message:style(bold),                                                 
+        message:print('false'),nl,                                           
+        message:color(normal),                                               
+        message:style(normal),                                               
+        nl,nl))),    
+  close(Stream).
+
+
+%! write_proof(+Proof)
+%
+% Writes proof information to current output
+
+write_proof(Proof) :-
+  message:color(darkgray),
+  forall(gen_assoc(Key,Proof,Value),
+     (write(Key),write(' - '),write(Value),nl)),nl,
+  message:color(cyan).
+
+           
+%! write_model(+Model)
+%
+% Writes model information to current output
+
+write_model(Model) :-
+  message:color(darkgray),
+  forall(gen_assoc(Key,Model,Value),
+      (write(Key),write(' - '),write(Value),nl)),nl,
+  message:color(cyan).   
+
+
+%! write_constraints(+Constraints)
+%
+% Writes constraints information to current output
+
+write_constraints(Constraints) :-
+  message:color(darkgray),
+  forall(gen_assoc(Key,Constraints,Value),
+       (write(Key),write(' - '),write(Value),nl)),nl,
+  message:color(cyan).
+
+%! write_triggers(+Triggers)
+%
+% Writes triggers information to current output
+
+write_triggers(Triggers) :-
+  message:color(darkgray),
+  forall(gen_assoc(Key,Triggers,Value),
+      (write(Key),write(' - '),write(Value),nl)),nl,
+  message:color(cyan).
+
+
+%! write_plan(+Plan)
+%
+% Writes plan information to current output
+
+write_plan(Plan) :-
+  message:color(darkgray),
+  forall(member(Step,Plan),
+      writeln(Step)),nl,nl,
+  message:color(normal).      
