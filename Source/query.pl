@@ -589,18 +589,21 @@ compile_query_compound(all(dependency(D,fetchonly)):A?{C}, Repo://Id,
 
 % 10. some model queries are rewritten
 
-% Contextualized required_use model - filters models based on context
-compile_query_compound(model(required_use(Model)):config?{Context}, Repo://Id,
-  ( findall(ReqUse:config?{Context},
+compile_query_compound(model(FullModel,required_use(Model),build_with_use(Input)), Repo://Id,
+  ( findall(ReqUse,
             cache:entry_metadata(Repo,Id,required_use,ReqUse),
             AllReqUse),
-    prover:prove_recursive(AllReqUse,t,_,t,AvlModel,t,_,t,_),
+    prover:prove_recursive(AllReqUse,t,AvlProof,t,AvlModel,t,_,t,_),
+    prover:prove_recursive(Input,AvlProof,_,AvlModel,AvlFullModel,t,_,t,_),
     findall(Key,
-            (gen_assoc(Key,AvlModel,_Value),
+            (gen_assoc(Key,AvlModel,_),
    	     \+eapi:abstract_syntax_construct(Key)),
-            Model) ) ) :- !.
+            Model),
+    findall(Key,
+            (gen_assoc(Key,AvlFullModel,_),
+   	     \+eapi:abstract_syntax_construct(Key)),
+            FullModel)) ) :- !.
 
-% Non-contextualized required_use model (for backward compatibility)
 compile_query_compound(model(required_use(Model)), Repo://Id,
   ( findall(ReqUse,
             cache:entry_metadata(Repo,Id,required_use,ReqUse),
