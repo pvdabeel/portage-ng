@@ -30,8 +30,6 @@ This file contains domain-specific rules
 
 rule(Repository://Ebuild:download?{_},[]) :-
   !,
-  message:debug_write(Repository://Ebuild),
-  message:debug_msg(' DOWNLOAD: finished'),
   query:search(ebuild(Ebuild),Repository://Ebuild).
 
 
@@ -54,7 +52,7 @@ rule(Repository://Ebuild:download?{_},[]) :-
 % We don't trigger downloads for virtual, acct-group or acct-user, since they
 % don't have any downloads.
 
-rule(Repository://Ebuild:fetchonly?{_Context},Conditions) :-
+rule(Repository://Ebuild:fetchonly?{_Context},Conditions) :- % todo: to update in line with new :install and :run rules
   !,
   query:search(masked(true),   Repository://Ebuild) -> Conditions = [] ;
   query:search(installed(true),Repository://Ebuild) -> \+preference:flag(emptytree), Conditions = [] ;
@@ -81,8 +79,8 @@ rule(Repository://Ebuild:fetchonly?{_Context},Conditions) :-
                   constraint(slot(C,N,S):{Ebuild})
                   |D];
     Conditions = [constraint(use(Repository://Ebuild):{R}),
-                  Repository://Ebuild:download?{R},
-                  constraint(slot(C,N,S):{Ebuild})
+                  constraint(slot(C,N,S):{Ebuild}),
+                  Repository://Ebuild:download?{R}
                   |D] ).
 
 
@@ -102,10 +100,10 @@ rule(Repository://Ebuild:fetchonly?{_Context},Conditions) :-
 %
 % We don't trigger downloads for virtual, acct-group or acct-user.
 
-rule(Repository://Ebuild:install?{R},Conditions) :-
+rule(Repository://Ebuild:install?{Context},Conditions) :-
   !,
   query:search(masked(true),   Repository://Ebuild) -> Conditions = [] ;
-  query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) -> Conditions = [] ;
+  query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) -> Conditions = [] ; % todo check new build_with_use requirements
 
   % 1. Get some metadata we need further down
 
@@ -113,36 +111,28 @@ rule(Repository://Ebuild:install?{R},Conditions) :-
   cache:entry_metadata(Repository,Ebuild,slot,S),
 
   % 2. Compute required_use stable model, if not already passed on by run
+  %    Extend with build_with_use requirements 
 
-  %(Context == []
-  % -> query:search(model(required_use(R)),Repository://Ebuild)
-  % ;  R = Context ),
+  (memberchk(build_with_use(B),Context) -> true ; B = []),
+  (memberchk(required_use(R),Context) -> true ; true), 
+  query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
 
   % 3. Pass use model onto dependencies to calculate corresponding dependency  model,
   %    We pass using config action to avoid package_dependency from generating choices.
   %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
   %    all_of_group ... choice point generation
 
-  message:debug_write(Repository://Ebuild),
-  message:debug_msg(' INSTALL : computing install dependency model using context passed from RUN'),
-
-  query:memoized_search(model(dependency(D,install)):config?{R},Repository://Ebuild),
+  query:memoized_search(model(dependency(D,install)):config?{Model},Repository://Ebuild),
 
   % 4. Pass on relevant package dependencies and constraints to prover
-
-  message:debug_write(Repository://Ebuild),
-  message:debug_msg(' INSTALL : record required_use as global constraint, push download record slot as global constraint, handle install dependencies'),
-
-  message:debug_write(Repository://Ebuild),
-  message:debug_msg(' INSTALL : next up download, install and run dependencies. (ignoring constraints)'),
 
   ( memberchk(C,['virtual','acct-group','acct-user'])
     -> Conditions = [ constraint(use(Repository://Ebuild):{R}),
                       constraint(slot(C,N,S):{Ebuild})
                       |D]
     ;  Conditions = [ constraint(use(Repository://Ebuild):{R}),
-                      Repository://Ebuild:download?{R},
-                      constraint(slot(C,N,S):{Ebuild})
+                      constraint(slot(C,N,S):{Ebuild}),
+                      Repository://Ebuild:download?{[required_use(R),build_with_use(B)]}
                       |D] ).
 
 
@@ -156,38 +146,40 @@ rule(Repository://Ebuild:install?{R},Conditions) :-
 % or:
 %
 % - if it is installed and if its runtime dependencies are satisfied
+%
+% Accepted in context:
+%
+% - build_with_use(B)
+
 
 rule(Repository://Ebuild:run?{Context},Conditions) :-
   !,
+  % 0. Check if the ebuild is masked or installed
+
   query:search(masked(true),   Repository://Ebuild) -> Conditions = [] ;
-  query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) -> (config:avoid_reinstall(true) -> Conditions = [] ; Conditions = [Repository://Ebuild:reinstall?{Context}]) ;
+  query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) -> (config:avoid_reinstall(true) -> Conditions = [] ; Conditions = [Repository://Ebuild:reinstall?{Context}]) ; % todo check new build_with_use requirements
 
   % 1. Get some metadata we need further down
 
-  % cache:ordered_entry(Repository,Ebuild,C,N,_),
-  % cache:entry_metadata(Repository,Ebuild,slot,S),
+  cache:ordered_entry(Repository,Ebuild,C,N,_),
+  cache:entry_metadata(Repository,Ebuild,slot,S),
 
-  % 2. Compute required_use stable model
+  % 2. Compute required_use stable model, extend with build_with_use requirements
 
-  message:debug_write(Repository://Ebuild),
-  message:debug_msg(' RUN : computing required_use'),
+  (memberchk(build_with_use(B),Context) -> true ; B = []),
 
-  query:search(model(required_use(R)),Repository://Ebuild),
+  query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
 
   % 3. Pass use model onto dependencies to calculate corresponding dependency  model,
   %    We pass using config action to avoid package_dependency from generating choices.
   %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
   %    all_of_group ... choice point generation
 
-  message:debug_write(Repository://Ebuild),
-  message:debug_msg(' RUN : computing run dependency model'),
+  query:memoized_search(model(dependency(D,run)):config?{Model},Repository://Ebuild),
 
-  query:memoized_search(model(dependency(D,run)):config?{R},Repository://Ebuild),
-
-  message:debug_write(Repository://Ebuild),
-  message:debug_msg(' RUN : next up: install + run deps'),
-
-  Conditions = [Repository://Ebuild:install?{R}|D].
+  Conditions = [constraint(use(Repository://Ebuild):{R}),
+                constraint(slot(C,N,S):{Ebuild}),
+                Repository://Ebuild:install?{[required_use(R),build_with_use(B),slot(C,N,S):{Ebuild}]}|D].
 
 
 % -----------------------------------------------------------------------------
@@ -314,7 +306,7 @@ rule(package_dependency(_,no,_,_,_,_,_,_),[]) :- !.
 
 
 % =============================================================================
-%  Rule: Package dependencies (REFACTORED)
+%  Rule: Package dependencies
 % =============================================================================
 
 rule(package_dependency(_,no,C,N,O,V,S,U):Action?{Context}, Conditions) :-
@@ -328,39 +320,25 @@ rule(package_dependency(_,no,C,N,O,V,S,U):Action?{Context}, Conditions) :-
     %cache:entry_metadata(Repository, Ebuild, keywords, K)
   ->
     % THEN: Succeed immediately with no further conditions.
-    message:debug_msg('PACKDEP ~s (confirmed : already installed)', [Action]),
     !,
     Conditions = []
 
   ; % ELSE: Proceed with the general resolution logic.
     (
-      message:debug_msg('PACKDEP ~s (checking : general case)', [Action]),
       preference:accept_keywords(K),
       (memberchk(slot(C,N,Ss):{_}, Context) -> true ; true),
       query:search([name(N),category(C),keyword(K),select(version,O,V),select(slot,constraint(S),Ss)], FoundRepo://Candidate)
     ->
       % THEN: If a candidate is found...
-      message:debug_msg('PACKDEP ~s (confirmed : general case)', [Action]),
-      message:debug_msg(' - Candidate   : ~w', [Candidate]),
-
-      message:debug_msg('PACKDEP Preparing context for forwarding'),
-      message:debug_msg(' - context: ~w', [Context]),
-      message:debug_msg(' - slotreq: ~w', [S]),
-      message:debug_msg(' - slot   : ~w', [Ss]),
 
       process_build_with_use(U,Context,NewContext,Constraints,FoundRepo://Candidate),
-      message:debug_msg('PACKDEP process use  : ~w', [NewContext]),
       process_slot(S,Ss,C,N,FoundRepo://Candidate,NewContext,NewerContext),
-      message:debug_msg('PACKDEP process slot : ~w', [NewerContext]),
 
       % Add build_with_use constraints to Conditions
       append(Constraints, [FoundRepo://Candidate:Action?{NewerContext}], AllConditions),
-      Conditions = AllConditions,
-      message:debug_msg('PACKDEP Candidate Conditions: ~w', [Conditions])
+      Conditions = AllConditions
 
     ; % ELSE: If no candidate can be found, assume it's non-existent.
-      message:debug_msg('PACKDEP ~s (checking : non-existent)', [Action]),
-      message:debug_msg('PACKDEP ~s (assumed : non-existent)', [Action]),
       Conditions = [assumed(package_dependency(Action,no,C,N,O,V,S,U):Action?{Context})]
     )
   ).
@@ -377,7 +355,6 @@ rule(package_dependency(_,no,C,N,O,V,S,U):Action?{Context}, Conditions) :-
 
 rule(use_conditional_group(positive,Use,_R://_E,Deps):Action?{Context},Conditions) :-
   memberchk(assumed(Use),Context),!,
-  %write('Context use found: '),write(Use),nl,
   findall(D:Action?{Context},member(D,Deps),Conditions).
 
 % 2. The USE is explicitely enabled, either by preference or ebuild -> process deps
