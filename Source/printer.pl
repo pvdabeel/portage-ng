@@ -35,15 +35,17 @@ printer:display_state(Target, Proof, Model, Constraints) :-
     prover:model_to_list(Model,ModelList),
     prover:constraints_to_list(Constraints,ConstraintList),
 
-    tty_clear,
+    message:hl,
+
+    %tty_clear,
 
     % proving subtitle
 
     message:color(orange), message:style(bold),
     format('--- Proving ---~n'),
     message:color(normal), message:style(normal),
-    format('  ~w~n~n', [Current]),
-
+    format('  ~w~n~n', [Current]).
+/*
     % proving stack subtitle
 
     message:color(magenta), message:style(bold),
@@ -81,10 +83,10 @@ printer:display_state(Target, Proof, Model, Constraints) :-
     message:color(normal), message:style(normal),
 
     ( ConstraintList  == [] -> writeln('  (empty)')
-    ; forall(member(M, ConstraintList), ( format('  ~w~n', [M]) ))),
+    ; forall(member(M, ConstraintList), ( format('  ~w~n', [M]) ))).
 
-    wait_for_input.
-
+%    wait_for_input.
+*/
 
 % Helper to wait for the user to press Enter.
 printer:wait_for_input :-
