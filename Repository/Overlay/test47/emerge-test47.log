@@ -1,0 +1,24 @@
+
+[32mThese are the packages that would be merged, in order:[39;49;00m
+
+Calculating dependencies  ... done!
+Dependency resolution took [32m0.88[39;49;00m s (backtrack: 1/20).
+
+
+
+[[36mnomerge      [39;49;00m ] [36mtest47/api-docs-1.0::gentoo[39;49;00m 
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ]  [32mtest47/app-server-1.0::gentoo[39;49;00m  0 KiB
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ]   [32mtest47/app-client-1.0::gentoo[39;49;00m  0 KiB
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ]    [32mtest47/api-docs-1.0::gentoo[39;49;00m  0 KiB
+
+Total: 3 packages (3 new), Size of downloads: 0 KiB
+
+[31;01m * [39;49;00mError: circular dependencies:
+
+([32mtest47/app-server-1.0:0/0::gentoo[39;49;00m, ebuild scheduled for merge) depends on
+ ([32mtest47/app-client-1.0:0/0::gentoo[39;49;00m, ebuild scheduled for merge) (runtime)
+  ([32mtest47/api-docs-1.0:0/0::gentoo[39;49;00m, ebuild scheduled for merge) (buildtime)
+   ([32mtest47/app-server-1.0:0/0::gentoo[39;49;00m, ebuild scheduled for merge) (runtime)
+
+[31;01m * [39;49;00mNote that circular dependencies can often be avoided by temporarily
+[31;01m * [39;49;00mdisabling USE flags that trigger optional dependencies.

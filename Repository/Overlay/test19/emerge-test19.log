@@ -1,0 +1,16 @@
+
+[32mThese are the packages that would be merged, in order:[39;49;00m
+
+Calculating dependencies  ... done!
+Dependency resolution took [32m0.91[39;49;00m s (backtrack: 1/20).
+
+
+!!! [31;01mAll ebuilds that could satisfy [39;49;00m[32m"test19/os"[39;49;00m[31;01m have been masked.[39;49;00m
+!!! One of the following masked packages is required to complete your request:
+- test19/os-1.0::gentoo (masked by: invalid: DEPEND: Invalid atom (^^), token 1, invalid: RDEPEND: Invalid atom (^^), token 1)
+
+(dependency required by "[32mtest19/web-1.0::gentoo[39;49;00m" [ebuild])
+(dependency required by "[32mtest19/web[39;49;00m" [argument])
+For more information, see the MASKED PACKAGES section in the emerge
+man page or refer to the Gentoo Handbook.
+

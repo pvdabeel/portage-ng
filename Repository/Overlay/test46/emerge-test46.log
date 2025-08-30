@@ -1,0 +1,17 @@
+
+[32mThese are the packages that would be merged, in order:[39;49;00m
+
+Calculating dependencies  ... done!
+Dependency resolution took [32m0.40[39;49;00m s (backtrack: 0/20).
+
+
+!!! [31;01mThe ebuild selected to satisfy [39;49;00m[32m"test46/core-utils[-feature_x]"[39;49;00m[31;01m has unmet requirements.[39;49;00m
+- test46/core-utils-1.0::gentoo USE="[34;01m-feature_x[39;49;00m [34;01m-feature_y[39;49;00m"
+
+  The following REQUIRED_USE flag constraints are unsatisfied:
+    exactly-one-of ( feature_x feature_y )
+
+(dependency required by "[32mtest46/libd-1.0::gentoo[39;49;00m" [ebuild])
+(dependency required by "[32mtest46/libb-1.0::gentoo[39;49;00m" [ebuild])
+(dependency required by "[32mtest46/app-1.0::gentoo[39;49;00m" [ebuild])
+(dependency required by "[32mtest46/app[39;49;00m" [argument])

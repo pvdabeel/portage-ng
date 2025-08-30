@@ -1,0 +1,14 @@
+
+[32mThese are the packages that would be merged, in order:[39;49;00m
+
+Calculating dependencies  ... done!
+Dependency resolution took [32m0.40[39;49;00m s (backtrack: 0/20).
+
+
+!!! [31;01mAll ebuilds that could satisfy [39;49;00m[32m"test40/os"[39;49;00m[31;01m have been masked.[39;49;00m
+!!! One of the following masked packages is required to complete your request:
+- test40/os-1.0::gentoo (masked by: invalid: REQUIRED_USE set, but EAPI='0' doesn't allow it)
+
+For more information, see the MASKED PACKAGES section in the emerge
+man page or refer to the Gentoo Handbook.
+

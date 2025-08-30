@@ -1,0 +1,13 @@
+
+[32mThese are the packages that would be merged, in order:[39;49;00m
+
+Calculating dependencies  ... done!
+Dependency resolution took [32m0.62[39;49;00m s (backtrack: 0/20).
+
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest21/linux-1.0::gentoo[39;49;00m  0 KiB
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest21/os-1.0::gentoo[39;49;00m  0 KiB
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest21/db-1.0::gentoo[39;49;00m  0 KiB
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest21/app-1.0::gentoo[39;49;00m  0 KiB
+[[32;01mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32;01mtest21/web-1.0::gentoo[39;49;00m  0 KiB
+
+Total: 5 packages (5 new), Size of downloads: 0 KiB

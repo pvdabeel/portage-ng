@@ -1,0 +1,11 @@
+
+[32mThese are the packages that would be merged, in order:[39;49;00m
+
+Calculating dependencies  ... done!
+Dependency resolution took [32m0.60[39;49;00m s (backtrack: 0/20).
+
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest50/bar-1.0::gentoo[39;49;00m  0 KiB
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest50/foo-1.0::gentoo[39;49;00m  0 KiB
+[[32;01mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32;01mtest50/app-1.0::gentoo[39;49;00m  0 KiB
+
+Total: 3 packages (3 new), Size of downloads: 0 KiB

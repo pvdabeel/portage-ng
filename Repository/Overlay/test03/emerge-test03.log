@@ -1,0 +1,22 @@
+
+[32mThese are the packages that would be merged, in order:[39;49;00m
+
+Calculating dependencies  ... done!
+Dependency resolution took [32m0.88[39;49;00m s (backtrack: 1/20).
+
+
+
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest03/web-1.0::gentoo[39;49;00m  0 KiB
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ]  [32mtest03/app-1.0::gentoo[39;49;00m  0 KiB
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ]   [32mtest03/db-1.0::gentoo[39;49;00m  0 KiB
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ]    [32mtest03/os-1.0::gentoo[39;49;00m  0 KiB
+
+Total: 4 packages (4 new), Size of downloads: 0 KiB
+
+[31;01m * [39;49;00mError: circular dependencies:
+
+([32mtest03/os-1.0:0/0::gentoo[39;49;00m, ebuild scheduled for merge) depends on
+ ([32mtest03/os-1.0:0/0::gentoo[39;49;00m, ebuild scheduled for merge) (buildtime)
+
+[31;01m * [39;49;00mNote that circular dependencies can often be avoided by temporarily
+[31;01m * [39;49;00mdisabling USE flags that trigger optional dependencies.

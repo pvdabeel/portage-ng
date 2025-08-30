@@ -1,0 +1,13 @@
+
+[32mThese are the packages that would be merged, in order:[39;49;00m
+
+Calculating dependencies  
+!!! 'test51/app' has a category that is not listed in /etc/portage/categories
+... done!
+Dependency resolution took [32m0.39[39;49;00m s (backtrack: 0/20).
+
+
+emerge: there are no ebuilds to satisfy [32;01m"test51/app"[39;49;00m.
+
+emerge: searching for similar names...
+emerge: Maybe you meant any of these: test50/app, test45/app, test41/app?

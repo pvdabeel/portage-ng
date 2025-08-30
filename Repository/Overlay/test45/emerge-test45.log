@@ -1,0 +1,23 @@
+
+[32mThese are the packages that would be merged, in order:[39;49;00m
+
+Calculating dependencies  ... done!
+Dependency resolution took [32m0.41[39;49;00m s (backtrack: 0/20).
+
+
+The following [31;01mUSE changes[39;49;00m are necessary to proceed:
+ (see "package.use" in the portage(5) man page for more details)
+# required by test45/libb-1.0::gentoo
+# required by test45/app-1.0::gentoo
+# required by test45/app (argument)
+[32m>=test45/os-1.0 darwin linux[39;49;00m
+
+!!! [31;01mThe ebuild selected to satisfy [39;49;00m[32m"test45/os[linux]"[39;49;00m[31;01m has unmet requirements.[39;49;00m
+- test45/os-1.0::gentoo USE="[34;01m-darwin[39;49;00m [34;01m-linux[39;49;00m"
+
+  The following REQUIRED_USE flag constraints are unsatisfied:
+    exactly-one-of ( linux darwin )
+
+(dependency required by "[32mtest45/liba-1.0::gentoo[39;49;00m" [ebuild])
+(dependency required by "[32mtest45/app-1.0::gentoo[39;49;00m" [ebuild])
+(dependency required by "[32mtest45/app[39;49;00m" [argument])

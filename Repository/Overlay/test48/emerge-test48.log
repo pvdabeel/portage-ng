@@ -1,0 +1,40 @@
+
+[32mThese are the packages that would be merged, in order:[39;49;00m
+
+Calculating dependencies  ..... done!
+Dependency resolution took [32m3.48[39;49;00m s (backtrack: 6/20).
+
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest48/libmatrix-1.1:1/B::gentoo[39;49;00m  0 KiB
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest48/libmatrix-1.0:1/A::gentoo[39;49;00m  0 KiB
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest48/libgraphics-1.0::gentoo[39;49;00m  0 KiB
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest48/libphysics-1.0::gentoo[39;49;00m  0 KiB
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest48/app-1.0::gentoo[39;49;00m  0 KiB
+
+Total: 5 packages (5 new), Size of downloads: 0 KiB
+
+!!! Multiple package instances within a single package slot have been pulled
+!!! into the dependency graph, resulting in a slot conflict:
+
+test48/libmatrix:1
+
+  ([32mtest48/libmatrix-1.1:1/B::gentoo[39;49;00m, ebuild scheduled for merge) USE="" pulled in by
+    [31;01m=[39;49;00mtest48/libmatrix-[31;01m1.1[39;49;00m[31;01m:1/B[39;49;00m required by ([32mtest48/libphysics-1.0:0/0::gentoo[39;49;00m, ebuild scheduled for merge) USE=""
+    ^                 ^^^^^^^                                                                                                                                                             
+
+  ([32mtest48/libmatrix-1.0:1/A::gentoo[39;49;00m, ebuild scheduled for merge) USE="" pulled in by
+    [31;01m=[39;49;00mtest48/libmatrix-[31;01m1.0[39;49;00m[31;01m:1/A[39;49;00m required by ([32mtest48/libgraphics-1.0:0/0::gentoo[39;49;00m, ebuild scheduled for merge) USE=""
+    ^                 ^^^^^^^                                                                                                                                                              
+
+
+It may be possible to solve this problem by using package.mask to
+prevent one of those packages from being selected. However, it is also
+possible that conflicting dependencies exist such that they are
+impossible to satisfy simultaneously.  If such a conflict exists in
+the dependencies of two different packages, then those packages can
+not be installed simultaneously. You may want to try a larger value of
+the --backtrack option, such as --backtrack=30, in order to see if
+that will solve this conflict automatically.
+
+For more information, see MASKED PACKAGES section in the emerge man
+page or refer to the Gentoo Handbook.
+
