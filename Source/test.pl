@@ -23,12 +23,7 @@ This module implements a few tests
 %
 % Declares a list of cases
 
-test:cases([overlay://'test01/os-1.0':download?{[]},
-            overlay://'test01/os-1.0':install?{[]},
-            overlay://'test01/os-1.0':run?{[]},
-            overlay://'test01/app-1.0':download?{[]},
-            overlay://'test01/app-1.0':install?{[]},
-            overlay://'test01/web-1.0':run?{[]},
+test:cases([overlay://'test01/web-1.0':run?{[]},
             overlay://'test02/web-2.0':run?{[]},
             overlay://'test03/web-1.0':run?{[]},
             overlay://'test04/web-1.0':run?{[]},
@@ -80,13 +75,12 @@ test:cases([overlay://'test01/os-1.0':download?{[]},
             overlay://'test50/app-1.0':run?{[]}
             ]).
 
-%test:problem([overlay://'test43/app-1.0':run?{[]}]).
+test:basics([overlay://'test01/os-1.0':download?{[]},
+             overlay://'test01/os-1.0':install?{[]},
+             overlay://'test01/os-1.0':run?{[]},
+             overlay://'test01/app-1.0':download?{[]},
+             overlay://'test01/app-1.0':install?{[]}]).
 
-%test:problem([portage://'app-containers/apptainer-1.4.1':run?{[]}]).
-
-%test:problem([overlay://'test09/os-1.0':run?{[]},
-%              overlay://'test10/os-1.0':run?{[]},
-%              overlay://'test11/os-1.0':run?{[]}]).
 
 test:problem([portage://'app-backup/backuppc-4.4.0-r3':run?{[]},
               portage://'dev-libs/glib-2.84.0':run?{[]},
@@ -101,13 +95,11 @@ test:diamond([overlay://'test45/app-1.0':run?{[]}]).
 
 test:pms([overlay://'test50/app-1.0':run?{[]}]).
 
-
 test:simple([overlay://'test51/app-1.0':install?{[]}]).
 
 %test:slow([portage://'dev-erlang/p1_pgsql-1.1.32':run?{[]}]).
 %           portage://'dev-erlang/xmpp-1.10.1':run?{[]}]).
 
-%test:cow([portage://'kde-frameworks/kglobalaccel-5.116.0-r2':run?{[]}]).
 
 
 %! test:run(+Atom)
@@ -151,6 +143,9 @@ test:run_single_case(Repo://Id:Action?{Context}) :-
   writeln(Repo://Id:Action?{Context}),
   config:working_dir(Dir),
   split_string(Id,'/','',[Category,Package]),
+  Repo:get_location(RepoLoc),
+  atomic_list_concat([RepoLoc,'/',Category,'/description.txt'],Description),
+  atomic_list_concat([RepoLoc,'/',Category,'/emerge-',Category,'.log'],EmergeLog),
   atomic_list_concat([Repo, Category,Package, Action], '_', TestName),
   atomic_list_concat([Dir, '/Source/Tests/', TestName, '.txt'], FilePath),
   open(FilePath, write, Stream),
@@ -197,8 +192,24 @@ test:run_single_case(Repo://Id:Action?{Context}) :-
    -> message:color(red),message:color(bold),
       message:print('false'),nl,
       message:color(normal),message:style(normal),nl,nl,true
-   ;  (printer:print([Repo://Id:Action?{Context}],Model,Proof,Plan);true)).
+   ;  (message:hl,message:color(cyan),
+       test:write_description(Description),
+       message:color(normal),message:hl,
+       printer:print([Repo://Id:Action?{Context}],Model,Proof,Plan),
+       message:header('Gentoo emerge output:'),
+       test:write_description(EmergeLog),nl,nl;true)).
 
+
+%! write_description(+File)
+%
+% Writes description to current output
+
+write_description(File) :-
+    setup_call_cleanup(
+        open(File, read, In),
+        copy_stream_data(In, user_output),
+        close(In)
+    ).
 
 %! write_proof(+Proof)
 %
