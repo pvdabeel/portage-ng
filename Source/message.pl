@@ -35,44 +35,44 @@ This file contains the predicates used for pretty printing messages.
 
 % Debug message with single argument
 user:goal_expansion(debug_msg(Msg), Expanded) :-
-    current_prolog_flag(debug, true) -> 
+    current_prolog_flag(debug, true) ->
         Expanded = (message:label(debug), format(Msg, []), nl)
-    ;   
+    ;
         Expanded = true.
 
 % Debug message with format and arguments
 user:goal_expansion(debug_msg(Fmt, Args), Expanded) :-
-    current_prolog_flag(debug, true) -> 
+    current_prolog_flag(debug, true) ->
         Expanded = (message:label(debug), format(Fmt, Args), nl)
-    ;   
+    ;
         Expanded = true.
 
 % Debug message with write (for complex terms)
 user:goal_expansion(debug_write(Term), Expanded) :-
-    current_prolog_flag(debug, true) -> 
+    current_prolog_flag(debug, true) ->
         Expanded = (message:label(debug), write(Term))
-    ;   
+    ;
         Expanded = true.
 
 % Debug message with writeln (for complex terms with newline)
 user:goal_expansion(debug_writeln(Term), Expanded) :-
-    current_prolog_flag(debug, true) -> 
+    current_prolog_flag(debug, true) ->
         Expanded = (message:label(debug), write(Term), nl)
-    ;   
+    ;
         Expanded = true.
 
 % Debug message with custom label
 user:goal_expansion(debug_msg(Label, Msg), Expanded) :-
-    current_prolog_flag(debug, true) -> 
+    current_prolog_flag(debug, true) ->
         Expanded = (message:label(debug), format('~s: ', [Label]), format(Msg, []), nl)
-    ;   
+    ;
         Expanded = true.
 
 % Debug message with custom label and format arguments
 user:goal_expansion(debug_msg(Label, Fmt, Args), Expanded) :-
-    current_prolog_flag(debug, true) -> 
+    current_prolog_flag(debug, true) ->
         Expanded = (message:label(debug), format('~s: ', [Label]), format(Fmt, Args), nl)
-    ;   
+    ;
         Expanded = true.
 
 message:color(_).
@@ -378,7 +378,7 @@ hl :-
 message:enable_debug :-
     set_prolog_flag(debug, true).
 
-%! message:disable_debug  
+%! message:disable_debug
 % Disable debug mode by removing the debug flag
 message:disable_debug :-
     set_prolog_flag(debug, false).
