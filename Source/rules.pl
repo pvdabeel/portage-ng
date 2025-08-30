@@ -111,11 +111,11 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
   cache:entry_metadata(Repository,Ebuild,slot,S),
 
   % 2. Compute required_use stable model, if not already passed on by run
-  %    Extend with build_with_use requirements 
+  %    Extend with build_with_use requirements
 
   (memberchk(build_with_use(B),Context) -> true ; B = []),
-  (memberchk(required_use(R),Context) -> true ; true), 
-  query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
+  (memberchk(required_use(R),Context) -> true ; true),
+  query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild) ->
 
   % 3. Pass use model onto dependencies to calculate corresponding dependency  model,
   %    We pass using config action to avoid package_dependency from generating choices.
@@ -133,7 +133,9 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
     ;  Conditions = [ constraint(use(Repository://Ebuild):{R}),
                       constraint(slot(C,N,S):{Ebuild}),
                       Repository://Ebuild:download?{[required_use(R),build_with_use(B)]}
-                      |D] ).
+                      |D] )
+
+  ; Conditions = [assumed(Repository://Ebuild:install?{Context})].
 
 
 % -----------------------------------------------------------------------------
@@ -525,16 +527,16 @@ rule(blocking(Use),[assumed(conflict(blocking,Use))]) :-
   \+Use =.. [minus,_],
   preference:use(Use),!.
 
-rule(blocking(minus(Use)),[assumed(conflict(blocking,minus(Use)))]) :-
+rule(blocking(minus(Use)),[assumed(conflict(blocking,minus(Use)))]) :- % test needed
   \+Use =.. [minus,_],
   preference:use(minus(Use)),!.
 
-rule(blocking(minus(Use)),[assumed(minus(Use))]) :-
+rule(blocking(minus(Use)),[assumed(minus(Use)),naf(required(Use))]) :- % this doesnet make sense I think)
   \+Use =.. [minus,_],
   \+preference:use(Use),
   \+preference:use(minus(Use)),!.
 
-rule(blocking(Use),[assumed(minus(Use))]) :-
+rule(blocking(Use),[assumed(minus(Use)),naf(required(Use))]) :-
   \+Use =.. [minus,_],
   \+preference:use(Use),
   \+preference:use(minus(Use)),!.
@@ -548,9 +550,6 @@ rule(blocking(Use),[assumed(minus(Use))]) :-
 
 rule(assumed(_),[]) :- !.
 
-% Constraints:
-
-rule(constraint(_),[]) :- !.
 
 % Negation as failure:
 
@@ -656,32 +655,40 @@ process_slot(_, Slot, C, N, Candidate, Context, [slot(C, N, Slot):{Candidate}|Co
 % constraints that should be added to the global constraint list.
 
 % Main predicate using foldl/4 to process USE directives.
-process_build_with_use(Directives, Context, Result, Conditions, Candidate) :-
+process_build_with_use(Directives, Context, [build_with_use(Result)], Conditions, Candidate) :-
     foldl(process_use(Context), Directives, [], Result),
     build_with_use_constraints(Directives, Conditions, Candidate).
 
 % Helper predicate to generate build_with_use constraints
 % Collects all USE requirements into a single list to avoid data duplication
-build_with_use_constraints([], [], _).
+build_with_use_constraints([], [], _) :- !.
 build_with_use_constraints(Directives, [constraint(use(Candidate):{UseRequirements})], Candidate) :-
     collect_use_requirements(Directives, UseRequirements).
 
 % Helper predicate to collect all USE requirements into a single list
 collect_use_requirements([], []).
 collect_use_requirements([use(enable(Use), _)|Rest], [required(Use)|RestRequirements]) :-
+    !,
     collect_use_requirements(Rest, RestRequirements).
 collect_use_requirements([use(disable(Use), _)|Rest], [naf(required(Use))|RestRequirements]) :-
+    !,
     collect_use_requirements(Rest, RestRequirements).
 collect_use_requirements([use(equal(Use), _)|Rest], [required(Use)|RestRequirements]) :-
+    !,
     collect_use_requirements(Rest, RestRequirements).
 collect_use_requirements([use(inverse(Use), _)|Rest], [naf(required(Use))|RestRequirements]) :-
+    !,
     collect_use_requirements(Rest, RestRequirements).
 collect_use_requirements([use(optenable(Use), _)|Rest], [required(Use)|RestRequirements]) :-
+    !,
     collect_use_requirements(Rest, RestRequirements).
 collect_use_requirements([use(optdisable(Use), _)|Rest], [naf(required(Use))|RestRequirements]) :-
+    !,
     collect_use_requirements(Rest, RestRequirements).
 collect_use_requirements([_|Rest], RestRequirements) :-
+    !,
     collect_use_requirements(Rest, RestRequirements).
+
 
 % Helper predicate for foldl/4.
 % It processes a single USE directive.
@@ -694,28 +701,30 @@ process_use(_Context, use(disable(Use), _), Acc, [naf(required(Use)), assumed(mi
 
 % Handles [opt=] - The flag must be enabled if enabled in the parent, disabled otherwise.
 process_use(Context, use(equal(Use), _), Acc, [required(Use), assumed(Use)|Acc]) :-
-    memberchk(assumed(Use), Context), !.
+    memberchk(assumed(Use), Context), !.								% this is broken, there is parent use info (i think)?
 process_use(Context, use(equal(Use), _), Acc, [naf(required(Use)), assumed(minus(Use))|Acc]) :-
-    \+ memberchk(assumed(Use), Context).
+    \+ memberchk(assumed(Use), Context).								% item
 
 % Handles [!opt=] - The flag must be disabled if enabled in the parent, enabled otherwise.
 process_use(Context, use(inverse(Use), _), Acc, [naf(required(Use)), assumed(minus(Use))|Acc]) :-
-    memberchk(assumed(Use), Context), !.
+    memberchk(assumed(Use), Context), !.								% idem
 process_use(Context, use(inverse(Use), _), Acc, [required(Use), assumed(Use)|Acc]) :-
     \+ memberchk(assumed(Use), Context).
 
 % Handles [opt?] - The flag must be enabled if enabled in the parent.
 process_use(Context, use(optenable(Use), _), Acc, [required(Use), assumed(Use)|Acc]) :-
-    (memberchk(assumed(Use), Context); preference:use(Use)), !.
+    (memberchk(assumed(Use), Context); preference:use(Use)), !.						% idem
 process_use(_Context, use(optenable(_Use), _), Acc, Acc).
 
 % Handles [!opt?] - The flag must be disabled if disabled in the parent.
 process_use(Context, use(optdisable(Use), _), Acc, [naf(required(Use)), assumed(minus(Use))|Acc]) :-
-    (memberchk(assumed(minus(Use)), Context); preference:use(minus(Use))), !.
+    (memberchk(assumed(minus(Use)), Context); preference:use(minus(Use))), !.				% idem
 process_use(_Context, use(optdisable(_Use), _), Acc, Acc).
 
 % 4-style USE dependency defaults
 % These are consulted when the conditional dependency is on a flag not in the parent's context.
+
+% todo: this seems duplicate?
 
 % For [opt=](+) or [!opt=](+)
 process_use(_Context, use(equal(Use), positive), Acc, [required(Use), assumed(Use)|Acc]).
