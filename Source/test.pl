@@ -102,6 +102,8 @@ test:diamond([overlay://'test45/app-1.0':run?{[]}]).
 test:pms([overlay://'test50/app-1.0':run?{[]}]).
 
 
+test:simple([overlay://'test51/app-1.0':install?{[]}]).
+
 %test:slow([portage://'dev-erlang/p1_pgsql-1.1.32':run?{[]}]).
 %           portage://'dev-erlang/xmpp-1.10.1':run?{[]}]).
 
@@ -121,7 +123,7 @@ test:run(Cases) :-
   Outer =.. [:, test, Inner],
   call(Outer),
   forall(member(Case,List),
-         test:run_single_case(Case)).
+         (test:run_single_case(Case);true)).
 
 
 %! test:run(application)
@@ -194,7 +196,7 @@ test:run_single_case(Repo://Id:Action?{Context}) :-
   (Failure == true
    -> message:color(red),message:color(bold),
       message:print('false'),nl,
-      message:color(normal),message:style(normal),nl,nl
+      message:color(normal),message:style(normal),nl,nl,true
    ;  (printer:print([Repo://Id:Action?{Context}],Model,Proof,Plan);true)).
 
 
