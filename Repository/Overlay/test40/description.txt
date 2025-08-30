@@ -1,0 +1,15 @@
+Test Case: test40
+Organization:
+- os-1.0: A single package with a REQUIRED_USE constraint.
+
+Dependency Graph:
+- os-1.0 has IUSE="linux darwin".
+- os-1.0 has REQUIRED_USE="|| ( linux darwin )".
+
+What is being tested:
+This test case checks the prover's ability to handle a REQUIRED_USE 'any-of' (||) constraint on a standalone package. To install 'os-1.0', the user or the configuration must ensure that at least one of the 'linux' or 'darwin' USE flags is enabled.
+
+Expected Outcome:
+- If the prover is run for 'os-1.0' and the configuration provides either USE="linux" or USE="darwin", the proof should be valid.
+- If no configuration is provided, the prover should make a choice and enable one of the flags to satisfy the constraint, resulting in a valid proof.
+- If the configuration explicitly disables both (e.g., USE="-linux -darwin"), the proof should fail.

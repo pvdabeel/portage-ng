@@ -1,0 +1,16 @@
+Test Case: test21
+Organization:
+- app-1.0: Main application.
+- os-1.0: An operating system meta-package.
+- linux-1.0, bsd-1.0, windows-1.0: Concrete OS choices.
+- db-1.0, web-1.0: Other packages.
+
+Dependency Graph:
+- app-1.0 -> os-1.0
+- os-1.0 (runtime) -> || ( test21/linux test21/bsd test21/windows )
+
+What is being tested:
+This is a variation of test20, with the 'any-of' dependency group in the runtime scope (RDEPEND).
+
+Expected Outcome:
+The prover should handle the runtime choice group correctly, select one of the OS options, and generate a valid proof.

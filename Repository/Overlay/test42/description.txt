@@ -1,0 +1,14 @@
+Test Case: test42
+Organization:
+- app-1.0: An application that depends on any slot of a package.
+- lib-1.0: A library in slot "1".
+- lib-2.0: A newer version of the library in slot "2".
+
+Dependency Graph:
+- app-1.0 -> test42/lib:*
+
+What is being tested:
+This test case checks the prover's behavior with a wildcard slot dependency. 'app-1.0' requires 'lib', but it doesn't care which slot is used.
+
+Expected Outcome:
+Given the choice between two valid slots, the prover should follow the default behavior of picking the latest version, which is 'lib-2.0' in slot "2". The proof should be valid.

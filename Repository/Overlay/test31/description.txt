@@ -1,0 +1,16 @@
+Test Case: test31
+Organization:
+- app-1.0: Main application.
+- os-1.0: An operating system meta-package.
+- linux-1.0, bsd-1.0, windows-1.0: Concrete OS choices.
+- db-1.0, web-1.0: Other packages.
+
+Dependency Graph:
+- app-1.0 -> os-1.0
+- os-1.0 -> || ( test31/linux test31/bsd test31/windows )
+
+What is being tested:
+This test case is a duplicate of test20. It evaluates the prover's handling of an 'any-of' dependency group (||). The 'os-1.0' package requires that at least one of the three OS packages be installed.
+
+Expected Outcome:
+The prover should recognize the choice and select one of the available options to satisfy the dependency. Since there are no other constraints, any of the three choices should lead to a valid proof.

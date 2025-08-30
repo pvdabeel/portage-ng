@@ -1,0 +1,15 @@
+Test Case: test50
+Organization:
+- app-1.0: Top-level application.
+- foo-1.0: A compile-time dependency for app-1.0.
+- bar-1.0: A runtime dependency for foo-1.0.
+
+Dependency Graph:
+- app-1.0 (compile) -> foo-1.0
+- foo-1.0 (runtime) -> bar-1.0
+
+What is being tested:
+This test case examines the prover's handling of transitive dependencies, specifically how a runtime dependency of a compile-time dependency is treated. 'app-1.0' needs 'foo-1.0' to build. 'foo-1.0' itself needs 'bar-1.0' to run.
+
+Expected Outcome:
+When proving for 'app-1.0', the prover should correctly identify that both 'foo-1.0' and 'bar-1.0' need to be installed. The proof should be valid, and the installation plan should include all three packages in the correct order (bar, foo, app).

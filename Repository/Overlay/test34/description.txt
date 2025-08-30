@@ -1,0 +1,14 @@
+Test Case: test34
+Organization:
+- app-1.0: An application that requires a USE flag to be disabled.
+- os-1.0: A package that provides the USE flag.
+
+Dependency Graph:
+- app-1.0 -> test34/os[-linux]
+- os-1.0 has IUSE="linux darwin".
+
+What is being tested:
+This test case is the inverse of test33. It checks the handling of a negative USE dependency. The 'app-1.0' package requires that 'os-1.0' be built with the 'linux' USE flag disabled.
+
+Expected Outcome:
+The prover must ensure the 'linux' flag is disabled for 'os-1.0'. The proof should be valid, showing that 'os-1.0' is built with USE="-linux".

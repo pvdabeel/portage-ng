@@ -1,0 +1,17 @@
+Test Case: test22
+Organization:
+- app-1.0: Main application.
+- os-1.0: An operating system meta-package.
+- linux-1.0, bsd-1.0, windows-1.0: Concrete OS choices.
+- db-1.0, web-1.0: Other packages.
+
+Dependency Graph:
+- app-1.0 -> os-1.0
+- os-1.0 (compile) -> || ( test22/linux test22/bsd test22/windows )
+- os-1.0 (runtime) -> || ( test22/linux test22/bsd test22/windows )
+
+What is being tested:
+This test case combines test20 and test21. The 'os-1.0' package has the same 'any-of' choice group in both its compile-time and runtime dependencies.
+
+Expected Outcome:
+The prover can choose any of the OS packages to satisfy the compile-time dependency and any of the OS packages to satisfy the runtime dependency. They do not have to be the same. The proof should be valid.

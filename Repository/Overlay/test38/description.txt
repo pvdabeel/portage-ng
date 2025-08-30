@@ -1,0 +1,16 @@
+Test Case: test38
+Organization:
+- app-1.0: An application with a weak conditional USE dependency.
+- os-1.0: A package that provides the USE flag.
+
+Dependency Graph:
+- app-1.0 has IUSE="linux".
+- app-1.0 DEPEND="test38/os[linux?]"
+
+What is being tested:
+This test case checks the handling of a weak USE dependency. The dependency `os[linux?]` means that 'os-1.0' will have the 'linux' flag enabled *only if* 'app-1.0' also has the 'linux' flag enabled. It does not force the flag to be enabled on 'app-1.0'.
+
+Expected Outcome:
+- If 'app-1.0' is proven with USE="linux", the prover should enforce USE="linux" on 'os-1.0'.
+- If 'app-1.0' is proven with USE="-linux", the 'linux' flag on 'os-1.0' is not constrained by this dependency and can be either on or off (defaulting to off).
+The proof should be valid in both scenarios.

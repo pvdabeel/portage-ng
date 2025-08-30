@@ -1,0 +1,17 @@
+Test Case: test19
+Organization:
+- app-1.0: Main application.
+- os-1.0: An operating system meta-package.
+- linux-1.0, bsd-1.0, windows-1.0: Concrete OS choices.
+- db-1.0, web-1.0: Other packages.
+
+Dependency Graph:
+- app-1.0 -> os-1.0
+- os-1.0 (compile) -> ^^ ( test19/linux test19/bsd test19/windows )
+- os-1.0 (runtime) -> ^^ ( test19/linux test19/bsd test19/windows )
+
+What is being tested:
+This test case combines test17 and test18. The 'os-1.0' package has the same 'exactly-one-of' choice group in both its compile-time and runtime dependencies.
+
+Expected Outcome:
+The prover should select a single OS package that satisfies both the compile-time and runtime requirements. For example, if it chooses 'linux-1.0' for the compile dependency, it must also use 'linux-1.0' for the runtime dependency. The proof should be valid.

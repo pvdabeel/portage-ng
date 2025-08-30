@@ -1,0 +1,17 @@
+Test Case: test04
+Organization:
+- app-1.0: The main application package.
+- db-1.0: A database package.
+- os-1.0: An operating system package.
+- web-1.0: A web server package (not involved in the dependency cycle).
+
+Dependency Graph:
+- app-1.0 -> db-1.0, os-1.0
+- db-1.0 -> os-1.0
+- os-1.0 (runtime) -> os-1.0 (Circular Dependency)
+
+What is being tested:
+This test case is similar to test03 but checks for a circular dependency in the runtime phase (RDEPEND). The 'os-1.0' package lists itself as a runtime dependency. While a package can depend on itself at compile time (a self-hosting compiler, for example), a runtime circular dependency is generally unresolvable.
+
+Expected Outcome:
+The prover should identify the circular runtime dependency and fail to produce a valid installation proof.

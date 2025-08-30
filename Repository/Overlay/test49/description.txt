@@ -1,0 +1,14 @@
+Test Case: test49 - USE Default vs. REQUIRED_USE Conflict
+Organization:
+- app-1.0: An application that suggests a USE flag default.
+- libhelper-1.0: A library with a strict REQUIRED_USE constraint.
+
+Dependency Graph:
+- app-1.0 -> test49/libhelper[feature_z(+)] (Suggests enabling feature_z by default)
+- libhelper-1.0 has REQUIRED_USE="!feature_z" (Forbids feature_z)
+
+What is being tested:
+This test case checks the prover's ability to handle a conflict between a "soft" USE flag suggestion from a dependency and a "hard" REQUIRED_USE constraint in the target package. The `(+)` syntax is a default and should be overridden by the stricter `REQUIRED_USE`.
+
+Expected Outcome:
+The prover should recognize that the dependency from 'app-1.0' attempts to enable a USE flag that is explicitly forbidden by 'libhelper-1.0'. The hard constraint of REQUIRED_USE must take precedence, leading to an unresolvable conflict. The prover should fail to find a valid proof.

@@ -1,0 +1,18 @@
+Test Case: test45
+Organization:
+- app-1.0: The main package to be installed.
+- liba-1.0: A dependency of app-1.0.
+- libb-1.0: A dependency of app-1.0.
+- os-1.0: A dependency for both liba-1.0 and libb-1.0.
+
+Dependency Graph:
+- app-1.0 -> liba-1.0
+- app-1.0 -> libb-1.0
+- liba-1.0 -> os-1.0[linux]
+- libb-1.0 -> os-1.0[darwin]
+
+What is being tested:
+This test case checks the prover's ability to detect a direct and irreconcilable USE flag conflict. The 'os' package has a REQUIRED_USE constraint of "^^ ( linux darwin )", meaning exactly one of those USE flags must be enabled. However, the dependency graph requires both to be enabled simultaneously to satisfy liba and libb.
+
+Expected Outcome:
+The prover should correctly identify the conflict and fail to produce a valid installation proof. There is no possible configuration of USE flags that can satisfy these dependencies.

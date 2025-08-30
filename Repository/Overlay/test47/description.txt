@@ -1,0 +1,16 @@
+Test Case: test47
+Organization:
+- app-client-1.0: A client application.
+- app-server-1.0: A server application.
+- api-docs-1.0: A documentation package.
+
+Dependency Graph:
+- app-client-1.0 (compile) -> api-docs-1.0
+- api-docs-1.0 (runtime) -> app-server-1.0
+- app-server-1.0 (runtime) -> app-client-1.0 (Circular Dependency)
+
+What is being tested:
+This test case presents a more complex, three-way circular dependency. The client needs the docs to build, the docs need the server to run, and the server needs the client to run. This creates a loop that cannot be resolved.
+
+Expected Outcome:
+The prover should be able to trace the dependency chain through all three packages and identify the circular dependency, causing the proof to fail.

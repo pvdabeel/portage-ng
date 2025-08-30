@@ -1,0 +1,19 @@
+Test Case: test02
+Organization:
+- Multiple versions of four packages: app, db, os, and web (1.0 and 2.0 for each).
+
+Dependency Graph (for the latest 2.0 versions):
+- app-2.0 (compile) -> test02/os
+- app-2.0 (runtime) -> test02/db, test02/os
+- db-2.0 (compile) -> test02/os
+- db-2.0 (runtime) -> test02/os
+- web-2.0 has no dependencies.
+- os-2.0 has no dependencies.
+
+The 1.0 versions have a similar structure.
+
+What is being tested:
+This test case assesses the prover's ability to perform correct version resolution in a scenario where multiple, simple package versions are available. With no other constraints, the prover is expected to follow the default behavior of selecting the latest available version for each package in the dependency graph.
+
+Expected Outcome:
+The prover should successfully generate an installation proof that exclusively uses the latest (2.0) versions of app, db, and os. The final installation plan should be for app-2.0, db-2.0, and os-2.0.

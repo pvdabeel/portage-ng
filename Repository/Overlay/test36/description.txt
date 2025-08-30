@@ -1,0 +1,17 @@
+Test Case: test36
+Organization:
+- app-1.0: Top-level application.
+- lib-1.0: A library dependency.
+- os-1.0: A base OS package.
+
+Dependency Graph:
+- app-1.0 has IUSE="linux".
+- app-1.0 DEPEND="test36/lib[linux=]"
+- lib-1.0 has IUSE="linux".
+- lib-1.0 DEPEND="test36/os[linux=]"
+
+What is being tested:
+This test case examines the prover's ability to propagate a conditional USE flag requirement down a dependency chain. The USE="linux" setting on 'app-1.0' should flow down to 'lib-1.0', which in turn should flow down to 'os-1.0'.
+
+Expected Outcome:
+If 'app-1.0' is proven with USE="linux", the prover should enforce USE="linux" on both 'lib-1.0' and 'os-1.0'. Conversely, if 'app-1.0' has USE="-linux", that requirement should also propagate down the chain. The proof should be valid in both scenarios.

@@ -1,0 +1,17 @@
+Test Case: test15
+Organization:
+- app-1.0: Main application with a negative conditional dependency.
+- lib-1.0: An optional library.
+- db-1.0, os-1.0, web-1.0: Other standard packages.
+
+Dependency Graph:
+- app-1.0 has IUSE="nolib".
+- app-1.0 DEPEND="test15/os !nolib? ( test15/lib )"
+- The dependency on lib-1.0 is active only if the 'nolib' USE flag is DISABLED.
+
+What is being tested:
+This test case is similar to test14 but uses a negative USE conditional. The dependency is triggered by the absence of a USE flag.
+
+Expected Outcome:
+- If the 'nolib' flag is enabled for app-1.0, the proof should succeed without pulling in 'lib-1.0'.
+- If the 'nolib' flag is not set (i.e., disabled by default), the proof should succeed and correctly include 'lib-1.0' as a dependency.

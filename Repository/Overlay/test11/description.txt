@@ -1,0 +1,18 @@
+Test Case: test11
+Organization:
+- app-1.0: The main application package.
+- db-1.0: A database package.
+- os-1.0: An operating system package.
+- web-1.0: A web server package.
+
+Dependency Graph:
+- app-1.0 -> db-1.0, os-1.0
+- db-1.0 -> os-1.0
+- os-1.0 (compile) -> test11/notexists (Missing Dependency)
+- os-1.0 (runtime) -> test11/notexists (Missing Dependency)
+
+What is being tested:
+This test case combines test09 and test10. The 'os-1.0' package has both a compile-time and a runtime dependency on the non-existent 'test11/notexists' package.
+
+Expected Outcome:
+The prover should fail because it cannot find the 'notexists' package. It should correctly identify the missing dependency in both scopes.

@@ -1,0 +1,17 @@
+Test Case: test25
+Organization:
+- app-1.0: Main application.
+- os-1.0: An operating system meta-package.
+- linux-1.0, bsd-1.0, windows-1.0: Concrete OS choices.
+- db-1.0, web-1.0: Other packages.
+
+Dependency Graph:
+- app-1.0 -> os-1.0
+- os-1.0 (compile) -> ?? ( test25/linux test25/bsd test25/windows )
+- os-1.0 (runtime) -> ?? ( test25/linux test25/bsd test25/windows )
+
+What is being tested:
+This test case combines test23 and test24. The 'os-1.0' package has the same 'at-most-one-of' choice group in both its compile-time and runtime dependencies.
+
+Expected Outcome:
+The prover should resolve both dependencies by choosing to install none of the optional packages, as this is the simplest valid solution. The proof should be valid.

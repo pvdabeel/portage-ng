@@ -1,0 +1,17 @@
+Test Case: test10
+Organization:
+- app-1.0: The main application package.
+- db-1.0: A database package.
+- os-1.0: An operating system package.
+- web-1.0: A web server package.
+
+Dependency Graph:
+- app-1.0 -> db-1.0, os-1.0
+- db-1.0 -> os-1.0
+- os-1.0 (runtime) -> test10/notexists (Missing Dependency)
+
+What is being tested:
+This is a variation of test09. It checks for a missing dependency, but this time in the runtime (RDEPEND) scope. The 'os-1.0' package requires 'test10/notexists' to run.
+
+Expected Outcome:
+The prover should fail to find the 'notexists' package and report the missing runtime dependency, leading to a failed proof.

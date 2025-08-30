@@ -1,2 +1,20 @@
-test46: Double Diamond USE Conflict
-This tests the prover's ability to trace a USE flag contradiction through multiple dependency layers.
+Test Case: test46 - Double Diamond USE Conflict
+Organization:
+- app-1.0: The main application.
+- liba-1.0 & libb-1.0: The first layer of dependencies.
+- libc-1.0 & libd-1.0: The second layer of dependencies.
+- core-utils-1.0: A shared, low-level dependency.
+
+Dependency Graph:
+- app-1.0 -> liba-1.0
+- app-1.0 -> libb-1.0
+- liba-1.0 -> libc-1.0
+- libb-1.0 -> libd-1.0
+- libc-1.0 -> core-utils-1.0[feature_x]  (Requires feature_x)
+- libd-1.0 -> core-utils-1.0[-feature_x] (Requires -feature_x)
+
+What is being tested:
+This test case is designed to assess the prover's ability to detect a USE flag conflict that is hidden several layers deep in the dependency graph. The two main dependency branches ('liba' and 'libb') converge on 'core-utils' with contradictory requirements for the 'feature_x' USE flag.
+
+Expected Outcome:
+The prover must trace the entire dependency tree and identify that 'core-utils' is required with both 'feature_x' enabled and disabled simultaneously. As this is a logical contradiction, the prover should fail to produce a valid installation proof.

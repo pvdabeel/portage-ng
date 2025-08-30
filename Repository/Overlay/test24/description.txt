@@ -1,0 +1,16 @@
+Test Case: test24
+Organization:
+- app-1.0: Main application.
+- os-1.0: An operating system meta-package.
+- linux-1.0, bsd-1.0, windows-1.0: Concrete OS choices.
+- db-1.0, web-1.0: Other packages.
+
+Dependency Graph:
+- app-1.0 -> os-1.0
+- os-1.0 (runtime) -> ?? ( test24/linux test24/bsd test24/windows )
+
+What is being tested:
+This is a variation of test23, with the 'at-most-one-of' dependency group in the runtime scope (RDEPEND).
+
+Expected Outcome:
+The prover should satisfy the runtime dependency by choosing to install none of the optional OS packages. The proof should be valid.

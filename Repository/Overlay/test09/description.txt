@@ -1,0 +1,17 @@
+Test Case: test09
+Organization:
+- app-1.0: The main application package.
+- db-1.0: A database package.
+- os-1.0: An operating system package.
+- web-1.0: A web server package.
+
+Dependency Graph:
+- app-1.0 -> db-1.0, os-1.0
+- db-1.0 -> os-1.0
+- os-1.0 -> test09/notexists (Missing Dependency)
+
+What is being tested:
+This test case checks the prover's ability to handle a missing dependency. The 'os-1.0' package depends on 'test09/notexists', which is not a real package available in the repository.
+
+Expected Outcome:
+The prover should fail to find a candidate for the 'notexists' package and report that the dependency cannot be satisfied. This should result in a failed proof.

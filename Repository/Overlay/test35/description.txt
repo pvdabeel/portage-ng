@@ -1,0 +1,16 @@
+Test Case: test35
+Organization:
+- app-1.0: An application with a conditional USE dependency.
+- os-1.0: A package that provides the USE flag.
+
+Dependency Graph:
+- app-1.0 has IUSE="linux".
+- app-1.0 DEPEND="test35/os[linux=]"
+
+What is being tested:
+This test case checks the handling of conditional USE propagation. The dependency `os[linux=]` means that if 'app-1.0' is built with USE="linux", then 'os-1.0' must also be built with USE="linux". If 'app-1.0' is built with USE="-linux", then 'os-1.0' must be built with USE="-linux".
+
+Expected Outcome:
+- If 'app-1.0' is proven with USE="linux", the prover should enforce USE="linux" on 'os-1.0'.
+- If 'app-1.0' is proven with USE="-linux" (or it's disabled by default), the prover should enforce USE="-linux" on 'os-1.0'.
+In both cases, the proof should be valid.

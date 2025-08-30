@@ -1,0 +1,14 @@
+Test Case: test12
+Organization:
+- Multiple versions of four packages: app, db, os, and web (1.0 and 2.0 for each).
+- The 2.0 versions of all packages have unstable keywords (e.g., ~amd64), while the 1.0 versions are stable.
+
+Dependency Graph (for app-1.0):
+- app-1.0 -> test12/db, test12/os
+- db-1.0 -> test12/os
+
+What is being tested:
+This test case examines the prover's handling of package keywords and stability. The latest (2.0) versions of the packages are marked as unstable. Without a specific configuration to accept these unstable keywords, the package manager should not select them.
+
+Expected Outcome:
+Assuming a default configuration that only allows stable packages, the prover should reject the 2.0 versions and instead resolve the dependencies using the stable 1.0 versions. The final proof should be for app-1.0, db-1.0, and os-1.0.

@@ -1,0 +1,17 @@
+Test Case: test16
+Organization:
+- app-1.0: The main application package.
+- db-1.0: A database package.
+- os-1.0: An operating system package.
+- web-1.0: A web server package.
+
+Dependency Graph:
+- app-1.0 -> db-1.0, os-1.0
+- db-1.0 -> os-1.0
+- os-1.0 has no dependencies.
+
+What is being tested:
+This test case is a basic sanity check, structurally identical to test01. It ensures the prover can solve a simple, valid dependency graph with both compile-time and runtime dependencies.
+
+Expected Outcome:
+The prover should successfully resolve the dependencies and generate a valid proof for the installation of app-1.0, db-1.0, and os-1.0 in the correct order.

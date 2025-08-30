@@ -1,0 +1,18 @@
+Test Case: test48 - Slotting Conflict
+Organization:
+- app-1.0: The main application.
+- libgraphics-1.0: A graphics library.
+- libphysics-1.0: A physics library.
+- libmatrix-1.0 & libmatrix-1.1: Two versions of a matrix library in conflicting slots.
+
+Dependency Graph:
+- app-1.0 -> libgraphics-1.0
+- app-1.0 -> libphysics-1.0
+- libgraphics-1.0 -> =test48/libmatrix-1.0:1/A (Requires libmatrix in slot 1, sub-slot A)
+- libphysics-1.0 -> =test48/libmatrix-1.1:1/B (Requires libmatrix in slot 1, sub-slot B)
+
+What is being tested:
+This test case checks the prover's ability to detect a slotting conflict. The two main dependencies, 'libgraphics' and 'libphysics', require different versions of 'libmatrix' to be installed into the same slot ('1'). A package slot can only be occupied by one version at a time.
+
+Expected Outcome:
+The prover should identify that the dependencies for 'app-1.0' lead to a request to install two different packages ('libmatrix-1.0' and 'libmatrix-1.1') into the same slot. This is an impossible condition, so the prover must fail to find a valid proof.

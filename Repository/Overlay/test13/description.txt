@@ -1,0 +1,14 @@
+Test Case: test13
+Organization:
+- Multiple versions of four packages: app, db, os, and web (1.0 and 2.0 for each).
+
+Dependency Graph:
+- app-2.0 -> =test13/db-2.0, test13/os
+- db-2.0 -> test13/os
+- os-2.0 has no dependencies.
+
+What is being tested:
+This test case introduces a specific version constraint. The 'app-2.0' package explicitly requires 'db-2.0' (using the '=' operator), even though a 'db-1.0' is also available.
+
+Expected Outcome:
+The prover must respect the version constraint. It should select 'db-2.0' and then proceed to resolve the rest of the dependencies, selecting the latest available versions for other packages like 'os-2.0'. The final proof should be for app-2.0, db-2.0, and os-2.0.

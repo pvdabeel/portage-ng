@@ -1,0 +1,15 @@
+Test Case: test43
+Organization:
+- app-1.0: An application with a slot-equality dependency.
+- lib-1.0: A library in slot "1".
+- lib-2.0: A newer version of the library in slot "2".
+
+Dependency Graph:
+- app-1.0 (compile) -> test43/lib
+- app-1.0 (runtime) -> test43/lib:=
+
+What is being tested:
+This test case examines the slot equality operator (:=). 'app-1.0' depends on 'lib' at compile time. The prover will choose the latest version, 'lib-2.0'. The runtime dependency then requires that the same slot ('2') be used.
+
+Expected Outcome:
+The prover should first resolve the compile dependency to 'lib-2.0'. Then, when resolving the runtime dependency, it must choose a package from the same slot, which is 'lib-2.0'. The proof should be valid.
