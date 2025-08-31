@@ -108,6 +108,7 @@ test:simple([overlay://'test51/app-1.0':install?{[]}]).
 
 test:run(Cases) :-
   % Ensure Tests directory exists
+  retractall(test:failed(_)),
   config:working_dir(Dir),
   atomic_list_concat([Dir, '/Source/Tests'], TestsDir),
   (exists_directory(TestsDir) -> true ; make_directory(TestsDir)),
@@ -115,7 +116,17 @@ test:run(Cases) :-
   Outer =.. [:, test, Inner],
   call(Outer),
   forall(member(Case,List),
-         (test:run_single_case(Case);true)).
+         (test:run_single_case(Case);
+          assertz(test:failed(Case)),
+          message:color(red),message:color(bold),
+          message:print('false'),nl,
+          message:color(normal),message:style(normal),nl,nl)),
+  message:color(red),message:color(bold),
+  nl,nl,
+  message:print('The following test cases failed:'),nl,nl,
+  forall(test:failed(Case),
+         (write(' * '),writeln(Case))),
+  message:color(normal),message:style(normal),nl,nl.
 
 
 %! test:run(application)
