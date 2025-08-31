@@ -1,13 +1,21 @@
 
 [32mThese are the packages that would be merged, in order:[39;49;00m
 
-Calculating dependencies  
-!!! 'test51/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took [32m0.40[39;49;00m s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took [32m0.64[39;49;00m s (backtrack: 0/20).
 
 
-emerge: there are no ebuilds to satisfy [32;01m"test51/app"[39;49;00m.
+The following [31;01mUSE changes[39;49;00m are necessary to proceed:
+ (see "package.use" in the portage(5) man page for more details)
+# required by test51/app-1.0::gentoo
+# required by test51/app (argument)
+[32m>=test51/os-1.0 linux[39;49;00m
 
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test50/app, test45/app, test41/app?
+!!! [31;01mThe ebuild selected to satisfy [39;49;00m[32m"test51/os[linux]"[39;49;00m[31;01m has unmet requirements.[39;49;00m
+- test51/os-1.0::gentoo USE="[34;01m-linux[39;49;00m"
+
+  The following REQUIRED_USE flag constraints are unsatisfied:
+    !linux
+
+(dependency required by "[32mtest51/app-1.0::gentoo[39;49;00m" [ebuild])
+(dependency required by "[32mtest51/app[39;49;00m" [argument])
