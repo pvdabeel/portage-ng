@@ -2,7 +2,7 @@
 [32mThese are the packages that would be merged, in order:[39;49;00m
 
 Calculating dependencies  ... done!
-Dependency resolution took [32m0.91[39;49;00m s (backtrack: 1/20).
+Dependency resolution took [32m1.26[39;49;00m s (backtrack: 1/20).
 
 
 !!! [31;01mAll ebuilds that could satisfy [39;49;00m[32m"test19/os"[39;49;00m[31;01m have been masked.[39;49;00m

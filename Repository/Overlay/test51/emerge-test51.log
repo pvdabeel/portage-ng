@@ -4,7 +4,7 @@
 Calculating dependencies  
 !!! 'test51/app' has a category that is not listed in /etc/portage/categories
 ... done!
-Dependency resolution took [32m0.39[39;49;00m s (backtrack: 0/20).
+Dependency resolution took [32m0.40[39;49;00m s (backtrack: 0/20).
 
 
 emerge: there are no ebuilds to satisfy [32;01m"test51/app"[39;49;00m.

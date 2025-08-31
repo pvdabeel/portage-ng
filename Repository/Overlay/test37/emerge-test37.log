@@ -1,8 +1,8 @@
 
 [32mThese are the packages that would be merged, in order:[39;49;00m
 
-Calculating dependencies  ... done!
-Dependency resolution took [32m0.61[39;49;00m s (backtrack: 0/20).
+Calculating dependencies  .... done!
+Dependency resolution took [32m0.85[39;49;00m s (backtrack: 0/20).
 
 [[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest37/os-1.0::gentoo[39;49;00m  USE="[31;01mlinux[39;49;00m [34;01m-darwin[39;49;00m" 0 KiB
 [[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest37/app-1.0::gentoo[39;49;00m  USE="[34;01m-linux[39;49;00m" 0 KiB

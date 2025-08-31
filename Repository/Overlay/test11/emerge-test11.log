@@ -2,7 +2,7 @@
 [32mThese are the packages that would be merged, in order:[39;49;00m
 
 Calculating dependencies  ... done!
-Dependency resolution took [32m0.90[39;49;00m s (backtrack: 1/20).
+Dependency resolution took [32m1.02[39;49;00m s (backtrack: 1/20).
 
 
 emerge: there are no ebuilds to satisfy [32;01m"test11/notexists"[39;49;00m.
