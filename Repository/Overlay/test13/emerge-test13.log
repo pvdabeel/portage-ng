@@ -2,7 +2,7 @@
 [32mThese are the packages that would be merged, in order:[39;49;00m
 
 Calculating dependencies  ... done!
-Dependency resolution took [32m1.07[39;49;00m s (backtrack: 0/20).
+Dependency resolution took [32m0.59[39;49;00m s (backtrack: 0/20).
 
 [[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest13/os-2.0::gentoo[39;49;00m  0 KiB
 [[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest13/db-2.0::gentoo[39;49;00m  0 KiB

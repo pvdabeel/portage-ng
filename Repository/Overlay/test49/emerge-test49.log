@@ -2,15 +2,20 @@
 [32mThese are the packages that would be merged, in order:[39;49;00m
 
 Calculating dependencies  ... done!
-Dependency resolution took [32m1.14[39;49;00m s (backtrack: 1/20).
+Dependency resolution took [32m1.00[39;49;00m s (backtrack: 0/20).
 
 
-!!! [31;01mAll ebuilds that could satisfy [39;49;00m[32m"test49/libhelper[feature_z(+)]"[39;49;00m[31;01m have been masked.[39;49;00m
-!!! One of the following masked packages is required to complete your request:
-- test49/libhelper-1.0::gentoo (masked by: invalid: REQUIRED_USE: USE flag 'feature_z' is not in IUSE)
+The following [31;01mUSE changes[39;49;00m are necessary to proceed:
+ (see "package.use" in the portage(5) man page for more details)
+# required by test49/app-1.0::gentoo
+# required by test49/app (argument)
+[32m>=test49/libhelper-1.0 feature_z[39;49;00m
+
+!!! [31;01mThe ebuild selected to satisfy [39;49;00m[32m"test49/libhelper[feature_z(+)]"[39;49;00m[31;01m has unmet requirements.[39;49;00m
+- test49/libhelper-1.0::gentoo USE="[34;01m-feature_z[39;49;00m"
+
+  The following REQUIRED_USE flag constraints are unsatisfied:
+    !feature_z
 
 (dependency required by "[32mtest49/app-1.0::gentoo[39;49;00m" [ebuild])
 (dependency required by "[32mtest49/app[39;49;00m" [argument])
-For more information, see the MASKED PACKAGES section in the emerge
-man page or refer to the Gentoo Handbook.
-

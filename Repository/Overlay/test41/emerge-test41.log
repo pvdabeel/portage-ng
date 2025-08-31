@@ -1,23 +1,8 @@
 
 [32mThese are the packages that would be merged, in order:[39;49;00m
 
-Calculating dependencies  /usr/portage/test41/lib/lib-2.0.ebuild: line 27: unexpected EOF while looking for matching `"'
-
-Messages for package [32mtest41/lib-2.0::gentoo[0m:
- [31;01m*[0m ERROR: test41/lib-2.0::gentoo failed (depend phase):
- [31;01m*[0m   error sourcing ebuild
- [31;01m*[0m 
- [31;01m*[0m Call stack:
- [31;01m*[0m   ebuild.sh, line 625:  Called die
- [31;01m*[0m The specific snippet of code:
- [31;01m*[0m   			source "${EBUILD}" || die "error sourcing ebuild"
- [31;01m*[0m 
- [31;01m*[0m If you need support, post the output of `emerge --info '=test41/lib-2.0::gentoo'`,
- [31;01m*[0m the complete build log and the output of `emerge -pqv '=test41/lib-2.0::gentoo'`.
- [31;01m*[0m Working directory: '/usr/lib/python3.13/site-packages'
- [31;01m*[0m S: '/var/tmp/portage/test41/lib-2.0/work/lib-2.0'
-... done!
-Dependency resolution took [32m0.96[39;49;00m s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took [32m0.60[39;49;00m s (backtrack: 0/20).
 
 [[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest41/lib-1.0:1::gentoo[39;49;00m  0 KiB
 [[32;01mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32;01mtest41/app-1.0::gentoo[39;49;00m  0 KiB

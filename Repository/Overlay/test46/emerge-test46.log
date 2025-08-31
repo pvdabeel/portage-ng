@@ -2,7 +2,7 @@
 [32mThese are the packages that would be merged, in order:[39;49;00m
 
 Calculating dependencies  ... done!
-Dependency resolution took [32m0.90[39;49;00m s (backtrack: 0/20).
+Dependency resolution took [32m0.40[39;49;00m s (backtrack: 0/20).
 
 
 !!! [31;01mThe ebuild selected to satisfy [39;49;00m[32m"test46/core-utils[-feature_x]"[39;49;00m[31;01m has unmet requirements.[39;49;00m
