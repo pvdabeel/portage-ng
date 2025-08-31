@@ -1,0 +1,20 @@
+
+[32mThese are the packages that would be merged, in order:[39;49;00m
+
+Calculating dependencies  ... done!
+Dependency resolution took [32m0.61[39;49;00m s (backtrack: 0/20).
+
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest53/libhardened-1.0::gentoo[39;49;00m  0 KiB
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest53/os-1.0::gentoo[39;49;00m  USE="[31;01mhardened[39;49;00m [31;01mthreads[39;49;00m" 0 KiB
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest53/liba-1.0::gentoo[39;49;00m  0 KiB
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest53/libb-1.0::gentoo[39;49;00m  0 KiB
+[[32mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32mtest53/app-1.0::gentoo[39;49;00m  0 KiB
+
+Total: 5 packages (5 new), Size of downloads: 0 KiB
+
+The following [31;01mUSE changes[39;49;00m are necessary to proceed:
+ (see "package.use" in the portage(5) man page for more details)
+# required by test53/libb-1.0::gentoo
+# required by test53/app-1.0::gentoo
+# required by test53/app (argument)
+[32m>=test53/os-1.0 hardened[39;49;00m

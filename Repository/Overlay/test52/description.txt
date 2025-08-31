@@ -1,0 +1,18 @@
+Test Case: test52
+Organization:
+- app-1.0: The main package to be installed.
+- liba-1.0: A dependency of app-1.0.
+- libb-1.0: A dependency of app-1.0.
+- os-1.0: A dependency for both liba-1.0 and libb-1.0.
+
+Dependency Graph:
+- app-1.0 -> liba-1.0
+- app-1.0 -> libb-1.0
+- liba-1.0 -> os-1.0[threads]
+- libb-1.0 -> os-1.0[hardenend]
+
+What is being tested:
+The prover will first prove os-1.0 through the liba path. This means os-1.0 will have 'threads' enabled. Later prover needs to enable 'hardened' through the libb path. The prover should be able to produce a proof with just one os install, for both 'threads' and 'hardeded'. This should also be reflected in the download for os-1.0
+
+Expected Outcome:
+The prover should correctly identify the need for building os-1.0 only once with the two use flags. 
