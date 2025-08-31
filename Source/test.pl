@@ -72,7 +72,10 @@ test:cases([overlay://'test01/web-1.0':run?{[]},
             overlay://'test47/api-docs-1.0':run?{[]},
             overlay://'test48/app-1.0':run?{[]},
             overlay://'test49/app-1.0':run?{[]},
-            overlay://'test50/app-1.0':run?{[]}
+            overlay://'test50/app-1.0':run?{[]},
+            overlay://'test51/app-1.0':install?{[]},
+            overlay://'test52/app-1.0':run?{[]},
+            overlay://'test53/app-1.0':run?{[]}
             ]).
 
 test:basics([overlay://'test01/os-1.0':download?{[]},
@@ -93,9 +96,16 @@ test:slotreq([overlay://'test41/app-1.0':run?{[]},
 
 test:diamond([overlay://'test45/app-1.0':run?{[]}]).
 
+test:doublediamond([overlay://'test46/app-1.0':run?{[]}]).
+
+test:softuse([overlay://'test49/app-1.0':run?{[]}]).
+
 test:pms([overlay://'test50/app-1.0':run?{[]}]).
 
 test:simple([overlay://'test51/app-1.0':install?{[]}]).
+
+test:new([overlay://'test52/app-1.0':run?{[]},
+          overlay://'test53/app-1.0':run?{[]}]).
 
 %test:slow([portage://'dev-erlang/p1_pgsql-1.1.32':run?{[]}]).
 %           portage://'dev-erlang/xmpp-1.10.1':run?{[]}]).
