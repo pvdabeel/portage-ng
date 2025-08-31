@@ -3,7 +3,6 @@
 # $Header$
 
 EAPI="8"
-
 DESCRIPTION="Core utility package with conflicting USE flags"
 HOMEPAGE="https://www.portage-ng.org/"
 SRC_URI=""

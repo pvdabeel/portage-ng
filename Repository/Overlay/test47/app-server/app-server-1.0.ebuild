@@ -3,7 +3,6 @@
 # $Header$
 
 EAPI="8"
-
 DESCRIPTION="Server that provides api-docs and runs the client"
 HOMEPAGE="https://www.portage-ng.org/"
 SRC_URI=""

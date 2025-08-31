@@ -3,7 +3,6 @@
 # $Header$
 
 EAPI="8"
-
 DESCRIPTION="Application that forces a USE default on its dependency"
 HOMEPAGE="https://www.portage-ng.org/"
 SRC_URI=""

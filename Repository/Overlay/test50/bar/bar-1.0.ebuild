@@ -3,7 +3,6 @@
 # $Header$
 
 EAPI="8"
-
 DESCRIPTION="A runtime dependency for foo"
 HOMEPAGE="https://www.portage-ng.org/"
 SRC_URI=""

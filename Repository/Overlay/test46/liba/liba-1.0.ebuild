@@ -3,7 +3,6 @@
 # $Header$
 
 EAPI="8"
-
 DESCRIPTION="Library A, depends on libC"
 HOMEPAGE="https://www.portage-ng.org/"
 SRC_URI=""

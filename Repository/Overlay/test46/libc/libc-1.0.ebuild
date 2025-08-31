@@ -3,7 +3,6 @@
 # $Header$
 
 EAPI="8"
-
 DESCRIPTION="Library C, requires feature_x from core-utils"
 HOMEPAGE="https://www.portage-ng.org/"
 SRC_URI=""

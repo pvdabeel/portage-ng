@@ -3,7 +3,6 @@
 # $Header$
 
 EAPI="8"
-
 DESCRIPTION="Application that depends on foo at build time. Foo in turn depends on bar at runtime only."
 HOMEPAGE="https://www.portage-ng.org/"
 SRC_URI=""

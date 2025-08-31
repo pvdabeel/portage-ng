@@ -3,7 +3,6 @@
 # $Header$
 
 EAPI="8"
-
 DESCRIPTION="Physics library needing libMatrix with sub-slot B"
 HOMEPAGE="https://www.portage-ng.org/"
 SRC_URI=""

@@ -3,7 +3,6 @@
 # $Header$
 
 EAPI="8"
-
 DESCRIPTION="A build time dependency for app"
 HOMEPAGE="https://www.portage-ng.org/"
 SRC_URI=""

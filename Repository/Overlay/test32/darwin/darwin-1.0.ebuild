@@ -2,6 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header$
 
+EAPI="8"
 DESCRIPTION="Description of test package darwin"
 HOMEPAGE="http://www.portage-ng.org/"
 SRC_URI=""

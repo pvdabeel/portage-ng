@@ -3,7 +3,6 @@
 # $Header$
 
 EAPI="8"
-
 DESCRIPTION="Description of test package lib"
 HOMEPAGE="http://www.portage-ng.org/"
 SRC_URI=""

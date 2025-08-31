@@ -3,7 +3,6 @@
 # $Header$
 
 EAPI="8"
-
 DESCRIPTION="Virtual for API documentation"
 HOMEPAGE="https://www.portage-ng.org/"
 SRC_URI=""

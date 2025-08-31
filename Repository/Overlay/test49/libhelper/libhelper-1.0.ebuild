@@ -3,7 +3,6 @@
 # $Header$
 
 EAPI="8"
-
 DESCRIPTION="A helper library that explicitly forbids 'feature_z'"
 HOMEPAGE="https://www.portage-ng.org/"
 SRC_URI=""

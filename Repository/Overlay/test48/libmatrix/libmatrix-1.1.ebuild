@@ -3,7 +3,6 @@
 # $Header$
 
 EAPI="8"
-
 DESCRIPTION="Matrix library version 1.1, providing sub-slot B"
 HOMEPAGE="https://www.portage-ng.org/"
 SRC_URI=""
