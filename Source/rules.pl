@@ -113,7 +113,12 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
   % 2. Compute required_use stable model, if not already passed on by run
   %    Extend with build_with_use requirements
 
-  (memberchk(build_with_use(B),Context) -> true ; B = []),
+  (findall(Item,
+          (member(build_with_use(InnerList), Context),
+           member(Item,InnerList)),
+          B)),
+
+  % (memberchk(build_with_use(B),Context) -> true ; B = []),
   (memberchk(required_use(R),Context) -> true ; true),
 
   query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
@@ -133,7 +138,7 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
     ;  Conditions = [ constraint(use(Repository://Ebuild):{R}),
                     constraint(slot(C,N,S):{Ebuild}),
                     Repository://Ebuild:download?{[required_use(R),build_with_use(B)]}
-                    |D] )  
+                    |D] )
   ; Conditions = [assumed(Repository://Ebuild:install?{[issue_with_model(explanation)|Context]})].
 
 
@@ -167,7 +172,12 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
 
   % 2. Compute required_use stable model, extend with build_with_use requirements
 
-  (memberchk(build_with_use(B),Context) -> true ; B = []),
+  (findall(Item,
+          (member(build_with_use(InnerList), Context),
+           member(Item,InnerList)),
+          B)),
+
+  % (memberchk(build_with_use(B),Context) -> true ; B = []),
 
   query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
 

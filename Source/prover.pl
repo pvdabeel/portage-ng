@@ -76,24 +76,76 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
   %prover:debug_hook(Full, Proof, Model, Constraints),
 
   canon_literal(Full, Lit, Ctx),
-  (   prover:is_constraint(Lit) ->
+
+  (   % Case: a constraint
+
+      prover:is_constraint(Lit) ->
       !,
       Proof       = NewProof,
       Model       = NewModel,
       Triggers    = NewTriggers,
       prover:unify_constraints(Lit, Constraints, NewConstraints)
 
-  ;   prover:proven(Lit, Model) ->
+
+  ;   % Case: Lit already proven with given context
+
+      prover:proven(Lit, Model, Ctx) ->
+      !,
       Proof       = NewProof,
       Model       = NewModel,
       Triggers    = NewTriggers,
       Constraints = NewConstraints
 
-  ;   prover:assumed_proven(Lit, Model) ->
+
+  ;   % Case: Lit already proven, but context has changed
+
+      prover:proven(Lit, Model, OldCtx) ->
+      !,
+
+      % -- Get old body and old dep count
+      get_assoc(rule(Lit),Proof,dep(_OldCount,OldBody)?OldCtx),
+
+      % -- Merge old & new context
+      union(OldCtx,Ctx,NewCtx),
+
+      % -- Put together updated full literal
+      canon_literal(NewFull,Lit,NewCtx),
+
+      % -- Apply rule
+      rule(NewFull,NewBody),
+
+      % -- Only body difference should be proved further
+      subtract(NewBody,OldBody,DiffBody),
+
+      % -- Prepare to refine proof
+      length(NewBody,NewCount),
+
+      % -- Amend existing proof, make it seem we are prescient
+      put_assoc(rule(Lit), Proof, dep(NewCount, NewBody)?NewCtx,Proof1),
+      (   current_predicate(preference:flag/1), preference:flag(deep) ->
+          Triggers1 = Triggers
+      ;
+          prover:add_triggers(NewFull, NewBody, Triggers, Triggers1)
+      ),
+
+      % -- Prove body difference
+      prover:prove_recursive(DiffBody, Proof1, NewProof, Model, BodyModel, Constraints, BodyConstraints, Triggers1, NewTriggers),
+
+      % -- Update model & Constraints
+      put_assoc(Lit, BodyModel, NewCtx, NewModel),
+      NewConstraints = BodyConstraints
+
+
+  ;   % Case: Lit is assumed proven
+
+      prover:assumed_proven(Lit, Model) ->
       Proof       = NewProof,
       Model       = NewModel,
       Triggers    = NewTriggers,
       Constraints = NewConstraints
+
+
+      % Case: Conflicts:
 
   ;   prover:conflicts(Lit, Model) ->
       fail
@@ -101,13 +153,18 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
   ;   prover:conflictrule(rule(Lit,[]), Proof) ->
       fail
 
-  ;   (   prover:proving(rule(Lit,_), Proof),
+  ;   % Case: circular proof
+
+      (   prover:proving(rule(Lit,_), Proof),
           \+ prover:assumed_proving(Lit, Proof) ->
           put_assoc(assumed(rule(Lit)), Proof, dep(0, [])?Ctx, NewProof),
           put_assoc(assumed(Lit), Model, Ctx, NewModel),
           NewConstraints = Constraints,
           NewTriggers = Triggers
       ;
+
+      % Case: regular proof
+
           rule(Full, Body),
           length(Body, DepCount),
           put_assoc(rule(Lit), Proof, dep(DepCount, Body)?Ctx, Proof1),
@@ -131,8 +188,11 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 %
 % This predicate is expanded by user:goal_expansion
 
-prover:debug_hook(Target, Proof, Model, Constraints) :- !.
-  %printer:display_state(Target, Proof, Model, Constraints).
+%prover:debug_hook(_Target, _Proof, _Model, _Constraints) :- !.
+
+prover:debug_hook(Target, Proof, Model, Constraints) :-
+  printer:display_state(Target, Proof, Model, Constraints).
+
 
 
 %! prover:debug
@@ -196,12 +256,12 @@ prover:add_trigger(Head, Dep, InTriggers, OutTriggers) :-
 
 prover:proving(rule(Lit, Body), Proof) :- get_assoc(rule(Lit),Proof,dep(_, Body)?_).
 prover:assumed_proving(Lit, Proof) :- get_assoc(assumed(rule(Lit)),Proof,dep(0, [])?_).
-prover:proven(Lit, Model) :- get_assoc(Lit,Model,_).
+prover:proven(Lit, Model, Ctx) :- get_assoc(Lit,Model,Ctx).
 prover:assumed_proven(Lit, Model) :- get_assoc(assumed(Lit), Model, _).
 
 prover:conflicts(Lit, Model) :-
-  ( Lit = naf(Inner) -> (prover:proven(Inner, Model) ; prover:assumed_proven(Inner, Model))
-  ; prover:proven(naf(Lit), Model)
+  ( Lit = naf(Inner) -> (prover:proven(Inner, Model, _) ; prover:assumed_proven(Inner, Model))
+  ; prover:proven(naf(Lit), Model, _)
   ), !.
 
 prover:conflictrule(rule(Lit,_), Proof) :-
