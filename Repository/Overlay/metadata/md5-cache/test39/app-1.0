@@ -1,4 +1,4 @@
-DEPEND=test34/os[-linux?]
+DEPEND=test39/os[!linux?]
 RDEPEND=
 SLOT=0
 SRC_URI=
