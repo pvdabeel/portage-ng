@@ -115,7 +115,8 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
 
   (memberchk(build_with_use(B),Context) -> true ; B = []),
   (memberchk(required_use(R),Context) -> true ; true),
-  query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild) ->
+
+  query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
 
   % 3. Pass use model onto dependencies to calculate corresponding dependency  model,
   %    We pass using config action to avoid package_dependency from generating choices.
@@ -125,17 +126,15 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
   query:memoized_search(model(dependency(D,install)):config?{Model},Repository://Ebuild),
 
   % 4. Pass on relevant package dependencies and constraints to prover
-
   ( memberchk(C,['virtual','acct-group','acct-user'])
     -> Conditions = [ constraint(use(Repository://Ebuild):{R}),
-                      constraint(slot(C,N,S):{Ebuild})
-                      |D]
+                    constraint(slot(C,N,S):{Ebuild})
+                    |D]
     ;  Conditions = [ constraint(use(Repository://Ebuild):{R}),
-                      constraint(slot(C,N,S):{Ebuild}),
-                      Repository://Ebuild:download?{[required_use(R),build_with_use(B)]}
-                      |D] )
-
-  ; Conditions = [assumed(Repository://Ebuild:install?{Context})].
+                    constraint(slot(C,N,S):{Ebuild}),
+                    Repository://Ebuild:download?{[required_use(R),build_with_use(B)]}
+                    |D] )  
+  ; Conditions = [assumed(Repository://Ebuild:install?{[issue_with_model(explanation)|Context]})].
 
 
 % -----------------------------------------------------------------------------
@@ -540,6 +539,7 @@ rule(blocking(Use),[assumed(minus(Use)),naf(required(Use))]) :-
   \+Use =.. [minus,_],
   \+preference:use(Use),
   \+preference:use(minus(Use)),!.
+
 
 
 % -----------------------------------------------------------------------------
