@@ -37,15 +37,15 @@ printer:display_state(Target, Proof, Model, Constraints) :-
 
     message:hl,
 
-    %tty_clear,
+    tty_clear,
 
     % proving subtitle
 
     message:color(orange), message:style(bold),
     format('--- Proving ---~n'),
     message:color(normal), message:style(normal),
-    format('  ~w~n~n', [Current]).
-/*
+    format('  ~w~n~n', [Current]),
+
     % proving stack subtitle
 
     message:color(magenta), message:style(bold),
@@ -83,10 +83,10 @@ printer:display_state(Target, Proof, Model, Constraints) :-
     message:color(normal), message:style(normal),
 
     ( ConstraintList  == [] -> writeln('  (empty)')
-    ; forall(member(M, ConstraintList), ( format('  ~w~n', [M]) ))).
+    ; forall(member(M, ConstraintList), ( format('  ~w~n', [M]) ))),
 
-%    wait_for_input.
-*/
+    wait_for_input.
+
 
 % Helper to wait for the user to press Enter.
 printer:wait_for_input :-
@@ -787,7 +787,11 @@ printer:print_config(Repository://Entry:fetchonly?{_Context}) :-
 
 printer:print_config(Repository://Entry:fetchonly?{Context}) :-
  !,
- findall(Use, member(assumed(Use),Context), Assumed),
+ findall(Use,
+         (member(Term,Context),
+          (Term = required_use(Uses) ; Term = build_with_use(Uses)),
+           member(assumed(Use),Uses)),
+         Assumed),
  findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
 
  (Useflags == [] ;
@@ -850,7 +854,11 @@ printer:print_config(Repository://Entry:install?{_Context}) :-
 
 printer:print_config(Repository://Entry:install?{Context}) :-
  !,
- findall(Use, member(assumed(Use),Context), Assumed),
+ findall(Use,
+         (member(Term,Context),
+          (Term = required_use(Uses) ; Term = build_with_use(Uses)),
+           member(assumed(Use),Uses)),
+         Assumed),
  findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
 
  (Useflags == [] ;
