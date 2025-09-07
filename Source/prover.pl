@@ -81,6 +81,10 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 
       prover:is_constraint(Lit) ->
       !,
+      message:color(orange),
+      writeln('PROVER: is constraint'),
+      message:color(normal),
+
       Proof       = NewProof,
       Model       = NewModel,
       Triggers    = NewTriggers,
@@ -91,6 +95,10 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 
       prover:proven(Lit, Model, Ctx) ->
       !,
+      message:color(orange),
+      writeln('PROVER: lit is proven with same Ctx'),
+      message:color(normal),
+
       Proof       = NewProof,
       Model       = NewModel,
       Triggers    = NewTriggers,
@@ -101,27 +109,52 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 
       prover:proven(Lit, Model, OldCtx) ->
       !,
-
+      message:color(orange),
+      writeln('PROVER: lit is proven with different Ctx'),
+      writeln('PROVER: -- Get Old body and Old Dep Count'),
       % -- Get old body and old dep count
-      get_assoc(rule(Lit),Proof,dep(_OldCount,OldBody)?OldCtx),
+      get_assoc(rule(Lit),Proof,dep(OldCount,OldBody)?OldCtx),
+      write('  - Lit      : '),writeln(Lit),
+      write('  - Ctx      : '),writeln(Ctx),
+      write('  - OldCtx   : '),writeln(OldCtx),
+      write('  - OldCount : '),writeln(OldCount),
+      write('  - OldBody  : '),writeln(OldBody),
 
+
+      writeln('PROVER: -- Union'),
       % -- Merge old & new context
       union(OldCtx,Ctx,NewCtx),
+      write('  - NewCtx   : '),writeln(NewCtx),
 
+      writeln('PROVER: -- Create updated full literal'),
       % -- Put together updated full literal
       canon_literal(NewFull,Lit,NewCtx),
+      write('  - NewFull  : '),writeln(NewFull),
 
+      writeln('PROVER: -- Ready to apply rule for full literal'),
       % -- Apply rule
       rule(NewFull,NewBody),
 
+      message:hl('PROVER - returning from subcall'),
+      message:color(orange),
+
+
       % -- Only body difference should be proved further
       subtract(NewBody,OldBody,DiffBody),
+
+      write('PROVER: -- NewBody: '),writeln(NewBody),
+      write('PROVER: -- OldBody: '),writeln(OldBody),
+      write('PROVER: -- DifBody: '),writeln(DiffBody),
+      message:color(normal),
 
       % -- Prepare to refine proof
       length(NewBody,NewCount),
 
       % -- Amend existing proof, make it seem we are prescient
       put_assoc(rule(Lit), Proof, dep(NewCount, NewBody)?NewCtx,Proof1),
+
+      writeln('PROVER: -- Ammended rule in proof '),
+
       (   current_predicate(preference:flag/1), preference:flag(deep) ->
           Triggers1 = Triggers
       ;
@@ -139,6 +172,11 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
   ;   % Case: Lit is assumed proven
 
       prover:assumed_proven(Lit, Model) ->
+
+      message:color(orange),
+      writeln('PROVER: lit is assumed proven'),
+      message:color(normal),
+
       Proof       = NewProof,
       Model       = NewModel,
       Triggers    = NewTriggers,
@@ -148,15 +186,30 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
       % Case: Conflicts:
 
   ;   prover:conflicts(Lit, Model) ->
+
+      message:color(orange),
+      writeln('PROVER: lit is conflicting with Model'),
+      message:color(normal),
+
       fail
 
   ;   prover:conflictrule(rule(Lit,[]), Proof) ->
+
+      message:color(orange),
+      writeln('PROVER: lit rule is conflicting with Proof'),
+      message:color(normal),
+
       fail
 
   ;   % Case: circular proof
 
       (   prover:proving(rule(Lit,_), Proof),
           \+ prover:assumed_proving(Lit, Proof) ->
+
+	  message:color(orange),
+          writeln('PROVER: circular proof, taking assumption'),
+          message:color(normal),
+
           put_assoc(assumed(rule(Lit)), Proof, dep(0, [])?Ctx, NewProof),
           put_assoc(assumed(Lit), Model, Ctx, NewModel),
           NewConstraints = Constraints,
@@ -165,7 +218,12 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 
       % Case: regular proof
 
+          message:color(orange),
+          writeln('PROVER: regular proof'),
+          message:color(normal),
+
           rule(Full, Body),
+
           length(Body, DepCount),
           put_assoc(rule(Lit), Proof, dep(DepCount, Body)?Ctx, Proof1),
           (   current_predicate(preference:flag/1), preference:flag(deep) ->
