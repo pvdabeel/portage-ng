@@ -37,7 +37,7 @@ printer:display_state(Target, Proof, Model, Constraints) :-
 
     message:hl,
 
-    tty_clear,
+    %tty_clear,
 
     % proving subtitle
 
@@ -83,9 +83,9 @@ printer:display_state(Target, Proof, Model, Constraints) :-
     message:color(normal), message:style(normal),
 
     ( ConstraintList  == [] -> writeln('  (empty)')
-    ; forall(member(M, ConstraintList), ( format('  ~w~n', [M]) ))),
+    ; forall(member(M, ConstraintList), ( format('  ~w~n', [M]) ))).
 
-    wait_for_input.
+    %wait_for_input.
 
 
 % Helper to wait for the user to press Enter.
@@ -430,12 +430,12 @@ printer:print_use_default(none) :- !.
 
 printer:print_slot_restriction([]) :- !.
 
-printer:print_slot_restriction(any_different_slot) :-
+printer:print_slot_restriction([any_different_slot]) :-
   message:color(lightgray),
   write(':*'),
   message:color(normal).
 
-printer:print_slot_restriction(any_same_slot) :-
+printer:print_slot_restriction([any_same_slot]) :-
   message:color(lightgray),
   write(':='),
   message:color(normal).
@@ -1468,13 +1468,13 @@ printer:write_fetchonly_file(Directory,Repository://Entry) :-
 % Print info to file for an entry in a repository
 % Assumes directory exists. (See repository:prepare_directory)
 
-printer:write_info_file(Directory,Repository://Entry) :-
+printer:write_info_file(Directory,Repository//Entry) :-
   (atomic_list_concat([Directory,'/',Entry,'.info'],File)),
   (tell(File),
    set_stream(current_output,tty(true)), % otherwise we lose color
    printer:print_entry(Repository://Entry)
    -> told
-   ;  (told,with_mutex(mutex,message:warning([Repository://Entry,' ',info])))).
+   ;  (told,with_mutex(mutex,message:warning([Repository,'://',Entry,' ',info])))).
 
 
 %! printer:write_index_files(+Directory,+Repository)
