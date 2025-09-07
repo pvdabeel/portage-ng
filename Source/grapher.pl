@@ -230,9 +230,9 @@ grapher:graph_legend_types(Type,[OtherType|Rest],Repository://Id) :-
 % included in legend. Enables changing the version of the ebuild graph shown.
 
 grapher:graph_legend_version(Type,Repository://Id) :-
-  query:search([category(C),name(N),select(version,equal,V)],Repository://Id),
-  findall(E,query:search([category(C),name(N),select(version,greater,V)],Repository://E),Eg),
-  findall(E,query:search([category(C),name(N),select(version,smaller,V)],Repository://E),Es),
+  query:search([category(C),name(N),version(V)],Repository://Id),
+  findall(E,query:search([name(N),category(C),select(version,greater,V)],Repository://E),Eg),
+  findall(E,query:search([name(N),category(C),select(version,smaller,V)],Repository://E),Es),
   (last(Eg,Newer)          ; Newer  = []),!,
   (last(Es,Oldest)         ; Oldest = []),!,
   (once(member(Newest,Eg)) ; Newest = []),!,
