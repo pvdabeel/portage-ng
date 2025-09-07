@@ -104,7 +104,7 @@ test:pms([overlay://'test50/app-1.0':run?{[]}]).
 
 test:simple([overlay://'test51/app-1.0':install?{[]}]).
 
-test:new([overlay://'test52/app-1.0':run?{[]},
+test:new([%overlay://'test52/app-1.0':run?{[]},
           overlay://'test53/app-1.0':run?{[]}]).
 
 %test:slow([portage://'dev-erlang/p1_pgsql-1.1.32':run?{[]}]).
@@ -131,12 +131,15 @@ test:run(Cases) :-
           message:color(red),message:color(bold),
           message:print('false'),nl,
           message:color(normal),message:style(normal),nl,nl)),
-  message:color(red),message:color(bold),
   nl,nl,
-  message:print('The following test cases failed:'),nl,nl,
-  forall(test:failed(Case),
-         (write(' * '),writeln(Case))),
-  message:color(normal),message:style(normal),nl,nl.
+  (test:failed(_)
+   -> (message:color(lightred),message:color(bold),
+       message:print('The following test cases failed:'),nl,nl,
+       message:color(red),
+       forall(test:failed(Case),
+              (write(' * '),writeln(Case))),
+       message:color(normal),message:style(normal),nl,nl)
+   ;  true).
 
 
 %! test:run(application)
@@ -217,6 +220,7 @@ test:run_single_case(Repo://Id:Action?{Context}) :-
        test:write_description(Description),
        message:color(normal),message:hl,
        printer:print([Repo://Id:Action?{Context}],Model,Proof,Plan),
+       %nl,nl)).
        message:header('Gentoo emerge output:'),
        test:write_description(EmergeLog),nl,nl;true)).
 
