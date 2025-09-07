@@ -1098,29 +1098,29 @@ search(Q,R://I) :-
 
 memoized_search(model(dependency(D,install)):config?{R}, Repository://Ebuild) :-
   !,
-  ( cache:memo_model(Repository, Ebuild, install, D)
+  ( cache:memo_model(Repository, Ebuild, install?{R}, D)
     ->  true % Succeed with the cached model
     ; % Otherwise, compute, assert, and then succeed.
       query:search(model(dependency(D,install)):config?{R},Repository://Ebuild),
-      assertz(cache:memo_model(Repository, Ebuild, install, D))
+      assertz(cache:memo_model(Repository, Ebuild, install?{R}, D))
   ).
 
 memoized_search(model(dependency(D,run)):config?{R}, Repository://Ebuild) :-
   !,
-  ( cache:memo_model(Repository, Ebuild, run, D)
+  ( cache:memo_model(Repository, Ebuild, run?{R}, D)
     ->  true % Succeed with the cached model
     ; % Otherwise, compute, assert, and then succeed.
       query:search(model(dependency(D,run)):config?{R},Repository://Ebuild),
-      assertz(cache:memo_model(Repository, Ebuild, run, D))
+      assertz(cache:memo_model(Repository, Ebuild, run?{R}, D))
   ).
 
 memoized_search(model(dependency(D,fetchonly)):config?{R}, Repository://Ebuild) :-
   !,
-  ( cache:memo_model(Repository, Ebuild, fetchonly, D)
+  ( cache:memo_model(Repository, Ebuild, fetchonly?{R}, D)
     ->  true % Succeed with the cached model
     ; % Otherwise, compute, assert, and then succeed.
       query:search(model(dependency(D,fetchonly)):config?{R},Repository://Ebuild),
-      assertz(cache:memo_model(Repository, Ebuild, fetchonly, D))
+      assertz(cache:memo_model(Repository, Ebuild, fetchonly?{R}, D))
   ).
 
 
