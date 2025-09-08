@@ -107,6 +107,9 @@ test:simple([overlay://'test51/app-1.0':install?{[]}]).
 test:new([%overlay://'test52/app-1.0':run?{[]},
           overlay://'test53/app-1.0':run?{[]}]).
 
+test:failures([overlay://'test46/app-1.0':run?{[]},
+             overlay://'test49/app-1.0':run?{[]}]).
+
 %test:slow([portage://'dev-erlang/p1_pgsql-1.1.32':run?{[]}]).
 %           portage://'dev-erlang/xmpp-1.10.1':run?{[]}]).
 
