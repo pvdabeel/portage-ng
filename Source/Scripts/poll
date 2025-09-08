@@ -1,6 +1,6 @@
 #!/bin/sh
 
-alias portage-ng-dev='swipl -O --stack_limit=32G -f /Users/pvdabeel/Desktop/Prolog/portage-ng.pl -p portage=/Users/pvdabeel/Desktop/Prolog -g main --'
+alias portage-ng-dev='swipl -O --stack_limit=128G -f /Users/pvdabeel/Desktop/Prolog/portage-ng.pl -p portage=/Users/pvdabeel/Desktop/Prolog -g main --'
 
 # Make sure you have portage-ng installed!
 
