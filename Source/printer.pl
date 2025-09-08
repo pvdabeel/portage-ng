@@ -1442,7 +1442,7 @@ printer:write_merge_file(Directory,Repository://Entry) :-
    set_stream(current_output,tty(true)), % otherwise we lose color
    printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan)
    -> told
-   ; (told,with_mutex(mutex,message:warning([Repository://Entry,' ',Action])))).
+   ; (told,with_mutex(mutex,message:warning([Repository,'://',Entry,' ',Action])))).
 
 
 %! printer:write_fetchonly_file(+Directory,+Repository://Entry)
@@ -1460,7 +1460,7 @@ printer:write_fetchonly_file(Directory,Repository://Entry) :-
    set_stream(current_output,tty(true)), % otherwise we lose color
    printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan)
    -> told
-   ;  (told,with_mutex(mutex,message:warning([Repository://Entry,' ',Action])))).
+   ;  (told,with_mutex(mutex,message:warning([Repository,'://',Entry,' ',Action])))).
 
 
 %! printer:write_info_file(+Directory,+Repository://Entry)
@@ -1468,7 +1468,7 @@ printer:write_fetchonly_file(Directory,Repository://Entry) :-
 % Print info to file for an entry in a repository
 % Assumes directory exists. (See repository:prepare_directory)
 
-printer:write_info_file(Directory,Repository//Entry) :-
+printer:write_info_file(Directory,Repository://Entry) :-
   (atomic_list_concat([Directory,'/',Entry,'.info'],File)),
   (tell(File),
    set_stream(current_output,tty(true)), % otherwise we lose color
@@ -1517,7 +1517,7 @@ printer:write_proof_files(Directory,Repository) :-
                    system:time_file(Ebuild,Modified),
                    Modified > Time
                 ;  true)),
-              (printer:write_merge_file(Directory,Repository://Entry),
+	      (printer:write_merge_file(Directory,Repository://Entry),
 	       printer:write_fetchonly_file(Directory,Repository://Entry),
                printer:write_info_file(Directory,Repository://Entry))).
 
