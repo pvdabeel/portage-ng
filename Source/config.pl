@@ -79,7 +79,7 @@ config:trust_metadata(true).
 % cache entry for these ebuilds. This cache entry may be overwritten
 % by a sync later on by remotely generated cache.
 
-config:write_metadata(false).
+config:write_metadata(true).
 
 
 % -----------------------------------------------------------------------------
@@ -297,7 +297,7 @@ config:graph_proof_type([merge,fetchonly,info]).
 % automatically stop computation if it takes too long.
 %In seconds.
 
-config:time_limit(10).
+config:time_limit(30).
 
 
 %! config:proving_target(?Target)
