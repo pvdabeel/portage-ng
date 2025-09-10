@@ -847,8 +847,14 @@ printer:print_config(Repository://Ebuild:download?{_Context}) :-
 
 % iuse empty
 
-printer:print_config(Repository://Entry:install?{_Context}) :-
-  \+(kb:query(iuse(_),Repository://Entry)),!.
+printer:print_config(Repository://Entry:install?{Context}) :-
+  \+(kb:query(iuse(_),Repository://Entry)),!,
+  (memberchk(slot(_,_,Slot):{Repository://Entry},Context)
+  -> (Slot \== [slot('0')] ->
+        printer:print_config_prefix('conf'),
+        printer:print_config_item('slot',Slot)
+      ; true)
+  ;  true).
 
 % use flags to show - to rework: performance
 
@@ -861,9 +867,26 @@ printer:print_config(Repository://Entry:install?{Context}) :-
          Assumed),
  findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
 
- (Useflags == [] ;
-   (printer:print_config_prefix('conf'),	                  % Use flags not empty
-    printer:print_config_item('use',Useflags,Assumed))).    % Use flags not empty
+ % slot(test48,libmatrix,[slot(1),subslot(A)]):{overlay://test48/libmatrix-1.0}
+
+ (memberchk(slot(_,_,Slot):{Repository://Entry},Context)
+  -> (Slot \== [slot('0')] ->
+        (Useflags == [] ->
+          printer:print_config_prefix('conf'),
+          printer:print_config_item('slot',Slot)
+        ;
+          printer:print_config_prefix('conf'),
+          printer:print_config_item('use',Useflags,Assumed),
+          printer:print_config_prefix,
+          printer:print_config_item('slot',Slot)
+        )
+      ; (Useflags == [] ;
+          (printer:print_config_prefix('conf'),
+           printer:print_config_item('use',Useflags,Assumed)))
+     )
+  ;  (Useflags == [] ;
+       (printer:print_config_prefix('conf'),
+        printer:print_config_item('use',Useflags,Assumed)))).
 
   %config:print_expand_use(false) ; (
   %findall([Key,Keyflags], ( preference:use_expand_hidden(Key),
@@ -954,6 +977,42 @@ printer:print_config_item('use',List,Assumed) :- !,
       )
   ),
   message:print('"').
+
+printer:print_config_item('slot',Slot) :- !,
+  upcase_atom('slot',KeyS),
+  message:print(KeyS),
+  message:print('="'),
+  printer:print_slot_value(Slot),
+  message:print('"').
+
+%! printer:print_slot_value(+Slot)
+%
+% Prints the slot value in a readable format
+
+printer:print_slot_value([slot(Slot)]) :-
+  !,
+  message:print(Slot).
+
+printer:print_slot_value([slot(Slot),subslot(Subslot)]) :-
+  !,
+  message:print(Slot),
+  message:print('/'),
+  message:print(Subslot).
+
+printer:print_slot_value([slot(Slot),subslot(Subslot),equal]) :-
+  !,
+  message:print(Slot),
+  message:print('/'),
+  message:print(Subslot),
+  message:print('=').
+
+printer:print_slot_value([slot(Slot),equal]) :-
+  !,
+  message:print(Slot),
+  message:print('=').
+
+printer:print_slot_value(Slot) :-
+  message:print(Slot).
 
 
 %! printer:print_flags_wrapped(+AllFlags, +StartCol, +TermWidth, +IndentForWrap)
