@@ -381,6 +381,7 @@ config:printable_metadata([blank,
                            license,
                            eapi,
                            slot,
+  		           subslot,
                            hl, % -------------
                            iuse,
                            required_use,
