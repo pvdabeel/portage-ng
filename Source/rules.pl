@@ -52,7 +52,7 @@ rule(Repository://Ebuild:download?{_},[]) :-
 % We don't trigger downloads for virtual, acct-group or acct-user, since they
 % don't have any downloads.
 
-rule(Repository://Ebuild:fetchonly?{_Context},Conditions) :- % todo: to update in line with new :install and :run rules
+rule(Repository://Ebuild:fetchonly?{Context},Conditions) :- % todo: to update in line with new :install and :run rules
   !,
   query:search(masked(true),   Repository://Ebuild) -> Conditions = [] ;
   query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) -> Conditions = [] ;
@@ -78,7 +78,7 @@ rule(Repository://Ebuild:fetchonly?{_Context},Conditions) :- % todo: to update i
   %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
   %    all_of_group ... choice point generation
 
-  query:memoized_search(model(dependency(D,fetchonly)):config?{R},Repository://Ebuild),
+  query:memoized_search(model(dependency(D,fetchonly)):config?{Model},Repository://Ebuild),
 
   % 4. Pass on relevant package dependencies and constraints to prover
 
