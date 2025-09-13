@@ -1345,8 +1345,8 @@ printer:update_stats_clauses(constraint(_), S0, S) :-
 printer:update_stats_clauses(naf(_), S0, S) :-
   NewNaf is S0.naf + 1, S = S0.put(naf, NewNaf).
 printer:update_stats_clauses(_://_:fetchonly, S0, S) :-
-  NewFetches is S0.fetches + 1, NewActions is S0.actions + 1,
-  S = S0.put(_{fetches:NewFetches, actions:NewActions}).
+  NewFetches is S0.fetches + 1, % NewActions is S0.actions + 1,
+  S = S0.put(_{fetches:NewFetches}). %, actions:NewActions}).
 printer:update_stats_clauses(R://E:download, S0, S) :-
   (ebuild:download_size(preference, R://E, Bytes) -> true ; Bytes = 0),
   NewDownloads is S0.downloads + 1, NewTotalDl is S0.total_dl + Bytes, NewActions is S0.actions + 1,
