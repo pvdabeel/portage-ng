@@ -55,7 +55,7 @@ rule(Repository://Ebuild:download?{_},[]) :-
 rule(Repository://Ebuild:fetchonly?{_Context},Conditions) :- % todo: to update in line with new :install and :run rules
   !,
   query:search(masked(true),   Repository://Ebuild) -> Conditions = [] ;
-  query:search(installed(true),Repository://Ebuild) -> \+preference:flag(emptytree), Conditions = [] ;
+  query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) -> Conditions = [] ;
 
   % 1. Get some metadata we need further down
 
@@ -63,7 +63,15 @@ rule(Repository://Ebuild:fetchonly?{_Context},Conditions) :- % todo: to update i
   cache:entry_metadata(Repository,Ebuild,slot,S),
 
   % 2. Compute required_use stable model
-  query:search(model(required_use(R)),Repository://Ebuild),
+
+  (findall(Item,
+          (member(build_with_use(InnerList), Context),
+           member(Item,InnerList)),
+          B)),
+
+  (memberchk(required_use(R),Context) -> true ; true),
+
+  query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
 
   % 3. Pass use model onto dependencies to calculate corresponding dependency  model,
   %    We pass using config action to avoid package_dependency from generating choices.
@@ -74,14 +82,15 @@ rule(Repository://Ebuild:fetchonly?{_Context},Conditions) :- % todo: to update i
 
   % 4. Pass on relevant package dependencies and constraints to prover
 
-  ( memberchk(C,['virtual','acct-group','acct-user']) ->
-    Conditions = [constraint(use(Repository://Ebuild):{R}),
-                  constraint(slot(C,N,S):{Ebuild})
-                  |D];
-    Conditions = [constraint(use(Repository://Ebuild):{R}),
-                  constraint(slot(C,N,S):{Ebuild}),
-                  Repository://Ebuild:download?{R}
-                  |D] ).
+  ( memberchk(C,['virtual','acct-group','acct-user'])
+    -> Conditions = [constraint(use(Repository://Ebuild):{R}),
+                     constraint(slot(C,N,S):{Ebuild})
+                     |D]
+    ;  Conditions = [constraint(use(Repository://Ebuild):{R}),
+                     constraint(slot(C,N,S):{Ebuild}),
+                     Repository://Ebuild:download?{R}
+                     |D] )
+   ; Conditions = [assumed(Repository://Ebuild:install?{[issue_with_model(explanation)|Context]})].
 
 
 % -----------------------------------------------------------------------------
