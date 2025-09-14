@@ -88,6 +88,13 @@ grapher:graph(info,Repository://Id) :-
   grapher:graph_root(info,Repository://Id),
   grapher:graph_footer(info,Repository://Id).
 
+grapher:graph(emerge,Repository://Id) :-
+  !,
+  grapher:graph_header(emerge,Repository://Id),
+  grapher:graph_legend(emerge,Repository://Id),
+  grapher:graph_root(emerge,Repository://Id),
+  grapher:graph_footer(emerge,Repository://Id).
+
 grapher:graph(Type,Repository://Id) :-
   member(Type,[bdepend,cdepend,depend,idepend,rdepend,pdepend]),!,
   grapher:graph_header(Type,Repository://Id),
@@ -145,9 +152,11 @@ grapher:graph_header(_Type,_Repository://_Id) :-
 grapher:graph_legend(Type,Repository://Id) :-
   config:graph_dependency_type(DepList),
   config:graph_proof_type(ProofList),
+  config:graph_legacy_type(LegacyList),
   length(DepList,DepLen),
   length(ProofList,ProofLen),
-  grapher:graph_legend_header(DepLen,ProofLen),
+  length(LegacyList,LegacyLen),
+  grapher:graph_legend_header(DepLen,ProofLen,LegacyLen),
   grapher:graph_legend_navigation(Type,Repository://Id),
   grapher:graph_legend_space,
   grapher:graph_legend_types(Type,DepList,Repository://Id),
@@ -155,6 +164,8 @@ grapher:graph_legend(Type,Repository://Id) :-
   grapher:graph_legend_version(Type,Repository://Id),
   grapher:graph_legend_space,
   grapher:graph_legend_proof(Type,ProofList,Repository://Id),
+  grapher:graph_legend_space,
+  grapher:graph_legend_legacy(Type,LegacyList,Repository://Id),
   grapher:graph_legend_footer.
 
 
@@ -162,7 +173,7 @@ grapher:graph_legend(Type,Repository://Id) :-
 %
 % Create the header of the legend.
 
-grapher:graph_legend_header(DepLen,ProofLen) :-
+grapher:graph_legend_header(DepLen,ProofLen,LegacyLen) :-
   write('graph [labelloc=t, labeljust=l, fontcolor=blue, fontname=Helvetica, fontsize=10, label='),
   write('<<TABLE BORDER=\'0\' CELLBORDER=\'1\' CELLSPACING=\'0\' CELLPADDING=\'6\'><TR>'),
   write('<TD COLSPAN=\'3\'><FONT COLOR=\'black\'><B>navigation</B></FONT></TD>'),
@@ -172,6 +183,8 @@ grapher:graph_legend_header(DepLen,ProofLen) :-
   write('<TD COLSPAN=\'4\'><FONT COLOR=\'black\'><B>version control</B></FONT></TD>'),
   write('<TD BORDER=\'0\' WIDTH=\'30\'></TD>'),
   write('<TD COLSPAN=\''),write(ProofLen),write('\'><FONT COLOR=\'black\'><B>command line</B></FONT></TD>'),
+  write('<TD BORDER=\'0\' WIDTH=\'30\'></TD>'),
+  write('<TD COLSPAN=\''),write(LegacyLen),write('\'><FONT COLOR=\'black\'><B>Legacy</B></FONT></TD>'),
   write('</TR><TR>').
 
 
@@ -246,7 +259,7 @@ grapher:graph_legend_version(Type,Repository://Id) :-
 %! grapher:graph_legend_proof(Type,Repository://Id)
 %
 % For a given ebuild, identified by an Id, create links to proofs to be included
-%in legend.
+% in legend.
 
 grapher:graph_legend_proof(_Type,[],_Repository://_Id) :- !.
 
@@ -263,10 +276,19 @@ grapher:graph_legend_proof(Type,[OtherType|Rest],Repository://Id) :-
   grapher:graph_legend_proof(Type,Rest,Repository://Id).
 
 
+%! grapher:graph_legend_legacy(Type,LegacyTypes,Repository://Id)
+%
+% For a given ebuild, identified by an Id, create links to legacy info to be included
+% in legend.
+
+grapher:graph_legend_legacy(Type,LegacyTypes,Repository://Id) :-
+  grapher:graph_legend_types(Type,LegacyTypes,Repository://Id).
+
+
 %! grapher:graph_legend_href(Type,Repository://Id)
 %
 % For a given ebuild, identified by an Id, return the correct href URL to be
-%included in the legend of a depedency graph
+% included in the legend of a depedency graph
 
 grapher:graph_legend_href(_,_://[],Name) :-
   !,
@@ -304,6 +326,12 @@ grapher:graph_legend_href(info,Repository://Id,Name) :-
   !,
   write('<TD title=\"'),write(Repository://Id),write('\" href=\"../'),
   write(Id),write('-info.svg'),write('\">'),
+  write(Name),write('</TD>').
+
+grapher:graph_legend_href(emerge,Repository://Id,Name) :-
+  !,
+  write('<TD title=\"'),write(Repository://Id),write('\" href=\"../'),
+  write(Id),write('-emerge.svg'),write('\">'),
   write(Name),write('</TD>').
 
 grapher:graph_legend_href(detail,Repository://Id,Name) :-
@@ -826,6 +854,7 @@ grapher:test(Repository) :-
 grapher:test(Repository,Style) :-
   config:graph_dependency_type(D),
   config:graph_proof_type(P),
+  config:graph_legacy_type(L),
   tester:test(Style,
               'Graphing',
               Repository://Entry,
@@ -833,6 +862,8 @@ grapher:test(Repository,Style) :-
               (forall(member(I,D),
                with_output_to(string(_),grapher:graph(I,Repository://Entry))),
                forall(member(I,P),
+               with_output_to(string(_),grapher:graph(I,Repository://Entry))),
+               forall(member(I,L),
                with_output_to(string(_),grapher:graph(I,Repository://Entry))))).
 
 
@@ -848,6 +879,7 @@ grapher:test_latest(Repository) :-
 grapher:test_latest(Repository,Style) :-
   config:graph_dependency_type(D),
   config:graph_proof_type(P),
+  config:graph_legacy_type(L),
   tester:test(Style,
               'Graphing',
               Repository://Entry,
@@ -855,4 +887,6 @@ grapher:test_latest(Repository,Style) :-
               (forall(member(I,D),
                with_output_to(string(_),grapher:graph(I,Repository://Entry))),
                forall(member(I,P),
+               with_output_to(string(_),grapher:graph(I,Repository://Entry))),
+               forall(member(I,L),
                with_output_to(string(_),grapher:graph(I,Repository://Entry))))).

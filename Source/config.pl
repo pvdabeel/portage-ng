@@ -267,7 +267,7 @@ config:graph_directory('vm-linux.local',    '/root/Graph')            :- !.
 config:graph_modified_only(true).
 
 
-%! config:graph_dependency_type(?Bool)
+%! config:graph_dependency_type(?List)
 %
 % Defines the dependency types for which you want a full graph
 
@@ -280,11 +280,18 @@ config:graph_dependency_type([detail,
                               pdepend]).
 
 
-%! config:graph_proof_type(?Bool)
+%! config:graph_proof_type(?List)
 %
 % Defines the proof types for which you want to create svg
 
 config:graph_proof_type([merge,fetchonly,info]).
+
+
+%! config:graph_legacy_type(?List)
+%
+% Defines the legacy types for which you want to create svg
+
+config:graph_legacy_type([emerge]).
 
 
 % -----------------------------------------------------------------------------

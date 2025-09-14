@@ -28,6 +28,10 @@ if [ -f "${1}/.lastprint" ]; then
   find "${1}" -iname '*.info' -mnewer "${1}/.lastprint" \
   | parallel --no-notice --bar --jobs 200% \
       'aha -s -c ../.proof.css -t {} -f {} > {.}-info.html'
+  find "${1}" -iname '*.emerge' -mnewer "${1}/.lastprint" \
+  | parallel --no-notice --bar --jobs 200% \
+      'aha -s -c ../.proof.css -t {} -f {} > {.}-emerge.html'
+
 
   # fixup html
 
@@ -48,6 +52,10 @@ if [ -f "${1}/.lastprint" ]; then
   | parallel -q --no-notice --bar --jobs 200% \
       modify_svg '{}' '{/.}'
 
+  find "${1}" -iname '*-emerge.svg' -mnewer "${1}/.lastprint" \
+  | parallel -q --no-notice --bar --jobs 200% \
+      modify_svg '{}' '{/.}'
+
 else 
 
   # turn ascii colored text files into html
@@ -61,6 +69,9 @@ else
   find "${1}" -iname '*.info' \
   | parallel --no-notice --bar --jobs 200% \
       'aha -s -c ../.proof.css -t {} -f {} > {.}-info.html'
+  find "${1}" -iname '*.emerge' \
+  | parallel --no-notice --bar --jobs 200% \
+      'aha -s -c ../.proof.css -t {} -f {} > {.}-emerge.html'
 
   # fixup html
 
@@ -78,6 +89,10 @@ else
       modify_svg '{}' '{/.}'
 
   find "${1}" -iname '*-info.svg' \
+  | parallel -q --no-notice --bar --jobs 200% \
+      modify_svg '{}' '{/.}'
+
+  find "${1}" -iname '*-emerge.svg' \
   | parallel -q --no-notice --bar --jobs 200% \
       modify_svg '{}' '{/.}'
 
