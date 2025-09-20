@@ -112,33 +112,33 @@ message:scroll_log(_).
 %  Goal expansion: Color
 % -----------------------------------------------------------------------------
 
-user:goal_expansion(color(red),            format("\e[31m",[])).
-user:goal_expansion(color(green),          format("\e[32m",[])).
-user:goal_expansion(color(orange),         format("\e[33m",[])).
-user:goal_expansion(color(blue),           format("\e[34m",[])).
-user:goal_expansion(color(magenta),        format("\e[35m",[])).
-user:goal_expansion(color(cyan),           format("\e[36m",[])).
-user:goal_expansion(color(lightgray),      format("\e[37m",[])).
-user:goal_expansion(color(darkgray),       format("\e[90m",[])).
-user:goal_expansion(color(lightred),       format("\e[91m",[])).
-user:goal_expansion(color(lightgreen),     format("\e[92m",[])).
-user:goal_expansion(color(lightorange),    format("\e[93m",[])).
-user:goal_expansion(color(lightblue),      format("\e[94m",[])).
-user:goal_expansion(color(lightmagenta),   format("\e[95m",[])).
-user:goal_expansion(color(lightcyan),      format("\e[96m",[])).
-user:goal_expansion(color(normal),         format("\e[00m",[])).
+user:goal_expansion(color(red),            ansi_term:keep_line_pos(current_output,format("\e[31m",[]))).
+user:goal_expansion(color(green),          ansi_term:keep_line_pos(current_output,format("\e[32m",[]))).
+user:goal_expansion(color(orange),         ansi_term:keep_line_pos(current_output,format("\e[33m",[]))).
+user:goal_expansion(color(blue),           ansi_term:keep_line_pos(current_output,format("\e[34m",[]))).
+user:goal_expansion(color(magenta),        ansi_term:keep_line_pos(current_output,format("\e[35m",[]))).
+user:goal_expansion(color(cyan),           ansi_term:keep_line_pos(current_output,format("\e[36m",[]))).
+user:goal_expansion(color(lightgray),      ansi_term:keep_line_pos(current_output,format("\e[37m",[]))).
+user:goal_expansion(color(darkgray),       ansi_term:keep_line_pos(current_output,format("\e[90m",[]))).
+user:goal_expansion(color(lightred),       ansi_term:keep_line_pos(current_output,format("\e[91m",[]))).
+user:goal_expansion(color(lightgreen),     ansi_term:keep_line_pos(current_output,format("\e[92m",[]))).
+user:goal_expansion(color(lightorange),    ansi_term:keep_line_pos(current_output,format("\e[93m",[]))).
+user:goal_expansion(color(lightblue),      ansi_term:keep_line_pos(current_output,format("\e[94m",[]))).
+user:goal_expansion(color(lightmagenta),   ansi_term:keep_line_pos(current_output,format("\e[95m",[]))).
+user:goal_expansion(color(lightcyan),      ansi_term:keep_line_pos(current_output,format("\e[96m",[]))).
+user:goal_expansion(color(normal),         ansi_term:keep_line_pos(current_output,format("\e[00m",[]))).
 
 
 % -----------------------------------------------------------------------------
 %  Goal expansion: Style
 % -----------------------------------------------------------------------------
 
-user:goal_expansion(style(normal),         format("\e[00m",[])).
-user:goal_expansion(style(bold),           format("\e[01m",[])).
-user:goal_expansion(style(dim),            format("\e[02m",[])).
-user:goal_expansion(style(italic),         format("\e[03m",[])).
-user:goal_expansion(style(underline),      format("\e[04m",[])).
-user:goal_expansion(style(blink),          format("\e[05m",[])).
+user:goal_expansion(style(normal),         ansi_term:keep_line_pos(current_output,format("\e[00m",[]))).
+user:goal_expansion(style(bold),           ansi_term:keep_line_pos(current_output,format("\e[01m",[]))).
+user:goal_expansion(style(dim),            ansi_term:keep_line_pos(current_output,format("\e[02m",[]))).
+user:goal_expansion(style(italic),         ansi_term:keep_line_pos(current_output,format("\e[03m",[]))).
+user:goal_expansion(style(underline),      ansi_term:keep_line_pos(current_output,format("\e[04m",[]))).
+user:goal_expansion(style(blink),          ansi_term:keep_line_pos(current_output,format("\e[05m",[]))).
 
 
 % -----------------------------------------------------------------------------
@@ -247,19 +247,20 @@ user:goal_expansion(scroll_log(T),         Expanded) :-
 %  Goal expansion: Title
 % -----------------------------------------------------------------------------
 
-user:goal_expansion(title_reset,           format(Expanded,[])) :-
+user:goal_expansion(title_reset,           Expanded) :-
   config:name(String),
-  format(string(Expanded),'\e]0;~s\a',
-         [String]).
+  Expanded = (ansi_term:keep_line_pos(current_output,
+                                     format('\e]0;~s\a',[String]))).
 
 user:goal_expansion(title(List),           Expanded) :-
   is_list(List),!,
   Expanded = (atomic_list_concat(List,String),
-              format('\e]0;~s\a',[String])).
+              ansi_term:keep_line_pos(current_output,
+                                      format('\e]0;~s\a',[String]))).
 
-user:goal_expansion(title(String),         format(Expanded,[])) :-
-  format(string(Expanded),'\e]0;~s\a',
-         [String]).
+user:goal_expansion(title(String),         Expanded) :-
+  Expanded = (ansi_term:keep_line_pos(current_output,
+                                      format('\e]0;~s\a',[String]))).
 
 
 % -----------------------------------------------------------------------------
