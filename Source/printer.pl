@@ -539,7 +539,7 @@ printer:print_element(_,rule(package_dependency(run_post,_,_C,_N,_,_,_,_),[Repos
   message:color(cyan),
   message:print('confirm'),
   message:color(green),
-  message:column(34,Repository://Entry),
+  message:column(24,Repository://Entry),
   message:color(normal).
 
 
@@ -555,7 +555,7 @@ printer:print_element(Target,rule(Repository://Entry:Action?{Context},_)) :-
   message:print(Action),
   message:style(bold),
   message:color(green),
-  message:column(39,Repository://Entry),
+  message:column(24,Repository://Entry),
   message:color(normal),
   printer:print_config(Repository://Entry:Action?{Context}).
 
@@ -568,7 +568,7 @@ printer:print_element(_,rule(Repository://Entry:Action?{Context},_)) :-
   message:color(cyan),
   message:print(Action),
   message:color(green),
-  message:column(34,Repository://Entry),
+  message:column(24,Repository://Entry),
   message:color(normal),
   printer:print_config(Repository://Entry:Action?{Context}).
 
@@ -582,7 +582,7 @@ printer:print_element(_,rule(package_dependency(run,_,_C,_N,_,_,_,_),[Repository
   message:color(cyan),
   message:print('confirm'),
   message:color(green),
-  message:column(34,Repository://Entry),
+  message:column(24,Repository://Entry),
   message:color(normal).
 
 
@@ -595,7 +595,7 @@ printer:print_element(_,rule(uri(Protocol,Remote,_Local),_)) :-
   message:color(cyan),
   message:print('fetch'),
   message:color(green),
-  message:column(34,Protocol://Remote),
+  message:column(24,Protocol://Remote),
   message:color(normal).
 
 printer:print_element(_,rule(uri(Local),_)) :-
@@ -603,7 +603,7 @@ printer:print_element(_,rule(uri(Local),_)) :-
   message:color(cyan),
   message:print('provide'),
   message:color(green),
-  message:column(34,Local),
+  message:column(24,Local),
   message:color(normal).
 
 
@@ -615,7 +615,7 @@ printer:print_element(_,rule(assumed(package_dependency(install,no,C,N,_,_,_,_):
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
-  message:column(29,P),
+  message:column(24,P),
   message:print([' (non-existent, assumed installed)']),
   message:color(normal).
 
@@ -628,7 +628,7 @@ printer:print_element(_,rule(assumed(package_dependency(run,no,C,N,_,_,_,_):run?
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
-  message:column(29,P),
+  message:column(24,P),
   message:print([' (non-existent, assumed running)']),
   message:color(normal).
 
@@ -640,7 +640,7 @@ printer:print_element(_,rule(assumed(package_dependency(run,no,C,N,_,_,_,_):run?
 printer:print_element(_,rule(assumed(Repository://Entry:unmask?{_Context}),_Body)) :-
   message:color(red),
   message:print('verify'),
-  message:column(29,Repository://Entry),
+  message:column(24,Repository://Entry),
   message:print(' (masked)'),
   message:color(normal).
 
@@ -652,7 +652,7 @@ printer:print_element(_,rule(assumed(Repository://Entry:unmask?{_Context}),_Body
 printer:print_element(_,assumed(rule(Repository://Entry:install?{_Context},_Body))) :-
   message:color(red),
   message:print('verify'),
-  message:column(29,Repository://Entry),
+  message:column(24,Repository://Entry),
   message:print(' (assumed installed)'),
   message:color(normal).
 
@@ -664,7 +664,7 @@ printer:print_element(_,assumed(rule(Repository://Entry:install?{_Context},_Body
 printer:print_element(_,assumed(rule(Repository://Entry:run?{_Context},_Body))) :-
   message:color(red),
   message:print('verify'),
-  message:column(29,Repository://Entry),
+  message:column(24,Repository://Entry),
   message:print(' (assumed running) '),
   message:color(normal).
 
@@ -676,7 +676,7 @@ printer:print_element(_,assumed(rule(Repository://Entry:run?{_Context},_Body))) 
 printer:print_element(_,assumed(rule(Repository://Entry:fetchonly?{_Context},_Body))) :-
   message:color(red),
   message:print('verify'),
-  message:column(29,Repository://Entry),
+  message:column(24,Repository://Entry),
   message:print(' (assumed fetched) '),
   message:color(normal).
 
@@ -689,7 +689,7 @@ printer:print_element(_,assumed(rule(package_dependency(install,_,C,N,_,_,_,_):_
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
-  message:column(29,P),
+  message:column(24,P),
   message:print(' (assumed installed) '),
   message:color(normal).
 
@@ -702,7 +702,7 @@ printer:print_element(_,assumed(rule(package_dependency(run,_,C,N,_,_,_,_):_Acti
   message:color(red),
   message:print('verify'),
   atomic_list_concat([C,'/',N],P),
-  message:column(29,P),
+  message:column(24,P),
   message:print(' (assumed running) '),
   message:color(normal).
 
@@ -742,11 +742,11 @@ printer:print_config_prefix(file) :-
 
 printer:print_config_prefix(live) :-
   config:printing_style('column'),!,
-  message:column(97,' ').
+  message:column(104,' ').
 
 printer:print_config_prefix('conf') :-
   config:printing_style('column'), !,
-  message:column(108,' ').
+  message:column(104,' ').
 
 
 %! printer:print_config_prefix
@@ -767,7 +767,7 @@ printer:print_config_prefix :-
 printer:print_config_prefix :-
   config:printing_style('column'),!,
   nl,write('             │ '),
-  message:column(72,' ').
+  message:column(104,' ').
 
 
 %! printer:print_config(+Repository://+Entry:+Action:+Context)
@@ -886,10 +886,10 @@ printer:print_config(Repository://Entry:install?{Context}) :-
   % Check if a slot is present in the context
   (memberchk(slot(_,_,Slot):{Repository://Entry},Context)
   -> % Check if slot is relevant to print
-     (Slot \== [slot('0')] 
-     -> % Case 1: Use flags and Expanded Use flags empty 
-         (Useflags == [], ValidUseExpandVariables == [] 
-          -> % print just the slot 
+     (Slot \== [slot('0')]
+     -> % Case 1: Use flags and Expanded Use flags empty
+         (Useflags == [], ValidUseExpandVariables == []
+          -> % print just the slot
              printer:print_config_prefix('conf'),
              printer:print_config_item('slot',Slot)
           ;  % print algined configuration
@@ -1009,7 +1009,7 @@ printer:print_config_items_aligned(Useflags, ValidUseExpandVariables, Assumed, S
    forall(member([Key, Keyflags], ValidUseExpandVariables),
           (printer:print_config_prefix,
            printer:print_config_item_aligned(Key, Keyflags, [], MaxLength)))),
-  
+
   % 3. Lastly print SLOT with proper formatting and alignment
   (Slot == [] -> true ;
    (printer:print_config_prefix,
@@ -1031,12 +1031,14 @@ printer:collect_single_config_item(_, _, _, Slot, config_item('slot', Slot, []))
 
 % Helper predicate: Find maximum key length
 printer:find_max_key_length(ConfigItems, MaxLength) :-
-  findall(Length, 
+  findall(Length,
           (member(config_item(Key, _, _), ConfigItems),
            upcase_atom(Key, KeyU),
-           atom_length(KeyU, Length)), 
+           atom_length(KeyU, Length)),
           Lengths),
-  (Lengths == [] -> MaxLength = 0 ; printer:max_list(Lengths, MaxLength)).
+  (Lengths == [] -> MaxLength = 0 ;
+   max_list(Lengths, Max),
+   (Max < 14 -> MaxLength = 14 ; MaxLength = Max)).
 
 % Helper predicate: Print aligned configuration items
 printer:print_aligned_config_items([], _).
@@ -1056,7 +1058,7 @@ printer:print_aligned_config_item(Key, Value, Assumed, MaxLength) :-
   message:print('"').
 
 
-% Helper predicate: Print Use flags 
+% Helper predicate: Print Use flags
 printer:print_config_item_aligned('use', List, Assumed, MaxLength) :-
   !,
   upcase_atom('use', KeyU),
@@ -1068,7 +1070,7 @@ printer:print_config_item_aligned('use', List, Assumed, MaxLength) :-
   catch(
       ( tty_size(_, TermWidth),
         line_position(current_output, AdjustedStartAll),
-        InvisibleChars is 10, % two color change escape codes in prefix
+        InvisibleChars is 0, % two color change escape codes in prefix
         AdjustedStartCol is AdjustedStartAll - InvisibleChars, % correction for color change escape characters
         BaseIndent is 15, % Length of "│                    │"
         TargetColumn is BaseIndent + MaxLength,% SpacesNeeded + KeyLength + 3, % +3 for " = "
@@ -1092,7 +1094,9 @@ printer:print_config_item_aligned('slot', Slot, _, MaxLength) :-
   printer:print_spaces(SpacesNeeded),
   message:print(KeyU),
   message:print(' = "'),
+  message:color(darkgray),
   printer:print_slot_value(Slot),
+  message:color(normal),
   message:print('"').
 
 printer:print_config_item_aligned(Key, Keyflags, _, MaxLength) :-
@@ -1135,14 +1139,6 @@ printer:print_config_value(Key, Keyflags, _) :-
   !,
   printer:collect_expand_flags(Keyflags, AllFlags),
   printer:print_flags_unwrapped(AllFlags).
-
-% Helper predicate: Find maximum value in a list
-printer:max_list([X], X) :- !.
-printer:max_list([X|Xs], Max) :-
-  printer:max_list(Xs, MaxRest),
-  (X > MaxRest -> Max = X ; Max = MaxRest).
-
-
 
 
 
@@ -1267,7 +1263,7 @@ printer:print_one_flag_wrapped(TermWidth, IndentForWrap, SpacesNeeded, flag(Type
             printer:print_continuation_prefix(IndentForWrap), % ok
             printer:print_spaces(SpacesNeeded),               % ok
             printer:print_use_flag(Type, Flag, Assumed),      % ok
-            InvisibleChars is 10, % two color change escape codes in prefix
+            InvisibleChars is 0, % two color change escape codes in prefix
             ColOut is IndentForWrap + SpacesNeeded + FlagLen + InvisibleChars
         )
     ;   % No wrap
@@ -1293,15 +1289,15 @@ printer:print_continuation_prefix(_IndentColumn) :-
     true.
 /*
     nl,
-    ( config:printing_style('short')  -> 
+    ( config:printing_style('short')  ->
         write('             │ '),
         printer:print_spaces_to_column(IndentColumn)
     );
-    ( config:printing_style('column') -> 
+    ( config:printing_style('column') ->
         write('             │ '),
         printer:print_spaces_to_column(IndentColumn)
     );
-    ( config:printing_style('fancy')  -> 
+    ( config:printing_style('fancy')  ->
         write('             │ '),
         printer:print_spaces_to_column(IndentColumn),
         message:color(darkgray),
