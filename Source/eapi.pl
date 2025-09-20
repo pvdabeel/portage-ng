@@ -1931,6 +1931,7 @@ eapi:use_expand('video_cards').
 eapi:use_expand('voicemail_storage').
 eapi:use_expand('xfce_plugins').
 eapi:use_expand('xtables_addons').
+eapi:use_expand('my_expanding_use').
 
 
 % -----------------------------------------------------------------------------
