@@ -77,7 +77,8 @@ test:cases([overlay://'test01/web-1.0':run?{[]},
             overlay://'test50/app-1.0':run?{[]},
             overlay://'test51/app-1.0':install?{[]},
             overlay://'test52/app-1.0':run?{[]},
-            overlay://'test53/app-1.0':run?{[]}
+            overlay://'test53/app-1.0':run?{[]},
+            overlay://'test54/app-1.0':run?{[]}
             ]).
 
 test:basics([overlay://'test01/os-1.0':download?{[]},
@@ -107,7 +108,7 @@ test:pms([overlay://'test50/app-1.0':run?{[]}]).
 test:simple([overlay://'test51/app-1.0':install?{[]}]).
 
 test:new([%overlay://'test52/app-1.0':run?{[]},
-          overlay://'test53/app-1.0':run?{[]}]).
+          overlay://'test54/app-1.0':run?{[]}]).
 
 test:failures([overlay://'test46/app-1.0':run?{[]},
              overlay://'test49/app-1.0':run?{[]}]).
