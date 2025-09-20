@@ -785,7 +785,9 @@ grapher:tl_gensym_reset(Atom) :-
 grapher:write_graph_file(D,Repository://Entry) :-
   config:graph_dependency_type(Deptypes),
   config:graph_proof_type(Prooftypes),
-  append(Deptypes,Prooftypes,Types),
+  config:graph_legacy_type(LegacyTypes),
+  append(Deptypes,Prooftypes,TypesTemp),
+  append(TypesTemp,LegacyTypes,Types),
   (forall(member(Type,Types),
       ((Type == detail
         -> atomic_list_concat([D,'/',Entry,'.dot'],F)
