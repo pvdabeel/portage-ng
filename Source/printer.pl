@@ -856,53 +856,124 @@ printer:print_config(Repository://Entry:install?{Context}) :-
       ; true)
   ;  true).
 
-% use flags to show - to rework: performance
+% use flags to show
 
 printer:print_config(Repository://Entry:install?{Context}) :-
- !,
- findall(Use,
+  !,
+  findall(Use,
          (member(Term,Context),
           (Term = required_use(Uses) ; Term = build_with_use(Uses)),
            member(assumed(Use),Uses)),
          Assumed),
- findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
 
- % slot(test48,libmatrix,[slot(1),subslot(A)]):{overlay://test48/libmatrix-1.0}
+  % Get all USE flags (including USE_EXPAND ones)
+  findall(Use, kb:query(iuse(Use, _Reason), Repository://Entry), AllUseFlags),
 
- (memberchk(slot(_,_,Slot):{Repository://Entry},Context)
-  -> (Slot \== [slot('0')] ->
-        (Useflags == [] ->
-          printer:print_config_prefix('conf'),
-          printer:print_config_item('slot',Slot)
-        ;
-          printer:print_config_prefix('conf'),
-          printer:print_config_item('use',Useflags,Assumed),
-          printer:print_config_prefix,
-          printer:print_config_item('slot',Slot)
-        )
-      ; (Useflags == [] ;
+  % Separate regular USE flags from USE_EXPAND flags
+  partition(printer:is_use_expand_flag, AllUseFlags, UseExpandFlags, RegularUseFlags),
+
+  % Group regular USE flags by reason
+  findall([Reason,Group],
+          group_by(Reason, Use,
+                   (member(Use, RegularUseFlags),
+                    kb:query(iuse(Use, Reason), Repository://Entry)),
+                   Group),
+          Useflags),
+
+  % Group USE_EXPAND flags by expand key and reason
+  findall([ExpandKey, ExpandFlags],
+          printer:group_use_expand_flags(UseExpandFlags, ExpandKey, ExpandFlags, Repository://Entry),
+          UseExpandVariables),
+
+  % Filter out empty USE_EXPAND variables
+  include(printer:valid_use_expand, UseExpandVariables, ValidUseExpandVariables),
+
+  (memberchk(slot(_,_,Slot):{Repository://Entry},Context)
+   -> (Slot \== [slot('0')] ->
+         (Useflags == [], ValidUseExpandVariables == [] ->
+           printer:print_config_prefix('conf'),
+           printer:print_config_item('slot',Slot)
+         ;
+           printer:print_config_prefix('conf'),
+           (Useflags == [] -> true ; printer:print_config_item('use',Useflags,Assumed)),
+           (ValidUseExpandVariables == [] -> true ;
+            forall(member([Key,Keyflags],ValidUseExpandVariables),
+                   (printer:print_config_prefix,
+                    printer:print_config_item(Key,Keyflags)))),
+           printer:print_config_prefix,
+           printer:print_config_item('slot',Slot)
+         )
+       ; (Useflags == [], ValidUseExpandVariables == [] ;
           (printer:print_config_prefix('conf'),
-           printer:print_config_item('use',Useflags,Assumed)))
-     )
-  ;  (Useflags == [] ;
+           (Useflags == [] -> true ; printer:print_config_item('use',Useflags,Assumed)),
+           (ValidUseExpandVariables == [] -> true ;
+            forall(member([Key,Keyflags],ValidUseExpandVariables),
+                   (printer:print_config_prefix,
+                    printer:print_config_item(Key,Keyflags))))))
+    ;  (Useflags == [], ValidUseExpandVariables == [] ;
        (printer:print_config_prefix('conf'),
-        printer:print_config_item('use',Useflags,Assumed)))).
+        (Useflags == [] -> true ; printer:print_config_item('use',Useflags,Assumed)),
+        (ValidUseExpandVariables == [] -> true ;
+         forall(member([Key,Keyflags],ValidUseExpandVariables),
+                (printer:print_config_prefix,
+                 printer:print_config_item(Key,Keyflags)))))))),!.
 
-  %config:print_expand_use(false) ; (
-  %findall([Key,Keyflags], ( preference:use_expand_hidden(Key),
-  %			      Statement =.. [Key,Use,Reason],
-  %                           (findall([Reason,Group],
-  %                                     group_by(Reason,Use,kb:query(Statement,Repository://Entry), Group),
-  %                                     Keyflags ) ),
-  %                            \+(Keyflags == [])),
-  %                          Expandedkeys),
+% Helper predicate: Check if a USE flag is a USE_EXPAND flag
+printer:is_use_expand_flag(UseFlag) :-
+  eapi:use_expand(ExpandKey),
+  eapi:check_prefix_atom(ExpandKey, UseFlag).
 
-  % (forall(member([Key,Keyflags],Expandedkeys),
-  %  ((Useflags == [] ->				                            % Expandedkeys not empty
-  %    printer:print_config_prefix('conf');	                % Expandedkeys not empty, use flags empty
-  %    printer:print_config_prefix),		                    % Expandedkeys not empty, use flags not empty
-  %   printer:print_config_item(Key,Keyflags))))),!.        % Expandedkeys not empty
+% Helper predicate: Group USE_EXPAND flags by expand key
+printer:group_use_expand_flags(UseExpandFlags, ExpandKey, ExpandFlags, Repository://Entry) :-
+  eapi:use_expand(ExpandKey),
+  \+ preference:use_expand_hidden(ExpandKey),
+  findall(UseFlag,
+          (member(UseFlag, UseExpandFlags),
+           eapi:check_prefix_atom(ExpandKey, UseFlag)),
+          MatchingFlags),
+  MatchingFlags \== [],
+  % Group by reason and extract suffix
+  findall([Reason, Group],
+          group_by(Reason, Suffix,
+                   (member(UseFlag, MatchingFlags),
+                    eapi:strip_prefix_atom(ExpandKey, UseFlag, Suffix),
+                    kb:query(iuse(UseFlag, Reason), Repository://Entry)),
+                   Group),
+          ExpandFlags).
 
+% Helper predicate: Check if USE_EXPAND variable is valid (not empty)
+printer:valid_use_expand([_Key, Flags]) :-
+  Flags \== [].
+
+% New print_config_item for USE_EXPAND variables
+printer:print_config_item(Key, Keyflags) :-
+  eapi:use_expand(Key),
+  !,
+  upcase_atom(Key, KeyU),
+  message:print(KeyU),
+  message:print('="'),
+  printer:collect_expand_flags(Keyflags, AllFlags),
+  printer:print_flags_unwrapped(AllFlags),
+  message:print('"').
+
+% Helper predicate: Collect flags for USE_EXPAND variables
+printer:collect_expand_flags(Keyflags, AllFlags) :-
+  (memberchk([negative:default,NegDefa],Keyflags);    NegDefa=[]),
+  (memberchk([negative:ebuild,NegEbui],Keyflags);     NegEbui=[]),
+  (memberchk([negative:preference,NegPref],Keyflags); NegPref=[]),
+  (memberchk([positive:ebuild,PosEbui],Keyflags);     PosEbui=[]),
+  (memberchk([positive:preference,PosPref],Keyflags); PosPref=[]),
+  sort(PosPref, OPosPref),
+  sort(PosEbui, OPosEbui),
+  sort(NegPref, ONegPref),
+  sort(NegEbui, ONegEbui),
+  sort(NegDefa, ONegDefa),
+  maplist(printer:to_flag_term(positive:preference, []), OPosPref, FlagsPosPref),
+  maplist(printer:to_flag_term(positive:ebuild, []), OPosEbui, FlagsPosEbui),
+  maplist(printer:to_flag_term(negative:preference, []), ONegPref, FlagsNegPref),
+  maplist(printer:to_flag_term(negative:ebuild, []), ONegEbui, FlagsNegEbui),
+  maplist(printer:to_flag_term(negative:default, []), ONegDefa, FlagsNegDefa),
+  append([FlagsPosPref, FlagsPosEbui, FlagsNegPref, FlagsNegEbui, FlagsNegDefa], AllFlags).
 
 % ----------------
 % CASE: Run action
@@ -984,6 +1055,8 @@ printer:print_config_item('slot',Slot) :- !,
   message:print('="'),
   printer:print_slot_value(Slot),
   message:print('"').
+
+
 
 %! printer:print_slot_value(+Slot)
 %
