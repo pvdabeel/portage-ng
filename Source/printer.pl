@@ -866,19 +866,14 @@ printer:print_config(Repository://Entry:install?{Context}) :-
            member(assumed(Use),Uses)),
          Assumed),
 
-  % Get all USE flags (including USE_EXPAND ones)
+  % Get regular USE flags (filtered, excluding USE_EXPAND)
+  findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
+
+  % Get all USE flags (including USE_EXPAND ones) for USE_EXPAND processing
   findall(Use, kb:query(iuse(Use, _Reason), Repository://Entry), AllUseFlags),
 
   % Separate regular USE flags from USE_EXPAND flags
-  partition(printer:is_use_expand_flag, AllUseFlags, UseExpandFlags, RegularUseFlags),
-
-  % Group regular USE flags by reason
-  findall([Reason,Group],
-          group_by(Reason, Use,
-                   (member(Use, RegularUseFlags),
-                    kb:query(iuse(Use, Reason), Repository://Entry)),
-                   Group),
-          Useflags),
+  partition(printer:is_use_expand_flag, AllUseFlags, UseExpandFlags, _RegularUseFlags),
 
   % Group USE_EXPAND flags by expand key and reason
   findall([ExpandKey, ExpandFlags],
@@ -888,92 +883,26 @@ printer:print_config(Repository://Entry:install?{Context}) :-
   % Filter out empty USE_EXPAND variables
   include(printer:valid_use_expand, UseExpandVariables, ValidUseExpandVariables),
 
+  % Check if a slot is present in the context
   (memberchk(slot(_,_,Slot):{Repository://Entry},Context)
-   -> (Slot \== [slot('0')] ->
-         (Useflags == [], ValidUseExpandVariables == [] ->
+  -> % Check if slot is relevant to print
+     (Slot \== [slot('0')] 
+     -> % Case 1: Use flags and Expanded Use flags empty 
+         (Useflags == [], ValidUseExpandVariables == [] 
+          -> % print just the slot 
+             printer:print_config_prefix('conf'),
+             printer:print_config_item('slot',Slot)
+          ;  % print algined configuration
            printer:print_config_prefix('conf'),
-           printer:print_config_item('slot',Slot)
-         ;
-           printer:print_config_prefix('conf'),
-           (Useflags == [] -> true ; printer:print_config_item('use',Useflags,Assumed)),
-           (ValidUseExpandVariables == [] -> true ;
-            forall(member([Key,Keyflags],ValidUseExpandVariables),
-                   (printer:print_config_prefix,
-                    printer:print_config_item(Key,Keyflags)))),
-           printer:print_config_prefix,
-           printer:print_config_item('slot',Slot)
-         )
-       ; (Useflags == [], ValidUseExpandVariables == [] ;
+           printer:print_config_items_aligned(Useflags, ValidUseExpandVariables, Assumed, Slot)
+        )
+     ; (Useflags == [], ValidUseExpandVariables == [] ;
           (printer:print_config_prefix('conf'),
-           (Useflags == [] -> true ; printer:print_config_item('use',Useflags,Assumed)),
-           (ValidUseExpandVariables == [] -> true ;
-            forall(member([Key,Keyflags],ValidUseExpandVariables),
-                   (printer:print_config_prefix,
-                    printer:print_config_item(Key,Keyflags))))))
-    ;  (Useflags == [], ValidUseExpandVariables == [] ;
+           printer:print_config_items_aligned(Useflags, ValidUseExpandVariables, Assumed, []))))
+  ;  (Useflags == [], ValidUseExpandVariables == [] ;
        (printer:print_config_prefix('conf'),
-        (Useflags == [] -> true ; printer:print_config_item('use',Useflags,Assumed)),
-        (ValidUseExpandVariables == [] -> true ;
-         forall(member([Key,Keyflags],ValidUseExpandVariables),
-                (printer:print_config_prefix,
-                 printer:print_config_item(Key,Keyflags)))))))),!.
+        printer:print_config_items_aligned(Useflags, ValidUseExpandVariables, Assumed, [])))),!.
 
-% Helper predicate: Check if a USE flag is a USE_EXPAND flag
-printer:is_use_expand_flag(UseFlag) :-
-  eapi:use_expand(ExpandKey),
-  eapi:check_prefix_atom(ExpandKey, UseFlag).
-
-% Helper predicate: Group USE_EXPAND flags by expand key
-printer:group_use_expand_flags(UseExpandFlags, ExpandKey, ExpandFlags, Repository://Entry) :-
-  eapi:use_expand(ExpandKey),
-  \+ preference:use_expand_hidden(ExpandKey),
-  findall(UseFlag,
-          (member(UseFlag, UseExpandFlags),
-           eapi:check_prefix_atom(ExpandKey, UseFlag)),
-          MatchingFlags),
-  MatchingFlags \== [],
-  % Group by reason and extract suffix
-  findall([Reason, Group],
-          group_by(Reason, Suffix,
-                   (member(UseFlag, MatchingFlags),
-                    eapi:strip_prefix_atom(ExpandKey, UseFlag, Suffix),
-                    kb:query(iuse(UseFlag, Reason), Repository://Entry)),
-                   Group),
-          ExpandFlags).
-
-% Helper predicate: Check if USE_EXPAND variable is valid (not empty)
-printer:valid_use_expand([_Key, Flags]) :-
-  Flags \== [].
-
-% New print_config_item for USE_EXPAND variables
-printer:print_config_item(Key, Keyflags) :-
-  eapi:use_expand(Key),
-  !,
-  upcase_atom(Key, KeyU),
-  message:print(KeyU),
-  message:print('="'),
-  printer:collect_expand_flags(Keyflags, AllFlags),
-  printer:print_flags_unwrapped(AllFlags),
-  message:print('"').
-
-% Helper predicate: Collect flags for USE_EXPAND variables
-printer:collect_expand_flags(Keyflags, AllFlags) :-
-  (memberchk([negative:default,NegDefa],Keyflags);    NegDefa=[]),
-  (memberchk([negative:ebuild,NegEbui],Keyflags);     NegEbui=[]),
-  (memberchk([negative:preference,NegPref],Keyflags); NegPref=[]),
-  (memberchk([positive:ebuild,PosEbui],Keyflags);     PosEbui=[]),
-  (memberchk([positive:preference,PosPref],Keyflags); PosPref=[]),
-  sort(PosPref, OPosPref),
-  sort(PosEbui, OPosEbui),
-  sort(NegPref, ONegPref),
-  sort(NegEbui, ONegEbui),
-  sort(NegDefa, ONegDefa),
-  maplist(printer:to_flag_term(positive:preference, []), OPosPref, FlagsPosPref),
-  maplist(printer:to_flag_term(positive:ebuild, []), OPosEbui, FlagsPosEbui),
-  maplist(printer:to_flag_term(negative:preference, []), ONegPref, FlagsNegPref),
-  maplist(printer:to_flag_term(negative:ebuild, []), ONegEbui, FlagsNegEbui),
-  maplist(printer:to_flag_term(negative:default, []), ONegDefa, FlagsNegDefa),
-  append([FlagsPosPref, FlagsPosEbui, FlagsNegPref, FlagsNegEbui, FlagsNegDefa], AllFlags).
 
 % ----------------
 % CASE: Run action
@@ -1011,6 +940,212 @@ printer:print_config(Repository://Entry:all?{Context}) :-
 
 printer:print_config(_://_:_?_) :- !.
 
+
+
+% Helper predicate: Check if a USE flag is a USE_EXPAND flag
+printer:is_use_expand_flag(UseFlag) :-
+  eapi:use_expand(ExpandKey),
+  eapi:check_prefix_atom(ExpandKey, UseFlag).
+
+% Helper predicate: Group USE_EXPAND flags by expand key
+printer:group_use_expand_flags(UseExpandFlags, ExpandKey, ExpandFlags, Repository://Entry) :-
+  eapi:use_expand(ExpandKey),
+  \+ preference:use_expand_hidden(ExpandKey),
+  findall(UseFlag,
+          (member(UseFlag, UseExpandFlags),
+           eapi:check_prefix_atom(ExpandKey, UseFlag)),
+          MatchingFlags),
+  MatchingFlags \== [],
+  % Group by reason and extract suffix
+  findall([Reason, Group],
+          group_by(Reason, Suffix,
+                   (member(UseFlag, MatchingFlags),
+                    eapi:strip_prefix_atom(ExpandKey, UseFlag, Suffix),
+                    kb:query(iuse(UseFlag, Reason), Repository://Entry)),
+                   Group),
+          ExpandFlags).
+
+% Helper predicate: Check if USE_EXPAND variable is valid (not empty)
+printer:valid_use_expand([_Key, Flags]) :-
+  Flags \== [].
+
+
+
+% Helper predicate: Collect flags for USE_EXPAND variables
+printer:collect_expand_flags(Keyflags, AllFlags) :-
+  (memberchk([negative:default,NegDefa],Keyflags);    NegDefa=[]),
+  (memberchk([negative:ebuild,NegEbui],Keyflags);     NegEbui=[]),
+  (memberchk([negative:preference,NegPref],Keyflags); NegPref=[]),
+  (memberchk([positive:ebuild,PosEbui],Keyflags);     PosEbui=[]),
+  (memberchk([positive:preference,PosPref],Keyflags); PosPref=[]),
+  sort(PosPref, OPosPref),
+  sort(PosEbui, OPosEbui),
+  sort(NegPref, ONegPref),
+  sort(NegEbui, ONegEbui),
+  sort(NegDefa, ONegDefa),
+  maplist(printer:to_flag_term(positive:preference, []), OPosPref, FlagsPosPref),
+  maplist(printer:to_flag_term(positive:ebuild, []), OPosEbui, FlagsPosEbui),
+  maplist(printer:to_flag_term(negative:preference, []), ONegPref, FlagsNegPref),
+  maplist(printer:to_flag_term(negative:ebuild, []), ONegEbui, FlagsNegEbui),
+  maplist(printer:to_flag_term(negative:default, []), ONegDefa, FlagsNegDefa),
+  append([FlagsPosPref, FlagsPosEbui, FlagsNegPref, FlagsNegEbui, FlagsNegDefa], AllFlags).
+
+
+% Helper predicate: Print configuration items with aligned equals signs
+printer:print_config_items_aligned(Useflags, ValidUseExpandVariables, Assumed, Slot) :-
+
+  % Collect all configuration items to calculate alignment
+  printer:collect_config_items(Useflags, ValidUseExpandVariables, Assumed, Slot, ConfigItems),
+
+  % Find the maximum key length for alignment
+  printer:find_max_key_length(ConfigItems, MaxLength),
+
+
+  % 1. First print USE flags with proper formatting and alignment
+  (Useflags == [] -> true ; printer:print_config_item_aligned('use', Useflags, Assumed, MaxLength)),
+
+  % 2. Second print USE_EXPAND variables with proper formatting and alignment
+  (ValidUseExpandVariables == [] -> true ;
+   forall(member([Key, Keyflags], ValidUseExpandVariables),
+          (printer:print_config_prefix,
+           printer:print_config_item_aligned(Key, Keyflags, [], MaxLength)))),
+  
+  % 3. Lastly print SLOT with proper formatting and alignment
+  (Slot == [] -> true ;
+   (printer:print_config_prefix,
+    printer:print_config_item_aligned('slot', Slot, [], MaxLength))).
+
+
+
+% Helper predicate: Collect all configuration items
+printer:collect_config_items(Useflags, ValidUseExpandVariables, Assumed, Slot, ConfigItems) :-
+  findall(Item, printer:collect_single_config_item(Useflags, ValidUseExpandVariables, Assumed, Slot, Item), ConfigItems).
+
+% Helper predicate: Collect individual configuration items
+printer:collect_single_config_item(Useflags, _, Assumed, _, config_item('use', Useflags, Assumed)) :-
+  Useflags \== [].
+printer:collect_single_config_item(_, ValidUseExpandVariables, _, _, config_item(Key, Keyflags, [])) :-
+  member([Key, Keyflags], ValidUseExpandVariables).
+printer:collect_single_config_item(_, _, _, Slot, config_item('slot', Slot, [])) :-
+  Slot \== [].
+
+% Helper predicate: Find maximum key length
+printer:find_max_key_length(ConfigItems, MaxLength) :-
+  findall(Length, 
+          (member(config_item(Key, _, _), ConfigItems),
+           upcase_atom(Key, KeyU),
+           atom_length(KeyU, Length)), 
+          Lengths),
+  (Lengths == [] -> MaxLength = 0 ; printer:max_list(Lengths, MaxLength)).
+
+% Helper predicate: Print aligned configuration items
+printer:print_aligned_config_items([], _).
+printer:print_aligned_config_items([config_item(Key, Value, Assumed)|Rest], MaxLength) :-
+  printer:print_aligned_config_item(Key, Value, Assumed, MaxLength),
+  printer:print_aligned_config_items(Rest, MaxLength).
+
+% Helper predicate: Print a single aligned configuration item
+printer:print_aligned_config_item(Key, Value, Assumed, MaxLength) :-
+  upcase_atom(Key, KeyU),
+  atom_length(KeyU, KeyLength),
+  SpacesNeeded is MaxLength - KeyLength,
+  printer:print_spaces(SpacesNeeded),
+  message:print(KeyU),
+  message:print(' = "'),
+  printer:print_config_value(Key, Value, Assumed),
+  message:print('"').
+
+
+% Helper predicate: Print Use flags 
+printer:print_config_item_aligned('use', List, Assumed, MaxLength) :-
+  !,
+  upcase_atom('use', KeyU),
+  atom_length(KeyU, KeyLength),
+  SpacesNeeded is MaxLength - KeyLength,
+  printer:print_spaces(SpacesNeeded),
+  message:print(KeyU),
+  message:print(' = "'),
+  catch(
+      ( tty_size(_, TermWidth),
+        line_position(current_output, AdjustedStartAll),
+        InvisibleChars is 10, % two color change escape codes in prefix
+        AdjustedStartCol is AdjustedStartAll - InvisibleChars, % correction for color change escape characters
+        BaseIndent is 15, % Length of "│                    │"
+        TargetColumn is BaseIndent + MaxLength,% SpacesNeeded + KeyLength + 3, % +3 for " = "
+        printer:collect_all_flags(List, Assumed, AllFlags),
+        AdjustedSpacesNeeded is SpacesNeeded + 2, % +2 for " = " (space before and after =)
+        printer:print_flags_wrapped(AllFlags, AdjustedStartCol, TermWidth, TargetColumn, AdjustedSpacesNeeded)
+      ),
+      error(io_error(check, stream(_)), _),
+      ( printer:collect_all_flags(List, Assumed, AllFlags),
+        printer:print_flags_unwrapped(AllFlags)
+      )
+  ),
+  message:print('"').
+
+
+printer:print_config_item_aligned('slot', Slot, _, MaxLength) :-
+  !,
+  upcase_atom('slot', KeyU),
+  atom_length(KeyU, KeyLength),
+  SpacesNeeded is MaxLength - KeyLength,
+  printer:print_spaces(SpacesNeeded),
+  message:print(KeyU),
+  message:print(' = "'),
+  printer:print_slot_value(Slot),
+  message:print('"').
+
+printer:print_config_item_aligned(Key, Keyflags, _, MaxLength) :-
+  eapi:use_expand(Key),
+  !,
+  upcase_atom(Key, KeyU),
+  atom_length(KeyU, KeyLength),
+  SpacesNeeded is MaxLength - KeyLength,
+  printer:print_spaces(SpacesNeeded),
+  message:print(KeyU),
+  message:print(' = "'),
+  printer:collect_expand_flags(Keyflags, AllFlags),
+  printer:print_flags_unwrapped(AllFlags),
+  message:print('"').
+
+% Helper predicate: Print spaces
+printer:print_spaces(0) :- !.
+printer:print_spaces(N) :-
+  N > 0,
+  message:print(' '),
+  N1 is N - 1,
+  printer:print_spaces(N1).
+
+% Helper predicate: Print spaces to reach a specific column
+printer:print_spaces_to_column(TargetColumn) :-
+  line_position(current_output, CurrentColumn),
+  SpacesNeeded is TargetColumn - CurrentColumn,
+  (SpacesNeeded > 0 -> printer:print_spaces(SpacesNeeded) ; true).
+
+% Helper predicate: Print configuration value based on type
+printer:print_config_value('use', List, Assumed) :-
+  !,
+  printer:collect_all_flags(List, Assumed, AllFlags),
+  printer:print_flags_unwrapped(AllFlags).
+printer:print_config_value('slot', Slot, _) :-
+  !,
+  printer:print_slot_value(Slot).
+printer:print_config_value(Key, Keyflags, _) :-
+  eapi:use_expand(Key),
+  !,
+  printer:collect_expand_flags(Keyflags, AllFlags),
+  printer:print_flags_unwrapped(AllFlags).
+
+% Helper predicate: Find maximum value in a list
+printer:max_list([X], X) :- !.
+printer:max_list([X|Xs], Max) :-
+  printer:max_list(Xs, MaxRest),
+  (X > MaxRest -> Max = X ; Max = MaxRest).
+
+
+
+
+
 %! printer:print_config_item(+Key,+Value)
 %
 % Prints a configuration item for a given repository entry
@@ -1040,7 +1175,7 @@ printer:print_config_item('use',List,Assumed) :- !,
       ( tty_size(_, TermWidth),
         line_position(current_output, StartCol),
         collect_all_flags(List, Assumed, AllFlags),
-        print_flags_wrapped(AllFlags, StartCol, TermWidth, StartCol)
+        print_flags_wrapped(AllFlags, StartCol, TermWidth, StartCol, 0)
       ),
       error(io_error(check, stream(_)), _),
       ( collect_all_flags(List, Assumed, AllFlags),
@@ -1056,6 +1191,17 @@ printer:print_config_item('slot',Slot) :- !,
   printer:print_slot_value(Slot),
   message:print('"').
 
+
+% New print_config_item for USE_EXPAND variables
+printer:print_config_item(Key, Keyflags) :-
+  eapi:use_expand(Key),
+  !,
+  upcase_atom(Key, KeyU),
+  message:print(KeyU),
+  message:print('="'),
+  printer:collect_expand_flags(Keyflags, AllFlags),
+  printer:print_flags_unwrapped(AllFlags),
+  message:print('"').
 
 
 %! printer:print_slot_value(+Slot)
@@ -1088,32 +1234,41 @@ printer:print_slot_value(Slot) :-
   message:print(Slot).
 
 
-%! printer:print_flags_wrapped(+AllFlags, +StartCol, +TermWidth, +IndentForWrap)
+%! printer:print_flags_wrapped(+AllFlags, +StartCol, +TermWidth, +IndentForWrap, +SpacesNeeded)
 %
 % Prints a list of flags wrapped to the terminal width.
 
-printer:print_flags_wrapped([], _, _, _) :- !.
-printer:print_flags_wrapped(AllFlags, StartCol, TermWidth, IndentForWrap) :-
-    foldl(printer:print_one_flag_wrapped(TermWidth, IndentForWrap),
+printer:print_flags_wrapped([], _, _, _, _) :- !.
+printer:print_flags_wrapped(AllFlags, StartCol, TermWidth, IndentForWrap, SpacesNeeded) :-
+    %format('\n\nStartCol=~w, \nTermWidth=~w, \nIndentForWrap=~w, \nSpacesNeeded=~w \n~n', [StartCol, TermWidth, IndentForWrap, SpacesNeeded]),
+    foldl(printer:print_one_flag_wrapped(TermWidth, IndentForWrap, SpacesNeeded),
           AllFlags,
           [StartCol, true],
           _).
 
 
-%! printer:print_one_flag_wrapped(+TermWidth, +IndentForWrap, +FlagTerm, +StateIn, -StateOut)
+%! printer:print_one_flag_wrapped(+TermWidth, +IndentForWrap, +SpacesNeeded, +FlagTerm, +StateIn, -StateOut)
 %
 % Prints a single flag wrapped to the terminal width.
+% TermWidth: the width of the terminal
+% IndentForWrap: the indent for wrapping
+% SpacesNeeded: the number of spaces needed
+% FlagTerm: the flag term
+% StateIn: the state input
+% StateOut: the state output
 
-printer:print_one_flag_wrapped(TermWidth, IndentForWrap, flag(Type, Flag, Assumed), [ColIn, IsFirst], [ColOut, false]) :-
+printer:print_one_flag_wrapped(TermWidth, IndentForWrap, SpacesNeeded, flag(Type, Flag, Assumed), [ColIn, IsFirst], [ColOut, false]) :-
     printer:get_flag_length(Type, Flag, Assumed, FlagLen),
     (IsFirst -> SpaceLen = 0 ; SpaceLen = 1),
     (
-        ( ColIn + SpaceLen + FlagLen > TermWidth, \+ IsFirst )
+        ( ColIn + SpaceLen + FlagLen > TermWidth )
     ->  % Wrap
         (
-            printer:print_continuation_prefix(IndentForWrap),
-            printer:print_use_flag(Type, Flag, Assumed),
-            ColOut is IndentForWrap + FlagLen
+            printer:print_continuation_prefix(IndentForWrap), % ok
+            printer:print_spaces(SpacesNeeded),               % ok
+            printer:print_use_flag(Type, Flag, Assumed),      % ok
+            InvisibleChars is 10, % two color change escape codes in prefix
+            ColOut is IndentForWrap + SpacesNeeded + FlagLen + InvisibleChars
         )
     ;   % No wrap
         (
@@ -1136,7 +1291,24 @@ printer:print_continuation_prefix(_IndentColumn) :-
                                          message:color(darkgray),
                                          write('│      '));
     true.
-
+/*
+    nl,
+    ( config:printing_style('short')  -> 
+        write('             │ '),
+        printer:print_spaces_to_column(IndentColumn)
+    );
+    ( config:printing_style('column') -> 
+        write('             │ '),
+        printer:print_spaces_to_column(IndentColumn)
+    );
+    ( config:printing_style('fancy')  -> 
+        write('             │ '),
+        printer:print_spaces_to_column(IndentColumn),
+        message:color(darkgray),
+        write('│ ')
+    );
+    true.
+*/
 
 %! printer:collect_all_flags(+List, +Assumed, -AllFlags)
 %
