@@ -1035,8 +1035,10 @@ printer:print_config_item_aligned(Key, Keyflags, _) :-
   upcase_atom(Key, KeyU),
   message:bubble(darkgray,KeyU),
   message:print(' = "'),
+  tty_size(_, TermWidth),
+  line_position(current_output, StartCol),
   printer:collect_expand_flags(Keyflags, AllFlags),
-  printer:print_flags_unwrapped(AllFlags),
+  printer:print_flags_wrapped(AllFlags,StartCol,TermWidth),
   message:print('"').
 
 % Helper predicate: Print configuration value based on type
