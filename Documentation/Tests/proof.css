@@ -1,49 +1,54 @@
 @font-face {
-  src: url("https://github.com/kalaschnik/meslolgs-nf-template/raw/refs/heads/main/MesloLGS-NF-Regular.ttf");
-  font-family: "Meslo";
-  font-style:  large;
+    font-family: 'JuliaMono';
+    src: url("https://cdn.jsdelivr.net/gh/cormullion/juliamono-webfonts/JuliaMono-Regular.woff2") format('woff2');
 }
 
 html {
-  overflow-y: scroll; /* Forces vertical scrollbar to always appear */
-  scrollbar-width: auto; /* Firefox: standard scrollbar width */
+  overflow-y: scroll;
+  scrollbar-width: auto;
 }
 
-/* WebKit browsers (Safari, Chrome) */
 ::-webkit-scrollbar {
   -webkit-appearance: none;
-  width: 7px; /* Customize scrollbar width */
+  width: 7px;
 }
 
 ::-webkit-scrollbar-track {
-  background: white; /* Track color */
+  background: black;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #888; /* Thumb color */
+  background: white;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: red; /* Thumb color on hover */
+  background: red;
 }
 
-body         {color: white; background-color: black; font: 0.6rem "Meslo";}
+body, pre {
+    color: white;
+    background-color: black;
+    font-family: 'JuliaMono', 'MesloLGS NF', 'Fira Code', 'Hack', monospace;
+    font-size: 0.6rem;
+}
+
+/* --- General Styles --- */
 .reset       {color: white;}
 .bg-reset    {background-color: black;}
 .inverted    {color: black;}
 .bg-inverted {background-color: white;}
-.dimgray     {color: dimgray;}
-.red         {color: red; filter: contrast(70%) brightness(100%);}
-.green       {color: green; filter: brightness(140%);}
+.dimgray     {color: #888888;}
+.red         {color: #FF5555;}
+.green       {color: #50FA7B;}
 .yellow      {color: yellow; filter: brightness(80%);}
 .blue        {color: #3333FF;}
 .purple      {color: magenta; filter: brightness(160%)}
 .cyan        {color: cyan; filter: brightness(140%);}
 .white       {color: white;}
 .bg-black    {background-color: black;}
-.bg-red      {background-color: red;}
-.bg-green    {background-color: lime;}
+.bg-red      {background-color: #FF5555;}
+.bg-green    {background-color: #50FA7B;}
 .bg-yellow   {background-color: yellow;}
 .bg-blue     {background-color: #3333FF;}
 .bg-purple   {background-color: fuchsia;}
@@ -54,4 +59,18 @@ body         {color: white; background-color: black; font: 0.6rem "Meslo";}
 .italic      {font-style: italic; filter: brightness(70%);}
 .blink       {text-decoration: blink;}
 .crossed-out {text-decoration: line-through;}
-.highlighted {filter: contrast(70%) brightness(150%);}
+.highlighted {filter: contrast(70%) brightness(120%);}
+
+
+/* --- Specific Override for Step Pills --- */
+/* This rule makes the body of the pill a solid grey. */
+.highlighted.bg-black {
+    background-color: #555555; /* Changed from black to grey */
+    color: white !important;
+    filter: none;
+}
+/* This rule makes the rounded caps the exact same grey, creating a single shape. */
+.highlighted.dimgray {
+    color: #555555;
+    filter: none;
+}
