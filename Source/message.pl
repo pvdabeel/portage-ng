@@ -218,6 +218,7 @@ user:goal_expansion(label(notice),
   ( color(darkgray),
     format('% ',[]) )) :- !.
 
+
 user:goal_expansion(label(debug),
   ( bubble(magenta,debug),
     format(' ') )) :-!.
@@ -246,7 +247,7 @@ user:goal_expansion(msg(Scroll,Level,Msg),
       ;  Output = (format(Msg,[])) ),
     ( Scroll == true
       -> Post = (message:el,message:bl,flush_output)
-      ;  Post = nl ),
+      ;  Post = (message:color(normal),nl) ),
     ( Level == failure
       -> Continue = fail
       ;  Continue = true ) ).
@@ -386,6 +387,12 @@ message:gradient_rgb_to_8bit(R, G, B, Code) :-
 message:logo(List) :-
   atomic_list_concat(List,String),
   message:print_gradient(String),nl.
+
+message:logo(List,Mode) :-
+  atomic_list_concat(List,String),
+  message:print_gradient(String),
+  message:print(' '),
+  message:bubble(darkgray,Mode),nl.
 
 
 % -----------------------------------------------------------------------------

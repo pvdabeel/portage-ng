@@ -57,6 +57,7 @@ server:start_server  :-
   config:certificate_password(server,Pass),
   config:digest_passwordfile(Pwdfile),
   config:digest_realm(Realm),
+  nl,
   http:http_server(http_dispatch,
                    [ port(Port) ,
  		     authentication(digest(Pwdfile,Realm)),
@@ -71,7 +72,8 @@ server:start_server  :-
                          ])
                    ]),
   message:datetime(T),
-  message:notice([T]).
+  message:notice([T]),
+  nl.
 
 
 %! server:stop_server

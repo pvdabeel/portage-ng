@@ -27,7 +27,7 @@ The interface interpretes command line arguments passed to portage-ng.
 % Retrieve the current version
 
 interface:version(V) :-
-  V = '2025.09.07'.
+  V = '2025.09.21'.
 
 
 %! interface:status(?Status)
@@ -47,7 +47,7 @@ interface:status(S) :-
 % Retrieve the interface specification
 
 interface:spec(S) :-
-  S = [[opt(mode),     type(atom),    default('standalone'),                  longflags(['mode'] ),
+  S = [[opt(mode),      type(atom),      default('standalone'),                   longflags(['mode'] ),
         help([ '  server:     start as server'
              , '  standalone: start standalone client, not requireing running server'
              , '  client:     start lightweight client, requiring running server'])],
@@ -142,12 +142,19 @@ interface:process_mode(Mode) :-
 % option passed via the command line.
 
 interface:process_continue(Continue) :-
+  !,
   interface:argv(Options,_),
-  (lists:memberchk(mode(server),Options) ->
-    Continue = true;
-    (lists:memberchk(shell(true),Options) ->
-     Continue = prolog;
-     Continue = halt)).
+  interface:version(Version),
+  lists:memberchk(mode(Mode),Options),
+
+
+  (lists:memberchk(mode(server),Options)
+   ->  message:logo(['::- portage-ng ',Version],Mode),
+       Continue = true
+   ;   (lists:memberchk(shell(true),Options)
+        -> message:logo(['::- portage-ng ',Version],Mode),
+           Continue = prolog
+        ;  Continue = halt)).
 
 
 %! interface:process_server(Host,Port)
@@ -166,6 +173,9 @@ interface:process_server(Host,Port) :-
 % Maps the options declared in interface:specs(S) onto actions defined as
 % a set of predicates to be called.
 
+interface:process_requests(server) :-
+  !, prolog.
+
 interface:process_requests(Mode) :-
   interface:version(Version),
 
@@ -178,19 +188,19 @@ interface:process_requests(Mode) :-
 
   ( memberchk(version(true),Options)  -> (message:logo(['::- portage-ng ',Version]),                Continue) ;
     memberchk(info(true),Options)     -> (interface:process_action(info,Args,Options),              Continue) ;
-    memberchk(clear(true),Options)    -> (kb:clear, 							                                  Continue) ;
-    memberchk(graph(true),Options)    -> (kb:graph,nl, 				  			                              Continue) ;
-    memberchk(unmerge(true),Options)  -> (interface:process_action(uninstall,Args,Options), 	      Continue) ;
-    memberchk(depclean(true),Options) -> (message:warning('depclean action to be implemented'), 	  Continue) ;
+    memberchk(clear(true),Options)    -> (kb:clear, 						    Continue) ;
+    memberchk(graph(true),Options)    -> (kb:graph,nl, 				  	            Continue) ;
+    memberchk(unmerge(true),Options)  -> (interface:process_action(uninstall,Args,Options), 	    Continue) ;
+    memberchk(depclean(true),Options) -> (message:warning('depclean action to be implemented'),     Continue) ;
     memberchk(search(true),Options)   -> (interface:process_action(search,Args,Options),            Continue) ;
     memberchk(sync(true),Options)     -> ((Mode == standalone
                                            -> (kb:sync, kb:save)
-                                           ;  (kb:sync)),!, 						                            Continue) ;
-    memberchk(save(true),Options)     -> (kb:save,!, 							                                  Continue) ;
-    memberchk(load(true),Options)     -> (kb:load,!, 							                                  Continue) ;
+                                           ;  (kb:sync)),!, 					    Continue) ;
+    memberchk(save(true),Options)     -> (kb:save,!, 						    Continue) ;
+    memberchk(load(true),Options)     -> (kb:load,!, 						    Continue) ;
     memberchk(fetchonly(true),Options)-> (interface:process_action(fetchonly,Args,Options),         Continue) ;
     memberchk(merge(true),Options)    -> (interface:process_action(run,Args,Options),               Continue) ;
-    memberchk(shell(true),Options)    -> (message:logo(['::- portage-ng shell - ',Version]),		    prolog)),
+    memberchk(shell(true),Options)    -> (message:logo(['::- portage-ng shell - ',Version]),	    prolog)),
 
   Continue.
 
