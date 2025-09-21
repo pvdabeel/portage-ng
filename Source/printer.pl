@@ -533,7 +533,6 @@ printer:sort_by_weight(C,L1,L2) :-
 %
 % Prints a printable Literal
 
-
 printer:print_element(_,rule(package_dependency(run_post,_,_C,_N,_,_,_,_),[Repository://Entry:_Action?{_Context}])) :-
   !,
   message:color(cyan),
@@ -551,8 +550,8 @@ printer:print_element(_,rule(package_dependency(run_post,_,_C,_N,_,_,_,_),[Repos
 printer:print_element(Target,rule(Repository://Entry:Action?{Context},_)) :-
   member(Repository://Entry:Action?_,Target),
   !,
-  message:color(cyan),
-  message:print(Action),
+  %message:color(cyan),
+  message:bubble(green,Action),
   message:style(bold),
   message:color(green),
   message:column(24,Repository://Entry),
@@ -612,8 +611,8 @@ printer:print_element(_,rule(uri(Local),_)) :-
 % ---------------------------------------------------------------
 
 printer:print_element(_,rule(assumed(package_dependency(install,no,C,N,_,_,_,_):install?{_Context}),[])) :-
+  message:bubble(red,'verify'),
   message:color(red),
-  message:print('verify'),
   atomic_list_concat([C,'/',N],P),
   message:column(24,P),
   message:print([' (non-existent, assumed installed)']),
@@ -625,8 +624,8 @@ printer:print_element(_,rule(assumed(package_dependency(install,no,C,N,_,_,_,_):
 % -------------------------------------------------------------
 
 printer:print_element(_,rule(assumed(package_dependency(run,no,C,N,_,_,_,_):run?{_Context}),[])) :-
+  message:bubble(red,'verify'),
   message:color(red),
-  message:print('verify'),
   atomic_list_concat([C,'/',N],P),
   message:column(24,P),
   message:print([' (non-existent, assumed running)']),
@@ -638,8 +637,8 @@ printer:print_element(_,rule(assumed(package_dependency(run,no,C,N,_,_,_,_):run?
 % ---------------------------------
 
 printer:print_element(_,rule(assumed(Repository://Entry:unmask?{_Context}),_Body)) :-
+  message:bubble(red,'verify'),
   message:color(red),
-  message:print('verify'),
   message:column(24,Repository://Entry),
   message:print(' (masked)'),
   message:color(normal).
@@ -650,8 +649,8 @@ printer:print_element(_,rule(assumed(Repository://Entry:unmask?{_Context}),_Body
 % ----------------------------------
 
 printer:print_element(_,assumed(rule(Repository://Entry:install?{_Context},_Body))) :-
+  message:bubble(red,'verify'),
   message:color(red),
-  message:print('verify'),
   message:column(24,Repository://Entry),
   message:print(' (assumed installed)'),
   message:color(normal).
@@ -662,8 +661,8 @@ printer:print_element(_,assumed(rule(Repository://Entry:install?{_Context},_Body
 % --------------------------------
 
 printer:print_element(_,assumed(rule(Repository://Entry:run?{_Context},_Body))) :-
+  message:bubble(red,'verify'),
   message:color(red),
-  message:print('verify'),
   message:column(24,Repository://Entry),
   message:print(' (assumed running) '),
   message:color(normal).
@@ -674,8 +673,8 @@ printer:print_element(_,assumed(rule(Repository://Entry:run?{_Context},_Body))) 
 % --------------------------------
 
 printer:print_element(_,assumed(rule(Repository://Entry:fetchonly?{_Context},_Body))) :-
+  message:bubble(red,'verify'),
   message:color(red),
-  message:print('verify'),
   message:column(24,Repository://Entry),
   message:print(' (assumed fetched) '),
   message:color(normal).
@@ -686,8 +685,8 @@ printer:print_element(_,assumed(rule(Repository://Entry:fetchonly?{_Context},_Bo
 % -------------------------------------
 
 printer:print_element(_,assumed(rule(package_dependency(install,_,C,N,_,_,_,_):_Action?{_Context},_Body))) :-
+  message:bubble(red,'verify'),
   message:color(red),
-  message:print('verify'),
   atomic_list_concat([C,'/',N],P),
   message:column(24,P),
   message:print(' (assumed installed) '),
@@ -699,8 +698,8 @@ printer:print_element(_,assumed(rule(package_dependency(install,_,C,N,_,_,_,_):_
 % -----------------------------------
 
 printer:print_element(_,assumed(rule(package_dependency(run,_,C,N,_,_,_,_):_Action?{_Context},_Body))) :-
+  message:bubble(red,'verify'),
   message:color(red),
-  message:print('verify'),
   atomic_list_concat([C,'/',N],P),
   message:column(24,P),
   message:print(' (assumed running) '),
@@ -822,16 +821,6 @@ printer:print_config(Repository://Ebuild:download?{_Context}) :-
 
 printer:print_config(Repository://Ebuild:download?{_Context}) :-
   !,
-
-  % If you want to show use flags right before the downloads:
-
-  % findall(Use, member(assumed(Use),Context), Assumed),
-  % findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Ebuild), Group), Useflags),
-
-  % (Useflags == [] ;
-  %  (printer:print_config_prefix('conf'),	    	            % Use flags not empty
-  %   printer:print_config_item('use',Useflags,Assumed))),    % Use flags not empty
-
   findall([File,Size],kb:query(manifest(preference,_,File,Size),Repository://Ebuild),Downloads),
   sort(Downloads,[[FirstFile,FirstSize]|Rest]),
   printer:print_config_prefix('file'),
@@ -912,7 +901,7 @@ printer:print_config(_://_:run?{_Context}) :- !.
 
 
 % --------------
-% CASE: All info
+% CASE: All info // todo: remove
 % --------------
 
 printer:print_config(Repository://Entry:all?{Context}) :-
@@ -994,26 +983,19 @@ printer:collect_expand_flags(Keyflags, AllFlags) :-
 % Helper predicate: Print configuration items with aligned equals signs
 printer:print_config_items_aligned(Useflags, ValidUseExpandVariables, Assumed, Slot) :-
 
-  % Collect all configuration items to calculate alignment
-  printer:collect_config_items(Useflags, ValidUseExpandVariables, Assumed, Slot, ConfigItems),
-
-  % Find the maximum key length for alignment
-  printer:find_max_key_length(ConfigItems, MaxLength),
-
-
   % 1. First print USE flags with proper formatting and alignment
-  (Useflags == [] -> true ; printer:print_config_item_aligned('use', Useflags, Assumed, MaxLength)),
+  printer:print_config_item_aligned('use', Useflags, Assumed),
 
   % 2. Second print USE_EXPAND variables with proper formatting and alignment
   (ValidUseExpandVariables == [] -> true ;
    forall(member([Key, Keyflags], ValidUseExpandVariables),
           (printer:print_config_prefix,
-           printer:print_config_item_aligned(Key, Keyflags, [], MaxLength)))),
+           printer:print_config_item_aligned(Key, Keyflags, [])))),
 
   % 3. Lastly print SLOT with proper formatting and alignment
   (Slot == [] -> true ;
    (printer:print_config_prefix,
-    printer:print_config_item_aligned('slot', Slot, [], MaxLength))).
+    printer:print_config_item_aligned('slot', Slot, []))).
 
 
 
@@ -1029,54 +1011,33 @@ printer:collect_single_config_item(_, ValidUseExpandVariables, _, _, config_item
 printer:collect_single_config_item(_, _, _, Slot, config_item('slot', Slot, [])) :-
   Slot \== [].
 
-% Helper predicate: Find maximum key length
-printer:find_max_key_length(ConfigItems, MaxLength) :-
-  findall(Length,
-          (member(config_item(Key, _, _), ConfigItems),
-           upcase_atom(Key, KeyU),
-           atom_length(KeyU, Length)),
-          Lengths),
-  (Lengths == [] -> MaxLength = 0 ;
-   max_list(Lengths, Max),
-   (Max < 14 -> MaxLength = 14 ; MaxLength = Max)).
 
 % Helper predicate: Print aligned configuration items
-printer:print_aligned_config_items([], _).
-printer:print_aligned_config_items([config_item(Key, Value, Assumed)|Rest], MaxLength) :-
-  printer:print_aligned_config_item(Key, Value, Assumed, MaxLength),
-  printer:print_aligned_config_items(Rest, MaxLength).
+printer:print_aligned_config_items([]).
+printer:print_aligned_config_items([config_item(Key, Value, Assumed)|Rest]) :-
+  printer:print_aligned_config_item(Key, Value, Assumed),
+  printer:print_aligned_config_items(Rest).
 
 % Helper predicate: Print a single aligned configuration item
-printer:print_aligned_config_item(Key, Value, Assumed, MaxLength) :-
+printer:print_aligned_config_item(Key, Value, Assumed) :-
   upcase_atom(Key, KeyU),
-  atom_length(KeyU, KeyLength),
-  SpacesNeeded is MaxLength - KeyLength,
-  printer:print_spaces(SpacesNeeded),
-  message:print(KeyU),
+  message:bubble(darkgray,KeyU),
   message:print(' = "'),
   printer:print_config_value(Key, Value, Assumed),
   message:print('"').
 
 
 % Helper predicate: Print Use flags
-printer:print_config_item_aligned('use', List, Assumed, MaxLength) :-
+printer:print_config_item_aligned('use', List, Assumed) :-
   !,
   upcase_atom('use', KeyU),
-  atom_length(KeyU, KeyLength),
-  SpacesNeeded is MaxLength - KeyLength,
-  printer:print_spaces(SpacesNeeded),
-  message:print(KeyU),
+  message:bubble(darkgray,KeyU),
   message:print(' = "'),
   catch(
       ( tty_size(_, TermWidth),
-        line_position(current_output, AdjustedStartAll),
-        InvisibleChars is 0, % two color change escape codes in prefix
-        AdjustedStartCol is AdjustedStartAll - InvisibleChars, % correction for color change escape characters
-        BaseIndent is 15, % Length of "│                    │"
-        TargetColumn is BaseIndent + MaxLength,% SpacesNeeded + KeyLength + 3, % +3 for " = "
-        printer:collect_all_flags(List, Assumed, AllFlags),
-        AdjustedSpacesNeeded is SpacesNeeded + 2, % +2 for " = " (space before and after =)
-        printer:print_flags_wrapped(AllFlags, AdjustedStartCol, TermWidth, TargetColumn, AdjustedSpacesNeeded)
+        line_position(current_output, StartCol),
+	printer:collect_all_flags(List, Assumed, AllFlags),
+        printer:print_flags_wrapped(AllFlags, StartCol, TermWidth)
       ),
       error(io_error(check, stream(_)), _),
       ( printer:collect_all_flags(List, Assumed, AllFlags),
@@ -1086,45 +1047,25 @@ printer:print_config_item_aligned('use', List, Assumed, MaxLength) :-
   message:print('"').
 
 
-printer:print_config_item_aligned('slot', Slot, _, MaxLength) :-
+printer:print_config_item_aligned('slot', Slot, _) :-
   !,
   upcase_atom('slot', KeyU),
-  atom_length(KeyU, KeyLength),
-  SpacesNeeded is MaxLength - KeyLength,
-  printer:print_spaces(SpacesNeeded),
-  message:print(KeyU),
+  message:bubble(darkgray,KeyU),
   message:print(' = "'),
   message:color(darkgray),
   printer:print_slot_value(Slot),
   message:color(normal),
   message:print('"').
 
-printer:print_config_item_aligned(Key, Keyflags, _, MaxLength) :-
+printer:print_config_item_aligned(Key, Keyflags, _) :-
   eapi:use_expand(Key),
   !,
   upcase_atom(Key, KeyU),
-  atom_length(KeyU, KeyLength),
-  SpacesNeeded is MaxLength - KeyLength,
-  printer:print_spaces(SpacesNeeded),
-  message:print(KeyU),
+  message:bubble(darkgray,KeyU),
   message:print(' = "'),
   printer:collect_expand_flags(Keyflags, AllFlags),
   printer:print_flags_unwrapped(AllFlags),
   message:print('"').
-
-% Helper predicate: Print spaces
-printer:print_spaces(0) :- !.
-printer:print_spaces(N) :-
-  N > 0,
-  message:print(' '),
-  N1 is N - 1,
-  printer:print_spaces(N1).
-
-% Helper predicate: Print spaces to reach a specific column
-printer:print_spaces_to_column(TargetColumn) :-
-  line_position(current_output, CurrentColumn),
-  SpacesNeeded is TargetColumn - CurrentColumn,
-  (SpacesNeeded > 0 -> printer:print_spaces(SpacesNeeded) ; true).
 
 % Helper predicate: Print configuration value based on type
 printer:print_config_value('use', List, Assumed) :-
@@ -1182,7 +1123,7 @@ printer:print_config_item('use',List,Assumed) :- !,
 
 printer:print_config_item('slot',Slot) :- !,
   upcase_atom('slot',KeyS),
-  message:print(KeyS),
+  message:bubble(darkgray,KeyS),
   message:print(' = "'),
   message:color(darkgray),
   printer:print_slot_value(Slot),
@@ -1237,9 +1178,8 @@ printer:print_slot_value(Slot) :-
 % Prints a list of flags wrapped to the terminal width.
 
 printer:print_flags_wrapped([], _, _, _, _) :- !.
-printer:print_flags_wrapped(AllFlags, StartCol, TermWidth, IndentForWrap, SpacesNeeded) :-
-    %format('\n\nStartCol=~w, \nTermWidth=~w, \nIndentForWrap=~w, \nSpacesNeeded=~w \n~n', [StartCol, TermWidth, IndentForWrap, SpacesNeeded]),
-    foldl(printer:print_one_flag_wrapped(TermWidth, IndentForWrap, SpacesNeeded),
+printer:print_flags_wrapped(AllFlags, StartCol, TermWidth) :-
+    foldl(printer:print_one_flag_wrapped(StartCol,TermWidth),
           AllFlags,
           [StartCol, true],
           _).
@@ -1255,18 +1195,16 @@ printer:print_flags_wrapped(AllFlags, StartCol, TermWidth, IndentForWrap, Spaces
 % StateIn: the state input
 % StateOut: the state output
 
-printer:print_one_flag_wrapped(TermWidth, IndentForWrap, SpacesNeeded, flag(Type, Flag, Assumed), [ColIn, IsFirst], [ColOut, false]) :-
+printer:print_one_flag_wrapped(StartCol, TermWidth, flag(Type, Flag, Assumed), [ColIn, IsFirst], [ColOut, false]) :-
     printer:get_flag_length(Type, Flag, Assumed, FlagLen),
     (IsFirst -> SpaceLen = 0 ; SpaceLen = 1),
     (
         ( ColIn + SpaceLen + FlagLen > TermWidth )
     ->  % Wrap
         (
-            printer:print_continuation_prefix(IndentForWrap), % ok
-            printer:print_spaces(SpacesNeeded),               % ok
-            printer:print_use_flag(Type, Flag, Assumed),      % ok
-            InvisibleChars is 0, % two color change escape codes in prefix
-            ColOut is IndentForWrap + SpacesNeeded + FlagLen + InvisibleChars
+            printer:print_continuation_prefix(StartCol),      % go to next line, print prefix, jump to start position
+            printer:print_use_flag(Type, Flag, Assumed),      % print flag
+            ColOut is StartCol + FlagLen
         )
     ;   % No wrap
         (
@@ -1281,32 +1219,29 @@ printer:print_one_flag_wrapped(TermWidth, IndentForWrap, SpacesNeeded, flag(Type
 %
 % Prints the continuation prefix for wrapped flags.
 
-printer:print_continuation_prefix(_IndentColumn) :-
+printer:print_continuation_prefix(StartColumn) :-
     nl,
-    ( config:printing_style('short')  -> write('             │                '));
-    ( config:printing_style('column') -> write('             │                                                                            '));
-    ( config:printing_style('fancy')  -> write('             │                    '),
-                                         message:color(darkgray),
-                                         write('│      '));
-    true.
-/*
-    nl,
+
     ( config:printing_style('short')  ->
         write('             │ '),
-        printer:print_spaces_to_column(IndentColumn)
+        NewStartColumn is StartColumn - 1,
+        message:column(NewStartColumn,'')
     );
+
     ( config:printing_style('column') ->
         write('             │ '),
-        printer:print_spaces_to_column(IndentColumn)
+        NewStartColumn is StartColumn - 1,
+        message:column(NewStartColumn,'')
     );
     ( config:printing_style('fancy')  ->
-        write('             │ '),
-        printer:print_spaces_to_column(IndentColumn),
+        write('             │                    '),
         message:color(darkgray),
-        write('│ ')
+        write('│ '),
+        NewStartColumn is StartColumn - 1,
+        message:column(NewStartColumn,'')
     );
     true.
-*/
+
 
 %! printer:collect_all_flags(+List, +Assumed, -AllFlags)
 %
@@ -1506,8 +1441,11 @@ printer:print_first_in_step(Target,[Rule|Rest],Count,NewCount) :-
   printer:printable_element(Rule),
   NewCount is Count + 1,
   format(atom(AtomNewCount),'~t~0f~2|',[NewCount]),
+  format(atom(StepNewCount),'step ~a',[AtomNewCount]),
   !,
-  write(' └─ step '),write(AtomNewCount), write(' ─┤ '),
+  write(' └─'),
+  message:bubble(darkgray,StepNewCount),
+  write('─┤ '),
   printer:print_element(Target,Rule),
   printer:print_next_in_step(Target,Rest).
 
@@ -1615,11 +1553,13 @@ printer:update_stats_clauses(_, S, S).
 printer:print_warnings(ModelAVL, ProofAVL) :-
   once((assoc:gen_assoc(Key, ModelAVL, _), Key = assumed(_))),
   !,
+  nl,
+  message:bubble(red,'Error'),
   message:color(red),
-  message:print('Error: The proof for your build plan contains assumptions. Please verify:'), nl, nl,
+  message:print(' The proof for your build plan contains assumptions. Please verify:'), nl, nl,
   message:color(red),
   forall(assoc:gen_assoc(ProofKey, ProofAVL, _ProofValue),
-         printer:handle_assumption(ProofKey)
+         (printer:handle_assumption(ProofKey))
   ),
   nl,
   message:color(normal),nl.
@@ -1634,10 +1574,12 @@ printer:print_warnings(_,_) :- !, nl.
 printer:handle_assumption(ProofKey) :-
   % Case 1: key format: rule(assumed(...))
   (   ProofKey = rule(assumed(Content)) ->
-      printer:print_assumption_detail(rule(Content, []))
+      printer:print_assumption_detail(rule(Content, [])),
+      nl
   % Case 2: key format: assumed(rule(...))
   ;   ProofKey = assumed(rule(Content)) ->
-      printer:print_assumption_detail(rule(Content, []))
+      printer:print_assumption_detail(rule(Content, [])),
+      nl
   ;
       true
   ).
@@ -1647,22 +1589,52 @@ printer:handle_assumption(ProofKey) :-
 %
 % Prints formatted, non-garbled assumption details.
 
-printer:print_assumption_detail(rule(package_dependency(T,A,C,N,X,Y,Z,XX):YY?{ZZ},_)) :- !,
-    message:print(' - Non-existent or failed '), message:print(T),
-    message:print(' dependency: '), message:print(C), message:print('/'), message:print(N),
-    %message:print(' for ebuild '), message:print(R://E), nl,
-    message:print('   - '),writeln(package_dependency(T,A,C,N,X,Y,Z,XX):YY?{ZZ}).
+printer:print_assumption_detail(rule(package_dependency(T,A,C,N,X,Y,Z,XX):_YY?{_ZZ},_)) :- !,
+    message:color(lightred),
+    message:style(bold),
+    message:print('- Non-existent '),
+    message:print(T),
+    message:print(' dependency: '),
+    message:style(normal),
+    nl,
+    message:color(normal),
+    printer:print_metadata_item_detail(_,'  ',package_dependency(T,A,C,N,X,Y,Z,XX)),nl.
+
 printer:print_assumption_detail(rule(R://E:install,_)) :- !,
-    message:print(' - Assumed installed (not in world file or proof failed): '),
+    message:color(lightred),
+    message:style(bold),
+    message:print('- Assumed installed: '),
+    message:style(normal),
+    message:color(normal),nl,
+    message:print('  '),
     message:print(R://E), nl.
+
 printer:print_assumption_detail(rule(R://E:run,_)) :- !,
-    message:print(' - Assumed running (not in world file or proof failed): '),
+    message:color(lightred),
+    message:style(bold),
+    message:print('- Assumed running: '),
+    message:style(normal),
+    message:color(normal),nl,
+    message:print('  '),
     message:print(R://E), nl.
+
 printer:print_assumption_detail(rule(R://E:unmask,_)) :- !,
-    message:print(' - Assumed unmasked (ebuild is masked): '),
+    message:color(lightred),
+    message:style(bold),
+    message:print('- Masked: '),
+    message:style(normal),
+    message:color(normal),nl,
+    message:print('  '),
     message:print(R://E), nl.
+
 printer:print_assumption_detail(rule(C,_)) :-
-    message:print(' - General assumption made: '), message:print(C), nl.
+    message:color(lightred),
+    message:style(bold),
+    message:print('- Other: '),
+    message:style(normal),
+    message:color(normal),nl,
+    message:print('  '),
+    message:print(C), nl.
 
 
 %! printer:print(+Target,+ModelAVL,+ProofAVL,+Plan)
