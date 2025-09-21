@@ -184,7 +184,7 @@ grapher:graph_legend_header(DepLen,ProofLen,LegacyLen) :-
   write('<TD BORDER=\'0\' WIDTH=\'30\'></TD>'),
   write('<TD COLSPAN=\''),write(ProofLen),write('\'><FONT COLOR=\'black\'><B>command line</B></FONT></TD>'),
   write('<TD BORDER=\'0\' WIDTH=\'30\'></TD>'),
-  write('<TD COLSPAN=\''),write(LegacyLen),write('\'><FONT COLOR=\'black\'><B>Legacy</B></FONT></TD>'),
+  write('<TD COLSPAN=\''),write(LegacyLen),write('\'><FONT COLOR=\'black\'><B>legacy</B></FONT></TD>'),
   write('</TR><TR>').
 
 
@@ -499,8 +499,9 @@ grapher:graph_candidates(detail,AllChoices1,AllChoices2,AllChoices3) :-
 % dependency graph.
 
 grapher:graph_root(Type,_Repository://_Id) :-
-  config:graph_proof_type(Types),
-  memberchk(Type,Types),!,
+  ((config:graph_proof_type(Types),memberchk(Type,Types));
+   (config:graph_legacy_type(Types),memberchk(Type,Types))),
+  !,
   write('root [style=invis];'),nl,
   write('placeholder [style=invis, width=22, height=15];'),nl,
   % enough space to put an iframe with html inside
