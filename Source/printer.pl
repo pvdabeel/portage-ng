@@ -248,9 +248,8 @@ printer:print_metadata_item_detail(src_uri,Prefix,uri(_,_,Value)) :-
 printer:print_metadata_item_detail(Item,Prefix,use_conditional_group(Type,Use,_Id,Values)) :-
   !,
   write(Prefix),
-  message:color(lightgray),
-  message:style(italic),
-  write('[use] '),
+  message:bubble(darkgray,use),
+  write(' '),
   (Type == negative
    -> (message:color(red),write('-'))
    ;   message:color(green)),
@@ -263,9 +262,8 @@ printer:print_metadata_item_detail(Item,Prefix,use_conditional_group(Type,Use,_I
 printer:print_metadata_item_detail(Item,Prefix,any_of_group(Values)) :-
   !,
   write(Prefix),
-  message:color(lightgray),
-  message:style(italic),
-  write('[any] '),
+  message:bubble(darkgray,any),
+  write(' '),
   message:color(normal),
   atom_concat('   ',Prefix,NewPrefix),
   forall(member(V,Values),(nl,message:color(darkgray),message:color(normal),printer:print_metadata_item_detail(Item,NewPrefix,V))).
@@ -273,9 +271,8 @@ printer:print_metadata_item_detail(Item,Prefix,any_of_group(Values)) :-
 printer:print_metadata_item_detail(Item,Prefix,all_of_group(Values)) :-
   !,
   write(Prefix),
-  message:color(lightgray),
-  message:style(italic),
-  write('[all] '),
+  message:bubble(darkgray,all),
+  write(' '),
   message:color(normal),
   atom_concat('   ',Prefix,NewPrefix),
   forall(member(V,Values),(nl,message:color(darkgray),message:color(normal),printer:print_metadata_item_detail(Item,NewPrefix,V))).
@@ -283,9 +280,8 @@ printer:print_metadata_item_detail(Item,Prefix,all_of_group(Values)) :-
 printer:print_metadata_item_detail(Item,Prefix,exactly_one_of_group(Values)) :-
   !,
   write(Prefix),
-  message:color(lightgray),
-  message:style(italic),
-  write('[one] '),
+  message:bubble(darkgray,one),
+  write(' '),
   message:color(normal),
   atom_concat('   ',Prefix,NewPrefix),
   forall(member(V,Values),(nl,message:color(darkgray),message:color(normal),printer:print_metadata_item_detail(Item,NewPrefix,V))).
@@ -293,8 +289,7 @@ printer:print_metadata_item_detail(Item,Prefix,exactly_one_of_group(Values)) :-
 printer:print_metadata_item_detail(Item,Prefix,at_most_one_of_group(Values)) :-
   !,
   write(Prefix),
-  message:color(lightgray),
-  message:style(italic),
+  message:bubble(darkgray,one),
   write('[one] '),
   message:color(normal),
   atom_concat('   ',Prefix,NewPrefix),
@@ -506,7 +501,7 @@ printer:element_weight(assumed(_),                                      0) :- !.
 printer:element_weight(rule(assumed(_),_),                              0) :- !. % assumed
 printer:element_weight(rule(uri(_),_),                                  0) :- !. % provide
 printer:element_weight(rule(uri(_,_,_),_),                              1) :- !. % fetch
-printer:element_weight(rule(package_dependency(_,_,_,_,_,_,_,_),_),   1) :- !. % confirm
+printer:element_weight(rule(package_dependency(_,_,_,_,_,_,_,_),_),     1) :- !. % confirm
 printer:element_weight(rule(_Repository://_Entry:verify?_,_),           2) :- !. % verify
 printer:element_weight(rule(_Repository://_Entry:run?_,_),              3) :- !. % run
 printer:element_weight(rule(_Repository://_Entry:download?_,_),         4) :- !. % download
@@ -900,29 +895,6 @@ printer:print_config(Repository://Entry:install?{Context}) :-
 printer:print_config(_://_:run?{_Context}) :- !.
 
 
-% --------------
-% CASE: All info // todo: remove
-% --------------
-
-printer:print_config(Repository://Entry:all?{Context}) :-
- !,
-
- findall(Use, member(assumed(Use),Context), Assumed),
- findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
-
- (Useflags == [] ;
-   (message:print('└─ '),
-    message:print(' ─┤ '),
-    printer:print_config_item('use',Useflags,Assumed))),
-
-  findall([File,Size],kb:query(manifest(preference,_,File,Size),Repository://Entry),[[FirstFile,FirstSize]|Rest]),!,
-
-  printer:print_config_item('download',FirstFile,FirstSize),
-  forall(member([RestFile,RestSize],Rest),
-        (printer:print_config_prefix,
-         printer:print_config_item('download',RestFile,RestSize))).
-
-
 % -------------------
 % CASE: Other actions
 % -------------------
@@ -1188,12 +1160,6 @@ printer:print_flags_wrapped(AllFlags, StartCol, TermWidth) :-
 %! printer:print_one_flag_wrapped(+TermWidth, +IndentForWrap, +SpacesNeeded, +FlagTerm, +StateIn, -StateOut)
 %
 % Prints a single flag wrapped to the terminal width.
-% TermWidth: the width of the terminal
-% IndentForWrap: the indent for wrapping
-% SpacesNeeded: the number of spaces needed
-% FlagTerm: the flag term
-% StateIn: the state input
-% StateOut: the state output
 
 printer:print_one_flag_wrapped(StartCol, TermWidth, flag(Type, Flag, Assumed), [ColIn, IsFirst], [ColOut, false]) :-
     printer:get_flag_length(Type, Flag, Assumed, FlagLen),
@@ -1780,7 +1746,7 @@ printer:write_index_files(Directory,Repository) :-
 % Assumes directory exists. (See repository:prepare_directory)
 
 printer:write_proof_files(Directory,Repository) :-
-  tester:test(parallel_verbose,
+  tester:test(single_verbose,
               'Writing proof files',
               Repository://Entry,
               (Repository:entry(Entry),
@@ -1791,9 +1757,9 @@ printer:write_proof_files(Directory,Repository) :-
                    system:time_file(Ebuild,Modified),
                    Modified > Time
                 ;  true)),
-	      (printer:write_merge_file(Directory,Repository://Entry),
-	       printer:write_fetchonly_file(Directory,Repository://Entry),
-               printer:write_info_file(Directory,Repository://Entry))).
+	      ((printer:write_merge_file(Directory,Repository://Entry);true),
+	       (printer:write_fetchonly_file(Directory,Repository://Entry);true),
+               (printer:write_info_file(Directory,Repository://Entry);true))).
 
 
 %! printer:produce_html(+Directory)
