@@ -1183,8 +1183,10 @@ printer:print_config_item('use',List,Assumed) :- !,
 printer:print_config_item('slot',Slot) :- !,
   upcase_atom('slot',KeyS),
   message:print(KeyS),
-  message:print('="'),
+  message:print(' = "'),
+  message:color(darkgray),
   printer:print_slot_value(Slot),
+  message:color(normal),
   message:print('"').
 
 
