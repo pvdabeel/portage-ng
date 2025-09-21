@@ -923,6 +923,9 @@ preference:masked(portage://'sec-policy/selinux-xscreensaver-2.20250618-r1').
 preference:masked(portage://'sys-cluster/ceph-18.2.7').
 preference:masked(portage://'dev-python/qiskit-aer-0.17.2').
 
+preference:masked(portage://'app-admin/awscli-1.42.35').
+preference:masked(portage://'dev-python/boto3-1.40.35').
+preference:masked(portage://'sci-ml/transformers-4.56.2').
 
 %! preference:set(?Name,?List)
 %
