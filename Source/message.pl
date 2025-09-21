@@ -76,6 +76,8 @@ user:goal_expansion(debug_msg(Label, Fmt, Args), Expanded) :-
         Expanded = true.
 
 message:color(_).
+message:bgcolor(_).
+message:bubble(_,_).
 message:style(_).
 message:el.
 message:hc.
@@ -109,7 +111,7 @@ message:scroll_log(_).
 
 
 % -----------------------------------------------------------------------------
-%  Goal expansion: Color
+%  Goal expansion: Foreground color
 % -----------------------------------------------------------------------------
 
 user:goal_expansion(color(red),            ansi_term:keep_line_pos(current_output,format("\e[31m",[]))).
@@ -130,6 +132,27 @@ user:goal_expansion(color(normal),         ansi_term:keep_line_pos(current_outpu
 
 
 % -----------------------------------------------------------------------------
+%  Goal expansion: Background color
+% -----------------------------------------------------------------------------
+
+user:goal_expansion(bgcolor(red),          ansi_term:keep_line_pos(current_output,format("\e[41m",[]))).
+user:goal_expansion(bgcolor(green),        ansi_term:keep_line_pos(current_output,format("\e[42m",[]))).
+user:goal_expansion(bgcolor(orange),       ansi_term:keep_line_pos(current_output,format("\e[43m",[]))).
+user:goal_expansion(bgcolor(blue),         ansi_term:keep_line_pos(current_output,format("\e[44m",[]))).
+user:goal_expansion(bgcolor(magenta),      ansi_term:keep_line_pos(current_output,format("\e[45m",[]))).
+user:goal_expansion(bgcolor(cyan),         ansi_term:keep_line_pos(current_output,format("\e[46m",[]))).
+user:goal_expansion(bgcolor(lightgray),    ansi_term:keep_line_pos(current_output,format("\e[47m",[]))).
+user:goal_expansion(bgcolor(darkgray),     ansi_term:keep_line_pos(current_output,format("\e[100m",[]))).
+user:goal_expansion(bgcolor(lightred),     ansi_term:keep_line_pos(current_output,format("\e[101m",[]))).
+user:goal_expansion(bgcolor(lightgreen),   ansi_term:keep_line_pos(current_output,format("\e[102m",[]))).
+user:goal_expansion(bgcolor(lightorange),  ansi_term:keep_line_pos(current_output,format("\e[103m",[]))).
+user:goal_expansion(bgcolor(lightblue),    ansi_term:keep_line_pos(current_output,format("\e[104m",[]))).
+user:goal_expansion(bgcolor(lightmagenta), ansi_term:keep_line_pos(current_output,format("\e[105m",[]))).
+user:goal_expansion(bgcolor(lightcyan),    ansi_term:keep_line_pos(current_output,format("\e[106m",[]))).
+user:goal_expansion(bgcolor(normal),       ansi_term:keep_line_pos(current_output,format("\e[00m",[]))).
+
+
+% -----------------------------------------------------------------------------
 %  Goal expansion: Style
 % -----------------------------------------------------------------------------
 
@@ -146,8 +169,8 @@ user:goal_expansion(style(blink),          ansi_term:keep_line_pos(current_outpu
 % -----------------------------------------------------------------------------
 
 user:goal_expansion(el,                    format("\e[K",[])).
-user:goal_expansion(hc,                    format("\e[?25l",[])).
-user:goal_expansion(sc,                    format("\e[?25h",[])).
+user:goal_expansion(hc,                    ansi_term:keep_line_pos(current_output,format("\e[?25l",[]))).
+user:goal_expansion(sc,                    ansi_term:keep_line_pos(current_output,format("\e[?25h",[]))).
 user:goal_expansion(bl,                    format("\e[1G",[])).
 user:goal_expansion(cl,                    format("\e[2J\e[H",[])).
 user:goal_expansion(clean,                 format("\e[K",[])).
@@ -157,19 +180,36 @@ user:goal_expansion(clean,                 format("\e[K",[])).
 %  Goal expansion: Label
 % -----------------------------------------------------------------------------
 
+user:goal_expansion(bubble(Color,Text),
+  ( color(Color),
+    format(''),
+    color(normal),
+    bgcolor(Color),
+    format(Text),
+    bgcolor(normal),
+    color(Color),
+    format(''),
+    color(normal))) :- !.
+
 user:goal_expansion(label(success),
-  ( style(bold),
-    color(green),
-    format('[SUCCESS] ',[]) )) :- !.
+  ( bubble(green,success),
+    format(' ') )) :-!.
+    %style(bold),
+    %color(green),
+    %format('[SUCCESS] ',[]) )) :- !.
 
 user:goal_expansion(label(warning),
-  ( style(bold),
-    color(orange),
-    format('[WARNING] ',[]) )) :- !.
+  ( bubble(orange,warning),
+    format(' ') )) :- !.
+    %style(bold),
+    %color(orange),
+    %format('[WARNING] ',[]) )) :- !.
 
 user:goal_expansion(label(failure),
-  ( style(bold),
-    format('[FAILURE] ',[]) )) :- !.
+  ( bubble(red,failure),
+    format(' ') )) :- !.
+    %style(bold),
+    %format('[FAILURE] ',[]) )) :- !.
 
 user:goal_expansion(label(inform),
   ( format('% ',[]) )) :- !.
@@ -179,8 +219,10 @@ user:goal_expansion(label(notice),
     format('% ',[]) )) :- !.
 
 user:goal_expansion(label(debug),
-  ( color(magenta),
-    format('[DEBUG]   ',[]) )) :- !.
+  ( bubble(magenta,debug),
+    format(' ') )) :-!.
+    %color(magenta),
+    %format('[DEBUG]   ',[]) )) :- !.
 
 user:goal_expansion(label(log),
   ( color(darkgray),
