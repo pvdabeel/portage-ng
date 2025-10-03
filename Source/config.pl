@@ -264,7 +264,7 @@ config:graph_directory('vm-linux.local',    '/root/Graph')            :- !.
 %
 % Set when you want Graphviz dot file to be created for new ebuilds only
 
-config:graph_modified_only(true).
+config:graph_modified_only(false).
 
 
 %! config:graph_dependency_type(?List)
@@ -535,10 +535,10 @@ config:llm_sandboxed_execution(false).
 %
 % Declares which version of each large language model to use.
 
-config:llm_model(grok,       'grok-3').
-config:llm_model(chatgpt,    'gpt-4.1').
-config:llm_model(claude,     'claude-sonnet-4-20250514').
-config:llm_model(gemini ,    'gemini-1.5-flash').
+config:llm_model(grok,       'grok-4-fast-reasoning').
+config:llm_model(chatgpt,    'gpt-5').
+config:llm_model(claude,     'claude-sonnet-4-5-20250929').
+config:llm_model(gemini ,    'gemini-2.5-pro').
 config:llm_model(llama ,     'Llama-4-Maverick-17B-128E-Instruct-FP8').
 config:llm_model(ollama ,    'llama3.2').
 
