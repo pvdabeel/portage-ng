@@ -1068,7 +1068,6 @@ printer:print_config_item('download',File,'live') :-
   message:color(normal),
   message:print(' '),
   message:print(File).
-  %message:color(normal).
 
 printer:print_config_item('download',File,Size) :-
   !,
