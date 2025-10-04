@@ -1,0 +1,12 @@
+Test Case: test54
+Organization:
+- app-1.0: The main application package.
+
+Dependency Graph:
+- none
+
+What is being tested:
+Expanding use flags output
+
+Expected Outcome:
+The printer should succesfully split up the different expanding use

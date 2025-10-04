@@ -1,0 +1,25 @@
+Test Case: test55
+Organization:
+- app-1.0:     The main application package.
+- modulea-1.0: A module 
+- moduleb-1.0: A module
+- lib-1.0:     Library package
+- lib-2.0:     Library package
+- lib-3.0:     Library package
+- lib-4.0:     Library package
+- lib-5.0:     Library package
+- lib-6.0:     Library package
+- lib-7.0:     Library package
+- lib-8.0:     Library package
+
+Dependency Graph:
+- app -> modulea 
+- app -> moduleb
+- modulea -> lib >3.0
+- moduleb -> lib <6.0
+
+What is being tested:
+Multiple requirements should be combined. Only one version should be selected
+
+Expected Outcome:
+The constraints on the lib versions should be combined. Only one version should be selected, since there is only one slot to fill.
