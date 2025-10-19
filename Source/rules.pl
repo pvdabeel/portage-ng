@@ -365,14 +365,22 @@ rule(merged_package_dependency(C,N,PackageDeps):Action?{Context},Conditions) :-
       ( preference:accept_keywords(K),
         (memberchk(slot(C,N,Ss):{_}, Context) -> true ; true),
 
-        findall(Query,(member(package_dependency(Action,no,C,N,O,V,S,U):_?{_},PackageDeps),
+        findall(Query,(member(package_dependency(Action,no,C,N,O,V,S,U),PackageDeps),
                        Query = select(version,O,V)),
                       MergedQuery),
 
-        query:search([name(N),category(C),keyword(K),select(slot,constraint(S),Ss)|MergedQuery], FoundRepo://Candidate),
+        writeln('MergedQuery: '),
+        writeln(MergedQuery),
 
-        findall(U,    (member(package_dependency(Action,no,C,N,V,S,U):_?{_},PackageDeps)),
+
+        query:search([name(N),category(C),keyword(K),select(slot,constraint(S),Ss)], FoundRepo://Candidate), % macro-expanded
+        query:search(MergedQuery,FoundRepo://Candidate), % runtime
+
+        findall(U,    (member(package_dependency(Action,no,C,N,O,V,S,U),PackageDeps)),
                       MergedUse),
+
+        writeln('MergedUse: '),
+        writeln(MergedUse),
 
 
         process_build_with_use(MergedUse,Context,NewContext,Constraints,FoundRepo://Candidate), % todo: check we look at combined use requirements here
