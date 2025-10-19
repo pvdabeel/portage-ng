@@ -1216,7 +1216,7 @@ select(Key,wildcard,Value,R://I) :-
 %
 % Sets the grouping key for dependencies.
 
-dependency_key((package_dependency(_,_,C,N,_,_,_,_):_?{_}), C-N).
+dependency_key((package_dependency(_,T,C,N,_,_,_,_):_?{_}), T-C-N).
 
 %! group_dependencies(+List, -Groups)
 %
@@ -1224,11 +1224,9 @@ dependency_key((package_dependency(_,_,C,N,_,_,_,_):_?{_}), C-N).
 % dependencies with the same key.
 
 group_dependencies(L, Groups) :-
-    findall(merged_package_dependency(C,N,Group):Action?{Context},
-            group_by(C-N:Action?{Context}, E, (member(E:Action?{Context}, L), dependency_key(E:Action?{Context}, C-N)), Group),
+    findall(grouped_package_dependency(T,C,N,Group):Action?{Context},
+		    group_by(T-C-N:Action?{Context}, E, (member(E:Action?{Context}, L), dependency_key(E:Action?{Context}, T-C-N)), Group),
             Groups).
-
-%merged_package_dependency(test55,lib,[package_dependency(run,no,test55,lib,greater,[[3],,,3],[],[]),package_dependency(run,no,test55,lib,smaller,[[7],,,7],[],[])]):_151056?{_151176}
 
 
 % -----------------------------------------------------------------------------

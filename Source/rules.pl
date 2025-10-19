@@ -342,12 +342,27 @@ rule(package_dependency(_,_,_,_,_,_,_,_):config?{_},[]) :- !.
 rule(package_dependency(_,no,_,_,_,_,_,_),[]) :- !.
 
 
+% -----------------------------------------------------------------------------
+%  Rule: Conflicting package
+% -----------------------------------------------------------------------------
+% EAPI 8.2.6.2: a weak block can be ignored by the package manager
+
+rule(grouped_package_dependency(weak,_,_,_):_?{_},[]) :- !.
+
+
+% -----------------------------------------------------------------------------
+%  Rule: Conflicting package
+% -----------------------------------------------------------------------------
+% EAPI 8.2.6.2: a strong block is satisfied when no suitable candidate is satisfied
+
+rule(grouped_package_dependency(strong,_,_,_):_?{_},[]) :- !.
+
 
 % =============================================================================
 %  Rule: Package dependencies
 % =============================================================================
 
-rule(merged_package_dependency(C,N,PackageDeps):Action?{Context},Conditions) :-
+rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions) :-
   !,
   ( % IF: The package is already installed and we are not doing a full tree build...
     \+(preference:flag(emptytree)),
@@ -383,7 +398,7 @@ rule(merged_package_dependency(C,N,PackageDeps):Action?{Context},Conditions) :-
         Conditions = AllConditions )
 
     ; % ELSE: If no candidate can be found, assume it's non-existent.
-      Conditions = [assumed(merged_package_dependency(C,N,PackageDeps):Action?{Context})] % todo: fail
+      Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps):Action?{Context})] % todo: fail
     )
   ).
 
