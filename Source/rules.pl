@@ -347,7 +347,7 @@ rule(package_dependency(_,no,_,_,_,_,_,_),[]) :- !.
 %  Rule: Package dependencies
 % =============================================================================
 
-rule(merged_package_dependency(C,N,PackageDeps),Conditions) :-
+rule(merged_package_dependency(C,N,PackageDeps):Action?{Context},Conditions) :-
   !,
   ( % IF: The package is already installed and we are not doing a full tree build...
     \+(preference:flag(emptytree)),
@@ -362,16 +362,20 @@ rule(merged_package_dependency(C,N,PackageDeps),Conditions) :-
     % package_dependency(_,no,C,N,O,V,S,U):Action?{Context}
 
     (
-%%%% ------------------------------------------------------------ %%%%%
-%%%% TODO : ITERATE OVER ALL PACKAGE DEPENDENCIES IN THE GROUP    %%%%%
-%%%% ------------------------------------------------------------ %%%%%
-
-
       ( preference:accept_keywords(K),
         (memberchk(slot(C,N,Ss):{_}, Context) -> true ; true),
-        query:search([name(N),category(C),keyword(K),select(version,O,V),select(slot,constraint(S),Ss)], FoundRepo://Candidate), % todo: look at combined version requirements here
 
-        process_build_with_use(U,Context,NewContext,Constraints,FoundRepo://Candidate), % todo: look at combined use requirements here
+        findall(Query,(member(package_dependency(Action,no,C,N,O,V,S,U):_?{_},PackageDeps),
+                       Query = select(version,O,V)),
+                      MergedQuery),
+
+        query:search([name(N),category(C),keyword(K),select(slot,constraint(S),Ss)|MergedQuery], FoundRepo://Candidate),
+
+        findall(U,    (member(package_dependency(Action,no,C,N,V,S,U):_?{_},PackageDeps)),
+                      MergedUse),
+
+
+        process_build_with_use(MergedUse,Context,NewContext,Constraints,FoundRepo://Candidate), % todo: check we look at combined use requirements here
         process_slot(S,Ss,C,N,FoundRepo://Candidate,NewContext,NewerContext),
 
         % Add build_with_use constraints to Conditions
@@ -379,7 +383,7 @@ rule(merged_package_dependency(C,N,PackageDeps),Conditions) :-
         Conditions = AllConditions )
 
     ; % ELSE: If no candidate can be found, assume it's non-existent.
-      Conditions = [assumed(package_dependency(Action,no,C,N,O,V,S,U):Action?{Context})] % todo: fail
+      Conditions = [assumed(merged_package_dependency(C,N,PackageDeps):Action?{Context})] % todo: fail
     )
   ).
 
