@@ -51,7 +51,7 @@ LLM service specific code can be found in the files inside the 'Llm' subdirector
 % =============================================================================
 
 :- module(llm, [get_input/1]).
-
+:- quasi_quotation_syntax(json).
 
 %! llm:stream(+Endpoint,+APIkey,+Model,+Message,-Response)
 %
@@ -76,31 +76,22 @@ llm:stream(Endpoint, APIKey, Model, Messages, Response) :-
   % This ensures emoji are displayed properly
   set_stream(current_output,encoding(utf8)),
 
-  % A Json payload is prepared
   Payload = _{
     model:       Model,
     messages:    Messages,
-    stream:      json_true,
+    stream:      true,
     max_tokens:  Max,
     temperature: Temperature
   },
 
-  % We convert the payload to a Json message, ensuring 'true' is not a string
-  % but an actual json true
-
-  with_output_to(string(JsonString),
-                 json_write_dict(current_output,
-                                 Payload,
-                                 [true(json_true),width(0)])),
 
   % We prepare a http post call of the payload, ensuring authentication
   % and setting streaming
 
   Headers = [method(post),
-             post(string(JsonString)),
              authorization(bearer(APIKey)),
-             request_header('Content-Type'='application/json'),
-             request_header('Accept'='text/event-stream')],
+             request_header('Accept'='text/event-stream'),
+             post(json(Payload))],
 
   catch(( http_open(Endpoint,In,Headers),
 
@@ -426,9 +417,12 @@ llm:prepare_message(History,Role,Input,Messages) :-
   UserMessage = _{role: Role, content: Msg},
   append(History,[UserMessage],Messages).
 
-llm:add_prompt([],Msg,NewMsg) :-
-  !,
-  llm:prompt(P),
-  string_concat(P,Msg,NewMsg).
+
+
+%llm:add_prompt([],Msg,NewMsg) :-
+%  !,
+%  llm:prompt(P),
+%  string_concat(P,Msg,NewMsg).
 
 llm:add_prompt(_,Msg,Msg) :- !.
+
