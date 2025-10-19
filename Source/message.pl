@@ -460,7 +460,7 @@ header(Header, [First | Rest]) :-
   format('>>> ~w: ~w', [Header, First]),
   nl,
   forall(member(Item, Rest),
-         ( msg_atom(Item,String), format('               ~s~n', [String]) )),
+         ( msg_atom(Item,String), format('               ~w~n', [String]) )),
   color(normal),
   nl.
 
@@ -485,7 +485,7 @@ msg_atom(Var, Atom) :-
   term_to_atom(Var, Atom).
 
 msg_atom(Compound, Atom) :-
-  term_to_atom(Compound, Atom).
+  with_output_to(atom(Atom),write_term(Compound, [quoted(false)])).
 
 
 % -----------------------------------------------------------------------------
