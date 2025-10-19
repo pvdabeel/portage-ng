@@ -80,16 +80,21 @@ rule(Repository://Ebuild:fetchonly?{Context},Conditions) :- % todo: to update in
 
   query:memoized_search(model(dependency(D,fetchonly)):config?{Model},Repository://Ebuild),
 
-  % 4. Pass on relevant package dependencies and constraints to prover
+  % 4. Group packagedependencies by package Category & Name. We want to deal with all
+  %    dependencies regarding the same package in one go.
+
+  query:group_dependencies(D,MergedDeps),
+
+  % 5. Pass on relevant package dependencies and constraints to prover
 
   ( memberchk(C,['virtual','acct-group','acct-user'])
     -> Conditions = [constraint(use(Repository://Ebuild):{R}),
                      constraint(slot(C,N,S):{Ebuild})
-                     |D]
+                     |MergedDeps]
     ;  Conditions = [constraint(use(Repository://Ebuild):{R}),
                      constraint(slot(C,N,S):{Ebuild}),
                      Repository://Ebuild:download?{R}
-                     |D] )
+                     |MergedDeps] )
    ; Conditions = [assumed(Repository://Ebuild:install?{[issue_with_model(explanation)|Context]})].
 
 
@@ -113,6 +118,7 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
   !,
   query:search(masked(true),   Repository://Ebuild) -> Conditions = [] ;
   query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) -> Conditions = [] ; % todo check new build_with_use requirements
+
 
   % 1. Get some metadata we need further down
 
@@ -139,15 +145,21 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
 
   query:memoized_search(model(dependency(D,install)):config?{Model},Repository://Ebuild),
 
-  % 4. Pass on relevant package dependencies and constraints to prover
+ % 4. Group packagedependencies by package Category & Name. We want to deal with all
+  %    dependencies regarding the same package in one go.
+
+  query:group_dependencies(D,MergedDeps),
+
+  % 5. Pass on relevant package dependencies and constraints to prover
+
   ( memberchk(C,['virtual','acct-group','acct-user'])
     -> Conditions = [ constraint(use(Repository://Ebuild):{R}),
                     constraint(slot(C,N,S):{Ebuild})
-                    |D]
+                    |MergedDeps]
     ;  Conditions = [ constraint(use(Repository://Ebuild):{R}),
                     constraint(slot(C,N,S):{Ebuild}),
                     Repository://Ebuild:download?{[required_use(R),build_with_use(B)]}
-                    |D] )
+                    |MergedDeps] )
   ; Conditions = [assumed(Repository://Ebuild:install?{[issue_with_model(explanation)|Context]})].
 
 
@@ -170,7 +182,6 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
 rule(Repository://Ebuild:run?{Context},Conditions) :-
   !,
   % 0. Check if the ebuild is masked or installed
-
   query:search(masked(true),   Repository://Ebuild) -> Conditions = [] ;
   query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) -> (config:avoid_reinstall(true) -> Conditions = [] ; Conditions = [Repository://Ebuild:reinstall?{Context}]) ; % todo check new build_with_use requirements
 
@@ -197,9 +208,16 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
 
   query:memoized_search(model(dependency(D,run)):config?{Model},Repository://Ebuild),
 
+  % 4. Group packagedependencies by package Category & Name. We want to deal with all
+  %    dependencies regarding the same package in one go.
+
+  query:group_dependencies(D,MergedDeps),
+
+  % 5. Pass on relevant package dependencies and constraints to prover
+
   Conditions = [constraint(use(Repository://Ebuild):{R}),
                 constraint(slot(C,N,S):{Ebuild}),
-                Repository://Ebuild:install?{[required_use(R),build_with_use(B),slot(C,N,S):{Ebuild}]}|D].
+                Repository://Ebuild:install?{[required_use(R),build_with_use(B),slot(C,N,S):{Ebuild}]}|MergedDeps].
 
 
 % -----------------------------------------------------------------------------
@@ -329,37 +347,39 @@ rule(package_dependency(_,no,_,_,_,_,_,_),[]) :- !.
 %  Rule: Package dependencies
 % =============================================================================
 
-rule(package_dependency(_,no,C,N,O,V,S,U):Action?{Context}, Conditions) :-
-  !, % Cut to ensure the entire predicate is deterministic once a path is chosen.
-  \+(Action == config),
-
+rule(merged_package_dependency(C,N,PackageDeps),Conditions) :-
+  !,
   ( % IF: The package is already installed and we are not doing a full tree build...
     \+(preference:flag(emptytree)),
     cache:ordered_entry(Repository, Ebuild, C, N, _),
     cache:entry_metadata(Repository, Ebuild, installed, true)
-    %cache:entry_metadata(Repository, Ebuild, keywords, K)
   ->
     % THEN: Succeed immediately with no further conditions.
     !,
-    Conditions = []
+    Conditions = [] % todo: check build_with_use requirements here
 
   ; % ELSE: Proceed with the general resolution logic.
+    % package_dependency(_,no,C,N,O,V,S,U):Action?{Context}
+
     (
-      preference:accept_keywords(K),
-      (memberchk(slot(C,N,Ss):{_}, Context) -> true ; true),
-      query:search([name(N),category(C),keyword(K),select(version,O,V),select(slot,constraint(S),Ss)], FoundRepo://Candidate)
-    ->
-      % THEN: If a candidate is found...
+%%%% ------------------------------------------------------------ %%%%%
+%%%% TODO : ITERATE OVER ALL PACKAGE DEPENDENCIES IN THE GROUP    %%%%%
+%%%% ------------------------------------------------------------ %%%%%
 
-      process_build_with_use(U,Context,NewContext,Constraints,FoundRepo://Candidate),
-      process_slot(S,Ss,C,N,FoundRepo://Candidate,NewContext,NewerContext),
 
-      % Add build_with_use constraints to Conditions
-      append(Constraints, [FoundRepo://Candidate:Action?{NewerContext}], AllConditions),
-      Conditions = AllConditions
+      ( preference:accept_keywords(K),
+        (memberchk(slot(C,N,Ss):{_}, Context) -> true ; true),
+        query:search([name(N),category(C),keyword(K),select(version,O,V),select(slot,constraint(S),Ss)], FoundRepo://Candidate), % todo: look at combined version requirements here
+
+        process_build_with_use(U,Context,NewContext,Constraints,FoundRepo://Candidate), % todo: look at combined use requirements here
+        process_slot(S,Ss,C,N,FoundRepo://Candidate,NewContext,NewerContext),
+
+        % Add build_with_use constraints to Conditions
+        append(Constraints, [FoundRepo://Candidate:Action?{NewerContext}], AllConditions),
+        Conditions = AllConditions )
 
     ; % ELSE: If no candidate can be found, assume it's non-existent.
-      Conditions = [assumed(package_dependency(Action,no,C,N,O,V,S,U):Action?{Context})]
+      Conditions = [assumed(package_dependency(Action,no,C,N,O,V,S,U):Action?{Context})] % todo: fail
     )
   ).
 
@@ -602,18 +622,23 @@ rule(Literal,[]) :-
 % we avoid unnecessary assumptions in the proof, since we know the system profile
 % is always installed.
 
+core_pkg('app-admin','eselect').
+core_pkg('app-alternatives','awk').
+core_pkg('app-alternatives','bzip2').
+core_pkg('app-alternatives','gzip').
+core_pkg('app-alternatives','sh').
+core_pkg('app-alternatives','tar').
 core_pkg('app-arch','bzip2').
 core_pkg('app-arch','gzip').
 core_pkg('app-arch','tar').
 core_pkg('app-arch','xz-utils').
 core_pkg('app-shells','bash').
-core_pkg('dev-build','cmake').
-core_pkg('dev-lang','perl').
-core_pkg('dev-lang','python').
-core_pkg('dev-libs','libpcre').
+core_pkg('dev-build','make').
+core_pkg('net-mail','mailbase').
 core_pkg('net-misc','iputils').
 core_pkg('net-misc','rsync').
 core_pkg('net-misc','wget').
+core_pkg('sec-keys','openpgp-keys-gentoo-release').
 core_pkg('sys-apps','baselayout').
 core_pkg('sys-apps','coreutils').
 core_pkg('sys-apps','diffutils').
@@ -621,35 +646,32 @@ core_pkg('sys-apps','file').
 core_pkg('sys-apps','findutils').
 core_pkg('sys-apps','gawk').
 core_pkg('sys-apps','grep').
+core_pkg('sys-apps','iproute2').
 core_pkg('sys-apps','kbd').
+core_pkg('sys-apps','kmod').
 core_pkg('sys-apps','less').
+core_pkg('sys-apps','man-pages').
+core_pkg('sys-apps','net-tools').
 core_pkg('sys-apps','sed').
+core_pkg('sys-apps','shadow').
 core_pkg('sys-apps','util-linux').
-core_pkg('sys-devel','automake').
+core_pkg('sys-apps','which').
 core_pkg('sys-devel','binutils').
 core_pkg('sys-devel','gcc').
 core_pkg('sys-devel','gnuconfig').
-core_pkg('sys-devel','make').
 core_pkg('sys-devel','patch').
 core_pkg('sys-fs','e2fsprogs').
-core_pkg('sys-libs','libcap').
-core_pkg('sys-libs','ncurses').
-core_pkg('sys-libs','readline').
 core_pkg('sys-process','procps').
 core_pkg('sys-process','psmisc').
 core_pkg('virtual','dev-manager').
 core_pkg('virtual','editor').
 core_pkg('virtual','libc').
 core_pkg('virtual','man').
-core_pkg('virtual','modutils').
 core_pkg('virtual','os-headers').
 core_pkg('virtual','package-manager').
 core_pkg('virtual','pager').
 core_pkg('virtual','service-manager').
-core_pkg('virtual','shadow').
 core_pkg('virtual','ssh').
-core_pkg('sys-libs','pam').
-core_pkg('dev-lang','pypy').
 
 
 % -----------------------------------------------------------------------------
@@ -674,7 +696,7 @@ process_slot(_, Slot, C, N, Candidate, Context, [slot(C, N, Slot):{Candidate}|Co
 % constraints that should be added to the global constraint list.
 
 % Main predicate using foldl/4 to process USE directives.
-process_build_with_use(Directives, Context, [build_with_use(Result)], Conditions, Candidate) :-
+process_build_with_use(Directives, Context, [build_with_use(Result)|Context], Conditions, Candidate) :-
     foldl(process_use(Context), Directives, [], Result),
     build_with_use_constraints(Directives, Conditions, Candidate).
 
