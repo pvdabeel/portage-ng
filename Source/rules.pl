@@ -369,19 +369,11 @@ rule(merged_package_dependency(C,N,PackageDeps):Action?{Context},Conditions) :-
                        Query = select(version,O,V)),
                       MergedQuery),
 
-        writeln('MergedQuery: '),
-        writeln(MergedQuery),
-
-
         query:search([name(N),category(C),keyword(K),select(slot,constraint(S),Ss)], FoundRepo://Candidate), % macro-expanded
         query:search(MergedQuery,FoundRepo://Candidate), % runtime
 
         findall(U,    (member(package_dependency(Action,no,C,N,O,V,S,U),PackageDeps)),
                       MergedUse),
-
-        writeln('MergedUse: '),
-        writeln(MergedUse),
-
 
         process_build_with_use(MergedUse,Context,NewContext,Constraints,FoundRepo://Candidate), % todo: check we look at combined use requirements here
         process_slot(S,Ss,C,N,FoundRepo://Candidate,NewContext,NewerContext),
