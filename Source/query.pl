@@ -1209,6 +1209,27 @@ select(Key,wildcard,Value,R://I) :-
 
 
 % -----------------------------------------------------------------------------
+%  Grouping dependencies
+% -----------------------------------------------------------------------------
+
+%! dependency_key(+Dependency, -Key)
+%
+% Sets the grouping key for dependencies.
+
+dependency_key((package_dependency(_, _, C, N, _, _, _, _) : _ ? _), C-N).
+
+%! group_dependencies(+List, -Groups)
+%
+% Groups dependencies by their key. (Category & Name) This is used to merge 
+% dependencies with the same key.
+
+group_dependencies(L, Groups) :-
+    findall(merged_package_dependency(C,N,Group), 
+            group_by(C-N, E, (member(E, L), dependency_key(E, C-N)), Group), 
+            Groups).
+
+
+% -----------------------------------------------------------------------------
 %  Helper predicates
 % -----------------------------------------------------------------------------
 
