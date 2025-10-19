@@ -485,7 +485,7 @@ msg_atom(Var, Atom) :-
   term_to_atom(Var, Atom).
 
 msg_atom(Compound, Atom) :-
-  with_output_to(atom(Atom),write_term(Compound, [quoted(false)])).
+  with_output_to(string(Atom),write_term(Compound, [quoted(false)])).
 
 
 % -----------------------------------------------------------------------------
