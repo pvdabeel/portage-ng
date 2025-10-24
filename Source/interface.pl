@@ -27,7 +27,7 @@ The interface interpretes command line arguments passed to portage-ng.
 % Retrieve the current version
 
 interface:version(V) :-
-  V = '2025.10.19'.
+  script:exec('version',V).
 
 
 %! interface:status(?Status)

@@ -51,4 +51,19 @@ script:exec(S,Args,Env) :-
 % Same as previous, simple version
 
 script:exec(S,Args) :-
+  is_list(Args),!,
   script:exec(S,Args,[]).
+
+
+%! script:exec(+Name,+Var)
+%
+% Same as previous, output to var
+
+script:exec(S,Var) :-
+  \+ is_list(Var),!,
+  atomic_list_concat(['Source/Scripts/',S],Script),
+  process_set_method(vfork),
+  process_create(portage(Script),[],[stdout(pipe(Out)),stderr(std)]),
+  read_string(Out,"\n","\r",_,Var),
+  close(Out),
+  !.
