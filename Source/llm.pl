@@ -76,22 +76,29 @@ llm:stream(Endpoint, APIKey, Model, Messages, Response) :-
   % This ensures emoji are displayed properly
   set_stream(current_output,encoding(utf8)),
 
+  % Prepare payload dict
   Payload = _{
     model:       Model,
     messages:    Messages,
-    stream:      true,
+    stream:      json_true,
     max_tokens:  Max,
     temperature: Temperature
   },
 
+  % Convert payload dict to json, ensuring proper 'true' conversion
+  with_output_to(string(JsonString),
+                 json_write_dict(current_output,
+                                 Payload,
+                                 [true(json_true),width(0)])),
 
   % We prepare a http post call of the payload, ensuring authentication
   % and setting streaming
 
   Headers = [method(post),
              authorization(bearer(APIKey)),
+             request_header('Content-Type'='application/json'),
              request_header('Accept'='text/event-stream'),
-             post(json(Payload))],
+             post(string(JsonString))],
 
   catch(( http_open(Endpoint,In,Headers),
 
