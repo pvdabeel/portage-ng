@@ -97,6 +97,7 @@ load_client_modules :-
    ensure_loaded(portage('Source/ebuild.pl')),
    ensure_loaded(portage('Source/printer.pl')),
    ensure_loaded(portage('Source/preference')),
+   ensure_loaded(portage('Source/script.pl')),
    ensure_loaded(portage('Source/client.pl')),
 
    message:log('Loaded client modules...').
