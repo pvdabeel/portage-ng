@@ -155,7 +155,7 @@ config:verbosity(debug).
 % Passwords
 % -----------------------------------------------------------------------------
 
-:- include(portage(source/private/passwords)).
+:- include(portage('Source/Private/passwords')).
 
 
 % -----------------------------------------------------------------------------
@@ -464,7 +464,7 @@ config:time_limit_build(6000).
 %
 % Declares the private API key for each large language model.
 
-:- include(portage(source/private/api_key)).
+:- include(portage('Source/private/api_key')).
 
 
 %! config:llm_capability(+Name,-Capability)
