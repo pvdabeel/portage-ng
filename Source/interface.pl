@@ -268,7 +268,7 @@ interface:process_action(Action,ArgsSets,_Options) :-
   (Proposal == []
    -> ( config:llm_support(Prompt),
         atomic_list_concat([Prompt|Args],Message),
-        chatgpt(Message),fail )
+        grok(Message),fail )
    ;  true),
   (Mode == 'client' ->
     (client:rpc_execute(Host,Port,
