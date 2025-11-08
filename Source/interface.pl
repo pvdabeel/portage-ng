@@ -186,6 +186,8 @@ interface:process_requests(Mode) :-
   message:log(['Args:      ',Args]),
   message:log(['Options:   ',Options]),
 
+  set_prolog_flag(toplevel_prompt,'~m~d~l?- '),
+
   ( memberchk(version(true),Options)  -> (message:logo(['::- portage-ng ',Version]),                Continue) ;
     memberchk(info(true),Options)     -> (interface:process_action(info,Args,Options),              Continue) ;
     memberchk(clear(true),Options)    -> (kb:clear, 						    Continue) ;
