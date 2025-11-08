@@ -1747,7 +1747,7 @@ printer:write_index_files(Directory,Repository) :-
 % Assumes directory exists. (See repository:prepare_directory)
 
 printer:write_proof_files(Directory,Repository) :-
-  tester:test(single_verbose,
+  tester:test(parallel_verbose,
               'Writing proof files',
               Repository://Entry,
               (Repository:entry(Entry),
@@ -1759,7 +1759,7 @@ printer:write_proof_files(Directory,Repository) :-
                    Modified > Time
                 ;  true)),
 	      ((printer:write_merge_file(Directory,Repository://Entry);true),
-	       (printer:write_fetchonly_file(Directory,Repository://Entry);true),
+	       %(printer:write_fetchonly_file(Directory,Repository://Entry);true),
                (printer:write_info_file(Directory,Repository://Entry);true))).
 
 
