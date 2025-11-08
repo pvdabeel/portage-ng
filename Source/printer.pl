@@ -1759,7 +1759,7 @@ printer:write_proof_files(Directory,Repository) :-
                    Modified > Time
                 ;  true)),
 	      ((printer:write_merge_file(Directory,Repository://Entry);true),
-	       %(printer:write_fetchonly_file(Directory,Repository://Entry);true),
+	       (printer:write_fetchonly_file(Directory,Repository://Entry);true),
                (printer:write_info_file(Directory,Repository://Entry);true))).
 
 

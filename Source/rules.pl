@@ -364,12 +364,12 @@ rule(grouped_package_dependency(strong,_,_,_):_?{_},[]) :- !.
 rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions) :-
   !,
   ( % IF: The package is already installed and we are not doing a full tree build...
-    (\+(preference:flag(emptytree)),
-     cache:ordered_entry(Repository, Ebuild, C, N, _),
-     cache:entry_metadata(Repository, Ebuild, installed, true));
-    % OR : We are doing a full tree build and the package is a core package
-    (preference:flag(emptytree),
-     core_pkg(C,N))
+    ((\+(preference:flag(emptytree)),
+      cache:ordered_entry(Repository, Ebuild, C, N, _),
+      cache:entry_metadata(Repository, Ebuild, installed, true));
+      % OR : We are doing a full tree build and the package is a core package
+     (preference:flag(emptytree),
+      core_pkg(C,N)))
   ->
     % THEN: Succeed immediately with no further conditions.
     !,
