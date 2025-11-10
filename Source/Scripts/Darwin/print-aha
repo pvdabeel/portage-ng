@@ -40,17 +40,17 @@ CSS_PATH="../.proof.css"
 # Progress bar formats (colored)
 # -----------------------------------------------------------------------------
 
-PV_FMT_HTML_MERGE=$'\033[1;36m[ MERGE  -> HTML %p% | %t | %e ]\033[0m'
-PV_FMT_HTML_FETCH=$'\033[1;36m[ FETCH  -> HTML %p% | %t | %e ]\033[0m'
-PV_FMT_HTML_INFO=$'\033[1;36m[ INFO   -> HTML %p% | %t | %e ]\033[0m'
-PV_FMT_HTML_EMERGE=$'\033[1;36m[ EMERGE -> HTML %p% | %t | %e ]\033[0m'
+PV_FMT_HTML_MERGE=$'\033[1;36m[ MERGE  -> HTML %p | %t | %e ]\033[0m'
+PV_FMT_HTML_FETCH=$'\033[1;36m[ FETCH  -> HTML %p | %t | %e ]\033[0m'
+PV_FMT_HTML_INFO=$'\033[1;36m[ INFO   -> HTML %p | %t | %e ]\033[0m'
+PV_FMT_HTML_EMERGE=$'\033[1;36m[ EMERGE -> HTML %p | %t | %e ]\033[0m'
 
-PV_FMT_HTML_FIXUP=$'\033[1;36m[ HTML   -> FIX  %p% | %t | %e ]\033[0m'
+PV_FMT_HTML_FIXUP=$'\033[1;36m[ HTML   -> FIX  %p | %t | %e ]\033[0m'
 
-PV_FMT_SVG_MERGE=$'\033[1;36m[ MERGE  -> SVG  %p% | %t | %e ]\033[0m'
-PV_FMT_SVG_FETCH=$'\033[1;36m[ FETCH  -> SVG  %p% | %t | %e ]\033[0m'
-PV_FMT_SVG_INFO=$'\033[1;36m[ INFO   -> SVG  %p% | %t | %e ]\033[0m'
-PV_FMT_SVG_EMERGE=$'\033[1;36m[ EMERGE -> SVG  %p% | %t | %e ]\033[0m'
+PV_FMT_SVG_MERGE=$'\033[1;36m[ MERGE  -> SVG  %p | %t | %e ]\033[0m'
+PV_FMT_SVG_FETCH=$'\033[1;36m[ FETCH  -> SVG  %p | %t | %e ]\033[0m'
+PV_FMT_SVG_INFO=$'\033[1;36m[ INFO   -> SVG  %p | %t | %e ]\033[0m'
+PV_FMT_SVG_EMERGE=$'\033[1;36m[ EMERGE -> SVG  %p | %t | %e ]\033[0m'
 
 
 

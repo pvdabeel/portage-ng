@@ -6,20 +6,24 @@
 
 # ${1} = remote
 # ${2} = local
+
+PV_FMT_DOT=$'\033[1;36m[ DOT    -> SVG  %p | %t | %e ]\033[0m'
+
+
 if [ -f "${1}/.lastgraph" ]; then
 
   find "${1}" -type f -iname "*.dot" -mnewer "${1}/.lastgraph" \
-  | pv -l -s $(find "${1}" -type f -iname "*.dot" | wc -l) --eta --timer --progress  \
+  | pv -l -s $(find "${1}" -type f -iname "*.dot" | wc -l) --eta --timer --progress -F "$PV_FMT_DOT" \
   | sed 's/\.dot$//' \
-  | xargs -P"65" -n1 -I{} \
+  | xargs -P"56" -n1 -I{} \
   dot -Tsvg {}.dot -o {}.svg
 
 else 
 
   find "${1}" -type f -iname "*.dot" \
-  | pv -l -s $(find "${1}" -type f -iname "*.dot" | wc -l) --eta --timer --progress  \
+  | pv -l -s $(find "${1}" -type f -iname "*.dot" | wc -l) --eta --timer --progress -F "$PV_FMT_DOT" \
   | sed 's/\.dot$//' \
-  | xargs -P"65" -n1 -I{} \
+  | xargs -P"56" -n1 -I{} \
   dot -Tsvg {}.dot -o {}.svg
 
 
