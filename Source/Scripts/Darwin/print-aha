@@ -3,8 +3,8 @@
 # Converts terminal output merge, fetchonly and info raw ansi files to .html 
 
 modify_svg() {
-    local svg_file="$1"
-    local base_name="$2"
+    local svg_file="${1}.svg"
+    local base_name="${1}"
     sed -i '' "s|</svg>|<foreignObject x=\"4\" y=\"80\" width=\"1620\" height=\"1020\"><body xmlns=\"http://www.w3.org/1999/xhtml\"><iframe src=\"./${base_name}.html\" width=\"1600\" height=\"1000\" style=\"border: 1px solid black;\"></iframe></body></foreignObject></svg>|" ${svg_file}    
 }
 
@@ -19,18 +19,32 @@ if [ -f "${1}/.lastprint" ]; then
 
   # turn ascii colored text files into html 
 
-  find "${1}" -iname '*.merge' -mnewer "${1}/.lastprint" \
-  | parallel --no-notice --bar --jobs 200% \
-      'aha -s -c ../.proof.css -t {} -f {} > {.}-merge.html'
-  find "${1}" -iname '*.fetchonly' -mnewer "${1}/.lastprint" \
-  | parallel --no-notice --bar --jobs 200% \
-      'aha -s -c ../.proof.css -t {} -f {} > {.}-fetchonly.html'
-  find "${1}" -iname '*.info' -mnewer "${1}/.lastprint" \
-  | parallel --no-notice --bar --jobs 200% \
-      'aha -s -c ../.proof.css -t {} -f {} > {.}-info.html'
-  find "${1}" -iname '*.emerge' -mnewer "${1}/.lastprint" \
-  | parallel --no-notice --bar --jobs 200% \
-      'aha -s -c ../.proof.css -t {} -f {} > {.}-emerge.html'
+  find "${1}" -type f -iname "*.merge" -mnewer "${1}/.lastprint" \
+  | pv -l -s $(find "${1}" -type f -iname "*.merge" | wc -l) --eta --timer --progress  \
+  | sed 's/\.merge$//' \
+  | xargs -P"65" -n1 -I{} \
+  aha -s -c ../.proof.css -t {}.merge -f {}.merge > {}-merge.html
+  
+  
+  find "${1}" -type f -iname "*.fetchonly" -mnewer "${1}/.lastprint" \
+  | pv -l -s $(find "${1}" -type f -iname "*.fetchonly" | wc -l) --eta --timer --progress  \
+  | sed 's/\.fetchonly$//' \
+  | xargs -P"65" -n1 -I{} \
+  aha -s -c ../.proof.css -t {}.fetchonly -f {}.fetchonly > {}-fetchonly.html
+
+
+  find "${1}" -type f -iname "*.info" -mnewer "${1}/.lastprint" \
+  | pv -l -s $(find "${1}" -type f -iname "*.info" | wc -l) --eta --timer --progress  \
+  | sed 's/\.info$//' \
+  | xargs -P"65" -n1 -I{} \
+  aha -s -c ../.proof.css -t {}.info -f {}.info > {}-info.html
+
+
+  find "${1}" -type f -iname "*.emerge" -mnewer "${1}/.lastprint" \
+  | pv -l -s $(find "${1}" -type f -iname "*.emerge" | wc -l) --eta --timer --progress  \
+  | sed 's/\.emerge$//' \
+  | xargs -P"65" -n1 -I{} \
+  aha -s -c ../.proof.css -t {}.emerge -f {}.emerge > {}-emerge.html
 
 
   # fixup html
@@ -38,63 +52,106 @@ if [ -f "${1}/.lastprint" ]; then
   find "${1}" -iname '*-info.html'  -mnewer "${1}/.lastprint" \
      -exec perl -pi'' -e "s/-------<span/-------\n<span/g" {} \;
 
+
   # embed html into existing svg templates
 
-  find "${1}" -iname '*-merge.svg' -mnewer "${1}/.lastprint" \
-  | parallel -q --no-notice --bar --jobs 200% \
-      modify_svg '{}' '{/.}'
 
-  find "${1}" -iname '*-fetchonly.svg' -mnewer "${1}/.lastprint" \
-  | parallel -q --no-notice --bar --jobs 200% \
-      modify_svg '{}' '{/.}'
-  
-  find "${1}" -iname '*-info.svg' -mnewer "${1}/.lastprint" \
-  | parallel -q --no-notice --bar --jobs 200% \
-      modify_svg '{}' '{/.}'
+  find "${1}" -type f -iname "*-merge.svg" -mnewer "${1}/.lastprint" \
+  | pv -l -s $(find "${1}" -type f -iname "*-merge.svg" | wc -l) --eta --timer --progress  \
+  | sed 's/\.svg$//' \
+  | xargs -P"65" -n1 -I{} \
+  modify_svg {}
 
-  find "${1}" -iname '*-emerge.svg' -mnewer "${1}/.lastprint" \
-  | parallel -q --no-notice --bar --jobs 200% \
-      modify_svg '{}' '{/.}'
+
+  find "${1}" -type f -iname "*-fetchonly.svg" -mnewer "${1}/.lastprint" \
+  | pv -l -s $(find "${1}" -type f -iname "*-fetchonly.svg" | wc -l) --eta --timer --progress  \
+  | sed 's/\.svg$//' \
+  | xargs -P"65" -n1 -I{} \
+  modify_svg {}
+
+
+  find "${1}" -type f -iname "*-info.svg"  -mnewer "${1}/.lastprint" \
+  | pv -l -s $(find "${1}" -type f -iname "*-info.svg" | wc -l) --eta --timer --progress  \
+  | sed 's/\.svg$//' \
+  | xargs -P"65" -n1 -I{} \
+  modify_svg {}
+
+
+  find "${1}" -type f -iname "*-emerge.svg"  -mnewer "${1}/.lastprint" \
+  | pv -l -s $(find "${1}" -type f -iname "*-emerge.svg" | wc -l) --eta --timer --progress  \
+  | sed 's/\.svg$//' \
+  | xargs -P"65" -n1 -I{} \
+  modify_svg {}
+
 
 else 
 
+
   # turn ascii colored text files into html
 
-  find "${1}" -iname '*.merge' \
-  | parallel --no-notice --bar --jobs 200% \
-      'aha -s -c ../.proof.css -t {} -f {} > {.}-merge.html'
-  find "${1}" -iname '*.fetchonly' \
-  | parallel --no-notice --bar --jobs 200% \
-      'aha -s -c ../.proof.css -t {} -f {} > {.}-fetchonly.html'
-  find "${1}" -iname '*.info' \
-  | parallel --no-notice --bar --jobs 200% \
-      'aha -s -c ../.proof.css -t {} -f {} > {.}-info.html'
-  find "${1}" -iname '*.emerge' \
-  | parallel --no-notice --bar --jobs 200% \
-      'aha -s -c ../.proof.css -t {} -f {} > {.}-emerge.html'
+  find "${1}" -type f -iname "*.merge" \
+  | pv -l -s $(find "${1}" -type f -iname "*.merge" | wc -l) --eta --timer --progress  \
+  | sed 's/\.merge$//' \
+  | xargs -P"65" -n1 -I{} \
+  aha -s -c ../.proof.css -t {}.merge -f {}.merge > {}-merge.html
+
+
+  find "${1}" -type f -iname "*.fetchonly" \
+  | pv -l -s $(find "${1}" -type f -iname "*.fetchonly" | wc -l) --eta --timer --progress  \
+  | sed 's/\.fetchonly$//' \
+  | xargs -P"65" -n1 -I{} \
+  aha -s -c ../.proof.css -t {}.fetchonly -f {}.fetchonly > {}-fetchonly.html
+
+
+  find "${1}" -type f -iname "*.info" \
+  | pv -l -s $(find "${1}" -type f -iname "*.info" | wc -l) --eta --timer --progress  \
+  | sed 's/\.info$//' \
+  | xargs -P"65" -n1 -I{} \
+  aha -s -c ../.proof.css -t {}.info -f {}.info > {}-info.html
+
+
+  find "${1}" -type f -iname "*.emerge" \
+  | pv -l -s $(find "${1}" -type f -iname "*.emerge" | wc -l) --eta --timer --progress  \
+  | sed 's/\.emerge$//' \
+  | xargs -P"65" -n1 -I{} \
+  aha -s -c ../.proof.css -t {}.emerge -f {}.emerge > {}-emerge.html
+
 
   # fixup html
 
-  find "${1}" -iname '*-info.html' -exec perl -pi'' -e "s/-------<span/-------\n<span/g" {} \;
+  find "${1}" -iname '*-info.html' \
+     -exec perl -pi'' -e "s/-------<span/-------\n<span/g" {} \;
 
  
   # embed html into existing svg templates
 
-  find "${1}" -iname '*-merge.svg' \
-  | parallel -q --no-notice --bar --jobs 200% \
-      modify_svg '{}' '{/.}'
+  find "${1}" -type f -iname "*-merge.svg" \
+  | pv -l -s $(find "${1}" -type f -iname "*-merge.svg" | wc -l) --eta --timer --progress  \
+  | sed 's/\.svg$//' \
+  | xargs -P"65" -n1 -I{} \
+  modify_svg {}
 
-  find "${1}" -iname '*-fetchonly.svg' \
-  | parallel -q --no-notice --bar --jobs 200% \
-      modify_svg '{}' '{/.}'
 
-  find "${1}" -iname '*-info.svg' \
-  | parallel -q --no-notice --bar --jobs 200% \
-      modify_svg '{}' '{/.}'
+  find "${1}" -type f -iname "*-fetchonly.svg" \
+  | pv -l -s $(find "${1}" -type f -iname "*-fetchonly.svg" | wc -l) --eta --timer --progress  \
+  | sed 's/\.svg$//' \
+  | xargs -P"65" -n1 -I{} \
+  modify_svg {}
 
-  find "${1}" -iname '*-emerge.svg' \
-  | parallel -q --no-notice --bar --jobs 200% \
-      modify_svg '{}' '{/.}'
+
+  find "${1}" -type f -iname "*-info.svg" \
+  | pv -l -s $(find "${1}" -type f -iname "*-info.svg" | wc -l) --eta --timer --progress  \
+  | sed 's/\.svg$//' \
+  | xargs -P"65" -n1 -I{} \
+  modify_svg {}
+
+
+  find "${1}" -type f -iname "*-emerge.svg" \
+  | pv -l -s $(find "${1}" -type f -iname "*-emerge.svg" | wc -l) --eta --timer --progress  \
+  | sed 's/\.svg$//' \
+  | xargs -P"65" -n1 -I{} \
+  modify_svg {}
+
 
 fi
 touch "${1}/.lastprint"
