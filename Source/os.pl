@@ -21,7 +21,7 @@ Eventually this could become a class with different subclasses.
 % =============================================================================
 
 % -----------------------------------------------------------------------------
-%  Path operations  
+%  Path operations
 % -----------------------------------------------------------------------------
 
 %! os:compose_path(+Path,+RelativePath,-NewPath)
@@ -80,6 +80,18 @@ os:directory_content(Directory,Content) :-
   sort(UnsortedContents,['.','..'|Contents]),
   lists:member(Content,Contents).
 
+
+% -----------------------------------------------------------------------------
+%  Finding files
+% -----------------------------------------------------------------------------
+
+find_files(Dir, Pattern, File) :-
+  directory_member(Dir, File,
+                   [ recursive(true),
+                     follow_links(false),
+                     file_type(regular),
+                     matches(Pattern)
+                   ]).
 
 % -----------------------------------------------------------------------------
 %  Bash wrappers
