@@ -1,157 +1,164 @@
 #!/bin/bash
 
-# Converts terminal output merge, fetchonly and info raw ansi files to .html 
+# Converts terminal output merge, fetchonly, info, and emerge raw ansi files to .html
+# and embeds them into SVGs using a consistent colored progress view.
+
+
+# =============================================================================
+#  INITIALISATION
+# =============================================================================
+
+set -euo pipefail
+
+if [ -z "${1:-}" ]; then
+  echo "Error: Directory argument required"
+  exit 1
+fi
+
+TARGET_DIR="$1"
+
+
+# =============================================================================
+#  CONFIGURATION
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Parallel job count
+# -----------------------------------------------------------------------------
+
+JOBS=56
+
+
+# -----------------------------------------------------------------------------
+# CSS path (relative to output)
+# -----------------------------------------------------------------------------
+
+CSS_PATH="../.proof.css"
+
+
+# -----------------------------------------------------------------------------
+# Progress bar formats (colored)
+# -----------------------------------------------------------------------------
+
+PV_FMT_HTML_MERGE=$'\033[1;36m[ MERGE  -> HTML %p% | %t | %e ]\033[0m'
+PV_FMT_HTML_FETCH=$'\033[1;36m[ FETCH  -> HTML %p% | %t | %e ]\033[0m'
+PV_FMT_HTML_INFO=$'\033[1;36m[ INFO   -> HTML %p% | %t | %e ]\033[0m'
+PV_FMT_HTML_EMERGE=$'\033[1;36m[ EMERGE -> HTML %p% | %t | %e ]\033[0m'
+
+PV_FMT_HTML_FIXUP=$'\033[1;36m[ HTML   -> FIX  %p% | %t | %e ]\033[0m'
+
+PV_FMT_SVG_MERGE=$'\033[1;36m[ MERGE  -> SVG  %p% | %t | %e ]\033[0m'
+PV_FMT_SVG_FETCH=$'\033[1;36m[ FETCH  -> SVG  %p% | %t | %e ]\033[0m'
+PV_FMT_SVG_INFO=$'\033[1;36m[ INFO   -> SVG  %p% | %t | %e ]\033[0m'
+PV_FMT_SVG_EMERGE=$'\033[1;36m[ EMERGE -> SVG  %p% | %t | %e ]\033[0m'
+
+
+
+# =============================================================================
+# FUNCTIONS
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Funtion: Embed HTML into SVG
+# -----------------------------------------------------------------------------
 
 modify_svg() {
-    local svg_file="${1}.svg"
-    local base_name="${1}"
-    sed -i '' "s|</svg>|<foreignObject x=\"4\" y=\"80\" width=\"1620\" height=\"1020\"><body xmlns=\"http://www.w3.org/1999/xhtml\"><iframe src=\"./${base_name}.html\" width=\"1600\" height=\"1000\" style=\"border: 1px solid black;\"></iframe></body></foreignObject></svg>|" ${svg_file}    
+  local base_name="$1"
+  local svg_file="${base_name}.svg"
+  sed -i '' "s|</svg>|<foreignObject x=\"4\" y=\"80\" width=\"1620\" height=\"1020\"><body xmlns=\"http://www.w3.org/1999/xhtml\"><iframe src=\"./${base_name}.html\" width=\"1600\" height=\"1000\" style=\"border: 1px solid black;\"></iframe></body></foreignObject></svg>|" ${svg_file}
 }
 
 export -f modify_svg
 
-if [ -z "$1" ]; then
-    echo "Error: Directory argument required"
-    exit 1
+
+# -----------------------------------------------------------------------------
+# Function: Convert raw ASCII colored text files to HTML
+# -----------------------------------------------------------------------------
+
+convert_to_html() {
+  local ext="$1"    # merge / fetchonly / info / emerge
+  local pv_fmt="$2"
+  local find_opts=("${@:3}")
+
+  local count
+  count=$(find "$TARGET_DIR" -type f -iname "*.${ext}" "${find_opts[@]}" | wc -l)
+  (( count == 0 )) && return
+
+  find "$TARGET_DIR" -type f -iname "*.${ext}" "${find_opts[@]}" \
+    | pv -l -s "$count" --eta --timer --progress -F "$pv_fmt" \
+    | sed "s/\.${ext}$//" \
+    | xargs -P"$JOBS" -n1 -I{} \
+      aha -s -c "$CSS_PATH" -t {}."${ext}" -f {}."${ext}" > {}-"${ext}".html
+}
+
+
+# -----------------------------------------------------------------------------
+# Function: Fixup HTML files
+# -----------------------------------------------------------------------------
+
+fixup_html_files() {
+  local ext="$1"     # fixup
+  local pv_fmt="$2"
+  local find_opts=("${@:3}")
+  local pattern="*-info.html"
+
+  local count
+  count=$(find "$TARGET_DIR" -type f -iname "$pattern" "${find_opts[@]}" | wc -l)
+  (( count == 0 )) && return
+
+  find "$TARGET_DIR" -type f -iname "$pattern" "${find_opts[@]}" -print0 \
+    | pv -0 -s "$count" --eta --timer --progress -F "$pv_fmt" \
+    | xargs -0 -P"$JOBS" -n16 \
+        perl -pi'' -e 's/-------<span/-------\n<span/g' || true
+}
+
+
+# -----------------------------------------------------------------------------
+# Function: Embed the generated HTML into SVGs iframe
+# -----------------------------------------------------------------------------
+
+embed_html_in_svg() {
+  local ext="$1"    # merge / fetchonly / info / emerge
+  local pv_fmt="$2"
+  local find_opts=("${@:3}")
+
+  local count
+  count=$(find "$TARGET_DIR" -type f -iname "*-${ext}.svg" "${find_opts[@]}" | wc -l)
+  (( count == 0 )) && return
+
+  find "$TARGET_DIR" -type f -iname "*-${ext}.svg" "${find_opts[@]}" \
+    | pv -l -s "$count" --eta --timer --progress -F "$pv_fmt" \
+    | sed 's/\.svg$//' \
+    | xargs -P"$JOBS" -n1 -I{} \
+      bash -c 'modify_svg "$1"' _ {}    
+}
+
+
+
+# =============================================================================
+#  MAIN LOGIC
+# =============================================================================
+
+if [ -f "${TARGET_DIR}/.lastprint" ]; then
+  FIND_MODNEWER=(-mnewer "${TARGET_DIR}/.lastprint")
+else
+  FIND_MODNEWER=()
 fi
 
-if [ -f "${1}/.lastprint" ]; then
+# Convert raw ASCII text files into HTML
+convert_to_html   "merge"     "$PV_FMT_HTML_MERGE"   "${FIND_MODNEWER[@]}"
+convert_to_html   "fetchonly" "$PV_FMT_HTML_FETCH"   "${FIND_MODNEWER[@]}"
+convert_to_html   "info"      "$PV_FMT_HTML_INFO"    "${FIND_MODNEWER[@]}"
+convert_to_html   "emerge"    "$PV_FMT_HTML_EMERGE"  "${FIND_MODNEWER[@]}"
 
-  # turn ascii colored text files into html 
+# Post-process HTML (minor fixup)
+fixup_html_files  "fixup"     "$PV_HMT_HTML_FIXUP"   "${FIND_MODNEWER[@]}"
 
-  find "${1}" -type f -iname "*.merge" -mnewer "${1}/.lastprint" \
-  | pv -l -s $(find "${1}" -type f -iname "*.merge" | wc -l) --eta --timer --progress  \
-  | sed 's/\.merge$//' \
-  | xargs -P"65" -n1 -I{} \
-  aha -s -c ../.proof.css -t {}.merge -f {}.merge > {}-merge.html
-  
-  
-  find "${1}" -type f -iname "*.fetchonly" -mnewer "${1}/.lastprint" \
-  | pv -l -s $(find "${1}" -type f -iname "*.fetchonly" | wc -l) --eta --timer --progress  \
-  | sed 's/\.fetchonly$//' \
-  | xargs -P"65" -n1 -I{} \
-  aha -s -c ../.proof.css -t {}.fetchonly -f {}.fetchonly > {}-fetchonly.html
+# Embed the HTML into existing SVG
+embed_html_in_svg "merge"     "$PV_FMT_SVG_MERGE"    "${FIND_MODNEWER[@]}"
+embed_html_in_svg "fetchonly" "$PV_FMT_SVG_FETCH"    "${FIND_MODNEWER[@]}"
+embed_html_in_svg "info"      "$PV_FMT_SVG_INFO"     "${FIND_MODNEWER[@]}"
+embed_html_in_svg "emerge"    "$PV_FMT_SVG_EMERGE"   "${FIND_MODNEWER[@]}"
 
-
-  find "${1}" -type f -iname "*.info" -mnewer "${1}/.lastprint" \
-  | pv -l -s $(find "${1}" -type f -iname "*.info" | wc -l) --eta --timer --progress  \
-  | sed 's/\.info$//' \
-  | xargs -P"65" -n1 -I{} \
-  aha -s -c ../.proof.css -t {}.info -f {}.info > {}-info.html
-
-
-  find "${1}" -type f -iname "*.emerge" -mnewer "${1}/.lastprint" \
-  | pv -l -s $(find "${1}" -type f -iname "*.emerge" | wc -l) --eta --timer --progress  \
-  | sed 's/\.emerge$//' \
-  | xargs -P"65" -n1 -I{} \
-  aha -s -c ../.proof.css -t {}.emerge -f {}.emerge > {}-emerge.html
-
-
-  # fixup html
-
-  find "${1}" -iname '*-info.html'  -mnewer "${1}/.lastprint" \
-     -exec perl -pi'' -e "s/-------<span/-------\n<span/g" {} \;
-
-
-  # embed html into existing svg templates
-
-
-  find "${1}" -type f -iname "*-merge.svg" -mnewer "${1}/.lastprint" \
-  | pv -l -s $(find "${1}" -type f -iname "*-merge.svg" | wc -l) --eta --timer --progress  \
-  | sed 's/\.svg$//' \
-  | xargs -P"65" -n1 -I{} \
-  modify_svg {}
-
-
-  find "${1}" -type f -iname "*-fetchonly.svg" -mnewer "${1}/.lastprint" \
-  | pv -l -s $(find "${1}" -type f -iname "*-fetchonly.svg" | wc -l) --eta --timer --progress  \
-  | sed 's/\.svg$//' \
-  | xargs -P"65" -n1 -I{} \
-  modify_svg {}
-
-
-  find "${1}" -type f -iname "*-info.svg"  -mnewer "${1}/.lastprint" \
-  | pv -l -s $(find "${1}" -type f -iname "*-info.svg" | wc -l) --eta --timer --progress  \
-  | sed 's/\.svg$//' \
-  | xargs -P"65" -n1 -I{} \
-  modify_svg {}
-
-
-  find "${1}" -type f -iname "*-emerge.svg"  -mnewer "${1}/.lastprint" \
-  | pv -l -s $(find "${1}" -type f -iname "*-emerge.svg" | wc -l) --eta --timer --progress  \
-  | sed 's/\.svg$//' \
-  | xargs -P"65" -n1 -I{} \
-  modify_svg {}
-
-
-else 
-
-
-  # turn ascii colored text files into html
-
-  find "${1}" -type f -iname "*.merge" \
-  | pv -l -s $(find "${1}" -type f -iname "*.merge" | wc -l) --eta --timer --progress  \
-  | sed 's/\.merge$//' \
-  | xargs -P"65" -n1 -I{} \
-  aha -s -c ../.proof.css -t {}.merge -f {}.merge > {}-merge.html
-
-
-  find "${1}" -type f -iname "*.fetchonly" \
-  | pv -l -s $(find "${1}" -type f -iname "*.fetchonly" | wc -l) --eta --timer --progress  \
-  | sed 's/\.fetchonly$//' \
-  | xargs -P"65" -n1 -I{} \
-  aha -s -c ../.proof.css -t {}.fetchonly -f {}.fetchonly > {}-fetchonly.html
-
-
-  find "${1}" -type f -iname "*.info" \
-  | pv -l -s $(find "${1}" -type f -iname "*.info" | wc -l) --eta --timer --progress  \
-  | sed 's/\.info$//' \
-  | xargs -P"65" -n1 -I{} \
-  aha -s -c ../.proof.css -t {}.info -f {}.info > {}-info.html
-
-
-  find "${1}" -type f -iname "*.emerge" \
-  | pv -l -s $(find "${1}" -type f -iname "*.emerge" | wc -l) --eta --timer --progress  \
-  | sed 's/\.emerge$//' \
-  | xargs -P"65" -n1 -I{} \
-  aha -s -c ../.proof.css -t {}.emerge -f {}.emerge > {}-emerge.html
-
-
-  # fixup html
-
-  find "${1}" -iname '*-info.html' \
-     -exec perl -pi'' -e "s/-------<span/-------\n<span/g" {} \;
-
- 
-  # embed html into existing svg templates
-
-  find "${1}" -type f -iname "*-merge.svg" \
-  | pv -l -s $(find "${1}" -type f -iname "*-merge.svg" | wc -l) --eta --timer --progress  \
-  | sed 's/\.svg$//' \
-  | xargs -P"65" -n1 -I{} \
-  modify_svg {}
-
-
-  find "${1}" -type f -iname "*-fetchonly.svg" \
-  | pv -l -s $(find "${1}" -type f -iname "*-fetchonly.svg" | wc -l) --eta --timer --progress  \
-  | sed 's/\.svg$//' \
-  | xargs -P"65" -n1 -I{} \
-  modify_svg {}
-
-
-  find "${1}" -type f -iname "*-info.svg" \
-  | pv -l -s $(find "${1}" -type f -iname "*-info.svg" | wc -l) --eta --timer --progress  \
-  | sed 's/\.svg$//' \
-  | xargs -P"65" -n1 -I{} \
-  modify_svg {}
-
-
-  find "${1}" -type f -iname "*-emerge.svg" \
-  | pv -l -s $(find "${1}" -type f -iname "*-emerge.svg" | wc -l) --eta --timer --progress  \
-  | sed 's/\.svg$//' \
-  | xargs -P"65" -n1 -I{} \
-  modify_svg {}
-
-
-fi
-touch "${1}/.lastprint"
+# Touch timestamp
+touch "${TARGET_DIR}/.lastprint"
