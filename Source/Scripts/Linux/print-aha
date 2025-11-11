@@ -88,7 +88,7 @@ convert_to_html() {
     | pv -l -s "$count" --eta --timer --progress -F "$format" \
     | sed "s/\.${ext}$//" \
     | xargs -P"$JOBS" -n1 -I{} \
-      aha -s -c "$CSS_PATH" -t {}."${ext}" -f {}."${ext}" > {}-"${ext}".html
+      bash -c 'aha -s -c "$CSS_PATH" -t "$1.$2" -f "$1.$2" > "$1-$2.html"' _ {} "$ext"
 }
 
 
