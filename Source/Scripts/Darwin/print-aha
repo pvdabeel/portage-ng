@@ -145,19 +145,19 @@ if [ -f "${TARGET_DIR}/.lastprint" ]; then
 fi
 
 # Convert raw ASCII text files into HTML
-convert_to_html   "merge"     "$PV_FMT_HTML_MERGE"   i
-convert_to_html   "fetchonly" "$PV_FMT_HTML_FETCH"   
-convert_to_html   "info"      "$PV_FMT_HTML_INFO"    
-convert_to_html   "emerge"    "$PV_FMT_HTML_EMERGE"  
+convert_to_html   "merge"     "$PV_FMT_HTML_MERGE"  || true
+convert_to_html   "fetchonly" "$PV_FMT_HTML_FETCH"  || true
+convert_to_html   "info"      "$PV_FMT_HTML_INFO"   || true
+convert_to_html   "emerge"    "$PV_FMT_HTML_EMERGE" || true 
 
 # Post-process HTML (minor fixup)
-fixup_html_files  "fixup"     "$PV_FMT_HTML_FIXUP"   
+fixup_html_files  "fixup"     "$PV_FMT_HTML_FIXUP"  || true
 
 # Embed the HTML into existing SVG
-embed_html_in_svg "merge"     "$PV_FMT_SVG_MERGE"    
-embed_html_in_svg "fetchonly" "$PV_FMT_SVG_FETCH"    
-embed_html_in_svg "info"      "$PV_FMT_SVG_INFO"     
-embed_html_in_svg "emerge"    "$PV_FMT_SVG_EMERGE"   
+embed_html_in_svg "merge"     "$PV_FMT_SVG_MERGE"   || true
+embed_html_in_svg "fetchonly" "$PV_FMT_SVG_FETCH"   || true 
+embed_html_in_svg "info"      "$PV_FMT_SVG_INFO"    || true
+embed_html_in_svg "emerge"    "$PV_FMT_SVG_EMERGE"  || true
 
 # Touch timestamp
 touch "${TARGET_DIR}/.lastprint"
