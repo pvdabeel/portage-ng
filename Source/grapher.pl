@@ -806,7 +806,7 @@ grapher:write_graph_file(D,Repository://Entry) :-
 
 grapher:write_graph_files(Directory,Repository) :-
   tester:test(parallel_verbose,
-              'Writing dot graphs for',
+              'Writing dot graphs',
               Repository://Entry,
               (Repository:entry(Entry),
                (config:graph_modified_only(true)
@@ -830,6 +830,7 @@ grapher:write_graph_files(Directory,Repository) :-
 
 grapher:produce_svg(Directory) :-
   message:scroll_notice(['Now running Graphviz dot...']),
+  message:hc,
   script:exec(graph,['dot',Directory]),
   message:scroll_notice(['Done running Graphviz dot.']),nl,
   message:sc.

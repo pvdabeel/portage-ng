@@ -1769,6 +1769,7 @@ printer:write_proof_files(Directory,Repository) :-
 
 printer:produce_html(Directory) :-
   message:scroll_notice(['Now running Aha ...']),
+  message:hc,
   script:exec(print,['aha',Directory]),
   message:scroll_notice(['Done running Aha.']),
   message:sc.
