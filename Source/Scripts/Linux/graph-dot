@@ -13,7 +13,7 @@ PV_FMT_DOT=$'\033[1;90m% [%{progress-amount-only}] - Creating SVG graphs  [ %{ba
 if [ -f "${1}/.lastgraph" ]; then
 
   find "${1}" -type f -iname "*.dot" -mnewer "${1}/.lastgraph" \
-  | pv -l -s $(find "${1}" -type f -iname "*.dot" | wc -l) --eta --timer --progress -F "$PV_FMT_DOT" \
+  | pv -l -s $(find "${1}" -type f -iname "*.dot" -mnewer "${1}/.lastgraph" | wc -l) --eta --timer --progress -F "$PV_FMT_DOT" \
   | sed 's/\.dot$//' \
   | xargs -P"56" -n1 -I{} \
   dot -Tsvg {}.dot -o {}.svg
