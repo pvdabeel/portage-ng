@@ -45,16 +45,15 @@ CSS_PATH="../.proof.css"
 # -----------------------------------------------------------------------------
 
 
-PV_FMT_HTML_MERGE=$'\033[1;90m% [ %{progress-amount-only}] - Creating HTML merge  [ %{bar-shaded} | %t | %e ]\033[0m'
-PV_FMT_HTML_FETCH=$'\033[1;90m% [ %{progress-amount-only}] - Creating HTML fetch  [ %{bar-shaded} | %t | %e ]\033[0m'
-PV_FMT_HTML_INFO=$'\033[1;90m% [ %{progress-amount-only}] - Creating HTML info   [ %{bar-shaded} | %t | %e ]\033[0m'
-PV_FMT_HTML_EMERGE=$'\033[1;90m% [ %{progress-amount-only}] - Creating HTML emerge [ %{bar-shaded} | %t | %e ]\033[0m'
-PV_FMT_HTML_FIXUP=$'\033[1;90m% [ %{progress-amount-only}] - Adjusting HTML lines  [ %{bar-shaded} | %t | %e ]\033[0m'
-PV_FMT_SVG_MERGE=$'\033[1;90m% [ %{progress-amount-only}] - Inserting SVG  merge  [ %{bar-shaded} | %t | %e ]\033[0m'
-PV_FMT_SVG_FETCH=$'\033[1;90m% [ %{progress-amount-only}] - Inserting SVG  fetch  [ %{bar-shaded} | %t | %e ]\033[0m'
-PV_FMT_SVG_INFO=$'\033[1;90m% [ %{progress-amount-only}] - Inserting SVG  info   [ %{bar-shaded} | %t | %e ]\033[0m'
-PV_FMT_SVG_EMERGE=$'\033[1;90m% [ %{progress-amount-only}] - Inserting SVG  emerge [ %{bar-shaded} | %t | %e ]\033[0m'
-
+PV_FMT_HTML_MERGE=$'\033[1;90m% [%{progress-amount-only}] - Creating HTML merge  [ %{bar-shaded} | %t | %e ]\033[0m'
+PV_FMT_HTML_FETCH=$'\033[1;90m% [%{progress-amount-only}] - Creating HTML fetch  [ %{bar-shaded} | %t | %e ]\033[0m'
+PV_FMT_HTML_INFO=$'\033[1;90m% [%{progress-amount-only}] - Creating HTML info   [ %{bar-shaded} | %t | %e ]\033[0m'
+PV_FMT_HTML_EMERGE=$'\033[1;90m% [%{progress-amount-only}] - Creating HTML emerge [ %{bar-shaded} | %t | %e ]\033[0m'
+PV_FMT_SVG_MERGE=$'\033[1;90m% [%{progress-amount-only}] - Inserting SVG merge  [ %{bar-shaded} | %t | %e ]\033[0m'
+PV_FMT_SVG_FETCH=$'\033[1;90m% [%{progress-amount-only}] - Inserting SVG fetch  [ %{bar-shaded} | %t | %e ]\033[0m'
+PV_FMT_SVG_INFO=$'\033[1;90m% [%{progress-amount-only}] - Inserting SVG info   [ %{bar-shaded} | %t | %e ]\033[0m'
+PV_FMT_SVG_EMERGE=$'\033[1;90m% [%{progress-amount-only}] - Inserting SVG emerge [ %{bar-shaded} | %t | %e ]\033[0m'
+PV_FMT_HTML_FIXUP=$'\033[1;90m% [%{progress-amount-only}] - Applying HTML fixes  [ %{bar-shaded} | %t | %e ]\033[0m'
 
 # =============================================================================
 # FUNCTIONS

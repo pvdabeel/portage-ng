@@ -7,7 +7,7 @@
 # ${1} = remote
 # ${2} = local
 
-PV_FMT_DOT=$'\033[1;90m% [ %{progress-amount-only}] - Creating SVG graphs [ %{bar-shaded} | %t | %e ]\033[0m'
+PV_FMT_DOT=$'\033[1;90m% [%{progress-amount-only}] - Creating SVG graphs  [ %{bar-shaded} | %t | %e ]\033[0m'
 
 
 if [ -f "${1}/.lastgraph" ]; then
