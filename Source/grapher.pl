@@ -832,7 +832,6 @@ grapher:produce_svg(Directory) :-
   message:scroll_notice(['Now running Graphviz dot...']),
   message:hc,
   script:exec(graph,['dot',Directory]),
-  message:scroll_notice(['Done running Graphviz dot.']),nl,
   message:sc.
 
 
