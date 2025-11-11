@@ -8,14 +8,18 @@
 #  INITIALISATION
 # =============================================================================
 
-set -euo pipefail
+set -eo pipefail
 
 if [ -z "${1:-}" ]; then
   echo "Error: Directory argument required"
   exit 1
 fi
 
+# Target directory
 TARGET_DIR="$1"
+
+# Always defined (empty by default) 
+FIND_MODNEWER=()
 
 
 # =============================================================================
@@ -40,18 +44,16 @@ CSS_PATH="../.proof.css"
 # Progress bar formats (colored)
 # -----------------------------------------------------------------------------
 
-PV_FMT_HTML_MERGE=$'\033[1;36m[ MERGE  -> HTML %p | %t | %e ]\033[0m'
-PV_FMT_HTML_FETCH=$'\033[1;36m[ FETCH  -> HTML %p | %t | %e ]\033[0m'
-PV_FMT_HTML_INFO=$'\033[1;36m[ INFO   -> HTML %p | %t | %e ]\033[0m'
-PV_FMT_HTML_EMERGE=$'\033[1;36m[ EMERGE -> HTML %p | %t | %e ]\033[0m'
 
-PV_FMT_HTML_FIXUP=$'\033[1;36m[ HTML   -> FIX  %p | %t | %e ]\033[0m'
-
-PV_FMT_SVG_MERGE=$'\033[1;36m[ MERGE  -> SVG  %p | %t | %e ]\033[0m'
-PV_FMT_SVG_FETCH=$'\033[1;36m[ FETCH  -> SVG  %p | %t | %e ]\033[0m'
-PV_FMT_SVG_INFO=$'\033[1;36m[ INFO   -> SVG  %p | %t | %e ]\033[0m'
-PV_FMT_SVG_EMERGE=$'\033[1;36m[ EMERGE -> SVG  %p | %t | %e ]\033[0m'
-
+PV_FMT_HTML_MERGE=$'\033[1;90m% [ %{progress-amount-only}] - Creating HTML merge  [ %{bar-shaded} | %t | %e ]\033[0m'
+PV_FMT_HTML_FETCH=$'\033[1;90m% [ %{progress-amount-only}] - Creating HTML fetch  [ %{bar-shaded} | %t | %e ]\033[0m'
+PV_FMT_HTML_INFO=$'\033[1;90m% [ %{progress-amount-only}] - Creating HTML info   [ %{bar-shaded} | %t | %e ]\033[0m'
+PV_FMT_HTML_EMERGE=$'\033[1;90m% [ %{progress-amount-only}] - Creating HTML emerge [ %{bar-shaded} | %t | %e ]\033[0m'
+PV_FMT_HTML_FIXUP=$'\033[1;90m% [ %{progress-amount-only}] - Adjusting HTML lines  [ %{bar-shaded} | %t | %e ]\033[0m'
+PV_FMT_SVG_MERGE=$'\033[1;90m% [ %{progress-amount-only}] - Inserting SVG  merge  [ %{bar-shaded} | %t | %e ]\033[0m'
+PV_FMT_SVG_FETCH=$'\033[1;90m% [ %{progress-amount-only}] - Inserting SVG  fetch  [ %{bar-shaded} | %t | %e ]\033[0m'
+PV_FMT_SVG_INFO=$'\033[1;90m% [ %{progress-amount-only}] - Inserting SVG  info   [ %{bar-shaded} | %t | %e ]\033[0m'
+PV_FMT_SVG_EMERGE=$'\033[1;90m% [ %{progress-amount-only}] - Inserting SVG  emerge [ %{bar-shaded} | %t | %e ]\033[0m'
 
 
 # =============================================================================
@@ -76,16 +78,15 @@ export -f modify_svg
 # -----------------------------------------------------------------------------
 
 convert_to_html() {
-  local ext="$1"    # merge / fetchonly / info / emerge
-  local pv_fmt="$2"
-  local find_opts=("${@:3}")
+  local ext="$1"
+  local format="$2"
 
   local count
-  count=$(find "$TARGET_DIR" -type f -iname "*.${ext}" "${find_opts[@]}" | wc -l)
+  count=$(find "$TARGET_DIR" -type f -iname "*.${ext}" "${FIND_MODNEWER[@]}" | wc -l)
   (( count == 0 )) && return
 
-  find "$TARGET_DIR" -type f -iname "*.${ext}" "${find_opts[@]}" \
-    | pv -l -s "$count" --eta --timer --progress -F "$pv_fmt" \
+  find "$TARGET_DIR" -type f -iname "*.${ext}" "${FIND_MODNEWER[@]}" \
+    | pv -l -s "$count" --eta --timer --progress -F "$format" \
     | sed "s/\.${ext}$//" \
     | xargs -P"$JOBS" -n1 -I{} \
       aha -s -c "$CSS_PATH" -t {}."${ext}" -f {}."${ext}" > {}-"${ext}".html
@@ -97,17 +98,16 @@ convert_to_html() {
 # -----------------------------------------------------------------------------
 
 fixup_html_files() {
-  local ext="$1"     # fixup
-  local pv_fmt="$2"
-  local find_opts=("${@:3}")
+  local ext="$1"
+  local format="$2"
   local pattern="*-info.html"
 
   local count
-  count=$(find "$TARGET_DIR" -type f -iname "$pattern" "${find_opts[@]}" | wc -l)
+  count=$(find "$TARGET_DIR" -type f -iname "$pattern" "${FIND_MODNEWER[@]}" | wc -l)
   (( count == 0 )) && return
 
-  find "$TARGET_DIR" -type f -iname "$pattern" "${find_opts[@]}" -print0 \
-    | pv -0 -s "$count" --eta --timer --progress -F "$pv_fmt" \
+  find "$TARGET_DIR" -type f -iname "$pattern" "${FIND_MODNEWER[@]}" -print0 \
+    | pv -0 -s "$count" --eta --timer --progress -F "$format" \
     | xargs -0 -P"$JOBS" -n16 \
         perl -pi'' -e 's/-------<span/-------\n<span/g' || true
 }
@@ -118,16 +118,15 @@ fixup_html_files() {
 # -----------------------------------------------------------------------------
 
 embed_html_in_svg() {
-  local ext="$1"    # merge / fetchonly / info / emerge
-  local pv_fmt="$2"
-  local find_opts=("${@:3}")
+  local ext="$1"
+  local format="$2"
 
   local count
-  count=$(find "$TARGET_DIR" -type f -iname "*-${ext}.svg" "${find_opts[@]}" | wc -l)
+  count=$(find "$TARGET_DIR" -type f -iname "*-${ext}.svg" "${FIND_MODNEWER[@]}" | wc -l)
   (( count == 0 )) && return
 
-  find "$TARGET_DIR" -type f -iname "*-${ext}.svg" "${find_opts[@]}" \
-    | pv -l -s "$count" --eta --timer --progress -F "$pv_fmt" \
+  find "$TARGET_DIR" -type f -iname "*-${ext}.svg" "${FIND_MODNEWER[@]}" \
+    | pv -l -s "$count" --eta --timer --progress -F "$format" \
     | sed 's/\.svg$//' \
     | xargs -P"$JOBS" -n1 -I{} \
       bash -c 'modify_svg "$1"' _ {}    
@@ -139,26 +138,26 @@ embed_html_in_svg() {
 #  MAIN LOGIC
 # =============================================================================
 
+FIND_MODNEWER=()
+
 if [ -f "${TARGET_DIR}/.lastprint" ]; then
   FIND_MODNEWER=(-mnewer "${TARGET_DIR}/.lastprint")
-else
-  FIND_MODNEWER=()
 fi
 
 # Convert raw ASCII text files into HTML
-convert_to_html   "merge"     "$PV_FMT_HTML_MERGE"   "${FIND_MODNEWER[@]}"
-convert_to_html   "fetchonly" "$PV_FMT_HTML_FETCH"   "${FIND_MODNEWER[@]}"
-convert_to_html   "info"      "$PV_FMT_HTML_INFO"    "${FIND_MODNEWER[@]}"
-convert_to_html   "emerge"    "$PV_FMT_HTML_EMERGE"  "${FIND_MODNEWER[@]}"
+convert_to_html   "merge"     "$PV_FMT_HTML_MERGE"  || true
+convert_to_html   "fetchonly" "$PV_FMT_HTML_FETCH"  || true
+convert_to_html   "info"      "$PV_FMT_HTML_INFO"   || true
+convert_to_html   "emerge"    "$PV_FMT_HTML_EMERGE" || true 
 
 # Post-process HTML (minor fixup)
-fixup_html_files  "fixup"     "$PV_HMT_HTML_FIXUP"   "${FIND_MODNEWER[@]}"
+fixup_html_files  "fixup"     "$PV_FMT_HTML_FIXUP"  || true
 
 # Embed the HTML into existing SVG
-embed_html_in_svg "merge"     "$PV_FMT_SVG_MERGE"    "${FIND_MODNEWER[@]}"
-embed_html_in_svg "fetchonly" "$PV_FMT_SVG_FETCH"    "${FIND_MODNEWER[@]}"
-embed_html_in_svg "info"      "$PV_FMT_SVG_INFO"     "${FIND_MODNEWER[@]}"
-embed_html_in_svg "emerge"    "$PV_FMT_SVG_EMERGE"   "${FIND_MODNEWER[@]}"
+embed_html_in_svg "merge"     "$PV_FMT_SVG_MERGE"   || true
+embed_html_in_svg "fetchonly" "$PV_FMT_SVG_FETCH"   || true 
+embed_html_in_svg "info"      "$PV_FMT_SVG_INFO"    || true
+embed_html_in_svg "emerge"    "$PV_FMT_SVG_EMERGE"  || true
 
 # Touch timestamp
 touch "${TARGET_DIR}/.lastprint"
