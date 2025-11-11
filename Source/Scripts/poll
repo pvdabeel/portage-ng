@@ -1,6 +1,6 @@
 #!/bin/sh
 
-alias portage-ng-dev='swipl -O --stack_limit=128G -f /Users/pvdabeel/Desktop/Prolog/portage-ng.pl -p portage=/Users/pvdabeel/Desktop/Prolog -g main --'
+alias portage-ng-dev='swipl -O --stack_limit=256G --table-space=256G --shared-table-space=256G -f /Users/pvdabeel/Desktop/Prolog/portage-ng.pl -p portage=/Users/pvdabeel/Desktop/Prolog -Dverbose_autoload=false -Dreadline=editline -g main --'
 
 # Make sure you have portage-ng installed!
 
@@ -27,8 +27,8 @@ if [ $LOCAL != $REMOTE ]; then
     echo "--- `date`" 
     echo  
     echo "--- Syncing portage ebuilds"
-    portage-ng-dev --mode client --sync  # sync repository
-    portage-ng-dev --mode client --save  # save repository - not necessary, we can keep things in memory in client-server mode
+    portage-ng-dev --mode standalone --sync  # sync repository
+    #portage-ng-dev --mode client --save  # save repository - not necessary, we can keep things in memory in client-server mode
     echo  
     echo "--- Graphing portage ebuilds"
     portage-ng-dev --mode standalone --graph  # update graph

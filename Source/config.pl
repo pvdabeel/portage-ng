@@ -264,7 +264,7 @@ config:graph_directory('vm-linux.local',    '/root/Graph')            :- !.
 %
 % Set when you want Graphviz dot file to be created for new ebuilds only
 
-config:graph_modified_only(false).
+config:graph_modified_only(true).
 
 
 %! config:graph_dependency_type(?List)
