@@ -43,8 +43,8 @@ tester:test(single_verbose,Name,Repository://Item,Generator,Test,Report,Scroll) 
                                              stats:runningtime(Min,Sec),
                                              message:title([Name,' (Single thread): ',P,' processed in ',Min,'m ',Sec,'s']),
                                              (Scroll
- 				              -> message:scroll_notice(['[',P,'] - ', Name,' ',Repository,'://',Item])
-                                              ;  message:topheader(['[',P,'] - ',Name,' ',Repository,'://',Item])),
+ 				              -> message:scroll_notice(['[',P,'] - ', Name,' - ',Repository,'://',Item])
+                                              ;  message:topheader(['[',P,'] - ',Name,' - ',Repository,'://',Item])),
 					     Test,!,Report)),
                      time_limit_exceeded,
                      message:scroll_failure([Item,' (time limit exceeded)']));
@@ -72,8 +72,8 @@ tester:test(parallel_verbose,Name,Repository://Item,Generator,Test,Report,Scroll
                                                            stats:runningtime(Min,Sec),
                                                            message:title([Name,' (',Cpus,' threads): ',P,' processed in ',Min,'m ',Sec,'s']),
                                                            (Scroll
- 							    -> message:scroll_notice(['[',P,'] - ', Name,' ',Repository,'://',Item])
-                                                            ;  message:topheader(['[',P,'] - ',Name,' ',Repository,'://',Item])),
+ 							    -> message:scroll_notice(['[',P,'] - ', Name,' - ',Repository,'://',Item])
+                                                            ;  message:topheader(['[',P,'] - ',Name,' - ',Repository,'://',Item])),
   							   Report
                                                           )))),
                  time_limit_exceeded,
