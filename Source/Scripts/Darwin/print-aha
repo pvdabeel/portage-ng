@@ -34,13 +34,6 @@ JOBS=56
 
 
 # -----------------------------------------------------------------------------
-# CSS path (relative to output)
-# -----------------------------------------------------------------------------
-
-CSS_PATH="../.proof.css"
-
-
-# -----------------------------------------------------------------------------
 # Progress bar formats (colored)
 # -----------------------------------------------------------------------------
 
@@ -66,7 +59,8 @@ PV_FMT_HTML_FIXUP=$'\033[1;90m% [%{progress-amount-only}] - Applying HTML fixes 
 modify_svg() {
   local base_name="$1"
   local svg_file="${base_name}.svg"
-  sed -i '' "s|</svg>|<foreignObject x=\"4\" y=\"80\" width=\"1620\" height=\"1020\"><body xmlns=\"http://www.w3.org/1999/xhtml\"><iframe src=\"./${base_name}.html\" width=\"1600\" height=\"1000\" style=\"border: 1px solid black;\"></iframe></body></foreignObject></svg>|" ${svg_file}
+  local rel_html="./$(basename "$base_name").html"
+  sed -i '' "s|</svg>|<foreignObject x=\"4\" y=\"80\" width=\"1620\" height=\"1020\"><body xmlns=\"http://www.w3.org/1999/xhtml\"><iframe src=\"./${rel_html}\" width=\"1600\" height=\"1000\" style=\"border: 1px solid black;\"></iframe></body></foreignObject></svg>|" ${svg_file}
 }
 
 export -f modify_svg
@@ -88,7 +82,7 @@ convert_to_html() {
     | pv -l -s "$count" --eta --timer --progress -F "$format" \
     | sed "s/\.${ext}$//" \
     | xargs -P"$JOBS" -n1 -I{} \
-      bash -c 'aha -s -c "$CSS_PATH" -t "$1.$2" -f "$1.$2" > "$1-$2.html"' _ {} "$ext"
+      bash -c 'aha -s -c ../.proof.css -t $(basename "$1.$2") -f "$1.$2" > "$1-$2.html"' _ {} "$ext"
 }
 
 
