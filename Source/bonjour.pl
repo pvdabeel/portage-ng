@@ -101,9 +101,9 @@ bonjour:browse_hostnames(Service, Hostnames) :-
 % Given a line of output from dns-sd, parses hostname information.
 
 bonjour:browse_line_hostname(Service, Line, Host) :-
-  sub_string(Line,_,_,_,Service),
-  split_string(Line," \t"," \t",Parts),
-  last(Parts,Host).
+  sub_string(Line, _, _, After, Service),
+  sub_string(Line, _, After, 0, RawHost),
+  split_string(RawHost, "", " \t", [Host]).
 
 
 %! bonjour:resolve_hostname(+Hostname,-Port)
@@ -111,7 +111,7 @@ bonjour:browse_line_hostname(Service, Line, Host) :-
 % Given a hostname, retrieves port number on which the service is running.
 
 bonjour:resolve_hostname(Service, Hostname, Port) :-
-  format(string(Cmd),'dns-sd -t 1 -L ~w ~w',[Hostname,Service]),
+  format(string(Cmd),'dns-sd -t 1 -L "~w" ~w',[Hostname,Service]),
   os:bash_lines(Cmd,Lines),
   member(Line,Lines),
   bonjour:resolve_line_port(Line,Port),!.
