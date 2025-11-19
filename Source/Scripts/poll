@@ -63,8 +63,8 @@ REMOTE=$(git rev-parse @{u});
 
 # If our local revision id doesn't match the remote, we will need to pull the changes
 
-#if [ $LOCAL != $REMOTE ]; then
-if [ true ]; then
+if [ $LOCAL != $REMOTE ]; then
+#if [ true ]; then
      
     # ----------------------------------------------------------------------------
     # Case 1 : Sync needed        
@@ -81,9 +81,11 @@ if [ true ]; then
     # 1) Sync repository and update graphs        
     # ----------------------------------------------------------------------------
 
-    portage-ng-dev --mode standalone --sync   # sync repository
-    #portage-ng-dev --mode client --save      # save repository - not necessary, we can keep things in memory in client-server mode
-
+    echo -e "\033[92m--- Syncing repository\033[0m"
+    portage-ng-dev --mode standalone --sync   >/dev/null # sync repository
+    #portage-ng-dev --mode client --save                 # save repository - not necessary, we can keep things in memory in client-server mode
+    echo 
+    
     echo -e "\033[92m--- Updating graphs\033[0m"
     portage-ng-dev --mode standalone --graph  # update graph
     
