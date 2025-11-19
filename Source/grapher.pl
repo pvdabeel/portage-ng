@@ -807,16 +807,19 @@ grapher:write_graph_file(D,Repository://Entry) :-
 grapher:write_graph_files(Directory,Repository) :-
   tester:test(parallel_verbose,
               'Writing dot graphs',
-              Repository://Entry,
-              (Repository:entry(Entry),
+              Repository://PackageAtom,
+              (Repository:package(Category,Name),
+               atomic_list_concat([Category,'/',Name],PackageAtom),
                (config:graph_modified_only(true)
-                -> Repository:entry(Entry,Time),
-                   Repository:get_ebuild_file(Entry,Ebuild),
-                   system:exists_file(Ebuild),
-                   system:time_file(Ebuild,Modified),
-                   Modified > Time
+                -> once((Repository:ebuild(Entry,Category,Name,_),
+                         Repository:entry(Entry,Time),
+                         Repository:get_ebuild_file(Entry,Ebuild),
+                         system:exists_file(Ebuild),
+                         system:time_file(Ebuild,Modified),
+                         Modified > Time))
                 ;  true)),
-              (grapher:write_graph_file(Directory,Repository://Entry))).
+              (forall(Repository:ebuild(Entry,Category,Name,_),
+                      grapher:write_graph_file(Directory,Repository://Entry)))).
 
 
 % -----------------------------------------------------------------------------
