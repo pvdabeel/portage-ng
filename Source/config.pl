@@ -514,7 +514,7 @@ config:llm_use_tools(true).
 %
 % Declares the maximum tokens returned by an LLM
 
-config:llm_max_tokens(32000).
+config:llm_max_tokens(4096).
 
 
 %! config:llm_temperature(?Temperature)
@@ -536,7 +536,7 @@ config:llm_sandboxed_execution(false).
 % Declares which version of each large language model to use.
 
 config:llm_model(grok,       'grok-4-fast-reasoning').
-config:llm_model(chatgpt,    'gpt-5').
+config:llm_model(chatgpt,    'gpt-4o').
 config:llm_model(claude,     'claude-sonnet-4-5-20250929').
 config:llm_model(gemini ,    'gemini-2.5-pro').
 config:llm_model(llama ,     'Llama-4-Maverick-17B-128E-Instruct-FP8').

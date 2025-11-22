@@ -51,6 +51,7 @@ LLM service specific code can be found in the files inside the 'Llm' subdirector
 % =============================================================================
 
 :- module(llm, [get_input/1]).
+
 :- quasi_quotation_syntax(json).
 
 %! llm:stream(+Endpoint,+APIkey,+Model,+Message,-Response)
@@ -80,25 +81,18 @@ llm:stream(Endpoint, APIKey, Model, Messages, Response) :-
   Payload = _{
     model:       Model,
     messages:    Messages,
-    stream:      json_true,
+    stream:      true,
     max_tokens:  Max,
     temperature: Temperature
   },
-
-  % Convert payload dict to json, ensuring proper 'true' conversion
-  with_output_to(string(JsonString),
-                 json_write_dict(current_output,
-                                 Payload,
-                                 [true(json_true),width(0)])),
 
   % We prepare a http post call of the payload, ensuring authentication
   % and setting streaming
 
   Headers = [method(post),
              authorization(bearer(APIKey)),
-             request_header('Content-Type'='application/json'),
              request_header('Accept'='text/event-stream'),
-             post(string(JsonString))],
+             post(json(Payload))],
 
   catch(( http_open(Endpoint,In,Headers),
 

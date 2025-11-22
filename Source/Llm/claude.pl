@@ -25,12 +25,6 @@ We define the Claude specific protocol in this file.
 
 :- module(claude, [claude/0, claude/1, claude/2]).
 
-:- use_module(library(http/http_open)).
-:- use_module(library(http/json)).
-:- use_module(library(edit)).
-:- use_module(library(pcre)).
-:- use_module(library(sandbox)).
-
 
 % Dynamic predicate for conversation history
 :- dynamic history/1.

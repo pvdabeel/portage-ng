@@ -172,7 +172,7 @@ load_server_modules :-
 load_llm_modules :-
 
    ensure_loaded(library(http/http_open)),
-   ensure_loaded(library(http/json)),
+   ensure_loaded(library(http/http_json)),
    ensure_loaded(library(edit)),
    ensure_loaded(library(pcre)),
    ensure_loaded(library(sandbox)),
