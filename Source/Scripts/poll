@@ -150,10 +150,17 @@ if [ $LOCAL != $REMOTE ]; then
     hours=$((duration / 3600))
     minutes=$(( (duration % 3600) / 60 ))
     seconds=$((duration % 60))
+
+    if [ $hours -gt 0 ]; then
+        duration_str="${hours}h ${minutes}m ${seconds}s"
+    else
+        duration_str="${minutes}m ${seconds}s"
+    fi
+
     echo
     echo -e "\033[1;33m>>> Done processing changes in repository: \"${PORTNAME}\"\033[0m"
     echo -e "\033[1;90m--- `date`\033[0m" 
-    echo -e "\033[1;90m--- Duration: ${hours}:${minutes}:${seconds}\033[0m" 
+    echo -e "\033[1;90m--- Duration: ${duration_str}\033[0m" 
 
 else 
 
