@@ -464,7 +464,7 @@ config:time_limit_build(6000).
 %
 % Declares the private API key for each large language model.
 
-:- include(portage('Source/private/api_key')).
+:- include(portage('Source/Private/api_key')).
 
 
 %! config:llm_capability(+Name,-Capability)
