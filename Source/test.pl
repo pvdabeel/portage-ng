@@ -602,12 +602,17 @@ test:run_single_case(Repo://Id:Action?{Context}) :-
       message:print('false'),nl,
       message:color(normal),message:style(normal),nl,nl,true
    ;  (message:hl,message:color(cyan),
-       test:write_description(Description),
+       (exists_file(Description)
+        -> test:write_description(Description)
+        ;  true),
        message:color(normal),message:hl,
        printer:print([Repo://Id:Action?{Context}],Model,Proof,Plan),
        %nl,nl)).
        message:header('Gentoo emerge output:'),
-       test:write_description(EmergeLog),nl,nl;true)).
+       (exists_file(EmergeLog)
+        -> test:write_description(EmergeLog)
+        ;  message:inform('no emerge output available yet')),
+       nl,nl;true)).
 
 
 %! write_description(+File)
