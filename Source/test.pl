@@ -154,7 +154,11 @@ test:run(application) :-
 % Runs a single test case and outputs result to file with proper error handling
 
 test:run_single_case(Repo://Id:Action?{Context}) :-
-  writeln(Repo://Id:Action?{Context}),
+  message:hl,
+  nl,
+  message:topheader(['Test case : ',Repo://Id:Action?{Context}]),
+  message:hl,
+  nl,
   config:working_dir(Dir),
   split_string(Id,'/','',[Category,Package]),
   Repo:get_location(RepoLoc),
@@ -206,18 +210,20 @@ test:run_single_case(Repo://Id:Action?{Context}) :-
    -> message:color(red),message:color(bold),
       message:print('false'),nl,
       message:color(normal),message:style(normal),nl,nl,true
-   ;  (message:hl,message:color(cyan),
+   ;  (
+       message:header('Description :'),
+       nl,
        (exists_file(Description)
         -> test:write_description(Description)
         ;  true),
-       message:color(normal),message:hl,
+       message:style(normal),
+       nl,
        printer:print([Repo://Id:Action?{Context}],Model,Proof,Plan),
-       %nl,nl)).
-       message:header('Gentoo emerge output:'),
+       message:header('Legacy emerge output :'),
        (exists_file(EmergeLog)
         -> test:write_description(EmergeLog)
         ;  message:inform('no emerge output available yet')),
-       nl,nl;true)).
+       nl,nl,nl,nl;true)).
 
 
 %! write_description(+File)
