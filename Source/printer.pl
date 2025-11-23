@@ -1539,11 +1539,11 @@ printer:print_warnings(_,_) :- !, nl.
 % Helper to print details for both correct and inconsistent assumption formats.
 
 printer:handle_assumption(ProofKey) :-
-  % Case 1: key format: rule(assumed(...))
+  % Case 1: key format: rule(assumed(...)) % domain driven assumption
   (   ProofKey = rule(assumed(Content)) ->
       printer:print_assumption_detail(rule(Content, [])),
       nl
-  % Case 2: key format: assumed(rule(...))
+  % Case 2: key format: assumed(rule(...)) % prover driven assumption
   ;   ProofKey = assumed(rule(Content)) ->
       printer:print_assumption_detail(rule(Content, [])),
       nl
@@ -1566,6 +1566,17 @@ printer:print_assumption_detail(rule(package_dependency(T,A,C,N,X,Y,Z,XX):_YY?{_
     nl,
     message:color(normal),
     printer:print_metadata_item_detail(_,'  ',package_dependency(T,A,C,N,X,Y,Z,XX)),nl.
+
+printer:print_assumption_detail(rule(grouped_package_dependency(C,N,R):T?{_},_)) :- !,
+    message:color(lightred),
+    message:style(bold),
+    message:print('- Non-existent '),
+    message:print(T),
+    message:print(' dependency: '),
+    message:style(normal),
+    nl,
+    message:color(normal),
+    printer:print_metadata_item_detail(_,'  ',grouped_package_dependency(C,N,R)),nl.
 
 printer:print_assumption_detail(rule(R://E:install,_)) :- !,
     message:color(lightred),
