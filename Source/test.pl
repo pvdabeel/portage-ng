@@ -154,6 +154,7 @@ test:run(application) :-
 % Runs a single test case and outputs result to file with proper error handling
 
 test:run_single_case(Repo://Id:Action?{Context}) :-
+  tty_clear,
   message:hl,
   nl,
   message:topheader(['Test case : ',Repo://Id:Action?{Context}]),
@@ -223,7 +224,8 @@ test:run_single_case(Repo://Id:Action?{Context}) :-
        (exists_file(EmergeLog)
         -> test:write_description(EmergeLog)
         ;  message:inform('no emerge output available yet')),
-       nl,nl,nl,nl;true)).
+       nl,nl,nl,nl;true)),
+   printer:wait_for_input.
 
 
 %! write_description(+File)
