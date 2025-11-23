@@ -1536,7 +1536,7 @@ printer:print_warnings(_,_) :- !, nl.
 
 %! printer:handle_assumption(+ProofKey)
 %
-% Helper to print details for both correct and inconsistent assumption formats.
+% Helper to print details for both domain driven and prover driven assumption formats.
 
 printer:handle_assumption(ProofKey) :-
   % Case 1: key format: rule(assumed(...)) % domain driven assumption
