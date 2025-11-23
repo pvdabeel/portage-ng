@@ -368,6 +368,27 @@ config:printing_style(Style) :-
   config:default_printing_style(Style).
 
 
+%! config:printing_tty_size(?H,?W)
+%
+% Retrieves the tty_size to use for printing
+%
+% 1. Running as a server, use client tty_size
+
+config:printing_tty_size(H,W) :-
+  pengine_self(M),
+  !,
+  M:printing_tty_size(H,W).
+
+% 2. Otherwise use actual tty_size
+
+config:printing_tty_size(H,W) :-
+  tty_size(H,W),!.
+
+% 3. Fallback in case actual tty_size cannot be retrieved
+
+config:printing_tty_size(80,160).
+
+
 %! config:print_expand_use(?Bool)
 %
 % Defines whether we print information that is normally not printed

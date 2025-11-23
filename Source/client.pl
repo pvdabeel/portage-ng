@@ -12,8 +12,8 @@
 Client interface to portage-ng pengine server. Client is very lightweight
 applicaton that processes interface requests and calls the server for
 processing. This way we avoid having to load the entire knowledge base
-into memory for every request. The server keeps its cache database nicely 
-indexed, permitting high performant queries. With secure authentication, 
+into memory for every request. The server keeps its cache database nicely
+indexed, permitting high performant queries. With secure authentication,
 and SSL encryption of traffic between client and server,this also allows
 for remote administration of one or more servers.
 
@@ -23,7 +23,7 @@ this operating system, use flags, keywords, etc).
 
 Client requires very little resources, the server is multi-threaded and will
 enable calculation of plans very easily. Essentially the server returns a
-plan to the client, which the client can then print or execute. 
+plan to the client, which the client can then print or execute.
 (Think of the plan as a Makefile).
 */
 
@@ -53,10 +53,11 @@ remote_predicate_template(preference:set(_,_)).
 
 % Installed state is also passed on to the server
 
-% remote_predicate_template(cache:entry_metadata(_,_,installed,true)). 
+% remote_predicate_template(cache:entry_metadata(_,_,installed,true)).
 % todo: needs client handling
 
 remote_predicate_instance(config:printing_style(_)).
+remote_predicate_instance(config:printing_tty_size(_,_)).
 
 
 % -----------------------------------------------------------------------------
@@ -66,10 +67,10 @@ remote_predicate_instance(config:printing_style(_)).
 %! client:rpc_execute(Host,Port,Cmd)
 %
 % Use pengine_rpc to remotely call a sandboxed predicate in a pengines context.
-% Use to run computationally expensive procedures on a server but retrieve the 
+% Use to run computationally expensive procedures on a server but retrieve the
 % result in Prolog Term locally.
 %
-% Predicates declared as remote_predicate/1 will be injected in the remote 
+% Predicates declared as remote_predicate/1 will be injected in the remote
 % server pengines context
 
 rpc_execute(Hostname,Port,Cmd) :-
@@ -106,7 +107,7 @@ rpc_execute(Hostname,Port,Cmd,Output) :-
   rpc_execute(Hostname,Port,
               streams:with_output_to(string(Output),
                                      Cmd,
-                                    [capture([user_output,user_error]), 
+                                    [capture([user_output,user_error]),
                                      color(true)])).
 
 
@@ -119,7 +120,7 @@ rpc_execute(Hostname,Port,Cmd,Output,Srclist) :-
               streams:with_output_to(string(Output),
                                      Cmd,
                                      [src_list(Srclist),
-                                      capture([user_output,user_error]), 
+                                      capture([user_output,user_error]),
                                       color(true)])).
 
 
