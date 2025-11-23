@@ -1578,6 +1578,17 @@ printer:print_assumption_detail(rule(grouped_package_dependency(C,N,R):T?{_},_))
     message:color(normal),
     printer:print_metadata_item_detail(_,'  ',grouped_package_dependency(C,N,R)),nl.
 
+printer:print_assumption_detail(rule(grouped_package_dependency(X,C,N,R):T,_)) :- !, % todo: this has blocking?
+    message:color(lightred),
+    message:style(bold),
+    message:print('- Circular '),
+    message:print(T),
+    message:print(' dependency: '),
+    message:style(normal),
+    nl,
+    message:color(normal),
+    printer:print_metadata_item_detail(_,'  ',grouped_package_dependency(X,C,N,R)),nl.
+
 printer:print_assumption_detail(rule(R://E:install,_)) :- !,
     message:color(lightred),
     message:style(bold),

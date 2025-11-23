@@ -37,7 +37,7 @@ test:cases([overlay://'test01/web-1.0':run?{[]},
             overlay://'test10/os-1.0':run?{[]},
             overlay://'test11/os-1.0':run?{[]},
             overlay://'test12/web-1.0':run?{[]},
-            overlay://'test13/web-1.0':run?{[]},
+            overlay://'test13/web-2.0':run?{[]},
             overlay://'test14/web-1.0':run?{[]},
             overlay://'test15/web-1.0':run?{[]},
             overlay://'test16/web-1.0':run?{[]},
@@ -101,7 +101,7 @@ test:new([%overlay://'test54/app-1.0':run?{[]},
           overlay://'test55/app-1.0':run?{[]}]).
           %overlay://'test56/app-1.0':run?{[]}]).
 
-test:focus([  overlay://'test09/os-1.0':run?{[]} ]).
+test:focus([  overlay://'test05/web-1.0':run?{[]} ]).
 
 
 
