@@ -1,0 +1,9 @@
+
+[32mThese are the packages that would be merged, in order:[39;49;00m
+
+Calculating dependencies  ... done!
+Dependency resolution took [32m0.85[39;49;00m s (backtrack: 0/20).
+
+[[32;01mebuild[39;49;00m  [32;01mN[39;49;00m     ] [32;01mtest54/app-1.0::gentoo[39;49;00m  USE="[31;01mxattr[39;49;00m [34;01m-apidoc[39;49;00m [34;01m-bar1[39;49;00m [34;01m-bar2[39;49;00m [34;01m-bar3[39;49;00m [34;01m-bar4[39;49;00m [34;01m-bar5[39;49;00m [34;01m-bar6[39;49;00m [34;01m-bar7[39;49;00m [34;01m-bar8[39;49;00m [34;01m-bar9[39;49;00m [34;01m-bar10[39;49;00m [34;01m-bar11[39;49;00m [34;01m-bar12[39;49;00m [34;01m-bar13[39;49;00m [34;01m-build[39;49;00m [34;01m-doc[39;49;00m [34;01m-foo1[39;49;00m [34;01m-foo2[39;49;00m [34;01m-foo3[39;49;00m [34;01m-foo4[39;49;00m [34;01m-foo5[39;49;00m [34;01m-foo6[39;49;00m [34;01m-foo7[39;49;00m [34;01m-foo8[39;49;00m [34;01m-foo9[39;49;00m [34;01m-foo10[39;49;00m [34;01m-foo11[39;49;00m [34;01m-gentoo-dev[39;49;00m [34;01m-ipc[39;49;00m [34;01m-my_expanding_use_bar[39;49;00m [34;01m-my_expanding_use_cow[39;49;00m [34;01m-my_expanding_use_foo[39;49;00m [34;01m-native-extensions[39;49;00m [34;01m-rsync-verify[39;49;00m ([34;01m-selinux[39;49;00m) [34;01m-test[39;49;00m" ALSA_CARDS="[34;01m-bar[39;49;00m [34;01m-echo3g[39;49;00m [34;01m-emu10k1[39;49;00m [34;01m-foo[39;49;00m" VIDEO_CARDS="[31;01mvmware[39;49;00m [34;01m-nouveau[39;49;00m ([34;01m-v3d[39;49;00m) [34;01m-zink[39;49;00m" 0 KiB
+
+Total: 1 package (1 new), Size of downloads: 0 KiB
