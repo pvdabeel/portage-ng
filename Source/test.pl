@@ -301,31 +301,149 @@ write_plan(Plan) :-
       writeln(Step)),nl,nl,
   message:color(normal).
 
-%! test:must_have(+Type, +Content, +Element)
+
+%! test:in_model(Template,Model)
 %
-% Checks if Content contains Element based on Type.
+% Validates whether a model matches a template
 
-test:must_have(plan, Plan, Element) :-
-    member(Element, Plan).
+test:in_model(Repo://Entry:Action?{Context},Model) :-
+  !, once(gen_assoc(Repo://Entry:Action,Model,Context)).
 
-test:must_have(proof, Proof, Key-Value) :-
-    get_assoc(Key, Proof, Value).
+test:in_model(assumed(Predicate:Action?{Context}),Model) :-
+  !, once(gen_assoc(assumed(Predicate:Action),Model,Context)).
 
-test:must_have(model, Model, Key-Value) :-
-    get_assoc(Key, Model, Value).
-
-test:must_have(triggers, Triggers, Key-Value) :-
-    get_assoc(Key, Triggers, Value).
 
 %! test:is_success(+Target, +Proof, +Plan, +Model, +Triggers)
 %
 % Validates the result of a test case.
 
-test:is_success(overlay://'test01/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
-test:is_success(overlay://'test02/web-2.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
-test:is_success(overlay://'test03/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
-test:is_success(overlay://'test04/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
-test:is_success(overlay://'test05/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test01/web-1.0':run?{[]}, _Proof, _Plan, Model, _Triggers) :-
+
+  % We should see app-1.0, db-1.0, os-1.0 and web-1.0 in the model with empty build_with_use, empty required_use and default slots
+
+  in_model(overlay://'test01/app-1.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test01/app-1.0':install?{[required_use([]),build_with_use([]),slot(test01,app,[slot('0')]):{'test01/app-1.0'}]},Model),
+  in_model(overlay://'test01/app-1.0':run?{[slot(test01,app,[slot('0')]):{'test01/app-1.0'},build_with_use([])]},Model),
+
+  in_model(overlay://'test01/db-1.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test01/db-1.0':install?{[required_use([]),build_with_use([]),slot(test01,db,[slot('0')]):{'test01/db-1.0'}]},Model),
+  in_model(overlay://'test01/db-1.0':run?{[slot(test01,db,[slot('0')]):{'test01/db-1.0'},build_with_use([])]},Model),
+
+  in_model(overlay://'test01/os-1.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test01/os-1.0':install?{[required_use([]),build_with_use([]),slot(test01,os,[slot('0')]):{'test01/os-1.0'}]},Model),
+  in_model(overlay://'test01/os-1.0':run?{[slot(test01,os,[slot('0')]):{'test01/os-1.0'},build_with_use([])]},Model),
+
+  in_model(overlay://'test01/web-1.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test01/web-1.0':install?{[required_use([]),build_with_use([]),slot(test01,web,[slot('0')]):{'test01/web-1.0'}]},Model),
+  in_model(overlay://'test01/web-1.0':run?{[]},Model).
+
+
+test:is_success(overlay://'test02/web-2.0':run?{[]}, _Proof, _Plan, Model, _Triggers) :-
+
+  % We should see app-2.0, db-2.0, os-2.0 and web-2.0 in the model with empty build_with_use, empty required_use and default slots
+
+  in_model(overlay://'test02/app-2.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test02/app-2.0':install?{[required_use([]),build_with_use([]),slot(test02,app,[slot('0')]):{'test02/app-2.0'}]},Model),
+  in_model(overlay://'test02/app-2.0':run?{[slot(test02,app,[slot('0')]):{'test02/app-2.0'},build_with_use([])]},Model),
+
+  in_model(overlay://'test02/db-2.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test02/db-2.0':install?{[required_use([]),build_with_use([]),slot(test02,db,[slot('0')]):{'test02/db-2.0'}]},Model),
+  in_model(overlay://'test02/db-2.0':run?{[slot(test02,db,[slot('0')]):{'test02/db-2.0'},build_with_use([])]},Model),
+
+  in_model(overlay://'test02/os-2.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test02/os-2.0':install?{[required_use([]),build_with_use([]),slot(test02,os,[slot('0')]):{'test02/os-2.0'}]},Model),
+  in_model(overlay://'test02/os-2.0':run?{[slot(test02,os,[slot('0')]):{'test02/os-2.0'},build_with_use([])]},Model),
+
+  in_model(overlay://'test02/web-2.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test02/web-2.0':install?{[required_use([]),build_with_use([]),slot(test02,web,[slot('0')]):{'test02/web-2.0'}]},Model),
+  in_model(overlay://'test02/web-2.0':run?{[]},Model),
+
+  % we should not see the older versions
+
+  \+in_model(overlay://'test02/app-1.0':_?{_},Model),
+  \+in_model(overlay://'test02/db-1.0':_?{_},Model),
+  \+in_model(overlay://'test02/os-1.0':_?{_},Model),
+  \+in_model(overlay://'test02/web-1.0':_?{_},Model).
+
+
+test:is_success(overlay://'test03/web-1.0':run?{[]}, _Proof, _Plan, Model, _Triggers) :-
+
+  % We should see app-1.0, db-1.0, os-1.0 and web-1.0 in the model with empty build_with_use, empty required_use and default slots
+
+  in_model(overlay://'test03/app-1.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test03/app-1.0':install?{[required_use([]),build_with_use([]),slot(test03,app,[slot('0')]):{'test03/app-1.0'}]},Model),
+  in_model(overlay://'test03/app-1.0':run?{[slot(test03,app,[slot('0')]):{'test03/app-1.0'},build_with_use([])]},Model),
+
+  in_model(overlay://'test03/db-1.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test03/db-1.0':install?{[required_use([]),build_with_use([]),slot(test03,db,[slot('0')]):{'test03/db-1.0'}]},Model),
+  in_model(overlay://'test03/db-1.0':run?{[slot(test03,db,[slot('0')]):{'test03/db-1.0'},build_with_use([])]},Model),
+
+  in_model(overlay://'test03/os-1.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test03/os-1.0':install?{[required_use([]),build_with_use([]),slot(test03,os,[slot('0')]):{'test03/os-1.0'}]},Model),
+  in_model(overlay://'test03/os-1.0':run?{[slot(test03,os,[slot('0')]):{'test03/os-1.0'},build_with_use([])]},Model),
+
+  in_model(overlay://'test03/web-1.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test03/web-1.0':install?{[required_use([]),build_with_use([]),slot(test03,web,[slot('0')]):{'test03/web-1.0'}]},Model),
+  in_model(overlay://'test03/web-1.0':run?{[]},Model),
+
+  % We should see an assumption taken for the circular install dependency
+
+  in_model(assumed(grouped_package_dependency(no,test03,os,[package_dependency(install,no,test03,os,none,[[],'','','',''],[],[])]):install?{[]}),Model).
+
+
+test:is_success(overlay://'test04/web-1.0':run?{[]}, _Proof, _Plan, Model, _Triggers) :-
+
+  % We should see app-1.0, db-1.0, os-1.0 and web-1.0 in the model with empty build_with_use, empty required_use and default slots
+
+  in_model(overlay://'test04/app-1.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test04/app-1.0':install?{[required_use([]),build_with_use([]),slot(test04,app,[slot('0')]):{'test04/app-1.0'}]},Model),
+  in_model(overlay://'test04/app-1.0':run?{[slot(test04,app,[slot('0')]):{'test04/app-1.0'},build_with_use([])]},Model),
+
+  in_model(overlay://'test04/db-1.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test04/db-1.0':install?{[required_use([]),build_with_use([]),slot(test04,db,[slot('0')]):{'test04/db-1.0'}]},Model),
+  in_model(overlay://'test04/db-1.0':run?{[slot(test04,db,[slot('0')]):{'test04/db-1.0'},build_with_use([])]},Model),
+
+  in_model(overlay://'test04/os-1.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test04/os-1.0':install?{[required_use([]),build_with_use([]),slot(test04,os,[slot('0')]):{'test04/os-1.0'}]},Model),
+  in_model(overlay://'test04/os-1.0':run?{[slot(test04,os,[slot('0')]):{'test04/os-1.0'},build_with_use([])]},Model),
+
+  in_model(overlay://'test04/web-1.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test04/web-1.0':install?{[required_use([]),build_with_use([]),slot(test04,web,[slot('0')]):{'test04/web-1.0'}]},Model),
+  in_model(overlay://'test04/web-1.0':run?{[]},Model),
+
+  % We should see an assumption taken for the circular install dependency
+
+  in_model(assumed(grouped_package_dependency(no,test04,os,[package_dependency(run,no,test04,os,none,[[],'','','',''],[],[])]):run?{[]}),Model).
+
+
+test:is_success(overlay://'test05/web-1.0':run?{[]}, _Proof, _Plan, Model, _Triggers) :-
+
+ % We should see app-1.0, db-1.0, os-1.0 and web-1.0 in the model with empty build_with_use, empty required_use and default slots
+
+  in_model(overlay://'test05/app-1.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test05/app-1.0':install?{[required_use([]),build_with_use([]),slot(test05,app,[slot('0')]):{'test05/app-1.0'}]},Model),
+  in_model(overlay://'test05/app-1.0':run?{[slot(test05,app,[slot('0')]):{'test05/app-1.0'},build_with_use([])]},Model),
+
+  in_model(overlay://'test05/db-1.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test05/db-1.0':install?{[required_use([]),build_with_use([]),slot(test05,db,[slot('0')]):{'test05/db-1.0'}]},Model),
+  in_model(overlay://'test05/db-1.0':run?{[slot(test05,db,[slot('0')]):{'test05/db-1.0'},build_with_use([])]},Model),
+
+  in_model(overlay://'test05/os-1.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test05/os-1.0':install?{[required_use([]),build_with_use([]),slot(test05,os,[slot('0')]):{'test05/os-1.0'}]},Model),
+  in_model(overlay://'test05/os-1.0':run?{[slot(test05,os,[slot('0')]):{'test05/os-1.0'},build_with_use([])]},Model),
+
+  in_model(overlay://'test05/web-1.0':download?{[required_use([]),build_with_use([])]},Model),
+  in_model(overlay://'test05/web-1.0':install?{[required_use([]),build_with_use([]),slot(test05,web,[slot('0')]):{'test05/web-1.0'}]},Model),
+  in_model(overlay://'test05/web-1.0':run?{[]},Model),
+
+  % We should see an assumption taken for the circular install dependency
+
+  in_model(assumed(grouped_package_dependency(no,test05,os,[package_dependency(install,no,test05,os,none,[[],'','','',''],[],[])]):install?{[]}),Model),
+  in_model(assumed(grouped_package_dependency(no,test05,os,[package_dependency(run,no,test05,os,none,[[],'','','',''],[],[])]):run?{[]}),Model).
+
+
+
+
 test:is_success(overlay://'test06/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
 test:is_success(overlay://'test07/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
 test:is_success(overlay://'test08/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
