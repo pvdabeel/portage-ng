@@ -1,17 +1,11 @@
-Test Case: test01
-Organization:
-- app-1.0: The main application package.
-- db-1.0: A database package, dependency of app-1.0.
-- os-1.0: An operating system package, a fundamental dependency for both app-1.0 and db-1.0.
-
-Dependency Graph:
-- app-1.0 (compile) -> os-1.0
-- app-1.0 (runtime) -> db-1.0, os-1.0
-- db-1.0 (compile) -> os-1.0
-- db-1.0 (runtime) -> os-1.0
-
-What is being tested:
-This test case evaluates the prover's ability to resolve a simple, valid dependency tree. It involves both compile-time (DEPEND) and runtime (RDEPEND) dependencies. The graph is straightforward, with 'os-1.0' being a shared, common dependency.
+Testing simple dependency resolution.
 
 Expected Outcome:
-The prover should successfully resolve the dependencies and generate a valid installation proof. The final plan should reflect the correct installation order, ensuring 'os-1.0' is installed before 'db-1.0' and 'app-1.0', and 'db-1.0' before 'app-1.0'.
+
+Step 1: Parallel download of os,db,app and web.
+Step 2: Install os.
+Step 3: Run os.
+Step 4: Parallel install of app, db and web, (which all depend on os). 
+Step 5: Test run db.
+Step 6: Test run app (which runtime depends on db).
+Step 7: Test run web (which runtime depends on app).

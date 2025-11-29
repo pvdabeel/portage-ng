@@ -1,18 +1,6 @@
-Test Case: test06
-Organization:
-- app-1.0: The main application package.
-- db-1.0: A database package.
-- os-1.0: An operating system package.
-- web-1.0: A web server package.
-
-Dependency Graph:
-- app-1.0 -> db-1.0, os-1.0
-- db-1.0 -> os-1.0
-- os-1.0 -> web-1.0
-- web-1.o -> os-1.0 (Circular Dependency)
-
-What is being tested:
-This test case introduces an indirect, or mutual, circular dependency. The 'os-1.0' package depends on 'web-1.0', which in turn depends back on 'os-1.0'. This creates a deadlock where neither package can be installed before the other.
+Testing simple dependency resolution with indirect circular dependency detection. 
 
 Expected Outcome:
-The prover should detect this indirect circular dependency and fail to produce a valid proof. It needs to trace the dependency chain and recognize the loop between the two packages.
+
+The os package lists web as a compile-time dependency. The web package in turn depends on os.
+The prover should take an assumption while producing the plan, yielding a verify step in the proposed plan.

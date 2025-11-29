@@ -1,18 +1,6 @@
-Test Case: test08
-Organization:
-- app-1.0: The main application package.
-- db-1.0: A database package.
-- os-1.0: An operating system package.
-- web-1.0: A web server package.
-
-Dependency Graph:
-- app-1.0 -> db-1.0, os-1.0
-- db-1.0 -> os-1.0
-- os-1.0 -> web-1.0
-- web-1.0 (compile) -> os-1.0 (Circular Dependency)
-
-What is being tested:
-This test case is a variation of test06 and test07. It creates an indirect circular dependency where 'os-1.0' depends on 'web-1.0' (for both compile and runtime), and 'web-1.0' in turn depends back on 'os-1.0' at compile time.
+Testing simple dependency resolution with indirect circular dependency detection.
 
 Expected Outcome:
-The prover should detect this circular dependency and fail to produce a valid proof.
+
+The os package lists web as both a compile and run-time dependency. The web package in turn depends on os.
+The prover should take an assumption while producing the plan, yielding two verify steps in the proposed plan.

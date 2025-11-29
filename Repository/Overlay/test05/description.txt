@@ -1,18 +1,6 @@
-Test Case: test05
-Organization:
-- app-1.0: The main application package.
-- db-1.0: A database package.
-- os-1.0: An operating system package.
-- web-1.0: A web server package (not involved in the dependency cycle).
-
-Dependency Graph:
-- app-1.0 -> db-1.0, os-1.0
-- db-1.0 -> os-1.0
-- os-1.0 (compile) -> os-1.0 (Circular Dependency)
-- os-1.0 (runtime) -> os-1.0 (Circular Dependency)
-
-What is being tested:
-This test case combines the scenarios from test03 and test04. The 'os-1.0' package has both a compile-time (DEPEND) and a runtime (RDEPEND) circular dependency on itself. This is a more complex version of a circular dependency.
+Testing simple dependency resolution with circular dependency detection. 
 
 Expected Outcome:
-The prover should identify the circular dependencies and fail to produce a valid installation proof. It should not be confused by the presence of both types of circular dependencies.
+
+The os package lists itself as both a compile and run-time dependency. 
+The prover should take an assumption while producing the plan, yielding a verify step in the proposed plan.

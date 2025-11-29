@@ -1,18 +1,6 @@
-Test Case: test07
-Organization:
-- app-1.0: The main application package.
-- db-1.e: A database package.
-- os-1.0: An operating system package.
-- web-1.0: A web server package.
-
-Dependency Graph:
-- app-1.0 -> db-1.0, os-1.0
-- db-1.0 -> os-1.0
-- os-1.0 (runtime) -> web-1.0
-- web-1.0 (compile) -> os-1.0 (Circular Dependency)
-
-What is being tested:
-This test case presents a circular dependency that spans across different dependency types (compile vs. runtime). 'os-1.0' needs 'web-1.0' to run, but 'web-1.0' needs 'os-1.0' to be built. This creates a logical impossibility for the installer.
+Testing simple dependency resolution with indirect circular dependency detection.
 
 Expected Outcome:
-The prover must be able to trace dependencies across both DEPEND and RDEPEND scopes to identify this complex circular dependency. It should fail and report the cyclic dependency.
+
+The os package lists web as a run-time dependency. The web package in turn depends on os.
+The prover should take an assumption while producing the plan, yielding a verify step in the proposed plan.
