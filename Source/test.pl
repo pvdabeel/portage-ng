@@ -15,6 +15,8 @@ This module implements a few tests
 
 :- module(test, []).
 
+:- multifile test:is_success/5.
+
 :- dynamic failed/1.
 
 % =============================================================================
@@ -175,6 +177,10 @@ test:run_single_case(Repo://Id:Action?{Context}) :-
   with_output_to(Stream,
        ((writeln(Repo://Id:Action?{Context}),
          planner:plan(Proof,Triggers,t,Plan),
+         (   test:is_success(Repo://Id:Action?{Context},Proof,Plan,Model,Triggers)
+         ->  true
+         ;   (writeln('Validation failed: is_success/5 returned false'), fail)
+         ),
          nl,
          message:color(cyan),
          writeln('Proof:'),
@@ -294,3 +300,79 @@ write_plan(Plan) :-
   forall(member(Step,Plan),
       writeln(Step)),nl,nl,
   message:color(normal).
+
+%! test:must_have(+Type, +Content, +Element)
+%
+% Checks if Content contains Element based on Type.
+
+test:must_have(plan, Plan, Element) :-
+    member(Element, Plan).
+
+test:must_have(proof, Proof, Key-Value) :-
+    get_assoc(Key, Proof, Value).
+
+test:must_have(model, Model, Key-Value) :-
+    get_assoc(Key, Model, Value).
+
+test:must_have(triggers, Triggers, Key-Value) :-
+    get_assoc(Key, Triggers, Value).
+
+%! test:is_success(+Target, +Proof, +Plan, +Model, +Triggers)
+%
+% Validates the result of a test case.
+
+test:is_success(overlay://'test01/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test02/web-2.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test03/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test04/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test05/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test06/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test07/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test08/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test09/os-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test10/os-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test11/os-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test12/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test13/web-2.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test14/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test15/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test16/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test17/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test18/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test19/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test20/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test21/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test22/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test23/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test24/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test25/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test26/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test27/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test28/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test29/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test30/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test31/web-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test32/os-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test33/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test34/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test35/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test36/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test37/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test38/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test39/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test40/os-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test41/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test42/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test43/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test44/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test45/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test46/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test47/api-docs-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test48/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test49/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test50/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test51/app-1.0':install?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test52/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test53/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test54/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(overlay://'test55/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
