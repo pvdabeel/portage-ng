@@ -60,7 +60,7 @@ rule(Repository://Ebuild:fetchonly?{Context},Conditions) :- % todo: to update in
   % 1. Get some metadata we need further down
 
   cache:ordered_entry(Repository,Ebuild,C,N,_),
-  cache:entry_metadata(Repository,Ebuild,slot,S),
+  findall(Ss,cache:entry_metadata(Repository,Ebuild,slot,Ss),S),
 
   % 2. Compute required_use stable model
 
@@ -123,7 +123,7 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
   % 1. Get some metadata we need further down
 
   cache:ordered_entry(Repository,Ebuild,C,N,_),
-  cache:entry_metadata(Repository,Ebuild,slot,S),
+  findall(Ss,cache:entry_metadata(Repository,Ebuild,slot,Ss),S),
 
   % 2. Compute required_use stable model, if not already passed on by run
   %    Extend with build_with_use requirements
@@ -187,7 +187,7 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   % 1. Get some metadata we need further down
 
   cache:ordered_entry(Repository,Ebuild,C,N,_),
-  cache:entry_metadata(Repository,Ebuild,slot,S),
+  findall(Ss,cache:entry_metadata(Repository,Ebuild,slot,Ss),S),
 
   % 2. Compute required_use stable model, extend with build_with_use requirements
 
@@ -257,7 +257,7 @@ rule(Repository://Ebuild:uninstall?{_},[]) :-
 rule(Repository://Ebuild:update?{Context},Conditions) :-
   \+(preference:flag(emptytree)),
   preference:accept_keywords(K),
-  query:search([name(Name),category(Category),keywords(K),slot(S),installed(true),version(VersionInstalled)],Repository://Ebuild),
+  query:search([name(Name),category(Category),keywords(K),slot(S),installed(true),version(VersionInstalled)],Repository://Ebuild), %slot broken?
   query:search([name(Name),category(Category),keywords(K),slot(S),version(VersionLatest)],Repository://LatestEbuild),!, % todo: check cut
   compare(>,VersionLatest,VersionInstalled)
   -> Conditions = [Repository://Ebuild:uninstall?{Context},Repository://LatestEbuild:install?{Context}]
@@ -700,7 +700,7 @@ core_pkg('virtual','ssh').
 % -----------------------------------------------------------------------------
 
 process_slot([any_different_slot], _, _, _, _, Context, Context) :- !.
-process_slot(_, Slot, C, N, Candidate, Context, [slot(C, N, Slot):{Candidate}|Context]).
+process_slot(_, Slot, C, N, _Repository://Candidate, Context, [slot(C, N, Slot):{Candidate}|Context]).
 
 %process_slot([any_same_slot],Slot,Context,[slot(Slot)|Context]) :- !.
 %process_slot([slot(X),equal],[slot(X)],Context,[slot([slot(X)])|Context]) :- !.
