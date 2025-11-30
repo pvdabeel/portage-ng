@@ -502,6 +502,12 @@ printer:printable_element(assumed(rule(_Repository://_Entry:_?_,_))) :- !.
 printer:printable_element(rule(assumed(_Repository://_Entry:_?_,_))) :- !.
 printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_):_?_,_))) :- !.
 printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_):_?_,_))) :- !.
+%printer:printable_element(rule(grouped_package_dependency(_,_,_,_):_?_,_)) :- !.
+printer:printable_element(assumed(rule(grouped_package_dependency(_,_,_,_):_?_,_))) :- !.
+%printer:printable_element(rule(assumed(grouped_package_dependency(_,_,_,_):_?_,_))) :- !.
+%printer:printable_element(rule(grouped_package_dependency(_,_,_):_?_,_)) :- !.
+printer:printable_element(assumed(rule(grouped_package_dependency(_,_,_):_?_,_))) :- !.
+%printer:printable_element(rule(assumed(grouped_package_dependency(_,_,_):_?_,_))) :- !.
 
 % Uncomment if you want 'confirm' steps shown in the plan:
 % printer:printable_element(rule(package_dependency(run,_,_,_,_,_,_,_),_)) :- !.
@@ -712,6 +718,47 @@ printer:print_element(_,assumed(rule(package_dependency(run,_,C,N,_,_,_,_):_Acti
   atomic_list_concat([C,'/',N],P),
   message:column(24,P),
   message:print(' (assumed running) '),
+  message:color(normal).
+
+
+% -------------------------------------------------------------
+% CASE: an assumed circular dependency
+% -------------------------------------------------------------
+
+printer:print_element(_,assumed(rule(grouped_package_dependency(_X,C,N,_Deps):_Action?{_Context},_Body))) :-
+  !,
+  message:bubble(red,'verify'),
+  message:color(red),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  message:print(' (circular dependency) '),
+  message:color(normal).
+
+printer:print_element(_,rule(assumed(grouped_package_dependency(_X,C,N,_Deps):_Action?{_Context}),_Body)) :-
+  !,
+  message:bubble(red,'verify'),
+  message:color(red),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  message:print(' (circular dependency) '),
+  message:color(normal).
+
+printer:print_element(_,assumed(rule(grouped_package_dependency(C,N,_Deps):_Action?{_Context},_Body))) :-
+  !,
+  message:bubble(red,'verify'),
+  message:color(red),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  message:print(' (circular dependency) '),
+  message:color(normal).
+
+printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):_Action?{_Context}),_Body)) :-
+  !,
+  message:bubble(red,'verify'),
+  message:color(red),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  message:print(' (circular dependency) '),
   message:color(normal).
 
 
