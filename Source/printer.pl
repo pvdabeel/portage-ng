@@ -318,6 +318,20 @@ printer:print_metadata_item_detail(_,Prefix,package_dependency(_,Blocking,Catego
   printer:print_slot_restriction(Slot),
   printer:print_use_dependencies(Use).
 
+printer:print_metadata_item_detail(_,Prefix,grouped_package_dependency(_C,_N,List)) :-
+  !,
+  forall(member(V,List),(
+    printer:print_metadata_item_detail(_,Prefix,V),
+    nl
+  )).
+
+printer:print_metadata_item_detail(_,Prefix,grouped_package_dependency(_X,_C,_N,List)) :-
+  !,
+  forall(member(V,List),(
+    printer:print_metadata_item_detail(_,Prefix,V),
+    nl
+  )).
+
 printer:print_metadata_item_detail(_,Prefix,Value) :-
   write(Prefix),
   write(Value).
