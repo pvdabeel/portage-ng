@@ -174,7 +174,7 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 
       prover:assumed_proven(Lit, Model) ->
 
-      message:color(orange),
+      %message:color(orange),
       %writeln('PROVER: lit is assumed proven'),
       %message:color(normal),
 
@@ -207,7 +207,7 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
       (   prover:proving(rule(Lit,_), Proof),
           \+ prover:assumed_proving(Lit, Proof) ->
 
-	  %message:color(orange),
+	        %message:color(orange),
           %writeln('PROVER: circular proof, taking assumption'),
           %message:color(normal),
 
