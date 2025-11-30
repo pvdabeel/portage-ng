@@ -502,12 +502,10 @@ printer:printable_element(assumed(rule(_Repository://_Entry:_?_,_))) :- !.
 printer:printable_element(rule(assumed(_Repository://_Entry:_?_,_))) :- !.
 printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_):_?_,_))) :- !.
 printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_):_?_,_))) :- !.
-%printer:printable_element(rule(grouped_package_dependency(_,_,_,_):_?_,_)) :- !.
-printer:printable_element(assumed(rule(grouped_package_dependency(_,_,_,_):_?_,_))) :- !.
-%printer:printable_element(rule(assumed(grouped_package_dependency(_,_,_,_):_?_,_))) :- !.
-%printer:printable_element(rule(grouped_package_dependency(_,_,_):_?_,_)) :- !.
+printer:printable_element(assumed(rule(grouped_package_dependency(_,_,_,_):_?_,_))) :- !. % todo: phase out
 printer:printable_element(assumed(rule(grouped_package_dependency(_,_,_):_?_,_))) :- !.
-%printer:printable_element(rule(assumed(grouped_package_dependency(_,_,_):_?_,_))) :- !.
+printer:printable_element(rule(assumed(grouped_package_dependency(_,_,_):_?_),_)) :- !.
+
 
 % Uncomment if you want 'confirm' steps shown in the plan:
 % printer:printable_element(rule(package_dependency(run,_,_,_,_,_,_,_),_)) :- !.
@@ -625,18 +623,36 @@ printer:print_element(_,rule(uri(Local),_)) :-
 % CASE: an assumed dependency on a non-existent installed package
 % ---------------------------------------------------------------
 
+printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):install?{_Context}),[])) :-
+  message:bubble(red,'verify'),
+  message:color(red),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  message:print(' (non-existent, assumed installed)'),
+  message:color(normal).
+
+
 printer:print_element(_,rule(assumed(package_dependency(install,no,C,N,_,_,_,_):install?{_Context}),[])) :-
   message:bubble(red,'verify'),
   message:color(red),
   atomic_list_concat([C,'/',N],P),
   message:column(24,P),
-  message:print([' (non-existent, assumed installed)']),
+  message:print(' (non-existent, assumed installed)'),
   message:color(normal).
 
 
 % -------------------------------------------------------------
 % CASE: an assumed dependency on a non-existent running package
 % -------------------------------------------------------------
+
+printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):run?{_Context}),[])) :-
+  message:bubble(red,'verify'),
+  message:color(red),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  message:print([' (non-existent, assumed running)']),
+  message:color(normal).
+
 
 printer:print_element(_,rule(assumed(package_dependency(run,no,C,N,_,_,_,_):run?{_Context}),[])) :-
   message:bubble(red,'verify'),
@@ -1621,7 +1637,7 @@ printer:print_assumption_detail(rule(grouped_package_dependency(C,N,R):T?{_},_))
     message:color(normal),
     printer:print_metadata_item_detail(_,'  ',grouped_package_dependency(C,N,R)),nl.
 
-printer:print_assumption_detail(rule(grouped_package_dependency(X,C,N,R):install,_)) :- !, 
+printer:print_assumption_detail(rule(grouped_package_dependency(X,C,N,R):install,_)) :- !,
     message:color(lightred),
     message:style(bold),
     message:print('- Assumed installed: '),
@@ -1630,7 +1646,7 @@ printer:print_assumption_detail(rule(grouped_package_dependency(X,C,N,R):install
     nl,
     printer:print_metadata_item_detail(_,'  ',grouped_package_dependency(X,C,N,R)),nl.
 
-printer:print_assumption_detail(rule(grouped_package_dependency(X,C,N,R):run,_)) :- !, 
+printer:print_assumption_detail(rule(grouped_package_dependency(X,C,N,R):run,_)) :- !,
     message:color(lightred),
     message:style(bold),
     message:print('- Assumed running: '),

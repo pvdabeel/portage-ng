@@ -103,9 +103,7 @@ test:new([%overlay://'test54/app-1.0':run?{[]},
           overlay://'test55/app-1.0':run?{[]}]).
           %overlay://'test56/app-1.0':run?{[]}]).
 
-test:focus([  overlay://'test03/os-1.0':run?{[]}, 
-              overlay://'test04/os-1.0':run?{[]},
-              overlay://'test05/os-1.0':run?{[]}      ]).
+test:focus([  overlay://'test09/os-1.0':run?{[]} ]).
 
 
 
