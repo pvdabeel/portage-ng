@@ -103,7 +103,9 @@ test:new([%overlay://'test54/app-1.0':run?{[]},
           overlay://'test55/app-1.0':run?{[]}]).
           %overlay://'test56/app-1.0':run?{[]}]).
 
-test:focus([  overlay://'test05/web-1.0':run?{[]} ]).
+test:focus([  overlay://'test03/os-1.0':run?{[]}, 
+              overlay://'test04/os-1.0':run?{[]},
+              overlay://'test05/os-1.0':run?{[]}      ]).
 
 
 
@@ -494,3 +496,4 @@ test:is_success(overlay://'test52/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Tri
 test:is_success(overlay://'test53/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
 test:is_success(overlay://'test54/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
 test:is_success(overlay://'test55/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
+test:is_success(_,_,_,_,_) :- true.

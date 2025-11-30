@@ -725,40 +725,22 @@ printer:print_element(_,assumed(rule(package_dependency(run,_,C,N,_,_,_,_):_Acti
 % CASE: an assumed circular dependency
 % -------------------------------------------------------------
 
-printer:print_element(_,assumed(rule(grouped_package_dependency(_X,C,N,_Deps):_Action?{_Context},_Body))) :-
+printer:print_element(_,assumed(rule(grouped_package_dependency(_X,C,N,_Deps):install?{_Context},_Body))) :-
   !,
   message:bubble(red,'verify'),
   message:color(red),
   atomic_list_concat([C,'/',N],P),
   message:column(24,P),
-  message:print(' (circular dependency) '),
+  message:print(' (assumed installed) '),
   message:color(normal).
 
-printer:print_element(_,rule(assumed(grouped_package_dependency(_X,C,N,_Deps):_Action?{_Context}),_Body)) :-
+printer:print_element(_,assumed(rule(grouped_package_dependency(_X,C,N,_Deps):run?{_Context},_Body))) :-
   !,
   message:bubble(red,'verify'),
   message:color(red),
   atomic_list_concat([C,'/',N],P),
   message:column(24,P),
-  message:print(' (circular dependency) '),
-  message:color(normal).
-
-printer:print_element(_,assumed(rule(grouped_package_dependency(C,N,_Deps):_Action?{_Context},_Body))) :-
-  !,
-  message:bubble(red,'verify'),
-  message:color(red),
-  atomic_list_concat([C,'/',N],P),
-  message:column(24,P),
-  message:print(' (circular dependency) '),
-  message:color(normal).
-
-printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):_Action?{_Context}),_Body)) :-
-  !,
-  message:bubble(red,'verify'),
-  message:color(red),
-  atomic_list_concat([C,'/',N],P),
-  message:column(24,P),
-  message:print(' (circular dependency) '),
+  message:print(' (assumed running) '),
   message:color(normal).
 
 
@@ -1639,15 +1621,22 @@ printer:print_assumption_detail(rule(grouped_package_dependency(C,N,R):T?{_},_))
     message:color(normal),
     printer:print_metadata_item_detail(_,'  ',grouped_package_dependency(C,N,R)),nl.
 
-printer:print_assumption_detail(rule(grouped_package_dependency(X,C,N,R):T,_)) :- !, % todo: this has blocking?
+printer:print_assumption_detail(rule(grouped_package_dependency(X,C,N,R):install,_)) :- !, 
     message:color(lightred),
     message:style(bold),
-    message:print('- Circular '),
-    message:print(T),
-    message:print(' dependency: '),
+    message:print('- Assumed installed: '),
     message:style(normal),
-    nl,
     message:color(normal),
+    nl,
+    printer:print_metadata_item_detail(_,'  ',grouped_package_dependency(X,C,N,R)),nl.
+
+printer:print_assumption_detail(rule(grouped_package_dependency(X,C,N,R):run,_)) :- !, 
+    message:color(lightred),
+    message:style(bold),
+    message:print('- Assumed running: '),
+    message:style(normal),
+    message:color(normal),
+    nl,
     printer:print_metadata_item_detail(_,'  ',grouped_package_dependency(X,C,N,R)),nl.
 
 printer:print_assumption_detail(rule(R://E:install,_)) :- !,
