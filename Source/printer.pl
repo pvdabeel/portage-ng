@@ -500,11 +500,16 @@ printer:printable_element(rule(_Repository://_Entry:update?_,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:upgrade?_,_)) :- !.
 printer:printable_element(assumed(rule(_Repository://_Entry:_?_,_))) :- !.
 printer:printable_element(rule(assumed(_Repository://_Entry:_?_,_))) :- !.
-printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_):_?_,_))) :- !.
-printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_):_?_,_))) :- !.
-printer:printable_element(assumed(rule(grouped_package_dependency(_,_,_,_):_?_,_))) :- !. % todo: phase out
-printer:printable_element(assumed(rule(grouped_package_dependency(_,_,_):_?_,_))) :- !.
-printer:printable_element(rule(assumed(grouped_package_dependency(_,_,_):_?_),_)) :- !.
+printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_):install?_,_))) :- !.
+printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_):run?_,_))) :- !.
+printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_):install?_,_))) :- !.
+printer:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_):run?_,_))) :- !.
+printer:printable_element(assumed(rule(grouped_package_dependency(_,_,_,_):install?_,_))) :- !. % todo: phase out
+printer:printable_element(assumed(rule(grouped_package_dependency(_,_,_,_):run?_,_))) :- !. % todo: phase out
+printer:printable_element(assumed(rule(grouped_package_dependency(_,_,_):install?_,_))) :- !.
+printer:printable_element(assumed(rule(grouped_package_dependency(_,_,_):run?_,_))) :- !.
+printer:printable_element(rule(assumed(grouped_package_dependency(_,_,_):install?_),_)) :- !.
+printer:printable_element(rule(assumed(grouped_package_dependency(_,_,_):run?_),_)) :- !.
 
 
 % Uncomment if you want 'confirm' steps shown in the plan:
