@@ -481,11 +481,13 @@ rule(use_conditional_group(negative,_,_://_,_),[]) :- !.
 % Exactly one of the dependencies in an exactly-one-of-group should be satisfied
 
 rule(exactly_one_of_group(Deps):Action?{Context},[D:Action?{Context}|NafDeps]) :-
-  member(D,Deps),
+  prioritize_deps(Deps, SortedDeps),
+  member(D, SortedDeps),
   findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
 
 rule(exactly_one_of_group(Deps),[D|NafDeps]) :-
-  member(D,Deps),
+  prioritize_deps(Deps, SortedDeps),
+  member(D, SortedDeps),
   findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
 
 
@@ -495,11 +497,13 @@ rule(exactly_one_of_group(Deps),[D|NafDeps]) :-
 % At most one of the dependencies in an at-most-one-of-group should be satisfied
 
 rule(at_most_one_of_group(Deps):Action?{Context},[D:Action?{Context}|NafDeps]) :-
-  member(D,Deps),
+  prioritize_deps(Deps, SortedDeps),
+  member(D, SortedDeps),
   findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
 
 rule(at_most_one_of_group(Deps),[D|NafDeps]) :-
-  member(D,Deps),
+  prioritize_deps(Deps, SortedDeps),
+  member(D, SortedDeps),
   findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
 
 
@@ -509,10 +513,12 @@ rule(at_most_one_of_group(Deps),[D|NafDeps]) :-
 % One dependency of an any_of_group should be satisfied
 
 rule(any_of_group(Deps):Action?{Context},[D:Action?{Context}]) :-
-  member(D,Deps).
+  prioritize_deps(Deps, SortedDeps),
+  member(D, SortedDeps).
 
 rule(any_of_group(Deps),[D]) :-
-  member(D,Deps).
+  prioritize_deps(Deps, SortedDeps),
+  member(D, SortedDeps).
 
 
 % -----------------------------------------------------------------------------
@@ -635,6 +641,25 @@ rule(naf(_),[]) :- !.
 rule(Literal,[]) :-
   atom(Literal),!.
 
+% =============================================================================
+%  Ruleset: Dependency group helpers
+% =============================================================================
+
+% -----------------------------------------------------------------------------
+%  Helper: prioritize_deps
+% -----------------------------------------------------------------------------
+% Sorts dependencies by prioritizing those that match user preferences, to
+% reduce the number of assumptions in the proof.
+
+prioritize_deps(Deps, SortedDeps) :-
+  partition(is_preferred_dep, Deps, Preferred, Others),
+  append(Preferred, Others, SortedDeps).
+
+is_preferred_dep(required(Use)) :-
+  Use \= minus(_),
+  preference:use(Use).
+is_preferred_dep(required(minus(Use))) :-
+  preference:use(minus(Use)).
 
 % -----------------------------------------------------------------------------
 %  Rule: Core packages
