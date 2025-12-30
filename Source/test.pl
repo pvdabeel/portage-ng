@@ -105,6 +105,7 @@ test:new([%overlay://'test54/app-1.0':run?{[]},
 
 test:focus([  overlay://'test09/os-1.0':run?{[]} ]).
 
+test:python([ portage://'dev-util/cram-0.7-r2':run?{[]} ]).
 
 
 %! test:run(+Atom)

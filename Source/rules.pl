@@ -376,14 +376,16 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         % Preserve/merge slot restriction(s) from grouped deps.
         merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
 
-        findall(Query,(member(package_dependency(Action,no,C,N,O,V,S,U),PackageDeps),
-                       Query = select(version,O,V)),
-                      MergedQuery),
-
         query:search([name(N),category(C),keyword(K),select(slot,constraint(SlotReq),Ss)], FoundRepo://Candidate), % macro-expanded
-        query:search(MergedQuery,FoundRepo://Candidate), % runtime
+        % Check that *all* version constraints in the grouped deps are satisfied by
+        % this Candidate. Using per-constraint query calls allows goal_expansion
+        % to inline the query for performance, and avoids building an intermediate list.
+        forall(
+            member(package_dependency(Action,no,C,N,O,V,_S,_U), PackageDeps),
+            query:search(select(version,O,V), FoundRepo://Candidate)
+        ),
 
-        findall(U,    (member(package_dependency(Action,no,C,N,O,V,S,U),PackageDeps)),
+        findall(U,    (member(package_dependency(Action,no,C,N,O,V,_S,U),PackageDeps)),
                       MergedUse),
 
         process_build_with_use(MergedUse,Context,NewContext,Constraints,FoundRepo://Candidate), % todo: check we look at combined use requirements here
