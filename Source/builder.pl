@@ -25,8 +25,8 @@ The Builder takes a plan from the Planner and executes it.
 % For a given Plan, prints and executes the plan. The printer is called with
 % builder:buildstep as a strategy for realizing the step in the plan.
 
-builder:build(Target,Model,Proof,Plan) :-
-  printer:print(Target,Model,Proof,Plan,builder:build_step).
+builder:build(Target,Model,Proof,Plan,Triggers) :-
+  printer:print(Target,Model,Proof,Plan,builder:build_step,Triggers).
 
 
 %! builder:build_step(+Step)

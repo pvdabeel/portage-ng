@@ -276,13 +276,13 @@ interface:process_action(Action,ArgsSets,_Options) :-
     (client:rpc_execute(Host,Port,
      (oracle:with_q(prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
       oracle:with_q(planner:plan(ProofAVL,Triggers,t,Plan)),
-      printer:print(Proposal,ModelAVL,ProofAVL,Plan),
+      printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
       pkg:sync),
      Output),
      writeln(Output));
     (prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers),
      planner:plan(ProofAVL,Triggers,t,Plan),
-     printer:print(Proposal,ModelAVL,ProofAVL,Plan),
+     printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
      pkg:sync )),
   \+preference:flag(oneshot)
   -> (Action = 'uninstall'

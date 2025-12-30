@@ -208,7 +208,7 @@ test:run_single_case(Repo://Id:Action?{Context}) :-
          message:color(normal),
          write_plan(Plan),
          nl,
-         printer:print([Repo://Id:Action?{Context}],Model,Proof,Plan));
+         printer:print([Repo://Id:Action?{Context}],Model,Proof,Plan,Triggers));
         (Failure = true,
          message:color(red),
          message:style(bold),
@@ -229,7 +229,7 @@ test:run_single_case(Repo://Id:Action?{Context}) :-
         ;  true),
        message:style(normal),
        nl,
-       printer:print([Repo://Id:Action?{Context}],Model,Proof,Plan),
+       printer:print([Repo://Id:Action?{Context}],Model,Proof,Plan,Triggers),
        message:header('Legacy emerge output :'),
        (exists_file(EmergeLog)
         -> test:write_description(EmergeLog)

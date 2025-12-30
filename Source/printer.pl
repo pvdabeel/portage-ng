@@ -1577,11 +1577,11 @@ printer:update_stats_clauses(_://_:_, S0, S) :-
 printer:update_stats_clauses(_, S, S).
 
 
-%! printer:print_warnings(+ModelAVL, +ProofAVL)
+%! printer:print_warnings(+ModelAVL, +ProofAVL, +TriggersAVL)
 %
 % Efficiently checks and prints assumptions using library predicates.
 
-printer:print_warnings(ModelAVL, ProofAVL) :-
+printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
   once((assoc:gen_assoc(Key, ModelAVL, _), Key = assumed(_))),
   !,
   nl,
@@ -1590,12 +1590,12 @@ printer:print_warnings(ModelAVL, ProofAVL) :-
   message:print(' The proof for your build plan contains assumptions. Please verify:'), nl, nl,
   message:color(red),
   forall(assoc:gen_assoc(ProofKey, ProofAVL, _ProofValue),
-         (printer:handle_assumption(ProofKey))
+         (printer:handle_assumption(ProofKey, ProofAVL, TriggersAVL))
   ),
   nl,
   message:color(normal),nl.
 
-printer:print_warnings(_,_) :- !, nl.
+printer:print_warnings(_,_,_) :- !, nl.
 
 
 %! printer:handle_assumption(+ProofKey)
@@ -1614,6 +1614,85 @@ printer:handle_assumption(ProofKey) :-
   ;
       true
   ).
+
+
+%! printer:handle_assumption(+ProofKey,+ProofAVL,+TriggersAVL)
+%
+% Extended assumption printer that can use proof and triggers for explanations.
+printer:handle_assumption(ProofKey, _ProofAVL, TriggersAVL) :-
+  % Case 1: key format: rule(assumed(...)) % domain driven assumption
+  (   ProofKey = rule(assumed(Content)) ->
+      printer:print_assumption_detail(rule(Content, [])),
+      nl
+  % Case 2: key format: assumed(rule(...)) % prover driven assumption
+  ;   ProofKey = assumed(rule(Content)) ->
+      printer:print_assumption_detail(rule(Content, [])),
+      printer:print_cycle_explanation(Content, TriggersAVL),
+      nl
+  ;
+      true
+  ).
+
+
+% -----------------------------------------------------------------------------
+%  Cycle explanation (minimal "works now" implementation)
+% -----------------------------------------------------------------------------
+
+%! printer:print_cycle_explanation(+StartKey,+TriggersAVL)
+printer:print_cycle_explanation(StartKey, TriggersAVL) :-
+  ( StartKey = _://_:install
+  ; StartKey = _://_:run
+  ; StartKey = _://_:fetchonly
+  ),
+  printer:find_cycle_via_triggers(StartKey, TriggersAVL, CyclePath),
+  !,
+  message:color(darkgray),
+  message:print('  Cycle (reverse dependency path):'), nl,
+  message:color(normal),
+  forall(member(Node, CyclePath),
+         ( message:print('    '),
+           message:print(Node),
+           nl
+         )).
+printer:print_cycle_explanation(_, _) :-
+  true.
+
+
+%! printer:find_cycle_via_triggers(+StartKey,+TriggersAVL,-CyclePath)
+printer:find_cycle_via_triggers(StartKey, TriggersAVL, CyclePath) :-
+  MaxDepth = 25,
+  printer:dfs_cycle(StartKey, StartKey, TriggersAVL, [StartKey], 0, MaxDepth, [StartKey], RevPath),
+  reverse(RevPath, CyclePath),
+  CyclePath = [StartKey|_].
+
+
+%! printer:dfs_cycle(+Start,+Node,+Triggers,+Visited,+Depth,+MaxDepth,+Acc,-Out)
+printer:dfs_cycle(Start, Node, TriggersAVL, _Visited, Depth, _MaxDepth, Acc, [Start|Acc]) :-
+  Depth > 0,
+  printer:trigger_neighbors(Node, TriggersAVL, Neigh),
+  member(Start, Neigh),
+  !.
+printer:dfs_cycle(Start, Node, TriggersAVL, Visited, Depth, MaxDepth, Acc, Out) :-
+  Depth < MaxDepth,
+  printer:trigger_neighbors(Node, TriggersAVL, Neigh),
+  member(Next, Neigh),
+  \+ memberchk(Next, Visited),
+  Depth1 is Depth + 1,
+  printer:dfs_cycle(Start, Next, TriggersAVL, [Next|Visited], Depth1, MaxDepth, [Next|Acc], Out).
+
+
+%! printer:trigger_neighbors(+Key,+TriggersAVL,-NeighborKeys)
+%
+% Neighbors are dependents of Key in the triggers graph, canonicalized to keys
+% (dropping context) to keep the search space manageable.
+printer:trigger_neighbors(Key, TriggersAVL, NeighborKeys) :-
+  ( get_assoc(Key, TriggersAVL, Dependents) -> true ; Dependents = [] ),
+  findall(K,
+          ( member(Dep, Dependents),
+            prover:canon_literal(Dep, K, _)
+          ),
+          Ks),
+  sort(Ks, NeighborKeys).
 
 
 %! printer:print_assumption_detail(+RuleTerm)
@@ -1697,19 +1776,19 @@ printer:print_assumption_detail(rule(C,_)) :-
     message:print(C), nl.
 
 
-%! printer:print(+Target,+ModelAVL,+ProofAVL,+Plan)
+%! printer:print(+Target,+ModelAVL,+ProofAVL,+Plan,+TriggersAVL)
 %
-% Prints a plan.
+% Prints a plan. Triggers are required so the printer can explain assumptions
+% (e.g. dependency cycles) when present.
+printer:print(Target,ModelAVL,ProofAVL,Plan,TriggersAVL) :-
+  printer:print(Target,ModelAVL,ProofAVL,Plan,printer:dry_run,TriggersAVL).
 
-printer:print(Target,ModelAVL,ProofAVL,Plan) :-
-  printer:print(Target,ModelAVL,ProofAVL,Plan,printer:dry_run).
-
-%! printer:print(+Target,+ModelAVL,+ProofAVL,+Plan,+Call)
-printer:print(Target,ModelAVL,ProofAVL,Plan,Call) :-
+%! printer:print(+Target,+ModelAVL,+ProofAVL,+Plan,+Call,+TriggersAVL)
+printer:print(Target,ModelAVL,ProofAVL,Plan,Call,TriggersAVL) :-
   printer:print_header(Target),
   printer:print_body(Target,Plan,Call,Steps),
   printer:print_footer(Plan,ModelAVL,Steps),
-  printer:print_warnings(ModelAVL,ProofAVL).
+  printer:print_warnings(ModelAVL,ProofAVL,TriggersAVL).
 
 
 %! printer:dry_run(+Step)
@@ -1774,7 +1853,7 @@ printer:write_merge_file(Directory,Repository://Entry) :-
    atomic_list_concat([Directory,'/',Entry,Extension],File)),
   (tell(File),
    set_stream(current_output,tty(true)), % otherwise we lose color
-   printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan)
+   printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan,Triggers)
    -> told
    ; (told,with_mutex(mutex,message:warning([Repository,'://',Entry,' ',Action])))).
 
@@ -1792,7 +1871,7 @@ printer:write_fetchonly_file(Directory,Repository://Entry) :-
    atomic_list_concat([Directory,'/',Entry,Extension],File)),
   (tell(File),
    set_stream(current_output,tty(true)), % otherwise we lose color
-   printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan)
+   printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan,Triggers)
    -> told
    ;  (told,with_mutex(mutex,message:warning([Repository,'://',Entry,' ',Action])))).
 
@@ -1908,7 +1987,7 @@ printer:test(Repository,Style) :-
                 % No conversion here! AVLs are kept as-is.
               ),
               % 2. Call the newly refactored print predicate.
-              printer:print([Repository://Entry:Action?{[]}],ModelAVL,ProofAVL,Plan),
+              printer:print([Repository://Entry:Action?{[]}],ModelAVL,ProofAVL,Plan,Triggers),
               false).
 
 
@@ -1930,5 +2009,5 @@ printer:test_latest(Repository,Style) :-
                 with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
                 with_q(planner:plan(ProofAVL,Triggers,t,Plan))
               ),
-              (printer:print([Repository://Entry:Action?{[]}],ModelAVL,ProofAVL,Plan)),
+              (printer:print([Repository://Entry:Action?{[]}],ModelAVL,ProofAVL,Plan,Triggers)),
               false).
