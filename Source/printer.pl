@@ -1649,33 +1649,85 @@ printer:print_cycle_explanation(StartKey, TriggersAVL) :-
   printer:cycle_display_path(CyclePath0, CyclePath),
   CyclePath = [_|_],
   !,
+  nl,
   message:color(darkgray),
-  message:print('  Cycle (reverse dependency path):'), nl,
+  message:print('  Reason : Dependency cycle :'), nl,
   message:color(normal),
+  nl,
   printer:print_cycle_tree(CyclePath).
 printer:print_cycle_explanation(_, _) :-
   true.
 
-% Print a cycle path as a simple "tree chain" using └─> connectors.
+% Print a cycle path with a "box + return arrow" on the right side:
+% - first line gets a left-pointing arrow to the right-side vertical bar (◄───┐)
+% - middle lines show a vertical bar (│)
+% - last line closes the box (───┘)
+% This visually indicates the last node loops back to the first.
 printer:print_cycle_tree([]) :- !.
-printer:print_cycle_tree([First|Rest]) :-
-  BaseIndent = '    ',
-  printer:print_cycle_tree_line(BaseIndent, First),
-  ( Rest == [] -> true ; nl ),
-  atom_concat(BaseIndent, '    ', NextIndent),
-  printer:print_cycle_tree_rest(Rest, NextIndent).
+printer:print_cycle_tree(CyclePath) :-
+  printer:cycle_tree_parts(CyclePath, Parts0),
+  printer:cycle_tree_trim_repeat(Parts0, Parts),
+  length(Parts, N),
+  ( N < 2 ->
+      % Degenerate case; just print the single node.
+      Parts = [part(Indent, Entry, Action, _LineWidth)],
+      printer:print_cycle_tree_main(Indent, Entry, Action), nl
+  ;
+      printer:cycle_tree_right_width(Parts, RightWidth),
+      printer:print_cycle_tree_parts(Parts, 1, N, RightWidth)
+  ).
 
-printer:print_cycle_tree_rest([], _Indent) :- !.
-printer:print_cycle_tree_rest([Node|Rest], Indent) :-
-  printer:print_cycle_tree_line(Indent, Node),
-  ( Rest == [] -> true ; nl ),
-  atom_concat(Indent, '    ', Indent1),
-  printer:print_cycle_tree_rest(Rest, Indent1).
+% If the cycle path ends with the same node it starts with, drop the last one.
+% This keeps the visual cycle closure without printing the start node twice.
+printer:cycle_tree_trim_repeat([First|Rest], Parts) :-
+  Rest \= [],
+  append(Mid, [Last], Rest),
+  First = part(_, Entry, Action, _),
+  Last  = part(_, Entry, Action, _),
+  Mid \= [],
+  !,
+  Parts = [First|Mid].
+printer:cycle_tree_trim_repeat(Parts, Parts).
 
-% Print one cycle node line as: "└─<action bubble>─> <entry>"
-printer:print_cycle_tree_line(Indent, Node) :-
-  message:print(Indent),
+printer:cycle_tree_parts(CyclePath, Parts) :-
+  BaseIndent = 4,
+  printer:cycle_tree_parts_(CyclePath, BaseIndent, Parts).
+
+printer:cycle_tree_parts_([], _Indent, []) :- !.
+printer:cycle_tree_parts_([Node|Rest], Indent, [part(Indent, Entry, Action, LineWidth)|Parts]) :-
   printer:cycle_node_parts(Node, Entry, Action),
+  printer:cycle_tree_line_width(Indent, Entry, Action, LineWidth),
+  Indent1 is Indent + 4,
+  printer:cycle_tree_parts_(Rest, Indent1, Parts).
+
+printer:cycle_tree_right_width(Parts, RightWidth) :-
+  findall(W, member(part(_,_,_,W), Parts), Ws),
+  max_list(Ws, MaxW),
+  ( tty_size(_, TermW) -> true ; TermW = 120 ),
+  % Place the right-side cycle box close to the longest line to avoid huge tails.
+  % (Dynamic: still respects terminal width.)
+  TargetW is MaxW + 6,
+  CapW is max(0, TermW - 2),
+  RightWidth0 is min(CapW, TargetW),
+  ( RightWidth0 >= MaxW + 6 -> RightWidth = RightWidth0 ; RightWidth = MaxW + 6 ).
+
+printer:print_cycle_tree_parts([], _I, _N, _RightWidth) :- !.
+printer:print_cycle_tree_parts([part(Indent, Entry, Action, LineWidth)|Rest], I, N, RightWidth) :-
+  printer:print_cycle_tree_main(Indent, Entry, Action),
+  printer:print_cycle_tree_right(I, N, RightWidth, LineWidth),
+  nl,
+  ( I < N ->
+      % Spacer line between dependencies: keep the right vertical bar continuous.
+      printer:print_cycle_tree_spacer(RightWidth),
+      nl
+  ;
+      true
+  ),
+  I1 is I + 1,
+  printer:print_cycle_tree_parts(Rest, I1, N, RightWidth).
+
+printer:print_cycle_tree_main(Indent, Entry, Action) :-
+  printer:print_n(' ', Indent),
   message:color(darkgray),
   message:print('└─'),
   message:color(normal),
@@ -1683,8 +1735,64 @@ printer:print_cycle_tree_line(Indent, Node) :-
   message:color(darkgray),
   message:print('─> '),
   message:color(normal),
-  message:print(Entry),
-  nl.
+  message:print(Entry).
+
+printer:print_cycle_tree_right(I, N, RightWidth, LineWidth) :-
+  Pad0 is RightWidth - LineWidth,
+  Pad is max(2, Pad0),
+  % Always leave at least one space between the end of the CPV and the cycle box/arrow.
+  message:print(' '),
+  Pad1 is max(1, Pad - 1),
+  % Entire right-side cycle box/arrow should be red.
+  message:color(lightred),
+  ( I =:= 1 ->
+      % Top: draw left-pointing arrow to the corner.
+      message:print('<'),
+      Dashes is max(0, Pad1 - 2),
+      printer:print_n('─', Dashes),
+      message:print('┐')
+  ; I =:= N ->
+      % Bottom: close the box.
+      % Close the box with a short horizontal segment (no blank spaces).
+      Dashes is max(1, Pad1 - 1),
+      printer:print_n('─', Dashes),
+      message:print('┘')
+  ;
+      % Middle: just the vertical bar.
+      Spaces is max(0, Pad1 - 1),
+      printer:print_n(' ', Spaces),
+      message:print('│')
+  ),
+  message:color(normal).
+
+printer:print_cycle_tree_spacer(RightWidth) :-
+  message:color(lightred),
+  printer:print_n(' ', max(0, RightWidth - 1)),
+  message:print('│'),
+  message:color(normal).
+
+printer:cycle_tree_line_width(Indent, Entry, Action, Width) :-
+  printer:term_visible_length(Entry, EntryLen),
+  printer:term_visible_length(Action, ActionLen),
+  % Indent + "└─" + bubble(Action) + "─> " + Entry
+  % bubble(Action) displays as 2 glyphs + Action text.
+  Width is Indent + 2 + (ActionLen + 2) + 3 + EntryLen.
+
+printer:term_visible_length(Term, Len) :-
+  ( atomic(Term) ->
+      atom_length(Term, Len)
+  ;
+      term_to_atom(Term, Atom),
+      atom_length(Atom, Len)
+  ).
+
+printer:print_n(_Char, N) :-
+  N =< 0,
+  !.
+printer:print_n(Char, N) :-
+  message:print(Char),
+  N1 is N - 1,
+  printer:print_n(Char, N1).
 
 % Extract Entry and Action from a cycle node (already filtered to package keys).
 % Examples:
@@ -1707,6 +1815,9 @@ printer:cycle_display_path(CyclePath0, CyclePath) :-
 printer:cycle_node_package_key(R://E:A, R://E:A) :- !.
 printer:cycle_node_package_key(R://E,   R://E)   :- !.
 
+% Special case: keep a 2-element [X,X] list intact so a direct self-cycle can
+% still be rendered as a cycle (instead of collapsing to a single node).
+printer:dedup_consecutive([X,X], [X,X]) :- !.
 printer:dedup_consecutive([], []).
 printer:dedup_consecutive([X|Xs], [X|Ys]) :-
   printer:dedup_consecutive_(Xs, X, Ys).
