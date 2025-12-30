@@ -1654,9 +1654,180 @@ printer:print_cycle_explanation(StartKey, TriggersAVL) :-
   message:print('  Reason : Dependency cycle :'), nl,
   message:color(normal),
   nl,
-  printer:print_cycle_tree(CyclePath).
+  printer:cycle_edge_guard_map(CyclePath0, GuardMap),
+  printer:print_cycle_tree(CyclePath, GuardMap).
 printer:print_cycle_explanation(_, _) :-
   true.
+
+% -----------------------------------------------------------------------------
+%  On-demand USE-guard extraction for cycle edges
+% -----------------------------------------------------------------------------
+
+% Build a map ToPkgKey -> GuardText (e.g. "-expat +python") for the cycle edges
+% found in the raw trigger cycle path. This is computed on-demand at print time
+% and does not affect proving performance.
+printer:cycle_edge_guard_map(CyclePath0, GuardMap) :-
+  printer:cycle_edges_from_raw(CyclePath0, Edges),
+  empty_assoc(Empty),
+  foldl(printer:edge_guard_put, Edges, Empty, GuardMap).
+
+printer:edge_guard_put(edge(From, Dep, To), In, Out) :-
+  ( printer:edge_guard_text(From, Dep, To, Text),
+    Text \== ''
+  -> put_assoc(To, In, Text, Out)
+  ;  Out = In
+  ).
+
+% Extract the minimal USE guards that enabled this dependency edge.
+% We anchor on the concrete package_dependency leaf inside the grouped dep node,
+% and then locate that leaf inside the cached dependency metadata tree under
+% use_conditional_group/4 nodes.
+% Note: the cycle path is a *reverse dependency* path. An edge:
+%   FromPkg -> DepNode -> ToPkg
+% means: ToPkg depends on FromPkg (potentially under USE conditions).
+% Therefore we must look up the dependency leaf (which matches FromPkg) in
+% ToPkg's metadata tree.
+printer:edge_guard_text(FromPkg, DepNode, ToPkg, Text) :-
+  printer:cycle_dep_leaf(DepNode, FromPkg, LeafDep),
+  printer:cycle_pkg_repo_entry(ToPkg, Repo://Entry, _Action),
+  printer:metadata_use_guards_for_leaf(Repo://Entry, LeafDep, Guards),
+  printer:guards_to_text(Guards, Text).
+
+printer:cycle_pkg_repo_entry(Repo://Entry:Action, Repo://Entry, Action) :- !.
+printer:cycle_pkg_repo_entry(Repo://Entry,        Repo://Entry, unknown) :- !.
+
+printer:cycle_dep_leaf(DepNode, FromPkg, Leaf) :-
+  % Prefer a leaf that matches the dependency package (FromPkg).
+  ( printer:cycle_pkg_cat_name(FromPkg, FromC, FromN) -> true ; FromC = _, FromN = _ ),
+  ( DepNode = grouped_package_dependency(_C,_N,List):_Action
+  ; DepNode = grouped_package_dependency(_X,_C,_N,List):_Action
+  ),
+  !,
+  ( member(Leaf, List),
+    Leaf = package_dependency(_,_,FromC,FromN,_,_,_,_)
+  -> true
+  ; member(Leaf, List),
+    Leaf = package_dependency(_,_,_,_,_,_,_,_)
+  ).
+printer:cycle_dep_leaf(package_dependency(_,_,_,_,_,_,_,_):_Action, _FromPkg, Leaf) :-
+  !,
+  Leaf = package_dependency(_,_,_,_,_,_,_,_).
+printer:cycle_dep_leaf(package_dependency(_,_,_,_,_,_,_,_), _FromPkg, Leaf) :-
+  !,
+  Leaf = package_dependency(_,_,_,_,_,_,_,_).
+
+% Best-effort category/name extraction for a package key in the cycle.
+% Uses cache metadata (fast indexed lookup) and falls back to parsing.
+printer:cycle_pkg_cat_name(Repo://Entry:_Action, C, N) :-
+  !,
+  ( cache:ordered_entry(Repo, Entry, C, N, _) -> true
+  ; atom(Entry),
+    atomic_list_concat([C, Rest], '/', Entry),
+    sub_atom(Rest, 0, _, _, N)
+  ).
+printer:cycle_pkg_cat_name(Repo://Entry, C, N) :-
+  !,
+  ( cache:ordered_entry(Repo, Entry, C, N, _) -> true
+  ; atom(Entry),
+    atomic_list_concat([C, Rest], '/', Entry),
+    sub_atom(Rest, 0, _, _, N)
+  ).
+
+printer:cycle_edges_from_raw([], []) :- !.
+printer:cycle_edges_from_raw([_], []) :- !.
+printer:cycle_edges_from_raw([_,_], []) :- !.
+printer:cycle_edges_from_raw([A,Dep,B|Rest], [edge(A,Dep,B)|Edges]) :-
+  printer:is_pkg_key(A),
+  \+ printer:is_pkg_key(Dep),
+  printer:is_pkg_key(B),
+  !,
+  printer:cycle_edges_from_raw([B|Rest], Edges).
+printer:cycle_edges_from_raw([_|Rest], Edges) :-
+  printer:cycle_edges_from_raw(Rest, Edges).
+
+printer:is_pkg_key(_://_:_) :- !.
+
+% Retrieve the cached dependency metadata trees for an ebuild.
+% We search all relevant dependency variables to avoid any fuzzy mapping.
+printer:metadata_dep_trees(Repo://Entry, Trees) :-
+  findall(T, kb:query(depend(T),  Repo://Entry), T1),
+  findall(T, kb:query(bdepend(T), Repo://Entry), T2),
+  findall(T, kb:query(rdepend(T), Repo://Entry), T3),
+  findall(T, kb:query(pdepend(T), Repo://Entry), T4),
+  append([T1,T2,T3,T4], Trees0),
+  Trees = Trees0.
+
+% Find a minimal guard list by iterative deepening on the number of USE guards.
+printer:metadata_use_guards_for_leaf(Repo://Entry, LeafDep, Guards) :-
+  printer:metadata_dep_trees(Repo://Entry, Trees),
+  between(0, 6, MaxGuards),
+  once((
+    member(Tree, Trees),
+    printer:metadata_find_leaf_guards(Tree, LeafDep, [], Rev, MaxGuards)
+  )),
+  !,
+  reverse(Rev, Guards).
+printer:metadata_use_guards_for_leaf(_Repo://_Entry, _LeafDep, []).
+
+% Walk only the metadata dependency tree; this is not a dependency-graph DFS and
+% cannot loop back into itself unless the term is cyclic (which would be unusual).
+% The MaxGuards bound keeps this search minimal and fast.
+% Unwrap context/action decorations like X:install?{...} or X:config, so we can
+% match against the underlying metadata terms.
+printer:metadata_find_leaf_guards(Full, Leaf, Acc, Out, Max) :-
+  Full = (Inner ? {_Ctx}),
+  !,
+  printer:metadata_find_leaf_guards(Inner, Leaf, Acc, Out, Max).
+printer:metadata_find_leaf_guards(Full, Leaf, Acc, Out, Max) :-
+  Full = (Inner : _Action),
+  !,
+  printer:metadata_find_leaf_guards(Inner, Leaf, Acc, Out, Max).
+
+printer:metadata_find_leaf_guards(use_conditional_group(Type,Use,_Id,Values), Leaf, Acc, Out, Max) :-
+  ( Type == positive -> G = guard(positive,Use) ; G = guard(negative,Use) ),
+  length(Acc, L),
+  L1 is L + 1,
+  L1 =< Max,
+  !,
+  printer:metadata_find_leaf_guards_list(Values, Leaf, [G|Acc], Out, Max).
+printer:metadata_find_leaf_guards(any_of_group(Vals), Leaf, Acc, Out, Max) :-
+  !, printer:metadata_find_leaf_guards_list(Vals, Leaf, Acc, Out, Max).
+printer:metadata_find_leaf_guards(all_of_group(Vals), Leaf, Acc, Out, Max) :-
+  !, printer:metadata_find_leaf_guards_list(Vals, Leaf, Acc, Out, Max).
+printer:metadata_find_leaf_guards(exactly_one_of_group(Vals), Leaf, Acc, Out, Max) :-
+  !, printer:metadata_find_leaf_guards_list(Vals, Leaf, Acc, Out, Max).
+printer:metadata_find_leaf_guards(at_most_one_of_group(Vals), Leaf, Acc, Out, Max) :-
+  !, printer:metadata_find_leaf_guards_list(Vals, Leaf, Acc, Out, Max).
+printer:metadata_find_leaf_guards(grouped_package_dependency(_C,_N,List), Leaf, Acc, Out, Max) :-
+  !, printer:metadata_find_leaf_guards_list(List, Leaf, Acc, Out, Max).
+printer:metadata_find_leaf_guards(grouped_package_dependency(_X,_C,_N,List), Leaf, Acc, Out, Max) :-
+  !, printer:metadata_find_leaf_guards_list(List, Leaf, Acc, Out, Max).
+printer:metadata_find_leaf_guards(package_dependency(_A,_B,C,N,_O,_V,_S,_U),
+                                 package_dependency(_A2,_B2,C2,N2,_O2,_V2,_S2,_U2),
+                                 Acc, Acc, _Max) :-
+  % Leaf match (minimal + robust for printing):
+  % compare only category/name so we can reliably recover USE guards even if the
+  % dependency model normalized version/slot details differently.
+  % (If you want to tighten this later, re-add comparator/version/slot matching.)
+  C == C2, N == N2,
+  !.
+printer:metadata_find_leaf_guards(_Other, _Leaf, _Acc, _Out, _Max) :-
+  fail.
+
+printer:metadata_find_leaf_guards_list([X|Xs], Leaf, Acc, Out, Max) :-
+  ( printer:metadata_find_leaf_guards(X, Leaf, Acc, Out, Max)
+  ; printer:metadata_find_leaf_guards_list(Xs, Leaf, Acc, Out, Max)
+  ).
+
+printer:guards_to_text([], '') :- !.
+printer:guards_to_text(Guards, Text) :-
+  findall(A,
+          ( member(guard(Type,Use), Guards),
+            ( Type == positive -> A = Use ; atom_concat('-', Use, A) )
+          ),
+          Atoms0),
+  sort(Atoms0, Atoms),
+  atomic_list_concat(Atoms, ' ', Text).
 
 % Print a cycle path with a "box + return arrow" on the right side:
 % - first line gets a left-pointing arrow to the right-side vertical bar (◄───┐)
@@ -1665,13 +1836,18 @@ printer:print_cycle_explanation(_, _) :-
 % This visually indicates the last node loops back to the first.
 printer:print_cycle_tree([]) :- !.
 printer:print_cycle_tree(CyclePath) :-
-  printer:cycle_tree_parts(CyclePath, Parts0),
-  printer:cycle_tree_trim_repeat(Parts0, Parts),
+  empty_assoc(Empty),
+  printer:print_cycle_tree(CyclePath, Empty).
+
+printer:print_cycle_tree(CyclePath, GuardMap) :-
+  printer:cycle_tree_parts(CyclePath, GuardMap, Parts0),
+  printer:cycle_tree_trim_repeat(Parts0, Parts1),
+  printer:cycle_tree_apply_closing_guard(CyclePath, GuardMap, Parts1, Parts),
   length(Parts, N),
   ( N < 2 ->
       % Degenerate case; just print the single node.
-      Parts = [part(Indent, Entry, Action, _LineWidth)],
-      printer:print_cycle_tree_main(Indent, Entry, Action), nl
+      Parts = [part(Indent, Entry, Action, GuardInText, GuardBackText, _LineWidth)],
+      printer:print_cycle_tree_main(Indent, Entry, Action, GuardInText, GuardBackText), nl
   ;
       printer:cycle_tree_right_width(Parts, RightWidth),
       printer:print_cycle_tree_parts(Parts, 1, N, RightWidth)
@@ -1682,26 +1858,60 @@ printer:print_cycle_tree(CyclePath) :-
 printer:cycle_tree_trim_repeat([First|Rest], Parts) :-
   Rest \= [],
   append(Mid, [Last], Rest),
-  First = part(_, Entry, Action, _),
-  Last  = part(_, Entry, Action, _),
+  First = part(_, Entry, Action, _GuardIn, _GuardBack, _),
+  Last  = part(_, Entry, Action, _GuardIn2, _GuardBack2, _),
   Mid \= [],
   !,
   Parts = [First|Mid].
 printer:cycle_tree_trim_repeat(Parts, Parts).
 
+% Per-edge labeling: the guard for the closing edge (last -> first) is attached
+% to the last printed line as "↩ USE: ...", instead of being shown on the first
+% node line (which can be confusing in a cycle).
+printer:cycle_tree_apply_closing_guard(CyclePath, GuardMap, PartsIn, PartsOut) :-
+  ( CyclePath = [FirstNode|_],
+    get_assoc(FirstNode, GuardMap, ClosingGuard),
+    ClosingGuard \== '',
+    PartsIn = [part(FIndent, FEntry, FAction, _FirstGuardIn, FBack, _FW0)|Tail0],
+    append(Front, [part(Indent, Entry, Action, GuardIn, _OldBack, _W0)], Tail0)
+  ->
+    % Remove the confusing "incoming guard" on the first node line; it actually
+    % corresponds to the closing edge (last -> first), which we render on the
+    % last line as "↩ USE: ...".
+    printer:cycle_tree_line_width(FIndent, FEntry, FAction, '', FBack, FW1),
+    FirstPart = part(FIndent, FEntry, FAction, '', FBack, FW1),
+    printer:cycle_tree_line_width(Indent, Entry, Action, GuardIn, ClosingGuard, W1),
+    append([FirstPart|Front], [part(Indent, Entry, Action, GuardIn, ClosingGuard, W1)], PartsOut)
+  ;
+    PartsOut = PartsIn
+  ).
+
 printer:cycle_tree_parts(CyclePath, Parts) :-
+  % Backwards-compatible wrapper; no guards.
   BaseIndent = 4,
   printer:cycle_tree_parts_(CyclePath, BaseIndent, Parts).
 
+printer:cycle_tree_parts(CyclePath, GuardMap, Parts) :-
+  BaseIndent = 4,
+  printer:cycle_tree_parts_(CyclePath, GuardMap, BaseIndent, Parts).
+
 printer:cycle_tree_parts_([], _Indent, []) :- !.
-printer:cycle_tree_parts_([Node|Rest], Indent, [part(Indent, Entry, Action, LineWidth)|Parts]) :-
+printer:cycle_tree_parts_([Node|Rest], Indent, [part(Indent, Entry, Action, '', '', LineWidth)|Parts]) :-
   printer:cycle_node_parts(Node, Entry, Action),
-  printer:cycle_tree_line_width(Indent, Entry, Action, LineWidth),
+  printer:cycle_tree_line_width(Indent, Entry, Action, '', '', LineWidth),
   Indent1 is Indent + 4,
   printer:cycle_tree_parts_(Rest, Indent1, Parts).
 
+printer:cycle_tree_parts_([], _GuardMap, _Indent, []) :- !.
+printer:cycle_tree_parts_([Node|Rest], GuardMap, Indent, [part(Indent, Entry, Action, GuardText, '', LineWidth)|Parts]) :-
+  printer:cycle_node_parts(Node, Entry, Action),
+  ( get_assoc(Node, GuardMap, GuardText0) -> GuardText = GuardText0 ; GuardText = '' ),
+  printer:cycle_tree_line_width(Indent, Entry, Action, GuardText, '', LineWidth),
+  Indent1 is Indent + 4,
+  printer:cycle_tree_parts_(Rest, GuardMap, Indent1, Parts).
+
 printer:cycle_tree_right_width(Parts, RightWidth) :-
-  findall(W, member(part(_,_,_,W), Parts), Ws),
+  findall(W, member(part(_,_,_,_,_,W), Parts), Ws),
   max_list(Ws, MaxW),
   ( tty_size(_, TermW) -> true ; TermW = 120 ),
   % Place the right-side cycle box close to the longest line to avoid huge tails.
@@ -1712,8 +1922,8 @@ printer:cycle_tree_right_width(Parts, RightWidth) :-
   ( RightWidth0 >= MaxW + 6 -> RightWidth = RightWidth0 ; RightWidth = MaxW + 6 ).
 
 printer:print_cycle_tree_parts([], _I, _N, _RightWidth) :- !.
-printer:print_cycle_tree_parts([part(Indent, Entry, Action, LineWidth)|Rest], I, N, RightWidth) :-
-  printer:print_cycle_tree_main(Indent, Entry, Action),
+printer:print_cycle_tree_parts([part(Indent, Entry, Action, GuardInText, GuardBackText, LineWidth)|Rest], I, N, RightWidth) :-
+  printer:print_cycle_tree_main(Indent, Entry, Action, GuardInText, GuardBackText),
   printer:print_cycle_tree_right(I, N, RightWidth, LineWidth),
   nl,
   ( I < N ->
@@ -1726,7 +1936,7 @@ printer:print_cycle_tree_parts([part(Indent, Entry, Action, LineWidth)|Rest], I,
   I1 is I + 1,
   printer:print_cycle_tree_parts(Rest, I1, N, RightWidth).
 
-printer:print_cycle_tree_main(Indent, Entry, Action) :-
+printer:print_cycle_tree_main(Indent, Entry, Action, GuardInText, GuardBackText) :-
   printer:print_n(' ', Indent),
   message:color(darkgray),
   message:print('└─'),
@@ -1735,7 +1945,25 @@ printer:print_cycle_tree_main(Indent, Entry, Action) :-
   message:color(darkgray),
   message:print('─> '),
   message:color(normal),
-  message:print(Entry).
+  message:print(Entry),
+  printer:print_cycle_tree_guard_suffix(GuardInText),
+  printer:print_cycle_tree_back_guard_suffix(GuardBackText).
+
+printer:print_cycle_tree_guard_suffix('') :- !.
+printer:print_cycle_tree_guard_suffix(GuardText) :-
+  message:color(darkgray),
+  message:print(' [USE: '),
+  message:print(GuardText),
+  message:print(']'),
+  message:color(normal).
+
+printer:print_cycle_tree_back_guard_suffix('') :- !.
+printer:print_cycle_tree_back_guard_suffix(GuardText) :-
+  message:color(darkgray),
+  message:print(' [↩ USE: '),
+  message:print(GuardText),
+  message:print(']'),
+  message:color(normal).
 
 printer:print_cycle_tree_right(I, N, RightWidth, LineWidth) :-
   Pad0 is RightWidth - LineWidth,
@@ -1771,12 +1999,22 @@ printer:print_cycle_tree_spacer(RightWidth) :-
   message:print('│'),
   message:color(normal).
 
-printer:cycle_tree_line_width(Indent, Entry, Action, Width) :-
+printer:cycle_tree_line_width(Indent, Entry, Action, GuardText, BackGuardText, Width) :-
   printer:term_visible_length(Entry, EntryLen),
   printer:term_visible_length(Action, ActionLen),
+  printer:term_visible_length(GuardText, GuardLen),
+  printer:term_visible_length(BackGuardText, BackGuardLen),
   % Indent + "└─" + bubble(Action) + "─> " + Entry
   % bubble(Action) displays as 2 glyphs + Action text.
-  Width is Indent + 2 + (ActionLen + 2) + 3 + EntryLen.
+  ( GuardLen =:= 0
+    -> GuardExtra = 0
+    ;  GuardExtra is 7 + GuardLen + 1
+  ),
+  ( BackGuardLen =:= 0
+    -> BackExtra = 0
+    ;  BackExtra is 9 + BackGuardLen + 1
+  ),
+  Width is Indent + 2 + (ActionLen + 2) + 3 + EntryLen + GuardExtra + BackExtra.
 
 printer:term_visible_length(Term, Len) :-
   ( atomic(Term) ->
