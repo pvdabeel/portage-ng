@@ -382,18 +382,21 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       ( preference:accept_keywords(K),
         (memberchk(slot(C,N,Ss):{_}, Context) -> true ; true),
 
+        % Preserve/merge slot restriction(s) from grouped deps.
+        merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
+
         findall(Query,(member(package_dependency(Action,no,C,N,O,V,S,U),PackageDeps),
                        Query = select(version,O,V)),
                       MergedQuery),
 
-        query:search([name(N),category(C),keyword(K),select(slot,constraint(S),Ss)], FoundRepo://Candidate), % macro-expanded
+        query:search([name(N),category(C),keyword(K),select(slot,constraint(SlotReq),Ss)], FoundRepo://Candidate), % macro-expanded
         query:search(MergedQuery,FoundRepo://Candidate), % runtime
 
         findall(U,    (member(package_dependency(Action,no,C,N,O,V,S,U),PackageDeps)),
                       MergedUse),
 
         process_build_with_use(MergedUse,Context,NewContext,Constraints,FoundRepo://Candidate), % todo: check we look at combined use requirements here
-        process_slot(S,Ss,C,N,FoundRepo://Candidate,NewContext,NewerContext),
+        process_slot(SlotReq,Ss,C,N,FoundRepo://Candidate,NewContext,NewerContext),
 
         % Add build_with_use constraints to Conditions
         append(Constraints, [FoundRepo://Candidate:Action?{NewerContext}], AllConditions),
@@ -402,6 +405,25 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
     ; % ELSE: If no candidate can be found, assume it's non-existent.
       Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps):Action?{Context})] % todo: fail
     )
+  ).
+
+
+% -----------------------------------------------------------------------------
+%  Helper: merge_slot_restriction
+% -----------------------------------------------------------------------------
+% Derive the (single) slot restriction to apply when selecting a candidate for a
+% grouped dependency. If no slot restriction is present, return [].
+% If multiple distinct slot restrictions are present, fail (no candidate can satisfy all).
+
+merge_slot_restriction(Action, C, N, PackageDeps, SlotReq) :-
+  findall(S,
+          member(package_dependency(Action,no,C,N,_O,_V,S,_U), PackageDeps),
+          Ss0),
+  exclude(==( []), Ss0, Ss1),
+  sort(Ss1, Ss),
+  ( Ss = []        -> SlotReq = []
+  ; Ss = [SlotReq] -> true
+  ; fail
   ).
 
 
