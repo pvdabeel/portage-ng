@@ -1640,22 +1640,85 @@ printer:handle_assumption(ProofKey, _ProofAVL, TriggersAVL) :-
 
 %! printer:print_cycle_explanation(+StartKey,+TriggersAVL)
 printer:print_cycle_explanation(StartKey, TriggersAVL) :-
-  ( StartKey = _://_:install
-  ; StartKey = _://_:run
-  ; StartKey = _://_:fetchonly
+  % Accept both package keys (R://E:install) and non-package keys (X:install),
+  % so cycles can still be found even when the assumption is a grouped dep term.
+  ( StartKey = _://_:install ; StartKey = _://_:run ; StartKey = _://_:fetchonly
+  ; StartKey = _:install     ; StartKey = _:run     ; StartKey = _:fetchonly
   ),
-  printer:find_cycle_via_triggers(StartKey, TriggersAVL, CyclePath),
+  printer:find_cycle_via_triggers(StartKey, TriggersAVL, CyclePath0),
+  printer:cycle_display_path(CyclePath0, CyclePath),
+  CyclePath = [_|_],
   !,
   message:color(darkgray),
   message:print('  Cycle (reverse dependency path):'), nl,
   message:color(normal),
-  forall(member(Node, CyclePath),
-         ( message:print('    '),
-           message:print(Node),
-           nl
-         )).
+  printer:print_cycle_tree(CyclePath).
 printer:print_cycle_explanation(_, _) :-
   true.
+
+% Print a cycle path as a simple "tree chain" using └─> connectors.
+printer:print_cycle_tree([]) :- !.
+printer:print_cycle_tree([First|Rest]) :-
+  BaseIndent = '    ',
+  printer:print_cycle_tree_line(BaseIndent, First),
+  ( Rest == [] -> true ; nl ),
+  atom_concat(BaseIndent, '    ', NextIndent),
+  printer:print_cycle_tree_rest(Rest, NextIndent).
+
+printer:print_cycle_tree_rest([], _Indent) :- !.
+printer:print_cycle_tree_rest([Node|Rest], Indent) :-
+  printer:print_cycle_tree_line(Indent, Node),
+  ( Rest == [] -> true ; nl ),
+  atom_concat(Indent, '    ', Indent1),
+  printer:print_cycle_tree_rest(Rest, Indent1).
+
+% Print one cycle node line as: "└─<action bubble>─> <entry>"
+printer:print_cycle_tree_line(Indent, Node) :-
+  message:print(Indent),
+  printer:cycle_node_parts(Node, Entry, Action),
+  message:color(darkgray),
+  message:print('└─'),
+  message:color(normal),
+  message:bubble(darkgray,Action),
+  message:color(darkgray),
+  message:print('─> '),
+  message:color(normal),
+  message:print(Entry),
+  nl.
+
+% Extract Entry and Action from a cycle node (already filtered to package keys).
+% Examples:
+%   portage://dev-libs/libxml2-2.15.1:install  -> Entry=dev-libs/libxml2-2.15.1, Action=install
+%   portage://dev-libs/libxml2-2.15.1          -> Entry=dev-libs/libxml2-2.15.1, Action=unknown
+printer:cycle_node_parts(_Repo://Entry:Action, Entry, Action) :- !.
+printer:cycle_node_parts(_Repo://Entry,        Entry, unknown) :- !.
+printer:cycle_node_parts(Entry:Action,         Entry, Action) :- !.
+printer:cycle_node_parts(Entry,               Entry, unknown).
+
+% Keep only the human-meaningful nodes: package keys (R://E or R://E:Action).
+printer:cycle_display_path(CyclePath0, CyclePath) :-
+  findall(P,
+          ( member(N, CyclePath0),
+            printer:cycle_node_package_key(N, P)
+          ),
+          P0),
+  printer:dedup_consecutive(P0, CyclePath).
+
+printer:cycle_node_package_key(R://E:A, R://E:A) :- !.
+printer:cycle_node_package_key(R://E,   R://E)   :- !.
+
+printer:dedup_consecutive([], []).
+printer:dedup_consecutive([X|Xs], [X|Ys]) :-
+  printer:dedup_consecutive_(Xs, X, Ys).
+
+printer:dedup_consecutive_([], _Prev, []).
+printer:dedup_consecutive_([X|Xs], Prev, Ys) :-
+  ( X == Prev ->
+      printer:dedup_consecutive_(Xs, Prev, Ys)
+  ;
+      Ys = [X|Rest],
+      printer:dedup_consecutive_(Xs, X, Rest)
+  ).
 
 
 %! printer:find_cycle_via_triggers(+StartKey,+TriggersAVL,-CyclePath)
