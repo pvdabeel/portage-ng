@@ -1096,31 +1096,36 @@ search(Q,R://I) :-
 %  A wrapper for query:search that provides memoization for expensive
 %  model computations.
 
-memoized_search(model(dependency(D,install)):config?{R}, Repository://Ebuild) :-
+% Note: We cache *grouped* dependencies (via group_dependencies/2) because
+% grouping dominates runtime and the dependency model is already memoized.
+% We use distinct keys (install_grouped/run_grouped/fetchonly_grouped) to avoid
+% mixing old cached values with the new representation in long-running sessions.
+
+memoized_search(model(dependency(Merged,install)):config?{R}, Repository://Ebuild) :-
   !,
-  ( cache:memo_model(Repository, Ebuild, install?{R}, D)
-    ->  true % Succeed with the cached model
-    ; % Otherwise, compute, assert, and then succeed.
-      query:search(model(dependency(D,install)):config?{R},Repository://Ebuild),
-      assertz(cache:memo_model(Repository, Ebuild, install?{R}, D))
+  ( cache:memo_model(Repository, Ebuild, install_grouped?{R}, Merged)
+    ->  true
+    ;   query:search(model(dependency(D0,install)):config?{R},Repository://Ebuild),
+        group_dependencies(D0, Merged),
+        assertz(cache:memo_model(Repository, Ebuild, install_grouped?{R}, Merged))
   ).
 
-memoized_search(model(dependency(D,run)):config?{R}, Repository://Ebuild) :-
+memoized_search(model(dependency(Merged,run)):config?{R}, Repository://Ebuild) :-
   !,
-  ( cache:memo_model(Repository, Ebuild, run?{R}, D)
-    ->  true % Succeed with the cached model
-    ; % Otherwise, compute, assert, and then succeed.
-      query:search(model(dependency(D,run)):config?{R},Repository://Ebuild),
-      assertz(cache:memo_model(Repository, Ebuild, run?{R}, D))
+  ( cache:memo_model(Repository, Ebuild, run_grouped?{R}, Merged)
+    ->  true
+    ;   query:search(model(dependency(D0,run)):config?{R},Repository://Ebuild),
+        group_dependencies(D0, Merged),
+        assertz(cache:memo_model(Repository, Ebuild, run_grouped?{R}, Merged))
   ).
 
-memoized_search(model(dependency(D,fetchonly)):config?{R}, Repository://Ebuild) :-
+memoized_search(model(dependency(Merged,fetchonly)):config?{R}, Repository://Ebuild) :-
   !,
-  ( cache:memo_model(Repository, Ebuild, fetchonly?{R}, D)
-    ->  true % Succeed with the cached model
-    ; % Otherwise, compute, assert, and then succeed.
-      query:search(model(dependency(D,fetchonly)):config?{R},Repository://Ebuild),
-      assertz(cache:memo_model(Repository, Ebuild, fetchonly?{R}, D))
+  ( cache:memo_model(Repository, Ebuild, fetchonly_grouped?{R}, Merged)
+    ->  true
+    ;   query:search(model(dependency(D0,fetchonly)):config?{R},Repository://Ebuild),
+        group_dependencies(D0, Merged),
+        assertz(cache:memo_model(Repository, Ebuild, fetchonly_grouped?{R}, Merged))
   ).
 
 

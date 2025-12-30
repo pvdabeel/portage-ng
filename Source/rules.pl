@@ -78,12 +78,9 @@ rule(Repository://Ebuild:fetchonly?{Context},Conditions) :- % todo: to update in
   %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
   %    all_of_group ... choice point generation
 
-  query:memoized_search(model(dependency(D,fetchonly)):config?{Model},Repository://Ebuild),
+  % 4. Compute + memoize dependency model, already grouped by package Category & Name.
 
-  % 4. Group packagedependencies by package Category & Name. We want to deal with all
-  %    dependencies regarding the same package in one go.
-
-  query:group_dependencies(D,MergedDeps),
+  query:memoized_search(model(dependency(MergedDeps,fetchonly)):config?{Model},Repository://Ebuild),
 
   % 5. Pass on relevant package dependencies and constraints to prover
 
@@ -143,12 +140,9 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
   %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
   %    all_of_group ... choice point generation
 
-  query:memoized_search(model(dependency(D,install)):config?{Model},Repository://Ebuild),
+  % 4. Compute + memoize dependency model, already grouped by package Category & Name.
 
- % 4. Group packagedependencies by package Category & Name. We want to deal with all
-  %    dependencies regarding the same package in one go.
-
-  query:group_dependencies(D,MergedDeps),
+  query:memoized_search(model(dependency(MergedDeps,install)):config?{Model},Repository://Ebuild),
 
   % 5. Pass on relevant package dependencies and constraints to prover
 
@@ -205,12 +199,9 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
   %    all_of_group ... choice point generation
 
-  query:memoized_search(model(dependency(D,run)):config?{Model},Repository://Ebuild),
+  % 4. Compute + memoize dependency model, already grouped by package Category & Name.
 
-  % 4. Group packagedependencies by package Category & Name. We want to deal with all
-  %    dependencies regarding the same package in one go.
-
-  query:group_dependencies(D,MergedDeps),
+  query:memoized_search(model(dependency(MergedDeps,run)):config?{Model},Repository://Ebuild),
 
   % 5. Pass on relevant package dependencies and constraints to prover
 
@@ -416,15 +407,25 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
 % If multiple distinct slot restrictions are present, fail (no candidate can satisfy all).
 
 merge_slot_restriction(Action, C, N, PackageDeps, SlotReq) :-
-  findall(S,
-          member(package_dependency(Action,no,C,N,_O,_V,S,_U), PackageDeps),
-          Ss0),
-  exclude(==( []), Ss0, Ss1),
-  sort(Ss1, Ss),
-  ( Ss = []        -> SlotReq = []
-  ; Ss = [SlotReq] -> true
-  ; fail
+  % Performance note: this predicate is called very frequently during proving.
+  % Avoid findall/3 + sort/2 and instead scan once, ensuring all non-empty slot
+  % restrictions are identical.
+  merge_slot_restriction_(PackageDeps, Action, C, N, none, Slot0),
+  ( Slot0 == none -> SlotReq = []
+  ; SlotReq = Slot0
   ).
+
+merge_slot_restriction_([], _Action, _C, _N, Acc, Acc) :- !.
+merge_slot_restriction_([package_dependency(Action,no,C,N,_O,_V,S,_U)|Rest], Action, C, N, Acc0, Acc) :-
+  !,
+  ( S == []      -> Acc1 = Acc0
+  ; Acc0 == none -> Acc1 = S
+  ; Acc0 == S    -> Acc1 = Acc0
+  ; fail
+  ),
+  merge_slot_restriction_(Rest, Action, C, N, Acc1, Acc).
+merge_slot_restriction_([_|Rest], Action, C, N, Acc0, Acc) :-
+  merge_slot_restriction_(Rest, Action, C, N, Acc0, Acc).
 
 
 % -----------------------------------------------------------------------------
