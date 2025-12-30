@@ -381,11 +381,11 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         % this Candidate. Using per-constraint query calls allows goal_expansion
         % to inline the query for performance, and avoids building an intermediate list.
         forall(
-            member(package_dependency(Action,no,C,N,O,V,_S,_U), PackageDeps),
+            member(package_dependency(Action,no,C,N,O,V,_,_), PackageDeps),
             query:search(select(version,O,V), FoundRepo://Candidate)
         ),
 
-        findall(U,    (member(package_dependency(Action,no,C,N,O,V,_S,U),PackageDeps)),
+        findall(U,    (member(package_dependency(Action,no,C,N,O,V,_,U),PackageDeps)),
                       MergedUse),
 
         process_build_with_use(MergedUse,Context,NewContext,Constraints,FoundRepo://Candidate), % todo: check we look at combined use requirements here
@@ -401,33 +401,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
   ).
 
 
-% -----------------------------------------------------------------------------
-%  Helper: merge_slot_restriction
-% -----------------------------------------------------------------------------
-% Derive the (single) slot restriction to apply when selecting a candidate for a
-% grouped dependency. If no slot restriction is present, return [].
-% If multiple distinct slot restrictions are present, fail (no candidate can satisfy all).
 
-merge_slot_restriction(Action, C, N, PackageDeps, SlotReq) :-
-  % Performance note: this predicate is called very frequently during proving.
-  % Avoid findall/3 + sort/2 and instead scan once, ensuring all non-empty slot
-  % restrictions are identical.
-  merge_slot_restriction_(PackageDeps, Action, C, N, none, Slot0),
-  ( Slot0 == none -> SlotReq = []
-  ; SlotReq = Slot0
-  ).
-
-merge_slot_restriction_([], _Action, _C, _N, Acc, Acc) :- !.
-merge_slot_restriction_([package_dependency(Action,no,C,N,_O,_V,S,_U)|Rest], Action, C, N, Acc0, Acc) :-
-  !,
-  ( S == []      -> Acc1 = Acc0
-  ; Acc0 == none -> Acc1 = S
-  ; Acc0 == S    -> Acc1 = Acc0
-  ; fail
-  ),
-  merge_slot_restriction_(Rest, Action, C, N, Acc1, Acc).
-merge_slot_restriction_([_|Rest], Action, C, N, Acc0, Acc) :-
-  merge_slot_restriction_(Rest, Action, C, N, Acc0, Acc).
 
 
 % -----------------------------------------------------------------------------
@@ -665,6 +639,35 @@ rule(naf(_),[]) :- !.
 
 rule(Literal,[]) :-
   atom(Literal),!.
+
+% -----------------------------------------------------------------------------
+%  Helper: merge_slot_restriction
+% -----------------------------------------------------------------------------
+% Derive the (single) slot restriction to apply when selecting a candidate for a
+% grouped dependency. If no slot restriction is present, return [].
+% If multiple distinct slot restrictions are present, fail (no candidate can satisfy all).
+
+merge_slot_restriction(Action, C, N, PackageDeps, SlotReq) :-
+  % Performance note: this predicate is called very frequently during proving.
+  % Avoid findall/3 + sort/2 and instead scan once, ensuring all non-empty slot
+  % restrictions are identical.
+  merge_slot_restriction_(PackageDeps, Action, C, N, none, Slot0),
+  ( Slot0 == none -> SlotReq = []
+  ; SlotReq = Slot0
+  ).
+
+merge_slot_restriction_([], _Action, _C, _N, Acc, Acc) :- !.
+merge_slot_restriction_([package_dependency(Action,no,C,N,_O,_V,S,_U)|Rest], Action, C, N, Acc0, Acc) :-
+  !,
+  ( S == []      -> Acc1 = Acc0
+  ; Acc0 == none -> Acc1 = S
+  ; Acc0 == S    -> Acc1 = Acc0
+  ; fail
+  ),
+  merge_slot_restriction_(Rest, Action, C, N, Acc1, Acc).
+merge_slot_restriction_([_|Rest], Action, C, N, Acc0, Acc) :-
+  merge_slot_restriction_(Rest, Action, C, N, Acc0, Acc).
+
 
 % =============================================================================
 %  Ruleset: Dependency group helpers
