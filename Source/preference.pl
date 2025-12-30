@@ -281,7 +281,7 @@ preference:profile_use('directfb').
 preference:profile_use('dnet').
 preference:profile_use('dts').
 preference:profile_use('elibc_glibc').
-%preference:profile_use('expat').
+preference:profile_use('expat').
 preference:profile_use('fbcondecor').
 preference:profile_use('fontconfig').
 preference:profile_use('gdbm').
