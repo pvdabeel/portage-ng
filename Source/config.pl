@@ -409,7 +409,7 @@ config:printable_metadata([blank,
                            license,
                            eapi,
                            slot,
-  		           subslot,
+  		                     subslot,
                            hl, % -------------
                            iuse,
                            required_use,
@@ -445,6 +445,15 @@ config:printable_metadata([blank,
 % - parallel_fast
 
 config:test_style(parallel_verbose).
+
+
+%! config:test_stats_top_n(?N)
+%
+% How many items to show in "Top cycle mentions" in test statistics output.
+%
+% Note: must be a non-negative integer.
+
+config:test_stats_top_n(25).
 
 
 %! config:failsilenton(?Key)

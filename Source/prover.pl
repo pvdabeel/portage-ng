@@ -534,3 +534,26 @@ prover:test_latest(Repository,Style) :-
               Repository://Entry,
               ( Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_)) ),
               ( with_q(prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)) )).
+
+% -----------------------------------------------------------------------------
+%  Testing + statistics
+% -----------------------------------------------------------------------------
+
+%! prover:test_stats(+Repository)
+prover:test_stats(Repository) :-
+  config:test_style(Style),
+  prover:test_stats(Repository, Style).
+
+%! prover:test_stats(+Repository,+Style)
+prover:test_stats(Repository, Style) :-
+  config:proving_target(Action),
+  aggregate_all(count, (Repository:entry(_E)), ExpectedTotal),
+  printer:test_stats_reset('Proving', ExpectedTotal),
+  tester:test(Style,
+              'Proving',
+              Repository://Entry,
+              Repository:entry(Entry),
+              ( with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
+                printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
+              )),
+  printer:test_stats_print.

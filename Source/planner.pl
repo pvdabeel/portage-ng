@@ -197,3 +197,27 @@ planner:test_latest(Repository,Style) :-
                     with_q(planner:plan(Proof,Triggers,t,_Plan))
               )).
 
+% -----------------------------------------------------------------------------
+%  Testing + statistics
+% -----------------------------------------------------------------------------
+
+%! planner:test_stats(+Repository)
+planner:test_stats(Repository) :-
+  config:test_style(Style),
+  planner:test_stats(Repository, Style).
+
+%! planner:test_stats(+Repository,+Style)
+planner:test_stats(Repository, Style) :-
+  config:proving_target(Action),
+  aggregate_all(count, (Repository:entry(_E)), ExpectedTotal),
+  printer:test_stats_reset('Planning', ExpectedTotal),
+  tester:test(Style,
+              'Planning',
+              Repository://Entry,
+              (Repository:entry(Entry)),
+              ( with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
+                with_q(planner:plan(ProofAVL,Triggers,t,_Plan)),
+                printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
+              )),
+  printer:test_stats_print.
+

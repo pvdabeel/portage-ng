@@ -19,6 +19,215 @@ The Printer takes a plan from the Planner and pretty prints it.
 % =============================================================================
 
 % -----------------------------------------------------------------------------
+%  Test statistics (cross-test summary)
+% -----------------------------------------------------------------------------
+
+:- dynamic printer:test_stats_stat/2.
+:- dynamic printer:test_stats_type/3.
+:- dynamic printer:test_stats_cycle_mention/2.
+:- dynamic printer:test_stats_entry_had_cycle/1.
+
+printer:test_stats_reset(Label, ExpectedTotal) :-
+  with_mutex(test_stats,
+    ( retractall(printer:test_stats_stat(_,_)),
+      retractall(printer:test_stats_type(_,_,_)),
+      retractall(printer:test_stats_cycle_mention(_,_)),
+      retractall(printer:test_stats_entry_had_cycle(_)),
+      assertz(printer:test_stats_stat(label, Label)),
+      assertz(printer:test_stats_stat(expected_total, ExpectedTotal)),
+      assertz(printer:test_stats_stat(processed, 0)),
+      assertz(printer:test_stats_stat(entries_with_assumptions, 0)),
+      assertz(printer:test_stats_stat(entries_with_cycles, 0)),
+      assertz(printer:test_stats_stat(cycles_found, 0))
+    )).
+
+printer:test_stats_set_current_entry(RepositoryEntry) :-
+  nb_setval(test_stats_current_entry, RepositoryEntry).
+
+printer:test_stats_clear_current_entry :-
+  ( nb_current(test_stats_current_entry, _) ->
+      nb_delete(test_stats_current_entry)
+  ; true
+  ).
+
+printer:test_stats_inc(Key) :-
+  with_mutex(test_stats,
+    ( ( retract(printer:test_stats_stat(Key, N0)) -> true ; N0 = 0 ),
+      N is N0 + 1,
+      assertz(printer:test_stats_stat(Key, N))
+    )).
+
+printer:test_stats_inc_type(Type, Metric, Delta) :-
+  with_mutex(test_stats,
+    ( ( retract(printer:test_stats_type(Type, Metric, N0)) -> true ; N0 = 0 ),
+      N is N0 + Delta,
+      assertz(printer:test_stats_type(Type, Metric, N))
+    )).
+
+printer:test_stats_inc_cycle_mention(RepoEntry) :-
+  with_mutex(test_stats,
+    ( ( retract(printer:test_stats_cycle_mention(RepoEntry, N0)) -> true ; N0 = 0 ),
+      N is N0 + 1,
+      assertz(printer:test_stats_cycle_mention(RepoEntry, N))
+    )).
+
+printer:test_stats_note_cycle_for_current_entry :-
+  ( nb_current(test_stats_current_entry, RepoEntry) ->
+      with_mutex(test_stats,
+        ( printer:test_stats_entry_had_cycle(RepoEntry) ->
+            true
+        ; assertz(printer:test_stats_entry_had_cycle(RepoEntry)),
+          ( retract(printer:test_stats_stat(entries_with_cycles, N0)) -> true ; N0 = 0 ),
+          N is N0 + 1,
+          assertz(printer:test_stats_stat(entries_with_cycles, N))
+        ))
+  ; true
+  ).
+
+printer:assumption_content_from_proof_key(rule(assumed(Content)), Content) :- !.
+printer:assumption_content_from_proof_key(assumed(rule(Content)), Content) :- !.
+
+printer:assumption_type(package_dependency(_,_,_,_,_,_,_,_):_, non_existent_dependency) :- !.
+printer:assumption_type(grouped_package_dependency(_,_,_):_,              non_existent_dependency) :- !.
+printer:assumption_type(grouped_package_dependency(_,_,_,_):_,            non_existent_dependency) :- !.
+printer:assumption_type(_://_:unmask,                                      masked) :- !.
+printer:assumption_type(_://_:install,                                     assumed_installed) :- !.
+printer:assumption_type(_://_:run,                                         assumed_running) :- !.
+printer:assumption_type(grouped_package_dependency(_,_,_,_):install?{_},   assumed_installed) :- !.
+printer:assumption_type(grouped_package_dependency(_,_,_,_):run?{_},       assumed_running) :- !.
+printer:assumption_type(grouped_package_dependency(_,_,_,_):install,       assumed_installed) :- !.
+printer:assumption_type(grouped_package_dependency(_,_,_,_):run,           assumed_running) :- !.
+printer:assumption_type(_,                                                 other).
+
+printer:test_stats_record_entry(RepositoryEntry, _ModelAVL, ProofAVL, TriggersAVL, DoCycles) :-
+  printer:test_stats_inc(processed),
+  findall(Content,
+          ( assoc:gen_assoc(ProofKey, ProofAVL, _),
+            printer:assumption_content_from_proof_key(ProofKey, Content)
+          ),
+          Contents0),
+  ( Contents0 == [] ->
+      true
+  ; printer:test_stats_inc(entries_with_assumptions),
+    findall(Type,
+            ( member(Content, Contents0),
+              printer:assumption_type(Content, Type),
+              printer:test_stats_inc_type(Type, occurrences, 1)
+            ),
+            TypesAll),
+    sort(TypesAll, TypesUnique),
+    forall(member(T, TypesUnique),
+           printer:test_stats_inc_type(T, entries, 1))
+  ),
+  ( DoCycles == true ->
+      printer:test_stats_set_current_entry(RepositoryEntry),
+      forall(member(Content, Contents0),
+             ( printer:cycle_for_assumption(Content, TriggersAVL, CyclePath0, CyclePath) ->
+                 printer:test_stats_record_cycle(CyclePath0, CyclePath)
+             ; true
+             )),
+      printer:test_stats_clear_current_entry
+  ; true
+  ).
+
+% Compute a cycle path (if any) for an assumption key.
+printer:cycle_for_assumption(StartKey0, TriggersAVL, CyclePath0, CyclePath) :-
+  ( prover:canon_literal(StartKey0, StartKey, _) -> true ; StartKey = StartKey0 ),
+  ( StartKey = _://_:install ; StartKey = _://_:run ; StartKey = _://_:fetchonly
+  ; StartKey = _:install     ; StartKey = _:run     ; StartKey = _:fetchonly
+  ),
+  printer:find_cycle_via_triggers(StartKey, TriggersAVL, CyclePath0),
+  printer:cycle_display_path(CyclePath0, CyclePath),
+  CyclePath = [_|_].
+
+% Record cycle statistics: overall cycle count + per-ebuild mention counts.
+printer:test_stats_record_cycle(_CyclePath0, CyclePath) :-
+  printer:test_stats_inc(cycles_found),
+  printer:test_stats_note_cycle_for_current_entry,
+  findall(RepoEntry,
+          ( member(Node, CyclePath),
+            printer:cycle_pkg_repo_entry(Node, RepoEntry, _)
+          ),
+          RepoEntries0),
+  sort(RepoEntries0, RepoEntries),
+  forall(member(RepoEntry, RepoEntries),
+         printer:test_stats_inc_cycle_mention(RepoEntry)).
+
+printer:test_stats_value(Key, Value) :-
+  ( printer:test_stats_stat(Key, Value) -> true ; Value = 0 ).
+
+printer:test_stats_percent(_, 0, 0.0) :- !.
+printer:test_stats_percent(Part, Total, Percent) :-
+  Percent is (100.0 * Part) / Total.
+
+printer:test_stats_print_kv_int(Label, Value) :-
+  format('~w~t~26|: ~d~n', [Label, Value]).
+
+printer:test_stats_print_kv_int_percent(Label, Count, Total) :-
+  printer:test_stats_percent(Count, Total, P),
+  format('~w~t~26|: ~d (~2f%)~n', [Label, Count, P]).
+
+printer:test_stats_print :-
+  printer:test_stats_value(label, Label),
+  printer:test_stats_value(expected_total, Expected),
+  printer:test_stats_value(processed, Processed),
+  printer:test_stats_value(entries_with_assumptions, WithAss),
+  printer:test_stats_value(entries_with_cycles, WithCycles),
+  printer:test_stats_value(cycles_found, CyclesFound),
+  nl,
+  message:header(['Test statistics (',Label,')']),
+  printer:test_stats_print_kv_int('Total entries', Expected),
+  printer:test_stats_print_kv_int_percent('Processed (succeeded)', Processed, Expected),
+  ( Expected =\= Processed ->
+      format('~w~t~26|: ~d entries did not produce a plan/proof (failed/timeout).~n',
+             ['Note', Expected-Processed])
+  ; true
+  ),
+  ( Processed > 0 ->
+      printer:test_stats_print_kv_int_percent('With assumptions', WithAss, Processed),
+      printer:test_stats_print_kv_int_percent('With cycles', WithCycles, Processed),
+      format('~w~t~26|: ~d (~2f per entry)~n', ['Cycles found', CyclesFound, CyclesFound/Processed])
+  ; printer:test_stats_print_kv_int('With assumptions', WithAss),
+    printer:test_stats_print_kv_int('With cycles', WithCycles),
+    printer:test_stats_print_kv_int('Cycles found', CyclesFound)
+  ),
+  nl,
+  message:header('Assumption types'),
+  findall(O, printer:test_stats_type(_, occurrences, O), Occs),
+  sum_list(Occs, TotalOccs),
+  findall(Type,
+          ( printer:test_stats_type(Type, _, _) ),
+          Types0),
+  sort(Types0, Types),
+  ( Types == [] ->
+      writeln('  (none)')
+  ; forall(member(Type, Types),
+           ( ( printer:test_stats_type(Type, entries, E) -> true ; E = 0 ),
+             ( printer:test_stats_type(Type, occurrences, O) -> true ; O = 0 ),
+             ( Processed > 0 -> printer:test_stats_percent(E, Processed, EP) ; EP = 0.0 ),
+             printer:test_stats_percent(O, TotalOccs, OP),
+             format('  ~w~t~26|: ~d entries (~2f%), ~d occurrences (~2f%)~n', [Type, E, EP, O, OP])
+           ))
+  ),
+  nl,
+  ( config:test_stats_top_n(TopN) -> true ; TopN = 10 ),
+  atomic_list_concat(['Top ',TopN,' cycle mentions'], Header),
+  message:header(Header),
+  findall(N-RepoEntry, printer:test_stats_cycle_mention(RepoEntry, N), Pairs0),
+  keysort(Pairs0, SortedAsc),
+  reverse(SortedAsc, Sorted),
+  printer:test_stats_print_top_cycle_mentions(Sorted, TopN, 1).
+
+printer:test_stats_print_top_cycle_mentions([], _Limit, _I) :- !,
+  writeln('  (none)').
+printer:test_stats_print_top_cycle_mentions(_, 0, _I) :- !.
+printer:test_stats_print_top_cycle_mentions([N-RepoEntry|Rest], Limit, I) :-
+  format('  ~t~d~3+. ~w (~d)~n', [I, RepoEntry, N]),
+  I1 is I + 1,
+  Limit1 is Limit - 1,
+  printer:test_stats_print_top_cycle_mentions(Rest, Limit1, I1).
+
+% -----------------------------------------------------------------------------
 %  PROVER state printing
 % -----------------------------------------------------------------------------
 
@@ -1649,6 +1858,8 @@ printer:print_cycle_explanation(StartKey, TriggersAVL) :-
   printer:cycle_display_path(CyclePath0, CyclePath),
   CyclePath = [_|_],
   !,
+  % Record stats (if enabled) before printing, so "cycle mention" counts match what we show.
+  printer:test_stats_record_cycle(CyclePath0, CyclePath),
   nl,
   message:color(darkgray),
   message:print('  Reason : Dependency cycle :'), nl,
@@ -2388,6 +2599,8 @@ printer:test(Repository,parallel_fast) :-
 
 printer:test(Repository,Style) :-
   config:proving_target(Action),
+  aggregate_all(count, (Repository:entry(_E)), ExpectedTotal),
+  printer:test_stats_reset('Printing', ExpectedTotal),
   tester:test(Style,
               'Printing',
               Repository://Entry,
@@ -2399,8 +2612,13 @@ printer:test(Repository,Style) :-
                 % No conversion here! AVLs are kept as-is.
               ),
               % 2. Call the newly refactored print predicate.
-              printer:print([Repository://Entry:Action?{[]}],ModelAVL,ProofAVL,Plan,Triggers),
-              false).
+              ( printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, false),
+                printer:test_stats_set_current_entry(Repository://Entry),
+                printer:print([Repository://Entry:Action?{[]}],ModelAVL,ProofAVL,Plan,Triggers),
+                printer:test_stats_clear_current_entry
+              ),
+              false),
+  printer:test_stats_print.
 
 
 %! printer:test_latest(+Repository)
@@ -2413,6 +2631,10 @@ printer:test_latest(Repository) :-
 
 printer:test_latest(Repository,Style) :-
   config:proving_target(Action),
+  aggregate_all(count,
+                (Repository:package(C,N),once(Repository:ebuild(_Entry,C,N,_))),
+                ExpectedTotal),
+  printer:test_stats_reset('Printing latest', ExpectedTotal),
   tester:test(Style,
               'Printing latest',
               Repository://Entry,
@@ -2421,5 +2643,10 @@ printer:test_latest(Repository,Style) :-
                 with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
                 with_q(planner:plan(ProofAVL,Triggers,t,Plan))
               ),
-              (printer:print([Repository://Entry:Action?{[]}],ModelAVL,ProofAVL,Plan,Triggers)),
-              false).
+              ( printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, false),
+                printer:test_stats_set_current_entry(Repository://Entry),
+                printer:print([Repository://Entry:Action?{[]}],ModelAVL,ProofAVL,Plan,Triggers),
+                printer:test_stats_clear_current_entry
+              ),
+              false),
+  printer:test_stats_print.
