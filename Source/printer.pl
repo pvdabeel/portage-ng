@@ -24,7 +24,7 @@ The Printer takes a plan from the Planner and pretty prints it.
 
 :- dynamic printer:test_stats_stat/2.
 :- dynamic printer:test_stats_type/3.
-:- dynamic printer:test_stats_cycle_mention/2.
+:- dynamic printer:test_stats_cycle_mention/3.
 :- dynamic printer:test_stats_entry_had_cycle/1.
 :- dynamic printer:test_stats_other_head/2.
 :- dynamic printer:test_stats_pkg/3.
@@ -34,7 +34,7 @@ printer:test_stats_reset(Label, ExpectedTotal) :-
   with_mutex(test_stats,
     ( retractall(printer:test_stats_stat(_,_)),
       retractall(printer:test_stats_type(_,_,_)),
-      retractall(printer:test_stats_cycle_mention(_,_)),
+      retractall(printer:test_stats_cycle_mention(_,_,_)),
       retractall(printer:test_stats_entry_had_cycle(_)),
       retractall(printer:test_stats_other_head(_,_)),
       retractall(printer:test_stats_pkg(_,_,_)),
@@ -92,11 +92,11 @@ printer:test_stats_inc_type(Type, Metric, Delta) :-
       assertz(printer:test_stats_type(Type, Metric, N))
     )).
 
-printer:test_stats_inc_cycle_mention(RepoEntry) :-
+printer:test_stats_inc_cycle_mention(Action, RepoEntry) :-
   with_mutex(test_stats,
-    ( ( retract(printer:test_stats_cycle_mention(RepoEntry, N0)) -> true ; N0 = 0 ),
+    ( ( retract(printer:test_stats_cycle_mention(Action, RepoEntry, N0)) -> true ; N0 = 0 ),
       N is N0 + 1,
-      assertz(printer:test_stats_cycle_mention(RepoEntry, N))
+      assertz(printer:test_stats_cycle_mention(Action, RepoEntry, N))
     )).
 
 printer:test_stats_inc_type_entry_mention(Type, RepoEntry) :-
@@ -229,14 +229,15 @@ printer:cycle_for_assumption(StartKey0, TriggersAVL, CyclePath0, CyclePath) :-
 printer:test_stats_record_cycle(_CyclePath0, CyclePath) :-
   printer:test_stats_inc(cycles_found),
   printer:test_stats_note_cycle_for_current_entry,
-  findall(RepoEntry,
+  findall(Action-RepoEntry,
           ( member(Node, CyclePath),
-            printer:cycle_pkg_repo_entry(Node, RepoEntry, _)
+            printer:cycle_pkg_repo_entry(Node, RepoEntry, Action),
+            ( Action == run ; Action == install )
           ),
-          RepoEntries0),
-  sort(RepoEntries0, RepoEntries),
-  forall(member(RepoEntry, RepoEntries),
-         printer:test_stats_inc_cycle_mention(RepoEntry)).
+          Mentions0),
+  sort(Mentions0, Mentions),
+  forall(member(Action-RepoEntry, Mentions),
+         printer:test_stats_inc_cycle_mention(Action, RepoEntry)).
 
 printer:test_stats_value(Key, Value) :-
   ( printer:test_stats_stat(Key, Value) -> true ; Value = 0 ).
@@ -491,13 +492,26 @@ printer:test_stats_print :-
   ),
   nl,
   ( config:test_stats_top_n(TopN) -> true ; TopN = 10 ),
-  atomic_list_concat(['Top ',TopN,' cycle mentions'], Header),
-  printer:test_stats_print_ranked_table_header(Header, 'Mentions'),
-  findall(N-RepoEntry, printer:test_stats_cycle_mention(RepoEntry, N), Pairs0),
-  keysort(Pairs0, SortedAsc),
-  reverse(SortedAsc, Sorted),
-  printer:test_stats_table_width(W),
-  printer:test_stats_print_ranked_table_rows(Sorted, TopN, 1, W).
+  atomic_list_concat(['Top ',TopN,' cycle mentions (run)'], HeaderRun),
+  findall(N-RepoEntry, printer:test_stats_cycle_mention(run, RepoEntry, N), RunPairs0),
+  keysort(RunPairs0, RunSortedAsc),
+  reverse(RunSortedAsc, RunSorted),
+  ( RunSorted == [] ->
+      true
+  ; printer:test_stats_print_ranked_table_header(HeaderRun, 'Mentions'),
+    printer:test_stats_table_width(W1),
+    printer:test_stats_print_ranked_table_rows(RunSorted, TopN, 1, W1)
+  ),
+  atomic_list_concat(['Top ',TopN,' cycle mentions (install)'], HeaderInstall),
+  findall(N-RepoEntry, printer:test_stats_cycle_mention(install, RepoEntry, N), InstallPairs0),
+  keysort(InstallPairs0, InstallSortedAsc),
+  reverse(InstallSortedAsc, InstallSorted),
+  ( InstallSorted == [] ->
+      true
+  ; printer:test_stats_print_ranked_table_header(HeaderInstall, 'Mentions'),
+    printer:test_stats_table_width(W2),
+    printer:test_stats_print_ranked_table_rows(InstallSorted, TopN, 1, W2)
+  ).
 
 printer:test_stats_print_top_cycle_mentions([], _Limit, I) :- !,
   ( I =:= 1 -> writeln('  (none)') ; true ).
@@ -988,7 +1002,9 @@ printer:printable_element(rule(_Repository://_Entry:reinstall?_,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:uninstall?_,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:update?_,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:upgrade?_,_)) :- !.
-printer:printable_element(assumed(rule(_Repository://_Entry:_?_,_))) :- !.
+% Prover cycle-break rules (`assumed(rule(...))`) are printed in the warnings
+% section with cycle explanations. Do not print them as "verify" steps.
+printer:printable_element(assumed(rule(_,_))) :- !, fail.
 printer:printable_element(rule(assumed(_Repository://_Entry:_?_,_))) :- !.
 printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_):install?_,_))) :- !.
 printer:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_):run?_,_))) :- !.
@@ -1000,6 +1016,25 @@ printer:printable_element(assumed(rule(grouped_package_dependency(_,_,_):install
 printer:printable_element(assumed(rule(grouped_package_dependency(_,_,_):run?_,_))) :- !.
 printer:printable_element(rule(assumed(grouped_package_dependency(_,_,_):install?_),_)) :- !.
 printer:printable_element(rule(assumed(grouped_package_dependency(_,_,_):run?_),_)) :- !.
+
+% Suppress assumed dependency verifies when a concrete ebuild for the same
+% package is already scheduled in the plan.
+printer:printable_element(rule(assumed(grouped_package_dependency(C,N,_Deps):install?{_Context}),[])) :-
+  printer:planned_pkg(install, C, N),
+  !,
+  fail.
+printer:printable_element(rule(assumed(package_dependency(install,no,C,N,_,_,_,_):install?{_Context}),[])) :-
+  printer:planned_pkg(install, C, N),
+  !,
+  fail.
+printer:printable_element(rule(assumed(grouped_package_dependency(C,N,_Deps):run?{_Context}),[])) :-
+  printer:planned_pkg(run, C, N),
+  !,
+  fail.
+printer:printable_element(rule(assumed(package_dependency(run,no,C,N,_,_,_,_):run?{_Context}),[])) :-
+  printer:planned_pkg(run, C, N),
+  !,
+  fail.
 
 
 % Uncomment if you want 'confirm' steps shown in the plan:
@@ -1016,7 +1051,8 @@ printer:element_weight(rule(uri(_),_),                                  0) :- !.
 printer:element_weight(rule(uri(_,_,_),_),                              1) :- !. % fetch
 printer:element_weight(rule(package_dependency(_,_,_,_,_,_,_,_),_),     1) :- !. % confirm
 printer:element_weight(rule(_Repository://_Entry:verify?_,_),           2) :- !. % verify
-printer:element_weight(rule(_Repository://_Entry:run?_,_),              3) :- !. % run
+% Run should come after install within a step.
+printer:element_weight(rule(_Repository://_Entry:run?_,_),              6) :- !. % run
 printer:element_weight(rule(_Repository://_Entry:download?_,_),         4) :- !. % download
 printer:element_weight(rule(_Repository://_Entry:fetchonly?_,_),        5) :- !. % fetchonly
 printer:element_weight(rule(_Repository://_Entry:install?_,_),          5) :- !. % install
@@ -1937,7 +1973,57 @@ printer:print_header(Target) :-
 %
 % Prints the body for a given plan.
 printer:print_body(Target, Plan, Call, Steps) :-
-  printer:print_steps_in_plan(Target, Plan, Call, 0, Steps).
+  printer:build_planned_pkg_set(Plan, PlannedSet),
+  setup_call_cleanup(
+    nb_setval(printer_planned_pkg_set, PlannedSet),
+    printer:print_steps_in_plan(Target, Plan, Call, 0, Steps),
+    ( nb_current(printer_planned_pkg_set, _) -> nb_delete(printer_planned_pkg_set) ; true )
+  ).
+
+% Build a set of planned packages (category/name) for actions install/run.
+% This allows suppressing "assumed dependency verify" lines when a concrete
+% ebuild for the same package is already scheduled in the plan.
+printer:build_planned_pkg_set(Plan, Set) :-
+  empty_assoc(Empty),
+  foldl(printer:build_planned_pkg_set_step, Plan, Empty, Set).
+
+printer:build_planned_pkg_set_step(Step, In, Out) :-
+  foldl(printer:build_planned_pkg_set_rule, Step, In, Out).
+
+printer:build_planned_pkg_set_rule(Rule, In, Out) :-
+  ( Rule = rule(HeadWithCtx, _Body)
+  ; Rule = rule(assumed(HeadWithCtx), _Body)
+  ),
+  prover:canon_literal(HeadWithCtx, Head, _),
+  ( Head = Repo://Entry:Action,
+    ( Action == run ; Action == install ),
+    cache:ordered_entry(Repo, Entry, C, N, _),
+    Key = Action-C-N,
+    ( get_assoc(Key, In, true) -> Out = In ; put_assoc(Key, In, true, Out) )
+  ; Out = In
+  ),
+  !.
+printer:build_planned_pkg_set_rule(_Other, Set, Set).
+
+printer:planned_pkg(Action, C, N) :-
+  nb_current(printer_planned_pkg_set, Set),
+  get_assoc(Action-C-N, Set, true).
+
+printer:is_run_cycle_break(Content) :-
+  ( prover:canon_literal(Content, Core, _Ctx) -> true ; Core = Content ),
+  Core = _ : run.
+
+printer:print_cycle_break_detail(Content) :-
+  ( prover:canon_literal(Content, Core, _Ctx) -> true ; Core = Content ),
+  message:color(lightred),
+  message:style(bold),
+  message:print('- Cycle break: '),
+  message:style(normal),
+  message:color(normal),
+  nl,
+  message:print('  '),
+  message:print(Core),
+  nl.
 
 
 %! printer:print_steps_in_plan(+Target,+Plan,+Call,+Count,-NewCount)
@@ -2069,18 +2155,69 @@ printer:update_stats_clauses(_, S, S).
 
 %! printer:print_warnings(+ModelAVL, +ProofAVL, +TriggersAVL)
 %
-% Efficiently checks and prints assumptions using library predicates.
+% Prints assumptions found in the proof/model.
+%
+% There are two distinct assumption mechanisms in this codebase:
+%
+% - Domain (rules.pl) assumptions:
+%   A rule body may contain an `assumed(X)` literal to represent an unprovable
+%   domain fact (e.g. missing dependency). The prover then proves `assumed(X)`
+%   via `rule(assumed(_), [])`, resulting in a proof key of the shape:
+%     - `rule(assumed(X))`
+%
+% - Prover cycle-break assumptions:
+%   When the prover detects a circular proof, it breaks the loop by recording a
+%   special proof key of the shape:
+%     - `assumed(rule(X))`
+%   These are "cycle breaks" (not domain facts). The printer explains them using
+%   the Triggers graph to show a cycle path.
 
 printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
   once((assoc:gen_assoc(Key, ModelAVL, _), Key = assumed(_))),
   !,
   nl,
-  message:bubble(red,'Error'),
-  message:color(red),
-  message:print(' The proof for your build plan contains assumptions. Please verify:'), nl, nl,
-  message:color(red),
-  forall(assoc:gen_assoc(ProofKey, ProofAVL, _ProofValue),
-         (printer:handle_assumption(ProofKey, ProofAVL, TriggersAVL))
+  findall(Content, (assoc:gen_assoc(rule(assumed(Content)), ProofAVL, _)), DomainAssumptions0),
+  sort(DomainAssumptions0, DomainAssumptions),
+  findall(Content, (assoc:gen_assoc(assumed(rule(Content)), ProofAVL, _)), CycleAssumptions0),
+  sort(CycleAssumptions0, CycleAssumptions),
+  ( DomainAssumptions \= [] ->
+      message:bubble(red,'Error'),
+      message:color(red),
+      message:print(' The proof for your build plan contains domain assumptions. Please verify:'), nl, nl,
+      message:color(red)
+  ; CycleAssumptions \= [] ->
+      message:bubble(orange,'Warning'),
+      message:color(orange),
+      message:print(' The proof for your build plan contains cycle breaks. Please verify:'), nl, nl,
+      message:color(orange)
+  ; message:bubble(red,'Error'),
+    message:color(red),
+    message:print(' The proof for your build plan contains assumptions. Please verify:'), nl, nl,
+    message:color(red)
+  ),
+  ( DomainAssumptions \= [] ->
+      message:header('Domain assumptions'),
+      nl,
+      forall(member(Content, DomainAssumptions),
+             ( printer:print_assumption_detail(rule(Content, [])),
+               nl ))
+  ; true
+  ),
+  ( CycleAssumptions \= [] ->
+      message:header('Cycle breaks (prover)'),
+      nl,
+      forall(member(Content, CycleAssumptions),
+             ( ( printer:is_run_cycle_break(Content) ->
+                     message:color(darkgray),
+                     message:print('  (runtime SCC candidate)'), nl,
+                     message:color(normal)
+                 ; true
+               ),
+               printer:print_cycle_break_detail(Content),
+               printer:print_cycle_explanation(Content, TriggersAVL),
+               nl
+             ))
+  ; true
   ),
   nl,
   message:color(normal),nl.
@@ -2753,7 +2890,8 @@ printer:write_merge_file(Directory,Repository://Entry) :-
   Action = run,
   Extension = '.merge',
   (with_q(prover:prove(Repository://Entry:Action?{[]},t,Proof,t,Model,t,_Constraints,t,Triggers)),
-   with_q(planner:plan(Proof,Triggers,t,Plan)),
+   with_q(planner:plan(Proof,Triggers,t,Plan0,Remainder0)),
+   with_q(scheduler:schedule(Proof,Triggers,Plan0,Remainder0,Plan,_Remainder)),
    atomic_list_concat([Directory,'/',Entry,Extension],File)),
   (tell(File),
    set_stream(current_output,tty(true)), % otherwise we lose color
@@ -2771,7 +2909,8 @@ printer:write_fetchonly_file(Directory,Repository://Entry) :-
   Action = fetchonly,
   Extension = '.fetchonly',
   (with_q(prover:prove(Repository://Entry:Action?{[]},t,Proof,t,Model,t,_Constraints,t,Triggers)),
-   with_q(planner:plan(Proof,Triggers,t,Plan)),
+   with_q(planner:plan(Proof,Triggers,t,Plan0,Remainder0)),
+   with_q(scheduler:schedule(Proof,Triggers,Plan0,Remainder0,Plan,_Remainder)),
    atomic_list_concat([Directory,'/',Entry,Extension],File)),
   (tell(File),
    set_stream(current_output,tty(true)), % otherwise we lose color
@@ -2891,7 +3030,8 @@ printer:test(Repository,Style) :-
               ( % --- REFACTORED LOGIC ---
                 % 1. Call prover and planner.
                 with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
-                with_q(planner:plan(ProofAVL,Triggers,t,Plan))
+                with_q(planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0)),
+                with_q(scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder))
                 % No conversion here! AVLs are kept as-is.
               ),
               % 2. Call the newly refactored print predicate.
@@ -2926,7 +3066,8 @@ printer:test_latest(Repository,Style) :-
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
               ( % --- REFACTORED LOGIC ---
                 with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
-                with_q(planner:plan(ProofAVL,Triggers,t,Plan))
+                with_q(planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0)),
+                with_q(scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder))
               ),
               ( printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, false),
                 printer:test_stats_set_current_entry(Repository://Entry),

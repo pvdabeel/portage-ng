@@ -177,7 +177,8 @@ test:run_single_case(Repo://Id:Action?{Context}) :-
   prover:prove(Repo://Id:Action?{Context},t,Proof,t,Model,t,Constraints,t,Triggers),
   with_output_to(Stream,
        ((writeln(Repo://Id:Action?{Context}),
-         planner:plan(Proof,Triggers,t,Plan),
+         planner:plan(Proof,Triggers,t,Plan0,Remainder0),
+         scheduler:schedule(Proof,Triggers,Plan0,Remainder0,Plan,_Remainder),
          (   test:is_success(Repo://Id:Action?{Context},Proof,Plan,Model,Triggers)
          ->  true
          ;   (writeln('Validation failed: is_success/5 returned false'), fail)

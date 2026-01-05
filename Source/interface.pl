@@ -275,13 +275,15 @@ interface:process_action(Action,ArgsSets,_Options) :-
   (Mode == 'client' ->
     (client:rpc_execute(Host,Port,
      (oracle:with_q(prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
-      oracle:with_q(planner:plan(ProofAVL,Triggers,t,Plan)),
+      oracle:with_q(planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0)),
+      oracle:with_q(scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder)),
       printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
       pkg:sync),
      Output),
      writeln(Output));
     (prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers),
-     planner:plan(ProofAVL,Triggers,t,Plan),
+     planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0),
+     scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder),
      printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
      pkg:sync )),
   \+preference:flag(oneshot)

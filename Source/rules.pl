@@ -678,6 +678,10 @@ rule(blocking(Use),[assumed(minus(Use)),naf(required(Use))]) :-
 
 % Assumptions:
 
+% Domain-level assumption: rules can emit `assumed(X)` in a body to represent an
+% unprovable domain fact (e.g. missing dependency or conflict resolution).
+% The prover will prove such literals via this rule, and store them in the proof
+% as `rule(assumed(X))` (distinct from prover cycle-break keys `assumed(rule(X))`).
 rule(assumed(_),[]) :- !.
 
 

@@ -26,13 +26,26 @@ traversing the ProofAVL directly and fetches rule details from the ProofAVL
 % Creates a plan based on a Proof.
 
 planner:plan(ProofAVL, TriggersAVL, PlannedHeadsIn, EnrichedPlan) :-
-    plan_init_from_proof(ProofAVL, PlannedHeadsIn, DepCounts, ReadyQueue),
-    (   ReadyQueue \= [] ->
-        update_planned_set(ReadyQueue, PlannedHeadsIn, PlannedHeadsInit),
-        plan_loop([ReadyQueue], DepCounts, TriggersAVL, ProofAVL, PlannedHeadsInit, [], RevEnrichedPlan),
+    planner:plan(ProofAVL, TriggersAVL, PlannedHeadsIn, EnrichedPlan, _RemainderRules).
+
+
+%! planner:plan(+ProofAVL, +TriggersAVL, +PlannedHeadsIn, -EnrichedPlan, -RemainderRules)
+%
+% Like `planner:plan/4`, but also returns `RemainderRules`: rules whose heads
+% could not be scheduled by the wave planner (typically due to cycles).
+%
+planner:plan(ProofAVL, TriggersAVL, PlannedHeadsIn, EnrichedPlan, RemainderRules) :-
+    plan_init_from_proof(ProofAVL, PlannedHeadsIn, DepCounts0, ReadyQueue0),
+    (   ReadyQueue0 \= [] ->
+        update_planned_set(ReadyQueue0, PlannedHeadsIn, PlannedHeadsInit),
+        plan_loop([ReadyQueue0], DepCounts0, TriggersAVL, ProofAVL, PlannedHeadsInit,
+                  [], RevEnrichedPlan, DepCounts, PlannedHeadsFinal),
         reverse(RevEnrichedPlan, EnrichedPlan)
-    ;   EnrichedPlan = []
-    ).
+    ;   EnrichedPlan = [],
+        DepCounts = DepCounts0,
+        PlannedHeadsFinal = PlannedHeadsIn
+    ),
+    planner:collect_remainder(DepCounts, PlannedHeadsFinal, ProofAVL, RemainderRules).
 
 
 %! planner:update_planned_set(+Rules, +SetIn, -SetOut)
@@ -66,24 +79,39 @@ planner:plan_init_from_proof(ProofAVL, PlannedHeadsAVL, DepCounts, ReadyQueue) :
         AllRules
     ),
     empty_assoc(EmptyCounts),
-    build_depcounts_and_ready(AllRules, PlannedHeadsAVL, EmptyCounts, DepCounts, [], ReadyQueue).
+    build_depcounts_and_ready(AllRules, PlannedHeadsAVL, ProofAVL, EmptyCounts, DepCounts, [], ReadyQueue).
 
 
-%! planner:build_depcounts_and_ready(+Rules, +PlannedHeads, +InCounts, -OutCounts, +InReady, -OutReady)
+%! planner:build_depcounts_and_ready(+Rules, +PlannedHeads, +ProofAVL, +InCounts, -OutCounts, +InReady, -OutReady)
 %
 % Builds dependency counts and ready queue.
 
-planner:build_depcounts_and_ready([], _, DepCounts, DepCounts, ReadyQueue, ReadyQueue).
-planner:build_depcounts_and_ready([Rule|Rest], PlannedHeads, InCounts, OutCounts, InReady, OutReady) :-
-    ( Rule = rule(HeadWithCtx, Body) ; Rule = assumed(rule(HeadWithCtx, Body)) ; Rule = rule(assumed(HeadWithCtx), Body) ),
+planner:build_depcounts_and_ready([], _, _ProofAVL, DepCounts, DepCounts, ReadyQueue, ReadyQueue).
+planner:build_depcounts_and_ready([Rule|Rest], PlannedHeads, ProofAVL, InCounts, OutCounts, InReady, OutReady) :-
+    ( Rule = rule(HeadWithCtx, Body)
+    ; Rule = assumed(rule(HeadWithCtx, Body))
+    ; Rule = rule(assumed(HeadWithCtx), Body)
+    ),
     prover:canon_literal(HeadWithCtx, Head, _),
-    calculate_action_dependencies(Body, Count),
+    % If the prover inserted a cycle-break marker for this Head, we must treat
+    % the head as blocked in the planner (otherwise assoc traversal order can
+    % overwrite the "blocked" count and accidentally enqueue it).
+    (   get_assoc(assumed(rule(Head)), ProofAVL, _)
+    ->  Count = 1
+    ;   Rule = assumed(rule(_, _))
+    ->  % Prover-level cycle-break: never make this immediately ready.
+        % We still keep its body (stored in the proof) for downstream SCC logic.
+        Count = 1
+    ;   calculate_action_dependencies(Body, Count)
+    ),
     put_assoc(Head, InCounts, Count, MidCounts),
-    (   Count =:= 0, \+ get_assoc(Head, PlannedHeads, _)
+    (   Count =:= 0,
+        \+ get_assoc(Head, PlannedHeads, _),
+        \+ get_assoc(assumed(rule(Head)), ProofAVL, _)
     ->  MidReady = [Rule | InReady]
     ;   MidReady = InReady
     ),
-    build_depcounts_and_ready(Rest, PlannedHeads, MidCounts, OutCounts, MidReady, OutReady).
+    build_depcounts_and_ready(Rest, PlannedHeads, ProofAVL, MidCounts, OutCounts, MidReady, OutReady).
 
 
 %! planner:calculate_action_dependencies(+Body, -Count)
@@ -96,16 +124,38 @@ planner:calculate_action_dependencies([Dep|Rest], Count) :-
     (   prover:is_constraint(Dep) -> Count = RestCount ; Count is RestCount + 1 ).
 
 
-%! planner:plan_loop(+Queues, +Counts, +Triggers, +ProofAVL, +Planned, +Plan, -FinalPlan)
+%! planner:plan_loop(+Queues, +Counts, +Triggers, +ProofAVL, +Planned, +Plan,
+%!                   -FinalPlan, -FinalCounts, -FinalPlanned)
 %
 % Main planning loop.
 
-planner:plan_loop([], _, _, _, _, FinalPlan, FinalPlan) :- !.
-planner:plan_loop([[]|RestQueues], C, T, Proof, P, Cur, Fin) :- !, planner:plan_loop(RestQueues, C, T, Proof, P, Cur, Fin).
-planner:plan_loop([ReadyQueue|RestQueues], InCounts, Triggers, ProofAVL, InPlanned, InPlan, FinalPlan) :-
+planner:plan_loop([], Counts, _Triggers, _ProofAVL, Planned, FinalPlan, FinalPlan, Counts, Planned) :- !.
+planner:plan_loop([[]|RestQueues], C, T, Proof, P, Cur, Fin, FinalCounts, FinalPlanned) :-
+    !,
+    planner:plan_loop(RestQueues, C, T, Proof, P, Cur, Fin, FinalCounts, FinalPlanned).
+planner:plan_loop([ReadyQueue|RestQueues], InCounts, Triggers, ProofAVL, InPlanned, InPlan, FinalPlan, FinalCounts, FinalPlanned) :-
     OutPlan = [ReadyQueue | InPlan],
     process_wave(ReadyQueue, InCounts, Triggers, ProofAVL, InPlanned, OutPlanned, OutCounts, NextReadyQueue),
-    plan_loop([NextReadyQueue|RestQueues], OutCounts, Triggers, ProofAVL, OutPlanned, OutPlan, FinalPlan).
+    plan_loop([NextReadyQueue|RestQueues], OutCounts, Triggers, ProofAVL, OutPlanned, OutPlan, FinalPlan, FinalCounts, FinalPlanned).
+
+
+%! planner:collect_remainder(+DepCounts, +PlannedHeads, +ProofAVL, -RemainderRules)
+%
+% Collect all rules whose dependency count never reached zero.
+%
+planner:collect_remainder(DepCounts, PlannedHeads, ProofAVL, RemainderRules) :-
+    findall(Head,
+            ( assoc:gen_assoc(Head, DepCounts, Count),
+              Count > 0,
+              \+ get_assoc(Head, PlannedHeads, _)
+            ),
+            Heads0),
+    sort(Heads0, Heads),
+    findall(Rule,
+            ( member(H, Heads),
+              planner:get_full_rule_from_proof(H, ProofAVL, Rule)
+            ),
+            RemainderRules).
 
 
 %! planner:process_wave(+ReadyQueue, +InCounts, +Triggers, +ProofAVL, +InPlanned, -OutPlanned, -OutCounts, -NextReadyQueue)
@@ -138,26 +188,32 @@ planner:process_proven_rule(Triggers, ProofAVL, ProvenRule, InState, OutState) :
 planner:decrement_and_enqueue(ProofAVL, DependentLiteral, InState, OutState) :-
     InState = state(InCounts, InNextReady, InPlanned),
     prover:canon_literal(DependentLiteral, NormalizedLiteral, _),
-    (   get_assoc(NormalizedLiteral, InCounts, OldCount), OldCount > 0 ->
-        NewCount is OldCount - 1,
-        put_assoc(NormalizedLiteral, InCounts, NewCount, OutCounts),
-        (   NewCount =:= 0, \+ get_assoc(NormalizedLiteral, InPlanned, _) ->
-            (   get_full_rule_from_proof(NormalizedLiteral, ProofAVL, FullDependentRule)
-            ->  OutNextReady = [FullDependentRule | InNextReady],
-                put_assoc(NormalizedLiteral, InPlanned, true, OutPlanned)
-            ;
-                OutNextReady = InNextReady,
+    % If the prover inserted a cycle-break marker for this head, we keep it in
+    % the remainder for the scheduler: do NOT decrement to 0 and do NOT enqueue.
+    (   get_assoc(assumed(rule(NormalizedLiteral)), ProofAVL, _)
+    ->  OutState = InState
+    ;
+        (   get_assoc(NormalizedLiteral, InCounts, OldCount), OldCount > 0 ->
+            NewCount is OldCount - 1,
+            put_assoc(NormalizedLiteral, InCounts, NewCount, OutCounts),
+            (   NewCount =:= 0, \+ get_assoc(NormalizedLiteral, InPlanned, _) ->
+                (   get_full_rule_from_proof(NormalizedLiteral, ProofAVL, FullDependentRule)
+                ->  OutNextReady = [FullDependentRule | InNextReady],
+                    put_assoc(NormalizedLiteral, InPlanned, true, OutPlanned)
+                ;
+                    OutNextReady = InNextReady,
+                    OutPlanned = InPlanned
+                )
+            ;   OutNextReady = InNextReady,
                 OutPlanned = InPlanned
             )
-        ;   OutNextReady = InNextReady,
+        ;
+            OutCounts = InCounts,
+            OutNextReady = InNextReady,
             OutPlanned = InPlanned
-        )
-    ;
-        OutCounts = InCounts,
-        OutNextReady = InNextReady,
-        OutPlanned = InPlanned
-    ),
-    OutState = state(OutCounts, OutNextReady, OutPlanned).
+        ),
+        OutState = state(OutCounts, OutNextReady, OutPlanned)
+    ).
 
 
 %! planner:get_full_rule_from_proof(+Literal, +ProofAVL, -FullRule)
@@ -186,7 +242,7 @@ planner:test(Repository,Style) :-
   config:proving_target(Action),
   tester:test(Style, 'Planning', Repository://Entry, (Repository:entry(Entry)),
     ( with_q(prover:prove(Repository://Entry:Action?{[]},t,Proof,t,_Model,t,_Constraint,t,Triggers)),
-      with_q(planner:plan(Proof,Triggers,t,_Plan))
+      with_q(planner:plan(Proof,Triggers,t,_Plan,_Remainder))
     )).
 planner:test_latest(Repository) :- config:test_style(Style), planner:test_latest(Repository,Style).
 planner:test_latest(Repository,Style) :-
@@ -194,7 +250,7 @@ planner:test_latest(Repository,Style) :-
   tester:test(Style, 'Planning latest', Repository://Entry,
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
               ( with_q(prover:prove(Repository://Entry:Action?{[]},t,Proof,t,_Model,t,_Constraint,t,Triggers)),
-                    with_q(planner:plan(Proof,Triggers,t,_Plan))
+                    with_q(planner:plan(Proof,Triggers,t,_Plan,_Remainder))
               )).
 
 % -----------------------------------------------------------------------------
@@ -218,7 +274,7 @@ planner:test_stats(Repository, Style) :-
               Repository://Entry,
               (Repository:entry(Entry)),
               ( with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
-                with_q(planner:plan(ProofAVL,Triggers,t,_Plan)),
+                with_q(planner:plan(ProofAVL,Triggers,t,_Plan,_Remainder)),
                 printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
               )),
   printer:test_stats_print.

@@ -45,7 +45,7 @@ sandbox:safe_primitive(cache:manifest_metadata(_,_,_,_,_,_)).
 
 sandbox:safe_primitive(query:search(_,_)).
 sandbox:safe_primitive(query:apply_filters(_,_)).
-pandbox:safe_primitive(query:apply_filter(_,_)).
+sandbox:safe_primitive(query:apply_filter(_,_)).
 
 sandbox:safe_primitive(prover:prove(_,_,_,_,_,_,_,_,_)).
 sandbox:safe_primitive(prover:proven(_,_,_)).
@@ -60,6 +60,14 @@ sandbox:safe_primitive(prover:unify_constraints(_,_,_)).
 sandbox:safe_primitive(rules:rule(_,_)).
 
 sandbox:safe_primitive(planner:plan(_,_,_,_)).
+sandbox:safe_primitive(planner:plan(_,_,_,_,_)).
+sandbox:safe_primitive(scheduler:schedule(_,_,_,_,_,_)).
+sandbox:safe_primitive(scheduler:test(_)).
+sandbox:safe_primitive(scheduler:test(_,_)).
+sandbox:safe_primitive(scheduler:test_latest(_)).
+sandbox:safe_primitive(scheduler:test_latest(_,_)).
+sandbox:safe_primitive(scheduler:test_stats(_)).
+sandbox:safe_primitive(scheduler:test_stats(_,_)).
 
 sandbox:safe_primitive(message:title(_)).
 sandbox:safe_primitive(message:title_reset).

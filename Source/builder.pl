@@ -217,7 +217,7 @@ builder:test(Repository) :-
                                              stats:percentage(P),
  	                                     nl,message:topheader(['[',P,'] - Executing plan for ',Repository://E:Action]),
                                              prover:prove(Repository://E:Action,[],Proof,[],_Model,[],_Constraints,[],_),
-			                     planner:plan(Proof,[],[],_Plan),!)),
+			                     planner:plan(Proof,[],[],_Plan,_Remainder),!)),
                                              %builder:execute(Repository://E:Action,Model,Proof,Plan))),
                      time_limit_exceeded,
                      assertz(builder:broken(Repository://E)));

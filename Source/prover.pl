@@ -211,7 +211,21 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
           %writeln('PROVER: circular proof, taking assumption'),
           %message:color(normal),
 
-          put_assoc(assumed(rule(Lit)), Proof, dep(0, [])?Ctx, NewProof),
+          % Cycle-break mechanism:
+          % - In the Proof: record a special key `assumed(rule(Lit))`
+          % - In the Model: record `assumed(Lit)`
+          %
+          % This is distinct from domain-level assumptions introduced by rules
+          % via the literal `assumed(X)` (which are proven by `rule(assumed(_), [])`
+          % and stored under `rule(assumed(X))` in the proof).
+          % Store the *current* body of the in-progress rule so downstream
+          % planning/SCC logic can still see the cycle edges. Mark the depcount
+          % as -1 to indicate "deferred / cyclic".
+          ( get_assoc(rule(Lit), Proof, dep(_OldCount, OldBody)?_OldCtx)
+            -> BodyForPlanning = OldBody
+            ;  BodyForPlanning = []
+          ),
+          put_assoc(assumed(rule(Lit)), Proof, dep(-1, BodyForPlanning)?Ctx, NewProof),
           put_assoc(assumed(Lit), Model, Ctx, NewModel),
           NewConstraints = Constraints,
           NewTriggers = Triggers
@@ -314,7 +328,9 @@ prover:add_trigger(Head, Dep, InTriggers, OutTriggers) :-
 % =============================================================================
 
 prover:proving(rule(Lit, Body), Proof) :- get_assoc(rule(Lit),Proof,dep(_, Body)?_).
-prover:assumed_proving(Lit, Proof) :- get_assoc(assumed(rule(Lit)),Proof,dep(0, [])?_).
+% "Assumed proving" is our prover-level cycle-break marker. Historically this
+% used dep(0,[]); we now use dep(-1,Body) but keep the predicate robust.
+prover:assumed_proving(Lit, Proof) :- get_assoc(assumed(rule(Lit)),Proof,dep(_Count, _Body)?_).
 prover:proven(Lit, Model, Ctx) :- get_assoc(Lit,Model,Ctx).
 prover:assumed_proven(Lit, Model) :- get_assoc(assumed(Lit), Model, _).
 
