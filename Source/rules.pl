@@ -80,7 +80,8 @@ rule(Repository://Ebuild:fetchonly?{Context},Conditions) :- % todo: to update in
 
   % 4. Compute + memoize dependency model, already grouped by package Category & Name.
 
-  query:memoized_search(model(dependency(MergedDeps,fetchonly)):config?{Model},Repository://Ebuild),
+  query:memoized_search(model(dependency(MergedDeps0,fetchonly)):config?{Model},Repository://Ebuild),
+  add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
 
   % 5. Pass on relevant package dependencies and constraints to prover
 
@@ -142,7 +143,8 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
 
   % 4. Compute + memoize dependency model, already grouped by package Category & Name.
 
-  query:memoized_search(model(dependency(MergedDeps,install)):config?{Model},Repository://Ebuild),
+  query:memoized_search(model(dependency(MergedDeps0,install)):config?{Model},Repository://Ebuild),
+  add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
 
   % 5. Pass on relevant package dependencies and constraints to prover
 
@@ -201,7 +203,8 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
 
   % 4. Compute + memoize dependency model, already grouped by package Category & Name.
 
-  query:memoized_search(model(dependency(MergedDeps,run)):config?{Model},Repository://Ebuild),
+  query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model},Repository://Ebuild),
+  add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
 
   % 5. Pass on relevant package dependencies and constraints to prover
 
@@ -328,6 +331,27 @@ rule(package_dependency(_,no,C,N,_,_,_,_):_?{_}, []) :-
 
 % package dependency rules for dependency model creation
 
+% In config-phase dependency model construction, package deps normally do not
+% generate further conditions. However, for self-hosting dependencies (a package
+% depending on itself to build/install), we must ensure the dependency is actually
+% satisfiable *without* selecting the current ebuild (unless already installed).
+% This allows any_of_group to backtrack to bootstrap alternatives (e.g. go vs
+% go-bootstrap) during model construction, before the model is memoized.
+rule(package_dependency(Phase,no,C,N,O,V,S,_U):config?{Context},[]) :-
+  ( memberchk(self(SelfRepo://SelfEntry), Context),
+    cache:ordered_entry(SelfRepo, SelfEntry, C, N, _),
+    Phase \== run,
+    \+ preference:flag(emptytree)
+  ->
+    preference:accept_keywords(K),
+    ( memberchk(slot(C,N,Ss):{_}, Context) -> true ; Ss = _ ),
+    query:search([name(N),category(C),keyword(K),installed(true),
+                  select(version,O,V),select(slot,constraint(S),Ss)],
+                 _FoundRepo//Candidate),
+    Candidate = Candidate
+  ; true
+  ),
+  !.
 rule(package_dependency(_,_,_,_,_,_,_,_):config?{_},[]) :- !.
 rule(package_dependency(_,no,_,_,_,_,_,_),[]) :- !.
 
@@ -354,29 +378,65 @@ rule(grouped_package_dependency(strong,_,_,_):_?{_},[]) :- !.
 
 rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions) :-
   !,
-  ( % IF: The package is already installed and we are not doing a full tree build...
-    ((\+(preference:flag(emptytree)),
-      cache:ordered_entry(Repository, Ebuild, C, N, _),
-      cache:entry_metadata(Repository, Ebuild, installed, true));
-      % OR : We are doing a full tree build and the package is a core package
-     (preference:flag(emptytree),
-      core_pkg(C,N)))
+  % Self-dependency at runtime is trivially satisfied: once the package is built,
+  % it provides itself. Treat this generically to avoid hard failures on packages
+  % that (redundantly) list themselves in RDEPEND.
+  ( Action == run,
+    memberchk(self(SelfRepo://SelfEntry), Context),
+    cache:ordered_entry(SelfRepo, SelfEntry, C, N, _)
   ->
-    % THEN: Succeed immediately with no further conditions.
     !,
-    Conditions = [] % todo: check build_with_use requirements here
+    Conditions = []
+  ; % ELSE:
+    ( % IF: The package is already installed and we are not doing a full tree build...
+      ((\+(preference:flag(emptytree)),
+        cache:ordered_entry(Repository, Ebuild, C, N, _),
+        cache:entry_metadata(Repository, Ebuild, installed, true));
+        % OR : We are doing a full tree build and the package is a core package
+       (preference:flag(emptytree),
+        core_pkg(C,N)))
+    ->
+      % THEN: Succeed immediately with no further conditions.
+      !,
+      Conditions = [] % todo: check build_with_use requirements here
 
-  ; % ELSE: Proceed with the general resolution logic.
-    % package_dependency(_,no,C,N,O,V,S,U):Action?{Context}
+    ; % ELSE: Proceed with the general resolution logic.
+      % package_dependency(_,no,C,N,O,V,S,U):Action?{Context}
 
-    (
-      ( preference:accept_keywords(K),
-        (memberchk(slot(C,N,Ss):{_}, Context) -> true ; true),
+      (
+        ( preference:accept_keywords(K),
+          (memberchk(slot(C,N,Ss):{_}, Context) -> true ; true),
 
         % Preserve/merge slot restriction(s) from grouped deps.
         merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
 
-        query:search([name(N),category(C),keyword(K),select(slot,constraint(SlotReq),Ss)], FoundRepo://Candidate), % macro-expanded
+        % If this is a self-hosting dependency (same C/N as current self), then for
+        % non-run actions we only allow satisfaction by an already installed candidate.
+        % Search installed candidates up-front to avoid scanning all versions.
+        ( Action \== run,
+          memberchk(self(SelfRepo0://SelfEntry0), Context),
+          cache:ordered_entry(SelfRepo0, SelfEntry0, C, N, _)
+        ->
+          \+ preference:flag(emptytree),
+          query:search([name(N),category(C),keyword(K),installed(true),select(slot,constraint(SlotReq),Ss)], FoundRepo://Candidate)
+        ; query:search([name(N),category(C),keyword(K),select(slot,constraint(SlotReq),Ss)], FoundRepo://Candidate)
+        ), % macro-expanded
+        % For dependencies on the same package as the current "self", only allow
+        % satisfaction by an already-installed candidate. This prevents bootstrap
+        % loops (e.g. compilers depending on themselves) while still preferring an
+        % installed toolchain when present.
+        true,
+        % Reject trivial self-resolution unless the candidate is already installed.
+        % This allows "prefer installed toolchain" but prevents "install X depends on install X".
+        ( ( memberchk(self(_SelfRepo://SelfEntry), Context)
+          ; memberchk(slot(C,N,_SelfSlot):{SelfEntry}, Context)
+          ),
+          Candidate == SelfEntry
+        ->
+          \+ preference:flag(emptytree),
+          cache:entry_metadata(FoundRepo, Candidate, installed, true)
+        ; true
+        ),
         % Check that *all* version constraints in the grouped deps are satisfied by
         % this Candidate. Using per-constraint query calls allows goal_expansion
         % to inline the query for performance, and avoids building an intermediate list.
@@ -397,6 +457,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
 
     ; % ELSE: If no candidate can be found, assume it's non-existent.
       Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps):Action?{Context})] % todo: fail
+      )
     )
   ).
 
@@ -511,13 +572,17 @@ rule(at_most_one_of_group(Deps),[D|NafDeps]) :-
 % -----------------------------------------------------------------------------
 % One dependency of an any_of_group should be satisfied
 
-rule(any_of_group(Deps):Action?{Context},[D:Action?{Context}]) :-
+rule(any_of_group(Deps):Action?{Context}, Conditions) :-
   prioritize_deps(Deps, SortedDeps),
-  member(D, SortedDeps).
+  member(D, SortedDeps),
+  rule(D:Action?{Context}, Conditions),
+  !.
 
-rule(any_of_group(Deps),[D]) :-
+rule(any_of_group(Deps), Conditions) :-
   prioritize_deps(Deps, SortedDeps),
-  member(D, SortedDeps).
+  member(D, SortedDeps),
+  rule(D, Conditions),
+  !.
 
 
 % -----------------------------------------------------------------------------
@@ -688,6 +753,25 @@ is_preferred_dep(required(Use)) :-
   preference:use(Use).
 is_preferred_dep(required(minus(Use))) :-
   preference:use(minus(Use)).
+
+% -----------------------------------------------------------------------------
+%  Helper: add_self_to_dep_contexts
+% -----------------------------------------------------------------------------
+% Annotate dependency literals with provenance of the "current ebuild" so that
+% downstream dependency-resolution rules can make safe choices (e.g. avoid
+% resolving a dependency to the current ebuild unless it is already installed),
+% without polluting memoized model keys.
+
+add_self_to_dep_contexts(_Self, [], []) :- !.
+add_self_to_dep_contexts(Self, [D0|Rest0], [D|Rest]) :-
+  ( D0 = Term:Action?{Ctx} ->
+      ( memberchk(self(Self), Ctx) ->
+          D = D0
+      ; D = Term:Action?{[self(Self)|Ctx]}
+      )
+  ; D = D0
+  ),
+  add_self_to_dep_contexts(Self, Rest0, Rest).
 
 % -----------------------------------------------------------------------------
 %  Rule: Core packages

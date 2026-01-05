@@ -620,9 +620,11 @@ compile_query_compound(model(dependency(Model,run)):config?{Context}, Repo://Id,
           ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
           Deps),
   prover:prove_recursive(Deps,t,_,t,AvlModel,t,_,t,_),
-  findall(Fact:run?{[]},
-          (gen_assoc(Fact:_,AvlModel,_),
-           Fact =.. [package_dependency|_]),
+  findall(Fact:run?{CtxOut},
+          ( gen_assoc(Fact:_,AvlModel,CtxIn),
+            Fact =.. [package_dependency|_],
+            ( CtxIn == {} -> CtxOut = [] ; CtxOut = CtxIn )
+          ),
           Model) ) ) :- !.
 
 compile_query_compound(model(dependency(Model,install)):config?{Context}, Repo://Id,
@@ -632,9 +634,11 @@ compile_query_compound(model(dependency(Model,install)):config?{Context}, Repo:/
           ; cache:entry_metadata(Repo,Id,depend,Dep) ),
           Deps),
   prover:prove_recursive(Deps,t,_,t,AvlModel,t,_,t,_),
-  findall(Fact:install?{[]},
-           (gen_assoc(Fact:_,AvlModel,_),
-            Fact =.. [package_dependency|_]),
+  findall(Fact:install?{CtxOut},
+           ( gen_assoc(Fact:_,AvlModel,CtxIn),
+             Fact =.. [package_dependency|_],
+             ( CtxIn == {} -> CtxOut = [] ; CtxOut = CtxIn )
+           ),
           Model) ) ) :- !.
 
 compile_query_compound(model(dependency(Model,fetchonly)):config?{Context}, Repo://Id,
@@ -646,9 +650,11 @@ compile_query_compound(model(dependency(Model,fetchonly)):config?{Context}, Repo
           ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
           Deps),
   prover:prove_recursive(Deps,t,_,t,AvlModel,t,_,t,_),
-  findall(Fact:fetchonly?{Context},
-          (gen_assoc(Fact:_,AvlModel,_),
-           Fact =.. [package_dependency|_]),
+  findall(Fact:fetchonly?{CtxOut},
+          ( gen_assoc(Fact:_,AvlModel,CtxIn),
+            Fact =.. [package_dependency|_],
+            ( CtxIn == {} -> CtxOut = [] ; CtxOut = CtxIn )
+          ),
           Model) ) ) :- !.
 
 
@@ -1105,7 +1111,11 @@ memoized_search(model(dependency(Merged,install)):config?{R}, Repository://Ebuil
   !,
   ( cache:memo_model(Repository, Ebuild, install_grouped?{R}, Merged)
     ->  true
-    ;   query:search(model(dependency(D0,install)):config?{R},Repository://Ebuild),
+    ;   ( memberchk(self(Repository://Ebuild), R)
+          -> RSearch = R
+          ;  RSearch = [self(Repository://Ebuild)|R]
+        ),
+        query:search(model(dependency(D0,install)):config?{RSearch},Repository://Ebuild),
         group_dependencies(D0, Merged),
         assertz(cache:memo_model(Repository, Ebuild, install_grouped?{R}, Merged))
   ).
@@ -1114,7 +1124,11 @@ memoized_search(model(dependency(Merged,run)):config?{R}, Repository://Ebuild) :
   !,
   ( cache:memo_model(Repository, Ebuild, run_grouped?{R}, Merged)
     ->  true
-    ;   query:search(model(dependency(D0,run)):config?{R},Repository://Ebuild),
+    ;   ( memberchk(self(Repository://Ebuild), R)
+          -> RSearch = R
+          ;  RSearch = [self(Repository://Ebuild)|R]
+        ),
+        query:search(model(dependency(D0,run)):config?{RSearch},Repository://Ebuild),
         group_dependencies(D0, Merged),
         assertz(cache:memo_model(Repository, Ebuild, run_grouped?{R}, Merged))
   ).
@@ -1123,7 +1137,11 @@ memoized_search(model(dependency(Merged,fetchonly)):config?{R}, Repository://Ebu
   !,
   ( cache:memo_model(Repository, Ebuild, fetchonly_grouped?{R}, Merged)
     ->  true
-    ;   query:search(model(dependency(D0,fetchonly)):config?{R},Repository://Ebuild),
+    ;   ( memberchk(self(Repository://Ebuild), R)
+          -> RSearch = R
+          ;  RSearch = [self(Repository://Ebuild)|R]
+        ),
+        query:search(model(dependency(D0,fetchonly)):config?{RSearch},Repository://Ebuild),
         group_dependencies(D0, Merged),
         assertz(cache:memo_model(Repository, Ebuild, fetchonly_grouped?{R}, Merged))
   ).
