@@ -26,6 +26,8 @@ The Printer takes a plan from the Planner and pretty prints it.
 :- dynamic printer:test_stats_type/3.
 :- dynamic printer:test_stats_cycle_mention/2.
 :- dynamic printer:test_stats_entry_had_cycle/1.
+:- dynamic printer:test_stats_other_head/2.
+:- dynamic printer:test_stats_pkg/3.
 
 printer:test_stats_reset(Label, ExpectedTotal) :-
   with_mutex(test_stats,
@@ -33,13 +35,37 @@ printer:test_stats_reset(Label, ExpectedTotal) :-
       retractall(printer:test_stats_type(_,_,_)),
       retractall(printer:test_stats_cycle_mention(_,_)),
       retractall(printer:test_stats_entry_had_cycle(_)),
+      retractall(printer:test_stats_other_head(_,_)),
+      retractall(printer:test_stats_pkg(_,_,_)),
       assertz(printer:test_stats_stat(label, Label)),
       assertz(printer:test_stats_stat(expected_total, ExpectedTotal)),
+      assertz(printer:test_stats_stat(expected_unique_packages, 0)),
       assertz(printer:test_stats_stat(processed, 0)),
       assertz(printer:test_stats_stat(entries_with_assumptions, 0)),
+      assertz(printer:test_stats_stat(entries_with_package_assumptions, 0)),
       assertz(printer:test_stats_stat(entries_with_cycles, 0)),
       assertz(printer:test_stats_stat(cycles_found, 0))
     )).
+
+printer:test_stats_set_expected_unique_packages(N) :-
+  with_mutex(test_stats,
+    ( retractall(printer:test_stats_stat(expected_unique_packages,_)),
+      assertz(printer:test_stats_stat(expected_unique_packages, N))
+    )).
+
+printer:test_stats_add_pkg(Bucket, Repo, Entry) :-
+  ( cache:ordered_entry(Repo, Entry, C, N, _) ->
+      with_mutex(test_stats,
+        ( printer:test_stats_pkg(Bucket, C, N) -> true
+        ; assertz(printer:test_stats_pkg(Bucket, C, N))
+        ))
+  ; true
+  ).
+
+printer:test_stats_unique_pkg_count(Bucket, Count) :-
+  findall(C-N, printer:test_stats_pkg(Bucket, C, N), Pairs0),
+  sort(Pairs0, Pairs),
+  length(Pairs, Count).
 
 printer:test_stats_set_current_entry(RepositoryEntry) :-
   nb_setval(test_stats_current_entry, RepositoryEntry).
@@ -81,11 +107,19 @@ printer:test_stats_note_cycle_for_current_entry :-
           N is N0 + 1,
           assertz(printer:test_stats_stat(entries_with_cycles, N))
         ))
+      ,
+      ( RepoEntry = Repo://Entry -> printer:test_stats_add_pkg(with_cycles, Repo, Entry) ; true )
   ; true
   ).
 
 printer:assumption_content_from_proof_key(rule(assumed(Content)), Content) :- !.
 printer:assumption_content_from_proof_key(assumed(rule(Content)), Content) :- !.
+
+printer:assumption_normalize(Content0, Content) :-
+  ( prover:canon_literal(Content0, Core, _Ctx) ->
+      Content = Core
+  ; Content = Content0
+  ).
 
 printer:assumption_type(package_dependency(_,_,_,_,_,_,_,_):_, non_existent_dependency) :- !.
 printer:assumption_type(grouped_package_dependency(_,_,_):_,              non_existent_dependency) :- !.
@@ -97,24 +131,65 @@ printer:assumption_type(grouped_package_dependency(_,_,_,_):install?{_},   assum
 printer:assumption_type(grouped_package_dependency(_,_,_,_):run?{_},       assumed_running) :- !.
 printer:assumption_type(grouped_package_dependency(_,_,_,_):install,       assumed_installed) :- !.
 printer:assumption_type(grouped_package_dependency(_,_,_,_):run,           assumed_running) :- !.
+printer:assumption_type(required(_),                                        use_requirement_cycle) :- !.
+printer:assumption_type(blocking(_),                                        use_requirement_cycle) :- !.
+printer:assumption_type(use_conditional_group(_,_,_,_),                     use_conditional_cycle) :- !.
+printer:assumption_type(any_of_group(_),                                    dependency_group_cycle) :- !.
+printer:assumption_type(all_of_group(_),                                    dependency_group_cycle) :- !.
+printer:assumption_type(exactly_one_of_group(_),                            dependency_group_cycle) :- !.
+printer:assumption_type(at_most_one_of_group(_),                            dependency_group_cycle) :- !.
+printer:assumption_type(naf(_),                                             naf_cycle) :- !.
 printer:assumption_type(_,                                                 other).
+
+printer:assumption_is_package_level(_://_:install) :- !.
+printer:assumption_is_package_level(_://_:run) :- !.
+printer:assumption_is_package_level(_://_:fetchonly) :- !.
+printer:assumption_is_package_level(_://_:unmask) :- !.
+printer:assumption_is_package_level(grouped_package_dependency(_,_,_,_):_) :- !.
+printer:assumption_is_package_level(package_dependency(_,_,_,_,_,_,_,_):_) :- !.
+
+printer:assumption_head_key(Content, Key) :-
+  ( atomic(Content) ->
+      Key = Content
+  ; Content =.. [F|Args],
+    length(Args, A),
+    format(atom(Key), '~w/~d', [F, A])
+  ).
+
+printer:test_stats_inc_other_head(Content) :-
+  printer:assumption_head_key(Content, Key),
+  with_mutex(test_stats,
+    ( ( retract(printer:test_stats_other_head(Key, N0)) -> true ; N0 = 0 ),
+      N is N0 + 1,
+      assertz(printer:test_stats_other_head(Key, N))
+    )).
 
 printer:test_stats_record_entry(RepositoryEntry, _ModelAVL, ProofAVL, TriggersAVL, DoCycles) :-
   printer:test_stats_inc(processed),
-  findall(Content,
+  ( RepositoryEntry = Repo://Entry -> printer:test_stats_add_pkg(processed, Repo, Entry) ; true ),
+  findall(ContentN,
           ( assoc:gen_assoc(ProofKey, ProofAVL, _),
-            printer:assumption_content_from_proof_key(ProofKey, Content)
+            printer:assumption_content_from_proof_key(ProofKey, Content0),
+            printer:assumption_normalize(Content0, ContentN)
           ),
           Contents0),
   ( Contents0 == [] ->
       true
   ; printer:test_stats_inc(entries_with_assumptions),
+    ( RepositoryEntry = Repo://Entry -> printer:test_stats_add_pkg(with_assumptions, Repo, Entry) ; true ),
+    ( once((member(C0, Contents0), printer:assumption_is_package_level(C0))) ->
+        printer:test_stats_inc(entries_with_package_assumptions),
+        ( RepositoryEntry = Repo://Entry -> printer:test_stats_add_pkg(with_package_assumptions, Repo, Entry) ; true )
+    ; true
+    ),
     findall(Type,
             ( member(Content, Contents0),
               printer:assumption_type(Content, Type),
               printer:test_stats_inc_type(Type, occurrences, 1)
             ),
             TypesAll),
+    forall((member(Content, Contents0), printer:assumption_type(Content, other)),
+           printer:test_stats_inc_other_head(Content)),
     sort(TypesAll, TypesUnique),
     forall(member(T, TypesUnique),
            printer:test_stats_inc_type(T, entries, 1))
@@ -160,36 +235,143 @@ printer:test_stats_percent(_, 0, 0.0) :- !.
 printer:test_stats_percent(Part, Total, Percent) :-
   Percent is (100.0 * Part) / Total.
 
+% -----------------------------------------------------------------------------
+%  Test stats table formatting helpers
+% -----------------------------------------------------------------------------
+
+printer:test_stats_table_width(100).
+
+printer:test_stats_rank_col_width(4).
+printer:test_stats_count_col_width(14).
+
+printer:test_stats_item_col_width(W) :-
+  printer:test_stats_table_width(TW),
+  printer:test_stats_rank_col_width(RW),
+  printer:test_stats_count_col_width(CW),
+  % "  " + rank(RW) + "  " + item + " " + count(CW)
+  W is max(10, TW - 2 - RW - 2 - 1 - CW).
+
+printer:test_stats_to_atom(Term, Atom) :-
+  ( atom(Term) -> Atom = Term
+  ; term_to_atom(Term, Atom)
+  ).
+
+printer:test_stats_fit_atom(Atom0, Width, Atom) :-
+  ( atom_length(Atom0, L), L =< Width ->
+      Atom = Atom0
+  ; Width =< 1 ->
+      Atom = '…'
+  ; Width =:= 2 ->
+      Atom = '…'
+  ; Width1 is Width - 1,
+    sub_atom(Atom0, 0, Width1, _After, Prefix),
+    atom_concat(Prefix, '…', Atom)
+  ).
+
+printer:test_stats_pad_right(Atom0, Width, Atom) :-
+  atom_length(Atom0, L),
+  ( L >= Width ->
+      Atom = Atom0
+  ; Pad is Width - L,
+    length(Cs, Pad),
+    maplist(=(' '), Cs),
+    atom_chars(PadAtom, Cs),
+    atom_concat(Atom0, PadAtom, Atom)
+  ).
+
+printer:test_stats_print_sep :-
+  printer:test_stats_table_width(W),
+  % Use * as "tab stop from argument" (avoid printing W).
+  format('  ~`-t~*|~n', [W]).
+
 printer:test_stats_print_kv_int(Label, Value) :-
-  format('~w~t~26|: ~d~n', [Label, Value]).
+  format('  ~w~t~30|: ~d~n', [Label, Value]).
 
 printer:test_stats_print_kv_int_percent(Label, Count, Total) :-
   printer:test_stats_percent(Count, Total, P),
-  format('~w~t~26|: ~d (~2f%)~n', [Label, Count, P]).
+  format('  ~w~t~30|: ~d (~2f%)~n', [Label, Count, P]).
+
+printer:test_stats_print_table_header :-
+  % Fixed-width table: keep all stats tables the same width.
+  % Columns (right-aligned): Ebuilds (12), Ebuild % (10), Pkgs (12), Pkg % (10)
+  format('  ~w~t~30| ~t~w~12+ ~t~w~10+ ~t~w~12+ ~t~w~10+~n',
+         ['Metric', 'Ebuilds', 'Ebuild %', 'Pkgs', 'Pkg %']),
+  printer:test_stats_print_sep.
+
+printer:test_stats_print_table_row(Label, ECount, ETotal, PCount, PTotal) :-
+  printer:test_stats_percent(ECount, ETotal, EP),
+  printer:test_stats_percent(PCount, PTotal, PP),
+  format(atom(EPAtom), '~2f %', [EP]),
+  format(atom(PPAtom), '~2f %', [PP]),
+  format('  ~w~t~30| ~t~d~12+ ~t~w~10+ ~t~d~12+ ~t~w~10+~n',
+         [Label, ECount, EPAtom, PCount, PPAtom]).
+
+printer:test_stats_print_assumption_types_table_header :-
+  format('  ~w~t~30| ~t~w~12+ ~t~w~10+ ~t~w~14+ ~t~w~10+~n',
+         ['Type', 'Ebuilds', 'Ebuild %', 'Occurrences', 'Occ %']),
+  printer:test_stats_print_sep.
+
+printer:test_stats_print_assumption_types_row(Type, ECount, ETotal, OCount, OTotal) :-
+  printer:test_stats_percent(ECount, ETotal, EP),
+  printer:test_stats_percent(OCount, OTotal, OP),
+  format(atom(EPAtom), '~2f %', [EP]),
+  format(atom(OPAtom), '~2f %', [OP]),
+  format('  ~w~t~30| ~t~d~12+ ~t~w~10+ ~t~d~14+ ~t~w~10+~n',
+         [Type, ECount, EPAtom, OCount, OPAtom]).
+
+printer:test_stats_print_ranked_table_header(Title, RightHeader) :-
+  nl,
+  message:header(Title),
+  printer:test_stats_item_col_width(ItemW),
+  printer:test_stats_count_col_width(CountW),
+  printer:test_stats_pad_right('Item', ItemW, ItemHdr),
+  format('  ~w~t~6| ~w ~t~w~*+~n', ['Rank', ItemHdr, RightHeader, CountW]),
+  printer:test_stats_print_sep.
+
+printer:test_stats_print_ranked_table_rows([], _Limit, _I, _W) :- !.
+printer:test_stats_print_ranked_table_rows(_, 0, _I, _W) :- !.
+printer:test_stats_print_ranked_table_rows([N-Item|Rest], Limit, I, W) :-
+  printer:test_stats_item_col_width(ItemW),
+  printer:test_stats_to_atom(Item, ItemAtom0),
+  printer:test_stats_fit_atom(ItemAtom0, ItemW, ItemAtom1),
+  printer:test_stats_pad_right(ItemAtom1, ItemW, ItemAtom),
+  printer:test_stats_count_col_width(CountW),
+  format('  ~t~d~4+  ~w ~t~d~*+~n', [I, ItemAtom, N, CountW]),
+  I1 is I + 1,
+  Limit1 is Limit - 1,
+  printer:test_stats_print_ranked_table_rows(Rest, Limit1, I1, W).
 
 printer:test_stats_print :-
   printer:test_stats_value(label, Label),
   printer:test_stats_value(expected_total, Expected),
+  printer:test_stats_value(expected_unique_packages, ExpectedPkgs),
   printer:test_stats_value(processed, Processed),
   printer:test_stats_value(entries_with_assumptions, WithAss),
+  printer:test_stats_value(entries_with_package_assumptions, WithPkgAss),
   printer:test_stats_value(entries_with_cycles, WithCycles),
   printer:test_stats_value(cycles_found, CyclesFound),
+  printer:test_stats_unique_pkg_count(processed, ProcessedPkgs),
+  printer:test_stats_unique_pkg_count(with_assumptions, WithAssPkgs),
+  printer:test_stats_unique_pkg_count(with_package_assumptions, WithPkgAssPkgs),
+  printer:test_stats_unique_pkg_count(with_cycles, WithCyclesPkgs),
   nl,
   message:header(['Test statistics (',Label,')']),
-  printer:test_stats_print_kv_int('Total entries', Expected),
-  printer:test_stats_print_kv_int_percent('Processed (succeeded)', Processed, Expected),
+  printer:test_stats_print_table_header,
+  printer:test_stats_print_table_row('Total', Expected, Expected, ExpectedPkgs, ExpectedPkgs),
+  printer:test_stats_print_table_row('Processed', Processed, Expected, ProcessedPkgs, ExpectedPkgs),
   ( Expected =\= Processed ->
-      format('~w~t~26|: ~d entries did not produce a plan/proof (failed/timeout).~n',
+      format('  ~w~t~30|: ~d entries did not produce a plan/proof (failed/timeout).~n',
              ['Note', Expected-Processed])
   ; true
   ),
   ( Processed > 0 ->
-      printer:test_stats_print_kv_int_percent('With assumptions', WithAss, Processed),
-      printer:test_stats_print_kv_int_percent('With cycles', WithCycles, Processed),
-      format('~w~t~26|: ~d (~2f per entry)~n', ['Cycles found', CyclesFound, CyclesFound/Processed])
-  ; printer:test_stats_print_kv_int('With assumptions', WithAss),
-    printer:test_stats_print_kv_int('With cycles', WithCycles),
-    printer:test_stats_print_kv_int('Cycles found', CyclesFound)
+      printer:test_stats_print_table_row('With assumptions', WithAss, Processed, WithAssPkgs, ProcessedPkgs),
+      printer:test_stats_print_table_row('With package assumptions', WithPkgAss, Processed, WithPkgAssPkgs, ProcessedPkgs),
+      printer:test_stats_print_table_row('With cycles', WithCycles, Processed, WithCyclesPkgs, ProcessedPkgs),
+      nl,
+      format('  ~w~t~30|: ~d total~n', ['Cycles found', CyclesFound]),
+      format('  ~w~t~30|: ~2f cycles per processed entry~n', ['Cycles per entry', CyclesFound/Processed])
+  ; true
   ),
   nl,
   message:header('Assumption types'),
@@ -201,25 +383,36 @@ printer:test_stats_print :-
   sort(Types0, Types),
   ( Types == [] ->
       writeln('  (none)')
-  ; forall(member(Type, Types),
+  ; printer:test_stats_print_assumption_types_table_header,
+    forall(member(Type, Types),
            ( ( printer:test_stats_type(Type, entries, E) -> true ; E = 0 ),
              ( printer:test_stats_type(Type, occurrences, O) -> true ; O = 0 ),
-             ( Processed > 0 -> printer:test_stats_percent(E, Processed, EP) ; EP = 0.0 ),
-             printer:test_stats_percent(O, TotalOccs, OP),
-             format('  ~w~t~26|: ~d entries (~2f%), ~d occurrences (~2f%)~n', [Type, E, EP, O, OP])
+             printer:test_stats_print_assumption_types_row(Type, E, Processed, O, TotalOccs)
            ))
+  ),
+  ( ( printer:test_stats_type(other, occurrences, OtherOcc), OtherOcc > 0 ) ->
+      nl,
+      message:header('Top 15 other assumption heads'),
+      findall(N-Key, printer:test_stats_other_head(Key, N), H0),
+      keysort(H0, HAsc),
+      reverse(HAsc, HSorted),
+      printer:test_stats_print_ranked_table_header('Top 15 other assumption heads', 'Count'),
+      printer:test_stats_table_width(W),
+      printer:test_stats_print_ranked_table_rows(HSorted, 15, 1, W)
+  ; true
   ),
   nl,
   ( config:test_stats_top_n(TopN) -> true ; TopN = 10 ),
   atomic_list_concat(['Top ',TopN,' cycle mentions'], Header),
-  message:header(Header),
+  printer:test_stats_print_ranked_table_header(Header, 'Mentions'),
   findall(N-RepoEntry, printer:test_stats_cycle_mention(RepoEntry, N), Pairs0),
   keysort(Pairs0, SortedAsc),
   reverse(SortedAsc, Sorted),
-  printer:test_stats_print_top_cycle_mentions(Sorted, TopN, 1).
+  printer:test_stats_table_width(W),
+  printer:test_stats_print_ranked_table_rows(Sorted, TopN, 1, W).
 
-printer:test_stats_print_top_cycle_mentions([], _Limit, _I) :- !,
-  writeln('  (none)').
+printer:test_stats_print_top_cycle_mentions([], _Limit, I) :- !,
+  ( I =:= 1 -> writeln('  (none)') ; true ).
 printer:test_stats_print_top_cycle_mentions(_, 0, _I) :- !.
 printer:test_stats_print_top_cycle_mentions([N-RepoEntry|Rest], Limit, I) :-
   format('  ~t~d~3+. ~w (~d)~n', [I, RepoEntry, N]),
@@ -2601,6 +2794,8 @@ printer:test(Repository,Style) :-
   config:proving_target(Action),
   aggregate_all(count, (Repository:entry(_E)), ExpectedTotal),
   printer:test_stats_reset('Printing', ExpectedTotal),
+  aggregate_all(count, (Repository:package(_C,_N)), ExpectedPkgs),
+  printer:test_stats_set_expected_unique_packages(ExpectedPkgs),
   tester:test(Style,
               'Printing',
               Repository://Entry,
@@ -2635,6 +2830,8 @@ printer:test_latest(Repository,Style) :-
                 (Repository:package(C,N),once(Repository:ebuild(_Entry,C,N,_))),
                 ExpectedTotal),
   printer:test_stats_reset('Printing latest', ExpectedTotal),
+  aggregate_all(count, (Repository:package(_C,_N)), ExpectedPkgs),
+  printer:test_stats_set_expected_unique_packages(ExpectedPkgs),
   tester:test(Style,
               'Printing latest',
               Repository://Entry,

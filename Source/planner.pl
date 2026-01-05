@@ -211,6 +211,8 @@ planner:test_stats(Repository, Style) :-
   config:proving_target(Action),
   aggregate_all(count, (Repository:entry(_E)), ExpectedTotal),
   printer:test_stats_reset('Planning', ExpectedTotal),
+  aggregate_all(count, (Repository:package(_C,_N)), ExpectedPkgs),
+  printer:test_stats_set_expected_unique_packages(ExpectedPkgs),
   tester:test(Style,
               'Planning',
               Repository://Entry,
