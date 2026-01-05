@@ -28,6 +28,7 @@ The Printer takes a plan from the Planner and pretty prints it.
 :- dynamic printer:test_stats_entry_had_cycle/1.
 :- dynamic printer:test_stats_other_head/2.
 :- dynamic printer:test_stats_pkg/3.
+:- dynamic printer:test_stats_type_entry_mention/3.
 
 printer:test_stats_reset(Label, ExpectedTotal) :-
   with_mutex(test_stats,
@@ -37,6 +38,7 @@ printer:test_stats_reset(Label, ExpectedTotal) :-
       retractall(printer:test_stats_entry_had_cycle(_)),
       retractall(printer:test_stats_other_head(_,_)),
       retractall(printer:test_stats_pkg(_,_,_)),
+      retractall(printer:test_stats_type_entry_mention(_,_,_)),
       assertz(printer:test_stats_stat(label, Label)),
       assertz(printer:test_stats_stat(expected_total, ExpectedTotal)),
       assertz(printer:test_stats_stat(expected_unique_packages, 0)),
@@ -95,6 +97,13 @@ printer:test_stats_inc_cycle_mention(RepoEntry) :-
     ( ( retract(printer:test_stats_cycle_mention(RepoEntry, N0)) -> true ; N0 = 0 ),
       N is N0 + 1,
       assertz(printer:test_stats_cycle_mention(RepoEntry, N))
+    )).
+
+printer:test_stats_inc_type_entry_mention(Type, RepoEntry) :-
+  with_mutex(test_stats,
+    ( ( retract(printer:test_stats_type_entry_mention(Type, RepoEntry, N0)) -> true ; N0 = 0 ),
+      N is N0 + 1,
+      assertz(printer:test_stats_type_entry_mention(Type, RepoEntry, N))
     )).
 
 printer:test_stats_note_cycle_for_current_entry :-
@@ -185,7 +194,8 @@ printer:test_stats_record_entry(RepositoryEntry, _ModelAVL, ProofAVL, TriggersAV
     findall(Type,
             ( member(Content, Contents0),
               printer:assumption_type(Content, Type),
-              printer:test_stats_inc_type(Type, occurrences, 1)
+              printer:test_stats_inc_type(Type, occurrences, 1),
+              printer:test_stats_inc_type_entry_mention(Type, RepositoryEntry)
             ),
             TypesAll),
     forall((member(Content, Contents0), printer:assumption_type(Content, other)),
@@ -239,10 +249,15 @@ printer:test_stats_percent(Part, Total, Percent) :-
 %  Test stats table formatting helpers
 % -----------------------------------------------------------------------------
 
-printer:test_stats_table_width(100).
+printer:test_stats_table_width(80).
+
+% Fixed widths so all tables share the same right edge (80 cols including indent).
+printer:test_stats_label_col_width(34).
+printer:test_stats_pct_col_width(10).
 
 printer:test_stats_rank_col_width(4).
-printer:test_stats_count_col_width(14).
+% Align with the percent columns in the other tables (10-wide).
+printer:test_stats_count_col_width(10).
 
 printer:test_stats_item_col_width(W) :-
   printer:test_stats_table_width(TW),
@@ -253,7 +268,8 @@ printer:test_stats_item_col_width(W) :-
 
 printer:test_stats_to_atom(Term, Atom) :-
   ( atom(Term) -> Atom = Term
-  ; term_to_atom(Term, Atom)
+  ; with_output_to(atom(Atom),
+                   write_term(Term, [quoted(false), numbervars(true)]))
   ).
 
 printer:test_stats_fit_atom(Atom0, Width, Atom) :-
@@ -279,6 +295,20 @@ printer:test_stats_pad_right(Atom0, Width, Atom) :-
     atom_concat(Atom0, PadAtom, Atom)
   ).
 
+printer:test_stats_pad_left(Atom0, Width, Atom) :-
+  atom_length(Atom0, L),
+  ( L >= Width ->
+      Atom = Atom0
+  ; Pad is Width - L,
+    length(Cs, Pad),
+    maplist(=(' '), Cs),
+    atom_chars(PadAtom, Cs),
+    atom_concat(PadAtom, Atom0, Atom)
+  ).
+
+printer:test_stats_int_atom(Int, Atom) :-
+  format(atom(Atom), '~d', [Int]).
+
 printer:test_stats_print_sep :-
   printer:test_stats_table_width(W),
   % Use * as "tab stop from argument" (avoid printing W).
@@ -292,10 +322,16 @@ printer:test_stats_print_kv_int_percent(Label, Count, Total) :-
   format('  ~w~t~30|: ~d (~2f%)~n', [Label, Count, P]).
 
 printer:test_stats_print_table_header :-
-  % Fixed-width table: keep all stats tables the same width.
-  % Columns (right-aligned): Ebuilds (12), Ebuild % (10), Pkgs (12), Pkg % (10)
-  format('  ~w~t~30| ~t~w~12+ ~t~w~10+ ~t~w~12+ ~t~w~10+~n',
-         ['Metric', 'Ebuilds', 'Ebuild %', 'Pkgs', 'Pkg %']),
+  printer:test_stats_label_col_width(LW),
+  printer:test_stats_count_col_width(CW),
+  printer:test_stats_pct_col_width(PW),
+  printer:test_stats_pad_right('Metric', LW, MetricHdr),
+  printer:test_stats_pad_left('Ebuilds', CW, EbuildsHdr),
+  printer:test_stats_pad_left('Ebuild %', PW, EbuildPctHdr),
+  printer:test_stats_pad_left('Pkgs', CW, PkgsHdr),
+  printer:test_stats_pad_left('Pkg %', PW, PkgPctHdr),
+  format('  ~w ~w ~w ~w ~w~n',
+         [MetricHdr, EbuildsHdr, EbuildPctHdr, PkgsHdr, PkgPctHdr]),
   printer:test_stats_print_sep.
 
 printer:test_stats_print_table_row(Label, ECount, ETotal, PCount, PTotal) :-
@@ -303,12 +339,30 @@ printer:test_stats_print_table_row(Label, ECount, ETotal, PCount, PTotal) :-
   printer:test_stats_percent(PCount, PTotal, PP),
   format(atom(EPAtom), '~2f %', [EP]),
   format(atom(PPAtom), '~2f %', [PP]),
-  format('  ~w~t~30| ~t~d~12+ ~t~w~10+ ~t~d~12+ ~t~w~10+~n',
-         [Label, ECount, EPAtom, PCount, PPAtom]).
+  printer:test_stats_label_col_width(LW),
+  printer:test_stats_count_col_width(CW),
+  printer:test_stats_pct_col_width(PW),
+  printer:test_stats_pad_right(Label, LW, Lbl),
+  printer:test_stats_int_atom(ECount, EC0),
+  printer:test_stats_int_atom(PCount, PC0),
+  printer:test_stats_pad_left(EC0, CW, EC),
+  printer:test_stats_pad_left(EPAtom, PW, EPR),
+  printer:test_stats_pad_left(PC0, CW, PC),
+  printer:test_stats_pad_left(PPAtom, PW, PPR),
+  format('  ~w ~w ~w ~w ~w~n',
+         [Lbl, EC, EPR, PC, PPR]).
 
 printer:test_stats_print_assumption_types_table_header :-
-  format('  ~w~t~30| ~t~w~12+ ~t~w~10+ ~t~w~14+ ~t~w~10+~n',
-         ['Type', 'Ebuilds', 'Ebuild %', 'Occurrences', 'Occ %']),
+  printer:test_stats_label_col_width(LW),
+  printer:test_stats_count_col_width(CW),
+  printer:test_stats_pct_col_width(PW),
+  printer:test_stats_pad_right('Type', LW, TypeHdr),
+  printer:test_stats_pad_left('Ebuilds', CW, EbuildsHdr),
+  printer:test_stats_pad_left('Ebuild %', PW, EbuildPctHdr),
+  printer:test_stats_pad_left('Occ', CW, OccHdr),
+  printer:test_stats_pad_left('Occ %', PW, OccPctHdr),
+  format('  ~w ~w ~w ~w ~w~n',
+         [TypeHdr, EbuildsHdr, EbuildPctHdr, OccHdr, OccPctHdr]),
   printer:test_stats_print_sep.
 
 printer:test_stats_print_assumption_types_row(Type, ECount, ETotal, OCount, OTotal) :-
@@ -316,16 +370,30 @@ printer:test_stats_print_assumption_types_row(Type, ECount, ETotal, OCount, OTot
   printer:test_stats_percent(OCount, OTotal, OP),
   format(atom(EPAtom), '~2f %', [EP]),
   format(atom(OPAtom), '~2f %', [OP]),
-  format('  ~w~t~30| ~t~d~12+ ~t~w~10+ ~t~d~14+ ~t~w~10+~n',
-         [Type, ECount, EPAtom, OCount, OPAtom]).
+  printer:test_stats_label_col_width(LW),
+  printer:test_stats_count_col_width(CW),
+  printer:test_stats_pct_col_width(PW),
+  printer:test_stats_pad_right(Type, LW, TypeLbl),
+  printer:test_stats_int_atom(ECount, EC0),
+  printer:test_stats_int_atom(OCount, OC0),
+  printer:test_stats_pad_left(EC0, CW, EC),
+  printer:test_stats_pad_left(EPAtom, PW, EPR),
+  printer:test_stats_pad_left(OC0, CW, OC),
+  printer:test_stats_pad_left(OPAtom, PW, OPR),
+  format('  ~w ~w ~w ~w ~w~n',
+         [TypeLbl, EC, EPR, OC, OPR]).
 
 printer:test_stats_print_ranked_table_header(Title, RightHeader) :-
   nl,
   message:header(Title),
+  nl,
   printer:test_stats_item_col_width(ItemW),
   printer:test_stats_count_col_width(CountW),
+  printer:test_stats_rank_col_width(RankW),
+  printer:test_stats_pad_left('Rank', RankW, RankHdr),
   printer:test_stats_pad_right('Item', ItemW, ItemHdr),
-  format('  ~w~t~6| ~w ~t~w~*+~n', ['Rank', ItemHdr, RightHeader, CountW]),
+  printer:test_stats_pad_left(RightHeader, CountW, RHdr),
+  format('  ~w  ~w ~w~n', [RankHdr, ItemHdr, RHdr]),
   printer:test_stats_print_sep.
 
 printer:test_stats_print_ranked_table_rows([], _Limit, _I, _W) :- !.
@@ -335,8 +403,13 @@ printer:test_stats_print_ranked_table_rows([N-Item|Rest], Limit, I, W) :-
   printer:test_stats_to_atom(Item, ItemAtom0),
   printer:test_stats_fit_atom(ItemAtom0, ItemW, ItemAtom1),
   printer:test_stats_pad_right(ItemAtom1, ItemW, ItemAtom),
+  printer:test_stats_rank_col_width(RankW),
+  format(atom(RankAtom0), '~d', [I]),
+  printer:test_stats_pad_left(RankAtom0, RankW, RankAtom),
   printer:test_stats_count_col_width(CountW),
-  format('  ~t~d~4+  ~w ~t~d~*+~n', [I, ItemAtom, N, CountW]),
+  format(atom(NAtom0), '~d', [N]),
+  printer:test_stats_pad_left(NAtom0, CountW, NAtom),
+  format('  ~w  ~w ~w~n', [RankAtom, ItemAtom, NAtom]),
   I1 is I + 1,
   Limit1 is Limit - 1,
   printer:test_stats_print_ranked_table_rows(Rest, Limit1, I1, W).
@@ -356,6 +429,7 @@ printer:test_stats_print :-
   printer:test_stats_unique_pkg_count(with_cycles, WithCyclesPkgs),
   nl,
   message:header(['Test statistics (',Label,')']),
+  nl,
   printer:test_stats_print_table_header,
   printer:test_stats_print_table_row('Total', Expected, Expected, ExpectedPkgs, ExpectedPkgs),
   printer:test_stats_print_table_row('Processed', Processed, Expected, ProcessedPkgs, ExpectedPkgs),
@@ -375,6 +449,7 @@ printer:test_stats_print :-
   ),
   nl,
   message:header('Assumption types'),
+  nl,
   findall(O, printer:test_stats_type(_, occurrences, O), Occs),
   sum_list(Occs, TotalOccs),
   findall(Type,
@@ -390,9 +465,22 @@ printer:test_stats_print :-
              printer:test_stats_print_assumption_types_row(Type, E, Processed, O, TotalOccs)
            ))
   ),
+  % Top-N entries per assumption type (by occurrence count).
+  ( config:test_stats_top_n(TopN0) -> true ; TopN0 = 10 ),
+  forall(member(Type, Types),
+         ( findall(N-RepoEntry, printer:test_stats_type_entry_mention(Type, RepoEntry, N), P0),
+           keysort(P0, PAsc),
+           reverse(PAsc, PSorted),
+           ( PSorted == [] ->
+               true
+           ; atomic_list_concat(['Top ',TopN0,' entries for ',Type], TypeHeader),
+             printer:test_stats_print_ranked_table_header(TypeHeader, 'Occ'),
+             printer:test_stats_table_width(W),
+             printer:test_stats_print_ranked_table_rows(PSorted, TopN0, 1, W)
+           )
+         )),
   ( ( printer:test_stats_type(other, occurrences, OtherOcc), OtherOcc > 0 ) ->
       nl,
-      message:header('Top 15 other assumption heads'),
       findall(N-Key, printer:test_stats_other_head(Key, N), H0),
       keysort(H0, HAsc),
       reverse(HAsc, HSorted),
