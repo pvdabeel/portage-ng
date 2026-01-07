@@ -164,7 +164,8 @@ interface:process_continue(Continue) :-
 interface:process_server(Host,Port) :-
   interface:argv(Options,_),
   (lists:memberchk(host(Host),  Options) ; config:server_host(Host)),
-  (lists:memberchk(port(Port),  Options) ; config:server_port(Port)).
+  (lists:memberchk(port(Port),  Options) ; config:server_port(Port)),
+  !.
 
 
 %! interface:process_requests(+Mode)
