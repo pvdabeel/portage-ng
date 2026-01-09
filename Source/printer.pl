@@ -121,14 +121,22 @@ printer:test_stats_note_cycle_for_current_entry :-
   ; true
   ).
 
-printer:assumption_content_from_proof_key(rule(assumed(Content)), Content) :- !.
-printer:assumption_content_from_proof_key(assumed(rule(Content)), Content) :- !.
+printer:assumption_content_from_proof_key(rule(assumed(Content)), domain(Content)) :- !.
+printer:assumption_content_from_proof_key(assumed(rule(Content)), cycle_break(Content)) :- !.
 
 printer:assumption_normalize(Content0, Content) :-
-  ( prover:canon_literal(Content0, Core, _Ctx) ->
-      Content = Core
-  ; Content = Content0
+  ( Content0 = domain(X) ->
+      ( prover:canon_literal(X, Core, _Ctx) -> Content = domain(Core) ; Content = domain(X) )
+  ; Content0 = cycle_break(X) ->
+      ( prover:canon_literal(X, Core, _Ctx) -> Content = cycle_break(Core) ; Content = cycle_break(X) )
+  ; ( prover:canon_literal(Content0, Core, _Ctx) -> Content = Core ; Content = Content0 )
   ).
+
+% Stats classification: distinguish real domain "non-existent" from prover cycle breaks.
+printer:assumption_type(cycle_break(_), cycle_break) :- !.
+printer:assumption_type(domain(package_dependency(_,_,_,_,_,_,_,_):_), non_existent_dependency) :- !.
+printer:assumption_type(domain(grouped_package_dependency(_,_,_):_),   non_existent_dependency) :- !.
+printer:assumption_type(domain(grouped_package_dependency(_,_,_,_):_), non_existent_dependency) :- !.
 
 printer:assumption_type(package_dependency(_,_,_,_,_,_,_,_):_, non_existent_dependency) :- !.
 printer:assumption_type(grouped_package_dependency(_,_,_):_,              non_existent_dependency) :- !.
@@ -217,7 +225,8 @@ printer:test_stats_record_entry(RepositoryEntry, _ModelAVL, ProofAVL, TriggersAV
 
 % Compute a cycle path (if any) for an assumption key.
 printer:cycle_for_assumption(StartKey0, TriggersAVL, CyclePath0, CyclePath) :-
-  ( prover:canon_literal(StartKey0, StartKey, _) -> true ; StartKey = StartKey0 ),
+  ( StartKey0 = cycle_break(X) -> StartKey1 = X ; StartKey1 = StartKey0 ),
+  ( prover:canon_literal(StartKey1, StartKey, _) -> true ; StartKey = StartKey1 ),
   ( StartKey = _://_:install ; StartKey = _://_:run ; StartKey = _://_:fetchonly
   ; StartKey = _:install     ; StartKey = _:run     ; StartKey = _:fetchonly
   ),
