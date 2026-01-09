@@ -1248,7 +1248,12 @@ select(Key,wildcard,Value,R://I) :-
 %
 % Sets the grouping key for dependencies.
 
-dependency_key((package_dependency(_,T,C,N,_,_,_,_):_?{_}), T-C-N).
+% Grouping key for dependencies:
+% - group by block strength + category/name
+% - and by slot restriction, because different explicit slots (e.g. ruby:3.2 vs ruby:3.3)
+%   must NOT be merged into a single grouped dependency (they are satisfiable as
+%   separate slotted installs).
+dependency_key((package_dependency(_,T,C,N,_,_,S,_):_?{_}), T-C-N-S).
 
 %! group_dependencies(+List, -Groups)
 %
@@ -1257,7 +1262,7 @@ dependency_key((package_dependency(_,T,C,N,_,_,_,_):_?{_}), T-C-N).
 
 group_dependencies(L, Groups) :-
     findall(grouped_package_dependency(T,C,N,Group):Action?{Context},
-		    group_by(T-C-N:Action?{Context}, E, (member(E:Action?{Context}, L), dependency_key(E:Action?{Context}, T-C-N)), Group),
+		    group_by(T-C-N-S:Action?{Context}, E, (member(E:Action?{Context}, L), dependency_key(E:Action?{Context}, T-C-N-S)), Group),
             Groups).
 
 

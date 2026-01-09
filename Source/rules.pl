@@ -841,6 +841,12 @@ core_pkg('virtual','ssh').
 % -----------------------------------------------------------------------------
 
 process_slot([any_different_slot], _, _, _, _, Context, Context) :- !.
+% Do not "lock" explicit slot requirements into the shared context.
+% Many ecosystems (notably Ruby) legitimately require multiple slots to coexist
+% in the same plan (e.g. dev-lang/ruby:3.2 and dev-lang/ruby:3.3). If we store a
+% single chosen slot in the context, later deps for a different explicit slot
+% will fail to resolve and get misreported as "non-existent".
+process_slot([slot(_)], _SlotMeta, _C, _N, _Repository://_Candidate, Context, Context) :- !.
 process_slot(_, Slot, C, N, _Repository://Candidate, Context, [slot(C, N, Slot):{Candidate}|Context]).
 
 %process_slot([any_same_slot],Slot,Context,[slot(Slot)|Context]) :- !.
