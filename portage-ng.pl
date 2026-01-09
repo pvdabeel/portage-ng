@@ -122,6 +122,8 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/oracle.pl')),
 
    ensure_loaded(portage('Source/eapi.pl')),
+   ensure_loaded(portage('Source/explainer.pl')),
+   ensure_loaded(portage('Source/explanation.pl')),
    ensure_loaded(portage('Source/rules.pl')),
    ensure_loaded(portage('Source/ebuild.pl')),
    ensure_loaded(portage('Source/script.pl')),

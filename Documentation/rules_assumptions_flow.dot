@@ -1,0 +1,90 @@
+digraph rules_assumptions_bpmn {
+  rankdir=TD;
+  labelloc="t";
+  label="portage-ng: grouped dependency resolution + assumption diagnosis (BPMN-style)";
+  fontsize=12;
+  node [fontname="Helvetica", fontsize=10];
+  edge [fontname="Helvetica", fontsize=9, arrowsize=0.7];
+
+  subgraph cluster_rules {
+    label="rules.pl : rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context}, Conditions)";
+    color="#888888";
+    r_start [shape=circle, label="start"];
+    r_self_run [shape=diamond, label="Action == run\nAND self(C,N)?"];
+    r_ok1 [shape=box, label="Conditions = []\n(runtime self-dep satisfied)"];
+    r_installed [shape=diamond, label="Already installed?\nOR (emptytree AND core_pkg)?"];
+    r_ok2 [shape=box, label="Conditions = []\n(already satisfied)"];
+    r_slotreq [shape=box, label="SlotReq = merge_slot_restriction(...)"];
+    r_self_hosting [shape=diamond, label="Self-hosting?\n(Action != run AND self matches C/N)"];
+    r_query [shape=box, label="query:search candidates\n(name/category/keyword + slot)\n(+ installed(true) if self-hosting)"];
+    r_reject_self [shape=diamond, label="Candidate == SelfEntry?"];
+    r_reject_self2 [shape=diamond, label="Candidate installed(true)?"];
+    r_versions [shape=diamond, label="forall version constraints\nquery:search(select(version,O,V))"];
+    r_build_use [shape=box, label="process_build_with_use(...)\n(add Constraints + context)"];
+    r_process_slot [shape=box, label="process_slot(...)\n(annotate chosen slot)"];
+    r_success [shape=box, label="Conditions = Constraints ++\n[Candidate:Action?{Ctx}]"];
+    r_fallback [shape=box, label="No candidate found ->\nassumed(grouped_package_dependency...\n+ assumption_reason(...))"];
+  }
+
+  subgraph cluster_explain {
+    label="explanation.pl : assumption_reason_for_grouped_dep/6 (only on fallback)";
+    color="#888888";
+    e_start [shape=circle, label="start"];
+    e_any [shape=diamond, label="Any package exists?\n(category+name)"];
+    e_missing [shape=box, label="Reason = missing"];
+    e_need_inst [shape=diamond, label="Self-hosting requires\ninstalled-only?"];
+    e_inst_empty [shape=diamond, label="Installed-only\nset empty?"];
+    e_inst_req [shape=box, label="Reason = installed_required"];
+    e_unmasked1 [shape=diamond, label="Any unmasked\ncandidates?"];
+    e_masked [shape=box, label="Reason = masked"];
+    e_slot_any [shape=diamond, label="Slot constraint yields\nany candidates?"];
+    e_slot_bad [shape=box, label="Reason = slot_unsatisfied"];
+    e_unmasked2 [shape=diamond, label="Any unmasked\nslot candidates?"];
+    e_versions [shape=diamond, label="Version constraints analysis\n- no candidate for some constraint\n- or conflict"];
+    e_ver_nocand [shape=box, label="Reason = version_no_candidate(Op,Ver)"];
+    e_ver_conflict [shape=box, label="Reason = version_conflict"];
+    e_keywords [shape=diamond, label="Any candidate matches\nACCEPT_KEYWORDS?"];
+    e_kw [shape=box, label="Reason = keyword_filtered"];
+    e_other [shape=box, label="Reason = unsatisfied_constraints"];
+  }
+
+  r_start -> r_self_run;
+  r_self_run -> r_ok1 [label="yes"];
+  r_self_run -> r_installed [label="no"];
+  r_installed -> r_ok2 [label="yes"];
+  r_installed -> r_slotreq [label="no"];
+  r_slotreq -> r_self_hosting;
+  r_self_hosting -> r_query [label="yes: installed(true)"];
+  r_self_hosting -> r_query [label="no"];
+  r_query -> r_reject_self;
+  r_reject_self -> r_reject_self2 [label="yes"];
+  r_reject_self -> r_versions [label="no"];
+  r_reject_self2 -> r_versions [label="yes"];
+  r_reject_self2 -> r_query [label="no: try next"];
+  r_versions -> r_build_use [label="yes"];
+  r_versions -> r_query [label="no: try next"];
+  r_build_use -> r_process_slot;
+  r_process_slot -> r_success;
+
+  r_query -> r_fallback [style=dashed, label="no more candidates"];
+  r_fallback -> e_start [style=dashed, label="diagnose reason"];
+
+  e_start -> e_any;
+  e_any -> e_missing [label="no"];
+  e_any -> e_need_inst [label="yes"];
+  e_need_inst -> e_inst_empty [label="yes"];
+  e_need_inst -> e_unmasked1 [label="no"];
+  e_inst_empty -> e_inst_req [label="yes"];
+  e_inst_empty -> e_unmasked1 [label="no"];
+  e_unmasked1 -> e_masked [label="no"];
+  e_unmasked1 -> e_slot_any [label="yes"];
+  e_slot_any -> e_slot_bad [label="no"];
+  e_slot_any -> e_unmasked2 [label="yes"];
+  e_unmasked2 -> e_masked [label="no"];
+  e_unmasked2 -> e_versions [label="yes"];
+  e_versions -> e_ver_nocand [label="no-candidate"];
+  e_versions -> e_ver_conflict [label="conflict"];
+  e_versions -> e_keywords [label="has candidates"];
+  e_keywords -> e_kw [label="no"];
+  e_keywords -> e_other [label="yes (but resolver still failed)"];
+}

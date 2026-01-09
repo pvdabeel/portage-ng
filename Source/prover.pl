@@ -560,8 +560,22 @@ prover:test_stats(Repository) :-
   config:test_style(Style),
   prover:test_stats(Repository, Style).
 
+%! prover:test_stats(+Repository,+TopN)
+%
+% Like prover:test_stats/1, but allows choosing the Top-N limit in the output.
+prover:test_stats(Repository, TopN) :-
+  integer(TopN),
+  !,
+  config:test_style(Style),
+  prover:test_stats(Repository, Style, TopN).
+
 %! prover:test_stats(+Repository,+Style)
 prover:test_stats(Repository, Style) :-
+  ( config:test_stats_top_n(TopN) -> true ; TopN = 25 ),
+  prover:test_stats(Repository, Style, TopN).
+
+%! prover:test_stats(+Repository,+Style,+TopN)
+prover:test_stats(Repository, Style, TopN) :-
   config:proving_target(Action),
   aggregate_all(count, (Repository:entry(_E)), ExpectedTotal),
   printer:test_stats_reset('Proving', ExpectedTotal),
@@ -574,4 +588,4 @@ prover:test_stats(Repository, Style) :-
               ( with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
                 printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
               )),
-  printer:test_stats_print.
+  printer:test_stats_print(TopN).

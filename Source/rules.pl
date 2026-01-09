@@ -456,10 +456,17 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         Conditions = AllConditions )
 
     ; % ELSE: If no candidate can be found, assume it's non-existent.
-      Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps):Action?{Context})] % todo: fail
+      explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason),
+      Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps):Action?{[assumption_reason(Reason)|Context]})] % todo: fail
       )
     )
   ).
+
+% Helper predicates are interleaved with rule/2 clauses in this file.
+:- discontiguous rules:rule/2.
+
+
+% (Assumption diagnosis moved to `Source/explainer.pl`.)
 
 
 

@@ -121,22 +121,28 @@ printer:test_stats_note_cycle_for_current_entry :-
   ; true
   ).
 
-printer:assumption_content_from_proof_key(rule(assumed(Content)), domain(Content)) :- !.
-printer:assumption_content_from_proof_key(assumed(rule(Content)), cycle_break(Content)) :- !.
-
-printer:assumption_normalize(Content0, Content) :-
-  ( Content0 = domain(X) ->
-      ( prover:canon_literal(X, Core, _Ctx) -> Content = domain(Core) ; Content = domain(X) )
-  ; Content0 = cycle_break(X) ->
-      ( prover:canon_literal(X, Core, _Ctx) -> Content = cycle_break(Core) ; Content = cycle_break(X) )
-  ; ( prover:canon_literal(Content0, Core, _Ctx) -> Content = Core ; Content = Content0 )
-  ).
+% (moved to explainer.pl) assumption_content_from_proof_key/2
+% (moved to explainer.pl) assumption_normalize/2
 
 % Stats classification: distinguish real domain "non-existent" from prover cycle breaks.
 printer:assumption_type(cycle_break(_), cycle_break) :- !.
-printer:assumption_type(domain(package_dependency(_,_,_,_,_,_,_,_):_), non_existent_dependency) :- !.
-printer:assumption_type(domain(grouped_package_dependency(_,_,_):_),   non_existent_dependency) :- !.
-printer:assumption_type(domain(grouped_package_dependency(_,_,_,_):_), non_existent_dependency) :- !.
+% If we have a reason tag, use it (more specific than the legacy taxonomy).
+printer:assumption_type(domain(X), Type) :-
+  printer:assumption_reason_from_term(X, Reason),
+  printer:assumption_reason_type(Reason, Type),
+  !.
+% Otherwise preserve existing assumption taxonomy by delegating domain(...) to
+% the original classifier (masked/assumed_installed/assumed_running/etc.).
+printer:assumption_type(domain(X), Type) :-
+  printer:assumption_type(X, Type),
+  !.
+printer:assumption_type(domain(X), Type) :-
+  % classify "no candidate found" reasons when present
+  ( printer:assumption_reason_from_term(X, Reason) ->
+      printer:assumption_reason_type(Reason, Type),
+      !
+  ; fail
+  ).
 
 printer:assumption_type(package_dependency(_,_,_,_,_,_,_,_):_, non_existent_dependency) :- !.
 printer:assumption_type(grouped_package_dependency(_,_,_):_,              non_existent_dependency) :- !.
@@ -158,6 +164,24 @@ printer:assumption_type(at_most_one_of_group(_),                            depe
 printer:assumption_type(naf(_),                                             naf_cycle) :- !.
 printer:assumption_type(_,                                                 other).
 
+printer:assumption_reason_from_term(Term, Reason) :-
+  explainer:term_ctx(Term, Ctx),
+  memberchk(assumption_reason(Reason), Ctx),
+  !.
+
+printer:assumption_reason_type(missing,                 missing_dependency).
+printer:assumption_reason_type(masked,                  masked_dependency).
+printer:assumption_reason_type(keyword_filtered,        keyword_filtered_dependency).
+printer:assumption_reason_type(installed_required,      installed_required_dependency).
+printer:assumption_reason_type(slot_unsatisfied,        slot_unsatisfied_dependency).
+printer:assumption_reason_type(version_no_candidate(_,_), version_no_candidate_dependency).
+printer:assumption_reason_type(version_conflict(_),       version_conflict_dependency).
+printer:assumption_reason_type(version_no_candidate,    version_no_candidate_dependency).
+printer:assumption_reason_type(version_conflict,        version_conflict_dependency).
+% Backwards compatibility (older runs / saved contexts):
+printer:assumption_reason_type(version_unsatisfied,     version_no_candidate_dependency).
+printer:assumption_reason_type(unsatisfied_constraints, unsatisfied_constraints_dependency).
+
 printer:assumption_is_package_level(_://_:install) :- !.
 printer:assumption_is_package_level(_://_:run) :- !.
 printer:assumption_is_package_level(_://_:fetchonly) :- !.
@@ -174,7 +198,12 @@ printer:assumption_head_key(Content, Key) :-
   ).
 
 printer:test_stats_inc_other_head(Content) :-
-  printer:assumption_head_key(Content, Key),
+  % Avoid counting wrapper functors (domain/1, cycle_break/1) as "other heads".
+  ( Content = domain(X)      -> C1 = X
+  ; Content = cycle_break(X) -> C1 = X
+  ; C1 = Content
+  ),
+  printer:assumption_head_key(C1, Key),
   with_mutex(test_stats,
     ( ( retract(printer:test_stats_other_head(Key, N0)) -> true ; N0 = 0 ),
       N is N0 + 1,
@@ -186,8 +215,8 @@ printer:test_stats_record_entry(RepositoryEntry, _ModelAVL, ProofAVL, TriggersAV
   ( RepositoryEntry = Repo://Entry -> printer:test_stats_add_pkg(processed, Repo, Entry) ; true ),
   findall(ContentN,
           ( assoc:gen_assoc(ProofKey, ProofAVL, _),
-            printer:assumption_content_from_proof_key(ProofKey, Content0),
-            printer:assumption_normalize(Content0, ContentN)
+            explainer:assumption_content_from_proof_key(ProofKey, Content0),
+            explainer:assumption_normalize(Content0, ContentN)
           ),
           Contents0),
   ( Contents0 == [] ->
@@ -425,6 +454,13 @@ printer:test_stats_print_ranked_table_rows([N-Item|Rest], Limit, I, W) :-
   printer:test_stats_print_ranked_table_rows(Rest, Limit1, I1, W).
 
 printer:test_stats_print :-
+  ( config:test_stats_top_n(TopN) -> true ; TopN = 10 ),
+  printer:test_stats_print(TopN).
+
+%! printer:test_stats_print(+TopN)
+%
+% Print the accumulated test_stats summary, showing top lists up to TopN.
+printer:test_stats_print(TopN) :-
   printer:test_stats_value(label, Label),
   printer:test_stats_value(expected_total, Expected),
   printer:test_stats_value(expected_unique_packages, ExpectedPkgs),
@@ -476,17 +512,16 @@ printer:test_stats_print :-
            ))
   ),
   % Top-N entries per assumption type (by occurrence count).
-  ( config:test_stats_top_n(TopN0) -> true ; TopN0 = 10 ),
   forall(member(Type, Types),
          ( findall(N-RepoEntry, printer:test_stats_type_entry_mention(Type, RepoEntry, N), P0),
            keysort(P0, PAsc),
            reverse(PAsc, PSorted),
            ( PSorted == [] ->
                true
-           ; atomic_list_concat(['Top ',TopN0,' entries for ',Type], TypeHeader),
+           ; atomic_list_concat(['Top ',TopN,' entries for ',Type], TypeHeader),
              printer:test_stats_print_ranked_table_header(TypeHeader, 'Occ'),
              printer:test_stats_table_width(W),
-             printer:test_stats_print_ranked_table_rows(PSorted, TopN0, 1, W)
+             printer:test_stats_print_ranked_table_rows(PSorted, TopN, 1, W)
            )
          )),
   ( ( printer:test_stats_type(other, occurrences, OtherOcc), OtherOcc > 0 ) ->
@@ -500,7 +535,6 @@ printer:test_stats_print :-
   ; true
   ),
   nl,
-  ( config:test_stats_top_n(TopN) -> true ; TopN = 10 ),
   atomic_list_concat(['Top ',TopN,' cycle mentions (run)'], HeaderRun),
   findall(N-RepoEntry, printer:test_stats_cycle_mention(run, RepoEntry, N), RunPairs0),
   keysort(RunPairs0, RunSortedAsc),
@@ -878,7 +912,7 @@ printer:print_blocking(strong) :-
 printer:print_comparator(greaterequal) :- write('>=').
 printer:print_comparator(greater)      :- write('>').
 printer:print_comparator(smallerequal) :- write('<=').
-printer:print_comparator(smaller)      :- write('>').
+printer:print_comparator(smaller)      :- write('<').
 printer:print_comparator(equal)        :- write('=').
 printer:print_comparator(tilde)        :- write('~').
 printer:print_comparator(none)         :- write('').
@@ -2749,10 +2783,13 @@ printer:trigger_neighbors(Key, TriggersAVL, NeighborKeys) :-
 %
 % Prints formatted, non-garbled assumption details.
 
-printer:print_assumption_detail(rule(package_dependency(T,A,C,N,X,Y,Z,XX):_YY?{_ZZ},_)) :- !,
+printer:print_assumption_detail(rule(package_dependency(T,A,C,N,X,Y,Z,XX):_YY?{Ctx},_)) :- !,
     message:color(lightred),
     message:style(bold),
-    message:print('- Non-existent '),
+    printer:assumption_reason_label(Ctx, Label),
+    message:print('- '),
+    message:print(Label),
+    message:print(' '),
     message:print(T),
     message:print(' dependency: '),
     message:style(normal),
@@ -2760,10 +2797,13 @@ printer:print_assumption_detail(rule(package_dependency(T,A,C,N,X,Y,Z,XX):_YY?{_
     message:color(normal),
     printer:print_metadata_item_detail(_,'  ',package_dependency(T,A,C,N,X,Y,Z,XX)),nl.
 
-printer:print_assumption_detail(rule(grouped_package_dependency(C,N,R):T?{_},_)) :- !,
+printer:print_assumption_detail(rule(grouped_package_dependency(C,N,R):T?{Ctx},_)) :- !,
     message:color(lightred),
     message:style(bold),
-    message:print('- Non-existent '),
+    printer:assumption_reason_label(Ctx, Label),
+    message:print('- '),
+    message:print(Label),
+    message:print(' '),
     message:print(T),
     message:print(' dependency: '),
     message:style(normal),
@@ -2824,6 +2864,24 @@ printer:print_assumption_detail(rule(C,_)) :-
     message:color(normal),nl,
     message:print('  '),
     message:print(C), nl.
+
+printer:assumption_reason_label(CtxLike, Label) :-
+  explainer:term_ctx(_:_?{CtxLike}, Ctx),
+  ( memberchk(assumption_reason(Reason), Ctx)
+  -> printer:assumption_reason_label_(Reason, Label)
+  ; Label = 'Non-existent'
+  ).
+
+printer:assumption_reason_label_(missing,                 'Missing').
+printer:assumption_reason_label_(masked,                  'Masked').
+printer:assumption_reason_label_(keyword_filtered,        'Keyword filtered').
+printer:assumption_reason_label_(installed_required,      'Requires installed candidate for').
+printer:assumption_reason_label_(slot_unsatisfied,        'Unsatisfied slot constraint for').
+printer:assumption_reason_label_(version_no_candidate(_,_), 'Unsatisfied version constraint for').
+printer:assumption_reason_label_(version_conflict(_),       'Conflicting version constraints for').
+printer:assumption_reason_label_(version_no_candidate,    'Unsatisfied version constraint for').
+printer:assumption_reason_label_(version_conflict,        'Conflicting version constraints for').
+printer:assumption_reason_label_(unsatisfied_constraints, 'Unsatisfied constraints for').
 
 
 %! printer:print(+Target,+ModelAVL,+ProofAVL,+Plan,+TriggersAVL)

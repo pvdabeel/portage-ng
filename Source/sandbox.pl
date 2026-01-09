@@ -47,6 +47,8 @@ sandbox:safe_primitive(query:search(_,_)).
 sandbox:safe_primitive(query:apply_filters(_,_)).
 sandbox:safe_primitive(query:apply_filter(_,_)).
 
+sandbox:safe_primitive(explanation:assumption_reason_for_grouped_dep(_,_,_,_,_,_)).
+
 sandbox:safe_primitive(prover:prove(_,_,_,_,_,_,_,_,_)).
 sandbox:safe_primitive(prover:proven(_,_,_)).
 sandbox:safe_primitive(prover:assumed_proven(_,_)).
