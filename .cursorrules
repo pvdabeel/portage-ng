@@ -1,0 +1,43 @@
+This repository is a SWI-Prolog application (portage-ng).
+
+## How to run (IMPORTANT)
+- Do NOT run ad-hoc `swipl -g "..."` snippets; they often miss required operator defs, libraries, and module load order.
+- Always launch via the project wrapper (project root):
+  - `./portage-ng-dev --mode standalone <target>`
+  - `./portage-ng-dev --mode standalone --shell`
+  - Non-interactive / CI-style: `./portage-ng-dev --mode standalone --ci <target>`
+    Exit codes:
+      - 0 = no assumptions
+      - 1 = only prover cycle-break assumptions
+      - 2 = any domain assumptions (e.g. missing/non-existent deps)
+
+The canonical load graph for standalone is in `portage-ng.pl`:
+- `load_common_modules/0`
+- `load_standalone_modules/0`
+
+## Architecture (mental model)
+Pipeline (standalone):
+- reader/parser build KB facts
+- prover builds (ProofAVL, ModelAVL, Constraints, TriggersAVL)
+- planner does fast wave planning for acyclic portion and returns a remainder
+- scheduler post-processes remainder: SCC (Kosaraju) and merge-sets for :run SCCs
+- printer renders plan + warnings
+
+Key files:
+- `Source/prover.pl`: inductive proof search; cycles become prover cycle-break assumptions (`assumed(rule(Lit))` in proof, `assumed(Lit)` in model).
+- `Source/rules.pl`: domain rules; domain assumptions appear as `rule(assumed(X), [])` and show as “Domain assumptions”.
+- `Source/planner.pl`: wave planner; returns (Plan, RemainderRules).
+- `Source/scheduler.pl`: SCC/merge-set scheduling for remainder; acts only on :run SCCs.
+- `Source/printer.pl`: output + warnings; distinguishes domain assumptions vs prover cycle-breaks.
+
+Assumption taxonomy (do not mix these up):
+- Domain assumptions (rules-level): proof key `rule(assumed(X))`
+- Prover cycle-break assumptions: proof key `assumed(rule(X))`
+
+## Non-interactive / sandbox robustness
+- Terminal size lookups must go through `config:printing_tty_size/2` (direct `tty_size/2` may throw in non-tty environments).
+
+## Performance/engineering notes
+- Proof/Model/Triggers are assoc/AVL-based; avoid repeated full traversals when possible.
+- Query performance uses `goal_expansion/2` macros in `Source/query.pl`.
+
