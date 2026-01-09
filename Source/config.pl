@@ -382,7 +382,8 @@ config:printing_tty_size(H,W) :-
 % 2. Otherwise use actual tty_size
 
 config:printing_tty_size(H,W) :-
-  tty_size(H,W),!.
+  catch(tty_size(H,W), _, fail),
+  !.
 
 % 3. Fallback in case actual tty_size cannot be retrieved
 

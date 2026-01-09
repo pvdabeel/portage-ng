@@ -400,19 +400,19 @@ message:logo(List,Mode) :-
 % -----------------------------------------------------------------------------
 
 eend(Msg) :-
-  tty_size(_,W),
+  config:printing_tty_size(_,W),
   Col is W - 2,
   format('~t~a~*|', [Msg, Col]).
 
 hl(Title) :-
-  tty_size(_,W),
+  config:printing_tty_size(_,W),
   atom_chars('-', [C]),
   atomic_list_concat(['--- ',Title,' ~`', C, 't~*|\n'], Fmt),
   write('\r'),
   format(Fmt, [W]).
 
 hl :-
-  tty_size(_,W),
+  config:printing_tty_size(_,W),
   atom_chars('-', [C]),
   atomic_list_concat(['~`', C, 't~*|\n'], Fmt),
   write('\r'),

@@ -78,7 +78,8 @@ interface:spec(S) :-
        [opt(shell),     type(boolean),   default(false),                          longflags(['shell']),     help('Go to shell')],
        [opt(save),      type(boolean),   default(false),                          longflags(['save']),      help('Save knowledgebase (only relevant in client mode')],
        [opt(load),      type(boolean),   default(false),                          longflags(['load']),      help('Load knowledgebase (only relevant in client mode)')],
-       [opt(version),   type(boolean),   default(false),       shortflags(['V']), longflags(['version']),   help('Show version')]
+       [opt(version),   type(boolean),   default(false),       shortflags(['V']), longflags(['version']),   help('Show version')],
+       [opt(ci),        type(boolean),   default(false),                          longflags(['ci']),        help('CI mode: non-interactive, fail with nonzero exit code on assumptions')]
       ].
 
 
@@ -282,12 +283,49 @@ interface:process_action(Action,ArgsSets,_Options) :-
       pkg:sync),
      Output),
      writeln(Output));
-    (prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers),
-     planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0),
-     scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder),
-     printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
-     pkg:sync )),
+    ( interface:argv(Options,_Args0),
+      prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers),
+      planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0),
+      scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder),
+      printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
+      ( memberchk(ci(true), Options) ->
+          interface:ci_exit_code(ModelAVL, ProofAVL, ExitCode),
+          halt(ExitCode)
+      ; pkg:sync
+      )
+    )),
   \+preference:flag(oneshot)
   -> (Action = 'uninstall'
       -> world:unregister(Args)
       ;  world:register(Args)).
+
+
+% -----------------------------------------------------------------------------
+%  CI helpers
+% -----------------------------------------------------------------------------
+
+% Exit code policy:
+% - 0: no assumptions
+% - 1: only prover cycle-break assumptions
+% - 2: any domain assumptions (missing/non-existent deps etc.)
+interface:ci_exit_code(ModelAVL, ProofAVL, ExitCode) :-
+  ( interface:has_any_assumption(ModelAVL) ->
+      ( interface:has_domain_assumptions(ProofAVL) -> ExitCode = 2
+      ; interface:has_cycle_breaks(ProofAVL)       -> ExitCode = 1
+      ; ExitCode = 1
+      )
+  ; ExitCode = 0
+  ).
+
+interface:has_any_assumption(ModelAVL) :-
+  assoc:gen_assoc(Key, ModelAVL, _),
+  Key = assumed(_),
+  !.
+
+interface:has_domain_assumptions(ProofAVL) :-
+  assoc:gen_assoc(rule(assumed(_)), ProofAVL, _),
+  !.
+
+interface:has_cycle_breaks(ProofAVL) :-
+  assoc:gen_assoc(assumed(rule(_)), ProofAVL, _),
+  !.

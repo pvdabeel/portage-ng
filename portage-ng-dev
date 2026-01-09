@@ -1,0 +1,20 @@
+#!/bin/sh
+#
+# Minimal launcher for portage-ng in standalone mode, without relying on a shell alias.
+# Useful for CI and for running inside restricted shells (e.g. Cursor sandbox).
+#
+# Usage:
+#   ./portage-ng-dev --mode standalone accerciser
+#   ./portage-ng-dev --mode standalone --shell
+#
+set -eu
+ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+
+exec swipl -O \
+  --stack-limit=256G --table-space=256G --shared-table-space=256G \
+  -f "$ROOT_DIR/portage-ng.pl" \
+  -p "portage=$ROOT_DIR" \
+  -Dverbose_autoload=false \
+  -Dreadline=editline \
+  -g main -- "$@"
+

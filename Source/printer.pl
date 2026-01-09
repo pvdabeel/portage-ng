@@ -2542,7 +2542,7 @@ printer:cycle_tree_parts_([Node|Rest], GuardMap, Indent, [part(Indent, Entry, Ac
 printer:cycle_tree_right_width(Parts, RightWidth) :-
   findall(W, member(part(_,_,_,_,_,W), Parts), Ws),
   max_list(Ws, MaxW),
-  ( tty_size(_, TermW) -> true ; TermW = 120 ),
+  ( config:printing_tty_size(_, TermW) -> true ; TermW = 120 ),
   % Place the right-side cycle box close to the longest line to avoid huge tails.
   % (Dynamic: still respects terminal width.)
   TargetW is MaxW + 6,
