@@ -2795,7 +2795,8 @@ printer:print_assumption_detail(rule(package_dependency(T,A,C,N,X,Y,Z,XX):_YY?{C
     message:style(normal),
     nl,
     message:color(normal),
-    printer:print_metadata_item_detail(_,'  ',package_dependency(T,A,C,N,X,Y,Z,XX)),nl.
+    printer:print_metadata_item_detail(_,'  ',package_dependency(T,A,C,N,X,Y,Z,XX)),nl,
+    printer:print_assumption_provenance(Ctx).
 
 printer:print_assumption_detail(rule(grouped_package_dependency(C,N,R):T?{Ctx},_)) :- !,
     message:color(lightred),
@@ -2809,7 +2810,8 @@ printer:print_assumption_detail(rule(grouped_package_dependency(C,N,R):T?{Ctx},_
     message:style(normal),
     nl,
     message:color(normal),
-    printer:print_metadata_item_detail(_,'  ',grouped_package_dependency(C,N,R)),nl.
+    printer:print_metadata_item_detail(_,'  ',grouped_package_dependency(C,N,R)),nl,
+    printer:print_assumption_provenance(Ctx).
 
 printer:print_assumption_detail(rule(grouped_package_dependency(X,C,N,R):install,_)) :- !,
     message:color(lightred),
@@ -2864,6 +2866,21 @@ printer:print_assumption_detail(rule(C,_)) :-
     message:color(normal),nl,
     message:print('  '),
     message:print(C), nl.
+
+% Print a small provenance hint for domain assumptions when available.
+% Context is expected to be a list (most callers), but we stay defensive.
+printer:print_assumption_provenance(Ctx0) :-
+  ( is_list(Ctx0) ->
+      ( memberchk(self(Repo://Entry), Ctx0) ->
+          message:color(darkgray),
+          message:print('  required by: '),
+          message:print(Repo://Entry),
+          nl,
+          message:color(normal)
+      ; true
+      )
+  ; true
+  ).
 
 printer:assumption_reason_label(CtxLike, Label) :-
   explainer:term_ctx(_:_?{CtxLike}, Ctx),
