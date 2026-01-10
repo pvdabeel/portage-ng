@@ -1274,7 +1274,7 @@ select(Key,notequal,Value,R://I) :-
 select(iuse,equal,Value,R://I) :-
   !,
   cache:entry_metadata(R,I,iuse,Raw),
-  query:parse_iuse_search_value(Value, RequiredSign, Pattern),
+  eapi:parse_iuse_search_value(Value, RequiredSign, Pattern),
   query:iuse_sign_matches(Raw, RequiredSign),
   query:iuse_flag_atom(Raw, Flag),
   Flag == Pattern.
@@ -1287,7 +1287,7 @@ select(iuse,equal,Value,R://I) :-
 select(iuse,tilde,Value,R://I) :-
   !,
   cache:entry_metadata(R,I,iuse,Raw),
-  query:parse_iuse_search_value(Value, RequiredSign, Pattern),
+  eapi:parse_iuse_search_value(Value, RequiredSign, Pattern),
   query:iuse_sign_matches(Raw, RequiredSign),
   query:iuse_flag_atom(Raw, Flag),
   dwim_match(Pattern, Flag).
@@ -1304,30 +1304,10 @@ select(Key,tilde,Value,R://I) :-
 select(iuse,wildcard,Pattern,R://I) :-
   !,
   cache:entry_metadata(R,I,iuse,Raw),
-  query:parse_iuse_search_value(Pattern, RequiredSign, Pattern1),
+  eapi:parse_iuse_search_value(Pattern, RequiredSign, Pattern1),
   query:iuse_sign_matches(Raw, RequiredSign),
   query:iuse_flag_atom(Raw, Flag),
   wildcard_match(Pattern1, Flag).
-
-% Parse optional leading + / - in an iuse search value, returning the bare
-% pattern and the requested default sign filter.
-%
-% - any  : match any default state (+/-/none)
-% - plus : match only plus(...)
-% - minus: match only minus(...)
-query:parse_iuse_search_value(Value, Sign, Pattern) :-
-  atom(Value),
-  atom_codes(Value, Codes),
-  ( Codes = [0'+|Rest] ->
-      Sign = plus,
-      atom_codes(Pattern, Rest)
-  ; Codes = [0'-|Rest] ->
-      Sign = minus,
-      atom_codes(Pattern, Rest)
-  ; Sign = any,
-    Pattern = Value
-  ),
-  !.
 
 query:iuse_sign_matches(_Raw, any) :- !.
 query:iuse_sign_matches(plus(_), plus) :- !.

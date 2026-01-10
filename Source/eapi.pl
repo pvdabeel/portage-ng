@@ -103,6 +103,8 @@ files.
 
 :- module(eapi, []).
 
+:- discontiguous eapi:parse_iuse_search_value/3.
+
 
 % =============================================================================
 %  EAPI declarations
@@ -2015,6 +2017,35 @@ eapi:strip_prefix_atom(Prefix,Atom,Result) :-
 eapi:strip_use_default(plus(Use),Use) :- !.
 eapi:strip_use_default(minus(Use),Use) :- !.
 eapi:strip_use_default(Use,Use) :- !.
+
+%! eapi:parse_iuse_search_value(+Value, -Sign, -Pattern)
+%
+% Parse optional leading + / - in an iuse *search* value.
+%
+% This is used by CLI `--search` queries so users can write:
+%   -s iuse=+foo
+%   -s iuse:=+mini*
+%   -s iuse~+mini
+%
+% Sign is one of:
+%   - any
+%   - plus
+%   - minus
+%
+% Pattern is the bare atom (without leading + / -).
+eapi:parse_iuse_search_value(Value, Sign, Pattern) :-
+  atom(Value),
+  atom_codes(Value, Codes),
+  ( Codes = [0'+|Rest] ->
+      Sign = plus,
+      atom_codes(Pattern, Rest)
+  ; Codes = [0'-|Rest] ->
+      Sign = minus,
+      atom_codes(Pattern, Rest)
+  ; Sign = any,
+    Pattern = Value
+  ),
+  !.
 
 
 %! eapi:check_use_expand_atom(+Atom)
