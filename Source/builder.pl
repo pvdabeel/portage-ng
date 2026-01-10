@@ -50,6 +50,7 @@ builder:buildable_element(rule(uri(_),_)) :- !.
 builder:buildable_element(rule(_Repository://_Entry:run,_)) :- !.
 builder:buildable_element(rule(_Repository://_Entry:download,_)) :- !.
 builder:buildable_element(rule(_Repository://_Entry:install,_)) :- !.
+builder:buildable_element(rule(_Repository://_Entry:update,_)) :- !.
 builder:buildable_element(assumed(rule(_Repository://_Entry:_Action,_))) :- !.
 builder:buildable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_,_),_))) :- !.
 builder:buildable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_,_)),_)) :- !.
@@ -84,6 +85,14 @@ builder:build_element(rule(Repository://Entry:install,_)) :-
   message:print(Cmd),nl,
   message:color(normal),!,
   shell(Cmd),!.
+
+% NOTE: transactional update semantics (replace-in-slot) are not implemented yet
+% in the builder. We accept update actions in the plan for printing/planning,
+% but execution is intentionally refused for now to avoid incorrect collisions.
+builder:build_element(rule(_Repository://_Entry:update,_)) :-
+  message:warning('update execution not implemented yet (transactional replace-in-slot required)'),
+  !,
+  fail.
 
 builder:build_element(rule(_Repository://_Entry:run,_)) :-
   !.

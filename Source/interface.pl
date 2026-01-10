@@ -198,6 +198,10 @@ interface:process_requests(Mode) :-
     memberchk(graph(true),Options)    -> (kb:graph,nl, 				  	            Continue) ;
     memberchk(unmerge(true),Options)  -> (interface:process_action(uninstall,Args,Options), 	    Continue) ;
     memberchk(depclean(true),Options) -> (message:warning('depclean action to be implemented'),     Continue) ;
+    % For a single target, Portage-style update behaves like a normal merge:
+    % resolve full runtime closure and perform a transactional replace if needed.
+    % In portage-ng the "full closure" corresponds to proving :run.
+    memberchk(update(true),Options)   -> (interface:process_action(run,Args,Options),               Continue) ;
     memberchk(search(true),Options)   -> (interface:process_action(search,Args,Options),            Continue) ;
     memberchk(sync(true),Options)     -> ((Mode == standalone
                                            -> (kb:sync, kb:save)

@@ -14,6 +14,8 @@ This file contains domain-specific rules
 
 :- module(rules, [rule/2]).
 
+:- discontiguous rule/2.
+
 
 % =============================================================================
 %  RULES declarations
@@ -208,9 +210,21 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
 
   % 5. Pass on relevant package dependencies and constraints to prover
 
+  % If another version is already installed in the same slot, then "merge" should
+  % translate into a transactional same-slot replacement (Portage-style), i.e.
+  % NewVersion:update (replaces OldVersion), rather than a plain NewVersion:install.
+  ( \+ preference:flag(emptytree),
+    cache:entry_metadata(Repository, Ebuild, slot, slot(SlotNew)),
+    query:search([category(C),name(N),slot(SlotNew),installed(true)], OldRepo://OldEbuild),
+    OldEbuild \== Ebuild
+  ->
+    InstallOrUpdate = Repository://Ebuild:update?{[replaces(OldRepo://OldEbuild),required_use(R),build_with_use(B),slot(C,N,S):{Ebuild}]}
+  ; InstallOrUpdate = Repository://Ebuild:install?{[required_use(R),build_with_use(B),slot(C,N,S):{Ebuild}]}
+  ),
   Conditions = [constraint(use(Repository://Ebuild):{R}),
                 constraint(slot(C,N,S):{Ebuild}),
-                Repository://Ebuild:install?{[required_use(R),build_with_use(B),slot(C,N,S):{Ebuild}]}|MergedDeps].
+                InstallOrUpdate
+                |MergedDeps].
 
 
 % -----------------------------------------------------------------------------
@@ -248,14 +262,85 @@ rule(Repository://Ebuild:uninstall?{_},[]) :-
 % - a higher version is available,
 % - the accept_keywords filter is satisfied.
 
+% Wrapper: updating an *installed* entry selects a replacement version (same slot)
+% and schedules the actual transactional update on that replacement version.
 rule(Repository://Ebuild:update?{Context},Conditions) :-
+  \+ memberchk(replaces(_), Context),
   \+(preference:flag(emptytree)),
   preference:accept_keywords(K),
-  query:search([name(Name),category(Category),keywords(K),slot(S),installed(true),version(VersionInstalled)],Repository://Ebuild), %slot broken?
-  query:search([name(Name),category(Category),keywords(K),slot(S),version(VersionLatest)],Repository://LatestEbuild),!, % todo: check cut
-  compare(>,VersionLatest,VersionInstalled)
-  -> Conditions = [Repository://Ebuild:uninstall?{Context},Repository://LatestEbuild:install?{Context}]
-  ;  Conditions = [].
+  % Determine the installed version + identity (C/N) from the concrete entry.
+  cache:ordered_entry(Repository, Ebuild, Category, Name, VersionInstalled),
+  cache:entry_metadata(Repository, Ebuild, installed, true),
+  % Find the latest acceptable version for this C/N in the repo set.
+  % Update semantics stay within the same slot (upgrade semantics cross slots and
+  % will be introduced later).
+  ( cache:entry_metadata(Repository, Ebuild, slot, slot(SlotInstalled))
+    -> query:search([name(Name),category(Category),keywords(K),slot(SlotInstalled),version(VersionLatest)],LatestRepo://LatestEbuild)
+    ;  query:search([name(Name),category(Category),keywords(K),version(VersionLatest)],LatestRepo://LatestEbuild)
+  ),
+  compare(>,VersionLatest,VersionInstalled),
+  !,
+  % IMPORTANT: represent the update as a single transactional action on the
+  % *new* version, annotated with the old version it replaces.
+  Conditions = [LatestRepo://LatestEbuild:update?{[replaces(Repository://Ebuild)|Context]}].
+
+% If the user targets a specific version with :update and it is not installed,
+% treat it as a transactional same-slot replacement when an older version is
+% installed, otherwise fall back to a plain install.
+rule(Repository://Ebuild:update?{Context},Conditions) :-
+  \+ memberchk(replaces(_), Context),
+  \+(preference:flag(emptytree)),
+  cache:ordered_entry(Repository, Ebuild, Category, Name, VersionNew),
+  \+ cache:entry_metadata(Repository, Ebuild, installed, true),
+  % Try same-slot replacement first (if slot is known).
+  ( cache:entry_metadata(Repository, Ebuild, slot, slot(SlotNew)),
+    query:search([category(Category),name(Name),slot(SlotNew),installed(true),version(VersionOld)],
+                 OldRepo://OldEbuild),
+    compare(<, VersionOld, VersionNew)
+  -> rules:update_txn_conditions(Repository://Ebuild, [replaces(OldRepo://OldEbuild)|Context], Conditions)
+  ;  Conditions = [Repository://Ebuild:install?{Context}]
+  ),
+  !.
+
+% Otherwise, updating an already-installed version is a no-op (already current or
+% no acceptable newer version).
+rule(Repository://Ebuild:update?{_Context},[]) :-
+  cache:entry_metadata(Repository, Ebuild, installed, true),
+  !.
+
+% Actual transactional update on a chosen replacement entry. This action is
+% responsible for the "remove old + merge new" atomicity inside the same slot.
+rule(Repository://Ebuild:update?{Context},Conditions) :-
+  memberchk(replaces(_OldRepo://_OldEbuild), Context),
+  !,
+  rules:update_txn_conditions(Repository://Ebuild, Context, Conditions).
+
+% Shared implementation of transactional update prerequisites for Repository://Ebuild.
+% Context MUST contain replaces(OldRepo://OldEbuild).
+rules:update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
+  % 1. Compute required_use stable model for the *new* version, extend with build_with_use
+  (findall(Item,
+          (member(build_with_use(InnerList), Context),
+           member(Item,InnerList)),
+          B)),
+  (memberchk(required_use(R),Context) -> true ; R = []),
+  query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
+
+  % 2. Compute + memoize dependency model (grouped), for the *new* version.
+  query:memoized_search(model(dependency(MergedDeps0,install)):config?{Model},Repository://Ebuild),
+  add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
+
+  % 3. Pass on relevant package dependencies and constraints to prover.
+  cache:ordered_entry(Repository, Ebuild, CNew, NNew, _),
+  findall(Ss,cache:entry_metadata(Repository,Ebuild,slot,Ss),SAll),
+  ( memberchk(CNew,['virtual','acct-group','acct-user'])
+    -> Conditions = [ constraint(use(Repository://Ebuild):{R}),
+                      constraint(slot(CNew,NNew,SAll):{Ebuild})
+                      |MergedDeps]
+    ;  Conditions = [ constraint(use(Repository://Ebuild):{R}),
+                      constraint(slot(CNew,NNew,SAll):{Ebuild}),
+                      Repository://Ebuild:download?{[required_use(R),build_with_use(B)]}
+                      |MergedDeps] ).
 
 % todo: deep
 
@@ -269,14 +354,7 @@ rule(Repository://Ebuild:update?{Context},Conditions) :-
 % - a higher version is available,
 % - the accept_keywords filter is satisfied.
 
-rule(Repository://Ebuild:update?{Context},Conditions) :-
-  \+(preference:flag(emptytree)),
-  preference:accept_keywords(K),
-  query:search([name(Name),category(Category),keywords(K),installed(true),version(VersionInstalled)],Repository://Ebuild),
-  query:search([name(Name),category(Category),keywords(K),version(VersionLatest)],Repository://LatestEbuild),!, % todo: check cut
-  compare(>,VersionLatest,VersionInstalled)
-  -> Conditions = [Repository://Ebuild:uninstall?{Context},Repository://LatestEbuild:install?{Context}]
-  ;  Conditions = [].
+% Upgrade logic will be introduced later (world/set upgrades + --deep).
 
 % todo: deep
 

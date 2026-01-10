@@ -193,25 +193,25 @@ planner:decrement_and_enqueue(ProofAVL, DependentLiteral, InState, OutState) :-
     (   get_assoc(assumed(rule(NormalizedLiteral)), ProofAVL, _)
     ->  OutState = InState
     ;
-        (   get_assoc(NormalizedLiteral, InCounts, OldCount), OldCount > 0 ->
-            NewCount is OldCount - 1,
-            put_assoc(NormalizedLiteral, InCounts, NewCount, OutCounts),
-            (   NewCount =:= 0, \+ get_assoc(NormalizedLiteral, InPlanned, _) ->
-                (   get_full_rule_from_proof(NormalizedLiteral, ProofAVL, FullDependentRule)
-                ->  OutNextReady = [FullDependentRule | InNextReady],
-                    put_assoc(NormalizedLiteral, InPlanned, true, OutPlanned)
-                ;
-                    OutNextReady = InNextReady,
-                    OutPlanned = InPlanned
-                )
-            ;   OutNextReady = InNextReady,
+    (   get_assoc(NormalizedLiteral, InCounts, OldCount), OldCount > 0 ->
+        NewCount is OldCount - 1,
+        put_assoc(NormalizedLiteral, InCounts, NewCount, OutCounts),
+        (   NewCount =:= 0, \+ get_assoc(NormalizedLiteral, InPlanned, _) ->
+            (   get_full_rule_from_proof(NormalizedLiteral, ProofAVL, FullDependentRule)
+            ->  OutNextReady = [FullDependentRule | InNextReady],
+                put_assoc(NormalizedLiteral, InPlanned, true, OutPlanned)
+            ;
+                OutNextReady = InNextReady,
                 OutPlanned = InPlanned
             )
-        ;
-            OutCounts = InCounts,
-            OutNextReady = InNextReady,
+        ;   OutNextReady = InNextReady,
             OutPlanned = InPlanned
-        ),
+        )
+    ;
+        OutCounts = InCounts,
+        OutNextReady = InNextReady,
+        OutPlanned = InPlanned
+    ),
         OutState = state(OutCounts, OutNextReady, OutPlanned)
     ).
 
