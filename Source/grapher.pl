@@ -119,6 +119,19 @@ grapher:rules_assumptions_bpmn_dot_stream(S) :-
   format(S, '    e_other [shape=box, label="Reason = unsatisfied_constraints"];~n', []),
   format(S, '  }~n~n', []),
 
+  % LANE: rules.pl (update / deep-update policy)
+  format(S, '  subgraph cluster_update {~n', []),
+  format(S, '    label="rules.pl : update policy (transactional replace-in-slot + --deep dep updates)";~n', []),
+  format(S, '    color="#888888";~n', []),
+  format(S, '    u_start [shape=circle, label="start"];~n', []),
+  format(S, '    u_is_deep [shape=diamond, label="--deep ?"];~n', []),
+  format(S, '    u_dep_installed [shape=diamond, label="dependency installed(true)?"];~n', []),
+  format(S, '    u_newer_same_slot [shape=diamond, label="newer version available\\n(same slot)?"];~n', []),
+  format(S, '    u_sched_dep_update [shape=box, label="schedule DepLatest:update\\n(replaces DepInstalled)"];~n', []),
+  format(S, '    u_keep_dep [shape=box, label="keep installed dependency\\n(no update goal)"];~n', []),
+  format(S, '    u_txn_update [shape=box, label="NewVersion:update is transactional\\n(replace-in-slot)"];~n', []),
+  format(S, '  }~n~n', []),
+
   % Flow edges (rules)
   format(S, '  r_start -> r_self_run;~n', []),
   format(S, '  r_self_run -> r_ok1 [label="yes"];~n', []),
@@ -141,6 +154,17 @@ grapher:rules_assumptions_bpmn_dot_stream(S) :-
   % Connect fallback to explanation lane
   format(S, '  r_query -> r_fallback [style=dashed, label="no more candidates"];~n', []),
   format(S, '  r_fallback -> e_start [style=dashed, label="diagnose reason"];~n~n', []),
+
+  % Flow edges (update lane)
+  format(S, '  u_start -> u_is_deep;~n', []),
+  format(S, '  u_is_deep -> u_dep_installed [label="yes"];~n', []),
+  format(S, '  u_is_deep -> u_txn_update [label="no"];~n', []),
+  format(S, '  u_dep_installed -> u_newer_same_slot [label="yes"];~n', []),
+  format(S, '  u_dep_installed -> u_keep_dep [label="no"];~n', []),
+  format(S, '  u_newer_same_slot -> u_sched_dep_update [label="yes"];~n', []),
+  format(S, '  u_newer_same_slot -> u_keep_dep [label="no"];~n', []),
+  format(S, '  u_sched_dep_update -> u_txn_update;~n', []),
+  format(S, '  u_keep_dep -> u_txn_update;~n~n', []),
 
   % Flow edges (explanation)
   format(S, '  e_start -> e_any;~n', []),
