@@ -457,11 +457,15 @@ read_ebuild(Entry,Codes,Metadata) ::-
 %
 % Update the repository on-disk cache with codes
 % read by the reader from the ebuild.sh stream.
-% Cache directory assumed to exist and prepopulated
+% Note: category subdirectories inside metadata/md5-cache may not exist yet
+% (e.g., when a new category is created in an overlay). Ensure the parent
+% directory exists before writing.
 
 update_metadata(Entry,Codes) ::-
   ::cache(Cache),
   os:compose_path(Cache,Entry,File),
+  file_directory_name(File, Dir),
+  os:make_directory(Dir),
   tell(File),
   forall(member(Line,Codes),(atom_codes(Atom,Line),writeln(Atom))),
   told.
