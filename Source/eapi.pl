@@ -15,8 +15,8 @@ A  DCG Grammar for Parsing Gentoo EAPI Metadata
 -----------------------------------------------
 
 This file implements a Definite Clause Grammar (DCG) for parsing metadata in
-Gentoo's md5-cache and Manifest files, compatible with EAPI version 8 and earlier
-(verified against the PMS specifications for EAPI 8, Sections 7, 12.1, and 12.2).
+Gentoo's md5-cache and Manifest files. It aims to track the current Gentoo
+Package Manager Specification (PMS) and EAPI behavior (currently PMS 9 / EAPI 9).
 
 It is part of portage-ng, a next-generation replacement for Gentoo's Portage
 package manager, written in SWI-prolog.
@@ -55,8 +55,8 @@ files in the repository, and will regenerate missing or outdated md5-cache.
 
 Location: Inside the metadata/md5-cache directory of a Gentoo repository.
 Purpose:  Store metadata for each ebuild, reflecting.
-Format:   Each file contains KEY=VALUE pairs, with one pair per line (PMS EAPI 8,
-          Section 12.1).
+Format:   Each file contains KEY=VALUE pairs, with one pair per line (PMS 9,
+          md5-cache specification; formerly referenced as PMS EAPI 8, Section 12.1).
 
 
 2. Manifest Files
@@ -64,16 +64,21 @@ Format:   Each file contains KEY=VALUE pairs, with one pair per line (PMS EAPI 8
 Location: In each category/package directory of the repository.
 Purpose:  Contain hash information for files referenced by ebuilds in the
           category/package.
-Format:   Each file contains KEY VALUE pairs, with one pair per line (PMS EAPI 8,
-          Section 12.2).
+Format:   Each file contains KEY VALUE pairs, with one pair per line (PMS 9,
+          Manifest specification; formerly referenced as PMS EAPI 8, Section 12.2).
 
 
 -------------------------------------------------------------------------------
  * Grammar Specifications
 -------------------------------------------------------------------------------
 
-The DCG grammar adheres to the specifications in the PMS EAPI 8 document
-(pms-8.pdf), located in the project's documentation directory.
+The DCG grammar adheres to the specifications in the PMS document located in the
+project's documentation directory (currently `pms-9.pdf`).
+
+Note: This file contains many historical inline comment references like
+"PMS EAPI 8, Section …". Those refer to the older PMS 8 layout and are kept for
+code navigation; they should be updated opportunistically as we touch the
+corresponding grammar sections.
 
 
 -------------------------------------------------------------------------------
@@ -1296,7 +1301,7 @@ eapi:function(F) -->
 %! DCG string
 %
 % Strings are defined as sequences of generic chars,
-% separated by whites (PMS EAPI 8, Sections 7.2.9, 7.2.10, 7.2.14).
+% separated by whites (PMS 9; formerly referenced as PMS EAPI 8, Sections 7.2.9, 7.2.10, 7.2.14).
 
 eapi:string(S) -->
   eapi:chars1(s, S).
@@ -1304,7 +1309,7 @@ eapi:string(S) -->
 
 %! DCG stringlist
 %
-% A list of strings (PMS EAPI 8, Sections 7.2.9, 7.2.10, 7.2.14).
+% A list of strings (PMS 9; formerly referenced as PMS EAPI 8, Sections 7.2.9, 7.2.10, 7.2.14).
 
 eapi:stringlist([S|R]) -->
   eapi:string(S), !,
@@ -1318,7 +1323,7 @@ eapi:stringlist([]) -->
 %! DCG use_flag
 %
 % Use flags are defined in EAPI 8 - 7.2.7 and 8.2.6
-% (PMS EAPI 8, Sections 7.2.7, 8.2.6).
+% (PMS 9; formerly referenced as PMS EAPI 8, Sections 7.2.7, 8.2.6).
 
 eapi:use_flag(Ua) -->
   eapi:chars1(u, U),
@@ -1623,7 +1628,7 @@ eapi:jumprule(f, C) :- code_type(C, alnum), !.           % char: alphanumeric
 
 
 % EAPI 8 - 7.2.9, 7.2.10, 7.2.14: A string name may contain '-','_','+','.', and alphanumeric chars
-% (PMS EAPI 8, Sections 7.2.9, 7.2.10, 7.2.14)
+% (PMS 9; formerly referenced as PMS EAPI 8, Sections 7.2.9, 7.2.10, 7.2.14)
 
 eapi:jumprule(s, 45) :- !.                               % char: '-'
 eapi:jumprule(s, 95) :- !.                               % char: '_'
@@ -1759,7 +1764,7 @@ eapi:kchars2([]) -->
 
 %! DCG whites
 %
-% Reads none or more whitespace chars (PMS EAPI 8, Sections 7, 8).
+% Reads none or more whitespace chars (PMS 9; formerly referenced as PMS EAPI 8, Sections 7, 8).
 
 eapi:whites -->
   [C], { code_type(C, white), ! },
@@ -1849,7 +1854,7 @@ eapi:chars_to_equal([C|R]) -->
 
 %! DCG chars_to_end
 %
-% Reads chars until the end (PMS EAPI 8, Sections 7.2.4, 7.2.6).
+% Reads chars until the end (PMS 9; formerly referenced as PMS EAPI 8, Sections 7.2.4, 7.2.6).
 
 eapi:chars_to_end([C|R]) -->
   [C], !,
