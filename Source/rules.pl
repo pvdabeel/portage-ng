@@ -214,9 +214,17 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   % translate into a transactional same-slot replacement (Portage-style), i.e.
   % NewVersion:update (replaces OldVersion), rather than a plain NewVersion:install.
   ( \+ preference:flag(emptytree),
-    cache:entry_metadata(Repository, Ebuild, slot, slot(SlotNew)),
-    query:search([category(C),name(N),slot(SlotNew),installed(true)], OldRepo://OldEbuild),
-    OldEbuild \== Ebuild
+    rules:entry_slot_default(Repository, Ebuild, SlotNew),
+    rules:installed_entry_cn(C, N, OldRepo, OldEbuild),
+    OldEbuild \== Ebuild,
+    % If the installed entry is no longer in the repo set, we may not have its
+    % slot metadata. In that case, assume it matches the slot of the replacement
+    % entry (this mirrors Portage's ability to read slot from /var/db/pkg).
+    ( cache:entry_metadata(OldRepo, OldEbuild, slot, slot(SlotOld0))
+      -> rules:canon_slot(SlotOld0, SlotOld)
+      ;  SlotOld = SlotNew
+    ),
+    SlotOld == SlotNew
   ->
     InstallOrUpdate = Repository://Ebuild:update?{[replaces(OldRepo://OldEbuild),required_use(R),build_with_use(B),slot(C,N,S):{Ebuild}]}
   ; InstallOrUpdate = Repository://Ebuild:install?{[required_use(R),build_with_use(B),slot(C,N,S):{Ebuild}]}
@@ -225,6 +233,45 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
                 constraint(slot(C,N,S):{Ebuild}),
                 InstallOrUpdate
                 |MergedDeps].
+
+% Determine a package slot for planning decisions.
+% If explicit slot metadata exists, use it; otherwise treat it as slot 0.
+rules:entry_slot_default(Repo, Entry, Slot) :-
+  ( cache:entry_metadata(Repo, Entry, slot, slot(Slot0))
+    -> rules:canon_slot(Slot0, Slot)
+    ;  Slot = '0'
+  ).
+
+% Normalize slot values so comparisons work even when some facts use numbers and
+% others use atoms.
+rules:canon_slot(S0, S) :-
+  ( atom(S0)   -> S = S0
+  ; integer(S0) -> number_atom(S0, S)
+  ; number(S0)  -> number_atom(S0, S)
+  ; S = S0
+  ),
+  !.
+
+% Find an installed entry for the given category/name, even if it isn't present
+% as an ordered_entry (e.g. when the installed version no longer exists in the
+% active repository set).
+rules:installed_entry_cn(C, N, Repo, Entry) :-
+  ( query:search([category(C),name(N),installed(true)], Repo://Entry)
+  ; cache:entry_metadata(Repo, Entry, installed, true),
+    rules:entry_id_matches_cn(Entry, C, N)
+  ).
+
+rules:entry_id_matches_cn(Entry, C, N) :-
+  atom(Entry),
+  atom_concat(C, '/', Prefix),
+  sub_atom(Entry, 0, _, _, Prefix),
+  atom_length(Prefix, L),
+  sub_atom(Entry, L, _, 0, Rest),
+  ( Rest == N
+  ; sub_atom(Rest, 0, LenN, _, N),
+    sub_atom(Rest, LenN, 1, _, '-')
+  ),
+  !.
 
 
 % -----------------------------------------------------------------------------
@@ -290,13 +337,16 @@ rule(Repository://Ebuild:update?{Context},Conditions) :-
 rule(Repository://Ebuild:update?{Context},Conditions) :-
   \+ memberchk(replaces(_), Context),
   \+(preference:flag(emptytree)),
-  cache:ordered_entry(Repository, Ebuild, Category, Name, VersionNew),
+  cache:ordered_entry(Repository, Ebuild, Category, Name, _VersionNew),
   \+ cache:entry_metadata(Repository, Ebuild, installed, true),
   % Try same-slot replacement first (if slot is known).
-  ( cache:entry_metadata(Repository, Ebuild, slot, slot(SlotNew)),
-    query:search([category(Category),name(Name),slot(SlotNew),installed(true),version(VersionOld)],
-                 OldRepo://OldEbuild),
-    compare(<, VersionOld, VersionNew)
+  ( rules:entry_slot_default(Repository, Ebuild, SlotNew),
+    rules:installed_entry_cn(Category, Name, OldRepo, OldEbuild),
+    ( cache:entry_metadata(OldRepo, OldEbuild, slot, slot(SlotOld0))
+      -> rules:canon_slot(SlotOld0, SlotOld)
+      ;  SlotOld = SlotNew
+    ),
+    SlotOld == SlotNew
   -> rules:update_txn_conditions(Repository://Ebuild, [replaces(OldRepo://OldEbuild)|Context], Conditions)
   ;  Conditions = [Repository://Ebuild:install?{Context}]
   ),
@@ -355,11 +405,27 @@ rules:update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
 
 % Collect update goals for installed dependency packages from a grouped dependency model.
 rules:deep_update_goals(Self, MergedDeps, DeepUpdates) :-
-  findall(DepRepo://DepEntry:update?{[]},
-          ( member(Dep, MergedDeps),
-            rules:dep_cn(Dep, C, N),
-            query:search([category(C),name(N),installed(true)], DepRepo://DepEntry),
-            DepRepo://DepEntry \== Self
+  ( preference:accept_keywords(K)
+    -> KeywordQ = [keywords(K)]
+    ;  KeywordQ = []
+  ),
+  findall(C-N, (member(Dep, MergedDeps), rules:dep_cn(Dep, C, N)), CN0),
+  sort(CN0, CN),
+  findall(NewRepo://NewEntry:update?{[replaces(OldRepo://OldEntry)]},
+          ( member(C-N, CN),
+            % For each dependency package, look at installed instances (possibly multiple slots).
+            query:search([category(C),name(N),installed(true)], OldRepo://OldEntry),
+            OldRepo://OldEntry \== Self,
+            cache:ordered_entry(OldRepo, OldEntry, C, N, OldVer),
+            % Only deep-update within the same slot if we can determine it.
+            cache:entry_metadata(OldRepo, OldEntry, slot, slot(Slot)),
+            % Pick the newest acceptable candidate in that slot.
+            ( KeywordQ == []
+              -> Query = [category(C),name(N),slot(Slot),version(NewVer)]
+              ;  Query = [category(C),name(N),slot(Slot),keywords(K),version(NewVer)]
+            ),
+            query:search(Query, NewRepo://NewEntry),
+            compare(>, NewVer, OldVer)
           ),
           Updates0),
   sort(Updates0, DeepUpdates).
