@@ -330,17 +330,42 @@ rules:update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
   query:memoized_search(model(dependency(MergedDeps0,install)):config?{Model},Repository://Ebuild),
   add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
 
+  % Optional: deep update means "also update dependency packages".
+  % We model this by scheduling update goals for any installed dependency package
+  % that appears in the dependency model.
+  ( preference:flag(deep)
+  -> rules:deep_update_goals(Repository://Ebuild, MergedDeps, DeepUpdates)
+  ;  DeepUpdates = []
+  ),
+
   % 3. Pass on relevant package dependencies and constraints to prover.
   cache:ordered_entry(Repository, Ebuild, CNew, NNew, _),
   findall(Ss,cache:entry_metadata(Repository,Ebuild,slot,Ss),SAll),
   ( memberchk(CNew,['virtual','acct-group','acct-user'])
-    -> Conditions = [ constraint(use(Repository://Ebuild):{R}),
-                      constraint(slot(CNew,NNew,SAll):{Ebuild})
-                      |MergedDeps]
-    ;  Conditions = [ constraint(use(Repository://Ebuild):{R}),
-                      constraint(slot(CNew,NNew,SAll):{Ebuild}),
-                      Repository://Ebuild:download?{[required_use(R),build_with_use(B)]}
-                      |MergedDeps] ).
+    -> Base = [ constraint(use(Repository://Ebuild):{R}),
+                constraint(slot(CNew,NNew,SAll):{Ebuild})
+                |DeepUpdates],
+       append(Base, MergedDeps, Conditions)
+    ;  Base = [ constraint(use(Repository://Ebuild):{R}),
+                constraint(slot(CNew,NNew,SAll):{Ebuild}),
+                Repository://Ebuild:download?{[required_use(R),build_with_use(B)]}
+                |DeepUpdates],
+       append(Base, MergedDeps, Conditions)
+  ).
+
+% Collect update goals for installed dependency packages from a grouped dependency model.
+rules:deep_update_goals(Self, MergedDeps, DeepUpdates) :-
+  findall(DepRepo://DepEntry:update?{[]},
+          ( member(Dep, MergedDeps),
+            rules:dep_cn(Dep, C, N),
+            query:search([category(C),name(N),installed(true)], DepRepo://DepEntry),
+            DepRepo://DepEntry \== Self
+          ),
+          Updates0),
+  sort(Updates0, DeepUpdates).
+
+rules:dep_cn(grouped_package_dependency(_,C,N,_):_Action?{_Ctx}, C, N) :- !.
+rules:dep_cn(grouped_package_dependency(C,N,_):_Action?{_Ctx}, C, N) :- !.
 
 % todo: deep
 

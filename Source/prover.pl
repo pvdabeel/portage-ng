@@ -11,7 +11,7 @@
     The prover computes a proof, model, constraints, and triggers for a given input.
 
     This version is enhanced to be configurable:
-    - If preference:flag(deep) is set, it performs a from-scratch build,
+    - If preference:flag(delay_triggers) is set, it performs a from-scratch build,
       optimizing for backtracking by building the Triggers tree at the end.
     - Otherwise, it performs an incremental build, updating the Triggers
       tree as it proves, which is efficient for small additions.
@@ -40,7 +40,7 @@ prover:prove(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTr
   prover:prove_recursive(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, MidTriggers),
 
   % Check the flag to determine the final trigger-building action.
-  (   current_predicate(preference:flag/1), preference:flag(deep) ->
+  (   current_predicate(preference:flag/1), preference:flag(delay_triggers) ->
       % From-Scratch Mode: Build the real Triggers tree from the final proof.
       build_triggers_from_proof(OutProof, OutTriggers)
   ;
@@ -156,7 +156,7 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 
       %writeln('PROVER: -- Ammended rule in proof '),
 
-      (   current_predicate(preference:flag/1), preference:flag(deep) ->
+      (   current_predicate(preference:flag/1), preference:flag(delay_triggers) ->
           Triggers1 = Triggers
       ;
           prover:add_triggers(NewFull, NewBody, Triggers, Triggers1)
@@ -241,7 +241,7 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 
           length(Body, DepCount),
           put_assoc(rule(Lit), Proof, dep(DepCount, Body)?Ctx, Proof1),
-          (   current_predicate(preference:flag/1), preference:flag(deep) ->
+          (   current_predicate(preference:flag/1), preference:flag(delay_triggers) ->
               Triggers1 = Triggers
           ;
               prover:add_triggers(Full, Body, Triggers, Triggers1)
