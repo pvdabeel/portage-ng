@@ -14,6 +14,8 @@ An implementation of a query language for the knowledge base
 
 :- module(query,[]).
 
+:- discontiguous query:search/2.
+
 
 % =============================================================================
 %  QUERY MACROS
@@ -1027,6 +1029,47 @@ search(iuse(Iuse),R://I) :-
   cache:entry_metadata(R,I,iuse,Value),
   eapi:strip_use_default(Value,Iuse).
 
+% -----------------------------------------------------------------------------
+%  Search: select(iuse, ...)
+% -----------------------------------------------------------------------------
+%
+% Support CLI queries like:
+%   -s iuse=minimal
+%   -s iuse:=mini*
+%
+% Note: IUSE entries may be prefixed with +/- defaults. We strip those before
+% matching, so users can search by the "clean" flag name.
+
+search(select(iuse,equal,Flag), R://I) :-
+  !,
+  cache:entry_metadata(R,I,iuse,Raw),
+  query:iuse_flag_atom(Raw, Flag),
+  atom(Flag).
+
+search(select(iuse,wildcard,Pattern), R://I) :-
+  !,
+  cache:entry_metadata(R,I,iuse,Raw),
+  query:iuse_flag_atom(Raw, Flag),
+  atom(Flag),
+  wildcard_match(Pattern, Flag).
+
+% Robust extraction of the "bare" USE flag atom from IUSE metadata values.
+% Examples:
+%   plus(foo)     -> foo
+%   minus(foo)    -> foo
+%   foo           -> foo
+query:iuse_flag_atom(plus(X), Atom)  :- !, query:iuse_flag_atom(X, Atom).
+query:iuse_flag_atom(minus(X), Atom) :- !, query:iuse_flag_atom(X, Atom).
+query:iuse_flag_atom(X, Atom) :-
+  atom(X),
+  !,
+  Atom = X.
+query:iuse_flag_atom(X, Atom) :-
+  compound(X),
+  X =.. [_F, Inner],
+  !,
+  query:iuse_flag_atom(Inner, Atom).
+
 
 % -----------------------------------------------------------------------------
 %  Search: iuse with use flag state
@@ -1225,6 +1268,13 @@ select(Key,notequal,Value,R://I) :-
   !,
   \+cache:entry_metadata(R,I,Key,Value).
 
+% Special-case IUSE because metadata values may be wrapped in plus/1 or minus/1,
+% and users typically want to search by the bare flag name.
+select(iuse,equal,Value,R://I) :-
+  !,
+  cache:entry_metadata(R,I,iuse,Raw),
+  eapi:strip_use_default(Raw,Value).
+
 select(Key,equal,Value,R://I) :-
   !,
   cache:entry_metadata(R,I,Key,Value).
@@ -1233,6 +1283,13 @@ select(Key,tilde,Value,R://I) :-
   !,
   cache:entry_metadata(R,I,Key,Match),
   dwim_match(Value,Match).
+
+select(iuse,wildcard,Pattern,R://I) :-
+  !,
+  cache:entry_metadata(R,I,iuse,Raw),
+  eapi:strip_use_default(Raw,Flag),
+  atom(Flag),
+  wildcard_match(Pattern,Flag).
 
 select(Key,wildcard,Value,R://I) :-
   !,

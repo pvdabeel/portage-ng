@@ -631,7 +631,10 @@ eapi:querypartcont(keywords,V) -->
 
 eapi:querypartcont(iuse,V) -->
   !,
-  eapi:iuse(_,[V]).
+  % For CLI search queries we accept raw atoms (including '*' wildcards),
+  % rather than strict IUSE token syntax.
+  eapi:chars_to_end(Codes),
+  { atom_codes(V, Codes) }.
 
 eapi:querypartcont(_,Value) -->
   eapi:chars_to_end(Codes),
