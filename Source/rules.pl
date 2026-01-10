@@ -226,8 +226,11 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
     ),
     SlotOld == SlotNew
   ->
-    InstallOrUpdate = Repository://Ebuild:update?{[replaces(OldRepo://OldEbuild),required_use(R),build_with_use(B),slot(C,N,S):{Ebuild}]}
-  ; InstallOrUpdate = Repository://Ebuild:install?{[required_use(R),build_with_use(B),slot(C,N,S):{Ebuild}]}
+    % IMPORTANT: do NOT thread slot(C,N,...) through action contexts. Slot is a
+    % prover-level constraint (see constraint(slot(...))) and should not influence
+    % grouped dependency candidate selection (it would incorrectly constrain := deps).
+    InstallOrUpdate = Repository://Ebuild:update?{[replaces(OldRepo://OldEbuild),required_use(R),build_with_use(B)]}
+  ; InstallOrUpdate = Repository://Ebuild:install?{[required_use(R),build_with_use(B)]}
   ),
   Conditions = [constraint(use(Repository://Ebuild):{R}),
                 constraint(slot(C,N,S):{Ebuild}),

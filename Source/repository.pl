@@ -76,6 +76,17 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 :- dpublic(update_metadata/2).
 :- dpublic(update_cache/0).
 
+% VDB helpers (private to repository instances)
+%
+% These must be declared so they are available in the instance context
+% (e.g. `pkg:find_vdb_entry/4`) when called via `:find_vdb_entry(...)`.
+% keep public for performance, like tbe eapi slots  ...
+:- dpublic(find_vdb_entry/4).
+:- dpublic(read_vdb_metadata/2).
+:- dpublic(vdb_read_first_line/3).
+:- dpublic(vdb_parse_slot_line/2).
+:- dpublic(vdb_split_atoms/2).
+
 % protected interface
 
 :- dprotected(location/1).
@@ -136,6 +147,15 @@ sync ::-
 % Updates files in local repository by invoking script to sync local repository
 % with remote repository (e.g. git / rsync / http tarball / ...)
 
+% VDB repositories are local snapshots of /var/db/pkg-style trees. They do not
+% support remote syncing via scripts (git/rsync/etc).
+
+% TODO: created vdb script in Scripts directory, then default to default behaviour
+% removing vdb type specific code
+sync(repository) ::-
+  ::type('vdb'),!,
+  true.
+
 sync(repository) ::-
   ::location(Local),
   ::remote(Remote),
@@ -157,6 +177,14 @@ sync(repository) ::-
 %
 % For non-eapi repositories, generates on-disk metadata cache by calling a script
 % For a git repository, this for example creates a metadata entry for each release.
+
+% VDB repositories have no separate on-disk metadata cache step; the directory
+% itself is the metadata source (SLOT, USE, EAPI, ...).
+% TODO: create vdb script in Scripts directory, then default to default behaviour
+% removing vdb type specific code
+sync(metadata) ::-
+  ::type('vdb'),!,
+  message:scroll(['VDB repository: no metadata cache step.']),nl.
 
 sync(metadata) ::-
   ::type('eapi'),!,
@@ -187,6 +215,61 @@ sync(metadata) ::-
 % Public predicate
 %
 % Regenerates prolog facts from the local repository cache
+
+% VDB sync: build cache facts directly from a /var/db/pkg-style directory tree.
+sync(kb) ::-
+  ::type('vdb'),!,
+  :this(Repository),
+  message:hc,
+
+  % Step 1: clean prolog cache for this repository
+  retractall(cache:repository(Repository)),
+  retractall(cache:category(Repository,_)),
+  retractall(cache:entry(Repository,_,_,_,_)),
+  retractall(cache:package(Repository,_,_)),
+  retractall(cache:ordered_entry(Repository,_,_,_,_)),
+  retractall(cache:entry_metadata(Repository,_,_,_)),
+  retractall(cache:manifest(Repository,_,_,_,_)),
+  retractall(cache:manifest_metadata(Repository,_,_,_,_,_)),
+
+  % Step 2: read installed entries and their metadata
+  concurrent_forall(
+    :find_vdb_entry(E,C,N,V),
+    ( with_mutex(mutex,message:scroll(['VDB: ',E])),
+      assertz(cache:entry(Repository,E,C,N,V)),
+      :read_vdb_metadata(E,M),
+      forall(member(L,M),
+             ( L =.. [Key,Value],
+               forall(member(I,Value),
+                      assertz(cache:entry_metadata(Repository,E,Key,I)))
+             ))
+    )
+  ),
+
+  % Step 4/5/6/7: reuse standard ordering + repository finalization logic
+  findall(Ca,cache:entry(Repository,_,Ca,_,_),Cu),
+  sort(Cu,Cs),
+  forall(member(Ca,Cs),
+         assertz(cache:category(Repository,Ca))),
+
+  findall([Ca,Pa],cache:entry(Repository,_,Ca,Pa,_),Pu),
+  sort(Pu,Ps),
+  forall(member([Ca,Pa],Ps),
+         (findall([Vn,Va,Vs,Vf,Id],
+                  (cache:entry(Repository,Id,Ca,Pa,[Vn,Va,Vs,Vf])),
+                  Vu),
+          sort(0,@>=,Vu,Vs0),
+          ( assertz(cache:package(Repository,Ca,Pa)),
+            forall(member([OVn,OVa,OVs,OVf,OrderedId],Vs0),
+                 assertz(cache:ordered_entry(Repository,OrderedId,Ca,Pa,[OVn,OVa,OVs,OVf])))))),
+
+  retractall(cache:entry(Repository,_,_,_,_)),
+  assertz(cache:repository(Repository)),
+
+  message:sc,
+  message:scroll(['Updated prolog knowledgebase.']),nl,
+  message:clean,
+  !.
 
 sync(kb) ::-
   :this(Repository),
@@ -306,6 +389,85 @@ sync(kb) ::-
   message:sc,
   message:scroll(['Updated prolog knowledgebase.']),nl,
   message:clean.
+
+
+% -----------------------------------------------------------------------------
+%  VDB helpers
+% -----------------------------------------------------------------------------
+
+%! repository:find_vdb_entry(-Entry,-Category,-Name,-Version)
+%
+% Enumerate installed entries from a /var/db/pkg-style directory tree.
+% Entry is the canonical cache id (e.g. 'www-client/links-2.30').
+find_vdb_entry(Entry, Category, Name, Version) ::-
+  ::location(Root),
+  os:directory_content(Root, Category),
+  os:compose_path(Root, Category, CategoryDir),
+  exists_directory(CategoryDir),
+  os:directory_content(CategoryDir, PF),
+  os:compose_path(CategoryDir, PF, EntryDir),
+  exists_directory(EntryDir),
+  atomic_list_concat([Category,PF], '/', Entry),
+  eapi:packageversion(PF, Name, Version).
+
+
+%! repository:read_vdb_metadata(+Entry,-Metadata)
+%
+% Build a metadata list in the same shape as eapi parsing:
+% each element is Key(ValueList) and the sync logic asserts each ValueList item.
+read_vdb_metadata(Entry, Metadata) ::-
+  ::location(Root),
+  os:compose_path(Root, Entry, Dir),
+  % Always mark installed
+  Base = [installed([true])],
+  % SLOT (may be "S" or "S/SUBSLOT")
+  ( :vdb_read_first_line(Dir, 'SLOT', SlotLine)
+    -> :vdb_parse_slot_line(SlotLine, SlotTerms),
+       SlotMeta = [slot(SlotTerms)]
+    ;  SlotMeta = []
+  ),
+  % EAPI
+  ( :vdb_read_first_line(Dir, 'EAPI', EapiLine)
+    -> EapiMeta = [eapi([EapiLine])]
+    ;  EapiMeta = []
+  ),
+  % Repository of origin (e.g. gentoo)
+  ( :vdb_read_first_line(Dir, 'repository', RepoLine)
+    -> RepoMeta = [repository([RepoLine])]
+    ;  RepoMeta = []
+  ),
+  % USE flags (space-separated)
+  ( :vdb_read_first_line(Dir, 'USE', UseLine)
+    -> :vdb_split_atoms(UseLine, UseAtoms),
+       UseMeta = [use(UseAtoms)]
+    ;  UseMeta = []
+  ),
+  append([Base, SlotMeta, EapiMeta, RepoMeta, UseMeta], Parts),
+  flatten(Parts, Metadata).
+
+vdb_read_first_line(Dir, File, AtomLine) ::-
+  os:compose_path(Dir, File, Path),
+  exists_file(Path),
+  reader:invoke(Path, Lines),
+  Lines = [LineStr|_],
+  LineStr \== "",
+  atom_string(AtomLine, LineStr),
+  !.
+
+vdb_parse_slot_line(Line, Terms) ::-
+  ( sub_atom(Line, _, _, _, '/')
+    -> atomic_list_concat([Slot0,Sub0], '/', Line),
+       Terms0 = [slot(Slot0),subslot(Sub0)]
+    ;  Terms0 = [slot(Line)]
+  ),
+  Terms = Terms0,
+  !.
+
+vdb_split_atoms(Line, Atoms) ::-
+  atom_string(Line, S),
+  split_string(S, " \t", " \t", Parts),
+  findall(A, (member(P, Parts), P \== "", atom_string(A, P)), Atoms),
+  !.
 
 
 %! repository:find_category(?Category)
@@ -510,7 +672,7 @@ prepare_directory(D) ::-
   os:compose_path(G,Repository,D),
   system:exists_directory(D),!,
   message:scroll_notice(['Directory already exists! Updating...']),
-  pkg:create_repository_dirs(Repository,D).
+  vdb:create_repository_dirs(Repository,D).
 
 prepare_directory(D) ::-
   :this(Repository),
@@ -519,7 +681,7 @@ prepare_directory(D) ::-
   os:compose_path(G,Repository,D),
   \+(system:exists_directory(D)),!,
   message:scroll_notice(['Directory does not exist! Creating...']),
-  pkg:make_repository_dirs(Repository,D).
+  vdb:make_repository_dirs(Repository,D).
 
 
 %! repository:graph

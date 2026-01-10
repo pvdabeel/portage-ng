@@ -21,6 +21,14 @@
                 'https://github.com/gentoo-mirror/gentoo','git','eapi').
 :- kb:register(portage).
 
+% -----------------------------------------------------------------------------
+%  Installed package database snapshot (vdb layout)
+% -----------------------------------------------------------------------------
+
+:- pkg:newinstance(repository).
+:- pkg:init('/Volumes/Storage/Repository/pkg','', '', 'local','vdb').
+:- kb:register(pkg).
+
 
 % -----------------------------------------------------------------------------
 %  Overlay repository - local sync

@@ -136,7 +136,7 @@ sync ::-
    forall(::repository(Repository),
  	 (message:header(['Syncing repository \"',Repository,'\"']),nl,
          Repository:sync)),!,
-   pkg:sync,
+   vdb:sync,
    oracle:vanish_q)).
 
 

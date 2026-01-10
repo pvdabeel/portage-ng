@@ -348,7 +348,7 @@ interface:process_action(Action,ArgsSets,_Options) :-
       oracle:with_q(planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0)),
       oracle:with_q(scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder)),
       printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
-      pkg:sync),
+      vdb:sync),
      Output),
      writeln(Output));
     ( interface:argv(Options,_Args0),
@@ -359,7 +359,7 @@ interface:process_action(Action,ArgsSets,_Options) :-
       ( memberchk(ci(true), Options) ->
           interface:ci_exit_code(ModelAVL, ProofAVL, ExitCode),
           halt(ExitCode)
-      ; pkg:sync
+      ; vdb:sync
       )
     )),
   \+preference:flag(oneshot)
