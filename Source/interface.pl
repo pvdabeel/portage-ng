@@ -69,6 +69,7 @@ interface:spec(S) :-
        [opt(graph),     type(boolean),   default(false),                          longflags(['graph']),     help('Create graph')],
        [opt(depclean),  type(boolean),   default(false),       shortflags(['c']), longflags(['depclean']),  help('Clean dependencies')],
        [opt(info),      type(boolean),   default(false),       shortflags(['i']), longflags(['info']),      help('Show package version')],
+       [opt(bugs),      type(boolean),   default(false),                          longflags(['bugs']),      help('Print bug report drafts (Gentoo Bugzilla) for the given target, without printing a plan')],
        [opt(search),    type(boolean),   default(false),       shortflags(['s']), longflags(['search']),    help('Search for a target')],
        [opt(unmerge),   type(boolean),   default(false),       shortflags(['C']), longflags(['unmerge']),   help('Unmerge target')],
        [opt(usepkg),    type(boolean),   default(false),       shortflags(['k']), longflags(['usepkg']),    help('Use prebuilt packages')],
@@ -192,6 +193,7 @@ interface:process_requests(Mode) :-
 
   ( memberchk(version(true),Options)  -> (message:logo(['::- portage-ng ',Version]),                Continue) ;
     memberchk(info(true),Options)     -> (interface:process_action(info,Args,Options),              Continue) ;
+    memberchk(bugs(true),Options)     -> (interface:process_bugs(Args,Options),                     Continue) ;
     memberchk(clear(true),Options)    -> (kb:clear, 						    Continue) ;
     memberchk(graph(true),Options)    -> (kb:graph,nl, 				  	            Continue) ;
     memberchk(unmerge(true),Options)  -> (interface:process_action(uninstall,Args,Options), 	    Continue) ;
@@ -207,6 +209,66 @@ interface:process_requests(Mode) :-
     memberchk(shell(true),Options)    -> (message:logo(['::- portage-ng shell - ',Version]),	    prolog)),
 
   Continue.
+
+
+% -----------------------------------------------------------------------------
+%  Action: BUG REPORT DRAFTS
+% -----------------------------------------------------------------------------
+%
+% Prints only the suggested bug report drafts for a target, without printing the
+% full plan.
+%
+% Example:
+%   portage-ng-dev --mode standalone --bugs ghc
+%
+
+interface:process_bugs([], _Options) :-
+  !,
+  message:inform('Need more arguments').
+
+interface:process_bugs(ArgsSets, Options) :-
+  interface:process_mode(Mode),
+  interface:process_server(Host,Port),
+  eapi:substitute_sets(ArgsSets,Args),
+  % Use Action=run to match normal merge planning semantics (install+run deps).
+  findall(R://E:run?{[]}, ( member(Arg,Args),
+                           atom_codes(Arg,Codes),
+                           phrase(eapi:qualified_target(Q),Codes),
+                           once(kb:query(Q,R://E))
+                         ),
+          Proposal),!,
+  message:log(['Proposal:  ',Proposal]),
+  ( Proposal == [] ->
+      message:inform('No matching target found'),
+      !
+  ; true
+  ),
+  ( Mode == 'client' ->
+      client:rpc_execute(Host,Port,
+        ( oracle:with_q(prover:prove(Proposal,t,ProofAVL,t,_ModelAVL,t,_Constraint,t,_Triggers)),
+          interface:print_bugreport_drafts_from_proof(ProofAVL)
+        ),
+        Output),
+      writeln(Output)
+  ; % standalone / server-side execution
+    prover:prove(Proposal,t,ProofAVL,t,_ModelAVL,t,_Constraint,t,_Triggers),
+    interface:print_bugreport_drafts_from_proof(ProofAVL),
+    % In --bugs mode we do not sync and we do not touch world.
+    ( memberchk(ci(true), Options) ->
+        halt(0)
+    ; true
+    )
+  ).
+
+interface:print_bugreport_drafts_from_proof(ProofAVL) :-
+  findall(Content, assoc:gen_assoc(rule(assumed(Content)), ProofAVL, _), DomainAssumptions0),
+  sort(DomainAssumptions0, DomainAssumptions),
+  ( DomainAssumptions == [] ->
+      message:header('Bug report drafts (Gentoo Bugzilla)'),
+      nl,
+      writeln('  (none)')
+  ; printer:print_bugreport_drafts(DomainAssumptions)
+  ).
 
 
 % -----------------------------------------------------------------------------
