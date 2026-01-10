@@ -48,6 +48,18 @@ digraph rules_assumptions_bpmn {
     e_other [shape=box, label="Reason = unsatisfied_constraints"];
   }
 
+  subgraph cluster_update {
+    label="rules.pl : update policy (transactional replace-in-slot + --deep dep updates)";
+    color="#888888";
+    u_start [shape=circle, label="start"];
+    u_is_deep [shape=diamond, label="--deep ?"];
+    u_dep_installed [shape=diamond, label="dependency installed(true)?"];
+    u_newer_same_slot [shape=diamond, label="newer version available\n(same slot)?"];
+    u_sched_dep_update [shape=box, label="schedule DepLatest:update\n(replaces DepInstalled)"];
+    u_keep_dep [shape=box, label="keep installed dependency\n(no update goal)"];
+    u_txn_update [shape=box, label="NewVersion:update is transactional\n(replace-in-slot)"];
+  }
+
   r_start -> r_self_run;
   r_self_run -> r_ok1 [label="yes"];
   r_self_run -> r_installed [label="no"];
@@ -65,9 +77,18 @@ digraph rules_assumptions_bpmn {
   r_versions -> r_query [label="no: try next"];
   r_build_use -> r_process_slot;
   r_process_slot -> r_success;
-
   r_query -> r_fallback [style=dashed, label="no more candidates"];
   r_fallback -> e_start [style=dashed, label="diagnose reason"];
+
+  u_start -> u_is_deep;
+  u_is_deep -> u_dep_installed [label="yes"];
+  u_is_deep -> u_txn_update [label="no"];
+  u_dep_installed -> u_newer_same_slot [label="yes"];
+  u_dep_installed -> u_keep_dep [label="no"];
+  u_newer_same_slot -> u_sched_dep_update [label="yes"];
+  u_newer_same_slot -> u_keep_dep [label="no"];
+  u_sched_dep_update -> u_txn_update;
+  u_keep_dep -> u_txn_update;
 
   e_start -> e_any;
   e_any -> e_missing [label="no"];
