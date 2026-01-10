@@ -309,10 +309,17 @@ rule(package_dependency(_,strong,_,_,_,_,_,_):_?{_},[]) :- !.
 
 
 % -----------------------------------------------------------------------------
-%  Rule: Dependencies on the system profile
+%  Rule: Dependencies on the system profile / core packages
 % -----------------------------------------------------------------------------
 
-rule(package_dependency(_,no,C,N,_,_,_,_):_?{_}, []) :-
+% In emptytree mode, we treat a small set of "core" packages as provided by the
+% system profile / baseline and *do not* force model construction to resolve them.
+% This keeps emptytree proofs from exploding into "build the whole OS" graphs.
+%
+% Note: core package handling during actual dependency *resolution* happens in
+% the grouped dependency rule below (`grouped_package_dependency/4`), not here.
+rule(package_dependency(_Phase,no,C,N,_O,_V,_S,_U):config?{_Context}, []) :-
+    preference:flag(emptytree),
     core_pkg(C,N), !.
 
 
