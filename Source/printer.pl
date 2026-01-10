@@ -1555,6 +1555,19 @@ printer:print_config(Repository://Entry:install?{Context}) :-
         printer:print_config_items_aligned(Useflags, ValidUseExpandVariables, Assumed, [])))),!.
 
 
+% --------------------
+% CASE: Update action
+% --------------------
+%
+% Print the same configuration block as for installs (USE flags, USE_EXPAND, slot).
+% Update actions are transactional same-slot replacements, so the config shown is
+% for the *new* version being merged.
+
+printer:print_config(Repository://Entry:update?{Context}) :-
+  !,
+  printer:print_config(Repository://Entry:install?{Context}).
+
+
 % ----------------
 % CASE: Run action
 % ----------------

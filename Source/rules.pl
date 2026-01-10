@@ -435,6 +435,17 @@ rules:deep_update_goals(Self, MergedDeps, DeepUpdates) :-
 
 rules:dep_cn(grouped_package_dependency(_,C,N,_):_Action?{_Ctx}, C, N) :- !.
 rules:dep_cn(grouped_package_dependency(C,N,_):_Action?{_Ctx}, C, N) :- !.
+% Concrete dependency literals (already resolved to a specific entry):
+%   Repo://Entry:install?{...}
+%   Repo://Entry:run?{...}
+%   Repo://Entry:config?{...}
+% etc.
+rules:dep_cn(Repo://Entry:_Action?{_Ctx}, C, N) :-
+  cache:ordered_entry(Repo, Entry, C, N, _),
+  !.
+rules:dep_cn(Repo://Entry:_Action, C, N) :-
+  cache:ordered_entry(Repo, Entry, C, N, _),
+  !.
 
 % todo: deep
 
@@ -564,79 +575,86 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
     memberchk(self(SelfRepo://SelfEntry), Context),
     cache:ordered_entry(SelfRepo, SelfEntry, C, N, _)
   ->
-    !,
     Conditions = []
-  ; % ELSE:
-    ( % IF: The package is already installed and we are not doing a full tree build...
-      ((\+(preference:flag(emptytree)),
-        cache:ordered_entry(Repository, Ebuild, C, N, _),
-        cache:entry_metadata(Repository, Ebuild, installed, true));
-        % OR : We are doing a full tree build and the package is a core package
-       (preference:flag(emptytree),
-        core_pkg(C,N)))
-    ->
-      % THEN: Succeed immediately with no further conditions.
-      !,
-      Conditions = [] % todo: check build_with_use requirements here
+  ; preference:flag(emptytree),
+    core_pkg(C,N)
+  ->
+    Conditions = []
+  ; \+ preference:flag(emptytree),
+    \+ preference:flag(deep),
+    merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
+    once(query:search([repository(pkg),category(C),name(N),installed(true),
+                       select(slot,constraint(SlotReq),_)],
+                      pkg://InstalledEntry)),
+    forall(member(package_dependency(Action,no,C,N,O,V,_,_), PackageDeps),
+           query:search(select(version,O,V), pkg://InstalledEntry))
+  ->
+    Conditions = []
+  ;
+    ( preference:accept_keywords(K),
+      (memberchk(slot(C,N,Ss):{_}, Context) -> true ; true),
+      merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
 
-    ; % ELSE: Proceed with the general resolution logic.
-      % package_dependency(_,no,C,N,O,V,S,U):Action?{Context}
+      % Candidate selection (portage / overlays)
+      ( Action \== run,
+        memberchk(self(SelfRepo0://SelfEntry0), Context),
+        cache:ordered_entry(SelfRepo0, SelfEntry0, C, N, _)
+      ->
+        \+ preference:flag(emptytree),
+        query:search([name(N),category(C),keyword(K),installed(true),
+                      select(slot,constraint(SlotReq),Ss)], FoundRepo://Candidate)
+      ; query:search([name(N),category(C),keyword(K),
+                      select(slot,constraint(SlotReq),Ss)], FoundRepo://Candidate)
+      ),
 
-      (
-        ( preference:accept_keywords(K),
-          (memberchk(slot(C,N,Ss):{_}, Context) -> true ; true),
-
-        % Preserve/merge slot restriction(s) from grouped deps.
-        merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
-
-        % If this is a self-hosting dependency (same C/N as current self), then for
-        % non-run actions we only allow satisfaction by an already installed candidate.
-        % Search installed candidates up-front to avoid scanning all versions.
-        ( Action \== run,
-          memberchk(self(SelfRepo0://SelfEntry0), Context),
-          cache:ordered_entry(SelfRepo0, SelfEntry0, C, N, _)
-        ->
-          \+ preference:flag(emptytree),
-          query:search([name(N),category(C),keyword(K),installed(true),select(slot,constraint(SlotReq),Ss)], FoundRepo://Candidate)
-        ; query:search([name(N),category(C),keyword(K),select(slot,constraint(SlotReq),Ss)], FoundRepo://Candidate)
-        ), % macro-expanded
-        % For dependencies on the same package as the current "self", only allow
-        % satisfaction by an already-installed candidate. This prevents bootstrap
-        % loops (e.g. compilers depending on themselves) while still preferring an
-        % installed toolchain when present.
-        true,
-        % Reject trivial self-resolution unless the candidate is already installed.
-        % This allows "prefer installed toolchain" but prevents "install X depends on install X".
-        ( ( memberchk(self(_SelfRepo://SelfEntry), Context)
-          ; memberchk(slot(C,N,_SelfSlot):{SelfEntry}, Context)
-          ),
-          Candidate == SelfEntry
-        ->
-          \+ preference:flag(emptytree),
-          cache:entry_metadata(FoundRepo, Candidate, installed, true)
-        ; true
+      % Avoid resolving a dep to self unless candidate is already installed
+      ( ( memberchk(self(_SelfRepo://SelfEntry1), Context)
+        ; memberchk(slot(C,N,_SelfSlot):{SelfEntry1}, Context)
         ),
-        % Check that *all* version constraints in the grouped deps are satisfied by
-        % this Candidate. Using per-constraint query calls allows goal_expansion
-        % to inline the query for performance, and avoids building an intermediate list.
-        forall(
-            member(package_dependency(Action,no,C,N,O,V,_,_), PackageDeps),
-            query:search(select(version,O,V), FoundRepo://Candidate)
-        ),
+        Candidate == SelfEntry1
+      ->
+        \+ preference:flag(emptytree),
+        cache:entry_metadata(FoundRepo, Candidate, installed, true)
+      ; true
+      ),
 
-        findall(U,    (member(package_dependency(Action,no,C,N,O,V,_,U),PackageDeps)),
-                      MergedUse),
+      forall(member(package_dependency(Action,no,C,N,O,V,_,_), PackageDeps),
+             query:search(select(version,O,V), FoundRepo://Candidate)),
 
-        process_build_with_use(MergedUse,Context,NewContext,Constraints,FoundRepo://Candidate), % todo: check we look at combined use requirements here
-        process_slot(SlotReq,Ss,C,N,FoundRepo://Candidate,NewContext,NewerContext),
+      findall(U, member(package_dependency(Action,no,C,N,_O,_V,_,U),PackageDeps), MergedUse),
+      process_build_with_use(MergedUse,Context,NewContext,Constraints,FoundRepo://Candidate),
+      process_slot(SlotReq,Ss,C,N,FoundRepo://Candidate,NewContext,NewerContext),
 
-        % Add build_with_use constraints to Conditions
-        append(Constraints, [FoundRepo://Candidate:Action?{NewerContext}], AllConditions),
-        Conditions = AllConditions )
+      % Prefer expressing as update when a pkg-installed entry exists and the chosen
+      % candidate is newer.
+      ( \+ preference:flag(emptytree),
+        once(query:search([repository(pkg),category(C),name(N),installed(true),
+                           select(slot,constraint(SlotReq),_)],
+                          pkg://InstalledEntry2)),
+        InstalledEntry2 \== Candidate,
+        cache:ordered_entry(pkg, InstalledEntry2, C, N, OldVer),
+        cache:ordered_entry(FoundRepo, Candidate, C, N, NewVer),
+        compare(>, NewVer, OldVer)
+      ->
+        ActionGoal = FoundRepo://Candidate:update?{[replaces(pkg://InstalledEntry2)|NewerContext]}
+      ; ActionGoal = FoundRepo://Candidate:Action?{NewerContext}
+      ),
 
-    ; % ELSE: If no candidate can be found, assume it's non-existent.
-      explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason),
-      Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps):Action?{[assumption_reason(Reason)|Context]})] % todo: fail
+      append(Constraints, [ActionGoal], Conditions)
+    ; % In --deep mode we *prefer* upgrades, but we should not create domain
+      % assumptions when the dependency is already installed in the vdb (`pkg`)
+      % and satisfies constraints. Instead, fall back to "keep installed".
+      ( preference:flag(deep),
+        merge_slot_restriction(Action, C, N, PackageDeps, SlotReq2),
+        once(query:search([repository(pkg),category(C),name(N),installed(true),
+                           select(slot,constraint(SlotReq2),_)],
+                          pkg://InstalledEntryFallback)),
+        forall(member(package_dependency(Action,no,C,N,O2,V2,_,_), PackageDeps),
+               query:search(select(version,O2,V2), pkg://InstalledEntryFallback))
+      ->
+        Conditions = []
+      ; explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason),
+        Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps):Action?{[assumption_reason(Reason)|Context]})]
       )
     )
   ).

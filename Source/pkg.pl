@@ -81,3 +81,26 @@ vdb:make_repository_dirs(Repository,Directory) :-
      system:make_directory(Subdir))).
 
 
+% -----------------------------------------------------------------------------
+%  VDB helpers (diagnostics)
+% -----------------------------------------------------------------------------
+
+%! vdb:outdated(+Category, +Name, -Installed, -Latest)
+%
+% True when the installed vdb repository (`pkg`) contains Category/Name at an
+% older version than the newest acceptable candidate in the portage repository.
+%
+% This is meant as a small diagnostic to help validate --deep behaviour.
+%
+% Example:
+%   ?- vdb:outdated('dev-libs',openssl, Installed, Latest).
+%   Installed = pkg://'dev-libs/openssl-3.5.0',
+%   Latest    = portage://'dev-libs/openssl-3.5.4'.
+%
+vdb:outdated(Category, Name, pkg://InstalledEntry, portage://LatestEntry) :-
+  cache:ordered_entry(pkg, InstalledEntry, Category, Name, InstalledVer),
+  preference:accept_keywords(K),
+  once(query:search([repository(portage),category(Category),name(Name),keywords(K),version(LatestVer)],
+                    portage://LatestEntry)),
+  compare(>, LatestVer, InstalledVer).
+
