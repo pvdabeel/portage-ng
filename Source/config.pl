@@ -304,7 +304,7 @@ config:graph_legacy_type([emerge]).
 % automatically stop computation if it takes too long.
 %In seconds.
 
-config:time_limit(30).
+config:time_limit(60).
 
 
 %! config:proving_target(?Target)
@@ -455,6 +455,24 @@ config:test_style(parallel_verbose).
 % Note: must be a non-negative integer.
 
 config:test_stats_top_n(25).
+
+
+%! config:bugreport_drafts_enabled(?Bool)
+%
+% Whether to print "Bug report drafts (Gentoo Bugzilla)" in the warnings section
+% when domain assumptions are present.
+%
+config:bugreport_drafts_enabled(true).
+
+
+%! config:bugreport_drafts_max_assumptions(?N)
+%
+% Only print bug report drafts when the number of domain assumptions is small,
+% to avoid overwhelming output for bulk runs.
+%
+% Note: must be a non-negative integer.
+%
+config:bugreport_drafts_max_assumptions(25).
 
 
 %! config:failsilenton(?Key)

@@ -2246,6 +2246,20 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
                nl ))
   ; true
   ),
+  % Optional: print simple Gentoo Bugzilla bug report drafts when domain assumptions
+  % are few (avoid overwhelming output for bulk runs like prover:test_stats/1).
+  ( DomainAssumptions \= [] ->
+      ( config:bugreport_drafts_enabled(true) ->
+          ( config:bugreport_drafts_max_assumptions(MaxAss) -> true ; MaxAss = 25 ),
+          length(DomainAssumptions, NAss),
+          ( NAss =< MaxAss ->
+              printer:print_bugreport_drafts(DomainAssumptions)
+          ; true
+          )
+      ; true
+      )
+  ; true
+  ),
   ( CycleAssumptions \= [] ->
       message:header('Cycle breaks (prover)'),
       nl,
@@ -2266,6 +2280,257 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
   message:color(normal),nl.
 
 printer:print_warnings(_,_,_) :- !, nl.
+
+
+% -----------------------------------------------------------------------------
+%  Bug report drafts (domain assumptions)
+% -----------------------------------------------------------------------------
+
+printer:print_bugreport_drafts(DomainAssumptions) :-
+  printer:bugreport_groups(DomainAssumptions, Groups),
+  ( Groups == [] ->
+      true
+  ; nl,
+    message:header('Bug report drafts (Gentoo Bugzilla)'),
+    nl,
+    forall(member(G, Groups),
+           ( printer:print_bugreport_group(G),
+             nl ))
+  ).
+
+% Group per (Reason, C/N, Constraints, RequiredBy), merging run/install variants.
+printer:bugreport_groups(DomainAssumptions, Groups) :-
+  findall(Key-Issue,
+          ( member(Content, DomainAssumptions),
+            printer:bugreport_issue(Content, Key, Issue)
+          ),
+          Pairs0),
+  keysort(Pairs0, Pairs),
+  group_pairs_by_key(Pairs, Grouped),
+  findall(Group,
+          ( member(_Key-Issues, Grouped),
+            printer:merge_bugreport_issues(Issues, Group)
+          ),
+          Groups).
+
+printer:bugreport_issue(Content, Key, issue(Reason, RequiredBy, C, N, Constraints, Actions)) :-
+  % Only handle grouped_package_dependency assumptions for now (these dominate).
+  Content = grouped_package_dependency(C,N,PackageDeps):Action?{Ctx},
+  !,
+  % Extract reason from context if present; otherwise keep a stable placeholder.
+  ( explainer:term_ctx(Content, CtxList),
+    memberchk(assumption_reason(Reason0), CtxList)
+  -> true
+  ; Reason0 = unknown
+  ),
+  ( Reason0 == none -> Reason = unsatisfied_constraints ; Reason = Reason0 ),
+  ( memberchk(self(RequiredBy), Ctx) -> true ; RequiredBy = unknown ),
+  printer:extract_constraints_from_packagedeps(C, N, PackageDeps, Constraints),
+  Actions = [Action],
+  Key = Reason-RequiredBy-C-N-Constraints.
+printer:bugreport_issue(_Other, _Key, _Issue) :-
+  fail.
+
+printer:merge_bugreport_issues(Issues, group(Reason, RequiredBy, C, N, Constraints, ActionsU)) :-
+  Issues = [issue(Reason, RequiredBy, C, N, Constraints, Actions0)|Rest],
+  findall(A,
+          ( member(issue(_,_,_,_,_,As), [issue(Reason, RequiredBy, C, N, Constraints, Actions0)|Rest]),
+            member(A, As)
+          ),
+          ActionsAll),
+  sort(ActionsAll, ActionsU).
+
+printer:extract_constraints_from_packagedeps(C, N, PackageDeps, Constraints) :-
+  findall(constraint(O,V,S),
+          ( member(package_dependency(_Action,no,C,N,O,Ver,S,_U), PackageDeps),
+            printer:version_atom(Ver, V)
+          ),
+          Cs0),
+  sort(Cs0, Constraints).
+
+printer:version_atom([_,_,_,A], A) :- !.
+printer:version_atom([_,_,_,_,A], A) :- !.
+printer:version_atom(A, A).
+
+printer:print_bugreport_group(group(Reason, RequiredBy, C, N, Constraints, Actions)) :-
+  printer:bugreport_summary(Reason, RequiredBy, C, N, Summary),
+  message:color(darkgray),
+  message:print('---'), nl,
+  message:color(normal),
+  message:style(bold),
+  message:print('Summary: '),
+  message:style(normal),
+  message:print(Summary),
+  nl, nl,
+  message:style(bold),
+  message:print('Affected package: '),
+  message:style(normal),
+  message:color(darkgray),
+  message:print(RequiredBy),
+  message:color(normal),
+  nl,
+  message:style(bold),
+  message:print('Dependency: '),
+  message:style(normal),
+  message:color(darkgray),
+  format('~w/~w', [C, N]),
+  message:color(normal),
+  nl,
+  message:style(bold),
+  message:print('Phases: '),
+  message:style(normal),
+  message:color(darkgray),
+  format('~w', [Actions]),
+  message:color(normal),
+  nl, nl,
+  message:style(bold),
+  message:print('Unsatisfiable constraint(s):'),
+  message:style(normal),
+  nl,
+  forall(member(constraint(O,V,S), Constraints),
+         ( message:color(darkgray),
+           write('  '),
+           printer:print_bugreport_constraint(O, C, N, V, S),
+           message:color(normal),
+           nl
+         )),
+  nl,
+  message:style(bold),
+  message:print('Observed:'),
+  message:style(normal),
+  nl,
+  message:color(darkgray),
+  format('  portage-ng reports no available candidate satisfies the above constraint(s).~n', []),
+  ( printer:available_versions(C, N, Vs),
+    Vs \= [],
+    printer:available_version_count_unique(C, N, CountU)
+  -> length(Vs, SampleN),
+     format('  Available versions in repo set (sample, first ~d of ~d): ~w~n', [SampleN, CountU, Vs])
+  ; true
+  ),
+  message:color(normal),
+  nl,
+  message:style(bold),
+  message:print('Potential fix (suggestion):'),
+  message:style(normal),
+  nl,
+  message:color(darkgray),
+  printer:bugreport_potential_fix(Reason, C, N, Constraints, RequiredBy),
+  message:color(normal).
+
+printer:bugreport_summary(Reason, RequiredBy0, C0, N0, Summary) :-
+  printer:bugreport_safe_atom(RequiredBy0, unknown_depender, RequiredBy),
+  printer:bugreport_safe_atom(C0, unknown_category, C),
+  printer:bugreport_safe_atom(N0, unknown_package, N),
+  printer:bugreport_reason_label(Reason, ReasonLabel),
+  % Always bind Summary to an atom (even if inputs are variables).
+  format(atom(Summary), '~w: ~w dependency on ~w/~w', [RequiredBy, ReasonLabel, C, N]).
+
+printer:bugreport_safe_atom(X, Default, Out) :-
+  ( atom(X) -> Out = X
+  ; X = Repo://Entry, atom(Repo), atom(Entry) -> Out = (Repo://Entry)
+  ; Out = Default
+  ).
+
+printer:bugreport_reason_label(Reason, 'unsatisfied dependency') :-
+  var(Reason),
+  !.
+printer:bugreport_reason_label(Reason, 'unsatisfiable version constraint') :-
+  ( Reason = version_no_candidate(_,_) ; Reason = version_no_candidate ),
+  !.
+printer:bugreport_reason_label(Reason, 'conflicting version constraints') :-
+  ( Reason = version_conflict ; Reason = version_conflict(_) ),
+  !.
+printer:bugreport_reason_label(slot_unsatisfied,   'unsatisfiable slot constraint') :- !.
+printer:bugreport_reason_label(keyword_filtered,   'keyword-filtered') :- !.
+printer:bugreport_reason_label(masked,             'masked') :- !.
+printer:bugreport_reason_label(installed_required, 'installed-only requirement') :- !.
+printer:bugreport_reason_label(Reason, Reason).
+
+printer:print_bugreport_constraint(O, C, N, V, S) :-
+  printer:print_comparator(O),
+  write(C), write('/'), write(N), write('-'), write(V),
+  printer:print_slot_restriction(S).
+
+printer:available_versions(C, N, Sample) :-
+  findall(V,
+          ( cache:ordered_entry(_Repo, _Id, C, N, Ver),
+            printer:version_atom(Ver, V)
+          ),
+          Vs0),
+  sort(Vs0, Vs),
+  % Take up to 8 to keep output short.
+  printer:take_first_n(Vs, 8, Sample).
+printer:available_versions(_C, _N, []).
+
+printer:bugreport_potential_fix(Reason, C, N, Constraints, RequiredBy) :-
+  ( Reason = version_no_candidate(Op, Ver) ->
+      printer:bugreport_constraint_short(Op, Ver, Short),
+      format('  One constraint has zero matches: ~w. Consider relaxing/removing that bound after verifying compatibility.~n',
+             [Short])
+    ,
+    ( printer:available_version_range(C, N, MinV, MaxV, Count) ->
+        format('  Available versions for ~w/~w: ~w .. ~w (~d total).~n', [C, N, MinV, MaxV, Count])
+    ; true
+    )
+  ; Reason = version_no_candidate ->
+      format('  At least one version bound has zero matches. Consider relaxing/removing the tightest bound after verifying compatibility.~n', [])
+  ; Reason = version_conflict ; Reason = version_conflict(_) ->
+      format('  Constraints conflict. Consider adjusting bounds so at least one version satisfies all constraints.~n', [])
+  ; Reason = slot_unsatisfied ->
+      format('  Slot restriction filters all candidates. Consider adjusting slot operator/restriction if appropriate.~n', [])
+  ; Reason = keyword_filtered ->
+      format('  Candidates exist but none match ACCEPT_KEYWORDS. Consider keywording or adjusting KEYWORDS/ACCEPT_KEYWORDS as appropriate.~n', [])
+  ; Reason = masked ->
+      format('  Candidates exist but are masked. Consider unmasking or adjusting mask rules if appropriate.~n', [])
+  ; Reason = installed_required ->
+      format('  This appears to be a self-hosting/installed-only constraint. Consider ensuring a suitable installed candidate exists or adjusting bootstrap logic.~n', [])
+  ; format('  Review dependency metadata in ~w; constraint set: ~w.~n', [RequiredBy, Constraints])
+  ).
+
+% Compute a human-readable (min..max) version range for a package in the current repo set.
+printer:available_version_range(C, N, MinAtom, MaxAtom, Count) :-
+  findall(Ver, cache:ordered_entry(_Repo, _Id, C, N, Ver), Vers0Raw),
+  Vers0Raw \= [],
+  sort(Vers0Raw, Vers0), % unique (may include multiple repos, but dedup by term)
+  length(Vers0, Count),
+  predsort(printer:compare_versions, Vers0, VersSorted),
+  VersSorted = [Min|_],
+  last(VersSorted, Max),
+  printer:version_atom(Min, MinAtom),
+  printer:version_atom(Max, MaxAtom).
+
+printer:available_version_count_unique(C, N, Count) :-
+  findall(Ver, cache:ordered_entry(_Repo, _Id, C, N, Ver), Vers0Raw),
+  sort(Vers0Raw, Vers0),
+  length(Vers0, Count).
+
+printer:compare_versions(Delta, A, B) :-
+  ( system:compare(<, A, B) -> Delta = (<)
+  ; system:compare(>, A, B) -> Delta = (>)
+  ; Delta = (=)
+  ).
+
+printer:take_first_n(_, 0, []) :- !.
+printer:take_first_n([], _N, []) :- !.
+printer:take_first_n([X|Xs], N, [X|Ys]) :-
+  N > 0,
+  N1 is N - 1,
+  printer:take_first_n(Xs, N1, Ys).
+
+printer:bugreport_constraint_short(Op, Ver0, Short) :-
+  printer:comparator_symbol(Op, Sym),
+  printer:version_atom(Ver0, Ver),
+  format(atom(Short), '~w~w', [Sym, Ver]).
+
+printer:comparator_symbol(greaterequal, '>=') :- !.
+printer:comparator_symbol(greater,      '>')  :- !.
+printer:comparator_symbol(smallerequal, '<=') :- !.
+printer:comparator_symbol(smaller,      '<')  :- !.
+printer:comparator_symbol(equal,        '=')  :- !.
+printer:comparator_symbol(tilde,        '~')  :- !.
+printer:comparator_symbol(none,         '')   :- !.
+printer:comparator_symbol(Op,           Op).
 
 
 %! printer:handle_assumption(+ProofKey)
