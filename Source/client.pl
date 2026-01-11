@@ -76,8 +76,11 @@ remote_predicate_instance(config:printing_tty_size(_,_)).
 rpc_execute(Hostname,Port,Cmd) :-
   format(atom(URL), 'https://~w:~d', [Hostname,Port]),
   config:certificate('cacert.pem',CaCert),
-  config:certificate(Hostname,'client-cert.pem',ClientCert),
-  config:certificate(Hostname,'client-key.pem',ClientKey),
+  % Client certificate is identified by the *local* hostname, not the remote
+  % server host we are connecting to.
+  config:hostname(LocalHostname),
+  config:certificate(LocalHostname,'client-cert.pem',ClientCert),
+  config:certificate(LocalHostname,'client-key.pem',ClientKey),
   config:certificate_password(client,Pass),
   config:digest_password(User,Digestpwd),
   config:server_chunk(ChunkSize),
@@ -136,13 +139,16 @@ rpc_execute(Hostname,Port,Cmd,Output,Srclist) :-
 execute_remotely(Hostname,Port,Page) :-
     format(atom(URL), 'https://~w:~d~w', [Hostname,Port, Page]),
     config:certificate('cacert.pem',CaCert),
-    config:certificate(Hostname,'client-cert.pem',ClientCert),
-    config:certificate(Hostname,'client-key.pem',ClientKey),
+    % Client certificate is identified by the *local* hostname, not the remote
+    % server host we are connecting to.
+    config:hostname(LocalHostname),
+    config:certificate(LocalHostname,'client-cert.pem',ClientCert),
+    config:certificate(LocalHostname,'client-key.pem',ClientKey),
     config:certificate_password(client,Pass),
     config:digest_password(User,Digestpwd),
     http:http_open(URL, In,
               [ host(Hostname),
-		authorization(digest(User,Digestpwd)),
+		            authorization(digest(User,Digestpwd)),
                 cacerts([file(CaCert)]),
                 certificate_file(ClientCert),
                 key_file(ClientKey),

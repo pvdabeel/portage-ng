@@ -50,13 +50,18 @@ as a Makefile).
 % Start a http server on the given port and listens for commands
 
 server:start_server  :-
-  interface:process_server(Hostname,Port),
+  % `interface:process_server/2` returns the client connection override host,
+  % which must NOT be used for selecting this server's TLS certificate.
+  interface:process_server(_,Port),
+  config:hostname(Hostname),
   config:certificate('cacert.pem',CaCert),
   config:certificate(Hostname,'server-cert.pem',ServerCert),
   config:certificate(Hostname,'server-key.pem',ServerKey),
   config:certificate_password(server,Pass),
   config:digest_passwordfile(Pwdfile),
   config:digest_realm(Realm),
+  server:ensure_server_tls_files(Hostname, ServerCert, ServerKey, Pass),
+  server:ssl_options(CaCert, ServerCert, ServerKey, Pass, SslOptions),
   nl,
   http:http_server(http_dispatch,
                    [ port(Port) ,
@@ -64,16 +69,68 @@ server:start_server  :-
 		     chuncked(true),
                      workers(32) ,
 		     keep_alive_timeout(2),
-                     ssl([ certificate_file(ServerCert),
-                           key_file(ServerKey),
-                           password(Pass),
-                           peer_cert(true),
-                           cacerts([file(CaCert)])
-                         ])
+                     ssl(SslOptions)
                    ]),
   message:datetime(T),
   message:notice([T]),
   nl.
+
+
+% -----------------------------------------------------------------------------
+% TLS helper predicates
+% -----------------------------------------------------------------------------
+
+% Ensure TLS key/cert exist. If not, generate a self-signed certificate.
+server:ensure_server_tls_files(Hostname, ServerCert, ServerKey, Pass) :-
+  ( exists_file(ServerCert),
+    exists_file(ServerKey)
+  ->
+    true
+  ;
+    message:warning('TLS certificate/key missing for ~w; generating self-signed cert (~w, ~w).',
+                    [Hostname, ServerCert, ServerKey]),
+    server:openssl_generate_selfsigned(Hostname, ServerCert, ServerKey, Pass)
+  ).
+
+server:openssl_generate_selfsigned(Hostname, ServerCert, ServerKey, Pass) :-
+  % Non-interactive OpenSSL invocation. We encrypt the key using Pass so it works
+  % with the existing `password(Pass)` server configuration.
+  atomic_list_concat(['/CN=', Hostname], '', CN),
+  atomic_list_concat(['Portage-ng self-signed cert for ', Hostname], '', Org),
+  atomic_list_concat(['/O=', Org, CN], '', Subject),
+  atom_concat('pass:', Pass, PassArg),
+  process_create(path(openssl),
+                 ['req',
+                  '-x509',
+                  '-newkey','rsa:2048',
+                  '-keyout',ServerKey,
+                  '-out',ServerCert,
+                  '-days','3650',
+                  '-sha256',
+                  '-subj',Subject,
+                  '-passout',PassArg
+                 ],
+                 [stdout(null),stderr(null)]),
+  !.
+
+% Compute ssl/1 options robustly:
+% - If the CA cert exists, request peer certs and use it as CA.
+% - If not, still start HTTPS but do not require peer certificates.
+server:ssl_options(CaCert, ServerCert, ServerKey, Pass, Options) :-
+  ( exists_file(CaCert)
+  ->
+    Options = [certificate_file(ServerCert),
+               key_file(ServerKey),
+               password(Pass),
+               peer_cert(true),
+               cacerts([file(CaCert)])]
+  ;
+    message:warning('CA cert file missing (~w); starting HTTPS without client certificate verification.', [CaCert]),
+    Options = [certificate_file(ServerCert),
+               key_file(ServerKey),
+               password(Pass),
+               peer_cert(false)]
+  ).
 
 
 %! server:stop_server

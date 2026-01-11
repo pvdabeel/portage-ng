@@ -47,6 +47,7 @@ interface:status(S) :-
 % Retrieve the interface specification
 
 interface:spec(S) :-
+  config:hostname(Hostname),
   S = [[opt(mode),      type(atom),      default('standalone'),                   longflags(['mode'] ),
         help([ '  server:     start as server'
              , '  standalone: start standalone client, not requireing running server'
@@ -75,7 +76,7 @@ interface:spec(S) :-
        [opt(unmerge),   type(boolean),   default(false),       shortflags(['C']), longflags(['unmerge']),   help('Unmerge target')],
        [opt(usepkg),    type(boolean),   default(false),       shortflags(['k']), longflags(['usepkg']),    help('Use prebuilt packages')],
        [opt(quiet),     type(boolean),   default(false),       shortflags(['q']), longflags(['quiet']),     help('Reduced output')],
-       [opt(host),      type(atom),      default(localhost),                      longflags(['host']),      help('Set server hostname (client mode)')],
+       [opt(host),      type(atom),      default(Hostname),                       longflags(['host']),      help('Set server hostname (client mode)')],
        [opt(port),      type(integer),   default(4000),                           longflags(['port']),      help('Set Server port (client or server mode)')],
        [opt(shell),     type(boolean),   default(false),                          longflags(['shell']),     help('Go to shell')],
        [opt(save),      type(boolean),   default(false),                          longflags(['save']),      help('Save knowledgebase (only relevant in client mode')],
