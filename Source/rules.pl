@@ -468,11 +468,17 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
   ; \+ preference:flag(emptytree),
     \+ preference:flag(deep),
     merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
-    once(query:search([repository(pkg),category(C),name(N),installed(true),
-                       select(slot,constraint(SlotReq),_)],
-                      pkg://InstalledEntry)),
-    forall(member(package_dependency(Action,no,C,N,O,V,_,_), PackageDeps),
-           query:search(select(version,O,V), pkg://InstalledEntry))
+    % If an installed instance exists in the same slot, and it satisfies all
+    % version constraints, treat the grouped dependency as satisfied.
+    %
+    % Performance note:
+    % Avoid `select(version,O,V)` with variable Op, and `select(slot,constraint(SlotReq),_)`
+    % with variable SlotReq, because those prevent compile-time query macro expansion.
+    query:search([repository(pkg),category(C),name(N),installed(true)],
+                 pkg://InstalledEntry),
+    rules:query_search_slot_constraint(SlotReq, pkg://InstalledEntry, _),
+    !,
+    rules:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps, pkg://InstalledEntry)
   ->
     Conditions = []
   ;
@@ -486,10 +492,10 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         cache:ordered_entry(SelfRepo0, SelfEntry0, C, N, _)
       ->
         \+ preference:flag(emptytree),
-        query:search([name(N),category(C),keyword(K),installed(true),
-                      select(slot,constraint(SlotReq),Ss)], FoundRepo://Candidate)
-      ; query:search([name(N),category(C),keyword(K),
-                      select(slot,constraint(SlotReq),Ss)], FoundRepo://Candidate)
+        query:search([name(N),category(C),keyword(K),installed(true)], FoundRepo://Candidate),
+        rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, Ss)
+      ; query:search([name(N),category(C),keyword(K)], FoundRepo://Candidate),
+        rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, Ss)
       ),
 
       % Avoid resolving a dep to self unless candidate is already installed

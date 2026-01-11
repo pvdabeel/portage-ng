@@ -15,6 +15,154 @@ An implementation of a query language for the knowledge base
 :- module(query,[]).
 
 % =============================================================================
+%  OPTIONAL RUNTIME CALLSITE STATS (debugging)
+% =============================================================================
+%
+% Goal-expansion should remove most `query:search/2` calls at compile time.
+% Remaining runtime calls can happen when:
+% - the call was constructed dynamically (e.g. via call/1)
+% - goal-expansion didn't run due to load order / compilation context
+% - a query form falls back to the runtime `search/2` clauses
+%
+% Additionally, SWI-Prolog's profiler often attributes work of meta-calls (call/1)
+% to the caller, so `query:search/2` can appear hot even when executing compiled
+% cache-level goals. These callsite stats help answer: "who is still calling
+% query:search/2 at runtime?"
+
+:- dynamic query:search_callsite_stats_enabled/0.
+:- dynamic query:search_callsite/4. % File, Line, PI, Count
+:- dynamic query:search_callsite_sample_rate/1.
+
+% Default: sample 1 out of 4096 calls to keep overhead low even on huge runs.
+query:search_callsite_sample_rate(4096).
+
+query:enable_search_callsite_stats :-
+  ( query:search_callsite_stats_enabled -> true
+  ; assertz(query:search_callsite_stats_enabled)
+  ).
+
+query:disable_search_callsite_stats :-
+  retractall(query:search_callsite_stats_enabled).
+
+query:reset_search_callsites :-
+  retractall(query:search_callsite(_,_,_,_)),
+  nb_setval(query_search_callsite_counter, 0).
+
+query:set_search_callsite_sample_rate(Rate) :-
+  integer(Rate),
+  Rate > 0,
+  retractall(query:search_callsite_sample_rate(_)),
+  assertz(query:search_callsite_sample_rate(Rate)).
+
+query:report_search_callsites(TopN) :-
+  ( integer(TopN), TopN > 0 -> true ; TopN = 50 ),
+  findall(Count-File-Line-PI,
+          query:search_callsite(File, Line, PI, Count),
+          Rows0),
+  keysort(Rows0, RowsAsc),
+  reverse(RowsAsc, Rows),
+  format('~n>>> query:search/2 runtime callsites (Top ~d)~n~n', [TopN]),
+  format('  ~` t~d~8|  ~` t~s~8|  ~` t~s~s~n', [8, 'Count', 'Line', 'Callsite']),
+  format('  ~`-t~80|~n', []),
+  query:print_search_callsite_rows(Rows, TopN, 1).
+
+query:print_search_callsite_rows([], _, _) :- !.
+query:print_search_callsite_rows(_, TopN, I) :- I > TopN, !.
+query:print_search_callsite_rows([Count-File-Line-PI|Rest], TopN, I) :-
+  format('  ~` t~d~8|  ~w:~w~n      ~w~n', [Count, File, Line, PI]),
+  I2 is I + 1,
+  query:print_search_callsite_rows(Rest, TopN, I2).
+
+query:maybe_record_search_callsite :-
+  ( query:search_callsite_stats_enabled ->
+      query:maybe_record_search_callsite_sampled
+  ; true
+  ).
+
+query:maybe_record_search_callsite_sampled :-
+  ( query:search_callsite_sample_rate(Rate) -> true ; Rate = 4096 ),
+  ( nb_current(query_search_callsite_counter, C0) -> true ; C0 = 0 ),
+  C is C0 + 1,
+  nb_setval(query_search_callsite_counter, C),
+  ( 0 is C mod Rate ->
+      query:record_search_callsite
+  ; true
+  ).
+
+query:record_search_callsite :-
+  ( prolog_current_frame(F),
+    prolog_frame_attribute(F, parent, Parent0),
+    query:find_non_trivial_caller_frame(Parent0, CallerFrame0),
+    query:find_external_callsite_frame(CallerFrame0, CallerFrame),
+    query:frame_callsite(CallerFrame, File, Line, PI)
+  -> with_mutex(query_search_callsite,
+       ( ( retract(query:search_callsite(File, Line, PI, N0)) -> true ; N0 = 0 ),
+         N is N0 + 1,
+         assertz(query:search_callsite(File, Line, PI, N))
+       ))
+  ; true
+  ).
+
+query:find_non_trivial_caller_frame(Frame0, Frame) :-
+  ( var(Frame0) ; Frame0 == 0 ), !,
+  Frame = 0.
+query:find_non_trivial_caller_frame(Frame0, Frame) :-
+  ( query:frame_predicate_indicator(Frame0, PI),
+    query:skip_callsite_pi(PI)
+  -> ( prolog_frame_attribute(Frame0, parent, Parent),
+       query:find_non_trivial_caller_frame(Parent, Frame)
+     )
+  ; Frame = Frame0
+  ).
+
+query:skip_callsite_pi(query:search/2).
+query:skip_callsite_pi(query:memoized_search/2).
+query:skip_callsite_pi(search/2).
+query:skip_callsite_pi(system:call/1).
+query:skip_callsite_pi(system:once/1).
+query:skip_callsite_pi(apply:call_/2).
+query:skip_callsite_pi(apply:maplist_/3).
+query:skip_callsite_pi(apply:include_/3).
+query:skip_callsite_pi(apply:exclude_/3).
+
+query:frame_predicate_indicator(Frame, PI) :-
+  prolog_frame_attribute(Frame, predicate_indicator, PI),
+  !.
+query:frame_predicate_indicator(_Frame, unknown/0).
+
+query:frame_callsite(Frame, File, Line, PI) :-
+  query:frame_predicate_indicator(Frame, PI),
+  ( prolog_frame_attribute(Frame, clause, ClauseRef),
+    clause_property(ClauseRef, file(File0))
+  -> File = File0
+  ; File = '<unknown>'
+  ),
+  ( prolog_frame_attribute(Frame, clause, ClauseRef2),
+    ( clause_property(ClauseRef2, line(Line0))
+    ; clause_property(ClauseRef2, line_count(Line0))
+    )
+  -> Line = Line0
+  ; Line = '?'
+  ).
+
+% Walk up until we find a frame that isn't in query.pl (otherwise the report just
+% points back at query:search/2 internals).
+query:find_external_callsite_frame(Frame0, Frame) :-
+  ( var(Frame0) ; Frame0 == 0 ), !,
+  Frame = Frame0.
+query:find_external_callsite_frame(Frame0, Frame) :-
+  query:frame_callsite(Frame0, File, _Line, PI),
+  ( File == '/Users/pvdabeel/Desktop/Prolog/Source/query.pl'
+    ; query:skip_callsite_pi(PI)
+  ),
+  !,
+  ( prolog_frame_attribute(Frame0, parent, Parent) ->
+      query:find_external_callsite_frame(Parent, Frame)
+  ; Frame = Frame0
+  ).
+query:find_external_callsite_frame(Frame0, Frame0).
+
+% =============================================================================
 %  QUERY MACROS
 % =============================================================================
 
@@ -753,6 +901,7 @@ compile_query_compound(Stmt, Entry,
 % If there is no compilation rule, `compile_query_compound/3` falls back to
 % `search(Stmt,Entry)`; detect that and let the normal runtime clauses handle it.
 search(Q, Repository://Entry) :-
+  query:maybe_record_search_callsite,
   ( is_list(Q)
     -> compile_query_list(Q, Repository://Entry, Goal)
     ; compound(Q)
