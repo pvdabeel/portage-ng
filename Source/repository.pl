@@ -147,15 +147,6 @@ sync ::-
 % Updates files in local repository by invoking script to sync local repository
 % with remote repository (e.g. git / rsync / http tarball / ...)
 
-% VDB repositories are local snapshots of /var/db/pkg-style trees. They do not
-% support remote syncing via scripts (git/rsync/etc).
-
-% TODO: created vdb script in Scripts directory, then default to default behaviour
-% removing vdb type specific code
-sync(repository) ::-
-  ::type('vdb'),!,
-  true.
-
 sync(repository) ::-
   ::location(Local),
   ::remote(Remote),
@@ -177,14 +168,6 @@ sync(repository) ::-
 %
 % For non-eapi repositories, generates on-disk metadata cache by calling a script
 % For a git repository, this for example creates a metadata entry for each release.
-
-% VDB repositories have no separate on-disk metadata cache step; the directory
-% itself is the metadata source (SLOT, USE, EAPI, ...).
-% TODO: create vdb script in Scripts directory, then default to default behaviour
-% removing vdb type specific code
-sync(metadata) ::-
-  ::type('vdb'),!,
-  message:scroll(['VDB repository: no metadata cache step.']),nl.
 
 sync(metadata) ::-
   ::type('eapi'),!,
