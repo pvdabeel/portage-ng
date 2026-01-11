@@ -64,6 +64,21 @@ An implementation of a query language for the knowledge base
 
 % We treat both list queries and compound queries
 
+% IMPORTANT:
+% Most callers invoke this predicate module-qualified as `query:search/2`.
+% Provide goal-expansion rules for that form as well, otherwise no compile-time
+% optimization happens and proving becomes dramatically slower.
+
+user:goal_expansion(query:search(Q, Repo://Id), Expanded) :-
+  is_list(Q),!,
+  query:compile_query_list(Q, Repo://Id, Expanded),
+  message:color(normal).
+
+user:goal_expansion(query:search(Q, Repo://Id), Expanded) :-
+  compound(Q),!,
+  query:compile_query_compound(Q, Repo://Id, Expanded),
+  message:color(normal).
+
 user:goal_expansion(search(Q, Repo://Id), Expanded) :-
   is_list(Q),!,
   %write('Inside list macro: '),write(Q),nl,
@@ -243,7 +258,7 @@ compile_query_compound(dependency(D,fetchonly), Repo://Id,
 % 7. key=value queries needed for --search
 
 compile_query_compound(select(Key,Cmp,Value), Repo://Id,
-  ( query:search(select(Key,Cmp,Value), Repo://Id ) ))  :-
+  ( search(select(Key,Cmp,Value), Repo://Id ) ))  :-
   nonground(Cmp,_),!.   % Important: filter out runtime bound Cmp
 
 compile_query_compound(select(repository,notequal,R), Repo://Id,
@@ -723,6 +738,21 @@ compile_query_compound(Stmt, Entry,
 %
 % Search - iterate over list
 % Traverse a list of statements that narrow down the search results.
+
+% Runtime optimization:
+% Even if goal-expansion did not run for a given caller (e.g. due to load order),
+% we can still compile common query forms into cache-level goals and execute them.
+% If there is no compilation rule, `compile_query_compound/3` falls back to
+% `search(Stmt,Entry)`; detect that and let the normal runtime clauses handle it.
+search(Q, Repository://Entry) :-
+  ( is_list(Q)
+    -> compile_query_list(Q, Repository://Entry, Goal)
+    ; compound(Q)
+    -> compile_query_compound(Q, Repository://Entry, Goal)
+  ),
+  Goal \== search(Q, Repository://Entry),
+  !,
+  call(Goal).
 
 search([],_Repository://_Entry) :- !.
 

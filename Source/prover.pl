@@ -585,7 +585,11 @@ prover:test_stats(Repository, Style, TopN) :-
               'Proving',
               Repository://Entry,
               Repository:entry(Entry),
-              ( with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
+              ( statistics(walltime, [T0,_]),
+                with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
+                statistics(walltime, [T1,_]),
+                TimeMs is T1 - T0,
+                printer:test_stats_record_time(Repository://Entry, TimeMs),
                 printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
               )),
   printer:test_stats_print(TopN).

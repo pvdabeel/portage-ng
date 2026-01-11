@@ -29,6 +29,8 @@ The Printer takes a plan from the Planner and pretty prints it.
 :- dynamic printer:test_stats_other_head/2.
 :- dynamic printer:test_stats_pkg/3.
 :- dynamic printer:test_stats_type_entry_mention/3.
+:- dynamic printer:test_stats_entry_time/2.
+:- dynamic printer:test_stats_pkg_time/5.
 
 printer:test_stats_reset(Label, ExpectedTotal) :-
   with_mutex(test_stats,
@@ -36,6 +38,8 @@ printer:test_stats_reset(Label, ExpectedTotal) :-
       retractall(printer:test_stats_type(_,_,_)),
       retractall(printer:test_stats_cycle_mention(_,_,_)),
       retractall(printer:test_stats_entry_had_cycle(_)),
+      retractall(printer:test_stats_entry_time(_,_)),
+      retractall(printer:test_stats_pkg_time(_,_,_,_,_)),
       retractall(printer:test_stats_other_head(_,_)),
       retractall(printer:test_stats_pkg(_,_,_)),
       retractall(printer:test_stats_type_entry_mention(_,_,_)),
@@ -97,6 +101,37 @@ printer:test_stats_inc_cycle_mention(Action, RepoEntry) :-
     ( ( retract(printer:test_stats_cycle_mention(Action, RepoEntry, N0)) -> true ; N0 = 0 ),
       N is N0 + 1,
       assertz(printer:test_stats_cycle_mention(Action, RepoEntry, N))
+    )).
+
+% Record elapsed walltime (ms) for a processed entry.
+printer:test_stats_record_time(RepoEntry, TimeMs) :-
+  integer(TimeMs),
+  TimeMs >= 0,
+  ( RepoEntry = Repo0://Entry0,
+    cache:ordered_entry(Repo0, Entry0, C, N, _)
+  -> true
+  ; C = _, N = _
+  ),
+  with_mutex(test_stats,
+    ( % Per-entry timing (keep max if recorded twice)
+      ( retract(printer:test_stats_entry_time(RepoEntry, OldMs)) ->
+          EntryMaxMs is max(OldMs, TimeMs)
+      ;   EntryMaxMs = TimeMs
+      ),
+      assertz(printer:test_stats_entry_time(RepoEntry, EntryMaxMs)),
+
+      % Per-package timing (C/N), only if we could extract C/N
+      ( nonvar(C), nonvar(N) ->
+          ( retract(printer:test_stats_pkg_time(C, N, Sum0, Max0, Cnt0)) ->
+              true
+          ;   Sum0 = 0, Max0 = 0, Cnt0 = 0
+          ),
+          Sum is Sum0 + TimeMs,
+          Max is max(Max0, TimeMs),
+          Cnt is Cnt0 + 1,
+          assertz(printer:test_stats_pkg_time(C, N, Sum, Max, Cnt))
+      ; true
+      )
     )).
 
 printer:test_stats_inc_type_entry_mention(Type, RepoEntry) :-
@@ -511,6 +546,59 @@ printer:test_stats_print(TopN) :-
              printer:test_stats_print_assumption_types_row(Type, E, Processed, O, TotalOccs)
            ))
   ),
+
+  % Top-N slowest processed entries (by walltime in ms).
+  nl,
+  message:header(['Top ',TopN,' slowest proofs']),
+  nl,
+  findall(Ms-RepoEntry, printer:test_stats_entry_time(RepoEntry, Ms), Times0),
+  keysort(Times0, TimesAsc),
+  reverse(TimesAsc, TimesSorted),
+  ( TimesSorted == [] ->
+      writeln('  (none)')
+  ; printer:test_stats_print_ranked_table_header('Slowest entries', 'ms'),
+    printer:test_stats_table_width(Wt),
+    printer:test_stats_print_ranked_table_rows(TimesSorted, TopN, 1, Wt)
+  ),
+
+  % Top-N slowest packages (Category/Name), by total time spent proving all entries.
+  nl,
+  message:header(['Top ',TopN,' slowest packages (total)']),
+  nl,
+  findall(SumMs-C-N, printer:test_stats_pkg_time(C, N, SumMs, _MaxMs, _Cnt), PkgTimes0),
+  keysort(PkgTimes0, PkgAsc0),
+  reverse(PkgAsc0, PkgSorted0),
+  findall(SumMs-PkgAtom,
+          ( member(SumMs-C-N, PkgSorted0),
+            atomic_list_concat([C,N], '/', PkgAtom)
+          ),
+          PkgSorted),
+  ( PkgSorted == [] ->
+      writeln('  (none)')
+  ; printer:test_stats_print_ranked_table_header('Slowest packages', 'ms'),
+    printer:test_stats_table_width(Wp),
+    printer:test_stats_print_ranked_table_rows(PkgSorted, TopN, 1, Wp)
+  ),
+
+  % Top-N slowest packages (Category/Name), by max single-entry time.
+  nl,
+  message:header(['Top ',TopN,' slowest packages (max)']),
+  nl,
+  findall(MaxMs-C-N, printer:test_stats_pkg_time(C, N, _SumMs2, MaxMs, _Cnt2), PkgMax0),
+  keysort(PkgMax0, PkgMaxAsc0),
+  reverse(PkgMaxAsc0, PkgMaxSorted0),
+  findall(MaxMs-PkgAtom2,
+          ( member(MaxMs-C2-N2, PkgMaxSorted0),
+            atomic_list_concat([C2,N2], '/', PkgAtom2)
+          ),
+          PkgMaxSorted),
+  ( PkgMaxSorted == [] ->
+      writeln('  (none)')
+  ; printer:test_stats_print_ranked_table_header('Slowest packages', 'ms'),
+    printer:test_stats_table_width(Wp2),
+    printer:test_stats_print_ranked_table_rows(PkgMaxSorted, TopN, 1, Wp2)
+  ),
+
   % Top-N entries per assumption type (by occurrence count).
   forall(member(Type, Types),
          ( findall(N-RepoEntry, printer:test_stats_type_entry_mention(Type, RepoEntry, N), P0),

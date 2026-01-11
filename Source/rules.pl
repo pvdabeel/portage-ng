@@ -213,6 +213,10 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   % NewVersion:update (replaces OldVersion), rather than a plain NewVersion:install.
   ( \+ preference:flag(emptytree),
     rules:entry_slot_default(Repository, Ebuild, SlotNew),
+    % Fast guard: if nothing for C/N is installed in the VDB repo, don't even
+    % attempt update detection. This avoids lots of failing work when proving
+    % arbitrary/uninstalled packages (e.g. in `test_latest/2`).
+    cache:package(pkg, C, N),
     rules:installed_entry_cn(C, N, OldRepo, OldEbuild),
     OldEbuild \== Ebuild,
     % If the installed entry is no longer in the repo set, we may not have its
@@ -284,10 +288,13 @@ rule(Repository://Ebuild:update?{Context},Conditions) :-
   % Update semantics stay within the same slot (upgrade semantics cross slots and
   % will be introduced later).
   ( cache:entry_metadata(Repository, Ebuild, slot, slot(SlotInstalled))
-    -> query:search([name(Name),category(Category),keywords(K),slot(SlotInstalled),version(VersionLatest)],LatestRepo://LatestEbuild)
-    ;  query:search([name(Name),category(Category),keywords(K),version(VersionLatest)],LatestRepo://LatestEbuild)
+    -> query:search(latest([name(Name),category(Category),keywords(K),slot(SlotInstalled),
+                            select(version,greater,VersionInstalled)]),
+                    LatestRepo://LatestEbuild)
+    ;  query:search(latest([name(Name),category(Category),keywords(K),
+                            select(version,greater,VersionInstalled)]),
+                    LatestRepo://LatestEbuild)
   ),
-  compare(>,VersionLatest,VersionInstalled),
   !,
   % IMPORTANT: represent the update as a single transactional action on the
   % *new* version, annotated with the old version it replaces.
@@ -1081,19 +1088,25 @@ rules:deep_update_goals(Self, MergedDeps, DeepUpdates) :-
   sort(CN0, CN),
   findall(NewRepo://NewEntry:update?{[replaces(OldRepo://OldEntry)]},
           ( member(C-N, CN),
-            % For each dependency package, look at installed instances (possibly multiple slots).
-            query:search([category(C),name(N),installed(true)], OldRepo://OldEntry),
-            OldRepo://OldEntry \== Self,
-            cache:ordered_entry(OldRepo, OldEntry, C, N, OldVer),
+            % For each dependency package, look at installed instances in the VDB repo (`pkg`)
+            % (possibly multiple slots). Restricting to `pkg` avoids scanning all repos.
+            query:search([repository(pkg),category(C),name(N),installed(true)], pkg://OldEntry),
+            OldRepo = pkg,
+            pkg://OldEntry \== Self,
+            cache:ordered_entry(pkg, OldEntry, C, N, OldVer),
             % Only deep-update within the same slot if we can determine it.
-            cache:entry_metadata(OldRepo, OldEntry, slot, slot(Slot)),
+            cache:entry_metadata(pkg, OldEntry, slot, slot(Slot)),
             % Pick the newest acceptable candidate in that slot.
             ( KeywordQ == []
-              -> Query = [category(C),name(N),slot(Slot),version(NewVer)]
-              ;  Query = [category(C),name(N),slot(Slot),keywords(K),version(NewVer)]
-            ),
-            query:search(Query, NewRepo://NewEntry),
-            compare(>, NewVer, OldVer)
+              -> query:search(latest([select(repository,notequal,pkg),
+                                      category(C),name(N),slot(Slot),
+                                      select(version,greater,OldVer)]),
+                              NewRepo://NewEntry)
+              ;  query:search(latest([select(repository,notequal,pkg),
+                                      category(C),name(N),slot(Slot),keywords(K),
+                                      select(version,greater,OldVer)]),
+                              NewRepo://NewEntry)
+            )
           ),
           Updates0),
   sort(Updates0, DeepUpdates).
