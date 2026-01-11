@@ -80,12 +80,8 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 %
 % These must be declared so they are available in the instance context
 % (e.g. `pkg:find_vdb_entry/4`) when called via `:find_vdb_entry(...)`.
-% keep public for performance, like tbe eapi slots  ...
+% keep public for performance, like the eapi slots  ...
 :- dpublic(find_vdb_entry/4).
-:- dpublic(read_vdb_metadata/2).
-:- dpublic(vdb_read_first_line/3).
-:- dpublic(vdb_parse_slot_line/2).
-:- dpublic(vdb_split_atoms/2).
 
 % protected interface
 
@@ -220,7 +216,9 @@ sync(kb) ::-
     :find_vdb_entry(E,C,N,V),
     ( with_mutex(mutex,message:scroll(['VDB: ',E])),
       assertz(cache:entry(Repository,E,C,N,V)),
-      :read_vdb_metadata(E,M),
+      % Always mark installed (VDB == installed database).
+      assertz(cache:entry_metadata(Repository,E,installed,true)),
+      :read_metadata(E,_T,M),
       forall(member(L,M),
              ( L =.. [Key,Value],
                forall(member(I,Value),
@@ -394,65 +392,6 @@ find_vdb_entry(Entry, Category, Name, Version) ::-
   eapi:packageversion(PF, Name, Version).
 
 
-%! repository:read_vdb_metadata(+Entry,-Metadata)
-%
-% Build a metadata list in the same shape as eapi parsing:
-% each element is Key(ValueList) and the sync logic asserts each ValueList item.
-read_vdb_metadata(Entry, Metadata) ::-
-  ::location(Root),
-  os:compose_path(Root, Entry, Dir),
-  % Always mark installed
-  Base = [installed([true])],
-  % SLOT (may be "S" or "S/SUBSLOT")
-  ( :vdb_read_first_line(Dir, 'SLOT', SlotLine)
-    -> :vdb_parse_slot_line(SlotLine, SlotTerms),
-       SlotMeta = [slot(SlotTerms)]
-    ;  SlotMeta = []
-  ),
-  % EAPI
-  ( :vdb_read_first_line(Dir, 'EAPI', EapiLine)
-    -> EapiMeta = [eapi([EapiLine])]
-    ;  EapiMeta = []
-  ),
-  % Repository of origin (e.g. gentoo)
-  ( :vdb_read_first_line(Dir, 'repository', RepoLine)
-    -> RepoMeta = [repository([RepoLine])]
-    ;  RepoMeta = []
-  ),
-  % USE flags (space-separated)
-  ( :vdb_read_first_line(Dir, 'USE', UseLine)
-    -> :vdb_split_atoms(UseLine, UseAtoms),
-       UseMeta = [use(UseAtoms)]
-    ;  UseMeta = []
-  ),
-  append([Base, SlotMeta, EapiMeta, RepoMeta, UseMeta], Parts),
-  flatten(Parts, Metadata).
-
-vdb_read_first_line(Dir, File, AtomLine) ::-
-  os:compose_path(Dir, File, Path),
-  exists_file(Path),
-  reader:invoke(Path, Lines),
-  Lines = [LineStr|_],
-  LineStr \== "",
-  atom_string(AtomLine, LineStr),
-  !.
-
-vdb_parse_slot_line(Line, Terms) ::-
-  ( sub_atom(Line, _, _, _, '/')
-    -> atomic_list_concat([Slot0,Sub0], '/', Line),
-       Terms0 = [slot(Slot0),subslot(Sub0)]
-    ;  Terms0 = [slot(Line)]
-  ),
-  Terms = Terms0,
-  !.
-
-vdb_split_atoms(Line, Atoms) ::-
-  atom_string(Line, S),
-  split_string(S, " \t", " \t", Parts),
-  findall(A, (member(P, Parts), P \== "", atom_string(A, P)), Atoms),
-  !.
-
-
 %! repository:find_category(?Category)
 %
 % Public predicate
@@ -536,6 +475,22 @@ find_ebuild(Entry,Timestamp,Category,Name,Version) ::-
 % inside the repository on and update it if it is new of has
 % been modifed.
 % Disk access required.
+
+read_metadata(Entry,Timestamp,Metadata) ::-
+  ::type('vdb'),
+  :this(Repository),
+  ::location(Root),
+  os:compose_path(Root, Entry, Dir),
+  exists_directory(Dir),
+  % Use directory mtime as a cheap timestamp for incremental logic if needed.
+  ( system:time_file(Dir, Timestamp) -> true ; Timestamp = 0 ),
+  parser:invoke(vdb, Repository://Entry, Dir, Metadata),
+  !.
+
+read_metadata(Entry,_Timestamp,[]) ::-
+  ::type('vdb'),
+  message:failure(['Failed to parse ',Entry,' vdb metadata!']),
+  fail.
 
 read_metadata(Entry,Timestamp,[]) ::-
   :this(Repository),

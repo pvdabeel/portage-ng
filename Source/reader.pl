@@ -44,7 +44,7 @@ reader:invoke(_, []) :-
 %! reader:read_lines_to_strings(+Stream, -Lines)
 %
 % Given a stream, reads all lines from the stream and returns them as a list of 
-%strings
+% strings
 
 reader:read_lines_to_strings(Stream, Lines) :-
   system:read_line_to_string(Stream, L),

@@ -251,6 +251,14 @@ eapi:value('SRC_URI', R://E, src_uri(S)) -->
   !,
   eapi:src_uri(R://E, S).
 
+% VDB: USE file is whitespace-separated USE flags for the installed package.
+eapi:value('USE', _, use(U)) -->
+  !,
+  eapi:chars_to_end(Cs),
+  { string_codes(S, Cs),
+    eapi:split_ws_atoms(S, U)
+  }.
+
 % PMS EAPI 8, Section 7.2.10
 eapi:value('RESTRICT', R://E, restrict(S)) -->
   !,
@@ -315,6 +323,15 @@ eapi:value('AUX', _, manifest(aux, F, S, H)) -->
 eapi:value('DIST', _, manifest(dist, F, S, H)) -->
   !,
   eapi:manifest(F, S, H).
+
+% VDB: repository file is the origin repository name (e.g. "gentoo").
+eapi:value('repository', _, repository([Repo])) -->
+  !,
+  eapi:chars_to_end(Cs),
+  { string_codes(S, Cs),
+    S \== "",
+    atom_string(Repo, S)
+  }.
 
 % PMS EAPI 8, Section 12.1
 eapi:value(_, _, unused(U)) -->
@@ -2198,3 +2215,71 @@ eapi:elem(K,[E|_],C) :-
 eapi:elem(K,[_|R],C) :-
   !,
   eapi:elem(K,R,C).
+
+
+% -----------------------------------------------------------------------------
+%  VDB parsing helpers
+% -----------------------------------------------------------------------------
+%
+% The Portage VDB stores some metadata as plain text files (e.g. SLOT, USE).
+% These helpers keep the parsing logic close to the existing EAPI parsers.
+
+%! eapi:parse_vdb_slot_line(+Line,-Terms)
+%
+% Parse a VDB SLOT file line into terms that match our metadata conventions:
+%   - [slot(S)]
+%   - [slot(S), subslot(SS)]
+%
+% Example:
+%   '0/0' -> [slot('0'),subslot('0')]
+eapi:parse_vdb_slot_line(Line, Terms) :-
+  ( string(Line)
+    -> string_codes(Line, Codes)
+    ; atom(Line)
+    -> atom_codes(Line, Codes)
+  ),
+  phrase(eapi:slot(SlotTerms), Codes),
+  % eapi:slot//1 can include the marker `equal` (from SLOT=...), which will
+  % not appear in VDB SLOT files. Filter defensively.
+  exclude(==(equal), SlotTerms, Terms),
+  !.
+
+%! eapi:split_ws_atoms(+Line,-Atoms)
+%
+% Split a whitespace-separated VDB file line (e.g. USE) into atoms.
+eapi:split_ws_atoms(Line, Atoms) :-
+  ( string(Line)
+    -> S = Line
+    ; atom(Line)
+    -> atom_string(Line, S)
+  ),
+  split_string(S, " \t", " \t", Parts),
+  findall(A, (member(P, Parts), P \== "", atom_string(A, P)), Atoms),
+  !.
+
+
+%! eapi:vdb_dir_kv_lines(+Dir,-Lines)
+%
+% Convert a VDB entry directory into a list of EAPI-style "KEY=VALUE" lines
+% so we can reuse the existing `parser:invoke(metadata, ...)` pipeline.
+%
+% We keep the knowledge of *which* VDB files exist (SLOT/EAPI/USE/repository)
+% in the parser/EAPI layer, not in `repository.pl`.
+eapi:vdb_dir_kv_lines(Dir, Lines) :-
+  findall(Line,
+          ( eapi:vdb_kv_file(Dir, 'SLOT', 'SLOT', Line)
+          ; eapi:vdb_kv_file(Dir, 'EAPI', 'EAPI', Line)
+          ; eapi:vdb_kv_file(Dir, 'USE',  'USE',  Line)
+          ; eapi:vdb_kv_file(Dir, 'repository', 'repository', Line)
+          ),
+          Lines0),
+  sort(Lines0, Lines).
+
+eapi:vdb_kv_file(Dir, File, Key, Line) :-
+  os:compose_path(Dir, File, Path),
+  reader:invoke(Path, [Value|_]),
+  Value \== "",
+  format(string(Line), "~w=~s", [Key, Value]).
+
+
+

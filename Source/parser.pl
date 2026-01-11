@@ -36,6 +36,13 @@ Output: A nested list representing the result of parsing each line in the input.
 
 parser:invoke(_, _, [], []).
 
+% VDB metadata parsing: `Contents` is a directory path for a VDB entry.
+% The actual mapping from VDB files to key=value lines is handled by `eapi.pl`.
+parser:invoke(vdb, Repository://Entry, Dir, KeyValues) :-
+  !,
+  eapi:vdb_dir_kv_lines(Dir, Lines),
+  parser:invoke(metadata, Repository://Entry, Lines, KeyValues).
+
 parser:invoke(Type, Repository://Entry, [Line|Lines], [KeyValue|KeyValues]) :-
   string_codes(Line, Codes),
   phrase(eapi:keyvalue(Type, Repository://Entry, KeyValue), Codes), !,
