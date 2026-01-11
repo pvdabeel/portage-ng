@@ -3,7 +3,8 @@
 # ${1} = remote
 # ${2} = local
 
-# VDB repositories are local snapshots of /var/db/pkg-style trees. They do not
+# Local (e.g. VDB /var/db/pkg) repositories are local snapshots. They do not
 # support remote syncing via scripts (git/rsync/etc).
 
+echo "% Updated"
 true

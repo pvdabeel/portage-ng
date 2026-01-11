@@ -6,4 +6,5 @@
 # VDB repositories are local snapshots of /var/db/pkg-style trees. They do not
 # support remote syncing via scripts (git/rsync/etc).
 
+echo "% Updated"
 true
