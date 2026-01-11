@@ -1134,20 +1134,10 @@ rules:canon_slot(S0, S) :-
 % Find an installed entry for the given category/name, even if it isn't present
 % as an ordered_entry (e.g. when the installed version no longer exists in the
 % active repository set).
-rules:installed_entry_cn(C, N, Repo, Entry) :-
-  ( query:search([category(C),name(N),installed(true)], Repo://Entry)
-  ; cache:entry_metadata(Repo, Entry, installed, true),
-    rules:entry_id_matches_cn(Entry, C, N)
-  ).
-
-rules:entry_id_matches_cn(Entry, C, N) :-
-  atom(Entry),
-  atom_concat(C, '/', Prefix),
-  sub_atom(Entry, 0, _, _, Prefix),
-  atom_length(Prefix, L),
-  sub_atom(Entry, L, _, 0, Rest),
-  ( Rest == N
-  ; sub_atom(Rest, 0, LenN, _, N),
-    sub_atom(Rest, LenN, 1, _, '-')
-  ),
+rules:installed_entry_cn(C, N, pkg, Entry) :-
+  % The installed package database is represented by the VDB repository instance
+  % named `pkg`. Prefer using its structured facts instead of parsing Entry IDs
+  % with atom_concat/sub_atom (which is extremely expensive at scale).
+  cache:ordered_entry(pkg, Entry, C, N, _),
+  cache:entry_metadata(pkg, Entry, installed, true),
   !.
