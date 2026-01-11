@@ -312,6 +312,14 @@ compile_query_compound(select(version,none,_), Repo://Id,
 compile_query_compound(select(version,equal,[[], '', '', '', '']), Repo://Id,
  cache:ordered_entry(Repo,Id,_,_,_)) :- !.
 
+% Treat version 'equal' constraints containing '*' as wildcard matches.
+% Example: =dev-libs/libgit2-1.9* should match 1.9.1, 1.9.2, ...
+compile_query_compound(select(version,equal,[_,_,_,Pattern]), Repo://Id,
+  ( atom(Pattern),
+    sub_atom(Pattern, _, 1, 0, '*'),
+    cache:ordered_entry(Repo, Id, _, _, [_,_,_,ProposedVersion]),
+    wildcard_match(Pattern, ProposedVersion) )) :- !.
+
 compile_query_compound(select(version,equal,Ver), Repo://Id,
   cache:ordered_entry(Repo,Id,_,_,Ver)) :- !.
 
