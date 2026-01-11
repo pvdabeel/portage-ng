@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# VDB repositories have no separate on-disk metadata cache step; the directory
+# itself is the metadata source (SLOT, USE, EAPI, ...).
+
+true
