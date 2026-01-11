@@ -84,6 +84,7 @@ rpc_execute(Hostname,Port,Cmd) :-
   config:certificate_password(client,Pass),
   config:digest_password(User,Digestpwd),
   config:server_chunk(ChunkSize),
+  client:require_tls_files(LocalHostname, CaCert, ClientCert, ClientKey),
   findall(Template,(remote_predicate_template(Template)),Templates),
   findall(Instance,
           (remote_predicate_instance(Local:Instance),
@@ -146,6 +147,7 @@ execute_remotely(Hostname,Port,Page) :-
     config:certificate(LocalHostname,'client-key.pem',ClientKey),
     config:certificate_password(client,Pass),
     config:digest_password(User,Digestpwd),
+    client:require_tls_files(LocalHostname, CaCert, ClientCert, ClientKey),
     http:http_open(URL, In,
               [ host(Hostname),
 		            authorization(digest(User,Digestpwd)),
@@ -157,3 +159,28 @@ execute_remotely(Hostname,Port,Page) :-
               ]),
     copy_stream_data(In, current_output),
     close(In).
+
+
+% -----------------------------------------------------------------------------
+% TLS helper predicates
+% -----------------------------------------------------------------------------
+
+% Fail with a clear message if TLS material is missing.
+% We keep certificate generation out of runtime: use `make certs HOST=<hostname>`.
+client:require_tls_files(LocalHostname, CaCert, ClientCert, ClientKey) :-
+  findall(File,
+          ( member(File, [CaCert, ClientCert, ClientKey]),
+            \+ exists_file(File)
+          ),
+          Missing),
+  ( Missing == []
+  -> true
+  ;  message:failure(['Missing TLS files for client mode: ', Missing, '\n',
+                      'Expected CA cert:      ', CaCert, '\n',
+                      'Expected client cert:  ', ClientCert, '\n',
+                      'Expected client key:   ', ClientKey, '\n\n',
+                      'To generate them locally, run:\n',
+                      '  make certs HOST=', LocalHostname, '\n',
+                      'If your hostname includes a .local suffix, ensure HOST matches `config:hostname/1`.\n'
+                     ])
+  ).

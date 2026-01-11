@@ -27,3 +27,9 @@ build:	  ## Build the application.
 
 install:  ## Install the application.
 	  $(SUDO) cp $(TARGET) /usr/local/bin
+
+CERTDIR=Source/Certificates
+HOST?=$(shell hostname)
+
+certs:    ## Generate local CA + per-host client/server TLS certs (for --mode client/server). Usage: make certs HOST=mac-pro.local
+	  sh $(CERTDIR)/generate.sh $(HOST)

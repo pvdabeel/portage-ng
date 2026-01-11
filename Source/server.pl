@@ -50,8 +50,6 @@ as a Makefile).
 % Start a http server on the given port and listens for commands
 
 server:start_server  :-
-  % `interface:process_server/2` returns the client connection override host,
-  % which must NOT be used for selecting this server's TLS certificate.
   interface:process_server(_,Port),
   config:hostname(Hostname),
   config:certificate('cacert.pem',CaCert),
@@ -60,8 +58,7 @@ server:start_server  :-
   config:certificate_password(server,Pass),
   config:digest_passwordfile(Pwdfile),
   config:digest_realm(Realm),
-  server:ensure_server_tls_files(Hostname, ServerCert, ServerKey, Pass),
-  server:ssl_options(CaCert, ServerCert, ServerKey, Pass, SslOptions),
+  server:require_tls_files(Hostname, CaCert, ServerCert, ServerKey),
   nl,
   http:http_server(http_dispatch,
                    [ port(Port) ,
@@ -69,7 +66,12 @@ server:start_server  :-
 		     chuncked(true),
                      workers(32) ,
 		     keep_alive_timeout(2),
-                     ssl(SslOptions)
+                     ssl([ certificate_file(ServerCert),
+                           key_file(ServerKey),
+                           password(Pass),
+                           peer_cert(true),
+                           cacerts([file(CaCert)])
+                         ])
                    ]),
   message:datetime(T),
   message:notice([T]),
@@ -80,56 +82,24 @@ server:start_server  :-
 % TLS helper predicates
 % -----------------------------------------------------------------------------
 
-% Ensure TLS key/cert exist. If not, generate a self-signed certificate.
-server:ensure_server_tls_files(Hostname, ServerCert, ServerKey, Pass) :-
-  ( exists_file(ServerCert),
-    exists_file(ServerKey)
-  ->
-    true
-  ;
-    message:warning('TLS certificate/key missing for ~w; generating self-signed cert (~w, ~w).',
-                    [Hostname, ServerCert, ServerKey]),
-    server:openssl_generate_selfsigned(Hostname, ServerCert, ServerKey, Pass)
-  ).
-
-server:openssl_generate_selfsigned(Hostname, ServerCert, ServerKey, Pass) :-
-  % Non-interactive OpenSSL invocation. We encrypt the key using Pass so it works
-  % with the existing `password(Pass)` server configuration.
-  atomic_list_concat(['/CN=', Hostname], '', CN),
-  atomic_list_concat(['Portage-ng self-signed cert for ', Hostname], '', Org),
-  atomic_list_concat(['/O=', Org, CN], '', Subject),
-  atom_concat('pass:', Pass, PassArg),
-  process_create(path(openssl),
-                 ['req',
-                  '-x509',
-                  '-newkey','rsa:2048',
-                  '-keyout',ServerKey,
-                  '-out',ServerCert,
-                  '-days','3650',
-                  '-sha256',
-                  '-subj',Subject,
-                  '-passout',PassArg
-                 ],
-                 [stdout(null),stderr(null)]),
-  !.
-
-% Compute ssl/1 options robustly:
-% - If the CA cert exists, request peer certs and use it as CA.
-% - If not, still start HTTPS but do not require peer certificates.
-server:ssl_options(CaCert, ServerCert, ServerKey, Pass, Options) :-
-  ( exists_file(CaCert)
-  ->
-    Options = [certificate_file(ServerCert),
-               key_file(ServerKey),
-               password(Pass),
-               peer_cert(true),
-               cacerts([file(CaCert)])]
-  ;
-    message:warning('CA cert file missing (~w); starting HTTPS without client certificate verification.', [CaCert]),
-    Options = [certificate_file(ServerCert),
-               key_file(ServerKey),
-               password(Pass),
-               peer_cert(false)]
+% Fail with a clear message if TLS material is missing.
+% We keep certificate generation out of runtime: use `make certs HOST=<hostname>`.
+server:require_tls_files(Hostname, CaCert, ServerCert, ServerKey) :-
+  findall(File,
+          ( member(File, [CaCert, ServerCert, ServerKey]),
+            \+ exists_file(File)
+          ),
+          Missing),
+  ( Missing == []
+  -> true
+  ;  message:failure(['Missing TLS files for server mode: ', Missing, '\n',
+                      'Expected CA cert:      ', CaCert, '\n',
+                      'Expected server cert:  ', ServerCert, '\n',
+                      'Expected server key:   ', ServerKey, '\n\n',
+                      'To generate them locally, run:\n',
+                      '  make certs HOST=', Hostname, '\n',
+                      'If your hostname includes a .local suffix, ensure HOST matches `config:hostname/1`.\n'
+                     ])
   ).
 
 

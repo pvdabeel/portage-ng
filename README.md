@@ -74,3 +74,19 @@ In the following screenshots we show Gentoo ebuilds being read, parsed and queri
 ## Installation instructions: 
 
 Not available at this time.
+
+## TLS certificates (client/server mode)
+
+When running in `--mode server` or `--mode client`, portage-ng expects a local CA and per-host certificates under `Source/Certificates/`:
+
+- `cacert.pem` / `cakey.pem`
+- `<hostname>.server-cert.pem` / `<hostname>.server-key.pem`
+- `<hostname>.client-cert.pem` / `<hostname>.client-key.pem`
+
+These are intentionally **not committed**. To generate them locally:
+
+```bash
+make certs HOST="$(hostname)"
+```
+
+If your environment uses a `.local` hostname (e.g. `mac-pro.local`), pass that exact value so it matches `config:hostname/1`.
