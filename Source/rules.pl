@@ -14,8 +14,6 @@ This file contains domain-specific rules
 
 :- module(rules, [rule/2]).
 
-:- discontiguous rule/2.
-
 
 % =============================================================================
 %  RULES declarations
@@ -237,45 +235,6 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
                 InstallOrUpdate
                 |MergedDeps].
 
-% Determine a package slot for planning decisions.
-% If explicit slot metadata exists, use it; otherwise treat it as slot 0.
-rules:entry_slot_default(Repo, Entry, Slot) :-
-  ( cache:entry_metadata(Repo, Entry, slot, slot(Slot0))
-    -> rules:canon_slot(Slot0, Slot)
-    ;  Slot = '0'
-  ).
-
-% Normalize slot values so comparisons work even when some facts use numbers and
-% others use atoms.
-rules:canon_slot(S0, S) :-
-  ( atom(S0)   -> S = S0
-  ; integer(S0) -> number_atom(S0, S)
-  ; number(S0)  -> number_atom(S0, S)
-  ; S = S0
-  ),
-  !.
-
-% Find an installed entry for the given category/name, even if it isn't present
-% as an ordered_entry (e.g. when the installed version no longer exists in the
-% active repository set).
-rules:installed_entry_cn(C, N, Repo, Entry) :-
-  ( query:search([category(C),name(N),installed(true)], Repo://Entry)
-  ; cache:entry_metadata(Repo, Entry, installed, true),
-    rules:entry_id_matches_cn(Entry, C, N)
-  ).
-
-rules:entry_id_matches_cn(Entry, C, N) :-
-  atom(Entry),
-  atom_concat(C, '/', Prefix),
-  sub_atom(Entry, 0, _, _, Prefix),
-  atom_length(Prefix, L),
-  sub_atom(Entry, L, _, 0, Rest),
-  ( Rest == N
-  ; sub_atom(Rest, 0, LenN, _, N),
-    sub_atom(Rest, LenN, 1, _, '-')
-  ),
-  !.
-
 
 % -----------------------------------------------------------------------------
 %  Rule: Reinstall target
@@ -367,87 +326,6 @@ rule(Repository://Ebuild:update?{Context},Conditions) :-
   memberchk(replaces(_OldRepo://_OldEbuild), Context),
   !,
   rules:update_txn_conditions(Repository://Ebuild, Context, Conditions).
-
-% Shared implementation of transactional update prerequisites for Repository://Ebuild.
-% Context MUST contain replaces(OldRepo://OldEbuild).
-rules:update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
-  % 1. Compute required_use stable model for the *new* version, extend with build_with_use
-  (findall(Item,
-          (member(build_with_use(InnerList), Context),
-           member(Item,InnerList)),
-          B)),
-  (memberchk(required_use(R),Context) -> true ; R = []),
-  query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
-
-  % 2. Compute + memoize dependency model (grouped), for the *new* version.
-  query:memoized_search(model(dependency(MergedDeps0,install)):config?{Model},Repository://Ebuild),
-  add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
-
-  % Optional: deep update means "also update dependency packages".
-  % We model this by scheduling update goals for any installed dependency package
-  % that appears in the dependency model.
-  ( preference:flag(deep)
-  -> rules:deep_update_goals(Repository://Ebuild, MergedDeps, DeepUpdates)
-  ;  DeepUpdates = []
-  ),
-
-  % 3. Pass on relevant package dependencies and constraints to prover.
-  cache:ordered_entry(Repository, Ebuild, CNew, NNew, _),
-  findall(Ss,cache:entry_metadata(Repository,Ebuild,slot,Ss),SAll),
-  ( memberchk(CNew,['virtual','acct-group','acct-user'])
-    -> Base = [ constraint(use(Repository://Ebuild):{R}),
-                constraint(slot(CNew,NNew,SAll):{Ebuild})
-                |DeepUpdates],
-       append(Base, MergedDeps, Conditions)
-    ;  Base = [ constraint(use(Repository://Ebuild):{R}),
-                constraint(slot(CNew,NNew,SAll):{Ebuild}),
-                Repository://Ebuild:download?{[required_use(R),build_with_use(B)]}
-                |DeepUpdates],
-       append(Base, MergedDeps, Conditions)
-  ).
-
-% Collect update goals for installed dependency packages from a grouped dependency model.
-rules:deep_update_goals(Self, MergedDeps, DeepUpdates) :-
-  ( preference:accept_keywords(K)
-    -> KeywordQ = [keywords(K)]
-    ;  KeywordQ = []
-  ),
-  findall(C-N, (member(Dep, MergedDeps), rules:dep_cn(Dep, C, N)), CN0),
-  sort(CN0, CN),
-  findall(NewRepo://NewEntry:update?{[replaces(OldRepo://OldEntry)]},
-          ( member(C-N, CN),
-            % For each dependency package, look at installed instances (possibly multiple slots).
-            query:search([category(C),name(N),installed(true)], OldRepo://OldEntry),
-            OldRepo://OldEntry \== Self,
-            cache:ordered_entry(OldRepo, OldEntry, C, N, OldVer),
-            % Only deep-update within the same slot if we can determine it.
-            cache:entry_metadata(OldRepo, OldEntry, slot, slot(Slot)),
-            % Pick the newest acceptable candidate in that slot.
-            ( KeywordQ == []
-              -> Query = [category(C),name(N),slot(Slot),version(NewVer)]
-              ;  Query = [category(C),name(N),slot(Slot),keywords(K),version(NewVer)]
-            ),
-            query:search(Query, NewRepo://NewEntry),
-            compare(>, NewVer, OldVer)
-          ),
-          Updates0),
-  sort(Updates0, DeepUpdates).
-
-rules:dep_cn(grouped_package_dependency(_,C,N,_):_Action?{_Ctx}, C, N) :- !.
-rules:dep_cn(grouped_package_dependency(C,N,_):_Action?{_Ctx}, C, N) :- !.
-% Concrete dependency literals (already resolved to a specific entry):
-%   Repo://Entry:install?{...}
-%   Repo://Entry:run?{...}
-%   Repo://Entry:config?{...}
-% etc.
-rules:dep_cn(Repo://Entry:_Action?{_Ctx}, C, N) :-
-  cache:ordered_entry(Repo, Entry, C, N, _),
-  !.
-rules:dep_cn(Repo://Entry:_Action, C, N) :-
-  cache:ordered_entry(Repo, Entry, C, N, _),
-  !.
-
-% todo: deep
 
 
 % -----------------------------------------------------------------------------
@@ -658,15 +536,6 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       )
     )
   ).
-
-% Helper predicates are interleaved with rule/2 clauses in this file.
-:- discontiguous rules:rule/2.
-
-
-% (Assumption diagnosis moved to `Source/explainer.pl`.)
-
-
-
 
 
 % -----------------------------------------------------------------------------
@@ -1161,3 +1030,124 @@ process_use(_Context, use(optdisable(_Use), none), Acc, Acc).
 
 % Catch-all for any other directives
 process_use(_Context, _, Acc, Acc).
+
+
+
+% Shared implementation of transactional update prerequisites for Repository://Ebuild.
+% Context MUST contain replaces(OldRepo://OldEbuild).
+rules:update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
+  % 1. Compute required_use stable model for the *new* version, extend with build_with_use
+  (findall(Item,
+          (member(build_with_use(InnerList), Context),
+           member(Item,InnerList)),
+          B)),
+  (memberchk(required_use(R),Context) -> true ; R = []),
+  query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
+
+  % 2. Compute + memoize dependency model (grouped), for the *new* version.
+  query:memoized_search(model(dependency(MergedDeps0,install)):config?{Model},Repository://Ebuild),
+  add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
+
+  % Optional: deep update means "also update dependency packages".
+  % We model this by scheduling update goals for any installed dependency package
+  % that appears in the dependency model.
+  ( preference:flag(deep)
+  -> rules:deep_update_goals(Repository://Ebuild, MergedDeps, DeepUpdates)
+  ;  DeepUpdates = []
+  ),
+
+  % 3. Pass on relevant package dependencies and constraints to prover.
+  cache:ordered_entry(Repository, Ebuild, CNew, NNew, _),
+  findall(Ss,cache:entry_metadata(Repository,Ebuild,slot,Ss),SAll),
+  ( memberchk(CNew,['virtual','acct-group','acct-user'])
+    -> Base = [ constraint(use(Repository://Ebuild):{R}),
+                constraint(slot(CNew,NNew,SAll):{Ebuild})
+                |DeepUpdates],
+       append(Base, MergedDeps, Conditions)
+    ;  Base = [ constraint(use(Repository://Ebuild):{R}),
+                constraint(slot(CNew,NNew,SAll):{Ebuild}),
+                Repository://Ebuild:download?{[required_use(R),build_with_use(B)]}
+                |DeepUpdates],
+       append(Base, MergedDeps, Conditions)
+  ).
+
+% Collect update goals for installed dependency packages from a grouped dependency model.
+rules:deep_update_goals(Self, MergedDeps, DeepUpdates) :-
+  ( preference:accept_keywords(K)
+    -> KeywordQ = [keywords(K)]
+    ;  KeywordQ = []
+  ),
+  findall(C-N, (member(Dep, MergedDeps), rules:dep_cn(Dep, C, N)), CN0),
+  sort(CN0, CN),
+  findall(NewRepo://NewEntry:update?{[replaces(OldRepo://OldEntry)]},
+          ( member(C-N, CN),
+            % For each dependency package, look at installed instances (possibly multiple slots).
+            query:search([category(C),name(N),installed(true)], OldRepo://OldEntry),
+            OldRepo://OldEntry \== Self,
+            cache:ordered_entry(OldRepo, OldEntry, C, N, OldVer),
+            % Only deep-update within the same slot if we can determine it.
+            cache:entry_metadata(OldRepo, OldEntry, slot, slot(Slot)),
+            % Pick the newest acceptable candidate in that slot.
+            ( KeywordQ == []
+              -> Query = [category(C),name(N),slot(Slot),version(NewVer)]
+              ;  Query = [category(C),name(N),slot(Slot),keywords(K),version(NewVer)]
+            ),
+            query:search(Query, NewRepo://NewEntry),
+            compare(>, NewVer, OldVer)
+          ),
+          Updates0),
+  sort(Updates0, DeepUpdates).
+
+rules:dep_cn(grouped_package_dependency(_,C,N,_):_Action?{_Ctx}, C, N) :- !.
+rules:dep_cn(grouped_package_dependency(C,N,_):_Action?{_Ctx}, C, N) :- !.
+% Concrete dependency literals (already resolved to a specific entry):
+%   Repo://Entry:install?{...}
+%   Repo://Entry:run?{...}
+%   Repo://Entry:config?{...}
+% etc.
+rules:dep_cn(Repo://Entry:_Action?{_Ctx}, C, N) :-
+  cache:ordered_entry(Repo, Entry, C, N, _),
+  !.
+rules:dep_cn(Repo://Entry:_Action, C, N) :-
+  cache:ordered_entry(Repo, Entry, C, N, _),
+  !.
+
+
+% Determine a package slot for planning decisions.
+% If explicit slot metadata exists, use it; otherwise treat it as slot 0.
+rules:entry_slot_default(Repo, Entry, Slot) :-
+  ( cache:entry_metadata(Repo, Entry, slot, slot(Slot0))
+    -> rules:canon_slot(Slot0, Slot)
+    ;  Slot = '0'
+  ).
+
+% Normalize slot values so comparisons work even when some facts use numbers and
+% others use atoms.
+rules:canon_slot(S0, S) :-
+  ( atom(S0)   -> S = S0
+  ; integer(S0) -> number_atom(S0, S)
+  ; number(S0)  -> number_atom(S0, S)
+  ; S = S0
+  ),
+  !.
+
+% Find an installed entry for the given category/name, even if it isn't present
+% as an ordered_entry (e.g. when the installed version no longer exists in the
+% active repository set).
+rules:installed_entry_cn(C, N, Repo, Entry) :-
+  ( query:search([category(C),name(N),installed(true)], Repo://Entry)
+  ; cache:entry_metadata(Repo, Entry, installed, true),
+    rules:entry_id_matches_cn(Entry, C, N)
+  ).
+
+rules:entry_id_matches_cn(Entry, C, N) :-
+  atom(Entry),
+  atom_concat(C, '/', Prefix),
+  sub_atom(Entry, 0, _, _, Prefix),
+  atom_length(Prefix, L),
+  sub_atom(Entry, L, _, 0, Rest),
+  ( Rest == N
+  ; sub_atom(Rest, 0, LenN, _, N),
+    sub_atom(Rest, LenN, 1, _, '-')
+  ),
+  !.

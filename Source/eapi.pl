@@ -103,8 +103,6 @@ files.
 
 :- module(eapi, []).
 
-:- discontiguous eapi:parse_iuse_search_value/3.
-
 
 % =============================================================================
 %  EAPI declarations

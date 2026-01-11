@@ -14,10 +14,6 @@ An implementation of a query language for the knowledge base
 
 :- module(query,[]).
 
-:- discontiguous query:search/2.
-:- discontiguous query:select/4.
-
-
 % =============================================================================
 %  QUERY MACROS
 % =============================================================================
@@ -1054,23 +1050,6 @@ search(select(iuse,wildcard,Pattern), R://I) :-
   atom(Flag),
   wildcard_match(Pattern, Flag).
 
-% Robust extraction of the "bare" USE flag atom from IUSE metadata values.
-% Examples:
-%   plus(foo)     -> foo
-%   minus(foo)    -> foo
-%   foo           -> foo
-query:iuse_flag_atom(plus(X), Atom)  :- !, query:iuse_flag_atom(X, Atom).
-query:iuse_flag_atom(minus(X), Atom) :- !, query:iuse_flag_atom(X, Atom).
-query:iuse_flag_atom(X, Atom) :-
-  atom(X),
-  !,
-  Atom = X.
-query:iuse_flag_atom(X, Atom) :-
-  compound(X),
-  X =.. [_F, Inner],
-  !,
-  query:iuse_flag_atom(Inner, Atom).
-
 
 % -----------------------------------------------------------------------------
 %  Search: iuse with use flag state
@@ -1147,6 +1126,106 @@ search(Q,R://I) :-
 
 
 % -----------------------------------------------------------------------------
+%  Special case - set membership
+% -----------------------------------------------------------------------------
+
+select(set,notequal,S,R://I) :-
+  !,
+  preference:set(S,Set),
+  findall(Rc://Ic,(member(Ta,Set),
+                   atom_codes(Ta,Tc),
+                   phrase(eapi:qualified_target(Q),Tc),
+                   search(Q,Rc://Ic)),
+          Candidates),
+  cache:ordered_entry(R,I,_,_,_),
+  \+(memberchk(R://I,Candidates)).
+
+select(set,equal,S,R://I) :-
+  !,
+  preference:set(S,Set),
+  member(Ta,Set),
+  atom_codes(Ta,Tc),
+  phrase(eapi:qualified_target(Q),Tc),
+  search(Q,R://I).
+
+select(set,tilde,N,R://I) :-
+  !,
+  preference:set(S,Set),
+  dwim_match(N,S),
+  member(Ta,Set),
+  atom_codes(Ta,Tc),
+  phrase(eapi:qualified_target(Q),Tc),
+  search(Q,R://I).
+
+select(set,wildcard,N,R://I) :-
+  !,
+  preference:set(S,Set),
+  wildcard_match(N,S),
+  member(Ta,Set),
+  atom_codes(Ta,Tc),
+  phrase(eapi:qualified_target(Q),Tc),
+  search(Q,R://I).
+
+
+% -----------------------------------------------------------------------------
+%  Default - Entry Metadata
+% -----------------------------------------------------------------------------
+
+select(Key,notequal,Value,R://I) :-
+  !,
+  \+cache:entry_metadata(R,I,Key,Value).
+
+% Special-case IUSE because metadata values may be wrapped in plus/1 or minus/1,
+% and users typically want to search by the bare flag name.
+
+select(iuse,equal,Value,R://I) :-
+  !,
+  cache:entry_metadata(R,I,iuse,Raw),
+  eapi:parse_iuse_search_value(Value, RequiredSign, Pattern),
+  query:iuse_sign_matches(Raw, RequiredSign),
+  query:iuse_flag_atom(Raw, Flag),
+  Flag == Pattern.
+
+% Fuzzy search (~) for IUSE, with optional leading + / - in the pattern.
+% Examples:
+%   -s iuse~mini
+%   -s iuse~+mini
+%   -s iuse~-mini
+
+select(iuse,tilde,Value,R://I) :-
+  !,
+  cache:entry_metadata(R,I,iuse,Raw),
+  eapi:parse_iuse_search_value(Value, RequiredSign, Pattern),
+  query:iuse_sign_matches(Raw, RequiredSign),
+  query:iuse_flag_atom(Raw, Flag),
+  dwim_match(Pattern, Flag).
+
+select(Key,equal,Value,R://I) :-
+  !,
+  cache:entry_metadata(R,I,Key,Value).
+
+select(Key,tilde,Value,R://I) :-
+  !,
+  cache:entry_metadata(R,I,Key,Match),
+  dwim_match(Value,Match).
+
+select(iuse,wildcard,Pattern,R://I) :-
+  !,
+  cache:entry_metadata(R,I,iuse,Raw),
+  eapi:parse_iuse_search_value(Pattern, RequiredSign, Pattern1),
+  query:iuse_sign_matches(Raw, RequiredSign),
+  query:iuse_flag_atom(Raw, Flag),
+  wildcard_match(Pattern1, Flag).
+
+
+
+select(Key,wildcard,Value,R://I) :-
+  !,
+  cache:entry_metadata(R,I,Key,Match),
+  wildcard_match(Value,Match).
+
+
+% -----------------------------------------------------------------------------
 %  Query: Memoized Search - only dependency models for now
 % -----------------------------------------------------------------------------
 
@@ -1201,125 +1280,6 @@ memoized_search(model(dependency(Merged,fetchonly)):config?{R}, Repository://Ebu
 
 
 % -----------------------------------------------------------------------------
-%  Search: Filter predicates
-% -----------------------------------------------------------------------------
-
-% Filter out versions based on comparison
-
-
-% Filtering of slot & usedep for qualified_target
-
-apply_filters(_R://_I,[]) :- !.
-
-apply_filters(R://I,[H|T]) :-
-  !,
-  apply_filter(R://I,H),
-  apply_filters(R://I,T).
-
-apply_filter(_R://_I,[]) :- !.
-
-
-% -----------------------------------------------------------------------------
-%  Special case - set membership
-% -----------------------------------------------------------------------------
-
-select(set,notequal,S,R://I) :-
-  !,
-  preference:set(S,Set),
-  findall(Rc://Ic,(member(Ta,Set),
-                   atom_codes(Ta,Tc),
-                   phrase(eapi:qualified_target(Q),Tc),
-                   search(Q,Rc://Ic)),
-          Candidates),
-  cache:ordered_entry(R,I,_,_,_),
-  \+(memberchk(R://I,Candidates)).
-
-select(set,equal,S,R://I) :-
-  !,
-  preference:set(S,Set),
-  member(Ta,Set),
-  atom_codes(Ta,Tc),
-  phrase(eapi:qualified_target(Q),Tc),
-  search(Q,R://I).
-
-select(set,tilde,N,R://I) :-
-  !,
-  preference:set(S,Set),
-  dwim_match(N,S),
-  member(Ta,Set),
-  atom_codes(Ta,Tc),
-  phrase(eapi:qualified_target(Q),Tc),
-  search(Q,R://I).
-
-select(set,wildcard,N,R://I) :-
-  !,
-  preference:set(S,Set),
-  wildcard_match(N,S),
-  member(Ta,Set),
-  atom_codes(Ta,Tc),
-  phrase(eapi:qualified_target(Q),Tc),
-  search(Q,R://I).
-
-
-% -----------------------------------------------------------------------------
-%  Default - Entry Metadata
-% -----------------------------------------------------------------------------
-
-select(Key,notequal,Value,R://I) :-
-  !,
-  \+cache:entry_metadata(R,I,Key,Value).
-
-% Special-case IUSE because metadata values may be wrapped in plus/1 or minus/1,
-% and users typically want to search by the bare flag name.
-select(iuse,equal,Value,R://I) :-
-  !,
-  cache:entry_metadata(R,I,iuse,Raw),
-  eapi:parse_iuse_search_value(Value, RequiredSign, Pattern),
-  query:iuse_sign_matches(Raw, RequiredSign),
-  query:iuse_flag_atom(Raw, Flag),
-  Flag == Pattern.
-
-% Fuzzy search (~) for IUSE, with optional leading + / - in the pattern.
-% Examples:
-%   -s iuse~mini
-%   -s iuse~+mini
-%   -s iuse~-mini
-select(iuse,tilde,Value,R://I) :-
-  !,
-  cache:entry_metadata(R,I,iuse,Raw),
-  eapi:parse_iuse_search_value(Value, RequiredSign, Pattern),
-  query:iuse_sign_matches(Raw, RequiredSign),
-  query:iuse_flag_atom(Raw, Flag),
-  dwim_match(Pattern, Flag).
-
-select(Key,equal,Value,R://I) :-
-  !,
-  cache:entry_metadata(R,I,Key,Value).
-
-select(Key,tilde,Value,R://I) :-
-  !,
-  cache:entry_metadata(R,I,Key,Match),
-  dwim_match(Value,Match).
-
-select(iuse,wildcard,Pattern,R://I) :-
-  !,
-  cache:entry_metadata(R,I,iuse,Raw),
-  eapi:parse_iuse_search_value(Pattern, RequiredSign, Pattern1),
-  query:iuse_sign_matches(Raw, RequiredSign),
-  query:iuse_flag_atom(Raw, Flag),
-  wildcard_match(Pattern1, Flag).
-
-query:iuse_sign_matches(_Raw, any) :- !.
-query:iuse_sign_matches(plus(_), plus) :- !.
-query:iuse_sign_matches(minus(_), minus) :- !.
-
-select(Key,wildcard,Value,R://I) :-
-  !,
-  cache:entry_metadata(R,I,Key,Match),
-  wildcard_match(Value,Match).
-
-
-% -----------------------------------------------------------------------------
 %  Grouping dependencies
 % -----------------------------------------------------------------------------
 
@@ -1343,6 +1303,58 @@ group_dependencies(L, Groups) :-
     findall(grouped_package_dependency(T,C,N,Group):Action?{Context},
 		    group_by(T-C-N-S:Action?{Context}, E, (member(E:Action?{Context}, L), dependency_key(E:Action?{Context}, T-C-N-S)), Group),
             Groups).
+
+
+
+% -----------------------------------------------------------------------------
+%  Helper: Filter predicates
+% -----------------------------------------------------------------------------
+
+% Filter out versions based on comparison
+
+
+% Filtering of slot & usedep for qualified_target
+
+apply_filters(_R://_I,[]) :- !.
+
+apply_filters(R://I,[H|T]) :-
+  !,
+  apply_filter(R://I,H),
+  apply_filters(R://I,T).
+
+apply_filter(_R://_I,[]) :- !.
+
+
+% -----------------------------------------------------------------------------
+%  Helper: iuse_flag_atom
+% -----------------------------------------------------------------------------
+
+% Robust extraction of the "bare" USE flag atom from IUSE metadata values.
+% Examples:
+%   plus(foo)     -> foo
+%   minus(foo)    -> foo
+%   foo           -> foo
+
+iuse_flag_atom(plus(X), Atom)  :- !, iuse_flag_atom(X, Atom).
+iuse_flag_atom(minus(X), Atom) :- !, iuse_flag_atom(X, Atom).
+iuse_flag_atom(X, Atom) :-
+  atom(X),
+  !,
+  Atom = X.
+query:iuse_flag_atom(X, Atom) :-
+  compound(X),
+  X =.. [_F, Inner],
+  !,
+  iuse_flag_atom(Inner, Atom).
+
+
+% -----------------------------------------------------------------------------
+%  Helper: iuse_sign_matches
+% -----------------------------------------------------------------------------
+
+query:iuse_sign_matches(_Raw, any) :- !.
+query:iuse_sign_matches(plus(_), plus) :- !.
+query:iuse_sign_matches(minus(_), minus) :- !.
 
 
 % -----------------------------------------------------------------------------
