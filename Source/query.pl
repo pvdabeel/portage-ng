@@ -31,6 +31,7 @@ An implementation of a query language for the knowledge base
 
 :- dynamic query:search_callsite_stats_enabled/0.
 :- dynamic query:search_callsite/4. % File, Line, PI, Count
+:- dynamic query:search_callsite_sig/5. % File, Line, PI, Sig, Count
 :- dynamic query:search_callsite_sample_rate/1.
 
 % Default: sample 1 out of 4096 calls to keep overhead low even on huge runs.
@@ -46,6 +47,7 @@ query:disable_search_callsite_stats :-
 
 query:reset_search_callsites :-
   retractall(query:search_callsite(_,_,_,_)),
+  retractall(query:search_callsite_sig(_,_,_,_,_)),
   nb_setval(query_search_callsite_counter, 0).
 
 query:set_search_callsite_sample_rate(Rate) :-
@@ -66,6 +68,25 @@ query:report_search_callsites(TopN) :-
   format('  ~`-t~80|~n', []),
   query:print_search_callsite_rows(Rows, TopN, 1).
 
+query:report_search_callsites_sig(TopN) :-
+  ( integer(TopN), TopN > 0 -> true ; TopN = 50 ),
+  findall(Count-File-Line-PI-Sig,
+          query:search_callsite_sig(File, Line, PI, Sig, Count),
+          Rows0),
+  keysort(Rows0, RowsAsc),
+  reverse(RowsAsc, Rows),
+  format('~n>>> query:search/2 runtime callsites (signature breakdown, Top ~d)~n~n', [TopN]),
+  format('  ~` t~d~8|  ~` t~s~8|  ~` t~s~s~n', [8, 'Count', 'Line', 'Callsite / Signature']),
+  format('  ~`-t~80|~n', []),
+  query:print_search_callsite_sig_rows(Rows, TopN, 1).
+
+query:print_search_callsite_sig_rows([], _, _) :- !.
+query:print_search_callsite_sig_rows(_, TopN, I) :- I > TopN, !.
+query:print_search_callsite_sig_rows([Count-File-Line-PI-Sig|Rest], TopN, I) :-
+  format('  ~` t~d~8|  ~w:~w~n      ~w~n      ~w~n', [Count, File, Line, PI, Sig]),
+  I2 is I + 1,
+  query:print_search_callsite_sig_rows(Rest, TopN, I2).
+
 query:print_search_callsite_rows([], _, _) :- !.
 query:print_search_callsite_rows(_, TopN, I) :- I > TopN, !.
 query:print_search_callsite_rows([Count-File-Line-PI|Rest], TopN, I) :-
@@ -73,18 +94,20 @@ query:print_search_callsite_rows([Count-File-Line-PI|Rest], TopN, I) :-
   I2 is I + 1,
   query:print_search_callsite_rows(Rest, TopN, I2).
 
-query:maybe_record_search_callsite :-
+query:maybe_record_search_callsite(Q, RepoEntry) :-
   ( query:search_callsite_stats_enabled ->
-      query:maybe_record_search_callsite_sampled
+      query:maybe_record_search_callsite_sampled(Q, RepoEntry)
   ; true
   ).
 
-query:maybe_record_search_callsite_sampled :-
+query:maybe_record_search_callsite_sampled(Q, RepoEntry) :-
   ( query:search_callsite_sample_rate(Rate) -> true ; Rate = 4096 ),
   ( nb_current(query_search_callsite_counter, C0) -> true ; C0 = 0 ),
   C is C0 + 1,
   nb_setval(query_search_callsite_counter, C),
   ( 0 is C mod Rate ->
+      nb_setval(query_search_callsite_last_q, Q),
+      nb_setval(query_search_callsite_last_entry, RepoEntry),
       query:record_search_callsite
   ; true
   ).
@@ -94,14 +117,80 @@ query:record_search_callsite :-
     prolog_frame_attribute(F, parent, Parent0),
     query:find_non_trivial_caller_frame(Parent0, CallerFrame0),
     query:find_external_callsite_frame(CallerFrame0, CallerFrame),
-    query:frame_callsite(CallerFrame, File, Line, PI)
+    query:frame_callsite(CallerFrame, File, Line, PI),
+    ( nb_current(query_search_callsite_last_q, Q) -> true ; Q = unknown ),
+    ( nb_current(query_search_callsite_last_entry, E) -> true ; E = unknown ),
+    query:search_call_signature(Q, E, Sig)
   -> with_mutex(query_search_callsite,
        ( ( retract(query:search_callsite(File, Line, PI, N0)) -> true ; N0 = 0 ),
          N is N0 + 1,
-         assertz(query:search_callsite(File, Line, PI, N))
+         assertz(query:search_callsite(File, Line, PI, N)),
+         ( ( retract(query:search_callsite_sig(File, Line, PI, Sig, S0)) -> true ; S0 = 0 ),
+           S is S0 + 1,
+           assertz(query:search_callsite_sig(File, Line, PI, Sig, S))
+         )
        ))
   ; true
   ).
+
+% A cheap signature for sampled calls: helps identify which query forms are
+% still reaching runtime `query:search/2`.
+query:search_call_signature(Q, RepoEntry, sig(Kind, Head, Flags, EntryKind)) :-
+  ( is_list(Q) ->
+      Kind = list,
+      length(Q, Len),
+      Head = list(Len),
+      query:search_sig_flags(Q, Flags0),
+      sort(Flags0, Flags)
+  ; compound(Q) ->
+      Kind = compound,
+      ( Q = select(Key, Op, _Value) ->
+          query:select_sig_op(Op, OpTag),
+          Head = select(Key, OpTag)
+      ; functor(Q, F, A),
+        Head = F/A
+      ),
+      Flags = []
+  ; Kind = other,
+    Head = other,
+    Flags = []
+  ),
+  ( RepoEntry = _Repo://_Id -> EntryKind = op_slash_colon2
+  ; EntryKind = other
+  ).
+
+query:select_sig_op(Op, OpTag) :-
+  ( var(Op) ->
+      OpTag = var
+  ; atomic(Op) ->
+      OpTag = Op
+  ; compound(Op) ->
+      functor(Op, F, A),
+      ( Op = constraint(Inner, _Out) ->
+          query:constraint_inner_tag(Inner, InnerTag),
+          OpTag = constraint(InnerTag)
+      ; OpTag = F/A
+      )
+  ; OpTag = other
+  ).
+
+query:constraint_inner_tag(Inner, Tag) :-
+  ( var(Inner) -> Tag = var
+  ; Inner == [] -> Tag = empty
+  ; is_list(Inner) ->
+      length(Inner, L),
+      Tag = list(L)
+  ; Tag = other
+  ).
+
+query:search_sig_flags([], []) :- !.
+query:search_sig_flags([H|T], [Flag|Rest]) :-
+  ( compound(H) ->
+      functor(H, F, A),
+      Flag = F/A
+  ; Flag = atom
+  ),
+  query:search_sig_flags(T, Rest).
 
 query:find_non_trivial_caller_frame(Frame0, Frame) :-
   ( var(Frame0) ; Frame0 == 0 ), !,
@@ -901,7 +990,7 @@ compile_query_compound(Stmt, Entry,
 % If there is no compilation rule, `compile_query_compound/3` falls back to
 % `search(Stmt,Entry)`; detect that and let the normal runtime clauses handle it.
 search(Q, Repository://Entry) :-
-  query:maybe_record_search_callsite,
+  query:maybe_record_search_callsite(Q, Repository://Entry),
   ( is_list(Q)
     -> compile_query_list(Q, Repository://Entry, Goal)
     ; compound(Q)

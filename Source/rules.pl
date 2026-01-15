@@ -510,7 +510,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       ),
 
       forall(member(package_dependency(Action,no,C,N,O,V,_,_), PackageDeps),
-             query:search(select(version,O,V), FoundRepo://Candidate)),
+             rules:query_search_version_select(O, V, FoundRepo://Candidate)),
 
       findall(U, member(package_dependency(Action,no,C,N,_O,_V,_,U),PackageDeps), MergedUse),
       process_build_with_use(MergedUse,Context,NewContext,Constraints,FoundRepo://Candidate),
@@ -519,9 +519,10 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       % Prefer expressing as update when a pkg-installed entry exists and the chosen
       % candidate is newer.
       ( \+ preference:flag(emptytree),
-        once(query:search([repository(pkg),category(C),name(N),installed(true),
-                           select(slot,constraint(SlotReq),_)],
-                          pkg://InstalledEntry2)),
+        query:search([repository(pkg),category(C),name(N),installed(true)],
+                     pkg://InstalledEntry2),
+        rules:query_search_slot_constraint(SlotReq, pkg://InstalledEntry2, _),
+        !,
         InstalledEntry2 \== Candidate,
         cache:ordered_entry(pkg, InstalledEntry2, C, N, OldVer),
         cache:ordered_entry(FoundRepo, Candidate, C, N, NewVer),
@@ -537,11 +538,11 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       % and satisfies constraints. Instead, fall back to "keep installed".
       ( preference:flag(deep),
         merge_slot_restriction(Action, C, N, PackageDeps, SlotReq2),
-        once(query:search([repository(pkg),category(C),name(N),installed(true),
-                           select(slot,constraint(SlotReq2),_)],
-                          pkg://InstalledEntryFallback)),
-        forall(member(package_dependency(Action,no,C,N,O2,V2,_,_), PackageDeps),
-               query:search(select(version,O2,V2), pkg://InstalledEntryFallback))
+        query:search([repository(pkg),category(C),name(N),installed(true)],
+                     pkg://InstalledEntryFallback),
+        rules:query_search_slot_constraint(SlotReq2, pkg://InstalledEntryFallback, _),
+        !,
+        rules:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps, pkg://InstalledEntryFallback)
       ->
         Conditions = []
       ; explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason),
@@ -567,7 +568,9 @@ rule(use_conditional_group(positive,Use,_R://_E,Deps):Action?{Context},Condition
 % 2. The USE is explicitely enabled, either by preference or ebuild -> process deps
 
 rule(use_conditional_group(positive,Use,R://E,Deps):Action?{Context},Conditions) :-
-  query:search(iuse(Use,positive:_Reason),R://E),!,
+  cache:entry_metadata(R,E,iuse,Value),
+  eapi:categorize_use(Value,positive,_Reason),
+  eapi:strip_use_default(Value,Use),!,
   findall(D:Action?{Context},member(D,Deps),Result),
   Conditions = Result.
 
@@ -593,7 +596,9 @@ rule(use_conditional_group(negative,Use,_R://_E,Deps):Action?{Context},Condition
 % 2. The USE is explicitely enabled, either by preference or ebuild -> process deps
 
 rule(use_conditional_group(negative,Use,R://E,Deps):Action?{Context},Conditions) :-
-  query:search(iuse(Use,negative:_Reason),R://E),!,
+  cache:entry_metadata(R,E,iuse,Value),
+  eapi:categorize_use(Value,negative,_Reason),
+  eapi:strip_use_default(Value,Use),!,
   findall(D:Action?{Context},member(D,Deps),Result),
   Conditions = Result.
 
@@ -822,6 +827,81 @@ merge_slot_restriction_([package_dependency(Action,no,C,N,_O,_V,S,_U)|Rest], Act
   merge_slot_restriction_(Rest, Action, C, N, Acc1, Acc).
 merge_slot_restriction_([_|Rest], Action, C, N, Acc0, Acc) :-
   merge_slot_restriction_(Rest, Action, C, N, Acc0, Acc).
+
+% -----------------------------------------------------------------------------
+%  Helper: query_search_slot_constraint
+% -----------------------------------------------------------------------------
+% Execute a slot constraint query in a way that preserves compile-time query macro
+% expansion (i.e. avoid passing a variable SlotReq into select(slot,constraint/2)).
+
+query_search_slot_constraint(SlotReq, RepoEntry, SlotMeta) :-
+  % IMPORTANT: keep the second argument of query:search/2 syntactically in the
+  % form Repo://Id so goal-expansion does not bind a variable during compilation.
+  RepoEntry = Repo://Id,
+  ( SlotReq == [] ->
+      query:search(select(slot,constraint([]),SlotMeta), Repo://Id)
+  ; SlotReq = [slot(S)] ->
+      query:search(select(slot,constraint([slot(S)]),SlotMeta), Repo://Id)
+  ; SlotReq = [slot(S),subslot(Ss)] ->
+      query:search(select(slot,constraint([slot(S),subslot(Ss)]),SlotMeta), Repo://Id)
+  ; SlotReq = [slot(S),equal] ->
+      query:search(select(slot,constraint([slot(S),equal]),SlotMeta), Repo://Id)
+  ; SlotReq = [slot(S),subslot(Ss),equal] ->
+      query:search(select(slot,constraint([slot(S),subslot(Ss),equal]),SlotMeta), Repo://Id)
+  ; SlotReq = [any_same_slot] ->
+      query:search(select(slot,constraint([any_same_slot]),SlotMeta), Repo://Id)
+  ; SlotReq = [any_different_slot] ->
+      query:search(select(slot,constraint([any_different_slot]),SlotMeta), Repo://Id)
+  ; % Fallback (should be rare; may be slower due to missing macro)
+    query:search(select(slot,constraint(SlotReq),SlotMeta), Repo://Id)
+  ).
+
+% -----------------------------------------------------------------------------
+%  Helper: installed_entry_satisfies_package_deps
+% -----------------------------------------------------------------------------
+% Check that an installed entry satisfies all version constraints expressed in
+% the grouped package dependency list, while preserving query macro expansion.
+
+installed_entry_satisfies_package_deps(_Action, _C, _N, [], _Installed) :- !.
+installed_entry_satisfies_package_deps(Action, C, N,
+                                       [package_dependency(Action,no,C,N,O,V,_,_)|Rest],
+                                       Installed) :-
+  !,
+  rules:query_search_version_select(O, V, Installed),
+  rules:installed_entry_satisfies_package_deps(Action, C, N, Rest, Installed).
+installed_entry_satisfies_package_deps(Action, C, N, [_|Rest], Installed) :-
+  rules:installed_entry_satisfies_package_deps(Action, C, N, Rest, Installed).
+
+% Map runtime operator to a compile-time-friendly `select(version,<op>,...)` goal.
+query_search_version_select(equal, Ver, RepoEntry) :- !,
+  RepoEntry = Repo://Id,
+  query:search(select(version,equal,Ver), Repo://Id).
+query_search_version_select(none, _Ver, _RepoEntry) :- !.
+query_search_version_select(smaller, Ver, RepoEntry) :- !,
+  RepoEntry = Repo://Id,
+  query:search(select(version,smaller,Ver), Repo://Id).
+query_search_version_select(greater, Ver, RepoEntry) :- !,
+  RepoEntry = Repo://Id,
+  query:search(select(version,greater,Ver), Repo://Id).
+query_search_version_select(smallerequal, Ver, RepoEntry) :- !,
+  RepoEntry = Repo://Id,
+  query:search(select(version,smallerequal,Ver), Repo://Id).
+query_search_version_select(greaterequal, Ver, RepoEntry) :- !,
+  RepoEntry = Repo://Id,
+  query:search(select(version,greaterequal,Ver), Repo://Id).
+query_search_version_select(notequal, Ver, RepoEntry) :- !,
+  RepoEntry = Repo://Id,
+  query:search(select(version,notequal,Ver), Repo://Id).
+query_search_version_select(wildcard, Ver, RepoEntry) :- !,
+  RepoEntry = Repo://Id,
+  query:search(select(version,wildcard,Ver), Repo://Id).
+query_search_version_select(tilde, Ver, RepoEntry) :- !,
+  RepoEntry = Repo://Id,
+  query:search(select(version,tilde,Ver), Repo://Id).
+query_search_version_select(Op, Ver, RepoEntry) :-
+  % Fallback: keep semantics even if slower / not macro-expanded.
+  RepoEntry = Repo://Id,
+  query:search(select(version,Op,Ver), Repo://Id).
 
 
 % =============================================================================
