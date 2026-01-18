@@ -128,6 +128,7 @@ interface:process_flags:-
   (lists:memberchk(deep(true),      Options) -> asserta(preference:local_flag(deep))            ; true),
   (lists:memberchk(delay_triggers(true), Options) -> asserta(preference:local_flag(delay_triggers)) ; true),
   (lists:memberchk(emptytree(true), Options) -> asserta(preference:local_flag(emptytree))       ; true),
+  (lists:memberchk(depclean(true),  Options) -> asserta(preference:local_flag(depclean))        ; true),
   (lists:memberchk(newuse(true),    Options) -> asserta(preference:local_flag(newuse))          ; true),
   (lists:memberchk(oneshot(true),   Options) -> asserta(preference:local_flag(oneshot))         ; true),
   (lists:memberchk(verbose(true),   Options) -> asserta(config:verbose(true))                   ; true),
@@ -205,7 +206,7 @@ interface:process_requests(Mode) :-
     memberchk(clear(true),Options)    -> (kb:clear, 						    Continue) ;
     memberchk(graph(true),Options)    -> (kb:graph,nl, 				  	            Continue) ;
     memberchk(unmerge(true),Options)  -> (interface:process_action(uninstall,Args,Options), 	    Continue) ;
-    memberchk(depclean(true),Options) -> (message:warning('depclean action to be implemented'),     Continue) ;
+    memberchk(depclean(true),Options) -> (interface:process_action(depclean,Args,Options),         Continue) ;
     % For a single target, Portage-style update behaves like a normal merge:
     % resolve full runtime closure and perform a transactional replace if needed.
     % In portage-ng the "full closure" corresponds to proving :run.
@@ -350,6 +351,17 @@ interface:process_action(search,Args,_Options) :-
   phrase(eapi:query(Q),Args),
   message:log(['Query:   ',Q]),
   forall(kb:query(Q,R://E), writeln(R://E)).
+
+% -----------------------------------------------------------------------------
+%  Action: DEPCLEAN
+% -----------------------------------------------------------------------------
+%
+% Proof-based depclean: compute installed packages not required by @world.
+%
+interface:process_action(depclean, ArgsSets, _Options) :-
+  !,
+  ensure_loaded(portage('Source/depclean.pl')),
+  depclean:run(ArgsSets).
 
 
 % -----------------------------------------------------------------------------

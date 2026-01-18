@@ -607,14 +607,16 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         ( % Standard update: candidate newer than installed
           InstalledEntry2 \== Candidate,
           query:search(version(OldVer), pkg://InstalledEntry2),
-          query:search(select(version,greater,OldVer), FoundRepo://Candidate)
+          query:search(select(version,greater,OldVer), FoundRepo://Candidate) ->
+            UpdateCtx = [replaces(pkg://InstalledEntry2)|NewerContext]
         ; % --newuse: force a transactional rebuild even if version is the same,
           % when USE/IUSE differs.
           preference:flag(newuse),
-          rules:newuse_mismatch(pkg://InstalledEntry2, FoundRepo://Candidate)
+          rules:newuse_mismatch(pkg://InstalledEntry2, FoundRepo://Candidate) ->
+            UpdateCtx = [replaces(pkg://InstalledEntry2),rebuild_reason(newuse)|NewerContext]
         )
       ->
-        ActionGoal = FoundRepo://Candidate:update?{[replaces(pkg://InstalledEntry2)|NewerContext]}
+        ActionGoal = FoundRepo://Candidate:update?{UpdateCtx}
       ; ActionGoal = FoundRepo://Candidate:Action?{NewerContext}
       ),
 
@@ -714,6 +716,62 @@ rules:symmetric_diff_nonempty(A, B) :-
   ( member(X, A), \+ memberchk(X, B) -> true
   ; member(X, B), \+ memberchk(X, A) -> true
   ).
+
+
+% -----------------------------------------------------------------------------
+%  Depclean traversal rules
+% -----------------------------------------------------------------------------
+%
+% These are used by depclean:run/1 to compute a "kept" closure over *installed*
+% packages only, using repository metadata for dependency structure.
+
+rule(Repository://Ebuild:depclean?{Context}, Conditions) :-
+  % Use current preference/profile to evaluate USE conditionals.
+  ( query:search(model(Model,required_use(_R),build_with_use(_B)), Repository://Ebuild),
+    % Compute runtime dependency model in config phase (no candidate choices here).
+    query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model}, Repository://Ebuild),
+    add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
+    % Rewrite all dependency literals to the depclean action.
+    rules:depclean_rewrite_deps(MergedDeps, Context, Conditions)
+  -> true
+  ; Conditions = []
+  ).
+
+rules:depclean_rewrite_deps([], _ParentCtx, []) :- !.
+rules:depclean_rewrite_deps([D0|Rest0], ParentCtx, [D|Rest]) :-
+  rules:depclean_rewrite_dep(D0, ParentCtx, D),
+  rules:depclean_rewrite_deps(Rest0, ParentCtx, Rest).
+
+rules:depclean_rewrite_dep(Term:Action?{Ctx0}, _ParentCtx, Term:depclean?{Ctx0}) :-
+  nonvar(Action),
+  !.
+rules:depclean_rewrite_dep(Term:Action, _ParentCtx, Term:depclean?{[]}) :-
+  nonvar(Action),
+  !.
+rules:depclean_rewrite_dep(Term, _ParentCtx, Term:depclean?{[]}) :-
+  !.
+
+% Depclean: grouped package dependency – follow only installed packages.
+rule(grouped_package_dependency(no,C,N,PackageDeps):depclean?{_Context}, Conditions) :-
+  !,
+  merge_slot_restriction(run, C, N, PackageDeps, SlotReq),
+  ( query:search([repository(pkg),category(C),name(N),installed(true)], pkg://InstalledEntry),
+    rules:query_search_slot_constraint(SlotReq, pkg://InstalledEntry, _),
+    rules:installed_entry_satisfies_package_deps(run, C, N, PackageDeps, pkg://InstalledEntry),
+    % Find same-version repo entry (exclude pkg).
+    query:search(version(V), pkg://InstalledEntry),
+    preference:accept_keywords(K),
+    query:search([select(repository,notequal,pkg),category(C),name(N),keywords(K),version(V)],
+                 Repo//InstalledEntry)
+  ->
+    Conditions = [Repo//InstalledEntry:depclean?{[]}]
+  ; Conditions = []
+  ).
+
+% Depclean: ignore blockers (they do not decide whether something is "needed").
+rule(grouped_package_dependency(_Strength,_C,_N,_PackageDeps):depclean?{_Context}, []) :-
+  !.
+
 
 
 % -----------------------------------------------------------------------------

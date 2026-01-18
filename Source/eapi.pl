@@ -259,6 +259,21 @@ eapi:value('USE', _, use(U)) -->
     eapi:split_ws_atoms(S, U)
   }.
 
+% VDB: preserved-libs metadata (Portage). These are whitespace-separated tokens.
+eapi:value('NEEDED.ELF.2', _, needed_elf2(U)) -->
+  !,
+  eapi:chars_to_end(Cs),
+  { string_codes(S, Cs),
+    eapi:split_ws_atoms(S, U)
+  }.
+
+eapi:value('PROVIDES.ELF.2', _, provides_elf2(U)) -->
+  !,
+  eapi:chars_to_end(Cs),
+  { string_codes(S, Cs),
+    eapi:split_ws_atoms(S, U)
+  }.
+
 % PMS EAPI 8, Section 7.2.10
 eapi:value('RESTRICT', R://E, restrict(S)) -->
   !,
@@ -2271,6 +2286,8 @@ eapi:vdb_dir_kv_lines(Dir, Lines) :-
           ; eapi:vdb_kv_file(Dir, 'EAPI', 'EAPI', Line)
           ; eapi:vdb_kv_file(Dir, 'IUSE', 'IUSE', Line)
           ; eapi:vdb_kv_file(Dir, 'USE',  'USE',  Line)
+          ; eapi:vdb_kv_file_joined(Dir, 'NEEDED.ELF.2',   'NEEDED.ELF.2',   Line)
+          ; eapi:vdb_kv_file_joined(Dir, 'PROVIDES.ELF.2', 'PROVIDES.ELF.2', Line)
           ; eapi:vdb_kv_file(Dir, 'repository', 'repository', Line)
           ),
           Lines0),
@@ -2281,6 +2298,15 @@ eapi:vdb_kv_file(Dir, File, Key, Line) :-
   reader:invoke(Path, [Value|_]),
   Value \== "",
   format(string(Line), "~w=~s", [Key, Value]).
+
+% Like vdb_kv_file/4 but joins all lines (some VDB files can be multi-line).
+eapi:vdb_kv_file_joined(Dir, File, Key, Line) :-
+  os:compose_path(Dir, File, Path),
+  reader:invoke(Path, Values),
+  Values \== [],
+  atomic_list_concat(Values, ' ', Joined0),
+  Joined0 \== "",
+  format(string(Line), "~w=~s", [Key, Joined0]).
 
 
 
