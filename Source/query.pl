@@ -400,6 +400,13 @@ compile_query_compound(installed(Bool),	Repo://Id,
 compile_query_compound(use(Use), Repo://Id,
   cache:entry_metadata(Repo,Id,use,Use)) :- !.
 
+% VDB preserved-libs metadata (Portage).
+compile_query_compound(needed_elf2(X), Repo://Id,
+  cache:entry_metadata(Repo,Id,needed_elf2,X)) :- !.
+
+compile_query_compound(provides_elf2(X), Repo://Id,
+  cache:entry_metadata(Repo,Id,provides_elf2,X)) :- !.
+
 compile_query_compound(required_use(Use),	Repo://Id,
   cache:entry_metadata(Repo,Id,required_use,Use)) :- !.
 

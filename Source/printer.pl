@@ -1642,6 +1642,7 @@ printer:print_element(Target,rule(Repository://Entry:Action?{Context},_Body)) :-
   % used for target entries.
   message:style(normal),
   printer:print_blocker_note_if_any(Action, Repository, Entry),
+  printer:print_newuse_note_if_any(Action, Context),
   message:color(normal),
   printer:print_config(Repository://Entry:Action?{Context}).
 
@@ -1667,6 +1668,7 @@ printer:print_element(_,rule(Repository://Entry:Action?{Context},_)) :-
   ; true
   ),
   printer:print_blocker_note_if_any(Action, Repository, Entry),
+  printer:print_newuse_note_if_any(Action, Context),
   message:color(normal),
   printer:print_config(Repository://Entry:Action?{Context}).
 
@@ -3862,6 +3864,16 @@ printer:blocker_assumption_term(Content0, Strength, Phase, C, N, Origin) :-
   ),
   ( Strength == weak ; Strength == strong ),
   ( Phase == install ; Phase == run ).
+
+% Add an inline marker for --newuse-triggered rebuilds.
+% We represent these as update actions carrying rebuild_reason(newuse).
+printer:print_newuse_note_if_any(update, Context) :-
+  memberchk(rebuild_reason(newuse), Context),
+  !,
+  message:color(orange),
+  message:print(' (newuse)'),
+  message:color(normal).
+printer:print_newuse_note_if_any(_Action, _Context).
 
 printer:print_blocker_note_if_any(Action, Repository, Entry) :-
   ( ( Action == install ; Action == run ),
