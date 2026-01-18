@@ -312,6 +312,10 @@ printer:test_stats_note_cycle_for_current_entry :-
 % (moved to explainer.pl) assumption_normalize/2
 
 % Stats classification: distinguish real domain "non-existent" from prover cycle breaks.
+% Unwrap Action?{Ctx} wrappers early so classification can match the underlying term.
+printer:assumption_type('?'(Inner, _Ctx), Type) :-
+  !,
+  printer:assumption_type(Inner, Type).
 printer:assumption_type(cycle_break(_), cycle_break) :- !.
 % If we have a reason tag, use it (more specific than the legacy taxonomy).
 printer:assumption_type(domain(X), Type) :-
@@ -341,6 +345,14 @@ printer:assumption_type(grouped_package_dependency(_,_,_,_):install?{_},   assum
 printer:assumption_type(grouped_package_dependency(_,_,_,_):run?{_},       assumed_running) :- !.
 printer:assumption_type(grouped_package_dependency(_,_,_,_):install,       assumed_installed) :- !.
 printer:assumption_type(grouped_package_dependency(_,_,_,_):run,           assumed_running) :- !.
+% Blockers are domain assumptions (in fallback mode and/or for weak blockers).
+printer:assumption_type(blocker(_Strength,_Phase,_C,_N,_O,_V,_SlotReq),     blocker_assumption) :- !.
+% When a rule explicitly emits an "issue_with_model(...)" marker into its context,
+% bucket this separately so it doesn't drown in "other".
+printer:assumption_type(Term, issue_with_model) :-
+  explainer:term_ctx(Term, Ctx),
+  memberchk(issue_with_model(_), Ctx),
+  !.
 printer:assumption_type(required(_),                                        use_requirement_cycle) :- !.
 printer:assumption_type(blocking(_),                                        use_requirement_cycle) :- !.
 printer:assumption_type(use_conditional_group(_,_,_,_),                     use_conditional_cycle) :- !.
@@ -376,12 +388,38 @@ printer:assumption_is_package_level(_://_:unmask) :- !.
 printer:assumption_is_package_level(grouped_package_dependency(_,_,_,_):_) :- !.
 printer:assumption_is_package_level(package_dependency(_,_,_,_,_,_,_,_):_) :- !.
 
+% Generate a stable "head key" for an assumption term, avoiding syntactic wrappers.
+% This is used for the "Top other assumption heads" table.
 printer:assumption_head_key(Content, Key) :-
-  ( atomic(Content) ->
-      Key = Content
-  ; Content =.. [F|Args],
+  printer:assumption_head_term(Content, Head),
+  ( atomic(Head) ->
+      Key = Head
+  ; Head =.. [F|Args],
     length(Args, A),
     format(atom(Key), '~w/~d', [F, A])
+  ).
+
+% Strip common wrappers:
+% - Action?{Ctx} parses as '?'(ActionTerm, CtxTerm)
+% - Module:Goal parses as ':'(Module, Goal)
+% - Repo://Entry parses as '://'(Repo, Entry) and often appears under ':'(Repo://Entry, Action)
+printer:assumption_head_term(Term0, Term) :-
+  ( var(Term0) ->
+      Term = Term0
+  ; Term0 = '?'(Inner, _Ctx) ->
+      printer:assumption_head_term(Inner, Term)
+  ; Term0 = ':'(_M, Goal) ->
+      printer:assumption_head_term(Goal, Term)
+  ; Term0 = '://'(_Repo, Entry) ->
+      printer:assumption_head_term(Entry, Term)
+  ; Term0 =.. [_F, A] ->
+      % Unwrap single-argument shells like domain(X), cycle_break(X) when they leak through.
+      ( Term0 = domain(X)      -> printer:assumption_head_term(X, Term)
+      ; Term0 = cycle_break(X) -> printer:assumption_head_term(X, Term)
+      ; Term = Term0
+      ),
+      A = A
+  ; Term = Term0
   ).
 
 printer:test_stats_inc_other_head(Content) :-
@@ -855,21 +893,7 @@ printer:test_stats_print(TopN) :-
   nl,
   message:header(['Top ',TopN,' packages by context union time share (est)']),
   nl,
-  % Derive shares from the same sorted ctx-ms list we just printed.
-  % percent*10 = UnionMs * 1000 / TotalMs
-  findall(Pct10-Label,
-          ( member(UnionMsS-CS-NS, PkgCtxMsSortedCN),
-            UnionMsS > 0,
-            printer:test_stats_pkg_time(CS, NS, TotalMsS, _MaxMsS, _CntTimeS),
-            TotalMsS > 0,
-            Pct10 is round(UnionMsS * 1000 / TotalMsS),
-            Pct1 is Pct10 / 10,
-            atomic_list_concat([CS,NS], '/', PkgAtomShare),
-            format(atom(Label), '~w (~1f%)', [PkgAtomShare, Pct1])
-          ),
-          ShareRows0),
-  keysort(ShareRows0, ShareRowsAsc),
-  reverse(ShareRowsAsc, ShareRowsSorted),
+  printer:test_stats_ctx_share_rows(ShareRowsSorted),
   ( ShareRowsSorted == [] ->
       writeln('  (none)')
   ; printer:test_stats_print_ranked_table_header('Packages', 'ctx%*10'),
@@ -888,17 +912,20 @@ printer:test_stats_print(TopN) :-
   ; findall(C, member(_L-C, LenBins), LenCnts),
     sum_list(LenCnts, LenTotal),
     format('  Samples: ~d~n', [LenTotal]),
-    % Quick percentile-ish buckets to answer: "are most contexts small?"
+    % Buckets: 0-3, 4-5, 6-10, 11+
     printer:test_stats_ctx_len_bucket(LenBins, 3,  Le3),
     printer:test_stats_ctx_len_bucket(LenBins, 5,  Le5),
     printer:test_stats_ctx_len_bucket(LenBins, 10, Le10),
-    Gt10 is max(0, LenTotal - Le10),
+    B0_3 is Le3,
+    B4_5 is max(0, Le5 - Le3),
+    B6_10 is max(0, Le10 - Le5),
+    B11 is max(0, LenTotal - Le10),
     ( LenTotal =:= 0 ->
         true
-    ; format('  <=3:  ~d (~2f%%)~n',  [Le3,  100*Le3/LenTotal]),
-      format('  <=5:  ~d (~2f%%)~n',  [Le5,  100*Le5/LenTotal]),
-      format('  <=10: ~d (~2f%%)~n',  [Le10, 100*Le10/LenTotal]),
-      format('  >10:  ~d (~2f%%)~n',  [Gt10, 100*Gt10/LenTotal])
+    ; format('  0-3:   ~d (~2f%%)~n', [B0_3, 100*B0_3/LenTotal]),
+      format('  4-5:   ~d (~2f%%)~n', [B4_5, 100*B4_5/LenTotal]),
+      format('  6-10:  ~d (~2f%%)~n', [B6_10, 100*B6_10/LenTotal]),
+      format('  11+:   ~d (~2f%%)~n', [B11,  100*B11/LenTotal])
     ),
     nl,
     printer:test_stats_print_ranked_table_header('ctx-len', 'samples'),
@@ -928,13 +955,13 @@ printer:test_stats_print(TopN) :-
       nl,
       message:header('Estimated ordset impact (from sampled ctx_union sizes)'),
       nl,
-      format('  Samples used               : ~d~n', [SamplesModel]),
-      format('  Cost proxy (list)  sum L0*L1: ~d~n', [SumMul]),
-      format('  Cost proxy (ord)   sum L0+L1: ~d~n', [SumAdd]),
-      format('  Estimated speedup factor     : ~2f×~n', [Speedup]),
-      format('  Total ctx-union-ms (est)     : ~d ms~n', [TotalCtxMsEst]),
-      format('  Est ctx-union-ms w/ ordsets  : ~d ms~n', [OrdMsEst]),
-      format('  Est savings                  : ~d ms~n', [SavedMs])
+      format('  ~w~t~30|: ~d~n',   ['Samples used', SamplesModel]),
+      format('  ~w~t~30|: ~d~n',   ['Cost proxy (list)  sum L0*L1', SumMul]),
+      format('  ~w~t~30|: ~d~n',   ['Cost proxy (ord)   sum L0+L1', SumAdd]),
+      format('  ~w~t~30|: ~2f×~n', ['Estimated speedup factor', Speedup]),
+      format('  ~w~t~30|: ~d ms~n',['Total ctx-union-ms (est)', TotalCtxMsEst]),
+      format('  ~w~t~30|: ~d ms~n',['Est ctx-union-ms w/ ordsets', OrdMsEst]),
+      format('  ~w~t~30|: ~d ms~n',['Est savings', SavedMs])
   ; true
   ),
 
@@ -1037,6 +1064,23 @@ printer:test_stats_ctx_len_bucket(LenBins, Threshold, CountLe) :-
           ),
           Cnts),
   sum_list(Cnts, CountLe).
+
+% Build rows for the ctx% share table.
+% Rows are keyed by percent*10 (integer) so the generic ranked-table printer can sort them.
+printer:test_stats_ctx_share_rows(ShareRowsSorted) :-
+  findall(Pct10-Label,
+          ( printer:test_stats_pkg_ctx(C, N, _SumCost, _MaxLen, UnionMs, _CntCtx),
+            UnionMs > 0,
+            printer:test_stats_pkg_time(C, N, TotalMs, _MaxMs, _CntTime),
+            TotalMs > 0,
+            Pct10 is round(UnionMs * 1000 / TotalMs),
+            Pct1 is Pct10 / 10,
+            atomic_list_concat([C,N], '/', PkgAtomShare),
+            format(atom(Label), '~w (~1f%%)', [PkgAtomShare, Pct1])
+          ),
+          ShareRows0),
+  keysort(ShareRows0, ShareRowsAsc),
+  reverse(ShareRowsAsc, ShareRowsSorted).
 
 % -----------------------------------------------------------------------------
 %  PROVER state printing
