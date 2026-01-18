@@ -396,6 +396,10 @@ compile_query_compound(keywords(KW), Repo://Id,
 compile_query_compound(installed(Bool),	Repo://Id,
   cache:entry_metadata(Repo,Id,installed,Bool)) :- !.
 
+% VDB metadata: USE flags enabled for the installed package.
+compile_query_compound(use(Use), Repo://Id,
+  cache:entry_metadata(Repo,Id,use,Use)) :- !.
+
 compile_query_compound(required_use(Use),	Repo://Id,
   cache:entry_metadata(Repo,Id,required_use,Use)) :- !.
 

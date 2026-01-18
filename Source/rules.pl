@@ -553,7 +553,13 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
                  pkg://InstalledEntry),
     rules:query_search_slot_constraint(SlotReq, pkg://InstalledEntry, _),
     !,
-    rules:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps, pkg://InstalledEntry)
+    rules:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps, pkg://InstalledEntry),
+    % --newuse: do not "keep installed" if USE/IUSE has changed since the installed
+    % package was built (Portage-like -N behavior).
+    ( preference:flag(newuse) ->
+        \+ rules:newuse_mismatch(pkg://InstalledEntry)
+    ; true
+    )
   ->
     Conditions = []
   ;
@@ -598,9 +604,15 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
                      pkg://InstalledEntry2),
         rules:query_search_slot_constraint(SlotReq, pkg://InstalledEntry2, _),
         !,
-        InstalledEntry2 \== Candidate,
-        query:search(version(OldVer), pkg://InstalledEntry2),
-        query:search(select(version,greater,OldVer), FoundRepo://Candidate)
+        ( % Standard update: candidate newer than installed
+          InstalledEntry2 \== Candidate,
+          query:search(version(OldVer), pkg://InstalledEntry2),
+          query:search(select(version,greater,OldVer), FoundRepo://Candidate)
+        ; % --newuse: force a transactional rebuild even if version is the same,
+          % when USE/IUSE differs.
+          preference:flag(newuse),
+          rules:newuse_mismatch(pkg://InstalledEntry2, FoundRepo://Candidate)
+        )
       ->
         ActionGoal = FoundRepo://Candidate:update?{[replaces(pkg://InstalledEntry2)|NewerContext]}
       ; ActionGoal = FoundRepo://Candidate:Action?{NewerContext}
@@ -634,6 +646,73 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps):Action?{[assumption_reason(Reason)|Context]})]
       )
     )
+  ).
+
+
+% -----------------------------------------------------------------------------
+%  --newuse support (Portage-like -N)
+% -----------------------------------------------------------------------------
+%
+% Minimal implementation:
+% - Compare installed VDB USE (what the package was built with) against the
+%   currently effective USE for the same version (when available in repo set).
+% - Also compare installed VDB IUSE against current IUSE to detect added/removed
+%   flags (if VDB provides IUSE; we parse it when present).
+%
+% If we cannot locate the same version in the current repo set, we conservatively
+% do not force a rebuild.
+
+rules:newuse_mismatch(pkg://InstalledEntry) :-
+  % Find the same version in the active repo set (excluding VDB repo `pkg`).
+  query:search([category(C),name(N),version(V)], pkg://InstalledEntry),
+  preference:accept_keywords(K),
+  ( query:search([select(repository,notequal,pkg),category(C),name(N),keywords(K),version(V)],
+                 CurRepo//CurEntry)
+  -> rules:newuse_mismatch(pkg://InstalledEntry, CurRepo//CurEntry)
+  ;  fail
+  ).
+
+rules:newuse_mismatch(pkg://InstalledEntry, CurRepo//CurEntry) :-
+  rules:vdb_enabled_use_set(pkg://InstalledEntry, BuiltUse),
+  rules:entry_enabled_use_set(CurRepo//CurEntry, CurUse),
+  ( rules:symmetric_diff_nonempty(BuiltUse, CurUse)
+  ; rules:vdb_iuse_set(pkg://InstalledEntry, BuiltIuse),
+    rules:entry_iuse_set(CurRepo//CurEntry, CurIuse),
+    BuiltIuse \== [],
+    CurIuse \== [],
+    rules:symmetric_diff_nonempty(BuiltIuse, CurIuse)
+  ),
+  !.
+
+rules:vdb_enabled_use_set(RepoEntry, UseSet) :-
+  findall(U, query:search(use(U), RepoEntry), Us0),
+  sort(Us0, UseSet).
+
+rules:entry_iuse_set(RepoEntry, IuseSet) :-
+  findall(U,
+          ( query:search(iuse(Value), RepoEntry),
+            eapi:strip_use_default(Value, U)
+          ),
+          Us0),
+  sort(Us0, IuseSet).
+
+rules:vdb_iuse_set(RepoEntry, IuseSet) :-
+  rules:entry_iuse_set(RepoEntry, IuseSet).
+
+% Current effective enabled USE set for an ebuild entry:
+% gather IUSE flags that evaluate to positive under current preference/profile.
+rules:entry_enabled_use_set(RepoEntry, UseSet) :-
+  findall(U,
+          ( query:search(iuse(Value), RepoEntry),
+            eapi:categorize_use(Value, positive, _Reason),
+            eapi:strip_use_default(Value, U)
+          ),
+          Us0),
+  sort(Us0, UseSet).
+
+rules:symmetric_diff_nonempty(A, B) :-
+  ( member(X, A), \+ memberchk(X, B) -> true
+  ; member(X, B), \+ memberchk(X, A) -> true
   ).
 
 

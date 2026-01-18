@@ -128,6 +128,7 @@ interface:process_flags:-
   (lists:memberchk(deep(true),      Options) -> asserta(preference:local_flag(deep))            ; true),
   (lists:memberchk(delay_triggers(true), Options) -> asserta(preference:local_flag(delay_triggers)) ; true),
   (lists:memberchk(emptytree(true), Options) -> asserta(preference:local_flag(emptytree))       ; true),
+  (lists:memberchk(newuse(true),    Options) -> asserta(preference:local_flag(newuse))          ; true),
   (lists:memberchk(oneshot(true),   Options) -> asserta(preference:local_flag(oneshot))         ; true),
   (lists:memberchk(verbose(true),   Options) -> asserta(config:verbose(true))                   ; true),
   (lists:memberchk(style(Style),    Options) -> asserta(config:interface_printing_style(Style)) ; true).

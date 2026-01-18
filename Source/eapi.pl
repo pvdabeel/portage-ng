@@ -2269,6 +2269,7 @@ eapi:vdb_dir_kv_lines(Dir, Lines) :-
   findall(Line,
           ( eapi:vdb_kv_file(Dir, 'SLOT', 'SLOT', Line)
           ; eapi:vdb_kv_file(Dir, 'EAPI', 'EAPI', Line)
+          ; eapi:vdb_kv_file(Dir, 'IUSE', 'IUSE', Line)
           ; eapi:vdb_kv_file(Dir, 'USE',  'USE',  Line)
           ; eapi:vdb_kv_file(Dir, 'repository', 'repository', Line)
           ),
