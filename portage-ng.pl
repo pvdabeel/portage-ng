@@ -224,7 +224,12 @@ main :-
   config:world_file(File),
   world:newinstance(set(File)),
   world:load,
-  prolog_history(enable),
+  % prolog_history/1 can throw (or block) in non-interactive environments
+  % (e.g. when stdout/stderr are redirected for --cursortest).
+  ( current_prolog_flag(tty, true) ->
+      catch(prolog_history(enable), _E, true)
+  ; true
+  ),
   main(Mode).
 
 
@@ -234,7 +239,10 @@ main(client) :-
   interface:process_server(Host,Port),
   kb:newinstance(knowledgebase(Host,Port)),
   preference:init,
-  interface:process_requests(client).
+  ( interface:process_requests(client) ->
+      true
+  ; halt(1)
+  ).
 
 
 main(standalone) :-
@@ -246,7 +254,10 @@ main(standalone) :-
   ensure_loaded(Config),
   kb:load,
   preference:init,
-  interface:process_requests(standalone).
+  ( interface:process_requests(standalone) ->
+      true
+  ; halt(1)
+  ).
 
 
 main(server) :-
@@ -255,4 +266,7 @@ main(server) :-
   server:start_server,
   at_halt(server:stop_server),
   bonjour:advertise,
-  interface:process_requests(server).
+  ( interface:process_requests(server) ->
+      true
+  ; halt(1)
+  ).

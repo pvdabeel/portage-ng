@@ -14,6 +14,10 @@ This file contains domain-specific rules
 
 :- module(rules, [rule/2]).
 
+:- use_module(library(ordsets)).
+
+:- discontiguous rules:rule/2.
+
 
 % =============================================================================
 %  RULES declarations
@@ -59,8 +63,7 @@ rule(Repository://Ebuild:fetchonly?{Context},Conditions) :- % todo: to update in
 
   % 1. Get some metadata we need further down
 
-  cache:ordered_entry(Repository,Ebuild,C,N,_),
-  findall(Ss,cache:entry_metadata(Repository,Ebuild,slot,Ss),S),
+  query:search([category(C),name(N),select(slot,constraint([]),S)], Repository://Ebuild),
 
   % 2. Compute required_use stable model
 
@@ -120,8 +123,9 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
 
   % 1. Get some metadata we need further down
 
-  cache:ordered_entry(Repository,Ebuild,C,N,_),
-  findall(Ss,cache:entry_metadata(Repository,Ebuild,slot,Ss),S),
+  query:search([category(C),name(N),select(slot,constraint([]),S)], Repository://Ebuild),
+  query:search(version(Ver), Repository://Ebuild),
+  Selected = constraint(selected_cn(C,N):{ordset([selected(Repository,Ebuild,install,Ver,S)])}),
 
   % 2. Compute required_use stable model, if not already passed on by run
   %    Extend with build_with_use requirements
@@ -149,10 +153,12 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
   % 5. Pass on relevant package dependencies and constraints to prover
 
   ( memberchk(C,['virtual','acct-group','acct-user'])
-    -> Conditions = [ constraint(use(Repository://Ebuild):{R}),
+    -> Conditions = [ Selected,
+                    constraint(use(Repository://Ebuild):{R}),
                     constraint(slot(C,N,S):{Ebuild})
                     |MergedDeps]
-    ;  Conditions = [ constraint(use(Repository://Ebuild):{R}),
+    ;  Conditions = [ Selected,
+                    constraint(use(Repository://Ebuild):{R}),
                     constraint(slot(C,N,S):{Ebuild}),
                     Repository://Ebuild:download?{[required_use(R),build_with_use(B)]}
                     |MergedDeps] )
@@ -182,8 +188,9 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
 
   % 1. Get some metadata we need further down
 
-  cache:ordered_entry(Repository,Ebuild,C,N,_),
-  findall(Ss,cache:entry_metadata(Repository,Ebuild,slot,Ss),S),
+  query:search([category(C),name(N),select(slot,constraint([]),S)], Repository://Ebuild),
+  query:search(version(Ver), Repository://Ebuild),
+  Selected = constraint(selected_cn(C,N):{ordset([selected(Repository,Ebuild,run,Ver,S)])}),
 
   % 2. Compute required_use stable model, extend with build_with_use requirements
 
@@ -216,13 +223,13 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
     % Fast guard: if nothing for C/N is installed in the VDB repo, don't even
     % attempt update detection. This avoids lots of failing work when proving
     % arbitrary/uninstalled packages (e.g. in `test_latest/2`).
-    cache:package(pkg, C, N),
+    query:search(package(C,N), pkg://_),
     rules:installed_entry_cn(C, N, OldRepo, OldEbuild),
     OldEbuild \== Ebuild,
     % If the installed entry is no longer in the repo set, we may not have its
     % slot metadata. In that case, assume it matches the slot of the replacement
     % entry (this mirrors Portage's ability to read slot from /var/db/pkg).
-    ( cache:entry_metadata(OldRepo, OldEbuild, slot, slot(SlotOld0))
+    ( query:search(slot(SlotOld0), OldRepo://OldEbuild)
       -> rules:canon_slot(SlotOld0, SlotOld)
       ;  SlotOld = SlotNew
     ),
@@ -234,7 +241,8 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
     InstallOrUpdate = Repository://Ebuild:update?{[replaces(OldRepo://OldEbuild),required_use(R),build_with_use(B)]}
   ; InstallOrUpdate = Repository://Ebuild:install?{[required_use(R),build_with_use(B)]}
   ),
-  Conditions = [constraint(use(Repository://Ebuild):{R}),
+  Conditions = [Selected,
+                constraint(use(Repository://Ebuild):{R}),
                 constraint(slot(C,N,S):{Ebuild}),
                 InstallOrUpdate
                 |MergedDeps].
@@ -282,12 +290,12 @@ rule(Repository://Ebuild:update?{Context},Conditions) :-
   \+(preference:flag(emptytree)),
   preference:accept_keywords(K),
   % Determine the installed version + identity (C/N) from the concrete entry.
-  cache:ordered_entry(Repository, Ebuild, Category, Name, VersionInstalled),
-  cache:entry_metadata(Repository, Ebuild, installed, true),
+  query:search([category(Category),name(Name),version(VersionInstalled),installed(true)],
+              Repository://Ebuild),
   % Find the latest acceptable version for this C/N in the repo set.
   % Update semantics stay within the same slot (upgrade semantics cross slots and
   % will be introduced later).
-  ( cache:entry_metadata(Repository, Ebuild, slot, slot(SlotInstalled))
+  ( query:search(slot(SlotInstalled), Repository://Ebuild)
     -> query:search(latest([name(Name),category(Category),keywords(K),slot(SlotInstalled),
                             select(version,greater,VersionInstalled)]),
                     LatestRepo://LatestEbuild)
@@ -306,12 +314,12 @@ rule(Repository://Ebuild:update?{Context},Conditions) :-
 rule(Repository://Ebuild:update?{Context},Conditions) :-
   \+ memberchk(replaces(_), Context),
   \+(preference:flag(emptytree)),
-  cache:ordered_entry(Repository, Ebuild, Category, Name, _VersionNew),
-  \+ cache:entry_metadata(Repository, Ebuild, installed, true),
+  query:search([category(Category),name(Name)], Repository://Ebuild),
+  \+ query:search(installed(true), Repository://Ebuild),
   % Try same-slot replacement first (if slot is known).
   ( rules:entry_slot_default(Repository, Ebuild, SlotNew),
     rules:installed_entry_cn(Category, Name, OldRepo, OldEbuild),
-    ( cache:entry_metadata(OldRepo, OldEbuild, slot, slot(SlotOld0))
+    ( query:search(slot(SlotOld0), OldRepo://OldEbuild)
       -> rules:canon_slot(SlotOld0, SlotOld)
       ;  SlotOld = SlotNew
     ),
@@ -324,7 +332,7 @@ rule(Repository://Ebuild:update?{Context},Conditions) :-
 % Otherwise, updating an already-installed version is a no-op (already current or
 % no acceptable newer version).
 rule(Repository://Ebuild:update?{_Context},[]) :-
-  cache:entry_metadata(Repository, Ebuild, installed, true),
+  query:search(installed(true), Repository://Ebuild),
   !.
 
 % Actual transactional update on a chosen replacement entry. This action is
@@ -364,16 +372,37 @@ rule(Repository://Ebuild:update?{Context},Conditions) :-
 %  Rule: Conflicting package
 % -----------------------------------------------------------------------------
 % EAPI 8.2.6.2: a weak block can be ignored by the package manager
-
-rule(package_dependency(_,weak,_,_,_,_,_,_):_?{_},[]) :- !.
+%
+% Efficient semantics: record the blocker as a global side-condition (constraint).
+% Enforcement is done in the prover (so it can backtrack to alternative candidates)
+% and can consider both "future" (later selections) and "past" (already selected).
+rule(package_dependency(Phase,weak,C,N,O,V,S,_U):_Action?{Context},
+     Conditions) :-
+  % Weak blockers are extremely common (esp. in system sets like systemd/udev),
+  % and enforcing them as hard constraints during proving can cause massive
+  % backtracking explosions. We record them as domain assumptions so the plan
+  % can still be computed, while the printer can warn the user.
+  rules:blocker_assumption_ctx(Context, AssCtx),
+  Conditions = [assumed(blocker(weak, Phase, C, N, O, V, S)?{AssCtx})],
+  !.
 
 
 % -----------------------------------------------------------------------------
 %  Rule: Conflicting package
 % -----------------------------------------------------------------------------
 % EAPI 8.2.6.2: a strong block is satisfied when no suitable candidate is satisfied
-
-rule(package_dependency(_,strong,_,_,_,_,_,_):_?{_},[]) :- !.
+%
+% In portage-ng we implement strong blockers as "remove if installed" (harder
+% semantics like "forbid co-installation in the same plan" can be layered in
+% the planner/printer using the planned package set).
+rule(package_dependency(Phase,strong,C,N,O,V,S,_U):_Action?{Context},
+     Conditions) :-
+  ( rules:assume_blockers ->
+      rules:blocker_assumption_ctx(Context, AssCtx),
+      Conditions = [assumed(blocker(strong, Phase, C, N, O, V, S)?{AssCtx})]
+  ; Conditions = [constraint(blocked_cn(C,N):{ordset([blocked(strong,Phase,O,V,S)])})]
+  ),
+  !.
 
 
 % -----------------------------------------------------------------------------
@@ -414,7 +443,7 @@ rule(package_dependency(_Phase,no,C,N,_O,_V,_S,_U):config?{_Context}, []) :-
 % go-bootstrap) during model construction, before the model is memoized.
 rule(package_dependency(Phase,no,C,N,O,V,S,_U):config?{Context},[]) :-
   ( memberchk(self(SelfRepo://SelfEntry), Context),
-    cache:ordered_entry(SelfRepo, SelfEntry, C, N, _),
+    query:search([category(C),name(N)], SelfRepo://SelfEntry),
     Phase \== run,
     \+ preference:flag(emptytree)
   ->
@@ -436,7 +465,14 @@ rule(package_dependency(_,no,_,_,_,_,_,_),[]) :- !.
 % -----------------------------------------------------------------------------
 % EAPI 8.2.6.2: a weak block can be ignored by the package manager
 
-rule(grouped_package_dependency(weak,_,_,_):_?{_},[]) :- !.
+rule(grouped_package_dependency(weak,C,N,PackageDeps):Action?{Context},
+     Conditions) :-
+  !,
+  rules:grouped_blocker_specs(weak, Action, C, N, PackageDeps, Specs),
+  rules:blocker_assumption_ctx(Context, AssCtx),
+  findall(assumed(blocker(Strength, Phase, C, N, O, V, SlotReq)?{AssCtx}),
+          member(blocked(Strength, Phase, O, V, SlotReq), Specs),
+          Conditions).
 
 
 % -----------------------------------------------------------------------------
@@ -444,7 +480,46 @@ rule(grouped_package_dependency(weak,_,_,_):_?{_},[]) :- !.
 % -----------------------------------------------------------------------------
 % EAPI 8.2.6.2: a strong block is satisfied when no suitable candidate is satisfied
 
-rule(grouped_package_dependency(strong,_,_,_):_?{_},[]) :- !.
+rule(grouped_package_dependency(strong,C,N,PackageDeps):Action?{Context},
+     Conditions) :-
+  !,
+  rules:grouped_blocker_specs(strong, Action, C, N, PackageDeps, Specs),
+  ( rules:assume_blockers ->
+      rules:blocker_assumption_ctx(Context, AssCtx),
+      findall(assumed(blocker(Strength, Phase, C, N, O, V, SlotReq)?{AssCtx}),
+              member(blocked(Strength, Phase, O, V, SlotReq), Specs),
+              Conditions)
+  ; Conditions = [constraint(blocked_cn(C,N):{ordset(Specs)})]
+  ).
+
+% Context tags for blocker assumptions, so the printer can show provenance
+% (who pulled in the blocker) and test_stats can classify them.
+rules:blocker_assumption_ctx(Ctx0, AssCtx) :-
+  ( is_list(Ctx0),
+    memberchk(self(Repo://Entry), Ctx0) ->
+      AssCtx = [assumption_reason(blocker_conflict), self(Repo://Entry)]
+  ; AssCtx = [assumption_reason(blocker_conflict)]
+  ).
+
+% -----------------------------------------------------------------------------
+%  Internal override: assume blockers
+% -----------------------------------------------------------------------------
+%
+% Used for developer UX: when a plan cannot be proven due to blockers, we can
+% re-run in a mode that turns blockers into domain assumptions, so the printer
+% can show "this would be the plan if you verify/override these blockers".
+
+rules:assume_blockers :-
+  nb_current(rules_assume_blockers, true).
+
+rules:with_assume_blockers(Goal) :-
+  ( nb_current(rules_assume_blockers, Old) -> true ; Old = unset ),
+  nb_setval(rules_assume_blockers, true),
+  setup_call_cleanup(true,
+                     Goal,
+                     ( Old == unset -> nb_delete(rules_assume_blockers)
+                     ; nb_setval(rules_assume_blockers, Old)
+                     )).
 
 
 % =============================================================================
@@ -458,7 +533,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
   % that (redundantly) list themselves in RDEPEND.
   ( Action == run,
     memberchk(self(SelfRepo://SelfEntry), Context),
-    cache:ordered_entry(SelfRepo, SelfEntry, C, N, _)
+    query:search([category(C),name(N)], SelfRepo://SelfEntry)
   ->
     Conditions = []
   ; preference:flag(emptytree),
@@ -489,7 +564,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       % Candidate selection (portage / overlays)
       ( Action \== run,
         memberchk(self(SelfRepo0://SelfEntry0), Context),
-        cache:ordered_entry(SelfRepo0, SelfEntry0, C, N, _)
+        query:search([category(C),name(N)], SelfRepo0://SelfEntry0)
       ->
         \+ preference:flag(emptytree),
         query:search([name(N),category(C),keyword(K),installed(true)], FoundRepo://Candidate),
@@ -505,7 +580,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         Candidate == SelfEntry1
       ->
         \+ preference:flag(emptytree),
-        cache:entry_metadata(FoundRepo, Candidate, installed, true)
+        query:search(installed(true), FoundRepo://Candidate)
       ; true
       ),
 
@@ -524,15 +599,25 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         rules:query_search_slot_constraint(SlotReq, pkg://InstalledEntry2, _),
         !,
         InstalledEntry2 \== Candidate,
-        cache:ordered_entry(pkg, InstalledEntry2, C, N, OldVer),
-        cache:ordered_entry(FoundRepo, Candidate, C, N, NewVer),
-        compare(>, NewVer, OldVer)
+        query:search(version(OldVer), pkg://InstalledEntry2),
+        query:search(select(version,greater,OldVer), FoundRepo://Candidate)
       ->
         ActionGoal = FoundRepo://Candidate:update?{[replaces(pkg://InstalledEntry2)|NewerContext]}
       ; ActionGoal = FoundRepo://Candidate:Action?{NewerContext}
       ),
 
-      append(Constraints, [ActionGoal], Conditions)
+      % IMPORTANT for performance + correctness:
+      % Record the concrete choice as a selection constraint *before* proving
+      % ActionGoal, so the blocker guard can prune blocked candidates early
+      % and backtrack within `query:search/2` enumeration (instead of exploring
+      % deep proof paths for an invalid choice).
+      ( ActionGoal = _://_:ActSel?{_} -> true
+      ; ActionGoal = _://_:ActSel     -> true
+      ; ActSel = Action
+      ),
+      query:search(version(CandVer), FoundRepo://Candidate),
+      Selected = constraint(selected_cn(C,N):{ordset([selected(FoundRepo,Candidate,ActSel,CandVer,Ss)])}),
+      append([Selected|Constraints], [ActionGoal], Conditions)
     ; % In --deep mode we *prefer* upgrades, but we should not create domain
       % assumptions when the dependency is already installed in the vdb (`pkg`)
       % and satisfies constraints. Instead, fall back to "keep installed".
@@ -568,7 +653,7 @@ rule(use_conditional_group(positive,Use,_R://_E,Deps):Action?{Context},Condition
 % 2. The USE is explicitely enabled, either by preference or ebuild -> process deps
 
 rule(use_conditional_group(positive,Use,R://E,Deps):Action?{Context},Conditions) :-
-  cache:entry_metadata(R,E,iuse,Value),
+  query:search(iuse(Value), R://E),
   eapi:categorize_use(Value,positive,_Reason),
   eapi:strip_use_default(Value,Use),!,
   findall(D:Action?{Context},member(D,Deps),Result),
@@ -596,7 +681,7 @@ rule(use_conditional_group(negative,Use,_R://_E,Deps):Action?{Context},Condition
 % 2. The USE is explicitely enabled, either by preference or ebuild -> process deps
 
 rule(use_conditional_group(negative,Use,R://E,Deps):Action?{Context},Conditions) :-
-  cache:entry_metadata(R,E,iuse,Value),
+  query:search(iuse(Value), R://E),
   eapi:categorize_use(Value,negative,_Reason),
   eapi:strip_use_default(Value,Use),!,
   findall(D:Action?{Context},member(D,Deps),Result),
@@ -1150,8 +1235,7 @@ rules:update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
   ),
 
   % 3. Pass on relevant package dependencies and constraints to prover.
-  cache:ordered_entry(Repository, Ebuild, CNew, NNew, _),
-  findall(Ss,cache:entry_metadata(Repository,Ebuild,slot,Ss),SAll),
+  query:search([category(CNew),name(NNew),select(slot,constraint([]),SAll)], Repository://Ebuild),
   ( memberchk(CNew,['virtual','acct-group','acct-user'])
     -> Base = [ constraint(use(Repository://Ebuild):{R}),
                 constraint(slot(CNew,NNew,SAll):{Ebuild})
@@ -1179,9 +1263,10 @@ rules:deep_update_goals(Self, MergedDeps, DeepUpdates) :-
             query:search([repository(pkg),category(C),name(N),installed(true)], pkg://OldEntry),
             OldRepo = pkg,
             pkg://OldEntry \== Self,
-            cache:ordered_entry(pkg, OldEntry, C, N, OldVer),
+            query:search(version(OldVer), pkg://OldEntry),
             % Only deep-update within the same slot if we can determine it.
-            cache:entry_metadata(pkg, OldEntry, slot, slot(Slot)),
+            query:search(slot(Slot0), pkg://OldEntry),
+            rules:canon_slot(Slot0, Slot),
             % Pick the newest acceptable candidate in that slot.
             ( KeywordQ == []
               -> query:search(latest([select(repository,notequal,pkg),
@@ -1205,17 +1290,17 @@ rules:dep_cn(grouped_package_dependency(C,N,_):_Action?{_Ctx}, C, N) :- !.
 %   Repo://Entry:config?{...}
 % etc.
 rules:dep_cn(Repo://Entry:_Action?{_Ctx}, C, N) :-
-  cache:ordered_entry(Repo, Entry, C, N, _),
+  query:search([category(C),name(N)], Repo://Entry),
   !.
 rules:dep_cn(Repo://Entry:_Action, C, N) :-
-  cache:ordered_entry(Repo, Entry, C, N, _),
+  query:search([category(C),name(N)], Repo://Entry),
   !.
 
 
 % Determine a package slot for planning decisions.
 % If explicit slot metadata exists, use it; otherwise treat it as slot 0.
 rules:entry_slot_default(Repo, Entry, Slot) :-
-  ( cache:entry_metadata(Repo, Entry, slot, slot(Slot0))
+  ( query:search(slot(Slot0), Repo://Entry)
     -> rules:canon_slot(Slot0, Slot)
     ;  Slot = '0'
   ).
@@ -1230,6 +1315,104 @@ rules:canon_slot(S0, S) :-
   ),
   !.
 
+% -----------------------------------------------------------------------------
+%  Constraint guard (domain hook called by prover)
+% -----------------------------------------------------------------------------
+%
+% This predicate is called by the prover after merging any constraint literal.
+% It must succeed for consistent constraint stores and fail to force backtracking
+% when constraints become inconsistent.
+%
+% We use it for enforcing strong blockers against already-selected candidates,
+% while keeping the prover itself domain-agnostic.
+%
+rules:constraint_guard(constraint(blocked_cn(C,N):{ordset(Specs)}), Constraints) :-
+  !,
+  ( get_assoc(selected_cn(C,N), Constraints, ordset(Selected)) ->
+      \+ rules:specs_violate_selected(Specs, Selected)
+  ; true
+  ).
+rules:constraint_guard(constraint(selected_cn(C,N):{ordset(SelectedNew)}), Constraints) :-
+  !,
+  ( get_assoc(blocked_cn(C,N), Constraints, ordset(Specs)) ->
+      \+ rules:specs_violate_selected(Specs, SelectedNew)
+  ; true
+  ).
+rules:constraint_guard(_Other, _Constraints).
+
+% True iff any blocker spec in Specs violates any selected instance.
+%
+% Current semantics:
+% - strong (!!) blockers are enforced as hard conflicts (force backtracking)
+% - weak (!) blockers are tracked as domain assumptions (warning), not enforced
+%   during proving (to avoid search explosions).
+rules:specs_violate_selected(Specs, Selected) :-
+  member(blocked(Strength, Phase, O, V, SlotReq), Specs),
+  Strength == strong,
+  member(selected(Repo, Entry, Act, SelVer, SelSlotMeta), Selected),
+  rules:action_phase(Act, Phase),
+  rules:blocker_spec_matches_selected(SelVer, SelSlotMeta, Repo, Entry, O, V, SlotReq),
+  !.
+
+rules:action_phase(run, run) :- !.
+rules:action_phase(install, install) :- !.
+rules:action_phase(reinstall, install) :- !.
+rules:action_phase(update, install) :- !.
+rules:action_phase(download, install) :- !.
+rules:action_phase(_Other, run).
+
+rules:blocker_spec_matches_selected(SelVer, SelSlotMeta, Repo, Entry, O, V, SlotReq) :-
+  rules:blocker_version_matches(O, V, SelVer, Repo, Entry),
+  rules:blocker_slot_matches(SlotReq, SelSlotMeta, Repo, Entry).
+
+rules:blocker_version_matches(none, _Req, _SelVer, _Repo, _Entry) :- !.
+rules:blocker_version_matches(equal, Req, SelVer, _Repo, _Entry) :- !, SelVer == Req.
+rules:blocker_version_matches(notequal, Req, SelVer, _Repo, _Entry) :- !, SelVer \== Req.
+rules:blocker_version_matches(smaller, Req, SelVer, _Repo, _Entry) :- !, system:compare(<, SelVer, Req).
+rules:blocker_version_matches(greater, Req, SelVer, _Repo, _Entry) :- !, system:compare(>, SelVer, Req).
+rules:blocker_version_matches(smallerequal, Req, SelVer, _Repo, _Entry) :- !,
+  ( system:compare(<, SelVer, Req) ; system:compare(=, SelVer, Req) ).
+rules:blocker_version_matches(greaterequal, Req, SelVer, _Repo, _Entry) :- !,
+  ( system:compare(>, SelVer, Req) ; system:compare(=, SelVer, Req) ).
+rules:blocker_version_matches(Op, Req, _SelVer, Repo, Entry) :-
+  % Fallback for wildcard/tilde/complex patterns: reuse query semantics.
+  query:search(select(version,Op,Req), Repo://Entry).
+
+rules:blocker_slot_matches([], _SelSlotMeta, _Repo, _Entry) :- !.
+rules:blocker_slot_matches([slot(S)], SelSlotMeta, _Repo, _Entry) :- !,
+  memberchk(slot(S), SelSlotMeta).
+rules:blocker_slot_matches([slot(S),subslot(Ss)], SelSlotMeta, _Repo, _Entry) :- !,
+  memberchk(slot(S), SelSlotMeta),
+  memberchk(subslot(Ss), SelSlotMeta).
+rules:blocker_slot_matches([slot(S),equal], SelSlotMeta, _Repo, _Entry) :- !,
+  memberchk(slot(S), SelSlotMeta).
+rules:blocker_slot_matches([slot(S),subslot(Ss),equal], SelSlotMeta, _Repo, _Entry) :- !,
+  memberchk(slot(S), SelSlotMeta),
+  memberchk(subslot(Ss), SelSlotMeta).
+rules:blocker_slot_matches(SlotReq, _SelSlotMeta, Repo, Entry) :-
+  % Fallback for any_same_slot/any_different_slot or future extensions.
+  query:search(select(slot,constraint(SlotReq), _), Repo://Entry).
+
+% -----------------------------------------------------------------------------
+%  Helper: blocker uninstall goals
+% -----------------------------------------------------------------------------
+%
+% Implement weak/strong blockers efficiently by querying the installed VDB repo
+% (`pkg`) for matching instances and scheduling uninstall actions for them.
+%
+% Notes:
+% - This enforces "not installed at end of transaction" for installed packages.
+% - Co-installation prevention (strong blockers vs planned installs) can be
+%   validated later using the planned package set without adding prover overhead.
+
+% Extract blocker specs from a grouped dependency list.
+% Specs is an ordset of blocked(Strength,Phase,O,V,SlotReq) terms.
+rules:grouped_blocker_specs(Strength, Phase, C, N, PackageDeps, Specs) :-
+  findall(blocked(Strength, Phase, O, V, SlotReq),
+          ( member(package_dependency(Phase, Strength, C, N, O, V, SlotReq, _U), PackageDeps) ),
+          Specs0),
+  sort(Specs0, Specs).
+
 % Find an installed entry for the given category/name, even if it isn't present
 % as an ordered_entry (e.g. when the installed version no longer exists in the
 % active repository set).
@@ -1237,6 +1420,5 @@ rules:installed_entry_cn(C, N, pkg, Entry) :-
   % The installed package database is represented by the VDB repository instance
   % named `pkg`. Prefer using its structured facts instead of parsing Entry IDs
   % with atom_concat/sub_atom (which is extremely expensive at scale).
-  cache:ordered_entry(pkg, Entry, C, N, _),
-  cache:entry_metadata(pkg, Entry, installed, true),
+  query:search([repository(pkg),category(C),name(N),installed(true)], pkg://Entry),
   !.

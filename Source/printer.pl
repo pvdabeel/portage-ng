@@ -31,6 +31,13 @@ The Printer takes a plan from the Planner and pretty prints it.
 :- dynamic printer:test_stats_type_entry_mention/3.
 :- dynamic printer:test_stats_entry_time/2.
 :- dynamic printer:test_stats_pkg_time/5.
+:- dynamic printer:test_stats_entry_cost/4.      % RepoEntry, TimeMs, Inferences, RuleCalls
+:- dynamic printer:test_stats_pkg_cost/6.        % C, N, SumMs, SumInf, SumRuleCalls, Cnt
+:- dynamic printer:test_stats_entry_ctx/5.       % RepoEntry, UnionCalls, UnionCost, MaxCtxLen, UnionMsEst
+:- dynamic printer:test_stats_pkg_ctx/6.         % C, N, SumUnionCost, MaxCtxLen, SumUnionMsEst, Cnt
+:- dynamic printer:test_stats_ctx_len_bin/2.     % CtxLen, Count (sampled)
+:- dynamic printer:test_stats_ctx_cost_model/3.  % SumMul, SumAdd, Samples (sampled)
+:- dynamic printer:test_stats_failed_entry/2.    % RepoEntry, Reason
 
 printer:test_stats_reset(Label, ExpectedTotal) :-
   with_mutex(test_stats,
@@ -40,6 +47,13 @@ printer:test_stats_reset(Label, ExpectedTotal) :-
       retractall(printer:test_stats_entry_had_cycle(_)),
       retractall(printer:test_stats_entry_time(_,_)),
       retractall(printer:test_stats_pkg_time(_,_,_,_,_)),
+      retractall(printer:test_stats_entry_cost(_,_,_,_)),
+      retractall(printer:test_stats_pkg_cost(_,_,_,_,_,_)),
+      retractall(printer:test_stats_entry_ctx(_,_,_,_,_)),
+      retractall(printer:test_stats_pkg_ctx(_,_,_,_,_,_)),
+      retractall(printer:test_stats_ctx_len_bin(_,_)),
+      retractall(printer:test_stats_ctx_cost_model(_,_,_)),
+      retractall(printer:test_stats_failed_entry(_,_)),
       retractall(printer:test_stats_other_head(_,_)),
       retractall(printer:test_stats_pkg(_,_,_)),
       retractall(printer:test_stats_type_entry_mention(_,_,_)),
@@ -47,10 +61,32 @@ printer:test_stats_reset(Label, ExpectedTotal) :-
       assertz(printer:test_stats_stat(expected_total, ExpectedTotal)),
       assertz(printer:test_stats_stat(expected_unique_packages, 0)),
       assertz(printer:test_stats_stat(processed, 0)),
+      assertz(printer:test_stats_stat(entries_failed, 0)),
+      assertz(printer:test_stats_stat(entries_failed_blocker, 0)),
+      assertz(printer:test_stats_stat(entries_failed_timeout, 0)),
+      assertz(printer:test_stats_stat(entries_failed_other, 0)),
       assertz(printer:test_stats_stat(entries_with_assumptions, 0)),
       assertz(printer:test_stats_stat(entries_with_package_assumptions, 0)),
       assertz(printer:test_stats_stat(entries_with_cycles, 0)),
       assertz(printer:test_stats_stat(cycles_found, 0))
+    )).
+
+% Record that an entry did not produce a strict proof/plan.
+% Reason is one of: blocker | other.
+printer:test_stats_record_failed(Reason) :-
+  printer:test_stats_inc(entries_failed),
+  ( Reason == blocker ->
+      printer:test_stats_inc(entries_failed_blocker)
+  ; Reason == timeout ->
+      printer:test_stats_inc(entries_failed_timeout)
+  ; printer:test_stats_inc(entries_failed_other)
+  ).
+
+% Record a failed entry (Repo://Entry) with a reason, so we can do per-package
+% analysis like "failed entry but another version of same package succeeded".
+printer:test_stats_record_failed_entry(RepoEntry, Reason) :-
+  with_mutex(test_stats,
+    ( assertz(printer:test_stats_failed_entry(RepoEntry, Reason))
     )).
 
 printer:test_stats_set_expected_unique_packages(N) :-
@@ -130,6 +166,122 @@ printer:test_stats_record_time(RepoEntry, TimeMs) :-
           Max is max(Max0, TimeMs),
           Cnt is Cnt0 + 1,
           assertz(printer:test_stats_pkg_time(C, N, Sum, Max, Cnt))
+      ; true
+      )
+    )).
+
+% Record elapsed walltime (ms) as well as cheap per-proof counters for a processed entry.
+printer:test_stats_record_costs(RepoEntry, TimeMs, Inferences, RuleCalls) :-
+  printer:test_stats_record_time(RepoEntry, TimeMs),
+  integer(Inferences),
+  Inferences >= 0,
+  integer(RuleCalls),
+  RuleCalls >= 0,
+  ( RepoEntry = Repo0://Entry0,
+    cache:ordered_entry(Repo0, Entry0, C, N, _)
+  -> true
+  ; C = _, N = _
+  ),
+  with_mutex(test_stats,
+    ( % Per-entry cost snapshot (keep max of each)
+      ( retract(printer:test_stats_entry_cost(RepoEntry, OldMs, OldInf, OldRule)) ->
+          KeepMs is max(OldMs, TimeMs),
+          KeepInf is max(OldInf, Inferences),
+          KeepRule is max(OldRule, RuleCalls)
+      ;   KeepMs = TimeMs,
+          KeepInf = Inferences,
+          KeepRule = RuleCalls
+      ),
+      assertz(printer:test_stats_entry_cost(RepoEntry, KeepMs, KeepInf, KeepRule)),
+
+      % Per-package cost aggregation (sum counters)
+      ( nonvar(C), nonvar(N) ->
+          ( retract(printer:test_stats_pkg_cost(C, N, Ms0, Inf0, Rule0, Cnt0)) ->
+              true
+          ;   Ms0 = 0, Inf0 = 0, Rule0 = 0, Cnt0 = 0
+          ),
+          Ms1 is Ms0 + TimeMs,
+          Inf1 is Inf0 + Inferences,
+          Rule1 is Rule0 + RuleCalls,
+          Cnt1 is Cnt0 + 1,
+          assertz(printer:test_stats_pkg_cost(C, N, Ms1, Inf1, Rule1, Cnt1))
+      ; true
+      )
+    )).
+
+% Record context-list costs for a processed entry.
+% Backwards-compatible wrapper (older callers)
+printer:test_stats_record_context_costs(RepoEntry, UnionCalls, UnionCost, MaxCtxLen) :-
+  printer:test_stats_record_context_costs(RepoEntry, UnionCalls, UnionCost, MaxCtxLen, 0).
+
+printer:test_stats_record_context_costs(RepoEntry, UnionCalls, UnionCost, MaxCtxLen, UnionMsEst) :-
+  integer(UnionCalls),
+  UnionCalls >= 0,
+  integer(UnionCost),
+  UnionCost >= 0,
+  integer(MaxCtxLen),
+  MaxCtxLen >= 0,
+  integer(UnionMsEst),
+  UnionMsEst >= 0,
+  ( RepoEntry = Repo0://Entry0,
+    cache:ordered_entry(Repo0, Entry0, C, N, _)
+  -> true
+  ; C = _, N = _
+  ),
+  with_mutex(test_stats,
+    ( ( retract(printer:test_stats_entry_ctx(RepoEntry, OldCalls, OldCost, OldMax, OldMs)) ->
+          Calls1 is max(OldCalls, UnionCalls),
+          Cost1 is max(OldCost, UnionCost),
+          Max1 is max(OldMax, MaxCtxLen),
+          Ms1 is max(OldMs, UnionMsEst)
+      ;   Calls1 = UnionCalls,
+          Cost1 = UnionCost,
+          Max1 = MaxCtxLen,
+          Ms1 = UnionMsEst
+      ),
+      assertz(printer:test_stats_entry_ctx(RepoEntry, Calls1, Cost1, Max1, Ms1)),
+      ( nonvar(C), nonvar(N) ->
+          ( retract(printer:test_stats_pkg_ctx(C, N, Sum0, Max0, SumMs0, Cnt0)) -> true
+          ; Sum0 = 0, Max0 = 0, SumMs0 = 0, Cnt0 = 0
+          ),
+          Sum1 is Sum0 + UnionCost,
+          Max2 is max(Max0, MaxCtxLen),
+          SumMs1 is SumMs0 + UnionMsEst,
+          Cnt1 is Cnt0 + 1,
+          assertz(printer:test_stats_pkg_ctx(C, N, Sum1, Max2, SumMs1, Cnt1))
+      ; true
+      )
+    )).
+
+% Record global (run-wide) histogram of context lengths (sampled) and
+% cost-model inputs for estimating ordset gains.
+%
+% HistPairs: list of Len-Count for this entry (sampled unions only).
+% SumMul:    sum(L0*L1) across sampled unions for this entry.
+% SumAdd:    sum(L0+L1) across sampled unions for this entry.
+% Samples:   number of sampled unions (same sampling as union walltime).
+printer:test_stats_record_ctx_len_distribution(HistPairs, SumMul, SumAdd, Samples) :-
+  with_mutex(test_stats,
+    ( forall(member(Len-Cnt, HistPairs),
+             ( integer(Len), Len >= 0,
+               integer(Cnt), Cnt >= 0,
+               ( retract(printer:test_stats_ctx_len_bin(Len, Old)) ->
+                   New is Old + Cnt
+               ; New is Cnt
+               ),
+               assertz(printer:test_stats_ctx_len_bin(Len, New))
+             )),
+      ( integer(SumMul), SumMul >= 0,
+        integer(SumAdd), SumAdd >= 0,
+        integer(Samples), Samples >= 0 ->
+          ( retract(printer:test_stats_ctx_cost_model(M0, A0, S0)) ->
+              true
+          ; M0 = 0, A0 = 0, S0 = 0
+          ),
+          M1 is M0 + SumMul,
+          A1 is A0 + SumAdd,
+          S1 is S0 + Samples,
+          assertz(printer:test_stats_ctx_cost_model(M1, A1, S1))
       ; true
       )
     )).
@@ -514,11 +666,6 @@ printer:test_stats_print(TopN) :-
   printer:test_stats_print_table_header,
   printer:test_stats_print_table_row('Total', Expected, Expected, ExpectedPkgs, ExpectedPkgs),
   printer:test_stats_print_table_row('Processed', Processed, Expected, ProcessedPkgs, ExpectedPkgs),
-  ( Expected =\= Processed ->
-      format('  ~w~t~30|: ~d entries did not produce a plan/proof (failed/timeout).~n',
-             ['Note', Expected-Processed])
-  ; true
-  ),
   ( Processed > 0 ->
       printer:test_stats_print_table_row('With assumptions', WithAss, Processed, WithAssPkgs, ProcessedPkgs),
       printer:test_stats_print_table_row('With package assumptions', WithPkgAss, Processed, WithPkgAssPkgs, ProcessedPkgs),
@@ -526,6 +673,73 @@ printer:test_stats_print(TopN) :-
       nl,
       format('  ~w~t~30|: ~d total~n', ['Cycles found', CyclesFound]),
       format('  ~w~t~30|: ~2f cycles per processed entry~n', ['Cycles per entry', CyclesFound/Processed])
+  ; true
+  ),
+  ( Expected =\= Processed ->
+      printer:test_stats_value(entries_failed_blocker, FailedBlocker),
+      printer:test_stats_value(entries_failed_timeout, FailedTimeout),
+      printer:test_stats_value(entries_failed_other, FailedOther),
+      FailedTotal is Expected - Processed,
+      Unknown0 is FailedTotal - FailedBlocker - FailedTimeout - FailedOther,
+      Unknown is max(0, Unknown0),
+      format('  ~w~t~30|: ~d entries did not produce a plan/proof (failed/timeout).~n',
+             ['Note', FailedTotal]),
+      ( FailedBlocker > 0 ->
+          format('  ~w~t~30|: ~d failed due to blockers (detected).~n',
+                 ['Blocker failures', FailedBlocker])
+      ; true
+      ),
+      ( FailedTimeout > 0 ->
+          format('  ~w~t~30|: ~d timed out (detected).~n',
+                 ['Timeout failures', FailedTimeout])
+      ; true
+      ),
+      ( FailedOther > 0 ->
+          format('  ~w~t~30|: ~d failed for other reasons (detected).~n',
+                 ['Other failures', FailedOther])
+      ; true
+      ),
+      ( Unknown > 0 ->
+          format('  ~w~t~30|: ~d failed/timeout with unknown reason (not classified).~n',
+                 ['Unknown', Unknown])
+      ; true
+      )
+  , % Extra context: many "failed entries" are older versions of a package that
+    % has at least one other version that proved successfully in the same run.
+    findall(C-N,
+            ( printer:test_stats_failed_entry(Repo0://Entry0, _R),
+              cache:ordered_entry(Repo0, Entry0, C, N, _)
+            ),
+            FailedCNs0),
+    sort(FailedCNs0, FailedCNs),
+    length(FailedCNs, FailedPkgsTotal),
+    findall(C-N,
+            ( member(C-N, FailedCNs),
+              printer:test_stats_pkg(processed, C, N)
+            ),
+            MixedCNs0),
+    sort(MixedCNs0, MixedCNs),
+    length(MixedCNs, FailedPkgsWithSomeSuccess),
+    FailedPkgsAllFail is FailedPkgsTotal - FailedPkgsWithSomeSuccess,
+    ( FailedPkgsTotal > 0 ->
+        format('  ~w~t~30|: ~d unique packages had at least one failing entry.~n',
+               ['Note', FailedPkgsTotal])
+    ; true
+    ),
+    ( FailedPkgsWithSomeSuccess > 0 ->
+        format('  ~w~t~30|: ~d failing packages have another version that proved OK.~n',
+               ['Note', FailedPkgsWithSomeSuccess])
+    ; true
+    ),
+    ( FailedPkgsAllFail > 0 ->
+        format('  ~w~t~30|: ~d failing packages have no version that proved OK.~n',
+               ['Note', FailedPkgsAllFail])
+    ; true
+    ),
+    ( MixedCNs \== [] ->
+        format('  ~w~t~30|: ~w~n', ['Mixed (sample)', MixedCNs])
+    ; true
+    )
   ; true
   ),
   nl,
@@ -580,11 +794,173 @@ printer:test_stats_print(TopN) :-
     printer:test_stats_print_ranked_table_rows(PkgSorted, TopN, 1, Wp)
   ),
 
+  % Top-N packages by total inferences (proxy for "how much work did we do").
+  nl,
+  message:header(['Top ',TopN,' most expensive packages (inferences)']),
+  nl,
+  findall(SumInf-PkgAtomInf,
+          ( printer:test_stats_pkg_cost(Ci, Ni, _MsI, SumInf, _RuleI, _CntI),
+            atomic_list_concat([Ci,Ni], '/', PkgAtomInf)
+          ),
+          PkgInf0),
+  keysort(PkgInf0, PkgInfAsc),
+  reverse(PkgInfAsc, PkgInfSorted),
+  ( PkgInfSorted == [] ->
+      writeln('  (none)')
+  ; printer:test_stats_print_ranked_table_header('Costly packages', 'inferences'),
+    printer:test_stats_table_width(Wi),
+    printer:test_stats_print_ranked_table_rows(PkgInfSorted, TopN, 1, Wi)
+  ),
+
+  % Top-N packages by context "union cost" (proxy for list-processing overhead in contexts).
+  nl,
+  message:header(['Top ',TopN,' most expensive packages (context unions)']),
+  nl,
+  findall(SumCtxCost-PkgAtomCtx,
+          ( printer:test_stats_pkg_ctx(Cc, Nc, SumCtxCost, _MaxLenC, _SumMsC, _CntC),
+            atomic_list_concat([Cc,Nc], '/', PkgAtomCtx)
+          ),
+          PkgCtx0),
+  keysort(PkgCtx0, PkgCtxAsc),
+  reverse(PkgCtxAsc, PkgCtxSorted),
+  ( PkgCtxSorted == [] ->
+      writeln('  (none)')
+  ; printer:test_stats_print_ranked_table_header('Costly packages', 'ctx-union-cost'),
+    printer:test_stats_table_width(Wctx),
+    printer:test_stats_print_ranked_table_rows(PkgCtxSorted, TopN, 1, Wctx)
+  ),
+
+  % Top-N packages by estimated walltime spent in ctx unions (sampled).
+  nl,
+  message:header(['Top ',TopN,' most expensive packages (context unions walltime, est)']),
+  nl,
+  findall(UnionMs-CcMs-NcMs,
+          printer:test_stats_pkg_ctx(CcMs, NcMs, _SumCtxCostMs, _MaxLenMs, UnionMs, _CntMs),
+          PkgCtxMsCN0),
+  keysort(PkgCtxMsCN0, PkgCtxMsAscCN),
+  reverse(PkgCtxMsAscCN, PkgCtxMsSortedCN),
+  findall(UnionMs-PkgAtomCtxMs,
+          ( member(UnionMs-CcMs-NcMs, PkgCtxMsSortedCN),
+            atomic_list_concat([CcMs,NcMs], '/', PkgAtomCtxMs)
+          ),
+          PkgCtxMsSorted),
+  ( PkgCtxMsSorted == [] ->
+      writeln('  (none)')
+  ; printer:test_stats_print_ranked_table_header('Costly packages', 'ctx-union-ms'),
+    printer:test_stats_table_width(Wctxms),
+    printer:test_stats_print_ranked_table_rows(PkgCtxMsSorted, TopN, 1, Wctxms)
+  ),
+
+  % For the same ranking, show how much of total package time this represents.
+  nl,
+  message:header(['Top ',TopN,' packages by context union time share (est)']),
+  nl,
+  % Derive shares from the same sorted ctx-ms list we just printed.
+  % percent*10 = UnionMs * 1000 / TotalMs
+  findall(Pct10-Label,
+          ( member(UnionMsS-CS-NS, PkgCtxMsSortedCN),
+            UnionMsS > 0,
+            printer:test_stats_pkg_time(CS, NS, TotalMsS, _MaxMsS, _CntTimeS),
+            TotalMsS > 0,
+            Pct10 is round(UnionMsS * 1000 / TotalMsS),
+            Pct1 is Pct10 / 10,
+            atomic_list_concat([CS,NS], '/', PkgAtomShare),
+            format(atom(Label), '~w (~1f%)', [PkgAtomShare, Pct1])
+          ),
+          ShareRows0),
+  keysort(ShareRows0, ShareRowsAsc),
+  reverse(ShareRowsAsc, ShareRowsSorted),
+  ( ShareRowsSorted == [] ->
+      writeln('  (none)')
+  ; printer:test_stats_print_ranked_table_header('Packages', 'ctx%*10'),
+    printer:test_stats_table_width(Wshare),
+    printer:test_stats_print_ranked_table_rows(ShareRowsSorted, TopN, 1, Wshare)
+  ),
+
+  % Context length distribution (sampled from ctx_union/3 output lengths).
+  nl,
+  message:header('Context length distribution (sampled, ctx_union output)'),
+  nl,
+  findall(Len-Cnt, printer:test_stats_ctx_len_bin(Len, Cnt), LenBins0),
+  keysort(LenBins0, LenBins),
+  ( LenBins == [] ->
+      writeln('  (none)')
+  ; findall(C, member(_L-C, LenBins), LenCnts),
+    sum_list(LenCnts, LenTotal),
+    format('  Samples: ~d~n', [LenTotal]),
+    % Quick percentile-ish buckets to answer: "are most contexts small?"
+    printer:test_stats_ctx_len_bucket(LenBins, 3,  Le3),
+    printer:test_stats_ctx_len_bucket(LenBins, 5,  Le5),
+    printer:test_stats_ctx_len_bucket(LenBins, 10, Le10),
+    Gt10 is max(0, LenTotal - Le10),
+    ( LenTotal =:= 0 ->
+        true
+    ; format('  <=3:  ~d (~2f%%)~n',  [Le3,  100*Le3/LenTotal]),
+      format('  <=5:  ~d (~2f%%)~n',  [Le5,  100*Le5/LenTotal]),
+      format('  <=10: ~d (~2f%%)~n',  [Le10, 100*Le10/LenTotal]),
+      format('  >10:  ~d (~2f%%)~n',  [Gt10, 100*Gt10/LenTotal])
+    ),
+    nl,
+    printer:test_stats_print_ranked_table_header('ctx-len', 'samples'),
+    printer:test_stats_table_width(Wlenhist),
+    % show the most common lengths (by count)
+    findall(Cnt-LenAtom,
+            ( member(Len-Cnt, LenBins),
+              format(atom(LenAtom), '~d', [Len])
+            ),
+            LenByCount0),
+    keysort(LenByCount0, LenByCountAsc),
+    reverse(LenByCountAsc, LenByCount),
+    printer:test_stats_print_ranked_table_rows(LenByCount, min(TopN, 25), 1, Wlenhist)
+  ),
+
+  % Ordset gain estimate (very rough): compare a quadratic proxy vs linear proxy.
+  ( printer:test_stats_ctx_cost_model(SumMul, SumAdd, SamplesModel),
+    SamplesModel > 0,
+    SumMul > 0,
+    SumAdd > 0 ->
+      Speedup is SumMul / SumAdd,
+      findall(SumMs0, printer:test_stats_pkg_ctx(_Ccm,_Ncm,_Costcm,_Maxcm,SumMs0,_Cntcm), Ms0s),
+      sum_list(Ms0s, TotalCtxMsEst),
+      OrdMsEst0 is TotalCtxMsEst / Speedup,
+      OrdMsEst is round(OrdMsEst0),
+      SavedMs is max(0, TotalCtxMsEst - OrdMsEst),
+      nl,
+      message:header('Estimated ordset impact (from sampled ctx_union sizes)'),
+      nl,
+      format('  Samples used               : ~d~n', [SamplesModel]),
+      format('  Cost proxy (list)  sum L0*L1: ~d~n', [SumMul]),
+      format('  Cost proxy (ord)   sum L0+L1: ~d~n', [SumAdd]),
+      format('  Estimated speedup factor     : ~2f×~n', [Speedup]),
+      format('  Total ctx-union-ms (est)     : ~d ms~n', [TotalCtxMsEst]),
+      format('  Est ctx-union-ms w/ ordsets  : ~d ms~n', [OrdMsEst]),
+      format('  Est savings                  : ~d ms~n', [SavedMs])
+  ; true
+  ),
+
+  % Top-N packages by max context size observed.
+  nl,
+  message:header(['Top ',TopN,' largest contexts observed']),
+  nl,
+  findall(MaxLen-PkgAtomLen,
+          ( printer:test_stats_pkg_ctx(Cc2, Nc2, _SumCtxCost2, MaxLen, _SumCtxMs2, _CntC2),
+            atomic_list_concat([Cc2,Nc2], '/', PkgAtomLen)
+          ),
+          PkgLen0),
+  keysort(PkgLen0, PkgLenAsc),
+  reverse(PkgLenAsc, PkgLenSorted),
+  ( PkgLenSorted == [] ->
+      writeln('  (none)')
+  ; printer:test_stats_print_ranked_table_header('Packages', 'max-ctx-len'),
+    printer:test_stats_table_width(Wlen),
+    printer:test_stats_print_ranked_table_rows(PkgLenSorted, TopN, 1, Wlen)
+  ),
+
   % Top-N slowest packages (Category/Name), by max single-entry time.
   nl,
   message:header(['Top ',TopN,' slowest packages (max)']),
   nl,
-  findall(MaxMs-C-N, printer:test_stats_pkg_time(C, N, _SumMs2, MaxMs, _Cnt2), PkgMax0),
+  findall(MaxMs-C-N, printer:test_stats_pkg_time(C, N, _SumTotalMs2, MaxMs, _Cnt2), PkgMax0),
   keysort(PkgMax0, PkgMaxAsc0),
   reverse(PkgMaxAsc0, PkgMaxSorted0),
   findall(MaxMs-PkgAtom2,
@@ -652,6 +1028,15 @@ printer:test_stats_print_top_cycle_mentions([N-RepoEntry|Rest], Limit, I) :-
   I1 is I + 1,
   Limit1 is Limit - 1,
   printer:test_stats_print_top_cycle_mentions(Rest, Limit1, I1).
+
+% Count how many samples fall in <= Threshold.
+printer:test_stats_ctx_len_bucket(LenBins, Threshold, CountLe) :-
+  findall(Cnt,
+          ( member(Len-Cnt, LenBins),
+            Len =< Threshold
+          ),
+          Cnts),
+  sum_list(Cnts, CountLe).
 
 % -----------------------------------------------------------------------------
 %  PROVER state printing
@@ -1253,6 +1638,10 @@ printer:print_element(Target,rule(Repository://Entry:Action?{Context},_Body)) :-
      message:color(normal)
   ; true
   ),
+  % Ensure inline notes (e.g. blocker annotations) don't inherit the bold style
+  % used for target entries.
+  message:style(normal),
+  printer:print_blocker_note_if_any(Action, Repository, Entry),
   message:color(normal),
   printer:print_config(Repository://Entry:Action?{Context}).
 
@@ -1277,6 +1666,7 @@ printer:print_element(_,rule(Repository://Entry:Action?{Context},_)) :-
      message:color(normal)
   ; true
   ),
+  printer:print_blocker_note_if_any(Action, Repository, Entry),
   message:color(normal),
   printer:print_config(Repository://Entry:Action?{Context}).
 
@@ -2382,17 +2772,23 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
   findall(Content, (assoc:gen_assoc(assumed(rule(Content)), ProofAVL, _)), CycleAssumptions0),
   sort(CycleAssumptions0, CycleAssumptions),
   ( DomainAssumptions \= [] ->
-      message:bubble(red,'Error'),
-      message:color(red),
-      message:print(' The proof for your build plan contains domain assumptions. Please verify:'), nl, nl,
-      message:color(red)
+      ( printer:domain_assumptions_only_blockers(DomainAssumptions) ->
+          message:bubble(orange,'Warning'),
+          message:color(orange),
+          message:print(' The proof for your build plan contains blocker assumptions. Please verify:'), nl, nl,
+          message:color(orange)
+      ; message:bubble(red,'Error'),
+        message:color(red),
+        message:print(' The proof for your build plan contains domain assumptions. Please verify:'), nl, nl,
+        message:color(red)
+      )
   ; CycleAssumptions \= [] ->
       message:bubble(orange,'Warning'),
       message:color(orange),
       message:print(' The proof for your build plan contains cycle breaks. Please verify:'), nl, nl,
       message:color(orange)
   ; message:bubble(red,'Error'),
-    message:color(red),
+  message:color(red),
     message:print(' The proof for your build plan contains assumptions. Please verify:'), nl, nl,
     message:color(red)
   ),
@@ -2402,6 +2798,7 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
       forall(member(Content, DomainAssumptions),
              ( printer:print_assumption_detail(rule(Content, [])),
                nl ))
+  ,   printer:print_blockers_portage_like(DomainAssumptions)
   ; true
   ),
   % Optional: print simple Gentoo Bugzilla bug report drafts when domain assumptions
@@ -2438,6 +2835,74 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
   message:color(normal),nl.
 
 printer:print_warnings(_,_,_) :- !, nl.
+
+
+% -----------------------------------------------------------------------------
+%  Blocker assumptions (Portage-like summary)
+% -----------------------------------------------------------------------------
+
+printer:domain_assumptions_only_blockers([]) :- !, fail.
+printer:domain_assumptions_only_blockers(DomainAssumptions) :-
+  \+ ( member(C, DomainAssumptions),
+       \+ printer:is_blocker_assumption(C)
+     ).
+
+printer:is_blocker_assumption(blocker(_Strength, _Phase, _C, _N, _O, _V, _SlotReq)?{_Ctx}) :- !.
+printer:is_blocker_assumption(blocker(_Strength, _Phase, _C, _N, _O, _V, _SlotReq)) :- !.
+printer:is_blocker_assumption(_) :- fail.
+
+printer:print_blockers_portage_like(DomainAssumptions) :-
+  findall(line(Strength, Phase, BlockAtom, RequiredBy),
+          ( member(Content, DomainAssumptions),
+            printer:blocker_assumption_line(Content, Strength, Phase, BlockAtom, RequiredBy)
+          ),
+          Lines0),
+  sort(Lines0, Lines),
+  ( Lines == [] ->
+      true
+  ; nl,
+    message:header('Blockers (Portage-like, assumed)'),
+    nl,
+    forall(member(line(Strength, Phase, BlockAtom, RequiredBy), Lines),
+           printer:print_blocker_line(Strength, Phase, BlockAtom, RequiredBy)),
+    nl
+  ).
+
+printer:blocker_assumption_line(Content, Strength, Phase, BlockAtom, RequiredBy) :-
+  ( Content = blocker(Strength, Phase, C, N, O, V, SlotReq)?{Ctx} ->
+      true
+  ; Content = blocker(Strength, Phase, C, N, O, V, SlotReq),
+    Ctx = []
+  ),
+  printer:blocker_atom(Strength, C, N, O, V, SlotReq, BlockAtom),
+  ( memberchk(self(RequiredBy0), Ctx) -> RequiredBy = RequiredBy0 ; RequiredBy = unknown ).
+
+printer:blocker_atom(Strength, C, N, O, V0, SlotReq, Atom) :-
+  ( Strength == strong -> Bang = '!!' ; Bang = '!' ),
+  printer:comparator_symbol(O, Sym),
+  ( var(V0) -> V = '' ; printer:version_atom(V0, V) ),
+  printer:blocker_slot_suffix(SlotReq, SlotSuf),
+  ( V == '' ->
+      format(atom(Atom), '~w~w~w/~w~w', [Bang, Sym, C, N, SlotSuf])
+  ; format(atom(Atom), '~w~w~w/~w-~w~w', [Bang, Sym, C, N, V, SlotSuf])
+  ).
+
+printer:blocker_slot_suffix([], '') :- !.
+printer:blocker_slot_suffix([slot(S)], Suf) :- !, format(atom(Suf), ':~w', [S]).
+printer:blocker_slot_suffix([slot(S),subslot(Ss)], Suf) :- !, format(atom(Suf), ':~w/~w', [S, Ss]).
+printer:blocker_slot_suffix([slot(S),equal], Suf) :- !, format(atom(Suf), ':~w', [S]).
+printer:blocker_slot_suffix([slot(S),subslot(Ss),equal], Suf) :- !, format(atom(Suf), ':~w/~w', [S, Ss]).
+printer:blocker_slot_suffix(_Other, '').
+
+printer:print_blocker_line(Strength, Phase, BlockAtom, RequiredBy) :-
+  ( Strength == strong ->
+      StrengthLabel = 'hard'
+  ; StrengthLabel = 'soft'
+  ),
+  message:color(darkgray),
+  format('  [blocks B] ~w (~w blocker, phase: ~w, required by: ~w)~n',
+         [BlockAtom, StrengthLabel, Phase, RequiredBy]),
+  message:color(normal).
 
 
 % -----------------------------------------------------------------------------
@@ -3281,6 +3746,29 @@ printer:print_assumption_detail(rule(R://E:unmask,_)) :- !,
     message:print('  '),
     message:print(R://E), nl.
 
+% Blocker assumptions (introduced by rules.pl when we print a "plan with blocker
+% assumptions" after a failed strict solve).
+printer:print_assumption_detail(rule(blocker(Strength, Phase, C, N, _O, _V, _SlotReq)?{Ctx}, _)) :- !,
+    message:color(lightred),
+    message:style(bold),
+    message:print('- Blocked packages ('),
+    ( Strength == strong -> message:print('hard'); message:print('soft') ),
+    message:print(' blocker): '),
+    message:style(normal),
+    message:color(normal), nl,
+    message:print('  '),
+    message:print(C),
+    message:print('/'),
+    message:print(N),
+    message:print(' (phase: '),
+    message:print(Phase),
+    message:print(')'),
+    nl,
+    printer:print_assumption_provenance(Ctx).
+
+printer:print_assumption_detail(rule(blocker(Strength, Phase, C, N, O, V, SlotReq), Body)) :- !,
+    printer:print_assumption_detail(rule(blocker(Strength, Phase, C, N, O, V, SlotReq)?{[]}, Body)).
+
 printer:print_assumption_detail(rule(C,_)) :-
     message:color(lightred),
     message:style(bold),
@@ -3333,10 +3821,86 @@ printer:print(Target,ModelAVL,ProofAVL,Plan,TriggersAVL) :-
 
 %! printer:print(+Target,+ModelAVL,+ProofAVL,+Plan,+Call,+TriggersAVL)
 printer:print(Target,ModelAVL,ProofAVL,Plan,Call,TriggersAVL) :-
-  printer:print_header(Target),
-  printer:print_body(Target,Plan,Call,Steps),
-  printer:print_footer(Plan,ModelAVL,Steps),
-  printer:print_warnings(ModelAVL,ProofAVL,TriggersAVL).
+  printer:blocker_note_map(ProofAVL, BlockerNotes),
+  setup_call_cleanup(nb_setval(printer_blocker_notes, BlockerNotes),
+    ( printer:print_header(Target),
+      printer:print_body(Target,Plan,Call,Steps),
+      printer:print_footer(Plan,ModelAVL,Steps),
+      printer:print_warnings(ModelAVL,ProofAVL,TriggersAVL)
+    ),
+    nb_delete(printer_blocker_notes)).
+
+% Build a lookup map from (C,N,Phase) -> note(Strength, OriginRepoEntryOrUnknown).
+printer:blocker_note_map(ProofAVL, Notes) :-
+  empty_assoc(Empty),
+  findall(K-V,
+          ( assoc:gen_assoc(rule(assumed(Content0)), ProofAVL, _),
+            printer:blocker_assumption_term(Content0, Strength, Phase, C, N, Origin),
+            K = key(C,N,Phase),
+            V = note(Strength, Origin)
+          ),
+          Pairs0),
+  sort(Pairs0, Pairs),
+  foldl(printer:blocker_note_put, Pairs, Empty, Notes).
+
+printer:blocker_note_put(K-V, In, Out) :-
+  ( get_assoc(K, In, _) ->
+      Out = In
+  ; put_assoc(K, In, V, Out)
+  ).
+
+printer:blocker_assumption_term(Content0, Strength, Phase, C, N, Origin) :-
+  % With provenance context:
+  ( Content0 = blocker(Strength, Phase, C, N, _O, _V, _SlotReq)?{Ctx},
+    is_list(Ctx),
+    ( memberchk(self(Origin), Ctx) -> true ; Origin = unknown )
+  )
+  ;
+  % Legacy/no-context:
+  ( Content0 = blocker(Strength, Phase, C, N, _O2, _V2, _SlotReq2),
+    Origin = unknown
+  ),
+  ( Strength == weak ; Strength == strong ),
+  ( Phase == install ; Phase == run ).
+
+printer:print_blocker_note_if_any(Action, Repository, Entry) :-
+  ( ( Action == install ; Action == run ),
+    nb_current(printer_blocker_notes, Notes),
+    printer:action_phase(Action, Phase),
+    ( cache:ordered_entry(Repository, Entry, C, N, _) ->
+        true
+    ; query:search([category(C),name(N)], Repository://Entry)
+    ),
+    get_assoc(key(C,N,Phase), Notes, note(Strength, Origin))
+  ->
+    message:color(lightgray),
+    message:print(' ('),
+    message:color(lightred),
+    message:print('blocked'),
+    message:color(lightgray),
+    message:print(': '),
+    message:color(lightred),
+    ( Strength == strong -> message:print('hard') ; message:print('soft') ),
+    message:color(lightgray),
+    message:print(' by '),
+    ( Origin == unknown ->
+        message:print('unknown')
+    ; message:color(green),
+      message:print(Origin),
+      message:color(lightgray)
+    ),
+    message:print(')'),
+    message:color(normal)
+  ; true
+  ).
+
+printer:action_phase(run, run) :- !.
+printer:action_phase(install, install) :- !.
+printer:action_phase(reinstall, install) :- !.
+printer:action_phase(update, install) :- !.
+printer:action_phase(download, other) :- !.
+printer:action_phase(fetchonly, other) :- !.
+printer:action_phase(_Other, other).
 
 
 %! printer:dry_run(+Step)
@@ -3544,7 +4108,7 @@ printer:test(Repository,Style) :-
               % 2. Call the newly refactored print predicate.
               ( printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, false),
                 printer:test_stats_set_current_entry(Repository://Entry),
-                printer:print([Repository://Entry:Action?{[]}],ModelAVL,ProofAVL,Plan,Triggers),
+              printer:print([Repository://Entry:Action?{[]}],ModelAVL,ProofAVL,Plan,Triggers),
                 printer:test_stats_clear_current_entry
               ),
               false),

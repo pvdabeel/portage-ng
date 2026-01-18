@@ -76,9 +76,11 @@ interface:spec(S) :-
        [opt(unmerge),   type(boolean),   default(false),       shortflags(['C']), longflags(['unmerge']),   help('Unmerge target')],
        [opt(usepkg),    type(boolean),   default(false),       shortflags(['k']), longflags(['usepkg']),    help('Use prebuilt packages')],
        [opt(quiet),     type(boolean),   default(false),       shortflags(['q']), longflags(['quiet']),     help('Reduced output')],
+       [opt(time_limit),type(integer),   default(0),                               longflags(['time-limit']),help('Abort proving/planning after N seconds (0 = no limit)')],
        [opt(host),      type(atom),      default(Hostname),                       longflags(['host']),      help('Set server hostname (client mode)')],
        [opt(port),      type(integer),   default(4000),                           longflags(['port']),      help('Set Server port (client or server mode)')],
        [opt(shell),     type(boolean),   default(false),                          longflags(['shell']),     help('Go to shell')],
+       [opt(cursortest),type(atom),      default(''),                             longflags(['cursortest']),help('Load a Prolog file and run cursortest/0 (or cursortest/1) in it; remaining args are passed as a list to cursortest/1')],
        [opt(save),      type(boolean),   default(false),                          longflags(['save']),      help('Save knowledgebase (only relevant in client mode')],
        [opt(load),      type(boolean),   default(false),                          longflags(['load']),      help('Load knowledgebase (only relevant in client mode)')],
        [opt(version),   type(boolean),   default(false),       shortflags(['V']), longflags(['version']),   help('Show version')],
@@ -197,6 +199,8 @@ interface:process_requests(Mode) :-
   ( memberchk(version(true),Options)  -> (message:logo(['::- portage-ng ',Version]),                Continue) ;
     memberchk(info(true),Options)     -> (interface:process_action(info,Args,Options),              Continue) ;
     memberchk(bugs(true),Options)     -> (interface:process_bugs(Args,Options),                     Continue) ;
+    memberchk(cursortest(File0),Options), File0 \== '' ->
+                                      interface:process_cursortest(File0, Args) ;
     memberchk(clear(true),Options)    -> (kb:clear, 						    Continue) ;
     memberchk(graph(true),Options)    -> (kb:graph,nl, 				  	            Continue) ;
     memberchk(unmerge(true),Options)  -> (interface:process_action(uninstall,Args,Options), 	    Continue) ;
@@ -216,6 +220,35 @@ interface:process_requests(Mode) :-
     memberchk(shell(true),Options)    -> (message:logo(['::- portage-ng shell - ',Version]),	    prolog)),
 
   Continue.
+
+
+% -----------------------------------------------------------------------------
+%  Action: CURSORTEST
+% -----------------------------------------------------------------------------
+%
+% Developer workflow helper:
+%   portage-ng-dev --mode standalone --cursortest <file> [extra args...]
+%
+% The given file is loaded (consulted) and then `cursortest/0` is called.
+% If only `cursortest/1` exists, it will be called as `cursortest(Args)`,
+% where Args is the list of remaining CLI arguments.
+%
+% Exit codes:
+%   0 = success
+%   1 = failure/false
+%   2 = exception
+%
+interface:process_cursortest(File, Args) :-
+  ensure_loaded(portage('Source/Cursor/cursor.pl')),
+  catch(
+    ( cursor:run(File, Args) ->
+        halt(0)
+    ;   halt(1)
+    ),
+    E,
+    ( print_message(error, E),
+      halt(2)
+    )).
 
 
 % -----------------------------------------------------------------------------
@@ -353,20 +386,68 @@ interface:process_action(Action,ArgsSets,_Options) :-
      Output),
      writeln(Output));
     ( interface:argv(Options,_Args0),
-      prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers),
-      planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0),
-      scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder),
-      printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
+      ( memberchk(time_limit(TimeLimitSec), Options) -> true ; TimeLimitSec = 0 ),
+      ( TimeLimitSec =< 0 ->
+          ( ( prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_,t,Triggers) ->
+                FallbackUsed = false
+            ; % Fallback UX: show the plan under the assumption that blockers are satisfied.
+              message:bubble(orange,'Warning'),
+              message:color(orange),
+              message:print(' No valid plan found due to blockers/conflicts. Showing a plan with blocker assumptions; please verify.'), nl,
+              message:color(normal),
+              rules:with_assume_blockers(
+                prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_,t,Triggers)
+              ),
+              FallbackUsed = true
+            ),
+            planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0),
+            scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder),
+            printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers)
+          )
+      ; catch(
+          call_with_time_limit(TimeLimitSec,
+            ( ( prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_,t,Triggers) ->
+                  FallbackUsed = false
+              ; message:bubble(orange,'Warning'),
+                message:color(orange),
+                message:print(' No valid plan found due to blockers/conflicts. Showing a plan with blocker assumptions; please verify.'), nl,
+                message:color(normal),
+                rules:with_assume_blockers(
+                  prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_,t,Triggers)
+                ),
+                FallbackUsed = true
+              ),
+              planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0),
+              scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder),
+              printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers)
+            )),
+          time_limit_exceeded,
+          ( message:bubble(red,'Error'),
+            message:color(red),
+            message:print(' Time limit exceeded while proving/planning. Try increasing --time-limit or narrowing the target.'), nl,
+            message:color(normal),
+            flush_output,
+            halt(1)
+          )
+        )
+      ),
       ( memberchk(ci(true), Options) ->
           interface:ci_exit_code(ModelAVL, ProofAVL, ExitCode),
           halt(ExitCode)
-      ; vdb:sync
+      ; FallbackUsed == false ->
+          vdb:sync
+      ; true
+      ),
+      ( FallbackUsed == false,
+        \+ preference:flag(oneshot)
+      ->
+        ( Action = 'uninstall'
+        -> world:unregister(Args)
+        ;  world:register(Args)
+        )
+      ; true
       )
-    )),
-  \+preference:flag(oneshot)
-  -> (Action = 'uninstall'
-      -> world:unregister(Args)
-      ;  world:register(Args)).
+    )).
 
 
 % -----------------------------------------------------------------------------

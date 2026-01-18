@@ -38,20 +38,44 @@ tester:test(single_verbose,Name,Repository://Item,Generator,Test,Report,Scroll) 
   config:time_limit(T),
   message:hc,
   forall(Generator,
-              (catch(call_with_time_limit(T,(stats:increase,
-                                             stats:percentage(P),
-                                             stats:runningtime(Min,Sec),
-                                             message:title([Name,' (Single thread): ',P,' processed in ',Min,'m ',Sec,'s']),
-                                             (Scroll
- 				              -> message:scroll_notice(['[',P,'] - ', Name,' - ',Repository,'://',Item])
-                                              ;  message:topheader(['[',P,'] - ',Name,' - ',Repository,'://',Item])),
-					     Test,!,Report)),
-                     time_limit_exceeded,
-                     ( message:scroll_failure([Item,' (time limit exceeded)']),
-                       message:clean,
-                       message:warning([Item,' (time limit exceeded)'])
-                     ));
-	       (message:clean,message:warning([Item,' (failed)'])))),!,
+         ( catch(
+             call_with_time_limit(T,
+               ( stats:increase,
+                 stats:percentage(P),
+                 stats:runningtime(Min,Sec),
+                 message:title([Name,' (Single thread): ',P,' processed in ',Min,'m ',Sec,'s']),
+                 ( Scroll
+                 -> message:scroll_notice(['[',P,'] - ', Name,' - ',Repository,'://',Item])
+                 ;  message:topheader(['[',P,'] - ',Name,' - ',Repository,'://',Item])
+                 ),
+                 Test, !, Report
+               )),
+             time_limit_exceeded,
+             ( message:scroll_failure([Item,' (time limit exceeded)']),
+               message:clean,
+               message:warning([Item,' (time limit exceeded)']),
+               ( current_predicate(printer:test_stats_record_failed/1) ->
+                   printer:test_stats_record_failed(timeout)
+               ; true
+               ),
+               ( current_predicate(printer:test_stats_record_failed_entry/2) ->
+                   printer:test_stats_record_failed_entry(Repository://Item, timeout)
+               ; true
+               )
+             )
+           )
+         ; message:clean,
+           message:warning([Item,' (failed)']),
+           ( current_predicate(printer:test_stats_record_failed/1) ->
+               printer:test_stats_record_failed(other)
+           ; true
+           ),
+           ( current_predicate(printer:test_stats_record_failed_entry/2) ->
+               printer:test_stats_record_failed_entry(Repository://Item, other)
+           ; true
+           )
+         )),
+  !,
   message:sc,
   stats:runningtime(Min,Sec),
   message:title_reset,!,
@@ -69,21 +93,45 @@ tester:test(parallel_verbose,Name,Repository://Item,Generator,Test,Report,Scroll
   config:number_of_cpus(Cpus),
   message:hc,
   concurrent_forall(Generator,
-                        (catch(call_with_time_limit(T,(Test,!,
-                                         with_mutex(mutex,(stats:increase,
-                                                           stats:percentage(P),
-                                                           stats:runningtime(Min,Sec),
-                                                           message:title([Name,' (',Cpus,' threads): ',P,' processed in ',Min,'m ',Sec,'s']),
-                                                           (Scroll
- 							    -> message:scroll_notice(['[',P,'] - ', Name,' - ',Repository,'://',Item])
-                                                            ;  message:topheader(['[',P,'] - ',Name,' - ',Repository,'://',Item])),
-  							   Report
-                                                          )))),
-                 time_limit_exceeded,
-                 ( message:scroll_failure([Item,' (time limit exceeded)']),
-                   with_mutex(mutex,(message:clean,message:warning([Item,' (time limit exceeded)'])))
-                 ));
-           with_mutex(mutex,(message:clean,message:warning([Item,' (failed)']))))),!,
+                    ( catch(
+                        call_with_time_limit(T,
+                          ( Test, !,
+                            with_mutex(mutex,
+                              ( stats:increase,
+                                stats:percentage(P),
+                                stats:runningtime(Min,Sec),
+                                message:title([Name,' (',Cpus,' threads): ',P,' processed in ',Min,'m ',Sec,'s']),
+                                ( Scroll
+                                -> message:scroll_notice(['[',P,'] - ', Name,' - ',Repository,'://',Item])
+                                ;  message:topheader(['[',P,'] - ',Name,' - ',Repository,'://',Item])
+                                ),
+                                Report
+                              ))
+                          )),
+                        time_limit_exceeded,
+                        ( message:scroll_failure([Item,' (time limit exceeded)']),
+                          with_mutex(mutex,(message:clean,message:warning([Item,' (time limit exceeded)']))),
+                          ( current_predicate(printer:test_stats_record_failed/1) ->
+                              printer:test_stats_record_failed(timeout)
+                          ; true
+                          ),
+                          ( current_predicate(printer:test_stats_record_failed_entry/2) ->
+                              printer:test_stats_record_failed_entry(Repository://Item, timeout)
+                          ; true
+                          )
+                        )
+                      )
+                    ; with_mutex(mutex,(message:clean,message:warning([Item,' (failed)']))),
+                      ( current_predicate(printer:test_stats_record_failed/1) ->
+                          printer:test_stats_record_failed(other)
+                      ; true
+                      ),
+                      ( current_predicate(printer:test_stats_record_failed_entry/2) ->
+                          printer:test_stats_record_failed_entry(Repository://Item, other)
+                      ; true
+                      )
+                    )),
+  !,
   message:sc,
   stats:runningtime(Min,Sec),
   message:title_reset,!,
