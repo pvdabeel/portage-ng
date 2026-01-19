@@ -4,11 +4,13 @@
 # Useful for CI and for running inside restricted shells (e.g. Cursor sandbox).
 #
 # Usage:
-#   ./portage-ng-dev --mode standalone accerciser
-#   ./portage-ng-dev --mode standalone --shell
+#   ./Source/Scripts/portage-ng-dev --mode standalone accerciser
+#   ./Source/Scripts/portage-ng-dev --mode standalone --shell
 #
 set -eu
-ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+
+# This script lives under Source/Scripts/, so the project root is two levels up.
+ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 
 exec swipl -O \
   --stack-limit=256G --table-space=256G --shared-table-space=256G \
