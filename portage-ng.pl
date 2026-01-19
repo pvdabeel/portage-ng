@@ -26,7 +26,7 @@ swipl
   -O                -> turns on Prolog performance optimizations
   --stack_limit=32G -> if you want to prove the all packages in the portage tree
                        you will need 32G stack space. Only needed in standalone
-		                  and server mode. Client mode works fine with default.
+		                   and server mode. Client mode works fine with default.
   --
   -f /Users/pvdabeel/Desktop/Prolog/portage-ng.pl  -> load the main file
   -p portage=/Users/pvdabeel/Desktop/Prolog        -> set application home
@@ -63,6 +63,14 @@ load_common_modules :-
    ensure_loaded(library('process')),
    ensure_loaded(library('thread')),
    ensure_loaded(library('ordsets')),
+   ensure_loaded(library('socket')),
+   ensure_loaded(library('assoc')),
+   ensure_loaded(library('apply')),
+   ensure_loaded(library('sort')),
+   ensure_loaded(library('pairs')), 
+   ensure_loaded(library('uri')),
+   ensure_loaded(library('pengines')),
+   ensure_loaded(library('solution_sequences')),
 
    ensure_loaded(portage('Source/context.pl')),
    ensure_loaded(portage('Source/config')),
@@ -90,7 +98,6 @@ load_client_modules :-
    ensure_loaded(library('http/http_ssl_plugin')),
    ensure_loaded(library('http/thread_httpd')),
    ensure_loaded(library('http/http_digest')),
-   ensure_loaded(library('pengines')),
 
    ensure_loaded(portage('Source/stubs.pl')),
    ensure_loaded(portage('Source/knowledgebase.pl')),
@@ -174,12 +181,13 @@ load_server_modules :-
 
 load_llm_modules :-
 
+   ensure_loaded(library(quasi_quotations)),
    ensure_loaded(library(http/http_open)),
    ensure_loaded(library(http/http_json)),
    ensure_loaded(library(edit)),
    ensure_loaded(library(pcre)),
    ensure_loaded(library(sandbox)),
-
+   
    ensure_loaded(portage('Source/llm.pl')),
    ensure_loaded(portage('Source/Llm/grok.pl')),
    ensure_loaded(portage('Source/Llm/chatgpt.pl')),
