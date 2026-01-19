@@ -69,7 +69,7 @@ interface:spec(S) :-
        [opt(style),     type(atom),      default('fancy'),                        longflags(['style']),     help('Set the printing style: fancy, column or short')],
        [opt(sync),      type(boolean),   default(false),                          longflags(['sync']),      help('Sync repository')],
        [opt(clear),     type(boolean),   default(false),                          longflags(['clear']),     help('Clear knowledge base')],
-       [opt(graph),     type(boolean),   default(false),                          longflags(['graph']),     help('Create graph')],
+       [opt(graph),     type(boolean),   default(false),                          longflags(['graph']),     help('Create graph. Optional arg: "modified" or "full" (overrides config.pl for this run).')],
        [opt(depclean),  type(boolean),   default(false),       shortflags(['c']), longflags(['depclean']),  help('Clean dependencies')],
        [opt(info),      type(boolean),   default(false),       shortflags(['i']), longflags(['info']),      help('Show package version')],
        [opt(bugs),      type(boolean),   default(false),                          longflags(['bugs']),      help('Print bug report drafts (Gentoo Bugzilla) for the given target, without printing a plan')],
@@ -202,7 +202,7 @@ interface:process_requests(Mode) :-
     memberchk(info(true),Options)     -> (interface:process_action(info,Args,Options),              Continue) ;
     memberchk(bugs(true),Options)     -> (interface:process_bugs(Args,Options),                     Continue) ;
     memberchk(clear(true),Options)    -> (kb:clear, 						    Continue) ;
-    memberchk(graph(true),Options)    -> (kb:graph,nl, 				  	            Continue) ;
+    memberchk(graph(true),Options)    -> (interface:process_graph(Args), nl, 				  	    Continue) ;
     memberchk(unmerge(true),Options)  -> (interface:process_action(uninstall,Args,Options), 	    Continue) ;
     memberchk(depclean(true),Options) -> (interface:process_action(depclean,Args,Options),         Continue) ;
     memberchk(upgrade(true),Options)  -> (interface:process_upgrade(Args,Options),                 Continue) ;
@@ -221,6 +221,36 @@ interface:process_requests(Mode) :-
     memberchk(shell(true),Options)    -> (message:logo(['::- portage-ng shell - ',Version]),	    prolog)),
 
   Continue.
+
+% -----------------------------------------------------------------------------
+%  Action: GRAPH (optional mode argument)
+% -----------------------------------------------------------------------------
+%
+% Usage:
+%   --graph            (uses config.pl)
+%   --graph modified   (override to modified-only for this run)
+%   --graph full       (override to graph everything for this run)
+%
+interface:process_graph([]) :-
+  kb:graph,
+  !.
+interface:process_graph([modified]) :-
+  setup_call_cleanup(
+    asserta(config:interface_graph_modified_only(true)),
+    kb:graph,
+    retractall(config:interface_graph_modified_only(_))
+  ),
+  !.
+interface:process_graph([full]) :-
+  setup_call_cleanup(
+    asserta(config:interface_graph_modified_only(false)),
+    kb:graph,
+    retractall(config:interface_graph_modified_only(_))
+  ),
+  !.
+interface:process_graph(Args) :-
+  message:warning(['--graph: ignoring unexpected args: ', Args]),
+  kb:graph.
 
 
 % -----------------------------------------------------------------------------

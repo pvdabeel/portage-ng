@@ -240,11 +240,15 @@ config:digest_passwordfile(Filename) :-
   os:compose_path([Dir,'Source/Certificates/passwordfile'],Filename).
 
 
-% -----------------------------------------------------------------------------
-% Graphing
-% -----------------------------------------------------------------------------
-
-%! config:graph_directory(?Hostname,?FullPath)
+ % -----------------------------------------------------------------------------
+ % Graphing
+ % -----------------------------------------------------------------------------
+ 
+ % Interface can dynamically override graphing behavior for a single run.
+ % (Used by CLI flags like --graph-modified / --graph-full.)
+ :- dynamic config:interface_graph_modified_only/1.
+ 
+ %! config:graph_directory(?Hostname,?FullPath)
 %
 % This application is capable of writing Graphviz dot files and will turn
 % them into interactive scalable vector graphics (svg) to enable you to
@@ -260,11 +264,14 @@ config:graph_directory('macbook-pro.local', '/Users/pvdabeel/Graph')  :- !.
 config:graph_directory('vm-linux.local',    '/root/Graph')            :- !.
 
 
-%! config:graph_modified_only(?Bool)
-%
-% Set when you want Graphviz dot file to be created for new ebuilds only
-
-config:graph_modified_only(true).
+ %! config:graph_modified_only(?Bool)
+ %
+ % Set when you want Graphviz dot file to be created for new ebuilds only
+ 
+ config:graph_modified_only(Bool) :-
+   config:interface_graph_modified_only(Bool),
+   !.
+ config:graph_modified_only(true).
 
 
 %! config:graph_dependency_type(?List)
