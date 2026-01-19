@@ -154,17 +154,19 @@ save ::-
 
 save ::-
   \+ proxy,!,
-  with_mutex(save,
-  (tell('kb.raw'),
-   format(':- module(cache,[]).\n'),
-   forall(current_predicate(cache:N/A),
-          (functor(H,N,A),
-           format(':- dynamic ~w/~w.\n',[N,A]),
-           forall(clause(cache:H,_),
-                 ( write_canonical(H),
-		   format('.\n'))))),
-   told,
-   qcompile('kb.raw'))),!.
+  working_directory(Cwd, Cwd),
+  os:with_system_lock(kb_save(Cwd),
+    with_mutex(save,
+      (tell('kb.raw'),
+       format(':- module(cache,[]).\n'),
+       forall(current_predicate(cache:N/A),
+              (functor(H,N,A),
+               format(':- dynamic ~w/~w.\n',[N,A]),
+               forall(clause(cache:H,_),
+                     ( write_canonical(H),
+		       format('.\n'))))),
+       told,
+       qcompile('kb.raw')))),!.
 
 
 %! knowledgebase:load

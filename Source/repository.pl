@@ -167,16 +167,22 @@ sync(repository) ::-
 
 sync(metadata) ::-
   ::type('eapi'),!,
-  message:hc,
-  ( config:trust_metadata(false)
-    -> (:update_cache,
-        concurrent_forall(:find_ebuild(E,_,_,_,_),
-                (:read_ebuild(E,Cd,_),
-                 :update_metadata(E,Cd),
-                 with_mutex(mutex,message:scroll(['Ebuild (local): ',E])))))
-    ; true ),
-  message:sc,
-  message:scroll(['Updated metadata.']),nl.
+  :this(Repository),
+  ::cache(Cache),
+  % System-wide lock: multiple portage-ng instances must not update the same
+  % on-disk metadata cache in parallel.
+  os:with_system_lock(repository_metadata_cache(Repository, Cache),
+    ( message:hc,
+      ( config:trust_metadata(false)
+        -> (:update_cache,
+            concurrent_forall(:find_ebuild(E,_,_,_,_),
+                    (:read_ebuild(E,Cd,_),
+                     :update_metadata(E,Cd),
+                     with_mutex(mutex,message:scroll(['Ebuild (local): ',E])))))
+        ; true ),
+      message:sc,
+      message:scroll(['Updated metadata.']),nl
+    )).
 
 
 sync(metadata) ::-
@@ -185,8 +191,12 @@ sync(metadata) ::-
   ::remote(Remote),
   ::cache(Cache),
   :this(Repository),
-  script:exec(cache,[Type,Repository,Remote,Local,Cache]),
-  message:scroll(['Updated metadata.']),nl.
+  % System-wide lock: multiple portage-ng instances must not update the same
+  % on-disk metadata cache in parallel.
+  os:with_system_lock(repository_metadata_cache(Repository, Cache),
+    ( script:exec(cache,[Type,Repository,Remote,Local,Cache]),
+      message:scroll(['Updated metadata.']),nl
+    )).
 
 
 %! repository:sync(kb)
