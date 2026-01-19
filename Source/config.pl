@@ -268,10 +268,24 @@ config:graph_directory('vm-linux.local',    '/root/Graph')            :- !.
  %
  % Set when you want Graphviz dot file to be created for new ebuilds only
  
- config:graph_modified_only(Bool) :-
-   config:interface_graph_modified_only(Bool),
-   !.
- config:graph_modified_only(true).
+% Note: call sites often query this as `config:graph_modified_only(true)` in an
+% if-then-else. Therefore this predicate must *not* have an unconditional
+% `.../1` clause that makes `config:graph_modified_only(true)` succeed when the
+% effective value is false.
+%
+% Resolution order:
+% - CLI/runtime override (dynamic) via config:interface_graph_modified_only/1
+% - Default (can be changed by editing config:graph_modified_only_default/1)
+config:graph_modified_only(Bool) :-
+  ( config:interface_graph_modified_only(Bool0) ->
+      Bool = Bool0
+  ; config:graph_modified_only_default(Bool)
+  ).
+
+% Default graphing behavior (when CLI didn't override):
+% true = graph only modified/new ebuilds
+% false = graph everything
+config:graph_modified_only_default(true).
 
 
 %! config:graph_dependency_type(?List)
