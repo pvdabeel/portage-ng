@@ -302,6 +302,39 @@ config:graph_legacy_type([emerge]).
 
 
 % -----------------------------------------------------------------------------
+% Graphing: static assets
+% -----------------------------------------------------------------------------
+%
+
+% When generating HTML (index pages + proofs) we copy a few static assets into the
+% repository graph directory (the dir created by repository:prepare_directory/1).
+%
+% Targets (fixed names in output directory):
+%
+% - .index.css   (used by printer:write_index_files/2 HTML)
+% - .proof.css   (used by Scripts/*/print-aha to render proof output)
+% - .meslo.ttf   (font used by proof rendering)
+%
+% Sources are configurable here (defaults are in Documentation/).
+
+%! config:graph_asset_source(+Key, -SourcePath)
+%
+% Returns the source path for a given asset key
+
+config:graph_asset_source(index_css, Source) :-
+  config:installation_dir(Dir),
+  os:compose_path([Dir,'Documentation/.index.css'], Source).
+
+config:graph_asset_source(proof_css, Source) :-
+  config:installation_dir(Dir),
+  os:compose_path([Dir,'Documentation/.proof.css'], Source).
+
+config:graph_asset_source(meslo_ttf, Source) :-
+  config:installation_dir(Dir),
+  os:compose_path([Dir,'Documentation/.meslo.ttf'], Source).
+
+
+% -----------------------------------------------------------------------------
 % Distfiles / mirrors (analysis + future downloader)
 % -----------------------------------------------------------------------------
 

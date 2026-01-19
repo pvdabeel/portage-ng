@@ -17,6 +17,8 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 
 :- module(repository,[]).
 
+:- use_module(library(filesex)).
+
 % =============================================================================
 %  REPOSITORY declarations
 % =============================================================================
@@ -620,7 +622,8 @@ prepare_directory(D) ::-
   os:compose_path(G,Repository,D),
   system:exists_directory(D),!,
   message:scroll_notice(['Directory already exists! Updating...']),
-  vdb:create_repository_dirs(Repository,D).
+  vdb:create_repository_dirs(Repository,D),
+  vdb:copy_graph_assets(D).
 
 prepare_directory(D) ::-
   :this(Repository),
@@ -629,7 +632,8 @@ prepare_directory(D) ::-
   os:compose_path(G,Repository,D),
   \+(system:exists_directory(D)),!,
   message:scroll_notice(['Directory does not exist! Creating...']),
-  vdb:make_repository_dirs(Repository,D).
+  vdb:make_repository_dirs(Repository,D),
+  vdb:copy_graph_assets(D).
 
 
 %! repository:graph
