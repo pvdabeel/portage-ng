@@ -1,0 +1,40 @@
+@font-face {
+  #src: url(".meslo.ttf");
+  font-family: "Helvetica";
+  font-style:  large;
+}
+
+
+body         {color: black; background-color: #f4f4f9; margin:40px; font: 0.8rem "Helvetica";}
+.reset       {color: white;}
+.bg-reset    {background-color: black;}
+.inverted    {color: black;}
+.bg-inverted {background-color: white;}
+.dimgray     {color: dimgray;}
+.red         {color: red; filter: contrast(70%) brightness(100%);}
+.green       {color: green; filter: brightness(140%);}
+.yellow      {color: yellow; filter: brightness(80%);}
+.blue        {color: #3333FF;}
+.purple      {color: magenta; filter: brightness(160%)}
+.cyan        {color: cyan; filter: brightness(140%);}
+.white       {color: white;}
+.bg-black    {background-color: black;}
+.bg-red      {background-color: red;}
+.bg-green    {background-color: lime;}
+.bg-yellow   {background-color: yellow;}
+.bg-blue     {background-color: #3333FF;}
+.bg-purple   {background-color: fuchsia;}
+.bg-cyan     {background-color: aqua;}
+.bg-white    {background-color: white;}
+.underline   {text-decoration: underline;}
+.bold        {font-weight: bold; filter: contrast(90%) brightness(200%);}
+.italic      {font-style: italic; filter: brightness(70%);}
+.blink       {text-decoration: blink;}
+.crossed-out {text-decoration: line-through;}
+.highlighted {filter: contrast(70%) brightness(150%);}
+.element     {padding:10px; background-color:#fff; border-radius:5px;box-shadow: 0 2px 4px rgba(0,0,0,0.1);}
+ul 	     {list-style-type: none;padding: 0;}
+li           {margin: 10px 0;}
+a            {text-decoration: none;}
+a:visited    {color: blue;}
+h1           {font-size: 20px!important}
