@@ -302,6 +302,40 @@ config:graph_legacy_type([emerge]).
 
 
 % -----------------------------------------------------------------------------
+% Distfiles / mirrors (analysis + future downloader)
+% -----------------------------------------------------------------------------
+
+
+%! config:mirror_root(?Path)
+%
+% Default paths used by mirror:test_stats/1 and related tooling.
+% These can be overridden at call-site (mirror:test_stats/2), but having a single
+% source of truth here makes behavior consistent across CLI and scripts.
+%
+% - mirror_root/1: hashed distfiles mirror root (GLEP 75 layout.conf aware)
+% - distdir/1: local flat distfiles directory (typical Gentoo: /var/cache/distfiles)
+
+config:mirror_root('/Volumes/Storage/Distfiles/distfiles').
+
+%! config:distdir(?Path)
+%
+% Gentoo default is usually /var/cache/distfiles. If you use /usr/portage/distfiles,
+% override here.
+
+config:distdir('/var/cache/distfiles').
+
+%! config:mirror_verify_hashes_default(?Policy)
+%
+% Default hash verification policy for mirror:test_stats:
+%
+% - none: only check existence + size
+% - sample(N): verify hashes for the first N unique distfiles (fast sanity)
+% - all: verify hashes for all unique distfiles (expensive)
+
+config:mirror_verify_hashes_default(none).
+
+
+% -----------------------------------------------------------------------------
 % Proving
 % -----------------------------------------------------------------------------
 
