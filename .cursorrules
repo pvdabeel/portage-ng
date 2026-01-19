@@ -3,13 +3,27 @@ This repository is a SWI-Prolog application (portage-ng).
 ## How to run (IMPORTANT)
 - Do NOT run ad-hoc `swipl -g "..."` snippets; they often miss required operator defs, libraries, and module load order.
 - Always launch via the project wrapper (project root):
-  - `./portage-ng-dev --mode standalone <target>`
-  - `./portage-ng-dev --mode standalone --shell`
-  - Non-interactive / CI-style: `./portage-ng-dev --mode standalone --ci <target>`
+  - `./Source/Scripts/portage-ng-dev --mode standalone <target>`
+  - `./Source/Scripts/portage-ng-dev --mode standalone --shell`
+  - Non-interactive / CI-style: `./Source/Scripts/portage-ng-dev --mode standalone --ci <target>`
     Exit codes:
       - 0 = no assumptions
       - 1 = only prover cycle-break assumptions
       - 2 = any domain assumptions (e.g. missing/non-existent deps)
+
+### Preferred scripted workflow (here-doc “piping”)
+For quick iteration and for reproducible debugging, prefer running a *scripted* Prolog session via `--shell` and a here-doc:
+
+```sh
+./Source/Scripts/portage-ng-dev --mode standalone --shell --time-limit 60 <<'PL'
+prover:test_stats(portage).
+% Any other queries you want:
+% prover:test_stats_pkgs(portage, ['kde-apps'-'kde-apps-meta']).
+halt.
+PL
+```
+
+This keeps the full project load graph intact (same as interactive `--shell`), while letting you run multi-line “scripts” non-interactively.
 
 The canonical load graph for standalone is in `portage-ng.pl`:
 - `load_common_modules/0`
