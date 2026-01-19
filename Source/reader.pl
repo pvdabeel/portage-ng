@@ -47,7 +47,7 @@ reader:invoke(_, []) :-
 % strings
 
 reader:read_lines_to_strings(Stream, Lines) :-
-  system:read_line_to_string(Stream, L),
+  read_line_to_string(Stream, L),
   ( L == end_of_file
     ->  Lines = []
     ;   Lines = [L|Rest],
@@ -59,7 +59,7 @@ reader:read_lines_to_strings(Stream, Lines) :-
 % Given a stream, reads all lines from the stream and returns as a list of codes
 
 reader:read_lines_to_codes(Stream, Lines) :-
-  system:read_line_to_codes(Stream, L),
+  read_line_to_codes(Stream, L),
   ( L == end_of_file
     ->  Lines = []
     ;   Lines = [L|Rest],
