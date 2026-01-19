@@ -3,6 +3,58 @@
 # ${1} = remote
 # ${2} = local
 
+set -euo pipefail
+
+sync_lock_acquire() {
+  local local_dir="$1"
+  local lock_base lock_dir meta pid ts now timeout stale waited
+  lock_base=$(printf '%s' "$local_dir" | sed 's#[^A-Za-z0-9._-]#_#g')
+  lock_dir="/tmp/portage-ng-sync-${lock_base}.lock"
+  meta="${lock_dir}/meta"
+  timeout="${PORTAGE_NG_SYNC_LOCK_TIMEOUT:-600}"
+  stale="${PORTAGE_NG_SYNC_LOCK_STALE:-7200}"
+  waited=0
+
+  while true; do
+    if mkdir "$lock_dir" 2>/dev/null; then
+      ts=$(date +%s)
+      printf 'pid=%s\ncreated_at=%s\ncwd=%s\nlocal_dir=%s\n' "$$" "$ts" "$(pwd)" "$local_dir" >"$meta" 2>/dev/null || true
+      trap "rm -rf \"$lock_dir\"" EXIT INT TERM HUP
+      return 0
+    fi
+
+    pid=""
+    ts=""
+    if [ -f "$meta" ]; then
+      pid=$(sed -n 's/^pid=//p' "$meta" | head -n1)
+      ts=$(sed -n 's/^created_at=//p' "$meta" | head -n1)
+    fi
+
+    now=$(date +%s)
+    if [ -n "${pid:-}" ] && ! kill -0 "$pid" 2>/dev/null; then
+      # stale/dead lock: remove and retry
+      rm -rf "$lock_dir" 2>/dev/null || true
+      continue
+    fi
+
+    if [ -n "${ts:-}" ] && [ "$stale" -gt 0 ] && [ $((now - ts)) -ge "$stale" ]; then
+      # stale lock: remove and retry
+      rm -rf "$lock_dir" 2>/dev/null || true
+      continue
+    fi
+
+    if [ "$timeout" -ge 0 ] && [ "$waited" -ge "$timeout" ]; then
+      echo "portage-ng sync lock busy ($lock_dir); timed out after ${timeout}s" >&2
+      exit 75
+    fi
+
+    sleep 1
+    waited=$((waited + 1))
+  done
+}
+
+sync_lock_acquire "${2}"
+
 if [ -d "${2}" ]; then 
   git -C "${2}" pull --no-rebase
 else
