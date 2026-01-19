@@ -241,16 +241,16 @@ planner:test(Repository) :- config:test_style(Style), planner:test(Repository,St
 planner:test(Repository,Style) :-
   config:proving_target(Action),
   tester:test(Style, 'Planning', Repository://Entry, (Repository:entry(Entry)),
-    ( with_q(prover:prove(Repository://Entry:Action?{[]},t,Proof,t,_Model,t,_Constraint,t,Triggers)),
-      with_q(planner:plan(Proof,Triggers,t,_Plan,_Remainder))
+    ( prover:prove(Repository://Entry:Action?{[]},t,Proof,t,_Model,t,_Constraint,t,Triggers),
+      planner:plan(Proof,Triggers,t,_Plan,_Remainder)
     )).
 planner:test_latest(Repository) :- config:test_style(Style), planner:test_latest(Repository,Style).
 planner:test_latest(Repository,Style) :-
   config:proving_target(Action),
   tester:test(Style, 'Planning latest', Repository://Entry,
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
-              ( with_q(prover:prove(Repository://Entry:Action?{[]},t,Proof,t,_Model,t,_Constraint,t,Triggers)),
-                    with_q(planner:plan(Proof,Triggers,t,_Plan,_Remainder))
+              ( prover:prove(Repository://Entry:Action?{[]},t,Proof,t,_Model,t,_Constraint,t,Triggers),
+                planner:plan(Proof,Triggers,t,_Plan,_Remainder)
               )).
 
 % -----------------------------------------------------------------------------
@@ -273,8 +273,8 @@ planner:test_stats(Repository, Style) :-
               'Planning',
               Repository://Entry,
               (Repository:entry(Entry)),
-              ( with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
-                with_q(planner:plan(ProofAVL,Triggers,t,_Plan,_Remainder)),
+              ( prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers),
+                planner:plan(ProofAVL,Triggers,t,_Plan,_Remainder),
                 printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
               )),
   printer:test_stats_print.

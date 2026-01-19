@@ -57,6 +57,7 @@ interface:spec(S) :-
        [opt(fetchonly), type(boolean),   default(false),       shortflags(['f']), longflags(['fetchonly']), help('Turn on fetchonly mode')],
        [opt(merge),     type(boolean),   default(true),        shortflags(['m']), longflags(['merge']),     help('Merge target package')],
        [opt(update),    type(boolean),   default(false),       shortflags(['u']), longflags(['update']),    help('Update target package')],
+       [opt(upgrade),   type(boolean),   default(false),                          longflags(['upgrade']),   help('Upgrade set (default: @world): first compute a fresh plan under --emptytree, then run depclean')],
        [opt(deep),      type(boolean),   default(false),       shortflags(['d']), longflags(['deep']),      help('Also consider dependencies')],
        [opt(delay_triggers), type(boolean), default(false),                        longflags(['delay-triggers']), help('Prover optimization: delay trigger construction (replaces old --deep prover behavior)')],
        [opt(emptytree), type(boolean),   default(false),       shortflags(['e']), longflags(['emptytree']), help('Pretend no other packages are installed')],
@@ -80,7 +81,6 @@ interface:spec(S) :-
        [opt(host),      type(atom),      default(Hostname),                       longflags(['host']),      help('Set server hostname (client mode)')],
        [opt(port),      type(integer),   default(4000),                           longflags(['port']),      help('Set Server port (client or server mode)')],
        [opt(shell),     type(boolean),   default(false),                          longflags(['shell']),     help('Go to shell')],
-       [opt(cursortest),type(atom),      default(''),                             longflags(['cursortest']),help('Load a Prolog file and run cursortest/0 (or cursortest/1) in it; remaining args are passed as a list to cursortest/1')],
        [opt(save),      type(boolean),   default(false),                          longflags(['save']),      help('Save knowledgebase (only relevant in client mode')],
        [opt(load),      type(boolean),   default(false),                          longflags(['load']),      help('Load knowledgebase (only relevant in client mode)')],
        [opt(version),   type(boolean),   default(false),       shortflags(['V']), longflags(['version']),   help('Show version')],
@@ -201,12 +201,11 @@ interface:process_requests(Mode) :-
   ( memberchk(version(true),Options)  -> (message:logo(['::- portage-ng ',Version]),                Continue) ;
     memberchk(info(true),Options)     -> (interface:process_action(info,Args,Options),              Continue) ;
     memberchk(bugs(true),Options)     -> (interface:process_bugs(Args,Options),                     Continue) ;
-    memberchk(cursortest(File0),Options), File0 \== '' ->
-                                      interface:process_cursortest(File0, Args) ;
     memberchk(clear(true),Options)    -> (kb:clear, 						    Continue) ;
     memberchk(graph(true),Options)    -> (kb:graph,nl, 				  	            Continue) ;
     memberchk(unmerge(true),Options)  -> (interface:process_action(uninstall,Args,Options), 	    Continue) ;
     memberchk(depclean(true),Options) -> (interface:process_action(depclean,Args,Options),         Continue) ;
+    memberchk(upgrade(true),Options)  -> (interface:process_upgrade(Args,Options),                 Continue) ;
     % For a single target, Portage-style update behaves like a normal merge:
     % resolve full runtime closure and perform a transactional replace if needed.
     % In portage-ng the "full closure" corresponds to proving :run.
@@ -225,32 +224,29 @@ interface:process_requests(Mode) :-
 
 
 % -----------------------------------------------------------------------------
-%  Action: CURSORTEST
+%  Action: UPGRADE (emptytree + depclean, two-phase)
 % -----------------------------------------------------------------------------
 %
-% Developer workflow helper:
-%   portage-ng-dev --mode standalone --cursortest <file> [extra args...]
+% Minimal Portage-like "upgrade then depclean":
+% - Phase A: compute a fresh plan under emptytree (ignore installed shortcuts)
+% - Phase B: run depclean on the real installed graph (no emptytree)
 %
-% The given file is loaded (consulted) and then `cursortest/0` is called.
-% If only `cursortest/1` exists, it will be called as `cursortest(Args)`,
-% where Args is the list of remaining CLI arguments.
+% Note: upgrade should not modify @world; we enforce oneshot semantics here.
 %
-% Exit codes:
-%   0 = success
-%   1 = failure/false
-%   2 = exception
-%
-interface:process_cursortest(File, Args) :-
-  ensure_loaded(portage('Source/Cursor/cursor.pl')),
-  catch(
-    ( cursor:run(File, Args) ->
-        halt(0)
-    ;   halt(1)
+interface:process_upgrade(ArgsSets0, Options) :-
+  % Default roots: @world when no args are provided (Portage-like)
+  ( ArgsSets0 == [] -> ArgsSets = [world] ; ArgsSets = ArgsSets0 ),
+  setup_call_cleanup(
+    ( asserta(preference:local_flag(oneshot)),
+      asserta(preference:local_flag(emptytree))
     ),
-    E,
-    ( print_message(error, E),
-      halt(2)
-    )).
+    interface:process_action(run, ArgsSets, Options),
+    ( retractall(preference:local_flag(emptytree)),
+      retractall(preference:local_flag(oneshot))
+    )
+  ),
+  % Cleanup phase on the real VDB graph (depclean internally asserts local_flag(depclean))
+  interface:process_action(depclean, ArgsSets, Options).
 
 
 % -----------------------------------------------------------------------------
@@ -287,7 +283,7 @@ interface:process_bugs(ArgsSets, Options) :-
   ),
   ( Mode == 'client' ->
       client:rpc_execute(Host,Port,
-        ( oracle:with_q(prover:prove(Proposal,t,ProofAVL,t,_ModelAVL,t,_Constraint,t,_Triggers)),
+        ( prover:prove(Proposal,t,ProofAVL,t,_ModelAVL,t,_Constraint,t,_Triggers),
           interface:print_bugreport_drafts_from_proof(ProofAVL)
         ),
         Output),
@@ -391,9 +387,9 @@ interface:process_action(Action,ArgsSets,_Options) :-
    ;  true),
   (Mode == 'client' ->
     (client:rpc_execute(Host,Port,
-     (oracle:with_q(prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
-      oracle:with_q(planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0)),
-      oracle:with_q(scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder)),
+     (prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers),
+      planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0),
+      scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder),
       printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
       vdb:sync),
      Output),

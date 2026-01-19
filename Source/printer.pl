@@ -38,6 +38,11 @@ The Printer takes a plan from the Planner and pretty prints it.
 :- dynamic printer:test_stats_ctx_len_bin/2.     % CtxLen, Count (sampled)
 :- dynamic printer:test_stats_ctx_cost_model/3.  % SumMul, SumAdd, Samples (sampled)
 :- dynamic printer:test_stats_failed_entry/2.    % RepoEntry, Reason
+:- dynamic printer:test_stats_blocker_sp/3.      % Strength, Phase, Count
+:- dynamic printer:test_stats_blocker_cn/3.      % C, N, Count
+:- dynamic printer:test_stats_blocker_example/1. % Example term that failed to parse for breakdown
+:- dynamic printer:test_stats_blocker_reason/2.  % Reason, Count
+:- dynamic printer:test_stats_blocker_rp/3.      % Reason, Phase, Count
 
 printer:test_stats_reset(Label, ExpectedTotal) :-
   with_mutex(test_stats,
@@ -54,6 +59,11 @@ printer:test_stats_reset(Label, ExpectedTotal) :-
       retractall(printer:test_stats_ctx_len_bin(_,_)),
       retractall(printer:test_stats_ctx_cost_model(_,_,_)),
       retractall(printer:test_stats_failed_entry(_,_)),
+      retractall(printer:test_stats_blocker_sp(_,_,_)),
+      retractall(printer:test_stats_blocker_cn(_,_,_)),
+      retractall(printer:test_stats_blocker_example(_)),
+      retractall(printer:test_stats_blocker_reason(_,_)),
+      retractall(printer:test_stats_blocker_rp(_,_,_)),
       retractall(printer:test_stats_other_head(_,_)),
       retractall(printer:test_stats_pkg(_,_,_)),
       retractall(printer:test_stats_type_entry_mention(_,_,_)),
@@ -435,6 +445,73 @@ printer:test_stats_inc_other_head(Content) :-
       assertz(printer:test_stats_other_head(Key, N))
     )).
 
+% Record detailed stats for a single blocker assumption (per-occurrence).
+printer:test_stats_record_blocker_assumption(Content) :-
+  % Assumptions are typically wrapped as domain(X) by the proof key normalization.
+  ( Content = domain(X)      -> Content1 = X
+  ; Content = cycle_break(X) -> Content1 = X
+  ; Content1 = Content
+  ),
+  printer:collect_ctx_tags(Content1, Tags),
+  printer:unwrap_ctx_wrappers(Content1, Core),
+  % Blockers may appear as blocker(...)?{Ctx} or as blocker(...) (legacy/no ctx).
+  ( Core = blocker(Strength, Phase, C, N, _O2, _V2, _SlotReq2) ->
+      ( printer:test_stats_record_blocker_breakdown(Strength, Phase, C, N),
+        ( memberchk(assumption_reason(Reason), Tags) -> true ; Reason = unknown ),
+        printer:test_stats_inc_blocker_reason(Reason, Phase)
+      )
+  ; with_mutex(test_stats,
+      ( printer:test_stats_blocker_example(_) ->
+          true
+      ; assertz(printer:test_stats_blocker_example(Content1))
+      ))
+  ).
+
+% Some normalized assumptions can end up as nested ?/2 wrappers like:
+%   (blocker(...)?{Ctx1})?{Ctx2}
+% We only care about the core literal for breakdown purposes.
+printer:unwrap_ctx_wrappers('?'(Inner, _Ctx), Core) :-
+  !,
+  printer:unwrap_ctx_wrappers(Inner, Core).
+printer:unwrap_ctx_wrappers(Core, Core).
+
+printer:test_stats_record_blocker_breakdown(Strength, Phase, C, N) :-
+  with_mutex(test_stats,
+    ( ( retract(printer:test_stats_blocker_sp(Strength, Phase, Nsp0)) -> true ; Nsp0 = 0 ),
+      Nsp is Nsp0 + 1,
+      assertz(printer:test_stats_blocker_sp(Strength, Phase, Nsp)),
+      ( retract(printer:test_stats_blocker_cn(C, N, Ncn0)) -> true ; Ncn0 = 0 ),
+      Ncn is Ncn0 + 1,
+      assertz(printer:test_stats_blocker_cn(C, N, Ncn))
+    )).
+
+% Collect context tags from nested ?/2 wrappers.
+% Some normalized assumptions look like: (blocker(...)?{Ctx1})?{{}}
+printer:collect_ctx_tags('?'(Inner, Ctx0), Tags) :-
+  !,
+  printer:ctx_term_to_list(Ctx0, Tags0),
+  printer:collect_ctx_tags(Inner, Tags1),
+  append(Tags0, Tags1, Tags).
+printer:collect_ctx_tags(_Other, []).
+
+printer:ctx_term_to_list(Ctx0, Tags) :-
+  ( is_list(Ctx0) ->
+      Tags = Ctx0
+  ; Ctx0 =.. ['{}'|Tags] ->
+      true
+  ; Tags = []
+  ).
+
+printer:test_stats_inc_blocker_reason(Reason, Phase) :-
+  with_mutex(test_stats,
+    ( ( retract(printer:test_stats_blocker_reason(Reason, N0)) -> true ; N0 = 0 ),
+      N is N0 + 1,
+      assertz(printer:test_stats_blocker_reason(Reason, N)),
+      ( retract(printer:test_stats_blocker_rp(Reason, Phase, M0)) -> true ; M0 = 0 ),
+      M is M0 + 1,
+      assertz(printer:test_stats_blocker_rp(Reason, Phase, M))
+    )).
+
 printer:test_stats_record_entry(RepositoryEntry, _ModelAVL, ProofAVL, TriggersAVL, DoCycles) :-
   printer:test_stats_inc(processed),
   ( RepositoryEntry = Repo://Entry -> printer:test_stats_add_pkg(processed, Repo, Entry) ; true ),
@@ -457,7 +534,11 @@ printer:test_stats_record_entry(RepositoryEntry, _ModelAVL, ProofAVL, TriggersAV
             ( member(Content, Contents0),
               printer:assumption_type(Content, Type),
               printer:test_stats_inc_type(Type, occurrences, 1),
-              printer:test_stats_inc_type_entry_mention(Type, RepositoryEntry)
+              printer:test_stats_inc_type_entry_mention(Type, RepositoryEntry),
+              ( Type == blocker_assumption ->
+                  printer:test_stats_record_blocker_assumption(Content)
+              ; true
+              )
             ),
             TypesAll),
     forall((member(Content, Contents0), printer:assumption_type(Content, other)),
@@ -1015,6 +1096,71 @@ printer:test_stats_print(TopN) :-
              printer:test_stats_print_ranked_table_rows(PSorted, TopN, 1, W)
            )
          )),
+  % Detailed breakdown for blocker assumptions (if present).
+  ( printer:test_stats_type(blocker_assumption, occurrences, BlockOcc),
+    BlockOcc > 0 ->
+      nl,
+      message:header('Blocker assumptions (breakdown)'),
+      nl,
+      printer:test_stats_print_ranked_table_header('Strength/phase', 'Occ'),
+      printer:test_stats_blocker_sp_rows(SpSorted),
+      ( SpSorted == [] ->
+          writeln('  (none)'),
+          ( printer:test_stats_blocker_example(Ex) ->
+              format('  Note: could not parse blocker term for breakdown; example: ~q~n', [Ex])
+          ; true
+          )
+      ; printer:test_stats_table_width(Wsp),
+        printer:test_stats_print_ranked_table_rows(SpSorted, 10, 1, Wsp)
+      ),
+      nl,
+      message:header(['Top ',TopN,' blocker reasons']),
+      nl,
+      printer:test_stats_print_ranked_table_header('Reasons', 'Occ'),
+      printer:test_stats_blocker_reason_rows(ReasonRows),
+      ( ReasonRows == [] ->
+          writeln('  (none)')
+      ; printer:test_stats_table_width(Wbr),
+        printer:test_stats_print_ranked_table_rows(ReasonRows, TopN, 1, Wbr)
+      ),
+      nl,
+      message:header(['Top ',TopN,' blocker reasons (install)']),
+      nl,
+      printer:test_stats_print_ranked_table_header('Reasons', 'Occ'),
+      printer:test_stats_blocker_reason_phase_rows(install, RInstRows),
+      ( RInstRows == [] ->
+          writeln('  (none)')
+      ; printer:test_stats_table_width(Wbri),
+        printer:test_stats_print_ranked_table_rows(RInstRows, TopN, 1, Wbri)
+      ),
+      nl,
+      message:header(['Top ',TopN,' blocker reasons (run)']),
+      nl,
+      printer:test_stats_print_ranked_table_header('Reasons', 'Occ'),
+      printer:test_stats_blocker_reason_phase_rows(run, RRunRows),
+      ( RRunRows == [] ->
+          writeln('  (none)')
+      ; printer:test_stats_table_width(Wbrr),
+        printer:test_stats_print_ranked_table_rows(RRunRows, TopN, 1, Wbrr)
+      ),
+      nl,
+      message:header(['Top ',TopN,' most-blocking packages (C/N)']),
+      nl,
+      printer:test_stats_print_ranked_table_header('Packages', 'Occ'),
+      findall(OccCN-CN,
+              ( printer:test_stats_blocker_cn(Cb, Nb, OccCN),
+                atomic_list_concat([Cb,Nb], '/', CN)
+              ),
+              Cn0),
+      keysort(Cn0, CnAsc),
+      reverse(CnAsc, CnSorted),
+      ( CnSorted == [] ->
+          writeln('  (none)')
+      ; printer:test_stats_table_width(Wcn),
+        printer:test_stats_print_ranked_table_rows(CnSorted, TopN, 1, Wcn)
+      )
+  ; true
+  ),
   ( ( printer:test_stats_type(other, occurrences, OtherOcc), OtherOcc > 0 ) ->
       nl,
       findall(N-Key, printer:test_stats_other_head(Key, N), H0),
@@ -1064,6 +1210,33 @@ printer:test_stats_ctx_len_bucket(LenBins, Threshold, CountLe) :-
           ),
           Cnts),
   sum_list(Cnts, CountLe).
+
+printer:test_stats_blocker_sp_rows(SpSorted) :-
+  findall(Occ-Label,
+          ( printer:test_stats_blocker_sp(S, P, Occ),
+            format(atom(Label), '~w/~w', [S, P])
+          ),
+          Sp0),
+  keysort(Sp0, SpAsc),
+  reverse(SpAsc, SpSorted).
+
+printer:test_stats_blocker_reason_rows(RowsSorted) :-
+  findall(Occ-ReasonAtom,
+          ( printer:test_stats_blocker_reason(Reason, Occ),
+            format(atom(ReasonAtom), '~w', [Reason])
+          ),
+          R0),
+  keysort(R0, RAsc),
+  reverse(RAsc, RowsSorted).
+
+printer:test_stats_blocker_reason_phase_rows(Phase, RowsSorted) :-
+  findall(Occ-ReasonAtom,
+          ( printer:test_stats_blocker_rp(Reason, Phase, Occ),
+            format(atom(ReasonAtom), '~w', [Reason])
+          ),
+          R0),
+  keysort(R0, RAsc),
+  reverse(RAsc, RowsSorted).
 
 % Build rows for the ctx% share table.
 % Rows are keyed by percent*10 (integer) so the generic ranked-table printer can sort them.
@@ -3897,8 +4070,13 @@ printer:blocker_note_put(K-V, In, Out) :-
 
 printer:blocker_assumption_term(Content0, Strength, Phase, C, N, Origin) :-
   % With provenance context:
-  ( Content0 = blocker(Strength, Phase, C, N, _O, _V, _SlotReq)?{Ctx},
-    is_list(Ctx),
+  ( Content0 = '?'(blocker(Strength, Phase, C, N, _O, _V, _SlotReq), Ctx0),
+    ( is_list(Ctx0) ->
+        Ctx = Ctx0
+    ; Ctx0 =.. ['{}'|Ctx] ->
+        true
+    ; Ctx = []
+    ),
     ( memberchk(self(Origin), Ctx) -> true ; Origin = unknown )
   )
   ;
@@ -4016,9 +4194,9 @@ printer:write_package_index_file(Directory,Repository,Category,Name) :-
 printer:write_merge_file(Directory,Repository://Entry) :-
   Action = run,
   Extension = '.merge',
-  (with_q(prover:prove(Repository://Entry:Action?{[]},t,Proof,t,Model,t,_Constraints,t,Triggers)),
-   with_q(planner:plan(Proof,Triggers,t,Plan0,Remainder0)),
-   with_q(scheduler:schedule(Proof,Triggers,Plan0,Remainder0,Plan,_Remainder)),
+  (prover:prove(Repository://Entry:Action?{[]},t,Proof,t,Model,t,_Constraints,t,Triggers),
+   planner:plan(Proof,Triggers,t,Plan0,Remainder0),
+   scheduler:schedule(Proof,Triggers,Plan0,Remainder0,Plan,_Remainder),
    atomic_list_concat([Directory,'/',Entry,Extension],File)),
   (tell(File),
    set_stream(current_output,tty(true)), % otherwise we lose color
@@ -4035,9 +4213,9 @@ printer:write_merge_file(Directory,Repository://Entry) :-
 printer:write_fetchonly_file(Directory,Repository://Entry) :-
   Action = fetchonly,
   Extension = '.fetchonly',
-  (with_q(prover:prove(Repository://Entry:Action?{[]},t,Proof,t,Model,t,_Constraints,t,Triggers)),
-   with_q(planner:plan(Proof,Triggers,t,Plan0,Remainder0)),
-   with_q(scheduler:schedule(Proof,Triggers,Plan0,Remainder0,Plan,_Remainder)),
+  (prover:prove(Repository://Entry:Action?{[]},t,Proof,t,Model,t,_Constraints,t,Triggers),
+   planner:plan(Proof,Triggers,t,Plan0,Remainder0),
+   scheduler:schedule(Proof,Triggers,Plan0,Remainder0,Plan,_Remainder),
    atomic_list_concat([Directory,'/',Entry,Extension],File)),
   (tell(File),
    set_stream(current_output,tty(true)), % otherwise we lose color
@@ -4156,9 +4334,9 @@ printer:test(Repository,Style) :-
               (Repository:entry(Entry)),
               ( % --- REFACTORED LOGIC ---
                 % 1. Call prover and planner.
-                with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
-                with_q(planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0)),
-                with_q(scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder))
+                prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers),
+                planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0),
+                scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder)
                 % No conversion here! AVLs are kept as-is.
               ),
               % 2. Call the newly refactored print predicate.
@@ -4192,9 +4370,9 @@ printer:test_latest(Repository,Style) :-
               Repository://Entry,
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
               ( % --- REFACTORED LOGIC ---
-                with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)),
-                with_q(planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0)),
-                with_q(scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder))
+                prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers),
+                planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0),
+                scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder)
               ),
               ( printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, false),
                 printer:test_stats_set_current_entry(Repository://Entry),

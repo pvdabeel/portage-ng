@@ -142,9 +142,9 @@ scheduler:test(Repository) :-
 scheduler:test(Repository, Style) :-
   config:proving_target(Action),
   tester:test(Style, 'Scheduling', Repository://Entry, (Repository:entry(Entry)),
-    ( with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,_ModelAVL,t,_Constraint,t,TriggersAVL)),
-      with_q(planner:plan(ProofAVL,TriggersAVL,t,Plan0,Remainder0)),
-      with_q(scheduler:schedule(ProofAVL,TriggersAVL,Plan0,Remainder0,_Plan,_Remainder))
+    ( prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,_ModelAVL,t,_Constraint,t,TriggersAVL),
+      planner:plan(ProofAVL,TriggersAVL,t,Plan0,Remainder0),
+      scheduler:schedule(ProofAVL,TriggersAVL,Plan0,Remainder0,_Plan,_Remainder)
     )).
 
 %! scheduler:test_latest(+Repository)
@@ -160,9 +160,9 @@ scheduler:test_latest(Repository, Style) :-
   config:proving_target(Action),
   tester:test(Style, 'Scheduling latest', Repository://Entry,
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
-              ( with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,_ModelAVL,t,_Constraint,t,TriggersAVL)),
-                with_q(planner:plan(ProofAVL,TriggersAVL,t,Plan0,Remainder0)),
-                with_q(scheduler:schedule(ProofAVL,TriggersAVL,Plan0,Remainder0,_Plan,_Remainder))
+              ( prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,_ModelAVL,t,_Constraint,t,TriggersAVL),
+                planner:plan(ProofAVL,TriggersAVL,t,Plan0,Remainder0),
+                scheduler:schedule(ProofAVL,TriggersAVL,Plan0,Remainder0,_Plan,_Remainder)
               )).
 
 % -----------------------------------------------------------------------------
@@ -185,9 +185,9 @@ scheduler:test_stats(Repository, Style) :-
               'Scheduling',
               Repository://Entry,
               (Repository:entry(Entry)),
-              ( with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,TriggersAVL)),
-                with_q(planner:plan(ProofAVL,TriggersAVL,t,Plan0,Remainder0)),
-                with_q(scheduler:schedule(ProofAVL,TriggersAVL,Plan0,Remainder0,_Plan,_Remainder)),
+              ( prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,TriggersAVL),
+                planner:plan(ProofAVL,TriggersAVL,t,Plan0,Remainder0),
+                scheduler:schedule(ProofAVL,TriggersAVL,Plan0,Remainder0,_Plan,_Remainder),
                 printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, TriggersAVL, true)
               )),
   printer:test_stats_print.

@@ -804,7 +804,7 @@ prover:test(Repository,Style) :-
               'Proving',
               Repository://Entry,
               Repository:entry(Entry),
-              ( with_q(prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)) )).
+              ( prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_) )).
 
 %! prover:test_latest(+Repository)
 prover:test_latest(Repository) :-
@@ -818,7 +818,7 @@ prover:test_latest(Repository,Style) :-
               'Proving',
               Repository://Entry,
               ( Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_)) ),
-              ( with_q(prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)) )).
+              ( prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_) )).
 
 % -----------------------------------------------------------------------------
 %  Testing + statistics
@@ -857,7 +857,7 @@ prover:test_stats(Repository, Style, TopN) :-
               ( prover:test_stats_reset_counters,
                 statistics(inferences, I0),
                 statistics(walltime, [T0,_]),
-                ( with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)) ->
+                ( prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers) ->
                     Proved = true
                 ; Proved = false
                 ),
@@ -879,7 +879,7 @@ prover:test_stats(Repository, Style, TopN) :-
                 ; % strict failure: classify blocker vs other (best-effort)
                   ( current_predicate(rules:with_assume_blockers/1),
                     rules:with_assume_blockers(
-                      with_q(prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_))
+                      prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
                     ) ->
                       printer:test_stats_record_failed(blocker)
                   ; printer:test_stats_record_failed(other)
@@ -916,7 +916,7 @@ prover:test_stats_pkgs(Repository, Style, TopN, Pkgs) :-
               ( prover:test_stats_reset_counters,
                 statistics(inferences, I0),
                 statistics(walltime, [T0,_]),
-                ( with_q(prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)) ->
+                ( prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers) ->
                     Proved = true
                 ; Proved = false
                 ),
@@ -938,7 +938,7 @@ prover:test_stats_pkgs(Repository, Style, TopN, Pkgs) :-
                 ; % strict failure: classify blocker vs other (best-effort)
                   ( current_predicate(rules:with_assume_blockers/1),
                     rules:with_assume_blockers(
-                      with_q(prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_))
+                      prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
                     ) ->
                       printer:test_stats_record_failed(blocker)
                   ; printer:test_stats_record_failed(other)

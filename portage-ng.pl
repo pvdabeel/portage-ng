@@ -119,7 +119,6 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/repository.pl')),
    ensure_loaded(portage('Source/knowledgebase.pl')),
    ensure_loaded(portage('Source/query.pl')),
-   ensure_loaded(portage('Source/oracle.pl')),
 
    ensure_loaded(portage('Source/eapi.pl')),
    ensure_loaded(portage('Source/explainer.pl')),
@@ -225,7 +224,7 @@ main :-
   world:newinstance(set(File)),
   world:load,
   % prolog_history/1 can throw (or block) in non-interactive environments
-  % (e.g. when stdout/stderr are redirected for --cursortest).
+  % (e.g. when stdout/stderr are redirected in non-interactive/scripted runs).
   ( current_prolog_flag(tty, true) ->
       catch(prolog_history(enable), _E, true)
   ; true

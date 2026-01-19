@@ -137,7 +137,7 @@ sync ::-
  	 (message:header(['Syncing repository \"',Repository,'\"']),nl,
          Repository:sync)),!,
    vdb:sync,
-   oracle:vanish_q)).
+   true)).
 
 
 %! knowledgebase:save
