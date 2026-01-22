@@ -207,8 +207,8 @@ preference:init :-
 %
 % Fact which defines the default ACCEPT_KEYWORDS variable
 
-preference:default_accept_keywords(stable(amd64)).
 preference:default_accept_keywords(unstable(amd64)).
+preference:default_accept_keywords(stable(amd64)).
 
 
 %! preference:profile_use(?Use)
