@@ -143,6 +143,10 @@ config:gentoo_package_use('sys-kernel/gentoo-sources',    'symlink build').
 % Parity knobs discovered via emerge/merge corpus diffs:
 % Lapack in Portage commonly uses flexiblas + lapacke + deprecated together.
 config:gentoo_package_use('sci-libs/lapack',              'deprecated flexiblas lapacke').
+% And flexiblas typically uses openblas + system-blas + openmp, which pulls in
+% openblas and the aux wrapper package.
+config:gentoo_package_use('sci-libs/flexiblas',           'openblas openmp system-blas').
+config:gentoo_package_use('sci-libs/openblas',            'openmp -cpudetection -index64 -pthread -relapack -test').
 
 
 % -----------------------------------------------------------------------------
