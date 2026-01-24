@@ -577,7 +577,7 @@ update_metadata(Entry,Codes) ::-
   ::cache(Cache),
   os:compose_path(Cache,Entry,File),
   file_directory_name(File, Dir),
-  os:make_directory(Dir),
+  os:ensure_directory_path(Dir),
   tell(File),
   forall(member(Line,Codes),(atom_codes(Atom,Line),writeln(Atom))),
   told.
@@ -591,9 +591,10 @@ update_metadata(Entry,Codes) ::-
 
 update_cache ::-
   ::cache(Cache),
+  os:ensure_directory_path(Cache),
   forall(:find_category(Category),
          (os:compose_path(Cache,Category,Path),
-          os:make_directory(Path))).
+          os:ensure_directory_path(Path))).
 
 
 %! repository:read_time(-Time)
