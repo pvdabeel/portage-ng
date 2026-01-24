@@ -825,6 +825,17 @@ rule(use_conditional_group(positive,Use,_R://_E,Deps):Action?{Context},Condition
   memberchk(assumed(Use),Context),!,
   findall(D:Action?{Context},member(D,Deps),Conditions).
 
+% 1b. The USE is enabled globally (profile/env), but it is *not* an IUSE flag of
+% this ebuild (e.g. kernel_linux, elibc_glibc, userland_GNU). Gentoo allows such
+% conditionals; they are profile-driven, not package-driven.
+rule(use_conditional_group(positive,Use,R://E,Deps):Action?{Context},Conditions) :-
+  \+ Use =.. [minus,_],
+  preference:use(Use),
+  \+ ( query:search(iuse(Value), R://E),
+       eapi:strip_use_default(Value, Use) ),
+  !,
+  findall(D:Action?{Context}, member(D,Deps), Conditions).
+
 % 2. The USE is explicitely enabled, either by preference or ebuild -> process deps
 
 rule(use_conditional_group(positive,Use,R://E,Deps):Action?{Context},Conditions) :-
@@ -852,6 +863,23 @@ rule(use_conditional_group(positive,_Use,_R://_E,_):_?{_},[]) :-
 rule(use_conditional_group(negative,Use,_R://_E,Deps):Action?{Context},Conditions) :-
   memberchk(naf(use(Use)),Context),!,
   findall(D:Action?{Context},member(D,Deps),Conditions).
+
+% 1b. Explicitly disabled globally (profile/env), but not an IUSE flag.
+rule(use_conditional_group(negative,Use,R://E,Deps):Action?{Context},Conditions) :-
+  preference:use(minus(Use)),
+  \+ ( query:search(iuse(Value), R://E),
+       eapi:strip_use_default(Value, Use) ),
+  !,
+  findall(D:Action?{Context}, member(D,Deps), Conditions).
+
+% 1c. Default-off globally (not set), but not an IUSE flag.
+rule(use_conditional_group(negative,Use,R://E,Deps):Action?{Context},Conditions) :-
+  \+ preference:use(Use),
+  \+ preference:use(minus(Use)),
+  \+ ( query:search(iuse(Value), R://E),
+       eapi:strip_use_default(Value, Use) ),
+  !,
+  findall(D:Action?{Context}, member(D,Deps), Conditions).
 
 % 2. The USE is explicitely enabled, either by preference or ebuild -> process deps
 
@@ -1245,11 +1273,33 @@ rules:dep_rank(Context, Dep, Rank) :-
   rules:dep_intrinsic_rank(Dep, Base),
   Rank is Pref*1000000000 + Base.
 
+% De-prioritize dependencies that resolve to the current ebuild's own CN.
+% This matters for BDEPEND like:
+%   || ( >=dev-lang/go-... >=dev-lang/go-bootstrap-... )
+% where choosing `dev-lang/go` would force bootstrapping from itself.
+rules:dep_rank(Context, package_dependency(Phase,Strength,C,N,O,V,S,U), Rank) :-
+  ( rules:self_cn(Context, C, N) -> Base0 = -100000000 ; Base0 = 0 ),
+  ( is_preferred_dep(Context, package_dependency(Phase,Strength,C,N,O,V,S,U)) -> Pref = 1 ; Pref = 0 ),
+  rules:dep_intrinsic_rank(package_dependency(Phase,Strength,C,N,O,V,S,U), Base1),
+  Rank is Pref*1000000000 + Base0 + Base1,
+  !.
+
+rules:self_cn(Context, C, N) :-
+  memberchk(self(Repo://Id), Context),
+  query:search([category(C),name(N)], Repo://Id),
+  !.
+
 rules:dep_intrinsic_rank(required(Use), Rank) :-
   rules:use_rank(Use, Rank),
   !.
 rules:dep_intrinsic_rank(required(minus(Use)), Rank) :-
   rules:use_rank(Use, Rank),
+  !.
+rules:dep_intrinsic_rank(package_dependency(_Phase,_Strength,_C,N,_O,_V,_S,_U), Rank) :-
+  % Prefer bootstrap providers (e.g. go-bootstrap) over non-bootstrap alternatives.
+  ( atom_concat(_, '-bootstrap', N) -> Rank = 50000
+  ; Rank = 0
+  ),
   !.
 rules:dep_intrinsic_rank(_, 0).
 

@@ -114,7 +114,7 @@ config:gentoo_profile('default/linux/amd64/23.0/split-usr/no-multilib').
 %     -launcher (dbus-broker) and -introspection (glib stack)
 %     -systemd  (OpenRC profile expectations)
 %
-config:gentoo_env('USE', 'X alsa dbus truetype ssh -systemd -elogind -introspection -launcher -vala -llvm -svg -man -lua').
+config:gentoo_env('USE', 'X alsa dbus truetype ssh python mp3 -systemd -elogind -introspection -launcher -vala -llvm -svg -man -lua').
 
 % -----------------------------------------------------------------------------
 % Gentoo /etc/portage overrides (subset)
@@ -139,6 +139,10 @@ config:gentoo_package_use('www-client/links',            '-X -jpeg -png -tiff').
 config:gentoo_package_use('sys-libs/gdbm',               'berkdb').             % >=sys-libs/gdbm-1.26 berkdb
 config:gentoo_package_use('x11-wm/compiz-fusion',         'unsupported emerald').
 config:gentoo_package_use('sys-kernel/gentoo-sources',    'symlink build').
+
+% Parity knobs discovered via emerge/merge corpus diffs:
+% Lapack in Portage commonly uses flexiblas + lapacke + deprecated together.
+config:gentoo_package_use('sci-libs/lapack',              'deprecated flexiblas lapacke').
 
 
 % -----------------------------------------------------------------------------
