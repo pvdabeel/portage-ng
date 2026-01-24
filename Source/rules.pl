@@ -892,7 +892,7 @@ rule(use_conditional_group(negative,_,_://_,_),[]) :- !.
 % Exactly one of the dependencies in an exactly-one-of-group should be satisfied
 
 rule(exactly_one_of_group(Deps):Action?{Context},[D:Action?{Context}|NafDeps]) :-
-  prioritize_deps(Deps, SortedDeps),
+  prioritize_deps(Deps, Context, SortedDeps),
   member(D0, SortedDeps),
   rules:group_choice_dep(D0, D),
   findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
@@ -908,11 +908,20 @@ rule(exactly_one_of_group(Deps),[D|NafDeps]) :-
 % -----------------------------------------------------------------------------
 % At most one of the dependencies in an at-most-one-of-group should be satisfied
 
+% Allow choosing none (all negated) — Portage REQUIRED_USE '?? ( ... )' does NOT
+% require any of the flags to be enabled.
+rule(at_most_one_of_group(Deps):_Action?{_Context}, NafDeps) :-
+  findall(naf(N),(member(N,Deps)),NafDeps).
+
 rule(at_most_one_of_group(Deps):Action?{Context},[D:Action?{Context}|NafDeps]) :-
-  prioritize_deps(Deps, SortedDeps),
+  prioritize_deps(Deps, Context, SortedDeps),
   member(D0, SortedDeps),
   rules:group_choice_dep(D0, D),
   findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
+
+% Contextless variant: allow choosing none.
+rule(at_most_one_of_group(Deps), NafDeps) :-
+  findall(naf(N),(member(N,Deps)),NafDeps).
 
 rule(at_most_one_of_group(Deps),[D|NafDeps]) :-
   prioritize_deps(Deps, SortedDeps),
@@ -938,7 +947,7 @@ rules:group_choice_dep(D, D).
 % runtime clause below) does not record the chosen package_dependency/8 in the
 % model, which makes || ( ... ) disappear from dependency models.
 rule(any_of_group(Deps):config?{Context}, [D:config?{Context}]) :-
-  prioritize_deps(Deps, SortedDeps),
+  prioritize_deps(Deps, Context, SortedDeps),
   member(D0, SortedDeps),
   % In config phase we must prove the *package_dependency/8* term so it is
   % recorded in the model (AvlModel) and later extracted by query:model/2.
@@ -946,7 +955,7 @@ rule(any_of_group(Deps):config?{Context}, [D:config?{Context}]) :-
   !.
 
 rule(any_of_group(Deps):Action?{Context}, Conditions) :-
-  prioritize_deps(Deps, SortedDeps),
+  prioritize_deps(Deps, Context, SortedDeps),
   member(D0, SortedDeps),
   rules:group_choice_dep(D0, D),
   rule(D:Action?{Context}, Conditions),
@@ -986,6 +995,21 @@ rule(uri(_):_,[]) :- !.
 % -----------------------------------------------------------------------------
 %  Rule: Required use
 % -----------------------------------------------------------------------------
+
+% Context-aware REQUIRED_USE evaluation:
+% When the "current ebuild" is available via self(...) in the context (passed
+% from query:model(required_use(...))), treat requirements that are already
+% satisfied by effective USE (IUSE defaults + profile/env/package.use) as
+% non-assumptions. This prevents any_of_group/^^ groups from arbitrarily
+% enabling the first alternative.
+rule(required(Use):_?{Context},[Use]) :-
+  \+Use =.. [minus,_],
+  rules:effective_use_in_context(Context, Use, positive),
+  !.
+rule(required(minus(Use)):_?{Context},[minus(Use)]) :-
+  \+Use =.. [minus,_],
+  rules:effective_use_in_context(Context, Use, negative),
+  !.
 
 rule(required(minus(Use)),[minus(Use)]) :-
   \+Use =.. [minus,_],
@@ -1198,14 +1222,47 @@ query_search_version_select(Op, Ver, RepoEntry) :-
 % reduce the number of assumptions in the proof.
 
 prioritize_deps(Deps, SortedDeps) :-
-  partition(is_preferred_dep, Deps, Preferred, Others),
+  prioritize_deps(Deps, [], SortedDeps).
+
+prioritize_deps(Deps, Context, SortedDeps) :-
+  partition(is_preferred_dep(Context), Deps, Preferred, Others),
   append(Preferred, Others, SortedDeps).
 
-is_preferred_dep(required(Use)) :-
+is_preferred_dep(Context, required(Use)) :-
   Use \= minus(_),
-  preference:use(Use).
-is_preferred_dep(required(minus(Use))) :-
-  preference:use(minus(Use)).
+  ( preference:use(Use)
+  ; rules:effective_use_in_context(Context, Use, positive)
+  ),
+  !.
+is_preferred_dep(Context, required(minus(Use))) :-
+  ( preference:use(minus(Use))
+  ; rules:effective_use_in_context(Context, Use, negative)
+  ),
+  !.
+
+% Prefer any-of alternatives that are already installed.
+% This helps align Portage-like behavior for || groups that include a heavy
+% build-time tool (e.g. dev-lang/vala) versus a lighter already-installed
+% alternative (e.g. gobject-introspection).
+is_preferred_dep(_Context, package_dependency(_Phase,_Strength,C,N,O,V,_S,_U)) :-
+  query:search([repository(pkg),category(C),name(N),installed(true)], pkg://Installed),
+  ( O == none ; rules:query_search_version_select(O, V, pkg://Installed) ),
+  !.
+
+% Effective USE for the current ebuild (when we have `self(...)` in Context).
+% Helps REQUIRED_USE group choice: prefer alternatives already satisfied by the
+% current effective USE (profile/env/package.use), rather than forcing new flags.
+rules:effective_use_in_context(Context, Use, State) :-
+  ( memberchk(self(RepoEntry0), Context) ->
+      ( RepoEntry0 = Repo://Id -> true
+      ; RepoEntry0 = Repo//Id  -> true
+      )
+  ; nb_current(query_required_use_self, Repo://Id)
+  ),
+  query:search(iuse(RawIuse), Repo://Id),
+  eapi:strip_use_default(RawIuse, Use),
+  eapi:categorize_use_for_entry(RawIuse, Repo://Id, State, _Reason),
+  !.
 
 % -----------------------------------------------------------------------------
 %  Helper: add_self_to_dep_contexts

@@ -75,6 +75,7 @@ load_common_modules :-
    ensure_loaded(portage('Source/context.pl')),
    ensure_loaded(portage('Source/config')),
    ensure_loaded(portage('Source/os.pl')),
+   ensure_loaded(portage('Source/profile.pl')),
    ensure_loaded(portage('Source/interface.pl')),
    ensure_loaded(portage('Source/message.pl')),
    ensure_loaded(portage('Source/eapi.pl')),

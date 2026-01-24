@@ -114,7 +114,7 @@ config:gentoo_profile('default/linux/amd64/23.0/split-usr/no-multilib').
 %     -launcher (dbus-broker) and -introspection (glib stack)
 %     -systemd  (OpenRC profile expectations)
 %
-config:gentoo_env('USE', 'X alsa dbus truetype ssh -systemd -introspection -launcher').
+config:gentoo_env('USE', 'X alsa dbus truetype ssh -systemd -elogind -introspection -launcher -vala').
 
 % -----------------------------------------------------------------------------
 % Gentoo /etc/portage overrides (subset)

@@ -870,7 +870,8 @@ compile_query_compound(model(FullModel,required_use(Model),build_with_use(Input)
             cache:entry_metadata(Repo,Id,required_use,ReqUse),
             AllReqUse),
     prover:with_delay_triggers(
-      ( prover:prove_recursive(AllReqUse,t,AvlProof,t,AvlModel,t,_,t,_),
+      ( query:with_required_use_self(Repo://Id,
+          prover:prove_recursive(AllReqUse,t,AvlProof,t,AvlModel,t,_,t,_)),
         prover:prove_recursive(Input,AvlProof,_,AvlModel,AvlFullModel,t,_,t,_)
       )),
     findall(Key,
@@ -887,11 +888,29 @@ compile_query_compound(model(required_use(Model)), Repo://Id,
             cache:entry_metadata(Repo,Id,required_use,ReqUse),
             AllReqUse),
     prover:with_delay_triggers(
-      prover:prove_recursive(AllReqUse,t,_,t,AvlModel,t,_,t,_)),
+      query:with_required_use_self(Repo://Id,
+        prover:prove_recursive(AllReqUse,t,_,t,AvlModel,t,_,t,_))),
     findall(Key,
             (gen_assoc(Key,AvlModel,_Value),
    	     \+eapi:abstract_syntax_construct(Key)),
             Model) ) ) :- !.
+
+% -----------------------------------------------------------------------------
+%  Helpers: thread required_use "self" through proof
+% -----------------------------------------------------------------------------
+%
+% The REQUIRED_USE grammar contains pure boolean constraints over USE flags.
+% When proving it, we need access to the current ebuild to prefer alternatives
+% already satisfied by effective USE (IUSE defaults + profile/env/package.use).
+%
+query:with_required_use_self(Self, Goal) :-
+  ( nb_current(query_required_use_self, Old) -> HadOld = true ; HadOld = false ),
+  nb_setval(query_required_use_self, Self),
+  setup_call_cleanup(true,
+                     Goal,
+                     ( HadOld == true -> nb_setval(query_required_use_self, Old)
+                     ; nb_delete(query_required_use_self)
+                     )).
 
 compile_query_compound(model(dependency(Model,run)):config?{Context}, Repo://Id,
   ( findall(Dep:config?{Context},

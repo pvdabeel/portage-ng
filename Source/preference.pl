@@ -75,6 +75,7 @@ preference:default_env('ACCEPT_KEYWORDS', 'amd64 ~amd64').
 preference:default_env('PYTHON_SINGLE_TARGET', 'python3_13').
 preference:default_env('PYTHON_TARGETS', 'python3_13').
 preference:default_env('RUBY_TARGETS', 'ruby32 ruby33').
+preference:default_env('LUA_SINGLE_TARGET', 'lua5-4').
 % If you use a single Ruby target in Portage, set it here too:
 % preference:default_env('RUBY_SINGLE_TARGET', 'ruby33').
 
@@ -130,6 +131,7 @@ preference:use_expand_env('PYTHON_TARGETS',        python_targets).
 preference:use_expand_env('PYTHON_SINGLE_TARGET', python_single_target).
 preference:use_expand_env('RUBY_TARGETS',         ruby_targets).
 preference:use_expand_env('RUBY_SINGLE_TARGET',   ruby_single_target).
+preference:use_expand_env('LUA_SINGLE_TARGET',    lua_single_target).
 
 
 %! preference:env_accept_keywords_list(Keyword)
