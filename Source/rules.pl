@@ -1244,6 +1244,11 @@ is_preferred_dep(Context, required(minus(Use))) :-
 % This helps align Portage-like behavior for || groups that include a heavy
 % build-time tool (e.g. dev-lang/vala) versus a lighter already-installed
 % alternative (e.g. gobject-introspection).
+is_preferred_dep(_Context, package_dependency(_Phase,_Strength,_C,N,_O,_V,_S,_U)) :-
+  % Prefer *-bin alternatives in || groups to avoid pulling toolchains from source
+  % when Portage would use a prebuilt binary (e.g. zig-bin).
+  atom_concat(_, '-bin', N),
+  !.
 is_preferred_dep(_Context, package_dependency(_Phase,_Strength,C,N,O,V,_S,_U)) :-
   query:search([repository(pkg),category(C),name(N),installed(true)], pkg://Installed),
   ( O == none ; rules:query_search_version_select(O, V, pkg://Installed) ),

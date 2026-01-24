@@ -75,7 +75,11 @@ preference:default_env('ACCEPT_KEYWORDS', 'amd64 ~amd64').
 preference:default_env('PYTHON_SINGLE_TARGET', 'python3_13').
 preference:default_env('PYTHON_TARGETS', 'python3_13').
 preference:default_env('RUBY_TARGETS', 'ruby32 ruby33').
-preference:default_env('LUA_SINGLE_TARGET', 'lua5-4').
+% Match the Gentoo side we observed in `.emerge` outputs (e.g. luv prefers luajit).
+preference:default_env('LUA_SINGLE_TARGET', 'luajit').
+% Common USE_EXPAND knobs that influence large stacks.
+preference:default_env('LLVM_SLOT', '20').
+preference:default_env('VIDEO_CARDS', 'vmware').
 % If you use a single Ruby target in Portage, set it here too:
 % preference:default_env('RUBY_SINGLE_TARGET', 'ruby33').
 
@@ -132,6 +136,8 @@ preference:use_expand_env('PYTHON_SINGLE_TARGET', python_single_target).
 preference:use_expand_env('RUBY_TARGETS',         ruby_targets).
 preference:use_expand_env('RUBY_SINGLE_TARGET',   ruby_single_target).
 preference:use_expand_env('LUA_SINGLE_TARGET',    lua_single_target).
+preference:use_expand_env('LLVM_SLOT',            llvm_slot).
+preference:use_expand_env('VIDEO_CARDS',          video_cards).
 
 
 %! preference:env_accept_keywords_list(Keyword)

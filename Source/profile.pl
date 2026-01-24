@@ -231,9 +231,10 @@ make_defaults_kv(S, KV) :-
             sub_string(Line, _, After, 0, V0),
             normalize_space(string(K1), K0),
             normalize_space(string(V1), V0),
-            valid_key_string(K1),
+            strip_key_operator(K1, K1Base),
+            valid_key_string(K1Base),
             unquote(V1, V2),
-            string_upper(K1, KuStr),
+            string_upper(K1Base, KuStr),
             atom_string(K, KuStr),
             V = V2
           ),
@@ -249,6 +250,22 @@ valid_key_string(K1) :-
          ( code_type(C, alnum)
          ; C =:= 0'_
          )).
+
+% Handle make.defaults assignment operators like:
+%   USE+=...
+%   USE_EXPAND+=...
+%   VAR?=...
+%   VAR:=...
+% We already split at the first '=', so the operator (if present) is the last
+% character of the key string.
+strip_key_operator(K0, K) :-
+  ( sub_string(K0, 0, L, 0, K),
+    L > 0,
+    sub_string(K0, L, 1, 0, Op),
+    member(Op, ["+","?",":"])
+  -> true
+  ; K = K0
+  ).
 
 kv_add(K-V, KV0, KV) :-
   ( get_dict(K, KV0, Vs0) ->
