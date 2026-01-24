@@ -263,6 +263,22 @@ preference:init :-
 preference:default_accept_keywords(unstable(amd64)).
 preference:default_accept_keywords(stable(amd64)).
 
+%! preference:keyword_selection_mode(?Mode)
+%
+% Controls how accepted keywords influence version selection:
+%
+% - max_version   : Portage-like. Treat ACCEPT_KEYWORDS as a set; prefer the
+%                  highest version among all candidates that match any accepted
+%                  keyword.
+% - keyword_order : Legacy/experimental. Treat the enumeration order of
+%                  preference:accept_keywords/1 as a preference (e.g. stable
+%                  before unstable), even if a newer version exists under a
+%                  later keyword.
+%
+% NOTE: This affects how `rules.pl` enumerates dependency candidates.
+
+preference:keyword_selection_mode(max_version).
+
 
 %! preference:profile_use(?Use)
 %
