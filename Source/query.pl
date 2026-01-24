@@ -931,7 +931,13 @@ compile_query_compound(model(dependency(Model,install)):config?{Context}, Repo:/
   ( findall(Dep:config?{Context},
           ( cache:entry_metadata(Repo,Id,bdepend,Dep)
           ; cache:entry_metadata(Repo,Id,cdepend,Dep)
-          ; cache:entry_metadata(Repo,Id,depend,Dep) ),
+          ; cache:entry_metadata(Repo,Id,depend,Dep)
+          % Portage merges build-time dependencies as full packages, so their
+          % runtime deps must be present too. Including IDEPEND/RDEPEND here
+          % fixes missing transitive deps (e.g. python libs pulled via BDEPEND).
+          ; cache:entry_metadata(Repo,Id,idepend,Dep)
+          ; cache:entry_metadata(Repo,Id,rdepend,Dep)
+          ),
           Deps),
   prover:with_delay_triggers(
     prover:prove_recursive(Deps,t,_,t,AvlModel,t,_,t,_)),
