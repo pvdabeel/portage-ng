@@ -563,21 +563,11 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
   ->
     Conditions = []
   ;
-    ( preference:accept_keywords(K),
-      (memberchk(slot(C,N,Ss):{_}, Context) -> true ; true),
+    ( (memberchk(slot(C,N,Ss):{_}, Context) -> true ; true),
       merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
 
       % Candidate selection (portage / overlays)
-      ( Action \== run,
-        memberchk(self(SelfRepo0://SelfEntry0), Context),
-        query:search([category(C),name(N)], SelfRepo0://SelfEntry0)
-      ->
-        \+ preference:flag(emptytree),
-        query:search([name(N),category(C),keyword(K),installed(true)], FoundRepo://Candidate),
-        rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, Ss)
-      ; query:search([name(N),category(C),keyword(K)], FoundRepo://Candidate),
-        rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, Ss)
-      ),
+      rules:accepted_keyword_candidate(Action, C, N, SlotReq, Ss, Context, FoundRepo://Candidate),
 
       % Avoid resolving a dep to self unless candidate is already installed
       ( ( memberchk(self(_SelfRepo://SelfEntry1), Context)
@@ -648,6 +638,52 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps):Action?{[assumption_reason(Reason)|Context]})]
       )
     )
+  ).
+
+
+% -----------------------------------------------------------------------------
+%  Keyword-aware candidate enumeration (Portage-like)
+% -----------------------------------------------------------------------------
+%
+% Enumerate candidates that match any accepted keyword, in descending version
+% order, so the solver tries the best versions first but can backtrack to
+% older alternatives.
+
+rules:accepted_keyword_candidate(Action, C, N, SlotReq, Ss, Context, FoundRepo://Candidate) :-
+  ( preference:keyword_selection_mode(keyword_order) ->
+      % Legacy behavior: accept_keywords enumeration order is a preference.
+      preference:accept_keywords(K),
+      rules:query_keyword_candidate(Action, C, N, K, Context, FoundRepo://Candidate),
+      rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, Ss)
+  ; % Portage-like: union of accepted keywords, then choose max version first.
+    findall(FoundRepo0://Candidate0,
+            ( preference:accept_keywords(K0),
+              rules:query_keyword_candidate(Action, C, N, K0, Context, FoundRepo0://Candidate0),
+              rules:query_search_slot_constraint(SlotReq, FoundRepo0://Candidate0, Ss)
+            ),
+            Candidates0),
+    Candidates0 \== [],
+    sort(Candidates0, Candidates1),
+    predsort(rules:compare_candidate_version_desc, Candidates1, CandidatesSorted),
+    member(FoundRepo://Candidate, CandidatesSorted)
+  ).
+
+rules:query_keyword_candidate(Action, C, N, K, Context, FoundRepo://Candidate) :-
+  ( Action \== run,
+    memberchk(self(SelfRepo0://SelfEntry0), Context),
+    query:search([category(C),name(N)], SelfRepo0://SelfEntry0)
+  ->
+    \+ preference:flag(emptytree),
+    query:search([name(N),category(C),keyword(K),installed(true)], FoundRepo://Candidate)
+  ; query:search([name(N),category(C),keyword(K)], FoundRepo://Candidate)
+  ).
+
+rules:compare_candidate_version_desc(Delta, RepoA://IdA, RepoB://IdB) :-
+  cache:ordered_entry(RepoA, IdA, _Ca, _Na, VerA),
+  cache:ordered_entry(RepoB, IdB, _Cb, _Nb, VerB),
+  ( system:compare(>, VerA, VerB) -> Delta = (<)
+  ; system:compare(<, VerA, VerB) -> Delta = (>)
+  ; Delta = (=)
   ).
 
 
