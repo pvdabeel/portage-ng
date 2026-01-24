@@ -14,6 +14,8 @@ An implementation of a query language for the knowledge base
 
 :- module(query,[]).
 
+:- discontiguous compile_query_compound/3.
+
 % =============================================================================
 %  OPTIONAL RUNTIME CALLSITE STATS (debugging)
 % =============================================================================
@@ -577,21 +579,21 @@ compile_query_compound(select(version,equal,Ver), Repo://Id,
 
 compile_query_compound(select(version,smaller,ReqVer), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
-    system:compare(<,ProposedVersion,ReqVer) )) :- !.
+    eapi:version_compare(<,ProposedVersion,ReqVer) )) :- !.
 
 compile_query_compound(select(version,greater,ReqVer), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
-    system:compare(>,ProposedVersion,ReqVer) )) :- !.
+    eapi:version_compare(>,ProposedVersion,ReqVer) )) :- !.
 
 compile_query_compound(select(version,smallerequal,ReqVer), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
-    ( system:compare(<,ProposedVersion,ReqVer);
-      system:compare(=,ProposedVersion,ReqVer) ) )) :- !.
+    ( eapi:version_compare(<,ProposedVersion,ReqVer);
+      eapi:version_compare(=,ProposedVersion,ReqVer) ) )) :- !.
 
 compile_query_compound(select(version,greaterequal,ReqVer), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
-    ( system:compare(>,ProposedVersion,ReqVer);
-      system:compare(=,ProposedVersion,ReqVer) ) )) :- !.
+    ( eapi:version_compare(>,ProposedVersion,ReqVer);
+      eapi:version_compare(=,ProposedVersion,ReqVer) ) )) :- !.
 
 compile_query_compound(select(version,notequal,ReqVer), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
@@ -1233,24 +1235,24 @@ search(select(version,equal,Ver),Repo://Id) :-
 search(select(version,smaller,ReqVer),Repo://Id) :-
   !,
   cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
-  system:compare(<,ProposedVersion,ReqVer).
+  eapi:version_compare(<,ProposedVersion,ReqVer).
 
 search(select(version,greater,ReqVer),Repo://Id) :-
   !,
   cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
-  system:compare(>,ProposedVersion,ReqVer).
+  eapi:version_compare(>,ProposedVersion,ReqVer).
 
 search(select(version,smallerequal,ReqVer),Repo://Id) :-
   !,
   cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
-  ( system:compare(<,ProposedVersion,ReqVer);
-    system:compare(=,ProposedVersion,ReqVer) ).
+  ( eapi:version_compare(<,ProposedVersion,ReqVer);
+    eapi:version_compare(=,ProposedVersion,ReqVer) ).
 
 search(select(version,greaterequal,ReqVer),Repo://Id) :-
   !,
   cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
-  ( system:compare(>,ProposedVersion,ReqVer);
-    system:compare(=,ProposedVersion,ReqVer) ).
+  ( eapi:version_compare(>,ProposedVersion,ReqVer);
+    eapi:version_compare(=,ProposedVersion,ReqVer) ).
 
 search(select(version,notequal,ReqVer), Repo://Id) :-
   !,
