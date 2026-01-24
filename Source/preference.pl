@@ -60,6 +60,31 @@ preference:env_makeopts('-j36').
 
 preference:env_features('sign -ccache -buildpkg -sandbox -usersandbox -ebuild-locks parallel-fetch parallel-install').
 
+%! preference:default_env(+Name, -Value)
+%
+% Default values for Portage-like environment variables, used when the variable
+% is not set in the OS environment.
+%
+% This lets you mirror a Gentoo `emerge --info` snapshot in `preference.pl`
+% without having to export envvars before running portage-ng.
+
+preference:default_env('ACCEPT_KEYWORDS', 'amd64 ~amd64').
+preference:default_env('PYTHON_SINGLE_TARGET', 'python3_13').
+preference:default_env('PYTHON_TARGETS', 'python3_13').
+preference:default_env('RUBY_TARGETS', 'ruby32 ruby33').
+% If you use a single Ruby target in Portage, set it here too:
+% preference:default_env('RUBY_SINGLE_TARGET', 'ruby33').
+
+%! preference:getenv(+Name, -Value)
+%
+% Read an environment variable, falling back to preference:default_env/2.
+
+preference:getenv(Name, Value) :-
+  ( interface:getenv(Name, Value) ->
+      true
+  ; preference:default_env(Name, Value)
+  ).
+
 
 %! preference:env_use(?Use)
 %
@@ -67,10 +92,37 @@ preference:env_features('sign -ccache -buildpkg -sandbox -usersandbox -ebuild-lo
 % as read from the command line environment variable
 
 preference:env_use(Use) :-
-  interface:getenv('USE',Atom),
+  preference:getenv('USE',Atom),
   atom_codes(Atom,Codes),
   phrase(eapi:iuse(_://_,List),Codes),
   member(Use,List).
+
+%! preference:env_use_expand(Use)
+%
+% Import USE_EXPAND-like environment variables (e.g. RUBY_TARGETS="ruby33")
+% into portage-ng's USE flag space (e.g. ruby_targets_ruby33).
+%
+% This helps align portage-ng with Portage, where such variables influence USE
+% but are not necessarily present in the global USE envvar string.
+%
+% NOTE: This is a pragmatic approximation: Portage applies these per-package
+% based on IUSE_EXPAND. We model them as globally enabled flags.
+
+preference:env_use_expand(Use) :-
+  preference:use_expand_env(EnvVar, Prefix),
+  preference:getenv(EnvVar, Atom),
+  Atom \== '',
+  split_string(Atom, " ", " \t\n", Parts),
+  member(S, Parts),
+  S \== "",
+  atom_string(Token, S),
+  atomic_list_concat([Prefix, Token], '_', Use).
+
+% Minimal set needed for Python/Ruby parity in plans.
+preference:use_expand_env('PYTHON_TARGETS',        python_targets).
+preference:use_expand_env('PYTHON_SINGLE_TARGET', python_single_target).
+preference:use_expand_env('RUBY_TARGETS',         ruby_targets).
+preference:use_expand_env('RUBY_SINGLE_TARGET',   ruby_single_target).
 
 
 %! preference:env_accept_keywords_list(Keyword)
@@ -79,7 +131,7 @@ preference:env_use(Use) :-
 % as read from the command line environment variable
 
 preference:env_accept_keywords(Keyword) :-
-  interface:getenv('ACCEPT_KEYWORDS',Atom),
+  preference:getenv('ACCEPT_KEYWORDS',Atom),
   atom_codes(Atom,Codes),
   phrase(eapi:keywords(List),Codes),
   member(Keyword,List).
@@ -193,6 +245,7 @@ preference:init :-
   % 1. Set use flags
 
   forall(preference:env_use(Use),            (assertz(preference:local_env_use(Use)), assertz(preference:local_use(Use)))),
+  forall(preference:env_use_expand(Use),     (assertz(preference:local_env_use(Use)), assertz(preference:local_use(Use)))),
   forall(preference:profile_use(minus(Use)), (preference:local_use(Use);              assertz(preference:local_use(minus(Use))))),
   forall(preference:profile_use(Use),        (preference:local_use(minus(Use));       assertz(preference:local_use(Use)))),
 
