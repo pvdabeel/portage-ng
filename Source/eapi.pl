@@ -103,6 +103,80 @@ files.
 
 :- module(eapi, []).
 
+% -----------------------------------------------------------------------------
+%  Helper: Gentoo version comparison
+% -----------------------------------------------------------------------------
+%
+% Version terms are produced by `eapi:version2atom/5` and look like:
+%   [Nums, Alpha, Suffix, Full]
+%
+% We cannot rely on `system:compare/3` for ordering because suffixes like `-r11`
+% compare lexicographically (`-r11` < `-r3`), which breaks version constraints.
+%
+% This comparator implements a conservative ordering:
+% - Compare numeric components (list of integers) numerically (with 0 padding).
+% - Compare alpha part lexicographically.
+% - Compare suffix part lexicographically *without* trailing -rN.
+% - Compare trailing revision -rN numerically.
+%
+eapi:version_compare(Op, Proposed, Required) :-
+  eapi:version_key(Proposed, Kp),
+  eapi:version_key(Required, Kr),
+  compare(Op, Kp, Kr).
+
+eapi:version_key([Nums, Alpha, Suffix, Full], key(NumsNorm, AlphaS, BaseS, Rev, FullS)) :-
+  !,
+  eapi:nums_normalize(Nums, NumsNorm),
+  eapi:to_string(Alpha, AlphaS),
+  eapi:to_string(Suffix, SuffixS0),
+  eapi:split_revision(SuffixS0, BaseS, Rev),
+  eapi:to_string(Full, FullS).
+eapi:version_key(Other, key([0], '', '', 0, OtherS)) :-
+  eapi:to_string(Other, OtherS).
+
+eapi:nums_normalize(List0, List) :-
+  ( is_list(List0) ->
+      maplist(eapi:to_int0, List0, List)
+  ; List = [0]
+  ).
+
+eapi:to_int0(X, I) :-
+  ( integer(X) -> I = X
+  ; atom(X) -> ( atom_number(X, I) -> true ; I = 0 )
+  ; string(X) -> ( number_string(I, X) -> true ; I = 0 )
+  ; I = 0
+  ).
+
+eapi:to_string(X, S) :-
+  ( string(X) -> S = X
+  ; atom(X) -> atom_string(X, S)
+  ; number(X) -> number_string(X, S)
+  ; S = ''
+  ).
+
+eapi:split_revision(Suffix0, Base, Rev) :-
+  % Strip a final -rN, returning Base suffix and numeric revision.
+  eapi:to_string(Suffix0, Suffix),
+  ( findall(Pos, sub_string(Suffix, Pos, 2, _, "-r"), Positions0),
+    sort(Positions0, Positions1),
+    reverse(Positions1, Positions),
+    eapi:split_revision_at(Positions, Suffix, Base, Rev)
+  ->
+    true
+  ; Base = Suffix,
+    Rev = 0
+  ).
+
+eapi:split_revision_at([Pos|_Rest], Suffix, Base, Rev) :-
+  sub_string(Suffix, Pos, 2, After, "-r"),
+  sub_string(Suffix, _, After, 0, Digits),
+  Digits \== "",
+  catch(number_string(Rev, Digits), _, fail),
+  sub_string(Suffix, 0, Pos, _, Base),
+  !.
+eapi:split_revision_at([_|Rest], Suffix, Base, Rev) :-
+  eapi:split_revision_at(Rest, Suffix, Base, Rev).
+
 
 % =============================================================================
 %  EAPI declarations
@@ -2122,6 +2196,21 @@ eapi:categorize_use(Use,negative,default) :-
   \+(preference:use(minus(Use))),
   \+(printer:unify(plus(_),Use)),
   \+(printer:unify(minus(_),Use)),!.
+
+
+%! eapi:categorize_use_for_entry(+RawIuse, +Repo://Id, ?State, ?Reason)
+%
+% Like eapi:categorize_use/3, but honors per-package USE overrides (package.use).
+%
+eapi:categorize_use_for_entry(RawIuse, Repo://Id, State, Reason) :-
+  % Derive the plain flag name.
+  eapi:strip_use_default(RawIuse, Use),
+  cache:ordered_entry(Repo, Id, C, N, _),
+  ( preference:package_use_override(C, N, Use, State0) ->
+      State = State0,
+      Reason = package_use
+  ; eapi:categorize_use(RawIuse, State, Reason)
+  ).
 
 
 % -----------------------------------------------------------------------------
