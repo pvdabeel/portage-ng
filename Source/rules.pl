@@ -552,14 +552,14 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
     query:search([repository(pkg),category(C),name(N),installed(true)],
                  pkg://InstalledEntry),
     rules:query_search_slot_constraint(SlotReq, pkg://InstalledEntry, _),
-    !,
     rules:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps, pkg://InstalledEntry),
     % --newuse: do not "keep installed" if USE/IUSE has changed since the installed
     % package was built (Portage-like -N behavior).
     ( preference:flag(newuse) ->
         \+ rules:newuse_mismatch(pkg://InstalledEntry)
     ; true
-    )
+    ),
+    !   % commit to the first installed entry that satisfies constraints
   ->
     Conditions = []
   ;
@@ -1225,8 +1225,52 @@ prioritize_deps(Deps, SortedDeps) :-
   prioritize_deps(Deps, [], SortedDeps).
 
 prioritize_deps(Deps, Context, SortedDeps) :-
-  partition(is_preferred_dep(Context), Deps, Preferred, Others),
-  append(Preferred, Others, SortedDeps).
+  predsort(rules:compare_dep_rank(Context), Deps, SortedDeps).
+
+% Rank dependencies for deterministic group choice.
+% Primary signal: prefer deps that are already satisfied by effective USE /
+% preferences / installed packages.
+% Secondary signal: for selector-style flags, choose highest version/slot.
+rules:compare_dep_rank(Context, Delta, A, B) :-
+  rules:dep_rank(Context, A, Ra),
+  rules:dep_rank(Context, B, Rb),
+  compare(C, Rb, Ra), % descending
+  ( C == (<) -> Delta = (<)
+  ; C == (>) -> Delta = (>)
+  ; Delta = (=)
+  ).
+
+rules:dep_rank(Context, Dep, Rank) :-
+  ( is_preferred_dep(Context, Dep) -> Pref = 1 ; Pref = 0 ),
+  rules:dep_intrinsic_rank(Dep, Base),
+  Rank is Pref*1000000000 + Base.
+
+rules:dep_intrinsic_rank(required(Use), Rank) :-
+  rules:use_rank(Use, Rank),
+  !.
+rules:dep_intrinsic_rank(required(minus(Use)), Rank) :-
+  rules:use_rank(Use, Rank),
+  !.
+rules:dep_intrinsic_rank(_, 0).
+
+rules:use_rank(Use, Rank) :-
+  atom(Use),
+  ( rules:llvm_slot_rank(Use, Rank)
+  ; rules:lua_single_target_rank(Use, Rank)
+  ),
+  !.
+rules:use_rank(_, 0).
+
+rules:llvm_slot_rank(Use, Rank) :-
+  atom_concat('llvm_slot_', Suffix, Use),
+  catch(atom_number(Suffix, N), _, fail),
+  Rank is 100000 + N.
+
+rules:lua_single_target_rank(Use, Rank) :-
+  % lua-single flags show up as e.g. lua_single_target_lua5-4
+  atom_concat('lua_single_target_lua5-', Suffix, Use),
+  catch(atom_number(Suffix, N), _, fail),
+  Rank is 90000 + N.
 
 is_preferred_dep(Context, required(Use)) :-
   Use \= minus(_),
