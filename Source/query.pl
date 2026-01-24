@@ -894,7 +894,8 @@ compile_query_compound(model(required_use(Model)), Repo://Id,
 compile_query_compound(model(dependency(Model,run)):config?{Context}, Repo://Id,
   ( findall(Dep:config?{Context},
           ( cache:entry_metadata(Repo,Id,idepend,Dep)
-          ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
+          ; cache:entry_metadata(Repo,Id,rdepend,Dep)
+          ; cache:entry_metadata(Repo,Id,pdepend,Dep) ),
           Deps),
   prover:with_delay_triggers(
     prover:prove_recursive(Deps,t,_,t,AvlModel,t,_,t,_)),
@@ -926,7 +927,8 @@ compile_query_compound(model(dependency(Model,fetchonly)):config?{Context}, Repo
           ; cache:entry_metadata(Repo,Id,cdepend,Dep)
           ; cache:entry_metadata(Repo,Id,depend,Dep)
           ; cache:entry_metadata(Repo,Id,idepend,Dep)
-          ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
+          ; cache:entry_metadata(Repo,Id,rdepend,Dep)
+          ; cache:entry_metadata(Repo,Id,pdepend,Dep) ),
           Deps),
   prover:with_delay_triggers(
     prover:prove_recursive(Deps,t,_,t,AvlModel,t,_,t,_)),
