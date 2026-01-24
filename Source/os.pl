@@ -62,6 +62,14 @@ os:make_directory(Directory) :-
         _,
         true).
 
+%! os:ensure_directory_path(+Directory)
+%
+% Create Directory and missing parents (mkdir -p).
+% Wrapper around library(filesex):make_directory_path/1.
+
+os:ensure_directory_path(Directory) :-
+  catch(filesex:make_directory_path(Directory), _, true).
+
 
 %! os:contains(+File,+Directory)
 %
