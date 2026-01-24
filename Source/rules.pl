@@ -567,7 +567,16 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
 
       % Candidate selection (portage / overlays)
-      rules:accepted_keyword_candidate(Action, C, N, SlotReq, Ss, Context, FoundRepo://Candidate),
+      %
+      % CN-consistency: reuse an already-selected concrete entry when possible.
+      % This prevents scheduling multiple incompatible versions of the same (C,N)
+      % in a single plan (common in OCaml/Haskell stacks).
+      ( SlotReq = [slot(_)]
+      -> rules:accepted_keyword_candidate(Action, C, N, SlotReq, Ss, Context, FoundRepo://Candidate)
+      ;  rules:selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate)
+      -> true
+      ;  rules:accepted_keyword_candidate(Action, C, N, SlotReq, Ss, Context, FoundRepo://Candidate)
+      ),
 
       % Avoid resolving a dep to self unless candidate is already installed
       ( ( memberchk(self(_SelfRepo://SelfEntry1), Context)
@@ -583,7 +592,10 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       forall(member(package_dependency(Action,no,C,N,O,V,_,_), PackageDeps),
              rules:query_search_version_select(O, V, FoundRepo://Candidate)),
 
-      findall(U, member(package_dependency(Action,no,C,N,_O,_V,_,U),PackageDeps), MergedUse),
+      findall(U0, member(package_dependency(Action,no,C,N,_O,_V,_,U0),PackageDeps), MergedUse0),
+      append(MergedUse0, MergedUse),
+      % Enforce bracketed USE constraints (e.g. sys-devel/gcc[objc], python[xml(+)], foo[bar?]).
+      rules:candidate_satisfies_use_deps(Context, FoundRepo://Candidate, MergedUse),
       process_build_with_use(MergedUse,Context,NewContext,Constraints,FoundRepo://Candidate),
       process_slot(SlotReq,Ss,C,N,FoundRepo://Candidate,NewContext,NewerContext),
 
@@ -1491,6 +1503,124 @@ process_build_with_use(Directives, Context, [build_with_use(Result)|Context], Co
 %
 % Until we implement per-package USE evaluation, we keep these as context only.
 build_with_use_constraints(_, [], _) :- !.
+
+% -----------------------------------------------------------------------------
+%  Candidate USE-dependency enforcement (deps like pkg[foo], pkg[foo?], pkg[foo(+)])
+% -----------------------------------------------------------------------------
+%
+% The dependency atom USE-dependencies apply to the *child package* USE state,
+% not the global USE. We therefore verify that the chosen candidate's effective
+% USE satisfies these constraints.
+
+rules:candidate_satisfies_use_deps(_ParentContext, _Repo://_Entry, []) :- !.
+rules:candidate_satisfies_use_deps(ParentContext, Repo://Entry, [use(Directive, Default)|Rest]) :-
+  rules:use_dep_requirement(ParentContext, Directive, Default, Requirement),
+  rules:candidate_satisfies_use_requirement(Repo://Entry, Requirement),
+  rules:candidate_satisfies_use_deps(ParentContext, Repo://Entry, Rest).
+
+% Determine whether a USE-dependency imposes a concrete requirement.
+rules:use_dep_requirement(_Ctx, enable(Use), Default, requirement(enable, Use, Default)) :- !.
+rules:use_dep_requirement(_Ctx, disable(Use), Default, requirement(disable, Use, Default)) :- !.
+
+% [foo=] / [!foo=] depend on parent foo state; if unknown, fall back to default.
+rules:use_dep_requirement(Ctx, equal(Use), _Default, requirement(enable, Use, none)) :-
+  memberchk(assumed(Use), Ctx), !.
+rules:use_dep_requirement(Ctx, equal(Use), _Default, requirement(disable, Use, none)) :-
+  memberchk(assumed(minus(Use)), Ctx), !.
+rules:use_dep_requirement(_Ctx, equal(Use), _Default, requirement(enable, Use, none)) :-
+  preference:use(Use),
+  \+ preference:use(minus(Use)), !.
+rules:use_dep_requirement(Ctx, equal(Use), Default, requirement(disable, Use, Default)) :-
+  \+ memberchk(assumed(Use), Ctx),
+  \+ memberchk(assumed(minus(Use)), Ctx),
+  \+ preference:use(Use),
+  \+ preference:use(minus(Use)),
+  !.
+
+rules:use_dep_requirement(Ctx, inverse(Use), _Default, requirement(disable, Use, none)) :-
+  memberchk(assumed(Use), Ctx), !.
+rules:use_dep_requirement(Ctx, inverse(Use), _Default, requirement(enable, Use, none)) :-
+  memberchk(assumed(minus(Use)), Ctx), !.
+rules:use_dep_requirement(_Ctx, inverse(Use), _Default, requirement(disable, Use, none)) :-
+  preference:use(Use),
+  \+ preference:use(minus(Use)), !.
+rules:use_dep_requirement(Ctx, inverse(Use), Default, requirement(enable, Use, Default)) :-
+  \+ memberchk(assumed(Use), Ctx),
+  \+ memberchk(assumed(minus(Use)), Ctx),
+  \+ preference:use(Use),
+  \+ preference:use(minus(Use)),
+  !.
+
+% [foo?] / [!foo?] only constrain the child if the parent has a known state.
+rules:use_dep_requirement(Ctx, optenable(Use), _Default, requirement(enable, Use, none)) :-
+  ( memberchk(assumed(Use), Ctx)
+  ; preference:use(Use)
+  ),
+  !.
+rules:use_dep_requirement(_Ctx, optenable(_Use), _Default, none) :- !.
+
+rules:use_dep_requirement(Ctx, optdisable(Use), _Default, requirement(disable, Use, none)) :-
+  ( memberchk(assumed(minus(Use)), Ctx)
+  ; preference:use(minus(Use))
+  ),
+  !.
+rules:use_dep_requirement(_Ctx, optdisable(_Use), _Default, none) :- !.
+
+% Anything else we currently ignore.
+rules:use_dep_requirement(_Ctx, _Directive, _Default, none).
+
+rules:candidate_satisfies_use_requirement(_Repo://_Entry, none) :- !.
+rules:candidate_satisfies_use_requirement(Repo://Entry, requirement(Mode, Use, Default)) :-
+  rules:candidate_has_iuse_flag(Repo://Entry, Use),
+  ( Mode == enable
+  -> rules:candidate_effective_use_enabled(Repo://Entry, Use, Default)
+  ; Mode == disable
+  -> \+ rules:candidate_effective_use_enabled(Repo://Entry, Use, Default)
+  ).
+
+% Candidate must actually support the flag if it is mentioned in a dep atom.
+rules:candidate_has_iuse_flag(Repo://Entry, Use) :-
+  query:search(iuse(Raw), Repo://Entry),
+  eapi:strip_use_default(Raw, Use),
+  !.
+
+% Determine whether a flag is effectively enabled for a candidate.
+%
+% Priority:
+% 1. Per-package overrides from /etc/portage/package.use (modeled in preference.pl)
+% 2. Global USE from profile/make.conf (preference:use/1)
+% 3. IUSE default (+foo / -foo) when unconstrained
+rules:candidate_effective_use_enabled(Repo://Entry, Use, Default) :-
+  cache:ordered_entry(Repo, Entry, C, N, _),
+  ( preference:package_use_override(C, N, Use, positive) ->
+      true
+  ; preference:package_use_override(C, N, Use, negative) ->
+      fail
+  ; preference:use(Use) ->
+      true
+  ; preference:use(minus(Use)) ->
+      fail
+  ; % No explicit preference: fall back to IUSE defaults.
+    ( query:search(iuse(plus(Use)), Repo://Entry) ->
+        true
+    ; query:search(iuse(minus(Use)), Repo://Entry) ->
+        fail
+    ; % No default in IUSE: only enable if dep specifies a (+) default.
+      Default == positive
+    )
+  ).
+
+% -----------------------------------------------------------------------------
+%  CN-consistency reuse: pick already-selected entry when possible
+% -----------------------------------------------------------------------------
+
+rules:selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate) :-
+  memberchk(constraint(selected_cn(C,N):{ordset(SelectedSet)}), Context),
+  member(selected(FoundRepo, Candidate, ActSel, _CandVer, _Ss), SelectedSet),
+  % Be conservative: only reuse for install/run selection.
+  ( ActSel == Action ; (Action == run, ActSel == install) ),
+  cache:ordered_entry(FoundRepo, Candidate, C, N, _),
+  \+ preference:masked(FoundRepo://Candidate).
 
 % Helper predicate to collect all USE requirements into a single list
 collect_use_requirements([], []).
