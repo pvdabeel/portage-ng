@@ -21,6 +21,9 @@ The preferences module contains build specific preferences
 :- dynamic preference:local_accept_keywords/1.
 :- dynamic preference:local_flag/1.
 
+% Per-package USE overrides (from /etc/portage/package.use-like sources).
+:- dynamic preference:package_use_override/4. % Category, Name, Use, State(positive|negative)
+
 
 % =============================================================================
 %  PREFERENCE declarations
@@ -81,6 +84,10 @@ preference:default_env('RUBY_TARGETS', 'ruby32 ruby33').
 
 preference:getenv(Name, Value) :-
   ( interface:getenv(Name, Value) ->
+      true
+  ; current_predicate(config:gentoo_env/2),
+    config:gentoo_env(Name, Value),
+    Value \== '' ->
       true
   ; preference:default_env(Name, Value)
   ).
@@ -240,20 +247,108 @@ preference:flag(Flag) :-
 % Sets the active local use flags according to environment and profile defaults
 % We do this for both USE flags and ACCEPT_KEYWORDS
 
+%! preference:profile_use_terms(-Terms:list)
+%
+% Obtain profile-derived USE terms.
+%
+% If `config:gentoo_profile/1` is set and the Portage profile tree is available,
+% we derive these from Gentoo's inherited profile files via `profile.pl`.
+% Otherwise we fall back to the (legacy) static `preference:profile_use/1`
+% facts declared in this file.
+%
+preference:profile_use_terms(Terms) :-
+  findall(preference:profile_use(Use), preference:profile_override_use(Use), OverrideTerms),
+  ( config:gentoo_profile(ProfileRel),
+    catch(profile:profile_use_terms(ProfileRel, Terms0), _, fail) ->
+      append(Terms0, OverrideTerms, Terms)
+  ; findall(preference:profile_use(Use), preference:profile_use(Use), BaseTerms),
+    append(BaseTerms, OverrideTerms, Terms)
+  ).
+
+%! preference:profile_override_use(?Use)
+%
+% Extra USE defaults layered *after* the Gentoo profile (if any).
+% This is the right place for local policy tweaks that aren't encoded in the
+% selected Gentoo profile tree.
+%
+% (Kept small on purpose; add more only when required by parity checks.)
+%
+preference:profile_override_use(minus(introspection)).
+preference:profile_override_use(minus(launcher)).
+
 preference:init :-
+
+  % Reset derived state (important when regenerating lots of plans in one session).
+  retractall(preference:masked(_)),
+  retractall(preference:package_use_override(_,_,_,_)),
 
   % 1. Set use flags
 
   forall(preference:env_use(Use),            (assertz(preference:local_env_use(Use)), assertz(preference:local_use(Use)))),
   forall(preference:env_use_expand(Use),     (assertz(preference:local_env_use(Use)), assertz(preference:local_use(Use)))),
-  forall(preference:profile_use(minus(Use)), (preference:local_use(Use);              assertz(preference:local_use(minus(Use))))),
-  forall(preference:profile_use(Use),        (preference:local_use(minus(Use));       assertz(preference:local_use(Use)))),
+  preference:profile_use_terms(ProfileTerms),
+  forall(member(preference:profile_use(Term), ProfileTerms),
+         ( Term = minus(Use) ->
+             (preference:local_use(Use) ; assertz(preference:local_use(minus(Use))))
+         ; Use = Term,
+           (preference:local_use(minus(Use)) ; assertz(preference:local_use(Use)))
+         )),
 
   % 2. Set accept_keywords
 
    (preference:env_accept_keywords(_)
     -> forall(preference:env_accept_keywords(Key),      assertz(preference:local_accept_keywords(Key)))
-    ;  forall(preference:default_accept_keywords(Key),  assertz(preference:local_accept_keywords(Key)))).
+    ;  forall(preference:default_accept_keywords(Key),  assertz(preference:local_accept_keywords(Key)))),
+
+  % 3. Apply Gentoo /etc/portage overrides (package.mask / package.use).
+  %
+  % These affect candidate selection (masking) and per-package USE evaluation.
+  %
+  preference:apply_gentoo_package_mask,
+  preference:apply_gentoo_package_use.
+
+
+% -----------------------------------------------------------------------------
+%  Gentoo /etc/portage integration (subset)
+% -----------------------------------------------------------------------------
+
+preference:apply_gentoo_package_mask :-
+  ( current_predicate(config:gentoo_package_mask/1) ->
+      forall(config:gentoo_package_mask(Atom),
+             preference:mask_catpkg_atom(Atom))
+  ; true
+  ).
+
+preference:mask_catpkg_atom(Atom) :-
+  atom(Atom),
+  atomic_list_concat([C,N], '/', Atom),
+  % Mask all matching entries in the main repo (not VDB).
+  forall(cache:ordered_entry(portage, Id, C, N, _),
+         assertz(preference:masked(portage://Id))).
+
+
+preference:apply_gentoo_package_use :-
+  ( current_predicate(config:gentoo_package_use/2) ->
+      forall(config:gentoo_package_use(CNAtom, UseStr),
+             preference:register_package_use(CNAtom, UseStr))
+  ; true
+  ).
+
+preference:register_package_use(CNAtom, UseStr) :-
+  atom(CNAtom),
+  atomic_list_concat([C,N], '/', CNAtom),
+  atom_string(UseAtom, UseStr),
+  split_string(UseAtom, " ", " \t\r\n", Parts0),
+  exclude(=(""), Parts0, Parts),
+  forall(member(P, Parts),
+         ( sub_atom(P, 0, 1, _, '-') ->
+             sub_atom(P, 1, _, 0, Flag0),
+             Flag0 \== '',
+             atom_string(Flag, Flag0),
+             assertz(preference:package_use_override(C, N, Flag, negative))
+         ; atom_string(Flag, P),
+           assertz(preference:package_use_override(C, N, Flag, positive))
+         )).
 
 
 %! preference:default_accept_keywords(?Keyword)
@@ -277,6 +372,9 @@ preference:default_accept_keywords(stable(amd64)).
 %
 % NOTE: This affects how `rules.pl` enumerates dependency candidates.
 
+% For Portage parity with ACCEPT_KEYWORDS="amd64 ~amd64", Portage generally
+% treats both as accepted and prefers the highest version available (i.e. don't
+% artificially prefer stable over unstable when both are accepted).
 preference:keyword_selection_mode(max_version).
 
 
@@ -398,6 +496,13 @@ preference:profile_use('ipv6').
 preference:profile_use('jpeg').
 preference:profile_use('jpeg2k').
 preference:profile_use('json').
+% Many GNOME packages default to +introspection; the Gentoo profile used for
+% these comparisons disables it (see emerge plans). Mirror that here so portage-ng
+% does not pull in gobject-introspection unnecessarily.
+preference:profile_use(minus(introspection)).
+% `sys-apps/dbus-broker` defaults to +launcher, which pulls systemd. On OpenRC
+% profiles this is typically disabled, matching emerge plans.
+preference:profile_use(minus(launcher)).
 preference:profile_use('kernel_linux').
 preference:profile_use('lcd_devices_bayrad').
 preference:profile_use('lcd_devices_cfontz').
@@ -528,8 +633,6 @@ preference:use_expand_hidden('cpu_flags_ppc').
 
 % The prover uses the dynamic 'proven:broken/1' to mark some entries as broken
 % preference:masked(Repository://Entry) :- prover:broken(Repository://Entry).
-
-preference:masked(foo://bar).
 
 
 %! preference:set(?Name,?List)

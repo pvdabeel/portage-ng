@@ -81,6 +81,65 @@ config:trust_metadata(true).
 
 config:write_metadata(true).
 
+% -----------------------------------------------------------------------------
+% Gentoo profile (for Portage parity)
+% -----------------------------------------------------------------------------
+%
+% This is the Gentoo profile path *relative to the Portage tree profiles dir*.
+% Example: /usr/portage/profiles/<profile>.
+%
+% Used by `profile.pl` to generate `preference:profile_use/1` terms.
+%
+% NOTE: This is intentionally in config (host/system configuration), not in
+% preference (user/package preferences).
+
+config:gentoo_profile('default/linux/amd64/23.0/split-usr/no-multilib').
+
+% Optional: model selected Portage /etc/portage settings without exporting envvars.
+% If set, `preference:getenv/2` will consult these when the real environment
+% variable is absent.
+%
+% Example:
+%   config:gentoo_env('USE', 'X alsa dbus truetype -systemd -introspection -launcher').
+%
+% Leave unset (or empty) if you prefer to drive this via real envvars.
+
+% Proposed baseline USE to match the parity diffs we observed:
+% - Fixes major missing deps driven by disabled flags in portage-ng plans:
+%     X       -> xprop/xset/libXtst/... (e.g. xdg-utils, conky)
+%     alsa    -> alsa-lib/alsa-ucm-conf/... (e.g. flite)
+%     dbus    -> pulls dbus-related deps where emerge has dbus enabled
+%     truetype-> matches emerge defaults seen in conky
+% - Prevents the known large "extra in merge" chains:
+%     -launcher (dbus-broker) and -introspection (glib stack)
+%     -systemd  (OpenRC profile expectations)
+%
+config:gentoo_env('USE', 'X alsa dbus truetype ssh -systemd -introspection -launcher').
+
+% -----------------------------------------------------------------------------
+% Gentoo /etc/portage overrides (subset)
+% -----------------------------------------------------------------------------
+%
+% These mirror simple /etc/portage files from your Gentoo system.
+% Current scope:
+% - package.mask: simple cat/pkg atoms (all versions masked)
+% - package.use : per-package USE toggles (plus/minus)
+%
+% This is intentionally a small, explicit subset to improve parity without
+% pulling in the full Portage config stack.
+
+% /etc/portage/package.mask
+config:gentoo_package_mask('sys-apps/systemd').
+
+% /etc/portage/package.use
+config:gentoo_package_use('app-emulation/open-vm-tools', '-dnet -X -multimon resolutionkms').
+config:gentoo_package_use('app-editors/vim',             '-X').
+config:gentoo_package_use('dev-lang/swi-prolog',         '-X').
+config:gentoo_package_use('www-client/links',            '-X -jpeg -png -tiff').
+config:gentoo_package_use('sys-libs/gdbm',               'berkdb').             % >=sys-libs/gdbm-1.26 berkdb
+config:gentoo_package_use('x11-wm/compiz-fusion',         'unsupported emerald').
+config:gentoo_package_use('sys-kernel/gentoo-sources',    'symlink build').
+
 
 % -----------------------------------------------------------------------------
 % Pkg directory
@@ -243,11 +302,11 @@ config:digest_passwordfile(Filename) :-
  % -----------------------------------------------------------------------------
  % Graphing
  % -----------------------------------------------------------------------------
- 
+
  % Interface can dynamically override graphing behavior for a single run.
  % (Used by CLI flags like --graph-modified / --graph-full.)
  :- dynamic config:interface_graph_modified_only/1.
- 
+
  %! config:graph_directory(?Hostname,?FullPath)
 %
 % This application is capable of writing Graphviz dot files and will turn
@@ -267,7 +326,7 @@ config:graph_directory('vm-linux.local',    '/root/Graph')            :- !.
  %! config:graph_modified_only(?Bool)
  %
  % Set when you want Graphviz dot file to be created for new ebuilds only
- 
+
 % Note: call sites often query this as `config:graph_modified_only(true)` in an
 % if-then-else. Therefore this predicate must *not* have an unconditional
 % `.../1` clause that makes `config:graph_modified_only(true)` succeed when the

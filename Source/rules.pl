@@ -674,15 +674,17 @@ rules:query_keyword_candidate(Action, C, N, K, Context, FoundRepo://Candidate) :
     query:search([category(C),name(N)], SelfRepo0://SelfEntry0)
   ->
     \+ preference:flag(emptytree),
-    query:search([name(N),category(C),keyword(K),installed(true)], FoundRepo://Candidate)
-  ; query:search([name(N),category(C),keyword(K)], FoundRepo://Candidate)
+    query:search([name(N),category(C),keyword(K),installed(true)], FoundRepo://Candidate),
+    \+ preference:masked(FoundRepo://Candidate)
+  ; query:search([name(N),category(C),keyword(K)], FoundRepo://Candidate),
+    \+ preference:masked(FoundRepo://Candidate)
   ).
 
 rules:compare_candidate_version_desc(Delta, RepoA://IdA, RepoB://IdB) :-
   cache:ordered_entry(RepoA, IdA, _Ca, _Na, VerA),
   cache:ordered_entry(RepoB, IdB, _Cb, _Nb, VerB),
-  ( system:compare(>, VerA, VerB) -> Delta = (<)
-  ; system:compare(<, VerA, VerB) -> Delta = (>)
+  ( eapi:version_compare(>, VerA, VerB) -> Delta = (<)
+  ; eapi:version_compare(<, VerA, VerB) -> Delta = (>)
   ; Delta = (=)
   ).
 
@@ -827,7 +829,7 @@ rule(use_conditional_group(positive,Use,_R://_E,Deps):Action?{Context},Condition
 
 rule(use_conditional_group(positive,Use,R://E,Deps):Action?{Context},Conditions) :-
   query:search(iuse(Value), R://E),
-  eapi:categorize_use(Value,positive,_Reason),
+  eapi:categorize_use_for_entry(Value, R://E, positive, _Reason),
   eapi:strip_use_default(Value,Use),!,
   findall(D:Action?{Context},member(D,Deps),Result),
   Conditions = Result.
@@ -855,7 +857,7 @@ rule(use_conditional_group(negative,Use,_R://_E,Deps):Action?{Context},Condition
 
 rule(use_conditional_group(negative,Use,R://E,Deps):Action?{Context},Conditions) :-
   query:search(iuse(Value), R://E),
-  eapi:categorize_use(Value,negative,_Reason),
+  eapi:categorize_use_for_entry(Value, R://E, negative, _Reason),
   eapi:strip_use_default(Value,Use),!,
   findall(D:Action?{Context},member(D,Deps),Result),
   Conditions = Result.
@@ -891,7 +893,8 @@ rule(use_conditional_group(negative,_,_://_,_),[]) :- !.
 
 rule(exactly_one_of_group(Deps):Action?{Context},[D:Action?{Context}|NafDeps]) :-
   prioritize_deps(Deps, SortedDeps),
-  member(D, SortedDeps),
+  member(D0, SortedDeps),
+  rules:group_choice_dep(D0, D),
   findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
 
 rule(exactly_one_of_group(Deps),[D|NafDeps]) :-
@@ -907,7 +910,8 @@ rule(exactly_one_of_group(Deps),[D|NafDeps]) :-
 
 rule(at_most_one_of_group(Deps):Action?{Context},[D:Action?{Context}|NafDeps]) :-
   prioritize_deps(Deps, SortedDeps),
-  member(D, SortedDeps),
+  member(D0, SortedDeps),
+  rules:group_choice_dep(D0, D),
   findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
 
 rule(at_most_one_of_group(Deps),[D|NafDeps]) :-
@@ -921,9 +925,30 @@ rule(at_most_one_of_group(Deps),[D|NafDeps]) :-
 % -----------------------------------------------------------------------------
 % One dependency of an any_of_group should be satisfied
 
+% When resolving dependency groups at Action time, group choices that are plain
+% package_dependency/8 terms must be lifted into grouped_package_dependency/4,
+% because the actual resolution logic lives in grouped_package_dependency rules.
+rules:group_choice_dep(package_dependency(Phase,Strength,C,N,O,V,S,U),
+                       grouped_package_dependency(Strength,C,N,
+                           [package_dependency(Phase,Strength,C,N,O,V,S,U)])) :- !.
+rules:group_choice_dep(D, D).
+
+% During model construction (`config` phase), we must *prove* the chosen literal
+% so it becomes part of the memoized model. Calling `rule/2` directly (as in the
+% runtime clause below) does not record the chosen package_dependency/8 in the
+% model, which makes || ( ... ) disappear from dependency models.
+rule(any_of_group(Deps):config?{Context}, [D:config?{Context}]) :-
+  prioritize_deps(Deps, SortedDeps),
+  member(D0, SortedDeps),
+  % In config phase we must prove the *package_dependency/8* term so it is
+  % recorded in the model (AvlModel) and later extracted by query:model/2.
+  D = D0,
+  !.
+
 rule(any_of_group(Deps):Action?{Context}, Conditions) :-
   prioritize_deps(Deps, SortedDeps),
-  member(D, SortedDeps),
+  member(D0, SortedDeps),
+  rules:group_choice_dep(D0, D),
   rule(D:Action?{Context}, Conditions),
   !.
 
@@ -1294,9 +1319,22 @@ process_build_with_use(Directives, Context, [build_with_use(Result)|Context], Co
 
 % Helper predicate to generate build_with_use constraints
 % Collects all USE requirements into a single list to avoid data duplication
-build_with_use_constraints([], [], _) :- !.
-build_with_use_constraints(Directives, [constraint(use(Candidate):{UseRequirements})], Candidate) :-
-    collect_use_requirements(Directives, UseRequirements).
+%
+% NOTE:
+% Portage-style USE dependencies like `[foo]` or `[foo(+)]` are constraints on the
+% *child package's* USE state, not on the global profile/make.conf USE.
+%
+% At the moment, `portage-ng` models these by pushing `assumed(foo)` /
+% `naf(required(foo))` into the dependency context (see `process_use/4`) so that
+% downstream `use_conditional_group/4` can resolve correctly.
+%
+% Emitting global `constraint(use(Candidate))` entries here incorrectly ties these
+% requirements to `preference:use/1` (global USE), which causes false
+% "unsatisfiable dependency" errors (e.g. xdg-utils -> xmlto[text(+)]), even when
+% the child package has that flag enabled by default.
+%
+% Until we implement per-package USE evaluation, we keep these as context only.
+build_with_use_constraints(_, [], _) :- !.
 
 % Helper predicate to collect all USE requirements into a single list
 collect_use_requirements([], []).
