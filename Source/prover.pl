@@ -208,7 +208,7 @@ prover:ctx_union(OldCtx, Ctx, NewCtx) :-
       ),
       ( Sampled == true ->
           statistics(walltime, [T0,_]),
-          feature_unification:unify(OldCtx, Ctx, NewCtx),
+          prover:ctx_union_raw(OldCtx, Ctx, NewCtx),
           statistics(walltime, [T1,_]),
           Dt is T1 - T0,
           ( nb_current(prover_test_stats_ctx_union_time_samples, S0) -> true ; S0 = 0 ),
@@ -217,7 +217,7 @@ prover:ctx_union(OldCtx, Ctx, NewCtx) :-
           M1s is M0s + Dt,
           nb_setval(prover_test_stats_ctx_union_time_samples, S1),
           nb_setval(prover_test_stats_ctx_union_time_ms_sampled, M1s)
-      ; feature_unification:unify(OldCtx, Ctx, NewCtx)
+      ; prover:ctx_union_raw(OldCtx, Ctx, NewCtx)
       ),
       ( is_list(NewCtx) -> length(NewCtx, L2) ; L2 = 0 ),
       ( Sampled == true ->
@@ -233,8 +233,42 @@ prover:ctx_union(OldCtx, Ctx, NewCtx) :-
       nb_setval(prover_test_stats_ctx_union_calls, C),
       nb_setval(prover_test_stats_ctx_union_cost,  K),
       nb_setval(prover_test_stats_ctx_max_len,     M)
-  ; feature_unification:unify(OldCtx, Ctx, NewCtx)
+  ; prover:ctx_union_raw(OldCtx, Ctx, NewCtx)
   ).
+
+% Keep context unions stable by preventing `self/1` provenance from accumulating.
+% `self/1` is used for local dependency-resolution guards and printing, but it
+% should not grow unboundedly through repeated ctx unions.
+prover:ctx_union_raw(OldCtx, Ctx, NewCtx) :-
+  prover:ctx_strip_self(OldCtx, OldNoSelf),
+  prover:ctx_strip_self_keep_one(Ctx, SelfTerm, CtxNoSelf),
+  feature_unification:unify(OldNoSelf, CtxNoSelf, Merged),
+  prover:ctx_prepend_self(SelfTerm, Merged, NewCtx),
+  !.
+
+prover:ctx_strip_self(Ctx0, Ctx) :-
+  ( is_list(Ctx0) ->
+      findall(X, (member(X, Ctx0), \+ X = self(_)), Ctx)
+  ; Ctx = Ctx0
+  ),
+  !.
+
+prover:ctx_strip_self_keep_one(Ctx0, SelfTerm, Ctx) :-
+  ( is_list(Ctx0) ->
+      ( memberchk(self(S), Ctx0) -> SelfTerm = self(S) ; SelfTerm = none ),
+      findall(X, (member(X, Ctx0), \+ X = self(_)), Ctx)
+  ; SelfTerm = none,
+    Ctx = Ctx0
+  ),
+  !.
+
+prover:ctx_prepend_self(none, Ctx, Ctx) :- !.
+prover:ctx_prepend_self(self(S), Ctx0, Ctx) :-
+  ( is_list(Ctx0) ->
+      Ctx = [self(S)|Ctx0]
+  ; Ctx = Ctx0
+  ),
+  !.
 
 prover:test_stats_ctx_union_sampled(L0, L1, L2) :-
   % Histogram of resulting context lengths.
@@ -666,16 +700,26 @@ prover:diagnose_timeout_counts(Target, LimitSec, Diagnosis, TopCounts) :-
   prover:diagnose_timeout(Target, LimitSec, Diagnosis),
   ( nb_current(prover_timeout_count_assoc, A1) -> true ; A1 = A0 ),
   nb_delete(prover_timeout_count_assoc),
-  findall(N-S,
-          gen_assoc(S, A1, N),
-          Pairs0),
-  keysort(Pairs0, PairsAsc),
-  reverse(PairsAsc, Pairs),
-  length(Pairs, Len),
-  ( Len > 20 ->
-      length(TopCounts, 20),
-      append(TopCounts, _Rest, Pairs)
-  ; TopCounts = Pairs
+  % Post-processing can dominate on huge runs; keep it bounded and best-effort.
+  ( catch(
+      call_with_time_limit(1.0,
+        ( findall(N-S,
+                  gen_assoc(S, A1, N),
+                  Pairs0),
+          keysort(Pairs0, PairsAsc),
+          reverse(PairsAsc, Pairs),
+          length(Pairs, Len),
+          ( Len > 20 ->
+              length(TopCounts, 20),
+              append(TopCounts, _Rest, Pairs)
+          ; TopCounts = Pairs
+          )
+        )),
+      time_limit_exceeded,
+      TopCounts = []
+    )
+  -> true
+  ; TopCounts = []
   ).
 
 prover:debug_hook(Target, Proof, Model, Constraints) :-
@@ -756,8 +800,26 @@ prover:proving(rule(Lit, Body), Proof) :- get_assoc(rule(Lit),Proof,dep(_, Body)
 % "Assumed proving" is our prover-level cycle-break marker. Historically this
 % used dep(0,[]); we now use dep(-1,Body) but keep the predicate robust.
 prover:assumed_proving(Lit, Proof) :- get_assoc(assumed(rule(Lit)),Proof,dep(_Count, _Body)?_).
-prover:proven(Lit, Model, Ctx) :- get_assoc(Lit,Model,Ctx).
+% Consider a literal "proven" if we've proven it under an equivalent *semantic*
+% context. This prevents needless re-proving when only provenance (e.g. self/1)
+% differs across callers.
+prover:proven(Lit, Model, Ctx) :-
+  get_assoc(Lit, Model, StoredCtx),
+  ( StoredCtx == Ctx
+  ; prover:ctx_sem_key(StoredCtx, K1),
+    prover:ctx_sem_key(Ctx,       K2),
+    K1 == K2
+  ).
 prover:assumed_proven(Lit, Model) :- get_assoc(assumed(Lit), Model, _).
+
+prover:ctx_sem_key({}, key([], none)) :- !.
+prover:ctx_sem_key(Ctx, key(RU, BWU)) :-
+  is_list(Ctx),
+  !,
+  ( memberchk(required_use:RU0, Ctx) -> RU = RU0 ; RU = [] ),
+  ( memberchk(build_with_use:BWU0, Ctx) -> BWU = BWU0 ; BWU = none ).
+prover:ctx_sem_key(_Other, key([], none)) :-
+  !.
 
 prover:conflicts(Lit, Model) :-
   ( Lit = naf(Inner) -> (prover:proven(Inner, Model, _) ; prover:assumed_proven(Inner, Model))

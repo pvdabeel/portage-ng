@@ -16,8 +16,11 @@ This module implements a few tests
 :- module(test, []).
 
 :- multifile test:is_success/5.
+:- multifile test:expect/2.
+:- multifile test:xfail/2.
 
 :- dynamic failed/1.
+:- dynamic test:current_model/1.
 
 % =============================================================================
 %  TEST declarations
@@ -81,7 +84,16 @@ test:cases([overlay://'test01/web-1.0':run?{[]},
             overlay://'test52/app-1.0':run?{[]},
             overlay://'test53/app-1.0':run?{[]},
             overlay://'test54/app-1.0':run?{[]},
-            overlay://'test55/app-1.0':run?{[]}
+            overlay://'test55/app-1.0':run?{[]},
+            overlay://'test57/web-1.0':run?{[]},
+            overlay://'test58/web-1.0':run?{[]},
+            overlay://'test59/web-1.0':run?{[]},
+            overlay://'test60/web-1.0':run?{[]},
+            overlay://'test61/app-1.0':run?{[]},
+            overlay://'test62/web-1.0':run?{[]},
+            overlay://'test63/app-1.0':run?{[]},
+            overlay://'test64/app-1.0':run?{[]},
+            overlay://'test65/app-1.0':run?{[]}
             ]).
 
 test:slotreq([overlay://'test41/app-1.0':run?{[]},
@@ -98,6 +110,18 @@ test:softuse([overlay://'test49/app-1.0':run?{[]}]).
 test:pms([overlay://'test50/app-1.0':run?{[]}]).
 
 test:simple([overlay://'test51/app-1.0':install?{[]}]).
+
+% Focused regression set: bracketed USE dependencies ([foo], [-foo], [foo=], [!foo=], [foo?], [!foo?])
+% Use :install so DEPEND is exercised.
+test:bracketed_use([
+  overlay://'test33/app-1.0':install?{[]},
+  overlay://'test34/app-1.0':install?{[]},
+  overlay://'test35/app-1.0':install?{[]},
+  overlay://'test36/app-1.0':install?{[]},
+  overlay://'test37/app-1.0':install?{[]},
+  overlay://'test38/app-1.0':install?{[]},
+  overlay://'test39/app-1.0':install?{[]}
+]).
 
 test:new([%overlay://'test54/app-1.0':run?{[]},
           overlay://'test55/app-1.0':run?{[]}]).
@@ -160,7 +184,7 @@ test:run(application) :-
 % Runs a single test case and outputs result to file with proper error handling
 
 test:run_single_case(Repo://Id:Action?{Context}) :-
-  tty_clear,
+  ignore(tty_clear),
   message:hl,
   nl,
   message:topheader(['Test case : ',Repo://Id:Action?{Context}]),
@@ -175,53 +199,55 @@ test:run_single_case(Repo://Id:Action?{Context}) :-
   atomic_list_concat([Dir, '/Source/Tests/', TestName, '.txt'], FilePath),
   open(FilePath, write, Stream),
   prover:prove(Repo://Id:Action?{Context},t,Proof,t,Model,t,Constraints,t,Triggers),
-  with_output_to(Stream,
-       ((writeln(Repo://Id:Action?{Context}),
-         planner:plan(Proof,Triggers,t,Plan0,Remainder0),
-         scheduler:schedule(Proof,Triggers,Plan0,Remainder0,Plan,_Remainder),
-         (   test:is_success(Repo://Id:Action?{Context},Proof,Plan,Model,Triggers)
-         ->  true
-         ;   (writeln('Validation failed: is_success/5 returned false'), fail)
-         ),
-         nl,
-         message:color(cyan),
-         writeln('Proof:'),
-         message:color(normal),
-         write_proof(Proof),
-         nl,
-         message:color(cyan),
-         writeln('Model:'),
-         message:color(normal),
-         write_model(Model),
-         nl,
-         message:color(cyan),
-         writeln('Constraints:'),
-         message:color(normal),
-         write_constraints(Constraints),
-         nl,
-         message:color(cyan),
-         writeln('Triggers:'),
-         message:color(normal),
-         write_triggers(Triggers),
-         nl,
-         message:color(cyan),
-         writeln('Plan:'),
-         message:color(normal),
-         write_plan(Plan),
-         nl,
-         printer:print([Repo://Id:Action?{Context}],Model,Proof,Plan,Triggers));
-        (Failure = true,
-         message:color(red),
-         message:style(bold),
-         message:print('false'),nl,
-         message:color(normal),
-         message:style(normal),
-         nl,nl))),
+  once(with_output_to(Stream,
+       ( ( writeln(Repo://Id:Action?{Context}),
+           planner:plan(Proof,Triggers,t,Plan0,Remainder0),
+           scheduler:schedule(Proof,Triggers,Plan0,Remainder0,Plan,_Remainder),
+           test:validate(Repo://Id:Action?{Context},Proof,Plan,Model,Triggers),
+           nl,
+           message:color(cyan),
+           writeln('Proof:'),
+           message:color(normal),
+           write_proof(Proof),
+           nl,
+           message:color(cyan),
+           writeln('Model:'),
+           message:color(normal),
+           write_model(Model),
+           nl,
+           message:color(cyan),
+           writeln('Constraints:'),
+           message:color(normal),
+           write_constraints(Constraints),
+           nl,
+           message:color(cyan),
+           writeln('Triggers:'),
+           message:color(normal),
+           write_triggers(Triggers),
+           nl,
+           message:color(cyan),
+           writeln('Plan:'),
+           message:color(normal),
+           write_plan(Plan),
+           nl,
+           printer:print([Repo://Id:Action?{Context}],Model,Proof,Plan,Triggers)
+         )
+         -> true
+         ;  ( Failure = true,
+              message:color(red),
+              message:style(bold),
+              message:print('false'),nl,
+              message:color(normal),
+              message:style(normal),
+              nl,nl
+            )
+       ))),
   close(Stream),
   (Failure == true
    -> message:color(red),message:color(bold),
       message:print('false'),nl,
-      message:color(normal),message:style(normal),nl,nl,true
+      message:color(normal),message:style(normal),nl,nl,
+      fail
    ;  (
        message:header('Description :'),
        nl,
@@ -235,8 +261,9 @@ test:run_single_case(Repo://Id:Action?{Context}) :-
        (exists_file(EmergeLog)
         -> test:write_description(EmergeLog)
         ;  message:inform('no emerge output available yet')),
-       nl,nl,nl,nl;true)),
-   printer:wait_for_input.
+       nl,nl,nl,nl)),
+   ignore(printer:wait_for_input),
+   !.
 
 
 %! write_description(+File)
@@ -318,6 +345,86 @@ test:in_model(assumed(Predicate:Action?{Context}),Model) :-
 %! test:is_success(+Target, +Proof, +Plan, +Model, +Triggers)
 %
 % Validates the result of a test case.
+
+%! test:validate(+Target, +Proof, +Plan, +Model, +Triggers)
+%
+% Validates a test case using a small expectation DSL.
+%
+% - If test:expect/2 exists for a target, it is used.
+% - Otherwise, we fall back to test:is_success/5 (legacy).
+% - If test:xfail/2 exists for a target, failure is expected:
+%   - failing expectations => success (XFAIL)
+%   - passing expectations  => failure (XPASS)
+
+test:validate(Target, Proof, Plan, Model, Triggers) :-
+  ( test:xfail(Target, Reason) ->
+      ( test:validate_must_pass(Target, Proof, Plan, Model, Triggers) ->
+          writeln('XPASS: expected failure but validation succeeded'),
+          writeln(Reason),
+          fail
+      ; writeln('XFAIL: expected failure'),
+        writeln(Reason),
+        true
+      )
+  ; test:validate_must_pass(Target, Proof, Plan, Model, Triggers)
+  ).
+
+test:validate_must_pass(Target, Proof, Plan, Model, Triggers) :-
+  ( test:expect(Target, Expectations) ->
+      test:check_expectations(Expectations, Target, Proof, Plan, Model, Triggers)
+  ; test:is_success(Target, Proof, Plan, Model, Triggers)
+  ).
+
+test:check_expectations([], _Target, _Proof, _Plan, _Model, _Triggers) :- !.
+test:check_expectations([E|Es], Target, Proof, Plan, Model, Triggers) :-
+  ( test:check_expectation(E, Target, Proof, Plan, Model, Triggers) -> true
+  ; writeln('Expectation failed:'), writeln(E), fail
+  ),
+  test:check_expectations(Es, Target, Proof, Plan, Model, Triggers).
+
+% Expectation language
+%
+% We support two styles:
+%
+% 1) Goal-style expectations (preferred):
+%    - must_have(Template)
+%    - \+ must_have(Template)
+%
+% 2) Structured expectations (legacy in this file):
+%    - in_model(Template)
+%    - not_in_model(Template)
+%    - one_of_in_model([Template,...])
+
+test:check_expectation(in_model(T), _Target, _Proof, _Plan, Model, _Triggers) :-
+  test:in_model(T, Model).
+
+test:check_expectation(not_in_model(T), _Target, _Proof, _Plan, Model, _Triggers) :-
+  \+ test:in_model(T, Model).
+
+test:check_expectation(one_of_in_model(List), _Target, _Proof, _Plan, Model, _Triggers) :-
+  member(T, List),
+  test:in_model(T, Model),
+  !.
+
+% Goal-style: evaluate arbitrary goals against a "current model".
+% This allows tests to write: must_have(X), \+ must_have(Y).
+test:check_expectation(Goal, _Target, _Proof, _Plan, Model, _Triggers) :-
+  setup_call_cleanup(
+    asserta(test:current_model(Model)),
+    call(Goal),
+    retract(test:current_model(Model))
+  ).
+
+%! test:must_have(+Template)
+%
+% Succeeds iff Template occurs in the current model.
+%
+% This is intentionally arity-1 so test expectations can use:
+%   must_have(X), \+ must_have(Y)
+%
+test:must_have(Template) :-
+  test:current_model(Model),
+  test:in_model(Template, Model).
 
 test:is_success(overlay://'test01/web-1.0':run?{[]}, _Proof, _Plan, Model, _Triggers) :-
 
@@ -497,3 +604,103 @@ test:is_success(overlay://'test53/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Tri
 test:is_success(overlay://'test54/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
 test:is_success(overlay://'test55/app-1.0':run?{[]}, _Proof, _Plan, _Model, _Triggers) :- true.
 test:is_success(_,_,_,_,_) :- true.
+
+
+% =============================================================================
+%  Expectations for new regression cases
+% =============================================================================
+
+% test57: virtual-style ebuild must pull its provider
+test:expect(overlay://'test57/web-1.0':run?{[]},
+            [ test:must_have(overlay://'test57/virtualsdk-1.0':run?{_}),
+              test:must_have(overlay://'test57/linux-1.0':run?{_})
+            ]).
+
+% test58: PROVIDE-based virtual satisfaction (deprecated PMS)
+test:expect(overlay://'test58/web-1.0':run?{[]},
+            [ test:must_have(overlay://'test58/linux-1.0':run?{_})
+            ]).
+
+% test59: any-of group must select at least one alternative (runtime)
+test:xfail(overlay://'test59/web-1.0':run?{[]},
+           'Regression: any-of (||) currently does not force selecting one alternative').
+test:expect(overlay://'test59/web-1.0':run?{[]},
+            [ ( test:must_have(overlay://'test59/data_fast-1.0':run?{_})
+              ; test:must_have(overlay://'test59/data_best-1.0':run?{_})
+              )
+            ]).
+
+% test60: versioned blocker !< must steer selection away from windows-1.0
+test:xfail(overlay://'test60/web-1.0':run?{[]},
+           'Regression: versioned blocker !< is handled via assumptions, not by steering version choice').
+test:expect(overlay://'test60/web-1.0':run?{[]},
+            [ test:must_have(overlay://'test60/windows-2.0':run?{_}),
+              \+ test:must_have(overlay://'test60/windows-1.0':run?{_})
+            ]).
+
+% -----------------------------------------------------------------------------
+%  Bracketed USE regression expectations (test33..test39)
+% -----------------------------------------------------------------------------
+
+test:expect(overlay://'test33/app-1.0':install?{[]},
+            [ test:must_have(overlay://'test33/os-1.0':install?{Ctx}),
+              member(build_with_use:use_state(En,_Dis), Ctx),
+              memberchk(linux, En),
+              \+ test:must_have(assumed(grouped_package_dependency(test33,os,_):install?{_}))
+            ]).
+
+test:expect(overlay://'test34/app-1.0':install?{[]},
+            [ test:must_have(overlay://'test34/os-1.0':install?{Ctx}),
+              member(build_with_use:use_state(_En,Dis), Ctx),
+              memberchk(linux, Dis),
+              \+ test:must_have(assumed(grouped_package_dependency(test34,os,_):install?{_}))
+            ]).
+
+% For the propagation/conditional variants we mostly assert:
+% - the dependency is not discharged via unsatisfied_constraints assumptions
+% - the os/lib packages are selected
+% (the exact polarity depends on the parent linux state, which is environment-driven)
+test:expect(overlay://'test35/app-1.0':install?{[]},
+            [ test:must_have(overlay://'test35/os-1.0':install?{_}),
+              \+ test:must_have(assumed(grouped_package_dependency(test35,os,_):install?{_}))
+            ]).
+
+test:expect(overlay://'test36/app-1.0':install?{[]},
+            [ test:must_have(overlay://'test36/lib-1.0':install?{_}),
+              test:must_have(overlay://'test36/os-1.0':install?{_}),
+              \+ test:must_have(assumed(grouped_package_dependency(test36,lib,_):install?{_})),
+              \+ test:must_have(assumed(grouped_package_dependency(test36,os,_):install?{_}))
+            ]).
+
+test:expect(overlay://'test37/app-1.0':install?{[]},
+            [ test:must_have(overlay://'test37/os-1.0':install?{_}),
+              \+ test:must_have(assumed(grouped_package_dependency(test37,os,_):install?{_}))
+            ]).
+
+test:expect(overlay://'test38/app-1.0':install?{[]},
+            [ test:must_have(overlay://'test38/os-1.0':install?{_}),
+              \+ test:must_have(assumed(grouped_package_dependency(test38,os,_):install?{_}))
+            ]).
+
+test:expect(overlay://'test39/app-1.0':install?{[]},
+            [ test:must_have(overlay://'test39/os-1.0':install?{_}),
+              \+ test:must_have(assumed(grouped_package_dependency(test39,os,_):install?{_}))
+            ]).
+
+% test65: installed entries must satisfy incoming build_with_use
+test:expect(overlay://'test65/app-1.0':run?{[]},
+            [ ( query:search([repository(pkg),installed(true)], pkg://E),
+                query:search([category(C),name(N)], pkg://E),
+                % 1) Predicate-level check: installed entry must NOT satisfy an impossible build_with_use.
+                \+ rules:installed_entry_satisfies_build_with_use(pkg://E,
+                      [build_with_use:[required('__portage_ng_test_flag__')]]),
+                % 2) Rule-level check: "keep installed" shortcut must not apply when
+                % incoming build_with_use is unsatisfied, so grouped dep must yield work.
+                G = grouped_package_dependency(no,C,N,
+                      [package_dependency(run,no,C,N,none,[[],'','','',''],[],[])]):run?{
+                        [build_with_use:[required('__portage_ng_test_flag__')]]
+                      },
+                rules:rule(G, Conds),
+                Conds \== []
+              )
+            ]).

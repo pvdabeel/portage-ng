@@ -66,12 +66,8 @@ rule(Repository://Ebuild:fetchonly?{Context},Conditions) :- % todo: to update in
 
   query:search([category(C),name(N),select(slot,constraint([]),S)], Repository://Ebuild),
 
-  % 2. Compute required_use stable model
-
-  (findall(Item,
-          (member(build_with_use:InnerList, Context),
-           member(Item,InnerList)),
-          B)),
+  % 2. Compute required_use stable model (thread per-package USE constraints).
+  rules:context_build_with_use_state(Context, B),
 
   (memberchk(required_use:R,Context) -> true ; true),
 
@@ -97,7 +93,8 @@ rule(Repository://Ebuild:fetchonly?{Context},Conditions) :- % todo: to update in
                      constraint(slot(C,N,S):{Ebuild}),
                      Repository://Ebuild:download?{R}
                      |MergedDeps] )
-   ; feature_unification:unify([issue_with_model(explanation)], Context, Ctx1),
+   ; rules:assume_conflicts,
+     feature_unification:unify([issue_with_model(explanation)], Context, Ctx1),
      Conditions = [assumed(Repository://Ebuild:install?{Ctx1})].
 
 
@@ -129,13 +126,9 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
   query:search(version(Ver), Repository://Ebuild),
   Selected = constraint(selected_cn(C,N):{ordset([selected(Repository,Ebuild,install,Ver,S)])}),
 
-  % 2. Compute required_use stable model, if not already passed on by run
-  %    Extend with build_with_use requirements
-
-  (findall(Item,
-          (member(build_with_use:InnerList, Context),
-           member(Item,InnerList)),
-          B)),
+  % 2. Compute required_use stable model, if not already passed on by run.
+  %    Thread per-package USE constraints from build_with_use.
+  rules:context_build_with_use_state(Context, B),
 
   % (memberchk(build_with_use(B),Context) -> true ; B = []),
   (memberchk(required_use:R,Context) -> true ; true),
@@ -164,7 +157,8 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
                     constraint(slot(C,N,S):{Ebuild}),
                     Repository://Ebuild:download?{[required_use:R,build_with_use:B]}
                     |MergedDeps] )
-  ; feature_unification:unify([issue_with_model(explanation)], Context, Ctx1),
+  ; rules:assume_conflicts,
+    feature_unification:unify([issue_with_model(explanation)], Context, Ctx1),
     Conditions = [assumed(Repository://Ebuild:install?{Ctx1})].
 
 
@@ -195,12 +189,8 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   query:search(version(Ver), Repository://Ebuild),
   Selected = constraint(selected_cn(C,N):{ordset([selected(Repository,Ebuild,run,Ver,S)])}),
 
-  % 2. Compute required_use stable model, extend with build_with_use requirements
-
-  (findall(Item,
-          (member(build_with_use:InnerList, Context),
-           member(Item,InnerList)),
-          B)),
+  % 2. Compute required_use stable model, extend with build_with_use requirements.
+  rules:context_build_with_use_state(Context, B),
 
   % (memberchk(build_with_use(B),Context) -> true ; B = []),
 
@@ -599,10 +589,13 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       % CN-consistency: reuse an already-selected concrete entry when possible.
       % This prevents scheduling multiple incompatible versions of the same (C,N)
       % in a single plan (common in OCaml/Haskell stacks).
-      ( SlotReq = [slot(_)]
-      -> rules:accepted_keyword_candidate(Action, C, N, SlotReq, Ss, Context, FoundRepo://Candidate)
-      ;  rules:selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate)
-      ;  rules:accepted_keyword_candidate(Action, C, N, SlotReq, Ss, Context, FoundRepo://Candidate)
+      % CN-consistency: if we've already selected a concrete (C,N), reuse it
+      % deterministically. Only enumerate keyword candidates when nothing is selected.
+      ( SlotReq = [slot(_)] ->
+          rules:accepted_keyword_candidate(Action, C, N, SlotReq, Ss, Context, FoundRepo://Candidate)
+      ; rules:selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate) ->
+          true
+      ; rules:accepted_keyword_candidate(Action, C, N, SlotReq, Ss, Context, FoundRepo://Candidate)
       ),
 
       % Avoid resolving a dep to self unless candidate is already installed
@@ -721,10 +714,27 @@ rules:accepted_keyword_candidate(Action, C, N, SlotReq, Ss, Context, FoundRepo:/
       member(FoundRepo://Candidate, CandidatesSorted)
     ;
       rules:accepted_keyword_candidates_cached(Action, C, N, SlotReq, CandidatesSorted),
-      member(FoundRepo://Candidate, CandidatesSorted),
+      ( rules:greedy_candidate_package(C, N) ->
+          CandidatesSorted = [FoundRepo://Candidate|_]
+      ; member(FoundRepo://Candidate, CandidatesSorted)
+      ),
       rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, Ss)
     )
   ).
+
+% -----------------------------------------------------------------------------
+%  Candidate backtracking policy (Portage-like)
+% -----------------------------------------------------------------------------
+%
+% Portage typically selects the best (max) version and does limited backtracking.
+% Some packages (toolchains / core libs) are extremely common and can dominate
+% proof search when we backtrack across many acceptable versions.
+%
+% We therefore treat a small, curated set as "greedy": pick the max version and
+% do not enumerate alternatives.
+rules:greedy_candidate_package('dev-lang', ocaml) :- !.
+rules:greedy_candidate_package('dev-ml', findlib) :- !.
+rules:greedy_candidate_package('dev-ml', ocamlbuild) :- !.
 
 % -----------------------------------------------------------------------------
 %  Memoization: accepted_keyword_candidate/7 (performance)
@@ -791,8 +801,22 @@ rules:compare_candidate_version_desc(Delta, RepoA://IdA, RepoB://IdB) :-
 % Otherwise, we must schedule a rebuild/reinstall.
 
 rules:context_build_with_use_list(Context, List) :-
-  ( memberchk(build_with_use:List, Context) -> true ; List = [] ).
+  % Backwards-compatible helper: if the context stores a use_state/2, expose it
+  % as a flat list of assumed/1 terms.
+  ( memberchk(build_with_use:use_state(En, Dis), Context) ->
+      findall(assumed(U), member(U, En), Pos),
+      findall(assumed(minus(U)), member(U, Dis), Neg),
+      append(Pos, Neg, List0),
+      sort(List0, List)
+  ; memberchk(build_with_use:List0, Context) ->
+      List = List0
+  ; List = []
+  ).
 
+rules:build_with_use_requirements(use_state(En, Dis), MustEnable, MustDisable) :-
+  !,
+  sort(En, MustEnable),
+  sort(Dis, MustDisable).
 rules:build_with_use_requirements(BuildWithUse, MustEnable, MustDisable) :-
   findall(U,
           ( member(required(U), BuildWithUse),
@@ -810,8 +834,8 @@ rules:build_with_use_requirements(BuildWithUse, MustEnable, MustDisable) :-
   sort(Dis0, MustDisable).
 
 rules:installed_entry_satisfies_build_with_use(pkg://InstalledEntry, Context) :-
-  rules:context_build_with_use_list(Context, BWU),
-  rules:build_with_use_requirements(BWU, MustEnable, MustDisable),
+  rules:context_build_with_use_state(Context, State),
+  rules:build_with_use_requirements(State, MustEnable, MustDisable),
   rules:vdb_enabled_use_set(pkg://InstalledEntry, BuiltUse),
   forall(member(U, MustEnable), memberchk(U, BuiltUse)),
   forall(member(U, MustDisable), \+ memberchk(U, BuiltUse)).
@@ -892,7 +916,7 @@ rules:symmetric_diff_nonempty(A, B) :-
 
 rule(Repository://Ebuild:depclean?{Context}, Conditions) :-
   % Use current preference/profile to evaluate USE conditionals.
-  ( query:search(model(Model,required_use(_R),build_with_use(_B)), Repository://Ebuild),
+  ( query:search(model(Model,required_use(_),build_with_use(_)), Repository://Ebuild),
     % Compute runtime dependency model in config phase (no candidate choices here).
     query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model}, Repository://Ebuild),
     add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
@@ -949,7 +973,8 @@ rule(grouped_package_dependency(_Strength,_C,_N,_PackageDeps):depclean?{_Context
 % 1. The USE is enabled in the context (dependency induced, or required_use)
 
 rule(use_conditional_group(positive,Use,_R://_E,Deps):Action?{Context},Conditions) :-
-  memberchk(assumed(Use),Context),!,
+  rules:ctx_assumed(Context, Use),
+  !,
   findall(D:Action?{Context},member(D,Deps),Conditions0),
   sort(Conditions0, Conditions).
 
@@ -987,10 +1012,12 @@ rule(use_conditional_group(positive,_Use,_R://_E,_):_?{_},[]) :-
 % the use flag is not positive through required use constraint, preference or
 % ebuild default
 
-% 1. The USE is enabled in the context (dependency induced, or required_use)
+% 1. The USE is disabled in the context (dependency induced, or required_use)
 
 rule(use_conditional_group(negative,Use,_R://_E,Deps):Action?{Context},Conditions) :-
-  memberchk(naf(use(Use)),Context),!,
+  % Context propagation uses per-package USE state under build_with_use.
+  rules:ctx_assumed_minus(Context, Use),
+  !,
   findall(D:Action?{Context},member(D,Deps),Conditions0),
   sort(Conditions0, Conditions).
 
@@ -1725,11 +1752,22 @@ rules:iuse_default_pairs_to_assoc_([U-Def|Rest], M0, M) :-
 add_self_to_dep_contexts(_Self, [], []) :- !.
 add_self_to_dep_contexts(Self, [D0|Rest0], [D|Rest]) :-
   ( D0 = Term:Action?{Ctx} ->
-      feature_unification:unify([self(Self)], Ctx, Ctx1),
+      rules:ctx_set_self(Ctx, Self, Ctx1),
       D = Term:Action?{Ctx1}
   ; D = D0
   ),
   add_self_to_dep_contexts(Self, Rest0, Rest).
+
+% Keep at most ONE self/1 term in contexts.
+% This preserves the semantics needed for self-dependency guards while preventing
+% context growth (and memoization misses) along deep dependency chains.
+rules:ctx_set_self(Ctx0, Self, Ctx) :-
+  ( is_list(Ctx0) ->
+      findall(X, (member(X, Ctx0), \+ X = self(_)), Ctx1),
+      Ctx = [self(Self)|Ctx1]
+  ; Ctx = [self(Self)]
+  ),
+  !.
 
 % -----------------------------------------------------------------------------
 %  Debugging: profile an entry rule step-by-step
@@ -1867,18 +1905,59 @@ process_slot(_, Slot, C, N, _Repository://Candidate, Context0, Context) :-
 % Instead, keep at most ONE `build_with_use/1` term in the context and merge
 % new directives into it.
 process_build_with_use(Directives, Context0, Context, Conditions, Candidate) :-
-    ( select(build_with_use:Prev0, Context0, Context1)
-      -> Prev = Prev0
-      ;  Prev = [],
-         Context1 = Context0
+    ( select(build_with_use:Prev0, Context0, Context1) ->
+        rules:normalize_build_with_use(Prev0, PrevState)
+    ; rules:empty_use_state(PrevState),
+      Context1 = Context0
     ),
-    foldl(process_use(Context0), Directives, Prev, Result0),
-    sort(Result0, Result),
-    ( Result == [] ->
+    foldl(rules:process_bwu_directive(Context0), Directives, PrevState, State0),
+    rules:normalize_build_with_use(State0, State),
+    ( State = use_state([], []) ->
         Context = Context1
-    ; feature_unification:unify([build_with_use:Result], Context1, Context)
+    ; feature_unification:unify([build_with_use:State], Context1, Context)
     ),
     build_with_use_constraints(Directives, Conditions, Candidate).
+
+% Monotone per-package USE state:
+% - use_state(Enabled, Disabled) where both are ordsets of flag atoms (no minus/1 wrapper)
+rules:empty_use_state(use_state([],[])).
+
+rules:normalize_build_with_use(use_state(En0, Dis0), use_state(En, Dis)) :-
+  !,
+  sort(En0, En),
+  sort(Dis0, Dis).
+rules:normalize_build_with_use(BWU0, use_state(En, Dis)) :-
+  is_list(BWU0),
+  !,
+  rules:build_with_use_requirements(BWU0, En, Dis).
+rules:normalize_build_with_use(_Other, use_state([],[])) :-
+  % Be conservative for unexpected shapes.
+  !.
+
+rules:context_build_with_use_state(Context, State) :-
+  ( memberchk(build_with_use:BWU, Context) ->
+      rules:normalize_build_with_use(BWU, State)
+  ; rules:empty_use_state(State)
+  ),
+  !.
+
+rules:process_bwu_directive(ParentContext, use(Directive, Default), use_state(En0, Dis0), use_state(En, Dis)) :-
+  !,
+  rules:use_dep_requirement(ParentContext, Directive, Default, Requirement),
+  ( Requirement = requirement(enable, Use, _D) ->
+      % Conflict: both enabled and disabled.
+      \+ memberchk(Use, Dis0),
+      sort([Use|En0], En),
+      Dis = Dis0
+  ; Requirement = requirement(disable, Use, _D) ->
+      \+ memberchk(Use, En0),
+      sort([Use|Dis0], Dis),
+      En = En0
+  ; % none / unhandled
+    En = En0,
+    Dis = Dis0
+  ).
+rules:process_bwu_directive(_ParentContext, _Other, State, State) :- !.
 
 % Helper predicate to generate build_with_use constraints
 % Collects all USE requirements into a single list to avoid data duplication
@@ -1913,49 +1992,85 @@ rules:candidate_satisfies_use_deps(ParentContext, Repo://Entry, [use(Directive, 
   rules:candidate_satisfies_use_requirement(Repo://Entry, Requirement),
   rules:candidate_satisfies_use_deps(ParentContext, Repo://Entry, Rest).
 
+% -----------------------------------------------------------------------------
+%  Context helpers for per-package USE (build_with_use)
+% -----------------------------------------------------------------------------
+%
+% We represent per-package USE requirements in the context as:
+%   build_with_use:[ ... assumed(foo) ... assumed(minus(bar)) ... ]
+%
+% Some older code paths also used top-level assumed/1 terms. Support both.
+rules:ctx_assumed(Ctx, Use) :-
+  memberchk(assumed(Use), Ctx),
+  !.
+rules:ctx_assumed(Ctx, Use) :-
+  memberchk(build_with_use:BU, Ctx),
+  BU = use_state(En, _Dis),
+  memberchk(Use, En),
+  !.
+rules:ctx_assumed(Ctx, Use) :-
+  memberchk(build_with_use:BU, Ctx),
+  is_list(BU),
+  memberchk(assumed(Use), BU),
+  !.
+
+rules:ctx_assumed_minus(Ctx, Use) :-
+  memberchk(assumed(minus(Use)), Ctx),
+  !.
+rules:ctx_assumed_minus(Ctx, Use) :-
+  memberchk(build_with_use:BU, Ctx),
+  BU = use_state(_En, Dis),
+  memberchk(Use, Dis),
+  !.
+rules:ctx_assumed_minus(Ctx, Use) :-
+  memberchk(build_with_use:BU, Ctx),
+  is_list(BU),
+  memberchk(assumed(minus(Use)), BU),
+  !.
+
 % Determine whether a USE-dependency imposes a concrete requirement.
 rules:use_dep_requirement(_Ctx, enable(Use), Default, requirement(enable, Use, Default)) :- !.
 rules:use_dep_requirement(_Ctx, disable(Use), Default, requirement(disable, Use, Default)) :- !.
 
 % [foo=] / [!foo=] depend on parent foo state; if unknown, fall back to default.
-rules:use_dep_requirement(Ctx, equal(Use), _Default, requirement(enable, Use, none)) :-
-  memberchk(assumed(Use), Ctx), !.
-rules:use_dep_requirement(Ctx, equal(Use), _Default, requirement(disable, Use, none)) :-
-  memberchk(assumed(minus(Use)), Ctx), !.
-rules:use_dep_requirement(_Ctx, equal(Use), _Default, requirement(enable, Use, none)) :-
+rules:use_dep_requirement(Ctx, equal(Use), Default, requirement(enable, Use, Default)) :-
+  rules:ctx_assumed(Ctx, Use), !.
+rules:use_dep_requirement(Ctx, equal(Use), Default, requirement(disable, Use, Default)) :-
+  rules:ctx_assumed_minus(Ctx, Use), !.
+rules:use_dep_requirement(_Ctx, equal(Use), Default, requirement(enable, Use, Default)) :-
   preference:use(Use),
   \+ preference:use(minus(Use)), !.
 rules:use_dep_requirement(Ctx, equal(Use), Default, requirement(disable, Use, Default)) :-
-  \+ memberchk(assumed(Use), Ctx),
-  \+ memberchk(assumed(minus(Use)), Ctx),
+  \+ rules:ctx_assumed(Ctx, Use),
+  \+ rules:ctx_assumed_minus(Ctx, Use),
   \+ preference:use(Use),
   \+ preference:use(minus(Use)),
   !.
 
-rules:use_dep_requirement(Ctx, inverse(Use), _Default, requirement(disable, Use, none)) :-
-  memberchk(assumed(Use), Ctx), !.
-rules:use_dep_requirement(Ctx, inverse(Use), _Default, requirement(enable, Use, none)) :-
-  memberchk(assumed(minus(Use)), Ctx), !.
-rules:use_dep_requirement(_Ctx, inverse(Use), _Default, requirement(disable, Use, none)) :-
+rules:use_dep_requirement(Ctx, inverse(Use), Default, requirement(disable, Use, Default)) :-
+  rules:ctx_assumed(Ctx, Use), !.
+rules:use_dep_requirement(Ctx, inverse(Use), Default, requirement(enable, Use, Default)) :-
+  rules:ctx_assumed_minus(Ctx, Use), !.
+rules:use_dep_requirement(_Ctx, inverse(Use), Default, requirement(disable, Use, Default)) :-
   preference:use(Use),
   \+ preference:use(minus(Use)), !.
 rules:use_dep_requirement(Ctx, inverse(Use), Default, requirement(enable, Use, Default)) :-
-  \+ memberchk(assumed(Use), Ctx),
-  \+ memberchk(assumed(minus(Use)), Ctx),
+  \+ rules:ctx_assumed(Ctx, Use),
+  \+ rules:ctx_assumed_minus(Ctx, Use),
   \+ preference:use(Use),
   \+ preference:use(minus(Use)),
   !.
 
 % [foo?] / [!foo?] only constrain the child if the parent has a known state.
-rules:use_dep_requirement(Ctx, optenable(Use), _Default, requirement(enable, Use, none)) :-
-  ( memberchk(assumed(Use), Ctx)
+rules:use_dep_requirement(Ctx, optenable(Use), Default, requirement(enable, Use, Default)) :-
+  ( rules:ctx_assumed(Ctx, Use)
   ; preference:use(Use)
   ),
   !.
 rules:use_dep_requirement(_Ctx, optenable(_Use), _Default, none) :- !.
 
-rules:use_dep_requirement(Ctx, optdisable(Use), _Default, requirement(disable, Use, none)) :-
-  ( memberchk(assumed(minus(Use)), Ctx)
+rules:use_dep_requirement(Ctx, optdisable(Use), Default, requirement(disable, Use, Default)) :-
+  ( rules:ctx_assumed_minus(Ctx, Use)
   ; preference:use(minus(Use))
   ),
   !.
@@ -1967,14 +2082,14 @@ rules:use_dep_requirement(_Ctx, _Directive, _Default, none).
 rules:candidate_satisfies_use_requirement(_Repo://_Entry, none) :- !.
 rules:candidate_satisfies_use_requirement(Repo://Entry, requirement(Mode, Use, Default)) :-
   % Semantics:
-  % - If the flag is in IUSE, enforce it against the candidate's effective USE.
-  % - If the flag is NOT in IUSE, only allow the dependency when it provides
-  %   an explicit default marker (+)/(-), which defines the assumed state.
+  % - If the flag is in IUSE, accept the requirement and rely on build_with_use
+  %   context propagation to enforce it downstream (Portage-like per-package USE,
+  %   without tying it to global USE during resolution).
+  % - If the flag is NOT in IUSE, only allow the dependency when it provides an
+  %   explicit default marker (+)/(-), which defines the assumed state.
   ( rules:candidate_iuse_present(Repo://Entry, Use)
-  -> ( Mode == enable
-     -> rules:candidate_effective_use_enabled_in_iuse(Repo://Entry, Use)
-     ; Mode == disable
-     -> \+ rules:candidate_effective_use_enabled_in_iuse(Repo://Entry, Use)
+  -> ( Mode == enable -> true
+     ; Mode == disable -> true
      )
   ; rules:use_dep_default_satisfies_absent_iuse(Default, Mode)
   ).
@@ -2117,10 +2232,7 @@ process_use(_ParentContext, _Other, Acc, Acc) :- !.
 % Context MUST contain replaces(OldRepo://OldEbuild).
 rules:update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
   % 1. Compute required_use stable model for the *new* version, extend with build_with_use
-  (findall(Item,
-          (member(build_with_use:InnerList, Context),
-           member(Item,InnerList)),
-          B)),
+  rules:context_build_with_use_state(Context, B),
   (memberchk(required_use:R,Context) -> true ; R = []),
   query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
 

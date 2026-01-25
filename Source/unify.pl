@@ -143,6 +143,15 @@ val({V1}, {V2}, {V3}) :-
   intersection(V1, V2, V3),
   \+ empty(V3).
 
+% CASE 2b: empty list identity for list-valued features
+%
+% Feature values represented as lists use "union" semantics (CASE 3).
+% The empty list must therefore behave as the identity element, not as a
+% literal value that gets inserted into the merged list.
+val([], [], []) :- !.
+val([], [V2|V2r], [V2|V2r]) :- !.
+val([V1|V1r], [], [V1|V1r]) :- !.
+
 % CASE 3: multi-valued lists [..] x [..] => merge
 val([V1|V1r], [V2|V2r], V3) :-
   !,
@@ -209,6 +218,17 @@ vunify(F:V1, [F:V2|R], [], U) :-
 
 % CASE 1b: feature:value does not require unification
 vunify(F1:V1, [_:_|R], S, U) :-
+  !,
+  vunify(F1:V1, R, S, U).
+
+% CASE 1c: feature:value vs plain item => skip plain item
+%
+% Feature terms commonly mix `feature:value` pairs with plain provenance tags
+% (e.g. self/1). A feature:value pair must therefore be able to unify against
+% a list that contains plain items; we skip them while looking for a matching
+% feature pair.
+vunify(F1:V1, [Head|R], S, U) :-
+  \+ is_colon_pair(Head),
   !,
   vunify(F1:V1, R, S, U).
 

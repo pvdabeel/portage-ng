@@ -871,18 +871,24 @@ compile_query_compound(model(FullModel,required_use(Model),build_with_use(Input)
             AllReqUse),
     sort(AllReqUse, AllReqUseU),
     prover:with_delay_triggers(
-      ( query:with_required_use_self(Repo://Id,
-          prover:prove_recursive(AllReqUseU,t,AvlProof,t,AvlModel,t,_,t,_)),
-        prover:prove_recursive(Input,AvlProof,_,AvlModel,AvlFullModel,t,_,t,_)
-      )),
+      ( % NOTE (performance): do NOT prove build_with_use/1 items as literals here.
+        % They are meant to be threaded as a feature term in action contexts.
+        % Proving them into the model creates large, highly-variable model-key lists
+        % and defeats memoization on big stacks (OCaml/Qt/KDE).
+        %
+        % We only compute the REQUIRED_USE model here; build_with_use is returned
+        % as a feature-value pair in FullModel.
+        query:with_required_use_self(Repo://Id,
+          prover:prove_model(AllReqUseU, t, AvlModel, t, _ConsOut, t))
+      ) ),
     findall(Key,
             (gen_assoc(Key,AvlModel,_),
    	     \+eapi:abstract_syntax_construct(Key)),
             Model),
-    findall(Key,
-            (gen_assoc(Key,AvlFullModel,_),
-   	     \+eapi:abstract_syntax_construct(Key)),
-            FullModel)) ) :- !.
+    % FullModel is a compact context passed into dependency-model construction.
+    % Keep it small + stable to maximize memoization hits.
+    FullModel = [required_use:Model, build_with_use:Input]
+  ) ) :- !.
 
 compile_query_compound(model(required_use(Model)), Repo://Id,
   ( findall(ReqUse,
@@ -891,7 +897,7 @@ compile_query_compound(model(required_use(Model)), Repo://Id,
     sort(AllReqUse, AllReqUseU),
     prover:with_delay_triggers(
       query:with_required_use_self(Repo://Id,
-        prover:prove_recursive(AllReqUseU,t,_,t,AvlModel,t,_,t,_))),
+        prover:prove_model(AllReqUseU, t, AvlModel, t, _ConsOut, t))),
     findall(Key,
             (gen_assoc(Key,AvlModel,_Value),
    	     \+eapi:abstract_syntax_construct(Key)),
@@ -921,7 +927,7 @@ compile_query_compound(model(dependency(Model,run)):config?{Context}, Repo://Id,
           Deps),
   sort(Deps, DepsU),
   prover:with_delay_triggers(
-    prover:prove_recursive(DepsU,t,_,t,AvlModel,t,_,t,_)),
+    prover:prove_model(DepsU, t, AvlModel, t, _ConsOut, t)),
   findall(Fact:run?{CtxOut},
           ( gen_assoc(Fact:_,AvlModel,CtxIn),
             Fact =.. [package_dependency|_],
@@ -943,7 +949,7 @@ compile_query_compound(model(dependency(Model,install)):config?{Context}, Repo:/
           Deps),
   sort(Deps, DepsU),
   prover:with_delay_triggers(
-    prover:prove_recursive(DepsU,t,_,t,AvlModel,t,_,t,_)),
+    prover:prove_model(DepsU, t, AvlModel, t, _ConsOut, t)),
   findall(Fact:install?{CtxOut},
            ( gen_assoc(Fact:_,AvlModel,CtxIn),
              Fact =.. [package_dependency|_],
@@ -962,7 +968,7 @@ compile_query_compound(model(dependency(Model,fetchonly)):config?{Context}, Repo
           Deps),
   sort(Deps, DepsU),
   prover:with_delay_triggers(
-    prover:prove_recursive(DepsU,t,_,t,AvlModel,t,_,t,_)),
+    prover:prove_model(DepsU, t, AvlModel, t, _ConsOut, t)),
   findall(Fact:fetchonly?{CtxOut},
           ( gen_assoc(Fact:_,AvlModel,CtxIn),
             Fact =.. [package_dependency|_],

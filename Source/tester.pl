@@ -24,6 +24,23 @@ Output:
 % =============================================================================
 
 % -----------------------------------------------------------------------------
+%  Helpers
+% -----------------------------------------------------------------------------
+
+tester:trace_to_string(Trace, String) :-
+  % `message:warning/1` ultimately concatenates "text" pieces; Trace is a list
+  % of (potentially deep) terms. Convert it into a bounded string first, so we
+  % never hand nested lists/terms to atomic_list_concat/2.
+  with_output_to(string(S0),
+    write_term(Trace, [quoted(true), portray(true), max_depth(20)])),
+  ( string_length(S0, Len),
+    Len > 4000
+  -> sub_string(S0, 0, 4000, _After, Prefix),
+     string_concat(Prefix, '…', String)
+  ;  String = S0
+  ).
+
+% -----------------------------------------------------------------------------
 %  Sequential testing
 % -----------------------------------------------------------------------------
 
@@ -111,6 +128,28 @@ tester:test(parallel_verbose,Name,Repository://Item,Generator,Test,Report,Scroll
                         time_limit_exceeded,
                         ( message:scroll_failure([Item,' (time limit exceeded)']),
                           with_mutex(mutex,(message:clean,message:warning([Item,' (time limit exceeded)']))),
+                          % Best-effort: capture a short trace of what the prover was doing.
+                          ( current_predicate(prover:diagnose_timeout/3),
+                            config:proving_target(Action) ->
+                              % IMPORTANT: never let diagnostics failure turn a timeout into a "(failed)".
+                              % Use ignore/1 so lookup mismatches or other failures don't affect control flow.
+                              catch(ignore(
+                                ( atom_concat(Repository,'://',RepoPrefix),
+                                  atom_concat(RepoPrefix, Item, _),
+                                  Target = (Repository://Item:Action?{[]}),
+                                  prover:diagnose_timeout(Target, 0.25, diagnosis(DeltaInf, RuleCalls, Trace)),
+                                  with_mutex(mutex,
+                                    ( message:warning([' timeout diag: +',DeltaInf,' inferences, ',RuleCalls,' rule calls']),
+                                      ( Trace == [] -> true
+                                      ; tester:trace_to_string(Trace, TraceText),
+                                        message:warning([' timeout trace (last ~40): ', TraceText])
+                                      )
+                                    ))
+                                )),
+                                _,
+                                true)
+                          ; true
+                          ),
                           ( current_predicate(printer:test_stats_record_failed/1) ->
                               printer:test_stats_record_failed(timeout)
                           ; true
@@ -122,6 +161,25 @@ tester:test(parallel_verbose,Name,Repository://Item,Generator,Test,Report,Scroll
                         )
                       )
                     ; with_mutex(mutex,(message:clean,message:warning([Item,' (failed)']))),
+                      % Also print a short trace for non-timeout failures.
+                      ( current_predicate(prover:diagnose_timeout/3),
+                        config:proving_target(Action) ->
+                          % Best-effort only: diagnostics should never affect classification.
+                          catch(ignore(
+                            ( Target = (Repository://Item:Action?{[]}),
+                              prover:diagnose_timeout(Target, 0.25, diagnosis(DeltaInfF, RuleCallsF, TraceF)),
+                              with_mutex(mutex,
+                                ( message:warning([' fail diag: +',DeltaInfF,' inferences, ',RuleCallsF,' rule calls']),
+                                  ( TraceF == [] -> true
+                                  ; tester:trace_to_string(TraceF, TraceTextF),
+                                    message:warning([' fail trace (last ~40): ', TraceTextF])
+                                  )
+                                ))
+                            )),
+                            _,
+                            true)
+                      ; true
+                      ),
                       ( current_predicate(printer:test_stats_record_failed/1) ->
                           printer:test_stats_record_failed(other)
                       ; true
