@@ -869,9 +869,10 @@ compile_query_compound(model(FullModel,required_use(Model),build_with_use(Input)
   ( findall(ReqUse,
             cache:entry_metadata(Repo,Id,required_use,ReqUse),
             AllReqUse),
+    sort(AllReqUse, AllReqUseU),
     prover:with_delay_triggers(
       ( query:with_required_use_self(Repo://Id,
-          prover:prove_recursive(AllReqUse,t,AvlProof,t,AvlModel,t,_,t,_)),
+          prover:prove_recursive(AllReqUseU,t,AvlProof,t,AvlModel,t,_,t,_)),
         prover:prove_recursive(Input,AvlProof,_,AvlModel,AvlFullModel,t,_,t,_)
       )),
     findall(Key,
@@ -887,9 +888,10 @@ compile_query_compound(model(required_use(Model)), Repo://Id,
   ( findall(ReqUse,
             cache:entry_metadata(Repo,Id,required_use,ReqUse),
             AllReqUse),
+    sort(AllReqUse, AllReqUseU),
     prover:with_delay_triggers(
       query:with_required_use_self(Repo://Id,
-        prover:prove_recursive(AllReqUse,t,_,t,AvlModel,t,_,t,_))),
+        prover:prove_recursive(AllReqUseU,t,_,t,AvlModel,t,_,t,_))),
     findall(Key,
             (gen_assoc(Key,AvlModel,_Value),
    	     \+eapi:abstract_syntax_construct(Key)),
@@ -915,11 +917,11 @@ query:with_required_use_self(Self, Goal) :-
 compile_query_compound(model(dependency(Model,run)):config?{Context}, Repo://Id,
   ( findall(Dep:config?{Context},
           ( cache:entry_metadata(Repo,Id,idepend,Dep)
-          ; cache:entry_metadata(Repo,Id,rdepend,Dep)
-          ; cache:entry_metadata(Repo,Id,pdepend,Dep) ),
+          ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
           Deps),
+  sort(Deps, DepsU),
   prover:with_delay_triggers(
-    prover:prove_recursive(Deps,t,_,t,AvlModel,t,_,t,_)),
+    prover:prove_recursive(DepsU,t,_,t,AvlModel,t,_,t,_)),
   findall(Fact:run?{CtxOut},
           ( gen_assoc(Fact:_,AvlModel,CtxIn),
             Fact =.. [package_dependency|_],
@@ -939,8 +941,9 @@ compile_query_compound(model(dependency(Model,install)):config?{Context}, Repo:/
           ; cache:entry_metadata(Repo,Id,rdepend,Dep)
           ),
           Deps),
+  sort(Deps, DepsU),
   prover:with_delay_triggers(
-    prover:prove_recursive(Deps,t,_,t,AvlModel,t,_,t,_)),
+    prover:prove_recursive(DepsU,t,_,t,AvlModel,t,_,t,_)),
   findall(Fact:install?{CtxOut},
            ( gen_assoc(Fact:_,AvlModel,CtxIn),
              Fact =.. [package_dependency|_],
@@ -957,8 +960,9 @@ compile_query_compound(model(dependency(Model,fetchonly)):config?{Context}, Repo
           ; cache:entry_metadata(Repo,Id,rdepend,Dep)
           ; cache:entry_metadata(Repo,Id,pdepend,Dep) ),
           Deps),
+  sort(Deps, DepsU),
   prover:with_delay_triggers(
-    prover:prove_recursive(Deps,t,_,t,AvlModel,t,_,t,_)),
+    prover:prove_recursive(DepsU,t,_,t,AvlModel,t,_,t,_)),
   findall(Fact:fetchonly?{CtxOut},
           ( gen_assoc(Fact:_,AvlModel,CtxIn),
             Fact =.. [package_dependency|_],
