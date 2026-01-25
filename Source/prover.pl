@@ -19,6 +19,8 @@
 
 :- module(prover, []).
 
+:- use_module(unify). % feature_unification:unify/3 for context merging
+
 % =============================================================================
 %  PROVER declarations
 % =============================================================================
@@ -190,45 +192,49 @@ prover:test_stats_get_ctx_distribution(ctx_len_hist(HistPairs),
 % NOTE: This is intentionally cheap; it is used only in test_stats runs.
 
 prover:ctx_union(OldCtx, Ctx, NewCtx) :-
-  ( is_list(OldCtx) -> length(OldCtx, L0) ; L0 = 0 ),
-  ( is_list(Ctx)    -> length(Ctx, L1)    ; L1 = 0 ),
-  ( nb_current(prover_test_stats_ctx_union_calls, C0pre) -> true ; C0pre = 0 ),
-  CallIndex is C0pre + 1,
-  ( nb_current(prover_test_stats_ctx_union_time_sample_rate, Rate) -> true ; Rate = 1024 ),
-  % Always sample the first few unions to avoid "0 samples => 0 ms" on small runs.
-  ( ( CallIndex =< 16
-    ; 0 is CallIndex mod Rate
-    ) ->
-      Sampled = true
-    ; Sampled = false
-  ),
-  ( Sampled == true ->
-      statistics(walltime, [T0,_]),
-      union(OldCtx, Ctx, NewCtx),
-      statistics(walltime, [T1,_]),
-      Dt is T1 - T0,
-      ( nb_current(prover_test_stats_ctx_union_time_samples, S0) -> true ; S0 = 0 ),
-      ( nb_current(prover_test_stats_ctx_union_time_ms_sampled, M0s) -> true ; M0s = 0 ),
-      S1 is S0 + 1,
-      M1s is M0s + Dt,
-      nb_setval(prover_test_stats_ctx_union_time_samples, S1),
-      nb_setval(prover_test_stats_ctx_union_time_ms_sampled, M1s)
-  ; union(OldCtx, Ctx, NewCtx)
-  ),
-  ( is_list(NewCtx) -> length(NewCtx, L2) ; L2 = 0 ),
-  ( Sampled == true ->
-      prover:test_stats_ctx_union_sampled(L0, L1, L2)
-  ; true
-  ),
-  ( nb_current(prover_test_stats_ctx_union_calls, C0) -> true ; C0 = 0 ),
-  ( nb_current(prover_test_stats_ctx_union_cost,  K0) -> true ; K0 = 0 ),
-  ( nb_current(prover_test_stats_ctx_max_len,     M0) -> true ; M0 = 0 ),
-  C is C0 + 1,
-  K is K0 + L0 + L1,
-  M is max(M0, max(L0, max(L1, L2))),
-  nb_setval(prover_test_stats_ctx_union_calls, C),
-  nb_setval(prover_test_stats_ctx_union_cost,  K),
-  nb_setval(prover_test_stats_ctx_max_len,     M).
+  % Fast path: if test_stats is not active, do a plain union with no overhead.
+  ( nb_current(prover_test_stats_ctx_union_calls, _) ->
+      ( is_list(OldCtx) -> length(OldCtx, L0) ; L0 = 0 ),
+      ( is_list(Ctx)    -> length(Ctx, L1)    ; L1 = 0 ),
+      ( nb_current(prover_test_stats_ctx_union_calls, C0pre) -> true ; C0pre = 0 ),
+      CallIndex is C0pre + 1,
+      ( nb_current(prover_test_stats_ctx_union_time_sample_rate, Rate) -> true ; Rate = 1024 ),
+      % Always sample the first few unions to avoid "0 samples => 0 ms" on small runs.
+      ( ( CallIndex =< 16
+        ; 0 is CallIndex mod Rate
+        ) ->
+          Sampled = true
+        ; Sampled = false
+      ),
+      ( Sampled == true ->
+          statistics(walltime, [T0,_]),
+          feature_unification:unify(OldCtx, Ctx, NewCtx),
+          statistics(walltime, [T1,_]),
+          Dt is T1 - T0,
+          ( nb_current(prover_test_stats_ctx_union_time_samples, S0) -> true ; S0 = 0 ),
+          ( nb_current(prover_test_stats_ctx_union_time_ms_sampled, M0s) -> true ; M0s = 0 ),
+          S1 is S0 + 1,
+          M1s is M0s + Dt,
+          nb_setval(prover_test_stats_ctx_union_time_samples, S1),
+          nb_setval(prover_test_stats_ctx_union_time_ms_sampled, M1s)
+      ; feature_unification:unify(OldCtx, Ctx, NewCtx)
+      ),
+      ( is_list(NewCtx) -> length(NewCtx, L2) ; L2 = 0 ),
+      ( Sampled == true ->
+          prover:test_stats_ctx_union_sampled(L0, L1, L2)
+      ; true
+      ),
+      ( nb_current(prover_test_stats_ctx_union_calls, C0) -> true ; C0 = 0 ),
+      ( nb_current(prover_test_stats_ctx_union_cost,  K0) -> true ; K0 = 0 ),
+      ( nb_current(prover_test_stats_ctx_max_len,     M0) -> true ; M0 = 0 ),
+      C is C0 + 1,
+      K is K0 + L0 + L1,
+      M is max(M0, max(L0, max(L1, L2))),
+      nb_setval(prover_test_stats_ctx_union_calls, C),
+      nb_setval(prover_test_stats_ctx_union_cost,  K),
+      nb_setval(prover_test_stats_ctx_max_len,     M)
+  ; feature_unification:unify(OldCtx, Ctx, NewCtx)
+  ).
 
 prover:test_stats_ctx_union_sampled(L0, L1, L2) :-
   % Histogram of resulting context lengths.
@@ -295,7 +301,11 @@ prover:prove_recursive([Literal|Rest],Proof,NewProof,Model,NewModel,Cons,NewCons
 
 prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewConstraints, Triggers, NewTriggers) :-
 
-  %prover:debug_hook(Full, Proof, Model, Constraints),
+  % Debug hook (enabled only when a handler is installed).
+  ( prover:debug_hook_handler(_)
+    -> prover:debug_hook(Full, Proof, Model, Constraints)
+    ;  true
+  ),
 
   canon_literal(Full, Lit, Ctx),
 
@@ -366,6 +376,11 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
       %writeln('PROVER: -- Ready to apply rule for full literal'),
       % -- Apply rule
       prover:test_stats_rule_call,
+      ( nb_current(prover_timeout_trace, _) ->
+          prover:trace_simplify(Lit, SimpleRuleLit),
+          prover:timeout_trace_push(rule_call(SimpleRuleLit))
+      ; true
+      ),
       rule(NewFull,NewBody),
 
       %message:hl('PROVER - returning from subcall'),
@@ -470,6 +485,11 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
           %message:color(normal),
 
           prover:test_stats_rule_call,
+          ( nb_current(prover_timeout_trace, _) ->
+              prover:trace_simplify(Lit, SimpleRuleLit),
+              prover:timeout_trace_push(rule_call(SimpleRuleLit))
+          ; true
+          ),
           rule(Full, Body),
 
           length(Body, DepCount),
@@ -506,6 +526,156 @@ prover:with_debug_hook(Handler, Goal) :-
     asserta(prover:debug_hook_handler(Handler)),
     Goal,
     retractall(prover:debug_hook_handler(Handler))
+  ).
+
+% -----------------------------------------------------------------------------
+%  Timeout diagnostics (best-effort)
+% -----------------------------------------------------------------------------
+%
+% Used by tester on timeouts to capture a short "where were we" trace without
+% enabling full tracing (which is too expensive at scale).
+
+prover:trace_simplify(Item, Simple) :-
+  % Keep timeout traces small + comparable (helps spot loops).
+  ( var(Item) ->
+      Simple = var
+  ; Item = required(U) ->
+      Simple = required(U)
+  ; Item = assumed(U) ->
+      Simple = assumed(U)
+  ; Item = naf(G) ->
+      ( G = required(U) -> Simple = naf_required(U)
+      ; G = blocking(U) -> Simple = naf_blocking(U)
+      ; Simple = naf
+      )
+  ; Item = conflict(A, _B) ->
+      % Keep just the conflicting head; the second argument is usually derived.
+      Simple = conflict(A)
+  ; Item = Inner:Action,
+    atom(Action) ->
+      % Many of our literals are action-tagged, e.g.
+      %   grouped_package_dependency(...):run
+      %   use_conditional_group(...):install
+      % If we don't handle this, the trace becomes `functor((:)/2)` noise.
+      prover:trace_simplify(Inner, InnerS),
+      Simple = act(Action, InnerS)
+  ; Item = constraint(Key:{_}) ->
+      Simple = constraint(Key)
+  ; Item = use_conditional_group(Sign, Use, Repo://Entry, Deps) ->
+      ( is_list(Deps) -> length(Deps, N) ; N = '?' ),
+      Simple = use_cond(Sign, Use, Repo://Entry, N)
+  ; Item = any_of_group(Deps) ->
+      ( is_list(Deps) -> length(Deps, N) ; N = '?' ),
+      Simple = any_of_group(N)
+  ; Item = exactly_one_of_group(Deps) ->
+      ( is_list(Deps) -> length(Deps, N) ; N = '?' ),
+      Simple = exactly_one_of_group(N)
+  ; Item = at_most_one_of_group(Deps) ->
+      ( is_list(Deps) -> length(Deps, N) ; N = '?' ),
+      Simple = at_most_one_of_group(N)
+  ; Item = grouped_package_dependency(Strength, C, N, PackageDeps) ->
+      ( PackageDeps = [package_dependency(Phase, _, _, _, _, _, SlotReq, _)|_] ->
+          Simple = gpd(Strength, Phase, C, N, SlotReq)
+      ; Simple = gpd(Strength, C, N)
+      )
+  ; Item = package_dependency(Phase, Strength, C, N, O, V, S, U) ->
+      ( is_list(U) -> length(U, UL) ; UL = '?' ),
+      Simple = pkgdep(Phase, Strength, C, N, O, V, S, usedeps(UL))
+  ; Item = Repo://Entry:Action ->
+      Simple = entry(Repo://Entry, Action)
+  ; Item = Repo://Entry ->
+      Simple = entry(Repo://Entry)
+  ; is_list(Item) ->
+      length(Item, N),
+      Simple = list(N)
+  ; compound(Item) ->
+      functor(Item, F, A),
+      Simple = functor(F/A)
+  ; Simple = Item
+  ).
+
+prover:timeout_trace_reset :-
+  nb_setval(prover_timeout_trace, []).
+
+prover:timeout_trace_push(Item0) :-
+  % Also update frequency counters (when enabled) so we can identify which
+  % obligations dominate during long/looping runs.
+  ( nb_current(prover_timeout_count_assoc, A0) ->
+      ( get_assoc(Item0, A0, N0) -> true ; N0 = 0 ),
+      N is N0 + 1,
+      put_assoc(Item0, A0, N, A1),
+      nb_setval(prover_timeout_count_assoc, A1)
+  ; true
+  ),
+  ( nb_current(prover_timeout_trace, L0) -> true ; L0 = [] ),
+  L1 = [Item0|L0],
+  % Keep only the last N items (diagnostics; not performance-critical).
+  ( nb_current(prover_timeout_trace_maxlen, MaxLen) -> true ; MaxLen = 200 ),
+  length(L1, Len),
+  ( Len =< MaxLen ->
+      nb_setval(prover_timeout_trace, L1)
+  ; length(Keep, MaxLen),
+    append(Keep, _Drop, L1),
+    nb_setval(prover_timeout_trace, Keep)
+  ).
+
+prover:timeout_trace_hook(Target, _Proof, _Model, _Constraints) :-
+  % Prefer the canonical literal head, not the full annotated target.
+  ( catch(canon_literal(Target, Lit0, _Ctx), _, fail) ->
+      Lit = Lit0
+  ; Lit = Target
+  ),
+  prover:trace_simplify(Lit, Simple),
+  % Optional: count which literals dominate during a diagnosis run.
+  ( nb_current(prover_timeout_count_assoc, A0) ->
+      ( get_assoc(Simple, A0, N0) -> true ; N0 = 0 ),
+      N is N0 + 1,
+      put_assoc(Simple, A0, N, A1),
+      nb_setval(prover_timeout_count_assoc, A1)
+  ; true
+  ),
+  prover:timeout_trace_push(Simple).
+
+% Run a short best-effort diagnosis for a target. Always succeeds.
+prover:diagnose_timeout(Target, LimitSec, diagnosis(DeltaInferences, RuleCalls, Trace)) :-
+  prover:timeout_trace_reset,
+  prover:test_stats_reset_counters,
+  statistics(inferences, I0),
+  ( catch(
+      prover:with_debug_hook(prover:timeout_trace_hook,
+        call_with_time_limit(LimitSec,
+          prover:prove(Target, t, _Proof, t, _Model, t, _Cons, t, _Triggers)
+        )
+      ),
+      time_limit_exceeded,
+      true
+    )
+  -> true
+  ;  true
+  ),
+  statistics(inferences, I1),
+  DeltaInferences is I1 - I0,
+  prover:test_stats_get_counters(rule_calls(RuleCalls)),
+  ( nb_current(prover_timeout_trace, TraceRev) -> reverse(TraceRev, Trace) ; Trace = [] ).
+
+% Like diagnose_timeout/3, but also returns a TopCounts list of the most frequent
+% simplified literals seen during the run.
+prover:diagnose_timeout_counts(Target, LimitSec, Diagnosis, TopCounts) :-
+  empty_assoc(A0),
+  nb_setval(prover_timeout_count_assoc, A0),
+  prover:diagnose_timeout(Target, LimitSec, Diagnosis),
+  ( nb_current(prover_timeout_count_assoc, A1) -> true ; A1 = A0 ),
+  nb_delete(prover_timeout_count_assoc),
+  findall(N-S,
+          gen_assoc(S, A1, N),
+          Pairs0),
+  keysort(Pairs0, PairsAsc),
+  reverse(PairsAsc, Pairs),
+  length(Pairs, Len),
+  ( Len > 20 ->
+      length(TopCounts, 20),
+      append(TopCounts, _Rest, Pairs)
+  ; TopCounts = Pairs
   ).
 
 prover:debug_hook(Target, Proof, Model, Constraints) :-
@@ -876,12 +1046,17 @@ prover:test_stats(Repository, Style, TopN) :-
                     printer:test_stats_record_context_costs(Repository://Entry, CtxUC, CtxCost, CtxMax, CtxMsEst),
                     printer:test_stats_record_ctx_len_distribution(CtxHistPairs, CtxMul, CtxAdd, CtxLenSamples),
                     printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
-                ; % strict failure: classify blocker vs other (best-effort)
+                ; % strict failure: classify blocker vs conflict vs other (best-effort)
                   ( current_predicate(rules:with_assume_blockers/1),
                     rules:with_assume_blockers(
                       prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
                     ) ->
                       printer:test_stats_record_failed(blocker)
+                  ; current_predicate(rules:with_assume_conflicts/1),
+                    rules:with_assume_conflicts(
+                      prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
+                    ) ->
+                      printer:test_stats_record_failed(conflict)
                   ; printer:test_stats_record_failed(other)
                   )
                 )
@@ -935,12 +1110,17 @@ prover:test_stats_pkgs(Repository, Style, TopN, Pkgs) :-
                     printer:test_stats_record_context_costs(Repository://Entry, CtxUC, CtxCost, CtxMax, CtxMsEst),
                     printer:test_stats_record_ctx_len_distribution(CtxHistPairs, CtxMul, CtxAdd, CtxLenSamples),
                     printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
-                ; % strict failure: classify blocker vs other (best-effort)
+                ; % strict failure: classify blocker vs conflict vs other (best-effort)
                   ( current_predicate(rules:with_assume_blockers/1),
                     rules:with_assume_blockers(
                       prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
                     ) ->
                       printer:test_stats_record_failed(blocker)
+                  ; current_predicate(rules:with_assume_conflicts/1),
+                    rules:with_assume_conflicts(
+                      prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
+                    ) ->
+                      printer:test_stats_record_failed(conflict)
                   ; printer:test_stats_record_failed(other)
                   )
                 )
