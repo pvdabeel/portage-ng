@@ -243,7 +243,10 @@ user:goal_expansion(msg(Scroll,Level,Msg),
     Post,
     Continue )) :-
   ( ( is_list(Msg)
-      -> Output = (atomic_list_concat(Msg,String),format(String,[]))
+      % IMPORTANT: `Msg` pieces are data, not a format string.
+      % Using `format(String, [])` will interpret any `~` in the message and can
+      % crash (e.g. diagnostics containing '~amd64' or similar). Print literally.
+      -> Output = (atomic_list_concat(Msg,String),format('~a', [String]))
       ;  Output = (format(Msg,[])) ),
     ( Scroll == true
       -> Post = (message:el,message:bl,flush_output)
