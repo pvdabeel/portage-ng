@@ -94,25 +94,14 @@ list_canon_and_check(L0, L) :-
        memberchk(Pos, L)
      ).
 
-merge_compound_term(T1, T2, T3) :-
-  compound(T1),
-  compound(T2),
-  \+ is_colon_pair(T1),
-  \+ is_colon_pair(T2),
-  functor(T1, F, A),
-  functor(T2, F, A),
-  T1 =.. [F|Args1],
-  T2 =.. [F|Args2],
-  maplist(val, Args1, Args2, Args3),
-  T3 =.. [F|Args3].
-
-same_compound_shape(T1, T2) :-
-  compound(T1),
-  compound(T2),
-  \+ is_colon_pair(T1),
-  \+ is_colon_pair(T2),
-  functor(T1, F, A),
-  functor(T2, F, A).
+% NOTE:
+% We intentionally do NOT perform "compound unification" for arbitrary compounds
+% like test(a) and test(b). Those should be allowed to co-exist in a feature term
+% (e.g. provenance tags like self/1).
+%
+% If you want merge-by-feature semantics, represent it explicitly as a feature pair
+% `Feature:Value`, where Value is a list or `{List}`. That is what `vunify/4`
+% handles as a real feature/value merge.
 
 % =============================================================================
 %  Horizontal unification
@@ -240,13 +229,6 @@ vunify(Nocolon, [Head|R], S, U) :-
       % From now on Skipped shall be empty because we have detected at least one
       % unification so far.
       vunify(Nocolon, R, [], U)
-  ; same_compound_shape(Nocolon, Head) ->
-      % Same functor/arity: must unify as a "feature"; if values are inconsistent
-      % (e.g. list contains X and minus(X)), the whole unification fails.
-      ( merge_compound_term(Nocolon, Head, Merged) ->
-          vunify(Merged, R, [], U)
-      ; fail
-      )
   ; vunify(Nocolon, R, S, U)
   )).
 
