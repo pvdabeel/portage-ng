@@ -362,7 +362,11 @@ eapi:value('REQUIRED_USE', R://E, required_use(U)) -->
 % PMS EAPI 8, Section 7.2.3
 eapi:value('PDEPEND', R://E, pdepend(D)) -->
   !,
-  eapi:cdepend(R://E, D).
+  % Treat PDEPEND as a runtime-style dependency sequence.
+  % We model it as package_dependency(run, ...) so it can be consumed as :run
+  % obligations by the dependency model (temporary semantics: include PDEPEND in
+  % :run dependency closure).
+  eapi:rdepend(R://E, D).
 
 % PMS EAPI 8, Section 7.2.3
 eapi:value('IDEPEND', R://E, idepend(D)) -->

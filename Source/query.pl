@@ -433,6 +433,38 @@ compile_query_compound(idepend(I), Repo://Id,
 compile_query_compound(pdepend(P), Repo://Id,
   cache:entry_metadata(Repo,Id,pdepend,P)) :- !.
 
+% -----------------------------------------------------------------------------
+%  Helper: treat PDEPEND as :run dependencies (temporary semantics)
+% -----------------------------------------------------------------------------
+%
+% The repository cache currently parses PDEPEND using the cdepend grammar, which
+% yields package_dependency(compile,...) leaves. For the temporary semantics we
+% want: "include PDEPEND in the run dependency closure", so we rewrite those
+% leaves to package_dependency(run,...) before proving dependency models.
+%
+% (Longer term, PDEPEND should be modeled as a post-run milestone.)
+
+query:pdepend_dep_as_run(package_dependency(compile,Strength,C,N,O,V,S,U),
+                         package_dependency(run,Strength,C,N,O,V,S,U)) :-
+  !.
+query:pdepend_dep_as_run(use_conditional_group(Pol, Use, Self, Deps0),
+                         use_conditional_group(Pol, Use, Self, Deps)) :-
+  !,
+  maplist(query:pdepend_dep_as_run, Deps0, Deps).
+query:pdepend_dep_as_run(any_of_group(Deps0), any_of_group(Deps)) :-
+  !,
+  maplist(query:pdepend_dep_as_run, Deps0, Deps).
+query:pdepend_dep_as_run(all_of_group(Deps0), all_of_group(Deps)) :-
+  !,
+  maplist(query:pdepend_dep_as_run, Deps0, Deps).
+query:pdepend_dep_as_run(exactly_one_of_group(Deps0), exactly_one_of_group(Deps)) :-
+  !,
+  maplist(query:pdepend_dep_as_run, Deps0, Deps).
+query:pdepend_dep_as_run(at_most_one_of_group(Deps0), at_most_one_of_group(Deps)) :-
+  !,
+  maplist(query:pdepend_dep_as_run, Deps0, Deps).
+query:pdepend_dep_as_run(T, T).
+
 compile_query_compound(rdepend(P), Repo://Id,
   cache:entry_metadata(Repo,Id,rdepend,P)) :- !.
 
@@ -821,7 +853,11 @@ compile_query_compound(all(pdepend(P)), Repo://Id,
 compile_query_compound(all(dependency(D,run)), Repo://Id,
   findall(Dep,
           ( cache:entry_metadata(Repo,Id,idepend,Dep)
-          ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
+          ; cache:entry_metadata(Repo,Id,rdepend,Dep)
+          ; ( cache:entry_metadata(Repo,Id,pdepend,Dep0),
+              query:pdepend_dep_as_run(Dep0, Dep)
+            )
+          ),
           D)) :- !.
 
 compile_query_compound(all(dependency(D,install)), Repo://Id,
@@ -843,7 +879,11 @@ compile_query_compound(all(dependency(D,fetchonly)), Repo://Id,
 compile_query_compound(all(dependency(D,run)):A?{C}, Repo://Id,
   findall(Dep:A?{C},
           ( cache:entry_metadata(Repo,Id,idepend,Dep)
-          ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
+          ; cache:entry_metadata(Repo,Id,rdepend,Dep)
+          ; ( cache:entry_metadata(Repo,Id,pdepend,Dep0),
+              query:pdepend_dep_as_run(Dep0, Dep)
+            )
+          ),
           D)) :- !.
 
 compile_query_compound(all(dependency(D,install)):A?{C}, Repo://Id,
@@ -923,14 +963,22 @@ query:with_required_use_self(Self, Goal) :-
 compile_query_compound(model(dependency(Model,run)):config?{Context}, Repo://Id,
   ( findall(Dep:config?{Context},
           ( cache:entry_metadata(Repo,Id,idepend,Dep)
-          ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
+          ; cache:entry_metadata(Repo,Id,rdepend,Dep)
+          ; ( cache:entry_metadata(Repo,Id,pdepend,Dep0),
+              query:pdepend_dep_as_run(Dep0, Dep)
+            )
+          ),
           Deps),
   sort(Deps, DepsU),
   prover:with_delay_triggers(
     prover:prove_model(DepsU, t, AvlModel, t, _ConsOut, t)),
-  findall(Fact:run?{CtxOut},
+  % IMPORTANT: keep dependency "phase" (install/run) distinct from the literal's
+  % action tag. We tag each dependency literal by its Phase, so grouped deps never
+  % mix install+run package_dependency terms in one group.
+  findall(Fact:Phase?{CtxOut},
           ( gen_assoc(Fact:_,AvlModel,CtxIn),
             Fact =.. [package_dependency|_],
+            Fact =.. [package_dependency,Phase|_],
             ( CtxIn == {} -> CtxOut = [] ; CtxOut = CtxIn )
           ),
           Model) ) ) :- !.
@@ -943,6 +991,8 @@ compile_query_compound(model(dependency(Model,install)):config?{Context}, Repo:/
           % Portage merges build-time dependencies as full packages, so their
           % runtime deps must be present too. Including IDEPEND/RDEPEND here
           % fixes missing transitive deps (e.g. python libs pulled via BDEPEND).
+          % These will be tagged as :run dependencies (not :install), preserving
+          % the historical separation between install and run obligations.
           ; cache:entry_metadata(Repo,Id,idepend,Dep)
           ; cache:entry_metadata(Repo,Id,rdepend,Dep)
           ),
@@ -950,9 +1000,10 @@ compile_query_compound(model(dependency(Model,install)):config?{Context}, Repo:/
   sort(Deps, DepsU),
   prover:with_delay_triggers(
     prover:prove_model(DepsU, t, AvlModel, t, _ConsOut, t)),
-  findall(Fact:install?{CtxOut},
+  findall(Fact:Phase?{CtxOut},
            ( gen_assoc(Fact:_,AvlModel,CtxIn),
              Fact =.. [package_dependency|_],
+             Fact =.. [package_dependency,Phase|_],
              ( CtxIn == {} -> CtxOut = [] ; CtxOut = CtxIn )
            ),
           Model) ) ) :- !.

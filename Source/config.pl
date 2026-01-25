@@ -459,7 +459,7 @@ config:mirror_verify_hashes_default(none).
 % automatically stop computation if it takes too long.
 %In seconds.
 
-config:time_limit(60).
+config:time_limit(90).
 
 
 %! config:proving_target(?Target)

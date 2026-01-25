@@ -565,7 +565,8 @@ printer:cycle_for_assumption(StartKey0, TriggersAVL, CyclePath0, CyclePath) :-
   ( StartKey = _://_:install ; StartKey = _://_:run ; StartKey = _://_:fetchonly
   ; StartKey = _:install     ; StartKey = _:run     ; StartKey = _:fetchonly
   ),
-  printer:find_cycle_via_triggers(StartKey, TriggersAVL, CyclePath0),
+  printer:cycle_start_pkg_key(StartKey, TriggersAVL, StartPkg),
+  printer:find_cycle_via_triggers(StartPkg, TriggersAVL, CyclePath0),
   printer:cycle_display_path(CyclePath0, CyclePath),
   CyclePath = [_|_].
 
@@ -1622,6 +1623,13 @@ printer:print_comparator(none)         :- write('').
 printer:print_use_dependencies([]) :- !.
 
 printer:print_use_dependencies(Use) :-
+  % SAFETY:
+  % In some assumption/cycle-break displays, Use may be a variable or a non-list.
+  % - member/2 on a variable can generate infinite lists (hang)
+  % - member/2 on a non-list can raise a type error (messy output)
+  ( var(Use) ; \+ is_list(Use) ),
+  !.
+printer:print_use_dependencies(Use) :-
   message:color(cyan),
   write(' [ '),
   forall(member(D,Use),(printer:print_use_dependency(D),write(' '))),
@@ -1662,6 +1670,12 @@ printer:print_use_dependency(use(disable(U),D)) :-
 printer:print_use_dependency(use(enable(U),D)) :-
   write(U),
   print_use_default(D).
+
+% Safety net: never fail while printing a USE dep (vars/unknown shapes can occur
+% in assumptions/cycle-break displays). Failing here would abort the enclosing
+% forall/2 and leave a dangling '[' in the output.
+printer:print_use_dependency(Other) :-
+  write(Other).
 
 
 %! printer:print_use_default(D)
@@ -1962,7 +1976,7 @@ printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):run?{
   message:color(red),
   atomic_list_concat([C,'/',N],P),
   message:column(24,P),
-  message:print([' (non-existent, assumed running)']),
+  message:print(' (non-existent, assumed running)'),
   message:color(normal).
 
 
@@ -1971,7 +1985,7 @@ printer:print_element(_,rule(assumed(package_dependency(run,no,C,N,_,_,_,_):run?
   message:color(red),
   atomic_list_concat([C,'/',N],P),
   message:column(24,P),
-  message:print([' (non-existent, assumed running)']),
+  message:print(' (non-existent, assumed running)'),
   message:color(normal).
 
 
@@ -3044,7 +3058,18 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
   ( CycleAssumptions \= [] ->
       message:header('Cycle breaks (prover)'),
       nl,
-      forall(member(Content, CycleAssumptions),
+      % Avoid pathological output/time when many cycle breaks exist.
+      % Print only a small prefix; keep explanations best-effort and time-bounded.
+      MaxCycleBreaksToPrint = 10,
+      length(CycleAssumptions, TotalCycleBreaks),
+      ( TotalCycleBreaks =< MaxCycleBreaksToPrint ->
+          CycleToPrint = CycleAssumptions,
+          Omitted is 0
+      ; length(CycleToPrint, MaxCycleBreaksToPrint),
+        append(CycleToPrint, _Rest, CycleAssumptions),
+        Omitted is TotalCycleBreaks - MaxCycleBreaksToPrint
+      ),
+      forall(member(Content, CycleToPrint),
              ( ( printer:is_run_cycle_break(Content) ->
                      message:color(darkgray),
                      message:print('  (runtime SCC candidate)'), nl,
@@ -3052,9 +3077,23 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
                  ; true
                ),
                printer:print_cycle_break_detail(Content),
-               printer:print_cycle_explanation(Content, TriggersAVL),
+               % Best-effort: do not allow cycle explanation to hang printing.
+               % Give it a bit more time in interactive output so we often show a real cycle.
+               catch(call_with_time_limit(2.0, printer:print_cycle_explanation(Content, ProofAVL, TriggersAVL)),
+                     time_limit_exceeded,
+                     ( message:color(darkgray),
+                       message:print('  (cycle explanation omitted: time limit)'),
+                       message:color(normal),
+                       nl )),
                nl
              ))
+  ,   ( Omitted > 0 ->
+          message:color(darkgray),
+          format('  (… ~d more cycle breaks omitted)~n', [Omitted]),
+          message:color(normal),
+          nl
+      ; true
+      )
   ; true
   ),
   nl,
@@ -3403,7 +3442,7 @@ printer:handle_assumption(ProofKey) :-
 %! printer:handle_assumption(+ProofKey,+ProofAVL,+TriggersAVL)
 %
 % Extended assumption printer that can use proof and triggers for explanations.
-printer:handle_assumption(ProofKey, _ProofAVL, TriggersAVL) :-
+printer:handle_assumption(ProofKey, ProofAVL, TriggersAVL) :-
   % Case 1: key format: rule(assumed(...)) % domain driven assumption
   (   ProofKey = rule(assumed(Content)) ->
       printer:print_assumption_detail(rule(Content, [])),
@@ -3411,7 +3450,7 @@ printer:handle_assumption(ProofKey, _ProofAVL, TriggersAVL) :-
   % Case 2: key format: assumed(rule(...)) % prover driven assumption
   ;   ProofKey = assumed(rule(Content)) ->
       printer:print_assumption_detail(rule(Content, [])),
-      printer:print_cycle_explanation(Content, TriggersAVL),
+      printer:print_cycle_explanation(Content, ProofAVL, TriggersAVL),
       nl
   ;
       true
@@ -3422,28 +3461,82 @@ printer:handle_assumption(ProofKey, _ProofAVL, TriggersAVL) :-
 %  Cycle explanation (minimal "works now" implementation)
 % -----------------------------------------------------------------------------
 
-%! printer:print_cycle_explanation(+StartKey,+TriggersAVL)
-printer:print_cycle_explanation(StartKey, TriggersAVL) :-
+%! printer:print_cycle_explanation(+StartKey,+ProofAVL,+TriggersAVL)
+printer:print_cycle_explanation(StartKey, ProofAVL, TriggersAVL) :-
   % Accept both package keys (R://E:install) and non-package keys (X:install),
   % so cycles can still be found even when the assumption is a grouped dep term.
   ( StartKey = _://_:install ; StartKey = _://_:run ; StartKey = _://_:fetchonly
   ; StartKey = _:install     ; StartKey = _:run     ; StartKey = _:fetchonly
   ),
-  printer:find_cycle_via_triggers(StartKey, TriggersAVL, CyclePath0),
-  printer:cycle_display_path(CyclePath0, CyclePath),
-  CyclePath = [_|_],
-  !,
-  % Record stats (if enabled) before printing, so "cycle mention" counts match what we show.
-  printer:test_stats_record_cycle(CyclePath0, CyclePath),
-  nl,
-  message:color(darkgray),
-  message:print('  Reason : Dependency cycle :'), nl,
-  message:color(normal),
-  nl,
-  printer:cycle_edge_guard_map(CyclePath0, GuardMap),
-  printer:print_cycle_tree(CyclePath, GuardMap).
-printer:print_cycle_explanation(_, _) :-
+  % Fast path: if the prover recorded a compact cycle witness, use it.
+  ( is_assoc(ProofAVL),
+    ( prover:canon_literal(StartKey, Canon, _) -> true ; Canon = StartKey ),
+    get_assoc(cycle_path(Canon), ProofAVL, CyclePath0a) ->
+      printer:cycle_display_path(CyclePath0a, CyclePath),
+      CyclePath0 = CyclePath0a
+  ; % Otherwise: fall back to trigger/proof reconstruction.
+    % Prefer a fast, package-key-only cycle witness from Triggers.
+    % Fall back to broader searches if needed.
+    ( printer:cycle_start_pkg_key(StartKey, TriggersAVL, StartPkg),
+      printer:find_cycle_via_triggers_pkg(StartPkg, TriggersAVL, CyclePath),
+      CyclePath0 = CyclePath
+    ; printer:cycle_start_pkg_key(StartKey, TriggersAVL, StartPkg),
+      printer:find_cycle_via_triggers(StartPkg, TriggersAVL, CyclePath0a),
+      printer:cycle_display_path(CyclePath0a, CyclePath),
+      CyclePath0 = CyclePath0a
+    ; printer:find_cycle_via_proof(StartKey, ProofAVL, CyclePath0a),
+      printer:cycle_display_path(CyclePath0a, CyclePath),
+      CyclePath0 = CyclePath0a
+    )
+  ),
+  ( CyclePath = [_|_] ->
+    % Record stats (if enabled) before printing, so "cycle mention" counts match what we show.
+    printer:test_stats_record_cycle(CyclePath0, CyclePath),
+    nl,
+    message:color(darkgray),
+    message:print('  Reason : Dependency cycle :'), nl,
+    message:color(normal),
+    nl,
+    % Guard extraction is best-effort and can be expensive on large metadata trees.
+    % Never let it stall printing (especially during bulk graph generation).
+    ( catch(call_with_time_limit(0.25, printer:cycle_edge_guard_map(CyclePath0, GuardMap0)),
+           time_limit_exceeded,
+           GuardMap0 = _),
+      ( is_assoc(GuardMap0) -> GuardMap = GuardMap0 ; empty_assoc(GuardMap) )
+    ),
+    printer:print_cycle_tree(CyclePath, GuardMap)
+  ;
+    message:color(darkgray),
+    message:print('  (cycle path not found)'),
+    message:color(normal),
+    nl
+  ),
+  !.
+printer:print_cycle_explanation(_, _, _) :-
   true.
+
+% Backward compatibility (older callers).
+printer:print_cycle_explanation(StartKey, TriggersAVL) :-
+  printer:print_cycle_explanation(StartKey, t, TriggersAVL).
+
+% Pick a reasonable package-key node to anchor cycle search.
+% For grouped deps / other non-package nodes, we look 1-2 hops in the triggers graph
+% for the first package key.
+printer:cycle_start_pkg_key(StartKey, _TriggersAVL, StartPkg) :-
+  printer:cycle_node_package_key(StartKey, StartPkg),
+  !.
+printer:cycle_start_pkg_key(StartKey, TriggersAVL, StartPkg) :-
+  printer:trigger_neighbors(StartKey, TriggersAVL, Neigh),
+  member(N, Neigh),
+  printer:cycle_node_package_key(N, StartPkg),
+  !.
+printer:cycle_start_pkg_key(StartKey, TriggersAVL, StartPkg) :-
+  printer:trigger_neighbors(StartKey, TriggersAVL, Neigh1),
+  member(N1, Neigh1),
+  printer:trigger_neighbors(N1, TriggersAVL, Neigh2),
+  member(N2, Neigh2),
+  printer:cycle_node_package_key(N2, StartPkg),
+  !.
 
 % -----------------------------------------------------------------------------
 %  On-demand USE-guard extraction for cycle edges
@@ -3822,6 +3915,9 @@ printer:print_n(Char, N) :-
 % Examples:
 %   portage://dev-libs/libxml2-2.15.1:install  -> Entry=dev-libs/libxml2-2.15.1, Action=install
 %   portage://dev-libs/libxml2-2.15.1          -> Entry=dev-libs/libxml2-2.15.1, Action=unknown
+printer:cycle_node_parts(grouped(C,N):Action, Entry, Action) :-
+  !,
+  format(atom(Entry), '~w/~w (group)', [C, N]).
 printer:cycle_node_parts(_Repo://Entry:Action, Entry, Action) :- !.
 printer:cycle_node_parts(_Repo://Entry,        Entry, unknown) :- !.
 printer:cycle_node_parts(Entry:Action,         Entry, Action) :- !.
@@ -3836,8 +3932,38 @@ printer:cycle_display_path(CyclePath0, CyclePath) :-
           P0),
   printer:dedup_consecutive(P0, CyclePath).
 
-printer:cycle_node_package_key(R://E:A, R://E:A) :- !.
-printer:cycle_node_package_key(R://E,   R://E)   :- !.
+% Strip nested context wrappers like X?{...} that can occur in trigger nodes.
+printer:cycle_strip_ctx(X?{_Ctx}, Out) :-
+  !,
+  printer:cycle_strip_ctx(X, Out).
+printer:cycle_strip_ctx(X, X).
+
+% Normalize to stable package keys: Repo://Entry or Repo://Entry:Action.
+printer:cycle_node_package_key(Node0, Key) :-
+  printer:cycle_strip_ctx(Node0, Node1),
+  ( Node1 = R://E:A ->
+      printer:cycle_strip_ctx(E, E1),
+      ( E1 = EAtom:Act0 -> Key = R://EAtom:Act0
+      ; Key = R://E1:A
+      )
+  ; Node1 = R://E ->
+      printer:cycle_strip_ctx(E, E1),
+      ( E1 = EAtom:Act0 -> Key = R://EAtom:Act0
+      ; Key = R://E1
+      )
+  ; Node1 = grouped_package_dependency(_Strength, C, N, _PackageDeps):A ->
+      % For cycle breaks in grouped deps, keep a compact stable key so we can
+      % still render at least the grouped node cycle.
+      Key = grouped(C, N):A
+  ; Node1 = E:A ->
+      % Only accept plain entry atoms here; reject compound nodes like
+      % grouped_package_dependency(...):install.
+      printer:cycle_strip_ctx(E, E1),
+      atomic(E1),
+      Key = E1:A
+  ; fail
+  ),
+  !.
 
 % Special case: keep a 2-element [X,X] list intact so a direct self-cycle can
 % still be rendered as a cycle (instead of collapsing to a single node).
@@ -3862,6 +3988,123 @@ printer:find_cycle_via_triggers(StartKey, TriggersAVL, CyclePath) :-
   printer:dfs_cycle(StartKey, StartKey, TriggersAVL, [StartKey], 0, MaxDepth, [StartKey], RevPath),
   reverse(RevPath, CyclePath),
   CyclePath = [StartKey|_].
+
+% Fallback: find any cycle reachable from StartKey (StartKey itself may be a
+% grouped dependency node, while the actual cycle is between package nodes).
+printer:find_cycle_via_triggers(StartKey, TriggersAVL, CyclePath) :-
+  printer:find_any_cycle_via_triggers(StartKey, TriggersAVL, CyclePath),
+  !.
+
+printer:find_any_cycle_via_triggers(StartKey, TriggersAVL, CyclePath) :-
+  MaxDepth = 25,
+  printer:dfs_any_cycle(StartKey, TriggersAVL, [StartKey], 0, MaxDepth, RevCycle),
+  reverse(RevCycle, CyclePath),
+  CyclePath = [_|_].
+
+% DFS that detects a back-edge to any node on the current path.
+printer:dfs_any_cycle(Node, TriggersAVL, PathRev, Depth, MaxDepth, CycleRev) :-
+  Depth < MaxDepth,
+  printer:trigger_neighbors(Node, TriggersAVL, Neigh),
+  member(Next, Neigh),
+  ( memberchk(Next, PathRev) ->
+      printer:take_until(PathRev, Next, PrefixToNext),
+      % Include Next twice (start and end) so it renders as a cycle.
+      CycleRev = [Next|PrefixToNext]
+  ; Depth1 is Depth + 1,
+    printer:dfs_any_cycle(Next, TriggersAVL, [Next|PathRev], Depth1, MaxDepth, CycleRev)
+  ).
+
+% Take prefix of PathRev until (and including) Stop.
+printer:take_until([Stop|_], Stop, [Stop]) :- !.
+printer:take_until([X|Xs], Stop, [X|Out]) :-
+  printer:take_until(Xs, Stop, Out).
+
+% Fast cycle witness on "package keys" only (BFS with budget).
+% This is used for printing: it prefers a short, human-meaningful cycle quickly
+% over an exhaustive search through grouped/package_dependency nodes.
+printer:find_cycle_via_triggers_pkg(StartPkg, TriggersAVL, CyclePath) :-
+  MaxDepth = 40,
+  Budget0 = 3000,
+  sort([StartPkg], Visited0),
+  printer:bfs_cycle_pkg([q(StartPkg, 0, [StartPkg])], Visited0, StartPkg, TriggersAVL, MaxDepth, Budget0, RevCycle),
+  reverse(RevCycle, CyclePath),
+  CyclePath = [StartPkg|_],
+  !.
+
+printer:bfs_cycle_pkg([q(Node, Depth, PathRev)|Queue], Visited0, Start, TriggersAVL, MaxDepth, Budget0, CycleRev) :-
+  Budget0 > 0,
+  ( Depth >= MaxDepth ->
+      Budget1 is Budget0 - 1,
+      printer:bfs_cycle_pkg(Queue, Visited0, Start, TriggersAVL, MaxDepth, Budget1, CycleRev)
+  ; printer:trigger_neighbors_pkg(Node, TriggersAVL, NeighPkgs),
+    ( memberchk(Start, NeighPkgs),
+      Depth > 0 ->
+        CycleRev = [Start|PathRev]
+    ; findall(q(Next, Depth1, [Next|PathRev]),
+              ( member(Next, NeighPkgs),
+                Next \== Start,
+                \+ memberchk(Next, Visited0),
+                Depth1 is Depth + 1
+              ),
+              NewQs),
+      findall(Next,
+              member(q(Next,_,_), NewQs),
+              NewNodes),
+      append(Queue, NewQs, Queue1),
+      append(Visited0, NewNodes, Visited1a),
+      sort(Visited1a, Visited1),
+      Budget1 is Budget0 - 1,
+      printer:bfs_cycle_pkg(Queue1, Visited1, Start, TriggersAVL, MaxDepth, Budget1, CycleRev)
+    )
+  ).
+
+% Neighbors, but keep only stable package keys for cycle display.
+printer:trigger_neighbors_pkg(Node, TriggersAVL, Pkgs) :-
+  printer:trigger_neighbors(Node, TriggersAVL, Ns),
+  findall(P,
+          ( member(N, Ns),
+            printer:cycle_node_package_key(N, P)
+          ),
+          P0),
+  sort(P0, Pkgs).
+
+% -----------------------------------------------------------------------------
+%  Proof-based cycle finding (fallback when triggers are insufficient)
+% -----------------------------------------------------------------------------
+
+printer:find_cycle_via_proof(StartKey, ProofAVL, CyclePath) :-
+  MaxDepth = 25,
+  printer:dfs_cycle_proof(StartKey, StartKey, ProofAVL, [StartKey], 0, MaxDepth, [StartKey], RevPath),
+  reverse(RevPath, CyclePath),
+  CyclePath = [StartKey|_],
+  !.
+
+printer:dfs_cycle_proof(Start, Node, ProofAVL, _Visited, Depth, _MaxDepth, Acc, [Start|Acc]) :-
+  printer:proof_neighbors(Node, ProofAVL, Neigh),
+  memberchk(Start, Neigh),
+  Depth > 0,
+  !.
+printer:dfs_cycle_proof(Start, Node, ProofAVL, Visited, Depth, MaxDepth, Acc, Out) :-
+  Depth < MaxDepth,
+  printer:proof_neighbors(Node, ProofAVL, Neigh),
+  member(Next, Neigh),
+  \+ memberchk(Next, Visited),
+  Depth1 is Depth + 1,
+  printer:dfs_cycle_proof(Start, Next, ProofAVL, [Next|Visited], Depth1, MaxDepth, [Next|Acc], Out).
+
+printer:proof_neighbors(Node, ProofAVL, NeighKeys) :-
+  ( get_assoc(rule(Node), ProofAVL, dep(_, Body)?_)
+  ; get_assoc(assumed(rule(Node)), ProofAVL, dep(_, Body)?_)
+  ),
+  !,
+  findall(K,
+          ( member(Dep, Body),
+            \+ prover:is_constraint(Dep),
+            prover:canon_literal(Dep, K, _)
+          ),
+          NeighKeys0),
+  sort(NeighKeys0, NeighKeys).
+printer:proof_neighbors(_Node, _ProofAVL, []).
 
 
 %! printer:dfs_cycle(+Start,+Node,+Triggers,+Visited,+Depth,+MaxDepth,+Acc,-Out)

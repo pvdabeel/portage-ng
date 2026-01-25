@@ -51,6 +51,47 @@ prover:with_delay_triggers(Goal) :-
                      )).
 
 % -----------------------------------------------------------------------------
+%  Internal: cycle stack (for printing cycle-break paths)
+% -----------------------------------------------------------------------------
+%
+% The prover's cycle-break detection is based on "rule(Lit) already in Proof".
+% The triggers graph is sometimes insufficient to reconstruct a human-readable
+% cycle quickly (especially when triggers are delayed or pruned). We therefore
+% maintain a lightweight per-proof stack of literals currently being proven,
+% and store a compact cycle witness in the proof under `cycle_path(Lit)`.
+
+prover:with_cycle_stack(Goal) :-
+  ( nb_current(prover_cycle_stack, Old) -> true ; Old = unset ),
+  nb_setval(prover_cycle_stack, []),
+  setup_call_cleanup(true,
+                     Goal,
+                     ( Old == unset -> nb_delete(prover_cycle_stack)
+                     ; nb_setval(prover_cycle_stack, Old)
+                     )).
+
+prover:cycle_stack_push(Lit) :-
+  ( nb_current(prover_cycle_stack, S0) -> true ; S0 = [] ),
+  nb_setval(prover_cycle_stack, [Lit|S0]).
+
+prover:cycle_stack_pop(Lit) :-
+  ( nb_current(prover_cycle_stack, [Lit|Rest]) ->
+      nb_setval(prover_cycle_stack, Rest)
+  ; true
+  ).
+
+prover:take_until([Stop|_], Stop, [Stop]) :- !.
+prover:take_until([X|Xs], Stop, [X|Out]) :-
+  prover:take_until(Xs, Stop, Out).
+
+prover:cycle_path_for(Lit, CyclePath) :-
+  ( nb_current(prover_cycle_stack, Stack),
+    prover:take_until(Stack, Lit, PrefixRev) ->
+      reverse(PrefixRev, Prefix),
+      append(Prefix, [Lit], CyclePath)
+  ; CyclePath = [Lit, Lit]
+  ).
+
+% -----------------------------------------------------------------------------
 %  Lightweight model construction (skip Proof + Triggers bookkeeping)
 % -----------------------------------------------------------------------------
 %
@@ -299,7 +340,9 @@ prover:prove(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTr
 
   % Call the core recursive engine.
   prover:debug_hook(Target, InProof, InModel, InCons),
-  prover:prove_recursive(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, MidTriggers),
+  prover:with_cycle_stack(
+    prover:prove_recursive(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, MidTriggers)
+  ),
 
   % Check the flag to determine the final trigger-building action.
   (   prover:delay_triggers ->
@@ -444,7 +487,12 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
       ),
 
       % -- Prove body difference
-      prover:prove_recursive(DiffBody, Proof1, NewProof, Model, BodyModel, Constraints, BodyConstraints, Triggers1, NewTriggers),
+      % When we refine a rule due to context changes, we are effectively re-entering
+      % the proof of Lit. Record Lit on the cycle stack as well, so if a cycle-break
+      % happens during this refinement we can still extract a meaningful cycle path.
+      setup_call_cleanup(prover:cycle_stack_push(Lit),
+                         prover:prove_recursive(DiffBody, Proof1, NewProof, Model, BodyModel, Constraints, BodyConstraints, Triggers1, NewTriggers),
+                         prover:cycle_stack_pop(Lit)),
 
       % -- Update model & Constraints
       put_assoc(Lit, BodyModel, NewCtx, NewModel),
@@ -506,7 +554,11 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
             -> BodyForPlanning = OldBody
             ;  BodyForPlanning = []
           ),
-          put_assoc(assumed(rule(Lit)), Proof, dep(-1, BodyForPlanning)?Ctx, NewProof),
+          put_assoc(assumed(rule(Lit)), Proof, dep(-1, BodyForPlanning)?Ctx, Proof1),
+          ( prover:cycle_path_for(Lit, CyclePath) ->
+              put_assoc(cycle_path(Lit), Proof1, CyclePath, NewProof)
+          ; NewProof = Proof1
+          ),
           put_assoc(assumed(Lit), Model, Ctx, NewModel),
           NewConstraints = Constraints,
           NewTriggers = Triggers
@@ -533,7 +585,9 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
           ;
               prover:add_triggers(Full, Body, Triggers, Triggers1)
           ),
-          prover:prove_recursive(Body, Proof1, NewProof, Model, BodyModel, Constraints, BodyConstraints, Triggers1, NewTriggers),
+          setup_call_cleanup(prover:cycle_stack_push(Lit),
+                             prover:prove_recursive(Body, Proof1, NewProof, Model, BodyModel, Constraints, BodyConstraints, Triggers1, NewTriggers),
+                             prover:cycle_stack_pop(Lit)),
           put_assoc(Lit, BodyModel, Ctx, NewModel),
           NewConstraints = BodyConstraints
       )
@@ -766,7 +820,15 @@ prover:build_triggers_from_proof(ProofAVL, TriggersAVL) :-
 prover:add_rule_triggers(HeadKey-Value, InTriggers, OutTriggers) :-
     ( prover:canon_rule(rule(Head, Body), HeadKey, Value) ; prover:canon_rule(assumed(rule(Head, Body)), HeadKey, Value) ),
     !,
-    ( Value = dep(_, _)?Ctx -> prover:canon_literal(FullHead, Head, Ctx) ; FullHead = Head ),
+    ( Value = dep(_, _)?Ctx ->
+        % `canon_rule/3` may already return a context-annotated Head (Head?{Ctx}).
+        % Avoid wrapping a second time, which creates nested context terms like:
+        %   portage://(dev-ml/foo-1.0:run?{Ctx})?{Ctx}
+        ( Head = _?{_} -> FullHead = Head
+        ; prover:canon_literal(FullHead, Head, Ctx)
+        )
+    ; FullHead = Head
+    ),
     prover:add_triggers(FullHead, Body, InTriggers, OutTriggers).
 
 prover:add_rule_triggers(_, InTriggers, InTriggers).
@@ -906,6 +968,25 @@ prover:unify_constraint(List,M,Assoc) :-
 %
 % Convert between full format and key-value pair used
 % for the AVL model tree
+
+% Robustness: occasionally a literal can be accidentally wrapped as
+%   Repo://(Entry:Action?{Ctx})?{Ctx2}
+% (repo applied to a whole action+context term). Canonicalize those to the
+% intended shape Repo://Entry:Action?{MergedCtx}.
+
+prover:canon_literal(R://(L:A),               R://L:A, {})  :- !.
+prover:canon_literal(R://(L:A?{Ctx1}),        R://L:A, Ctx1) :- !.
+prover:canon_literal(R://(L:A)?{Ctx2},        R://L:A, Ctx2) :- !.
+prover:canon_literal(R://(L:A?{Ctx1})?{Ctx2}, R://L:A, Ctx) :-
+  !,
+  prover:ctx_union(Ctx1, Ctx2, Ctx).
+
+prover:canon_literal(R://(L),                 R://L,   {})  :- !.
+prover:canon_literal(R://(L?{Ctx1}),          R://L,   Ctx1) :- !.
+prover:canon_literal(R://(L)?{Ctx2},          R://L,   Ctx2) :- !.
+prover:canon_literal(R://(L?{Ctx1})?{Ctx2},   R://L,   Ctx) :-
+  !,
+  prover:ctx_union(Ctx1, Ctx2, Ctx).
 
 prover:canon_literal(R://L:A,       R://L:A,  {})  :- !.
 prover:canon_literal(R://L:A?{Ctx}, R://L:A,  Ctx) :- !.

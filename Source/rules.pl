@@ -570,7 +570,16 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
                  pkg://InstalledEntry),
     rules:query_search_slot_constraint(SlotReq, pkg://InstalledEntry, _),
     rules:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps, pkg://InstalledEntry),
-    rules:installed_entry_satisfies_build_with_use(pkg://InstalledEntry, Context),
+    % IMPORTANT (Portage-like rebuilds):
+    % The "keep installed" fast-path must also respect bracketed USE requirements
+    % expressed by this dependency (e.g. xmlto[text], glib[introspection]).
+    % These are carried as per-package `build_with_use` constraints, so we must
+    % derive them from this grouped dep's PackageDeps before deciding the installed
+    % instance satisfies the dependency.
+    findall(U0, member(package_dependency(Action,no,C,N,_O,_V,_,U0),PackageDeps), MergedUse0),
+    append(MergedUse0, MergedUse),
+    process_build_with_use(MergedUse, Context, ContextWU, _BWUCons, pkg://InstalledEntry),
+    rules:installed_entry_satisfies_build_with_use(pkg://InstalledEntry, ContextWU),
     % --newuse: do not "keep installed" if USE/IUSE has changed since the installed
     % package was built (Portage-like -N behavior).
     ( preference:flag(newuse) ->
