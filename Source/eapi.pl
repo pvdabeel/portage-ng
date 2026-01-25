@@ -194,6 +194,7 @@ eapi:abstract_syntax_construct(any_of_group(_)) :- !.
 eapi:abstract_syntax_construct(all_of_group(_)) :- !.
 eapi:abstract_syntax_construct(at_most_one_of_group(_)) :- !.
 eapi:abstract_syntax_construct(exactly_one_of_group(_)) :- !.
+eapi:abstract_syntax_construct(conflict(_,_)) :- !.
 
 % See cache.pl for the data structure in the parser output is stored.
 
