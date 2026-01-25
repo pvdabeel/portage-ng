@@ -26,6 +26,7 @@ Scope / limitations (intentional, first cut):
 
 :- module(profile,
           [ profile_use_terms/2,          % +ProfileRel, -Terms
+            profile_package_mask_atoms/2, % +ProfileRel, -Atoms
             write_profile_use_file/0,     % write to Source/Private/profile_use_generated.pl
             write_profile_use_file/1      % +File
           ]).
@@ -52,6 +53,32 @@ profile_use_terms(ProfileRel, Terms) :-
   profile_dirs(ProfileRel, Dirs),
   profile_collect(Dirs, Data),
   profile_finalize(Data, Terms).
+
+%! profile_package_mask_atoms(+ProfileRel, -Atoms:list)
+%
+% Collect raw package.mask atoms from the selected profile (including parents).
+%
+% Notes:
+% - This is intentionally *minimal* and only returns raw atoms as strings/atoms.
+% - Unmasking (package.unmask) and versioned mask semantics are not handled here.
+%   The consumer can decide what subset to apply.
+%
+profile_package_mask_atoms(ProfileRel, Atoms) :-
+  profile_dirs(ProfileRel, Dirs),
+  findall(A,
+          ( member(Dir, Dirs),
+            package_mask_file(Dir, File),
+            exists_file(File),
+            read_file_to_string(File, S, []),
+            split_string(S, "\n", "\r\n", Lines0),
+            member(Line0, Lines0),
+            profile_strip_comment(Line0, Line1),
+            normalize_space(string(Line), Line1),
+            Line \== "",
+            atom_string(A, Line)
+          ),
+          Atoms0),
+  sort(Atoms0, Atoms).
 
 
 %! write_profile_use_file
@@ -125,6 +152,16 @@ profile_dirs_from_dir(Dir, Seen0, Seen) :-
 
 parent_file(Dir, ParentFile) :-
   os:compose_path(Dir, 'parent', ParentFile).
+
+package_mask_file(Dir, File) :-
+  os:compose_path(Dir, 'package.mask', File).
+
+% Strip '#' comments (Gentoo profile file style).
+profile_strip_comment(S0, S) :-
+  ( sub_string(S0, Before, _, _, "#") ->
+      sub_string(S0, 0, Before, _, S)
+  ; S = S0
+  ).
 
 profile_comment_or_empty(Line) :-
   Line == '' ;
