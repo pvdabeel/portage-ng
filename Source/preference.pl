@@ -308,10 +308,11 @@ preference:init :-
     -> forall(preference:env_accept_keywords(Key),      assertz(preference:local_accept_keywords(Key)))
     ;  forall(preference:default_accept_keywords(Key),  assertz(preference:local_accept_keywords(Key)))),
 
-  % 3. Apply Gentoo /etc/portage overrides (package.mask / package.use).
+  % 3. Apply Gentoo profile + /etc/portage overrides (package.mask / package.use).
   %
   % These affect candidate selection (masking) and per-package USE evaluation.
   %
+  preference:apply_profile_package_mask,
   preference:apply_gentoo_package_mask,
   preference:apply_gentoo_package_use.
 
@@ -327,12 +328,55 @@ preference:apply_gentoo_package_mask :-
   ; true
   ).
 
+preference:apply_profile_package_mask :-
+  ( current_predicate(config:gentoo_profile/1),
+    catch(config:gentoo_profile(ProfileRel), _, fail),
+    current_predicate(profile:profile_package_mask_atoms/2),
+    catch(profile:profile_package_mask_atoms(ProfileRel, Atoms), _, fail) ->
+      forall(member(Atom, Atoms),
+             preference:mask_profile_atom(Atom))
+  ; true
+  ).
+
 preference:mask_catpkg_atom(Atom) :-
   atom(Atom),
   atomic_list_concat([C,N], '/', Atom),
   % Mask all matching entries in the main repo (not VDB).
   forall(cache:ordered_entry(portage, Id, C, N, _),
          assertz(preference:masked(portage://Id))).
+
+% Best-effort profile package.mask support.
+%
+% - Supports simple cat/pkg atoms (mask all versions)
+% - Supports version operators by parsing the atom using the EAPI qualified_target parser
+%   and masking all matching portage entries.
+% - Ignores slots/usedeps/repository qualifiers for now.
+preference:mask_profile_atom(Atom) :-
+  atom(Atom),
+  % Fast path: simple cat/pkg
+  ( atomic_list_concat([_C,_N], '/', Atom),
+    \+ sub_atom(Atom, 0, 1, _, '>'),
+    \+ sub_atom(Atom, 0, 1, _, '<'),
+    \+ sub_atom(Atom, 0, 1, _, '='),
+    \+ sub_atom(Atom, 0, 1, _, '~'),
+    \+ sub_atom(Atom, _, 1, _, ':'),   % slots
+    \+ sub_atom(Atom, _, 1, _, '['),   % usedeps
+    \+ sub_atom(Atom, _, 1, _, '*')    % wildcards
+  ) ->
+    preference:mask_catpkg_atom(Atom)
+  ; % Slow path: attempt to parse versioned atoms
+    atom_codes(Atom, Codes),
+    catch(phrase(eapi:qualified_target(Q), Codes), _, fail),
+    Q = qualified_target(Op, _Repo, C, N, Ver, _Filters),
+    nonvar(C), nonvar(N) ->
+      forall(cache:ordered_entry(portage, Id, C, N, _),
+             ( ( Op == none
+               ; query:search(select(version,Op,Ver), portage://Id)
+               ) ->
+                 assertz(preference:masked(portage://Id))
+             ; true
+             ))
+  ; true.
 
 
 preference:apply_gentoo_package_use :-
