@@ -12,6 +12,131 @@ set -eu
 # This script lives under Source/Scripts/, so the project root is two levels up.
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 
+# -----------------------------------------------------------------------------
+# Hard wall-clock timeout wrapper
+# -----------------------------------------------------------------------------
+#
+# Prolog-side time limits are best-effort: some code paths can keep the process
+# alive past the intended limit. For CI and automation, we also enforce a hard
+# wall-clock timeout at the process level based on `--time-limit`.
+#
+# This kills the whole process group (TERM, then KILL) so spawned children don't
+# linger.
+HARD_LIMIT=""
+prev=""
+NEW_ARGS=""
+for a in "$@"; do
+  if [ "$prev" = "--time-limit" ]; then
+    HARD_LIMIT="$a"
+    NEW_ARGS="$NEW_ARGS$(printf '\n%s' "$a")"
+    prev=""
+    continue
+  fi
+  if [ "$prev" = "--hard-time-limit" ]; then
+    HARD_LIMIT="$a"
+    prev=""
+    continue
+  fi
+  case "$a" in
+    --time-limit)
+      prev="--time-limit"
+      NEW_ARGS="$NEW_ARGS$(printf '\n%s' "$a")"
+      ;;
+    --time-limit=*)
+      HARD_LIMIT="${a#*=}"
+      NEW_ARGS="$NEW_ARGS$(printf '\n%s' "$a")"
+      ;;
+    --hard-time-limit)
+      prev="--hard-time-limit"
+      ;;
+    --hard-time-limit=*)
+      HARD_LIMIT="${a#*=}"
+      ;;
+    *)
+      NEW_ARGS="$NEW_ARGS$(printf '\n%s' "$a")"
+      ;;
+  esac
+done
+
+# Rebuild positional parameters (strip wrapper-only flags, preserve spaces).
+IFS='
+'
+set -- $NEW_ARGS
+unset IFS
+
+is_pos_int() {
+  case "${1:-}" in
+    ''|*[!0-9]*)
+      return 1
+      ;;
+    *)
+      [ "$1" -gt 0 ] 2>/dev/null
+      ;;
+  esac
+}
+
+if is_pos_int "$HARD_LIMIT"; then
+  # Use a Python watchdog so we can keep swipl in the foreground (preserves
+  # heredoc/pipe input for `--shell`) while still enforcing a hard wall-clock cap.
+  PYTHON=""
+  if command -v python3 >/dev/null 2>&1; then
+    PYTHON="python3"
+  elif command -v python >/dev/null 2>&1; then
+    PYTHON="python"
+  fi
+
+  if [ -n "$PYTHON" ]; then
+    exec "$PYTHON" -c '
+import os, signal, subprocess, sys, time
+
+def killpg(pid, sig):
+    try:
+        os.killpg(pid, sig)
+    except Exception:
+        try:
+            os.kill(pid, sig)
+        except Exception:
+            pass
+
+limit = int(sys.argv[1])
+cmd = sys.argv[2:]
+
+p = subprocess.Popen(
+    cmd,
+    stdin=sys.stdin,
+    stdout=sys.stdout,
+    stderr=sys.stderr,
+    start_new_session=True,  # new process group/session
+)
+
+deadline = time.time() + limit
+while True:
+    rc = p.poll()
+    if rc is not None:
+        sys.exit(rc)
+    if time.time() >= deadline:
+        break
+    time.sleep(0.1)
+
+killpg(p.pid, signal.SIGTERM)
+time.sleep(2.0)
+killpg(p.pid, signal.SIGKILL)
+rc = p.wait()
+sys.exit(rc if rc is not None else 124)
+' "$HARD_LIMIT" \
+      swipl -O \
+        --stack-limit=256G --table-space=256G --shared-table-space=256G \
+        -f "$ROOT_DIR/portage-ng.pl" \
+        -p "portage=$ROOT_DIR" \
+        -Dverbose_autoload=false \
+        -Dreadline=editline \
+        -g main -- "$@"
+  fi
+
+  # No Python available: fall back to plain swipl (no hard kill).
+fi
+
+# No hard time limit -> behave like a normal launcher.
 exec swipl -O \
   --stack-limit=256G --table-space=256G --shared-table-space=256G \
   -f "$ROOT_DIR/portage-ng.pl" \
