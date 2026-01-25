@@ -2,6 +2,51 @@
 
 # This script requires portage ebuild.sh to be available in PATH
 
-# check if PHASE = cachewrite
+set -eu
+
+# If we're using a Portage git checkout (bin/ebuild.sh on PATH), provide a default
+# python module path so ebuild.sh can find portage's python code.
+if [[ -z "${PORTAGE_PYM_PATH:-}" ]]; then
+  EBUILD_SH="$(command -v ebuild.sh || true)"
+  if [[ -n "${EBUILD_SH}" ]]; then
+    PORTAGE_ROOT_GUESS="$(cd "$(dirname "${EBUILD_SH}")/.." && pwd)"
+    if [[ -d "${PORTAGE_ROOT_GUESS}/lib" ]]; then
+      export PORTAGE_PYM_PATH="${PORTAGE_ROOT_GUESS}/lib"
+    fi
+  fi
+fi
+
+# Debugging:
+# Set PORTAGE_NG_CACHE_DEBUG=1 to log invocation + stderr/stdout.
+# Logs are written to /tmp so they still work when Prolog discards stderr.
+if [[ -n "${PORTAGE_NG_CACHE_DEBUG:-}" ]]; then
+  LOG="/tmp/portage-ng-cache-eapi.$(date +%Y%m%d-%H%M%S).$$.log"
+  {
+    echo "=== cache-eapi (Darwin) ==="
+    echo "date: $(date)"
+    echo "cwd:  $(pwd)"
+    echo "argv: $0 $*"
+    echo "PATH: ${PATH}"
+    echo "which ebuild.sh: $(command -v ebuild.sh || echo not-found)"
+    echo "which readlink:  $(command -v readlink || echo not-found)"
+    echo "which sed:       $(command -v sed || echo not-found)"
+    echo "PORTAGE_PYM_PATH: ${PORTAGE_PYM_PATH:-}"
+    echo "EBUILD_PHASE(arg1): ${1-}"
+    echo "EBUILD(arg2):       ${2-}"
+    echo "ECLASS_LOC(arg3):   ${3-}"
+    echo "ENV(P):        ${P-}"
+    echo "ENV(PN):       ${PN-}"
+    echo "ENV(PV):       ${PV-}"
+    echo "ENV(PR):       ${PR-}"
+    echo "ENV(PVR):      ${PVR-}"
+    echo "ENV(PF):       ${PF-}"
+    echo "ENV(CATEGORY): ${CATEGORY-}"
+    echo "=========================="
+  } >> "${LOG}"
+  # Keep stdout as-is (for md5-cache), but capture stderr + a copy of stdout.
+  EBUILD_PHASE="${1}" EBUILD="${2}" PORTAGE_ECLASS_LOCATIONS=$(printf %q "${3}") PORTAGE_PIPE_FD=1 \
+    ebuild.sh 2>>"${LOG}" | tee -a "${LOG}"
+  exit ${PIPESTATUS[0]}
+fi
 
 EBUILD_PHASE="${1}" EBUILD="${2}" PORTAGE_ECLASS_LOCATIONS=$(printf %q "${3}") PORTAGE_PIPE_FD=1 ebuild.sh 2>/dev/null
