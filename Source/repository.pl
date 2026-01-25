@@ -19,6 +19,8 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 
 :- use_module(library(filesex)).
 
+:- use_module(os). % for with_system_lock/2,3
+
 % =============================================================================
 %  REPOSITORY declarations
 % =============================================================================
@@ -173,7 +175,7 @@ sync(metadata) ::-
   ::cache(Cache),
   % System-wide lock: multiple portage-ng instances must not update the same
   % on-disk metadata cache in parallel.
-  os:with_system_lock(repository_metadata_cache(Repository, Cache),
+  with_system_lock(repository_metadata_cache(Repository, Cache),
     ( message:hc,
       ( config:trust_metadata(false)
         -> (:update_cache,
@@ -181,7 +183,8 @@ sync(metadata) ::-
                     (:read_ebuild(E,Cd,_),
                      :update_metadata(E,Cd),
                      with_mutex(mutex,message:scroll(['Ebuild (local): ',E])))))
-        ; true ),
+        ; true
+      ),
       message:sc,
       message:scroll(['Updated metadata.']),nl
     )).
@@ -195,7 +198,7 @@ sync(metadata) ::-
   :this(Repository),
   % System-wide lock: multiple portage-ng instances must not update the same
   % on-disk metadata cache in parallel.
-  os:with_system_lock(repository_metadata_cache(Repository, Cache),
+  with_system_lock(repository_metadata_cache(Repository, Cache),
     ( script:exec(cache,[Type,Repository,Remote,Local,Cache]),
       message:scroll(['Updated metadata.']),nl
     )).
@@ -555,15 +558,15 @@ read_manifest(Path,_,_,_,[]) ::-
 read_ebuild(Entry,Metadata) ::-
   read_ebuild(Entry,_,Metadata).
 
-read_ebuild(Entry,Codes,Metadata) ::-
+read_ebuild(Entry,Contents,Metadata) ::-
   :this(Repository),
   ::location(Location),
   ebuild:invoke(cache,Location,Entry,Stream),
-  reader:invoke(Stream,Codes),
-  parser:invoke(metadata,Repository://Entry,Codes,Metadata),!.
+  reader:invoke(Stream,Contents),
+  parser:invoke(metadata,Repository://Entry,Contents,Metadata),!.
 
 
-%! repository:update_metadata(+Entry, +Codes)
+%! repository:update_metadata(+Entry, +Contents)
 %
 % Private predicate
 %
@@ -573,13 +576,13 @@ read_ebuild(Entry,Codes,Metadata) ::-
 % (e.g., when a new category is created in an overlay). Ensure the parent
 % directory exists before writing.
 
-update_metadata(Entry,Codes) ::-
+update_metadata(Entry,Contents) ::-
   ::cache(Cache),
   os:compose_path(Cache,Entry,File),
   file_directory_name(File, Dir),
   os:ensure_directory_path(Dir),
   tell(File),
-  forall(member(Line,Codes),(atom_codes(Atom,Line),writeln(Atom))),
+  forall(member(String,Contents),(writeln(String))),
   told.
 
 
