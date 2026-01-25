@@ -234,12 +234,7 @@ main :-
   config:world_file(File),
   world:newinstance(set(File)),
   world:load,
-  % prolog_history/1 can throw (or block) in non-interactive environments
-  % (e.g. when stdout/stderr are redirected in non-interactive/scripted runs).
-  ( current_prolog_flag(tty, true) ->
-      catch(prolog_history(enable), _E, true)
-  ; true
-  ),
+  catch(prolog_history(enable), _E, true),
   main(Mode).
 
 
