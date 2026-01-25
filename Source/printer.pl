@@ -1327,8 +1327,15 @@ printer:display_state(Target, Proof, Model, Constraints) :-
 
 % Helper to wait for the user to press Enter.
 printer:wait_for_input :-
-    format('~nPress Enter to continue...'),
-    get_char(_).
+    % In non-interactive runs (e.g. here-doc piping), user_input is not a TTY and
+    % `get_char/1` can throw on EOF. Only prompt when we can actually read.
+    ( stream_property(user_input, tty(true)),
+      \+ at_end_of_stream(user_input) ->
+        format('~nPress Enter to continue...'),
+        flush_output,
+        catch(get_char(_), _E, true)
+    ; true
+    ).
 
 
 % -----------------------------------------------------------------------------
