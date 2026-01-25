@@ -23,6 +23,14 @@ Eventually this could become a class with different subclasses.
 :- use_module(library(readutil)).
 :- use_module(library(process)).
 
+% Meta-predicate declarations:
+% Ensure the Goal executes in the *caller* context/module, not in module `os`.
+% This is crucial when the Goal uses instance-method syntax (`::`) or relies on
+% caller-local predicates.
+:- meta_predicate with_system_lock(+, 0).
+:- meta_predicate with_system_lock(+, 0, +).
+
+
 % =============================================================================
 %  OS declarations
 % =============================================================================
