@@ -71,10 +71,18 @@ preference:env_features('sign -ccache -buildpkg -sandbox -usersandbox -ebuild-lo
 % This lets you mirror a Gentoo `emerge --info` snapshot in `preference.pl`
 % without having to export envvars before running portage-ng.
 
-preference:default_env('ACCEPT_KEYWORDS', 'amd64 ~amd64').
+% Parity defaults taken from Gentoo /etc/portage/make.conf (vm-linux).
+% NOTE: USE is incremental; duplicates are normalized (last occurrence wins).
+preference:default_env('ACCEPT_KEYWORDS', '~amd64').
 preference:default_env('PYTHON_SINGLE_TARGET', 'python3_13').
 preference:default_env('PYTHON_TARGETS', 'python3_13').
+preference:default_env('PERL_FEATURES', 'ithreads').
 preference:default_env('RUBY_TARGETS', 'ruby32 ruby33').
+preference:default_env('VIDEO_CARDS', 'vmware vesa vga').
+preference:default_env('INPUT_DEVICES', 'evdev keyboard mouse vmmouse').
+preference:default_env('ALSA_CARDS', 'ens1371').
+preference:default_env('CPU_FLAGS_X86', 'aes avx avx2 avx512f avx512dq avx512cd avx512bw avx512vl f16c fma3 mmx mmxext pclmul popcnt rdrand sse sse2 sse3 sse4_1 sse4_2 ssse3').
+preference:default_env('USE', 'harfbuzz lto dnet resolutionkms o-flag-munging pgo graphite optimizations aio npm http split-usr -elogind policykit json -systemd -llvm -lua -berkdb -introspection -vala -xen -hcache -ruby python gdbm fbcondecor messages smp qemu sqlite mmxext -svg avahi mmx sse sse2 sse3 ssse3 sse4 sse4_2 gmp cvs git x86emu gpg imap pop sidebar smime smtp dbus truetype X -xvmc xa xkb libkms cairo glitz png jpeg tiff gif mp3 opengl xcb xlib-xcb alsa aac aacplus jpeg2k fontconfig openssl ssh threads x264 x265 xvid dts md5sum a52 aalib zeroconf pkcs11 apng xattr nova account container object proxy directfb pcre16 -mdnsresponder-compat gpm').
 % NOTE:
 % USE_EXPAND selector variables like LUA_SINGLE_TARGET / LLVM_SLOT / VIDEO_CARDS
 % typically come from Gentoo profile `make.defaults` and/or `/etc/portage/make.conf`.
@@ -334,7 +342,14 @@ preference:apply_profile_package_mask :-
     current_predicate(profile:profile_package_mask_atoms/2),
     catch(profile:profile_package_mask_atoms(ProfileRel, Atoms), _, fail) ->
       forall(member(Atom, Atoms),
-             preference:mask_profile_atom(Atom))
+             ( % Portage profile package.mask supports incremental unmasking:
+               % lines starting with '-' remove an atom masked by parents.
+               ( sub_atom(Atom, 0, 1, _, '-') ->
+                   sub_atom(Atom, 1, _, 0, Atom1),
+                   normalize_space(atom(Atom2), Atom1),
+                   preference:unmask_profile_atom(Atom2)
+               ; preference:mask_profile_atom(Atom)
+               )))
   ; true
   ).
 
@@ -344,6 +359,12 @@ preference:mask_catpkg_atom(Atom) :-
   % Mask all matching entries in the main repo (not VDB).
   forall(cache:ordered_entry(portage, Id, C, N, _),
          assertz(preference:masked(portage://Id))).
+
+preference:unmask_catpkg_atom(Atom) :-
+  atom(Atom),
+  atomic_list_concat([C,N], '/', Atom),
+  forall(cache:ordered_entry(portage, Id, C, N, _),
+         retractall(preference:masked(portage://Id))).
 
 % Best-effort profile package.mask support.
 %
@@ -374,6 +395,32 @@ preference:mask_profile_atom(Atom) :-
                ; query:search(select(version,Op,Ver), portage://Id)
                ) ->
                  assertz(preference:masked(portage://Id))
+             ; true
+             ))
+  ; true.
+
+% Undo masking for a profile package.mask atom (Portage-style '-cat/pkg' lines).
+preference:unmask_profile_atom(Atom) :-
+  atom(Atom),
+  ( atomic_list_concat([_C,_N], '/', Atom),
+    \+ sub_atom(Atom, 0, 1, _, '>'),
+    \+ sub_atom(Atom, 0, 1, _, '<'),
+    \+ sub_atom(Atom, 0, 1, _, '='),
+    \+ sub_atom(Atom, 0, 1, _, '~'),
+    \+ sub_atom(Atom, _, 1, _, ':'),   % slots
+    \+ sub_atom(Atom, _, 1, _, '['),   % usedeps
+    \+ sub_atom(Atom, _, 1, _, '*')    % wildcards
+  ) ->
+    preference:unmask_catpkg_atom(Atom)
+  ; atom_codes(Atom, Codes),
+    catch(phrase(eapi:qualified_target(Q), Codes), _, fail),
+    Q = qualified_target(Op, _Repo, C, N, Ver, _Filters),
+    nonvar(C), nonvar(N) ->
+      forall(cache:ordered_entry(portage, Id, C, N, _),
+             ( ( Op == none
+               ; query:search(select(version,Op,Ver), portage://Id)
+               ) ->
+                 retractall(preference:masked(portage://Id))
              ; true
              ))
   ; true.

@@ -114,7 +114,14 @@ config:gentoo_profile('default/linux/amd64/23.0/split-usr/no-multilib').
 %     -launcher (dbus-broker) and -introspection (glib stack)
 %     -systemd  (OpenRC profile expectations)
 %
-config:gentoo_env('USE', 'X alsa dbus truetype ssh python mp3 -systemd -elogind -introspection -launcher -vala -llvm -svg -man -lua').
+% Mirror Gentoo /etc/portage/make.conf (vm-linux) USE, normalized (last occurrence wins).
+config:gentoo_env('USE', 'harfbuzz lto dnet resolutionkms o-flag-munging pgo graphite optimizations aio npm http split-usr -elogind policykit json -systemd -llvm -lua -berkdb -introspection -vala -xen -hcache -ruby python gdbm fbcondecor messages smp qemu sqlite mmxext -svg avahi mmx sse sse2 sse3 ssse3 sse4 sse4_2 gmp cvs git x86emu gpg imap pop sidebar smime smtp dbus truetype X -xvmc xa xkb libkms cairo glitz png jpeg tiff gif mp3 opengl xcb xlib-xcb alsa aac aacplus jpeg2k fontconfig openssl ssh threads x264 x265 xvid dts md5sum a52 aalib zeroconf pkcs11 apng xattr nova account container object proxy directfb pcre16 -mdnsresponder-compat gpm').
+config:gentoo_env('VIDEO_CARDS', 'vmware vesa vga').
+config:gentoo_env('INPUT_DEVICES', 'evdev keyboard mouse vmmouse').
+config:gentoo_env('ALSA_CARDS', 'ens1371').
+config:gentoo_env('CPU_FLAGS_X86', 'aes avx avx2 avx512f avx512dq avx512cd avx512bw avx512vl f16c fma3 mmx mmxext pclmul popcnt rdrand sse sse2 sse3 sse4_1 sse4_2 ssse3').
+config:gentoo_env('PERL_FEATURES', 'ithreads').
+config:gentoo_env('ACCEPT_KEYWORDS', '~amd64').
 
 % -----------------------------------------------------------------------------
 % Gentoo /etc/portage overrides (subset)

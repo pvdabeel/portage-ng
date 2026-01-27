@@ -78,7 +78,15 @@ profile_package_mask_atoms(ProfileRel, Atoms) :-
             atom_string(A, Line)
           ),
           Atoms0),
-  sort(Atoms0, Atoms).
+  % IMPORTANT: keep order.
+  %
+  % Gentoo profiles use incremental semantics for package.mask, including
+  % unmasking with '-cat/pkg' in child profiles. Order is therefore significant:
+  % later entries (closer to the leaf profile) override earlier ones.
+  %
+  % Do NOT sort/dedupe here; consumers (preference:init) apply the operations
+  % sequentially.
+  Atoms = Atoms0.
 
 
 %! write_profile_use_file
@@ -411,12 +419,15 @@ profile_finalize(st(Enabled0, Disabled0, Force0, Mask0), Terms) :-
   sort(Disabled0, Disabled),
   sort(Force0, Force),
   sort(Mask0, Mask),
-  % Apply mask/force precedence on defaults.
-  ord_subtract(Enabled, Mask, Enabled1),
-  ord_union(Enabled1, Force, EnabledFinal),
-  ord_subtract(Disabled, Force, Disabled1),
-  ord_union(Disabled1, Mask, Disabled2),
-  ord_subtract(Disabled2, EnabledFinal, DisabledFinal),
+  % Apply Portage-like precedence.
+  %
+  % Key point: `use.mask` wins over `use.force` unless explicitly unmasked in a
+  % child profile. Gentoo uses this pattern (forced+masked in base, unmask in
+  % specific arch/features profiles), e.g. `big-endian`.
+  ord_union(Enabled, Force, Enabled1),
+  ord_subtract(Enabled1, Mask, EnabledFinal),
+  ord_union(Disabled, Mask, Disabled1),
+  ord_subtract(Disabled1, EnabledFinal, DisabledFinal),
   findall(preference:profile_use(Flag), member(Flag, EnabledFinal), EnabledTerms),
   findall(preference:profile_use(minus(Flag)), member(Flag, DisabledFinal), DisabledTerms),
   append(EnabledTerms, DisabledTerms, Terms).
