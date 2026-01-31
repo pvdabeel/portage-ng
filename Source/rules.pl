@@ -2247,8 +2247,16 @@ rules:entry_iuse_info(Repo://Entry, Info) :-
 rules:selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate) :-
   memberchk(constraint(selected_cn(C,N):{ordset(SelectedSet)}), Context),
   member(selected(FoundRepo, Candidate, ActSel, _CandVer, _Ss), SelectedSet),
-  % Be conservative: only reuse for install/run selection.
-  ( ActSel == Action ; (Action == run, ActSel == install) ),
+  % CN-consistency should be global across actions/phases: once we've chosen a
+  % concrete (C,N) entry, reuse it for both install+run obligations.
+  % Otherwise we can end up scheduling two different versions for the same (C,N)
+  % when the run-dep is encountered before the install-dep (or vice versa),
+  % e.g. wrk -> luajit installs two luajit versions.
+  ( (Action == install ; Action == run),
+    (ActSel == install ; ActSel == run)
+  -> true
+  ; ActSel == Action
+  ),
   cache:ordered_entry(FoundRepo, Candidate, C, N, _),
   \+ preference:masked(FoundRepo://Candidate).
 
@@ -2422,13 +2430,25 @@ rules:constraint_guard(constraint(blocked_cn(C,N):{ordset(Specs)}), Constraints)
       \+ rules:specs_violate_selected(Specs, Selected)
   ; true
   ).
-rules:constraint_guard(constraint(selected_cn(C,N):{ordset(SelectedNew)}), Constraints) :-
+rules:constraint_guard(constraint(selected_cn(C,N):{ordset(_SelectedNew)}), Constraints) :-
   !,
+  % Enforce CN-consistency: for each (C,N), all selections must refer to the
+  % same concrete entry. Without this, separate install/run obligations can
+  % accidentally select different versions and both end up scheduled.
+  get_assoc(selected_cn(C,N), Constraints, ordset(SelectedMerged)),
+  rules:selected_cn_unique(SelectedMerged),
   ( get_assoc(blocked_cn(C,N), Constraints, ordset(Specs)) ->
-      \+ rules:specs_violate_selected(Specs, SelectedNew)
+      \+ rules:specs_violate_selected(Specs, SelectedMerged)
   ; true
   ).
 rules:constraint_guard(_Other, _Constraints).
+
+% True iff all selected/5 terms refer to the same Repo+Entry.
+rules:selected_cn_unique([]) :- !.
+rules:selected_cn_unique([selected(Repo,Entry,_Act,_Ver,_Slot)|Rest]) :-
+  forall(member(selected(Repo2,Entry2,_A2,_V2,_S2), Rest),
+         (Repo2 == Repo, Entry2 == Entry)),
+  !.
 
 % True iff any blocker spec in Specs violates any selected instance.
 %
