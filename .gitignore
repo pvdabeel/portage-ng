@@ -7,6 +7,8 @@ Source/Llm/Archive
 Source/Certificates/*-key.pem
 Source/Certificates/cakey.pem
 Source/Certificates/cacert.srl
+Source/Scripts/__pycache__/
+Source/Scripts/compare-merge-emerge.py
 todo
 kb.qlf
 kb.raw
