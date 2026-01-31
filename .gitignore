@@ -1,0 +1,12 @@
+Reports
+Source/Archive
+Source/Private
+Source/Tests
+Source/Llm/Archive
+Source/Certificates/*-key.pem
+Source/Certificates/cakey.pem
+Source/Certificates/cacert.srl
+patch*
+compare*
+todo
+kb.qlf
