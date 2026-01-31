@@ -576,7 +576,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
     % These are carried as per-package `build_with_use` constraints, so we must
     % derive them from this grouped dep's PackageDeps before deciding the installed
     % instance satisfies the dependency.
-    findall(U0, member(package_dependency(Action,no,C,N,_O,_V,_,U0),PackageDeps), MergedUse0),
+    findall(U0, member(package_dependency(_P0,no,C,N,_O,_V,_,U0),PackageDeps), MergedUse0),
     append(MergedUse0, MergedUse),
     process_build_with_use(MergedUse, Context, ContextWU, _BWUCons, pkg://InstalledEntry),
     rules:installed_entry_satisfies_build_with_use(pkg://InstalledEntry, ContextWU),
@@ -590,21 +590,43 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
   ->
     Conditions = []
   ;
-    ( (memberchk(slot(C,N,Ss):{_}, Context) -> true ; true),
-      merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
+    ( merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
 
       % Candidate selection (portage / overlays)
       %
       % CN-consistency: reuse an already-selected concrete entry when possible.
-      % This prevents scheduling multiple incompatible versions of the same (C,N)
-      % in a single plan (common in OCaml/Haskell stacks).
-      % CN-consistency: if we've already selected a concrete (C,N), reuse it
-      % deterministically. Only enumerate keyword candidates when nothing is selected.
+      %
+      % IMPORTANT (:= / any_same_slot correctness):
+      % The Context may contain multiple `slot(C,N,...)` facts (multi-slot).
+      % If we bind Ss *before* choosing Candidate, we might bind to an unrelated
+      % slot constraint and incorrectly render the dependency "unsatisfiable".
+      %
+      % Therefore:
+      % - first choose Candidate (prefer reusing selected_cn when present),
+      % - then (optionally) bind Ss from the matching slot(C,N,...) entry for that
+      %   exact Candidate, and only use Ss as a lock when enumerating further.
+      % If the context already carries a slot lock for this (C,N) (typically via :=),
+      % reuse it to restrict candidate choice. This is how we enforce Portage-like
+      % `:=` behavior (same slot/subslot as the previously chosen instance).
+      %
+      % IMPORTANT: do NOT apply this to explicit slot deps [slot(_)] — those are
+      % validated via query_search_slot_constraint/3 and must allow multi-slot.
+      ( SlotReq == [any_same_slot],
+        memberchk(slot(C,N,SsLock0):{_}, Context),
+        rules:canon_any_same_slot_meta(SsLock0, SsLock)
+      ->
+        true
+      ; SsLock = _Unbound
+      ),
+
       ( SlotReq = [slot(_)] ->
-          rules:accepted_keyword_candidate(Action, C, N, SlotReq, Ss, Context, FoundRepo://Candidate)
+          % NOTE: explicit slot requirements should NOT be influenced by an
+          % existing `slot(C,N,...)` term in Context (multi-slot is allowed).
+          % We validate slot constraints after candidate selection.
+          rules:accepted_keyword_candidate(Action, C, N, SlotReq, _Ss0, Context, FoundRepo://Candidate)
       ; rules:selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate) ->
           true
-      ; rules:accepted_keyword_candidate(Action, C, N, SlotReq, Ss, Context, FoundRepo://Candidate)
+      ; rules:accepted_keyword_candidate(Action, C, N, SlotReq, SsLock, Context, FoundRepo://Candidate)
       ),
 
       % Avoid resolving a dep to self unless candidate is already installed
@@ -618,15 +640,19 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       ; true
       ),
 
-      forall(member(package_dependency(Action,no,C,N,O,V,_,_), PackageDeps),
+      forall(member(package_dependency(_P1,no,C,N,O,V,_,_), PackageDeps),
              rules:query_search_version_select(O, V, FoundRepo://Candidate)),
 
-      findall(U0, member(package_dependency(Action,no,C,N,_O,_V,_,U0),PackageDeps), MergedUse0),
+      findall(U0, member(package_dependency(_P2,no,C,N,_O,_V,_,U0),PackageDeps), MergedUse0),
       append(MergedUse0, MergedUse),
       % Enforce bracketed USE constraints (e.g. sys-devel/gcc[objc], python[xml(+)], foo[bar?]).
       rules:candidate_satisfies_use_deps(Context, FoundRepo://Candidate, MergedUse),
       process_build_with_use(MergedUse,Context,NewContext,Constraints,FoundRepo://Candidate),
-      process_slot(SlotReq,Ss,C,N,FoundRepo://Candidate,NewContext,NewerContext),
+      % Derive slot metadata for the chosen candidate (used for := propagation and
+      % for recording selection constraints). Do this AFTER candidate choice so
+      % we don't accidentally pre-bind SlotMeta from an unrelated earlier dep.
+      rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, SlotMeta),
+      process_slot(SlotReq, SlotMeta, C, N, FoundRepo://Candidate, NewContext, NewerContext),
 
       % Prefer expressing as update when a pkg-installed entry exists and the chosen
       % candidate is newer.
@@ -655,7 +681,15 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         )
       ->
         ActionGoal = FoundRepo://Candidate:update?{UpdateCtx}
-      ; ActionGoal = FoundRepo://Candidate:Action?{NewerContext}
+      ; % Portage-like: even for runtime (RDEPEND) edges, the solver should
+        % schedule the dependency to be installed (not "run") when it is not
+        % already present. Otherwise we create widespread `assumed(...running)`
+        % domain assumptions (and miss merge actions) for normal libraries.
+        ( Action == run ->
+            DepAction = install
+        ; DepAction = Action
+        ),
+        ActionGoal = FoundRepo://Candidate:DepAction?{NewerContext}
       ),
 
       % IMPORTANT for performance + correctness:
@@ -668,7 +702,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       ; ActSel = Action
       ),
       query:search(version(CandVer), FoundRepo://Candidate),
-      Selected = constraint(selected_cn(C,N):{ordset([selected(FoundRepo,Candidate,ActSel,CandVer,Ss)])}),
+      Selected = constraint(selected_cn(C,N):{ordset([selected(FoundRepo,Candidate,ActSel,CandVer,SlotMeta)])}),
       append([Selected|Constraints], [ActionGoal], Conditions)
     ; % In --deep mode we *prefer* upgrades, but we should not create domain
       % assumptions when the dependency is already installed in the vdb (`pkg`)
@@ -724,10 +758,15 @@ rules:accepted_keyword_candidate(Action, C, N, SlotReq, Ss, Context, FoundRepo:/
     ;
       rules:accepted_keyword_candidates_cached(Action, C, N, SlotReq, CandidatesSorted),
       ( rules:greedy_candidate_package(C, N) ->
-          CandidatesSorted = [FoundRepo://Candidate|_]
-      ; member(FoundRepo://Candidate, CandidatesSorted)
-      ),
-      rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, Ss)
+          % Greedy packages: pick the best version *that satisfies* any existing
+          % slot lock from the context (notably := / any_same_slot). Without this,
+          % a locked slot would incorrectly become "unsatisfiable" because we
+          % never consider older versions in the required slot.
+          member(FoundRepo://Candidate, CandidatesSorted),
+          rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, Ss)
+      ; member(FoundRepo://Candidate, CandidatesSorted),
+        rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, Ss)
+      )
     )
   ).
 
@@ -1464,18 +1503,24 @@ query_search_slot_constraint(SlotReq, RepoEntry, SlotMeta) :-
   RepoEntry = Repo://Id,
   ( SlotReq == [] ->
       query:search(select(slot,constraint([]),SlotMeta), Repo://Id)
-  ; SlotReq = [slot(S)] ->
+  ; SlotReq = [slot(S0)] ->
+      rules:canon_slot(S0, S),
       query:search(select(slot,constraint([slot(S)]),SlotMeta), Repo://Id)
-  ; SlotReq = [slot(S),subslot(Ss)] ->
+  ; SlotReq = [slot(S0),subslot(Ss)] ->
+      rules:canon_slot(S0, S),
       query:search(select(slot,constraint([slot(S),subslot(Ss)]),SlotMeta), Repo://Id)
-  ; SlotReq = [slot(S),equal] ->
+  ; SlotReq = [slot(S0),equal] ->
+      rules:canon_slot(S0, S),
       query:search(select(slot,constraint([slot(S),equal]),SlotMeta), Repo://Id)
-  ; SlotReq = [slot(S),subslot(Ss),equal] ->
+  ; SlotReq = [slot(S0),subslot(Ss),equal] ->
+      rules:canon_slot(S0, S),
       query:search(select(slot,constraint([slot(S),subslot(Ss),equal]),SlotMeta), Repo://Id)
   ; SlotReq = [any_same_slot] ->
-      query:search(select(slot,constraint([any_same_slot]),SlotMeta), Repo://Id)
+      query:search(select(slot,constraint([any_same_slot]),SlotMeta0), Repo://Id),
+      rules:canon_any_same_slot_meta(SlotMeta0, SlotMeta)
   ; SlotReq = [any_different_slot] ->
-      query:search(select(slot,constraint([any_different_slot]),SlotMeta), Repo://Id)
+      query:search(select(slot,constraint([any_different_slot]),SlotMeta0), Repo://Id),
+      rules:canon_any_same_slot_meta(SlotMeta0, SlotMeta)
   ; % Fallback (should be rare; may be slower due to missing macro)
     query:search(select(slot,constraint(SlotReq),SlotMeta), Repo://Id)
   ).
@@ -2529,10 +2574,19 @@ rules:entry_slot_default(Repo, Entry, Slot) :-
 % others use atoms.
 rules:canon_slot(S0, S) :-
   ( atom(S0)   -> S = S0
-  ; integer(S0) -> number_atom(S0, S)
-  ; number(S0)  -> number_atom(S0, S)
+  ; integer(S0) -> atom_number(S, S0)
+  ; number(S0)  -> atom_number(S, S0)
   ; S = S0
   ),
+  !.
+
+% Normalize slot metadata lists so `:=`/any_same_slot compares by SLOT only.
+% Some contexts store full metadata [slot(S),subslot(Ss)], but any_same_slot
+% queries now return [slot(S)]. Ensure we can unify reliably.
+rules:canon_any_same_slot_meta(Meta0, [slot(S)]) :-
+  is_list(Meta0),
+  member(slot(S0), Meta0),
+  rules:canon_slot(S0, S),
   !.
 
 % -----------------------------------------------------------------------------

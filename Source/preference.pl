@@ -24,6 +24,11 @@ The preferences module contains build specific preferences
 % Per-package USE overrides (from /etc/portage/package.use-like sources).
 :- dynamic preference:package_use_override/4. % Category, Name, Use, State(positive|negative)
 
+% Profile-enforced per-package USE constraints (from profiles/**/package.use.{mask,force}).
+% These are *hard* constraints and override /etc/portage/package.use.
+:- dynamic preference:profile_package_use_masked/2. % Spec, Use
+:- dynamic preference:profile_package_use_forced/2. % Spec, Use
+
 
 % =============================================================================
 %  PREFERENCE declarations
@@ -82,7 +87,7 @@ preference:default_env('ALSA_CARDS', 'ens1371').
 preference:default_env('CPU_FLAGS_X86', 'aes avx avx2 avx512f avx512dq avx512cd avx512bw avx512vl f16c fma3 mmx mmxext pclmul popcnt rdrand sse sse2 sse3 sse4_1 sse4_2 ssse3').
 % NOTE: USE is incremental; "last occurrence wins".
 % Keep `introspection` enabled for GNOME/KDE stacks (many deps require glib[introspection]).
-preference:default_env('USE', 'harfbuzz lto dnet resolutionkms o-flag-munging pgo graphite optimizations aio npm http split-usr -elogind policykit json -systemd -llvm -lua -berkdb -introspection -vala -xen -hcache -ruby python gdbm fbcondecor messages smp qemu sqlite mmxext -svg avahi mmx sse sse2 sse3 ssse3 sse4 sse4_2 gmp cvs git x86emu gpg imap pop sidebar smime smtp dbus truetype X -xvmc xa xkb libkms cairo glitz png jpeg tiff gif mp3 opengl xcb xlib-xcb alsa aac aacplus jpeg2k fontconfig openssl ssh threads x264 x265 xvid dts md5sum a52 aalib zeroconf pkcs11 apng xattr nova account container object proxy directfb pcre16 -mdnsresponder-compat gpm introspection').
+preference:default_env('USE', 'berkdb harfbuzz lto dnet resolutionkms o-flag-munging pgo graphite optimizations aio npm http split-usr -elogind policykit json -systemd -llvm -lua -berkdb -gdbm -introspection -vala -xen -hcache -ruby python gdbm fbcondecor messages smp qemu sqlite mmxext -svg avahi mmx sse sse2 sse3 ssse3 sse4 sse4_2 gmp cvs git x86emu gpg imap pop sidebar smime smtp dbus truetype X -xvmc xa xkb libkms cairo glitz png jpeg tiff gif mp3 opengl xcb xlib-xcb alsa aac aacplus jpeg2k fontconfig openssl ssh threads x264 x265 xvid dts md5sum a52 aalib zeroconf pkcs11 apng xattr nova account container object proxy directfb pcre16 -mdnsresponder-compat gpm').
 % NOTE:
 % USE_EXPAND selector variables like LUA_SINGLE_TARGET / LLVM_SLOT / VIDEO_CARDS
 % typically come from Gentoo profile `make.defaults` and/or `/etc/portage/make.conf`.
@@ -298,6 +303,8 @@ preference:init :-
   % Reset derived state (important when regenerating lots of plans in one session).
   retractall(preference:masked(_)),
   retractall(preference:package_use_override(_,_,_,_)),
+  retractall(preference:profile_package_use_masked(_,_)),
+  retractall(preference:profile_package_use_forced(_,_)),
 
   % 1. Set use flags
 
@@ -355,9 +362,132 @@ preference:init :-
   % These affect candidate selection (masking) and per-package USE evaluation.
   %
   catch(preference:apply_profile_package_mask, _, true),
+  catch(preference:apply_profile_package_use_mask, _, true),
+  catch(preference:apply_profile_package_use_force, _, true),
   catch(preference:apply_profile_package_use,  _, true),
   catch(preference:apply_gentoo_package_mask,  _, true),
   catch(preference:apply_gentoo_package_use,   _, true),
+  !.
+
+% ---------------------------------------------------------------------------
+% Profile per-package USE constraints (package.use.mask / package.use.force)
+% ---------------------------------------------------------------------------
+
+% Normalize a profile atom into a matching spec.
+%
+% We support:
+% - simple(C,N)                     (cat/pkg)
+% - versioned(Op,C,N,Ver)           (>=cat/pkg-1.2, =cat/pkg-0*, ...)
+%
+% Notes:
+% - We intentionally ignore slot restrictions and use deps in these atoms for now.
+% - A target of the form cat/pkg-1.2 (no operator) is treated like '=' (exact).
+preference:profile_package_use_spec(Atom, Spec) :-
+  atom(Atom),
+  atom_codes(Atom, Codes),
+  catch(phrase(eapi:qualified_target(Q), Codes), _, fail),
+  Q = qualified_target(Op, _Repo, C, N, Ver0, _Filters),
+  nonvar(C), nonvar(N),
+  ( Ver0 == [[], '', '', '', ''] ->
+      Spec = simple(C, N)
+  ; Op == none ->
+      Spec = versioned(equal, C, N, Ver0)
+  ; Spec = versioned(Op, C, N, Ver0)
+  ),
+  !.
+
+preference:apply_profile_package_use_mask :-
+  ( current_predicate(config:gentoo_profile/1),
+    catch(config:gentoo_profile(ProfileRel), _, fail),
+    current_predicate(profile:profile_dirs/2),
+    catch(profile:profile_dirs(ProfileRel, Dirs), _, fail) ->
+      forall(member(Dir, Dirs),
+             catch(preference:apply_profile_package_use_file(Dir, 'package.use.mask', masked), _, true))
+  ; true
+  ).
+
+preference:apply_profile_package_use_force :-
+  ( current_predicate(config:gentoo_profile/1),
+    catch(config:gentoo_profile(ProfileRel), _, fail),
+    current_predicate(profile:profile_dirs/2),
+    catch(profile:profile_dirs(ProfileRel, Dirs), _, fail) ->
+      forall(member(Dir, Dirs),
+             catch(preference:apply_profile_package_use_file(Dir, 'package.use.force', forced), _, true))
+  ; true
+  ).
+
+preference:apply_profile_package_use_file(Dir, Basename, Kind) :-
+  os:compose_path(Dir, Basename, File),
+  ( exists_file(File) ->
+      catch(read_file_to_string(File, S, []), _, S = ""),
+      split_string(S, "\n", "\r\n", Lines0),
+      forall(member(L0, Lines0),
+             ( profile:profile_strip_comment(L0, L1),
+               normalize_space(string(L2), L1),
+               ( L2 == "" ->
+                   true
+               ; split_string(L2, " ", "\t ", Ws0),
+                 exclude(=(""), Ws0, Ws),
+                 ( Ws = [AtomS|FlagSs],
+                   atom_string(AtomA, AtomS),
+                   preference:profile_package_use_spec(AtomA, Spec) ->
+                     forall(member(FlagS0, FlagSs),
+                            preference:apply_profile_package_use_flag(Kind, Spec, FlagS0))
+                 ; true
+                 )
+               )
+             ))
+  ; true
+  ).
+
+preference:apply_profile_package_use_flag(Kind, Spec, FlagS0) :-
+  normalize_space(string(FlagS), FlagS0),
+  ( FlagS == "" -> true
+  ; sub_string(FlagS, 0, 1, _, "-") ->
+      sub_string(FlagS, 1, _, 0, Name0),
+      normalize_space(string(Name), Name0),
+      Name \== "",
+      atom_string(Flag, Name),
+      preference:apply_profile_package_use_op(del, Kind, Spec, Flag)
+  ; atom_string(Flag, FlagS),
+    preference:apply_profile_package_use_op(add, Kind, Spec, Flag)
+  ),
+  !.
+
+preference:apply_profile_package_use_op(add, masked, Spec, Flag) :-
+  ( preference:profile_package_use_masked(Spec, Flag) -> true
+  ; assertz(preference:profile_package_use_masked(Spec, Flag))
+  ),
+  !.
+preference:apply_profile_package_use_op(del, masked, Spec, Flag) :-
+  retractall(preference:profile_package_use_masked(Spec, Flag)),
+  !.
+preference:apply_profile_package_use_op(add, forced, Spec, Flag) :-
+  ( preference:profile_package_use_forced(Spec, Flag) -> true
+  ; assertz(preference:profile_package_use_forced(Spec, Flag))
+  ),
+  !.
+preference:apply_profile_package_use_op(del, forced, Spec, Flag) :-
+  retractall(preference:profile_package_use_forced(Spec, Flag)),
+  !.
+
+% Determine whether a profile enforces a hard per-package USE state for an entry.
+% Precedence: mask wins over force (Portage-like).
+preference:profile_package_use_override_for_entry(Repo://Id, Use, State, Reason) :-
+  cache:ordered_entry(Repo, Id, C, N, ProposedVersion),
+  ( ( preference:profile_package_use_masked(simple(C,N), Use)
+    ; preference:profile_package_use_masked(versioned(Op,C,N,ReqVer), Use),
+      preference:version_match(Op, ProposedVersion, ReqVer)
+    ) ->
+      State = negative,
+      Reason = profile_package_use_mask
+  ; ( preference:profile_package_use_forced(simple(C,N), Use)
+    ; preference:profile_package_use_forced(versioned(Op,C,N,ReqVer), Use),
+      preference:version_match(Op, ProposedVersion, ReqVer)
+    ) ->
+      State = positive,
+      Reason = profile_package_use_force
+  ),
   !.
 
 % Apply per-package USE from the Gentoo profile tree (profiles/*/package.use).

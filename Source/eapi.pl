@@ -2232,7 +2232,12 @@ eapi:categorize_use_for_entry(RawIuse, Repo://Id, State, Reason) :-
   % Derive the plain flag name.
   eapi:strip_use_default(RawIuse, Use),
   cache:ordered_entry(Repo, Id, C, N, _),
-  ( preference:package_use_override(C, N, Use, State0) ->
+  ( % Profile-enforced per-package constraints (hard): package.use.mask/force
+    preference:profile_package_use_override_for_entry(Repo://Id, Use, State0, Reason0) ->
+      State = State0,
+      Reason = Reason0
+  ; % User /etc/portage/package.use (soft; overridden by profile mask/force)
+    preference:package_use_override(C, N, Use, State0) ->
       State = State0,
       Reason = package_use
   ; eapi:categorize_use(RawIuse, State, Reason)
