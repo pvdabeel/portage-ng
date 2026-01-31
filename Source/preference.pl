@@ -122,6 +122,15 @@ preference:env_use(Use) :-
   phrase(eapi:iuse(_://_,List),Codes),
   member(Use,List).
 
+%! preference:env_use_terms(-Terms:list)
+%
+% Parse USE in one go, preserving order (incremental semantics).
+preference:env_use_terms(Terms) :-
+  preference:getenv('USE', Atom),
+  atom_codes(Atom, Codes),
+  phrase(eapi:iuse(_://_, Terms), Codes),
+  !.
+
 %! preference:env_use_expand(Use)
 %
 % Import USE_EXPAND-like environment variables (e.g. RUBY_TARGETS="ruby33")
@@ -312,7 +321,13 @@ preference:init :-
   % `preference:init/0` must never fail. If it fails, the application startup
   % will retry KB load/init paths and can surface unrelated errors. Be defensive:
   % treat unexpected issues as "skip that bit" rather than aborting init.
-  forall(preference:env_use(Use),            (assertz(preference:local_env_use(Use)), assertz(preference:local_use(Use)))),
+  % Portage semantics: USE is incremental; last occurrence wins.
+  % Example: USE="berkdb ... -berkdb" means berkdb is OFF.
+  ( catch(preference:env_use_terms(EnvUseTerms), _, EnvUseTerms = []) ->
+      forall(member(Term, EnvUseTerms),
+             preference:apply_env_use_term(Term))
+  ; true
+  ),
   forall(preference:env_use_expand(Use),     (assertz(preference:local_env_use(Use)), assertz(preference:local_use(Use)))),
   preference:profile_use_terms(ProfileTerms),
   % Portage semantics for *_SINGLE_TARGET variables:
@@ -368,6 +383,23 @@ preference:init :-
   catch(preference:apply_gentoo_package_mask,  _, true),
   catch(preference:apply_gentoo_package_use,   _, true),
   !.
+
+% Apply one env USE term with last-wins semantics.
+preference:apply_env_use_term(minus(Use)) :-
+  !,
+  retractall(preference:local_env_use(Use)),
+  retractall(preference:local_env_use(minus(Use))),
+  retractall(preference:local_use(Use)),
+  retractall(preference:local_use(minus(Use))),
+  assertz(preference:local_env_use(minus(Use))),
+  assertz(preference:local_use(minus(Use))).
+preference:apply_env_use_term(Use) :-
+  retractall(preference:local_env_use(Use)),
+  retractall(preference:local_env_use(minus(Use))),
+  retractall(preference:local_use(Use)),
+  retractall(preference:local_use(minus(Use))),
+  assertz(preference:local_env_use(Use)),
+  assertz(preference:local_use(Use)).
 
 % ---------------------------------------------------------------------------
 % Profile per-package USE constraints (package.use.mask / package.use.force)
