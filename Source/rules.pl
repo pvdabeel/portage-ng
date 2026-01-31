@@ -846,8 +846,19 @@ rules:installed_entry_satisfies_build_with_use(pkg://InstalledEntry, Context) :-
   rules:context_build_with_use_state(Context, State),
   rules:build_with_use_requirements(State, MustEnable, MustDisable),
   rules:vdb_enabled_use_set(pkg://InstalledEntry, BuiltUse),
-  forall(member(U, MustEnable), memberchk(U, BuiltUse)),
-  forall(member(U, MustDisable), \+ memberchk(U, BuiltUse)).
+  % If a bracketed USE requirement names a flag that is not in the package's IUSE,
+  % Portage only accepts it when a default marker (+)/(-) is present (EAPI 8).
+  % In that case the flag's state is not configurable and should not force a
+  % rebuild based on VDB USE contents.
+  rules:vdb_iuse_set(pkg://InstalledEntry, BuiltIuse),
+  forall(member(U, MustEnable),
+         ( memberchk(U, BuiltIuse) -> memberchk(U, BuiltUse)
+         ; true
+         )),
+  forall(member(U, MustDisable),
+         ( memberchk(U, BuiltIuse) -> \+ memberchk(U, BuiltUse)
+         ; true
+         )).
 
 % -----------------------------------------------------------------------------
 %  --newuse support (Portage-like -N)
@@ -1430,7 +1441,7 @@ merge_slot_restriction(Action, C, N, PackageDeps, SlotReq) :-
   ).
 
 merge_slot_restriction_([], _Action, _C, _N, Acc, Acc) :- !.
-merge_slot_restriction_([package_dependency(Action,no,C,N,_O,_V,S,_U)|Rest], Action, C, N, Acc0, Acc) :-
+merge_slot_restriction_([package_dependency(_Phase,no,C,N,_O,_V,S,_U)|Rest], Action, C, N, Acc0, Acc) :-
   !,
   ( S == []      -> Acc1 = Acc0
   ; Acc0 == none -> Acc1 = S
@@ -1477,7 +1488,7 @@ query_search_slot_constraint(SlotReq, RepoEntry, SlotMeta) :-
 
 installed_entry_satisfies_package_deps(_Action, _C, _N, [], _Installed) :- !.
 installed_entry_satisfies_package_deps(Action, C, N,
-                                       [package_dependency(Action,no,C,N,O,V,_,_)|Rest],
+                                       [package_dependency(_Phase,no,C,N,O,V,_,_)|Rest],
                                        Installed) :-
   !,
   rules:query_search_version_select(O, V, Installed),
@@ -1486,35 +1497,91 @@ installed_entry_satisfies_package_deps(Action, C, N, [_|Rest], Installed) :-
   rules:installed_entry_satisfies_package_deps(Action, C, N, Rest, Installed).
 
 % Map runtime operator to a compile-time-friendly `select(version,<op>,...)` goal.
+% Special-case wildcard equality (=...-5.42*). This pattern is very common in
+% virtual/perl-* and similar versioned virtuals. Using `query:search/2` here can
+% fail to benefit from wildcard handling when called from compiled code paths,
+% so we match directly against the cached full version atom.
+query_search_version_select(equal, Ver0, RepoEntry) :-
+  RepoEntry = Repo://Id,
+  rules:coerce_version_term(Ver0, Ver1),
+  Ver1 = [_Nums,_A,_S,Pattern],
+  atom(Pattern),
+  sub_atom(Pattern, _, 1, 0, '*'),
+  !,
+  cache:ordered_entry(Repo, Id, _C, _N, [_Nums2,_A2,_S2,ProposedVersion]),
+  wildcard_match(Pattern, ProposedVersion).
 query_search_version_select(equal, Ver, RepoEntry) :- !,
   RepoEntry = Repo://Id,
-  query:search(select(version,equal,Ver), Repo://Id).
+  rules:coerce_version_term(Ver, Ver1),
+  query:search(select(version,equal,Ver1), Repo://Id).
 query_search_version_select(none, _Ver, _RepoEntry) :- !.
 query_search_version_select(smaller, Ver, RepoEntry) :- !,
   RepoEntry = Repo://Id,
-  query:search(select(version,smaller,Ver), Repo://Id).
+  rules:coerce_version_term(Ver, Ver1),
+  query:search(select(version,smaller,Ver1), Repo://Id).
 query_search_version_select(greater, Ver, RepoEntry) :- !,
   RepoEntry = Repo://Id,
-  query:search(select(version,greater,Ver), Repo://Id).
+  rules:coerce_version_term(Ver, Ver1),
+  query:search(select(version,greater,Ver1), Repo://Id).
 query_search_version_select(smallerequal, Ver, RepoEntry) :- !,
   RepoEntry = Repo://Id,
-  query:search(select(version,smallerequal,Ver), Repo://Id).
+  rules:coerce_version_term(Ver, Ver1),
+  query:search(select(version,smallerequal,Ver1), Repo://Id).
 query_search_version_select(greaterequal, Ver, RepoEntry) :- !,
   RepoEntry = Repo://Id,
-  query:search(select(version,greaterequal,Ver), Repo://Id).
+  rules:coerce_version_term(Ver, Ver1),
+  query:search(select(version,greaterequal,Ver1), Repo://Id).
 query_search_version_select(notequal, Ver, RepoEntry) :- !,
   RepoEntry = Repo://Id,
-  query:search(select(version,notequal,Ver), Repo://Id).
+  rules:coerce_version_term(Ver, Ver1),
+  query:search(select(version,notequal,Ver1), Repo://Id).
 query_search_version_select(wildcard, Ver, RepoEntry) :- !,
   RepoEntry = Repo://Id,
-  query:search(select(version,wildcard,Ver), Repo://Id).
+  rules:coerce_version_term(Ver, Ver1),
+  query:search(select(version,wildcard,Ver1), Repo://Id).
 query_search_version_select(tilde, Ver, RepoEntry) :- !,
   RepoEntry = Repo://Id,
-  query:search(select(version,tilde,Ver), Repo://Id).
+  rules:coerce_version_term(Ver, Ver1),
+  query:search(select(version,tilde,Ver1), Repo://Id).
 query_search_version_select(Op, Ver, RepoEntry) :-
   % Fallback: keep semantics even if slower / not macro-expanded.
   RepoEntry = Repo://Id,
-  query:search(select(version,Op,Ver), Repo://Id).
+  rules:coerce_version_term(Ver, Ver1),
+  query:search(select(version,Op,Ver1), Repo://Id).
+
+% Coerce a version value into the canonical version term used in cache facts:
+%   [NumberList, AlphaPartAtom, SuffixPartAtom, FullVersionAtom]
+%
+% Some dependency/mask paths historically passed only the FullVersion atom (e.g.
+% 20250127.0). For non-equality comparators, the query engine expects the full
+% structure so it can use eapi:version_compare/3.
+rules:coerce_version_term(Ver0, Ver) :-
+  var(Ver0),
+  !,
+  Ver = Ver0.
+rules:coerce_version_term([_Nums,_A,_S,_Full]=Ver, Ver) :- !.
+rules:coerce_version_term(Full, Ver) :-
+  atom(Full),
+  sub_atom(Full, _, 1, 0, '*'),
+  !,
+  % Wildcard equality pattern: represent as a 4-tuple so query.pl can apply
+  % wildcard_match/2 to the Full string.
+  Ver = [[], '', '', Full].
+rules:coerce_version_term(Full, [Nums, '', '', Full]) :-
+  atom(Full),
+  % Parse numeric dotted versions (common in profiles/deps like 20250127.0).
+  eapi:version2numberlist(Full, Nums),
+  Nums \== [],
+  !.
+rules:coerce_version_term(Num, Ver) :-
+  number(Num),
+  % Some dependency atoms are stored as numbers (e.g. 20250127.0). Normalize by
+  % converting back to an atom so we can parse dotted components consistently.
+  number_string(Num, S),
+  atom_string(Full, S),
+  !,
+  rules:coerce_version_term(Full, Ver).
+rules:coerce_version_term(Other, Other).
 
 
 % =============================================================================
