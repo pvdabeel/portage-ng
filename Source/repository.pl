@@ -254,7 +254,7 @@ sync(kb) ::-
          (findall([Vn,Va,Vs,Vf,Id],
                   (cache:entry(Repository,Id,Ca,Pa,[Vn,Va,Vs,Vf])),
                   Vu),
-          sort(0,@>=,Vu,Vs0),
+          predsort(eapi:compare_ordered_entry_version_desc, Vu, Vs0),
           ( assertz(cache:package(Repository,Ca,Pa)),
             forall(member([OVn,OVa,OVs,OVf,OrderedId],Vs0),
                  assertz(cache:ordered_entry(Repository,OrderedId,Ca,Pa,[OVn,OVa,OVs,OVf])))))),
@@ -369,7 +369,7 @@ sync(kb) ::-
                   (cache:entry(Repository,Id,Ca,Pa,[Vn,Va,Vs,Vf])),
                    % eapi:version2numberlist(Vn,Vl)),
                   Vu),
-          sort(0,@>=,Vu,Vs),
+          predsort(eapi:compare_ordered_entry_version_desc, Vu, Vs),
           ( assertz(cache:package(Repository,Ca,Pa)),
             forall(member([OVn,OVa,OVs,OVf,OrderedId],Vs),
                  assertz(cache:ordered_entry(Repository,OrderedId,Ca,Pa,[OVn,OVa,OVs,OVf])))))),
@@ -650,10 +650,11 @@ graph ::-
   with_mutex(Mutex,
     (:prepare_directory(D),
      %grapher:write_graph_files(D,Repository),
-     printer:write_proof_files(D,Repository),
+     printer:write_proof_files(D,Repository)
      %printer:write_index_files(D,Repository),
      %grapher:produce_svg(D),
-     printer:produce_html(D))).
+     %printer:produce_html(D)
+     )).
 
 
 %! repository:entry(?Entry)

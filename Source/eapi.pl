@@ -124,6 +124,27 @@ eapi:version_compare(Op, Proposed, Required) :-
   eapi:version_key(Required, Kr),
   compare(Op, Kp, Kr).
 
+% -----------------------------------------------------------------------------
+%  Helper: version ordering for cache:ordered_entry/5
+% -----------------------------------------------------------------------------
+%
+% Used by repository sync when building cache:ordered_entry/5 facts.
+% Input records have the shape [Vn,Va,Vs,Vf,Id] where V* form the version term.
+% We sort in descending Gentoo version order (Portage-like), using
+% eapi:version_compare/3 (not Prolog term order).
+eapi:compare_ordered_entry_version_desc(Delta,
+                                       [VnA,VaA,VsA,VfA,IdA],
+                                       [VnB,VaB,VsB,VfB,IdB]) :-
+  VerA = [VnA,VaA,VsA,VfA],
+  VerB = [VnB,VaB,VsB,VfB],
+  ( eapi:version_compare(>, VerA, VerB) ->
+      Delta = (<)
+  ; eapi:version_compare(<, VerA, VerB) ->
+      Delta = (>)
+  ; compare(Delta, IdA, IdB)
+  ),
+  !.
+
 eapi:version_key([Nums, Alpha, Suffix, Full], key(NumsNorm, AlphaS, BaseS, Rev, FullS)) :-
   !,
   eapi:nums_normalize(Nums, NumsNorm),

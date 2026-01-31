@@ -768,11 +768,12 @@ compile_query_compound(select(slot,constraint([slot(S),subslot(Ss),equal]),Sn), 
 
 compile_query_compound(select(slot,constraint([any_same_slot]),Sn), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,_),
-    findall(R,cache:entry_metadata(Repo,Id,slot,R),Sn)) ) :- !.					% adds chosen slot as a requirement to context - test43
+    % For := (any_same_slot) we only want to lock the SLOT, not the SUBSLOT.
+    findall(slot(S), cache:entry_metadata(Repo,Id,slot,slot(S)), Sn)) ) :- !.					% adds chosen slot as a requirement to context - test43
 
 compile_query_compound(select(slot,constraint([any_different_slot]),Sn), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,_),
-    findall(R,cache:entry_metadata(Repo,Id,slot,R),Sn)) ) :- !.					% adds chosen slot as a requirement to context - test 42
+    findall(slot(S), cache:entry_metadata(Repo,Id,slot,slot(S)), Sn)) ) :- !.					% adds chosen slot as a requirement to context - test 42
 
 
 
@@ -936,9 +937,18 @@ compile_query_compound(model(FullModel,required_use(Model),build_with_use(Input)
     % bracketed USE requirements), causing spurious rebuilds like:
     %   clustershell -> python (rebuild_reason(build_with_use))
     %
-    % Start from an explicit empty monotone USE state.
-    Input = use_state([], []),
-    FullModel = [required_use:Model, build_with_use:Input]
+    % Start from an explicit empty monotone USE state *only if not provided*.
+    % Callers may thread a non-empty build_with_use state through action contexts
+    % (e.g. deps like dev-lang/ocaml:=[ocamlopt?]). In that case, preserve it.
+    ( var(Input) -> Input = use_state([], []) ; true ),
+    % IMPORTANT:
+    % `required_use/1` is a property of the *current* ebuild and must NOT be
+    % threaded into dependency contexts (otherwise it can be misinterpreted as
+    % the child's REQUIRED_USE model, leading to spurious failures when proving
+    % child :install/:run actions).
+    %
+    % Only thread `build_with_use/1` to support bracketed USE deps.
+    FullModel = [build_with_use:Input]
   ) ) :- !.
 
 compile_query_compound(model(required_use(Model)), Repo://Id,
@@ -1394,12 +1404,15 @@ search(select(slot,constraint([slot(S),subslot(Ss),equal]),Sn), Repo://Id) :-
 search(select(slot,constraint([any_same_slot]),Sn), Repo://Id) :-
   !,
   ( cache:ordered_entry(Repo,Id,_,_,_),
-    findall(R,cache:entry_metadata(Repo,Id,slot,R),Sn)).					% adds chosen slot as a requirement to context - test43
+    % For := (any_same_slot) we only want to lock the SLOT, not the SUBSLOT.
+    % SUBSLOT is a rebuild trigger, not a satisfiability constraint.
+    findall(slot(S), cache:entry_metadata(Repo,Id,slot,slot(S)), Sn)).					% adds chosen slot as a requirement to context - test43
 
 search(select(slot,constraint([any_different_slot]),Sn), Repo://Id) :-
   !,
   ( cache:ordered_entry(Repo,Id,_,_,_),
-    findall(R,cache:entry_metadata(Repo,Id,slot,R),Sn)).					% adds chosen slot as a requirement to context - test 42
+    % Like any_same_slot, we only propagate the SLOT component.
+    findall(slot(S), cache:entry_metadata(Repo,Id,slot,slot(S)), Sn)).					% adds chosen slot as a requirement to context - test 42
 
 
 % -----------------------------------------------------------------------------
