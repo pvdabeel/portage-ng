@@ -1614,9 +1614,14 @@ rules:compare_dep_rank(Context, Delta, A, B) :-
   ).
 
 rules:dep_rank(Context, Dep, Rank) :-
+  % Specialized ranking for package_dependency/8 is defined below; avoid
+  % accidentally taking this generic clause first (which would ignore the extra
+  % signals like self-avoidance and installed mismatch penalties).
+  Dep \= package_dependency(_,_,_,_,_,_,_,_),
   ( is_preferred_dep(Context, Dep) -> Pref = 1 ; Pref = 0 ),
   rules:dep_intrinsic_rank(Dep, Base),
-  Rank is Pref*1000000000 + Base.
+  Rank is Pref*1000000000 + Base,
+  !.
 
 % De-prioritize dependencies that resolve to the current ebuild's own CN.
 % This matters for BDEPEND like:
@@ -1624,9 +1629,10 @@ rules:dep_rank(Context, Dep, Rank) :-
 % where choosing `dev-lang/go` would force bootstrapping from itself.
 rules:dep_rank(Context, package_dependency(Phase,Strength,C,N,O,V,S,U), Rank) :-
   ( rules:self_cn(Context, C, N) -> Base0 = -100000000 ; Base0 = 0 ),
+  rules:installed_version_mismatch_penalty(package_dependency(Phase,Strength,C,N,O,V,S,U), BaseInst),
   ( is_preferred_dep(Context, package_dependency(Phase,Strength,C,N,O,V,S,U)) -> Pref = 1 ; Pref = 0 ),
   rules:dep_intrinsic_rank(package_dependency(Phase,Strength,C,N,O,V,S,U), Base1),
-  Rank is Pref*1000000000 + Base0 + Base1,
+  Rank is Pref*1000000000 + Base0 + BaseInst + Base1,
   !.
 
 rules:self_cn(Context, C, N) :-
@@ -1697,6 +1703,37 @@ is_preferred_dep(Context, required(minus(Use))) :-
   ),
   !.
 
+% Prefer any-of alternatives that are already satisfied by installed packages.
+%
+% This is crucial for patterns like:
+%   || ( ( >=mesa-25.2[-foo] xorg-server[...] ) ( <mesa-25.2[foo] ) )
+% where Portage will keep the already-installed / already-matching branch and
+% avoid pulling an upgrade chain.
+is_preferred_dep(_Context, all_of_group(Deps)) :-
+  % If a conjunction includes bracketed USE requirements, prefer the branch whose
+  % requirements match the current USE environment (notably USE_EXPAND like
+  % PYTHON_TARGETS), to avoid selecting an arbitrary alternative.
+  member(package_dependency(_Phase,_Strength,_C,_N,_O,_V,_S,UseReqs), Deps),
+  member(use(enable(Use), _Default), UseReqs),
+  preference:use(Use),
+  !.
+is_preferred_dep(Context, all_of_group(Deps)) :-
+  Deps \= [],
+  forall(member(D, Deps), rules:group_member_preferred(Context, D)),
+  !.
+
+% Prefer any-of alternatives that are already installed.
+% This helps align Portage-like behavior for || groups that include a heavy
+% build-time tool (e.g. dev-lang/vala) versus a lighter already-installed
+% alternative (e.g. gobject-introspection).
+is_preferred_dep(_Context, package_dependency(_Phase,_Strength,_C,_N,_O,_V,_S,UseReqs)) :-
+  % Prefer candidates whose bracketed USE requirements match the current USE
+  % environment (notably USE_EXPAND like PYTHON_TARGETS), to reduce pointless
+  % rebuilds and align with Portage's "follow current USE" behavior.
+  member(use(enable(Use), _Default), UseReqs),
+  preference:use(Use),
+  !.
+
 % Prefer any-of alternatives that are already installed.
 % This helps align Portage-like behavior for || groups that include a heavy
 % build-time tool (e.g. dev-lang/vala) versus a lighter already-installed
@@ -1710,6 +1747,76 @@ is_preferred_dep(_Context, package_dependency(_Phase,_Strength,C,N,O,V,_S,_U)) :
   query:search([repository(pkg),category(C),name(N),installed(true)], pkg://Installed),
   ( O == none ; rules:query_search_version_select(O, V, pkg://Installed) ),
   !.
+
+% -----------------------------------------------------------------------------
+%  any_of_group preference helpers (installed satisfaction)
+% -----------------------------------------------------------------------------
+
+% Recursively decide whether a group member is satisfied by the current system.
+rules:group_member_preferred(Context, package_dependency(Phase,Strength,C,N,O,V,S,U)) :-
+  rules:installed_pkg_satisfies_dep(Context, package_dependency(Phase,Strength,C,N,O,V,S,U)),
+  !.
+rules:group_member_preferred(Context, use_conditional_group(positive, Use, RepoEntry, Deps)) :-
+  is_preferred_dep(Context, use_conditional_group(positive, Use, RepoEntry, Deps)),
+  !.
+rules:group_member_preferred(Context, use_conditional_group(negative, Use, RepoEntry, Deps)) :-
+  is_preferred_dep(Context, use_conditional_group(negative, Use, RepoEntry, Deps)),
+  !.
+rules:group_member_preferred(Context, all_of_group(Deps)) :-
+  Deps \= [],
+  forall(member(D, Deps), rules:group_member_preferred(Context, D)),
+  !.
+rules:group_member_preferred(_Context, _Other) :-
+  % Unknown/complex members (any_of_group, blockers, ...) are not treated as
+  % "already satisfied" for preference ranking.
+  fail.
+
+rules:installed_pkg_satisfies_dep(ParentContext,
+                                 package_dependency(_Phase,_Strength,C,N,O,V,_S,UseReqs)) :-
+  query:search([repository(pkg),category(C),name(N),installed(true)], pkg://InstalledId),
+  ( O == none
+  ; rules:query_search_version_select(O, V, pkg://InstalledId)
+  ),
+  rules:installed_pkg_satisfies_use_reqs(ParentContext, pkg://InstalledId, UseReqs),
+  !.
+
+rules:installed_pkg_satisfies_use_reqs(_ParentContext, _Installed, []) :- !.
+rules:installed_pkg_satisfies_use_reqs(ParentContext, pkg://InstalledId,
+                                      [use(Directive, Default)|Rest]) :-
+  !,
+  rules:use_dep_requirement(ParentContext, Directive, Default, Req),
+  rules:installed_pkg_satisfies_use_requirement(pkg://InstalledId, Req),
+  rules:installed_pkg_satisfies_use_reqs(ParentContext, pkg://InstalledId, Rest).
+rules:installed_pkg_satisfies_use_reqs(ParentContext, Installed, [_|Rest]) :-
+  rules:installed_pkg_satisfies_use_reqs(ParentContext, Installed, Rest).
+
+rules:installed_pkg_satisfies_use_requirement(_Installed, none) :- !.
+rules:installed_pkg_satisfies_use_requirement(pkg://InstalledId, requirement(enable, Use, _Default)) :-
+  query:search(use(Use), pkg://InstalledId),
+  !.
+rules:installed_pkg_satisfies_use_requirement(pkg://InstalledId, requirement(disable, Use, _Default)) :-
+  \+ query:search(use(Use), pkg://InstalledId),
+  !.
+
+% Penalize deps that would force changing an already-installed C/N due to a
+% version constraint mismatch.
+%
+% This is used for stable, deterministic selection in `|| ( ... )` groups.
+% Example:
+%   || ( =dev-lang/perl-5.40* ~perl-core/Foo-1.2.3 )
+% If perl is installed but not 5.40.*, prefer the perl-core branch to avoid a
+% downgrade/upgrade chain.
+rules:installed_version_mismatch_penalty(package_dependency(_Phase,_Strength,C,N,O,V,_S,_U), Penalty) :-
+  O \== none,
+  % At least one installed instance exists...
+  query:search([repository(pkg),category(C),name(N),installed(true)], pkg://_),
+  % ...but none satisfy the requested version operator.
+  \+ ( query:search([repository(pkg),category(C),name(N),installed(true)], pkg://InstalledId),
+       rules:query_search_version_select(O, V, pkg://InstalledId)
+     ),
+  Penalty is -50000000,
+  !.
+rules:installed_version_mismatch_penalty(_Dep, 0).
 
 % Effective USE for the current ebuild (when we have `self(...)` in Context).
 % Helps REQUIRED_USE group choice: prefer alternatives already satisfied by the
@@ -2113,41 +2220,56 @@ rules:use_dep_requirement(Ctx, equal(Use), Default, requirement(enable, Use, Def
   rules:ctx_assumed(Ctx, Use), !.
 rules:use_dep_requirement(Ctx, equal(Use), Default, requirement(disable, Use, Default)) :-
   rules:ctx_assumed_minus(Ctx, Use), !.
-rules:use_dep_requirement(_Ctx, equal(Use), Default, requirement(enable, Use, Default)) :-
-  preference:use(Use),
-  \+ preference:use(minus(Use)), !.
+rules:use_dep_requirement(Ctx, equal(Use), Default, requirement(enable, Use, Default)) :-
+  rules:effective_use_in_context(Ctx, Use, positive), !.
 rules:use_dep_requirement(Ctx, equal(Use), Default, requirement(disable, Use, Default)) :-
-  \+ rules:ctx_assumed(Ctx, Use),
-  \+ rules:ctx_assumed_minus(Ctx, Use),
-  \+ preference:use(Use),
-  \+ preference:use(minus(Use)),
+  rules:effective_use_in_context(Ctx, Use, negative), !.
+rules:use_dep_requirement(_Ctx, equal(Use), Default, Requirement) :-
+  % Parent state unknown (typically because Use is not in parent's IUSE).
+  % EAPI 8: only (+)/(-) defaults impose a requirement; no default means no constraint.
+  ( Default == positive -> Requirement = requirement(enable, Use, Default)
+  ; Default == negative -> Requirement = requirement(disable, Use, Default)
+  ; Requirement = none
+  ),
   !.
 
 rules:use_dep_requirement(Ctx, inverse(Use), Default, requirement(disable, Use, Default)) :-
   rules:ctx_assumed(Ctx, Use), !.
 rules:use_dep_requirement(Ctx, inverse(Use), Default, requirement(enable, Use, Default)) :-
   rules:ctx_assumed_minus(Ctx, Use), !.
-rules:use_dep_requirement(_Ctx, inverse(Use), Default, requirement(disable, Use, Default)) :-
-  preference:use(Use),
-  \+ preference:use(minus(Use)), !.
+rules:use_dep_requirement(Ctx, inverse(Use), Default, requirement(disable, Use, Default)) :-
+  rules:effective_use_in_context(Ctx, Use, positive), !.
 rules:use_dep_requirement(Ctx, inverse(Use), Default, requirement(enable, Use, Default)) :-
-  \+ rules:ctx_assumed(Ctx, Use),
-  \+ rules:ctx_assumed_minus(Ctx, Use),
-  \+ preference:use(Use),
-  \+ preference:use(minus(Use)),
+  rules:effective_use_in_context(Ctx, Use, negative), !.
+rules:use_dep_requirement(_Ctx, inverse(Use), Default, Requirement) :-
+  % Parent state unknown, use default and invert.
+  ( Default == positive -> Requirement = requirement(disable, Use, Default)
+  ; Default == negative -> Requirement = requirement(enable, Use, Default)
+  ; Requirement = none
+  ),
   !.
 
-% [foo?] / [!foo?] only constrain the child if the parent has a known state.
+% [foo?] / [!foo?] only constrain the child if the *parent* has a known state.
+%
+% IMPORTANT:
+% Do NOT fall back to global `preference:use/1` here. The meaning is:
+%   "if the parent has foo enabled/disabled"
+% not:
+%   "if foo is enabled globally".
+%
+% Falling back to global USE causes massive, incorrect constraint propagation for
+% USE_EXPAND flags (notably python_targets_*), leading to widespread
+% unsatisfied_constraints and timeouts.
 rules:use_dep_requirement(Ctx, optenable(Use), Default, requirement(enable, Use, Default)) :-
   ( rules:ctx_assumed(Ctx, Use)
-  ; preference:use(Use)
+  ; rules:effective_use_in_context(Ctx, Use, positive)
   ),
   !.
 rules:use_dep_requirement(_Ctx, optenable(_Use), _Default, none) :- !.
 
 rules:use_dep_requirement(Ctx, optdisable(Use), Default, requirement(disable, Use, Default)) :-
   ( rules:ctx_assumed_minus(Ctx, Use)
-  ; preference:use(minus(Use))
+  ; rules:effective_use_in_context(Ctx, Use, negative)
   ),
   !.
 rules:use_dep_requirement(_Ctx, optdisable(_Use), _Default, none) :- !.
