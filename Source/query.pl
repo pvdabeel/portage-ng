@@ -927,6 +927,17 @@ compile_query_compound(model(FullModel,required_use(Model),build_with_use(Input)
             Model),
     % FullModel is a compact context passed into dependency-model construction.
     % Keep it small + stable to maximize memoization hits.
+    %
+    % IMPORTANT:
+    % `Input` must NOT be left as a free variable. During dependency-model
+    % construction we thread `build_with_use` through contexts; if this starts as
+    % an unbound variable, constraints can accidentally leak across unrelated
+    % branches within the same model proof (e.g. PYTHON_TARGETS contaminating
+    % bracketed USE requirements), causing spurious rebuilds like:
+    %   clustershell -> python (rebuild_reason(build_with_use))
+    %
+    % Start from an explicit empty monotone USE state.
+    Input = use_state([], []),
     FullModel = [required_use:Model, build_with_use:Input]
   ) ) :- !.
 
@@ -1676,10 +1687,13 @@ memoized_search(model(dependency(Merged,fetchonly)):config?{R}, Repository://Ebu
 
 % Grouping key for dependencies:
 % - group by block strength + category/name
+% - and by dependency phase (install vs run), so grouped dependencies remain phase-homogeneous
+%   (avoids confusing groups like grouped_package_dependency(...):install containing :run deps)
 % - and by slot restriction, because different explicit slots (e.g. ruby:3.2 vs ruby:3.3)
 %   must NOT be merged into a single grouped dependency (they are satisfiable as
 %   separate slotted installs).
-dependency_key((package_dependency(_,T,C,N,_,_,S,_):_?{_}), T-C-N-S).
+%
+dependency_key((package_dependency(Phase,T,C,N,_,_,S,_):_?{_}), Phase-T-C-N-S).
 
 %! group_dependencies(+List, -Groups)
 %
@@ -1688,7 +1702,7 @@ dependency_key((package_dependency(_,T,C,N,_,_,S,_):_?{_}), T-C-N-S).
 
 group_dependencies(L, Groups) :-
     findall(grouped_package_dependency(T,C,N,Group):Action?{Context},
-		    group_by(T-C-N-S:Action?{Context}, E, (member(E:Action?{Context}, L), dependency_key(E:Action?{Context}, T-C-N-S)), Group),
+		    group_by(Phase-T-C-N-S:Action?{Context}, E, (member(E:Action?{Context}, L), dependency_key(E:Action?{Context}, Phase-T-C-N-S)), Group),
             Groups).
 
 

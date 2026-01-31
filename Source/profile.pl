@@ -56,26 +56,40 @@ profile_use_terms(ProfileRel, Terms) :-
 
 %! profile_package_mask_atoms(+ProfileRel, -Atoms:list)
 %
-% Collect raw package.mask atoms from the selected profile (including parents).
+% Collect raw package.mask atoms from the selected profile (including parents),
+% plus the global masks/unmasks from the Portage tree.
 %
 % Notes:
 % - This is intentionally *minimal* and only returns raw atoms as strings/atoms.
-% - Unmasking (package.unmask) and versioned mask semantics are not handled here.
-%   The consumer can decide what subset to apply.
+% - We include unmask operations by returning them as '-atom' entries, matching
+%   Portage's incremental semantics and the consumer logic in preference.pl.
 %
 profile_package_mask_atoms(ProfileRel, Atoms) :-
   profile_dirs(ProfileRel, Dirs),
   findall(A,
-          ( member(Dir, Dirs),
-            package_mask_file(Dir, File),
+          ( % Global masks (apply to all profiles)
+            global_package_mask_file(File),
             exists_file(File),
-            read_file_to_string(File, S, []),
-            split_string(S, "\n", "\r\n", Lines0),
-            member(Line0, Lines0),
-            profile_strip_comment(Line0, Line1),
-            normalize_space(string(Line), Line1),
-            Line \== "",
-            atom_string(A, Line)
+            profile_read_atoms_file(File, As),
+            member(A, As)
+          ; % Global unmasks (apply to all profiles)
+            global_package_unmask_file(File),
+            exists_file(File),
+            profile_read_atoms_file(File, As0),
+            member(A0, As0),
+            atom_concat('-', A0, A)
+          ; % Profile chain masks/unmasks (root -> leaf, preserving order)
+            member(Dir, Dirs),
+            ( package_mask_file(Dir, File),
+              exists_file(File),
+              profile_read_atoms_file(File, As),
+              member(A, As)
+            ; package_unmask_file(Dir, File),
+              exists_file(File),
+              profile_read_atoms_file(File, As0),
+              member(A0, As0),
+              atom_concat('-', A0, A)
+            )
           ),
           Atoms0),
   % IMPORTANT: keep order.

@@ -649,10 +649,10 @@ graph ::-
   atomic_concat(graph,Repository,Mutex),
   with_mutex(Mutex,
     (:prepare_directory(D),
-     grapher:write_graph_files(D,Repository),
+     %grapher:write_graph_files(D,Repository),
      printer:write_proof_files(D,Repository),
-     printer:write_index_files(D,Repository),
-     grapher:produce_svg(D),
+     %printer:write_index_files(D,Repository),
+     %grapher:produce_svg(D),
      printer:produce_html(D))).
 
 

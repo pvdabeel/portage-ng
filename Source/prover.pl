@@ -54,7 +54,7 @@ prover:with_delay_triggers(Goal) :-
 %  Internal: cycle stack (for printing cycle-break paths)
 % -----------------------------------------------------------------------------
 %
-% The prover's cycle-break detection is based on "rule(Lit) already in Proof".
+% Cycle-break detection should be based on "Lit currently on the proof stack".
 % The triggers graph is sometimes insufficient to reconstruct a human-readable
 % cycle quickly (especially when triggers are delayed or pruned). We therefore
 % maintain a lightweight per-proof stack of literals currently being proven,
@@ -90,6 +90,11 @@ prover:cycle_path_for(Lit, CyclePath) :-
       append(Prefix, [Lit], CyclePath)
   ; CyclePath = [Lit, Lit]
   ).
+
+prover:currently_proving(Lit) :-
+  nb_current(prover_cycle_stack, Stack),
+  memberchk(Lit, Stack),
+  !.
 
 % -----------------------------------------------------------------------------
 %  Lightweight model construction (skip Proof + Triggers bookkeeping)
@@ -533,7 +538,7 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 
   ;   % Case: circular proof
 
-      (   prover:proving(rule(Lit,_), Proof),
+      (   prover:currently_proving(Lit),
           \+ prover:assumed_proving(Lit, Proof) ->
 
 	        %message:color(orange),

@@ -74,15 +74,15 @@ preference:env_features('sign -ccache -buildpkg -sandbox -usersandbox -ebuild-lo
 % Parity defaults taken from Gentoo /etc/portage/make.conf (vm-linux).
 % NOTE: USE is incremental; duplicates are normalized (last occurrence wins).
 preference:default_env('ACCEPT_KEYWORDS', '~amd64').
-preference:default_env('PYTHON_SINGLE_TARGET', 'python3_13').
-preference:default_env('PYTHON_TARGETS', 'python3_13').
 preference:default_env('PERL_FEATURES', 'ithreads').
 preference:default_env('RUBY_TARGETS', 'ruby32 ruby33').
 preference:default_env('VIDEO_CARDS', 'vmware vesa vga').
 preference:default_env('INPUT_DEVICES', 'evdev keyboard mouse vmmouse').
 preference:default_env('ALSA_CARDS', 'ens1371').
 preference:default_env('CPU_FLAGS_X86', 'aes avx avx2 avx512f avx512dq avx512cd avx512bw avx512vl f16c fma3 mmx mmxext pclmul popcnt rdrand sse sse2 sse3 sse4_1 sse4_2 ssse3').
-preference:default_env('USE', 'harfbuzz lto dnet resolutionkms o-flag-munging pgo graphite optimizations aio npm http split-usr -elogind policykit json -systemd -llvm -lua -berkdb -introspection -vala -xen -hcache -ruby python gdbm fbcondecor messages smp qemu sqlite mmxext -svg avahi mmx sse sse2 sse3 ssse3 sse4 sse4_2 gmp cvs git x86emu gpg imap pop sidebar smime smtp dbus truetype X -xvmc xa xkb libkms cairo glitz png jpeg tiff gif mp3 opengl xcb xlib-xcb alsa aac aacplus jpeg2k fontconfig openssl ssh threads x264 x265 xvid dts md5sum a52 aalib zeroconf pkcs11 apng xattr nova account container object proxy directfb pcre16 -mdnsresponder-compat gpm').
+% NOTE: USE is incremental; "last occurrence wins".
+% Keep `introspection` enabled for GNOME/KDE stacks (many deps require glib[introspection]).
+preference:default_env('USE', 'harfbuzz lto dnet resolutionkms o-flag-munging pgo graphite optimizations aio npm http split-usr -elogind policykit json -systemd -llvm -lua -berkdb -introspection -vala -xen -hcache -ruby python gdbm fbcondecor messages smp qemu sqlite mmxext -svg avahi mmx sse sse2 sse3 ssse3 sse4 sse4_2 gmp cvs git x86emu gpg imap pop sidebar smime smtp dbus truetype X -xvmc xa xkb libkms cairo glitz png jpeg tiff gif mp3 opengl xcb xlib-xcb alsa aac aacplus jpeg2k fontconfig openssl ssh threads x264 x265 xvid dts md5sum a52 aalib zeroconf pkcs11 apng xattr nova account container object proxy directfb pcre16 -mdnsresponder-compat gpm introspection').
 % NOTE:
 % USE_EXPAND selector variables like LUA_SINGLE_TARGET / LLVM_SLOT / VIDEO_CARDS
 % typically come from Gentoo profile `make.defaults` and/or `/etc/portage/make.conf`.
@@ -144,6 +144,7 @@ preference:use_expand_env('PYTHON_SINGLE_TARGET', python_single_target).
 preference:use_expand_env('RUBY_TARGETS',         ruby_targets).
 preference:use_expand_env('RUBY_SINGLE_TARGET',   ruby_single_target).
 preference:use_expand_env('LUA_SINGLE_TARGET',    lua_single_target).
+preference:use_expand_env('PERL_FEATURES',        perl_features).
 preference:use_expand_env('LLVM_SLOT',            llvm_slot).
 preference:use_expand_env('VIDEO_CARDS',          video_cards).
 
@@ -300,29 +301,116 @@ preference:init :-
 
   % 1. Set use flags
 
+  % IMPORTANT:
+  % `preference:init/0` must never fail. If it fails, the application startup
+  % will retry KB load/init paths and can surface unrelated errors. Be defensive:
+  % treat unexpected issues as "skip that bit" rather than aborting init.
   forall(preference:env_use(Use),            (assertz(preference:local_env_use(Use)), assertz(preference:local_use(Use)))),
   forall(preference:env_use_expand(Use),     (assertz(preference:local_env_use(Use)), assertz(preference:local_use(Use)))),
   preference:profile_use_terms(ProfileTerms),
+  % Portage semantics for *_SINGLE_TARGET variables:
+  % when the environment sets e.g. LUA_SINGLE_TARGET="luajit", it overrides the
+  % profile defaults for lua_single_target_* (do not union them).
+  findall(Prefix,
+          ( member(EnvVar, ['LUA_SINGLE_TARGET','PYTHON_SINGLE_TARGET','RUBY_SINGLE_TARGET']),
+            preference:getenv(EnvVar, Atom),
+            Atom \== '',
+            preference:use_expand_env(EnvVar, Prefix)
+          ),
+          SingleTargetPrefixes),
   forall(member(preference:profile_use(Term), ProfileTerms),
-         ( Term = minus(Use) ->
+         ( ( Term = minus(U0) -> U = U0 ; U = Term ),
+           ( member(Prefix, SingleTargetPrefixes),
+             atom_concat(Prefix, '_', PrefixUnderscore),
+             atom_concat(PrefixUnderscore, _, U)
+           )
+         ->
+           true
+         ; Term = minus(Use) ->
              (preference:local_use(Use) ; assertz(preference:local_use(minus(Use))))
          ; Use = Term,
            (preference:local_use(minus(Use)) ; assertz(preference:local_use(Use)))
          )),
 
   % 2. Set accept_keywords
+  %
+  % Portage semantics: if ~arch is accepted, the corresponding stable arch is
+  % also accepted. E.g. ACCEPT_KEYWORDS="~amd64" still accepts KEYWORDS="amd64".
 
-   (preference:env_accept_keywords(_)
-    -> forall(preference:env_accept_keywords(Key),      assertz(preference:local_accept_keywords(Key)))
-    ;  forall(preference:default_accept_keywords(Key),  assertz(preference:local_accept_keywords(Key)))),
+   ( preference:env_accept_keywords(_) ->
+       forall(preference:env_accept_keywords(Key),
+              assertz(preference:local_accept_keywords(Key))),
+       % Ensure stable(Arch) is implied by unstable(Arch)
+       forall(preference:env_accept_keywords(unstable(Arch)),
+              ( preference:local_accept_keywords(stable(Arch))
+              -> true
+              ;  assertz(preference:local_accept_keywords(stable(Arch)))
+              ))
+   ; forall(preference:default_accept_keywords(Key),
+            assertz(preference:local_accept_keywords(Key)))
+   ),
 
   % 3. Apply Gentoo profile + /etc/portage overrides (package.mask / package.use).
   %
   % These affect candidate selection (masking) and per-package USE evaluation.
   %
-  preference:apply_profile_package_mask,
-  preference:apply_gentoo_package_mask,
-  preference:apply_gentoo_package_use.
+  catch(preference:apply_profile_package_mask, _, true),
+  catch(preference:apply_profile_package_use,  _, true),
+  catch(preference:apply_gentoo_package_mask,  _, true),
+  catch(preference:apply_gentoo_package_use,   _, true),
+  !.
+
+% Apply per-package USE from the Gentoo profile tree (profiles/*/package.use).
+% This is needed for Portage parity for lua-single defaults like:
+%   dev-lua/luv lua_single_target_luajit -lua_single_target_lua5-1
+preference:apply_profile_package_use :-
+  ( current_predicate(config:gentoo_profile/1),
+    catch(config:gentoo_profile(ProfileRel), _, fail),
+    current_predicate(profile:profile_dirs/2),
+    catch(profile:profile_dirs(ProfileRel, Dirs), _, fail) ->
+      forall(member(Dir, Dirs),
+             catch(preference:apply_profile_package_use_dir(Dir), _, true))
+  ; true
+  ).
+
+preference:apply_profile_package_use_dir(Dir) :-
+  os:compose_path(Dir, 'package.use', File),
+  ( exists_file(File) ->
+      catch(read_file_to_string(File, S, []), _, S = ""),
+      split_string(S, "\n", "\r\n", Lines0),
+      forall(member(L0, Lines0),
+             ( profile:profile_strip_comment(L0, L1),
+               normalize_space(string(L2), L1),
+               ( L2 == "" ->
+                   true
+               ; split_string(L2, " ", "\t ", Ws0),
+                 exclude(=(""), Ws0, Ws),
+                 ( Ws = [AtomS|FlagSs] ->
+                     % Only support simple cat/pkg atoms here (no operators/slots/usedep).
+                     atom_string(AtomA, AtomS),
+                     ( atomic_list_concat([_C,_N], '/', AtomA),
+                       \+ sub_atom(AtomA, 0, 1, _, '>'),
+                       \+ sub_atom(AtomA, 0, 1, _, '<'),
+                       \+ sub_atom(AtomA, 0, 1, _, '='),
+                       \+ sub_atom(AtomA, 0, 1, _, '~'),
+                       \+ sub_atom(AtomA, _, 1, _, ':'),
+                       \+ sub_atom(AtomA, _, 1, _, '['),
+                       \+ sub_atom(AtomA, _, 1, _, '*')
+                     ->
+                       ( FlagSs == [] ->
+                           true
+                       ; atomic_list_concat(FlagSs, ' ', FlagAtomS),
+                         atom_string(FlagAtom, FlagAtomS),
+                         preference:register_package_use(AtomA, FlagAtom)
+                       )
+                     ; true
+                     )
+                 ; true
+                 )
+               )
+             ))
+  ; true
+  ).
 
 
 % -----------------------------------------------------------------------------
@@ -391,12 +479,11 @@ preference:mask_profile_atom(Atom) :-
     Q = qualified_target(Op, _Repo, C, N, Ver, _Filters),
     nonvar(C), nonvar(N) ->
       forall(cache:ordered_entry(portage, Id, C, N, _),
-             ( ( Op == none
-               ; query:search(select(version,Op,Ver), portage://Id)
-               ) ->
+             ( cache:ordered_entry(portage, Id, C, N, ProposedVersion),
+               ( preference:version_match(Op, ProposedVersion, Ver) ->
                  assertz(preference:masked(portage://Id))
-             ; true
-             ))
+               ; true
+               )))
   ; true.
 
 % Undo masking for a profile package.mask atom (Portage-style '-cat/pkg' lines).
@@ -417,13 +504,55 @@ preference:unmask_profile_atom(Atom) :-
     Q = qualified_target(Op, _Repo, C, N, Ver, _Filters),
     nonvar(C), nonvar(N) ->
       forall(cache:ordered_entry(portage, Id, C, N, _),
-             ( ( Op == none
-               ; query:search(select(version,Op,Ver), portage://Id)
-               ) ->
+             ( cache:ordered_entry(portage, Id, C, N, ProposedVersion),
+               ( preference:version_match(Op, ProposedVersion, Ver) ->
                  retractall(preference:masked(portage://Id))
-             ; true
-             ))
+               ; true
+               )))
   ; true.
+
+% Match an ebuild version against a profile atom comparator.
+% This is used by profile package.mask/package.unmask processing.
+%
+% We intentionally avoid using `query:search/2` here because this code runs at
+% initialization time and must remain correct even if query goal-expansion did
+% not run for the calling context.
+preference:version_match(none, _Proposed, _Req) :- !.
+preference:version_match(equal, Proposed, Req) :-
+  % Treat '=...-1.9*' as a wildcard match (rare in profiles but supported).
+  Req = [_,_,_,Pattern],
+  atom(Pattern),
+  sub_atom(Pattern, _, 1, 0, '*'),
+  !,
+  Proposed = [_,_,_,ProposedStr],
+  query:wildcard_match(Pattern, ProposedStr).
+preference:version_match(equal, Proposed, Req) :-
+  Proposed == Req,
+  !.
+preference:version_match(tilde, [V|_], [V|_]) :- !.
+preference:version_match(wildcard, Proposed, [_,_,_,Pattern]) :-
+  !,
+  Proposed = [_,_,_,ProposedStr],
+  query:wildcard_match(Pattern, ProposedStr).
+preference:version_match(smaller, Proposed, Req) :-
+  !,
+  eapi:version_compare(<, Proposed, Req).
+preference:version_match(greater, Proposed, Req) :-
+  !,
+  eapi:version_compare(>, Proposed, Req).
+preference:version_match(smallerequal, Proposed, Req) :-
+  !,
+  ( eapi:version_compare(<, Proposed, Req)
+  ; eapi:version_compare(=, Proposed, Req)
+  ).
+preference:version_match(greaterequal, Proposed, Req) :-
+  !,
+  ( eapi:version_compare(>, Proposed, Req)
+  ; eapi:version_compare(=, Proposed, Req)
+  ).
+preference:version_match(notequal, Proposed, Req) :-
+  Proposed \== Req,
+  !.
 
 
 preference:apply_gentoo_package_use :-
@@ -444,8 +573,10 @@ preference:register_package_use(CNAtom, UseStr) :-
              sub_atom(P, 1, _, 0, Flag0),
              Flag0 \== '',
              atom_string(Flag, Flag0),
+             retractall(preference:package_use_override(C, N, Flag, _)),
              assertz(preference:package_use_override(C, N, Flag, negative))
          ; atom_string(Flag, P),
+           retractall(preference:package_use_override(C, N, Flag, _)),
            assertz(preference:package_use_override(C, N, Flag, positive))
          )).
 

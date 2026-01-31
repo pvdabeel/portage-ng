@@ -67,7 +67,7 @@ load_common_modules :-
    ensure_loaded(library('assoc')),
    ensure_loaded(library('apply')),
    ensure_loaded(library('sort')),
-   ensure_loaded(library('pairs')), 
+   ensure_loaded(library('pairs')),
    ensure_loaded(library('uri')),
    ensure_loaded(library('pengines')),
    ensure_loaded(library('solution_sequences')),
@@ -189,7 +189,7 @@ load_llm_modules :-
    ensure_loaded(library(edit)),
    ensure_loaded(library(pcre)),
    ensure_loaded(library(sandbox)),
-   
+
    ensure_loaded(portage('Source/llm.pl')),
    ensure_loaded(portage('Source/Llm/grok.pl')),
    ensure_loaded(portage('Source/Llm/chatgpt.pl')),
