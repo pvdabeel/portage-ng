@@ -1,3 +1,4 @@
+Patches
 Reports
 Source/Archive
 Source/Private
@@ -6,8 +7,6 @@ Source/Llm/Archive
 Source/Certificates/*-key.pem
 Source/Certificates/cakey.pem
 Source/Certificates/cacert.srl
-patch*
-compare*
 todo
 kb.qlf
 kb.raw
