@@ -1,0 +1,16 @@
+test64: openmp-style USE-conditional churn reproducer
+
+Goal
+----
+Reproduce the small backtracking/churn pattern observed for:
+
+  portage://'llvm-runtimes/openmp-21.1.8':run
+
+in a tiny overlay-only setup. The real openmp metadata includes:
+- IUSE flags like gdb-plugin, hwloc
+- DEPEND/RDEPEND gated by those flags
+- REQUIRED_USE with a ^^ group under gdb-plugin
+- a few unconditional build deps (perl, ninja, cmake)
+
+This test mirrors that structure with dummy packages so we can iterate quickly.
+

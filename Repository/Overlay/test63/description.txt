@@ -1,0 +1,14 @@
+test63: required_use use-conditional loop reproducer
+
+Goal
+----
+Reproduce the kind of prover timeout trace seen in portage for packages that end
+up pulling `sys-cluster/openmpi`, where proving hits a sequence of
+`use_conditional_group/4` items for flags like:
+
+- openmpi_rm_slurm / openmpi_rm_pbs (mutual exclusion)
+- openmpi_ofed_features_* (require openmpi_fabrics_ofed)
+
+This is a tiny overlay-only reproducer intended to isolate backtracking/timeout
+behaviour without involving the full portage tree.
+

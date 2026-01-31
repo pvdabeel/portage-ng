@@ -1,0 +1,18 @@
+Test Case: test60
+Organization:
+- os-1.0: Chooses one OS provider via any-of (||).
+- windows-1.0, windows-2.0: Two versions of the same package name.
+- app-1.0: Has a versioned blocker !<windows-2.0 (soft blocker).
+
+Dependency Graph:
+- os-1.0 -> || ( =windows-1.0 =windows-2.0 )
+- app-1.0 -> os-1.0
+- app-1.0 blocks !<windows-2.0
+
+What is being tested:
+Versioned (soft) blockers like !<cat/pkg-version as used by Portage.
+
+Expected Outcome:
+The solver should avoid selecting windows-1.0 and select windows-2.0 in order to
+avoid violating the blocker constraint.
+

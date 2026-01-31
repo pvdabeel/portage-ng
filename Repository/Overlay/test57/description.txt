@@ -1,0 +1,18 @@
+Test Case: test57
+Organization:
+- virtualsdk-1.0: A "virtual" package implemented as a normal ebuild.
+- linux-1.0: A concrete provider pulled in by the virtual ebuild.
+- os-1.0: Depends on virtualsdk.
+- app-1.0, db-1.0, web-1.0: Standard packages to build a small plan.
+
+Dependency Graph:
+- os-1.0 -> virtualsdk-1.0
+- virtualsdk-1.0 -> linux-1.0
+
+What is being tested:
+This test validates that dependencies of a virtual-style ebuild are traversed and
+that its provider package is included in the proof/model.
+
+Expected Outcome:
+When proving web-1.0, the plan/model should include linux-1.0 (via virtualsdk-1.0).
+

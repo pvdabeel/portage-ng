@@ -1,0 +1,19 @@
+Test Case: test62
+Organization:
+- web-1.0: Root package.
+- a-1.0, b-1.0: Mutual dependency cycle.
+
+Dependency Graph:
+- web-1.0 -> a, b
+- a-1.0   -> b
+- b-1.0   -> a
+
+What is being tested:
+- Prover termination in the presence of a dependency cycle (no blockers, no slots).
+- Whether per-goal context growth (e.g. accumulating `self(...)` or slot markers)
+  can defeat cycle detection and cause "infinite" backtracking until timeout.
+
+Expected Outcome:
+- Either the prover terminates quickly with a finite model/plan, or it fails fast.
+- It must NOT spin/backtrack indefinitely.
+

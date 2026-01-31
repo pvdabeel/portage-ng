@@ -1,0 +1,16 @@
+Test Case: test59
+Organization:
+- os-1.0: Has an any-of runtime dependency on data_fast or data_best.
+- data_fast-1.0, data_best-1.0: Two alternative providers.
+- app/db/web: standard packages.
+
+Dependency Graph:
+- os-1.0 -> || ( data_fast-1.0 data_best-1.0 )   [RDEPEND]
+
+What is being tested:
+This test validates that any-of groups (||) are treated as "at least one must be
+selected" and that the solver selects an alternative and includes it in the model.
+
+Expected Outcome:
+When proving web-1.0, the model should contain either data_fast-1.0 or data_best-1.0.
+

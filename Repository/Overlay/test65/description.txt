@@ -1,0 +1,16 @@
+test65: build_with_use reinstall semantics (installed must satisfy incoming build_with_use)
+
+Goal
+----
+Regression test for the rule-level check:
+
+  rules:installed_entry_satisfies_build_with_use/2
+
+We ensure that an installed VDB entry cannot be treated as satisfying a dependency
+if incoming `build_with_use:[...]` requires a flag that the installed package was
+not built with.
+
+This test is intentionally lightweight and does not require modifying md5-cache or
+the VDB; it just uses an always-false flag requirement against an arbitrary
+installed package.
+

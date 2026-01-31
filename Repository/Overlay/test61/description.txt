@@ -1,0 +1,18 @@
+Test Case: test61
+Organization:
+- app-1.0: Root package.
+- a-1.0, b-1.0: Mutually recursive deps using bracketed USE constraints.
+
+Dependency Graph:
+- app-1.0 -> test61/a
+- a-1.0   -> test61/b[foo]
+- b-1.0   -> test61/a[foo]
+
+What is being tested:
+- Termination / cycle handling when bracketed USE deps are present.
+- Ensures `build_with_use(...)` context does not grow unbounded in cycles.
+
+Expected Outcome:
+- The solver should terminate quickly (either by cycle breaking, or by producing a finite plan),
+  and should not spin/backtrack indefinitely.
+

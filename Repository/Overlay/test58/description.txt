@@ -1,0 +1,18 @@
+Test Case: test58
+Organization:
+- virtualsdk-1.0: A package that does NOT exist as an ebuild.
+- linux-1.0: A concrete package that claims to PROVIDE virtualsdk-1.0.
+- os/app/db/web: standard packages.
+
+Dependency Graph:
+- os-1.0 -> test58/virtualsdk
+- linux-1.0 PROVIDE -> test58/virtualsdk
+
+What is being tested:
+PROVIDE-based virtual satisfaction. This is deprecated in PMS but still appears
+in the wild and is a good regression test for provider resolution.
+
+Expected Outcome:
+Currently: expected failure (XFAIL) until PROVIDE/provider resolution is implemented.
+Eventually: proving web-1.0 should pull in linux-1.0 to satisfy test58/virtualsdk.
+
