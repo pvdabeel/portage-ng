@@ -727,8 +727,16 @@ preference:apply_gentoo_package_use :-
 preference:register_package_use(CNAtom, UseStr) :-
   atom(CNAtom),
   atomic_list_concat([C,N], '/', CNAtom),
-  atom_string(UseAtom, UseStr),
-  split_string(UseAtom, " ", " \t\r\n", Parts0),
+  % `UseStr` may be given as a string (from config) or as an atom (from profile parsing).
+  % Normalize to a string before splitting.
+  ( string(UseStr) ->
+      UseS = UseStr
+  ; atom(UseStr) ->
+      atom_string(UseStr, UseS)
+  ; % Unexpected input type - ignore defensively
+    UseS = ""
+  ),
+  split_string(UseS, " ", " \t\r\n", Parts0),
   exclude(=(""), Parts0, Parts),
   forall(member(P, Parts),
          ( sub_atom(P, 0, 1, _, '-') ->

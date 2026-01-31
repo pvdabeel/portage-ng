@@ -169,8 +169,33 @@ profile_dirs_from_dir(Dir, Seen0, Seen) :-
       exclude(profile_comment_or_empty, Lines0, Lines),
       foldl(profile_parent_dir(Dir), Lines, Seen0, Seen1),
       Seen = [Dir|Seen1]
-  ; Seen = [Dir|Seen0]
+  ; % Gentoo profile trees contain some subprofiles without an explicit `parent`
+    % file (notably `profiles/arch/<arch>/no-multilib/`). In Portage these
+    % directories still inherit from their containing directory.
+    %
+    % Emulate this by implicitly inheriting from the filesystem parent *if* that
+    % parent looks like a real profile directory (has make.defaults or parent).
+    ( profile_implicit_parent_dir(Dir, ParentDir) ->
+        profile_dirs_from_dir(ParentDir, Seen0, Seen1),
+        Seen = [Dir|Seen1]
+    ; Seen = [Dir|Seen0]
+    )
   ).
+
+% Compute an implicit parent profile directory for Dir.
+% Only succeeds when the parent directory appears to be a valid profile dir.
+profile_implicit_parent_dir(Dir, ParentDir) :-
+  directory_file_path(Dir, '..', ParentDir0),
+  absolute_file_name(ParentDir0, ParentDir, [file_type(directory), access(read)]),
+  profiles_root(Root),
+  sub_atom(ParentDir, 0, _, _, Root),
+  ParentDir \== Dir,
+  ( os:compose_path(ParentDir, 'make.defaults', MD),
+    exists_file(MD)
+  ; parent_file(ParentDir, PF),
+    exists_file(PF)
+  ),
+  !.
 
 parent_file(Dir, ParentFile) :-
   os:compose_path(Dir, 'parent', ParentFile).
