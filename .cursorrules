@@ -52,6 +52,7 @@ Assumption taxonomy (do not mix these up):
 - Terminal size lookups must go through `config:printing_tty_size/2` (direct `tty_size/2` may throw in non-tty environments).
 - Do NOT run `--sync` / repository syncing from inside the sandbox. The user will run `--sync` externally when needed.
 - Do NOT create `metadata/md5-cache/*` manually. `--sync` (egencache/md5-cache generation) produces those automatically.
+- Do NOT run `--graph` / repository graphing from inside the sandbox. The user will run `--graph` externally when needed.
 
 ## Performance/engineering notes
 - Proof/Model/Triggers are assoc/AVL-based; avoid repeated full traversals when possible.
