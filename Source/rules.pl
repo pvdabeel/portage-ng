@@ -1879,7 +1879,11 @@ rules:effective_use_in_context(Context, Use, State) :-
   \+ Use =.. [minus,_],
   rules:entry_iuse_default(Repo://Id, Use, Default),
   cache:ordered_entry(Repo, Id, C, N, _),
-  ( preference:package_use_override(C, N, Use, positive) ->
+  ( % Profile-enforced per-package constraints (package.use.mask/force) win over
+    % /etc/portage/package.use and global USE.
+    preference:profile_package_use_override_for_entry(Repo://Id, Use, Eff, _Reason0) ->
+      true
+  ; preference:package_use_override(C, N, Use, positive) ->
       Eff = positive
   ; preference:package_use_override(C, N, Use, negative) ->
       Eff = negative
@@ -1902,7 +1906,11 @@ rules:effective_use_for_entry(RepoEntry0, Use, State) :-
   \+ Use =.. [minus,_],
   rules:entry_iuse_default(Repo://Id, Use, Default),
   cache:ordered_entry(Repo, Id, C, N, _),
-  ( preference:package_use_override(C, N, Use, positive) ->
+  ( % Profile-enforced per-package constraints (package.use.mask/force) win over
+    % /etc/portage/package.use and global USE.
+    preference:profile_package_use_override_for_entry(Repo://Id, Use, Eff, _Reason0) ->
+      true
+  ; preference:package_use_override(C, N, Use, positive) ->
       Eff = positive
   ; preference:package_use_override(C, N, Use, negative) ->
       Eff = negative
