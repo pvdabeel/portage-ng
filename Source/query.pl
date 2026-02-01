@@ -1025,6 +1025,10 @@ compile_query_compound(model(dependency(Model,install)):config?{Context}, Repo:/
           ( cache:entry_metadata(Repo,Id,bdepend,Dep)
           ; cache:entry_metadata(Repo,Id,cdepend,Dep)
           ; cache:entry_metadata(Repo,Id,depend,Dep)
+          ; % PDEPEND must be part of the merge plan (Portage semantics).
+            ( cache:entry_metadata(Repo,Id,pdepend,Dep0),
+              query:pdepend_dep_as_run(Dep0, Dep)
+            )
           % Portage merges build-time dependencies as full packages, so their
           % runtime deps must be present too. Including IDEPEND/RDEPEND here
           % fixes missing transitive deps (e.g. python libs pulled via BDEPEND).
