@@ -545,6 +545,13 @@ rules:with_assume_conflicts(Goal) :-
 
 rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions) :-
   !,
+  % Lazy + guarded propagation of self-RDEPEND *version bounds* into build/install
+  % dependency selection. This helps avoid selecting an inconsistent toolchain/lib
+  % version (e.g. picking OCaml 5.x for DEPEND when the current package's RDEPEND
+  % requires <dev-lang/ocaml-5), but avoids the timeout-prone "build a full map per
+  % package" approach by only looking up bounds for the current (C,N) and caching
+  % per (SelfId,C,N).
+  rules:augment_package_deps_with_self_rdepend(Action, C, N, Context, PackageDeps, PackageDeps1),
   % Self-dependency at runtime is trivially satisfied: once the package is built,
   % it provides itself. Treat this generically to avoid hard failures on packages
   % that (redundantly) list themselves in RDEPEND.
@@ -559,7 +566,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
     Conditions = []
   ; \+ preference:flag(emptytree),
     \+ preference:flag(deep),
-    merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
+    merge_slot_restriction(Action, C, N, PackageDeps1, SlotReq),
     % If an installed instance exists in the same slot, and it satisfies all
     % version constraints, treat the grouped dependency as satisfied.
     %
@@ -569,14 +576,14 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
     query:search([repository(pkg),category(C),name(N),installed(true)],
                  pkg://InstalledEntry),
     rules:query_search_slot_constraint(SlotReq, pkg://InstalledEntry, _),
-    rules:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps, pkg://InstalledEntry),
+    rules:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps1, pkg://InstalledEntry),
     % IMPORTANT (Portage-like rebuilds):
     % The "keep installed" fast-path must also respect bracketed USE requirements
     % expressed by this dependency (e.g. xmlto[text], glib[introspection]).
     % These are carried as per-package `build_with_use` constraints, so we must
     % derive them from this grouped dep's PackageDeps before deciding the installed
     % instance satisfies the dependency.
-    findall(U0, member(package_dependency(_P0,no,C,N,_O,_V,_,U0),PackageDeps), MergedUse0),
+    findall(U0, member(package_dependency(_P0,no,C,N,_O,_V,_,U0),PackageDeps1), MergedUse0),
     append(MergedUse0, MergedUse),
     process_build_with_use(MergedUse, Context, ContextWU, _BWUCons, pkg://InstalledEntry),
     rules:installed_entry_satisfies_build_with_use(pkg://InstalledEntry, ContextWU),
@@ -590,7 +597,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
   ->
     Conditions = []
   ;
-    ( merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
+    ( merge_slot_restriction(Action, C, N, PackageDeps1, SlotReq),
 
       % Candidate selection (portage / overlays)
       %
@@ -640,10 +647,10 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       ; true
       ),
 
-      forall(member(package_dependency(_P1,no,C,N,O,V,_,_), PackageDeps),
+      forall(member(package_dependency(_P1,no,C,N,O,V,_,_), PackageDeps1),
              rules:query_search_version_select(O, V, FoundRepo://Candidate)),
 
-      findall(U0, member(package_dependency(_P2,no,C,N,_O,_V,_,U0),PackageDeps), MergedUse0),
+      findall(U0, member(package_dependency(_P2,no,C,N,_O,_V,_,U0),PackageDeps1), MergedUse0),
       append(MergedUse0, MergedUse),
       % Enforce bracketed USE constraints (e.g. sys-devel/gcc[objc], python[xml(+)], foo[bar?]).
       rules:candidate_satisfies_use_deps(Context, FoundRepo://Candidate, MergedUse),
@@ -718,10 +725,115 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         Conditions = []
       ; explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason),
         feature_unification:unify([assumption_reason(Reason)], Context, Ctx1),
-        Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps):Action?{Ctx1})]
+        Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps1):Action?{Ctx1})]
       )
     )
   ).
+
+% -----------------------------------------------------------------------------
+%  Lazy self-RDEPEND version-bound propagation (timeout-safe variant)
+% -----------------------------------------------------------------------------
+%
+% Some packages impose runtime version bounds on a dependency that is also used
+% at build/install time. If we ignore those bounds during candidate selection for
+% install deps, we can pick an inconsistent version and diverge from Portage.
+%
+% Naively scanning the full RDEPEND tree for every package during proof search is
+% extremely expensive at repository scale. We therefore:
+% - only apply this for Action == install (build/install dependency resolution),
+% - only apply it when Context includes self(Repo://SelfId),
+% - only apply it when the current dep (C,N) has no version constraint already,
+% - cache the derived bounds per (Repo,SelfId,C,N).
+%
+% We only propagate version/slot constraints here; USE deps from RDEPEND are not
+% merged into PackageDeps (to avoid unintended build_with_use pollution).
+rules:augment_package_deps_with_self_rdepend(install, C, N, Context, PackageDeps0, PackageDeps) :-
+  ( memberchk(self(RepoEntry0), Context) ->
+      ( RepoEntry0 = Repo://SelfId -> true
+      ; RepoEntry0 = Repo//SelfId  -> true
+      )
+  ; fail
+  ),
+  % If the dependency already carries a version constraint, don't add more.
+  ( rules:dep_has_version_constraints(C, N, PackageDeps0) ->
+      PackageDeps = PackageDeps0
+  ; rules:self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra),
+    ( Extra == [] ->
+        PackageDeps = PackageDeps0
+    ; append(PackageDeps0, Extra, PackageDeps)
+    )
+  ),
+  !.
+rules:augment_package_deps_with_self_rdepend(_OtherAction, _C, _N, _Context, PackageDeps, PackageDeps) :-
+  !.
+
+% True iff PackageDeps contains at least one non-trivial version comparator for (C,N).
+rules:dep_has_version_constraints(C, N, PackageDeps) :-
+  member(package_dependency(_Phase, no, C, N, Op, _V, _S, _U), PackageDeps),
+  Op \== none,
+  !.
+
+% Lookup extra version-bound deps from Self's RDEPEND for a specific (C,N).
+% Cached per (Repo,SelfId,C,N). Negative results are cached as [].
+rules:self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra) :-
+  ( nb_current(rules_self_rdepend_vbounds_cn_cache, Cache),
+    get_assoc(key(Repo,SelfId,C,N), Cache, Extra0)
+  ->
+    Extra = Extra0
+  ;
+    rules:build_self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra1),
+    ( nb_current(rules_self_rdepend_vbounds_cn_cache, Cache0) -> true ; empty_assoc(Cache0) ),
+    put_assoc(key(Repo,SelfId,C,N), Cache0, Extra1, Cache1),
+    nb_setval(rules_self_rdepend_vbounds_cn_cache, Cache1),
+    Extra = Extra1
+  ),
+  !.
+
+rules:build_self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra) :-
+  findall(Term, cache:entry_metadata(Repo, SelfId, rdepend, Term), Terms),
+  findall(Dep,
+          ( member(Term, Terms),
+            rules:rdepend_collect_vbounds_for_cn(Term, C, N, Deps0),
+            member(Dep, Deps0)
+          ),
+          Extra0),
+  sort(Extra0, Extra),
+  !.
+
+% Collect version-bounded leaves for (C,N) from an RDEPEND term.
+% We traverse the dependency AST explicitly (faster + more selective than sub_term/2).
+rules:rdepend_collect_vbounds_for_cn(package_dependency(_P, _Strength, C, N, Op, V, SlotReq, _UseDeps),
+                                    C, N,
+                                    [package_dependency(run, no, C, N, Op, V, SlotReq, [])]) :-
+  Op \== none,
+  !.
+rules:rdepend_collect_vbounds_for_cn(package_dependency(_P, _Strength, _C, _N, _Op, _V, _SlotReq, _UseDeps),
+                                    _C0, _N0, []) :-
+  !.
+rules:rdepend_collect_vbounds_for_cn(use_conditional_group(_Pol, _Use, _Self, Deps0), C, N, Deps) :-
+  !,
+  rules:rdepend_collect_vbounds_for_cn_list(Deps0, C, N, Deps).
+rules:rdepend_collect_vbounds_for_cn(any_of_group(Deps0), C, N, Deps) :-
+  !,
+  rules:rdepend_collect_vbounds_for_cn_list(Deps0, C, N, Deps).
+rules:rdepend_collect_vbounds_for_cn(all_of_group(Deps0), C, N, Deps) :-
+  !,
+  rules:rdepend_collect_vbounds_for_cn_list(Deps0, C, N, Deps).
+rules:rdepend_collect_vbounds_for_cn(exactly_one_of_group(Deps0), C, N, Deps) :-
+  !,
+  rules:rdepend_collect_vbounds_for_cn_list(Deps0, C, N, Deps).
+rules:rdepend_collect_vbounds_for_cn(at_most_one_of_group(Deps0), C, N, Deps) :-
+  !,
+  rules:rdepend_collect_vbounds_for_cn_list(Deps0, C, N, Deps).
+rules:rdepend_collect_vbounds_for_cn(_Other, _C, _N, []) :-
+  !.
+
+rules:rdepend_collect_vbounds_for_cn_list([], _C, _N, []) :- !.
+rules:rdepend_collect_vbounds_for_cn_list([T|Ts], C, N, Deps) :-
+  rules:rdepend_collect_vbounds_for_cn(T, C, N, D0),
+  rules:rdepend_collect_vbounds_for_cn_list(Ts, C, N, D1),
+  append(D0, D1, Deps),
+  !.
 
 
 % -----------------------------------------------------------------------------
