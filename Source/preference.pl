@@ -408,23 +408,23 @@ preference:apply_env_use_term(Use) :-
 % Normalize a profile atom into a matching spec.
 %
 % We support:
-% - simple(C,N)                     (cat/pkg)
-% - versioned(Op,C,N,Ver)           (>=cat/pkg-1.2, =cat/pkg-0*, ...)
+% - simple(C,N,SlotReq)                     (cat/pkg[:slot])
+% - versioned(Op,C,N,Ver,SlotReq)           (>=cat/pkg-1.2[:slot], =cat/pkg-0*[:slot], ...)
 %
 % Notes:
-% - We intentionally ignore slot restrictions and use deps in these atoms for now.
+% - We intentionally ignore USE deps in these atoms for now.
 % - A target of the form cat/pkg-1.2 (no operator) is treated like '=' (exact).
 preference:profile_package_use_spec(Atom, Spec) :-
   atom(Atom),
   atom_codes(Atom, Codes),
   catch(phrase(eapi:qualified_target(Q), Codes), _, fail),
-  Q = qualified_target(Op, _Repo, C, N, Ver0, _Filters),
+  Q = qualified_target(Op, _Repo, C, N, Ver0, [SlotReq,_UseDeps]),
   nonvar(C), nonvar(N),
   ( Ver0 == [[], '', '', '', ''] ->
-      Spec = simple(C, N)
+      Spec = simple(C, N, SlotReq)
   ; Op == none ->
-      Spec = versioned(equal, C, N, Ver0)
-  ; Spec = versioned(Op, C, N, Ver0)
+      Spec = versioned(equal, C, N, Ver0, SlotReq)
+  ; Spec = versioned(Op, C, N, Ver0, SlotReq)
   ),
   !.
 
@@ -507,18 +507,48 @@ preference:apply_profile_package_use_op(del, forced, Spec, Flag) :-
 % Precedence: mask wins over force (Portage-like).
 preference:profile_package_use_override_for_entry(Repo://Id, Use, State, Reason) :-
   cache:ordered_entry(Repo, Id, C, N, ProposedVersion),
-  ( ( preference:profile_package_use_masked(simple(C,N), Use)
-    ; preference:profile_package_use_masked(versioned(Op,C,N,ReqVer), Use),
-      preference:version_match(Op, ProposedVersion, ReqVer)
+  ( ( preference:profile_package_use_masked(simple(C,N,SlotReq), Use),
+      preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
+    ; preference:profile_package_use_masked(versioned(Op,C,N,ReqVer,SlotReq), Use),
+      preference:version_match(Op, ProposedVersion, ReqVer),
+      preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
     ) ->
       State = negative,
       Reason = profile_package_use_mask
-  ; ( preference:profile_package_use_forced(simple(C,N), Use)
-    ; preference:profile_package_use_forced(versioned(Op,C,N,ReqVer), Use),
-      preference:version_match(Op, ProposedVersion, ReqVer)
+  ; ( preference:profile_package_use_forced(simple(C,N,SlotReq), Use),
+      preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
+    ; preference:profile_package_use_forced(versioned(Op,C,N,ReqVer,SlotReq), Use),
+      preference:version_match(Op, ProposedVersion, ReqVer),
+      preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
     ) ->
       State = positive,
       Reason = profile_package_use_force
+  ),
+  !.
+
+% Slot matching helper for profile atoms.
+%
+% SlotReq is the parsed slot restriction list from eapi:qualified_target/1, e.g.:
+%   []                  (no slot restriction)
+%   [slot('26')]        (:=slot 26)
+%
+% For profile package.use.mask/force, we only need basic SLOT matching.
+preference:entry_satisfies_slot_req_(_Repo, _Id, []) :- !.
+preference:entry_satisfies_slot_req_(Repo, Id, SlotReq) :-
+  ( member(slot(S0), SlotReq) ->
+      cache:entry_metadata(Repo, Id, slot, slot(S1)),
+      preference:canon_slot_atom_(S0, S),
+      preference:canon_slot_atom_(S1, Slot),
+      S == Slot
+  ; true
+  ),
+  !.
+
+preference:canon_slot_atom_(S0, S) :-
+  ( atom(S0) -> S = S0
+  ; integer(S0) -> atom_number(S, S0)
+  ; number(S0) -> atom_number(S, S0)
+  ; S = S0
   ),
   !.
 

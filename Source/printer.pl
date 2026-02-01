@@ -2335,19 +2335,33 @@ printer:collect_expand_flags(Keyflags, AllFlags) :-
   (memberchk([negative:default,NegDefa],Keyflags);    NegDefa=[]),
   (memberchk([negative:ebuild,NegEbui],Keyflags);     NegEbui=[]),
   (memberchk([negative:preference,NegPref],Keyflags); NegPref=[]),
+  (memberchk([negative:package_use,NegPkgUse],Keyflags); NegPkgUse=[]),
+  (memberchk([negative:profile_package_use_mask,NegProfileMask],Keyflags); NegProfileMask=[]),
   (memberchk([positive:ebuild,PosEbui],Keyflags);     PosEbui=[]),
   (memberchk([positive:preference,PosPref],Keyflags); PosPref=[]),
+  (memberchk([positive:package_use,PosPkgUse],Keyflags); PosPkgUse=[]),
+  (memberchk([positive:profile_package_use_force,PosProfileForce],Keyflags); PosProfileForce=[]),
   sort(PosPref, OPosPref),
   sort(PosEbui, OPosEbui),
+  sort(PosPkgUse, OPosPkgUse),
+  sort(PosProfileForce, OPosProfileForce),
   sort(NegPref, ONegPref),
   sort(NegEbui, ONegEbui),
+  sort(NegPkgUse, ONegPkgUse),
+  sort(NegProfileMask, ONegProfileMask),
   sort(NegDefa, ONegDefa),
   maplist(printer:to_flag_term(positive:preference, []), OPosPref, FlagsPosPref),
+  maplist(printer:to_flag_term(positive:package_use, []), OPosPkgUse, FlagsPosPkgUse),
+  maplist(printer:to_flag_term(positive:profile_package_use_force, []), OPosProfileForce, FlagsPosProfileForce),
   maplist(printer:to_flag_term(positive:ebuild, []), OPosEbui, FlagsPosEbui),
   maplist(printer:to_flag_term(negative:preference, []), ONegPref, FlagsNegPref),
+  maplist(printer:to_flag_term(negative:package_use, []), ONegPkgUse, FlagsNegPkgUse),
+  maplist(printer:to_flag_term(negative:profile_package_use_mask, []), ONegProfileMask, FlagsNegProfileMask),
   maplist(printer:to_flag_term(negative:ebuild, []), ONegEbui, FlagsNegEbui),
   maplist(printer:to_flag_term(negative:default, []), ONegDefa, FlagsNegDefa),
-  append([FlagsPosPref, FlagsPosEbui, FlagsNegPref, FlagsNegEbui, FlagsNegDefa], AllFlags).
+  append([FlagsPosPref, FlagsPosPkgUse, FlagsPosProfileForce, FlagsPosEbui,
+          FlagsNegPref, FlagsNegPkgUse, FlagsNegProfileMask, FlagsNegEbui, FlagsNegDefa],
+         AllFlags).
 
 
 % Helper predicate: Print configuration items with aligned equals signs
@@ -2616,19 +2630,33 @@ printer:collect_all_flags(List, Assumed, AllFlags) :-
     (memberchk([negative:default,NegDefa],List);    NegDefa=[]),
     (memberchk([negative:ebuild,NegEbui],List);     NegEbui=[]),
     (memberchk([negative:preference,NegPref],List); NegPref=[]),
+    (memberchk([negative:package_use,NegPkgUse],List); NegPkgUse=[]),
+    (memberchk([negative:profile_package_use_mask,NegProfileMask],List); NegProfileMask=[]),
     (memberchk([positive:ebuild,PosEbui],List);     PosEbui=[]),
     (memberchk([positive:preference,PosPref],List); PosPref=[]),
+    (memberchk([positive:package_use,PosPkgUse],List); PosPkgUse=[]),
+    (memberchk([positive:profile_package_use_force,PosProfileForce],List); PosProfileForce=[]),
     sort(PosPref, OPosPref),
     sort(PosEbui, OPosEbui),
+    sort(PosPkgUse, OPosPkgUse),
+    sort(PosProfileForce, OPosProfileForce),
     sort(NegPref, ONegPref),
     sort(NegEbui, ONegEbui),
+    sort(NegPkgUse, ONegPkgUse),
+    sort(NegProfileMask, ONegProfileMask),
     sort(NegDefa, ONegDefa),
     maplist(to_flag_term(positive:preference, Assumed), OPosPref, FlagsPosPref),
+    maplist(to_flag_term(positive:package_use, Assumed), OPosPkgUse, FlagsPosPkgUse),
+    maplist(to_flag_term(positive:profile_package_use_force, Assumed), OPosProfileForce, FlagsPosProfileForce),
     maplist(to_flag_term(positive:ebuild, Assumed), OPosEbui, FlagsPosEbui),
     maplist(to_flag_term(negative:preference, Assumed), ONegPref, FlagsNegPref),
+    maplist(to_flag_term(negative:package_use, Assumed), ONegPkgUse, FlagsNegPkgUse),
+    maplist(to_flag_term(negative:profile_package_use_mask, Assumed), ONegProfileMask, FlagsNegProfileMask),
     maplist(to_flag_term(negative:ebuild, Assumed), ONegEbui, FlagsNegEbui),
     maplist(to_flag_term(negative:default, Assumed), ONegDefa, FlagsNegDefa),
-    append([FlagsPosPref, FlagsPosEbui, FlagsNegPref, FlagsNegEbui, FlagsNegDefa], AllFlags).
+    append([FlagsPosPref, FlagsPosPkgUse, FlagsPosProfileForce, FlagsPosEbui,
+            FlagsNegPref, FlagsNegPkgUse, FlagsNegProfileMask, FlagsNegEbui, FlagsNegDefa],
+           AllFlags).
 
 
 %! printer:to_flag_term(+Type, +Assumed, +Flag, -FlagTerm)
@@ -2663,12 +2691,27 @@ printer:get_flag_length_typed(positive:preference, Flag, Length) :-
     atom_length(Flag, L),
     ( preference:use(Flag,env) -> Length is L + 1 ; Length is L).
 
+printer:get_flag_length_typed(positive:package_use, Flag, Length) :-
+    atom_length(Flag, Length).
+
+printer:get_flag_length_typed(positive:profile_package_use_force, Flag, Length) :-
+    atom_length(Flag, L),
+    Length is L + 2. % parentheses
+
 printer:get_flag_length_typed(positive:ebuild, Flag, Length) :-
     atom_length(Flag, Length).
 
 printer:get_flag_length_typed(negative:preference, Flag, Length) :-
     atom_length(Flag, L),
     ( preference:use(minus(Flag),env) -> Length is L + 2 ; Length is L + 1).
+
+printer:get_flag_length_typed(negative:package_use, Flag, Length) :-
+    atom_length(Flag, L),
+    Length is L + 1.
+
+printer:get_flag_length_typed(negative:profile_package_use_mask, Flag, Length) :-
+    atom_length(Flag, L),
+    Length is L + 3. % (-flag)
 
 printer:get_flag_length_typed(negative:ebuild, Flag, Length) :-
     atom_length(Flag, L),
@@ -2706,7 +2749,23 @@ printer:print_use_flag(positive:preference, Flag, _Assumed) :-
   message:color(normal),
   message:print('*').
 
+printer:print_use_flag(positive:profile_package_use_force, Flag, _Assumed) :-
+  !,
+  message:color(green),
+  message:style(bold),
+  message:print('('),
+  message:print(Flag),
+  message:print(')'),
+  message:color(normal).
+
 printer:print_use_flag(positive:preference, Flag, _Assumed) :-
+  !,
+  message:color(red),
+  message:style(bold),
+  message:print(Flag),
+  message:color(normal).
+
+printer:print_use_flag(positive:package_use, Flag, _Assumed) :-
   !,
   message:color(red),
   message:style(bold),
@@ -2729,7 +2788,25 @@ printer:print_use_flag(negative:preference, Flag, _Assumed) :-
   message:color(normal),
   message:print('*').
 
+printer:print_use_flag(negative:profile_package_use_mask, Flag, _Assumed) :-
+  !,
+  message:color(green),
+  message:style(bold),
+  message:print('('),
+  message:print('-'),
+  message:print(Flag),
+  message:print(')'),
+  message:color(normal).
+
 printer:print_use_flag(negative:preference, Flag, _Assumed) :-
+  !,
+  message:color(blue),
+  message:style(bold),
+  message:print('-'),
+  message:print(Flag),
+  message:color(normal).
+
+printer:print_use_flag(negative:package_use, Flag, _Assumed) :-
   !,
   message:color(blue),
   message:style(bold),
