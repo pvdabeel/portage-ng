@@ -2975,8 +2975,11 @@ printer:print_next_in_step(Target,[_|Rest]) :-
 %
 % Prints the footer for a given plan.
 
-printer:print_footer(_Plan, ModelAVL, PrintedSteps) :-
-  printer:footer_stats(ModelAVL, S),
+printer:print_footer(Plan, _ModelAVL, PrintedSteps) :-
+  % IMPORTANT:
+  % Footer totals should reflect the *plan* (what we will do), not everything
+  % present in the proved ModelAVL (which can include already-satisfied actions).
+  printer:footer_stats_from_plan(Plan, S),
   printer:pluralize(S.actions, action, actions, TotalStr),
   printer:pluralize(PrintedSteps, step, steps, PStr),
   printer:footer_action_breakdown(S, Breakdown),
@@ -3026,6 +3029,61 @@ printer:footer_stats(ModelAVL, Stats) :-
                         downloads:0, runs:0, installs:0, updates:0, reinstalls:0, total_dl:0},
    findall(Key, assoc:gen_assoc(Key, ModelAVL, _), Keys),
    foldl(printer:update_stats, Keys, StatsInitial, Stats).
+
+
+%! printer:footer_stats_from_plan(+Plan, -Stats)
+%
+% Plan-based footer stats (preferred for CLI output).
+%
+% The plan contains rules (and assumed rules) that are actually scheduled.
+% We only count concrete actions shown in the plan (download/install/update/
+% reinstall/run), matching the footer breakdown.
+%
+printer:footer_stats_from_plan(Plan, Stats) :-
+  Stats0 = stats{actions:0, downloads:0, runs:0, installs:0, updates:0, reinstalls:0, total_dl:0},
+  foldl(printer:footer_stats_from_step, Plan, Stats0, Stats).
+
+printer:footer_stats_from_step(Step, S0, S) :-
+  foldl(printer:footer_stats_from_rule, Step, S0, S).
+
+printer:footer_stats_from_rule(Rule0, S0, S) :-
+  ( Rule0 = rule(HeadWithCtx, _Body)
+  ; Rule0 = rule(assumed(HeadWithCtx), _Body)
+  ; Rule0 = assumed(rule(HeadWithCtx, _Body))
+  ),
+  !,
+  prover:canon_literal(HeadWithCtx, Head, _Ctx),
+  printer:footer_stats_from_head(Head, S0, S).
+printer:footer_stats_from_rule(_Other, S, S).
+
+printer:footer_stats_from_head(R://E:download, S0, S) :-
+  !,
+  ( ebuild:download_size(preference, R://E, Bytes) -> true ; Bytes = 0 ),
+  NewDownloads is S0.downloads + 1,
+  NewTotalDl is S0.total_dl + Bytes,
+  NewActions is S0.actions + 1,
+  S = S0.put(_{downloads:NewDownloads, total_dl:NewTotalDl, actions:NewActions}).
+printer:footer_stats_from_head(_://_:run, S0, S) :-
+  !,
+  NewRuns is S0.runs + 1,
+  NewActions is S0.actions + 1,
+  S = S0.put(_{runs:NewRuns, actions:NewActions}).
+printer:footer_stats_from_head(_://_:install, S0, S) :-
+  !,
+  NewInstalls is S0.installs + 1,
+  NewActions is S0.actions + 1,
+  S = S0.put(_{installs:NewInstalls, actions:NewActions}).
+printer:footer_stats_from_head(_://_:update, S0, S) :-
+  !,
+  NewUpdates is S0.updates + 1,
+  NewActions is S0.actions + 1,
+  S = S0.put(_{updates:NewUpdates, actions:NewActions}).
+printer:footer_stats_from_head(_://_:reinstall, S0, S) :-
+  !,
+  NewReinstalls is S0.reinstalls + 1,
+  NewActions is S0.actions + 1,
+  S = S0.put(_{reinstalls:NewReinstalls, actions:NewActions}).
+printer:footer_stats_from_head(_Other, S, S).
 
 %! printer:update_stats(+Key, +StatsIn, -StatsOut)
 %
@@ -4377,12 +4435,83 @@ printer:print(Target,ModelAVL,ProofAVL,Plan,TriggersAVL) :-
 printer:print(Target,ModelAVL,ProofAVL,Plan,Call,TriggersAVL) :-
   printer:blocker_note_map(ProofAVL, BlockerNotes),
   setup_call_cleanup(nb_setval(printer_blocker_notes, BlockerNotes),
-    ( printer:print_header(Target),
-      printer:print_body(Target,Plan,Call,Steps),
+    ( printer:resolve_print_target(Target, ProofAVL, TargetPrint, TargetHeader),
+      printer:print_header(TargetHeader),
+      printer:print_body(TargetPrint,Plan,Call,Steps),
       printer:print_footer(Plan,ModelAVL,Steps),
       printer:print_warnings(ModelAVL,ProofAVL,TriggersAVL)
     ),
     nb_delete(printer_blocker_notes)).
+
+
+% -----------------------------------------------------------------------------
+%  Printing helpers: resolve target(...) to chosen candidate
+% -----------------------------------------------------------------------------
+%
+% Since the CLI now defers candidate selection to the prover, the "root target"
+% passed into printer:print/6 can be of the form:
+%   target(Q, Arg):run?{Ctx}
+%
+% For UX parity we:
+% - display the chosen candidate's :run in the "Emerging" header
+% - treat that candidate's :run literal as the root target for highlighting
+%   (bold green bubble) within the plan.
+%
+
+printer:resolve_print_target(Target0, ProofAVL, TargetPrint, TargetHeader) :-
+  ( is_list(Target0) ->
+      findall(P-H,
+              ( member(T, Target0),
+                printer:resolve_print_target_one(T, ProofAVL, P, H)
+              ),
+              Pairs),
+      findall(P, member(P-_, Pairs), TargetPrint),
+      findall(H, member(_-H, Pairs), TargetHeader)
+  ; printer:resolve_print_target_one(Target0, ProofAVL, TargetPrint, TargetHeader)
+  ),
+  !.
+
+printer:resolve_print_target_one(Full0, ProofAVL, Full, HeaderFull) :-
+  % Only rewrite the new target(...) wrapper. Keep other root goals unchanged.
+  ( Full0 = target(Q, Arg):Action?{_Ctx0} ->
+      ( printer:proof_rule_body_(ProofAVL, target(Q, Arg):Action, Body),
+        printer:chosen_candidate_from_body(Action, Body, Repo, Ebuild) ->
+          % Display as the chosen candidate's action (typically :run).
+          % Use Repo://(Ebuild:Action) shape to avoid printing parentheses like:
+          %   (portage://foo):run
+          HeaderFull = Repo://(Ebuild:Action?{[]}),
+          % Treat the chosen candidate's action as the plan "target" for
+          % green/bold highlighting.
+          Full = Repo://(Ebuild:Action?{[]})
+      ; HeaderFull = Full0,
+        Full = Full0
+      )
+  ; HeaderFull = Full0,
+    Full = Full0
+  ),
+  !.
+
+printer:proof_rule_body_(ProofAVL, HeadCore, Body) :-
+  % Proof stores rules under keys rule(HeadCore).
+  get_assoc(rule(HeadCore), ProofAVL, dep(_Count, Body)?_Ctx),
+  is_list(Body),
+  !.
+
+% Extract the chosen concrete candidate from the body of the target(...) rule.
+%
+% For :run we go via our wrapper :merge (run + pdepend). For other actions we
+% may have the direct action literal in the body.
+printer:chosen_candidate_from_body(run, Body, Repo, Ebuild) :-
+  ( member(Repo://Ebuild:merge?{_}, Body)
+  ; member(Repo://Ebuild:run?{_}, Body)
+  ),
+  !.
+printer:chosen_candidate_from_body(fetchonly, Body, Repo, Ebuild) :-
+  member(Repo://Ebuild:fetchonly?{_}, Body),
+  !.
+printer:chosen_candidate_from_body(uninstall, Body, Repo, Ebuild) :-
+  member(Repo://Ebuild:uninstall?{_}, Body),
+  !.
 
 % Build a lookup map from (C,N,Phase) -> note(Strength, OriginRepoEntryOrUnknown).
 printer:blocker_note_map(ProofAVL, Notes) :-
@@ -4527,17 +4656,20 @@ printer:write_package_index_file(Directory,Repository,Category,Name) :-
 % Assumes directory exists. (See repository:prepare_directory)
 
 printer:write_merge_file(Directory,Repository://Entry) :-
-  Action = run,
+  % Merge proof should include PDEPEND (post-run) actions.
+  % Prove :merge, but print with :run as the user-facing target (highlighting).
+  ActionProof = merge,
+  ActionPrint = run,
   Extension = '.merge',
-  (prover:prove(Repository://Entry:Action?{[]},t,Proof,t,Model,t,_Constraints,t,Triggers),
+  (prover:prove(Repository://Entry:ActionProof?{[]},t,Proof,t,Model,t,_Constraints,t,Triggers),
    planner:plan(Proof,Triggers,t,Plan0,Remainder0),
    scheduler:schedule(Proof,Triggers,Plan0,Remainder0,Plan,_Remainder),
    atomic_list_concat([Directory,'/',Entry,Extension],File)),
   (tell(File),
    set_stream(current_output,tty(true)), % otherwise we lose color
-   printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan,Triggers)
+   printer:print([Repository://Entry:ActionPrint?{[]}],Model,Proof,Plan,Triggers)
    -> told
-   ; (told,with_mutex(mutex,message:warning([Repository,'://',Entry,' ',Action])))).
+   ; (told,with_mutex(mutex,message:warning([Repository,'://',Entry,' ',ActionProof])))).
 
 
 %! printer:write_fetchonly_file(+Directory,+Repository://Entry)
