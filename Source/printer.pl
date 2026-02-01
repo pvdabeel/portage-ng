@@ -2689,7 +2689,9 @@ printer:get_flag_length(Type, Flag, Assumed, Length) :-
 
 printer:get_flag_length_typed(positive:preference, Flag, Length) :-
     atom_length(Flag, L),
-    ( preference:use(Flag,env) -> Length is L + 1 ; Length is L).
+    ( preference:use(Flag,env) -> EnvExtra = 1 ; EnvExtra = 0),
+    ( preference:profile_forced_use_flag(Flag) -> ProfileExtra = 1 ; ProfileExtra = 0),
+    Length is L + EnvExtra + ProfileExtra.
 
 printer:get_flag_length_typed(positive:package_use, Flag, Length) :-
     atom_length(Flag, Length).
@@ -2703,7 +2705,9 @@ printer:get_flag_length_typed(positive:ebuild, Flag, Length) :-
 
 printer:get_flag_length_typed(negative:preference, Flag, Length) :-
     atom_length(Flag, L),
-    ( preference:use(minus(Flag),env) -> Length is L + 2 ; Length is L + 1).
+    ( preference:use(minus(Flag),env) -> EnvExtra = 1 ; EnvExtra = 0), % '*' marker
+    ( preference:profile_masked_use_flag(Flag) -> ProfileExtra = 1 ; ProfileExtra = 0), % '%' marker
+    Length is L + 1 + EnvExtra + ProfileExtra.
 
 printer:get_flag_length_typed(negative:package_use, Flag, Length) :-
     atom_length(Flag, L),
@@ -2747,6 +2751,7 @@ printer:print_use_flag(positive:preference, Flag, _Assumed) :-
   message:style(bold),
   message:print(Flag),
   message:color(normal),
+  ( preference:profile_forced_use_flag(Flag) -> message:print('%') ; true ),
   message:print('*').
 
 printer:print_use_flag(positive:profile_package_use_force, Flag, _Assumed) :-
@@ -2763,7 +2768,8 @@ printer:print_use_flag(positive:preference, Flag, _Assumed) :-
   message:color(red),
   message:style(bold),
   message:print(Flag),
-  message:color(normal).
+  message:color(normal),
+  ( preference:profile_forced_use_flag(Flag) -> message:print('%') ; true ).
 
 printer:print_use_flag(positive:package_use, Flag, _Assumed) :-
   !,
@@ -2786,6 +2792,7 @@ printer:print_use_flag(negative:preference, Flag, _Assumed) :-
   message:print('-'),
   message:print(Flag),
   message:color(normal),
+  ( preference:profile_masked_use_flag(Flag) -> message:print('%') ; true ),
   message:print('*').
 
 printer:print_use_flag(negative:profile_package_use_mask, Flag, _Assumed) :-
@@ -2804,7 +2811,8 @@ printer:print_use_flag(negative:preference, Flag, _Assumed) :-
   message:style(bold),
   message:print('-'),
   message:print(Flag),
-  message:color(normal).
+  message:color(normal),
+  ( preference:profile_masked_use_flag(Flag) -> message:print('%') ; true ).
 
 printer:print_use_flag(negative:package_use, Flag, _Assumed) :-
   !,

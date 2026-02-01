@@ -26,6 +26,8 @@ Scope / limitations (intentional, first cut):
 
 :- module(profile,
           [ profile_use_terms/2,          % +ProfileRel, -Terms
+            profile_use_mask/2,           % +ProfileRel, -MaskedFlags
+            profile_use_force/2,          % +ProfileRel, -ForcedFlags
             profile_package_mask_atoms/2, % +ProfileRel, -Atoms
             write_profile_use_file/0,     % write to Source/Private/profile_use_generated.pl
             write_profile_use_file/1      % +File
@@ -53,6 +55,18 @@ profile_use_terms(ProfileRel, Terms) :-
   profile_dirs(ProfileRel, Dirs),
   profile_collect(Dirs, Data),
   profile_finalize(Data, Terms).
+
+% Expose effective global use.mask/use.force sets for a profile chain.
+% These are useful for Portage-like display markers (e.g. '%' in emerge output).
+profile_use_mask(ProfileRel, Mask) :-
+  profile_dirs(ProfileRel, Dirs),
+  profile_collect(Dirs, st(_Enabled,_Disabled,_Force,Mask)),
+  !.
+
+profile_use_force(ProfileRel, Force) :-
+  profile_dirs(ProfileRel, Dirs),
+  profile_collect(Dirs, st(_Enabled,_Disabled,Force,_Mask)),
+  !.
 
 %! profile_package_mask_atoms(+ProfileRel, -Atoms:list)
 %

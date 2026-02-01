@@ -24,6 +24,10 @@ The preferences module contains build specific preferences
 % Per-package USE overrides (from /etc/portage/package.use-like sources).
 :- dynamic preference:package_use_override/4. % Category, Name, Use, State(positive|negative)
 
+% Global profile use.mask/use.force sets (for Portage-like display markers like '%').
+:- dynamic preference:profile_masked_use_flag/1.
+:- dynamic preference:profile_forced_use_flag/1.
+
 % Profile-enforced per-package USE constraints (from profiles/**/package.use.{mask,force}).
 % These are *hard* constraints and override /etc/portage/package.use.
 :- dynamic preference:profile_package_use_masked/2. % Spec, Use
@@ -312,6 +316,8 @@ preference:init :-
   % Reset derived state (important when regenerating lots of plans in one session).
   retractall(preference:masked(_)),
   retractall(preference:package_use_override(_,_,_,_)),
+  retractall(preference:profile_masked_use_flag(_)),
+  retractall(preference:profile_forced_use_flag(_)),
   retractall(preference:profile_package_use_masked(_,_)),
   retractall(preference:profile_package_use_forced(_,_)),
 
@@ -330,6 +336,13 @@ preference:init :-
   ),
   forall(preference:env_use_expand(Use),     (assertz(preference:local_env_use(Use)), assertz(preference:local_use(Use)))),
   preference:profile_use_terms(ProfileTerms),
+  ( config:gentoo_profile(ProfileRel),
+    catch(profile:profile_use_mask(ProfileRel, Masked), _, Masked = []),
+    catch(profile:profile_use_force(ProfileRel, Forced), _, Forced = []) ->
+      forall(member(U, Masked), assertz(preference:profile_masked_use_flag(U))),
+      forall(member(U, Forced), assertz(preference:profile_forced_use_flag(U)))
+  ; true
+  ),
   % Portage semantics for *_SINGLE_TARGET variables:
   % when the environment sets e.g. LUA_SINGLE_TARGET="luajit", it overrides the
   % profile defaults for lua_single_target_* (do not union them).

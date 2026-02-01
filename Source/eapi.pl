@@ -2065,6 +2065,8 @@ eapi:use_expand('nginx_modules_stream').
 eapi:use_expand('ofed_drivers').
 eapi:use_expand('office_implementation').
 eapi:use_expand('openmi_fabrics').
+% Portage profile variable: OPENMPI_FABRICS (flags like openmpi_fabrics_ofed)
+eapi:use_expand('openmpi_fabrics').
 eapi:use_expand('openmpi_ofed_features').
 eapi:use_expand('openmpi_rm').
 eapi:use_expand('perl_features').
