@@ -134,31 +134,40 @@ rule(Repository://Ebuild:merge?{Context}, Conditions) :-
 
 rule(Repository://Ebuild:pdepend?{Context}, Conditions) :-
   !,
-  rules:ctx_strip_planning(Context, Context1),
+  % Optional instrumentation (off by default).
+  % Enable via rules:enable_pdepend_stats/0.
+  ( nb_current(rules_pdepend_stats_enabled, true) ->
+      rules:pdepend_stats_record_call(Repository://Ebuild, Context)
+  ; true
+  ),
+  % Allow callers to control the scheduling anchor for PDEPEND deps.
+  % Default is after(Repo://Ebuild:run), but when PDEPEND is triggered from an
+  % :install/:update action (dependency merges), we want post-deps after that
+  % merge action rather than after a (non-existent) :run for dependency packages.
+  rules:ctx_take_after(Context, After0, Context0),
+  rules:ctx_strip_planning(Context0, Context1),
+  ( After0 == none -> AfterAnchor = Repository://Ebuild:run ; AfterAnchor = After0 ),
   rules:pdepend_terms_for_entry(Repository://Ebuild, Terms),
   ( Terms == [] ->
+      ( nb_current(rules_pdepend_stats_enabled, true) ->
+          rules:pdepend_stats_record_emit(Repository://Ebuild, AfterAnchor, 0)
+      ; true
+      ),
       Conditions = []
   ;
       % Recompute the use model (same as :run/:install), then prove the PDEPEND
       % term model under :config to make the conditional structure deterministic.
       rules:context_build_with_use_state(Context1, B),
       ( memberchk(required_use:R, Context1) -> true ; true ),
-      query:search(model(_Model,required_use(R),build_with_use(B)), Repository://Ebuild),
-      findall(Dep:config?{Context1}, member(Dep, Terms), Deps0),
-      sort(Deps0, DepsU),
-      prover:with_delay_triggers(
-        prover:prove_model(DepsU, t, AvlModel, t, _ConsOut, t)
-      ),
-      findall(Fact:Phase?{CtxOut},
-              ( assoc:gen_assoc(Fact:_, AvlModel, CtxIn),
-                Fact =.. [package_dependency|_],
-                Fact =.. [package_dependency,Phase|_],
-                ( CtxIn == {} -> CtxOut = [] ; CtxOut = CtxIn )
-              ),
-              FlatDeps),
-      query:group_dependencies(FlatDeps, Grouped0),
+      query:search(model(ModelKey,required_use(R),build_with_use(B)), Repository://Ebuild),
+      rules:pdepend_grouped_deps_for_entry(Repository://Ebuild, ModelKey, Context1, Grouped0),
       add_self_to_dep_contexts(Repository://Ebuild, Grouped0, Grouped1),
-      rules:add_after_to_dep_contexts(Repository://Ebuild:run, Grouped1, Conditions)
+      rules:add_after_to_dep_contexts(AfterAnchor, Grouped1, Conditions),
+      ( nb_current(rules_pdepend_stats_enabled, true) ->
+          length(Conditions, NEmitted),
+          rules:pdepend_stats_record_emit(Repository://Ebuild, AfterAnchor, NEmitted)
+      ; true
+      )
   ).
 
 
@@ -272,20 +281,30 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
       rules:add_after_to_dep_contexts(After, MergedDeps, MergedDepsAfter),
 
       % 5. Pass on relevant package dependencies and constraints to prover
+      %
+      % 6. Trigger PDEPEND only when it exists (most ebuilds have none).
+      ( cache:entry_metadata(Repository, Ebuild, pdepend, _) ->
+          PdependGoals = [Repository://Ebuild:pdepend?{[after(Repository://Ebuild:install),required_use:R,build_with_use:B]}]
+      ; PdependGoals = []
+      ),
       ( memberchk(C,['virtual','acct-group','acct-user']) ->
-          Conditions0 = [ Selected,
-                          constraint(use(Repository://Ebuild):{R}),
-                          constraint(slot(C,N,S):{Ebuild})
-                        | MergedDepsAfter ]
+          Prefix0 = [ Selected,
+                      constraint(use(Repository://Ebuild):{R}),
+                      constraint(slot(C,N,S):{Ebuild})
+                    ],
+          append(Prefix0, PdependGoals, Prefix1),
+          append(Prefix1, MergedDepsAfter, Conditions0)
       ; ( After == none ->
             DownloadCtx0 = [required_use:R,build_with_use:B]
         ; DownloadCtx0 = [after(After),required_use:R,build_with_use:B]
         ),
-        Conditions0 = [ Selected,
-                        constraint(use(Repository://Ebuild):{R}),
-                        constraint(slot(C,N,S):{Ebuild}),
-                        Repository://Ebuild:download?{DownloadCtx0}
-                      | MergedDepsAfter ]
+        Prefix0 = [ Selected,
+                    constraint(use(Repository://Ebuild):{R}),
+                    constraint(slot(C,N,S):{Ebuild}),
+                    Repository://Ebuild:download?{DownloadCtx0}
+                  ],
+        append(Prefix0, PdependGoals, Prefix1),
+        append(Prefix1, MergedDepsAfter, Conditions0)
       ),
       ( After == none -> Conditions = Conditions0 ; Conditions = [After|Conditions0] )
     ; % Conflict fallback
@@ -378,19 +397,13 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
     InstallOrUpdate = Repository://Ebuild:update?{[replaces(OldRepo://OldEbuild),required_use:R,build_with_use:B]}
   ; InstallOrUpdate = Repository://Ebuild:install?{[required_use:R,build_with_use:B]}
   ),
-  % 6. Trigger PDEPEND only when it exists.
-  % Most ebuilds have no PDEPEND; avoid invoking the (heavier) :pdepend rule unless
-  % there is actual metadata for it.
-  ( cache:entry_metadata(Repository, Ebuild, pdepend, _) ->
-      PdependGoals = [Repository://Ebuild:pdepend?{[required_use:R,build_with_use:B]}]
-  ; PdependGoals = []
-  ),
   Prefix0 = [Selected,
              constraint(use(Repository://Ebuild):{R}),
              constraint(slot(C,N,S):{Ebuild}),
              InstallOrUpdate],
-  append(Prefix0, PdependGoals, Prefix1),
-  append(Prefix1, MergedDepsAfter, Conditions0),
+  % NOTE: PDEPEND is triggered by the merge actions themselves (:install/:update)
+  % so it also applies to dependency packages (which typically don't have :run).
+  append(Prefix0, MergedDepsAfter, Conditions0),
   ( After == none -> Conditions = Conditions0 ; Conditions = [After|Conditions0] ).
 
 
@@ -598,12 +611,28 @@ rule(package_dependency(Phase,weak,C,N,O,V,S,_U):_Action?{Context},
 % In portage-ng we implement strong blockers as "remove if installed" (harder
 % semantics like "forbid co-installation in the same plan" can be layered in
 % the planner/printer using the planned package set).
-rule(package_dependency(Phase,strong,C,N,O,V,S,_U):_Action?{Context},
+rule(package_dependency(Phase,strong,C,N,O,V,S,U):_Action?{Context},
      Conditions) :-
   ( rules:assume_blockers ->
       rules:blocker_assumption_ctx(Context, AssCtx),
       Conditions = [assumed(blocker(strong, Phase, C, N, O, V, S)?{AssCtx})]
-  ; Conditions = [constraint(blocked_cn(C,N):{ordset([blocked(strong,Phase,O,V,S)])})]
+  ; % IMPORTANT (Portage-like blockers with USE deps):
+    % Many strong blockers are conditional on bracketed USE requirements, e.g.
+    %   !!x11-drivers/nvidia-drivers[-libglvnd]
+    %
+    % Our blocker constraint store (`blocked_cn/2`) currently tracks only C/N, Op, Ver, SlotReq
+    % and does NOT record the dependency USE condition. Enforcing such blockers as hard
+    % constraints therefore over-approximates (treats them as unconditional) and can
+    % cause massive backtracking / false conflicts (e.g. primus wants nvidia-drivers[libglvnd]).
+    %
+    % To keep proving correct and performant, we enforce ONLY unconditional strong blockers
+    % (those without bracketed USE constraints). Conditional strong blockers are recorded
+    % as domain assumptions in strict mode.
+    ( U == [] ->
+        Conditions = [constraint(blocked_cn(C,N):{ordset([blocked(strong,Phase,O,V,S)])})]
+    ; rules:blocker_assumption_ctx(Context, AssCtx),
+      Conditions = [assumed(blocker(strong, Phase, C, N, O, V, S)?{AssCtx})]
+    )
   ),
   !.
 
@@ -686,13 +715,23 @@ rule(grouped_package_dependency(weak,C,N,PackageDeps):Action?{Context},
 rule(grouped_package_dependency(strong,C,N,PackageDeps):Action?{Context},
      Conditions) :-
   !,
-  rules:grouped_blocker_specs(strong, Action, C, N, PackageDeps, Specs),
+  rules:grouped_blocker_specs_partition(strong, Action, C, N, PackageDeps, EnforceSpecs, AssumeSpecs),
   ( rules:assume_blockers ->
       rules:blocker_assumption_ctx(Context, AssCtx),
       findall(assumed(blocker(Strength, Phase, C, N, O, V, SlotReq)?{AssCtx}),
-              member(blocked(Strength, Phase, O, V, SlotReq), Specs),
+              ( member(blocked(Strength, Phase, O, V, SlotReq), EnforceSpecs)
+              ; member(blocked(Strength, Phase, O, V, SlotReq), AssumeSpecs)
+              ),
               Conditions)
-  ; Conditions = [constraint(blocked_cn(C,N):{ordset(Specs)})]
+  ;
+    rules:blocker_assumption_ctx(Context, AssCtx),
+    findall(assumed(blocker(Strength, Phase, C, N, O, V, SlotReq)?{AssCtx}),
+            member(blocked(Strength, Phase, O, V, SlotReq), AssumeSpecs),
+            AssumeConds),
+    ( EnforceSpecs == [] ->
+        Conditions = AssumeConds
+    ; Conditions = [constraint(blocked_cn(C,N):{ordset(EnforceSpecs)})|AssumeConds]
+    )
   ).
 
 % Context tags for blocker assumptions, so the printer can show provenance
@@ -2356,6 +2395,125 @@ rules:pdepend_terms_for_entry(Repo://Entry, Terms) :-
   ),
   !.
 
+% Memoize the *expanded* grouped dependencies for PDEPEND per (Repo,Entry,ModelKey).
+% This is critical for performance on packages with large PDEPEND (e.g. xorg-drivers),
+% which may be encountered as dependencies of many unrelated targets during
+% prover:test/1 runs.
+rules:pdepend_grouped_deps_for_entry(Repo://Entry, ModelKey, Context1, GroupedDeps) :-
+  term_hash(ModelKey, H),
+  ( nb_current(rules_pdepend_grouped_cache, Cache),
+    get_assoc(key(Repo,Entry,H), Cache, Grouped0)
+  ->
+    GroupedDeps = Grouped0
+  ;
+    rules:pdepend_terms_for_entry(Repo://Entry, Terms),
+    ( Terms == [] ->
+        GroupedDeps = []
+    ;
+      findall(Dep:config?{Context1}, member(Dep, Terms), Deps0),
+      sort(Deps0, DepsU),
+      prover:with_delay_triggers(
+        prover:prove_model(DepsU, t, AvlModel, t, _ConsOut, t)
+      ),
+      findall(Fact:Phase?{CtxOut},
+              ( assoc:gen_assoc(Fact:_, AvlModel, CtxIn),
+                Fact =.. [package_dependency|_],
+                Fact =.. [package_dependency,Phase|_],
+                ( CtxIn == {} -> CtxOut = [] ; CtxOut = CtxIn )
+              ),
+              FlatDeps),
+      query:group_dependencies(FlatDeps, GroupedDeps)
+    ),
+    ( nb_current(rules_pdepend_grouped_cache, Cache0) -> true ; empty_assoc(Cache0) ),
+    put_assoc(key(Repo,Entry,H), Cache0, GroupedDeps, Cache1),
+    nb_setval(rules_pdepend_grouped_cache, Cache1)
+  ),
+  !.
+
+% -----------------------------------------------------------------------------
+%  Debugging: PDEPEND instrumentation (opt-in)
+% -----------------------------------------------------------------------------
+
+% Enable/disable instrumentation (disabled by default; zero overhead unless enabled).
+rules:enable_pdepend_stats :-
+  nb_setval(rules_pdepend_stats_enabled, true),
+  !.
+
+rules:disable_pdepend_stats :-
+  ( nb_current(rules_pdepend_stats_enabled, _) -> nb_delete(rules_pdepend_stats_enabled) ; true ),
+  !.
+
+rules:reset_pdepend_stats :-
+  nb_setval(rules_pdepend_calls_total, 0),
+  nb_setval(rules_pdepend_emitted_total, 0),
+  empty_assoc(A0),
+  nb_setval(rules_pdepend_calls_by_key, A0),
+  empty_assoc(A1),
+  nb_setval(rules_pdepend_emitted_by_key, A1),
+  !.
+
+% Run Goal with stats enabled, returning a report term.
+rules:with_pdepend_stats(Goal, Report) :-
+  rules:enable_pdepend_stats,
+  rules:reset_pdepend_stats,
+  call(Goal),
+  rules:pdepend_stats_report(Report),
+  rules:disable_pdepend_stats,
+  !.
+
+rules:pdepend_stats_record_call(RepoEntry, _Context) :-
+  ( RepoEntry = Repo://Entry -> true ; RepoEntry = RepoEntry ),
+  % We intentionally ignore Context details to keep overhead low; the key is per entry.
+  ( nb_current(rules_pdepend_calls_total, N0) -> true ; N0 = 0 ),
+  N is N0 + 1,
+  nb_setval(rules_pdepend_calls_total, N),
+  ( nb_current(rules_pdepend_calls_by_key, A0) -> true ; empty_assoc(A0) ),
+  K = key(Repo,Entry),
+  ( get_assoc(K, A0, C0) -> true ; C0 = 0 ),
+  C is C0 + 1,
+  put_assoc(K, A0, C, A1),
+  nb_setval(rules_pdepend_calls_by_key, A1),
+  !.
+
+rules:pdepend_stats_record_emit(RepoEntry, _AfterAnchor, NEmitted) :-
+  ( RepoEntry = Repo://Entry -> true ; RepoEntry = RepoEntry ),
+  ( nb_current(rules_pdepend_emitted_total, N0) -> true ; N0 = 0 ),
+  N is N0 + NEmitted,
+  nb_setval(rules_pdepend_emitted_total, N),
+  ( nb_current(rules_pdepend_emitted_by_key, A0) -> true ; empty_assoc(A0) ),
+  K = key(Repo,Entry),
+  ( get_assoc(K, A0, E0) -> true ; E0 = 0 ),
+  E is E0 + NEmitted,
+  put_assoc(K, A0, E, A1),
+  nb_setval(rules_pdepend_emitted_by_key, A1),
+  !.
+
+rules:pdepend_stats_report(report(calls_total(Calls),
+                                 emitted_total(Emitted),
+                                 unique_entries(Unique),
+                                 top_calls(TopCalls),
+                                 top_emitted(TopEmitted))) :-
+  ( nb_current(rules_pdepend_calls_total, Calls) -> true ; Calls = 0 ),
+  ( nb_current(rules_pdepend_emitted_total, Emitted) -> true ; Emitted = 0 ),
+  ( nb_current(rules_pdepend_calls_by_key, ACalls) -> true ; empty_assoc(ACalls) ),
+  ( nb_current(rules_pdepend_emitted_by_key, AEm) -> true ; empty_assoc(AEm) ),
+  findall(K, gen_assoc(K, ACalls, _), Keys0),
+  sort(Keys0, Keys),
+  length(Keys, Unique),
+  findall(N-K, gen_assoc(K, ACalls, N), PairsC0),
+  keysort(PairsC0, PairsCAsc),
+  reverse(PairsCAsc, PairsC),
+  ( length(PairsC, LC), LC > 15 -> length(TopCalls, 15), append(TopCalls, _, PairsC)
+  ; TopCalls = PairsC
+  ),
+  findall(N-K, gen_assoc(K, AEm, N), PairsE0),
+  keysort(PairsE0, PairsEAsc),
+  reverse(PairsEAsc, PairsE),
+  ( length(PairsE, LE), LE > 15 -> length(TopEmitted, 15), append(TopEmitted, _, PairsE)
+  ; TopEmitted = PairsE
+  ),
+  !.
+
 % Keep at most ONE self/1 term in contexts.
 % This preserves the semantics needed for self-dependency guards while preventing
 % context growth (and memoization misses) along deep dependency chains.
@@ -2879,16 +3037,23 @@ rules:update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
 
   % 3. Pass on relevant package dependencies and constraints to prover.
   query:search([category(CNew),name(NNew),select(slot,constraint([]),SAll)], Repository://Ebuild),
+  % Trigger PDEPEND for actual merge actions (update), but only when it exists.
+  ( cache:entry_metadata(Repository, Ebuild, pdepend, _) ->
+      PdependGoals = [Repository://Ebuild:pdepend?{[after(Repository://Ebuild:update),required_use:R,build_with_use:B]}]
+  ; PdependGoals = []
+  ),
   ( memberchk(CNew,['virtual','acct-group','acct-user'])
-    -> Base = [ constraint(use(Repository://Ebuild):{R}),
-                constraint(slot(CNew,NNew,SAll):{Ebuild})
-                |DeepUpdates],
-       append(Base, MergedDeps, Conditions)
-    ;  Base = [ constraint(use(Repository://Ebuild):{R}),
-                constraint(slot(CNew,NNew,SAll):{Ebuild}),
-                Repository://Ebuild:download?{[required_use:R,build_with_use:B]}
-                |DeepUpdates],
-       append(Base, MergedDeps, Conditions)
+    -> Base0 = [ constraint(use(Repository://Ebuild):{R}),
+                 constraint(slot(CNew,NNew,SAll):{Ebuild})
+                 |DeepUpdates],
+       append(Base0, PdependGoals, Base1),
+       append(Base1, MergedDeps, Conditions)
+    ;  Base0 = [ constraint(use(Repository://Ebuild):{R}),
+                 constraint(slot(CNew,NNew,SAll):{Ebuild}),
+                 Repository://Ebuild:download?{[required_use:R,build_with_use:B]}
+                 |DeepUpdates],
+       append(Base0, PdependGoals, Base1),
+       append(Base1, MergedDeps, Conditions)
   ).
 
 % Collect update goals for installed dependency packages from a grouped dependency model.
@@ -3091,6 +3256,25 @@ rules:grouped_blocker_specs(Strength, Phase, C, N, PackageDeps, Specs) :-
           ( member(package_dependency(Phase, Strength, C, N, O, V, SlotReq, _U), PackageDeps) ),
           Specs0),
   sort(Specs0, Specs).
+
+% Partition grouped blocker specs into:
+% - EnforceSpecs: unconditional blockers (no bracketed USE constraints)
+% - AssumeSpecs:  conditional blockers (with USE constraints) that we do NOT enforce
+%                as hard constraints during proving (see note in strong blocker rule).
+rules:grouped_blocker_specs_partition(Strength, Phase, C, N, PackageDeps, EnforceSpecs, AssumeSpecs) :-
+  findall(blocked(Strength, Phase, O, V, SlotReq),
+          ( member(package_dependency(Phase, Strength, C, N, O, V, SlotReq, U), PackageDeps),
+            U == []
+          ),
+          Enforce0),
+  sort(Enforce0, EnforceSpecs),
+  findall(blocked(Strength, Phase, O, V, SlotReq),
+          ( member(package_dependency(Phase, Strength, C, N, O, V, SlotReq, U), PackageDeps),
+            U \== []
+          ),
+          Assume0),
+  sort(Assume0, AssumeSpecs),
+  !.
 
 % Find an installed entry for the given category/name, even if it isn't present
 % as an ordered_entry (e.g. when the installed version no longer exists in the

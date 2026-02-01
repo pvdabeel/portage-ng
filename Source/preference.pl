@@ -165,6 +165,7 @@ preference:use_expand_env('LUA_SINGLE_TARGET',    lua_single_target).
 preference:use_expand_env('PERL_FEATURES',        perl_features).
 preference:use_expand_env('LLVM_SLOT',            llvm_slot).
 preference:use_expand_env('VIDEO_CARDS',          video_cards).
+preference:use_expand_env('INPUT_DEVICES',        input_devices).
 
 
 %! preference:env_accept_keywords_list(Keyword)
