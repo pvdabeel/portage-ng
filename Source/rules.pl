@@ -664,9 +664,18 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       % Prefer expressing as update when a pkg-installed entry exists and the chosen
       % candidate is newer.
       ( \+ preference:flag(emptytree),
+        % Update/reinstall semantics must be per-slot: only treat this as an update
+        % when there is an installed instance of (C,N) in the SAME SLOT as the
+        % chosen candidate. Otherwise we'd incorrectly "update" one slot while
+        % actually installing another (Portage would call that a new-slot install).
+        rules:selected_cn_slot_key_(SlotMeta, SlotChosen),
         query:search([repository(pkg),category(C),name(N),installed(true)],
                      pkg://InstalledEntry2),
-        rules:query_search_slot_constraint(SlotReq, pkg://InstalledEntry2, _),
+        ( query:search(slot(SlotInstalled0), pkg://InstalledEntry2)
+          -> rules:canon_slot(SlotInstalled0, SlotInstalled)
+          ;  SlotInstalled = SlotChosen
+        ),
+        SlotInstalled == SlotChosen,
         !,
         ( % Standard update: candidate newer than installed
           InstalledEntry2 \== Candidate,
@@ -2533,7 +2542,7 @@ rules:entry_iuse_info(Repo://Entry, Info) :-
 
 rules:selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate) :-
   memberchk(constraint(selected_cn(C,N):{ordset(SelectedSet)}), Context),
-  member(selected(FoundRepo, Candidate, ActSel, _CandVer, _Ss), SelectedSet),
+  member(selected(FoundRepo, Candidate, ActSel, _CandVer, SelSlotMeta), SelectedSet),
   % CN-consistency should be global across actions/phases: once we've chosen a
   % concrete (C,N) entry, reuse it for both install+run obligations.
   % Otherwise we can end up scheduling two different versions for the same (C,N)
@@ -2543,6 +2552,14 @@ rules:selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate) :-
     (ActSel == install ; ActSel == run)
   -> true
   ; ActSel == Action
+  ),
+  % Multi-slot awareness: if the context carries a slot lock for this (C,N)
+  % (typically via := / any_same_slot), only reuse a selection in that slot.
+  ( memberchk(slot(C,N,SsLock0):{_}, Context) ->
+      rules:canon_any_same_slot_meta(SsLock0, SsLock),
+      rules:canon_any_same_slot_meta(SelSlotMeta, SsSel),
+      SsSel == SsLock
+  ; true
   ),
   cache:ordered_entry(FoundRepo, Candidate, C, N, _),
   \+ preference:masked(FoundRepo://Candidate).
@@ -2741,9 +2758,24 @@ rules:constraint_guard(_Other, _Constraints).
 
 % True iff all selected/5 terms refer to the same Repo+Entry.
 rules:selected_cn_unique([]) :- !.
-rules:selected_cn_unique([selected(Repo,Entry,_Act,_Ver,_Slot)|Rest]) :-
-  forall(member(selected(Repo2,Entry2,_A2,_V2,_S2), Rest),
-         (Repo2 == Repo, Entry2 == Entry)),
+rules:selected_cn_unique([selected(Repo,Entry,_Act,_Ver,SlotMeta)|Rest]) :-
+  % Allow multiple slots for the same (C,N) (Portage-style), but enforce that
+  % within a given SLOT we pick at most one concrete entry.
+  rules:selected_cn_slot_key_(SlotMeta, Slot),
+  forall(member(selected(Repo2,Entry2,_A2,_V2,SlotMeta2), Rest),
+         ( rules:selected_cn_slot_key_(SlotMeta2, Slot2),
+           ( Slot2 \== Slot -> true
+           ; Repo2 == Repo, Entry2 == Entry
+           )
+         )),
+  rules:selected_cn_unique(Rest).
+
+% Extract a canonical slot key from selection metadata.
+% We only key on SLOT (not subslot) because multi-slot correctness is about
+% concurrently installed slots, while subslot is about rebuild triggers.
+rules:selected_cn_slot_key_(SlotMeta0, Slot) :-
+  rules:canon_any_same_slot_meta(SlotMeta0, [slot(S0)]),
+  rules:canon_slot(S0, Slot),
   !.
 
 % True iff any blocker spec in Specs violates any selected instance.
