@@ -237,7 +237,9 @@ sync(kb) ::-
       forall(member(L,M),
              ( L =.. [Key,Value],
                forall(member(I,Value),
-                      assertz(cache:entry_metadata(Repository,E,Key,I)))
+                      ( eapi:normalize_entry_metadata(Key, I, I1),
+                        assertz(cache:entry_metadata(Repository,E,Key,I1))
+                      ))
              ))
     )
   ),
@@ -298,7 +300,9 @@ sync(kb) ::-
            forall(member(L,M),
                   (L=..[Key,Value],
                    forall(member(I,Value),
-                          assertz(cache:entry_metadata(Repository,E,Key,I))))))),
+                          ( eapi:normalize_entry_metadata(Key, I, I1),
+                            assertz(cache:entry_metadata(Repository,E,Key,I1))
+                          )))))),
 
   % Step 2.b: read ebuilds without repository cache
 
@@ -313,7 +317,9 @@ sync(kb) ::-
            forall(member(L,M),
                   (L=..[Key,Value],
                    forall(member(I,Value),
-                          assertz(cache:entry_metadata(Repository,E,Key,I))))),
+                          ( eapi:normalize_entry_metadata(Key, I, I1),
+                            assertz(cache:entry_metadata(Repository,E,Key,I1))
+                          )))),
            (config:write_metadata(true) -> :update_metadata(E,Cd) ; true))),
 
 
@@ -328,7 +334,9 @@ sync(kb) ::-
            forall(member(L,M),
                   (L=..[Key,Value],
                    forall(member(I,Value),
-                          assertz(cache:entry_metadata(Repository,E,Key,I))))),
+                          ( eapi:normalize_entry_metadata(Key, I, I1),
+                            assertz(cache:entry_metadata(Repository,E,Key,I1))
+                          )))),
            (config:write_metadata(true) -> :update_metadata(E,Cd) ; true))),
 
 

@@ -104,6 +104,41 @@ files.
 :- module(eapi, []).
 
 % -----------------------------------------------------------------------------
+%  Metadata normalization (cache write-time)
+% -----------------------------------------------------------------------------
+%
+% Some metadata fields (notably SLOT/SUBSLOT) can be parsed as numbers (e.g. 3.2)
+% depending on how the underlying metadata was read. Downstream logic expects
+% stable, comparable terms; storing mixed number/atom representations leads to
+% subtle mismatches like slot(3.2) vs slot('3.2').
+%
+% Normalize at cache generation time so runtime queries don't need to compensate.
+eapi:normalize_entry_metadata(Key, I0, I) :-
+  ( Key == slot ->
+      eapi:normalize_slot_term_(I0, I)
+  ; I = I0
+  ),
+  !.
+
+eapi:normalize_slot_term_(slot(S0), slot(S)) :-
+  !,
+  eapi:normalize_slot_value_(S0, S).
+eapi:normalize_slot_term_(subslot(S0), subslot(S)) :-
+  !,
+  eapi:normalize_slot_value_(S0, S).
+eapi:normalize_slot_term_(Other, Other) :-
+  !.
+
+% Kept internal (not exported): used by repository cache generation.
+eapi:normalize_slot_value_(S0, S) :-
+  ( atom(S0)    -> S = S0
+  ; integer(S0) -> atom_number(S, S0)
+  ; number(S0)  -> atom_number(S, S0)
+  ; S = S0
+  ),
+  !.
+
+% -----------------------------------------------------------------------------
 %  Helper: Gentoo version comparison
 % -----------------------------------------------------------------------------
 %

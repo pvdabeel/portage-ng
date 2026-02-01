@@ -742,8 +742,6 @@ compile_query_compound(select(subslot,wildcard,S), Repo://Id,
   ( cache:entry_metadata(Repo,Id,slot,subslot(M)),
     wildcard_match(S,M) ) ) :- !.
 
-
-
 compile_query_compound(select(slot,constraint([]),Sn), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,_),
     findall(R,cache:entry_metadata(Repo,Id,slot,R),Sn)) ) :- !. 				% will work: test40
