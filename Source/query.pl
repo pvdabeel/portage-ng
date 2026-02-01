@@ -1469,7 +1469,7 @@ search(select(iuse,wildcard,Pattern), R://I) :-
 search(iuse(Iuse,State:Reason),R://I) :-
   !,
   cache:entry_metadata(R,I,iuse,Value),
-  eapi:categorize_use(Value,State,Reason),
+  eapi:categorize_use_for_entry(Value,R://I,State,Reason),
   eapi:strip_use_default(Value,Iuse).
 
 
@@ -1491,7 +1491,7 @@ search(iuse_filtered(Iuse),R://I) :-
 search(iuse_filtered(Iuse,State:Reason),R://I) :-
   !,
   cache:entry_metadata(R,I,iuse,Arg),
-  eapi:categorize_use(Arg,State,Reason),
+  eapi:categorize_use_for_entry(Arg,R://I,State,Reason),
   eapi:strip_use_default(Arg,Iuse),
   \+(eapi:check_use_expand_atom(Iuse)).
 
@@ -1517,7 +1517,7 @@ search(Statement,R://I) :-
   Statement =.. [Key,Value,State:Reason],
   eapi:use_expand(Key),!,
   cache:entry_metadata(R,I,iuse,Arg),
-  eapi:categorize_use(Arg,State,Reason),
+  eapi:categorize_use_for_entry(Arg,R://I,State,Reason),
   eapi:strip_use_default(Arg,ArgB),
   eapi:check_prefix_atom(Key,ArgB),
   eapi:strip_prefix_atom(Key,ArgB,Value).
