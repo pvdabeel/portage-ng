@@ -140,7 +140,8 @@ scheduler:test(Repository) :-
 
 %! scheduler:test(+Repository,+Style)
 scheduler:test(Repository, Style) :-
-  config:proving_target(Action),
+  config:proving_target(Action0),
+  prover:test_action(Action0, Action),
   tester:test(Style, 'Scheduling', Repository://Entry, (Repository:entry(Entry)),
     ( prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,_ModelAVL,t,_Constraint,t,TriggersAVL),
       planner:plan(ProofAVL,TriggersAVL,t,Plan0,Remainder0),
@@ -157,7 +158,8 @@ scheduler:test_latest(Repository) :-
 
 %! scheduler:test_latest(+Repository,+Style)
 scheduler:test_latest(Repository, Style) :-
-  config:proving_target(Action),
+  config:proving_target(Action0),
+  prover:test_action(Action0, Action),
   tester:test(Style, 'Scheduling latest', Repository://Entry,
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
               ( prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,_ModelAVL,t,_Constraint,t,TriggersAVL),
@@ -176,7 +178,8 @@ scheduler:test_stats(Repository) :-
 
 %! scheduler:test_stats(+Repository,+Style)
 scheduler:test_stats(Repository, Style) :-
-  config:proving_target(Action),
+  config:proving_target(Action0),
+  prover:test_action(Action0, Action),
   aggregate_all(count, (Repository:entry(_E)), ExpectedTotal),
   printer:test_stats_reset('Scheduling', ExpectedTotal),
   aggregate_all(count, (Repository:package(_C,_N)), ExpectedPkgs),

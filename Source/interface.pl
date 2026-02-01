@@ -400,14 +400,19 @@ interface:process_action(Action,ArgsSets,_Options) :-
   interface:process_mode(Mode),
   interface:process_server(Host,Port),
   eapi:substitute_sets(ArgsSets,Args),
-  findall(R://E:Action?{[]}, (member(Arg,Args),
-                              atom_codes(Arg,Codes),
-                              phrase(eapi:qualified_target(Q),Codes),
-                              once((kb:query(Q,R://E),
-                                    (Action = 'uninstall'
-                                    -> kb:query(installed(true),R://E)
-                                    ;  true))
-                              )),
+  % IMPORTANT:
+  % Do NOT resolve a concrete candidate here. We only check that the target has
+  % at least one candidate, then defer actual candidate selection to the prover
+  % via rules:rule/2 (target(Q,Arg):Action).
+  findall(target(Q,Arg):Action?{[]},
+          ( member(Arg,Args),
+            atom_codes(Arg,Codes),
+            phrase(eapi:qualified_target(Q),Codes),
+            ( Action == uninstall
+              -> once((kb:query(Q, R0://E0), kb:query(installed(true), R0://E0)))
+              ;  once(kb:query(Q, _R://_E))
+            )
+          ),
           Proposal),!,
   message:log(['Proposal:  ',Proposal]),
   (Proposal == []
@@ -477,16 +482,39 @@ interface:process_action(Action,ArgsSets,_Options) :-
           vdb:sync
       ; true
       ),
-      ( FallbackUsed == false,
-        \+ preference:flag(oneshot)
-      ->
-        ( Action = 'uninstall'
-        -> world:unregister(Args)
-        ;  world:register(Args)
+      % Apply any world actions that were produced by the proof/plan.
+      % (This keeps "world update" rule-driven, but still executed by the CLI.)
+      ( FallbackUsed == false ->
+            interface:execute_world_actions_from_plan(Plan),
+            world:save
+        ; true
         )
+    )).
+
+
+% -----------------------------------------------------------------------------
+%  Side effects: execute planned world actions
+% -----------------------------------------------------------------------------
+
+interface:execute_world_actions_from_plan([]) :- !.
+interface:execute_world_actions_from_plan([Step|Rest]) :-
+  interface:execute_world_actions_step(Step),
+  interface:execute_world_actions_from_plan(Rest).
+
+interface:execute_world_actions_step([]) :- !.
+interface:execute_world_actions_step([Rule|Rest]) :-
+  ( Rule = rule(Head,_Body),
+    prover:canon_literal(Head, Core, _Ctx),
+    Core = world_action(Op, Arg):world ->
+      ( Op == register ->
+          world:register(Arg)
+      ; Op == unregister ->
+          world:unregister(Arg)
       ; true
       )
-    )).
+  ; true
+  ),
+  interface:execute_world_actions_step(Rest).
 
 
 % -----------------------------------------------------------------------------

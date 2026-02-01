@@ -17,7 +17,7 @@
       tree as it proves, which is efficient for small additions.
 */
 
-:- module(prover, []).
+:- module(prover, [test_action/2]).
 
 :- use_module(unify). % feature_unification:unify/3 for context merging
 
@@ -1110,6 +1110,23 @@ prover:add_to_assoc(Key,InAssoc,OutAssoc) :-
 %  Automated testing helpers
 % =============================================================================
 
+% -----------------------------------------------------------------------------
+%  Test action mapping
+% -----------------------------------------------------------------------------
+%
+% In CLI mode we now treat "merge" as the Portage-like root action:
+%   :merge = :run + :pdepend
+%
+% For automated tests/stats we therefore map proving_target(run) -> merge so
+% PDEPEND is exercised as part of the proof.
+%
+% IMPORTANT: this does NOT introduce any world registrations, because those are
+% only produced by rules for the wrapper target(Q,Arg):run. Repository://Entry
+% tests never use that wrapper, so no world_action/2 goals are generated.
+
+prover:test_action(run, merge) :- !.
+prover:test_action(Action, Action).
+
 %! prover:test(+Repository)
 prover:test(Repository) :-
   config:test_style(Style),
@@ -1117,7 +1134,8 @@ prover:test(Repository) :-
 
 %! prover:test(+Repository,+Style)
 prover:test(Repository,Style) :-
-  config:proving_target(Action),
+  config:proving_target(Action0),
+  prover:test_action(Action0, Action),
   tester:test(Style,
               'Proving',
               Repository://Entry,
@@ -1131,7 +1149,8 @@ prover:test_latest(Repository) :-
 
 %! prover:test_latest(+Repository,+Style)
 prover:test_latest(Repository,Style) :-
-  config:proving_target(Action),
+  config:proving_target(Action0),
+  prover:test_action(Action0, Action),
   tester:test(Style,
               'Proving',
               Repository://Entry,
@@ -1163,7 +1182,8 @@ prover:test_stats(Repository, Style) :-
 
 %! prover:test_stats(+Repository,+Style,+TopN)
 prover:test_stats(Repository, Style, TopN) :-
-  config:proving_target(Action),
+  config:proving_target(Action0),
+  prover:test_action(Action0, Action),
   aggregate_all(count, (Repository:entry(_E)), ExpectedTotal),
   printer:test_stats_reset('Proving', ExpectedTotal),
   aggregate_all(count, (Repository:package(_C,_N)), ExpectedPkgs),

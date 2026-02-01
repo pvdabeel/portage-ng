@@ -29,13 +29,136 @@ This file contains domain-specific rules
 % =============================================================================
 
 % -----------------------------------------------------------------------------
+%  Rule: Target candidate (defer selection to prover)
+% -----------------------------------------------------------------------------
+%
+% The CLI used to resolve a concrete candidate (Repo://Ebuild) up-front and then
+% prove `Repo://Ebuild:run?{[]}`.
+%
+% For richer proof/plan integration (e.g. pdepend as post-run actions, and
+% rule-driven "world" side effects), we also allow proving *unresolved* targets
+% of the form:
+%
+%   target(Q, Arg):Action?{Ctx}
+%
+% where:
+% - Q   is a parsed `qualified_target/6` term (see `eapi:qualified_target//1`)
+% - Arg is the original CLI atom (used for world registration)
+%
+% Candidate selection happens inside the proof via `kb:query/2`, so it can
+% backtrack under conflicts/constraints.
+%
+
+rule(target(Q, _Arg):fetchonly?{Context}, Conditions) :-
+  !,
+  kb:query(Q, Repository://Ebuild),
+  Conditions = [Repository://Ebuild:fetchonly?{Context}].
+
+rule(target(Q, Arg):uninstall?{Context}, Conditions) :-
+  !,
+  kb:query(Q, Repository://Ebuild),
+  kb:query(installed(true), Repository://Ebuild),
+  ( preference:flag(oneshot) ->
+      WorldConds = []
+  ; WorldConds = [world_action(unregister, Arg):world?{[after(Repository://Ebuild:uninstall)]}]
+  ),
+  Conditions = [Repository://Ebuild:uninstall?{Context}|WorldConds].
+
+% Portage-style merge semantics for a requested target:
+% - prove the merge (run + post-run pdepend)
+% - then register the original atom in @world (unless --oneshot)
+rule(target(Q, Arg):run?{Context}, Conditions) :-
+  !,
+  kb:query(Q, Repository://Ebuild),
+  Conditions0 = [Repository://Ebuild:merge?{Context}],
+  ( preference:flag(oneshot) ->
+      Conditions = Conditions0
+  ; Conditions = [Repository://Ebuild:merge?{Context},
+                  world_action(register, Arg):world?{[after(Repository://Ebuild:merge)]}]
+  ).
+
+
+% -----------------------------------------------------------------------------
 %  Rule: Download target
 % -----------------------------------------------------------------------------
 % Any ebuild can be downloaded.
 
-rule(Repository://Ebuild:download?{_},[]) :-
+rule(Repository://Ebuild:download?{Context},Conditions) :-
   !,
-  query:search(ebuild(Ebuild),Repository://Ebuild).
+  rules:ctx_take_after(Context, After, _CtxNoAfter),
+  query:search(ebuild(Ebuild),Repository://Ebuild),
+  ( After == none -> Conditions = [] ; Conditions = [After] ).
+
+
+% -----------------------------------------------------------------------------
+%  Rule: World action (side-effectful, executed by interface/builder)
+% -----------------------------------------------------------------------------
+%
+% We encode @world modifications as proof/plan actions so they can be scheduled
+% relative to other actions (e.g. after a merge).
+%
+% Execution is performed outside the prover (currently by interface code), but
+% the *decision* to perform a world action is now rule-driven.
+%
+
+rule(world_action(_Op,_Arg):world?{Context}, Conditions) :-
+  !,
+  rules:ctx_take_after(Context, After, _CtxNoAfter),
+  ( After == none -> Conditions = [] ; Conditions = [After] ).
+
+
+% -----------------------------------------------------------------------------
+%  Rule: Merge target (run + post-run pdepend)
+% -----------------------------------------------------------------------------
+
+rule(Repository://Ebuild:merge?{Context}, Conditions) :-
+  !,
+  % Do not let "world" / ordering metadata pollute the contexts used for
+  % dependency-model memoization inside :run.
+  rules:ctx_strip_planning(Context, Context1),
+  Conditions = [Repository://Ebuild:run?{Context1},
+                Repository://Ebuild:pdepend?{Context1}].
+
+
+% -----------------------------------------------------------------------------
+%  Rule: PDEPEND target (post-run dependency merge)
+% -----------------------------------------------------------------------------
+%
+% Portage's PDEPEND is merged after the main package is merged.
+% We model this as a separate action and force all of its dependency actions to
+% occur "after(Repo://Ebuild:run)" by threading an `after/1` marker through the
+% dependency contexts.
+%
+
+rule(Repository://Ebuild:pdepend?{Context}, Conditions) :-
+  !,
+  rules:ctx_strip_planning(Context, Context1),
+  rules:pdepend_terms_for_entry(Repository://Ebuild, Terms),
+  ( Terms == [] ->
+      Conditions = []
+  ;
+      % Recompute the use model (same as :run/:install), then prove the PDEPEND
+      % term model under :config to make the conditional structure deterministic.
+      rules:context_build_with_use_state(Context1, B),
+      ( memberchk(required_use:R, Context1) -> true ; true ),
+      query:search(model(_Model,required_use(R),build_with_use(B)), Repository://Ebuild),
+      findall(Dep:config?{Context1}, member(Dep, Terms), Deps0),
+      sort(Deps0, DepsU),
+      prover:with_delay_triggers(
+        prover:prove_model(DepsU, t, AvlModel, t, _ConsOut, t)
+      ),
+      findall(Fact:Phase?{CtxOut},
+              ( assoc:gen_assoc(Fact:_, AvlModel, CtxIn),
+                Fact =.. [package_dependency|_],
+                Fact =.. [package_dependency,Phase|_],
+                ( CtxIn == {} -> CtxOut = [] ; CtxOut = CtxIn )
+              ),
+              FlatDeps),
+      query:group_dependencies(FlatDeps, Grouped0),
+      add_self_to_dep_contexts(Repository://Ebuild, Grouped0, Grouped1),
+      rules:add_after_to_dep_contexts(Repository://Ebuild:run, Grouped1, Conditions)
+  ).
+
 
 
 % -----------------------------------------------------------------------------
@@ -116,50 +239,59 @@ rule(Repository://Ebuild:fetchonly?{Context},Conditions) :- % todo: to update in
 
 rule(Repository://Ebuild:install?{Context},Conditions) :-
   !,
-  query:search(masked(true),   Repository://Ebuild) -> Conditions = [] ;
-  query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) -> Conditions = [] ; % todo check new build_with_use requirements
+  ( query:search(masked(true),   Repository://Ebuild) ->
+      Conditions = []
+  ; query:search(installed(true),Repository://Ebuild),
+    \+ preference:flag(emptytree) ->
+      Conditions = []  % todo check new build_with_use requirements
+  ; rules:ctx_take_after(Context, After, Context1),
 
+    % 1. Get some metadata we need further down
 
-  % 1. Get some metadata we need further down
+    ( % Normal install proof
+      query:search([category(C),name(N),select(slot,constraint([]),S)], Repository://Ebuild),
+      query:search(version(Ver), Repository://Ebuild),
+      Selected = constraint(selected_cn(C,N):{ordset([selected(Repository,Ebuild,install,Ver,S)])}),
 
-  query:search([category(C),name(N),select(slot,constraint([]),S)], Repository://Ebuild),
-  query:search(version(Ver), Repository://Ebuild),
-  Selected = constraint(selected_cn(C,N):{ordset([selected(Repository,Ebuild,install,Ver,S)])}),
+      % 2. Compute required_use stable model, if not already passed on by run.
+      %    Thread per-package USE constraints from build_with_use.
+      rules:context_build_with_use_state(Context1, B),
+      ( memberchk(required_use:R,Context1) -> true ; true ),
+      query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
 
-  % 2. Compute required_use stable model, if not already passed on by run.
-  %    Thread per-package USE constraints from build_with_use.
-  rules:context_build_with_use_state(Context, B),
+      % 3. Pass use model onto dependencies to calculate corresponding dependency model,
+      %    We pass using config action to avoid package_dependency from generating choices.
+      %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
+      %    all_of_group ... choice point generation
 
-  % (memberchk(build_with_use(B),Context) -> true ; B = []),
-  (memberchk(required_use:R,Context) -> true ; true),
+      % 4. Compute + memoize dependency model, already grouped by package Category & Name.
+      query:memoized_search(model(dependency(MergedDeps0,install)):config?{Model},Repository://Ebuild),
+      add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
+      rules:add_after_to_dep_contexts(After, MergedDeps, MergedDepsAfter),
 
-  query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
-
-  % 3. Pass use model onto dependencies to calculate corresponding dependency  model,
-  %    We pass using config action to avoid package_dependency from generating choices.
-  %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
-  %    all_of_group ... choice point generation
-
-  % 4. Compute + memoize dependency model, already grouped by package Category & Name.
-
-  query:memoized_search(model(dependency(MergedDeps0,install)):config?{Model},Repository://Ebuild),
-  add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
-
-  % 5. Pass on relevant package dependencies and constraints to prover
-
-  ( memberchk(C,['virtual','acct-group','acct-user'])
-    -> Conditions = [ Selected,
-                    constraint(use(Repository://Ebuild):{R}),
-                    constraint(slot(C,N,S):{Ebuild})
-                    |MergedDeps]
-    ;  Conditions = [ Selected,
-                    constraint(use(Repository://Ebuild):{R}),
-                    constraint(slot(C,N,S):{Ebuild}),
-                    Repository://Ebuild:download?{[required_use:R,build_with_use:B]}
-                    |MergedDeps] )
-  ; rules:assume_conflicts,
-    feature_unification:unify([issue_with_model(explanation)], Context, Ctx1),
-    Conditions = [assumed(Repository://Ebuild:install?{Ctx1})].
+      % 5. Pass on relevant package dependencies and constraints to prover
+      ( memberchk(C,['virtual','acct-group','acct-user']) ->
+          Conditions0 = [ Selected,
+                          constraint(use(Repository://Ebuild):{R}),
+                          constraint(slot(C,N,S):{Ebuild})
+                        | MergedDepsAfter ]
+      ; ( After == none ->
+            DownloadCtx0 = [required_use:R,build_with_use:B]
+        ; DownloadCtx0 = [after(After),required_use:R,build_with_use:B]
+        ),
+        Conditions0 = [ Selected,
+                        constraint(use(Repository://Ebuild):{R}),
+                        constraint(slot(C,N,S):{Ebuild}),
+                        Repository://Ebuild:download?{DownloadCtx0}
+                      | MergedDepsAfter ]
+      ),
+      ( After == none -> Conditions = Conditions0 ; Conditions = [After|Conditions0] )
+    ; % Conflict fallback
+      rules:assume_conflicts,
+      feature_unification:unify([issue_with_model(explanation)], Context1, Ctx1),
+      Conditions = [assumed(Repository://Ebuild:install?{Ctx1})]
+    )
+  ).
 
 
 % -----------------------------------------------------------------------------
@@ -181,7 +313,16 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   !,
   % 0. Check if the ebuild is masked or installed
   query:search(masked(true),   Repository://Ebuild) -> Conditions = [] ;
-  query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) -> (config:avoid_reinstall(true) -> Conditions = [] ; Conditions = [Repository://Ebuild:reinstall?{Context}]) ; % todo check new build_with_use requirements
+  query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) ->
+    ( config:avoid_reinstall(true) ->
+        Conditions = []
+    ; rules:ctx_take_after(Context, After0, Context10),
+      Cond0 = [Repository://Ebuild:reinstall?{Context10}],
+      ( After0 == none -> Conditions = Cond0 ; Conditions = [After0|Cond0] )
+    )
+  ; % todo check new build_with_use requirements
+
+  rules:ctx_take_after(Context, After, Context1),
 
   % 1. Get some metadata we need further down
 
@@ -190,7 +331,7 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   Selected = constraint(selected_cn(C,N):{ordset([selected(Repository,Ebuild,run,Ver,S)])}),
 
   % 2. Compute required_use stable model, extend with build_with_use requirements.
-  rules:context_build_with_use_state(Context, B),
+  rules:context_build_with_use_state(Context1, B),
 
   % (memberchk(build_with_use(B),Context) -> true ; B = []),
 
@@ -205,6 +346,7 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
 
   query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model},Repository://Ebuild),
   add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
+  rules:add_after_to_dep_contexts(After, MergedDeps, MergedDepsAfter),
 
   % 5. Pass on relevant package dependencies and constraints to prover
 
@@ -234,11 +376,67 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
     InstallOrUpdate = Repository://Ebuild:update?{[replaces(OldRepo://OldEbuild),required_use:R,build_with_use:B]}
   ; InstallOrUpdate = Repository://Ebuild:install?{[required_use:R,build_with_use:B]}
   ),
-  Conditions = [Selected,
-                constraint(use(Repository://Ebuild):{R}),
-                constraint(slot(C,N,S):{Ebuild}),
-                InstallOrUpdate
-                |MergedDeps].
+  Conditions0 = [Selected,
+                 constraint(use(Repository://Ebuild):{R}),
+                 constraint(slot(C,N,S):{Ebuild}),
+                 InstallOrUpdate
+                 |MergedDepsAfter],
+  ( After == none -> Conditions = Conditions0 ; Conditions = [After|Conditions0] ).
+
+
+% -----------------------------------------------------------------------------
+%  Helper: planning-only context markers
+% -----------------------------------------------------------------------------
+
+% Extract an optional "after(Literal)" marker from a context list.
+% Keeps at most one marker to prevent context growth.
+rules:ctx_take_after(Context0, After, Context) :-
+  ( is_list(Context0),
+    memberchk(after(After1), Context0) ->
+      After = After1,
+      findall(X, (member(X, Context0), \+ X = after(_)), Context)
+  ; After = none,
+    Context = Context0
+  ),
+  !.
+
+% Strip planning-only markers that should not affect dependency-model memoization.
+rules:ctx_strip_planning(Context0, Context) :-
+  ( is_list(Context0) ->
+      findall(X,
+              ( member(X, Context0),
+                \+ X = after(_),
+                \+ X = world_atom(_)
+              ),
+              Context)
+  ; Context = Context0
+  ),
+  !.
+
+% Thread an "after/1" marker into dependency contexts (and keep it stable).
+rules:add_after_to_dep_contexts(none, Deps, Deps) :- !.
+rules:add_after_to_dep_contexts(After, Deps0, Deps) :-
+  is_list(Deps0),
+  !,
+  findall(D,
+          ( member(D0, Deps0),
+            ( D0 = Term:Action?{Ctx0} ->
+                rules:ctx_add_after(Ctx0, After, Ctx),
+                D = Term:Action?{Ctx}
+            ; D = D0
+            )
+          ),
+          Deps).
+rules:add_after_to_dep_contexts(_After, Deps, Deps).
+
+rules:ctx_add_after(Ctx0, After, Ctx) :-
+  ( is_list(Ctx0) ->
+      % Keep only one after/1 marker.
+      findall(X, (member(X, Ctx0), \+ X = after(_)), Ctx1),
+      Ctx = [after(After)|Ctx1]
+  ; Ctx = [after(After)]
+  ),
+  !.
 
 
 % -----------------------------------------------------------------------------
@@ -2114,6 +2312,39 @@ add_self_to_dep_contexts(Self, [D0|Rest0], [D|Rest]) :-
   ; D = D0
   ),
   add_self_to_dep_contexts(Self, Rest0, Rest).
+
+% -----------------------------------------------------------------------------
+%  PDEPEND (post dependencies) handling (Portage-like, performance-safe)
+% -----------------------------------------------------------------------------
+%
+% Portage includes PDEPEND packages in the merge plan, but proving them as part of
+% the memoized dependency model (prove_model/...) can blow up whole-tree proving.
+%
+% We therefore:
+% - keep the dependency model small (no PDEPEND inside model(dependency(...,install))),
+% - add PDEPEND as *extra goals* only when planning a concrete install/update,
+% - memoize the parsed/re-written PDEPEND term list per (Repo,Entry).
+%
+% Terms are rewritten using query:pdepend_dep_as_run/2 so they behave like runtime
+% deps and go through the existing `run -> install` scheduling logic.
+rules:pdepend_terms_for_entry(Repo://Entry, Terms) :-
+  ( nb_current(rules_pdepend_terms_cache, Cache),
+    get_assoc(key(Repo,Entry), Cache, Terms0)
+  ->
+    Terms = Terms0
+  ;
+    findall(Dep,
+            ( cache:entry_metadata(Repo, Entry, pdepend, Dep0),
+              query:pdepend_dep_as_run(Dep0, Dep)
+            ),
+            Terms1),
+    sort(Terms1, Terms2),
+    ( nb_current(rules_pdepend_terms_cache, Cache0) -> true ; empty_assoc(Cache0) ),
+    put_assoc(key(Repo,Entry), Cache0, Terms2, Cache1),
+    nb_setval(rules_pdepend_terms_cache, Cache1),
+    Terms = Terms2
+  ),
+  !.
 
 % Keep at most ONE self/1 term in contexts.
 % This preserves the semantics needed for self-dependency guards while preventing

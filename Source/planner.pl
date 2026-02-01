@@ -239,14 +239,16 @@ planner:get_full_rule_from_proof(Literal, ProofAVL, FullRule) :-
 
 planner:test(Repository) :- config:test_style(Style), planner:test(Repository,Style).
 planner:test(Repository,Style) :-
-  config:proving_target(Action),
+  config:proving_target(Action0),
+  prover:test_action(Action0, Action),
   tester:test(Style, 'Planning', Repository://Entry, (Repository:entry(Entry)),
     ( prover:prove(Repository://Entry:Action?{[]},t,Proof,t,_Model,t,_Constraint,t,Triggers),
       planner:plan(Proof,Triggers,t,_Plan,_Remainder)
     )).
 planner:test_latest(Repository) :- config:test_style(Style), planner:test_latest(Repository,Style).
 planner:test_latest(Repository,Style) :-
-  config:proving_target(Action),
+  config:proving_target(Action0),
+  prover:test_action(Action0, Action),
   tester:test(Style, 'Planning latest', Repository://Entry,
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
               ( prover:prove(Repository://Entry:Action?{[]},t,Proof,t,_Model,t,_Constraint,t,Triggers),
@@ -264,7 +266,8 @@ planner:test_stats(Repository) :-
 
 %! planner:test_stats(+Repository,+Style)
 planner:test_stats(Repository, Style) :-
-  config:proving_target(Action),
+  config:proving_target(Action0),
+  prover:test_action(Action0, Action),
   aggregate_all(count, (Repository:entry(_E)), ExpectedTotal),
   printer:test_stats_reset('Planning', ExpectedTotal),
   aggregate_all(count, (Repository:package(_C,_N)), ExpectedPkgs),
