@@ -863,7 +863,13 @@ compile_query_compound(all(dependency(D,install)), Repo://Id,
   findall(Dep,
           ( cache:entry_metadata(Repo,Id,bdepend,Dep)
           ; cache:entry_metadata(Repo,Id,cdepend,Dep)
-          ; cache:entry_metadata(Repo,Id,depend,Dep) ),
+          ; cache:entry_metadata(Repo,Id,depend,Dep)
+          ; % PDEPEND must be part of a merge plan (Portage semantics).
+            % We currently model it as run-like deps (see query:pdepend_dep_as_run/2).
+            ( cache:entry_metadata(Repo,Id,pdepend,Dep0),
+              query:pdepend_dep_as_run(Dep0, Dep)
+            )
+          ),
           D)) :- !.
 
 compile_query_compound(all(dependency(D,fetchonly)), Repo://Id,
@@ -872,7 +878,11 @@ compile_query_compound(all(dependency(D,fetchonly)), Repo://Id,
           ; cache:entry_metadata(Repo,Id,cdepend,Dep)
           ; cache:entry_metadata(Repo,Id,depend,Dep)
           ; cache:entry_metadata(Repo,Id,idepend,Dep)
-          ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
+          ; cache:entry_metadata(Repo,Id,rdepend,Dep)
+          ; ( cache:entry_metadata(Repo,Id,pdepend,Dep0),
+              query:pdepend_dep_as_run(Dep0, Dep)
+            )
+          ),
           D)) :- !.
 
 compile_query_compound(all(dependency(D,run)):A?{C}, Repo://Id,
@@ -889,7 +899,11 @@ compile_query_compound(all(dependency(D,install)):A?{C}, Repo://Id,
   findall(Dep:A?{C},
           ( cache:entry_metadata(Repo,Id,bdepend,Dep)
           ; cache:entry_metadata(Repo,Id,cdepend,Dep)
-          ; cache:entry_metadata(Repo,Id,depend,Dep) ),
+          ; cache:entry_metadata(Repo,Id,depend,Dep)
+          ; ( cache:entry_metadata(Repo,Id,pdepend,Dep0),
+              query:pdepend_dep_as_run(Dep0, Dep)
+            )
+          ),
           D)) :- !.
 
 compile_query_compound(all(dependency(D,fetchonly)):A?{C}, Repo://Id,
@@ -898,7 +912,11 @@ compile_query_compound(all(dependency(D,fetchonly)):A?{C}, Repo://Id,
           ; cache:entry_metadata(Repo,Id,cdepend,Dep)
           ; cache:entry_metadata(Repo,Id,depend,Dep)
           ; cache:entry_metadata(Repo,Id,idepend,Dep)
-          ; cache:entry_metadata(Repo,Id,rdepend,Dep) ),
+          ; cache:entry_metadata(Repo,Id,rdepend,Dep)
+          ; ( cache:entry_metadata(Repo,Id,pdepend,Dep0),
+              query:pdepend_dep_as_run(Dep0, Dep)
+            )
+          ),
           D)) :- !.
 
 
