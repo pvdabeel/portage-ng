@@ -116,8 +116,10 @@ rule(Repository://Ebuild:merge?{Context}, Conditions) :-
   % Do not let "world" / ordering metadata pollute the contexts used for
   % dependency-model memoization inside :run.
   rules:ctx_strip_planning(Context, Context1),
-  Conditions = [Repository://Ebuild:run?{Context1},
-                Repository://Ebuild:pdepend?{Context1}].
+  % NOTE: PDEPEND triggering is handled inside the :run rule (guarded by presence
+  % of actual PDEPEND metadata). Keeping :merge as a thin alias avoids double
+  % PDEPEND work when callers prove :merge explicitly (tests/printing).
+  Conditions = [Repository://Ebuild:run?{Context1}].
 
 
 % -----------------------------------------------------------------------------
@@ -376,11 +378,19 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
     InstallOrUpdate = Repository://Ebuild:update?{[replaces(OldRepo://OldEbuild),required_use:R,build_with_use:B]}
   ; InstallOrUpdate = Repository://Ebuild:install?{[required_use:R,build_with_use:B]}
   ),
-  Conditions0 = [Selected,
-                 constraint(use(Repository://Ebuild):{R}),
-                 constraint(slot(C,N,S):{Ebuild}),
-                 InstallOrUpdate
-                 |MergedDepsAfter],
+  % 6. Trigger PDEPEND only when it exists.
+  % Most ebuilds have no PDEPEND; avoid invoking the (heavier) :pdepend rule unless
+  % there is actual metadata for it.
+  ( cache:entry_metadata(Repository, Ebuild, pdepend, _) ->
+      PdependGoals = [Repository://Ebuild:pdepend?{[required_use:R,build_with_use:B]}]
+  ; PdependGoals = []
+  ),
+  Prefix0 = [Selected,
+             constraint(use(Repository://Ebuild):{R}),
+             constraint(slot(C,N,S):{Ebuild}),
+             InstallOrUpdate],
+  append(Prefix0, PdependGoals, Prefix1),
+  append(Prefix1, MergedDepsAfter, Conditions0),
   ( After == none -> Conditions = Conditions0 ; Conditions = [After|Conditions0] ).
 
 
