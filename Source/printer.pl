@@ -4732,17 +4732,10 @@ printer:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
   planner:plan(ProofAVL, TriggersAVL, t, Plan0, Remainder0),
   scheduler:schedule(ProofAVL, TriggersAVL, Plan0, Remainder0, Plan, _Remainder).
 
-% As prove_plan_basic/5, but also returns Constraints so we can incrementally
-% extend a proof/model without re-proving the whole goal set.
-printer:prove_plan_basic_with_constraints(Goals, ProofAVL, ModelAVL, Constraints, Plan, TriggersAVL) :-
-  prover:prove(Goals, t, ProofAVL, t, ModelAVL, t, Constraints, t, TriggersAVL),
-  planner:plan(ProofAVL, TriggersAVL, t, Plan0, Remainder0),
-  scheduler:schedule(ProofAVL, TriggersAVL, Plan0, Remainder0, Plan, _Remainder).
-
 printer:prove_plan_with_pdepend(Goals0, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
   % Keep this bounded: one expansion + one re-prove.
   statistics(walltime, [T0,_]),
-  printer:prove_plan_basic_with_constraints(Goals0, Proof0, Model0, Constraints0, Plan0, Trig0),
+  printer:prove_plan_basic(Goals0, Proof0, Model0, Plan0, Trig0),
   statistics(walltime, [T1,_]),
   Pass1Ms is T1 - T0,
   statistics(walltime, [T2,_]),
