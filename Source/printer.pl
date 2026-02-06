@@ -4655,13 +4655,12 @@ printer:write_package_index_file(Directory,Repository,Category,Name) :-
 printer:write_merge_file(Directory,Repository://Entry) :-
   Action = run,
   Extension = '.merge',
-  (prover:prove(Repository://Entry:Action?{[]},t,Proof,t,Model,t,_Constraints,t,Triggers),
-   planner:plan(Proof,Triggers,t,Plan0,Remainder0),
-   scheduler:schedule(Proof,Triggers,Plan0,Remainder0,Plan,_Remainder),
+  Goals = [Repository://Entry:Action?{[]}],
+  (printer:prove_plan(Goals, Proof, Model, Plan, Triggers),
    atomic_list_concat([Directory,'/',Entry,Extension],File)),
   (tell(File),
    set_stream(current_output,tty(true)), % otherwise we lose color
-   printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan,Triggers)
+   printer:print(Goals,Model,Proof,Plan,Triggers)
    -> told
    ; (told,with_mutex(mutex,message:warning([Repository,'://',Entry,' ',Action])))).
 
@@ -4674,15 +4673,94 @@ printer:write_merge_file(Directory,Repository://Entry) :-
 printer:write_fetchonly_file(Directory,Repository://Entry) :-
   Action = fetchonly,
   Extension = '.fetchonly',
-  (prover:prove(Repository://Entry:Action?{[]},t,Proof,t,Model,t,_Constraints,t,Triggers),
-   planner:plan(Proof,Triggers,t,Plan0,Remainder0),
-   scheduler:schedule(Proof,Triggers,Plan0,Remainder0,Plan,_Remainder),
+  Goals = [Repository://Entry:Action?{[]}],
+  (printer:prove_plan(Goals, Proof, Model, Plan, Triggers),
    atomic_list_concat([Directory,'/',Entry,Extension],File)),
   (tell(File),
    set_stream(current_output,tty(true)), % otherwise we lose color
-   printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan,Triggers)
+   printer:print(Goals,Model,Proof,Plan,Triggers)
    -> told
    ;  (told,with_mutex(mutex,message:warning([Repository,'://',Entry,' ',Action])))).
+
+
+% -----------------------------------------------------------------------------
+%  Helper: prove + plan wrapper (optional PDEPEND closure)
+% -----------------------------------------------------------------------------
+%
+% When --pdepend is enabled we want Portage-like semantics:
+% - PDEPEND deps must be part of the merge transaction
+% - but they must NOT be logical prerequisites of the parent merge, otherwise
+%   they cannot break cycles (ruby/bundler/etc).
+%
+% We therefore compute the normal proof/plan first, then add PDEPEND deps for
+% every actually-merged entry as *additional goals* anchored by after_only/1,
+% and iterate to a fixpoint (usually 1-2 iterations).
+
+printer:prove_plan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
+  ( preference:flag(pdepend) ->
+      printer:prove_plan_with_pdepend(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL)
+  ; printer:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL)
+  ).
+
+printer:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
+  prover:prove(Goals, t, ProofAVL, t, ModelAVL, t, _Constraints, t, TriggersAVL),
+  planner:plan(ProofAVL, TriggersAVL, t, Plan0, Remainder0),
+  scheduler:schedule(ProofAVL, TriggersAVL, Plan0, Remainder0, Plan, _Remainder).
+
+printer:prove_plan_with_pdepend(Goals0, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
+  printer:prove_plan_with_pdepend_(Goals0, 0, 5, ProofAVL, ModelAVL, Plan, TriggersAVL).
+
+printer:prove_plan_with_pdepend_(Goals, _Iter, _MaxIter, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
+  printer:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL),
+  printer:pdepend_goals_from_plan(Plan, PdependGoals),
+  ( PdependGoals == [] ->
+      true
+  ; sort(Goals, GoalsU),
+    sort(PdependGoals, PdependU),
+    subtract(PdependU, GoalsU, NewGoals),
+    ( NewGoals == [] ->
+        true
+    ; _Iter >= _MaxIter ->
+        true
+    ; Iter1 is _Iter + 1,
+      append(Goals, NewGoals, Goals1),
+      printer:prove_plan_with_pdepend_(Goals1, Iter1, _MaxIter, ProofAVL, ModelAVL, Plan, TriggersAVL)
+    )
+  ),
+  !.
+
+% Collect PDEPEND grouped-dependency goals for every merged entry in the current plan.
+printer:pdepend_goals_from_plan(Plan, Goals) :-
+  findall(Gs,
+          ( printer:plan_merge_anchor(Plan, Repo://Entry, AnchorCore, ActionCtx),
+            % Build dependency-model key for this entry, seeded from the action context's build_with_use.
+            rules:context_build_with_use_state(ActionCtx, B),
+            query:search(model(ModelKey, required_use(_R), build_with_use(B)), Repo://Entry),
+            ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
+                query:memoized_search(model(dependency(Pdeps0, pdepend)):config?{ModelKey}, Repo://Entry),
+                rules:add_self_to_dep_contexts(Repo://Entry, Pdeps0, Pdeps1),
+                rules:add_after_only_to_dep_contexts(AnchorCore, Pdeps1, Pdeps),
+                Gs = Pdeps
+            ; Gs = []
+            )
+          ),
+          Nested),
+  append(Nested, Flat0),
+  sort(Flat0, Goals).
+
+% A merge anchor is any action that results in a package being merged.
+% We anchor PDEPEND after the merge action (install/update/reinstall).
+printer:plan_merge_anchor(Plan, Repo://Entry, AnchorCore, Ctx) :-
+  member(Step, Plan),
+  member(Rule, Step),
+  ( Rule = rule(HeadWithCtx, _Body)
+  ; Rule = assumed(rule(HeadWithCtx, _Body))
+  ; Rule = rule(assumed(HeadWithCtx), _Body)
+  ),
+  prover:canon_literal(HeadWithCtx, AnchorCore, Ctx),
+  AnchorCore = (Repo://Entry:Action),
+  ( Action == install ; Action == update ; Action == reinstall ),
+  true.
 
 
 %! printer:write_info_file(+Directory,+Repository://Entry)

@@ -1133,14 +1133,20 @@ prover:test(Repository,Style) :-
               Repository://Entry,
               Repository:entry(Entry),
               ( Target = (Repository://Entry:Action?{[]}),
-                ( prover:prove(Target,t,_,t,_,t,_,t,_) ->
+                ( ( preference:flag(pdepend) ->
+                      printer:prove_plan([Target], _ProofAVL, _ModelAVL, _Plan, _TriggersAVL)
+                  ; prover:prove(Target,t,_,t,_,t,_,t,_)
+                  ) ->
                     true
                 ; % Test harness friendliness: treat blocker-induced failures as
                   % "proved under assumptions" so whole-repo runs don't fail on
                   % known blocker-heavy packages (e.g. primus/nvidia-drivers).
                   current_predicate(rules:with_assume_blockers/1),
                   rules:with_assume_blockers(
-                    prover:prove(Target,t,_,t,_,t,_,t,_)
+                    ( preference:flag(pdepend) ->
+                        printer:prove_plan([Target], _ProofAVL2, _ModelAVL2, _Plan2, _TriggersAVL2)
+                    ; prover:prove(Target,t,_,t,_,t,_,t,_)
+                    )
                   )
                 )
               )).
@@ -1159,11 +1165,17 @@ prover:test_latest(Repository,Style) :-
               Repository://Entry,
               ( Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_)) ),
               ( Target = (Repository://Entry:Action?{[]}),
-                ( prover:prove(Target,t,_,t,_,t,_,t,_) ->
+                ( ( preference:flag(pdepend) ->
+                      printer:prove_plan([Target], _ProofAVL, _ModelAVL, _Plan, _TriggersAVL)
+                  ; prover:prove(Target,t,_,t,_,t,_,t,_)
+                  ) ->
                     true
                 ; current_predicate(rules:with_assume_blockers/1),
                   rules:with_assume_blockers(
-                    prover:prove(Target,t,_,t,_,t,_,t,_)
+                    ( preference:flag(pdepend) ->
+                        printer:prove_plan([Target], _ProofAVL2, _ModelAVL2, _Plan2, _TriggersAVL2)
+                    ; prover:prove(Target,t,_,t,_,t,_,t,_)
+                    )
                   )
                 )
               )).
@@ -1206,7 +1218,10 @@ prover:test_stats(Repository, Style, TopN) :-
               ( prover:test_stats_reset_counters,
                 statistics(inferences, I0),
                 statistics(walltime, [T0,_]),
-                ( prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers) ->
+                ( ( preference:flag(pdepend) ->
+                      printer:prove_plan([Repository://Entry:Action?{[]}], ProofAVL, ModelAVL, _Plan, Triggers)
+                  ; prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)
+                  ) ->
                     Proved = true
                 ; Proved = false
                 ),
@@ -1228,7 +1243,10 @@ prover:test_stats(Repository, Style, TopN) :-
                 ; % strict failure: classify blocker vs conflict vs other (best-effort)
                   ( current_predicate(rules:with_assume_blockers/1),
                     rules:with_assume_blockers(
-                      prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
+                      ( preference:flag(pdepend) ->
+                          printer:prove_plan([Repository://Entry:Action?{[]}], _ProofAVL3, _ModelAVL3, _Plan3, _TriggersAVL3)
+                      ; prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
+                      )
                     ) ->
                       printer:test_stats_record_failed(blocker)
                   ; current_predicate(rules:with_assume_conflicts/1),

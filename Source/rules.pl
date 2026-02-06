@@ -215,26 +215,13 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
       add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
       rules:add_after_to_dep_contexts(AfterForDeps, MergedDeps, MergedDepsAfter),
 
-      % 4b. Optional: Portage-like PDEPEND (runtime_post) edges.
-      % We add them as :run goals, but tag them with after_only(Repository://Ebuild:install)
-      % so they can be delayed to break cycles without propagating ordering into
-      % the post-dependency's own closure.
-      ( preference:flag(pdepend),
-        cache:entry_metadata(Repository, Ebuild, pdepend, _) ->
-          query:memoized_search(model(dependency(PdependDeps0,pdepend)):config?{Model}, Repository://Ebuild),
-          add_self_to_dep_contexts(Repository://Ebuild, PdependDeps0, PdependDeps1),
-          rules:add_after_only_to_dep_contexts(Repository://Ebuild:install, PdependDeps1, PdependDeps)
-      ; PdependDeps = []
-      ),
-
       % 5. Pass on relevant package dependencies and constraints to prover
       ( memberchk(C,['virtual','acct-group','acct-user']) ->
           Prefix0 = [ Selected,
                       constraint(use(Repository://Ebuild):{R}),
                       constraint(slot(C,N,S):{Ebuild})
                     ],
-          append(Prefix0, PdependDeps, Prefix1),
-          append(Prefix1, MergedDepsAfter, Conditions0)
+          append(Prefix0, MergedDepsAfter, Conditions0)
       ; ( After == none ->
             DownloadCtx0 = [required_use:R,build_with_use:B]
         ; DownloadCtx0 = [after(After),required_use:R,build_with_use:B]
@@ -244,8 +231,7 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
                     constraint(slot(C,N,S):{Ebuild}),
                     Repository://Ebuild:download?{DownloadCtx0}
                   ],
-        append(Prefix0, PdependDeps, Prefix1),
-        append(Prefix1, MergedDepsAfter, Conditions0)
+        append(Prefix0, MergedDepsAfter, Conditions0)
       ),
       ( After == none -> Conditions = Conditions0 ; Conditions = [After|Conditions0] )
     ; % Conflict fallback
@@ -2861,15 +2847,6 @@ rules:update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
   query:memoized_search(model(dependency(MergedDeps0,install)):config?{Model},Repository://Ebuild),
   add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
 
-  % 2b. Optional: Portage-like PDEPEND (runtime_post) edges (update action anchor).
-  ( preference:flag(pdepend),
-    cache:entry_metadata(Repository, Ebuild, pdepend, _) ->
-      query:memoized_search(model(dependency(PdependDeps0,pdepend)):config?{Model}, Repository://Ebuild),
-      add_self_to_dep_contexts(Repository://Ebuild, PdependDeps0, PdependDeps1),
-      rules:add_after_only_to_dep_contexts(Repository://Ebuild:update, PdependDeps1, PdependDeps)
-  ; PdependDeps = []
-  ),
-
   % Optional: deep update means "also update dependency packages".
   % We model this by scheduling update goals for any installed dependency package
   % that appears in the dependency model.
@@ -2884,14 +2861,12 @@ rules:update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
     -> Base0 = [ constraint(use(Repository://Ebuild):{R}),
                  constraint(slot(CNew,NNew,SAll):{Ebuild})
                  |DeepUpdates],
-       append(Base0, PdependDeps, Base1),
-       append(Base1, MergedDeps, Conditions)
+       append(Base0, MergedDeps, Conditions)
     ;  Base0 = [ constraint(use(Repository://Ebuild):{R}),
                  constraint(slot(CNew,NNew,SAll):{Ebuild}),
                  Repository://Ebuild:download?{[required_use:R,build_with_use:B]}
                  |DeepUpdates],
-       append(Base0, PdependDeps, Base1),
-       append(Base1, MergedDeps, Conditions)
+       append(Base0, MergedDeps, Conditions)
   ).
 
 % Collect update goals for installed dependency packages from a grouped dependency model.

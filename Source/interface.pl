@@ -424,9 +424,7 @@ interface:process_action(Action,ArgsSets,_Options) :-
    ;  true),
   (Mode == 'client' ->
     (client:rpc_execute(Host,Port,
-     (prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers),
-      planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0),
-      scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder),
+     (printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers),
       printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
       vdb:sync),
      Output),
@@ -434,7 +432,7 @@ interface:process_action(Action,ArgsSets,_Options) :-
     ( interface:argv(Options,_Args0),
       ( memberchk(time_limit(TimeLimitSec), Options) -> true ; TimeLimitSec = 0 ),
       ( TimeLimitSec =< 0 ->
-          ( ( prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_,t,Triggers) ->
+          ( ( printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers) ->
                 FallbackUsed = false
             ; % Fallback UX: show the plan under the assumption that blockers are satisfied.
               message:bubble(orange,'Warning'),
@@ -442,29 +440,25 @@ interface:process_action(Action,ArgsSets,_Options) :-
               message:print(' No valid plan found due to blockers/conflicts. Showing a plan with blocker assumptions; please verify.'), nl,
               message:color(normal),
               rules:with_assume_blockers(
-                prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_,t,Triggers)
+                printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
               ),
               FallbackUsed = true
             ),
-            planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0),
-            scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder),
             printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers)
           )
       ; catch(
           call_with_time_limit(TimeLimitSec,
-            ( ( prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_,t,Triggers) ->
+            ( ( printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers) ->
                   FallbackUsed = false
               ; message:bubble(orange,'Warning'),
                 message:color(orange),
                 message:print(' No valid plan found due to blockers/conflicts. Showing a plan with blocker assumptions; please verify.'), nl,
                 message:color(normal),
                 rules:with_assume_blockers(
-                  prover:prove(Proposal,t,ProofAVL,t,ModelAVL,t,_,t,Triggers)
+                  printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
                 ),
                 FallbackUsed = true
               ),
-              planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0),
-              scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder),
               printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers)
             )),
           time_limit_exceeded,
