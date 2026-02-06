@@ -4658,11 +4658,24 @@ printer:write_merge_file(Directory,Repository://Entry) :-
   Goals = [Repository://Entry:Action?{[]}],
   (printer:prove_plan(Goals, Proof, Model, Plan, Triggers),
    atomic_list_concat([Directory,'/',Entry,Extension],File)),
-  (tell(File),
-   set_stream(current_output,tty(true)), % otherwise we lose color
-   printer:print(Goals,Model,Proof,Plan,Triggers)
-   -> told
-   ; (told,with_mutex(mutex,message:warning([Repository,'://',Entry,' ',Action])))).
+  % Write to a temp file first so timeouts/interrupts don't corrupt the final file.
+  atomic_list_concat([File,'.tmp'], TmpFile),
+  ( catch(
+      setup_call_cleanup(
+        tell(TmpFile),
+        ( set_stream(current_output,tty(true)), % otherwise we lose color
+          printer:print(Goals,Model,Proof,Plan,Triggers)
+        ),
+        told
+      ),
+      _E,
+      ( told, fail )
+    )
+  -> catch(rename_file(TmpFile, File), _, true)
+  ; ( ( catch(delete_file(TmpFile), _, true) ),
+      with_mutex(mutex,message:warning([Repository,'://',Entry,' ',Action]))
+    )
+  ).
 
 
 %! printer:write_fetchonly_file(+Directory,+Repository://Entry)
@@ -4676,11 +4689,23 @@ printer:write_fetchonly_file(Directory,Repository://Entry) :-
   Goals = [Repository://Entry:Action?{[]}],
   (printer:prove_plan(Goals, Proof, Model, Plan, Triggers),
    atomic_list_concat([Directory,'/',Entry,Extension],File)),
-  (tell(File),
-   set_stream(current_output,tty(true)), % otherwise we lose color
-   printer:print(Goals,Model,Proof,Plan,Triggers)
-   -> told
-   ;  (told,with_mutex(mutex,message:warning([Repository,'://',Entry,' ',Action])))).
+  atomic_list_concat([File,'.tmp'], TmpFile),
+  ( catch(
+      setup_call_cleanup(
+        tell(TmpFile),
+        ( set_stream(current_output,tty(true)), % otherwise we lose color
+          printer:print(Goals,Model,Proof,Plan,Triggers)
+        ),
+        told
+      ),
+      _E,
+      ( told, fail )
+    )
+  -> catch(rename_file(TmpFile, File), _, true)
+  ; ( ( catch(delete_file(TmpFile), _, true) ),
+      with_mutex(mutex,message:warning([Repository,'://',Entry,' ',Action]))
+    )
+  ).
 
 
 % -----------------------------------------------------------------------------
@@ -4708,26 +4733,22 @@ printer:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
   scheduler:schedule(ProofAVL, TriggersAVL, Plan0, Remainder0, Plan, _Remainder).
 
 printer:prove_plan_with_pdepend(Goals0, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
-  printer:prove_plan_with_pdepend_(Goals0, 0, 5, ProofAVL, ModelAVL, Plan, TriggersAVL).
-
-printer:prove_plan_with_pdepend_(Goals, Iter, MaxIter, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
-  printer:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL),
-  printer:pdepend_goals_from_plan(Plan, PdependGoals),
+  % Keep this bounded: one expansion + one re-prove.
+  printer:prove_plan_basic(Goals0, Proof0, Model0, Plan0, Trig0),
+  printer:pdepend_goals_from_plan(Plan0, PdependGoals),
   ( PdependGoals == [] ->
-      true
-  ; sort(Goals, GoalsU),
-    sort(PdependGoals, PdependU),
-    subtract(PdependU, GoalsU, NewGoals),
+      ProofAVL = Proof0, ModelAVL = Model0, Plan = Plan0, TriggersAVL = Trig0
+  ; sort(Goals0, GoalsU),
+    sort(PdependGoals, PdepU),
+    subtract(PdepU, GoalsU, NewGoals),
     ( NewGoals == [] ->
-        true
-    ; Iter >= MaxIter ->
-        true
-    ; Iter1 is Iter + 1,
-      append(Goals, NewGoals, Goals1),
-      printer:prove_plan_with_pdepend_(Goals1, Iter1, MaxIter, ProofAVL, ModelAVL, Plan, TriggersAVL)
+        ProofAVL = Proof0, ModelAVL = Model0, Plan = Plan0, TriggersAVL = Trig0
+    ; append(Goals0, NewGoals, Goals1),
+      printer:prove_plan_basic(Goals1, ProofAVL, ModelAVL, Plan, TriggersAVL)
     )
-  ),
-  !.
+  ).
+
+% (Old multi-iteration fixpoint removed: it can explode on large ecosystems.)
 
 % Collect PDEPEND grouped-dependency goals for every merged entry in the current plan.
 printer:pdepend_goals_from_plan(Plan, Goals) :-
