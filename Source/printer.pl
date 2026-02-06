@@ -4499,12 +4499,9 @@ printer:proof_rule_body_(ProofAVL, HeadCore, Body) :-
 
 % Extract the chosen concrete candidate from the body of the target(...) rule.
 %
-% For :run we go via our wrapper :merge (run + pdepend). For other actions we
-% may have the direct action literal in the body.
+% For :run we have the direct action literal in the body.
 printer:chosen_candidate_from_body(run, Body, Repo, Ebuild) :-
-  ( member(Repo://Ebuild:merge?{_}, Body)
-  ; member(Repo://Ebuild:run?{_}, Body)
-  ),
+  member(Repo://Ebuild:run?{_}, Body),
   !.
 printer:chosen_candidate_from_body(fetchonly, Body, Repo, Ebuild) :-
   member(Repo://Ebuild:fetchonly?{_}, Body),
@@ -4656,20 +4653,17 @@ printer:write_package_index_file(Directory,Repository,Category,Name) :-
 % Assumes directory exists. (See repository:prepare_directory)
 
 printer:write_merge_file(Directory,Repository://Entry) :-
-  % Merge proof should include PDEPEND (post-run) actions.
-  % Prove :merge, but print with :run as the user-facing target (highlighting).
-  ActionProof = merge,
-  ActionPrint = run,
+  Action = run,
   Extension = '.merge',
-  (prover:prove(Repository://Entry:ActionProof?{[]},t,Proof,t,Model,t,_Constraints,t,Triggers),
+  (prover:prove(Repository://Entry:Action?{[]},t,Proof,t,Model,t,_Constraints,t,Triggers),
    planner:plan(Proof,Triggers,t,Plan0,Remainder0),
    scheduler:schedule(Proof,Triggers,Plan0,Remainder0,Plan,_Remainder),
    atomic_list_concat([Directory,'/',Entry,Extension],File)),
   (tell(File),
    set_stream(current_output,tty(true)), % otherwise we lose color
-   printer:print([Repository://Entry:ActionPrint?{[]}],Model,Proof,Plan,Triggers)
+   printer:print([Repository://Entry:Action?{[]}],Model,Proof,Plan,Triggers)
    -> told
-   ; (told,with_mutex(mutex,message:warning([Repository,'://',Entry,' ',ActionProof])))).
+   ; (told,with_mutex(mutex,message:warning([Repository,'://',Entry,' ',Action])))).
 
 
 %! printer:write_fetchonly_file(+Directory,+Repository://Entry)

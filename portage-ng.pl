@@ -57,7 +57,16 @@ load_common_modules :-
    ensure_loaded(library('shell')),
    ensure_loaded(library('tty')),
    ensure_loaded(library('time')),
-   ensure_loaded(library('editline')),
+   % editline is only safe/needed on real TTY sessions.
+   % When stdout is redirected (e.g. generating a `.merge` file with `> file`),
+   % loading editline can throw:
+   %   editline:el_read_history/2: Domain error: `libedit_input' expected, found `user_input'
+   ( current_prolog_flag(readline, editline),
+     stream_property(user_input, tty(true)),
+     stream_property(user_output, tty(true))
+   -> ensure_loaded(library('editline'))
+   ; true
+   ),
    ensure_loaded(library('readutil')),
    ensure_loaded(library('ansi_term')),
    ensure_loaded(library('process')),

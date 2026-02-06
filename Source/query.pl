@@ -433,38 +433,6 @@ compile_query_compound(idepend(I), Repo://Id,
 compile_query_compound(pdepend(P), Repo://Id,
   cache:entry_metadata(Repo,Id,pdepend,P)) :- !.
 
-% -----------------------------------------------------------------------------
-%  Helper: treat PDEPEND as :run dependencies (temporary semantics)
-% -----------------------------------------------------------------------------
-%
-% The repository cache currently parses PDEPEND using the cdepend grammar, which
-% yields package_dependency(compile,...) leaves. For the temporary semantics we
-% want: "include PDEPEND in the run dependency closure", so we rewrite those
-% leaves to package_dependency(run,...) before proving dependency models.
-%
-% (Longer term, PDEPEND should be modeled as a post-run milestone.)
-
-query:pdepend_dep_as_run(package_dependency(compile,Strength,C,N,O,V,S,U),
-                         package_dependency(run,Strength,C,N,O,V,S,U)) :-
-  !.
-query:pdepend_dep_as_run(use_conditional_group(Pol, Use, Self, Deps0),
-                         use_conditional_group(Pol, Use, Self, Deps)) :-
-  !,
-  maplist(query:pdepend_dep_as_run, Deps0, Deps).
-query:pdepend_dep_as_run(any_of_group(Deps0), any_of_group(Deps)) :-
-  !,
-  maplist(query:pdepend_dep_as_run, Deps0, Deps).
-query:pdepend_dep_as_run(all_of_group(Deps0), all_of_group(Deps)) :-
-  !,
-  maplist(query:pdepend_dep_as_run, Deps0, Deps).
-query:pdepend_dep_as_run(exactly_one_of_group(Deps0), exactly_one_of_group(Deps)) :-
-  !,
-  maplist(query:pdepend_dep_as_run, Deps0, Deps).
-query:pdepend_dep_as_run(at_most_one_of_group(Deps0), at_most_one_of_group(Deps)) :-
-  !,
-  maplist(query:pdepend_dep_as_run, Deps0, Deps).
-query:pdepend_dep_as_run(T, T).
-
 compile_query_compound(rdepend(P), Repo://Id,
   cache:entry_metadata(Repo,Id,rdepend,P)) :- !.
 
@@ -853,9 +821,6 @@ compile_query_compound(all(dependency(D,run)), Repo://Id,
   findall(Dep,
           ( cache:entry_metadata(Repo,Id,idepend,Dep)
           ; cache:entry_metadata(Repo,Id,rdepend,Dep)
-          ; ( cache:entry_metadata(Repo,Id,pdepend,Dep0),
-              query:pdepend_dep_as_run(Dep0, Dep)
-            )
           ),
           D)) :- !.
 
@@ -864,11 +829,6 @@ compile_query_compound(all(dependency(D,install)), Repo://Id,
           ( cache:entry_metadata(Repo,Id,bdepend,Dep)
           ; cache:entry_metadata(Repo,Id,cdepend,Dep)
           ; cache:entry_metadata(Repo,Id,depend,Dep)
-          ; % PDEPEND must be part of a merge plan (Portage semantics).
-            % We currently model it as run-like deps (see query:pdepend_dep_as_run/2).
-            ( cache:entry_metadata(Repo,Id,pdepend,Dep0),
-              query:pdepend_dep_as_run(Dep0, Dep)
-            )
           ),
           D)) :- !.
 
@@ -879,9 +839,6 @@ compile_query_compound(all(dependency(D,fetchonly)), Repo://Id,
           ; cache:entry_metadata(Repo,Id,depend,Dep)
           ; cache:entry_metadata(Repo,Id,idepend,Dep)
           ; cache:entry_metadata(Repo,Id,rdepend,Dep)
-          ; ( cache:entry_metadata(Repo,Id,pdepend,Dep0),
-              query:pdepend_dep_as_run(Dep0, Dep)
-            )
           ),
           D)) :- !.
 
@@ -889,9 +846,6 @@ compile_query_compound(all(dependency(D,run)):A?{C}, Repo://Id,
   findall(Dep:A?{C},
           ( cache:entry_metadata(Repo,Id,idepend,Dep)
           ; cache:entry_metadata(Repo,Id,rdepend,Dep)
-          ; ( cache:entry_metadata(Repo,Id,pdepend,Dep0),
-              query:pdepend_dep_as_run(Dep0, Dep)
-            )
           ),
           D)) :- !.
 
@@ -900,9 +854,6 @@ compile_query_compound(all(dependency(D,install)):A?{C}, Repo://Id,
           ( cache:entry_metadata(Repo,Id,bdepend,Dep)
           ; cache:entry_metadata(Repo,Id,cdepend,Dep)
           ; cache:entry_metadata(Repo,Id,depend,Dep)
-          ; ( cache:entry_metadata(Repo,Id,pdepend,Dep0),
-              query:pdepend_dep_as_run(Dep0, Dep)
-            )
           ),
           D)) :- !.
 
@@ -913,9 +864,6 @@ compile_query_compound(all(dependency(D,fetchonly)):A?{C}, Repo://Id,
           ; cache:entry_metadata(Repo,Id,depend,Dep)
           ; cache:entry_metadata(Repo,Id,idepend,Dep)
           ; cache:entry_metadata(Repo,Id,rdepend,Dep)
-          ; ( cache:entry_metadata(Repo,Id,pdepend,Dep0),
-              query:pdepend_dep_as_run(Dep0, Dep)
-            )
           ),
           D)) :- !.
 
@@ -1001,9 +949,6 @@ compile_query_compound(model(dependency(Model,run)):config?{Context}, Repo://Id,
   ( findall(Dep:config?{Context},
           ( cache:entry_metadata(Repo,Id,idepend,Dep)
           ; cache:entry_metadata(Repo,Id,rdepend,Dep)
-          ; ( cache:entry_metadata(Repo,Id,pdepend,Dep0),
-              query:pdepend_dep_as_run(Dep0, Dep)
-            )
           ),
           Deps),
   sort(Deps, DepsU),
@@ -1052,7 +997,7 @@ compile_query_compound(model(dependency(Model,fetchonly)):config?{Context}, Repo
           ; cache:entry_metadata(Repo,Id,depend,Dep)
           ; cache:entry_metadata(Repo,Id,idepend,Dep)
           ; cache:entry_metadata(Repo,Id,rdepend,Dep)
-          ; cache:entry_metadata(Repo,Id,pdepend,Dep) ),
+          ),
           Deps),
   sort(Deps, DepsU),
   prover:with_delay_triggers(

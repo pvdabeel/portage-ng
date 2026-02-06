@@ -35,8 +35,8 @@ This file contains domain-specific rules
 % The CLI used to resolve a concrete candidate (Repo://Ebuild) up-front and then
 % prove `Repo://Ebuild:run?{[]}`.
 %
-% For richer proof/plan integration (e.g. pdepend as post-run actions, and
-% rule-driven "world" side effects), we also allow proving *unresolved* targets
+% For richer proof/plan integration (notably rule-driven "world" side effects),
+% we also allow proving *unresolved* targets
 % of the form:
 %
 %   target(Q, Arg):Action?{Ctx}
@@ -65,16 +65,16 @@ rule(target(Q, Arg):uninstall?{Context}, Conditions) :-
   Conditions = [Repository://Ebuild:uninstall?{Context}|WorldConds].
 
 % Portage-style merge semantics for a requested target:
-% - prove the merge (run + post-run pdepend)
+% - prove the merge (run)
 % - then register the original atom in @world (unless --oneshot)
 rule(target(Q, Arg):run?{Context}, Conditions) :-
   !,
   kb:query(Q, Repository://Ebuild),
-  Conditions0 = [Repository://Ebuild:merge?{Context}],
+  Conditions0 = [Repository://Ebuild:run?{Context}],
   ( preference:flag(oneshot) ->
       Conditions = Conditions0
-  ; Conditions = [Repository://Ebuild:merge?{Context},
-                  world_action(register, Arg):world?{[after(Repository://Ebuild:merge)]}]
+  ; Conditions = [Repository://Ebuild:run?{Context},
+                  world_action(register, Arg):world?{[after(Repository://Ebuild:run)]}]
   ).
 
 
@@ -105,71 +105,6 @@ rule(world_action(_Op,_Arg):world?{Context}, Conditions) :-
   !,
   rules:ctx_take_after(Context, After, _CtxNoAfter),
   ( After == none -> Conditions = [] ; Conditions = [After] ).
-
-
-% -----------------------------------------------------------------------------
-%  Rule: Merge target (run + post-run pdepend)
-% -----------------------------------------------------------------------------
-
-rule(Repository://Ebuild:merge?{Context}, Conditions) :-
-  !,
-  % Do not let "world" / ordering metadata pollute the contexts used for
-  % dependency-model memoization inside :run.
-  rules:ctx_strip_planning(Context, Context1),
-  % NOTE: PDEPEND triggering is handled inside the :run rule (guarded by presence
-  % of actual PDEPEND metadata). Keeping :merge as a thin alias avoids double
-  % PDEPEND work when callers prove :merge explicitly (tests/printing).
-  Conditions = [Repository://Ebuild:run?{Context1}].
-
-
-% -----------------------------------------------------------------------------
-%  Rule: PDEPEND target (post-run dependency merge)
-% -----------------------------------------------------------------------------
-%
-% Portage's PDEPEND is merged after the main package is merged.
-% We model this as a separate action and force all of its dependency actions to
-% occur "after(Repo://Ebuild:run)" by threading an `after/1` marker through the
-% dependency contexts.
-%
-
-rule(Repository://Ebuild:pdepend?{Context}, Conditions) :-
-  !,
-  % Optional instrumentation (off by default).
-  % Enable via rules:enable_pdepend_stats/0.
-  ( nb_current(rules_pdepend_stats_enabled, true) ->
-      rules:pdepend_stats_record_call(Repository://Ebuild, Context)
-  ; true
-  ),
-  % Allow callers to control the scheduling anchor for PDEPEND deps.
-  % Default is after(Repo://Ebuild:run), but when PDEPEND is triggered from an
-  % :install/:update action (dependency merges), we want post-deps after that
-  % merge action rather than after a (non-existent) :run for dependency packages.
-  rules:ctx_take_after(Context, After0, Context0),
-  rules:ctx_strip_planning(Context0, Context1),
-  ( After0 == none -> AfterAnchor = Repository://Ebuild:run ; AfterAnchor = After0 ),
-  rules:pdepend_terms_for_entry(Repository://Ebuild, Terms),
-  ( Terms == [] ->
-      ( nb_current(rules_pdepend_stats_enabled, true) ->
-          rules:pdepend_stats_record_emit(Repository://Ebuild, AfterAnchor, 0)
-      ; true
-      ),
-      Conditions = []
-  ;
-      % Recompute the use model (same as :run/:install), then prove the PDEPEND
-      % term model under :config to make the conditional structure deterministic.
-      rules:context_build_with_use_state(Context1, B),
-      ( memberchk(required_use:R, Context1) -> true ; true ),
-      query:search(model(ModelKey,required_use(R),build_with_use(B)), Repository://Ebuild),
-      rules:pdepend_grouped_deps_for_entry(Repository://Ebuild, ModelKey, Context1, Grouped0),
-      add_self_to_dep_contexts(Repository://Ebuild, Grouped0, Grouped1),
-      rules:add_after_to_dep_contexts(AfterAnchor, Grouped1, Conditions),
-      ( nb_current(rules_pdepend_stats_enabled, true) ->
-          length(Conditions, NEmitted),
-          rules:pdepend_stats_record_emit(Repository://Ebuild, AfterAnchor, NEmitted)
-      ; true
-      )
-  ).
-
 
 
 % -----------------------------------------------------------------------------
@@ -281,19 +216,12 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
       rules:add_after_to_dep_contexts(After, MergedDeps, MergedDepsAfter),
 
       % 5. Pass on relevant package dependencies and constraints to prover
-      %
-      % 6. Trigger PDEPEND only when it exists (most ebuilds have none).
-      ( cache:entry_metadata(Repository, Ebuild, pdepend, _) ->
-          PdependGoals = [Repository://Ebuild:pdepend?{[after(Repository://Ebuild:install),required_use:R,build_with_use:B]}]
-      ; PdependGoals = []
-      ),
       ( memberchk(C,['virtual','acct-group','acct-user']) ->
           Prefix0 = [ Selected,
                       constraint(use(Repository://Ebuild):{R}),
                       constraint(slot(C,N,S):{Ebuild})
                     ],
-          append(Prefix0, PdependGoals, Prefix1),
-          append(Prefix1, MergedDepsAfter, Conditions0)
+          append(Prefix0, MergedDepsAfter, Conditions0)
       ; ( After == none ->
             DownloadCtx0 = [required_use:R,build_with_use:B]
         ; DownloadCtx0 = [after(After),required_use:R,build_with_use:B]
@@ -303,8 +231,7 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
                     constraint(slot(C,N,S):{Ebuild}),
                     Repository://Ebuild:download?{DownloadCtx0}
                   ],
-        append(Prefix0, PdependGoals, Prefix1),
-        append(Prefix1, MergedDepsAfter, Conditions0)
+        append(Prefix0, MergedDepsAfter, Conditions0)
       ),
       ( After == none -> Conditions = Conditions0 ; Conditions = [After|Conditions0] )
     ; % Conflict fallback
@@ -401,8 +328,6 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
              constraint(use(Repository://Ebuild):{R}),
              constraint(slot(C,N,S):{Ebuild}),
              InstallOrUpdate],
-  % NOTE: PDEPEND is triggered by the merge actions themselves (:install/:update)
-  % so it also applies to dependency packages (which typically don't have :run).
   append(Prefix0, MergedDepsAfter, Conditions0),
   ( After == none -> Conditions = Conditions0 ; Conditions = [After|Conditions0] ).
 
@@ -2362,158 +2287,6 @@ add_self_to_dep_contexts(Self, [D0|Rest0], [D|Rest]) :-
   ),
   add_self_to_dep_contexts(Self, Rest0, Rest).
 
-% -----------------------------------------------------------------------------
-%  PDEPEND (post dependencies) handling (Portage-like, performance-safe)
-% -----------------------------------------------------------------------------
-%
-% Portage includes PDEPEND packages in the merge plan, but proving them as part of
-% the memoized dependency model (prove_model/...) can blow up whole-tree proving.
-%
-% We therefore:
-% - keep the dependency model small (no PDEPEND inside model(dependency(...,install))),
-% - add PDEPEND as *extra goals* only when planning a concrete install/update,
-% - memoize the parsed/re-written PDEPEND term list per (Repo,Entry).
-%
-% Terms are rewritten using query:pdepend_dep_as_run/2 so they behave like runtime
-% deps and go through the existing `run -> install` scheduling logic.
-rules:pdepend_terms_for_entry(Repo://Entry, Terms) :-
-  ( nb_current(rules_pdepend_terms_cache, Cache),
-    get_assoc(key(Repo,Entry), Cache, Terms0)
-  ->
-    Terms = Terms0
-  ;
-    findall(Dep,
-            ( cache:entry_metadata(Repo, Entry, pdepend, Dep0),
-              query:pdepend_dep_as_run(Dep0, Dep)
-            ),
-            Terms1),
-    sort(Terms1, Terms2),
-    ( nb_current(rules_pdepend_terms_cache, Cache0) -> true ; empty_assoc(Cache0) ),
-    put_assoc(key(Repo,Entry), Cache0, Terms2, Cache1),
-    nb_setval(rules_pdepend_terms_cache, Cache1),
-    Terms = Terms2
-  ),
-  !.
-
-% Memoize the *expanded* grouped dependencies for PDEPEND per (Repo,Entry,ModelKey).
-% This is critical for performance on packages with large PDEPEND (e.g. xorg-drivers),
-% which may be encountered as dependencies of many unrelated targets during
-% prover:test/1 runs.
-rules:pdepend_grouped_deps_for_entry(Repo://Entry, ModelKey, Context1, GroupedDeps) :-
-  term_hash(ModelKey, H),
-  ( nb_current(rules_pdepend_grouped_cache, Cache),
-    get_assoc(key(Repo,Entry,H), Cache, Grouped0)
-  ->
-    GroupedDeps = Grouped0
-  ;
-    rules:pdepend_terms_for_entry(Repo://Entry, Terms),
-    ( Terms == [] ->
-        GroupedDeps = []
-    ;
-      findall(Dep:config?{Context1}, member(Dep, Terms), Deps0),
-      sort(Deps0, DepsU),
-      prover:with_delay_triggers(
-        prover:prove_model(DepsU, t, AvlModel, t, _ConsOut, t)
-      ),
-      findall(Fact:Phase?{CtxOut},
-              ( assoc:gen_assoc(Fact:_, AvlModel, CtxIn),
-                Fact =.. [package_dependency|_],
-                Fact =.. [package_dependency,Phase|_],
-                ( CtxIn == {} -> CtxOut = [] ; CtxOut = CtxIn )
-              ),
-              FlatDeps),
-      query:group_dependencies(FlatDeps, GroupedDeps)
-    ),
-    ( nb_current(rules_pdepend_grouped_cache, Cache0) -> true ; empty_assoc(Cache0) ),
-    put_assoc(key(Repo,Entry,H), Cache0, GroupedDeps, Cache1),
-    nb_setval(rules_pdepend_grouped_cache, Cache1)
-  ),
-  !.
-
-% -----------------------------------------------------------------------------
-%  Debugging: PDEPEND instrumentation (opt-in)
-% -----------------------------------------------------------------------------
-
-% Enable/disable instrumentation (disabled by default; zero overhead unless enabled).
-rules:enable_pdepend_stats :-
-  nb_setval(rules_pdepend_stats_enabled, true),
-  !.
-
-rules:disable_pdepend_stats :-
-  ( nb_current(rules_pdepend_stats_enabled, _) -> nb_delete(rules_pdepend_stats_enabled) ; true ),
-  !.
-
-rules:reset_pdepend_stats :-
-  nb_setval(rules_pdepend_calls_total, 0),
-  nb_setval(rules_pdepend_emitted_total, 0),
-  empty_assoc(A0),
-  nb_setval(rules_pdepend_calls_by_key, A0),
-  empty_assoc(A1),
-  nb_setval(rules_pdepend_emitted_by_key, A1),
-  !.
-
-% Run Goal with stats enabled, returning a report term.
-rules:with_pdepend_stats(Goal, Report) :-
-  rules:enable_pdepend_stats,
-  rules:reset_pdepend_stats,
-  call(Goal),
-  rules:pdepend_stats_report(Report),
-  rules:disable_pdepend_stats,
-  !.
-
-rules:pdepend_stats_record_call(RepoEntry, _Context) :-
-  ( RepoEntry = Repo://Entry -> true ; RepoEntry = RepoEntry ),
-  % We intentionally ignore Context details to keep overhead low; the key is per entry.
-  ( nb_current(rules_pdepend_calls_total, N0) -> true ; N0 = 0 ),
-  N is N0 + 1,
-  nb_setval(rules_pdepend_calls_total, N),
-  ( nb_current(rules_pdepend_calls_by_key, A0) -> true ; empty_assoc(A0) ),
-  K = key(Repo,Entry),
-  ( get_assoc(K, A0, C0) -> true ; C0 = 0 ),
-  C is C0 + 1,
-  put_assoc(K, A0, C, A1),
-  nb_setval(rules_pdepend_calls_by_key, A1),
-  !.
-
-rules:pdepend_stats_record_emit(RepoEntry, _AfterAnchor, NEmitted) :-
-  ( RepoEntry = Repo://Entry -> true ; RepoEntry = RepoEntry ),
-  ( nb_current(rules_pdepend_emitted_total, N0) -> true ; N0 = 0 ),
-  N is N0 + NEmitted,
-  nb_setval(rules_pdepend_emitted_total, N),
-  ( nb_current(rules_pdepend_emitted_by_key, A0) -> true ; empty_assoc(A0) ),
-  K = key(Repo,Entry),
-  ( get_assoc(K, A0, E0) -> true ; E0 = 0 ),
-  E is E0 + NEmitted,
-  put_assoc(K, A0, E, A1),
-  nb_setval(rules_pdepend_emitted_by_key, A1),
-  !.
-
-rules:pdepend_stats_report(report(calls_total(Calls),
-                                 emitted_total(Emitted),
-                                 unique_entries(Unique),
-                                 top_calls(TopCalls),
-                                 top_emitted(TopEmitted))) :-
-  ( nb_current(rules_pdepend_calls_total, Calls) -> true ; Calls = 0 ),
-  ( nb_current(rules_pdepend_emitted_total, Emitted) -> true ; Emitted = 0 ),
-  ( nb_current(rules_pdepend_calls_by_key, ACalls) -> true ; empty_assoc(ACalls) ),
-  ( nb_current(rules_pdepend_emitted_by_key, AEm) -> true ; empty_assoc(AEm) ),
-  findall(K, gen_assoc(K, ACalls, _), Keys0),
-  sort(Keys0, Keys),
-  length(Keys, Unique),
-  findall(N-K, gen_assoc(K, ACalls, N), PairsC0),
-  keysort(PairsC0, PairsCAsc),
-  reverse(PairsCAsc, PairsC),
-  ( length(PairsC, LC), LC > 15 -> length(TopCalls, 15), append(TopCalls, _, PairsC)
-  ; TopCalls = PairsC
-  ),
-  findall(N-K, gen_assoc(K, AEm, N), PairsE0),
-  keysort(PairsE0, PairsEAsc),
-  reverse(PairsEAsc, PairsE),
-  ( length(PairsE, LE), LE > 15 -> length(TopEmitted, 15), append(TopEmitted, _, PairsE)
-  ; TopEmitted = PairsE
-  ),
-  !.
-
 % Keep at most ONE self/1 term in contexts.
 % This preserves the semantics needed for self-dependency guards while preventing
 % context growth (and memoization misses) along deep dependency chains.
@@ -3037,23 +2810,16 @@ rules:update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
 
   % 3. Pass on relevant package dependencies and constraints to prover.
   query:search([category(CNew),name(NNew),select(slot,constraint([]),SAll)], Repository://Ebuild),
-  % Trigger PDEPEND for actual merge actions (update), but only when it exists.
-  ( cache:entry_metadata(Repository, Ebuild, pdepend, _) ->
-      PdependGoals = [Repository://Ebuild:pdepend?{[after(Repository://Ebuild:update),required_use:R,build_with_use:B]}]
-  ; PdependGoals = []
-  ),
   ( memberchk(CNew,['virtual','acct-group','acct-user'])
     -> Base0 = [ constraint(use(Repository://Ebuild):{R}),
                  constraint(slot(CNew,NNew,SAll):{Ebuild})
                  |DeepUpdates],
-       append(Base0, PdependGoals, Base1),
-       append(Base1, MergedDeps, Conditions)
+       append(Base0, MergedDeps, Conditions)
     ;  Base0 = [ constraint(use(Repository://Ebuild):{R}),
                  constraint(slot(CNew,NNew,SAll):{Ebuild}),
                  Repository://Ebuild:download?{[required_use:R,build_with_use:B]}
                  |DeepUpdates],
-       append(Base0, PdependGoals, Base1),
-       append(Base1, MergedDeps, Conditions)
+       append(Base0, MergedDeps, Conditions)
   ).
 
 % Collect update goals for installed dependency packages from a grouped dependency model.

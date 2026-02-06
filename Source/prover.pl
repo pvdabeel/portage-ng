@@ -1114,17 +1114,9 @@ prover:add_to_assoc(Key,InAssoc,OutAssoc) :-
 %  Test action mapping
 % -----------------------------------------------------------------------------
 %
-% In CLI mode we now treat "merge" as the Portage-like root action:
-%   :merge = :run + :pdepend
-%
-% For automated tests/stats we therefore map proving_target(run) -> merge so
-% PDEPEND is exercised as part of the proof.
-%
-% IMPORTANT: this does NOT introduce any world registrations, because those are
-% only produced by rules for the wrapper target(Q,Arg):run. Repository://Entry
-% tests never use that wrapper, so no world_action/2 goals are generated.
-
-prover:test_action(run, merge) :- !.
+% Test action mapping used by prover:test/*.
+% Historically we mapped run -> merge to exercise extra post-run steps; those
+% semantics have been removed, so tests use the configured target action as-is.
 prover:test_action(Action, Action).
 
 %! prover:test(+Repository)

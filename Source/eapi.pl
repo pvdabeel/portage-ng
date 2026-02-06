@@ -416,12 +416,10 @@ eapi:value('REQUIRED_USE', R://E, required_use(U)) -->
   eapi:required_use(R://E, U).
 
 % PMS EAPI 8, Section 7.2.3
+% PDEPEND has the same dependency-sequence grammar as RDEPEND. We keep it as
+% metadata only; dependency-handling semantics are implemented elsewhere.
 eapi:value('PDEPEND', R://E, pdepend(D)) -->
   !,
-  % Treat PDEPEND as a runtime-style dependency sequence.
-  % We model it as package_dependency(run, ...) so it can be consumed as :run
-  % obligations by the dependency model (temporary semantics: include PDEPEND in
-  % :run dependency closure).
   eapi:rdepend(R://E, D).
 
 % PMS EAPI 8, Section 7.2.3
@@ -622,7 +620,7 @@ eapi:provide(_, P) -->
 
 %! DCG dependencies
 %
-% EAPI 8 - 8.2 Grammar for parsing DEPEND, RDEPEND, and PDEPEND
+% EAPI 8 - 8.2 Grammar for parsing dependency sequences
 % (PMS EAPI 8, Section 8.2).
 %
 % Parses zero or more dependencies, separated by whitespace.
