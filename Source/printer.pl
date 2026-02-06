@@ -4735,7 +4735,9 @@ printer:pdepend_goals_from_plan(Plan, Goals) :-
           ( printer:plan_merge_anchor(Plan, Repo://Entry, AnchorCore, ActionCtx),
             % Build dependency-model key for this entry, seeded from the action context's build_with_use.
             rules:context_build_with_use_state(ActionCtx, B),
-            query:search(model(ModelKey, required_use(_R), build_with_use(B)), Repo://Entry),
+            % Avoid proving REQUIRED_USE here (expensive). The dependency-model key only
+            % needs the threaded build_with_use state for bracketed USE deps.
+            ModelKey = [build_with_use:B],
             ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
                 query:memoized_search(model(dependency(Pdeps0, pdepend)):config?{ModelKey}, Repo://Entry),
                 rules:add_self_to_dep_contexts(Repo://Entry, Pdeps0, Pdeps1),
