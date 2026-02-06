@@ -436,6 +436,36 @@ compile_query_compound(pdepend(P), Repo://Id,
 compile_query_compound(rdepend(P), Repo://Id,
   cache:entry_metadata(Repo,Id,rdepend,P)) :- !.
 
+% -----------------------------------------------------------------------------
+%  PDEPEND helper: tag as its own dependency phase
+% -----------------------------------------------------------------------------
+%
+% The EAPI grammar parses PDEPEND with the same dependency-sequence grammar as
+% RDEPEND, producing package_dependency(run, ...) leaves. In order to model
+% Portage-like "runtime_post" semantics, we re-tag PDEPEND leaves as their own
+% phase so they can be handled as cycle-breakable edges by rules/scheduler.
+
+query:pdepend_dep_as_pdepend(package_dependency(run,Strength,C,N,O,V,S,U),
+                             package_dependency(pdepend,Strength,C,N,O,V,S,U)) :-
+  !.
+query:pdepend_dep_as_pdepend(use_conditional_group(Pol, Use, Self, Deps0),
+                             use_conditional_group(Pol, Use, Self, Deps)) :-
+  !,
+  maplist(query:pdepend_dep_as_pdepend, Deps0, Deps).
+query:pdepend_dep_as_pdepend(any_of_group(Deps0), any_of_group(Deps)) :-
+  !,
+  maplist(query:pdepend_dep_as_pdepend, Deps0, Deps).
+query:pdepend_dep_as_pdepend(all_of_group(Deps0), all_of_group(Deps)) :-
+  !,
+  maplist(query:pdepend_dep_as_pdepend, Deps0, Deps).
+query:pdepend_dep_as_pdepend(exactly_one_of_group(Deps0), exactly_one_of_group(Deps)) :-
+  !,
+  maplist(query:pdepend_dep_as_pdepend, Deps0, Deps).
+query:pdepend_dep_as_pdepend(at_most_one_of_group(Deps0), at_most_one_of_group(Deps)) :-
+  !,
+  maplist(query:pdepend_dep_as_pdepend, Deps0, Deps).
+query:pdepend_dep_as_pdepend(T, T).
+
 compile_query_compound(defined_phases(P), Repo://Id,
   cache:entry_metadata(Repo,Id,defined_phases,P)) :- !.
 
@@ -957,6 +987,23 @@ compile_query_compound(model(dependency(Model,run)):config?{Context}, Repo://Id,
   % IMPORTANT: keep dependency "phase" (install/run) distinct from the literal's
   % action tag. We tag each dependency literal by its Phase, so grouped deps never
   % mix install+run package_dependency terms in one group.
+  findall(Fact:Phase?{CtxOut},
+          ( gen_assoc(Fact:_,AvlModel,CtxIn),
+            Fact =.. [package_dependency|_],
+            Fact =.. [package_dependency,Phase|_],
+            ( CtxIn == {} -> CtxOut = [] ; CtxOut = CtxIn )
+          ),
+          Model) ) ) :- !.
+
+compile_query_compound(model(dependency(Model,pdepend)):config?{Context}, Repo://Id,
+  ( findall(Dep:config?{Context},
+          ( cache:entry_metadata(Repo,Id,pdepend,Dep0),
+            query:pdepend_dep_as_pdepend(Dep0, Dep)
+          ),
+          Deps),
+  sort(Deps, DepsU),
+  prover:with_delay_triggers(
+    prover:prove_model(DepsU, t, AvlModel, t, _ConsOut, t)),
   findall(Fact:Phase?{CtxOut},
           ( gen_assoc(Fact:_,AvlModel,CtxIn),
             Fact =.. [package_dependency|_],
@@ -1635,6 +1682,19 @@ memoized_search(model(dependency(Merged,run)):config?{R}, Repository://Ebuild) :
         query:search(model(dependency(D0,run)):config?{RSearch},Repository://Ebuild),
         group_dependencies(D0, Merged),
         assertz(cache:memo_model(Repository, Ebuild, run_grouped?{R}, Merged))
+  ).
+
+memoized_search(model(dependency(Merged,pdepend)):config?{R}, Repository://Ebuild) :-
+  !,
+  ( cache:memo_model(Repository, Ebuild, pdepend_grouped?{R}, Merged)
+    ->  true
+    ;   ( memberchk(self(Repository://Ebuild), R)
+          -> RSearch = R
+          ;  RSearch = [self(Repository://Ebuild)|R]
+        ),
+        query:search(model(dependency(D0,pdepend)):config?{RSearch},Repository://Ebuild),
+        group_dependencies(D0, Merged),
+        assertz(cache:memo_model(Repository, Ebuild, pdepend_grouped?{R}, Merged))
   ).
 
 memoized_search(model(dependency(Merged,fetchonly)):config?{R}, Repository://Ebuild) :-

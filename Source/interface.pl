@@ -59,6 +59,7 @@ interface:spec(S) :-
        [opt(update),    type(boolean),   default(false),       shortflags(['u']), longflags(['update']),    help('Update target package')],
        [opt(upgrade),   type(boolean),   default(false),                          longflags(['upgrade']),   help('Upgrade set (default: @world): first compute a fresh plan under --emptytree, then run depclean')],
        [opt(deep),      type(boolean),   default(false),       shortflags(['d']), longflags(['deep']),      help('Also consider dependencies')],
+       [opt(pdepend),   type(boolean),   default(false),                          longflags(['pdepend']),   help('Enable PDEPEND dependency handling (development/testing flag)')],
        [opt(delay_triggers), type(boolean), default(false),                        longflags(['delay-triggers']), help('Prover optimization: delay trigger construction (replaces old --deep prover behavior)')],
        [opt(emptytree), type(boolean),   default(false),       shortflags(['e']), longflags(['emptytree']), help('Pretend no other packages are installed')],
        [opt(buildpkg),  type(boolean),   default(false),       shortflags(['b']), longflags(['buildpkg']),  help('Build packages')],
@@ -126,6 +127,7 @@ interface:getenv(Name,Value) :-
 interface:process_flags:-
   interface:argv(Options,_),
   (lists:memberchk(deep(true),      Options) -> asserta(preference:local_flag(deep))            ; true),
+  (lists:memberchk(pdepend(true),   Options) -> asserta(preference:local_flag(pdepend))         ; true),
   (lists:memberchk(delay_triggers(true), Options) -> asserta(preference:local_flag(delay_triggers)) ; true),
   (lists:memberchk(emptytree(true), Options) -> asserta(preference:local_flag(emptytree))       ; true),
   (lists:memberchk(depclean(true),  Options) -> asserta(preference:local_flag(depclean))        ; true),
