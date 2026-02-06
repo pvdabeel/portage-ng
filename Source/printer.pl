@@ -4759,21 +4759,15 @@ printer:prove_plan_with_pdepend(Goals0, ProofAVL, ModelAVL, Plan, TriggersAVL) :
     ( NewGoals == [] ->
         printer:pdepend_perf_add(Pass1Ms, ExtractMs, 0, 0, 0),
         ProofAVL = Proof0, ModelAVL = Model0, Plan = Plan0, TriggersAVL = Trig0
-    ; statistics(walltime, [T4,_]),
-      % Incremental pass: only prove the newly discovered PDEPEND goals on top of
-      % the existing proof/model/triggers. This avoids re-proving the entire
-      % dependency closure of Goals0, which is the main cost of a second pass.
-      prover:prove(NewGoals,
-                   Proof0, Proof1,
-                   Model0, Model1,
-                   Constraints0, _Constraints1,
-                   Trig0, Trig1),
-      planner:plan(Proof1, Trig1, t, Plan1, Remainder1),
-      scheduler:schedule(Proof1, Trig1, Plan1, Remainder1, Plan, _Remainder2),
+    ; append(Goals0, NewGoals, Goals1),
+      statistics(walltime, [T4,_]),
+      % IMPORTANT: pass_2 must allow global backtracking across the whole solve.
+      % Therefore we re-prove the full goal set (Goals0 ++ NewGoals) rather than
+      % proving only NewGoals on top of the existing proof.
+      printer:prove_plan_basic(Goals1, ProofAVL, ModelAVL, Plan, TriggersAVL),
       statistics(walltime, [T5,_]),
       Pass2Ms is T5 - T4,
-      printer:pdepend_perf_add(Pass1Ms, ExtractMs, Pass2Ms, 1, NewGoalsCount),
-      ProofAVL = Proof1, ModelAVL = Model1, TriggersAVL = Trig1
+      printer:pdepend_perf_add(Pass1Ms, ExtractMs, Pass2Ms, 1, NewGoalsCount)
     )
   ).
 
