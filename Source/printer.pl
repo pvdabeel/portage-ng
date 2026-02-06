@@ -4710,7 +4710,7 @@ printer:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
 printer:prove_plan_with_pdepend(Goals0, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
   printer:prove_plan_with_pdepend_(Goals0, 0, 5, ProofAVL, ModelAVL, Plan, TriggersAVL).
 
-printer:prove_plan_with_pdepend_(Goals, _Iter, _MaxIter, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
+printer:prove_plan_with_pdepend_(Goals, Iter, MaxIter, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
   printer:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL),
   printer:pdepend_goals_from_plan(Plan, PdependGoals),
   ( PdependGoals == [] ->
@@ -4720,11 +4720,11 @@ printer:prove_plan_with_pdepend_(Goals, _Iter, _MaxIter, ProofAVL, ModelAVL, Pla
     subtract(PdependU, GoalsU, NewGoals),
     ( NewGoals == [] ->
         true
-    ; _Iter >= _MaxIter ->
+    ; Iter >= MaxIter ->
         true
-    ; Iter1 is _Iter + 1,
+    ; Iter1 is Iter + 1,
       append(Goals, NewGoals, Goals1),
-      printer:prove_plan_with_pdepend_(Goals1, Iter1, _MaxIter, ProofAVL, ModelAVL, Plan, TriggersAVL)
+      printer:prove_plan_with_pdepend_(Goals1, Iter1, MaxIter, ProofAVL, ModelAVL, Plan, TriggersAVL)
     )
   ),
   !.
