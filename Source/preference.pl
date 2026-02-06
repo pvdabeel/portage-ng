@@ -312,6 +312,53 @@ preference:profile_use_terms(Terms) :-
 preference:profile_override_use(minus(introspection)).
 preference:profile_override_use(minus(launcher)).
 
+% -----------------------------------------------------------------------------
+%  Fallback: derive *_SINGLE_TARGET from *_TARGETS
+% -----------------------------------------------------------------------------
+%
+% Portage profiles typically define RUBY_SINGLE_TARGET / PYTHON_SINGLE_TARGET etc.
+% In parity/sandbox environments we may not have those profile defaults available.
+% Many ebuilds gate deps on e.g. ruby_single_target_ruby33, so leaving it unset can
+% cause large dependency/model divergences.
+%
+% We therefore derive a single target from the corresponding *_TARGETS setting
+% (if any) *only when* no explicit single target was set by env/profile/overrides.
+
+preference:any_local_use_prefix(Prefix) :-
+  atom(Prefix),
+  atom_concat(Prefix, '_', PrefixUnderscore),
+  preference:local_use(U),
+  atom(U),
+  sub_atom(U, 0, _, _, PrefixUnderscore),
+  !.
+
+preference:last_env_token(Atom, Token) :-
+  atom(Atom),
+  Atom \== '',
+  split_string(Atom, " ", " \t\n", Parts0),
+  exclude(=(""), Parts0, Parts),
+  Parts \== [],
+  last(Parts, LastS),
+  atom_string(Token, LastS),
+  Token \== ''.
+
+preference:maybe_derive_ruby_single_target :-
+  ( preference:getenv('RUBY_SINGLE_TARGET', Atom),
+    Atom \== '' ->
+      true
+  ; preference:any_local_use_prefix(ruby_single_target) ->
+      true
+  ; preference:getenv('RUBY_TARGETS', TargetsAtom),
+    TargetsAtom \== '',
+    preference:last_env_token(TargetsAtom, Token),
+    atomic_list_concat([ruby_single_target, Token], '_', Use),
+    ( preference:local_env_use(Use) -> true ; assertz(preference:local_env_use(Use)) ),
+    ( preference:local_use(Use)     -> true ; assertz(preference:local_use(Use)) )
+  ),
+  !.
+preference:maybe_derive_ruby_single_target :-
+  true.
+
 preference:init :-
 
   % Reset derived state (important when regenerating lots of plans in one session).
@@ -367,6 +414,9 @@ preference:init :-
          ; Use = Term,
            (preference:local_use(minus(Use)) ; assertz(preference:local_use(Use)))
          )),
+
+  % Derive a Ruby single target if not set by env/profile.
+  catch(preference:maybe_derive_ruby_single_target, _, true),
 
   % 2. Set accept_keywords
   %
