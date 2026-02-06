@@ -4732,26 +4732,107 @@ printer:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
   planner:plan(ProofAVL, TriggersAVL, t, Plan0, Remainder0),
   scheduler:schedule(ProofAVL, TriggersAVL, Plan0, Remainder0, Plan, _Remainder).
 
+% As prove_plan_basic/5, but also returns Constraints so we can incrementally
+% extend a proof/model without re-proving the whole goal set.
+printer:prove_plan_basic_with_constraints(Goals, ProofAVL, ModelAVL, Constraints, Plan, TriggersAVL) :-
+  prover:prove(Goals, t, ProofAVL, t, ModelAVL, t, Constraints, t, TriggersAVL),
+  planner:plan(ProofAVL, TriggersAVL, t, Plan0, Remainder0),
+  scheduler:schedule(ProofAVL, TriggersAVL, Plan0, Remainder0, Plan, _Remainder).
+
 printer:prove_plan_with_pdepend(Goals0, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
   % Keep this bounded: one expansion + one re-prove.
-  printer:prove_plan_basic(Goals0, Proof0, Model0, Plan0, Trig0),
+  statistics(walltime, [T0,_]),
+  printer:prove_plan_basic_with_constraints(Goals0, Proof0, Model0, Constraints0, Plan0, Trig0),
+  statistics(walltime, [T1,_]),
+  Pass1Ms is T1 - T0,
+  statistics(walltime, [T2,_]),
   printer:pdepend_goals_from_plan(Plan0, PdependGoals),
+  statistics(walltime, [T3,_]),
+  ExtractMs is T3 - T2,
   ( PdependGoals == [] ->
+      printer:pdepend_perf_add(Pass1Ms, ExtractMs, 0, 0, 0),
       ProofAVL = Proof0, ModelAVL = Model0, Plan = Plan0, TriggersAVL = Trig0
   ; sort(Goals0, GoalsU),
     sort(PdependGoals, PdepU),
     subtract(PdepU, GoalsU, NewGoals),
+    length(NewGoals, NewGoalsCount),
     ( NewGoals == [] ->
+        printer:pdepend_perf_add(Pass1Ms, ExtractMs, 0, 0, 0),
         ProofAVL = Proof0, ModelAVL = Model0, Plan = Plan0, TriggersAVL = Trig0
-    ; append(Goals0, NewGoals, Goals1),
-      printer:prove_plan_basic(Goals1, ProofAVL, ModelAVL, Plan, TriggersAVL)
+    ; statistics(walltime, [T4,_]),
+      % Incremental pass: only prove the newly discovered PDEPEND goals on top of
+      % the existing proof/model/triggers. This avoids re-proving the entire
+      % dependency closure of Goals0, which is the main cost of a second pass.
+      prover:prove(NewGoals,
+                   Proof0, Proof1,
+                   Model0, Model1,
+                   Constraints0, _Constraints1,
+                   Trig0, Trig1),
+      planner:plan(Proof1, Trig1, t, Plan1, Remainder1),
+      scheduler:schedule(Proof1, Trig1, Plan1, Remainder1, Plan, _Remainder2),
+      statistics(walltime, [T5,_]),
+      Pass2Ms is T5 - T4,
+      printer:pdepend_perf_add(Pass1Ms, ExtractMs, Pass2Ms, 1, NewGoalsCount),
+      ProofAVL = Proof1, ModelAVL = Model1, TriggersAVL = Trig1
     )
   ).
+
+% -----------------------------------------------------------------------------
+%  PDEPEND perf counters (cheap, global, cross-thread)
+% -----------------------------------------------------------------------------
+%
+% We use SWI's `flag/3` for cross-thread atomic counters with minimal contention.
+% These counters are meant for whole-repo performance runs (e.g. prover:test/1),
+% so they are reset/reported by the caller (see prover:test/*).
+%
+% Units:
+% - *_ms sums are walltime deltas in milliseconds.
+
+printer:pdepend_perf_reset :-
+  flag(pdepend_perf_entries, _OldE, 0),
+  flag(pdepend_perf_pass1_ms, _OldP1, 0),
+  flag(pdepend_perf_extract_ms, _OldEx, 0),
+  flag(pdepend_perf_pass2_ms, _OldP2, 0),
+  flag(pdepend_perf_second_pass_entries, _OldS, 0),
+  flag(pdepend_perf_new_goals, _OldNg, 0),
+  !.
+
+printer:pdepend_perf_add(Pass1Ms, ExtractMs, Pass2Ms, DidSecondPass, NewGoalsCount) :-
+  flag(pdepend_perf_entries, E0, E0+1),
+  flag(pdepend_perf_pass1_ms, P10, P10+Pass1Ms),
+  flag(pdepend_perf_extract_ms, Ex0, Ex0+ExtractMs),
+  flag(pdepend_perf_pass2_ms, P20, P20+Pass2Ms),
+  flag(pdepend_perf_second_pass_entries, S0, S0+DidSecondPass),
+  flag(pdepend_perf_new_goals, Ng0, Ng0+NewGoalsCount),
+  !.
+
+printer:pdepend_perf_report :-
+  flag(pdepend_perf_entries, E, E),
+  ( E =:= 0 ->
+      true
+  ; flag(pdepend_perf_pass1_ms, P1, P1),
+    flag(pdepend_perf_extract_ms, Ex, Ex),
+    flag(pdepend_perf_pass2_ms, P2, P2),
+    flag(pdepend_perf_second_pass_entries, S, S),
+    flag(pdepend_perf_new_goals, Ng, Ng),
+    AvgP1 is P1 / E,
+    AvgEx is Ex / E,
+    AvgP2 is P2 / E,
+    AvgNg is Ng / E,
+    message:scroll_notice(['PDEPEND perf: entries=',E,
+                           ' pass1_ms_sum=',P1,' avg=',AvgP1,
+                           ' extract_ms_sum=',Ex,' avg=',AvgEx,
+                           ' pass2_ms_sum=',P2,' avg=',AvgP2,
+                           ' pass2_entries=',S,
+                           ' new_goals_sum=',Ng,' avg=',AvgNg])
+  ),
+  !.
 
 % (Old multi-iteration fixpoint removed: it can explode on large ecosystems.)
 
 % Collect PDEPEND grouped-dependency goals for every merged entry in the current plan.
 printer:pdepend_goals_from_plan(Plan, Goals) :-
+  printer:plan_merged_cn_sets(Plan, MergedCNSet, MergedCNSlotSet),
   findall(Gs,
           ( printer:plan_merge_anchor(Plan, Repo://Entry, AnchorCore, ActionCtx),
             % Build dependency-model key for this entry, seeded from the action context's build_with_use.
@@ -4763,13 +4844,84 @@ printer:pdepend_goals_from_plan(Plan, Goals) :-
                 query:memoized_search(model(dependency(Pdeps0, pdepend)):config?{ModelKey}, Repo://Entry),
                 rules:add_self_to_dep_contexts(Repo://Entry, Pdeps0, Pdeps1),
                 rules:add_after_only_to_dep_contexts(AnchorCore, Pdeps1, Pdeps),
-                Gs = Pdeps
+                % Many PDEPEND edges point to packages already present in the current plan's
+                % merge set (from RDEPEND/DEPEND closure). Avoid adding such redundant goals,
+                % as they would force an expensive second prove pass without changing the plan.
+                printer:filter_redundant_pdepend_goals(MergedCNSet, MergedCNSlotSet, Pdeps, Gs)
             ; Gs = []
             )
           ),
           Nested),
   append(Nested, Flat0),
   sort(Flat0, Goals).
+
+% Build fast lookup sets for CNs (and CN+Slot) already being merged in the plan.
+printer:plan_merged_cn_sets(Plan, CNSet, CNSlotSet) :-
+  findall(key(C,N),
+          ( printer:plan_merge_anchor(Plan, Repo://Entry, _AnchorCore, _Ctx),
+            printer:entry_cn(Repo, Entry, C, N)
+          ),
+          CNKeys0),
+  sort(CNKeys0, CNKeys),
+  printer:keys_to_set_assoc(CNKeys, CNSet),
+  findall(key(C,N,Slot),
+          ( printer:plan_merge_anchor(Plan, Repo://Entry, _AnchorCore2, _Ctx2),
+            printer:entry_cn(Repo, Entry, C, N),
+            rules:entry_slot_default(Repo, Entry, Slot)
+          ),
+          CNSlotKeys0),
+  sort(CNSlotKeys0, CNSlotKeys),
+  printer:keys_to_set_assoc(CNSlotKeys, CNSlotSet).
+
+printer:keys_to_set_assoc(Keys, Assoc) :-
+  empty_assoc(A0),
+  foldl(printer:assoc_set_put, Keys, A0, Assoc).
+
+printer:assoc_set_put(Key, A0, A) :-
+  ( get_assoc(Key, A0, _) ->
+      A = A0
+  ; put_assoc(Key, A0, true, A)
+  ).
+
+printer:entry_cn(Repo, Entry, C, N) :-
+  ( cache:ordered_entry(Repo, Entry, C, N, _) ->
+      true
+  ; query:search([category(C),name(N)], Repo://Entry)
+  ),
+  !.
+
+printer:filter_redundant_pdepend_goals(_CNSet, _CNSlotSet, [], []) :- !.
+printer:filter_redundant_pdepend_goals(CNSet, CNSlotSet, Goals0, Goals) :-
+  ( is_list(Goals0) ->
+      include(printer:pdepend_goal_needed(CNSet, CNSlotSet), Goals0, Goals)
+  ; Goals = Goals0
+  ),
+  !.
+
+printer:pdepend_goal_needed(CNSet, CNSlotSet, Goal) :-
+  ( rules:dep_cn(Goal, C, N) ->
+      ( printer:goal_specific_slot(Goal, Slot) ->
+          \+ get_assoc(key(C,N,Slot), CNSlotSet, _)
+      ; \+ get_assoc(key(C,N), CNSet, _)
+      )
+  ; true
+  ).
+
+% If a grouped dependency expresses an explicit SLOT requirement, extract it.
+% We only use this to make the redundancy filter more conservative: we drop a goal
+% only if the plan already merges the same (C,N,Slot).
+printer:goal_specific_slot(grouped_package_dependency(_,C,N,PackageDeps):_Action?{_Ctx}, Slot) :-
+  member(package_dependency(_Phase,_Strength,C,N,_O,_V,SlotReq,_U), PackageDeps),
+  is_list(SlotReq),
+  member(slot(S0), SlotReq),
+  rules:canon_slot(S0, Slot),
+  !.
+printer:goal_specific_slot(grouped_package_dependency(C,N,PackageDeps):_Action?{_Ctx}, Slot) :-
+  member(package_dependency(_Phase,_Strength,C,N,_O,_V,SlotReq,_U), PackageDeps),
+  is_list(SlotReq),
+  member(slot(S0), SlotReq),
+  rules:canon_slot(S0, Slot),
+  !.
 
 % A merge anchor is any action that results in a package being merged.
 % We anchor PDEPEND after the merge action (install/update/reinstall).

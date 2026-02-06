@@ -1128,6 +1128,10 @@ prover:test(Repository) :-
 prover:test(Repository,Style) :-
   config:proving_target(Action0),
   prover:test_action(Action0, Action),
+  ( preference:flag(pdepend) ->
+      printer:pdepend_perf_reset
+  ; true
+  ),
   tester:test(Style,
               'Proving',
               Repository://Entry,
@@ -1149,7 +1153,11 @@ prover:test(Repository,Style) :-
                     )
                   )
                 )
-              )).
+              )),
+  ( preference:flag(pdepend) ->
+      printer:pdepend_perf_report
+  ; true
+  ).
 
 %! prover:test_latest(+Repository)
 prover:test_latest(Repository) :-
