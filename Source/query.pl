@@ -1004,10 +1004,13 @@ compile_query_compound(model(dependency(Model,pdepend)):config?{Context}, Repo:/
   sort(Deps, DepsU),
   prover:with_delay_triggers(
     prover:prove_model(DepsU, t, AvlModel, t, _ConsOut, t)),
-  findall(Fact:Phase?{CtxOut},
+  % Tag PDEPEND dependencies as :run actions, so the grouped dependency resolver
+  % (`grouped_package_dependency/4`) can resolve them. The *dependency phase* is
+  % carried by the package_dependency(pdepend, ...) term and will be preserved
+  % by grouping, so pdepend edges remain distinguishable from regular runtime deps.
+  findall(Fact:run?{CtxOut},
           ( gen_assoc(Fact:_,AvlModel,CtxIn),
             Fact =.. [package_dependency|_],
-            Fact =.. [package_dependency,Phase|_],
             ( CtxIn == {} -> CtxOut = [] ; CtxOut = CtxIn )
           ),
           Model) ) ) :- !.

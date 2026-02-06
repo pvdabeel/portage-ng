@@ -190,7 +190,7 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
   ; query:search(installed(true),Repository://Ebuild),
     \+ preference:flag(emptytree) ->
       Conditions = []  % todo check new build_with_use requirements
-  ; rules:ctx_take_after(Context, After, Context1),
+  ; rules:ctx_take_after_with_mode(Context, After, AfterForDeps, Context1),
 
     % 1. Get some metadata we need further down
 
@@ -213,7 +213,19 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
       % 4. Compute + memoize dependency model, already grouped by package Category & Name.
       query:memoized_search(model(dependency(MergedDeps0,install)):config?{Model},Repository://Ebuild),
       add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
-      rules:add_after_to_dep_contexts(After, MergedDeps, MergedDepsAfter),
+      rules:add_after_to_dep_contexts(AfterForDeps, MergedDeps, MergedDepsAfter),
+
+      % 4b. Optional: Portage-like PDEPEND (runtime_post) edges.
+      % We add them as :run goals, but tag them with after_only(Repository://Ebuild:install)
+      % so they can be delayed to break cycles without propagating ordering into
+      % the post-dependency's own closure.
+      ( preference:flag(pdepend),
+        cache:entry_metadata(Repository, Ebuild, pdepend, _) ->
+          query:memoized_search(model(dependency(PdependDeps0,pdepend)):config?{Model}, Repository://Ebuild),
+          add_self_to_dep_contexts(Repository://Ebuild, PdependDeps0, PdependDeps1),
+          rules:add_after_only_to_dep_contexts(Repository://Ebuild:install, PdependDeps1, PdependDeps)
+      ; PdependDeps = []
+      ),
 
       % 5. Pass on relevant package dependencies and constraints to prover
       ( memberchk(C,['virtual','acct-group','acct-user']) ->
@@ -221,7 +233,8 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
                       constraint(use(Repository://Ebuild):{R}),
                       constraint(slot(C,N,S):{Ebuild})
                     ],
-          append(Prefix0, MergedDepsAfter, Conditions0)
+          append(Prefix0, PdependDeps, Prefix1),
+          append(Prefix1, MergedDepsAfter, Conditions0)
       ; ( After == none ->
             DownloadCtx0 = [required_use:R,build_with_use:B]
         ; DownloadCtx0 = [after(After),required_use:R,build_with_use:B]
@@ -231,7 +244,8 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
                     constraint(slot(C,N,S):{Ebuild}),
                     Repository://Ebuild:download?{DownloadCtx0}
                   ],
-        append(Prefix0, MergedDepsAfter, Conditions0)
+        append(Prefix0, PdependDeps, Prefix1),
+        append(Prefix1, MergedDepsAfter, Conditions0)
       ),
       ( After == none -> Conditions = Conditions0 ; Conditions = [After|Conditions0] )
     ; % Conflict fallback
@@ -264,13 +278,13 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) ->
     ( config:avoid_reinstall(true) ->
         Conditions = []
-    ; rules:ctx_take_after(Context, After0, Context10),
+    ; rules:ctx_take_after_with_mode(Context, After0, _AfterForDeps0, Context10),
       Cond0 = [Repository://Ebuild:reinstall?{Context10}],
       ( After0 == none -> Conditions = Cond0 ; Conditions = [After0|Cond0] )
     )
   ; % todo check new build_with_use requirements
 
-  rules:ctx_take_after(Context, After, Context1),
+  rules:ctx_take_after_with_mode(Context, After, AfterForDeps, Context1),
 
   % 1. Get some metadata we need further down
 
@@ -294,7 +308,7 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
 
   query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model},Repository://Ebuild),
   add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
-  rules:add_after_to_dep_contexts(After, MergedDeps, MergedDepsAfter),
+  rules:add_after_to_dep_contexts(AfterForDeps, MergedDeps, MergedDepsAfter),
 
   % 5. Pass on relevant package dependencies and constraints to prover
 
@@ -348,6 +362,26 @@ rules:ctx_take_after(Context0, After, Context) :-
   ),
   !.
 
+% Extract an optional "after/1" or "after_only/1" marker from a context list.
+% For after_only/1 we return AfterForDeps = none, so ordering does not propagate
+% into the dependency closure of the goal.
+rules:ctx_take_after_with_mode(Context0, After, AfterForDeps, Context) :-
+  ( is_list(Context0),
+    memberchk(after_only(After1), Context0) ->
+      After = After1,
+      AfterForDeps = none,
+      findall(X, (member(X, Context0), \+ X = after(_), \+ X = after_only(_)), Context)
+  ; is_list(Context0),
+    memberchk(after(After1), Context0) ->
+      After = After1,
+      AfterForDeps = After1,
+      findall(X, (member(X, Context0), \+ X = after(_), \+ X = after_only(_)), Context)
+  ; After = none,
+    AfterForDeps = none,
+    Context = Context0
+  ),
+  !.
+
 % Strip planning-only markers that should not affect dependency-model memoization.
 rules:ctx_strip_planning(Context0, Context) :-
   ( is_list(Context0) ->
@@ -383,6 +417,33 @@ rules:ctx_add_after(Ctx0, After, Ctx) :-
       findall(X, (member(X, Ctx0), \+ X = after(_)), Ctx1),
       Ctx = [after(After)|Ctx1]
   ; Ctx = [after(After)]
+  ),
+  !.
+
+% Thread an "after_only/1" marker into dependency contexts (and keep it stable).
+% This enforces ordering for the goal itself, without propagating the ordering
+% marker into its own dependency closure.
+rules:add_after_only_to_dep_contexts(_After, [], []) :- !.
+rules:add_after_only_to_dep_contexts(After, Deps0, Deps) :-
+  is_list(Deps0),
+  !,
+  findall(D,
+          ( member(D0, Deps0),
+            ( D0 = Term:Action?{Ctx0} ->
+                rules:ctx_add_after_only(Ctx0, After, Ctx),
+                D = Term:Action?{Ctx}
+            ; D = D0
+            )
+          ),
+          Deps).
+rules:add_after_only_to_dep_contexts(_After, Deps, Deps).
+
+rules:ctx_add_after_only(Ctx0, After, Ctx) :-
+  ( is_list(Ctx0) ->
+      % Keep only one planning marker (after/1 or after_only/1).
+      findall(X, (member(X, Ctx0), \+ X = after(_), \+ X = after_only(_)), Ctx1),
+      Ctx = [after_only(After)|Ctx1]
+  ; Ctx = [after_only(After)]
   ),
   !.
 
@@ -2800,6 +2861,15 @@ rules:update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
   query:memoized_search(model(dependency(MergedDeps0,install)):config?{Model},Repository://Ebuild),
   add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
 
+  % 2b. Optional: Portage-like PDEPEND (runtime_post) edges (update action anchor).
+  ( preference:flag(pdepend),
+    cache:entry_metadata(Repository, Ebuild, pdepend, _) ->
+      query:memoized_search(model(dependency(PdependDeps0,pdepend)):config?{Model}, Repository://Ebuild),
+      add_self_to_dep_contexts(Repository://Ebuild, PdependDeps0, PdependDeps1),
+      rules:add_after_only_to_dep_contexts(Repository://Ebuild:update, PdependDeps1, PdependDeps)
+  ; PdependDeps = []
+  ),
+
   % Optional: deep update means "also update dependency packages".
   % We model this by scheduling update goals for any installed dependency package
   % that appears in the dependency model.
@@ -2814,12 +2884,14 @@ rules:update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
     -> Base0 = [ constraint(use(Repository://Ebuild):{R}),
                  constraint(slot(CNew,NNew,SAll):{Ebuild})
                  |DeepUpdates],
-       append(Base0, MergedDeps, Conditions)
+       append(Base0, PdependDeps, Base1),
+       append(Base1, MergedDeps, Conditions)
     ;  Base0 = [ constraint(use(Repository://Ebuild):{R}),
                  constraint(slot(CNew,NNew,SAll):{Ebuild}),
                  Repository://Ebuild:download?{[required_use:R,build_with_use:B]}
                  |DeepUpdates],
-       append(Base0, MergedDeps, Conditions)
+       append(Base0, PdependDeps, Base1),
+       append(Base1, MergedDeps, Conditions)
   ).
 
 % Collect update goals for installed dependency packages from a grouped dependency model.
