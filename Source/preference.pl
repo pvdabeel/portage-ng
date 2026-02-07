@@ -732,11 +732,16 @@ preference:mask_profile_atom(Atom) :-
   ; % Slow path: attempt to parse versioned atoms
     atom_codes(Atom, Codes),
     catch(phrase(eapi:qualified_target(Q), Codes), _, fail),
-    Q = qualified_target(Op, _Repo, C, N, Ver, _Filters),
+    Q = qualified_target(Op, _Repo, C, N, Ver, Filters),
     nonvar(C), nonvar(N) ->
+      % Avoid over-masking: if the mask atom contains USE deps, we currently
+      % don't model those at init time, so skip it rather than masking all.
+      % (Slot restrictions *are* supported below.)
+      ( Filters = [SlotReq,UseReq], UseReq == [] -> true ; SlotReq = [] ),
       forall(cache:ordered_entry(portage, Id, C, N, _),
              ( cache:ordered_entry(portage, Id, C, N, ProposedVersion),
-               ( preference:version_match(Op, ProposedVersion, Ver) ->
+               ( preference:version_match(Op, ProposedVersion, Ver),
+                 preference:slot_req_match_(SlotReq, portage, Id) ->
                  assertz(preference:masked(portage://Id))
                ; true
                )))
@@ -757,15 +762,30 @@ preference:unmask_profile_atom(Atom) :-
     preference:unmask_catpkg_atom(Atom)
   ; atom_codes(Atom, Codes),
     catch(phrase(eapi:qualified_target(Q), Codes), _, fail),
-    Q = qualified_target(Op, _Repo, C, N, Ver, _Filters),
+    Q = qualified_target(Op, _Repo, C, N, Ver, Filters),
     nonvar(C), nonvar(N) ->
+      ( Filters = [SlotReq,UseReq], UseReq == [] -> true ; SlotReq = [] ),
       forall(cache:ordered_entry(portage, Id, C, N, _),
              ( cache:ordered_entry(portage, Id, C, N, ProposedVersion),
-               ( preference:version_match(Op, ProposedVersion, Ver) ->
+               ( preference:version_match(Op, ProposedVersion, Ver),
+                 preference:slot_req_match_(SlotReq, portage, Id) ->
                  retractall(preference:masked(portage://Id))
                ; true
                )))
   ; true.
+
+% Slot restriction matcher for profile package.mask atoms.
+% Filters come from eapi:qualified_target/1 as [SlotReq,UseDeps].
+preference:slot_req_match_([], _Repo, _Id) :- !.
+preference:slot_req_match_([slot(S0)], Repo, Id) :-
+  !,
+  cache:entry_metadata(Repo, Id, slot, slot(S0)).
+% Conservatively treat any_same_slot/any_different_slot as "match any slot" for
+% package.mask atoms; these forms are primarily meaningful in dependency edges.
+preference:slot_req_match_([any_same_slot], _Repo, _Id) :- !.
+preference:slot_req_match_([any_different_slot], _Repo, _Id) :- !.
+% Unknown/complex slot req (e.g. subslot/equal): do not match to avoid over-masking.
+preference:slot_req_match_(_Other, _Repo, _Id) :- fail.
 
 % Match an ebuild version against a profile atom comparator.
 % This is used by profile package.mask/package.unmask processing.

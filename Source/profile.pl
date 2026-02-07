@@ -214,8 +214,20 @@ profile_implicit_parent_dir(Dir, ParentDir) :-
 parent_file(Dir, ParentFile) :-
   os:compose_path(Dir, 'parent', ParentFile).
 
+% Global (tree-wide) package.mask and package.unmask live under profiles/.
+global_package_mask_file(File) :-
+  profiles_root(Root),
+  os:compose_path(Root, 'package.mask', File).
+
+global_package_unmask_file(File) :-
+  profiles_root(Root),
+  os:compose_path(Root, 'package.unmask', File).
+
 package_mask_file(Dir, File) :-
   os:compose_path(Dir, 'package.mask', File).
+
+package_unmask_file(Dir, File) :-
+  os:compose_path(Dir, 'package.unmask', File).
 
 % Strip '#' comments (Gentoo profile file style).
 profile_strip_comment(S0, S) :-
@@ -242,6 +254,21 @@ profile_parent_dir(ChildDir, ParentRel0, Seen0, Seen) :-
 % -----------------------------------------------------------------------------
 % Internal: parse profile files
 % -----------------------------------------------------------------------------
+
+% Read a package.mask/package.unmask style file and return its atoms in order.
+% Keeps leading '-' for incremental unmask operations.
+profile_read_atoms_file(File, Atoms) :-
+  read_file_to_string(File, S, []),
+  split_string(S, "\n", "\r\n", Lines0),
+  findall(A,
+          ( member(L0, Lines0),
+            profile_strip_comment(L0, L1),
+            normalize_space(string(L), L1),
+            L \== '',
+            \+ profile_comment_or_empty(L),
+            atom_string(A, L)
+          ),
+          Atoms).
 
 profile_collect(Dirs, st(Enabled, Disabled, Force, Mask)) :-
   foldl(profile_collect_dir, Dirs, st([], [], [], []), st(Enabled, Disabled, Force, Mask)).
