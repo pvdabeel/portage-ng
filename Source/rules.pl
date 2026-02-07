@@ -1036,7 +1036,12 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
     findall(U0, member(package_dependency(_P0,no,C,N,_O,_V,_,U0),PackageDeps1), MergedUse0),
     append(MergedUse0, MergedUse),
     process_build_with_use(MergedUse, Context, ContextWU, _BWUCons, pkg://InstalledEntry),
-    rules:installed_entry_satisfies_build_with_use(pkg://InstalledEntry, ContextWU),
+    % Portage does not rebuild virtuals based on USE deps: virtuals are satisfied
+    % by their provider packages; rebuilding the virtual itself is a no-op.
+    ( C == 'virtual'
+    -> true
+    ; rules:installed_entry_satisfies_build_with_use(pkg://InstalledEntry, ContextWU)
+    ),
     % --newuse: do not "keep installed" if USE/IUSE has changed since the installed
     % package was built (Portage-like -N behavior).
     ( preference:flag(newuse) ->
@@ -1151,7 +1156,8 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
           ( current_predicate(config:avoid_reinstall/1),
             config:avoid_reinstall(true) ->
               fail
-          ; \+ rules:installed_entry_satisfies_build_with_use(pkg://InstalledEntry2, NewerContext)
+          ; C \== 'virtual',
+            \+ rules:installed_entry_satisfies_build_with_use(pkg://InstalledEntry2, NewerContext)
           ) ->
             feature_unification:unify([replaces(pkg://InstalledEntry2),rebuild_reason(build_with_use)], NewerContext, UpdateCtx)
         ; % --newuse: force a transactional rebuild even if version is the same,
@@ -2756,11 +2762,18 @@ process_slot(_, Slot, C, N, _Repository://Candidate, Context0, Context) :-
 % Instead, keep at most ONE `build_with_use/1` term in the context and merge
 % new directives into it.
 process_build_with_use(Directives, Context0, Context, Conditions, Candidate) :-
-    ( select(build_with_use:Prev0, Context0, Context1) ->
-        rules:normalize_build_with_use(Prev0, PrevState)
-    ; rules:empty_use_state(PrevState),
-      Context1 = Context0
-    ),
+    % IMPORTANT (correctness):
+    % `build_with_use` is *per-package* USE state/constraints. When we descend from a
+    % parent package into a dependency, the child's build_with_use must NOT inherit
+    % the parent's build_with_use. Otherwise the parent's USE state (e.g. gui/widgets,
+    % abi_x86_*) incorrectly becomes a constraint on the dependency, which triggers
+    % Portage-divergent rebuilds (same-version "updates") and inflates plans.
+    %
+    % So: remove any build_with_use term from the incoming (parent) context and
+    % seed the child state from empty, then apply only the directives for *this*
+    % dependency edge.
+    ( select(build_with_use:_, Context0, Context1) -> true ; Context1 = Context0 ),
+    rules:empty_use_state(PrevState),
     foldl(rules:process_bwu_directive(Context0), Directives, PrevState, State0),
     rules:normalize_build_with_use(State0, State),
     ( State = use_state([], []) ->
