@@ -1,0 +1,19 @@
+{
+  "compute_time_s": 70.36143016815186,
+  "emerge_ok_pairs": 24423,
+  "generated_at_epoch": 1770496504.0705018,
+  "metrics": {
+    "cn_inter_total": 266725,
+    "cn_union_total": 268465,
+    "cnv_inter_total": 269382,
+    "cnv_union_total": 274765,
+    "cnvu_inter_total": 261770,
+    "cnvu_union_total": 282377,
+    "jaccard_cn": 0.9935187082114987,
+    "jaccard_cnv": 0.9804087129001147,
+    "jaccard_cnvu": 0.9270230932405968
+  },
+  "note": "Per-pair Jaccard totals; merge set considers install/update/reinstall actions. CNVU includes USE only when printed on that side.",
+  "pairs": 32012,
+  "root": "/Volumes/Storage/Graph/portage"
+}
