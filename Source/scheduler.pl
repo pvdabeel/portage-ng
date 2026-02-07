@@ -20,8 +20,11 @@ This scheduler computes strongly connected components (SCCs) on the remainder
 subgraph (Kosaraju) and can "act" only on SCCs that are safe to merge as a set.
 
 Policy:
-- SCCs consisting purely of :run literals are schedulable as merge sets.
-- Any SCC containing non-:run literals is treated as unschedulable; all rules
+- SCCs consisting purely of *mergeable* literals are schedulable as merge sets.
+  Mergeable literals are:
+  - :run (historical behavior)
+  - :install/:update/:reinstall (merge actions)
+- Any SCC containing other literal kinds is treated as unschedulable; all rules
   that (transitively) depend on such SCCs remain in the remainder.
 
 The scheduler does not mutate the prover's TriggersAVL; it derives SCC metadata
@@ -575,30 +578,44 @@ scheduler:compmap_put(Id, Node, In, Out) :-
   put_assoc(Node, In, Id, Out).
 
 % Component kind:
-% - merge_set: cyclic SCC of pure :run literals
-% - bad: cyclic SCC containing any non-:run literal
+% - merge_set: cyclic SCC of mergeable literals (:run or merge actions)
+% - bad: cyclic SCC containing any other literal kind
 % - single: singleton SCC with no self-loop
 scheduler:component_kind(Members, Forward, Kind) :-
   ( Members = [Only] ->
       ( scheduler:self_loop(Only, Forward) ->
-          ( scheduler:all_run(Members) -> Kind = merge_set ; Kind = bad )
+          ( scheduler:all_mergeable(Members) -> Kind = merge_set ; Kind = bad )
       ; Kind = single
       )
   ; % size > 1
-    ( scheduler:all_run(Members) -> Kind = merge_set ; Kind = bad )
+    ( scheduler:all_mergeable(Members) -> Kind = merge_set ; Kind = bad )
   ).
 
 scheduler:self_loop(Node, Forward) :-
   get_assoc(Node, Forward, Ns),
   memberchk(Node, Ns).
 
-scheduler:all_run([]).
-scheduler:all_run([H|T]) :-
-  scheduler:is_run_literal(H),
-  scheduler:all_run(T).
+scheduler:all_mergeable([]).
+scheduler:all_mergeable([H|T]) :-
+  scheduler:is_mergeable_literal(H),
+  scheduler:all_mergeable(T).
 
 scheduler:is_run_literal(_Repo://_Ebuild:run) :- !.
 scheduler:is_run_literal(_Something:run) :- !.
+
+% Merge actions that can be part of a merge set SCC.
+scheduler:is_merge_action_literal(_Repo://_Ebuild:install) :- !.
+scheduler:is_merge_action_literal(_Repo://_Ebuild:update) :- !.
+scheduler:is_merge_action_literal(_Repo://_Ebuild:reinstall) :- !.
+scheduler:is_merge_action_literal(_Something:install) :- !.
+scheduler:is_merge_action_literal(_Something:update) :- !.
+scheduler:is_merge_action_literal(_Something:reinstall) :- !.
+
+scheduler:is_mergeable_literal(H) :-
+  ( scheduler:is_run_literal(H)
+  ; scheduler:is_merge_action_literal(H)
+  ),
+  !.
 
 % Compute the set of components that are blocked (unschedulable):
 % - all 'bad' cyclic components
