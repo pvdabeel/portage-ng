@@ -427,9 +427,9 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
                       constraint(slot(C,N,S):{Ebuild})
                     ],
           append(Prefix0, MergedDepsAfter, Conditions0)
-      ; ( After == none ->
+      ; ( AfterForDeps == none ->
             DownloadCtx0 = [required_use:R,build_with_use:B]
-        ; DownloadCtx0 = [after(After),required_use:R,build_with_use:B]
+        ; DownloadCtx0 = [after(AfterForDeps),required_use:R,build_with_use:B]
         ),
         Prefix0 = [ Selected,
                     constraint(use(Repository://Ebuild):{R}),
