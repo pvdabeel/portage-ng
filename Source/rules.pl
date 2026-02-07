@@ -993,6 +993,27 @@ rules:with_assume_conflicts(Goal) :-
 %  Rule: Package dependencies
 % =============================================================================
 
+% IMPORTANT (Portage-like multi-slot deps):
+%
+% Some packages depend on *multiple* versions of the same cat/pkg simultaneously.
+% Portage can satisfy this when the package is multi-slot (versions live in
+% different SLOTs), e.g. `dev-dotnet/dotnet-runtime-nugets` where dotnet SDK
+% depends on several ~cat/pkg-ver constraints at once.
+%
+% Our dependency model groups deps by (C,N) which would otherwise attempt to pick
+% a *single* candidate satisfying all version constraints. When those constraints
+% are meant to be satisfied side-by-side (multi-slot), that is impossible and
+% degrades into "non-existent, assumed running".
+%
+% Split such grouped deps into independent requirements.
+rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions) :-
+  rules:should_split_grouped_dep(PackageDeps),
+  !,
+  findall(grouped_package_dependency(no, C, N, [D]):Action?{Context},
+          member(D, PackageDeps),
+          Conditions0),
+  sort(Conditions0, Conditions).
+
 rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions) :-
   !,
   % Lazy + guarded propagation of self-RDEPEND *version bounds* into build/install
@@ -1213,6 +1234,49 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       )
     )
   ).
+
+rules:all_deps_have_explicit_slot([]) :- !, fail.
+rules:all_deps_have_explicit_slot(Deps) :-
+  forall(member(package_dependency(_P,_Strength,_C,_N,_O,_V,SlotReq,_U), Deps),
+         SlotReq = [slot(_)]),
+  !.
+
+rules:multiple_distinct_slots(Deps) :-
+  findall(S,
+          member(package_dependency(_P,_Strength,_C,_N,_O,_V,[slot(S)],_U), Deps),
+          Slots0),
+  sort(Slots0, Slots),
+  Slots = [_|Rest],
+  Rest \== [],
+  !.
+
+rules:all_deps_exactish_versioned([]) :- !, fail.
+rules:all_deps_exactish_versioned(Deps) :-
+  forall(member(package_dependency(_P,_Strength,_C,_N,Op,Ver,SlotReq,_U), Deps),
+         ( SlotReq == [],
+           ( Op == tilde ; Op == equal ),
+           nonvar(Ver)
+         )),
+  !.
+
+rules:multiple_distinct_exactish_versions(Deps) :-
+  findall(Full,
+          ( member(package_dependency(_P,_Strength,_C,_N,_Op,Ver,_SlotReq,_U), Deps),
+            ( Ver = [_Nums,_A,_S,Full] -> true ; Full = Ver )
+          ),
+          Vs0),
+  sort(Vs0, Vs),
+  Vs = [_|Rest],
+  Rest \== [],
+  !.
+
+rules:should_split_grouped_dep(PackageDeps) :-
+  ( rules:all_deps_have_explicit_slot(PackageDeps),
+    rules:multiple_distinct_slots(PackageDeps)
+  ; rules:all_deps_exactish_versioned(PackageDeps),
+    rules:multiple_distinct_exactish_versions(PackageDeps)
+  ),
+  !.
 
 % -----------------------------------------------------------------------------
 %  Context helpers: drop diagnostic / per-package USE constraints
@@ -2166,13 +2230,29 @@ query_search_slot_constraint(SlotReq, RepoEntry, SlotMeta) :-
       query:search(select(slot,constraint([slot(S)]),SlotMeta), Repo://Id)
   ; SlotReq = [slot(S0),subslot(Ss)] ->
       rules:canon_slot(S0, S),
-      query:search(select(slot,constraint([slot(S),subslot(Ss)]),SlotMeta), Repo://Id)
+      ( query:search(select(slot,constraint([slot(S),subslot(Ss)]),SlotMeta), Repo://Id)
+      -> true
+      ; % Some cache entries don't record subslot explicitly (it is effectively
+        % the same as slot). Accept slot/subslot constraints in that case.
+        rules:canon_slot(Ss, Ss1),
+        Ss1 == S,
+        \+ cache:entry_metadata(Repo, Id, subslot, _),
+        query:search(select(slot,constraint([slot(S)]),_SlotMeta0), Repo://Id),
+        SlotMeta = [slot(S),subslot(Ss1)]
+      )
   ; SlotReq = [slot(S0),equal] ->
       rules:canon_slot(S0, S),
       query:search(select(slot,constraint([slot(S),equal]),SlotMeta), Repo://Id)
   ; SlotReq = [slot(S0),subslot(Ss),equal] ->
       rules:canon_slot(S0, S),
-      query:search(select(slot,constraint([slot(S),subslot(Ss),equal]),SlotMeta), Repo://Id)
+      ( query:search(select(slot,constraint([slot(S),subslot(Ss),equal]),SlotMeta), Repo://Id)
+      -> true
+      ; rules:canon_slot(Ss, Ss1),
+        Ss1 == S,
+        \+ cache:entry_metadata(Repo, Id, subslot, _),
+        query:search(select(slot,constraint([slot(S)]),_SlotMeta0), Repo://Id),
+        SlotMeta = [slot(S),subslot(Ss1),equal]
+      )
   ; SlotReq = [any_same_slot] ->
       query:search(select(slot,constraint([any_same_slot]),SlotMeta0), Repo://Id),
       rules:canon_any_same_slot_meta(SlotMeta0, SlotMeta)
