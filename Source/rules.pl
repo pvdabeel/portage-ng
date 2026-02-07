@@ -193,7 +193,8 @@ rules:literal_hook(Repo://Entry:Action?{_Ctx}, Model, HookKey, ExtraLits) :-
           ModelKey = [build_with_use:B],
           query:memoized_search(model(dependency(Pdeps0, pdepend)):config?{ModelKey}, Repo://Entry),
           rules:add_self_to_dep_contexts(Repo://Entry, Pdeps0, Pdeps1),
-          rules:add_after_only_to_dep_contexts(AnchorCore, Pdeps1, ExtraLits)
+          rules:drop_build_with_use_from_dep_contexts(Pdeps1, Pdeps2),
+          rules:add_after_only_to_dep_contexts(AnchorCore, Pdeps2, ExtraLits)
       ; flag(lit_hook_no_pdepend, NP0, NP0+1),
         HookKey = pdepend_none(AnchorCore),
         ExtraLits = []
@@ -214,7 +215,8 @@ rules:literal_hook(Repo://Entry:Action, Model, HookKey, ExtraLits) :-
           ModelKey = [build_with_use:B],
           query:memoized_search(model(dependency(Pdeps0, pdepend)):config?{ModelKey}, Repo://Entry),
           rules:add_self_to_dep_contexts(Repo://Entry, Pdeps0, Pdeps1),
-          rules:add_after_only_to_dep_contexts(AnchorCore, Pdeps1, ExtraLits)
+          rules:drop_build_with_use_from_dep_contexts(Pdeps1, Pdeps2),
+          rules:add_after_only_to_dep_contexts(AnchorCore, Pdeps2, ExtraLits)
       ; flag(lit_hook_no_pdepend, NP0, NP0+1),
         HookKey = pdepend_none(AnchorCore),
         ExtraLits = []
@@ -636,6 +638,22 @@ rules:add_after_only_to_dep_contexts(After, Deps0, Deps) :-
           ),
           Deps).
 rules:add_after_only_to_dep_contexts(_After, Deps, Deps).
+
+% Drop `build_with_use` from dependency contexts.
+% For PDEPEND expansion we use build_with_use only as a memoization key, not as
+% a semantic constraint on the PDEPEND targets themselves.
+rules:drop_build_with_use_from_dep_contexts([], []) :- !.
+rules:drop_build_with_use_from_dep_contexts([D0|Rest0], [D|Rest]) :-
+  !,
+  rules:drop_build_with_use_from_dep_context(D0, D),
+  rules:drop_build_with_use_from_dep_contexts(Rest0, Rest).
+rules:drop_build_with_use_from_dep_contexts(Deps, Deps).
+
+rules:drop_build_with_use_from_dep_context(Dep0:Act?{Ctx0}, Dep:Act?{Ctx}) :-
+  !,
+  Dep = Dep0,
+  rules:ctx_drop_build_with_use(Ctx0, Ctx).
+rules:drop_build_with_use_from_dep_context(Other, Other).
 
 rules:ctx_add_after_only(Ctx0, After, Ctx) :-
   ( is_list(Ctx0) ->
@@ -1082,11 +1100,26 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       forall(member(package_dependency(_P1,no,C,N,O,V,_,_), PackageDeps1),
              rules:query_search_version_select(O, V, FoundRepo://Candidate)),
 
-      findall(U0, member(package_dependency(_P2,no,C,N,_O,_V,_,U0),PackageDeps1), MergedUse0),
-      append(MergedUse0, MergedUse),
+      % For PDEPEND edges, we treat the dependency as runtime-soft (cycle-breakable),
+      % but we should not propagate or enforce `build_with_use` from the parent.
+      % Otherwise large USE_EXPAND sets (llvm_targets_*, python_targets_*) explode
+      % the dependency context and can prevent resolution (and cause mismatches).
+      ( member(package_dependency(pdepend,_,C,N,_,_,_,_), PackageDeps1) ->
+          MergedUse = []
+      ; findall(U0, member(package_dependency(_P2,no,C,N,_O,_V,_,U0),PackageDeps1), MergedUse0),
+        append(MergedUse0, MergedUse)
+      ),
+      % PDEPEND edges also must not inherit the parent's `build_with_use` context.
+      % That context represents bracketed USE constraints flowing from *some other*
+      % dependency edge and is not meaningful for the PDEPEND target itself.
+      ( member(package_dependency(pdepend,_,C,N,_,_,_,_), PackageDeps1) ->
+          rules:ctx_drop_build_with_use(Context, ContextP0),
+          rules:ctx_drop_assumption_reason(ContextP0, ContextDep)
+      ; ContextDep = Context
+      ),
       % Enforce bracketed USE constraints (e.g. sys-devel/gcc[objc], python[xml(+)], foo[bar?]).
-      rules:candidate_satisfies_use_deps(Context, FoundRepo://Candidate, MergedUse),
-      process_build_with_use(MergedUse,Context,NewContext,Constraints,FoundRepo://Candidate),
+      rules:candidate_satisfies_use_deps(ContextDep, FoundRepo://Candidate, MergedUse),
+      process_build_with_use(MergedUse,ContextDep,NewContext,Constraints,FoundRepo://Candidate),
       % Derive slot metadata for the chosen candidate (used for := propagation and
       % for recording selection constraints). Do this AFTER candidate choice so
       % we don't accidentally pre-bind SlotMeta from an unrelated earlier dep.
@@ -1164,12 +1197,38 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         rules:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps, pkg://InstalledEntryFallback)
       ->
         Conditions = []
-      ; explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason),
-        feature_unification:unify([assumption_reason(Reason)], Context, Ctx1),
+      ; explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, _Reason),
+        % Keep assumption_reason out of dependency-context unification:
+        % it is diagnostic metadata for the printer/stats, not part of the domain
+        % feature lattice. Unifying it into Context can prevent later refinement
+        % of the same dependency (and can also bloat contexts via propagation).
+        feature_unification:unify([], Context, Ctx1),
         Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps1):Action?{Ctx1})]
       )
     )
   ).
+
+% -----------------------------------------------------------------------------
+%  Context helpers: drop diagnostic / per-package USE constraints
+% -----------------------------------------------------------------------------
+
+rules:ctx_drop_build_with_use(Ctx0, Ctx) :-
+  ( is_list(Ctx0) ->
+      exclude(rules:ctx_is_build_with_use_term, Ctx0, Ctx)
+  ; Ctx = Ctx0
+  ),
+  !.
+
+rules:ctx_is_build_with_use_term(build_with_use:_) :- !.
+
+rules:ctx_drop_assumption_reason(Ctx0, Ctx) :-
+  ( is_list(Ctx0) ->
+      exclude(rules:ctx_is_assumption_reason_term, Ctx0, Ctx)
+  ; Ctx = Ctx0
+  ),
+  !.
+
+rules:ctx_is_assumption_reason_term(assumption_reason(_)) :- !.
 
 % -----------------------------------------------------------------------------
 %  Lazy self-RDEPEND version-bound propagation (timeout-safe variant)
