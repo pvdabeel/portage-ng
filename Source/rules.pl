@@ -19,6 +19,209 @@ This file contains domain-specific rules
 
 :- discontiguous rules:rule/2.
 
+% -----------------------------------------------------------------------------
+%  Prover hook: domain-driven goal enqueueing (single-pass extensions)
+% -----------------------------------------------------------------------------
+%
+% The prover is kept domain-agnostic. It may call this hook after proving a
+% literal to request additional goals to enqueue in the same prover run.
+%
+% Hook contract (called by prover):
+%   rules:literal_hook(+Literal, +Model, -HookKey, -ExtraLits)
+%
+% This implementation provides Portage-like PDEPEND behavior when --pdepend is
+% enabled:
+% - PDEPEND deps are included in the transaction (proved in the same run),
+% - but are NOT prerequisites of the parent merge action (anchored via after_only/1).
+%
+% IMPORTANT:
+% - Must be monotonic and backtracking-safe (no global side effects).
+% - Must not depend on Proof structure; HookKey is an opaque term.
+
+% Lightweight perf sampling (used only when --pdepend is enabled).
+% We sample 1 in N calls to avoid adding noticeable overhead.
+rules:literal_hook_perf_reset :-
+  flag(lit_hook_calls, _OldC, 0),
+  flag(lit_hook_has_pdepend, _OldHP, 0),
+  flag(lit_hook_no_pdepend, _OldNP, 0),
+  flag(lit_hook_sample_n, _OldSN, 0),
+  flag(lit_hook_sample_ms_sum, _OldSM, 0),
+  !.
+
+rules:literal_hook_perf_report :-
+  flag(lit_hook_calls, Calls, Calls),
+  flag(lit_hook_has_pdepend, HasP, HasP),
+  flag(lit_hook_no_pdepend, NoP, NoP),
+  flag(lit_hook_sample_n, SN, SN),
+  flag(lit_hook_sample_ms_sum, SMs, SMs),
+  ( SN =:= 0 ->
+      AvgMs = 0,
+      EstTotalMs = 0
+  ; AvgMs is SMs / SN,
+    EstTotalMs is AvgMs * Calls
+  ),
+  message:scroll_notice(['literal_hook perf: calls=',Calls,
+                         ' has_pdepend=',HasP,
+                         ' no_pdepend=',NoP,
+                         ' sample_n=',SN,
+                         ' sample_ms_sum=',SMs,
+                         ' avg_ms=',AvgMs,
+                         ' est_total_ms=',EstTotalMs]),
+  nl,
+  !.
+
+rules:lit_hook_sample_rate(1000).
+
+rules:lit_hook_maybe_sample(Goal) :-
+  % Increment call count and sample periodically.
+  flag(lit_hook_calls, C0, C0+1),
+  rules:lit_hook_sample_rate(N),
+  ( N =< 1 ->
+      statistics(walltime, [T0,_]),
+      ( Goal -> Ok = true ; Ok = false ),
+      statistics(walltime, [T1,_]),
+      Dt is T1 - T0,
+      flag(lit_hook_sample_n, SN0, SN0+1),
+      flag(lit_hook_sample_ms_sum, SM0, SM0+Dt),
+      Ok == true
+  ; C1 is C0 + 1,
+    ( 0 is C1 mod N ->
+        statistics(walltime, [T0,_]),
+        ( Goal -> Ok = true ; Ok = false ),
+        statistics(walltime, [T1,_]),
+        Dt is T1 - T0,
+        flag(lit_hook_sample_n, SN0, SN0+1),
+        flag(lit_hook_sample_ms_sum, SM0, SM0+Dt),
+        Ok == true
+    ; Goal
+    )
+  ).
+
+% Fast path for the prover: compute HookKey only (no dependency-model work).
+% This lets the prover skip calling literal_hook/4 entirely when that key is
+% already marked done in the evolving Proof.
+%
+% Extended fast path:
+% `rules:literal_hook_key/4` also tells the prover whether the full hook can
+% produce any extra literals at all (`NeedsFullHook=false`).
+rules:literal_hook_key(Repo://Entry:Action?{_Ctx}, Model, HookKey) :-
+  preference:flag(pdepend),
+  ( Action == install ; Action == update ; Action == reinstall ),
+  !,
+  AnchorCore = (Repo://Entry:Action),
+  % Fast path: most entries have no PDEPEND; avoid inspecting build_with_use.
+  ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
+      ( get_assoc(AnchorCore, Model, AnchorCtx) -> true ; AnchorCtx = [] ),
+      rules:context_build_with_use_state(AnchorCtx, B),
+      HookKey = pdepend(AnchorCore, B)
+  ; HookKey = pdepend_none(AnchorCore)
+  ).
+rules:literal_hook_key(Repo://Entry:Action, Model, HookKey) :-
+  preference:flag(pdepend),
+  ( Action == install ; Action == update ; Action == reinstall ),
+  !,
+  AnchorCore = (Repo://Entry:Action),
+  ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
+      ( get_assoc(AnchorCore, Model, AnchorCtx) -> true ; AnchorCtx = [] ),
+      rules:context_build_with_use_state(AnchorCtx, B),
+      HookKey = pdepend(AnchorCore, B)
+  ; HookKey = pdepend_none(AnchorCore)
+  ).
+
+rules:literal_hook_key(Repo://Entry:Action?{_Ctx}, Model, HookKey, NeedsFullHook) :-
+  preference:flag(pdepend),
+  ( Action == install ; Action == update ; Action == reinstall ),
+  !,
+  AnchorCore = (Repo://Entry:Action),
+  % If this action will not result in a merge transaction, do not expand PDEPEND.
+  % (E.g. `:install` can be satisfied by already-installed packages when not emptytree.)
+  ( rules:literal_hook_will_merge(Repo://Entry:Action) ->
+      ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
+          NeedsFullHook = true,
+          ( get_assoc(AnchorCore, Model, AnchorCtx) -> true ; AnchorCtx = [] ),
+          rules:context_build_with_use_state(AnchorCtx, B),
+          HookKey = pdepend(AnchorCore, B)
+      ; NeedsFullHook = false,
+        HookKey = pdepend_none(AnchorCore)
+      )
+  ; NeedsFullHook = false,
+    HookKey = pdepend_none(AnchorCore)
+  ).
+rules:literal_hook_key(Repo://Entry:Action, Model, HookKey, NeedsFullHook) :-
+  preference:flag(pdepend),
+  ( Action == install ; Action == update ; Action == reinstall ),
+  !,
+  AnchorCore = (Repo://Entry:Action),
+  ( rules:literal_hook_will_merge(Repo://Entry:Action) ->
+      ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
+          NeedsFullHook = true,
+          ( get_assoc(AnchorCore, Model, AnchorCtx) -> true ; AnchorCtx = [] ),
+          rules:context_build_with_use_state(AnchorCtx, B),
+          HookKey = pdepend(AnchorCore, B)
+      ; NeedsFullHook = false,
+        HookKey = pdepend_none(AnchorCore)
+      )
+  ; NeedsFullHook = false,
+    HookKey = pdepend_none(AnchorCore)
+  ).
+
+% Decide whether an action literal represents an actual merge transaction.
+% For install actions, already-installed entries (when not emptytree) are no-ops.
+rules:literal_hook_will_merge(_Repo://_Entry:reinstall) :- !, true.
+rules:literal_hook_will_merge(_Repo://_Entry:update) :- !, true.
+rules:literal_hook_will_merge(Repo://Entry:install) :-
+  ( preference:flag(emptytree) ->
+      true
+  ; \+ query:search(installed(true), Repo://Entry) ->
+      true
+  ; false
+  ),
+  !.
+
+rules:literal_hook(Repo://Entry:Action?{_Ctx}, Model, HookKey, ExtraLits) :-
+  preference:flag(pdepend),
+  ( Action == install ; Action == update ; Action == reinstall ),
+  !,
+  rules:lit_hook_maybe_sample(
+    ( AnchorCore = (Repo://Entry:Action),
+      ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
+          flag(lit_hook_has_pdepend, HP0, HP0+1),
+          % Determine current build_with_use state from the anchor's model context.
+          ( get_assoc(AnchorCore, Model, AnchorCtx) -> true ; AnchorCtx = [] ),
+          rules:context_build_with_use_state(AnchorCtx, B),
+          HookKey = pdepend(AnchorCore, B),
+          ModelKey = [build_with_use:B],
+          query:memoized_search(model(dependency(Pdeps0, pdepend)):config?{ModelKey}, Repo://Entry),
+          rules:add_self_to_dep_contexts(Repo://Entry, Pdeps0, Pdeps1),
+          rules:add_after_only_to_dep_contexts(AnchorCore, Pdeps1, ExtraLits)
+      ; flag(lit_hook_no_pdepend, NP0, NP0+1),
+        HookKey = pdepend_none(AnchorCore),
+        ExtraLits = []
+      )
+    )
+  ).
+rules:literal_hook(Repo://Entry:Action, Model, HookKey, ExtraLits) :-
+  preference:flag(pdepend),
+  ( Action == install ; Action == update ; Action == reinstall ),
+  !,
+  rules:lit_hook_maybe_sample(
+    ( AnchorCore = (Repo://Entry:Action),
+      ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
+          flag(lit_hook_has_pdepend, HP0, HP0+1),
+          ( get_assoc(AnchorCore, Model, AnchorCtx) -> true ; AnchorCtx = [] ),
+          rules:context_build_with_use_state(AnchorCtx, B),
+          HookKey = pdepend(AnchorCore, B),
+          ModelKey = [build_with_use:B],
+          query:memoized_search(model(dependency(Pdeps0, pdepend)):config?{ModelKey}, Repo://Entry),
+          rules:add_self_to_dep_contexts(Repo://Entry, Pdeps0, Pdeps1),
+          rules:add_after_only_to_dep_contexts(AnchorCore, Pdeps1, ExtraLits)
+      ; flag(lit_hook_no_pdepend, NP0, NP0+1),
+        HookKey = pdepend_none(AnchorCore),
+        ExtraLits = []
+      )
+    )
+  ).
+
 
 % =============================================================================
 %  RULES declarations
@@ -233,7 +436,7 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
                   ],
         append(Prefix0, MergedDepsAfter, Conditions0)
       ),
-      ( After == none -> Conditions = Conditions0 ; Conditions = [After|Conditions0] )
+      rules:ctx_add_after_condition(After, AfterForDeps, Conditions0, Conditions)
     ; % Conflict fallback
       rules:assume_conflicts,
       feature_unification:unify([issue_with_model(explanation)], Context1, Ctx1),
@@ -264,9 +467,9 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) ->
     ( config:avoid_reinstall(true) ->
         Conditions = []
-    ; rules:ctx_take_after_with_mode(Context, After0, _AfterForDeps0, Context10),
+    ; rules:ctx_take_after_with_mode(Context, After0, AfterForDeps0, Context10),
       Cond0 = [Repository://Ebuild:reinstall?{Context10}],
-      ( After0 == none -> Conditions = Cond0 ; Conditions = [After0|Cond0] )
+      rules:ctx_add_after_condition(After0, AfterForDeps0, Cond0, Conditions)
     )
   ; % todo check new build_with_use requirements
 
@@ -329,7 +532,7 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
              constraint(slot(C,N,S):{Ebuild}),
              InstallOrUpdate],
   append(Prefix0, MergedDepsAfter, Conditions0),
-  ( After == none -> Conditions = Conditions0 ; Conditions = [After|Conditions0] ).
+  rules:ctx_add_after_condition(After, AfterForDeps, Conditions0, Conditions).
 
 
 % -----------------------------------------------------------------------------
@@ -366,6 +569,16 @@ rules:ctx_take_after_with_mode(Context0, After, AfterForDeps, Context) :-
     AfterForDeps = none,
     Context = Context0
   ),
+  !.
+
+% Add an ordering marker extracted by ctx_take_after_with_mode/4.
+% - For after/1: add the literal as a real dependency.
+% - For after_only/1: add an ordering-only constraint (planner ignores it).
+rules:ctx_add_after_condition(none, _AfterForDeps, Conditions, Conditions) :- !.
+rules:ctx_add_after_condition(After, none, Conditions0, [constraint(order_after(After):{[]} )|Conditions0]) :-
+  After \== none,
+  !.
+rules:ctx_add_after_condition(After, _AfterForDeps, Conditions0, [After|Conditions0]) :-
   !.
 
 % Strip planning-only markers that should not affect dependency-model memoization.

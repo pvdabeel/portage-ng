@@ -4722,15 +4722,72 @@ printer:write_fetchonly_file(Directory,Repository://Entry) :-
 % and iterate to a fixpoint (usually 1-2 iterations).
 
 printer:prove_plan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
-  ( preference:flag(pdepend) ->
-      printer:prove_plan_with_pdepend(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL)
-  ; printer:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL)
-  ).
+  % PDEPEND is now handled single-pass inside the prover's goal queue expansion
+  % (see `prover:hook_literals/6` + `rules:literal_hook/4`), so the printer always runs a
+  % single prove+plan.
+  printer:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL).
 
 printer:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
-  prover:prove(Goals, t, ProofAVL, t, ModelAVL, t, _Constraints, t, TriggersAVL),
+  statistics(walltime, [T0,_]),
+  % Performance: when --pdepend is enabled, we tend to prove substantially more
+  % literals. In that case incremental trigger maintenance becomes expensive.
+  % Force delayed trigger construction for this prove unless the user explicitly
+  % wants incremental triggers (they can still request it by disabling pdepend).
+  ( preference:flag(pdepend) ->
+      prover:with_delay_triggers(
+        prover:prove(Goals, t, ProofAVL, t, ModelAVL, t, _Constraints, t, TriggersAVL)
+      )
+  ; prover:prove(Goals, t, ProofAVL, t, ModelAVL, t, _Constraints, t, TriggersAVL)
+  ),
+  statistics(walltime, [T1,_]),
+  ProveMs is T1 - T0,
+  statistics(walltime, [T2,_]),
   planner:plan(ProofAVL, TriggersAVL, t, Plan0, Remainder0),
-  scheduler:schedule(ProofAVL, TriggersAVL, Plan0, Remainder0, Plan, _Remainder).
+  statistics(walltime, [T3,_]),
+  PlanMs is T3 - T2,
+  statistics(walltime, [T4,_]),
+  scheduler:schedule(ProofAVL, TriggersAVL, Plan0, Remainder0, Plan, _Remainder),
+  statistics(walltime, [T5,_]),
+  SchedMs is T5 - T4,
+  ( current_predicate(printer:prove_plan_perf_add/3) ->
+      printer:prove_plan_perf_add(ProveMs, PlanMs, SchedMs)
+  ; true
+  ).
+
+% -----------------------------------------------------------------------------
+%  Aggregate perf counters for prove/plan/schedule (whole-repo runs)
+% -----------------------------------------------------------------------------
+printer:prove_plan_perf_reset :-
+  flag(pp_perf_entries, _OldE, 0),
+  flag(pp_perf_prove_ms, _OldP, 0),
+  flag(pp_perf_plan_ms, _OldPl, 0),
+  flag(pp_perf_sched_ms, _OldS, 0),
+  !.
+
+printer:prove_plan_perf_add(ProveMs, PlanMs, SchedMs) :-
+  flag(pp_perf_entries, E0, E0+1),
+  flag(pp_perf_prove_ms, P0, P0+ProveMs),
+  flag(pp_perf_plan_ms, Pl0, Pl0+PlanMs),
+  flag(pp_perf_sched_ms, S0, S0+SchedMs),
+  !.
+
+printer:prove_plan_perf_report :-
+  flag(pp_perf_entries, E, E),
+  ( E =:= 0 ->
+      true
+  ; flag(pp_perf_prove_ms, P, P),
+    flag(pp_perf_plan_ms, Pl, Pl),
+    flag(pp_perf_sched_ms, S, S),
+    AvgP is P / E,
+    AvgPl is Pl / E,
+    AvgS is S / E,
+    message:scroll_notice(['prove_plan perf: entries=',E,
+                           ' prove_ms_sum=',P,' avg=',AvgP,
+                           ' plan_ms_sum=',Pl,' avg=',AvgPl,
+                           ' sched_ms_sum=',S,' avg=',AvgS])
+  ),
+  nl,
+  !.
 
 printer:prove_plan_with_pdepend(Goals0, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
   % Keep this bounded: one expansion + one re-prove.

@@ -374,7 +374,8 @@ prover:prove_recursive([Literal|Rest],Proof,NewProof,Model,NewModel,Cons,NewCons
   !,
   prover:debug_hook([Literal|Rest], Proof, Model, Cons),
   prover:prove_recursive(Literal, Proof,MidProof,    Model,MidModel,    Cons,MidCons,    Trig,MidTrig),
-  prover:prove_recursive(Rest,    MidProof,NewProof, MidModel,NewModel, MidCons,NewCons, MidTrig,NewTrig).
+  prover:hook_literals(Literal, MidProof, MidProof1, MidModel, Rest, Rest1),
+  prover:prove_recursive(Rest1,    MidProof1,NewProof, MidModel,NewModel, MidCons,NewCons, MidTrig,NewTrig).
 
 
 % -----------------------------------------------------------------------------
@@ -597,6 +598,187 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
           NewConstraints = BodyConstraints
       )
   ).
+
+
+% -----------------------------------------------------------------------------
+%  Optional: domain literal hook
+% -----------------------------------------------------------------------------
+%
+% The prover stays domain-agnostic. If the domain provides a hook predicate, it
+% may request additional literals to be appended to the pending literal list.
+%
+% Hook contract:
+%   rules:literal_hook(+Literal, +Model, -HookKey, -ExtraLits)
+%
+% - HookKey is an arbitrary term identifying the hook instance. The prover stores
+%   `hook_done(HookKey)` in the Proof AVL to ensure the hook runs at most once
+%   per key (even if the literal is refined due to context changes).
+% - ExtraLits is a list of literals to enqueue (typically action literals with
+%   ordering markers like after_only/1).
+%
+% NOTE: The domain must keep the hook monotonic and backtracking-safe (no global
+% side effects). The prover only stores the hook_done marker in its proof state.
+
+% Fast guard: only consult the domain hook for merge actions.
+% Calling the hook for every proven literal is extremely expensive at scale.
+prover:hook_literals(Literal, Proof, Proof, _Model, Rest, Rest) :-
+  \+ prover:hook_literal_candidate(Literal),
+  !.
+prover:hook_literals(_Literal, Proof, Proof, _Model, Rest, Rest) :-
+  \+ current_predicate(rules:literal_hook/4),
+  !.
+prover:hook_literals(Literal, Proof0, Proof, Model, Rest0, Rest) :-
+  % Cheap skip: if the domain can compute HookKey without doing expensive work,
+  % avoid calling the full hook when that key is already marked done.
+  ( current_predicate(rules:literal_hook_key/4),
+    once(rules:literal_hook_key(Literal, Model, HookKey0, NeedsFullHook)),
+    ( get_assoc(hook_done(HookKey0), Proof0, true) ->
+        ( preference:flag(pdepend) -> prover:hook_perf_done_hit ; true ),
+        Proof = Proof0,
+        Rest = Rest0
+    ; NeedsFullHook == false ->
+        % Domain indicates there cannot be extra literals. Mark done and skip.
+        put_assoc(hook_done(HookKey0), Proof0, true, Proof),
+        Rest = Rest0
+    ; fail
+    )
+  ; current_predicate(rules:literal_hook_key/3),
+    once(rules:literal_hook_key(Literal, Model, HookKey1)),
+    get_assoc(hook_done(HookKey1), Proof0, true) ->
+      ( preference:flag(pdepend) -> prover:hook_perf_done_hit ; true ),
+      Proof = Proof0,
+      Rest = Rest0
+  ;
+  % Domain hook is expected to be deterministic (0 or 1 result). Keep this fast:
+  % avoid `findall/3` for the common case where there is no hook result.
+  ( once(rules:literal_hook(Literal, Model, HookKey, ExtraLits)) ->
+      Hooks = [hook(HookKey, ExtraLits)]
+  ; Hooks = []
+  ),
+  prover:hook_literals_list(Hooks, Proof0, Proof, Model, Rest0, Rest),
+  true
+  ),
+  !.
+prover:hook_literals(_Literal, Proof, Proof, _Model, Rest, Rest).
+
+prover:hook_literal_candidate(_Repo://_Entry:Action?{_Ctx}) :-
+  ( Action == install ; Action == update ; Action == reinstall ),
+  !.
+prover:hook_literal_candidate(_Repo://_Entry:Action) :-
+  ( Action == install ; Action == update ; Action == reinstall ),
+  !.
+
+prover:hook_literals_list([], Proof, Proof, _Model, Rest, Rest) :- !.
+prover:hook_literals_list([hook(HookKey, ExtraLits)|Hs], Proof0, Proof, Model, Rest0, Rest) :-
+  ( get_assoc(hook_done(HookKey), Proof0, true) ->
+      ( preference:flag(pdepend) ->
+          prover:hook_perf_done_hit
+      ; true
+      ),
+      Proof1 = Proof0,
+      Rest1 = Rest0
+  ; put_assoc(hook_done(HookKey), Proof0, true, Proof1),
+    ( preference:flag(pdepend) ->
+        length(ExtraLits, ExtraN),
+        prover:hook_perf_hook_fired(ExtraN)
+    ; true
+    ),
+    % Avoid O(queue_len) scans of Rest0 to detect "already pending".
+    % Instead keep a monotonic pending-core set in the evolving Proof AVL.
+    prover:select_new_literals_to_enqueue(ExtraLits, Model, Proof1, Proof2, FreshLits),
+    ( preference:flag(pdepend) ->
+        length(FreshLits, FreshN),
+        prover:hook_perf_fresh_selected(FreshN)
+    ; true
+    ),
+    ( FreshLits == [] ->
+        Rest1 = Rest0
+    ; append(FreshLits, Rest0, Rest1)
+    )
+  ),
+  ( var(Proof2) -> ProofNext = Proof1 ; ProofNext = Proof2 ),
+  prover:hook_literals_list(Hs, ProofNext, Proof, Model, Rest1, Rest).
+
+% Deterministically select only those ExtraLits that are not already proven
+% (present in Model by core literal) and not already pending (tracked in Proof).
+%
+% Pending set representation:
+%   hook_pending(CoreLit) -> true   (monotonic; never removed)
+%
+% This avoids expensive scans of the pending queue list.
+prover:select_new_literals_to_enqueue(Lits0, Model, Proof0, Proof, Lits) :-
+  ( is_list(Lits0) ->
+      prover:select_new_literals_to_enqueue_(Lits0, Model, Proof0, Proof, [], Rev),
+      reverse(Rev, Lits)
+  ; Proof = Proof0,
+    Lits = []
+  ),
+  !.
+
+prover:select_new_literals_to_enqueue_([], _Model, Proof, Proof, Acc, Acc) :- !.
+prover:select_new_literals_to_enqueue_([L0|Ls], Model, Proof0, Proof, Acc0, Acc) :-
+  prover:canon_literal(L0, Core, _),
+  ( get_assoc(Core, Model, _) ->
+      Proof1 = Proof0,
+      Acc1 = Acc0
+  ; get_assoc(hook_pending(Core), Proof0, true) ->
+      Proof1 = Proof0,
+      Acc1 = Acc0
+  ; put_assoc(hook_pending(Core), Proof0, true, Proof1),
+    Acc1 = [L0|Acc0]
+  ),
+  prover:select_new_literals_to_enqueue_(Ls, Model, Proof1, Proof, Acc1, Acc).
+
+
+% -----------------------------------------------------------------------------
+%  Perf counters for domain literal hook (PDEPEND)
+% -----------------------------------------------------------------------------
+%
+% These counters are intended for whole-repo runs via prover:test/*, to help
+% answer: is the slowdown due to hook work itself, or due to proving many more
+% literals?
+%
+% We keep this lightweight: count-based only (no per-hook walltime timing).
+
+prover:hook_perf_reset :-
+  flag(hook_perf_done_hits, _OldDH, 0),
+  flag(hook_perf_hook_fired, _OldHF, 0),
+  flag(hook_perf_extra_lits, _OldEL, 0),
+  flag(hook_perf_fresh_lits, _OldFL, 0),
+  ( current_predicate(rules:literal_hook_perf_reset/0) ->
+      rules:literal_hook_perf_reset
+  ; true
+  ),
+  !.
+
+prover:hook_perf_done_hit :-
+  flag(hook_perf_done_hits, X, X+1),
+  !.
+
+prover:hook_perf_hook_fired(ExtraN) :-
+  flag(hook_perf_hook_fired, X, X+1),
+  flag(hook_perf_extra_lits, Y, Y+ExtraN),
+  !.
+
+prover:hook_perf_fresh_selected(FreshN) :-
+  flag(hook_perf_fresh_lits, X, X+FreshN),
+  !.
+
+prover:hook_perf_report :-
+  flag(hook_perf_hook_fired, Fired, Fired),
+  flag(hook_perf_extra_lits, Extra, Extra),
+  flag(hook_perf_fresh_lits, Fresh, Fresh),
+  flag(hook_perf_done_hits, DoneHits, DoneHits),
+  message:scroll_notice(['Hook perf: fired=',Fired,
+                         ' extra_lits=',Extra,
+                         ' fresh_lits=',Fresh,
+                         ' done_hits=',DoneHits]),
+  nl,
+  ( current_predicate(rules:literal_hook_perf_report/0) ->
+      rules:literal_hook_perf_report
+  ; true
+  ),
+  !.
 
 
 % =============================================================================
@@ -1128,8 +1310,16 @@ prover:test(Repository) :-
 prover:test(Repository,Style) :-
   config:proving_target(Action0),
   prover:test_action(Action0, Action),
+  ( current_predicate(printer:prove_plan_perf_reset/0) ->
+      printer:prove_plan_perf_reset
+  ; true
+  ),
+  ( current_predicate(scheduler:perf_reset/0) ->
+      scheduler:perf_reset
+  ; true
+  ),
   ( preference:flag(pdepend) ->
-      printer:pdepend_perf_reset
+      prover:hook_perf_reset
   ; true
   ),
   tester:test(Style,
@@ -1137,25 +1327,32 @@ prover:test(Repository,Style) :-
               Repository://Entry,
               Repository:entry(Entry),
               ( Target = (Repository://Entry:Action?{[]}),
-                ( ( preference:flag(pdepend) ->
-                      printer:prove_plan([Target], _ProofAVL, _ModelAVL, _Plan, _TriggersAVL)
-                  ; prover:prove(Target,t,_,t,_,t,_,t,_)
-                  ) ->
+                % Always exercise the full pipeline (prove + plan + schedule) so
+                % performance comparisons with/without --pdepend are apples-to-apples.
+                %
+                % `printer:prove_plan/5` internally consults the optional domain hook
+                % only when --pdepend is enabled.
+                ( printer:prove_plan([Target], _ProofAVL, _ModelAVL, _Plan, _TriggersAVL) ->
                     true
                 ; % Test harness friendliness: treat blocker-induced failures as
                   % "proved under assumptions" so whole-repo runs don't fail on
                   % known blocker-heavy packages (e.g. primus/nvidia-drivers).
                   current_predicate(rules:with_assume_blockers/1),
                   rules:with_assume_blockers(
-                    ( preference:flag(pdepend) ->
-                        printer:prove_plan([Target], _ProofAVL2, _ModelAVL2, _Plan2, _TriggersAVL2)
-                    ; prover:prove(Target,t,_,t,_,t,_,t,_)
-                    )
+                    printer:prove_plan([Target], _ProofAVL2, _ModelAVL2, _Plan2, _TriggersAVL2)
                   )
                 )
               )),
   ( preference:flag(pdepend) ->
-      printer:pdepend_perf_report
+      prover:hook_perf_report
+  ; true
+  ),
+  ( current_predicate(printer:prove_plan_perf_report/0) ->
+      printer:prove_plan_perf_report
+  ; true
+  ),
+  ( current_predicate(scheduler:perf_report/0) ->
+      scheduler:perf_report
   ; true
   ).
 
@@ -1173,17 +1370,11 @@ prover:test_latest(Repository,Style) :-
               Repository://Entry,
               ( Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_)) ),
               ( Target = (Repository://Entry:Action?{[]}),
-                ( ( preference:flag(pdepend) ->
-                      printer:prove_plan([Target], _ProofAVL, _ModelAVL, _Plan, _TriggersAVL)
-                  ; prover:prove(Target,t,_,t,_,t,_,t,_)
-                  ) ->
+                ( printer:prove_plan([Target], _ProofAVL, _ModelAVL, _Plan, _TriggersAVL) ->
                     true
                 ; current_predicate(rules:with_assume_blockers/1),
                   rules:with_assume_blockers(
-                    ( preference:flag(pdepend) ->
-                        printer:prove_plan([Target], _ProofAVL2, _ModelAVL2, _Plan2, _TriggersAVL2)
-                    ; prover:prove(Target,t,_,t,_,t,_,t,_)
-                    )
+                    printer:prove_plan([Target], _ProofAVL2, _ModelAVL2, _Plan2, _TriggersAVL2)
                   )
                 )
               )).
