@@ -2111,7 +2111,10 @@ query_search_version_select(equal, Ver0, RepoEntry) :-
 query_search_version_select(equal, Ver, RepoEntry) :- !,
   RepoEntry = Repo://Id,
   rules:coerce_version_term(Ver, Ver1),
-  query:search(select(version,equal,Ver1), Repo://Id).
+  % Avoid `query:search/2` here: the compile-time macro historically treated all
+  % 4-tuples as wildcard-equality candidates (see query.pl), which could make
+  % exact equality constraints fail and degrade into domain assumptions.
+  cache:ordered_entry(Repo, Id, _C, _N, Ver1).
 query_search_version_select(none, _Ver, _RepoEntry) :- !.
 query_search_version_select(smaller, Ver, RepoEntry) :- !,
   RepoEntry = Repo://Id,
