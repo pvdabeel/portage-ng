@@ -1876,6 +1876,7 @@ rules:group_choice_dep(D, D).
 rule(any_of_group(Deps):config?{Context}, [D:config?{Context}]) :-
   prioritize_deps(Deps, Context, SortedDeps),
   member(D0, SortedDeps),
+  rules:any_of_config_dep_ok(Context, D0),
   % In config phase we must prove the *package_dependency/8* term so it is
   % recorded in the model (AvlModel) and later extracted by query:model/2.
   D = D0,
@@ -1885,7 +1886,18 @@ rule(any_of_group(Deps):Action?{Context}, Conditions) :-
   prioritize_deps(Deps, Context, SortedDeps),
   member(D0, SortedDeps),
   rules:group_choice_dep(D0, D),
-  rule(D:Action?{Context}, Conditions),
+  rule(D:Action?{Context}, Conditions0),
+  % IMPORTANT (Portage-like || semantics):
+  % If a choice "succeeds" only by degrading into a domain assumption, treat it
+  % as an unsatisfied option and try the next alternative.
+  %
+  % Example: || ( sys-devel/gcc[objc] llvm-core/clang )
+  % If gcc[objc] cannot be satisfied under the effective USE configuration, we
+  % must fall back to clang rather than assuming gcc.
+  ( rules:any_of_reject_assumed_choice(D, Conditions0) ->
+      fail
+  ; Conditions = Conditions0
+  ),
   !.
 
 rule(any_of_group(Deps), Conditions) :-
@@ -1893,6 +1905,34 @@ rule(any_of_group(Deps), Conditions) :-
   member(D, SortedDeps),
   rule(D, Conditions),
   !.
+
+% Reject any_of_group choices that are satisfied only by domain assumptions.
+rules:any_of_reject_assumed_choice(grouped_package_dependency(_Strength, C, N, _PackageDeps),
+                                   [assumed(grouped_package_dependency(C, N, _Deps):_Act?{_Ctx})]) :-
+  !.
+
+% Config-phase guard: avoid locking in an unsatisfiable bracketed-USE option as the
+% chosen member of a || group, because that discards the other alternatives from
+% the memoized dependency model.
+%
+% We keep this check narrow for performance: only package_dependency/8 terms with
+% non-empty USE requirements are tested.
+rules:any_of_config_dep_ok(_Context, package_dependency(_Phase, _Strength, _C, _N, _O, _V, _S, U)) :-
+  U == [],
+  !.
+rules:any_of_config_dep_ok(Context, package_dependency(_Phase, _Strength, C, N, _O, _V, _S, U)) :-
+  % Pick some representative ebuild entry and test whether the bracketed USE
+  % requirements are satisfiable under the effective USE configuration.
+  % If not, let any_of_group/2 consider the next alternative.
+  once(query:search([repository(portage), category(C), name(N)], portage://Id)),
+  rules:candidate_satisfies_use_deps(Context, portage://Id, U),
+  !.
+% If the USE-deps are not satisfiable, reject this option.
+rules:any_of_config_dep_ok(_Context, package_dependency(_Phase, _Strength, _C, _N, _O, _V, _S, _U)) :-
+  !,
+  fail.
+rules:any_of_config_dep_ok(_Context, _Other) :-
+  true.
 
 % -----------------------------------------------------------------------------
 %  REQUIRED_USE helpers
@@ -2961,14 +3001,20 @@ rules:use_dep_requirement(_Ctx, _Directive, _Default, none).
 rules:candidate_satisfies_use_requirement(_Repo://_Entry, none) :- !.
 rules:candidate_satisfies_use_requirement(Repo://Entry, requirement(Mode, Use, Default)) :-
   % Semantics:
-  % - If the flag is in IUSE, accept the requirement and rely on build_with_use
-  %   context propagation to enforce it downstream (Portage-like per-package USE,
-  %   without tying it to global USE during resolution).
+  % - If the flag is in IUSE, enforce it against the candidate's *effective* USE
+  %   (Portage semantics for deps like pkg[foo], pkg[-bar], pkg[foo?], pkg[foo=]).
+  %
+  %   IMPORTANT: we must NOT treat `pkg[foo]` as "always solvable by rebuilding
+  %   with foo enabled", because Portage does not auto-toggle USE flags to satisfy
+  %   a dependency. The requirement must match the USE that the system would
+  %   actually build the child with (profile/make.conf/package.use + IUSE defaults).
   % - If the flag is NOT in IUSE, only allow the dependency when it provides an
   %   explicit default marker (+)/(-), which defines the assumed state.
   ( rules:candidate_iuse_present(Repo://Entry, Use)
-  -> ( Mode == enable -> true
-     ; Mode == disable -> true
+  -> ( Mode == enable
+     -> rules:candidate_effective_use_enabled_in_iuse(Repo://Entry, Use)
+     ; Mode == disable
+     -> \+ rules:candidate_effective_use_enabled_in_iuse(Repo://Entry, Use)
      )
   ; rules:use_dep_default_satisfies_absent_iuse(Default, Mode)
   ).
@@ -2998,7 +3044,16 @@ rules:candidate_effective_use_enabled_in_iuse(Repo://Entry, Use) :-
       fail
   ; preference:use(Use) ->
       true
-  ; preference:use(minus(Use)) ->
+  ; preference:use(minus(Use)),
+    % ABI_X86 flags are frequently modeled as USE_EXPAND defaults (+abi_x86_32 etc).
+    % Treating every "unset" ABI_X86 value as an explicit negative in `preference:use/1`
+    % would incorrectly override +IUSE defaults and make deps like:
+    %   foo[abi_x86_32(+)?]
+    % unsatisfiable even when Portage accepts them.
+    %
+    % Until we have a clearer separation between "explicitly disabled" and "unset",
+    % do not let global minus(abi_x86_*) override +IUSE defaults.
+    \+ rules:is_abi_x86_flag(Use) ->
       fail
   ; rules:entry_iuse_info(Repo://Entry, iuse_info(_IuseSet, PlusSet)),
     memberchk(Use, PlusSet) ->
@@ -3006,6 +3061,11 @@ rules:candidate_effective_use_enabled_in_iuse(Repo://Entry, Use) :-
   ; % iuse(minus(Use)) or iuse(Use): default disabled
     fail
   ).
+
+rules:is_abi_x86_flag(Use) :-
+  atom(Use),
+  sub_atom(Use, 0, _, _, abi_x86_),
+  !.
 
 % -----------------------------------------------------------------------------
 %  Per-entry IUSE memoization (performance)
