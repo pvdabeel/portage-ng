@@ -419,6 +419,15 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
       query:memoized_search(model(dependency(MergedDeps0,install)):config?{Model},Repository://Ebuild),
       add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
       rules:add_after_to_dep_contexts(AfterForDeps, MergedDeps, MergedDepsAfter),
+      % Heuristic (parity): prove explicit slot/subslot deps early.
+      % Some stacks (notably OCaml Jane Street) rely on a "release series" encoded
+      % in SUBSLOT. If we first satisfy a loose dependency (e.g. := / any_same_slot),
+      % we can lock selected_cn(C,N) to the newest series and later degrade an
+      % explicit :0/0.16 requirement into a bogus "non-existent assumed".
+      %
+      % Ordering explicit slot/subslot requirements first avoids this class of
+      % conflict without changing solver semantics.
+      rules:order_deps_for_proof(install, MergedDepsAfter, MergedDepsOrdered),
 
       % 5. Pass on relevant package dependencies and constraints to prover
       ( memberchk(C,['virtual','acct-group','acct-user']) ->
@@ -426,7 +435,7 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
                       constraint(use(Repository://Ebuild):{R}),
                       constraint(slot(C,N,S):{Ebuild})
                     ],
-          append(Prefix0, MergedDepsAfter, Conditions0)
+          append(Prefix0, MergedDepsOrdered, Conditions0)
       ; ( AfterForDeps == none ->
             DownloadCtx0 = [required_use:R,build_with_use:B]
         ; DownloadCtx0 = [after(AfterForDeps),required_use:R,build_with_use:B]
@@ -436,7 +445,7 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
                     constraint(slot(C,N,S):{Ebuild}),
                     Repository://Ebuild:download?{DownloadCtx0}
                   ],
-        append(Prefix0, MergedDepsAfter, Conditions0)
+        append(Prefix0, MergedDepsOrdered, Conditions0)
       ),
       rules:ctx_add_after_condition(After, AfterForDeps, Conditions0, Conditions)
     ; % Conflict fallback
@@ -500,6 +509,7 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model},Repository://Ebuild),
   add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
   rules:add_after_to_dep_contexts(AfterForDeps, MergedDeps, MergedDepsAfter),
+  rules:order_deps_for_proof(run, MergedDepsAfter, MergedDepsOrdered),
 
   % 5. Pass on relevant package dependencies and constraints to prover
 
@@ -533,8 +543,41 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
              constraint(use(Repository://Ebuild):{R}),
              constraint(slot(C,N,S):{Ebuild}),
              InstallOrUpdate],
-  append(Prefix0, MergedDepsAfter, Conditions0),
+  append(Prefix0, MergedDepsOrdered, Conditions0),
   rules:ctx_add_after_condition(After, AfterForDeps, Conditions0, Conditions).
+
+% -----------------------------------------------------------------------------
+%  Dependency ordering heuristic
+% -----------------------------------------------------------------------------
+%
+% Prefer proving dependencies with explicit slot/subslot restrictions early.
+% This helps avoid selected_cn conflicts where a loose dep picks a newer series
+% (e.g. SUBSLOT 0.17) and later strict deps (SUBSLOT 0.16) get assumed.
+%
+rules:order_deps_for_proof(_Action, Deps, Ordered) :-
+  maplist(rules:dep_priority_kv, Deps, KVs),
+  keysort(KVs, Sorted),
+  findall(D, member(_K-D, Sorted), Ordered),
+  !.
+
+rules:dep_priority_kv(Dep, K-Dep) :-
+  rules:dep_priority(Dep, K),
+  !.
+
+rules:dep_priority(grouped_package_dependency(_T,C,N,PackageDeps):Action?{_Context}, K) :-
+  !,
+  ( merge_slot_restriction(Action, C, N, PackageDeps, SlotReq) ->
+      rules:slotreq_priority(SlotReq, K)
+  ; K = 50
+  ).
+rules:dep_priority(_Other, 90) :- !.
+
+rules:slotreq_priority([slot(_),subslot(_)|_], 0) :- !.
+rules:slotreq_priority([slot(_)|_],             5) :- !.
+rules:slotreq_priority([any_same_slot],        10) :- !.
+rules:slotreq_priority([any_different_slot],   15) :- !.
+rules:slotreq_priority([],                     20) :- !.
+rules:slotreq_priority(_Other,                 30) :- !.
 
 
 % -----------------------------------------------------------------------------
@@ -1102,12 +1145,18 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       ; SsLock = _Unbound
       ),
 
-      ( SlotReq = [slot(_)] ->
-          % NOTE: explicit slot requirements should NOT be influenced by an
-          % existing `slot(C,N,...)` term in Context (multi-slot is allowed).
-          % We validate slot constraints after candidate selection.
+      % Candidate selection must respect slot constraints.
+      %
+      % IMPORTANT:
+      % - For explicit slot/subslot deps (cat/pkg:0/0.16, :=0/0.16, etc.), we must NOT
+      %   blindly reuse an existing selected_cn(C,N) choice that may point at a
+      %   different slot/subslot (otherwise the dep degrades into a bogus
+      %   "non-existent, assumed ..." domain assumption).
+      % - We therefore only reuse selected_cn when it satisfies SlotReq.
+      ( SlotReq = [slot(_)|_] ->
           rules:accepted_keyword_candidate(Action, C, N, SlotReq, _Ss0, Context, FoundRepo://Candidate)
-      ; rules:selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate) ->
+      ; rules:selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate),
+        rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, _SsSel) ->
           true
       ; rules:accepted_keyword_candidate(Action, C, N, SlotReq, SsLock, Context, FoundRepo://Candidate)
       ),
