@@ -180,14 +180,15 @@ eapi:compare_ordered_entry_version_desc(Delta,
   ),
   !.
 
-eapi:version_key([Nums, Alpha, Suffix, Full], key(NumsNorm, AlphaS, BaseS, Rev, FullS)) :-
+eapi:version_key([Nums, Alpha, Suffix, Full], key(NumsNorm, AlphaS, SuffixRank, SuffixNum, SuffixRest, Rev, FullS)) :-
   !,
   eapi:nums_normalize(Nums, NumsNorm),
   eapi:to_string(Alpha, AlphaS),
   eapi:to_string(Suffix, SuffixS0),
   eapi:split_revision(SuffixS0, BaseS, Rev),
+  eapi:suffix_key(BaseS, SuffixRank, SuffixNum, SuffixRest),
   eapi:to_string(Full, FullS).
-eapi:version_key(Other, key([0], '', '', 0, OtherS)) :-
+eapi:version_key(Other, key([0], '', 4, 0, '', 0, OtherS)) :-
   eapi:to_string(Other, OtherS).
 
 eapi:nums_normalize(List0, List) :-
@@ -232,6 +233,49 @@ eapi:split_revision_at([Pos|_Rest], Suffix, Base, Rev) :-
   !.
 eapi:split_revision_at([_|Rest], Suffix, Base, Rev) :-
   eapi:split_revision_at(Rest, Suffix, Base, Rev).
+
+% Gentoo suffix precedence:
+%   _alpha < _beta < _pre < _rc < (final) < _p
+eapi:suffix_key(Suffix0, Rank, Num, Rest) :-
+  eapi:to_string(Suffix0, Suffix),
+  ( Suffix == "" ->
+      Rank = 4, Num = 0, Rest = ""
+  ; eapi:suffix_with_prefix("_alpha", Suffix, Num, Rest) ->
+      Rank = 0
+  ; eapi:suffix_with_prefix("_beta", Suffix, Num, Rest) ->
+      Rank = 1
+  ; eapi:suffix_with_prefix("_pre", Suffix, Num, Rest) ->
+      Rank = 2
+  ; eapi:suffix_with_prefix("_rc", Suffix, Num, Rest) ->
+      Rank = 3
+  ; eapi:suffix_with_prefix("_p", Suffix, Num, Rest) ->
+      Rank = 5
+  ; Rank = 6, Num = 0, Rest = Suffix
+  ),
+  !.
+
+eapi:suffix_with_prefix(Prefix, Suffix, Num, Rest) :-
+  string_concat(Prefix, Tail, Suffix),
+  eapi:split_leading_digits(Tail, Num, Rest),
+  !.
+
+eapi:split_leading_digits(Tail, Num, Rest) :-
+  string_chars(Tail, Chars),
+  eapi:take_leading_digit_chars(Chars, DigitChars, RestChars),
+  ( DigitChars == [] ->
+      Num = 0
+  ; string_chars(DigitStr, DigitChars),
+    number_string(Num, DigitStr)
+  ),
+  string_chars(Rest, RestChars),
+  !.
+
+eapi:take_leading_digit_chars([], [], []).
+eapi:take_leading_digit_chars([C|Cs], [C|Ds], Rest) :-
+  char_type(C, digit),
+  !,
+  eapi:take_leading_digit_chars(Cs, Ds, Rest).
+eapi:take_leading_digit_chars(Rest, [], Rest).
 
 
 % =============================================================================
