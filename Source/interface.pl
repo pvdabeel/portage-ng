@@ -132,6 +132,7 @@ interface:process_flags:-
   (lists:memberchk(emptytree(true), Options) -> asserta(preference:local_flag(emptytree))       ; true),
   (lists:memberchk(depclean(true),  Options) -> asserta(preference:local_flag(depclean))        ; true),
   (lists:memberchk(newuse(true),    Options) -> asserta(preference:local_flag(newuse))          ; true),
+  (lists:memberchk(pretend(true),   Options) -> asserta(preference:local_flag(pretend))         ; true),
   (lists:memberchk(oneshot(true),   Options) -> asserta(preference:local_flag(oneshot))         ; true),
   (lists:memberchk(verbose(true),   Options) -> asserta(config:verbose(true))                   ; true),
   (lists:memberchk(style(Style),    Options) -> asserta(config:interface_printing_style(Style)) ; true).
@@ -398,9 +399,10 @@ interface:process_action(depclean, ArgsSets, _Options) :-
 
 interface:process_action(_Action,[],_) :- !.
 
-interface:process_action(Action,ArgsSets,_Options) :-
+interface:process_action(Action,ArgsSets,Options) :-
   interface:process_mode(Mode),
   interface:process_server(Host,Port),
+  ( memberchk(pretend(true), Options) -> PretendMode = true ; PretendMode = false ),
   eapi:substitute_sets(ArgsSets,Args),
   % IMPORTANT:
   % Do NOT resolve a concrete candidate here. We only check that the target has
@@ -426,11 +428,10 @@ interface:process_action(Action,ArgsSets,_Options) :-
     (client:rpc_execute(Host,Port,
      (printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers),
       printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
-      vdb:sync),
+      ( PretendMode == false -> vdb:sync ; true )),
      Output),
      writeln(Output));
-    ( interface:argv(Options,_Args0),
-      ( memberchk(time_limit(TimeLimitSec), Options) -> true ; TimeLimitSec = 0 ),
+    ( ( memberchk(time_limit(TimeLimitSec), Options) -> true ; TimeLimitSec = 0 ),
       ( TimeLimitSec =< 0 ->
           ( ( printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers) ->
                 FallbackUsed = false
@@ -474,13 +475,15 @@ interface:process_action(Action,ArgsSets,_Options) :-
       ( memberchk(ci(true), Options) ->
           interface:ci_exit_code(ModelAVL, ProofAVL, ExitCode),
           halt(ExitCode)
-      ; FallbackUsed == false ->
+      ; FallbackUsed == false,
+        PretendMode == false ->
           vdb:sync
       ; true
       ),
       % Apply any world actions that were produced by the proof/plan.
       % (This keeps "world update" rule-driven, but still executed by the CLI.)
-      ( FallbackUsed == false ->
+      ( FallbackUsed == false,
+        PretendMode == false ->
             interface:execute_world_actions_from_plan(Plan),
             world:save
         ; true
