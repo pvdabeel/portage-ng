@@ -569,17 +569,20 @@ rules:dep_priority(grouped_package_dependency(_T,C,N,PackageDeps):Action?{_Conte
   !,
   ( merge_slot_restriction(Action, C, N, PackageDeps, SlotReq) ->
       % Prefer satisfying tight constraints early:
-      % - explicit slot/subslot restrictions
-      % - version upper bounds (< ...), common in Haskell cabal sets
-      ( rules:dep_has_upper_version_bound(C, N, PackageDeps) ->
-          K0 = 1
-      ; K0 = 999
+      % - explicit slot/subslot restrictions,
+      % - version upper bounds (< ...),
+      % - and among upper-bounded deps, process the tightest upper bound first.
+      ( rules:dep_tightest_upper_bound(C, N, PackageDeps, TightUpper) ->
+          UpperK0 = 1
+      ; UpperK0 = 999,
+        TightUpper = none
       ),
-      rules:slotreq_priority(SlotReq, K1),
-      K is min(K0, K1)
-  ; K = 50
+      rules:slotreq_priority(SlotReq, SlotK0),
+      BaseK is min(UpperK0, SlotK0),
+      K = key(BaseK, TightUpper, C, N)
+  ; K = key(50, none, C, N)
   ).
-rules:dep_priority(_Other, 90) :- !.
+rules:dep_priority(_Other, key(90, none, zz, zz)) :- !.
 
 rules:slotreq_priority([slot(_),subslot(_)|_], 0) :- !.
 rules:slotreq_priority([slot(_)|_],             5) :- !.
@@ -587,6 +590,25 @@ rules:slotreq_priority([any_same_slot],        10) :- !.
 rules:slotreq_priority([any_different_slot],   15) :- !.
 rules:slotreq_priority([],                     20) :- !.
 rules:slotreq_priority(_Other,                 30) :- !.
+
+% Tightest upper-bound version (smallest `<` / `<=` bound) for grouped deps.
+rules:dep_tightest_upper_bound(C, N, PackageDeps, Tightest) :-
+  findall(Vn,
+          ( member(package_dependency(_Phase, no, C, N, Op, V0, _S, _U), PackageDeps),
+            ( Op == smaller ; Op == smallerorequal ),
+            rules:coerce_version_term(V0, Vn)
+          ),
+          Bounds0),
+  Bounds0 = [First|Rest],
+  foldl(rules:min_version_bound_, Rest, First, Tightest),
+  !.
+
+rules:min_version_bound_(V, Best0, Best) :-
+  ( eapi:version_compare(<, V, Best0) ->
+      Best = V
+  ; Best = Best0
+  ),
+  !.
 
 
 % -----------------------------------------------------------------------------
