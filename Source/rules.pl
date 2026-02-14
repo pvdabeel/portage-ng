@@ -567,7 +567,15 @@ rules:dep_priority_kv(Dep, K-Dep) :-
 rules:dep_priority(grouped_package_dependency(_T,C,N,PackageDeps):Action?{_Context}, K) :-
   !,
   ( merge_slot_restriction(Action, C, N, PackageDeps, SlotReq) ->
-      rules:slotreq_priority(SlotReq, K)
+      % Prefer satisfying tight constraints early:
+      % - explicit slot/subslot restrictions
+      % - version upper bounds (< ...), common in Haskell cabal sets
+      ( rules:dep_has_upper_version_bound(C, N, PackageDeps) ->
+          K0 = 1
+      ; K0 = 999
+      ),
+      rules:slotreq_priority(SlotReq, K1),
+      K is min(K0, K1)
   ; K = 50
   ).
 rules:dep_priority(_Other, 90) :- !.
@@ -1283,6 +1291,14 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       )
     )
   ).
+
+% True iff PackageDeps contains an explicit upper bound for (C,N), i.e. < or <=.
+rules:dep_has_upper_version_bound(C, N, PackageDeps) :-
+  member(package_dependency(_Phase, no, C, N, Op, _V, _S, _U), PackageDeps),
+  ( Op == smaller
+  ; Op == smallerorequal
+  ),
+  !.
 
 rules:all_deps_have_explicit_slot([]) :- !, fail.
 rules:all_deps_have_explicit_slot(Deps) :-
