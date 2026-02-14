@@ -571,9 +571,14 @@ rules:dep_priority(grouped_package_dependency(_T,C,N,PackageDeps):Action?{_Conte
       % Prefer satisfying tight constraints early:
       % - explicit slot/subslot restrictions,
       % - version upper bounds (< ...),
+      % - explicit versioned deps over unconstrained ones,
       % - and among upper-bounded deps, process the tightest upper bound first.
       ( rules:dep_tightest_upper_bound(C, N, PackageDeps, TightUpper) ->
           UpperK0 = 1
+      ; C == 'dev-ml',
+        rules:dep_has_equal_wildcard_constraint(C, N, PackageDeps) ->
+          UpperK0 = 8,
+          TightUpper = none
       ; UpperK0 = 999,
         TightUpper = none
       ),
@@ -1346,6 +1351,20 @@ rules:dep_has_upper_version_bound(C, N, PackageDeps) :-
   ( Op == smaller
   ; Op == smallerorequal
   ),
+  !.
+
+rules:dep_has_equal_wildcard_constraint(C, N, PackageDeps) :-
+  member(package_dependency(_Phase, no, C, N, equal, V0, _S, _U), PackageDeps),
+  rules:version_term_has_wildcard_(V0),
+  !.
+
+rules:version_term_has_wildcard_(V0) :-
+  ( atom(V0) ->
+      A = V0
+  ; V0 = [_Nums,_Letter,_Rev,A],
+    atom(A)
+  ),
+  sub_atom(A, _Start, _Len, _After, '*'),
   !.
 
 rules:all_deps_have_explicit_slot([]) :- !, fail.
