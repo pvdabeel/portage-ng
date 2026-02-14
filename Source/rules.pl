@@ -2051,7 +2051,7 @@ rules:group_choice_dep(D, D).
 % runtime clause below) does not record the chosen package_dependency/8 in the
 % model, which makes || ( ... ) disappear from dependency models.
 rule(any_of_group(Deps):config?{Context}, [D:config?{Context}]) :-
-  prioritize_deps(Deps, Context, SortedDeps),
+  rules:prioritize_deps_keep_all(Deps, Context, SortedDeps),
   member(D0, SortedDeps),
   rules:any_of_config_dep_ok(Context, D0),
   % In config phase we must prove the *package_dependency/8* term so it is
@@ -2060,7 +2060,7 @@ rule(any_of_group(Deps):config?{Context}, [D:config?{Context}]) :-
   !.
 
 rule(any_of_group(Deps):Action?{Context}, Conditions) :-
-  prioritize_deps(Deps, Context, SortedDeps),
+  rules:prioritize_deps_keep_all(Deps, Context, SortedDeps),
   member(D0, SortedDeps),
   rules:group_choice_dep(D0, D),
   rule(D:Action?{Context}, Conditions0),
@@ -2078,7 +2078,7 @@ rule(any_of_group(Deps):Action?{Context}, Conditions) :-
   !.
 
 rule(any_of_group(Deps), Conditions) :-
-  prioritize_deps(Deps, SortedDeps),
+  rules:prioritize_deps_keep_all(Deps, [], SortedDeps),
   member(D, SortedDeps),
   rule(D, Conditions),
   !.
@@ -2510,6 +2510,20 @@ prioritize_deps(Deps, SortedDeps) :-
 
 prioritize_deps(Deps, Context, SortedDeps) :-
   predsort(rules:compare_dep_rank(Context), Deps, SortedDeps).
+
+% Like prioritize_deps/3, but preserves alternatives with identical rank.
+% predsort/3 can drop equal-ranked members (comparator returns (=)); this is
+% undesirable for disjunctions where all alternatives must remain available.
+rules:prioritize_deps_keep_all(Deps, Context, SortedDeps) :-
+  findall(NegRank-I-Dep,
+          ( nth1(I, Deps, Dep),
+            rules:dep_rank(Context, Dep, Rank),
+            NegRank is -Rank
+          ),
+          Ranked),
+  keysort(Ranked, RankedSorted),
+  findall(Dep, member(_NegRank-_I-Dep, RankedSorted), SortedDeps),
+  !.
 
 % Rank dependencies for deterministic group choice.
 % Primary signal: prefer deps that are already satisfied by effective USE /
