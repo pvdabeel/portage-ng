@@ -1064,7 +1064,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
   findall(grouped_package_dependency(no, C, N, [D]):Action?{Context},
           member(D, PackageDeps),
           Conditions0),
-  sort(Conditions0, Conditions).
+  sort([constraint(selected_cn_allow_multislot(C,N):{true})|Conditions0], Conditions).
 
 rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions) :-
   !,
@@ -1269,8 +1269,10 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       ),
       query:search(version(CandVer), FoundRepo://Candidate),
       Selected = constraint(selected_cn(C,N):{ordset([selected(FoundRepo,Candidate,ActSel,CandVer,SlotMeta)])}),
+      rules:selected_cn_allow_multislot_constraints(C, N, SlotReq, PackageDeps1, AllowMultiSlotCons),
       rules:cn_domain_constraints(Action, C, N, PackageDeps1, Context, DomainCons, _DomainReasonTags),
-      append(DomainCons, [Selected|Constraints], Conditions0),
+      append(DomainCons, AllowMultiSlotCons, DomainAndAllow),
+      append(DomainAndAllow, [Selected|Constraints], Conditions0),
       append(Conditions0, [ActionGoal], Conditions)
     ; % In --deep mode we *prefer* upgrades, but we should not create domain
       % assumptions when the dependency is already installed in the vdb (`pkg`)
@@ -3501,13 +3503,16 @@ rules:constraint_guard(constraint(blocked_cn(C,N):{ordset(Specs)}), Constraints)
       \+ rules:specs_violate_selected(Specs, Selected)
   ; true
   ).
+rules:constraint_guard(constraint(selected_cn_allow_multislot(_C,_N):{_}), _Constraints) :-
+  !.
 rules:constraint_guard(constraint(selected_cn(C,N):{ordset(_SelectedNew)}), Constraints) :-
   !,
-  % Enforce CN-consistency: for each (C,N), all selections must refer to the
-  % same concrete entry. Without this, separate install/run obligations can
-  % accidentally select different versions and both end up scheduled.
+  % Enforce CN-consistency:
+  % - default: one concrete entry per (C,N),
+  % - opt-in: allow one concrete entry per SLOT when multislot was explicitly
+  %   requested (slot-qualified deps or split grouped deps).
   get_assoc(selected_cn(C,N), Constraints, ordset(SelectedMerged)),
-  rules:selected_cn_unique(SelectedMerged),
+  rules:selected_cn_unique(C, N, SelectedMerged, Constraints),
   ( get_assoc(cn_domain(C,N), Constraints, Domain) ->
       once(( member(selected(Repo, Entry, _Act, _SelVer, _SelSlotMeta), SelectedMerged),
              version_domain:domain_allows_candidate(Domain, Repo://Entry)
@@ -3520,11 +3525,34 @@ rules:constraint_guard(constraint(selected_cn(C,N):{ordset(_SelectedNew)}), Cons
   ).
 rules:constraint_guard(_Other, _Constraints).
 
-% True iff all selected/5 terms refer to the same Repo+Entry.
-rules:selected_cn_unique([]) :- !.
-rules:selected_cn_unique([selected(Repo,Entry,_Act,_Ver,SlotMeta)|Rest]) :-
-  % Allow multiple slots for the same (C,N) (Portage-style), but enforce that
-  % within a given SLOT we pick at most one concrete entry.
+% Allow multi-slot selections only when explicitly requested.
+rules:selected_cn_allow_multislot_constraints(C, N, SlotReq, PackageDeps, [constraint(selected_cn_allow_multislot(C,N):{true})]) :-
+  ( SlotReq = [slot(_)|_]
+  ; SlotReq == [any_same_slot]
+  ; SlotReq == [any_different_slot]
+  ; rules:all_deps_exactish_versioned(PackageDeps)
+  ),
+  !.
+rules:selected_cn_allow_multislot_constraints(_C, _N, _SlotReq, _PackageDeps, []).
+
+rules:selected_cn_unique(C, N, SelectedMerged, Constraints) :-
+  ( get_assoc(selected_cn_allow_multislot(C,N), Constraints, _AllowFlag) ->
+      rules:selected_cn_unique_per_slot(SelectedMerged)
+  ; rules:selected_cn_unique_strict(SelectedMerged)
+  ).
+
+% Strict mode: all selected/5 terms must refer to the same Repo+Entry.
+rules:selected_cn_unique_strict([]) :- !.
+rules:selected_cn_unique_strict([selected(Repo,Entry,_Act,_Ver,_SlotMeta)|Rest]) :-
+  forall(member(selected(Repo2,Entry2,_A2,_V2,_SlotMeta2), Rest),
+         ( Repo2 == Repo,
+           Entry2 == Entry
+         )),
+  rules:selected_cn_unique_strict(Rest).
+
+% Multi-slot mode: one concrete entry per SLOT.
+rules:selected_cn_unique_per_slot([]) :- !.
+rules:selected_cn_unique_per_slot([selected(Repo,Entry,_Act,_Ver,SlotMeta)|Rest]) :-
   rules:selected_cn_slot_key_(SlotMeta, Slot),
   forall(member(selected(Repo2,Entry2,_A2,_V2,SlotMeta2), Rest),
          ( rules:selected_cn_slot_key_(SlotMeta2, Slot2),
@@ -3532,7 +3560,7 @@ rules:selected_cn_unique([selected(Repo,Entry,_Act,_Ver,SlotMeta)|Rest]) :-
            ; Repo2 == Repo, Entry2 == Entry
            )
          )),
-  rules:selected_cn_unique(Rest).
+  rules:selected_cn_unique_per_slot(Rest).
 
 % Extract a canonical slot key from selection metadata.
 % We only key on SLOT (not subslot) because multi-slot correctness is about
