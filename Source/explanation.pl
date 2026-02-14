@@ -43,6 +43,15 @@ Optional domain-level enrichment for explainer:why_in_proof/4.
 */
 :- multifile why_in_proof_hook/2.
 
+why_in_proof_hook(why_in_proof(Target, proof_key(ProofKey), depcount(DepCount), body(Body), ctx(Ctx)),
+                  why_in_proof(Target, proof_key(ProofKey), depcount(DepCount), body(Body), ctx(Ctx), domain_reasons(Reasons))) :-
+  ( explanation:context_domain_reasons(Ctx, Reasons)
+  ; explanation:target_ctx(Target, TargetCtx),
+    explanation:context_domain_reasons(TargetCtx, Reasons)
+  ),
+  Reasons \== [],
+  !.
+
 why_in_proof_hook(Why, Why).
 
 /** <hook> why_assumption_hook/2
@@ -50,7 +59,37 @@ Optional domain-level enrichment for explainer:why_assumption/5.
 */
 :- multifile why_assumption_hook/2.
 
+why_assumption_hook(why_assumption(Key, type(AssType), term(Term), reason(Reason)),
+                    why_assumption(Key, type(AssType), term(Term), reason(Reason), domain_reasons(Reasons))) :-
+  explainer:term_ctx(Term, Ctx),
+  explanation:context_domain_reasons(Ctx, Reasons),
+  Reasons \== [],
+  !.
+
 why_assumption_hook(Why, Why).
+
+explanation:context_domain_reasons(Ctx, Reasons) :-
+  is_list(Ctx),
+  findall(Tag,
+          ( member(domain_reason(cn_domain(_C, _N, Tags)), Ctx),
+            member(Tag, Tags)
+          ),
+          Tags0),
+  sort(Tags0, Reasons),
+  !.
+explanation:context_domain_reasons(_Ctx, []).
+
+explanation:target_ctx(assumed(Inner), Ctx) :-
+  !,
+  explainer:term_ctx(Inner, Ctx).
+explanation:target_ctx(domain(Inner), Ctx) :-
+  !,
+  explainer:term_ctx(Inner, Ctx).
+explanation:target_ctx(cycle_break(Inner), Ctx) :-
+  !,
+  explainer:term_ctx(Inner, Ctx).
+explanation:target_ctx(Target, Ctx) :-
+  explainer:term_ctx(Target, Ctx).
 
 
 % -----------------------------------------------------------------------------

@@ -16,6 +16,7 @@ This file contains domain-specific rules
 
 :- use_module(library(ordsets)).
 :- use_module(unify). % feature_unification:unify/3 (generic feature-term merge)
+:- use_module('version.pl').
 
 :- discontiguous rules:rule/2.
 
@@ -1268,7 +1269,9 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       ),
       query:search(version(CandVer), FoundRepo://Candidate),
       Selected = constraint(selected_cn(C,N):{ordset([selected(FoundRepo,Candidate,ActSel,CandVer,SlotMeta)])}),
-      append([Selected|Constraints], [ActionGoal], Conditions)
+      rules:cn_domain_constraints(Action, C, N, PackageDeps1, Context, DomainCons, _DomainReasonTags),
+      append(DomainCons, [Selected|Constraints], Conditions0),
+      append(Conditions0, [ActionGoal], Conditions)
     ; % In --deep mode we *prefer* upgrades, but we should not create domain
       % assumptions when the dependency is already installed in the vdb (`pkg`)
       % and satisfies constraints. Instead, fall back to "keep installed".
@@ -1287,10 +1290,31 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         % feature lattice. Unifying it into Context can prevent later refinement
         % of the same dependency (and can also bloat contexts via propagation).
         feature_unification:unify([], Context, Ctx1),
-        Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps1):Action?{Ctx1})]
+        version_domain:domain_reason_terms(Action, C, N, PackageDeps1, Context, DomainReasonTags),
+        rules:add_domain_reason_context(C, N, DomainReasonTags, Ctx1, Ctx2),
+        Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps1):Action?{Ctx2})]
       )
     )
   ).
+
+rules:cn_domain_constraints(Action, C, N, PackageDeps, Context, DomainCons, DomainReasonTags) :-
+  version_domain:domain_from_packagedeps(Action, C, N, PackageDeps, Domain),
+  version_domain:domain_reason_terms(Action, C, N, PackageDeps, Context, DomainReasonTags),
+  ( DomainReasonTags == [] ->
+      ReasonCons = []
+  ; ReasonCons = [constraint(cn_domain_reason(C,N):{ordset(DomainReasonTags)})]
+  ),
+  ( Domain == none ->
+      DomainCons = ReasonCons
+  ; DomainCons = [constraint(cn_domain(C,N):{Domain})|ReasonCons]
+  ),
+  !.
+
+rules:add_domain_reason_context(_C, _N, [], Ctx, Ctx) :-
+  !.
+rules:add_domain_reason_context(C, N, ReasonTags, Ctx0, Ctx) :-
+  feature_unification:unify([domain_reason(cn_domain(C,N,ReasonTags))], Ctx0, Ctx),
+  !.
 
 % True iff PackageDeps contains an explicit upper bound for (C,N), i.e. < or <=.
 rules:dep_has_upper_version_bound(C, N, PackageDeps) :-
@@ -2049,14 +2073,26 @@ rules:any_of_reject_assumed_choice(grouped_package_dependency(_Strength, C, N, _
 rules:any_of_config_dep_ok(_Context, package_dependency(_Phase, _Strength, _C, _N, _O, _V, _S, U)) :-
   U == [],
   !.
-rules:any_of_config_dep_ok(Context, package_dependency(_Phase, _Strength, C, N, _O, _V, _S, U)) :-
-  % Pick some representative ebuild entry and test whether the bracketed USE
-  % requirements are satisfiable under the effective USE configuration.
-  % If not, let any_of_group/2 consider the next alternative.
-  once(query:search([repository(portage), category(C), name(N)], portage://Id)),
-  rules:candidate_satisfies_use_deps(Context, portage://Id, U),
+rules:any_of_config_dep_ok(Context, package_dependency(_Phase, _Strength, C, N, O, V, SlotReq, U)) :-
+  % Test USE-dep satisfiability against concrete candidates that match the
+  % dependency's own version/slot constraints. Using a single arbitrary
+  % representative entry can produce false negatives and make model
+  % construction fail at the root `entry(...:run)` literal.
+  findall(Repo://Id,
+          ( query:search([category(C), name(N)], Repo://Id),
+            rules:query_search_version_select(O, V, Repo://Id),
+            rules:query_search_slot_constraint(SlotReq, Repo://Id, _)
+          ),
+          Candidates0),
+  sort(Candidates0, Candidates),
+  Candidates \== [],
+  member(Candidate, Candidates),
+  rules:candidate_satisfies_use_deps(Context, Candidate, U),
   !.
 % If the USE-deps are not satisfiable, reject this option.
+rules:any_of_config_dep_ok(_Context, package_dependency(_Phase, _Strength, _C, _N, _O, _V, _S, _U)) :-
+  rules:assume_conflicts,
+  !.
 rules:any_of_config_dep_ok(_Context, package_dependency(_Phase, _Strength, _C, _N, _O, _V, _S, _U)) :-
   !,
   fail.
@@ -3449,6 +3485,16 @@ rules:canon_any_same_slot_meta(Meta0, [slot(S)]) :-
 % We use it for enforcing strong blockers against already-selected candidates,
 % while keeping the prover itself domain-agnostic.
 %
+rules:constraint_guard(constraint(cn_domain(C,N):{Domain0}), Constraints) :-
+  !,
+  ( get_assoc(cn_domain(C,N), Constraints, Domain) -> true ; Domain = Domain0 ),
+  \+ version_domain:domain_inconsistent(Domain),
+  ( get_assoc(selected_cn(C,N), Constraints, ordset(Selected)) ->
+      once(( member(selected(Repo, Entry, _Act, _SelVer, _SelSlotMeta), Selected),
+             version_domain:domain_allows_candidate(Domain, Repo://Entry)
+           ))
+  ; true
+  ).
 rules:constraint_guard(constraint(blocked_cn(C,N):{ordset(Specs)}), Constraints) :-
   !,
   ( get_assoc(selected_cn(C,N), Constraints, ordset(Selected)) ->
@@ -3462,6 +3508,12 @@ rules:constraint_guard(constraint(selected_cn(C,N):{ordset(_SelectedNew)}), Cons
   % accidentally select different versions and both end up scheduled.
   get_assoc(selected_cn(C,N), Constraints, ordset(SelectedMerged)),
   rules:selected_cn_unique(SelectedMerged),
+  ( get_assoc(cn_domain(C,N), Constraints, Domain) ->
+      once(( member(selected(Repo, Entry, _Act, _SelVer, _SelSlotMeta), SelectedMerged),
+             version_domain:domain_allows_candidate(Domain, Repo://Entry)
+           ))
+  ; true
+  ),
   ( get_assoc(blocked_cn(C,N), Constraints, ordset(Specs)) ->
       \+ rules:specs_violate_selected(Specs, SelectedMerged)
   ; true

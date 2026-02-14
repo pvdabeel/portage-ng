@@ -29,6 +29,12 @@ any domain-specific functors.
 
 :- use_module(library(lists)).   % intersection/3, subset/2
 
+% Optional domain extension point for value unification.
+%
+% Keep this hook generic: concrete domains may provide clauses for specific
+% value shapes while the core unifier remains domain-agnostic.
+:- multifile feature_unification:val_hook/3.
+
 % =============================================================================
 %  Public API
 % =============================================================================
@@ -133,6 +139,12 @@ add_singleton(L, _Acc, _Out) :-
 % =============================================================================
 %  Value unification
 % =============================================================================
+
+% CASE 0: domain-provided override hook.
+% Hook should fail when it does not handle the input pair.
+val(V1, V2, V3) :-
+  feature_unification:val_hook(V1, V2, V3),
+  !.
 
 % CASE 1: default (identical)
 val(V, V, V) :- !.

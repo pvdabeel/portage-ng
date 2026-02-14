@@ -139,6 +139,7 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/query.pl')),
 
    ensure_loaded(portage('Source/eapi.pl')),
+   ensure_loaded(portage('Source/version.pl')),
    ensure_loaded(portage('Source/mirror.pl')),
    ensure_loaded(portage('Source/explainer.pl')),
    ensure_loaded(portage('Source/explanation.pl')),

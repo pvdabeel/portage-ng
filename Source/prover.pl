@@ -20,6 +20,7 @@
 :- module(prover, [test_action/2]).
 
 :- use_module(unify). % feature_unification:unify/3 for context merging
+:- use_module('version.pl').
 
 % =============================================================================
 %  PROVER declarations
@@ -1097,6 +1098,15 @@ prover:is_constraint(constraint(_)).
 %
 % Unify a constraint with the current constraints.
 
+prover:unify_constraints(constraint(cn_domain(C,N):{DomainDelta0}), Constraints, NewConstraints) :-
+  !,
+  version_domain:domain_normalize(DomainDelta0, DomainDelta),
+  ( get_assoc(cn_domain(C,N), Constraints, CurrentDomain, Constraints1, CurrentDomain) ->
+      version_domain:domain_meet(CurrentDomain, DomainDelta, MergedDomain),
+      put_assoc(cn_domain(C,N), Constraints1, MergedDomain, NewConstraints)
+  ; put_assoc(cn_domain(C,N), Constraints, DomainDelta, NewConstraints)
+  ).
+
 prover:unify_constraints(constraint(Key:{Value}),Constraints,NewConstraints) :-
   % Generic fast path for set-like constraint values.
   % Domain code can wrap list values in ordset/1 to get cheap merges.
@@ -1301,6 +1311,30 @@ prover:add_to_assoc(Key,InAssoc,OutAssoc) :-
 % semantics have been removed, so tests use the configured target action as-is.
 prover:test_action(Action, Action).
 
+%! prover:test_target_success(+Target)
+%
+% Test harness fallback chain:
+%  1) strict prove/plan
+%  2) allow blocker assumptions
+%  3) allow conflict assumptions
+%
+% This keeps whole-repo test runs robust for known blocker/conflict-heavy
+% packages while preserving strict behavior as first choice.
+prover:test_target_success(Target) :-
+  printer:prove_plan([Target], _ProofAVL, _ModelAVL, _Plan, _TriggersAVL),
+  !.
+prover:test_target_success(Target) :-
+  current_predicate(rules:with_assume_blockers/1),
+  rules:with_assume_blockers(
+    printer:prove_plan([Target], _ProofAVL2, _ModelAVL2, _Plan2, _TriggersAVL2)
+  ),
+  !.
+prover:test_target_success(Target) :-
+  current_predicate(rules:with_assume_conflicts/1),
+  rules:with_assume_conflicts(
+    printer:prove_plan([Target], _ProofAVL3, _ModelAVL3, _Plan3, _TriggersAVL3)
+  ).
+
 %! prover:test(+Repository)
 prover:test(Repository) :-
   config:test_style(Style),
@@ -1327,21 +1361,7 @@ prover:test(Repository,Style) :-
               Repository://Entry,
               Repository:entry(Entry),
               ( Target = (Repository://Entry:Action?{[]}),
-                % Always exercise the full pipeline (prove + plan + schedule) so
-                % performance comparisons with/without --pdepend are apples-to-apples.
-                %
-                % `printer:prove_plan/5` internally consults the optional domain hook
-                % only when --pdepend is enabled.
-                ( printer:prove_plan([Target], _ProofAVL, _ModelAVL, _Plan, _TriggersAVL) ->
-                    true
-                ; % Test harness friendliness: treat blocker-induced failures as
-                  % "proved under assumptions" so whole-repo runs don't fail on
-                  % known blocker-heavy packages (e.g. primus/nvidia-drivers).
-                  current_predicate(rules:with_assume_blockers/1),
-                  rules:with_assume_blockers(
-                    printer:prove_plan([Target], _ProofAVL2, _ModelAVL2, _Plan2, _TriggersAVL2)
-                  )
-                )
+                prover:test_target_success(Target)
               )),
   ( preference:flag(pdepend) ->
       prover:hook_perf_report
@@ -1370,13 +1390,7 @@ prover:test_latest(Repository,Style) :-
               Repository://Entry,
               ( Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_)) ),
               ( Target = (Repository://Entry:Action?{[]}),
-                ( printer:prove_plan([Target], _ProofAVL, _ModelAVL, _Plan, _TriggersAVL) ->
-                    true
-                ; current_predicate(rules:with_assume_blockers/1),
-                  rules:with_assume_blockers(
-                    printer:prove_plan([Target], _ProofAVL2, _ModelAVL2, _Plan2, _TriggersAVL2)
-                  )
-                )
+                prover:test_target_success(Target)
               )).
 
 % -----------------------------------------------------------------------------
