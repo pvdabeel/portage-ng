@@ -3199,6 +3199,18 @@ rules:ctx_assumed_minus(Ctx, Use) :-
   memberchk(assumed(minus(Use)), BU),
   !.
 
+% Derive USE state from the concrete parent package in context.
+% Only succeeds for flags that are present in the parent's IUSE.
+rules:self_context_use_state(Ctx, Use, State) :-
+  memberchk(self(RepoEntry0), Ctx),
+  ( RepoEntry0 = Repo://Id -> true
+  ; RepoEntry0 = Repo//Id  -> true
+  ),
+  rules:entry_iuse_info(Repo://Id, iuse_info(IuseSet, _PlusSet)),
+  memberchk(Use, IuseSet),
+  ( query:search(use(Use), Repo://Id) -> State = positive ; State = negative ),
+  !.
+
 % Determine whether a USE-dependency imposes a concrete requirement.
 rules:use_dep_requirement(_Ctx, enable(Use), Default, requirement(enable, Use, Default)) :- !.
 rules:use_dep_requirement(_Ctx, disable(Use), Default, requirement(disable, Use, Default)) :- !.
@@ -3240,7 +3252,7 @@ rules:use_dep_requirement(_Ctx, inverse(Use), Default, Requirement) :-
 % [foo?] / [!foo?] only constrain the child if the *parent* has a known state.
 %
 % IMPORTANT:
-% Do NOT fall back to global `preference:use/1` here. The meaning is:
+% Do NOT blindly fall back to global `preference:use/1` here. The meaning is:
 %   "if the parent has foo enabled/disabled"
 % not:
 %   "if foo is enabled globally".
@@ -3248,16 +3260,21 @@ rules:use_dep_requirement(_Ctx, inverse(Use), Default, Requirement) :-
 % Falling back to global USE causes massive, incorrect constraint propagation for
 % USE_EXPAND flags (notably python_targets_*), leading to widespread
 % unsatisfied_constraints and timeouts.
+%
 rules:use_dep_requirement(Ctx, optenable(Use), Default, requirement(enable, Use, Default)) :-
   ( rules:ctx_assumed(Ctx, Use)
-  ; rules:effective_use_in_context(Ctx, Use, positive)
+  ; rules:self_context_use_state(Ctx, Use, positive)
+  ; \+ memberchk(self(_), Ctx),
+    rules:effective_use_in_context(Ctx, Use, positive)
   ),
   !.
 rules:use_dep_requirement(_Ctx, optenable(_Use), _Default, none) :- !.
 
 rules:use_dep_requirement(Ctx, optdisable(Use), Default, requirement(disable, Use, Default)) :-
   ( rules:ctx_assumed_minus(Ctx, Use)
-  ; rules:effective_use_in_context(Ctx, Use, negative)
+  ; rules:self_context_use_state(Ctx, Use, negative)
+  ; \+ memberchk(self(_), Ctx),
+    rules:effective_use_in_context(Ctx, Use, negative)
   ),
   !.
 rules:use_dep_requirement(_Ctx, optdisable(_Use), _Default, none) :- !.
