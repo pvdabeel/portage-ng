@@ -1,5 +1,53 @@
 This repository is a SWI-Prolog application (portage-ng).
 
+## Description 
+
+The application reads Gentoo ebuild md5-cache files from a Gentoo portage tree repository into SWI-Prolog cache predicates. 
+See cache.pl for the datastructure. The actual data is contained in kb.raw (which is qcompiled into kb.qlf).
+
+- `Source/repository.pl`: enables controlling of Portage tree (syncing, loading, saving facts)
+- `Source/knowledgebase.pl`: different repositories register themselves with the knowledge base. 
+- `Source/cache.pl`: the prolog cache data structure 
+- `Source/eapi.pl`: a Prolog DCG grammar to read md5-cache syntax
+- `Source/rules.pl`: domain specific (Gentoo) specific rules handling dependencies, interpreting use flags, etc.
+- `Source/vdb.pl`: a repository containing information about installed ebuilds
+
+
+## Architecture (mental model)
+Pipeline (standalone):
+
+- reader/parser build cache facts using eapi grammar
+- prover makes proofs (ProofAVL, ModelAVL, Constraints, TriggersAVL) using rules 
+- planner does fast wave planning for acyclic portion of graph represented by rules in proof and returns a remainder
+- scheduler post-processes remainder: SCC (Kosaraju) and merge-sets for :run SCCs
+- printer renders plan + assumptions & warnings
+
+Key files:
+- `Source/prover.pl`: inductive proof search; cycles become prover cycle-break assumptions (`assumed(rule(Lit))` in proof, `assumed(Lit)` in model).
+- `Source/rules.pl`: domain rules; domain assumptions appear as `rule(assumed(X), [])` and show as “Domain assumptions”.
+- `Source/planner.pl`: wave planner; returns (Plan, RemainderRules).
+- `Source/scheduler.pl`: SCC/merge-set scheduling for remainder; acts only on :run SCCs.
+- `Source/printer.pl`: output + warnings; distinguishes domain assumptions vs prover cycle-breaks.
+
+Assumption taxonomy (do not mix these up):
+
+- Domain assumptions (rules-level): proof key `rule(assumed(X))`
+- Prover cycle-break assumptions: proof key `assumed(rule(X))`
+
+
+## Configuration
+
+### Portage tree locations
+- `Source/Config/mac-pro.pl`: contains the specific configuration (location of repository, md5-cache, vdb pkg installation data)
+
+### Graph location
+- `Source/config.pl`: graph_directory/2 holds the location of the graph directory that contains .emerge files (traditional gentoo emerge output for a given package). 
+
+### Configuration 
+- `Source/config.pl`: configuration file with various configuration settings
+
+
+
 ## How to run (IMPORTANT)
 - Do NOT run ad-hoc `swipl -g "..."` snippets; they often miss required operator defs, libraries, and module load order.
 - Always launch via the project wrapper (project root):
@@ -29,26 +77,7 @@ The canonical load graph for standalone is in `portage-ng.pl`:
 - `load_common_modules/0`
 - `load_standalone_modules/0`
 
-## Architecture (mental model)
-Pipeline (standalone):
-- reader/parser build KB facts
-- prover builds (ProofAVL, ModelAVL, Constraints, TriggersAVL)
-- planner does fast wave planning for acyclic portion and returns a remainder
-- scheduler post-processes remainder: SCC (Kosaraju) and merge-sets for :run SCCs
-- printer renders plan + warnings
-
-Key files:
-- `Source/prover.pl`: inductive proof search; cycles become prover cycle-break assumptions (`assumed(rule(Lit))` in proof, `assumed(Lit)` in model).
-- `Source/rules.pl`: domain rules; domain assumptions appear as `rule(assumed(X), [])` and show as “Domain assumptions”.
-- `Source/planner.pl`: wave planner; returns (Plan, RemainderRules).
-- `Source/scheduler.pl`: SCC/merge-set scheduling for remainder; acts only on :run SCCs.
-- `Source/printer.pl`: output + warnings; distinguishes domain assumptions vs prover cycle-breaks.
-
-Assumption taxonomy (do not mix these up):
-- Domain assumptions (rules-level): proof key `rule(assumed(X))`
-- Prover cycle-break assumptions: proof key `assumed(rule(X))`
-
-## Non-interactive / sandbox robustness
+### Non-interactive / sandbox robustness
 - Terminal size lookups must go through `config:printing_tty_size/2` (direct `tty_size/2` may throw in non-tty environments).
 - Do NOT run `--sync` / repository syncing from inside the sandbox. The user will run `--sync` externally when needed.
 - Do NOT create `metadata/md5-cache/*` manually. `--sync` (egencache/md5-cache generation) produces those automatically.
@@ -58,3 +87,46 @@ Assumption taxonomy (do not mix these up):
 - Proof/Model/Triggers are assoc/AVL-based; avoid repeated full traversals when possible.
 - Query performance uses `goal_expansion/2` macros in `Source/query.pl`.
 
+## Development flow
+- We use a git workflow. 
+- Start development always with clean committed state  
+- When development is done, ask user to regenerate .merge files 
+- Run compare analysis between merge and emerge files (see below) to detect regressions.
+- Ask user for permission to commit.
+
+## Compare merge vs emerge plans
+-  Merge vs Emerge files:
+  - `*.merge`: files in the graph directory for a given repository contain output of portage-ng
+  - `*.emerge`: files in the graph directory for a given repository contain output of gentoo emerge
+
+- The configuration on both the Gentoo system and portage-ng is identical (same portage snapshot, same vdb pkg data, same config
+
+- Full run:
+  - `python3 -u Source/Scripts/compare-merge-emerge.py --root /Volumes/Storage/Graph/portage --full-lists --out Reports/compare-<tag>.json`
+
+- Targeted run:
+  - `python3 -u Source/Scripts/compare-merge-emerge.py --root /Volumes/Storage/Graph/portage --target-regex '^pkg-ver$' --full-lists --out Reports/compare-<tag>.json`
+
+- Useful output fields:
+  - `aggregate_counts` (missing/extra/version/use/action totals)
+  - `aggregate_assumptions` (domain assumptions / blockers / cycle breaks)
+  - `top_missing_cpn`, `top_extra_cpn`, `top_domain_assumptions`
+
+- When comparing provide output in a table;
+  - Columns: comparing previous compare data vs currect compare data (columns)
+  - Rows: % vs portage merge_ok for CN, CN+V, CN+V+U, #blockers, #cycle breaks, #domain assumptions
+
+- The table output is used to determine regressions
+
+## Compare tooling (authoritative paths + usage)
+- Keep compare scripts in `Source/Scripts/`:
+  - `Source/Scripts/compare-merge-emerge.py`
+  - `Source/Scripts/compare-prover-failset.py`
+- Do not create ad-hoc compare scripts outside `Source/Scripts/`.
+
+### Compare prover fail-sets
+- Compare two `prover:test(portage)` logs:
+  - `python3 Source/Scripts/compare-prover-failset.py --baseline <baseline.log> --candidate <candidate.log> --out Reports/prover_failset_compare.json`
+
+## Compare to portage source code
+- The portage source code can be found in /Volumes/Disk\ 2/Git/portage on this system.
