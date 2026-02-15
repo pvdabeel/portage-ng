@@ -2154,8 +2154,10 @@ eapi:use_expand('python_targets').
 eapi:use_expand('qemu_softmmu_targets').
 eapi:use_expand('qemu_user_targets').
 eapi:use_expand('ros_messages').
+eapi:use_expand('rust_sysroots').
 eapi:use_expand('ruby_targets').
 eapi:use_expand('sane_backend').
+eapi:use_expand('sane_backends').
 eapi:use_expand('userland').
 eapi:use_expand('uwsgi_plugins').
 eapi:use_expand('video_cards').
@@ -2328,6 +2330,14 @@ eapi:categorize_use_for_entry(RawIuse, Repo://Id, State, Reason) :-
       Reason = Reason0
   ; % User /etc/portage/package.use (soft; overridden by profile mask/force)
     preference:package_use_override(C, N, Use, State0) ->
+      State = State0,
+      Reason = package_use
+  ; % User /etc/portage/package.use with version operators (soft)
+    preference:gentoo_package_use_override_for_entry_soft(Repo://Id, Use, State0) ->
+      State = State0,
+      Reason = package_use
+  ; % Profile package.use (soft; version/slot-aware)
+    preference:profile_package_use_override_for_entry_soft(Repo://Id, Use, State0) ->
       State = State0,
       Reason = package_use
   ; eapi:categorize_use(RawIuse, State, Reason)

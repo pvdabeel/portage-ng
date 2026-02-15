@@ -23,6 +23,8 @@ The preferences module contains build specific preferences
 
 % Per-package USE overrides (from /etc/portage/package.use-like sources).
 :- dynamic preference:package_use_override/4. % Category, Name, Use, State(positive|negative)
+:- dynamic preference:profile_package_use_soft/3. % Spec, Use, State(positive|negative)
+:- dynamic preference:gentoo_package_use_soft/3. % Spec, Use, State(positive|negative)
 
 % Global profile use.mask/use.force sets (for Portage-like display markers like '%').
 :- dynamic preference:profile_masked_use_flag/1.
@@ -311,7 +313,6 @@ preference:profile_use_terms(Terms) :-
 % (Kept small on purpose; add more only when required by parity checks.)
 %
 preference:profile_override_use(minus(introspection)).
-preference:profile_override_use(minus(launcher)).
 
 % -----------------------------------------------------------------------------
 %  Fallback: derive *_SINGLE_TARGET from *_TARGETS
@@ -369,6 +370,8 @@ preference:init :-
   retractall(preference:profile_forced_use_flag(_)),
   retractall(preference:profile_package_use_masked(_,_)),
   retractall(preference:profile_package_use_forced(_,_)),
+  retractall(preference:profile_package_use_soft(_,_,_)),
+  retractall(preference:gentoo_package_use_soft(_,_,_)),
 
   % 1. Set use flags
 
@@ -560,7 +563,11 @@ preference:apply_profile_package_use_op(add, masked, Spec, Flag) :-
   ),
   !.
 preference:apply_profile_package_use_op(del, masked, Spec, Flag) :-
-  retractall(preference:profile_package_use_masked(Spec, Flag)),
+  ( preference:profile_package_use_cp_from_spec_(Spec, C, N) ->
+      retractall(preference:profile_package_use_masked(simple(C, N, _), Flag)),
+      retractall(preference:profile_package_use_masked(versioned(_, C, N, _, _), Flag))
+  ; retractall(preference:profile_package_use_masked(Spec, Flag))
+  ),
   !.
 preference:apply_profile_package_use_op(add, forced, Spec, Flag) :-
   ( preference:profile_package_use_forced(Spec, Flag) -> true
@@ -568,8 +575,15 @@ preference:apply_profile_package_use_op(add, forced, Spec, Flag) :-
   ),
   !.
 preference:apply_profile_package_use_op(del, forced, Spec, Flag) :-
-  retractall(preference:profile_package_use_forced(Spec, Flag)),
+  ( preference:profile_package_use_cp_from_spec_(Spec, C, N) ->
+      retractall(preference:profile_package_use_forced(simple(C, N, _), Flag)),
+      retractall(preference:profile_package_use_forced(versioned(_, C, N, _, _), Flag))
+  ; retractall(preference:profile_package_use_forced(Spec, Flag))
+  ),
   !.
+
+preference:profile_package_use_cp_from_spec_(simple(C, N, _), C, N) :- !.
+preference:profile_package_use_cp_from_spec_(versioned(_, C, N, _, _), C, N) :- !.
 
 % Determine whether a profile enforces a hard per-package USE state for an entry.
 % Precedence: mask wins over force (Portage-like).
@@ -646,31 +660,64 @@ preference:apply_profile_package_use_dir(Dir) :-
                ; split_string(L2, " ", "\t ", Ws0),
                  exclude(=(""), Ws0, Ws),
                  ( Ws = [AtomS|FlagSs] ->
-                     % Only support simple cat/pkg atoms here (no operators/slots/usedep).
                      atom_string(AtomA, AtomS),
-                     ( atomic_list_concat([_C,_N], '/', AtomA),
-                       \+ sub_atom(AtomA, 0, 1, _, '>'),
-                       \+ sub_atom(AtomA, 0, 1, _, '<'),
-                       \+ sub_atom(AtomA, 0, 1, _, '='),
-                       \+ sub_atom(AtomA, 0, 1, _, '~'),
-                       \+ sub_atom(AtomA, _, 1, _, ':'),
-                       \+ sub_atom(AtomA, _, 1, _, '['),
-                       \+ sub_atom(AtomA, _, 1, _, '*')
-                     ->
-                       ( FlagSs == [] ->
-                           true
-                       ; atomic_list_concat(FlagSs, ' ', FlagAtomS),
-                         atom_string(FlagAtom, FlagAtomS),
-                         preference:register_package_use(AtomA, FlagAtom)
-                       )
-                     ; true
-                     )
+                     ( preference:profile_package_use_spec(AtomA, Spec) ->
+                         forall(member(FlagS0, FlagSs),
+                                preference:apply_profile_package_use_soft_flag(Spec, FlagS0))
+                     ; true )
                  ; true
                  )
                )
              ))
   ; true
   ).
+
+preference:apply_profile_package_use_soft_flag(Spec, FlagS0) :-
+  normalize_space(string(FlagS), FlagS0),
+  ( FlagS == "" ->
+      true
+  ; sub_string(FlagS, 0, 1, _, "-") ->
+      sub_string(FlagS, 1, _, 0, Name0),
+      normalize_space(string(Name), Name0),
+      Name \== "",
+      atom_string(Flag, Name),
+      retractall(preference:profile_package_use_soft(Spec, Flag, _)),
+      assertz(preference:profile_package_use_soft(Spec, Flag, negative))
+  ; atom_string(Flag, FlagS),
+    retractall(preference:profile_package_use_soft(Spec, Flag, _)),
+    assertz(preference:profile_package_use_soft(Spec, Flag, positive))
+  ),
+  !.
+
+preference:profile_package_use_override_for_entry_soft(Repo://Id, Use, State) :-
+  cache:ordered_entry(Repo, Id, C, N, ProposedVersion),
+  findall(State0,
+          ( preference:profile_package_use_soft(Spec, Use, State0),
+            preference:profile_package_use_spec_matches_entry_(Spec, Repo, Id, C, N, ProposedVersion)
+          ),
+          States),
+  States \== [],
+  last(States, State),
+  !.
+
+preference:gentoo_package_use_override_for_entry_soft(Repo://Id, Use, State) :-
+  cache:ordered_entry(Repo, Id, C, N, ProposedVersion),
+  findall(State0,
+          ( preference:gentoo_package_use_soft(Spec, Use, State0),
+            preference:profile_package_use_spec_matches_entry_(Spec, Repo, Id, C, N, ProposedVersion)
+          ),
+          States),
+  States \== [],
+  last(States, State),
+  !.
+
+preference:profile_package_use_spec_matches_entry_(simple(C, N, SlotReq), Repo, Id, C, N, _ProposedVersion) :-
+  preference:entry_satisfies_slot_req_(Repo, Id, SlotReq),
+  !.
+preference:profile_package_use_spec_matches_entry_(versioned(Op, C, N, ReqVer, SlotReq), Repo, Id, C, N, ProposedVersion) :-
+  preference:version_match(Op, ProposedVersion, ReqVer),
+  preference:entry_satisfies_slot_req_(Repo, Id, SlotReq),
+  !.
 
 
 % -----------------------------------------------------------------------------
@@ -826,7 +873,11 @@ preference:version_match(equal, Proposed, Req) :-
 preference:version_match(equal, Proposed, Req) :-
   Proposed == Req,
   !.
-preference:version_match(tilde, [V|_], [V|_]) :- !.
+preference:version_match(tilde, Proposed, Req) :-
+  preference:version_without_revision_(Proposed, CoreProposed),
+  preference:version_without_revision_(Req, CoreReq),
+  CoreProposed == CoreReq,
+  !.
 preference:version_match(wildcard, Proposed, [_,_,_,Pattern]) :-
   !,
   Proposed = [_,_,_,ProposedStr],
@@ -851,13 +902,78 @@ preference:version_match(notequal, Proposed, Req) :-
   Proposed \== Req,
   !.
 
+preference:version_without_revision_([_, _, _, Full0], Core) :-
+  ( atom(Full0),
+    sub_atom(Full0, DashPos, 2, 0, '-r'),
+    DashPos > 0,
+    DigitsStart is DashPos + 2,
+    sub_atom(Full0, DigitsStart, _, 0, Digits),
+    Digits \== '',
+    catch(atom_number(Digits, _), _, fail)
+  ->
+    sub_atom(Full0, 0, DashPos, _, Core)
+  ; Core = Full0
+  ),
+  !.
+
 
 preference:apply_gentoo_package_use :-
   ( current_predicate(config:gentoo_package_use/2) ->
       forall(config:gentoo_package_use(CNAtom, UseStr),
-             preference:register_package_use(CNAtom, UseStr))
+             preference:register_gentoo_package_use(CNAtom, UseStr))
   ; true
   ).
+
+preference:register_gentoo_package_use(CNAtom, UseStr) :-
+  atom(CNAtom),
+  ( preference:is_simple_catpkg_atom_(CNAtom) ->
+      preference:register_package_use(CNAtom, UseStr)
+  ; preference:profile_package_use_spec(CNAtom, Spec) ->
+      preference:register_gentoo_package_use_soft(Spec, UseStr)
+  ; true
+  ),
+  !.
+preference:register_gentoo_package_use(_, _) :-
+  true.
+
+preference:is_simple_catpkg_atom_(Atom) :-
+  atom(Atom),
+  atomic_list_concat([_C, _N], '/', Atom),
+  \+ sub_atom(Atom, 0, 1, _, '>'),
+  \+ sub_atom(Atom, 0, 1, _, '<'),
+  \+ sub_atom(Atom, 0, 1, _, '='),
+  \+ sub_atom(Atom, 0, 1, _, '~'),
+  \+ sub_atom(Atom, _, 1, _, ':'),
+  \+ sub_atom(Atom, _, 1, _, '['),
+  \+ sub_atom(Atom, _, 1, _, '*'),
+  !.
+
+preference:register_gentoo_package_use_soft(Spec, UseStr) :-
+  % `UseStr` may be given as a string or atom.
+  ( string(UseStr) ->
+      UseS = UseStr
+  ; atom(UseStr) ->
+      atom_string(UseStr, UseS)
+  ; UseS = ""
+  ),
+  split_string(UseS, " ", " \t\r\n", Parts0),
+  exclude(=(""), Parts0, Parts),
+  forall(member(P, Parts),
+         preference:apply_gentoo_package_use_soft_flag(Spec, P)),
+  !.
+
+preference:apply_gentoo_package_use_soft_flag(Spec, P) :-
+  ( sub_atom(P, 0, 1, _, '-') ->
+      sub_atom(P, 1, _, 0, Flag0),
+      Flag0 \== '',
+      atom_string(Flag, Flag0),
+      retractall(preference:gentoo_package_use_soft(Spec, Flag, _)),
+      assertz(preference:gentoo_package_use_soft(Spec, Flag, negative))
+  ; atom_string(Flag, P),
+    retractall(preference:gentoo_package_use_soft(Spec, Flag, _)),
+    assertz(preference:gentoo_package_use_soft(Spec, Flag, positive))
+  ),
+  !.
 
 preference:register_package_use(CNAtom, UseStr) :-
   atom(CNAtom),

@@ -145,7 +145,7 @@ config:gentoo_package_use('app-emulation/open-vm-tools', '-dnet -X -multimon res
 config:gentoo_package_use('app-editors/vim',             '-X').
 config:gentoo_package_use('dev-lang/swi-prolog',         '-X').
 config:gentoo_package_use('www-client/links',            '-X -jpeg -png -tiff').
-config:gentoo_package_use('sys-libs/gdbm',               'berkdb').             % >=sys-libs/gdbm-1.26 berkdb
+config:gentoo_package_use('>=sys-libs/gdbm-1.26',        'berkdb').
 config:gentoo_package_use('x11-wm/compiz-fusion',         'unsupported emerald').
 config:gentoo_package_use('sys-kernel/gentoo-sources',    'symlink build').
 
