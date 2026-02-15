@@ -392,19 +392,22 @@ preference:init :-
       forall(member(U, Forced), assertz(preference:profile_forced_use_flag(U)))
   ; true
   ),
-  % Portage semantics for *_SINGLE_TARGET variables:
-  % when the environment sets e.g. LUA_SINGLE_TARGET="luajit", it overrides the
-  % profile defaults for lua_single_target_* (do not union them).
+  % Portage semantics for USE_EXPAND selectors:
+  % when a selector variable is explicitly set (via environment/config/default_env),
+  % it overrides profile defaults for that prefix (do not union them).
+  %
+  % This is important for parity-sensitive selectors such as INPUT_DEVICES and
+  % VIDEO_CARDS, where profile defaults can otherwise force extra dependencies.
   findall(Prefix,
-          ( member(EnvVar, ['LUA_SINGLE_TARGET','PYTHON_SINGLE_TARGET','RUBY_SINGLE_TARGET']),
+          ( preference:use_expand_env(EnvVar, Prefix),
             preference:getenv(EnvVar, Atom),
-            Atom \== '',
-            preference:use_expand_env(EnvVar, Prefix)
+            Atom \== ''
           ),
-          SingleTargetPrefixes),
+          UseExpandOverridePrefixes0),
+  sort(UseExpandOverridePrefixes0, UseExpandOverridePrefixes),
   forall(member(preference:profile_use(Term), ProfileTerms),
          ( ( Term = minus(U0) -> U = U0 ; U = Term ),
-           ( member(Prefix, SingleTargetPrefixes),
+           ( member(Prefix, UseExpandOverridePrefixes),
              atom_concat(Prefix, '_', PrefixUnderscore),
              atom_concat(PrefixUnderscore, _, U)
            )
@@ -781,6 +784,23 @@ preference:slot_req_match_([], _Repo, _Id) :- !.
 preference:slot_req_match_([slot(S0)], Repo, Id) :-
   !,
   cache:entry_metadata(Repo, Id, slot, slot(S0)).
+preference:slot_req_match_([slot(S0),subslot(Ss0)], Repo, Id) :-
+  !,
+  cache:entry_metadata(Repo, Id, slot, slot(S0)),
+  ( cache:entry_metadata(Repo, Id, slot, subslot(Ss))
+  -> Ss == Ss0
+  ; Ss0 == S0
+  ).
+preference:slot_req_match_([slot(S0),equal], Repo, Id) :-
+  !,
+  cache:entry_metadata(Repo, Id, slot, slot(S0)).
+preference:slot_req_match_([slot(S0),subslot(Ss0),equal], Repo, Id) :-
+  !,
+  cache:entry_metadata(Repo, Id, slot, slot(S0)),
+  ( cache:entry_metadata(Repo, Id, slot, subslot(Ss))
+  -> Ss == Ss0
+  ; Ss0 == S0
+  ).
 % Conservatively treat any_same_slot/any_different_slot as "match any slot" for
 % package.mask atoms; these forms are primarily meaningful in dependency edges.
 preference:slot_req_match_([any_same_slot], _Repo, _Id) :- !.
