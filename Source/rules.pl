@@ -3342,9 +3342,21 @@ rules:use_dep_default_satisfies_absent_iuse(_Default, _Mode) :- fail.
 % 3. IUSE default (+foo) enables; otherwise default is disabled
 rules:candidate_effective_use_enabled_in_iuse(Repo://Entry, Use) :-
   cache:ordered_entry(Repo, Entry, C, N, _),
-  ( preference:package_use_override(C, N, Use, positive) ->
+  ( preference:profile_package_use_override_for_entry(Repo://Entry, Use, positive, _Reason0) ->
+      true
+  ; preference:profile_package_use_override_for_entry(Repo://Entry, Use, negative, _Reason0) ->
+      fail
+  ; preference:package_use_override(C, N, Use, positive) ->
       true
   ; preference:package_use_override(C, N, Use, negative) ->
+      fail
+  ; preference:gentoo_package_use_override_for_entry_soft(Repo://Entry, Use, positive) ->
+      true
+  ; preference:gentoo_package_use_override_for_entry_soft(Repo://Entry, Use, negative) ->
+      fail
+  ; preference:profile_package_use_override_for_entry_soft(Repo://Entry, Use, positive) ->
+      true
+  ; preference:profile_package_use_override_for_entry_soft(Repo://Entry, Use, negative) ->
       fail
   ; preference:use(Use) ->
       true
