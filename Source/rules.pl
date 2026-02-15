@@ -2153,11 +2153,9 @@ rules:any_of_reject_assumed_choice(grouped_package_dependency(_Strength, C, N, _
 % chosen member of a || group, because that discards the other alternatives from
 % the memoized dependency model.
 %
-% We keep this check narrow for performance: only package_dependency/8 terms with
-% non-empty USE requirements are tested.
-rules:any_of_config_dep_ok(_Context, package_dependency(_Phase, _Strength, _C, _N, _O, _V, _S, U)) :-
-  U == [],
-  !.
+% We still keep this reasonably narrow for performance, but we must avoid
+% locking in an any-of branch that has no concrete candidate at all
+% (e.g. virtual/perl-* branches with stale ~perl-core versions).
 rules:any_of_config_dep_ok(Context, package_dependency(_Phase, _Strength, C, N, O, V, SlotReq, U)) :-
   % Test USE-dep satisfiability against concrete candidates that match the
   % dependency's own version/slot constraints. Using a single arbitrary
@@ -2171,8 +2169,11 @@ rules:any_of_config_dep_ok(Context, package_dependency(_Phase, _Strength, C, N, 
           Candidates0),
   sort(Candidates0, Candidates),
   Candidates \== [],
-  member(Candidate, Candidates),
-  rules:candidate_satisfies_use_deps(Context, Candidate, U),
+  ( U == []
+  -> true
+  ; member(Candidate, Candidates),
+    rules:candidate_satisfies_use_deps(Context, Candidate, U)
+  ),
   !.
 % If the USE-deps are not satisfiable, reject this option.
 rules:any_of_config_dep_ok(_Context, package_dependency(_Phase, _Strength, _C, _N, _O, _V, _S, _U)) :-
