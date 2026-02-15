@@ -1271,8 +1271,8 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, SlotMeta),
       process_slot(SlotReq, SlotMeta, C, N, FoundRepo://Candidate, NewContext, NewerContext),
 
-      % Prefer expressing as update when a pkg-installed entry exists and the chosen
-      % candidate is newer.
+      % Prefer expressing as update when a pkg-installed entry exists in the same
+      % slot and the chosen candidate has a different version (upgrade OR downgrade).
       ( \+ preference:flag(emptytree),
         % Update/reinstall semantics must be per-slot: only treat this as an update
         % when there is an installed instance of (C,N) in the SAME SLOT as the
@@ -1287,10 +1287,12 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         ),
         SlotInstalled == SlotChosen,
         !,
-        ( % Standard update: candidate newer than installed
+        ( % Standard transactional version change in same slot:
+          % candidate differs from installed (upgrade or downgrade).
           InstalledEntry2 \== Candidate,
           query:search(version(OldVer), pkg://InstalledEntry2),
-          query:search(select(version,greater,OldVer), FoundRepo://Candidate) ->
+          query:search(version(CandVer0), FoundRepo://Candidate),
+          OldVer \== CandVer0 ->
             feature_unification:unify([replaces(pkg://InstalledEntry2)], NewerContext, UpdateCtx)
         ; % Incoming bracketed USE constraints require a rebuild of the installed instance.
           ( current_predicate(config:avoid_reinstall/1),

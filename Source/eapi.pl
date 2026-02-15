@@ -2206,7 +2206,11 @@ packageversion(Name,_,_) :-
 % Predicate that checks whether an atom begins with a given Prefix
 
 eapi:check_prefix_atom(_,Atom) :- \+(atom(Atom)), !, fail.
-eapi:check_prefix_atom(Prefix,Atom) :- atom_prefix(Atom,Prefix),!.
+eapi:check_prefix_atom(Prefix,Atom) :-
+  atom(Prefix),
+  atom_concat(Prefix, '_', PrefixUnderscore),
+  atom_prefix(Atom, PrefixUnderscore),
+  !.
 
 %! eapi:strip_prefix_atom(+Prefix,+Atom,-Result)
 %
@@ -2312,7 +2316,14 @@ eapi:categorize_use_for_entry(RawIuse, Repo://Id, State, Reason) :-
   eapi:strip_use_default(RawIuse, Use),
   cache:ordered_entry(Repo, Id, C, N, _),
   ( % Profile-enforced per-package constraints (hard): package.use.mask/force
-    preference:profile_package_use_override_for_entry(Repo://Id, Use, State0, Reason0) ->
+    preference:profile_package_use_override_for_entry(Repo://Id, Use, State0, Reason0),
+    % Portage-like precedence nuance:
+    % A globally profile-masked flag stays masked even if a package.use.force
+    % entry from an earlier parent profile would otherwise force it.
+    \+ ( State0 == positive,
+         Reason0 == profile_package_use_force,
+         preference:profile_masked_use_flag(Use)
+       ) ->
       State = State0,
       Reason = Reason0
   ; % User /etc/portage/package.use (soft; overridden by profile mask/force)

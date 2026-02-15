@@ -1502,10 +1502,19 @@ search(iuse_filtered(Iuse),R://I) :-
 
 search(iuse_filtered(Iuse,State:Reason),R://I) :-
   !,
-  cache:entry_metadata(R,I,iuse,Arg),
-  eapi:categorize_use_for_entry(Arg,R://I,State,Reason),
-  eapi:strip_use_default(Arg,Iuse),
-  \+(eapi:check_use_expand_atom(Iuse)).
+  setof(Iuse0,
+        Arg0^(cache:entry_metadata(R,I,iuse,Arg0),
+              eapi:strip_use_default(Arg0,Iuse0),
+              \+ eapi:check_use_expand_atom(Iuse0)),
+        IuseFlags),
+  member(Iuse, IuseFlags),
+  findall(State0:Reason0,
+          ( cache:entry_metadata(R,I,iuse,Arg),
+            eapi:strip_use_default(Arg,Iuse),
+            eapi:categorize_use_for_entry(Arg,R://I,State0,Reason0)
+          ),
+          States0),
+  query:iuse_effective_state_(States0, State, Reason).
 
 
 % -----------------------------------------------------------------------------
@@ -1546,6 +1555,26 @@ search(Q,R://I) :-
   Q =.. [Key,Value],
   select(Key,equal,Value,R://I).
   %cache:entry_metadata(R,I,Key,Value).
+
+query:iuse_effective_state_(States, State, Reason) :-
+  findall(P-State0-Reason0,
+          ( member(State0:Reason0, States),
+            query:iuse_state_priority_(State0, Reason0, P)
+          ),
+          Ranked0),
+  keysort(Ranked0, RankedAsc),
+  reverse(RankedAsc, [_BestP-State-Reason|_]),
+  !.
+
+query:iuse_state_priority_(positive, profile_package_use_force, 1000) :- !.
+query:iuse_state_priority_(negative, profile_package_use_mask, 1000) :- !.
+query:iuse_state_priority_(_, package_use, 900) :- !.
+query:iuse_state_priority_(_, preference, 800) :- !.
+query:iuse_state_priority_(positive, ebuild, 700) :- !.
+query:iuse_state_priority_(negative, ebuild, 650) :- !.
+query:iuse_state_priority_(_, default, 600) :- !.
+query:iuse_state_priority_(positive, _, 500) :- !.
+query:iuse_state_priority_(negative, _, 400) :- !.
 
 
 % -----------------------------------------------------------------------------
