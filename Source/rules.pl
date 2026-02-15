@@ -880,8 +880,12 @@ rule(package_dependency(Phase,weak,C,N,O,V,S,_U):_Action?{Context},
   % and enforcing them as hard constraints during proving can cause massive
   % backtracking explosions. We record them as domain assumptions so the plan
   % can still be computed, while the printer can warn the user.
+  BlockedSpecs = [blocked(weak,Phase,O,V,S)],
+  rules:blocker_source_constraints(C, N, BlockedSpecs, Context, SourceConds),
   rules:blocker_assumption_ctx(Context, AssCtx),
-  Conditions = [assumed(blocker(weak, Phase, C, N, O, V, S)?{AssCtx})],
+  append(SourceConds,
+         [assumed(blocker(weak, Phase, C, N, O, V, S)?{AssCtx})],
+         Conditions),
   !.
 
 
@@ -911,7 +915,9 @@ rule(package_dependency(Phase,strong,C,N,O,V,S,U):_Action?{Context},
     % (those without bracketed USE constraints). Conditional strong blockers are recorded
     % as domain assumptions in strict mode.
     ( U == [] ->
-        Conditions = [constraint(blocked_cn(C,N):{ordset([blocked(strong,Phase,O,V,S)])})]
+        BlockedSpecs = [blocked(strong,Phase,O,V,S)],
+        rules:blocker_source_constraints(C, N, BlockedSpecs, Context, SourceConds),
+        Conditions = [constraint(blocked_cn(C,N):{ordset(BlockedSpecs)})|SourceConds]
     ; rules:blocker_assumption_ctx(Context, AssCtx),
       Conditions = [assumed(blocker(strong, Phase, C, N, O, V, S)?{AssCtx})]
     )
@@ -983,10 +989,12 @@ rule(grouped_package_dependency(weak,C,N,PackageDeps):Action?{Context},
      Conditions) :-
   !,
   rules:grouped_blocker_specs(weak, Action, C, N, PackageDeps, Specs),
+  rules:blocker_source_constraints(C, N, Specs, Context, SourceConds),
   rules:blocker_assumption_ctx(Context, AssCtx),
   findall(assumed(blocker(Strength, Phase, C, N, O, V, SlotReq)?{AssCtx}),
           member(blocked(Strength, Phase, O, V, SlotReq), Specs),
-          Conditions).
+          AssumeConds),
+  append(SourceConds, AssumeConds, Conditions).
 
 
 % -----------------------------------------------------------------------------
@@ -999,12 +1007,15 @@ rule(grouped_package_dependency(strong,C,N,PackageDeps):Action?{Context},
   !,
   rules:grouped_blocker_specs_partition(strong, Action, C, N, PackageDeps, EnforceSpecs, AssumeSpecs),
   ( rules:assume_blockers ->
+      append(EnforceSpecs, AssumeSpecs, AllSpecs),
+      rules:blocker_source_constraints(C, N, AllSpecs, Context, SourceConds),
       rules:blocker_assumption_ctx(Context, AssCtx),
       findall(assumed(blocker(Strength, Phase, C, N, O, V, SlotReq)?{AssCtx}),
               ( member(blocked(Strength, Phase, O, V, SlotReq), EnforceSpecs)
               ; member(blocked(Strength, Phase, O, V, SlotReq), AssumeSpecs)
               ),
-              Conditions)
+              AssumeConds),
+      append(SourceConds, AssumeConds, Conditions)
   ;
     rules:blocker_assumption_ctx(Context, AssCtx),
     findall(assumed(blocker(Strength, Phase, C, N, O, V, SlotReq)?{AssCtx}),
@@ -1012,7 +1023,8 @@ rule(grouped_package_dependency(strong,C,N,PackageDeps):Action?{Context},
             AssumeConds),
     ( EnforceSpecs == [] ->
         Conditions = AssumeConds
-    ; Conditions = [constraint(blocked_cn(C,N):{ordset(EnforceSpecs)})|AssumeConds]
+    ; rules:blocker_source_constraints(C, N, EnforceSpecs, Context, SourceConds),
+      append([constraint(blocked_cn(C,N):{ordset(EnforceSpecs)})|SourceConds], AssumeConds, Conditions)
     )
   ).
 
@@ -1024,6 +1036,21 @@ rules:blocker_assumption_ctx(Ctx0, AssCtx) :-
       AssCtx = [assumption_reason(blocker_conflict), self(Repo://Entry)]
   ; AssCtx = [assumption_reason(blocker_conflict)]
   ).
+
+rules:blocker_source_constraints(_C, _N, Specs, _Context, []) :-
+  Specs == [],
+  !.
+rules:blocker_source_constraints(C, N, Specs, Context, [constraint(blocked_cn_source(C,N):{ordset(Sources)})]) :-
+  is_list(Context),
+  memberchk(self(SelfRepo://SelfEntry), Context),
+  findall(source(SelfRepo,SelfEntry,Phase,O,V,SlotReq),
+          member(blocked(_Strength,Phase,O,V,SlotReq), Specs),
+          Sources0),
+  sort(Sources0, Sources),
+  Sources \== [],
+  !.
+rules:blocker_source_constraints(_C, _N, _Specs, _Context, []) :-
+  !.
 
 % -----------------------------------------------------------------------------
 %  Internal override: assume blockers
@@ -1189,12 +1216,15 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       %   different slot/subslot (otherwise the dep degrades into a bogus
       %   "non-existent, assumed ..." domain assumption).
       % - We therefore only reuse selected_cn when it satisfies SlotReq.
+      % - Also, only reuse when it is compatible with the effective domain for
+      %   this dependency; otherwise, fall back to fresh candidate enumeration.
       ( SlotReq = [slot(_)|_] ->
           rules:accepted_keyword_candidate(Action, C, N, SlotReq, _Ss0, Context, FoundRepo://Candidate)
-      ; rules:selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate),
-        rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, _SsSel) ->
+      ; rules:selected_cn_candidate_compatible(Action, C, N, SlotReq, PackageDeps1, Context, FoundRepo://Candidate) ->
           true
-      ; rules:accepted_keyword_candidate(Action, C, N, SlotReq, SsLock, Context, FoundRepo://Candidate)
+      ; rules:selected_cn_rejected_candidates(Action, C, N, SlotReq, PackageDeps1, Context, RejectedSelected),
+        rules:accepted_keyword_candidate(Action, C, N, SlotReq, SsLock, Context, FoundRepo://Candidate),
+        \+ memberchk(FoundRepo://Candidate, RejectedSelected)
       ),
 
       % Avoid resolving a dep to self unless candidate is already installed
@@ -1210,6 +1240,10 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
 
       forall(member(package_dependency(_P1,no,C,N,O,V,_,_), PackageDeps1),
              rules:query_search_version_select(O, V, FoundRepo://Candidate)),
+      % Prune candidates that are already incompatible with the currently known
+      % effective CN-domain. This avoids late constraint-guard failures that
+      % otherwise degrade into assumptions after expensive search.
+      rules:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps1, Context, FoundRepo://Candidate),
 
       % For PDEPEND edges, we treat the dependency as runtime-soft (cycle-breakable),
       % but we should not propagate or enforce `build_with_use` from the parent.
@@ -1313,6 +1347,8 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         rules:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps, pkg://InstalledEntryFallback)
       ->
         Conditions = []
+      ; rules:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps1, Context),
+        fail
       ; explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, _Reason),
         % Keep assumption_reason out of dependency-context unification:
         % it is diagnostic metadata for the printer/stats, not part of the domain
@@ -1351,6 +1387,12 @@ rules:dep_has_upper_version_bound(C, N, PackageDeps) :-
   ( Op == smaller
   ; Op == smallerorequal
   ),
+  !.
+
+rules:dep_has_version_constraint(C, N, PackageDeps) :-
+  member(package_dependency(_Phase, no, C, N, Op, _V, _S, _U), PackageDeps),
+  nonvar(Op),
+  Op \== none,
   !.
 
 rules:dep_has_equal_wildcard_constraint(C, N, PackageDeps) :-
@@ -3369,6 +3411,245 @@ rules:selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate) :-
   cache:ordered_entry(FoundRepo, Candidate, C, N, _),
   \+ preference:masked(FoundRepo://Candidate).
 
+% Reuse an already-selected CN candidate only when it remains compatible with
+% this grouped dependency's slot/version/domain requirements.
+rules:selected_cn_candidate_compatible(Action, C, N, SlotReq, PackageDeps, Context, FoundRepo://Candidate) :-
+  rules:selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate),
+  rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, _),
+  rules:grouped_dep_candidate_satisfies_constraints(Action, C, N, PackageDeps, Context, FoundRepo://Candidate).
+
+% Collect selected candidates that match slot requirements but violate current
+% grouped dependency constraints. These are excluded from the "fresh candidate"
+% fallback path for this dependency literal.
+rules:selected_cn_rejected_candidates(Action, C, N, SlotReq, PackageDeps, Context, Rejected) :-
+  findall(Repo://Entry,
+          ( rules:selected_cn_candidate(Action, C, N, Context, Repo://Entry),
+            rules:query_search_slot_constraint(SlotReq, Repo://Entry, _),
+            \+ rules:grouped_dep_candidate_satisfies_constraints(Action, C, N, PackageDeps, Context, Repo://Entry)
+          ),
+          Rejected0),
+  sort(Rejected0, Rejected),
+  !.
+
+rules:grouped_dep_candidate_satisfies_constraints(Action, C, N, PackageDeps, Context, RepoEntry) :-
+  forall(member(package_dependency(_Phase,no,C,N,O,V,_SlotReq,_Use), PackageDeps),
+         rules:query_search_version_select(O, V, RepoEntry)),
+  rules:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps, Context, RepoEntry),
+  !.
+
+rules:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps, Context, RepoEntry) :-
+  rules:grouped_dep_effective_domain(Action, C, N, PackageDeps, Context, EffectiveDomain),
+  \+ version_domain:domain_inconsistent(EffectiveDomain),
+  \+ rules:cn_domain_candidate_rejected(C, N, EffectiveDomain, RepoEntry),
+  version_domain:domain_allows_candidate(EffectiveDomain, RepoEntry),
+  !.
+
+rules:grouped_dep_effective_domain(Action, C, N, PackageDeps, Context, EffectiveDomain) :-
+  version_domain:domain_from_packagedeps(Action, C, N, PackageDeps, DepDomain0),
+  ( rules:context_cn_domain_constraint(C, N, Context, CtxDomain0) ->
+      ( version_domain:domain_meet(CtxDomain0, DepDomain0, EffectiveDomain)
+      -> true
+      ; EffectiveDomain = version_domain(slots([]), [])
+      )
+  ; EffectiveDomain = DepDomain0
+  ),
+  !.
+
+rules:context_cn_domain_constraint(C, N, Context, Domain) :-
+  is_list(Context),
+  memberchk(constraint(cn_domain(C,N):{Domain}), Context),
+  !.
+
+rules:context_cn_domain_reason(C, N, Context, Reasons) :-
+  is_list(Context),
+  ( memberchk(constraint(cn_domain_reason(C,N):{ordset(Reasons0)}), Context) ->
+      Reasons = Reasons0
+  ; memberchk(domain_reason(cn_domain(C,N,Reasons0)), Context) ->
+      Reasons = Reasons0
+  ; Reasons = []
+  ),
+  !.
+
+rules:context_selected_cn_candidates(C, N, Context, Candidates) :-
+  is_list(Context),
+  memberchk(constraint(selected_cn(C,N):{ordset(SelectedSet)}), Context),
+  findall(Repo://Entry,
+          member(selected(Repo,Entry,_Act,_SelVer,_SelSlotMeta), SelectedSet),
+          Candidates0),
+  sort(Candidates0, Candidates),
+  Candidates \== [],
+  !.
+
+rules:snapshot_selected_cn_candidates(C, N, Candidates) :-
+  nb_current(rules_selected_cn_snapshot, Snapshots),
+  get_assoc(key(C,N), Snapshots, ordset(Candidates)),
+  Candidates \== [],
+  !.
+
+rules:record_selected_cn_snapshot(C, N, SelectedSet) :-
+  findall(Repo://Entry,
+          member(selected(Repo,Entry,_Act,_SelVer,_SelSlotMeta), SelectedSet),
+          Candidates0),
+  sort(Candidates0, Candidates),
+  ( nb_current(rules_selected_cn_snapshot, Snap0) -> true ; empty_assoc(Snap0) ),
+  put_assoc(key(C,N), Snap0, ordset(Candidates), Snap1),
+  nb_setval(rules_selected_cn_snapshot, Snap1),
+  !.
+
+rules:snapshot_blocked_cn_sources(C, N, Sources) :-
+  nb_current(rules_blocked_cn_source_snapshot, Snapshots),
+  get_assoc(key(C,N), Snapshots, ordset(Sources)),
+  Sources \== [],
+  !.
+
+rules:record_blocked_cn_source_snapshot(C, N, Sources0) :-
+  sort(Sources0, Sources),
+  Sources \== [],
+  ( nb_current(rules_blocked_cn_source_snapshot, Snap0) -> true ; empty_assoc(Snap0) ),
+  ( get_assoc(key(C,N), Snap0, ordset(OldSources), Snap1, ordset(OldSources)) -> true
+  ; OldSources = [],
+    Snap1 = Snap0
+  ),
+  ord_union(OldSources, Sources, MergedSources),
+  put_assoc(key(C,N), Snap1, ordset(MergedSources), SnapOut),
+  nb_setval(rules_blocked_cn_source_snapshot, SnapOut),
+  !.
+rules:record_blocked_cn_source_snapshot(_C, _N, _Sources) :-
+  !.
+
+rules:reason_linked_selected_reprove_target(Reasons, SourceC, SourceN, [SourceRepo://SourceEntry]) :-
+  is_list(Reasons),
+  member(introduced_by(OriginRepo://OriginEntry, _ReasonAction, _ReasonWhat), Reasons),
+  query:search([category(OriginC),name(OriginN)], OriginRepo://OriginEntry),
+  rules:snapshot_blocked_cn_sources(OriginC, OriginN, Sources),
+  member(source(SourceRepo,SourceEntry,_Phase,_O,_V,_SlotReq), Sources),
+  query:search([category(SourceC),name(SourceN)], SourceRepo://SourceEntry),
+  rules:snapshot_selected_cn_candidates(SourceC, SourceN, SelectedSourceCandidates),
+  memberchk(SourceRepo://SourceEntry, SelectedSourceCandidates),
+  !.
+
+rules:domain_conflicting_candidates(_Domain, [], []) :-
+  !.
+rules:domain_conflicting_candidates(Domain, Candidates, Conflicting) :-
+  findall(RepoEntry,
+          ( member(RepoEntry, Candidates),
+            \+ version_domain:domain_allows_candidate(Domain, RepoEntry)
+          ),
+          Conflicting0),
+  sort(Conflicting0, Conflicting),
+  !.
+
+rules:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps, Context) :-
+  rules:cn_domain_reprove_enabled,
+  ( rules:context_selected_cn_candidates(C, N, Context, SelectedCandidatesRaw) ->
+      true
+  ; rules:snapshot_selected_cn_candidates(C, N, SelectedCandidates0) ->
+      SelectedCandidatesRaw = SelectedCandidates0
+  ; SelectedCandidatesRaw = []
+  ),
+  rules:grouped_dep_effective_domain(Action, C, N, PackageDeps, Context, EffectiveDomain),
+  rules:domain_conflicting_candidates(EffectiveDomain, SelectedCandidatesRaw, SelectedCandidates),
+  version_domain:domain_reason_terms(Action, C, N, PackageDeps, Context, Reasons),
+  ( SelectedCandidates \== []
+  ; Reasons \== []
+  ),
+  ( version_domain:domain_inconsistent(EffectiveDomain)
+  ; SelectedCandidates \== []
+  ; rules:dep_has_version_constraint(C, N, PackageDeps)
+  ),
+  ( SelectedCandidates == [],
+    rules:reason_linked_selected_reprove_target(Reasons, SourceC, SourceN, SourceCandidates)
+  ->
+    throw(rules_reprove_cn_domain(SourceC, SourceN, none, SourceCandidates, Reasons))
+  ; throw(rules_reprove_cn_domain(C, N, EffectiveDomain, SelectedCandidates, Reasons))
+  ).
+rules:maybe_request_grouped_dep_reprove(_Action, _C, _N, _PackageDeps, _Context) :-
+  fail.
+
+% -----------------------------------------------------------------------------
+%  Scoped CN-domain reject map (used by bounded reprove retries)
+% -----------------------------------------------------------------------------
+%
+% This map stores candidate no-goods keyed by (C,N,Domain), so retries can avoid
+% repeatedly selecting the same candidate under the same effective domain.
+% Scope is per top-level prover call (managed by prover:prove/9).
+
+rules:cn_domain_reject_key(C, N, Domain0, key(C,N,Domain)) :-
+  version_domain:domain_normalize(Domain0, Domain),
+  !.
+
+rules:cn_domain_candidate_rejected(C, N, Domain0, RepoEntry) :-
+  nb_current(rules_cn_domain_rejects, Rejects),
+  ( rules:cn_domain_reject_key(C, N, Domain0, Key),
+    get_assoc(Key, Rejects, ordset(Set)),
+    memberchk(RepoEntry, Set)
+  ; rules:cn_domain_reject_key(C, N, none, KeyNone),
+    get_assoc(KeyNone, Rejects, ordset(GlobalSet)),
+    memberchk(RepoEntry, GlobalSet)
+  ),
+  !.
+
+rules:add_cn_domain_rejects(C, N, Domain0, Candidates0, Added) :-
+  rules:cn_domain_reject_key(C, N, Domain0, Key),
+  sort(Candidates0, Candidates),
+  ( nb_current(rules_cn_domain_rejects, Rejects0) -> true ; empty_assoc(Rejects0) ),
+  ( get_assoc(Key, Rejects0, ordset(OldSet), Rejects1, ordset(OldSet)) -> true
+  ; OldSet = [],
+    Rejects1 = Rejects0
+  ),
+  ord_union(OldSet, Candidates, NewSet),
+  ( NewSet == OldSet ->
+      Added = false,
+      RejectsOut = Rejects1
+  ; Added = true,
+    put_assoc(Key, Rejects1, ordset(NewSet), RejectsOut)
+  ),
+  nb_setval(rules_cn_domain_rejects, RejectsOut),
+  !.
+
+rules:add_cn_domain_origin_rejects(Reasons, Added) :-
+  is_list(Reasons),
+  findall(C0-N0-Repo://Entry,
+          ( member(introduced_by(Repo://Entry, _Action, _Why), Reasons),
+            query:search([category(C0),name(N0)], Repo://Entry)
+          ),
+          Origins0),
+  sort(Origins0, Origins),
+  rules:add_cn_domain_origin_rejects_(Origins, false, Added),
+  !.
+rules:add_cn_domain_origin_rejects(_Reasons, false) :-
+  !.
+
+rules:add_cn_domain_origin_rejects_([], Added, Added) :-
+  !.
+rules:add_cn_domain_origin_rejects_([C-N-Repo://Entry|Rest], Added0, Added) :-
+  rules:add_cn_domain_rejects(C, N, none, [Repo://Entry], Added1),
+  ( Added0 == true ->
+      Added2 = true
+  ; Added1 == true ->
+      Added2 = true
+  ; Added2 = false
+  ),
+  rules:add_cn_domain_origin_rejects_(Rest, Added2, Added).
+
+rules:cn_domain_reprove_enabled :-
+  nb_current(rules_cn_domain_reprove_enabled, true),
+  !.
+
+rules:maybe_request_cn_domain_reprove(C, N, Domain, Selected) :-
+  rules:maybe_request_cn_domain_reprove(C, N, Domain, Selected, []).
+
+rules:maybe_request_cn_domain_reprove(C, N, Domain, Selected, Reasons) :-
+  rules:cn_domain_reprove_enabled,
+  findall(Repo://Entry,
+          member(selected(Repo,Entry,_Act,_SelVer,_SelSlotMeta), Selected),
+          Candidates0),
+  sort(Candidates0, Candidates),
+  Candidates \== [],
+  throw(rules_reprove_cn_domain(C, N, Domain, Candidates, Reasons)).
+rules:maybe_request_cn_domain_reprove(_C, _N, _Domain, _Selected, _Reasons) :-
+  true.
+
 % Helper predicate to collect all USE requirements into a single list
 collect_use_requirements([], []).
 collect_use_requirements([use(enable(Use), _)|Rest], [required(Use)|RestRequirements]) :-
@@ -3547,17 +3828,18 @@ rules:constraint_guard(constraint(cn_domain(C,N):{Domain0}), Constraints) :-
   ( get_assoc(cn_domain(C,N), Constraints, Domain) -> true ; Domain = Domain0 ),
   \+ version_domain:domain_inconsistent(Domain),
   ( get_assoc(selected_cn(C,N), Constraints, ordset(Selected)) ->
-      once(( member(selected(Repo, Entry, _Act, _SelVer, _SelSlotMeta), Selected),
-             version_domain:domain_allows_candidate(Domain, Repo://Entry)
-           ))
+      rules:selected_cn_domain_compatible_or_reprove(C, N, Domain, Selected, Constraints)
   ; true
   ).
 rules:constraint_guard(constraint(blocked_cn(C,N):{ordset(Specs)}), Constraints) :-
   !,
   ( get_assoc(selected_cn(C,N), Constraints, ordset(Selected)) ->
-      \+ rules:specs_violate_selected(Specs, Selected)
+      rules:selected_cn_not_blocked_or_reprove(C, N, Specs, Selected, Constraints)
   ; true
   ).
+rules:constraint_guard(constraint(blocked_cn_source(C,N):{ordset(Sources)}), _Constraints) :-
+  !,
+  rules:record_blocked_cn_source_snapshot(C, N, Sources).
 rules:constraint_guard(constraint(selected_cn_allow_multislot(_C,_N):{_}), _Constraints) :-
   !.
 rules:constraint_guard(constraint(selected_cn(C,N):{ordset(_SelectedNew)}), Constraints) :-
@@ -3567,18 +3849,45 @@ rules:constraint_guard(constraint(selected_cn(C,N):{ordset(_SelectedNew)}), Cons
   % - opt-in: allow one concrete entry per SLOT when multislot was explicitly
   %   requested (slot-qualified deps or split grouped deps).
   get_assoc(selected_cn(C,N), Constraints, ordset(SelectedMerged)),
+  rules:record_selected_cn_snapshot(C, N, SelectedMerged),
   rules:selected_cn_unique(C, N, SelectedMerged, Constraints),
   ( get_assoc(cn_domain(C,N), Constraints, Domain) ->
-      once(( member(selected(Repo, Entry, _Act, _SelVer, _SelSlotMeta), SelectedMerged),
-             version_domain:domain_allows_candidate(Domain, Repo://Entry)
-           ))
+      rules:selected_cn_domain_compatible_or_reprove(C, N, Domain, SelectedMerged, Constraints)
   ; true
   ),
   ( get_assoc(blocked_cn(C,N), Constraints, ordset(Specs)) ->
-      \+ rules:specs_violate_selected(Specs, SelectedMerged)
+      rules:selected_cn_not_blocked_or_reprove(C, N, Specs, SelectedMerged, Constraints)
   ; true
   ).
 rules:constraint_guard(_Other, _Constraints).
+
+rules:selected_cn_not_blocked_or_reprove(_C, _N, Specs, Selected, _Constraints) :-
+  \+ rules:specs_violate_selected(Specs, Selected),
+  !.
+rules:selected_cn_not_blocked_or_reprove(C, N, _Specs, _Selected, Constraints) :-
+  rules:cn_domain_reprove_enabled,
+  rules:blocked_cn_source_reprove_target(C, N, Constraints, SourceC, SourceN, Candidates),
+  Candidates \== [],
+  throw(rules_reprove_cn_domain(SourceC, SourceN, none, Candidates, [])).
+rules:selected_cn_not_blocked_or_reprove(_C, _N, _Specs, _Selected, _Constraints) :-
+  fail.
+
+rules:blocked_cn_source_reprove_target(C, N, Constraints, SourceC, SourceN, [Repo://Entry]) :-
+  get_assoc(blocked_cn_source(C,N), Constraints, ordset(Sources)),
+  member(source(Repo,Entry,_Phase,_O,_V,_SlotReq), Sources),
+  query:search([category(SourceC),name(SourceN)], Repo://Entry),
+  !.
+
+rules:selected_cn_domain_compatible_or_reprove(C, N, Domain, Selected, Constraints) :-
+  ( once(( member(selected(Repo, Entry, _Act, _SelVer, _SelSlotMeta), Selected),
+           version_domain:domain_allows_candidate(Domain, Repo://Entry)
+         )) ->
+      true
+  ; ( get_assoc(cn_domain_reason(C,N), Constraints, ordset(Reasons)) -> true ; Reasons = [] ),
+    rules:maybe_request_cn_domain_reprove(C, N, Domain, Selected, Reasons),
+    fail
+  ),
+  !.
 
 % Allow multi-slot selections only when explicitly requested.
 rules:selected_cn_allow_multislot_constraints(C, N, SlotReq, PackageDeps, [constraint(selected_cn_allow_multislot(C,N):{true})]) :-

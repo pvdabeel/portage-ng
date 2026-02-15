@@ -141,7 +141,7 @@ prover:prove_model(Full, Model0, Model, Constraints0, Constraints, InProg0) :-
       ( NewCtx == OldCtx ->
           Model = Model0,
           Constraints = Constraints0
-      ; canon_literal(NewFull, Lit, NewCtx),
+      ; prover:full_literal(Lit, NewCtx, NewFull),
         prover:test_stats_rule_call,
         rule(NewFull, NewBody),
         prover:prove_model(NewBody, Model0, BodyModel, Constraints0, BodyConstraints, InProg0),
@@ -341,8 +341,64 @@ prover:test_stats_ctx_union_sampled(L0, L1, L2) :-
 %
 % Main entry point for the prover.
 % Orchestrates the proving process and the configurable trigger-building strategy.
+%
+% In addition, we support bounded "reprove with scoped rejects" retries for
+% CN-domain conflicts emitted by rules:constraint_guard/2.
 
 prover:prove(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers) :-
+  prover:cn_domain_reprove_max_retries(MaxRetries),
+  prover:with_cn_domain_reprove_state(
+    prover:prove_with_cn_domain_retries(
+      Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers, 0, MaxRetries
+    )
+  ).
+
+prover:prove_with_cn_domain_retries(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers, Attempt, MaxRetries) :-
+  catch(
+    catch(
+      prover:prove_once(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers),
+      rules_reprove_cn_domain(C, N, Domain, Candidates, Reasons),
+      prover:handle_cn_domain_reprove(
+        Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers,
+        Attempt, MaxRetries, C, N, Domain, Candidates, Reasons
+      )
+    ),
+    rules_reprove_cn_domain(C, N, Domain, Candidates),
+    prover:handle_cn_domain_reprove(
+      Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers,
+      Attempt, MaxRetries, C, N, Domain, Candidates, []
+    )
+  ).
+
+prover:handle_cn_domain_reprove(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers,
+                                Attempt, MaxRetries, C, N, Domain, Candidates, Reasons) :-
+  ( Attempt < MaxRetries,
+    current_predicate(rules:add_cn_domain_rejects/5),
+    rules:add_cn_domain_rejects(C, N, Domain, Candidates, AddedDomain),
+    ( Candidates == [] ->
+        prover:add_cn_domain_origin_rejects(Reasons, AddedOrigins)
+    ; AddedOrigins = false
+    ),
+    ( AddedDomain == true
+    ; AddedOrigins == true
+    )
+  ->
+    Attempt1 is Attempt + 1,
+    prover:prove_with_cn_domain_retries(
+      Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers, Attempt1, MaxRetries
+    )
+  ; prover:with_cn_domain_reprove_disabled(
+      prover:prove_once(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers)
+    )
+  ).
+
+prover:add_cn_domain_origin_rejects(Reasons, Added) :-
+  ( current_predicate(rules:add_cn_domain_origin_rejects/2) ->
+      rules:add_cn_domain_origin_rejects(Reasons, Added)
+  ; Added = false
+  ).
+
+prover:prove_once(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers) :-
 
   % Call the core recursive engine.
   prover:debug_hook(Target, InProof, InModel, InCons),
@@ -358,6 +414,53 @@ prover:prove(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTr
       % Incremental Mode: The 'MidTriggers' tree is already complete.
       OutTriggers = MidTriggers
   ).
+
+prover:cn_domain_reprove_max_retries(Max) :-
+  ( current_predicate(config:cn_domain_reprove_max_retries/1),
+    config:cn_domain_reprove_max_retries(Max0),
+    integer(Max0),
+    Max0 >= 0
+  ->
+    Max = Max0
+  ; Max = 3
+  ).
+
+prover:with_cn_domain_reprove_state(Goal) :-
+  ( nb_current(rules_cn_domain_reprove_enabled, OldEnabled) -> HadEnabled = true ; HadEnabled = false ),
+  ( nb_current(rules_cn_domain_rejects, OldRejects) -> HadRejects = true ; HadRejects = false ),
+  ( nb_current(rules_selected_cn_snapshot, OldSelectedSnap) -> HadSelectedSnap = true ; HadSelectedSnap = false ),
+  ( nb_current(rules_blocked_cn_source_snapshot, OldBlockedSourceSnap) -> HadBlockedSourceSnap = true ; HadBlockedSourceSnap = false ),
+  empty_assoc(EmptyRejects),
+  empty_assoc(EmptySelectedSnap),
+  empty_assoc(EmptyBlockedSourceSnap),
+  nb_setval(rules_cn_domain_reprove_enabled, true),
+  nb_setval(rules_cn_domain_rejects, EmptyRejects),
+  nb_setval(rules_selected_cn_snapshot, EmptySelectedSnap),
+  nb_setval(rules_blocked_cn_source_snapshot, EmptyBlockedSourceSnap),
+  setup_call_cleanup(true,
+                     Goal,
+                     ( ( HadEnabled == true -> nb_setval(rules_cn_domain_reprove_enabled, OldEnabled)
+                       ; nb_delete(rules_cn_domain_reprove_enabled)
+                       ),
+                       ( HadRejects == true -> nb_setval(rules_cn_domain_rejects, OldRejects)
+                       ; nb_delete(rules_cn_domain_rejects)
+                       ),
+                       ( HadSelectedSnap == true -> nb_setval(rules_selected_cn_snapshot, OldSelectedSnap)
+                       ; nb_delete(rules_selected_cn_snapshot)
+                       ),
+                       ( HadBlockedSourceSnap == true -> nb_setval(rules_blocked_cn_source_snapshot, OldBlockedSourceSnap)
+                       ; nb_delete(rules_blocked_cn_source_snapshot)
+                       )
+                     )).
+
+prover:with_cn_domain_reprove_disabled(Goal) :-
+  ( nb_current(rules_cn_domain_reprove_enabled, Old) -> Had = true ; Had = false ),
+  nb_setval(rules_cn_domain_reprove_enabled, false),
+  setup_call_cleanup(true,
+                     Goal,
+                     ( Had == true -> nb_setval(rules_cn_domain_reprove_enabled, Old)
+                     ; nb_delete(rules_cn_domain_reprove_enabled)
+                     )).
 
 
 % =============================================================================
@@ -432,29 +535,37 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 
   ;   % Case: Lit already proven, but context has changed
 
-      prover:proven(Lit, Model, OldCtx) ->
+      prover:proven(Lit, Model, ModelCtx) ->
       !,
       %message:color(orange),
       %writeln('PROVER: lit is proven with different Ctx'),
       %writeln('PROVER: -- Get Old body and Old Dep Count'),
 
-      % -- Get old body and old dep count
-      get_assoc(rule(Lit),Proof,dep(_OldCount,OldBody)?OldCtx),
+      % -- Get old body and old dep count.
+      % Prefer exact context match when possible; if model context abstraction
+      % (e.g. dropping self/1 in semantic keying) does not match the proof key,
+      % fall back to whatever context was actually stored in the proof.
+      ( get_assoc(rule(Lit),Proof,dep(_OldCount,OldBody)?ModelCtx) ->
+          true
+      ; get_assoc(rule(Lit),Proof,dep(_OldCount,OldBody)?_OldProofCtx)
+      ),
       %write('  - Lit      : '),writeln(Lit),
       %write('  - Ctx      : '),writeln(Ctx),
-      %write('  - OldCtx   : '),writeln(OldCtx),
+      %write('  - OldCtx   : '),writeln(OldProofCtx),
       %write('  - OldCount : '),writeln(OldCount),
       %write('  - OldBody  : '),writeln(OldBody),
 
       %writeln('PROVER: -- Union'),
 
-      % -- Merge old & new context
-      prover:ctx_union(OldCtx, Ctx, NewCtx),
+      % -- Merge old & new context. Keep using the model context as the
+      % semantic baseline (same behavior as before), while the proof context
+      % is used only to retrieve the previous rule body safely.
+      prover:ctx_union(ModelCtx, Ctx, NewCtx),
       %write('  - NewCtx   : '),writeln(NewCtx),
 
       %writeln('PROVER: -- Create updated full literal'),
       % -- Put together updated full literal
-      canon_literal(NewFull,Lit,NewCtx),
+      prover:full_literal(Lit, NewCtx, NewFull),
       %write('  - NewFull  : '),writeln(NewFull),
 
       %writeln('PROVER: -- Ready to apply rule for full literal'),
@@ -1061,6 +1172,29 @@ prover:proven(Lit, Model, Ctx) :-
     K1 == K2
   ).
 prover:assumed_proven(Lit, Model) :- get_assoc(assumed(Lit), Model, _).
+
+% Build a full literal in a normalized, rule-friendly shape.
+% For repo-qualified literals, keep context *inside* the repo payload:
+%   Repo://(Entry:Action?{Ctx})
+% and not:
+%   (Repo://Entry:Action)?{Ctx}
+% since the latter can miss rule/2 heads.
+prover:full_literal(R://L:A, {}, R://L:A) :-
+  !.
+prover:full_literal(R://L:A, Ctx, R://(L:A?{Ctx})) :-
+  !.
+prover:full_literal(R://L, {}, R://L) :-
+  !.
+prover:full_literal(R://L, Ctx, R://(L?{Ctx})) :-
+  !.
+prover:full_literal(L:A, {}, L:A) :-
+  !.
+prover:full_literal(L:A, Ctx, L:A?{Ctx}) :-
+  !.
+prover:full_literal(L, {}, L) :-
+  !.
+prover:full_literal(L, Ctx, L?{Ctx}) :-
+  !.
 
 prover:ctx_sem_key({}, key([], none)) :- !.
 prover:ctx_sem_key(Ctx, key(RU, BWU)) :-
