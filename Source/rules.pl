@@ -2724,10 +2724,17 @@ is_preferred_dep(_Context, package_dependency(_Phase,_Strength,_C,_N,_O,_V,_S,Us
 % This helps align Portage-like behavior for || groups that include a heavy
 % build-time tool (e.g. dev-lang/vala) versus a lighter already-installed
 % alternative (e.g. gobject-introspection).
-is_preferred_dep(_Context, package_dependency(_Phase,_Strength,_C,N,_O,_V,_S,_U)) :-
+is_preferred_dep(_Context, package_dependency(_Phase,_Strength,C,N,_O,_V,_S,_U)) :-
   % Prefer *-bin alternatives in || groups to avoid pulling toolchains from source
   % when Portage would use a prebuilt binary (e.g. zig-bin).
+  %
+  % Exception: for virtual Java runtime provider groups, preferring
+  % dev-java/openjdk-jre-bin over virtual/jdk diverges from Portage's chosen
+  % provider path in our baselines and creates openjdk-bin/virtual-jdk drift.
   atom_concat(_, '-bin', N),
+  \+ ( C == 'dev-java',
+       N == 'openjdk-jre-bin'
+     ),
   !.
 is_preferred_dep(_Context, package_dependency(_Phase,_Strength,C,N,O,V,_S,_U)) :-
   query:search([repository(pkg),category(C),name(N),installed(true)], pkg://Installed),
