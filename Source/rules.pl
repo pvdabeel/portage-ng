@@ -2818,6 +2818,10 @@ rules:effective_use_in_context(Context, Use, State) :-
       Eff = positive
   ; preference:package_use_override(C, N, Use, negative) ->
       Eff = negative
+  ; preference:gentoo_package_use_override_for_entry_soft(Repo://Id, Use, Eff0) ->
+      Eff = Eff0
+  ; preference:profile_package_use_override_for_entry_soft(Repo://Id, Use, Eff0) ->
+      Eff = Eff0
   ; preference:use(Use) ->
       Eff = positive
   ; preference:use(minus(Use)) ->
@@ -2845,6 +2849,10 @@ rules:effective_use_for_entry(RepoEntry0, Use, State) :-
       Eff = positive
   ; preference:package_use_override(C, N, Use, negative) ->
       Eff = negative
+  ; preference:gentoo_package_use_override_for_entry_soft(Repo://Id, Use, Eff0) ->
+      Eff = Eff0
+  ; preference:profile_package_use_override_for_entry_soft(Repo://Id, Use, Eff0) ->
+      Eff = Eff0
   ; preference:use(Use) ->
       Eff = positive
   ; preference:use(minus(Use)) ->
@@ -3211,7 +3219,16 @@ rules:self_context_use_state(Ctx, Use, State) :-
   ),
   rules:entry_iuse_info(Repo://Id, iuse_info(IuseSet, _PlusSet)),
   memberchk(Use, IuseSet),
-  ( query:search(use(Use), Repo://Id) -> State = positive ; State = negative ),
+  ( % Effective state must honor profile/package overrides.
+    % query:search(use/1) reads raw enabled flags only and can diverge.
+    \+ eapi:check_use_expand_atom(Use),
+    query:search(iuse_filtered(Use, State:_), Repo://Id)
+  ; eapi:use_expand(Prefix),
+    eapi:check_prefix_atom(Prefix, Use),
+    eapi:strip_prefix_atom(Prefix, Use, Value),
+    Q =.. [Prefix, Value, State:_],
+    query:search(Q, Repo://Id)
+  ),
   !.
 
 % Determine whether a USE-dependency imposes a concrete requirement.
