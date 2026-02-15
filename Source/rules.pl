@@ -3539,6 +3539,9 @@ rules:domain_conflicting_candidates(Domain, Candidates, Conflicting) :-
   sort(Conflicting0, Conflicting),
   !.
 
+% When grouped dependency proving drifts toward assumption fallback, request a
+% bounded CN-domain reprove retry using conflicting selected candidates and
+% collected domain provenance reasons.
 rules:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps, Context) :-
   rules:cn_domain_reprove_enabled,
   ( rules:context_selected_cn_candidates(C, N, Context, SelectedCandidatesRaw) ->
@@ -3884,8 +3887,25 @@ rules:selected_cn_domain_compatible_or_reprove(C, N, Domain, Selected, Constrain
          )) ->
       true
   ; ( get_assoc(cn_domain_reason(C,N), Constraints, ordset(Reasons)) -> true ; Reasons = [] ),
-    rules:maybe_request_cn_domain_reprove(C, N, Domain, Selected, Reasons),
+    ( rules:prefer_global_selected_reject_from_domain(C, Domain, Selected) ->
+        DomainForReprove = none
+    ; DomainForReprove = Domain
+    ),
+    rules:maybe_request_cn_domain_reprove(C, N, DomainForReprove, Selected, Reasons),
     fail
+  ),
+  !.
+
+rules:prefer_global_selected_reject_from_domain(C, Domain, Selected) :-
+  C == 'dev-haskell',
+  Selected \== [],
+  rules:domain_has_upper_bound(Domain),
+  !.
+
+rules:domain_has_upper_bound(version_domain(_Slots, Bounds)) :-
+  member(bound(Op, _Req), Bounds),
+  ( Op == smaller
+  ; Op == smallerequal
   ),
   !.
 
