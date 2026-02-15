@@ -2691,33 +2691,13 @@ is_preferred_dep(Context, required(minus(Use))) :-
 
 % Prefer any-of alternatives that are already satisfied by installed packages.
 %
-% This is crucial for patterns like:
-%   || ( ( >=mesa-25.2[-foo] xorg-server[...] ) ( <mesa-25.2[foo] ) )
-% where Portage will keep the already-installed / already-matching branch and
-% avoid pulling an upgrade chain.
-is_preferred_dep(_Context, all_of_group(Deps)) :-
-  % If a conjunction includes bracketed USE requirements, prefer the branch whose
-  % requirements match the current USE environment (notably USE_EXPAND like
-  % PYTHON_TARGETS), to avoid selecting an arbitrary alternative.
-  member(package_dependency(_Phase,_Strength,_C,_N,_O,_V,_S,UseReqs), Deps),
-  member(use(enable(Use), _Default), UseReqs),
-  preference:use(Use),
-  !.
+% Portage-like note:
+% Portage's dep_zapdeps ignores bracketed USE deps while ranking || alternatives.
+% Do not promote a branch solely because pkg[flag] happens to match global USE.
+% Keep preference signal limited to "already satisfied" style checks.
 is_preferred_dep(Context, all_of_group(Deps)) :-
   Deps \= [],
   forall(member(D, Deps), rules:group_member_preferred(Context, D)),
-  !.
-
-% Prefer any-of alternatives that are already installed.
-% This helps align Portage-like behavior for || groups that include a heavy
-% build-time tool (e.g. dev-lang/vala) versus a lighter already-installed
-% alternative (e.g. gobject-introspection).
-is_preferred_dep(_Context, package_dependency(_Phase,_Strength,_C,_N,_O,_V,_S,UseReqs)) :-
-  % Prefer candidates whose bracketed USE requirements match the current USE
-  % environment (notably USE_EXPAND like PYTHON_TARGETS), to reduce pointless
-  % rebuilds and align with Portage's "follow current USE" behavior.
-  member(use(enable(Use), _Default), UseReqs),
-  preference:use(Use),
   !.
 
 % Prefer any-of alternatives that are already installed.
