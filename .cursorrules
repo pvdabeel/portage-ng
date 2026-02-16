@@ -51,13 +51,16 @@ Assumption taxonomy (do not mix these up):
 ## How to run (IMPORTANT)
 - Do NOT run ad-hoc `swipl -g "..."` snippets; they often miss required operator defs, libraries, and module load order.
 - Always launch via the project wrapper (project root):
-  - `./Source/Scripts/portage-ng-dev --mode standalone <target>`
+  - `./Source/Scripts/portage-ng-dev --mode standalone --pretend <target>`
   - `./Source/Scripts/portage-ng-dev --mode standalone --shell`
-  - Non-interactive / CI-style: `./Source/Scripts/portage-ng-dev --mode standalone --ci <target>`
+  - Non-interactive / CI-style: `./Source/Scripts/portage-ng-dev --mode standalone --ci --pretend <target>`
     Exit codes:
       - 0 = no assumptions
       - 1 = only prover cycle-break assumptions
       - 2 = any domain assumptions (e.g. missing/non-existent deps)
+
+- For resolver/debug target runs in this workflow, always include `--pretend` to avoid
+  mutating local state (for example `Source/Sets/world/*.local`).
 
 ### Preferred scripted workflow (here-doc “piping”)
 For quick iteration and for reproducible debugging, prefer running a *scripted* Prolog session via `--shell` and a here-doc:

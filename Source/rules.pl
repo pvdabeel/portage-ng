@@ -1548,7 +1548,9 @@ rules:build_self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra) :-
 
 % Collect version-bounded leaves for (C,N) from an RDEPEND term.
 % We traverse the dependency AST explicitly (faster + more selective than sub_term/2).
-rules:rdepend_collect_vbounds_for_cn(package_dependency(_P, _Strength, C, N, Op, V, SlotReq, _UseDeps),
+% IMPORTANT: only propagate regular deps (Strength=no). Weak/strong blockers
+% must not become hard CN-domain bounds during self-RDEPEND augmentation.
+rules:rdepend_collect_vbounds_for_cn(package_dependency(_P, no, C, N, Op, V, SlotReq, _UseDeps),
                                     C, N,
                                     [package_dependency(run, no, C, N, Op, V, SlotReq, [])]) :-
   Op \== none,
@@ -2158,15 +2160,14 @@ rules:any_of_reject_assumed_choice(grouped_package_dependency(_Strength, C, N, _
 % We still keep this reasonably narrow for performance, but we must avoid
 % locking in an any-of branch that has no concrete candidate at all
 % (e.g. virtual/perl-* branches with stale ~perl-core versions).
-rules:any_of_config_dep_ok(Context, package_dependency(_Phase, _Strength, C, N, O, V, SlotReq, U)) :-
+rules:any_of_config_dep_ok(Context, package_dependency(Phase, _Strength, C, N, O, V, SlotReq, U)) :-
   % Test USE-dep satisfiability against concrete candidates that match the
   % dependency's own version/slot constraints. Using a single arbitrary
   % representative entry can produce false negatives and make model
   % construction fail at the root `entry(...:run)` literal.
   findall(Repo://Id,
-          ( query:search([category(C), name(N)], Repo://Id),
-            rules:query_search_version_select(O, V, Repo://Id),
-            rules:query_search_slot_constraint(SlotReq, Repo://Id, _)
+          ( rules:accepted_keyword_candidate(Phase, C, N, SlotReq, _Ss, Context, Repo://Id),
+            rules:query_search_version_select(O, V, Repo://Id)
           ),
           Candidates0),
   sort(Candidates0, Candidates),
