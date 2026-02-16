@@ -3957,7 +3957,10 @@ rules:selected_cn_allow_multislot_constraints(_C, _N, _SlotReq, _PackageDeps, []
 
 rules:selected_cn_unique(C, N, SelectedMerged, Constraints) :-
   ( get_assoc(selected_cn_allow_multislot(C,N), Constraints, _AllowFlag) ->
-      rules:selected_cn_unique_per_slot(SelectedMerged)
+      ( rules:selected_cn_requires_same_slot_multiversion(C, N, Constraints) ->
+          rules:selected_cn_unique_per_slot_or_subslot(SelectedMerged)
+      ; rules:selected_cn_unique_per_slot(SelectedMerged)
+      )
   ; rules:selected_cn_unique_strict(SelectedMerged)
   ).
 
@@ -3981,6 +3984,44 @@ rules:selected_cn_unique_per_slot([selected(Repo,Entry,_Act,_Ver,SlotMeta)|Rest]
            )
          )),
   rules:selected_cn_unique_per_slot(Rest).
+
+% OCaml/PPX transition stacks can require two versions in the same SLOT, but
+% they occupy different SUBSLOTs. Keep uniqueness at one concrete selection per
+% (slot,subslot) pair to avoid over-broad side-by-side version allowance.
+rules:selected_cn_unique_per_slot_or_subslot([]) :- !.
+rules:selected_cn_unique_per_slot_or_subslot([selected(Repo,Entry,_Act,_Ver,SlotMeta)|Rest]) :-
+  rules:selected_cn_slot_subslot_key_(Repo, Entry, SlotMeta, SlotSubslot),
+  forall(member(selected(Repo2,Entry2,_A2,_Ver2,SlotMeta2), Rest),
+         ( rules:selected_cn_slot_subslot_key_(Repo2, Entry2, SlotMeta2, SlotSubslot2),
+           ( SlotSubslot2 \== SlotSubslot ->
+               true
+           ; Repo2 == Repo,
+             Entry2 == Entry
+           )
+         )),
+  rules:selected_cn_unique_per_slot_or_subslot(Rest).
+
+% Generic same-slot multiversion gate:
+% allow coexistence of distinct subslots only when merged CN-domain
+% constraints are mutually inconsistent (no single version can satisfy all).
+rules:selected_cn_requires_same_slot_multiversion(C, N, Constraints) :-
+  get_assoc(cn_domain(C,N), Constraints, Domain),
+  version_domain:domain_inconsistent(Domain),
+  !.
+
+% Extract a canonical (slot,subslot) key from selection metadata.
+% If subslot is not present, use 'none' to keep keying stable.
+rules:selected_cn_slot_subslot_key_(Repo, Entry, SlotMeta0, slot_subslot(Slot, SubSlot)) :-
+  rules:canon_any_same_slot_meta(SlotMeta0, [slot(S0)]),
+  rules:canon_slot(S0, Slot),
+  ( is_list(SlotMeta0),
+    memberchk(subslot(Ss0), SlotMeta0) ->
+      rules:canon_slot(Ss0, SubSlot)
+  ; query:search(subslot(Ss1), Repo://Entry) ->
+      rules:canon_slot(Ss1, SubSlot)
+  ; SubSlot = none
+  ),
+  !.
 
 % Extract a canonical slot key from selection metadata.
 % We only key on SLOT (not subslot) because multi-slot correctness is about
