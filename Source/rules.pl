@@ -3475,8 +3475,10 @@ rules:grouped_dep_candidate_satisfies_constraints(Action, C, N, PackageDeps, Con
 
 rules:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps, Context, RepoEntry) :-
   rules:grouped_dep_effective_domain(Action, C, N, PackageDeps, Context, EffectiveDomain),
+  rules:context_cn_reject_scope(C, N, Context, EffectiveDomain, RejectScope),
+  rules:cn_reject_scoped_domain(RejectScope, EffectiveDomain, RejectDomain),
   \+ version_domain:domain_inconsistent(EffectiveDomain),
-  \+ rules:cn_domain_candidate_rejected(C, N, EffectiveDomain, RepoEntry),
+  \+ rules:cn_domain_candidate_rejected(C, N, RejectDomain, RepoEntry),
   version_domain:domain_allows_candidate(EffectiveDomain, RepoEntry),
   !.
 
@@ -3514,6 +3516,42 @@ rules:context_selected_cn_candidates(C, N, Context, Candidates) :-
           Candidates0),
   sort(Candidates0, Candidates),
   Candidates \== [],
+  !.
+
+% Slot-scoped reject scope from proving context:
+% - when a slot lock is present in context, scope rejects to that slot;
+% - otherwise derive scope from the effective domain (explicit slot deps).
+rules:context_cn_reject_scope(C, N, Context, Domain, Scope) :-
+  ( rules:context_slot_scope(C, N, Context, Scope0) ->
+      Scope = Scope0
+  ; rules:domain_slot_scope(Domain, Scope)
+  ),
+  !.
+
+rules:context_slot_scope(C, N, Context, slot(Slot)) :-
+  is_list(Context),
+  memberchk(slot(C,N,Ss0):{_}, Context),
+  rules:canon_any_same_slot_meta(Ss0, [slot(Slot)]),
+  !.
+
+rules:domain_slot_scope(version_domain(slots([S0]), _Bounds), slot(S)) :-
+  rules:canon_slot(S0, S),
+  !.
+rules:domain_slot_scope(_Domain, any) :-
+  !.
+
+rules:cn_reject_scope_canon(slot(S0), slot(S)) :-
+  rules:canon_slot(S0, S),
+  !.
+rules:cn_reject_scope_canon(any, any) :-
+  !.
+rules:cn_reject_scope_canon(_Other, any) :-
+  !.
+
+rules:cn_reject_scoped_domain(any, Domain, Domain) :-
+  !.
+rules:cn_reject_scoped_domain(Scope0, Domain, scoped(Scope, Domain)) :-
+  rules:cn_reject_scope_canon(Scope0, Scope),
   !.
 
 rules:snapshot_selected_cn_candidates(C, N, Candidates) :-
@@ -3587,6 +3625,8 @@ rules:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps, Context) :-
   ; SelectedCandidatesRaw = []
   ),
   rules:grouped_dep_effective_domain(Action, C, N, PackageDeps, Context, EffectiveDomain),
+  rules:context_cn_reject_scope(C, N, Context, EffectiveDomain, RejectScope),
+  rules:cn_reject_scoped_domain(RejectScope, EffectiveDomain, RejectDomain),
   rules:domain_conflicting_candidates(EffectiveDomain, SelectedCandidatesRaw, SelectedCandidates),
   version_domain:domain_reason_terms(Action, C, N, PackageDeps, Context, Reasons),
   ( SelectedCandidates \== []
@@ -3600,7 +3640,7 @@ rules:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps, Context) :-
     rules:reason_linked_selected_reprove_target(Reasons, SourceC, SourceN, SourceCandidates)
   ->
     throw(rules_reprove_cn_domain(SourceC, SourceN, none, SourceCandidates, Reasons))
-  ; throw(rules_reprove_cn_domain(C, N, EffectiveDomain, SelectedCandidates, Reasons))
+  ; throw(rules_reprove_cn_domain(C, N, RejectDomain, SelectedCandidates, Reasons))
   ).
 rules:maybe_request_grouped_dep_reprove(_Action, _C, _N, _PackageDeps, _Context) :-
   fail.
@@ -3613,17 +3653,26 @@ rules:maybe_request_grouped_dep_reprove(_Action, _C, _N, _PackageDeps, _Context)
 % repeatedly selecting the same candidate under the same effective domain.
 % Scope is per top-level prover call (managed by prover:prove/9).
 
-rules:cn_domain_reject_key(C, N, Domain0, key(C,N,Domain)) :-
+rules:cn_domain_reject_key(C, N, scoped(Scope0, Domain0), key(C,N,Scope,Domain)) :-
+  rules:cn_reject_scope_canon(Scope0, Scope),
   version_domain:domain_normalize(Domain0, Domain),
+  !.
+rules:cn_domain_reject_key(C, N, Domain0, key(C,N,Scope,Domain)) :-
+  version_domain:domain_normalize(Domain0, Domain),
+  rules:domain_slot_scope(Domain, Scope),
   !.
 
 rules:cn_domain_candidate_rejected(C, N, Domain0, RepoEntry) :-
   nb_current(rules_cn_domain_rejects, Rejects),
-  ( rules:cn_domain_reject_key(C, N, Domain0, Key),
-    get_assoc(Key, Rejects, ordset(Set)),
+  rules:cn_domain_reject_key(C, N, Domain0, key(C,N,Scope,Domain)),
+  ( get_assoc(key(C,N,Scope,Domain), Rejects, ordset(Set)),
     memberchk(RepoEntry, Set)
-  ; rules:cn_domain_reject_key(C, N, none, KeyNone),
-    get_assoc(KeyNone, Rejects, ordset(GlobalSet)),
+  ; get_assoc(key(C,N,Scope,none), Rejects, ordset(ScopeGlobalSet)),
+    memberchk(RepoEntry, ScopeGlobalSet)
+  ; Scope \== any,
+    get_assoc(key(C,N,any,Domain), Rejects, ordset(AnyDomainSet)),
+    memberchk(RepoEntry, AnyDomainSet)
+  ; get_assoc(key(C,N,any,none), Rejects, ordset(GlobalSet)),
     memberchk(RepoEntry, GlobalSet)
   ),
   !.
