@@ -2213,6 +2213,26 @@ rules:any_of_reject_assumed_choice(grouped_package_dependency(_Strength, C, N, _
 % We still keep this reasonably narrow for performance, but we must avoid
 % locking in an any-of branch that has no concrete candidate at all
 % (e.g. virtual/perl-* branches with stale ~perl-core versions).
+%
+% IMPORTANT:
+% During config phase, any_of members can be composite terms (all_of_group,
+% use_conditional_group, nested any_of_group). Treating those as automatically
+% satisfiable will lock unsatisfiable branches into the memoized model and drop
+% valid alternatives. We must recurse and validate leaves.
+rules:any_of_config_dep_ok(Context, all_of_group(Deps)) :-
+  !,
+  rules:any_of_config_deps_all_ok(Context, Deps).
+rules:any_of_config_dep_ok(Context, any_of_group(Deps)) :-
+  !,
+  rules:any_of_config_deps_any_ok(Context, Deps).
+rules:any_of_config_dep_ok(Context, use_conditional_group(Pol, Use, RepoEntry, Deps)) :-
+  !,
+  % Reuse established USE-conditional activation semantics from rule/2. If this
+  % branch is inactive, it must not satisfy an enclosing any_of_group.
+  rule(use_conditional_group(Pol, Use, RepoEntry, Deps):config?{Context}, Conditions),
+  Conditions \== [],
+  rules:any_of_config_conditions_all_ok(Context, Conditions).
+
 rules:any_of_config_dep_ok(Context, package_dependency(Phase, _Strength, C, N, O, V, SlotReq, U)) :-
   % Test USE-dep satisfiability against concrete candidates that match the
   % dependency's own version/slot constraints. Using a single arbitrary
@@ -2240,6 +2260,25 @@ rules:any_of_config_dep_ok(_Context, package_dependency(_Phase, _Strength, _C, _
   fail.
 rules:any_of_config_dep_ok(_Context, _Other) :-
   true.
+
+rules:any_of_config_deps_all_ok(_Context, []) :- !.
+rules:any_of_config_deps_all_ok(Context, [Dep|Rest]) :-
+  rules:any_of_config_dep_ok(Context, Dep),
+  rules:any_of_config_deps_all_ok(Context, Rest).
+
+rules:any_of_config_deps_any_ok(Context, Deps) :-
+  member(Dep, Deps),
+  rules:any_of_config_dep_ok(Context, Dep),
+  !.
+
+rules:any_of_config_conditions_all_ok(_Context, []) :- !.
+rules:any_of_config_conditions_all_ok(Context, [Cond|Rest]) :-
+  rules:any_of_config_condition_dep(Cond, Dep),
+  rules:any_of_config_dep_ok(Context, Dep),
+  rules:any_of_config_conditions_all_ok(Context, Rest).
+
+rules:any_of_config_condition_dep(Dep:config?{_Ctx}, Dep) :- !.
+rules:any_of_config_condition_dep(Dep, Dep).
 
 % -----------------------------------------------------------------------------
 %  REQUIRED_USE helpers
