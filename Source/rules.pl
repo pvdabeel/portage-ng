@@ -1536,10 +1536,11 @@ rules:self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra) :-
   !.
 
 rules:build_self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra) :-
+  SelfRepoEntry = Repo://SelfId,
   findall(Term, cache:entry_metadata(Repo, SelfId, rdepend, Term), Terms),
   findall(Dep,
           ( member(Term, Terms),
-            rules:rdepend_collect_vbounds_for_cn(Term, C, N, Deps0),
+            rules:rdepend_collect_vbounds_for_cn(Term, C, N, SelfRepoEntry, Deps0),
             member(Dep, Deps0)
           ),
           Extra0),
@@ -1551,36 +1552,88 @@ rules:build_self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra) :-
 % IMPORTANT: only propagate regular deps (Strength=no). Weak/strong blockers
 % must not become hard CN-domain bounds during self-RDEPEND augmentation.
 rules:rdepend_collect_vbounds_for_cn(package_dependency(_P, no, C, N, Op, V, SlotReq, _UseDeps),
-                                    C, N,
+                                    C, N, _SelfRepoEntry,
                                     [package_dependency(run, no, C, N, Op, V, SlotReq, [])]) :-
   Op \== none,
   !.
 rules:rdepend_collect_vbounds_for_cn(package_dependency(_P, _Strength, _C, _N, _Op, _V, _SlotReq, _UseDeps),
-                                    _C0, _N0, []) :-
+                                    _C0, _N0, _SelfRepoEntry, []) :-
   !.
-rules:rdepend_collect_vbounds_for_cn(use_conditional_group(_Pol, _Use, _Self, Deps0), C, N, Deps) :-
+rules:rdepend_collect_vbounds_for_cn(use_conditional_group(Pol, Use, _Self, Deps0), C, N, SelfRepoEntry, Deps) :-
   !,
-  rules:rdepend_collect_vbounds_for_cn_list(Deps0, C, N, Deps).
-rules:rdepend_collect_vbounds_for_cn(any_of_group(Deps0), C, N, Deps) :-
+  ( rules:rdepend_self_use_conditional_active(Pol, Use, SelfRepoEntry) ->
+      rules:rdepend_collect_vbounds_for_cn_list(Deps0, C, N, SelfRepoEntry, Deps)
+  ; Deps = []
+  ).
+rules:rdepend_collect_vbounds_for_cn(any_of_group(Deps0), C, N, SelfRepoEntry, Deps) :-
   !,
-  rules:rdepend_collect_vbounds_for_cn_list(Deps0, C, N, Deps).
-rules:rdepend_collect_vbounds_for_cn(all_of_group(Deps0), C, N, Deps) :-
+  rules:rdepend_collect_vbounds_for_cn_choice_intersection(Deps0, C, N, SelfRepoEntry, Deps).
+rules:rdepend_collect_vbounds_for_cn(all_of_group(Deps0), C, N, SelfRepoEntry, Deps) :-
   !,
-  rules:rdepend_collect_vbounds_for_cn_list(Deps0, C, N, Deps).
-rules:rdepend_collect_vbounds_for_cn(exactly_one_of_group(Deps0), C, N, Deps) :-
+  rules:rdepend_collect_vbounds_for_cn_list(Deps0, C, N, SelfRepoEntry, Deps).
+rules:rdepend_collect_vbounds_for_cn(exactly_one_of_group(Deps0), C, N, SelfRepoEntry, Deps) :-
   !,
-  rules:rdepend_collect_vbounds_for_cn_list(Deps0, C, N, Deps).
-rules:rdepend_collect_vbounds_for_cn(at_most_one_of_group(Deps0), C, N, Deps) :-
+  rules:rdepend_collect_vbounds_for_cn_choice_intersection(Deps0, C, N, SelfRepoEntry, Deps).
+rules:rdepend_collect_vbounds_for_cn(at_most_one_of_group(Deps0), C, N, SelfRepoEntry, Deps) :-
   !,
-  rules:rdepend_collect_vbounds_for_cn_list(Deps0, C, N, Deps).
-rules:rdepend_collect_vbounds_for_cn(_Other, _C, _N, []) :-
+  rules:rdepend_collect_vbounds_for_cn_choice_intersection(Deps0, C, N, SelfRepoEntry, Deps).
+rules:rdepend_collect_vbounds_for_cn(_Other, _C, _N, _SelfRepoEntry, []) :-
   !.
 
-rules:rdepend_collect_vbounds_for_cn_list([], _C, _N, []) :- !.
-rules:rdepend_collect_vbounds_for_cn_list([T|Ts], C, N, Deps) :-
-  rules:rdepend_collect_vbounds_for_cn(T, C, N, D0),
-  rules:rdepend_collect_vbounds_for_cn_list(Ts, C, N, D1),
+rules:rdepend_collect_vbounds_for_cn_list([], _C, _N, _SelfRepoEntry, []) :- !.
+rules:rdepend_collect_vbounds_for_cn_list([T|Ts], C, N, SelfRepoEntry, Deps) :-
+  rules:rdepend_collect_vbounds_for_cn(T, C, N, SelfRepoEntry, D0),
+  rules:rdepend_collect_vbounds_for_cn_list(Ts, C, N, SelfRepoEntry, D1),
   append(D0, D1, Deps),
+  !.
+
+% A USE-conditional branch contributes only when it is active for the current
+% self package's effective USE. For non-IUSE flags, mirror the same fallback
+% semantics used by use_conditional_group rules (profile/env driven).
+rules:rdepend_self_use_conditional_active(positive, Use, SelfRepoEntry) :-
+  ( rules:effective_use_for_entry(SelfRepoEntry, Use, positive) ->
+      true
+  ; \+ rules:rdepend_self_entry_has_iuse_flag(SelfRepoEntry, Use),
+    preference:use(Use)
+  ),
+  !.
+rules:rdepend_self_use_conditional_active(negative, Use, SelfRepoEntry) :-
+  ( rules:effective_use_for_entry(SelfRepoEntry, Use, negative) ->
+      true
+  ; \+ rules:rdepend_self_entry_has_iuse_flag(SelfRepoEntry, Use),
+    preference:use(minus(Use))
+  ; \+ rules:rdepend_self_entry_has_iuse_flag(SelfRepoEntry, Use),
+    \+ preference:use(Use),
+    \+ preference:use(minus(Use))
+  ),
+  !.
+rules:rdepend_self_use_conditional_active(_Pol, _Use, _SelfRepoEntry) :-
+  fail.
+
+rules:rdepend_self_entry_has_iuse_flag(Repo://Entry, Use) :-
+  rules:entry_iuse_info(Repo://Entry, iuse_info(IuseSet, _PlusSet)),
+  memberchk(Use, IuseSet),
+  !.
+rules:rdepend_self_entry_has_iuse_flag(_RepoEntry, _Use) :-
+  fail.
+
+% For choice groups (||, exactly-one, at-most-one), only constraints that are
+% common to all alternatives are guaranteed and safe to propagate.
+rules:rdepend_collect_vbounds_for_cn_choice_intersection([], _C, _N, _SelfRepoEntry, []) :-
+  !.
+rules:rdepend_collect_vbounds_for_cn_choice_intersection([Dep|Deps], C, N, SelfRepoEntry, Common) :-
+  rules:rdepend_collect_vbounds_for_cn(Dep, C, N, SelfRepoEntry, First0),
+  sort(First0, First),
+  rules:rdepend_collect_vbounds_for_cn_choice_intersection_(Deps, C, N, SelfRepoEntry, First, Common),
+  !.
+
+rules:rdepend_collect_vbounds_for_cn_choice_intersection_([], _C, _N, _SelfRepoEntry, Acc, Acc) :-
+  !.
+rules:rdepend_collect_vbounds_for_cn_choice_intersection_([Dep|Deps], C, N, SelfRepoEntry, Acc0, Common) :-
+  rules:rdepend_collect_vbounds_for_cn(Dep, C, N, SelfRepoEntry, Next0),
+  sort(Next0, Next),
+  ord_intersection(Acc0, Next, Acc1),
+  rules:rdepend_collect_vbounds_for_cn_choice_intersection_(Deps, C, N, SelfRepoEntry, Acc1, Common),
   !.
 
 
