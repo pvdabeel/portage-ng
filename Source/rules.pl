@@ -4031,7 +4031,7 @@ rules:constraint_guard(constraint(selected_cn(C,N):{ordset(_SelectedNew)}), Cons
   %   requested (slot-qualified deps or split grouped deps).
   get_assoc(selected_cn(C,N), Constraints, ordset(SelectedMerged)),
   rules:record_selected_cn_snapshot(C, N, SelectedMerged),
-  rules:selected_cn_unique(C, N, SelectedMerged, Constraints),
+  rules:selected_cn_unique_or_reprove(C, N, SelectedMerged, Constraints),
   ( get_assoc(cn_domain(C,N), Constraints, Domain) ->
       rules:selected_cn_domain_compatible_or_reprove(C, N, Domain, SelectedMerged, Constraints)
   ; true
@@ -4041,6 +4041,35 @@ rules:constraint_guard(constraint(selected_cn(C,N):{ordset(_SelectedNew)}), Cons
   ; true
   ).
 rules:constraint_guard(_Other, _Constraints).
+
+% Enforce uniqueness, but when enabled allow a bounded reprove retry if a stale
+% selected candidate conflicts with an active CN domain while another candidate
+% in the merged set still satisfies that domain.
+rules:selected_cn_unique_or_reprove(C, N, SelectedMerged, Constraints) :-
+  rules:selected_cn_unique(C, N, SelectedMerged, Constraints),
+  !.
+rules:selected_cn_unique_or_reprove(C, N, SelectedMerged, Constraints) :-
+  rules:cn_domain_reprove_enabled,
+  get_assoc(cn_domain(C,N), Constraints, Domain),
+  % Keep same-slot multiversion edge-cases unchanged (ocaml/ppx transition).
+  \+ rules:selected_cn_requires_same_slot_multiversion(C, N, Constraints),
+  rules:selected_cn_partition_by_domain(Domain, SelectedMerged, Allowed, Conflicting),
+  Allowed \== [],
+  Conflicting \== [],
+  rules:maybe_request_cn_domain_reprove(C, N, none, Conflicting, [unique_conflict_with_domain]),
+  fail.
+rules:selected_cn_unique_or_reprove(_C, _N, _SelectedMerged, _Constraints) :-
+  fail.
+
+rules:selected_cn_partition_by_domain(_Domain, [], [], []) :-
+  !.
+rules:selected_cn_partition_by_domain(Domain, [Sel|Rest], [Sel|AllowedRest], ConflictingRest) :-
+  Sel = selected(Repo,Entry,_Act,_SelVer,_SelSlotMeta),
+  version_domain:domain_allows_candidate(Domain, Repo://Entry),
+  !,
+  rules:selected_cn_partition_by_domain(Domain, Rest, AllowedRest, ConflictingRest).
+rules:selected_cn_partition_by_domain(Domain, [Sel|Rest], AllowedRest, [Sel|ConflictingRest]) :-
+  rules:selected_cn_partition_by_domain(Domain, Rest, AllowedRest, ConflictingRest).
 
 rules:selected_cn_not_blocked_or_reprove(_C, _N, Specs, Selected, _Constraints) :-
   \+ rules:specs_violate_selected(Specs, Selected),
@@ -4065,7 +4094,7 @@ rules:selected_cn_domain_compatible_or_reprove(C, N, Domain, Selected, Constrain
          )) ->
       true
   ; ( get_assoc(cn_domain_reason(C,N), Constraints, ordset(Reasons)) -> true ; Reasons = [] ),
-    ( rules:prefer_global_selected_reject_from_domain(C, Domain, Selected) ->
+    ( rules:prefer_global_selected_reject_from_domain(C, N, Domain, Selected, Constraints) ->
         DomainForReprove = none
     ; DomainForReprove = Domain
     ),
@@ -4074,10 +4103,15 @@ rules:selected_cn_domain_compatible_or_reprove(C, N, Domain, Selected, Constrain
   ),
   !.
 
-rules:prefer_global_selected_reject_from_domain(C, Domain, Selected) :-
+rules:prefer_global_selected_reject_from_domain(C, _N, Domain, Selected, _Constraints) :-
   C == 'dev-haskell',
   Selected \== [],
   rules:domain_has_upper_bound(Domain),
+  !.
+rules:prefer_global_selected_reject_from_domain(C, N, Domain, Selected, Constraints) :-
+  Selected \== [],
+  rules:domain_has_equal_bound(Domain),
+  \+ rules:selected_cn_requires_same_slot_multiversion(C, N, Constraints),
   !.
 
 rules:domain_has_upper_bound(version_domain(_Slots, Bounds)) :-
@@ -4085,6 +4119,10 @@ rules:domain_has_upper_bound(version_domain(_Slots, Bounds)) :-
   ( Op == smaller
   ; Op == smallerequal
   ),
+  !.
+
+rules:domain_has_equal_bound(version_domain(_Slots, Bounds)) :-
+  member(bound(equal, _Req), Bounds),
   !.
 
 % Allow multi-slot selections only when explicitly requested.

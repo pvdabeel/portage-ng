@@ -298,8 +298,10 @@ domain_reason_terms(Action, C, N, PackageDeps, Context, Reasons) :-
 normalize_bound_op(smallerorequal, smallerequal) :- !.
 normalize_bound_op(smallerequal, smallerequal) :- !.
 normalize_bound_op(smaller, smaller) :- !.
-% Keep first iteration conservative: only upper-bounds are part of domain
-% narrowing to avoid broad search blowups.
+% Keep domain narrowing conservative:
+% - include upper-bounds and exact-equality bounds;
+% - still avoid lower-bounds, which were a major source of broad search blowups.
+normalize_bound_op(equal, equal) :- !.
 normalize_bound_op(_Other, none).
 
 canon_slot(S0, S) :-
