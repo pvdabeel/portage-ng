@@ -1414,16 +1414,34 @@ rules:version_term_has_wildcard_(V0) :-
 rules:all_deps_have_explicit_slot([]) :- !, fail.
 rules:all_deps_have_explicit_slot(Deps) :-
   forall(member(package_dependency(_P,_Strength,_C,_N,_O,_V,SlotReq,_U), Deps),
-         SlotReq = [slot(_)]),
+         rules:slot_req_explicit_slot_key(SlotReq, _S)),
   !.
 
 rules:multiple_distinct_slots(Deps) :-
   findall(S,
-          member(package_dependency(_P,_Strength,_C,_N,_O,_V,[slot(S)],_U), Deps),
+          ( member(package_dependency(_P,_Strength,_C,_N,_O,_V,SlotReq,_U), Deps),
+            rules:slot_req_explicit_slot_key(SlotReq, S)
+          ),
           Slots0),
   sort(Slots0, Slots),
   Slots = [_|Rest],
   Rest \== [],
+  !.
+
+% Explicit slot request shapes that should participate in grouped-dep split
+% decisions. Treat :slot and :slot= (and subslot-qualified variants) as
+% belonging to the same slot key for split-by-distinct-slot checks.
+rules:slot_req_explicit_slot_key([slot(S0)], S) :-
+  rules:canon_slot(S0, S),
+  !.
+rules:slot_req_explicit_slot_key([slot(S0),equal], S) :-
+  rules:canon_slot(S0, S),
+  !.
+rules:slot_req_explicit_slot_key([slot(S0),subslot(_Ss)], S) :-
+  rules:canon_slot(S0, S),
+  !.
+rules:slot_req_explicit_slot_key([slot(S0),subslot(_Ss),equal], S) :-
+  rules:canon_slot(S0, S),
   !.
 
 rules:all_deps_exactish_versioned([]) :- !, fail.
@@ -1674,7 +1692,8 @@ rules:rdepend_collect_vbounds_for_cn_choice_intersection_([Dep|Deps], C, N, Self
 % order, so the solver tries the best versions first but can backtrack to
 % older alternatives.
 
-rules:accepted_keyword_candidate(Action, C, N, SlotReq, Ss, Context, FoundRepo://Candidate) :-
+rules:accepted_keyword_candidate(Action, C, N, SlotReq0, Ss0, Context, FoundRepo://Candidate) :-
+  rules:accepted_keyword_slot_lock_arg(C, N, SlotReq0, Ss0, Context, SlotReq, Ss, LockKey),
   ( preference:keyword_selection_mode(keyword_order) ->
       % Legacy behavior: accept_keywords enumeration order is a preference.
       preference:accept_keywords(K),
@@ -1698,7 +1717,7 @@ rules:accepted_keyword_candidate(Action, C, N, SlotReq, Ss, Context, FoundRepo:/
       predsort(rules:compare_candidate_version_desc, Candidates1, CandidatesSorted),
       member(FoundRepo://Candidate, CandidatesSorted)
     ;
-      rules:accepted_keyword_candidates_cached(Action, C, N, SlotReq, CandidatesSorted),
+      rules:accepted_keyword_candidates_cached(Action, C, N, SlotReq, LockKey, CandidatesSorted),
       ( rules:greedy_candidate_package(C, N) ->
           % Greedy packages: pick the best version *that satisfies* any existing
           % slot lock from the context (notably := / any_same_slot). Without this,
@@ -1711,6 +1730,44 @@ rules:accepted_keyword_candidate(Action, C, N, SlotReq, Ss, Context, FoundRepo:/
       )
     )
   ).
+
+rules:accepted_keyword_slot_lock_arg(C, N, SlotReq0, Ss0, Context, SlotReq, Ss, LockKey) :-
+  ( memberchk(slot(C,N,SsCtx0):{_}, Context) ->
+      rules:canon_any_same_slot_meta(SsCtx0, SsCtx)
+  ; SsCtx = _NoCtxLock
+  ),
+  ( SlotReq0 == [],
+    nonvar(SsCtx)
+  ->
+    SlotReq1 = [any_same_slot]
+  ; SlotReq1 = SlotReq0
+  ),
+  ( SlotReq1 == [any_same_slot] ->
+      ( nonvar(Ss0) ->
+          rules:canon_any_same_slot_meta(Ss0, Ss1)
+      ; nonvar(SsCtx) ->
+          Ss1 = SsCtx
+      ; Ss1 = _NoSlotLock
+      ),
+      SlotReq = [any_same_slot],
+      Ss = Ss1
+  ; SlotReq = SlotReq1,
+    Ss = Ss0
+  ),
+  rules:accepted_keyword_slot_lock_key(SlotReq, Ss, LockKey),
+  !.
+
+rules:accepted_keyword_slot_lock_key([any_same_slot], Ss, slot(S)) :-
+  nonvar(Ss),
+  rules:canon_any_same_slot_meta(Ss, [slot(S)|_]),
+  !.
+rules:accepted_keyword_slot_lock_key(_SlotReq, _Ss, any) :-
+  !.
+
+rules:accepted_keyword_slot_lock_filter([any_same_slot], slot(S), [slot(S)]) :-
+  !.
+rules:accepted_keyword_slot_lock_filter(_SlotReq, _LockKey, _SsFilter) :-
+  !.
 
 % -----------------------------------------------------------------------------
 %  Candidate backtracking policy (Portage-like)
@@ -1739,23 +1796,24 @@ rules:greedy_candidate_package('dev-ml', ocamlbuild) :- !.
 % ignored on purpose (except for the self-case handled above), because it does
 % not affect keyword/mask/version enumeration.
 
-rules:accepted_keyword_candidates_cached(Action, C, N, SlotReq, CandidatesSorted) :-
+rules:accepted_keyword_candidates_cached(Action, C, N, SlotReq, LockKey, CandidatesSorted) :-
   ( nb_current(rules_accepted_keyword_cache, Cache),
-    get_assoc(key(Action,C,N,SlotReq), Cache, CandidatesSorted)
+    get_assoc(key(Action,C,N,SlotReq,LockKey), Cache, CandidatesSorted)
   ->
     true
   ;
+    rules:accepted_keyword_slot_lock_filter(SlotReq, LockKey, SsFilter),
     findall(FoundRepo0://Candidate0,
             ( preference:accept_keywords(K0),
               rules:query_keyword_candidate(Action, C, N, K0, [], FoundRepo0://Candidate0),
-              rules:query_search_slot_constraint(SlotReq, FoundRepo0://Candidate0, _Ss0)
+              rules:query_search_slot_constraint(SlotReq, FoundRepo0://Candidate0, SsFilter)
             ),
             Candidates0),
     Candidates0 \== [],
     sort(Candidates0, Candidates1),
     predsort(rules:compare_candidate_version_desc, Candidates1, CandidatesSorted),
     ( nb_current(rules_accepted_keyword_cache, Cache0) -> true ; empty_assoc(Cache0) ),
-    put_assoc(key(Action,C,N,SlotReq), Cache0, CandidatesSorted, Cache1),
+    put_assoc(key(Action,C,N,SlotReq,LockKey), Cache0, CandidatesSorted, Cache1),
     nb_setval(rules_accepted_keyword_cache, Cache1)
   ).
 
@@ -1764,9 +1822,17 @@ rules:query_keyword_candidate(Action, C, N, K, Context, FoundRepo://Candidate) :
     memberchk(self(SelfRepo0://SelfEntry0), Context),
     query:search([category(C),name(N)], SelfRepo0://SelfEntry0)
   ->
-    \+ preference:flag(emptytree),
-    query:search([name(N),category(C),keyword(K),installed(true)], FoundRepo://Candidate),
-    \+ preference:masked(FoundRepo://Candidate)
+    query:search([name(N),category(C),keyword(K)], FoundRepo://Candidate),
+    \+ preference:masked(FoundRepo://Candidate),
+    % In self-context, only the exact self candidate must already be installed.
+    % Other same-C/N versions (e.g. explicit slot bootstrap deps) remain valid.
+    ( FoundRepo == SelfRepo0,
+      Candidate == SelfEntry0
+    ->
+      \+ preference:flag(emptytree),
+      query:search(installed(true), FoundRepo://Candidate)
+    ; true
+    )
   ; query:search([name(N),category(C),keyword(K)], FoundRepo://Candidate),
     \+ preference:masked(FoundRepo://Candidate)
   ).
@@ -3185,7 +3251,9 @@ process_slot([any_different_slot], _, _, _, _, Context, Context) :- !.
 % in the same plan (e.g. dev-lang/ruby:3.2 and dev-lang/ruby:3.3). If we store a
 % single chosen slot in the context, later deps for a different explicit slot
 % will fail to resolve and get misreported as "non-existent".
-process_slot([slot(_)], _SlotMeta, _C, _N, _Repository://_Candidate, Context, Context) :- !.
+% This applies to all explicit-slot forms, including :slot, :slot= and
+% :slot/subslot[=].
+process_slot([slot(_)|_], _SlotMeta, _C, _N, _Repository://_Candidate, Context, Context) :- !.
 process_slot(_, Slot, C, N, _Repository://Candidate, Context0, Context) :-
   feature_unification:unify([slot(C, N, Slot):{Candidate}], Context0, Context).
 
