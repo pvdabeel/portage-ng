@@ -2489,11 +2489,23 @@ merge_slot_restriction_([package_dependency(_Phase,no,C,N,_O,_V,S,_U)|Rest], Act
   ( S == []      -> Acc1 = Acc0
   ; Acc0 == none -> Acc1 = S
   ; Acc0 == S    -> Acc1 = Acc0
+  ; rules:merge_slot_restriction_pair(Acc0, S, Acc1) -> true
   ; fail
   ),
   merge_slot_restriction_(Rest, Action, C, N, Acc1, Acc).
 merge_slot_restriction_([_|Rest], Action, C, N, Acc0, Acc) :-
   merge_slot_restriction_(Rest, Action, C, N, Acc0, Acc).
+
+% Compatibility rule for merged grouped deps:
+% treat :slot and :slot= as compatible, keeping the stricter :slot= restriction.
+rules:merge_slot_restriction_pair([slot(S0)], [slot(S1),equal], [slot(S),equal]) :-
+  rules:canon_slot(S0, S),
+  rules:canon_slot(S1, S),
+  !.
+rules:merge_slot_restriction_pair([slot(S0),equal], [slot(S1)], [slot(S),equal]) :-
+  rules:canon_slot(S0, S),
+  rules:canon_slot(S1, S),
+  !.
 
 % -----------------------------------------------------------------------------
 %  Helper: query_search_slot_constraint
