@@ -49,7 +49,7 @@ digraph rules_assumptions_bpmn {
     g_keep_installed [shape=diamond, label="keep-installed fast path?\n(!emptytree, !deep, same-slot installed,\nversion+slot+build_with_use satisfied,\nand no --newuse mismatch)"];
     g_ok_installed [shape=box, label="Conditions = []"];
     g_slotreq [shape=box, label="SlotReq = merge_slot_restriction(...)"];
-    g_select [shape=box, label="candidate selection:\n- explicit slot dep -> accepted_keyword_candidate\n- else selected_cn_candidate if slot-valid\n- else accepted_keyword_candidate"];
+    g_select [shape=box, label="candidate selection:\n- explicit slot dep -> accepted_keyword_candidate\n- else selected_cn_candidate_compatible (slot+domain)\n- else accepted_keyword_candidate\n  excluding selected_cn candidates already rejected for this dep"];
     g_self_guard [shape=diamond, label="candidate == self entry?"];
     g_self_installed [shape=diamond, label="if self candidate:\ninstalled(true)?"];
     g_version_guard [shape=diamond, label="all version constraints pass?"];
@@ -60,12 +60,26 @@ digraph rules_assumptions_bpmn {
     g_action_path [shape=diamond, label="same-slot installed instance for update path?"];
     g_action_update [shape=box, label="ActionGoal = Candidate:update?{replaces(...)}\n(or rebuild_reason(build_with_use/newuse))"];
     g_action_install [shape=box, label="DepAction = (run -> install; else Action)\nActionGoal = Candidate:DepAction"];
-    g_emit [shape=box, label="emit constraints + goal:\ncn_domain + cn_domain_reason + selected_cn\n+ selected_cn_allow_multislot (when SlotReq is slot/any_* )\n+ build/use constraints + ActionGoal"];
-    g_sel_policy [shape=note, label="constraint_guard(selected_cn):\nstrict single concrete entry per (C,N) by default;\nper-slot multi-selection only when\nselected_cn_allow_multislot(C,N) exists"];
+    g_emit [shape=box, label="emit constraints + goal:\ncn_domain + cn_domain_reason + selected_cn\n+ selected_cn_allow_multislot (slot/any_* OR exactish-versioned grouped deps)\n+ build/use constraints + ActionGoal"];
+    g_sel_policy [shape=note, label="constraint_guard(selected_cn):\nstrict single concrete entry per (C,N) by default;\nwith selected_cn_allow_multislot(C,N):\n- one concrete entry per SLOT, or\n- per (slot,subslot) for same-slot multiversion cases"];
     g_deep_keep [shape=diamond, label="deep fallback keep-installed?\n(installed same-slot satisfies deps)"];
     g_ok_deep [shape=box, label="Conditions = []"];
+    g_reprove [shape=box, label="attempt CN-domain reprove request:\nrules:maybe_request_grouped_dep_reprove(...)\n- eligible: throw rules_reprove_cn_domain(...)\n- otherwise: fail and continue to assumption fallback"];
     g_reason_call [shape=box, label="call explanation:assumption_reason_for_grouped_dep(...,_Reason)\nfor classification (not injected into context)"];
     g_assume [shape=box, label="fallback assumption:\nassumed(grouped_package_dependency(...):Action?{Ctx2})\nCtx2 augmented with domain_reason(cn_domain(...)) tags"];
+  }
+
+  subgraph cluster_cn_reprove {
+    label="rules.pl + prover.pl : CN-domain reprove retry loop";
+    color="#888888";
+    r_throw [shape=box, label="rules_reprove_cn_domain(C,N,Domain,Candidates,Reasons)\n(thrown from rules.pl)"];
+    r_guard [shape=box, label="constraint_guard hooks that may throw reprove:\n- cn_domain + selected_cn compatibility\n- selected_cn uniqueness/domain partition\n- blocked_cn vs selected_cn source reprove"];
+    r_catch [shape=box, label="prover:prove_with_cn_domain_retries/11 catches throw"];
+    r_add [shape=box, label="rules:add_cn_domain_rejects(...)\n(+ add_cn_domain_origin_rejects when Candidates=[])"];
+    r_retry [shape=diamond, label="Attempt < MaxRetries\nAND any new reject added?"];
+    r_recurse [shape=box, label="retry prove_once with updated reject map"];
+    r_fallback [shape=box, label="exhausted/no-new-rejects:\nprove_once with cn-domain reprove disabled"];
+    r_done [shape=doublecircle, label="final prove result"];
   }
 
   subgraph cluster_reason {
@@ -157,8 +171,20 @@ digraph rules_assumptions_bpmn {
   g_emit -> g_start [style=invis];
   g_slotreq -> g_deep_keep [style=dashed, label="no viable candidate branch"];
   g_deep_keep -> g_ok_deep [label="yes"];
-  g_deep_keep -> g_reason_call [label="no"];
+  g_deep_keep -> g_reprove [label="no"];
+  g_reprove -> g_reason_call [label="no reprove request"];
+  g_reprove -> r_throw [style=dashed, label="throw rules_reprove_cn_domain"];
   g_reason_call -> g_assume;
+
+  r_guard -> r_throw [style=dashed, label="reprove request"];
+  r_throw -> r_catch;
+  r_catch -> r_add;
+  r_add -> r_retry;
+  r_retry -> r_recurse [label="yes"];
+  r_retry -> r_fallback [label="no"];
+  r_recurse -> r_done [style=dashed, label="success/no further throw"];
+  r_recurse -> r_catch [style=dashed, label="on next throw"];
+  r_fallback -> r_done;
 
   e_start -> e_any;
   e_any -> e_missing [label="no"];
@@ -191,6 +217,7 @@ digraph rules_assumptions_bpmn {
   u_txn -> u_txn_detail;
 
   g_action_update -> u_start [style=dashed, label="when ActionGoal is update"];
+  g_emit -> r_guard [style=dashed, label="constraint_guard may request reprove"];
   g_reason_call -> e_start [style=dashed, label="classification path"];
   t_blockers -> b_assume_blockers [style=dashed, label="sets rules_assume_blockers=true"];
   t_conflicts -> b_conflict [style=dashed, label="sets rules_assume_conflicts=true"];
