@@ -1333,7 +1333,8 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       query:search(version(CandVer), FoundRepo://Candidate),
       Selected = constraint(selected_cn(C,N):{ordset([selected(FoundRepo,Candidate,ActSel,CandVer,SlotMeta)])}),
       rules:selected_cn_allow_multislot_constraints(C, N, SlotReq, PackageDeps1, AllowMultiSlotCons),
-      rules:cn_domain_constraints(Action, C, N, PackageDeps1, Context, DomainCons, _DomainReasonTags),
+      rules:cn_domain_constraints(Action, C, N, PackageDeps1, Context, DomainCons0, _DomainReasonTags),
+      rules:domain_constraints_for_any_different_slot(SlotReq, DomainCons0, DomainCons),
       append(DomainCons, AllowMultiSlotCons, DomainAndAllow),
       append(DomainAndAllow, [Selected|Constraints], Conditions0),
       append(Conditions0, [ActionGoal], Conditions)
@@ -1375,6 +1376,14 @@ rules:cn_domain_constraints(Action, C, N, PackageDeps, Context, DomainCons, Doma
       DomainCons = ReasonCons
   ; DomainCons = [constraint(cn_domain(C,N):{Domain})|ReasonCons]
   ),
+  !.
+
+% `any_different_slot` deps (slot operator `:*`) are side-by-side by nature.
+% Merging them into one global cn_domain(C,N) can create false slot intersections
+% across independent edges. Keep their slot/version checks local to the edge.
+rules:domain_constraints_for_any_different_slot([any_different_slot], _DomainCons0, []) :-
+  !.
+rules:domain_constraints_for_any_different_slot(_SlotReq, DomainCons, DomainCons) :-
   !.
 
 rules:add_domain_reason_context(_C, _N, [], Ctx, Ctx) :-
