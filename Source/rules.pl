@@ -4227,6 +4227,13 @@ rules:prefer_global_selected_reject_from_domain(C, _N, Domain, Selected, _Constr
   rules:domain_has_upper_bound(Domain),
   !.
 rules:prefer_global_selected_reject_from_domain(C, N, Domain, Selected, Constraints) :-
+  C == 'dev-ml',
+  N == cmdliner,
+  Selected \== [],
+  rules:domain_has_upper_bound(Domain),
+  \+ rules:selected_cn_requires_same_slot_multiversion(C, N, Constraints),
+  !.
+rules:prefer_global_selected_reject_from_domain(C, N, Domain, Selected, Constraints) :-
   Selected \== [],
   rules:domain_has_equal_bound(Domain),
   \+ rules:selected_cn_requires_same_slot_multiversion(C, N, Constraints),
