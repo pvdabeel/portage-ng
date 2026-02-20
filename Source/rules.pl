@@ -1503,7 +1503,20 @@ rules:augment_package_deps_with_self_rdepend(install, C, N, Context, PackageDeps
   % If the dependency already carries a version constraint, don't add more.
   ( rules:dep_has_version_constraints(C, N, PackageDeps0) ->
       PackageDeps = PackageDeps0
-  ; rules:self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra),
+  ; rules:self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra0),
+    % Keep self-RDEPEND propagation bounded by explicit slot intent of the
+    % current grouped dependency. Without this, we can incorrectly merge
+    % incompatible slot-bounded runtime constraints into an explicit-slot DEPEND
+    % edge (e.g. :3.5 with :4), creating impossible CN domains.
+    ( merge_slot_restriction(install, C, N, PackageDeps0, BaseSlotReq) ->
+        true
+    ; BaseSlotReq = []
+    ),
+    findall(ExtraDep,
+            ( member(ExtraDep, Extra0),
+              rules:self_rdepend_extra_slot_compatible(BaseSlotReq, ExtraDep)
+            ),
+            Extra),
     ( Extra == [] ->
         PackageDeps = PackageDeps0
     ; append(PackageDeps0, Extra, PackageDeps)
@@ -1517,6 +1530,22 @@ rules:augment_package_deps_with_self_rdepend(_OtherAction, _C, _N, _Context, Pac
 rules:dep_has_version_constraints(C, N, PackageDeps) :-
   member(package_dependency(_Phase, no, C, N, Op, _V, _S, _U), PackageDeps),
   Op \== none,
+  !.
+
+% For explicit-slot grouped deps, keep only self-RDEPEND propagated bounds that
+% are either unslotted or in that same explicit slot. For non-explicit base slot
+% requests ([], any_same_slot, any_different_slot), preserve previous behavior.
+rules:self_rdepend_extra_slot_compatible([], _ExtraDep) :-
+  !.
+rules:self_rdepend_extra_slot_compatible([slot(S0)|_],
+                                         package_dependency(_P,_Strength,_C,_N,_Op,_V,SlotReq,_U)) :-
+  !,
+  rules:canon_slot(S0, S),
+  ( SlotReq == []
+  ; SlotReq = [slot(S1)|_],
+    rules:canon_slot(S1, S)
+  ).
+rules:self_rdepend_extra_slot_compatible(_BaseSlotReq, _ExtraDep) :-
   !.
 
 % Lookup extra version-bound deps from Self's RDEPEND for a specific (C,N).
