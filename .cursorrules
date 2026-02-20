@@ -119,6 +119,29 @@ The canonical load graph for standalone is in `portage-ng.pl`:
   - Columns: comparing previous compare data vs currect compare data (columns)
   - Rows: % vs portage merge_ok for CN, CN+V, CN+V+U, #blockers, #cycle breaks, #domain assumptions
 
+- Canonical metric formula for `% vs portage merge_ok` rows (use this exact formula):
+  - Filter to `emerge_ok == true` pairs only.
+  - For each pair define:
+    - `e = counts.emerge_pkgs`
+    - `m = counts.missing_in_merge`
+    - `x = counts.extra_in_merge`
+    - `v = counts.version_mismatches`
+    - `u = counts.use_mismatches` (not `use_mismatches_common`)
+    - `i_cnv = e - m`
+    - `u_cnv = e + x`
+  - Aggregate by summing across all `emerge_ok` pairs:
+    - `inter_cnv = Σ(i_cnv)`, `union_cnv = Σ(u_cnv)`
+    - `inter_cn  = Σ(i_cnv + v)`, `union_cn  = Σ(u_cnv - v)`
+    - `inter_cnvu = Σ(i_cnv - u)`, `union_cnvu = Σ(u_cnv + u)`
+  - Final percentages:
+    - `CN      = 100 * inter_cn / union_cn`
+    - `CN+V    = 100 * inter_cnv / union_cnv`
+    - `CN+V+U  = 100 * inter_cnvu / union_cnvu`
+  - Count rows in the same table are also `emerge_ok`-only sums:
+    - `#blockers = Σ assumptions.blockers`
+    - `#cycle breaks = Σ assumptions.cycle_breaks`
+    - `#domain assumptions = Σ assumptions.domain_assumptions`
+
 - The table output is used to determine regressions
 
 ## Compare tooling (authoritative paths + usage)
