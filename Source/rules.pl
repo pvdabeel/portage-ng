@@ -1406,6 +1406,13 @@ rules:dep_has_version_constraint(C, N, PackageDeps) :-
   Op \== none,
   !.
 
+% True iff PackageDeps carries an explicit slot/subslot restriction for (C,N).
+% Excludes generic slot operators (:= / :*) which are handled separately.
+rules:dep_has_explicit_slot_constraint(C, N, PackageDeps) :-
+  member(package_dependency(_Phase, no, C, N, _Op, _V, SlotReq, _U), PackageDeps),
+  rules:slot_req_explicit_slot_key(SlotReq, _S),
+  !.
+
 rules:dep_has_equal_wildcard_constraint(C, N, PackageDeps) :-
   member(package_dependency(_Phase, no, C, N, equal, V0, _S, _U), PackageDeps),
   rules:version_term_has_wildcard_(V0),
@@ -2609,6 +2616,48 @@ rules:merge_slot_restriction_pair([slot(S0)], [slot(S1),equal], [slot(S),equal])
 rules:merge_slot_restriction_pair([slot(S0),equal], [slot(S1)], [slot(S),equal]) :-
   rules:canon_slot(S0, S),
   rules:canon_slot(S1, S),
+  !.
+% Treat :slot and :slot/subslot (with or without '=') as compatible and keep
+% the stricter subslot-qualified shape.
+rules:merge_slot_restriction_pair([slot(S0)], [slot(S1),subslot(Ss0)], [slot(S),subslot(Ss)]) :-
+  rules:canon_slot(S0, S),
+  rules:canon_slot(S1, S),
+  rules:canon_slot(Ss0, Ss),
+  !.
+rules:merge_slot_restriction_pair([slot(S0),subslot(Ss0)], [slot(S1)], [slot(S),subslot(Ss)]) :-
+  rules:canon_slot(S0, S),
+  rules:canon_slot(S1, S),
+  rules:canon_slot(Ss0, Ss),
+  !.
+rules:merge_slot_restriction_pair([slot(S0)], [slot(S1),subslot(Ss0),equal], [slot(S),subslot(Ss),equal]) :-
+  rules:canon_slot(S0, S),
+  rules:canon_slot(S1, S),
+  rules:canon_slot(Ss0, Ss),
+  !.
+rules:merge_slot_restriction_pair([slot(S0),subslot(Ss0),equal], [slot(S1)], [slot(S),subslot(Ss),equal]) :-
+  rules:canon_slot(S0, S),
+  rules:canon_slot(S1, S),
+  rules:canon_slot(Ss0, Ss),
+  !.
+rules:merge_slot_restriction_pair([slot(S0),equal], [slot(S1),subslot(Ss0)], [slot(S),subslot(Ss),equal]) :-
+  rules:canon_slot(S0, S),
+  rules:canon_slot(S1, S),
+  rules:canon_slot(Ss0, Ss),
+  !.
+rules:merge_slot_restriction_pair([slot(S0),subslot(Ss0)], [slot(S1),equal], [slot(S),subslot(Ss),equal]) :-
+  rules:canon_slot(S0, S),
+  rules:canon_slot(S1, S),
+  rules:canon_slot(Ss0, Ss),
+  !.
+rules:merge_slot_restriction_pair([slot(S0),equal], [slot(S1),subslot(Ss0),equal], [slot(S),subslot(Ss),equal]) :-
+  rules:canon_slot(S0, S),
+  rules:canon_slot(S1, S),
+  rules:canon_slot(Ss0, Ss),
+  !.
+rules:merge_slot_restriction_pair([slot(S0),subslot(Ss0),equal], [slot(S1),equal], [slot(S),subslot(Ss),equal]) :-
+  rules:canon_slot(S0, S),
+  rules:canon_slot(S1, S),
+  rules:canon_slot(Ss0, Ss),
   !.
 
 % -----------------------------------------------------------------------------
@@ -3870,6 +3919,7 @@ rules:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps, Context) :-
   ( version_domain:domain_inconsistent(EffectiveDomain)
   ; SelectedCandidates \== []
   ; rules:dep_has_version_constraint(C, N, PackageDeps)
+  ; rules:dep_has_explicit_slot_constraint(C, N, PackageDeps)
   ),
   ( SelectedCandidates == [],
     rules:reason_linked_selected_reprove_target(Reasons, SourceC, SourceN, SourceCandidates)
