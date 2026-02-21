@@ -169,6 +169,8 @@ preference:use_expand_env('LLVM_SLOT',            llvm_slot).
 preference:use_expand_env('VIDEO_CARDS',          video_cards).
 preference:use_expand_env('INPUT_DEVICES',        input_devices).
 preference:use_expand_env('CPU_FLAGS_X86',        cpu_flags_x86).
+preference:use_expand_env('APACHE2_MODULES',      apache2_modules).
+preference:use_expand_env('APACHE2_MPMS',         apache2_mpms).
 
 
 %! preference:env_accept_keywords_list(Keyword)

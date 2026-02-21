@@ -3571,6 +3571,11 @@ rules:candidate_effective_use_enabled_in_iuse(Repo://Entry, Use) :-
       fail
   ; preference:use(Use) ->
       true
+  ; rules:use_expand_selector_flag_unset(Use) ->
+      % USE_EXPAND selectors behave as explicit choice sets: when a prefix has an
+      % active selection, flags of the same prefix that are not selected are OFF,
+      % even if IUSE advertises a +default.
+      fail
   ; preference:use(minus(Use)),
     % ABI_X86 flags are frequently modeled as USE_EXPAND defaults (+abi_x86_32 etc).
     % Treating every "unset" ABI_X86 value as an explicit negative in `preference:use/1`
@@ -3588,6 +3593,25 @@ rules:candidate_effective_use_enabled_in_iuse(Repo://Entry, Use) :-
   ; % iuse(minus(Use)) or iuse(Use): default disabled
     fail
   ).
+
+rules:use_expand_selector_flag_unset(Use) :-
+  atom(Use),
+  preference:use_expand_env(_EnvVar, Prefix),
+  atom_concat(Prefix, '_', PrefixUnderscore),
+  atom_concat(PrefixUnderscore, _, Use),
+  rules:use_expand_prefix_has_explicit_selection(Prefix),
+  \+ preference:use(Use),
+  \+ preference:use(minus(Use)),
+  !.
+
+rules:use_expand_prefix_has_explicit_selection(Prefix) :-
+  atom_concat(Prefix, '_', PrefixUnderscore),
+  ( preference:use(Use0)
+  ; preference:use(minus(Use0))
+  ),
+  atom(Use0),
+  atom_concat(PrefixUnderscore, _, Use0),
+  !.
 
 rules:is_abi_x86_flag(Use) :-
   atom(Use),
