@@ -2705,7 +2705,7 @@ query_search_slot_constraint(SlotReq, RepoEntry, SlotMeta) :-
       rules:canon_any_same_slot_meta(SlotMeta0, SlotMeta)
   ; SlotReq = [any_different_slot] ->
       query:search(select(slot,constraint([any_different_slot]),SlotMeta0), Repo://Id),
-      rules:canon_any_same_slot_meta(SlotMeta0, SlotMeta)
+      SlotMeta = SlotMeta0
   ; % Fallback (should be rare; may be slower due to missing macro)
     query:search(select(slot,constraint(SlotReq),SlotMeta), Repo://Id)
   ).
