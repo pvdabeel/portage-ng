@@ -28,11 +28,42 @@ Key files:
 - `Source/planner.pl`: wave planner; returns (Plan, RemainderRules).
 - `Source/scheduler.pl`: SCC/merge-set scheduling for remainder; acts only on :run SCCs.
 - `Source/printer.pl`: output + warnings; distinguishes domain assumptions vs prover cycle-breaks.
+- `Source/version.pl`: version domain model (`version_domain(Slots, Bounds)`), domain meet/intersection, consistency checks.
 
 Assumption taxonomy (do not mix these up):
 
 - Domain assumptions (rules-level): proof key `rule(assumed(X))`
 - Prover cycle-break assumptions: proof key `assumed(rule(X))`
+
+## Learned constraint refinement
+
+The prover offers a generic learned constraint store that persists across
+proof retries (managed by `with_cn_domain_reprove_state`):
+
+- `prover:learn(Literal, Constraint, Added)` — store/merge a constraint
+- `prover:learned(Literal, Constraint)` — look up a learned constraint
+- Merge semantics: `feature_unification:val_hook` (e.g., domain intersection)
+- Literal format: `cn_domain(Category, Name, Slot)` for version domains
+
+Rules uses this store in three ways:
+1. **Candidate narrowing**: `grouped_dep_effective_domain` intersects the
+   local+context domain with any learned domain (`apply_learned_domain`).
+2. **Conflict learning**: constraint guards learn the domain when a conflict
+   is detected (alongside the existing reject-based reprove mechanism).
+3. **Parent narrowing**: `maybe_learn_parent_narrowing` learns to exclude the
+   parent version when a child dep can't be satisfied (wrong-level fix).
+
+Inspired by Zeller's feature logic (incremental domain narrowing) and
+Vermeir/Van Nieuwenborgh's ordered logic programs (priority-based conflict
+resolution). See `Documentation/resolver-comparison.md`.
+
+### Testing learned constraints
+When testing changes to the learned constraint mechanism, ALWAYS verify:
+1. Exit code (0 = no assumptions, 1 = cycle breaks only, 2 = domain assumptions)
+2. "Total: N actions" line present (proof completed, not crashed)
+3. Count of "non-existent" lines
+4. No "Unknown message" or escaping exceptions in output
+5. Runtime (should be < 10 seconds for single targets)
 
 
 ## Configuration

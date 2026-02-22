@@ -1,0 +1,113 @@
+MINIMAL TEST CASE FOR LEARNED CONSTRAINT REFINEMENT
+=====================================================
+
+1. THE EXACT PROBLEM (from async_kernel-0.16.0)
+-------------------------------------------------
+
+The prover selects:
+  ocaml-5.4.0      (newest, but typerep needs < 5)
+  ppxlib-0.37.0-r1 (newest, but ppx_sexp_conv needs < 0.36.0)
+  stdio-0.17.0-r1  (newest, but ppx_optcomp needs :0/0.16)
+
+It should select:
+  ocaml-4.14.2      (satisfies < 5)
+  ppxlib-0.30.0-r2  (satisfies < 0.36.0 and sexplib0=0.16*)
+  stdio-0.16.0      (satisfies :0/0.16)
+
+The assumptions are recorded at the WRONG LEVEL:
+  "base non-existent" — but base IS correct (0.16.3-r1)
+  The real issue: stdio-0.17.0-r1 was selected (wrong),
+  stdio-0.17.0 needs base=0.17* (can't find it), assumption on base.
+  Should have selected stdio-0.16.0 instead.
+
+2. MINIMAL ABSTRACT TEST
+--------------------------
+
+Packages (versions with subslot):
+  A-1.0 (slot 0, subslot 1.0)
+    DEPEND: B:0/1.0  C:=
+
+  B-1.0 (slot 0, subslot 1.0)
+    DEPEND: D:=
+
+  B-2.0 (slot 0, subslot 2.0)
+    DEPEND: D:=
+
+  C-1.0 (slot 0, subslot 1.0)
+    DEPEND: D < 2.0
+
+  C-2.0 (slot 0, subslot 2.0)
+    DEPEND: D >= 2.0
+
+  D-1.0 (slot 0, subslot 1.0)
+  D-2.0 (slot 0, subslot 2.0)
+  D-3.0 (slot 0, subslot 3.0)
+
+Target: A-1.0
+
+Expected resolution (Portage-like):
+  A-1.0 → B:0/1.0 → B-1.0 → D:= → D-1.0
+  A-1.0 → C:= → C-1.0 (or C-2.0, but C-1.0 has D < 2.0 which is
+                  consistent with D-1.0 from B)
+
+What portage-ng does (newest-first):
+  A-1.0 → B:0/1.0 → B-1.0 ✓ (explicit subslot, picks correct)
+  A-1.0 → C:= → C-2.0 (newest) → D >= 2.0
+  But B-1.0 → D:= → D picks D-3.0 (newest via any_same_slot)
+  
+  Wait, this isn't quite right. Let me model the EXACT pattern.
+
+3. EXACT PATTERN FROM async_kernel
+------------------------------------
+
+The key conflict:
+  core-0.16.1 depends on ppxlib[any_same_slot]  → solver picks ppxlib-0.37.0
+  ppx_sexp_conv-0.16.0-r2 depends on ppxlib < 0.36.0  → ppxlib-0.37.0 fails
+
+Minimal model:
+  TARGET: T-1.0
+    DEPEND: A:0/1.0   (explicit subslot → picks A-1.0)
+    DEPEND: B:=        (any_same_slot → picks B-3.0, newest)
+
+  A-1.0 (subslot 1.0)
+    DEPEND: B < 2.0    (version bound on B)
+
+  B-1.0, B-2.0, B-3.0
+
+  The solver should pick B < 2.0 (from A-1.0's transitive dep),
+  but instead picks B-3.0 (newest, from T's any_same_slot dep).
+
+This is the simplest reproducer. Two dep edges to the same package B:
+  - T → B:= (loose, picks newest)
+  - T → A:0/1.0 → A-1.0 → B < 2.0 (tight, requires older)
+
+The constraint B < 2.0 is discovered AFTER B-3.0 is already selected.
+
+4. WHAT THE PROVER NEEDS
+--------------------------
+
+Step 1: Test prover:learn and prover:learned in isolation.
+  - Create a minimal proof with two rules
+  - Verify learned constraints persist across proof attempts
+  - Verify domain_meet intersection works correctly
+
+Step 2: Test the constraint guard detection.
+  - Create a proof where selected_cn has two entries for the same (C,N)
+  - Verify the constraint guard detects the conflict
+  - Verify cn_domain has the right bounds
+
+Step 3: Test the refinement mechanism.
+  - When the conflict is detected, learn the domain
+  - Retry the proof with the learned domain applied
+  - Verify the correct candidate is selected on retry
+
+5. PROVER-LEVEL TEST (independent of rules.pl)
+-------------------------------------------------
+
+Use prover:test_stats_pkgs or direct prover:prove calls.
+The test should:
+  a) Run prove for async_kernel-0.16.0
+  b) Check that the proof completes (Total: N actions)
+  c) Check the number of domain assumptions
+  d) If learned constraints were applied, check that
+     fewer assumptions are produced

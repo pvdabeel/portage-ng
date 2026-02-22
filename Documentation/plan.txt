@@ -1,0 +1,146 @@
+IMPLEMENTATION PLAN — Flag-based learned constraint refinement
+==============================================================
+
+OVERVIEW
+--------
+Replace the exception-based prover_refine mechanism with a flag-based
+retry loop. The constraint guard learns constraints and sets a retry flag.
+The prover checks the flag after each proof attempt and retries if set.
+No exceptions, no catches, no fallback paths.
+
+PREREQUISITE
+------------
+Start from clean committed state + constraint guard reorder only.
+Run: git checkout Source/rules.pl Source/prover.pl
+Then re-apply only the constraint guard reorder (swap lines 4226-4230).
+
+STEP 1: prover.pl — Add learned constraint store (KEEP)
+--------------------------------------------------------
+These predicates are generic and exception-free. Keep them as-is:
+
+  prover:learned(Literal, Constraint)
+  prover:learn(Literal, Constraint, Added)
+
+Add prover_learned_constraints to with_cn_domain_reprove_state lifecycle
+(save/restore/init with empty_assoc).
+
+No prover_refine exception. No handle_refine. No prove_absorbing_refine.
+No changes to prove_with_cn_domain_retries catch structure.
+
+TEST: load portage-ng, verify no errors. prover:learned/2 returns false
+(empty store).
+
+STEP 2: prover.pl — Add retry-after-prove loop
+-----------------------------------------------
+Change prove_with_cn_domain_retries to check a retry flag AFTER prove_once
+returns. If the flag is set, clear it and retry (up to MaxRetries).
+
+Current:
+  prove_with_cn_domain_retries(..., Attempt, MaxRetries) :-
+    catch(catch(prove_once(...), ...), ...).
+
+New:
+  prove_with_cn_domain_retries(..., Attempt, MaxRetries) :-
+    nb_setval(prover_needs_retry, false),
+    catch(catch(prove_once(...), ...), ...),
+    % After proof completes (success or with assumptions):
+    ( nb_current(prover_needs_retry, true),
+      Attempt < MaxRetries
+    ->
+      nb_setval(prover_needs_retry, false),
+      Attempt1 is Attempt + 1,
+      prove_with_cn_domain_retries(..., Attempt1, MaxRetries)
+    ; true
+    ).
+
+The existing rules_reprove_cn_domain catch/handler stays unchanged.
+The retry flag is orthogonal — it triggers AFTER the proof completes,
+not during it.
+
+Add prover_needs_retry to with_cn_domain_reprove_state lifecycle.
+
+TEST: load portage-ng, run --pretend for any target. Should work
+identically to baseline (flag is never set, no retries).
+
+STEP 3: rules.pl — Consult learned constraints in effective domain
+------------------------------------------------------------------
+In grouped_dep_effective_domain, after computing local + context domain,
+intersect with any learned domain:
+
+  rules:grouped_dep_effective_domain(Action, C, N, PackageDeps, Context, EffDom) :-
+    ... compute D1 from local + context ...,
+    rules:learned_cn_domain(C, N, PackageDeps, D1, EffDom),
+    !.
+
+  rules:learned_cn_domain(C, N, PackageDeps, D0, D) :-
+    rules:dep_slot_key(PackageDeps, Slot),
+    ( Slot \== any, prover:learned(cn_domain(C,N,Slot), L) -> true ; L = none ),
+    ( prover:learned(cn_domain(C,N,any), L2) -> true ; L2 = none ),
+    ... merge L, L2 with D0 ...
+
+  rules:dep_slot_key(PackageDeps, Slot) :-
+    member(package_dependency(_, _, _, _, _, _, [slot(S)|_], _), PackageDeps),
+    rules:canon_slot(S, Slot), !.
+  rules:dep_slot_key(_, any).
+
+TEST: load portage-ng, run --pretend. No change (learned store is empty,
+lookup returns nothing, effective domain unchanged).
+
+STEP 4: rules.pl — Learn + set flag in constraint guard
+--------------------------------------------------------
+In selected_cn_unique_or_reprove (second clause), BEFORE the existing
+maybe_request_cn_domain_reprove fallback:
+
+  ( nb_current(prover_learned_constraints, _),
+    ( Conflicting = [selected(_,_,_,_,SM)|_],
+      rules:selected_cn_slot_key_(SM, Slot) -> true ; Slot = any ),
+    prover:learn(cn_domain(C,N,Slot), Domain, Added),
+    Added == true
+  ->
+    nb_setval(prover_needs_retry, true)
+  ; rules:maybe_request_cn_domain_reprove(...)
+  ),
+
+Same pattern in selected_cn_domain_compatible_or_reprove:
+
+  ( nb_current(prover_learned_constraints, _),
+    \+ version_domain:domain_inconsistent(Domain),
+    ( Selected = [selected(_,_,_,_,SM)|_],
+      rules:selected_cn_slot_key_(SM, Slot) -> true ; Slot = any ),
+    prover:learn(cn_domain(C,N,Slot), Domain, Added),
+    Added == true
+  ->
+    nb_setval(prover_needs_retry, true)
+  ; ... existing reject fallback ...
+  ),
+
+KEY: no throw. The constraint guard learns the constraint, sets the
+retry flag, and the proof CONTINUES with assumptions. After prove_once
+returns, the prover checks the flag and retries with learned constraints.
+
+TEST: --pretend =dev-ml/async_kernel-0.16.0 → should show 0 non-existent
+(multiple retries, each learning one more constraint, eventually converging).
+--pretend =net-misc/rabbitmq-server-4.1.4 → 0.
+--pretend =dev-ruby/rexml-3.4.2 → 0 (no regression).
+No "Unknown message" errors in any mode.
+
+STEP 5: Clean up
+-----------------
+- Remove ALL prover_refine exception handling (catch, handle_refine,
+  prove_absorbing_refine)
+- Remove prover_refine_enabled flag
+- Remove approach.txt and plan.txt
+- Verify --graph runs clean (no exceptions, no warnings from this code)
+
+PROPERTIES OF THIS DESIGN
+--------------------------
+1. No exceptions cross module boundaries
+2. The proof always completes (never interrupted mid-way)
+3. Learned constraints accumulate across retries (iterative refinement)
+4. The retry is bounded by MaxRetries (default 20)
+5. Each retry benefits from ALL previously learned constraints
+6. No package-specific code anywhere
+7. prover.pl is generic (Literal + Constraint, no domain knowledge)
+8. rules.pl is declarative (learn + flag, no control flow)
+9. --graph batch mode works identically to --pretend
+10. Prolog's native backtracking is unaffected
