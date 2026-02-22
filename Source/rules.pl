@@ -4326,12 +4326,14 @@ rules:find_adjustable_origin(Reasons, OriginC, OriginN, Repo://Entry) :-
   cache:ordered_entry(Repo, Entry, OriginC, OriginN, _),
   prover:learned(cn_domain(OriginC, OriginN, _), _), !.
 
-% When a grouped_package_dependency assumption would be created, check
 % When a dep on (C,N) can't be satisfied, the parent (self) likely
 % selected the wrong version. Learn to exclude the parent's current
 % version so the next retry picks an older one.
-rules:maybe_learn_parent_narrowing(_C, _N, _PackageDeps, Context) :-
+% Do NOT fire for multi-slot deps (explicit slot different from selected) —
+% those need the missing slot to be added, not the parent narrowed.
+rules:maybe_learn_parent_narrowing(C, N, PackageDeps, Context) :-
   nb_current(prover_learned_constraints, _),
+  \+ rules:is_multislot_miss(C, N, PackageDeps, Context),
   is_list(Context),
   memberchk(self(ParentRepo://ParentEntry), Context),
   cache:ordered_entry(ParentRepo, ParentEntry, ParentC, ParentN, _),
@@ -4341,6 +4343,18 @@ rules:maybe_learn_parent_narrowing(_C, _N, _PackageDeps, Context) :-
   Added == true,
   rules:cn_domain_reprove_enabled,
   throw(rules_reprove_cn_domain(ParentC, ParentN, none, [ParentRepo://ParentEntry], [parent_narrowing])).
+
+% A dep on (C,N) with an explicit slot that doesn't match any selected_cn
+% entry is a multi-slot miss — the solver needs to ADD the new slot, not
+% narrow the parent.
+rules:is_multislot_miss(C, N, PackageDeps, Context) :-
+  member(package_dependency(_, _, C, N, _, _, [slot(DepSlot0)|_], _), PackageDeps),
+  rules:canon_slot(DepSlot0, DepSlot),
+  is_list(Context),
+  memberchk(constraint(selected_cn(C,N):{ordset(Selected)}), Context),
+  \+ ( member(selected(_, _, _, _, SlotMeta), Selected),
+       rules:selected_cn_slot_key_(SlotMeta, DepSlot) ),
+  !.
 
 rules:selected_cn_partition_by_domain(_Domain, [], [], []) :-
   !.
