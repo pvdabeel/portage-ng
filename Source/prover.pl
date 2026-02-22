@@ -392,6 +392,54 @@ prover:handle_cn_domain_reprove(Target, InProof, OutProof, InModel, OutModel, In
     )
   ).
 
+% ---------------------------------------------------------------------------
+%  Learned constraint store
+% ---------------------------------------------------------------------------
+%
+%  A generic key-value store for constraints learned across proof attempts.
+%  Rules can learn constraints (e.g., version domain narrowing) and consult
+%  them during candidate selection. The prover manages the store lifecycle.
+%  Merge semantics are defined by feature_unification:val_hook.
+
+%! prover:learned(+Literal, -Constraint)
+%
+%  Look up a learned constraint. Fails if none exists.
+
+prover:learned(Literal, Constraint) :-
+  nb_current(prover_learned_constraints, Store),
+  get_assoc(Literal, Store, Constraint).
+
+%! prover:learn(+Literal, +Constraint, -Added)
+%
+%  Store a learned constraint. If one already exists for Literal,
+%  merge via feature_unification:val_hook. Added is true if the
+%  store changed, false if Constraint was already subsumed.
+
+prover:learn(Literal, Constraint, Added) :-
+  ( nb_current(prover_learned_constraints, Store0)
+  -> true
+  ; empty_assoc(Store0)
+  ),
+  ( get_assoc(Literal, Store0, Old) ->
+      ( Old == Constraint ->
+          Added = false
+      ; feature_unification:val_hook(Old, Constraint, Merged) ->
+          ( Merged == Old ->
+              Added = false
+          ; put_assoc(Literal, Store0, Merged, Store1),
+            nb_setval(prover_learned_constraints, Store1),
+            Added = true
+          )
+      ; put_assoc(Literal, Store0, Constraint, Store1),
+        nb_setval(prover_learned_constraints, Store1),
+        Added = true
+      )
+  ; put_assoc(Literal, Store0, Constraint, Store1),
+    nb_setval(prover_learned_constraints, Store1),
+    Added = true
+  ),
+  !.
+
 prover:add_cn_domain_origin_rejects(Reasons, Added) :-
   ( current_predicate(rules:add_cn_domain_origin_rejects/2) ->
       rules:add_cn_domain_origin_rejects(Reasons, Added)
@@ -428,15 +476,15 @@ prover:cn_domain_reprove_max_retries(Max) :-
 prover:with_cn_domain_reprove_state(Goal) :-
   ( nb_current(rules_cn_domain_reprove_enabled, OldEnabled) -> HadEnabled = true ; HadEnabled = false ),
   ( nb_current(rules_cn_domain_rejects, OldRejects) -> HadRejects = true ; HadRejects = false ),
+  ( nb_current(prover_learned_constraints, OldLearned) -> HadLearned = true ; HadLearned = false ),
   ( nb_current(rules_selected_cn_snapshot, OldSelectedSnap) -> HadSelectedSnap = true ; HadSelectedSnap = false ),
   ( nb_current(rules_blocked_cn_source_snapshot, OldBlockedSourceSnap) -> HadBlockedSourceSnap = true ; HadBlockedSourceSnap = false ),
-  empty_assoc(EmptyRejects),
-  empty_assoc(EmptySelectedSnap),
-  empty_assoc(EmptyBlockedSourceSnap),
+  empty_assoc(EmptyAssoc),
   nb_setval(rules_cn_domain_reprove_enabled, true),
-  nb_setval(rules_cn_domain_rejects, EmptyRejects),
-  nb_setval(rules_selected_cn_snapshot, EmptySelectedSnap),
-  nb_setval(rules_blocked_cn_source_snapshot, EmptyBlockedSourceSnap),
+  nb_setval(rules_cn_domain_rejects, EmptyAssoc),
+  nb_setval(prover_learned_constraints, EmptyAssoc),
+  nb_setval(rules_selected_cn_snapshot, EmptyAssoc),
+  nb_setval(rules_blocked_cn_source_snapshot, EmptyAssoc),
   setup_call_cleanup(true,
                      Goal,
                      ( ( HadEnabled == true -> nb_setval(rules_cn_domain_reprove_enabled, OldEnabled)
@@ -444,6 +492,9 @@ prover:with_cn_domain_reprove_state(Goal) :-
                        ),
                        ( HadRejects == true -> nb_setval(rules_cn_domain_rejects, OldRejects)
                        ; nb_delete(rules_cn_domain_rejects)
+                       ),
+                       ( HadLearned == true -> nb_setval(prover_learned_constraints, OldLearned)
+                       ; nb_delete(prover_learned_constraints)
                        ),
                        ( HadSelectedSnap == true -> nb_setval(rules_selected_cn_snapshot, OldSelectedSnap)
                        ; nb_delete(rules_selected_cn_snapshot)

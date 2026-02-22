@@ -1350,6 +1350,10 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         rules:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps, pkg://InstalledEntryFallback)
       ->
         Conditions = []
+      ; % Before reprove, check if the parent should be narrowed — the parent
+        % introduced a dep that made (C,N) unsatisfiable (wrong-level fix).
+        rules:maybe_learn_parent_narrowing(C, N, PackageDeps1, Context),
+        fail
       ; rules:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps1, Context),
         fail
       ; explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, _Reason),
@@ -3769,13 +3773,34 @@ rules:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps
 rules:grouped_dep_effective_domain(Action, C, N, PackageDeps, Context, EffectiveDomain) :-
   version_domain:domain_from_packagedeps(Action, C, N, PackageDeps, DepDomain0),
   ( rules:context_cn_domain_constraint(C, N, Context, CtxDomain0) ->
-      ( version_domain:domain_meet(CtxDomain0, DepDomain0, EffectiveDomain)
-      -> true
-      ; EffectiveDomain = version_domain(slots([]), [])
+      ( version_domain:domain_meet(CtxDomain0, DepDomain0, D1) -> true
+      ; D1 = version_domain(slots([]), [])
       )
-  ; EffectiveDomain = DepDomain0
+  ; D1 = DepDomain0
   ),
+  rules:apply_learned_domain(C, N, PackageDeps, D1, EffectiveDomain),
   !.
+
+% Apply any learned domain constraints for (C,N). Checks slot-specific
+% first, then any-slot fallback.
+rules:apply_learned_domain(C, N, PackageDeps, D0, D) :-
+  rules:dep_slot_key(PackageDeps, Slot),
+  ( Slot \== any, prover:learned(cn_domain(C,N,Slot), L1) -> true ; L1 = none ),
+  ( prover:learned(cn_domain(C,N,any), L2) -> true ; L2 = none ),
+  ( L1 \== none, L2 \== none ->
+      version_domain:domain_meet(L1, L2, Learned),
+      ( version_domain:domain_meet(D0, Learned, D) -> true ; D = D0 )
+  ; L1 \== none ->
+      ( version_domain:domain_meet(D0, L1, D) -> true ; D = D0 )
+  ; L2 \== none ->
+      ( version_domain:domain_meet(D0, L2, D) -> true ; D = D0 )
+  ; D = D0
+  ), !.
+
+rules:dep_slot_key(PackageDeps, Slot) :-
+  member(package_dependency(_, _, _, _, _, _, SlotReq, _), PackageDeps),
+  SlotReq = [slot(S)|_], rules:canon_slot(S, Slot), !.
+rules:dep_slot_key(_, any).
 
 rules:context_cn_domain_constraint(C, N, Context, Domain) :-
   is_list(Context),
@@ -4223,11 +4248,11 @@ rules:constraint_guard(constraint(selected_cn(C,N):{ordset(_SelectedNew)}), Cons
   %   requested (slot-qualified deps or split grouped deps).
   get_assoc(selected_cn(C,N), Constraints, ordset(SelectedMerged)),
   rules:record_selected_cn_snapshot(C, N, SelectedMerged),
-  rules:selected_cn_unique_or_reprove(C, N, SelectedMerged, Constraints),
   ( get_assoc(cn_domain(C,N), Constraints, Domain) ->
       rules:selected_cn_domain_compatible_or_reprove(C, N, Domain, SelectedMerged, Constraints)
   ; true
   ),
+  rules:selected_cn_unique_or_reprove(C, N, SelectedMerged, Constraints),
   ( get_assoc(blocked_cn(C,N), Constraints, ordset(Specs)) ->
       rules:selected_cn_not_blocked_or_reprove(C, N, Specs, SelectedMerged, Constraints)
   ; true
@@ -4248,10 +4273,52 @@ rules:selected_cn_unique_or_reprove(C, N, SelectedMerged, Constraints) :-
   rules:selected_cn_partition_by_domain(Domain, SelectedMerged, Allowed, Conflicting),
   Allowed \== [],
   Conflicting \== [],
+  ( Conflicting = [selected(_,_,_,_,SM0)|_],
+    rules:selected_cn_slot_key_(SM0, Slot) -> true ; Slot = any ),
+  prover:learn(cn_domain(C,N,Slot), Domain, _),
+  ( Slot \== any -> prover:learn(cn_domain(C,N,any), Domain, _) ; true ),
   rules:maybe_request_cn_domain_reprove(C, N, none, Conflicting, [unique_conflict_with_domain]),
+  fail.
+% Inconsistent domain with identifiable origin: learn a narrowing
+% constraint for the origin package (Vermeir: lower-priority yields).
+rules:selected_cn_unique_or_reprove(C, N, _SelectedMerged, Constraints) :-
+  rules:cn_domain_reprove_enabled,
+  get_assoc(cn_domain(C,N), Constraints, _Domain),
+  rules:selected_cn_requires_same_slot_multiversion(C, N, Constraints),
+  ( get_assoc(cn_domain_reason(C,N), Constraints, ordset(Reasons)) -> true ; Reasons = [] ),
+  Reasons \== [],
+  rules:find_adjustable_origin(Reasons, OriginC, OriginN, OriginRepo://OriginEntry),
+  query:search(version(OriginVer), OriginRepo://OriginEntry),
+  ExcludeDomain = version_domain(any, [bound(smaller, OriginVer)]),
+  prover:learn(cn_domain(OriginC, OriginN, any), ExcludeDomain, Added),
+  Added == true,
+  rules:maybe_request_cn_domain_reprove(OriginC, OriginN, none, [OriginRepo://OriginEntry], [inconsistency_driven]),
   fail.
 rules:selected_cn_unique_or_reprove(_C, _N, _SelectedMerged, _Constraints) :-
   fail.
+
+% Find an origin that already has a learned constraint — that's the
+% adjustable package whose version needs further narrowing.
+rules:find_adjustable_origin(Reasons, OriginC, OriginN, Repo://Entry) :-
+  member(introduced_by(Repo://Entry, _Action, _Why), Reasons),
+  cache:ordered_entry(Repo, Entry, OriginC, OriginN, _),
+  prover:learned(cn_domain(OriginC, OriginN, _), _), !.
+
+% When a grouped_package_dependency assumption would be created, check
+% When a dep on (C,N) can't be satisfied, the parent (self) likely
+% selected the wrong version. Learn to exclude the parent's current
+% version so the next retry picks an older one.
+rules:maybe_learn_parent_narrowing(_C, _N, _PackageDeps, Context) :-
+  nb_current(prover_learned_constraints, _),
+  is_list(Context),
+  memberchk(self(ParentRepo://ParentEntry), Context),
+  cache:ordered_entry(ParentRepo, ParentEntry, ParentC, ParentN, _),
+  query:search(version(ParentVer), ParentRepo://ParentEntry),
+  ExcludeDomain = version_domain(any, [bound(smaller, ParentVer)]),
+  prover:learn(cn_domain(ParentC, ParentN, any), ExcludeDomain, Added),
+  Added == true,
+  rules:cn_domain_reprove_enabled,
+  throw(rules_reprove_cn_domain(ParentC, ParentN, none, [ParentRepo://ParentEntry], [parent_narrowing])).
 
 rules:selected_cn_partition_by_domain(_Domain, [], [], []) :-
   !.
@@ -4285,7 +4352,30 @@ rules:selected_cn_domain_compatible_or_reprove(C, N, Domain, Selected, Constrain
            version_domain:domain_allows_candidate(Domain, Repo://Entry)
          )) ->
       true
-  ; ( get_assoc(cn_domain_reason(C,N), Constraints, ordset(Reasons)) -> true ; Reasons = [] ),
+  ; % Learn the domain constraint so the next proof attempt can narrow
+    % candidates before the wrong version is ever selected.
+    ( \+ version_domain:domain_inconsistent(Domain) ->
+        % Consistent domain: learn it for future narrowing
+        ( ( Selected = [selected(_,_,_,_,SM0)|_],
+            rules:selected_cn_slot_key_(SM0, SelSlot) -> true ; SelSlot = any ),
+          prover:learn(cn_domain(C,N,SelSlot), Domain, _),
+          ( SelSlot \== any -> prover:learn(cn_domain(C,N,any), Domain, _) ; true )
+        -> true ; true )
+    ; % Inconsistent domain: find the adjustable origin (Vermeir) and
+      % learn a narrowing constraint for IT rather than blaming (C,N).
+      ( get_assoc(cn_domain_reason(C,N), Constraints, ordset(Reasons0)) -> true ; Reasons0 = [] ),
+      ( Reasons0 \== [],
+        rules:find_adjustable_origin(Reasons0, OriginC, OriginN, OriginRepo://OriginEntry),
+        query:search(version(OriginVer), OriginRepo://OriginEntry),
+        ExcludeDomain = version_domain(any, [bound(smaller, OriginVer)]),
+        prover:learn(cn_domain(OriginC, OriginN, any), ExcludeDomain, OriginAdded),
+        OriginAdded == true
+      ->
+        rules:maybe_request_cn_domain_reprove(OriginC, OriginN, none, [OriginRepo://OriginEntry], [inconsistency_driven]),
+        fail
+      ; true )
+    ),
+    ( get_assoc(cn_domain_reason(C,N), Constraints, ordset(Reasons)) -> true ; Reasons = [] ),
     ( rules:prefer_global_selected_reject_from_domain(C, N, Domain, Selected, Constraints) ->
         DomainForReprove = none
     ; DomainForReprove = Domain
