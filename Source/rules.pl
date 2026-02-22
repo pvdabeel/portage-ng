@@ -4331,8 +4331,11 @@ rules:find_adjustable_origin(Reasons, OriginC, OriginN, Repo://Entry) :-
 % version so the next retry picks an older one.
 % Do NOT fire for multi-slot deps (explicit slot different from selected) —
 % those need the missing slot to be added, not the parent narrowed.
+% Do NOT fire for PDEPEND failures — post-dependencies are soft requirements
+% that should not invalidate the parent's installability.
 rules:maybe_learn_parent_narrowing(C, N, PackageDeps, Context) :-
   nb_current(prover_learned_constraints, _),
+  \+ rules:is_pdepend_failure(PackageDeps, Context),
   \+ rules:is_multislot_miss(C, N, PackageDeps, Context),
   is_list(Context),
   memberchk(self(ParentRepo://ParentEntry), Context),
@@ -4343,6 +4346,17 @@ rules:maybe_learn_parent_narrowing(C, N, PackageDeps, Context) :-
   Added == true,
   rules:cn_domain_reprove_enabled,
   throw(rules_reprove_cn_domain(ParentC, ParentN, none, [ParentRepo://ParentEntry], [parent_narrowing])).
+
+% A PDEPEND failure should not cause parent narrowing. PDEPENDs are
+% post-dependencies: their unsatisfiability does not mean the parent
+% version is wrong, only that a post-install integration is missing.
+rules:is_pdepend_failure(PackageDeps, _Context) :-
+  member(package_dependency(pdepend, _, _, _, _, _, _, _), PackageDeps),
+  !.
+rules:is_pdepend_failure(_, Context) :-
+  is_list(Context),
+  memberchk(after_only(_), Context),
+  !.
 
 % A dep on (C,N) with an explicit slot that doesn't match any selected_cn
 % entry is a multi-slot miss — the solver needs to ADD the new slot, not
