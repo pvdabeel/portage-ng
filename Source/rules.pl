@@ -3922,6 +3922,20 @@ rules:domain_conflicting_candidates(Domain, Candidates, Conflicting) :-
   sort(Conflicting0, Conflicting),
   !.
 
+% Find selected candidates that violate the *full* grouped dependency constraints
+% (version operator semantics, USE deps, effective domain/reject map), not just
+% the normalized version-domain approximation.
+rules:constraint_conflicting_candidates(_Action, _C, _N, _PackageDeps, _Context, [], []) :-
+  !.
+rules:constraint_conflicting_candidates(Action, C, N, PackageDeps, Context, Candidates, Conflicting) :-
+  findall(RepoEntry,
+          ( member(RepoEntry, Candidates),
+            \+ rules:grouped_dep_candidate_satisfies_constraints(Action, C, N, PackageDeps, Context, RepoEntry)
+          ),
+          Conflicting0),
+  sort(Conflicting0, Conflicting),
+  !.
+
 % When grouped dependency proving drifts toward assumption fallback, request a
 % bounded CN-domain reprove retry using conflicting selected candidates and
 % collected domain provenance reasons.
@@ -3936,7 +3950,9 @@ rules:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps, Context) :-
   rules:grouped_dep_effective_domain(Action, C, N, PackageDeps, Context, EffectiveDomain),
   rules:context_cn_reject_scope(C, N, Context, EffectiveDomain, RejectScope),
   rules:cn_reject_scoped_domain(RejectScope, EffectiveDomain, RejectDomain),
-  rules:domain_conflicting_candidates(EffectiveDomain, SelectedCandidatesRaw, SelectedCandidates),
+  rules:domain_conflicting_candidates(EffectiveDomain, SelectedCandidatesRaw, DomainConflicting),
+  rules:constraint_conflicting_candidates(Action, C, N, PackageDeps, Context, SelectedCandidatesRaw, ConstraintConflicting),
+  ord_union(DomainConflicting, ConstraintConflicting, SelectedCandidates),
   version_domain:domain_reason_terms(Action, C, N, PackageDeps, Context, Reasons),
   ( SelectedCandidates \== []
   ; Reasons \== []
@@ -4224,10 +4240,16 @@ rules:canon_any_same_slot_meta(Meta0, [slot(S)]) :-
 rules:constraint_guard(constraint(cn_domain(C,N):{Domain0}), Constraints) :-
   !,
   ( get_assoc(cn_domain(C,N), Constraints, Domain) -> true ; Domain = Domain0 ),
-  \+ version_domain:domain_inconsistent(Domain),
-  ( get_assoc(selected_cn(C,N), Constraints, ordset(Selected)) ->
-      rules:selected_cn_domain_compatible_or_reprove(C, N, Domain, Selected, Constraints)
-  ; true
+  ( version_domain:domain_inconsistent(Domain) ->
+      % Multi-slot mode can intentionally accumulate disjoint slot domains
+      % (e.g. ruby:3.2 and ruby:3.3). In that case the merged intersection is
+      % globally inconsistent by construction, but each slot-constrained edge is
+      % still validated locally during candidate selection.
+      get_assoc(selected_cn_allow_multislot(C,N), Constraints, _AllowMultiSlot)
+  ; ( get_assoc(selected_cn(C,N), Constraints, ordset(Selected)) ->
+          rules:selected_cn_domain_compatible_or_reprove(C, N, Domain, Selected, Constraints)
+    ; true
+    )
   ).
 rules:constraint_guard(constraint(blocked_cn(C,N):{ordset(Specs)}), Constraints) :-
   !,
