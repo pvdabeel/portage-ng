@@ -1245,6 +1245,12 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       % otherwise degrade into assumptions after expensive search.
       rules:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps1, Context, FoundRepo://Candidate),
 
+      % Reject candidates whose RDEPEND contains a version constraint on the
+      % parent (self) that the parent cannot satisfy. Without this, the solver
+      % greedily picks the latest candidate, only to hit a domain assumption.
+      % RDEPEND-only: PDEPEND conflicts are handled by cycle-breaking.
+      rules:candidate_reverse_deps_compatible_with_parent(Context, FoundRepo://Candidate),
+
       % For PDEPEND edges, we treat the dependency as runtime-soft (cycle-breakable),
       % but we should not propagate or enforce `build_with_use` from the parent.
       % Otherwise large USE_EXPAND sets (llvm_targets_*, python_targets_*) explode
@@ -1430,6 +1436,62 @@ rules:version_term_has_wildcard_(V0) :-
   ),
   sub_atom(A, _Start, _Len, _After, '*'),
   !.
+
+% -----------------------------------------------------------------------------
+%  Reverse-dep candidate pre-filter (RDEPEND only)
+% -----------------------------------------------------------------------------
+%
+% Before committing to a candidate for a grouped_package_dependency, verify
+% that the candidate's RDEPEND metadata does not contain a version constraint
+% on the parent (self) that the parent cannot satisfy.
+%
+% Only RDEPEND is checked (not PDEPEND). PDEPEND conflicts are weaker: the
+% prover handles them via cycle-breaking. Checking PDEPEND would reject ALL
+% candidates when every version has an incompatible PDEPEND on the parent
+% (e.g. every ruby:3.2 requires >=minitest-5.16.3 but the target is 5.15.0),
+% turning a targeted PDEPEND assumption into a worse "non-existent" one.
+%
+% Example:
+%   - www-apps/airdcpp-webui-2.14.0 has RDEPEND =net-p2p/airdcpp-webclient-2.14*
+%     When resolving webclient-2.13.3's PDEPEND on webui, webui-2.14.0 is rejected
+%     because webclient-2.13.3 does not satisfy =2.14*. Solver picks webui-2.13.1.
+
+rules:candidate_reverse_deps_compatible_with_parent(Context, FoundRepo://Candidate) :-
+  ( memberchk(self(SelfRepo://SelfEntry), Context),
+    cache:ordered_entry(SelfRepo, SelfEntry, ParC, ParN, _)
+  ->
+    \+ rules:candidate_has_incompatible_reverse_dep(FoundRepo, Candidate, ParC, ParN, SelfRepo://SelfEntry)
+  ; true
+  ).
+
+rules:candidate_has_incompatible_reverse_dep(FoundRepo, Candidate, ParC, ParN, SelfRepo://SelfEntry) :-
+  cache:entry_metadata(FoundRepo, Candidate, rdepend, Dep),
+  rules:dep_contains_pkg_dep_on(Dep, ParC, ParN, Op, V, SlotReq),
+  Op \== none,
+  rules:reverse_dep_slot_matches_parent(SlotReq, SelfRepo://SelfEntry),
+  \+ query:search(select(version, Op, V), SelfRepo://SelfEntry).
+
+% Only reject when the dep targets the same slot as the parent.
+% If the dep specifies a different slot, it's about a different instance.
+rules:reverse_dep_slot_matches_parent([], _) :- !.
+rules:reverse_dep_slot_matches_parent([slot(DepSlot)|_], SelfRepo://SelfEntry) :-
+  !,
+  query:search(slot(ParSlot), SelfRepo://SelfEntry),
+  rules:canon_slot(ParSlot, ParSlotC),
+  rules:canon_slot(DepSlot, DepSlotC),
+  ParSlotC == DepSlotC.
+rules:reverse_dep_slot_matches_parent([any_same_slot|_], _) :- !.
+rules:reverse_dep_slot_matches_parent([any_different_slot|_], _) :- !, fail.
+rules:reverse_dep_slot_matches_parent(_, _).
+
+rules:dep_contains_pkg_dep_on(package_dependency(_, no, C, N, Op, V, SlotReq, _), C, N, Op, V, SlotReq).
+rules:dep_contains_pkg_dep_on(use_conditional_group(_, _, _, SubDeps), C, N, Op, V, SlotReq) :-
+  member(D, SubDeps),
+  rules:dep_contains_pkg_dep_on(D, C, N, Op, V, SlotReq).
+rules:dep_contains_pkg_dep_on(all_of_group(SubDeps), C, N, Op, V, SlotReq) :-
+  member(D, SubDeps),
+  rules:dep_contains_pkg_dep_on(D, C, N, Op, V, SlotReq).
+
 
 rules:all_deps_have_explicit_slot([]) :- !, fail.
 rules:all_deps_have_explicit_slot(Deps) :-
