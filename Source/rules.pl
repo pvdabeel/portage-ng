@@ -1240,15 +1240,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
 
       forall(member(package_dependency(_P1,no,C,N,O,V,_,_), PackageDeps1),
              rules:query_search_version_select(O, V, FoundRepo://Candidate)),
-      % Prune candidates that are already incompatible with the currently known
-      % effective CN-domain. This avoids late constraint-guard failures that
-      % otherwise degrade into assumptions after expensive search.
       rules:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps1, Context, FoundRepo://Candidate),
-
-      % Reject candidates whose RDEPEND contains a version constraint on the
-      % parent (self) that the parent cannot satisfy. Without this, the solver
-      % greedily picks the latest candidate, only to hit a domain assumption.
-      % RDEPEND-only: PDEPEND conflicts are handled by cycle-breaking.
       rules:candidate_reverse_deps_compatible_with_parent(Context, FoundRepo://Candidate),
 
       % For PDEPEND edges, we treat the dependency as runtime-soft (cycle-breakable),
@@ -1271,9 +1263,6 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       % Enforce bracketed USE constraints (e.g. sys-devel/gcc[objc], python[xml(+)], foo[bar?]).
       rules:candidate_satisfies_use_deps(ContextDep, FoundRepo://Candidate, MergedUse),
       process_build_with_use(MergedUse,ContextDep,NewContext,Constraints,FoundRepo://Candidate),
-      % Derive slot metadata for the chosen candidate (used for := propagation and
-      % for recording selection constraints). Do this AFTER candidate choice so
-      % we don't accidentally pre-bind SlotMeta from an unrelated earlier dep.
       rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, SlotMeta),
       process_slot(SlotReq, SlotMeta, C, N, FoundRepo://Candidate, NewContext, NewerContext),
 
@@ -1326,7 +1315,6 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         ),
         ActionGoal = FoundRepo://Candidate:DepAction?{NewerContext}
       ),
-
       % IMPORTANT for performance + correctness:
       % Record the concrete choice as a selection constraint *before* proving
       % ActionGoal, so the blocker guard can prune blocked candidates early
@@ -4539,6 +4527,7 @@ rules:selected_cn_allow_multislot_constraints(C, N, SlotReq, PackageDeps, [const
   ; SlotReq == [any_same_slot]
   ; SlotReq == [any_different_slot]
   ; rules:all_deps_exactish_versioned(PackageDeps)
+  ; rules:dep_has_version_constraint(C, N, PackageDeps)
   ),
   !.
 rules:selected_cn_allow_multislot_constraints(_C, _N, _SlotReq, _PackageDeps, []).
