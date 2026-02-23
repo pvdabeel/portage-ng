@@ -60,8 +60,8 @@ digraph rules_assumptions_bpmn {
     g_action_path [shape=diamond, label="same-slot installed instance for update path?"];
     g_action_update [shape=box, label="ActionGoal = Candidate:update?{replaces(...)}\n(or rebuild_reason(build_with_use/newuse))"];
     g_action_install [shape=box, label="DepAction = (run -> install; else Action)\nActionGoal = Candidate:DepAction"];
-    g_emit [shape=box, label="emit constraints + goal:\ncn_domain + cn_domain_reason + selected_cn\n+ selected_cn_allow_multislot (slot/any_* OR exactish-versioned grouped deps)\n+ build/use constraints + ActionGoal"];
-    g_sel_policy [shape=note, label="constraint_guard(selected_cn):\nstrict single concrete entry per (C,N) by default;\nwith selected_cn_allow_multislot(C,N):\n- one concrete entry per SLOT, or\n- per (slot,subslot) for same-slot multiversion cases"];
+    g_emit [shape=box, label="emit constraints + goal:\ncn_domain + cn_domain_reason + selected_cn\n+ selected_cn_allow_multislot\n  (slot/any_* OR exactish-versioned OR version-constrained deps)\n+ build/use constraints + ActionGoal"];
+    g_sel_policy [shape=note, label="constraint_guard(selected_cn):\nstrict single concrete entry per (C,N) by default;\nwith selected_cn_allow_multislot(C,N):\n- one concrete entry per SLOT, or\n- per (slot,subslot) for same-slot multiversion cases\n\nVersion-constrained deps always get multi-slot\nallowance so that e.g. minitest-5.15.0-r1:5.15\nand minitest-5.27.0:5 can coexist when ruby's\nPDEPEND requires >=minitest-5.16.3"];
     g_deep_keep [shape=diamond, label="deep fallback keep-installed?\n(installed same-slot satisfies deps)"];
     g_ok_deep [shape=box, label="Conditions = []"];
     g_reprove [shape=box, label="attempt CN-domain reprove request:\nrules:maybe_request_grouped_dep_reprove(...)\n- eligible: throw rules_reprove_cn_domain(...)\n- otherwise: fail and continue to assumption fallback"];

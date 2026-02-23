@@ -1,0 +1,465 @@
+digraph portage_ng_architecture {
+  rankdir=TD;
+  labelloc="t";
+  label="portage-ng: full system architecture and data flow";
+  fontsize=14;
+  fontname="Helvetica";
+  node [fontname="Helvetica", fontsize=10];
+  edge [fontname="Helvetica", fontsize=9, arrowsize=0.7];
+
+  // =========================================================================
+  //  LAYER 1 — External inputs
+  // =========================================================================
+
+  subgraph cluster_inputs {
+    label="External Inputs";
+    style=dashed;
+    color="#aaaaaa";
+    fontcolor="#666666";
+
+    portage_tree [shape=folder, label="Gentoo Portage Tree\n(metadata/md5-cache\n+ Manifest files)"];
+    vdb_tree     [shape=folder, label="VDB\n(/var/db/pkg)"];
+    profile_dir  [shape=folder, label="Profile + make.conf\n(USE, KEYWORDS, masks,\npackage.use, package.mask)"];
+    world_file   [shape=folder, label="World file\n+ package sets"];
+    user_target  [shape=note,   label="User target\ne.g. =sys-apps/portage-3.0"];
+  }
+
+  // =========================================================================
+  //  LAYER 2 — Configuration & Infrastructure
+  // =========================================================================
+
+  subgraph cluster_infra {
+    label="Configuration & Infrastructure";
+    color="#888888";
+    fontcolor="#888888";
+    style=rounded;
+
+    config   [shape=box, style=filled, fillcolor="#e8e8e8",
+              label="config.pl\nPaths, hostname, ports,\ngraph directory, TTY size"];
+    os_mod   [shape=box, style=filled, fillcolor="#e8e8e8",
+              label="os.pl\nCross-platform OS interaction\n(locks, filesystem)"];
+    context  [shape=box, style=filled, fillcolor="#e8e8e8",
+              label="context.pl\nDeclarative OOP framework\n(classes, instances, inheritance)"];
+    message  [shape=box, style=filled, fillcolor="#e8e8e8",
+              label="message.pl\nPretty-printing, debug\nmessaging, formatting"];
+    stat     [shape=box, style=filled, fillcolor="#e8e8e8",
+              label="stat.pl\nProgress tracking,\ntiming, statistics"];
+    sandbox  [shape=box, style=filled, fillcolor="#e8e8e8",
+              label="sandbox.pl\nSafe predicate\ndeclarations"];
+  }
+
+  // =========================================================================
+  //  LAYER 3 — Ingestion Pipeline
+  // =========================================================================
+
+  subgraph cluster_reader {
+    label="Ingestion Pipeline";
+    color="#4477aa";
+    fontcolor="#4477aa";
+    style=rounded;
+
+    reader  [shape=box, style=filled, fillcolor="#ddeeff",
+             label="reader.pl\nReads lines from md5-cache\nand manifest files"];
+    parser  [shape=box, style=filled, fillcolor="#ddeeff",
+             label="parser.pl\nDrives EAPI grammar\nover file contents"];
+    eapi    [shape=box, style=filled, fillcolor="#ddeeff",
+             label="eapi.pl\nDCG grammar for EAPI 8\n─────────────────\nDeps (DEPEND, RDEPEND,\n  BDEPEND, PDEPEND)\nUSE flags, USE_EXPAND\nSlot/subslot, versions\nREQUIRED_USE, blockers\nSRC_URI, license"];
+  }
+
+  // =========================================================================
+  //  LAYER 4 — Knowledge Base
+  // =========================================================================
+
+  subgraph cluster_kb {
+    label="Knowledge Base";
+    color="#44aa77";
+    fontcolor="#44aa77";
+    style=rounded;
+
+    repository [shape=box, style=filled, fillcolor="#ddf5dd",
+                label="repository.pl\nSync, load, save\nportage tree operations"];
+    kb         [shape=box, style=filled, fillcolor="#ddf5dd",
+                label="knowledgebase.pl\nRepositories register here;\nserializes to kb.qlf"];
+    cache      [shape=cylinder, style=filled, fillcolor="#ddf5dd",
+                label="cache.pl — Dynamic fact store\n─────────────────────────────\ncache:entry/5           (repo, path, C, N, ver)\ncache:entry_metadata/4  (repo, entry, key, val)\ncache:ordered_entry/5   (sorted by version)\ncache:manifest/5        (distfile metadata)"];
+    vdb        [shape=box, style=filled, fillcolor="#ddf5dd",
+                label="vdb.pl\nInstalled-package\nrepository (pkg://)"];
+    pkg        [shape=box, style=filled, fillcolor="#ddf5dd",
+                label="pkg.pl\nInstalled package tracking;\nsync from /var/db/pkg"];
+    profile    [shape=box, style=filled, fillcolor="#c8eac8",
+                label="profile.pl\nReads Gentoo profile dirs;\nglobal USE, masks, forces"];
+    preference [shape=box, style=filled, fillcolor="#c8eac8",
+                label="preference.pl\nUSE flags, ACCEPT_KEYWORDS,\nmasks, package.use overrides"];
+    set_mod    [shape=box, style=filled, fillcolor="#c8eac8",
+                label="set.pl\nPackage sets (world file,\nsystem set, user sets)"];
+    query      [shape=box, style=filled, fillcolor="#c8eac8",
+                label="query.pl — Goal-expanded queries\n─────────────────────────────\nquery:search/2\nquery:memoized_search/2\ngoal_expansion/2 macros\n(compile-time optimization)"];
+    mirror     [shape=box, style=filled, fillcolor="#c8eac8",
+                label="mirror.pl\nDistfile mirrors;\nGLEP 75 layout"];
+    ebuild_mod [shape=box, style=filled, fillcolor="#c8eac8",
+                label="ebuild.pl\nSyntactic sugar for KB\nqueries; download size"];
+  }
+
+  // =========================================================================
+  //  LAYER 5 — Prover (core solver)
+  // =========================================================================
+
+  subgraph cluster_prover {
+    label="Prover (proof search engine)  —  prover.pl";
+    color="#cc6644";
+    fontcolor="#cc6644";
+    style=rounded;
+
+    prove_entry [shape=box, style="filled,bold", fillcolor="#ffeedd",
+                 label="prover:prove/9\nMain entry point\n─────────────────\nInput:  Goals, empty AVLs (t)\nOutput: ProofAVL, ModelAVL,\n        ConstraintsAVL, TriggersAVL"];
+
+    subgraph cluster_prover_core {
+      label="Core Proof Loop";
+      color="#dd9977";
+      style=dashed;
+
+      prove_once [shape=box, style=filled, fillcolor="#fff5ee",
+                  label="prove_once\nFor each literal:\n  1. Look up rules:rule/2\n  2. Prove body conditions\n  3. Accumulate AVLs\n  4. Call literal_hook (PDEPEND)"];
+      cycle_det  [shape=diamond, style=filled, fillcolor="#fff5ee",
+                  label="Cycle?"];
+      cycle_break [shape=box, style=filled, fillcolor="#ffdddd",
+                   label="Cycle break\nassumed(rule(Lit))\nin ProofAVL\n(prover assumption)"];
+      ctx_union  [shape=box, style=filled, fillcolor="#fff5ee",
+                  label="ctx_union/3\nMerge contexts via\nfeature_unification:unify/3\n(strips self/1 for bounded growth)"];
+    }
+
+    subgraph cluster_constraints {
+      label="Constraint System";
+      color="#dd9977";
+      style=dashed;
+
+      constraint_avl [shape=cylinder, style=filled, fillcolor="#fff5ee",
+                      label="ConstraintsAVL\n─────────────────\nselected_cn(C,N)       — chosen version\nslot(C,N,S)            — slot lock\nuse(Entry)             — USE model\nblocked_cn(C,N)        — blocker specs\ncn_domain(C,N)         — version domain\ncn_domain_reason(C,N)  — diagnostic tags\nselected_cn_allow_multislot(C,N)"];
+      constraint_guard [shape=box, style=filled, fillcolor="#ffeedd",
+                        label="constraint_guard/2\nFires on constraint unification:\n─────────────────\n• selected_cn uniqueness\n  (strict / per-slot / per-subslot)\n• cn_domain ↔ selected_cn compat\n• blocked_cn ↔ selected_cn source reprove\n• slot consistency across deps"];
+    }
+
+    subgraph cluster_learning {
+      label="Constraint Learning (Zeller-style)";
+      color="#dd9977";
+      style=dashed;
+
+      learn [shape=box, style=filled, fillcolor="#ffe8cc",
+             label="prover:learn/3\nPersist constraint across retries\n─────────────────\nDomain narrowing\nParent narrowing"];
+      learned_store [shape=cylinder, style=filled, fillcolor="#ffe8cc",
+                     label="Learned Constraint Store\n─────────────────\nkey(C,N,Slot) → version domain\nPersists across reprove retries\nNarrows candidate sets\n(Zeller feature-term approach)"];
+    }
+
+    subgraph cluster_reprove {
+      label="CN-Domain Reprove Loop";
+      color="#dd9977";
+      style=dashed;
+
+      reprove_catch [shape=box, style=filled, fillcolor="#fff5ee",
+                     label="prove_with_cn_domain_retries/11\nCatch rules_reprove_cn_domain"];
+      reject_store  [shape=cylinder, style=filled, fillcolor="#ffdddd",
+                     label="Reject Store\n─────────────────\nkey(C,N,Domain)\n → ordset(Rejected entries)\nScoped per top-level prove\n+ origin rejects (Vermeir)"];
+      retry_check   [shape=diamond, style=filled, fillcolor="#fff5ee",
+                     label="Attempt < Max\n∧ new reject?"];
+      final_pass    [shape=box, style=filled, fillcolor="#fff5ee",
+                     label="Final pass\n(reprove disabled;\nassumptions allowed)"];
+    }
+
+    proof_out [shape=note, style=filled, fillcolor="#ffeedd",
+               label="Output AVLs\n─────────────────\nProofAVL    — proof tree\n  rule(Lit) → Body | assumed\nModelAVL   — proven contexts\nConstraintsAVL — accumulated\nTriggersAVL — dependency graph\n  Lit → [dependent lits]"];
+  }
+
+  // =========================================================================
+  //  LAYER 5b — Rules (domain logic)
+  // =========================================================================
+
+  subgraph cluster_rules {
+    label="Rules (domain-specific Gentoo logic)  —  rules.pl";
+    color="#8855aa";
+    fontcolor="#8855aa";
+    style=rounded;
+
+    rule_hook [shape=box, style="filled,bold", fillcolor="#eeddff",
+               label="rules:rule/2\nLit:Action?{Context} → Conditions\n─────────────────\nDispatches to rule type based on\nliteral shape and action"];
+
+    rule_install [shape=box, style=filled, fillcolor="#f5eeff",
+                  label="install rule\n─────────────────\nRequired-USE model\nDependency model (grouped)\nadd_self_to_dep_contexts\nSlot/USE constraints\nDownload goal"];
+    rule_run     [shape=box, style=filled, fillcolor="#f5eeff",
+                  label="run rule\n─────────────────\nRDEPEND resolution\nPDEPEND (single-pass\nvia literal_hook)"];
+    rule_update  [shape=box, style=filled, fillcolor="#f5eeff",
+                  label="update rule\n─────────────────\nSame-slot upgrade /\ndowngrade / reinstall\nreplaces() context"];
+    rule_grouped [shape=box, style=filled, fillcolor="#f5eeff",
+                  label="grouped_package_dependency\n─────────────────\nCandidate selection +\nconstraint emission"];
+    rule_blocker [shape=box, style=filled, fillcolor="#f5eeff",
+                  label="blocker rules\n─────────────────\nWeak / strong blockers\nblocked_cn constraints\nassume_blockers mode"];
+    rule_conflict [shape=box, style=filled, fillcolor="#f5eeff",
+                   label="conflict rules\n─────────────────\nSlot conflict detection\nassume_conflicts mode"];
+
+    subgraph cluster_candidate {
+      label="Candidate Selection Pipeline";
+      color="#aa88cc";
+      style=dashed;
+
+      cand_steps  [shape=box, style=filled, fillcolor="#f5eeff",
+                   label="1. Reuse selected_cn (if compatible)\n2. accepted_keyword_candidate\n3. Self-guard (avoid resolving to self)\n4. Version constraint check\n5. Effective domain check (cn_domain_rejects)\n6. Reverse-dep compatibility\n7. PDEPEND context stripping\n8. USE dep satisfaction (optenable/optdisable/=)\n9. build_with_use propagation\n10. Slot processing (process_slot)\n11. Update vs install action path"];
+      multislot   [shape=box, style=filled, fillcolor="#f5eeff",
+                   label="Multi-slot policy\n─────────────────\nAllowed when:\n• explicit slot dep (:N)\n• any_same_slot (:=)\n• any_different_slot\n• exactish-versioned deps (~)\n• version-constrained deps (≥, <)"];
+    }
+
+    assumption   [shape=box, style=filled, fillcolor="#ffdddd",
+                  label="Assumption fallback\nrule(assumed(X)) — domain assumption\n─────────────────\nmissing: no package exists\nmasked: all candidates masked\nversion_no_candidate / version_conflict\nslot_unsatisfied\nkeyword_filtered\nunsatisfied_constraints"];
+    reprove_req  [shape=box, style=filled, fillcolor="#ffeedd",
+                  label="Reprove request\n─────────────────\nmaybe_request_grouped_dep_reprove\n→ throw rules_reprove_cn_domain\nmaybe_learn_parent_narrowing\n→ narrow wrong-level origin"];
+
+    subgraph cluster_support {
+      label="Supporting Modules";
+      color="#aa88cc";
+      style=dashed;
+
+      version_domain [shape=box, style=filled, fillcolor="#f5eeff",
+                      label="version_domain.pl\n─────────────────\ndomain_meet/3 (intersection)\ndomain_consistent/1\ndomain_reason_terms/6\n(Zeller feature logic)"];
+      feat_unify     [shape=box, style=filled, fillcolor="#f5eeff",
+                      label="unify.pl\n(feature_unification)\n─────────────────\nunify/3 (context merge)\nFeature-term lattice"];
+      explanation_m  [shape=box, style=filled, fillcolor="#f5eeff",
+                      label="explanation.pl\n─────────────────\nassumption_reason_for_\ngrouped_dep/6\n(classifies assumption type)"];
+      explainer      [shape=box, style=filled, fillcolor="#f5eeff",
+                      label="explainer.pl\n─────────────────\nwhy_in_plan/5\nwhy_in_proof/3\nwhy_assumption/4\n(introspection utilities)"];
+    }
+  }
+
+  // =========================================================================
+  //  LAYER 6 — Planner / Scheduler
+  // =========================================================================
+
+  subgraph cluster_planning {
+    label="Planning & Scheduling";
+    color="#338866";
+    fontcolor="#338866";
+    style=rounded;
+
+    planner [shape=box, style=filled, fillcolor="#ddffee",
+             label="planner.pl — Wave planning (acyclic)\n─────────────────────────────\nInput:  ProofAVL, TriggersAVL\nAlgorithm: Initialize dep counts,\n  process ready rules in waves\nOutput: Plan (list of parallel waves)\n        + RemainderRules (cyclic portion)"];
+    scheduler [shape=box, style=filled, fillcolor="#ddffee",
+               label="scheduler.pl — SCC scheduling (cyclic)\n─────────────────────────────\nKosaraju SCC decomposition\nMerge-set for :run SCCs\nSchedule :install/:update in SCCs\nEnforce after_only ordering\nOutput: Final ordered plan\n        + unschedulable remainder"];
+    plan_out [shape=note, style=filled, fillcolor="#ddffee",
+              label="Final Plan\n─────────────────\nOrdered waves of actions:\ndownload → install → run\nupdate / reinstall\n+ unschedulable remainder"];
+  }
+
+  // =========================================================================
+  //  LAYER 7 — Interface / Printer / Output
+  // =========================================================================
+
+  subgraph cluster_output {
+    label="Interface & Output";
+    color="#555555";
+    fontcolor="#555555";
+    style=rounded;
+
+    interface [shape=box, style=filled, fillcolor="#eeeeee",
+               label="interface.pl — CLI orchestration\n─────────────────────────────\nModes: --pretend, --graph,\n  --shell, --sync, --ci\nFallback chain:\n  1. strict (no assumptions)\n  2. with_assume_blockers\n  3. with_assume_conflicts\nExit codes: 0/1/2"];
+    printer [shape=box, style=filled, fillcolor="#eeeeee",
+             label="printer.pl — Plan rendering\n─────────────────────────────\nStep-by-step plan with actions\nprove_plan / prove_plan_basic\nAssumption reporting:\n  Domain assumptions (rule-level)\n  Cycle-break assumptions (prover)\n  Blockers (Portage-like)\nDownload size totals\nUSE flag display"];
+    grapher [shape=box, style=filled, fillcolor="#eeeeee",
+             label="grapher.pl — Batch processing\n─────────────────────────────\nIterates all targets\n--graph full / --graph partial\nWrites .merge files\nParallel via worker threads"];
+    terminal [shape=note, label="Terminal output\nor .merge files\n(Graph directory)"];
+  }
+
+  // =========================================================================
+  //  LAYER 8 — Execution & Operations
+  // =========================================================================
+
+  subgraph cluster_execution {
+    label="Execution & Operations";
+    color="#996633";
+    fontcolor="#996633";
+    style=rounded;
+
+    builder [shape=box, style=filled, fillcolor="#f5e6d0",
+             label="builder.pl\nExecutes plans:\nbuild steps,\nebuild phases"];
+    worker  [shape=box, style=filled, fillcolor="#f5e6d0",
+             label="worker.pl\nMulti-threaded worker pool;\njob queues for parallel proofs"];
+    script  [shape=box, style=filled, fillcolor="#f5e6d0",
+             label="script.pl\nExecutes scripts from\nScripts/ directory"];
+    depclean [shape=box, style=filled, fillcolor="#f5e6d0",
+              label="depclean.pl\nProof-based depclean;\nfinds removable packages"];
+  }
+
+  // =========================================================================
+  //  LAYER 9 — Network / Distributed
+  // =========================================================================
+
+  subgraph cluster_network {
+    label="Network & Distributed";
+    color="#447799";
+    fontcolor="#447799";
+    style=rounded;
+
+    server  [shape=box, style=filled, fillcolor="#dde8f0",
+             label="server.pl\nPengine HTTP server;\nendpoints: /sync, /prove,\n/save, /load, /plan"];
+    client  [shape=box, style=filled, fillcolor="#dde8f0",
+             label="client.pl\nPengine client;\nremote predicate calls"];
+    stubs   [shape=box, style=filled, fillcolor="#dde8f0",
+             label="stubs.pl\nMode-specific stubs;\navoids undefined errors"];
+    bonjour [shape=box, style=filled, fillcolor="#dde8f0",
+             label="bonjour.pl\nmDNS service discovery;\nauto-detect cluster nodes"];
+    cluster [shape=box, style=filled, fillcolor="#dde8f0",
+             label="cluster.pl\nDistributed proving;\njob/result queues\nacross nodes"];
+    llm     [shape=box, style=filled, fillcolor="#dde8f0",
+             label="llm.pl\nLLM integration;\nstreaming, code execution,\nerror explanation"];
+  }
+
+  // =========================================================================
+  //  LAYER 10 — Testing
+  // =========================================================================
+
+  subgraph cluster_testing {
+    label="Testing";
+    color="#669966";
+    fontcolor="#669966";
+    style=rounded;
+
+    tester [shape=box, style=filled, fillcolor="#e0f0e0",
+            label="tester.pl\nTest runner;\ntrace-to-string"];
+    test   [shape=box, style=filled, fillcolor="#e0f0e0",
+            label="test.pl\nTest cases, expectations,\nxfail markers"];
+  }
+
+  // =========================================================================
+  //  EDGES — Data flow
+  // =========================================================================
+
+  // External → System
+  portage_tree -> reader    [label="md5-cache +\nManifest"];
+  vdb_tree     -> pkg       [label="installed pkgs"];
+  profile_dir  -> profile   [label="USE, masks,\nforces"];
+  world_file   -> set_mod   [label="world entries"];
+  user_target  -> interface [label="target atom"];
+
+  // Ingestion
+  reader -> parser [label="lines"];
+  parser -> eapi   [label="char codes"];
+  eapi   -> cache  [label="assert parsed facts"];
+
+  // Repository mgmt
+  repository -> reader [label="triggers read"];
+  repository -> kb     [label="registers repo"];
+  kb -> cache          [label="serialize (kb.qlf)"];
+
+  // VDB
+  vdb -> cache [label="pkg:// entries"];
+  pkg -> vdb   [label="sync"];
+
+  // KB queries
+  cache -> query      [label="backing store"];
+  vdb   -> query      [label="pkg:// queries"];
+  profile -> preference [label="global USE"];
+  preference -> query [label="USE/KEYWORDS\nfiltering"];
+  set_mod -> interface [label="world targets", style=dashed];
+  mirror -> printer    [label="distfile URLs", style=dashed];
+  ebuild_mod -> query  [label="sugar", style=dashed];
+
+  // Interface orchestrates the pipeline
+  interface -> printer    [label="orchestrates\nprove_plan"];
+  interface -> grapher    [label="--graph mode"];
+
+  // Printer drives the full pipeline
+  printer -> prove_entry  [label="prove(Goals,\nt,P,t,M,t,C,t,T)"];
+  printer -> planner      [label="plan(P,T,\nt,Plan,Rem)"];
+  printer -> scheduler    [label="schedule(P,T,\nPlan,Rem,...)"];
+
+  // Grapher
+  grapher -> printer      [label="per-target\nprove+plan+print"];
+  grapher -> worker       [label="parallel\nthreads", style=dashed];
+  grapher -> terminal     [label=".merge files"];
+
+  // Prover core
+  prove_entry -> reprove_catch;
+  reprove_catch -> prove_once;
+  prove_once -> cycle_det;
+  cycle_det -> cycle_break [label="yes"];
+  cycle_det -> ctx_union   [label="no"];
+  cycle_break -> prove_once [style=dashed];
+  ctx_union -> prove_once   [style=dashed];
+
+  // Prover → Rules
+  prove_once -> rule_hook [label="rules:rule/2"];
+
+  // Rule dispatch
+  rule_hook -> rule_install;
+  rule_hook -> rule_run;
+  rule_hook -> rule_update;
+  rule_hook -> rule_grouped;
+  rule_hook -> rule_blocker;
+  rule_hook -> rule_conflict;
+
+  // Grouped dep
+  rule_grouped -> cand_steps;
+  cand_steps -> multislot [style=dashed];
+  cand_steps -> reprove_req [label="no viable\ncandidate"];
+  reprove_req -> assumption [label="reprove\nexhausted"];
+  cand_steps -> query [label="version/slot/USE\nlookups", style=dashed];
+
+  // Reprove loop
+  reprove_req -> reprove_catch [label="throw", style=dashed, color="#cc4444"];
+  constraint_guard -> reprove_catch [label="throw", style=dashed, color="#cc4444"];
+  reprove_catch -> reject_store [label="add rejects"];
+  reject_store -> retry_check;
+  retry_check -> prove_once [label="retry"];
+  retry_check -> final_pass [label="exhausted"];
+
+  // Constraints
+  prove_once -> constraint_avl [style=dashed, label="emit"];
+  constraint_avl -> constraint_guard [label="on unify"];
+  constraint_guard -> learn [label="learn", style=dashed, color="#cc8844"];
+  learn -> learned_store;
+  learned_store -> cand_steps [label="narrow\ncandidates", style=dashed, color="#cc8844"];
+  reject_store -> cand_steps  [label="filter\nrejected", style=dashed, color="#cc4444"];
+
+  // Rules support
+  rule_install -> query [style=dashed];
+  rule_run -> query [style=dashed];
+  cand_steps -> version_domain [style=dashed];
+  ctx_union -> feat_unify [style=dashed];
+  assumption -> explanation_m [style=dashed, label="classify"];
+  explanation_m -> explainer [style=dashed];
+
+  // Prover output
+  prove_once -> proof_out [style=dashed, label="final AVLs"];
+
+  // Planning
+  proof_out -> planner [label="ProofAVL +\nTriggersAVL"];
+  planner -> scheduler [label="Plan +\nRemainder"];
+  scheduler -> plan_out;
+
+  // Output
+  plan_out -> printer    [label="final plan"];
+  proof_out -> printer   [label="Model + Proof", style=dashed];
+  printer -> terminal    [label="formatted\noutput"];
+  printer -> message     [style=dashed, label="formatting"];
+  printer -> stat        [style=dashed, label="timing"];
+
+  // Execution
+  builder -> printer   [style=dashed, label="reads plan"];
+  builder -> script    [style=dashed, label="run scripts"];
+  worker -> prove_entry [style=dashed, label="parallel proofs"];
+
+  // Network
+  server -> prove_entry [style=dashed, label="/prove endpoint"];
+  client -> server      [label="pengine RPC"];
+  bonjour -> cluster    [style=dashed, label="discover nodes"];
+  cluster -> client     [label="distribute jobs"];
+  llm -> printer        [style=dashed, label="explain errors"];
+
+  // Testing
+  tester -> prove_entry [style=dashed, label="test proofs"];
+  test -> tester        [label="test cases"];
+
+  // Depclean
+  depclean -> prove_entry [style=dashed, label="prove required"];
+  depclean -> set_mod     [style=dashed, label="world roots"];
+
+  // Infrastructure connections
+  config -> repository [style=dashed];
+  config -> interface  [style=dashed];
+  os_mod -> repository [style=dashed];
+}
