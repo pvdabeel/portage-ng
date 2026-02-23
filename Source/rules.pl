@@ -1787,12 +1787,9 @@ rules:accepted_keyword_candidate(Action, C, N, SlotReq0, Ss0, Context, FoundRepo
       predsort(rules:compare_candidate_version_desc, Candidates1, CandidatesSorted),
       member(FoundRepo://Candidate, CandidatesSorted)
     ;
-      rules:accepted_keyword_candidates_cached(Action, C, N, SlotReq, LockKey, CandidatesSorted),
+      rules:accepted_keyword_candidates_cached(Action, C, N, SlotReq, LockKey, CandidatesSorted0),
+      rules:candidates_prefer_proven_providers(C, N, SlotReq, CandidatesSorted0, CandidatesSorted),
       ( rules:greedy_candidate_package(C, N) ->
-          % Greedy packages: pick the best version *that satisfies* any existing
-          % slot lock from the context (notably := / any_same_slot). Without this,
-          % a locked slot would incorrectly become "unsatisfiable" because we
-          % never consider older versions in the required slot.
           member(FoundRepo://Candidate, CandidatesSorted),
           rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, Ss)
       ; member(FoundRepo://Candidate, CandidatesSorted),
@@ -1914,6 +1911,52 @@ rules:compare_candidate_version_desc(Delta, RepoA://IdA, RepoB://IdB) :-
   ; eapi:version_compare(<, VerA, VerB) -> Delta = (>)
   ; Delta = (=)
   ).
+
+
+% -----------------------------------------------------------------------------
+%  Provider-reuse candidate reordering (Portage-like)
+% -----------------------------------------------------------------------------
+%
+% Portage minimises the dependency graph: when resolving >=virtual/jre-1.8:*
+% and virtual/jdk:21 is already selected, it prefers virtual/jre:21 (whose
+% provider jdk:21 is already in the graph) over jre:25 (which would pull a
+% fresh jdk:25 + openjdk-bin:25).
+%
+% We approximate this by doing a single-depth lookahead into each candidate's
+% RDEPEND: if a provider (C',N') in slot S is already present in the global
+% selected_cn snapshot, the candidate is promoted ahead of candidates that
+% would introduce new providers.  Only fires for virtual/* packages with
+% unconstrained slot deps (any_different_slot / [] / any_same_slot).
+
+rules:candidates_prefer_proven_providers(virtual, _N, SlotReq, Candidates, Reordered) :-
+  SlotReq \= [slot(_)|_],
+  include(rules:candidate_has_proven_provider, Candidates, Preferred),
+  Preferred \== [],
+  !,
+  subtract(Candidates, Preferred, Rest),
+  append(Preferred, Rest, Reordered).
+rules:candidates_prefer_proven_providers(_C, _N, _SlotReq, Candidates, Candidates).
+
+rules:candidate_has_proven_provider(Repo://Entry) :-
+  cache:entry_metadata(Repo, Entry, rdepend, Dep),
+  rules:dep_references_selected_cn(Dep),
+  !.
+
+rules:dep_references_selected_cn(package_dependency(_Phase,_Str,C,N,_O,_V,Ss,_U)) :-
+  rules:snapshot_selected_cn_candidates(C, N, SelCandidates),
+  ( Ss = [slot(ReqSlot0)|_] ->
+      rules:canon_slot(ReqSlot0, ReqSlot),
+      member(SelRepo://SelEntry, SelCandidates),
+      query:search(slot(SelSlotRaw), SelRepo://SelEntry),
+      rules:canon_slot(SelSlotRaw, SelSlot),
+      ReqSlot == SelSlot
+  ; true
+  ),
+  !.
+rules:dep_references_selected_cn(any_of_group(Deps)) :-
+  member(D, Deps),
+  rules:dep_references_selected_cn(D),
+  !.
 
 
 % -----------------------------------------------------------------------------
