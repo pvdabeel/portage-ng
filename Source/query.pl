@@ -16,6 +16,11 @@ An implementation of a query language for the knowledge base
 
 :- discontiguous compile_query_compound/3.
 
+tilde_suffix_match(S, S) :- !.
+tilde_suffix_match(S, CandS) :-
+  atom_concat(S, Rev, CandS),
+  atom_concat('-r', _, Rev).
+
 % =============================================================================
 %  OPTIONAL RUNTIME CALLSITE STATS (debugging)
 % =============================================================================
@@ -634,8 +639,9 @@ compile_query_compound(select(version,wildcard,[_,_,_,V]),Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,[_,_,_,ProposedVersion]),
     wildcard_match(V,ProposedVersion) )) :- !.
 
-compile_query_compound(select(version,tilde,[V,_,_,_]), Repo://Id,
-  cache:ordered_entry(Repo,Id,_,_,[V,_,_,_])) :- !.
+compile_query_compound(select(version,tilde,[V,L,S,_]), Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,_,[V,L,CandS,_]),
+    query:tilde_suffix_match(S, CandS) )) :- !.
 
 compile_query_compound(select(eapi,notequal,[_,_,_,V]), Repo://Id,
   ( cache:entry_metadata(Repo,Id,eapi,[_,_,_,O]),
@@ -1382,8 +1388,9 @@ search(select(version,wildcard,[_,_,_,V]),Repo://Id) :-
   cache:ordered_entry(Repo,Id,_,_,[_,_,_,ProposedVersion]),
   wildcard_match(V,ProposedVersion).
 
-search(select(version,tilde,[V,_,_,_]),Repo://Id) :-
-  cache:ordered_entry(Repo,Id,_,_,[V,_,_,_]).
+search(select(version,tilde,[V,L,S,_]),Repo://Id) :-
+  cache:ordered_entry(Repo,Id,_,_,[V,L,CandS,_]),
+  query:tilde_suffix_match(S, CandS).
 
 
 search(select(slot,constraint([]),Sn), Repo://Id) :-
