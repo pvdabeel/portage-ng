@@ -1755,6 +1755,59 @@ rules:rdepend_collect_vbounds_for_cn_choice_intersection_([Dep|Deps], C, N, Self
 
 
 % -----------------------------------------------------------------------------
+%  License masking (ACCEPT_LICENSE)
+% -----------------------------------------------------------------------------
+%
+% A candidate is license-masked when its effective licenses (after evaluating
+% USE conditionals against the package's IUSE defaults + active USE) include
+% any license not covered by ACCEPT_LICENSE.  Such candidates are excluded
+% from dependency resolution, mirroring Portage's behavior.
+
+%! rules:license_masked(+Repo://Entry) is semidet.
+%
+% True when at least one effective license of Entry is not accepted.
+
+rules:license_masked(Repo://Entry) :-
+  rules:effective_license(Repo://Entry, Lic),
+  \+ preference:license_accepted(Lic),
+  !.
+
+%! rules:effective_license(+Repo://Entry, -License:atom) is nondet.
+%
+% Enumerates the effective (active) license atoms for an entry,
+% evaluating USE-conditional groups against the entry's effective USE.
+
+rules:effective_license(Repo://Entry, License) :-
+  cache:entry_metadata(Repo, Entry, license, LicTerm),
+  rules:effective_license_term_(LicTerm, Repo://Entry, License).
+
+rules:effective_license_term_(use_conditional_group(Pol, Use, _Self, Deps), RepoEntry, License) :-
+  !,
+  rules:rdepend_self_use_conditional_active(Pol, Use, RepoEntry),
+  member(D, Deps),
+  rules:effective_license_term_(D, RepoEntry, License).
+rules:effective_license_term_(License, _RepoEntry, License) :-
+  atom(License).
+
+
+%! rules:dep_license_ok(+Dep) is semidet.
+%
+% True when the best candidate for Dep is not license-masked.
+% Used by prioritize_deps_keep_all to deprioritize license-masked
+% alternatives in || groups.
+
+rules:dep_license_ok(package_dependency(_, _, C, N, _, _, _, _)) :- !,
+  cache:ordered_entry(Repo, Entry, C, N, _),
+  \+ preference:masked(Repo://Entry),
+  \+ rules:license_masked(Repo://Entry).
+rules:dep_license_ok(grouped_package_dependency(_, C, N, _)) :- !,
+  cache:ordered_entry(Repo, Entry, C, N, _),
+  \+ preference:masked(Repo://Entry),
+  \+ rules:license_masked(Repo://Entry).
+rules:dep_license_ok(_).
+
+
+% -----------------------------------------------------------------------------
 %  Keyword-aware candidate enumeration (Portage-like)
 % -----------------------------------------------------------------------------
 %
@@ -1891,8 +1944,6 @@ rules:query_keyword_candidate(Action, C, N, K, Context, FoundRepo://Candidate) :
   ->
     query:search([name(N),category(C),keyword(K)], FoundRepo://Candidate),
     \+ preference:masked(FoundRepo://Candidate),
-    % In self-context, only the exact self candidate must already be installed.
-    % Other same-C/N versions (e.g. explicit slot bootstrap deps) remain valid.
     ( FoundRepo == SelfRepo0,
       Candidate == SelfEntry0
     ->
@@ -2933,23 +2984,62 @@ prioritize_deps(Deps, Context, SortedDeps) :-
 % Like prioritize_deps/3, but preserves alternatives with identical rank.
 % predsort/3 can drop equal-ranked members (comparator returns (=)); this is
 % undesirable for disjunctions where all alternatives must remain available.
+%
+% Sort key: NegLicOk > NegRank > NegOverlap > NegSnap > I (original order).
+%   - NegLicOk: license-masked candidates sort last so non-masked alternatives
+%     are tried first (mirrors Portage ACCEPT_LICENSE filtering in || groups).
+%   - NegOverlap: Portage-like DNF optimisation — prefer packages that appear
+%     in multiple active || groups within the same ebuild, so that a single
+%     package can satisfy several groups at once (see bug #632026).
 rules:prioritize_deps_keep_all(Deps, Context, SortedDeps) :-
-  findall(NegRank-NegSnap-I-Dep,
+  findall(NegLicOk-NegRank-NegOverlap-NegSnap-I-Dep,
           ( nth1(I, Deps, Dep),
             rules:dep_rank(Context, Dep, Rank),
+            rules:dep_overlap_group_count(Context, Dep, OvRaw),
+            ( OvRaw > 1 -> Overlap = OvRaw ; Overlap = 0 ),
             ( rules:dep_snapshot_selected(Dep) -> Snap = 1 ; Snap = 0 ),
+            ( rules:dep_license_ok(Dep) -> LicOk = 1 ; LicOk = 0 ),
+            NegLicOk is -LicOk,
             NegRank is -Rank,
+            NegOverlap is -Overlap,
             NegSnap is -Snap
           ),
           Ranked),
   keysort(Ranked, RankedSorted),
-  findall(Dep, member(_NegRank-_NegSnap-_I-Dep, RankedSorted), SortedDeps),
+  findall(Dep, member(_-_-_-_-_-Dep, RankedSorted), SortedDeps),
   !.
 
 rules:dep_snapshot_selected(package_dependency(_Phase,_Strength,C,N,_O,_V,_S,_U)) :-
   rules:snapshot_selected_cn_candidates(C, N, _),
   !.
 rules:dep_snapshot_selected(_) :- fail.
+
+% ---------------------------------------------------------------------------
+%  Overlap-group count (Portage DNF approximation)
+% ---------------------------------------------------------------------------
+% Count how many *active* any_of_group entries in the same ebuild contain a
+% package with the given Category/Name. A count > 1 means the package is a
+% "common satisfier" — picking it reduces the total number of new packages.
+
+rules:dep_overlap_group_count(Context, package_dependency(_,_,C,N,_,_,_,_), Count) :-
+  memberchk(self(Repo://Ebuild), Context),
+  !,
+  aggregate_all(count, (
+    member(DepKey, [rdepend, depend, bdepend, pdepend, cdepend, idepend]),
+    cache:entry_metadata(Repo, Ebuild, DepKey, DepEntry),
+    rules:dep_entry_active_any_of_with_cn(DepEntry, Repo://Ebuild, C, N)
+  ), Count).
+rules:dep_overlap_group_count(_, _, 0).
+
+rules:dep_entry_active_any_of_with_cn(any_of_group(Deps), _, C, N) :-
+  member(package_dependency(_, _, C, N, _, _, _, _), Deps), !.
+rules:dep_entry_active_any_of_with_cn(use_conditional_group(Pol, Use, RepoEntry, Deps), _, C, N) :-
+  rules:rdepend_self_use_conditional_active(Pol, Use, RepoEntry),
+  member(D, Deps),
+  rules:dep_entry_active_any_of_with_cn(D, RepoEntry, C, N), !.
+rules:dep_entry_active_any_of_with_cn(all_of_group(Deps), RepoEntry, C, N) :-
+  member(D, Deps),
+  rules:dep_entry_active_any_of_with_cn(D, RepoEntry, C, N), !.
 
 % Rank dependencies for deterministic group choice.
 % Primary signal: prefer deps that are already satisfied by effective USE /

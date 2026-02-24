@@ -35,6 +35,12 @@ The preferences module contains build specific preferences
 :- dynamic preference:profile_package_use_masked/2. % Spec, Use
 :- dynamic preference:profile_package_use_forced/2. % Spec, Use
 
+% License acceptance (ACCEPT_LICENSE / license_groups).
+:- dynamic preference:license_group_raw/2.        % GroupName, [RawMembers]
+:- dynamic preference:accept_license_wildcard/0.  % asserted when '*' is in effect
+:- dynamic preference:accepted_license/1.         % individual accepted license atoms
+:- dynamic preference:denied_license/1.           % individual denied license atoms (for '* -X' patterns)
+
 
 % =============================================================================
 %  PREFERENCE declarations
@@ -85,6 +91,7 @@ preference:env_features('sign -ccache -buildpkg -sandbox -usersandbox -ebuild-lo
 % Parity defaults taken from Gentoo /etc/portage/make.conf (vm-linux).
 % NOTE: USE is incremental; duplicates are normalized (last occurrence wins).
 preference:default_env('ACCEPT_KEYWORDS', '~amd64').
+preference:default_env('ACCEPT_LICENSE', '-* @FREE').
 preference:default_env('PERL_FEATURES', 'ithreads').
 preference:default_env('RUBY_TARGETS', 'ruby32 ruby33').
 preference:default_env('VIDEO_CARDS', 'vmware vesa vga').
@@ -374,6 +381,10 @@ preference:init :-
   retractall(preference:profile_package_use_forced(_,_)),
   retractall(preference:profile_package_use_soft(_,_,_)),
   retractall(preference:gentoo_package_use_soft(_,_,_)),
+  retractall(preference:license_group_raw(_,_)),
+  retractall(preference:accept_license_wildcard),
+  retractall(preference:accepted_license(_)),
+  retractall(preference:denied_license(_)),
 
   % 1. Set use flags
 
@@ -455,6 +466,10 @@ preference:init :-
   catch(preference:apply_profile_package_use,  _, true),
   catch(preference:apply_gentoo_package_mask,  _, true),
   catch(preference:apply_gentoo_package_use,   _, true),
+
+  % 4. Load license groups and apply ACCEPT_LICENSE.
+  catch(preference:load_license_groups, _, true),
+  catch(preference:init_accept_license, _, true),
   !.
 
 % Apply one env USE term with last-wins semantics.
@@ -917,6 +932,148 @@ preference:version_without_revision_([_, _, _, Full0], Core) :-
   ; Core = Full0
   ),
   !.
+
+
+% ---------------------------------------------------------------------------
+% License groups and ACCEPT_LICENSE
+% ---------------------------------------------------------------------------
+
+%! preference:load_license_groups
+%
+% Read the profiles/license_groups file and assert raw group definitions.
+% Each group is stored as preference:license_group_raw(GroupName, Members)
+% where Members is a list of atoms (license names or @GroupRef).
+
+preference:load_license_groups :-
+  retractall(preference:license_group_raw(_, _)),
+  ( portage:get_location(PortageRoot) ->
+    os:compose_path(PortageRoot, 'profiles/license_groups', LicGroupFile),
+    ( exists_file(LicGroupFile) ->
+      read_file_to_string(LicGroupFile, Content, []),
+      split_string(Content, "\n", "\r", Lines),
+      forall(member(Line, Lines),
+             preference:parse_license_group_line_(Line))
+    ; true
+    )
+  ; true
+  ).
+
+preference:parse_license_group_line_(Line) :-
+  normalize_space(string(Trimmed), Line),
+  string_codes(Trimmed, Codes),
+  ( Codes = [] -> true
+  ; Codes = [0'#|_] -> true
+  ; split_string(Trimmed, " \t", " \t", Tokens),
+    ( Tokens = [GroupNameS | MemberSs],
+      GroupNameS \== "" ->
+      atom_string(GroupName, GroupNameS),
+      maplist([S,A]>>atom_string(A, S), MemberSs, Members0),
+      exclude(==(''), Members0, Members),
+      assertz(preference:license_group_raw(GroupName, Members))
+    ; true
+    )
+  ).
+
+%! preference:expand_license_group(+GroupName, -Licenses:list)
+%
+% Recursively expand a license group to its flat set of license atoms.
+% @-prefixed members are resolved as sub-group references.
+
+preference:expand_license_group(GroupName, Licenses) :-
+  preference:expand_license_group_(GroupName, [], Licenses0),
+  sort(Licenses0, Licenses).
+
+preference:expand_license_group_(GroupName, Seen, []) :-
+  memberchk(GroupName, Seen), !.
+preference:expand_license_group_(GroupName, Seen, Licenses) :-
+  ( preference:license_group_raw(GroupName, Members) ->
+    foldl(preference:expand_license_member_([GroupName|Seen]), Members, [], Licenses)
+  ; Licenses = []
+  ).
+
+preference:expand_license_member_(Seen, Member, Acc0, Acc) :-
+  ( atom_concat('@', GroupRef, Member) ->
+    preference:expand_license_group_(GroupRef, Seen, Expanded),
+    append(Acc0, Expanded, Acc)
+  ; Acc = [Member|Acc0]
+  ).
+
+%! preference:init_accept_license
+%
+% Parse the ACCEPT_LICENSE string and build the accepted/denied license sets.
+% Supports tokens: * (all), -* (none), @GROUP, -@GROUP, LICENSE, -LICENSE.
+% Semantics are incremental left-to-right (like Portage).
+
+preference:init_accept_license :-
+  retractall(preference:accept_license_wildcard),
+  retractall(preference:accepted_license(_)),
+  retractall(preference:denied_license(_)),
+  ( preference:getenv('ACCEPT_LICENSE', Atom), Atom \== '' ->
+    split_string(Atom, " ", " \t", TokenSs),
+    maplist([S,A]>>atom_string(A, S), TokenSs, Tokens0),
+    exclude(==(''), Tokens0, Tokens),
+    forall(member(T, Tokens),
+           preference:apply_accept_license_token_(T))
+  ; true
+  ).
+
+preference:apply_accept_license_token_('*') :- !,
+  retractall(preference:denied_license(_)),
+  ( preference:accept_license_wildcard -> true
+  ; assertz(preference:accept_license_wildcard)
+  ).
+preference:apply_accept_license_token_('-*') :- !,
+  retractall(preference:accept_license_wildcard),
+  retractall(preference:accepted_license(_)),
+  retractall(preference:denied_license(_)).
+preference:apply_accept_license_token_(Token) :-
+  atom_concat('-@', GroupRef, Token), !,
+  preference:expand_license_group(GroupRef, Lics),
+  forall(member(L, Lics),
+         ( ( preference:accept_license_wildcard ->
+               ( preference:denied_license(L) -> true
+               ; assertz(preference:denied_license(L))
+               )
+           ; retractall(preference:accepted_license(L))
+           )
+         )).
+preference:apply_accept_license_token_(Token) :-
+  atom_concat('@', GroupRef, Token), !,
+  preference:expand_license_group(GroupRef, Lics),
+  forall(member(L, Lics),
+         ( ( preference:accept_license_wildcard ->
+               retractall(preference:denied_license(L))
+           ; ( preference:accepted_license(L) -> true
+             ; assertz(preference:accepted_license(L))
+             )
+           )
+         )).
+preference:apply_accept_license_token_(Token) :-
+  atom_concat('-', Lic, Token),
+  Lic \== '', !,
+  ( preference:accept_license_wildcard ->
+    ( preference:denied_license(Lic) -> true
+    ; assertz(preference:denied_license(Lic))
+    )
+  ; retractall(preference:accepted_license(Lic))
+  ).
+preference:apply_accept_license_token_(Lic) :-
+  ( preference:accept_license_wildcard ->
+    retractall(preference:denied_license(Lic))
+  ; ( preference:accepted_license(Lic) -> true
+    ; assertz(preference:accepted_license(Lic))
+    )
+  ).
+
+%! preference:license_accepted(+License:atom) is semidet.
+%
+% True if License is accepted by the current ACCEPT_LICENSE configuration.
+
+preference:license_accepted(License) :-
+  ( preference:accept_license_wildcard ->
+    \+ preference:denied_license(License)
+  ; preference:accepted_license(License)
+  ).
 
 
 preference:apply_gentoo_package_use :-
