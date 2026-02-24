@@ -921,10 +921,11 @@ preference:version_match(notequal, Proposed, Req) :-
 
 preference:version_without_revision_([_, _, _, Full0], Core) :-
   ( atom(Full0),
-    sub_atom(Full0, DashPos, 2, 0, '-r'),
+    sub_atom(Full0, DashPos, 2, After, '-r'),
+    After > 0,
     DashPos > 0,
     DigitsStart is DashPos + 2,
-    sub_atom(Full0, DigitsStart, _, 0, Digits),
+    sub_atom(Full0, DigitsStart, After, 0, Digits),
     Digits \== '',
     catch(atom_number(Digits, _), _, fail)
   ->
