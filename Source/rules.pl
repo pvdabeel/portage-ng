@@ -2934,15 +2934,22 @@ prioritize_deps(Deps, Context, SortedDeps) :-
 % predsort/3 can drop equal-ranked members (comparator returns (=)); this is
 % undesirable for disjunctions where all alternatives must remain available.
 rules:prioritize_deps_keep_all(Deps, Context, SortedDeps) :-
-  findall(NegRank-I-Dep,
+  findall(NegRank-NegSnap-I-Dep,
           ( nth1(I, Deps, Dep),
             rules:dep_rank(Context, Dep, Rank),
-            NegRank is -Rank
+            ( rules:dep_snapshot_selected(Dep) -> Snap = 1 ; Snap = 0 ),
+            NegRank is -Rank,
+            NegSnap is -Snap
           ),
           Ranked),
   keysort(Ranked, RankedSorted),
-  findall(Dep, member(_NegRank-_I-Dep, RankedSorted), SortedDeps),
+  findall(Dep, member(_NegRank-_NegSnap-_I-Dep, RankedSorted), SortedDeps),
   !.
+
+rules:dep_snapshot_selected(package_dependency(_Phase,_Strength,C,N,_O,_V,_S,_U)) :-
+  rules:snapshot_selected_cn_candidates(C, N, _),
+  !.
+rules:dep_snapshot_selected(_) :- fail.
 
 % Rank dependencies for deterministic group choice.
 % Primary signal: prefer deps that are already satisfied by effective USE /

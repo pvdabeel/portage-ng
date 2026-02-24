@@ -1693,55 +1693,39 @@ select(Key,wildcard,Value,R://I) :-
 
 memoized_search(model(dependency(Merged,install)):config?{R}, Repository://Ebuild) :-
   !,
-  ( cache:memo_model(Repository, Ebuild, install_grouped?{R}, Merged)
-    ->  true
-    ;   ( memberchk(self(Repository://Ebuild), R)
-          -> RSearch = R
-          ;  RSearch = [self(Repository://Ebuild)|R]
-        ),
-        query:search(model(dependency(D0,install)):config?{RSearch},Repository://Ebuild),
-        group_dependencies(D0, Merged),
-        assertz(cache:memo_model(Repository, Ebuild, install_grouped?{R}, Merged))
-  ).
+  ( memberchk(self(Repository://Ebuild), R)
+    -> RSearch = R
+    ;  RSearch = [self(Repository://Ebuild)|R]
+  ),
+  query:search(model(dependency(D0,install)):config?{RSearch},Repository://Ebuild),
+  group_dependencies(D0, Merged).
 
 memoized_search(model(dependency(Merged,run)):config?{R}, Repository://Ebuild) :-
   !,
-  ( cache:memo_model(Repository, Ebuild, run_grouped?{R}, Merged)
-    ->  true
-    ;   ( memberchk(self(Repository://Ebuild), R)
-          -> RSearch = R
-          ;  RSearch = [self(Repository://Ebuild)|R]
-        ),
-        query:search(model(dependency(D0,run)):config?{RSearch},Repository://Ebuild),
-        group_dependencies(D0, Merged),
-        assertz(cache:memo_model(Repository, Ebuild, run_grouped?{R}, Merged))
-  ).
+  ( memberchk(self(Repository://Ebuild), R)
+    -> RSearch = R
+    ;  RSearch = [self(Repository://Ebuild)|R]
+  ),
+  query:search(model(dependency(D0,run)):config?{RSearch},Repository://Ebuild),
+  group_dependencies(D0, Merged).
 
 memoized_search(model(dependency(Merged,pdepend)):config?{R}, Repository://Ebuild) :-
   !,
-  ( cache:memo_model(Repository, Ebuild, pdepend_grouped?{R}, Merged)
-    ->  true
-    ;   ( memberchk(self(Repository://Ebuild), R)
-          -> RSearch = R
-          ;  RSearch = [self(Repository://Ebuild)|R]
-        ),
-        query:search(model(dependency(D0,pdepend)):config?{RSearch},Repository://Ebuild),
-        group_dependencies(D0, Merged),
-        assertz(cache:memo_model(Repository, Ebuild, pdepend_grouped?{R}, Merged))
-  ).
+  ( memberchk(self(Repository://Ebuild), R)
+    -> RSearch = R
+    ;  RSearch = [self(Repository://Ebuild)|R]
+  ),
+  query:search(model(dependency(D0,pdepend)):config?{RSearch},Repository://Ebuild),
+  group_dependencies(D0, Merged).
 
 memoized_search(model(dependency(Merged,fetchonly)):config?{R}, Repository://Ebuild) :-
   !,
-  ( cache:memo_model(Repository, Ebuild, fetchonly_grouped?{R}, Merged)
-    ->  true
-    ;   ( memberchk(self(Repository://Ebuild), R)
-          -> RSearch = R
-          ;  RSearch = [self(Repository://Ebuild)|R]
-        ),
-        query:search(model(dependency(D0,fetchonly)):config?{RSearch},Repository://Ebuild),
-        group_dependencies(D0, Merged),
-        assertz(cache:memo_model(Repository, Ebuild, fetchonly_grouped?{R}, Merged))
-  ).
+  ( memberchk(self(Repository://Ebuild), R)
+    -> RSearch = R
+    ;  RSearch = [self(Repository://Ebuild)|R]
+  ),
+  query:search(model(dependency(D0,fetchonly)):config?{RSearch},Repository://Ebuild),
+  group_dependencies(D0, Merged).
 
 
 % -----------------------------------------------------------------------------
