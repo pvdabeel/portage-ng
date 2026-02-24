@@ -3159,18 +3159,6 @@ is_preferred_dep(Context, all_of_group(Deps)) :-
 % This helps align Portage-like behavior for || groups that include a heavy
 % build-time tool (e.g. dev-lang/vala) versus a lighter already-installed
 % alternative (e.g. gobject-introspection).
-is_preferred_dep(_Context, package_dependency(_Phase,_Strength,C,N,_O,_V,_S,_U)) :-
-  % Prefer *-bin alternatives in || groups to avoid pulling toolchains from source
-  % when Portage would use a prebuilt binary (e.g. zig-bin).
-  %
-  % Exception: for virtual Java runtime provider groups, preferring
-  % dev-java/openjdk-jre-bin over virtual/jdk diverges from Portage's chosen
-  % provider path in our baselines and creates openjdk-bin/virtual-jdk drift.
-  atom_concat(_, '-bin', N),
-  \+ ( C == 'dev-java',
-       N == 'openjdk-jre-bin'
-     ),
-  !.
 is_preferred_dep(_Context, package_dependency(_Phase,_Strength,C,N,O,V,_S,_U)) :-
   query:search([repository(pkg),category(C),name(N),installed(true)], pkg://Installed),
   ( O == none ; rules:query_search_version_select(O, V, pkg://Installed) ),
@@ -3625,8 +3613,27 @@ build_with_use_constraints(_, [], _) :- !.
 rules:candidate_satisfies_use_deps(_ParentContext, _Repo://_Entry, []) :- !.
 rules:candidate_satisfies_use_deps(ParentContext, Repo://Entry, [use(Directive, Default)|Rest]) :-
   rules:use_dep_requirement(ParentContext, Directive, Default, Requirement),
-  rules:candidate_satisfies_use_requirement(Repo://Entry, Requirement),
+  rules:candidate_satisfies_use_requirement_opt(Directive, Repo://Entry, Requirement),
   rules:candidate_satisfies_use_deps(ParentContext, Repo://Entry, Rest).
+
+% For optenable/optdisable (EAPI [flag?]/[!flag?] syntax), when the target
+% package does not have the flag in IUSE, the constraint is irrelevant —
+% the package simply does not support that flag. Portage does not reject
+% candidates on this basis. Only enforce when the flag is actually in IUSE.
+rules:candidate_satisfies_use_requirement_opt(optenable(Use), Repo://Entry, Requirement) :-
+  !,
+  ( rules:candidate_iuse_present(Repo://Entry, Use) ->
+      rules:candidate_satisfies_use_requirement(Repo://Entry, Requirement)
+  ; true
+  ).
+rules:candidate_satisfies_use_requirement_opt(optdisable(Use), Repo://Entry, Requirement) :-
+  !,
+  ( rules:candidate_iuse_present(Repo://Entry, Use) ->
+      rules:candidate_satisfies_use_requirement(Repo://Entry, Requirement)
+  ; true
+  ).
+rules:candidate_satisfies_use_requirement_opt(_, Repo://Entry, Requirement) :-
+  rules:candidate_satisfies_use_requirement(Repo://Entry, Requirement).
 
 % -----------------------------------------------------------------------------
 %  Context helpers for per-package USE (build_with_use)
