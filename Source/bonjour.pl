@@ -29,12 +29,9 @@ as zeroconf or Apple Bonjour.
 
 bonjour:advertise :-
   config:hostname(Host),
-  interface:argv(Options,_Args),
-  ( lists:memberchk(port(Port), Options)
-  ; config:server_port(Port)
-  ),
-  config:bonjour_service(Service),
-  bonjour:advertise(Service,Host,Port).
+  interface:get_port(Port),
+  config:bonjour_service(Name),
+  bonjour:advertise(Name,Host,Port).
 
 
 %! bonjour:advertise(+Host,+Port)
@@ -42,8 +39,8 @@ bonjour:advertise :-
 % Advertise a Host and Port using mDNS
 
 bonjour:advertise(Host, Port) :-
-  config:bonjour_service(Service),
-  bonjour:advertise(Service,Host,Port).
+  config:bonjour_service(Name),
+  bonjour:advertise(Name,Host,Port).
 
 
 %! bonjour:advertise(+Service,+Host,+Port)
@@ -51,9 +48,7 @@ bonjour:advertise(Host, Port) :-
 % Advertise a Service on Host and Port using mDNS
 
 bonjour:advertise(Service, Host, Port) :-
-  format(string(Cmd),'dns-sd -R ~w ~w local ~w',[Host,Service,Port]),
-  Thread = process_create(path(bash),['-c',Cmd],[stdout(null),stderr(null)]),
-  thread_create(Thread,_,[detached(true)]).
+  subprocess:dns_sd(advertise, Host, Service, Port).
 
 
 % -----------------------------------------------------------------------------
@@ -88,43 +83,17 @@ bonjour:discover(_Service, []).
 %  Bonjour Helpers
 % -----------------------------------------------------------------------------
 
-%! bonjour:browse_hostnames(-Hostnames)
+%! bonjour:browse_hostnames(+Service, -Hostnames)
 %
 % Called by discover, returns a set of hostnames providing service.
 
 bonjour:browse_hostnames(Service, Hostnames) :-
-  os:bash_dns_sd(['-t','1','-B', Service],Lines),
-  findall(Hostname,(member(Line, Lines), 
-          bonjour:browse_line_hostname(Service,Line, Hostname)),
-          Raw),
-  list_to_set(Raw, Hostnames).
+  subprocess:dns_sd(browse, Service, Hostnames).
 
 
-%! bonjour:browse_line_hostname(+Line,-Hostname)
-%
-% Given a line of output from dns-sd, parses hostname information.
-
-bonjour:browse_line_hostname(Service, Line, Host) :-
-  sub_string(Line, _, _, After, Service),
-  sub_string(Line, _, After, 0, RawHost),
-  split_string(RawHost, "", " \t", [Host]).
-
-
-%! bonjour:resolve_hostname(+Hostname,-Port)
+%! bonjour:resolve_hostname(+Service, +Hostname, -Port)
 %
 % Given a hostname, retrieves port number on which the service is running.
 
 bonjour:resolve_hostname(Service, Hostname, Port) :-
-  format(string(Cmd),'dns-sd -t 1 -L "~w" ~w',[Hostname,Service]),
-  os:bash_lines(Cmd,Lines),
-  member(Line,Lines),
-  bonjour:resolve_line_port(Line,Port),!.
-
-
-%! bonjour:resolve_line_port(+Line,-Port)
-%
-% Given a line of outpt from dns-sd, parses port information
-
-bonjour:resolve_line_port(Line, Port) :-
-  re_matchsub('reached at ([0-9A-Za-z-.]+):([0-9]+)',Line,M,[capture_type(string)]),
-  number_string(Port,M.2).
+  subprocess:dns_sd(resolve, Service, Hostname, Port).

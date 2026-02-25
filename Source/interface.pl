@@ -169,6 +169,17 @@ interface:process_continue(Continue) :-
         ;  Continue = halt)).
 
 
+%! interface:get_port(-Port)
+%
+% Retrieve the port from the command line or config
+
+interface:get_port(Port) :-
+  interface:argv(Options,_),
+  ( lists:memberchk(port(Port), Options) -> true
+  ; config:server_port(Port)
+  ),
+  !.
+
 %! interface:process_server(Host,Port)
 %
 % Retrieve the host and port from the command line
@@ -176,7 +187,7 @@ interface:process_continue(Continue) :-
 interface:process_server(Host,Port) :-
   interface:argv(Options,_),
   (lists:memberchk(host(Host),  Options) ; config:server_host(Host)),
-  (lists:memberchk(port(Port),  Options) ; config:server_port(Port)),
+  interface:get_port(Port),
   !.
 
 

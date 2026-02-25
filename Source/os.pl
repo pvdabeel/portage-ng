@@ -117,30 +117,6 @@ find_files(Dir, Pattern, File) :-
                    ]).
 
 % -----------------------------------------------------------------------------
-%  Bash wrappers
-% -----------------------------------------------------------------------------
-
-%! os:bash_dns_sd(+ArgList,-Lines)
-%
-% Calls dns-sd command in bash with given ArgList
-% Returns lines of strings (output of the command)
-
-os:bash_dns_sd(ArgList, Lines) :-
-  atomic_list_concat(['dns-sd'|ArgList],' ',Cmd),
-  os:bash_lines(Cmd,Lines).
-
-
-%! os:bash_lines(+Cmd,-Lines)
-%
-% Runs a given command in bash
-% Returns lines of strings (output of the command)
-
-os:bash_lines(Cmd, Lines) :-
-  process_create(path(bash),['-c',Cmd],[stdout(pipe(Out)),process(Pid)]),
-  call_cleanup(reader:read_lines_to_strings(Out,Lines),(close(Out),process_wait(Pid,_))).
-
-
-% -----------------------------------------------------------------------------
 %  System-wide locking
 % -----------------------------------------------------------------------------
 %

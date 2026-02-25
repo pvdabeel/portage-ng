@@ -90,6 +90,7 @@ load_common_modules :-
    ensure_loaded(portage('Source/eapi.pl')),
    ensure_loaded(portage('Source/reader.pl')),
    ensure_loaded(portage('Source/set.pl')),
+   ensure_loaded(portage('Source/subprocess.pl')),
    ensure_loaded(portage('Source/bonjour.pl')),
    ensure_loaded(portage('Source/unify.pl')),
 
