@@ -191,6 +191,20 @@ interface:process_server(Host,Port) :-
   !.
 
 
+%! interface:init_tty
+%
+% Initialize TTY-related features (editline, history). Safe to call when
+% stdout is redirected; silently skips when not on a real terminal.
+
+interface:init_tty :-
+  ( stream_property(user_input, tty(true)),
+    stream_property(user_output, tty(true))
+  -> ensure_loaded(library('editline')),
+     catch(prolog_history(enable), _, true)
+  ; true
+  ).
+
+
 %! interface:process_requests(+Mode)
 %
 % Processes the options passed on the command line.
@@ -198,6 +212,9 @@ interface:process_server(Host,Port) :-
 % a set of predicates to be called.
 
 interface:process_requests(server) :-
+  !, prolog.
+
+interface:process_requests(worker) :-
   !, prolog.
 
 interface:process_requests(Mode) :-
@@ -235,6 +252,9 @@ interface:process_requests(Mode) :-
     memberchk(shell(true),Options)    -> (message:logo(['::- portage-ng shell - ',Version]),	    prolog)),
 
   Continue.
+
+interface:process_requests(_) :-
+  halt(1).
 
 % -----------------------------------------------------------------------------
 %  Action: GRAPH (optional mode argument)

@@ -237,9 +237,15 @@ config:verbosity(debug).
 
 %! config:bonjour_service(?Service)
 %
-% The mDNS service used to advertise and discover hosts on the network
+% The mDNS service used to advertise and discover the server on the network.
 
-config:bonjour_service('_prolog._tcp.').
+config:bonjour_service('_portage-ng._tcp.').
+
+%! config:bonjour_worker_service(?Service)
+%
+% The mDNS service used by workers to advertise compute capacity.
+
+config:bonjour_worker_service('_portage-ng-worker._tcp.').
 
 
 %! config:server_host(?Url)

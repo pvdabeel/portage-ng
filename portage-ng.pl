@@ -57,16 +57,7 @@ load_common_modules :-
    ensure_loaded(library('shell')),
    ensure_loaded(library('tty')),
    ensure_loaded(library('time')),
-   % editline is only safe/needed on real TTY sessions.
-   % When stdout is redirected (e.g. generating a `.merge` file with `> file`),
-   % loading editline can throw:
-   %   editline:el_read_history/2: Domain error: `libedit_input' expected, found `user_input'
-   ( current_prolog_flag(readline, editline),
-     stream_property(user_input, tty(true)),
-     stream_property(user_output, tty(true))
-   -> ensure_loaded(library('editline'))
-   ; true
-   ),
+   
    ensure_loaded(library('readutil')),
    ensure_loaded(library('ansi_term')),
    ensure_loaded(library('filesex')),
@@ -171,6 +162,56 @@ load_standalone_modules :-
    message:log('Loaded standalone modules...').
 
 
+%! load_worker_modules
+%
+% Loads the worker modules: the full proving pipeline (KB, prover, planner,
+% scheduler) plus client RPC for communicating with the server.
+
+load_worker_modules :-
+
+   ensure_loaded(library('aggregate')),
+   ensure_loaded(library('apply_macros')),
+   ensure_loaded(library('crypto')),
+   ensure_loaded(library('socket')),
+   ensure_loaded(library('broadcast')),
+   ensure_loaded(library('http/http_path')),
+   ensure_loaded(library('http/http_open')),
+   ensure_loaded(library('http/http_ssl_plugin')),
+   ensure_loaded(library('http/thread_httpd')),
+   ensure_loaded(library('http/http_digest')),
+
+   ensure_loaded(portage('Source/stubs.pl')),
+   ensure_loaded(portage('Source/context.pl')),
+   ensure_loaded(portage('Source/cache.pl')),
+   ensure_loaded(portage('Source/repository.pl')),
+   ensure_loaded(portage('Source/knowledgebase.pl')),
+   ensure_loaded(portage('Source/query.pl')),
+
+   ensure_loaded(portage('Source/eapi.pl')),
+   ensure_loaded(portage('Source/version.pl')),
+   ensure_loaded(portage('Source/rules.pl')),
+   ensure_loaded(portage('Source/ebuild.pl')),
+   ensure_loaded(portage('Source/script.pl')),
+   ensure_loaded(portage('Source/stat.pl')),
+   ensure_loaded(portage('Source/pkg.pl')),
+   ensure_loaded(portage('Source/preference')),
+
+   ensure_loaded(portage('Source/sampler.pl')),
+
+   ensure_loaded(portage('Source/reader.pl')),
+   ensure_loaded(portage('Source/parser.pl')),
+   ensure_loaded(portage('Source/prover.pl')),
+   ensure_loaded(portage('Source/planner.pl')),
+   ensure_loaded(portage('Source/scheduler.pl')),
+   ensure_loaded(portage('Source/printer.pl')),
+
+   ensure_loaded(portage('Source/client.pl')),
+   ensure_loaded(portage('Source/worker.pl')),
+   ensure_loaded(portage('Source/cluster.pl')),
+
+   message:log('Loaded worker modules...').
+
+
 %! load_server_modules
 %
 % Loads the server modules.
@@ -248,7 +289,7 @@ main :-
   config:world_file(File),
   world:newinstance(set(File)),
   world:load,
-  catch(prolog_history(enable), _E, true),
+  interface:init_tty,
   main(Mode).
 
 
@@ -258,10 +299,7 @@ main(client) :-
   interface:process_server(Host,Port),
   kb:newinstance(knowledgebase(Host,Port)),
   preference:init,
-  ( interface:process_requests(client) ->
-      true
-  ; halt(1)
-  ).
+  interface:process_requests(client).
 
 
 main(standalone) :-
@@ -273,10 +311,21 @@ main(standalone) :-
   ensure_loaded(Config),
   kb:load,
   preference:init,
-  ( interface:process_requests(standalone) ->
-      true
-  ; halt(1)
-  ).
+  interface:process_requests(standalone).
+
+
+main(worker) :-
+  load_worker_modules,
+  load_llm_modules,
+  stats:newinstance(stat),
+  kb:newinstance(knowledgebase),
+  config:systemconfig(Config),
+  ensure_loaded(Config),
+  kb:load,
+  preference:init,
+  interface:process_server(Host, Port),
+  worker:start(Host, Port),
+  interface:process_requests(worker).
 
 
 main(server) :-
@@ -285,7 +334,4 @@ main(server) :-
   server:start_server,
   at_halt(server:stop_server),
   bonjour:advertise,
-  ( interface:process_requests(server) ->
-      true
-  ; halt(1)
-  ).
+  interface:process_requests(server).
