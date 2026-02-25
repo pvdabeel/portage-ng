@@ -818,6 +818,7 @@ prover:hook_perf_report :-
   flag(hook_perf_extra_lits, Extra, Extra),
   flag(hook_perf_fresh_lits, Fresh, Fresh),
   flag(hook_perf_done_hits, DoneHits, DoneHits),
+  nl,
   message:scroll_notice(['Hook perf: fired=',Fired,
                          ' extra_lits=',Extra,
                          ' fresh_lits=',Fresh,
