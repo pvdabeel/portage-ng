@@ -2220,8 +2220,9 @@ packageversion(Name,_,_) :-
 eapi:check_prefix_atom(_,Atom) :- \+(atom(Atom)), !, fail.
 eapi:check_prefix_atom(Prefix,Atom) :-
   atom(Prefix),
-  atom_concat(Prefix, '_', PrefixUnderscore),
-  atom_prefix(Atom, PrefixUnderscore),
+  atom_length(Prefix, Len),
+  sub_atom(Atom, 0, Len, _, Prefix),
+  sub_atom(Atom, Len, 1, _, '_'),
   !.
 
 %! eapi:strip_prefix_atom(+Prefix,+Atom,-Result)

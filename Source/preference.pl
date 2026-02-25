@@ -385,6 +385,8 @@ preference:init :-
   ( nb_current(pref_profile_use_soft_flags, _) -> nb_setval(pref_profile_use_soft_flags, t) ; true ),
   ( nb_current(pref_gentoo_use_soft_cns, _) -> nb_setval(pref_gentoo_use_soft_cns, t) ; true ),
   ( nb_current(pref_profile_use_soft_cns, _) -> nb_setval(pref_profile_use_soft_cns, t) ; true ),
+  ( nb_current(pref_profile_forced_cns, _) -> nb_setval(pref_profile_forced_cns, t) ; true ),
+  ( nb_current(pref_profile_masked_cns, _) -> nb_setval(pref_profile_masked_cns, t) ; true ),
   retractall(preference:license_group_raw(_,_)),
   retractall(preference:accept_license_wildcard),
   retractall(preference:accepted_license(_)),
@@ -610,7 +612,8 @@ preference:profile_package_use_cp_from_spec_(versioned(_, C, N, _, _), C, N) :- 
 % Precedence: mask wins over force (Portage-like).
 preference:profile_package_use_override_for_entry(Repo://Id, Use, State, Reason) :-
   cache:ordered_entry(Repo, Id, C, N, ProposedVersion),
-  ( ( preference:profile_package_use_masked(simple(C,N,SlotReq), Use),
+  ( preference:profile_masked_cn_known(C, N),
+    ( preference:profile_package_use_masked(simple(C,N,SlotReq), Use),
       preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
     ; preference:profile_package_use_masked(versioned(Op,C,N,ReqVer,SlotReq), Use),
       preference:version_match(Op, ProposedVersion, ReqVer),
@@ -618,7 +621,8 @@ preference:profile_package_use_override_for_entry(Repo://Id, Use, State, Reason)
     ) ->
       State = negative,
       Reason = profile_package_use_mask
-  ; ( preference:profile_package_use_forced(simple(C,N,SlotReq), Use),
+  ; preference:profile_forced_cn_known(C, N),
+    ( preference:profile_package_use_forced(simple(C,N,SlotReq), Use),
       preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
     ; preference:profile_package_use_forced(versioned(Op,C,N,ReqVer,SlotReq), Use),
       preference:version_match(Op, ProposedVersion, ReqVer),
@@ -805,6 +809,36 @@ preference:profile_use_soft_cn_known(C, N) :-
 
 preference:soft_spec_cn(simple(C, N, _), C, N).
 preference:soft_spec_cn(versioned(_, C, N, _, _), C, N).
+
+preference:profile_forced_cn_known(C, N) :-
+  ( nb_current(pref_profile_forced_cns, CNSet) ->
+      true
+  ;
+      findall(cn(C0,N0)-true,
+              ( preference:profile_package_use_forced(Spec, _),
+                preference:soft_spec_cn(Spec, C0, N0)
+              ),
+              Pairs0),
+      sort(1, @<, Pairs0, Pairs),
+      ( Pairs == [] -> empty_assoc(CNSet) ; list_to_assoc(Pairs, CNSet) ),
+      nb_setval(pref_profile_forced_cns, CNSet)
+  ),
+  get_assoc(cn(C,N), CNSet, _).
+
+preference:profile_masked_cn_known(C, N) :-
+  ( nb_current(pref_profile_masked_cns, CNSet) ->
+      true
+  ;
+      findall(cn(C0,N0)-true,
+              ( preference:profile_package_use_masked(Spec, _),
+                preference:soft_spec_cn(Spec, C0, N0)
+              ),
+              Pairs0),
+      sort(1, @<, Pairs0, Pairs),
+      ( Pairs == [] -> empty_assoc(CNSet) ; list_to_assoc(Pairs, CNSet) ),
+      nb_setval(pref_profile_masked_cns, CNSet)
+  ),
+  get_assoc(cn(C,N), CNSet, _).
 
 preference:profile_package_use_spec_matches_entry_(simple(C, N, SlotReq), Repo, Id, C, N, _ProposedVersion) :-
   preference:entry_satisfies_slot_req_(Repo, Id, SlotReq),

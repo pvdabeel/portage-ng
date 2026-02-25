@@ -52,7 +52,7 @@ arg_installed_repo_entry(Arg, RepoEntry) :-
   atom_codes(Arg, Codes),
   phrase(eapi:qualified_target(Q), Codes),
   % Find installed entry in VDB repo.
-  query:search([repository(pkg),installed(true)|Q], pkg://InstalledEntry),
+  query:search([installed(true)|Q], pkg://InstalledEntry),
   depclean:installed_to_repo_entry(pkg://InstalledEntry, RepoEntry),
   !.
 
@@ -92,7 +92,7 @@ model_required_installed([X|Xs], Out) :-
   model_required_installed(Xs, Rest),
   ( depclean:model_item_repo_entry(X, Repo://Entry) ->
       ( query:search([category(C),name(N),version(V)], Repo://Entry),
-        query:search([repository(pkg),category(C),name(N),version(V),installed(true)], pkg://InstalledEntry) ->
+        query:search([name(N),category(C),version(V),installed(true)], pkg://InstalledEntry) ->
           Out = [pkg://InstalledEntry|Rest]
       ; Out = Rest
       )
@@ -105,7 +105,7 @@ model_item_repo_entry(_Other, _RepoEntry) :- fail.
 
 print_removals(RequiredInstalled) :-
   findall(pkg://E,
-          query:search([repository(pkg),installed(true)], pkg://E),
+          query:search([installed(true)], pkg://E),
           Installed0),
   sort(Installed0, Installed),
   subtract(Installed, RequiredInstalled, Removable),
@@ -187,7 +187,7 @@ dep_literal_installed_dep(MergedDeps, DepInstalled) :-
   member(D0, MergedDeps),
   depclean:dep_term_cn_deps(D0, Action, C, N, PackageDeps),
   rules:merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
-  query:search([repository(pkg),category(C),name(N),installed(true)], pkg://DepInstalled),
+  query:search([name(N),category(C),installed(true)], pkg://DepInstalled),
   rules:query_search_slot_constraint(SlotReq, pkg://DepInstalled, _),
   rules:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps, pkg://DepInstalled).
 

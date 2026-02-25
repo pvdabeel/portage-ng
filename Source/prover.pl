@@ -295,12 +295,17 @@ prover:is_self_term(self(_)).
 
 prover:ctx_strip_self_keep_one(Ctx0, SelfTerm, Ctx) :-
   ( is_list(Ctx0) ->
-      ( memberchk(self(S), Ctx0) -> SelfTerm = self(S) ; SelfTerm = none ),
-      exclude(prover:is_self_term, Ctx0, Ctx)
+      prover:ctx_extract_self(Ctx0, SelfTerm, Ctx)
   ; SelfTerm = none,
     Ctx = Ctx0
   ),
   !.
+
+prover:ctx_extract_self([], none, []).
+prover:ctx_extract_self([self(S)|T], self(S), Rest) :-
+  !, exclude(prover:is_self_term, T, Rest).
+prover:ctx_extract_self([H|T], Self, [H|Rest]) :-
+  prover:ctx_extract_self(T, Self, Rest).
 
 prover:ctx_prepend_self(none, Ctx, Ctx) :- !.
 prover:ctx_prepend_self(self(S), Ctx0, Ctx) :-

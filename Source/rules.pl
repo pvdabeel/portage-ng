@@ -1152,7 +1152,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
     % Performance note:
     % Avoid `select(version,O,V)` with variable Op, and `select(slot,constraint(SlotReq),_)`
     % with variable SlotReq, because those prevent compile-time query macro expansion.
-    query:search([repository(pkg),category(C),name(N),installed(true)],
+    query:search([name(N),category(C),installed(true)],
                  pkg://InstalledEntry),
     rules:query_search_slot_constraint(SlotReq, pkg://InstalledEntry, _),
     rules:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps1, pkg://InstalledEntry),
@@ -1276,7 +1276,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         % chosen candidate. Otherwise we'd incorrectly "update" one slot while
         % actually installing another (Portage would call that a new-slot install).
         rules:selected_cn_slot_key_(SlotMeta, SlotChosen),
-        query:search([repository(pkg),category(C),name(N),installed(true)],
+        query:search([name(N),category(C),installed(true)],
                      pkg://InstalledEntry2),
         ( query:search(slot(SlotInstalled0), pkg://InstalledEntry2)
           -> rules:canon_slot(SlotInstalled0, SlotInstalled)
@@ -1339,7 +1339,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       % and satisfies constraints. Instead, fall back to "keep installed".
       ( preference:flag(deep),
         merge_slot_restriction(Action, C, N, PackageDeps, SlotReq2),
-        query:search([repository(pkg),category(C),name(N),installed(true)],
+        query:search([name(N),category(C),installed(true)],
                      pkg://InstalledEntryFallback),
         rules:query_search_slot_constraint(SlotReq2, pkg://InstalledEntryFallback, _),
         !,
@@ -1490,15 +1490,11 @@ rules:all_deps_have_explicit_slot(Deps) :-
   !.
 
 rules:multiple_distinct_slots(Deps) :-
-  findall(S,
-          ( member(package_dependency(_P,_Strength,_C,_N,_O,_V,SlotReq,_U), Deps),
-            rules:slot_req_explicit_slot_key(SlotReq, S)
-          ),
-          Slots0),
-  sort(Slots0, Slots),
-  Slots = [_|Rest],
-  Rest \== [],
-  !.
+  member(package_dependency(_,_,_,_,_,_,SR1,_), Deps),
+  rules:slot_req_explicit_slot_key(SR1, S1), !,
+  member(package_dependency(_,_,_,_,_,_,SR2,_), Deps),
+  rules:slot_req_explicit_slot_key(SR2, S2),
+  S2 \== S1, !.
 
 % Explicit slot request shapes that should participate in grouped-dep split
 % decisions. Treat :slot and :slot= (and subslot-qualified variants) as
@@ -2187,7 +2183,7 @@ rules:depclean_rewrite_dep(Term, _ParentCtx, Term:depclean?{[]}) :-
 rule(grouped_package_dependency(no,C,N,PackageDeps):depclean?{_Context}, Conditions) :-
   !,
   merge_slot_restriction(run, C, N, PackageDeps, SlotReq),
-  ( query:search([repository(pkg),category(C),name(N),installed(true)], pkg://InstalledEntry),
+  ( query:search([name(N),category(C),installed(true)], pkg://InstalledEntry),
     rules:query_search_slot_constraint(SlotReq, pkg://InstalledEntry, _),
     rules:installed_entry_satisfies_package_deps(run, C, N, PackageDeps, pkg://InstalledEntry),
     % Find same-version repo entry (exclude pkg).
@@ -3172,7 +3168,7 @@ is_preferred_dep(Context, all_of_group(Deps)) :-
 % build-time tool (e.g. dev-lang/vala) versus a lighter already-installed
 % alternative (e.g. gobject-introspection).
 is_preferred_dep(_Context, package_dependency(_Phase,_Strength,C,N,O,V,_S,_U)) :-
-  query:search([repository(pkg),category(C),name(N),installed(true)], pkg://Installed),
+  query:search([name(N),category(C),installed(true)], pkg://Installed),
   ( O == none ; rules:query_search_version_select(O, V, pkg://Installed) ),
   !.
 
@@ -3201,7 +3197,7 @@ rules:group_member_preferred(_Context, _Other) :-
 
 rules:installed_pkg_satisfies_dep(ParentContext,
                                  package_dependency(_Phase,_Strength,C,N,O,V,_S,UseReqs)) :-
-  query:search([repository(pkg),category(C),name(N),installed(true)], pkg://InstalledId),
+  query:search([name(N),category(C),installed(true)], pkg://InstalledId),
   ( O == none
   ; rules:query_search_version_select(O, V, pkg://InstalledId)
   ),
@@ -3237,9 +3233,9 @@ rules:installed_pkg_satisfies_use_requirement(pkg://InstalledId, requirement(dis
 rules:installed_version_mismatch_penalty(package_dependency(_Phase,_Strength,C,N,O,V,_S,_U), Penalty) :-
   O \== none,
   % At least one installed instance exists...
-  query:search([repository(pkg),category(C),name(N),installed(true)], pkg://_),
+  query:search([name(N),category(C),installed(true)], pkg://_),
   % ...but none satisfy the requested version operator.
-  \+ ( query:search([repository(pkg),category(C),name(N),installed(true)], pkg://InstalledId),
+  \+ ( query:search([name(N),category(C),installed(true)], pkg://InstalledId),
        rules:query_search_version_select(O, V, pkg://InstalledId)
      ),
   Penalty is -50000000,
@@ -4395,7 +4391,7 @@ rules:deep_update_goals(Self, MergedDeps, DeepUpdates) :-
           ( member(C-N, CN),
             % For each dependency package, look at installed instances in the VDB repo (`pkg`)
             % (possibly multiple slots). Restricting to `pkg` avoids scanning all repos.
-            query:search([repository(pkg),category(C),name(N),installed(true)], pkg://OldEntry),
+            query:search([name(N),category(C),installed(true)], pkg://OldEntry),
             OldRepo = pkg,
             pkg://OldEntry \== Self,
             query:search(version(OldVer), pkg://OldEntry),
@@ -4890,5 +4886,5 @@ rules:installed_entry_cn(C, N, pkg, Entry) :-
   % The installed package database is represented by the VDB repository instance
   % named `pkg`. Prefer using its structured facts instead of parsing Entry IDs
   % with atom_concat/sub_atom (which is extremely expensive at scale).
-  query:search([repository(pkg),category(C),name(N),installed(true)], pkg://Entry),
+  query:search([name(N),category(C),installed(true)], pkg://Entry),
   !.
