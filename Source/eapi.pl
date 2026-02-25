@@ -1924,7 +1924,6 @@ eapi:use_expand('nginx_modules_stream').
 eapi:use_expand('ofed_drivers').
 eapi:use_expand('office_implementation').
 eapi:use_expand('openmi_fabrics').
-
 eapi:use_expand('openmpi_fabrics').
 eapi:use_expand('openmpi_ofed_features').
 eapi:use_expand('openmpi_rm').
@@ -2095,7 +2094,7 @@ eapi:categorize_use(Use,negative,default) :-
 %! eapi:categorize_use_for_entry(+RawIuse, +Repo://Id, ?State, ?Reason)
 %
 % Like eapi:categorize_use/3, but honors per-package USE overrides (package.use).
-%
+
 eapi:categorize_use_for_entry(RawIuse, Repo://Id, State, Reason) :-
   % Derive the plain flag name.
   eapi:strip_use_default(RawIuse, Use),
@@ -2250,6 +2249,7 @@ eapi:elem(K,[_|R],C) :-
 % subtle mismatches like slot(3.2) vs slot('3.2').
 %
 % Normalize at cache generation time so runtime queries don't need to compensate.
+
 eapi:normalize_entry_metadata(Key, I0, I) :-
   ( Key == slot ->
       eapi:normalize_slot_term_(I0, I)
@@ -2275,6 +2275,7 @@ eapi:normalize_slot_value_(S0, S) :-
   ),
   !.
 
+
 % -----------------------------------------------------------------------------
 %  Helper: Gentoo version comparison
 % -----------------------------------------------------------------------------
@@ -2292,6 +2293,7 @@ eapi:version_compare(Op, Proposed, Required) :-
 
 eapi:version_full(version(_,_,_,_,_,_,Full), Full).
 
+
 % -----------------------------------------------------------------------------
 %  Helper: version ordering for cache:ordered_entry/5
 % -----------------------------------------------------------------------------
@@ -2299,6 +2301,12 @@ eapi:version_full(version(_,_,_,_,_,_,Full), Full).
 % Used by repository sync when building cache:ordered_entry/5 facts.
 % Input records have the shape [Ver,Id] where Ver is a version/7 compound.
 % We sort in descending Gentoo version order (Portage-like).
+
+
+%! eapi:compare_ordered_entry_version_desc(+Delta, +[VerA,IdA], +[VerB,IdB])
+%
+% Compares two ordered entry version and id pairs in descending Gentoo version order.
+
 eapi:compare_ordered_entry_version_desc(Delta, [VerA,IdA], [VerB,IdB]) :-
   ( compare(>, VerA, VerB) ->
       Delta = (<)
@@ -2308,11 +2316,21 @@ eapi:compare_ordered_entry_version_desc(Delta, [VerA,IdA], [VerB,IdB]) :-
   ),
   !.
 
+
+%! eapi:nums_normalize(+List0, -List)
+%
+% Normalizes a list of numbers to a list of integers.
+
 eapi:nums_normalize(List0, List) :-
   ( is_list(List0) ->
       maplist(eapi:to_int0, List0, List)
   ; List = [0]
   ).
+
+
+%! eapi:to_int0(+X, -I)
+%
+% Converts a term to an integer.
 
 eapi:to_int0(X, I) :-
   ( integer(X) -> I = X
@@ -2321,12 +2339,22 @@ eapi:to_int0(X, I) :-
   ; I = 0
   ).
 
+
+%! eapi:to_string(+X, -S)
+%
+% Converts a term to a string.
+
 eapi:to_string(X, S) :-
   ( string(X) -> S = X
   ; atom(X) -> atom_string(X, S)
   ; number(X) -> number_string(X, S)
   ; S = ''
   ).
+
+
+%! eapi:split_revision(+Suffix0, -Base, -Rev)
+%
+% Splits a revision suffix into a base suffix and a revision number.
 
 eapi:split_revision(Suffix0, Base, Rev) :-
   % Strip a final -rN, returning Base suffix and numeric revision.
@@ -2341,6 +2369,11 @@ eapi:split_revision(Suffix0, Base, Rev) :-
     Rev = 0
   ).
 
+
+%! eapi:split_revision_at(+Positions, +Suffix, -Base, -Rev)
+%
+% Splits a revision suffix at a given position into a base suffix and a revision number.
+
 eapi:split_revision_at([Pos|_Rest], Suffix, Base, Rev) :-
   sub_string(Suffix, Pos, 2, After, "-r"),
   sub_string(Suffix, _, After, 0, Digits),
@@ -2348,11 +2381,26 @@ eapi:split_revision_at([Pos|_Rest], Suffix, Base, Rev) :-
   catch(number_string(Rev, Digits), _, fail),
   sub_string(Suffix, 0, Pos, _, Base),
   !.
+
 eapi:split_revision_at([_|Rest], Suffix, Base, Rev) :-
   eapi:split_revision_at(Rest, Suffix, Base, Rev).
 
+
+%! eapi:suffix_key(+Suffix0, -Rank, -Num, -Rest)
+%
+% Calculates the key for a suffix.
 % Gentoo suffix precedence:
 %   _alpha < _beta < _pre < _rc < (final) < _p
+%
+% Rank explanation:
+%   0: _alpha
+%   1: _beta
+%   2: _pre
+%   3: _rc
+%   4: (final)
+%   5: _p
+%   6: (none)
+
 eapi:suffix_key(Suffix0, Rank, Num, Rest) :-
   eapi:to_string(Suffix0, Suffix),
   ( Suffix == "" ->
@@ -2371,10 +2419,20 @@ eapi:suffix_key(Suffix0, Rank, Num, Rest) :-
   ),
   !.
 
+
+%! eapi:suffix_with_prefix(+Prefix, +Suffix, -Num, -Rest)
+%
+% Checks if a suffix starts with a given prefix and returns the number and rest of the suffix.
+
 eapi:suffix_with_prefix(Prefix, Suffix, Num, Rest) :-
   string_concat(Prefix, Tail, Suffix),
   eapi:split_leading_digits(Tail, Num, Rest),
   !.
+
+
+%! eapi:split_leading_digits(+Tail, -Num, -Rest)
+%
+% Splits a suffix into a number and the rest of the suffix.
 
 eapi:split_leading_digits(Tail, Num, Rest) :-
   string_chars(Tail, Chars),
@@ -2387,13 +2445,19 @@ eapi:split_leading_digits(Tail, Num, Rest) :-
   string_chars(Rest, RestChars),
   !.
 
+
+%! eapi:take_leading_digit_chars(+Chars, -DigitChars, -RestChars)
+%
+% Takes the leading digit characters from a list of characters and returns the rest of the characters.
+
 eapi:take_leading_digit_chars([], [], []).
+
 eapi:take_leading_digit_chars([C|Cs], [C|Ds], Rest) :-
   char_type(C, digit),
   !,
   eapi:take_leading_digit_chars(Cs, Ds, Rest).
-eapi:take_leading_digit_chars(Rest, [], Rest).
 
+eapi:take_leading_digit_chars(Rest, [], Rest).
 
 
 % -----------------------------------------------------------------------------
@@ -2423,6 +2487,7 @@ eapi:parse_vdb_slot_line(Line, Terms) :-
   % not appear in VDB SLOT files. Filter defensively.
   exclude(==(equal), SlotTerms, Terms),
   !.
+
 
 %! eapi:split_ws_atoms(+Line,-Atoms)
 %
@@ -2460,13 +2525,28 @@ eapi:vdb_dir_kv_lines(Dir, Lines) :-
           Lines0),
   sort(Lines0, Lines).
 
+
+%! eapi:vdb_kv_file(+Dir, +File, +Key, -Line)
+%
+% Reads a VDB file and returns a line in the format "Key=Value".
+
 eapi:vdb_kv_file(Dir, File, Key, Line) :-
   os:compose_path(Dir, File, Path),
   reader:invoke(Path, [Value|_]),
   Value \== "",
   format(string(Line), "~w=~s", [Key, Value]).
 
+eapi:vdb_kv_file(Dir, File, Key, Line) :-
+  os:compose_path(Dir, File, Path),
+  reader:invoke(Path, [Value|_]),
+  Value \== "",
+  format(string(Line), "~w=~s", [Key, Value]).
+
+
+%! eapi:vdb_kv_file_joined(+Dir, +File, +Key, -Line)
+%
 % Like vdb_kv_file/4 but joins all lines (some VDB files can be multi-line).
+
 eapi:vdb_kv_file_joined(Dir, File, Key, Line) :-
   os:compose_path(Dir, File, Path),
   reader:invoke(Path, Values),
