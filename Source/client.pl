@@ -9,22 +9,18 @@
 
 
 /** <module> CLIENT
-Client interface to portage-ng pengine server. Client is very lightweight
-applicaton that processes interface requests and calls the server for
-processing. This way we avoid having to load the entire knowledge base
-into memory for every request. The server keeps its cache database nicely
-indexed, permitting high performant queries. With secure authentication,
-and SSL encryption of traffic between client and server,this also allows
-for remote administration of one or more servers.
+Lightweight client for the portage-ng Pengine server. Delegates query
+evaluation and dependency resolution to a remote server, avoiding the
+need to load the full knowledge base locally. The server keeps its cache
+indexed for fast queries and supports concurrent plan computation across
+multiple threads.
 
-The server maintains an accurate view on the knowledge base. The client can
-provide predicates describing local state (e.g. the installed packages on
-this operating system, use flags, keywords, etc).
+Communication uses SSL-encrypted HTTP with digest authentication,
+enabling secure remote administration of one or more servers.
 
-Client requires very little resources, the server is multi-threaded and will
-enable calculation of plans very easily. Essentially the server returns a
-plan to the client, which the client can then print or execute.
-(Think of the plan as a Makefile).
+The client supplies local state (installed packages, USE flags, keywords,
+etc.) while the server provides the repository knowledge base. The server
+returns a dependency plan that the client can print or execute.
 */
 
 :- module(client, []).
@@ -37,27 +33,52 @@ plan to the client, which the client can then print or execute.
 %  Remote predicates
 % -----------------------------------------------------------------------------
 
-%! client:remote_predicate(?Predicate)
+%! client:remote_predicate_template(?Predicate)
 %
-% Declares which predicates need to be injected in the remote pengines context.
+% Predicates whose full clause set is shipped to the remote Pengine context.
 
+% Global USE, keywords, flags
 remote_predicate_template(preference:local_use(_)).
 remote_predicate_template(preference:local_env_use(_)).
 remote_predicate_template(preference:local_accept_keywords(_)).
 remote_predicate_template(preference:local_flag(_)).
 
-% These are optional, only when client:server are not on the same machine
+% Per-package USE overrides (/etc/portage/package.use + profile)
+remote_predicate_template(preference:package_use_override(_,_,_,_)).
+remote_predicate_template(preference:gentoo_package_use_soft(_,_,_)).
+remote_predicate_template(preference:profile_package_use_soft(_,_,_)).
+remote_predicate_template(preference:profile_package_use_masked(_,_)).
+remote_predicate_template(preference:profile_package_use_forced(_,_)).
 
+% Package masking (profiles + /etc/portage/package.mask)
+remote_predicate_template(preference:masked(_)).
+
+% License acceptance
+remote_predicate_template(preference:accepted_license(_)).
+remote_predicate_template(preference:denied_license(_)).
+remote_predicate_template(preference:license_group_raw(_,_)).
+
+% Profile USE display markers
+remote_predicate_template(preference:profile_masked_use_flag(_)).
+remote_predicate_template(preference:profile_forced_use_flag(_)).
+
+% World and sets (optional, only when client/server are on different machines)
 remote_predicate_template(preference:world(_)).
 remote_predicate_template(preference:set(_,_)).
 
-% Installed state is also passed on to the server
-
+% Installed state (todo: needs client-side VDB handling)
 % remote_predicate_template(cache:entry_metadata(_,_,installed,true)).
-% todo: needs client handling
+
+%! client:remote_predicate_instance(?Predicate)
+%
+% Predicates whose ground instances (matching facts) are shipped individually.
 
 remote_predicate_instance(config:printing_style(_)).
 remote_predicate_instance(config:printing_tty_size(_,_)).
+remote_predicate_instance(preference:accept_license_wildcard).
+remote_predicate_instance(preference:use_expand_env(_,_)).
+remote_predicate_instance(preference:use_expand_hidden(_)).
+remote_predicate_instance(preference:keyword_selection_mode(_)).
 
 
 % -----------------------------------------------------------------------------
