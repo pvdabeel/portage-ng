@@ -514,7 +514,7 @@ preference:profile_package_use_spec(Atom, Spec) :-
   catch(phrase(eapi:qualified_target(Q), Codes), _, fail),
   Q = qualified_target(Op, _Repo, C, N, Ver0, [SlotReq,_UseDeps]),
   nonvar(C), nonvar(N),
-  ( Ver0 == [[], '', '', '', ''] ->
+  ( Ver0 == version_none ->
       Spec = simple(C, N, SlotReq)
   ; Op == none ->
       Spec = versioned(equal, C, N, Ver0, SlotReq)
@@ -992,24 +992,22 @@ preference:slot_req_match_(_Other, _Repo, _Id) :- fail.
 % not run for the calling context.
 preference:version_match(none, _Proposed, _Req) :- !.
 preference:version_match(equal, Proposed, Req) :-
-  % Treat '=...-1.9*' as a wildcard match (rare in profiles but supported).
-  Req = [_,_,_,Pattern],
+  Req = version(_,_,_,_,_,_,Pattern),
   atom(Pattern),
   sub_atom(Pattern, _, 1, 0, '*'),
   !,
-  Proposed = [_,_,_,ProposedStr],
+  Proposed = version(_,_,_,_,_,_,ProposedStr),
   query:wildcard_match(Pattern, ProposedStr).
 preference:version_match(equal, Proposed, Req) :-
   Proposed == Req,
   !.
 preference:version_match(tilde, Proposed, Req) :-
-  preference:version_without_revision_(Proposed, CoreProposed),
-  preference:version_without_revision_(Req, CoreReq),
-  CoreProposed == CoreReq,
+  Proposed = version(N,A,SR,SN,SRe,_,_),
+  Req = version(N,A,SR,SN,SRe,_,_),
   !.
-preference:version_match(wildcard, Proposed, [_,_,_,Pattern]) :-
+preference:version_match(wildcard, Proposed, version(_,_,_,_,_,_,Pattern)) :-
   !,
-  Proposed = [_,_,_,ProposedStr],
+  Proposed = version(_,_,_,_,_,_,ProposedStr),
   query:wildcard_match(Pattern, ProposedStr).
 preference:version_match(smaller, Proposed, Req) :-
   !,
@@ -1029,21 +1027,6 @@ preference:version_match(greaterequal, Proposed, Req) :-
   ).
 preference:version_match(notequal, Proposed, Req) :-
   Proposed \== Req,
-  !.
-
-preference:version_without_revision_([_, _, _, Full0], Core) :-
-  ( atom(Full0),
-    sub_atom(Full0, DashPos, 2, After, '-r'),
-    After > 0,
-    DashPos > 0,
-    DigitsStart is DashPos + 2,
-    sub_atom(Full0, DigitsStart, After, 0, Digits),
-    Digits \== '',
-    catch(atom_number(Digits, _), _, fail)
-  ->
-    sub_atom(Full0, 0, DashPos, _, Core)
-  ; Core = Full0
-  ),
   !.
 
 

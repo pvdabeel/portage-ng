@@ -7,8 +7,6 @@
   project.
 */
 
-% -----------------------------------------------------------------------------
-
 
 /** <module> EAPI
 A  DCG Grammar for Parsing Gentoo EAPI Metadata
@@ -103,189 +101,7 @@ files.
 
 :- module(eapi, []).
 
-:- thread_local eapi:version_key_fact/2.
 
-% -----------------------------------------------------------------------------
-%  Metadata normalization (cache write-time)
-% -----------------------------------------------------------------------------
-%
-% Some metadata fields (notably SLOT/SUBSLOT) can be parsed as numbers (e.g. 3.2)
-% depending on how the underlying metadata was read. Downstream logic expects
-% stable, comparable terms; storing mixed number/atom representations leads to
-% subtle mismatches like slot(3.2) vs slot('3.2').
-%
-% Normalize at cache generation time so runtime queries don't need to compensate.
-eapi:normalize_entry_metadata(Key, I0, I) :-
-  ( Key == slot ->
-      eapi:normalize_slot_term_(I0, I)
-  ; I = I0
-  ),
-  !.
-
-eapi:normalize_slot_term_(slot(S0), slot(S)) :-
-  !,
-  eapi:normalize_slot_value_(S0, S).
-eapi:normalize_slot_term_(subslot(S0), subslot(S)) :-
-  !,
-  eapi:normalize_slot_value_(S0, S).
-eapi:normalize_slot_term_(Other, Other) :-
-  !.
-
-% Kept internal (not exported): used by repository cache generation.
-eapi:normalize_slot_value_(S0, S) :-
-  ( atom(S0)    -> S = S0
-  ; integer(S0) -> atom_number(S, S0)
-  ; number(S0)  -> atom_number(S, S0)
-  ; S = S0
-  ),
-  !.
-
-% -----------------------------------------------------------------------------
-%  Helper: Gentoo version comparison
-% -----------------------------------------------------------------------------
-%
-% Version terms are produced by `eapi:version2atom/5` and look like:
-%   [Nums, Alpha, Suffix, Full]
-%
-% We cannot rely on `system:compare/3` for ordering because suffixes like `-r11`
-% compare lexicographically (`-r11` < `-r3`), which breaks version constraints.
-%
-% This comparator implements a conservative ordering:
-% - Compare numeric components (list of integers) numerically (with 0 padding).
-% - Compare alpha part lexicographically.
-% - Compare suffix part lexicographically *without* trailing -rN.
-% - Compare trailing revision -rN numerically.
-%
-eapi:version_compare(Op, Proposed, Required) :-
-  eapi:version_key_cached(Proposed, Kp),
-  eapi:version_key_cached(Required, Kr),
-  compare(Op, Kp, Kr).
-
-eapi:version_key_cached(Ver, Key) :-
-  ( eapi:version_key_fact(Ver, Key) ->
-    true
-  ;
-    eapi:version_key(Ver, Key),
-    assertz(eapi:version_key_fact(Ver, Key))
-  ).
-
-% -----------------------------------------------------------------------------
-%  Helper: version ordering for cache:ordered_entry/5
-% -----------------------------------------------------------------------------
-%
-% Used by repository sync when building cache:ordered_entry/5 facts.
-% Input records have the shape [Vn,Va,Vs,Vf,Id] where V* form the version term.
-% We sort in descending Gentoo version order (Portage-like), using
-% eapi:version_compare/3 (not Prolog term order).
-eapi:compare_ordered_entry_version_desc(Delta,
-                                       [VnA,VaA,VsA,VfA,IdA],
-                                       [VnB,VaB,VsB,VfB,IdB]) :-
-  VerA = [VnA,VaA,VsA,VfA],
-  VerB = [VnB,VaB,VsB,VfB],
-  ( eapi:version_compare(>, VerA, VerB) ->
-      Delta = (<)
-  ; eapi:version_compare(<, VerA, VerB) ->
-      Delta = (>)
-  ; compare(Delta, IdA, IdB)
-  ),
-  !.
-
-eapi:version_key([Nums, Alpha, Suffix, Full], key(NumsNorm, AlphaS, SuffixRank, SuffixNum, SuffixRest, Rev, FullS)) :-
-  !,
-  eapi:nums_normalize(Nums, NumsNorm),
-  eapi:to_string(Alpha, AlphaS),
-  eapi:to_string(Suffix, SuffixS0),
-  eapi:split_revision(SuffixS0, BaseS, Rev),
-  eapi:suffix_key(BaseS, SuffixRank, SuffixNum, SuffixRest),
-  eapi:to_string(Full, FullS).
-eapi:version_key(Other, key([0], '', 4, 0, '', 0, OtherS)) :-
-  eapi:to_string(Other, OtherS).
-
-eapi:nums_normalize(List0, List) :-
-  ( is_list(List0) ->
-      maplist(eapi:to_int0, List0, List)
-  ; List = [0]
-  ).
-
-eapi:to_int0(X, I) :-
-  ( integer(X) -> I = X
-  ; atom(X) -> ( atom_number(X, I) -> true ; I = 0 )
-  ; string(X) -> ( number_string(I, X) -> true ; I = 0 )
-  ; I = 0
-  ).
-
-eapi:to_string(X, S) :-
-  ( string(X) -> S = X
-  ; atom(X) -> atom_string(X, S)
-  ; number(X) -> number_string(X, S)
-  ; S = ''
-  ).
-
-eapi:split_revision(Suffix0, Base, Rev) :-
-  % Strip a final -rN, returning Base suffix and numeric revision.
-  eapi:to_string(Suffix0, Suffix),
-  ( findall(Pos, sub_string(Suffix, Pos, 2, _, "-r"), Positions0),
-    sort(Positions0, Positions1),
-    reverse(Positions1, Positions),
-    eapi:split_revision_at(Positions, Suffix, Base, Rev)
-  ->
-    true
-  ; Base = Suffix,
-    Rev = 0
-  ).
-
-eapi:split_revision_at([Pos|_Rest], Suffix, Base, Rev) :-
-  sub_string(Suffix, Pos, 2, After, "-r"),
-  sub_string(Suffix, _, After, 0, Digits),
-  Digits \== "",
-  catch(number_string(Rev, Digits), _, fail),
-  sub_string(Suffix, 0, Pos, _, Base),
-  !.
-eapi:split_revision_at([_|Rest], Suffix, Base, Rev) :-
-  eapi:split_revision_at(Rest, Suffix, Base, Rev).
-
-% Gentoo suffix precedence:
-%   _alpha < _beta < _pre < _rc < (final) < _p
-eapi:suffix_key(Suffix0, Rank, Num, Rest) :-
-  eapi:to_string(Suffix0, Suffix),
-  ( Suffix == "" ->
-      Rank = 4, Num = 0, Rest = ""
-  ; eapi:suffix_with_prefix("_alpha", Suffix, Num, Rest) ->
-      Rank = 0
-  ; eapi:suffix_with_prefix("_beta", Suffix, Num, Rest) ->
-      Rank = 1
-  ; eapi:suffix_with_prefix("_pre", Suffix, Num, Rest) ->
-      Rank = 2
-  ; eapi:suffix_with_prefix("_rc", Suffix, Num, Rest) ->
-      Rank = 3
-  ; eapi:suffix_with_prefix("_p", Suffix, Num, Rest) ->
-      Rank = 5
-  ; Rank = 6, Num = 0, Rest = Suffix
-  ),
-  !.
-
-eapi:suffix_with_prefix(Prefix, Suffix, Num, Rest) :-
-  string_concat(Prefix, Tail, Suffix),
-  eapi:split_leading_digits(Tail, Num, Rest),
-  !.
-
-eapi:split_leading_digits(Tail, Num, Rest) :-
-  string_chars(Tail, Chars),
-  eapi:take_leading_digit_chars(Chars, DigitChars, RestChars),
-  ( DigitChars == [] ->
-      Num = 0
-  ; string_chars(DigitStr, DigitChars),
-    number_string(Num, DigitStr)
-  ),
-  string_chars(Rest, RestChars),
-  !.
-
-eapi:take_leading_digit_chars([], [], []).
-eapi:take_leading_digit_chars([C|Cs], [C|Ds], Rest) :-
-  char_type(C, digit),
-  !,
-  eapi:take_leading_digit_chars(Cs, Ds, Rest).
-eapi:take_leading_digit_chars(Rest, [], Rest).
 
 
 % =============================================================================
@@ -1124,7 +940,7 @@ eapi:version0(V) -->
   eapi:version2([N, W, A, S]),
   { eapi:version2atom(N, W, A, S, V) }.
 
-eapi:version0([[], '', '', '', '']) -->
+eapi:version0(version_none) -->
   [].
 
 
@@ -2361,17 +2177,23 @@ eapi:categorize_use_for_entry(RawIuse, Repo://Id, State, Reason) :-
 
 %! eapi:version2atom(+N, +W, +A, +S, -V)
 %
-% eapi:version2atom converts version format to atom
+% Converts raw DCG-parsed version components into a version/7 term whose
+% argument order doubles as a Gentoo-correct sort key for compare/3.
 
-eapi:version2atom(N, W, A, S, [Nn, Alphapart, Suffixpart, Fullversion]) :-
+eapi:version2atom(N, W, A, S, version(NumsNorm, Alpha, SuffixRank, SuffixNum, SuffixRest, Rev, Full)) :-
   maplist(atom_codes, Na, N),
   maplist(atom_codes, Aa, A),
   maplist(atom_codes, Sa, S),
-  maplist(atom_number, Na, Nn),
+  maplist(atom_number, Na, NumsRaw),
+  eapi:nums_normalize(NumsRaw, NumsNorm),
   atomic_list_concat(Na, '.', Numberpart),
-  atomic_list_concat(Aa, Alphapart),
-  atomic_list_concat(Sa, Suffixpart),
-  atomic_list_concat([Numberpart, W, Alphapart, Suffixpart], Fullversion).
+  atomic_list_concat(Aa, Alpha),
+  atomic_list_concat(Sa, Suffix),
+  atomic_list_concat([Numberpart, W, Alpha, Suffix], Full),
+  atom_string(Suffix, SuffixS),
+  eapi:split_revision(SuffixS, BaseS, Rev),
+  eapi:suffix_key(BaseS, SuffixRank, SuffixNum, SuffixRestS),
+  ( SuffixRestS == "" -> SuffixRest = '' ; atom_string(SuffixRest, SuffixRestS) ).
 
 eapi:version2numberlist('', []) :- !.
 
@@ -2461,6 +2283,161 @@ eapi:elem(K,[E|_],C) :-
 eapi:elem(K,[_|R],C) :-
   !,
   eapi:elem(K,R,C).
+
+% -----------------------------------------------------------------------------
+%  Metadata normalization (cache write-time)
+% -----------------------------------------------------------------------------
+%
+% Some metadata fields (notably SLOT/SUBSLOT) can be parsed as numbers (e.g. 3.2)
+% depending on how the underlying metadata was read. Downstream logic expects
+% stable, comparable terms; storing mixed number/atom representations leads to
+% subtle mismatches like slot(3.2) vs slot('3.2').
+%
+% Normalize at cache generation time so runtime queries don't need to compensate.
+eapi:normalize_entry_metadata(Key, I0, I) :-
+  ( Key == slot ->
+      eapi:normalize_slot_term_(I0, I)
+  ; I = I0
+  ),
+  !.
+
+eapi:normalize_slot_term_(slot(S0), slot(S)) :-
+  !,
+  eapi:normalize_slot_value_(S0, S).
+eapi:normalize_slot_term_(subslot(S0), subslot(S)) :-
+  !,
+  eapi:normalize_slot_value_(S0, S).
+eapi:normalize_slot_term_(Other, Other) :-
+  !.
+
+% Kept internal (not exported): used by repository cache generation.
+eapi:normalize_slot_value_(S0, S) :-
+  ( atom(S0)    -> S = S0
+  ; integer(S0) -> atom_number(S, S0)
+  ; number(S0)  -> atom_number(S, S0)
+  ; S = S0
+  ),
+  !.
+
+% -----------------------------------------------------------------------------
+%  Helper: Gentoo version comparison
+% -----------------------------------------------------------------------------
+%
+% Version terms are version/7 compounds produced by `eapi:version2atom/5`:
+%   version(NumsNorm, Alpha, SuffixRank, SuffixNum, SuffixRest, Rev, Full)
+%
+% The argument order is chosen so that standard `compare/3` gives correct
+% Gentoo PMS version ordering: numeric segments, alpha letter, suffix
+% precedence (_alpha < _beta < _pre < _rc < (none) < _p), revision, then
+% the display string (which is only reached for identical versions).
+%
+eapi:version_compare(Op, Proposed, Required) :-
+  compare(Op, Proposed, Required).
+
+eapi:version_full(version(_,_,_,_,_,_,Full), Full).
+
+% -----------------------------------------------------------------------------
+%  Helper: version ordering for cache:ordered_entry/5
+% -----------------------------------------------------------------------------
+%
+% Used by repository sync when building cache:ordered_entry/5 facts.
+% Input records have the shape [Ver,Id] where Ver is a version/7 compound.
+% We sort in descending Gentoo version order (Portage-like).
+eapi:compare_ordered_entry_version_desc(Delta, [VerA,IdA], [VerB,IdB]) :-
+  ( compare(>, VerA, VerB) ->
+      Delta = (<)
+  ; compare(<, VerA, VerB) ->
+      Delta = (>)
+  ; compare(Delta, IdA, IdB)
+  ),
+  !.
+
+eapi:nums_normalize(List0, List) :-
+  ( is_list(List0) ->
+      maplist(eapi:to_int0, List0, List)
+  ; List = [0]
+  ).
+
+eapi:to_int0(X, I) :-
+  ( integer(X) -> I = X
+  ; atom(X) -> ( atom_number(X, I) -> true ; I = 0 )
+  ; string(X) -> ( number_string(I, X) -> true ; I = 0 )
+  ; I = 0
+  ).
+
+eapi:to_string(X, S) :-
+  ( string(X) -> S = X
+  ; atom(X) -> atom_string(X, S)
+  ; number(X) -> number_string(X, S)
+  ; S = ''
+  ).
+
+eapi:split_revision(Suffix0, Base, Rev) :-
+  % Strip a final -rN, returning Base suffix and numeric revision.
+  eapi:to_string(Suffix0, Suffix),
+  ( findall(Pos, sub_string(Suffix, Pos, 2, _, "-r"), Positions0),
+    sort(Positions0, Positions1),
+    reverse(Positions1, Positions),
+    eapi:split_revision_at(Positions, Suffix, Base, Rev)
+  ->
+    true
+  ; Base = Suffix,
+    Rev = 0
+  ).
+
+eapi:split_revision_at([Pos|_Rest], Suffix, Base, Rev) :-
+  sub_string(Suffix, Pos, 2, After, "-r"),
+  sub_string(Suffix, _, After, 0, Digits),
+  Digits \== "",
+  catch(number_string(Rev, Digits), _, fail),
+  sub_string(Suffix, 0, Pos, _, Base),
+  !.
+eapi:split_revision_at([_|Rest], Suffix, Base, Rev) :-
+  eapi:split_revision_at(Rest, Suffix, Base, Rev).
+
+% Gentoo suffix precedence:
+%   _alpha < _beta < _pre < _rc < (final) < _p
+eapi:suffix_key(Suffix0, Rank, Num, Rest) :-
+  eapi:to_string(Suffix0, Suffix),
+  ( Suffix == "" ->
+      Rank = 4, Num = 0, Rest = ""
+  ; eapi:suffix_with_prefix("_alpha", Suffix, Num, Rest) ->
+      Rank = 0
+  ; eapi:suffix_with_prefix("_beta", Suffix, Num, Rest) ->
+      Rank = 1
+  ; eapi:suffix_with_prefix("_pre", Suffix, Num, Rest) ->
+      Rank = 2
+  ; eapi:suffix_with_prefix("_rc", Suffix, Num, Rest) ->
+      Rank = 3
+  ; eapi:suffix_with_prefix("_p", Suffix, Num, Rest) ->
+      Rank = 5
+  ; Rank = 6, Num = 0, Rest = Suffix
+  ),
+  !.
+
+eapi:suffix_with_prefix(Prefix, Suffix, Num, Rest) :-
+  string_concat(Prefix, Tail, Suffix),
+  eapi:split_leading_digits(Tail, Num, Rest),
+  !.
+
+eapi:split_leading_digits(Tail, Num, Rest) :-
+  string_chars(Tail, Chars),
+  eapi:take_leading_digit_chars(Chars, DigitChars, RestChars),
+  ( DigitChars == [] ->
+      Num = 0
+  ; string_chars(DigitStr, DigitChars),
+    number_string(Num, DigitStr)
+  ),
+  string_chars(Rest, RestChars),
+  !.
+
+eapi:take_leading_digit_chars([], [], []).
+eapi:take_leading_digit_chars([C|Cs], [C|Ds], Rest) :-
+  char_type(C, digit),
+  !,
+  eapi:take_leading_digit_chars(Cs, Ds, Rest).
+eapi:take_leading_digit_chars(Rest, [], Rest).
+
 
 
 % -----------------------------------------------------------------------------

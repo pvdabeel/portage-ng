@@ -313,13 +313,13 @@ normalize_version_term(Ver0, Ver) :-
   var(Ver0),
   !,
   Ver = Ver0.
-normalize_version_term([_Nums,_A,_S,_Full]=Ver, Ver) :-
+normalize_version_term(version(_,_,_,_,_,_,_)=Ver, Ver) :-
   !.
-normalize_version_term(Full, [[], '', '', Full]) :-
+normalize_version_term(Full, version([0], '', 4, 0, '', 0, Full)) :-
   atom(Full),
   sub_atom(Full, _, 1, 0, '*'),
   !.
-normalize_version_term(Full, [Nums, '', '', Full]) :-
+normalize_version_term(Full, version(Nums, '', 4, 0, '', 0, Full)) :-
   atom(Full),
   eapi:version2numberlist(Full, Nums),
   Nums \== [],

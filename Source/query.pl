@@ -15,11 +15,6 @@ An implementation of a query language for the knowledge base
 :- module(query,[]).
 
 
-tilde_suffix_match(S, S) :- !.
-tilde_suffix_match(S, CandS) :-
-  atom_concat(S, Rev, CandS),
-  atom_concat('-r', _, Rev).
-
 % =============================================================================
 %  OPTIONAL RUNTIME CALLSITE STATS (debugging)
 % =============================================================================
@@ -616,13 +611,11 @@ compile_query_compound(select(category,wildcard,C),	Repo://Id,
 compile_query_compound(select(version,none,_), Repo://Id,
   cache:ordered_entry(Repo,Id,_,_,_)) :- !.
 
-compile_query_compound(select(version,equal,[[], '', '', '', '']), Repo://Id,
+compile_query_compound(select(version,equal,version_none), Repo://Id,
  cache:ordered_entry(Repo,Id,_,_,_)) :- !.
 
-% Treat version 'equal' constraints containing '*' as wildcard matches.
-% Example: =dev-libs/libgit2-1.9* should match 1.9.1, 1.9.2, ...
-compile_query_compound(select(version,equal,[_,_,_,Pattern]), Repo://Id,
-  ( cache:ordered_entry(Repo, Id, _, _, [_,_,_,ProposedVersion]),
+compile_query_compound(select(version,equal,version(_,_,_,_,_,_,Pattern)), Repo://Id,
+  ( cache:ordered_entry(Repo, Id, _, _, version(_,_,_,_,_,_,ProposedVersion)),
     wildcard_match(Pattern, ProposedVersion) )) :-
   atom(Pattern),
   sub_atom(Pattern, _, 1, 0, '*'),
@@ -653,23 +646,22 @@ compile_query_compound(select(version,notequal,ReqVer), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
     ProposedVersion \== ReqVer )) :- !.
 
-compile_query_compound(select(version,wildcard,[_,_,_,V]),Repo://Id,
-  ( cache:ordered_entry(Repo,Id,_,_,[_,_,_,ProposedVersion]),
+compile_query_compound(select(version,wildcard,version(_,_,_,_,_,_,V)),Repo://Id,
+  ( cache:ordered_entry(Repo,Id,_,_,version(_,_,_,_,_,_,ProposedVersion)),
     wildcard_match(V,ProposedVersion) )) :- !.
 
-compile_query_compound(select(version,tilde,[V,L,S,_]), Repo://Id,
-  ( cache:ordered_entry(Repo,Id,_,_,[V,L,CandS,_]),
-    query:tilde_suffix_match(S, CandS) )) :- !.
+compile_query_compound(select(version,tilde,version(V,L,SR,SN,SRe,_,_)), Repo://Id,
+  cache:ordered_entry(Repo,Id,_,_,version(V,L,SR,SN,SRe,_,_)) ) :- !.
 
-compile_query_compound(select(eapi,notequal,[_,_,_,V]), Repo://Id,
-  ( cache:entry_metadata(Repo,Id,eapi,[_,_,_,O]),
+compile_query_compound(select(eapi,notequal,version(_,_,_,_,_,_,V)), Repo://Id,
+  ( cache:entry_metadata(Repo,Id,eapi,version(_,_,_,_,_,_,O)),
     O \== V ) ) :- !.
 
-compile_query_compound(select(eapi,equal,[_,_,_,V]), Repo://Id,
-  cache:entry_metadata(Repo,Id,eapi,[_,_,_,V]) ) :- !.
+compile_query_compound(select(eapi,equal,version(_,_,_,_,_,_,V)), Repo://Id,
+  cache:entry_metadata(Repo,Id,eapi,version(_,_,_,_,_,_,V)) ) :- !.
 
-compile_query_compound(select(eapi,wildcard,[_,_,_,V]), Repo://Id,
-  ( cache:entry_metadata(Repo,Id,eapi,[_,_,_,ProposedVersion]),
+compile_query_compound(select(eapi,wildcard,version(_,_,_,_,_,_,V)), Repo://Id,
+  ( cache:entry_metadata(Repo,Id,eapi,version(_,_,_,_,_,_,ProposedVersion)),
     wildcard_match(V,ProposedVersion) ) ) :- !.
 
 compile_query_compound(select(eapi,smaller,ReqVer), Repo://Id,
@@ -1341,17 +1333,15 @@ search(select(version,none,_),Repo://Id) :-
   !,
   cache:ordered_entry(Repo,Id,_,_,_).
 
-search(select(version,equal,[[], '', '', '', '']),Repo://Id) :-
+search(select(version,equal,version_none),Repo://Id) :-
   !,
   cache:ordered_entry(Repo,Id,_,_,_).
 
-% Treat version 'equal' constraints containing '*' as wildcard matches.
-% Example: =dev-libs/libgit2-1.9* should match 1.9.1, 1.9.2, ...
-search(select(version,equal,[_,_,_,Pattern]), Repo://Id) :-
+search(select(version,equal,version(_,_,_,_,_,_,Pattern)), Repo://Id) :-
   atom(Pattern),
   sub_atom(Pattern, _, 1, 0, '*'),
   !,
-  cache:ordered_entry(Repo, Id, _, _, [_,_,_,ProposedVersion]),
+  cache:ordered_entry(Repo, Id, _, _, version(_,_,_,_,_,_,ProposedVersion)),
   wildcard_match(Pattern, ProposedVersion).
 
 search(select(version,equal,Ver),Repo://Id) :-
@@ -1385,13 +1375,12 @@ search(select(version,notequal,ReqVer), Repo://Id) :-
   cache:ordered_entry(Repo,Id,_,_,ProposedVersion),
   ProposedVersion \== ReqVer.
 
-search(select(version,wildcard,[_,_,_,V]),Repo://Id) :-
-  cache:ordered_entry(Repo,Id,_,_,[_,_,_,ProposedVersion]),
+search(select(version,wildcard,version(_,_,_,_,_,_,V)),Repo://Id) :-
+  cache:ordered_entry(Repo,Id,_,_,version(_,_,_,_,_,_,ProposedVersion)),
   wildcard_match(V,ProposedVersion).
 
-search(select(version,tilde,[V,L,S,_]),Repo://Id) :-
-  cache:ordered_entry(Repo,Id,_,_,[V,L,CandS,_]),
-  query:tilde_suffix_match(S, CandS).
+search(select(version,tilde,version(V,L,SR,SN,SRe,_,_)),Repo://Id) :-
+  cache:ordered_entry(Repo,Id,_,_,version(V,L,SR,SN,SRe,_,_)).
 
 
 search(select(slot,constraint([]),Sn), Repo://Id) :-

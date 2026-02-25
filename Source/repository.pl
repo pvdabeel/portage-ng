@@ -249,13 +249,13 @@ sync(kb) ::-
   findall([Ca,Pa],cache:entry(Repository,_,Ca,Pa,_),Pu),
   sort(Pu,Ps),
   forall(member([Ca,Pa],Ps),
-         (findall([Vn,Va,Vs,Vf,Id],
-                  (cache:entry(Repository,Id,Ca,Pa,[Vn,Va,Vs,Vf])),
+         (findall([Ver,Id],
+                  cache:entry(Repository,Id,Ca,Pa,Ver),
                   Vu),
           predsort(eapi:compare_ordered_entry_version_desc, Vu, Vs0),
           ( assertz(cache:package(Repository,Ca,Pa)),
-            forall(member([OVn,OVa,OVs,OVf,OrderedId],Vs0),
-                   assertz(cache:ordered_entry(Repository,OrderedId,Ca,Pa,[OVn,OVa,OVs,OVf]))
+            forall(member([OVer,OrderedId],Vs0),
+                   assertz(cache:ordered_entry(Repository,OrderedId,Ca,Pa,OVer))
                  )))),
 
   retractall(cache:entry(Repository,_,_,_,_)),
@@ -370,14 +370,13 @@ sync(kb) ::-
   findall([Ca,Pa],cache:entry(Repository,_,Ca,Pa,_),Pu),
   sort(Pu,Ps),
   forall(member([Ca,Pa],Ps),
-         (findall([Vn,Va,Vs,Vf,Id],
-                  (cache:entry(Repository,Id,Ca,Pa,[Vn,Va,Vs,Vf])),
-                   % eapi:version2numberlist(Vn,Vl)),
+         (findall([Ver,Id],
+                  cache:entry(Repository,Id,Ca,Pa,Ver),
                   Vu),
           predsort(eapi:compare_ordered_entry_version_desc, Vu, Vs),
           ( assertz(cache:package(Repository,Ca,Pa)),
-            forall(member([OVn,OVa,OVs,OVf,OrderedId],Vs),
-                   assertz(cache:ordered_entry(Repository,OrderedId,Ca,Pa,[OVn,OVa,OVs,OVf]))
+            forall(member([OVer,OrderedId],Vs),
+                   assertz(cache:ordered_entry(Repository,OrderedId,Ca,Pa,OVer))
                  )))),
 
   % Step 6 : We retract the original unordered prolog cache entries.
@@ -721,7 +720,8 @@ package(Category,Package) ::-
 
 ebuild(Category,Name,Version) ::-
   :this(Repository),
-  cache:ordered_entry(Repository,_,Category,Name,[_,_,_,Version]).
+  cache:ordered_entry(Repository,_,Category,Name,Ver),
+  eapi:version_full(Ver, Version).
 
 
 %! repository:ebuild(?Id, ?Category, ?Name, ?Version)
@@ -733,7 +733,8 @@ ebuild(Category,Name,Version) ::-
 
 ebuild(Id,Category,Name,Version) ::-
   :this(Repository),
-  cache:ordered_entry(Repository,Id,Category,Name,[_,_,_,Version]).
+  cache:ordered_entry(Repository,Id,Category,Name,Ver),
+  eapi:version_full(Ver, Version).
 
 
 %! repository:ebuild(?Id, ?Category, ?Name, ?Version, ?Key, ?Value)
@@ -745,7 +746,8 @@ ebuild(Id,Category,Name,Version) ::-
 
 ebuild(Id,Category,Name,Version,Key,Value) ::-
   :this(Repository),
-  cache:ordered_entry(Repository,Id,Category,Name,[_,_,_,Version]),
+  cache:ordered_entry(Repository,Id,Category,Name,Ver),
+  eapi:version_full(Ver, Version),
   cache:entry_metadata(Repository,Id,Key,Value).
 
 

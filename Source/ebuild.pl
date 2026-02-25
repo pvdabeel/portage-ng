@@ -26,7 +26,8 @@ queries.
 
 ebuild:invoke(cache,Location,Entry,Stream) :-
   split_string(Entry,"/","/",[Category,Package]),
-  eapi:packageversion(Package,Name,[_,_,Revision,Version]),
+  eapi:packageversion(Package,Name,version(_,_,_,_,_,Rev,Version)),
+  ( Rev =:= 0 -> Revision = '' ; format(atom(Revision), '-r~d', [Rev]) ),
   string_concat(UpstreamVersion,Revision,Version),
   string_concat(UpstreamPackage,Revision,Package),
   atomic_list_concat([Location,'/',Category,"/",Name,"/",Package,'.ebuild'],Ebuild),

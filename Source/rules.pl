@@ -1461,7 +1461,7 @@ rules:all_deps_exactish_versioned(Deps) :-
 rules:multiple_distinct_exactish_versions(Deps) :-
   findall(Full,
           ( member(package_dependency(_P,_Strength,_C,_N,_Op,Ver,_SlotReq,_U), Deps),
-            ( Ver = [_Nums,_A,_S,Full] -> true ; Full = Ver )
+            ( Ver = version(_,_,_,_,_,_,Full) -> true ; Full = Ver )
           ),
           Vs0),
   sort(Vs0, Vs),
@@ -2827,11 +2827,11 @@ installed_entry_satisfies_package_deps(Action, C, N, [_|Rest], Installed) :-
 query_search_version_select(equal, Ver0, RepoEntry) :-
   RepoEntry = Repo://Id,
   rules:coerce_version_term(Ver0, Ver1),
-  Ver1 = [_Nums,_A,_S,Pattern],
+  Ver1 = version(_,_,_,_,_,_,Pattern),
   atom(Pattern),
   sub_atom(Pattern, _, 1, 0, '*'),
   !,
-  cache:ordered_entry(Repo, Id, _C, _N, [_Nums2,_A2,_S2,ProposedVersion]),
+  cache:ordered_entry(Repo, Id, _C, _N, version(_,_,_,_,_,_,ProposedVersion)),
   wildcard_match(Pattern, ProposedVersion).
 query_search_version_select(equal, Ver, RepoEntry) :- !,
   RepoEntry = Repo://Id,
@@ -2885,24 +2885,19 @@ rules:coerce_version_term(Ver0, Ver) :-
   var(Ver0),
   !,
   Ver = Ver0.
-rules:coerce_version_term([_Nums,_A,_S,_Full]=Ver, Ver) :- !.
+rules:coerce_version_term(version(_,_,_,_,_,_,_)=Ver, Ver) :- !.
 rules:coerce_version_term(Full, Ver) :-
   atom(Full),
   sub_atom(Full, _, 1, 0, '*'),
   !,
-  % Wildcard equality pattern: represent as a 4-tuple so query.pl can apply
-  % wildcard_match/2 to the Full string.
-  Ver = [[], '', '', Full].
-rules:coerce_version_term(Full, [Nums, '', '', Full]) :-
+  Ver = version([0], '', 4, 0, '', 0, Full).
+rules:coerce_version_term(Full, version(Nums, '', 4, 0, '', 0, Full)) :-
   atom(Full),
-  % Parse numeric dotted versions (common in profiles/deps like 20250127.0).
   eapi:version2numberlist(Full, Nums),
   Nums \== [],
   !.
 rules:coerce_version_term(Num, Ver) :-
   number(Num),
-  % Some dependency atoms are stored as numbers (e.g. 20250127.0). Normalize by
-  % converting back to an atom so we can parse dotted components consistently.
   number_string(Num, S),
   atom_string(Full, S),
   !,

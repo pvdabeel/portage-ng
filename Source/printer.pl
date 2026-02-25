@@ -1481,7 +1481,7 @@ printer:print_metadata_item_details(Item,List) :-
 %
 % Prints specific metadata item detail
 
-printer:print_metadata_item_detail(eapi,Prefix,[_,_,_,Value]) :-
+printer:print_metadata_item_detail(eapi,Prefix,version(_,_,_,_,_,_,Value)) :-
   write(Prefix),
   write(Value).
 
@@ -1550,7 +1550,7 @@ printer:print_metadata_item_detail(_,Prefix,package_dependency(_,Blocking,Catego
   printer:print_slot_restriction(Slot),
   printer:print_use_dependencies(Use).
 
-printer:print_metadata_item_detail(_,Prefix,package_dependency(_,Blocking,Category,Name,Comparator,[_,_,_,Version],Slot,Use)) :-
+printer:print_metadata_item_detail(_,Prefix,package_dependency(_,Blocking,Category,Name,Comparator,version(_,_,_,_,_,_,Version),Slot,Use)) :-
   !,
   write(Prefix),
   printer:print_blocking(Blocking),
@@ -3379,8 +3379,8 @@ printer:extract_constraints_from_packagedeps(C, N, PackageDeps, Constraints) :-
           Cs0),
   sort(Cs0, Constraints).
 
-printer:version_atom([_,_,_,A], A) :- !.
-printer:version_atom([_,_,_,_,A], A) :- !.
+printer:version_atom(version(_,_,_,_,_,_,A), A) :- !.
+printer:version_atom(version_none, '') :- !.
 printer:version_atom(A, A).
 
 printer:print_bugreport_group(group(Reason, RequiredBy, C, N, Constraints, Actions)) :-
@@ -4643,7 +4643,7 @@ printer:write_package_index_file(Directory,Repository,Category,Name) :-
   atomic_list_concat(['Package: <a href=\"../index.html\">',Repository,'</a>://<a href=\"./index.html\">',Category,'</a>/',Name],TitleHtml),
   atomic_list_concat([Directory,'/',Category,'/',Name,'.html'],File),
   tell(File),
-  print_index(package,Title,TitleHtml,cache:ordered_entry(Repository,_,Category,Name,[_,_,_,Version]),[Name,Version],'../.index.css'),
+  print_index(package,Title,TitleHtml,( cache:ordered_entry(Repository,_,Category,Name,Ver), eapi:version_full(Ver,Version) ),[Name,Version],'../.index.css'),
   told.
 
 
