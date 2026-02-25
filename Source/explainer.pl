@@ -7,45 +7,56 @@
   project.
 */
 
-/** <module> EXPLAINER (generic)
+
+/** <module> EXPLAINER
 Generic introspection and explanation utilities.
 
-This module is intentionally domain-agnostic. It should explain "why" questions
-from existing artifacts (ProofAVL, ModelAVL, Plan, TriggersAVL), without
-embedding Gentoo/Portage policy.
+This module is intentionally domain-agnostic. It answers "why" questions by
+inspecting existing proof artifacts (ProofAVL, ModelAVL, Plan, TriggersAVL),
+without embedding Gentoo/Portage policy.
 
-Domain-specific explanation belongs in `explanation.pl`.
+Three families of queries are supported: `why_in_proof`, `why_in_plan`, and
+`why_assumption`. Domain-specific enrichment hooks are provided for each
+family; `explanation.pl` implements these with Gentoo/Portage logic.
+
+The `explain/2,3` predicates send structured Why terms to an LLM (configured
+via `config:llm_default/1`) for human-readable interpretation.
+
+See `Documentation/explainer.txt` for architecture, usage examples, and a
+step-by-step guide.
 */
 
-:- module(explainer, [
-  assumption_content_from_proof_key/2,
-  assumption_normalize/2,
-  term_ctx/2,
-  why_in_plan/5,
-  why_in_plan/6,
-  why_in_proof/3,
-  why_in_proof/4,
-  why_assumption/4,
-  why_assumption/5
-]).
+:- module(explainer, []).
 
+
+% =============================================================================
+%  EXPLAINER declarations
+% =============================================================================
 
 % -----------------------------------------------------------------------------
-%  Proof/model artifact helpers (generic)
+%  Proof/model artifact helpers
 % -----------------------------------------------------------------------------
 
-% Map proof keys to a normalized wrapper that preserves the assumption taxonomy:
-% - Domain assumptions: introduced by `rules.pl` (proof key `rule(assumed(X))`)
-% - Cycle breaks      : introduced by `prover.pl` (proof key `assumed(rule(X))`)
+%! explainer:assumption_content_from_proof_key(+ProofKey, -Wrapped)
+%
+% Map a proof key to a normalized wrapper that preserves the assumption
+% taxonomy:
+%
+%   - Domain assumptions:  proof key `rule(assumed(X))`  -> `domain(X)`
+%   - Prover cycle-breaks: proof key `assumed(rule(X))` -> `cycle_break(X)`
+
 assumption_content_from_proof_key(rule(assumed(Content)), domain(Content)) :- !.
 assumption_content_from_proof_key(assumed(rule(Content)), cycle_break(Content)) :- !.
 
-% Normalize assumptions for stable counting/printing:
-% - Canonicalize the literal
-% - Preserve context (it may contain tags like assumption_reason/1, self/1, etc.)
+
+%! explainer:assumption_normalize(+Content0, -Content)
+%
+% Normalize an assumption for stable counting and printing. Canonicalizes
+% the literal via prover:canon_literal/3, preserving any context tags
+% (e.g. assumption_reason/1, self/1).
+
 assumption_normalize(Content0, Content) :-
   ( Content0 = domain(X) ->
-      % Preserve context (it may contain domain-level reason tags).
       ( X = _?{_} ->
           prover:canon_literal(X, Core, Ctx),
           Content = domain(Core?{Ctx})
@@ -54,7 +65,6 @@ assumption_normalize(Content0, Content) :-
       ; Content = domain(X)
       )
   ; Content0 = cycle_break(X) ->
-      % Preserve context (it may contain action provenance etc.).
       ( X = _?{_} ->
           prover:canon_literal(X, Core, Ctx),
           Content = cycle_break(Core?{Ctx})
@@ -65,8 +75,13 @@ assumption_normalize(Content0, Content) :-
   ; ( prover:canon_literal(Content0, Core, _Ctx) -> Content = Core ; Content = Content0 )
   ).
 
-% Extract context tags from a term with `?{Ctx}`.
+
+%! explainer:term_ctx(+Term, -Ctx)
+%
+% Extract context tags from a term carrying `?{Ctx}` decoration.
 % Supports both list contexts and the legacy `{}` compound form.
+% Returns [] when no context is present.
+
 term_ctx(_Spec:_Action?{Ctx0}, Ctx) :-
   ( is_list(Ctx0) ->
       Ctx = Ctx0
@@ -79,22 +94,30 @@ term_ctx(_Other, []).
 
 
 % -----------------------------------------------------------------------------
-%  "Why is X in proof?" (generic)
+%  "Why is X in proof?"
 % -----------------------------------------------------------------------------
 
-%! why_in_proof(+ProofAVL, +Target, -Why) is semidet.
+%! explainer:why_in_proof(+ProofAVL, +Target, -Why) is semidet.
+%
+% Simplified entry point; delegates to why_in_proof/4 and discards the
+% proof key.
+
 why_in_proof(ProofAVL, Target, Why) :-
   why_in_proof(ProofAVL, Target, _ProofKey, Why).
 
-%! why_in_proof(+ProofAVL, +Target, -ProofKey, -Why) is semidet.
+
+%! explainer:why_in_proof(+ProofAVL, +Target, -ProofKey, -Why) is semidet.
 %
-% Target is a literal (e.g. `portage://cat/pkg:install?{Ctx}`).
-% ProofKey is one of:
-% - rule(Lit)               (normal proven rule)
-% - assumed(rule(Lit))      (prover cycle-break rule)
-% - rule(assumed(Lit))      (domain assumption rule)
+% Look up Target (a canonical literal) in the proof AVL. ProofKey is one of:
 %
-% Why is a structured term describing what we found.
+%   - `rule(Lit)`           : normal proven rule
+%   - `assumed(rule(Lit))`  : prover cycle-break
+%   - `rule(assumed(Lit))`  : domain assumption
+%
+% Why is a structured term `why_in_proof(Target, proof_key(...), depcount(...),
+% body(...), ctx(...))`. If `explanation:why_in_proof_hook/2` is defined, it
+% may enrich this term with domain-specific information.
+
 why_in_proof(ProofAVL, Target0, ProofKey, Why) :-
   prover:canon_literal(Target0, Target, _),
   explainer:proof_lookup(ProofAVL, Target, ProofKey, dep(Count, Body), Ctx),
@@ -109,6 +132,12 @@ why_in_proof(ProofAVL, Target0, ProofKey, Why) :-
   ;  Why = Why0
   ).
 
+
+%! explainer:proof_lookup(+ProofAVL, +Lit, -ProofKey, -DepInfo, -Ctx) is semidet.
+%
+% Try each proof key shape in priority order: normal rule, prover cycle-break,
+% then domain assumption.
+
 explainer:proof_lookup(ProofAVL, Lit, rule(Lit), dep(Count, Body), Ctx) :-
   get_assoc(rule(Lit), ProofAVL, dep(Count, Body)?Ctx),
   !.
@@ -121,23 +150,29 @@ explainer:proof_lookup(ProofAVL, Lit, rule(assumed(Lit)), dep(Count, Body), Ctx)
 
 
 % -----------------------------------------------------------------------------
-%  "Why is X in plan?" (generic)
+%  "Why is X in plan?"
 % -----------------------------------------------------------------------------
 
-%! why_in_plan(+Plan, +ProofAVL, +TriggersAVL, +Target, -Why) is semidet.
+%! explainer:why_in_plan(+Plan, +ProofAVL, +TriggersAVL, +Target, -Why) is semidet.
 %
-% Generic explanation for why Target appears in the plan:
-% - where it appears (step + element)
-% - a reverse-dependency path (via TriggersAVL) to some root (if provided)
-%
-% This predicate is domain-agnostic. A domain module may optionally provide
-% `explanation:why_in_plan_hook/2` to enrich the returned Why term.
+% Simplified entry point; delegates to why_in_plan/6 with an empty Proposal.
+
 why_in_plan(Plan, ProofAVL, TriggersAVL, Target, Why) :-
   why_in_plan([], Plan, ProofAVL, TriggersAVL, Target, Why).
 
-%! why_in_plan(+Proposal, +Plan, +ProofAVL, +TriggersAVL, +Target, -Why) is semidet.
+
+%! explainer:why_in_plan(+Proposal, +Plan, +ProofAVL, +TriggersAVL, +Target, -Why) is semidet.
+%
+% Locate Target in the wave-plan and determine why it is there:
+%
+%   - `requested`           : Target is one of the proposal literals
+%   - `required_by(path(P))`: a reverse-dependency path from Target to a root
+%   - `has_dependents([D])` : at least one dependent exists in the trigger graph
+%   - `unknown`             : present in plan but no dependency path found
 %
 % Proposal is a list of target literals (same shape as passed to prover:prove/9).
+% If `explanation:why_in_plan_hook/2` is defined, it may enrich the result.
+
 why_in_plan(Proposal, Plan, _ProofAVL, TriggersAVL, Target0, Why) :-
   prover:canon_literal(Target0, Target, _),
   ( explainer:plan_loc(Plan, Target, Step, Elem0) -> true
@@ -169,16 +204,36 @@ why_in_plan(Proposal, Plan, _ProofAVL, TriggersAVL, Target0, Why) :-
   ;  Why = Why0
   ).
 
+
+%! explainer:canon_only(+X0, -X) is det.
+%
+% Canonicalize a literal, falling back to the original term if
+% prover:canon_literal/3 does not apply.
+
 explainer:canon_only(X0, X) :-
   ( prover:canon_literal(X0, X, _) -> true ; X = X0 ).
 
-% Find location of a target in the plan (first match).
+
+% -----------------------------------------------------------------------------
+%  Plan location helpers
+% -----------------------------------------------------------------------------
+
+%! explainer:plan_loc(+Plan, +Target, -Step, -Elem) is semidet.
+%
+% Find the first occurrence of Target in the plan. Returns the 1-based
+% wave Step number and the matching Elem.
+
 explainer:plan_loc([Wave|_], Target, 1, Elem) :-
   explainer:wave_elem(Wave, Target, Elem),
   !.
 explainer:plan_loc([_|Rest], Target, Step, Elem) :-
   explainer:plan_loc(Rest, Target, Step0, Elem),
   Step is Step0 + 1.
+
+
+%! explainer:wave_elem(+Wave, +Target, -Elem) is semidet.
+%
+% Find Target within a single wave (list of plan elements).
 
 explainer:wave_elem([E|_], Target, E) :-
   prover:canon_literal(E, Key, _),
@@ -187,17 +242,35 @@ explainer:wave_elem([E|_], Target, E) :-
 explainer:wave_elem([_|Es], Target, E) :-
   explainer:wave_elem(Es, Target, E).
 
-% Grab any dependent from triggers (reverse graph): prerequisite -> [dependents].
+
+% -----------------------------------------------------------------------------
+%  Reverse-dependency path (BFS via TriggersAVL)
+% -----------------------------------------------------------------------------
+
+%! explainer:any_dependent(+Target, +TriggersAVL, -Dep) is semidet.
+%
+% Grab any direct dependent of Target from the reverse-dependency graph.
+
 explainer:any_dependent(Target, TriggersAVL, Dep) :-
   ( get_assoc(Target, TriggersAVL, Dependents) -> true ; Dependents = [] ),
   member(Dep, Dependents),
   !.
 
-% Find a reverse-dependency path Target -> ... -> Root via triggers, where Root is
-% a proposal key. This returns a list [Target, ..., Root].
+
+%! explainer:path_to_any_root(+Target, +Roots, +TriggersAVL, -Path) is semidet.
+%
+% BFS through the reverse-dependency graph (TriggersAVL) to find a path
+% from Target to any Root in the proposal. Returns [Target, ..., Root].
+
 explainer:path_to_any_root(Target, Roots, TriggersAVL, Path) :-
   explainer:bfs_paths([[Target]], Roots, TriggersAVL, [], RevPath),
   reverse(RevPath, Path).
+
+
+%! explainer:bfs_paths(+Queue, +Roots, +TriggersAVL, +Seen, -Path) is semidet.
+%
+% BFS work loop. Each queue element is a partial path (newest node first).
+% Succeeds when a queue element's head is a member of Roots.
 
 explainer:bfs_paths([[Node|RestPath]|_], Roots, _TriggersAVL, _Seen, [Node|RestPath]) :-
   memberchk(Node, Roots),
@@ -217,20 +290,29 @@ explainer:bfs_paths([[Node|RestPath]|Queue], Roots, TriggersAVL, Seen, Found) :-
 
 
 % -----------------------------------------------------------------------------
-%  "Why is this an assumption?" (generic)
+%  "Why is this an assumption?"
 % -----------------------------------------------------------------------------
 
-%! why_assumption(+ModelAVL, +ProofAVL, +Key, -Why) is semidet.
+%! explainer:why_assumption(+ModelAVL, +ProofAVL, +Key, -Why) is semidet.
 %
-% Key is typically a model key `assumed(X)` or a proof key `rule(assumed(X))` /
-% `assumed(rule(X))`. This predicate returns a normalized description, plus any
-% reason tag found in the term context.
+% Simplified entry point; delegates to why_assumption/5 and discards the
+% assumption type.
+
 why_assumption(ModelAVL, ProofAVL, Key0, Why) :-
   why_assumption(ModelAVL, ProofAVL, Key0, _AssumptionType, Why).
 
-%! why_assumption(+ModelAVL, +ProofAVL, +Key, -AssumptionType, -Why) is semidet.
+
+%! explainer:why_assumption(+ModelAVL, +ProofAVL, +Key, -AssumptionType, -Why) is semidet.
 %
-% AssumptionType is one of: domain, cycle_break, model_only.
+% Classify an assumption key and build a structured explanation:
+%
+%   - AssumptionType is one of: `domain`, `cycle_break`, `model_only`
+%   - Why is `why_assumption(Key, type(...), term(...), reason(...))`,
+%     optionally enriched by `explanation:why_assumption_hook/2`
+%
+% The reason is extracted from `assumption_reason(R)` tags in the term
+% context, or `none` if no such tag exists.
+
 why_assumption(ModelAVL, ProofAVL, Key0, AssumptionType, Why) :-
   explainer:normalize_assumption_key(Key0, Key, AssumptionTerm0),
   ( explainer:assumption_from_proof(ProofAVL, Key, AssumptionType0, AssumptionTerm1) ->
@@ -253,6 +335,16 @@ why_assumption(ModelAVL, ProofAVL, Key0, AssumptionType, Why) :-
   ;  Why = Why0
   ).
 
+
+% -----------------------------------------------------------------------------
+%  Assumption key normalization and lookup
+% -----------------------------------------------------------------------------
+
+%! explainer:normalize_assumption_key(+Key0, -Key, -AssumptionTerm) is det.
+%
+% Canonicalize assumption keys to their standard forms. Handles all three
+% key shapes: `assumed(X)`, `rule(assumed(X))`, `assumed(rule(X))`.
+
 explainer:normalize_assumption_key(assumed(X0), assumed(X), X) :-
   prover:canon_literal(X0, X, _),
   !.
@@ -264,21 +356,95 @@ explainer:normalize_assumption_key(assumed(rule(X0)), assumed(rule(X)), X) :-
   !.
 explainer:normalize_assumption_key(Key, Key, Key).
 
+
+%! explainer:assumption_from_proof(+ProofAVL, +Key, -Type, -Term) is semidet.
+%
+% Look up an assumption key in the proof AVL and classify it:
+%
+%   - `assumed(X)` with `rule(assumed(Core))` in proof -> `domain`
+%   - `assumed(X)` with `assumed(rule(Core))` in proof -> `cycle_break`
+%   - `rule(assumed(X))` key shape -> `domain` (by construction)
+%   - `assumed(rule(X))` key shape -> `cycle_break` (by construction)
+
 explainer:assumption_from_proof(ProofAVL, assumed(X), domain, X) :-
-  % Domain assumptions appear as a rule proving assumed(X).
   prover:canon_literal(X, Core, _),
   get_assoc(rule(assumed(Core)), ProofAVL, _),
   !.
 explainer:assumption_from_proof(ProofAVL, assumed(X), cycle_break, X) :-
-  % Prover cycle-breaks appear as assumed(rule(X)).
   prover:canon_literal(X, Core, _),
   get_assoc(assumed(rule(Core)), ProofAVL, _),
   !.
 explainer:assumption_from_proof(_ProofAVL, rule(assumed(X)), domain, X) :- !.
 explainer:assumption_from_proof(_ProofAVL, assumed(rule(X)), cycle_break, X) :- !.
 
+
+%! explainer:assumption_from_model(+ModelAVL, +Key, -Term) is semidet.
+%
+% Look up an assumption in the model AVL (fallback when the assumption is
+% not found in the proof).
+
 explainer:assumption_from_model(ModelAVL, assumed(X), X) :-
   prover:canon_literal(X, Core, _),
   get_assoc(assumed(Core), ModelAVL, _),
   !.
 
+
+% -----------------------------------------------------------------------------
+%  LLM-powered human-readable explanation
+% -----------------------------------------------------------------------------
+
+%! explainer:explain(+Service, +Why, -Response) is det.
+%
+% Send a structured Why term (from why_in_proof, why_in_plan, or
+% why_assumption) to an LLM service for human-readable interpretation.
+%
+% Service is an atom naming the LLM backend (e.g. `claude`, `grok`,
+% `chatgpt`, `gemini`, `ollama`). The Why term is formatted into a
+% prompt that includes the structured data and asks for a concise,
+% human-readable explanation in Gentoo/Portage domain terms.
+%
+% Response is the LLM's textual answer.
+%
+% Example:
+%
+%   ?- explainer:why_in_proof(ProofAVL, Target, Why),
+%      explainer:explain(claude, Why, Response).
+
+explainer:explain(Service, Why, Response) :-
+  explainer:format_why_prompt(Why, Prompt),
+  explainer:call_llm(Service, Prompt, Response).
+
+
+%! explainer:explain(+Why, -Response) is det.
+%
+% Convenience form using the default LLM service from config:llm_default/1.
+
+explainer:explain(Why, Response) :-
+  config:llm_default(Service),
+  explainer:explain(Service, Why, Response).
+
+
+%! explainer:format_why_prompt(+Why, -Prompt) is det.
+%
+% Convert a structured Why term into a natural-language prompt for the LLM.
+
+explainer:format_why_prompt(Why, Prompt) :-
+  term_to_atom(Why, WhyAtom),
+  atomic_list_concat([
+    'You are a Gentoo Linux package management expert. ',
+    'Below is structured output from a dependency resolver. ',
+    'Please provide a concise, human-readable explanation of what it means ',
+    'and what action the user should take (if any). ',
+    'Use plain language; avoid Prolog syntax in your answer.\n\n',
+    WhyAtom
+  ], Prompt).
+
+
+%! explainer:call_llm(+Service, +Prompt, -Response) is det.
+%
+% Dispatch a prompt to the named LLM service. The service module must
+% provide a Service/2 predicate (e.g. claude/2, grok/2).
+
+explainer:call_llm(Service, Prompt, Response) :-
+  Goal =.. [Service, Prompt, Response],
+  call(Service:Goal).

@@ -775,6 +775,13 @@ config:llm_temperature(0.7).
 config:llm_sandboxed_execution(false).
 
 
+%! config:llm_default(?Service)
+%
+% Declares the default LLM service used by explainer:explain/2.
+
+config:llm_default(claude).
+
+
 %! config:llm_model(?LLM,?Key)
 %
 % Declares which version of each large language model to use.

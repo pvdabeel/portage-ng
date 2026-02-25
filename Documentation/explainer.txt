@@ -1,0 +1,155 @@
+Explainer & Explanation — Usage Guide
+======================================
+
+Architecture
+------------
+
+  explainer.pl                 explanation.pl
+  +--------------------------+ +----------------------------+
+  | why_in_proof/3,4         |>| why_in_proof_hook/2        |
+  | why_in_plan/5,6          |>| why_in_plan_hook/2         |
+  | why_assumption/4,5       |>| why_assumption_hook/2      |
+  |                          | | assumption_reason_for_     |
+  | assumption_content_...   | |   grouped_dep/6            |
+  | assumption_normalize/2   | +----------------------------+
+  | term_ctx/2               |
+  |                          |
+  | explain/2,3  -----> LLM  |
+  | format_why_prompt/2      |
+  +--------------------------+
+
+explainer.pl is the generic, domain-agnostic introspection layer.
+It answers "why" questions by inspecting proof artifacts (ProofAVL,
+ModelAVL, Plan, TriggersAVL) without embedding Gentoo/Portage policy.
+
+explanation.pl is the domain-specific companion. It implements enrichment
+hooks that inject Gentoo/Portage context (masking, keyword filtering,
+slot constraints) into the generic Why terms. It also provides
+assumption_reason_for_grouped_dep/6 for diagnosing why a dependency
+resolution failed.
+
+Each why_* predicate returns a structured Prolog term. The explain/2,3
+predicates send that term to an LLM for human-readable interpretation.
+
+
+Query families
+--------------
+
+Three families of queries are supported:
+
+  - why_in_proof: given a literal, find how it was proven (normal rule,
+    domain assumption, or prover cycle-break) and extract its body/deps.
+  - why_in_plan: given a literal and a plan, locate it in the wave-plan
+    and trace a reverse-dependency path (via TriggersAVL) back to a root.
+  - why_assumption: given an assumption key, classify it (domain vs
+    cycle-break vs model-only) and extract any reason tags.
+
+
+Usage
+-----
+
+All predicates are called with the explainer: module prefix.
+
+
+Step 1: Obtain proof artifacts
+
+Run the prover/planner pipeline to get the proof, model, plan, and triggers:
+
+  Goals = [portage://'dev-libs'-'openssl':run?{[]}],
+  printer:prove_plan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL).
+
+Or from a --shell session after loading a repository:
+
+  printer:prove_plan([portage://'dev-libs'-'openssl':run?{[]}],
+                     Proof, Model, Plan, Triggers).
+
+
+Step 2: Ask "why" questions
+
+Why is a package in the proof?
+
+  Target = portage://'dev-libs'-'libffi':install,
+  explainer:why_in_proof(ProofAVL, Target, Why).
+  % Why = why_in_proof(
+  %          portage://'dev-libs'-'libffi':install,
+  %          proof_key(rule(portage://'dev-libs'-'libffi':install)),
+  %          depcount(3),
+  %          body([portage://'sys-devel'-'gcc':install, ...]),
+  %          ctx([...]),
+  %          domain_reasons([...]))      % <-- added by explanation hook
+
+Why is a package in the plan?
+
+  Proposal = [portage://'dev-libs'-'openssl':run?{[]}],
+  explainer:why_in_plan(Proposal, Plan, ProofAVL, TriggersAVL,
+                        portage://'sys-libs'-'zlib':install, Why).
+  % Why = why_in_plan(
+  %          portage://'sys-libs'-'zlib':install,
+  %          location(step(1), portage://'sys-libs'-'zlib'-'1.3.1':install?{...}),
+  %          required_by(path([portage://'sys-libs'-'zlib':install,
+  %                           portage://'dev-libs'-'openssl':install,
+  %                           portage://'dev-libs'-'openssl':run])))
+
+Why is something assumed?
+
+  Key = assumed(portage://'dev-foo'-'bar':install),
+  explainer:why_assumption(ModelAVL, ProofAVL, Key, Type, Why).
+  % Type = domain,
+  % Why  = why_assumption(
+  %          assumed(portage://'dev-foo'-'bar':install),
+  %          type(domain),
+  %          term(portage://'dev-foo'-'bar':install?{[assumption_reason(missing)]}),
+  %          reason(missing),
+  %          domain_reasons([...]))      % <-- added by explanation hook
+
+
+Step 3 (optional): Get a human-readable explanation via LLM
+
+  explainer:why_in_proof(ProofAVL, Target, Why),
+  explainer:explain(claude, Why, Response).
+  % Response = "openssl requires libffi as a build dependency because..."
+
+  % Or use the default LLM (from config:llm_default/1):
+  explainer:explain(Why, Response).
+
+Available LLM services: claude, grok, chatgpt, gemini, ollama.
+The default is set via config:llm_default/1. See config.pl for API keys,
+models, and endpoints.
+
+
+Assumption diagnosis (explanation.pl)
+-------------------------------------
+
+explanation:assumption_reason_for_grouped_dep/6 is called on the fallback
+path when no candidate satisfies all constraints. It progressively filters
+candidates through:
+
+  1. Existence check           -> missing
+  2. Self-hosting restriction  -> installed_required
+  3. Mask check                -> masked
+  4. Slot restriction          -> slot_unsatisfied
+  5. Version constraints       -> version_no_candidate(O,V) / version_conflict
+  6. ACCEPT_KEYWORDS           -> keyword_filtered
+  7. Fallback                  -> unsatisfied_constraints
+
+Example:
+
+  explanation:assumption_reason_for_grouped_dep(
+    install,                                      % Action
+    'dev-libs', 'missing-pkg',                    % Category, Name
+    [package_dependency(install,no,'dev-libs','missing-pkg',
+                        none,version_none,[],[])],
+    [self(portage://'app-misc'-'foo'-'1.0')],     % Context
+    Reason).
+  % Reason = missing
+
+
+Hook mechanism
+--------------
+
+The explainer module calls explanation:why_*_hook(Why0, Why) after building
+its generic Why term. If the hook succeeds, the enriched Why replaces the
+generic one. Each hook extracts domain_reason(cn_domain(C, N, Tags)) tags
+from the proof context and appends them as domain_reasons(Reasons).
+
+The hooks are called automatically — no direct invocation needed.

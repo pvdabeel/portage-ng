@@ -7,38 +7,52 @@
   project.
 */
 
-/** <module> EXPLANATION (domain)
+
+/** <module> EXPLANATION
 Domain-specific explanation logic for portage-ng.
 
-This module contains interpretation logic that depends on Gentoo/Portage domain
-concepts (ACCEPT_KEYWORDS, masking, slot/version constraints, etc.).
+This module provides Gentoo/Portage interpretation on top of the generic
+introspection layer in `explainer.pl`. It implements hook enrichment
+(`why_in_plan_hook/2`, `why_in_proof_hook/2`, `why_assumption_hook/2`) and
+assumption diagnosis (`assumption_reason_for_grouped_dep/6`).
 
-The generic "why" / introspection layer belongs in `explainer.pl`. This file is
-meant to answer questions like: "why did dependency resolution fail for this
-package dependency?" in domain terms.
+See `Documentation/explainer.txt` for architecture, usage examples, and the
+full list of assumption reason values.
 */
 
-:- module(explanation, [
-  assumption_reason_for_grouped_dep/6,
-  why_in_plan_hook/2,
-  why_in_proof_hook/2,
-  why_assumption_hook/2
-]).
+:- module(explanation, []).
 
-/** <hook> why_in_plan_hook/2
-Optional domain-level enrichment for explainer:why_in_plan/6.
 
-Given a generic `why_in_plan/3` term, return an enriched form.
-Currently this is intentionally minimal; it exists as an architectural hook.
-*/
+% =============================================================================
+%  EXPLANATION declarations
+% =============================================================================
+
+% -----------------------------------------------------------------------------
+%  Hook: why_in_plan_hook/2
+% -----------------------------------------------------------------------------
+
+%! explanation:why_in_plan_hook(+Why0, -Why) is det.
+%
+% Domain-level enrichment for explainer:why_in_plan/6. Given a generic
+% `why_in_plan/3` term, returns an enriched form. Currently a pass-through;
+% exists as an architectural hook for future domain-specific annotations.
+
 :- multifile why_in_plan_hook/2.
 
-% Default: pass through (no domain enrichment yet).
 why_in_plan_hook(Why, Why).
 
-/** <hook> why_in_proof_hook/2
-Optional domain-level enrichment for explainer:why_in_proof/4.
-*/
+
+% -----------------------------------------------------------------------------
+%  Hook: why_in_proof_hook/2
+% -----------------------------------------------------------------------------
+
+%! explanation:why_in_proof_hook(+Why0, -Why) is det.
+%
+% Domain-level enrichment for explainer:why_in_proof/4. Extracts
+% domain_reason tags from the proof context or from the target's own
+% context, and appends them as `domain_reasons(Reasons)` to the Why term.
+% Falls through to identity when no domain reasons are found.
+
 :- multifile why_in_proof_hook/2.
 
 why_in_proof_hook(why_in_proof(Target, proof_key(ProofKey), depcount(DepCount), body(Body), ctx(Ctx)),
@@ -52,9 +66,18 @@ why_in_proof_hook(why_in_proof(Target, proof_key(ProofKey), depcount(DepCount), 
 
 why_in_proof_hook(Why, Why).
 
-/** <hook> why_assumption_hook/2
-Optional domain-level enrichment for explainer:why_assumption/5.
-*/
+
+% -----------------------------------------------------------------------------
+%  Hook: why_assumption_hook/2
+% -----------------------------------------------------------------------------
+
+%! explanation:why_assumption_hook(+Why0, -Why) is det.
+%
+% Domain-level enrichment for explainer:why_assumption/5. Extracts
+% domain_reason tags from the assumption term's context and appends them
+% as `domain_reasons(Reasons)`. Falls through to identity when no domain
+% reasons are found.
+
 :- multifile why_assumption_hook/2.
 
 why_assumption_hook(why_assumption(Key, type(AssType), term(Term), reason(Reason)),
@@ -66,6 +89,18 @@ why_assumption_hook(why_assumption(Key, type(AssType), term(Term), reason(Reason
 
 why_assumption_hook(Why, Why).
 
+
+% -----------------------------------------------------------------------------
+%  Domain reason extraction
+% -----------------------------------------------------------------------------
+
+%! explanation:context_domain_reasons(+Ctx, -Reasons) is det.
+%
+% Extract and sort all domain_reason tags from a context list. Each context
+% element of the form `domain_reason(cn_domain(_C, _N, Tags))` contributes
+% its Tags to the result. Returns [] when Ctx is not a list or contains no
+% domain_reason tags.
+
 explanation:context_domain_reasons(Ctx, Reasons) :-
   is_list(Ctx),
   findall(Tag,
@@ -76,6 +111,12 @@ explanation:context_domain_reasons(Ctx, Reasons) :-
   sort(Tags0, Reasons),
   !.
 explanation:context_domain_reasons(_Ctx, []).
+
+
+%! explanation:target_ctx(+Target, -Ctx) is det.
+%
+% Extract context from a target term, unwrapping assumed/domain/cycle_break
+% wrappers before delegating to explainer:term_ctx/2.
 
 explanation:target_ctx(assumed(Inner), Ctx) :-
   !,
@@ -91,41 +132,53 @@ explanation:target_ctx(Target, Ctx) :-
 
 
 % -----------------------------------------------------------------------------
-%  Assumption diagnosis (used on "no candidate found" fallback)
+%  Assumption diagnosis
 % -----------------------------------------------------------------------------
 
-% Map a failed grouped dependency resolution to a coarse reason:
-% - missing               : no such package exists in the repository set
-% - masked                : candidates exist but are all masked
-% - keyword_filtered      : candidates exist but none match ACCEPT_KEYWORDS / unkeyworded
-% - installed_required    : candidates exist, but only installed candidates are allowed (self-hosting) and none match
-% - slot_unsatisfied      : candidates exist, but slot restriction filters them all out
-% - version_no_candidate  : candidates exist, but at least one version constraint has zero matches
-% - version_conflict      : version constraints have matches individually, but their conjunction is empty
-% - unsatisfied_constraints: candidates exist, but other constraints make it unsatisfiable (fallback)
+%! explanation:assumption_reason_for_grouped_dep(+Action, +C, +N, +PackageDeps, +Context, -Reason) is det.
 %
-% NOTE: keep this inexpensive; it's only evaluated on the fallback path.
+% Classify why a grouped dependency resolution failed. Called on the fallback
+% path when no candidate satisfies all constraints. The diagnosis filters
+% candidates through progressively stricter checks:
+%
+%   1. Existence: does any package with category C, name N exist?
+%   2. Self-hosting: if the action requires an installed candidate (non-run
+%      action for a self-referencing package), filter to installed only.
+%   3. Masking: filter out masked candidates.
+%   4. Slot restriction: apply slot constraints from the dependency context.
+%   5. Version constraints: check each version constraint individually, then
+%      test whether their intersection is non-empty.
+%   6. Keywords: check ACCEPT_KEYWORDS compatibility.
+%
+% Possible Reason values:
+%
+%   - `missing`               : no package C/N exists in any repository
+%   - `installed_required`    : self-hosting requires installed, none found
+%   - `masked`                : all candidates are masked
+%   - `slot_unsatisfied`      : slot restriction filters out all candidates
+%   - `version_no_candidate(O,V)` : at least one version constraint has zero matches
+%   - `version_conflict`      : version constraints conflict (individually satisfiable,
+%                               but their conjunction is empty)
+%   - `keyword_filtered`      : candidates exist but none match ACCEPT_KEYWORDS
+%   - `unsatisfied_constraints`: fallback when no specific reason can be isolated
+
 assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason) :-
-  % If any candidate exists at all, it is not "missing".
   findall(Repo://Entry,
           query:search([category(C), name(N)], Repo://Entry),
           Any0),
   ( Any0 == [] ->
       Reason = missing
-  ; % Respect self-hosting restriction used in the main resolver:
-    self_hosting_requires_installed(Action, C, N, Context, RequireInstalled),
+  ; self_hosting_requires_installed(Action, C, N, Context, RequireInstalled),
     ( RequireInstalled == true ->
         include(is_installed_candidate, Any0, Any1)
     ; Any1 = Any0
     ),
     ( Any1 == [] ->
-        % Only self-hosting installed candidates are allowed; none exist.
         Reason = installed_required
     ; include(is_unmasked_candidate, Any1, Unmasked1),
       ( Unmasked1 == [] ->
           Reason = masked
-      ; % Slot restriction filter
-        ( memberchk(slot(C,N,Ss):{_}, Context) -> true ; Ss = _ ),
+      ; ( memberchk(slot(C,N,Ss):{_}, Context) -> true ; Ss = _ ),
         rules:merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
         ( RequireInstalled == true ->
             findall(Repo2://Entry2,
@@ -142,16 +195,13 @@ assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason) :-
         include(is_unmasked_candidate, SlotCands, SlotUnmasked),
         ( SlotUnmasked == [] ->
             Reason = masked
-        ; % First check whether any candidate satisfies slot+version constraints (ignoring keywords).
-          version_constraint_analysis(Action, C, N, PackageDeps, SlotUnmasked, VersionOkAll, VersionReason),
+        ; version_constraint_analysis(Action, C, N, PackageDeps, SlotUnmasked, VersionOkAll, VersionReason),
           ( VersionOkAll == [] ->
               Reason = VersionReason
-          ; % Now check whether any of those candidates pass ACCEPT_KEYWORDS.
-            any_candidate_matches_keywords(VersionOkAll, KeywordOk),
+          ; any_candidate_matches_keywords(VersionOkAll, KeywordOk),
             ( KeywordOk == [] ->
                 Reason = keyword_filtered
-            ; % The main resolver still failed; classify conservatively.
-              Reason = unsatisfied_constraints
+            ; Reason = unsatisfied_constraints
             )
           )
         )
@@ -162,8 +212,14 @@ assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason) :-
 
 
 % -----------------------------------------------------------------------------
-%  Helpers (kept private)
+%  Helpers (private)
 % -----------------------------------------------------------------------------
+
+%! explanation:self_hosting_requires_installed(+Action, +C, +N, +Context, -Required) is det.
+%
+% Determine whether the resolver must restrict candidates to already-installed
+% packages. This applies when the action is not :run, the dependency is
+% self-referencing (the package depends on itself), and --emptytree is not set.
 
 self_hosting_requires_installed(Action, C, N, Context, true) :-
   Action \== run,
@@ -173,11 +229,27 @@ self_hosting_requires_installed(Action, C, N, Context, true) :-
   !.
 self_hosting_requires_installed(_Action, _C, _N, _Context, false).
 
+
+%! explanation:is_installed_candidate(+Repo://Entry) is semidet.
+%
+% True if the candidate has `installed` metadata set to `true`.
+
 is_installed_candidate(Repo://Entry) :-
   cache:entry_metadata(Repo, Entry, installed, true).
 
+
+%! explanation:is_unmasked_candidate(+Repo://Entry) is semidet.
+%
+% True if the candidate is not in the current mask set.
+
 is_unmasked_candidate(Repo://Entry) :-
   \+ preference:masked(Repo://Entry).
+
+
+%! explanation:any_candidate_matches_keywords(+Candidates, -KeywordOk) is det.
+%
+% Filter Candidates to those matching at least one accepted keyword from
+% `preference:accept_keywords/1`. Returns a sorted list.
 
 any_candidate_matches_keywords(Candidates, KeywordOk) :-
   findall(K, preference:accept_keywords(K), Ks0),
@@ -192,6 +264,12 @@ any_candidate_matches_keywords(Candidates, KeywordOk) :-
           KeywordOk0),
   sort(KeywordOk0, KeywordOk).
 
+
+%! explanation:any_candidate_matches_versions(+Action, +C, +N, +PackageDeps, +Candidates, -VersionOk) is det.
+%
+% Filter Candidates to those satisfying all version constraints from
+% PackageDeps. A candidate must pass every version operator/value pair.
+
 any_candidate_matches_versions(Action, C, N, PackageDeps, Candidates, VersionOk) :-
   findall(Cand,
           ( member(Cand, Candidates),
@@ -203,7 +281,16 @@ any_candidate_matches_versions(Action, C, N, PackageDeps, Candidates, VersionOk)
           VersionOk0),
   sort(VersionOk0, VersionOk).
 
-% Analyze version constraints to distinguish "no candidate satisfies constraint" vs "constraints conflict".
+
+%! explanation:version_constraint_analysis(+Action, +C, +N, +PackageDeps, +Candidates, -VersionOk, -Reason) is det.
+%
+% Analyze version constraints to distinguish between:
+%
+%   - `version_no_candidate(O, V)`: at least one constraint has zero matching
+%     candidates (reports the first such constraint)
+%   - `version_conflict`: each constraint individually has matches, but their
+%     intersection is empty
+
 version_constraint_analysis(Action, C, N, PackageDeps, Candidates, VersionOk, VersionReason) :-
   findall(O-V,
           member(package_dependency(Action,no,C,N,O,V,_,_), PackageDeps),
@@ -234,8 +321,19 @@ version_constraint_analysis(Action, C, N, PackageDeps, Candidates, VersionOk, Ve
     )
   ).
 
+
+%! explanation:intersection_all(+ListOfSortedLists, -Intersection) is det.
+%
+% Compute the intersection of a non-empty list of sorted lists using
+% ord_intersection/3.
+
 intersection_all([First|Rest], Intersection) :-
   foldl(intersection_sorted, Rest, First, Intersection).
+
+
+%! explanation:intersection_sorted(+A, +B, -Out) is det.
+%
+% Wrapper around ord_intersection/3 for use with foldl/4.
 
 intersection_sorted(A, B, Out) :-
   ord_intersection(A, B, Out).
