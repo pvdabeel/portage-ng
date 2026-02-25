@@ -38,7 +38,6 @@ database structure. See examples below.
 :- dynamic cache:package/3.		          % e.g. 'portage','sys-kernel','linux-sources'
 :- dynamic cache:entry/5.		            % e.g. 'portage','sys-kernel/linux-sources-6.15.0','sys-kernel',linux-sources',[[6,15,0],,,'6.15.0'] (Versions not ordered)
 :- dynamic cache:ordered_entry/5.       % e.g. 'portage','sys-kernel/linux-sources-6.15.0','sys-kernel',linux-sources',[[6.15.0],,,'6.15.0'] (Versions ordered)
-:- dynamic cache:entry_version_key/3.   % e.g. 'portage','sys-kernel/linux-sources-6.15.0', key([6,15,0],"",4,0,"",0,"6.15.0") (Pre-computed version sort key)
 :- dynamic cache:entry_metadata/4.	    % e.g. 'portage','sys-kernel/linux-sources-6.15.0','use','build'
 :- dynamic cache:manifest/5.		        % e.g. 'portage',Path,Timestamp,'sys-kernel','linux-sources'
 :- dynamic cache:manifest_metadata/6.	  % e.g. 'portage',Path,Filetype,Filename,Filesize,Checksum

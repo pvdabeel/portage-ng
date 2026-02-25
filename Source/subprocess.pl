@@ -59,13 +59,6 @@ subprocess:spawn(Program, Args, Parser, Results) :-
 %  dns-sd interface
 % =============================================================================
 
-%! subprocess:dns_sd(+advertise, +Host, +Service, +Port)
-%
-% Advertise a Service on Host and Port via mDNS (fire-and-forget).
-
-subprocess:dns_sd(advertise, Host, Service, Port) :-
-  subprocess:spawn('dns-sd', ['-R', Host, Service, 'local', Port]).
-
 %! subprocess:dns_sd(+browse, +Service, -Hostnames)
 %
 % Browse for hosts advertising Service via mDNS.
@@ -74,6 +67,13 @@ subprocess:dns_sd(browse, Service, Hostnames) :-
   subprocess:spawn('dns-sd', ['-t','1','-B', Service],
                    subprocess:dns_sd_parse_host(Service), Raw),
   list_to_set(Raw, Hostnames).
+
+%! subprocess:dns_sd(+advertise, +Host, +Service, +Port)
+%
+% Advertise a Service on Host and Port via mDNS (fire-and-forget).
+
+subprocess:dns_sd(advertise, Host, Service, Port) :-
+  subprocess:spawn('dns-sd', ['-R', Host, Service, 'local', Port]).
 
 %! subprocess:dns_sd(+resolve, +Service, +Hostname, -Port)
 %
