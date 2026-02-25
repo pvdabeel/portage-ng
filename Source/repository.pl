@@ -17,10 +17,6 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 
 :- module(repository,[]).
 
-:- use_module(library(filesex)).
-
-:- use_module(os). % for with_system_lock/2,3
-
 % =============================================================================
 %  REPOSITORY declarations
 % =============================================================================

@@ -14,9 +14,6 @@ Predicates for spawning and interacting with external processes.
 
 :- module(subprocess, []).
 
-:- use_module(library(process)).
-
-
 % =============================================================================
 %  SUBPROCESS declarations
 % =============================================================================

@@ -14,7 +14,6 @@ An implementation of a query language for the knowledge base
 
 :- module(query,[]).
 
-:- discontiguous compile_query_compound/3.
 
 tilde_suffix_match(S, S) :- !.
 tilde_suffix_match(S, CandS) :-
@@ -358,6 +357,55 @@ compile_query_list([S|Ss], Repo://Id, (One, Rest)) :-
 % We turn compound queries into cache statements
 
 
+% -----------------------------------------------------------------------------
+%  PDEPEND helper: tag as its own dependency phase
+% -----------------------------------------------------------------------------
+%
+% The EAPI grammar parses PDEPEND with the same dependency-sequence grammar as
+% RDEPEND, producing package_dependency(run, ...) leaves. In order to model
+% Portage-like "runtime_post" semantics, we re-tag PDEPEND leaves as their own
+% phase so they can be handled as cycle-breakable edges by rules/scheduler.
+
+query:pdepend_dep_as_pdepend(package_dependency(run,Strength,C,N,O,V,S,U),
+                             package_dependency(pdepend,Strength,C,N,O,V,S,U)) :-
+  !.
+query:pdepend_dep_as_pdepend(use_conditional_group(Pol, Use, Self, Deps0),
+                             use_conditional_group(Pol, Use, Self, Deps)) :-
+  !,
+  maplist(query:pdepend_dep_as_pdepend, Deps0, Deps).
+query:pdepend_dep_as_pdepend(any_of_group(Deps0), any_of_group(Deps)) :-
+  !,
+  maplist(query:pdepend_dep_as_pdepend, Deps0, Deps).
+query:pdepend_dep_as_pdepend(all_of_group(Deps0), all_of_group(Deps)) :-
+  !,
+  maplist(query:pdepend_dep_as_pdepend, Deps0, Deps).
+query:pdepend_dep_as_pdepend(exactly_one_of_group(Deps0), exactly_one_of_group(Deps)) :-
+  !,
+  maplist(query:pdepend_dep_as_pdepend, Deps0, Deps).
+query:pdepend_dep_as_pdepend(at_most_one_of_group(Deps0), at_most_one_of_group(Deps)) :-
+  !,
+  maplist(query:pdepend_dep_as_pdepend, Deps0, Deps).
+query:pdepend_dep_as_pdepend(T, T).
+
+
+% -----------------------------------------------------------------------------
+%  Helpers: thread required_use "self" through proof
+% -----------------------------------------------------------------------------
+%
+% The REQUIRED_USE grammar contains pure boolean constraints over USE flags.
+% When proving it, we need access to the current ebuild to prefer alternatives
+% already satisfied by effective USE (IUSE defaults + profile/env/package.use).
+%
+query:with_required_use_self(Self, Goal) :-
+  ( nb_current(query_required_use_self, Old) -> HadOld = true ; HadOld = false ),
+  nb_setval(query_required_use_self, Self),
+  setup_call_cleanup(true,
+                     Goal,
+                     ( HadOld == true -> nb_setval(query_required_use_self, Old)
+                     ; nb_delete(query_required_use_self)
+                     )).
+
+
 % 1. syntactic suggar
 
 compile_query_compound(repository(Repo), Repo://Id,
@@ -440,36 +488,6 @@ compile_query_compound(pdepend(P), Repo://Id,
 
 compile_query_compound(rdepend(P), Repo://Id,
   cache:entry_metadata(Repo,Id,rdepend,P)) :- !.
-
-% -----------------------------------------------------------------------------
-%  PDEPEND helper: tag as its own dependency phase
-% -----------------------------------------------------------------------------
-%
-% The EAPI grammar parses PDEPEND with the same dependency-sequence grammar as
-% RDEPEND, producing package_dependency(run, ...) leaves. In order to model
-% Portage-like "runtime_post" semantics, we re-tag PDEPEND leaves as their own
-% phase so they can be handled as cycle-breakable edges by rules/scheduler.
-
-query:pdepend_dep_as_pdepend(package_dependency(run,Strength,C,N,O,V,S,U),
-                             package_dependency(pdepend,Strength,C,N,O,V,S,U)) :-
-  !.
-query:pdepend_dep_as_pdepend(use_conditional_group(Pol, Use, Self, Deps0),
-                             use_conditional_group(Pol, Use, Self, Deps)) :-
-  !,
-  maplist(query:pdepend_dep_as_pdepend, Deps0, Deps).
-query:pdepend_dep_as_pdepend(any_of_group(Deps0), any_of_group(Deps)) :-
-  !,
-  maplist(query:pdepend_dep_as_pdepend, Deps0, Deps).
-query:pdepend_dep_as_pdepend(all_of_group(Deps0), all_of_group(Deps)) :-
-  !,
-  maplist(query:pdepend_dep_as_pdepend, Deps0, Deps).
-query:pdepend_dep_as_pdepend(exactly_one_of_group(Deps0), exactly_one_of_group(Deps)) :-
-  !,
-  maplist(query:pdepend_dep_as_pdepend, Deps0, Deps).
-query:pdepend_dep_as_pdepend(at_most_one_of_group(Deps0), at_most_one_of_group(Deps)) :-
-  !,
-  maplist(query:pdepend_dep_as_pdepend, Deps0, Deps).
-query:pdepend_dep_as_pdepend(T, T).
 
 compile_query_compound(defined_phases(P), Repo://Id,
   cache:entry_metadata(Repo,Id,defined_phases,P)) :- !.
@@ -964,23 +982,6 @@ compile_query_compound(model(required_use(Model)), Repo://Id,
             (gen_assoc(Key,AvlModel,_Value),
    	     \+eapi:abstract_syntax_construct(Key)),
             Model) ) ) :- !.
-
-% -----------------------------------------------------------------------------
-%  Helpers: thread required_use "self" through proof
-% -----------------------------------------------------------------------------
-%
-% The REQUIRED_USE grammar contains pure boolean constraints over USE flags.
-% When proving it, we need access to the current ebuild to prefer alternatives
-% already satisfied by effective USE (IUSE defaults + profile/env/package.use).
-%
-query:with_required_use_self(Self, Goal) :-
-  ( nb_current(query_required_use_self, Old) -> HadOld = true ; HadOld = false ),
-  nb_setval(query_required_use_self, Self),
-  setup_call_cleanup(true,
-                     Goal,
-                     ( HadOld == true -> nb_setval(query_required_use_self, Old)
-                     ; nb_delete(query_required_use_self)
-                     )).
 
 compile_query_compound(model(dependency(Model,run)):config?{Context}, Repo://Id,
   ( findall(Dep:config?{Context},

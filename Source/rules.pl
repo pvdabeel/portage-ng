@@ -14,10 +14,6 @@ This file contains domain-specific rules
 
 :- module(rules, [rule/2]).
 
-:- use_module(library(ordsets)).
-:- use_module(unify). % feature_unification:unify/3 (generic feature-term merge)
-:- use_module('version.pl').
-
 :- discontiguous rules:rule/2.
 
 :- thread_local rules:effective_use_fact/3.

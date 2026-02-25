@@ -30,13 +30,6 @@
   test_stats/2                    % +RepositoryAtom,+Options
 ]).
 
-:- use_module(library(apply)).
-:- use_module(library(crypto)).
-:- use_module(library(filesex)).
-:- use_module(library(lists)).
-:- use_module(library(ordsets)).
-:- use_module(library(readutil)).
-
 
 % -----------------------------------------------------------------------------
 %  Layout parsing (layout.conf)

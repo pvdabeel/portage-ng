@@ -25,9 +25,6 @@ be checked against concrete candidates and used to prune/validate selections.
   domain_reason_terms/6
 ]).
 
-:- use_module(library(ordsets)).
-:- use_module(unify). % extension hook target
-
 % -----------------------------------------------------------------------------
 %  Optional unify.pl extension hook (generic)
 % -----------------------------------------------------------------------------

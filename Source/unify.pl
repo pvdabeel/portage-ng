@@ -27,8 +27,6 @@ any domain-specific functors.
 
 :- module(feature_unification, [unify/3]).
 
-:- use_module(library(lists)).   % intersection/3, subset/2
-
 % Optional domain extension point for value unification.
 %
 % Keep this hook generic: concrete domains may provide clauses for specific

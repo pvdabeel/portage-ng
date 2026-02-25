@@ -17,11 +17,6 @@
 
 :- module(depclean, [run/1]).
 
-:- use_module(library(assoc)).
-:- use_module(library(ordsets)).
-:- use_module(library(apply)).
-:- use_module(library(lists)).
-
 run(ArgsSets) :-
   ( ArgsSets == [] ->
       eapi:substitute_sets([world], Args)

@@ -19,9 +19,6 @@
 
 :- module(prover, [test_action/2]).
 
-:- use_module(unify). % feature_unification:unify/3 for context merging
-:- use_module('version.pl').
-
 % =============================================================================
 %  PROVER declarations
 % =============================================================================

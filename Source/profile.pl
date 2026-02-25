@@ -33,14 +33,6 @@ Scope / limitations (intentional, first cut):
             write_profile_use_file/1      % +File
           ]).
 
-:- use_module(library(readutil)).
-:- use_module(library(lists)).
-:- use_module(library(apply)).
-:- use_module(library(ordsets)).
-
-:- use_module(portage('Source/os.pl')).
-:- use_module(portage('Source/config.pl')).
-
 
 %! profile_use_terms(+ProfileRel, -Terms:list)
 %

@@ -19,10 +19,6 @@ Eventually this could become a class with different subclasses.
   with_system_lock/3
 ]).
 
-:- use_module(library(filesex)).
-:- use_module(library(readutil)).
-:- use_module(library(process)).
-
 % Meta-predicate declarations:
 % Ensure the Goal executes in the *caller* context/module, not in module `os`.
 % This is crucial when the Goal uses instance-method syntax (`::`) or relies on

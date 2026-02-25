@@ -25,8 +25,6 @@ package dependency?" in domain terms.
   why_assumption_hook/2
 ]).
 
-:- use_module(library(ordsets)).  % ord_intersection/3 (avoid autoload reliance)
-
 /** <hook> why_in_plan_hook/2
 Optional domain-level enrichment for explainer:why_in_plan/6.
 

@@ -14,8 +14,6 @@ This module is reponsible for tracking installed packages on the system.
 
 :- module(vdb, []).
 
-:- use_module(library(filesex)).
-
 % message.pl is part of the main load graph; we call it via module qualification
 % (message:warning/1) without importing here to avoid path issues.
 

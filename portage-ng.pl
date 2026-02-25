@@ -69,6 +69,7 @@ load_common_modules :-
    ),
    ensure_loaded(library('readutil')),
    ensure_loaded(library('ansi_term')),
+   ensure_loaded(library('filesex')),
    ensure_loaded(library('process')),
    ensure_loaded(library('thread')),
    ensure_loaded(library('ordsets')),
@@ -130,6 +131,7 @@ load_standalone_modules :-
 
    ensure_loaded(library('aggregate')),
    ensure_loaded(library('apply_macros')),
+   ensure_loaded(library('crypto')),
    ensure_loaded(library('socket')),
 
    ensure_loaded(portage('Source/stubs.pl')),
