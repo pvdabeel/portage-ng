@@ -42,4 +42,3 @@ database structure. See examples below.
 :- dynamic cache:entry_metadata/4.	    % e.g. 'portage','sys-kernel/linux-sources-6.15.0','use','build'
 :- dynamic cache:manifest/5.		        % e.g. 'portage',Path,Timestamp,'sys-kernel','linux-sources'
 :- dynamic cache:manifest_metadata/6.	  % e.g. 'portage',Path,Filetype,Filename,Filesize,Checksum
-:- dynamic cache:memo_model/4.

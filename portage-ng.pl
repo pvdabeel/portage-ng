@@ -159,7 +159,6 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/planner.pl')),
    ensure_loaded(portage('Source/scheduler.pl')),
    ensure_loaded(portage('Source/printer.pl')),
-   ensure_loaded(portage('Source/builder.pl')),
    ensure_loaded(portage('Source/grapher.pl')),
    ensure_loaded(portage('Source/worker.pl')),
    ensure_loaded(portage('Source/tester.pl')),
