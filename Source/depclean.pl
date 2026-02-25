@@ -1,21 +1,27 @@
 /*
-  Depclean (proof-based)
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2026, Pieter Van den Abeele
 
-  Goal: provide a Portage-like depclean workflow without scanning ELF binaries.
-  We approximate Gentoo's graph-based depclean using our proof/model.
-
-  This first implementation:
-  - Computes the set of "roots" from @world (and optional extra args)
-  - Proves the runtime closure in a special "depclean traversal" mode that only
-    follows *installed* packages
-  - Prints the list of installed packages that are removable (not required)
-
-  Future:
-  - Order uninstall operations (reverse dependency order)
-  - Use VDB NEEDED.ELF.2 / PROVIDES.ELF.2 to emulate preserved-libs rebuild sets
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
 */
 
-:- module(depclean, [run/1]).
+
+/** <module> DEPCLEAN
+Proof-based depclean: approximates Gentoo's graph-based depclean using the
+prover's proof/model instead of scanning ELF binaries. Computes the runtime
+closure from @world roots over installed packages and identifies removable
+packages that are not required by the closure.
+*/
+
+:- module(depclean, []).
+
+
+%! depclean:run(+ArgsSets)
+%
+% Entry point. Resolves @world (or the given set arguments) to installed
+% root entries, proves the runtime closure, and prints removable packages.
 
 run(ArgsSets) :-
   ( ArgsSets == [] ->
@@ -31,6 +37,12 @@ run(ArgsSets) :-
     depclean:print_removals(RequiredInstalled)
   ).
 
+
+%! depclean:roots_from_args(+Args, -Roots)
+%
+% Convert a list of target atoms into repo://Entry terms by resolving
+% each argument against the installed package database.
+
 roots_from_args([], []).
 roots_from_args([Arg|Rest], Roots) :-
   depclean:roots_from_args(Rest, RootsRest),
@@ -39,9 +51,13 @@ roots_from_args([Arg|Rest], Roots) :-
   ; Roots = RootsRest
   ).
 
-% Resolve an argument (atom) to a *repo* entry for the currently installed version.
-% We prefer using the exact installed version (pkg://Entry), then map it to a
-% non-pkg repo entry with the same category/name/version.
+
+%! depclean:arg_installed_repo_entry(+Arg, -RepoEntry)
+%
+% Resolve an argument atom to a repo entry for the currently installed version.
+% Parses the atom as a qualified target, finds the installed VDB entry, then
+% maps it to a non-pkg repo entry with the same category/name/version.
+
 arg_installed_repo_entry(Arg, RepoEntry) :-
   atom(Arg),
   atom_codes(Arg, Codes),
@@ -51,8 +67,14 @@ arg_installed_repo_entry(Arg, RepoEntry) :-
   depclean:installed_to_repo_entry(pkg://InstalledEntry, RepoEntry),
   !.
 
+
+%! depclean:installed_to_repo_entry(+InstalledRef, -RepoEntry)
+%
+% Map an installed pkg://Entry to the corresponding entry in the active
+% repository set (excluding VDB repo `pkg`). Falls back to any matching
+% repo if keywords or overlay differ.
+
 installed_to_repo_entry(pkg://InstalledEntry, RepoEntry) :-
-  % Locate the same version in the active repo set (excluding VDB repo `pkg`).
   query:search([category(C),name(N),version(V)], pkg://InstalledEntry),
   preference:accept_keywords(K),
   ( query:search([select(repository,notequal,pkg),category(C),name(N),keywords(K),version(V)],
@@ -64,14 +86,23 @@ installed_to_repo_entry(pkg://InstalledEntry, RepoEntry) :-
     RepoEntry = Repo2//InstalledEntry
   ).
 
-% Prove closure in depclean mode and return the set of installed pkg:// entries
-% that are required by the proof.
+%! depclean:prove_required(+Roots, -RequiredInstalled)
+%
+% Prove the runtime closure in depclean mode and return the sorted set of
+% installed pkg://Entry terms that are required by the proof.
+
 prove_required(Roots, RequiredInstalled) :-
   setup_call_cleanup(
     asserta(preference:local_flag(depclean)),
     depclean:prove_required_(Roots, RequiredInstalled),
     retractall(preference:local_flag(depclean))
   ).
+
+
+%! depclean:prove_required_(+Roots, -RequiredInstalled)
+%
+% Internal: run the prover with delayed triggers and extract required
+% installed entries from the resulting model.
 
 prove_required_(Roots, RequiredInstalled) :-
   findall(Root:depclean?{[]}, member(Root, Roots), Proposal),
@@ -81,6 +112,12 @@ prove_required_(Roots, RequiredInstalled) :-
   prover:model_to_list(ModelAVL, ModelList),
   depclean:model_required_installed(ModelList, RequiredInstalled0),
   sort(RequiredInstalled0, RequiredInstalled).
+
+
+%! depclean:model_required_installed(+ModelList, -RequiredInstalled)
+%
+% Filter the model list to pkg://Entry terms for entries that are both
+% in the proof model and installed in the VDB.
 
 model_required_installed([], []).
 model_required_installed([X|Xs], Out) :-
@@ -94,9 +131,21 @@ model_required_installed([X|Xs], Out) :-
   ; Out = Rest
   ).
 
+
+%! depclean:model_item_repo_entry(+ModelItem, -RepoEntry)
+%
+% Extract a Repo://Entry from a depclean model literal. Fails for
+% non-depclean items.
+
 model_item_repo_entry(Repo://Entry:depclean, Repo://Entry) :- !.
 model_item_repo_entry(Repo://Entry:depclean?{_}, Repo://Entry) :- !.
 model_item_repo_entry(_Other, _RepoEntry) :- fail.
+
+
+%! depclean:print_removals(+RequiredInstalled)
+%
+% Compute the set of removable packages (installed minus required) and
+% print the removal list, uninstall order, and linkage risk report.
 
 print_removals(RequiredInstalled) :-
   findall(pkg://E,
@@ -118,9 +167,16 @@ print_removals(RequiredInstalled) :-
   depclean:print_linkage_risks(Installed, Removable),
   nl.
 
+
 % -----------------------------------------------------------------------------
 %  Uninstall ordering (installed-only reverse-dependency sort)
 % -----------------------------------------------------------------------------
+
+
+%! depclean:print_uninstall_order(+Removable)
+%
+% Compute and print a topologically sorted uninstall order for the
+% removable packages. Warns when cycles are detected.
 
 print_uninstall_order([]) :- !.
 print_uninstall_order(Removable) :-
@@ -135,6 +191,11 @@ print_uninstall_order(Removable) :-
   depclean:print_pkg_list_numbered(1, Order),
   nl.
 
+
+%! depclean:print_pkg_list_numbered(+Index, +Packages)
+%
+% Print a numbered list of pkg://Entry terms with category/name-version.
+
 print_pkg_list_numbered(_, []) :- !.
 print_pkg_list_numbered(I, [pkg://E|Es]) :-
   ( query:search([category(C),name(N),version(V)], pkg://E) ->
@@ -144,13 +205,25 @@ print_pkg_list_numbered(I, [pkg://E|Es]) :-
   I2 is I + 1,
   depclean:print_pkg_list_numbered(I2, Es).
 
+
+%! depclean:uninstall_order(+Removable, -Order, -Cyclic)
+%
+% Compute the uninstall order via Kahn's topological sort on the
+% dependency graph restricted to the removable set. Cyclic is `true`
+% if a cycle was detected (remaining nodes appended to the order).
+
 uninstall_order(Removable, Order, Cyclic) :-
   sort(Removable, Nodes),
   list_to_ord_set(Nodes, NodeSet),
   depclean:build_edges(NodeSet, Nodes, EdgesAssoc),
   depclean:toposort(Nodes, EdgesAssoc, Order, Cyclic).
 
-% Build adjacency list A -> [B...] (A depends on B), restricted to removable nodes.
+
+%! depclean:build_edges(+NodeSet, +Nodes, -EdgesAssoc)
+%
+% Build adjacency list A -> [B...] where A depends on B, restricted to
+% the removable node set.
+
 build_edges(_NodeSet, [], Assoc) :-
   empty_assoc(Assoc).
 build_edges(NodeSet, [pkg://E|Es], Out) :-
@@ -162,14 +235,24 @@ build_edges(NodeSet, [pkg://E|Es], Out) :-
   ; put_assoc(pkg://E, In, [], Out)
   ).
 
-% Direct installed runtime deps of an installed pkg:// entry, computed via repo metadata.
+
+%! depclean:direct_deps_installed(+InstalledRef, -DepsInstalled)
+%
+% Sorted list of direct installed runtime dependencies of a pkg://Entry,
+% computed via the repo metadata's dependency model.
+
 direct_deps_installed(pkg://InstalledEntry, DepsInstalled) :-
   depclean:installed_to_repo_entry(pkg://InstalledEntry, RepoEntry),
   depclean:direct_deps_from_repo_entry(RepoEntry, DepsInstalled),
   !.
 
+
+%! depclean:direct_deps_from_repo_entry(+RepoEntry, -DepsInstalled)
+%
+% Compute the effective runtime dependency model for a repo entry and
+% resolve each dependency literal to an installed pkg://Entry.
+
 direct_deps_from_repo_entry(Repo://Entry, DepsInstalled) :-
-  % Compute effective dependency model for run-time deps of the repo entry.
   query:search(model(Model,required_use(_R),build_with_use(_B)), Repo://Entry),
   query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model}, Repo://Entry),
   add_self_to_dep_contexts(Repo://Entry, MergedDeps0, MergedDeps),
@@ -177,6 +260,12 @@ direct_deps_from_repo_entry(Repo://Entry, DepsInstalled) :-
           depclean:dep_literal_installed_dep(MergedDeps, DepInstalled),
           Deps0),
   sort(Deps0, DepsInstalled).
+
+
+%! depclean:dep_literal_installed_dep(+MergedDeps, -DepInstalled)
+%
+% Non-deterministically unify DepInstalled with an installed pkg://Entry
+% that satisfies one of the merged dependency literals.
 
 dep_literal_installed_dep(MergedDeps, DepInstalled) :-
   member(D0, MergedDeps),
@@ -186,12 +275,22 @@ dep_literal_installed_dep(MergedDeps, DepInstalled) :-
   rules:query_search_slot_constraint(SlotReq, pkg://DepInstalled, _),
   rules:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps, pkg://DepInstalled).
 
-% Extract (Action,C,N,Deps) from a merged dependency literal.
+
+%! depclean:dep_term_cn_deps(+DepTerm, -Action, -C, -N, -PackageDeps)
+%
+% Extract action, category, name, and package dependency list from a
+% merged dependency literal.
+
 dep_term_cn_deps(grouped_package_dependency(_Strength,C,N,PackageDeps):Action?{_}, Action, C, N, PackageDeps) :- !.
 dep_term_cn_deps(grouped_package_dependency(_Strength,C,N,PackageDeps):Action,    Action, C, N, PackageDeps) :- !.
 dep_term_cn_deps(grouped_package_dependency(_Strength,C,N,PackageDeps),           run,    C, N, PackageDeps) :- !.
 
-% Kahn toposort on adjacency list A -> Bs (A depends on B).
+
+%! depclean:toposort(+Nodes, +Edges, -Order, -Cyclic)
+%
+% Kahn's topological sort on adjacency list A -> Bs (A depends on B).
+% Returns Cyclic = true if a cycle prevents full ordering.
+
 toposort(Nodes, Edges, Order, Cyclic) :-
   depclean:indegrees(Nodes, Edges, InDeg0),
   findall(N, (member(N, Nodes), get_assoc(N, InDeg0, 0)), Q0),
@@ -203,19 +302,41 @@ toposort(Nodes, Edges, Order, Cyclic) :-
     append(Order0, Remaining, Order)
   ).
 
+
+%! depclean:indegrees(+Nodes, +Edges, -InDeg)
+%
+% Build the initial in-degree map for all nodes.
+
 indegrees(Nodes, Edges, InDeg) :-
   empty_assoc(Empty0),
   foldl([N,In,Out]>>put_assoc(N, In, 0, Out), Nodes, Empty0, Empty1),
   foldl(depclean:indegree_acc(Edges), Nodes, Empty1, InDeg).
 
+
+%! depclean:indegree_acc(+Edges, +Node, +InDegIn, -InDegOut)
+%
+% Accumulate in-degrees contributed by Node's successors.
+
 indegree_acc(Edges, A, In, Out) :-
   ( get_assoc(A, Edges, Bs) -> true ; Bs = [] ),
   foldl(depclean:inc_indeg, Bs, In, Out).
+
+
+%! depclean:inc_indeg(+Node, +InDegIn, -InDegOut)
+%
+% Increment the in-degree counter for Node by one.
 
 inc_indeg(B, In, Out) :-
   ( get_assoc(B, In, V0) -> V1 is V0 + 1, put_assoc(B, In, V1, Out)
   ; put_assoc(B, In, 1, Out)
   ).
+
+
+%! depclean:kahn(+Queue, +Nodes, +Edges, +InDeg, +Acc, -Order, -Remaining)
+%
+% Kahn's algorithm work loop. Processes zero-in-degree nodes, decrements
+% neighbors, and collects the topological order. Remaining holds any
+% nodes still unprocessed (cycle members).
 
 kahn([], Nodes, _Edges, InDeg, Acc, Order, Remaining) :-
   reverse(Acc, Order),
@@ -226,6 +347,11 @@ kahn([N|Q], Nodes, Edges, InDeg0, Acc, Order, Remaining) :-
   depclean:dec_neighbors(Bs, InDeg1, InDeg2, NewZeros),
   append(Q, NewZeros, Q2),
   depclean:kahn(Q2, Nodes, Edges, InDeg2, [N|Acc], Order, Remaining).
+
+
+%! depclean:dec_neighbors(+Neighbors, +InDegIn, -InDegOut, -NewZeros)
+%
+% Decrement in-degree for each neighbor; collect those that reach zero.
 
 dec_neighbors([], InDeg, InDeg, []).
 dec_neighbors([B|Bs], InDeg0, InDeg, NewZeros) :-
@@ -242,12 +368,13 @@ dec_neighbors([B|Bs], InDeg0, InDeg, NewZeros) :-
 % -----------------------------------------------------------------------------
 %  Linkage risk report (preserved-libs approximation)
 % -----------------------------------------------------------------------------
+
+%! depclean:print_linkage_risks(+Installed, +Removable)
 %
-% Uses VDB metadata:
-% - needed_elf2/1 from NEEDED.ELF.2
-% - provides_elf2/1 from PROVIDES.ELF.2
-%
-% This is a best-effort approximation of Portage preserved-libs behavior.
+% Best-effort approximation of Portage preserved-libs behavior. Uses VDB
+% metadata (NEEDED.ELF.2 / PROVIDES.ELF.2) to identify kept packages
+% whose ELF dependencies would lose all providers if the removable set
+% is unmerged.
 
 print_linkage_risks(_Installed, Removable) :-
   Removable == [],
@@ -269,13 +396,29 @@ print_linkage_risks(Installed, Removable) :-
   ),
   nl.
 
+
+%! depclean:build_provides_map(+Installed, -Map)
+%
+% Build an assoc mapping each ELF token to the ordered set of pkg://Entry
+% terms that provide it.
+
 build_provides_map(Installed, Map) :-
   empty_assoc(Empty),
   foldl(depclean:provides_acc, Installed, Empty, Map).
 
+
+%! depclean:provides_acc(+PkgEntry, +MapIn, -MapOut)
+%
+% Accumulate ELF provides tokens from a single installed package.
+
 provides_acc(pkg://E, In, Out) :-
   ( query:search(provides_elf2(Provides0), pkg://E) -> true ; Provides0 = [] ),
   foldl(depclean:provides_tok_put(pkg://E), Provides0, In, Out).
+
+
+%! depclean:provides_tok_put(+Pkg, +Token, +MapIn, -MapOut)
+%
+% Add Pkg to the provider set for Token in the provides map.
 
 provides_tok_put(Pkg, Tok, In, Out) :-
   ( get_assoc(Tok, In, Providers0) ->
@@ -283,6 +426,12 @@ provides_tok_put(Pkg, Tok, In, Out) :-
       put_assoc(Tok, In, Providers, Out)
   ; put_assoc(Tok, In, [Pkg], Out)
   ).
+
+
+%! depclean:collect_broken_needed(+Kept, +KeptSet, +RemovableSet, +ProvidesMap, -BrokenPairs)
+%
+% Find kept packages whose NEEDED.ELF.2 tokens would lose all providers
+% if the removable set is unmerged (no remaining provider in the kept set).
 
 collect_broken_needed(Kept, KeptSet, RemovableSet, ProvidesMap, BrokenPairs) :-
   findall(broken(pkg://E, Tok, RemovedProviders),
@@ -297,6 +446,12 @@ collect_broken_needed(Kept, KeptSet, RemovableSet, ProvidesMap, BrokenPairs) :-
           ),
           Broken0),
   sort(Broken0, BrokenPairs).
+
+
+%! depclean:print_broken_needed(+Consumer, +Token, +RemovedProviders)
+%
+% Print a single broken-linkage warning: the consumer package, the ELF
+% token it needs, and the removable packages that were its only providers.
 
 print_broken_needed(pkg://E, Tok, RemovedProviders) :-
   ( query:search([category(C),name(N),version(V)], pkg://E) ->

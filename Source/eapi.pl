@@ -102,8 +102,6 @@ files.
 :- module(eapi, []).
 
 
-
-
 % =============================================================================
 %  EAPI declarations
 % =============================================================================
@@ -2515,6 +2513,3 @@ eapi:vdb_kv_file_joined(Dir, File, Key, Line) :-
   atomic_list_concat(Values, ' ', Joined0),
   Joined0 \== "",
   format(string(Line), "~w=~s", [Key, Joined0]).
-
-
-
