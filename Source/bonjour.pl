@@ -28,10 +28,7 @@ as zeroconf or Apple Bonjour.
 % Advertises a service using mDNS
 
 bonjour:advertise :-
-  % When advertising the local server, the instance name should be the hostname
-  % of this machine (not the client-side server_host override).
   config:hostname(Host),
-  % But the port should reflect the actual server port (CLI override allowed).
   interface:argv(Options,_Args),
   ( lists:memberchk(port(Port), Options)
   ; config:server_port(Port)
