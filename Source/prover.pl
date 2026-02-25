@@ -270,7 +270,13 @@ prover:handle_cn_domain_reprove(Target, InProof, OutProof, InModel, OutModel, In
     prover:prove_with_cn_domain_retries(
       Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers, Attempt1, MaxRetries
     )
-  ; prover:with_cn_domain_reprove_disabled(
+  ; % Reprove exhausted: clear the reject map so the final prove runs clean.
+    % Without this, source-linked rejects (e.g. rejecting a parent like
+    % `unbound` when the actual failure was at child `openssl`) persist and
+    % cause assumptions to land at the wrong level.
+    empty_assoc(EmptyRejects),
+    nb_setval(rules_cn_domain_rejects, EmptyRejects),
+    prover:with_cn_domain_reprove_disabled(
       prover:prove_once(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers)
     )
   ).
