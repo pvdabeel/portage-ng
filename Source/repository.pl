@@ -259,7 +259,10 @@ sync(kb) ::-
           predsort(eapi:compare_ordered_entry_version_desc, Vu, Vs0),
           ( assertz(cache:package(Repository,Ca,Pa)),
             forall(member([OVn,OVa,OVs,OVf,OrderedId],Vs0),
-                 assertz(cache:ordered_entry(Repository,OrderedId,Ca,Pa,[OVn,OVa,OVs,OVf])))))),
+                 ( assertz(cache:ordered_entry(Repository,OrderedId,Ca,Pa,[OVn,OVa,OVs,OVf])),
+                   eapi:version_key([OVn,OVa,OVs,OVf], VKey),
+                   assertz(cache:entry_version_key(Repository,OrderedId,VKey))
+                 ))))),
 
   retractall(cache:entry(Repository,_,_,_,_)),
   assertz(cache:repository(Repository)),
@@ -380,7 +383,10 @@ sync(kb) ::-
           predsort(eapi:compare_ordered_entry_version_desc, Vu, Vs),
           ( assertz(cache:package(Repository,Ca,Pa)),
             forall(member([OVn,OVa,OVs,OVf,OrderedId],Vs),
-                 assertz(cache:ordered_entry(Repository,OrderedId,Ca,Pa,[OVn,OVa,OVs,OVf])))))),
+                 ( assertz(cache:ordered_entry(Repository,OrderedId,Ca,Pa,[OVn,OVa,OVs,OVf])),
+                   eapi:version_key([OVn,OVa,OVs,OVf], VKey),
+                   assertz(cache:entry_version_key(Repository,OrderedId,VKey))
+                 ))))),
 
   % Step 6 : We retract the original unordered prolog cache entries.
 

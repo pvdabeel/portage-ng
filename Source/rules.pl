@@ -20,6 +20,8 @@ This file contains domain-specific rules
 
 :- discontiguous rules:rule/2.
 
+:- thread_local rules:effective_use_fact/3.
+
 % -----------------------------------------------------------------------------
 %  Prover hook: domain-driven goal enqueueing (single-pass extensions)
 % -----------------------------------------------------------------------------
@@ -1219,12 +1221,14 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       % - Also, only reuse when it is compatible with the effective domain for
       %   this dependency; otherwise, fall back to fresh candidate enumeration.
       ( SlotReq = [slot(_)|_] ->
-          rules:accepted_keyword_candidate(Action, C, N, SlotReq, _Ss0, Context, FoundRepo://Candidate)
+          rules:accepted_keyword_candidate(Action, C, N, SlotReq, _Ss0, Context, FoundRepo://Candidate),
+          CandPreVerified = false
       ; rules:selected_cn_candidate_compatible(Action, C, N, SlotReq, PackageDeps1, Context, FoundRepo://Candidate) ->
-          true
+          CandPreVerified = true
       ; rules:selected_cn_rejected_candidates(Action, C, N, SlotReq, PackageDeps1, Context, RejectedSelected),
         rules:accepted_keyword_candidate(Action, C, N, SlotReq, SsLock, Context, FoundRepo://Candidate),
-        \+ memberchk(FoundRepo://Candidate, RejectedSelected)
+        \+ memberchk(FoundRepo://Candidate, RejectedSelected),
+        CandPreVerified = false
       ),
 
       % Avoid resolving a dep to self unless candidate is already installed
@@ -1238,27 +1242,25 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       ; true
       ),
 
-      forall(member(package_dependency(_P1,no,C,N,O,V,_,_), PackageDeps1),
-             rules:query_search_version_select(O, V, FoundRepo://Candidate)),
-      rules:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps1, Context, FoundRepo://Candidate),
+      ( CandPreVerified == true ->
+          true
+      ; forall(member(package_dependency(_P1,no,C,N,O,V,_,_), PackageDeps1),
+               rules:query_search_version_select(O, V, FoundRepo://Candidate)),
+        rules:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps1, Context, FoundRepo://Candidate)
+      ),
       rules:candidate_reverse_deps_compatible_with_parent(Context, FoundRepo://Candidate),
 
       % For PDEPEND edges, we treat the dependency as runtime-soft (cycle-breakable),
       % but we should not propagate or enforce `build_with_use` from the parent.
       % Otherwise large USE_EXPAND sets (llvm_targets_*, python_targets_*) explode
       % the dependency context and can prevent resolution (and cause mismatches).
-      ( member(package_dependency(pdepend,_,C,N,_,_,_,_), PackageDeps1) ->
-          MergedUse = []
-      ; findall(U0, member(package_dependency(_P2,no,C,N,_O,_V,_,U0),PackageDeps1), MergedUse0),
-        append(MergedUse0, MergedUse)
-      ),
       % PDEPEND edges also must not inherit the parent's `build_with_use` context.
-      % That context represents bracketed USE constraints flowing from *some other*
-      % dependency edge and is not meaningful for the PDEPEND target itself.
       ( member(package_dependency(pdepend,_,C,N,_,_,_,_), PackageDeps1) ->
-          rules:ctx_drop_build_with_use(Context, ContextP0),
-          rules:ctx_drop_assumption_reason(ContextP0, ContextDep)
-      ; ContextDep = Context
+          MergedUse = [],
+          rules:ctx_drop_build_with_use_and_assumption_reason(Context, ContextDep)
+      ; findall(U0, member(package_dependency(_P2,no,C,N,_O,_V,_,U0),PackageDeps1), MergedUse0),
+        append(MergedUse0, MergedUse),
+        ContextDep = Context
       ),
       % Enforce bracketed USE constraints (e.g. sys-devel/gcc[objc], python[xml(+)], foo[bar?]).
       rules:candidate_satisfies_use_deps(ContextDep, FoundRepo://Candidate, MergedUse),
@@ -1563,6 +1565,16 @@ rules:ctx_drop_assumption_reason(Ctx0, Ctx) :-
   !.
 
 rules:ctx_is_assumption_reason_term(assumption_reason(_)) :- !.
+
+rules:ctx_drop_build_with_use_and_assumption_reason(Ctx0, Ctx) :-
+  ( is_list(Ctx0) ->
+      exclude(rules:ctx_is_bwu_or_assumption_reason, Ctx0, Ctx)
+  ; Ctx = Ctx0
+  ),
+  !.
+
+rules:ctx_is_bwu_or_assumption_reason(build_with_use:_) :- !.
+rules:ctx_is_bwu_or_assumption_reason(assumption_reason(_)) :- !.
 
 % -----------------------------------------------------------------------------
 %  Lazy self-RDEPEND version-bound propagation (timeout-safe variant)
@@ -3797,11 +3809,31 @@ rules:use_dep_default_satisfies_absent_iuse(_Default, _Mode) :- fail.
 
 % Determine whether a flag is effectively enabled for a candidate *when the flag is in IUSE*.
 %
+% Cached per (Repo, Entry): on first access, computes the full enabled USE set
+% for the entry and caches it. Subsequent calls for the same entry are O(1) memberchk.
+rules:candidate_effective_use_enabled_in_iuse(Repo://Entry, Use) :-
+  rules:entry_effective_use_set(Repo://Entry, EnabledSet),
+  memberchk(Use, EnabledSet).
+
+rules:entry_effective_use_set(Repo://Entry, EnabledSet) :-
+  ( rules:effective_use_fact(Repo, Entry, EnabledSet) ->
+    true
+  ;
+    rules:entry_iuse_info(Repo://Entry, iuse_info(IuseSet, _PlusSet)),
+    findall(U,
+            ( member(U, IuseSet),
+              rules:candidate_effective_use_enabled_raw(Repo://Entry, U)
+            ),
+            Enabled0),
+    sort(Enabled0, EnabledSet),
+    assertz(rules:effective_use_fact(Repo, Entry, EnabledSet))
+  ).
+
 % Priority:
 % 1. Per-package overrides from /etc/portage/package.use (modeled in preference.pl)
 % 2. Global USE from profile/make.conf (preference:use/1)
 % 3. IUSE default (+foo) enables; otherwise default is disabled
-rules:candidate_effective_use_enabled_in_iuse(Repo://Entry, Use) :-
+rules:candidate_effective_use_enabled_raw(Repo://Entry, Use) :-
   cache:ordered_entry(Repo, Entry, C, N, _),
   ( preference:profile_package_use_override_for_entry(Repo://Entry, Use, positive, _Reason0) ->
       true
@@ -3822,26 +3854,14 @@ rules:candidate_effective_use_enabled_in_iuse(Repo://Entry, Use) :-
   ; preference:use(Use) ->
       true
   ; rules:use_expand_selector_flag_unset(Use) ->
-      % USE_EXPAND selectors behave as explicit choice sets: when a prefix has an
-      % active selection, flags of the same prefix that are not selected are OFF,
-      % even if IUSE advertises a +default.
       fail
   ; preference:use(minus(Use)),
-    % ABI_X86 flags are frequently modeled as USE_EXPAND defaults (+abi_x86_32 etc).
-    % Treating every "unset" ABI_X86 value as an explicit negative in `preference:use/1`
-    % would incorrectly override +IUSE defaults and make deps like:
-    %   foo[abi_x86_32(+)?]
-    % unsatisfiable even when Portage accepts them.
-    %
-    % Until we have a clearer separation between "explicitly disabled" and "unset",
-    % do not let global minus(abi_x86_*) override +IUSE defaults.
     \+ rules:is_abi_x86_flag(Use) ->
       fail
   ; rules:entry_iuse_info(Repo://Entry, iuse_info(_IuseSet, PlusSet)),
     memberchk(Use, PlusSet) ->
       true
-  ; % iuse(minus(Use)) or iuse(Use): default disabled
-    fail
+  ; fail
   ).
 
 rules:use_expand_selector_flag_unset(Use) :-
@@ -3943,10 +3963,12 @@ rules:selected_cn_candidate_compatible(Action, C, N, SlotReq, PackageDeps, Conte
 % grouped dependency constraints. These are excluded from the "fresh candidate"
 % fallback path for this dependency literal.
 rules:selected_cn_rejected_candidates(Action, C, N, SlotReq, PackageDeps, Context, Rejected) :-
+  rules:grouped_dep_effective_domain_precomputed(Action, C, N, PackageDeps, Context, EffDom, RejectDom),
   findall(Repo://Entry,
           ( rules:selected_cn_candidate(Action, C, N, Context, Repo://Entry),
             rules:query_search_slot_constraint(SlotReq, Repo://Entry, _),
-            \+ rules:grouped_dep_candidate_satisfies_constraints(Action, C, N, PackageDeps, Context, Repo://Entry)
+            \+ rules:grouped_dep_candidate_satisfies_constraints_precomputed(
+                    C, N, PackageDeps, EffDom, RejectDom, Repo://Entry)
           ),
           Rejected0),
   sort(Rejected0, Rejected),
@@ -3958,10 +3980,24 @@ rules:grouped_dep_candidate_satisfies_constraints(Action, C, N, PackageDeps, Con
   rules:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps, Context, RepoEntry),
   !.
 
-rules:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps, Context, RepoEntry) :-
+rules:grouped_dep_candidate_satisfies_constraints_precomputed(C, N, PackageDeps, EffDom, RejectDom, RepoEntry) :-
+  forall(member(package_dependency(_Phase,no,C,N,O,V,_SlotReq,_Use), PackageDeps),
+         rules:query_search_version_select(O, V, RepoEntry)),
+  rules:grouped_dep_candidate_satisfies_effective_domain_precomputed(EffDom, RejectDom, C, N, RepoEntry),
+  !.
+
+rules:grouped_dep_effective_domain_precomputed(Action, C, N, PackageDeps, Context, EffectiveDomain, RejectDomain) :-
   rules:grouped_dep_effective_domain(Action, C, N, PackageDeps, Context, EffectiveDomain),
   rules:context_cn_reject_scope(C, N, Context, EffectiveDomain, RejectScope),
   rules:cn_reject_scoped_domain(RejectScope, EffectiveDomain, RejectDomain),
+  !.
+
+rules:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps, Context, RepoEntry) :-
+  rules:grouped_dep_effective_domain_precomputed(Action, C, N, PackageDeps, Context, EffectiveDomain, RejectDomain),
+  rules:grouped_dep_candidate_satisfies_effective_domain_precomputed(EffectiveDomain, RejectDomain, C, N, RepoEntry),
+  !.
+
+rules:grouped_dep_candidate_satisfies_effective_domain_precomputed(EffectiveDomain, RejectDomain, C, N, RepoEntry) :-
   \+ version_domain:domain_inconsistent(EffectiveDomain),
   \+ rules:cn_domain_candidate_rejected(C, N, RejectDomain, RepoEntry),
   version_domain:domain_allows_candidate(EffectiveDomain, RepoEntry),

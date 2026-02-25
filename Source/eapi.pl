@@ -103,6 +103,8 @@ files.
 
 :- module(eapi, []).
 
+:- thread_local eapi:version_key_fact/2.
+
 % -----------------------------------------------------------------------------
 %  Metadata normalization (cache write-time)
 % -----------------------------------------------------------------------------
@@ -155,9 +157,17 @@ eapi:normalize_slot_value_(S0, S) :-
 % - Compare trailing revision -rN numerically.
 %
 eapi:version_compare(Op, Proposed, Required) :-
-  eapi:version_key(Proposed, Kp),
-  eapi:version_key(Required, Kr),
+  eapi:version_key_cached(Proposed, Kp),
+  eapi:version_key_cached(Required, Kr),
   compare(Op, Kp, Kr).
+
+eapi:version_key_cached(Ver, Key) :-
+  ( eapi:version_key_fact(Ver, Key) ->
+    true
+  ;
+    eapi:version_key(Ver, Key),
+    assertz(eapi:version_key_fact(Ver, Key))
+  ).
 
 % -----------------------------------------------------------------------------
 %  Helper: version ordering for cache:ordered_entry/5

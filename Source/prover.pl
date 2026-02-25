@@ -193,27 +193,31 @@ prover:test_stats_reset_counters :-
   nb_setval(prover_test_stats_ctx_union_time_ms_sampled, 0).
 
 prover:test_stats_rule_call :-
-  ( nb_current(prover_test_stats_rule_calls, N0) -> true ; N0 = 0 ),
-  N is N0 + 1,
-  nb_setval(prover_test_stats_rule_calls, N).
+  ( nb_current(prover_test_stats_rule_calls, N0) ->
+      N is N0 + 1,
+      nb_setval(prover_test_stats_rule_calls, N)
+  ; true
+  ).
 
 prover:test_stats_get_counters(rule_calls(RuleCalls)) :-
   ( nb_current(prover_test_stats_rule_calls, RuleCalls) -> true ; RuleCalls = 0 ).
 
 prover:test_stats_get_ctx_counters(ctx_union_calls(Calls),
-                                  ctx_union_cost(Cost),
+                                  ctx_union_cost(CostEst),
                                   ctx_max_len(MaxLen),
                                   ctx_union_ms_est(MsEst)) :-
   ( nb_current(prover_test_stats_ctx_union_calls, Calls) -> true ; Calls = 0 ),
-  ( nb_current(prover_test_stats_ctx_union_cost, Cost) -> true ; Cost = 0 ),
+  ( nb_current(prover_test_stats_ctx_union_cost, CostSampled) -> true ; CostSampled = 0 ),
   ( nb_current(prover_test_stats_ctx_max_len, MaxLen) -> true ; MaxLen = 0 ),
   ( nb_current(prover_test_stats_ctx_union_time_samples, Samples) -> true ; Samples = 0 ),
   ( nb_current(prover_test_stats_ctx_union_time_ms_sampled, MsSampled) -> true ; MsSampled = 0 ),
   ( Samples =:= 0 ->
-      MsEst = 0
+      MsEst = 0,
+      CostEst = 0
   ; MsEst0 is MsSampled * Calls / Samples,
-    % Round to integer milliseconds for reporting consistency.
-    MsEst is round(MsEst0)
+    MsEst is round(MsEst0),
+    CostEst0 is CostSampled * Calls / Samples,
+    CostEst is round(CostEst0)
   ).
 
 prover:test_stats_get_ctx_distribution(ctx_len_hist(HistPairs),
@@ -239,47 +243,34 @@ prover:test_stats_get_ctx_distribution(ctx_len_hist(HistPairs),
 % NOTE: This is intentionally cheap; it is used only in test_stats runs.
 
 prover:ctx_union(OldCtx, Ctx, NewCtx) :-
-  % Fast path: if test_stats is not active, do a plain union with no overhead.
-  ( nb_current(prover_test_stats_ctx_union_calls, _) ->
-      ( is_list(OldCtx) -> length(OldCtx, L0) ; L0 = 0 ),
-      ( is_list(Ctx)    -> length(Ctx, L1)    ; L1 = 0 ),
-      ( nb_current(prover_test_stats_ctx_union_calls, C0pre) -> true ; C0pre = 0 ),
-      CallIndex is C0pre + 1,
-      ( nb_current(prover_test_stats_ctx_union_time_sample_rate, Rate) -> true ; Rate = 1024 ),
-      % Always sample the first few unions to avoid "0 samples => 0 ms" on small runs.
-      ( ( CallIndex =< 16
-        ; 0 is CallIndex mod Rate
-        ) ->
-          Sampled = true
-        ; Sampled = false
-      ),
-      ( Sampled == true ->
+  ( nb_current(prover_test_stats_ctx_union_calls, C0) ->
+      C is C0 + 1,
+      nb_setval(prover_test_stats_ctx_union_calls, C),
+      ( ( C =< 16 ; 0 is C /\ 63 ) ->
+          % Sampled path: full instrumentation (lengths, timing, cost, histogram).
+          ( is_list(OldCtx) -> length(OldCtx, L0) ; L0 = 0 ),
+          ( is_list(Ctx)    -> length(Ctx, L1)    ; L1 = 0 ),
           statistics(walltime, [T0,_]),
           prover:ctx_union_raw(OldCtx, Ctx, NewCtx),
           statistics(walltime, [T1,_]),
           Dt is T1 - T0,
+          ( is_list(NewCtx) -> length(NewCtx, L2) ; L2 = 0 ),
           ( nb_current(prover_test_stats_ctx_union_time_samples, S0) -> true ; S0 = 0 ),
           ( nb_current(prover_test_stats_ctx_union_time_ms_sampled, M0s) -> true ; M0s = 0 ),
-          S1 is S0 + 1,
-          M1s is M0s + Dt,
+          S1 is S0 + 1, M1s is M0s + Dt,
           nb_setval(prover_test_stats_ctx_union_time_samples, S1),
-          nb_setval(prover_test_stats_ctx_union_time_ms_sampled, M1s)
-      ; prover:ctx_union_raw(OldCtx, Ctx, NewCtx)
-      ),
-      ( is_list(NewCtx) -> length(NewCtx, L2) ; L2 = 0 ),
-      ( Sampled == true ->
+          nb_setval(prover_test_stats_ctx_union_time_ms_sampled, M1s),
+          ( nb_current(prover_test_stats_ctx_union_cost, K0) -> true ; K0 = 0 ),
+          ( nb_current(prover_test_stats_ctx_max_len,    M0) -> true ; M0 = 0 ),
+          K is K0 + L0 + L1,
+          M is max(M0, max(L0, max(L1, L2))),
+          nb_setval(prover_test_stats_ctx_union_cost, K),
+          nb_setval(prover_test_stats_ctx_max_len,    M),
           prover:test_stats_ctx_union_sampled(L0, L1, L2)
-      ; true
-      ),
-      ( nb_current(prover_test_stats_ctx_union_calls, C0) -> true ; C0 = 0 ),
-      ( nb_current(prover_test_stats_ctx_union_cost,  K0) -> true ; K0 = 0 ),
-      ( nb_current(prover_test_stats_ctx_max_len,     M0) -> true ; M0 = 0 ),
-      C is C0 + 1,
-      K is K0 + L0 + L1,
-      M is max(M0, max(L0, max(L1, L2))),
-      nb_setval(prover_test_stats_ctx_union_calls, C),
-      nb_setval(prover_test_stats_ctx_union_cost,  K),
-      nb_setval(prover_test_stats_ctx_max_len,     M)
+      ;
+          % Non-sampled: just increment counter (already done above) and run union.
+          prover:ctx_union_raw(OldCtx, Ctx, NewCtx)
+      )
   ; prover:ctx_union_raw(OldCtx, Ctx, NewCtx)
   ).
 
@@ -295,15 +286,17 @@ prover:ctx_union_raw(OldCtx, Ctx, NewCtx) :-
 
 prover:ctx_strip_self(Ctx0, Ctx) :-
   ( is_list(Ctx0) ->
-      findall(X, (member(X, Ctx0), \+ X = self(_)), Ctx)
+      exclude(prover:is_self_term, Ctx0, Ctx)
   ; Ctx = Ctx0
   ),
   !.
 
+prover:is_self_term(self(_)).
+
 prover:ctx_strip_self_keep_one(Ctx0, SelfTerm, Ctx) :-
   ( is_list(Ctx0) ->
       ( memberchk(self(S), Ctx0) -> SelfTerm = self(S) ; SelfTerm = none ),
-      findall(X, (member(X, Ctx0), \+ X = self(_)), Ctx)
+      exclude(prover:is_self_term, Ctx0, Ctx)
   ; SelfTerm = none,
     Ctx = Ctx0
   ),
@@ -1217,7 +1210,8 @@ prover:assumed_proving(Lit, Proof) :- get_assoc(assumed(rule(Lit)),Proof,dep(_Co
 % differs across callers.
 prover:proven(Lit, Model, Ctx) :-
   get_assoc(Lit, Model, StoredCtx),
-  ( StoredCtx == Ctx
+  ( StoredCtx == Ctx ->
+      true
   ; prover:ctx_sem_key(StoredCtx, K1),
     prover:ctx_sem_key(Ctx,       K2),
     K1 == K2
@@ -1639,20 +1633,27 @@ prover:test_stats(Repository, Style, TopN) :-
                     printer:test_stats_record_ctx_len_distribution(CtxHistPairs, CtxMul, CtxAdd, CtxLenSamples),
                     printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
                 ; % strict failure: classify blocker vs conflict vs other (best-effort)
-                  ( current_predicate(rules:with_assume_blockers/1),
-                    rules:with_assume_blockers(
-                      ( preference:flag(pdepend) ->
-                          printer:prove_plan([Repository://Entry:Action?{[]}], _ProofAVL3, _ModelAVL3, _Plan3, _TriggersAVL3)
-                      ; prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
-                      )
-                    ) ->
-                      printer:test_stats_record_failed(blocker)
-                  ; current_predicate(rules:with_assume_conflicts/1),
-                    rules:with_assume_conflicts(
-                      prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
-                    ) ->
-                      printer:test_stats_record_failed(conflict)
-                  ; printer:test_stats_record_failed(other)
+                  % Time-budget: skip re-prove attempts if original prove already
+                  % consumed more than 1/3 of the time limit to avoid timeouts.
+                  config:time_limit(TLimit),
+                  TimeBudgetMs is TLimit * 333,
+                  ( TimeMs > TimeBudgetMs ->
+                      printer:test_stats_record_failed(other)
+                  ; ( current_predicate(rules:with_assume_blockers/1),
+                      rules:with_assume_blockers(
+                        ( preference:flag(pdepend) ->
+                            printer:prove_plan([Repository://Entry:Action?{[]}], _ProofAVL3, _ModelAVL3, _Plan3, _TriggersAVL3)
+                        ; prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
+                        )
+                      ) ->
+                        printer:test_stats_record_failed(blocker)
+                    ; current_predicate(rules:with_assume_conflicts/1),
+                      rules:with_assume_conflicts(
+                        prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
+                      ) ->
+                        printer:test_stats_record_failed(conflict)
+                    ; printer:test_stats_record_failed(other)
+                    )
                   )
                 )
               )),

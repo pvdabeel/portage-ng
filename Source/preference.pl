@@ -381,6 +381,10 @@ preference:init :-
   retractall(preference:profile_package_use_forced(_,_)),
   retractall(preference:profile_package_use_soft(_,_,_)),
   retractall(preference:gentoo_package_use_soft(_,_,_)),
+  ( nb_current(pref_gentoo_use_soft_flags, _) -> nb_setval(pref_gentoo_use_soft_flags, t) ; true ),
+  ( nb_current(pref_profile_use_soft_flags, _) -> nb_setval(pref_profile_use_soft_flags, t) ; true ),
+  ( nb_current(pref_gentoo_use_soft_cns, _) -> nb_setval(pref_gentoo_use_soft_cns, t) ; true ),
+  ( nb_current(pref_profile_use_soft_cns, _) -> nb_setval(pref_profile_use_soft_cns, t) ; true ),
   retractall(preference:license_group_raw(_,_)),
   retractall(preference:accept_license_wildcard),
   retractall(preference:accepted_license(_)),
@@ -707,7 +711,9 @@ preference:apply_profile_package_use_soft_flag(Spec, FlagS0) :-
   !.
 
 preference:profile_package_use_override_for_entry_soft(Repo://Id, Use, State) :-
+  preference:profile_use_soft_flag_known(Use),
   cache:ordered_entry(Repo, Id, C, N, ProposedVersion),
+  preference:profile_use_soft_cn_known(C, N),
   findall(State0,
           ( preference:profile_package_use_soft(Spec, Use, State0),
             preference:profile_package_use_spec_matches_entry_(Spec, Repo, Id, C, N, ProposedVersion)
@@ -718,7 +724,9 @@ preference:profile_package_use_override_for_entry_soft(Repo://Id, Use, State) :-
   !.
 
 preference:gentoo_package_use_override_for_entry_soft(Repo://Id, Use, State) :-
+  preference:gentoo_use_soft_flag_known(Use),
   cache:ordered_entry(Repo, Id, C, N, ProposedVersion),
+  preference:gentoo_use_soft_cn_known(C, N),
   findall(State0,
           ( preference:gentoo_package_use_soft(Spec, Use, State0),
             preference:profile_package_use_spec_matches_entry_(Spec, Repo, Id, C, N, ProposedVersion)
@@ -727,6 +735,76 @@ preference:gentoo_package_use_override_for_entry_soft(Repo://Id, Use, State) :-
   States \== [],
   last(States, State),
   !.
+
+% Lazily-built flag index: O(log n) AVL lookup to fast-fail when no soft
+% override facts exist for a given USE flag.  Built once on first call by
+% scanning all *_package_use_soft/3 facts.
+
+preference:gentoo_use_soft_flag_known(Use) :-
+  ( nb_current(pref_gentoo_use_soft_flags, FlagSet) ->
+      true
+  ;
+      findall(F-true, preference:gentoo_package_use_soft(_, F, _), Pairs0),
+      sort(1, @<, Pairs0, Pairs),
+      ( Pairs == [] ->
+          empty_assoc(FlagSet)
+      ;
+          list_to_assoc(Pairs, FlagSet)
+      ),
+      nb_setval(pref_gentoo_use_soft_flags, FlagSet)
+  ),
+  get_assoc(Use, FlagSet, _).
+
+preference:profile_use_soft_flag_known(Use) :-
+  ( nb_current(pref_profile_use_soft_flags, FlagSet) ->
+      true
+  ;
+      findall(F-true, preference:profile_package_use_soft(_, F, _), Pairs0),
+      sort(1, @<, Pairs0, Pairs),
+      ( Pairs == [] ->
+          empty_assoc(FlagSet)
+      ;
+          list_to_assoc(Pairs, FlagSet)
+      ),
+      nb_setval(pref_profile_use_soft_flags, FlagSet)
+  ),
+  get_assoc(Use, FlagSet, _).
+
+% (C,N) guard: fast-fail when no soft override facts reference this package.
+% Extracts category/name from Spec terms (simple/versioned).
+
+preference:gentoo_use_soft_cn_known(C, N) :-
+  ( nb_current(pref_gentoo_use_soft_cns, CNSet) ->
+      true
+  ;
+      findall(cn(C0,N0)-true,
+              ( preference:gentoo_package_use_soft(Spec, _, _),
+                preference:soft_spec_cn(Spec, C0, N0)
+              ),
+              Pairs0),
+      sort(1, @<, Pairs0, Pairs),
+      ( Pairs == [] -> empty_assoc(CNSet) ; list_to_assoc(Pairs, CNSet) ),
+      nb_setval(pref_gentoo_use_soft_cns, CNSet)
+  ),
+  get_assoc(cn(C,N), CNSet, _).
+
+preference:profile_use_soft_cn_known(C, N) :-
+  ( nb_current(pref_profile_use_soft_cns, CNSet) ->
+      true
+  ;
+      findall(cn(C0,N0)-true,
+              ( preference:profile_package_use_soft(Spec, _, _),
+                preference:soft_spec_cn(Spec, C0, N0)
+              ),
+              Pairs0),
+      sort(1, @<, Pairs0, Pairs),
+      ( Pairs == [] -> empty_assoc(CNSet) ; list_to_assoc(Pairs, CNSet) ),
+      nb_setval(pref_profile_use_soft_cns, CNSet)
+  ),
+  get_assoc(cn(C,N), CNSet, _).
+
+preference:soft_spec_cn(simple(C, N, _), C, N).
+preference:soft_spec_cn(versioned(_, C, N, _, _), C, N).
 
 preference:profile_package_use_spec_matches_entry_(simple(C, N, SlotReq), Repo, Id, C, N, _ProposedVersion) :-
   preference:entry_satisfies_slot_req_(Repo, Id, SlotReq),
