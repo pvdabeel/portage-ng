@@ -117,6 +117,7 @@ config:gentoo_profile('default/linux/amd64/23.0/split-usr/no-multilib').
 % Mirror Gentoo /etc/portage/make.conf (vm-linux) USE, normalized (last occurrence wins).
 % NOTE: The USE string is incremental; "last occurrence wins".
 % Keep `introspection` enabled for GNOME/KDE stacks (many deps require glib[introspection]).
+
 config:gentoo_env('USE', 'berkdb harfbuzz lto dnet resolutionkms o-flag-munging pgo graphite optimizations aio npm http split-usr -elogind policykit json -systemd -llvm -lua -berkdb -gdbm -introspection -vala -xen -hcache -ruby python gdbm fbcondecor messages smp qemu sqlite mmxext -svg avahi mmx sse sse2 sse3 ssse3 sse4 sse4_2 gmp cvs git x86emu gpg imap pop sidebar smime smtp dbus truetype X -xvmc xa xkb libkms cairo glitz png jpeg tiff gif mp3 opengl xcb xlib-xcb alsa aac aacplus jpeg2k fontconfig openssl ssh threads x264 x265 xvid dts md5sum a52 aalib zeroconf pkcs11 apng xattr nova account container object proxy directfb pcre16 -mdnsresponder-compat gpm').
 config:gentoo_env('VIDEO_CARDS', 'vmware vesa vga').
 config:gentoo_env('INPUT_DEVICES', 'evdev keyboard mouse vmmouse').
