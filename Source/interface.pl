@@ -418,6 +418,7 @@ interface:process_action(search,Args,_Options) :-
 %
 interface:process_action(depclean, ArgsSets, _Options) :-
   !,
+  ensure_loaded(portage('Source/kahn.pl')),
   ensure_loaded(portage('Source/depclean.pl')),
   depclean:run(ArgsSets).
 
