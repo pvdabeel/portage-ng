@@ -9,8 +9,14 @@ See cache.pl for the datastructure. The actual data is contained in kb.raw (whic
 - `Source/knowledgebase.pl`: different repositories register themselves with the knowledge base. 
 - `Source/cache.pl`: the prolog cache data structure 
 - `Source/eapi.pl`: a Prolog DCG grammar to read md5-cache syntax
-- `Source/rules.pl`: domain specific (Gentoo) specific rules handling dependencies, interpreting use flags, etc.
+- `Source/rules.pl`: domain specific (Gentoo) specific rules handling dependencies, interpreting use flags, PDEPEND hooks, etc.
 - `Source/vdb.pl`: a repository containing information about installed ebuilds
+- `Source/sampler.pl`: performance sampling and instrumentation (hook perf, test_stats counters, ctx_union sampling)
+- `Source/subprocess.pl`: generic external process spawning and dns-sd interface
+- `Source/interface.pl`: CLI option parsing, TTY init, request dispatching
+- `Source/cluster.pl`: high-level orchestration for distributed proving across workers
+- `Source/worker.pl`: compute node for distributed proving (polls server for jobs)
+- `Source/server.pl`: Pengine HTTP server + job/result queues for distributed proving
 
 
 ## Architecture (mental model)
@@ -27,8 +33,18 @@ Key files:
 - `Source/rules.pl`: domain rules; domain assumptions appear as `rule(assumed(X), [])` and show as “Domain assumptions”.
 - `Source/planner.pl`: wave planner; returns (Plan, RemainderRules).
 - `Source/scheduler.pl`: SCC/merge-set scheduling for remainder; acts only on :run SCCs.
-- `Source/printer.pl`: output + warnings; distinguishes domain assumptions vs prover cycle-breaks.
+- `Source/printer.pl`: output + warnings; distinguishes domain assumptions vs prover cycle-breaks. `prove_plan/5` is the standard entry point (always uses delayed triggers and PDEPEND).
 - `Source/version.pl`: version domain model (`version_domain(Slots, Bounds)`), domain meet/intersection, consistency checks.
+
+Version representation:
+- Versions are stored as `version/7` compound terms: `version(NumsNorm, Alpha, SuffixRank, SuffixNum, SuffixRest, Rev, Full)`.
+- Empty/absent versions use the atom `version_none`.
+- Comparison uses standard `compare/3` directly on the compound term (no runtime key conversion).
+
+PDEPEND handling:
+- PDEPEND is always enabled (unconditionally asserted in `preference:init`).
+- There is no `--pdepend` CLI flag. Do NOT add `preference:flag(pdepend)` guards.
+- PDEPEND deps are resolved single-pass inside the prover via `rules:literal_hook/4`.
 
 Assumption taxonomy (do not mix these up):
 

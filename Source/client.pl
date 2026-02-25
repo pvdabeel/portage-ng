@@ -30,12 +30,15 @@ returns a dependency plan that the client can print or execute.
 % =============================================================================
 
 % -----------------------------------------------------------------------------
-%  Remote predicates
+%  Declare remote predicates
 % -----------------------------------------------------------------------------
 
 %! client:remote_predicate_template(?Predicate)
 %
 % Predicates whose full clause set is shipped to the remote Pengine context.
+% This is a list of predicates that are declared as remote in the server.
+% The client will ship these predicates to the server and the server will
+% evaluate them in its pengines context.
 
 % Global USE, keywords, flags
 remote_predicate_template(preference:local_use(_)).

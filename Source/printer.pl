@@ -4712,7 +4712,7 @@ printer:write_fetchonly_file(Directory,Repository://Entry) :-
 %  Helper: prove + plan wrapper (optional PDEPEND closure)
 % -----------------------------------------------------------------------------
 %
-% When --pdepend is enabled we want Portage-like semantics:
+% Portage-like PDEPEND semantics:
 % - PDEPEND deps must be part of the merge transaction
 % - but they must NOT be logical prerequisites of the parent merge, otherwise
 %   they cannot break cycles (ruby/bundler/etc).
@@ -4729,15 +4729,10 @@ printer:prove_plan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
 
 printer:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
   statistics(walltime, [T0,_]),
-  % Performance: when --pdepend is enabled, we tend to prove substantially more
-  % literals. In that case incremental trigger maintenance becomes expensive.
-  % Force delayed trigger construction for this prove unless the user explicitly
-  % wants incremental triggers (they can still request it by disabling pdepend).
-  ( preference:flag(pdepend) ->
-      prover:with_delay_triggers(
-        prover:prove(Goals, t, ProofAVL, t, ModelAVL, t, _Constraints, t, TriggersAVL)
-      )
-  ; prover:prove(Goals, t, ProofAVL, t, ModelAVL, t, _Constraints, t, TriggersAVL)
+  % PDEPEND handling proves substantially more literals, making incremental
+  % trigger maintenance expensive. Force delayed trigger construction.
+  prover:with_delay_triggers(
+    prover:prove(Goals, t, ProofAVL, t, ModelAVL, t, _Constraints, t, TriggersAVL)
   ),
   statistics(walltime, [T1,_]),
   ProveMs is T1 - T0,

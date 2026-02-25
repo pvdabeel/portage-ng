@@ -28,8 +28,7 @@ This file contains domain-specific rules
 % Hook contract (called by prover):
 %   rules:literal_hook(+Literal, +Model, -HookKey, -ExtraLits)
 %
-% This implementation provides Portage-like PDEPEND behavior when --pdepend is
-% enabled:
+% This implementation provides Portage-like PDEPEND behavior:
 % - PDEPEND deps are included in the transaction (proved in the same run),
 % - but are NOT prerequisites of the parent merge action (anchored via after_only/1).
 %
@@ -45,7 +44,6 @@ This file contains domain-specific rules
 % `rules:literal_hook_key/4` also tells the prover whether the full hook can
 % produce any extra literals at all (`NeedsFullHook=false`).
 rules:literal_hook_key(Repo://Entry:Action?{_Ctx}, Model, HookKey) :-
-  preference:flag(pdepend),
   ( Action == install ; Action == update ; Action == reinstall ),
   !,
   AnchorCore = (Repo://Entry:Action),
@@ -57,7 +55,6 @@ rules:literal_hook_key(Repo://Entry:Action?{_Ctx}, Model, HookKey) :-
   ; HookKey = pdepend_none(AnchorCore)
   ).
 rules:literal_hook_key(Repo://Entry:Action, Model, HookKey) :-
-  preference:flag(pdepend),
   ( Action == install ; Action == update ; Action == reinstall ),
   !,
   AnchorCore = (Repo://Entry:Action),
@@ -69,7 +66,6 @@ rules:literal_hook_key(Repo://Entry:Action, Model, HookKey) :-
   ).
 
 rules:literal_hook_key(Repo://Entry:Action?{_Ctx}, Model, HookKey, NeedsFullHook) :-
-  preference:flag(pdepend),
   ( Action == install ; Action == update ; Action == reinstall ),
   !,
   AnchorCore = (Repo://Entry:Action),
@@ -88,7 +84,6 @@ rules:literal_hook_key(Repo://Entry:Action?{_Ctx}, Model, HookKey, NeedsFullHook
     HookKey = pdepend_none(AnchorCore)
   ).
 rules:literal_hook_key(Repo://Entry:Action, Model, HookKey, NeedsFullHook) :-
-  preference:flag(pdepend),
   ( Action == install ; Action == update ; Action == reinstall ),
   !,
   AnchorCore = (Repo://Entry:Action),
@@ -119,7 +114,6 @@ rules:literal_hook_will_merge(Repo://Entry:install) :-
   !.
 
 rules:literal_hook(Repo://Entry:Action?{_Ctx}, Model, HookKey, ExtraLits) :-
-  preference:flag(pdepend),
   ( Action == install ; Action == update ; Action == reinstall ),
   !,
   sampler:lit_hook_maybe_sample(
@@ -142,7 +136,6 @@ rules:literal_hook(Repo://Entry:Action?{_Ctx}, Model, HookKey, ExtraLits) :-
     )
   ).
 rules:literal_hook(Repo://Entry:Action, Model, HookKey, ExtraLits) :-
-  preference:flag(pdepend),
   ( Action == install ; Action == update ; Action == reinstall ),
   !,
   sampler:lit_hook_maybe_sample(

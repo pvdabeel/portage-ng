@@ -682,7 +682,7 @@ prover:hook_literals(Literal, Proof0, Proof, Model, Rest0, Rest) :-
   ( current_predicate(rules:literal_hook_key/4),
     once(rules:literal_hook_key(Literal, Model, HookKey0, NeedsFullHook)),
     ( get_assoc(hook_done(HookKey0), Proof0, true) ->
-        ( preference:flag(pdepend) -> prover:hook_perf_done_hit ; true ),
+        prover:hook_perf_done_hit,
         Proof = Proof0,
         Rest = Rest0
     ; NeedsFullHook == false ->
@@ -694,7 +694,7 @@ prover:hook_literals(Literal, Proof0, Proof, Model, Rest0, Rest) :-
   ; current_predicate(rules:literal_hook_key/3),
     once(rules:literal_hook_key(Literal, Model, HookKey1)),
     get_assoc(hook_done(HookKey1), Proof0, true) ->
-      ( preference:flag(pdepend) -> prover:hook_perf_done_hit ; true ),
+      prover:hook_perf_done_hit,
       Proof = Proof0,
       Rest = Rest0
   ;
@@ -720,26 +720,15 @@ prover:hook_literal_candidate(_Repo://_Entry:Action) :-
 prover:hook_literals_list([], Proof, Proof, _Model, Rest, Rest) :- !.
 prover:hook_literals_list([hook(HookKey, ExtraLits)|Hs], Proof0, Proof, Model, Rest0, Rest) :-
   ( get_assoc(hook_done(HookKey), Proof0, true) ->
-      ( preference:flag(pdepend) ->
-          prover:hook_perf_done_hit
-      ; true
-      ),
+      prover:hook_perf_done_hit,
       Proof1 = Proof0,
       Rest1 = Rest0
   ; put_assoc(hook_done(HookKey), Proof0, true, Proof1),
-    ( preference:flag(pdepend) ->
-        length(ExtraLits, ExtraN),
-        prover:hook_perf_hook_fired(ExtraN)
-    ; true
-    ),
-    % Avoid O(queue_len) scans of Rest0 to detect "already pending".
-    % Instead keep a monotonic pending-core set in the evolving Proof AVL.
+    length(ExtraLits, ExtraN),
+    prover:hook_perf_hook_fired(ExtraN),
     prover:select_new_literals_to_enqueue(ExtraLits, Model, Proof1, Proof2, FreshLits),
-    ( preference:flag(pdepend) ->
-        length(FreshLits, FreshN),
-        prover:hook_perf_fresh_selected(FreshN)
-    ; true
-    ),
+    length(FreshLits, FreshN),
+    prover:hook_perf_fresh_selected(FreshN),
     ( FreshLits == [] ->
         Rest1 = Rest0
     ; append(FreshLits, Rest0, Rest1)
@@ -1425,10 +1414,7 @@ prover:test(Repository,Style) :-
       scheduler:perf_reset
   ; true
   ),
-  ( preference:flag(pdepend) ->
-      prover:hook_perf_reset
-  ; true
-  ),
+  prover:hook_perf_reset,
   tester:test(Style,
               'Proving',
               Repository://Entry,
@@ -1436,10 +1422,7 @@ prover:test(Repository,Style) :-
               ( Target = (Repository://Entry:Action?{[]}),
                 prover:test_target_success(Target)
               )),
-  ( preference:flag(pdepend) ->
-      prover:hook_perf_report
-  ; true
-  ),
+  prover:hook_perf_report,
   ( current_predicate(printer:prove_plan_perf_report/0) ->
       printer:prove_plan_perf_report
   ; true
@@ -1504,10 +1487,7 @@ prover:test_stats(Repository, Style, TopN) :-
               ( sampler:test_stats_reset_counters,
                 statistics(inferences, I0),
                 statistics(walltime, [T0,_]),
-                ( ( preference:flag(pdepend) ->
-                      printer:prove_plan([Repository://Entry:Action?{[]}], ProofAVL, ModelAVL, _Plan, Triggers)
-                  ; prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers)
-                  ) ->
+                ( printer:prove_plan([Repository://Entry:Action?{[]}], ProofAVL, ModelAVL, _Plan, Triggers) ->
                     Proved = true
                 ; Proved = false
                 ),
@@ -1535,10 +1515,7 @@ prover:test_stats(Repository, Style, TopN) :-
                       printer:test_stats_record_failed(other)
                   ; ( current_predicate(rules:with_assume_blockers/1),
                       rules:with_assume_blockers(
-                        ( preference:flag(pdepend) ->
-                            printer:prove_plan([Repository://Entry:Action?{[]}], _ProofAVL3, _ModelAVL3, _Plan3, _TriggersAVL3)
-                        ; prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
-                        )
+                        printer:prove_plan([Repository://Entry:Action?{[]}], _ProofAVL3, _ModelAVL3, _Plan3, _TriggersAVL3)
                       ) ->
                         printer:test_stats_record_failed(blocker)
                     ; current_predicate(rules:with_assume_conflicts/1),

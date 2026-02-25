@@ -372,6 +372,9 @@ preference:maybe_derive_ruby_single_target :-
 
 preference:init :-
 
+  % PDEPEND handling is always enabled.
+  ( preference:local_flag(pdepend) -> true ; asserta(preference:local_flag(pdepend)) ),
+
   % Reset derived state (important when regenerating lots of plans in one session).
   retractall(preference:masked(_)),
   retractall(preference:package_use_override(_,_,_,_)),

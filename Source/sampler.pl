@@ -26,8 +26,8 @@ Two subsystems:
 %  Literal hook performance sampling
 % =============================================================================
 %
-% Used when --pdepend is enabled. Samples 1 in N calls to measure hook cost
-% without adding noticeable overhead to every prove step.
+% Samples 1 in N calls to measure PDEPEND hook cost without adding
+% noticeable overhead to every prove step.
 
 sampler:literal_hook_perf_reset :-
   flag(lit_hook_calls, _, 0),
