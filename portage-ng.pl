@@ -150,6 +150,8 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/pkg.pl')),
    ensure_loaded(portage('Source/preference')),
 
+   ensure_loaded(portage('Source/sampler.pl')),
+
    ensure_loaded(portage('Source/reader.pl')),
    ensure_loaded(portage('Source/parser.pl')),
    ensure_loaded(portage('Source/prover.pl')),

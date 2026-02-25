@@ -41,65 +41,6 @@ This file contains domain-specific rules
 % - Must be monotonic and backtracking-safe (no global side effects).
 % - Must not depend on Proof structure; HookKey is an opaque term.
 
-% Lightweight perf sampling (used only when --pdepend is enabled).
-% We sample 1 in N calls to avoid adding noticeable overhead.
-rules:literal_hook_perf_reset :-
-  flag(lit_hook_calls, _OldC, 0),
-  flag(lit_hook_has_pdepend, _OldHP, 0),
-  flag(lit_hook_no_pdepend, _OldNP, 0),
-  flag(lit_hook_sample_n, _OldSN, 0),
-  flag(lit_hook_sample_ms_sum, _OldSM, 0),
-  !.
-
-rules:literal_hook_perf_report :-
-  flag(lit_hook_calls, Calls, Calls),
-  flag(lit_hook_has_pdepend, HasP, HasP),
-  flag(lit_hook_no_pdepend, NoP, NoP),
-  flag(lit_hook_sample_n, SN, SN),
-  flag(lit_hook_sample_ms_sum, SMs, SMs),
-  ( SN =:= 0 ->
-      AvgMs = 0,
-      EstTotalMs = 0
-  ; AvgMs is SMs / SN,
-    EstTotalMs is AvgMs * Calls
-  ),
-  message:scroll_notice(['literal_hook perf: calls=',Calls,
-                         ' has_pdepend=',HasP,
-                         ' no_pdepend=',NoP,
-                         ' sample_n=',SN,
-                         ' sample_ms_sum=',SMs,
-                         ' avg_ms=',AvgMs,
-                         ' est_total_ms=',EstTotalMs]),
-  nl,
-  !.
-
-rules:lit_hook_sample_rate(1000).
-
-rules:lit_hook_maybe_sample(Goal) :-
-  % Increment call count and sample periodically.
-  flag(lit_hook_calls, C0, C0+1),
-  rules:lit_hook_sample_rate(N),
-  ( N =< 1 ->
-      statistics(walltime, [T0,_]),
-      ( Goal -> Ok = true ; Ok = false ),
-      statistics(walltime, [T1,_]),
-      Dt is T1 - T0,
-      flag(lit_hook_sample_n, SN0, SN0+1),
-      flag(lit_hook_sample_ms_sum, SM0, SM0+Dt),
-      Ok == true
-  ; C1 is C0 + 1,
-    ( 0 is C1 mod N ->
-        statistics(walltime, [T0,_]),
-        ( Goal -> Ok = true ; Ok = false ),
-        statistics(walltime, [T1,_]),
-        Dt is T1 - T0,
-        flag(lit_hook_sample_n, SN0, SN0+1),
-        flag(lit_hook_sample_ms_sum, SM0, SM0+Dt),
-        Ok == true
-    ; Goal
-    )
-  ).
-
 % Fast path for the prover: compute HookKey only (no dependency-model work).
 % This lets the prover skip calling literal_hook/4 entirely when that key is
 % already marked done in the evolving Proof.
@@ -185,7 +126,7 @@ rules:literal_hook(Repo://Entry:Action?{_Ctx}, Model, HookKey, ExtraLits) :-
   preference:flag(pdepend),
   ( Action == install ; Action == update ; Action == reinstall ),
   !,
-  rules:lit_hook_maybe_sample(
+  sampler:lit_hook_maybe_sample(
     ( AnchorCore = (Repo://Entry:Action),
       ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
           flag(lit_hook_has_pdepend, HP0, HP0+1),
@@ -208,7 +149,7 @@ rules:literal_hook(Repo://Entry:Action, Model, HookKey, ExtraLits) :-
   preference:flag(pdepend),
   ( Action == install ; Action == update ; Action == reinstall ),
   !,
-  rules:lit_hook_maybe_sample(
+  sampler:lit_hook_maybe_sample(
     ( AnchorCore = (Repo://Entry:Action),
       ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
           flag(lit_hook_has_pdepend, HP0, HP0+1),

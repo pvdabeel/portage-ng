@@ -142,7 +142,7 @@ prover:prove_model(Full, Model0, Model, Constraints0, Constraints, InProg0) :-
           Model = Model0,
           Constraints = Constraints0
       ; prover:full_literal(Lit, NewCtx, NewFull),
-        prover:test_stats_rule_call,
+        sampler:test_stats_rule_call,
         rule(NewFull, NewBody),
         prover:prove_model(NewBody, Model0, BodyModel, Constraints0, BodyConstraints, InProg0),
         put_assoc(Lit, BodyModel, NewCtx, Model),
@@ -159,7 +159,7 @@ prover:prove_model(Full, Model0, Model, Constraints0, Constraints, InProg0) :-
 
   ;   % Case: regular proof (model-only)
       put_assoc(Lit, InProg0, true, InProg1),
-      prover:test_stats_rule_call,
+      sampler:test_stats_rule_call,
       rule(Full, Body),
       prover:prove_model(Body, Model0, BodyModel, Constraints0, BodyConstraints, InProg1),
       del_assoc(Lit, InProg1, _Old, InProg2),
@@ -169,110 +169,11 @@ prover:prove_model(Full, Model0, Model, Constraints0, Constraints, InProg0) :-
   ).
 
 % -----------------------------------------------------------------------------
-%  Optional per-proof counters (used by prover:test_stats/*)
+%  Delegated instrumentation (see sampler.pl)
 % -----------------------------------------------------------------------------
-
-prover:test_stats_reset_counters :-
-  nb_setval(prover_test_stats_rule_calls, 0),
-  nb_setval(prover_test_stats_ctx_union_calls, 0),
-  nb_setval(prover_test_stats_ctx_union_cost, 0),
-  nb_setval(prover_test_stats_ctx_max_len, 0),
-  % Sampled context length distribution + cost model inputs:
-  % - ctx_len_hist: histogram of output context lengths (NewCtx) for sampled unions
-  % - ctx_cost_mul: sum(L0*L1) across sampled unions (rough proxy for list union work)
-  % - ctx_cost_add: sum(L0+L1) across sampled unions (rough proxy for ord_union work)
-  empty_assoc(EmptyHist),
-  nb_setval(prover_test_stats_ctx_len_hist, EmptyHist),
-  nb_setval(prover_test_stats_ctx_cost_mul, 0),
-  nb_setval(prover_test_stats_ctx_cost_add, 0),
-  % Sampling for ctx_union timing:
-  % - keep overhead low
-  % - but ensure we usually get at least a few samples on small runs
-  nb_setval(prover_test_stats_ctx_union_time_sample_rate, 64),
-  nb_setval(prover_test_stats_ctx_union_time_samples, 0),
-  nb_setval(prover_test_stats_ctx_union_time_ms_sampled, 0).
-
-prover:test_stats_rule_call :-
-  ( nb_current(prover_test_stats_rule_calls, N0) ->
-      N is N0 + 1,
-      nb_setval(prover_test_stats_rule_calls, N)
-  ; true
-  ).
-
-prover:test_stats_get_counters(rule_calls(RuleCalls)) :-
-  ( nb_current(prover_test_stats_rule_calls, RuleCalls) -> true ; RuleCalls = 0 ).
-
-prover:test_stats_get_ctx_counters(ctx_union_calls(Calls),
-                                  ctx_union_cost(CostEst),
-                                  ctx_max_len(MaxLen),
-                                  ctx_union_ms_est(MsEst)) :-
-  ( nb_current(prover_test_stats_ctx_union_calls, Calls) -> true ; Calls = 0 ),
-  ( nb_current(prover_test_stats_ctx_union_cost, CostSampled) -> true ; CostSampled = 0 ),
-  ( nb_current(prover_test_stats_ctx_max_len, MaxLen) -> true ; MaxLen = 0 ),
-  ( nb_current(prover_test_stats_ctx_union_time_samples, Samples) -> true ; Samples = 0 ),
-  ( nb_current(prover_test_stats_ctx_union_time_ms_sampled, MsSampled) -> true ; MsSampled = 0 ),
-  ( Samples =:= 0 ->
-      MsEst = 0,
-      CostEst = 0
-  ; MsEst0 is MsSampled * Calls / Samples,
-    MsEst is round(MsEst0),
-    CostEst0 is CostSampled * Calls / Samples,
-    CostEst is round(CostEst0)
-  ).
-
-prover:test_stats_get_ctx_distribution(ctx_len_hist(HistPairs),
-                                      ctx_cost_mul(SumMul),
-                                      ctx_cost_add(SumAdd),
-                                      ctx_len_samples(Samples)) :-
-  ( nb_current(prover_test_stats_ctx_len_hist, HistAssoc) -> true ; empty_assoc(HistAssoc) ),
-  assoc_to_list(HistAssoc, HistPairs),
-  ( nb_current(prover_test_stats_ctx_cost_mul, SumMul) -> true ; SumMul = 0 ),
-  ( nb_current(prover_test_stats_ctx_cost_add, SumAdd) -> true ; SumAdd = 0 ),
-  ( nb_current(prover_test_stats_ctx_union_time_samples, Samples) -> true ; Samples = 0 ).
-
-% -----------------------------------------------------------------------------
-%  Context list instrumentation
-% -----------------------------------------------------------------------------
-%
-% Contexts are currently represented as lists. To test whether context list
-% processing is a performance bottleneck, we record:
-% - how often we union contexts
-% - an approximate "union cost" (sum of input lengths)
-% - the max context length observed
-%
-% NOTE: This is intentionally cheap; it is used only in test_stats runs.
 
 prover:ctx_union(OldCtx, Ctx, NewCtx) :-
-  ( nb_current(prover_test_stats_ctx_union_calls, C0) ->
-      C is C0 + 1,
-      nb_setval(prover_test_stats_ctx_union_calls, C),
-      ( ( C =< 16 ; 0 is C /\ 63 ) ->
-          % Sampled path: full instrumentation (lengths, timing, cost, histogram).
-          ( is_list(OldCtx) -> length(OldCtx, L0) ; L0 = 0 ),
-          ( is_list(Ctx)    -> length(Ctx, L1)    ; L1 = 0 ),
-          statistics(walltime, [T0,_]),
-          prover:ctx_union_raw(OldCtx, Ctx, NewCtx),
-          statistics(walltime, [T1,_]),
-          Dt is T1 - T0,
-          ( is_list(NewCtx) -> length(NewCtx, L2) ; L2 = 0 ),
-          ( nb_current(prover_test_stats_ctx_union_time_samples, S0) -> true ; S0 = 0 ),
-          ( nb_current(prover_test_stats_ctx_union_time_ms_sampled, M0s) -> true ; M0s = 0 ),
-          S1 is S0 + 1, M1s is M0s + Dt,
-          nb_setval(prover_test_stats_ctx_union_time_samples, S1),
-          nb_setval(prover_test_stats_ctx_union_time_ms_sampled, M1s),
-          ( nb_current(prover_test_stats_ctx_union_cost, K0) -> true ; K0 = 0 ),
-          ( nb_current(prover_test_stats_ctx_max_len,    M0) -> true ; M0 = 0 ),
-          K is K0 + L0 + L1,
-          M is max(M0, max(L0, max(L1, L2))),
-          nb_setval(prover_test_stats_ctx_union_cost, K),
-          nb_setval(prover_test_stats_ctx_max_len,    M),
-          prover:test_stats_ctx_union_sampled(L0, L1, L2)
-      ;
-          % Non-sampled: just increment counter (already done above) and run union.
-          prover:ctx_union_raw(OldCtx, Ctx, NewCtx)
-      )
-  ; prover:ctx_union_raw(OldCtx, Ctx, NewCtx)
-  ).
+  sampler:ctx_union(OldCtx, Ctx, NewCtx).
 
 % Keep context unions stable by preventing `self/1` provenance from accumulating.
 % `self/1` is used for local dependency-resolution guards and printing, but it
@@ -314,22 +215,6 @@ prover:ctx_prepend_self(self(S), Ctx0, Ctx) :-
   ; Ctx = Ctx0
   ),
   !.
-
-prover:test_stats_ctx_union_sampled(L0, L1, L2) :-
-  % Histogram of resulting context lengths.
-  ( nb_current(prover_test_stats_ctx_len_hist, Hist0) -> true ; empty_assoc(Hist0) ),
-  ( get_assoc(L2, Hist0, C0) -> true ; C0 = 0 ),
-  C1 is C0 + 1,
-  put_assoc(L2, Hist0, C1, Hist1),
-  nb_setval(prover_test_stats_ctx_len_hist, Hist1),
-  % Cost-model inputs.
-  ( nb_current(prover_test_stats_ctx_cost_mul, Mul0) -> true ; Mul0 = 0 ),
-  ( nb_current(prover_test_stats_ctx_cost_add, Add0) -> true ; Add0 = 0 ),
-  Mul1 is Mul0 + L0 * L1,
-  Add1 is Add0 + L0 + L1,
-  nb_setval(prover_test_stats_ctx_cost_mul, Mul1),
-  nb_setval(prover_test_stats_ctx_cost_add, Add1).
-
 
 % =============================================================================
 % Top-Level Entry Point
@@ -619,7 +504,7 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 
       %writeln('PROVER: -- Ready to apply rule for full literal'),
       % -- Apply rule
-      prover:test_stats_rule_call,
+      sampler:test_stats_rule_call,
       ( nb_current(prover_timeout_trace, _) ->
           prover:trace_simplify(Lit, SimpleRuleLit),
           prover:timeout_trace_push(rule_call(SimpleRuleLit))
@@ -737,7 +622,7 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
           %writeln('PROVER: regular proof'),
           %message:color(normal),
 
-          prover:test_stats_rule_call,
+          sampler:test_stats_rule_call,
           ( nb_current(prover_timeout_trace, _) ->
               prover:trace_simplify(Lit, SimpleRuleLit),
               prover:timeout_trace_push(rule_call(SimpleRuleLit))
@@ -906,8 +791,8 @@ prover:hook_perf_reset :-
   flag(hook_perf_hook_fired, _OldHF, 0),
   flag(hook_perf_extra_lits, _OldEL, 0),
   flag(hook_perf_fresh_lits, _OldFL, 0),
-  ( current_predicate(rules:literal_hook_perf_reset/0) ->
-      rules:literal_hook_perf_reset
+  ( current_predicate(sampler:literal_hook_perf_reset/0) ->
+      sampler:literal_hook_perf_reset
   ; true
   ),
   !.
@@ -935,8 +820,8 @@ prover:hook_perf_report :-
                          ' fresh_lits=',Fresh,
                          ' done_hits=',DoneHits]),
   nl,
-  ( current_predicate(rules:literal_hook_perf_report/0) ->
-      rules:literal_hook_perf_report
+  ( current_predicate(sampler:literal_hook_perf_report/0) ->
+      sampler:literal_hook_perf_report
   ; true
   ),
   !.
@@ -1075,7 +960,7 @@ prover:timeout_trace_hook(Target, _Proof, _Model, _Constraints) :-
 % Run a short best-effort diagnosis for a target. Always succeeds.
 prover:diagnose_timeout(Target, LimitSec, diagnosis(DeltaInferences, RuleCalls, Trace)) :-
   prover:timeout_trace_reset,
-  prover:test_stats_reset_counters,
+  sampler:test_stats_reset_counters,
   statistics(inferences, I0),
   ( catch(
       prover:with_debug_hook(prover:timeout_trace_hook,
@@ -1091,7 +976,7 @@ prover:diagnose_timeout(Target, LimitSec, diagnosis(DeltaInferences, RuleCalls, 
   ),
   statistics(inferences, I1),
   DeltaInferences is I1 - I0,
-  prover:test_stats_get_counters(rule_calls(RuleCalls)),
+  sampler:test_stats_get_counters(rule_calls(RuleCalls)),
   ( nb_current(prover_timeout_trace, TraceRev) -> reverse(TraceRev, Trace) ; Trace = [] ).
 
 % Like diagnose_timeout/3, but also returns a TopCounts list of the most frequent
@@ -1612,7 +1497,7 @@ prover:test_stats(Repository, Style, TopN) :-
               'Proving',
               Repository://Entry,
               Repository:entry(Entry),
-              ( prover:test_stats_reset_counters,
+              ( sampler:test_stats_reset_counters,
                 statistics(inferences, I0),
                 statistics(walltime, [T0,_]),
                 ( ( preference:flag(pdepend) ->
@@ -1627,9 +1512,9 @@ prover:test_stats(Repository, Style, TopN) :-
                 TimeMs is T1 - T0,
                 Inferences is I1 - I0,
                 ( Proved == true ->
-                    prover:test_stats_get_counters(rule_calls(RuleCalls)),
-                    prover:test_stats_get_ctx_counters(ctx_union_calls(CtxUC), ctx_union_cost(CtxCost), ctx_max_len(CtxMax), ctx_union_ms_est(CtxMsEst)),
-                    prover:test_stats_get_ctx_distribution(ctx_len_hist(CtxHistPairs),
+                    sampler:test_stats_get_counters(rule_calls(RuleCalls)),
+                    sampler:test_stats_get_ctx_counters(ctx_union_calls(CtxUC), ctx_union_cost(CtxCost), ctx_max_len(CtxMax), ctx_union_ms_est(CtxMsEst)),
+                    sampler:test_stats_get_ctx_distribution(ctx_len_hist(CtxHistPairs),
                                                           ctx_cost_mul(CtxMul),
                                                           ctx_cost_add(CtxAdd),
                                                           ctx_len_samples(CtxLenSamples)),
@@ -1689,7 +1574,7 @@ prover:test_stats_pkgs(Repository, Style, TopN, Pkgs) :-
               ( member(C-N, Pkgs),
                 once(Repository:ebuild(Entry, C, N, _))
               ),
-              ( prover:test_stats_reset_counters,
+              ( sampler:test_stats_reset_counters,
                 statistics(inferences, I0),
                 statistics(walltime, [T0,_]),
                 ( prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers) ->
@@ -1701,9 +1586,9 @@ prover:test_stats_pkgs(Repository, Style, TopN, Pkgs) :-
                 TimeMs is T1 - T0,
                 Inferences is I1 - I0,
                 ( Proved == true ->
-                    prover:test_stats_get_counters(rule_calls(RuleCalls)),
-                    prover:test_stats_get_ctx_counters(ctx_union_calls(CtxUC), ctx_union_cost(CtxCost), ctx_max_len(CtxMax), ctx_union_ms_est(CtxMsEst)),
-                    prover:test_stats_get_ctx_distribution(ctx_len_hist(CtxHistPairs),
+                    sampler:test_stats_get_counters(rule_calls(RuleCalls)),
+                    sampler:test_stats_get_ctx_counters(ctx_union_calls(CtxUC), ctx_union_cost(CtxCost), ctx_max_len(CtxMax), ctx_union_ms_est(CtxMsEst)),
+                    sampler:test_stats_get_ctx_distribution(ctx_len_hist(CtxHistPairs),
                                                           ctx_cost_mul(CtxMul),
                                                           ctx_cost_add(CtxAdd),
                                                           ctx_len_samples(CtxLenSamples)),
