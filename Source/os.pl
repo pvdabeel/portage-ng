@@ -14,15 +14,13 @@ Goal is to get the same behaviour across different platform.
 Eventually this could become a class with different subclasses.
 */
 
-:- module(os, [
-  with_system_lock/2,
-  with_system_lock/3
-]).
+:- module(os, []).
 
 % Meta-predicate declarations:
 % Ensure the Goal executes in the *caller* context/module, not in module `os`.
 % This is crucial when the Goal uses instance-method syntax (`::`) or relies on
 % caller-local predicates.
+
 :- meta_predicate with_system_lock(+, 0).
 :- meta_predicate with_system_lock(+, 0, +).
 
@@ -104,6 +102,11 @@ os:directory_content(Directory,Content) :-
 %  Finding files
 % -----------------------------------------------------------------------------
 
+%! os:find_files(+Dir, +Pattern, -File) is nondet.
+%
+% Non-deterministically unify File with regular files under Dir whose
+% names match the glob Pattern. Follows no symlinks.
+
 find_files(Dir, Pattern, File) :-
   directory_member(Dir, File,
                    [ recursive(true),
@@ -127,8 +130,20 @@ find_files(Dir, Pattern, File) :-
 % - stale(Seconds): consider lock stale after Seconds and remove it (default 7200). Use 0 to disable.
 %
 
+%! os:with_system_lock(+Name, :Goal) is det.
+%
+% Convenience wrapper: acquires system lock Name, runs Goal, releases lock.
+% Uses default options (timeout 600s, stale 7200s).
+
 with_system_lock(Name, Goal) :-
   with_system_lock(Name, Goal, []).
+
+%! os:with_system_lock(+Name, :Goal, +Options) is det.
+%
+% Acquire a cross-process filesystem lock identified by Name, execute Goal,
+% and release the lock on completion (or exception). Options:
+%   - `timeout(Seconds)` — max wait to acquire (default 600; -1 = infinite)
+%   - `stale(Seconds)` — consider lock stale after this age (default 7200; 0 = disable)
 
 with_system_lock(Name, Goal, Options) :-
   ( memberchk(timeout(Timeout), Options) -> true ; Timeout = 600 ),
@@ -137,15 +152,28 @@ with_system_lock(Name, Goal, Options) :-
   os:system_lock_acquire(LockDir, Name, Timeout, Stale),
   call_cleanup(Goal, os:system_lock_release(LockDir)).
 
+%! os:system_lock_dir(+Name, -LockDir) is det.
+%
+% Derive the filesystem lock directory path in /tmp from a lock Name term.
+
 system_lock_dir(Name, LockDir) :-
   term_to_atom(Name, Atom0),
   os:sanitize_for_filename(Atom0, Atom),
   atomic_list_concat(['/tmp/portage-ng-lock-', Atom, '.lock'], LockDir).
 
+%! os:sanitize_for_filename(+In, -Out) is det.
+%
+% Replace characters unsafe for filenames with underscores, keeping
+% alphanumerics, dots, hyphens, and underscores.
+
 sanitize_for_filename(In, Out) :-
   atom_codes(In, Codes),
   maplist(os:sanitize_code, Codes, Codes2),
   atom_codes(Out, Codes2).
+
+%! os:sanitize_code(+CodeIn, -CodeOut) is det.
+%
+% Map a character code to itself if safe for filenames, otherwise to underscore.
 
 sanitize_code(C, C) :-
   ( C >= 0'a, C =< 0'z
@@ -156,15 +184,33 @@ sanitize_code(C, C) :-
   !.
 sanitize_code(_C, 0'_).
 
+%! os:system_lock_acquire(+LockDir, +Name, +Timeout, +Stale) is det.
+%
+% Acquire the lock by creating LockDir atomically (mkdir). Blocks with
+% retry polling until the lock is obtained or Timeout is exceeded.
+
 system_lock_acquire(LockDir, Name, Timeout, Stale) :-
   os:system_lock_meta_path(LockDir, Meta),
   os:system_lock_wait_loop(LockDir, Meta, Name, Timeout, Stale, 0).
 
+%! os:system_lock_release(+LockDir) is det.
+%
+% Release the lock by removing LockDir and its contents.
+
 system_lock_release(LockDir) :-
   catch(delete_directory_and_contents(LockDir), _Any, true).
 
+%! os:system_lock_meta_path(+LockDir, -Meta) is det.
+%
+% Path to the metadata file inside the lock directory.
+
 system_lock_meta_path(LockDir, Meta) :-
   atomic_list_concat([LockDir, '/meta'], Meta).
+
+%! os:system_lock_write_meta(+Meta, +Name) is det.
+%
+% Write lock holder metadata (PID, timestamp, working directory, lock name)
+% to the meta file for diagnostics and stale-lock detection.
 
 system_lock_write_meta(Meta, Name) :-
   get_time(NowF),
@@ -177,6 +223,11 @@ system_lock_write_meta(Meta, Name) :-
     close(S)
   ).
 
+%! os:system_lock_read_kv(+Meta, -Pid, -CreatedAt) is semidet.
+%
+% Read the lock holder's PID and creation timestamp from the meta file.
+% Fails if the file cannot be read or parsed.
+
 system_lock_read_kv(Meta, Pid, CreatedAt) :-
   catch(read_file_to_string(Meta, Str, []), _Any, fail),
   split_string(Str, "\n", "\r", Lines),
@@ -185,6 +236,10 @@ system_lock_read_kv(Meta, Pid, CreatedAt) :-
   number_string(Pid, PidStr),
   number_string(CreatedAt, TsStr).
 
+%! os:kv_value(+Lines, +Key, -Value) is semidet.
+%
+% Extract the value for a "Key=Value" line from a list of strings.
+
 kv_value(Lines, Key, Value) :-
   atom_concat(Key, "=", Prefix),
   member(Line, Lines),
@@ -192,8 +247,18 @@ kv_value(Lines, Key, Value) :-
   sub_string(Line, _, _, 0, Value),
   !.
 
+%! os:system_lock_pid_alive(+Pid) is semidet.
+%
+% True if the process with Pid is still running (signal 0 probe).
+
 system_lock_pid_alive(Pid) :-
   catch(process_kill(Pid, 0), _Any, fail).
+
+%! os:system_lock_wait_loop(+LockDir, +Meta, +Name, +Timeout, +Stale, +Waited) is det.
+%
+% Core lock-acquisition loop. Attempts atomic mkdir; on failure checks
+% whether the existing lock is stale or held by a dead process, and
+% either reclaims it or sleeps and retries.
 
 system_lock_wait_loop(LockDir, Meta, Name, Timeout, Stale, Waited) :-
   ( catch(make_directory(LockDir), _Any, fail) ->
@@ -213,6 +278,11 @@ system_lock_wait_loop(LockDir, Meta, Name, Timeout, Stale, Waited) :-
     ; os:system_lock_sleep_or_timeout(LockDir, Meta, Name, Timeout, Stale, Waited)
     )
   ).
+
+%! os:system_lock_sleep_or_timeout(+LockDir, +Meta, +Name, +Timeout, +Stale, +Waited) is det.
+%
+% Sleep 1 second and retry, or throw `system_lock_timeout` if the timeout
+% has been reached.
 
 system_lock_sleep_or_timeout(LockDir, Meta, Name, Timeout, Stale, Waited) :-
   ( Timeout >= 0, Waited >= Timeout ->
