@@ -1755,14 +1755,19 @@ printer:printable_element(rule(_Repository://_Entry:install?_,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:reinstall?_,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:uninstall?_,_)) :- !.
 
-% Suppress printing the "wrapper" update target when it schedules the actual
-% transactional update on a chosen replacement version.
+% Suppress printing the "wrapper" update/downgrade target when it schedules the
+% actual transactional update/downgrade on a chosen replacement version.
 printer:printable_element(rule(_Repository://_Entry:update?{_Context},Body)) :-
   member(_NewRepo://_NewEntry:update?{_}, Body),
   !,
   fail.
+printer:printable_element(rule(_Repository://_Entry:downgrade?{_Context},Body)) :-
+  member(_NewRepo://_NewEntry:downgrade?{_}, Body),
+  !,
+  fail.
 
 printer:printable_element(rule(_Repository://_Entry:update?_,_)) :- !.
+printer:printable_element(rule(_Repository://_Entry:downgrade?_,_)) :- !.
 printer:printable_element(rule(_Repository://_Entry:upgrade?_,_)) :- !.
 % Prover cycle-break rules (`assumed(rule(...))`) are printed in the warnings
 % section with cycle explanations. Do not print them as "verify" steps.
@@ -1821,6 +1826,7 @@ printer:element_weight(rule(_Repository://_Entry:install?_,_),          5) :- !.
 printer:element_weight(rule(_Repository://_Entry:reinstall?_,_),        6) :- !. % reinstall
 printer:element_weight(rule(_Repository://_Entry:uninstall?_,_),        6) :- !. % uninstall
 printer:element_weight(rule(_Repository://_Entry:update?_,_),           6) :- !. % update
+printer:element_weight(rule(_Repository://_Entry:downgrade?_,_),        6) :- !. % downgrade
 printer:element_weight(rule(_Repository://_Entry:upgrade?_,_),          6) :- !. % upgrade
 printer:element_weight(_,                                               7) :- !. % everything else
 
@@ -1855,9 +1861,11 @@ printer:print_element(_,rule(package_dependency(run_post,_,_C,_N,_,_,_,_),[Repos
 
 printer:print_element(Target,rule(Repository://Entry:Action?{Context},_Body)) :-
   ( member(Repository://Entry:Action?_,Target)
-  ; Action == update,
+  ; memberchk(Action, [update,downgrade]),
     memberchk(replaces(OldRepo://OldEntry), Context),
-    member(OldRepo://OldEntry:update?_, Target)
+    ( member(OldRepo://OldEntry:update?_, Target)
+    ; member(OldRepo://OldEntry:downgrade?_, Target)
+    )
   ),
   !,
   %message:color(cyan),
@@ -1865,7 +1873,7 @@ printer:print_element(Target,rule(Repository://Entry:Action?{Context},_Body)) :-
   message:style(bold),
   message:color(green),
   message:column(24,Repository://Entry),
-  ( Action == update,
+  ( memberchk(Action, [update,downgrade]),
     memberchk(replaces(OldRepo2://OldEntry2), Context)
   -> message:color(lightgray),
      message:print(' (replaces '),
@@ -1894,7 +1902,7 @@ printer:print_element(_,rule(Repository://Entry:Action?{Context},_)) :-
   message:print(Action),
   message:color(green),
   message:column(24,Repository://Entry),
-  ( Action == update,
+  ( memberchk(Action, [update,downgrade]),
     memberchk(replaces(OldRepo://OldEntry), Context)
   -> message:color(lightgray),
      message:print(' (replaces '),
@@ -2282,6 +2290,10 @@ printer:print_config(Repository://Entry:install?{Context}) :-
 % for the *new* version being merged.
 
 printer:print_config(Repository://Entry:update?{Context}) :-
+  !,
+  printer:print_config(Repository://Entry:install?{Context}).
+
+printer:print_config(Repository://Entry:downgrade?{Context}) :-
   !,
   printer:print_config(Repository://Entry:install?{Context}).
 
@@ -2991,11 +3003,12 @@ printer:print_footer(Plan, _ModelAVL, PrintedSteps) :-
 % Build the "(...)" part of the footer, omitting zero-count categories.
 printer:footer_action_breakdown(S, Breakdown) :-
   findall(Part,
-          ( printer:footer_action_part(downloads,  S.downloads,  download,  downloads,  Part)
-          ; printer:footer_action_part(installs,   S.installs,   install,   installs,   Part)
-          ; printer:footer_action_part(updates,    S.updates,    update,    updates,    Part)
-          ; printer:footer_action_part(reinstalls, S.reinstalls, reinstall, reinstalls, Part)
-          ; printer:footer_action_part(runs,       S.runs,       run,       runs,       Part)
+          ( printer:footer_action_part(downloads,  S.downloads,  download,   downloads,  Part)
+          ; printer:footer_action_part(installs,   S.installs,   install,    installs,   Part)
+          ; printer:footer_action_part(updates,    S.updates,    update,     updates,    Part)
+          ; printer:footer_action_part(downgrades, S.downgrades, downgrade,  downgrades, Part)
+          ; printer:footer_action_part(reinstalls, S.reinstalls, reinstall,  reinstalls, Part)
+          ; printer:footer_action_part(runs,       S.runs,       run,        runs,       Part)
           ),
           Parts0),
   ( Parts0 == [] ->
@@ -3026,7 +3039,7 @@ printer:pluralize(_, _, Plural, Plural).
 
 printer:footer_stats(ModelAVL, Stats) :-
    StatsInitial = stats{ass:0, con:0, naf:0, actions:0, fetches:0,
-                        downloads:0, runs:0, installs:0, updates:0, reinstalls:0, total_dl:0},
+                        downloads:0, runs:0, installs:0, updates:0, downgrades:0, reinstalls:0, total_dl:0},
    findall(Key, assoc:gen_assoc(Key, ModelAVL, _), Keys),
    foldl(printer:update_stats, Keys, StatsInitial, Stats).
 
@@ -3040,7 +3053,7 @@ printer:footer_stats(ModelAVL, Stats) :-
 % reinstall/run), matching the footer breakdown.
 %
 printer:footer_stats_from_plan(Plan, Stats) :-
-  Stats0 = stats{actions:0, downloads:0, runs:0, installs:0, updates:0, reinstalls:0, total_dl:0},
+  Stats0 = stats{actions:0, downloads:0, runs:0, installs:0, updates:0, downgrades:0, reinstalls:0, total_dl:0},
   foldl(printer:footer_stats_from_step, Plan, Stats0, Stats).
 
 printer:footer_stats_from_step(Step, S0, S) :-
@@ -3078,6 +3091,11 @@ printer:footer_stats_from_head(_://_:update, S0, S) :-
   NewUpdates is S0.updates + 1,
   NewActions is S0.actions + 1,
   S = S0.put(_{updates:NewUpdates, actions:NewActions}).
+printer:footer_stats_from_head(_://_:downgrade, S0, S) :-
+  !,
+  NewDowngrades is S0.downgrades + 1,
+  NewActions is S0.actions + 1,
+  S = S0.put(_{downgrades:NewDowngrades, actions:NewActions}).
 printer:footer_stats_from_head(_://_:reinstall, S0, S) :-
   !,
   NewReinstalls is S0.reinstalls + 1,
@@ -3119,6 +3137,9 @@ printer:update_stats_clauses(_://_:install, S0, S) :-
 printer:update_stats_clauses(_://_:update, S0, S) :-
   NewUpdates is S0.updates + 1, NewActions is S0.actions + 1,
   S = S0.put(_{updates:NewUpdates, actions:NewActions}).
+printer:update_stats_clauses(_://_:downgrade, S0, S) :-
+  NewDowngrades is S0.downgrades + 1, NewActions is S0.actions + 1,
+  S = S0.put(_{downgrades:NewDowngrades, actions:NewActions}).
 printer:update_stats_clauses(_://_:reinstall, S0, S) :-
   NewReinstalls is S0.reinstalls + 1, NewActions is S0.actions + 1,
   S = S0.put(_{reinstalls:NewReinstalls, actions:NewActions}).
@@ -4973,7 +4994,7 @@ printer:plan_merge_anchor(Plan, Repo://Entry, AnchorCore, Ctx) :-
   ),
   prover:canon_literal(HeadWithCtx, AnchorCore, Ctx),
   AnchorCore = (Repo://Entry:Action),
-  ( Action == install ; Action == update ; Action == reinstall ),
+  ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   true.
 
 

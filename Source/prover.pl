@@ -711,10 +711,10 @@ prover:hook_literals(Literal, Proof0, Proof, Model, Rest0, Rest) :-
 prover:hook_literals(_Literal, Proof, Proof, _Model, Rest, Rest).
 
 prover:hook_literal_candidate(_Repo://_Entry:Action?{_Ctx}) :-
-  ( Action == install ; Action == update ; Action == reinstall ),
+  ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !.
 prover:hook_literal_candidate(_Repo://_Entry:Action) :-
-  ( Action == install ; Action == update ; Action == reinstall ),
+  ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !.
 
 prover:hook_literals_list([], Proof, Proof, _Model, Rest, Rest) :- !.

@@ -23,7 +23,7 @@ Policy:
 - SCCs consisting purely of *mergeable* literals are schedulable as merge sets.
   Mergeable literals are:
   - :run (historical behavior)
-  - :install/:update/:reinstall (merge actions)
+  - :install/:update/:downgrade/:reinstall (merge actions)
 - Any SCC containing other literal kinds is treated as unschedulable; all rules
   that (transitively) depend on such SCCs remain in the remainder.
 
@@ -606,9 +606,11 @@ scheduler:is_run_literal(_Something:run) :- !.
 % Merge actions that can be part of a merge set SCC.
 scheduler:is_merge_action_literal(_Repo://_Ebuild:install) :- !.
 scheduler:is_merge_action_literal(_Repo://_Ebuild:update) :- !.
+scheduler:is_merge_action_literal(_Repo://_Ebuild:downgrade) :- !.
 scheduler:is_merge_action_literal(_Repo://_Ebuild:reinstall) :- !.
 scheduler:is_merge_action_literal(_Something:install) :- !.
 scheduler:is_merge_action_literal(_Something:update) :- !.
+scheduler:is_merge_action_literal(_Something:downgrade) :- !.
 scheduler:is_merge_action_literal(_Something:reinstall) :- !.
 
 scheduler:is_mergeable_literal(H) :-

@@ -44,7 +44,7 @@ This file contains domain-specific rules
 % `rules:literal_hook_key/4` also tells the prover whether the full hook can
 % produce any extra literals at all (`NeedsFullHook=false`).
 rules:literal_hook_key(Repo://Entry:Action?{_Ctx}, Model, HookKey) :-
-  ( Action == install ; Action == update ; Action == reinstall ),
+  ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !,
   AnchorCore = (Repo://Entry:Action),
   % Fast path: most entries have no PDEPEND; avoid inspecting build_with_use.
@@ -55,7 +55,7 @@ rules:literal_hook_key(Repo://Entry:Action?{_Ctx}, Model, HookKey) :-
   ; HookKey = pdepend_none(AnchorCore)
   ).
 rules:literal_hook_key(Repo://Entry:Action, Model, HookKey) :-
-  ( Action == install ; Action == update ; Action == reinstall ),
+  ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !,
   AnchorCore = (Repo://Entry:Action),
   ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
@@ -66,7 +66,7 @@ rules:literal_hook_key(Repo://Entry:Action, Model, HookKey) :-
   ).
 
 rules:literal_hook_key(Repo://Entry:Action?{_Ctx}, Model, HookKey, NeedsFullHook) :-
-  ( Action == install ; Action == update ; Action == reinstall ),
+  ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !,
   AnchorCore = (Repo://Entry:Action),
   % If this action will not result in a merge transaction, do not expand PDEPEND.
@@ -84,7 +84,7 @@ rules:literal_hook_key(Repo://Entry:Action?{_Ctx}, Model, HookKey, NeedsFullHook
     HookKey = pdepend_none(AnchorCore)
   ).
 rules:literal_hook_key(Repo://Entry:Action, Model, HookKey, NeedsFullHook) :-
-  ( Action == install ; Action == update ; Action == reinstall ),
+  ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !,
   AnchorCore = (Repo://Entry:Action),
   ( rules:literal_hook_will_merge(Repo://Entry:Action) ->
@@ -104,6 +104,7 @@ rules:literal_hook_key(Repo://Entry:Action, Model, HookKey, NeedsFullHook) :-
 % For install actions, already-installed entries (when not emptytree) are no-ops.
 rules:literal_hook_will_merge(_Repo://_Entry:reinstall) :- !, true.
 rules:literal_hook_will_merge(_Repo://_Entry:update) :- !, true.
+rules:literal_hook_will_merge(_Repo://_Entry:downgrade) :- !, true.
 rules:literal_hook_will_merge(Repo://Entry:install) :-
   ( preference:flag(emptytree) ->
       true
@@ -114,7 +115,7 @@ rules:literal_hook_will_merge(Repo://Entry:install) :-
   !.
 
 rules:literal_hook(Repo://Entry:Action?{_Ctx}, Model, HookKey, ExtraLits) :-
-  ( Action == install ; Action == update ; Action == reinstall ),
+  ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !,
   sampler:lit_hook_maybe_sample(
     ( AnchorCore = (Repo://Entry:Action),
@@ -136,7 +137,7 @@ rules:literal_hook(Repo://Entry:Action?{_Ctx}, Model, HookKey, ExtraLits) :-
     )
   ).
 rules:literal_hook(Repo://Entry:Action, Model, HookKey, ExtraLits) :-
-  ( Action == install ; Action == update ; Action == reinstall ),
+  ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !,
   sampler:lit_hook_maybe_sample(
     ( AnchorCore = (Repo://Entry:Action),
@@ -449,6 +450,8 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   % If another version is already installed in the same slot, then "merge" should
   % translate into a transactional same-slot replacement (Portage-style), i.e.
   % NewVersion:update (replaces OldVersion), rather than a plain NewVersion:install.
+  % When the new version is lower than the installed one, use "downgrade" (matching
+  % Portage's "D" action letter).
   ( \+ preference:flag(emptytree),
     rules:entry_slot_default(Repository, Ebuild, SlotNew),
     % Fast guard: if nothing for C/N is installed in the VDB repo, don't even
@@ -469,7 +472,13 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
     % IMPORTANT: do NOT thread slot(C,N,...) through action contexts. Slot is a
     % prover-level constraint (see constraint(slot(...))) and should not influence
     % grouped dependency candidate selection (it would incorrectly constrain := deps).
-    InstallOrUpdate = Repository://Ebuild:update?{[replaces(OldRepo://OldEbuild),required_use:R,build_with_use:B]}
+    ( query:search(version(NewVer_), Repository://Ebuild),
+      query:search(version(OldVer_), OldRepo://OldEbuild),
+      eapi:version_compare(<, NewVer_, OldVer_)
+    -> UpdateOrDowngrade = downgrade
+    ;  UpdateOrDowngrade = update
+    ),
+    InstallOrUpdate = Repository://Ebuild:UpdateOrDowngrade?{[replaces(OldRepo://OldEbuild),required_use:R,build_with_use:B]}
   ; InstallOrUpdate = Repository://Ebuild:install?{[required_use:R,build_with_use:B]}
   ),
   Prefix0 = [Selected,
@@ -771,6 +780,33 @@ rule(Repository://Ebuild:update?{Context},Conditions) :-
   memberchk(replaces(_OldRepo://_OldEbuild), Context),
   !,
   rules:update_txn_conditions(Repository://Ebuild, Context, Conditions).
+
+
+% -----------------------------------------------------------------------------
+%  Rule: Downgrade target
+% -----------------------------------------------------------------------------
+% A downgrade is semantically identical to an update (transactional same-slot
+% replacement) but with a lower version replacing a higher one. The version
+% direction is already captured in the action name; the proof mechanics are
+% the same as for update.
+
+% Transactional downgrade with replaces in context (produced by the target rule
+% or grouped dependency rule when the candidate version < installed version).
+rule(Repository://Ebuild:downgrade?{Context},Conditions) :-
+  memberchk(replaces(_OldRepo://_OldEbuild), Context),
+  !,
+  rules:update_txn_conditions(Repository://Ebuild, Context, Conditions).
+
+% Downgrading an already-installed version is a no-op.
+rule(Repository://Ebuild:downgrade?{_Context},[]) :-
+  query:search(installed(true), Repository://Ebuild),
+  !.
+
+% Fallback: downgrade without replaces context — treat as install.
+rule(Repository://Ebuild:downgrade?{Context},Conditions) :-
+  \+ memberchk(replaces(_), Context),
+  !,
+  Conditions = [Repository://Ebuild:install?{Context}].
 
 
 % -----------------------------------------------------------------------------
@@ -1220,7 +1256,11 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
           query:search(version(OldVer), pkg://InstalledEntry2),
           query:search(version(CandVer0), FoundRepo://Candidate),
           OldVer \== CandVer0 ->
-            feature_unification:unify([replaces(pkg://InstalledEntry2)], NewerContext, UpdateCtx)
+            feature_unification:unify([replaces(pkg://InstalledEntry2)], NewerContext, UpdateCtx),
+            ( eapi:version_compare(<, CandVer0, OldVer)
+            -> DepUpdateAction = downgrade
+            ;  DepUpdateAction = update
+            )
         ; % Incoming bracketed USE constraints require a rebuild of the installed instance.
           ( current_predicate(config:avoid_reinstall/1),
             config:avoid_reinstall(true) ->
@@ -1228,15 +1268,17 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
           ; C \== 'virtual',
             \+ rules:installed_entry_satisfies_build_with_use(pkg://InstalledEntry2, NewerContext)
           ) ->
-            feature_unification:unify([replaces(pkg://InstalledEntry2),rebuild_reason(build_with_use)], NewerContext, UpdateCtx)
+            feature_unification:unify([replaces(pkg://InstalledEntry2),rebuild_reason(build_with_use)], NewerContext, UpdateCtx),
+            DepUpdateAction = update
         ; % --newuse: force a transactional rebuild even if version is the same,
           % when USE/IUSE differs.
           preference:flag(newuse),
           rules:newuse_mismatch(pkg://InstalledEntry2, FoundRepo://Candidate) ->
-            feature_unification:unify([replaces(pkg://InstalledEntry2),rebuild_reason(newuse)], NewerContext, UpdateCtx)
+            feature_unification:unify([replaces(pkg://InstalledEntry2),rebuild_reason(newuse)], NewerContext, UpdateCtx),
+            DepUpdateAction = update
         )
       ->
-        ActionGoal = FoundRepo://Candidate:update?{UpdateCtx}
+        ActionGoal = FoundRepo://Candidate:DepUpdateAction?{UpdateCtx}
       ; % Portage-like: even for runtime (RDEPEND) edges, the solver should
         % schedule the dependency to be installed (not "run") when it is not
         % already present. Otherwise we create widespread `assumed(...running)`
