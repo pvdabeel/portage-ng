@@ -7,6 +7,7 @@
   project.
 */
 
+
 /** <module> PLANNER
 The Planner creates a plan based on a Proof.
 
@@ -281,4 +282,3 @@ planner:test_stats(Repository, Style) :-
                 printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
               )),
   printer:test_stats_print.
-

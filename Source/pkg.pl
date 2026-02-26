@@ -22,17 +22,6 @@ This module is reponsible for tracking installed packages on the system.
 % =============================================================================
 
 
-%! vdb:installed_pkg(+Entry)
-%
-% Retrieves installed packages on the system (cached)
-
-os:installed_pkg(Repository://Entry) :-
-  query:search(installed(true),Repository://Entry).
-
-os:installed_pkgs(L) :-
-  findall(R://E,os:installed_pkg(R://E),L).
-
-
 %! vdb:sync
 %
 % Syncs the installed packages to prolog metadata
@@ -90,7 +79,7 @@ vdb:make_repository_dirs(Repository,Directory) :-
 %
 % Copy static assets into the repository graph directory.
 % Targets are fixed names: .index.css, .proof.css, .meslo.ttf
-%
+
 vdb:copy_graph_assets(Directory) :-
   vdb:copy_graph_asset(index_css, '.index.css', Directory),
   vdb:copy_graph_asset(proof_css, '.proof.css', Directory),
@@ -126,11 +115,10 @@ vdb:copy_graph_asset(Key, TargetName, Directory) :-
 %   ?- vdb:outdated('dev-libs',openssl, Installed, Latest).
 %   Installed = pkg://'dev-libs/openssl-3.5.0',
 %   Latest    = portage://'dev-libs/openssl-3.5.4'.
-%
+
 vdb:outdated(Category, Name, pkg://InstalledEntry, portage://LatestEntry) :-
   cache:ordered_entry(pkg, InstalledEntry, Category, Name, InstalledVer),
   preference:accept_keywords(K),
   once(query:search([repository(portage),category(Category),name(Name),keywords(K),version(LatestVer)],
                     portage://LatestEntry)),
   compare(>, LatestVer, InstalledVer).
-

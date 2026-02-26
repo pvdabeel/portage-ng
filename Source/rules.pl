@@ -1282,15 +1282,12 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         fail
       ; rules:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps1, Context),
         fail
-      ; explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, _Reason),
-        % Keep assumption_reason out of dependency-context unification:
-        % it is diagnostic metadata for the printer/stats, not part of the domain
-        % feature lattice. Unifying it into Context can prevent later refinement
-        % of the same dependency (and can also bloat contexts via propagation).
+      ; explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason),
         feature_unification:unify([], Context, Ctx1),
         version_domain:domain_reason_terms(Action, C, N, PackageDeps1, Context, DomainReasonTags),
         rules:add_domain_reason_context(C, N, DomainReasonTags, Ctx1, Ctx2),
-        Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps1):Action?{Ctx2})]
+        feature_unification:unify([assumption_reason(Reason)], Ctx2, Ctx3),
+        Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps1):Action?{Ctx3})]
       )
     )
   ).

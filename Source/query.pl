@@ -1065,6 +1065,9 @@ compile_query_compound(model(dependency(Model,fetchonly)):config?{Context}, Repo
 compile_query_compound(qualified_target(none,Repo,C,P,[[],'','','',''],_F), Repo://Id,
   cache:ordered_entry(Repo,Id,C,P,_)) :- !.
 
+compile_query_compound(qualified_target(none,Repo,C,P,version_none,_F), Repo://Id,
+  cache:ordered_entry(Repo,Id,C,P,_)) :- !.
+
 compile_query_compound(qualified_target(none,Repo,C,P,V,_F), Repo://Id,
   cache:ordered_entry(Repo,Id,C,P,V)) :- !.
 

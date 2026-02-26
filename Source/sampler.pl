@@ -29,6 +29,11 @@ Two subsystems:
 % Samples 1 in N calls to measure PDEPEND hook cost without adding
 % noticeable overhead to every prove step.
 
+%! sampler:literal_hook_perf_reset is det.
+%
+% Zero all literal-hook sampling counters (calls, has/no PDEPEND hits,
+% sample count, and accumulated sample time).
+
 sampler:literal_hook_perf_reset :-
   flag(lit_hook_calls, _, 0),
   flag(lit_hook_has_pdepend, _, 0),
@@ -36,6 +41,13 @@ sampler:literal_hook_perf_reset :-
   flag(lit_hook_sample_n, _, 0),
   flag(lit_hook_sample_ms_sum, _, 0),
   !.
+
+
+%! sampler:literal_hook_perf_report is det.
+%
+% Print a one-line summary of literal-hook sampling statistics: total
+% calls, PDEPEND hit/miss counts, sample count, total sampled time,
+% average per-call time, and estimated total time across all calls.
 
 sampler:literal_hook_perf_report :-
   flag(lit_hook_calls, Calls, Calls),
@@ -59,7 +71,20 @@ sampler:literal_hook_perf_report :-
   nl,
   !.
 
+
+%! sampler:lit_hook_sample_rate(-N) is det.
+%
+% The sampling rate: measure timing on every Nth call. Set to 1 for
+% full profiling (expensive) or a large value for low-overhead sampling.
+
 sampler:lit_hook_sample_rate(1000).
+
+
+%! sampler:lit_hook_maybe_sample(:Goal) is semidet.
+%
+% Execute Goal, optionally wrapping it in wall-clock timing if this call
+% hits the 1-in-N sampling window. Increments the call counter on every
+% invocation; only the sampled calls pay the timing overhead.
 
 sampler:lit_hook_maybe_sample(Goal) :-
   flag(lit_hook_calls, C0, C0+1),
@@ -93,6 +118,12 @@ sampler:lit_hook_maybe_sample(Goal) :-
 % Counts rule/2 applications during test_stats runs. Designed as a true no-op
 % when test_stats is not active (counter does not exist).
 
+%! sampler:test_stats_reset_counters is det.
+%
+% Initialize all test-stats global counters to zero (rule calls,
+% context-union calls/cost/max-length, length histogram, cost
+% breakdown, and timing sample accumulators).
+
 sampler:test_stats_reset_counters :-
   nb_setval(prover_test_stats_rule_calls, 0),
   nb_setval(prover_test_stats_ctx_union_calls, 0),
@@ -106,6 +137,12 @@ sampler:test_stats_reset_counters :-
   nb_setval(prover_test_stats_ctx_union_time_samples, 0),
   nb_setval(prover_test_stats_ctx_union_time_ms_sampled, 0).
 
+
+%! sampler:test_stats_rule_call is det.
+%
+% Increment the rule-call counter if a test_stats run is active.
+% No-op when the counter does not exist.
+
 sampler:test_stats_rule_call :-
   ( nb_current(prover_test_stats_rule_calls, N0) ->
       N is N0 + 1,
@@ -113,8 +150,21 @@ sampler:test_stats_rule_call :-
   ; true
   ).
 
+
+%! sampler:test_stats_get_counters(-RuleCalls) is det.
+%
+% Retrieve the current rule-call count as `rule_calls(N)`.
+
 sampler:test_stats_get_counters(rule_calls(RuleCalls)) :-
   ( nb_current(prover_test_stats_rule_calls, RuleCalls) -> true ; RuleCalls = 0 ).
+
+
+%! sampler:test_stats_get_ctx_counters(-Calls, -CostEst, -MaxLen, -MsEst) is det.
+%
+% Retrieve context-union instrumentation counters. Values are returned as
+% wrapped terms: `ctx_union_calls(N)`, `ctx_union_cost(N)`,
+% `ctx_max_len(N)`, `ctx_union_ms_est(N)`. Cost and time are
+% extrapolated from sampled data to the full call count.
 
 sampler:test_stats_get_ctx_counters(ctx_union_calls(Calls),
                                     ctx_union_cost(CostEst),
@@ -134,6 +184,13 @@ sampler:test_stats_get_ctx_counters(ctx_union_calls(Calls),
     CostEst is round(CostEst0)
   ).
 
+
+%! sampler:test_stats_get_ctx_distribution(-HistPairs, -SumMul, -SumAdd, -Samples) is det.
+%
+% Retrieve context-union distribution data: output-length histogram
+% (`ctx_len_hist(Pairs)`), quadratic cost sum (`ctx_cost_mul(N)`),
+% linear cost sum (`ctx_cost_add(N)`), and total samples taken.
+
 sampler:test_stats_get_ctx_distribution(ctx_len_hist(HistPairs),
                                         ctx_cost_mul(SumMul),
                                         ctx_cost_add(SumAdd),
@@ -151,6 +208,13 @@ sampler:test_stats_get_ctx_distribution(ctx_len_hist(HistPairs),
 %
 % Wraps prover:ctx_union_raw/3 with periodic sampling of input/output lengths,
 % timing, and cost metrics. Only active during test_stats runs.
+
+%! sampler:ctx_union(+OldCtx, +Ctx, -NewCtx) is det.
+%
+% Instrumented wrapper around `prover:ctx_union_raw/3`. When a test_stats
+% run is active, periodically samples input/output list lengths, wall-clock
+% timing, and cost metrics (every 64th call after the first 16). Outside
+% a test_stats run, delegates directly to ctx_union_raw.
 
 sampler:ctx_union(OldCtx, Ctx, NewCtx) :-
   ( nb_current(prover_test_stats_ctx_union_calls, C0) ->
@@ -181,6 +245,13 @@ sampler:ctx_union(OldCtx, Ctx, NewCtx) :-
       )
   ; prover:ctx_union_raw(OldCtx, Ctx, NewCtx)
   ).
+
+
+%! sampler:ctx_union_sampled(+L0, +L1, +L2) is det.
+%
+% Record a sampled context-union observation: update the output-length
+% histogram and accumulate quadratic (`L0 * L1`) and linear (`L0 + L1`)
+% cost components.
 
 sampler:ctx_union_sampled(L0, L1, L2) :-
   ( nb_current(prover_test_stats_ctx_len_hist, Hist0) -> true ; empty_assoc(Hist0) ),

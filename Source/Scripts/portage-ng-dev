@@ -12,20 +12,6 @@ set -eu
 # This script lives under Source/Scripts/, so the project root is two levels up.
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 
-# -----------------------------------------------------------------------------
-# Readline / editline robustness (non-interactive)
-# -----------------------------------------------------------------------------
-#
-# When stdout is redirected (e.g. generating a single `.merge` file via `> file`)
-# or when running under CI/non-tty environments, SWI-Prolog's editline integration
-# can throw:
-#   editline:el_read_history/2: Domain error: `libedit_input' expected, found `user_input'
-#
-# For such runs we disable readline entirely.
-READLINE_SETTING="editline"
-if [ ! -t 0 ] || [ ! -t 1 ]; then
-  READLINE_SETTING="false"
-fi
 
 # -----------------------------------------------------------------------------
 # Fast-path: --help / -h
@@ -171,7 +157,6 @@ sys.exit(rc if rc is not None else 124)
         -f "$ROOT_DIR/portage-ng.pl" \
         -p "portage=$ROOT_DIR" \
         -Dverbose_autoload=false \
-        -Dreadline="$READLINE_SETTING" \
         -g main -- "$@"
   fi
 
@@ -184,6 +169,5 @@ exec swipl -O \
   -f "$ROOT_DIR/portage-ng.pl" \
   -p "portage=$ROOT_DIR" \
   -Dverbose_autoload=false \
-  -Dreadline="$READLINE_SETTING" \
   -g main -- "$@"
 
