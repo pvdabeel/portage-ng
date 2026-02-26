@@ -38,8 +38,8 @@ a dependency, change the version, watch the output of a specific command, etc.
 
 :- module(grapher, []).
 
-:- thread_local graph_visited/1.
-:- thread_local counter/2.
+:- thread_local grapher:node_visited/1.
+:- thread_local grapher:node_counter/2.
 
 % =============================================================================
 %  GRAPHER declarations
@@ -523,9 +523,9 @@ grapher:graph_root(_Type,Repository://Id) :-
 % For a given ebuild, identified by an Id, create the full dependency graph
 
 grapher:graph_tree(Type,Repository://Id) :-
-  retractall(graph_visited(_)),
+  retractall(grapher:node_visited(_)),
   grapher:graph_tree(Type,Repository://Id,Repository://Id),
-  retractall(graph_visited(_)).
+  retractall(grapher:node_visited(_)).
 
 
 %! grapher:graph_tree(Type,Repository://RootId,Repository://Id)
@@ -533,18 +533,18 @@ grapher:graph_tree(Type,Repository://Id) :-
 % For a given ebuild, identified by an Id, create the full dependency graph
 
 grapher:graph_tree(Type,RootRep://RootId,Repository://Id) :-
-  \+(graph_visited(Repository://Id)),!,
+  \+(grapher:node_visited(Repository://Id)),!,
   grapher:graph_node(Type,RootRep://RootId,Repository://Id),
   Statement =.. [Type,DS],
   query:search(all(Statement),Repository://Id),
   findall(Ch,(member(D,DS),grapher:handle(Type,solid,vee,Repository://Id,D,Ch)),AllChoices),
-  assertz(graph_visited(Repository://Id)),
+  assertz(grapher:node_visited(Repository://Id)),
   grapher:choices(Type,AllChoices),
   forall(member(arrow(_,[Repository://Chs:_]),AllChoices),
     grapher:graph_tree(Type,RootRep://RootId,Repository://Chs)).
 
 grapher:graph_tree(_,_,Repository://Id) :-
-  graph_visited(Repository://Id),!.
+  grapher:node_visited(Repository://Id),!.
 
 
 %! grapher:graph_node(Type,Repository://RootId,Repository://Id)
@@ -760,18 +760,18 @@ grapher:handle(_, _, _, _, _, []) :- !.
 % Thread-local implementation of gensym counter
 
 grapher:tl_gensym(Atom,AtomCount) :-
-  \+ counter(Atom,_),!,
-  assert(counter(Atom,1)),
+  \+ grapher:node_counter(Atom,_),!,
+  assert(grapher:node_counter(Atom,1)),
   atomic_concat(Atom,1,AtomCount).
 
 grapher:tl_gensym(Atom,AtomCount) :-
-  retract(counter(Atom,Count)),
+  retract(grapher:node_counter(Atom,Count)),
   NewCount is Count + 1,
-  assertz(counter(Atom,NewCount)),
+  assertz(grapher:node_counter(Atom,NewCount)),
   atomic_concat(Atom,NewCount,AtomCount).
 
 grapher:tl_gensym_reset(Atom) :-
-  retractall(counter(Atom,_)).
+  retractall(grapher:node_counter(Atom,_)).
 
 
 % -----------------------------------------------------------------------------

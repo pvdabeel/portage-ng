@@ -41,33 +41,33 @@ returns a dependency plan that the client can print or execute.
 % evaluate them in its pengines context.
 
 % Global USE, keywords, flags
-remote_predicate_template(preference:local_use(_)).
-remote_predicate_template(preference:local_env_use(_)).
-remote_predicate_template(preference:local_accept_keywords(_)).
-remote_predicate_template(preference:local_flag(_)).
+client:remote_predicate_template(preference:local_use(_)).
+client:remote_predicate_template(preference:local_env_use(_)).
+client:remote_predicate_template(preference:local_accept_keywords(_)).
+client:remote_predicate_template(preference:local_flag(_)).
 
 % Per-package USE overrides (/etc/portage/package.use + profile)
-remote_predicate_template(preference:package_use_override(_,_,_,_)).
-remote_predicate_template(preference:gentoo_package_use_soft(_,_,_)).
-remote_predicate_template(preference:profile_package_use_soft(_,_,_)).
-remote_predicate_template(preference:profile_package_use_masked(_,_)).
-remote_predicate_template(preference:profile_package_use_forced(_,_)).
+client:remote_predicate_template(preference:package_use_override(_,_,_,_)).
+client:remote_predicate_template(preference:gentoo_package_use_soft(_,_,_)).
+client:remote_predicate_template(preference:profile_package_use_soft(_,_,_)).
+client:remote_predicate_template(preference:profile_package_use_masked(_,_)).
+client:remote_predicate_template(preference:profile_package_use_forced(_,_)).
 
 % Package masking (profiles + /etc/portage/package.mask)
 remote_predicate_template(preference:masked(_)).
 
 % License acceptance
-remote_predicate_template(preference:accepted_license(_)).
-remote_predicate_template(preference:denied_license(_)).
-remote_predicate_template(preference:license_group_raw(_,_)).
+client:remote_predicate_template(preference:accepted_license(_)).
+client:remote_predicate_template(preference:denied_license(_)).
+client:remote_predicate_template(preference:license_group_raw(_,_)).
 
 % Profile USE display markers
-remote_predicate_template(preference:profile_masked_use_flag(_)).
-remote_predicate_template(preference:profile_forced_use_flag(_)).
+client:remote_predicate_template(preference:profile_masked_use_flag(_)).
+client:remote_predicate_template(preference:profile_forced_use_flag(_)).
 
 % World and sets (optional, only when client/server are on different machines)
-remote_predicate_template(preference:world(_)).
-remote_predicate_template(preference:set(_,_)).
+client:remote_predicate_template(preference:world(_)).
+client:remote_predicate_template(preference:set(_,_)).
 
 % Installed state (todo: needs client-side VDB handling)
 % remote_predicate_template(cache:entry_metadata(_,_,installed,true)).
@@ -76,12 +76,12 @@ remote_predicate_template(preference:set(_,_)).
 %
 % Predicates whose ground instances (matching facts) are shipped individually.
 
-remote_predicate_instance(config:printing_style(_)).
-remote_predicate_instance(config:printing_tty_size(_,_)).
-remote_predicate_instance(preference:accept_license_wildcard).
-remote_predicate_instance(preference:use_expand_env(_,_)).
-remote_predicate_instance(preference:use_expand_hidden(_)).
-remote_predicate_instance(preference:keyword_selection_mode(_)).
+client:remote_predicate_instance(config:printing_style(_)).
+client:remote_predicate_instance(config:printing_tty_size(_,_)).
+client:remote_predicate_instance(preference:accept_license_wildcard).
+client:remote_predicate_instance(preference:use_expand_env(_,_)).
+client:remote_predicate_instance(preference:use_expand_hidden(_)).
+client:remote_predicate_instance(preference:keyword_selection_mode(_)).
 
 
 % -----------------------------------------------------------------------------
@@ -97,7 +97,7 @@ remote_predicate_instance(preference:keyword_selection_mode(_)).
 % Predicates declared as remote_predicate/1 will be injected in the remote
 % server pengines context
 
-rpc_execute(Hostname,Port,Cmd) :-
+client:rpc_execute(Hostname,Port,Cmd) :-
   format(atom(URL), 'https://~w:~d', [Hostname,Port]),
   config:certificate('cacert.pem',CaCert),
   % Client certificate is identified by the *local* hostname, not the remote
@@ -131,7 +131,7 @@ rpc_execute(Hostname,Port,Cmd) :-
 %
 % Same as rpc_execute/3 but captures output to Terminal in in Output string.
 
-rpc_execute(Hostname,Port,Cmd,Output) :-
+client:rpc_execute(Hostname,Port,Cmd,Output) :-
   rpc_execute(Hostname,Port,
               streams:with_output_to(string(Output),
                                      Cmd,
@@ -143,7 +143,7 @@ rpc_execute(Hostname,Port,Cmd,Output) :-
 %
 % Same as rpc_execute/4 but pushes a list of predicates to remote server
 
-rpc_execute(Hostname,Port,Cmd,Output,Srclist) :-
+client:rpc_execute(Hostname,Port,Cmd,Output,Srclist) :-
   rpc_execute(Hostname,Port,
               streams:with_output_to(string(Output),
                                      Cmd,
@@ -161,7 +161,7 @@ rpc_execute(Hostname,Port,Cmd,Output,Srclist) :-
 % Triggers a pre-defined action remotely. E.g. syncing a repository.
 % Output is streamed over https in realtime
 
-execute_remotely(Hostname,Port,Page) :-
+client:execute_remotely(Hostname,Port,Page) :-
     format(atom(URL), 'https://~w:~d~w', [Hostname,Port, Page]),
     config:certificate('cacert.pem',CaCert),
     % Client certificate is identified by the *local* hostname, not the remote

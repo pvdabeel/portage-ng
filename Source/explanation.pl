@@ -221,7 +221,7 @@ assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason) :-
 % packages. This applies when the action is not :run, the dependency is
 % self-referencing (the package depends on itself), and --emptytree is not set.
 
-self_hosting_requires_installed(Action, C, N, Context, true) :-
+explanation:self_hosting_requires_installed(Action, C, N, Context, true) :-
   Action \== run,
   memberchk(self(SelfRepo://SelfEntry), Context),
   cache:ordered_entry(SelfRepo, SelfEntry, C, N, _),
@@ -234,7 +234,7 @@ self_hosting_requires_installed(_Action, _C, _N, _Context, false).
 %
 % True if the candidate has `installed` metadata set to `true`.
 
-is_installed_candidate(Repo://Entry) :-
+explanation:is_installed_candidate(Repo://Entry) :-
   cache:entry_metadata(Repo, Entry, installed, true).
 
 
@@ -242,7 +242,7 @@ is_installed_candidate(Repo://Entry) :-
 %
 % True if the candidate is not in the current mask set.
 
-is_unmasked_candidate(Repo://Entry) :-
+explanation:is_unmasked_candidate(Repo://Entry) :-
   \+ preference:masked(Repo://Entry).
 
 
@@ -251,7 +251,7 @@ is_unmasked_candidate(Repo://Entry) :-
 % Filter Candidates to those matching at least one accepted keyword from
 % `preference:accept_keywords/1`. Returns a sorted list.
 
-any_candidate_matches_keywords(Candidates, KeywordOk) :-
+explanation:any_candidate_matches_keywords(Candidates, KeywordOk) :-
   findall(K, preference:accept_keywords(K), Ks0),
   sort(Ks0, Ks),
   findall(Cand,
@@ -270,7 +270,7 @@ any_candidate_matches_keywords(Candidates, KeywordOk) :-
 % Filter Candidates to those satisfying all version constraints from
 % PackageDeps. A candidate must pass every version operator/value pair.
 
-any_candidate_matches_versions(Action, C, N, PackageDeps, Candidates, VersionOk) :-
+explanation:any_candidate_matches_versions(Action, C, N, PackageDeps, Candidates, VersionOk) :-
   findall(Cand,
           ( member(Cand, Candidates),
             forall(member(package_dependency(Action,no,C,N,O,V,_,_), PackageDeps),
@@ -291,7 +291,7 @@ any_candidate_matches_versions(Action, C, N, PackageDeps, Candidates, VersionOk)
 %   - `version_conflict`: each constraint individually has matches, but their
 %     intersection is empty
 
-version_constraint_analysis(Action, C, N, PackageDeps, Candidates, VersionOk, VersionReason) :-
+explanation:version_constraint_analysis(Action, C, N, PackageDeps, Candidates, VersionOk, VersionReason) :-
   findall(O-V,
           member(package_dependency(Action,no,C,N,O,V,_,_), PackageDeps),
           OV0),
@@ -315,25 +315,9 @@ version_constraint_analysis(Action, C, N, PackageDeps, Candidates, VersionOk, Ve
         VersionOk = [],
         VersionReason = version_no_candidate(O, V)
     ; findall(Ms, member(_-Ms, MatchesByConstraint), MatchesPerConstraint),
-      intersection_all(MatchesPerConstraint, VersionOk0),
+      MatchesPerConstraint = [First|Rest],
+      foldl([A,B,Out]>>ord_intersection(A,B,Out), Rest, First, VersionOk0),
       sort(VersionOk0, VersionOk),
       ( VersionOk == [] -> VersionReason = version_conflict ; VersionReason = version_conflict )
     )
   ).
-
-
-%! explanation:intersection_all(+ListOfSortedLists, -Intersection) is det.
-%
-% Compute the intersection of a non-empty list of sorted lists using
-% ord_intersection/3.
-
-intersection_all([First|Rest], Intersection) :-
-  foldl(intersection_sorted, Rest, First, Intersection).
-
-
-%! explanation:intersection_sorted(+A, +B, -Out) is det.
-%
-% Wrapper around ord_intersection/3 for use with foldl/4.
-
-intersection_sorted(A, B, Out) :-
-  ord_intersection(A, B, Out).
