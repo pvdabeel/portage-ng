@@ -11,7 +11,75 @@ This script:
   - extracts the set of packages Portage would merge (N/R/U lines)
   - extracts the set of packages portage-ng would merge (install/update/reinstall actions)
   - compares versions + USE flags (best-effort normalization)
+  - compares merge ordering (Kendall tau)
   - aggregates portage-ng Domain assumptions / Blockers sections
+
+Metrics
+-------
+
+The comparison produces two families of metrics: set-agreement metrics that
+measure *what* packages are selected, and an ordering metric that measures
+*in which order* they would be built.
+
+### Set agreement — Jaccard-style metrics (CN, CN+V, CN+V+U)
+
+For each (merge, emerge) pair where Portage succeeded (emerge_ok), define:
+
+    e  = |emerge packages|
+    m  = |missing in merge|       (in emerge but not merge)
+    x  = |extra in merge|         (in merge but not emerge)
+    v  = |version mismatches|     (same cat/name, different version)
+    u  = |USE mismatches|         (same cat/name+version, different USE)
+
+The "intersection" and "union" at each granularity are:
+
+    CN level   (ignore version+USE):  I = e − m + v,  U = e + x − v
+    CN+V level (ignore USE):          I = e − m,      U = e + x
+    CN+V+U level:                     I = e − m − u,  U = e + x + u
+
+Aggregate across all emerge_ok pairs by summing I and U, then:
+
+    CN%     = 100 × ΣI_cn   / ΣU_cn
+    CN+V%   = 100 × ΣI_cnv  / ΣU_cnv
+    CN+V+U% = 100 × ΣI_cnvu / ΣU_cnvu
+
+These are Jaccard similarity coefficients (|A ∩ B| / |A ∪ B|) applied to
+the package sets at each granularity.  A score of 100% means both resolvers
+select the exact same packages (at that level of detail).
+
+### Ordering agreement — Kendall tau concordance (Order%)
+
+Even when both resolvers select the same packages, they may schedule them
+in a different order.  We measure this using the Kendall tau rank
+correlation statistic.
+
+For each emerge_ok pair:
+
+  1. Extract the ordered sequence of cat/name (CN) tuples from each plan,
+     keeping only merge actions (install/update/downgrade/reinstall), in the
+     order they first appear.
+  2. Restrict both sequences to the common CNs (packages present in both).
+  3. For every pair of common CNs (a, b), check whether their relative
+     order agrees (concordant) or disagrees (discordant / inverted).
+
+        concordant pairs  = #{(a,b) : order_emerge(a)<order_emerge(b)
+                                      ⟺ order_merge(a)<order_merge(b)}
+        discordant pairs  = total_pairs − concordant_pairs
+        total_pairs       = C(|common|, 2) = |common|×(|common|−1)/2
+
+Aggregate across all emerge_ok pairs:
+
+    Order% = 100 × (Σ total_pairs − Σ discordant_pairs) / Σ total_pairs
+
+Order% = 100% means perfect ordering agreement with Portage.  Lower values
+indicate the plans would build packages in a different sequence, which
+matters for build correctness (a dependency must be built before its
+dependents).
+
+Note: not every ordering difference is a bug — multiple valid topological
+orderings exist for any DAG.  However, large divergence from Portage's
+ordering is a signal that the planner/scheduler may be collapsing build-time
+dependency cycles incorrectly.
 
 Usage examples:
   python3 Source/Scripts/compare-merge-emerge.py --root /Volumes/Storage/Graph/portage
