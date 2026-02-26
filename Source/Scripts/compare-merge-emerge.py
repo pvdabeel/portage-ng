@@ -81,6 +81,37 @@ orderings exist for any DAG.  However, large divergence from Portage's
 ordering is a signal that the planner/scheduler may be collapsing build-time
 dependency cycles incorrectly.
 
+### Spearman rank correlation (Spearman%)
+
+Spearman's ρ measures rank correlation between the positions of common
+packages in the emerge and merge plans.  Unlike Kendall tau which counts
+pairwise inversions, Spearman emphasises large rank displacements.  A value
+of 100% means identical ordering; 0% means no linear rank relationship.
+
+### Dependency-aware metrics (require --md5-cache)
+
+When the md5-cache directory is provided, the script reads DEPEND and
+BDEPEND for each package in the merge plan to build a dependency graph.
+This enables two metrics that are not possible with ordering data alone:
+
+**Dep-pair concordance (DepConc%)** — Kendall tau restricted to pairs with
+an actual build-dependency edge.  For each pair (A, B) where B is a build
+dep of A and both appear in both plans, check whether emerge and merge agree
+on their relative order.  Filters out noise from unrelated pairs that
+inflates the standard Kendall tau discordance.
+
+**Violation rate (Viol%)** — Self-consistency of the merge plan.  For each
+package P in the merge plan, count how many of P's build deps appear *later*
+in the plan (i.e. would not yet be built when P is needed).  A violation
+rate of 0% means the merge plan perfectly respects its own build
+dependencies.
+
+### Install-only cycle breaks
+
+Counts scheduler cycle breaks where every action in the cycle is :install
+(no :run actions).  These are potentially problematic because install-order
+cycles should ideally be resolved by the prover/planner, not the scheduler.
+
 Usage examples:
   python3 Source/Scripts/compare-merge-emerge.py --root /Volumes/Storage/Graph/portage
   python3 Source/Scripts/compare-merge-emerge.py --root ... --limit 200
@@ -108,6 +139,7 @@ POWERLINE_RE = re.compile(r"[\ue0b0-\ue0d4]")
 # When enabled, include full per-pair lists (missing/extra/mismatches) in output JSON.
 # This is useful for CN gap analysis, but makes the report larger.
 FULL_LISTS = False
+MD5_CACHE_DIR: Optional[Path] = None
 
 # Known genuine tree conflicts where portage-ng domain assumptions are
 # correct (Portage only "resolves" them by using stale snapshot data).
@@ -317,6 +349,69 @@ def _kendall_tau(order_a: List[Tuple[str, str]], order_b: List[Tuple[str, str]])
     return (inversions, pairs)
 
 
+def _spearman_rho(order_a: List[Tuple[str, str]], order_b: List[Tuple[str, str]]) -> float:
+    """Spearman rank correlation on common elements between two orderings."""
+    common = set(order_a) & set(order_b)
+    n = len(common)
+    if n < 2:
+        return 0.0
+    pos_a = {x: i for i, x in enumerate(order_a) if x in common}
+    pos_b = {x: i for i, x in enumerate(order_b) if x in common}
+    rank_a = {x: r for r, x in enumerate(sorted(common, key=lambda c: pos_a[c]))}
+    rank_b = {x: r for r, x in enumerate(sorted(common, key=lambda c: pos_b[c]))}
+    d_sq = sum((rank_a[x] - rank_b[x]) ** 2 for x in common)
+    return 1.0 - 6.0 * d_sq / (n * (n * n - 1))
+
+
+_CYCLE_ACTION_RE = re.compile(r'└─(install|run|update|downgrade|reinstall)─>')
+
+
+def _flush_cycle(actions: Set[str], counters: Dict[str, int]) -> None:
+    """Classify a completed cycle break and update counters."""
+    if actions and actions <= {"install", "update", "downgrade", "reinstall"}:
+        counters["install_only_cycle_breaks"] += 1
+
+
+_DEP_ATOM_RE = re.compile(
+    r'(?:!!?|[><=~]+)?([a-zA-Z0-9_][a-zA-Z0-9_+-]*/[a-zA-Z0-9_][a-zA-Z0-9_+.-]+)'
+)
+
+
+def _extract_dep_cns(dep_string: str) -> Set[Tuple[str, str]]:
+    """Extract (cat, name) tuples from a Gentoo dependency string (best-effort)."""
+    result: Set[Tuple[str, str]] = set()
+    for m in _DEP_ATOM_RE.finditer(dep_string):
+        atom = m.group(1)
+        cat, pnver = split_cat_pnver(atom)
+        pn, _ver = split_pn_ver(pnver)
+        if cat and pn:
+            result.add((cat, pn))
+    return result
+
+
+_dep_cache: Dict[str, Set[Tuple[str, str]]] = {}
+
+
+def _load_pkg_build_deps(cat: str, pnver: str) -> Set[Tuple[str, str]]:
+    """Load DEPEND + BDEPEND from md5-cache for a package. Returns empty set if unavailable."""
+    if MD5_CACHE_DIR is None:
+        return set()
+    cache_key = f"{cat}/{pnver}"
+    if cache_key in _dep_cache:
+        return _dep_cache[cache_key]
+    cache_file = MD5_CACHE_DIR / cat / pnver
+    deps: Set[Tuple[str, str]] = set()
+    if cache_file.exists():
+        try:
+            for line in cache_file.read_text(errors='replace').splitlines():
+                if line.startswith('DEPEND=') or line.startswith('BDEPEND='):
+                    deps |= _extract_dep_cns(line.split('=', 1)[1])
+        except Exception:
+            pass
+    _dep_cache[cache_key] = deps
+    return deps
+
+
 def parse_emerge(path: Path) -> Tuple[Dict[str, EmergePkg], Dict[str, str]]:
     """
     Parses Portage emerge output file.
@@ -471,29 +566,39 @@ def parse_merge(path: Path) -> Tuple[Dict[str, MergePkg], Dict[str, int]]:
 
     # Assumptions: very lightweight counters
     counters: Dict[str, int] = {"domain_assumptions": 0, "tree_conflict_assumptions": 0,
-                                 "blockers": 0, "cycle_breaks": 0}
+                                 "blockers": 0, "cycle_breaks": 0,
+                                 "install_only_cycle_breaks": 0}
     in_domain = False
     in_blockers = False
     in_cycles = False
     domain_buf: List[str] = []
+    cycle_actions: Set[str] = set()
     for line in txt.splitlines():
         if ">>> Domain assumptions" in line:
+            if in_cycles:
+                _flush_cycle(cycle_actions, counters)
+                cycle_actions = set()
             in_domain, in_blockers, in_cycles = True, False, False
             domain_buf = []
             continue
         if ">>> Blockers" in line:
+            if in_cycles:
+                _flush_cycle(cycle_actions, counters)
+                cycle_actions = set()
             in_domain, in_blockers, in_cycles = False, True, False
             continue
         if ">>> Cycle breaks" in line:
             in_domain, in_blockers, in_cycles = False, False, True
             continue
         if line.startswith(">>> "):
+            if in_cycles:
+                _flush_cycle(cycle_actions, counters)
+                cycle_actions = set()
             in_domain = in_blockers = in_cycles = False
             continue
         if in_domain:
             stripped = line.strip()
             if stripped.startswith("- "):
-                # Flush previous domain assumption buffer
                 if domain_buf:
                     _classify_domain_assumption(domain_buf, counters)
                 domain_buf = [stripped]
@@ -501,8 +606,17 @@ def parse_merge(path: Path) -> Tuple[Dict[str, MergePkg], Dict[str, int]]:
                 domain_buf.append(stripped)
         if in_blockers and "blocks" in line:
             counters["blockers"] += 1
-        if in_cycles and line.strip().startswith("- Cycle break"):
-            counters["cycle_breaks"] += 1
+        if in_cycles:
+            stripped = line.strip()
+            if stripped.startswith("- Cycle break"):
+                _flush_cycle(cycle_actions, counters)
+                cycle_actions = set()
+                counters["cycle_breaks"] += 1
+            else:
+                cam = _CYCLE_ACTION_RE.search(line)
+                if cam:
+                    cycle_actions.add(cam.group(1))
+    _flush_cycle(cycle_actions, counters)
     if domain_buf:
         _classify_domain_assumption(domain_buf, counters)
 
@@ -515,7 +629,7 @@ def compare_pair(merge_path: Path, emerge_path: Path) -> Dict:
 
     emerge_keys = set(emerge.keys())
     # Only consider actually-merged packages on the portage-ng side.
-    merge_merged_keys = {k for (k, p) in merge.items() if p.actions.intersection({"install", "update", "downgrade", "reinstall"})}
+    merge_merged_keys = {k for (k, p) in merge.items() if p.actions.intersection({"install", "update", "downgrade", "reinstall", "run"})}
 
     # If Portage didn't produce a plan for this target, don't treat every merge package
     # as an "extra". Record it separately as "emerge_failed".
@@ -532,9 +646,8 @@ def compare_pair(merge_path: Path, emerge_path: Path) -> Dict:
     merge_by_cpn = defaultdict(list)
     for _k, p in emerge.items():
         emerge_by_cpn[(p.key.cat, p.key.pn)].append(p)
-    # Only compare chosen merge packages (ignore download-only / run-only noise).
     for _k, p in merge.items():
-        if not p.actions.intersection({"install", "update", "downgrade", "reinstall"}):
+        if not p.actions.intersection({"install", "update", "downgrade", "reinstall", "run"}):
             continue
         merge_by_cpn[(p.key.cat, p.key.pn)].append(p)
 
@@ -631,6 +744,12 @@ def compare_pair(merge_path: Path, emerge_path: Path) -> Dict:
     order_inversions = 0
     order_pairs = 0
     order_common = 0
+    spearman_rho = 0.0
+    dep_concordant = 0
+    dep_discordant = 0
+    dep_pairs = 0
+    violations = 0
+    dep_edges_in_plan = 0
     if emerge_ok:
         emerge_cn_order: List[Tuple[str, str]] = []
         seen_cn: Set[Tuple[str, str]] = set()
@@ -643,7 +762,7 @@ def compare_pair(merge_path: Path, emerge_path: Path) -> Dict:
         merge_cn_order: List[Tuple[str, str]] = []
         seen_cn = set()
         for p in merge.values():
-            if not p.actions.intersection({"install", "update", "downgrade", "reinstall"}):
+            if not p.actions.intersection({"install", "update", "downgrade", "reinstall", "run"}):
                 continue
             cn = _cn_key(p.key)
             if cn not in seen_cn:
@@ -654,6 +773,39 @@ def compare_pair(merge_path: Path, emerge_path: Path) -> Dict:
         order_common = len(common_cn)
         if order_common >= 2:
             order_inversions, order_pairs = _kendall_tau(emerge_cn_order, merge_cn_order)
+            spearman_rho = _spearman_rho(emerge_cn_order, merge_cn_order)
+
+        # Dependency-aware ordering metrics (require md5-cache)
+        if MD5_CACHE_DIR:
+            merge_cn_set = set(merge_cn_order)
+            merge_cn_pos_map = {cn: i for i, cn in enumerate(merge_cn_order)}
+            emerge_cn_pos_map = {cn: i for i, cn in enumerate(emerge_cn_order)} if order_common >= 2 else {}
+
+            for _k, p in merge.items():
+                if not p.actions.intersection({"install", "update", "downgrade", "reinstall", "run"}):
+                    continue
+                cn = _cn_key(p.key)
+                if cn not in merge_cn_set:
+                    continue
+                pnver = f"{p.key.pn}-{p.key.ver}" if p.key.ver else p.key.pn
+                build_deps = _load_pkg_build_deps(p.key.cat, pnver)
+                for dep_cn in build_deps:
+                    if dep_cn == cn:
+                        continue
+                    # Violation rate: merge plan self-consistency
+                    if dep_cn in merge_cn_set:
+                        dep_edges_in_plan += 1
+                        if merge_cn_pos_map[dep_cn] > merge_cn_pos_map[cn]:
+                            violations += 1
+                    # Dep-pair concordance: emerge vs merge agreement on dep pairs
+                    if dep_cn in common_cn and cn in common_cn and order_common >= 2:
+                        dep_pairs += 1
+                        e_ok = emerge_cn_pos_map[dep_cn] < emerge_cn_pos_map[cn]
+                        m_ok = merge_cn_pos_map[dep_cn] < merge_cn_pos_map[cn]
+                        if e_ok == m_ok:
+                            dep_concordant += 1
+                        else:
+                            dep_discordant += 1
 
     return {
         "merge": str(merge_path),
@@ -675,6 +827,12 @@ def compare_pair(merge_path: Path, emerge_path: Path) -> Dict:
             "order_inversions": order_inversions,
             "order_pairs": order_pairs,
             "order_common_cns": order_common,
+            "spearman_rho": round(spearman_rho, 6),
+            "dep_concordant": dep_concordant,
+            "dep_discordant": dep_discordant,
+            "dep_pairs": dep_pairs,
+            "violations": violations,
+            "dep_edges_in_plan": dep_edges_in_plan,
         },
         "missing_in_merge": missing_in_merge if FULL_LISTS else missing_in_merge[:200],
         "extra_in_merge": extra_in_merge if FULL_LISTS else extra_in_merge[:200],
@@ -706,10 +864,15 @@ def main(argv: Sequence[str]) -> int:
     ap.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2) // 2))
     ap.add_argument("--target-regex", type=str, default="", help="Only process pairs whose basename matches regex.")
     ap.add_argument("--full-lists", action="store_true", help="Include full per-pair missing/extra/mismatch lists in output JSON.")
+    ap.add_argument("--md5-cache", type=str, default="", help="Path to md5-cache dir for dependency-aware metrics (DepConc%%, Viol%%).")
     ap.add_argument("--out", type=str, default="/Users/pvdabeel/Desktop/Prolog/Reports/merge_emerge_compare.json")
     args = ap.parse_args(list(argv))
-    global FULL_LISTS
+    global FULL_LISTS, MD5_CACHE_DIR
     FULL_LISTS = bool(args.full_lists)
+    if args.md5_cache:
+        MD5_CACHE_DIR = Path(args.md5_cache)
+        if not MD5_CACHE_DIR.exists():
+            print(f"warning: md5-cache dir not found: {MD5_CACHE_DIR}", file=sys.stderr)
 
     root = Path(args.root)
     if not root.exists():
@@ -747,7 +910,7 @@ def main(argv: Sequence[str]) -> int:
             r = fut.result()
             results.append(r)
             for k, v in r["counts"].items():
-                agg[k] += int(v)
+                agg[k] += v if isinstance(v, float) else int(v)
             for k, v in r.get("assumptions", {}).items():
                 assumptions_agg[k] += int(v)
             if r.get("emerge_ok"):
@@ -781,6 +944,28 @@ def main(argv: Sequence[str]) -> int:
     total_order_pairs = agg["order_pairs"]
     order_pct = (100.0 * (total_order_pairs - total_order_inversions) / total_order_pairs) if total_order_pairs else 0.0
 
+    # Spearman rank correlation (weighted average by number of common CNs)
+    spearman_weighted = 0.0
+    spearman_weight = 0
+    for r in results:
+        if r.get("emerge_ok"):
+            rho = r["counts"].get("spearman_rho", 0.0)
+            n_common = r["counts"].get("order_common_cns", 0)
+            if n_common >= 2:
+                spearman_weighted += rho * n_common
+                spearman_weight += n_common
+    spearman_agg = spearman_weighted / spearman_weight if spearman_weight else 0.0
+
+    # Dep-pair concordance aggregate
+    total_dep_concordant = agg.get("dep_concordant", 0)
+    total_dep_pairs = agg.get("dep_pairs", 0)
+    dep_conc_pct = (100.0 * total_dep_concordant / total_dep_pairs) if total_dep_pairs else 0.0
+
+    # Violation rate aggregate
+    total_violations = agg.get("violations", 0)
+    total_dep_edges = agg.get("dep_edges_in_plan", 0)
+    viol_pct = (100.0 * total_violations / total_dep_edges) if total_dep_edges else 0.0
+
     # Top offenders
     top_missing = sorted(results, key=lambda r: r["counts"]["missing_in_merge"], reverse=True)[:20]
     top_use = sorted(results, key=lambda r: r["counts"]["use_mismatches"], reverse=True)[:20]
@@ -807,6 +992,14 @@ def main(argv: Sequence[str]) -> int:
             "order_inversions": total_order_inversions,
             "order_pairs": total_order_pairs,
             "order_concordance_pct": round(order_pct, 2),
+            "spearman_rho": round(spearman_agg, 4),
+            "dep_concordant": total_dep_concordant,
+            "dep_discordant": total_dep_pairs - total_dep_concordant,
+            "dep_pairs": total_dep_pairs,
+            "dep_concordance_pct": round(dep_conc_pct, 2),
+            "violations": total_violations,
+            "dep_edges_in_plan": total_dep_edges,
+            "violation_pct": round(viol_pct, 2),
         },
         "results": results,
     }
@@ -838,6 +1031,16 @@ def main(argv: Sequence[str]) -> int:
     print(f"  order_inversions: {total_order_inversions}")
     print(f"  order_pairs: {total_order_pairs}")
     print(f"  order_concordance_pct: {order_pct:.2f}%")
+    print(f"  spearman_rho: {spearman_agg:.4f}")
+    if total_dep_pairs:
+        print(f"  dep_concordant: {total_dep_concordant}")
+        print(f"  dep_pairs: {total_dep_pairs}")
+        print(f"  dep_concordance_pct: {dep_conc_pct:.2f}%")
+    if total_dep_edges:
+        print(f"  violations: {total_violations}")
+        print(f"  dep_edges_in_plan: {total_dep_edges}")
+        print(f"  violation_pct: {viol_pct:.2f}%")
+    print(f"  install_only_cycle_breaks: {assumptions_agg.get('install_only_cycle_breaks', 0)}")
     print(f"  wrote: {out_path}")
 
     return 0
