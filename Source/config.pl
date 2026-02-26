@@ -408,7 +408,7 @@ config:graph_legacy_type([emerge]).
 % - .proof.css   (used by Scripts/*/print-aha to render proof output)
 % - .meslo.ttf   (font used by proof rendering)
 %
-% Sources are configurable here (defaults are in Documentation/).
+% Sources are configurable here (defaults are in Documentation/Assets/).
 
 %! config:graph_asset_source(+Key, -SourcePath)
 %
@@ -416,15 +416,15 @@ config:graph_legacy_type([emerge]).
 
 config:graph_asset_source(index_css, Source) :-
   config:installation_dir(Dir),
-  os:compose_path([Dir,'Documentation/.index.css'], Source).
+  os:compose_path([Dir,'Documentation/Assets/.index.css'], Source).
 
 config:graph_asset_source(proof_css, Source) :-
   config:installation_dir(Dir),
-  os:compose_path([Dir,'Documentation/.proof.css'], Source).
+  os:compose_path([Dir,'Documentation/Assets/.proof.css'], Source).
 
 config:graph_asset_source(meslo_ttf, Source) :-
   config:installation_dir(Dir),
-  os:compose_path([Dir,'Documentation/.meslo.ttf'], Source).
+  os:compose_path([Dir,'Documentation/Assets/.meslo.ttf'], Source).
 
 
 % -----------------------------------------------------------------------------
