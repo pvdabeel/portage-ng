@@ -215,7 +215,7 @@ direct_deps_installed(pkg://InstalledEntry, DepsInstalled) :-
 % resolve each dependency literal to an installed pkg://Entry.
 
 direct_deps_from_repo_entry(Repo://Entry, DepsInstalled) :-
-  query:search(model(Model,required_use(_R),build_with_use(_B)), Repo://Entry),
+  query:search(model(Model,required_use(_),build_with_use(_)), Repo://Entry),
   query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model}, Repo://Entry),
   add_self_to_dep_contexts(Repo://Entry, MergedDeps0, MergedDeps),
   findall(pkg://DepInstalled,
