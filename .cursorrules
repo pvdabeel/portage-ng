@@ -168,7 +168,7 @@ The canonical load graph for standalone is in `portage-ng.pl`:
 
 - When comparing provide output in a table;
   - Columns: comparing previous compare data vs currect compare data (columns)
-  - Rows: % vs portage merge_ok for CN, CN+V, CN+V+U, #blockers, #cycle breaks, #domain assumptions
+  - Rows: % vs portage merge_ok for CN, CN+V, CN+V+U, Order%, #blockers, #cycle breaks, #domain assumptions
 
 - Canonical metric formula for `% vs portage merge_ok` rows (use this exact formula):
   - Filter to `emerge_ok == true` pairs only.
@@ -188,6 +188,10 @@ The canonical load graph for standalone is in `portage-ng.pl`:
     - `CN      = 100 * inter_cn / union_cn`
     - `CN+V    = 100 * inter_cnv / union_cnv`
     - `CN+V+U  = 100 * inter_cnvu / union_cnvu`
+  - Ordering concordance:
+    - `Order% = 100 * (Σ order_pairs - Σ order_inversions) / Σ order_pairs`
+    - Uses `counts.order_inversions` and `counts.order_pairs` from `emerge_ok` pairs
+    - Or from `order_aggregate.order_concordance_pct` in the report JSON
   - Count rows in the same table are also `emerge_ok`-only sums:
     - `#blockers = Σ assumptions.blockers`
     - `#cycle breaks = Σ assumptions.cycle_breaks`
