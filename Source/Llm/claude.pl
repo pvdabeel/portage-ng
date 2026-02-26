@@ -164,5 +164,5 @@ claude(Input) :-
   claude(Input,_).
 
 claude :-
-  get_input(Msg),
+  llm:get_input(Msg),
   claude(Msg).

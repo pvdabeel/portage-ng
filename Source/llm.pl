@@ -50,7 +50,7 @@ LLM service specific code can be found in the files inside the 'Llm' subdirector
 %  LLM declarations
 % =============================================================================
 
-:- module(llm, [get_input/1]).
+:- module(llm, []).
 
 :- quasi_quotation_syntax(json).
 

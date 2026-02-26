@@ -50,5 +50,5 @@ chatgpt(Input) :-
   chatgpt(Input,_).
 
 chatgpt :-
-    get_input(Msg),
+    llm:get_input(Msg),
     chatgpt(Msg).

@@ -113,7 +113,7 @@ When testing changes to the learned constraint mechanism, ALWAYS verify:
 For quick iteration and for reproducible debugging, prefer running a *scripted* Prolog session via `--shell` and a here-doc:
 
 ```sh
-./Source/Scripts/portage-ng-dev --mode standalone --shell --time-limit 60 <<'PL'
+./Source/Scripts/portage-ng-dev --mode standalone --shell --timeout 60 <<'PL'
 prover:test_stats(portage).
 % Any other queries you want:
 % prover:test_stats_pkgs(portage, ['kde-apps'-'kde-apps-meta']).

@@ -49,5 +49,5 @@ ollama(Input) :-
   ollama(Input,_).
 
 ollama :-
-  get_input(Msg),
+  llm:get_input(Msg),
   ollama(Msg).

@@ -59,7 +59,6 @@ interface:spec(S) :-
        [opt(update),    type(boolean),   default(false),       shortflags(['u']), longflags(['update']),    help('Update target package')],
        [opt(upgrade),   type(boolean),   default(false),                          longflags(['upgrade']),   help('Upgrade set (default: @world): first compute a fresh plan under --emptytree, then run depclean')],
        [opt(deep),      type(boolean),   default(false),       shortflags(['d']), longflags(['deep']),      help('Also consider dependencies')],
-       [opt(delay_triggers), type(boolean), default(false),                        longflags(['delay-triggers']), help('Prover optimization: delay trigger construction (replaces old --deep prover behavior)')],
        [opt(emptytree), type(boolean),   default(false),       shortflags(['e']), longflags(['emptytree']), help('Pretend no other packages are installed')],
        [opt(buildpkg),  type(boolean),   default(false),       shortflags(['b']), longflags(['buildpkg']),  help('Build packages')],
        [opt(resume),    type(boolean),   default(false),       shortflags(['r']), longflags(['resume']),    help('Resume previous command')],
@@ -77,13 +76,16 @@ interface:spec(S) :-
        [opt(unmerge),   type(boolean),   default(false),       shortflags(['C']), longflags(['unmerge']),   help('Unmerge target')],
        [opt(usepkg),    type(boolean),   default(false),       shortflags(['k']), longflags(['usepkg']),    help('Use prebuilt packages')],
        [opt(quiet),     type(boolean),   default(false),       shortflags(['q']), longflags(['quiet']),     help('Reduced output')],
-       [opt(time_limit),type(integer),   default(0),                               longflags(['time-limit']),help('Abort proving/planning after N seconds (0 = no limit)')],
+       [opt(timeout),   type(integer),   default(0),                              longflags(['timeout']),   help('Abort proving/planning after N seconds (0 = no limit)')],
        [opt(host),      type(atom),      default(Hostname),                       longflags(['host']),      help('Set server hostname (client mode)')],
        [opt(port),      type(integer),   default(4000),                           longflags(['port']),      help('Set Server port (client or server mode)')],
        [opt(shell),     type(boolean),   default(false),                          longflags(['shell']),     help('Go to shell')],
        [opt(save),      type(boolean),   default(false),                          longflags(['save']),      help('Save knowledgebase (only relevant in client mode')],
        [opt(load),      type(boolean),   default(false),                          longflags(['load']),      help('Load knowledgebase (only relevant in client mode)')],
        [opt(version),   type(boolean),   default(false),       shortflags(['V']), longflags(['version']),   help('Show version')],
+
+       % debugging purposes
+
        [opt(ci),        type(boolean),   default(false),                          longflags(['ci']),        help('CI mode: non-interactive, fail with nonzero exit code on assumptions')]
       ].
 
@@ -126,7 +128,6 @@ interface:getenv(Name,Value) :-
 interface:process_flags:-
   interface:argv(Options,_),
   (lists:memberchk(deep(true),      Options) -> asserta(preference:local_flag(deep))            ; true),
-  (lists:memberchk(delay_triggers(true), Options) -> asserta(preference:local_flag(delay_triggers)) ; true),
   (lists:memberchk(emptytree(true), Options) -> asserta(preference:local_flag(emptytree))       ; true),
   (lists:memberchk(depclean(true),  Options) -> asserta(preference:local_flag(depclean))        ; true),
   (lists:memberchk(newuse(true),    Options) -> asserta(preference:local_flag(newuse))          ; true),
@@ -459,7 +460,7 @@ interface:process_action(Action,ArgsSets,Options) :-
       ( PretendMode == false -> vdb:sync ; true )),
      Output),
      writeln(Output));
-    ( ( memberchk(time_limit(TimeLimitSec), Options) -> true ; TimeLimitSec = 0 ),
+    ( ( memberchk(timeout(TimeLimitSec), Options) -> true ; TimeLimitSec = 0 ),
       ( TimeLimitSec =< 0 ->
           ( ( printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers) ->
                 FallbackUsed = false
@@ -493,7 +494,7 @@ interface:process_action(Action,ArgsSets,Options) :-
           time_limit_exceeded,
           ( message:bubble(red,'Error'),
             message:color(red),
-            message:print(' Time limit exceeded while proving/planning. Try increasing --time-limit or narrowing the target.'), nl,
+            message:print(' Time limit exceeded while proving/planning. Try increasing --timeout or narrowing the target.'), nl,
             message:color(normal),
             flush_output,
             halt(1)

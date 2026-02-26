@@ -42,11 +42,11 @@ for a in "$@"; do
 portage-ng-dev
 
 Usage:
-  portage-ng-dev [--time-limit SECONDS] [--mode standalone] <target>
+  portage-ng-dev [--timeout SECONDS] [--mode standalone] <target>
   portage-ng-dev --mode standalone --shell
 
 Notes:
-  - --time-limit enforces a hard wall-clock timeout (kills process group).
+  - --timeout enforces a hard wall-clock timeout (kills process group).
   - This wrapper passes all other args to portage-ng's Prolog main/0.
 EOF
       exit 0
@@ -60,7 +60,7 @@ done
 #
 # Prolog-side time limits are best-effort: some code paths can keep the process
 # alive past the intended limit. For CI and automation, we also enforce a hard
-# wall-clock timeout at the process level based on `--time-limit`.
+# wall-clock timeout at the process level based on `--timeout`.
 #
 # This kills the whole process group (TERM, then KILL) so spawned children don't
 # linger.
@@ -68,7 +68,7 @@ HARD_LIMIT=""
 prev=""
 NEW_ARGS=""
 for a in "$@"; do
-  if [ "$prev" = "--time-limit" ]; then
+  if [ "$prev" = "--timeout" ]; then
     HARD_LIMIT="$a"
     NEW_ARGS="$NEW_ARGS$(printf '\n%s' "$a")"
     prev=""
@@ -80,11 +80,11 @@ for a in "$@"; do
     continue
   fi
   case "$a" in
-    --time-limit)
-      prev="--time-limit"
+    --timeout)
+      prev="--timeout"
       NEW_ARGS="$NEW_ARGS$(printf '\n%s' "$a")"
       ;;
-    --time-limit=*)
+    --timeout=*)
       HARD_LIMIT="${a#*=}"
       NEW_ARGS="$NEW_ARGS$(printf '\n%s' "$a")"
       ;;

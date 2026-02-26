@@ -49,5 +49,5 @@ gemini(Input) :-
   gemini(Input,_).
 
 gemini :-
-  get_input(Msg),
+  llm:get_input(Msg),
   gemini(Msg).
