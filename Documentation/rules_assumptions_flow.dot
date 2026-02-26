@@ -21,52 +21,92 @@ digraph rules_assumptions_bpmn {
   subgraph cluster_blockers_conflicts {
     label="rules.pl : blocker + conflict assumption controls";
     color="#888888";
+
     b_start [shape=circle, label="start"];
-    b_kind [shape=diamond, label="grouped_package_dependency\nstrength?"];
-    b_weak [shape=box, label="weak:\nfindall(assumed(blocker(...)?{blocker_assumption_ctx}), ...)"];
-    b_strong_split [shape=box, label="strong:\ngrouped_blocker_specs_partition(...,\nEnforceSpecs, AssumeSpecs)"];
+
+    b_kind [shape=diamond, label="blocker strength?"];
+
+    b_pkg_weak [shape=box, label="package_dependency(weak):\nassume blocker + emit\nblocker_source_constraints"];
+    b_pkg_strong [shape=diamond, label="package_dependency(strong):\nbracket USE?"];
+    b_pkg_strong_uncond [shape=box, label="unconditional (U == []):\nconstraint(blocked_cn(C,N))"];
+    b_pkg_strong_cond [shape=box, label="conditional (U \\= []):\nassume blocker (avoid over-approximation)"];
+
+    b_grouped_weak [shape=box, label="grouped_package_dependency(weak):\ngrouped_blocker_specs → all assumed\n+ blocker_source_constraints"];
+    b_grouped_strong [shape=box, label="grouped_package_dependency(strong):\ngrouped_blocker_specs_partition(...,\nEnforceSpecs, AssumeSpecs)"];
+
     b_assume_blockers [shape=diamond, label="rules:assume_blockers?"];
-    b_strong_assume_all [shape=box, label="assume all strong blockers:\nassumed(blocker(...)) for Enforce+Assume"];
-    b_strong_enforce [shape=box, label="strict strong blockers:\nconstraint(blocked_cn(C,N):{ordset(EnforceSpecs)})\n+ assumed(blocker(...)) for AssumeSpecs"];
+    b_strong_assume_all [shape=box, label="assume all strong blockers:\nassume Enforce + Assume"];
+    b_strong_enforce [shape=box, label="strict strong blockers:\nconstraint(blocked_cn) for Enforce\n+ assume for Assume"];
+
     b_conflict [shape=diamond, label="rule(conflict(A,B),...)"];
-    b_conflict_assume [shape=box, label="rules:assume_conflicts ->\n[assumed(conflict(A,B))]"];
-    b_conflict_fail [shape=box, label="strict conflict -> fail"];
+    b_conflict_assume [shape=box, label="rules:assume_conflicts →\n[assumed(conflict(A,B))]"];
+    b_conflict_fail [shape=box, label="strict conflict → fail"];
+
     b_anyof_guard [shape=diamond, label="any_of_config_dep_ok/2\n(USE-dep option unsatisfied?)"];
-    b_anyof_assume [shape=box, label="rules:assume_conflicts ->\nallow option (do not fail model build)"];
-    b_anyof_fail [shape=box, label="strict -> reject option"];
+    b_anyof_assume [shape=box, label="rules:assume_conflicts →\nallow option"];
+    b_anyof_fail [shape=box, label="strict → reject option (fail)"];
   }
 
   subgraph cluster_grouped_dep {
     label="rules.pl : rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context}, Conditions)";
     color="#888888";
+
     g_start [shape=circle, label="start"];
+
+    g_augment [shape=box, label="augment_package_deps_with_self_rdepend\n(install only: propagate self-RDEPEND\nversion bounds into PackageDeps)"];
+
     g_split [shape=diamond, label="should_split_grouped_dep(PackageDeps)?"];
     g_split_emit [shape=box, label="emit one grouped dep per package_dependency/8\n(findall + sort)\n+ constraint(selected_cn_allow_multislot(C,N):{true})"];
+
     g_self_run [shape=diamond, label="Action == run AND self(C,N)?"];
     g_ok_self [shape=box, label="Conditions = []"];
+
     g_emptytree_core [shape=diamond, label="emptytree AND core_pkg(C,N)?"];
     g_ok_core [shape=box, label="Conditions = []"];
-    g_keep_installed [shape=diamond, label="keep-installed fast path?\n(!emptytree, !deep, same-slot installed,\nversion+slot+build_with_use satisfied,\nand no --newuse mismatch)"];
+
+    g_keep_installed [shape=diamond, label="keep-installed fast path?\n(!emptytree, !deep, same-slot installed,\nversion+slot constraints satisfied,\nbuild_with_use satisfied,\nvirtual bypass for USE deps,\nand no --newuse mismatch)"];
     g_ok_installed [shape=box, label="Conditions = []"];
+
     g_slotreq [shape=box, label="SlotReq = merge_slot_restriction(...)"];
-    g_select [shape=box, label="candidate selection:\n- explicit slot dep -> accepted_keyword_candidate\n- else selected_cn_candidate_compatible (slot+domain)\n- else accepted_keyword_candidate\n  excluding selected_cn candidates already rejected for this dep"];
+
+    g_sslock [shape=diamond, label="SlotReq == [any_same_slot]\nAND context has slot(C,N,Ss)?"];
+    g_sslock_bind [shape=box, label="SsLock = canon_any_same_slot_meta(Ss)\n(:= slot lock binding)"];
+
+    g_select [shape=box, label="candidate selection:\n─────────────────\n1. explicit slot dep → accepted_keyword_candidate\n2. selected_cn_candidate_compatible\n   (slot+domain check, CandPreVerified=true)\n3. accepted_keyword_candidate\n   excluding selected_cn rejects for this dep\n   (CandPreVerified=false)"];
+
     g_self_guard [shape=diamond, label="candidate == self entry?"];
-    g_self_installed [shape=diamond, label="if self candidate:\ninstalled(true)?"];
-    g_version_guard [shape=diamond, label="all version constraints pass?"];
+    g_self_installed [shape=diamond, label="if self candidate:\n!emptytree AND installed(true)?"];
+
+    g_version_guard [shape=diamond, label="CandPreVerified == true\nOR all version constraints\n+ effective domain pass?"];
+
+    g_reverse_dep [shape=diamond, label="candidate_reverse_deps_compatible\n_with_parent?\n(RDEPEND back-check)"];
+
     g_pdepend [shape=diamond, label="PDEPEND edge in grouped deps?"];
-    g_ctx_drop [shape=box, label="drop parent build_with_use/assumption_reason\nfor this dep edge"];
+    g_ctx_drop [shape=box, label="MergedUse = [],\ndrop parent build_with_use\n+ assumption_reason for this dep"];
+
     g_use_guard [shape=diamond, label="candidate_satisfies_use_deps?"];
-    g_use_slot [shape=box, label="process_build_with_use + process_slot"];
-    g_action_path [shape=diamond, label="same-slot installed instance for update path?"];
-    g_action_update [shape=box, label="ActionGoal = Candidate:update?{replaces(...)}\n(or rebuild_reason(build_with_use/newuse))"];
-    g_action_install [shape=box, label="DepAction = (run -> install; else Action)\nActionGoal = Candidate:DepAction"];
-    g_emit [shape=box, label="emit constraints + goal:\ncn_domain + cn_domain_reason + selected_cn\n+ selected_cn_allow_multislot\n  (slot/any_* OR exactish-versioned OR version-constrained deps)\n+ build/use constraints + ActionGoal"];
+    g_use_slot [shape=box, label="process_build_with_use\n+ process_slot\n(query_search_slot_constraint)"];
+
+    g_action_path [shape=diamond, label="same-slot installed instance\nfor update path?\n(SlotInstalled == SlotChosen)"];
+
+    g_action_update [shape=box, label="ActionGoal = Candidate:update?{UpdateCtx}\n─────────────────\nChooses first matching:\n• version change → replaces(InstalledEntry)\n• !avoid_reinstall, !virtual,\n  build_with_use unsatisfied\n  → rebuild_reason(build_with_use)\n• --newuse mismatch\n  → rebuild_reason(newuse)"];
+
+    g_action_install [shape=box, label="DepAction = (run → install ; else Action)\nActionGoal = Candidate:DepAction?{NewerContext}"];
+
+    g_emit [shape=box, label="emit constraints + goal:\ncn_domain + cn_domain_reason + selected_cn\n+ selected_cn_allow_multislot\n  (slot/any_* OR exactish-versioned\n   OR version-constrained deps)\n+ build/use constraints + ActionGoal"];
+
     g_sel_policy [shape=note, label="constraint_guard(selected_cn):\nstrict single concrete entry per (C,N) by default;\nwith selected_cn_allow_multislot(C,N):\n- one concrete entry per SLOT, or\n- per (slot,subslot) for same-slot multiversion cases\n\nVersion-constrained deps always get multi-slot\nallowance so that e.g. minitest-5.15.0-r1:5.15\nand minitest-5.27.0:5 can coexist when ruby's\nPDEPEND requires >=minitest-5.16.3"];
-    g_deep_keep [shape=diamond, label="deep fallback keep-installed?\n(installed same-slot satisfies deps)"];
+
+    g_deep_keep [shape=diamond, label="deep fallback keep-installed?\n(installed same-slot satisfies\nall version constraints)"];
     g_ok_deep [shape=box, label="Conditions = []"];
-    g_reprove [shape=box, label="attempt CN-domain reprove request:\nrules:maybe_request_grouped_dep_reprove(...)\n- eligible: throw rules_reprove_cn_domain(...)\n- otherwise: fail and continue to assumption fallback"];
-    g_reason_call [shape=box, label="call explanation:assumption_reason_for_grouped_dep(...,_Reason)\nfor classification (not injected into context)"];
-    g_assume [shape=box, label="fallback assumption:\nassumed(grouped_package_dependency(...):Action?{Ctx2})\nCtx2 augmented with domain_reason(cn_domain(...)) tags"];
+
+    g_learn_parent [shape=box, label="maybe_learn_parent_narrowing(C,N,...)\n─────────────────\nParent introduced a dep that made\n(C,N) unsatisfiable: narrow parent.\nSkipped for PDEPEND and multislot misses."];
+
+    g_reprove [shape=box, label="maybe_request_grouped_dep_reprove(...)\n→ throw rules_reprove_cn_domain(...)"];
+
+    g_reason_call [shape=box, label="call explanation:\nassumption_reason_for_grouped_dep\n(..., _Reason)\nfor classification"];
+
+    g_assume [shape=box, label="fallback assumption:\nassumed(grouped_package_dependency\n  (C,N,PackageDeps):Action?{Ctx2})\nCtx2 augmented with\ndomain_reason(cn_domain(...)) tags"];
   }
 
   subgraph cluster_cn_reprove {
@@ -115,9 +155,13 @@ digraph rules_assumptions_bpmn {
     u_target_not_installed [shape=diamond, label="target not installed?"];
     u_same_slot_old [shape=diamond, label="same-slot installed old version exists?"];
     u_fallback_install [shape=box, label="fallback: Target:install?{Context}"];
-    u_noop [shape=box, label="installed and no acceptable newer -> []"];
+    u_noop [shape=box, label="installed and no acceptable newer → []"];
     u_txn_detail [shape=box, label="update_txn_conditions does:\nrequired_use model + grouped install deps\n+ optional deep_update_goals\n+ use/slot constraints (+ download when needed)"];
   }
+
+  // =========================================================================
+  //  Edges: test harness
+  // =========================================================================
 
   t_start -> t_strict;
   t_strict -> t_strict_ok;
@@ -128,18 +172,37 @@ digraph rules_assumptions_bpmn {
   t_blockers_ok -> t_conflicts [label="no"];
   t_conflicts -> t_done;
 
+  // =========================================================================
+  //  Edges: blocker + conflict handling
+  // =========================================================================
+
   b_start -> b_kind;
-  b_kind -> b_weak [label="weak"];
-  b_kind -> b_strong_split [label="strong"];
-  b_strong_split -> b_assume_blockers;
+
+  // Single package_dependency blocker rules
+  b_kind -> b_pkg_weak [label="weak\n(package_dependency)"];
+  b_kind -> b_pkg_strong [label="strong\n(package_dependency)"];
+  b_pkg_strong -> b_pkg_strong_uncond [label="U == []"];
+  b_pkg_strong -> b_pkg_strong_cond [label="U \\= []"];
+
+  // Grouped package_dependency blocker rules
+  b_kind -> b_grouped_weak [label="weak\n(grouped)"];
+  b_kind -> b_grouped_strong [label="strong\n(grouped)"];
+  b_grouped_strong -> b_assume_blockers;
   b_assume_blockers -> b_strong_assume_all [label="yes"];
   b_assume_blockers -> b_strong_enforce [label="no"];
+
+  // Conflict + any_of
   b_conflict -> b_conflict_assume [label="assume_conflicts"];
   b_conflict -> b_conflict_fail [label="strict"];
   b_anyof_guard -> b_anyof_assume [label="yes + assume_conflicts"];
   b_anyof_guard -> b_anyof_fail [label="yes + strict"];
 
-  g_start -> g_split;
+  // =========================================================================
+  //  Edges: grouped dependency resolution (main flow)
+  // =========================================================================
+
+  g_start -> g_augment;
+  g_augment -> g_split;
   g_split -> g_split_emit [label="yes"];
   g_split -> g_self_run [label="no"];
   g_self_run -> g_ok_self [label="yes"];
@@ -148,33 +211,51 @@ digraph rules_assumptions_bpmn {
   g_emptytree_core -> g_keep_installed [label="no"];
   g_keep_installed -> g_ok_installed [label="yes"];
   g_keep_installed -> g_slotreq [label="no"];
-  g_slotreq -> g_select;
+
+  g_slotreq -> g_sslock;
+  g_sslock -> g_sslock_bind [label="yes"];
+  g_sslock -> g_select [label="no"];
+  g_sslock_bind -> g_select;
+
   g_select -> g_self_guard;
   g_self_guard -> g_self_installed [label="yes"];
   g_self_guard -> g_version_guard [label="no"];
   g_self_installed -> g_version_guard [label="yes"];
   g_self_installed -> g_select [label="no: try next"];
-  g_version_guard -> g_pdepend [label="yes"];
+
+  g_version_guard -> g_reverse_dep [label="yes"];
   g_version_guard -> g_select [label="no: try next"];
+
+  g_reverse_dep -> g_pdepend [label="yes"];
+  g_reverse_dep -> g_select [label="no: try next"];
+
   g_pdepend -> g_ctx_drop [label="yes"];
   g_pdepend -> g_use_guard [label="no"];
   g_ctx_drop -> g_use_guard;
   g_use_guard -> g_use_slot [label="yes"];
   g_use_guard -> g_select [label="no: try next"];
   g_use_slot -> g_action_path;
+
   g_action_path -> g_action_update [label="yes"];
   g_action_path -> g_action_install [label="no"];
   g_action_update -> g_emit;
   g_action_install -> g_emit;
+
   g_emit -> g_sel_policy [style=dashed, label="selection consistency policy"];
   g_emit -> g_split_emit [style=dashed, label="if split parent proving each child"];
-  g_emit -> g_start [style=invis];
+
+  // Fallback chain (no viable candidate)
   g_slotreq -> g_deep_keep [style=dashed, label="no viable candidate branch"];
   g_deep_keep -> g_ok_deep [label="yes"];
-  g_deep_keep -> g_reprove [label="no"];
-  g_reprove -> g_reason_call [label="no reprove request"];
+  g_deep_keep -> g_learn_parent [label="no"];
+  g_learn_parent -> g_reprove [label="narrowing did not help\n(or not applicable)"];
+  g_reprove -> g_reason_call [label="no reprove request\n(or not eligible)"];
   g_reprove -> r_throw [style=dashed, label="throw rules_reprove_cn_domain"];
   g_reason_call -> g_assume;
+
+  // =========================================================================
+  //  Edges: CN-domain reprove retry loop
+  // =========================================================================
 
   r_guard -> r_throw [style=dashed, label="reprove request"];
   r_throw -> r_catch;
@@ -185,6 +266,10 @@ digraph rules_assumptions_bpmn {
   r_recurse -> r_done [style=dashed, label="success/no further throw"];
   r_recurse -> r_catch [style=dashed, label="on next throw"];
   r_fallback -> r_done;
+
+  // =========================================================================
+  //  Edges: assumption reason diagnosis
+  // =========================================================================
 
   e_start -> e_any;
   e_any -> e_missing [label="no"];
@@ -205,6 +290,10 @@ digraph rules_assumptions_bpmn {
   e_keywords -> e_kw [label="no"];
   e_keywords -> e_other [label="yes (still failed)"];
 
+  // =========================================================================
+  //  Edges: update action path
+  // =========================================================================
+
   u_start -> u_has_replaces;
   u_has_replaces -> u_txn [label="yes"];
   u_has_replaces -> u_installed_target [label="no"];
@@ -215,6 +304,10 @@ digraph rules_assumptions_bpmn {
   u_same_slot_old -> u_txn [label="yes"];
   u_same_slot_old -> u_fallback_install [label="no"];
   u_txn -> u_txn_detail;
+
+  // =========================================================================
+  //  Cross-cluster edges
+  // =========================================================================
 
   g_action_update -> u_start [style=dashed, label="when ActionGoal is update"];
   g_emit -> r_guard [style=dashed, label="constraint_guard may request reprove"];

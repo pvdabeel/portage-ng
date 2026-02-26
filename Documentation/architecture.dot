@@ -63,7 +63,7 @@ digraph portage_ng_architecture {
     parser  [shape=box, style=filled, fillcolor="#ddeeff",
              label="parser.pl\nDrives EAPI grammar\nover file contents"];
     eapi    [shape=box, style=filled, fillcolor="#ddeeff",
-             label="eapi.pl\nDCG grammar for EAPI 8\n─────────────────\nDeps (DEPEND, RDEPEND,\n  BDEPEND, PDEPEND)\nUSE flags, USE_EXPAND\nSlot/subslot, versions\nREQUIRED_USE, blockers\nSRC_URI, license"];
+             label="eapi.pl\nDCG grammar (PMS 9)\n─────────────────\nDeps (DEPEND, RDEPEND,\n  BDEPEND, PDEPEND)\nUSE flags, USE_EXPAND\nSlot/subslot, versions\nREQUIRED_USE, blockers\nSRC_URI, license"];
   }
 
   // =========================================================================
@@ -223,7 +223,7 @@ digraph portage_ng_architecture {
       explanation_m  [shape=box, style=filled, fillcolor="#f5eeff",
                       label="explanation.pl\n─────────────────\nassumption_reason_for_\ngrouped_dep/6\n(classifies assumption type)"];
       explainer      [shape=box, style=filled, fillcolor="#f5eeff",
-                      label="explainer.pl\n─────────────────\nwhy_in_plan/5\nwhy_in_proof/3\nwhy_assumption/4\n(introspection utilities)"];
+                      label="explainer.pl\n─────────────────\nwhy_in_plan/5,6\nwhy_in_proof/3,4\nwhy_assumption/4,5\nexplain/2,3 → LLM\n(introspection + explanation)"];
     }
   }
 
@@ -282,6 +282,8 @@ digraph portage_ng_architecture {
              label="script.pl\nExecutes scripts from\nScripts/ directory"];
     depclean [shape=box, style=filled, fillcolor="#f5e6d0",
               label="depclean.pl\nProof-based depclean;\nfinds removable packages"];
+    kahn     [shape=box, style=filled, fillcolor="#f5e6d0",
+              label="kahn.pl\nTopological sort\n(Kahn's algorithm)"];
   }
 
   // =========================================================================
@@ -449,6 +451,7 @@ digraph portage_ng_architecture {
   bonjour -> cluster    [style=dashed, label="discover nodes"];
   cluster -> client     [label="distribute jobs"];
   llm -> printer        [style=dashed, label="explain errors"];
+  llm -> explainer      [style=dashed, label="explain/2,3"];
 
   // Testing
   tester -> prove_entry [style=dashed, label="test proofs"];
@@ -457,6 +460,7 @@ digraph portage_ng_architecture {
   // Depclean
   depclean -> prove_entry [style=dashed, label="prove required"];
   depclean -> set_mod     [style=dashed, label="world roots"];
+  depclean -> kahn        [style=dashed, label="topo sort"];
 
   // Infrastructure connections
   config -> repository [style=dashed];
