@@ -26,19 +26,6 @@ Given a list of target literals the prover constructs four artefacts
 
 Key design points:
 
-- Triggers are maintained incrementally during the proof: each proven
-  rule adds its body literals to Triggers as it is recorded.
-
-- Cycle detection and cycle-break assumptions: during depth-first
-  proof search, a per-proof *cycle stack* tracks literals currently
-  being proved.  When a literal is encountered that is already on
-  the stack, the prover records a cycle-break assumption instead of
-  diverging.  In Proof, cycle-breaks appear under the key
-  `assumed(rule(Lit))` (as opposed to `rule(Lit)` for normally
-  proven literals).  In Model, they appear as `assumed(Lit)`.
-  This is distinct from *domain-level* assumptions introduced by the
-  rule layer via `rule(assumed(X), [])`.
-
 - Reprove (iterative constraint refinement): after a complete proof
   attempt, accumulated constraints may reveal conflicts that were
   invisible during depth-first search (e.g. two dependency edges
@@ -61,6 +48,24 @@ Key design points:
   selection towards a conflict-free proof.  The store is reset at
   the boundary of each top-level `prover:prove/9` invocation.
 
+- Cycle detection and cycle-break assumptions: during depth-first
+  proof search, a per-proof *cycle stack* tracks literals currently
+  being proved.  When a literal is encountered that is already on
+  the stack, the prover records a cycle-break assumption instead of
+  diverging.  In Proof, cycle-breaks appear under the key
+  `assumed(rule(Lit))` (as opposed to `rule(Lit)` for normally
+  proven literals).  In Model, they appear as `assumed(Lit)`.
+  This is distinct from *domain-level* assumptions introduced by the
+  rule layer via `rule(assumed(X), [])`.
+
+- Triggers form a reverse-dependency index: for each body literal B
+  that appears in a proven rule `rule(H, [..., B, ...])`, Triggers
+  maps B to the list of head literals H that depend on it.  This
+  allows downstream consumers (planner, scheduler) to answer "which
+  heads are affected if B changes?" in O(1).  Triggers are maintained
+  incrementally during the proof: each proven rule adds its body
+  literals to Triggers as it is recorded.
+
 - A lightweight =prove_model= variant skips Proof and Triggers
   bookkeeping for internal query-side model construction.
 
@@ -71,6 +76,8 @@ Key design points:
   (e.g. post-dependencies discovered only after a literal is
   resolved) without the prover itself understanding or encoding
   any domain-specific semantics.
+
+
 */
 
 :- module(prover, []).
