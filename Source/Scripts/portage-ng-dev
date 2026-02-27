@@ -33,6 +33,9 @@ Usage:
 
 Notes:
   - --timeout enforces a hard wall-clock timeout (kills process group).
+  - --profile enables compile-time instrumentation (sampler counters,
+    debug hooks, timeout traces). Without it, these are compiled out
+    for zero overhead.
   - This wrapper passes all other args to portage-ng's Prolog main/0.
 EOF
       exit 0
@@ -51,6 +54,7 @@ done
 # This kills the whole process group (TERM, then KILL) so spawned children don't
 # linger.
 HARD_LIMIT=""
+INSTRUMENTATION=""
 prev=""
 NEW_ARGS=""
 for a in "$@"; do
@@ -80,6 +84,9 @@ for a in "$@"; do
     --hard-time-limit=*)
       HARD_LIMIT="${a#*=}"
       ;;
+    --profile)
+      INSTRUMENTATION=true
+      ;;
     *)
       NEW_ARGS="$NEW_ARGS$(printf '\n%s' "$a")"
       ;;
@@ -102,6 +109,11 @@ is_pos_int() {
       ;;
   esac
 }
+
+EXTRA_FLAGS=""
+if [ "$INSTRUMENTATION" = "true" ]; then
+  EXTRA_FLAGS="-Dinstrumentation=true"
+fi
 
 if is_pos_int "$HARD_LIMIT"; then
   # Use a Python watchdog so we can keep swipl in the foreground (preserves
@@ -157,6 +169,7 @@ sys.exit(rc if rc is not None else 124)
         -f "$ROOT_DIR/portage-ng.pl" \
         -p "portage=$ROOT_DIR" \
         -Dverbose_autoload=false \
+        $EXTRA_FLAGS \
         -g main -- "$@"
   fi
 
@@ -169,5 +182,6 @@ exec swipl -O \
   -f "$ROOT_DIR/portage-ng.pl" \
   -p "portage=$ROOT_DIR" \
   -Dverbose_autoload=false \
+  $EXTRA_FLAGS \
   -g main -- "$@"
 

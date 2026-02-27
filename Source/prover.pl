@@ -82,6 +82,12 @@ Key design points:
 
 :- module(prover, []).
 
+user:goal_expansion(debug_hook(_, _, _, _), true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
+user:goal_expansion(maybe_debug_hook(_, _, _, _), true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
 
 % =============================================================================
 %  PROVER declarations
@@ -228,7 +234,7 @@ prover:prove_recursive([],Proof,Proof,Model,Model,Constraints,Constraints,Trigge
 
 prover:prove_recursive([Literal|Rest],Proof,NewProof,Model,NewModel,Cons,NewCons,Trig,NewTrig) :-
   !,
-  prover:debug_hook([Literal|Rest], Proof, Model, Cons),
+  prover:maybe_debug_hook([Literal|Rest], Proof, Model, Cons),
   prover:prove_recursive(Literal, Proof,MidProof,    Model,MidModel,    Cons,MidCons,    Trig,MidTrig),
   prover:collect_proof_obligations(Literal, MidProof, MidProof1, MidModel, Rest, Rest1),
   prover:prove_recursive(Rest1,    MidProof1,NewProof, MidModel,NewModel, MidCons,NewCons, MidTrig,NewTrig).
@@ -238,11 +244,7 @@ prover:prove_recursive([Literal|Rest],Proof,NewProof,Model,NewModel,Cons,NewCons
 
 prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewConstraints, Triggers, NewTriggers) :-
 
-  % Debug hook (enabled only when a handler is installed).
-  ( prover:debug_hook_handler(_)
-    -> prover:debug_hook(Full, Proof, Model, Constraints)
-    ;  true
-  ),
+  prover:maybe_debug_hook(Full, Proof, Model, Constraints),
 
   canon_literal(Full, Lit, Ctx),
 
@@ -273,10 +275,6 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 
       prover:proven(Lit, Model, Ctx) ->
       !,
-      %message:color(orange),
-      %writeln('PROVER: lit is proven with same Ctx'),
-      %message:color(normal),
-
       Proof       = NewProof,
       Model       = NewModel,
       Triggers    = NewTriggers,
@@ -287,78 +285,27 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 
       prover:proven(Lit, Model, ModelCtx) ->
       !,
-      %message:color(orange),
-      %writeln('PROVER: lit is proven with different Ctx'),
-      %writeln('PROVER: -- Get Old body and Old Dep Count'),
-
-      % -- Get old body and old dep count.
-      % Prefer exact context match when possible; if model context abstraction
-      % (e.g. dropping self/1 in semantic keying) does not match the proof key,
-      % fall back to whatever context was actually stored in the proof.
       ( get_assoc(rule(Lit),Proof,dep(_OldCount,OldBody)?ModelCtx) ->
           true
       ; get_assoc(rule(Lit),Proof,dep(_OldCount,OldBody)?_OldProofCtx)
       ),
-      %write('  - Lit      : '),writeln(Lit),
-      %write('  - Ctx      : '),writeln(Ctx),
-      %write('  - OldCtx   : '),writeln(OldProofCtx),
-      %write('  - OldCount : '),writeln(OldCount),
-      %write('  - OldBody  : '),writeln(OldBody),
 
-      %writeln('PROVER: -- Union'),
-
-      % -- Merge old & new context. Keep using the model context as the
-      % semantic baseline (same behavior as before), while the proof context
-      % is used only to retrieve the previous rule body safely.
       sampler:ctx_union(ModelCtx, Ctx, NewCtx),
-      %write('  - NewCtx   : '),writeln(NewCtx),
-
-      %writeln('PROVER: -- Create updated full literal'),
-      % -- Put together updated full literal
       prover:canon_literal(NewFull, Lit, NewCtx),
-      %write('  - NewFull  : '),writeln(NewFull),
 
-      %writeln('PROVER: -- Ready to apply rule for full literal'),
-      % -- Apply rule
       sampler:test_stats_rule_call,
-      ( nb_current(prover_timeout_trace, _) ->
-          sampler:trace_simplify(Lit, SimpleRuleLit),
-          sampler:timeout_trace_push(rule_call(SimpleRuleLit))
-      ; true
-      ),
+      sampler:maybe_timeout_trace(Lit),
       rule(NewFull,NewBody),
 
-      %message:hl('PROVER - returning from subcall'),
-      %message:color(orange),
-
-
-      % -- Only body difference should be proved further
       subtract(NewBody,OldBody,DiffBody),
-
-      %write('PROVER: -- NewBody: '),writeln(NewBody),
-      %write('PROVER: -- OldBody: '),writeln(OldBody),
-      %write('PROVER: -- DifBody: '),writeln(DiffBody),
-      %message:color(normal),
-
-      % -- Prepare to refine proof
       length(NewBody,NewCount),
-
-      % -- Amend existing proof, make it seem we are prescient
       put_assoc(rule(Lit), Proof, dep(NewCount, NewBody)?NewCtx,Proof1),
-
-      %writeln('PROVER: -- Ammended rule in proof '),
-
       prover:add_triggers(NewFull, NewBody, Triggers, Triggers1),
 
-      % -- Prove body difference
-      % When we refine a rule due to context changes, we are effectively re-entering
-      % the proof of Lit. Record Lit on the cycle stack as well, so if a cycle-break
-      % happens during this refinement we can still extract a meaningful cycle path.
       setup_call_cleanup(prover:cycle_stack_push(Lit),
                          prover:prove_recursive(DiffBody, Proof1, NewProof, Model, BodyModel, Constraints, BodyConstraints, Triggers1, NewTriggers),
                          prover:cycle_stack_pop(Lit)),
 
-      % -- Update model & Constraints
       put_assoc(Lit, BodyModel, NewCtx, NewModel),
       NewConstraints = BodyConstraints
 
@@ -435,11 +382,7 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
           %message:color(normal),
 
           sampler:test_stats_rule_call,
-          ( nb_current(prover_timeout_trace, _) ->
-              sampler:trace_simplify(Lit, SimpleRuleLit),
-              sampler:timeout_trace_push(rule_call(SimpleRuleLit))
-          ; true
-          ),
+          sampler:maybe_timeout_trace(Lit),
           rule(Full, Body),
 
           length(Body, DepCount),
@@ -623,11 +566,9 @@ prover:collect_proof_obligations_list([obligation(Key, ExtraLits)|Hs], Proof0, P
       Proof1 = Proof0,
       Rest1 = Rest0
   ; put_assoc(obligation_done(Key), Proof0, true, Proof1),
-    length(ExtraLits, ExtraN),
-    sampler:obligation_counter_fired(ExtraN),
+    sampler:obligation_counter_fired(ExtraLits),
     prover:select_new_literals_to_enqueue(ExtraLits, Model, Proof1, Proof2, FreshLits),
-    length(FreshLits, FreshN),
-    sampler:obligation_counter_fresh(FreshN),
+    sampler:obligation_counter_fresh(FreshLits),
     ( FreshLits == [] ->
         Rest1 = Rest0
     ; append(FreshLits, Rest0, Rest1)
@@ -727,8 +668,7 @@ prover:learn(Literal, Constraint, Added) :-
 % cycle quickly (especially when triggers are delayed or pruned). We therefore
 % maintain a lightweight per-proof stack of literals currently being proven,
 % and store a compact cycle witness in the proof under `cycle_path(Lit)`.
-
-
+%
 %! prover:with_cycle_stack(:Goal) is det
 %
 % Run Goal with a fresh per-proof cycle stack.  Literals are pushed/popped
@@ -825,10 +765,26 @@ prover:with_debug_hook(Handler, Goal) :-
   ).
 
 
+%! prover:maybe_debug_hook(+Target, +Proof, +Model, +Constraints) is det
+%
+% Guarded debug hook for the hot path.  Compiled to `true` when
+% instrumentation is off (via goal_expansion in sampler.pl).
+
+prover:maybe_debug_hook(Target, Proof, Model, Constraints) :-
+  ( prover:debug_hook_handler(Handler) ->
+      catch(call(Handler, Target, Proof, Model, Constraints),
+            E,
+            print_message(error, E))
+  ; true
+  ),
+  !.
+
+
 %! prover:debug_hook(+Target, +Proof, +Model, +Constraints) is det
 %
 % Invoke the installed debug-hook handler (if any).  Best-effort:
 % errors in the handler are caught and printed, never propagated.
+% Used at the top-level entry point (called once per prove).
 
 prover:debug_hook(Target, Proof, Model, Constraints) :-
   ( prover:debug_hook_handler(Handler) ->

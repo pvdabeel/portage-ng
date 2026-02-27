@@ -38,6 +38,18 @@ Key data flows:
 
 :- module(printer, []).
 
+user:goal_expansion(perf_walltime(_), true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
+user:goal_expansion(perf_record(_, _, _, _), true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
+user:goal_expansion(prove_plan_perf_reset, true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
+user:goal_expansion(prove_plan_perf_report, true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
 % =============================================================================
 %  PRINTER declarations
 % =============================================================================
@@ -5104,26 +5116,32 @@ printer:prove_plan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
   printer:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL).
 
 printer:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
-  statistics(walltime, [T0,_]),
+  printer:perf_walltime(T0),
   prover:prove(Goals, t, ProofAVL, t, ModelAVL, t, _Constraints, t, TriggersAVL),
-  statistics(walltime, [T1,_]),
-  ProveMs is T1 - T0,
-  statistics(walltime, [T2,_]),
+  printer:perf_walltime(T1),
   planner:plan(ProofAVL, TriggersAVL, t, Plan0, Remainder0),
-  statistics(walltime, [T3,_]),
-  PlanMs is T3 - T2,
-  statistics(walltime, [T4,_]),
+  printer:perf_walltime(T2),
   scheduler:schedule(ProofAVL, TriggersAVL, Plan0, Remainder0, Plan, _Remainder),
-  statistics(walltime, [T5,_]),
-  SchedMs is T5 - T4,
-  ( current_predicate(printer:prove_plan_perf_add/3) ->
-      printer:prove_plan_perf_add(ProveMs, PlanMs, SchedMs)
-  ; true
-  ).
+  printer:perf_walltime(T3),
+  printer:perf_record(T0, T1, T2, T3).
 
 % -----------------------------------------------------------------------------
 %  Aggregate perf counters for prove/plan/schedule (whole-repo runs)
 % -----------------------------------------------------------------------------
+%
+%  perf_walltime/1 and perf_record/4 are compiled to true by goal_expansion
+%  when instrumentation is off, eliminating all statistics/2 and flag/3
+%  overhead from the per-entry hot path.
+
+printer:perf_walltime(T) :-
+  statistics(walltime, [T, _]).
+
+printer:perf_record(T0, T1, T2, T3) :-
+  ProveMs is T1 - T0,
+  PlanMs is T2 - T1,
+  SchedMs is T3 - T2,
+  printer:prove_plan_perf_add(ProveMs, PlanMs, SchedMs).
+
 printer:prove_plan_perf_reset :-
   flag(pp_perf_entries, _OldE, 0),
   flag(pp_perf_prove_ms, _OldP, 0),

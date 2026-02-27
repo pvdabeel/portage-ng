@@ -40,6 +40,15 @@ and a condensed schedule for the remainder only.
 
 :- module(scheduler, []).
 
+user:goal_expansion(perf_reset, true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
+user:goal_expansion(perf_add(_, _, _, _, _, _, _, _), true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
+user:goal_expansion(perf_report, true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
 
 %! scheduler:schedule(+ProofAVL,+TriggersAVL,+PlanIn,+RemainderIn,-PlanOut,-RemainderOut)
 %

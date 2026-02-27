@@ -28,6 +28,44 @@ Subsystems:
 
 
 % =============================================================================
+%  Compile-time instrumentation gating
+% =============================================================================
+%
+% Unless the application is started with -Dinstrumentation=true (e.g. via
+% --profile), all hot-path instrumentation calls are compiled to `true`
+% by goal_expansion, leaving zero overhead in the prover loop.
+
+:- multifile user:goal_expansion/2.
+
+user:goal_expansion(test_stats_rule_call, true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
+user:goal_expansion(obligation_counter_done_hit, true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
+user:goal_expansion(obligation_counter_fired(_), true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
+user:goal_expansion(obligation_counter_fresh(_), true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
+user:goal_expansion(obligation_counter_reset, true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
+user:goal_expansion(obligation_counter_report, true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
+user:goal_expansion(obligation_perf_reset, true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
+user:goal_expansion(obligation_perf_report, true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
+user:goal_expansion(maybe_timeout_trace(_), true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
+
+% =============================================================================
 %  Proof obligation performance sampling
 % =============================================================================
 %
@@ -370,21 +408,23 @@ sampler:obligation_counter_done_hit :-
   !.
 
 
-%! sampler:obligation_counter_fired(+ExtraN) is det
+%! sampler:obligation_counter_fired(+ExtraLits) is det
 %
-% Increment obligation-fired counter and add ExtraN to total extra literals.
+% Increment obligation-fired counter and add |ExtraLits| to total extra literals.
 
-sampler:obligation_counter_fired(ExtraN) :-
+sampler:obligation_counter_fired(ExtraLits) :-
+  length(ExtraLits, ExtraN),
   flag(obligation_fired, X, X+1),
   flag(obligation_extra_lits, Y, Y+ExtraN),
   !.
 
 
-%! sampler:obligation_counter_fresh(+FreshN) is det
+%! sampler:obligation_counter_fresh(+FreshLits) is det
 %
-% Add FreshN to the count of fresh (not-yet-proven) literals enqueued.
+% Add |FreshLits| to the count of fresh (not-yet-proven) literals enqueued.
 
-sampler:obligation_counter_fresh(FreshN) :-
+sampler:obligation_counter_fresh(FreshLits) :-
+  length(FreshLits, FreshN),
   flag(obligation_fresh_lits, X, X+FreshN),
   !.
 
@@ -406,6 +446,24 @@ sampler:obligation_counter_report :-
   nl,
   sampler:obligation_perf_report,
   !.
+
+
+% =============================================================================
+%  Timeout trace: prover hot-path wrapper
+% =============================================================================
+
+
+%! sampler:maybe_timeout_trace(+Lit) is det
+%
+% If a timeout trace is active, push a rule_call event.
+% Compiled to `true` when instrumentation is off.
+
+sampler:maybe_timeout_trace(Lit) :-
+  ( nb_current(prover_timeout_trace, _) ->
+      sampler:trace_simplify(Lit, Simple),
+      sampler:timeout_trace_push(rule_call(Simple))
+  ; true
+  ).
 
 
 % =============================================================================
