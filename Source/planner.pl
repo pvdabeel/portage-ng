@@ -11,9 +11,22 @@
 /** <module> PLANNER
 The Planner creates a plan based on a Proof.
 
-This version is synchronized with the corrected prover. It initializes by
-traversing the ProofAVL directly and fetches rule details from the ProofAVL
-"just-in-time" within the main planning loop.
+Two-phase planner aligned with PMS/Portage/Paludis dependency semantics:
+
+  Phase 1 – Normal wave planning (Kahn's algorithm).
+            All non-constraint deps are hard ordering constraints.
+
+  Phase 2 – Relaxation pass.
+            For rules left in the remainder, recalculate dep counts ignoring
+            :run deps (RDEPEND / PDEPEND).  Build relaxed triggers and run
+            another wave-planning loop.  This mirrors Portage's progressive
+            cycle-breaking (ignore runtime_post, then runtime edges) and
+            Paludis's insight that runtime-only cycles are not ordering-
+            significant.
+
+The net effect: build-time deps (DEPEND/BDEPEND) remain hard ordering edges
+that are never relaxed.  Runtime deps (RDEPEND/PDEPEND) are honoured when
+acyclic but relaxed when they cause cycles, matching PMS semantics.
 */
 
 :- module(planner, []).
@@ -35,18 +48,26 @@ planner:plan(ProofAVL, TriggersAVL, PlannedHeadsIn, EnrichedPlan) :-
 % Like `planner:plan/4`, but also returns `RemainderRules`: rules whose heads
 % could not be scheduled by the wave planner (typically due to cycles).
 %
+% Uses two-phase planning: normal planning followed by a relaxation pass
+% that ignores :run deps as ordering constraints (matching Portage/Paludis
+% semantics for runtime dependency cycles).
+%
 planner:plan(ProofAVL, TriggersAVL, PlannedHeadsIn, EnrichedPlan, RemainderRules) :-
+    % Phase 1: Normal planning (all deps are ordering constraints)
     plan_init_from_proof(ProofAVL, PlannedHeadsIn, DepCounts0, ReadyQueue0),
     (   ReadyQueue0 \= [] ->
         update_planned_set(ReadyQueue0, PlannedHeadsIn, PlannedHeadsInit),
         plan_loop([ReadyQueue0], DepCounts0, TriggersAVL, ProofAVL, PlannedHeadsInit,
-                  [], RevEnrichedPlan, DepCounts, PlannedHeadsFinal),
-        reverse(RevEnrichedPlan, EnrichedPlan)
-    ;   EnrichedPlan = [],
-        DepCounts = DepCounts0,
-        PlannedHeadsFinal = PlannedHeadsIn
+                  [], RevPlan1, DepCounts1, PlannedHeads1),
+        reverse(RevPlan1, Plan1)
+    ;   Plan1 = [],
+        DepCounts1 = DepCounts0,
+        PlannedHeads1 = PlannedHeadsIn
     ),
-    planner:collect_remainder(DepCounts, PlannedHeadsFinal, ProofAVL, RemainderRules).
+    % Phase 2: Relaxation (ignore :run deps as ordering constraints)
+    plan_relaxation(ProofAVL, PlannedHeads1, RelaxedPlan, PlannedHeads2),
+    append(Plan1, RelaxedPlan, EnrichedPlan),
+    planner:collect_remainder(DepCounts1, PlannedHeads2, ProofAVL, RemainderRules).
 
 
 %! planner:update_planned_set(+Rules, +SetIn, -SetOut)
@@ -158,6 +179,118 @@ planner:collect_remainder(DepCounts, PlannedHeads, ProofAVL, RemainderRules) :-
             ),
             RemainderRules).
 
+
+% =============================================================================
+%  Phase 2: Relaxation pass (ignore :run deps as ordering constraints)
+% =============================================================================
+
+%! planner:is_runtime_dep(+Dep)
+%
+% True if Dep is a :run action literal (RDEPEND/PDEPEND ordering edge).
+% These are the deps that can be relaxed when they cause cycles.
+
+planner:is_runtime_dep(Dep) :-
+    prover:canon_literal(Dep, Canon, _),
+    scheduler:is_run_literal(Canon), !.
+
+
+%! planner:plan_relaxation(+ProofAVL, +PlannedHeadsIn, -RelaxedPlan, -PlannedHeadsOut)
+%
+% For all rules not yet planned, recalculate dependency counts ignoring :run
+% deps.  Rules whose non-runtime deps are all satisfied become immediately
+% schedulable.  A secondary wave-planning loop cascades the freed rules.
+
+planner:plan_relaxation(ProofAVL, PlannedHeadsIn, RelaxedPlan, PlannedHeadsOut) :-
+    findall(Head-Rule,
+            (   assoc:gen_assoc(Key, ProofAVL, Value),
+                prover:canon_rule(Rule, Key, Value),
+                Rule = rule(HeadWithCtx, _),
+                HeadWithCtx \= assumed(_),
+                prover:canon_literal(HeadWithCtx, Head, _),
+                \+ get_assoc(Head, PlannedHeadsIn, _),
+                \+ get_assoc(assumed(rule(Head)), ProofAVL, _)
+            ),
+            Remaining),
+    (   Remaining = [] ->
+        RelaxedPlan = [],
+        PlannedHeadsOut = PlannedHeadsIn
+    ;
+        build_relaxed_counts(Remaining, PlannedHeadsIn, RelaxedCounts, ReadyQueue0),
+        build_relaxed_triggers(Remaining, PlannedHeadsIn, RelaxedTriggers),
+        (   ReadyQueue0 \= [] ->
+            update_planned_set(ReadyQueue0, PlannedHeadsIn, PlannedHeads1),
+            plan_loop([ReadyQueue0], RelaxedCounts, RelaxedTriggers, ProofAVL, PlannedHeads1,
+                      [], RevRelaxedPlan, _FinalCounts, PlannedHeadsOut),
+            reverse(RevRelaxedPlan, RelaxedPlan)
+        ;   RelaxedPlan = [],
+            PlannedHeadsOut = PlannedHeadsIn
+        )
+    ).
+
+
+%! planner:build_relaxed_counts(+HeadRulePairs, +PlannedHeads, -Counts, -ReadyQueue)
+%
+% For each remaining rule, count non-constraint, non-:run, non-planned deps.
+
+planner:build_relaxed_counts(Pairs, PlannedHeads, Counts, ReadyQueue) :-
+    empty_assoc(EmptyCounts),
+    build_relaxed_counts_(Pairs, PlannedHeads, EmptyCounts, Counts, [], ReadyQueue).
+
+build_relaxed_counts_([], _, Counts, Counts, Ready, Ready).
+build_relaxed_counts_([Head-Rule|Rest], PlannedHeads, InCounts, OutCounts, InReady, OutReady) :-
+    Rule = rule(_, Body),
+    calculate_relaxed_deps(Body, PlannedHeads, Count),
+    put_assoc(Head, InCounts, Count, MidCounts),
+    (   Count =:= 0 ->
+        MidReady = [Rule | InReady]
+    ;   MidReady = InReady
+    ),
+    build_relaxed_counts_(Rest, PlannedHeads, MidCounts, OutCounts, MidReady, OutReady).
+
+
+%! planner:calculate_relaxed_deps(+Body, +PlannedHeads, -Count)
+%
+% Count body elements that are non-constraint, non-:run, and not yet planned.
+
+planner:calculate_relaxed_deps([], _, 0).
+planner:calculate_relaxed_deps([Dep|Rest], PlannedHeads, Count) :-
+    calculate_relaxed_deps(Rest, PlannedHeads, RestCount),
+    (   prover:is_constraint(Dep) -> Count = RestCount
+    ;   is_runtime_dep(Dep) -> Count = RestCount
+    ;   prover:canon_literal(Dep, DepHead, _),
+        get_assoc(DepHead, PlannedHeads, _) -> Count = RestCount
+    ;   Count is RestCount + 1
+    ).
+
+
+%! planner:build_relaxed_triggers(+HeadRulePairs, +PlannedHeads, -Triggers)
+%
+% Build a trigger map for the relaxation pass: dep_canonical -> [head_literal, ...].
+% Only non-constraint, non-:run, non-planned deps generate trigger entries.
+
+planner:build_relaxed_triggers(Remaining, PlannedHeads, Triggers) :-
+    findall(DepCanon-HeadLiteral,
+            (   member(_Head-Rule, Remaining),
+                Rule = rule(HeadLiteral, Body),
+                member(Dep, Body),
+                \+ prover:is_constraint(Dep),
+                \+ is_runtime_dep(Dep),
+                prover:canon_literal(Dep, DepCanon, _),
+                \+ get_assoc(DepCanon, PlannedHeads, _)
+            ),
+            Pairs0),
+    (   Pairs0 = [] ->
+        empty_assoc(Triggers)
+    ;
+        keysort(Pairs0, Pairs1),
+        group_pairs_by_key(Pairs1, Grouped),
+        list_to_assoc(Grouped, Triggers)
+    ).
+
+
+% =============================================================================
+%  Wave planning loop
+% =============================================================================
 
 %! planner:process_wave(+ReadyQueue, +InCounts, +Triggers, +ProofAVL, +InPlanned, -OutPlanned, -OutCounts, -NextReadyQueue)
 %

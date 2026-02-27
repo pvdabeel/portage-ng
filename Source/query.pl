@@ -1020,11 +1020,6 @@ compile_query_compound(model(dependency(Model,install)):config?{Context}, Repo:/
           ( cache:entry_metadata(Repo,Id,bdepend,Dep)
           ; cache:entry_metadata(Repo,Id,cdepend,Dep)
           ; cache:entry_metadata(Repo,Id,depend,Dep)
-          % Portage merges build-time dependencies as full packages, so their
-          % runtime deps must be present too. Including IDEPEND/RDEPEND here
-          % fixes missing transitive deps (e.g. python libs pulled via BDEPEND).
-          % These will be tagged as :run dependencies (not :install), preserving
-          % the historical separation between install and run obligations.
           ; cache:entry_metadata(Repo,Id,idepend,Dep)
           ; cache:entry_metadata(Repo,Id,rdepend,Dep)
           ),

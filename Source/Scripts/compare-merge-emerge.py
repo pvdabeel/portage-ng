@@ -470,15 +470,21 @@ def _classify_domain_assumption(buf: List[str], counters: Dict[str, int]) -> Non
     counters["domain_assumptions"] += 1
 
 
-def parse_merge(path: Path) -> Tuple[Dict[str, MergePkg], Dict[str, int]]:
+def parse_merge(path: Path) -> Tuple[Dict[str, MergePkg], Dict[str, int], List[str]]:
     """
     Parses portage-ng merge output.
     Returns:
       - mapping by cpv key string (cat/pn-ver) to MergePkg (slot usually not printed)
       - assumptions counters extracted from sections
+      - merge_action_order: ordered list of cpv keys by their first merge action
+        (install/update/downgrade/reinstall), excluding downloads and runs.
+        This is the order comparable to Portage's emerge output.
     """
     txt = strip_ansi(path.read_text(errors="replace"))
     pkgs: Dict[str, MergePkg] = {}
+    merge_action_order: List[str] = []
+    _merge_action_seen: Set[str] = set()
+    _MERGE_ACTIONS = {"install", "update", "downgrade", "reinstall"}
 
     # Action lines include:
     #   install    portage://dev-libs/foo-1.2.3
@@ -538,6 +544,9 @@ def parse_merge(path: Path) -> Tuple[Dict[str, MergePkg], Dict[str, int]]:
                     pkgs[k] = MergePkg(key=key, actions={action}, use_enabled=set(), use_disabled=set(), use_known=False)
                 else:
                     cur.actions.add(action)
+                if action in _MERGE_ACTIONS and k not in _merge_action_seen:
+                    _merge_action_seen.add(k)
+                    merge_action_order.append(k)
                 # If the next lines include a conf USE block, associate it.
                 pending_use_for = k
             continue
@@ -620,12 +629,12 @@ def parse_merge(path: Path) -> Tuple[Dict[str, MergePkg], Dict[str, int]]:
     if domain_buf:
         _classify_domain_assumption(domain_buf, counters)
 
-    return pkgs, counters
+    return pkgs, counters, merge_action_order
 
 
 def compare_pair(merge_path: Path, emerge_path: Path) -> Dict:
     emerge, emerge_meta = parse_emerge(emerge_path)
-    merge, ass = parse_merge(merge_path)
+    merge, ass, merge_action_order = parse_merge(merge_path)
 
     emerge_keys = set(emerge.keys())
     # Only consider actually-merged packages on the portage-ng side.
@@ -761,8 +770,9 @@ def compare_pair(merge_path: Path, emerge_path: Path) -> Dict:
 
         merge_cn_order: List[Tuple[str, str]] = []
         seen_cn = set()
-        for p in merge.values():
-            if not p.actions.intersection({"install", "update", "downgrade", "reinstall", "run"}):
+        for k in merge_action_order:
+            p = merge.get(k)
+            if not p:
                 continue
             cn = _cn_key(p.key)
             if cn not in seen_cn:

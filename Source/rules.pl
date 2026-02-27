@@ -1279,14 +1279,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         )
       ->
         ActionGoal = FoundRepo://Candidate:DepUpdateAction?{UpdateCtx}
-      ; % Portage-like: even for runtime (RDEPEND) edges, the solver should
-        % schedule the dependency to be installed (not "run") when it is not
-        % already present. Otherwise we create widespread `assumed(...running)`
-        % domain assumptions (and miss merge actions) for normal libraries.
-        ( Action == run ->
-            DepAction = install
-        ; DepAction = Action
-        ),
+      ; DepAction = Action,
         ActionGoal = FoundRepo://Candidate:DepAction?{NewerContext}
       ),
       % IMPORTANT for performance + correctness:

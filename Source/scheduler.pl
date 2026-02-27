@@ -12,9 +12,10 @@ The Scheduler is a post-planning step that can deal with cyclic remainders.
 
 Conceptually:
 - The prover builds a proof (and triggers graph).
-- The planner builds a wave plan for the acyclic portion of the graph.
-- If the planner cannot schedule everything (e.g. due to cyclic rule bodies),
-  it returns a remainder.
+- The planner builds a wave plan for the acyclic portion of the graph,
+  including a relaxation pass that ignores :run deps as ordering constraints.
+- If the planner cannot schedule everything (e.g. due to cyclic rule bodies
+  involving build-time deps), it returns a remainder.
 
 This scheduler computes strongly connected components (SCCs) on the remainder
 subgraph (Kosaraju) and can "act" only on SCCs that are safe to merge as a set.
@@ -26,6 +27,9 @@ Policy:
   - :install/:update/:downgrade/:reinstall (merge actions)
 - Any SCC containing other literal kinds is treated as unschedulable; all rules
   that (transitively) depend on such SCCs remain in the remainder.
+- Merge-set SCCs are classified by priority composition (runtime_only vs
+  has_build) for diagnostics.  After the planner's relaxation pass, the
+  scheduler should primarily see build-time cycles.
 
 The scheduler does not mutate the prover's TriggersAVL; it derives SCC metadata
 and a condensed schedule for the remainder only.
@@ -192,6 +196,8 @@ scheduler:perf_reset :-
   flag(sch_perf_waves_sum, _OldW, 0),
   flag(sch_perf_wave_comps_sum, _OldWC, 0),
   flag(sch_perf_added_rules_sum, _OldAR, 0),
+  flag(sch_perf_runtime_sccs, _OldRS, 0),
+  flag(sch_perf_build_sccs, _OldBS, 0),
   !.
 
 scheduler:perf_add(HeadsN, SCCsN, CompsN, BlockedN, WavesN, WavesCompN, AddedRulesN, Nontrivial) :-
@@ -218,6 +224,8 @@ scheduler:perf_report :-
     flag(sch_perf_waves_sum, W, W),
     flag(sch_perf_wave_comps_sum, WC, WC),
     flag(sch_perf_added_rules_sum, AR, AR),
+    flag(sch_perf_runtime_sccs, RS, RS),
+    flag(sch_perf_build_sccs, BS, BS),
     AvgH is H / E,
     AvgS is S / E,
     AvgC is C / E,
@@ -233,7 +241,8 @@ scheduler:perf_report :-
                            ' blocked_sum=',B,' avg=',AvgB,
                            ' waves_sum=',W,' avg=',AvgW,
                            ' wave_comps_sum=',WC,' avg=',AvgWC,
-                           ' added_rules_sum=',AR,' avg=',AvgAR])
+                           ' added_rules_sum=',AR,' avg=',AvgAR,
+                           ' runtime_sccs=',RS,' build_sccs=',BS])
   ),
   nl,
   !.
@@ -584,11 +593,29 @@ scheduler:compmap_put(Id, Node, In, Out) :-
 scheduler:component_kind(Members, Forward, Kind) :-
   ( Members = [Only] ->
       ( scheduler:self_loop(Only, Forward) ->
-          ( scheduler:all_mergeable(Members) -> Kind = merge_set ; Kind = bad )
+          ( scheduler:all_mergeable(Members) ->
+              Kind = merge_set,
+              scheduler:classify_scc_priority(Members)
+          ; Kind = bad
+          )
       ; Kind = single
       )
   ; % size > 1
-    ( scheduler:all_mergeable(Members) -> Kind = merge_set ; Kind = bad )
+    ( scheduler:all_mergeable(Members) ->
+        Kind = merge_set,
+        scheduler:classify_scc_priority(Members)
+    ; Kind = bad
+    )
+  ).
+
+% Track whether a merge-set SCC is runtime-only (all :run nodes) or contains
+% build actions.  After the planner's relaxation pass, remaining runtime-only
+% SCCs indicate cycles that could not be resolved even with relaxation.
+scheduler:classify_scc_priority(Members) :-
+  ( forall(member(M, Members), scheduler:is_run_literal(M)) ->
+      flag(sch_perf_runtime_sccs, R0, R0+1)
+  ;
+      flag(sch_perf_build_sccs, B0, B0+1)
   ).
 
 scheduler:self_loop(Node, Forward) :-
