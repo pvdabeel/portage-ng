@@ -3641,18 +3641,26 @@ rules:self_context_use_state(Ctx, Use, State) :-
   ),
   rules:entry_iuse_info(Repo://Id, iuse_info(IuseSet, _PlusSet)),
   memberchk(Use, IuseSet),
-  ( % Effective state must honor profile/package overrides.
-    % query:search(use/1) reads raw enabled flags only and can diverge.
-    \+ eapi:check_use_expand_atom(Use),
-    query:search(iuse_filtered(Use, State:_), Repo://Id)
+  ( \+ eapi:check_use_expand_atom(Use),
+    findall(S0:R0,
+            ( cache:entry_metadata(Repo, Id, iuse, Arg),
+              eapi:strip_use_default(Arg, Use),
+              eapi:categorize_use_for_entry(Arg, Repo://Id, S0, R0)
+            ),
+            States0),
+    States0 \== [],
+    query:iuse_effective_state_(States0, State, _)
   ; atom(Use),
     sub_atom(Use, Before, 1, _, '_'),
     Before > 0,
     sub_atom(Use, 0, Before, _, Prefix),
     eapi:use_expand(Prefix),
     eapi:strip_prefix_atom(Prefix, Use, Value),
-    Q =.. [Prefix, Value, State:_],
-    query:search(Q, Repo://Id)
+    cache:entry_metadata(Repo, Id, iuse, UEArg),
+    eapi:categorize_use_for_entry(UEArg, Repo://Id, State, _),
+    eapi:strip_use_default(UEArg, UEArgB),
+    eapi:check_prefix_atom(Prefix, UEArgB),
+    eapi:strip_prefix_atom(Prefix, UEArgB, Value)
   ),
   !.
 
