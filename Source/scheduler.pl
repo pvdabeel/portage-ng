@@ -12,10 +12,9 @@ The Scheduler is a post-planning step that can deal with cyclic remainders.
 
 Conceptually:
 - The prover builds a proof (and triggers graph).
-- The planner builds a wave plan for the acyclic portion of the graph,
-  including a relaxation pass that ignores :run deps as ordering constraints.
-- If the planner cannot schedule everything (e.g. due to cyclic rule bodies
-  involving build-time deps), it returns a remainder.
+- The planner builds a wave plan for the acyclic portion of the graph.
+- If the planner cannot schedule everything (e.g. due to cyclic rule bodies),
+  it returns a remainder.
 
 This scheduler computes strongly connected components (SCCs) on the remainder
 subgraph (Kosaraju) and can "act" only on SCCs that are safe to merge as a set.
@@ -28,8 +27,11 @@ Policy:
 - Any SCC containing other literal kinds is treated as unschedulable; all rules
   that (transitively) depend on such SCCs remain in the remainder.
 - Merge-set SCCs are classified by priority composition (runtime_only vs
-  has_build) for diagnostics.  After the planner's relaxation pass, the
-  scheduler should primarily see build-time cycles.
+  has_build) for diagnostics.
+- Multi-member merge-set SCCs are linearized using Portage-like progressive
+  relaxation: iteratively extract nodes whose SCC-internal deps are satisfied,
+  relaxing :run edges when stuck, then picking the node with the fewest
+  unsatisfied hard deps for true hard cycles.
 
 The scheduler does not mutate the prover's TriggersAVL; it derives SCC metadata
 and a condensed schedule for the remainder only.
@@ -68,7 +70,7 @@ schedule(_ProofAVL, _TriggersAVL, PlanIn, RemainderIn, PlanOut, RemainderOut) :-
   scheduler:schedulable_component_waves(Comps, Forward, CompMap, BlockedCompIds, WavesCompIds),
   length(WavesCompIds, WavesN),
   scheduler:count_wave_components(WavesCompIds, WavesCompTotalN),
-  scheduler:expand_component_waves_from_map(WavesCompIds, Comps, HeadRuleMap, WavesRules),
+  scheduler:expand_component_waves_from_map(WavesCompIds, Comps, Forward, HeadRuleMap, WavesRules),
   scheduler:count_rules_in_plan(WavesRules, AddedRulesN),
   append(PlanIn, WavesRules, PlanOut0),
   scheduler:remainder_from_blocked_from_map(BlockedCompIds, Comps, HeadRuleMap, RemainderOut),
@@ -811,17 +813,165 @@ scheduler:dec_dependents_list([N|Ns], RemSet, Indeg0, Indeg, R0, R) :-
   ),
   scheduler:dec_dependents_list(Ns, RemSet, Indeg1, Indeg, R1, R).
 
-scheduler:expand_component_waves_from_map([], _Comps, _HeadRuleMap, []).
-scheduler:expand_component_waves_from_map([WaveIds|Rest], Comps, HeadRuleMap, [WaveRules|Out]) :-
+scheduler:expand_component_waves_from_map([], _Comps, _Forward, _HeadRuleMap, []).
+scheduler:expand_component_waves_from_map([WaveIds|Rest], Comps, Forward, HeadRuleMap, [WaveRules|Out]) :-
   findall(Rule,
           ( member(Id, WaveIds),
-            member(comp(Id, _Kind, Members), Comps),
-            member(H, Members),
+            member(comp(Id, Kind, Members), Comps),
+            scheduler:expand_component(Kind, Members, Forward, HeadRuleMap, CompRules),
+            member(Rule, CompRules)
+          ),
+          WaveRules),
+  scheduler:expand_component_waves_from_map(Rest, Comps, Forward, HeadRuleMap, Out).
+
+% Expand a single component into an ordered list of rules.
+% merge_set SCCs with multiple members get priority-aware linearization;
+% everything else is returned in member order.
+scheduler:expand_component(merge_set, Members, Forward, HeadRuleMap, Rules) :-
+  length(Members, N), N > 1, !,
+  scheduler:linearize_scc(Members, Forward, HeadRuleMap, Rules).
+scheduler:expand_component(_Kind, Members, _Forward, HeadRuleMap, Rules) :-
+  scheduler:scc_get_rules(Members, HeadRuleMap, Rules).
+
+% Retrieve rules for a list of SCC member heads.
+scheduler:scc_get_rules(Members, HeadRuleMap, Rules) :-
+  findall(Rule,
+          ( member(H, Members),
             get_assoc(H, HeadRuleMap, Rule)
           ),
-          WaveRules0),
-  reverse(WaveRules0, WaveRules),
-  scheduler:expand_component_waves_from_map(Rest, Comps, HeadRuleMap, Out).
+          Rules).
+
+
+% =============================================================================
+%  Priority-aware SCC linearization (Portage-like progressive relaxation)
+% =============================================================================
+%
+% Within a merge-set SCC, iteratively select "ready" nodes whose SCC-internal
+% dependencies are all satisfied, using progressive relaxation:
+%
+%   Phase 1: All internal edges are hard constraints.
+%   Phase 2: Relax :run edges (RDEPEND/PDEPEND) — these are soft.
+%   Phase 3: Hard cycle (all remaining edges are build-time) — pick node
+%            with fewest unsatisfied hard deps (best available).
+%
+% This matches Portage's _serialize_tasks() cycle linearization.
+
+%! scheduler:linearize_scc(+Members, +Forward, +HeadRuleMap, -OrderedRules)
+scheduler:linearize_scc(Members, Forward, HeadRuleMap, OrderedRules) :-
+  scheduler:scc_internal_forward(Members, Forward, IntFwd),
+  scheduler:scc_internal_forward_no_run(Members, Forward, IntFwdNoRun),
+  empty_assoc(Done0),
+  scheduler:linearize_iter(Members, IntFwd, IntFwdNoRun, HeadRuleMap, Done0, [], OrderedRules).
+
+% Build SCC-internal forward edges: for each member, keep only deps that
+% are also SCC members.
+scheduler:scc_internal_forward(Members, Forward, IntFwd) :-
+  scheduler:assoc_set_from_list(Members, MemberSet),
+  empty_assoc(IF0),
+  foldl(scheduler:scc_int_fwd_node(Forward, MemberSet), Members, IF0, IntFwd).
+
+scheduler:scc_int_fwd_node(Forward, MemberSet, Node, In, Out) :-
+  ( get_assoc(Node, Forward, AllDeps) -> true ; AllDeps = [] ),
+  include(scheduler:in_member_set(MemberSet), AllDeps, InternalDeps),
+  put_assoc(Node, In, InternalDeps, Out).
+
+scheduler:in_member_set(MemberSet, Node) :-
+  get_assoc(Node, MemberSet, _).
+
+% Same as above but excluding :run deps.
+scheduler:scc_internal_forward_no_run(Members, Forward, IntFwd) :-
+  scheduler:assoc_set_from_list(Members, MemberSet),
+  empty_assoc(IF0),
+  foldl(scheduler:scc_int_fwd_node_no_run(Forward, MemberSet), Members, IF0, IntFwd).
+
+scheduler:scc_int_fwd_node_no_run(Forward, MemberSet, Node, In, Out) :-
+  ( get_assoc(Node, Forward, AllDeps) -> true ; AllDeps = [] ),
+  include(scheduler:is_non_run_internal(MemberSet), AllDeps, InternalDeps),
+  put_assoc(Node, In, InternalDeps, Out).
+
+scheduler:is_non_run_internal(MemberSet, Dep) :-
+  get_assoc(Dep, MemberSet, _),
+  \+ scheduler:is_run_literal(Dep).
+
+% Iterative linearization: extract ready nodes in waves.
+%
+% Phase 1: Schedule all nodes whose ALL SCC-internal deps are satisfied.
+% Phase 2: Relax :run edges — pick ONE node at a time (fewest unsatisfied
+%          :run deps first, matching Portage's one-at-a-time approach),
+%          then re-enter phase 1 so completed :run deps can cascade.
+% Phase 3: Hard cycle (all remaining edges are build-time) — pick the node
+%          with fewest unsatisfied hard deps.
+scheduler:linearize_iter([], _, _, _, _, Acc, Acc) :- !.
+scheduler:linearize_iter(Remaining, IntFwd, IntFwdNoRun, HRM, Done, Acc, Result) :-
+  scheduler:scc_ready_nodes(Remaining, IntFwd, Done, Ready1),
+  ( Ready1 \= [] ->
+      sort(Ready1, ReadySorted),
+      scheduler:scc_get_rules(ReadySorted, HRM, Rules),
+      append(Acc, Rules, Acc1),
+      foldl(scheduler:mark_done, ReadySorted, Done, Done1),
+      subtract(Remaining, ReadySorted, Remaining1),
+      scheduler:linearize_iter(Remaining1, IntFwd, IntFwdNoRun, HRM, Done1, Acc1, Result)
+  ;
+      % Phase 2: relax :run edges — schedule ONE node, then re-enter phase 1
+      scheduler:scc_ready_nodes(Remaining, IntFwdNoRun, Done, Ready2),
+      ( Ready2 \= [] ->
+          scheduler:pick_best_relaxed_node(Ready2, IntFwd, Done, Best),
+          scheduler:scc_get_rules([Best], HRM, Rules),
+          append(Acc, Rules, Acc1),
+          scheduler:mark_done(Best, Done, Done1),
+          subtract(Remaining, [Best], Remaining1),
+          scheduler:linearize_iter(Remaining1, IntFwd, IntFwdNoRun, HRM, Done1, Acc1, Result)
+      ;
+          % Phase 3: hard cycle — pick node with fewest unsatisfied hard deps
+          scheduler:pick_best_cycle_node(Remaining, IntFwdNoRun, Done, Best),
+          scheduler:scc_get_rules([Best], HRM, Rules),
+          append(Acc, Rules, Acc1),
+          scheduler:mark_done(Best, Done, Done1),
+          subtract(Remaining, [Best], Remaining1),
+          scheduler:linearize_iter(Remaining1, IntFwd, IntFwdNoRun, HRM, Done1, Acc1, Result)
+      )
+  ).
+
+% Nodes whose SCC-internal deps (per the given forward map) are all done.
+scheduler:scc_ready_nodes(Remaining, IntFwd, Done, Ready) :-
+  findall(N,
+          ( member(N, Remaining),
+            get_assoc(N, IntFwd, Deps),
+            forall(member(D, Deps), get_assoc(D, Done, _))
+          ),
+          Ready).
+
+scheduler:mark_done(Node, In, Out) :- put_assoc(Node, In, true, Out).
+
+% Among relaxed-ready nodes, pick the one with fewest unsatisfied deps in
+% the FULL internal graph (including :run).  This schedules the node that
+% is closest to being fully ready, allowing its :run deps to cascade.
+scheduler:pick_best_relaxed_node(Ready, IntFwd, Done, Best) :-
+  findall(Count-Node,
+          ( member(Node, Ready),
+            get_assoc(Node, IntFwd, Deps),
+            include(scheduler:not_done(Done), Deps, Unsatisfied),
+            length(Unsatisfied, Count)
+          ),
+          Pairs),
+  keysort(Pairs, [_-Best|_]).
+
+% When all remaining nodes have unsatisfied hard deps, pick the one with
+% the fewest — breaking the tightest cycle first (like Portage's
+% smallest-cycle heuristic).
+scheduler:pick_best_cycle_node(Remaining, IntFwdNoRun, Done, Best) :-
+  findall(Count-Node,
+          ( member(Node, Remaining),
+            get_assoc(Node, IntFwdNoRun, Deps),
+            include(scheduler:not_done(Done), Deps, Unsatisfied),
+            length(Unsatisfied, Count)
+          ),
+          Pairs),
+  keysort(Pairs, [_-Best|_]).
+
+scheduler:not_done(Done, Node) :-
+  \+ get_assoc(Node, Done, _).
+
 
 scheduler:remainder_from_blocked_from_map([], _Comps, _HeadRuleMap, []).
 scheduler:remainder_from_blocked_from_map(BlockedIds, Comps, HeadRuleMap, RemainderOut) :-
