@@ -237,7 +237,7 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
     ;  true
   ),
 
-  literal(Full, Lit, Ctx),
+  canon_literal(Full, Lit, Ctx),
 
   (   % Case: a constraint
 
@@ -476,7 +476,7 @@ prover:prove_model([Literal|Rest], Model0, Model, Cons0, Cons, InProg0) :-
   prover:prove_model(Rest,    Model1, Model,  Cons1, Cons,  InProg0).
 
 prover:prove_model(Full, Model0, Model, Constraints0, Constraints, InProg0) :-
-  literal(Full, Lit, Ctx),
+  canon_literal(Full, Lit, Ctx),
 
   (   % Case: a constraint
       constraint:is_constraint(Lit) ->
