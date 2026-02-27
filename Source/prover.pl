@@ -688,21 +688,23 @@ prover:with_cycle_stack(Goal) :-
 %! prover:cycle_stack_push(+Lit) is det
 %
 % Push Lit onto the thread-local cycle stack.
+% Uses b_setval (backtrackable, O(1) reference store) instead of
+% nb_setval (non-backtrackable, O(N) deep copy) to avoid GC pressure
+% from copying the entire stack on every push.
 
 prover:cycle_stack_push(Lit) :-
-  ( nb_current(prover_cycle_stack, S0) -> true ; S0 = [] ),
-  nb_setval(prover_cycle_stack, [Lit|S0]).
+  nb_getval(prover_cycle_stack, S0),
+  b_setval(prover_cycle_stack, [Lit|S0]).
 
 
 %! prover:cycle_stack_pop(+Lit) is det
 %
-% Pop Lit from the thread-local cycle stack.
+% Pop the top element from the thread-local cycle stack.
+% Uses b_setval for O(1) store (see cycle_stack_push/1).
 
-prover:cycle_stack_pop(Lit) :-
-  ( nb_current(prover_cycle_stack, [Lit|Rest]) ->
-      nb_setval(prover_cycle_stack, Rest)
-  ; true
-  ).
+prover:cycle_stack_pop(_) :-
+  nb_getval(prover_cycle_stack, [_|Rest]),
+  b_setval(prover_cycle_stack, Rest).
 
 
 %! prover:take_until(+List, +Stop, -Prefix) is semidet
@@ -735,7 +737,7 @@ prover:cycle_path_for(Lit, CyclePath) :-
 % ancestor in the current proof derivation).
 
 prover:currently_proving(Lit) :-
-  nb_current(prover_cycle_stack, Stack),
+  nb_getval(prover_cycle_stack, Stack),
   memberchk(Lit, Stack),
   !.
 
