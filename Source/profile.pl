@@ -24,14 +24,7 @@ Scope / limitations (intentional, first cut):
 - Only USE masking/forcing is handled (package.mask etc. are not applied here).
 */
 
-:- module(profile,
-          [ profile_use_terms/2,          % +ProfileRel, -Terms
-            profile_use_mask/2,           % +ProfileRel, -MaskedFlags
-            profile_use_force/2,          % +ProfileRel, -ForcedFlags
-            profile_package_mask_atoms/2, % +ProfileRel, -Atoms
-            write_profile_use_file/0,     % write to Source/Private/profile_use_generated.pl
-            write_profile_use_file/1      % +File
-          ]).
+:- module(profile, []).
 
 
 %! profile_use_terms(+ProfileRel, -Terms:list)
@@ -42,7 +35,7 @@ Scope / limitations (intentional, first cut):
 % Terms are *normalized* so a flag appears at most once, as either:
 %   - preference:profile_use(Flag)
 %   - preference:profile_use(minus(Flag))
-%
+
 profile_use_terms(ProfileRel, Terms) :-
   profile_dirs(ProfileRel, Dirs),
   profile_collect(Dirs, Data),
@@ -80,7 +73,7 @@ profile_use_force(ProfileRel, Force) :-
 % - This is intentionally *minimal* and only returns raw atoms as strings/atoms.
 % - We include unmask operations by returning them as '-atom' entries, matching
 %   Portage's incremental semantics and the consumer logic in preference.pl.
-%
+
 profile_package_mask_atoms(ProfileRel, Atoms) :-
   profile_dirs(ProfileRel, Dirs),
   findall(A,
@@ -124,7 +117,7 @@ profile_package_mask_atoms(ProfileRel, Atoms) :-
 %
 % Writes computed profile_use terms to Source/Private/profile_use_generated.pl
 % under the installation directory.
-%
+
 write_profile_use_file :-
   config:installation_dir(Root),
   os:compose_path([Root,'Source/Private/profile_use_generated.pl'], File),
@@ -136,7 +129,7 @@ write_profile_use_file :-
 % Write computed profile_use terms to File.
 %
 % The selected profile comes from config:gentoo_profile/1.
-%
+
 write_profile_use_file(File) :-
   ( config:gentoo_profile(ProfileRel) -> true
   ; throw(error(existence_error(predicate, config:gentoo_profile/1), profile:write_profile_use_file/1))
