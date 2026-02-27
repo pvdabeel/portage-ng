@@ -5098,9 +5098,9 @@ printer:write_fetchonly_file(Directory,Repository://Entry) :-
 % and iterate to a fixpoint (usually 1-2 iterations).
 
 printer:prove_plan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
-  % PDEPEND is now handled single-pass inside the prover's goal queue expansion
-  % (see `prover:hook_literals/6` + `rules:literal_hook/4`), so the printer always runs a
-  % single prove+plan.
+  % Post-dependencies are now handled single-pass inside the prover's goal queue
+  % expansion (see `prover:collect_proof_obligations/6` + `rules:proof_obligation/4`),
+  % so the printer always runs a single prove+plan.
   printer:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL).
 
 printer:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-

@@ -27,17 +27,49 @@ Key design points:
 
 - Triggers are maintained incrementally during the proof: each proven
   rule adds its body literals to the TriggersAVL as it is recorded.
-- Cycle-break assumptions are recorded as `assumed(rule(Lit))` in the
-  proof and `assumed(Lit)` in the model (distinct from domain-level
-  assumptions introduced by rules via `rule(assumed(X), [])`).
-- Reprove: when the domain raises a `prover_reprove(Info)` exception
-  (e.g. constraint conflict), the prover delegates to the domain hook
-  `rules:handle_reprove/2` and retries up to a configurable bound.
+
+- Cycle detection and cycle-break assumptions: during depth-first
+  proof search, a per-proof *cycle stack* tracks literals currently
+  being proved.  When a literal is encountered that is already on
+  the stack, the prover records a cycle-break assumption instead of
+  diverging.  In the ProofAVL, cycle-breaks appear under the key
+  `assumed(rule(Lit))` (as opposed to `rule(Lit)` for normally
+  proven literals).  In the ModelAVL, they appear as `assumed(Lit)`.
+  This is distinct from *domain-level* assumptions introduced by the
+  rule layer via `rule(assumed(X), [])`.
+
+- Reprove (iterative constraint refinement): after a complete proof
+  attempt, accumulated constraints may reveal conflicts that were
+  invisible during depth-first search (e.g. two dependency edges
+  imposing incompatible version bounds on the same package).  When
+  the domain detects such a conflict, it throws a
+  `prover_reprove(Info)` exception.  The prover catches it,
+  delegates to the domain hook `rules:handle_reprove(Info, Added)`
+  which records *no-goods* (rejected candidates) to avoid repeating
+  the same choice, and then restarts the proof from scratch.  This
+  bounded learn-and-restart loop runs up to `reprove_max_retries`
+  times.  If retries are exhausted, a final attempt runs with
+  reprove disabled so the proof can complete (possibly with
+  assumptions).
+
+- Learned constraints: a key-value store (`prover:learn/3`,
+  `prover:learned/2`) persists constraint information *across*
+  reprove attempts within the same top-level prove call.  The domain
+  uses this to carry narrowed version domains, exclusion sets, or
+  other refinements from one attempt to the next, guiding candidate
+  selection towards a conflict-free proof.  The store is reset at
+  the boundary of each top-level `prover:prove/9` invocation.
+
 - A lightweight =prove_model= variant skips Proof and Triggers
   bookkeeping for internal query-side model construction.
-- Domain literal hooks (`rules:literal_hook/4`) allow the domain to
-  enqueue additional literals (e.g. PDEPEND closure) without the prover
-  knowing the domain semantics.
+
+- Proof obligations (`rules:proof_obligation/4`): after a literal is
+  proven, the prover queries the domain for additional proof
+  obligations -- extra literals to be appended to the remaining proof
+  queue.  This lets the domain inject derived proof obligations
+  (e.g. post-dependencies discovered only after a literal is
+  resolved) without the prover itself understanding or encoding
+  any domain-specific semantics.
 */
 
 :- module(prover, [test_action/2]).
@@ -402,7 +434,7 @@ prover:prove_recursive([Literal|Rest],Proof,NewProof,Model,NewModel,Cons,NewCons
   !,
   prover:debug_hook([Literal|Rest], Proof, Model, Cons),
   prover:prove_recursive(Literal, Proof,MidProof,    Model,MidModel,    Cons,MidCons,    Trig,MidTrig),
-  prover:hook_literals(Literal, MidProof, MidProof1, MidModel, Rest, Rest1),
+  prover:collect_proof_obligations(Literal, MidProof, MidProof1, MidModel, Rest, Rest1),
   prover:prove_recursive(Rest1,    MidProof1,NewProof, MidModel,NewModel, MidCons,NewCons, MidTrig,NewTrig).
 
 
@@ -629,115 +661,114 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 
 
 % -----------------------------------------------------------------------------
-%  Optional: domain literal hook
+%  Proof obligations (domain-injected)
 % -----------------------------------------------------------------------------
 %
-% The prover stays domain-agnostic. If the domain provides a hook predicate, it
-% may request additional literals to be appended to the pending literal list.
+% The prover stays domain-agnostic.  After proving a literal, it consults
+% an optional domain predicate to discover additional proof obligations:
 %
-% Hook contract:
-%   rules:literal_hook(+Literal, +Model, -HookKey, -ExtraLits)
+%   rules:proof_obligation(+Literal, +Model, -Key, -ExtraLits)
 %
-% - HookKey is an arbitrary term identifying the hook instance. The prover stores
-%   `hook_done(HookKey)` in the Proof AVL to ensure the hook runs at most once
-%   per key (even if the literal is refined due to context changes).
-% - ExtraLits is a list of literals to enqueue (typically action literals with
-%   ordering markers like after_only/1).
+% - Key is an arbitrary term identifying this obligation.  The prover stores
+%   `obligation_done(Key)` in the ProofAVL to ensure each obligation is
+%   processed at most once (even if the literal is later refined due to
+%   context changes).
+% - ExtraLits is a list of additional literals to append to the proof queue.
 %
-% NOTE: The domain must keep the hook monotonic and backtracking-safe (no global
-% side effects). The prover only stores the hook_done marker in its proof state.
+% The domain must keep the predicate monotonic and backtracking-safe (no
+% global side effects).  The prover only records the obligation_done marker.
 
 
-%! prover:hook_literals(+Literal, +Proof0, -Proof, +Model, +Rest0, -Rest) is det
+%! prover:collect_proof_obligations(+Literal, +Proof0, -Proof, +Model, +Rest0, -Rest) is det
 %
-% After proving Literal, consult the domain hook to enqueue extra literals
-% (e.g. PDEPEND goals).  Only fires for merge-action candidates.
+% After proving Literal, consult the domain for additional proof obligations.
+% Only fires for merge-action candidates.
 
-prover:hook_literals(Literal, Proof, Proof, _Model, Rest, Rest) :-
-  \+ prover:hook_literal_candidate(Literal),
+prover:collect_proof_obligations(Literal, Proof, Proof, _Model, Rest, Rest) :-
+  \+ prover:obligation_candidate(Literal),
   !.
-prover:hook_literals(_Literal, Proof, Proof, _Model, Rest, Rest) :-
-  \+ current_predicate(rules:literal_hook/4),
+prover:collect_proof_obligations(_Literal, Proof, Proof, _Model, Rest, Rest) :-
+  \+ current_predicate(rules:proof_obligation/4),
   !.
-prover:hook_literals(Literal, Proof0, Proof, Model, Rest0, Rest) :-
-  % Cheap skip: if the domain can compute HookKey without doing expensive work,
-  % avoid calling the full hook when that key is already marked done.
-  ( current_predicate(rules:literal_hook_key/4),
-    once(rules:literal_hook_key(Literal, Model, HookKey0, NeedsFullHook)),
-    ( get_assoc(hook_done(HookKey0), Proof0, true) ->
-        sampler:hook_perf_done_hit,
+prover:collect_proof_obligations(Literal, Proof0, Proof, Model, Rest0, Rest) :-
+  % Cheap skip: if the domain can compute the key without doing expensive work,
+  % avoid calling the full obligation when that key is already marked done.
+  ( current_predicate(rules:proof_obligation_key/4),
+    once(rules:proof_obligation_key(Literal, Model, Key0, NeedsFull)),
+    ( get_assoc(obligation_done(Key0), Proof0, true) ->
+        sampler:obligation_counter_done_hit,
         Proof = Proof0,
         Rest = Rest0
-    ; NeedsFullHook == false ->
-        % Domain indicates there cannot be extra literals. Mark done and skip.
-        put_assoc(hook_done(HookKey0), Proof0, true, Proof),
+    ; NeedsFull == false ->
+        put_assoc(obligation_done(Key0), Proof0, true, Proof),
         Rest = Rest0
     ; fail
     )
-  ; current_predicate(rules:literal_hook_key/3),
-    once(rules:literal_hook_key(Literal, Model, HookKey1)),
-    get_assoc(hook_done(HookKey1), Proof0, true) ->
-      sampler:hook_perf_done_hit,
+  ; current_predicate(rules:proof_obligation_key/3),
+    once(rules:proof_obligation_key(Literal, Model, Key1)),
+    get_assoc(obligation_done(Key1), Proof0, true) ->
+      sampler:obligation_counter_done_hit,
       Proof = Proof0,
       Rest = Rest0
   ;
-  % Domain hook is expected to be deterministic (0 or 1 result). Keep this fast:
-  % avoid `findall/3` for the common case where there is no hook result.
-  ( once(rules:literal_hook(Literal, Model, HookKey, ExtraLits)) ->
-      Hooks = [hook(HookKey, ExtraLits)]
-  ; Hooks = []
+  % The domain obligation predicate is expected to be deterministic (0 or 1
+  % result). Keep this fast: avoid `findall/3` for the common case where
+  % there is no result.
+  ( once(rules:proof_obligation(Literal, Model, Key, ExtraLits)) ->
+      Obligations = [obligation(Key, ExtraLits)]
+  ; Obligations = []
   ),
-  prover:hook_literals_list(Hooks, Proof0, Proof, Model, Rest0, Rest),
+  prover:collect_proof_obligations_list(Obligations, Proof0, Proof, Model, Rest0, Rest),
   true
   ),
   !.
-prover:hook_literals(_Literal, Proof, Proof, _Model, Rest, Rest).
+prover:collect_proof_obligations(_Literal, Proof, Proof, _Model, Rest, Rest).
 
 
-%! prover:hook_literal_candidate(+Literal) is semidet
+%! prover:obligation_candidate(+Literal) is semidet
 %
-% Succeeds when Literal is a merge-action literal eligible for the
-% domain hook (install/update/downgrade/reinstall).
+% Succeeds when Literal is a merge-action literal eligible for
+% proof obligations (install/update/downgrade/reinstall).
 
-prover:hook_literal_candidate(_Repo://_Entry:Action?{_Ctx}) :-
+prover:obligation_candidate(_Repo://_Entry:Action?{_Ctx}) :-
   ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !.
-prover:hook_literal_candidate(_Repo://_Entry:Action) :-
+prover:obligation_candidate(_Repo://_Entry:Action) :-
   ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !.
 
 
-%! prover:hook_literals_list(+Hooks, +Proof0, -Proof, +Model, +Rest0, -Rest) is det
+%! prover:collect_proof_obligations_list(+Obligations, +Proof0, -Proof, +Model, +Rest0, -Rest) is det
 %
-% Process a list of hook(HookKey, ExtraLits) results: mark each key done
-% in the proof, filter already-proven/pending literals, and append fresh
-% ones to the remaining literal queue.
+% Process a list of obligation(Key, ExtraLits) results: mark each key
+% done in the proof, filter already-proven/pending literals, and append
+% fresh ones to the remaining literal queue.
 
-prover:hook_literals_list([], Proof, Proof, _Model, Rest, Rest) :- !.
-prover:hook_literals_list([hook(HookKey, ExtraLits)|Hs], Proof0, Proof, Model, Rest0, Rest) :-
-  ( get_assoc(hook_done(HookKey), Proof0, true) ->
-      sampler:hook_perf_done_hit,
+prover:collect_proof_obligations_list([], Proof, Proof, _Model, Rest, Rest) :- !.
+prover:collect_proof_obligations_list([obligation(Key, ExtraLits)|Hs], Proof0, Proof, Model, Rest0, Rest) :-
+  ( get_assoc(obligation_done(Key), Proof0, true) ->
+      sampler:obligation_counter_done_hit,
       Proof1 = Proof0,
       Rest1 = Rest0
-  ; put_assoc(hook_done(HookKey), Proof0, true, Proof1),
+  ; put_assoc(obligation_done(Key), Proof0, true, Proof1),
     length(ExtraLits, ExtraN),
-    sampler:hook_perf_hook_fired(ExtraN),
+    sampler:obligation_counter_fired(ExtraN),
     prover:select_new_literals_to_enqueue(ExtraLits, Model, Proof1, Proof2, FreshLits),
     length(FreshLits, FreshN),
-    sampler:hook_perf_fresh_selected(FreshN),
+    sampler:obligation_counter_fresh(FreshN),
     ( FreshLits == [] ->
         Rest1 = Rest0
     ; append(FreshLits, Rest0, Rest1)
     )
   ),
   ( var(Proof2) -> ProofNext = Proof1 ; ProofNext = Proof2 ),
-  prover:hook_literals_list(Hs, ProofNext, Proof, Model, Rest1, Rest).
+  prover:collect_proof_obligations_list(Hs, ProofNext, Proof, Model, Rest1, Rest).
 
 
 %! prover:select_new_literals_to_enqueue(+Lits0, +Model, +Proof0, -Proof, -Lits) is det
 %
 % Deterministically select only those ExtraLits that are not already proven
-% (present in Model) and not already pending (tracked via hook_pending/1
+% (present in Model) and not already pending (tracked via obligation_pending/1
 % keys in the Proof AVL).
 
 prover:select_new_literals_to_enqueue(Lits0, Model, Proof0, Proof, Lits) :-
@@ -755,10 +786,10 @@ prover:select_new_literals_to_enqueue_([L0|Ls], Model, Proof0, Proof, Acc0, Acc)
   ( get_assoc(Core, Model, _) ->
       Proof1 = Proof0,
       Acc1 = Acc0
-  ; get_assoc(hook_pending(Core), Proof0, true) ->
+  ; get_assoc(obligation_pending(Core), Proof0, true) ->
       Proof1 = Proof0,
       Acc1 = Acc0
-  ; put_assoc(hook_pending(Core), Proof0, true, Proof1),
+  ; put_assoc(obligation_pending(Core), Proof0, true, Proof1),
     Acc1 = [L0|Acc0]
   ),
   prover:select_new_literals_to_enqueue_(Ls, Model, Proof1, Proof, Acc1, Acc).
@@ -1168,7 +1199,7 @@ prover:test(Repository,Style) :-
       scheduler:perf_reset
   ; true
   ),
-  sampler:hook_perf_reset,
+  sampler:obligation_counter_reset,
   tester:test(Style,
               'Proving',
               Repository://Entry,
@@ -1176,7 +1207,7 @@ prover:test(Repository,Style) :-
               ( Target = (Repository://Entry:Action?{[]}),
                 prover:test_target_success(Target)
               )),
-  sampler:hook_perf_report,
+  sampler:obligation_counter_report,
   ( current_predicate(printer:prove_plan_perf_report/0) ->
       printer:prove_plan_perf_report
   ; true

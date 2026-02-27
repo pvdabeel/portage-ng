@@ -28,47 +28,47 @@ Subsystems:
 
 
 % =============================================================================
-%  Literal hook performance sampling
+%  Proof obligation performance sampling
 % =============================================================================
 %
-% Samples 1 in N calls to measure PDEPEND hook cost without adding
-% noticeable overhead to every prove step.
+% Samples 1 in N calls to measure proof-obligation (domain hook) cost
+% without adding noticeable overhead to every prove step.
 
-%! sampler:literal_hook_perf_reset is det.
+%! sampler:obligation_perf_reset is det.
 %
-% Zero all literal-hook sampling counters (calls, has/no PDEPEND hits,
-% sample count, and accumulated sample time).
+% Zero all proof-obligation sampling counters (calls, has/no extra
+% obligations, sample count, and accumulated sample time).
 
-sampler:literal_hook_perf_reset :-
-  flag(lit_hook_calls, _, 0),
-  flag(lit_hook_has_pdepend, _, 0),
-  flag(lit_hook_no_pdepend, _, 0),
-  flag(lit_hook_sample_n, _, 0),
-  flag(lit_hook_sample_ms_sum, _, 0),
+sampler:obligation_perf_reset :-
+  flag(po_calls, _, 0),
+  flag(po_has_extra, _, 0),
+  flag(po_no_extra, _, 0),
+  flag(po_sample_n, _, 0),
+  flag(po_sample_ms_sum, _, 0),
   !.
 
 
-%! sampler:literal_hook_perf_report is det.
+%! sampler:obligation_perf_report is det.
 %
-% Print a one-line summary of literal-hook sampling statistics: total
-% calls, PDEPEND hit/miss counts, sample count, total sampled time,
+% Print a one-line summary of proof-obligation sampling statistics:
+% total calls, extra/no-extra counts, sample count, total sampled time,
 % average per-call time, and estimated total time across all calls.
 
-sampler:literal_hook_perf_report :-
-  flag(lit_hook_calls, Calls, Calls),
-  flag(lit_hook_has_pdepend, HasP, HasP),
-  flag(lit_hook_no_pdepend, NoP, NoP),
-  flag(lit_hook_sample_n, SN, SN),
-  flag(lit_hook_sample_ms_sum, SMs, SMs),
+sampler:obligation_perf_report :-
+  flag(po_calls, Calls, Calls),
+  flag(po_has_extra, HasP, HasP),
+  flag(po_no_extra, NoP, NoP),
+  flag(po_sample_n, SN, SN),
+  flag(po_sample_ms_sum, SMs, SMs),
   ( SN =:= 0 ->
       AvgMs = 0,
       EstTotalMs = 0
   ; AvgMs is SMs / SN,
     EstTotalMs is AvgMs * Calls
   ),
-  message:scroll_notice(['literal_hook perf: calls=',Calls,
-                         ' has_pdepend=',HasP,
-                         ' no_pdepend=',NoP,
+  message:scroll_notice(['proof_obligation perf: calls=',Calls,
+                         ' has_extra=',HasP,
+                         ' no_extra=',NoP,
                          ' sample_n=',SN,
                          ' sample_ms_sum=',SMs,
                          ' avg_ms=',AvgMs,
@@ -77,30 +77,30 @@ sampler:literal_hook_perf_report :-
   !.
 
 
-%! sampler:lit_hook_sample_rate(-N) is det.
+%! sampler:obligation_sample_rate(-N) is det.
 %
 % The sampling rate: measure timing on every Nth call. Set to 1 for
 % full profiling (expensive) or a large value for low-overhead sampling.
 
-sampler:lit_hook_sample_rate(1000).
+sampler:obligation_sample_rate(1000).
 
 
-%! sampler:lit_hook_maybe_sample(:Goal) is semidet.
+%! sampler:obligation_maybe_sample(:Goal) is semidet.
 %
 % Execute Goal, optionally wrapping it in wall-clock timing if this call
 % hits the 1-in-N sampling window. Increments the call counter on every
 % invocation; only the sampled calls pay the timing overhead.
 
-sampler:lit_hook_maybe_sample(Goal) :-
-  flag(lit_hook_calls, C0, C0+1),
-  sampler:lit_hook_sample_rate(N),
+sampler:obligation_maybe_sample(Goal) :-
+  flag(po_calls, C0, C0+1),
+  sampler:obligation_sample_rate(N),
   ( N =< 1 ->
       statistics(walltime, [T0,_]),
       ( Goal -> Ok = true ; Ok = false ),
       statistics(walltime, [T1,_]),
       Dt is T1 - T0,
-      flag(lit_hook_sample_n, SN0, SN0+1),
-      flag(lit_hook_sample_ms_sum, SM0, SM0+Dt),
+      flag(po_sample_n, SN0, SN0+1),
+      flag(po_sample_ms_sum, SM0, SM0+Dt),
       Ok == true
   ; C1 is C0 + 1,
     ( 0 is C1 mod N ->
@@ -108,8 +108,8 @@ sampler:lit_hook_maybe_sample(Goal) :-
         ( Goal -> Ok = true ; Ok = false ),
         statistics(walltime, [T1,_]),
         Dt is T1 - T0,
-        flag(lit_hook_sample_n, SN0, SN0+1),
-        flag(lit_hook_sample_ms_sum, SM0, SM0+Dt),
+        flag(po_sample_n, SN0, SN0+1),
+        flag(po_sample_ms_sum, SM0, SM0+Dt),
         Ok == true
     ; Goal
     )
@@ -341,70 +341,70 @@ sampler:ctx_union_sampled(L0, L1, L2) :-
 
 
 % =============================================================================
-%  Hook performance counters (domain literal hook / PDEPEND)
+%  Proof obligation counters
 % =============================================================================
 %
 % Count-based counters for whole-repo runs via prover:test/*, to help answer:
-% is the slowdown due to hook work itself, or due to proving many more
+% is the slowdown due to obligation work itself, or due to proving many more
 % literals?
 
-%! sampler:hook_perf_reset is det
+%! sampler:obligation_counter_reset is det
 %
-% Reset all domain-hook performance counters.
+% Reset all proof-obligation performance counters.
 
-sampler:hook_perf_reset :-
-  flag(hook_perf_done_hits, _, 0),
-  flag(hook_perf_hook_fired, _, 0),
-  flag(hook_perf_extra_lits, _, 0),
-  flag(hook_perf_fresh_lits, _, 0),
-  sampler:literal_hook_perf_reset,
+sampler:obligation_counter_reset :-
+  flag(obligation_done_hits, _, 0),
+  flag(obligation_fired, _, 0),
+  flag(obligation_extra_lits, _, 0),
+  flag(obligation_fresh_lits, _, 0),
+  sampler:obligation_perf_reset,
   !.
 
 
-%! sampler:hook_perf_done_hit is det
+%! sampler:obligation_counter_done_hit is det
 %
-% Increment the "hook already done" hit counter.
+% Increment the "obligation already done" hit counter.
 
-sampler:hook_perf_done_hit :-
-  flag(hook_perf_done_hits, X, X+1),
+sampler:obligation_counter_done_hit :-
+  flag(obligation_done_hits, X, X+1),
   !.
 
 
-%! sampler:hook_perf_hook_fired(+ExtraN) is det
+%! sampler:obligation_counter_fired(+ExtraN) is det
 %
-% Increment hook-fired counter and add ExtraN to total extra literals.
+% Increment obligation-fired counter and add ExtraN to total extra literals.
 
-sampler:hook_perf_hook_fired(ExtraN) :-
-  flag(hook_perf_hook_fired, X, X+1),
-  flag(hook_perf_extra_lits, Y, Y+ExtraN),
+sampler:obligation_counter_fired(ExtraN) :-
+  flag(obligation_fired, X, X+1),
+  flag(obligation_extra_lits, Y, Y+ExtraN),
   !.
 
 
-%! sampler:hook_perf_fresh_selected(+FreshN) is det
+%! sampler:obligation_counter_fresh(+FreshN) is det
 %
 % Add FreshN to the count of fresh (not-yet-proven) literals enqueued.
 
-sampler:hook_perf_fresh_selected(FreshN) :-
-  flag(hook_perf_fresh_lits, X, X+FreshN),
+sampler:obligation_counter_fresh(FreshN) :-
+  flag(obligation_fresh_lits, X, X+FreshN),
   !.
 
 
-%! sampler:hook_perf_report is det
+%! sampler:obligation_counter_report is det
 %
-% Print accumulated domain-hook performance counters.
+% Print accumulated proof-obligation performance counters.
 
-sampler:hook_perf_report :-
-  flag(hook_perf_hook_fired, Fired, Fired),
-  flag(hook_perf_extra_lits, Extra, Extra),
-  flag(hook_perf_fresh_lits, Fresh, Fresh),
-  flag(hook_perf_done_hits, DoneHits, DoneHits),
+sampler:obligation_counter_report :-
+  flag(obligation_fired, Fired, Fired),
+  flag(obligation_extra_lits, Extra, Extra),
+  flag(obligation_fresh_lits, Fresh, Fresh),
+  flag(obligation_done_hits, DoneHits, DoneHits),
   nl,
-  message:scroll_notice(['Hook perf: fired=',Fired,
+  message:scroll_notice(['Proof obligation perf: fired=',Fired,
                          ' extra_lits=',Extra,
                          ' fresh_lits=',Fresh,
                          ' done_hits=',DoneHits]),
   nl,
-  sampler:literal_hook_perf_report,
+  sampler:obligation_perf_report,
   !.
 
 

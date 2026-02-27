@@ -26,7 +26,7 @@ This file contains domain-specific rules
 % literal to request additional goals to enqueue in the same prover run.
 %
 % Hook contract (called by prover):
-%   rules:literal_hook(+Literal, +Model, -HookKey, -ExtraLits)
+%   rules:proof_obligation(+Literal, +Model, -HookKey, -ExtraLits)
 %
 % This implementation provides Portage-like PDEPEND behavior:
 % - PDEPEND deps are included in the transaction (proved in the same run),
@@ -37,13 +37,13 @@ This file contains domain-specific rules
 % - Must not depend on Proof structure; HookKey is an opaque term.
 
 % Fast path for the prover: compute HookKey only (no dependency-model work).
-% This lets the prover skip calling literal_hook/4 entirely when that key is
+% This lets the prover skip calling proof_obligation/4 entirely when that key is
 % already marked done in the evolving Proof.
 %
 % Extended fast path:
-% `rules:literal_hook_key/4` also tells the prover whether the full hook can
+% `rules:proof_obligation_key/4` also tells the prover whether the full hook can
 % produce any extra literals at all (`NeedsFullHook=false`).
-rules:literal_hook_key(Repo://Entry:Action?{_Ctx}, Model, HookKey) :-
+rules:proof_obligation_key(Repo://Entry:Action?{_Ctx}, Model, HookKey) :-
   ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !,
   AnchorCore = (Repo://Entry:Action),
@@ -54,7 +54,7 @@ rules:literal_hook_key(Repo://Entry:Action?{_Ctx}, Model, HookKey) :-
       HookKey = pdepend(AnchorCore, B)
   ; HookKey = pdepend_none(AnchorCore)
   ).
-rules:literal_hook_key(Repo://Entry:Action, Model, HookKey) :-
+rules:proof_obligation_key(Repo://Entry:Action, Model, HookKey) :-
   ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !,
   AnchorCore = (Repo://Entry:Action),
@@ -65,13 +65,13 @@ rules:literal_hook_key(Repo://Entry:Action, Model, HookKey) :-
   ; HookKey = pdepend_none(AnchorCore)
   ).
 
-rules:literal_hook_key(Repo://Entry:Action?{_Ctx}, Model, HookKey, NeedsFullHook) :-
+rules:proof_obligation_key(Repo://Entry:Action?{_Ctx}, Model, HookKey, NeedsFullHook) :-
   ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !,
   AnchorCore = (Repo://Entry:Action),
   % If this action will not result in a merge transaction, do not expand PDEPEND.
   % (E.g. `:install` can be satisfied by already-installed packages when not emptytree.)
-  ( rules:literal_hook_will_merge(Repo://Entry:Action) ->
+  ( rules:proof_obligation_applicable(Repo://Entry:Action) ->
       ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
           NeedsFullHook = true,
           ( get_assoc(AnchorCore, Model, AnchorCtx) -> true ; AnchorCtx = [] ),
@@ -83,11 +83,11 @@ rules:literal_hook_key(Repo://Entry:Action?{_Ctx}, Model, HookKey, NeedsFullHook
   ; NeedsFullHook = false,
     HookKey = pdepend_none(AnchorCore)
   ).
-rules:literal_hook_key(Repo://Entry:Action, Model, HookKey, NeedsFullHook) :-
+rules:proof_obligation_key(Repo://Entry:Action, Model, HookKey, NeedsFullHook) :-
   ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !,
   AnchorCore = (Repo://Entry:Action),
-  ( rules:literal_hook_will_merge(Repo://Entry:Action) ->
+  ( rules:proof_obligation_applicable(Repo://Entry:Action) ->
       ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
           NeedsFullHook = true,
           ( get_assoc(AnchorCore, Model, AnchorCtx) -> true ; AnchorCtx = [] ),
@@ -102,10 +102,10 @@ rules:literal_hook_key(Repo://Entry:Action, Model, HookKey, NeedsFullHook) :-
 
 % Decide whether an action literal represents an actual merge transaction.
 % For install actions, already-installed entries (when not emptytree) are no-ops.
-rules:literal_hook_will_merge(_Repo://_Entry:reinstall) :- !, true.
-rules:literal_hook_will_merge(_Repo://_Entry:update) :- !, true.
-rules:literal_hook_will_merge(_Repo://_Entry:downgrade) :- !, true.
-rules:literal_hook_will_merge(Repo://Entry:install) :-
+rules:proof_obligation_applicable(_Repo://_Entry:reinstall) :- !, true.
+rules:proof_obligation_applicable(_Repo://_Entry:update) :- !, true.
+rules:proof_obligation_applicable(_Repo://_Entry:downgrade) :- !, true.
+rules:proof_obligation_applicable(Repo://Entry:install) :-
   ( preference:flag(emptytree) ->
       true
   ; \+ query:search(installed(true), Repo://Entry) ->
@@ -114,13 +114,13 @@ rules:literal_hook_will_merge(Repo://Entry:install) :-
   ),
   !.
 
-rules:literal_hook(Repo://Entry:Action?{_Ctx}, Model, HookKey, ExtraLits) :-
+rules:proof_obligation(Repo://Entry:Action?{_Ctx}, Model, HookKey, ExtraLits) :-
   ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !,
-  sampler:lit_hook_maybe_sample(
+  sampler:obligation_maybe_sample(
     ( AnchorCore = (Repo://Entry:Action),
       ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
-          flag(lit_hook_has_pdepend, HP0, HP0+1),
+          flag(po_has_extra, HP0, HP0+1),
           % Determine current build_with_use state from the anchor's model context.
           ( get_assoc(AnchorCore, Model, AnchorCtx) -> true ; AnchorCtx = [] ),
           rules:context_build_with_use_state(AnchorCtx, B),
@@ -130,19 +130,19 @@ rules:literal_hook(Repo://Entry:Action?{_Ctx}, Model, HookKey, ExtraLits) :-
           rules:add_self_to_dep_contexts(Repo://Entry, Pdeps0, Pdeps1),
           rules:drop_build_with_use_from_dep_contexts(Pdeps1, Pdeps2),
           rules:add_after_only_to_dep_contexts(AnchorCore, Pdeps2, ExtraLits)
-      ; flag(lit_hook_no_pdepend, NP0, NP0+1),
+      ; flag(po_no_extra, NP0, NP0+1),
         HookKey = pdepend_none(AnchorCore),
         ExtraLits = []
       )
     )
   ).
-rules:literal_hook(Repo://Entry:Action, Model, HookKey, ExtraLits) :-
+rules:proof_obligation(Repo://Entry:Action, Model, HookKey, ExtraLits) :-
   ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !,
-  sampler:lit_hook_maybe_sample(
+  sampler:obligation_maybe_sample(
     ( AnchorCore = (Repo://Entry:Action),
       ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
-          flag(lit_hook_has_pdepend, HP0, HP0+1),
+          flag(po_has_extra, HP0, HP0+1),
           ( get_assoc(AnchorCore, Model, AnchorCtx) -> true ; AnchorCtx = [] ),
           rules:context_build_with_use_state(AnchorCtx, B),
           HookKey = pdepend(AnchorCore, B),
@@ -151,7 +151,7 @@ rules:literal_hook(Repo://Entry:Action, Model, HookKey, ExtraLits) :-
           rules:add_self_to_dep_contexts(Repo://Entry, Pdeps0, Pdeps1),
           rules:drop_build_with_use_from_dep_contexts(Pdeps1, Pdeps2),
           rules:add_after_only_to_dep_contexts(AnchorCore, Pdeps2, ExtraLits)
-      ; flag(lit_hook_no_pdepend, NP0, NP0+1),
+      ; flag(po_no_extra, NP0, NP0+1),
         HookKey = pdepend_none(AnchorCore),
         ExtraLits = []
       )
