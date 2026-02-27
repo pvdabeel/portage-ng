@@ -9,7 +9,31 @@
 
 
 /** <module> PRINTER
-The Printer takes a plan from the Planner and pretty prints it.
+The Printer takes a plan from the Planner and renders it as human-readable
+output (terminal, file, or HTML).
+
+Responsibilities:
+- Pretty-printing merge/fetchonly plans with Portage-compatible formatting:
+  step-numbered waves, colored action tags, USE flag diffs, slot info.
+- Rendering assumption warnings (domain assumptions, prover cycle-breaks)
+  with provenance, cycle-path visualisation and bug-report drafts.
+- Blocker display in Portage-like format.
+- Writing per-ebuild .merge, .fetchonly, .info and index HTML files for
+  the graph directory.
+- Aggregating cross-entry test statistics (success/failure/assumption/cycle
+  counts, per-package timing and cost breakdowns, blocker analysis) used by
+  prover:test/1 whole-repo runs.
+- Depclean output: removal lists, topological uninstall order, and
+  ELF linkage-risk reports.
+
+Key data flows:
+- prove_plan/5 wraps the prover + planner + scheduler pipeline into a
+  single entry point used by file-writing predicates.
+- test_stats_* predicates use dynamic facts guarded by with_mutex/2 for
+  thread-safe accumulation during parallel test runs.
+- Cycle explanation uses DFS/BFS on the TriggersAVL (and optionally the
+  ProofAVL) to recover minimal cycle witnesses, with on-demand USE-guard
+  extraction from cached dependency metadata trees.
 */
 
 :- module(printer, []).
@@ -43,6 +67,11 @@ The Printer takes a plan from the Planner and pretty prints it.
 :- dynamic printer:test_stats_blocker_example/1. % Example term that failed to parse for breakdown
 :- dynamic printer:test_stats_blocker_reason/2.  % Reason, Count
 :- dynamic printer:test_stats_blocker_rp/3.      % Reason, Phase, Count
+
+%! printer:test_stats_reset(+Label, +ExpectedTotal)
+%
+% Reset all test_stats dynamic facts and initialise counters for a new
+% whole-repo test run identified by Label with ExpectedTotal entries.
 
 printer:test_stats_reset(Label, ExpectedTotal) :-
   with_mutex(test_stats,
@@ -81,8 +110,11 @@ printer:test_stats_reset(Label, ExpectedTotal) :-
       assertz(printer:test_stats_stat(cycles_found, 0))
     )).
 
+%! printer:test_stats_record_failed(+Reason)
+%
 % Record that an entry did not produce a strict proof/plan.
-% Reason is one of: blocker | other.
+% Reason is one of: blocker | timeout | other.
+
 printer:test_stats_record_failed(Reason) :-
   printer:test_stats_inc(entries_failed),
   ( Reason == blocker ->
@@ -92,18 +124,30 @@ printer:test_stats_record_failed(Reason) :-
   ; printer:test_stats_inc(entries_failed_other)
   ).
 
-% Record a failed entry (Repo://Entry) with a reason, so we can do per-package
-% analysis like "failed entry but another version of same package succeeded".
+%! printer:test_stats_record_failed_entry(+RepoEntry, +Reason)
+%
+% Record a failed Repo://Entry with its Reason for per-package analysis
+% (e.g. "failed entry but another version of same package succeeded").
+
 printer:test_stats_record_failed_entry(RepoEntry, Reason) :-
   with_mutex(test_stats,
     ( assertz(printer:test_stats_failed_entry(RepoEntry, Reason))
     )).
+
+%! printer:test_stats_set_expected_unique_packages(+N)
+%
+% Set the expected number of unique packages for percentage calculations.
 
 printer:test_stats_set_expected_unique_packages(N) :-
   with_mutex(test_stats,
     ( retractall(printer:test_stats_stat(expected_unique_packages,_)),
       assertz(printer:test_stats_stat(expected_unique_packages, N))
     )).
+
+%! printer:test_stats_add_pkg(+Bucket, +Repo, +Entry)
+%
+% Record that category/name for Repo://Entry belongs in Bucket
+% (e.g. processed, with_assumptions). Deduplicates per C/N.
 
 printer:test_stats_add_pkg(Bucket, Repo, Entry) :-
   ( cache:ordered_entry(Repo, Entry, C, N, _) ->
@@ -114,19 +158,36 @@ printer:test_stats_add_pkg(Bucket, Repo, Entry) :-
   ; true
   ).
 
+%! printer:test_stats_unique_pkg_count(+Bucket, -Count)
+%
+% Return the number of unique C/N packages recorded in Bucket.
+
 printer:test_stats_unique_pkg_count(Bucket, Count) :-
   findall(C-N, printer:test_stats_pkg(Bucket, C, N), Pairs0),
   sort(Pairs0, Pairs),
   length(Pairs, Count).
 
+%! printer:test_stats_set_current_entry(+RepositoryEntry)
+%
+% Store the currently-being-processed entry in a thread-local global
+% for cycle recording.
+
 printer:test_stats_set_current_entry(RepositoryEntry) :-
   nb_setval(test_stats_current_entry, RepositoryEntry).
+
+%! printer:test_stats_clear_current_entry
+%
+% Clear the thread-local current-entry global.
 
 printer:test_stats_clear_current_entry :-
   ( nb_current(test_stats_current_entry, _) ->
       nb_delete(test_stats_current_entry)
   ; true
   ).
+
+%! printer:test_stats_inc(+Key)
+%
+% Thread-safe increment of the test_stats_stat counter identified by Key.
 
 printer:test_stats_inc(Key) :-
   with_mutex(test_stats,
@@ -135,12 +196,22 @@ printer:test_stats_inc(Key) :-
       assertz(printer:test_stats_stat(Key, N))
     )).
 
+%! printer:test_stats_inc_type(+Type, +Metric, +Delta)
+%
+% Thread-safe addition of Delta to the (Type, Metric) counter, where
+% Metric is either `occurrences` or `entries`.
+
 printer:test_stats_inc_type(Type, Metric, Delta) :-
   with_mutex(test_stats,
     ( ( retract(printer:test_stats_type(Type, Metric, N0)) -> true ; N0 = 0 ),
       N is N0 + Delta,
       assertz(printer:test_stats_type(Type, Metric, N))
     )).
+
+%! printer:test_stats_inc_cycle_mention(+Action, +RepoEntry)
+%
+% Increment the cycle-mention counter for Action-RepoEntry.
+% Used to rank which ebuilds appear most often in cycle paths.
 
 printer:test_stats_inc_cycle_mention(Action, RepoEntry) :-
   with_mutex(test_stats,
@@ -149,7 +220,11 @@ printer:test_stats_inc_cycle_mention(Action, RepoEntry) :-
       assertz(printer:test_stats_cycle_mention(Action, RepoEntry, N))
     )).
 
-% Record elapsed walltime (ms) for a processed entry.
+%! printer:test_stats_record_time(+RepoEntry, +TimeMs)
+%
+% Record elapsed walltime (ms) for a processed entry. Keeps the maximum
+% per entry and aggregates sum/max/count per C/N package.
+
 printer:test_stats_record_time(RepoEntry, TimeMs) :-
   integer(TimeMs),
   TimeMs >= 0,
@@ -180,7 +255,12 @@ printer:test_stats_record_time(RepoEntry, TimeMs) :-
       )
     )).
 
-% Record elapsed walltime (ms) as well as cheap per-proof counters for a processed entry.
+%! printer:test_stats_record_costs(+RepoEntry, +TimeMs, +Inferences, +RuleCalls)
+%
+% Record elapsed walltime and cheap per-proof counters (inference count,
+% rule-call count) for a processed entry. Delegates timing to
+% test_stats_record_time/2 and keeps per-entry max and per-package sums.
+
 printer:test_stats_record_costs(RepoEntry, TimeMs, Inferences, RuleCalls) :-
   printer:test_stats_record_time(RepoEntry, TimeMs),
   integer(Inferences),
@@ -219,10 +299,18 @@ printer:test_stats_record_costs(RepoEntry, TimeMs, Inferences, RuleCalls) :-
       )
     )).
 
-% Record context-list costs for a processed entry.
-% Backwards-compatible wrapper (older callers)
+%! printer:test_stats_record_context_costs(+RepoEntry, +UnionCalls, +UnionCost, +MaxCtxLen)
+%
+% Backwards-compatible 4-argument wrapper; passes UnionMsEst = 0.
+
 printer:test_stats_record_context_costs(RepoEntry, UnionCalls, UnionCost, MaxCtxLen) :-
   printer:test_stats_record_context_costs(RepoEntry, UnionCalls, UnionCost, MaxCtxLen, 0).
+
+%! printer:test_stats_record_context_costs(+RepoEntry, +UnionCalls, +UnionCost, +MaxCtxLen, +UnionMsEst)
+%
+% Record context-list costs for a processed entry: union call count, union
+% cost, maximum context length, and estimated walltime. Per-entry keeps
+% the max of each metric; per-package aggregates sums.
 
 printer:test_stats_record_context_costs(RepoEntry, UnionCalls, UnionCost, MaxCtxLen, UnionMsEst) :-
   integer(UnionCalls),
@@ -263,13 +351,15 @@ printer:test_stats_record_context_costs(RepoEntry, UnionCalls, UnionCost, MaxCtx
       )
     )).
 
-% Record global (run-wide) histogram of context lengths (sampled) and
-% cost-model inputs for estimating ordset gains.
+%! printer:test_stats_record_ctx_len_distribution(+HistPairs, +SumMul, +SumAdd, +Samples)
 %
-% HistPairs: list of Len-Count for this entry (sampled unions only).
-% SumMul:    sum(L0*L1) across sampled unions for this entry.
-% SumAdd:    sum(L0+L1) across sampled unions for this entry.
-% Samples:   number of sampled unions (same sampling as union walltime).
+% Record a run-wide histogram of context lengths (sampled) and cost-model
+% inputs for estimating ordset gains.
+%
+% HistPairs is a list of Len-Count pairs (sampled unions only).
+% SumMul/SumAdd/Samples feed the quadratic cost model (sum(L0*L1),
+% sum(L0+L1), sample count).
+
 printer:test_stats_record_ctx_len_distribution(HistPairs, SumMul, SumAdd, Samples) :-
   with_mutex(test_stats,
     ( forall(member(Len-Cnt, HistPairs),
@@ -296,12 +386,23 @@ printer:test_stats_record_ctx_len_distribution(HistPairs, SumMul, SumAdd, Sample
       )
     )).
 
+%! printer:test_stats_inc_type_entry_mention(+Type, +RepoEntry)
+%
+% Increment the per-entry mention counter for assumption Type.
+% Each (Type, RepoEntry) pair tracks how many assumption occurrences
+% of that type were seen for this entry.
+
 printer:test_stats_inc_type_entry_mention(Type, RepoEntry) :-
   with_mutex(test_stats,
     ( ( retract(printer:test_stats_type_entry_mention(Type, RepoEntry, N0)) -> true ; N0 = 0 ),
       N is N0 + 1,
       assertz(printer:test_stats_type_entry_mention(Type, RepoEntry, N))
     )).
+
+%! printer:test_stats_note_cycle_for_current_entry
+%
+% Mark the current thread-local entry as having at least one cycle.
+% Increments entries_with_cycles only on the first cycle per entry.
 
 printer:test_stats_note_cycle_for_current_entry :-
   ( nb_current(test_stats_current_entry, RepoEntry) ->
@@ -321,8 +422,17 @@ printer:test_stats_note_cycle_for_current_entry :-
 % (moved to explainer.pl) assumption_content_from_proof_key/2
 % (moved to explainer.pl) assumption_normalize/2
 
-% Stats classification: distinguish real domain "non-existent" from prover cycle breaks.
-% Unwrap Action?{Ctx} wrappers early so classification can match the underlying term.
+%! printer:assumption_type(+Content, -Type)
+%
+% Classify a normalised assumption term into a symbolic Type for
+% statistics bucketing. Unwraps Action?{Ctx} wrappers early so
+% classification can match the underlying term. Types include:
+% cycle_break, non_existent_dependency, masked, assumed_installed,
+% assumed_running, blocker_assumption, use_requirement_cycle,
+% use_conditional_cycle, dependency_group_cycle, naf_cycle,
+% issue_with_model, and various reason-tagged dependency types.
+% Falls through to `other` if no specific pattern matches.
+
 printer:assumption_type('?'(Inner, _Ctx), Type) :-
   !,
   printer:assumption_type(Inner, Type).
@@ -373,10 +483,18 @@ printer:assumption_type(at_most_one_of_group(_),                            depe
 printer:assumption_type(naf(_),                                             naf_cycle) :- !.
 printer:assumption_type(_,                                                 other).
 
+%! printer:assumption_reason_from_term(+Term, -Reason)
+%
+% Extract the assumption_reason/1 tag from Term's context (if present).
+
 printer:assumption_reason_from_term(Term, Reason) :-
   explainer:term_ctx(Term, Ctx),
   memberchk(assumption_reason(Reason), Ctx),
   !.
+
+%! printer:assumption_reason_type(+Reason, -Type)
+%
+% Map an assumption reason atom to its statistics bucket type.
 
 printer:assumption_reason_type(missing,                 missing_dependency).
 printer:assumption_reason_type(masked,                  masked_dependency).
@@ -391,6 +509,11 @@ printer:assumption_reason_type(version_conflict,        version_conflict_depende
 printer:assumption_reason_type(version_unsatisfied,     version_no_candidate_dependency).
 printer:assumption_reason_type(unsatisfied_constraints, unsatisfied_constraints_dependency).
 
+%! printer:assumption_is_package_level(+Content)
+%
+% True when Content represents a package-level assumption (install,
+% run, fetchonly, unmask, or grouped/individual package dependency).
+
 printer:assumption_is_package_level(_://_:install) :- !.
 printer:assumption_is_package_level(_://_:run) :- !.
 printer:assumption_is_package_level(_://_:fetchonly) :- !.
@@ -398,8 +521,12 @@ printer:assumption_is_package_level(_://_:unmask) :- !.
 printer:assumption_is_package_level(grouped_package_dependency(_,_,_,_):_) :- !.
 printer:assumption_is_package_level(package_dependency(_,_,_,_,_,_,_,_):_) :- !.
 
-% Generate a stable "head key" for an assumption term, avoiding syntactic wrappers.
-% This is used for the "Top other assumption heads" table.
+%! printer:assumption_head_key(+Content, -Key)
+%
+% Generate a stable head key (functor/arity atom) for an assumption
+% term, stripping syntactic wrappers. Used for the "Top other
+% assumption heads" ranked table.
+
 printer:assumption_head_key(Content, Key) :-
   printer:assumption_head_term(Content, Head),
   ( atomic(Head) ->
@@ -409,10 +536,12 @@ printer:assumption_head_key(Content, Key) :-
     format(atom(Key), '~w/~d', [F, A])
   ).
 
-% Strip common wrappers:
-% - Action?{Ctx} parses as '?'(ActionTerm, CtxTerm)
-% - Module:Goal parses as ':'(Module, Goal)
-% - Repo://Entry parses as '://'(Repo, Entry) and often appears under ':'(Repo://Entry, Action)
+%! printer:assumption_head_term(+Term0, -Term)
+%
+% Recursively strip common wrappers (?/2 context, :/2 module
+% qualification, ://2 repo prefix, domain/1, cycle_break/1) to
+% expose the core functor for head-key generation.
+
 printer:assumption_head_term(Term0, Term) :-
   ( var(Term0) ->
       Term = Term0
@@ -432,6 +561,11 @@ printer:assumption_head_term(Term0, Term) :-
   ; Term = Term0
   ).
 
+%! printer:test_stats_inc_other_head(+Content)
+%
+% Thread-safe increment of the "other" assumption head counter for
+% Content's head key, after unwrapping domain/1 and cycle_break/1.
+
 printer:test_stats_inc_other_head(Content) :-
   % Avoid counting wrapper functors (domain/1, cycle_break/1) as "other heads".
   ( Content = domain(X)      -> C1 = X
@@ -445,7 +579,13 @@ printer:test_stats_inc_other_head(Content) :-
       assertz(printer:test_stats_other_head(Key, N))
     )).
 
-% Record detailed stats for a single blocker assumption (per-occurrence).
+%! printer:test_stats_record_blocker_assumption(+Content)
+%
+% Record detailed statistics for a single blocker assumption
+% (per-occurrence). Unwraps domain/cycle_break wrappers, extracts
+% the blocker core, and updates strength/phase and C/N counters
+% plus the per-reason breakdown.
+
 printer:test_stats_record_blocker_assumption(Content) :-
   % Assumptions are typically wrapped as domain(X) by the proof key normalization.
   ( Content = domain(X)      -> Content1 = X
@@ -467,13 +607,19 @@ printer:test_stats_record_blocker_assumption(Content) :-
       ))
   ).
 
-% Some normalized assumptions can end up as nested ?/2 wrappers like:
-%   (blocker(...)?{Ctx1})?{Ctx2}
-% We only care about the core literal for breakdown purposes.
+%! printer:unwrap_ctx_wrappers(+Term, -Core)
+%
+% Strip all nested ?/2 context wrappers to expose the core literal.
+% E.g. (blocker(...)?{Ctx1})?{Ctx2} becomes blocker(...).
+
 printer:unwrap_ctx_wrappers('?'(Inner, _Ctx), Core) :-
   !,
   printer:unwrap_ctx_wrappers(Inner, Core).
 printer:unwrap_ctx_wrappers(Core, Core).
+
+%! printer:test_stats_record_blocker_breakdown(+Strength, +Phase, +C, +N)
+%
+% Thread-safe increment of blocker counters by (Strength, Phase) and (C, N).
 
 printer:test_stats_record_blocker_breakdown(Strength, Phase, C, N) :-
   with_mutex(test_stats,
@@ -485,14 +631,22 @@ printer:test_stats_record_blocker_breakdown(Strength, Phase, C, N) :-
       assertz(printer:test_stats_blocker_cn(C, N, Ncn))
     )).
 
-% Collect context tags from nested ?/2 wrappers.
-% Some normalized assumptions look like: (blocker(...)?{Ctx1})?{{}}
+%! printer:collect_ctx_tags(+Term, -Tags)
+%
+% Collect all context tag lists from nested ?/2 wrappers into a
+% flat list. E.g. (blocker(...)?{Ctx1})?{Ctx2} yields Ctx1 ++ Ctx2.
+
 printer:collect_ctx_tags('?'(Inner, Ctx0), Tags) :-
   !,
   printer:ctx_term_to_list(Ctx0, Tags0),
   printer:collect_ctx_tags(Inner, Tags1),
   append(Tags0, Tags1, Tags).
 printer:collect_ctx_tags(_Other, []).
+
+%! printer:ctx_term_to_list(+Ctx0, -Tags)
+%
+% Normalise a context term to a list. Handles plain lists, {}/N
+% curly-brace terms, and the empty case.
 
 printer:ctx_term_to_list(Ctx0, Tags) :-
   ( is_list(Ctx0) ->
@@ -501,6 +655,10 @@ printer:ctx_term_to_list(Ctx0, Tags) :-
       true
   ; Tags = []
   ).
+
+%! printer:test_stats_inc_blocker_reason(+Reason, +Phase)
+%
+% Thread-safe increment of blocker counters by Reason and (Reason, Phase).
 
 printer:test_stats_inc_blocker_reason(Reason, Phase) :-
   with_mutex(test_stats,
@@ -511,6 +669,13 @@ printer:test_stats_inc_blocker_reason(Reason, Phase) :-
       M is M0 + 1,
       assertz(printer:test_stats_blocker_rp(Reason, Phase, M))
     )).
+
+%! printer:test_stats_record_entry(+RepositoryEntry, +ModelAVL, +ProofAVL, +TriggersAVL, +DoCycles)
+%
+% Master entry-recording predicate for whole-repo test runs. Extracts
+% all assumptions from ProofAVL, classifies each by type, increments
+% the relevant counters, and optionally (DoCycles == true) computes
+% cycle paths for cycle-break assumptions using TriggersAVL.
 
 printer:test_stats_record_entry(RepositoryEntry, _ModelAVL, ProofAVL, TriggersAVL, DoCycles) :-
   printer:test_stats_inc(processed),
@@ -558,7 +723,12 @@ printer:test_stats_record_entry(RepositoryEntry, _ModelAVL, ProofAVL, TriggersAV
   ; true
   ).
 
-% Compute a cycle path (if any) for an assumption key.
+%! printer:cycle_for_assumption(+StartKey0, +TriggersAVL, -CyclePath0, -CyclePath)
+%
+% Compute a cycle path (if any) for an assumption key. Unwraps
+% cycle_break/1 and canonicalises the literal, then searches the
+% triggers graph via DFS/BFS.
+
 printer:cycle_for_assumption(StartKey0, TriggersAVL, CyclePath0, CyclePath) :-
   ( StartKey0 = cycle_break(X) -> StartKey1 = X ; StartKey1 = StartKey0 ),
   ( prover:canon_literal(StartKey1, StartKey, _) -> true ; StartKey = StartKey1 ),
@@ -570,7 +740,11 @@ printer:cycle_for_assumption(StartKey0, TriggersAVL, CyclePath0, CyclePath) :-
   printer:cycle_display_path(CyclePath0, CyclePath),
   CyclePath = [_|_].
 
-% Record cycle statistics: overall cycle count + per-ebuild mention counts.
+%! printer:test_stats_record_cycle(+CyclePath0, +CyclePath)
+%
+% Record cycle statistics: increment the global cycle count and
+% per-ebuild mention counts for each package node in the cycle path.
+
 printer:test_stats_record_cycle(_CyclePath0, CyclePath) :-
   printer:test_stats_inc(cycles_found),
   printer:test_stats_note_cycle_for_current_entry,
@@ -584,8 +758,16 @@ printer:test_stats_record_cycle(_CyclePath0, CyclePath) :-
   forall(member(Action-RepoEntry, Mentions),
          printer:test_stats_inc_cycle_mention(Action, RepoEntry)).
 
+%! printer:test_stats_value(+Key, -Value)
+%
+% Look up a test_stats_stat counter; defaults to 0 if absent.
+
 printer:test_stats_value(Key, Value) :-
   ( printer:test_stats_stat(Key, Value) -> true ; Value = 0 ).
+
+%! printer:test_stats_percent(+Part, +Total, -Percent)
+%
+% Compute Part/Total as a percentage (0.0 when Total is 0).
 
 printer:test_stats_percent(_, 0, 0.0) :- !.
 printer:test_stats_percent(Part, Total, Percent) :-
@@ -594,16 +776,43 @@ printer:test_stats_percent(Part, Total, Percent) :-
 % -----------------------------------------------------------------------------
 %  Test stats table formatting helpers
 % -----------------------------------------------------------------------------
+%
+% Column-width constants and formatting utilities shared by all test_stats
+% tables. All tables are 80 columns wide (including the 2-space indent).
+
+%! printer:test_stats_table_width(?Width)
+%
+% Total table width (characters) including the 2-space left indent.
 
 printer:test_stats_table_width(80).
 
-% Fixed widths so all tables share the same right edge (80 cols including indent).
+%! printer:test_stats_label_col_width(?Width)
+%
+% Width of the leftmost label/metric column.
+
 printer:test_stats_label_col_width(34).
+
+%! printer:test_stats_pct_col_width(?Width)
+%
+% Width of a percentage column.
+
 printer:test_stats_pct_col_width(10).
 
+%! printer:test_stats_rank_col_width(?Width)
+%
+% Width of the rank-number column in ranked tables.
+
 printer:test_stats_rank_col_width(4).
-% Align with the percent columns in the other tables (10-wide).
+
+%! printer:test_stats_count_col_width(?Width)
+%
+% Width of a count column (aligned with pct columns at 10 chars).
+
 printer:test_stats_count_col_width(10).
+
+%! printer:test_stats_item_col_width(-Width)
+%
+% Derived width for the item column in ranked tables.
 
 printer:test_stats_item_col_width(W) :-
   printer:test_stats_table_width(TW),
@@ -612,11 +821,19 @@ printer:test_stats_item_col_width(W) :-
   % "  " + rank(RW) + "  " + item + " " + count(CW)
   W is max(10, TW - 2 - RW - 2 - 1 - CW).
 
+%! printer:test_stats_to_atom(+Term, -Atom)
+%
+% Convert an arbitrary term to a printable atom.
+
 printer:test_stats_to_atom(Term, Atom) :-
   ( atom(Term) -> Atom = Term
   ; with_output_to(atom(Atom),
                    write_term(Term, [quoted(false), numbervars(true)]))
   ).
+
+%! printer:test_stats_fit_atom(+Atom0, +Width, -Atom)
+%
+% Truncate Atom0 to at most Width characters, appending '…' if needed.
 
 printer:test_stats_fit_atom(Atom0, Width, Atom) :-
   ( atom_length(Atom0, L), L =< Width ->
@@ -630,6 +847,10 @@ printer:test_stats_fit_atom(Atom0, Width, Atom) :-
     atom_concat(Prefix, '…', Atom)
   ).
 
+%! printer:test_stats_pad_right(+Atom0, +Width, -Atom)
+%
+% Right-pad Atom0 with spaces to Width characters.
+
 printer:test_stats_pad_right(Atom0, Width, Atom) :-
   atom_length(Atom0, L),
   ( L >= Width ->
@@ -640,6 +861,10 @@ printer:test_stats_pad_right(Atom0, Width, Atom) :-
     atom_chars(PadAtom, Cs),
     atom_concat(Atom0, PadAtom, Atom)
   ).
+
+%! printer:test_stats_pad_left(+Atom0, +Width, -Atom)
+%
+% Left-pad Atom0 with spaces to Width characters.
 
 printer:test_stats_pad_left(Atom0, Width, Atom) :-
   atom_length(Atom0, L),
@@ -652,20 +877,41 @@ printer:test_stats_pad_left(Atom0, Width, Atom) :-
     atom_concat(PadAtom, Atom0, Atom)
   ).
 
+%! printer:test_stats_int_atom(+Int, -Atom)
+%
+% Format an integer as an atom.
+
 printer:test_stats_int_atom(Int, Atom) :-
   format(atom(Atom), '~d', [Int]).
+
+%! printer:test_stats_print_sep
+%
+% Print a dashed separator line spanning the table width.
 
 printer:test_stats_print_sep :-
   printer:test_stats_table_width(W),
   % Use * as "tab stop from argument" (avoid printing W).
   format('  ~`-t~*|~n', [W]).
 
+%! printer:test_stats_print_kv_int(+Label, +Value)
+%
+% Print a "Label: Value" line with column-aligned integer.
+
 printer:test_stats_print_kv_int(Label, Value) :-
   format('  ~w~t~30|: ~d~n', [Label, Value]).
+
+%! printer:test_stats_print_kv_int_percent(+Label, +Count, +Total)
+%
+% Print a "Label: Count (Pct%)" line.
 
 printer:test_stats_print_kv_int_percent(Label, Count, Total) :-
   printer:test_stats_percent(Count, Total, P),
   format('  ~w~t~30|: ~d (~2f%)~n', [Label, Count, P]).
+
+%! printer:test_stats_print_table_header
+%
+% Print the column headers for the main test-stats summary table
+% (Metric / Ebuilds / Ebuild % / Pkgs / Pkg %).
 
 printer:test_stats_print_table_header :-
   printer:test_stats_label_col_width(LW),
@@ -679,6 +925,11 @@ printer:test_stats_print_table_header :-
   format('  ~w ~w ~w ~w ~w~n',
          [MetricHdr, EbuildsHdr, EbuildPctHdr, PkgsHdr, PkgPctHdr]),
   printer:test_stats_print_sep.
+
+%! printer:test_stats_print_table_row(+Label, +ECount, +ETotal, +PCount, +PTotal)
+%
+% Print one row of the main test-stats summary table with ebuild and
+% package counts plus their percentages.
 
 printer:test_stats_print_table_row(Label, ECount, ETotal, PCount, PTotal) :-
   printer:test_stats_percent(ECount, ETotal, EP),
@@ -698,6 +949,11 @@ printer:test_stats_print_table_row(Label, ECount, ETotal, PCount, PTotal) :-
   format('  ~w ~w ~w ~w ~w~n',
          [Lbl, EC, EPR, PC, PPR]).
 
+%! printer:test_stats_print_assumption_types_table_header
+%
+% Print column headers for the assumption-types breakdown table
+% (Type / Ebuilds / Ebuild % / Occ / Occ %).
+
 printer:test_stats_print_assumption_types_table_header :-
   printer:test_stats_label_col_width(LW),
   printer:test_stats_count_col_width(CW),
@@ -710,6 +966,10 @@ printer:test_stats_print_assumption_types_table_header :-
   format('  ~w ~w ~w ~w ~w~n',
          [TypeHdr, EbuildsHdr, EbuildPctHdr, OccHdr, OccPctHdr]),
   printer:test_stats_print_sep.
+
+%! printer:test_stats_print_assumption_types_row(+Type, +ECount, +ETotal, +OCount, +OTotal)
+%
+% Print one row of the assumption-types table.
 
 printer:test_stats_print_assumption_types_row(Type, ECount, ETotal, OCount, OTotal) :-
   printer:test_stats_percent(ECount, ETotal, EP),
@@ -729,6 +989,11 @@ printer:test_stats_print_assumption_types_row(Type, ECount, ETotal, OCount, OTot
   format('  ~w ~w ~w ~w ~w~n',
          [TypeLbl, EC, EPR, OC, OPR]).
 
+%! printer:test_stats_print_ranked_table_header(+Title, +RightHeader)
+%
+% Print a section header and column headers (Rank / Item / RightHeader)
+% for a ranked Top-N table.
+
 printer:test_stats_print_ranked_table_header(Title, RightHeader) :-
   nl,
   message:header(Title),
@@ -741,6 +1006,10 @@ printer:test_stats_print_ranked_table_header(Title, RightHeader) :-
   printer:test_stats_pad_left(RightHeader, CountW, RHdr),
   format('  ~w  ~w ~w~n', [RankHdr, ItemHdr, RHdr]),
   printer:test_stats_print_sep.
+
+%! printer:test_stats_print_ranked_table_rows(+Rows, +Limit, +Index, +Width)
+%
+% Print up to Limit rows of a ranked table. Rows are Count-Item pairs.
 
 printer:test_stats_print_ranked_table_rows([], _Limit, _I, _W) :- !.
 printer:test_stats_print_ranked_table_rows(_, 0, _I, _W) :- !.
@@ -759,6 +1028,11 @@ printer:test_stats_print_ranked_table_rows([N-Item|Rest], Limit, I, W) :-
   I1 is I + 1,
   Limit1 is Limit - 1,
   printer:test_stats_print_ranked_table_rows(Rest, Limit1, I1, W).
+
+%! printer:test_stats_print
+%
+% Print the accumulated test_stats summary using the configured Top-N
+% (defaults to 10).
 
 printer:test_stats_print :-
   ( config:test_stats_top_n(TopN) -> true ; TopN = 10 ),
@@ -1194,6 +1468,11 @@ printer:test_stats_print(TopN) :-
     printer:test_stats_print_ranked_table_rows(InstallSorted, TopN, 1, W2)
   ).
 
+%! printer:test_stats_print_top_cycle_mentions(+Sorted, +Limit, +Index)
+%
+% Print up to Limit ranked cycle-mention rows from a descending-sorted
+% list of Count-RepoEntry pairs.
+
 printer:test_stats_print_top_cycle_mentions([], _Limit, I) :- !,
   ( I =:= 1 -> writeln('  (none)') ; true ).
 printer:test_stats_print_top_cycle_mentions(_, 0, _I) :- !.
@@ -1203,7 +1482,10 @@ printer:test_stats_print_top_cycle_mentions([N-RepoEntry|Rest], Limit, I) :-
   Limit1 is Limit - 1,
   printer:test_stats_print_top_cycle_mentions(Rest, Limit1, I1).
 
-% Count how many samples fall in <= Threshold.
+%! printer:test_stats_ctx_len_bucket(+LenBins, +Threshold, -CountLe)
+%
+% Count how many samples in LenBins (Len-Count pairs) have Len =< Threshold.
+
 printer:test_stats_ctx_len_bucket(LenBins, Threshold, CountLe) :-
   findall(Cnt,
           ( member(Len-Cnt, LenBins),
@@ -1211,6 +1493,10 @@ printer:test_stats_ctx_len_bucket(LenBins, Threshold, CountLe) :-
           ),
           Cnts),
   sum_list(Cnts, CountLe).
+
+%! printer:test_stats_blocker_sp_rows(-SpSorted)
+%
+% Collect blocker strength/phase rows sorted descending by occurrence count.
 
 printer:test_stats_blocker_sp_rows(SpSorted) :-
   findall(Occ-Label,
@@ -1221,6 +1507,10 @@ printer:test_stats_blocker_sp_rows(SpSorted) :-
   keysort(Sp0, SpAsc),
   reverse(SpAsc, SpSorted).
 
+%! printer:test_stats_blocker_reason_rows(-RowsSorted)
+%
+% Collect blocker reason rows sorted descending by occurrence count.
+
 printer:test_stats_blocker_reason_rows(RowsSorted) :-
   findall(Occ-ReasonAtom,
           ( printer:test_stats_blocker_reason(Reason, Occ),
@@ -1229,6 +1519,11 @@ printer:test_stats_blocker_reason_rows(RowsSorted) :-
           R0),
   keysort(R0, RAsc),
   reverse(RAsc, RowsSorted).
+
+%! printer:test_stats_blocker_reason_phase_rows(+Phase, -RowsSorted)
+%
+% Collect blocker reason rows for a specific Phase, sorted descending
+% by occurrence count.
 
 printer:test_stats_blocker_reason_phase_rows(Phase, RowsSorted) :-
   findall(Occ-ReasonAtom,
@@ -1239,8 +1534,12 @@ printer:test_stats_blocker_reason_phase_rows(Phase, RowsSorted) :-
   keysort(R0, RAsc),
   reverse(RAsc, RowsSorted).
 
-% Build rows for the ctx% share table.
-% Rows are keyed by percent*10 (integer) so the generic ranked-table printer can sort them.
+%! printer:test_stats_ctx_share_rows(-ShareRowsSorted)
+%
+% Build rows for the context-time share table. Each row shows a package
+% and what percentage of its total prove time was spent in context/union
+% operations. Sorted descending by share percentage.
+
 printer:test_stats_ctx_share_rows(ShareRowsSorted) :-
   findall(Pct10-Label,
           ( printer:test_stats_pkg_ctx(C, N, _SumCost, _MaxLen, UnionMs, _CntCtx),
@@ -1259,6 +1558,12 @@ printer:test_stats_ctx_share_rows(ShareRowsSorted) :-
 % -----------------------------------------------------------------------------
 %  PROVER state printing
 % -----------------------------------------------------------------------------
+
+%! printer:display_state(+Target, +Proof, +Model, +Constraints)
+%
+% Interactive debugger display: prints the current prover state including
+% the literal being proved, the proof stack, the to-do queue, the completed
+% model, and the active constraints.
 
 printer:display_state([],_,_,_) :- !.
 printer:display_state(Target, Proof, Model, Constraints) :-
@@ -1326,7 +1631,11 @@ printer:display_state(Target, Proof, Model, Constraints) :-
     %wait_for_input.
 
 
-% Helper to wait for the user to press Enter.
+%! printer:wait_for_input
+%
+% Block until the user presses Enter. No-op when stdin is not a TTY
+% (e.g. here-doc piping, CI).
+
 printer:wait_for_input :-
     % In non-interactive runs (e.g. here-doc piping), user_input is not a TTY and
     % `get_char/1` can throw on EOF. Only prompt when we can actually read.
@@ -2328,12 +2637,20 @@ printer:print_config(_://_:_?_) :- !.
 
 
 
-% Helper predicate: Check if a USE flag is a USE_EXPAND flag
+%! printer:is_use_expand_flag(+UseFlag)
+%
+% True when UseFlag is prefixed by a known USE_EXPAND key.
+
 printer:is_use_expand_flag(UseFlag) :-
   eapi:use_expand(ExpandKey),
   eapi:check_prefix_atom(ExpandKey, UseFlag).
 
-% Helper predicate: Group USE_EXPAND flags by expand key
+%! printer:group_use_expand_flags(+UseExpandFlags, -ExpandKey, -ExpandFlags, +Repository://Entry)
+%
+% Group UseExpandFlags by their USE_EXPAND key, stripping the prefix and
+% looking up each flag's reason (positive/negative:source) via IUSE metadata.
+% Skips hidden expand keys.
+
 printer:group_use_expand_flags(UseExpandFlags, ExpandKey, ExpandFlags, Repository://Entry) :-
   eapi:use_expand(ExpandKey),
   \+ preference:use_expand_hidden(ExpandKey),
@@ -2351,13 +2668,20 @@ printer:group_use_expand_flags(UseExpandFlags, ExpandKey, ExpandFlags, Repositor
                    Group),
           ExpandFlags).
 
-% Helper predicate: Check if USE_EXPAND variable is valid (not empty)
+%! printer:valid_use_expand(+KeyFlagsPair)
+%
+% True when the USE_EXPAND variable has at least one flag.
+
 printer:valid_use_expand([_Key, Flags]) :-
   Flags \== [].
 
 
 
-% Helper predicate: Collect flags for USE_EXPAND variables
+%! printer:collect_expand_flags(+Keyflags, -AllFlags)
+%
+% Collect USE_EXPAND flags from all reason categories (positive/negative ×
+% ebuild/preference/package_use/profile) into a flat list of flag terms.
+
 printer:collect_expand_flags(Keyflags, AllFlags) :-
   (memberchk([negative:default,NegDefa],Keyflags);    NegDefa=[]),
   (memberchk([negative:ebuild,NegEbui],Keyflags);     NegEbui=[]),
@@ -2391,7 +2715,10 @@ printer:collect_expand_flags(Keyflags, AllFlags) :-
          AllFlags).
 
 
-% Helper predicate: Print configuration items with aligned equals signs
+%! printer:print_config_items_aligned(+Useflags, +ValidUseExpandVariables, +Assumed, +Slot)
+%
+% Print USE flags, USE_EXPAND variables, and SLOT with aligned formatting.
+
 printer:print_config_items_aligned(Useflags, ValidUseExpandVariables, Assumed, Slot) :-
 
   % 1. First print USE flags with proper formatting and alignment
@@ -2410,11 +2737,18 @@ printer:print_config_items_aligned(Useflags, ValidUseExpandVariables, Assumed, S
 
 
 
-% Helper predicate: Collect all configuration items
+%! printer:collect_config_items(+Useflags, +ValidUseExpandVariables, +Assumed, +Slot, -ConfigItems)
+%
+% Collect all non-empty configuration items into a list of config_item/3 terms.
+
 printer:collect_config_items(Useflags, ValidUseExpandVariables, Assumed, Slot, ConfigItems) :-
   findall(Item, printer:collect_single_config_item(Useflags, ValidUseExpandVariables, Assumed, Slot, Item), ConfigItems).
 
-% Helper predicate: Collect individual configuration items
+%! printer:collect_single_config_item(+Useflags, +ValidUseExpand, +Assumed, +Slot, -Item)
+%
+% Non-deterministically yield individual config_item/3 terms for USE flags,
+% USE_EXPAND variables, and SLOT.
+
 printer:collect_single_config_item(Useflags, _, Assumed, _, config_item('use', Useflags, Assumed)) :-
   Useflags \== [].
 printer:collect_single_config_item(_, ValidUseExpandVariables, _, _, config_item(Key, Keyflags, [])) :-
@@ -2423,13 +2757,19 @@ printer:collect_single_config_item(_, _, _, Slot, config_item('slot', Slot, []))
   Slot \== [].
 
 
-% Helper predicate: Print aligned configuration items
+%! printer:print_aligned_config_items(+ConfigItems)
+%
+% Recursively print a list of config_item/3 terms with aligned formatting.
+
 printer:print_aligned_config_items([]).
 printer:print_aligned_config_items([config_item(Key, Value, Assumed)|Rest]) :-
   printer:print_aligned_config_item(Key, Value, Assumed),
   printer:print_aligned_config_items(Rest).
 
-% Helper predicate: Print a single aligned configuration item
+%! printer:print_aligned_config_item(+Key, +Value, +Assumed)
+%
+% Print a single KEY = "value" configuration line with bubble formatting.
+
 printer:print_aligned_config_item(Key, Value, Assumed) :-
   upcase_atom(Key, KeyU),
   message:bubble(darkgray,KeyU),
