@@ -922,17 +922,8 @@ compile_query_compound(model(FullModel,required_use(Model),build_with_use(Input)
             cache:entry_metadata(Repo,Id,required_use,ReqUse),
             AllReqUse),
     sort(AllReqUse, AllReqUseU),
-    prover:with_delay_triggers(
-      ( % NOTE (performance): do NOT prove build_with_use/1 items as literals here.
-        % They are meant to be threaded as a feature term in action contexts.
-        % Proving them into the model creates large, highly-variable model-key lists
-        % and defeats memoization on big stacks (OCaml/Qt/KDE).
-        %
-        % We only compute the REQUIRED_USE model here; build_with_use is returned
-        % as a feature-value pair in FullModel.
-        query:with_required_use_self(Repo://Id,
-          prover:prove_model(AllReqUseU, t, AvlModel, t, _ConsOut, t))
-      ) ),
+    query:with_required_use_self(Repo://Id,
+      prover:prove_model(AllReqUseU, t, AvlModel, t, _ConsOut, t)),
     findall(Key,
             (gen_assoc(Key,AvlModel,_),
    	     \+eapi:abstract_syntax_construct(Key)),
@@ -967,9 +958,8 @@ compile_query_compound(model(required_use(Model)), Repo://Id,
             cache:entry_metadata(Repo,Id,required_use,ReqUse),
             AllReqUse),
     sort(AllReqUse, AllReqUseU),
-    prover:with_delay_triggers(
-      query:with_required_use_self(Repo://Id,
-        prover:prove_model(AllReqUseU, t, AvlModel, t, _ConsOut, t))),
+    query:with_required_use_self(Repo://Id,
+      prover:prove_model(AllReqUseU, t, AvlModel, t, _ConsOut, t)),
     findall(Key,
             (gen_assoc(Key,AvlModel,_Value),
    	     \+eapi:abstract_syntax_construct(Key)),
@@ -982,8 +972,7 @@ compile_query_compound(model(dependency(Model,run)):config?{Context}, Repo://Id,
           ),
           Deps),
   sort(Deps, DepsU),
-  prover:with_delay_triggers(
-    prover:prove_model(DepsU, t, AvlModel, t, _ConsOut, t)),
+  prover:prove_model(DepsU, t, AvlModel, t, _ConsOut, t),
   % IMPORTANT: keep dependency "phase" (install/run) distinct from the literal's
   % action tag. We tag each dependency literal by its Phase, so grouped deps never
   % mix install+run package_dependency terms in one group.
@@ -1002,8 +991,7 @@ compile_query_compound(model(dependency(Model,pdepend)):config?{Context}, Repo:/
           ),
           Deps),
   sort(Deps, DepsU),
-  prover:with_delay_triggers(
-    prover:prove_model(DepsU, t, AvlModel, t, _ConsOut, t)),
+  prover:prove_model(DepsU, t, AvlModel, t, _ConsOut, t),
   % Tag PDEPEND dependencies as :run actions, so the grouped dependency resolver
   % (`grouped_package_dependency/4`) can resolve them. The *dependency phase* is
   % carried by the package_dependency(pdepend, ...) term and will be preserved
@@ -1025,8 +1013,7 @@ compile_query_compound(model(dependency(Model,install)):config?{Context}, Repo:/
           ),
           Deps),
   sort(Deps, DepsU),
-  prover:with_delay_triggers(
-    prover:prove_model(DepsU, t, AvlModel, t, _ConsOut, t)),
+  prover:prove_model(DepsU, t, AvlModel, t, _ConsOut, t),
   findall(Fact:Phase?{CtxOut},
            ( gen_assoc(Fact:_,AvlModel,CtxIn),
              Fact =.. [package_dependency|_],
@@ -1045,8 +1032,7 @@ compile_query_compound(model(dependency(Model,fetchonly)):config?{Context}, Repo
           ),
           Deps),
   sort(Deps, DepsU),
-  prover:with_delay_triggers(
-    prover:prove_model(DepsU, t, AvlModel, t, _ConsOut, t)),
+  prover:prove_model(DepsU, t, AvlModel, t, _ConsOut, t),
   findall(Fact:fetchonly?{CtxOut},
           ( gen_assoc(Fact:_,AvlModel,CtxIn),
             Fact =.. [package_dependency|_],

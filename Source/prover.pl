@@ -1,52 +1,51 @@
 /*
   Author:   Pieter Van den Abeele
   E-mail:   pvdabeel@mac.com
-  Copyright (c) 2005-2026w, Pieter Van den Abeele
+  Copyright (c) 2005-2026, Pieter Van den Abeele
 
   Distributed under the terms of the LICENSE file in the root directory of this
   project.
 */
 
 /** <module> PROVER
-    The prover computes a proof, model, constraints, and triggers for a given input.
+Inductive proof search engine for portage-ng.
 
-    This version is enhanced to be configurable:
-    - If preference:flag(delay_triggers) is set, it performs a from-scratch build,
-      optimizing for backtracking by building the Triggers tree at the end.
-    - Otherwise, it performs an incremental build, updating the Triggers
-      tree as it proves, which is efficient for small additions.
+Given a list of target literals the prover constructs four AVL-based
+artefacts:
+
+- ProofAVL  -- maps `rule(Lit)` / `assumed(rule(Lit))` to
+               `dep(DepCount, Body)?Ctx`, recording which rule was
+               applied for each literal and its dependency body.
+- ModelAVL  -- maps `Lit` to `Ctx`, recording every proven literal
+               and the context under which it was proven.
+- Constraints -- accumulated constraint terms (`constraint(Key:{Val})`),
+               threaded through proof steps and unified incrementally.
+- TriggersAVL -- reverse-dependency index: for each proven body literal,
+               lists the head literals that depend on it.
+
+Key design points:
+
+- Triggers are maintained incrementally during the proof: each proven
+  rule adds its body literals to the TriggersAVL as it is recorded.
+- Cycle-break assumptions are recorded as `assumed(rule(Lit))` in the
+  proof and `assumed(Lit)` in the model (distinct from domain-level
+  assumptions introduced by rules via `rule(assumed(X), [])`).
+- CN-domain reprove: when the domain raises a `rules_reprove_cn_domain`
+  exception (e.g. version conflict), the prover retries with scoped
+  rejects up to a configurable bound.
+- A lightweight =prove_model= variant skips Proof and Triggers
+  bookkeeping for internal query-side model construction.
+- Domain literal hooks (`rules:literal_hook/4`) allow the domain to
+  enqueue additional literals (e.g. PDEPEND closure) without the prover
+  knowing the domain semantics.
 */
 
 :- module(prover, [test_action/2]).
 
+
 % =============================================================================
 %  PROVER declarations
 % =============================================================================
-
-% -----------------------------------------------------------------------------
-%  Internal override: delay trigger construction
-% -----------------------------------------------------------------------------
-%
-% `preference:flag(delay_triggers)` is a user-level knob, but for certain internal
-% computations (notably query-side model construction) we can safely suppress
-% trigger maintenance to reduce overhead. We do this in a thread-local way using
-% nb_* so it is safe under multi-threading.
-
-prover:delay_triggers :-
-  ( nb_current(prover_delay_triggers, true) ->
-      true
-  ; current_predicate(preference:flag/1),
-    preference:flag(delay_triggers)
-  ).
-
-prover:with_delay_triggers(Goal) :-
-  ( nb_current(prover_delay_triggers, Old) -> true ; Old = unset ),
-  nb_setval(prover_delay_triggers, true),
-  setup_call_cleanup(true,
-                     Goal,
-                     ( Old == unset -> nb_delete(prover_delay_triggers)
-                     ; nb_setval(prover_delay_triggers, Old)
-                     )).
 
 % -----------------------------------------------------------------------------
 %  Internal: cycle stack (for printing cycle-break paths)
@@ -58,6 +57,13 @@ prover:with_delay_triggers(Goal) :-
 % maintain a lightweight per-proof stack of literals currently being proven,
 % and store a compact cycle witness in the proof under `cycle_path(Lit)`.
 
+
+%! prover:with_cycle_stack(:Goal) is det
+%
+% Run Goal with a fresh per-proof cycle stack.  Literals are pushed/popped
+% as they enter/leave the recursive prover, enabling cycle-path extraction
+% when a cycle-break assumption is made.
+
 prover:with_cycle_stack(Goal) :-
   ( nb_current(prover_cycle_stack, Old) -> true ; Old = unset ),
   nb_setval(prover_cycle_stack, []),
@@ -67,9 +73,19 @@ prover:with_cycle_stack(Goal) :-
                      ; nb_setval(prover_cycle_stack, Old)
                      )).
 
+
+%! prover:cycle_stack_push(+Lit) is det
+%
+% Push Lit onto the thread-local cycle stack.
+
 prover:cycle_stack_push(Lit) :-
   ( nb_current(prover_cycle_stack, S0) -> true ; S0 = [] ),
   nb_setval(prover_cycle_stack, [Lit|S0]).
+
+
+%! prover:cycle_stack_pop(+Lit) is det
+%
+% Pop Lit from the thread-local cycle stack.
 
 prover:cycle_stack_pop(Lit) :-
   ( nb_current(prover_cycle_stack, [Lit|Rest]) ->
@@ -77,9 +93,21 @@ prover:cycle_stack_pop(Lit) :-
   ; true
   ).
 
+
+%! prover:take_until(+List, +Stop, -Prefix) is semidet
+%
+% Return the prefix of List up to and including Stop.
+
 prover:take_until([Stop|_], Stop, [Stop]) :- !.
 prover:take_until([X|Xs], Stop, [X|Out]) :-
   prover:take_until(Xs, Stop, Out).
+
+
+%! prover:cycle_path_for(+Lit, -CyclePath) is det
+%
+% Extract a cycle witness from the current cycle stack for Lit.
+% Returns the portion of the stack from Lit back to its first
+% occurrence, forming a closed cycle path.
 
 prover:cycle_path_for(Lit, CyclePath) :-
   ( nb_current(prover_cycle_stack, Stack),
@@ -88,6 +116,12 @@ prover:cycle_path_for(Lit, CyclePath) :-
       append(Prefix, [Lit], CyclePath)
   ; CyclePath = [Lit, Lit]
   ).
+
+
+%! prover:currently_proving(+Lit) is semidet
+%
+% Succeeds when Lit is currently on the proof cycle stack (i.e. an
+% ancestor in the current proof derivation).
 
 prover:currently_proving(Lit) :-
   nb_current(prover_cycle_stack, Stack),
@@ -105,6 +139,12 @@ prover:currently_proving(Lit) :-
 %
 % `prove_model/*` keeps the same semantics for constraints and for "already proven"
 % context refinement, but uses a dedicated in-progress set for cycle detection.
+
+
+%! prover:prove_model(+Target, +InModel, -OutModel, +InCons, -OutCons) is det
+%
+% Lightweight model construction: proves Target into OutModel/OutCons
+% without maintaining Proof or Triggers bookkeeping.
 
 prover:prove_model(Target, InModel, OutModel, InCons, OutCons) :-
   prover:prove_model(Target, InModel, OutModel, InCons, OutCons, t).
@@ -169,18 +209,32 @@ prover:prove_model(Full, Model0, Model, Constraints0, Constraints, InProg0) :-
 %  Delegated instrumentation (see sampler.pl)
 % -----------------------------------------------------------------------------
 
+
+%! prover:ctx_union(+OldCtx, +Ctx, -NewCtx) is det
+%
+% Merge two context terms.  Delegates to sampler:ctx_union/3 for
+% instrumented context union accounting.
+
 prover:ctx_union(OldCtx, Ctx, NewCtx) :-
   sampler:ctx_union(OldCtx, Ctx, NewCtx).
 
-% Keep context unions stable by preventing `self/1` provenance from accumulating.
-% `self/1` is used for local dependency-resolution guards and printing, but it
-% should not grow unboundedly through repeated ctx unions.
+
+%! prover:ctx_union_raw(+OldCtx, +Ctx, -NewCtx) is det
+%
+% Raw context union that strips `self/1` provenance before merging
+% to prevent unbounded accumulation through repeated refinements.
+
 prover:ctx_union_raw(OldCtx, Ctx, NewCtx) :-
   prover:ctx_strip_self(OldCtx, OldNoSelf),
   prover:ctx_strip_self_keep_one(Ctx, SelfTerm, CtxNoSelf),
   feature_unification:unify(OldNoSelf, CtxNoSelf, Merged),
   prover:ctx_prepend_self(SelfTerm, Merged, NewCtx),
   !.
+
+
+%! prover:ctx_strip_self(+Ctx0, -Ctx) is det
+%
+% Remove all `self/1` terms from a context list.
 
 prover:ctx_strip_self(Ctx0, Ctx) :-
   ( is_list(Ctx0) ->
@@ -191,6 +245,11 @@ prover:ctx_strip_self(Ctx0, Ctx) :-
 
 prover:is_self_term(self(_)).
 
+
+%! prover:ctx_strip_self_keep_one(+Ctx0, -SelfTerm, -Ctx) is det
+%
+% Extract the first `self/1` term from Ctx0 and remove all others.
+
 prover:ctx_strip_self_keep_one(Ctx0, SelfTerm, Ctx) :-
   ( is_list(Ctx0) ->
       prover:ctx_extract_self(Ctx0, SelfTerm, Ctx)
@@ -199,11 +258,21 @@ prover:ctx_strip_self_keep_one(Ctx0, SelfTerm, Ctx) :-
   ),
   !.
 
+
+%! prover:ctx_extract_self(+Ctx0, -Self, -Ctx) is det
+%
+% Extract the first `self(S)` from Ctx0 into Self, removing all others.
+
 prover:ctx_extract_self([], none, []).
 prover:ctx_extract_self([self(S)|T], self(S), Rest) :-
   !, exclude(prover:is_self_term, T, Rest).
 prover:ctx_extract_self([H|T], Self, [H|Rest]) :-
   prover:ctx_extract_self(T, Self, Rest).
+
+
+%! prover:ctx_prepend_self(+SelfTerm, +Ctx0, -Ctx) is det
+%
+% Prepend a previously extracted `self/1` term back onto a context list.
 
 prover:ctx_prepend_self(none, Ctx, Ctx) :- !.
 prover:ctx_prepend_self(self(S), Ctx0, Ctx) :-
@@ -213,9 +282,11 @@ prover:ctx_prepend_self(self(S), Ctx0, Ctx) :-
   ),
   !.
 
+
 % =============================================================================
 % Top-Level Entry Point
 % =============================================================================
+
 
 %! prover:prove(+Target, +InProof, -OutProof, +InModel, -OutModel, +InCons, -OutCons, +InTriggers, -OutTriggers)
 %
@@ -233,6 +304,13 @@ prover:prove(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTr
     )
   ).
 
+
+%! prover:prove_with_cn_domain_retries(+Target, +InProof, -OutProof, +InModel, -OutModel, +InCons, -OutCons, +InTriggers, -OutTriggers, +Attempt, +MaxRetries) is det
+%
+% Inner retry loop for CN-domain conflict resolution.  Catches
+% `rules_reprove_cn_domain` exceptions and retries with expanded
+% reject sets up to MaxRetries.
+
 prover:prove_with_cn_domain_retries(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers, Attempt, MaxRetries) :-
   catch(
     catch(
@@ -249,6 +327,13 @@ prover:prove_with_cn_domain_retries(Target, InProof, OutProof, InModel, OutModel
       Attempt, MaxRetries, C, N, Domain, Candidates, []
     )
   ).
+
+
+%! prover:handle_cn_domain_reprove(+Target, +InProof, -OutProof, +InModel, -OutModel, +InCons, -OutCons, +InTriggers, -OutTriggers, +Attempt, +MaxRetries, +C, +N, +Domain, +Candidates, +Reasons) is det
+%
+% Handle a single CN-domain reprove exception: add the failing
+% candidates to the reject set and retry, or fall back to a final
+% prove with reprove disabled and a clean reject map.
 
 prover:handle_cn_domain_reprove(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers,
                                 Attempt, MaxRetries, C, N, Domain, Candidates, Reasons) :-
@@ -287,6 +372,7 @@ prover:handle_cn_domain_reprove(Target, InProof, OutProof, InModel, OutModel, In
 %  them during candidate selection. The prover manages the store lifecycle.
 %  Merge semantics are defined by feature_unification:val_hook.
 
+
 %! prover:learned(+Literal, -Constraint)
 %
 %  Look up a learned constraint. Fails if none exists.
@@ -294,6 +380,7 @@ prover:handle_cn_domain_reprove(Target, InProof, OutProof, InModel, OutModel, In
 prover:learned(Literal, Constraint) :-
   nb_current(prover_learned_constraints, Store),
   get_assoc(Literal, Store, Constraint).
+
 
 %! prover:learn(+Literal, +Constraint, -Added)
 %
@@ -326,28 +413,33 @@ prover:learn(Literal, Constraint, Added) :-
   ),
   !.
 
+
+%! prover:add_cn_domain_origin_rejects(+Reasons, -Added) is det
+%
+% Delegate to rules:add_cn_domain_origin_rejects/2 if available.
+
 prover:add_cn_domain_origin_rejects(Reasons, Added) :-
   ( current_predicate(rules:add_cn_domain_origin_rejects/2) ->
       rules:add_cn_domain_origin_rejects(Reasons, Added)
   ; Added = false
   ).
 
-prover:prove_once(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers) :-
 
-  % Call the core recursive engine.
+%! prover:prove_once(+Target, +InProof, -OutProof, +InModel, -OutModel, +InCons, -OutCons, +InTriggers, -OutTriggers) is det
+%
+% Single-attempt prove: runs the core recursive engine with cycle-stack
+% bookkeeping.  Triggers are maintained incrementally during the proof.
+
+prover:prove_once(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers) :-
   prover:debug_hook(Target, InProof, InModel, InCons),
   prover:with_cycle_stack(
-    prover:prove_recursive(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, MidTriggers)
-  ),
-
-  % Check the flag to determine the final trigger-building action.
-  (   prover:delay_triggers ->
-      % From-Scratch Mode: Build the real Triggers tree from the final proof.
-      build_triggers_from_proof(OutProof, OutTriggers)
-  ;
-      % Incremental Mode: The 'MidTriggers' tree is already complete.
-      OutTriggers = MidTriggers
+    prover:prove_recursive(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers)
   ).
+
+
+%! prover:cn_domain_reprove_max_retries(-Max) is det
+%
+% Maximum number of CN-domain reprove retries (default 3).
 
 prover:cn_domain_reprove_max_retries(Max) :-
   ( current_predicate(config:cn_domain_reprove_max_retries/1),
@@ -358,6 +450,13 @@ prover:cn_domain_reprove_max_retries(Max) :-
     Max = Max0
   ; Max = 3
   ).
+
+
+%! prover:with_cn_domain_reprove_state(:Goal) is det
+%
+% Run Goal inside a fresh CN-domain reprove environment: initialises
+% reject maps, learned constraints, and selection snapshots, and
+% restores them on exit.
 
 prover:with_cn_domain_reprove_state(Goal) :-
   ( nb_current(rules_cn_domain_reprove_enabled, OldEnabled) -> HadEnabled = true ; HadEnabled = false ),
@@ -390,6 +489,11 @@ prover:with_cn_domain_reprove_state(Goal) :-
                        )
                      )).
 
+
+%! prover:with_cn_domain_reprove_disabled(:Goal) is det
+%
+% Run Goal with CN-domain reprove disabled (final-attempt clean prove).
+
 prover:with_cn_domain_reprove_disabled(Goal) :-
   ( nb_current(rules_cn_domain_reprove_enabled, Old) -> Had = true ; Had = false ),
   nb_setval(rules_cn_domain_reprove_enabled, false),
@@ -407,6 +511,13 @@ prover:with_cn_domain_reprove_disabled(Goal) :-
 % -----------------------------------------------------------------------------
 % CASE 1: A list of literals to prove (Recursive Step)
 % -----------------------------------------------------------------------------
+
+
+%! prover:prove_recursive(+Target, +InProof, -OutProof, +InModel, -OutModel, +InCons, -OutCons, +InTrig, -OutTrig) is nondet
+%
+% Core recursive proof engine.  Handles lists of literals (CASE 1),
+% single literals with constraint/proven/context-change/cycle-break/
+% conflict/regular-proof dispatch (CASE 2).
 
 prover:prove_recursive([],Proof,Proof,Model,Model,Constraints,Constraints,Triggers,Triggers) :-
   !.
@@ -509,8 +620,8 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
       % -- Apply rule
       sampler:test_stats_rule_call,
       ( nb_current(prover_timeout_trace, _) ->
-          prover:trace_simplify(Lit, SimpleRuleLit),
-          prover:timeout_trace_push(rule_call(SimpleRuleLit))
+          sampler:trace_simplify(Lit, SimpleRuleLit),
+          sampler:timeout_trace_push(rule_call(SimpleRuleLit))
       ; true
       ),
       rule(NewFull,NewBody),
@@ -535,11 +646,7 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 
       %writeln('PROVER: -- Ammended rule in proof '),
 
-      (   prover:delay_triggers ->
-          Triggers1 = Triggers
-      ;
-          prover:add_triggers(NewFull, NewBody, Triggers, Triggers1)
-      ),
+      prover:add_triggers(NewFull, NewBody, Triggers, Triggers1),
 
       % -- Prove body difference
       % When we refine a rule due to context changes, we are effectively re-entering
@@ -627,19 +734,15 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 
           sampler:test_stats_rule_call,
           ( nb_current(prover_timeout_trace, _) ->
-              prover:trace_simplify(Lit, SimpleRuleLit),
-              prover:timeout_trace_push(rule_call(SimpleRuleLit))
+              sampler:trace_simplify(Lit, SimpleRuleLit),
+              sampler:timeout_trace_push(rule_call(SimpleRuleLit))
           ; true
           ),
           rule(Full, Body),
 
           length(Body, DepCount),
           put_assoc(rule(Lit), Proof, dep(DepCount, Body)?Ctx, Proof1),
-          (   prover:delay_triggers ->
-              Triggers1 = Triggers
-          ;
-              prover:add_triggers(Full, Body, Triggers, Triggers1)
-          ),
+          prover:add_triggers(Full, Body, Triggers, Triggers1),
           setup_call_cleanup(prover:cycle_stack_push(Lit),
                              prover:prove_recursive(Body, Proof1, NewProof, Model, BodyModel, Constraints, BodyConstraints, Triggers1, NewTriggers),
                              prover:cycle_stack_pop(Lit)),
@@ -668,8 +771,12 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 % NOTE: The domain must keep the hook monotonic and backtracking-safe (no global
 % side effects). The prover only stores the hook_done marker in its proof state.
 
-% Fast guard: only consult the domain hook for merge actions.
-% Calling the hook for every proven literal is extremely expensive at scale.
+
+%! prover:hook_literals(+Literal, +Proof0, -Proof, +Model, +Rest0, -Rest) is det
+%
+% After proving Literal, consult the domain hook to enqueue extra literals
+% (e.g. PDEPEND goals).  Only fires for merge-action candidates.
+
 prover:hook_literals(Literal, Proof, Proof, _Model, Rest, Rest) :-
   \+ prover:hook_literal_candidate(Literal),
   !.
@@ -682,7 +789,7 @@ prover:hook_literals(Literal, Proof0, Proof, Model, Rest0, Rest) :-
   ( current_predicate(rules:literal_hook_key/4),
     once(rules:literal_hook_key(Literal, Model, HookKey0, NeedsFullHook)),
     ( get_assoc(hook_done(HookKey0), Proof0, true) ->
-        prover:hook_perf_done_hit,
+        sampler:hook_perf_done_hit,
         Proof = Proof0,
         Rest = Rest0
     ; NeedsFullHook == false ->
@@ -694,7 +801,7 @@ prover:hook_literals(Literal, Proof0, Proof, Model, Rest0, Rest) :-
   ; current_predicate(rules:literal_hook_key/3),
     once(rules:literal_hook_key(Literal, Model, HookKey1)),
     get_assoc(hook_done(HookKey1), Proof0, true) ->
-      prover:hook_perf_done_hit,
+      sampler:hook_perf_done_hit,
       Proof = Proof0,
       Rest = Rest0
   ;
@@ -710,6 +817,12 @@ prover:hook_literals(Literal, Proof0, Proof, Model, Rest0, Rest) :-
   !.
 prover:hook_literals(_Literal, Proof, Proof, _Model, Rest, Rest).
 
+
+%! prover:hook_literal_candidate(+Literal) is semidet
+%
+% Succeeds when Literal is a merge-action literal eligible for the
+% domain hook (install/update/downgrade/reinstall).
+
 prover:hook_literal_candidate(_Repo://_Entry:Action?{_Ctx}) :-
   ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !.
@@ -717,18 +830,25 @@ prover:hook_literal_candidate(_Repo://_Entry:Action) :-
   ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !.
 
+
+%! prover:hook_literals_list(+Hooks, +Proof0, -Proof, +Model, +Rest0, -Rest) is det
+%
+% Process a list of hook(HookKey, ExtraLits) results: mark each key done
+% in the proof, filter already-proven/pending literals, and append fresh
+% ones to the remaining literal queue.
+
 prover:hook_literals_list([], Proof, Proof, _Model, Rest, Rest) :- !.
 prover:hook_literals_list([hook(HookKey, ExtraLits)|Hs], Proof0, Proof, Model, Rest0, Rest) :-
   ( get_assoc(hook_done(HookKey), Proof0, true) ->
-      prover:hook_perf_done_hit,
+      sampler:hook_perf_done_hit,
       Proof1 = Proof0,
       Rest1 = Rest0
   ; put_assoc(hook_done(HookKey), Proof0, true, Proof1),
     length(ExtraLits, ExtraN),
-    prover:hook_perf_hook_fired(ExtraN),
+    sampler:hook_perf_hook_fired(ExtraN),
     prover:select_new_literals_to_enqueue(ExtraLits, Model, Proof1, Proof2, FreshLits),
     length(FreshLits, FreshN),
-    prover:hook_perf_fresh_selected(FreshN),
+    sampler:hook_perf_fresh_selected(FreshN),
     ( FreshLits == [] ->
         Rest1 = Rest0
     ; append(FreshLits, Rest0, Rest1)
@@ -737,13 +857,13 @@ prover:hook_literals_list([hook(HookKey, ExtraLits)|Hs], Proof0, Proof, Model, R
   ( var(Proof2) -> ProofNext = Proof1 ; ProofNext = Proof2 ),
   prover:hook_literals_list(Hs, ProofNext, Proof, Model, Rest1, Rest).
 
+
+%! prover:select_new_literals_to_enqueue(+Lits0, +Model, +Proof0, -Proof, -Lits) is det
+%
 % Deterministically select only those ExtraLits that are not already proven
-% (present in Model by core literal) and not already pending (tracked in Proof).
-%
-% Pending set representation:
-%   hook_pending(CoreLit) -> true   (monotonic; never removed)
-%
-% This avoids expensive scans of the pending queue list.
+% (present in Model) and not already pending (tracked via hook_pending/1
+% keys in the Proof AVL).
+
 prover:select_new_literals_to_enqueue(Lits0, Model, Proof0, Proof, Lits) :-
   ( is_list(Lits0) ->
       prover:select_new_literals_to_enqueue_(Lits0, Model, Proof0, Proof, [], Rev),
@@ -768,67 +888,17 @@ prover:select_new_literals_to_enqueue_([L0|Ls], Model, Proof0, Proof, Acc0, Acc)
   prover:select_new_literals_to_enqueue_(Ls, Model, Proof1, Proof, Acc1, Acc).
 
 
-% -----------------------------------------------------------------------------
-%  Perf counters for domain literal hook (PDEPEND)
-% -----------------------------------------------------------------------------
-%
-% These counters are intended for whole-repo runs via prover:test/*, to help
-% answer: is the slowdown due to hook work itself, or due to proving many more
-% literals?
-%
-% We keep this lightweight: count-based only (no per-hook walltime timing).
-
-prover:hook_perf_reset :-
-  flag(hook_perf_done_hits, _OldDH, 0),
-  flag(hook_perf_hook_fired, _OldHF, 0),
-  flag(hook_perf_extra_lits, _OldEL, 0),
-  flag(hook_perf_fresh_lits, _OldFL, 0),
-  ( current_predicate(sampler:literal_hook_perf_reset/0) ->
-      sampler:literal_hook_perf_reset
-  ; true
-  ),
-  !.
-
-prover:hook_perf_done_hit :-
-  flag(hook_perf_done_hits, X, X+1),
-  !.
-
-prover:hook_perf_hook_fired(ExtraN) :-
-  flag(hook_perf_hook_fired, X, X+1),
-  flag(hook_perf_extra_lits, Y, Y+ExtraN),
-  !.
-
-prover:hook_perf_fresh_selected(FreshN) :-
-  flag(hook_perf_fresh_lits, X, X+FreshN),
-  !.
-
-prover:hook_perf_report :-
-  flag(hook_perf_hook_fired, Fired, Fired),
-  flag(hook_perf_extra_lits, Extra, Extra),
-  flag(hook_perf_fresh_lits, Fresh, Fresh),
-  flag(hook_perf_done_hits, DoneHits, DoneHits),
-  nl,
-  message:scroll_notice(['Hook perf: fired=',Fired,
-                         ' extra_lits=',Extra,
-                         ' fresh_lits=',Fresh,
-                         ' done_hits=',DoneHits]),
-  nl,
-  ( current_predicate(sampler:literal_hook_perf_report/0) ->
-      sampler:literal_hook_perf_report
-  ; true
-  ),
-  !.
-
-
 % =============================================================================
 % Debug Hook
 % =============================================================================
+
 
 %! prover:debug_hook(+Target, +Proof, +Model, +Constraints)
 %
 % This predicate is expanded by user:goal_expansion
 
 :- thread_local prover:debug_hook_handler/1.
+
 
 %! prover:with_debug_hook(+Handler, :Goal)
 %
@@ -842,179 +912,19 @@ prover:with_debug_hook(Handler, Goal) :-
     retractall(prover:debug_hook_handler(Handler))
   ).
 
-% -----------------------------------------------------------------------------
-%  Timeout diagnostics (best-effort)
-% -----------------------------------------------------------------------------
+%! prover:debug_hook(+Target, +Proof, +Model, +Constraints) is det
 %
-% Used by tester on timeouts to capture a short "where were we" trace without
-% enabling full tracing (which is too expensive at scale).
-
-prover:trace_simplify(Item, Simple) :-
-  % Keep timeout traces small + comparable (helps spot loops).
-  ( var(Item) ->
-      Simple = var
-  ; Item = required(U) ->
-      Simple = required(U)
-  ; Item = assumed(U) ->
-      Simple = assumed(U)
-  ; Item = naf(G) ->
-      ( G = required(U) -> Simple = naf_required(U)
-      ; G = blocking(U) -> Simple = naf_blocking(U)
-      ; Simple = naf
-      )
-  ; Item = conflict(A, _B) ->
-      % Keep just the conflicting head; the second argument is usually derived.
-      Simple = conflict(A)
-  ; Item = Inner:Action,
-    atom(Action) ->
-      % Many of our literals are action-tagged, e.g.
-      %   grouped_package_dependency(...):run
-      %   use_conditional_group(...):install
-      % If we don't handle this, the trace becomes `functor((:)/2)` noise.
-      prover:trace_simplify(Inner, InnerS),
-      Simple = act(Action, InnerS)
-  ; Item = constraint(Key:{_}) ->
-      Simple = constraint(Key)
-  ; Item = use_conditional_group(Sign, Use, Repo://Entry, Deps) ->
-      ( is_list(Deps) -> length(Deps, N) ; N = '?' ),
-      Simple = use_cond(Sign, Use, Repo://Entry, N)
-  ; Item = any_of_group(Deps) ->
-      ( is_list(Deps) -> length(Deps, N) ; N = '?' ),
-      Simple = any_of_group(N)
-  ; Item = exactly_one_of_group(Deps) ->
-      ( is_list(Deps) -> length(Deps, N) ; N = '?' ),
-      Simple = exactly_one_of_group(N)
-  ; Item = at_most_one_of_group(Deps) ->
-      ( is_list(Deps) -> length(Deps, N) ; N = '?' ),
-      Simple = at_most_one_of_group(N)
-  ; Item = grouped_package_dependency(Strength, C, N, PackageDeps) ->
-      ( PackageDeps = [package_dependency(Phase, _, _, _, _, _, SlotReq, _)|_] ->
-          Simple = gpd(Strength, Phase, C, N, SlotReq)
-      ; Simple = gpd(Strength, C, N)
-      )
-  ; Item = package_dependency(Phase, Strength, C, N, O, V, S, U) ->
-      ( is_list(U) -> length(U, UL) ; UL = '?' ),
-      Simple = pkgdep(Phase, Strength, C, N, O, V, S, usedeps(UL))
-  ; Item = Repo://Entry:Action ->
-      Simple = entry(Repo://Entry, Action)
-  ; Item = Repo://Entry ->
-      Simple = entry(Repo://Entry)
-  ; is_list(Item) ->
-      length(Item, N),
-      Simple = list(N)
-  ; compound(Item) ->
-      functor(Item, F, A),
-      Simple = functor(F/A)
-  ; Simple = Item
-  ).
-
-prover:timeout_trace_reset :-
-  nb_setval(prover_timeout_trace, []).
-
-prover:timeout_trace_push(Item0) :-
-  % Also update frequency counters (when enabled) so we can identify which
-  % obligations dominate during long/looping runs.
-  ( nb_current(prover_timeout_count_assoc, A0) ->
-      ( get_assoc(Item0, A0, N0) -> true ; N0 = 0 ),
-      N is N0 + 1,
-      put_assoc(Item0, A0, N, A1),
-      nb_setval(prover_timeout_count_assoc, A1)
-  ; true
-  ),
-  ( nb_current(prover_timeout_trace, L0) -> true ; L0 = [] ),
-  L1 = [Item0|L0],
-  % Keep only the last N items (diagnostics; not performance-critical).
-  ( nb_current(prover_timeout_trace_maxlen, MaxLen) -> true ; MaxLen = 200 ),
-  length(L1, Len),
-  ( Len =< MaxLen ->
-      nb_setval(prover_timeout_trace, L1)
-  ; length(Keep, MaxLen),
-    append(Keep, _Drop, L1),
-    nb_setval(prover_timeout_trace, Keep)
-  ).
-
-prover:timeout_trace_hook(Target, _Proof, _Model, _Constraints) :-
-  % Prefer the canonical literal head, not the full annotated target.
-  ( catch(canon_literal(Target, Lit0, _Ctx), _, fail) ->
-      Lit = Lit0
-  ; Lit = Target
-  ),
-  prover:trace_simplify(Lit, Simple),
-  % Optional: count which literals dominate during a diagnosis run.
-  ( nb_current(prover_timeout_count_assoc, A0) ->
-      ( get_assoc(Simple, A0, N0) -> true ; N0 = 0 ),
-      N is N0 + 1,
-      put_assoc(Simple, A0, N, A1),
-      nb_setval(prover_timeout_count_assoc, A1)
-  ; true
-  ),
-  prover:timeout_trace_push(Simple).
-
-% Run a short best-effort diagnosis for a target. Always succeeds.
-prover:diagnose_timeout(Target, LimitSec, diagnosis(DeltaInferences, RuleCalls, Trace)) :-
-  prover:timeout_trace_reset,
-  sampler:test_stats_reset_counters,
-  statistics(inferences, I0),
-  ( catch(
-      prover:with_debug_hook(prover:timeout_trace_hook,
-        call_with_time_limit(LimitSec,
-          prover:prove(Target, t, _Proof, t, _Model, t, _Cons, t, _Triggers)
-        )
-      ),
-      time_limit_exceeded,
-      true
-    )
-  -> true
-  ;  true
-  ),
-  statistics(inferences, I1),
-  DeltaInferences is I1 - I0,
-  sampler:test_stats_get_counters(rule_calls(RuleCalls)),
-  ( nb_current(prover_timeout_trace, TraceRev) -> reverse(TraceRev, Trace) ; Trace = [] ).
-
-% Like diagnose_timeout/3, but also returns a TopCounts list of the most frequent
-% simplified literals seen during the run.
-prover:diagnose_timeout_counts(Target, LimitSec, Diagnosis, TopCounts) :-
-  empty_assoc(A0),
-  nb_setval(prover_timeout_count_assoc, A0),
-  prover:diagnose_timeout(Target, LimitSec, Diagnosis),
-  ( nb_current(prover_timeout_count_assoc, A1) -> true ; A1 = A0 ),
-  nb_delete(prover_timeout_count_assoc),
-  % Post-processing can dominate on huge runs; keep it bounded and best-effort.
-  ( catch(
-      call_with_time_limit(1.0,
-        ( findall(N-S,
-                  gen_assoc(S, A1, N),
-                  Pairs0),
-          keysort(Pairs0, PairsAsc),
-          reverse(PairsAsc, Pairs),
-          length(Pairs, Len),
-          ( Len > 20 ->
-              length(TopCounts, 20),
-              append(TopCounts, _Rest, Pairs)
-          ; TopCounts = Pairs
-          )
-        )),
-      time_limit_exceeded,
-      TopCounts = []
-    )
-  -> true
-  ; TopCounts = []
-  ).
+% Invoke the installed debug-hook handler (if any).  Best-effort:
+% errors in the handler are caught and printed, never propagated.
 
 prover:debug_hook(Target, Proof, Model, Constraints) :-
   ( prover:debug_hook_handler(Handler) ->
-      % Best-effort: debugging must not crash the prover.
       catch(call(Handler, Target, Proof, Model, Constraints),
             E,
             print_message(error, E))
   ; true
   ),
   !.
-
-%prover:debug_hook(Target, Proof, Model, Constraints) :-
-%  printer:display_state(Target, Proof, Model, Constraints).
-
 
 
 %! prover:debug
@@ -1028,6 +938,7 @@ prover:debug :-
 % =============================================================================
 % Triggers Helpers
 % =============================================================================
+
 
 %! build_triggers_from_proof(+ProofAVL, -TriggersAVL)
 %
@@ -1084,13 +995,27 @@ prover:add_trigger(Head, Dep, InTriggers, OutTriggers) :-
 % Proof helper predicates & Canonicalisation
 % =============================================================================
 
+
+%! prover:proving(+RuleTerm, +Proof) is semidet
+%
+% Succeeds when `rule(Lit)` is in the Proof AVL (currently being proven).
+
 prover:proving(rule(Lit, Body), Proof) :- get_assoc(rule(Lit),Proof,dep(_, Body)?_).
-% "Assumed proving" is our prover-level cycle-break marker. Historically this
-% used dep(0,[]); we now use dep(-1,Body) but keep the predicate robust.
+
+
+%! prover:assumed_proving(+Lit, +Proof) is semidet
+%
+% Succeeds when Lit has a prover-level cycle-break marker in Proof
+% (`assumed(rule(Lit))`).
+
 prover:assumed_proving(Lit, Proof) :- get_assoc(assumed(rule(Lit)),Proof,dep(_Count, _Body)?_).
-% Consider a literal "proven" if we've proven it under an equivalent *semantic*
-% context. This prevents needless re-proving when only provenance (e.g. self/1)
-% differs across callers.
+
+
+%! prover:proven(+Lit, +Model, +Ctx) is semidet
+%
+% Succeeds when Lit is in Model under a semantically equivalent context
+% (prevents needless re-proving when only provenance differs).
+
 prover:proven(Lit, Model, Ctx) :-
   get_assoc(Lit, Model, StoredCtx),
   ( StoredCtx == Ctx ->
@@ -1099,14 +1024,22 @@ prover:proven(Lit, Model, Ctx) :-
     prover:ctx_sem_key(Ctx,       K2),
     K1 == K2
   ).
+
+
+%! prover:assumed_proven(+Lit, +Model) is semidet
+%
+% Succeeds when Lit has a cycle-break assumption in the Model.
+
 prover:assumed_proven(Lit, Model) :- get_assoc(assumed(Lit), Model, _).
 
-% Build a full literal in a normalized, rule-friendly shape.
-% For repo-qualified literals, keep context *inside* the repo payload:
-%   Repo://(Entry:Action?{Ctx})
-% and not:
-%   (Repo://Entry:Action)?{Ctx}
-% since the latter can miss rule/2 heads.
+
+%! prover:full_literal(+Lit, +Ctx, -Full) is det
+%
+% Build a full literal in a normalised, rule-friendly shape.
+% For repo-qualified literals the context is placed inside the repo
+% payload (`Repo://(Entry:Action?{Ctx})`) rather than wrapping the
+% whole term, so that `rule/2` heads match correctly.
+
 prover:full_literal(R://L:A, {}, R://L:A) :-
   !.
 prover:full_literal(R://L:A, Ctx, R://(L:A?{Ctx})) :-
@@ -1124,6 +1057,13 @@ prover:full_literal(L, {}, L) :-
 prover:full_literal(L, Ctx, L?{Ctx}) :-
   !.
 
+
+%! prover:ctx_sem_key(+Ctx, -Key) is det
+%
+% Extract a semantic key from a context for equivalence comparison.
+% Two contexts with the same semantic key are considered equivalent
+% by proven/3 (ignoring provenance like `self/1`).
+
 prover:ctx_sem_key({}, key([], none)) :- !.
 prover:ctx_sem_key(Ctx, key(RU, BWU)) :-
   is_list(Ctx),
@@ -1133,10 +1073,21 @@ prover:ctx_sem_key(Ctx, key(RU, BWU)) :-
 prover:ctx_sem_key(_Other, key([], none)) :-
   !.
 
+
+%! prover:conflicts(+Lit, +Model) is semidet
+%
+% Succeeds when Lit conflicts with the current Model (a positive
+% literal conflicts with a proven `naf/1` and vice versa).
+
 prover:conflicts(Lit, Model) :-
   ( Lit = naf(Inner) -> (prover:proven(Inner, Model, _) ; prover:assumed_proven(Inner, Model))
   ; prover:proven(naf(Lit), Model, _)
   ), !.
+
+
+%! prover:conflictrule(+RuleTerm, +Proof) is semidet
+%
+% Succeeds when a rule for Lit conflicts with rules already in the Proof.
 
 prover:conflictrule(rule(Lit,_), Proof) :-
   ( Lit = naf(Inner) -> (prover:proving(rule(Inner,_), Proof) ; prover:assumed_proving(Inner, Proof))
@@ -1148,12 +1099,12 @@ prover:conflictrule(rule(Lit,_), Proof) :-
 % CONSTRAINT
 % =============================================================================
 
+
 %! prover:is_constraint(+Literal)
 %
 % Check if a literal is a constraint.
 
 prover:is_constraint(constraint(_)).
-
 
 
 %! prover:unify_constraints(+Constraint, +Constraints, -NewConstraints)
@@ -1189,6 +1140,15 @@ prover:unify_constraints(constraint(Key:{Value}),Constraints,NewConstraints) :-
 prover:unify_constraints(constraint(Key:{Value}),Constraints,NewConstraints) :-
   prover:unify_constraint(Value,{},NewValue),
   put_assoc(Key,Constraints,NewValue,NewConstraints).
+
+
+%! prover:unify_constraint(+Value, +Current, -Merged) is det
+%
+% Merge a new constraint value with the current stored value.
+% Dispatches on type: empty (`{}`), atom, list, or existing AVL.
+% When the current value is an AVL and the new value is a list,
+% the list elements are proved into the existing AVL via
+% prove_recursive/9.
 
 prover:unify_constraint([],{},Assoc) :-
   empty_assoc(Assoc),!.
@@ -1276,6 +1236,7 @@ prover:canon_rule(rule(L?{Ctx},B),              rule(L),              dep(_,B)?C
 %  Helper: AVL assoc convertors
 % =============================================================================
 
+
 %! prover:proof_to_list(+Assoc, -List)
 %
 % Convert an AVL proof tree to a list.
@@ -1317,6 +1278,9 @@ prover:list_to_proof(List, Assoc) :-
   empty_assoc(Empty),
   foldl(prover:add_to_proof, List, Empty, Assoc).
 
+
+%! prover:add_to_proof(+Full, +InAssoc, -OutAssoc) is det
+
 prover:add_to_proof(Full, InAssoc, OutAssoc) :-
   prover:canon_rule(Full, Key, Value),
   put_assoc(Key, InAssoc, Value, OutAssoc).
@@ -1329,6 +1293,9 @@ prover:add_to_proof(Full, InAssoc, OutAssoc) :-
 prover:list_to_model(List, Assoc) :-
   empty_assoc(Empty),
   foldl(prover:add_to_model, List, Empty, Assoc).
+
+
+%! prover:add_to_model(+Full, +InAssoc, -OutAssoc) is det
 
 prover:add_to_model(Full, InAssoc, OutAssoc) :-
   prover:canon_literal(Full, Key, Value),
@@ -1343,6 +1310,9 @@ prover:list_to_constraints(List, Assoc) :-
   empty_assoc(Empty),
   foldl(prover:add_to_constraints, List, Empty, Assoc).
 
+
+%! prover:add_to_constraints(+Full, +InAssoc, -OutAssoc) is det
+
 prover:add_to_constraints(Full, InAssoc, OutAssoc) :-
   prover:canon_literal(Full, Key, Value),
   put_assoc(Key, InAssoc, Value, OutAssoc).
@@ -1356,6 +1326,9 @@ prover:list_to_assoc(List, Assoc) :-
   empty_assoc(Empty),
   foldl(prover:add_to_assoc, List, Empty, Assoc).
 
+
+%! prover:add_to_assoc(+Key, +InAssoc, -OutAssoc) is det
+
 prover:add_to_assoc(Key,InAssoc,OutAssoc) :-
   put_assoc(Key,InAssoc,{},OutAssoc).
 
@@ -1368,10 +1341,13 @@ prover:add_to_assoc(Key,InAssoc,OutAssoc) :-
 %  Test action mapping
 % -----------------------------------------------------------------------------
 %
-% Test action mapping used by prover:test/*.
-% Historically we mapped run -> merge to exercise extra post-run steps; those
-% semantics have been removed, so tests use the configured target action as-is.
+%! prover:test_action(+Action0, -Action) is det
+%
+% Map a configured target action to the action used by test harnesses.
+% Identity mapping (historically run was mapped to merge).
+
 prover:test_action(Action, Action).
+
 
 %! prover:test_target_success(+Target)
 %
@@ -1397,12 +1373,20 @@ prover:test_target_success(Target) :-
     printer:prove_plan([Target], _ProofAVL3, _ModelAVL3, _Plan3, _TriggersAVL3)
   ).
 
-%! prover:test(+Repository)
+
+%! prover:test(+Repository) is det
+%
+% Run a whole-repo prove test using the default test style.
+
 prover:test(Repository) :-
   config:test_style(Style),
   prover:test(Repository,Style).
 
-%! prover:test(+Repository,+Style)
+
+%! prover:test(+Repository, +Style) is det
+%
+% Run a whole-repo prove test with the given Style (sequential/parallel).
+
 prover:test(Repository,Style) :-
   config:proving_target(Action0),
   prover:test_action(Action0, Action),
@@ -1414,7 +1398,7 @@ prover:test(Repository,Style) :-
       scheduler:perf_reset
   ; true
   ),
-  prover:hook_perf_reset,
+  sampler:hook_perf_reset,
   tester:test(Style,
               'Proving',
               Repository://Entry,
@@ -1422,7 +1406,7 @@ prover:test(Repository,Style) :-
               ( Target = (Repository://Entry:Action?{[]}),
                 prover:test_target_success(Target)
               )),
-  prover:hook_perf_report,
+  sampler:hook_perf_report,
   ( current_predicate(printer:prove_plan_perf_report/0) ->
       printer:prove_plan_perf_report
   ; true
@@ -1432,12 +1416,20 @@ prover:test(Repository,Style) :-
   ; true
   ).
 
-%! prover:test_latest(+Repository)
+
+%! prover:test_latest(+Repository) is det
+%
+% Run a prove test over only the latest ebuild per package.
+
 prover:test_latest(Repository) :-
   config:test_style(Style),
   prover:test_latest(Repository,Style).
 
-%! prover:test_latest(+Repository,+Style)
+
+%! prover:test_latest(+Repository, +Style) is det
+%
+% Run a latest-ebuild prove test with the given Style.
+
 prover:test_latest(Repository,Style) :-
   config:proving_target(Action0),
   prover:test_action(Action0, Action),
@@ -1453,26 +1445,43 @@ prover:test_latest(Repository,Style) :-
 %  Testing + statistics
 % -----------------------------------------------------------------------------
 
-%! prover:test_stats(+Repository)
+
+%! prover:test_stats(+Repository) is det
+%
+% Run a whole-repo prove test with detailed statistics recording
+% and top-N reporting.
+
 prover:test_stats(Repository) :-
   config:test_style(Style),
   prover:test_stats(Repository, Style).
 
-%! prover:test_stats(+Repository,+TopN)
+
+%! prover:test_stats(+Repository, +TopN) is det
 %
-% Like prover:test_stats/1, but allows choosing the Top-N limit in the output.
+% Like test_stats/1, but allows choosing the Top-N limit in the output.
+
 prover:test_stats(Repository, TopN) :-
   integer(TopN),
   !,
   config:test_style(Style),
   prover:test_stats(Repository, Style, TopN).
 
-%! prover:test_stats(+Repository,+Style)
+
+%! prover:test_stats(+Repository, +Style) is det
+%
+% Run test_stats with the given Style and default TopN.
+
 prover:test_stats(Repository, Style) :-
   ( config:test_stats_top_n(TopN) -> true ; TopN = 25 ),
   prover:test_stats(Repository, Style, TopN).
 
-%! prover:test_stats(+Repository,+Style,+TopN)
+
+%! prover:test_stats(+Repository, +Style, +TopN) is det
+%
+% Core test_stats loop: proves each entry, records timing / inference /
+% rule-call / context-union costs, classifies failures, and prints the
+% TopN report at the end.
+
 prover:test_stats(Repository, Style, TopN) :-
   config:proving_target(Action0),
   prover:test_action(Action0, Action),
@@ -1534,6 +1543,7 @@ prover:test_stats(Repository, Style, TopN) :-
 %  Focused stats: run prover:test_stats for a specific list of Category/Name pairs
 % -----------------------------------------------------------------------------
 
+
 %! prover:test_stats_pkgs(+Repository, +Pkgs)
 %
 % Run test_stats for a specific list of packages, where Pkgs is a list of C-N pairs.
@@ -1542,6 +1552,11 @@ prover:test_stats_pkgs(Repository, Pkgs) :-
   config:test_style(Style),
   ( config:test_stats_top_n(TopN) -> true ; TopN = 25 ),
   prover:test_stats_pkgs(Repository, Style, TopN, Pkgs).
+
+
+%! prover:test_stats_pkgs(+Repository, +Style, +TopN, +Pkgs) is det
+%
+% Inner loop for focused test_stats over a specific list of packages.
 
 prover:test_stats_pkgs(Repository, Style, TopN, Pkgs) :-
   is_list(Pkgs),

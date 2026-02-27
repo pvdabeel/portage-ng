@@ -130,7 +130,7 @@ tester:test(parallel_verbose,Name,Repository://Item,Generator,Test,Report,Scroll
                           ( message:scroll_failure([Item,' (time limit exceeded)']),
                             with_mutex(mutex,(message:clean,message:warning([Item,' (time limit exceeded)']))),
                             % Best-effort: capture a short trace of what the prover was doing.
-                            ( current_predicate(prover:diagnose_timeout/3),
+                            ( current_predicate(sampler:diagnose_timeout/3),
                               config:proving_target(Action) ->
                                 % IMPORTANT: never let diagnostics failure turn a timeout into a "(failed)".
                                 % Use ignore/1 so lookup mismatches or other failures don't affect control flow.
@@ -138,7 +138,7 @@ tester:test(parallel_verbose,Name,Repository://Item,Generator,Test,Report,Scroll
                                   ( atom_concat(Repository,'://',RepoPrefix),
                                     atom_concat(RepoPrefix, Item, _),
                                     Target = (Repository://Item:Action?{[]}),
-                                    prover:diagnose_timeout(Target, 0.25, diagnosis(DeltaInf, RuleCalls, Trace)),
+                                    sampler:diagnose_timeout(Target, 0.25, diagnosis(DeltaInf, RuleCalls, Trace)),
                                     with_mutex(mutex,
                                       ( message:warning([' timeout diag: +',DeltaInf,' inferences, ',RuleCalls,' rule calls']),
                                         ( Trace == [] -> true
@@ -163,12 +163,12 @@ tester:test(parallel_verbose,Name,Repository://Item,Generator,Test,Report,Scroll
                         )
                       ; with_mutex(mutex,(message:clean,message:warning([Item,' (failed)']))),
                         % Also print a short trace for non-timeout failures.
-                        ( current_predicate(prover:diagnose_timeout/3),
+                        ( current_predicate(sampler:diagnose_timeout/3),
                           config:proving_target(Action) ->
                             % Best-effort only: diagnostics should never affect classification.
                             catch(ignore(
                               ( Target = (Repository://Item:Action?{[]}),
-                                prover:diagnose_timeout(Target, 0.25, diagnosis(DeltaInfF, RuleCallsF, TraceF)),
+                                sampler:diagnose_timeout(Target, 0.25, diagnosis(DeltaInfF, RuleCallsF, TraceF)),
                                 with_mutex(mutex,
                                   ( message:warning([' fail diag: +',DeltaInfF,' inferences, ',RuleCallsF,' rule calls']),
                                     ( TraceF == [] -> true

@@ -118,14 +118,12 @@ depclean:prove_required(Roots, RequiredInstalled) :-
 
 %! depclean:prove_required_(+Roots, -RequiredInstalled)
 %
-% Internal: run the prover with delayed triggers and extract required
-% installed entries from the resulting model.
+% Internal: run the prover and extract required installed entries from
+% the resulting model.
 
 depclean:prove_required_(Roots, RequiredInstalled) :-
   findall(Root:depclean?{[]}, member(Root, Roots), Proposal),
-  prover:with_delay_triggers(
-    prover:prove(Proposal, t, _ProofAVL, t, ModelAVL, t, _Constraints, t, _Triggers)
-  ),
+  prover:prove(Proposal, t, _ProofAVL, t, ModelAVL, t, _Constraints, t, _Triggers),
   prover:model_to_list(ModelAVL, ModelList),
   depclean:model_required_installed(ModelList, RequiredInstalled0),
   sort(RequiredInstalled0, RequiredInstalled).

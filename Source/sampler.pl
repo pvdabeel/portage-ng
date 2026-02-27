@@ -9,14 +9,19 @@
 
 
 /** <module> SAMPLER
-Lightweight performance sampling and instrumentation infrastructure.
+Lightweight performance sampling, instrumentation, and diagnostics.
 
 Provides periodic sampling with rate control and statistical extrapolation
 for measuring hot-path performance without adding significant overhead.
 
-Two subsystems:
+Subsystems:
+
   - Literal hook sampling: measures cost of PDEPEND hook processing (rules)
   - Context union sampling: measures cost of context list operations (prover)
+  - Hook performance counters: count-based metrics for domain literal hook
+    (done-hits, hook-fired, extra/fresh literals)
+  - Timeout diagnostics: best-effort trace capture and literal simplification
+    for diagnosing prover timeouts and failures
 */
 
 :- module(sampler, []).
@@ -265,3 +270,254 @@ sampler:ctx_union_sampled(L0, L1, L2) :-
   Add1 is Add0 + L0 + L1,
   nb_setval(prover_test_stats_ctx_cost_mul, Mul1),
   nb_setval(prover_test_stats_ctx_cost_add, Add1).
+
+
+% =============================================================================
+%  Hook performance counters (domain literal hook / PDEPEND)
+% =============================================================================
+%
+% Count-based counters for whole-repo runs via prover:test/*, to help answer:
+% is the slowdown due to hook work itself, or due to proving many more
+% literals?
+
+%! sampler:hook_perf_reset is det
+%
+% Reset all domain-hook performance counters.
+
+sampler:hook_perf_reset :-
+  flag(hook_perf_done_hits, _, 0),
+  flag(hook_perf_hook_fired, _, 0),
+  flag(hook_perf_extra_lits, _, 0),
+  flag(hook_perf_fresh_lits, _, 0),
+  sampler:literal_hook_perf_reset,
+  !.
+
+
+%! sampler:hook_perf_done_hit is det
+%
+% Increment the "hook already done" hit counter.
+
+sampler:hook_perf_done_hit :-
+  flag(hook_perf_done_hits, X, X+1),
+  !.
+
+
+%! sampler:hook_perf_hook_fired(+ExtraN) is det
+%
+% Increment hook-fired counter and add ExtraN to total extra literals.
+
+sampler:hook_perf_hook_fired(ExtraN) :-
+  flag(hook_perf_hook_fired, X, X+1),
+  flag(hook_perf_extra_lits, Y, Y+ExtraN),
+  !.
+
+
+%! sampler:hook_perf_fresh_selected(+FreshN) is det
+%
+% Add FreshN to the count of fresh (not-yet-proven) literals enqueued.
+
+sampler:hook_perf_fresh_selected(FreshN) :-
+  flag(hook_perf_fresh_lits, X, X+FreshN),
+  !.
+
+
+%! sampler:hook_perf_report is det
+%
+% Print accumulated domain-hook performance counters.
+
+sampler:hook_perf_report :-
+  flag(hook_perf_hook_fired, Fired, Fired),
+  flag(hook_perf_extra_lits, Extra, Extra),
+  flag(hook_perf_fresh_lits, Fresh, Fresh),
+  flag(hook_perf_done_hits, DoneHits, DoneHits),
+  nl,
+  message:scroll_notice(['Hook perf: fired=',Fired,
+                         ' extra_lits=',Extra,
+                         ' fresh_lits=',Fresh,
+                         ' done_hits=',DoneHits]),
+  nl,
+  sampler:literal_hook_perf_report,
+  !.
+
+
+% =============================================================================
+%  Timeout diagnostics (best-effort)
+% =============================================================================
+%
+% Used by tester on timeouts to capture a short "where were we" trace without
+% enabling full tracing (which is too expensive at scale).
+
+%! sampler:trace_simplify(+Item, -Simple) is det
+%
+% Reduce a literal to a compact, comparable representation for timeout
+% diagnostics.  Strips large sub-terms (bodies, USE-dep lists) so traces
+% stay small and loops become visible.
+
+sampler:trace_simplify(Item, Simple) :-
+  ( var(Item) ->
+      Simple = var
+  ; Item = required(U) ->
+      Simple = required(U)
+  ; Item = assumed(U) ->
+      Simple = assumed(U)
+  ; Item = naf(G) ->
+      ( G = required(U) -> Simple = naf_required(U)
+      ; G = blocking(U) -> Simple = naf_blocking(U)
+      ; Simple = naf
+      )
+  ; Item = conflict(A, _B) ->
+      Simple = conflict(A)
+  ; Item = Inner:Action,
+    atom(Action) ->
+      sampler:trace_simplify(Inner, InnerS),
+      Simple = act(Action, InnerS)
+  ; Item = constraint(Key:{_}) ->
+      Simple = constraint(Key)
+  ; Item = use_conditional_group(Sign, Use, Repo://Entry, Deps) ->
+      ( is_list(Deps) -> length(Deps, N) ; N = '?' ),
+      Simple = use_cond(Sign, Use, Repo://Entry, N)
+  ; Item = any_of_group(Deps) ->
+      ( is_list(Deps) -> length(Deps, N) ; N = '?' ),
+      Simple = any_of_group(N)
+  ; Item = exactly_one_of_group(Deps) ->
+      ( is_list(Deps) -> length(Deps, N) ; N = '?' ),
+      Simple = exactly_one_of_group(N)
+  ; Item = at_most_one_of_group(Deps) ->
+      ( is_list(Deps) -> length(Deps, N) ; N = '?' ),
+      Simple = at_most_one_of_group(N)
+  ; Item = grouped_package_dependency(Strength, C, N, PackageDeps) ->
+      ( PackageDeps = [package_dependency(Phase, _, _, _, _, _, SlotReq, _)|_] ->
+          Simple = gpd(Strength, Phase, C, N, SlotReq)
+      ; Simple = gpd(Strength, C, N)
+      )
+  ; Item = package_dependency(Phase, Strength, C, N, O, V, S, U) ->
+      ( is_list(U) -> length(U, UL) ; UL = '?' ),
+      Simple = pkgdep(Phase, Strength, C, N, O, V, S, usedeps(UL))
+  ; Item = Repo://Entry:Action ->
+      Simple = entry(Repo://Entry, Action)
+  ; Item = Repo://Entry ->
+      Simple = entry(Repo://Entry)
+  ; is_list(Item) ->
+      length(Item, N),
+      Simple = list(N)
+  ; compound(Item) ->
+      functor(Item, F, A),
+      Simple = functor(F/A)
+  ; Simple = Item
+  ).
+
+
+%! sampler:timeout_trace_reset is det
+%
+% Clear the timeout trace buffer.
+
+sampler:timeout_trace_reset :-
+  nb_setval(prover_timeout_trace, []).
+
+
+%! sampler:timeout_trace_push(+Item0) is det
+%
+% Push a simplified literal onto the timeout trace ring buffer,
+% updating frequency counters when enabled.
+
+sampler:timeout_trace_push(Item0) :-
+  ( nb_current(prover_timeout_count_assoc, A0) ->
+      ( get_assoc(Item0, A0, N0) -> true ; N0 = 0 ),
+      N is N0 + 1,
+      put_assoc(Item0, A0, N, A1),
+      nb_setval(prover_timeout_count_assoc, A1)
+  ; true
+  ),
+  ( nb_current(prover_timeout_trace, L0) -> true ; L0 = [] ),
+  L1 = [Item0|L0],
+  ( nb_current(prover_timeout_trace_maxlen, MaxLen) -> true ; MaxLen = 200 ),
+  length(L1, Len),
+  ( Len =< MaxLen ->
+      nb_setval(prover_timeout_trace, L1)
+  ; length(Keep, MaxLen),
+    append(Keep, _Drop, L1),
+    nb_setval(prover_timeout_trace, Keep)
+  ).
+
+
+%! sampler:timeout_trace_hook(+Target, +Proof, +Model, +Constraints) is det
+%
+% Debug-hook callback that records simplified literals into the
+% timeout trace and frequency counters.
+
+sampler:timeout_trace_hook(Target, _Proof, _Model, _Constraints) :-
+  ( catch(prover:canon_literal(Target, Lit0, _Ctx), _, fail) ->
+      Lit = Lit0
+  ; Lit = Target
+  ),
+  sampler:trace_simplify(Lit, Simple),
+  ( nb_current(prover_timeout_count_assoc, A0) ->
+      ( get_assoc(Simple, A0, N0) -> true ; N0 = 0 ),
+      N is N0 + 1,
+      put_assoc(Simple, A0, N, A1),
+      nb_setval(prover_timeout_count_assoc, A1)
+  ; true
+  ),
+  sampler:timeout_trace_push(Simple).
+
+
+%! sampler:diagnose_timeout(+Target, +LimitSec, -Diagnosis) is det
+%
+% Run a short best-effort diagnosis for Target with a time limit of
+% LimitSec seconds.  Always succeeds; returns a
+% `diagnosis(DeltaInferences, RuleCalls, Trace)` term.
+
+sampler:diagnose_timeout(Target, LimitSec, diagnosis(DeltaInferences, RuleCalls, Trace)) :-
+  sampler:timeout_trace_reset,
+  sampler:test_stats_reset_counters,
+  statistics(inferences, I0),
+  ( catch(
+      prover:with_debug_hook(sampler:timeout_trace_hook,
+        call_with_time_limit(LimitSec,
+          prover:prove(Target, t, _Proof, t, _Model, t, _Cons, t, _Triggers)
+        )
+      ),
+      time_limit_exceeded,
+      true
+    )
+  -> true
+  ;  true
+  ),
+  statistics(inferences, I1),
+  DeltaInferences is I1 - I0,
+  sampler:test_stats_get_counters(rule_calls(RuleCalls)),
+  ( nb_current(prover_timeout_trace, TraceRev) -> reverse(TraceRev, Trace) ; Trace = [] ).
+
+
+%! sampler:diagnose_timeout_counts(+Target, +LimitSec, -Diagnosis, -TopCounts) is det
+%
+% Like diagnose_timeout/3, but also returns a TopCounts list
+% (up to 20) of the most frequent simplified literals seen during
+% the run.
+
+sampler:diagnose_timeout_counts(Target, LimitSec, Diagnosis, TopCounts) :-
+  empty_assoc(A0),
+  nb_setval(prover_timeout_count_assoc, A0),
+  sampler:diagnose_timeout(Target, LimitSec, Diagnosis),
+  ( nb_current(prover_timeout_count_assoc, A1) -> true ; A1 = A0 ),
+  nb_delete(prover_timeout_count_assoc),
+  ( catch(
+      call_with_time_limit(1.0,
+        ( findall(N-S,
+                  gen_assoc(S, A1, N),
+                  Pairs0),
+          keysort(Pairs0, PairsAsc),
+          reverse(PairsAsc, Pairs),
+          length(Pairs, Len),
+          ( Len > 20 ->
+              length(TopCounts, 20),
+              append(TopCounts, _Rest, Pairs)
+          ; TopCounts = Pairs
+          )
+        )),
+      time_limit_exceeded,
+      TopCounts = []
+    )
+  -> true
+  ; TopCounts = []
+  ).

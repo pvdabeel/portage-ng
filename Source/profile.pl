@@ -48,17 +48,28 @@ profile_use_terms(ProfileRel, Terms) :-
   profile_collect(Dirs, Data),
   profile_finalize(Data, Terms).
 
-% Expose effective global use.mask/use.force sets for a profile chain.
-% These are useful for Portage-like display markers (e.g. '%' in emerge output).
+
+%! profile_use_mask(+ProfileRel, -MaskedFlags:list)
+%
+% Return the effective global use.mask set for the profile chain rooted
+% at ProfileRel.  Useful for Portage-like display markers (e.g. '%').
+
 profile_use_mask(ProfileRel, Mask) :-
   profile_dirs(ProfileRel, Dirs),
   profile_collect(Dirs, st(_Enabled,_Disabled,_Force,Mask)),
   !.
 
+
+%! profile_use_force(+ProfileRel, -ForcedFlags:list)
+%
+% Return the effective global use.force set for the profile chain rooted
+% at ProfileRel.
+
 profile_use_force(ProfileRel, Force) :-
   profile_dirs(ProfileRel, Dirs),
   profile_collect(Dirs, st(_Enabled,_Disabled,Force,_Mask)),
   !.
+
 
 %! profile_package_mask_atoms(+ProfileRel, -Atoms:list)
 %
@@ -149,20 +160,42 @@ write_profile_use_file(File) :-
 % Internal: resolve profile inheritance chain
 % -----------------------------------------------------------------------------
 
+
+%! profiles_root(-ProfilesRoot) is det
+%
+% Resolve the absolute path to the profiles/ directory inside the
+% configured Portage tree.
+
 profiles_root(ProfilesRoot) :-
-  % Resolve Portage tree location from the configured repository instance.
-  % (Host config registers `portage` repository.)
   portage:get_location(PortageRoot),
   os:compose_path(PortageRoot, 'profiles', ProfilesRoot).
+
+
+%! profile_dir(+ProfileRel, -Dir) is det
+%
+% Map a profile-relative path to its absolute directory.
 
 profile_dir(ProfileRel, Dir) :-
   profiles_root(Root),
   os:compose_path(Root, ProfileRel, Dir).
 
+
+%! profile_dirs(+ProfileRel, -Dirs:list) is det
+%
+% Compute the full profile inheritance chain (root-first) for ProfileRel
+% by following `parent` files recursively.
+
 profile_dirs(ProfileRel, Dirs) :-
   profile_dir(ProfileRel, LeafDir),
   profile_dirs_from_dir(LeafDir, [], Rev),
   reverse(Rev, Dirs).
+
+
+%! profile_dirs_from_dir(+Dir, +Seen0, -Seen) is det
+%
+% Recursive worker for profile_dirs/2.  Follows `parent` file entries
+% and falls back to implicit filesystem-parent inheritance when no
+% `parent` file exists but the parent directory looks like a valid profile.
 
 profile_dirs_from_dir(Dir, Seen, Seen) :-
   memberchk(Dir, Seen),
@@ -188,8 +221,13 @@ profile_dirs_from_dir(Dir, Seen0, Seen) :-
     )
   ).
 
-% Compute an implicit parent profile directory for Dir.
-% Only succeeds when the parent directory appears to be a valid profile dir.
+
+%! profile_implicit_parent_dir(+Dir, -ParentDir) is semidet
+%
+% Compute an implicit parent profile directory for Dir.  Only succeeds
+% when the filesystem parent is still inside profiles/ and contains
+% make.defaults or a parent file.
+
 profile_implicit_parent_dir(Dir, ParentDir) :-
   directory_file_path(Dir, '..', ParentDir0),
   absolute_file_name(ParentDir0, ParentDir, [file_type(directory), access(read)]),
@@ -203,37 +241,75 @@ profile_implicit_parent_dir(Dir, ParentDir) :-
   ),
   !.
 
+
+%! parent_file(+Dir, -ParentFile) is det
+%
+% Path to the `parent` file inside a profile directory.
+
 parent_file(Dir, ParentFile) :-
   os:compose_path(Dir, 'parent', ParentFile).
 
-% Global (tree-wide) package.mask and package.unmask live under profiles/.
+
+%! global_package_mask_file(-File) is det
+%
+% Path to the tree-wide profiles/package.mask file.
+
 global_package_mask_file(File) :-
   profiles_root(Root),
   os:compose_path(Root, 'package.mask', File).
+
+
+%! global_package_unmask_file(-File) is det
+%
+% Path to the tree-wide profiles/package.unmask file.
 
 global_package_unmask_file(File) :-
   profiles_root(Root),
   os:compose_path(Root, 'package.unmask', File).
 
+
+%! package_mask_file(+Dir, -File) is det
+%
+% Path to the package.mask file inside a profile directory.
+
 package_mask_file(Dir, File) :-
   os:compose_path(Dir, 'package.mask', File).
+
+
+%! package_unmask_file(+Dir, -File) is det
+%
+% Path to the package.unmask file inside a profile directory.
 
 package_unmask_file(Dir, File) :-
   os:compose_path(Dir, 'package.unmask', File).
 
-% Strip '#' comments (Gentoo profile file style).
+
+%! profile_strip_comment(+S0, -S) is det
+%
+% Strip '#' comments from a line (Gentoo profile file style).
+
 profile_strip_comment(S0, S) :-
   ( sub_string(S0, Before, _, _, "#") ->
       sub_string(S0, 0, Before, _, S)
   ; S = S0
   ).
 
+
+%! profile_comment_or_empty(+Line) is semidet
+%
+% Succeeds when Line is empty or starts with '#'.
+
 profile_comment_or_empty(Line) :-
   Line == '' ;
   sub_string(Line, 0, 1, _, "#").
 
+
+%! profile_parent_dir(+ChildDir, +ParentRel0, +Seen0, -Seen) is det
+%
+% Resolve a single parent-relative path from a `parent` file entry and
+% recurse into its profile chain.  Used as foldl/4 goal.
+
 profile_parent_dir(ChildDir, ParentRel0, Seen0, Seen) :-
-  % Parent entries are paths relative to the current profile dir.
   normalize_space(string(ParentRel), ParentRel0),
   ( ParentRel == '' ->
       Seen = Seen0
@@ -247,8 +323,12 @@ profile_parent_dir(ChildDir, ParentRel0, Seen0, Seen) :-
 % Internal: parse profile files
 % -----------------------------------------------------------------------------
 
-% Read a package.mask/package.unmask style file and return its atoms in order.
-% Keeps leading '-' for incremental unmask operations.
+
+%! profile_read_atoms_file(+File, -Atoms:list) is det
+%
+% Read a package.mask / package.unmask style file and return its atoms
+% in order, preserving leading '-' for incremental unmask operations.
+
 profile_read_atoms_file(File, Atoms) :-
   read_file_to_string(File, S, []),
   split_string(S, "\n", "\r\n", Lines0),
@@ -262,8 +342,21 @@ profile_read_atoms_file(File, Atoms) :-
           ),
           Atoms).
 
+
+%! profile_collect(+Dirs, -Data) is det
+%
+% Fold over the profile directory chain (root-first) and accumulate
+% the enabled/disabled USE flags plus use.force and use.mask sets into
+% a st(Enabled, Disabled, Force, Mask) term.
+
 profile_collect(Dirs, st(Enabled, Disabled, Force, Mask)) :-
   foldl(profile_collect_dir, Dirs, st([], [], [], []), st(Enabled, Disabled, Force, Mask)).
+
+
+%! profile_collect_dir(+Dir, +State0, -State) is det
+%
+% Process a single profile directory: parse make.defaults for USE ops,
+% then parse use.force and use.mask, threading the accumulator state.
 
 profile_collect_dir(Dir, st(E0, D0, F0, M0), st(E, D, F, M)) :-
   parse_make_defaults_ops(Dir, UseOps),
@@ -273,6 +366,12 @@ profile_collect_dir(Dir, st(E0, D0, F0, M0), st(E, D, F, M)) :-
   parse_use_op_file(Dir, 'use.mask', MaskOps),
   apply_set_ops(MaskOps, M0, M),
   E = E1, D = D1.
+
+
+%! parse_make_defaults_ops(+Dir, -Ops:list) is det
+%
+% Parse make.defaults in Dir and return a list of op(add,Flag) /
+% op(del,Flag) terms for USE and USE_EXPAND variables.
 
 parse_make_defaults_ops(Dir, Ops) :-
   os:compose_path(Dir, 'make.defaults', File),
@@ -305,6 +404,12 @@ parse_make_defaults_ops(Dir, Ops) :-
   ; Ops = []
   ).
 
+
+%! parse_use_op_file(+Dir, +Basename, -Ops:list) is det
+%
+% Parse a use.mask or use.force file (identified by Basename) in Dir
+% and return add/del operations for the flags it lists.
+
 parse_use_op_file(Dir, Basename, Ops) :-
   os:compose_path(Dir, Basename, File),
   ( exists_file(File) ->
@@ -329,6 +434,13 @@ parse_use_op_file(Dir, Basename, Ops) :-
               Ops)
   ; Ops = []
   ).
+
+
+%! make_defaults_kv(+S, -KV) is det
+%
+% Parse a make.defaults string S into a dict mapping upper-cased
+% variable names to lists of value strings.  Handles `export`, quoting,
+% assignment operators (+=, ?=, :=), and '#' comments.
 
 make_defaults_kv(S, KV) :-
       split_string(S, "\n", "\r\n", Lines0),
@@ -359,8 +471,13 @@ make_defaults_kv(S, KV) :-
   dict_create(KV0, kv, []),
   foldl(kv_add, Pairs, KV0, KV).
 
+
+%! valid_key_string(+K1) is semidet
+%
+% Succeeds when K1 is a non-empty alphanumeric-or-underscore string
+% (a valid make.defaults variable name).
+
 valid_key_string(K1) :-
-  % Keep this conservative: only accept typical variable names.
   string_codes(K1, Cs),
   Cs \== [],
   forall(member(C, Cs),
@@ -368,13 +485,12 @@ valid_key_string(K1) :-
          ; C =:= 0'_
          )).
 
-% Handle make.defaults assignment operators like:
-%   USE+=...
-%   USE_EXPAND+=...
-%   VAR?=...
-%   VAR:=...
-% We already split at the first '=', so the operator (if present) is the last
-% character of the key string.
+
+%! strip_key_operator(+K0, -K) is det
+%
+% Strip trailing assignment operators (+, ?, :) from a make.defaults
+% variable name.  E.g. "USE+" becomes "USE".
+
 strip_key_operator(K0, K) :-
   ( sub_string(K0, 0, L, 0, K),
     L > 0,
@@ -384,6 +500,11 @@ strip_key_operator(K0, K) :-
   ; K = K0
   ).
 
+
+%! kv_add(+K-V, +KV0, -KV) is det
+%
+% Append value V to the list stored under key K in dict KV0.
+
 kv_add(K-V, KV0, KV) :-
   ( get_dict(K, KV0, Vs0) ->
       append(Vs0, [V], Vs),
@@ -391,12 +512,22 @@ kv_add(K-V, KV0, KV) :-
   ; put_dict(K, KV0, [V], KV)
   ).
 
+
+%! kv_get_join(+KV, +Key, -Joined:string) is semidet
+%
+% Look up Key in KV dict and join all stored values with spaces.
+
 kv_get_join(KV, Key, Joined) :-
   get_dict(Key, KV, Vs),
   Vs \== [],
   maplist(atom_string, As, Vs),
   atomic_list_concat(As, ' ', Atom),
   atom_string(Atom, Joined).
+
+
+%! unquote(+S0, -S) is det
+%
+% Remove matching outer quotes (single or double) from S0.
 
 unquote(S0, S) :-
   string_length(S0, L),
@@ -409,6 +540,12 @@ unquote(S0, S) :-
       sub_string(S0, 1, L2, 1, S)
   ; S = S0
   ).
+
+
+%! parse_default_use_ops(+S, -Ops:list) is det
+%
+% Parse a USE string from make.defaults into a list of op(add,Flag) /
+% op(del,Flag) terms.  Tokens prefixed with '-' produce del operations.
 
 parse_default_use_ops(S, Ops) :-
   split_string(S, " ", "\t\r\n ", Parts0),
@@ -428,8 +565,13 @@ parse_default_use_ops(S, Ops) :-
           ),
           Ops).
 
+
+%! valid_use_token(+P) is semidet
+%
+% Succeeds when P is a genuine USE flag token (not a shell placeholder,
+% wildcard, or conditional syntax fragment).
+
 valid_use_token(P) :-
-  % Ignore shell placeholders and wildcard markers from make.defaults
   \+ sub_string(P, _, _, _, "$"),
   \+ sub_string(P, _, _, _, "{"),
   \+ sub_string(P, _, _, _, "}"),
@@ -442,16 +584,26 @@ valid_use_token(P) :-
   normalize_space(string(P1), P),
   P1 \== "".
 
+
+%! strip_leading_dashes(+P0, -Name) is det
+%
+% Strip all leading '-' characters.  Portage profiles sometimes use
+% "--foo" in incremental vars; all leading dashes are negation markers.
+
 strip_leading_dashes(P0, Name) :-
-  % Portage profiles sometimes use patterns like "--foo" in incremental vars.
-  % Treat any leading '-' as negation marker(s).
   ( sub_string(P0, 0, 1, Rest, "-") ->
       sub_string(P0, 1, Rest, 0, P1),
       strip_leading_dashes(P1, Name)
   ; Name = P0
   ).
+
+
+%! use_expand_flag(+VarU, +ValStr, -Flag) is nondet
+%
+% For a USE_EXPAND variable VarU (e.g. 'VIDEO_CARDS') and its value
+% string, unify Flag with each expanded flag atom (e.g. video_cards_vmware).
+
 use_expand_flag(VarU, ValStr, Flag) :-
-  % VarU is e.g. 'VIDEO_CARDS'
   atom(VarU),
   atom_string(VarU, VarUStr),
   split_string(ValStr, " ", "\t\r\n ", Parts0),
@@ -463,6 +615,13 @@ use_expand_flag(VarU, ValStr, Flag) :-
   atom_string(Token, P),
   atomic_list_concat([VarLower, Token], '_', Flag).
 
+
+%! apply_default_use_ops(+Ops, +E0, +D0, -E, -D) is det
+%
+% Apply a list of add/del USE operations to the ordered Enabled/Disabled
+% sets.  An `add` moves a flag from Disabled to Enabled; a `del` does
+% the reverse.
+
 apply_default_use_ops([], E, D, E, D).
 apply_default_use_ops([op(add, Flag)|Ops], E0, D0, E, D) :-
   ord_add_element(E0, Flag, E1),
@@ -472,6 +631,12 @@ apply_default_use_ops([op(del, Flag)|Ops], E0, D0, E, D) :-
   ord_del_element(E0, Flag, E1),
   ord_add_element(D0, Flag, D1),
   apply_default_use_ops(Ops, E1, D1, E, D).
+
+
+%! apply_set_ops(+Ops, +S0, -S) is det
+%
+% Apply add/del operations to an ordered set (used for use.mask and
+% use.force accumulation).
 
 apply_set_ops([], S, S).
 apply_set_ops([op(add, Flag)|Ops], S0, S) :-
@@ -485,6 +650,14 @@ apply_set_ops([op(del, Flag)|Ops], S0, S) :-
 % -----------------------------------------------------------------------------
 % Internal: normalize to preference:profile_use/1 terms
 % -----------------------------------------------------------------------------
+
+
+%! profile_finalize(+State, -Terms:list) is det
+%
+% Convert the accumulated st(Enabled, Disabled, Force, Mask) state into
+% a list of preference:profile_use/1 terms.  Applies Portage-like
+% precedence: use.mask wins over use.force unless explicitly unmasked
+% in a child profile.
 
 profile_finalize(st(Enabled0, Disabled0, Force0, Mask0), Terms) :-
   sort(Enabled0, Enabled),

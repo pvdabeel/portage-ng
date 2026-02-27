@@ -5105,11 +5105,7 @@ printer:prove_plan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
 
 printer:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
   statistics(walltime, [T0,_]),
-  % PDEPEND handling proves substantially more literals, making incremental
-  % trigger maintenance expensive. Force delayed trigger construction.
-  prover:with_delay_triggers(
-    prover:prove(Goals, t, ProofAVL, t, ModelAVL, t, _Constraints, t, TriggersAVL)
-  ),
+  prover:prove(Goals, t, ProofAVL, t, ModelAVL, t, _Constraints, t, TriggersAVL),
   statistics(walltime, [T1,_]),
   ProveMs is T1 - T0,
   statistics(walltime, [T2,_]),
