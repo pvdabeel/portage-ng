@@ -56,8 +56,8 @@ sandbox:safe_primitive(prover:proving(_,_)).
 sandbox:safe_primitive(prover:assumed_proving(_,_)).
 sandbox:safe_primitive(prover:conflicts(_,_)).
 sandbox:safe_primitive(prover:conflictrule(_,_)).
-sandbox:safe_primitive(prover:is_constraint(_)).
-sandbox:safe_primitive(prover:unify_constraints(_,_,_)).
+sandbox:safe_primitive(constraint:is_constraint(_)).
+sandbox:safe_primitive(constraint:unify_constraints(_,_,_)).
 
 sandbox:safe_primitive(rules:rule(_,_)).
 

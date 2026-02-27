@@ -4151,11 +4151,109 @@ rules:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps, Context) :-
   ( SelectedCandidates == [],
     rules:reason_linked_selected_reprove_target(Reasons, SourceC, SourceN, SourceCandidates)
   ->
-    throw(rules_reprove_cn_domain(SourceC, SourceN, none, SourceCandidates, Reasons))
-  ; throw(rules_reprove_cn_domain(C, N, RejectDomain, SelectedCandidates, Reasons))
+    throw(prover_reprove(cn_domain(SourceC, SourceN, none, SourceCandidates, Reasons)))
+  ; throw(prover_reprove(cn_domain(C, N, RejectDomain, SelectedCandidates, Reasons)))
   ).
 rules:maybe_request_grouped_dep_reprove(_Action, _C, _N, _PackageDeps, _Context) :-
   fail.
+
+% -----------------------------------------------------------------------------
+%  Prover reprove hooks (domain-agnostic interface)
+% -----------------------------------------------------------------------------
+
+%! rules:handle_reprove(+Info, -Added) is det.
+%
+% Called by the prover when a `prover_reprove(Info)` exception is caught.
+% Processes the domain-specific conflict information and returns whether
+% new rejects were added (`Added = true`) so the prover can decide to retry.
+
+rules:handle_reprove(cn_domain(C, N, Domain, Candidates, Reasons), Added) :-
+  rules:add_cn_domain_rejects(C, N, Domain, Candidates, AddedDomain),
+  ( Candidates == [] ->
+      rules:add_cn_domain_origin_rejects(Reasons, AddedOrigins)
+  ; AddedOrigins = false
+  ),
+  ( AddedDomain == true -> Added = true
+  ; AddedOrigins == true -> Added = true
+  ; Added = false
+  ),
+  !.
+rules:handle_reprove(_, false).
+
+
+%! rules:reprove_exhausted is det.
+%
+% Called by the prover when reprove retries are exhausted.  Clears the
+% reject map so the final prove runs clean (prevents source-linked rejects
+% from causing assumptions at the wrong level).
+
+rules:reprove_exhausted :-
+  empty_assoc(EmptyRejects),
+  nb_setval(rules_cn_domain_rejects, EmptyRejects),
+  !.
+
+
+%! rules:reprove_init_state is det.
+%
+% Initialise domain-specific reprove state.  Called by the prover at the
+% start of a reprove-enabled proof.  Saves current state and installs
+% fresh empty globals.
+
+rules:reprove_init_state :-
+  ( nb_current(rules_cn_domain_reprove_enabled, OldEnabled) -> true ; OldEnabled = '$absent' ),
+  ( nb_current(rules_cn_domain_rejects, OldRejects) -> true ; OldRejects = '$absent' ),
+  ( nb_current(rules_selected_cn_snapshot, OldSelectedSnap) -> true ; OldSelectedSnap = '$absent' ),
+  ( nb_current(rules_blocked_cn_source_snapshot, OldBlockedSourceSnap) -> true ; OldBlockedSourceSnap = '$absent' ),
+  nb_setval(rules_reprove_saved_state, state(OldEnabled, OldRejects, OldSelectedSnap, OldBlockedSourceSnap)),
+  empty_assoc(EmptyAssoc),
+  nb_setval(rules_cn_domain_reprove_enabled, true),
+  nb_setval(rules_cn_domain_rejects, EmptyAssoc),
+  nb_setval(rules_selected_cn_snapshot, EmptyAssoc),
+  nb_setval(rules_blocked_cn_source_snapshot, EmptyAssoc),
+  !.
+
+
+%! rules:reprove_cleanup_state is det.
+%
+% Restore domain-specific reprove state saved by reprove_init_state/0.
+
+rules:reprove_cleanup_state :-
+  ( nb_current(rules_reprove_saved_state, state(OldEnabled, OldRejects, OldSelectedSnap, OldBlockedSourceSnap)) ->
+      ( OldEnabled == '$absent' -> nb_delete(rules_cn_domain_reprove_enabled) ; nb_setval(rules_cn_domain_reprove_enabled, OldEnabled) ),
+      ( OldRejects == '$absent' -> nb_delete(rules_cn_domain_rejects) ; nb_setval(rules_cn_domain_rejects, OldRejects) ),
+      ( OldSelectedSnap == '$absent' -> nb_delete(rules_selected_cn_snapshot) ; nb_setval(rules_selected_cn_snapshot, OldSelectedSnap) ),
+      ( OldBlockedSourceSnap == '$absent' -> nb_delete(rules_blocked_cn_source_snapshot) ; nb_setval(rules_blocked_cn_source_snapshot, OldBlockedSourceSnap) ),
+      nb_delete(rules_reprove_saved_state)
+  ; true
+  ),
+  !.
+
+
+%! rules:reprove_disable is det.
+%
+% Disable reprove (used for final-attempt clean prove).
+
+rules:reprove_disable :-
+  ( nb_current(rules_cn_domain_reprove_enabled, Old) -> true ; Old = '$absent' ),
+  nb_setval(rules_reprove_disable_saved, Old),
+  nb_setval(rules_cn_domain_reprove_enabled, false),
+  !.
+
+
+%! rules:reprove_enable is det.
+%
+% Restore reprove state after a reprove_disable/0 call.
+
+rules:reprove_enable :-
+  ( nb_current(rules_reprove_disable_saved, Old) ->
+      ( Old == '$absent' -> nb_delete(rules_cn_domain_reprove_enabled)
+      ; nb_setval(rules_cn_domain_reprove_enabled, Old)
+      ),
+      nb_delete(rules_reprove_disable_saved)
+  ; true
+  ),
+  !.
+
 
 % -----------------------------------------------------------------------------
 %  Scoped CN-domain reject map (used by bounded reprove retries)
@@ -4246,7 +4344,7 @@ rules:maybe_request_cn_domain_reprove(C, N, Domain, Selected, Reasons) :-
           Candidates0),
   sort(Candidates0, Candidates),
   Candidates \== [],
-  throw(rules_reprove_cn_domain(C, N, Domain, Candidates, Reasons)).
+  throw(prover_reprove(cn_domain(C, N, Domain, Candidates, Reasons))).
 rules:maybe_request_cn_domain_reprove(_C, _N, _Domain, _Selected, _Reasons) :-
   true.
 
@@ -4413,6 +4511,29 @@ rules:canon_any_same_slot_meta(Meta0, [slot(S)]) :-
   !.
 
 % -----------------------------------------------------------------------------
+%  Constraint unification hook (domain hook called by prover)
+% -----------------------------------------------------------------------------
+%
+% Called by the prover before generic constraint merging for domain-specific
+% merge semantics.  If it succeeds, the prover uses the resulting constraints.
+
+%! rules:constraint_unify_hook(+Key, +Value, +Constraints, -NewConstraints) is semidet.
+%
+% Domain-specific constraint merge for `cn_domain(C,N)` keys: normalises
+% the incoming version domain and intersects it with any existing domain
+% via `version_domain:domain_meet/3`.
+
+rules:constraint_unify_hook(cn_domain(C,N), DomainDelta0, Constraints, NewConstraints) :-
+  !,
+  version_domain:domain_normalize(DomainDelta0, DomainDelta),
+  ( get_assoc(cn_domain(C,N), Constraints, CurrentDomain, Constraints1, CurrentDomain) ->
+      version_domain:domain_meet(CurrentDomain, DomainDelta, MergedDomain),
+      put_assoc(cn_domain(C,N), Constraints1, MergedDomain, NewConstraints)
+  ; put_assoc(cn_domain(C,N), Constraints, DomainDelta, NewConstraints)
+  ).
+
+
+% -----------------------------------------------------------------------------
 %  Constraint guard (domain hook called by prover)
 % -----------------------------------------------------------------------------
 %
@@ -4531,7 +4652,7 @@ rules:maybe_learn_parent_narrowing(C, N, PackageDeps, Context) :-
   prover:learn(cn_domain(ParentC, ParentN, any), ExcludeDomain, Added),
   Added == true,
   rules:cn_domain_reprove_enabled,
-  throw(rules_reprove_cn_domain(ParentC, ParentN, none, [ParentRepo://ParentEntry], [parent_narrowing])).
+  throw(prover_reprove(cn_domain(ParentC, ParentN, none, [ParentRepo://ParentEntry], [parent_narrowing]))).
 
 % A PDEPEND failure should not cause parent narrowing. PDEPENDs are
 % post-dependencies: their unsatisfiability does not mean the parent
@@ -4573,7 +4694,7 @@ rules:selected_cn_not_blocked_or_reprove(C, N, _Specs, _Selected, Constraints) :
   rules:cn_domain_reprove_enabled,
   rules:blocked_cn_source_reprove_target(C, N, Constraints, SourceC, SourceN, Candidates),
   Candidates \== [],
-  throw(rules_reprove_cn_domain(SourceC, SourceN, none, Candidates, [])).
+  throw(prover_reprove(cn_domain(SourceC, SourceN, none, Candidates, []))).
 rules:selected_cn_not_blocked_or_reprove(_C, _N, _Specs, _Selected, _Constraints) :-
   fail.
 

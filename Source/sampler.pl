@@ -208,15 +208,83 @@ sampler:test_stats_get_ctx_distribution(ctx_len_hist(HistPairs),
 
 
 % =============================================================================
+%  Context union: raw implementation + self/1 helpers
+% =============================================================================
+
+%! sampler:ctx_union_raw(+OldCtx, +Ctx, -NewCtx) is det.
+%
+% Raw context union that strips `self/1` provenance before merging
+% to prevent unbounded accumulation through repeated refinements.
+
+sampler:ctx_union_raw(OldCtx, Ctx, NewCtx) :-
+  sampler:ctx_strip_self(OldCtx, OldNoSelf),
+  sampler:ctx_strip_self_keep_one(Ctx, SelfTerm, CtxNoSelf),
+  feature_unification:unify(OldNoSelf, CtxNoSelf, Merged),
+  sampler:ctx_prepend_self(SelfTerm, Merged, NewCtx),
+  !.
+
+
+%! sampler:ctx_strip_self(+Ctx0, -Ctx) is det.
+%
+% Remove all `self/1` terms from a context list.
+
+sampler:ctx_strip_self(Ctx0, Ctx) :-
+  ( is_list(Ctx0) ->
+      exclude(sampler:is_self_term, Ctx0, Ctx)
+  ; Ctx = Ctx0
+  ),
+  !.
+
+sampler:is_self_term(self(_)).
+
+
+%! sampler:ctx_strip_self_keep_one(+Ctx0, -SelfTerm, -Ctx) is det.
+%
+% Extract the first `self/1` term from Ctx0 and remove all others.
+
+sampler:ctx_strip_self_keep_one(Ctx0, SelfTerm, Ctx) :-
+  ( is_list(Ctx0) ->
+      sampler:ctx_extract_self(Ctx0, SelfTerm, Ctx)
+  ; SelfTerm = none,
+    Ctx = Ctx0
+  ),
+  !.
+
+
+%! sampler:ctx_extract_self(+Ctx0, -Self, -Ctx) is det.
+%
+% Extract the first `self(S)` from Ctx0 into Self, removing all others.
+
+sampler:ctx_extract_self([], none, []).
+sampler:ctx_extract_self([self(S)|T], self(S), Rest) :-
+  !, exclude(sampler:is_self_term, T, Rest).
+sampler:ctx_extract_self([H|T], Self, [H|Rest]) :-
+  sampler:ctx_extract_self(T, Self, Rest).
+
+
+%! sampler:ctx_prepend_self(+SelfTerm, +Ctx0, -Ctx) is det.
+%
+% Prepend a previously extracted `self/1` term back onto a context list.
+
+sampler:ctx_prepend_self(none, Ctx, Ctx) :- !.
+sampler:ctx_prepend_self(self(S), Ctx0, Ctx) :-
+  ( is_list(Ctx0) ->
+      Ctx = [self(S)|Ctx0]
+  ; Ctx = Ctx0
+  ),
+  !.
+
+
+% =============================================================================
 %  Context union instrumentation (sampled)
 % =============================================================================
 %
-% Wraps prover:ctx_union_raw/3 with periodic sampling of input/output lengths,
+% Wraps sampler:ctx_union_raw/3 with periodic sampling of input/output lengths,
 % timing, and cost metrics. Only active during test_stats runs.
 
 %! sampler:ctx_union(+OldCtx, +Ctx, -NewCtx) is det.
 %
-% Instrumented wrapper around `prover:ctx_union_raw/3`. When a test_stats
+% Instrumented wrapper around `sampler:ctx_union_raw/3`. When a test_stats
 % run is active, periodically samples input/output list lengths, wall-clock
 % timing, and cost metrics (every 64th call after the first 16). Outside
 % a test_stats run, delegates directly to ctx_union_raw.
@@ -229,7 +297,7 @@ sampler:ctx_union(OldCtx, Ctx, NewCtx) :-
           ( is_list(OldCtx) -> length(OldCtx, L0) ; L0 = 0 ),
           ( is_list(Ctx)    -> length(Ctx, L1)    ; L1 = 0 ),
           statistics(walltime, [T0,_]),
-          prover:ctx_union_raw(OldCtx, Ctx, NewCtx),
+          sampler:ctx_union_raw(OldCtx, Ctx, NewCtx),
           statistics(walltime, [T1,_]),
           Dt is T1 - T0,
           ( is_list(NewCtx) -> length(NewCtx, L2) ; L2 = 0 ),
@@ -246,9 +314,9 @@ sampler:ctx_union(OldCtx, Ctx, NewCtx) :-
           nb_setval(prover_test_stats_ctx_max_len,    M),
           sampler:ctx_union_sampled(L0, L1, L2)
       ;
-          prover:ctx_union_raw(OldCtx, Ctx, NewCtx)
+          sampler:ctx_union_raw(OldCtx, Ctx, NewCtx)
       )
-  ; prover:ctx_union_raw(OldCtx, Ctx, NewCtx)
+  ; sampler:ctx_union_raw(OldCtx, Ctx, NewCtx)
   ).
 
 

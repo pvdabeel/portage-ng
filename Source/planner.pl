@@ -125,7 +125,7 @@ planner:build_depcounts_and_ready([Rule|Rest], PlannedHeads, ProofAVL, InCounts,
 planner:calculate_action_dependencies([], 0).
 planner:calculate_action_dependencies([Dep|Rest], Count) :-
     calculate_action_dependencies(Rest, RestCount),
-    (   prover:is_constraint(Dep) -> Count = RestCount ; Count is RestCount + 1 ).
+    (   constraint:is_constraint(Dep) -> Count = RestCount ; Count is RestCount + 1 ).
 
 
 %! planner:plan_loop(+Queues, +Counts, +Triggers, +ProofAVL, +Planned, +Plan,

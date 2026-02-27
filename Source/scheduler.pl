@@ -385,7 +385,7 @@ scheduler:deps_in_plan_run(Head, PlanHeads, ProofAVL, Deps) :-
       ),
       findall(DepHead0,
               ( member(Dep, Body),
-                \+ prover:is_constraint(Dep),
+                \+ constraint:is_constraint(Dep),
                 prover:canon_literal(Dep, DepHead0, _),
                 scheduler:is_run_head(DepHead0),
                 memberchk(DepHead0, PlanHeads)
@@ -518,7 +518,7 @@ scheduler:forward_put(Heads, ProofAVL, Head, In, Out) :-
   ),
   findall(DepHead,
           ( member(Dep, Body),
-            \+ prover:is_constraint(Dep),
+            \+ constraint:is_constraint(Dep),
             prover:canon_literal(Dep, DepHead, _),
             memberchk(DepHead, Heads)
           ),
@@ -560,7 +560,7 @@ scheduler:forward_put_from_map(HeadRuleMap, HeadSet, Head, In, Out) :-
       scheduler:rule_body(Rule, Body),
       findall(DepHead,
               ( member(Dep, Body),
-                \+ prover:is_constraint(Dep),
+                \+ constraint:is_constraint(Dep),
                 prover:canon_literal(Dep, DepHead, _),
                 get_assoc(DepHead, HeadSet, true)
               ),

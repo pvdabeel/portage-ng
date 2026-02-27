@@ -485,18 +485,18 @@ config:time_limit(90).
 config:proving_target(run).
 
 
-%! config:cn_domain_reprove_max_retries(?Count)
+%! config:reprove_max_retries(?Count)
 %
-% Maximum number of iterative CN-domain reprove retries.
+% Maximum number of iterative reprove retries.
 %
 % This controls the bounded retry loop in prover:prove/9 that handles
-% rules_reprove_cn_domain(...) signals.
+% prover_reprove(Info) exceptions.
 %
 % Important distinction from normal Prolog backtracking:
 %
 % - Normal backtracking explores alternatives *within one proof attempt* and
 %   does not persist learned conflict information once it unwinds.
-% - CN-domain reprove retries are *iterative refinement*: each retry restarts
+% - Reprove retries are *iterative refinement*: each retry restarts
 %   proving from the target, but keeps scoped no-goods learned from earlier
 %   failed attempts (e.g. reject candidate X; then retry and potentially add Y,
 %   yielding X+Y on the next attempt).
@@ -510,7 +510,7 @@ config:proving_target(run).
 % - Higher values allow more refinement but can increase runtime.
 %
 % Recommended default: 20 (Portage-like retry budget)
-config:cn_domain_reprove_max_retries(20).
+config:reprove_max_retries(20).
 
 
 %! config:avoid_reinstall(?Bool)

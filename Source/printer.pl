@@ -1576,7 +1576,7 @@ printer:display_state(Target, Proof, Model, Constraints) :-
 
     prover:proof_to_list(Proof,ProofList),
     prover:model_to_list(Model,ModelList),
-    prover:constraints_to_list(Constraints,ConstraintList),
+    constraint:constraints_to_list(Constraints,ConstraintList),
 
     message:hl,
 
@@ -4618,7 +4618,7 @@ printer:proof_neighbors(Node, ProofAVL, NeighKeys) :-
   !,
   findall(K,
           ( member(Dep, Body),
-            \+ prover:is_constraint(Dep),
+            \+ constraint:is_constraint(Dep),
             prover:canon_literal(Dep, K, _)
           ),
           NeighKeys0),
