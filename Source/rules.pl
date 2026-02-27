@@ -18,6 +18,14 @@ This file contains domain-specific rules
 
 :- thread_local rules:effective_use_fact/3.
 
+:- thread_local rules:selected_cn_snap_/3.
+:- thread_local rules:blocked_cn_source_snap_/3.
+:- thread_local rules:cn_domain_reject_/2.
+:- thread_local rules:rdepend_vbounds_cache_/5.
+:- thread_local rules:keyword_cache_/6.
+:- thread_local rules:iuse_default_cache_/3.
+:- thread_local rules:iuse_info_cache_/3.
+
 % -----------------------------------------------------------------------------
 %  Prover hook: domain-driven goal enqueueing (single-pass extensions)
 % -----------------------------------------------------------------------------
@@ -1609,15 +1617,11 @@ rules:self_rdepend_extra_slot_compatible(_BaseSlotReq, _ExtraDep) :-
 % Lookup extra version-bound deps from Self's RDEPEND for a specific (C,N).
 % Cached per (Repo,SelfId,C,N). Negative results are cached as [].
 rules:self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra) :-
-  ( nb_current(rules_self_rdepend_vbounds_cn_cache, Cache),
-    get_assoc(key(Repo,SelfId,C,N), Cache, Extra0)
-  ->
+  ( rules:rdepend_vbounds_cache_(Repo, SelfId, C, N, Extra0) ->
     Extra = Extra0
   ;
     rules:build_self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra1),
-    ( nb_current(rules_self_rdepend_vbounds_cn_cache, Cache0) -> true ; empty_assoc(Cache0) ),
-    put_assoc(key(Repo,SelfId,C,N), Cache0, Extra1, Cache1),
-    b_setval(rules_self_rdepend_vbounds_cn_cache, Cache1),
+    assertz(rules:rdepend_vbounds_cache_(Repo, SelfId, C, N, Extra1)),
     Extra = Extra1
   ),
   !.
@@ -1887,9 +1891,7 @@ rules:greedy_candidate_package('dev-ml', ocamlbuild) :- !.
 % not affect keyword/mask/version enumeration.
 
 rules:accepted_keyword_candidates_cached(Action, C, N, SlotReq, LockKey, CandidatesSorted) :-
-  ( nb_current(rules_accepted_keyword_cache, Cache),
-    get_assoc(key(Action,C,N,SlotReq,LockKey), Cache, CandidatesSorted)
-  ->
+  ( rules:keyword_cache_(Action, C, N, SlotReq, LockKey, CandidatesSorted) ->
     true
   ;
     rules:accepted_keyword_slot_lock_filter(SlotReq, LockKey, SsFilter),
@@ -1902,9 +1904,7 @@ rules:accepted_keyword_candidates_cached(Action, C, N, SlotReq, LockKey, Candida
     Candidates0 \== [],
     sort(Candidates0, Candidates1),
     predsort(rules:compare_candidate_version_desc, Candidates1, CandidatesSorted),
-    ( nb_current(rules_accepted_keyword_cache, Cache0) -> true ; empty_assoc(Cache0) ),
-    put_assoc(key(Action,C,N,SlotReq,LockKey), Cache0, CandidatesSorted, Cache1),
-    b_setval(rules_accepted_keyword_cache, Cache1)
+    assertz(rules:keyword_cache_(Action, C, N, SlotReq, LockKey, CandidatesSorted))
   ).
 
 rules:query_keyword_candidate(Action, C, N, K, Context, FoundRepo://Candidate) :-
@@ -3278,9 +3278,7 @@ rules:effective_use_for_entry(RepoEntry0, Use, State) :-
 % +flag, otherwise negative). Lookup is O(log n).
 
 rules:entry_iuse_default(Repo://Entry, Use, Default) :-
-  ( nb_current(rules_entry_iuse_default_cache, Cache),
-    get_assoc(key(Repo,Entry), Cache, Map)
-  ->
+  ( rules:iuse_default_cache_(Repo, Entry, Map) ->
     get_assoc(Use, Map, Default),
     !
   ;
@@ -3297,9 +3295,7 @@ rules:entry_iuse_default(Repo://Entry, Use, Default) :-
             Pairs0),
     sort(Pairs0, Pairs),
     rules:iuse_default_pairs_to_assoc(Pairs, Map),
-    ( nb_current(rules_entry_iuse_default_cache, Cache0) -> true ; empty_assoc(Cache0) ),
-    put_assoc(key(Repo,Entry), Cache0, Map, Cache1),
-    b_setval(rules_entry_iuse_default_cache, Cache1),
+    assertz(rules:iuse_default_cache_(Repo, Entry, Map)),
     get_assoc(Use, Map, Default),
     !
   ).
@@ -3857,9 +3853,7 @@ rules:is_abi_x86_flag(Use) :-
 % - the subset that are enabled by default (+flag)
 
 rules:entry_iuse_info(Repo://Entry, Info) :-
-  ( nb_current(rules_entry_iuse_info_cache, Cache),
-    get_assoc(key(Repo,Entry), Cache, Info)
-  ->
+  ( rules:iuse_info_cache_(Repo, Entry, Info) ->
     true
   ;
     findall(Raw, query:search(iuse(Raw), Repo://Entry), RawIuse0),
@@ -3875,9 +3869,7 @@ rules:entry_iuse_info(Repo://Entry, Info) :-
             Plus0),
     sort(Plus0, PlusSet),
     Info = iuse_info(IuseSet, PlusSet),
-    ( nb_current(rules_entry_iuse_info_cache, Cache0) -> true ; empty_assoc(Cache0) ),
-    put_assoc(key(Repo,Entry), Cache0, Info, Cache1),
-    b_setval(rules_entry_iuse_info_cache, Cache1)
+    assertz(rules:iuse_info_cache_(Repo, Entry, Info))
   ).
 
 % -----------------------------------------------------------------------------
@@ -4053,8 +4045,7 @@ rules:cn_reject_scoped_domain(Scope0, Domain, scoped(Scope, Domain)) :-
   !.
 
 rules:snapshot_selected_cn_candidates(C, N, Candidates) :-
-  nb_current(rules_selected_cn_snapshot, Snapshots),
-  get_assoc(key(C,N), Snapshots, ordset(Candidates)),
+  rules:selected_cn_snap_(C, N, Candidates),
   Candidates \== [],
   !.
 
@@ -4063,28 +4054,21 @@ rules:record_selected_cn_snapshot(C, N, SelectedSet) :-
           member(selected(Repo,Entry,_Act,_SelVer,_SelSlotMeta), SelectedSet),
           Candidates0),
   sort(Candidates0, Candidates),
-  ( nb_current(rules_selected_cn_snapshot, Snap0) -> true ; empty_assoc(Snap0) ),
-  put_assoc(key(C,N), Snap0, ordset(Candidates), Snap1),
-  nb_setval(rules_selected_cn_snapshot, Snap1),
+  ( retract(rules:selected_cn_snap_(C, N, _)) -> true ; true ),
+  assertz(rules:selected_cn_snap_(C, N, Candidates)),
   !.
 
 rules:snapshot_blocked_cn_sources(C, N, Sources) :-
-  nb_current(rules_blocked_cn_source_snapshot, Snapshots),
-  get_assoc(key(C,N), Snapshots, ordset(Sources)),
+  rules:blocked_cn_source_snap_(C, N, Sources),
   Sources \== [],
   !.
 
 rules:record_blocked_cn_source_snapshot(C, N, Sources0) :-
   sort(Sources0, Sources),
   Sources \== [],
-  ( nb_current(rules_blocked_cn_source_snapshot, Snap0) -> true ; empty_assoc(Snap0) ),
-  ( get_assoc(key(C,N), Snap0, ordset(OldSources), Snap1, ordset(OldSources)) -> true
-  ; OldSources = [],
-    Snap1 = Snap0
-  ),
+  ( retract(rules:blocked_cn_source_snap_(C, N, OldSources)) -> true ; OldSources = [] ),
   ord_union(OldSources, Sources, MergedSources),
-  put_assoc(key(C,N), Snap1, ordset(MergedSources), SnapOut),
-  nb_setval(rules_blocked_cn_source_snapshot, SnapOut),
+  assertz(rules:blocked_cn_source_snap_(C, N, MergedSources)),
   !.
 rules:record_blocked_cn_source_snapshot(_C, _N, _Sources) :-
   !.
@@ -4191,8 +4175,7 @@ rules:handle_reprove(_, false).
 % from causing assumptions at the wrong level).
 
 rules:reprove_exhausted :-
-  empty_assoc(EmptyRejects),
-  nb_setval(rules_cn_domain_rejects, EmptyRejects),
+  retractall(rules:cn_domain_reject_(_, _)),
   !.
 
 
@@ -4204,15 +4187,14 @@ rules:reprove_exhausted :-
 
 rules:reprove_init_state :-
   ( nb_current(rules_cn_domain_reprove_enabled, OldEnabled) -> true ; OldEnabled = '$absent' ),
-  ( nb_current(rules_cn_domain_rejects, OldRejects) -> true ; OldRejects = '$absent' ),
-  ( nb_current(rules_selected_cn_snapshot, OldSelectedSnap) -> true ; OldSelectedSnap = '$absent' ),
-  ( nb_current(rules_blocked_cn_source_snapshot, OldBlockedSourceSnap) -> true ; OldBlockedSourceSnap = '$absent' ),
-  nb_setval(rules_reprove_saved_state, state(OldEnabled, OldRejects, OldSelectedSnap, OldBlockedSourceSnap)),
-  empty_assoc(EmptyAssoc),
+  findall(C-N-V, rules:selected_cn_snap_(C, N, V), SavedSnap),
+  findall(C-N-V, rules:blocked_cn_source_snap_(C, N, V), SavedBlocked),
+  findall(K-V, rules:cn_domain_reject_(K, V), SavedRejects),
+  nb_setval(rules_reprove_saved_state, state(OldEnabled, SavedSnap, SavedRejects, SavedBlocked)),
   nb_setval(rules_cn_domain_reprove_enabled, true),
-  nb_setval(rules_cn_domain_rejects, EmptyAssoc),
-  nb_setval(rules_selected_cn_snapshot, EmptyAssoc),
-  nb_setval(rules_blocked_cn_source_snapshot, EmptyAssoc),
+  retractall(rules:cn_domain_reject_(_, _)),
+  retractall(rules:selected_cn_snap_(_, _, _)),
+  retractall(rules:blocked_cn_source_snap_(_, _, _)),
   !.
 
 
@@ -4221,11 +4203,14 @@ rules:reprove_init_state :-
 % Restore domain-specific reprove state saved by reprove_init_state/0.
 
 rules:reprove_cleanup_state :-
-  ( nb_current(rules_reprove_saved_state, state(OldEnabled, OldRejects, OldSelectedSnap, OldBlockedSourceSnap)) ->
+  ( nb_current(rules_reprove_saved_state, state(OldEnabled, SavedSnap, SavedRejects, SavedBlocked)) ->
       ( OldEnabled == '$absent' -> nb_delete(rules_cn_domain_reprove_enabled) ; nb_setval(rules_cn_domain_reprove_enabled, OldEnabled) ),
-      ( OldRejects == '$absent' -> nb_delete(rules_cn_domain_rejects) ; nb_setval(rules_cn_domain_rejects, OldRejects) ),
-      ( OldSelectedSnap == '$absent' -> nb_delete(rules_selected_cn_snapshot) ; nb_setval(rules_selected_cn_snapshot, OldSelectedSnap) ),
-      ( OldBlockedSourceSnap == '$absent' -> nb_delete(rules_blocked_cn_source_snapshot) ; nb_setval(rules_blocked_cn_source_snapshot, OldBlockedSourceSnap) ),
+      retractall(rules:cn_domain_reject_(_, _)),
+      retractall(rules:selected_cn_snap_(_, _, _)),
+      retractall(rules:blocked_cn_source_snap_(_, _, _)),
+      forall(member(C-N-V, SavedSnap), assertz(rules:selected_cn_snap_(C, N, V))),
+      forall(member(C-N-V, SavedBlocked), assertz(rules:blocked_cn_source_snap_(C, N, V))),
+      forall(member(K-V, SavedRejects), assertz(rules:cn_domain_reject_(K, V))),
       nb_delete(rules_reprove_saved_state)
   ; true
   ),
@@ -4276,16 +4261,15 @@ rules:cn_domain_reject_key(C, N, Domain0, key(C,N,Scope,Domain)) :-
   !.
 
 rules:cn_domain_candidate_rejected(C, N, Domain0, RepoEntry) :-
-  nb_current(rules_cn_domain_rejects, Rejects),
   rules:cn_domain_reject_key(C, N, Domain0, key(C,N,Scope,Domain)),
-  ( get_assoc(key(C,N,Scope,Domain), Rejects, ordset(Set)),
+  ( rules:cn_domain_reject_(key(C,N,Scope,Domain), Set),
     memberchk(RepoEntry, Set)
-  ; get_assoc(key(C,N,Scope,none), Rejects, ordset(ScopeGlobalSet)),
+  ; rules:cn_domain_reject_(key(C,N,Scope,none), ScopeGlobalSet),
     memberchk(RepoEntry, ScopeGlobalSet)
   ; Scope \== any,
-    get_assoc(key(C,N,any,Domain), Rejects, ordset(AnyDomainSet)),
+    rules:cn_domain_reject_(key(C,N,any,Domain), AnyDomainSet),
     memberchk(RepoEntry, AnyDomainSet)
-  ; get_assoc(key(C,N,any,none), Rejects, ordset(GlobalSet)),
+  ; rules:cn_domain_reject_(key(C,N,any,none), GlobalSet),
     memberchk(RepoEntry, GlobalSet)
   ),
   !.
@@ -4293,19 +4277,14 @@ rules:cn_domain_candidate_rejected(C, N, Domain0, RepoEntry) :-
 rules:add_cn_domain_rejects(C, N, Domain0, Candidates0, Added) :-
   rules:cn_domain_reject_key(C, N, Domain0, Key),
   sort(Candidates0, Candidates),
-  ( nb_current(rules_cn_domain_rejects, Rejects0) -> true ; empty_assoc(Rejects0) ),
-  ( get_assoc(Key, Rejects0, ordset(OldSet), Rejects1, ordset(OldSet)) -> true
-  ; OldSet = [],
-    Rejects1 = Rejects0
-  ),
+  ( rules:cn_domain_reject_(Key, OldSet) -> true ; OldSet = [] ),
   ord_union(OldSet, Candidates, NewSet),
   ( NewSet == OldSet ->
-      Added = false,
-      RejectsOut = Rejects1
-  ; Added = true,
-    put_assoc(Key, Rejects1, ordset(NewSet), RejectsOut)
+      Added = false
+  ; ( retract(rules:cn_domain_reject_(Key, _)) -> true ; true ),
+    assertz(rules:cn_domain_reject_(Key, NewSet)),
+    Added = true
   ),
-  nb_setval(rules_cn_domain_rejects, RejectsOut),
   !.
 
 rules:add_cn_domain_origin_rejects(Reasons, Added) :-
@@ -4644,7 +4623,6 @@ rules:find_adjustable_origin(Reasons, OriginC, OriginN, Repo://Entry) :-
 % Do NOT fire for PDEPEND failures — post-dependencies are soft requirements
 % that should not invalidate the parent's installability.
 rules:maybe_learn_parent_narrowing(C, N, PackageDeps, Context) :-
-  nb_current(prover_learned_constraints, _),
   \+ rules:is_pdepend_failure(PackageDeps, Context),
   \+ rules:is_multislot_miss(C, N, PackageDeps, Context),
   is_list(Context),
