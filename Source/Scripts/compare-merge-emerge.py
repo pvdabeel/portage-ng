@@ -106,6 +106,27 @@ in the plan (i.e. would not yet be built when P is needed).  A violation
 rate of 0% means the merge plan perfectly respects its own build
 dependencies.
 
+### Wave-based inversion classification
+
+portage-ng groups packages into waves (steps) where all packages in a wave
+have their dependencies satisfied by prior waves.  Packages within a wave
+are dependency-independent and may be built in parallel — any serialization
+within a wave is equally valid.
+
+This analysis classifies each inversion (ordering disagreement with Portage)
+into one of five categories:
+
+  - **within_wave**: both packages are in the same wave.  They are provably
+    independent — the ordering difference is an arbitrary serialization choice.
+  - **cross_wave_merge_confirmed**: packages are in different waves and a
+    dependency edge confirms the merge plan's order is correct.
+  - **cross_wave_emerge_confirmed**: packages are in different waves and a
+    dependency edge suggests emerge's order may be better.
+  - **cross_wave_no_edge**: packages are in different waves with no direct
+    dependency between them — both orderings are valid.
+  - **inv_provably_valid_pct**: percentage of inversions that are provably
+    valid (within_wave + merge_confirmed + no_edge).
+
 ### Install-only cycle breaks
 
 Counts scheduler cycle breaks where every action in the cycle is :install
@@ -470,7 +491,7 @@ def _classify_domain_assumption(buf: List[str], counters: Dict[str, int]) -> Non
     counters["domain_assumptions"] += 1
 
 
-def parse_merge(path: Path) -> Tuple[Dict[str, MergePkg], Dict[str, int], List[str]]:
+def parse_merge(path: Path) -> Tuple[Dict[str, MergePkg], Dict[str, int], List[str], Dict[str, int]]:
     """
     Parses portage-ng merge output.
     Returns:
@@ -479,12 +500,16 @@ def parse_merge(path: Path) -> Tuple[Dict[str, MergePkg], Dict[str, int], List[s
       - merge_action_order: ordered list of cpv keys by their first merge action
         (install/update/downgrade/reinstall), excluding downloads and runs.
         This is the order comparable to Portage's emerge output.
+      - merge_wave_map: cpv key -> step/wave number for each merge action
     """
     txt = strip_ansi(path.read_text(errors="replace"))
     pkgs: Dict[str, MergePkg] = {}
     merge_action_order: List[str] = []
     _merge_action_seen: Set[str] = set()
     _MERGE_ACTIONS = {"install", "update", "downgrade", "reinstall"}
+    _step_re = re.compile(r'step\s+(\d+)')
+    _current_step = 0
+    merge_wave_map: Dict[str, int] = {}
 
     # Action lines include:
     #   install    portage://dev-libs/foo-1.2.3
@@ -515,6 +540,9 @@ def parse_merge(path: Path) -> Tuple[Dict[str, MergePkg], Dict[str, int], List[s
         collecting_use_buf = []
 
     for line in txt.splitlines():
+        _sm = _step_re.search(line)
+        if _sm:
+            _current_step = int(_sm.group(1))
         # If we're in a wrapped USE block, keep collecting until closing quote.
         if collecting_use_for:
             s = line
@@ -547,6 +575,7 @@ def parse_merge(path: Path) -> Tuple[Dict[str, MergePkg], Dict[str, int], List[s
                 if action in _MERGE_ACTIONS and k not in _merge_action_seen:
                     _merge_action_seen.add(k)
                     merge_action_order.append(k)
+                    merge_wave_map[k] = _current_step
                 # If the next lines include a conf USE block, associate it.
                 pending_use_for = k
             continue
@@ -629,12 +658,12 @@ def parse_merge(path: Path) -> Tuple[Dict[str, MergePkg], Dict[str, int], List[s
     if domain_buf:
         _classify_domain_assumption(domain_buf, counters)
 
-    return pkgs, counters, merge_action_order
+    return pkgs, counters, merge_action_order, merge_wave_map
 
 
 def compare_pair(merge_path: Path, emerge_path: Path) -> Dict:
     emerge, emerge_meta = parse_emerge(emerge_path)
-    merge, ass, merge_action_order = parse_merge(merge_path)
+    merge, ass, merge_action_order, merge_wave_map = parse_merge(merge_path)
 
     emerge_keys = set(emerge.keys())
     # Only consider actually-merged packages on the portage-ng side.
@@ -759,6 +788,11 @@ def compare_pair(merge_path: Path, emerge_path: Path) -> Dict:
     dep_pairs = 0
     violations = 0
     dep_edges_in_plan = 0
+    inv_within_wave = 0
+    inv_cross_wave = 0
+    inv_cross_wave_merge_confirmed = 0
+    inv_cross_wave_emerge_confirmed = 0
+    inv_cross_wave_no_edge = 0
     if emerge_ok:
         emerge_cn_order: List[Tuple[str, str]] = []
         seen_cn: Set[Tuple[str, str]] = set()
@@ -817,6 +851,48 @@ def compare_pair(merge_path: Path, emerge_path: Path) -> Dict:
                         else:
                             dep_discordant += 1
 
+        # Wave-based inversion classification
+        if order_common >= 2:
+            cn_wave: Dict[Tuple[str, str], int] = {}
+            for k in merge_action_order:
+                p = merge.get(k)
+                if p:
+                    cn = _cn_key(p.key)
+                    if cn not in cn_wave and k in merge_wave_map:
+                        cn_wave[cn] = merge_wave_map[k]
+            cn_build_deps: Dict[Tuple[str, str], Set[Tuple[str, str]]] = {}
+            if MD5_CACHE_DIR:
+                for _k2, p2 in merge.items():
+                    if not p2.actions.intersection({"install", "update", "downgrade", "reinstall", "run"}):
+                        continue
+                    cn2 = _cn_key(p2.key)
+                    if cn2 not in cn_build_deps:
+                        pnver2 = f"{p2.key.pn}-{p2.key.ver}" if p2.key.ver else p2.key.pn
+                        cn_build_deps[cn2] = _load_pkg_build_deps(p2.key.cat, pnver2)
+            merge_common = [cn for cn in merge_cn_order if cn in common_cn]
+            emerge_pos_local = {cn: i for i, cn in enumerate(
+                [cn for cn in emerge_cn_order if cn in common_cn])}
+            for i in range(len(merge_common)):
+                for j in range(i + 1, len(merge_common)):
+                    cn_i = merge_common[i]
+                    cn_j = merge_common[j]
+                    if emerge_pos_local[cn_i] > emerge_pos_local[cn_j]:
+                        wave_i = cn_wave.get(cn_i, -1)
+                        wave_j = cn_wave.get(cn_j, -1)
+                        if wave_i == wave_j and wave_i >= 0:
+                            inv_within_wave += 1
+                        else:
+                            inv_cross_wave += 1
+                            if cn_build_deps:
+                                j_on_i = cn_i in cn_build_deps.get(cn_j, set())
+                                i_on_j = cn_j in cn_build_deps.get(cn_i, set())
+                                if j_on_i and not i_on_j:
+                                    inv_cross_wave_merge_confirmed += 1
+                                elif i_on_j and not j_on_i:
+                                    inv_cross_wave_emerge_confirmed += 1
+                                else:
+                                    inv_cross_wave_no_edge += 1
+
     return {
         "merge": str(merge_path),
         "emerge": str(emerge_path),
@@ -843,6 +919,11 @@ def compare_pair(merge_path: Path, emerge_path: Path) -> Dict:
             "dep_pairs": dep_pairs,
             "violations": violations,
             "dep_edges_in_plan": dep_edges_in_plan,
+            "inv_within_wave": inv_within_wave,
+            "inv_cross_wave": inv_cross_wave,
+            "inv_cross_wave_merge_confirmed": inv_cross_wave_merge_confirmed,
+            "inv_cross_wave_emerge_confirmed": inv_cross_wave_emerge_confirmed,
+            "inv_cross_wave_no_edge": inv_cross_wave_no_edge,
         },
         "missing_in_merge": missing_in_merge if FULL_LISTS else missing_in_merge[:200],
         "extra_in_merge": extra_in_merge if FULL_LISTS else extra_in_merge[:200],
@@ -1010,6 +1091,16 @@ def main(argv: Sequence[str]) -> int:
             "violations": total_violations,
             "dep_edges_in_plan": total_dep_edges,
             "violation_pct": round(viol_pct, 2),
+            "inv_within_wave": agg.get("inv_within_wave", 0),
+            "inv_cross_wave": agg.get("inv_cross_wave", 0),
+            "inv_cross_wave_merge_confirmed": agg.get("inv_cross_wave_merge_confirmed", 0),
+            "inv_cross_wave_emerge_confirmed": agg.get("inv_cross_wave_emerge_confirmed", 0),
+            "inv_cross_wave_no_edge": agg.get("inv_cross_wave_no_edge", 0),
+            "inv_provably_valid_pct": round(
+                100.0 * (agg.get("inv_within_wave", 0)
+                         + agg.get("inv_cross_wave_merge_confirmed", 0)
+                         + agg.get("inv_cross_wave_no_edge", 0))
+                / total_order_inversions, 2) if total_order_inversions else 0.0,
         },
         "results": results,
     }
@@ -1050,6 +1141,21 @@ def main(argv: Sequence[str]) -> int:
         print(f"  violations: {total_violations}")
         print(f"  dep_edges_in_plan: {total_dep_edges}")
         print(f"  violation_pct: {viol_pct:.2f}%")
+    total_inv_ww = agg.get("inv_within_wave", 0)
+    total_inv_cw = agg.get("inv_cross_wave", 0)
+    total_inv_cw_mc = agg.get("inv_cross_wave_merge_confirmed", 0)
+    total_inv_cw_ec = agg.get("inv_cross_wave_emerge_confirmed", 0)
+    total_inv_cw_ne = agg.get("inv_cross_wave_no_edge", 0)
+    total_provably_valid = total_inv_ww + total_inv_cw_mc + total_inv_cw_ne
+    pvp = (100.0 * total_provably_valid / total_order_inversions) if total_order_inversions else 0.0
+    if total_order_inversions:
+        print(f"  inv_within_wave: {total_inv_ww} ({100*total_inv_ww/total_order_inversions:.1f}%)")
+        print(f"  inv_cross_wave: {total_inv_cw} ({100*total_inv_cw/total_order_inversions:.1f}%)")
+        if total_inv_cw_mc + total_inv_cw_ec + total_inv_cw_ne > 0:
+            print(f"    cross_wave_merge_confirmed: {total_inv_cw_mc} ({100*total_inv_cw_mc/total_order_inversions:.1f}%)")
+            print(f"    cross_wave_emerge_confirmed: {total_inv_cw_ec} ({100*total_inv_cw_ec/total_order_inversions:.1f}%)")
+            print(f"    cross_wave_no_edge: {total_inv_cw_ne} ({100*total_inv_cw_ne/total_order_inversions:.1f}%)")
+        print(f"  inv_provably_valid_pct: {pvp:.2f}%")
     print(f"  install_only_cycle_breaks: {assumptions_agg.get('install_only_cycle_breaks', 0)}")
     print(f"  wrote: {out_path}")
 

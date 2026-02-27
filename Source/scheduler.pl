@@ -46,12 +46,13 @@ and a condensed schedule for the remainder only.
 % Otherwise schedules the schedulable portion of the remainder by collapsing
 % :run SCCs (merge sets) and returns a new remainder for the unschedulable part.
 %
-schedule(_ProofAVL, _TriggersAVL, PlanIn, RemainderIn, PlanOut, []) :-
+schedule(ProofAVL, TriggersAVL, PlanIn, RemainderIn, PlanOut, []) :-
   RemainderIn == [],
   !,
   scheduler:perf_add(0, 0, 0, 0, 0, 0, 0, 0),
-  scheduler:enforce_order_after_constraints(PlanIn, PlanOut).
-schedule(_ProofAVL, _TriggersAVL, PlanIn, RemainderIn, PlanOut, RemainderOut) :-
+  scheduler:merge_order_bias(ProofAVL, TriggersAVL, PlanIn, PlanBiased),
+  scheduler:enforce_order_after_constraints(PlanBiased, PlanOut).
+schedule(ProofAVL, TriggersAVL, PlanIn, RemainderIn, PlanOut, RemainderOut) :-
   % Only schedule from the planner-provided remainder. Do not remove items from
   % the existing plan here: removing + re-adding must be proven correct, and we
   % currently want a safe scheduler that never drops actions.
@@ -75,7 +76,85 @@ schedule(_ProofAVL, _TriggersAVL, PlanIn, RemainderIn, PlanOut, RemainderOut) :-
   append(PlanIn, WavesRules, PlanOut0),
   scheduler:remainder_from_blocked_from_map(BlockedCompIds, Comps, HeadRuleMap, RemainderOut),
   scheduler:perf_add(HeadsN, SCCsN, CompsN, BlockedN, WavesN, WavesCompTotalN, AddedRulesN, 1),
-  scheduler:enforce_order_after_constraints(PlanOut0, PlanOut).
+  scheduler:merge_order_bias(ProofAVL, TriggersAVL, PlanOut0, PlanBiased),
+  scheduler:enforce_order_after_constraints(PlanBiased, PlanOut).
+
+% -----------------------------------------------------------------------------
+%  Merge-order bias: within-wave reordering by reference count
+% -----------------------------------------------------------------------------
+%
+% Portage's _merge_order_bias() sorts nodes by descending reference count
+% (number of parent/dependent nodes in the graph).  Packages depended on by
+% more things are installed first, since they satisfy the most constraints
+% earliest.  This matches Portage's leaf-node selection order.
+
+%! scheduler:merge_order_bias(+ProofAVL, +TriggersAVL, +PlanIn, -PlanOut)
+%
+% Reorder rules within each wave of PlanIn by descending reference count.
+scheduler:merge_order_bias(_ProofAVL, TriggersAVL, PlanIn, PlanOut) :-
+  append(PlanIn, AllRules),
+  ( AllRules == [] -> PlanOut = PlanIn
+  ;
+    scheduler:build_refcount_map(AllRules, TriggersAVL, RefCountMap),
+    scheduler:reorder_waves_by_refcount(PlanIn, RefCountMap, PlanOut)
+  ).
+
+%! scheduler:build_refcount_map(+AllRules, +TriggersAVL, -RefCountMap)
+%
+% For each rule head in the plan, count how many OTHER planned heads trigger
+% on it (= reference count / number of dependents in the full graph).
+scheduler:build_refcount_map(AllRules, TriggersAVL, RefCountMap) :-
+  empty_assoc(HeadSet0),
+  foldl(scheduler:add_rule_to_head_set_, AllRules, HeadSet0, HeadSet),
+  assoc_to_keys(HeadSet, AllHeads),
+  empty_assoc(M0),
+  foldl(scheduler:compute_refcount(TriggersAVL, HeadSet), AllHeads, M0, RefCountMap).
+
+scheduler:add_rule_to_head_set_(Rule, In, Out) :-
+  ( scheduler:rule_head(Rule, Head) ->
+      put_assoc(Head, In, true, Out)
+  ; Out = In
+  ).
+
+scheduler:compute_refcount(TriggersAVL, HeadSet, Head, In, Out) :-
+  scheduler:effective_trigger_keys(Head, TriggerKeys),
+  findall(DepHead,
+          ( member(TK, TriggerKeys),
+            get_assoc(TK, TriggersAVL, Dependents),
+            member(D0, Dependents),
+            prover:canon_literal(D0, DepHead, _),
+            get_assoc(DepHead, HeadSet, _),
+            DepHead \= Head
+          ),
+          DepHeads0),
+  sort(DepHeads0, UniqueDepHeads),
+  length(UniqueDepHeads, Count),
+  put_assoc(Head, In, Count, Out).
+
+% For merge actions (:install/:update/:downgrade/:reinstall), also count
+% triggers on the corresponding :run head, since other packages depend on
+% the :run action rather than the :install action directly.
+scheduler:effective_trigger_keys(Head, Keys) :-
+  ( Head = R://L:Action,
+    memberchk(Action, [install, update, downgrade, reinstall])
+  -> Keys = [Head, R://L:run]
+  ; Keys = [Head]
+  ).
+
+scheduler:reorder_waves_by_refcount([], _, []) :- !.
+scheduler:reorder_waves_by_refcount([Wave|Ws], RefCountMap, [Sorted|Rs]) :-
+  findall(NegCount-Rule,
+          ( member(Rule, Wave),
+            ( scheduler:rule_head(Rule, Head),
+              get_assoc(Head, RefCountMap, Count)
+            -> NegCount is -Count
+            ; NegCount = 0
+            )
+          ),
+          Pairs),
+  keysort(Pairs, SortedPairs),
+  findall(Rule, member(_-Rule, SortedPairs), Sorted),
+  scheduler:reorder_waves_by_refcount(Ws, RefCountMap, Rs).
 
 % -----------------------------------------------------------------------------
 %  Enforce ordering-only constraints (after_only)

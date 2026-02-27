@@ -1840,6 +1840,21 @@ printer:sort_by_weight(C,L1,L2) :-
   printer:element_weight(L2,W2),
   compare(C,W1:L1,W2:L2).
 
+%! printer:stable_sort_by_weight(+Step, -Sorted)
+%
+% Sort by element_weight, preserving the scheduler's within-weight ordering
+% (which reflects merge-order bias / refcount priority).
+printer:stable_sort_by_weight(Step, Sorted) :-
+  printer:tag_with_weight_index(Step, 0, Tagged),
+  keysort(Tagged, SortedTagged),
+  findall(Rule, member(_-Rule, SortedTagged), Sorted).
+
+printer:tag_with_weight_index([], _, []) :- !.
+printer:tag_with_weight_index([R|Rs], I, [(W-I)-R|Rest]) :-
+  printer:element_weight(R, W),
+  I1 is I + 1,
+  printer:tag_with_weight_index(Rs, I1, Rest).
+
 
 %! printer:print_element(+Printable)
 %
@@ -2938,7 +2953,7 @@ printer:print_cycle_break_detail(Content) :-
 printer:print_steps_in_plan(_, [], _, Count, Count) :- !.
 
 printer:print_steps_in_plan(Target, [Step|Rest], Call, Count, CountFinal) :-
-  predsort(printer:sort_by_weight, Step, SortedRules),
+  printer:stable_sort_by_weight(Step, SortedRules),
   printer:print_first_in_step(Target, SortedRules, Count, CountNew),
   call(Call, SortedRules), !,
   printer:print_steps_in_plan(Target, Rest, Call, CountNew, CountFinal).
