@@ -1617,7 +1617,7 @@ rules:self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra) :-
     rules:build_self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra1),
     ( nb_current(rules_self_rdepend_vbounds_cn_cache, Cache0) -> true ; empty_assoc(Cache0) ),
     put_assoc(key(Repo,SelfId,C,N), Cache0, Extra1, Cache1),
-    nb_setval(rules_self_rdepend_vbounds_cn_cache, Cache1),
+    b_setval(rules_self_rdepend_vbounds_cn_cache, Cache1),
     Extra = Extra1
   ),
   !.
@@ -1904,7 +1904,7 @@ rules:accepted_keyword_candidates_cached(Action, C, N, SlotReq, LockKey, Candida
     predsort(rules:compare_candidate_version_desc, Candidates1, CandidatesSorted),
     ( nb_current(rules_accepted_keyword_cache, Cache0) -> true ; empty_assoc(Cache0) ),
     put_assoc(key(Action,C,N,SlotReq,LockKey), Cache0, CandidatesSorted, Cache1),
-    nb_setval(rules_accepted_keyword_cache, Cache1)
+    b_setval(rules_accepted_keyword_cache, Cache1)
   ).
 
 rules:query_keyword_candidate(Action, C, N, K, Context, FoundRepo://Candidate) :-
@@ -3299,7 +3299,7 @@ rules:entry_iuse_default(Repo://Entry, Use, Default) :-
     rules:iuse_default_pairs_to_assoc(Pairs, Map),
     ( nb_current(rules_entry_iuse_default_cache, Cache0) -> true ; empty_assoc(Cache0) ),
     put_assoc(key(Repo,Entry), Cache0, Map, Cache1),
-    nb_setval(rules_entry_iuse_default_cache, Cache1),
+    b_setval(rules_entry_iuse_default_cache, Cache1),
     get_assoc(Use, Map, Default),
     !
   ).
@@ -3343,7 +3343,7 @@ add_self_to_dep_contexts(Self, [D0|Rest0], [D|Rest]) :-
 % context growth (and memoization misses) along deep dependency chains.
 rules:ctx_set_self(Ctx0, Self, Ctx) :-
   ( is_list(Ctx0) ->
-      findall(X, (member(X, Ctx0), \+ X = self(_)), Ctx1),
+      ( selectchk(self(_), Ctx0, Ctx1) -> true ; Ctx1 = Ctx0 ),
       Ctx = [self(Self)|Ctx1]
   ; Ctx = [self(Self)]
   ),
@@ -3649,8 +3649,11 @@ rules:self_context_use_state(Ctx, Use, State) :-
     % query:search(use/1) reads raw enabled flags only and can diverge.
     \+ eapi:check_use_expand_atom(Use),
     query:search(iuse_filtered(Use, State:_), Repo://Id)
-  ; eapi:use_expand(Prefix),
-    eapi:check_prefix_atom(Prefix, Use),
+  ; atom(Use),
+    sub_atom(Use, Before, 1, _, '_'),
+    Before > 0,
+    sub_atom(Use, 0, Before, _, Prefix),
+    eapi:use_expand(Prefix),
     eapi:strip_prefix_atom(Prefix, Use, Value),
     Q =.. [Prefix, Value, State:_],
     query:search(Q, Repo://Id)
@@ -3874,7 +3877,7 @@ rules:entry_iuse_info(Repo://Entry, Info) :-
     Info = iuse_info(IuseSet, PlusSet),
     ( nb_current(rules_entry_iuse_info_cache, Cache0) -> true ; empty_assoc(Cache0) ),
     put_assoc(key(Repo,Entry), Cache0, Info, Cache1),
-    nb_setval(rules_entry_iuse_info_cache, Cache1)
+    b_setval(rules_entry_iuse_info_cache, Cache1)
   ).
 
 % -----------------------------------------------------------------------------

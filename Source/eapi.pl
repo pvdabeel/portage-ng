@@ -2047,9 +2047,17 @@ eapi:parse_iuse_search_value(Value, Sign, Pattern) :-
 
 %! eapi:check_use_expand_atom(+Atom)
 %
-% Predicate that checks whether an atom is a use_expand atom
+% Succeeds when Atom has a USE_EXPAND prefix (e.g. python_targets_python3_12).
+% Finds underscore positions in Atom and checks each prefix against the
+% indexed use_expand/1 table, avoiding a linear scan of all 66+ keys.
 
-eapi:check_use_expand_atom(Atom) :- eapi:use_expand(Key), eapi:check_prefix_atom(Key,Atom),!.
+eapi:check_use_expand_atom(Atom) :-
+  atom(Atom),
+  sub_atom(Atom, Before, 1, _, '_'),
+  Before > 0,
+  sub_atom(Atom, 0, Before, _, Prefix),
+  eapi:use_expand(Prefix),
+  !.
 
 
 %! eapi:categorize_use(+Use,?State,?Reason))
