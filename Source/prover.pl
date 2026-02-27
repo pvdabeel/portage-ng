@@ -72,7 +72,7 @@ Key design points:
   any domain-specific semantics.
 */
 
-:- module(prover, [test_action/2]).
+:- module(prover, []).
 
 
 % =============================================================================
@@ -160,82 +160,6 @@ prover:currently_proving(Lit) :-
   memberchk(Lit, Stack),
   !.
 
-% -----------------------------------------------------------------------------
-%  Lightweight model construction (skip Proof + Triggers bookkeeping)
-% -----------------------------------------------------------------------------
-%
-% For some internal computations (notably query-side model construction), we only
-% need the resulting Model/Constraints, not the Proof tree nor Triggers. Using the
-% full prover in those cases creates substantial overhead (assoc updates for Proof,
-% trigger maintenance, cycle bookkeeping keyed by Proof, ...).
-%
-% `prove_model/*` keeps the same semantics for constraints and for "already proven"
-% context refinement, but uses a dedicated in-progress set for cycle detection.
-
-
-%! prover:prove_model(+Target, +InModel, -OutModel, +InCons, -OutCons) is det
-%
-% Lightweight model construction: proves Target into OutModel/OutCons
-% without maintaining Proof or Triggers bookkeeping.
-
-prover:prove_model(Target, InModel, OutModel, InCons, OutCons) :-
-  prover:prove_model(Target, InModel, OutModel, InCons, OutCons, t).
-
-prover:prove_model([], Model, Model, Cons, Cons, _InProg) :-
-  !.
-prover:prove_model([Literal|Rest], Model0, Model, Cons0, Cons, InProg0) :-
-  !,
-  prover:prove_model(Literal, Model0, Model1, Cons0, Cons1, InProg0),
-  prover:prove_model(Rest,    Model1, Model,  Cons1, Cons,  InProg0).
-
-prover:prove_model(Full, Model0, Model, Constraints0, Constraints, InProg0) :-
-  canon_literal(Full, Lit, Ctx),
-
-  (   % Case: a constraint
-      constraint:is_constraint(Lit) ->
-      !,
-      Model = Model0,
-      constraint:unify_constraints(Lit, Constraints0, Constraints)
-
-  ;   % Case: Lit already proven with given context
-      prover:proven(Lit, Model0, Ctx) ->
-      !,
-      Model = Model0,
-      Constraints = Constraints0
-
-  ;   % Case: Lit already proven, but context has changed
-      prover:proven(Lit, Model0, OldCtx) ->
-      !,
-      sampler:ctx_union(OldCtx, Ctx, NewCtx),
-      ( NewCtx == OldCtx ->
-          Model = Model0,
-          Constraints = Constraints0
-      ; prover:full_literal(Lit, NewCtx, NewFull),
-        sampler:test_stats_rule_call,
-        rule(NewFull, NewBody),
-        prover:prove_model(NewBody, Model0, BodyModel, Constraints0, BodyConstraints, InProg0),
-        put_assoc(Lit, BodyModel, NewCtx, Model),
-        Constraints = BodyConstraints
-      )
-
-  ;   % Case: circular model proof (cycle-break)
-      get_assoc(Lit, InProg0, true) ->
-      !,
-      % Keep the same taxonomy as the full prover's cycle-breaks: store assumed(Lit)
-      % in the model (note: dependency-model extraction ignores assumed/1 keys).
-      put_assoc(assumed(Lit), Model0, Ctx, Model),
-      Constraints = Constraints0
-
-  ;   % Case: regular proof (model-only)
-      put_assoc(Lit, InProg0, true, InProg1),
-      sampler:test_stats_rule_call,
-      rule(Full, Body),
-      prover:prove_model(Body, Model0, BodyModel, Constraints0, BodyConstraints, InProg1),
-      del_assoc(Lit, InProg1, _Old, InProg2),
-      ( InProg2 = _ -> true ), % keep var used (avoid singleton warnings)
-      put_assoc(Lit, BodyModel, Ctx, Model),
-      Constraints = BodyConstraints
-  ).
 
 
 % =============================================================================
@@ -450,7 +374,7 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
     ;  true
   ),
 
-  canon_literal(Full, Lit, Ctx),
+  literal(Full, Lit, Ctx),
 
   (   % Case: a constraint
 
@@ -521,7 +445,7 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 
       %writeln('PROVER: -- Create updated full literal'),
       % -- Put together updated full literal
-      prover:full_literal(Lit, NewCtx, NewFull),
+      prover:canon_literal(NewFull, Lit, NewCtx),
       %write('  - NewFull  : '),writeln(NewFull),
 
       %writeln('PROVER: -- Ready to apply rule for full literal'),
@@ -795,6 +719,84 @@ prover:select_new_literals_to_enqueue_([L0|Ls], Model, Proof0, Proof, Acc0, Acc)
   prover:select_new_literals_to_enqueue_(Ls, Model, Proof1, Proof, Acc1, Acc).
 
 
+% -----------------------------------------------------------------------------
+%  Lightweight model construction (skip Proof + Triggers bookkeeping)
+% -----------------------------------------------------------------------------
+%
+% For some internal computations (notably query-side model construction), we only
+% need the resulting Model/Constraints, not the Proof tree nor Triggers. Using the
+% full prover in those cases creates substantial overhead (assoc updates for Proof,
+% trigger maintenance, cycle bookkeeping keyed by Proof, ...).
+%
+% `prove_model/*` keeps the same semantics for constraints and for "already proven"
+% context refinement, but uses a dedicated in-progress set for cycle detection.
+
+
+%! prover:prove_model(+Target, +InModel, -OutModel, +InCons, -OutCons) is det
+%
+% Lightweight model construction: proves Target into OutModel/OutCons
+% without maintaining Proof or Triggers bookkeeping.
+
+prover:prove_model(Target, InModel, OutModel, InCons, OutCons) :-
+  prover:prove_model(Target, InModel, OutModel, InCons, OutCons, t).
+
+prover:prove_model([], Model, Model, Cons, Cons, _InProg) :-
+  !.
+prover:prove_model([Literal|Rest], Model0, Model, Cons0, Cons, InProg0) :-
+  !,
+  prover:prove_model(Literal, Model0, Model1, Cons0, Cons1, InProg0),
+  prover:prove_model(Rest,    Model1, Model,  Cons1, Cons,  InProg0).
+
+prover:prove_model(Full, Model0, Model, Constraints0, Constraints, InProg0) :-
+  literal(Full, Lit, Ctx),
+
+  (   % Case: a constraint
+      constraint:is_constraint(Lit) ->
+      !,
+      Model = Model0,
+      constraint:unify_constraints(Lit, Constraints0, Constraints)
+
+  ;   % Case: Lit already proven with given context
+      prover:proven(Lit, Model0, Ctx) ->
+      !,
+      Model = Model0,
+      Constraints = Constraints0
+
+  ;   % Case: Lit already proven, but context has changed
+      prover:proven(Lit, Model0, OldCtx) ->
+      !,
+      sampler:ctx_union(OldCtx, Ctx, NewCtx),
+      ( NewCtx == OldCtx ->
+          Model = Model0,
+          Constraints = Constraints0
+      ; prover:canon_literal(NewFull, Lit, NewCtx),
+        sampler:test_stats_rule_call,
+        rule(NewFull, NewBody),
+        prover:prove_model(NewBody, Model0, BodyModel, Constraints0, BodyConstraints, InProg0),
+        put_assoc(Lit, BodyModel, NewCtx, Model),
+        Constraints = BodyConstraints
+      )
+
+  ;   % Case: circular model proof (cycle-break)
+      get_assoc(Lit, InProg0, true) ->
+      !,
+      % Keep the same taxonomy as the full prover's cycle-breaks: store assumed(Lit)
+      % in the model (note: dependency-model extraction ignores assumed/1 keys).
+      put_assoc(assumed(Lit), Model0, Ctx, Model),
+      Constraints = Constraints0
+
+  ;   % Case: regular proof (model-only)
+      put_assoc(Lit, InProg0, true, InProg1),
+      sampler:test_stats_rule_call,
+      rule(Full, Body),
+      prover:prove_model(Body, Model0, BodyModel, Constraints0, BodyConstraints, InProg1),
+      del_assoc(Lit, InProg1, _Old, InProg2),
+      ( InProg2 = _ -> true ), % keep var used (avoid singleton warnings)
+      put_assoc(Lit, BodyModel, Ctx, Model),
+      Constraints = BodyConstraints
+  ).
+
+
 % =============================================================================
 % Debug Hook
 % =============================================================================
@@ -865,7 +867,7 @@ prover:add_rule_triggers(HeadKey-Value, InTriggers, OutTriggers) :-
     ( prover:canon_rule(rule(Head, Body), HeadKey, Value) ; prover:canon_rule(assumed(rule(Head, Body)), HeadKey, Value) ),
     !,
     ( Value = dep(_, _)?Ctx ->
-        % `canon_rule/3` may already return a context-annotated Head (Head?{Ctx}).
+        % `rule_parts/3` may already return a context-annotated Head (Head?{Ctx}).
         % Avoid wrapping a second time, which creates nested context terms like:
         %   portage://(dev-ml/foo-1.0:run?{Ctx})?{Ctx}
         ( Head = _?{_} -> FullHead = Head
@@ -940,31 +942,6 @@ prover:proven(Lit, Model, Ctx) :-
 prover:assumed_proven(Lit, Model) :- get_assoc(assumed(Lit), Model, _).
 
 
-%! prover:full_literal(+Lit, +Ctx, -Full) is det
-%
-% Build a full literal in a normalised, rule-friendly shape.
-% For repo-qualified literals the context is placed inside the repo
-% payload (`Repo://(Entry:Action?{Ctx})`) rather than wrapping the
-% whole term, so that `rule/2` heads match correctly.
-
-prover:full_literal(R://L:A, {}, R://L:A) :-
-  !.
-prover:full_literal(R://L:A, Ctx, R://(L:A?{Ctx})) :-
-  !.
-prover:full_literal(R://L, {}, R://L) :-
-  !.
-prover:full_literal(R://L, Ctx, R://(L?{Ctx})) :-
-  !.
-prover:full_literal(L:A, {}, L:A) :-
-  !.
-prover:full_literal(L:A, Ctx, L:A?{Ctx}) :-
-  !.
-prover:full_literal(L, {}, L) :-
-  !.
-prover:full_literal(L, Ctx, L?{Ctx}) :-
-  !.
-
-
 %! prover:ctx_sem_key(+Ctx, -Key) is det
 %
 % Extract a semantic key from a context for equivalence comparison.
@@ -1003,9 +980,8 @@ prover:conflictrule(rule(Lit,_), Proof) :-
 
 
 % =============================================================================
-% Helper: canonicalise literals and rules
+% Helper: compose and decompose literals and rules
 % =============================================================================
-
 
 %! prover:canon_literal(?Full, ?Core, ?Ctx)
 %
@@ -1058,6 +1034,8 @@ prover:canon_rule(assumed(rule(L,B)),           assumed(rule(L)),     dep(_,B)?{
 prover:canon_rule(assumed(rule(L?{Ctx},B)),     assumed(rule(L)),     dep(_,B)?Ctx)  :- !.
 prover:canon_rule(rule(L,B),                    rule(L),              dep(_,B)?{})   :- !.
 prover:canon_rule(rule(L?{Ctx},B),              rule(L),              dep(_,B)?Ctx)  :- !.
+
+
 
 
 % =============================================================================

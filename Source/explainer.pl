@@ -52,7 +52,7 @@ assumption_content_from_proof_key(assumed(rule(Content)), cycle_break(Content)) 
 %! explainer:assumption_normalize(+Content0, -Content)
 %
 % Normalize an assumption for stable counting and printing. Canonicalizes
-% the literal via prover:canon_literal/3, preserving any context tags
+% the literal via prover:literal/3, preserving any context tags
 % (e.g. assumption_reason/1, self/1).
 
 assumption_normalize(Content0, Content) :-
@@ -208,7 +208,7 @@ why_in_plan(Proposal, Plan, _ProofAVL, TriggersAVL, Target0, Why) :-
 %! explainer:canon_only(+X0, -X) is det.
 %
 % Canonicalize a literal, falling back to the original term if
-% prover:canon_literal/3 does not apply.
+% prover:literal/3 does not apply.
 
 explainer:canon_only(X0, X) :-
   ( prover:canon_literal(X0, X, _) -> true ; X = X0 ).
