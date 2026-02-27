@@ -10,31 +10,31 @@
 /** <module> PROVER
 Inductive proof search engine for portage-ng.
 
-Given a list of target literals the prover constructs four AVL-based
-artefacts:
+Given a list of target literals the prover constructs four artefacts
+(all implemented as AVL trees / `library(assoc)`):
 
-- ProofAVL  -- maps `rule(Lit)` / `assumed(rule(Lit))` to
-               `dep(DepCount, Body)?Ctx`, recording which rule was
-               applied for each literal and its dependency body.
-- ModelAVL  -- maps `Lit` to `Ctx`, recording every proven literal
-               and the context under which it was proven.
+- Proof       -- maps `rule(Lit)` / `assumed(rule(Lit))` to
+                 `dep(DepCount, Body)?Ctx`, recording which rule was
+                 applied for each literal and its dependency body.
+- Model       -- maps `Lit` to `Ctx`, recording every proven literal
+                 and the context under which it was proven.
 - Constraints -- accumulated constraint terms (`constraint(Key:{Val})`),
-               threaded through proof steps and unified incrementally.
-- TriggersAVL -- reverse-dependency index: for each proven body literal,
-               lists the head literals that depend on it.
+                 threaded through proof steps and unified incrementally.
+- Triggers    -- reverse-dependency index: for each proven body literal,
+                 lists the head literals that depend on it.
 
 Key design points:
 
 - Triggers are maintained incrementally during the proof: each proven
-  rule adds its body literals to the TriggersAVL as it is recorded.
+  rule adds its body literals to Triggers as it is recorded.
 
 - Cycle detection and cycle-break assumptions: during depth-first
   proof search, a per-proof *cycle stack* tracks literals currently
   being proved.  When a literal is encountered that is already on
   the stack, the prover records a cycle-break assumption instead of
-  diverging.  In the ProofAVL, cycle-breaks appear under the key
+  diverging.  In Proof, cycle-breaks appear under the key
   `assumed(rule(Lit))` (as opposed to `rule(Lit)` for normally
-  proven literals).  In the ModelAVL, they appear as `assumed(Lit)`.
+  proven literals).  In Model, they appear as `assumed(Lit)`.
   This is distinct from *domain-level* assumptions introduced by the
   rule layer via `rule(assumed(X), [])`.
 
@@ -79,92 +79,9 @@ Key design points:
 %  PROVER declarations
 % =============================================================================
 
-% -----------------------------------------------------------------------------
-%  Internal: cycle stack (for printing cycle-break paths)
-% -----------------------------------------------------------------------------
-%
-% Cycle-break detection should be based on "Lit currently on the proof stack".
-% The triggers graph is sometimes insufficient to reconstruct a human-readable
-% cycle quickly (especially when triggers are delayed or pruned). We therefore
-% maintain a lightweight per-proof stack of literals currently being proven,
-% and store a compact cycle witness in the proof under `cycle_path(Lit)`.
-
-
-%! prover:with_cycle_stack(:Goal) is det
-%
-% Run Goal with a fresh per-proof cycle stack.  Literals are pushed/popped
-% as they enter/leave the recursive prover, enabling cycle-path extraction
-% when a cycle-break assumption is made.
-
-prover:with_cycle_stack(Goal) :-
-  ( nb_current(prover_cycle_stack, Old) -> true ; Old = unset ),
-  nb_setval(prover_cycle_stack, []),
-  setup_call_cleanup(true,
-                     Goal,
-                     ( Old == unset -> nb_delete(prover_cycle_stack)
-                     ; nb_setval(prover_cycle_stack, Old)
-                     )).
-
-
-%! prover:cycle_stack_push(+Lit) is det
-%
-% Push Lit onto the thread-local cycle stack.
-
-prover:cycle_stack_push(Lit) :-
-  ( nb_current(prover_cycle_stack, S0) -> true ; S0 = [] ),
-  nb_setval(prover_cycle_stack, [Lit|S0]).
-
-
-%! prover:cycle_stack_pop(+Lit) is det
-%
-% Pop Lit from the thread-local cycle stack.
-
-prover:cycle_stack_pop(Lit) :-
-  ( nb_current(prover_cycle_stack, [Lit|Rest]) ->
-      nb_setval(prover_cycle_stack, Rest)
-  ; true
-  ).
-
-
-%! prover:take_until(+List, +Stop, -Prefix) is semidet
-%
-% Return the prefix of List up to and including Stop.
-
-prover:take_until([Stop|_], Stop, [Stop]) :- !.
-prover:take_until([X|Xs], Stop, [X|Out]) :-
-  prover:take_until(Xs, Stop, Out).
-
-
-%! prover:cycle_path_for(+Lit, -CyclePath) is det
-%
-% Extract a cycle witness from the current cycle stack for Lit.
-% Returns the portion of the stack from Lit back to its first
-% occurrence, forming a closed cycle path.
-
-prover:cycle_path_for(Lit, CyclePath) :-
-  ( nb_current(prover_cycle_stack, Stack),
-    prover:take_until(Stack, Lit, PrefixRev) ->
-      reverse(PrefixRev, Prefix),
-      append(Prefix, [Lit], CyclePath)
-  ; CyclePath = [Lit, Lit]
-  ).
-
-
-%! prover:currently_proving(+Lit) is semidet
-%
-% Succeeds when Lit is currently on the proof cycle stack (i.e. an
-% ancestor in the current proof derivation).
-
-prover:currently_proving(Lit) :-
-  nb_current(prover_cycle_stack, Stack),
-  memberchk(Lit, Stack),
-  !.
-
-
-
-% =============================================================================
+% ----------------------------------------------------------------------------- 
 % Top-Level Entry Point
-% =============================================================================
+% -----------------------------------------------------------------------------
 
 
 %! prover:prove(+Target, +InProof, -OutProof, +InModel, -OutModel, +InCons, -OutCons, +InTriggers, -OutTriggers)
@@ -226,56 +143,6 @@ prover:handle_reprove(Target, InProof, OutProof, InModel, OutModel, InCons, OutC
     )
   ).
 
-% ---------------------------------------------------------------------------
-%  Learned constraint store
-% ---------------------------------------------------------------------------
-%
-%  A generic key-value store for constraints learned across proof attempts.
-%  Rules can learn constraints (e.g., version domain narrowing) and consult
-%  them during candidate selection. The prover manages the store lifecycle.
-%  Merge semantics are defined by feature_unification:val_hook.
-
-
-%! prover:learned(+Literal, -Constraint)
-%
-%  Look up a learned constraint. Fails if none exists.
-
-prover:learned(Literal, Constraint) :-
-  nb_current(prover_learned_constraints, Store),
-  get_assoc(Literal, Store, Constraint).
-
-
-%! prover:learn(+Literal, +Constraint, -Added)
-%
-%  Store a learned constraint. If one already exists for Literal,
-%  merge via feature_unification:val_hook. Added is true if the
-%  store changed, false if Constraint was already subsumed.
-
-prover:learn(Literal, Constraint, Added) :-
-  ( nb_current(prover_learned_constraints, Store0)
-  -> true
-  ; empty_assoc(Store0)
-  ),
-  ( get_assoc(Literal, Store0, Old) ->
-      ( Old == Constraint ->
-          Added = false
-      ; feature_unification:val_hook(Old, Constraint, Merged) ->
-          ( Merged == Old ->
-              Added = false
-          ; put_assoc(Literal, Store0, Merged, Store1),
-            nb_setval(prover_learned_constraints, Store1),
-            Added = true
-          )
-      ; put_assoc(Literal, Store0, Constraint, Store1),
-        nb_setval(prover_learned_constraints, Store1),
-        Added = true
-      )
-  ; put_assoc(Literal, Store0, Constraint, Store1),
-    nb_setval(prover_learned_constraints, Store1),
-    Added = true
-  ),
-  !.
-
 
 %! prover:prove_once(+Target, +InProof, -OutProof, +InModel, -OutModel, +InCons, -OutCons, +InTriggers, -OutTriggers) is det
 %
@@ -336,14 +203,11 @@ prover:with_reprove_disabled(Goal) :-
                      ( current_predicate(rules:reprove_enable/0) -> rules:reprove_enable ; true )).
 
 
-% =============================================================================
+% -----------------------------------------------------------------------------
 % Core Recursive Prover
-% =============================================================================
-
 % -----------------------------------------------------------------------------
+
 % CASE 1: A list of literals to prove (Recursive Step)
-% -----------------------------------------------------------------------------
-
 
 %! prover:prove_recursive(+Target, +InProof, -OutProof, +InModel, -OutModel, +InCons, -OutCons, +InTrig, -OutTrig) is nondet
 %
@@ -362,9 +226,7 @@ prover:prove_recursive([Literal|Rest],Proof,NewProof,Model,NewModel,Cons,NewCons
   prover:prove_recursive(Rest1,    MidProof1,NewProof, MidModel,NewModel, MidCons,NewCons, MidTrig,NewTrig).
 
 
-% -----------------------------------------------------------------------------
 % CASE 2: A single literal to prove (Recursive Step)
-% -----------------------------------------------------------------------------
 
 prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewConstraints, Triggers, NewTriggers) :-
 
@@ -585,9 +447,87 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 
 
 % -----------------------------------------------------------------------------
+%  Lightweight model construction (skip Proof + Triggers bookkeeping)
+% -----------------------------------------------------------------------------
+
+% For some internal computations (notably query-side model construction), we only
+% need the resulting Model/Constraints, not the Proof tree nor Triggers. Using the
+% full prover in those cases creates substantial overhead (assoc updates for Proof,
+% trigger maintenance, cycle bookkeeping keyed by Proof, ...).
+%
+% `prove_model/*` keeps the same semantics for constraints and for "already proven"
+% context refinement, but uses a dedicated in-progress set for cycle detection.
+
+
+%! prover:prove_model(+Target, +InModel, -OutModel, +InCons, -OutCons) is det
+%
+% Lightweight model construction: proves Target into OutModel/OutCons
+% without maintaining Proof or Triggers bookkeeping.
+
+prover:prove_model(Target, InModel, OutModel, InCons, OutCons) :-
+  prover:prove_model(Target, InModel, OutModel, InCons, OutCons, t).
+
+prover:prove_model([], Model, Model, Cons, Cons, _InProg) :-
+  !.
+prover:prove_model([Literal|Rest], Model0, Model, Cons0, Cons, InProg0) :-
+  !,
+  prover:prove_model(Literal, Model0, Model1, Cons0, Cons1, InProg0),
+  prover:prove_model(Rest,    Model1, Model,  Cons1, Cons,  InProg0).
+
+prover:prove_model(Full, Model0, Model, Constraints0, Constraints, InProg0) :-
+  literal(Full, Lit, Ctx),
+
+  (   % Case: a constraint
+      constraint:is_constraint(Lit) ->
+      !,
+      Model = Model0,
+      constraint:unify_constraints(Lit, Constraints0, Constraints)
+
+  ;   % Case: Lit already proven with given context
+      prover:proven(Lit, Model0, Ctx) ->
+      !,
+      Model = Model0,
+      Constraints = Constraints0
+
+  ;   % Case: Lit already proven, but context has changed
+      prover:proven(Lit, Model0, OldCtx) ->
+      !,
+      sampler:ctx_union(OldCtx, Ctx, NewCtx),
+      ( NewCtx == OldCtx ->
+          Model = Model0,
+          Constraints = Constraints0
+      ; prover:canon_literal(NewFull, Lit, NewCtx),
+        sampler:test_stats_rule_call,
+        rule(NewFull, NewBody),
+        prover:prove_model(NewBody, Model0, BodyModel, Constraints0, BodyConstraints, InProg0),
+        put_assoc(Lit, BodyModel, NewCtx, Model),
+        Constraints = BodyConstraints
+      )
+
+  ;   % Case: circular model proof (cycle-break)
+      get_assoc(Lit, InProg0, true) ->
+      !,
+      % Keep the same taxonomy as the full prover's cycle-breaks: store assumed(Lit)
+      % in the model (note: dependency-model extraction ignores assumed/1 keys).
+      put_assoc(assumed(Lit), Model0, Ctx, Model),
+      Constraints = Constraints0
+
+  ;   % Case: regular proof (model-only)
+      put_assoc(Lit, InProg0, true, InProg1),
+      sampler:test_stats_rule_call,
+      rule(Full, Body),
+      prover:prove_model(Body, Model0, BodyModel, Constraints0, BodyConstraints, InProg1),
+      del_assoc(Lit, InProg1, _Old, InProg2),
+      ( InProg2 = _ -> true ), % keep var used (avoid singleton warnings)
+      put_assoc(Lit, BodyModel, Ctx, Model),
+      Constraints = BodyConstraints
+  ).
+
+
+% -----------------------------------------------------------------------------
 %  Proof obligations (domain-injected)
 % -----------------------------------------------------------------------------
-%
+
 % The prover stays domain-agnostic.  After proving a literal, it consults
 % an optional domain predicate to discover additional proof obligations:
 %
@@ -720,86 +660,141 @@ prover:select_new_literals_to_enqueue_([L0|Ls], Model, Proof0, Proof, Acc0, Acc)
 
 
 % -----------------------------------------------------------------------------
-%  Lightweight model construction (skip Proof + Triggers bookkeeping)
+%  Learned constraint store
+% -----------------------------------------------------------------------------
+
+%  A generic key-value store for constraints learned across proof attempts.
+%  Rules can learn constraints (e.g., version domain narrowing) and consult
+%  them during candidate selection. The prover manages the store lifecycle.
+%  Merge semantics are defined by feature_unification:val_hook.
+
+
+%! prover:learned(+Literal, -Constraint)
+%
+%  Look up a learned constraint. Fails if none exists.
+
+prover:learned(Literal, Constraint) :-
+  nb_current(prover_learned_constraints, Store),
+  get_assoc(Literal, Store, Constraint).
+
+
+%! prover:learn(+Literal, +Constraint, -Added)
+%
+%  Store a learned constraint. If one already exists for Literal,
+%  merge via feature_unification:val_hook. Added is true if the
+%  store changed, false if Constraint was already subsumed.
+
+prover:learn(Literal, Constraint, Added) :-
+  ( nb_current(prover_learned_constraints, Store0)
+  -> true
+  ; empty_assoc(Store0)
+  ),
+  ( get_assoc(Literal, Store0, Old) ->
+      ( Old == Constraint ->
+          Added = false
+      ; feature_unification:val_hook(Old, Constraint, Merged) ->
+          ( Merged == Old ->
+              Added = false
+          ; put_assoc(Literal, Store0, Merged, Store1),
+            nb_setval(prover_learned_constraints, Store1),
+            Added = true
+          )
+      ; put_assoc(Literal, Store0, Constraint, Store1),
+        nb_setval(prover_learned_constraints, Store1),
+        Added = true
+      )
+  ; put_assoc(Literal, Store0, Constraint, Store1),
+    nb_setval(prover_learned_constraints, Store1),
+    Added = true
+  ),
+  !.
+
+
+% -----------------------------------------------------------------------------
+%  Cycle stack (for cycle-break paths)
 % -----------------------------------------------------------------------------
 %
-% For some internal computations (notably query-side model construction), we only
-% need the resulting Model/Constraints, not the Proof tree nor Triggers. Using the
-% full prover in those cases creates substantial overhead (assoc updates for Proof,
-% trigger maintenance, cycle bookkeeping keyed by Proof, ...).
+% Cycle-break detection should be based on "Lit currently on the proof stack".
+% The triggers graph is sometimes insufficient to reconstruct a human-readable
+% cycle quickly (especially when triggers are delayed or pruned). We therefore
+% maintain a lightweight per-proof stack of literals currently being proven,
+% and store a compact cycle witness in the proof under `cycle_path(Lit)`.
+
+
+%! prover:with_cycle_stack(:Goal) is det
 %
-% `prove_model/*` keeps the same semantics for constraints and for "already proven"
-% context refinement, but uses a dedicated in-progress set for cycle detection.
+% Run Goal with a fresh per-proof cycle stack.  Literals are pushed/popped
+% as they enter/leave the recursive prover, enabling cycle-path extraction
+% when a cycle-break assumption is made.
+
+prover:with_cycle_stack(Goal) :-
+  ( nb_current(prover_cycle_stack, Old) -> true ; Old = unset ),
+  nb_setval(prover_cycle_stack, []),
+  setup_call_cleanup(true,
+                     Goal,
+                     ( Old == unset -> nb_delete(prover_cycle_stack)
+                     ; nb_setval(prover_cycle_stack, Old)
+                     )).
 
 
-%! prover:prove_model(+Target, +InModel, -OutModel, +InCons, -OutCons) is det
+%! prover:cycle_stack_push(+Lit) is det
 %
-% Lightweight model construction: proves Target into OutModel/OutCons
-% without maintaining Proof or Triggers bookkeeping.
+% Push Lit onto the thread-local cycle stack.
 
-prover:prove_model(Target, InModel, OutModel, InCons, OutCons) :-
-  prover:prove_model(Target, InModel, OutModel, InCons, OutCons, t).
+prover:cycle_stack_push(Lit) :-
+  ( nb_current(prover_cycle_stack, S0) -> true ; S0 = [] ),
+  nb_setval(prover_cycle_stack, [Lit|S0]).
 
-prover:prove_model([], Model, Model, Cons, Cons, _InProg) :-
-  !.
-prover:prove_model([Literal|Rest], Model0, Model, Cons0, Cons, InProg0) :-
-  !,
-  prover:prove_model(Literal, Model0, Model1, Cons0, Cons1, InProg0),
-  prover:prove_model(Rest,    Model1, Model,  Cons1, Cons,  InProg0).
 
-prover:prove_model(Full, Model0, Model, Constraints0, Constraints, InProg0) :-
-  literal(Full, Lit, Ctx),
+%! prover:cycle_stack_pop(+Lit) is det
+%
+% Pop Lit from the thread-local cycle stack.
 
-  (   % Case: a constraint
-      constraint:is_constraint(Lit) ->
-      !,
-      Model = Model0,
-      constraint:unify_constraints(Lit, Constraints0, Constraints)
-
-  ;   % Case: Lit already proven with given context
-      prover:proven(Lit, Model0, Ctx) ->
-      !,
-      Model = Model0,
-      Constraints = Constraints0
-
-  ;   % Case: Lit already proven, but context has changed
-      prover:proven(Lit, Model0, OldCtx) ->
-      !,
-      sampler:ctx_union(OldCtx, Ctx, NewCtx),
-      ( NewCtx == OldCtx ->
-          Model = Model0,
-          Constraints = Constraints0
-      ; prover:canon_literal(NewFull, Lit, NewCtx),
-        sampler:test_stats_rule_call,
-        rule(NewFull, NewBody),
-        prover:prove_model(NewBody, Model0, BodyModel, Constraints0, BodyConstraints, InProg0),
-        put_assoc(Lit, BodyModel, NewCtx, Model),
-        Constraints = BodyConstraints
-      )
-
-  ;   % Case: circular model proof (cycle-break)
-      get_assoc(Lit, InProg0, true) ->
-      !,
-      % Keep the same taxonomy as the full prover's cycle-breaks: store assumed(Lit)
-      % in the model (note: dependency-model extraction ignores assumed/1 keys).
-      put_assoc(assumed(Lit), Model0, Ctx, Model),
-      Constraints = Constraints0
-
-  ;   % Case: regular proof (model-only)
-      put_assoc(Lit, InProg0, true, InProg1),
-      sampler:test_stats_rule_call,
-      rule(Full, Body),
-      prover:prove_model(Body, Model0, BodyModel, Constraints0, BodyConstraints, InProg1),
-      del_assoc(Lit, InProg1, _Old, InProg2),
-      ( InProg2 = _ -> true ), % keep var used (avoid singleton warnings)
-      put_assoc(Lit, BodyModel, Ctx, Model),
-      Constraints = BodyConstraints
+prover:cycle_stack_pop(Lit) :-
+  ( nb_current(prover_cycle_stack, [Lit|Rest]) ->
+      nb_setval(prover_cycle_stack, Rest)
+  ; true
   ).
 
 
-% =============================================================================
+%! prover:take_until(+List, +Stop, -Prefix) is semidet
+%
+% Return the prefix of List up to and including Stop.
+
+prover:take_until([Stop|_], Stop, [Stop]) :- !.
+prover:take_until([X|Xs], Stop, [X|Out]) :-
+  prover:take_until(Xs, Stop, Out).
+
+
+%! prover:cycle_path_for(+Lit, -CyclePath) is det
+%
+% Extract a cycle witness from the current cycle stack for Lit.
+% Returns the portion of the stack from Lit back to its first
+% occurrence, forming a closed cycle path.
+
+prover:cycle_path_for(Lit, CyclePath) :-
+  ( nb_current(prover_cycle_stack, Stack),
+    prover:take_until(Stack, Lit, PrefixRev) ->
+      reverse(PrefixRev, Prefix),
+      append(Prefix, [Lit], CyclePath)
+  ; CyclePath = [Lit, Lit]
+  ).
+
+
+%! prover:currently_proving(+Lit) is semidet
+%
+% Succeeds when Lit is currently on the proof cycle stack (i.e. an
+% ancestor in the current proof derivation).
+
+prover:currently_proving(Lit) :-
+  nb_current(prover_cycle_stack, Stack),
+  memberchk(Lit, Stack),
+  !.
+
+
+% -----------------------------------------------------------------------------
 % Debug Hook
-% =============================================================================
+% -----------------------------------------------------------------------------
 
 
 %! prover:debug_hook(+Target, +Proof, +Model, +Constraints)
@@ -820,6 +815,7 @@ prover:with_debug_hook(Handler, Goal) :-
     Goal,
     retractall(prover:debug_hook_handler(Handler))
   ).
+
 
 %! prover:debug_hook(+Target, +Proof, +Model, +Constraints) is det
 %
@@ -900,9 +896,9 @@ prover:add_trigger(Head, Dep, InTriggers, OutTriggers) :-
     ).
 
 
-% =============================================================================
+% -----------------------------------------------------------------------------
 % Proof helper predicates & Canonicalisation
-% =============================================================================
+% -----------------------------------------------------------------------------
 
 
 %! prover:proving(+RuleTerm, +Proof) is semidet
@@ -979,9 +975,9 @@ prover:conflictrule(rule(Lit,_), Proof) :-
   ), !.
 
 
-% =============================================================================
+% -----------------------------------------------------------------------------
 % Helper: compose and decompose literals and rules
-% =============================================================================
+% -----------------------------------------------------------------------------
 
 %! prover:canon_literal(?Full, ?Core, ?Ctx)
 %
@@ -991,11 +987,6 @@ prover:conflictrule(rule(Lit,_), Proof) :-
 %
 % Convert between full format and key-value pair used
 % for the AVL model tree
-
-% Robustness: occasionally a literal can be accidentally wrapped as
-%   Repo://(Entry:Action?{Ctx})?{Ctx2}
-% (repo applied to a whole action+context term). Canonicalize those to the
-% intended shape Repo://Entry:Action?{MergedCtx}.
 
 prover:canon_literal(R://(L:A),               R://L:A, {})  :- !.
 prover:canon_literal(R://(L:A?{Ctx1}),        R://L:A, Ctx1) :- !.
@@ -1036,11 +1027,9 @@ prover:canon_rule(rule(L,B),                    rule(L),              dep(_,B)?{
 prover:canon_rule(rule(L?{Ctx},B),              rule(L),              dep(_,B)?Ctx)  :- !.
 
 
-
-
-% =============================================================================
+% -----------------------------------------------------------------------------
 %  Helper: AVL assoc convertors
-% =============================================================================
+% -----------------------------------------------------------------------------
 
 
 %! prover:proof_to_list(+Assoc, -List)
@@ -1112,9 +1101,9 @@ prover:add_to_assoc(Key,InAssoc,OutAssoc) :-
   put_assoc(Key,InAssoc,{},OutAssoc).
 
 
-% =============================================================================
+% -----------------------------------------------------------------------------
 %  Automated testing helpers
-% =============================================================================
+% -----------------------------------------------------------------------------
 
 % -----------------------------------------------------------------------------
 %  Test action mapping
@@ -1220,10 +1209,10 @@ prover:test_latest(Repository,Style) :-
                 prover:test_target_success(Target)
               )).
 
+
 % -----------------------------------------------------------------------------
 %  Testing + statistics
 % -----------------------------------------------------------------------------
-
 
 %! prover:test_stats(+Repository) is det
 %
@@ -1317,6 +1306,7 @@ prover:test_stats(Repository, Style, TopN) :-
                 )
               )),
   printer:test_stats_print(TopN).
+
 
 % -----------------------------------------------------------------------------
 %  Focused stats: run prover:test_stats for a specific list of Category/Name pairs
