@@ -29,6 +29,10 @@ database structure. See examples below.
 */
 
 
+% The actual module declaration is in kb.qlf, which is maintained by the 
+% knowledgebase module. This file basically contains the structure of the dynamic 
+% facts in the cache database.
+
 % =============================================================================
 %  CACHE declarations
 % =============================================================================
@@ -36,8 +40,8 @@ database structure. See examples below.
 :- dynamic cache:repository/1.		      % e.g. 'portage'
 :- dynamic cache:category/2.		        % e.g. 'portage','sys-kernel'
 :- dynamic cache:package/3.		          % e.g. 'portage','sys-kernel','linux-sources'
-:- dynamic cache:entry/5.		            % e.g. 'portage','sys-kernel/linux-sources-6.15.0','sys-kernel',linux-sources',[[6,15,0],,,'6.15.0'] (Versions not ordered)
-:- dynamic cache:ordered_entry/5.       % e.g. 'portage','sys-kernel/linux-sources-6.15.0','sys-kernel',linux-sources',[[6.15.0],,,'6.15.0'] (Versions ordered)
+:- dynamic cache:entry/5.		            % e.g. 'portage','sys-kernel/linux-sources-6.15.0','sys-kernel','linux-sources',version([6,15,0],'',4,0,'',0,'6.15.0')
+:- dynamic cache:ordered_entry/5.       % e.g. same as entry/5, but asserted in descending version order per category/name
 :- dynamic cache:entry_metadata/4.	    % e.g. 'portage','sys-kernel/linux-sources-6.15.0','use','build'
 :- dynamic cache:manifest/5.		        % e.g. 'portage',Path,Timestamp,'sys-kernel','linux-sources'
 :- dynamic cache:manifest_metadata/6.	  % e.g. 'portage',Path,Filetype,Filename,Filesize,Checksum

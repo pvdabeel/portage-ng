@@ -27,6 +27,10 @@ Scope / limitations (intentional, first cut):
 :- module(profile, []).
 
 
+% =============================================================================
+%  PROFILE declarations
+% =============================================================================
+
 %! profile_use_terms(+ProfileRel, -Terms:list)
 %
 % Compute a list of preference:profile_use/1 terms for the given profile path
