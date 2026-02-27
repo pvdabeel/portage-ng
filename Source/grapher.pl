@@ -9,7 +9,13 @@
 
 
 /** <module> GRAPHER
-Outputs DOT language.
+Generates dependency graphs in DOT language for Gentoo ebuilds.
+
+Given an ebuild (identified by its cache entry), the grapher traverses the
+dependency tree produced by the prover and emits a DOT graph that can be
+rendered to SVG by Graphviz.  The resulting SVG embeds interactive elements
+(hyperlinks, tooltips) so that a user can click through to dependencies,
+switch versions, or inspect command output.
 
 For a given ebuild, the following output can be produced:
 

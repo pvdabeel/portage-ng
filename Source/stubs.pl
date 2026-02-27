@@ -7,6 +7,7 @@
   project.
 */
 
+
 /** <module> STUBS
 This file contains stub predicates for functions that are only available in
 specific modes (e.g., client or server). This allows the application to be

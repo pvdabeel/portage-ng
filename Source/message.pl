@@ -7,6 +7,7 @@
   this project.
 */
 
+
 /** <module> MESSAGE
 This file contains the predicates used for pretty printing messages.
 */

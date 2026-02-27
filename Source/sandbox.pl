@@ -8,6 +8,11 @@
 */
 
 
+/** <module> SANDBOX
+This module contains the predicates used for sandboxing the client - server 
+architecture
+*/
+
 % =============================================================================
 %  SANDBOX declarations
 % =============================================================================
