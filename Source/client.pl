@@ -72,6 +72,7 @@ client:remote_predicate_template(preference:set(_,_)).
 % Installed state (todo: needs client-side VDB handling)
 % remote_predicate_template(cache:entry_metadata(_,_,installed,true)).
 
+
 %! client:remote_predicate_instance(?Predicate)
 %
 % Predicates whose ground instances (matching facts) are shipped individually.

@@ -319,15 +319,16 @@ config:digest_passwordfile(Filename) :-
   os:compose_path([Dir,'Source/Certificates/passwordfile'],Filename).
 
 
- % -----------------------------------------------------------------------------
- % Graphing
- % -----------------------------------------------------------------------------
+% -----------------------------------------------------------------------------
+% Graphing
+% -----------------------------------------------------------------------------
 
- % Interface can dynamically override graphing behavior for a single run.
- % (Used by CLI flags like --graph-modified / --graph-full.)
- :- dynamic config:interface_graph_modified_only/1.
+% Interface can dynamically override graphing behavior for a single run.
+% (Used by CLI flags like --graph-modified / --graph-full.)
 
- %! config:graph_directory(?Hostname,?FullPath)
+:- dynamic config:interface_graph_modified_only/1.
+
+%! config:graph_directory(?Hostname,?FullPath)
 %
 % This application is capable of writing Graphviz dot files and will turn
 % them into interactive scalable vector graphics (svg) to enable you to
@@ -343,9 +344,9 @@ config:graph_directory('macbook-pro.local', '/Users/pvdabeel/Graph')  :- !.
 config:graph_directory('vm-linux.local',    '/root/Graph')            :- !.
 
 
- %! config:graph_modified_only(?Bool)
- %
- % Set when you want Graphviz dot file to be created for new ebuilds only
+%! config:graph_modified_only(?Bool)
+%
+% Set when you want Graphviz dot file to be created for new ebuilds only
 
 % Note: call sites often query this as `config:graph_modified_only(true)` in an
 % if-then-else. Therefore this predicate must *not* have an unconditional
@@ -355,6 +356,7 @@ config:graph_directory('vm-linux.local',    '/root/Graph')            :- !.
 % Resolution order:
 % - CLI/runtime override (dynamic) via config:interface_graph_modified_only/1
 % - Default (can be changed by editing config:graph_modified_only_default/1)
+
 config:graph_modified_only(Bool) :-
   ( config:interface_graph_modified_only(Bool0) ->
       Bool = Bool0
@@ -364,6 +366,7 @@ config:graph_modified_only(Bool) :-
 % Default graphing behavior (when CLI didn't override):
 % true = graph only modified/new ebuilds
 % false = graph everything
+
 config:graph_modified_only_default(true).
 
 
@@ -463,7 +466,7 @@ config:print_blockers(gentoo).
 % -----------------------------------------------------------------------------
 % Graphing: static assets
 % -----------------------------------------------------------------------------
-%
+
 
 % When generating HTML (index pages + proofs) we copy a few static assets into the
 % repository graph directory (the dir created by repository:prepare_directory/1).
@@ -475,6 +478,7 @@ config:print_blockers(gentoo).
 % - .meslo.ttf   (font used by proof rendering)
 %
 % Sources are configurable here (defaults are in Documentation/Assets/).
+
 
 %! config:graph_asset_source(+Key, -SourcePath)
 %
@@ -576,6 +580,7 @@ config:proving_target(run).
 % - Higher values allow more refinement but can increase runtime.
 %
 % Recommended default: 20 (Portage-like retry budget)
+
 config:reprove_max_retries(20).
 
 
@@ -870,16 +875,3 @@ config:llm_endpoint(claude,  'https://api.anthropic.com/v1/messages').
 config:llm_endpoint(gemini,  'https://generativelanguage.googleapis.com/v1beta/chat/completions').
 config:llm_endpoint(llama,   'https://api.llama.com/v1/chat/completions').
 config:llm_endpoint(ollama,  'http://localhost:11434/v1/chat/completions').
-
-
-% -----------------------------------------------------------------------------
-% Debugging
-% -----------------------------------------------------------------------------
-
-%! config:q_enabled(?Bool)
-%
-% The Q oracle caches proofs and plans. This is useful when you are working on
-% the printer or the builder, and don't want to wait for the prover or planner
-% to reproduce the same proof or plan over and over again.
-
-config:q_enabled(false).
