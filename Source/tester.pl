@@ -202,7 +202,8 @@ tester:test(parallel_verbose,Name,Repository://Item,Generator,Test,Report,Scroll
                         ; true
                         )
                       )
-                    )),
+                    ),
+                    [threads(Cpus)]),
   !,
   message:sc,
   stats:runningtime(Min,Sec),
@@ -218,7 +219,7 @@ tester:test(parallel_fast,Name,Repository://Item,Generator,Test,Result,_) :-
   message:title([Name,' (',Cpus,' threads) - No intermediate output']),
   flush_output,
   message:hc,
-  concurrent_forall(Generator,(Test,!,Result;message:failure(Item))),
+  concurrent_forall(Generator,(Test,!,Result;message:failure(Item)),[threads(Cpus)]),
   message:sc,
   stats:runningtime(Min,Sec),!,
   message:title_reset,!,
