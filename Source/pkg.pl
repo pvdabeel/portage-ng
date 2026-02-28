@@ -9,34 +9,39 @@
 
 
 /** <module> VDB
-This module is reponsible for tracking installed packages on the system.
+Tracks installed packages on the system by scanning the VDB (var/db/pkg)
+directory tree. Provides predicates to synchronise the installed-package
+metadata into the Prolog cache, to scaffold repository directory structures,
+and to copy static graph assets.
 */
 
 :- module(vdb, []).
-
-% message.pl is part of the main load graph; we call it via module qualification
-% (message:warning/1) without importing here to avoid path issues.
 
 % =============================================================================
 %  PKG declarations
 % =============================================================================
 
+% -----------------------------------------------------------------------------
+%  VDB synchronisation
+% -----------------------------------------------------------------------------
 
-%! vdb:sync
+%! vdb:sync is det.
 %
-% Syncs the installed packages to prolog metadata
+% Refreshes the in-memory installed-package metadata by scanning the VDB
+% directory. Retracts all existing `installed` metadata for the portage
+% repository and re-asserts a fact for every package found on disk.
 
 vdb:sync :-
   retractall(cache:entry_metadata(portage,_,installed,_)),
   forall(vdb:find_installed_pkg(portage://Entry),
          (asserta(cache:entry_metadata(portage,Entry,installed,true)))).
-          %message:scroll([Entry]))),
-	  %message:inform(['Updated system package database']).
 
 
-%! vdb:find_installed_pkg(+Entry)
+%! vdb:find_installed_pkg(-RepoEntry) is nondet.
 %
-% Retrieves installed packages on the system
+% Enumerates installed packages from the host-specific VDB directory
+% (config:pkg_directory/2). On backtracking, unifies RepoEntry with
+% each portage://Category/Package-Version found on disk.
 
 vdb:find_installed_pkg(portage://Entry) :-
   config:hostname(Hostname),
@@ -47,12 +52,14 @@ vdb:find_installed_pkg(portage://Entry) :-
   os:compose_path(Category,Package,Entry).
 
 
-% NEEDS REWORK -> move to another location (repository?)
+% -----------------------------------------------------------------------------
+%  Repository directory scaffolding
+% -----------------------------------------------------------------------------
 
-%! vdb:create_repository_dirs(+Repository,+Directory)
+%! vdb:create_repository_dirs(+Repository, +Directory) is det.
 %
-% Given a prolog repository, creates a directory with subdirs
-% corresponding to the categories within the prolog repository
+% Ensures that Directory contains a subdirectory for every category
+% in Repository. Existing subdirectories are left untouched.
 
 vdb:create_repository_dirs(Repository,Directory) :-
   forall(Repository:category(C),
@@ -61,10 +68,11 @@ vdb:create_repository_dirs(Repository,Directory) :-
       system:make_directory(Subdir)))).
 
 
-%! vdb:make_repository_dirs(+Repository,+Directory)
+%! vdb:make_repository_dirs(+Repository, +Directory) is det.
 %
-% Given a prolog repository, creates a directory with subdirs
-% corresponding to the categories within the prolog repository
+% Creates Directory and a subdirectory for every category in Repository.
+% Unlike create_repository_dirs/2, this assumes Directory does not yet
+% exist.
 
 vdb:make_repository_dirs(Repository,Directory) :-
   system:make_directory(Directory),
@@ -76,9 +84,12 @@ vdb:make_repository_dirs(Repository,Directory) :-
 % -----------------------------------------------------------------------------
 %  Graph directory helpers
 % -----------------------------------------------------------------------------
+
+%! vdb:copy_graph_assets(+Directory) is det.
 %
-% Copy static assets into the repository graph directory.
-% Targets are fixed names: .index.css, .proof.css, .meslo.ttf
+% Copies all static assets (.index.css, .proof.css, .meslo.ttf) into
+% the repository graph Directory. Sources are resolved via
+% config:graph_asset_source/2.
 
 vdb:copy_graph_assets(Directory) :-
   vdb:copy_graph_asset(index_css, '.index.css', Directory),
@@ -86,13 +97,18 @@ vdb:copy_graph_assets(Directory) :-
   vdb:copy_graph_asset(meslo_ttf, '.meslo.ttf', Directory),
   !.
 
+%! vdb:copy_graph_asset(+Key, +TargetName, +Directory) is det.
+%
+% Copies the asset identified by Key to Directory/TargetName,
+% overwriting any existing file. Warns on missing sources or copy
+% failures.
+
 vdb:copy_graph_asset(Key, TargetName, Directory) :-
   ( current_predicate(config:graph_asset_source/2),
     config:graph_asset_source(Key, Source),
     exists_file(Source)
   ->
     atomic_list_concat([Directory,'/',TargetName], Target),
-    % Overwrite to keep assets in sync when updating a graph directory.
     ( exists_file(Target) -> catch(delete_file(Target), _, true) ; true ),
     catch(copy_file(Source, Target), E,
           message:warning(['Failed to copy graph asset ', Source, ' -> ', Target, ' (', E, ')']))
@@ -104,15 +120,14 @@ vdb:copy_graph_asset(Key, TargetName, Directory) :-
 %  VDB helpers (diagnostics)
 % -----------------------------------------------------------------------------
 
-%! vdb:outdated(+Category, +Name, -Installed, -Latest)
+%! vdb:outdated(+Category, +Name, -Installed, -Latest) is nondet.
 %
-% True when the installed vdb repository (`pkg`) contains Category/Name at an
-% older version than the newest acceptable candidate in the portage repository.
-%
-% This is meant as a small diagnostic to help validate --deep behaviour.
+% Succeeds when the VDB (pkg) repository contains Category/Name at an
+% older version than the newest acceptable candidate in the portage
+% repository. Useful as a diagnostic for validating --deep behaviour.
 %
 % Example:
-%   ?- vdb:outdated('dev-libs',openssl, Installed, Latest).
+%   ?- vdb:outdated('dev-libs', openssl, Installed, Latest).
 %   Installed = pkg://'dev-libs/openssl-3.5.0',
 %   Latest    = portage://'dev-libs/openssl-3.5.4'.
 

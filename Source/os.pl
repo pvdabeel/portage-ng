@@ -16,15 +16,6 @@ Eventually this could become a class with different subclasses.
 
 :- module(os, []).
 
-% Meta-predicate declarations:
-% Ensure the Goal executes in the *caller* context/module, not in module `os`.
-% This is crucial when the Goal uses instance-method syntax (`::`) or relies on
-% caller-local predicates.
-
-:- meta_predicate with_system_lock(+, 0).
-:- meta_predicate with_system_lock(+, 0, +).
-
-
 % =============================================================================
 %  OS declarations
 % =============================================================================
@@ -115,10 +106,11 @@ find_files(Dir, Pattern, File) :-
                      matches(Pattern)
                    ]).
 
+
 % -----------------------------------------------------------------------------
 %  System-wide locking
 % -----------------------------------------------------------------------------
-%
+
 % Provides a simple cross-process lock (Darwin + Linux) using an atomic mkdir on
 % a lock directory in /tmp.
 %
@@ -128,7 +120,16 @@ find_files(Dir, Pattern, File) :-
 % Options:
 % - timeout(Seconds): wait up to Seconds to acquire the lock (default 600). Use -1 for infinite.
 % - stale(Seconds): consider lock stale after Seconds and remove it (default 7200). Use 0 to disable.
-%
+
+
+% Meta-predicate declarations:
+% Ensure the Goal executes in the *caller* context/module, not in module `os`.
+% This is crucial when the Goal uses instance-method syntax (`::`) or relies on
+% caller-local predicates.
+
+:- meta_predicate with_system_lock(+, 0).
+:- meta_predicate with_system_lock(+, 0, +).
+
 
 %! os:with_system_lock(+Name, :Goal) is det.
 %
@@ -137,6 +138,7 @@ find_files(Dir, Pattern, File) :-
 
 with_system_lock(Name, Goal) :-
   with_system_lock(Name, Goal, []).
+
 
 %! os:with_system_lock(+Name, :Goal, +Options) is det.
 %
@@ -152,6 +154,7 @@ with_system_lock(Name, Goal, Options) :-
   os:system_lock_acquire(LockDir, Name, Timeout, Stale),
   call_cleanup(Goal, os:system_lock_release(LockDir)).
 
+
 %! os:system_lock_dir(+Name, -LockDir) is det.
 %
 % Derive the filesystem lock directory path in /tmp from a lock Name term.
@@ -160,6 +163,7 @@ system_lock_dir(Name, LockDir) :-
   term_to_atom(Name, Atom0),
   os:sanitize_for_filename(Atom0, Atom),
   atomic_list_concat(['/tmp/portage-ng-lock-', Atom, '.lock'], LockDir).
+
 
 %! os:sanitize_for_filename(+In, -Out) is det.
 %
@@ -170,6 +174,7 @@ sanitize_for_filename(In, Out) :-
   atom_codes(In, Codes),
   maplist(os:sanitize_code, Codes, Codes2),
   atom_codes(Out, Codes2).
+
 
 %! os:sanitize_code(+CodeIn, -CodeOut) is det.
 %
@@ -182,7 +187,9 @@ sanitize_code(C, C) :-
   ; memberchk(C, [0'., 0'_, 0'-])
   ),
   !.
+
 sanitize_code(_C, 0'_).
+
 
 %! os:system_lock_acquire(+LockDir, +Name, +Timeout, +Stale) is det.
 %
@@ -193,6 +200,7 @@ system_lock_acquire(LockDir, Name, Timeout, Stale) :-
   os:system_lock_meta_path(LockDir, Meta),
   os:system_lock_wait_loop(LockDir, Meta, Name, Timeout, Stale, 0).
 
+
 %! os:system_lock_release(+LockDir) is det.
 %
 % Release the lock by removing LockDir and its contents.
@@ -200,12 +208,14 @@ system_lock_acquire(LockDir, Name, Timeout, Stale) :-
 system_lock_release(LockDir) :-
   catch(delete_directory_and_contents(LockDir), _Any, true).
 
+
 %! os:system_lock_meta_path(+LockDir, -Meta) is det.
 %
 % Path to the metadata file inside the lock directory.
 
 system_lock_meta_path(LockDir, Meta) :-
   atomic_list_concat([LockDir, '/meta'], Meta).
+
 
 %! os:system_lock_write_meta(+Meta, +Name) is det.
 %
@@ -223,6 +233,7 @@ system_lock_write_meta(Meta, Name) :-
     close(S)
   ).
 
+
 %! os:system_lock_read_kv(+Meta, -Pid, -CreatedAt) is semidet.
 %
 % Read the lock holder's PID and creation timestamp from the meta file.
@@ -236,6 +247,7 @@ system_lock_read_kv(Meta, Pid, CreatedAt) :-
   number_string(Pid, PidStr),
   number_string(CreatedAt, TsStr).
 
+
 %! os:kv_value(+Lines, +Key, -Value) is semidet.
 %
 % Extract the value for a "Key=Value" line from a list of strings.
@@ -247,12 +259,14 @@ kv_value(Lines, Key, Value) :-
   sub_string(Line, _, _, 0, Value),
   !.
 
+
 %! os:system_lock_pid_alive(+Pid) is semidet.
 %
 % True if the process with Pid is still running (signal 0 probe).
 
 system_lock_pid_alive(Pid) :-
   catch(process_kill(Pid, 0), _Any, fail).
+
 
 %! os:system_lock_wait_loop(+LockDir, +Meta, +Name, +Timeout, +Stale, +Waited) is det.
 %
@@ -278,6 +292,7 @@ system_lock_wait_loop(LockDir, Meta, Name, Timeout, Stale, Waited) :-
     ; os:system_lock_sleep_or_timeout(LockDir, Meta, Name, Timeout, Stale, Waited)
     )
   ).
+
 
 %! os:system_lock_sleep_or_timeout(+LockDir, +Meta, +Name, +Timeout, +Stale, +Waited) is det.
 %

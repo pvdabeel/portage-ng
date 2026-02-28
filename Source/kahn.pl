@@ -16,7 +16,6 @@ A depends on B. Detects cycles and returns unprocessed nodes separately.
 
 :- module(kahn, []).
 
-
 % =============================================================================
 %  KAHN declarations
 % =============================================================================
@@ -92,6 +91,7 @@ kahn:inc_indeg(B, In, Out) :-
 kahn:process([], Nodes, _Edges, InDeg, Acc, Order, Remaining) :-
   reverse(Acc, Order),
   findall(N, (member(N, Nodes), get_assoc(N, InDeg, V), V > 0), Remaining).
+
 kahn:process([N|Q], Nodes, Edges, InDeg0, Acc, Order, Remaining) :-
   ( get_assoc(N, Edges, Bs) -> true ; Bs = [] ),
   put_assoc(N, InDeg0, -1, InDeg1),
@@ -105,6 +105,7 @@ kahn:process([N|Q], Nodes, Edges, InDeg0, Acc, Order, Remaining) :-
 % Decrement in-degree for each neighbor; collect those that reach zero.
 
 kahn:dec_neighbors([], InDeg, InDeg, []).
+
 kahn:dec_neighbors([B|Bs], InDeg0, InDeg, NewZeros) :-
   ( get_assoc(B, InDeg0, V0),
     V0 >= 0 ->

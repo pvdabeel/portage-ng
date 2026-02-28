@@ -47,6 +47,7 @@ layout(MirrorRoot, Layout) :-
   ; Layout = flat
   ).
 
+
 %! mirror:parse_layout_conf(+String, -Layout) is semidet.
 %
 % Parse a layout.conf file content into a Layout term. Strips comments,
@@ -59,6 +60,7 @@ parse_layout_conf(S, Layout) :-
   parse_layout_lines(Lines, none, Structures),
   pick_structure(Structures, Layout).
 
+
 %! mirror:not_blank(+Line) is semidet.
 %
 % True if Line contains at least one non-whitespace character.
@@ -68,11 +70,13 @@ not_blank(Line) :- string_codes(Line, Cs), \+ phrase(blank, Cs).
 blank --> [C], { code_type(C, space) }, blank.
 blank --> [].
 
+
 %! mirror:strip_comments(+Lines, -Stripped) is det.
 %
 % Remove `#` comments from each line and normalize whitespace.
 
 strip_comments([], []).
+
 strip_comments([L0|Ls0], [L|Ls]) :-
   ( sub_string(L0, Before, _, _, "#") ->
       sub_string(L0, 0, Before, _, L1),
@@ -81,12 +85,14 @@ strip_comments([L0|Ls0], [L|Ls]) :-
   ),
   strip_comments(Ls0, Ls).
 
+
 %! mirror:parse_layout_lines(+Lines, +Section, -Structures) is det.
 %
 % Walk layout.conf lines, tracking the current `[section]` header.
 % Only lines under `[structure]` are parsed into `structure(Index, Spec)` terms.
 
 parse_layout_lines([], _Section, []).
+
 parse_layout_lines([L|Ls], _Section, Out) :-
   sub_string(L, 0, _, _, "["),
   sub_string(L, _, _, 0, "]"),
@@ -94,6 +100,7 @@ parse_layout_lines([L|Ls], _Section, Out) :-
   sub_string(L, 1, _, 1, Sect0),
   string_lower(Sect0, Sect),
   parse_layout_lines(Ls, Sect, Out).
+
 parse_layout_lines([L|Ls], Section, Out) :-
   ( Section == "structure" ->
       ( parse_structure_line(L, Struct) ->
@@ -103,6 +110,7 @@ parse_layout_lines([L|Ls], Section, Out) :-
       )
   ; parse_layout_lines(Ls, Section, Out)
   ).
+
 
 %! mirror:parse_structure_line(+Line, -Structure) is semidet.
 %
@@ -117,6 +125,7 @@ parse_structure_line(Line, structure(Index, Spec)) :-
   number_string(Index, K),
   parse_structure_spec(V, Spec).
 
+
 %! mirror:parse_structure_spec(+ValueString, -Spec) is semidet.
 %
 % Parse the right-hand side of a structure assignment into either `flat` or
@@ -125,6 +134,7 @@ parse_structure_line(Line, structure(Index, Spec)) :-
 parse_structure_spec(V, flat) :-
   string_lower(V, "flat"),
   !.
+
 parse_structure_spec(V, filename_hash(AlgAtom, CutoffsBits)) :-
   split_string(V, " \t", " \t", Parts0),
   Parts0 = [Kind|Rest],
@@ -139,6 +149,7 @@ parse_structure_spec(V, filename_hash(AlgAtom, CutoffsBits)) :-
       ( parse_cutoffs(CutoffsStr, CutoffsBits) -> true ; (More = _, fail) )
   ; fail
   ).
+
 
 %! mirror:normalize_hash_alg(+In, -Out) is det.
 %
@@ -155,6 +166,7 @@ normalize_hash_alg(In, Out) :-
   ; Out = In
   ).
 
+
 %! mirror:parse_cutoffs(+CutoffsStr, -CutoffsBits) is semidet.
 %
 % Parse a colon-separated cutoff string (e.g. `"4:8"`) into a list of
@@ -167,6 +179,7 @@ parse_cutoffs(CutoffsStr, CutoffsBits) :-
   forall(member(B, CutoffsBits), 0 is B mod 4),
   forall(member(B, CutoffsBits), B >= 0).
 
+
 %! mirror:pick_structure(+Structures, -Layout) is semidet.
 %
 % Select the preferred structure from a list of parsed structure terms.
@@ -177,7 +190,9 @@ pick_structure(Structures, Layout) :-
   pick_structure_(Sorted, Layout).
 
 pick_structure_([structure(_Idx, flat)|_], flat) :- !.
+
 pick_structure_([structure(_Idx, filename_hash(Alg, Cutoffs))|_], filename_hash(Alg, Cutoffs)) :- !.
+
 pick_structure_([_|Rest], Layout) :-
   pick_structure_(Rest, Layout).
 
@@ -194,11 +209,13 @@ pick_structure_([_|Rest], Layout) :-
 
 distfile_path(Root, flat, Filename, Path) :-
   atomic_list_concat([Root, '/', Filename], Path).
+
 distfile_path(Root, filename_hash(Alg, CutoffsBits), Filename, Path) :-
   filename_hash_hex(Alg, Filename, Hex),
   hash_segments(Hex, CutoffsBits, Segments),
   atomic_list_concat([Root|Segments], '/', Dir0),
   atomic_list_concat([Dir0, '/', Filename], Path).
+
 
 %! mirror:mirror_present(+MirrorRoot, +Layout, +Filename) is semidet.
 %
@@ -209,6 +226,7 @@ mirror_present(MirrorRoot, Layout, Filename) :-
   ( distfile_path(MirrorRoot, Layout, Filename, P), exists_file(P) )
   ; ( distfile_path(MirrorRoot, flat, Filename, P2), exists_file(P2) ).
 
+
 %! mirror:flat_present(+Distdir, +Filename) is semidet.
 %
 % True if Filename exists in the flat distdir directory.
@@ -216,6 +234,7 @@ mirror_present(MirrorRoot, Layout, Filename) :-
 flat_present(Distdir, Filename) :-
   distfile_path(Distdir, flat, Filename, P),
   exists_file(P).
+
 
 %! mirror:filename_hash_hex(+Algorithm, +Filename, -HexLower) is semidet.
 %
@@ -234,9 +253,11 @@ filename_hash_hex(blake2b, Filename, HexLower) :-
   ; % unexpected return type
     fail
   ).
+
 filename_hash_hex(_OtherAlg, _Filename, _Hex) :-
   % For now, mirror support is focused on Gentoo's BLAKE2B filename-hash.
   fail.
+
 
 %! mirror:hash_segments(+Hex, +CutoffsBits, -Segments) is det.
 %
@@ -247,6 +268,7 @@ hash_segments(Hex, CutoffsBits, Segments) :-
   hash_segments_(Hex, CutoffsBits, 0, Segments).
 
 hash_segments_(_Hex, [], _OffsetNibbles, []).
+
 hash_segments_(Hex, [Bits|Rest], Off0, [Seg|Segs]) :-
   Nibbles is Bits // 4,
   sub_string(Hex, Off0, Nibbles, _, Seg),
@@ -312,6 +334,7 @@ missing_on_mirror(RepositoryAtom, MirrorRoot, MissingOrdset) :-
   sort(Missing0, Missing),
   list_to_ord_set(Missing, MissingOrdset).
 
+
 %! mirror:extra_on_mirror(+RepositoryAtom, +MirrorRoot, -ExtraOrdset) is det.
 %
 % Compute the set of files present on the mirror that are not referenced
@@ -324,6 +347,7 @@ extra_on_mirror(RepositoryAtom, MirrorRoot, ExtraOrdset) :-
   % If the mirror is hashed, we *still* compare by filename (basenames).
   ( Layout = Layout -> true ; true ),
   ord_subtract(Present, Needed, ExtraOrdset).
+
 
 %! mirror:missing_on_distdir(+RepositoryAtom, +Distdir, -MissingOrdset) is det.
 %
@@ -339,6 +363,7 @@ missing_on_distdir(RepositoryAtom, Distdir, MissingOrdset) :-
           Missing0),
   sort(Missing0, Missing),
   list_to_ord_set(Missing, MissingOrdset).
+
 
 %! mirror:extra_on_distdir(+RepositoryAtom, +Distdir, -ExtraOrdset) is det.
 %
@@ -380,7 +405,7 @@ report(RepositoryAtom, MirrorRoot, Distdir) :-
 % -----------------------------------------------------------------------------
 %  Manifest verification + stats
 % -----------------------------------------------------------------------------
-%
+
 % We verify distfiles against Manifest metadata:
 % - cache:manifest/5 identifies the Manifest path for a package
 % - cache:manifest_metadata/6 contains distfile size + checksum tokens
@@ -394,7 +419,7 @@ report(RepositoryAtom, MirrorRoot, Distdir) :-
 % - mirror_root(Path)            default: env PORTAGE_NG_MIRROR_ROOT or '/Volumes/Storage/Distfiles/distfiles'
 % - distdir(Path)               default: env PORTAGE_NG_DISTDIR or '/usr/portage/distfiles'
 % - verify_hashes(none|sample(N)|all) default: none
-%
+
 
 %! mirror:test_stats(+RepositoryAtom) is det.
 %
@@ -402,6 +427,7 @@ report(RepositoryAtom, MirrorRoot, Distdir) :-
 
 test_stats(RepositoryAtom) :-
   test_stats(RepositoryAtom, []).
+
 
 %! mirror:test_stats(+RepositoryAtom, +Options) is det.
 %
@@ -422,6 +448,7 @@ test_stats(RepositoryAtom, Options0) :-
   mirror:verify_specs(Specs, MirrorRoot, Layout, Distdir, Options, Stats),
   mirror:print_test_stats(RepositoryAtom, MirrorRoot, Layout, Distdir, TotalFiles, TotalBytes, Stats).
 
+
 %! mirror:stats_options(+Options0, -Options) is det.
 %
 % Normalize options, filling in verify_hashes default from config or `none`.
@@ -436,6 +463,7 @@ stats_options(Options0, Options) :-
     )
   ),
   Options = [verify_hashes(V)|Options0].
+
 
 %! mirror:stats_paths(+Options, -MirrorRoot, -Distdir) is det.
 %
@@ -454,12 +482,14 @@ stats_paths(Options, MirrorRoot, Distdir) :-
     )
   ).
 
+
 %! mirror:getenv_default(+Env, +Default, -Value) is det.
 %
 % Read environment variable Env; use Default if unset or empty.
 
 getenv_default(Env, Default, Value) :-
   ( getenv(Env, V0), V0 \== '' -> Value = V0 ; Value = Default ).
+
 
 %! mirror:manifest_distfile_specs(+RepositoryAtom, -Specs) is det.
 %
@@ -474,6 +504,7 @@ manifest_distfile_specs(RepositoryAtom, Specs) :-
           Specs0),
   mirror:dedupe_specs_by_filename(Specs0, Specs).
 
+
 %! mirror:dedupe_specs_by_filename(+Specs0, -Specs) is det.
 %
 % Deduplicate specs by filename, keeping the entry with the largest size
@@ -485,6 +516,7 @@ dedupe_specs_by_filename(Specs0, Specs) :-
   reverse(SpecsRev, Specs).
 
 dedupe_specs_by_filename_([], Acc, Acc).
+
 dedupe_specs_by_filename_([spec(F, S, P)|Rest], Acc, Out) :-
   ( select(spec(F, S0, P0), Acc, Acc1) ->
       ( S >= S0 -> Acc2 = [spec(F, S, P)|Acc1] ; Acc2 = [spec(F, S0, P0)|Acc1] )
@@ -492,12 +524,14 @@ dedupe_specs_by_filename_([spec(F, S, P)|Rest], Acc, Out) :-
   ),
   dedupe_specs_by_filename_(Rest, Acc2, Out).
 
+
 %! mirror:sum_sizes(+Specs, -Total) is det.
 %
 % Sum the sizes of all distfile specs.
 
 sum_sizes(Specs, Total) :-
   foldl([spec(_F,S,_P),In,Out]>>(Out is In + S), Specs, 0, Total).
+
 
 %! mirror:parse_manifest_checksums(+ChecksumsStr, -Pairs) is det.
 %
@@ -516,12 +550,14 @@ parse_manifest_checksums(ChecksumsStr, Pairs) :-
   mirror:tokens_to_pairs(Tokens, Pairs),
   !.
 
+
 %! mirror:tokens_to_pairs(+Tokens, -Pairs) is det.
 %
 % Convert a flat list of alternating algorithm/hash string tokens into
 % `alg_hash(Algorithm, Hash)` terms. Drops trailing odd elements.
 
 tokens_to_pairs([], []).
+
 tokens_to_pairs([AlgS, HashS|Rest], [alg_hash(Alg, Hash)|Pairs]) :-
   atom_string(Alg0, AlgS),
   downcase_atom(Alg0, AlgLower),
@@ -529,7 +565,9 @@ tokens_to_pairs([AlgS, HashS|Rest], [alg_hash(Alg, Hash)|Pairs]) :-
   string_lower(HashS, HashLowerS),
   atom_string(Hash, HashLowerS),
   tokens_to_pairs(Rest, Pairs).
+
 tokens_to_pairs([_Odd], []) :- !.
+
 
 %! mirror:normalize_manifest_alg(+AlgLower, -Canonical) is det.
 %
@@ -542,6 +580,7 @@ normalize_manifest_alg('sha256',   sha256)     :- !.
 normalize_manifest_alg('sha1',     sha1)       :- !.
 normalize_manifest_alg('rmd160',   rmd160)     :- !.
 normalize_manifest_alg(Other,      Other).
+
 
 %! mirror:verify_specs(+Specs, +MirrorRoot, +Layout, +Distdir, +Options, -Stats) is det.
 %
@@ -558,6 +597,7 @@ verify_specs(Specs0, MirrorRoot, Layout, Distdir, Options, stats(MissM, SizeBadM
         stats(0,0,0,0,0,0,0,0,Sampled),
         stats(MissM, SizeBadM, HashBadM, UnsupM, PresentD, SizeBadD, HashBadD, UnsupD, Sampled)).
 
+
 %! mirror:select_for_hash_verification(+Mode, +Specs, -Selected, -Count) is det.
 %
 % Select which specs to hash-verify based on Mode:
@@ -566,17 +606,21 @@ verify_specs(Specs0, MirrorRoot, Layout, Distdir, Options, stats(MissM, SizeBadM
 %   - `sample(N)` — verify the first N specs (or all if fewer than N)
 
 select_for_hash_verification(none, _Specs, [], 0) :- !.
+
 select_for_hash_verification(all, Specs, Specs, N) :- !, length(Specs, N).
+
 select_for_hash_verification(sample(N), Specs, Sample, N) :-
   integer(N), N >= 0,
   length(Prefix, N),
   append(Prefix, _, Specs),
   !,
   Sample = Prefix.
+
 select_for_hash_verification(sample(N), Specs, Specs, M) :-
   integer(N), length(Specs, M),
   M < N,
   !.
+
 
 %! mirror:verify_one(+MirrorRoot, +Layout, +Distdir, +HashSet, +Spec, +StatsIn, -StatsOut) is det.
 %
@@ -622,6 +666,7 @@ verify_one(MirrorRoot, Layout, Distdir, HashSet, spec(F, S, Pairs),
   MissM = MissM1, SizeBadM = SizeBadM1, HashBadM = HashBadM1, UnsupM = UnsupM1,
   PresentD = PresentD1, SizeBadD = SizeBadD1, HashBadD = HashBadD1, UnsupD = UnsupD1.
 
+
 %! mirror:verify_size(+Path, +Expected, -OK) is det.
 %
 % True when the file at Path has exactly Expected bytes; OK is `true` or `false`.
@@ -630,7 +675,9 @@ verify_size(Path, Expected, true) :-
   catch(size_file(Path, Size), _Any, fail),
   Size =:= Expected,
   !.
+
 verify_size(_Path, _Expected, false).
+
 
 %! mirror:verify_hashes(+Path, +Pairs, -OK, -UnsupportedCount) is det.
 %
@@ -639,8 +686,10 @@ verify_size(_Path, _Expected, false).
 % not in the allowlist.
 
 verify_hashes(_Path, [], true, 0) :- !.
+
 verify_hashes(Path, Pairs, OK, UnsupportedCount) :-
   foldl(mirror:verify_one_hash(Path), Pairs, state(true,0), state(OK,UnsupportedCount)).
+
 
 %! mirror:verify_one_hash(+Path, +AlgHash, +StateIn, -StateOut) is det.
 %
@@ -657,12 +706,14 @@ verify_one_hash(Path, alg_hash(Alg, Expected), state(OK0,U0), state(OK,U)) :-
     U is U0 + 1
   ).
 
+
 %! mirror:crypto_supported_alg(+Alg) is semidet.
 %
 % True if Alg is a hash algorithm supported by `crypto:crypto_file_hash/3`.
 
 crypto_supported_alg(Alg) :-
   memberchk(Alg, [blake2b512, sha512, sha256, sha1, rmd160]).
+
 
 %! mirror:print_test_stats(+Repo, +MirrorRoot, +Layout, +Distdir, +TotalFiles, +TotalBytes, +Stats) is det.
 %
@@ -697,4 +748,3 @@ print_test_stats(RepositoryAtom, MirrorRoot, Layout, Distdir, TotalFiles, TotalB
   ; true
   ),
   nl.
-

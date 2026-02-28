@@ -215,6 +215,7 @@ llm:get_content_from_dict(Dict, Content) :-
     get_dict(delta, Choice, Delta),
     get_dict(content, Delta, Content),
     !.
+
 llm:get_content_from_dict(_,"") :- !.
 
 
@@ -426,4 +427,3 @@ llm:prepare_message(History,Role,Input,Messages) :-
 %  string_concat(P,Msg,NewMsg).
 
 llm:add_prompt(_,Msg,Msg) :- !.
-

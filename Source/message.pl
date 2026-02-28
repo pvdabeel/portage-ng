@@ -9,7 +9,15 @@
 
 
 /** <module> MESSAGE
-This file contains the predicates used for pretty printing messages.
+Pretty-printing infrastructure for portage-ng. All high-level output
+predicates (color, style, label, msg, header, etc.) are declared as
+thin stubs here and compiled away by goal_expansion/2 into direct
+ANSI escape sequences at load time. This gives zero-overhead messaging
+in production while keeping call sites readable.
+
+Debug messaging (debug_msg/1..3, debug_write/1, debug_writeln/1) is
+conditionally compiled via the SWI-Prolog `-Ddebug` flag: when debug
+is disabled, calls expand to `true` (no overhead).
 */
 
 :- module(message, [clear/0]).
@@ -18,63 +26,60 @@ This file contains the predicates used for pretty printing messages.
 %  MESSAGE declarations
 % =============================================================================
 
-
 % -----------------------------------------------------------------------------
-%  Declarations
+%  Goal expansion declarations
 % -----------------------------------------------------------------------------
-
-% The following predicates can be called, but depend on goal expansion
-% to expand them into low level output predicates directly manipulating
-% the output stream
+%
+% The following predicates are declared as stubs so they can be called by
+% other modules. At load time, goal_expansion/2 replaces each call with
+% the corresponding low-level ANSI escape or output predicate, so no
+% runtime dispatch occurs.
 
 :- multifile user:goal_expansion/2.
 
-% Debug messaging system using goal_expansion
-% When debug is enabled, expand debug_msg calls to actual debug output
-% When debug is disabled, expand debug_msg calls to true (zero overhead)
-% Uses SWI-Prolog's -Ddebug flag system
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+%  Debug messaging (compile-time conditional via -Ddebug)
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-% Debug message with single argument
 user:goal_expansion(debug_msg(Msg), Expanded) :-
     current_prolog_flag(debug, true) ->
         Expanded = (message:label(debug), format(Msg, []), nl)
     ;
         Expanded = true.
 
-% Debug message with format and arguments
 user:goal_expansion(debug_msg(Fmt, Args), Expanded) :-
     current_prolog_flag(debug, true) ->
         Expanded = (message:label(debug), format(Fmt, Args), nl)
     ;
         Expanded = true.
 
-% Debug message with write (for complex terms)
 user:goal_expansion(debug_write(Term), Expanded) :-
     current_prolog_flag(debug, true) ->
         Expanded = (message:label(debug), write(Term))
     ;
         Expanded = true.
 
-% Debug message with writeln (for complex terms with newline)
 user:goal_expansion(debug_writeln(Term), Expanded) :-
     current_prolog_flag(debug, true) ->
         Expanded = (message:label(debug), write(Term), nl)
     ;
         Expanded = true.
 
-% Debug message with custom label
 user:goal_expansion(debug_msg(Label, Msg), Expanded) :-
     current_prolog_flag(debug, true) ->
         Expanded = (message:label(debug), format('~s: ', [Label]), format(Msg, []), nl)
     ;
         Expanded = true.
 
-% Debug message with custom label and format arguments
 user:goal_expansion(debug_msg(Label, Fmt, Args), Expanded) :-
     current_prolog_flag(debug, true) ->
         Expanded = (message:label(debug), format('~s: ', [Label]), format(Fmt, Args), nl)
     ;
         Expanded = true.
+
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+%  Stub declarations (expanded away at load time by goal_expansion/2)
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 message:color(_).
 message:bgcolor(_).
@@ -326,13 +331,23 @@ user:goal_expansion(column(N, Msg),        format('~*| ~w', [N, Msg])).
 %  Runtime: Gradients
 % -----------------------------------------------------------------------------
 
-% --- Color definitions ---
+%! message:gradient_start_color(-R, -G, -B) is det.
+%
+% Starting RGB color for the gradient used by message:logo/1,2.
 
 message:gradient_start_color(R, G, B) :- R = 120,  G = 255,  B = 255.
+
+%! message:gradient_end_color(-R, -G, -B) is det.
+%
+% Ending RGB color for the gradient used by message:logo/1,2.
+
 message:gradient_end_color(R, G, B)   :- R = 60,   G = 255,  B = 40.
 
 
-% --- Predicate to print a string with a gradient ---
+%! message:print_gradient(+Text) is det.
+%
+% Prints Text character by character with a smooth color gradient
+% interpolated between gradient_start_color and gradient_end_color.
 
 message:print_gradient(Text) :-
   string_chars(Text, Chars),
@@ -343,26 +358,23 @@ message:print_gradient(Text) :-
   ).
 
 
-% --- Helper predicate to iterate through characters ---
+%! message:gradient_print_chars(+Chars, +Index, +Length) is det.
+%
+% Recursively prints each character with its interpolated gradient color.
 
 message:gradient_print_chars([], _, _).
 message:gradient_print_chars([Char|Chars], Index, Length) :-
-
-  % Calculate interpolated RGB color
   message:gradient_interpolate_color(Index, Length, R, G, B),
-
-  % Convert RGB to the nearest 8-bit color code
   message:gradient_rgb_to_8bit(R, G, B, ColorCode),
-
-  % Print the character with the 8-bit color
   ansi_format([fg8(ColorCode)], '~s', [Char]),
-
-  % Process the rest of the string
   NextIndex is Index + 1,
   message:gradient_print_chars(Chars, NextIndex, Length).
 
 
-% --- Color interpolation logic ---
+%! message:gradient_interpolate_color(+Index, +Length, -R, -G, -B) is det.
+%
+% Linearly interpolates between gradient_start_color and gradient_end_color
+% based on the character position Index within a string of Length characters.
 
 message:gradient_interpolate_color(Index, Length, R, G, B) :-
     message:gradient_start_color(R1, G1, B1),
@@ -373,24 +385,31 @@ message:gradient_interpolate_color(Index, Length, R, G, B) :-
     B is round(B1 + (B2 - B1) * Ratio).
 
 
-% --- RGB to 8-bit (256 color) conversion ---
+%! message:gradient_rgb_to_8bit(+R, +G, +B, -Code) is det.
+%
+% Converts 0-255 RGB values to the nearest 8-bit (256-color) ANSI code
+% within the 6x6x6 color cube (codes 16-231).
 
 message:gradient_rgb_to_8bit(R, G, B, Code) :-
-
-  % Scale RGB values from 0-255 to 0-5
   R_scaled is round(R / 255 * 5),
   G_scaled is round(G / 255 * 5),
   B_scaled is round(B / 255 * 5),
-
-  % Calculate the color code in the 6x6x6 cube
   Code is 16 + (36 * R_scaled) + (6 * G_scaled) + B_scaled.
 
 
-% --- Main entry point for execution ---
+%! message:logo(+List) is det.
+%
+% Prints the portage-ng logo by concatenating List into a string and
+% rendering it with a gradient.
 
 message:logo(List) :-
   atomic_list_concat(List,String),
   message:print_gradient(String),nl.
+
+%! message:logo(+List, +Mode) is det.
+%
+% Prints the portage-ng logo with the current Mode label appended
+% as a dark-gray bubble.
 
 message:logo(List,Mode) :-
   atomic_list_concat(List,String),
@@ -400,13 +419,22 @@ message:logo(List,Mode) :-
 
 
 % -----------------------------------------------------------------------------
-%  Runtime: Lines and colums
+%  Runtime: Lines and columns
 % -----------------------------------------------------------------------------
+
+%! message:eend(+Msg) is det.
+%
+% Prints Msg right-aligned near the end of the terminal line (column W-2).
 
 eend(Msg) :-
   config:printing_tty_size(_,W),
   Col is W - 2,
   format('~t~a~*|', [Msg, Col]).
+
+%! message:hl(+Title) is det.
+%
+% Prints a horizontal rule line with an embedded Title, padded with dashes
+% to the full terminal width.
 
 hl(Title) :-
   config:printing_tty_size(_,W),
@@ -414,6 +442,10 @@ hl(Title) :-
   atomic_list_concat(['--- ',Title,' ~`', C, 't~*|\n'], Fmt),
   write('\r'),
   format(Fmt, [W]).
+
+%! message:hl is det.
+%
+% Prints a full-width horizontal rule line of dashes.
 
 hl :-
   config:printing_tty_size(_,W),
@@ -427,20 +459,31 @@ hl :-
 %  Runtime: Headers
 % -----------------------------------------------------------------------------
 
-%! message:enable_debug
-% Enable debug mode by setting the debug flag
+%! message:enable_debug is det.
+%
+% Enables debug mode by setting the SWI-Prolog `debug` flag to true.
+
 message:enable_debug :-
     set_prolog_flag(debug, true).
 
-%! message:disable_debug
-% Disable debug mode by removing the debug flag
+%! message:disable_debug is det.
+%
+% Disables debug mode by setting the SWI-Prolog `debug` flag to false.
+
 message:disable_debug :-
     set_prolog_flag(debug, false).
 
-%! message:is_debug_enabled
-% Check if debug mode is enabled
+%! message:is_debug_enabled is semidet.
+%
+% Succeeds if debug mode is currently enabled.
+
 message:is_debug_enabled :-
     current_prolog_flag(debug, true).
+
+%! message:topheader(+Message) is det.
+%
+% Prints a top-level section header in cyan bold (### prefix).
+% Message can be an atom, string, or list of atoms.
 
 topheader(Message) :-
   color(cyan),
@@ -450,6 +493,11 @@ topheader(Message) :-
   color(normal),
   nl, nl.
 
+%! message:header(+Message) is det.
+%
+% Prints a section header in light-orange bold (>>> prefix).
+% Message can be an atom, string, or list of atoms.
+
 header(Message) :-
   color(lightorange),
   style(bold),
@@ -457,6 +505,11 @@ header(Message) :-
   format('>>> ~s', [Atom]),
   color(normal),
   nl.
+
+%! message:header(+Header, +Items) is det.
+%
+% Prints a multi-line header: the first item on the same line as Header,
+% subsequent items indented below.
 
 header(Header, [First | Rest]) :-
   color(lightorange),
@@ -472,6 +525,12 @@ header(Header, [First | Rest]) :-
 % -----------------------------------------------------------------------------
 %  Header helpers
 % -----------------------------------------------------------------------------
+
+%! message:msg_atom(+Term, -Atom) is det.
+%
+% Converts an arbitrary term to an atom suitable for formatted output.
+% Handles lists (concatenated), atoms, unbound variables, and compound
+% terms (via write_term).
 
 msg_atom(List, Atom) :-
   is_list(List),
@@ -496,6 +555,11 @@ msg_atom(Compound, Atom) :-
 %  Convertor: Byte
 % -----------------------------------------------------------------------------
 
+%! message:convert_bytes(+Bytes, -String) is det.
+%
+% Converts a byte count to a human-readable string with the appropriate
+% unit (Kb, Mb, or Gb) and two decimal places.
+
 convert_bytes(Bytes, String) :-
   (   Bytes >= 1 << 30
   ->  Unit = 'Gb', Value is Bytes / (1 << 30)
@@ -504,6 +568,11 @@ convert_bytes(Bytes, String) :-
   ;   Unit = 'Kb',  Value is Bytes / (1 << 10)
   ),
   format(string(String), '~2f ~w', [Value, Unit]).
+
+%! message:print_bytes(+BytesOrLive) is det.
+%
+% Prints a tab-aligned byte size. The atom `live` prints "live" instead
+% of a numeric value.
 
 print_bytes(live) :-
   format('live   \t', []).
@@ -517,6 +586,11 @@ print_bytes(Bytes) :-
 %  Convertor: Date/time
 % -----------------------------------------------------------------------------
 
+%! message:datetime(-Datetime) is det.
+%
+% Unifies Datetime with the current local date/time formatted as
+% e.g. "Sat 21 Feb 2026 14:30:00".
+
 datetime(Datetime) :-
   get_time(Stamp),
   stamp_date_time(Stamp, DT, 'local'),
@@ -527,7 +601,16 @@ datetime(Datetime) :-
 %  Misc helpers
 % -----------------------------------------------------------------------------
 
+%! message:clear is det.
+%
+% Clears the terminal screen.
+
 clear :- cl.
+
+%! message:wrap(+Goal) is det.
+%
+% Executes Goal while printing a green "--- Executing <Goal>" banner
+% before and a newline after. Useful for visually demarcating steps.
 
 wrap(Goal) :-
   color(green),
