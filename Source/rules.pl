@@ -507,7 +507,7 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
 rules:order_deps_for_proof(_Action, Deps, Ordered) :-
   maplist(rules:dep_priority_kv, Deps, KVs),
   keysort(KVs, Sorted),
-  findall(D, member(_K-D, Sorted), Ordered),
+  pairs_values(Sorted, Ordered),
   !.
 
 rules:dep_priority_kv(Dep, K-Dep) :-
@@ -547,15 +547,16 @@ rules:slotreq_priority(_Other,                 30) :- !.
 
 % Tightest upper-bound version (smallest `<` / `<=` bound) for grouped deps.
 rules:dep_tightest_upper_bound(C, N, PackageDeps, Tightest) :-
+  member(package_dependency(_, no, C, N, Op0, _, _, _), PackageDeps),
+  ( Op0 == smaller ; Op0 == smallerorequal ),
+  !,
   findall(Vn,
           ( member(package_dependency(_Phase, no, C, N, Op, V0, _S, _U), PackageDeps),
             ( Op == smaller ; Op == smallerorequal ),
             rules:coerce_version_term(V0, Vn)
           ),
-          Bounds0),
-  Bounds0 = [First|Rest],
-  foldl(rules:min_version_bound_, Rest, First, Tightest),
-  !.
+          [First|Rest]),
+  foldl(rules:min_version_bound_, Rest, First, Tightest).
 
 rules:min_version_bound_(V, Best0, Best) :-
   ( eapi:version_compare(<, V, Best0) ->
@@ -573,9 +574,9 @@ rules:min_version_bound_(V, Best0, Best) :-
 % Keeps at most one marker to prevent context growth.
 rules:ctx_take_after(Context0, After, Context) :-
   ( is_list(Context0),
-    memberchk(after(After1), Context0) ->
+    select(after(After1), Context0, Context1) ->
       After = After1,
-      findall(X, (member(X, Context0), \+ X = after(_)), Context)
+      Context = Context1
   ; After = none,
     Context = Context0
   ),
@@ -586,15 +587,15 @@ rules:ctx_take_after(Context0, After, Context) :-
 % into the dependency closure of the goal.
 rules:ctx_take_after_with_mode(Context0, After, AfterForDeps, Context) :-
   ( is_list(Context0),
-    memberchk(after_only(After1), Context0) ->
+    select(after_only(After1), Context0, Ctx1) ->
       After = After1,
       AfterForDeps = none,
-      findall(X, (member(X, Context0), \+ X = after(_), \+ X = after_only(_)), Context)
+      ( select(after(_), Ctx1, Context) -> true ; Context = Ctx1 )
   ; is_list(Context0),
-    memberchk(after(After1), Context0) ->
+    select(after(After1), Context0, Ctx1) ->
       After = After1,
       AfterForDeps = After1,
-      findall(X, (member(X, Context0), \+ X = after(_), \+ X = after_only(_)), Context)
+      ( select(after_only(_), Ctx1, Context) -> true ; Context = Ctx1 )
   ; After = none,
     AfterForDeps = none,
     Context = Context0
@@ -642,8 +643,7 @@ rules:add_after_to_dep_contexts(_After, Deps, Deps).
 
 rules:ctx_add_after(Ctx0, After, Ctx) :-
   ( is_list(Ctx0) ->
-      % Keep only one after/1 marker.
-      findall(X, (member(X, Ctx0), \+ X = after(_)), Ctx1),
+      ( select(after(_), Ctx0, Ctx1) -> true ; Ctx1 = Ctx0 ),
       Ctx = [after(After)|Ctx1]
   ; Ctx = [after(After)]
   ),
@@ -685,9 +685,9 @@ rules:drop_build_with_use_from_dep_context(Other, Other).
 
 rules:ctx_add_after_only(Ctx0, After, Ctx) :-
   ( is_list(Ctx0) ->
-      % Keep only one planning marker (after/1 or after_only/1).
-      findall(X, (member(X, Ctx0), \+ X = after(_), \+ X = after_only(_)), Ctx1),
-      Ctx = [after_only(After)|Ctx1]
+      ( select(after(_), Ctx0, Ctx1) -> true ; Ctx1 = Ctx0 ),
+      ( select(after_only(_), Ctx1, Ctx2) -> true ; Ctx2 = Ctx1 ),
+      Ctx = [after_only(After)|Ctx2]
   ; Ctx = [after_only(After)]
   ),
   !.
@@ -1304,9 +1304,9 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       rules:selected_cn_allow_multislot_constraints(C, N, SlotReq, PackageDeps1, AllowMultiSlotCons),
       rules:cn_domain_constraints(Action, C, N, PackageDeps1, Context, DomainCons0, _DomainReasonTags),
       rules:domain_constraints_for_any_different_slot(SlotReq, DomainCons0, DomainCons),
-      append(DomainCons, AllowMultiSlotCons, DomainAndAllow),
-      append(DomainAndAllow, [Selected|Constraints], Conditions0),
-      append(Conditions0, [ActionGoal], Conditions)
+      append(Constraints, [ActionGoal], ConstraintsTail),
+      append(AllowMultiSlotCons, [Selected|ConstraintsTail], Suffix),
+      append(DomainCons, Suffix, Conditions)
     ; % In --deep mode we *prefer* upgrades, but we should not create domain
       % assumptions when the dependency is already installed in the vdb (`pkg`)
       % and satisfies constraints. Instead, fall back to "keep installed".
@@ -1326,9 +1326,9 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       ; rules:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps1, Context),
         fail
       ; explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason),
-        feature_unification:unify([], Context, Ctx1),
+        % was: feature_unification:unify([], Context, Ctx1),
         version_domain:domain_reason_terms(Action, C, N, PackageDeps1, Context, DomainReasonTags),
-        rules:add_domain_reason_context(C, N, DomainReasonTags, Ctx1, Ctx2),
+        rules:add_domain_reason_context(C, N, DomainReasonTags, Context, Ctx2),
         feature_unification:unify([assumption_reason(Reason)], Ctx2, Ctx3),
         Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps1):Action?{Ctx3})]
       )

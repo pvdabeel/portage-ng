@@ -79,6 +79,7 @@ user:goal_expansion(prove_plan_perf_report, true) :-
 :- dynamic printer:test_stats_blocker_example/1. % Example term that failed to parse for breakdown
 :- dynamic printer:test_stats_blocker_reason/2.  % Reason, Count
 :- dynamic printer:test_stats_blocker_rp/3.      % Reason, Phase, Count
+:- dynamic printer:test_stats_emerge_time/2.     % Entry (atom, e.g. 'dev-python/foo-1.2'), EmergeMs
 
 %! printer:test_stats_reset(+Label, +ExpectedTotal)
 %

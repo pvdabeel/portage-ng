@@ -234,11 +234,10 @@ preference:env_accept_keywords(Keyword) :-
 % injected as thread-local clauses by the pengines context.
 
 preference:use(X) :-
-  pengine_self(M),!,
-  M:local_use(X).
-
-preference:use(X) :-
-  preference:local_use(X).
+  ( pengine_self(M) ->
+      M:local_use(X)
+  ; preference:local_use(X)
+  ).
 
 
 %! preference:use(?Use, +Source)
@@ -248,11 +247,10 @@ preference:use(X) :-
 %   - `other` : all active flags (delegates to preference:use/1)
 
 preference:use(X,env) :-
-  pengine_self(M),!,
-  M:local_env_use(X).
-
-preference:use(X,env) :-
-  preference:local_env_use(X).
+  ( pengine_self(M) ->
+      M:local_env_use(X)
+  ; preference:local_env_use(X)
+  ).
 
 preference:use(X,other) :-
   preference:use(X).
@@ -265,11 +263,10 @@ preference:use(X,other) :-
 % they are injected as thread-local clauses by the pengines context.
 
 preference:accept_keywords(X) :-
-  pengine_self(M),!,
-  M:local_accept_keywords(X).
-
-preference:accept_keywords(X) :-
-  preference:local_accept_keywords(X).
+  ( pengine_self(M) ->
+      M:local_accept_keywords(X)
+  ; preference:local_accept_keywords(X)
+  ).
 
 
 %! preference:flag(?Flag)
@@ -279,11 +276,10 @@ preference:accept_keywords(X) :-
 % injected as thread-local clauses by the pengines context.
 
 preference:flag(Flag) :-
-  pengine_self(M),!,
-  M:local_flag(Flag).
-
-preference:flag(Flag) :-
-  preference:local_flag(Flag).
+  ( pengine_self(M) ->
+      M:local_flag(Flag)
+  ; preference:local_flag(Flag)
+  ).
 
 
 % =============================================================================
