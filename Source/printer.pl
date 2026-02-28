@@ -5036,6 +5036,29 @@ printer:write_package_index_file(Directory,Repository,Category,Name) :-
   told.
 
 
+%! printer:write_timing_header(+Label, +T0) is det
+%
+% Write a "% <Label> started: <epoch> (<human>)" line to current output.
+
+printer:write_timing_header(Label, T0) :-
+  Epoch is truncate(T0),
+  format_time(string(Human), "%Y-%m-%d %H:%M:%S", T0),
+  format("% ~w started: ~w (~w)~n", [Label, Epoch, Human]).
+
+
+%! printer:write_timing_footer(+Label, +T0) is det
+%
+% Write ended + wall_time_ms lines matching the emerge format.
+
+printer:write_timing_footer(Label, T0) :-
+  get_time(T1),
+  Epoch1 is truncate(T1),
+  WallMs is truncate((T1 - T0) * 1000),
+  format_time(string(Human1), "%Y-%m-%d %H:%M:%S", T1),
+  format("% ~w ended: ~w (~w)~n", [Label, Epoch1, Human1]),
+  format("% ~w wall_time_ms: ~w~n", [Label, WallMs]).
+
+
 %! printer:write_merge_file(+Directory,+Repository://Entry)
 %
 % Print merge plan to file for an entry in a repository
@@ -5045,6 +5068,7 @@ printer:write_merge_file(Directory,Repository://Entry) :-
   Action = run,
   Extension = '.merge',
   Goals = [Repository://Entry:Action?{[]}],
+  get_time(T0),
   (printer:prove_plan(Goals, Proof, Model, Plan, Triggers),
    atomic_list_concat([Directory,'/',Entry,Extension],File)),
   % Write to a temp file first so timeouts/interrupts don't corrupt the final file.
@@ -5052,8 +5076,10 @@ printer:write_merge_file(Directory,Repository://Entry) :-
   ( catch(
       setup_call_cleanup(
         tell(TmpFile),
-        ( set_stream(current_output,tty(true)), % otherwise we lose color
-          printer:print(Goals,Model,Proof,Plan,Triggers)
+        ( set_stream(current_output,tty(true)),
+          printer:write_timing_header('merge', T0),
+          printer:print(Goals,Model,Proof,Plan,Triggers),
+          printer:write_timing_footer('merge', T0)
         ),
         told
       ),
