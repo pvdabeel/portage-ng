@@ -25,6 +25,8 @@ This file contains domain-specific rules
 :- thread_local rules:keyword_cache_/6.
 :- thread_local rules:iuse_default_cache_/3.
 :- thread_local rules:iuse_info_cache_/3.
+:- thread_local rules:eff_use_cache_/4.  % (Repo, Id, Use, State)
+:- thread_local rules:self_use_cache_/4. % (Repo, Id, Use, State|miss)
 
 % -----------------------------------------------------------------------------
 %  Prover hook: domain-driven goal enqueueing (single-pass extensions)
@@ -3180,31 +3182,31 @@ rules:effective_use_in_context(Context, Use, State) :-
       )
   ; nb_current(query_required_use_self, Repo://Id)
   ),
-  % Fast-path: avoid scanning all iuse/1 facts each time.
-  % Most conditionals only need the boolean state of a single flag, and whole-tree
-  % proofs hit this path millions of times (notably in gstreamer/llvm stacks).
   \+ Use =.. [minus,_],
-  rules:entry_iuse_default(Repo://Id, Use, Default),
-  cache:ordered_entry(Repo, Id, C, N, _),
-  ( % Profile-enforced per-package constraints (package.use.mask/force) win over
-    % /etc/portage/package.use and global USE.
-    preference:profile_package_use_override_for_entry(Repo://Id, Use, Eff, _Reason0) ->
-      true
-  ; preference:package_use_override(C, N, Use, positive) ->
-      Eff = positive
-  ; preference:package_use_override(C, N, Use, negative) ->
-      Eff = negative
-  ; preference:gentoo_package_use_override_for_entry_soft(Repo://Id, Use, Eff0) ->
-      Eff = Eff0
-  ; preference:profile_package_use_override_for_entry_soft(Repo://Id, Use, Eff0) ->
-      Eff = Eff0
-  ; preference:use(Use) ->
-      Eff = positive
-  ; preference:use(minus(Use)) ->
-      Eff = negative
-  ; Eff = Default
+  ( rules:eff_use_cache_(Repo, Id, Use, Cached) ->
+      State = Cached
+  ;
+      rules:entry_iuse_default(Repo://Id, Use, Default),
+      cache:ordered_entry(Repo, Id, C, N, _),
+      ( preference:profile_package_use_override_for_entry(Repo://Id, Use, Eff, _Reason0) ->
+          true
+      ; preference:package_use_override(C, N, Use, positive) ->
+          Eff = positive
+      ; preference:package_use_override(C, N, Use, negative) ->
+          Eff = negative
+      ; preference:gentoo_package_use_override_for_entry_soft(Repo://Id, Use, Eff0) ->
+          Eff = Eff0
+      ; preference:profile_package_use_override_for_entry_soft(Repo://Id, Use, Eff0) ->
+          Eff = Eff0
+      ; preference:use(Use) ->
+          Eff = positive
+      ; preference:use(minus(Use)) ->
+          Eff = negative
+      ; Eff = Default
+      ),
+      assertz(rules:eff_use_cache_(Repo, Id, Use, Eff)),
+      State = Eff
   ),
-  Eff = State,
   !.
 
 % Effective USE state for a specific entry.
@@ -3215,27 +3217,30 @@ rules:effective_use_for_entry(RepoEntry0, Use, State) :-
   ; RepoEntry0 = Repo//Id  -> true
   ),
   \+ Use =.. [minus,_],
-  rules:entry_iuse_default(Repo://Id, Use, Default),
-  cache:ordered_entry(Repo, Id, C, N, _),
-  ( % Profile-enforced per-package constraints (package.use.mask/force) win over
-    % /etc/portage/package.use and global USE.
-    preference:profile_package_use_override_for_entry(Repo://Id, Use, Eff, _Reason0) ->
-      true
-  ; preference:package_use_override(C, N, Use, positive) ->
-      Eff = positive
-  ; preference:package_use_override(C, N, Use, negative) ->
-      Eff = negative
-  ; preference:gentoo_package_use_override_for_entry_soft(Repo://Id, Use, Eff0) ->
-      Eff = Eff0
-  ; preference:profile_package_use_override_for_entry_soft(Repo://Id, Use, Eff0) ->
-      Eff = Eff0
-  ; preference:use(Use) ->
-      Eff = positive
-  ; preference:use(minus(Use)) ->
-      Eff = negative
-  ; Eff = Default
+  ( rules:eff_use_cache_(Repo, Id, Use, Cached) ->
+      State = Cached
+  ;
+      rules:entry_iuse_default(Repo://Id, Use, Default),
+      cache:ordered_entry(Repo, Id, C, N, _),
+      ( preference:profile_package_use_override_for_entry(Repo://Id, Use, Eff, _Reason0) ->
+          true
+      ; preference:package_use_override(C, N, Use, positive) ->
+          Eff = positive
+      ; preference:package_use_override(C, N, Use, negative) ->
+          Eff = negative
+      ; preference:gentoo_package_use_override_for_entry_soft(Repo://Id, Use, Eff0) ->
+          Eff = Eff0
+      ; preference:profile_package_use_override_for_entry_soft(Repo://Id, Use, Eff0) ->
+          Eff = Eff0
+      ; preference:use(Use) ->
+          Eff = positive
+      ; preference:use(minus(Use)) ->
+          Eff = negative
+      ; Eff = Default
+      ),
+      assertz(rules:eff_use_cache_(Repo, Id, Use, Eff)),
+      State = Eff
   ),
-  Eff = State,
   !.
 
 % -----------------------------------------------------------------------------
@@ -3610,6 +3615,21 @@ rules:self_context_use_state(Ctx, Use, State) :-
   ( RepoEntry0 = Repo://Id -> true
   ; RepoEntry0 = Repo//Id  -> true
   ),
+  ( rules:self_use_cache_(Repo, Id, Use, Cached) ->
+      Cached \== miss,
+      State = Cached
+  ;
+      ( rules:self_context_use_state_compute_(Repo, Id, Use, S0) ->
+          assertz(rules:self_use_cache_(Repo, Id, Use, S0)),
+          State = S0
+      ;
+          assertz(rules:self_use_cache_(Repo, Id, Use, miss)),
+          fail
+      )
+  ),
+  !.
+
+rules:self_context_use_state_compute_(Repo, Id, Use, State) :-
   rules:entry_iuse_info(Repo://Id, iuse_info(IuseSet, _PlusSet)),
   memberchk(Use, IuseSet),
   ( \+ eapi:check_use_expand_atom(Use),
@@ -3632,8 +3652,7 @@ rules:self_context_use_state(Ctx, Use, State) :-
     eapi:strip_use_default(UEArg, UEArgB),
     eapi:check_prefix_atom(Prefix, UEArgB),
     eapi:strip_prefix_atom(Prefix, UEArgB, Value)
-  ),
-  !.
+  ).
 
 % Determine whether a USE-dependency imposes a concrete requirement.
 rules:use_dep_requirement(_Ctx, enable(Use), Default, requirement(enable, Use, Default)) :- !.

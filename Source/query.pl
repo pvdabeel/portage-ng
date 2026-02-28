@@ -14,6 +14,8 @@ An implementation of a query language for the knowledge base
 
 :- module(query,[]).
 
+% dep_model_cache_ removed: context R can contain unbound variables from
+% query:search(model(Model,...)), causing incorrect cache sharing.
 
 % =============================================================================
 %  OPTIONAL RUNTIME CALLSITE STATS (debugging)
