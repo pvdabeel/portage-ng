@@ -156,6 +156,9 @@ from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 POWERLINE_RE = re.compile(r"[\ue0b0-\ue0d4]")
+_TIMING_RE = re.compile(r"^%\s+(emerge|merge)\s+wall_time_ms:\s+(\d+)")
+_TIMING_STARTED_RE = re.compile(r"^%\s+(emerge|merge)\s+started:\s+(\d+)")
+_TIMING_ENDED_RE = re.compile(r"^%\s+(emerge|merge)\s+ended:\s+(\d+)")
 
 # When enabled, include full per-pair lists (missing/extra/mismatches) in output JSON.
 # This is useful for CN gap analysis, but makes the report larger.
@@ -433,6 +436,24 @@ def _load_pkg_build_deps(cat: str, pnver: str) -> Set[Tuple[str, str]]:
     return deps
 
 
+def _parse_timing(txt: str, prefix: str) -> Dict[str, int]:
+    """Extract started/ended/wall_time_ms timing lines for a given prefix."""
+    timing: Dict[str, int] = {}
+    for line in txt.splitlines()[:5] + txt.splitlines()[-5:]:
+        m = _TIMING_STARTED_RE.match(line.strip())
+        if m and m.group(1) == prefix:
+            timing["started"] = int(m.group(2))
+            continue
+        m = _TIMING_ENDED_RE.match(line.strip())
+        if m and m.group(1) == prefix:
+            timing["ended"] = int(m.group(2))
+            continue
+        m = _TIMING_RE.match(line.strip())
+        if m and m.group(1) == prefix:
+            timing["wall_time_ms"] = int(m.group(2))
+    return timing
+
+
 def parse_emerge(path: Path) -> Tuple[Dict[str, EmergePkg], Dict[str, str]]:
     """
     Parses Portage emerge output file.
@@ -467,6 +488,9 @@ def parse_emerge(path: Path) -> Tuple[Dict[str, EmergePkg], Dict[str, str]]:
         meta["error_kind"] = err
     # Comparable only if we found packages *and* Portage did not signal an error.
     meta["ok"] = "true" if (pkgs and not err) else "false"
+    timing = _parse_timing(txt, "emerge")
+    if "wall_time_ms" in timing:
+        meta["wall_time_ms"] = str(timing["wall_time_ms"])
     return pkgs, meta
 
 
@@ -657,6 +681,10 @@ def parse_merge(path: Path) -> Tuple[Dict[str, MergePkg], Dict[str, int], List[s
     _flush_cycle(cycle_actions, counters)
     if domain_buf:
         _classify_domain_assumption(domain_buf, counters)
+
+    timing = _parse_timing(txt, "merge")
+    if "wall_time_ms" in timing:
+        counters["wall_time_ms"] = timing["wall_time_ms"]
 
     return pkgs, counters, merge_action_order, merge_wave_map
 
@@ -893,11 +921,22 @@ def compare_pair(merge_path: Path, emerge_path: Path) -> Dict:
                                 else:
                                     inv_cross_wave_no_edge += 1
 
+    # Timing data
+    timing: Dict[str, object] = {}
+    if "wall_time_ms" in emerge_meta:
+        timing["emerge_ms"] = int(emerge_meta["wall_time_ms"])
+    if "wall_time_ms" in ass:
+        timing["merge_ms"] = int(ass["wall_time_ms"])
+        del ass["wall_time_ms"]
+    if "emerge_ms" in timing and "merge_ms" in timing and timing["emerge_ms"] > 0:
+        timing["ratio"] = round(timing["merge_ms"] / timing["emerge_ms"], 4)
+
     return {
         "merge": str(merge_path),
         "emerge": str(emerge_path),
         "emerge_ok": emerge_ok,
         "emerge_error_kind": emerge_meta.get("error_kind", ""),
+        "timing": timing,
         "counts": {
             "emerge_pkgs": len(emerge_keys),
             "merge_pkgs": len(merge_merged_keys),
@@ -1030,6 +1069,93 @@ def main(argv: Sequence[str]) -> int:
 
     results.sort(key=lambda r: r["merge"])
 
+    # Timing aggregates
+    timing_emerge_ms_all = []
+    timing_merge_ms_all = []
+    timing_ratios_all = []
+    timing_emerge_ms_ok = []
+    timing_merge_ms_ok = []
+    timing_ratios_ok = []
+    timing_emerge_ms_notok = []
+    timing_merge_ms_notok = []
+    timing_ratios_notok = []
+    for r in results:
+        t = r.get("timing", {})
+        ems = t.get("emerge_ms")
+        mms = t.get("merge_ms")
+        ratio = t.get("ratio")
+        if ems is not None:
+            timing_emerge_ms_all.append(ems)
+        if mms is not None:
+            timing_merge_ms_all.append(mms)
+        if ratio is not None:
+            timing_ratios_all.append(ratio)
+        if r.get("emerge_ok"):
+            if ems is not None:
+                timing_emerge_ms_ok.append(ems)
+            if mms is not None:
+                timing_merge_ms_ok.append(mms)
+            if ratio is not None:
+                timing_ratios_ok.append(ratio)
+        else:
+            if ems is not None:
+                timing_emerge_ms_notok.append(ems)
+            if mms is not None:
+                timing_merge_ms_notok.append(mms)
+            if ratio is not None:
+                timing_ratios_notok.append(ratio)
+
+    def _timing_stats(values: List) -> Dict:
+        if not values:
+            return {}
+        sv = sorted(values)
+        n = len(sv)
+        def _pct(p):
+            k = (n - 1) * p / 100
+            f = int(k)
+            c = min(f + 1, n - 1)
+            return sv[f] + (sv[c] - sv[f]) * (k - f)
+        return {
+            "count": n,
+            "sum": round(sum(sv), 2),
+            "avg": round(sum(sv) / n, 2),
+            "median": round(_pct(50), 2),
+            "p95": round(_pct(95), 2),
+            "min": sv[0],
+            "max": sv[-1],
+        }
+
+    timing_agg = {
+        "all": {
+            "emerge_ms": _timing_stats(timing_emerge_ms_all),
+            "merge_ms": _timing_stats(timing_merge_ms_all),
+            "ratio": _timing_stats(timing_ratios_all),
+            "merge_faster_count": sum(1 for r in timing_ratios_all if r < 1.0),
+            "emerge_faster_count": sum(1 for r in timing_ratios_all if r > 1.0),
+        },
+        "emerge_ok": {
+            "emerge_ms": _timing_stats(timing_emerge_ms_ok),
+            "merge_ms": _timing_stats(timing_merge_ms_ok),
+            "ratio": _timing_stats(timing_ratios_ok),
+            "merge_faster_count": sum(1 for r in timing_ratios_ok if r < 1.0),
+            "emerge_faster_count": sum(1 for r in timing_ratios_ok if r > 1.0),
+        },
+        "emerge_notok": {
+            "emerge_ms": _timing_stats(timing_emerge_ms_notok),
+            "merge_ms": _timing_stats(timing_merge_ms_notok),
+            "ratio": _timing_stats(timing_ratios_notok),
+            "merge_faster_count": sum(1 for r in timing_ratios_notok if r < 1.0),
+            "emerge_faster_count": sum(1 for r in timing_ratios_notok if r > 1.0),
+        },
+    }
+
+    # Top slowest merge entries (by merge_ms)
+    timed_results = [r for r in results if r.get("timing", {}).get("merge_ms") is not None]
+    top_slow_merge = sorted(timed_results, key=lambda r: r["timing"]["merge_ms"], reverse=True)[:20]
+    # Worst ratio entries (merge much slower than emerge)
+    ratio_results = [r for r in results if r.get("timing", {}).get("ratio") is not None]
+    top_worst_ratio = sorted(ratio_results, key=lambda r: r["timing"]["ratio"], reverse=True)[:20]
+
     # Ordering aggregate (Kendall tau)
     total_order_inversions = agg["order_inversions"]
     total_order_pairs = agg["order_pairs"]
@@ -1079,6 +1205,13 @@ def main(argv: Sequence[str]) -> int:
         "top_use_mismatch": [{"merge": r["merge"], "n": r["counts"]["use_mismatches"]} for r in top_use],
         "top_use_mismatch_common": [{"merge": r["merge"], "n": r["counts"]["use_mismatches_common"]} for r in top_use_common],
         "top_domain_assumptions": [{"merge": r["merge"], "n": r["assumptions"]["domain_assumptions"]} for r in top_ass],
+        "timing_aggregate": timing_agg,
+        "top_slow_merge": [{"merge": r["merge"], "merge_ms": r["timing"]["merge_ms"],
+                            "emerge_ms": r["timing"].get("emerge_ms"),
+                            "ratio": r["timing"].get("ratio")} for r in top_slow_merge],
+        "top_worst_ratio": [{"merge": r["merge"], "ratio": r["timing"]["ratio"],
+                             "merge_ms": r["timing"].get("merge_ms"),
+                             "emerge_ms": r["timing"].get("emerge_ms")} for r in top_worst_ratio],
         "order_aggregate": {
             "order_inversions": total_order_inversions,
             "order_pairs": total_order_pairs,
@@ -1157,6 +1290,23 @@ def main(argv: Sequence[str]) -> int:
             print(f"    cross_wave_no_edge: {total_inv_cw_ne} ({100*total_inv_cw_ne/total_order_inversions:.1f}%)")
         print(f"  inv_provably_valid_pct: {pvp:.2f}%")
     print(f"  install_only_cycle_breaks: {assumptions_agg.get('install_only_cycle_breaks', 0)}")
+    # Timing summary
+    if timing_agg["all"]["emerge_ms"]:
+        print()
+        print("TIMING")
+        for label, group in [("all", "all"), ("emerge_ok", "emerge_ok"), ("emerge_notok", "emerge_notok")]:
+            ta = timing_agg[group]
+            ems = ta.get("emerge_ms", {})
+            mms = ta.get("merge_ms", {})
+            rat = ta.get("ratio", {})
+            if ems:
+                print(f"  [{label}] emerge: n={ems.get('count',0)} avg={ems.get('avg',0)/1000:.2f}s median={ems.get('median',0)/1000:.2f}s p95={ems.get('p95',0)/1000:.2f}s sum={ems.get('sum',0)/1000:.1f}s")
+            if mms:
+                print(f"  [{label}] merge:  n={mms.get('count',0)} avg={mms.get('avg',0)/1000:.2f}s median={mms.get('median',0)/1000:.2f}s p95={mms.get('p95',0)/1000:.2f}s sum={mms.get('sum',0)/1000:.1f}s")
+            if rat:
+                mf = ta.get("merge_faster_count", 0)
+                ef = ta.get("emerge_faster_count", 0)
+                print(f"  [{label}] ratio:  avg={rat.get('avg',0):.2f}x median={rat.get('median',0):.2f}x p95={rat.get('p95',0):.2f}x merge_faster={mf} emerge_faster={ef}")
     print(f"  wrote: {out_path}")
 
     return 0
