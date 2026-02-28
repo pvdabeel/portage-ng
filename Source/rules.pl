@@ -275,43 +275,33 @@ rule(world_action(_Op,_Arg):world?{Context}, Conditions) :-
 
 rule(Repository://Ebuild:fetchonly?{Context},Conditions) :- % todo: to update in line with new :install and :run rules
   !,
-  query:search(masked(true),   Repository://Ebuild) -> Conditions = [] ;
-  query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) -> Conditions = [] ;
-
-  % 1. Get some metadata we need further down
-
-  query:search([category(C),name(N),select(slot,constraint([]),S)], Repository://Ebuild),
-
-  % 2. Compute required_use stable model (thread per-package USE constraints).
-  rules:context_build_with_use_state(Context, B),
-
-  (memberchk(required_use:R,Context) -> true ; true),
-
-  query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
-
-  % 3. Pass use model onto dependencies to calculate corresponding dependency  model,
-  %    We pass using config action to avoid package_dependency from generating choices.
-  %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
-  %    all_of_group ... choice point generation
-
-  % 4. Compute + memoize dependency model, already grouped by package Category & Name.
-
-  query:memoized_search(model(dependency(MergedDeps0,fetchonly)):config?{Model},Repository://Ebuild),
-  add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
-
-  % 5. Pass on relevant package dependencies and constraints to prover
-
-  ( memberchk(C,['virtual','acct-group','acct-user'])
-    -> Conditions = [constraint(use(Repository://Ebuild):{R}),
-                     constraint(slot(C,N,S):{Ebuild})
-                     |MergedDeps]
-    ;  Conditions = [constraint(use(Repository://Ebuild):{R}),
-                     constraint(slot(C,N,S):{Ebuild}),
-                     Repository://Ebuild:download?{R}
-                     |MergedDeps] )
-   ; rules:assume_conflicts,
-     feature_unification:unify([issue_with_model(explanation)], Context, Ctx1),
-     Conditions = [assumed(Repository://Ebuild:install?{Ctx1})].
+  ( query:search(masked(true),   Repository://Ebuild) ->
+      Conditions = []
+  ; query:search(installed(true),Repository://Ebuild),
+    \+preference:flag(emptytree) ->
+      Conditions = []
+  ; % Normal fetchonly proof — guard: model computation must succeed.
+    ( query:search([category(C),name(N),select(slot,constraint([]),S)], Repository://Ebuild),
+      rules:context_build_with_use_state(Context, B),
+      (memberchk(required_use:R,Context) -> true ; true),
+      query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
+      query:memoized_search(model(dependency(MergedDeps0,fetchonly)):config?{Model},Repository://Ebuild)
+    ->
+      add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
+      ( memberchk(C,['virtual','acct-group','acct-user'])
+        -> Conditions = [constraint(use(Repository://Ebuild):{R}),
+                         constraint(slot(C,N,S):{Ebuild})
+                         |MergedDeps]
+        ;  Conditions = [constraint(use(Repository://Ebuild):{R}),
+                         constraint(slot(C,N,S):{Ebuild}),
+                         Repository://Ebuild:download?{R}
+                         |MergedDeps]
+      )
+    ; % Model-computation fallback (see :install rule comment).
+      feature_unification:unify([issue_with_model(explanation)], Context, Ctx1),
+      Conditions = [assumed(Repository://Ebuild:install?{Ctx1})]
+    )
+  ).
 
 
 % -----------------------------------------------------------------------------
@@ -390,8 +380,9 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
         append(Prefix0, MergedDepsOrdered, Conditions0)
       ),
       rules:ctx_add_after_condition(After, AfterForDeps, Conditions0, Conditions)
-    ; % Conflict fallback
-      rules:assume_conflicts,
+    ; % Model-computation fallback: the dependency model could not be built
+      % (e.g. all branches of an any_of_group are keyword-filtered). Produce
+      % an assumption so the prover can continue rather than failing silently.
       feature_unification:unify([issue_with_model(explanation)], Context1, Ctx1),
       Conditions = [assumed(Repository://Ebuild:install?{Ctx1})]
     )
@@ -415,86 +406,66 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
 
 rule(Repository://Ebuild:run?{Context},Conditions) :-
   !,
-  % 0. Check if the ebuild is masked or installed
-  query:search(masked(true),   Repository://Ebuild) -> Conditions = [] ;
-  query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) ->
+  ( % 0. Check if the ebuild is masked or installed
+    query:search(masked(true),   Repository://Ebuild) ->
+      Conditions = []
+  ; query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) ->
     ( config:avoid_reinstall(true) ->
         Conditions = []
     ; rules:ctx_take_after_with_mode(Context, After0, AfterForDeps0, Context10),
       Cond0 = [Repository://Ebuild:reinstall?{Context10}],
       rules:ctx_add_after_condition(After0, AfterForDeps0, Cond0, Conditions)
     )
-  ; % todo check new build_with_use requirements
+  ; rules:ctx_take_after_with_mode(Context, After, AfterForDeps, Context1),
 
-  rules:ctx_take_after_with_mode(Context, After, AfterForDeps, Context1),
+    ( % Normal run proof
+      % 1. Get some metadata we need further down
+      query:search([category(C),name(N),select(slot,constraint([]),S)], Repository://Ebuild),
+      query:search(version(Ver), Repository://Ebuild),
+      Selected = constraint(selected_cn(C,N):{ordset([selected(Repository,Ebuild,run,Ver,S)])}),
 
-  % 1. Get some metadata we need further down
+      % 2. Compute required_use stable model, extend with build_with_use requirements.
+      rules:context_build_with_use_state(Context1, B),
+      query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
 
-  query:search([category(C),name(N),select(slot,constraint([]),S)], Repository://Ebuild),
-  query:search(version(Ver), Repository://Ebuild),
-  Selected = constraint(selected_cn(C,N):{ordset([selected(Repository,Ebuild,run,Ver,S)])}),
+      % 3-4. Compute + memoize dependency model, already grouped by package Category & Name.
+      query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model},Repository://Ebuild),
+      add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
+      rules:add_after_to_dep_contexts(AfterForDeps, MergedDeps, MergedDepsAfter),
+      rules:order_deps_for_proof(run, MergedDepsAfter, MergedDepsOrdered),
 
-  % 2. Compute required_use stable model, extend with build_with_use requirements.
-  rules:context_build_with_use_state(Context1, B),
-
-  % (memberchk(build_with_use(B),Context) -> true ; B = []),
-
-  query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
-
-  % 3. Pass use model onto dependencies to calculate corresponding dependency  model,
-  %    We pass using config action to avoid package_dependency from generating choices.
-  %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
-  %    all_of_group ... choice point generation
-
-  % 4. Compute + memoize dependency model, already grouped by package Category & Name.
-
-  query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model},Repository://Ebuild),
-  add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
-  rules:add_after_to_dep_contexts(AfterForDeps, MergedDeps, MergedDepsAfter),
-  rules:order_deps_for_proof(run, MergedDepsAfter, MergedDepsOrdered),
-
-  % 5. Pass on relevant package dependencies and constraints to prover
-
-  % If another version is already installed in the same slot, then "merge" should
-  % translate into a transactional same-slot replacement (Portage-style), i.e.
-  % NewVersion:update (replaces OldVersion), rather than a plain NewVersion:install.
-  % When the new version is lower than the installed one, use "downgrade" (matching
-  % Portage's "D" action letter).
-  ( \+ preference:flag(emptytree),
-    rules:entry_slot_default(Repository, Ebuild, SlotNew),
-    % Fast guard: if nothing for C/N is installed in the VDB repo, don't even
-    % attempt update detection. This avoids lots of failing work when proving
-    % arbitrary/uninstalled packages (e.g. in `test_latest/2`).
-    query:search(package(C,N), pkg://_),
-    rules:installed_entry_cn(C, N, OldRepo, OldEbuild),
-    OldEbuild \== Ebuild,
-    % If the installed entry is no longer in the repo set, we may not have its
-    % slot metadata. In that case, assume it matches the slot of the replacement
-    % entry (this mirrors Portage's ability to read slot from /var/db/pkg).
-    ( query:search(slot(SlotOld0), OldRepo://OldEbuild)
-      -> rules:canon_slot(SlotOld0, SlotOld)
-      ;  SlotOld = SlotNew
-    ),
-    SlotOld == SlotNew
-  ->
-    % IMPORTANT: do NOT thread slot(C,N,...) through action contexts. Slot is a
-    % prover-level constraint (see constraint(slot(...))) and should not influence
-    % grouped dependency candidate selection (it would incorrectly constrain := deps).
-    ( query:search(version(NewVer_), Repository://Ebuild),
-      query:search(version(OldVer_), OldRepo://OldEbuild),
-      eapi:version_compare(<, NewVer_, OldVer_)
-    -> UpdateOrDowngrade = downgrade
-    ;  UpdateOrDowngrade = update
-    ),
-    InstallOrUpdate = Repository://Ebuild:UpdateOrDowngrade?{[replaces(OldRepo://OldEbuild),required_use:R,build_with_use:B]}
-  ; InstallOrUpdate = Repository://Ebuild:install?{[required_use:R,build_with_use:B]}
-  ),
-  Prefix0 = [Selected,
-             constraint(use(Repository://Ebuild):{R}),
-             constraint(slot(C,N,S):{Ebuild}),
-             InstallOrUpdate],
-  append(Prefix0, MergedDepsOrdered, Conditions0),
-  rules:ctx_add_after_condition(After, AfterForDeps, Conditions0, Conditions).
+      % 5. Pass on relevant package dependencies and constraints to prover
+      ( \+ preference:flag(emptytree),
+        rules:entry_slot_default(Repository, Ebuild, SlotNew),
+        query:search(package(C,N), pkg://_),
+        rules:installed_entry_cn(C, N, OldRepo, OldEbuild),
+        OldEbuild \== Ebuild,
+        ( query:search(slot(SlotOld0), OldRepo://OldEbuild)
+          -> rules:canon_slot(SlotOld0, SlotOld)
+          ;  SlotOld = SlotNew
+        ),
+        SlotOld == SlotNew
+      ->
+        ( query:search(version(NewVer_), Repository://Ebuild),
+          query:search(version(OldVer_), OldRepo://OldEbuild),
+          eapi:version_compare(<, NewVer_, OldVer_)
+        -> UpdateOrDowngrade = downgrade
+        ;  UpdateOrDowngrade = update
+        ),
+        InstallOrUpdate = Repository://Ebuild:UpdateOrDowngrade?{[replaces(OldRepo://OldEbuild),required_use:R,build_with_use:B]}
+      ; InstallOrUpdate = Repository://Ebuild:install?{[required_use:R,build_with_use:B]}
+      ),
+      Prefix0 = [Selected,
+                 constraint(use(Repository://Ebuild):{R}),
+                 constraint(slot(C,N,S):{Ebuild}),
+                 InstallOrUpdate],
+      append(Prefix0, MergedDepsOrdered, Conditions0),
+      rules:ctx_add_after_condition(After, AfterForDeps, Conditions0, Conditions)
+    ; % Model-computation fallback (see :install rule comment).
+      feature_unification:unify([issue_with_model(explanation)], Context1, Ctx1),
+      Conditions = [assumed(Repository://Ebuild:run?{Ctx1})]
+    )
+  ).
 
 % -----------------------------------------------------------------------------
 %  Dependency ordering heuristic
@@ -3741,10 +3712,9 @@ rules:candidate_satisfies_use_requirement(Repo://Entry, requirement(Mode, Use, D
   % - If the flag is in IUSE, enforce it against the candidate's *effective* USE
   %   (Portage semantics for deps like pkg[foo], pkg[-bar], pkg[foo?], pkg[foo=]).
   %
-  %   IMPORTANT: we must NOT treat `pkg[foo]` as "always solvable by rebuilding
-  %   with foo enabled", because Portage does not auto-toggle USE flags to satisfy
-  %   a dependency. The requirement must match the USE that the system would
-  %   actually build the child with (profile/make.conf/package.use + IUSE defaults).
+  %   Portage does not auto-toggle USE flags to satisfy a dependency. The
+  %   requirement must match the USE state that the system would actually build
+  %   the child with (profile/make.conf/package.use + IUSE defaults).
   % - If the flag is NOT in IUSE, only allow the dependency when it provides an
   %   explicit default marker (+)/(-), which defines the assumed state.
   ( rules:candidate_iuse_present(Repo://Entry, Use)
