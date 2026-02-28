@@ -3614,44 +3614,41 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
   sort(DomainAssumptions0, DomainAssumptions),
   findall(Content, (assoc:gen_assoc(assumed(rule(Content)), ProofAVL, _)), CycleAssumptions0),
   sort(CycleAssumptions0, CycleAssumptions),
-  ( DomainAssumptions \= [] ->
-      ( printer:domain_assumptions_only_blockers(DomainAssumptions) ->
-          message:bubble(orange,'Warning'),
-          message:color(orange),
-          message:print(' The proof for your build plan contains blocker assumptions. Please verify:'), nl, nl,
-          message:color(orange)
-      ; message:bubble(red,'Error'),
-        message:color(red),
-        message:print(' The proof for your build plan contains domain assumptions. Please verify:'), nl, nl,
-        message:color(red)
-      )
+  partition(printer:is_blocker_assumption, DomainAssumptions, BlockerAssumptions, NonBlockerAssumptions),
+  ( config:print_blockers(off) -> VisibleBlockers = [] ; VisibleBlockers = BlockerAssumptions ),
+  ( NonBlockerAssumptions == [], VisibleBlockers == [], CycleAssumptions == [] -> true
+  ; NonBlockerAssumptions \= [] ->
+      message:bubble(red,'Error'),
+      message:color(red),
+      message:print(' The proof for your build plan contains domain assumptions. Please verify:'), nl, nl,
+      message:color(red)
+  ; VisibleBlockers \= [] ->
+      message:bubble(orange,'Warning'),
+      message:color(orange),
+      message:print(' The proof for your build plan contains blocker assumptions. Please verify:'), nl, nl,
+      message:color(orange)
   ; CycleAssumptions \= [] ->
       message:bubble(orange,'Warning'),
       message:color(orange),
       message:print(' The proof for your build plan contains cycle breaks. Please verify:'), nl, nl,
       message:color(orange)
-  ; message:bubble(red,'Error'),
-  message:color(red),
-    message:print(' The proof for your build plan contains assumptions. Please verify:'), nl, nl,
-    message:color(red)
-  ),
-  ( DomainAssumptions \= [] ->
-      message:header('Domain assumptions'),
-      nl,
-      forall(member(Content, DomainAssumptions),
-             ( printer:print_assumption_detail(rule(Content, [])),
-               nl ))
-  ,   printer:print_blockers_portage_like(DomainAssumptions)
   ; true
   ),
-  % Optional: print simple Gentoo Bugzilla bug report drafts when domain assumptions
-  % are few (avoid overwhelming output for bulk runs like prover:test_stats/1).
-  ( DomainAssumptions \= [] ->
+  ( NonBlockerAssumptions \= [] ->
+      message:header('Domain assumptions'),
+      nl,
+      forall(member(Content, NonBlockerAssumptions),
+             ( printer:print_assumption_detail(rule(Content, [])),
+               nl ))
+  ; true
+  ),
+  printer:print_blockers_section(BlockerAssumptions),
+  ( NonBlockerAssumptions \= [] ->
       ( config:bugreport_drafts_enabled(true) ->
           ( config:bugreport_drafts_max_assumptions(MaxAss) -> true ; MaxAss = 25 ),
-          length(DomainAssumptions, NAss),
+          length(NonBlockerAssumptions, NAss),
           ( NAss =< MaxAss ->
-              printer:print_bugreport_drafts(DomainAssumptions)
+              printer:print_bugreport_drafts(NonBlockerAssumptions)
           ; true
           )
       ; true
@@ -3708,32 +3705,48 @@ printer:print_warnings(_,_,_) :- !, nl.
 %  Blocker assumptions (Portage-like summary)
 % -----------------------------------------------------------------------------
 
-printer:domain_assumptions_only_blockers([]) :- !, fail.
-printer:domain_assumptions_only_blockers(DomainAssumptions) :-
-  \+ ( member(C, DomainAssumptions),
-       \+ printer:is_blocker_assumption(C)
-     ).
-
 printer:is_blocker_assumption(blocker(_Strength, _Phase, _C, _N, _O, _V, _SlotReq)?{_Ctx}) :- !.
 printer:is_blocker_assumption(blocker(_Strength, _Phase, _C, _N, _O, _V, _SlotReq)) :- !.
 printer:is_blocker_assumption(_) :- fail.
 
-printer:print_blockers_portage_like(DomainAssumptions) :-
+% -----------------------------------------------------------------------------
+%  Blocker section (configurable via config:print_blockers/1)
+% -----------------------------------------------------------------------------
+
+printer:print_blockers_section([]) :- !.
+printer:print_blockers_section(_) :-
+  config:print_blockers(off), !.
+printer:print_blockers_section(BlockerAssumptions) :-
+  config:print_blockers(gentoo), !,
   findall(line(Strength, Phase, BlockAtom, RequiredBy),
-          ( member(Content, DomainAssumptions),
+          ( member(Content, BlockerAssumptions),
             printer:blocker_assumption_line(Content, Strength, Phase, BlockAtom, RequiredBy)
           ),
           Lines0),
   sort(Lines0, Lines),
-  ( Lines == [] ->
-      true
+  ( Lines == [] -> true
   ; nl,
-    message:header('Blockers (Portage-like, assumed)'),
+    message:header('Blockers'),
     nl,
     forall(member(line(Strength, Phase, BlockAtom, RequiredBy), Lines),
            printer:print_blocker_line(Strength, Phase, BlockAtom, RequiredBy)),
     nl
   ).
+printer:print_blockers_section(BlockerAssumptions) :-
+  config:print_blockers(fancy), !,
+  nl,
+  message:header('Blockers'),
+  nl,
+  forall(member(Content, BlockerAssumptions),
+         ( printer:print_assumption_detail(rule(Content, [])),
+           nl )).
+printer:print_blockers_section(BlockerAssumptions) :-
+  nl,
+  message:header('Blockers'),
+  nl,
+  forall(member(Content, BlockerAssumptions),
+         ( printer:print_assumption_detail(rule(Content, [])),
+           nl )).
 
 printer:blocker_assumption_line(Content, Strength, Phase, BlockAtom, RequiredBy) :-
   ( Content = blocker(Strength, Phase, C, N, O, V, SlotReq)?{Ctx} ->

@@ -446,6 +446,20 @@ config:print_scc(false).
 config:print_scc_max_members(50).
 
 
+%! config:print_blockers(?Style)
+%
+% How to display blocker assumptions in plan output.
+% Blockers are separated from other domain assumptions into their own
+% section.
+%
+% Styles:
+%   off    - no blocker section printed
+%   gentoo - compact Portage-like dark-gray lines
+%   fancy  - detailed multi-line assumption format with provenance
+
+config:print_blockers(gentoo).
+
+
 % -----------------------------------------------------------------------------
 % Graphing: static assets
 % -----------------------------------------------------------------------------
