@@ -19,7 +19,7 @@ Configuration for portage-ng
 % =============================================================================
 
 % -----------------------------------------------------------------------------
-% General
+%  General
 % -----------------------------------------------------------------------------
 
 %! config:name(?Name)
@@ -55,7 +55,7 @@ config:working_dir(Dir) :-
 
 
 % -----------------------------------------------------------------------------
-% Repository
+%  Repository
 % -----------------------------------------------------------------------------
 
 %! config:trust_metadata(?Bool)
@@ -82,7 +82,7 @@ config:trust_metadata(true).
 config:write_metadata(true).
 
 % -----------------------------------------------------------------------------
-% Gentoo profile (for Portage parity)
+%  Gentoo profile (for Portage parity)
 % -----------------------------------------------------------------------------
 %
 % This is the Gentoo profile path *relative to the Portage tree profiles dir*.
@@ -128,7 +128,7 @@ config:gentoo_env('ACCEPT_KEYWORDS', '~amd64').
 config:gentoo_env('ACCEPT_LICENSE', '-* @FREE').
 
 % -----------------------------------------------------------------------------
-% Gentoo /etc/portage overrides (subset)
+%  Gentoo /etc/portage overrides (subset)
 % -----------------------------------------------------------------------------
 %
 % These mirror simple /etc/portage files from your Gentoo system.
@@ -156,7 +156,7 @@ config:gentoo_package_use('sys-kernel/gentoo-sources',    'symlink build').
 
 
 % -----------------------------------------------------------------------------
-% Pkg directory
+%  Pkg directory
 % -----------------------------------------------------------------------------
 
 %! config:pkg_directory(?Hostname,?FullPath)
@@ -171,7 +171,7 @@ config:pkg_directory('vm-linux.local',    '/var/db/pkg')                     :- 
 
 
 % -----------------------------------------------------------------------------
-% World file
+%  World file
 % -----------------------------------------------------------------------------
 
 %! config:world_file(Path)
@@ -186,7 +186,7 @@ config:world_file(Filename) :-
 
 
 % -----------------------------------------------------------------------------
-% System
+%  System
 % -----------------------------------------------------------------------------
 
 %! config:systemconfig(?Filename)
@@ -225,14 +225,14 @@ config:verbosity(debug).
 
 
 % -----------------------------------------------------------------------------
-% Passwords
+%  Passwords
 % -----------------------------------------------------------------------------
 
 :- include(portage('Source/Private/passwords')).
 
 
 % -----------------------------------------------------------------------------
-% Network
+%  Network
 % -----------------------------------------------------------------------------
 
 %! config:bonjour_service(?Service)
@@ -279,7 +279,7 @@ config:server_chunk(50000).
 
 
 % -----------------------------------------------------------------------------
-% Certificates
+%  Certificates
 % -----------------------------------------------------------------------------
 
 %! config:initialize_cacert
@@ -320,7 +320,7 @@ config:digest_passwordfile(Filename) :-
 
 
 % -----------------------------------------------------------------------------
-% Graphing
+%  Graphing
 % -----------------------------------------------------------------------------
 
 % Interface can dynamically override graphing behavior for a single run.
@@ -398,7 +398,7 @@ config:graph_legacy_type([emerge]).
 
 
 % -----------------------------------------------------------------------------
-% Cycle / SCC printing
+%  Cycle / SCC printing
 % -----------------------------------------------------------------------------
 
 %! config:print_prover_cycles(?Bool)
@@ -464,7 +464,7 @@ config:print_blockers(gentoo).
 
 
 % -----------------------------------------------------------------------------
-% Graphing: static assets
+%  Graphing: static assets
 % -----------------------------------------------------------------------------
 
 
@@ -498,7 +498,7 @@ config:graph_asset_source(meslo_ttf, Source) :-
 
 
 % -----------------------------------------------------------------------------
-% Distfiles / mirrors (analysis + future downloader)
+%  Distfiles / mirrors (analysis + future downloader)
 % -----------------------------------------------------------------------------
 
 
@@ -532,7 +532,7 @@ config:mirror_verify_hashes_default(none).
 
 
 % -----------------------------------------------------------------------------
-% Proving
+%  Proving
 % -----------------------------------------------------------------------------
 
 %! config:time_limit(?Limit)
@@ -593,7 +593,7 @@ config:avoid_reinstall(false).
 
 
 % -----------------------------------------------------------------------------
-% Printing
+%  Printing
 % -----------------------------------------------------------------------------
 
 % Interface can dynamically adjust the verbosity
@@ -701,7 +701,7 @@ config:printable_metadata([blank,
 
 
 % -----------------------------------------------------------------------------
-% Testing
+%  Testing
 % -----------------------------------------------------------------------------
 
 %! config:test_style(?Style)
@@ -751,7 +751,7 @@ config:failsilenton(version).
 
 
 % -----------------------------------------------------------------------------
-% Building
+%  Building
 % -----------------------------------------------------------------------------
 
 %! config:dry_run_build(?Bool)
@@ -771,9 +771,9 @@ config:dry_run_build(true).
 config:time_limit_build(6000).
 
 
-% ---------------------
-% Large Language Models
-% ---------------------
+% -----------------------------------------------------------------------------
+%  Large Language Models
+% -----------------------------------------------------------------------------
 
 %! config:llm_api_key(?LLM,?Key)
 %
