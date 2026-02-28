@@ -3516,6 +3516,77 @@ printer:update_stats_clauses(_://_:_, S0, S) :-
 printer:update_stats_clauses(_, S, S).
 
 
+% -----------------------------------------------------------------------------
+%  SCC decomposition display
+% -----------------------------------------------------------------------------
+%
+% Shows the scheduler's Kosaraju SCC decomposition: which packages form
+% cyclic merge-sets and the linearization order the scheduler chose.
+% Controlled by config:print_scc/1.
+
+printer:print_scc_decomposition :-
+  \+ config:print_scc(true),
+  !.
+printer:print_scc_decomposition :-
+  findall(scc(Id, Kind, Members),
+          scheduler:scc_info_(Id, Kind, Members),
+          SCCs0),
+  ( SCCs0 == [] -> true
+  ; sort(SCCs0, SCCs),
+    nl,
+    message:header('Scheduler SCC decomposition'),
+    nl,
+    config:print_scc_max_members(MaxMembers),
+    forall(member(scc(Id, Kind, Members), SCCs),
+           printer:print_scc_component(Id, Kind, Members, MaxMembers)),
+    nl
+  ).
+
+printer:print_scc_component(Id, Kind, Members, MaxMembers) :-
+  length(Members, N),
+  ( Kind == merge_set ->
+      message:color(orange),
+      format('  SCC #~w (merge-set, ~w members):~n', [Id, N])
+  ; message:color(red),
+    format('  SCC #~w (~w, ~w members):~n', [Id, Kind, N])
+  ),
+  message:color(normal),
+  ( N =< MaxMembers ->
+      DisplayMembers = Members,
+      Omitted = 0
+  ; length(DisplayMembers, MaxMembers),
+    append(DisplayMembers, _, Members),
+    Omitted is N - MaxMembers
+  ),
+  forall(member(M, DisplayMembers),
+         printer:print_scc_member(M)),
+  ( Omitted > 0 ->
+      message:color(darkgray),
+      format('    (… ~w more members omitted)~n', [Omitted]),
+      message:color(normal)
+  ; true
+  ),
+  nl.
+
+printer:print_scc_member(Head) :-
+  ( Head = _Repo://Entry:Action ->
+      message:color(darkgray),
+      message:print('    '),
+      message:color(normal),
+      message:bubble(darkgray, Action),
+      message:color(darkgray),
+      message:print(' '),
+      message:color(normal),
+      message:print(Entry),
+      nl
+  ; Head = _Repo://Entry ->
+      message:print('    '),
+      message:print(Entry),
+      nl
+  ; format('    ~w~n', [Head])
+  ).
+
+
 %! printer:print_warnings(+ModelAVL, +ProofAVL, +TriggersAVL)
 %
 % Prints assumptions found in the proof/model.
@@ -3590,9 +3661,7 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
   ( CycleAssumptions \= [] ->
       message:header('Cycle breaks (prover)'),
       nl,
-      % Avoid pathological output/time when many cycle breaks exist.
-      % Print only a small prefix; keep explanations best-effort and time-bounded.
-      MaxCycleBreaksToPrint = 10,
+      config:print_prover_cycles_max_total(MaxCycleBreaksToPrint),
       length(CycleAssumptions, TotalCycleBreaks),
       ( TotalCycleBreaks =< MaxCycleBreaksToPrint ->
           CycleToPrint = CycleAssumptions,
@@ -3609,14 +3678,15 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
                  ; true
                ),
                printer:print_cycle_break_detail(Content),
-               % Best-effort: do not allow cycle explanation to hang printing.
-               % Give it a bit more time in interactive output so we often show a real cycle.
-               catch(call_with_time_limit(2.0, printer:print_cycle_explanation(Content, ProofAVL, TriggersAVL)),
-                     time_limit_exceeded,
-                     ( message:color(darkgray),
-                       message:print('  (cycle explanation omitted: time limit)'),
-                       message:color(normal),
-                       nl )),
+               ( config:print_prover_cycles(true) ->
+                   catch(call_with_time_limit(2.0, printer:print_cycle_explanation(Content, ProofAVL, TriggersAVL)),
+                         time_limit_exceeded,
+                         ( message:color(darkgray),
+                           message:print('  (cycle explanation omitted: time limit)'),
+                           message:color(normal),
+                           nl ))
+               ; true
+               ),
                nl
              ))
   ,   ( Omitted > 0 ->
@@ -4516,7 +4586,7 @@ printer:dedup_consecutive_([X|Xs], Prev, Ys) :-
 
 %! printer:find_cycle_via_triggers(+StartKey,+TriggersAVL,-CyclePath)
 printer:find_cycle_via_triggers(StartKey, TriggersAVL, CyclePath) :-
-  MaxDepth = 25,
+  config:print_prover_cycles_max_depth(MaxDepth),
   printer:dfs_cycle(StartKey, StartKey, TriggersAVL, [StartKey], 0, MaxDepth, [StartKey], RevPath),
   reverse(RevPath, CyclePath),
   CyclePath = [StartKey|_].
@@ -4528,7 +4598,7 @@ printer:find_cycle_via_triggers(StartKey, TriggersAVL, CyclePath) :-
   !.
 
 printer:find_any_cycle_via_triggers(StartKey, TriggersAVL, CyclePath) :-
-  MaxDepth = 25,
+  config:print_prover_cycles_max_depth(MaxDepth),
   printer:dfs_any_cycle(StartKey, TriggersAVL, [StartKey], 0, MaxDepth, RevCycle),
   reverse(RevCycle, CyclePath),
   CyclePath = [_|_].
@@ -4555,7 +4625,7 @@ printer:take_until([X|Xs], Stop, [X|Out]) :-
 % This is used for printing: it prefers a short, human-meaningful cycle quickly
 % over an exhaustive search through grouped/package_dependency nodes.
 printer:find_cycle_via_triggers_pkg(StartPkg, TriggersAVL, CyclePath) :-
-  MaxDepth = 40,
+  config:print_prover_cycles_max_depth(MaxDepth),
   Budget0 = 3000,
   sort([StartPkg], Visited0),
   printer:bfs_cycle_pkg([q(StartPkg, 0, [StartPkg])], Visited0, StartPkg, TriggersAVL, MaxDepth, Budget0, RevCycle),
@@ -4605,7 +4675,7 @@ printer:trigger_neighbors_pkg(Node, TriggersAVL, Pkgs) :-
 % -----------------------------------------------------------------------------
 
 printer:find_cycle_via_proof(StartKey, ProofAVL, CyclePath) :-
-  MaxDepth = 25,
+  config:print_prover_cycles_max_depth(MaxDepth),
   printer:dfs_cycle_proof(StartKey, StartKey, ProofAVL, [StartKey], 0, MaxDepth, [StartKey], RevPath),
   reverse(RevPath, CyclePath),
   CyclePath = [StartKey|_],
@@ -4828,6 +4898,7 @@ printer:print(Target,ModelAVL,ProofAVL,Plan,Call,TriggersAVL) :-
       printer:print_header(TargetHeader),
       printer:print_body(TargetPrint,Plan,Call,Steps),
       printer:print_footer(Plan,ModelAVL,Steps),
+      printer:print_scc_decomposition,
       printer:print_warnings(ModelAVL,ProofAVL,TriggersAVL)
     ),
     nb_delete(printer_blocker_notes)).

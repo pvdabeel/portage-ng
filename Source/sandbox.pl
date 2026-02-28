@@ -23,6 +23,11 @@ sandbox:safe_primitive(config:dry_run_build(_)).
 sandbox:safe_primitive(config:failsilenton(_)).
 sandbox:safe_primitive(config:graph_directory(_,_)).
 sandbox:safe_primitive(config:graph_modified_only(_)).
+sandbox:safe_primitive(config:print_prover_cycles(_)).
+sandbox:safe_primitive(config:print_prover_cycles_max_total(_)).
+sandbox:safe_primitive(config:print_prover_cycles_max_depth(_)).
+sandbox:safe_primitive(config:print_scc(_)).
+sandbox:safe_primitive(config:print_scc_max_members(_)).
 sandbox:safe_primitive(config:hostname(_)).
 sandbox:safe_primitive(config:installation_dir(_)).
 sandbox:safe_primitive(config:name(_)).

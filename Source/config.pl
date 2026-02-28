@@ -395,6 +395,58 @@ config:graph_legacy_type([emerge]).
 
 
 % -----------------------------------------------------------------------------
+% Cycle / SCC printing
+% -----------------------------------------------------------------------------
+
+%! config:print_prover_cycles(?Bool)
+%
+% Whether to print cycle-break explanations (DFS/BFS cycle paths) for
+% prover cycle-break assumptions in plan output.  These assumptions
+% already appear in the plan as "(assumed running)" / "(assumed
+% installed)" line items, so the tree visualisation is redundant.
+% Expensive to compute and can produce very large output.
+
+config:print_prover_cycles(false).
+
+
+%! config:print_prover_cycles_max_total(?N)
+%
+% Maximum number of prover cycle-break assumptions for which a cycle
+% explanation tree is printed.  Additional cycle breaks are summarised
+% as "(… N more cycle breaks omitted)".
+
+config:print_prover_cycles_max_total(10).
+
+
+%! config:print_prover_cycles_max_depth(?N)
+%
+% Maximum DFS/BFS search depth when constructing prover cycle paths.
+% Lower values produce shorter (but possibly incomplete) cycle trees;
+% higher values find longer cycles at the cost of more search time.
+
+config:print_prover_cycles_max_depth(25).
+
+
+%! config:print_scc(?Bool)
+%
+% Whether to print the scheduler's SCC (strongly connected component)
+% decomposition in plan output.  Shows which packages form cyclic
+% merge-sets in the planner remainder and the linearization order
+% chosen by the scheduler.
+
+config:print_scc(false).
+
+
+%! config:print_scc_max_members(?N)
+%
+% Maximum number of SCC members to display per component.
+% Components larger than this show only the first N members with
+% a summary count.
+
+config:print_scc_max_members(50).
+
+
+% -----------------------------------------------------------------------------
 % Graphing: static assets
 % -----------------------------------------------------------------------------
 %

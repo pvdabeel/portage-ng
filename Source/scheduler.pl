@@ -40,6 +40,8 @@ and a condensed schedule for the remainder only.
 
 :- module(scheduler, []).
 
+:- thread_local scheduler:scc_info_/3.  % (Id, Kind, Members)
+
 user:goal_expansion(perf_reset, true) :-
   \+ current_prolog_flag(instrumentation, true).
 
@@ -59,6 +61,7 @@ user:goal_expansion(perf_report, true) :-
 schedule(ProofAVL, TriggersAVL, PlanIn, RemainderIn, PlanOut, []) :-
   RemainderIn == [],
   !,
+  retractall(scheduler:scc_info_(_,_,_)),
   scheduler:perf_add(0, 0, 0, 0, 0, 0, 0, 0),
   scheduler:merge_order_bias(ProofAVL, TriggersAVL, PlanIn, PlanBiased),
   scheduler:enforce_order_after_constraints(PlanBiased, PlanOut).
@@ -76,6 +79,7 @@ schedule(ProofAVL, TriggersAVL, PlanIn, RemainderIn, PlanOut, RemainderOut) :-
   length(SCCs, SCCsN),
   scheduler:build_components(SCCs, Forward, CompMap, Comps),
   length(Comps, CompsN),
+  scheduler:record_scc_info(Comps),
   scheduler:blocked_components(Comps, Forward, CompMap, BlockedCompIds),
   length(BlockedCompIds, BlockedN),
   scheduler:schedulable_component_waves(Comps, Forward, CompMap, BlockedCompIds, WavesCompIds),
@@ -88,6 +92,18 @@ schedule(ProofAVL, TriggersAVL, PlanIn, RemainderIn, PlanOut, RemainderOut) :-
   scheduler:perf_add(HeadsN, SCCsN, CompsN, BlockedN, WavesN, WavesCompTotalN, AddedRulesN, 1),
   scheduler:merge_order_bias(ProofAVL, TriggersAVL, PlanOut0, PlanBiased),
   scheduler:enforce_order_after_constraints(PlanBiased, PlanOut).
+
+% -----------------------------------------------------------------------------
+%  SCC info recording (for printer visualization)
+% -----------------------------------------------------------------------------
+
+scheduler:record_scc_info(Comps) :-
+  retractall(scheduler:scc_info_(_,_,_)),
+  forall(member(comp(Id, Kind, Members), Comps),
+         ( Members = [_] -> true
+         ; assertz(scheduler:scc_info_(Id, Kind, Members))
+         )).
+
 
 % -----------------------------------------------------------------------------
 %  Merge-order bias: within-wave reordering by reference count
