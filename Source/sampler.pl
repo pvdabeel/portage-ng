@@ -22,6 +22,8 @@ Subsystems:
     (done-hits, hook-fired, extra/fresh literals)
   - Timeout diagnostics: best-effort trace capture and literal simplification
     for diagnosing prover timeouts and failures
+  - Runtime callsite stats: sampled stack-walk tracking of residual
+    query:search/2 calls that survive goal-expansion
 */
 
 :- module(sampler, []).
@@ -647,3 +649,345 @@ sampler:diagnose_timeout_counts(Target, LimitSec, Diagnosis, TopCounts) :-
   -> true
   ; TopCounts = []
   ).
+
+
+% =============================================================================
+%  Runtime callsite stats (debugging)
+% =============================================================================
+%
+% Goal-expansion should remove most `query:search/2` calls at compile time.
+% Remaining runtime calls can happen when:
+% - the call was constructed dynamically (e.g. via call/1)
+% - goal-expansion didn't run due to load order / compilation context
+% - a query form falls back to the runtime `search/2` clauses
+%
+% Additionally, SWI-Prolog's profiler often attributes work of meta-calls (call/1)
+% to the caller, so `query:search/2` can appear hot even when executing compiled
+% cache-level goals. These callsite stats help answer: "who is still calling
+% query:search/2 at runtime?"
+
+:- dynamic sampler:search_callsite_stats_enabled/0.
+:- dynamic sampler:search_callsite/4.      % File, Line, PI, Count
+:- dynamic sampler:search_callsite_sig/5.  % File, Line, PI, Sig, Count
+:- dynamic sampler:search_callsite_sample_rate/1.
+
+sampler:search_callsite_sample_rate(4096).
+
+
+%! sampler:enable_search_callsite_stats is det.
+%
+% Enable runtime callsite tracking for query:search/2.
+
+sampler:enable_search_callsite_stats :-
+  ( sampler:search_callsite_stats_enabled -> true
+  ; assertz(sampler:search_callsite_stats_enabled)
+  ).
+
+
+%! sampler:disable_search_callsite_stats is det.
+%
+% Disable runtime callsite tracking for query:search/2.
+
+sampler:disable_search_callsite_stats :-
+  retractall(sampler:search_callsite_stats_enabled).
+
+
+%! sampler:reset_search_callsites is det.
+%
+% Clear all accumulated callsite data and reset the sampling counter.
+
+sampler:reset_search_callsites :-
+  retractall(sampler:search_callsite(_,_,_,_)),
+  retractall(sampler:search_callsite_sig(_,_,_,_,_)),
+  nb_setval(query_search_callsite_counter, 0).
+
+
+%! sampler:set_search_callsite_sample_rate(+Rate) is det.
+%
+% Set the sampling rate for callsite recording. Only every Nth call is
+% recorded to keep overhead low on large runs.
+
+sampler:set_search_callsite_sample_rate(Rate) :-
+  integer(Rate),
+  Rate > 0,
+  retractall(sampler:search_callsite_sample_rate(_)),
+  assertz(sampler:search_callsite_sample_rate(Rate)).
+
+
+%! sampler:report_search_callsites(+TopN) is det.
+%
+% Print the top N runtime callsites for query:search/2, sorted by count
+% (descending).
+
+sampler:report_search_callsites(TopN) :-
+  ( integer(TopN), TopN > 0 -> true ; TopN = 50 ),
+  findall(Count-File-Line-PI,
+          sampler:search_callsite(File, Line, PI, Count),
+          Rows0),
+  keysort(Rows0, RowsAsc),
+  reverse(RowsAsc, Rows),
+  format('~n>>> query:search/2 runtime callsites (Top ~d)~n~n', [TopN]),
+  format('  ~` t~d~8|  ~` t~s~8|  ~` t~s~s~n', [8, 'Count', 'Line', 'Callsite']),
+  format('  ~`-t~80|~n', []),
+  sampler:print_search_callsite_rows(Rows, TopN, 1).
+
+
+%! sampler:report_search_callsites_sig(+TopN) is det.
+%
+% Print the top N runtime callsites with per-signature breakdown.
+
+sampler:report_search_callsites_sig(TopN) :-
+  ( integer(TopN), TopN > 0 -> true ; TopN = 50 ),
+  findall(Count-File-Line-PI-Sig,
+          sampler:search_callsite_sig(File, Line, PI, Sig, Count),
+          Rows0),
+  keysort(Rows0, RowsAsc),
+  reverse(RowsAsc, Rows),
+  format('~n>>> query:search/2 runtime callsites (signature breakdown, Top ~d)~n~n', [TopN]),
+  format('  ~` t~d~8|  ~` t~s~8|  ~` t~s~s~n', [8, 'Count', 'Line', 'Callsite / Signature']),
+  format('  ~`-t~80|~n', []),
+  sampler:print_search_callsite_sig_rows(Rows, TopN, 1).
+
+
+%! sampler:print_search_callsite_sig_rows(+Rows, +TopN, +I) is det.
+%
+% Print helper for signature-breakdown callsite rows.
+
+sampler:print_search_callsite_sig_rows([], _, _) :- !.
+sampler:print_search_callsite_sig_rows(_, TopN, I) :- I > TopN, !.
+sampler:print_search_callsite_sig_rows([Count-File-Line-PI-Sig|Rest], TopN, I) :-
+  format('  ~` t~d~8|  ~w:~w~n      ~w~n      ~w~n', [Count, File, Line, PI, Sig]),
+  I2 is I + 1,
+  sampler:print_search_callsite_sig_rows(Rest, TopN, I2).
+
+
+%! sampler:print_search_callsite_rows(+Rows, +TopN, +I) is det.
+%
+% Print helper for basic callsite rows.
+
+sampler:print_search_callsite_rows([], _, _) :- !.
+sampler:print_search_callsite_rows(_, TopN, I) :- I > TopN, !.
+sampler:print_search_callsite_rows([Count-File-Line-PI|Rest], TopN, I) :-
+  format('  ~` t~d~8|  ~w:~w~n      ~w~n', [Count, File, Line, PI]),
+  I2 is I + 1,
+  sampler:print_search_callsite_rows(Rest, TopN, I2).
+
+
+%! sampler:maybe_record_search_callsite(+Q, +RepoEntry) is det.
+%
+% Conditionally record a query:search/2 callsite if stats are enabled.
+
+sampler:maybe_record_search_callsite(Q, RepoEntry) :-
+  ( sampler:search_callsite_stats_enabled ->
+      sampler:maybe_record_search_callsite_sampled(Q, RepoEntry)
+  ; true
+  ).
+
+
+%! sampler:maybe_record_search_callsite_sampled(+Q, +RepoEntry) is det.
+%
+% Sampled callsite recorder: only records every Nth call to keep overhead
+% low even on huge runs.
+
+sampler:maybe_record_search_callsite_sampled(Q, RepoEntry) :-
+  ( sampler:search_callsite_sample_rate(Rate) -> true ; Rate = 4096 ),
+  ( nb_current(query_search_callsite_counter, C0) -> true ; C0 = 0 ),
+  C is C0 + 1,
+  nb_setval(query_search_callsite_counter, C),
+  ( 0 is C mod Rate ->
+      nb_setval(query_search_callsite_last_q, Q),
+      nb_setval(query_search_callsite_last_entry, RepoEntry),
+      sampler:record_search_callsite
+  ; true
+  ).
+
+
+%! sampler:record_search_callsite is det.
+%
+% Walk the Prolog call stack to identify the external caller of
+% query:search/2 and record it in the callsite database.
+
+sampler:record_search_callsite :-
+  ( prolog_current_frame(F),
+    prolog_frame_attribute(F, parent, Parent0),
+    sampler:find_non_trivial_caller_frame(Parent0, CallerFrame0),
+    sampler:find_external_callsite_frame(CallerFrame0, CallerFrame),
+    sampler:frame_callsite(CallerFrame, File, Line, PI),
+    ( nb_current(query_search_callsite_last_q, Q) -> true ; Q = unknown ),
+    ( nb_current(query_search_callsite_last_entry, E) -> true ; E = unknown ),
+    sampler:search_call_signature(Q, E, Sig)
+  -> with_mutex(query_search_callsite,
+       ( ( retract(sampler:search_callsite(File, Line, PI, N0)) -> true ; N0 = 0 ),
+         N is N0 + 1,
+         assertz(sampler:search_callsite(File, Line, PI, N)),
+         ( ( retract(sampler:search_callsite_sig(File, Line, PI, Sig, S0)) -> true ; S0 = 0 ),
+           S is S0 + 1,
+           assertz(sampler:search_callsite_sig(File, Line, PI, Sig, S))
+         )
+       ))
+  ; true
+  ).
+
+
+%! sampler:search_call_signature(+Q, +RepoEntry, -Sig) is det.
+%
+% Compute a cheap signature for sampled calls to help identify which query
+% forms are still reaching runtime query:search/2.
+
+sampler:search_call_signature(Q, RepoEntry, sig(Kind, Head, Flags, EntryKind)) :-
+  ( is_list(Q) ->
+      Kind = list,
+      length(Q, Len),
+      Head = list(Len),
+      sampler:search_sig_flags(Q, Flags0),
+      sort(Flags0, Flags)
+  ; compound(Q) ->
+      Kind = compound,
+      ( Q = select(Key, Op, _Value) ->
+          sampler:select_sig_op(Op, OpTag),
+          Head = select(Key, OpTag)
+      ; functor(Q, F, A),
+        Head = F/A
+      ),
+      Flags = []
+  ; Kind = other,
+    Head = other,
+    Flags = []
+  ),
+  ( RepoEntry = _Repo://_Id -> EntryKind = op_slash_colon2
+  ; EntryKind = other
+  ).
+
+
+%! sampler:select_sig_op(+Op, -OpTag) is det.
+%
+% Classify a query select operator for signature grouping.
+
+sampler:select_sig_op(Op, OpTag) :-
+  ( var(Op) ->
+      OpTag = var
+  ; atomic(Op) ->
+      OpTag = Op
+  ; compound(Op) ->
+      functor(Op, F, A),
+      ( Op = constraint(Inner, _Out) ->
+          sampler:constraint_inner_tag(Inner, InnerTag),
+          OpTag = constraint(InnerTag)
+      ; OpTag = F/A
+      )
+  ; OpTag = other
+  ).
+
+
+%! sampler:constraint_inner_tag(+Inner, -Tag) is det.
+%
+% Classify constraint internals for signature grouping.
+
+sampler:constraint_inner_tag(Inner, Tag) :-
+  ( var(Inner) -> Tag = var
+  ; Inner == [] -> Tag = empty
+  ; is_list(Inner) ->
+      length(Inner, L),
+      Tag = list(L)
+  ; Tag = other
+  ).
+
+
+%! sampler:search_sig_flags(+Terms, -Flags) is det.
+%
+% Extract functor/arity flags from a query term list for signature grouping.
+
+sampler:search_sig_flags([], []) :- !.
+sampler:search_sig_flags([H|T], [Flag|Rest]) :-
+  ( compound(H) ->
+      functor(H, F, A),
+      Flag = F/A
+  ; Flag = atom
+  ),
+  sampler:search_sig_flags(T, Rest).
+
+
+%! sampler:find_non_trivial_caller_frame(+Frame0, -Frame) is det.
+%
+% Walk up the call stack, skipping trivial wrapper frames (query:search,
+% system:call, etc.) until a meaningful caller is found.
+
+sampler:find_non_trivial_caller_frame(Frame0, Frame) :-
+  ( var(Frame0) ; Frame0 == 0 ), !,
+  Frame = 0.
+sampler:find_non_trivial_caller_frame(Frame0, Frame) :-
+  ( sampler:frame_predicate_indicator(Frame0, PI),
+    sampler:skip_callsite_pi(PI)
+  -> ( prolog_frame_attribute(Frame0, parent, Parent),
+       sampler:find_non_trivial_caller_frame(Parent, Frame)
+     )
+  ; Frame = Frame0
+  ).
+
+
+%! sampler:skip_callsite_pi(?PI) is nondet.
+%
+% Predicate indicators to skip when walking the call stack to find the
+% real external caller of query:search/2.
+
+sampler:skip_callsite_pi(query:search/2).
+sampler:skip_callsite_pi(query:memoized_search/2).
+sampler:skip_callsite_pi(search/2).
+sampler:skip_callsite_pi(system:call/1).
+sampler:skip_callsite_pi(system:once/1).
+sampler:skip_callsite_pi(apply:call_/2).
+sampler:skip_callsite_pi(apply:maplist_/3).
+sampler:skip_callsite_pi(apply:include_/3).
+sampler:skip_callsite_pi(apply:exclude_/3).
+
+
+%! sampler:frame_predicate_indicator(+Frame, -PI) is det.
+%
+% Retrieve the predicate indicator for a stack frame, or unknown/0 on
+% failure.
+
+sampler:frame_predicate_indicator(Frame, PI) :-
+  prolog_frame_attribute(Frame, predicate_indicator, PI),
+  !.
+sampler:frame_predicate_indicator(_Frame, unknown/0).
+
+
+%! sampler:frame_callsite(+Frame, -File, -Line, -PI) is det.
+%
+% Extract file, line number, and predicate indicator from a stack frame.
+
+sampler:frame_callsite(Frame, File, Line, PI) :-
+  sampler:frame_predicate_indicator(Frame, PI),
+  ( prolog_frame_attribute(Frame, clause, ClauseRef),
+    clause_property(ClauseRef, file(File0))
+  -> File = File0
+  ; File = '<unknown>'
+  ),
+  ( prolog_frame_attribute(Frame, clause, ClauseRef2),
+    ( clause_property(ClauseRef2, line(Line0))
+    ; clause_property(ClauseRef2, line_count(Line0))
+    )
+  -> Line = Line0
+  ; Line = '?'
+  ).
+
+
+%! sampler:find_external_callsite_frame(+Frame0, -Frame) is det.
+%
+% Walk up the call stack until a frame outside query.pl is found, so the
+% report points at the actual caller rather than query internals.
+
+sampler:find_external_callsite_frame(Frame0, Frame) :-
+  ( var(Frame0) ; Frame0 == 0 ), !,
+  Frame = Frame0.
+sampler:find_external_callsite_frame(Frame0, Frame) :-
+  sampler:frame_callsite(Frame0, File, _Line, PI),
+  ( File == '/Users/pvdabeel/Desktop/Prolog/Source/query.pl'
+    ; sampler:skip_callsite_pi(PI)
+  ),
+  !,
+  ( prolog_frame_attribute(Frame0, parent, Parent) ->
+      sampler:find_external_callsite_frame(Parent, Frame)
+  ; Frame = Frame0
+  ).
+sampler:find_external_callsite_frame(Frame0, Frame0).

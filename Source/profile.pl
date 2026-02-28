@@ -674,4 +674,3 @@ profile_finalize(st(Enabled0, Disabled0, Force0, Mask0), Terms) :-
   findall(preference:profile_use(Flag), member(Flag, EnabledFinal), EnabledTerms),
   findall(preference:profile_use(minus(Flag)), member(Flag, DisabledFinal), DisabledTerms),
   append(EnabledTerms, DisabledTerms, Terms).
-
