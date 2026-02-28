@@ -30,7 +30,7 @@ translating to regular prolog. This implementation works at runtime by
 dynamically generating the necessary predicates.
 
 -------------------------------------------------------------------------------
- CONTEXT - Contextual Object Oriented Logic Programming
+ * CONTEXT - Contextual Object Oriented Logic Programming
 -------------------------------------------------------------------------------
 
 CONTEXT implements a declarative contextual logic programming paradigm
@@ -52,7 +52,7 @@ Programs written using CONTEXT are much smaller, support team development
 and can still be converted easily to traditional prolog code.
 
 -------------------------------------------------------------------------------
- Long description:
+ * Long description:
 -------------------------------------------------------------------------------
 
 A context groups together clauses of a prolog application. By default,
@@ -92,7 +92,7 @@ successful evaluation of a unified context predicate.
 This implementation is thread-safe and supports serialization.
 
 -------------------------------------------------------------------------------
- Examples:
+ * Examples:
 -------------------------------------------------------------------------------
 @see examples/person.pl for an example 'person' class.
 */

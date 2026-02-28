@@ -9,7 +9,10 @@
 
 
 /** <module> INTERFACE
-The interface interpretes command line arguments passed to portage-ng.
+The interface interprets command line arguments passed to portage-ng and
+dispatches them to the appropriate actions (merge, sync, graph, search, etc.).
+It maps CLI flags declared in interface:spec/1 onto predicates that implement
+each action.
 */
 
 :- module(interface, []).
@@ -22,17 +25,19 @@ The interface interpretes command line arguments passed to portage-ng.
 %  Interface version
 % -----------------------------------------------------------------------------
 
-%! interface:version(?Version)
+%! interface:version(-Version) is det.
 %
-% Retrieve the current version
+% Unifies Version with the current portage-ng version string, obtained by
+% executing the `version` script.
 
 interface:version(V) :-
   script:exec('version',V).
 
 
-%! interface:status(?Status)
+%! interface:status(-Status) is det.
 %
-% Retrieve the current status (alpha,beta,testing,development,release)
+% Unifies Status with the current release stage
+% (one of alpha, beta, testing, development, release).
 
 interface:status(S) :-
   S = 'development'.
@@ -42,9 +47,10 @@ interface:status(S) :-
 %  Interface specifications
 % -----------------------------------------------------------------------------
 
-%! interface:spec(?Specification)
+%! interface:spec(-Specification) is det.
 %
-% Retrieve the interface specification
+% Unifies Specification with the optparse specification list that declares
+% all supported command-line flags, their types, defaults, and help texts.
 
 interface:spec(S) :-
   config:hostname(Hostname),
@@ -94,9 +100,11 @@ interface:spec(S) :-
 %  Command line reading
 % -----------------------------------------------------------------------------
 
-%! interface:argv(-Options,-Args)
+%! interface:argv(-Options, -Args) is det.
 %
-% Retrieve the arguments passed on the command line.
+% Parses and caches the command-line arguments. Options is a list of
+% opt(Value) terms matching the spec; Args is the list of positional
+% (non-option) arguments. Results are memoised in interface:argv_/2.
 
 :- dynamic interface:argv_/2.
 
@@ -109,9 +117,9 @@ interface:argv(Options,Args) :-
   assertz(interface:argv_(Options,Args)).
 
 
-%! interface:get_env(+Name,-Value)
+%! interface:getenv(+Name, -Value) is semidet.
 %
-% Retrieve content of environment variable
+% Retrieves the value of the environment variable Name, or fails if unset.
 
 interface:getenv(Name,Value) :-
   system:getenv(Name,Value).
@@ -121,9 +129,11 @@ interface:getenv(Name,Value) :-
 %  Option handling
 % -----------------------------------------------------------------------------
 
-%! interface:process_flags
+%! interface:process_flags is det.
 %
-% Retrieve the flags to be used to start portage-ng
+% Translates boolean CLI flags into runtime preference assertions
+% (e.g. --deep asserts preference:local_flag(deep)) and sets
+% config overrides for verbose mode and printing style.
 
 interface:process_flags:-
   interface:argv(Options,_),
@@ -137,20 +147,21 @@ interface:process_flags:-
   (lists:memberchk(style(Style),    Options) -> asserta(config:interface_printing_style(Style)) ; true).
 
 
-%! interface:process_mode(-Mode)
+%! interface:process_mode(-Mode) is det.
 %
-% Retrieve the mode to be used to start portage-ng
+% Unifies Mode with the --mode value from the command line
+% (standalone, client, server, or worker).
 
 interface:process_mode(Mode) :-
   interface:argv(Options,_),
   lists:memberchk(mode(Mode),Options).
 
 
-%! interface:process_continue(-Continue)
+%! interface:process_continue(-Continue) is det.
 %
-% Defines what needs to happen after executing a command.
-% We either launch prolog, or we halt, depending on
-% option passed via the command line.
+% Determines the continuation after the dispatched action completes.
+% Unifies Continue with `halt`, `prolog`, or `true` depending on mode
+% and whether --shell was requested.
 
 interface:process_continue(Continue) :-
   !,
@@ -168,9 +179,10 @@ interface:process_continue(Continue) :-
         ;  Continue = halt)).
 
 
-%! interface:get_port(-Port)
+%! interface:get_port(-Port) is det.
 %
-% Retrieve the port from the command line or config
+% Unifies Port with the --port value from the command line, falling back
+% to config:server_port/1 if not specified.
 
 interface:get_port(Port) :-
   interface:argv(Options,_),
@@ -179,9 +191,11 @@ interface:get_port(Port) :-
   ),
   !.
 
-%! interface:process_server(Host,Port)
+%! interface:process_server(-Host, -Port) is det.
 %
-% Retrieve the host and port from the command line
+% Unifies Host and Port with the --host and --port values from the
+% command line, falling back to config:server_host/1 and
+% config:server_port/1 respectively.
 
 interface:process_server(Host,Port) :-
   interface:argv(Options,_),
@@ -204,11 +218,11 @@ interface:init_tty :-
   ).
 
 
-%! interface:process_requests(+Mode)
+%! interface:process_requests(+Mode) is det.
 %
-% Processes the options passed on the command line.
-% Maps the options declared in interface:specs(S) onto actions defined as
-% a set of predicates to be called.
+% Main dispatch. Processes the parsed command-line options and maps each
+% recognised flag (--sync, --graph, --merge, etc.) onto the corresponding
+% action predicate. Falls through to halt(1) if no action matches.
 
 interface:process_requests(server) :-
   !, prolog.
@@ -256,12 +270,14 @@ interface:process_requests(_) :-
 % -----------------------------------------------------------------------------
 %  Action: GRAPH (optional mode argument)
 % -----------------------------------------------------------------------------
+
+%! interface:process_graph(+Args) is det.
 %
-% Usage:
-%   --graph            (uses config.pl)
-%   --graph modified   (override to modified-only for this run)
-%   --graph full       (override to graph everything for this run)
-%
+% Dispatches --graph with optional positional arguments:
+%   --graph            uses config:graph_modified_only/1
+%   --graph modified   overrides to modified-only for this run
+%   --graph full       overrides to graph everything for this run
+
 interface:process_graph([]) :-
   kb:graph,
   !.
@@ -287,12 +303,15 @@ interface:process_graph(Args) :-
 % -----------------------------------------------------------------------------
 %  Action: SYNC (optional repository selection)
 % -----------------------------------------------------------------------------
+
+%! interface:process_sync(+Mode, +RepoNames) is det.
 %
-% Usage:
+% Dispatches --sync with optional repository name arguments:
 %   --sync                       sync all registered repositories + save kb
 %   --sync portage               sync only the portage repository + save kb
 %   --sync portage overlay       sync portage and overlay repositories + save kb
 %
+% In standalone mode the knowledge base is saved to disk after syncing.
 
 interface:process_sync(Mode, []) :-
   !,
@@ -308,13 +327,16 @@ interface:process_sync(Mode, RepoNames) :-
 % -----------------------------------------------------------------------------
 %  Action: UPGRADE (emptytree + depclean, two-phase)
 % -----------------------------------------------------------------------------
+
+%! interface:process_upgrade(+ArgsSets, +Options) is det.
 %
-% Minimal Portage-like "upgrade then depclean":
-% - Phase A: compute a fresh plan under emptytree (ignore installed shortcuts)
-% - Phase B: run depclean on the real installed graph (no emptytree)
+% Two-phase Portage-like upgrade:
+%   Phase A: compute a fresh plan under --emptytree (ignores installed shortcuts)
+%   Phase B: run depclean on the real installed graph
 %
-% Note: upgrade should not modify @world; we enforce oneshot semantics here.
-%
+% Defaults to @world when no positional arguments are given.
+% Enforces --oneshot semantics so @world is not modified.
+
 interface:process_upgrade(ArgsSets0, Options) :-
   % Default roots: @world when no args are provided (Portage-like)
   ( ArgsSets0 == [] -> ArgsSets = [world] ; ArgsSets = ArgsSets0 ),
@@ -334,13 +356,13 @@ interface:process_upgrade(ArgsSets0, Options) :-
 % -----------------------------------------------------------------------------
 %  Action: BUG REPORT DRAFTS
 % -----------------------------------------------------------------------------
+
+%! interface:process_bugs(+ArgsSets, +Options) is det.
 %
-% Prints only the suggested bug report drafts for a target, without printing the
-% full plan.
+% Proves the given targets and prints only the domain-assumption bug report
+% drafts (Gentoo Bugzilla style), without rendering the full plan.
 %
-% Example:
-%   portage-ng-dev --mode standalone --bugs ghc
-%
+% Example: portage-ng-dev --mode standalone --bugs ghc
 
 interface:process_bugs([], _Options) :-
   !,
@@ -380,6 +402,11 @@ interface:process_bugs(ArgsSets, Options) :-
     )
   ).
 
+%! interface:print_bugreport_drafts_from_proof(+ProofAVL) is det.
+%
+% Extracts domain assumptions from the proof AVL and delegates to
+% printer:print_bugreport_drafts/1. Prints "(none)" when clean.
+
 interface:print_bugreport_drafts_from_proof(ProofAVL) :-
   findall(Content, assoc:gen_assoc(rule(assumed(Content)), ProofAVL, _), DomainAssumptions0),
   sort(DomainAssumptions0, DomainAssumptions),
@@ -395,9 +422,11 @@ interface:print_bugreport_drafts_from_proof(ProofAVL) :-
 %  Action processing
 % -----------------------------------------------------------------------------
 
-%! interface:process_action(+Action,+Args,+Options)
+%! interface:process_action(+Action, +Args, +Options) is det.
 %
-% Processes a specific action.
+% Dispatches a concrete CLI action. Action is one of info, search,
+% depclean, uninstall, fetchonly, or run (merge). Args are the positional
+% target arguments; Options is the full parsed option list.
 
 % -----------------------------------------------------------------------------
 %  Action: INFO
@@ -405,7 +434,6 @@ interface:print_bugreport_drafts_from_proof(ProofAVL) :-
 
 interface:process_action(info,[],_) :-
   !,
-  % todo: display general information
   message:inform('General information placeholder').
 
 interface:process_action(info,Args,_Options) :-
@@ -433,9 +461,7 @@ interface:process_action(search,Args,_Options) :-
 % -----------------------------------------------------------------------------
 %  Action: DEPCLEAN
 % -----------------------------------------------------------------------------
-%
-% Proof-based depclean: compute installed packages not required by @world.
-%
+
 interface:process_action(depclean, ArgsSets, _Options) :-
   !,
   depclean:run(ArgsSets).
@@ -545,10 +571,20 @@ interface:process_action(Action,ArgsSets,Options) :-
 %  Side effects: execute planned world actions
 % -----------------------------------------------------------------------------
 
+%! interface:execute_world_actions_from_plan(+Plan) is det.
+%
+% Walks the plan (list of steps, each a list of rules) and executes any
+% world_action/2 side effects (register/unregister packages in @world).
+
 interface:execute_world_actions_from_plan([]) :- !.
 interface:execute_world_actions_from_plan([Step|Rest]) :-
   interface:execute_world_actions_step(Step),
   interface:execute_world_actions_from_plan(Rest).
+
+%! interface:execute_world_actions_step(+Step) is det.
+%
+% Processes a single plan step (list of rules), executing world_action
+% side effects for any rule whose head is world_action(Op, Arg):world.
 
 interface:execute_world_actions_step([]) :- !.
 interface:execute_world_actions_step([Rule|Rest]) :-
@@ -570,10 +606,13 @@ interface:execute_world_actions_step([Rule|Rest]) :-
 %  CI helpers
 % -----------------------------------------------------------------------------
 
-% Exit code policy:
-% - 0: no assumptions
-% - 1: only prover cycle-break assumptions
-% - 2: any domain assumptions (missing/non-existent deps etc.)
+%! interface:ci_exit_code(+ModelAVL, +ProofAVL, -ExitCode) is det.
+%
+% Computes the CI exit code from the proof artifacts:
+%   0 = no assumptions (clean plan)
+%   1 = only prover cycle-break assumptions
+%   2 = domain assumptions present (missing/non-existent deps, etc.)
+
 interface:ci_exit_code(ModelAVL, ProofAVL, ExitCode) :-
   ( interface:has_any_assumption(ModelAVL) ->
       ( interface:has_domain_assumptions(ProofAVL) -> ExitCode = 2
@@ -583,14 +622,28 @@ interface:ci_exit_code(ModelAVL, ProofAVL, ExitCode) :-
   ; ExitCode = 0
   ).
 
+%! interface:has_any_assumption(+ModelAVL) is semidet.
+%
+% Succeeds if the model contains any assumed(_) key.
+
 interface:has_any_assumption(ModelAVL) :-
   assoc:gen_assoc(Key, ModelAVL, _),
   Key = assumed(_),
   !.
 
+%! interface:has_domain_assumptions(+ProofAVL) is semidet.
+%
+% Succeeds if the proof contains at least one domain assumption
+% (proof key of the form rule(assumed(_))).
+
 interface:has_domain_assumptions(ProofAVL) :-
   assoc:gen_assoc(rule(assumed(_)), ProofAVL, _),
   !.
+
+%! interface:has_cycle_breaks(+ProofAVL) is semidet.
+%
+% Succeeds if the proof contains at least one prover cycle-break
+% assumption (proof key of the form assumed(rule(_))).
 
 interface:has_cycle_breaks(ProofAVL) :-
   assoc:gen_assoc(assumed(rule(_)), ProofAVL, _),

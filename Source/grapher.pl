@@ -44,9 +44,6 @@ a dependency, change the version, watch the output of a specific command, etc.
 
 :- module(grapher, []).
 
-:- thread_local grapher:node_visited/1.
-:- thread_local grapher:node_counter/2.
-
 % =============================================================================
 %  GRAPHER declarations
 % =============================================================================
@@ -523,6 +520,9 @@ grapher:graph_root(_Type,Repository://Id) :-
 % -----------------------------------------------------------------------------
 %  Graph component: tree
 % -----------------------------------------------------------------------------
+
+:- thread_local grapher:node_visited/1.
+:- thread_local grapher:node_counter/2.
 
 %! grapher:graph_tree(Type,Repository://Id),
 %
