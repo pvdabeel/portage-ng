@@ -451,7 +451,9 @@ interface:process_action(Action,ArgsSets,Options) :-
   (Proposal == []
    -> ( config:llm_support(Prompt),
         atomic_list_concat([Prompt|Args],Message),
-        grok(Message),fail )
+        config:llm_default(Service),
+        explainer:call_llm(Service, Message, _),
+        fail )
    ;  true),
   (Mode == 'client' ->
     (client:rpc_execute(Host,Port,

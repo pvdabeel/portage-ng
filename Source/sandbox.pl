@@ -29,6 +29,10 @@ sandbox:safe_primitive(config:print_prover_cycles_max_depth(_)).
 sandbox:safe_primitive(config:print_scc(_)).
 sandbox:safe_primitive(config:print_scc_max_members(_)).
 sandbox:safe_primitive(config:print_blockers(_)).
+sandbox:safe_primitive(config:bugreport_drafts_enabled(_)).
+sandbox:safe_primitive(config:bugreport_drafts_max_assumptions(_)).
+sandbox:safe_primitive(config:llm_default(_)).
+sandbox:safe_primitive(config:llm_support(_)).
 sandbox:safe_primitive(config:hostname(_)).
 sandbox:safe_primitive(config:installation_dir(_)).
 sandbox:safe_primitive(config:name(_)).
