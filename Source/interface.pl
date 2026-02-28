@@ -66,7 +66,7 @@ interface:spec(S) :-
        [opt(oneshot),   type(boolean),   default(false),       shortflags(['1']), longflags(['oneshot']),   help('Do not add package to world')],
        [opt(prefix),    type(atom),      default('/'),                            longflags(['prefix']),    help('Set the prefix directory')],
        [opt(style),     type(atom),      default('fancy'),                        longflags(['style']),     help('Set the printing style: fancy, column or short')],
-       [opt(sync),      type(boolean),   default(false),                          longflags(['sync']),      help('Sync repository')],
+       [opt(sync),      type(boolean),   default(false),                          longflags(['sync']),      help('Sync repository. Optional args: repository names (e.g. portage, pkg, overlay)')],
        [opt(clear),     type(boolean),   default(false),                          longflags(['clear']),     help('Clear knowledge base')],
        [opt(graph),     type(boolean),   default(false),                          longflags(['graph']),     help('Create graph. Optional arg: "modified" or "full" (overrides config.pl for this run).')],
        [opt(depclean),  type(boolean),   default(false),       shortflags(['c']), longflags(['depclean']),  help('Clean dependencies')],
@@ -241,9 +241,7 @@ interface:process_requests(Mode) :-
     % In portage-ng the "full closure" corresponds to proving :run.
     memberchk(update(true),Options)   -> (interface:process_action(run,Args,Options),               Continue) ;
     memberchk(search(true),Options)   -> (interface:process_action(search,Args,Options),            Continue) ;
-    memberchk(sync(true),Options)     -> ((Mode == standalone
-                                           -> (kb:sync, kb:save)
-                                           ;  (kb:sync)),!, 					    Continue) ;
+    memberchk(sync(true),Options)     -> (interface:process_sync(Mode, Args),!,                    Continue) ;
     memberchk(save(true),Options)     -> (kb:save,!, 						    Continue) ;
     memberchk(load(true),Options)     -> (kb:load,!, 						    Continue) ;
     memberchk(fetchonly(true),Options)-> (interface:process_action(fetchonly,Args,Options),         Continue) ;
@@ -284,6 +282,27 @@ interface:process_graph([full]) :-
 interface:process_graph(Args) :-
   message:warning(['--graph: ignoring unexpected args: ', Args]),
   kb:graph.
+
+
+% -----------------------------------------------------------------------------
+%  Action: SYNC (optional repository selection)
+% -----------------------------------------------------------------------------
+%
+% Usage:
+%   --sync                       sync all registered repositories + save kb
+%   --sync portage               sync only the portage repository + save kb
+%   --sync portage overlay       sync portage and overlay repositories + save kb
+%
+
+interface:process_sync(Mode, []) :-
+  !,
+  kb:sync,
+  ( Mode == standalone -> kb:save ; true ).
+
+interface:process_sync(Mode, RepoNames) :-
+  forall(member(Name, RepoNames),
+         kb:sync(Name)),
+  ( Mode == standalone -> kb:save ; true ).
 
 
 % -----------------------------------------------------------------------------

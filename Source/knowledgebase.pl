@@ -37,6 +37,7 @@ Query module. The knowledge base is typically initialized as a singleton instanc
 :- dpublic(register/1).
 :- dpublic(deregister/1).
 :- dpublic(sync/0).
+:- dpublic(sync/1).
 :- dpublic(save/0).
 :- dpublic(load/0).
 :- dpublic(clear/0).
@@ -138,6 +139,34 @@ sync ::-
          Repository:sync)),!,
    vdb:sync,
    true)).
+
+
+%! knowledgebase:sync(+Name)
+%
+% Public predicate
+%
+% Sync a single registered repository by name (e.g. portage, pkg, overlay).
+
+sync(Name) ::-
+  proxy,!,
+  ::host(Host),
+  ::port(Port),
+  atom_concat('/sync/', Name, Path),
+  client:execute_remotely(Host,Port,Path),!.
+
+sync(Name) ::-
+  \+ proxy,!,
+  ( ::repository(Name) ->
+      with_mutex(sync,
+        (message:topheader(['Syncing repository \"',Name,'\"']),
+         message:header(['Syncing repository \"',Name,'\"']),nl,
+         Name:sync,!,
+         true))
+  ; message:failure(['Unknown repository: ', Name, '. Registered: ']),
+    forall(::repository(R),
+           (message:print('  '), message:print(R), nl)),
+    fail
+  ).
 
 
 %! knowledgebase:save
