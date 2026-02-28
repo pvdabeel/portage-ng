@@ -24,6 +24,10 @@ relaxation (relax :run edges within cycles, matching PMS/Portage semantics).
 %  PLANNER declarations
 % =============================================================================
 
+% -----------------------------------------------------------------------------
+%  Planner: Main entry point
+% -----------------------------------------------------------------------------
+
 %! planner:plan(+ProofAVL, +TriggersAVL, +PlannedHeadsIn, -EnrichedPlan)
 %
 % Creates a plan based on a Proof.
@@ -37,7 +41,7 @@ planner:plan(ProofAVL, TriggersAVL, PlannedHeadsIn, EnrichedPlan) :-
 % Like `planner:plan/4`, but also returns `RemainderRules`: rules whose heads
 % could not be scheduled by the wave planner (typically due to cycles).
 % The remainder is handed to the scheduler for SCC-aware ordering.
-%
+
 planner:plan(ProofAVL, TriggersAVL, PlannedHeadsIn, EnrichedPlan, RemainderRules) :-
     plan_init_from_proof(ProofAVL, PlannedHeadsIn, DepCounts0, ReadyQueue0),
     (   ReadyQueue0 \= [] ->
@@ -162,9 +166,9 @@ planner:collect_remainder(DepCounts, PlannedHeads, ProofAVL, RemainderRules) :-
             RemainderRules).
 
 
-% =============================================================================
+%  -----------------------------------------------------------------------------
 %  Wave planning loop
-% =============================================================================
+%  -----------------------------------------------------------------------------
 
 %! planner:process_wave(+ReadyQueue, +InCounts, +Triggers, +ProofAVL, +InPlanned, -OutPlanned, -OutCounts, -NextReadyQueue)
 %

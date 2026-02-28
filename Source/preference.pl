@@ -17,10 +17,13 @@ Gentoo's make.conf / profiles / /etc/portage layering.
 
 :- module(preference, []).
 
-
 % =============================================================================
 %  PREFERENCE declarations
 % =============================================================================
+
+% -----------------------------------------------------------------------------
+%  Interface overrides some preferences
+% -----------------------------------------------------------------------------
 
 % -- Package masking (profiles + /etc/portage/package.mask) --
 
@@ -59,46 +62,46 @@ Gentoo's make.conf / profiles / /etc/portage layering.
 :- dynamic preference:denied_license/1.               % individual denied license atoms (for '* -X' patterns)
 
 
-% =============================================================================
+% -----------------------------------------------------------------------------
 %  Environment variables
-% =============================================================================
+% -----------------------------------------------------------------------------
 
-%! preference:env_cflags(?Cflags)
+%! preference:env_cflags(?Cflags) is det.
 %
 % Fact which defines the CFLAGS environment variable.
 
 preference:env_cflags('-O3 -march=native -pipe').
 
 
-%! preference:env_cxxflags(?Cxxflags)
+%! preference:env_cxxflags(?Cxxflags) is det.
 %
 % Fact which defines the CXXFLAGS environment variable.
 
 preference:env_cxxflags('-O3 -march=native -pipe').
 
 
-%! preference:env_chost(?Chost)
+%! preference:env_chost(?Chost) is det.
 %
 % Fact which defines the CHOST environment variable.
 
 preference:env_chost('x86_64-pc-linux-gnu').
 
 
-%! preference:env_makeopts(?Makeopts)
+%! preference:env_makeopts(?Makeopts) is det.
 %
 % Fact which defines the MAKEOPTS variable.
 
 preference:env_makeopts('-j36').
 
 
-%! preference:env_features(?Features)
+%! preference:env_features(?Features) is det.
 %
 % Fact which defines the FEATURES variable.
 
 preference:env_features('sign -ccache -buildpkg -sandbox -usersandbox -ebuild-locks parallel-fetch parallel-install').
 
 
-%! preference:default_env(+Name, -Value)
+%! preference:default_env(+Name, -Value) is semidet.
 %
 % Default values for Portage-like environment variables, used when the variable
 % is not set in the OS environment.
@@ -116,9 +119,11 @@ preference:default_env('VIDEO_CARDS', 'vmware vesa vga').
 preference:default_env('INPUT_DEVICES', 'evdev keyboard mouse vmmouse').
 preference:default_env('ALSA_CARDS', 'ens1371').
 preference:default_env('CPU_FLAGS_X86', 'aes avx avx2 avx512f avx512dq avx512cd avx512bw avx512vl f16c fma3 mmx mmxext pclmul popcnt rdrand sse sse2 sse3 sse4_1 sse4_2 ssse3').
+
 % NOTE: USE is incremental; "last occurrence wins".
 % Keep `introspection` enabled for GNOME/KDE stacks (many deps require glib[introspection]).
 preference:default_env('USE', 'berkdb harfbuzz lto dnet resolutionkms o-flag-munging pgo graphite optimizations aio npm http split-usr -elogind policykit json -systemd -llvm -lua -berkdb -gdbm -introspection -vala -xen -hcache -ruby python gdbm fbcondecor messages smp qemu sqlite mmxext -svg avahi mmx sse sse2 sse3 ssse3 sse4 sse4_2 gmp cvs git x86emu gpg imap pop sidebar smime smtp dbus truetype X -xvmc xa xkb libkms cairo glitz png jpeg tiff gif mp3 opengl xcb xlib-xcb alsa aac aacplus jpeg2k fontconfig openssl ssh threads x264 x265 xvid dts md5sum a52 aalib zeroconf pkcs11 apng xattr nova account container object proxy directfb pcre16 -mdnsresponder-compat gpm').
+
 % NOTE:
 % USE_EXPAND selector variables like LUA_SINGLE_TARGET / LLVM_SLOT / VIDEO_CARDS
 % typically come from Gentoo profile `make.defaults` and/or `/etc/portage/make.conf`.
@@ -128,13 +133,13 @@ preference:default_env('USE', 'berkdb harfbuzz lto dnet resolutionkms o-flag-mun
 % preference:default_env('RUBY_SINGLE_TARGET', 'ruby33').
 
 
-% =============================================================================
+% -----------------------------------------------------------------------------
 %  Environment accessors
-% =============================================================================
+% -----------------------------------------------------------------------------
 
-%! preference:getenv(+Name, -Value)
+%! preference:getenv(+Name, -Value) is semidet.
 %
-% Read an environment variable, falling back to config:gentoo_env/2 and
+% Reads an environment variable, falling back to config:gentoo_env/2 and
 % then to preference:default_env/2.
 
 preference:getenv(Name, Value) :-
@@ -148,7 +153,7 @@ preference:getenv(Name, Value) :-
   ).
 
 
-%! preference:env_use(?Use)
+%! preference:env_use(?Use) is nondet.
 %
 % Returns individual parsed USE flag terms as read from the USE
 % environment variable.
@@ -160,9 +165,9 @@ preference:env_use(Use) :-
   member(Use,List).
 
 
-%! preference:env_use_terms(-Terms:list)
+%! preference:env_use_terms(-Terms:list) is semidet.
 %
-% Parse USE in one go, preserving order (incremental semantics).
+% Parses USE in one go, preserving order (incremental semantics).
 
 preference:env_use_terms(Terms) :-
   preference:getenv('USE', Atom),
@@ -171,9 +176,9 @@ preference:env_use_terms(Terms) :-
   !.
 
 
-%! preference:env_use_expand(?Use)
+%! preference:env_use_expand(?Use) is nondet.
 %
-% Import USE_EXPAND-like environment variables (e.g. RUBY_TARGETS="ruby33")
+% Imports USE_EXPAND-like environment variables (e.g. RUBY_TARGETS="ruby33")
 % into portage-ng's USE flag space (e.g. ruby_targets_ruby33).
 %
 % This helps align portage-ng with Portage, where such variables influence USE
@@ -193,7 +198,7 @@ preference:env_use_expand(Use) :-
   atomic_list_concat([Prefix, Token], '_', Use).
 
 
-%! preference:use_expand_env(?EnvVar, ?Prefix)
+%! preference:use_expand_env(?EnvVar, ?Prefix) is nondet.
 %
 % Maps USE_EXPAND environment variable names to their flag prefix.
 
@@ -211,7 +216,7 @@ preference:use_expand_env('APACHE2_MODULES',      apache2_modules).
 preference:use_expand_env('APACHE2_MPMS',         apache2_mpms).
 
 
-%! preference:env_accept_keywords(?Keyword)
+%! preference:env_accept_keywords(?Keyword) is nondet.
 %
 % Returns individual parsed ACCEPT_KEYWORDS terms as read from the
 % ACCEPT_KEYWORDS environment variable.
@@ -223,11 +228,11 @@ preference:env_accept_keywords(Keyword) :-
   member(Keyword,List).
 
 
-% =============================================================================
+% -----------------------------------------------------------------------------
 %  USE / keywords / flag resolution
-% =============================================================================
+% -----------------------------------------------------------------------------
 
-%! preference:use(?Use)
+%! preference:use(?Use) is nondet.
 %
 % Returns active USE flag settings.  In standalone mode, the flags are
 % asserted by preference:init/0.  In client-server mode, they are
@@ -240,7 +245,7 @@ preference:use(X) :-
   ).
 
 
-%! preference:use(?Use, +Source)
+%! preference:use(?Use, +Source) is nondet.
 %
 % Returns USE flag settings filtered by Source:
 %   - `env`   : only flags set via the environment
@@ -256,7 +261,7 @@ preference:use(X,other) :-
   preference:use(X).
 
 
-%! preference:accept_keywords(?Keyword)
+%! preference:accept_keywords(?Keyword) is nondet.
 %
 % Returns active ACCEPT_KEYWORDS settings.  In standalone mode, the
 % keywords are asserted by preference:init/0.  In client-server mode,
@@ -269,7 +274,7 @@ preference:accept_keywords(X) :-
   ).
 
 
-%! preference:flag(?Flag)
+%! preference:flag(?Flag) is nondet.
 %
 % Returns active interface flags (deep, emptytree, pdepend, etc.).
 % In standalone mode, set by interface.  In client-server mode,
@@ -282,9 +287,9 @@ preference:flag(Flag) :-
   ).
 
 
-% =============================================================================
+% -----------------------------------------------------------------------------
 %  Initialization
-% =============================================================================
+% -----------------------------------------------------------------------------
 
 %! preference:init is det.
 %
@@ -292,15 +297,15 @@ preference:flag(Flag) :-
 % environment, profile, and /etc/portage overrides.  Also loads license
 % groups and applies ACCEPT_LICENSE.  Must never fail.
 
-%! preference:profile_use_terms(-Terms:list)
+%! preference:profile_use_terms(-Terms:list) is det.
 %
-% Obtain profile-derived USE terms.
+% Obtains profile-derived USE terms.
 %
 % If `config:gentoo_profile/1` is set and the Portage profile tree is available,
 % we derive these from Gentoo's inherited profile files via `profile.pl`.
 % Otherwise we fall back to the (legacy) static `preference:profile_use/1`
 % facts declared in this file.
-%
+
 preference:profile_use_terms(Terms) :-
   findall(preference:profile_use(Use), preference:profile_override_use(Use), OverrideTerms),
   ( config:gentoo_profile(ProfileRel),
@@ -310,14 +315,14 @@ preference:profile_use_terms(Terms) :-
     append(BaseTerms, OverrideTerms, Terms)
   ).
 
-%! preference:profile_override_use(?Use)
+%! preference:profile_override_use(?Use) is nondet.
 %
 % Extra USE defaults layered *after* the Gentoo profile (if any).
 % This is the right place for local policy tweaks that aren't encoded in the
 % selected Gentoo profile tree.
 %
 % (Kept small on purpose; add more only when required by parity checks.)
-%
+
 preference:profile_override_use(minus(introspection)).
 
 
@@ -372,6 +377,7 @@ preference:maybe_derive_ruby_single_target :-
     ( preference:local_use(Use)     -> true ; assertz(preference:local_use(Use)) )
   ),
   !.
+
 preference:maybe_derive_ruby_single_target :-
   true.
 
@@ -409,6 +415,7 @@ preference:init :-
   % treat unexpected issues as "skip that bit" rather than aborting init.
   % Portage semantics: USE is incremental; last occurrence wins.
   % Example: USE="berkdb ... -berkdb" means berkdb is OFF.
+
   ( catch(preference:env_use_terms(EnvUseTerms), _, EnvUseTerms = []) ->
       forall(member(Term, EnvUseTerms),
              preference:apply_env_use_term(Term))
@@ -423,12 +430,14 @@ preference:init :-
       forall(member(U, Forced), assertz(preference:profile_forced_use_flag(U)))
   ; true
   ),
+
   % Portage semantics for USE_EXPAND selectors:
   % when a selector variable is explicitly set (via environment/config/default_env),
   % it overrides profile defaults for that prefix (do not union them).
   %
   % This is important for parity-sensitive selectors such as INPUT_DEVICES and
   % VIDEO_CARDS, where profile defaults can otherwise force extra dependencies.
+
   findall(Prefix,
           ( preference:use_expand_env(EnvVar, Prefix),
             preference:getenv(EnvVar, Atom),
@@ -474,7 +483,7 @@ preference:init :-
   % 3. Apply Gentoo profile + /etc/portage overrides (package.mask / package.use).
   %
   % These affect candidate selection (masking) and per-package USE evaluation.
-  %
+  
   catch(preference:apply_profile_package_mask, _, true),
   catch(preference:apply_profile_package_use_mask, _, true),
   catch(preference:apply_profile_package_use_force, _, true),
@@ -483,6 +492,7 @@ preference:init :-
   catch(preference:apply_gentoo_package_use,   _, true),
 
   % 4. Load license groups and apply ACCEPT_LICENSE.
+
   catch(preference:load_license_groups, _, true),
   catch(preference:init_accept_license, _, true),
   !.
@@ -501,6 +511,7 @@ preference:apply_env_use_term(minus(Use)) :-
   retractall(preference:local_use(minus(Use))),
   assertz(preference:local_env_use(minus(Use))),
   assertz(preference:local_use(minus(Use))).
+
 preference:apply_env_use_term(Use) :-
   retractall(preference:local_env_use(Use)),
   retractall(preference:local_env_use(minus(Use))),
@@ -510,9 +521,9 @@ preference:apply_env_use_term(Use) :-
   assertz(preference:local_use(Use)).
 
 
-% =============================================================================
+% -----------------------------------------------------------------------------
 %  Profile per-package USE constraints (package.use.mask / package.use.force)
-% =============================================================================
+% -----------------------------------------------------------------------------
 
 %! preference:profile_package_use_spec(+Atom, -Spec) is semidet.
 %
@@ -630,6 +641,7 @@ preference:apply_profile_package_use_op(add, masked, Spec, Flag) :-
   ; assertz(preference:profile_package_use_masked(Spec, Flag))
   ),
   !.
+
 preference:apply_profile_package_use_op(del, masked, Spec, Flag) :-
   ( preference:profile_package_use_cp_from_spec_(Spec, C, N) ->
       retractall(preference:profile_package_use_masked(simple(C, N, _), Flag)),
@@ -637,11 +649,13 @@ preference:apply_profile_package_use_op(del, masked, Spec, Flag) :-
   ; retractall(preference:profile_package_use_masked(Spec, Flag))
   ),
   !.
+
 preference:apply_profile_package_use_op(add, forced, Spec, Flag) :-
   ( preference:profile_package_use_forced(Spec, Flag) -> true
   ; assertz(preference:profile_package_use_forced(Spec, Flag))
   ),
   !.
+
 preference:apply_profile_package_use_op(del, forced, Spec, Flag) :-
   ( preference:profile_package_use_cp_from_spec_(Spec, C, N) ->
       retractall(preference:profile_package_use_forced(simple(C, N, _), Flag)),
@@ -694,6 +708,7 @@ preference:profile_package_use_override_for_entry(Repo://Id, Use, State, Reason)
 % restriction list from eapi:qualified_target/1 (e.g. [], [slot('26')]).
 
 preference:entry_satisfies_slot_req_(_Repo, _Id, []) :- !.
+
 preference:entry_satisfies_slot_req_(Repo, Id, SlotReq) :-
   ( member(slot(S0), SlotReq) ->
       cache:entry_metadata(Repo, Id, slot, slot(S1)),
@@ -970,15 +985,16 @@ preference:profile_masked_cn_known(C, N) :-
 preference:profile_package_use_spec_matches_entry_(simple(C, N, SlotReq), Repo, Id, C, N, _ProposedVersion) :-
   preference:entry_satisfies_slot_req_(Repo, Id, SlotReq),
   !.
+
 preference:profile_package_use_spec_matches_entry_(versioned(Op, C, N, ReqVer, SlotReq), Repo, Id, C, N, ProposedVersion) :-
   preference:version_match(Op, ProposedVersion, ReqVer),
   preference:entry_satisfies_slot_req_(Repo, Id, SlotReq),
   !.
 
 
-% =============================================================================
+% -----------------------------------------------------------------------------
 %  Gentoo /etc/portage integration (subset)
-% =============================================================================
+% -----------------------------------------------------------------------------
 
 %! preference:apply_gentoo_package_mask is det.
 %
@@ -1109,9 +1125,11 @@ preference:unmask_profile_atom(Atom) :-
 % Slot restriction matcher for profile package.mask atoms.
 
 preference:slot_req_match_([], _Repo, _Id) :- !.
+
 preference:slot_req_match_([slot(S0)], Repo, Id) :-
   !,
   cache:entry_metadata(Repo, Id, slot, slot(S0)).
+
 preference:slot_req_match_([slot(S0),subslot(Ss0)], Repo, Id) :-
   !,
   cache:entry_metadata(Repo, Id, slot, slot(S0)),
@@ -1119,9 +1137,11 @@ preference:slot_req_match_([slot(S0),subslot(Ss0)], Repo, Id) :-
   -> Ss == Ss0
   ; Ss0 == S0
   ).
+
 preference:slot_req_match_([slot(S0),equal], Repo, Id) :-
   !,
   cache:entry_metadata(Repo, Id, slot, slot(S0)).
+
 preference:slot_req_match_([slot(S0),subslot(Ss0),equal], Repo, Id) :-
   !,
   cache:entry_metadata(Repo, Id, slot, slot(S0)),
@@ -1129,10 +1149,13 @@ preference:slot_req_match_([slot(S0),subslot(Ss0),equal], Repo, Id) :-
   -> Ss == Ss0
   ; Ss0 == S0
   ).
+
 % Conservatively treat any_same_slot/any_different_slot as "match any slot" for
 % package.mask atoms; these forms are primarily meaningful in dependency edges.
 preference:slot_req_match_([any_same_slot], _Repo, _Id) :- !.
+
 preference:slot_req_match_([any_different_slot], _Repo, _Id) :- !.
+
 % Unknown/complex slot req (e.g. subslot/equal): do not match to avoid over-masking.
 preference:slot_req_match_(_Other, _Repo, _Id) :- fail.
 
@@ -1148,6 +1171,7 @@ preference:slot_req_match_(_Other, _Repo, _Id) :- fail.
 % because this runs at init time before goal-expansion.
 
 preference:version_match(none, _Proposed, _Req) :- !.
+
 preference:version_match(equal, Proposed, Req) :-
   Req = version(_,_,_,_,_,_,Pattern),
   atom(Pattern),
@@ -1155,45 +1179,53 @@ preference:version_match(equal, Proposed, Req) :-
   !,
   Proposed = version(_,_,_,_,_,_,ProposedStr),
   query:wildcard_match(Pattern, ProposedStr).
+
 preference:version_match(equal, Proposed, Req) :-
   Proposed == Req,
   !.
+
 preference:version_match(tilde, Proposed, Req) :-
   Proposed = version(N,A,SR,SN,SRe,_,_),
   Req = version(N,A,SR,SN,SRe,_,_),
   !.
+
 preference:version_match(wildcard, Proposed, version(_,_,_,_,_,_,Pattern)) :-
   !,
   Proposed = version(_,_,_,_,_,_,ProposedStr),
   query:wildcard_match(Pattern, ProposedStr).
+
 preference:version_match(smaller, Proposed, Req) :-
   !,
   eapi:version_compare(<, Proposed, Req).
+
 preference:version_match(greater, Proposed, Req) :-
   !,
   eapi:version_compare(>, Proposed, Req).
+
 preference:version_match(smallerequal, Proposed, Req) :-
   !,
   ( eapi:version_compare(<, Proposed, Req)
   ; eapi:version_compare(=, Proposed, Req)
   ).
+
 preference:version_match(greaterequal, Proposed, Req) :-
   !,
   ( eapi:version_compare(>, Proposed, Req)
   ; eapi:version_compare(=, Proposed, Req)
   ).
+
 preference:version_match(notequal, Proposed, Req) :-
   Proposed \== Req,
   !.
 
 
-% =============================================================================
+% -----------------------------------------------------------------------------
 %  License groups and ACCEPT_LICENSE
-% =============================================================================
+% -----------------------------------------------------------------------------
 
-%! preference:load_license_groups
+%! preference:load_license_groups is det.
 %
-% Read the profiles/license_groups file and assert raw group definitions.
+% Reads the profiles/license_groups file and asserts raw group definitions.
 % Each group is stored as preference:license_group_raw(GroupName, Members)
 % where Members is a list of atoms (license names or @GroupRef).
 
@@ -1233,9 +1265,10 @@ preference:parse_license_group_line_(Line) :-
     )
   ).
 
-%! preference:expand_license_group(+GroupName, -Licenses:list)
+
+%! preference:expand_license_group(+GroupName, -Licenses:list) is det.
 %
-% Recursively expand a license group to its flat set of license atoms.
+% Recursively expands a license group to its flat set of license atoms.
 % @-prefixed members are resolved as sub-group references.
 
 preference:expand_license_group(GroupName, Licenses) :-
@@ -1249,6 +1282,7 @@ preference:expand_license_group(GroupName, Licenses) :-
 
 preference:expand_license_group_(GroupName, Seen, []) :-
   memberchk(GroupName, Seen), !.
+
 preference:expand_license_group_(GroupName, Seen, Licenses) :-
   ( preference:license_group_raw(GroupName, Members) ->
     foldl(preference:expand_license_member_([GroupName|Seen]), Members, [], Licenses)
@@ -1268,9 +1302,9 @@ preference:expand_license_member_(Seen, Member, Acc0, Acc) :-
   ; Acc = [Member|Acc0]
   ).
 
-%! preference:init_accept_license
+%! preference:init_accept_license is det.
 %
-% Parse the ACCEPT_LICENSE string and build the accepted/denied license sets.
+% Parses the ACCEPT_LICENSE string and builds the accepted/denied license sets.
 % Supports tokens: * (all), -* (none), @GROUP, -@GROUP, LICENSE, -LICENSE.
 % Semantics are incremental left-to-right (like Portage).
 
@@ -1297,10 +1331,12 @@ preference:apply_accept_license_token_('*') :- !,
   ( preference:accept_license_wildcard -> true
   ; assertz(preference:accept_license_wildcard)
   ).
+
 preference:apply_accept_license_token_('-*') :- !,
   retractall(preference:accept_license_wildcard),
   retractall(preference:accepted_license(_)),
   retractall(preference:denied_license(_)).
+
 preference:apply_accept_license_token_(Token) :-
   atom_concat('-@', GroupRef, Token), !,
   preference:expand_license_group(GroupRef, Lics),
@@ -1312,6 +1348,7 @@ preference:apply_accept_license_token_(Token) :-
            ; retractall(preference:accepted_license(L))
            )
          )).
+
 preference:apply_accept_license_token_(Token) :-
   atom_concat('@', GroupRef, Token), !,
   preference:expand_license_group(GroupRef, Lics),
@@ -1323,6 +1360,7 @@ preference:apply_accept_license_token_(Token) :-
              )
            )
          )).
+
 preference:apply_accept_license_token_(Token) :-
   atom_concat('-', Lic, Token),
   Lic \== '', !,
@@ -1332,6 +1370,7 @@ preference:apply_accept_license_token_(Token) :-
     )
   ; retractall(preference:accepted_license(Lic))
   ).
+
 preference:apply_accept_license_token_(Lic) :-
   ( preference:accept_license_wildcard ->
     retractall(preference:denied_license(Lic))
@@ -1339,6 +1378,7 @@ preference:apply_accept_license_token_(Lic) :-
     ; assertz(preference:accepted_license(Lic))
     )
   ).
+
 
 %! preference:license_accepted(+License:atom) is semidet.
 %
@@ -1351,9 +1391,9 @@ preference:license_accepted(License) :-
   ).
 
 
-% =============================================================================
+% -----------------------------------------------------------------------------
 %  Gentoo /etc/portage/package.use
-% =============================================================================
+% -----------------------------------------------------------------------------
 
 %! preference:apply_gentoo_package_use is det.
 %
@@ -1382,6 +1422,7 @@ preference:register_gentoo_package_use(CNAtom, UseStr) :-
   ; true
   ),
   !.
+
 preference:register_gentoo_package_use(_, _) :-
   true.
 
@@ -1470,11 +1511,11 @@ preference:register_package_use(CNAtom, UseStr) :-
          )).
 
 
-% =============================================================================
+% -----------------------------------------------------------------------------
 %  Default ACCEPT_KEYWORDS and keyword selection
-% =============================================================================
+% -----------------------------------------------------------------------------
 
-%! preference:default_accept_keywords(?Keyword)
+%! preference:default_accept_keywords(?Keyword) is nondet.
 %
 % Fact which defines the default ACCEPT_KEYWORDS variable.
 
@@ -1482,7 +1523,7 @@ preference:default_accept_keywords(unstable(amd64)).
 preference:default_accept_keywords(stable(amd64)).
 
 
-%! preference:keyword_selection_mode(?Mode)
+%! preference:keyword_selection_mode(?Mode) is det.
 %
 % Controls how accepted keywords influence version selection:
 %
@@ -1499,14 +1540,15 @@ preference:default_accept_keywords(stable(amd64)).
 % For Portage parity with ACCEPT_KEYWORDS="amd64 ~amd64", Portage generally
 % treats both as accepted and prefers the highest version available (i.e. don't
 % artificially prefer stable over unstable when both are accepted).
+
 preference:keyword_selection_mode(max_version).
 
 
-% =============================================================================
+% -----------------------------------------------------------------------------
 %  Profile USE flags (fallback when no Gentoo profile tree is available)
-% =============================================================================
+% -----------------------------------------------------------------------------
 
-%! preference:profile_use(?Use)
+%! preference:profile_use(?Use) is nondet.
 %
 % Fact which defines the profile USE flags to be used.
 
@@ -1742,11 +1784,11 @@ preference:profile_use(minus(test)).
 %preference:profile_use(minus(static)).
 
 
-% =============================================================================
+% -----------------------------------------------------------------------------
 %  USE_EXPAND hidden prefixes
-% =============================================================================
+% -----------------------------------------------------------------------------
 
-%! preference:use_expand_hidden(?Prefix)
+%! preference:use_expand_hidden(?Prefix) is nondet.
 %
 % USE_EXPAND prefixes hidden from printer output.
 
@@ -1759,28 +1801,28 @@ preference:use_expand_hidden('cpu_flags_arm').
 preference:use_expand_hidden('cpu_flags_ppc').
 
 
-% =============================================================================
+% -----------------------------------------------------------------------------
 %  Package masking (dynamic)
-% =============================================================================
+% -----------------------------------------------------------------------------
 
-%! preference:masked(?Entry)
+%! preference:masked(?Entry) is nondet.
 %
 % Dynamic fact which marks a Repository://Entry as masked.  Asserted by
 % the init pipeline from profile + /etc/portage package.mask files.
 
 
-% =============================================================================
+% -----------------------------------------------------------------------------
 %  Sample sets and world list
-% =============================================================================
+% -----------------------------------------------------------------------------
 
-%! preference:set(?Name, ?List)
+%! preference:set(?Name, ?List) is nondet.
 %
 % A sample package set for testing.
 
 preference:set('@prolog',[ 'dev-lang/swi-prolog', 'portage://dev-lang/qu-prolog-10.8', 'portage-9999','>gentoo-sources-2.5' ]).
 
 
-%! preference:world(?List)
+%! preference:world(?List) is det.
 %
 % A sample world list for testing.
 
