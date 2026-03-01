@@ -388,28 +388,28 @@ daemon:fork_background(Mode) :-
   atom_string(Mode, ModeStr),
   format('Starting ~w in background (PID ~w)...~n', [ModeStr, Pid]),
   ( Mode == daemon
-  -> config:daemon_socket_path(SocketPath),
-     daemon_wait_for_socket(SocketPath, 100),
-     ( access_file(SocketPath, exist)
+  -> config:daemon_pid_path(PidPath),
+     daemon_wait_for_file(PidPath, 100),
+     ( exists_file(PidPath)
      -> format('Daemon ready (PID ~w).~n', [Pid])
-     ;  format(user_error, 'Warning: daemon may not have started (socket not found).~n', [])
+     ;  format(user_error, 'Warning: daemon may not have started.~n', [])
      )
   ;  sleep(2),
      format('Server started in background (PID ~w).~n', [Pid])
   ).
 
 
-%! daemon_wait_for_socket(+Path, +Retries) is det.
+%! daemon_wait_for_file(+Path, +Retries) is det.
 %
-% Polls for the socket file to appear, sleeping 100ms between retries.
+% Polls for a file to appear, sleeping 100ms between retries.
 
-daemon_wait_for_socket(_, 0) :- !.
-daemon_wait_for_socket(Path, N) :-
+daemon_wait_for_file(_, 0) :- !.
+daemon_wait_for_file(Path, N) :-
   ( access_file(Path, exist)
   -> true
   ;  sleep(0.1),
      N1 is N - 1,
-     daemon_wait_for_socket(Path, N1)
+     daemon_wait_for_file(Path, N1)
   ).
 
 
