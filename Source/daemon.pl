@@ -150,7 +150,7 @@ daemon_handle_request(In, Out) :-
   catch(
     read_term(In, Term, []),
     _,
-    ( format(Out, '\x00\\EXIT:1\n', []),
+    ( format(Out, '~cEXIT:1~n', [0]),
       flush_output(Out),
       fail )
   ),
@@ -182,12 +182,12 @@ daemon_dispatch(request(Args, Cols, Rows), _In, Out) :-
       nb_setarg(1, ExitCode, 1) )
   ),
   arg(1, ExitCode, Code),
-  format(Out, '\x00\\EXIT:~w\n', [Code]),
+  format(Out, '~cEXIT:~w~n', [0, Code]),
   flush_output(Out).
 
 daemon_dispatch(_, _In, Out) :-
   format(Out, 'Error: unknown request~n', []),
-  format(Out, '\x00\\EXIT:1\n', []),
+  format(Out, '~cEXIT:1~n', [0]),
   flush_output(Out).
 
 
@@ -307,11 +307,13 @@ daemon_stream_response(In, ExitCode) :-
 % and extracts the exit code.
 
 daemon_parse_output(Output, ExitCode) :-
-  ( sub_string(Output, Before, _, _, "\x00\\EXIT:")
+  atom_codes(Sentinel, [0, 0'E, 0'X, 0'I, 0'T, 0':]),
+  ( sub_string(Output, Before, _, _, Sentinel)
   -> sub_string(Output, 0, Before, _, MainOutput),
      write(MainOutput),
      flush_output,
-     TermStart is Before + 6,
+     SentLen = 6,
+     TermStart is Before + SentLen,
      sub_string(Output, TermStart, _, 0, Tail),
      ( sub_string(Tail, NL, _, _, "\n")
      -> sub_string(Tail, 0, NL, _, CodeStr)
@@ -417,15 +419,15 @@ daemon:daemon_status :-
 
 daemon:autostart :-
   config:daemon_socket_path(SocketPath),
-  config:daemon_pid_path(PidPath),
   config:installation_dir(Dir),
   atomic_list_concat([Dir, '/portage-ng.pl'], MainFile),
+  atom_concat('portage=', Dir, PortagePath),
   process_create(
     path(swipl),
     [ '-O',
       '--stack-limit=256G', '--table-space=256G', '--shared-table-space=256G',
       '-f', MainFile,
-      '-p', atom_concat('portage=', Dir),
+      '-p', PortagePath,
       '-Dverbose_autoload=false',
       '-g', 'main',
       '--',
