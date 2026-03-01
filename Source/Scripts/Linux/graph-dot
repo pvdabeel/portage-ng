@@ -12,20 +12,17 @@ PV_FMT_DOT=$'\033[1;90m% [%{progress-amount-only}] - Creating SVG graphs  [ %{ba
 
 if [ -f "${1}/.lastgraph" ]; then
 
-  find "${1}" -type f -iname "*.dot" -mnewer "${1}/.lastgraph" \
-  | pv -l -s $(find "${1}" -type f -iname "*.dot" -mnewer "${1}/.lastgraph" | wc -l) --eta --timer --progress -F "$PV_FMT_DOT" \
-  | sed 's/\.dot$//' \
-  | xargs -P"56" -n1 -I{} \
-  dot -Tsvg {}.dot -o {}.svg
+  find "${1}" -type f -iname "*.dot" -mnewer "${1}/.lastgraph" -print0 \
+  | pv -l -s $(find "${1}" -type f -iname "*.dot" -mnewer "${1}/.lastgraph" | wc -l) --eta --timer --progress -F "$PV_FMT_DOT" -0 \
+  | xargs -0 -P"56" -n1 -I{} \
+  sh -c 'f="{}"; dot -Tsvg "$f" -o "${f%.dot}.svg"'
 
 else 
 
-  find "${1}" -type f -iname "*.dot" \
-  | pv -l -s $(find "${1}" -type f -iname "*.dot" | wc -l) --eta --timer --progress -F "$PV_FMT_DOT" \
-  | sed 's/\.dot$//' \
-  | xargs -P"56" -n1 -I{} \
-  dot -Tsvg {}.dot -o {}.svg
-
+  find "${1}" -type f -iname "*.dot" -print0 \
+  | pv -l -s $(find "${1}" -type f -iname "*.dot" | wc -l) --eta --timer --progress -F "$PV_FMT_DOT" -0 \
+  | xargs -0 -P"56" -n1 -I{} \
+  sh -c 'f="{}"; dot -Tsvg "$f" -o "${f%.dot}.svg"'
 
 fi
 touch "${1}/.lastgraph"
