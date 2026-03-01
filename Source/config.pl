@@ -920,3 +920,10 @@ config:daemon_pid_path(Path) :-
 % 0 means never auto-shutdown.
 
 config:daemon_inactivity_timeout(1800).
+
+%! config:daemon_autostart(?Bool) is det.
+%
+% When true (default), --mode ipc auto-starts a background daemon if
+% none is running. When false, prints an error instead.
+
+config:daemon_autostart(true).

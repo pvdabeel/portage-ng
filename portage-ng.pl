@@ -305,31 +305,64 @@ main(ipc) :-
   -> format(user_error,
        'Error: --shell is not supported in ipc mode. Use --mode standalone --shell instead.~n', []),
      halt(1)
-  ;  daemon:connect(ExitCode),
+  ;  memberchk(status(true), Options)
+  -> ( daemon:status -> halt(0) ; halt(1) )
+  ;  memberchk(cmd(Cmd), Options), Cmd \= none
+  -> daemon:send_command(Cmd),
+     halt(0)
+  ;  config:daemon_socket_path(SocketPath),
+     ( \+ access_file(SocketPath, exist),
+       config:daemon_autostart(true)
+     -> daemon:fork_background(daemon)
+     ;  true
+     ),
+     daemon:connect(ExitCode),
      halt(ExitCode)
   ).
 
 
 main(daemon) :-
-  load_standalone_modules,
-  load_llm_modules,
-  stats:newinstance(stat),
-  kb:newinstance(knowledgebase),
-  config:systemconfig(Config),
-  ensure_loaded(Config),
-  kb:load,
-  preference:init,
-  daemon:start,
-  interface:process_requests(daemon).
+  interface:argv(Options, _),
+  ( memberchk(background(true), Options)
+  -> daemon:fork_background(daemon),
+     halt(0)
+  ;  load_standalone_modules,
+     load_llm_modules,
+     stats:newinstance(stat),
+     kb:newinstance(knowledgebase),
+     config:systemconfig(Config),
+     ensure_loaded(Config),
+     kb:load,
+     preference:init,
+     daemon:start,
+     interface:process_requests(daemon)
+  ).
 
 
 main(client) :-
-  load_client_modules,
-  load_llm_modules,
-  interface:process_server(Host,Port),
-  kb:newinstance(knowledgebase(Host,Port)),
-  preference:init,
-  interface:process_requests(client).
+  interface:argv(Options, _),
+  ( memberchk(status(true), Options)
+  -> interface:process_server(Host, Port),
+     ( catch(
+         ( tcp_socket(Socket),
+           tcp_connect(Socket, Host:Port),
+           tcp_close_socket(Socket) ),
+         _, fail)
+     -> format('Server reachable at ~w:~w~n', [Host, Port]),
+        halt(0)
+     ;  format('Server not reachable at ~w:~w~n', [Host, Port]),
+        halt(1)
+     )
+  ;  memberchk(cmd(Cmd), Options), Cmd \= none
+  -> format(user_error, 'Error: --cmd is not yet supported for client mode.~n', []),
+     halt(1)
+  ;  load_client_modules,
+     load_llm_modules,
+     interface:process_server(Host,Port),
+     kb:newinstance(knowledgebase(Host,Port)),
+     preference:init,
+     interface:process_requests(client)
+  ).
 
 
 main(standalone) :-
@@ -359,9 +392,14 @@ main(worker) :-
 
 
 main(server) :-
-  main(standalone),
-  load_server_modules,
-  server:start_server,
-  at_halt(server:stop_server),
-  bonjour:advertise,
-  interface:process_requests(server).
+  interface:argv(Options, _),
+  ( memberchk(background(true), Options)
+  -> daemon:fork_background(server),
+     halt(0)
+  ;  main(standalone),
+     load_server_modules,
+     server:start_server,
+     at_halt(server:stop_server),
+     bonjour:advertise,
+     interface:process_requests(server)
+  ).

@@ -93,6 +93,12 @@ interface:spec(S) :-
        [opt(load),      type(boolean),   default(false),                          longflags(['load']),      help('Load knowledgebase (only relevant in client mode)')],
        [opt(version),   type(boolean),   default(false),       shortflags(['V']), longflags(['version']),   help('Show version')],
 
+       % lifecycle management
+
+       [opt(background),type(boolean),   default(false),                          longflags(['background']),help('Fork to background (daemon and server modes)')],
+       [opt(status),    type(boolean),   default(false),                          longflags(['status']),    help('Check if daemon/server is running (ipc and client modes)')],
+       [opt(cmd),       type(atom),      default(none),                           longflags(['cmd']),       help('Send command to daemon/server: halt or relaunch (ipc and client modes)')],
+
        % debugging purposes
 
        [opt(ci),        type(boolean),   default(false),                          longflags(['ci']),        help('CI mode: non-interactive, fail with nonzero exit code on assumptions')]

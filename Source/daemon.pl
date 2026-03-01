@@ -34,7 +34,11 @@ Only processes running as the same OS user can connect.
 
 :- module(daemon, [
        daemon:start/0,
-       daemon:connect/1
+       daemon:connect/1,
+       daemon:fork_background/1,
+       daemon:status/0,
+       daemon:send_command/1,
+       daemon:relaunch/0
    ]).
 
 
@@ -351,3 +355,153 @@ daemon_no_daemon_error :-
     [SocketPath]).
 
 
+% -----------------------------------------------------------------------------
+%  Lifecycle management
+% -----------------------------------------------------------------------------
+
+%! daemon:fork_background(+Mode) is det.
+%
+% Forks a new detached swipl process running the given Mode (daemon or
+% server) without --background. The parent polls for readiness then exits.
+
+daemon:fork_background(Mode) :-
+  config:installation_dir(Dir),
+  atomic_list_concat([Dir, '/portage-ng.pl'], MainFile),
+  atom_concat('portage=', Dir, PortagePath),
+  process_create(
+    path(swipl),
+    [ '-O',
+      '--stack-limit=256G', '--table-space=256G', '--shared-table-space=256G',
+      '-f', MainFile,
+      '-p', PortagePath,
+      '-Dverbose_autoload=false',
+      '-g', 'main',
+      '--',
+      '--mode', Mode
+    ],
+    [ process(Pid),
+      detached(true),
+      stdout(null),
+      stderr(null)
+    ]
+  ),
+  atom_string(Mode, ModeStr),
+  format('Starting ~w in background (PID ~w)...~n', [ModeStr, Pid]),
+  ( Mode == daemon
+  -> config:daemon_socket_path(SocketPath),
+     daemon_wait_for_socket(SocketPath, 100),
+     ( access_file(SocketPath, exist)
+     -> format('Daemon ready (PID ~w).~n', [Pid])
+     ;  format(user_error, 'Warning: daemon may not have started (socket not found).~n', [])
+     )
+  ;  sleep(2),
+     format('Server started in background (PID ~w).~n', [Pid])
+  ).
+
+
+%! daemon_wait_for_socket(+Path, +Retries) is det.
+%
+% Polls for the socket file to appear, sleeping 100ms between retries.
+
+daemon_wait_for_socket(_, 0) :- !.
+daemon_wait_for_socket(Path, N) :-
+  ( access_file(Path, exist)
+  -> true
+  ;  sleep(0.1),
+     N1 is N - 1,
+     daemon_wait_for_socket(Path, N1)
+  ).
+
+
+%! daemon:status is semidet.
+%
+% Checks if a daemon is running. Prints PID if running, error if not.
+% Succeeds if daemon is running, fails otherwise.
+
+daemon:status :-
+  config:daemon_socket_path(SocketPath),
+  config:daemon_pid_path(PidPath),
+  ( access_file(SocketPath, exist)
+  -> ( exists_file(PidPath)
+     -> setup_call_cleanup(
+          open(PidPath, read, S),
+          read_string(S, _, PidStr),
+          close(S)),
+        normalize_space(atom(Pid), PidStr),
+        format('Daemon running (PID ~w, socket ~w)~n', [Pid, SocketPath])
+     ;  format('Daemon socket exists (~w) but no PID file.~n', [SocketPath])
+     )
+  ;  format('No daemon running.~n', []),
+     fail
+  ).
+
+
+%! daemon:send_command(+Cmd) is det.
+%
+% Sends a command term to the daemon over the Unix socket.
+% Cmd is one of: halt, relaunch.
+
+daemon:send_command(halt) :-
+  !,
+  config:daemon_socket_path(SocketPath),
+  ( \+ access_file(SocketPath, exist)
+  -> format(user_error, 'No daemon running.~n', [])
+  ;  daemon_send_term(SocketPath, shutdown),
+     format('Daemon stopped.~n', [])
+  ).
+
+daemon:send_command(relaunch) :-
+  !,
+  daemon:send_command(halt),
+  sleep(1),
+  config:daemon_socket_path(SocketPath),
+  daemon_wait_for_socket_gone(SocketPath, 50),
+  daemon:fork_background(daemon).
+
+daemon:send_command(Cmd) :-
+  format(user_error, 'Unknown command: ~w. Use halt or relaunch.~n', [Cmd]).
+
+
+%! daemon:relaunch is det.
+%
+% Convenience: stops the current daemon and starts a new one in background.
+
+daemon:relaunch :-
+  daemon:send_command(relaunch).
+
+
+%! daemon_send_term(+SocketPath, +Term) is det.
+%
+% Connects to the daemon socket and sends a Prolog term.
+
+daemon_send_term(SocketPath, Term) :-
+  catch(
+    ( unix_domain_socket(Socket),
+      tcp_connect(Socket, SocketPath),
+      tcp_open_socket(Socket, StreamPair),
+      stream_pair(StreamPair, In, Out),
+      set_stream(Out, encoding(utf8)),
+      set_stream(In, encoding(utf8)),
+      format(Out, '~q.~n', [Term]),
+      flush_output(Out),
+      catch(read_string(In, _, _Response), _, true),
+      catch(close(In), _, true),
+      catch(close(Out), _, true)
+    ),
+    Error,
+    format(user_error, 'Connection error: ~w~n', [Error])
+  ).
+
+
+%! daemon_wait_for_socket_gone(+Path, +Retries) is det.
+%
+% Polls until the socket file disappears, sleeping 100ms between retries.
+
+daemon_wait_for_socket_gone(_, 0) :- !.
+daemon_wait_for_socket_gone(Path, N) :-
+  ( \+ access_file(Path, exist)
+  -> true
+  ;  sleep(0.1),
+     N1 is N - 1,
+     daemon_wait_for_socket_gone(Path, N1)
+  ).
