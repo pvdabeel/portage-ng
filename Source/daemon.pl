@@ -131,6 +131,8 @@ daemon_accept_loop(Socket) :-
   tcp_accept(Socket, ClientSocket, _Peer),
   tcp_open_socket(ClientSocket, StreamPair),
   stream_pair(StreamPair, In, Out),
+  set_stream(In, encoding(utf8)),
+  set_stream(Out, encoding(utf8)),
   ( daemon_handle_request(In, Out)
   -> true
   ;  true
