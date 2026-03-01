@@ -920,10 +920,3 @@ config:daemon_pid_path(Path) :-
 % 0 means never auto-shutdown.
 
 config:daemon_inactivity_timeout(1800).
-
-%! config:daemon_autostart(?Bool) is det.
-%
-% When true, --mode ultralight auto-starts the daemon if none is running.
-% When false (default), prints an error telling the user to start it manually.
-
-config:daemon_autostart(false).

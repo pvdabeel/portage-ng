@@ -50,8 +50,6 @@ sandbox:safe_primitive(config:working_dir(_)).
 sandbox:safe_primitive(config:daemon_socket_path(_)).
 sandbox:safe_primitive(config:daemon_pid_path(_)).
 sandbox:safe_primitive(config:daemon_inactivity_timeout(_)).
-sandbox:safe_primitive(config:daemon_autostart(_)).
-
 sandbox:safe_primitive(cache:repository(_)).
 sandbox:safe_primitive(cache:category(_,_)).
 sandbox:safe_primitive(cache:entry(_,_,_,_,_)).

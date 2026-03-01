@@ -289,43 +289,25 @@ load_llm_modules :-
 
 main :-
   load_common_modules,
-  interface:argv(Options, _),
-  ( memberchk(daemon(Cmd), Options), Cmd \= none
-  -> main_daemon(Cmd)
-  ;  interface:process_mode(Mode),
-     config:working_dir(Dir),
-     cd(Dir),
-     config:world_file(File),
-     world:newinstance(set(File)),
-     world:load,
-     interface:init_tty,
-     main(Mode)
-  ).
-
-main_daemon(start)  :-
+  interface:process_mode(Mode),
   config:working_dir(Dir),
   cd(Dir),
   config:world_file(File),
   world:newinstance(set(File)),
   world:load,
   interface:init_tty,
-  main(daemon).
-main_daemon(stop)   :- daemon:stop_daemon, halt(0).
-main_daemon(status) :- daemon:daemon_status, halt(0).
-main_daemon(_)      :-
-  format(user_error, 'Usage: portage-ng --daemon start|stop|status~n', []),
-  halt(1).
+  main(Mode).
 
 
-main(ultralight) :-
-  config:daemon_socket_path(SocketPath),
-  ( \+ access_file(SocketPath, exist),
-    config:daemon_autostart(true)
-  -> daemon:autostart
-  ;  true
-  ),
-  daemon:connect(ExitCode),
-  halt(ExitCode).
+main(ipc) :-
+  interface:argv(Options, _),
+  ( memberchk(shell(true), Options)
+  -> format(user_error,
+       'Error: --shell is not supported in ipc mode. Use --mode standalone --shell instead.~n', []),
+     halt(1)
+  ;  daemon:connect(ExitCode),
+     halt(ExitCode)
+  ).
 
 
 main(daemon) :-
@@ -337,7 +319,8 @@ main(daemon) :-
   ensure_loaded(Config),
   kb:load,
   preference:init,
-  daemon:start.
+  daemon:start,
+  interface:process_requests(daemon).
 
 
 main(client) :-

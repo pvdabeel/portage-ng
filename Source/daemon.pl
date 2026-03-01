@@ -9,7 +9,7 @@
 
 
 /** <module> DAEMON
-Implements a persistent local daemon for ultralight mode. The daemon keeps the
+Implements a persistent local daemon for ipc mode. The daemon keeps the
 full standalone state (modules + kb.qlf + preferences) resident in memory and
 serves requests over a Unix domain socket.
 
@@ -29,16 +29,12 @@ Only processes running as the same OS user can connect.
 @see config:daemon_socket_path/1
 @see config:daemon_pid_path/1
 @see config:daemon_inactivity_timeout/1
-@see config:daemon_autostart/1
 */
 
 
 :- module(daemon, [
        daemon:start/0,
-       daemon:connect/1,
-       daemon:stop_daemon/0,
-       daemon:daemon_status/0,
-       daemon:autostart/0
+       daemon:connect/1
    ]).
 
 
@@ -351,128 +347,7 @@ daemon_no_daemon_error :-
   config:daemon_socket_path(SocketPath),
   format(user_error,
     'Error: No daemon running (socket ~w not found).~n\c
-     Start one with: portage-ng --daemon start~n',
+     Start one with: portage-ng --mode daemon~n',
     [SocketPath]).
 
 
-% -----------------------------------------------------------------------------
-%  Daemon management commands
-% -----------------------------------------------------------------------------
-
-%! daemon:stop_daemon is det.
-%
-% Stops a running daemon by sending the shutdown command.
-
-daemon:stop_daemon :-
-  config:daemon_socket_path(SocketPath),
-  ( \+ access_file(SocketPath, exist)
-  -> format(user_error, 'No daemon running.~n', [])
-  ;  catch(
-       ( unix_domain_socket(Socket),
-         tcp_connect(Socket, SocketPath),
-         tcp_open_socket(Socket, StreamPair),
-         stream_pair(StreamPair, In, Out),
-         format(Out, 'shutdown.~n', []),
-         flush_output(Out),
-         read_string(In, _, Response),
-         write(Response),
-         catch(close(In), _, true),
-         catch(close(Out), _, true)
-       ),
-       _,
-       ( config:daemon_pid_path(PidPath),
-         daemon_kill_from_pid(PidPath) )
-     )
-  ).
-
-
-%! daemon_kill_from_pid(+PidPath) is det.
-%
-% Fallback: reads PID file and kills the process.
-
-daemon_kill_from_pid(PidPath) :-
-  ( exists_file(PidPath)
-  -> setup_call_cleanup(
-       open(PidPath, read, S),
-       read_term(S, Pid, []),
-       close(S)),
-     ( integer(Pid)
-     -> catch(
-          process_kill(Pid, sigterm),
-          _, true),
-        format('Daemon (PID ~w) killed.~n', [Pid]),
-        delete_file(PidPath)
-     ;  format(user_error, 'Invalid PID file.~n', [])
-     )
-  ;  format(user_error, 'No PID file found.~n', [])
-  ).
-
-
-%! daemon:daemon_status is det.
-%
-% Prints the current daemon status.
-
-daemon:daemon_status :-
-  config:daemon_socket_path(SocketPath),
-  config:daemon_pid_path(PidPath),
-  ( access_file(SocketPath, exist)
-  -> ( access_file(PidPath, exist)
-     -> setup_call_cleanup(
-          open(PidPath, read, S),
-          read_string(S, _, PidStr),
-          close(S)),
-        normalize_space(atom(Pid), PidStr),
-        format('Daemon running (PID ~w, socket ~w)~n', [Pid, SocketPath])
-     ;  format('Daemon socket exists (~w) but no PID file.~n', [SocketPath])
-     )
-  ;  format('No daemon running.~n', [])
-  ).
-
-
-%! daemon:autostart is det.
-%
-% Auto-starts the daemon in the background if config:daemon_autostart(true).
-% Polls for the socket file to appear before returning.
-
-daemon:autostart :-
-  config:daemon_socket_path(SocketPath),
-  config:installation_dir(Dir),
-  atomic_list_concat([Dir, '/portage-ng.pl'], MainFile),
-  atom_concat('portage=', Dir, PortagePath),
-  process_create(
-    path(swipl),
-    [ '-O',
-      '--stack-limit=256G', '--table-space=256G', '--shared-table-space=256G',
-      '-f', MainFile,
-      '-p', PortagePath,
-      '-Dverbose_autoload=false',
-      '-g', 'main',
-      '--',
-      '--mode', 'daemon'
-    ],
-    [ process(Pid),
-      detached(true),
-      stdout(null),
-      stderr(null)
-    ]
-  ),
-  format(user_error, 'Starting daemon (PID ~w)...~n', [Pid]),
-  daemon_wait_for_socket(SocketPath, 100),
-  ( access_file(SocketPath, exist)
-  -> format(user_error, 'Daemon ready.~n', [])
-  ;  format(user_error, 'Warning: Daemon may not have started (socket not found).~n', [])
-  ).
-
-
-%! daemon_wait_for_socket(+Path, +Retries) is det.
-%
-% Polls for the socket file to appear, sleeping 100ms between retries.
-
-daemon_wait_for_socket(_, 0) :- !.
-daemon_wait_for_socket(Path, N) :-
-  ( access_file(Path, exist)
-  -> true
-  ;  sleep(0.1),
-     N1 is N - 1,
-     daemon_wait_for_socket(Path, N1)
-  ).
