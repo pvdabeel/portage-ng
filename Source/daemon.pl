@@ -227,20 +227,31 @@ daemon_run_with_output(Out, ExitCodeTerm) :-
       set_output(Out)
     ),
     catch(
-      catch(
-        interface:process_requests(standalone),
-        halt(Code),
-        nb_setarg(1, ExitCodeTerm, Code)
-      ),
+      interface:process_requests(standalone),
       Error,
-      ( format(Out, 'Daemon error: ~w~n', [Error]),
-        nb_setarg(1, ExitCodeTerm, 1) )
+      daemon_handle_error(Out, Error, ExitCodeTerm)
     ),
     ( set_stream(OldOut, alias(user_output)),
       set_stream(OldErr, alias(user_error)),
       set_output(OldCurr)
     )
   ).
+
+
+%! daemon_handle_error(+Out, +Error, +ExitCodeTerm) is det.
+%
+% Interprets exceptions thrown during request processing.
+% halt/1 throws unwind(halt(Code)) in SWI-Prolog.
+
+daemon_handle_error(_Out, unwind(halt(Code)), ExitCodeTerm) :-
+  integer(Code), !,
+  nb_setarg(1, ExitCodeTerm, Code).
+daemon_handle_error(_Out, halt(Code), ExitCodeTerm) :-
+  integer(Code), !,
+  nb_setarg(1, ExitCodeTerm, Code).
+daemon_handle_error(Out, Error, ExitCodeTerm) :-
+  format(Out, 'Daemon error: ~w~n', [Error]),
+  nb_setarg(1, ExitCodeTerm, 1).
 
 
 % -----------------------------------------------------------------------------
