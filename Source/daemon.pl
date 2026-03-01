@@ -201,14 +201,13 @@ daemon_isolate_state(Args, Cols, Rows) :-
   retractall(preference:local_flag(_)),
   set_prolog_flag(argv, Args),
   interface:argv(_, _),
+  retractall(daemon:client_tty_size(_,_)),
   ( integer(Cols), integer(Rows), Cols > 0, Rows > 0
-  -> ( predicate_property(config:printing_tty_size(_,_), defined)
-     -> retractall(config:printing_tty_size(_,_))
-     ;  true
-     ),
-     asserta(config:printing_tty_size(Rows, Cols))
+  -> assertz(daemon:client_tty_size(Rows, Cols))
   ;  true
   ).
+
+:- dynamic daemon:client_tty_size/2.
 
 
 %! daemon_run_with_output(+Out, +ExitCodeTerm) is det.

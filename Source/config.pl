@@ -645,6 +645,12 @@ config:printing_tty_size(H,W) :-
   !,
   M:printing_tty_size(H,W).
 
+% 1b. Running as daemon, use client-provided tty_size
+
+config:printing_tty_size(H,W) :-
+  catch(daemon:client_tty_size(H,W), _, fail),
+  !.
+
 % 2. Otherwise use actual tty_size
 
 config:printing_tty_size(H,W) :-
