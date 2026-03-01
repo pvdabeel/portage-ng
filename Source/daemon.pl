@@ -58,7 +58,7 @@ Only processes running as the same OS user can connect.
 daemon:start :-
   config:daemon_socket_path(SocketPath),
   config:daemon_pid_path(PidPath),
-  ( exists_file(SocketPath) -> delete_file(SocketPath) ; true ),
+  ( access_file(SocketPath, exist) -> delete_file(SocketPath) ; true ),
   unix_domain_socket(Socket),
   tcp_bind(Socket, SocketPath),
   catch(
@@ -90,8 +90,8 @@ daemon_write_pid(PidPath) :-
 % Removes the socket and PID files on daemon exit.
 
 daemon_cleanup(SocketPath, PidPath) :-
-  ( exists_file(SocketPath) -> delete_file(SocketPath) ; true ),
-  ( exists_file(PidPath) -> delete_file(PidPath) ; true ).
+  ( access_file(SocketPath, exist) -> delete_file(SocketPath) ; true ),
+  ( access_file(PidPath, exist) -> delete_file(PidPath) ; true ).
 
 
 :- dynamic daemon:inactivity_alarm/1.
@@ -251,7 +251,7 @@ daemon_run_with_output(Out, ExitCodeTerm) :-
 
 daemon:connect(ExitCode) :-
   config:daemon_socket_path(SocketPath),
-  ( \+ exists_file(SocketPath)
+  ( \+ access_file(SocketPath, exist)
   -> daemon_no_daemon_error,
      ExitCode = 1
   ;  catch(
@@ -348,7 +348,7 @@ daemon_no_daemon_error :-
 
 daemon:stop_daemon :-
   config:daemon_socket_path(SocketPath),
-  ( \+ exists_file(SocketPath)
+  ( \+ access_file(SocketPath, exist)
   -> format(user_error, 'No daemon running.~n', [])
   ;  catch(
        ( unix_domain_socket(Socket),
@@ -398,8 +398,8 @@ daemon_kill_from_pid(PidPath) :-
 daemon:daemon_status :-
   config:daemon_socket_path(SocketPath),
   config:daemon_pid_path(PidPath),
-  ( exists_file(SocketPath)
-  -> ( exists_file(PidPath)
+  ( access_file(SocketPath, exist)
+  -> ( access_file(PidPath, exist)
      -> setup_call_cleanup(
           open(PidPath, read, S),
           read_string(S, _, PidStr),
@@ -441,7 +441,7 @@ daemon:autostart :-
   ),
   format(user_error, 'Starting daemon (PID ~w)...~n', [Pid]),
   daemon_wait_for_socket(SocketPath, 100),
-  ( exists_file(SocketPath)
+  ( access_file(SocketPath, exist)
   -> format(user_error, 'Daemon ready.~n', [])
   ;  format(user_error, 'Warning: Daemon may not have started (socket not found).~n', [])
   ).
@@ -453,7 +453,7 @@ daemon:autostart :-
 
 daemon_wait_for_socket(_, 0) :- !.
 daemon_wait_for_socket(Path, N) :-
-  ( exists_file(Path)
+  ( access_file(Path, exist)
   -> true
   ;  sleep(0.1),
      N1 is N - 1,

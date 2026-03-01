@@ -312,7 +312,7 @@ main_daemon(_)      :-
 
 main(ultralight) :-
   config:daemon_socket_path(SocketPath),
-  ( \+ exists_file(SocketPath),
+  ( \+ access_file(SocketPath, exist),
     config:daemon_autostart(true)
   -> daemon:autostart
   ;  true
