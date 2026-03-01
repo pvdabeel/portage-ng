@@ -638,6 +638,7 @@ prepare_directory(D) ::-
   :this(Repository),
   config:hostname(H),
   config:graph_directory(H,G),
+  os:ensure_directory_path(G),
   os:compose_path(G,Repository,D),
   \+(system:exists_directory(D)),!,
   message:scroll_notice(['Directory does not exist! Creating...']),

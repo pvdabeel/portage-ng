@@ -75,10 +75,10 @@ vdb:create_repository_dirs(Repository,Directory) :-
 % exist.
 
 vdb:make_repository_dirs(Repository,Directory) :-
-  system:make_directory(Directory),
+  os:ensure_directory_path(Directory),
   forall(Repository:category(C),
     (os:compose_path(Directory,C,Subdir),
-     system:make_directory(Subdir))).
+     os:make_directory(Subdir))).
 
 
 % -----------------------------------------------------------------------------
