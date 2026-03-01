@@ -67,6 +67,7 @@ daemon:start :-
     _, true),
   tcp_listen(Socket, 5),
   daemon_write_pid(PidPath),
+  assertz(daemon:running),
   at_halt(daemon_cleanup(SocketPath, PidPath)),
   current_prolog_flag(pid, Pid),
   format('Daemon started (PID ~w), listening on ~w~n', [Pid, SocketPath]),
@@ -210,6 +211,7 @@ daemon_isolate_state(Args, Cols, Rows) :-
   ).
 
 :- dynamic daemon:client_tty_size/2.
+:- dynamic daemon:running/0.
 
 
 %! daemon_run_with_output(+Out, +ExitCodeTerm) is det.

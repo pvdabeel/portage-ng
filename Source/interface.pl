@@ -175,14 +175,15 @@ interface:process_continue(Continue) :-
   interface:version(Version),
   lists:memberchk(mode(Mode),Options),
 
-
   (lists:memberchk(mode(server),Options)
    ->  message:logo(['::- portage-ng ',Version],Mode),
        Continue = true
    ;   (lists:memberchk(shell(true),Options)
         -> message:logo(['::- portage-ng ',Version],Mode),
            Continue = prolog
-        ;  Continue = halt)).
+        ;  ( catch(daemon:running, _, fail)
+           -> Continue = true
+           ;  Continue = halt))).
 
 
 %! interface:get_port(-Port) is det.
@@ -271,7 +272,10 @@ interface:process_requests(Mode) :-
   Continue.
 
 interface:process_requests(_) :-
-  halt(1).
+  ( catch(daemon:running, _, fail)
+  -> true
+  ;  halt(1)
+  ).
 
 % -----------------------------------------------------------------------------
 %  Action: GRAPH (optional mode argument)
