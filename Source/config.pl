@@ -875,3 +875,49 @@ config:llm_endpoint(claude,  'https://api.anthropic.com/v1/messages').
 config:llm_endpoint(gemini,  'https://generativelanguage.googleapis.com/v1beta/chat/completions').
 config:llm_endpoint(llama,   'https://api.llama.com/v1/chat/completions').
 config:llm_endpoint(ollama,  'http://localhost:11434/v1/chat/completions').
+
+
+% -----------------------------------------------------------------------------
+%  Daemon (ultralight mode)
+% -----------------------------------------------------------------------------
+
+%! config:daemon_socket_path(-Path) is det.
+%
+% Path to the Unix domain socket used by the ultralight daemon.
+% Uses XDG_RUNTIME_DIR if available, otherwise /tmp.
+
+config:daemon_socket_path(Path) :-
+  ( getenv('XDG_RUNTIME_DIR', Dir)
+  -> true
+  ;  getenv('USER', User),
+     atomic_list_concat(['/tmp/portage-ng-', User], Dir)
+  ),
+  ( \+ exists_directory(Dir) -> make_directory(Dir) ; true ),
+  atomic_list_concat([Dir, '/portage-ng.sock'], Path).
+
+%! config:daemon_pid_path(-Path) is det.
+%
+% Path to the PID file co-located with the daemon socket.
+
+config:daemon_pid_path(Path) :-
+  ( getenv('XDG_RUNTIME_DIR', Dir)
+  -> true
+  ;  getenv('USER', User),
+     atomic_list_concat(['/tmp/portage-ng-', User], Dir)
+  ),
+  ( \+ exists_directory(Dir) -> make_directory(Dir) ; true ),
+  atomic_list_concat([Dir, '/portage-ng.pid'], Path).
+
+%! config:daemon_inactivity_timeout(?Seconds) is det.
+%
+% Seconds of inactivity after which the daemon auto-shuts down.
+% 0 means never auto-shutdown.
+
+config:daemon_inactivity_timeout(1800).
+
+%! config:daemon_autostart(?Bool) is det.
+%
+% When true, --mode ultralight auto-starts the daemon if none is running.
+% When false (default), prints an error telling the user to start it manually.
+
+config:daemon_autostart(false).

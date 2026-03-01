@@ -56,8 +56,10 @@ interface:spec(S) :-
   config:hostname(Hostname),
   S = [[opt(mode),      type(atom),      default('standalone'),                   longflags(['mode'] ),
         help([ '  server:     start as server'
-             , '  standalone: start standalone client, not requireing running server'
-             , '  client:     start lightweight client, requiring running server'])],
+             , '  standalone: start standalone client, not requiring running server'
+             , '  ultralight: ultra-thin IPC client, requires running daemon'
+             , '  client:     start lightweight client, requiring running server'
+             , '  worker:     start distributed prover worker'])],
        [opt(verbose),   type(boolean),   default(false),       shortflags(['v']), longflags(['verbose']),   help('Turn on verbose mode')],
        [opt(pretend),   type(boolean),   default(false),       shortflags(['p']), longflags(['pretend']),   help('Turn on pretend mode')],
        [opt(fetchonly), type(boolean),   default(false),       shortflags(['f']), longflags(['fetchonly']), help('Turn on fetchonly mode')],
@@ -89,6 +91,10 @@ interface:spec(S) :-
        [opt(save),      type(boolean),   default(false),                          longflags(['save']),      help('Save knowledgebase (only relevant in client mode')],
        [opt(load),      type(boolean),   default(false),                          longflags(['load']),      help('Load knowledgebase (only relevant in client mode)')],
        [opt(version),   type(boolean),   default(false),       shortflags(['V']), longflags(['version']),   help('Show version')],
+
+       % daemon management
+
+       [opt(daemon),    type(atom),      default(none),                           longflags(['daemon']),    help('Daemon control: start, stop, or status')],
 
        % debugging purposes
 

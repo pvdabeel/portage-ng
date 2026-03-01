@@ -85,6 +85,7 @@ load_common_modules :-
    ensure_loaded(portage('Source/subprocess.pl')),
    ensure_loaded(portage('Source/bonjour.pl')),
    ensure_loaded(portage('Source/unify.pl')),
+   ensure_loaded(portage('Source/daemon.pl')),
 
    message:log('Loaded common modules...').
 
@@ -288,14 +289,48 @@ load_llm_modules :-
 
 main :-
   load_common_modules,
-  interface:process_mode(Mode),
-  config:working_dir(Dir),
-  cd(Dir),
-  config:world_file(File),
-  world:newinstance(set(File)),
-  world:load,
-  interface:init_tty,
-  main(Mode).
+  interface:argv(Options, _),
+  ( memberchk(daemon(Cmd), Options), Cmd \= none
+  -> main_daemon(Cmd)
+  ;  interface:process_mode(Mode),
+     config:working_dir(Dir),
+     cd(Dir),
+     config:world_file(File),
+     world:newinstance(set(File)),
+     world:load,
+     interface:init_tty,
+     main(Mode)
+  ).
+
+main_daemon(start)  :- main(daemon).
+main_daemon(stop)   :- daemon:stop_daemon, halt(0).
+main_daemon(status) :- daemon:daemon_status, halt(0).
+main_daemon(_)      :-
+  format(user_error, 'Usage: portage-ng --daemon start|stop|status~n', []),
+  halt(1).
+
+
+main(ultralight) :-
+  config:daemon_socket_path(SocketPath),
+  ( \+ exists_file(SocketPath),
+    config:daemon_autostart(true)
+  -> daemon:autostart
+  ;  true
+  ),
+  daemon:connect(ExitCode),
+  halt(ExitCode).
+
+
+main(daemon) :-
+  load_standalone_modules,
+  load_llm_modules,
+  stats:newinstance(stat),
+  kb:newinstance(knowledgebase),
+  config:systemconfig(Config),
+  ensure_loaded(Config),
+  kb:load,
+  preference:init,
+  daemon:start.
 
 
 main(client) :-

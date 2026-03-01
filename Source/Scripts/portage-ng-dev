@@ -44,6 +44,80 @@ EOF
 done
 
 # -----------------------------------------------------------------------------
+# Daemon subcommand
+# -----------------------------------------------------------------------------
+#
+# portage-ng --daemon start|stop|status
+# Handled here so that `start` can fork swipl in the background.
+#
+case "${1:-}" in
+  --daemon)
+    case "${2:-}" in
+      start)
+        # Determine socket path (mirrors config:daemon_socket_path/1)
+        RUNTIME_DIR="${XDG_RUNTIME_DIR:-}"
+        if [ -z "$RUNTIME_DIR" ]; then
+          RUNTIME_DIR="/tmp/portage-ng-${USER:-$(id -un)}"
+          mkdir -p "$RUNTIME_DIR"
+        fi
+        SOCK="$RUNTIME_DIR/portage-ng.sock"
+        PID_FILE="$RUNTIME_DIR/portage-ng.pid"
+
+        if [ -S "$SOCK" ] && [ -f "$PID_FILE" ]; then
+          OLD_PID=$(cat "$PID_FILE")
+          if kill -0 "$OLD_PID" 2>/dev/null; then
+            echo "Daemon already running (PID $OLD_PID)."
+            exit 0
+          fi
+        fi
+
+        # Fork daemon in the background
+        swipl -O \
+          --stack-limit=256G --table-space=256G --shared-table-space=256G \
+          -f "$ROOT_DIR/portage-ng.pl" \
+          -p "portage=$ROOT_DIR" \
+          -Dverbose_autoload=false \
+          -g main -- --daemon start </dev/null >/dev/null 2>&1 &
+        DAEMON_PID=$!
+
+        # Poll for the socket (0.1s intervals, 100 retries = 10s timeout)
+        n=0
+        while [ $n -lt 100 ]; do
+          if [ -S "$SOCK" ]; then
+            echo "Daemon started (PID $DAEMON_PID)."
+            exit 0
+          fi
+          sleep 0.1
+          n=$((n + 1))
+        done
+        echo "Error: daemon did not start within 10 seconds." >&2
+        exit 1
+        ;;
+      stop)
+        exec swipl -O \
+          --stack-limit=256G --table-space=256G --shared-table-space=256G \
+          -f "$ROOT_DIR/portage-ng.pl" \
+          -p "portage=$ROOT_DIR" \
+          -Dverbose_autoload=false \
+          -g main -- --daemon stop
+        ;;
+      status)
+        exec swipl -O \
+          --stack-limit=256G --table-space=256G --shared-table-space=256G \
+          -f "$ROOT_DIR/portage-ng.pl" \
+          -p "portage=$ROOT_DIR" \
+          -Dverbose_autoload=false \
+          -g main -- --daemon status
+        ;;
+      *)
+        echo "Usage: portage-ng --daemon start|stop|status" >&2
+        exit 1
+        ;;
+    esac
+    ;;
+esac
+
+# -----------------------------------------------------------------------------
 # Hard wall-clock timeout wrapper
 # -----------------------------------------------------------------------------
 #
