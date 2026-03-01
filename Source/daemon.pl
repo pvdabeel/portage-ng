@@ -218,9 +218,11 @@ daemon_isolate_state(Args, Cols, Rows) :-
 daemon_run_with_output(Out, ExitCodeTerm) :-
   stream_property(OldOut, alias(user_output)),
   stream_property(OldErr, alias(user_error)),
+  current_output(OldCurr),
   setup_call_cleanup(
     ( set_stream(Out, alias(user_output)),
-      set_stream(Out, alias(user_error))
+      set_stream(Out, alias(user_error)),
+      set_output(Out)
     ),
     catch(
       catch(
@@ -233,7 +235,8 @@ daemon_run_with_output(Out, ExitCodeTerm) :-
         nb_setarg(1, ExitCodeTerm, 1) )
     ),
     ( set_stream(OldOut, alias(user_output)),
-      set_stream(OldErr, alias(user_error))
+      set_stream(OldErr, alias(user_error)),
+      set_output(OldCurr)
     )
   ).
 
