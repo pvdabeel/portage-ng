@@ -41,13 +41,15 @@ EOF
       exit 0
       ;;
     -V|--version)
-      # portage-ng version from git
+      # Collect all entries into a temp file (tab-separated: name, version, path)
+      _ver_tmp=$(mktemp)
+      trap 'rm -f "$_ver_tmp"' EXIT
+
+      # portage-ng itself
       ng_ver="$(git -C "$ROOT_DIR" --no-pager log -1 --date=format:%Y.%m.%d --pretty="%cd (%h)" 2>/dev/null || echo "unknown")"
-      printf "portage-ng  %s  %s\n" "$ng_ver" "$ROOT_DIR"
+      printf '%s\t%s\t%s\n' "portage-ng" "$ng_ver" "$ROOT_DIR" >> "$_ver_tmp"
 
       # Determine hostname-specific config file.
-      # Prolog uses socket:gethostname which returns the FQDN in lowercase
-      # (e.g. "macbook-pro.local"). Try that first, then fall back to `hostname`.
       if command -v swipl >/dev/null 2>&1; then
         hostname="$(swipl -g 'socket:gethostname(H), write(H), halt.' 2>/dev/null || echo "")"
       fi
@@ -59,9 +61,7 @@ EOF
         config_file="$ROOT_DIR/Source/Config/default.pl"
       fi
 
-      # Extract registered repositories and their paths from the config.
-      # Lines look like:  :- reponame:init('/path/to/repo', ...
-      # Skip commented-out lines (starting with %).
+      # Extract registered repositories from the config.
       grep -E '^:-\s+\w+:init\(' "$config_file" 2>/dev/null | while IFS= read -r line; do
         repo_name="$(echo "$line" | sed "s/^:-[[:space:]]*\([a-zA-Z_][a-zA-Z0-9_]*\):init(.*/\1/")"
         repo_path="$(echo "$line" | sed "s/.*:init('//" | sed "s/'.*//")"
@@ -70,9 +70,22 @@ EOF
         else
           repo_ver="(not a git repo)"
         fi
-        printf "%-11s %s  %s\n" "$repo_name" "$repo_ver" "$repo_path"
+        printf '%s\t%s\t%s\n' "$repo_name" "$repo_ver" "$repo_path" >> "$_ver_tmp"
       done
 
+      # Compute column widths, then print aligned output
+      _col1=0; _col2=0
+      while IFS="$(printf '\t')" read -r _n _v _p; do
+        _len1=${#_n}; _len2=${#_v}
+        [ "$_len1" -gt "$_col1" ] && _col1=$_len1
+        [ "$_len2" -gt "$_col2" ] && _col2=$_len2
+      done < "$_ver_tmp"
+
+      while IFS="$(printf '\t')" read -r _n _v _p; do
+        printf "%-${_col1}s  %-${_col2}s  %s\n" "$_n" "$_v" "$_p"
+      done < "$_ver_tmp"
+
+      rm -f "$_ver_tmp"
       exit 0
       ;;
   esac

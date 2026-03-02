@@ -1071,12 +1071,6 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
 
 rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions) :-
   !,
-  % Lazy + guarded propagation of self-RDEPEND *version bounds* into build/install
-  % dependency selection. This helps avoid selecting an inconsistent toolchain/lib
-  % version (e.g. picking OCaml 5.x for DEPEND when the current package's RDEPEND
-  % requires <dev-lang/ocaml-5), but avoids the timeout-prone "build a full map per
-  % package" approach by only looking up bounds for the current (C,N) and caching
-  % per (SelfId,C,N).
   rules:augment_package_deps_with_self_rdepend(Action, C, N, Context, PackageDeps, PackageDeps1),
   % Self-dependency at runtime is trivially satisfied: once the package is built,
   % it provides itself. Treat this generically to avoid hard failures on packages
@@ -1294,12 +1288,15 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         Conditions = []
       ; % Before reprove, check if the parent should be narrowed — the parent
         % introduced a dep that made (C,N) unsatisfiable (wrong-level fix).
+        % Skip for fetchonly: transitive dep failures (e.g. USE-flag mismatches)
+        % should not narrow the parent — fetchonly only needs to download sources.
+        Action \== fetchonly,
         rules:maybe_learn_parent_narrowing(C, N, PackageDeps1, Context),
         fail
-      ; rules:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps1, Context),
+      ; Action \== fetchonly,
+        rules:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps1, Context),
         fail
       ; explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason),
-        % was: feature_unification:unify([], Context, Ctx1),
         version_domain:domain_reason_terms(Action, C, N, PackageDeps1, Context, DomainReasonTags),
         rules:add_domain_reason_context(C, N, DomainReasonTags, Context, Ctx2),
         feature_unification:unify([assumption_reason(Reason)], Ctx2, Ctx3),

@@ -430,11 +430,14 @@ explainer:explain(Why, Response) :-
 explainer:format_why_prompt(Why, Prompt) :-
   term_to_atom(Why, WhyAtom),
   atomic_list_concat([
-    'You are a Gentoo Linux package management expert. ',
-    'Below is structured output from a dependency resolver. ',
+    'You are analyzing output from portage-ng, a Prolog-based alternative dependency ',
+    'resolver for Gentoo Linux. It reads the same Portage tree and package database as ',
+    'emerge, but uses its own solver. This is NOT standard emerge output. ',
+    'Below is structured output from portage-ng''s dependency resolver. ',
     'Please provide a concise, human-readable explanation of what it means ',
     'and what action the user should take (if any). ',
-    'Use plain language; avoid Prolog syntax in your answer.\n\n',
+    'Focus on the dependency metadata and constraints rather than suggesting ',
+    'emerge commands. Use plain language; avoid Prolog syntax in your answer.\n\n',
     WhyAtom
   ], Prompt).
 

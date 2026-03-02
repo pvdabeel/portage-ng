@@ -792,6 +792,23 @@ config:time_limit_build(6000).
 %
 % Declares prompts to be passed to the LLM
 
+config:llm_capability(context,Capability) :-
+  Description="You are interacting with portage-ng, an alternative dependency resolver
+               for Gentoo Linux written in SWI-Prolog. portage-ng reads the same Portage
+               tree (metadata/md5-cache) and package database (var/db/pkg) as traditional
+               Gentoo emerge, but it resolves dependencies using its own Prolog-based
+               prover, planner, and scheduler. It is NOT the standard Portage emerge tool.
+               When diagnosing issues, keep in mind: (1) the Portage tree, installed
+               packages, USE flags, keywords, and profiles are identical to a real Gentoo
+               system; (2) dependency resolution errors come from portage-ng's solver, not
+               from emerge; (3) domain assumptions indicate deps that portage-ng could not
+               satisfy (e.g. missing metadata, USE flag mismatches, keyword restrictions);
+               (4) portage-ng uses terms like 'grouped_package_dependency', 'selected_cn',
+               'cn_domain', and 'prover:learned' which are internal solver concepts, not
+               standard Portage terminology. Do not suggest running emerge commands to fix
+               portage-ng issues. Focus on the dependency metadata and constraints instead.",
+  normalize_space(string(Capability),Description).
+
 config:llm_capability(chat,Capability) :-
   Description="When formulating a response, you may optionally enclose a message
                (e.g., a question) in <call:chatgpt>, <call:gemini>, <call:ollama>,
@@ -817,10 +834,13 @@ config:llm_capability(code,Capability) :-
 % Declares prompts to be passed to the LLM in case of merge failure
 
 config:llm_support(Capability) :-
-  Description="I get no result trying to emerge the following ebuilds, please find
-               me the correct one, or propose to write one. Give me a short answer
-               now, until I tell you to write an ebuild. Here is what I was trying
-               to do: ",
+  Description="portage-ng (a Prolog-based alternative dependency resolver for Gentoo)
+               failed to resolve the following target against a standard Portage tree.
+               This is NOT the traditional emerge tool. The package may be missing from
+               the Portage tree, renamed, moved to a different category, or have empty
+               metadata cache entries. Please help identify the correct package atom or
+               suggest what might be wrong. Give a short answer. Here is what was
+               requested: ",
   normalize_space(string(Capability),Description).
 
 

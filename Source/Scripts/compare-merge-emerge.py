@@ -127,6 +127,21 @@ into one of five categories:
   - **inv_provably_valid_pct**: percentage of inversions that are provably
     valid (within_wave + merge_confirmed + no_edge).
 
+### Download agreement — Jaccard (merge vs fetchonly)
+
+For each `.merge` / `.fetchonly` pair, extract the set of packages with a
+`download` action in each file and compute:
+
+    Jaccard_CNV = |downloads_merge ∩ downloads_fetchonly|
+                / |downloads_merge ∪ downloads_fetchonly|
+
+    Jaccard_CN  = same but at category/name level (ignoring version)
+
+A score of 100% means the fetchonly plan lists exactly the same downloads
+as the merge plan — nothing missing, nothing extra.  Deviations indicate
+the fetchonly resolver is selecting different packages or versions for
+download compared to the full merge resolver.
+
 ### Install-only cycle breaks
 
 Counts scheduler cycle breaks where every action in the cycle is :install
@@ -921,6 +936,9 @@ def compare_pair(merge_path: Path, emerge_path: Path) -> Dict:
                                 else:
                                     inv_cross_wave_no_edge += 1
 
+    # Download comparison (merge vs fetchonly)
+    dl_cmp = compare_downloads(merge_path)
+
     # Timing data
     timing: Dict[str, object] = {}
     if "wall_time_ms" in emerge_meta:
@@ -971,6 +989,64 @@ def compare_pair(merge_path: Path, emerge_path: Path) -> Dict:
         "use_mismatches_common": use_mismatches_common if FULL_LISTS else use_mismatches_common[:200],
         "action_mismatches": action_mismatches if FULL_LISTS else action_mismatches[:200],
         "assumptions": ass,
+        "download_comparison": dl_cmp,
+    }
+
+
+def parse_download_set(path: Path) -> Set[str]:
+    """Extract the set of download-action CPVs from a merge or fetchonly file."""
+    txt = strip_ansi(path.read_text(errors="replace"))
+    downloads: Set[str] = set()
+    dl_re = re.compile(
+        r"\bdownload\s+(?:portage|overlay|pkg)://"
+        r"([A-Za-z0-9+_.-]+/[A-Za-z0-9+_.-]+)\b"
+    )
+    for line in txt.splitlines():
+        m = dl_re.search(line)
+        if m:
+            downloads.add(m.group(1))
+    return downloads
+
+
+def compare_downloads(merge_path: Path) -> Optional[Dict]:
+    """Compare download sets between a .merge file and its .fetchonly counterpart."""
+    fetchonly_path = merge_path.with_suffix(".fetchonly")
+    if not fetchonly_path.exists():
+        return None
+
+    merge_dl = parse_download_set(merge_path)
+    fetch_dl = parse_download_set(fetchonly_path)
+
+    dl_inter = merge_dl & fetch_dl
+    dl_union = merge_dl | fetch_dl
+    only_merge = sorted(merge_dl - fetch_dl)
+    only_fetch = sorted(fetch_dl - merge_dl)
+
+    # CN-level (category/name, ignoring version)
+    def _cn_set(cpvs: Set[str]) -> Set[Tuple[str, str]]:
+        out: Set[Tuple[str, str]] = set()
+        for cpv in cpvs:
+            k = parse_portage_ng_token(cpv)
+            if k:
+                out.add((k.cat, k.pn))
+        return out
+
+    merge_cn = _cn_set(merge_dl)
+    fetch_cn = _cn_set(fetch_dl)
+    cn_inter = merge_cn & fetch_cn
+    cn_union = merge_cn | fetch_cn
+
+    return {
+        "merge_downloads": len(merge_dl),
+        "fetchonly_downloads": len(fetch_dl),
+        "intersection": len(dl_inter),
+        "union": len(dl_union),
+        "jaccard_cnv": round(len(dl_inter) / len(dl_union), 6) if dl_union else 1.0,
+        "cn_intersection": len(cn_inter),
+        "cn_union": len(cn_union),
+        "jaccard_cn": round(len(cn_inter) / len(cn_union), 6) if cn_union else 1.0,
+        "only_in_merge": only_merge if FULL_LISTS else only_merge[:50],
+        "only_in_fetchonly": only_fetch if FULL_LISTS else only_fetch[:50],
     }
 
 
@@ -1183,6 +1259,112 @@ def main(argv: Sequence[str]) -> int:
     total_dep_edges = agg.get("dep_edges_in_plan", 0)
     viol_pct = (100.0 * total_violations / total_dep_edges) if total_dep_edges else 0.0
 
+    # Download (merge vs fetchonly) aggregate — derived from the per-pair
+    # results, using the same emerge_ok filter as the main comparison.
+    # "all": every merge+fetchonly pair that also has an .emerge file.
+    # "emerge_ok": subset where Portage produced a valid plan.
+    dl_inter_total = 0
+    dl_union_total = 0
+    dl_cn_inter_total = 0
+    dl_cn_union_total = 0
+    dl_pairs_count = 0
+    dl_perfect_cnv = 0
+    dl_perfect_cn = 0
+    dl_only_merge_cpn: Counter = Counter()
+    dl_only_fetch_cpn: Counter = Counter()
+    dl_mismatch_details: List[Dict] = []
+    # emerge_ok subset
+    dl_ok_inter_total = 0
+    dl_ok_union_total = 0
+    dl_ok_cn_inter_total = 0
+    dl_ok_cn_union_total = 0
+    dl_ok_pairs_count = 0
+    dl_ok_perfect_cnv = 0
+    dl_ok_perfect_cn = 0
+    dl_ok_only_merge_cpn: Counter = Counter()
+    dl_ok_only_fetch_cpn: Counter = Counter()
+    dl_ok_mismatch_details: List[Dict] = []
+
+    for r in results:
+        dc = r.get("download_comparison")
+        if dc is None:
+            continue
+        dl_pairs_count += 1
+        dl_inter_total += dc["intersection"]
+        dl_union_total += dc["union"]
+        dl_cn_inter_total += dc["cn_intersection"]
+        dl_cn_union_total += dc["cn_union"]
+        if dc["jaccard_cnv"] == 1.0:
+            dl_perfect_cnv += 1
+        if dc["jaccard_cn"] == 1.0:
+            dl_perfect_cn += 1
+        for cpv in dc.get("only_in_merge", []):
+            k = parse_portage_ng_token(cpv)
+            if k:
+                dl_only_merge_cpn[f"{k.cat}/{k.pn}"] += 1
+        for cpv in dc.get("only_in_fetchonly", []):
+            k = parse_portage_ng_token(cpv)
+            if k:
+                dl_only_fetch_cpn[f"{k.cat}/{k.pn}"] += 1
+        if dc["jaccard_cnv"] < 1.0:
+            dl_mismatch_details.append({"merge": r["merge"], **dc})
+
+        if r.get("emerge_ok"):
+            dl_ok_pairs_count += 1
+            dl_ok_inter_total += dc["intersection"]
+            dl_ok_union_total += dc["union"]
+            dl_ok_cn_inter_total += dc["cn_intersection"]
+            dl_ok_cn_union_total += dc["cn_union"]
+            if dc["jaccard_cnv"] == 1.0:
+                dl_ok_perfect_cnv += 1
+            if dc["jaccard_cn"] == 1.0:
+                dl_ok_perfect_cn += 1
+            for cpv in dc.get("only_in_merge", []):
+                k = parse_portage_ng_token(cpv)
+                if k:
+                    dl_ok_only_merge_cpn[f"{k.cat}/{k.pn}"] += 1
+            for cpv in dc.get("only_in_fetchonly", []):
+                k = parse_portage_ng_token(cpv)
+                if k:
+                    dl_ok_only_fetch_cpn[f"{k.cat}/{k.pn}"] += 1
+            if dc["jaccard_cnv"] < 1.0:
+                dl_ok_mismatch_details.append({"merge": r["merge"], **dc})
+
+    dl_mismatch_details.sort(key=lambda d: d.get("jaccard_cnv", 1.0))
+    dl_ok_mismatch_details.sort(key=lambda d: d.get("jaccard_cnv", 1.0))
+
+    dl_jaccard_cnv = (dl_inter_total / dl_union_total) if dl_union_total else 1.0
+    dl_jaccard_cn = (dl_cn_inter_total / dl_cn_union_total) if dl_cn_union_total else 1.0
+    dl_ok_jaccard_cnv = (dl_ok_inter_total / dl_ok_union_total) if dl_ok_union_total else 1.0
+    dl_ok_jaccard_cn = (dl_ok_cn_inter_total / dl_ok_cn_union_total) if dl_ok_cn_union_total else 1.0
+
+    download_aggregate = {
+        "all": {
+            "pairs": dl_pairs_count,
+            "jaccard_cnv_pct": round(dl_jaccard_cnv * 100, 4),
+            "jaccard_cn_pct": round(dl_jaccard_cn * 100, 4),
+            "perfect_cnv": dl_perfect_cnv,
+            "perfect_cn": dl_perfect_cn,
+            "total_intersection": dl_inter_total,
+            "total_union": dl_union_total,
+            "top_only_in_merge": [{"cpn": cpn, "n": n} for cpn, n in dl_only_merge_cpn.most_common(30)],
+            "top_only_in_fetchonly": [{"cpn": cpn, "n": n} for cpn, n in dl_only_fetch_cpn.most_common(30)],
+            "mismatches": dl_mismatch_details[:50],
+        },
+        "emerge_ok": {
+            "pairs": dl_ok_pairs_count,
+            "jaccard_cnv_pct": round(dl_ok_jaccard_cnv * 100, 4),
+            "jaccard_cn_pct": round(dl_ok_jaccard_cn * 100, 4),
+            "perfect_cnv": dl_ok_perfect_cnv,
+            "perfect_cn": dl_ok_perfect_cn,
+            "total_intersection": dl_ok_inter_total,
+            "total_union": dl_ok_union_total,
+            "top_only_in_merge": [{"cpn": cpn, "n": n} for cpn, n in dl_ok_only_merge_cpn.most_common(30)],
+            "top_only_in_fetchonly": [{"cpn": cpn, "n": n} for cpn, n in dl_ok_only_fetch_cpn.most_common(30)],
+            "mismatches": dl_ok_mismatch_details[:50],
+        },
+    }
+
     # Top offenders
     top_missing = sorted(results, key=lambda r: r["counts"]["missing_in_merge"], reverse=True)[:20]
     top_use = sorted(results, key=lambda r: r["counts"]["use_mismatches"], reverse=True)[:20]
@@ -1212,6 +1394,7 @@ def main(argv: Sequence[str]) -> int:
         "top_worst_ratio": [{"merge": r["merge"], "ratio": r["timing"]["ratio"],
                              "merge_ms": r["timing"].get("merge_ms"),
                              "emerge_ms": r["timing"].get("emerge_ms")} for r in top_worst_ratio],
+        "download_aggregate": download_aggregate,
         "order_aggregate": {
             "order_inversions": total_order_inversions,
             "order_pairs": total_order_pairs,
@@ -1290,6 +1473,21 @@ def main(argv: Sequence[str]) -> int:
             print(f"    cross_wave_no_edge: {total_inv_cw_ne} ({100*total_inv_cw_ne/total_order_inversions:.1f}%)")
         print(f"  inv_provably_valid_pct: {pvp:.2f}%")
     print(f"  install_only_cycle_breaks: {assumptions_agg.get('install_only_cycle_breaks', 0)}")
+    # Download (merge vs fetchonly) summary
+    if dl_pairs_count:
+        print()
+        print("DOWNLOADS (merge vs fetchonly)")
+        print(f"  [all]       pairs: {dl_pairs_count}")
+        print(f"  [all]       jaccard_cnv: {dl_jaccard_cnv*100:.2f}% (perfect: {dl_perfect_cnv}/{dl_pairs_count})")
+        print(f"  [all]       jaccard_cn:  {dl_jaccard_cn*100:.2f}% (perfect: {dl_perfect_cn}/{dl_pairs_count})")
+        if dl_ok_pairs_count:
+            print(f"  [emerge_ok] pairs: {dl_ok_pairs_count}")
+            print(f"  [emerge_ok] jaccard_cnv: {dl_ok_jaccard_cnv*100:.2f}% (perfect: {dl_ok_perfect_cnv}/{dl_ok_pairs_count})")
+            print(f"  [emerge_ok] jaccard_cn:  {dl_ok_jaccard_cn*100:.2f}% (perfect: {dl_ok_perfect_cn}/{dl_ok_pairs_count})")
+            if dl_ok_only_merge_cpn:
+                print(f"  [emerge_ok] top only_in_merge: {', '.join(f'{cpn}({n})' for cpn, n in dl_ok_only_merge_cpn.most_common(10))}")
+            if dl_ok_only_fetch_cpn:
+                print(f"  [emerge_ok] top only_in_fetchonly: {', '.join(f'{cpn}({n})' for cpn, n in dl_ok_only_fetch_cpn.most_common(10))}")
     # Timing summary
     if timing_agg["all"]["emerge_ms"]:
         print()
