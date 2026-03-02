@@ -34,6 +34,52 @@ interface:version(V) :-
   script:exec('version',V).
 
 
+%! interface:repo_git_version(+Dir, -Version) is det.
+%
+% Git date+hash for Dir, or 'unknown' when git is unavailable.
+
+interface:repo_git_version(Dir, Version) :-
+  catch(
+    ( process_create(path(git),
+                     ['--no-pager', log, '-1',
+                      '--date=format:%Y.%m.%d', '--pretty=%cd (%h)'],
+                     [stdout(pipe(Out)), stderr(null), cwd(Dir), process(Pid)]),
+      call_cleanup(
+        ( read_string(Out, _, Raw),
+          split_string(Raw, "\n", "\n \t", [VerStr|_]),
+          atom_string(Version, VerStr)
+        ),
+        ( close(Out), process_wait(Pid, _) )
+      )
+    ),
+    _, Version = unknown
+  ).
+
+
+%! interface:print_version_repos is det.
+%
+% Prints registered repositories with name, git version, and path
+% in aligned columns.
+
+interface:print_version_repos :-
+  findall(Name-Loc-Ver,
+    ( context:instances(repository, Name),
+      Name:get_location(Loc),
+      interface:repo_git_version(Loc, Ver)
+    ),
+    Repos),
+  ( Repos == []
+  -> true
+  ;  aggregate_all(max(L), (member(N-_-_, Repos), atom_length(N, L)), MaxN),
+     aggregate_all(max(L), (member(_-_-V, Repos), atom_length(V, L)), MaxV),
+     Col1 is MaxN + 4,
+     Col2 is Col1 + MaxV + 2,
+     forall(member(N-Loc-V, Repos),
+       format('  ~w~t~*|~w~t~*|~w~n', [N, Col1, V, Col2, Loc])
+     )
+  ).
+
+
 %! interface:status(-Status) is det.
 %
 % Unifies Status with the current release stage
@@ -255,7 +301,8 @@ interface:process_requests(Mode) :-
 
   set_prolog_flag(toplevel_prompt,'~m~d~l?- '),
 
-  ( memberchk(version(true),Options)  -> (message:logo(['::- portage-ng ',Version]),                Continue) ;
+  ( memberchk(version(true),Options)  -> (message:logo(['::- portage-ng ',Version]),
+                                         interface:print_version_repos,             Continue) ;
     memberchk(info(true),Options)     -> (interface:process_action(info,Args,Options),              Continue) ;
     memberchk(bugs(true),Options)     -> (interface:process_bugs(Args,Options),                     Continue) ;
     memberchk(clear(true),Options)    -> (kb:clear, 						    Continue) ;
