@@ -325,7 +325,9 @@ compile_query_compound(dependency(D,fetchonly), Repo://Id,
   ; cache:entry_metadata(Repo,Id,cdepend,D)
   ; cache:entry_metadata(Repo,Id,depend,D)
   ; cache:entry_metadata(Repo,Id,idepend,D)
-  ; cache:entry_metadata(Repo,Id,rdepend,D) )) :- !.
+  ; cache:entry_metadata(Repo,Id,rdepend,D)
+  ; ( cache:entry_metadata(Repo,Id,pdepend,D0),
+      query:pdepend_dep_as_pdepend(D0, D) ) )) :- !.
 
 
 % 7. key=value queries needed for --search
@@ -682,6 +684,8 @@ compile_query_compound(all(dependency(D,fetchonly)):A?{C}, Repo://Id,
           ; cache:entry_metadata(Repo,Id,depend,Dep)
           ; cache:entry_metadata(Repo,Id,idepend,Dep)
           ; cache:entry_metadata(Repo,Id,rdepend,Dep)
+          ; ( cache:entry_metadata(Repo,Id,pdepend,Dep0),
+              query:pdepend_dep_as_pdepend(Dep0, Dep) )
           ),
           D)) :- !.
 
@@ -800,6 +804,8 @@ compile_query_compound(model(dependency(Model,fetchonly)):config?{Context}, Repo
           ; cache:entry_metadata(Repo,Id,depend,Dep)
           ; cache:entry_metadata(Repo,Id,idepend,Dep)
           ; cache:entry_metadata(Repo,Id,rdepend,Dep)
+          ; ( cache:entry_metadata(Repo,Id,pdepend,Dep0),
+              query:pdepend_dep_as_pdepend(Dep0, Dep) )
           ),
           Deps),
   sort(Deps, DepsU),

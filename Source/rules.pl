@@ -275,7 +275,7 @@ rule(world_action(_Op,_Arg):world?{Context}, Conditions) :-
 % We don't trigger downloads for virtual, acct-group or acct-user, since they
 % don't have any downloads.
 
-rule(Repository://Ebuild:fetchonly?{Context},Conditions) :- % todo: to update in line with new :install and :run rules
+rule(Repository://Ebuild:fetchonly?{Context},Conditions) :-
   !,
   ( query:search(masked(true),   Repository://Ebuild) ->
       Conditions = []
