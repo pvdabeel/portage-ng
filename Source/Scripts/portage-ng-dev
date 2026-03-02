@@ -40,6 +40,41 @@ Notes:
 EOF
       exit 0
       ;;
+    -V|--version)
+      # portage-ng version from git
+      ng_ver="$(git -C "$ROOT_DIR" --no-pager log -1 --date=format:%Y.%m.%d --pretty="%cd (%h)" 2>/dev/null || echo "unknown")"
+      printf "portage-ng  %s  %s\n" "$ng_ver" "$ROOT_DIR"
+
+      # Determine hostname-specific config file.
+      # Prolog uses socket:gethostname which returns the FQDN in lowercase
+      # (e.g. "macbook-pro.local"). Try that first, then fall back to `hostname`.
+      if command -v swipl >/dev/null 2>&1; then
+        hostname="$(swipl -g 'socket:gethostname(H), write(H), halt.' 2>/dev/null || echo "")"
+      fi
+      if [ -z "$hostname" ]; then
+        hostname="$(hostname 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo "default")"
+      fi
+      config_file="$ROOT_DIR/Source/Config/${hostname}.pl"
+      if [ ! -f "$config_file" ]; then
+        config_file="$ROOT_DIR/Source/Config/default.pl"
+      fi
+
+      # Extract registered repositories and their paths from the config.
+      # Lines look like:  :- reponame:init('/path/to/repo', ...
+      # Skip commented-out lines (starting with %).
+      grep -E '^:-\s+\w+:init\(' "$config_file" 2>/dev/null | while IFS= read -r line; do
+        repo_name="$(echo "$line" | sed "s/^:-[[:space:]]*\([a-zA-Z_][a-zA-Z0-9_]*\):init(.*/\1/")"
+        repo_path="$(echo "$line" | sed "s/.*:init('//" | sed "s/'.*//")"
+        if [ -d "$repo_path/.git" ] || git -C "$repo_path" rev-parse --git-dir >/dev/null 2>&1; then
+          repo_ver="$(git -C "$repo_path" --no-pager log -1 --date=format:%Y.%m.%d --pretty="%cd (%h)" 2>/dev/null || echo "unknown")"
+        else
+          repo_ver="(not a git repo)"
+        fi
+        printf "%-11s %s  %s\n" "$repo_name" "$repo_ver" "$repo_path"
+      done
+
+      exit 0
+      ;;
   esac
 done
 
@@ -70,6 +105,10 @@ for a in "$@"; do
     continue
   fi
   case "$a" in
+    --time-limit|--time-limit=*)
+      echo "Warning: --time-limit is not a valid option. Did you mean --timeout?" >&2
+      exit 1
+      ;;
     --timeout)
       prev="--timeout"
       NEW_ARGS="$NEW_ARGS$(printf '\n%s' "$a")"
