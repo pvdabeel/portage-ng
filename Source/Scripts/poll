@@ -63,7 +63,7 @@ REMOTE=$(git rev-parse @{u});
 
 # If our local revision id doesn't match the remote, we will need to pull the changes
 
-if [ $LOCAL != $REMOTE ]; then
+if [ "$LOCAL" != "$REMOTE" ]; then
 #if [ true ]; then
      
     # ----------------------------------------------------------------------------
@@ -132,7 +132,7 @@ if [ $LOCAL != $REMOTE ]; then
     echo  
     echo -e "\033[92m--- Updating git repository\033[0m"
 
-    pushd ${GRAPHDIR}
+    pushd "${GRAPHDIR}"
     git add .
     git commit -m "Update" 
     git push -u origin master 
@@ -151,7 +151,7 @@ if [ $LOCAL != $REMOTE ]; then
     minutes=$(( (duration % 3600) / 60 ))
     seconds=$((duration % 60))
 
-    if [ $hours -gt 0 ]; then
+    if [ "$hours" -gt 0 ]; then
         duration_str="${hours}h ${minutes}m ${seconds}s"
     else
         duration_str="${minutes}m ${seconds}s"

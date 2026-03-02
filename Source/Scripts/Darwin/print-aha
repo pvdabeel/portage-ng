@@ -78,11 +78,10 @@ convert_to_html() {
   count=$(find "$TARGET_DIR" -type f -iname "*.${ext}" "${FIND_MODNEWER[@]}" | wc -l)
   (( count == 0 )) && return
 
-  find "$TARGET_DIR" -type f -iname "*.${ext}" "${FIND_MODNEWER[@]}" \
-    | pv -l -s "$count" --eta --timer --progress -F "$format" \
-    | sed "s/\.${ext}$//" \
-    | xargs -P"$JOBS" -n1 -I{} \
-      bash -c 'base="{}"; aha -s -c ../.proof.css -t "$(basename "$base.$1")" -f "$base.$1" > "$base-$1.html"' _ "$ext"
+  find "$TARGET_DIR" -type f -iname "*.${ext}" "${FIND_MODNEWER[@]}" -print0 \
+    | pv -0 -s "$count" --eta --timer --progress -F "$format" \
+    | xargs -0 -P"$JOBS" -n1 \
+      bash -c 'ext="$1"; f="$2"; base="${f%.${ext}}"; aha -s -c ../.proof.css -t "$(basename "$f")" -f "$f" > "$base-${ext}.html"' _ "$ext"
 }
 
 
@@ -118,11 +117,10 @@ embed_html_in_svg() {
   count=$(find "$TARGET_DIR" -type f -iname "*-${ext}.svg" "${FIND_MODNEWER[@]}" | wc -l)
   (( count == 0 )) && return
 
-  find "$TARGET_DIR" -type f -iname "*-${ext}.svg" "${FIND_MODNEWER[@]}" \
-    | pv -l -s "$count" --eta --timer --progress -F "$format" \
-    | sed 's/\.svg$//' \
-    | xargs -P"$JOBS" -n1 -I{} \
-      bash -c 'f="{}"; modify_svg "$f"' _
+  find "$TARGET_DIR" -type f -iname "*-${ext}.svg" "${FIND_MODNEWER[@]}" -print0 \
+    | pv -0 -s "$count" --eta --timer --progress -F "$format" \
+    | xargs -0 -P"$JOBS" -n1 \
+      bash -c 'modify_svg "${1%.svg}"' _
 }
 
 
