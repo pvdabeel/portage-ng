@@ -178,7 +178,9 @@ rule(world_action(_Op,_Arg):world?{Context}, Conditions) :-
 rule(Repository://Ebuild:fetchonly?{Context},Conditions) :-
   !,
   ( query:search(masked(true),   Repository://Ebuild) ->
-      Conditions = []
+      query:search([category(C),name(N)], Repository://Ebuild),
+      Conditions = [assumed(Repository://Ebuild:unmask?{
+        [suggestion(unmask), assumption_reason(masked), masked_cn(C,N)]})]
   ; query:search(installed(true),Repository://Ebuild),
     \+preference:flag(emptytree) ->
       Conditions = []
@@ -225,7 +227,9 @@ rule(Repository://Ebuild:fetchonly?{Context},Conditions) :-
 rule(Repository://Ebuild:install?{Context},Conditions) :-
   !,
   ( query:search(masked(true),   Repository://Ebuild) ->
-      Conditions = []
+      query:search([category(C),name(N)], Repository://Ebuild),
+      Conditions = [assumed(Repository://Ebuild:unmask?{
+        [suggestion(unmask), assumption_reason(masked), masked_cn(C,N)]})]
   ; query:search(installed(true),Repository://Ebuild),
     \+ preference:flag(emptytree) ->
       Conditions = []  % todo check new build_with_use requirements
@@ -310,7 +314,9 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   !,
   ( % 0. Check if the ebuild is masked or installed
     query:search(masked(true),   Repository://Ebuild) ->
-      Conditions = []
+      query:search([category(C0),name(N0)], Repository://Ebuild),
+      Conditions = [assumed(Repository://Ebuild:unmask?{
+        [suggestion(unmask), assumption_reason(masked), masked_cn(C0,N0)]})]
   ; query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) ->
     ( config:avoid_reinstall(true) ->
         Conditions = []
@@ -938,7 +944,21 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         version_domain:domain_reason_terms(Action, C, N, PackageDeps1, Context, DomainReasonTags),
         candidate:add_domain_reason_context(C, N, DomainReasonTags, Context, Ctx2),
         feature_unification:unify([assumption_reason(Reason)], Ctx2, Ctx3),
-        Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps1):Action?{Ctx3})]
+        ( Reason == keyword_filtered ->
+            findall(Repo4://Entry4,
+                    query:search([category(C), name(N)], Repo4://Entry4),
+                    KwCands0),
+            include(explanation:is_unmasked_candidate, KwCands0, KwCands1),
+            explanation:candidate_keywords(KwCands1, CandKws),
+            ( CandKws = [SuggestedKw|_] ->
+                feature_unification:unify([suggestion(accept_keyword, SuggestedKw)], Ctx3, Ctx4)
+            ; Ctx4 = Ctx3
+            )
+        ; Reason == masked ->
+            feature_unification:unify([suggestion(unmask)], Ctx3, Ctx4)
+        ; Ctx4 = Ctx3
+        ),
+        Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps1):Action?{Ctx4})]
       )
     )
   ).

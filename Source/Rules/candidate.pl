@@ -1131,8 +1131,8 @@ grouped_blocker_specs_partition(Strength, Phase, C, N, PackageDeps, EnforceSpecs
 blocker_assumption_ctx(Ctx0, AssCtx) :-
   ( is_list(Ctx0),
     memberchk(self(Repo://Entry), Ctx0) ->
-      AssCtx = [assumption_reason(blocker_conflict), self(Repo://Entry)]
-  ; AssCtx = [assumption_reason(blocker_conflict)]
+      AssCtx = [suggestion(loosen_blocker), assumption_reason(blocker_conflict), self(Repo://Entry)]
+  ; AssCtx = [suggestion(loosen_blocker), assumption_reason(blocker_conflict)]
   ).
 
 %! candidate:blocker_source_constraints(+C, +N, +Specs, +Context, -Constraints)

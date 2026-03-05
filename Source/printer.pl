@@ -2291,6 +2291,42 @@ printer:print_element(_,rule(uri(Local),_)) :-
 
 
 % ---------------------------------------------------------------
+% CASE: an assumed dependency on a keyword-filtered installed package
+% ---------------------------------------------------------------
+
+printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):install?{Context}),[])) :-
+  is_list(Context),
+  memberchk(assumption_reason(keyword_filtered), Context),
+  !,
+  message:bubble(red,'verify'),
+  message:color(red),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  ( memberchk(suggestion(accept_keyword, K), Context) ->
+      format(atom(Msg), ' (keyword ~w, assumed accepted)', [K]),
+      message:print(Msg)
+  ; message:print(' (keyword filtered, assumed accepted)')
+  ),
+  message:color(normal).
+
+
+% ---------------------------------------------------------------
+% CASE: an assumed dependency on a masked installed package
+% ---------------------------------------------------------------
+
+printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):install?{Context}),[])) :-
+  is_list(Context),
+  memberchk(assumption_reason(masked), Context),
+  !,
+  message:bubble(red,'verify'),
+  message:color(red),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  message:print(' (masked, assumed unmasked)'),
+  message:color(normal).
+
+
+% ---------------------------------------------------------------
 % CASE: an assumed dependency on a non-existent installed package
 % ---------------------------------------------------------------
 
@@ -2309,6 +2345,42 @@ printer:print_element(_,rule(assumed(package_dependency(install,no,C,N,_,_,_,_):
   atomic_list_concat([C,'/',N],P),
   message:column(24,P),
   message:print(' (non-existent, assumed installed)'),
+  message:color(normal).
+
+
+% -----------------------------------------------------------
+% CASE: an assumed dependency on a keyword-filtered running package
+% -----------------------------------------------------------
+
+printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):run?{Context}),[])) :-
+  is_list(Context),
+  memberchk(assumption_reason(keyword_filtered), Context),
+  !,
+  message:bubble(red,'verify'),
+  message:color(red),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  ( memberchk(suggestion(accept_keyword, K), Context) ->
+      format(atom(Msg), ' (keyword ~w, assumed accepted)', [K]),
+      message:print(Msg)
+  ; message:print(' (keyword filtered, assumed accepted)')
+  ),
+  message:color(normal).
+
+
+% -----------------------------------------------------------
+% CASE: an assumed dependency on a masked running package
+% -----------------------------------------------------------
+
+printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):run?{Context}),[])) :-
+  is_list(Context),
+  memberchk(assumption_reason(masked), Context),
+  !,
+  message:bubble(red,'verify'),
+  message:color(red),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  message:print(' (masked, assumed unmasked)'),
   message:color(normal).
 
 
@@ -2342,7 +2414,7 @@ printer:print_element(_,rule(assumed(Repository://Entry:unmask?{_Context}),_Body
   message:bubble(red,'verify'),
   message:color(red),
   message:column(24,Repository://Entry),
-  message:print(' (masked)'),
+  message:print(' (masked, assumed unmasked)'),
   message:color(normal).
 
 
@@ -3643,6 +3715,7 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
   ; true
   ),
   printer:print_blockers_section(BlockerAssumptions),
+  printer:print_suggestions_section(NonBlockerAssumptions, BlockerAssumptions),
   ( NonBlockerAssumptions \= [] ->
       ( config:bugreport_drafts_enabled(true) ->
           ( config:bugreport_drafts_max_assumptions(MaxAss) -> true ; MaxAss = 25 ),
@@ -3783,6 +3856,160 @@ printer:print_blocker_line(Strength, Phase, BlockAtom, RequiredBy) :-
   format('  [blocks B] ~w (~w blocker, phase: ~w, required by: ~w)~n',
          [BlockAtom, StrengthLabel, Phase, RequiredBy]),
   message:color(normal).
+
+
+% -----------------------------------------------------------------------------
+%  Suggestions section (actionable output)
+% -----------------------------------------------------------------------------
+
+%! printer:print_suggestions_section(+NonBlockerAssumptions, +BlockerAssumptions)
+%
+% Collects all assumptions tagged with suggestion(...) and prints an
+% actionable summary grouped by type.
+
+printer:print_suggestions_section(NonBlockerAssumptions, _BlockerAssumptions) :-
+  printer:collect_keyword_suggestions(NonBlockerAssumptions, KwSuggestions),
+  printer:collect_unmask_suggestions(NonBlockerAssumptions, UnmaskSuggestions),
+  ( KwSuggestions == [], UnmaskSuggestions == [] -> true
+  ; nl,
+    message:header('Suggestions'),
+    nl,
+    printer:print_keyword_suggestions(KwSuggestions),
+    printer:print_unmask_suggestions(UnmaskSuggestions)
+  ).
+
+printer:collect_keyword_suggestions(Assumptions, Suggestions) :-
+  findall(kw(C, N, K),
+          ( member(Content, Assumptions),
+            printer:assumption_has_keyword_suggestion(Content, C, N, K)
+          ),
+          Suggestions0),
+  sort(Suggestions0, Suggestions).
+
+printer:assumption_has_keyword_suggestion(Content, C, N, K) :-
+  Content = grouped_package_dependency(C, N, _):_?{Ctx},
+  is_list(Ctx),
+  memberchk(suggestion(accept_keyword, K), Ctx),
+  !.
+
+printer:collect_unmask_suggestions(Assumptions, Suggestions) :-
+  findall(unmask(R, E, C, N),
+          ( member(Content, Assumptions),
+            printer:assumption_has_unmask_suggestion(Content, R, E, C, N)
+          ),
+          Suggestions0),
+  sort(Suggestions0, Suggestions).
+
+printer:assumption_has_unmask_suggestion(R://E:unmask?{Ctx}, R, E, C, N) :-
+  is_list(Ctx),
+  memberchk(suggestion(unmask), Ctx),
+  memberchk(masked_cn(C, N), Ctx),
+  !.
+printer:assumption_has_unmask_suggestion(Content, _R, _E, C, N) :-
+  Content = grouped_package_dependency(C, N, _):_?{Ctx},
+  is_list(Ctx),
+  memberchk(suggestion(unmask), Ctx),
+  !.
+
+printer:print_keyword_suggestions([]) :- !.
+printer:print_keyword_suggestions(KwSuggestions) :-
+  length(KwSuggestions, Count),
+  ( Count =:= 1 -> Suf = '' ; Suf = 's' ),
+  message:color(yellow),
+  format('  Keyword acceptance (~d package~w):~n', [Count, Suf]),
+  message:color(normal),
+  message:color(darkgray),
+  message:print('  Add to /etc/portage/package.accept_keywords:'), nl,
+  ( Count =< 20 ->
+      forall(member(kw(C, N, K), KwSuggestions),
+             ( printer:keyword_atom(K, KAtom),
+               format('    ~w/~w ~w~n', [C, N, KAtom])
+             ))
+  ; KwSuggestions = [kw(C1,N1,K1)|_],
+    printer:keyword_atom(K1, KAtom1),
+    format('    ~w/~w ~w~n', [C1, N1, KAtom1]),
+    Remaining is Count - 1,
+    format('    ... (~d more)~n', [Remaining])
+  ),
+  message:color(normal),
+  nl.
+
+printer:print_unmask_suggestions([]) :- !.
+printer:print_unmask_suggestions(UnmaskSuggestions) :-
+  length(UnmaskSuggestions, Count),
+  ( Count =:= 1 -> Suf = '' ; Suf = 's' ),
+  message:color(yellow),
+  format('  Package unmask (~d package~w):~n', [Count, Suf]),
+  message:color(normal),
+  message:color(darkgray),
+  message:print('  Add to /etc/portage/package.unmask:'), nl,
+  forall(member(unmask(_R, E, C, N), UnmaskSuggestions),
+         ( ( nonvar(E) ->
+               format('    =~w~n', [E])
+           ; format('    ~w/~w~n', [C, N])
+           )
+         )),
+  message:color(normal),
+  nl.
+
+printer:keyword_atom(stable(Arch), Arch) :- !.
+printer:keyword_atom(unstable(Arch), Atom) :- !, format(atom(Atom), '~~~w', [Arch]).
+printer:keyword_atom(K, K).
+
+
+% -----------------------------------------------------------------------------
+%  USE changes (autounmask-use)
+% -----------------------------------------------------------------------------
+
+%! printer:print_use_changes(+ProofAVL)
+%
+% Walks the proof and reports packages where the build_with_use context
+% requires USE flag changes that differ from the current effective USE.
+
+printer:print_use_changes(ProofAVL) :-
+  printer:collect_use_changes(ProofAVL, UseChanges),
+  ( UseChanges == [] -> true
+  ; nl,
+    message:header('USE changes necessary'),
+    nl,
+    message:color(darkgray),
+    message:print('  Add to /etc/portage/package.use:'), nl,
+    printer:print_use_change_lines(UseChanges),
+    message:color(normal),
+    nl
+  ).
+
+printer:collect_use_changes(ProofAVL, UseChanges) :-
+  findall(use_change(Entry, Enables, Disables),
+          ( assoc:gen_assoc(Key, ProofAVL, _),
+            printer:proof_key_use_changes(Key, Entry, Enables, Disables),
+            ( Enables \== [] ; Disables \== [] )
+          ),
+          Changes0),
+  sort(Changes0, UseChanges).
+
+printer:proof_key_use_changes(Key, Entry, NeedEnable, NeedDisable) :-
+  printer:proof_key_bwu_context(Key, Repo, Id, En, Dis),
+  Entry = Repo://Id,
+  use:entry_effective_use_set(Repo://Id, EffEnabled),
+  findall(U, ( member(U, En), \+ memberchk(U, EffEnabled) ), NeedEnable0),
+  findall(U, ( member(U, Dis), memberchk(U, EffEnabled) ), NeedDisable0),
+  sort(NeedEnable0, NeedEnable),
+  sort(NeedDisable0, NeedDisable).
+
+printer:proof_key_bwu_context(Repo://Id:_Action?{Ctx}, Repo, Id, En, Dis) :-
+  is_list(Ctx),
+  memberchk(build_with_use:use_state(En, Dis), Ctx),
+  !.
+
+printer:print_use_change_lines([]) :- !.
+printer:print_use_change_lines([use_change(Entry, Enables, Disables)|Rest]) :-
+  findall(A, ( member(U, Enables), atom_string(U, A) ), PosAtoms),
+  findall(A, ( member(U, Disables), format(atom(A), '-~w', [U]) ), NegAtoms),
+  append(PosAtoms, NegAtoms, AllFlags),
+  atomic_list_concat(AllFlags, ' ', FlagsStr),
+  format('    =~w ~w~n', [Entry, FlagsStr]),
+  printer:print_use_change_lines(Rest).
 
 
 % -----------------------------------------------------------------------------
@@ -4821,10 +5048,19 @@ printer:print_assumption_detail(rule(R://E:run,_)) :- !,
     message:print('  '),
     message:print(R://E), nl.
 
+printer:print_assumption_detail(rule(R://E:unmask?{_Ctx},_)) :- !,
+    message:color(lightred),
+    message:style(bold),
+    message:print('- Masked (assumed unmasked): '),
+    message:style(normal),
+    message:color(normal),nl,
+    message:print('  '),
+    message:print(R://E), nl.
+
 printer:print_assumption_detail(rule(R://E:unmask,_)) :- !,
     message:color(lightred),
     message:style(bold),
-    message:print('- Masked: '),
+    message:print('- Masked (assumed unmasked): '),
     message:style(normal),
     message:color(normal),nl,
     message:print('  '),
@@ -4886,7 +5122,7 @@ printer:assumption_reason_label(CtxLike, Label) :-
 
 printer:assumption_reason_label_(missing,                 'Missing').
 printer:assumption_reason_label_(masked,                  'Masked').
-printer:assumption_reason_label_(keyword_filtered,        'Keyword filtered').
+printer:assumption_reason_label_(keyword_filtered,        'Keyword filtered (assumed accepted)').
 printer:assumption_reason_label_(installed_required,      'Requires installed candidate for').
 printer:assumption_reason_label_(slot_unsatisfied,        'Unsatisfied slot constraint for').
 printer:assumption_reason_label_(version_no_candidate(_,_), 'Unsatisfied version constraint for').
@@ -4912,7 +5148,8 @@ printer:print(Target,ModelAVL,ProofAVL,Plan,Call,TriggersAVL) :-
       printer:print_body(TargetPrint,Plan,Call,Steps),
       printer:print_footer(Plan,ModelAVL,Steps),
       printer:print_scc_decomposition,
-      printer:print_warnings(ModelAVL,ProofAVL,TriggersAVL)
+      printer:print_warnings(ModelAVL,ProofAVL,TriggersAVL),
+      printer:print_use_changes(ProofAVL)
     ),
     nb_delete(printer_blocker_notes)).
 

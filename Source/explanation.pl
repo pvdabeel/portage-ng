@@ -264,6 +264,24 @@ explanation:any_candidate_matches_keywords(Candidates, KeywordOk) :-
   sort(KeywordOk0, KeywordOk).
 
 
+%! explanation:candidate_keywords(+Candidates, -Keywords) is det.
+%
+% Collect the set of keywords present on Candidates that are NOT in the
+% current ACCEPT_KEYWORDS. Returns a sorted list of keyword atoms (e.g.
+% `[unstable(amd64)]`).
+
+explanation:candidate_keywords(Candidates, Keywords) :-
+  findall(K, preference:accept_keywords(K), AcceptedKs0),
+  sort(AcceptedKs0, AcceptedKs),
+  findall(K,
+          ( member(Repo://Entry, Candidates),
+            cache:entry_metadata(Repo, Entry, keywords, K),
+            \+ memberchk(K, AcceptedKs)
+          ),
+          Ks0),
+  sort(Ks0, Keywords).
+
+
 %! explanation:any_candidate_matches_versions(+Action, +C, +N, +PackageDeps, +Candidates, -VersionOk) is det.
 %
 % Filter Candidates to those satisfying all version constraints from
