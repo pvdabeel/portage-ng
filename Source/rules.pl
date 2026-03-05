@@ -590,7 +590,7 @@ rule(package_dependency(Phase,strong,C,N,O,V,S,U):_Action?{Context},
 % the grouped dependency rule below (`grouped_package_dependency/4`), not here.
 rule(package_dependency(_Phase,no,C,N,_O,_V,_S,_U):config?{_Context}, []) :-
     preference:flag(emptytree),
-    profile:core_pkg(C,N), !.
+    preference:core_pkg(C,N), !.
 
 
 % -----------------------------------------------------------------------------
@@ -719,7 +719,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
   ->
     Conditions = []
   ; preference:flag(emptytree),
-    profile:core_pkg(C,N)
+    preference:core_pkg(C,N)
   ->
     Conditions = []
   ; \+ preference:flag(emptytree),

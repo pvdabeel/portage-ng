@@ -9,85 +9,22 @@
 
 
 /** <module> PROFILE
-Gentoo profile reader for portage-ng.
+Gentoo profile reader and cache for portage-ng.
 
 This module reads a Gentoo profile directory from the Portage tree (including
-inherited profiles via the `parent` file) and extracts *global* USE settings:
+inherited profiles via the `parent` file) and extracts USE settings, masks,
+per-package USE, and license groups.
 
-- make.defaults (USE, USE_EXPAND, and USE_EXPAND values)
-- use.mask / use.force
-
-It can produce `preference:profile_use/1` terms, ready to be imported in
-portage-ng (e.g. written to a .pl file).
-
-Scope / limitations (intentional, first cut):
-- Only global USE is handled (no package.use / package.use.mask / package.use.force).
-- Only USE masking/forcing is handled (package.mask etc. are not applied here).
+It also provides profile cache serialization and deserialization.  During
+`--sync`, `profile:cache_save/0` serializes parsed profile data to
+`profile.qlf`.  At startup, `preference:init` can load the pre-parsed cache
+instead of re-walking the profile tree, controlled by the per-mode
+`config:profile_loading/2` setting.
 */
 
 :- module(profile, []).
 
-
-% =============================================================================
-%  Core packages (system profile baseline)
-% =============================================================================
-
-%! core_pkg(+Category, +Name) is semidet.
-%
-%  Packages considered part of the system profile baseline.  In emptytree
-%  mode, dependencies on these packages are trivially satisfied to avoid
-%  forcing model construction for the entire OS base.
-
-core_pkg('app-admin','eselect').
-core_pkg('app-alternatives','awk').
-core_pkg('app-alternatives','bzip2').
-core_pkg('app-alternatives','gzip').
-core_pkg('app-alternatives','sh').
-core_pkg('app-alternatives','tar').
-core_pkg('app-arch','bzip2').
-core_pkg('app-arch','gzip').
-core_pkg('app-arch','tar').
-core_pkg('app-arch','xz-utils').
-core_pkg('app-shells','bash').
-core_pkg('dev-build','make').
-core_pkg('net-mail','mailbase').
-core_pkg('net-misc','iputils').
-core_pkg('net-misc','rsync').
-core_pkg('net-misc','wget').
-core_pkg('sec-keys','openpgp-keys-gentoo-release').
-core_pkg('sys-apps','baselayout').
-core_pkg('sys-apps','coreutils').
-core_pkg('sys-apps','diffutils').
-core_pkg('sys-apps','file').
-core_pkg('sys-apps','findutils').
-core_pkg('sys-apps','gawk').
-core_pkg('sys-apps','grep').
-core_pkg('sys-apps','iproute2').
-core_pkg('sys-apps','kbd').
-core_pkg('sys-apps','kmod').
-core_pkg('sys-apps','less').
-core_pkg('sys-apps','man-pages').
-core_pkg('sys-apps','net-tools').
-core_pkg('sys-apps','sed').
-core_pkg('sys-apps','shadow').
-core_pkg('sys-apps','util-linux').
-core_pkg('sys-apps','which').
-core_pkg('sys-devel','binutils').
-core_pkg('sys-devel','gcc').
-core_pkg('sys-devel','gnuconfig').
-core_pkg('sys-devel','patch').
-core_pkg('sys-fs','e2fsprogs').
-core_pkg('sys-process','procps').
-core_pkg('sys-process','psmisc').
-core_pkg('virtual','dev-manager').
-core_pkg('virtual','editor').
-core_pkg('virtual','libc').
-core_pkg('virtual','man').
-core_pkg('virtual','os-headers').
-core_pkg('virtual','package-manager').
-core_pkg('virtual','pager').
-core_pkg('virtual','service-manager').
-core_pkg('virtual','ssh').
+:- use_module(library(filesex), [directory_file_path/3]).
 
 
 % =============================================================================
@@ -736,3 +673,292 @@ profile_finalize(st(Enabled0, Disabled0, Force0, Mask0), Terms) :-
   findall(preference:profile_use(Flag), member(Flag, EnabledFinal), EnabledTerms),
   findall(preference:profile_use(minus(Flag)), member(Flag, DisabledFinal), DisabledTerms),
   append(EnabledTerms, DisabledTerms, Terms).
+
+
+% =============================================================================
+%  Profile cache: serialization and deserialization
+% =============================================================================
+%
+%  During --sync, profile:cache_save/0 walks the Gentoo profile tree and
+%  serializes the parsed data (USE flags, masks, per-package USE, license
+%  groups) to a cache file (profile.qlf).  At startup, preference:init can
+%  load the pre-parsed cache instead of re-walking the profile tree,
+%  controlled by the per-mode config:profile_loading/2 setting.
+
+
+%! profile:cache_file(-File) is det.
+%
+% Returns the path to the profile cache file (profile.qlf) in the
+% working directory, next to kb.qlf.
+
+profile:cache_file(File) :-
+  working_directory(Cwd, Cwd),
+  directory_file_path(Cwd, 'profile.qlf', File).
+
+profile:raw_file(File) :-
+  working_directory(Cwd, Cwd),
+  directory_file_path(Cwd, 'profile.raw', File).
+
+
+% =============================================================================
+%  Cache serialization (called during --sync)
+% =============================================================================
+
+%! profile:cache_save is det.
+%
+% Parse the Gentoo profile tree and serialize all profile-derived data
+% to profile.qlf.  Requires config:gentoo_profile/1 to be set.
+
+profile:cache_save :-
+  profile:raw_file(RawFile),
+  ( current_predicate(config:gentoo_profile/1),
+    config:gentoo_profile(ProfileRel) ->
+      profile:cache_save_profile(ProfileRel, RawFile)
+  ; format(user_error, '% profile:cache_save — no gentoo_profile configured, skipping.~n', [])
+  ).
+
+profile:cache_save_profile(ProfileRel, RawFile) :-
+  ( catch(profile:profile_use_terms(ProfileRel, UseTerms), _, UseTerms = []) -> true ; UseTerms = [] ),
+  ( catch(profile:profile_use_mask(ProfileRel, UseMask), _, UseMask = []) -> true ; UseMask = [] ),
+  ( catch(profile:profile_use_force(ProfileRel, UseForce), _, UseForce = []) -> true ; UseForce = [] ),
+  ( catch(profile:profile_package_mask_atoms(ProfileRel, PkgMaskAtoms), _, PkgMaskAtoms = []) -> true ; PkgMaskAtoms = [] ),
+  profile:collect_profile_package_use(ProfileRel, PkgUseEntries),
+  profile:collect_profile_package_use_mask(ProfileRel, PkgUseMaskEntries),
+  profile:collect_profile_package_use_force(ProfileRel, PkgUseForceEntries),
+  profile:collect_license_groups(LicenseGroups),
+  setup_call_cleanup(
+    open(RawFile, write, Out, [encoding(utf8)]),
+    ( format(Out, ':- module(profiledata, []).~n', []),
+      format(Out, '% Auto-generated profile cache — do not edit.~n', []),
+      format(Out, '% Profile: ~w~n~n', [ProfileRel]),
+      forall(member(T, UseTerms),
+             format(Out, '~q.~n', [profiledata:use_term(T)])),
+      forall(member(U, UseMask),
+             format(Out, '~q.~n', [profiledata:use_mask(U)])),
+      forall(member(U, UseForce),
+             format(Out, '~q.~n', [profiledata:use_force(U)])),
+      forall(member(A, PkgMaskAtoms),
+             format(Out, '~q.~n', [profiledata:package_mask_atom(A)])),
+      forall(member(pkg_use(Spec, Flag, State), PkgUseEntries),
+             format(Out, '~q.~n', [profiledata:package_use(Spec, Flag, State)])),
+      forall(member(pkg_use_mask(Spec, Flag), PkgUseMaskEntries),
+             format(Out, '~q.~n', [profiledata:package_use_mask(Spec, Flag)])),
+      forall(member(pkg_use_force(Spec, Flag), PkgUseForceEntries),
+             format(Out, '~q.~n', [profiledata:package_use_force(Spec, Flag)])),
+      forall(member(lic_group(Name, Members), LicenseGroups),
+             format(Out, '~q.~n', [profiledata:license_group(Name, Members)]))
+    ),
+    close(Out)
+  ),
+  catch(qcompile(RawFile), E,
+        format(user_error, '% profile:cache_save — qcompile failed: ~w~n', [E])),
+  format('% Profile cache saved to profile.qlf~n', []).
+
+
+% =============================================================================
+%  Cache deserialization (called during preference:init)
+% =============================================================================
+
+%! profile:cache_load(-UseTerms, -UseMask, -UseForce) is semidet.
+%
+% Load profile cache and return the USE-related data needed by
+% preference:init steps 1-2.  Fails if no cache file exists.
+
+profile:cache_load(UseTerms, UseMask, UseForce) :-
+  profile:cache_file(File),
+  exists_file(File),
+  profile:ensure_loaded_cache(File),
+  findall(T, profiledata:use_term(T), UseTerms),
+  findall(U, profiledata:use_mask(U), UseMask),
+  findall(U, profiledata:use_force(U), UseForce).
+
+
+%! profile:apply_cached_package_masks is det.
+%
+% Apply package masks from the cached profile data.
+
+profile:apply_cached_package_masks :-
+  forall(profiledata:package_mask_atom(Atom),
+         ( ( sub_atom(Atom, 0, 1, _, '-') ->
+               sub_atom(Atom, 1, _, 0, Atom1),
+               normalize_space(atom(Atom2), Atom1),
+               catch(preference:unmask_profile_atom(Atom2), _, true)
+           ; catch(preference:mask_profile_atom(Atom), _, true)
+           ))).
+
+
+%! profile:apply_cached_package_use is det.
+%
+% Apply per-package USE from the cached profile data.
+
+profile:apply_cached_package_use :-
+  forall(profiledata:package_use(Spec, Flag, State),
+         assertz(preference:profile_package_use_soft(Spec, Flag, State))).
+
+
+%! profile:apply_cached_package_use_mask is det.
+%
+% Apply per-package USE mask from the cached profile data.
+
+profile:apply_cached_package_use_mask :-
+  forall(profiledata:package_use_mask(Spec, Flag),
+         assertz(preference:profile_package_use_masked(Spec, Flag))).
+
+
+%! profile:apply_cached_package_use_force is det.
+%
+% Apply per-package USE force from the cached profile data.
+
+profile:apply_cached_package_use_force :-
+  forall(profiledata:package_use_force(Spec, Flag),
+         assertz(preference:profile_package_use_forced(Spec, Flag))).
+
+
+%! profile:apply_cached_license_groups is det.
+%
+% Apply license groups from the cached profile data.
+
+profile:apply_cached_license_groups :-
+  forall(profiledata:license_group(Name, Members),
+         assertz(preference:license_group_raw(Name, Members))).
+
+
+%! profile:cache_available is semidet.
+%
+% Succeeds when a profile cache file exists and can be loaded.
+
+profile:cache_available :-
+  profile:cache_file(File),
+  exists_file(File).
+
+
+% -----------------------------------------------------------------------------
+% Internal: cache loading state
+% -----------------------------------------------------------------------------
+
+:- dynamic profile:cache_loaded/0.
+
+profile:ensure_loaded_cache(File) :-
+  ( profile:cache_loaded -> true
+  ; ensure_loaded(File),
+    assertz(profile:cache_loaded)
+  ).
+
+profile:reset_cache :-
+  retractall(profile:cache_loaded).
+
+
+% -----------------------------------------------------------------------------
+% Internal: collect profile per-package USE data for serialization
+% -----------------------------------------------------------------------------
+
+%! profile:collect_profile_package_use(+ProfileRel, -Entries) is det.
+%
+% Walk profile dirs and collect per-package USE entries.
+
+profile:collect_profile_package_use(ProfileRel, Entries) :-
+  ( current_predicate(profile:profile_dirs/2),
+    catch(profile:profile_dirs(ProfileRel, Dirs), _, fail) ->
+      findall(pkg_use(Spec, Flag, State),
+              ( member(Dir, Dirs),
+                profile:collect_package_use_from_dir(Dir, Spec, Flag, State)
+              ),
+              Entries)
+  ; Entries = []
+  ).
+
+profile:collect_package_use_from_dir(Dir, Spec, Flag, State) :-
+  os:compose_path(Dir, 'package.use', File),
+  exists_file(File),
+  catch(read_file_to_string(File, S, []), _, fail),
+  split_string(S, "\n", "\r\n", Lines0),
+  member(L0, Lines0),
+  profile:profile_strip_comment(L0, L1),
+  normalize_space(string(L2), L1),
+  L2 \== "",
+  split_string(L2, " ", "\t ", Ws0),
+  exclude(=(""), Ws0, Ws),
+  Ws = [AtomS|FlagSs],
+  FlagSs \== [],
+  atom_string(AtomA, AtomS),
+  preference:profile_package_use_spec(AtomA, Spec),
+  member(FlagS0, FlagSs),
+  profile:parse_use_flag(FlagS0, Flag, State).
+
+profile:parse_use_flag(FlagS0, Flag, State) :-
+  ( sub_string(FlagS0, 0, 1, _, "-") ->
+      sub_string(FlagS0, 1, _, 0, Flag0),
+      Flag0 \== "",
+      atom_string(Flag, Flag0),
+      State = negative
+  ; atom_string(Flag, FlagS0),
+    State = positive
+  ).
+
+
+%! profile:collect_profile_package_use_mask(+ProfileRel, -Entries) is det.
+
+profile:collect_profile_package_use_mask(ProfileRel, Entries) :-
+  profile:collect_profile_package_use_file(ProfileRel, 'package.use.mask', Entries).
+
+
+%! profile:collect_profile_package_use_force(+ProfileRel, -Entries) is det.
+
+profile:collect_profile_package_use_force(ProfileRel, Entries) :-
+  profile:collect_profile_package_use_file(ProfileRel, 'package.use.force', Entries).
+
+profile:collect_profile_package_use_file(ProfileRel, Basename, Entries) :-
+  ( current_predicate(profile:profile_dirs/2),
+    catch(profile:profile_dirs(ProfileRel, Dirs), _, fail) ->
+      findall(Entry,
+              ( member(Dir, Dirs),
+                os:compose_path(Dir, Basename, File),
+                exists_file(File),
+                catch(read_file_to_string(File, S, []), _, fail),
+                split_string(S, "\n", "\r\n", Lines0),
+                member(L0, Lines0),
+                profile:profile_strip_comment(L0, L1),
+                normalize_space(string(L2), L1),
+                L2 \== "",
+                split_string(L2, " ", "\t ", Ws0),
+                exclude(=(""), Ws0, Ws),
+                Ws = [AtomS|FlagSs],
+                FlagSs \== [],
+                atom_string(AtomA, AtomS),
+                preference:profile_package_use_spec(AtomA, Spec),
+                member(FlagS0, FlagSs),
+                atom_string(FlagAtom, FlagS0),
+                ( Basename == 'package.use.mask' ->
+                    Entry = pkg_use_mask(Spec, FlagAtom)
+                ; Entry = pkg_use_force(Spec, FlagAtom)
+                )
+              ),
+              Entries)
+  ; Entries = []
+  ).
+
+
+%! profile:collect_license_groups(-Groups) is det.
+%
+% Read license_groups from the portage tree.
+
+profile:collect_license_groups(Groups) :-
+  ( catch(portage:get_location(Root), _, fail),
+    os:compose_path([Root, 'profiles', 'license_groups'], File),
+    exists_file(File) ->
+      catch(read_file_to_string(File, S, []), _, S = ""),
+      split_string(S, "\n", "\r\n", Lines0),
+      findall(lic_group(Name, Members),
+              ( member(L0, Lines0),
+                profile:profile_strip_comment(L0, L1),
+                normalize_space(string(L2), L1),
+                L2 \== "",
+                split_string(L2, " ", "\t ", Ws0),
+                exclude(=(""), Ws0, Ws),
+                Ws = [NameS|MemberSs],
+                atom_string(Name, NameS),
+                maplist([MS,MA]>>atom_string(MA, MS), MemberSs, Members)
+              ),
+              Groups)
+  ; Groups = []
+  ).

@@ -96,6 +96,28 @@ config:write_metadata(true).
 config:gentoo_profile('default/linux/amd64/23.0/split-usr/no-multilib').
 
 % -----------------------------------------------------------------------------
+%  Profile loading strategy
+% -----------------------------------------------------------------------------
+%
+% Controls whether profile data (USE, masks, package.use, license groups)
+% is parsed live from the Portage tree at startup, or loaded from a
+% pre-serialized cache file (profile.qlf) generated during --sync.
+%
+% config:profile_loading(+Mode, +Strategy)
+%   Mode:     standalone | daemon | worker | client | server
+%   Strategy: cached     — load from profile.qlf (fast; requires --sync first)
+%             live       — parse profile tree on every preference:init (slower)
+%
+% When strategy is 'cached' but profile.qlf is missing, falls back to 'live'.
+% Default: live for all modes (backward compatible).
+
+config:profile_loading(standalone, live).
+config:profile_loading(daemon,     cached).
+config:profile_loading(worker,     cached).
+config:profile_loading(client,     live).
+config:profile_loading(server,     cached).
+
+% -----------------------------------------------------------------------------
 %  /etc/portage configuration directory
 % -----------------------------------------------------------------------------
 %

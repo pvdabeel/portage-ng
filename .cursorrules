@@ -87,13 +87,24 @@ When testing changes to the learned constraint mechanism, ALWAYS verify:
 - Source filenames must NOT contain hyphens (`-`) or underscores (`_`).
   Use concatenated lowercase words (e.g. `gentoo.pl`, `knowledgebase.pl`).
   Exception: `portage-ng.pl` (project entry point / name).
-- Prolog module names follow the same rule (e.g. `:- module(system, [])`).
+- Prolog module names follow the same rule (e.g. `:- module(gentoo, [])`).
 - Subdirectory names under `Source/` may use CamelCase (e.g. `Rules/`, `Config/`, `Scripts/`).
 
 ## Configuration
 
 ### Portage tree locations
 - `Source/Config/mac-pro.pl`: contains the specific configuration (location of repository, md5-cache, vdb pkg installation data)
+
+### /etc/portage configuration
+- `Source/Config/gentoo.pl`: reads standard Gentoo /etc/portage files (make.conf, package.use, package.mask, etc.)
+- `Source/Config/Gentoo/`: template files mirroring /etc/portage layout
+- `config:portage_confdir/1`: path to the configuration directory
+
+### Profile loading
+- `Source/profile.pl`: profile reading + cache serialization/deserialization (profile.qlf)
+- `config:profile_loading(Mode, Strategy)`: per-mode strategy (`live` or `cached`)
+- `--sync` generates `profile.qlf` via `profile:cache_save`
+- When `cached` is set but `profile.qlf` is missing, falls back to `live`
 
 ### Graph location
 - `Source/config.pl`: graph_directory/2 holds the location of the graph directory that contains .emerge files (traditional gentoo emerge output for a given package). 

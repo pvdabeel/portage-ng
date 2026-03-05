@@ -109,21 +109,70 @@ For package masks and USE overrides, the application order in
 2. `/etc/portage` files via `gentoo:load`
 3. Legacy `config:gentoo_package_mask/1` and `config:gentoo_package_use/2` facts
 
+## Profile loading strategy
+
+Profile data (USE flags, masks, per-package USE, license groups) can be
+loaded from the Portage tree at startup (`live`) or from a pre-serialized
+cache (`cached`).  The strategy is configurable per mode:
+
+```prolog
+config:profile_loading(standalone, live).    % parse profile tree on each startup
+config:profile_loading(daemon,     cached).  % load from profile.qlf (fast)
+config:profile_loading(worker,     cached).
+config:profile_loading(client,     live).
+config:profile_loading(server,     cached).
+```
+
+When strategy is `cached` but `profile.qlf` is missing, falls back to `live`
+automatically.
+
+### Generating the profile cache
+
+Run `--sync` to generate `profile.qlf`:
+
+```sh
+./Source/Scripts/portage-ng-dev --mode standalone --sync
+```
+
+This calls `profile:cache_save` after syncing the KB, which walks the profile
+tree once and serializes all profile-derived data to `profile.qlf`.
+
+### What gets cached
+
+| Data | Live source | Cached source |
+|------|-------------|---------------|
+| Profile USE terms | `profile:profile_use_terms` → `make.defaults` | `profiledata:use_term/1` |
+| USE mask/force | `profile:profile_use_mask/force` → `use.mask`, `use.force` | `profiledata:use_mask/1`, `use_force/1` |
+| Package masks | `profile:profile_package_mask_atoms` → `package.mask/unmask` | `profiledata:package_mask_atom/1` |
+| Per-package USE | `preference:apply_profile_package_use` → `package.use` | `profiledata:package_use/3` |
+| Per-package USE mask/force | `preference:apply_profile_package_use_mask/force` | `profiledata:package_use_mask/2`, `package_use_force/2` |
+| License groups | `preference:load_license_groups` → `license_groups` | `profiledata:license_group/2` |
+
 ## Architecture
 
 ```
-Source/Config/gentoo.pl
-  ├── load/0              main entry point
-  ├── load_make_conf/1    KEY="value" → gentoo:env/2
-  ├── load_package_use/1  → preference:register_gentoo_package_use/2
-  ├── load_package_mask/1 → preference:mask_profile_atom/1
-  ├── load_package_unmask/1 → preference:unmask_profile_atom/1
+Source/Config/gentoo.pl           /etc/portage configuration reader
+  ├── load/0                      main entry point
+  ├── load_make_conf/1            KEY="value" → gentoo:env/2
+  ├── load_package_use/1          → preference:register_gentoo_package_use/2
+  ├── load_package_mask/1         → preference:mask_profile_atom/1
+  ├── load_package_unmask/1       → preference:unmask_profile_atom/1
   ├── load_package_accept_keywords/1 → gentoo:package_keyword/2
-  └── load_package_license/1 → gentoo:package_license_entry/2
+  └── load_package_license/1      → gentoo:package_license_entry/2
+
+Source/profile.pl                  profile reading + cache serialization/deserialization
+  ├── cache_save/0                serialize profile tree → profile.qlf
+  ├── cache_load/3                deserialize USE terms/mask/force
+  ├── apply_cached_package_masks/0
+  ├── apply_cached_package_use/0
+  ├── apply_cached_package_use_mask/0
+  ├── apply_cached_package_use_force/0
+  └── apply_cached_license_groups/0
 
 preference.pl
-  └── getenv/2  now consults gentoo:env/2 (between CLI and config.pl)
-  └── init/0    calls gentoo:load before applying profile/gentoo overrides
+  ├── use_cached_profile/0        checks mode + config + cache availability
+  ├── getenv/2                    consults gentoo:env/2 (between CLI and config.pl)
+  └── init/0                     uses cached or live profile based on config
 ```
 
 ## Template files

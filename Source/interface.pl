@@ -384,11 +384,13 @@ interface:process_graph(Args) :-
 interface:process_sync(Mode, []) :-
   !,
   kb:sync,
+  catch(profile:cache_save, _, true),
   ( Mode == standalone -> kb:save ; true ).
 
 interface:process_sync(Mode, RepoNames) :-
   forall(member(Name, RepoNames),
          kb:sync(Name)),
+  catch(profile:cache_save, _, true),
   ( Mode == standalone -> kb:save ; true ).
 
 

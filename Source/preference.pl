@@ -101,6 +101,68 @@ preference:env_makeopts('-j36').
 preference:env_features('sign -ccache -buildpkg -sandbox -usersandbox -ebuild-locks parallel-fetch parallel-install').
 
 
+% =============================================================================
+%  Core packages (system profile baseline)
+% =============================================================================
+
+%! preference:core_pkg(+Category, +Name) is semidet.
+%
+% Packages considered part of the system profile baseline.  In emptytree
+% mode, dependencies on these packages are trivially satisfied to avoid
+% forcing model construction for the entire OS base.
+
+preference:core_pkg('app-admin','eselect').
+preference:core_pkg('app-alternatives','awk').
+preference:core_pkg('app-alternatives','bzip2').
+preference:core_pkg('app-alternatives','gzip').
+preference:core_pkg('app-alternatives','sh').
+preference:core_pkg('app-alternatives','tar').
+preference:core_pkg('app-arch','bzip2').
+preference:core_pkg('app-arch','gzip').
+preference:core_pkg('app-arch','tar').
+preference:core_pkg('app-arch','xz-utils').
+preference:core_pkg('app-shells','bash').
+preference:core_pkg('dev-build','make').
+preference:core_pkg('net-mail','mailbase').
+preference:core_pkg('net-misc','iputils').
+preference:core_pkg('net-misc','rsync').
+preference:core_pkg('net-misc','wget').
+preference:core_pkg('sec-keys','openpgp-keys-gentoo-release').
+preference:core_pkg('sys-apps','baselayout').
+preference:core_pkg('sys-apps','coreutils').
+preference:core_pkg('sys-apps','diffutils').
+preference:core_pkg('sys-apps','file').
+preference:core_pkg('sys-apps','findutils').
+preference:core_pkg('sys-apps','gawk').
+preference:core_pkg('sys-apps','grep').
+preference:core_pkg('sys-apps','iproute2').
+preference:core_pkg('sys-apps','kbd').
+preference:core_pkg('sys-apps','kmod').
+preference:core_pkg('sys-apps','less').
+preference:core_pkg('sys-apps','man-pages').
+preference:core_pkg('sys-apps','net-tools').
+preference:core_pkg('sys-apps','sed').
+preference:core_pkg('sys-apps','shadow').
+preference:core_pkg('sys-apps','util-linux').
+preference:core_pkg('sys-apps','which').
+preference:core_pkg('sys-devel','binutils').
+preference:core_pkg('sys-devel','gcc').
+preference:core_pkg('sys-devel','gnuconfig').
+preference:core_pkg('sys-devel','patch').
+preference:core_pkg('sys-fs','e2fsprogs').
+preference:core_pkg('sys-process','procps').
+preference:core_pkg('sys-process','psmisc').
+preference:core_pkg('virtual','dev-manager').
+preference:core_pkg('virtual','editor').
+preference:core_pkg('virtual','libc').
+preference:core_pkg('virtual','man').
+preference:core_pkg('virtual','os-headers').
+preference:core_pkg('virtual','package-manager').
+preference:core_pkg('virtual','pager').
+preference:core_pkg('virtual','service-manager').
+preference:core_pkg('virtual','ssh').
+
+
 %! preference:default_env(+Name, -Value) is semidet.
 %
 % Default values for Portage-like environment variables, used when the variable
@@ -386,6 +448,20 @@ preference:maybe_derive_ruby_single_target :-
   true.
 
 
+%! preference:use_cached_profile is semidet.
+%
+% Succeeds when the current mode is configured for cached profile loading
+% and a profile cache file (profile.qlf) is available.
+
+preference:use_cached_profile :-
+  current_predicate(interface:process_mode/1),
+  catch(interface:process_mode(Mode), _, fail),
+  current_predicate(config:profile_loading/2),
+  config:profile_loading(Mode, cached),
+  current_predicate(profile:cache_available/0),
+  profile:cache_available.
+
+
 preference:init :-
 
   % PDEPEND handling is always enabled.
@@ -426,14 +502,19 @@ preference:init :-
   ; true
   ),
   forall(preference:env_use_expand(Use),     (assertz(preference:local_env_use(Use)), assertz(preference:local_use(Use)))),
-  preference:profile_use_terms(ProfileTerms),
-  ( config:gentoo_profile(ProfileRel),
-    catch(profile:profile_use_mask(ProfileRel, Masked), _, Masked = []),
-    catch(profile:profile_use_force(ProfileRel, Forced), _, Forced = []) ->
-      forall(member(U, Masked), assertz(preference:profile_masked_use_flag(U))),
-      forall(member(U, Forced), assertz(preference:profile_forced_use_flag(U)))
-  ; true
+  ( preference:use_cached_profile ->
+      profile:cache_load(CachedUseTerms, Masked, Forced),
+      ProfileTerms = CachedUseTerms
+  ; preference:profile_use_terms(ProfileTerms),
+    ( config:gentoo_profile(ProfileRel),
+      catch(profile:profile_use_mask(ProfileRel, Masked), _, Masked = []),
+      catch(profile:profile_use_force(ProfileRel, Forced), _, Forced = []) ->
+        true
+    ; Masked = [], Forced = []
+    )
   ),
+  forall(member(U, Masked), assertz(preference:profile_masked_use_flag(U))),
+  forall(member(U, Forced), assertz(preference:profile_forced_use_flag(U))),
 
   % Portage semantics for USE_EXPAND selectors:
   % when a selector variable is explicitly set (via environment/config/default_env),
@@ -494,20 +575,29 @@ preference:init :-
 
   % 4. Apply Gentoo profile + /etc/portage overrides (package.mask / package.use).
   %
-  % Profile overrides are always applied.  The gentoo_package_* fallbacks
-  % (from config.pl facts) are applied afterwards; they provide a baseline
-  % when no portage_confdir is configured.
-  
-  catch(preference:apply_profile_package_mask, _, true),
-  catch(preference:apply_profile_package_use_mask, _, true),
-  catch(preference:apply_profile_package_use_force, _, true),
-  catch(preference:apply_profile_package_use,  _, true),
+  % When using cached profile data, the profile-derived facts are loaded from
+  % profile.qlf instead of re-walking the profile tree.  The gentoo_package_*
+  % fallbacks (from config.pl facts) are always applied afterwards.
+
+  ( preference:use_cached_profile ->
+      catch(profile:apply_cached_package_masks, _, true),
+      catch(profile:apply_cached_package_use_mask, _, true),
+      catch(profile:apply_cached_package_use_force, _, true),
+      catch(profile:apply_cached_package_use, _, true)
+  ; catch(preference:apply_profile_package_mask, _, true),
+    catch(preference:apply_profile_package_use_mask, _, true),
+    catch(preference:apply_profile_package_use_force, _, true),
+    catch(preference:apply_profile_package_use,  _, true)
+  ),
   catch(preference:apply_gentoo_package_mask,  _, true),
   catch(preference:apply_gentoo_package_use,   _, true),
 
   % 5. Load license groups and apply ACCEPT_LICENSE.
 
-  catch(preference:load_license_groups, _, true),
+  ( preference:use_cached_profile ->
+      catch(profile:apply_cached_license_groups, _, true)
+  ; catch(preference:load_license_groups, _, true)
+  ),
   catch(preference:init_accept_license, _, true),
   !.
 
