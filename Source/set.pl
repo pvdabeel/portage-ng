@@ -22,7 +22,6 @@ Sets can be referenced on the command line using @ syntax.
 %  SET declarations
 % =============================================================================
 
-
 :- class.
 
 % public interface

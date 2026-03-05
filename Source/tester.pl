@@ -9,12 +9,15 @@
 
 
 /** <module> TESTER
-Description
+Generic test harness for running a goal over every entry in a repository.
 
-Input:
+Supports three execution styles:
+- single_verbose   -- sequential with per-entry progress scrolling
+- parallel_verbose -- concurrent with per-entry progress, timeout diagnostics
+- parallel_fast    -- concurrent without intermediate output
 
-Output:
-
+Each style iterates a Generator, applies a Test goal per entry, and reports
+timing statistics when the run completes.
 */
 
 :- module(tester,[]).
@@ -26,6 +29,11 @@ Output:
 % -----------------------------------------------------------------------------
 %  Helpers
 % -----------------------------------------------------------------------------
+
+%! tester:trace_to_string(+Trace, -String)
+%
+% Converts a prover trace (list of terms) into a bounded string suitable
+% for inclusion in warning messages. Truncates at 4000 characters.
 
 tester:trace_to_string(Trace, String) :-
   % `message:warning/1` ultimately concatenates "text" pieces; Trace is a list
@@ -44,10 +52,20 @@ tester:trace_to_string(Trace, String) :-
 %  Sequential testing
 % -----------------------------------------------------------------------------
 
+%! tester:test(+Style, +Name, +Repository://Item, :Generator, :Test)
+%
+% Runs Test for every entry produced by Generator. Dispatches to the
+% 7-argument form with default Report and Scroll settings.
+
 tester:test(Style,Name,Repository://Item,Generator,Test) :-
   !,
   tester:test(Style,Name,Repository://Item,Generator,Test,true,true).
 
+
+%! tester:test(+single_verbose, +Name, +Repository://Item, :Generator, :Test, :Report, +Scroll)
+%
+% Sequential test runner with per-entry progress scrolling. Catches
+% timeouts and failures, logging them as warnings.
 
 tester:test(single_verbose,Name,Repository://Item,Generator,Test,Report,Scroll) :-
   stats:times(Generator,S),
@@ -102,6 +120,12 @@ tester:test(single_verbose,Name,Repository://Item,Generator,Test,Report,Scroll) 
 % -----------------------------------------------------------------------------
 %  Parallel testing
 % -----------------------------------------------------------------------------
+
+%! tester:test(+parallel_verbose, +Name, +Repository://Item, :Generator, :Test, :Report, +Scroll)
+%
+% Concurrent test runner using number_of_cpus worker threads. Catches
+% timeouts, failures, and exceptions per entry with diagnostic tracing
+% via sampler:diagnose_timeout when available.
 
 tester:test(parallel_verbose,Name,Repository://Item,Generator,Test,Report,Scroll) :-
   stats:times(Generator,S),
@@ -211,6 +235,11 @@ tester:test(parallel_verbose,Name,Repository://Item,Generator,Test,Report,Scroll
   message:clean,
   message:scroll_notice([Name,' ',S,' ',Repository,' entries took ',Min,'m ',Sec,'s. (',Cpus,' threads)']).
 
+
+%! tester:test(+parallel_fast, +Name, +Repository://Item, :Generator, :Test, :Result, +_Scroll)
+%
+% Fast concurrent test runner without intermediate output. Failures are
+% reported inline but no timeout diagnostics are collected.
 
 tester:test(parallel_fast,Name,Repository://Item,Generator,Test,Result,_) :-
   stats:times(Generator,S),

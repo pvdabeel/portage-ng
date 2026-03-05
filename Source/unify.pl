@@ -9,21 +9,16 @@
 
 
 /** <module> UNIFY
-Non-Destructive Feature Unification.
+Non-destructive feature unification.
 
-This is the active version (promoted from `Source/Archive/unify.pl`).
+feature_unification:unify/3 merges two feature terms (contexts) or adds
+information into an existing feature term. In the portage-ng codebase the
+syntax uses `...?{Ctx}` where Ctx is one of `{}`, `{[]}`, `{L}`. The curly
+braces are part of the `?{}` annotation syntax; inside the engine we
+typically operate on the inner list L.
 
-The exported predicate `feature_unification:unify/3` is intended to be used as the
-single operation for both:
-- merging two feature terms (contexts)
-- adding information into an existing feature term
-
-In the portage-ng codebase, the *syntax* uses `...?{Ctx}` where `Ctx` is one of
-`{}`, `{[]}`, `{L}`. Note that the curly braces are part of the `?{}` annotation
-syntax; inside the engine we typically operate on the inner list `L`.
-
-This module stays domain-agnostic: it does not mention ebuilds, USE flags, or
-any domain-specific functors.
+This module stays domain-agnostic: it does not mention ebuilds, USE flags,
+or any domain-specific functors.
 */
 
 :- module(feature_unification, []).
@@ -38,23 +33,14 @@ any domain-specific functors.
 %  Public API
 % =============================================================================
 
-%! feature_unification:unify(+FeatureTerm, +FeatureTerm, -Unified) is semidet.
+%! feature_unification:unify(+FeatureTerm1, +FeatureTerm2, -Unified)
 %
-% Non-destructive feature unification.
-%
-% Feature terms are represented as *lists* of items. Items may be:
-% - feature:value pairs (F:V)
-% - plain items (atoms/compounds)
-%
-% Values can be:
-% - `{L}` representing a constrained set (intersection semantics on unify)
-% - lists `[ ... ]` representing multi-valued features (union semantics on unify)
-% - any other Prolog term unified by normal Prolog unification.
-%
-% Extra generic consistency rule:
-% - a term and its negation-as-failure wrapper cannot both be present:
-%     X  and naf(X)  are inconsistent.
-%
+% Non-destructive feature unification. Feature terms are lists of
+% feature:value pairs and plain items. Values may be constrained sets
+% {L} (intersection semantics), lists (union semantics), or arbitrary
+% terms (normal Prolog unification). Fails when a term and its
+% negation wrapper naf(X) both appear in the merged result.
+
 unify(F1, F2, F3) :-
   normalize_ft(F1, N1),
   normalize_ft(F2, N2),
