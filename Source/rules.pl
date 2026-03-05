@@ -600,7 +600,7 @@ rule(package_dependency(Phase,strong,C,N,O,V,S,U):_Action?{Context},
 % the grouped dependency rule below (`grouped_package_dependency/4`), not here.
 rule(package_dependency(_Phase,no,C,N,_O,_V,_S,_U):config?{_Context}, []) :-
     preference:flag(emptytree),
-    core_pkg(C,N), !.
+    profile:core_pkg(C,N), !.
 
 
 % -----------------------------------------------------------------------------
@@ -729,7 +729,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
   ->
     Conditions = []
   ; preference:flag(emptytree),
-    core_pkg(C,N)
+    profile:core_pkg(C,N)
   ->
     Conditions = []
   ; \+ preference:flag(emptytree),
@@ -1442,67 +1442,6 @@ rules:step_time(Label, Goal, step(Label, ms(TimeMs), inferences(Inf), result(Res
   statistics(inferences, I1),
   TimeMs is T1 - T0,
   Inf is I1 - I0.
-
-% -----------------------------------------------------------------------------
-%  Core packages (system profile baseline)
-% -----------------------------------------------------------------------------
-%
-%  core_pkg(+Category, +Name) is semidet.
-%
-%  Packages considered part of the system profile baseline.  In emptytree
-%  mode, dependencies on these packages are trivially satisfied to avoid
-%  forcing model construction for the entire OS base.
-
-core_pkg('app-admin','eselect').
-core_pkg('app-alternatives','awk').
-core_pkg('app-alternatives','bzip2').
-core_pkg('app-alternatives','gzip').
-core_pkg('app-alternatives','sh').
-core_pkg('app-alternatives','tar').
-core_pkg('app-arch','bzip2').
-core_pkg('app-arch','gzip').
-core_pkg('app-arch','tar').
-core_pkg('app-arch','xz-utils').
-core_pkg('app-shells','bash').
-core_pkg('dev-build','make').
-core_pkg('net-mail','mailbase').
-core_pkg('net-misc','iputils').
-core_pkg('net-misc','rsync').
-core_pkg('net-misc','wget').
-core_pkg('sec-keys','openpgp-keys-gentoo-release').
-core_pkg('sys-apps','baselayout').
-core_pkg('sys-apps','coreutils').
-core_pkg('sys-apps','diffutils').
-core_pkg('sys-apps','file').
-core_pkg('sys-apps','findutils').
-core_pkg('sys-apps','gawk').
-core_pkg('sys-apps','grep').
-core_pkg('sys-apps','iproute2').
-core_pkg('sys-apps','kbd').
-core_pkg('sys-apps','kmod').
-core_pkg('sys-apps','less').
-core_pkg('sys-apps','man-pages').
-core_pkg('sys-apps','net-tools').
-core_pkg('sys-apps','sed').
-core_pkg('sys-apps','shadow').
-core_pkg('sys-apps','util-linux').
-core_pkg('sys-apps','which').
-core_pkg('sys-devel','binutils').
-core_pkg('sys-devel','gcc').
-core_pkg('sys-devel','gnuconfig').
-core_pkg('sys-devel','patch').
-core_pkg('sys-fs','e2fsprogs').
-core_pkg('sys-process','procps').
-core_pkg('sys-process','psmisc').
-core_pkg('virtual','dev-manager').
-core_pkg('virtual','editor').
-core_pkg('virtual','libc').
-core_pkg('virtual','man').
-core_pkg('virtual','os-headers').
-core_pkg('virtual','package-manager').
-core_pkg('virtual','pager').
-core_pkg('virtual','service-manager').
-core_pkg('virtual','ssh').
 
 
 
