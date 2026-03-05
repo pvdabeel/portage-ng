@@ -31,9 +31,7 @@ Only processes running as the same OS user can connect.
 @see config:daemon_inactivity_timeout/1
 */
 
-
 :- module(daemon, []).
-
 
 % -----------------------------------------------------------------------------
 %  Daemon server

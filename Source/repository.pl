@@ -21,7 +21,6 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 %  REPOSITORY declarations
 % =============================================================================
 
-
 :- class.
 
 % public interface
