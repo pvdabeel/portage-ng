@@ -145,15 +145,15 @@ prover:prove_with_retries(Target, InProof, OutProof, InModel, OutModel, InCons, 
 prover:handle_reprove(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers,
                       Attempt, MaxRetries, Info) :-
   ( Attempt < MaxRetries,
-    current_predicate(rules:handle_reprove/2),
-    rules:handle_reprove(Info, Added),
+    current_predicate(heuristic:handle_reprove/2),
+    heuristic:handle_reprove(Info, Added),
     Added == true
   ->
     Attempt1 is Attempt + 1,
     prover:prove_with_retries(
       Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers, Attempt1, MaxRetries
     )
-  ; ( current_predicate(rules:reprove_exhausted/0) -> rules:reprove_exhausted ; true ),
+  ; ( current_predicate(heuristic:reprove_exhausted/0) -> heuristic:reprove_exhausted ; true ),
     prover:with_reprove_disabled(
       prover:prove_once(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers)
     )
@@ -196,10 +196,10 @@ prover:reprove_max_retries(Max) :-
 prover:with_reprove_state(Goal) :-
   findall(L-C, prover:learned_constraint_(L, C), SavedLC),
   retractall(prover:learned_constraint_(_, _)),
-  ( current_predicate(rules:reprove_init_state/0) -> rules:reprove_init_state ; true ),
+  ( current_predicate(heuristic:init_state/0) -> heuristic:init_state ; true ),
   setup_call_cleanup(true,
                      Goal,
-                     ( ( current_predicate(rules:reprove_cleanup_state/0) -> rules:reprove_cleanup_state ; true ),
+                     ( ( current_predicate(heuristic:cleanup_state/0) -> heuristic:cleanup_state ; true ),
                        retractall(prover:learned_constraint_(_, _)),
                        forall(member(L-C, SavedLC), assertz(prover:learned_constraint_(L, C)))
                      )).
@@ -208,13 +208,77 @@ prover:with_reprove_state(Goal) :-
 %! prover:with_reprove_disabled(:Goal) is det
 %
 % Run Goal with reprove disabled (final-attempt clean prove).
-% Delegates to `rules:reprove_disable/0` and `rules:reprove_enable/0`.
 
 prover:with_reprove_disabled(Goal) :-
-  ( current_predicate(rules:reprove_disable/0) -> rules:reprove_disable ; true ),
+  prover:reprove_disable,
   setup_call_cleanup(true,
                      Goal,
-                     ( current_predicate(rules:reprove_enable/0) -> rules:reprove_enable ; true )).
+                     prover:reprove_enable).
+
+
+%! prover:reprove_disable is det.
+%
+% Disable reprove (used for final-attempt clean prove).
+% Saves the current reprove-enabled flag and sets it to false.
+
+prover:reprove_disable :-
+  ( nb_current(prover_reprove_enabled, Old) -> true ; Old = '$absent' ),
+  nb_setval(prover_reprove_disable_saved, Old),
+  nb_setval(prover_reprove_enabled, false),
+  !.
+
+
+%! prover:reprove_enable is det.
+%
+% Restore reprove state after a reprove_disable/0 call.
+
+prover:reprove_enable :-
+  ( nb_current(prover_reprove_disable_saved, Old) ->
+      ( Old == '$absent' -> nb_delete(prover_reprove_enabled)
+      ; nb_setval(prover_reprove_enabled, Old)
+      ),
+      nb_delete(prover_reprove_disable_saved)
+  ; true
+  ),
+  !.
+
+
+%! prover:reprove_enabled is semidet.
+%
+% Succeeds when the reprove retry mechanism is currently enabled.
+
+prover:reprove_enabled :-
+  nb_current(prover_reprove_enabled, true),
+  !.
+
+
+%! prover:assuming(+Literal, :Goal) is det.
+%
+% Run Goal with Literal-class proof failures treated as assumptions.
+% Domain modules check prover:assuming(Literal) to decide behavior.
+%
+% Example usage:
+%   prover:assuming(blockers, Goal)   — treat blockers as assumptions
+%   prover:assuming(conflicts, Goal)  — treat conflicts as assumptions
+
+prover:assuming(Literal, Goal) :-
+  atom_concat('prover_assuming_', Literal, Key),
+  ( nb_current(Key, Old) -> true ; Old = unset ),
+  nb_setval(Key, true),
+  setup_call_cleanup(true,
+                     Goal,
+                     ( Old == unset -> nb_delete(Key)
+                     ; nb_setval(Key, Old)
+                     )).
+
+
+%! prover:assuming(+Literal) is semidet.
+%
+% Succeeds when Literal-class proof failures are currently being assumed.
+
+prover:assuming(Literal) :-
+  atom_concat('prover_assuming_', Literal, Key),
+  nb_current(Key, true).
 
 
 % -----------------------------------------------------------------------------
@@ -543,14 +607,11 @@ prover:collect_proof_obligations(_Literal, Proof, Proof, _Model, Rest, Rest).
 %! prover:obligation_candidate(+Literal) is semidet
 %
 % Succeeds when Literal is a merge-action literal eligible for
-% proof obligations (install/update/downgrade/reinstall).
+% proof obligations. Delegates to heuristic:obligation_candidate/1
+% for domain-specific action filtering.
 
-prover:obligation_candidate(_Repo://_Entry:Action?{_Ctx}) :-
-  ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
-  !.
-prover:obligation_candidate(_Repo://_Entry:Action) :-
-  ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
-  !.
+prover:obligation_candidate(Literal) :-
+  heuristic:obligation_candidate(Literal).
 
 
 %! prover:collect_proof_obligations_list(+Obligations, +Proof0, -Proof, +Model, +Rest0, -Rest) is det
@@ -1090,14 +1151,12 @@ prover:test_target_success(Target) :-
   printer:prove_plan([Target], _ProofAVL, _ModelAVL, _Plan, _TriggersAVL),
   !.
 prover:test_target_success(Target) :-
-  current_predicate(rules:with_assume_blockers/1),
-  rules:with_assume_blockers(
+  prover:assuming(blockers,
     printer:prove_plan([Target], _ProofAVL2, _ModelAVL2, _Plan2, _TriggersAVL2)
   ),
   !.
 prover:test_target_success(Target) :-
-  current_predicate(rules:with_assume_conflicts/1),
-  rules:with_assume_conflicts(
+  prover:assuming(conflicts,
     printer:prove_plan([Target], _ProofAVL3, _ModelAVL3, _Plan3, _TriggersAVL3)
   ).
 
@@ -1250,13 +1309,11 @@ prover:test_stats(Repository, Style, TopN) :-
                   TimeBudgetMs is TLimit * 333,
                   ( TimeMs > TimeBudgetMs ->
                       printer:test_stats_record_failed(other)
-                  ; ( current_predicate(rules:with_assume_blockers/1),
-                      rules:with_assume_blockers(
+                  ;                   ( prover:assuming(blockers,
                         printer:prove_plan([Repository://Entry:Action?{[]}], _ProofAVL3, _ModelAVL3, _Plan3, _TriggersAVL3)
                       ) ->
                         printer:test_stats_record_failed(blocker)
-                    ; current_predicate(rules:with_assume_conflicts/1),
-                      rules:with_assume_conflicts(
+                    ; prover:assuming(conflicts,
                         prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
                       ) ->
                         printer:test_stats_record_failed(conflict)
@@ -1322,13 +1379,11 @@ prover:test_stats_pkgs(Repository, Style, TopN, Pkgs) :-
                     printer:test_stats_record_ctx_len_distribution(CtxHistPairs, CtxMul, CtxAdd, CtxLenSamples),
                     printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
                 ; % strict failure: classify blocker vs conflict vs other (best-effort)
-                  ( current_predicate(rules:with_assume_blockers/1),
-                    rules:with_assume_blockers(
+                  ( prover:assuming(blockers,
                       prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
                     ) ->
                       printer:test_stats_record_failed(blocker)
-                  ; current_predicate(rules:with_assume_conflicts/1),
-                    rules:with_assume_conflicts(
+                  ; prover:assuming(conflicts,
                       prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
                     ) ->
                       printer:test_stats_record_failed(conflict)

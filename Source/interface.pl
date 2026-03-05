@@ -584,7 +584,7 @@ interface:process_action(Action,ArgsSets,Options) :-
               message:color(orange),
               message:print(' No valid plan found due to blockers/conflicts. Showing a plan with blocker assumptions; please verify.'), nl,
               message:color(normal),
-              rules:with_assume_blockers(
+              prover:assuming(blockers,
                 printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
               ),
               FallbackUsed = true
@@ -599,7 +599,7 @@ interface:process_action(Action,ArgsSets,Options) :-
                 message:color(orange),
                 message:print(' No valid plan found due to blockers/conflicts. Showing a plan with blocker assumptions; please verify.'), nl,
                 message:color(normal),
-                rules:with_assume_blockers(
+                prover:assuming(blockers,
                   printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
                 ),
                 FallbackUsed = true

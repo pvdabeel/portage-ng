@@ -693,7 +693,7 @@ test:expect(overlay://'test65/app-1.0':run?{[]},
             [ ( query:search([repository(pkg),installed(true)], pkg://E),
                 query:search([category(C),name(N)], pkg://E),
                 % 1) Predicate-level check: installed entry must NOT satisfy an impossible build_with_use.
-                \+ rules:installed_entry_satisfies_build_with_use(pkg://E,
+                \+ use:installed_entry_satisfies_build_with_use(pkg://E,
                       [build_with_use:[required('__portage_ng_test_flag__')]]),
                 % 2) Rule-level check: "keep installed" shortcut must not apply when
                 % incoming build_with_use is unsatisfied, so grouped dep must yield work.
