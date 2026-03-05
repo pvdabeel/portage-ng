@@ -505,7 +505,11 @@ candidate_satisfies_use_requirement_opt(_, Repo://Entry, Requirement) :-
 candidate_satisfies_use_requirement(_Repo://_Entry, none) :- !.
 candidate_satisfies_use_requirement(Repo://Entry, requirement(Mode, Use, Default)) :-
   ( candidate_iuse_present(Repo://Entry, Use)
-  -> true
+  -> ( Mode == enable
+     -> candidate_effective_use_enabled_in_iuse(Repo://Entry, Use)
+     ; Mode == disable
+     -> \+ candidate_effective_use_enabled_in_iuse(Repo://Entry, Use)
+     )
   ; use_dep_default_satisfies_absent_iuse(Default, Mode)
   ).
 
