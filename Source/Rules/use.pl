@@ -51,24 +51,7 @@ installed package differs from what it was built with.  `newuse_mismatch/1,2`
 implements this comparison.
 */
 
-:- module(use, [effective_use_in_context/3,
-                effective_use_for_entry/3,
-                entry_iuse_default/3,
-                context_build_with_use_state/2,
-                candidate_satisfies_use_deps/3,
-                use_dep_requirement/4,
-                self_context_use_state/3,
-                entry_iuse_info/2,
-                entry_effective_use_set/2,
-                candidate_iuse_present/2,
-                candidate_effective_use_enabled_in_iuse/2,
-                installed_pkg_satisfies_use_reqs/3,
-                installed_entry_satisfies_build_with_use/2,
-                context_build_with_use_list/2,
-                build_with_use_requirements/3,
-                newuse_mismatch/1,
-                newuse_mismatch/2,
-                required_use_term_satisfied/1]).
+:- module(use, []).
 
 
 % =============================================================================

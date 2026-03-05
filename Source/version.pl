@@ -16,15 +16,7 @@ The domain remains symbolic (slot restrictions + comparator constraints). It can
 be checked against concrete candidates and used to prune/validate selections.
 */
 
-:- module(version_domain, [
-  domain_from_packagedeps/5,
-  domain_normalize/2,
-  domain_meet/3,
-  domain_inconsistent/1,
-  domain_allows_candidate/2,
-  domain_satisfiable/3,
-  domain_reason_terms/6
-]).
+:- module(version_domain, []).
 
 % -----------------------------------------------------------------------------
 %  Optional unify.pl extension hook (generic)

@@ -26,7 +26,7 @@ This module stays domain-agnostic: it does not mention ebuilds, USE flags, or
 any domain-specific functors.
 */
 
-:- module(feature_unification, [unify/3]).
+:- module(feature_unification, []).
 
 % Optional domain extension point for value unification.
 %

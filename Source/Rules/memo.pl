@@ -37,7 +37,7 @@ cn_domain_reject_) may also be saved/restored by heuristic:init_state/0 and
 heuristic:cleanup_state/0 during reprove retries.
 */
 
-:- module(memo, [clear_caches/0]).
+:- module(memo, []).
 
 
 % =============================================================================

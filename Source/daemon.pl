@@ -32,18 +32,7 @@ Only processes running as the same OS user can connect.
 */
 
 
-:- module(daemon, [
-       daemon:start/0,
-       daemon:connect/1,
-       daemon:fork_background/1,
-       daemon:status/0,
-       daemon:send_command/1,
-       daemon:relaunch/0
-   ]).
-
-
-:- use_module(library(socket)).
-:- use_module(library(readutil)).
+:- module(daemon, []).
 
 
 % -----------------------------------------------------------------------------
