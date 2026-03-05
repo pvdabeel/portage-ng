@@ -202,7 +202,7 @@ rule(Repository://Ebuild:fetchonly?{Context},Conditions) :-
                          |MergedDeps]
       )
     ; % Model-computation fallback (see :install rule comment).
-     feature_unification:unify([issue_with_model(explanation)], Context, Ctx1),
+      feature_unification:unify([issue_with_model(explanation)], Context, Ctx1),
       Conditions = [assumed(Repository://Ebuild:install?{Ctx1})]
     )
   ).
@@ -851,7 +851,16 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       use:candidate_satisfies_use_deps(ContextDep, FoundRepo://Candidate, MergedUse),
       dependency:process_build_with_use(MergedUse,ContextDep,NewContext,Constraints,FoundRepo://Candidate),
       candidate:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, SlotMeta),
-      dependency:process_slot(SlotReq, SlotMeta, C, N, FoundRepo://Candidate, NewContext, NewerContext),
+      dependency:process_slot(SlotReq, SlotMeta, C, N, FoundRepo://Candidate, NewContext, NewerContext0),
+
+      % When keyword_acceptance fallback produced this candidate, tag the
+      % context with the non-accepted keyword so the printer can show it.
+      ( prover:assuming(keyword_acceptance),
+        candidate:candidate_non_accepted_keyword(FoundRepo://Candidate, NonAccKw)
+      ->
+        feature_unification:unify([suggestion(accept_keyword, NonAccKw)], NewerContext0, NewerContext)
+      ; NewerContext = NewerContext0
+      ),
 
       % Prefer expressing as update when a pkg-installed entry exists in the same
       % slot and the chosen candidate has a different version (upgrade OR downgrade).
@@ -946,9 +955,12 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         feature_unification:unify([assumption_reason(Reason)], Ctx2, Ctx3),
         ( Reason == keyword_filtered ->
             findall(Repo4://Entry4,
-                    query:search([category(C), name(N)], Repo4://Entry4),
-                    KwCands0),
-            include(explanation:is_unmasked_candidate, KwCands0, KwCands1),
+                    ( query:search([category(C), name(N)], Repo4://Entry4),
+                      \+ preference:masked(Repo4://Entry4),
+                      forall(member(package_dependency(_,no,C,N,O4,V4,_,_), PackageDeps1),
+                             candidate:query_search_version_select(O4, V4, Repo4://Entry4))
+                    ),
+                    KwCands1),
             explanation:candidate_keywords(KwCands1, CandKws),
             ( CandKws = [SuggestedKw|_] ->
                 feature_unification:unify([suggestion(accept_keyword, SuggestedKw)], Ctx3, Ctx4)

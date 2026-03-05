@@ -581,6 +581,10 @@ interface:process_action(Action,ArgsSets,Options) :-
       ( TimeLimitSec =< 0 ->
           ( ( printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers) ->
                 FallbackUsed = false
+            ; prover:assuming(keyword_acceptance,
+                printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
+              ) ->
+                FallbackUsed = keyword_acceptance
             ; prover:assuming(use_autoenable,
                 printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
               ) ->
@@ -600,6 +604,10 @@ interface:process_action(Action,ArgsSets,Options) :-
           call_with_time_limit(TimeLimitSec,
             ( ( printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers) ->
                   FallbackUsed = false
+              ; prover:assuming(keyword_acceptance,
+                  printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
+                ) ->
+                  FallbackUsed = keyword_acceptance
               ; prover:assuming(use_autoenable,
                   printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
                 ) ->

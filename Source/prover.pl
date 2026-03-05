@@ -1151,6 +1151,11 @@ prover:test_target_success(Target) :-
   printer:prove_plan([Target], _ProofAVL, _ModelAVL, _Plan, _TriggersAVL),
   !.
 prover:test_target_success(Target) :-
+  prover:assuming(keyword_acceptance,
+    printer:prove_plan([Target], _ProofAVL1a, _ModelAVL1a, _Plan1a, _TriggersAVL1a)
+  ),
+  !.
+prover:test_target_success(Target) :-
   prover:assuming(use_autoenable,
     printer:prove_plan([Target], _ProofAVL1b, _ModelAVL1b, _Plan1b, _TriggersAVL1b)
   ),

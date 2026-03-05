@@ -2230,6 +2230,25 @@ printer:print_element(Target,rule(Repository://Entry:Action?{Context},_Body)) :-
   printer:print_config(Repository://Entry:Action?{Context}).
 
 
+% -------------------------------------------------------------------
+% CASE: package resolved via keyword_acceptance fallback (suggestion)
+% -------------------------------------------------------------------
+
+printer:print_element(_,rule(Repository://Entry:Action?{Context},_Body)) :-
+  is_list(Context),
+  memberchk(suggestion(accept_keyword, K), Context),
+  !,
+  printer:keyword_atom(K, KAtom),
+  message:color(yellow),
+  message:print(Action),
+  message:column(24,Repository://Entry),
+  format(atom(Msg), ' (requires ~w)', [KAtom]),
+  message:color(darkgray),
+  message:print(Msg),
+  message:color(normal),
+  printer:print_config(Repository://Entry:Action?{Context}).
+
+
 % -------------------------------------------------
 % CASE: simple package, is not a target of the plan
 % -------------------------------------------------
@@ -2298,12 +2317,13 @@ printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):insta
   is_list(Context),
   memberchk(assumption_reason(keyword_filtered), Context),
   !,
-  message:bubble(red,'verify'),
-  message:color(red),
+  message:bubble(yellow,'verify'),
+  message:color(yellow),
   atomic_list_concat([C,'/',N],P),
   message:column(24,P),
   ( memberchk(suggestion(accept_keyword, K), Context) ->
-      format(atom(Msg), ' (keyword ~w, assumed accepted)', [K]),
+      printer:keyword_atom(K, KAtom),
+      format(atom(Msg), ' (requires ~w)', [KAtom]),
       message:print(Msg)
   ; message:print(' (keyword filtered, assumed accepted)')
   ),
@@ -2356,12 +2376,13 @@ printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):run?{
   is_list(Context),
   memberchk(assumption_reason(keyword_filtered), Context),
   !,
-  message:bubble(red,'verify'),
-  message:color(red),
+  message:bubble(yellow,'verify'),
+  message:color(yellow),
   atomic_list_concat([C,'/',N],P),
   message:column(24,P),
   ( memberchk(suggestion(accept_keyword, K), Context) ->
-      format(atom(Msg), ' (keyword ~w, assumed accepted)', [K]),
+      printer:keyword_atom(K, KAtom),
+      format(atom(Msg), ' (requires ~w)', [KAtom]),
       message:print(Msg)
   ; message:print(' (keyword filtered, assumed accepted)')
   ),
@@ -3715,7 +3736,7 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
   ; true
   ),
   printer:print_blockers_section(BlockerAssumptions),
-  printer:print_suggestions_section(NonBlockerAssumptions, BlockerAssumptions),
+  printer:print_suggestions_section(NonBlockerAssumptions, BlockerAssumptions, ProofAVL),
   ( NonBlockerAssumptions \= [] ->
       ( config:bugreport_drafts_enabled(true) ->
           ( config:bugreport_drafts_max_assumptions(MaxAss) -> true ; MaxAss = 25 ),
@@ -3771,7 +3792,10 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
   nl,
   message:color(normal),nl.
 
-printer:print_warnings(_,_,_) :- !, nl.
+printer:print_warnings(_, ProofAVL, _) :-
+  !,
+  printer:print_suggestions_section([], [], ProofAVL),
+  nl.
 
 
 % -----------------------------------------------------------------------------
@@ -3862,13 +3886,13 @@ printer:print_blocker_line(Strength, Phase, BlockAtom, RequiredBy) :-
 %  Suggestions section (actionable output)
 % -----------------------------------------------------------------------------
 
-%! printer:print_suggestions_section(+NonBlockerAssumptions, +BlockerAssumptions)
+%! printer:print_suggestions_section(+NonBlockerAssumptions, +BlockerAssumptions, +ProofAVL)
 %
-% Collects all assumptions tagged with suggestion(...) and prints an
-% actionable summary grouped by type.
+% Collects all suggestion(...) tags from both domain assumptions and
+% fully resolved proof entries, then prints an actionable summary.
 
-printer:print_suggestions_section(NonBlockerAssumptions, _BlockerAssumptions) :-
-  printer:collect_keyword_suggestions(NonBlockerAssumptions, KwSuggestions),
+printer:print_suggestions_section(NonBlockerAssumptions, _BlockerAssumptions, ProofAVL) :-
+  printer:collect_keyword_suggestions(NonBlockerAssumptions, ProofAVL, KwSuggestions),
   printer:collect_unmask_suggestions(NonBlockerAssumptions, UnmaskSuggestions),
   ( KwSuggestions == [], UnmaskSuggestions == [] -> true
   ; nl,
@@ -3878,12 +3902,22 @@ printer:print_suggestions_section(NonBlockerAssumptions, _BlockerAssumptions) :-
     printer:print_unmask_suggestions(UnmaskSuggestions)
   ).
 
-printer:collect_keyword_suggestions(Assumptions, Suggestions) :-
+printer:collect_keyword_suggestions(Assumptions, ProofAVL, Suggestions) :-
+  % From domain assumptions (legacy fallback)
   findall(kw(C, N, K),
           ( member(Content, Assumptions),
             printer:assumption_has_keyword_suggestion(Content, C, N, K)
           ),
-          Suggestions0),
+          Suggestions1),
+  % From fully resolved proof entries (keyword_acceptance fallback)
+  findall(kw(C, N, K),
+          ( assoc:gen_assoc(rule(Repo://Entry:_Action), ProofAVL, _?Ctx),
+            is_list(Ctx),
+            memberchk(suggestion(accept_keyword, K), Ctx),
+            cache:ordered_entry(Repo, Entry, C, N, _)
+          ),
+          Suggestions2),
+  append(Suggestions1, Suggestions2, Suggestions0),
   sort(Suggestions0, Suggestions).
 
 printer:assumption_has_keyword_suggestion(Content, C, N, K) :-
@@ -5088,6 +5122,21 @@ printer:print_assumption_detail(rule(blocker(Strength, Phase, C, N, _O, _V, _Slo
 
 printer:print_assumption_detail(rule(blocker(Strength, Phase, C, N, O, V, SlotReq), Body)) :- !,
     printer:print_assumption_detail(rule(blocker(Strength, Phase, C, N, O, V, SlotReq)?{[]}, Body)).
+
+printer:print_assumption_detail(rule(R://E:_Action?{Ctx}, _Body)) :-
+    is_list(Ctx),
+    memberchk(issue_with_model(explanation), Ctx),
+    !,
+    query:search([category(C), name(N)], R://E),
+    message:color(lightred),
+    message:style(bold),
+    message:print('- Model unavailable: '),
+    message:style(normal),
+    message:color(normal),
+    nl,
+    format('  ~w/~w — dependency model could not be built~n', [C, N]),
+    format('  (some dependencies may be missing from the tree or keyword-filtered)~n', []),
+    printer:print_assumption_provenance(Ctx).
 
 printer:print_assumption_detail(rule(C,_)) :-
     message:color(lightred),

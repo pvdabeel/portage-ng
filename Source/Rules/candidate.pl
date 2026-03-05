@@ -1858,6 +1858,42 @@ accepted_keyword_candidate(Action, C, N, SlotReq0, Ss0, Context, FoundRepo://Can
     )
   ).
 
+% Fallback: when keyword_acceptance is active, accept candidates with any
+% keyword that are not masked. This produces a full resolution (download +
+% install + run) rather than a "verify" stub.
+accepted_keyword_candidate(Action, C, N, SlotReq0, Ss0, Context, FoundRepo://Candidate) :-
+  prover:assuming(keyword_acceptance),
+  accepted_keyword_slot_lock_arg(C, N, SlotReq0, Ss0, Context, SlotReq, Ss, _LockKey),
+  findall(FoundRepo0://Candidate0,
+          ( query_keyword_candidate_any(Action, C, N, Context, FoundRepo0://Candidate0),
+            query_search_slot_constraint(SlotReq, FoundRepo0://Candidate0, Ss)
+          ),
+          Candidates0),
+  Candidates0 \== [],
+  sort(Candidates0, Candidates1),
+  predsort(candidate:compare_candidate_version_desc, Candidates1, CandidatesSorted),
+  member(FoundRepo://Candidate, CandidatesSorted).
+
+% Like query_keyword_candidate but accepts any keyword, not just accepted ones.
+% Packages with zero keywords are excluded (treated as not ready for use).
+query_keyword_candidate_any(Action, C, N, Context, FoundRepo://Candidate) :-
+  ( Action \== run,
+    memberchk(self(SelfRepo0://SelfEntry0), Context),
+    query:search([category(C),name(N)], SelfRepo0://SelfEntry0)
+  ->
+    query:search([name(N),category(C),keyword(_)], FoundRepo://Candidate),
+    \+ preference:masked(FoundRepo://Candidate),
+    ( FoundRepo == SelfRepo0,
+      Candidate == SelfEntry0
+    ->
+      \+ preference:flag(emptytree),
+      query:search(installed(true), FoundRepo://Candidate)
+    ; true
+    )
+  ; query:search([name(N),category(C),keyword(_)], FoundRepo://Candidate),
+    \+ preference:masked(FoundRepo://Candidate)
+  ).
+
 accepted_keyword_slot_lock_arg(C, N, SlotReq0, Ss0, Context, SlotReq, Ss, LockKey) :-
   ( memberchk(slot(C,N,SsCtx0):{_}, Context) ->
       canon_any_same_slot_meta(SsCtx0, SsCtx)
@@ -1942,6 +1978,20 @@ compare_candidate_version_desc(Delta, RepoA://IdA, RepoB://IdB) :-
   ; eapi:version_compare(<, VerA, VerB) -> Delta = (>)
   ; Delta = (=)
   ).
+
+
+%! candidate:candidate_non_accepted_keyword(+RepoEntry, -NonAccKw) is semidet.
+%
+% Succeeds with the first keyword on RepoEntry that is not in the
+% current ACCEPT_KEYWORDS. Used to tag context when keyword_acceptance
+% fallback selects a candidate.
+
+candidate_non_accepted_keyword(Repo://Entry, NonAccKw) :-
+  findall(K, preference:accept_keywords(K), AcceptedKs0),
+  sort(AcceptedKs0, AcceptedKs),
+  cache:entry_metadata(Repo, Entry, keywords, NonAccKw),
+  \+ memberchk(NonAccKw, AcceptedKs),
+  !.
 
 
 % =============================================================================
