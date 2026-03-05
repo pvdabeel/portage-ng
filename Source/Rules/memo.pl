@@ -56,10 +56,10 @@ heuristic:cleanup_state/0 during reprove retries.
 :- thread_local memo:self_use_cache_/4.         % self_use_cache_(Repo, Entry, Use, State)
 
 
-%! clear_caches is det.
+%! memo:clear_caches
 %
-%  Retract all thread-local caching facts managed by this module.
-%  Called at the start of each proof run to ensure a clean state.
+% Retracts all thread-local caching facts managed by this module.
+% Called at the start of each proof run to ensure a clean state.
 
 clear_caches :-
   retractall(memo:effective_use_fact(_, _, _)),

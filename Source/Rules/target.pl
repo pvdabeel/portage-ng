@@ -45,23 +45,16 @@ module for PDEPEND goal filtering.
 %  Transactional update prerequisites
 % =============================================================================
 
-%! update_txn_conditions(+RepoEntry, +Context, -Conditions) is det.
+%! target:update_txn_conditions(+RepoEntry, +Context, -Conditions)
 %
-%  Compute the proof conditions for a transactional update or downgrade.
-%  Context must contain `replaces(OldRepo://OldEntry)`.
+% Computes the proof conditions for a transactional update or downgrade.
+% Context must contain `replaces(OldRepo://OldEntry)`.
 %
-%  Steps:
-%    1. Resolve required_use model + build_with_use state
-%    2. Compute grouped dependency model (memoized)
-%    3. Inject self-references into dependency contexts
-%    4. Optionally generate deep-update goals
-%    5. Assemble conditions (USE + slot + download + deps)
-%
-%  For virtual/acct-group/acct-user packages the download goal is omitted.
-%
-%  @arg RepoEntry  The new version entry (Repository://Ebuild)
-%  @arg Context    Proof context (must include replaces/1)
-%  @arg Conditions Resulting proof obligations
+% Steps: 1) resolve required_use model + build_with_use state; 2) compute
+% grouped dependency model (memoized); 3) inject self-references into
+% dependency contexts; 4) optionally generate deep-update goals; 5) assemble
+% conditions (USE + slot + download + deps). For virtual/acct-group/acct-user
+% packages the download goal is omitted.
 
 update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
   use:context_build_with_use_state(Context, B),
@@ -94,19 +87,13 @@ update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
 %  Deep-update goal generation
 % =============================================================================
 
-%! deep_update_goals(+Self, +MergedDeps, -DeepUpdates) is det.
+%! target:deep_update_goals(+Self, +MergedDeps, -DeepUpdates)
 %
-%  When `--deep` is active, scan MergedDeps for dependency packages that
-%  are currently installed and have a newer version available in the same
-%  slot.  For each such package, generate a transactional update goal
-%  annotated with `replaces(OldRepo://OldEntry)`.
-%
-%  Only packages from the VDB (`pkg`) are considered.  The parent entry
-%  (Self) is excluded to prevent self-update loops.
-%
-%  @arg Self         The parent entry (excluded from update candidates)
-%  @arg MergedDeps   Grouped dependency model
-%  @arg DeepUpdates  List of `NewRepo://NewEntry:update?{...}` goals
+% When `--deep` is active, scans MergedDeps for dependency packages that are
+% currently installed and have a newer version available in the same slot.
+% For each such package, generates a transactional update goal annotated with
+% `replaces(OldRepo://OldEntry)`. Only packages from the VDB (`pkg`) are
+% considered. The parent entry (Self) is excluded to prevent self-update loops.
 
 deep_update_goals(Self, MergedDeps, DeepUpdates) :-
   ( preference:accept_keywords(K)
@@ -142,15 +129,11 @@ deep_update_goals(Self, MergedDeps, DeepUpdates) :-
 %  Dependency CN extraction
 % =============================================================================
 
-%! dep_cn(+DepLiteral, -C, -N) is semidet.
+%! target:dep_cn(+DepLiteral, -C, -N)
 %
-%  Extract the category (C) and name (N) from a dependency literal.
-%  Handles grouped_package_dependency/4, grouped_package_dependency/3,
-%  and concrete Repo://Entry:Action literals.
-%
-%  @arg DepLiteral  A dependency literal from the grouped model
-%  @arg C           Category atom
-%  @arg N           Name atom
+% Extracts the category (C) and name (N) from a dependency literal. Handles
+% grouped_package_dependency/4, grouped_package_dependency/3, and concrete
+% Repo://Entry:Action literals.
 
 dep_cn(grouped_package_dependency(_,C,N,_):_Action?{_Ctx}, C, N) :- !.
 dep_cn(grouped_package_dependency(C,N,_):_Action?{_Ctx}, C, N) :- !.

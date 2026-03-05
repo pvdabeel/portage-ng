@@ -64,11 +64,11 @@ The following predicates are called by the prover:
 %  Obligation candidate filtering (domain hook for prover)
 % =============================================================================
 
-%! obligation_candidate(+Literal) is semidet.
+%! heuristic:obligation_candidate(+Literal)
 %
-%  Domain hook: succeeds when Literal is eligible for proof obligations.
-%  Only install, update, downgrade, and reinstall actions generate
-%  obligations; constraints, downloads, and other action types do not.
+% Domain hook: succeeds when Literal is eligible for proof obligations.
+% Only install, update, downgrade, and reinstall actions generate
+% obligations; constraints, downloads, and other action types do not.
 
 obligation_candidate(_Repo://_Entry:Action?{_Ctx}) :-
   ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
@@ -82,10 +82,10 @@ obligation_candidate(_Repo://_Entry:Action) :-
 %  Reprove hooks
 % =============================================================================
 
-%! heuristic:handle_reprove(+Info, -Added) is det.
+%! heuristic:handle_reprove(+Info, -Added)
 %
-%  Process a reprove conflict. Delegates domain conflict processing
-%  to candidate:add_cn_domain_rejects/5 and candidate:add_cn_domain_origin_rejects/2.
+% Process a reprove conflict. Delegates domain conflict processing
+% to candidate:add_cn_domain_rejects/5 and candidate:add_cn_domain_origin_rejects/2.
 
 handle_reprove(cn_domain(C, N, Domain, Candidates, Reasons), Added) :-
   candidate:add_cn_domain_rejects(C, N, Domain, Candidates, AddedDomain),
@@ -101,20 +101,20 @@ handle_reprove(cn_domain(C, N, Domain, Candidates, Reasons), Added) :-
 handle_reprove(_, false).
 
 
-%! heuristic:reprove_exhausted is det.
+%! heuristic:reprove_exhausted
 %
-%  Called when reprove retries are exhausted. Clears the reject
-%  map so the final prove runs clean.
+% Called when reprove retries are exhausted. Clears the reject
+% map so the final prove runs clean.
 
 reprove_exhausted :-
   retractall(memo:cn_domain_reject_(_, _)),
   !.
 
 
-%! heuristic:init_state is det.
+%! heuristic:init_state
 %
-%  Save domain state at the start of a reprove-enabled proof.
-%  Saves current state and installs fresh empty globals.
+% Save domain state at the start of a reprove-enabled proof.
+% Saves current state and installs fresh empty globals.
 
 init_state :-
   ( nb_current(prover_reprove_enabled, OldEnabled) -> true ; OldEnabled = '$absent' ),
@@ -129,9 +129,9 @@ init_state :-
   !.
 
 
-%! heuristic:cleanup_state is det.
+%! heuristic:cleanup_state
 %
-%  Restore domain state saved by init_state/0.
+% Restore domain state saved by init_state/0.
 
 cleanup_state :-
   ( nb_current(rules_reprove_saved_state, state(OldEnabled, SavedSnap, SavedRejects, SavedBlocked)) ->

@@ -1452,7 +1452,7 @@ rules:step_time(Label, Goal, step(Label, ms(TimeMs), inferences(Inf), result(Res
 % Called by the prover before generic constraint merging for domain-specific
 % merge semantics.  If it succeeds, the prover uses the resulting constraints.
 
-%! rules:constraint_unify_hook(+Key, +Value, +Constraints, -NewConstraints) is semidet.
+%! rules:constraint_unify_hook(+Key, +Value, +Constraints, -NewConstraints)
 %
 % Domain-specific constraint merge for `cn_domain(C,N)` keys: normalises
 % the incoming version domain and intersects it with any existing domain
@@ -1671,10 +1671,10 @@ rules:proof_obligation(Repo://Entry:Action, Model, HookKey, ExtraLits) :-
 %  contexts to express ordering constraints between actions.  The
 %  predicates below thread, extract, and strip these markers.
 
-%! ctx_take_after(+Context0, -After, -Context) is det.
+%! rules:ctx_take_after(+Context0, -After, -Context)
 %
-%  Extract the first `after(Literal)` marker from Context0.
-%  Unifies After with `none` if no marker is present.
+% Extracts the first `after(Literal)` marker from Context0.
+% Unifies After with `none` if no marker is present.
 
 rules:ctx_take_after(Context0, After, Context) :-
   ( is_list(Context0),
@@ -1686,10 +1686,10 @@ rules:ctx_take_after(Context0, After, Context) :-
   ),
   !.
 
-%! ctx_take_after_with_mode(+Context0, -After, -AfterForDeps, -Context) is det.
+%! rules:ctx_take_after_with_mode(+Context0, -After, -AfterForDeps, -Context)
 %
-%  Like ctx_take_after/3 but distinguishes `after/1` (propagates to deps)
-%  from `after_only/1` (does not propagate -- AfterForDeps = none).
+% Like ctx_take_after/3 but distinguishes `after/1` (propagates to deps)
+% from `after_only/1` (does not propagate -- AfterForDeps = none).
 
 rules:ctx_take_after_with_mode(Context0, After, AfterForDeps, Context) :-
   ( is_list(Context0),
@@ -1708,11 +1708,11 @@ rules:ctx_take_after_with_mode(Context0, After, AfterForDeps, Context) :-
   ),
   !.
 
-%! ctx_add_after_condition(+After, +AfterForDeps, +Conds0, -Conds) is det.
+%! rules:ctx_add_after_condition(+After, +AfterForDeps, +Conds0, -Conds)
 %
-%  Prepend an ordering constraint to Conds0 based on the extracted markers.
-%  `after/1` becomes a real dependency; `after_only/1` becomes a
-%  `constraint(order_after(...))` that the planner uses for ordering only.
+% Prepends an ordering constraint to Conds0 based on the extracted markers.
+% `after/1` becomes a real dependency; `after_only/1` becomes a
+% `constraint(order_after(...))` that the planner uses for ordering only.
 
 rules:ctx_add_after_condition(none, _AfterForDeps, Conditions, Conditions) :- !.
 rules:ctx_add_after_condition(After, none, Conditions0, [constraint(order_after(After):{[]} )|Conditions0]) :-
@@ -1721,10 +1721,10 @@ rules:ctx_add_after_condition(After, none, Conditions0, [constraint(order_after(
 rules:ctx_add_after_condition(After, _AfterForDeps, Conditions0, [After|Conditions0]) :-
   !.
 
-%! ctx_strip_planning(+Context0, -Context) is det.
+%! rules:ctx_strip_planning(+Context0, -Context)
 %
-%  Remove planning-only markers (after/1, world_atom/1) from a context
-%  so they do not affect dependency-model memoization keys.
+% Removes planning-only markers (after/1, world_atom/1) from a context
+% so they do not affect dependency-model memoization keys.
 
 rules:ctx_strip_planning(Context0, Context) :-
   ( is_list(Context0) ->
@@ -1738,9 +1738,9 @@ rules:ctx_strip_planning(Context0, Context) :-
   ),
   !.
 
-%! add_after_to_dep_contexts(+After, +Deps0, -Deps) is det.
+%! rules:add_after_to_dep_contexts(+After, +Deps0, -Deps)
 %
-%  Inject an `after/1` marker into each dependency literal's context.
+% Injects an `after/1` marker into each dependency literal's context.
 
 rules:add_after_to_dep_contexts(none, Deps, Deps) :- !.
 rules:add_after_to_dep_contexts(After, Deps0, Deps) :-
@@ -1765,11 +1765,11 @@ rules:ctx_add_after(Ctx0, After, Ctx) :-
   ),
   !.
 
-%! add_after_only_to_dep_contexts(+After, +Deps0, -Deps) is det.
+%! rules:add_after_only_to_dep_contexts(+After, +Deps0, -Deps)
 %
-%  Inject an `after_only/1` marker into each dependency literal's context.
-%  Unlike after/1, after_only/1 does not propagate into the dependency's
-%  own closure (ordering applies only to the direct goal).
+% Injects an `after_only/1` marker into each dependency literal's context.
+% Unlike after/1, after_only/1 does not propagate into the dependency's
+% own closure (ordering applies only to the direct goal).
 
 rules:add_after_only_to_dep_contexts(_After, [], []) :- !.
 rules:add_after_only_to_dep_contexts(After, Deps0, Deps) :-
@@ -1786,11 +1786,11 @@ rules:add_after_only_to_dep_contexts(After, Deps0, Deps) :-
           Deps).
 rules:add_after_only_to_dep_contexts(_After, Deps, Deps).
 
-%! drop_build_with_use_from_dep_contexts(+Deps0, -Deps) is det.
+%! rules:drop_build_with_use_from_dep_contexts(+Deps0, -Deps)
 %
-%  Strip `build_with_use` terms from each dependency context.
-%  Used during PDEPEND expansion where build_with_use serves only as a
-%  memoization key, not a semantic constraint on the targets.
+% Strips `build_with_use` terms from each dependency context.
+% Used during PDEPEND expansion where build_with_use serves only as a
+% memoization key, not a semantic constraint on the targets.
 
 rules:drop_build_with_use_from_dep_contexts([], []) :- !.
 rules:drop_build_with_use_from_dep_contexts([D0|Rest0], [D|Rest]) :-
@@ -1819,9 +1819,9 @@ rules:ctx_add_after_only(Ctx0, After, Ctx) :-
 %  Context helpers: drop diagnostic / per-package USE constraints
 % -----------------------------------------------------------------------------
 
-%! ctx_drop_build_with_use(+Ctx0, -Ctx) is det.
+%! rules:ctx_drop_build_with_use(+Ctx0, -Ctx)
 %
-%  Remove all `build_with_use:_` terms from a context.
+% Removes all `build_with_use:_` terms from a context.
 
 rules:ctx_drop_build_with_use(Ctx0, Ctx) :-
   ( is_list(Ctx0) ->
@@ -1832,9 +1832,9 @@ rules:ctx_drop_build_with_use(Ctx0, Ctx) :-
 
 rules:ctx_is_build_with_use_term(build_with_use:_) :- !.
 
-%! ctx_drop_assumption_reason(+Ctx0, -Ctx) is det.
+%! rules:ctx_drop_assumption_reason(+Ctx0, -Ctx)
 %
-%  Remove all `assumption_reason(_)` terms from a context.
+% Removes all `assumption_reason(_)` terms from a context.
 
 rules:ctx_drop_assumption_reason(Ctx0, Ctx) :-
   ( is_list(Ctx0) ->
@@ -1845,10 +1845,10 @@ rules:ctx_drop_assumption_reason(Ctx0, Ctx) :-
 
 rules:ctx_is_assumption_reason_term(assumption_reason(_)) :- !.
 
-%! ctx_drop_build_with_use_and_assumption_reason(+Ctx0, -Ctx) is det.
+%! rules:ctx_drop_build_with_use_and_assumption_reason(+Ctx0, -Ctx)
 %
-%  Remove both `build_with_use:_` and `assumption_reason(_)` from a context.
-%  Used for PDEPEND edges where neither should propagate.
+% Removes both `build_with_use:_` and `assumption_reason(_)` from a context.
+% Used for PDEPEND edges where neither should propagate.
 
 rules:ctx_drop_build_with_use_and_assumption_reason(Ctx0, Ctx) :-
   ( is_list(Ctx0) ->
@@ -1868,16 +1868,16 @@ rules:ctx_is_bwu_or_assumption_reason(assumption_reason(_)) :- !.
 % re-run in a mode that turns blockers into domain assumptions, so the printer
 % can show "this would be the plan if you verify/override these blockers".
 
-%! assume_blockers is semidet.
+%! rules:assume_blockers
 %
-%  True when blocker constraints should be treated as domain assumptions.
+% True when blocker constraints should be treated as domain assumptions.
 
 rules:assume_blockers :-
   prover:assuming(blockers).
 
-%! with_assume_blockers(:Goal) is det.
+%! rules:with_assume_blockers(:Goal)
 %
-%  Run Goal in a scope where blockers are treated as domain assumptions.
+% Runs Goal in a scope where blockers are treated as domain assumptions.
 
 rules:with_assume_blockers(Goal) :-
   prover:assuming(blockers, Goal).
@@ -1886,27 +1886,27 @@ rules:with_assume_blockers(Goal) :-
 %  Internal override: assume conflicts
 % -----------------------------------------------------------------------------
 
-%! assume_conflicts is semidet.
+%! rules:assume_conflicts
 %
-%  True when USE/REQUIRED_USE conflicts should be treated as domain
-%  assumptions rather than hard failures.
+% True when USE/REQUIRED_USE conflicts should be treated as domain
+% assumptions rather than hard failures.
 
 rules:assume_conflicts :-
   prover:assuming(conflicts).
 
-%! with_assume_conflicts(:Goal) is det.
+%! rules:with_assume_conflicts(:Goal)
 %
-%  Run Goal in a scope where conflicts are treated as domain assumptions.
+% Runs Goal in a scope where conflicts are treated as domain assumptions.
 
 rules:with_assume_conflicts(Goal) :-
   prover:assuming(conflicts, Goal).
 
 
-%! any_of_reject_assumed_choice(+Dep, +Conditions) is semidet.
+%! rules:any_of_reject_assumed_choice(+Dep, +Conditions)
 %
-%  True if the chosen any_of alternative resolved only via a domain
-%  assumption (i.e. the dependency is not concretely satisfiable).
-%  Forces backtracking to the next alternative.
+% True if the chosen any_of alternative resolved only via a domain
+% assumption (i.e. the dependency is not concretely satisfiable).
+% Forces backtracking to the next alternative.
 
 rules:any_of_reject_assumed_choice(grouped_package_dependency(_Strength, C, N, _PackageDeps),
                                    [assumed(grouped_package_dependency(C, N, _Deps):_Act?{_Ctx})]) :-
@@ -1988,10 +1988,10 @@ rules:any_of_config_condition_dep(Dep, Dep).
 
 
 
-%! group_choice_dep(+Dep0, -Dep) is det.
+%! rules:group_choice_dep(+Dep0, -Dep)
 %
-%  Lift a plain package_dependency/8 into a grouped_package_dependency/4
-%  wrapper so it can be resolved by the grouped dependency rule.
+% Lifts a plain package_dependency/8 into a grouped_package_dependency/4
+% wrapper so it can be resolved by the grouped dependency rule.
 
 rules:group_choice_dep(package_dependency(Phase,Strength,C,N,O,V,S,U),
                        grouped_package_dependency(Strength,C,N,
@@ -2000,10 +2000,10 @@ rules:group_choice_dep(D, D).
 
 
 
-%! depclean_rewrite_deps(+Deps0, +ParentCtx, -Deps) is det.
+%! rules:depclean_rewrite_deps(+Deps0, +ParentCtx, -Deps)
 %
-%  Rewrite all dependency literals to the `:depclean` action for
-%  depclean closure traversal.
+% Rewrites all dependency literals to the `:depclean` action for
+% depclean closure traversal.
 
 rules:depclean_rewrite_deps([], _ParentCtx, []) :- !.
 rules:depclean_rewrite_deps([D0|Rest0], ParentCtx, [D|Rest]) :-
