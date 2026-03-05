@@ -207,6 +207,14 @@ sandbox:safe_primitive(preference:flag(_)).
 sandbox:safe_primitive(preference:set(_,_)).
 
 % -----------------------------------------------------------------------------
+%  Portage configuration
+% -----------------------------------------------------------------------------
+
+sandbox:safe_primitive(gentoo:env(_,_)).
+sandbox:safe_primitive(gentoo:package_keyword(_,_)).
+sandbox:safe_primitive(gentoo:package_license_entry(_,_)).
+
+% -----------------------------------------------------------------------------
 %  Streams
 % -----------------------------------------------------------------------------
 

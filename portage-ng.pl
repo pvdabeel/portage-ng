@@ -108,6 +108,7 @@ load_client_modules :-
    ensure_loaded(portage('Source/knowledgebase.pl')),
    ensure_loaded(portage('Source/ebuild.pl')),
    ensure_loaded(portage('Source/printer.pl')),
+   ensure_loaded(portage('Source/Config/gentoo.pl')),
    ensure_loaded(portage('Source/preference')),
    ensure_loaded(portage('Source/script.pl')),
    ensure_loaded(portage('Source/client.pl')),
@@ -149,6 +150,7 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/script.pl')),
    ensure_loaded(portage('Source/stat.pl')),
    ensure_loaded(portage('Source/pkg.pl')),
+   ensure_loaded(portage('Source/Config/gentoo.pl')),
    ensure_loaded(portage('Source/preference')),
 
    ensure_loaded(portage('Source/sampler.pl')),
@@ -211,6 +213,7 @@ load_worker_modules :-
    ensure_loaded(portage('Source/script.pl')),
    ensure_loaded(portage('Source/stat.pl')),
    ensure_loaded(portage('Source/pkg.pl')),
+   ensure_loaded(portage('Source/Config/gentoo.pl')),
    ensure_loaded(portage('Source/preference')),
 
    ensure_loaded(portage('Source/sampler.pl')),

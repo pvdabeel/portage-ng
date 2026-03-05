@@ -145,6 +145,10 @@ preference:default_env('USE', 'berkdb harfbuzz lto dnet resolutionkms o-flag-mun
 preference:getenv(Name, Value) :-
   ( interface:getenv(Name, Value) ->
       true
+  ; current_predicate(gentoo:env/2),
+    gentoo:env(Name, Value),
+    Value \== '' ->
+      true
   ; current_predicate(config:gentoo_env/2),
     config:gentoo_env(Name, Value),
     Value \== '' ->
@@ -480,9 +484,19 @@ preference:init :-
             assertz(preference:local_accept_keywords(Key)))
    ),
 
-  % 3. Apply Gentoo profile + /etc/portage overrides (package.mask / package.use).
+  % 3. Load /etc/portage configuration files (if portage_confdir is set).
   %
-  % These affect candidate selection (masking) and per-package USE evaluation.
+  % This reads make.conf (→ gentoo:env/2, used by getenv/2 above),
+  % package.use, package.mask, package.unmask, package.accept_keywords,
+  % and package.license from the configured directory.
+
+  catch(gentoo:load, _, true),
+
+  % 4. Apply Gentoo profile + /etc/portage overrides (package.mask / package.use).
+  %
+  % Profile overrides are always applied.  The gentoo_package_* fallbacks
+  % (from config.pl facts) are applied afterwards; they provide a baseline
+  % when no portage_confdir is configured.
   
   catch(preference:apply_profile_package_mask, _, true),
   catch(preference:apply_profile_package_use_mask, _, true),
@@ -491,7 +505,7 @@ preference:init :-
   catch(preference:apply_gentoo_package_mask,  _, true),
   catch(preference:apply_gentoo_package_use,   _, true),
 
-  % 4. Load license groups and apply ACCEPT_LICENSE.
+  % 5. Load license groups and apply ACCEPT_LICENSE.
 
   catch(preference:load_license_groups, _, true),
   catch(preference:init_accept_license, _, true),

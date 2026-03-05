@@ -1,0 +1,11 @@
+# /etc/portage/package.mask — user package masks
+#
+# Format: one atom per line (cat/pkg or versioned like >=cat/pkg-1.0)
+# Masked packages will not be selected by the resolver.
+#
+# This can also be a directory containing multiple files.
+# portage-ng reads it and applies preference:mask_profile_atom/1.
+#
+# See: https://wiki.gentoo.org/wiki//etc/portage/package.mask
+
+sys-apps/systemd

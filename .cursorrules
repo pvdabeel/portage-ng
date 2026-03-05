@@ -82,6 +82,14 @@ When testing changes to the learned constraint mechanism, ALWAYS verify:
 5. Runtime (should be < 10 seconds for single targets)
 
 
+## Naming conventions
+
+- Source filenames must NOT contain hyphens (`-`) or underscores (`_`).
+  Use concatenated lowercase words (e.g. `gentoo.pl`, `knowledgebase.pl`).
+  Exception: `portage-ng.pl` (project entry point / name).
+- Prolog module names follow the same rule (e.g. `:- module(system, [])`).
+- Subdirectory names under `Source/` may use CamelCase (e.g. `Rules/`, `Config/`, `Scripts/`).
+
 ## Configuration
 
 ### Portage tree locations

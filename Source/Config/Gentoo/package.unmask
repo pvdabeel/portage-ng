@@ -1,0 +1,9 @@
+# /etc/portage/package.unmask — user package unmasks
+#
+# Format: one atom per line (cat/pkg or versioned like >=cat/pkg-1.0)
+# Unmasked packages override profile-level masks.
+#
+# This can also be a directory containing multiple files.
+# portage-ng reads it and applies preference:unmask_profile_atom/1.
+#
+# See: https://wiki.gentoo.org/wiki//etc/portage/package.unmask

@@ -1,0 +1,10 @@
+# /etc/portage/package.accept_keywords — per-package keyword overrides
+#
+# Format: cat/pkg  ~arch   (or ** for all keywords)
+#         =cat/pkg-1.2  ~amd64
+#
+# This can also be a directory containing multiple files.
+# portage-ng reads it and maps entries into preference:local_accept_keywords/1
+# (per-package keyword acceptance).
+#
+# See: https://wiki.gentoo.org/wiki//etc/portage/package.accept_keywords

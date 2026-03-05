@@ -95,14 +95,30 @@ config:write_metadata(true).
 
 config:gentoo_profile('default/linux/amd64/23.0/split-usr/no-multilib').
 
+% -----------------------------------------------------------------------------
+%  /etc/portage configuration directory
+% -----------------------------------------------------------------------------
+%
+% Path to the Gentoo /etc/portage configuration directory.  gentoo:load/0
+% reads make.conf, package.use, package.mask, package.unmask,
+% package.accept_keywords, and package.license from this directory.
+%
+% On a Gentoo system, set this to '/etc/portage'.
+% For development, use the bundled templates in Source/Config/Config/Gentoo.
+% Comment out to disable file-based configuration entirely (falls back to the
+% config:gentoo_env/2 and config:gentoo_package_*/1-2 facts below).
+
+% config:portage_confdir('/etc/portage').
+
 % Optional: model selected Portage /etc/portage settings without exporting envvars.
 % If set, `preference:getenv/2` will consult these when the real environment
-% variable is absent.
+% variable is absent.  When config:portage_confdir/1 is set, make.conf values
+% take precedence over these facts (but both are consulted).
 %
 % Example:
 %   config:gentoo_env('USE', 'X alsa dbus truetype -systemd -introspection -launcher').
 %
-% Leave unset (or empty) if you prefer to drive this via real envvars.
+% Leave unset (or empty) if you prefer to drive this via real envvars or make.conf.
 
 % Proposed baseline USE to match the parity diffs we observed:
 % - Fixes major missing deps driven by disabled flags in portage-ng plans:

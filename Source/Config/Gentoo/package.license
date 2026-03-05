@@ -1,0 +1,10 @@
+# /etc/portage/package.license — per-package license acceptance
+#
+# Format: cat/pkg  LICENSE1 LICENSE2
+#         =cat/pkg-1.2  MIT BSD
+#
+# This can also be a directory containing multiple files.
+# portage-ng reads it and maps entries into preference:accepted_license/1
+# (per-package license acceptance).
+#
+# See: https://wiki.gentoo.org/wiki//etc/portage/package.license
