@@ -581,8 +581,11 @@ interface:process_action(Action,ArgsSets,Options) :-
       ( TimeLimitSec =< 0 ->
           ( ( printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers) ->
                 FallbackUsed = false
-            ; % Fallback UX: show the plan under the assumption that blockers are satisfied.
-              message:bubble(orange,'Warning'),
+            ; prover:assuming(use_autoenable,
+                printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
+              ) ->
+                FallbackUsed = use_autoenable
+            ; message:bubble(orange,'Warning'),
               message:color(orange),
               message:print(' No valid plan found due to blockers/conflicts. Showing a plan with blocker assumptions; please verify.'), nl,
               message:color(normal),
@@ -597,6 +600,10 @@ interface:process_action(Action,ArgsSets,Options) :-
           call_with_time_limit(TimeLimitSec,
             ( ( printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers) ->
                   FallbackUsed = false
+              ; prover:assuming(use_autoenable,
+                  printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
+                ) ->
+                  FallbackUsed = use_autoenable
               ; message:bubble(orange,'Warning'),
                 message:color(orange),
                 message:print(' No valid plan found due to blockers/conflicts. Showing a plan with blocker assumptions; please verify.'), nl,
