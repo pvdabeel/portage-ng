@@ -9,7 +9,19 @@
 
 
 /** <module> RULES
-This file contains domain-specific rules
+Declarative hub containing all rule/2 clauses for the portage-ng resolver.
+
+Implementation logic is delegated to submodules in Source/Rules/:
+  - candidate.pl: candidate selection, slot merging, version handling, ranking
+  - dependency.pl: dependency context management, slot/USE propagation
+  - heuristic.pl: domain-specific prover hooks (reprove, snapshots)
+  - memo.pl: thread-local caching declarations
+  - target.pl: transactional update/downgrade helpers
+  - use.pl: USE flag evaluation, conditionals, build_with_use
+
+The prover calls rules:rule/2 -- no interface change from the prover's
+perspective. Constraint hooks (constraint_unify_hook, constraint_guard) and
+proof obligation hooks remain in this file as part of the prover contract.
 */
 
 :- module(rules, [rule/2]).
@@ -147,7 +159,7 @@ rule(Repository://Ebuild:fetchonly?{Context},Conditions) :-
   query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
       query:memoized_search(model(dependency(MergedDeps0,fetchonly)):config?{Model},Repository://Ebuild)
     ->
-  add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
+  dependency:add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
   ( memberchk(C,['virtual','acct-group','acct-user'])
     -> Conditions = [constraint(use(Repository://Ebuild):{R}),
                      constraint(slot(C,N,S):{Ebuild})
@@ -209,7 +221,7 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
 
       % 4. Compute + memoize dependency model, already grouped by package Category & Name.
       query:memoized_search(model(dependency(MergedDeps0,install)):config?{Model},Repository://Ebuild),
-      add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
+      dependency:add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
       rules:add_after_to_dep_contexts(AfterForDeps, MergedDeps, MergedDepsAfter),
       % Heuristic (parity): prove explicit slot/subslot deps early.
       % Some stacks (notably OCaml Jane Street) rely on a "release series" encoded
@@ -219,7 +231,7 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
       %
       % Ordering explicit slot/subslot requirements first avoids this class of
       % conflict without changing solver semantics.
-      rules:order_deps_for_proof(install, MergedDepsAfter, MergedDepsOrdered),
+      candidate:order_deps_for_proof(install, MergedDepsAfter, MergedDepsOrdered),
 
       % 5. Pass on relevant package dependencies and constraints to prover
       ( memberchk(C,['virtual','acct-group','acct-user']) ->
@@ -290,18 +302,18 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
 
       % 3-4. Compute + memoize dependency model, already grouped by package Category & Name.
   query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model},Repository://Ebuild),
-  add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
+  dependency:add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
   rules:add_after_to_dep_contexts(AfterForDeps, MergedDeps, MergedDepsAfter),
-  rules:order_deps_for_proof(run, MergedDepsAfter, MergedDepsOrdered),
+  candidate:order_deps_for_proof(run, MergedDepsAfter, MergedDepsOrdered),
 
   % 5. Pass on relevant package dependencies and constraints to prover
   ( \+ preference:flag(emptytree),
-    rules:entry_slot_default(Repository, Ebuild, SlotNew),
+    candidate:entry_slot_default(Repository, Ebuild, SlotNew),
     query:search(package(C,N), pkg://_),
-    rules:installed_entry_cn(C, N, OldRepo, OldEbuild),
+    candidate:installed_entry_cn(C, N, OldRepo, OldEbuild),
     OldEbuild \== Ebuild,
     ( query:search(slot(SlotOld0), OldRepo://OldEbuild)
-      -> rules:canon_slot(SlotOld0, SlotOld)
+      -> candidate:canon_slot(SlotOld0, SlotOld)
       ;  SlotOld = SlotNew
     ),
     SlotOld == SlotNew
@@ -398,15 +410,15 @@ rule(Repository://Ebuild:update?{Context},Conditions) :-
   query:search([category(Category),name(Name)], Repository://Ebuild),
   \+ query:search(installed(true), Repository://Ebuild),
   % Try same-slot replacement first (if slot is known).
-  ( rules:entry_slot_default(Repository, Ebuild, SlotNew),
-    rules:installed_entry_cn(Category, Name, OldRepo, OldEbuild),
+  ( candidate:entry_slot_default(Repository, Ebuild, SlotNew),
+    candidate:installed_entry_cn(Category, Name, OldRepo, OldEbuild),
     ( query:search(slot(SlotOld0), OldRepo://OldEbuild)
-      -> rules:canon_slot(SlotOld0, SlotOld)
+      -> candidate:canon_slot(SlotOld0, SlotOld)
       ;  SlotOld = SlotNew
     ),
     SlotOld == SlotNew
   -> feature_unification:unify([replaces(OldRepo://OldEbuild)], Context, UpdCtx),
-     rules:update_txn_conditions(Repository://Ebuild, UpdCtx, Conditions)
+     target:update_txn_conditions(Repository://Ebuild, UpdCtx, Conditions)
   ;  Conditions = [Repository://Ebuild:install?{Context}]
   ),
   !.
@@ -422,7 +434,7 @@ rule(Repository://Ebuild:update?{_Context},[]) :-
 rule(Repository://Ebuild:update?{Context},Conditions) :-
   memberchk(replaces(_OldRepo://_OldEbuild), Context),
   !,
-  rules:update_txn_conditions(Repository://Ebuild, Context, Conditions).
+  target:update_txn_conditions(Repository://Ebuild, Context, Conditions).
 
 
 % -----------------------------------------------------------------------------
@@ -438,7 +450,7 @@ rule(Repository://Ebuild:update?{Context},Conditions) :-
 rule(Repository://Ebuild:downgrade?{Context},Conditions) :-
   memberchk(replaces(_OldRepo://_OldEbuild), Context),
   !,
-  rules:update_txn_conditions(Repository://Ebuild, Context, Conditions).
+  target:update_txn_conditions(Repository://Ebuild, Context, Conditions).
 
 % Downgrading an already-installed version is a no-op.
 rule(Repository://Ebuild:downgrade?{_Context},[]) :-
@@ -492,8 +504,8 @@ rule(package_dependency(Phase,weak,C,N,O,V,S,_U):_Action?{Context},
   % backtracking explosions. We record them as domain assumptions so the plan
   % can still be computed, while the printer can warn the user.
   BlockedSpecs = [blocked(weak,Phase,O,V,S)],
-  rules:blocker_source_constraints(C, N, BlockedSpecs, Context, SourceConds),
-  rules:blocker_assumption_ctx(Context, AssCtx),
+  candidate:blocker_source_constraints(C, N, BlockedSpecs, Context, SourceConds),
+  candidate:blocker_assumption_ctx(Context, AssCtx),
   append(SourceConds,
          [assumed(blocker(weak, Phase, C, N, O, V, S)?{AssCtx})],
          Conditions),
@@ -511,7 +523,7 @@ rule(package_dependency(Phase,weak,C,N,O,V,S,_U):_Action?{Context},
 rule(package_dependency(Phase,strong,C,N,O,V,S,U):_Action?{Context},
      Conditions) :-
   ( rules:assume_blockers ->
-      rules:blocker_assumption_ctx(Context, AssCtx),
+      candidate:blocker_assumption_ctx(Context, AssCtx),
       Conditions = [assumed(blocker(strong, Phase, C, N, O, V, S)?{AssCtx})]
   ; % IMPORTANT (Portage-like blockers with USE deps):
     % Many strong blockers are conditional on bracketed USE requirements, e.g.
@@ -527,9 +539,9 @@ rule(package_dependency(Phase,strong,C,N,O,V,S,U):_Action?{Context},
     % as domain assumptions in strict mode.
     ( U == [] ->
         BlockedSpecs = [blocked(strong,Phase,O,V,S)],
-        rules:blocker_source_constraints(C, N, BlockedSpecs, Context, SourceConds),
+        candidate:blocker_source_constraints(C, N, BlockedSpecs, Context, SourceConds),
         Conditions = [constraint(blocked_cn(C,N):{ordset(BlockedSpecs)})|SourceConds]
-    ; rules:blocker_assumption_ctx(Context, AssCtx),
+    ; candidate:blocker_assumption_ctx(Context, AssCtx),
       Conditions = [assumed(blocker(strong, Phase, C, N, O, V, S)?{AssCtx})]
     )
   ),
@@ -599,9 +611,9 @@ rule(package_dependency(_,no,_,_,_,_,_,_),[]) :- !.
 rule(grouped_package_dependency(weak,C,N,PackageDeps):Action?{Context},
      Conditions) :-
   !,
-  rules:grouped_blocker_specs(weak, Action, C, N, PackageDeps, Specs),
-  rules:blocker_source_constraints(C, N, Specs, Context, SourceConds),
-  rules:blocker_assumption_ctx(Context, AssCtx),
+  candidate:grouped_blocker_specs(weak, Action, C, N, PackageDeps, Specs),
+  candidate:blocker_source_constraints(C, N, Specs, Context, SourceConds),
+  candidate:blocker_assumption_ctx(Context, AssCtx),
   findall(assumed(blocker(Strength, Phase, C, N, O, V, SlotReq)?{AssCtx}),
           member(blocked(Strength, Phase, O, V, SlotReq), Specs),
           AssumeConds),
@@ -616,11 +628,11 @@ rule(grouped_package_dependency(weak,C,N,PackageDeps):Action?{Context},
 rule(grouped_package_dependency(strong,C,N,PackageDeps):Action?{Context},
      Conditions) :-
   !,
-  rules:grouped_blocker_specs_partition(strong, Action, C, N, PackageDeps, EnforceSpecs, AssumeSpecs),
+  candidate:grouped_blocker_specs_partition(strong, Action, C, N, PackageDeps, EnforceSpecs, AssumeSpecs),
   ( rules:assume_blockers ->
       append(EnforceSpecs, AssumeSpecs, AllSpecs),
-      rules:blocker_source_constraints(C, N, AllSpecs, Context, SourceConds),
-      rules:blocker_assumption_ctx(Context, AssCtx),
+      candidate:blocker_source_constraints(C, N, AllSpecs, Context, SourceConds),
+      candidate:blocker_assumption_ctx(Context, AssCtx),
       findall(assumed(blocker(Strength, Phase, C, N, O, V, SlotReq)?{AssCtx}),
               ( member(blocked(Strength, Phase, O, V, SlotReq), EnforceSpecs)
               ; member(blocked(Strength, Phase, O, V, SlotReq), AssumeSpecs)
@@ -628,13 +640,13 @@ rule(grouped_package_dependency(strong,C,N,PackageDeps):Action?{Context},
               AssumeConds),
       append(SourceConds, AssumeConds, Conditions)
   ;
-    rules:blocker_assumption_ctx(Context, AssCtx),
+    candidate:blocker_assumption_ctx(Context, AssCtx),
     findall(assumed(blocker(Strength, Phase, C, N, O, V, SlotReq)?{AssCtx}),
             member(blocked(Strength, Phase, O, V, SlotReq), AssumeSpecs),
             AssumeConds),
     ( EnforceSpecs == [] ->
         Conditions = AssumeConds
-    ; rules:blocker_source_constraints(C, N, EnforceSpecs, Context, SourceConds),
+    ; candidate:blocker_source_constraints(C, N, EnforceSpecs, Context, SourceConds),
       append([constraint(blocked_cn(C,N):{ordset(EnforceSpecs)})|SourceConds], AssumeConds, Conditions)
     )
   ).
@@ -658,7 +670,7 @@ rule(grouped_package_dependency(strong,C,N,PackageDeps):Action?{Context},
 %
 % Split such grouped deps into independent requirements.
 rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions) :-
-  rules:should_split_grouped_dep(PackageDeps),
+  candidate:should_split_grouped_dep(PackageDeps),
   !,
   findall(grouped_package_dependency(no, C, N, [D]):Action?{Context},
           member(D, PackageDeps),
@@ -667,7 +679,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
 
 rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions) :-
   !,
-  rules:augment_package_deps_with_self_rdepend(Action, C, N, Context, PackageDeps, PackageDeps1),
+  candidate:augment_package_deps_with_self_rdepend(Action, C, N, Context, PackageDeps, PackageDeps1),
   % Self-dependency at runtime is trivially satisfied: once the package is built,
   % it provides itself. Treat this generically to avoid hard failures on packages
   % that (redundantly) list themselves in RDEPEND.
@@ -682,7 +694,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
     Conditions = []
   ; \+ preference:flag(emptytree),
     \+ preference:flag(deep),
-    merge_slot_restriction(Action, C, N, PackageDeps1, SlotReq),
+    candidate:merge_slot_restriction(Action, C, N, PackageDeps1, SlotReq),
     % If an installed instance exists in the same slot, and it satisfies all
     % version constraints, treat the grouped dependency as satisfied.
     %
@@ -691,8 +703,8 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
     % with variable SlotReq, because those prevent compile-time query macro expansion.
     query:search([name(N),category(C),installed(true)],
                  pkg://InstalledEntry),
-    rules:query_search_slot_constraint(SlotReq, pkg://InstalledEntry, _),
-    rules:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps1, pkg://InstalledEntry),
+    candidate:query_search_slot_constraint(SlotReq, pkg://InstalledEntry, _),
+    candidate:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps1, pkg://InstalledEntry),
     % IMPORTANT (Portage-like rebuilds):
     % The "keep installed" fast-path must also respect bracketed USE requirements
     % expressed by this dependency (e.g. xmlto[text], glib[introspection]).
@@ -701,7 +713,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
     % instance satisfies the dependency.
     findall(U0, member(package_dependency(_P0,no,C,N,_O,_V,_,U0),PackageDeps1), MergedUse0),
     append(MergedUse0, MergedUse),
-    process_build_with_use(MergedUse, Context, ContextWU, _BWUCons, pkg://InstalledEntry),
+    dependency:process_build_with_use(MergedUse, Context, ContextWU, _BWUCons, pkg://InstalledEntry),
     % Portage does not rebuild virtuals based on USE deps: virtuals are satisfied
     % by their provider packages; rebuilding the virtual itself is a no-op.
     ( C == 'virtual'
@@ -718,7 +730,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
   ->
     Conditions = []
   ;
-    ( merge_slot_restriction(Action, C, N, PackageDeps1, SlotReq),
+    ( candidate:merge_slot_restriction(Action, C, N, PackageDeps1, SlotReq),
 
       % Candidate selection (portage / overlays)
       %
@@ -741,7 +753,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       % validated via query_search_slot_constraint/3 and must allow multi-slot.
       ( SlotReq == [any_same_slot],
         memberchk(slot(C,N,SsLock0):{_}, Context),
-        rules:canon_any_same_slot_meta(SsLock0, SsLock)
+        candidate:canon_any_same_slot_meta(SsLock0, SsLock)
       ->
         true
       ; SsLock = _Unbound
@@ -758,12 +770,12 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       % - Also, only reuse when it is compatible with the effective domain for
       %   this dependency; otherwise, fall back to fresh candidate enumeration.
       ( SlotReq = [slot(_)|_] ->
-          rules:accepted_keyword_candidate(Action, C, N, SlotReq, _Ss0, Context, FoundRepo://Candidate),
+          candidate:accepted_keyword_candidate(Action, C, N, SlotReq, _Ss0, Context, FoundRepo://Candidate),
           CandPreVerified = false
-      ; rules:selected_cn_candidate_compatible(Action, C, N, SlotReq, PackageDeps1, Context, FoundRepo://Candidate) ->
+      ; candidate:selected_cn_candidate_compatible(Action, C, N, SlotReq, PackageDeps1, Context, FoundRepo://Candidate) ->
           CandPreVerified = true
-      ; rules:selected_cn_rejected_candidates(Action, C, N, SlotReq, PackageDeps1, Context, RejectedSelected),
-        rules:accepted_keyword_candidate(Action, C, N, SlotReq, SsLock, Context, FoundRepo://Candidate),
+      ; candidate:selected_cn_rejected_candidates(Action, C, N, SlotReq, PackageDeps1, Context, RejectedSelected),
+        candidate:accepted_keyword_candidate(Action, C, N, SlotReq, SsLock, Context, FoundRepo://Candidate),
         \+ memberchk(FoundRepo://Candidate, RejectedSelected),
         CandPreVerified = false
       ),
@@ -782,10 +794,10 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       ( CandPreVerified == true ->
           true
       ; forall(member(package_dependency(_P1,no,C,N,O,V,_,_), PackageDeps1),
-             rules:query_search_version_select(O, V, FoundRepo://Candidate)),
-        rules:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps1, Context, FoundRepo://Candidate)
+             candidate:query_search_version_select(O, V, FoundRepo://Candidate)),
+        candidate:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps1, Context, FoundRepo://Candidate)
       ),
-      rules:candidate_reverse_deps_compatible_with_parent(Context, FoundRepo://Candidate),
+      candidate:candidate_reverse_deps_compatible_with_parent(Context, FoundRepo://Candidate),
 
       % For PDEPEND edges, we treat the dependency as runtime-soft (cycle-breakable),
       % but we should not propagate or enforce `build_with_use` from the parent.
@@ -801,9 +813,9 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       ),
       % Enforce bracketed USE constraints (e.g. sys-devel/gcc[objc], python[xml(+)], foo[bar?]).
       use:candidate_satisfies_use_deps(ContextDep, FoundRepo://Candidate, MergedUse),
-      process_build_with_use(MergedUse,ContextDep,NewContext,Constraints,FoundRepo://Candidate),
-      rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, SlotMeta),
-      process_slot(SlotReq, SlotMeta, C, N, FoundRepo://Candidate, NewContext, NewerContext),
+      dependency:process_build_with_use(MergedUse,ContextDep,NewContext,Constraints,FoundRepo://Candidate),
+      candidate:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, SlotMeta),
+      dependency:process_slot(SlotReq, SlotMeta, C, N, FoundRepo://Candidate, NewContext, NewerContext),
 
       % Prefer expressing as update when a pkg-installed entry exists in the same
       % slot and the chosen candidate has a different version (upgrade OR downgrade).
@@ -812,11 +824,11 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         % when there is an installed instance of (C,N) in the SAME SLOT as the
         % chosen candidate. Otherwise we'd incorrectly "update" one slot while
         % actually installing another (Portage would call that a new-slot install).
-        rules:selected_cn_slot_key_(SlotMeta, SlotChosen),
+        candidate:selected_cn_slot_key_(SlotMeta, SlotChosen),
         query:search([name(N),category(C),installed(true)],
                      pkg://InstalledEntry2),
         ( query:search(slot(SlotInstalled0), pkg://InstalledEntry2)
-          -> rules:canon_slot(SlotInstalled0, SlotInstalled)
+          -> candidate:canon_slot(SlotInstalled0, SlotInstalled)
           ;  SlotInstalled = SlotChosen
         ),
         SlotInstalled == SlotChosen,
@@ -864,9 +876,9 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       ),
       query:search(version(CandVer), FoundRepo://Candidate),
       Selected = constraint(selected_cn(C,N):{ordset([selected(FoundRepo,Candidate,ActSel,CandVer,SlotMeta)])}),
-      rules:selected_cn_allow_multislot_constraints(C, N, SlotReq, PackageDeps1, AllowMultiSlotCons),
-      rules:cn_domain_constraints(Action, C, N, PackageDeps1, Context, DomainCons0, _DomainReasonTags),
-      rules:domain_constraints_for_any_different_slot(SlotReq, DomainCons0, DomainCons),
+      candidate:selected_cn_allow_multislot_constraints(C, N, SlotReq, PackageDeps1, AllowMultiSlotCons),
+      candidate:cn_domain_constraints(Action, C, N, PackageDeps1, Context, DomainCons0, _DomainReasonTags),
+      candidate:domain_constraints_for_any_different_slot(SlotReq, DomainCons0, DomainCons),
       append(Constraints, [ActionGoal], ConstraintsTail),
       append(AllowMultiSlotCons, [Selected|ConstraintsTail], Suffix),
       append(DomainCons, Suffix, Conditions)
@@ -874,12 +886,12 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       % assumptions when the dependency is already installed in the vdb (`pkg`)
       % and satisfies constraints. Instead, fall back to "keep installed".
       ( preference:flag(deep),
-        merge_slot_restriction(Action, C, N, PackageDeps, SlotReq2),
+        candidate:merge_slot_restriction(Action, C, N, PackageDeps, SlotReq2),
         query:search([name(N),category(C),installed(true)],
                      pkg://InstalledEntryFallback),
-        rules:query_search_slot_constraint(SlotReq2, pkg://InstalledEntryFallback, _),
+        candidate:query_search_slot_constraint(SlotReq2, pkg://InstalledEntryFallback, _),
         !,
-        rules:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps, pkg://InstalledEntryFallback)
+        candidate:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps, pkg://InstalledEntryFallback)
       ->
         Conditions = []
       ; % Before reprove, check if the parent should be narrowed — the parent
@@ -887,14 +899,14 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         % Skip for fetchonly: transitive dep failures (e.g. USE-flag mismatches)
         % should not narrow the parent — fetchonly only needs to download sources.
         Action \== fetchonly,
-        rules:maybe_learn_parent_narrowing(C, N, PackageDeps1, Context),
+        candidate:maybe_learn_parent_narrowing(C, N, PackageDeps1, Context),
         fail
       ; Action \== fetchonly,
-        rules:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps1, Context),
+        candidate:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps1, Context),
         fail
       ; explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason),
         version_domain:domain_reason_terms(Action, C, N, PackageDeps1, Context, DomainReasonTags),
-        rules:add_domain_reason_context(C, N, DomainReasonTags, Context, Ctx2),
+        candidate:add_domain_reason_context(C, N, DomainReasonTags, Context, Ctx2),
         feature_unification:unify([assumption_reason(Reason)], Ctx2, Ctx3),
         Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps1):Action?{Ctx3})]
       )
@@ -915,7 +927,7 @@ rule(Repository://Ebuild:depclean?{Context}, Conditions) :-
   ( query:search(model(Model,required_use(_),build_with_use(_)), Repository://Ebuild),
     % Compute runtime dependency model in config phase (no candidate choices here).
     query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model}, Repository://Ebuild),
-    add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
+    dependency:add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
     % Rewrite all dependency literals to the depclean action.
     rules:depclean_rewrite_deps(MergedDeps, Context, Conditions)
   -> true
@@ -926,10 +938,10 @@ rule(Repository://Ebuild:depclean?{Context}, Conditions) :-
 % Depclean: grouped package dependency – follow only installed packages.
 rule(grouped_package_dependency(no,C,N,PackageDeps):depclean?{_Context}, Conditions) :-
   !,
-  merge_slot_restriction(run, C, N, PackageDeps, SlotReq),
+  candidate:merge_slot_restriction(run, C, N, PackageDeps, SlotReq),
   ( query:search([name(N),category(C),installed(true)], pkg://InstalledEntry),
-    rules:query_search_slot_constraint(SlotReq, pkg://InstalledEntry, _),
-    rules:installed_entry_satisfies_package_deps(run, C, N, PackageDeps, pkg://InstalledEntry),
+    candidate:query_search_slot_constraint(SlotReq, pkg://InstalledEntry, _),
+    candidate:installed_entry_satisfies_package_deps(run, C, N, PackageDeps, pkg://InstalledEntry),
     % Find same-version repo entry (exclude pkg).
     query:search(version(V), pkg://InstalledEntry),
     preference:accept_keywords(K),
@@ -1102,13 +1114,13 @@ rule(exactly_one_of_group(Deps),[assumed(conflict(required_use,exactly_one_of_gr
   !.
 
 rule(exactly_one_of_group(Deps):Action?{Context},[D:Action?{Context}|NafDeps]) :-
-  prioritize_deps(Deps, Context, SortedDeps),
+  candidate:prioritize_deps(Deps, Context, SortedDeps),
   member(D0, SortedDeps),
   rules:group_choice_dep(D0, D),
   findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
 
 rule(exactly_one_of_group(Deps),[D|NafDeps]) :-
-  prioritize_deps(Deps, SortedDeps),
+  candidate:prioritize_deps(Deps, SortedDeps),
   member(D, SortedDeps),
   findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
 
@@ -1130,7 +1142,7 @@ rule(at_most_one_of_group(Deps),[assumed(conflict(required_use,at_most_one_of_gr
   !.
 
 rule(at_most_one_of_group(Deps):Action?{Context},[D:Action?{Context}|NafDeps]) :-
-  prioritize_deps(Deps, Context, SortedDeps),
+  candidate:prioritize_deps(Deps, Context, SortedDeps),
   member(D0, SortedDeps),
   rules:group_choice_dep(D0, D),
   findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
@@ -1143,7 +1155,7 @@ rule(at_most_one_of_group(Deps):_Action?{_Context}, NafDeps) :-
 
 % Contextless variant: allow choosing none.
 rule(at_most_one_of_group(Deps),[D|NafDeps]) :-
-  prioritize_deps(Deps, SortedDeps),
+  candidate:prioritize_deps(Deps, SortedDeps),
   member(D, SortedDeps),
   findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
 
@@ -1173,7 +1185,7 @@ rule(any_of_group(Deps),[assumed(conflict(required_use,any_of_group(Deps)))]) :-
 % runtime clause below) does not record the chosen package_dependency/8 in the
 % model, which makes || ( ... ) disappear from dependency models.
 rule(any_of_group(Deps):config?{Context}, [D:config?{Context}]) :-
-  rules:prioritize_deps_keep_all(Deps, Context, SortedDeps),
+  candidate:prioritize_deps_keep_all(Deps, Context, SortedDeps),
   member(D0, SortedDeps),
   rules:any_of_config_dep_ok(Context, D0),
   % In config phase we must prove the *package_dependency/8* term so it is
@@ -1182,7 +1194,7 @@ rule(any_of_group(Deps):config?{Context}, [D:config?{Context}]) :-
   !.
 
 rule(any_of_group(Deps):Action?{Context}, Conditions) :-
-  rules:prioritize_deps_keep_all(Deps, Context, SortedDeps),
+  candidate:prioritize_deps_keep_all(Deps, Context, SortedDeps),
   member(D0, SortedDeps),
   rules:group_choice_dep(D0, D),
   rule(D:Action?{Context}, Conditions0),
@@ -1200,7 +1212,7 @@ rule(any_of_group(Deps):Action?{Context}, Conditions) :-
   !.
 
 rule(any_of_group(Deps), Conditions) :-
-  rules:prioritize_deps_keep_all(Deps, [], SortedDeps),
+  candidate:prioritize_deps_keep_all(Deps, [], SortedDeps),
   member(D, SortedDeps),
   rule(D, Conditions),
   !.
@@ -1349,520 +1361,9 @@ rule(naf(_),[]) :- !.
 rule(Literal,[]) :-
   atom(Literal),!.
 
-% -----------------------------------------------------------------------------
-%  Helper: merge_slot_restriction
-% -----------------------------------------------------------------------------
-% Derive the (single) slot restriction to apply when selecting a candidate for a
-% grouped dependency. If no slot restriction is present, return [].
-% If multiple distinct slot restrictions are present, fail (no candidate can satisfy all).
-
-merge_slot_restriction(Action, C, N, PackageDeps, SlotReq) :-
-  % Performance note: this predicate is called very frequently during proving.
-  % Avoid findall/3 + sort/2 and instead scan once, ensuring all non-empty slot
-  % restrictions are identical.
-  merge_slot_restriction_(PackageDeps, Action, C, N, none, Slot0),
-  ( Slot0 == none -> SlotReq = []
-  ; SlotReq = Slot0
-  ).
-
-merge_slot_restriction_([], _Action, _C, _N, Acc, Acc) :- !.
-merge_slot_restriction_([package_dependency(_Phase,no,C,N,_O,_V,S,_U)|Rest], Action, C, N, Acc0, Acc) :-
-  !,
-  ( S == []      -> Acc1 = Acc0
-  ; Acc0 == none -> Acc1 = S
-  ; Acc0 == S    -> Acc1 = Acc0
-  ; rules:merge_slot_restriction_pair(Acc0, S, Acc1) -> true
-  ; fail
-  ),
-  merge_slot_restriction_(Rest, Action, C, N, Acc1, Acc).
-merge_slot_restriction_([_|Rest], Action, C, N, Acc0, Acc) :-
-  merge_slot_restriction_(Rest, Action, C, N, Acc0, Acc).
-
-% Compatibility rule for merged grouped deps:
-% treat :slot and :slot= as compatible, keeping the stricter :slot= restriction.
-rules:merge_slot_restriction_pair([slot(S0)], [slot(S1),equal], [slot(S),equal]) :-
-  rules:canon_slot(S0, S),
-  rules:canon_slot(S1, S),
-  !.
-rules:merge_slot_restriction_pair([slot(S0),equal], [slot(S1)], [slot(S),equal]) :-
-  rules:canon_slot(S0, S),
-  rules:canon_slot(S1, S),
-  !.
-% Treat :slot and :slot/subslot (with or without '=') as compatible and keep
-% the stricter subslot-qualified shape.
-rules:merge_slot_restriction_pair([slot(S0)], [slot(S1),subslot(Ss0)], [slot(S),subslot(Ss)]) :-
-  rules:canon_slot(S0, S),
-  rules:canon_slot(S1, S),
-  rules:canon_slot(Ss0, Ss),
-  !.
-rules:merge_slot_restriction_pair([slot(S0),subslot(Ss0)], [slot(S1)], [slot(S),subslot(Ss)]) :-
-  rules:canon_slot(S0, S),
-  rules:canon_slot(S1, S),
-  rules:canon_slot(Ss0, Ss),
-  !.
-rules:merge_slot_restriction_pair([slot(S0)], [slot(S1),subslot(Ss0),equal], [slot(S),subslot(Ss),equal]) :-
-  rules:canon_slot(S0, S),
-  rules:canon_slot(S1, S),
-  rules:canon_slot(Ss0, Ss),
-  !.
-rules:merge_slot_restriction_pair([slot(S0),subslot(Ss0),equal], [slot(S1)], [slot(S),subslot(Ss),equal]) :-
-  rules:canon_slot(S0, S),
-  rules:canon_slot(S1, S),
-  rules:canon_slot(Ss0, Ss),
-  !.
-rules:merge_slot_restriction_pair([slot(S0),equal], [slot(S1),subslot(Ss0)], [slot(S),subslot(Ss),equal]) :-
-  rules:canon_slot(S0, S),
-  rules:canon_slot(S1, S),
-  rules:canon_slot(Ss0, Ss),
-  !.
-rules:merge_slot_restriction_pair([slot(S0),subslot(Ss0)], [slot(S1),equal], [slot(S),subslot(Ss),equal]) :-
-  rules:canon_slot(S0, S),
-  rules:canon_slot(S1, S),
-  rules:canon_slot(Ss0, Ss),
-  !.
-rules:merge_slot_restriction_pair([slot(S0),equal], [slot(S1),subslot(Ss0),equal], [slot(S),subslot(Ss),equal]) :-
-  rules:canon_slot(S0, S),
-  rules:canon_slot(S1, S),
-  rules:canon_slot(Ss0, Ss),
-  !.
-rules:merge_slot_restriction_pair([slot(S0),subslot(Ss0),equal], [slot(S1),equal], [slot(S),subslot(Ss),equal]) :-
-  rules:canon_slot(S0, S),
-  rules:canon_slot(S1, S),
-  rules:canon_slot(Ss0, Ss),
-  !.
-
-% -----------------------------------------------------------------------------
-%  Helper: query_search_slot_constraint
-% -----------------------------------------------------------------------------
-% Execute a slot constraint query in a way that preserves compile-time query macro
-% expansion (i.e. avoid passing a variable SlotReq into select(slot,constraint/2)).
-
-query_search_slot_constraint(SlotReq, RepoEntry, SlotMeta) :-
-  % IMPORTANT: keep the second argument of query:search/2 syntactically in the
-  % form Repo://Id so goal-expansion does not bind a variable during compilation.
-  RepoEntry = Repo://Id,
-  ( SlotReq == [] ->
-      query:search(select(slot,constraint([]),SlotMeta), Repo://Id)
-  ; SlotReq = [slot(S0)] ->
-      rules:canon_slot(S0, S),
-      query:search(select(slot,constraint([slot(S)]),SlotMeta), Repo://Id)
-  ; SlotReq = [slot(S0),subslot(Ss)] ->
-      rules:canon_slot(S0, S),
-      ( query:search(select(slot,constraint([slot(S),subslot(Ss)]),SlotMeta), Repo://Id)
-      -> true
-      ; % Some cache entries don't record subslot explicitly (it is effectively
-        % the same as slot). Accept slot/subslot constraints in that case.
-        rules:canon_slot(Ss, Ss1),
-        Ss1 == S,
-        \+ cache:entry_metadata(Repo, Id, subslot, _),
-        query:search(select(slot,constraint([slot(S)]),_SlotMeta0), Repo://Id),
-        SlotMeta = [slot(S),subslot(Ss1)]
-      )
-  ; SlotReq = [slot(S0),equal] ->
-      rules:canon_slot(S0, S),
-      query:search(select(slot,constraint([slot(S),equal]),SlotMeta), Repo://Id)
-  ; SlotReq = [slot(S0),subslot(Ss),equal] ->
-      rules:canon_slot(S0, S),
-      ( query:search(select(slot,constraint([slot(S),subslot(Ss),equal]),SlotMeta), Repo://Id)
-      -> true
-      ; rules:canon_slot(Ss, Ss1),
-        Ss1 == S,
-        \+ cache:entry_metadata(Repo, Id, subslot, _),
-        query:search(select(slot,constraint([slot(S)]),_SlotMeta0), Repo://Id),
-        SlotMeta = [slot(S),subslot(Ss1),equal]
-      )
-  ; SlotReq = [any_same_slot] ->
-      query:search(select(slot,constraint([any_same_slot]),SlotMeta0), Repo://Id),
-      rules:canon_any_same_slot_meta(SlotMeta0, SlotMeta)
-  ; SlotReq = [any_different_slot] ->
-      query:search(select(slot,constraint([any_different_slot]),SlotMeta0), Repo://Id),
-      SlotMeta = SlotMeta0
-  ; % Fallback (should be rare; may be slower due to missing macro)
-    query:search(select(slot,constraint(SlotReq),SlotMeta), Repo://Id)
-  ).
-
-% -----------------------------------------------------------------------------
-%  Helper: installed_entry_satisfies_package_deps
-% -----------------------------------------------------------------------------
-% Check that an installed entry satisfies all version constraints expressed in
-% the grouped package dependency list, while preserving query macro expansion.
-
-installed_entry_satisfies_package_deps(_Action, _C, _N, [], _Installed) :- !.
-installed_entry_satisfies_package_deps(Action, C, N,
-                                       [package_dependency(_Phase,no,C,N,O,V,_,_)|Rest],
-                                       Installed) :-
-  !,
-  rules:query_search_version_select(O, V, Installed),
-  rules:installed_entry_satisfies_package_deps(Action, C, N, Rest, Installed).
-installed_entry_satisfies_package_deps(Action, C, N, [_|Rest], Installed) :-
-  rules:installed_entry_satisfies_package_deps(Action, C, N, Rest, Installed).
-
-% Map runtime operator to a compile-time-friendly `select(version,<op>,...)` goal.
-% Special-case wildcard equality (=...-5.42*). This pattern is very common in
-% virtual/perl-* and similar versioned virtuals. Using `query:search/2` here can
-% fail to benefit from wildcard handling when called from compiled code paths,
-% so we match directly against the cached full version atom.
-query_search_version_select(equal, Ver0, RepoEntry) :-
-  RepoEntry = Repo://Id,
-  rules:coerce_version_term(Ver0, Ver1),
-  Ver1 = version(_,_,_,_,_,_,Pattern),
-  atom(Pattern),
-  sub_atom(Pattern, _, 1, 0, '*'),
-  !,
-  cache:ordered_entry(Repo, Id, _C, _N, version(_,_,_,_,_,_,ProposedVersion)),
-  wildcard_match(Pattern, ProposedVersion).
-query_search_version_select(equal, Ver, RepoEntry) :- !,
-  RepoEntry = Repo://Id,
-  rules:coerce_version_term(Ver, Ver1),
-  % Avoid `query:search/2` here: the compile-time macro historically treated all
-  % 4-tuples as wildcard-equality candidates (see query.pl), which could make
-  % exact equality constraints fail and degrade into domain assumptions.
-  cache:ordered_entry(Repo, Id, _C, _N, Ver1).
-query_search_version_select(none, _Ver, _RepoEntry) :- !.
-query_search_version_select(smaller, Ver, RepoEntry) :- !,
-  RepoEntry = Repo://Id,
-  rules:coerce_version_term(Ver, Ver1),
-  query:search(select(version,smaller,Ver1), Repo://Id).
-query_search_version_select(greater, Ver, RepoEntry) :- !,
-  RepoEntry = Repo://Id,
-  rules:coerce_version_term(Ver, Ver1),
-  query:search(select(version,greater,Ver1), Repo://Id).
-query_search_version_select(smallerequal, Ver, RepoEntry) :- !,
-  RepoEntry = Repo://Id,
-  rules:coerce_version_term(Ver, Ver1),
-  query:search(select(version,smallerequal,Ver1), Repo://Id).
-query_search_version_select(greaterequal, Ver, RepoEntry) :- !,
-  RepoEntry = Repo://Id,
-  rules:coerce_version_term(Ver, Ver1),
-  query:search(select(version,greaterequal,Ver1), Repo://Id).
-query_search_version_select(notequal, Ver, RepoEntry) :- !,
-  RepoEntry = Repo://Id,
-  rules:coerce_version_term(Ver, Ver1),
-  query:search(select(version,notequal,Ver1), Repo://Id).
-query_search_version_select(wildcard, Ver, RepoEntry) :- !,
-  RepoEntry = Repo://Id,
-  rules:coerce_version_term(Ver, Ver1),
-  query:search(select(version,wildcard,Ver1), Repo://Id).
-query_search_version_select(tilde, Ver, RepoEntry) :- !,
-  RepoEntry = Repo://Id,
-  rules:coerce_version_term(Ver, Ver1),
-  query:search(select(version,tilde,Ver1), Repo://Id).
-query_search_version_select(Op, Ver, RepoEntry) :-
-  % Fallback: keep semantics even if slower / not macro-expanded.
-  RepoEntry = Repo://Id,
-  rules:coerce_version_term(Ver, Ver1),
-  query:search(select(version,Op,Ver1), Repo://Id).
-
-% Coerce a version value into the canonical version term used in cache facts:
-%   [NumberList, AlphaPartAtom, SuffixPartAtom, FullVersionAtom]
-%
-% Some dependency/mask paths historically passed only the FullVersion atom (e.g.
-% 20250127.0). For non-equality comparators, the query engine expects the full
-% structure so it can use eapi:version_compare/3.
-rules:coerce_version_term(Ver0, Ver) :-
-  var(Ver0),
-  !,
-  Ver = Ver0.
-rules:coerce_version_term(version(_,_,_,_,_,_,_)=Ver, Ver) :- !.
-rules:coerce_version_term(Full, Ver) :-
-  atom(Full),
-  sub_atom(Full, _, 1, 0, '*'),
-  !,
-  Ver = version([0], '', 4, 0, '', 0, Full).
-rules:coerce_version_term(Full, version(Nums, '', 4, 0, '', 0, Full)) :-
-  atom(Full),
-  eapi:version2numberlist(Full, Nums),
-  Nums \== [],
-  !.
-rules:coerce_version_term(Num, Ver) :-
-  number(Num),
-  number_string(Num, S),
-  atom_string(Full, S),
-  !,
-  rules:coerce_version_term(Full, Ver).
-rules:coerce_version_term(Other, Other).
-
-
 % =============================================================================
-%  Ruleset: Dependency group helpers
+%  Debugging helpers
 % =============================================================================
-
-% -----------------------------------------------------------------------------
-%  Helper: prioritize_deps
-% -----------------------------------------------------------------------------
-% Sorts dependencies by prioritizing those that match user preferences, to
-% reduce the number of assumptions in the proof.
-
-prioritize_deps(Deps, SortedDeps) :-
-  prioritize_deps(Deps, [], SortedDeps).
-
-prioritize_deps(Deps, Context, SortedDeps) :-
-  predsort(rules:compare_dep_rank(Context), Deps, SortedDeps).
-
-% Like prioritize_deps/3, but preserves alternatives with identical rank.
-% predsort/3 can drop equal-ranked members (comparator returns (=)); this is
-% undesirable for disjunctions where all alternatives must remain available.
-%
-% Sort key: NegLicOk > NegRank > NegOverlap > NegSnap > I (original order).
-%   - NegLicOk: license-masked candidates sort last so non-masked alternatives
-%     are tried first (mirrors Portage ACCEPT_LICENSE filtering in || groups).
-%   - NegOverlap: Portage-like DNF optimisation — prefer packages that appear
-%     in multiple active || groups within the same ebuild, so that a single
-%     package can satisfy several groups at once (see bug #632026).
-rules:prioritize_deps_keep_all(Deps, Context, SortedDeps) :-
-  findall(NegLicOk-NegRank-NegOverlap-NegSnap-I-Dep,
-          ( nth1(I, Deps, Dep),
-            rules:dep_rank(Context, Dep, Rank),
-            rules:dep_overlap_group_count(Context, Dep, OvRaw),
-            ( OvRaw > 1 -> Overlap = OvRaw ; Overlap = 0 ),
-            ( rules:dep_snapshot_selected(Dep) -> Snap = 1 ; Snap = 0 ),
-            ( rules:dep_license_ok(Dep) -> LicOk = 1 ; LicOk = 0 ),
-            NegLicOk is -LicOk,
-            NegRank is -Rank,
-            NegOverlap is -Overlap,
-            NegSnap is -Snap
-          ),
-          Ranked),
-  keysort(Ranked, RankedSorted),
-  findall(Dep, member(_-_-_-_-_-Dep, RankedSorted), SortedDeps),
-  !.
-
-rules:dep_snapshot_selected(package_dependency(_Phase,_Strength,C,N,_O,_V,_S,_U)) :-
-  rules:snapshot_selected_cn_candidates(C, N, _),
-  !.
-rules:dep_snapshot_selected(_) :- fail.
-
-% ---------------------------------------------------------------------------
-%  Overlap-group count (Portage DNF approximation)
-% ---------------------------------------------------------------------------
-% Count how many *active* any_of_group entries in the same ebuild contain a
-% package with the given Category/Name. A count > 1 means the package is a
-% "common satisfier" — picking it reduces the total number of new packages.
-
-rules:dep_overlap_group_count(Context, package_dependency(_,_,C,N,_,_,_,_), Count) :-
-  memberchk(self(Repo://Ebuild), Context),
-  !,
-  aggregate_all(count, (
-    member(DepKey, [rdepend, depend, bdepend, pdepend, cdepend, idepend]),
-    cache:entry_metadata(Repo, Ebuild, DepKey, DepEntry),
-    rules:dep_entry_active_any_of_with_cn(DepEntry, Repo://Ebuild, C, N)
-  ), Count).
-rules:dep_overlap_group_count(_, _, 0).
-
-rules:dep_entry_active_any_of_with_cn(any_of_group(Deps), _, C, N) :-
-  member(package_dependency(_, _, C, N, _, _, _, _), Deps), !.
-rules:dep_entry_active_any_of_with_cn(use_conditional_group(Pol, Use, RepoEntry, Deps), _, C, N) :-
-  rules:rdepend_self_use_conditional_active(Pol, Use, RepoEntry),
-  member(D, Deps),
-  rules:dep_entry_active_any_of_with_cn(D, RepoEntry, C, N), !.
-rules:dep_entry_active_any_of_with_cn(all_of_group(Deps), RepoEntry, C, N) :-
-  member(D, Deps),
-  rules:dep_entry_active_any_of_with_cn(D, RepoEntry, C, N), !.
-
-% Rank dependencies for deterministic group choice.
-% Primary signal: prefer deps that are already satisfied by effective USE /
-% preferences / installed packages.
-% Secondary signal: for selector-style flags, choose highest version/slot.
-rules:compare_dep_rank(Context, Delta, A, B) :-
-  rules:dep_rank(Context, A, Ra),
-  rules:dep_rank(Context, B, Rb),
-  compare(C, Rb, Ra), % descending
-  ( C == (<) -> Delta = (<)
-  ; C == (>) -> Delta = (>)
-  ; Delta = (=)
-  ).
-
-rules:dep_rank(Context, Dep, Rank) :-
-  % Specialized ranking for package_dependency/8 is defined below; avoid
-  % accidentally taking this generic clause first (which would ignore the extra
-  % signals like self-avoidance and installed mismatch penalties).
-  Dep \= package_dependency(_,_,_,_,_,_,_,_),
-  ( is_preferred_dep(Context, Dep) -> Pref = 1 ; Pref = 0 ),
-  rules:dep_intrinsic_rank(Dep, Base),
-  Rank is Pref*1000000000 + Base,
-  !.
-
-% De-prioritize dependencies that resolve to the current ebuild's own CN.
-% This matters for BDEPEND like:
-%   || ( >=dev-lang/go-... >=dev-lang/go-bootstrap-... )
-% where choosing `dev-lang/go` would force bootstrapping from itself.
-rules:dep_rank(Context, package_dependency(Phase,Strength,C,N,O,V,S,U), Rank) :-
-  ( rules:self_cn(Context, C, N) -> Base0 = -100000000 ; Base0 = 0 ),
-  rules:installed_version_mismatch_penalty(package_dependency(Phase,Strength,C,N,O,V,S,U), BaseInst),
-  ( is_preferred_dep(Context, package_dependency(Phase,Strength,C,N,O,V,S,U)) -> Pref = 1 ; Pref = 0 ),
-  rules:dep_intrinsic_rank(package_dependency(Phase,Strength,C,N,O,V,S,U), Base1),
-  Rank is Pref*1000000000 + Base0 + BaseInst + Base1,
-  !.
-
-rules:self_cn(Context, C, N) :-
-  memberchk(self(Repo://Id), Context),
-  query:search([category(C),name(N)], Repo://Id),
-  !.
-
-rules:dep_intrinsic_rank(required(Use), Rank) :-
-  rules:use_rank(Use, Rank),
-  !.
-rules:dep_intrinsic_rank(required(minus(Use)), Rank) :-
-  rules:use_rank(Use, Rank),
-  !.
-rules:dep_intrinsic_rank(package_dependency(_Phase,_Strength,_C,N,_O,_V,_S,_U), Rank) :-
-  % Prefer bootstrap providers (e.g. go-bootstrap) over non-bootstrap alternatives.
-  ( atom_concat(_, '-bootstrap', N) -> Rank = 50000
-  ; Rank = 0
-  ),
-  !.
-rules:dep_intrinsic_rank(_, 0).
-
-rules:use_rank(Use, Rank) :-
-  atom(Use),
-  ( rules:llvm_slot_rank(Use, Rank)
-  ; rules:lua_single_target_rank(Use, Rank)
-  ),
-  !.
-rules:use_rank(_, 0).
-
-rules:llvm_slot_rank(Use, Rank) :-
-  atom_concat('llvm_slot_', Suffix, Use),
-  catch(atom_number(Suffix, N), _, fail),
-  Rank is 100000 + N.
-
-rules:lua_single_target_rank(Use, Rank) :-
-  % lua-single flags show up as e.g. lua_single_target_lua5-4
-  atom_concat('lua_single_target_lua5-', Suffix, Use),
-  catch(atom_number(Suffix, N), _, fail),
-  Rank is 90000 + N.
-
-% Prefer use-conditional branches that are already active under the current
-% effective USE of the referenced ebuild.
-%
-% This is crucial for patterns like:
-%   || ( pyqt6? ( ... ) pyside6? ( ... ) )
-% where Portage will naturally follow the currently-enabled branch; exploring the
-% disabled branch first leads to a large amount of pointless search.
-is_preferred_dep(_Context, use_conditional_group(positive, Use, RepoEntry, _Deps)) :-
-  \+ Use =.. [minus,_],
-  ( RepoEntry = _Repo://_Id ; RepoEntry = _Repo//_Id ),
-  use:effective_use_for_entry(RepoEntry, Use, positive),
-  !.
-is_preferred_dep(_Context, use_conditional_group(negative, Use, RepoEntry, _Deps)) :-
-  \+ Use =.. [minus,_],
-  ( RepoEntry = _Repo://_Id ; RepoEntry = _Repo//_Id ),
-  use:effective_use_for_entry(RepoEntry, Use, negative),
-  !.
-
-is_preferred_dep(Context, required(Use)) :-
-  Use \= minus(_),
-  ( preference:use(Use)
-  ; use:effective_use_in_context(Context, Use, positive)
-  ),
-  !.
-is_preferred_dep(Context, required(minus(Use))) :-
-  ( preference:use(minus(Use))
-  ; use:effective_use_in_context(Context, Use, negative)
-  ),
-  !.
-
-% Prefer any-of alternatives that are already satisfied by installed packages.
-%
-% Portage-like note:
-% Portage's dep_zapdeps ignores bracketed USE deps while ranking || alternatives.
-% Do not promote a branch solely because pkg[flag] happens to match global USE.
-% Keep preference signal limited to "already satisfied" style checks.
-is_preferred_dep(Context, all_of_group(Deps)) :-
-  Deps \= [],
-  forall(member(D, Deps), rules:group_member_preferred(Context, D)),
-  !.
-
-% Prefer any-of alternatives that are already installed.
-% This helps align Portage-like behavior for || groups that include a heavy
-% build-time tool (e.g. dev-lang/vala) versus a lighter already-installed
-% alternative (e.g. gobject-introspection).
-is_preferred_dep(_Context, package_dependency(_Phase,_Strength,C,N,O,V,_S,_U)) :-
-  query:search([name(N),category(C),installed(true)], pkg://Installed),
-  ( O == none ; rules:query_search_version_select(O, V, pkg://Installed) ),
-  !.
-
-% -----------------------------------------------------------------------------
-%  any_of_group preference helpers (installed satisfaction)
-% -----------------------------------------------------------------------------
-
-% Recursively decide whether a group member is satisfied by the current system.
-rules:group_member_preferred(Context, package_dependency(Phase,Strength,C,N,O,V,S,U)) :-
-  rules:installed_pkg_satisfies_dep(Context, package_dependency(Phase,Strength,C,N,O,V,S,U)),
-  !.
-rules:group_member_preferred(Context, use_conditional_group(positive, Use, RepoEntry, Deps)) :-
-  is_preferred_dep(Context, use_conditional_group(positive, Use, RepoEntry, Deps)),
-  !.
-rules:group_member_preferred(Context, use_conditional_group(negative, Use, RepoEntry, Deps)) :-
-  is_preferred_dep(Context, use_conditional_group(negative, Use, RepoEntry, Deps)),
-  !.
-rules:group_member_preferred(Context, all_of_group(Deps)) :-
-  Deps \= [],
-  forall(member(D, Deps), rules:group_member_preferred(Context, D)),
-  !.
-rules:group_member_preferred(_Context, _Other) :-
-  % Unknown/complex members (any_of_group, blockers, ...) are not treated as
-  % "already satisfied" for preference ranking.
-  fail.
-
-rules:installed_pkg_satisfies_dep(ParentContext,
-                                 package_dependency(_Phase,_Strength,C,N,O,V,_S,UseReqs)) :-
-  query:search([name(N),category(C),installed(true)], pkg://InstalledId),
-  ( O == none
-  ; rules:query_search_version_select(O, V, pkg://InstalledId)
-  ),
-  use:installed_pkg_satisfies_use_reqs(ParentContext, pkg://InstalledId, UseReqs),
-  !.
-
-
-% Penalize deps that would force changing an already-installed C/N due to a
-% version constraint mismatch.
-%
-% This is used for stable, deterministic selection in `|| ( ... )` groups.
-% Example:
-%   || ( =dev-lang/perl-5.40* ~perl-core/Foo-1.2.3 )
-% If perl is installed but not 5.40.*, prefer the perl-core branch to avoid a
-% downgrade/upgrade chain.
-rules:installed_version_mismatch_penalty(package_dependency(_Phase,_Strength,C,N,O,V,_S,_U), Penalty) :-
-  O \== none,
-  % At least one installed instance exists...
-  query:search([name(N),category(C),installed(true)], pkg://_),
-  % ...but none satisfy the requested version operator.
-  \+ ( query:search([name(N),category(C),installed(true)], pkg://InstalledId),
-       rules:query_search_version_select(O, V, pkg://InstalledId)
-     ),
-  Penalty is -50000000,
-  !.
-rules:installed_version_mismatch_penalty(_Dep, 0).
-
-
-% -----------------------------------------------------------------------------
-%  Helper: add_self_to_dep_contexts
-% -----------------------------------------------------------------------------
-% Annotate dependency literals with provenance of the "current ebuild" so that
-% downstream dependency-resolution rules can make safe choices (e.g. avoid
-% resolving a dependency to the current ebuild unless it is already installed),
-% without polluting memoized model keys.
-
-add_self_to_dep_contexts(_Self, [], []) :- !.
-add_self_to_dep_contexts(Self, [D0|Rest0], [D|Rest]) :-
-  ( D0 = Term:Action?{Ctx} ->
-      rules:ctx_set_self(Ctx, Self, Ctx1),
-      D = Term:Action?{Ctx1}
-  ; D = D0
-  ),
-  add_self_to_dep_contexts(Self, Rest0, Rest).
-
-% Keep at most ONE self/1 term in contexts.
-% This preserves the semantics needed for self-dependency guards while preventing
-% context growth (and memoization misses) along deep dependency chains.
-rules:ctx_set_self(Ctx0, Self, Ctx) :-
-  ( is_list(Ctx0) ->
-      ( selectchk(self(_), Ctx0, Ctx1) -> true ; Ctx1 = Ctx0 ),
-      Ctx = [self(Self)|Ctx1]
-  ; Ctx = [self(Self)]
-  ),
-  !.
 
 % -----------------------------------------------------------------------------
 %  Debugging: profile an entry rule step-by-step
@@ -1961,634 +1462,6 @@ core_pkg('virtual','service-manager').
 core_pkg('virtual','ssh').
 
 
-% -----------------------------------------------------------------------------
-%  Helper for process_slot
-% -----------------------------------------------------------------------------
-
-process_slot([any_different_slot], _, _, _, _, Context, Context) :- !.
-% Do not "lock" explicit slot requirements into the shared context.
-% Many ecosystems (notably Ruby) legitimately require multiple slots to coexist
-% in the same plan (e.g. dev-lang/ruby:3.2 and dev-lang/ruby:3.3). If we store a
-% single chosen slot in the context, later deps for a different explicit slot
-% will fail to resolve and get misreported as "non-existent".
-% This applies to all explicit-slot forms, including :slot, :slot= and
-% :slot/subslot[=].
-process_slot([slot(_)|_], _SlotMeta, _C, _N, _Repository://_Candidate, Context, Context) :- !.
-process_slot(_, Slot, C, N, _Repository://Candidate, Context0, Context) :-
-  feature_unification:unify([slot(C, N, Slot):{Candidate}], Context0, Context).
-
-%process_slot([any_same_slot],Slot,Context,[slot(Slot)|Context]) :- !.
-%process_slot([slot(X),equal],[slot(X)],Context,[slot([slot(X)])|Context]) :- !.
-%process_slot(_,_,Context,Context).
-
-
-
-% -----------------------------------------------------------------------------
-%  Helper for process_build_with_use
-% -----------------------------------------------------------------------------
-% When processing build with use directives, we are given the current context
-% as well as the directives. We extend the current context with the directives
-% prior to passing it on to the child dependencies. We also return build_with_use
-% constraints that should be added to the global constraint list.
-
-% Main predicate using foldl/4 to process USE directives.
-%
-% IMPORTANT (performance + termination):
-% Do not keep stacking `build_with_use/1` terms into Context.
-% In the presence of dependency cycles, that makes the goal context grow on each
-% recursive visit, which can defeat cycle detection/memoization and lead to
-% effectively-infinite backtracking until timeout.
-%
-% Instead, keep at most ONE `build_with_use/1` term in the context and merge
-% new directives into it.
-process_build_with_use(Directives, Context0, Context, Conditions, Candidate) :-
-    % IMPORTANT (correctness):
-    % `build_with_use` is *per-package* USE state/constraints. When we descend from a
-    % parent package into a dependency, the child's build_with_use must NOT inherit
-    % the parent's build_with_use. Otherwise the parent's USE state (e.g. gui/widgets,
-    % abi_x86_*) incorrectly becomes a constraint on the dependency, which triggers
-    % Portage-divergent rebuilds (same-version "updates") and inflates plans.
-    %
-    % So: remove any build_with_use term from the incoming (parent) context and
-    % seed the child state from empty, then apply only the directives for *this*
-    % dependency edge.
-    ( select(build_with_use:_, Context0, Context1) -> true ; Context1 = Context0 ),
-    use:empty_use_state(PrevState),
-    foldl(use:process_bwu_directive(Context0), Directives, PrevState, State0),
-    use:normalize_build_with_use(State0, State),
-    ( State = use_state([], []) ->
-        Context = Context1
-    ; feature_unification:unify([build_with_use:State], Context1, Context)
-    ),
-    build_with_use_constraints(Directives, Conditions, Candidate).
-
-
-% Helper predicate to generate build_with_use constraints
-% Collects all USE requirements into a single list to avoid data duplication
-%
-% NOTE:
-% Portage-style USE dependencies like `[foo]` or `[foo(+)]` are constraints on the
-% *child package's* USE state, not on the global profile/make.conf USE.
-%
-% At the moment, `portage-ng` models these by pushing `assumed(foo)` /
-% `naf(required(foo))` into the dependency context (see `process_use/4`) so that
-% downstream `use_conditional_group/4` can resolve correctly.
-%
-% Emitting global `constraint(use(Candidate))` entries here incorrectly ties these
-% requirements to `preference:use/1` (global USE), which causes false
-% "unsatisfiable dependency" errors (e.g. xdg-utils -> xmlto[text(+)]), even when
-% the child package has that flag enabled by default.
-%
-% Until we implement per-package USE evaluation, we keep these as context only.
-build_with_use_constraints(_, [], _) :- !.
-
-% -----------------------------------------------------------------------------
-%  Candidate USE-dependency enforcement (deps like pkg[foo], pkg[foo?], pkg[foo(+)])
-% -----------------------------------------------------------------------------
-%
-% The dependency atom USE-dependencies apply to the *child package* USE state,
-% not the global USE. We therefore verify that the chosen candidate's effective
-% USE satisfies these constraints.
-
-
-% -----------------------------------------------------------------------------
-%  Context helpers for per-package USE (build_with_use)
-% -----------------------------------------------------------------------------
-%
-% We represent per-package USE requirements in the context as:
-%   build_with_use:[ ... assumed(foo) ... assumed(minus(bar)) ... ]
-%
-% Some older code paths also used top-level assumed/1 terms. Support both.
-
-
-
-% -----------------------------------------------------------------------------
-%  CN-consistency reuse: pick already-selected entry when possible
-% -----------------------------------------------------------------------------
-
-rules:selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate) :-
-  memberchk(constraint(selected_cn(C,N):{ordset(SelectedSet)}), Context),
-  member(selected(FoundRepo, Candidate, ActSel, _CandVer, SelSlotMeta), SelectedSet),
-  % CN-consistency should be global across actions/phases: once we've chosen a
-  % concrete (C,N) entry, reuse it for both install+run obligations.
-  % Otherwise we can end up scheduling two different versions for the same (C,N)
-  % when the run-dep is encountered before the install-dep (or vice versa),
-  % e.g. wrk -> luajit installs two luajit versions.
-  ( (Action == install ; Action == run),
-    (ActSel == install ; ActSel == run)
-  -> true
-  ; ActSel == Action
-  ),
-  % Multi-slot awareness: if the context carries a slot lock for this (C,N)
-  % (typically via := / any_same_slot), only reuse a selection in that slot.
-  ( memberchk(slot(C,N,SsLock0):{_}, Context) ->
-      rules:canon_any_same_slot_meta(SsLock0, SsLock),
-      rules:canon_any_same_slot_meta(SelSlotMeta, SsSel),
-      SsSel == SsLock
-  ; true
-  ),
-  cache:ordered_entry(FoundRepo, Candidate, C, N, _),
-  \+ preference:masked(FoundRepo://Candidate).
-
-% Reuse an already-selected CN candidate only when it remains compatible with
-% this grouped dependency's slot/version/domain requirements.
-rules:selected_cn_candidate_compatible(Action, C, N, SlotReq, PackageDeps, Context, FoundRepo://Candidate) :-
-  rules:selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate),
-  rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, _),
-  rules:grouped_dep_candidate_satisfies_constraints(Action, C, N, PackageDeps, Context, FoundRepo://Candidate).
-
-% Collect selected candidates that match slot requirements but violate current
-% grouped dependency constraints. These are excluded from the "fresh candidate"
-% fallback path for this dependency literal.
-rules:selected_cn_rejected_candidates(Action, C, N, SlotReq, PackageDeps, Context, Rejected) :-
-  rules:grouped_dep_effective_domain_precomputed(Action, C, N, PackageDeps, Context, EffDom, RejectDom),
-  findall(Repo://Entry,
-          ( rules:selected_cn_candidate(Action, C, N, Context, Repo://Entry),
-            rules:query_search_slot_constraint(SlotReq, Repo://Entry, _),
-            \+ rules:grouped_dep_candidate_satisfies_constraints_precomputed(
-                    C, N, PackageDeps, EffDom, RejectDom, Repo://Entry)
-          ),
-          Rejected0),
-  sort(Rejected0, Rejected),
-  !.
-
-rules:grouped_dep_candidate_satisfies_constraints(Action, C, N, PackageDeps, Context, RepoEntry) :-
-  forall(member(package_dependency(_Phase,no,C,N,O,V,_SlotReq,_Use), PackageDeps),
-         rules:query_search_version_select(O, V, RepoEntry)),
-  rules:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps, Context, RepoEntry),
-  !.
-
-rules:grouped_dep_candidate_satisfies_constraints_precomputed(C, N, PackageDeps, EffDom, RejectDom, RepoEntry) :-
-  forall(member(package_dependency(_Phase,no,C,N,O,V,_SlotReq,_Use), PackageDeps),
-         rules:query_search_version_select(O, V, RepoEntry)),
-  rules:grouped_dep_candidate_satisfies_effective_domain_precomputed(EffDom, RejectDom, C, N, RepoEntry),
-  !.
-
-rules:grouped_dep_effective_domain_precomputed(Action, C, N, PackageDeps, Context, EffectiveDomain, RejectDomain) :-
-  rules:grouped_dep_effective_domain(Action, C, N, PackageDeps, Context, EffectiveDomain),
-  rules:context_cn_reject_scope(C, N, Context, EffectiveDomain, RejectScope),
-  rules:cn_reject_scoped_domain(RejectScope, EffectiveDomain, RejectDomain),
-  !.
-
-rules:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps, Context, RepoEntry) :-
-  rules:grouped_dep_effective_domain_precomputed(Action, C, N, PackageDeps, Context, EffectiveDomain, RejectDomain),
-  rules:grouped_dep_candidate_satisfies_effective_domain_precomputed(EffectiveDomain, RejectDomain, C, N, RepoEntry),
-  !.
-
-rules:grouped_dep_candidate_satisfies_effective_domain_precomputed(EffectiveDomain, RejectDomain, C, N, RepoEntry) :-
-  \+ version_domain:domain_inconsistent(EffectiveDomain),
-  \+ rules:cn_domain_candidate_rejected(C, N, RejectDomain, RepoEntry),
-  version_domain:domain_allows_candidate(EffectiveDomain, RepoEntry),
-  !.
-
-rules:grouped_dep_effective_domain(Action, C, N, PackageDeps, Context, EffectiveDomain) :-
-  version_domain:domain_from_packagedeps(Action, C, N, PackageDeps, DepDomain0),
-  ( rules:context_cn_domain_constraint(C, N, Context, CtxDomain0) ->
-      ( version_domain:domain_meet(CtxDomain0, DepDomain0, D1) -> true
-      ; D1 = version_domain(slots([]), [])
-      )
-  ; D1 = DepDomain0
-  ),
-  rules:apply_learned_domain(C, N, PackageDeps, D1, EffectiveDomain),
-  !.
-
-% Apply any learned domain constraints for (C,N). Checks slot-specific
-% first, then any-slot fallback.
-rules:apply_learned_domain(C, N, PackageDeps, D0, D) :-
-  rules:dep_slot_key(PackageDeps, Slot),
-  ( Slot \== any, prover:learned(cn_domain(C,N,Slot), L1) -> true ; L1 = none ),
-  ( prover:learned(cn_domain(C,N,any), L2) -> true ; L2 = none ),
-  ( L1 \== none, L2 \== none ->
-      version_domain:domain_meet(L1, L2, Learned),
-      ( version_domain:domain_meet(D0, Learned, D) -> true ; D = D0 )
-  ; L1 \== none ->
-      ( version_domain:domain_meet(D0, L1, D) -> true ; D = D0 )
-  ; L2 \== none ->
-      ( version_domain:domain_meet(D0, L2, D) -> true ; D = D0 )
-  ; D = D0
-  ), !.
-
-rules:dep_slot_key(PackageDeps, Slot) :-
-  member(package_dependency(_, _, _, _, _, _, SlotReq, _), PackageDeps),
-  SlotReq = [slot(S)|_], rules:canon_slot(S, Slot), !.
-rules:dep_slot_key(_, any).
-
-rules:context_cn_domain_constraint(C, N, Context, Domain) :-
-  is_list(Context),
-  memberchk(constraint(cn_domain(C,N):{Domain}), Context),
-  !.
-
-rules:context_cn_domain_reason(C, N, Context, Reasons) :-
-  is_list(Context),
-  ( memberchk(constraint(cn_domain_reason(C,N):{ordset(Reasons0)}), Context) ->
-      Reasons = Reasons0
-  ; memberchk(domain_reason(cn_domain(C,N,Reasons0)), Context) ->
-      Reasons = Reasons0
-  ; Reasons = []
-  ),
-  !.
-
-rules:context_selected_cn_candidates(C, N, Context, Candidates) :-
-  is_list(Context),
-  memberchk(constraint(selected_cn(C,N):{ordset(SelectedSet)}), Context),
-  findall(Repo://Entry,
-          member(selected(Repo,Entry,_Act,_SelVer,_SelSlotMeta), SelectedSet),
-          Candidates0),
-  sort(Candidates0, Candidates),
-  Candidates \== [],
-  !.
-
-% Slot-scoped reject scope from proving context:
-% - when a slot lock is present in context, scope rejects to that slot;
-% - otherwise derive scope from the effective domain (explicit slot deps).
-rules:context_cn_reject_scope(C, N, Context, Domain, Scope) :-
-  ( rules:context_slot_scope(C, N, Context, Scope0) ->
-      Scope = Scope0
-  ; rules:domain_slot_scope(Domain, Scope)
-  ),
-  !.
-
-rules:context_slot_scope(C, N, Context, slot(Slot)) :-
-  is_list(Context),
-  memberchk(slot(C,N,Ss0):{_}, Context),
-  rules:canon_any_same_slot_meta(Ss0, [slot(Slot)]),
-  !.
-
-rules:domain_slot_scope(version_domain(slots([S0]), _Bounds), slot(S)) :-
-  rules:canon_slot(S0, S),
-  !.
-rules:domain_slot_scope(_Domain, any) :-
-  !.
-
-rules:cn_reject_scope_canon(slot(S0), slot(S)) :-
-  rules:canon_slot(S0, S),
-  !.
-rules:cn_reject_scope_canon(any, any) :-
-  !.
-rules:cn_reject_scope_canon(_Other, any) :-
-  !.
-
-rules:cn_reject_scoped_domain(any, Domain, Domain) :-
-  !.
-rules:cn_reject_scoped_domain(Scope0, Domain, scoped(Scope, Domain)) :-
-  rules:cn_reject_scope_canon(Scope0, Scope),
-  !.
-
-rules:snapshot_selected_cn_candidates(C, N, Candidates) :-
-  memo:selected_cn_snap_(C, N, Candidates),
-  Candidates \== [],
-  !.
-
-rules:record_selected_cn_snapshot(C, N, SelectedSet) :-
-  findall(Repo://Entry,
-          member(selected(Repo,Entry,_Act,_SelVer,_SelSlotMeta), SelectedSet),
-          Candidates0),
-  sort(Candidates0, Candidates),
-  ( retract(memo:selected_cn_snap_(C, N, _)) -> true ; true ),
-  assertz(memo:selected_cn_snap_(C, N, Candidates)),
-  !.
-
-rules:snapshot_blocked_cn_sources(C, N, Sources) :-
-  memo:blocked_cn_source_snap_(C, N, Sources),
-  Sources \== [],
-  !.
-
-rules:record_blocked_cn_source_snapshot(C, N, Sources0) :-
-  sort(Sources0, Sources),
-  Sources \== [],
-  ( retract(memo:blocked_cn_source_snap_(C, N, OldSources)) -> true ; OldSources = [] ),
-  ord_union(OldSources, Sources, MergedSources),
-  assertz(memo:blocked_cn_source_snap_(C, N, MergedSources)),
-  !.
-rules:record_blocked_cn_source_snapshot(_C, _N, _Sources) :-
-  !.
-
-rules:reason_linked_selected_reprove_target(Reasons, SourceC, SourceN, [SourceRepo://SourceEntry]) :-
-  is_list(Reasons),
-  member(introduced_by(OriginRepo://OriginEntry, _ReasonAction, _ReasonWhat), Reasons),
-  query:search([category(OriginC),name(OriginN)], OriginRepo://OriginEntry),
-  rules:snapshot_blocked_cn_sources(OriginC, OriginN, Sources),
-  member(source(SourceRepo,SourceEntry,_Phase,_O,_V,_SlotReq), Sources),
-  query:search([category(SourceC),name(SourceN)], SourceRepo://SourceEntry),
-  rules:snapshot_selected_cn_candidates(SourceC, SourceN, SelectedSourceCandidates),
-  memberchk(SourceRepo://SourceEntry, SelectedSourceCandidates),
-  !.
-
-rules:domain_conflicting_candidates(_Domain, [], []) :-
-  !.
-rules:domain_conflicting_candidates(Domain, Candidates, Conflicting) :-
-  findall(RepoEntry,
-          ( member(RepoEntry, Candidates),
-            \+ version_domain:domain_allows_candidate(Domain, RepoEntry)
-          ),
-          Conflicting0),
-  sort(Conflicting0, Conflicting),
-  !.
-
-% Find selected candidates that violate the *full* grouped dependency constraints
-% (version operator semantics, USE deps, effective domain/reject map), not just
-% the normalized version-domain approximation.
-rules:constraint_conflicting_candidates(_Action, _C, _N, _PackageDeps, _Context, [], []) :-
-  !.
-rules:constraint_conflicting_candidates(Action, C, N, PackageDeps, Context, Candidates, Conflicting) :-
-  findall(RepoEntry,
-          ( member(RepoEntry, Candidates),
-            \+ rules:grouped_dep_candidate_satisfies_constraints(Action, C, N, PackageDeps, Context, RepoEntry)
-          ),
-          Conflicting0),
-  sort(Conflicting0, Conflicting),
-  !.
-
-% When grouped dependency proving drifts toward assumption fallback, request a
-% bounded CN-domain reprove retry using conflicting selected candidates and
-% collected domain provenance reasons.
-rules:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps, Context) :-
-  rules:cn_domain_reprove_enabled,
-  ( rules:context_selected_cn_candidates(C, N, Context, SelectedCandidatesRaw) ->
-      true
-  ; rules:snapshot_selected_cn_candidates(C, N, SelectedCandidates0) ->
-      SelectedCandidatesRaw = SelectedCandidates0
-  ; SelectedCandidatesRaw = []
-  ),
-  rules:grouped_dep_effective_domain(Action, C, N, PackageDeps, Context, EffectiveDomain),
-  rules:context_cn_reject_scope(C, N, Context, EffectiveDomain, RejectScope),
-  rules:cn_reject_scoped_domain(RejectScope, EffectiveDomain, RejectDomain),
-  rules:domain_conflicting_candidates(EffectiveDomain, SelectedCandidatesRaw, DomainConflicting),
-  rules:constraint_conflicting_candidates(Action, C, N, PackageDeps, Context, SelectedCandidatesRaw, ConstraintConflicting),
-  ord_union(DomainConflicting, ConstraintConflicting, SelectedCandidates),
-  version_domain:domain_reason_terms(Action, C, N, PackageDeps, Context, Reasons),
-  ( SelectedCandidates \== []
-  ; Reasons \== []
-  ),
-  ( version_domain:domain_inconsistent(EffectiveDomain)
-  ; SelectedCandidates \== []
-  ; rules:dep_has_version_constraint(C, N, PackageDeps)
-  ; rules:dep_has_explicit_slot_constraint(C, N, PackageDeps)
-  ),
-  ( SelectedCandidates == [],
-    rules:reason_linked_selected_reprove_target(Reasons, SourceC, SourceN, SourceCandidates)
-  ->
-    throw(prover_reprove(cn_domain(SourceC, SourceN, none, SourceCandidates, Reasons)))
-  ; throw(prover_reprove(cn_domain(C, N, RejectDomain, SelectedCandidates, Reasons)))
-  ).
-rules:maybe_request_grouped_dep_reprove(_Action, _C, _N, _PackageDeps, _Context) :-
-  fail.
-
-% reprove hooks (handle_reprove, reprove_exhausted, reprove_init_state,
-% reprove_cleanup_state) moved to Source/Rules/heuristic.pl
-%
-% reprove_disable/0 and reprove_enable/0 moved to prover.pl
-% (prover:reprove_disable/0, prover:reprove_enable/0)
-
-
-% -----------------------------------------------------------------------------
-%  Scoped CN-domain reject map (used by bounded reprove retries)
-% -----------------------------------------------------------------------------
-%
-% This map stores candidate no-goods keyed by (C,N,Domain), so retries can avoid
-% repeatedly selecting the same candidate under the same effective domain.
-% Scope is per top-level prover call (managed by prover:prove/9).
-
-memo:cn_domain_reject_key(C, N, scoped(Scope0, Domain0), key(C,N,Scope,Domain)) :-
-  rules:cn_reject_scope_canon(Scope0, Scope),
-  version_domain:domain_normalize(Domain0, Domain),
-  !.
-memo:cn_domain_reject_key(C, N, Domain0, key(C,N,Scope,Domain)) :-
-  version_domain:domain_normalize(Domain0, Domain),
-  rules:domain_slot_scope(Domain, Scope),
-  !.
-
-rules:cn_domain_candidate_rejected(C, N, Domain0, RepoEntry) :-
-  memo:cn_domain_reject_key(C, N, Domain0, key(C,N,Scope,Domain)),
-  ( memo:cn_domain_reject_(key(C,N,Scope,Domain), Set),
-    memberchk(RepoEntry, Set)
-  ; memo:cn_domain_reject_(key(C,N,Scope,none), ScopeGlobalSet),
-    memberchk(RepoEntry, ScopeGlobalSet)
-  ; Scope \== any,
-    memo:cn_domain_reject_(key(C,N,any,Domain), AnyDomainSet),
-    memberchk(RepoEntry, AnyDomainSet)
-  ; memo:cn_domain_reject_(key(C,N,any,none), GlobalSet),
-    memberchk(RepoEntry, GlobalSet)
-  ),
-  !.
-
-rules:add_cn_domain_rejects(C, N, Domain0, Candidates0, Added) :-
-  memo:cn_domain_reject_key(C, N, Domain0, Key),
-  sort(Candidates0, Candidates),
-  ( memo:cn_domain_reject_(Key, OldSet) -> true ; OldSet = [] ),
-  ord_union(OldSet, Candidates, NewSet),
-  ( NewSet == OldSet ->
-      Added = false
-  ; ( retract(memo:cn_domain_reject_(Key, _)) -> true ; true ),
-    assertz(memo:cn_domain_reject_(Key, NewSet)),
-    Added = true
-  ),
-  !.
-
-rules:add_cn_domain_origin_rejects(Reasons, Added) :-
-  is_list(Reasons),
-  findall(C0-N0-Repo://Entry,
-          ( member(introduced_by(Repo://Entry, _Action, _Why), Reasons),
-            query:search([category(C0),name(N0)], Repo://Entry)
-          ),
-          Origins0),
-  sort(Origins0, Origins),
-  rules:add_cn_domain_origin_rejects_(Origins, false, Added),
-  !.
-rules:add_cn_domain_origin_rejects(_Reasons, false) :-
-  !.
-
-rules:add_cn_domain_origin_rejects_([], Added, Added) :-
-  !.
-rules:add_cn_domain_origin_rejects_([C-N-Repo://Entry|Rest], Added0, Added) :-
-  rules:add_cn_domain_rejects(C, N, none, [Repo://Entry], Added1),
-  ( Added0 == true ->
-      Added2 = true
-  ; Added1 == true ->
-      Added2 = true
-  ; Added2 = false
-  ),
-  rules:add_cn_domain_origin_rejects_(Rest, Added2, Added).
-
-rules:cn_domain_reprove_enabled :-
-  prover:reprove_enabled,
-  !.
-
-rules:maybe_request_cn_domain_reprove(C, N, Domain, Selected) :-
-  rules:maybe_request_cn_domain_reprove(C, N, Domain, Selected, []).
-
-rules:maybe_request_cn_domain_reprove(C, N, Domain, Selected, Reasons) :-
-  rules:cn_domain_reprove_enabled,
-  findall(Repo://Entry,
-          member(selected(Repo,Entry,_Act,_SelVer,_SelSlotMeta), Selected),
-          Candidates0),
-  sort(Candidates0, Candidates),
-  Candidates \== [],
-  throw(prover_reprove(cn_domain(C, N, Domain, Candidates, Reasons))).
-rules:maybe_request_cn_domain_reprove(_C, _N, _Domain, _Selected, _Reasons) :-
-  true.
-
-% Helper predicate to collect all USE requirements into a single list
-collect_use_requirements([], []).
-collect_use_requirements([use(enable(Use), _)|Rest], [required(Use)|RestRequirements]) :-
-    !,
-    collect_use_requirements(Rest, RestRequirements).
-collect_use_requirements([use(disable(Use), _)|Rest], [naf(required(Use))|RestRequirements]) :-
-    !,
-    collect_use_requirements(Rest, RestRequirements).
-collect_use_requirements([use(equal(Use), _)|Rest], [required(Use)|RestRequirements]) :-
-    !,
-    collect_use_requirements(Rest, RestRequirements).
-collect_use_requirements([use(inverse(Use), _)|Rest], [naf(required(Use))|RestRequirements]) :-
-    !,
-    collect_use_requirements(Rest, RestRequirements).
-collect_use_requirements([use(optenable(Use), _)|Rest], [required(Use)|RestRequirements]) :-
-    !,
-    collect_use_requirements(Rest, RestRequirements).
-collect_use_requirements([use(optdisable(Use), _)|Rest], [naf(required(Use))|RestRequirements]) :-
-    !,
-    collect_use_requirements(Rest, RestRequirements).
-collect_use_requirements([_|Rest], RestRequirements) :-
-    !,
-    collect_use_requirements(Rest, RestRequirements).
-
-
-% Helper predicate for foldl/4.
-% It processes a single USE dependency directive.
-%
-% CRITICAL (termination/performance):
-% This predicate MUST be deterministic. Non-determinism here can cause massive
-% backtracking explosions when build-with-use context is propagated through
-% dependency cycles.
-%
-% We reuse the same normalization logic as `candidate_satisfies_use_deps/3`:
-% first map (Directive,Default) to a concrete requirement (or none), then add
-% the corresponding context assumptions.
-process_use(ParentContext, use(Directive, Default), Acc, AccOut) :-
-    !,
-    use:use_dep_requirement(ParentContext, Directive, Default, Requirement),
-    ( Requirement = requirement(enable, Use, _Default) ->
-        AccOut = [required(Use), assumed(Use)|Acc]
-    ; Requirement = requirement(disable, Use, _Default) ->
-        AccOut = [naf(required(Use)), assumed(minus(Use))|Acc]
-    ; % none / unhandled
-      AccOut = Acc
-    ).
-
-% Catch-all for any other directives
-process_use(_ParentContext, _Other, Acc, Acc) :- !.
-
-
-
-% Shared implementation of transactional update prerequisites for Repository://Ebuild.
-% Context MUST contain replaces(OldRepo://OldEbuild).
-rules:update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
-  % 1. Compute required_use stable model for the *new* version, extend with build_with_use
-  use:context_build_with_use_state(Context, B),
-  (memberchk(required_use:R,Context) -> true ; R = []),
-  query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
-
-  % 2. Compute + memoize dependency model (grouped), for the *new* version.
-  query:memoized_search(model(dependency(MergedDeps0,install)):config?{Model},Repository://Ebuild),
-  add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
-
-  % Optional: deep update means "also update dependency packages".
-  % We model this by scheduling update goals for any installed dependency package
-  % that appears in the dependency model.
-  ( preference:flag(deep)
-  -> rules:deep_update_goals(Repository://Ebuild, MergedDeps, DeepUpdates)
-  ;  DeepUpdates = []
-  ),
-
-  % 3. Pass on relevant package dependencies and constraints to prover.
-  query:search([category(CNew),name(NNew),select(slot,constraint([]),SAll)], Repository://Ebuild),
-  ( memberchk(CNew,['virtual','acct-group','acct-user'])
-    -> Base0 = [ constraint(use(Repository://Ebuild):{R}),
-                 constraint(slot(CNew,NNew,SAll):{Ebuild})
-                 |DeepUpdates],
-       append(Base0, MergedDeps, Conditions)
-    ;  Base0 = [ constraint(use(Repository://Ebuild):{R}),
-                 constraint(slot(CNew,NNew,SAll):{Ebuild}),
-                 Repository://Ebuild:download?{[required_use:R,build_with_use:B]}
-                 |DeepUpdates],
-       append(Base0, MergedDeps, Conditions)
-  ).
-
-% Collect update goals for installed dependency packages from a grouped dependency model.
-rules:deep_update_goals(Self, MergedDeps, DeepUpdates) :-
-  ( preference:accept_keywords(K)
-    -> KeywordQ = [keywords(K)]
-    ;  KeywordQ = []
-  ),
-  findall(C-N, (member(Dep, MergedDeps), rules:dep_cn(Dep, C, N)), CN0),
-  sort(CN0, CN),
-  findall(NewRepo://NewEntry:update?{[replaces(OldRepo://OldEntry)]},
-          ( member(C-N, CN),
-            % For each dependency package, look at installed instances in the VDB repo (`pkg`)
-            % (possibly multiple slots). Restricting to `pkg` avoids scanning all repos.
-            query:search([name(N),category(C),installed(true)], pkg://OldEntry),
-            OldRepo = pkg,
-            pkg://OldEntry \== Self,
-            query:search(version(OldVer), pkg://OldEntry),
-            % Only deep-update within the same slot if we can determine it.
-            query:search(slot(Slot0), pkg://OldEntry),
-            rules:canon_slot(Slot0, Slot),
-            % Pick the newest acceptable candidate in that slot.
-            ( KeywordQ == []
-              -> query:search(latest([select(repository,notequal,pkg),
-                                      category(C),name(N),slot(Slot),
-                                      select(version,greater,OldVer)]),
-                              NewRepo://NewEntry)
-              ;  query:search(latest([select(repository,notequal,pkg),
-                                      category(C),name(N),slot(Slot),keywords(K),
-                                      select(version,greater,OldVer)]),
-                              NewRepo://NewEntry)
-            )
-          ),
-          Updates0),
-  sort(Updates0, DeepUpdates).
-
-rules:dep_cn(grouped_package_dependency(_,C,N,_):_Action?{_Ctx}, C, N) :- !.
-rules:dep_cn(grouped_package_dependency(C,N,_):_Action?{_Ctx}, C, N) :- !.
-% Concrete dependency literals (already resolved to a specific entry):
-%   Repo://Entry:install?{...}
-%   Repo://Entry:run?{...}
-%   Repo://Entry:config?{...}
-% etc.
-rules:dep_cn(Repo://Entry:_Action?{_Ctx}, C, N) :-
-  query:search([category(C),name(N)], Repo://Entry),
-  !.
-rules:dep_cn(Repo://Entry:_Action, C, N) :-
-  query:search([category(C),name(N)], Repo://Entry),
-  !.
-
-
-% Determine a package slot for planning decisions.
-% If explicit slot metadata exists, use it; otherwise treat it as slot 0.
-rules:entry_slot_default(Repo, Entry, Slot) :-
-  ( query:search(slot(Slot0), Repo://Entry)
-    -> rules:canon_slot(Slot0, Slot)
-    ;  Slot = '0'
-  ).
-
-% Normalize slot values so comparisons work even when some facts use numbers and
-% others use atoms.
-rules:canon_slot(S0, S) :-
-  ( atom(S0)   -> S = S0
-  ; integer(S0) -> atom_number(S, S0)
-  ; number(S0)  -> atom_number(S, S0)
-  ; S = S0
-  ),
-  !.
-
-% Normalize slot metadata lists so `:=`/any_same_slot compares by SLOT only.
-% Some contexts store full metadata [slot(S),subslot(Ss)], but any_same_slot
-% queries now return [slot(S)]. Ensure we can unify reliably.
-rules:canon_any_same_slot_meta(Meta0, [slot(S)]) :-
-  is_list(Meta0),
-  member(slot(S0), Meta0),
-  rules:canon_slot(S0, S),
-  !.
 
 % -----------------------------------------------------------------------------
 %  Constraint unification hook (domain hook called by prover)
@@ -2634,19 +1507,19 @@ rules:constraint_guard(constraint(cn_domain(C,N):{Domain0}), Constraints) :-
       % still validated locally during candidate selection.
       get_assoc(selected_cn_allow_multislot(C,N), Constraints, _AllowMultiSlot)
   ; ( get_assoc(selected_cn(C,N), Constraints, ordset(Selected)) ->
-      rules:selected_cn_domain_compatible_or_reprove(C, N, Domain, Selected, Constraints)
+      candidate:selected_cn_domain_compatible_or_reprove(C, N, Domain, Selected, Constraints)
   ; true
     )
   ).
 rules:constraint_guard(constraint(blocked_cn(C,N):{ordset(Specs)}), Constraints) :-
   !,
   ( get_assoc(selected_cn(C,N), Constraints, ordset(Selected)) ->
-      rules:selected_cn_not_blocked_or_reprove(C, N, Specs, Selected, Constraints)
+      candidate:selected_cn_not_blocked_or_reprove(C, N, Specs, Selected, Constraints)
   ; true
   ).
 rules:constraint_guard(constraint(blocked_cn_source(C,N):{ordset(Sources)}), _Constraints) :-
   !,
-  rules:record_blocked_cn_source_snapshot(C, N, Sources).
+  candidate:record_blocked_cn_source_snapshot(C, N, Sources).
 rules:constraint_guard(constraint(selected_cn_allow_multislot(_C,_N):{_}), _Constraints) :-
   !.
 rules:constraint_guard(constraint(selected_cn(C,N):{ordset(_SelectedNew)}), Constraints) :-
@@ -2656,399 +1529,17 @@ rules:constraint_guard(constraint(selected_cn(C,N):{ordset(_SelectedNew)}), Cons
   % - opt-in: allow one concrete entry per SLOT when multislot was explicitly
   %   requested (slot-qualified deps or split grouped deps).
   get_assoc(selected_cn(C,N), Constraints, ordset(SelectedMerged)),
-  rules:record_selected_cn_snapshot(C, N, SelectedMerged),
+  candidate:record_selected_cn_snapshot(C, N, SelectedMerged),
   ( get_assoc(cn_domain(C,N), Constraints, Domain) ->
-      rules:selected_cn_domain_compatible_or_reprove(C, N, Domain, SelectedMerged, Constraints)
+      candidate:selected_cn_domain_compatible_or_reprove(C, N, Domain, SelectedMerged, Constraints)
   ; true
   ),
-  rules:selected_cn_unique_or_reprove(C, N, SelectedMerged, Constraints),
+  candidate:selected_cn_unique_or_reprove(C, N, SelectedMerged, Constraints),
   ( get_assoc(blocked_cn(C,N), Constraints, ordset(Specs)) ->
-      rules:selected_cn_not_blocked_or_reprove(C, N, Specs, SelectedMerged, Constraints)
+      candidate:selected_cn_not_blocked_or_reprove(C, N, Specs, SelectedMerged, Constraints)
   ; true
   ).
 rules:constraint_guard(_Other, _Constraints).
-
-% Enforce uniqueness, but when enabled allow a bounded reprove retry if a stale
-% selected candidate conflicts with an active CN domain while another candidate
-% in the merged set still satisfies that domain.
-rules:selected_cn_unique_or_reprove(C, N, SelectedMerged, Constraints) :-
-  rules:selected_cn_unique(C, N, SelectedMerged, Constraints),
-  !.
-rules:selected_cn_unique_or_reprove(C, N, SelectedMerged, Constraints) :-
-  rules:cn_domain_reprove_enabled,
-  get_assoc(cn_domain(C,N), Constraints, Domain),
-  % Keep same-slot multiversion edge-cases unchanged (ocaml/ppx transition).
-  \+ rules:selected_cn_requires_same_slot_multiversion(C, N, Constraints),
-  rules:selected_cn_partition_by_domain(Domain, SelectedMerged, Allowed, Conflicting),
-  Allowed \== [],
-  Conflicting \== [],
-  ( Conflicting = [selected(_,_,_,_,SM0)|_],
-    rules:selected_cn_slot_key_(SM0, Slot) -> true ; Slot = any ),
-  prover:learn(cn_domain(C,N,Slot), Domain, _),
-  ( Slot \== any -> prover:learn(cn_domain(C,N,any), Domain, _) ; true ),
-  rules:maybe_request_cn_domain_reprove(C, N, none, Conflicting, [unique_conflict_with_domain]),
-  fail.
-% Inconsistent domain with identifiable origin: learn a narrowing
-% constraint for the origin package (Vermeir: lower-priority yields).
-rules:selected_cn_unique_or_reprove(C, N, _SelectedMerged, Constraints) :-
-  rules:cn_domain_reprove_enabled,
-  get_assoc(cn_domain(C,N), Constraints, _Domain),
-  rules:selected_cn_requires_same_slot_multiversion(C, N, Constraints),
-  ( get_assoc(cn_domain_reason(C,N), Constraints, ordset(Reasons)) -> true ; Reasons = [] ),
-  Reasons \== [],
-  rules:find_adjustable_origin(Reasons, OriginC, OriginN, OriginRepo://OriginEntry),
-  query:search(version(OriginVer), OriginRepo://OriginEntry),
-  ExcludeDomain = version_domain(any, [bound(smaller, OriginVer)]),
-  prover:learn(cn_domain(OriginC, OriginN, any), ExcludeDomain, Added),
-  Added == true,
-  rules:maybe_request_cn_domain_reprove(OriginC, OriginN, none, [OriginRepo://OriginEntry], [inconsistency_driven]),
-  fail.
-rules:selected_cn_unique_or_reprove(_C, _N, _SelectedMerged, _Constraints) :-
-  fail.
-
-% Find an origin that already has a learned constraint — that's the
-% adjustable package whose version needs further narrowing.
-rules:find_adjustable_origin(Reasons, OriginC, OriginN, Repo://Entry) :-
-  member(introduced_by(Repo://Entry, _Action, _Why), Reasons),
-  cache:ordered_entry(Repo, Entry, OriginC, OriginN, _),
-  prover:learned(cn_domain(OriginC, OriginN, _), _), !.
-
-% When a dep on (C,N) can't be satisfied, the parent (self) likely
-% selected the wrong version. Learn to exclude the parent's current
-% version so the next retry picks an older one.
-% Do NOT fire for multi-slot deps (explicit slot different from selected) —
-% those need the missing slot to be added, not the parent narrowed.
-% Do NOT fire for PDEPEND failures — post-dependencies are soft requirements
-% that should not invalidate the parent's installability.
-rules:maybe_learn_parent_narrowing(C, N, PackageDeps, Context) :-
-  \+ rules:is_pdepend_failure(PackageDeps, Context),
-  \+ rules:is_multislot_miss(C, N, PackageDeps, Context),
-  is_list(Context),
-  memberchk(self(ParentRepo://ParentEntry), Context),
-  cache:ordered_entry(ParentRepo, ParentEntry, ParentC, ParentN, _),
-  query:search(version(ParentVer), ParentRepo://ParentEntry),
-  ExcludeDomain = version_domain(any, [bound(smaller, ParentVer)]),
-  prover:learn(cn_domain(ParentC, ParentN, any), ExcludeDomain, Added),
-  Added == true,
-  rules:cn_domain_reprove_enabled,
-  throw(prover_reprove(cn_domain(ParentC, ParentN, none, [ParentRepo://ParentEntry], [parent_narrowing]))).
-
-% A PDEPEND failure should not cause parent narrowing. PDEPENDs are
-% post-dependencies: their unsatisfiability does not mean the parent
-% version is wrong, only that a post-install integration is missing.
-rules:is_pdepend_failure(PackageDeps, _Context) :-
-  member(package_dependency(pdepend, _, _, _, _, _, _, _), PackageDeps),
-  !.
-rules:is_pdepend_failure(_, Context) :-
-  is_list(Context),
-  memberchk(after_only(_), Context),
-  !.
-
-% A dep on (C,N) with an explicit slot that doesn't match any selected_cn
-% entry is a multi-slot miss — the solver needs to ADD the new slot, not
-% narrow the parent.
-rules:is_multislot_miss(C, N, PackageDeps, Context) :-
-  member(package_dependency(_, _, C, N, _, _, [slot(DepSlot0)|_], _), PackageDeps),
-  rules:canon_slot(DepSlot0, DepSlot),
-  is_list(Context),
-  memberchk(constraint(selected_cn(C,N):{ordset(Selected)}), Context),
-  \+ ( member(selected(_, _, _, _, SlotMeta), Selected),
-       rules:selected_cn_slot_key_(SlotMeta, DepSlot) ),
-  !.
-
-rules:selected_cn_partition_by_domain(_Domain, [], [], []) :-
-  !.
-rules:selected_cn_partition_by_domain(Domain, [Sel|Rest], [Sel|AllowedRest], ConflictingRest) :-
-  Sel = selected(Repo,Entry,_Act,_SelVer,_SelSlotMeta),
-  version_domain:domain_allows_candidate(Domain, Repo://Entry),
-  !,
-  rules:selected_cn_partition_by_domain(Domain, Rest, AllowedRest, ConflictingRest).
-rules:selected_cn_partition_by_domain(Domain, [Sel|Rest], AllowedRest, [Sel|ConflictingRest]) :-
-  rules:selected_cn_partition_by_domain(Domain, Rest, AllowedRest, ConflictingRest).
-
-rules:selected_cn_not_blocked_or_reprove(_C, _N, Specs, Selected, _Constraints) :-
-  \+ rules:specs_violate_selected(Specs, Selected),
-  !.
-rules:selected_cn_not_blocked_or_reprove(C, N, _Specs, _Selected, Constraints) :-
-  rules:cn_domain_reprove_enabled,
-  rules:blocked_cn_source_reprove_target(C, N, Constraints, SourceC, SourceN, Candidates),
-  Candidates \== [],
-  throw(prover_reprove(cn_domain(SourceC, SourceN, none, Candidates, []))).
-rules:selected_cn_not_blocked_or_reprove(_C, _N, _Specs, _Selected, _Constraints) :-
-  fail.
-
-rules:blocked_cn_source_reprove_target(C, N, Constraints, SourceC, SourceN, [Repo://Entry]) :-
-  get_assoc(blocked_cn_source(C,N), Constraints, ordset(Sources)),
-  member(source(Repo,Entry,_Phase,_O,_V,_SlotReq), Sources),
-  query:search([category(SourceC),name(SourceN)], Repo://Entry),
-  !.
-
-rules:selected_cn_domain_compatible_or_reprove(C, N, Domain, Selected, Constraints) :-
-  ( once(( member(selected(Repo, Entry, _Act, _SelVer, _SelSlotMeta), Selected),
-           version_domain:domain_allows_candidate(Domain, Repo://Entry)
-         )) ->
-      true
-  ; % Learn the domain constraint so the next proof attempt can narrow
-    % candidates before the wrong version is ever selected.
-    ( \+ version_domain:domain_inconsistent(Domain) ->
-        % Consistent domain: learn it for future narrowing
-        ( ( Selected = [selected(_,_,_,_,SM0)|_],
-            rules:selected_cn_slot_key_(SM0, SelSlot) -> true ; SelSlot = any ),
-          prover:learn(cn_domain(C,N,SelSlot), Domain, _),
-          ( SelSlot \== any -> prover:learn(cn_domain(C,N,any), Domain, _) ; true )
-        -> true ; true )
-    ; % Inconsistent domain: find the adjustable origin (Vermeir) and
-      % learn a narrowing constraint for IT rather than blaming (C,N).
-      ( get_assoc(cn_domain_reason(C,N), Constraints, ordset(Reasons0)) -> true ; Reasons0 = [] ),
-      ( Reasons0 \== [],
-        rules:find_adjustable_origin(Reasons0, OriginC, OriginN, OriginRepo://OriginEntry),
-        query:search(version(OriginVer), OriginRepo://OriginEntry),
-        ExcludeDomain = version_domain(any, [bound(smaller, OriginVer)]),
-        prover:learn(cn_domain(OriginC, OriginN, any), ExcludeDomain, OriginAdded),
-        OriginAdded == true
-      ->
-        rules:maybe_request_cn_domain_reprove(OriginC, OriginN, none, [OriginRepo://OriginEntry], [inconsistency_driven]),
-        fail
-      ; true )
-    ),
-    ( get_assoc(cn_domain_reason(C,N), Constraints, ordset(Reasons)) -> true ; Reasons = [] ),
-    ( rules:prefer_global_selected_reject_from_domain(C, N, Domain, Selected, Constraints) ->
-        DomainForReprove = none
-    ; DomainForReprove = Domain
-    ),
-    rules:maybe_request_cn_domain_reprove(C, N, DomainForReprove, Selected, Reasons),
-    fail
-  ),
-  !.
-
-rules:prefer_global_selected_reject_from_domain(C, _N, Domain, Selected, _Constraints) :-
-  C == 'dev-haskell',
-  Selected \== [],
-  rules:domain_has_upper_bound(Domain),
-  !.
-rules:prefer_global_selected_reject_from_domain(C, N, Domain, Selected, Constraints) :-
-  C == 'dev-lang',
-  N == ghc,
-  Selected \== [],
-  rules:domain_has_upper_bound(Domain),
-  \+ rules:selected_cn_requires_same_slot_multiversion(C, N, Constraints),
-  !.
-rules:prefer_global_selected_reject_from_domain(C, N, Domain, Selected, Constraints) :-
-  C == 'dev-ml',
-  N == cmdliner,
-  Selected \== [],
-  rules:domain_has_upper_bound(Domain),
-  \+ rules:selected_cn_requires_same_slot_multiversion(C, N, Constraints),
-  !.
-rules:prefer_global_selected_reject_from_domain(C, N, Domain, Selected, Constraints) :-
-  Selected \== [],
-  rules:domain_has_equal_bound(Domain),
-  \+ rules:selected_cn_requires_same_slot_multiversion(C, N, Constraints),
-  !.
-
-rules:domain_has_upper_bound(version_domain(_Slots, Bounds)) :-
-  member(bound(Op, _Req), Bounds),
-  ( Op == smaller
-  ; Op == smallerequal
-  ),
-  !.
-
-rules:domain_has_equal_bound(version_domain(_Slots, Bounds)) :-
-  member(bound(equal, _Req), Bounds),
-  !.
-
-% Allow multi-slot selections only when explicitly requested.
-rules:selected_cn_allow_multislot_constraints(C, N, SlotReq, PackageDeps, [constraint(selected_cn_allow_multislot(C,N):{true})]) :-
-  ( SlotReq = [slot(_)|_]
-  ; SlotReq == [any_same_slot]
-  ; SlotReq == [any_different_slot]
-  ; rules:all_deps_exactish_versioned(PackageDeps)
-  ; rules:dep_has_version_constraint(C, N, PackageDeps)
-  ),
-  !.
-rules:selected_cn_allow_multislot_constraints(_C, _N, _SlotReq, _PackageDeps, []).
-
-rules:selected_cn_unique(C, N, SelectedMerged, Constraints) :-
-  ( get_assoc(selected_cn_allow_multislot(C,N), Constraints, _AllowFlag) ->
-      ( rules:selected_cn_requires_same_slot_multiversion(C, N, Constraints) ->
-          rules:selected_cn_unique_per_slot_or_subslot(SelectedMerged)
-      ; rules:selected_cn_unique_per_slot(SelectedMerged)
-      )
-  ; rules:selected_cn_unique_strict(SelectedMerged)
-  ).
-
-% Strict mode: all selected/5 terms must refer to the same Repo+Entry.
-rules:selected_cn_unique_strict([]) :- !.
-rules:selected_cn_unique_strict([selected(Repo,Entry,_Act,_Ver,_SlotMeta)|Rest]) :-
-  forall(member(selected(Repo2,Entry2,_A2,_V2,_SlotMeta2), Rest),
-         ( Repo2 == Repo,
-           Entry2 == Entry
-         )),
-  rules:selected_cn_unique_strict(Rest).
-
-% Multi-slot mode: one concrete entry per SLOT.
-rules:selected_cn_unique_per_slot([]) :- !.
-rules:selected_cn_unique_per_slot([selected(Repo,Entry,_Act,_Ver,SlotMeta)|Rest]) :-
-  rules:selected_cn_slot_key_(SlotMeta, Slot),
-  forall(member(selected(Repo2,Entry2,_A2,_V2,SlotMeta2), Rest),
-         ( rules:selected_cn_slot_key_(SlotMeta2, Slot2),
-           ( Slot2 \== Slot -> true
-           ; Repo2 == Repo, Entry2 == Entry
-           )
-         )),
-  rules:selected_cn_unique_per_slot(Rest).
-
-% OCaml/PPX transition stacks can require two versions in the same SLOT, but
-% they occupy different SUBSLOTs. Keep uniqueness at one concrete selection per
-% (slot,subslot) pair to avoid over-broad side-by-side version allowance.
-rules:selected_cn_unique_per_slot_or_subslot([]) :- !.
-rules:selected_cn_unique_per_slot_or_subslot([selected(Repo,Entry,_Act,_Ver,SlotMeta)|Rest]) :-
-  rules:selected_cn_slot_subslot_key_(Repo, Entry, SlotMeta, SlotSubslot),
-  forall(member(selected(Repo2,Entry2,_A2,_Ver2,SlotMeta2), Rest),
-         ( rules:selected_cn_slot_subslot_key_(Repo2, Entry2, SlotMeta2, SlotSubslot2),
-           ( SlotSubslot2 \== SlotSubslot ->
-               true
-           ; Repo2 == Repo,
-             Entry2 == Entry
-           )
-         )),
-  rules:selected_cn_unique_per_slot_or_subslot(Rest).
-
-% Generic same-slot multiversion gate:
-% allow coexistence of distinct subslots only when merged CN-domain
-% constraints are mutually inconsistent (no single version can satisfy all).
-rules:selected_cn_requires_same_slot_multiversion(C, N, Constraints) :-
-  get_assoc(cn_domain(C,N), Constraints, Domain),
-  version_domain:domain_inconsistent(Domain),
-  !.
-
-% Extract a canonical (slot,subslot) key from selection metadata.
-% If subslot is not present, use 'none' to keep keying stable.
-rules:selected_cn_slot_subslot_key_(Repo, Entry, SlotMeta0, slot_subslot(Slot, SubSlot)) :-
-  rules:canon_any_same_slot_meta(SlotMeta0, [slot(S0)]),
-  rules:canon_slot(S0, Slot),
-  ( is_list(SlotMeta0),
-    memberchk(subslot(Ss0), SlotMeta0) ->
-      rules:canon_slot(Ss0, SubSlot)
-  ; query:search(subslot(Ss1), Repo://Entry) ->
-      rules:canon_slot(Ss1, SubSlot)
-  ; SubSlot = none
-  ),
-  !.
-
-% Extract a canonical slot key from selection metadata.
-% We only key on SLOT (not subslot) because multi-slot correctness is about
-% concurrently installed slots, while subslot is about rebuild triggers.
-rules:selected_cn_slot_key_(SlotMeta0, Slot) :-
-  rules:canon_any_same_slot_meta(SlotMeta0, [slot(S0)]),
-  rules:canon_slot(S0, Slot),
-  !.
-
-% True iff any blocker spec in Specs violates any selected instance.
-%
-% Current semantics:
-% - strong (!!) blockers are enforced as hard conflicts (force backtracking)
-% - weak (!) blockers are tracked as domain assumptions (warning), not enforced
-%   during proving (to avoid search explosions).
-rules:specs_violate_selected(Specs, Selected) :-
-  member(blocked(Strength, Phase, O, V, SlotReq), Specs),
-  Strength == strong,
-  member(selected(Repo, Entry, Act, SelVer, SelSlotMeta), Selected),
-  rules:action_phase(Act, Phase),
-  rules:blocker_spec_matches_selected(SelVer, SelSlotMeta, Repo, Entry, O, V, SlotReq),
-  !.
-
-rules:action_phase(run, run) :- !.
-rules:action_phase(install, install) :- !.
-rules:action_phase(reinstall, install) :- !.
-rules:action_phase(update, install) :- !.
-rules:action_phase(download, install) :- !.
-rules:action_phase(_Other, run).
-
-rules:blocker_spec_matches_selected(SelVer, SelSlotMeta, Repo, Entry, O, V, SlotReq) :-
-  rules:blocker_version_matches(O, V, SelVer, Repo, Entry),
-  rules:blocker_slot_matches(SlotReq, SelSlotMeta, Repo, Entry).
-
-rules:blocker_version_matches(none, _Req, _SelVer, _Repo, _Entry) :- !.
-rules:blocker_version_matches(equal, Req, SelVer, _Repo, _Entry) :- !, SelVer == Req.
-rules:blocker_version_matches(notequal, Req, SelVer, _Repo, _Entry) :- !, SelVer \== Req.
-rules:blocker_version_matches(smaller, Req, SelVer, _Repo, _Entry) :- !, system:compare(<, SelVer, Req).
-rules:blocker_version_matches(greater, Req, SelVer, _Repo, _Entry) :- !, system:compare(>, SelVer, Req).
-rules:blocker_version_matches(smallerequal, Req, SelVer, _Repo, _Entry) :- !,
-  ( system:compare(<, SelVer, Req) ; system:compare(=, SelVer, Req) ).
-rules:blocker_version_matches(greaterequal, Req, SelVer, _Repo, _Entry) :- !,
-  ( system:compare(>, SelVer, Req) ; system:compare(=, SelVer, Req) ).
-rules:blocker_version_matches(Op, Req, _SelVer, Repo, Entry) :-
-  % Fallback for wildcard/tilde/complex patterns: reuse query semantics.
-  query:search(select(version,Op,Req), Repo://Entry).
-
-rules:blocker_slot_matches([], _SelSlotMeta, _Repo, _Entry) :- !.
-rules:blocker_slot_matches([slot(S)], SelSlotMeta, _Repo, _Entry) :- !,
-  memberchk(slot(S), SelSlotMeta).
-rules:blocker_slot_matches([slot(S),subslot(Ss)], SelSlotMeta, _Repo, _Entry) :- !,
-  memberchk(slot(S), SelSlotMeta),
-  memberchk(subslot(Ss), SelSlotMeta).
-rules:blocker_slot_matches([slot(S),equal], SelSlotMeta, _Repo, _Entry) :- !,
-  memberchk(slot(S), SelSlotMeta).
-rules:blocker_slot_matches([slot(S),subslot(Ss),equal], SelSlotMeta, _Repo, _Entry) :- !,
-  memberchk(slot(S), SelSlotMeta),
-  memberchk(subslot(Ss), SelSlotMeta).
-rules:blocker_slot_matches(SlotReq, _SelSlotMeta, Repo, Entry) :-
-  % Fallback for any_same_slot/any_different_slot or future extensions.
-  query:search(select(slot,constraint(SlotReq), _), Repo://Entry).
-
-% -----------------------------------------------------------------------------
-%  Helper: blocker uninstall goals
-% -----------------------------------------------------------------------------
-%
-% Implement weak/strong blockers efficiently by querying the installed VDB repo
-% (`pkg`) for matching instances and scheduling uninstall actions for them.
-%
-% Notes:
-% - This enforces "not installed at end of transaction" for installed packages.
-% - Co-installation prevention (strong blockers vs planned installs) can be
-%   validated later using the planned package set without adding prover overhead.
-
-% Extract blocker specs from a grouped dependency list.
-% Specs is an ordset of blocked(Strength,Phase,O,V,SlotReq) terms.
-rules:grouped_blocker_specs(Strength, Phase, C, N, PackageDeps, Specs) :-
-  findall(blocked(Strength, Phase, O, V, SlotReq),
-          ( member(package_dependency(Phase, Strength, C, N, O, V, SlotReq, _U), PackageDeps) ),
-          Specs0),
-  sort(Specs0, Specs).
-
-% Partition grouped blocker specs into:
-% - EnforceSpecs: unconditional blockers (no bracketed USE constraints)
-% - AssumeSpecs:  conditional blockers (with USE constraints) that we do NOT enforce
-%                as hard constraints during proving (see note in strong blocker rule).
-rules:grouped_blocker_specs_partition(Strength, Phase, C, N, PackageDeps, EnforceSpecs, AssumeSpecs) :-
-  findall(blocked(Strength, Phase, O, V, SlotReq),
-          ( member(package_dependency(Phase, Strength, C, N, O, V, SlotReq, U), PackageDeps),
-            U == []
-          ),
-          Enforce0),
-  sort(Enforce0, EnforceSpecs),
-  findall(blocked(Strength, Phase, O, V, SlotReq),
-          ( member(package_dependency(Phase, Strength, C, N, O, V, SlotReq, U), PackageDeps),
-            U \== []
-          ),
-          Assume0),
-  sort(Assume0, AssumeSpecs),
-  !.
-
-% Find an installed entry for the given category/name, even if it isn't present
-% as an ordered_entry (e.g. when the installed version no longer exists in the
-% active repository set).
-rules:installed_entry_cn(C, N, pkg, Entry) :-
-  % The installed package database is represented by the VDB repository instance
-  % named `pkg`. Prefer using its structured facts instead of parsing Entry IDs
-  % with atom_concat/sub_atom (which is extremely expensive at scale).
-  query:search([name(N),category(C),installed(true)], pkg://Entry),
-  !.
-
-
-
-
 % -----------------------------------------------------------------------------
 %  Prover hook: domain-driven goal enqueueing (single-pass extensions)
 % -----------------------------------------------------------------------------
@@ -3158,7 +1649,7 @@ rules:proof_obligation(Repo://Entry:Action?{_Ctx}, Model, HookKey, ExtraLits) :-
           HookKey = pdepend(AnchorCore, B),
           ModelKey = [build_with_use:B],
           query:memoized_search(model(dependency(Pdeps0, pdepend)):config?{ModelKey}, Repo://Entry),
-          rules:add_self_to_dep_contexts(Repo://Entry, Pdeps0, Pdeps1),
+          dependency:add_self_to_dep_contexts(Repo://Entry, Pdeps0, Pdeps1),
           rules:drop_build_with_use_from_dep_contexts(Pdeps1, Pdeps2),
           rules:add_after_only_to_dep_contexts(AnchorCore, Pdeps2, ExtraLits)
       ; flag(po_no_extra, NP0, NP0+1),
@@ -3179,7 +1670,7 @@ rules:proof_obligation(Repo://Entry:Action, Model, HookKey, ExtraLits) :-
           HookKey = pdepend(AnchorCore, B),
           ModelKey = [build_with_use:B],
           query:memoized_search(model(dependency(Pdeps0, pdepend)):config?{ModelKey}, Repo://Entry),
-          rules:add_self_to_dep_contexts(Repo://Entry, Pdeps0, Pdeps1),
+          dependency:add_self_to_dep_contexts(Repo://Entry, Pdeps0, Pdeps1),
           rules:drop_build_with_use_from_dep_contexts(Pdeps1, Pdeps2),
           rules:add_after_only_to_dep_contexts(AnchorCore, Pdeps2, ExtraLits)
       ; flag(po_no_extra, NP0, NP0+1),
@@ -3188,76 +1679,6 @@ rules:proof_obligation(Repo://Entry:Action, Model, HookKey, ExtraLits) :-
       )
     )
   ).
-
-
-% -----------------------------------------------------------------------------
-%  Dependency ordering heuristic
-% -----------------------------------------------------------------------------
-%
-% Prefer proving dependencies with explicit slot/subslot restrictions early.
-% This helps avoid selected_cn conflicts where a loose dep picks a newer series
-% (e.g. SUBSLOT 0.17) and later strict deps (SUBSLOT 0.16) get assumed.
-%
-rules:order_deps_for_proof(_Action, Deps, Ordered) :-
-  maplist(rules:dep_priority_kv, Deps, KVs),
-  keysort(KVs, Sorted),
-  pairs_values(Sorted, Ordered),
-  !.
-
-rules:dep_priority_kv(Dep, K-Dep) :-
-  rules:dep_priority(Dep, K),
-  !.
-
-rules:dep_priority(grouped_package_dependency(_T,C,N,PackageDeps):Action?{_Context}, K) :-
-  !,
-  ( merge_slot_restriction(Action, C, N, PackageDeps, SlotReq) ->
-      % Prefer satisfying tight constraints early:
-      % - explicit slot/subslot restrictions,
-      % - version upper bounds (< ...),
-      % - explicit versioned deps over unconstrained ones,
-      % - and among upper-bounded deps, process the tightest upper bound first.
-      ( rules:dep_tightest_upper_bound(C, N, PackageDeps, TightUpper) ->
-          UpperK0 = 1
-      ; C == 'dev-ml',
-        rules:dep_has_equal_wildcard_constraint(C, N, PackageDeps) ->
-          UpperK0 = 8,
-          TightUpper = none
-      ; UpperK0 = 999,
-        TightUpper = none
-      ),
-      rules:slotreq_priority(SlotReq, SlotK0),
-      BaseK is min(UpperK0, SlotK0),
-      K = key(BaseK, TightUpper, C, N)
-  ; K = key(50, none, C, N)
-  ).
-rules:dep_priority(_Other, key(90, none, zz, zz)) :- !.
-
-rules:slotreq_priority([slot(_),subslot(_)|_], 0) :- !.
-rules:slotreq_priority([slot(_)|_],             5) :- !.
-rules:slotreq_priority([any_same_slot],        10) :- !.
-rules:slotreq_priority([any_different_slot],   15) :- !.
-rules:slotreq_priority([],                     20) :- !.
-rules:slotreq_priority(_Other,                 30) :- !.
-
-% Tightest upper-bound version (smallest `<` / `<=` bound) for grouped deps.
-rules:dep_tightest_upper_bound(C, N, PackageDeps, Tightest) :-
-  member(package_dependency(_, no, C, N, Op0, _, _, _), PackageDeps),
-  ( Op0 == smaller ; Op0 == smallerorequal ),
-  !,
-  findall(Vn,
-          ( member(package_dependency(_Phase, no, C, N, Op, V0, _S, _U), PackageDeps),
-            ( Op == smaller ; Op == smallerorequal ),
-            rules:coerce_version_term(V0, Vn)
-          ),
-          [First|Rest]),
-  foldl(rules:min_version_bound_, Rest, First, Tightest).
-
-rules:min_version_bound_(V, Best0, Best) :-
-  ( eapi:version_compare(<, V, Best0) ->
-      Best = V
-  ; Best = Best0
-  ),
-  !.
 
 
 % -----------------------------------------------------------------------------
@@ -3387,181 +1808,6 @@ rules:ctx_add_after_only(Ctx0, After, Ctx) :-
   !.
 
 
-rules:cn_domain_constraints(Action, C, N, PackageDeps, Context, DomainCons, DomainReasonTags) :-
-  version_domain:domain_from_packagedeps(Action, C, N, PackageDeps, Domain),
-  version_domain:domain_reason_terms(Action, C, N, PackageDeps, Context, DomainReasonTags),
-  ( DomainReasonTags == [] ->
-      ReasonCons = []
-  ; ReasonCons = [constraint(cn_domain_reason(C,N):{ordset(DomainReasonTags)})]
-  ),
-  ( Domain == none ->
-      DomainCons = ReasonCons
-  ; DomainCons = [constraint(cn_domain(C,N):{Domain})|ReasonCons]
-  ),
-  !.
-
-% `any_different_slot` deps (slot operator `:*`) are side-by-side by nature.
-% Merging them into one global cn_domain(C,N) can create false slot intersections
-% across independent edges. Keep their slot/version checks local to the edge.
-rules:domain_constraints_for_any_different_slot([any_different_slot], _DomainCons0, []) :-
-  !.
-rules:domain_constraints_for_any_different_slot(_SlotReq, DomainCons, DomainCons) :-
-  !.
-
-rules:add_domain_reason_context(_C, _N, [], Ctx, Ctx) :-
-  !.
-rules:add_domain_reason_context(C, N, ReasonTags, Ctx0, Ctx) :-
-  feature_unification:unify([domain_reason(cn_domain(C,N,ReasonTags))], Ctx0, Ctx),
-  !.
-
-% True iff PackageDeps contains an explicit upper bound for (C,N), i.e. < or <=.
-rules:dep_has_upper_version_bound(C, N, PackageDeps) :-
-  member(package_dependency(_Phase, no, C, N, Op, _V, _S, _U), PackageDeps),
-  ( Op == smaller
-  ; Op == smallerorequal
-  ),
-  !.
-
-rules:dep_has_version_constraint(C, N, PackageDeps) :-
-  member(package_dependency(_Phase, no, C, N, Op, _V, _S, _U), PackageDeps),
-  nonvar(Op),
-  Op \== none,
-  !.
-
-% True iff PackageDeps carries an explicit slot/subslot restriction for (C,N).
-% Excludes generic slot operators (:= / :*) which are handled separately.
-rules:dep_has_explicit_slot_constraint(C, N, PackageDeps) :-
-  member(package_dependency(_Phase, no, C, N, _Op, _V, SlotReq, _U), PackageDeps),
-  rules:slot_req_explicit_slot_key(SlotReq, _S),
-  !.
-
-rules:dep_has_equal_wildcard_constraint(C, N, PackageDeps) :-
-  member(package_dependency(_Phase, no, C, N, equal, V0, _S, _U), PackageDeps),
-  rules:version_term_has_wildcard_(V0),
-  !.
-
-rules:version_term_has_wildcard_(V0) :-
-  ( atom(V0) ->
-      A = V0
-  ; V0 = [_Nums,_Letter,_Rev,A],
-    atom(A)
-  ),
-  sub_atom(A, _Start, _Len, _After, '*'),
-  !.
-
-% -----------------------------------------------------------------------------
-%  Reverse-dep candidate pre-filter (RDEPEND only)
-% -----------------------------------------------------------------------------
-%
-% Before committing to a candidate for a grouped_package_dependency, verify
-% that the candidate's RDEPEND metadata does not contain a version constraint
-% on the parent (self) that the parent cannot satisfy.
-%
-% Only RDEPEND is checked (not PDEPEND). PDEPEND conflicts are weaker: the
-% prover handles them via cycle-breaking. Checking PDEPEND would reject ALL
-% candidates when every version has an incompatible PDEPEND on the parent
-% (e.g. every ruby:3.2 requires >=minitest-5.16.3 but the target is 5.15.0),
-% turning a targeted PDEPEND assumption into a worse "non-existent" one.
-%
-% Example:
-%   - www-apps/airdcpp-webui-2.14.0 has RDEPEND =net-p2p/airdcpp-webclient-2.14*
-%     When resolving webclient-2.13.3's PDEPEND on webui, webui-2.14.0 is rejected
-%     because webclient-2.13.3 does not satisfy =2.14*. Solver picks webui-2.13.1.
-
-rules:candidate_reverse_deps_compatible_with_parent(Context, FoundRepo://Candidate) :-
-  ( memberchk(self(SelfRepo://SelfEntry), Context),
-    cache:ordered_entry(SelfRepo, SelfEntry, ParC, ParN, _)
-  ->
-    \+ rules:candidate_has_incompatible_reverse_dep(FoundRepo, Candidate, ParC, ParN, SelfRepo://SelfEntry)
-  ; true
-  ).
-
-rules:candidate_has_incompatible_reverse_dep(FoundRepo, Candidate, ParC, ParN, SelfRepo://SelfEntry) :-
-  cache:entry_metadata(FoundRepo, Candidate, rdepend, Dep),
-  rules:dep_contains_pkg_dep_on(Dep, ParC, ParN, Op, V, SlotReq),
-  Op \== none,
-  rules:reverse_dep_slot_matches_parent(SlotReq, SelfRepo://SelfEntry),
-  \+ query:search(select(version, Op, V), SelfRepo://SelfEntry).
-
-% Only reject when the dep targets the same slot as the parent.
-% If the dep specifies a different slot, it's about a different instance.
-rules:reverse_dep_slot_matches_parent([], _) :- !.
-rules:reverse_dep_slot_matches_parent([slot(DepSlot)|_], SelfRepo://SelfEntry) :-
-  !,
-  query:search(slot(ParSlot), SelfRepo://SelfEntry),
-  rules:canon_slot(ParSlot, ParSlotC),
-  rules:canon_slot(DepSlot, DepSlotC),
-  ParSlotC == DepSlotC.
-rules:reverse_dep_slot_matches_parent([any_same_slot|_], _) :- !.
-rules:reverse_dep_slot_matches_parent([any_different_slot|_], _) :- !, fail.
-rules:reverse_dep_slot_matches_parent(_, _).
-
-rules:dep_contains_pkg_dep_on(package_dependency(_, no, C, N, Op, V, SlotReq, _), C, N, Op, V, SlotReq).
-rules:dep_contains_pkg_dep_on(use_conditional_group(_, _, _, SubDeps), C, N, Op, V, SlotReq) :-
-  member(D, SubDeps),
-  rules:dep_contains_pkg_dep_on(D, C, N, Op, V, SlotReq).
-rules:dep_contains_pkg_dep_on(all_of_group(SubDeps), C, N, Op, V, SlotReq) :-
-  member(D, SubDeps),
-  rules:dep_contains_pkg_dep_on(D, C, N, Op, V, SlotReq).
-
-
-rules:all_deps_have_explicit_slot([]) :- !, fail.
-rules:all_deps_have_explicit_slot(Deps) :-
-  forall(member(package_dependency(_P,_Strength,_C,_N,_O,_V,SlotReq,_U), Deps),
-         rules:slot_req_explicit_slot_key(SlotReq, _S)),
-  !.
-
-rules:multiple_distinct_slots(Deps) :-
-  member(package_dependency(_,_,_,_,_,_,SR1,_), Deps),
-  rules:slot_req_explicit_slot_key(SR1, S1), !,
-  member(package_dependency(_,_,_,_,_,_,SR2,_), Deps),
-  rules:slot_req_explicit_slot_key(SR2, S2),
-  S2 \== S1, !.
-
-% Explicit slot request shapes that should participate in grouped-dep split
-% decisions. Treat :slot and :slot= (and subslot-qualified variants) as
-% belonging to the same slot key for split-by-distinct-slot checks.
-rules:slot_req_explicit_slot_key([slot(S0)], S) :-
-  rules:canon_slot(S0, S),
-  !.
-rules:slot_req_explicit_slot_key([slot(S0),equal], S) :-
-  rules:canon_slot(S0, S),
-  !.
-rules:slot_req_explicit_slot_key([slot(S0),subslot(_Ss)], S) :-
-  rules:canon_slot(S0, S),
-  !.
-rules:slot_req_explicit_slot_key([slot(S0),subslot(_Ss),equal], S) :-
-  rules:canon_slot(S0, S),
-  !.
-
-rules:all_deps_exactish_versioned([]) :- !, fail.
-rules:all_deps_exactish_versioned(Deps) :-
-  forall(member(package_dependency(_P,_Strength,_C,_N,Op,Ver,SlotReq,_U), Deps),
-         ( SlotReq == [],
-           ( Op == tilde ; Op == equal ),
-           nonvar(Ver)
-         )),
-  !.
-
-rules:multiple_distinct_exactish_versions(Deps) :-
-  findall(Full,
-          ( member(package_dependency(_P,_Strength,_C,_N,_Op,Ver,_SlotReq,_U), Deps),
-            ( Ver = version(_,_,_,_,_,_,Full) -> true ; Full = Ver )
-          ),
-          Vs0),
-  sort(Vs0, Vs),
-  Vs = [_|Rest],
-  Rest \== [],
-  !.
-
-rules:should_split_grouped_dep(PackageDeps) :-
-  ( rules:all_deps_have_explicit_slot(PackageDeps),
-    rules:multiple_distinct_slots(PackageDeps)
-  ; rules:all_deps_exactish_versioned(PackageDeps),
-    rules:multiple_distinct_exactish_versions(PackageDeps)
-  ),
-  !.
-
 % -----------------------------------------------------------------------------
 %  Context helpers: drop diagnostic / per-package USE constraints
 % -----------------------------------------------------------------------------
@@ -3593,494 +1839,6 @@ rules:ctx_drop_build_with_use_and_assumption_reason(Ctx0, Ctx) :-
 
 rules:ctx_is_bwu_or_assumption_reason(build_with_use:_) :- !.
 rules:ctx_is_bwu_or_assumption_reason(assumption_reason(_)) :- !.
-
-% -----------------------------------------------------------------------------
-%  Lazy self-RDEPEND version-bound propagation (timeout-safe variant)
-% -----------------------------------------------------------------------------
-%
-% Some packages impose runtime version bounds on a dependency that is also used
-% at build/install time. If we ignore those bounds during candidate selection for
-% install deps, we can pick an inconsistent version and diverge from Portage.
-%
-% Naively scanning the full RDEPEND tree for every package during proof search is
-% extremely expensive at repository scale. We therefore:
-% - only apply this for Action == install (build/install dependency resolution),
-% - only apply it when Context includes self(Repo://SelfId),
-% - only apply it when the current dep (C,N) has no version constraint already,
-% - cache the derived bounds per (Repo,SelfId,C,N).
-%
-% We only propagate version/slot constraints here; USE deps from RDEPEND are not
-% merged into PackageDeps (to avoid unintended build_with_use pollution).
-rules:augment_package_deps_with_self_rdepend(install, C, N, Context, PackageDeps0, PackageDeps) :-
-  ( memberchk(self(RepoEntry0), Context) ->
-      ( RepoEntry0 = Repo://SelfId -> true
-      ; RepoEntry0 = Repo//SelfId  -> true
-      )
-  ; fail
-  ),
-  % If the dependency already carries a version constraint, don't add more.
-  ( rules:dep_has_version_constraints(C, N, PackageDeps0) ->
-      PackageDeps = PackageDeps0
-  ; rules:self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra0),
-    % Keep self-RDEPEND propagation bounded by explicit slot intent of the
-    % current grouped dependency. Without this, we can incorrectly merge
-    % incompatible slot-bounded runtime constraints into an explicit-slot DEPEND
-    % edge (e.g. :3.5 with :4), creating impossible CN domains.
-    ( merge_slot_restriction(install, C, N, PackageDeps0, BaseSlotReq) ->
-        true
-    ; BaseSlotReq = []
-    ),
-    findall(ExtraDep,
-            ( member(ExtraDep, Extra0),
-              rules:self_rdepend_extra_slot_compatible(BaseSlotReq, ExtraDep)
-            ),
-            Extra),
-    ( Extra == [] ->
-        PackageDeps = PackageDeps0
-    ; append(PackageDeps0, Extra, PackageDeps)
-    )
-  ),
-  !.
-rules:augment_package_deps_with_self_rdepend(_OtherAction, _C, _N, _Context, PackageDeps, PackageDeps) :-
-  !.
-
-% True iff PackageDeps contains at least one non-trivial version comparator for (C,N).
-rules:dep_has_version_constraints(C, N, PackageDeps) :-
-  member(package_dependency(_Phase, no, C, N, Op, _V, _S, _U), PackageDeps),
-  Op \== none,
-  !.
-
-% For explicit-slot grouped deps, keep only self-RDEPEND propagated bounds that
-% are either unslotted or in that same explicit slot. For non-explicit base slot
-% requests ([], any_same_slot, any_different_slot), preserve previous behavior.
-rules:self_rdepend_extra_slot_compatible([], _ExtraDep) :-
-  !.
-rules:self_rdepend_extra_slot_compatible([slot(S0)|_],
-                                         package_dependency(_P,_Strength,_C,_N,_Op,_V,SlotReq,_U)) :-
-  !,
-  rules:canon_slot(S0, S),
-  ( SlotReq == []
-  ; SlotReq = [slot(S1)|_],
-    rules:canon_slot(S1, S)
-  ).
-rules:self_rdepend_extra_slot_compatible(_BaseSlotReq, _ExtraDep) :-
-  !.
-
-% Lookup extra version-bound deps from Self's RDEPEND for a specific (C,N).
-% Cached per (Repo,SelfId,C,N). Negative results are cached as [].
-rules:self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra) :-
-  ( memo:rdepend_vbounds_cache_(Repo, SelfId, C, N, Extra0) ->
-    Extra = Extra0
-  ;
-    rules:build_self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra1),
-    assertz(memo:rdepend_vbounds_cache_(Repo, SelfId, C, N, Extra1)),
-    Extra = Extra1
-  ),
-  !.
-
-rules:build_self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra) :-
-  SelfRepoEntry = Repo://SelfId,
-  findall(Term, cache:entry_metadata(Repo, SelfId, rdepend, Term), Terms),
-  findall(Dep,
-          ( member(Term, Terms),
-            rules:rdepend_collect_vbounds_for_cn(Term, C, N, SelfRepoEntry, Deps0),
-            member(Dep, Deps0)
-          ),
-          Extra0),
-  sort(Extra0, Extra),
-  !.
-
-% Collect version-bounded leaves for (C,N) from an RDEPEND term.
-% We traverse the dependency AST explicitly (faster + more selective than sub_term/2).
-% IMPORTANT: only propagate regular deps (Strength=no). Weak/strong blockers
-% must not become hard CN-domain bounds during self-RDEPEND augmentation.
-rules:rdepend_collect_vbounds_for_cn(package_dependency(_P, no, C, N, Op, V, SlotReq, _UseDeps),
-                                    C, N, _SelfRepoEntry,
-                                    [package_dependency(run, no, C, N, Op, V, SlotReq, [])]) :-
-  Op \== none,
-  !.
-rules:rdepend_collect_vbounds_for_cn(package_dependency(_P, _Strength, _C, _N, _Op, _V, _SlotReq, _UseDeps),
-                                    _C0, _N0, _SelfRepoEntry, []) :-
-  !.
-rules:rdepend_collect_vbounds_for_cn(use_conditional_group(Pol, Use, _Self, Deps0), C, N, SelfRepoEntry, Deps) :-
-  !,
-  ( rules:rdepend_self_use_conditional_active(Pol, Use, SelfRepoEntry) ->
-      rules:rdepend_collect_vbounds_for_cn_list(Deps0, C, N, SelfRepoEntry, Deps)
-  ; Deps = []
-  ).
-rules:rdepend_collect_vbounds_for_cn(any_of_group(Deps0), C, N, SelfRepoEntry, Deps) :-
-  !,
-  rules:rdepend_collect_vbounds_for_cn_choice_intersection(Deps0, C, N, SelfRepoEntry, Deps).
-rules:rdepend_collect_vbounds_for_cn(all_of_group(Deps0), C, N, SelfRepoEntry, Deps) :-
-  !,
-  rules:rdepend_collect_vbounds_for_cn_list(Deps0, C, N, SelfRepoEntry, Deps).
-rules:rdepend_collect_vbounds_for_cn(exactly_one_of_group(Deps0), C, N, SelfRepoEntry, Deps) :-
-  !,
-  rules:rdepend_collect_vbounds_for_cn_choice_intersection(Deps0, C, N, SelfRepoEntry, Deps).
-rules:rdepend_collect_vbounds_for_cn(at_most_one_of_group(Deps0), C, N, SelfRepoEntry, Deps) :-
-  !,
-  rules:rdepend_collect_vbounds_for_cn_choice_intersection(Deps0, C, N, SelfRepoEntry, Deps).
-rules:rdepend_collect_vbounds_for_cn(_Other, _C, _N, _SelfRepoEntry, []) :-
-  !.
-
-rules:rdepend_collect_vbounds_for_cn_list([], _C, _N, _SelfRepoEntry, []) :- !.
-rules:rdepend_collect_vbounds_for_cn_list([T|Ts], C, N, SelfRepoEntry, Deps) :-
-  rules:rdepend_collect_vbounds_for_cn(T, C, N, SelfRepoEntry, D0),
-  rules:rdepend_collect_vbounds_for_cn_list(Ts, C, N, SelfRepoEntry, D1),
-  append(D0, D1, Deps),
-  !.
-
-% A USE-conditional branch contributes only when it is active for the current
-% self package's effective USE. For non-IUSE flags, mirror the same fallback
-% semantics used by use_conditional_group rules (profile/env driven).
-rules:rdepend_self_use_conditional_active(positive, Use, SelfRepoEntry) :-
-  ( use:effective_use_for_entry(SelfRepoEntry, Use, positive) ->
-      true
-  ; \+ rules:rdepend_self_entry_has_iuse_flag(SelfRepoEntry, Use),
-    preference:use(Use)
-  ),
-  !.
-rules:rdepend_self_use_conditional_active(negative, Use, SelfRepoEntry) :-
-  ( use:effective_use_for_entry(SelfRepoEntry, Use, negative) ->
-      true
-  ; \+ rules:rdepend_self_entry_has_iuse_flag(SelfRepoEntry, Use),
-    preference:use(minus(Use))
-  ; \+ rules:rdepend_self_entry_has_iuse_flag(SelfRepoEntry, Use),
-    \+ preference:use(Use),
-    \+ preference:use(minus(Use))
-  ),
-  !.
-rules:rdepend_self_use_conditional_active(_Pol, _Use, _SelfRepoEntry) :-
-  fail.
-
-rules:rdepend_self_entry_has_iuse_flag(Repo://Entry, Use) :-
-  use:entry_iuse_info(Repo://Entry, iuse_info(IuseSet, _PlusSet)),
-  memberchk(Use, IuseSet),
-  !.
-rules:rdepend_self_entry_has_iuse_flag(_RepoEntry, _Use) :-
-  fail.
-
-% For choice groups (||, exactly-one, at-most-one), only constraints that are
-% common to all alternatives are guaranteed and safe to propagate.
-rules:rdepend_collect_vbounds_for_cn_choice_intersection([], _C, _N, _SelfRepoEntry, []) :-
-  !.
-rules:rdepend_collect_vbounds_for_cn_choice_intersection([Dep|Deps], C, N, SelfRepoEntry, Common) :-
-  rules:rdepend_collect_vbounds_for_cn(Dep, C, N, SelfRepoEntry, First0),
-  sort(First0, First),
-  rules:rdepend_collect_vbounds_for_cn_choice_intersection_(Deps, C, N, SelfRepoEntry, First, Common),
-  !.
-
-rules:rdepend_collect_vbounds_for_cn_choice_intersection_([], _C, _N, _SelfRepoEntry, Acc, Acc) :-
-  !.
-rules:rdepend_collect_vbounds_for_cn_choice_intersection_([Dep|Deps], C, N, SelfRepoEntry, Acc0, Common) :-
-  rules:rdepend_collect_vbounds_for_cn(Dep, C, N, SelfRepoEntry, Next0),
-  sort(Next0, Next),
-  ord_intersection(Acc0, Next, Acc1),
-  rules:rdepend_collect_vbounds_for_cn_choice_intersection_(Deps, C, N, SelfRepoEntry, Acc1, Common),
-  !.
-
-
-% -----------------------------------------------------------------------------
-%  License masking (ACCEPT_LICENSE)
-% -----------------------------------------------------------------------------
-%
-% A candidate is license-masked when its effective licenses (after evaluating
-% USE conditionals against the package's IUSE defaults + active USE) include
-% any license not covered by ACCEPT_LICENSE.  Such candidates are excluded
-% from dependency resolution, mirroring Portage's behavior.
-
-%! rules:license_masked(+Repo://Entry) is semidet.
-%
-% True when at least one effective license of Entry is not accepted.
-
-rules:license_masked(Repo://Entry) :-
-  rules:effective_license(Repo://Entry, Lic),
-  \+ preference:license_accepted(Lic),
-  !.
-
-%! rules:effective_license(+Repo://Entry, -License:atom) is nondet.
-%
-% Enumerates the effective (active) license atoms for an entry,
-% evaluating USE-conditional groups against the entry's effective USE.
-
-rules:effective_license(Repo://Entry, License) :-
-  cache:entry_metadata(Repo, Entry, license, LicTerm),
-  rules:effective_license_term_(LicTerm, Repo://Entry, License).
-
-rules:effective_license_term_(use_conditional_group(Pol, Use, _Self, Deps), RepoEntry, License) :-
-  !,
-  rules:rdepend_self_use_conditional_active(Pol, Use, RepoEntry),
-  member(D, Deps),
-  rules:effective_license_term_(D, RepoEntry, License).
-rules:effective_license_term_(License, _RepoEntry, License) :-
-  atom(License).
-
-
-%! rules:dep_license_ok(+Dep) is semidet.
-%
-% True when the best candidate for Dep is not license-masked.
-% Used by prioritize_deps_keep_all to deprioritize license-masked
-% alternatives in || groups.
-
-rules:dep_license_ok(package_dependency(_, _, C, N, _, _, _, _)) :- !,
-  cache:ordered_entry(Repo, Entry, C, N, _),
-  \+ preference:masked(Repo://Entry),
-  \+ rules:license_masked(Repo://Entry).
-rules:dep_license_ok(grouped_package_dependency(_, C, N, _)) :- !,
-  cache:ordered_entry(Repo, Entry, C, N, _),
-  \+ preference:masked(Repo://Entry),
-  \+ rules:license_masked(Repo://Entry).
-rules:dep_license_ok(_).
-
-
-% -----------------------------------------------------------------------------
-%  Keyword-aware candidate enumeration (Portage-like)
-% -----------------------------------------------------------------------------
-%
-% Enumerate candidates that match any accepted keyword, in descending version
-% order, so the solver tries the best versions first but can backtrack to
-% older alternatives.
-
-rules:accepted_keyword_candidate(Action, C, N, SlotReq0, Ss0, Context, FoundRepo://Candidate) :-
-  rules:accepted_keyword_slot_lock_arg(C, N, SlotReq0, Ss0, Context, SlotReq, Ss, LockKey),
-  ( preference:keyword_selection_mode(keyword_order) ->
-      % Legacy behavior: accept_keywords enumeration order is a preference.
-      preference:accept_keywords(K),
-      rules:query_keyword_candidate(Action, C, N, K, Context, FoundRepo://Candidate),
-      rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, Ss)
-  ; % Portage-like: union of accepted keywords, then choose max version first.
-    % Avoid caching in the rare "self-dependency" case, because Context affects
-    % candidate enumeration (we only accept installed self for non-run actions).
-    ( Action \== run,
-      memberchk(self(SelfRepo0://SelfEntry0), Context),
-      query:search([category(C),name(N)], SelfRepo0://SelfEntry0)
-    ->
-      findall(FoundRepo0://Candidate0,
-              ( preference:accept_keywords(K0),
-                rules:query_keyword_candidate(Action, C, N, K0, Context, FoundRepo0://Candidate0),
-                rules:query_search_slot_constraint(SlotReq, FoundRepo0://Candidate0, Ss)
-              ),
-              Candidates0),
-      Candidates0 \== [],
-      sort(Candidates0, Candidates1),
-      predsort(rules:compare_candidate_version_desc, Candidates1, CandidatesSorted),
-      member(FoundRepo://Candidate, CandidatesSorted)
-    ;
-      rules:accepted_keyword_candidates_cached(Action, C, N, SlotReq, LockKey, CandidatesSorted0),
-      rules:candidates_prefer_proven_providers(C, N, SlotReq, CandidatesSorted0, CandidatesSorted),
-      ( rules:greedy_candidate_package(C, N) ->
-          member(FoundRepo://Candidate, CandidatesSorted),
-          rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, Ss)
-      ; member(FoundRepo://Candidate, CandidatesSorted),
-        rules:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, Ss)
-      )
-    )
-  ).
-
-rules:accepted_keyword_slot_lock_arg(C, N, SlotReq0, Ss0, Context, SlotReq, Ss, LockKey) :-
-  ( memberchk(slot(C,N,SsCtx0):{_}, Context) ->
-      rules:canon_any_same_slot_meta(SsCtx0, SsCtx)
-  ; SsCtx = _NoCtxLock
-  ),
-  ( SlotReq0 == [],
-    nonvar(SsCtx)
-  ->
-    SlotReq1 = [any_same_slot]
-  ; SlotReq1 = SlotReq0
-  ),
-  ( SlotReq1 == [any_same_slot] ->
-      ( nonvar(Ss0) ->
-          rules:canon_any_same_slot_meta(Ss0, Ss1)
-      ; nonvar(SsCtx) ->
-          Ss1 = SsCtx
-      ; Ss1 = _NoSlotLock
-      ),
-      SlotReq = [any_same_slot],
-      Ss = Ss1
-  ; SlotReq = SlotReq1,
-    Ss = Ss0
-  ),
-  rules:accepted_keyword_slot_lock_key(SlotReq, Ss, LockKey),
-  !.
-
-rules:accepted_keyword_slot_lock_key([any_same_slot], Ss, slot(S)) :-
-  nonvar(Ss),
-  rules:canon_any_same_slot_meta(Ss, [slot(S)|_]),
-  !.
-rules:accepted_keyword_slot_lock_key(_SlotReq, _Ss, any) :-
-  !.
-
-rules:accepted_keyword_slot_lock_filter([any_same_slot], slot(S), [slot(S)]) :-
-  !.
-rules:accepted_keyword_slot_lock_filter(_SlotReq, _LockKey, _SsFilter) :-
-  !.
-
-% -----------------------------------------------------------------------------
-%  Candidate backtracking policy (Portage-like)
-% -----------------------------------------------------------------------------
-%
-% Portage typically selects the best (max) version and does limited backtracking.
-% Some packages (toolchains / core libs) are extremely common and can dominate
-% proof search when we backtrack across many acceptable versions.
-%
-% We therefore treat a small, curated set as "greedy": pick the max version and
-% do not enumerate alternatives.
-rules:greedy_candidate_package('dev-lang', ocaml) :- !.
-rules:greedy_candidate_package('dev-ml', findlib) :- !.
-rules:greedy_candidate_package('dev-ml', ocamlbuild) :- !.
-
-% -----------------------------------------------------------------------------
-%  Memoization: accepted_keyword_candidate/7 (performance)
-% -----------------------------------------------------------------------------
-%
-% Whole-tree proofs repeatedly resolve the same (Category,Name) dependencies with
-% the same slot restriction, across thousands of parents. Building the candidate
-% union list each time (findall/sort/predsort) becomes a dominant cost for large
-% stacks (llvm, gstreamer, ...).
-%
-% We memoize the *sorted* candidate list per (Action,C,N,SlotReq). Context is
-% ignored on purpose (except for the self-case handled above), because it does
-% not affect keyword/mask/version enumeration.
-
-rules:accepted_keyword_candidates_cached(Action, C, N, SlotReq, LockKey, CandidatesSorted) :-
-  ( memo:keyword_cache_(Action, C, N, SlotReq, LockKey, CandidatesSorted) ->
-    true
-  ;
-    rules:accepted_keyword_slot_lock_filter(SlotReq, LockKey, SsFilter),
-    findall(FoundRepo0://Candidate0,
-            ( preference:accept_keywords(K0),
-              rules:query_keyword_candidate(Action, C, N, K0, [], FoundRepo0://Candidate0),
-              rules:query_search_slot_constraint(SlotReq, FoundRepo0://Candidate0, SsFilter)
-            ),
-            Candidates0),
-    Candidates0 \== [],
-    sort(Candidates0, Candidates1),
-    predsort(rules:compare_candidate_version_desc, Candidates1, CandidatesSorted),
-    assertz(memo:keyword_cache_(Action, C, N, SlotReq, LockKey, CandidatesSorted))
-  ).
-
-rules:query_keyword_candidate(Action, C, N, K, Context, FoundRepo://Candidate) :-
-  ( Action \== run,
-    memberchk(self(SelfRepo0://SelfEntry0), Context),
-    query:search([category(C),name(N)], SelfRepo0://SelfEntry0)
-  ->
-    query:search([name(N),category(C),keyword(K)], FoundRepo://Candidate),
-    \+ preference:masked(FoundRepo://Candidate),
-    ( FoundRepo == SelfRepo0,
-      Candidate == SelfEntry0
-    ->
-      \+ preference:flag(emptytree),
-      query:search(installed(true), FoundRepo://Candidate)
-    ; true
-    )
-  ; query:search([name(N),category(C),keyword(K)], FoundRepo://Candidate),
-    \+ preference:masked(FoundRepo://Candidate)
-  ).
-
-rules:compare_candidate_version_desc(Delta, RepoA://IdA, RepoB://IdB) :-
-  cache:ordered_entry(RepoA, IdA, _Ca, _Na, VerA),
-  cache:ordered_entry(RepoB, IdB, _Cb, _Nb, VerB),
-  ( eapi:version_compare(>, VerA, VerB) -> Delta = (<)
-  ; eapi:version_compare(<, VerA, VerB) -> Delta = (>)
-  ; Delta = (=)
-  ).
-
-
-% -----------------------------------------------------------------------------
-%  Provider-reuse candidate reordering (Portage-like)
-% -----------------------------------------------------------------------------
-%
-% Portage minimises the dependency graph: when resolving >=virtual/jre-1.8:*
-% and virtual/jdk:21 is already selected, it prefers virtual/jre:21 (whose
-% provider jdk:21 is already in the graph) over jre:25 (which would pull a
-% fresh jdk:25 + openjdk-bin:25).
-%
-% We approximate this by doing a single-depth lookahead into each candidate's
-% RDEPEND: if a provider (C',N') in slot S is already present in the global
-% selected_cn snapshot, the candidate is promoted ahead of candidates that
-% would introduce new providers.  Only fires for virtual/* packages with
-% unconstrained slot deps (any_different_slot / [] / any_same_slot).
-
-rules:candidates_prefer_proven_providers(virtual, _N, SlotReq, Candidates, Reordered) :-
-  SlotReq \= [slot(_)|_],
-  include(rules:candidate_has_proven_provider, Candidates, Preferred),
-  Preferred \== [],
-  !,
-  subtract(Candidates, Preferred, Rest),
-  append(Preferred, Rest, Reordered).
-rules:candidates_prefer_proven_providers(_C, _N, _SlotReq, Candidates, Candidates).
-
-rules:candidate_has_proven_provider(Repo://Entry) :-
-  cache:entry_metadata(Repo, Entry, rdepend, Dep),
-  rules:dep_references_selected_cn(Dep),
-  !.
-
-rules:dep_references_selected_cn(package_dependency(_Phase,_Str,C,N,_O,_V,Ss,_U)) :-
-  rules:snapshot_selected_cn_candidates(C, N, SelCandidates),
-  ( Ss = [slot(ReqSlot0)|_] ->
-      rules:canon_slot(ReqSlot0, ReqSlot),
-      member(SelRepo://SelEntry, SelCandidates),
-      query:search(slot(SelSlotRaw), SelRepo://SelEntry),
-      rules:canon_slot(SelSlotRaw, SelSlot),
-      ReqSlot == SelSlot
-  ; true
-  ),
-  !.
-rules:dep_references_selected_cn(any_of_group(Deps)) :-
-  member(D, Deps),
-  rules:dep_references_selected_cn(D),
-  !.
-
-
-% -----------------------------------------------------------------------------
-%  build_with_use satisfaction for installed packages
-% -----------------------------------------------------------------------------
-%
-% When a dependency is already installed (VDB repo `pkg`), it is only safe to
-% treat it as "satisfying" the dependency if its *built USE* satisfies any
-% incoming bracketed USE constraints carried via build_with_use:List in Context.
-%
-% Otherwise, we must schedule a rebuild/reinstall.
-
-
-% -----------------------------------------------------------------------------
-%  --newuse support (Portage-like -N)
-% -----------------------------------------------------------------------------
-%
-% Minimal implementation:
-% - Compare installed VDB USE (what the package was built with) against the
-%   currently effective USE for the same version (when available in repo set).
-% - Also compare installed VDB IUSE against current IUSE to detect added/removed
-%   flags (if VDB provides IUSE; we parse it when present).
-%
-% If we cannot locate the same version in the current repo set, we conservatively
-% do not force a rebuild.
-
-
-
-% Context tags for blocker assumptions, so the printer can show provenance
-% (who pulled in the blocker) and test_stats can classify them.
-rules:blocker_assumption_ctx(Ctx0, AssCtx) :-
-  ( is_list(Ctx0),
-    memberchk(self(Repo://Entry), Ctx0) ->
-      AssCtx = [assumption_reason(blocker_conflict), self(Repo://Entry)]
-  ; AssCtx = [assumption_reason(blocker_conflict)]
-  ).
-
-rules:blocker_source_constraints(_C, _N, Specs, _Context, []) :-
-  Specs == [],
-  !.
-rules:blocker_source_constraints(C, N, Specs, Context, [constraint(blocked_cn_source(C,N):{ordset(Sources)})]) :-
-  is_list(Context),
-  memberchk(self(SelfRepo://SelfEntry), Context),
-  findall(source(SelfRepo,SelfEntry,Phase,O,V,SlotReq),
-          member(blocked(_Strength,Phase,O,V,SlotReq), Specs),
-          Sources0),
-  sort(Sources0, Sources),
-  Sources \== [],
-  !.
-rules:blocker_source_constraints(_C, _N, _Specs, _Context, []) :-
-  !.
 
 % -----------------------------------------------------------------------------
 %  Internal override: assume blockers
@@ -4158,8 +1916,8 @@ rules:any_of_config_dep_ok(Context, package_dependency(Phase, _Strength, C, N, O
   % representative entry can produce false negatives and make model
   % construction fail at the root `entry(...:run)` literal.
   findall(Repo://Id,
-          ( rules:accepted_keyword_candidate(Phase, C, N, SlotReq, _Ss, Context, Repo://Id),
-            rules:query_search_version_select(O, V, Repo://Id)
+          ( candidate:accepted_keyword_candidate(Phase, C, N, SlotReq, _Ss, Context, Repo://Id),
+            candidate:query_search_version_select(O, V, Repo://Id)
           ),
           Candidates0),
   sort(Candidates0, Candidates),

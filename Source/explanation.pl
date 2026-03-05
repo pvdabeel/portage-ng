@@ -178,7 +178,7 @@ assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason) :-
       ( Unmasked1 == [] ->
           Reason = masked
       ; ( memberchk(slot(C,N,Ss):{_}, Context) -> true ; Ss = _ ),
-        rules:merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
+        candidate:merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
         ( RequireInstalled == true ->
             findall(Repo2://Entry2,
                     query:search([category(C), name(N), installed(true), select(slot,constraint(SlotReq),Ss)], Repo2://Entry2),

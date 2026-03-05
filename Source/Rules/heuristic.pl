@@ -79,12 +79,12 @@ obligation_candidate(_Repo://_Entry:Action) :-
 %! heuristic:handle_reprove(+Info, -Added) is det.
 %
 %  Process a reprove conflict. Delegates domain conflict processing
-%  to rules:add_cn_domain_rejects/5 and rules:add_cn_domain_origin_rejects/2.
+%  to candidate:add_cn_domain_rejects/5 and candidate:add_cn_domain_origin_rejects/2.
 
 handle_reprove(cn_domain(C, N, Domain, Candidates, Reasons), Added) :-
-  rules:add_cn_domain_rejects(C, N, Domain, Candidates, AddedDomain),
+  candidate:add_cn_domain_rejects(C, N, Domain, Candidates, AddedDomain),
   ( Candidates == [] ->
-      rules:add_cn_domain_origin_rejects(Reasons, AddedOrigins)
+      candidate:add_cn_domain_origin_rejects(Reasons, AddedOrigins)
   ; AddedOrigins = false
   ),
   ( AddedDomain == true -> Added = true

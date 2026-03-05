@@ -5382,7 +5382,7 @@ printer:pdepend_goals_from_plan(Plan, Goals) :-
             ModelKey = [build_with_use:B],
             ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
                 query:memoized_search(model(dependency(Pdeps0, pdepend)):config?{ModelKey}, Repo://Entry),
-                rules:add_self_to_dep_contexts(Repo://Entry, Pdeps0, Pdeps1),
+                dependency:add_self_to_dep_contexts(Repo://Entry, Pdeps0, Pdeps1),
                 rules:add_after_only_to_dep_contexts(AnchorCore, Pdeps1, Pdeps),
                 % Many PDEPEND edges point to packages already present in the current plan's
                 % merge set (from RDEPEND/DEPEND closure). Avoid adding such redundant goals,
@@ -5407,7 +5407,7 @@ printer:plan_merged_cn_sets(Plan, CNSet, CNSlotSet) :-
   findall(key(C,N,Slot),
           ( printer:plan_merge_anchor(Plan, Repo://Entry, _AnchorCore2, _Ctx2),
             printer:entry_cn(Repo, Entry, C, N),
-            rules:entry_slot_default(Repo, Entry, Slot)
+            candidate:entry_slot_default(Repo, Entry, Slot)
           ),
           CNSlotKeys0),
   sort(CNSlotKeys0, CNSlotKeys),
@@ -5439,7 +5439,7 @@ printer:filter_redundant_pdepend_goals(CNSet, CNSlotSet, Goals0, Goals) :-
   !.
 
 printer:pdepend_goal_needed(CNSet, CNSlotSet, Goal) :-
-  ( rules:dep_cn(Goal, C, N) ->
+  ( target:dep_cn(Goal, C, N) ->
       ( printer:goal_specific_slot(Goal, Slot) ->
           \+ get_assoc(key(C,N,Slot), CNSlotSet, _)
       ; \+ get_assoc(key(C,N), CNSet, _)
@@ -5454,13 +5454,13 @@ printer:goal_specific_slot(grouped_package_dependency(_,C,N,PackageDeps):_Action
   member(package_dependency(_Phase,_Strength,C,N,_O,_V,SlotReq,_U), PackageDeps),
   is_list(SlotReq),
   member(slot(S0), SlotReq),
-  rules:canon_slot(S0, Slot),
+  candidate:canon_slot(S0, Slot),
   !.
 printer:goal_specific_slot(grouped_package_dependency(C,N,PackageDeps):_Action?{_Ctx}, Slot) :-
   member(package_dependency(_Phase,_Strength,C,N,_O,_V,SlotReq,_U), PackageDeps),
   is_list(SlotReq),
   member(slot(S0), SlotReq),
-  rules:canon_slot(S0, Slot),
+  candidate:canon_slot(S0, Slot),
   !.
 
 % A merge anchor is any action that results in a package being merged.

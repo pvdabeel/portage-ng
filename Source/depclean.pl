@@ -214,7 +214,7 @@ depclean:direct_deps_installed(pkg://InstalledEntry, DepsInstalled) :-
 depclean:direct_deps_from_repo_entry(Repo://Entry, DepsInstalled) :-
   query:search(model(Model,required_use(_),build_with_use(_)), Repo://Entry),
   query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model}, Repo://Entry),
-  add_self_to_dep_contexts(Repo://Entry, MergedDeps0, MergedDeps),
+  dependency:add_self_to_dep_contexts(Repo://Entry, MergedDeps0, MergedDeps),
   findall(pkg://DepInstalled,
           depclean:dep_literal_installed_dep(MergedDeps, DepInstalled),
           Deps0),
@@ -229,10 +229,10 @@ depclean:direct_deps_from_repo_entry(Repo://Entry, DepsInstalled) :-
 depclean:dep_literal_installed_dep(MergedDeps, DepInstalled) :-
   member(D0, MergedDeps),
   depclean:dep_term_cn_deps(D0, Action, C, N, PackageDeps),
-  rules:merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
+  candidate:merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
   query:search([name(N),category(C),installed(true)], pkg://DepInstalled),
-  rules:query_search_slot_constraint(SlotReq, pkg://DepInstalled, _),
-  rules:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps, pkg://DepInstalled).
+  candidate:query_search_slot_constraint(SlotReq, pkg://DepInstalled, _),
+  candidate:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps, pkg://DepInstalled).
 
 
 %! depclean:dep_term_cn_deps(+DepTerm, -Action, -C, -N, -PackageDeps)
