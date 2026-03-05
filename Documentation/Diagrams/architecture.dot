@@ -174,13 +174,32 @@ digraph portage_ng_architecture {
   // =========================================================================
 
   subgraph cluster_rules {
-    label="Rules (domain-specific Gentoo logic)  —  rules.pl";
+    label="Rules (domain-specific Gentoo logic)";
     color="#8855aa";
     fontcolor="#8855aa";
     style=rounded;
 
     rule_hook [shape=box, style="filled,bold", fillcolor="#eeddff",
-               label="rules:rule/2\nLit:Action?{Context} → Conditions\n─────────────────\nDispatches to rule type based on\nliteral shape and action"];
+               label="rules.pl — Declarative hub\n─────────────────\nrules:rule/2\nLit:Action?{Context} → Conditions\nContext helpers (ctx_take_after,\nctx_strip_planning, etc.)\nProver overrides (assume_blockers,\nassume_conflicts)"];
+
+    subgraph cluster_rules_sub {
+      label="Rules Submodules (Source/Rules/)";
+      color="#aa88cc";
+      style=dashed;
+
+      rule_candidate [shape=box, style=filled, fillcolor="#f5eeff",
+                      label="candidate.pl\n─────────────────\nCandidate selection pipeline\nSlot merging & processing\nVersion coercion & CN-consistency\nBlocker matching & ranking\nDependency ordering"];
+      rule_use       [shape=box, style=filled, fillcolor="#f5eeff",
+                      label="use.pl\n─────────────────\nEffective USE resolution\nbuild_with_use propagation\nREQUIRED_USE satisfaction\n--newuse detection\nUSE conditionals (=, ?, !)"];
+      rule_heuristic [shape=box, style=filled, fillcolor="#f5eeff",
+                      label="heuristic.pl\n─────────────────\nDomain prover hooks:\nhandle_reprove, reprove_exhausted\nobligation_candidate\nSnapshot init/cleanup"];
+      rule_dependency [shape=box, style=filled, fillcolor="#f5eeff",
+                       label="dependency.pl\n─────────────────\nSelf-context injection\nUSE requirement collection\nSlot/build_with_use context\npropagation"];
+      rule_target    [shape=box, style=filled, fillcolor="#f5eeff",
+                      label="target.pl\n─────────────────\nTransactional update/downgrade\ncondition building\nDeep-update goal generation\nDependency CN extraction"];
+      rule_memo      [shape=box, style=filled, fillcolor="#f5eeff",
+                      label="memo.pl\n─────────────────\nThread-local caching facts\nclear_caches/0"];
+    }
 
     rule_install [shape=box, style=filled, fillcolor="#f5eeff",
                   label="install rule\n─────────────────\nRequired-USE model\nDependency model (grouped)\nadd_self_to_dep_contexts\nSlot/USE constraints\nDownload goal"];
@@ -196,7 +215,7 @@ digraph portage_ng_architecture {
                    label="conflict rules\n─────────────────\nSlot conflict detection\nassume_conflicts mode"];
 
     subgraph cluster_candidate {
-      label="Candidate Selection Pipeline";
+      label="Candidate Selection Pipeline (candidate.pl)";
       color="#aa88cc";
       style=dashed;
 
@@ -393,6 +412,14 @@ digraph portage_ng_architecture {
   rule_hook -> rule_grouped;
   rule_hook -> rule_blocker;
   rule_hook -> rule_conflict;
+
+  // Submodule usage
+  rule_grouped -> rule_candidate [label="selection +\nslot logic", style=dashed];
+  rule_install -> rule_use       [label="USE evaluation", style=dashed];
+  rule_install -> rule_dependency [label="context\npropagation", style=dashed];
+  rule_update  -> rule_target    [label="txn conditions", style=dashed];
+  rule_hook    -> rule_memo      [style=dashed, label="cache lookups"];
+  rule_hook    -> rule_heuristic [style=dashed, label="reprove hooks"];
 
   // Grouped dep
   rule_grouped -> cand_steps;

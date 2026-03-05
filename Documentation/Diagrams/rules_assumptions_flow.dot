@@ -31,8 +31,8 @@ digraph rules_assumptions_bpmn {
     b_pkg_strong_uncond [shape=box, label="unconditional (U == []):\nconstraint(blocked_cn(C,N))"];
     b_pkg_strong_cond [shape=box, label="conditional (U \\= []):\nassume blocker (avoid over-approximation)"];
 
-    b_grouped_weak [shape=box, label="grouped_package_dependency(weak):\ngrouped_blocker_specs → all assumed\n+ blocker_source_constraints"];
-    b_grouped_strong [shape=box, label="grouped_package_dependency(strong):\ngrouped_blocker_specs_partition(...,\nEnforceSpecs, AssumeSpecs)"];
+    b_grouped_weak [shape=box, label="grouped_package_dependency(weak):\ncandidate:grouped_blocker_specs → all assumed\n+ blocker_source_constraints"];
+    b_grouped_strong [shape=box, label="grouped_package_dependency(strong):\ncandidate:grouped_blocker_specs_partition(...,\nEnforceSpecs, AssumeSpecs)"];
 
     b_assume_blockers [shape=diamond, label="rules:assume_blockers?"];
     b_strong_assume_all [shape=box, label="assume all strong blockers:\nassume Enforce + Assume"];
@@ -48,12 +48,12 @@ digraph rules_assumptions_bpmn {
   }
 
   subgraph cluster_grouped_dep {
-    label="rules.pl : rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context}, Conditions)";
+    label="rules.pl + candidate.pl + use.pl + dependency.pl :\nrule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context}, Conditions)";
     color="#888888";
 
     g_start [shape=circle, label="start"];
 
-    g_augment [shape=box, label="augment_package_deps_with_self_rdepend\n(install only: propagate self-RDEPEND\nversion bounds into PackageDeps)"];
+    g_augment [shape=box, label="augment_package_deps_with_self_rdepend\n(dependency.pl — install only: propagate\nself-RDEPEND version bounds into PackageDeps)"];
 
     g_split [shape=diamond, label="should_split_grouped_dep(PackageDeps)?"];
     g_split_emit [shape=box, label="emit one grouped dep per package_dependency/8\n(findall + sort)\n+ constraint(selected_cn_allow_multislot(C,N):{true})"];
@@ -72,7 +72,7 @@ digraph rules_assumptions_bpmn {
     g_sslock [shape=diamond, label="SlotReq == [any_same_slot]\nAND context has slot(C,N,Ss)?"];
     g_sslock_bind [shape=box, label="SsLock = canon_any_same_slot_meta(Ss)\n(:= slot lock binding)"];
 
-    g_select [shape=box, label="candidate selection:\n─────────────────\n1. explicit slot dep → accepted_keyword_candidate\n2. selected_cn_candidate_compatible\n   (slot+domain check, CandPreVerified=true)\n3. accepted_keyword_candidate\n   excluding selected_cn rejects for this dep\n   (CandPreVerified=false)"];
+    g_select [shape=box, label="candidate selection (candidate.pl):\n─────────────────\n1. explicit slot dep → accepted_keyword_candidate\n2. selected_cn_candidate_compatible\n   (slot+domain check, CandPreVerified=true)\n3. accepted_keyword_candidate\n   excluding selected_cn rejects for this dep\n   (CandPreVerified=false)"];
 
     g_self_guard [shape=diamond, label="candidate == self entry?"];
     g_self_installed [shape=diamond, label="if self candidate:\n!emptytree AND installed(true)?"];
@@ -84,8 +84,8 @@ digraph rules_assumptions_bpmn {
     g_pdepend [shape=diamond, label="PDEPEND edge in grouped deps?"];
     g_ctx_drop [shape=box, label="MergedUse = [],\ndrop parent build_with_use\n+ assumption_reason for this dep"];
 
-    g_use_guard [shape=diamond, label="candidate_satisfies_use_deps?"];
-    g_use_slot [shape=box, label="process_build_with_use\n+ process_slot\n(query_search_slot_constraint)"];
+    g_use_guard [shape=diamond, label="candidate_satisfies_use_deps?\n(use.pl)"];
+    g_use_slot [shape=box, label="process_build_with_use (use.pl)\n+ process_slot (candidate.pl)\n(query_search_slot_constraint)"];
 
     g_action_path [shape=diamond, label="same-slot installed instance\nfor update path?\n(SlotInstalled == SlotChosen)"];
 
@@ -100,9 +100,9 @@ digraph rules_assumptions_bpmn {
     g_deep_keep [shape=diamond, label="deep fallback keep-installed?\n(installed same-slot satisfies\nall version constraints)"];
     g_ok_deep [shape=box, label="Conditions = []"];
 
-    g_learn_parent [shape=box, label="maybe_learn_parent_narrowing(C,N,...)\n─────────────────\nParent introduced a dep that made\n(C,N) unsatisfiable: narrow parent.\nSkipped for PDEPEND and multislot misses."];
+    g_learn_parent [shape=box, label="maybe_learn_parent_narrowing(C,N,...)\n(heuristic.pl)\n─────────────────\nParent introduced a dep that made\n(C,N) unsatisfiable: narrow parent.\nSkipped for PDEPEND and multislot misses."];
 
-    g_reprove [shape=box, label="maybe_request_grouped_dep_reprove(...)\n→ throw rules_reprove_cn_domain(...)"];
+    g_reprove [shape=box, label="maybe_request_grouped_dep_reprove(...)\n(heuristic.pl)\n→ throw rules_reprove_cn_domain(...)"];
 
     g_reason_call [shape=box, label="call explanation:\nassumption_reason_for_grouped_dep\n(..., _Reason)\nfor classification"];
 
@@ -110,12 +110,12 @@ digraph rules_assumptions_bpmn {
   }
 
   subgraph cluster_cn_reprove {
-    label="rules.pl + prover.pl : CN-domain reprove retry loop";
+    label="heuristic.pl + prover.pl : CN-domain reprove retry loop";
     color="#888888";
-    r_throw [shape=box, label="rules_reprove_cn_domain(C,N,Domain,Candidates,Reasons)\n(thrown from rules.pl)"];
+    r_throw [shape=box, label="rules_reprove_cn_domain(C,N,Domain,Candidates,Reasons)\n(thrown from heuristic.pl)"];
     r_guard [shape=box, label="constraint_guard hooks that may throw reprove:\n- cn_domain + selected_cn compatibility\n- selected_cn uniqueness/domain partition\n- blocked_cn vs selected_cn source reprove"];
     r_catch [shape=box, label="prover:prove_with_cn_domain_retries/11 catches throw"];
-    r_add [shape=box, label="rules:add_cn_domain_rejects(...)\n(+ add_cn_domain_origin_rejects when Candidates=[])"];
+    r_add [shape=box, label="candidate:add_cn_domain_rejects(...)\n(+ add_cn_domain_origin_rejects when Candidates=[])"];
     r_retry [shape=diamond, label="Attempt < MaxRetries\nAND any new reject added?"];
     r_recurse [shape=box, label="retry prove_once with updated reject map"];
     r_fallback [shape=box, label="exhausted/no-new-rejects:\nprove_once with cn-domain reprove disabled"];
@@ -145,18 +145,18 @@ digraph rules_assumptions_bpmn {
   }
 
   subgraph cluster_update_txn {
-    label="rules.pl : update action path (transactional, same-slot policy)";
+    label="target.pl : update action path (transactional, same-slot policy)";
     color="#888888";
     u_start [shape=circle, label="start"];
     u_has_replaces [shape=diamond, label="Context has replaces(...) ?"];
-    u_txn [shape=box, label="rules:update_txn_conditions(...)"];
+    u_txn [shape=box, label="target:update_txn_conditions(...)"];
     u_installed_target [shape=diamond, label="target is installed and newer\nacceptable same-slot version exists?"];
     u_delegate_latest [shape=box, label="delegate to Latest:update?{replaces(Target)}"];
     u_target_not_installed [shape=diamond, label="target not installed?"];
     u_same_slot_old [shape=diamond, label="same-slot installed old version exists?"];
     u_fallback_install [shape=box, label="fallback: Target:install?{Context}"];
     u_noop [shape=box, label="installed and no acceptable newer → []"];
-    u_txn_detail [shape=box, label="update_txn_conditions does:\nrequired_use model + grouped install deps\n+ optional deep_update_goals\n+ use/slot constraints (+ download when needed)"];
+    u_txn_detail [shape=box, label="target:update_txn_conditions does:\nrequired_use model + grouped install deps\n+ optional deep_update_goals (target.pl)\n+ use/slot constraints (+ download when needed)"];
   }
 
   // =========================================================================
