@@ -10,11 +10,66 @@
 
 /** <module> CANDIDATE
 Candidate selection, slot management, version handling, and ranking for
-the rules engine.
+the portage-ng resolver.
 
-Provides implementation predicates for selecting suitable ebuild candidates,
-merging slot restrictions, coercing version terms, ranking dependencies for
-deterministic group choice, and verifying installed package satisfaction.
+This is the largest implementation submodule of the rules engine.  It is
+called by the grouped_package_dependency rule/2 clauses in rules.pl and
+by the constraint_guard/2 prover hooks.
+
+== Major sections ==
+
+  1. *Slot primitives* -- canon_slot/2, canon_any_same_slot_meta/2,
+     entry_slot_default/3: normalise slot atoms and retrieve defaults.
+
+  2. *Version primitives* -- coerce_version_term/2: normalise version
+     representations for comparison.
+
+  3. *Slot restriction merging* -- merge_slot_restriction/5: combine
+     slot requirements from multiple deps on the same (C,N).
+
+  4. *Slot/version constraint queries* -- query_search_slot_constraint/3,
+     query_search_version_select/3: bridge between dependency constraints
+     and the query engine.
+
+  5. *Installed entry satisfaction* -- installed_entry_satisfies_package_deps/5,
+     installed_entry_cn/4: fast-path checks for already-installed packages.
+
+  6. *CN-consistency* -- selected_cn_candidate/5 and friends: ensure that
+     for a given (Category, Name) pair only compatible candidates are
+     selected across the proof.
+
+  7. *CN-domain reject map* -- cn_domain_reject_key/4,
+     cn_domain_candidate_rejected/4, add_cn_domain_rejects/5: bounded
+     reprove retry mechanism that learns which candidates to exclude.
+
+  8. *Selected CN uniqueness* -- selected_cn_unique_or_reprove/4,
+     selected_cn_domain_compatible_or_reprove/5,
+     selected_cn_not_blocked_or_reprove/5: constraint guards called by
+     the prover after merging selected_cn/blocked_cn constraints.
+
+  9. *Blocker matching* -- specs_violate_selected/2, blocker_spec_matches_selected/7:
+     strong blocker enforcement against already-selected candidates.
+
+ 10. *Dependency ordering heuristic* -- order_deps_for_proof/3,
+     prioritize_deps/2,3: sort dependency groups for deterministic proof
+     search (tighter constraints first).
+
+ 11. *Reverse-dep pre-filter* -- candidate_reverse_deps_compatible_with_parent/2:
+     avoid selecting a candidate whose RDEPEND would conflict with the parent.
+
+ 12. *Self-RDEPEND propagation* -- augment_package_deps_with_self_rdepend/6:
+     propagate version bounds from a parent's RDEPEND to tighten child
+     candidate selection.
+
+ 13. *License masking* -- license_masked/1, effective_license/2: filter out
+     candidates whose license is not in ACCEPT_LICENSE.
+
+ 14. *Keyword-aware enumeration* -- accepted_keyword_candidate/7: enumerate
+     candidates respecting ACCEPT_KEYWORDS ordering and slot locks.
+
+ 15. *Provider-reuse reordering* -- candidates_prefer_proven_providers/4:
+     Portage-like heuristic to prefer virtual providers whose dependencies
+     have already been proven.
 */
 
 :- module(candidate, []).
@@ -24,6 +79,11 @@ deterministic group choice, and verifying installed package satisfaction.
 %  Slot primitives
 % =============================================================================
 
+%! canon_slot(+S0, -S) is det.
+%
+%  Canonicalise a slot value to an atom.  Integers and numbers are
+%  converted via atom_number/2; atoms pass through unchanged.
+
 canon_slot(S0, S) :-
   ( atom(S0)   -> S = S0
   ; integer(S0) -> atom_number(S, S0)
@@ -32,11 +92,20 @@ canon_slot(S0, S) :-
   ),
   !.
 
+%! canon_any_same_slot_meta(+Meta0, -Canonical) is semidet.
+%
+%  Extract and canonicalise the slot from a slot metadata list.
+%  Succeeds with `[slot(S)]` if Meta0 contains a slot/1 element.
+
 canon_any_same_slot_meta(Meta0, [slot(S)]) :-
   is_list(Meta0),
   member(slot(S0), Meta0),
   canon_slot(S0, S),
   !.
+
+%! entry_slot_default(+Repo, +Entry, -Slot) is det.
+%
+%  Look up the slot for an entry, defaulting to '0' if unset.
 
 entry_slot_default(Repo, Entry, Slot) :-
   ( query:search(slot(Slot0), Repo://Entry)
@@ -48,6 +117,13 @@ entry_slot_default(Repo, Entry, Slot) :-
 % =============================================================================
 %  Version primitives
 % =============================================================================
+
+%! coerce_version_term(+Ver0, -Ver) is det.
+%
+%  Normalise a version representation into the canonical version/7 compound
+%  used by the resolver.  Handles version/7 terms, wildcard atoms (e.g.
+%  `'1.2.*'`), plain atoms parseable as version numbers, numeric values,
+%  and unbound variables (passed through).
 
 coerce_version_term(Ver0, Ver) :-
   var(Ver0),
@@ -76,6 +152,19 @@ coerce_version_term(Other, Other).
 % =============================================================================
 %  Slot restriction merging
 % =============================================================================
+
+%! merge_slot_restriction(+Action, +C, +N, +PackageDeps, -SlotReq) is semidet.
+%
+%  Combine slot requirements from all package_dependency/8 terms in
+%  PackageDeps that match (C,N).  Returns `[]` if no slot requirement
+%  is present, or the merged slot restriction list (e.g. `[slot('3')]`).
+%  Fails if incompatible slot requirements cannot be merged.
+%
+%  @arg Action      Current action (install, run, ...)
+%  @arg C           Category atom
+%  @arg N           Name atom
+%  @arg PackageDeps List of package_dependency/8 terms
+%  @arg SlotReq     Merged slot requirement list
 
 merge_slot_restriction(Action, C, N, PackageDeps, SlotReq) :-
   merge_slot_restriction_(PackageDeps, Action, C, N, none, Slot0),
@@ -150,6 +239,20 @@ merge_slot_restriction_pair([slot(S0),subslot(Ss0),equal], [slot(S1),equal], [sl
 %  Slot constraint queries
 % =============================================================================
 
+%! query_search_slot_constraint(+SlotReq, +RepoEntry, -SlotMeta) is nondet.
+%
+%  Query the knowledge base for entries matching a slot constraint.
+%  Bridges between the dependency's slot requirement format and the
+%  query engine's `select(slot, constraint(...), ...)` interface.
+%
+%  Handles all slot requirement forms: `[]` (any), `[slot(S)]`,
+%  `[slot(S),subslot(Ss)]`, `[slot(S),equal]`, `[any_same_slot]`,
+%  `[any_different_slot]`, and combinations with `equal`.
+%
+%  @arg SlotReq    Slot requirement list from the dependency
+%  @arg RepoEntry  Repo://Entry to check
+%  @arg SlotMeta   Resolved slot metadata
+
 query_search_slot_constraint(SlotReq, RepoEntry, SlotMeta) :-
   RepoEntry = Repo://Id,
   ( SlotReq == [] ->
@@ -193,6 +296,19 @@ query_search_slot_constraint(SlotReq, RepoEntry, SlotMeta) :-
 % =============================================================================
 %  Version select queries
 % =============================================================================
+
+%! query_search_version_select(+Op, +Ver, +RepoEntry) is nondet.
+%
+%  Query the knowledge base for entries matching a version constraint.
+%  Op is a comparison operator (equal, smaller, greater, smallerequal,
+%  greaterequal, notequal, wildcard, tilde, none).
+%
+%  Wildcard versions (ending in `*`) are matched via wildcard_match/2.
+%  The special operator `none` always succeeds (unconstrained).
+%
+%  @arg Op         Version comparison operator atom
+%  @arg Ver        Version term (will be coerced via coerce_version_term/2)
+%  @arg RepoEntry  Repo://Entry to check
 
 query_search_version_select(equal, Ver0, RepoEntry) :-
   RepoEntry = Repo://Id,
@@ -246,6 +362,19 @@ query_search_version_select(Op, Ver, RepoEntry) :-
 %  Installed entry satisfaction
 % =============================================================================
 
+%! installed_entry_satisfies_package_deps(+Action, +C, +N, +PackageDeps, +Installed) is semidet.
+%
+%  True if the installed entry satisfies all version constraints in
+%  PackageDeps for (C,N).  Used as a fast-path guard in the grouped
+%  dependency rule to skip candidate selection when an installed package
+%  already satisfies the dependency.
+%
+%  @arg Action      Current action
+%  @arg C           Category
+%  @arg N           Name
+%  @arg PackageDeps List of package_dependency/8 terms
+%  @arg Installed   Installed entry (e.g. pkg://Entry)
+
 installed_entry_satisfies_package_deps(_Action, _C, _N, [], _Installed) :- !.
 installed_entry_satisfies_package_deps(Action, C, N,
                                        [package_dependency(_Phase,no,C,N,O,V,_,_)|Rest],
@@ -256,6 +385,10 @@ installed_entry_satisfies_package_deps(Action, C, N,
 installed_entry_satisfies_package_deps(Action, C, N, [_|Rest], Installed) :-
   installed_entry_satisfies_package_deps(Action, C, N, Rest, Installed).
 
+%! installed_entry_cn(+C, +N, -Repo, -Entry) is semidet.
+%
+%  Look up an installed entry for (C,N) in the VDB (pkg repo).
+
 installed_entry_cn(C, N, pkg, Entry) :-
   query:search([name(N),category(C),installed(true)], pkg://Entry),
   !.
@@ -264,6 +397,12 @@ installed_entry_cn(C, N, pkg, Entry) :-
 % =============================================================================
 %  CN-consistency: pick already-selected entry when possible
 % =============================================================================
+
+%! selected_cn_candidate(+Action, +C, +N, +Context, -RepoEntry) is nondet.
+%
+%  Enumerate previously-selected candidates for (C,N) from the context's
+%  `selected_cn` constraint.  Filters by action compatibility and slot
+%  lock.  Used to prefer reusing an existing choice over fresh enumeration.
 
 selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate) :-
   memberchk(constraint(selected_cn(C,N):{ordset(SelectedSet)}), Context),
@@ -282,10 +421,20 @@ selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate) :-
   cache:ordered_entry(FoundRepo, Candidate, C, N, _),
   \+ preference:masked(FoundRepo://Candidate).
 
+%! selected_cn_candidate_compatible(+Action, +C, +N, +SlotReq, +PackageDeps, +Context, -RepoEntry) is semidet.
+%
+%  Like selected_cn_candidate/5 but also verifies slot and version constraints.
+
 selected_cn_candidate_compatible(Action, C, N, SlotReq, PackageDeps, Context, FoundRepo://Candidate) :-
   selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate),
   query_search_slot_constraint(SlotReq, FoundRepo://Candidate, _),
   grouped_dep_candidate_satisfies_constraints(Action, C, N, PackageDeps, Context, FoundRepo://Candidate).
+
+%! selected_cn_rejected_candidates(+Action, +C, +N, +SlotReq, +PackageDeps, +Context, -Rejected) is det.
+%
+%  Collect previously-selected candidates for (C,N) that do NOT satisfy
+%  the current dependency's constraints.  Used to exclude them from fresh
+%  enumeration.
 
 selected_cn_rejected_candidates(Action, C, N, SlotReq, PackageDeps, Context, Rejected) :-
   grouped_dep_effective_domain_precomputed(Action, C, N, PackageDeps, Context, EffDom, RejectDom),
@@ -328,6 +477,12 @@ grouped_dep_candidate_satisfies_effective_domain_precomputed(EffectiveDomain, Re
   version_domain:domain_allows_candidate(EffectiveDomain, RepoEntry),
   !.
 
+%! grouped_dep_effective_domain(+Action, +C, +N, +PackageDeps, +Context, -EffDom) is det.
+%
+%  Compute the effective version domain for a grouped dependency by
+%  intersecting the dep's own constraints, the context's CN domain,
+%  and any learned domain from prior reprove iterations.
+
 grouped_dep_effective_domain(Action, C, N, PackageDeps, Context, EffectiveDomain) :-
   version_domain:domain_from_packagedeps(Action, C, N, PackageDeps, DepDomain0),
   ( context_cn_domain_constraint(C, N, Context, CtxDomain0) ->
@@ -338,6 +493,12 @@ grouped_dep_effective_domain(Action, C, N, PackageDeps, Context, EffectiveDomain
   ),
   apply_learned_domain(C, N, PackageDeps, D1, EffectiveDomain),
   !.
+
+%! apply_learned_domain(+C, +N, +PackageDeps, +D0, -D) is det.
+%
+%  Intersect domain D0 with any learned domain constraints for (C,N)
+%  from the prover's learned constraint store.  Learned domains come
+%  from prior reprove iterations (conflict-driven domain narrowing).
 
 apply_learned_domain(C, N, PackageDeps, D0, D) :-
   dep_slot_key(PackageDeps, Slot),
@@ -478,6 +639,13 @@ constraint_conflicting_candidates(Action, C, N, PackageDeps, Context, Candidates
   sort(Conflicting0, Conflicting),
   !.
 
+%! maybe_request_grouped_dep_reprove(+Action, +C, +N, +PackageDeps, +Context) is semidet.
+%
+%  When CN-domain reprove is enabled and the effective domain conflicts
+%  with already-selected candidates, throw a `prover_reprove/1` exception
+%  requesting the prover to retry with the conflicting candidates rejected.
+%  This is the main conflict-driven learning entry point for grouped deps.
+
 maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps, Context) :-
   cn_domain_reprove_enabled,
   ( context_selected_cn_candidates(C, N, Context, SelectedCandidatesRaw) ->
@@ -515,6 +683,13 @@ maybe_request_grouped_dep_reprove(_Action, _C, _N, _PackageDeps, _Context) :-
 %  CN-domain reject map (bounded reprove retries)
 % =============================================================================
 
+%! cn_domain_reject_key(+C, +N, +Domain, -Key) is det.
+%
+%  Compute a canonical reject-map key from (C,N) and a domain term.
+%  Keys are normalised to `key(C,N,Scope,Domain)` where Scope is
+%  either `slot(S)` or `any`, enabling both slot-specific and global
+%  reject tracking.
+
 cn_domain_reject_key(C, N, scoped(Scope0, Domain0), key(C,N,Scope,Domain)) :-
   cn_reject_scope_canon(Scope0, Scope),
   version_domain:domain_normalize(Domain0, Domain),
@@ -523,6 +698,12 @@ cn_domain_reject_key(C, N, Domain0, key(C,N,Scope,Domain)) :-
   version_domain:domain_normalize(Domain0, Domain),
   domain_slot_scope(Domain, Scope),
   !.
+
+%! cn_domain_candidate_rejected(+C, +N, +Domain, +RepoEntry) is semidet.
+%
+%  True if RepoEntry has been rejected for (C,N) under Domain in a prior
+%  reprove iteration.  Checks slot-scoped, domain-scoped, and global
+%  reject sets.
 
 cn_domain_candidate_rejected(C, N, Domain0, RepoEntry) :-
   cn_domain_reject_key(C, N, Domain0, key(C,N,Scope,Domain)),
@@ -538,6 +719,12 @@ cn_domain_candidate_rejected(C, N, Domain0, RepoEntry) :-
   ),
   !.
 
+%! add_cn_domain_rejects(+C, +N, +Domain, +Candidates, -Added) is det.
+%
+%  Record Candidates as rejected for (C,N) under Domain.  Added is
+%  `true` if any new entries were added, `false` otherwise.  Called by
+%  heuristic:handle_reprove/2 when a reprove conflict is processed.
+
 add_cn_domain_rejects(C, N, Domain0, Candidates0, Added) :-
   cn_domain_reject_key(C, N, Domain0, Key),
   sort(Candidates0, Candidates),
@@ -550,6 +737,11 @@ add_cn_domain_rejects(C, N, Domain0, Candidates0, Added) :-
     Added = true
   ),
   !.
+
+%! add_cn_domain_origin_rejects(+Reasons, -Added) is det.
+%
+%  For each `introduced_by` reason, reject the origin candidate globally.
+%  This enables cross-package conflict learning.
 
 add_cn_domain_origin_rejects(Reasons, Added) :-
   is_list(Reasons),
@@ -599,6 +791,14 @@ maybe_request_cn_domain_reprove(_C, _N, _Domain, _Selected, _Reasons) :-
 %  Selected CN uniqueness / constraint enforcement
 % =============================================================================
 
+%! selected_cn_unique_or_reprove(+C, +N, +SelectedMerged, +Constraints) is semidet.
+%
+%  Enforce that at most one concrete entry is selected per (C,N) (or per
+%  slot when multislot is allowed).  If uniqueness is violated and reprove
+%  is enabled, learns the conflict and throws prover_reprove/1.
+%
+%  Called by constraint_guard for selected_cn constraints.
+
 selected_cn_unique_or_reprove(C, N, SelectedMerged, Constraints) :-
   selected_cn_unique(C, N, SelectedMerged, Constraints),
   !.
@@ -635,6 +835,13 @@ find_adjustable_origin(Reasons, OriginC, OriginN, Repo://Entry) :-
   member(introduced_by(Repo://Entry, _Action, _Why), Reasons),
   cache:ordered_entry(Repo, Entry, OriginC, OriginN, _),
   prover:learned(cn_domain(OriginC, OriginN, _), _), !.
+
+%! maybe_learn_parent_narrowing(+C, +N, +PackageDeps, +Context) is semidet.
+%
+%  When a dependency on (C,N) is unsatisfiable, learn to exclude the
+%  parent version that introduced the dependency.  This is the
+%  "wrong-level fix": the parent introduced a dep that cannot be
+%  satisfied, so exclude the parent version and reprove.
 
 maybe_learn_parent_narrowing(C, N, PackageDeps, Context) :-
   \+ is_pdepend_failure(PackageDeps, Context),
@@ -676,6 +883,12 @@ selected_cn_partition_by_domain(Domain, [Sel|Rest], [Sel|AllowedRest], Conflicti
 selected_cn_partition_by_domain(Domain, [Sel|Rest], AllowedRest, [Sel|ConflictingRest]) :-
   selected_cn_partition_by_domain(Domain, Rest, AllowedRest, ConflictingRest).
 
+%! selected_cn_not_blocked_or_reprove(+C, +N, +Specs, +Selected, +Constraints) is semidet.
+%
+%  Enforce strong blocker constraints: if any Spec in Specs violates an
+%  already-selected entry, attempt reprove by rejecting the blocker source.
+%  Called by constraint_guard for blocked_cn constraints.
+
 selected_cn_not_blocked_or_reprove(_C, _N, Specs, Selected, _Constraints) :-
   \+ specs_violate_selected(Specs, Selected),
   !.
@@ -692,6 +905,12 @@ blocked_cn_source_reprove_target(C, N, Constraints, SourceC, SourceN, [Repo://En
   member(source(Repo,Entry,_Phase,_O,_V,_SlotReq), Sources),
   query:search([category(SourceC),name(SourceN)], Repo://Entry),
   !.
+
+%! selected_cn_domain_compatible_or_reprove(+C, +N, +Domain, +Selected, +Constraints) is semidet.
+%
+%  Check that at least one entry in Selected is allowed by Domain.
+%  If not, learn the domain and request reprove.  Called by
+%  constraint_guard for cn_domain and selected_cn constraints.
 
 selected_cn_domain_compatible_or_reprove(C, N, Domain, Selected, Constraints) :-
   ( once(( member(selected(Repo, Entry, _Act, _SelVer, _SelSlotMeta), Selected),
@@ -840,6 +1059,12 @@ selected_cn_slot_key_(SlotMeta0, Slot) :-
 %  Blocker matching
 % =============================================================================
 
+%! specs_violate_selected(+Specs, +Selected) is semidet.
+%
+%  True if any strong blocker spec in Specs matches an entry in Selected.
+%  Used to check whether a newly-selected candidate conflicts with
+%  existing blocker constraints.
+
 specs_violate_selected(Specs, Selected) :-
   member(blocked(Strength, Phase, O, V, SlotReq), Specs),
   Strength == strong,
@@ -890,11 +1115,21 @@ blocker_slot_matches(SlotReq, _SelSlotMeta, Repo, Entry) :-
 %  Blocker helpers
 % =============================================================================
 
+%! grouped_blocker_specs(+Strength, +Phase, +C, +N, +PackageDeps, -Specs) is det.
+%
+%  Collect all blocker specs from PackageDeps matching (C,N) into a sorted list.
+
 grouped_blocker_specs(Strength, Phase, C, N, PackageDeps, Specs) :-
   findall(blocked(Strength, Phase, O, V, SlotReq),
           ( member(package_dependency(Phase, Strength, C, N, O, V, SlotReq, _U), PackageDeps) ),
           Specs0),
   sort(Specs0, Specs).
+
+%! grouped_blocker_specs_partition(+Strength, +Phase, +C, +N, +PackageDeps, -Enforce, -Assume) is det.
+%
+%  Partition blocker specs into unconditional (enforceable) and
+%  USE-conditional (assumed).  Unconditional blockers have empty USE
+%  requirements; conditional blockers are recorded as assumptions.
 
 grouped_blocker_specs_partition(Strength, Phase, C, N, PackageDeps, EnforceSpecs, AssumeSpecs) :-
   findall(blocked(Strength, Phase, O, V, SlotReq),
@@ -911,12 +1146,22 @@ grouped_blocker_specs_partition(Strength, Phase, C, N, PackageDeps, EnforceSpecs
   sort(Assume0, AssumeSpecs),
   !.
 
+%! blocker_assumption_ctx(+Ctx0, -AssCtx) is det.
+%
+%  Build a minimal assumption context for blocker assumptions, preserving
+%  the self/1 reference from the original context if present.
+
 blocker_assumption_ctx(Ctx0, AssCtx) :-
   ( is_list(Ctx0),
     memberchk(self(Repo://Entry), Ctx0) ->
       AssCtx = [assumption_reason(blocker_conflict), self(Repo://Entry)]
   ; AssCtx = [assumption_reason(blocker_conflict)]
   ).
+
+%! blocker_source_constraints(+C, +N, +Specs, +Context, -Constraints) is det.
+%
+%  Generate `blocked_cn_source` constraints that record which parent
+%  entry introduced the blocker.  Used for reprove source tracking.
 
 blocker_source_constraints(_C, _N, Specs, _Context, []) :-
   Specs == [],
@@ -938,6 +1183,17 @@ blocker_source_constraints(_C, _N, _Specs, _Context, []) :-
 %  Dependency ordering heuristic
 % =============================================================================
 
+%! order_deps_for_proof(+Action, +Deps, -Ordered) is det.
+%
+%  Sort dependency groups for deterministic proof search.  Tighter
+%  constraints (fewer candidates, installed packages, blockers) are
+%  proved first, reducing the backtracking search space.  Uses a
+%  numeric priority key computed by dep_priority/2.
+%
+%  @arg Action   Current action (currently unused; reserved for future ranking)
+%  @arg Deps     List of dependency terms
+%  @arg Ordered  Reordered dependency list
+
 order_deps_for_proof(_Action, Deps, Ordered) :-
   maplist(dep_priority_kv, Deps, KVs),
   keysort(KVs, Sorted),
@@ -947,6 +1203,13 @@ order_deps_for_proof(_Action, Deps, Ordered) :-
 dep_priority_kv(Dep, K-Dep) :-
   dep_priority(Dep, K),
   !.
+
+%! dep_priority(+DepLiteral, -Key) is det.
+%
+%  Compute a priority key for a dependency literal.  Lower keys are
+%  proved first.  Key is `key(BaseK, TightUpper, C, N)` where BaseK
+%  accounts for upper-bound tightness, slot specificity, and special
+%  categories.
 
 dep_priority(grouped_package_dependency(_T,C,N,PackageDeps):Action?{_Context}, K) :-
   !,
@@ -997,6 +1260,13 @@ min_version_bound_(V, Best0, Best) :-
 % =============================================================================
 %  Dep constraint helpers
 % =============================================================================
+
+%! cn_domain_constraints(+Action, +C, +N, +PackageDeps, +Context, -DomainCons, -DomainReasonTags) is det.
+%
+%  Build CN-domain constraints and reason tags from a grouped dependency's
+%  package_dependency terms.  The domain is computed by version_domain and
+%  then turned into `constraint(cn_domain(...))` terms for the prover's
+%  constraint store.
 
 cn_domain_constraints(Action, C, N, PackageDeps, Context, DomainCons, DomainReasonTags) :-
   version_domain:domain_from_packagedeps(Action, C, N, PackageDeps, Domain),
@@ -1058,6 +1328,12 @@ version_term_has_wildcard_(V0) :-
 % =============================================================================
 %  Dependency ranking / prioritization
 % =============================================================================
+
+%! prioritize_deps(+Deps, -SortedDeps) is det.
+%
+%  Sort dependency groups by priority class and sub-ranking (slot
+%  specificity, blocker status).  Used at the rule level to present
+%  candidates in deterministic order.
 
 prioritize_deps(Deps, SortedDeps) :-
   prioritize_deps(Deps, [], SortedDeps).
@@ -1206,6 +1482,15 @@ is_preferred_dep(_Context, package_dependency(_Phase,_Strength,C,N,O,V,_S,_U)) :
 %  any_of_group preference helpers (installed satisfaction)
 % =============================================================================
 
+%! group_member_preferred(+Context, +PackageDep) is semidet.
+%
+%  True if a package_dependency member is "preferred" -- i.e. already
+%  installed or previously selected in the proof.  Used by any_of_group
+%  rules to try installed alternatives first.
+%
+%  @arg Context    Current proof context
+%  @arg PackageDep A package_dependency/8 term
+
 group_member_preferred(Context, package_dependency(Phase,Strength,C,N,O,V,S,U)) :-
   installed_pkg_satisfies_dep(Context, package_dependency(Phase,Strength,C,N,O,V,S,U)),
   !.
@@ -1246,6 +1531,19 @@ installed_version_mismatch_penalty(_Dep, 0).
 %  Reverse-dep candidate pre-filter (RDEPEND only)
 % =============================================================================
 
+%! candidate_reverse_deps_compatible_with_parent(+Context, +RepoEntry) is semidet.
+%
+%  Verify that the candidate's RDEPEND does not conflict with the parent
+%  entry in the proof context.  If the candidate's RDEPEND contains a
+%  version constraint on the parent (C,N) that is incompatible with the
+%  parent's version, the candidate is filtered out early.
+%
+%  Only applied when a `self/1` term is present in the context (i.e.
+%  when the parent's identity is known).
+%
+%  @arg Context    Dependency context (must contain self/1)
+%  @arg RepoEntry  Candidate entry to check
+
 candidate_reverse_deps_compatible_with_parent(Context, FoundRepo://Candidate) :-
   ( memberchk(self(SelfRepo://SelfEntry), Context),
     cache:ordered_entry(SelfRepo, SelfEntry, ParC, ParN, _)
@@ -1284,6 +1582,11 @@ dep_contains_pkg_dep_on(all_of_group(SubDeps), C, N, Op, V, SlotReq) :-
 % =============================================================================
 %  Grouped dep slot helpers
 % =============================================================================
+
+%! all_deps_have_explicit_slot(+PackageDeps) is semidet.
+%
+%  True if every dep in PackageDeps carries a non-empty slot requirement.
+%  Used to decide whether the grouped dep can be resolved slot-by-slot.
 
 all_deps_have_explicit_slot([]) :- !, fail.
 all_deps_have_explicit_slot(Deps) :-
@@ -1343,6 +1646,24 @@ should_split_grouped_dep(PackageDeps) :-
 % =============================================================================
 %  Self-RDEPEND version-bound propagation (timeout-safe)
 % =============================================================================
+
+%! augment_package_deps_with_self_rdepend(+Action, +C, +N, +Context, +Deps0, -Deps) is det.
+%
+%  When the parent ebuild has an RDEPEND on (C,N) with a version constraint,
+%  propagate that version bound into the child dependency's package_dependency
+%  list.  This tightens candidate selection and avoids picking a version that
+%  would later conflict with the parent's RDEPEND.
+%
+%  Only applies to `:install` actions, and only when the parent is known
+%  (via `self/1` in Context).  The RDEPEND lookup result is memoized in
+%  `memo:rdepend_vbounds_cache_/5`.
+%
+%  @arg Action   Action (only `:install` triggers augmentation)
+%  @arg C        Category
+%  @arg N        Name
+%  @arg Context  Dependency context
+%  @arg Deps0    Original package_dependency list
+%  @arg Deps     Augmented list with extra version constraints
 
 augment_package_deps_with_self_rdepend(install, C, N, Context, PackageDeps0, PackageDeps) :-
   ( memberchk(self(RepoEntry0), Context) ->
@@ -1497,10 +1818,21 @@ rdepend_collect_vbounds_for_cn_choice_intersection_([Dep|Deps], C, N, SelfRepoEn
 %  License masking (ACCEPT_LICENSE)
 % =============================================================================
 
+%! license_masked(+RepoEntry) is semidet.
+%
+%  True if RepoEntry is masked due to an unaccepted license.  Checks
+%  whether any license string from the entry's LICENSE metadata is
+%  rejected by `preference:accept_license/2`.
+
 license_masked(Repo://Entry) :-
   effective_license(Repo://Entry, Lic),
   \+ preference:license_accepted(Lic),
   !.
+
+%! effective_license(+RepoEntry, -License) is nondet.
+%
+%  Enumerate the effective license atoms for an entry, resolving
+%  USE-conditional license groups against the entry's effective USE.
 
 effective_license(Repo://Entry, License) :-
   cache:entry_metadata(Repo, Entry, license, LicTerm),
@@ -1528,6 +1860,23 @@ dep_license_ok(_).
 % =============================================================================
 %  Keyword-aware candidate enumeration (Portage-like)
 % =============================================================================
+
+%! accepted_keyword_candidate(+Action, +C, +N, +SlotReq, +SlotSet, +Context, -RepoEntry) is nondet.
+%
+%  Enumerate candidates for (C,N) respecting ACCEPT_KEYWORDS, slot locks,
+%  license masking, and the CN-domain reject map.  Candidates are returned
+%  in keyword-priority order (stable first, then testing, then masked).
+%
+%  Results are memoized per (Action, C, N, SlotReq, LockKey) in
+%  memo:keyword_cache_/6 to avoid repeated query/sort overhead.
+%
+%  @arg Action    Current action
+%  @arg C         Category
+%  @arg N         Name
+%  @arg SlotReq   Slot requirement list
+%  @arg SlotSet   Slot constraint set for multislot deps
+%  @arg Context   Current proof context
+%  @arg RepoEntry Yielded candidate (Repo://Entry)
 
 accepted_keyword_candidate(Action, C, N, SlotReq0, Ss0, Context, FoundRepo://Candidate) :-
   accepted_keyword_slot_lock_arg(C, N, SlotReq0, Ss0, Context, SlotReq, Ss, LockKey),
@@ -1650,6 +1999,15 @@ compare_candidate_version_desc(Delta, RepoA://IdA, RepoB://IdB) :-
 % =============================================================================
 %  Provider-reuse candidate reordering (Portage-like)
 % =============================================================================
+
+%! candidates_prefer_proven_providers(+C, +N, +SlotReq, +Candidates, -Reordered) is det.
+%
+%  For virtual packages: reorder candidates to prefer providers whose
+%  dependencies have already been proven in the current proof tree.
+%  Non-virtual packages pass through unchanged.
+%
+%  This mirrors Portage's behaviour of preferring virtual providers
+%  that are already being installed as part of the dependency closure.
 
 candidates_prefer_proven_providers(virtual, _N, SlotReq, Candidates, Reordered) :-
   SlotReq \= [slot(_)|_],

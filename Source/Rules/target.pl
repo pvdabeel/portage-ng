@@ -9,10 +9,33 @@
 
 
 /** <module> TARGET
-Action-level implementation helpers for update/downgrade transactions.
+Action-level implementation helpers for update and downgrade transactions.
 
-Provides transactional update condition building, deep-update goal
-generation, and dependency CN extraction.
+This module provides the shared implementation for transactional version
+changes (update and downgrade).  Both actions follow the same pattern:
+
+  1. Compute the required_use model and build_with_use state for the new
+     version.
+  2. Compute and memoize the grouped dependency model.
+  3. Optionally generate deep-update goals (when `--deep` is active).
+  4. Assemble proof conditions: USE constraints, slot constraint, download
+     goal (unless virtual/acct-*), and the dependency closure.
+
+The rule/2 clauses for `:update` and `:downgrade` in rules.pl delegate
+here via `target:update_txn_conditions/3`.
+
+== Deep updates ==
+
+When `preference:flag(deep)` is set, `deep_update_goals/3` scans the
+dependency model for installed packages that have a newer version
+available in the same slot, and schedules transactional update goals
+for them.
+
+== Dependency CN extraction ==
+
+`dep_cn/3` extracts the category/name pair from various dependency
+literal formats.  It is used by deep_update_goals/3 and by the printer
+module for PDEPEND goal filtering.
 */
 
 :- module(target, []).
@@ -21,6 +44,24 @@ generation, and dependency CN extraction.
 % =============================================================================
 %  Transactional update prerequisites
 % =============================================================================
+
+%! update_txn_conditions(+RepoEntry, +Context, -Conditions) is det.
+%
+%  Compute the proof conditions for a transactional update or downgrade.
+%  Context must contain `replaces(OldRepo://OldEntry)`.
+%
+%  Steps:
+%    1. Resolve required_use model + build_with_use state
+%    2. Compute grouped dependency model (memoized)
+%    3. Inject self-references into dependency contexts
+%    4. Optionally generate deep-update goals
+%    5. Assemble conditions (USE + slot + download + deps)
+%
+%  For virtual/acct-group/acct-user packages the download goal is omitted.
+%
+%  @arg RepoEntry  The new version entry (Repository://Ebuild)
+%  @arg Context    Proof context (must include replaces/1)
+%  @arg Conditions Resulting proof obligations
 
 update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
   use:context_build_with_use_state(Context, B),
@@ -53,6 +94,20 @@ update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
 %  Deep-update goal generation
 % =============================================================================
 
+%! deep_update_goals(+Self, +MergedDeps, -DeepUpdates) is det.
+%
+%  When `--deep` is active, scan MergedDeps for dependency packages that
+%  are currently installed and have a newer version available in the same
+%  slot.  For each such package, generate a transactional update goal
+%  annotated with `replaces(OldRepo://OldEntry)`.
+%
+%  Only packages from the VDB (`pkg`) are considered.  The parent entry
+%  (Self) is excluded to prevent self-update loops.
+%
+%  @arg Self         The parent entry (excluded from update candidates)
+%  @arg MergedDeps   Grouped dependency model
+%  @arg DeepUpdates  List of `NewRepo://NewEntry:update?{...}` goals
+
 deep_update_goals(Self, MergedDeps, DeepUpdates) :-
   ( preference:accept_keywords(K)
     -> KeywordQ = [keywords(K)]
@@ -81,6 +136,21 @@ deep_update_goals(Self, MergedDeps, DeepUpdates) :-
           ),
           Updates0),
   sort(Updates0, DeepUpdates).
+
+
+% =============================================================================
+%  Dependency CN extraction
+% =============================================================================
+
+%! dep_cn(+DepLiteral, -C, -N) is semidet.
+%
+%  Extract the category (C) and name (N) from a dependency literal.
+%  Handles grouped_package_dependency/4, grouped_package_dependency/3,
+%  and concrete Repo://Entry:Action literals.
+%
+%  @arg DepLiteral  A dependency literal from the grouped model
+%  @arg C           Category atom
+%  @arg N           Name atom
 
 dep_cn(grouped_package_dependency(_,C,N,_):_Action?{_Ctx}, C, N) :- !.
 dep_cn(grouped_package_dependency(C,N,_):_Action?{_Ctx}, C, N) :- !.

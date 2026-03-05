@@ -64,6 +64,12 @@ The following predicates are called by the prover:
 %  Obligation candidate filtering (domain hook for prover)
 % =============================================================================
 
+%! obligation_candidate(+Literal) is semidet.
+%
+%  Domain hook: succeeds when Literal is eligible for proof obligations.
+%  Only install, update, downgrade, and reinstall actions generate
+%  obligations; constraints, downloads, and other action types do not.
+
 obligation_candidate(_Repo://_Entry:Action?{_Ctx}) :-
   ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !.

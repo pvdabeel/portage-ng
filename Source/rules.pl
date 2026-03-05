@@ -11,17 +11,50 @@
 /** <module> RULES
 Declarative hub containing all rule/2 clauses for the portage-ng resolver.
 
-Implementation logic is delegated to submodules in Source/Rules/:
-  - candidate.pl: candidate selection, slot merging, version handling, ranking
-  - dependency.pl: dependency context management, slot/USE propagation
-  - heuristic.pl: domain-specific prover hooks (reprove, snapshots)
-  - memo.pl: thread-local caching declarations
-  - target.pl: transactional update/downgrade helpers
-  - use.pl: USE flag evaluation, conditionals, build_with_use
+The prover calls rules:rule/2 to expand literals into proof conditions.
+This file contains all rule/2 clauses (the "what"), while implementation
+logic (the "how") is delegated to submodules in Source/Rules/.
 
-The prover calls rules:rule/2 -- no interface change from the prover's
-perspective. Constraint hooks (constraint_unify_hook, constraint_guard) and
-proof obligation hooks remain in this file as part of the prover contract.
+== Submodules ==
+
+| Module       | Responsibility                                           |
+|--------------|----------------------------------------------------------|
+| candidate.pl | Candidate selection, slot merging, version handling,     |
+|              | CN-consistency, blocker matching, dependency ordering    |
+| dependency.pl| Self-context injection, USE-requirement collection,      |
+|              | slot/build-with-use context propagation                  |
+| heuristic.pl | Domain-specific prover hooks (reprove, snapshots)        |
+| memo.pl      | Thread-local caching declarations, clear_caches/0        |
+| target.pl    | Transactional update/downgrade condition building        |
+| use.pl       | USE flag evaluation, conditionals, build_with_use,       |
+|              | newuse, REQUIRED_USE satisfaction                        |
+
+== Rule sections ==
+
+  1. *Ebuild targets* -- target/2 resolution, download, fetchonly,
+     install, run, reinstall, uninstall, update, downgrade, upgrade.
+  2. *Dependency resolution* -- package_dependency/8 (weak/strong
+     blockers), grouped_package_dependency/4, depclean traversal.
+  3. *USE conditionals* -- use_conditional_group/4 (positive/negative,
+     context-aware and contextless variants).
+  4. *Choice groups* -- exactly_one_of_group, at_most_one_of_group,
+     any_of_group, all_of_group.
+  5. *Required USE* -- required/1, blocking/1, naf/1, conflict/2.
+  6. *Prover contract* -- constraint_unify_hook/4, constraint_guard/2,
+     proof_obligation/4, proof_obligation_key/3,4.
+
+== Context helpers ==
+
+This file also contains lightweight context manipulation predicates
+(ctx_take_after, ctx_add_after, ctx_drop_build_with_use, etc.) that
+are used by rule/2 bodies for planning-marker threading.  These remain
+here because they are tightly coupled to the rule clause structure and
+have no reuse outside rule/2 bodies.
+
+== Prover-level overrides ==
+
+The `assume_blockers`, `assume_conflicts` predicates and their `with_*`
+scoped variants delegate to `prover:assuming/1,2`.
 */
 
 :- module(rules, [rule/2]).
@@ -40,8 +73,15 @@ proof obligation hooks remain in this file as part of the prover contract.
 
 
 % =============================================================================
-%  RULES declarations
+%  Rule declarations
 % =============================================================================
+%
+%  Each rule/2 clause maps a literal to a list of proof conditions.
+%  The prover calls rules:rule(+Literal, -Conditions) to expand the proof
+%  tree.  Conditions may include sub-goals (proved recursively),
+%  constraint/1 terms (merged into the constraint store), and assumed/1
+%  terms (domain assumptions recorded in the proof).
+
 
 % =============================================================================
 %  Ruleset: Ebuild targets
@@ -1366,7 +1406,7 @@ rule(Literal,[]) :-
 % =============================================================================
 
 % -----------------------------------------------------------------------------
-%  Debugging: profile an entry rule step-by-step
+%  profile_run_entry/3: Time major sub-steps of the :run rule
 % -----------------------------------------------------------------------------
 %
 % This is meant for answering: "where do those 300s go?" on a single package.
@@ -1404,11 +1444,14 @@ rules:step_time(Label, Goal, step(Label, ms(TimeMs), inferences(Inf), result(Res
   Inf is I1 - I0.
 
 % -----------------------------------------------------------------------------
-%  Rule: Core packages
+%  Core packages (system profile baseline)
 % -----------------------------------------------------------------------------
-% Core packages are used to resolve dependencies on the system profile. This way
-% we avoid unnecessary assumptions in the proof, since we know the system profile
-% is always installed.
+%
+%  core_pkg(+Category, +Name) is semidet.
+%
+%  Packages considered part of the system profile baseline.  In emptytree
+%  mode, dependencies on these packages are trivially satisfied to avoid
+%  forcing model construction for the entire OS base.
 
 core_pkg('app-admin','eselect').
 core_pkg('app-alternatives','awk').
@@ -1682,11 +1725,18 @@ rules:proof_obligation(Repo://Entry:Action, Model, HookKey, ExtraLits) :-
 
 
 % -----------------------------------------------------------------------------
-%  Helper: planning-only context markers
+%  Context helpers: planning-only ordering markers
 % -----------------------------------------------------------------------------
+%
+%  The planner uses `after/1` and `after_only/1` markers in dependency
+%  contexts to express ordering constraints between actions.  The
+%  predicates below thread, extract, and strip these markers.
 
-% Extract an optional "after(Literal)" marker from a context list.
-% Keeps at most one marker to prevent context growth.
+%! ctx_take_after(+Context0, -After, -Context) is det.
+%
+%  Extract the first `after(Literal)` marker from Context0.
+%  Unifies After with `none` if no marker is present.
+
 rules:ctx_take_after(Context0, After, Context) :-
   ( is_list(Context0),
     select(after(After1), Context0, Context1) ->
@@ -1697,9 +1747,11 @@ rules:ctx_take_after(Context0, After, Context) :-
   ),
   !.
 
-% Extract an optional "after/1" or "after_only/1" marker from a context list.
-% For after_only/1 we return AfterForDeps = none, so ordering does not propagate
-% into the dependency closure of the goal.
+%! ctx_take_after_with_mode(+Context0, -After, -AfterForDeps, -Context) is det.
+%
+%  Like ctx_take_after/3 but distinguishes `after/1` (propagates to deps)
+%  from `after_only/1` (does not propagate -- AfterForDeps = none).
+
 rules:ctx_take_after_with_mode(Context0, After, AfterForDeps, Context) :-
   ( is_list(Context0),
     select(after_only(After1), Context0, Ctx1) ->
@@ -1717,9 +1769,12 @@ rules:ctx_take_after_with_mode(Context0, After, AfterForDeps, Context) :-
   ),
   !.
 
-% Add an ordering marker extracted by ctx_take_after_with_mode/4.
-% - For after/1: add the literal as a real dependency.
-% - For after_only/1: add an ordering-only constraint (planner ignores it).
+%! ctx_add_after_condition(+After, +AfterForDeps, +Conds0, -Conds) is det.
+%
+%  Prepend an ordering constraint to Conds0 based on the extracted markers.
+%  `after/1` becomes a real dependency; `after_only/1` becomes a
+%  `constraint(order_after(...))` that the planner uses for ordering only.
+
 rules:ctx_add_after_condition(none, _AfterForDeps, Conditions, Conditions) :- !.
 rules:ctx_add_after_condition(After, none, Conditions0, [constraint(order_after(After):{[]} )|Conditions0]) :-
   After \== none,
@@ -1727,7 +1782,11 @@ rules:ctx_add_after_condition(After, none, Conditions0, [constraint(order_after(
 rules:ctx_add_after_condition(After, _AfterForDeps, Conditions0, [After|Conditions0]) :-
   !.
 
-% Strip planning-only markers that should not affect dependency-model memoization.
+%! ctx_strip_planning(+Context0, -Context) is det.
+%
+%  Remove planning-only markers (after/1, world_atom/1) from a context
+%  so they do not affect dependency-model memoization keys.
+
 rules:ctx_strip_planning(Context0, Context) :-
   ( is_list(Context0) ->
       findall(X,
@@ -1740,7 +1799,10 @@ rules:ctx_strip_planning(Context0, Context) :-
   ),
   !.
 
-% Thread an "after/1" marker into dependency contexts (and keep it stable).
+%! add_after_to_dep_contexts(+After, +Deps0, -Deps) is det.
+%
+%  Inject an `after/1` marker into each dependency literal's context.
+
 rules:add_after_to_dep_contexts(none, Deps, Deps) :- !.
 rules:add_after_to_dep_contexts(After, Deps0, Deps) :-
   is_list(Deps0),
@@ -1764,9 +1826,12 @@ rules:ctx_add_after(Ctx0, After, Ctx) :-
   ),
   !.
 
-% Thread an "after_only/1" marker into dependency contexts (and keep it stable).
-% This enforces ordering for the goal itself, without propagating the ordering
-% marker into its own dependency closure.
+%! add_after_only_to_dep_contexts(+After, +Deps0, -Deps) is det.
+%
+%  Inject an `after_only/1` marker into each dependency literal's context.
+%  Unlike after/1, after_only/1 does not propagate into the dependency's
+%  own closure (ordering applies only to the direct goal).
+
 rules:add_after_only_to_dep_contexts(_After, [], []) :- !.
 rules:add_after_only_to_dep_contexts(After, Deps0, Deps) :-
   is_list(Deps0),
@@ -1782,9 +1847,12 @@ rules:add_after_only_to_dep_contexts(After, Deps0, Deps) :-
           Deps).
 rules:add_after_only_to_dep_contexts(_After, Deps, Deps).
 
-% Drop `build_with_use` from dependency contexts.
-% For PDEPEND expansion we use build_with_use only as a memoization key, not as
-% a semantic constraint on the PDEPEND targets themselves.
+%! drop_build_with_use_from_dep_contexts(+Deps0, -Deps) is det.
+%
+%  Strip `build_with_use` terms from each dependency context.
+%  Used during PDEPEND expansion where build_with_use serves only as a
+%  memoization key, not a semantic constraint on the targets.
+
 rules:drop_build_with_use_from_dep_contexts([], []) :- !.
 rules:drop_build_with_use_from_dep_contexts([D0|Rest0], [D|Rest]) :-
   !,
@@ -1812,6 +1880,10 @@ rules:ctx_add_after_only(Ctx0, After, Ctx) :-
 %  Context helpers: drop diagnostic / per-package USE constraints
 % -----------------------------------------------------------------------------
 
+%! ctx_drop_build_with_use(+Ctx0, -Ctx) is det.
+%
+%  Remove all `build_with_use:_` terms from a context.
+
 rules:ctx_drop_build_with_use(Ctx0, Ctx) :-
   ( is_list(Ctx0) ->
       exclude(rules:ctx_is_build_with_use_term, Ctx0, Ctx)
@@ -1821,6 +1893,10 @@ rules:ctx_drop_build_with_use(Ctx0, Ctx) :-
 
 rules:ctx_is_build_with_use_term(build_with_use:_) :- !.
 
+%! ctx_drop_assumption_reason(+Ctx0, -Ctx) is det.
+%
+%  Remove all `assumption_reason(_)` terms from a context.
+
 rules:ctx_drop_assumption_reason(Ctx0, Ctx) :-
   ( is_list(Ctx0) ->
       exclude(rules:ctx_is_assumption_reason_term, Ctx0, Ctx)
@@ -1829,6 +1905,11 @@ rules:ctx_drop_assumption_reason(Ctx0, Ctx) :-
   !.
 
 rules:ctx_is_assumption_reason_term(assumption_reason(_)) :- !.
+
+%! ctx_drop_build_with_use_and_assumption_reason(+Ctx0, -Ctx) is det.
+%
+%  Remove both `build_with_use:_` and `assumption_reason(_)` from a context.
+%  Used for PDEPEND edges where neither should propagate.
 
 rules:ctx_drop_build_with_use_and_assumption_reason(Ctx0, Ctx) :-
   ( is_list(Ctx0) ->
@@ -1848,11 +1929,16 @@ rules:ctx_is_bwu_or_assumption_reason(assumption_reason(_)) :- !.
 % re-run in a mode that turns blockers into domain assumptions, so the printer
 % can show "this would be the plan if you verify/override these blockers".
 
-% assume_blockers/0 and with_assume_blockers/1 replaced by:
-%   prover:assuming(blockers)   — check
-%   prover:assuming(blockers, Goal) — scoped override
+%! assume_blockers is semidet.
+%
+%  True when blocker constraints should be treated as domain assumptions.
+
 rules:assume_blockers :-
   prover:assuming(blockers).
+
+%! with_assume_blockers(:Goal) is det.
+%
+%  Run Goal in a scope where blockers are treated as domain assumptions.
 
 rules:with_assume_blockers(Goal) :-
   prover:assuming(blockers, Goal).
@@ -1860,25 +1946,29 @@ rules:with_assume_blockers(Goal) :-
 % -----------------------------------------------------------------------------
 %  Internal override: assume conflicts
 % -----------------------------------------------------------------------------
+
+%! assume_conflicts is semidet.
 %
-% When proving REQUIRED_USE-like boolean constraints, we sometimes want the proof
-% to *complete* even if the current USE environment makes the constraints
-% unsatisfiable, so we can report the conflicts as assumptions (debugging/stats).
-%
-% Default behavior remains strict: conflicts fail (they are correctness bugs).
-%
-% assume_conflicts/0 and with_assume_conflicts/1 replaced by:
-%   prover:assuming(conflicts)  — check
-%   prover:assuming(conflicts, Goal) — scoped override
+%  True when USE/REQUIRED_USE conflicts should be treated as domain
+%  assumptions rather than hard failures.
+
 rules:assume_conflicts :-
   prover:assuming(conflicts).
+
+%! with_assume_conflicts(:Goal) is det.
+%
+%  Run Goal in a scope where conflicts are treated as domain assumptions.
 
 rules:with_assume_conflicts(Goal) :-
   prover:assuming(conflicts, Goal).
 
 
+%! any_of_reject_assumed_choice(+Dep, +Conditions) is semidet.
+%
+%  True if the chosen any_of alternative resolved only via a domain
+%  assumption (i.e. the dependency is not concretely satisfiable).
+%  Forces backtracking to the next alternative.
 
-% Reject any_of_group choices that are satisfied only by domain assumptions.
 rules:any_of_reject_assumed_choice(grouped_package_dependency(_Strength, C, N, _PackageDeps),
                                    [assumed(grouped_package_dependency(C, N, _Deps):_Act?{_Ctx})]) :-
   !.
@@ -1959,15 +2049,22 @@ rules:any_of_config_condition_dep(Dep, Dep).
 
 
 
-% When resolving dependency groups at Action time, group choices that are plain
-% package_dependency/8 terms must be lifted into grouped_package_dependency/4,
-% because the actual resolution logic lives in grouped_package_dependency rules.
+%! group_choice_dep(+Dep0, -Dep) is det.
+%
+%  Lift a plain package_dependency/8 into a grouped_package_dependency/4
+%  wrapper so it can be resolved by the grouped dependency rule.
+
 rules:group_choice_dep(package_dependency(Phase,Strength,C,N,O,V,S,U),
                        grouped_package_dependency(Strength,C,N,
                            [package_dependency(Phase,Strength,C,N,O,V,S,U)])) :- !.
 rules:group_choice_dep(D, D).
 
 
+
+%! depclean_rewrite_deps(+Deps0, +ParentCtx, -Deps) is det.
+%
+%  Rewrite all dependency literals to the `:depclean` action for
+%  depclean closure traversal.
 
 rules:depclean_rewrite_deps([], _ParentCtx, []) :- !.
 rules:depclean_rewrite_deps([D0|Rest0], ParentCtx, [D|Rest]) :-
