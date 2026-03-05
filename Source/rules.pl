@@ -14,6 +14,8 @@ Declarative hub containing all rule/2 clauses for the portage-ng resolver.
 The prover calls rules:rule/2 to expand literals into proof conditions.
 This file contains all rule/2 clauses (the "what"), while implementation
 logic (the "how") is delegated to submodules in Source/Rules/.
+Submodules are loaded by portage-ng.pl (see load_standalone_modules,
+load_worker_modules).
 
 == Submodules ==
 
@@ -58,18 +60,6 @@ scoped variants delegate to `prover:assuming/1,2`.
 */
 
 :- module(rules, [rule/2]).
-
-
-% =============================================================================
-%  Submodule loading
-% =============================================================================
-
-:- use_module('Rules/memo', []).
-:- use_module('Rules/use', []).
-:- use_module('Rules/candidate', []).
-:- use_module('Rules/heuristic', []).
-:- use_module('Rules/dependency', []).
-:- use_module('Rules/target', []).
 
 
 % =============================================================================
