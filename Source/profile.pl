@@ -24,11 +24,12 @@ instead of re-walking the profile tree, controlled by the per-mode
 
 :- module(profile, []).
 
-:- use_module(library(filesex), [directory_file_path/3]).
-
-
 % =============================================================================
 %  PROFILE declarations
+% =============================================================================
+
+% =============================================================================
+%  I. Profile tree reader — public API
 % =============================================================================
 
 %! profile_use_terms(+ProfileRel, -Terms:list)
@@ -153,10 +154,9 @@ write_profile_use_file(File) :-
   ).
 
 
-% -----------------------------------------------------------------------------
-% Internal: resolve profile inheritance chain
-% -----------------------------------------------------------------------------
-
+% =============================================================================
+%  II. Profile inheritance chain
+% =============================================================================
 
 %! profiles_root(-ProfilesRoot) is det
 %
@@ -247,6 +247,10 @@ parent_file(Dir, ParentFile) :-
   os:compose_path(Dir, 'parent', ParentFile).
 
 
+% -----------------------------------------------------------------------------
+%  Profile file path helpers
+% -----------------------------------------------------------------------------
+
 %! global_package_mask_file(-File) is det
 %
 % Path to the tree-wide profiles/package.mask file.
@@ -280,6 +284,10 @@ package_mask_file(Dir, File) :-
 package_unmask_file(Dir, File) :-
   os:compose_path(Dir, 'package.unmask', File).
 
+
+% -----------------------------------------------------------------------------
+%  Line parsing helpers
+% -----------------------------------------------------------------------------
 
 %! profile_strip_comment(+S0, -S) is det
 %
@@ -316,10 +324,9 @@ profile_parent_dir(ChildDir, ParentRel0, Seen0, Seen) :-
   ).
 
 
-% -----------------------------------------------------------------------------
-% Internal: parse profile files
-% -----------------------------------------------------------------------------
-
+% =============================================================================
+%  III. USE flag collection and finalization
+% =============================================================================
 
 %! profile_read_atoms_file(+File, -Atoms:list) is det
 %
@@ -433,6 +440,10 @@ parse_use_op_file(Dir, Basename, Ops) :-
   ).
 
 
+% -----------------------------------------------------------------------------
+%  make.defaults key-value parser
+% -----------------------------------------------------------------------------
+
 %! make_defaults_kv(+S, -KV) is det
 %
 % Parse a make.defaults string S into a dict mapping upper-cased
@@ -539,6 +550,10 @@ unquote(S0, S) :-
   ).
 
 
+% -----------------------------------------------------------------------------
+%  USE token parsing and expansion
+% -----------------------------------------------------------------------------
+
 %! parse_default_use_ops(+S, -Ops:list) is det
 %
 % Parse a USE string from make.defaults into a list of op(add,Flag) /
@@ -613,6 +628,10 @@ use_expand_flag(VarU, ValStr, Flag) :-
   atomic_list_concat([VarLower, Token], '_', Flag).
 
 
+% -----------------------------------------------------------------------------
+%  Ordered set operations for USE accumulation
+% -----------------------------------------------------------------------------
+
 %! apply_default_use_ops(+Ops, +E0, +D0, -E, -D) is det
 %
 % Apply a list of add/del USE operations to the ordered Enabled/Disabled
@@ -645,9 +664,8 @@ apply_set_ops([op(del, Flag)|Ops], S0, S) :-
 
 
 % -----------------------------------------------------------------------------
-% Internal: normalize to preference:profile_use/1 terms
+%  Finalization: normalize to preference:profile_use/1 terms
 % -----------------------------------------------------------------------------
-
 
 %! profile_finalize(+State, -Terms:list) is det
 %
@@ -676,7 +694,7 @@ profile_finalize(st(Enabled0, Disabled0, Force0, Mask0), Terms) :-
 
 
 % =============================================================================
-%  Profile cache: serialization and deserialization
+%  IV. Profile cache — file paths
 % =============================================================================
 %
 %  During --sync, profile:cache_save/0 walks the Gentoo profile tree and
@@ -684,7 +702,6 @@ profile_finalize(st(Enabled0, Disabled0, Force0, Mask0), Terms) :-
 %  groups) to a cache file (profile.qlf).  At startup, preference:init can
 %  load the pre-parsed cache instead of re-walking the profile tree,
 %  controlled by the per-mode config:profile_loading/2 setting.
-
 
 %! profile:cache_file(-File) is det.
 %
@@ -701,7 +718,7 @@ profile:raw_file(File) :-
 
 
 % =============================================================================
-%  Cache serialization (called during --sync)
+%  V. Cache serialization (called during --sync)
 % =============================================================================
 
 %! profile:cache_save is det.
@@ -756,7 +773,7 @@ profile:cache_save_profile(ProfileRel, RawFile) :-
 
 
 % =============================================================================
-%  Cache deserialization (called during preference:init)
+%  VI. Cache deserialization (called during preference:init)
 % =============================================================================
 
 %! profile:cache_load(-UseTerms, -UseMask, -UseForce) is semidet.
@@ -833,7 +850,7 @@ profile:cache_available :-
 
 
 % -----------------------------------------------------------------------------
-% Internal: cache loading state
+%  Cache loading state
 % -----------------------------------------------------------------------------
 
 :- dynamic profile:cache_loaded/0.
@@ -848,9 +865,9 @@ profile:reset_cache :-
   retractall(profile:cache_loaded).
 
 
-% -----------------------------------------------------------------------------
-% Internal: collect profile per-package USE data for serialization
-% -----------------------------------------------------------------------------
+% =============================================================================
+%  VII. Data collection for cache serialization
+% =============================================================================
 
 %! profile:collect_profile_package_use(+ProfileRel, -Entries) is det.
 %
