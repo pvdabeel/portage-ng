@@ -173,10 +173,10 @@ daemon_dispatch(shutdown, _In, Out) :-
   flush_output(Out),
   halt(0).
 
-daemon_dispatch(request(Args, Cols, Rows), _In, Out) :-
+daemon_dispatch(request(Args, Cols, Rows, Env), _In, Out) :-
   !,
   daemon_reset_timer,
-  daemon_isolate_state(Args, Cols, Rows),
+  daemon_isolate_state(Args, Cols, Rows, Env),
   ExitCode = exit_code(0),
   catch(
     daemon_run_with_output(Out, ExitCode),
@@ -188,18 +188,23 @@ daemon_dispatch(request(Args, Cols, Rows), _In, Out) :-
   format(Out, '~cEXIT:~w~n', [0, Code]),
   flush_output(Out).
 
+daemon_dispatch(request(Args, Cols, Rows), In, Out) :-
+  !,
+  daemon_dispatch(request(Args, Cols, Rows, []), In, Out).
+
 daemon_dispatch(_, _In, Out) :-
   format(Out, 'Error: unknown request~n', []),
   format(Out, '~cEXIT:1~n', [0]),
   flush_output(Out).
 
 
-%! daemon_isolate_state(+Args, +Cols, +Rows) is det.
+%! daemon_isolate_state(+Args, +Cols, +Rows, +Env) is det.
 %
 % Prepares clean state for a new request: clears memoized CLI args
-% and per-request preference flags, then injects the new arguments.
+% and per-request preference flags, injects the new arguments,
+% applies client environment overrides, and re-initializes preferences.
 
-daemon_isolate_state(Args, Cols, Rows) :-
+daemon_isolate_state(Args, Cols, Rows, Env) :-
   retractall(interface:argv_(_,_)),
   retractall(preference:local_flag(_)),
   set_prolog_flag(argv, Args),
@@ -208,9 +213,26 @@ daemon_isolate_state(Args, Cols, Rows) :-
   ( integer(Cols), integer(Rows), Cols > 0, Rows > 0
   -> assertz(daemon:client_tty_size(Rows, Cols))
   ;  true
-  ).
+  ),
+  daemon_apply_client_env(Env).
+
+
+%! daemon_apply_client_env(+Env:list) is det.
+%
+% Applies client environment overrides for this request and
+% re-initializes preferences so USE/ACCEPT_KEYWORDS take effect.
+
+daemon_apply_client_env(Env) :-
+  retractall(daemon:client_env(_,_)),
+  forall(member(Name-Value, Env),
+    assertz(daemon:client_env(Name, Value))),
+  retractall(preference:local_env_use(_)),
+  retractall(preference:local_use(_)),
+  retractall(preference:local_accept_keywords(_)),
+  preference:init.
 
 :- dynamic daemon:client_tty_size/2.
+:- dynamic daemon:client_env/2.
 :- dynamic daemon:running/0.
 
 
@@ -300,12 +322,47 @@ daemon_do_connect(SocketPath, ExitCode) :-
 
 %! daemon_send_request(+Out) is det.
 %
-% Sends the current CLI arguments and terminal dimensions to the daemon.
+% Sends the current CLI arguments, terminal dimensions, and
+% portage-relevant environment variables to the daemon.
 
 daemon_send_request(Out) :-
   current_prolog_flag(argv, RawArgs),
   config:printing_tty_size(Rows, Cols),
-  format(Out, 'request(~q, ~w, ~w).~n', [RawArgs, Cols, Rows]).
+  daemon_collect_env(Env),
+  format(Out, 'request(~q, ~w, ~w, ~q).~n', [RawArgs, Cols, Rows, Env]).
+
+
+%! daemon_collect_env(-Env:list) is det.
+%
+% Collects portage-relevant environment variables that are set in the
+% client process, as Name-Value pairs.
+
+daemon_collect_env(Env) :-
+  findall(Name-Value,
+    ( daemon_forwarded_env_var(Name),
+      system:getenv(Name, Value)
+    ),
+    Env).
+
+
+%! daemon_forwarded_env_var(?Name) is nondet.
+%
+% Environment variables forwarded from IPC client to daemon.
+
+daemon_forwarded_env_var('USE').
+daemon_forwarded_env_var('ACCEPT_KEYWORDS').
+daemon_forwarded_env_var('PYTHON_TARGETS').
+daemon_forwarded_env_var('PYTHON_SINGLE_TARGET').
+daemon_forwarded_env_var('RUBY_TARGETS').
+daemon_forwarded_env_var('RUBY_SINGLE_TARGET').
+daemon_forwarded_env_var('LUA_SINGLE_TARGET').
+daemon_forwarded_env_var('PERL_FEATURES').
+daemon_forwarded_env_var('LLVM_SLOT').
+daemon_forwarded_env_var('VIDEO_CARDS').
+daemon_forwarded_env_var('INPUT_DEVICES').
+daemon_forwarded_env_var('CPU_FLAGS_X86').
+daemon_forwarded_env_var('APACHE2_MODULES').
+daemon_forwarded_env_var('APACHE2_MPMS').
 
 
 %! daemon_stream_response(+In, -ExitCode) is det.

@@ -174,10 +174,15 @@ interface:argv(Options,Args) :-
 
 %! interface:getenv(+Name, -Value) is semidet.
 %
-% Retrieves the value of the environment variable Name, or fails if unset.
+% Retrieves the value of the environment variable Name.
+% In IPC mode, client-forwarded overrides take precedence over
+% the daemon's own process environment.
 
-interface:getenv(Name,Value) :-
-  system:getenv(Name,Value).
+interface:getenv(Name, Value) :-
+  ( daemon:client_env(Name, Value) ->
+    true
+  ; system:getenv(Name, Value)
+  ).
 
 
 % -----------------------------------------------------------------------------
