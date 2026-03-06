@@ -180,6 +180,9 @@ rule(Repository://Ebuild:fetchonly?{Context},Conditions) :-
   ( query:search(masked(true),   Repository://Ebuild),
     \+ prover:assuming(unmask) ->
       fail
+  ; \+ rules:entry_has_accepted_keyword(Repository://Ebuild),
+    \+ prover:assuming(keyword_acceptance) ->
+      fail
   ; query:search(installed(true),Repository://Ebuild),
     \+preference:flag(emptytree) ->
       Conditions = []
@@ -227,6 +230,9 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
   !,
   ( query:search(masked(true),   Repository://Ebuild),
     \+ prover:assuming(unmask) ->
+      fail
+  ; \+ rules:entry_has_accepted_keyword(Repository://Ebuild),
+    \+ prover:assuming(keyword_acceptance) ->
       fail
   ; query:search(installed(true),Repository://Ebuild),
     \+ preference:flag(emptytree) ->
@@ -310,9 +316,12 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
 
 rule(Repository://Ebuild:run?{Context},Conditions) :-
   !,
-  ( % 0. Check if the ebuild is masked or installed
+  ( % 0. Check if the ebuild is masked, keyword-filtered, or installed
     query:search(masked(true),   Repository://Ebuild),
     \+ prover:assuming(unmask) ->
+      fail
+  ; \+ rules:entry_has_accepted_keyword(Repository://Ebuild),
+    \+ prover:assuming(keyword_acceptance) ->
       fail
   ; query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) ->
     ( config:avoid_reinstall(true) ->
@@ -363,8 +372,13 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
     InstallAction = install
   ),
   ( prover:assuming(unmask), query:search(masked(true), Repository://Ebuild) ->
-      InstallCtx = [suggestion(unmask, Repository://Ebuild)|InstallCtx0]
-  ; InstallCtx = InstallCtx0
+      InstallCtx1 = [suggestion(unmask, Repository://Ebuild)|InstallCtx0]
+  ; InstallCtx1 = InstallCtx0
+  ),
+  ( prover:assuming(keyword_acceptance),
+    candidate:candidate_non_accepted_keyword(Repository://Ebuild, NonAccKw) ->
+      InstallCtx = [suggestion(accept_keyword, NonAccKw)|InstallCtx1]
+  ; InstallCtx = InstallCtx1
   ),
   InstallOrUpdate = Repository://Ebuild:InstallAction?{InstallCtx},
   Prefix0 = [Selected,
@@ -960,6 +974,12 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         candidate:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps1, Context),
         fail
       ; explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason),
+        % Fail for keyword-filtered and masked deps in strict mode so the
+        % fallback chain (keyword_acceptance / unmask) can produce full plans.
+        ( Reason == keyword_filtered, \+ prover:assuming(keyword_acceptance) -> fail
+        ; Reason == masked, \+ prover:assuming(unmask) -> fail
+        ; true
+        ),
         version_domain:domain_reason_terms(Action, C, N, PackageDeps1, Context, DomainReasonTags),
         candidate:add_domain_reason_context(C, N, DomainReasonTags, Context, Ctx2),
         feature_unification:unify([assumption_reason(Reason)], Ctx2, Ctx3),
@@ -1773,6 +1793,15 @@ rules:ctx_strip_planning(Context0, Context) :-
 %! rules:add_after_to_dep_contexts(+After, +Deps0, -Deps)
 %
 % Injects an `after/1` marker into each dependency literal's context.
+
+%! rules:entry_has_accepted_keyword(+RepoEntry)
+%
+% True if the entry has at least one keyword in ACCEPT_KEYWORDS.
+
+rules:entry_has_accepted_keyword(Repo://Entry) :-
+  preference:accept_keywords(K),
+  query:search(keyword(K), Repo://Entry),
+  !.
 
 rules:add_after_to_dep_contexts(none, Deps, Deps) :- !.
 rules:add_after_to_dep_contexts(After, Deps0, Deps) :-

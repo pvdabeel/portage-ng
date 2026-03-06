@@ -2241,6 +2241,7 @@ printer:print_element(_,rule(Repository://Entry:Action?{Context},_Body)) :-
   printer:keyword_atom(K, KAtom),
   message:color(cyan),
   message:print(Action),
+  message:color(green),
   message:column(24,Repository://Entry),
   message:color(darkgray),
   format(atom(Msg), ' (~w)', [KAtom]),
@@ -2259,6 +2260,7 @@ printer:print_element(_,rule(Repository://Entry:Action?{Context},_Body)) :-
   !,
   message:color(cyan),
   message:print(Action),
+  message:color(green),
   message:column(24,Repository://Entry),
   message:color(darkgray),
   message:print(' (unmasked)'),
@@ -3423,7 +3425,7 @@ printer:print_pre_action(unmask(R, E, _C, _N)) :-
 
 printer:print_pre_action(accept_keyword(R, E, _C, _N, K)) :-
   printer:keyword_atom(K, KAtom),
-  message:bubble(orange, accept),
+  message:bubble(orange, keyword),
   message:color(lightgreen),
   message:column(24, R://E),
   message:color(darkgray),
@@ -3805,18 +3807,11 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
   findall(Content, (assoc:gen_assoc(assumed(rule(Content)), ProofAVL, _)), CycleAssumptions0),
   sort(CycleAssumptions0, CycleAssumptions),
   partition(printer:is_blocker_assumption, DomainAssumptions, BlockerAssumptions, NonBlockerAssumptions),
-  ( config:print_blockers(off) -> VisibleBlockers = [] ; VisibleBlockers = BlockerAssumptions ),
-  ( NonBlockerAssumptions == [], VisibleBlockers == [], CycleAssumptions == [] -> true
-  ; NonBlockerAssumptions \= [] ->
+  ( NonBlockerAssumptions \= [] ->
       message:bubble(red,'Error'),
       message:color(red),
       message:print(' The proof for your build plan contains domain assumptions. Please verify:'), nl, nl,
       message:color(red)
-  ; VisibleBlockers \= [] ->
-      message:bubble(orange,'Warning'),
-      message:color(orange),
-      message:print(' The proof for your build plan contains blocker assumptions. Please verify:'), nl, nl,
-      message:color(orange)
   ; CycleAssumptions \= [] ->
       message:bubble(orange,'Warning'),
       message:color(orange),
@@ -3832,7 +3827,7 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
                nl ))
   ; true
   ),
-  printer:print_blockers_section(BlockerAssumptions),
+  % Suggestions/assumptions section comes before blockers
   printer:print_suggestions_section(NonBlockerAssumptions, BlockerAssumptions, ProofAVL),
   ( NonBlockerAssumptions \= [] ->
       ( config:bugreport_drafts_enabled(true) ->
@@ -3886,6 +3881,8 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
       )
   ; true
   ),
+  % Blockers section comes last
+  printer:print_blockers_section(BlockerAssumptions),
   nl,
   message:color(normal),nl.
 
@@ -3920,7 +3917,7 @@ printer:print_blockers_section(BlockerAssumptions) :-
   sort(Lines0, Lines),
   ( Lines == [] -> true
   ; nl,
-    message:header('Blockers'),
+    message:header('Blockers added during proving & planning:'),
     nl,
     forall(member(line(Strength, Phase, BlockAtom, RequiredBy), Lines),
            printer:print_blocker_line(Strength, Phase, BlockAtom, RequiredBy)),
@@ -3929,14 +3926,14 @@ printer:print_blockers_section(BlockerAssumptions) :-
 printer:print_blockers_section(BlockerAssumptions) :-
   config:print_blockers(fancy), !,
   nl,
-  message:header('Blockers'),
+  message:header('Blockers added during proving & planning:'),
   nl,
   forall(member(Content, BlockerAssumptions),
          ( printer:print_assumption_detail(rule(Content, [])),
            nl )).
 printer:print_blockers_section(BlockerAssumptions) :-
   nl,
-  message:header('Blockers'),
+  message:header('Blockers added during proving & planning:'),
   nl,
   forall(member(Content, BlockerAssumptions),
          ( printer:print_assumption_detail(rule(Content, [])),
@@ -5549,6 +5546,8 @@ printer:write_merge_file(Directory,Repository://Entry) :-
   Goals = [Repository://Entry:Action?{[]}],
   get_time(T0),
   ( ( printer:prove_plan(Goals, Proof, Model, Plan, Triggers)
+    ; prover:assuming(keyword_acceptance,
+        printer:prove_plan(Goals, Proof, Model, Plan, Triggers))
     ; prover:assuming(unmask,
         printer:prove_plan(Goals, Proof, Model, Plan, Triggers))
     ),
@@ -5586,6 +5585,8 @@ printer:write_fetchonly_file(Directory,Repository://Entry) :-
   Extension = '.fetchonly',
   Goals = [Repository://Entry:Action?{[]}],
   ( ( printer:prove_plan(Goals, Proof, Model, Plan, Triggers)
+    ; prover:assuming(keyword_acceptance,
+        printer:prove_plan(Goals, Proof, Model, Plan, Triggers))
     ; prover:assuming(unmask,
         printer:prove_plan(Goals, Proof, Model, Plan, Triggers))
     ),

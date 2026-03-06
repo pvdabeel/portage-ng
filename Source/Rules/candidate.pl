@@ -1889,14 +1889,15 @@ accepted_keyword_candidate(Action, C, N, SlotReq0, Ss0, Context, FoundRepo://Can
   predsort(candidate:compare_candidate_version_desc, Candidates1, CandidatesSorted),
   member(FoundRepo://Candidate, CandidatesSorted).
 
-% Like query_keyword_candidate but accepts any keyword, not just accepted ones.
-% Packages with zero keywords are excluded (treated as not ready for use).
+% Like query_keyword_candidate but accepts any candidate, including those with
+% non-accepted keywords or no keywords at all. Used when keyword_acceptance
+% fallback is active to let keyword-filtered packages through.
 query_keyword_candidate_any(Action, C, N, Context, FoundRepo://Candidate) :-
   ( Action \== run,
     memberchk(self(SelfRepo0://SelfEntry0), Context),
     query:search([category(C),name(N)], SelfRepo0://SelfEntry0)
   ->
-    query:search([name(N),category(C),keyword(_)], FoundRepo://Candidate),
+    query:search([name(N),category(C)], FoundRepo://Candidate),
     \+ preference:masked(FoundRepo://Candidate),
     ( FoundRepo == SelfRepo0,
       Candidate == SelfEntry0
@@ -1905,7 +1906,7 @@ query_keyword_candidate_any(Action, C, N, Context, FoundRepo://Candidate) :-
       query:search(installed(true), FoundRepo://Candidate)
     ; true
     )
-  ; query:search([name(N),category(C),keyword(_)], FoundRepo://Candidate),
+  ; query:search([name(N),category(C)], FoundRepo://Candidate),
     \+ preference:masked(FoundRepo://Candidate)
   ).
 
@@ -2022,8 +2023,13 @@ compare_candidate_version_desc(Delta, RepoA://IdA, RepoB://IdB) :-
 candidate_non_accepted_keyword(Repo://Entry, NonAccKw) :-
   findall(K, preference:accept_keywords(K), AcceptedKs0),
   sort(AcceptedKs0, AcceptedKs),
-  cache:entry_metadata(Repo, Entry, keywords, NonAccKw),
-  \+ memberchk(NonAccKw, AcceptedKs),
+  ( cache:entry_metadata(Repo, Entry, keywords, NonAccKw),
+    \+ memberchk(NonAccKw, AcceptedKs)
+  ->
+    true
+  ; \+ cache:entry_metadata(Repo, Entry, keywords, _),
+    NonAccKw = '**'
+  ),
   !.
 
 
