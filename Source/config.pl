@@ -450,6 +450,16 @@ config:graph_legacy_type([emerge]).
 config:print_prover_cycles(false).
 
 
+%! config:print_prover_cycles_style(?Style)
+%
+% Display style for the cycle breaks section:
+%   - `off`      : do not print cycle breaks section (default)
+%   - `flat`     : one cycle break per line, compact list
+%   - `detailed` : each cycle break on two lines with "- Cycle break:" header
+
+config:print_prover_cycles_style(off).
+
+
 %! config:print_prover_cycles_max_total(?N)
 %
 % Maximum number of prover cycle-break assumptions for which a cycle

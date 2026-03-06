@@ -2357,10 +2357,11 @@ printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):insta
   is_list(Context),
   memberchk(assumption_reason(masked), Context),
   !,
-  message:bubble(yellow,'verify'),
-  message:color(yellow),
+  message:bubble(red,'verify'),
+  message:color(green),
   atomic_list_concat([C,'/',N],P),
   message:column(24,P),
+  message:color(darkgray),
   message:print(' (masked, requires unmask)'),
   message:color(normal).
 
@@ -2416,10 +2417,11 @@ printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):run?{
   is_list(Context),
   memberchk(assumption_reason(masked), Context),
   !,
-  message:bubble(yellow,'verify'),
-  message:color(yellow),
+  message:bubble(red,'verify'),
+  message:color(green),
   atomic_list_concat([C,'/',N],P),
   message:column(24,P),
+  message:color(darkgray),
   message:print(' (masked, requires unmask)'),
   message:color(normal).
 
@@ -3419,14 +3421,14 @@ printer:print_pre_action_first([Action|Rest]) :-
 
 printer:print_pre_action(unmask(R, E, _C, _N)) :-
   message:bubble(orange, unmask),
-  message:color(lightgreen),
+  message:color(green),
   message:column(24, R://E),
   message:color(normal).
 
 printer:print_pre_action(accept_keyword(R, E, _C, _N, K)) :-
   printer:keyword_atom(K, KAtom),
   message:bubble(orange, keyword),
-  message:color(lightgreen),
+  message:color(green),
   message:column(24, R://E),
   message:color(darkgray),
   format(atom(Msg), ' (~w)', [KAtom]),
@@ -3469,15 +3471,22 @@ printer:is_run_cycle_break(Content) :-
 
 printer:print_cycle_break_detail(Content) :-
   ( prover:canon_literal(Content, Core, _Ctx) -> true ; Core = Content ),
-  message:color(lightred),
-  message:style(bold),
-  message:print('- Cycle break: '),
-  message:style(normal),
-  message:color(normal),
-  nl,
-  message:print('  '),
-  message:print(Core),
-  nl.
+  ( config:print_prover_cycles_style(flat) ->
+      message:color(darkgray),
+      message:print('  '),
+      message:print(Core),
+      message:color(normal),
+      nl
+  ; message:color(lightred),
+    message:style(bold),
+    message:print('- Cycle break: '),
+    message:style(normal),
+    message:color(normal),
+    nl,
+    message:print('  '),
+    message:print(Core),
+    nl
+  ).
 
 
 %! printer:print_steps_in_plan(+Target,+Plan,+Call,+Count,-NewCount)
@@ -3807,19 +3816,18 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
   findall(Content, (assoc:gen_assoc(assumed(rule(Content)), ProofAVL, _)), CycleAssumptions0),
   sort(CycleAssumptions0, CycleAssumptions),
   partition(printer:is_blocker_assumption, DomainAssumptions, BlockerAssumptions, NonBlockerAssumptions),
+  % 1. Suggestions/assumptions section first
+  printer:print_suggestions_section(NonBlockerAssumptions, BlockerAssumptions, ProofAVL),
+  % 2. Blockers second
+  printer:print_blockers_section(BlockerAssumptions),
+  % 3. Domain assumptions (with Error banner)
   ( NonBlockerAssumptions \= [] ->
+      nl,
       message:bubble(red,'Error'),
       message:color(red),
       message:print(' The proof for your build plan contains domain assumptions. Please verify:'), nl, nl,
-      message:color(red)
-  ; CycleAssumptions \= [] ->
-      message:bubble(orange,'Warning'),
-      message:color(orange),
-      message:print(' The proof for your build plan contains cycle breaks. Please verify:'), nl, nl,
-      message:color(orange)
-  ; true
-  ),
-  ( NonBlockerAssumptions \= [] ->
+      message:color(normal),
+      nl,
       message:header('Domain assumptions'),
       nl,
       forall(member(Content, NonBlockerAssumptions),
@@ -3827,8 +3835,7 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
                nl ))
   ; true
   ),
-  % Suggestions/assumptions section comes before blockers
-  printer:print_suggestions_section(NonBlockerAssumptions, BlockerAssumptions, ProofAVL),
+  % 4. Bug report drafts
   ( NonBlockerAssumptions \= [] ->
       ( config:bugreport_drafts_enabled(true) ->
           ( config:bugreport_drafts_max_assumptions(MaxAss) -> true ; MaxAss = 25 ),
@@ -3841,7 +3848,8 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
       )
   ; true
   ),
-  ( CycleAssumptions \= [] ->
+  % 5. Cycle breaks last (unless turned off)
+  ( CycleAssumptions \= [], \+ config:print_prover_cycles_style(off) ->
       message:header('Cycle breaks (prover)'),
       nl,
       config:print_prover_cycles_max_total(MaxCycleBreaksToPrint),
@@ -3854,7 +3862,8 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
         Omitted is TotalCycleBreaks - MaxCycleBreaksToPrint
       ),
       forall(member(Content, CycleToPrint),
-             ( ( printer:is_run_cycle_break(Content) ->
+             ( ( config:print_prover_cycles_style(detailed),
+                 printer:is_run_cycle_break(Content) ->
                      message:color(darkgray),
                      message:print('  (runtime SCC candidate)'), nl,
                      message:color(normal)
@@ -3870,7 +3879,7 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
                            nl ))
                ; true
                ),
-               nl
+               ( config:print_prover_cycles_style(detailed) -> nl ; true )
              ))
   ,   ( Omitted > 0 ->
           message:color(darkgray),
@@ -3881,8 +3890,6 @@ printer:print_warnings(ModelAVL, ProofAVL, TriggersAVL) :-
       )
   ; true
   ),
-  % Blockers section comes last
-  printer:print_blockers_section(BlockerAssumptions),
   nl,
   message:color(normal),nl.
 

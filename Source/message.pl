@@ -500,7 +500,6 @@ topheader(Message) :-
 
 header(Message) :-
   color(lightorange),
-  style(bold),
   msg_atom(Message, Atom),
   format('>>> ~s', [Atom]),
   color(normal),
