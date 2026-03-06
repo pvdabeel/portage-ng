@@ -385,10 +385,21 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   ; InstallCtx2 = InstallCtx1
   ),
   ( B \== use_state([],[]),
-    use:build_with_use_changes(B, Repository://Ebuild, UseChanges),
-    UseChanges \== []
+    use:build_with_use_changes(B, Repository://Ebuild, BWUChanges),
+    BWUChanges \== []
+  -> true
+  ; BWUChanges = []
+  ),
+  ( use:model_required_use_changes(R, RUChanges),
+    RUChanges \== []
+  -> true
+  ; RUChanges = []
+  ),
+  append(BWUChanges, RUChanges, AllUseChanges0),
+  sort(AllUseChanges0, AllUseChanges),
+  ( AllUseChanges \== []
   ->
-      InstallCtx = [suggestion(use_change, Repository://Ebuild, UseChanges)|InstallCtx2]
+      InstallCtx = [suggestion(use_change, Repository://Ebuild, AllUseChanges)|InstallCtx2]
   ; InstallCtx = InstallCtx2
   ),
   InstallOrUpdate = Repository://Ebuild:InstallAction?{InstallCtx},

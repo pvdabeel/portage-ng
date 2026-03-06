@@ -333,6 +333,73 @@ build_with_use_changes(use_state(Enable, Disable), Repo://Entry, Changes) :-
     append(EnableChanges, DisableChanges, Changes).
 
 
+%! use:model_required_use_changes(+ModelKeys, -Changes)
+%
+% Extract USE flag changes that the REQUIRED_USE model proof had to assume.
+% ModelKeys is the R list from query:search(model(_,required_use(R),_), ...).
+% Returns use_change(Flag, enable|disable) for each assumption.
+% Handles both individual flag assumptions and group-level REQUIRED_USE
+% assumptions (exactly_one_of_group, any_of_group, at_most_one_of_group).
+
+model_required_use_changes(ModelKeys, Changes) :-
+    findall(Change,
+            ( member(A, ModelKeys),
+              model_assumption_to_change(A, Change)
+            ),
+            Changes).
+
+% Individual flag assumptions
+model_assumption_to_change(assumed(Use), use_change(Use, enable)) :-
+    atom(Use), \+ Use = minus(_).
+model_assumption_to_change(assumed(minus(Use)), use_change(Use, disable)) :-
+    atom(Use), \+ Use = minus(_).
+model_assumption_to_change(assumed(conflict(required, Use)), use_change(Use, enable)) :-
+    atom(Use), \+ Use = minus(_).
+model_assumption_to_change(assumed(conflict(required, minus(Use))), use_change(Use, disable)) :-
+    atom(Use), \+ Use = minus(_).
+model_assumption_to_change(assumed(conflict(blocking, minus(Use))), use_change(Use, enable)) :-
+    atom(Use), \+ Use = minus(_).
+model_assumption_to_change(assumed(conflict(blocking, Use)), use_change(Use, disable)) :-
+    atom(Use), \+ Use = minus(_).
+
+% Group-level REQUIRED_USE assumptions: exactly_one_of / any_of need one
+% enabled, pick the last flag (typically the latest version).
+model_assumption_to_change(assumed(conflict(required_use, exactly_one_of_group(Deps))),
+                           use_change(Flag, enable)) :-
+    required_use_group_pick_flag(Deps, Flag).
+model_assumption_to_change(assumed(conflict(required_use, any_of_group(Deps))),
+                           use_change(Flag, enable)) :-
+    required_use_group_pick_flag(Deps, Flag).
+
+% at_most_one_of: too many enabled; suggest disabling each currently-enabled
+% flag beyond the first.
+model_assumption_to_change(assumed(conflict(required_use, at_most_one_of_group(Deps))),
+                           use_change(Flag, disable)) :-
+    required_use_group_excess_flags(Deps, Flag).
+
+%! use:required_use_group_pick_flag(+Deps, -Flag)
+% Pick a single flag from a REQUIRED_USE group to satisfy the constraint.
+% Prefers flags that are already set in the system's USE_EXPAND defaults;
+% falls back to the last flag in the list (typically the highest version).
+required_use_group_pick_flag(Deps, Flag) :-
+    findall(F, ( member(required(F), Deps), atom(F), \+ F = minus(_) ), Flags),
+    Flags \== [],
+    ( member(F, Flags), preference:use(F) ->
+        Flag = F
+    ; last(Flags, Flag)
+    ).
+
+%! use:required_use_group_excess_flags(+Deps, -Flag)
+% For at_most_one_of, yield each flag that is currently enabled beyond
+% the first. The first enabled flag is kept; extras should be disabled.
+required_use_group_excess_flags(Deps, Flag) :-
+    findall(F, ( member(required(F), Deps), atom(F), \+ F = minus(_),
+                 preference:use(F) ), Enabled),
+    Enabled = [_Keep|Extras],
+    Extras \== [],
+    member(Flag, Extras).
+
+
 % =============================================================================
 %  Context helpers for per-package USE (build_with_use)
 % =============================================================================

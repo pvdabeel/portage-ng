@@ -2274,7 +2274,7 @@ printer:print_element(_,rule(Repository://Entry:Action?{Context},_Body)) :-
 
 printer:print_element(_,rule(Repository://Entry:Action?{Context},_Body)) :-
   is_list(Context),
-  memberchk(suggestion(use_change, _, Changes), Context),
+  memberchk(suggestion(use_change, _, _Changes), Context),
   \+ memberchk(suggestion(unmask, _), Context),
   \+ memberchk(suggestion(accept_keyword, _), Context),
   !,
@@ -2283,9 +2283,7 @@ printer:print_element(_,rule(Repository://Entry:Action?{Context},_Body)) :-
   message:color(green),
   message:column(24,Repository://Entry),
   message:color(darkgray),
-  printer:format_use_change_flags(Changes, FlagsStr),
-  format(atom(Msg), ' (USE: ~w)', [FlagsStr]),
-  message:print(Msg),
+  message:print(' (USE modified)'),
   message:color(normal),
   printer:print_config(Repository://Entry:Action?{Context}).
 
@@ -2651,7 +2649,9 @@ printer:print_config(Repository://Entry:fetchonly?{Context}) :-
          (member(Term,Context),
           (Term = required_use(Uses) ; Term = build_with_use(Uses)),
            member(assumed(Use),Uses)),
-         Assumed),
+         Assumed0),
+ printer:use_changes_to_assumed(Context, SuggAssumed),
+ append(Assumed0, SuggAssumed, Assumed),
  findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
 
  (Useflags == [] ;
@@ -2714,7 +2714,9 @@ printer:print_config(Repository://Entry:install?{Context}) :-
          (member(Term,Context),
           (Term = required_use(Uses) ; Term = build_with_use(Uses)),
            member(assumed(Use),Uses)),
-         Assumed),
+         Assumed0),
+  printer:use_changes_to_assumed(Context, SuggAssumed),
+  append(Assumed0, SuggAssumed, Assumed),
 
   % Get regular USE flags (filtered, excluding USE_EXPAND)
   findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
@@ -2832,6 +2834,9 @@ printer:valid_use_expand([_Key, Flags]) :-
 % ebuild/preference/package_use/profile) into a flat list of flag terms.
 
 printer:collect_expand_flags(Keyflags, AllFlags) :-
+  printer:collect_expand_flags(Keyflags, [], AllFlags).
+
+printer:collect_expand_flags(Keyflags, Assumed, AllFlags) :-
   (memberchk([negative:default,NegDefa],Keyflags);    NegDefa=[]),
   (memberchk([negative:ebuild,NegEbui],Keyflags);     NegEbui=[]),
   (memberchk([negative:preference,NegPref],Keyflags); NegPref=[]),
@@ -2850,15 +2855,15 @@ printer:collect_expand_flags(Keyflags, AllFlags) :-
   sort(NegPkgUse, ONegPkgUse),
   sort(NegProfileMask, ONegProfileMask),
   sort(NegDefa, ONegDefa),
-  maplist(printer:to_flag_term(positive:preference, []), OPosPref, FlagsPosPref),
-  maplist(printer:to_flag_term(positive:package_use, []), OPosPkgUse, FlagsPosPkgUse),
-  maplist(printer:to_flag_term(positive:profile_package_use_force, []), OPosProfileForce, FlagsPosProfileForce),
-  maplist(printer:to_flag_term(positive:ebuild, []), OPosEbui, FlagsPosEbui),
-  maplist(printer:to_flag_term(negative:preference, []), ONegPref, FlagsNegPref),
-  maplist(printer:to_flag_term(negative:package_use, []), ONegPkgUse, FlagsNegPkgUse),
-  maplist(printer:to_flag_term(negative:profile_package_use_mask, []), ONegProfileMask, FlagsNegProfileMask),
-  maplist(printer:to_flag_term(negative:ebuild, []), ONegEbui, FlagsNegEbui),
-  maplist(printer:to_flag_term(negative:default, []), ONegDefa, FlagsNegDefa),
+  maplist(printer:to_flag_term(positive:preference, Assumed), OPosPref, FlagsPosPref),
+  maplist(printer:to_flag_term(positive:package_use, Assumed), OPosPkgUse, FlagsPosPkgUse),
+  maplist(printer:to_flag_term(positive:profile_package_use_force, Assumed), OPosProfileForce, FlagsPosProfileForce),
+  maplist(printer:to_flag_term(positive:ebuild, Assumed), OPosEbui, FlagsPosEbui),
+  maplist(printer:to_flag_term(negative:preference, Assumed), ONegPref, FlagsNegPref),
+  maplist(printer:to_flag_term(negative:package_use, Assumed), ONegPkgUse, FlagsNegPkgUse),
+  maplist(printer:to_flag_term(negative:profile_package_use_mask, Assumed), ONegProfileMask, FlagsNegProfileMask),
+  maplist(printer:to_flag_term(negative:ebuild, Assumed), ONegEbui, FlagsNegEbui),
+  maplist(printer:to_flag_term(negative:default, Assumed), ONegDefa, FlagsNegDefa),
   append([FlagsPosPref, FlagsPosPkgUse, FlagsPosProfileForce, FlagsPosEbui,
           FlagsNegPref, FlagsNegPkgUse, FlagsNegProfileMask, FlagsNegEbui, FlagsNegDefa],
          AllFlags).
@@ -2877,7 +2882,7 @@ printer:print_config_items_aligned(Useflags, ValidUseExpandVariables, Assumed, S
   (ValidUseExpandVariables == [] -> true ;
    forall(member([Key, Keyflags], ValidUseExpandVariables),
           (printer:print_config_prefix,
-           printer:print_config_item_aligned(Key, Keyflags, [])))),
+           printer:print_config_item_aligned(Key, Keyflags, Assumed)))),
 
   % 3. Lastly print SLOT with proper formatting and alignment
   (Slot == [] -> true ;
@@ -2957,7 +2962,7 @@ printer:print_config_item_aligned('slot', Slot, _) :-
   message:color(normal),
   message:print('"').
 
-printer:print_config_item_aligned(Key, Keyflags, _) :-
+printer:print_config_item_aligned(Key, Keyflags, Assumed) :-
   eapi:use_expand(Key),
   !,
   upcase_atom(Key, KeyU),
@@ -2965,7 +2970,7 @@ printer:print_config_item_aligned(Key, Keyflags, _) :-
   message:print(' = "'),
   config:printing_tty_size(_, TermWidth),
   line_position(current_output, StartCol),
-  printer:collect_expand_flags(Keyflags, AllFlags),
+  printer:collect_expand_flags(Keyflags, Assumed, AllFlags),
   printer:print_flags_wrapped(AllFlags,StartCol,TermWidth),
   message:print('"').
 
@@ -2977,10 +2982,10 @@ printer:print_config_value('use', List, Assumed) :-
 printer:print_config_value('slot', Slot, _) :-
   !,
   printer:print_slot_value(Slot).
-printer:print_config_value(Key, Keyflags, _) :-
+printer:print_config_value(Key, Keyflags, Assumed) :-
   eapi:use_expand(Key),
   !,
-  printer:collect_expand_flags(Keyflags, AllFlags),
+  printer:collect_expand_flags(Keyflags, Assumed, AllFlags),
   printer:print_flags_unwrapped(AllFlags).
 
 
@@ -3180,6 +3185,36 @@ printer:collect_all_flags(List, Assumed, AllFlags) :-
 % Converts a flag to a flag term.
 
 printer:to_flag_term(Type, Assumed, Flag, flag(Type, Flag, Assumed)).
+
+
+%! printer:use_changes_to_assumed(+Context, -Assumed)
+%
+% Extract USE flag changes from suggestion(use_change, ...) in the Context
+% and convert them to the Assumed list format used by print_use_flag.
+% For USE_EXPAND flags, both the full prefixed name and the stripped suffix
+% are included so matching works in both regular USE and USE_EXPAND displays.
+
+printer:use_changes_to_assumed(Context, Assumed) :-
+  ( is_list(Context),
+    memberchk(suggestion(use_change, _, Changes), Context),
+    is_list(Changes)
+  ->
+    findall(A,
+            ( member(Change, Changes),
+              printer:use_change_to_assumed_atom(Change, A)
+            ),
+            Assumed)
+  ; Assumed = []
+  ).
+
+printer:use_change_to_assumed_atom(use_change(F, enable), F).
+printer:use_change_to_assumed_atom(use_change(F, enable), Stripped) :-
+  eapi:use_expand(Key),
+  eapi:strip_prefix_atom(Key, F, Stripped).
+printer:use_change_to_assumed_atom(use_change(F, disable), minus(F)).
+printer:use_change_to_assumed_atom(use_change(F, disable), minus(Stripped)) :-
+  eapi:use_expand(Key),
+  eapi:strip_prefix_atom(Key, F, Stripped).
 
 
 %! printer:print_flags_unwrapped(+AllFlags)
@@ -3471,9 +3506,7 @@ printer:print_pre_action(use_change(R, E, _C, _N, Changes)) :-
   message:color(green),
   message:column(24, R://E),
   message:color(darkgray),
-  printer:format_use_change_flags(Changes, FlagsStr),
-  format(atom(Msg), ' (~w)', [FlagsStr]),
-  message:print(Msg),
+  printer:print_use_change_flags_wrapped(Changes),
   message:color(normal).
 
 printer:format_use_change_flags(Changes, FlagsStr) :-
@@ -3481,6 +3514,73 @@ printer:format_use_change_flags(Changes, FlagsStr) :-
   findall(A, ( member(use_change(F, disable), Changes), format(atom(A), '-~w', [F]) ), NegAtoms),
   append(PosAtoms, NegAtoms, AllFlags),
   atomic_list_concat(AllFlags, ' ', FlagsStr).
+
+
+%! printer:print_use_change_flags_wrapped(+Changes)
+%
+% Prints USE change flags with tty-width-aware wrapping inside parentheses.
+% On wrap, continues with the style-appropriate │ prefix aligned to the
+% opening parenthesis column.
+
+printer:print_use_change_flags_wrapped(Changes) :-
+  printer:use_change_flag_atoms(Changes, FlagAtoms),
+  ( FlagAtoms == []
+  -> true
+  ;  write(' ('),
+     catch(
+       ( config:printing_tty_size(_, TermWidth),
+         line_position(current_output, StartCol),
+         printer:print_flag_atoms_wrapped(FlagAtoms, StartCol, TermWidth, StartCol, true)
+       ),
+       _,
+       ( printer:print_flag_atoms_unwrapped(FlagAtoms) )
+     ),
+     write(')')
+  ).
+
+printer:use_change_flag_atoms(Changes, FlagAtoms) :-
+  findall(A, ( member(use_change(F, enable), Changes), atom_string(F, A) ), PosAtoms),
+  findall(A, ( member(use_change(F, disable), Changes), format(atom(A), '-~w', [F]) ), NegAtoms),
+  append(PosAtoms, NegAtoms, FlagAtoms).
+
+printer:print_flag_atoms_unwrapped([]) :- !.
+printer:print_flag_atoms_unwrapped([F]) :- !, write(F).
+printer:print_flag_atoms_unwrapped([F|Rest]) :-
+  write(F), write(' '),
+  printer:print_flag_atoms_unwrapped(Rest).
+
+printer:print_flag_atoms_wrapped([], _, _, _, _) :- !.
+printer:print_flag_atoms_wrapped([F|Rest], StartCol, TermWidth, ColIn, IsFirst) :-
+  atom_length(F, FLen),
+  ( IsFirst -> SpaceLen = 0 ; SpaceLen = 1 ),
+  ( ColIn + SpaceLen + FLen > TermWidth
+  -> printer:print_pre_action_continuation(StartCol),
+     write(F),
+     ColOut is StartCol + FLen
+  ;  ( IsFirst -> true ; write(' ') ),
+     write(F),
+     ColOut is ColIn + SpaceLen + FLen
+  ),
+  printer:print_flag_atoms_wrapped(Rest, StartCol, TermWidth, ColOut, false).
+
+printer:print_pre_action_continuation(StartColumn) :-
+  nl,
+  ( config:printing_style('short')  ->
+      write('             │ '),
+      Indent is StartColumn - 1,
+      message:column(Indent, '')
+  ; config:printing_style('column') ->
+      write('             │ '),
+      Indent is StartColumn - 1,
+      message:column(Indent, '')
+  ; config:printing_style('fancy')  ->
+      write('             │                    '),
+      message:color(darkgray),
+      write('│ '),
+      Indent is StartColumn - 1,
+      message:column(Indent, '')
+  ; true
+  ).
 
 
 % Build a set of planned packages (category/name) for actions install/run.
