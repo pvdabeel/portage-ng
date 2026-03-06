@@ -1899,6 +1899,7 @@ query_keyword_candidate_any(Action, C, N, Context, FoundRepo://Candidate) :-
   ->
     query:search([name(N),category(C)], FoundRepo://Candidate),
     \+ preference:masked(FoundRepo://Candidate),
+    \+ candidate:license_masked(FoundRepo://Candidate),
     ( FoundRepo == SelfRepo0,
       Candidate == SelfEntry0
     ->
@@ -1907,7 +1908,8 @@ query_keyword_candidate_any(Action, C, N, Context, FoundRepo://Candidate) :-
     ; true
     )
   ; query:search([name(N),category(C)], FoundRepo://Candidate),
-    \+ preference:masked(FoundRepo://Candidate)
+    \+ preference:masked(FoundRepo://Candidate),
+    \+ candidate:license_masked(FoundRepo://Candidate)
   ).
 
 % Accepts masked candidates with any accepted keyword. Used when the unmask
@@ -1994,6 +1996,7 @@ query_keyword_candidate(Action, C, N, K, Context, FoundRepo://Candidate) :-
   ->
     query:search([name(N),category(C),keyword(K)], FoundRepo://Candidate),
     \+ preference:masked(FoundRepo://Candidate),
+    \+ candidate:license_masked(FoundRepo://Candidate),
     ( FoundRepo == SelfRepo0,
       Candidate == SelfEntry0
     ->
@@ -2002,7 +2005,8 @@ query_keyword_candidate(Action, C, N, K, Context, FoundRepo://Candidate) :-
     ; true
     )
   ; query:search([name(N),category(C),keyword(K)], FoundRepo://Candidate),
-    \+ preference:masked(FoundRepo://Candidate)
+    \+ preference:masked(FoundRepo://Candidate),
+    \+ candidate:license_masked(FoundRepo://Candidate)
   ).
 
 compare_candidate_version_desc(Delta, RepoA://IdA, RepoB://IdB) :-

@@ -177,7 +177,7 @@ rule(world_action(_Op,_Arg):world?{Context}, Conditions) :-
 
 rule(Repository://Ebuild:fetchonly?{Context},Conditions) :-
   !,
-  ( query:search(masked(true),   Repository://Ebuild),
+  ( (query:search(masked(true), Repository://Ebuild) ; candidate:license_masked(Repository://Ebuild)),
     \+ prover:assuming(unmask) ->
       fail
   ; \+ rules:entry_has_accepted_keyword(Repository://Ebuild),
@@ -228,7 +228,7 @@ rule(Repository://Ebuild:fetchonly?{Context},Conditions) :-
 
 rule(Repository://Ebuild:install?{Context},Conditions) :-
   !,
-  ( query:search(masked(true),   Repository://Ebuild),
+  ( (query:search(masked(true), Repository://Ebuild) ; candidate:license_masked(Repository://Ebuild)),
     \+ prover:assuming(unmask) ->
       fail
   ; \+ rules:entry_has_accepted_keyword(Repository://Ebuild),
@@ -317,8 +317,8 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
 
 rule(Repository://Ebuild:run?{Context},Conditions) :-
   !,
-  ( % 0. Check if the ebuild is masked, keyword-filtered, or installed
-    query:search(masked(true),   Repository://Ebuild),
+  ( % 0. Check if the ebuild is masked, keyword-filtered, license-masked, or installed
+    (query:search(masked(true), Repository://Ebuild) ; candidate:license_masked(Repository://Ebuild)),
     \+ prover:assuming(unmask) ->
       fail
   ; \+ rules:entry_has_accepted_keyword(Repository://Ebuild),
@@ -373,7 +373,8 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   ; InstallCtx0 = [required_use:R,build_with_use:B],
     InstallAction = install
   ),
-  ( prover:assuming(unmask), query:search(masked(true), Repository://Ebuild) ->
+  ( prover:assuming(unmask),
+    (query:search(masked(true), Repository://Ebuild) ; candidate:license_masked(Repository://Ebuild)) ->
       InstallCtx1 = [suggestion(unmask, Repository://Ebuild)|InstallCtx0]
   ; InstallCtx1 = InstallCtx0
   ),
@@ -886,10 +887,11 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         candidate:candidate_non_accepted_keyword(FoundRepo://Candidate, NonAccKw)
       ->
         feature_unification:unify([suggestion(accept_keyword, NonAccKw)], NewerContext0, NewerContext1)
-      % When unmask fallback produced this candidate and it is masked,
-      % tag the context so the printer shows it as an unmask suggestion.
+      % When unmask fallback produced this candidate and it is masked
+      % or license-masked, tag the context so the printer shows it as
+      % an unmask suggestion.
       ; prover:assuming(unmask),
-        preference:masked(FoundRepo://Candidate)
+        (preference:masked(FoundRepo://Candidate) ; candidate:license_masked(FoundRepo://Candidate))
       ->
         feature_unification:unify([suggestion(unmask, FoundRepo://Candidate)], NewerContext0, NewerContext1)
       ; NewerContext1 = NewerContext0
