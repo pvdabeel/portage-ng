@@ -585,10 +585,6 @@ interface:process_action(Action,ArgsSets,Options) :-
                 printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
               ) ->
                 FallbackUsed = keyword_acceptance
-            ; prover:assuming(use_autoenable,
-                printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
-              ) ->
-                FallbackUsed = use_autoenable
             ; prover:assuming(blockers,
                 printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
               ) ->
@@ -609,10 +605,6 @@ interface:process_action(Action,ArgsSets,Options) :-
                   printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
                 ) ->
                   FallbackUsed = keyword_acceptance
-              ; prover:assuming(use_autoenable,
-                  printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
-                ) ->
-                  FallbackUsed = use_autoenable
               ; prover:assuming(blockers,
                   printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
                 ) ->

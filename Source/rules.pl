@@ -251,6 +251,7 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
       use:context_build_with_use_state(Context1, B),
       ( memberchk(required_use:R,Context1) -> true ; true ),
       query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
+      use:build_with_use_compatible_required_use(B, Repository://Ebuild),
 
       % 3. Pass use model onto dependencies to calculate corresponding dependency model,
       %    We pass using config action to avoid package_dependency from generating choices.
@@ -341,6 +342,7 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   % 2. Compute required_use stable model, extend with build_with_use requirements.
   use:context_build_with_use_state(Context1, B),
   query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
+  use:build_with_use_compatible_required_use(B, Repository://Ebuild),
 
       % 3-4. Compute + memoize dependency model, already grouped by package Category & Name.
   query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model},Repository://Ebuild),
@@ -377,8 +379,15 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   ),
   ( prover:assuming(keyword_acceptance),
     candidate:candidate_non_accepted_keyword(Repository://Ebuild, NonAccKw) ->
-      InstallCtx = [suggestion(accept_keyword, NonAccKw)|InstallCtx1]
-  ; InstallCtx = InstallCtx1
+      InstallCtx2 = [suggestion(accept_keyword, NonAccKw)|InstallCtx1]
+  ; InstallCtx2 = InstallCtx1
+  ),
+  ( B \== use_state([],[]),
+    use:build_with_use_changes(B, Repository://Ebuild, UseChanges),
+    UseChanges \== []
+  ->
+      InstallCtx = [suggestion(use_change, Repository://Ebuild, UseChanges)|InstallCtx2]
+  ; InstallCtx = InstallCtx2
   ),
   InstallOrUpdate = Repository://Ebuild:InstallAction?{InstallCtx},
   Prefix0 = [Selected,
@@ -876,14 +885,24 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       ( prover:assuming(keyword_acceptance),
         candidate:candidate_non_accepted_keyword(FoundRepo://Candidate, NonAccKw)
       ->
-        feature_unification:unify([suggestion(accept_keyword, NonAccKw)], NewerContext0, NewerContext)
+        feature_unification:unify([suggestion(accept_keyword, NonAccKw)], NewerContext0, NewerContext1)
       % When unmask fallback produced this candidate and it is masked,
       % tag the context so the printer shows it as an unmask suggestion.
       ; prover:assuming(unmask),
         preference:masked(FoundRepo://Candidate)
       ->
-        feature_unification:unify([suggestion(unmask, FoundRepo://Candidate)], NewerContext0, NewerContext)
-      ; NewerContext = NewerContext0
+        feature_unification:unify([suggestion(unmask, FoundRepo://Candidate)], NewerContext0, NewerContext1)
+      ; NewerContext1 = NewerContext0
+      ),
+
+      % When build_with_use requires changing USE flags from the candidate's
+      % current effective state, tag the context with a use_change suggestion.
+      ( use:context_build_with_use_state(NewerContext1, BWUState),
+        use:build_with_use_changes(BWUState, FoundRepo://Candidate, UseChanges),
+        UseChanges \== []
+      ->
+        feature_unification:unify([suggestion(use_change, FoundRepo://Candidate, UseChanges)], NewerContext1, NewerContext)
+      ; NewerContext = NewerContext1
       ),
 
       % Prefer expressing as update when a pkg-installed entry exists in the same

@@ -2268,6 +2268,28 @@ printer:print_element(_,rule(Repository://Entry:Action?{Context},_Body)) :-
   printer:print_config(Repository://Entry:Action?{Context}).
 
 
+% -----------------------------------------------------------
+% CASE: package resolved via USE change (build_with_use)
+% -----------------------------------------------------------
+
+printer:print_element(_,rule(Repository://Entry:Action?{Context},_Body)) :-
+  is_list(Context),
+  memberchk(suggestion(use_change, _, Changes), Context),
+  \+ memberchk(suggestion(unmask, _), Context),
+  \+ memberchk(suggestion(accept_keyword, _), Context),
+  !,
+  message:color(cyan),
+  message:print(Action),
+  message:color(green),
+  message:column(24,Repository://Entry),
+  message:color(darkgray),
+  printer:format_use_change_flags(Changes, FlagsStr),
+  format(atom(Msg), ' (USE: ~w)', [FlagsStr]),
+  message:print(Msg),
+  message:color(normal),
+  printer:print_config(Repository://Entry:Action?{Context}).
+
+
 % -------------------------------------------------
 % CASE: simple package, is not a target of the plan
 % -------------------------------------------------
@@ -3393,7 +3415,16 @@ printer:collect_plan_pre_actions(ProofAVL, PreActions) :-
           ),
           Keywords0),
   sort(Keywords0, Keywords),
-  append(Unmasks, Keywords, PreActions).
+  findall(use_change(R, E, C, N, Changes),
+          ( assoc:gen_assoc(rule(R://E:_A3), ProofAVL, _?Ctx3),
+            is_list(Ctx3),
+            memberchk(suggestion(use_change, _, Changes), Ctx3),
+            cache:ordered_entry(R, E, C, N, _)
+          ),
+          UseChanges0),
+  sort(UseChanges0, UseChanges),
+  append(Unmasks, Keywords, PreActions0),
+  append(PreActions0, UseChanges, PreActions).
 
 %! printer:print_plan_pre_actions(+PreActions, +StepIn, -StepOut)
 %
@@ -3434,6 +3465,22 @@ printer:print_pre_action(accept_keyword(R, E, _C, _N, K)) :-
   format(atom(Msg), ' (~w)', [KAtom]),
   message:print(Msg),
   message:color(normal).
+
+printer:print_pre_action(use_change(R, E, _C, _N, Changes)) :-
+  message:bubble(orange, useflag),
+  message:color(green),
+  message:column(24, R://E),
+  message:color(darkgray),
+  printer:format_use_change_flags(Changes, FlagsStr),
+  format(atom(Msg), ' (~w)', [FlagsStr]),
+  message:print(Msg),
+  message:color(normal).
+
+printer:format_use_change_flags(Changes, FlagsStr) :-
+  findall(A, ( member(use_change(F, enable), Changes), atom_string(F, A) ), PosAtoms),
+  findall(A, ( member(use_change(F, disable), Changes), format(atom(A), '-~w', [F]) ), NegAtoms),
+  append(PosAtoms, NegAtoms, AllFlags),
+  atomic_list_concat(AllFlags, ' ', FlagsStr).
 
 
 % Build a set of planned packages (category/name) for actions install/run.
@@ -3560,24 +3607,28 @@ printer:footer_add_pre_actions([], S, S) :- !.
 printer:footer_add_pre_actions(PreActions, S0, S) :-
   include([A]>>(A = unmask(_,_,_,_)), PreActions, UnmaskActions),
   include([A]>>(A = accept_keyword(_,_,_,_,_)), PreActions, KeywordActions),
+  include([A]>>(A = use_change(_,_,_,_,_)), PreActions, UseChangeActions),
   length(UnmaskActions, NUnmask),
   length(KeywordActions, NKeyword),
-  NewActions is S0.actions + NUnmask + NKeyword,
-  S = S0.put(_{actions:NewActions, unmasks:NUnmask, keywords:NKeyword}).
+  length(UseChangeActions, NUseChange),
+  NewActions is S0.actions + NUnmask + NKeyword + NUseChange,
+  S = S0.put(_{actions:NewActions, unmasks:NUnmask, keywords:NKeyword, usechanges:NUseChange}).
 
 % Build the "(...)" part of the footer, omitting zero-count categories.
 printer:footer_action_breakdown(S, Breakdown) :-
-  ( get_dict(unmasks,  S, UnmaskCount)  -> true ; UnmaskCount  = 0 ),
-  ( get_dict(keywords, S, KeywordCount) -> true ; KeywordCount = 0 ),
+  ( get_dict(unmasks,    S, UnmaskCount)    -> true ; UnmaskCount    = 0 ),
+  ( get_dict(keywords,   S, KeywordCount)   -> true ; KeywordCount   = 0 ),
+  ( get_dict(usechanges, S, UseChangeCount) -> true ; UseChangeCount = 0 ),
   findall(Part,
-          ( printer:footer_action_part(unmasks,    UnmaskCount,  unmask,     unmasks,    Part)
-          ; printer:footer_action_part(keywords,   KeywordCount, keyword,    keywords,   Part)
-          ; printer:footer_action_part(downloads,  S.downloads,  download,   downloads,  Part)
-          ; printer:footer_action_part(installs,   S.installs,   install,    installs,   Part)
-          ; printer:footer_action_part(updates,    S.updates,    update,     updates,    Part)
-          ; printer:footer_action_part(downgrades, S.downgrades, downgrade,  downgrades, Part)
-          ; printer:footer_action_part(reinstalls, S.reinstalls, reinstall,  reinstalls, Part)
-          ; printer:footer_action_part(runs,       S.runs,       run,        runs,       Part)
+          ( printer:footer_action_part(unmasks,     UnmaskCount,     unmask,      unmasks,     Part)
+          ; printer:footer_action_part(keywords,    KeywordCount,    keyword,     keywords,    Part)
+          ; printer:footer_action_part(usechanges,  UseChangeCount,  useflag,     useflags,    Part)
+          ; printer:footer_action_part(downloads,   S.downloads,     download,    downloads,   Part)
+          ; printer:footer_action_part(installs,    S.installs,      install,     installs,    Part)
+          ; printer:footer_action_part(updates,     S.updates,       update,      updates,     Part)
+          ; printer:footer_action_part(downgrades,  S.downgrades,    downgrade,   downgrades,  Part)
+          ; printer:footer_action_part(reinstalls,  S.reinstalls,    reinstall,   reinstalls,  Part)
+          ; printer:footer_action_part(runs,        S.runs,          run,         runs,        Part)
           ),
           Parts0),
   ( Parts0 == [] ->
@@ -3995,12 +4046,14 @@ printer:print_blocker_line(Strength, Phase, BlockAtom, RequiredBy) :-
 printer:print_suggestions_section(NonBlockerAssumptions, _BlockerAssumptions, ProofAVL) :-
   printer:collect_keyword_suggestions(NonBlockerAssumptions, ProofAVL, KwSuggestions),
   printer:collect_unmask_suggestions(NonBlockerAssumptions, ProofAVL, UnmaskSuggestions),
-  ( KwSuggestions == [], UnmaskSuggestions == [] -> true
+  printer:collect_use_change_suggestions(ProofAVL, UseSuggestions),
+  ( KwSuggestions == [], UnmaskSuggestions == [], UseSuggestions == [] -> true
   ; nl,
     message:header('Assumptions taken during proving & planning:'),
     nl,
     printer:print_keyword_suggestions(KwSuggestions),
-    printer:print_unmask_suggestions(UnmaskSuggestions)
+    printer:print_unmask_suggestions(UnmaskSuggestions),
+    printer:print_use_change_suggestions(UseSuggestions)
   ).
 
 printer:collect_keyword_suggestions(Assumptions, ProofAVL, Suggestions) :-
@@ -4103,26 +4156,71 @@ printer:keyword_atom(K, K).
 
 
 % -----------------------------------------------------------------------------
-%  USE changes (autounmask-use)
+%  USE change suggestions (autounmask-use)
+% -----------------------------------------------------------------------------
+
+%! printer:collect_use_change_suggestions(+ProofAVL, -Suggestions)
+%
+% Collects USE change suggestions from the proof: both from
+% suggestion(use_change, ...) tags and from build_with_use contexts
+% where the effective USE differs from the requested state.
+
+printer:collect_use_change_suggestions(ProofAVL, Suggestions) :-
+  findall(use_sugg(C, N, Entry, Changes),
+          ( assoc:gen_assoc(rule(R://E:_A), ProofAVL, _?Ctx),
+            is_list(Ctx),
+            memberchk(suggestion(use_change, _, Changes), Ctx),
+            cache:ordered_entry(R, E, C, N, _),
+            Entry = R://E
+          ),
+          Suggestions1),
+  printer:collect_use_changes(ProofAVL, BWUChanges),
+  findall(use_sugg(C2, N2, Entry2, Changes2),
+          ( member(use_change(Entry2, Enables, Disables), BWUChanges),
+            Entry2 = R2://E2,
+            cache:ordered_entry(R2, E2, C2, N2, _),
+            findall(use_change(F, enable), member(F, Enables), EC),
+            findall(use_change(F, disable), member(F, Disables), DC),
+            append(EC, DC, Changes2),
+            Changes2 \== []
+          ),
+          Suggestions2),
+  append(Suggestions1, Suggestions2, Suggestions0),
+  sort(Suggestions0, Suggestions).
+
+%! printer:print_use_change_suggestions(+Suggestions)
+%
+% Prints USE change suggestions in the "Assumptions taken" section.
+
+printer:print_use_change_suggestions([]) :- !.
+printer:print_use_change_suggestions(UseSuggestions) :-
+  length(UseSuggestions, Count),
+  ( Count =:= 1 -> Suf = '' ; Suf = 's' ),
+  message:color(yellow),
+  format('  USE flag change (~d package~w):~n', [Count, Suf]),
+  message:color(normal),
+  message:color(darkgray),
+  message:print('  Add to /etc/portage/package.use:'), nl,
+  forall(member(use_sugg(C, N, _Entry, Changes), UseSuggestions),
+         ( printer:format_use_change_flags(Changes, FlagsStr),
+           format('    ~w/~w ~w~n', [C, N, FlagsStr])
+         )),
+  message:color(normal),
+  nl.
+
+
+% -----------------------------------------------------------------------------
+%  USE changes (legacy build_with_use scan)
 % -----------------------------------------------------------------------------
 
 %! printer:print_use_changes(+ProofAVL)
 %
 % Walks the proof and reports packages where the build_with_use context
 % requires USE flag changes that differ from the current effective USE.
+% Now integrated into the Assumptions section; this predicate is kept
+% for backward compatibility but delegates to the suggestions section.
 
-printer:print_use_changes(ProofAVL) :-
-  printer:collect_use_changes(ProofAVL, UseChanges),
-  ( UseChanges == [] -> true
-  ; nl,
-    message:header('USE changes necessary'),
-    nl,
-    message:color(darkgray),
-    message:print('  Add to /etc/portage/package.use:'), nl,
-    printer:print_use_change_lines(UseChanges),
-    message:color(normal),
-    nl
-  ).
+printer:print_use_changes(_ProofAVL).
 
 printer:collect_use_changes(ProofAVL, UseChanges) :-
   findall(use_change(Entry, Enables, Disables),

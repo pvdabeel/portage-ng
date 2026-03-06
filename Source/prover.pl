@@ -1156,11 +1156,6 @@ prover:test_target_success(Target) :-
   ),
   !.
 prover:test_target_success(Target) :-
-  prover:assuming(use_autoenable,
-    printer:prove_plan([Target], _ProofAVL1b, _ModelAVL1b, _Plan1b, _TriggersAVL1b)
-  ),
-  !.
-prover:test_target_success(Target) :-
   prover:assuming(blockers,
     printer:prove_plan([Target], _ProofAVL2, _ModelAVL2, _Plan2, _TriggersAVL2)
   ),

@@ -54,6 +54,28 @@ implements this comparison.
 :- module(use, []).
 
 
+% -----------------------------------------------------------------------------
+%  Optional unify.pl extension hook (generic)
+% -----------------------------------------------------------------------------
+%
+% Merge two use_state/2 compound terms by taking the union of their
+% enable/disable sets.  Fails when a flag appears in both sets (conflict).
+% This hook is called by feature_unification:val/3 (CASE 0) and is critical
+% for the prescience mechanism: sampler:ctx_union must be able to merge
+% build_with_use contexts when a literal is re-proven with a changed context.
+
+feature_unification:val_hook(use_state(En1, Dis1), use_state(En2, Dis2), use_state(En, Dis)) :-
+    !,
+    union(En1, En2, EnU),
+    union(Dis1, Dis2, DisU),
+    intersection(EnU, DisU, Conflicts),
+    Conflicts == [],
+    sort(EnU, En),
+    sort(DisU, Dis).
+feature_unification:val_hook(use_state(En, Dis), [], use_state(En, Dis)) :- !.
+feature_unification:val_hook([], use_state(En, Dis), use_state(En, Dis)) :- !.
+
+
 % =============================================================================
 %  Effective USE in context
 % =============================================================================
@@ -287,6 +309,30 @@ process_bwu_directive(ParentContext, use(Directive, Default), use_state(En0, Dis
 process_bwu_directive(_ParentContext, _Other, State, State) :- !.
 
 
+%! use:build_with_use_changes(+State, +RepoEntry, -Changes)
+%
+% Compute the list of USE flags that build_with_use would change from
+% the candidate's current effective state.  Each element of Changes
+% is `use_change(Flag, enable)` or `use_change(Flag, disable)`.
+% Empty list if no changes are needed.
+
+build_with_use_changes(use_state([], []), _, []) :- !.
+build_with_use_changes(use_state(Enable, Disable), Repo://Entry, Changes) :-
+    findall(use_change(F, enable),
+            ( member(F, Enable),
+              candidate_iuse_present(Repo://Entry, F),
+              \+ candidate_effective_use_enabled_in_iuse(Repo://Entry, F)
+            ),
+            EnableChanges),
+    findall(use_change(F, disable),
+            ( member(F, Disable),
+              candidate_iuse_present(Repo://Entry, F),
+              candidate_effective_use_enabled_in_iuse(Repo://Entry, F)
+            ),
+            DisableChanges),
+    append(EnableChanges, DisableChanges, Changes).
+
+
 % =============================================================================
 %  Context helpers for per-package USE (build_with_use)
 % =============================================================================
@@ -505,14 +551,7 @@ candidate_satisfies_use_requirement_opt(_, Repo://Entry, Requirement) :-
 candidate_satisfies_use_requirement(_Repo://_Entry, none) :- !.
 candidate_satisfies_use_requirement(Repo://Entry, requirement(Mode, Use, Default)) :-
   ( candidate_iuse_present(Repo://Entry, Use)
-  -> ( ( Mode == enable
-       -> candidate_effective_use_enabled_in_iuse(Repo://Entry, Use)
-       ; Mode == disable
-       -> \+ candidate_effective_use_enabled_in_iuse(Repo://Entry, Use)
-       )
-     -> true
-     ; prover:assuming(use_autoenable)
-     )
+  -> true
   ; use_dep_default_satisfies_absent_iuse(Default, Mode)
   ).
 
@@ -880,3 +919,59 @@ required_use_term_satisfied(at_most_one_of_group(Deps)) :-
   length(Ones, N),
   N =< 1,
   !.
+
+
+% =============================================================================
+%  Build-with-use / REQUIRED_USE compatibility
+% =============================================================================
+
+%! use:build_with_use_compatible_required_use(+State, +RepoEntry)
+%
+% Succeeds if the build_with_use state does not violate any
+% exactly_one_of or at_most_one_of REQUIRED_USE constraints.
+% Empty build_with_use is always compatible.
+
+build_with_use_compatible_required_use(use_state([], []), _) :- !.
+build_with_use_compatible_required_use(use_state(Enable, _Disable), Repo://Entry) :-
+    ( Enable == [] -> true
+    ; findall(ReqUse,
+              cache:entry_metadata(Repo, Entry, required_use, ReqUse),
+              AllReqUse),
+      \+ ( member(Term, AllReqUse),
+           bwu_violates_required_use(Term, Enable, Repo://Entry)
+         )
+    ).
+
+%! use:bwu_violates_required_use(+Term, +Enable, +RepoEntry)
+%
+% True if enabling the flags in Enable would violate the REQUIRED_USE
+% term Term.  Checks exactly_one_of and at_most_one_of groups for
+% mutual-exclusion violations.
+
+bwu_violates_required_use(exactly_one_of_group(Deps), Enable, RepoEntry) :-
+    member(required(Flag), Deps),
+    memberchk(Flag, Enable),
+    effective_use_for_entry(RepoEntry, Flag, negative),
+    member(required(Other), Deps),
+    Other \== Flag,
+    effective_use_for_entry(RepoEntry, Other, positive),
+    !.
+bwu_violates_required_use(at_most_one_of_group(Deps), Enable, RepoEntry) :-
+    member(required(Flag), Deps),
+    memberchk(Flag, Enable),
+    effective_use_for_entry(RepoEntry, Flag, negative),
+    member(required(Other), Deps),
+    Other \== Flag,
+    effective_use_for_entry(RepoEntry, Other, positive),
+    !.
+bwu_violates_required_use(use_conditional_group(positive, Use, _, SubDeps), Enable, RepoEntry) :-
+    ( effective_use_for_entry(RepoEntry, Use, positive) ; memberchk(Use, Enable) ),
+    member(SubTerm, SubDeps),
+    bwu_violates_required_use(SubTerm, Enable, RepoEntry),
+    !.
+bwu_violates_required_use(use_conditional_group(negative, Use, _, SubDeps), Enable, RepoEntry) :-
+    effective_use_for_entry(RepoEntry, Use, negative),
+    \+ memberchk(Use, Enable),
+    member(SubTerm, SubDeps),
+    bwu_violates_required_use(SubTerm, Enable, RepoEntry),
+    !.
