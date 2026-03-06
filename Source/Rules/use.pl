@@ -992,53 +992,64 @@ required_use_term_satisfied(at_most_one_of_group(Deps)) :-
 %  Build-with-use / REQUIRED_USE compatibility
 % =============================================================================
 
-%! use:build_with_use_compatible_required_use(+State, +RepoEntry)
+%! use:build_with_use_resolve_required_use(+StateIn, +RepoEntry, -StateOut)
 %
-% Succeeds if the build_with_use state does not violate any
-% exactly_one_of or at_most_one_of REQUIRED_USE constraints.
-% Empty build_with_use is always compatible.
+% Auto-resolves conflicts between the build_with_use Enable set and
+% exactly_one_of / at_most_one_of REQUIRED_USE constraints.  When enabling
+% a flag would create a mutual-exclusion violation (another group member is
+% already positive), the conflicting flag is added to the Disable set
+% instead of failing the model computation outright.
 
-build_with_use_compatible_required_use(use_state([], []), _) :- !.
-build_with_use_compatible_required_use(use_state(Enable, _Disable), Repo://Entry) :-
-    ( Enable == [] -> true
+build_with_use_resolve_required_use(use_state([], []), _, use_state([], [])) :- !.
+build_with_use_resolve_required_use(use_state(Enable, Disable), Repo://Entry, use_state(Enable, DisableOut)) :-
+    ( Enable == [] ->
+        DisableOut = Disable
     ; findall(ReqUse,
               cache:entry_metadata(Repo, Entry, required_use, ReqUse),
               AllReqUse),
-      \+ ( member(Term, AllReqUse),
-           bwu_violates_required_use(Term, Enable, Repo://Entry)
-         )
+      foldl(bwu_resolve_conflict(Enable, Repo://Entry), AllReqUse, Disable, DisableOut)
     ).
 
-%! use:bwu_violates_required_use(+Term, +Enable, +RepoEntry)
+%! use:bwu_resolve_conflict(+Enable, +RepoEntry, +Term, +Dis0, -Dis)
 %
-% True if enabling the flags in Enable would violate the REQUIRED_USE
-% term Term.  Checks exactly_one_of and at_most_one_of groups for
-% mutual-exclusion violations.
+% Fold helper: for a single REQUIRED_USE term, collect any flags that
+% must be disabled to avoid mutual-exclusion violations with the Enable
+% set, and merge them into the accumulator.
 
-bwu_violates_required_use(exactly_one_of_group(Deps), Enable, RepoEntry) :-
+bwu_resolve_conflict(Enable, RepoEntry, Term, Dis0, Dis) :-
+    findall(Other,
+            bwu_conflict_disable(Term, Enable, RepoEntry, Other),
+            Extras),
+    append(Dis0, Extras, Dis1),
+    sort(Dis1, Dis).
+
+%! use:bwu_conflict_disable(+Term, +Enable, +RepoEntry, -DisableFlag)
+%
+% Yields each flag that must be disabled to resolve a mutual-exclusion
+% conflict.  A conflict exists when a flag in Enable is currently negative
+% (will be switched on) and another member of the same exactly_one_of or
+% at_most_one_of group is currently positive.
+
+bwu_conflict_disable(exactly_one_of_group(Deps), Enable, RepoEntry, Other) :-
     member(required(Flag), Deps),
     memberchk(Flag, Enable),
     effective_use_for_entry(RepoEntry, Flag, negative),
     member(required(Other), Deps),
     Other \== Flag,
-    effective_use_for_entry(RepoEntry, Other, positive),
-    !.
-bwu_violates_required_use(at_most_one_of_group(Deps), Enable, RepoEntry) :-
+    effective_use_for_entry(RepoEntry, Other, positive).
+bwu_conflict_disable(at_most_one_of_group(Deps), Enable, RepoEntry, Other) :-
     member(required(Flag), Deps),
     memberchk(Flag, Enable),
     effective_use_for_entry(RepoEntry, Flag, negative),
     member(required(Other), Deps),
     Other \== Flag,
-    effective_use_for_entry(RepoEntry, Other, positive),
-    !.
-bwu_violates_required_use(use_conditional_group(positive, Use, _, SubDeps), Enable, RepoEntry) :-
+    effective_use_for_entry(RepoEntry, Other, positive).
+bwu_conflict_disable(use_conditional_group(positive, Use, _, SubDeps), Enable, RepoEntry, Other) :-
     ( effective_use_for_entry(RepoEntry, Use, positive) ; memberchk(Use, Enable) ),
     member(SubTerm, SubDeps),
-    bwu_violates_required_use(SubTerm, Enable, RepoEntry),
-    !.
-bwu_violates_required_use(use_conditional_group(negative, Use, _, SubDeps), Enable, RepoEntry) :-
+    bwu_conflict_disable(SubTerm, Enable, RepoEntry, Other).
+bwu_conflict_disable(use_conditional_group(negative, Use, _, SubDeps), Enable, RepoEntry, Other) :-
     effective_use_for_entry(RepoEntry, Use, negative),
     \+ memberchk(Use, Enable),
     member(SubTerm, SubDeps),
-    bwu_violates_required_use(SubTerm, Enable, RepoEntry),
-    !.
+    bwu_conflict_disable(SubTerm, Enable, RepoEntry, Other).

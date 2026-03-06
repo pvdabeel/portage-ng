@@ -251,7 +251,7 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
       use:context_build_with_use_state(Context1, B),
       ( memberchk(required_use:R,Context1) -> true ; true ),
       query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
-      use:build_with_use_compatible_required_use(B, Repository://Ebuild),
+      use:build_with_use_resolve_required_use(B, Repository://Ebuild, BResolved),
 
       % 3. Pass use model onto dependencies to calculate corresponding dependency model,
       %    We pass using config action to avoid package_dependency from generating choices.
@@ -280,8 +280,8 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
                     ],
           append(Prefix0, MergedDepsOrdered, Conditions0)
       ; ( AfterForDeps == none ->
-            DownloadCtx0 = [required_use:R,build_with_use:B]
-        ; DownloadCtx0 = [after(AfterForDeps),required_use:R,build_with_use:B]
+            DownloadCtx0 = [required_use:R,build_with_use:BResolved]
+        ; DownloadCtx0 = [after(AfterForDeps),required_use:R,build_with_use:BResolved]
         ),
         Prefix0 = [ Selected,
                     constraint(use(Repository://Ebuild):{R}),
@@ -342,7 +342,7 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   % 2. Compute required_use stable model, extend with build_with_use requirements.
   use:context_build_with_use_state(Context1, B),
   query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
-  use:build_with_use_compatible_required_use(B, Repository://Ebuild),
+  use:build_with_use_resolve_required_use(B, Repository://Ebuild, BResolved),
 
       % 3-4. Compute + memoize dependency model, already grouped by package Category & Name.
   query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model},Repository://Ebuild),
@@ -368,9 +368,9 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
         -> UpdateOrDowngrade = downgrade
         ;  UpdateOrDowngrade = update
         ),
-        InstallCtx0 = [replaces(OldRepo://OldEbuild),required_use:R,build_with_use:B],
+        InstallCtx0 = [replaces(OldRepo://OldEbuild),required_use:R,build_with_use:BResolved],
         InstallAction = UpdateOrDowngrade
-  ; InstallCtx0 = [required_use:R,build_with_use:B],
+  ; InstallCtx0 = [required_use:R,build_with_use:BResolved],
     InstallAction = install
   ),
   ( prover:assuming(unmask), query:search(masked(true), Repository://Ebuild) ->
@@ -384,8 +384,8 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
       InstallCtx2 = [suggestion(accept_keyword, NonAccKw)|InstallCtx1]
   ; InstallCtx2 = InstallCtx1
   ),
-  ( B \== use_state([],[]),
-    use:build_with_use_changes(B, Repository://Ebuild, BWUChanges),
+  ( BResolved \== use_state([],[]),
+    use:build_with_use_changes(BResolved, Repository://Ebuild, BWUChanges),
     BWUChanges \== []
   -> true
   ; BWUChanges = []
