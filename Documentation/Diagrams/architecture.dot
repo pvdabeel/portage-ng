@@ -226,7 +226,7 @@ digraph portage_ng_architecture {
     }
 
     assumption   [shape=box, style=filled, fillcolor="#ffdddd",
-                  label="Assumption fallback\nrule(assumed(X)) — domain assumption\n─────────────────\nmissing: no package exists\nmasked: all candidates masked\nversion_no_candidate / version_conflict\nslot_unsatisfied\nkeyword_filtered\nunsatisfied_constraints"];
+                  label="Assumption fallback\nrule(assumed(X)) — domain assumption\n─────────────────\nmissing: no package exists\nmasked: all candidates masked\nversion_no_candidate / version_conflict\nslot_unsatisfied / installed_required\nkeyword_filtered\nunsatisfied_constraints\n─────────────────\nCtx tagged with assumption_reason\nfor printer + statistics bucketing"];
     reprove_req  [shape=box, style=filled, fillcolor="#ffeedd",
                   label="Reprove request\n─────────────────\nmaybe_request_grouped_dep_reprove\n→ throw rules_reprove_cn_domain\nmaybe_learn_parent_narrowing\n→ narrow wrong-level origin"];
 
@@ -243,6 +243,8 @@ digraph portage_ng_architecture {
                       label="explanation.pl\n─────────────────\nassumption_reason_for_\ngrouped_dep/6\n(classifies assumption type)"];
       explainer      [shape=box, style=filled, fillcolor="#f5eeff",
                       label="explainer.pl\n─────────────────\nwhy_in_plan/5,6\nwhy_in_proof/3,4\nwhy_assumption/4,5\nexplain/2,3 → LLM\n(introspection + explanation)"];
+      issue_mod      [shape=box, style=filled, fillcolor="#f5eeff",
+                      label="issue.pl\n─────────────────\nknown_tree_issue/3\ndetect_version_range_gap/3\ntree_issue_context/4\n(tree issue contextualisation)"];
     }
   }
 
@@ -277,7 +279,7 @@ digraph portage_ng_architecture {
     interface [shape=box, style=filled, fillcolor="#eeeeee",
                label="interface.pl — CLI orchestration\n─────────────────────────────\nModes: --pretend, --graph,\n  --shell, --sync, --ci\nFallback chain:\n  1. strict (no assumptions)\n  2. with_assume_blockers\n  3. with_assume_conflicts\nExit codes: 0/1/2"];
     printer [shape=box, style=filled, fillcolor="#eeeeee",
-             label="printer.pl — Plan rendering\n─────────────────────────────\nStep-by-step plan with actions\nprove_plan / prove_plan_basic\nAssumption reporting:\n  Domain assumptions (rule-level)\n  Cycle-break assumptions (prover)\n  Blockers (Portage-like)\nDownload size totals\nUSE flag display"];
+             label="printer.pl — Plan rendering\n─────────────────────────────\nStep-by-step plan with actions\nprove_plan / prove_plan_basic\nReason-aware assumption display:\n  version_conflict, slot_unsatisfied,\n  keyword_filtered, masked, missing,\n  unsatisfied_constraints, …\nBlockers, cycle-breaks\nSuggestions (unmask/keyword/USE)\nTree issue contextualisation\nDownload size totals\nUSE flag display"];
     grapher [shape=box, style=filled, fillcolor="#eeeeee",
              label="grapher.pl — Batch processing\n─────────────────────────────\nIterates all targets\n--graph full / --graph partial\nWrites .merge files\nParallel via worker threads"];
     terminal [shape=note, label="Terminal output\nor .merge files\n(Graph directory)"];
@@ -451,6 +453,8 @@ digraph portage_ng_architecture {
   ctx_union -> feat_unify [style=dashed];
   assumption -> explanation_m [style=dashed, label="classify"];
   explanation_m -> explainer [style=dashed];
+  issue_mod -> printer       [style=dashed, label="tree issue\ncontextualisation"];
+  explanation_m -> issue_mod [style=dashed, label="known issue\nlookup"];
 
   // Prover output
   prove_once -> proof_out [style=dashed, label="final AVLs"];

@@ -306,6 +306,67 @@ digraph rules_assumptions_bpmn {
   u_txn -> u_txn_detail;
 
   // =========================================================================
+  //  printer.pl : assumption_type/2 statistics bucketing
+  // =========================================================================
+
+  subgraph cluster_printer_type {
+    label="printer.pl : assumption_type/2 classification for statistics";
+    color="#555555";
+    fontcolor="#555555";
+
+    at_start [shape=circle, label="assumption\nterm"];
+    at_ctx_check [shape=diamond, label="has ?{Ctx} with\nassumption_reason(R)?"];
+    at_reason_type [shape=box, label="assumption_reason_type(R, Type)\n─────────────────\nmissing → missing_dependency\nmasked → masked_dependency\nkeyword_filtered → keyword_filtered_dependency\nversion_conflict → version_conflict_dependency\nversion_no_candidate → version_no_candidate_dependency\nslot_unsatisfied → slot_unsatisfied_dependency\ninstalled_required → installed_required_dependency\nunsatisfied_constraints → unsatisfied_constraints_dependency"];
+    at_generic [shape=box, label="generic unwrap:\n─────────────────\n?{Ctx} → strip wrapper\ndomain(X) → recurse\nfall through to:\n  non_existent_dependency\n  cycle_break\n  blocker_assumption\n  etc."];
+    at_out [shape=note, label="Type atom\n(used in test_stats\nfor statistics\nbucketing)"];
+  }
+
+  // =========================================================================
+  //  printer.pl : reason-aware plan step rendering
+  // =========================================================================
+
+  subgraph cluster_printer_render {
+    label="printer.pl : print_element/2 reason-aware rendering";
+    color="#555555";
+    fontcolor="#555555";
+
+    pr_start [shape=circle, label="assumed\nplan step"];
+    pr_ctx_check [shape=diamond, label="has ?{Ctx} with\nassumption_reason(R)?"];
+    pr_version_conflict [shape=box, style=filled, fillcolor="#fff3cc",
+                         label="version_conflict:\nyellow 'verify' bubble\n(version conflict, assumed installed/running)"];
+    pr_version_nocand [shape=box, style=filled, fillcolor="#fff3cc",
+                       label="version_no_candidate:\nyellow 'verify' bubble\n(version unavailable, assumed installed/running)"];
+    pr_slot_unsat [shape=box, style=filled, fillcolor="#fff3cc",
+                   label="slot_unsatisfied:\nyellow 'verify' bubble\n(slot unavailable, assumed installed/running)"];
+    pr_inst_req [shape=box, style=filled, fillcolor="#fff3cc",
+                 label="installed_required:\nyellow 'verify' bubble\n(requires pre-installed, assumed installed)"];
+    pr_unsat_constr [shape=box, style=filled, fillcolor="#fff3cc",
+                     label="unsatisfied_constraints:\nyellow 'verify' bubble\n(constraints unsatisfied, assumed installed/running)"];
+    pr_missing [shape=box, style=filled, fillcolor="#ffdddd",
+                label="missing:\nred 'missing' bubble\n(non-existent, assumed installed/running)"];
+    pr_generic [shape=box, style=filled, fillcolor="#e8e8e8",
+                label="no reason / unknown:\nyellow 'non-existent' bubble\n(generic fallback)"];
+  }
+
+  // =========================================================================
+  //  issue.pl : tree issue contextualisation
+  // =========================================================================
+
+  subgraph cluster_issue {
+    label="issue.pl : tree issue contextualisation";
+    color="#888888";
+    fontcolor="#888888";
+
+    iss_start [shape=circle, label="(C,N,Deps)\nfrom assumption"];
+    iss_known [shape=diamond, label="known_tree_issue(C,N,Note)?"];
+    iss_known_note [shape=box, label="static Note\n(documented issue)"];
+    iss_detect [shape=diamond, label="detect_version_range_gap\n(C,N,PackageDeps)?"];
+    iss_gap_note [shape=box, label="generated Note:\n'Tree issue: version range gap\nfor C/N — no candidate satisfies\nthe combined version constraints.'"];
+    iss_none [shape=box, label="no contextual note"];
+    iss_output [shape=note, label="Note shown in\nDomain Assumptions\nsection of plan"];
+  }
+
+  // =========================================================================
   //  Cross-cluster edges
   // =========================================================================
 
@@ -315,4 +376,43 @@ digraph rules_assumptions_bpmn {
   t_blockers -> b_assume_blockers [style=dashed, label="sets rules_assume_blockers=true"];
   t_conflicts -> b_conflict [style=dashed, label="sets rules_assume_conflicts=true"];
   t_conflicts -> b_anyof_guard [style=dashed, label="affects || model guard"];
+
+  // Assumption → printer type classification
+  g_assume -> at_start [style=dashed, label="statistics"];
+  at_start -> at_ctx_check;
+  at_ctx_check -> at_reason_type [label="yes"];
+  at_ctx_check -> at_generic [label="no"];
+  at_reason_type -> at_out;
+  at_generic -> at_out;
+
+  // Assumption → printer rendering
+  g_assume -> pr_start [style=dashed, label="plan output"];
+  pr_start -> pr_ctx_check;
+  pr_ctx_check -> pr_version_conflict [label="version_conflict"];
+  pr_ctx_check -> pr_version_nocand [label="version_no_candidate"];
+  pr_ctx_check -> pr_slot_unsat [label="slot_unsatisfied"];
+  pr_ctx_check -> pr_inst_req [label="installed_required"];
+  pr_ctx_check -> pr_unsat_constr [label="unsatisfied_constraints"];
+  pr_ctx_check -> pr_missing [label="missing"];
+  pr_ctx_check -> pr_generic [label="no reason"];
+
+  // Assumption → issue contextualisation
+  g_assume -> iss_start [style=dashed, label="tree issue context"];
+  iss_start -> iss_known;
+  iss_known -> iss_known_note [label="yes"];
+  iss_known -> iss_detect [label="no"];
+  iss_detect -> iss_gap_note [label="yes"];
+  iss_detect -> iss_none [label="no"];
+  iss_known_note -> iss_output;
+  iss_gap_note -> iss_output;
+
+  // Explanation feeds into assumption_reason tagging
+  e_missing -> g_assume [style=dashed, label="Reason=missing"];
+  e_masked -> g_assume [style=dashed, label="Reason=masked"];
+  e_slot_bad -> g_assume [style=dashed, label="Reason=slot_unsatisfied"];
+  e_ver_nocand -> g_assume [style=dashed, label="Reason=version_no_candidate"];
+  e_ver_conflict -> g_assume [style=dashed, label="Reason=version_conflict"];
+  e_kw -> g_assume [style=dashed, label="Reason=keyword_filtered"];
+  e_inst_req -> g_assume [style=dashed, label="Reason=installed_required"];
+  e_other -> g_assume [style=dashed, label="Reason=unsatisfied_constraints"];
 }

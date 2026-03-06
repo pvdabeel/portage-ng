@@ -443,9 +443,21 @@ printer:test_stats_note_cycle_for_current_entry :-
 % cycle_break, non_existent_dependency, masked, assumed_installed,
 % assumed_running, blocker_assumption, use_requirement_cycle,
 % use_conditional_cycle, dependency_group_cycle, naf_cycle,
-% issue_with_model, and various reason-tagged dependency types.
+% issue_with_model, missing_dependency, masked_dependency,
+% keyword_filtered_dependency, version_conflict_dependency,
+% version_no_candidate_dependency, slot_unsatisfied_dependency,
+% installed_required_dependency, unsatisfied_constraints_dependency.
 % Falls through to `other` if no specific pattern matches.
 
+% Extract assumption_reason from ?{Ctx} wrapper before generic unwrapping.
+printer:assumption_type('?'(Inner, '{}'(Ctx)), Type) :-
+  is_list(Ctx),
+  memberchk(assumption_reason(Reason), Ctx),
+  ( Inner = grouped_package_dependency(_,_,_):_
+  ; Inner = grouped_package_dependency(_,_,_,_):_
+  ),
+  printer:assumption_reason_type(Reason, Type),
+  !.
 printer:assumption_type('?'(Inner, _Ctx), Type) :-
   !,
   printer:assumption_type(Inner, Type).
@@ -461,13 +473,11 @@ printer:assumption_type(domain(X), Type) :-
   printer:assumption_type(X, Type),
   !.
 printer:assumption_type(domain(X), Type) :-
-  % classify "no candidate found" reasons when present
   ( printer:assumption_reason_from_term(X, Reason) ->
       printer:assumption_reason_type(Reason, Type),
       !
   ; fail
   ).
-
 printer:assumption_type(package_dependency(_,_,_,_,_,_,_,_):_, non_existent_dependency) :- !.
 printer:assumption_type(grouped_package_dependency(_,_,_):_,              non_existent_dependency) :- !.
 printer:assumption_type(grouped_package_dependency(_,_,_,_):_,            non_existent_dependency) :- !.
@@ -2387,6 +2397,93 @@ printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):insta
 
 
 % ---------------------------------------------------------------
+% CASE: an assumed dependency with version conflict (install)
+% ---------------------------------------------------------------
+
+printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):install?{Context}),[])) :-
+  is_list(Context),
+  memberchk(assumption_reason(Reason), Context),
+  ( Reason = version_conflict ; Reason = version_conflict(_) ),
+  !,
+  message:bubble(yellow,'verify'),
+  message:color(yellow),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  message:color(darkgray),
+  message:print(' (version conflict, assumed installed)'),
+  message:color(normal).
+
+
+% ---------------------------------------------------------------
+% CASE: an assumed dependency with no version candidate (install)
+% ---------------------------------------------------------------
+
+printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):install?{Context}),[])) :-
+  is_list(Context),
+  memberchk(assumption_reason(Reason), Context),
+  ( Reason = version_no_candidate ; Reason = version_no_candidate(_,_) ),
+  !,
+  message:bubble(yellow,'verify'),
+  message:color(yellow),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  message:color(darkgray),
+  message:print(' (version unavailable, assumed installed)'),
+  message:color(normal).
+
+
+% ---------------------------------------------------------------
+% CASE: an assumed dependency with slot unsatisfied (install)
+% ---------------------------------------------------------------
+
+printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):install?{Context}),[])) :-
+  is_list(Context),
+  memberchk(assumption_reason(slot_unsatisfied), Context),
+  !,
+  message:bubble(yellow,'verify'),
+  message:color(yellow),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  message:color(darkgray),
+  message:print(' (slot unavailable, assumed installed)'),
+  message:color(normal).
+
+
+% ---------------------------------------------------------------
+% CASE: an assumed dependency requiring installed candidate (install)
+% ---------------------------------------------------------------
+
+printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):install?{Context}),[])) :-
+  is_list(Context),
+  memberchk(assumption_reason(installed_required), Context),
+  !,
+  message:bubble(yellow,'verify'),
+  message:color(yellow),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  message:color(darkgray),
+  message:print(' (requires installed, assumed installed)'),
+  message:color(normal).
+
+
+% ---------------------------------------------------------------
+% CASE: an assumed dependency with unsatisfied constraints (install)
+% ---------------------------------------------------------------
+
+printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):install?{Context}),[])) :-
+  is_list(Context),
+  memberchk(assumption_reason(unsatisfied_constraints), Context),
+  !,
+  message:bubble(yellow,'verify'),
+  message:color(yellow),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  message:color(darkgray),
+  message:print(' (unsatisfied constraints, assumed installed)'),
+  message:color(normal).
+
+
+% ---------------------------------------------------------------
 % CASE: an assumed dependency on a non-existent installed package
 % ---------------------------------------------------------------
 
@@ -2443,6 +2540,93 @@ printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):run?{
   message:column(24,P),
   message:color(darkgray),
   message:print(' (masked, requires unmask)'),
+  message:color(normal).
+
+
+% -----------------------------------------------------------
+% CASE: an assumed dependency with version conflict (run)
+% -----------------------------------------------------------
+
+printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):run?{Context}),[])) :-
+  is_list(Context),
+  memberchk(assumption_reason(Reason), Context),
+  ( Reason = version_conflict ; Reason = version_conflict(_) ),
+  !,
+  message:bubble(yellow,'verify'),
+  message:color(yellow),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  message:color(darkgray),
+  message:print(' (version conflict, assumed running)'),
+  message:color(normal).
+
+
+% -----------------------------------------------------------
+% CASE: an assumed dependency with no version candidate (run)
+% -----------------------------------------------------------
+
+printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):run?{Context}),[])) :-
+  is_list(Context),
+  memberchk(assumption_reason(Reason), Context),
+  ( Reason = version_no_candidate ; Reason = version_no_candidate(_,_) ),
+  !,
+  message:bubble(yellow,'verify'),
+  message:color(yellow),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  message:color(darkgray),
+  message:print(' (version unavailable, assumed running)'),
+  message:color(normal).
+
+
+% -----------------------------------------------------------
+% CASE: an assumed dependency with slot unsatisfied (run)
+% -----------------------------------------------------------
+
+printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):run?{Context}),[])) :-
+  is_list(Context),
+  memberchk(assumption_reason(slot_unsatisfied), Context),
+  !,
+  message:bubble(yellow,'verify'),
+  message:color(yellow),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  message:color(darkgray),
+  message:print(' (slot unavailable, assumed running)'),
+  message:color(normal).
+
+
+% -----------------------------------------------------------
+% CASE: an assumed dependency requiring installed candidate (run)
+% -----------------------------------------------------------
+
+printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):run?{Context}),[])) :-
+  is_list(Context),
+  memberchk(assumption_reason(installed_required), Context),
+  !,
+  message:bubble(yellow,'verify'),
+  message:color(yellow),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  message:color(darkgray),
+  message:print(' (requires installed, assumed running)'),
+  message:color(normal).
+
+
+% -----------------------------------------------------------
+% CASE: an assumed dependency with unsatisfied constraints (run)
+% -----------------------------------------------------------
+
+printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):run?{Context}),[])) :-
+  is_list(Context),
+  memberchk(assumption_reason(unsatisfied_constraints), Context),
+  !,
+  message:bubble(yellow,'verify'),
+  message:color(yellow),
+  atomic_list_concat([C,'/',N],P),
+  message:column(24,P),
+  message:color(darkgray),
+  message:print(' (unsatisfied constraints, assumed running)'),
   message:color(normal).
 
 
@@ -5353,7 +5537,8 @@ printer:print_assumption_detail(rule(grouped_package_dependency(C,N,R):T?{Ctx},_
     nl,
     message:color(normal),
     printer:print_metadata_item_detail(_,'  ',grouped_package_dependency(C,N,R)),nl,
-    printer:print_assumption_provenance(Ctx).
+    printer:print_assumption_provenance(Ctx),
+    printer:print_tree_issue_note(C, N, R).
 
 printer:print_assumption_detail(rule(grouped_package_dependency(X,C,N,R):install,_)) :- !,
     message:color(lightred),
@@ -5468,6 +5653,16 @@ printer:print_assumption_provenance(Ctx0) :-
           message:color(normal)
       ; true
       )
+  ; true
+  ).
+
+printer:print_tree_issue_note(C, N, PackageDeps) :-
+  ( issue:tree_issue_context(C, N, PackageDeps, Note) ->
+      message:color(darkgray),
+      message:print('  Note: '),
+      message:print(Note),
+      nl,
+      message:color(normal)
   ; true
   ).
 

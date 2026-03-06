@@ -139,6 +139,7 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/mirror.pl')),
    ensure_loaded(portage('Source/explainer.pl')),
    ensure_loaded(portage('Source/explanation.pl')),
+   ensure_loaded(portage('Source/issue.pl')),
    ensure_loaded(portage('Source/rules.pl')),
    ensure_loaded(portage('Source/Rules/memo.pl')),
    ensure_loaded(portage('Source/Rules/use.pl')),
