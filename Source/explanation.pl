@@ -239,12 +239,10 @@ explanation:is_installed_candidate(Repo://Entry) :-
 
 %! explanation:is_unmasked_candidate(+Repo://Entry) is semidet.
 %
-% True if the candidate is not in the current mask set and not
-% license-masked (unaccepted LICENSE).
+% True if the candidate is not in the current mask set.
 
 explanation:is_unmasked_candidate(Repo://Entry) :-
-  \+ preference:masked(Repo://Entry),
-  \+ candidate:license_masked(Repo://Entry).
+  \+ preference:masked(Repo://Entry).
 
 
 %! explanation:any_candidate_matches_keywords(+Candidates, -KeywordOk) is det.
