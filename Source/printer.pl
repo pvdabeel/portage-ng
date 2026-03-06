@@ -5655,6 +5655,9 @@ printer:write_merge_file(Directory,Repository://Entry) :-
         printer:prove_plan(Goals, Proof, Model, Plan, Triggers))
     ; prover:assuming(unmask,
         printer:prove_plan(Goals, Proof, Model, Plan, Triggers))
+    ; prover:assuming(keyword_acceptance,
+        prover:assuming(unmask,
+          printer:prove_plan(Goals, Proof, Model, Plan, Triggers)))
     ),
     atomic_list_concat([Directory,'/',Entry,Extension],File)
   ),
@@ -5694,6 +5697,9 @@ printer:write_fetchonly_file(Directory,Repository://Entry) :-
         printer:prove_plan(Goals, Proof, Model, Plan, Triggers))
     ; prover:assuming(unmask,
         printer:prove_plan(Goals, Proof, Model, Plan, Triggers))
+    ; prover:assuming(keyword_acceptance,
+        prover:assuming(unmask,
+          printer:prove_plan(Goals, Proof, Model, Plan, Triggers)))
     ),
     atomic_list_concat([Directory,'/',Entry,Extension],File)
   ),

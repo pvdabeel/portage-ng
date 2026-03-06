@@ -1166,6 +1166,13 @@ prover:test_target_success(Target) :-
   ),
   !.
 prover:test_target_success(Target) :-
+  prover:assuming(keyword_acceptance,
+    prover:assuming(unmask,
+      printer:prove_plan([Target], _ProofAVL2ku, _ModelAVL2ku, _Plan2ku, _TriggersAVL2ku)
+    )
+  ),
+  !.
+prover:test_target_success(Target) :-
   prover:assuming(conflicts,
     printer:prove_plan([Target], _ProofAVL3, _ModelAVL3, _Plan3, _TriggersAVL3)
   ).

@@ -593,6 +593,12 @@ interface:process_action(Action,ArgsSets,Options) :-
                 printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
               ) ->
                 FallbackUsed = unmask
+            ; prover:assuming(keyword_acceptance,
+                prover:assuming(unmask,
+                  printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
+                )
+              ) ->
+                FallbackUsed = keyword_unmask
             ; FallbackUsed = none, fail
             ),
             printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers)
@@ -613,6 +619,12 @@ interface:process_action(Action,ArgsSets,Options) :-
                   printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
                 ) ->
                   FallbackUsed = unmask
+              ; prover:assuming(keyword_acceptance,
+                  prover:assuming(unmask,
+                    printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
+                  )
+                ) ->
+                  FallbackUsed = keyword_unmask
               ; FallbackUsed = none, fail
               ),
               printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers)
