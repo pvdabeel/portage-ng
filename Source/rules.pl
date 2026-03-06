@@ -974,12 +974,9 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         candidate:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps1, Context),
         fail
       ; explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason),
-        % Fail for keyword-filtered and masked deps in strict mode so the
-        % fallback chain (keyword_acceptance / unmask) can produce full plans.
-        ( Reason == keyword_filtered, \+ prover:assuming(keyword_acceptance) -> fail
-        ; Reason == masked, \+ prover:assuming(unmask) -> fail
-        ; true
-        ),
+        % Keyword-filtered and masked deps produce domain assumptions.
+        % (Failing here causes excessive backtracking in complex packages;
+        % target-level checks in :fetchonly/:install/:run handle fallbacks.)
         version_domain:domain_reason_terms(Action, C, N, PackageDeps1, Context, DomainReasonTags),
         candidate:add_domain_reason_context(C, N, DomainReasonTags, Context, Ctx2),
         feature_unification:unify([assumption_reason(Reason)], Ctx2, Ctx3),
@@ -1794,6 +1791,14 @@ rules:ctx_strip_planning(Context0, Context) :-
 %
 % Injects an `after/1` marker into each dependency literal's context.
 
+%! rules:entry_has_keyword(+RepoEntry)
+%
+% True if the entry has any keyword metadata at all.
+
+rules:entry_has_keyword(Repo://Entry) :-
+  query:search(keyword(_), Repo://Entry),
+  !.
+
 %! rules:entry_has_accepted_keyword(+RepoEntry)
 %
 % True if the entry has at least one keyword in ACCEPT_KEYWORDS.
@@ -1802,6 +1807,30 @@ rules:entry_has_accepted_keyword(Repo://Entry) :-
   preference:accept_keywords(K),
   query:search(keyword(K), Repo://Entry),
   !.
+
+%! rules:entry_is_keyword_filtered(+RepoEntry)
+%
+% True if the entry has keyword metadata but none match ACCEPT_KEYWORDS.
+% Packages with no keyword metadata at all are NOT considered filtered.
+
+rules:entry_is_keyword_filtered(Repo://Entry) :-
+  rules:entry_has_keyword(Repo://Entry),
+  \+ rules:entry_has_accepted_keyword(Repo://Entry).
+
+%! rules:entry_needs_keyword_acceptance(+RepoEntry)
+%
+% True if the entry should be rejected in strict mode to trigger the
+% keyword_acceptance fallback. Covers two cases:
+%  1. Has keyword metadata but none match ACCEPT_KEYWORDS (keyword-filtered)
+%  2. Has no keyword metadata AND no essential metadata like slot
+%     (empty/development entry — treat as keyword-restricted)
+
+rules:entry_needs_keyword_acceptance(Repo://Entry) :-
+  rules:entry_is_keyword_filtered(Repo://Entry),
+  !.
+rules:entry_needs_keyword_acceptance(Repo://Entry) :-
+  \+ rules:entry_has_keyword(Repo://Entry),
+  \+ query:search(slot(_), Repo://Entry).
 
 rules:add_after_to_dep_contexts(none, Deps, Deps) :- !.
 rules:add_after_to_dep_contexts(After, Deps0, Deps) :-
