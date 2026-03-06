@@ -1142,8 +1142,9 @@ prover:test_action(Action, Action).
 %
 % Test harness fallback chain:
 %  1) strict prove/plan
-%  2) allow blocker assumptions
-%  3) allow conflict assumptions
+%  2) keyword_acceptance + unmask (combined — widening candidate pool is cheap)
+%  3) allow blocker assumptions
+%  4) allow conflict assumptions
 %
 % This keeps whole-repo test runs robust for known blocker/conflict-heavy
 % packages while preserving strict behavior as first choice.
@@ -1152,24 +1153,14 @@ prover:test_target_success(Target) :-
   !.
 prover:test_target_success(Target) :-
   prover:assuming(keyword_acceptance,
-    printer:prove_plan([Target], _ProofAVL1a, _ModelAVL1a, _Plan1a, _TriggersAVL1a)
+    prover:assuming(unmask,
+      printer:prove_plan([Target], _ProofAVL1, _ModelAVL1, _Plan1, _TriggersAVL1)
+    )
   ),
   !.
 prover:test_target_success(Target) :-
   prover:assuming(blockers,
     printer:prove_plan([Target], _ProofAVL2, _ModelAVL2, _Plan2, _TriggersAVL2)
-  ),
-  !.
-prover:test_target_success(Target) :-
-  prover:assuming(unmask,
-    printer:prove_plan([Target], _ProofAVL2u, _ModelAVL2u, _Plan2u, _TriggersAVL2u)
-  ),
-  !.
-prover:test_target_success(Target) :-
-  prover:assuming(keyword_acceptance,
-    prover:assuming(unmask,
-      printer:prove_plan([Target], _ProofAVL2ku, _ModelAVL2ku, _Plan2ku, _TriggersAVL2ku)
-    )
   ),
   !.
 prover:test_target_success(Target) :-

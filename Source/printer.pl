@@ -5947,10 +5947,6 @@ printer:write_merge_file(Directory,Repository://Entry) :-
   get_time(T0),
   ( ( printer:prove_plan(Goals, Proof, Model, Plan, Triggers)
     ; prover:assuming(keyword_acceptance,
-        printer:prove_plan(Goals, Proof, Model, Plan, Triggers))
-    ; prover:assuming(unmask,
-        printer:prove_plan(Goals, Proof, Model, Plan, Triggers))
-    ; prover:assuming(keyword_acceptance,
         prover:assuming(unmask,
           printer:prove_plan(Goals, Proof, Model, Plan, Triggers)))
     ),
@@ -5988,10 +5984,6 @@ printer:write_fetchonly_file(Directory,Repository://Entry) :-
   Extension = '.fetchonly',
   Goals = [Repository://Entry:Action?{[]}],
   ( ( printer:prove_plan(Goals, Proof, Model, Plan, Triggers)
-    ; prover:assuming(keyword_acceptance,
-        printer:prove_plan(Goals, Proof, Model, Plan, Triggers))
-    ; prover:assuming(unmask,
-        printer:prove_plan(Goals, Proof, Model, Plan, Triggers))
     ; prover:assuming(keyword_acceptance,
         prover:assuming(unmask,
           printer:prove_plan(Goals, Proof, Model, Plan, Triggers)))
