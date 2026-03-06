@@ -162,6 +162,13 @@ explanation:target_ctx(Target, Ctx) :-
 %   - `unsatisfied_constraints`: fallback when no specific reason can be isolated
 
 assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason) :-
+  ( memo:assumption_reason_cache_(Action, C, N, CachedReason) ->
+      Reason = CachedReason
+  ; assumption_reason_for_grouped_dep_(Action, C, N, PackageDeps, Context, Reason),
+    assertz(memo:assumption_reason_cache_(Action, C, N, Reason))
+  ).
+
+assumption_reason_for_grouped_dep_(Action, C, N, PackageDeps, Context, Reason) :-
   findall(Repo://Entry,
           query:search([category(C), name(N)], Repo://Entry),
           Any0),

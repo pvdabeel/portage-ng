@@ -1018,16 +1018,21 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         candidate:add_domain_reason_context(C, N, DomainReasonTags, Context, Ctx2),
         feature_unification:unify([assumption_reason(Reason)], Ctx2, Ctx3),
         ( Reason == keyword_filtered ->
-            findall(Repo4://Entry4,
-                    ( query:search([category(C), name(N)], Repo4://Entry4),
-                      \+ preference:masked(Repo4://Entry4),
-                      forall(member(package_dependency(_,no,C,N,O4,V4,_,_), PackageDeps1),
-                             candidate:query_search_version_select(O4, V4, Repo4://Entry4))
-                    ),
-                    KwCands1),
-            explanation:candidate_keywords(KwCands1, CandKws),
-            ( CandKws = [SuggestedKw|_] ->
-                feature_unification:unify([suggestion(accept_keyword, SuggestedKw)], Ctx3, Ctx4)
+            ( memo:keyword_suggestion_cache_(C, N, CachedKw) ->
+                SuggestedKw0 = CachedKw
+            ; findall(Repo4://Entry4,
+                      ( query:search([category(C), name(N)], Repo4://Entry4),
+                        \+ preference:masked(Repo4://Entry4),
+                        forall(member(package_dependency(_,no,C,N,O4,V4,_,_), PackageDeps1),
+                               candidate:query_search_version_select(O4, V4, Repo4://Entry4))
+                      ),
+                      KwCands1),
+              explanation:candidate_keywords(KwCands1, CandKws),
+              ( CandKws = [SuggestedKw0|_] -> true ; SuggestedKw0 = none ),
+              assertz(memo:keyword_suggestion_cache_(C, N, SuggestedKw0))
+            ),
+            ( SuggestedKw0 \== none ->
+                feature_unification:unify([suggestion(accept_keyword, SuggestedKw0)], Ctx3, Ctx4)
             ; Ctx4 = Ctx3
             )
         ; Reason == masked ->
