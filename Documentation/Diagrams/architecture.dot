@@ -453,7 +453,7 @@ digraph portage_ng_architecture {
   ctx_union -> feat_unify [style=dashed];
   assumption -> explanation_m [style=dashed, label="classify"];
   explanation_m -> explainer [style=dashed];
-  issue_mod -> printer       [style=dashed, label="tree issue\ncontextualisation"];
+  issue_mod -> printer       [style=dashed, constraint=false, label="tree issue\ncontextualisation"];
   explanation_m -> issue_mod [style=dashed, label="known issue\nlookup"];
 
   // Prover output
