@@ -177,10 +177,9 @@ rule(world_action(_Op,_Arg):world?{Context}, Conditions) :-
 
 rule(Repository://Ebuild:fetchonly?{Context},Conditions) :-
   !,
-  ( query:search(masked(true),   Repository://Ebuild) ->
-      query:search([category(C),name(N)], Repository://Ebuild),
-      Conditions = [assumed(Repository://Ebuild:unmask?{
-        [suggestion(unmask), assumption_reason(masked), masked_cn(C,N)]})]
+  ( query:search(masked(true),   Repository://Ebuild),
+    \+ prover:assuming(unmask) ->
+      fail
   ; query:search(installed(true),Repository://Ebuild),
     \+preference:flag(emptytree) ->
       Conditions = []
@@ -226,10 +225,9 @@ rule(Repository://Ebuild:fetchonly?{Context},Conditions) :-
 
 rule(Repository://Ebuild:install?{Context},Conditions) :-
   !,
-  ( query:search(masked(true),   Repository://Ebuild) ->
-      query:search([category(C),name(N)], Repository://Ebuild),
-      Conditions = [assumed(Repository://Ebuild:unmask?{
-        [suggestion(unmask), assumption_reason(masked), masked_cn(C,N)]})]
+  ( query:search(masked(true),   Repository://Ebuild),
+    \+ prover:assuming(unmask) ->
+      fail
   ; query:search(installed(true),Repository://Ebuild),
     \+ preference:flag(emptytree) ->
       Conditions = []  % todo check new build_with_use requirements
@@ -313,10 +311,9 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
 rule(Repository://Ebuild:run?{Context},Conditions) :-
   !,
   ( % 0. Check if the ebuild is masked or installed
-    query:search(masked(true),   Repository://Ebuild) ->
-      query:search([category(C0),name(N0)], Repository://Ebuild),
-      Conditions = [assumed(Repository://Ebuild:unmask?{
-        [suggestion(unmask), assumption_reason(masked), masked_cn(C0,N0)]})]
+    query:search(masked(true),   Repository://Ebuild),
+    \+ prover:assuming(unmask) ->
+      fail
   ; query:search(installed(true),Repository://Ebuild), \+preference:flag(emptytree) ->
     ( config:avoid_reinstall(true) ->
         Conditions = []
@@ -360,9 +357,16 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
         -> UpdateOrDowngrade = downgrade
         ;  UpdateOrDowngrade = update
         ),
-        InstallOrUpdate = Repository://Ebuild:UpdateOrDowngrade?{[replaces(OldRepo://OldEbuild),required_use:R,build_with_use:B]}
-  ; InstallOrUpdate = Repository://Ebuild:install?{[required_use:R,build_with_use:B]}
+        InstallCtx0 = [replaces(OldRepo://OldEbuild),required_use:R,build_with_use:B],
+        InstallAction = UpdateOrDowngrade
+  ; InstallCtx0 = [required_use:R,build_with_use:B],
+    InstallAction = install
   ),
+  ( prover:assuming(unmask), query:search(masked(true), Repository://Ebuild) ->
+      InstallCtx = [suggestion(unmask, Repository://Ebuild)|InstallCtx0]
+  ; InstallCtx = InstallCtx0
+  ),
+  InstallOrUpdate = Repository://Ebuild:InstallAction?{InstallCtx},
   Prefix0 = [Selected,
              constraint(use(Repository://Ebuild):{R}),
              constraint(slot(C,N,S):{Ebuild}),
@@ -859,6 +863,12 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         candidate:candidate_non_accepted_keyword(FoundRepo://Candidate, NonAccKw)
       ->
         feature_unification:unify([suggestion(accept_keyword, NonAccKw)], NewerContext0, NewerContext)
+      % When unmask fallback produced this candidate and it is masked,
+      % tag the context so the printer shows it as an unmask suggestion.
+      ; prover:assuming(unmask),
+        preference:masked(FoundRepo://Candidate)
+      ->
+        feature_unification:unify([suggestion(unmask, FoundRepo://Candidate)], NewerContext0, NewerContext)
       ; NewerContext = NewerContext0
       ),
 

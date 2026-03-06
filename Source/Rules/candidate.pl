@@ -1874,6 +1874,21 @@ accepted_keyword_candidate(Action, C, N, SlotReq0, Ss0, Context, FoundRepo://Can
   predsort(candidate:compare_candidate_version_desc, Candidates1, CandidatesSorted),
   member(FoundRepo://Candidate, CandidatesSorted).
 
+% Fallback: when unmask is active, accept masked candidates with accepted
+% keywords. Produces a full resolution with an unmask suggestion.
+accepted_keyword_candidate(Action, C, N, SlotReq0, Ss0, Context, FoundRepo://Candidate) :-
+  prover:assuming(unmask),
+  accepted_keyword_slot_lock_arg(C, N, SlotReq0, Ss0, Context, SlotReq, Ss, _LockKey),
+  findall(FoundRepo0://Candidate0,
+          ( query_keyword_candidate_masked(Action, C, N, Context, FoundRepo0://Candidate0),
+            query_search_slot_constraint(SlotReq, FoundRepo0://Candidate0, Ss)
+          ),
+          Candidates0),
+  Candidates0 \== [],
+  sort(Candidates0, Candidates1),
+  predsort(candidate:compare_candidate_version_desc, Candidates1, CandidatesSorted),
+  member(FoundRepo://Candidate, CandidatesSorted).
+
 % Like query_keyword_candidate but accepts any keyword, not just accepted ones.
 % Packages with zero keywords are excluded (treated as not ready for use).
 query_keyword_candidate_any(Action, C, N, Context, FoundRepo://Candidate) :-
@@ -1892,6 +1907,24 @@ query_keyword_candidate_any(Action, C, N, Context, FoundRepo://Candidate) :-
     )
   ; query:search([name(N),category(C),keyword(_)], FoundRepo://Candidate),
     \+ preference:masked(FoundRepo://Candidate)
+  ).
+
+% Accepts masked candidates with any accepted keyword. Used when the unmask
+% fallback is active to let masked packages through for full resolution.
+query_keyword_candidate_masked(Action, C, N, Context, FoundRepo://Candidate) :-
+  ( Action \== run,
+    memberchk(self(SelfRepo0://SelfEntry0), Context),
+    query:search([category(C),name(N)], SelfRepo0://SelfEntry0)
+  ->
+    query:search([name(N),category(C),keyword(_)], FoundRepo://Candidate),
+    ( FoundRepo == SelfRepo0,
+      Candidate == SelfEntry0
+    ->
+      \+ preference:flag(emptytree),
+      query:search(installed(true), FoundRepo://Candidate)
+    ; true
+    )
+  ; query:search([name(N),category(C),keyword(_)], FoundRepo://Candidate)
   ).
 
 accepted_keyword_slot_lock_arg(C, N, SlotReq0, Ss0, Context, SlotReq, Ss, LockKey) :-

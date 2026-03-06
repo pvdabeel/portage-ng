@@ -2239,12 +2239,29 @@ printer:print_element(_,rule(Repository://Entry:Action?{Context},_Body)) :-
   memberchk(suggestion(accept_keyword, K), Context),
   !,
   printer:keyword_atom(K, KAtom),
-  message:color(yellow),
+  message:color(cyan),
   message:print(Action),
   message:column(24,Repository://Entry),
-  format(atom(Msg), ' (requires ~w)', [KAtom]),
   message:color(darkgray),
+  format(atom(Msg), ' (~w)', [KAtom]),
   message:print(Msg),
+  message:color(normal),
+  printer:print_config(Repository://Entry:Action?{Context}).
+
+
+% -----------------------------------------------------------
+% CASE: package resolved via unmask fallback (suggestion)
+% -----------------------------------------------------------
+
+printer:print_element(_,rule(Repository://Entry:Action?{Context},_Body)) :-
+  is_list(Context),
+  memberchk(suggestion(unmask, _), Context),
+  !,
+  message:color(cyan),
+  message:print(Action),
+  message:column(24,Repository://Entry),
+  message:color(darkgray),
+  message:print(' (unmasked)'),
   message:color(normal),
   printer:print_config(Repository://Entry:Action?{Context}).
 
@@ -2338,11 +2355,11 @@ printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):insta
   is_list(Context),
   memberchk(assumption_reason(masked), Context),
   !,
-  message:bubble(red,'verify'),
-  message:color(red),
+  message:bubble(yellow,'verify'),
+  message:color(yellow),
   atomic_list_concat([C,'/',N],P),
   message:column(24,P),
-  message:print(' (masked, assumed unmasked)'),
+  message:print(' (masked, requires unmask)'),
   message:color(normal).
 
 
@@ -2397,11 +2414,11 @@ printer:print_element(_,rule(assumed(grouped_package_dependency(C,N,_Deps):run?{
   is_list(Context),
   memberchk(assumption_reason(masked), Context),
   !,
-  message:bubble(red,'verify'),
-  message:color(red),
+  message:bubble(yellow,'verify'),
+  message:color(yellow),
   atomic_list_concat([C,'/',N],P),
   message:column(24,P),
-  message:print(' (masked, assumed unmasked)'),
+  message:print(' (masked, requires unmask)'),
   message:color(normal).
 
 
@@ -3335,16 +3352,85 @@ printer:print_header(Target) :-
   nl.
 
 
-%! printer:print_body(+Target,+Plan,+Call,-Steps)
+%! printer:print_body(+Target,+Plan,+Call,+StartStep,-Steps)
 %
-% Prints the body for a given plan.
-printer:print_body(Target, Plan, Call, Steps) :-
+% Prints the body for a given plan, starting step count from StartStep.
+printer:print_body(Target, Plan, Call, StartStep, Steps) :-
   printer:build_planned_pkg_set(Plan, PlannedSet),
   setup_call_cleanup(
     nb_setval(printer_planned_pkg_set, PlannedSet),
-    printer:print_steps_in_plan(Target, Plan, Call, 0, Steps),
+    printer:print_steps_in_plan(Target, Plan, Call, StartStep, Steps),
     ( nb_current(printer_planned_pkg_set, _) -> nb_delete(printer_planned_pkg_set) ; true )
   ).
+
+% -----------------------------------------------------------------------------
+%  Pre-actions: unmask / keyword acceptance actions shown before the plan
+% -----------------------------------------------------------------------------
+
+%! printer:collect_plan_pre_actions(+ProofAVL, -PreActions)
+%
+% Collects unmask and keyword acceptance actions from the proof that
+% should be shown as pre-plan steps.
+
+printer:collect_plan_pre_actions(ProofAVL, PreActions) :-
+  findall(unmask(R, E, C, N),
+          ( assoc:gen_assoc(rule(R://E:_A), ProofAVL, _?Ctx),
+            is_list(Ctx),
+            memberchk(suggestion(unmask, _), Ctx),
+            cache:ordered_entry(R, E, C, N, _)
+          ),
+          Unmasks0),
+  sort(Unmasks0, Unmasks),
+  findall(accept_keyword(R, E, C, N, K),
+          ( assoc:gen_assoc(rule(R://E:_A2), ProofAVL, _?Ctx2),
+            is_list(Ctx2),
+            memberchk(suggestion(accept_keyword, K), Ctx2),
+            cache:ordered_entry(R, E, C, N, _)
+          ),
+          Keywords0),
+  sort(Keywords0, Keywords),
+  append(Unmasks, Keywords, PreActions).
+
+%! printer:print_plan_pre_actions(+PreActions, +StepIn, -StepOut)
+%
+% Prints pre-plan actions (unmask, keyword acceptance) as steps.
+
+printer:print_plan_pre_actions([], S, S) :- !.
+printer:print_plan_pre_actions(PreActions, StepIn, StepOut) :-
+  StepNum is StepIn + 1,
+  format(atom(AtomStepNum), '~t~0f~2|', [StepNum]),
+  format(atom(StepLabel), 'step ~a', [AtomStepNum]),
+  write(' └─'),
+  message:bubble(darkgray, StepLabel),
+  write('─┤ '),
+  printer:print_pre_action_first(PreActions),
+  nl, nl,
+  StepOut = StepNum.
+
+printer:print_pre_action_first([Action|Rest]) :-
+  printer:print_pre_action(Action),
+  forall(member(A, Rest),
+         ( nl,
+           write('             │ '),
+           printer:print_pre_action(A)
+         )).
+
+printer:print_pre_action(unmask(R, E, _C, _N)) :-
+  message:bubble(orange, unmask),
+  message:color(lightgreen),
+  message:column(24, R://E),
+  message:color(normal).
+
+printer:print_pre_action(accept_keyword(R, E, _C, _N, K)) :-
+  printer:keyword_atom(K, KAtom),
+  message:bubble(orange, accept),
+  message:color(lightgreen),
+  message:column(24, R://E),
+  message:color(darkgray),
+  format(atom(Msg), ' (~w)', [KAtom]),
+  message:print(Msg),
+  message:color(normal).
+
 
 % Build a set of planned packages (category/name) for actions install/run.
 % This allows suppressing "assumed dependency verify" lines when a concrete
@@ -3444,15 +3530,13 @@ printer:print_next_in_step(Target,[_|Rest]) :-
   printer:print_next_in_step(Target,Rest).
 
 
-%! printer:print_footer(+Plan, +ModelAVL, +PrintedSteps)
+%! printer:print_footer(+Plan, +ModelAVL, +PrintedSteps, +PreActions)
 %
-% Prints the footer for a given plan.
+% Prints the footer for a given plan, including pre-action counts.
 
-printer:print_footer(Plan, _ModelAVL, PrintedSteps) :-
-  % IMPORTANT:
-  % Footer totals should reflect the *plan* (what we will do), not everything
-  % present in the proved ModelAVL (which can include already-satisfied actions).
-  printer:footer_stats_from_plan(Plan, S),
+printer:print_footer(Plan, _ModelAVL, PrintedSteps, PreActions) :-
+  printer:footer_stats_from_plan(Plan, S0),
+  printer:footer_add_pre_actions(PreActions, S0, S),
   printer:pluralize(S.actions, action, actions, TotalStr),
   printer:pluralize(PrintedSteps, step, steps, PStr),
   printer:footer_action_breakdown(S, Breakdown),
@@ -3461,10 +3545,23 @@ printer:print_footer(Plan, _ModelAVL, PrintedSteps) :-
   message:convert_bytes(S.total_dl, BytesStr),
   format('~7|~w to be downloaded.~n~n', [BytesStr]).
 
+printer:footer_add_pre_actions([], S, S) :- !.
+printer:footer_add_pre_actions(PreActions, S0, S) :-
+  include([A]>>(A = unmask(_,_,_,_)), PreActions, UnmaskActions),
+  include([A]>>(A = accept_keyword(_,_,_,_,_)), PreActions, KeywordActions),
+  length(UnmaskActions, NUnmask),
+  length(KeywordActions, NKeyword),
+  NewActions is S0.actions + NUnmask + NKeyword,
+  S = S0.put(_{actions:NewActions, unmasks:NUnmask, keywords:NKeyword}).
+
 % Build the "(...)" part of the footer, omitting zero-count categories.
 printer:footer_action_breakdown(S, Breakdown) :-
+  ( get_dict(unmasks,  S, UnmaskCount)  -> true ; UnmaskCount  = 0 ),
+  ( get_dict(keywords, S, KeywordCount) -> true ; KeywordCount = 0 ),
   findall(Part,
-          ( printer:footer_action_part(downloads,  S.downloads,  download,   downloads,  Part)
+          ( printer:footer_action_part(unmasks,    UnmaskCount,  unmask,     unmasks,    Part)
+          ; printer:footer_action_part(keywords,   KeywordCount, keyword,    keywords,   Part)
+          ; printer:footer_action_part(downloads,  S.downloads,  download,   downloads,  Part)
           ; printer:footer_action_part(installs,   S.installs,   install,    installs,   Part)
           ; printer:footer_action_part(updates,    S.updates,    update,     updates,    Part)
           ; printer:footer_action_part(downgrades, S.downgrades, downgrade,  downgrades, Part)
@@ -3893,10 +3990,10 @@ printer:print_blocker_line(Strength, Phase, BlockAtom, RequiredBy) :-
 
 printer:print_suggestions_section(NonBlockerAssumptions, _BlockerAssumptions, ProofAVL) :-
   printer:collect_keyword_suggestions(NonBlockerAssumptions, ProofAVL, KwSuggestions),
-  printer:collect_unmask_suggestions(NonBlockerAssumptions, UnmaskSuggestions),
+  printer:collect_unmask_suggestions(NonBlockerAssumptions, ProofAVL, UnmaskSuggestions),
   ( KwSuggestions == [], UnmaskSuggestions == [] -> true
   ; nl,
-    message:header('Suggestions'),
+    message:header('Assumptions taken during proving & planning:'),
     nl,
     printer:print_keyword_suggestions(KwSuggestions),
     printer:print_unmask_suggestions(UnmaskSuggestions)
@@ -3926,12 +4023,22 @@ printer:assumption_has_keyword_suggestion(Content, C, N, K) :-
   memberchk(suggestion(accept_keyword, K), Ctx),
   !.
 
-printer:collect_unmask_suggestions(Assumptions, Suggestions) :-
+printer:collect_unmask_suggestions(Assumptions, ProofAVL, Suggestions) :-
+  % From domain assumptions (legacy fallback)
   findall(unmask(R, E, C, N),
           ( member(Content, Assumptions),
             printer:assumption_has_unmask_suggestion(Content, R, E, C, N)
           ),
-          Suggestions0),
+          Suggestions1),
+  % From fully resolved proof entries (unmask fallback)
+  findall(unmask(Repo, Entry, C, N),
+          ( assoc:gen_assoc(rule(Repo://Entry:_Action), ProofAVL, _?Ctx),
+            is_list(Ctx),
+            memberchk(suggestion(unmask, _), Ctx),
+            cache:ordered_entry(Repo, Entry, C, N, _)
+          ),
+          Suggestions2),
+  append(Suggestions1, Suggestions2, Suggestions0),
   sort(Suggestions0, Suggestions).
 
 printer:assumption_has_unmask_suggestion(R://E:unmask?{Ctx}, R, E, C, N) :-
@@ -5194,8 +5301,10 @@ printer:print(Target,ModelAVL,ProofAVL,Plan,Call,TriggersAVL) :-
   setup_call_cleanup(nb_setval(printer_blocker_notes, BlockerNotes),
     ( printer:resolve_print_target(Target, ProofAVL, TargetPrint, TargetHeader),
       printer:print_header(TargetHeader),
-      printer:print_body(TargetPrint,Plan,Call,Steps),
-      printer:print_footer(Plan,ModelAVL,Steps),
+      printer:collect_plan_pre_actions(ProofAVL, PreActions),
+      printer:print_plan_pre_actions(PreActions, 0, PreSteps),
+      printer:print_body(TargetPrint,Plan,Call,PreSteps,Steps),
+      printer:print_footer(Plan,ModelAVL,Steps,PreActions),
       printer:print_scc_decomposition,
       printer:print_warnings(ModelAVL,ProofAVL,TriggersAVL),
       printer:print_use_changes(ProofAVL)
@@ -5439,8 +5548,12 @@ printer:write_merge_file(Directory,Repository://Entry) :-
   Extension = '.merge',
   Goals = [Repository://Entry:Action?{[]}],
   get_time(T0),
-  (printer:prove_plan(Goals, Proof, Model, Plan, Triggers),
-   atomic_list_concat([Directory,'/',Entry,Extension],File)),
+  ( ( printer:prove_plan(Goals, Proof, Model, Plan, Triggers)
+    ; prover:assuming(unmask,
+        printer:prove_plan(Goals, Proof, Model, Plan, Triggers))
+    ),
+    atomic_list_concat([Directory,'/',Entry,Extension],File)
+  ),
   % Write to a temp file first so timeouts/interrupts don't corrupt the final file.
   atomic_list_concat([File,'.tmp'], TmpFile),
   ( catch(
@@ -5472,8 +5585,12 @@ printer:write_fetchonly_file(Directory,Repository://Entry) :-
   Action = fetchonly,
   Extension = '.fetchonly',
   Goals = [Repository://Entry:Action?{[]}],
-  (printer:prove_plan(Goals, Proof, Model, Plan, Triggers),
-   atomic_list_concat([Directory,'/',Entry,Extension],File)),
+  ( ( printer:prove_plan(Goals, Proof, Model, Plan, Triggers)
+    ; prover:assuming(unmask,
+        printer:prove_plan(Goals, Proof, Model, Plan, Triggers))
+    ),
+    atomic_list_concat([Directory,'/',Entry,Extension],File)
+  ),
   atomic_list_concat([File,'.tmp'], TmpFile),
   ( catch(
       setup_call_cleanup(
