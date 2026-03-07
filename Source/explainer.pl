@@ -22,7 +22,7 @@ family; `explanation.pl` implements these with Gentoo/Portage logic.
 The `explain/2,3` predicates send structured Why terms to an LLM (configured
 via `config:llm_default/1`) for human-readable interpretation.
 
-See `Documentation/explainer.txt` for architecture, usage examples, and a
+See `Documentation/doc-explainer.md` for architecture, usage examples, and a
 step-by-step guide.
 */
 
