@@ -274,10 +274,10 @@ The canonical load graph for standalone is in `portage-ng.pl`:
   - Use `git rev-parse --short HEAD` for the commit hash (7 chars).
 
 - Full run:
-  - `python3 -u Source/Scripts/compare-merge-emerge.py --root /Volumes/Storage/Graph/portage --full-lists --out Reports/compare-$(date +%Y-%m-%d)-$(git rev-parse --short HEAD).json`
+  - `python3 -u Reports/Scripts/compare-merge-emerge.py --root /Volumes/Storage/Graph/portage --full-lists --out Reports/compare-$(date +%Y-%m-%d)-$(git rev-parse --short HEAD).json`
 
 - Targeted run:
-  - `python3 -u Source/Scripts/compare-merge-emerge.py --root /Volumes/Storage/Graph/portage --target-regex '^pkg-ver$' --full-lists --out Reports/compare-$(date +%Y-%m-%d)-$(git rev-parse --short HEAD).json`
+  - `python3 -u Reports/Scripts/compare-merge-emerge.py --root /Volumes/Storage/Graph/portage --target-regex '^pkg-ver$' --full-lists --out Reports/compare-$(date +%Y-%m-%d)-$(git rev-parse --short HEAD).json`
 
 - Useful output fields:
   - `aggregate_counts` (missing/extra/version/use/action totals)
@@ -318,14 +318,14 @@ The canonical load graph for standalone is in `portage-ng.pl`:
 - The table output is used to determine regressions
 
 ## Compare tooling (authoritative paths + usage)
-- Keep compare scripts in `Source/Scripts/`:
-  - `Source/Scripts/compare-merge-emerge.py`
-  - `Source/Scripts/compare-prover-failset.py`
-- Do not create ad-hoc compare scripts outside `Source/Scripts/`.
+- Keep compare scripts in `Reports/Scripts/`:
+  - `Reports/Scripts/compare-merge-emerge.py`
+  - `Reports/Scripts/compare-prover-failset.py`
+- Do not create ad-hoc compare scripts outside `Reports/Scripts/`.
 
 ### Compare prover fail-sets
 - Compare two `prover:test(portage)` logs:
-  - `python3 Source/Scripts/compare-prover-failset.py --baseline <baseline.log> --candidate <candidate.log> --out Reports/prover_failset_compare.json`
+  - `python3 Reports/Scripts/compare-prover-failset.py --baseline <baseline.log> --candidate <candidate.log> --out Reports/prover_failset_compare.json`
 
 ## Compare to portage source code
 - The portage source code can be found in /Volumes/Disk\ 2/Git/portage on this system.

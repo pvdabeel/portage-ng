@@ -120,12 +120,12 @@ profile_package_mask_atoms(ProfileRel, Atoms) :-
 
 %! write_profile_use_file
 %
-% Writes computed profile_use terms to Source/Private/profile_use_generated.pl
+% Writes computed profile_use terms to Source/Config/Private/profile_use_generated.pl
 % under the installation directory.
 
 write_profile_use_file :-
   config:installation_dir(Root),
-  os:compose_path([Root,'Source/Private/profile_use_generated.pl'], File),
+  os:compose_path([Root,'Source/Config/Private/profile_use_generated.pl'], File),
   write_profile_use_file(File).
 
 

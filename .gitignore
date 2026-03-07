@@ -1,5 +1,5 @@
 Source/Archive
-Source/Private
+Source/Config/Private
 Source/Tests
 Source/Llm/Archive
 Source/Certificates/*-key.pem
