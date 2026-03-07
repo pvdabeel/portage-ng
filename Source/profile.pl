@@ -748,26 +748,23 @@ profile:cache_save_profile(ProfileRel, RawFile) :-
     ( format(Out, ':- module(profiledata, []).~n', []),
       format(Out, '% Auto-generated profile cache — do not edit.~n', []),
       format(Out, '% Profile: ~w~n~n', [ProfileRel]),
-      format(Out, ':- dynamic use_term/1, use_mask/1, use_force/1.~n', []),
-      format(Out, ':- dynamic package_mask_atom/1.~n', []),
-      format(Out, ':- dynamic package_use/3, package_use_mask/2, package_use_force/2.~n', []),
-      format(Out, ':- dynamic license_group/2.~n~n', []),
+      format(Out, ':- dynamic entry/3.~n~n', []),
       forall(member(T, UseTerms),
-             format(Out, '~q.~n', [profiledata:use_term(T)])),
+             format(Out, '~q.~n', [entry(use, T, profile)])),
       forall(member(U, UseMask),
-             format(Out, '~q.~n', [profiledata:use_mask(U)])),
+             format(Out, '~q.~n', [entry(use, U, masked)])),
       forall(member(U, UseForce),
-             format(Out, '~q.~n', [profiledata:use_force(U)])),
+             format(Out, '~q.~n', [entry(use, U, forced)])),
       forall(member(A, PkgMaskAtoms),
-             format(Out, '~q.~n', [profiledata:package_mask_atom(A)])),
+             format(Out, '~q.~n', [entry(package_mask, A, true)])),
       forall(member(pkg_use(Spec, Flag, State), PkgUseEntries),
-             format(Out, '~q.~n', [profiledata:package_use(Spec, Flag, State)])),
+             format(Out, '~q.~n', [entry(package_use, Spec, use(Flag, State))])),
       forall(member(pkg_use_mask(Spec, Flag), PkgUseMaskEntries),
-             format(Out, '~q.~n', [profiledata:package_use_mask(Spec, Flag)])),
+             format(Out, '~q.~n', [entry(package_use_mask, Spec, Flag)])),
       forall(member(pkg_use_force(Spec, Flag), PkgUseForceEntries),
-             format(Out, '~q.~n', [profiledata:package_use_force(Spec, Flag)])),
+             format(Out, '~q.~n', [entry(package_use_force, Spec, Flag)])),
       forall(member(lic_group(Name, Members), LicenseGroups),
-             format(Out, '~q.~n', [profiledata:license_group(Name, Members)]))
+             format(Out, '~q.~n', [entry(license_group, Name, Members)]))
     ),
     close(Out)
   ),
@@ -789,69 +786,81 @@ profile:cache_load(UseTerms, UseMask, UseForce) :-
   profile:cache_file(File),
   exists_file(File),
   profile:ensure_loaded_cache(File),
-  ( current_predicate(profiledata:use_term/1) -> findall(T, profiledata:use_term(T), UseTerms) ; UseTerms = [] ),
-  ( current_predicate(profiledata:use_mask/1) -> findall(U, profiledata:use_mask(U), UseMask) ; UseMask = [] ),
-  ( current_predicate(profiledata:use_force/1) -> findall(U, profiledata:use_force(U), UseForce) ; UseForce = [] ).
+  ( current_predicate(profiledata:entry/3) ->
+      findall(T, profiledata:entry(use, T, profile), UseTerms),
+      findall(U, profiledata:entry(use, U, masked),  UseMask),
+      findall(U, profiledata:entry(use, U, forced),  UseForce)
+  ; current_predicate(profiledata:use_term/1) ->
+      findall(T, profiledata:use_term(T), UseTerms),
+      findall(U, profiledata:use_mask(U), UseMask),
+      findall(U, profiledata:use_force(U), UseForce)
+  ; UseTerms = [], UseMask = [], UseForce = []
+  ).
 
 
-%! profile:apply_cached_package_masks is det.
+%! profile:apply_cached_profile_data is det.
 %
-% Apply package masks from the cached profile data.
+% Apply all cached profile data (masks, per-package USE, license groups)
+% from the normalized profiledata:entry/3 store into preference predicates.
 
-profile:apply_cached_package_masks :-
+profile:apply_cached_profile_data :-
+  ( current_predicate(profiledata:entry/3) ->
+      profile:apply_cached_entries
+  ; profile:apply_cached_legacy
+  ).
+
+profile:apply_cached_legacy :-
   ( current_predicate(profiledata:package_mask_atom/1) ->
     forall(profiledata:package_mask_atom(Atom),
-           ( ( sub_atom(Atom, 0, 1, _, '-') ->
-                 sub_atom(Atom, 1, _, 0, Atom1),
-                 normalize_space(atom(Atom2), Atom1),
-                 catch(preference:unmask_profile_atom(Atom2), _, true)
-             ; catch(preference:mask_profile_atom(Atom), _, true)
-             )))
-  ; true ).
-
-
-%! profile:apply_cached_package_use is det.
-%
-% Apply per-package USE from the cached profile data.
-
-profile:apply_cached_package_use :-
+           profile:apply_entry(package_mask, Atom, true))
+  ; true ),
   ( current_predicate(profiledata:package_use/3) ->
     forall(profiledata:package_use(Spec, Flag, State),
-           assertz(preference:profile_package_use_soft(Spec, Flag, State)))
-  ; true ).
-
-
-%! profile:apply_cached_package_use_mask is det.
-%
-% Apply per-package USE mask from the cached profile data.
-
-profile:apply_cached_package_use_mask :-
+           profile:apply_entry(package_use, Spec, use(Flag, State)))
+  ; true ),
   ( current_predicate(profiledata:package_use_mask/2) ->
     forall(profiledata:package_use_mask(Spec, Flag),
-           assertz(preference:profile_package_use_masked(Spec, Flag)))
-  ; true ).
-
-
-%! profile:apply_cached_package_use_force is det.
-%
-% Apply per-package USE force from the cached profile data.
-
-profile:apply_cached_package_use_force :-
+           profile:apply_entry(package_use_mask, Spec, Flag))
+  ; true ),
   ( current_predicate(profiledata:package_use_force/2) ->
     forall(profiledata:package_use_force(Spec, Flag),
-           assertz(preference:profile_package_use_forced(Spec, Flag)))
-  ; true ).
-
-
-%! profile:apply_cached_license_groups is det.
-%
-% Apply license groups from the cached profile data.
-
-profile:apply_cached_license_groups :-
+           profile:apply_entry(package_use_force, Spec, Flag))
+  ; true ),
   ( current_predicate(profiledata:license_group/2) ->
     forall(profiledata:license_group(Name, Members),
-           assertz(preference:license_group_raw(Name, Members)))
+           profile:apply_entry(license_group, Name, Members))
   ; true ).
+
+profile:apply_cached_entries :-
+  forall(profiledata:entry(Type, Key, Value),
+         profile:apply_entry(Type, Key, Value)).
+
+profile:apply_entry(package_mask, Atom, true) :-
+  !,
+  ( sub_atom(Atom, 0, 1, _, '-') ->
+      sub_atom(Atom, 1, _, 0, Atom1),
+      normalize_space(atom(Atom2), Atom1),
+      catch(preference:unmask_profile_atom(Atom2), _, true)
+  ; catch(preference:mask_profile_atom(Atom), _, true)
+  ).
+
+profile:apply_entry(package_use, Spec, use(Flag, State)) :-
+  !,
+  assertz(preference:profile_package_use_soft(Spec, Flag, State)).
+
+profile:apply_entry(package_use_mask, Spec, Flag) :-
+  !,
+  assertz(preference:profile_package_use_masked(Spec, Flag)).
+
+profile:apply_entry(package_use_force, Spec, Flag) :-
+  !,
+  assertz(preference:profile_package_use_forced(Spec, Flag)).
+
+profile:apply_entry(license_group, Name, Members) :-
+  !,
+  assertz(preference:license_group_raw(Name, Members)).
+
+profile:apply_entry(_, _, _).
 
 
 %! profile:cache_available is semidet.

@@ -580,10 +580,7 @@ preference:init :-
   % fallbacks (from config.pl facts) are always applied afterwards.
 
   ( preference:use_cached_profile ->
-      catch(profile:apply_cached_package_masks, _, true),
-      catch(profile:apply_cached_package_use_mask, _, true),
-      catch(profile:apply_cached_package_use_force, _, true),
-      catch(profile:apply_cached_package_use, _, true)
+      catch(profile:apply_cached_profile_data, _, true)
   ; catch(preference:apply_profile_package_mask, _, true),
     catch(preference:apply_profile_package_use_mask, _, true),
     catch(preference:apply_profile_package_use_force, _, true),
@@ -595,7 +592,7 @@ preference:init :-
   % 5. Load license groups and apply ACCEPT_LICENSE.
 
   ( preference:use_cached_profile ->
-      catch(profile:apply_cached_license_groups, _, true)
+      true
   ; catch(preference:load_license_groups, _, true)
   ),
   catch(preference:init_accept_license, _, true),
