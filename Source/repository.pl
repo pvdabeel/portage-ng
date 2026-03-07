@@ -130,9 +130,16 @@ init(Location,Cache,Remote,Protocol,Type) ::-
 
 sync ::-
   :this(Repository),
-  message:wrap(Repository:sync(repository)),
-  message:wrap(Repository:sync(metadata)),
-  message:wrap(Repository:sync(kb)),nl,!.
+  ( message:wrap(Repository:sync(repository))
+  -> true
+  ; format('% sync(repository) failed for ~w~n', [Repository]), flush_output, fail ),
+  ( message:wrap(Repository:sync(metadata))
+  -> true
+  ; format('% sync(metadata) failed for ~w~n', [Repository]), flush_output, fail ),
+  ( message:wrap(Repository:sync(kb))
+  -> true
+  ; format('% sync(kb) failed for ~w~n', [Repository]), flush_output, fail ),
+  nl,!.
 
 
 %! repository:sync(+Repository)

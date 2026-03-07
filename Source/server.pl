@@ -123,7 +123,11 @@ server:reply(Request) :-
     format('Transfer-encoding: chunked~n~n', []),
     current_output(S),
     set_stream(S,buffer(false)),
-    kb:sync.
+    ( catch(kb:sync, E,
+            ( format('% Server sync error: ~w~n', [E]), flush_output ))
+    -> true
+    ; format('% Server sync failed~n', []), flush_output
+    ).
 
 server:reply(Request) :-
     member(path('/save'), Request),

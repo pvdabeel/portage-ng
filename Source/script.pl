@@ -49,7 +49,11 @@ script:exec_streaming(S,Args,Env) :-
   set_stream(Stream,buffer(false)),
   call_cleanup(
     script:stream_prefix_chars(Stream,true),
-    ( close(Stream), process_wait(Pid,_) )
+    ( close(Stream), process_wait(Pid,Status) )
+  ),
+  ( Status = exit(0) -> true
+  ; format('% Script ~w exited with status: ~w~n', [S, Status]),
+    flush_output
   ),
   !.
 
