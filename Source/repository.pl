@@ -146,8 +146,7 @@ sync(repository) ::-
   ::location(Local),
   ::remote(Remote),
   ::protocol(Protocol),
-  script:exec(sync,[Protocol,Remote,Local],[],Stream),
-  copy_stream_data(Stream,current_output),
+  script:exec_streaming(sync,[Protocol,Remote,Local],[]),
   !.
 
 

@@ -34,6 +34,42 @@ script:exec(S,Args,Env,Stream) :-
   !.
 
 
+%! script:exec_streaming(+Name,+Args,+Env)
+%
+% Call script with arguments, streaming stdout line-by-line to current_output
+% with flush_output after each line. Properly waits for the child process and
+% closes the pipe stream. Suitable for long-running operations where real-time
+% output is desired (e.g. repository sync).
+
+script:exec_streaming(S,Args,Env) :-
+  !,
+  atomic_list_concat(['Source/Scripts/',S],Script),
+  process_set_method(vfork),
+  process_create(portage(Script),Args,[stdout(pipe(Stream)),process(Pid)|Env]),
+  set_stream(Stream,buffer(false)),
+  call_cleanup(
+    script:stream_prefix_chars(Stream,true),
+    ( close(Stream), process_wait(Pid,_) )
+  ),
+  !.
+
+script:stream_prefix_chars(Stream,BOL) :-
+  get_char(Stream,Char),
+  ( Char == end_of_file ->
+    ( BOL == false -> nl, flush_output ; true )
+  ; Char == '\n' ->
+    nl, flush_output,
+    script:stream_prefix_chars(Stream,true)
+  ; Char == '\r' ->
+    put_char('\r'), flush_output,
+    script:stream_prefix_chars(Stream,true)
+  ;
+    ( BOL == true -> write('% ') ; true ),
+    put_char(Char),
+    script:stream_prefix_chars(Stream,false)
+  ).
+
+
 %! script:exec(+Name,+Args,+Env)
 %
 % Same as previous, but outputs to stdout and stderr

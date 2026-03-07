@@ -56,7 +56,7 @@ sync_lock_acquire() {
 sync_lock_acquire "${2}"
 
 if [ -d "${2}" ]; then 
-  git -C "${2}" pull --no-rebase
+  git -C "${2}" pull --no-rebase --progress
 else
-  git -C "`dirname \"${2}\"`" clone "${1}" "${2}"
+  git -C "`dirname \"${2}\"`" clone --progress "${1}" "${2}"
 fi

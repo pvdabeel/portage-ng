@@ -56,5 +56,5 @@ sync_lock_acquire() {
 sync_lock_acquire "${2}"
 
 mkdir -p "${2}"
-curl "${1}" -o "${2}/portage-latest.tar.bz2"
+curl --progress-bar "${1}" -o "${2}/portage-latest.tar.bz2"
 tar jxvp --strip-components 1 -C "${2}" -f "${2}/portage-latest.tar.bz2"
