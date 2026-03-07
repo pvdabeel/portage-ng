@@ -157,10 +157,10 @@ sandbox:safe_primitive(scheduler:test_stats(_)).
 sandbox:safe_primitive(scheduler:test_stats(_,_)).
 
 % -----------------------------------------------------------------------------
-%  Printer
+%  Pipeline
 % -----------------------------------------------------------------------------
 
-sandbox:safe_primitive(printer:prove_plan(_,_,_,_,_)).
+sandbox:safe_primitive(pipeline:prove_plan(_,_,_,_,_)).
 
 % -----------------------------------------------------------------------------
 %  Message

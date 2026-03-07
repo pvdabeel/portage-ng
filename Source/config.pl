@@ -521,7 +521,7 @@ config:print_blockers(gentoo).
 %
 % Targets (fixed names in output directory):
 %
-% - .index.css   (used by printer:write_index_files/2 HTML)
+% - .index.css   (used by writer:write_index_files/2 HTML)
 % - .proof.css   (used by Scripts/*/print-aha to render proof output)
 % - .meslo.ttf   (font used by proof rendering)
 %
