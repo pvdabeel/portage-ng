@@ -42,6 +42,40 @@ module for PDEPEND goal filtering.
 
 
 % =============================================================================
+%  Target candidate resolution (CN vs CNV)
+% =============================================================================
+
+%! target:is_cn_target(+Q) is semidet.
+%
+% True when Q is a category/name-only target (no version constraint).
+
+target:is_cn_target(qualified_target(none, _, _, _, version_none, _)).
+target:is_cn_target(qualified_target(none, _, _, _, [[],'','','',''], _)).
+
+
+%! target:resolve_candidate(+Q, -Repository://Ebuild) is nondet.
+%
+% For CN targets: generates visible candidates first (not masked, keyword-
+% accepted, not license-masked), then falls back to all candidates.  This
+% ensures the prover picks a visible version before resorting to relaxation.
+%
+% For CNV targets: generates candidates in standard version-descending order
+% without visibility bias, since the user explicitly requested a specific
+% version and relaxation is the expected path if it's not visible.
+
+target:resolve_candidate(Q, Repository://Ebuild) :-
+  ( target:is_cn_target(Q) ->
+      ( kb:query(Q, Repository://Ebuild),
+        rules:entry_has_accepted_keyword(Repository://Ebuild),
+        \+ query:search(masked(true), Repository://Ebuild),
+        \+ candidate:license_masked(Repository://Ebuild)
+      ; kb:query(Q, Repository://Ebuild)
+      )
+  ; kb:query(Q, Repository://Ebuild)
+  ).
+
+
+% =============================================================================
 %  Transactional update prerequisites
 % =============================================================================
 

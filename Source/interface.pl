@@ -572,61 +572,19 @@ interface:process_action(Action,ArgsSets,Options) :-
    ;  true),
   (Mode == 'client' ->
     (client:rpc_execute(Host,Port,
-     (pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers),
+     (pipeline:prove_plan_with_fallback(Proposal, ProofAVL, ModelAVL, Plan, Triggers),
       printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
       ( PretendMode == false -> vdb:sync ; true )),
      Output),
      writeln(Output));
     ( ( memberchk(timeout(TimeLimitSec), Options) -> true ; TimeLimitSec = 0 ),
       ( TimeLimitSec =< 0 ->
-          ( ( pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers) ->
-                FallbackUsed = false
-            ; prover:assuming(keyword_acceptance,
-                pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
-              ) ->
-                FallbackUsed = keyword_acceptance
-            ; prover:assuming(blockers,
-                pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
-              ) ->
-                FallbackUsed = blockers
-            ; prover:assuming(unmask,
-                pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
-              ) ->
-                FallbackUsed = unmask
-            ; prover:assuming(keyword_acceptance,
-                prover:assuming(unmask,
-                  pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
-                )
-              ) ->
-                FallbackUsed = keyword_unmask
-            ; FallbackUsed = none, fail
-            ),
+          ( pipeline:prove_plan_with_fallback(Proposal, ProofAVL, ModelAVL, Plan, Triggers, FallbackUsed),
             printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers)
           )
       ; catch(
           call_with_time_limit(TimeLimitSec,
-            ( ( pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers) ->
-                  FallbackUsed = false
-              ; prover:assuming(keyword_acceptance,
-                  pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
-                ) ->
-                  FallbackUsed = keyword_acceptance
-              ; prover:assuming(blockers,
-                  pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
-                ) ->
-                  FallbackUsed = blockers
-              ; prover:assuming(unmask,
-                  pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
-                ) ->
-                  FallbackUsed = unmask
-              ; prover:assuming(keyword_acceptance,
-                  prover:assuming(unmask,
-                    pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
-                  )
-                ) ->
-                  FallbackUsed = keyword_unmask
-              ; FallbackUsed = none, fail
-              ),
+            ( pipeline:prove_plan_with_fallback(Proposal, ProofAVL, ModelAVL, Plan, Triggers, FallbackUsed),
               printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers)
             )),
           time_limit_exceeded,

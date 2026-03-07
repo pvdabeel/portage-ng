@@ -61,6 +61,41 @@ pipeline:prove_plan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
   pipeline:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL).
 
 
+%! pipeline:prove_plan_with_fallback(+Goals, -ProofAVL, -ModelAVL, -Plan, -TriggersAVL)
+%
+% Proves with progressive relaxation: strict first, then keyword_acceptance,
+% blockers, unmask, and finally both keyword_acceptance + unmask.  Used by
+% both standalone and client paths so the fallback chain is consistent.
+
+pipeline:prove_plan_with_fallback(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
+  pipeline:prove_plan_with_fallback(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL, _).
+
+%! pipeline:prove_plan_with_fallback(+Goals, -Proof, -Model, -Plan, -Triggers, -FallbackUsed)
+%
+% Same as prove_plan_with_fallback/5 but returns which relaxation tier
+% was needed: false (strict), keyword_acceptance, blockers, unmask,
+% keyword_unmask, or none (all tiers failed → deterministic failure).
+
+pipeline:prove_plan_with_fallback(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL, FallbackUsed) :-
+  ( pipeline:prove_plan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) ->
+      FallbackUsed = false
+  ; prover:assuming(keyword_acceptance,
+      pipeline:prove_plan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL)) ->
+      FallbackUsed = keyword_acceptance
+  ; prover:assuming(blockers,
+      pipeline:prove_plan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL)) ->
+      FallbackUsed = blockers
+  ; prover:assuming(unmask,
+      pipeline:prove_plan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL)) ->
+      FallbackUsed = unmask
+  ; prover:assuming(keyword_acceptance,
+      prover:assuming(unmask,
+        pipeline:prove_plan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL))) ->
+      FallbackUsed = keyword_unmask
+  ; fail
+  ).
+
+
 %! pipeline:prove_plan_basic(+Goals, -ProofAVL, -ModelAVL, -Plan, -TriggersAVL)
 %
 % Single-pass pipeline with per-stage wall-time instrumentation.

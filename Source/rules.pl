@@ -100,7 +100,7 @@ scoped variants delegate to `prover:assuming/1,2`.
 
 rule(target(Q, _Arg):fetchonly?{Context}, Conditions) :-
   !,
-  kb:query(Q, Repository://Ebuild),
+  target:resolve_candidate(Q, Repository://Ebuild),
   Conditions = [Repository://Ebuild:fetchonly?{Context}].
 
 rule(target(Q, Arg):uninstall?{Context}, Conditions) :-
@@ -116,9 +116,14 @@ rule(target(Q, Arg):uninstall?{Context}, Conditions) :-
 % Portage-style merge semantics for a requested target:
 % - prove the merge (run)
 % - then register the original atom in @world (unless --oneshot)
+%
+% For CN targets (no version), visible candidates are tried first so the
+% prover prefers installable versions before resorting to relaxation.
+% For CNV targets (explicit version), all candidates are tried in standard
+% order since the user explicitly requested that version.
 rule(target(Q, Arg):run?{Context}, Conditions) :-
   !,
-  kb:query(Q, Repository://Ebuild),
+  target:resolve_candidate(Q, Repository://Ebuild),
   Conditions0 = [Repository://Ebuild:run?{Context}],
   ( preference:flag(oneshot) ->
       Conditions = Conditions0
