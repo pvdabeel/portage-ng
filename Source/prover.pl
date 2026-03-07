@@ -813,7 +813,7 @@ prover:currently_proving(Lit) :-
 %
 % Install a per-thread debug hook handler during Goal. Handler must be a
 % callable closure that can be called as call(Handler, Target, Proof, Model, Constraints).
-% Example: prover:with_debug_hook(printer:display_state, prover:prove(...)).
+% Example: prover:with_debug_hook(state:display_state, prover:prove(...)).
 prover:with_debug_hook(Handler, Goal) :-
   setup_call_cleanup(
     asserta(prover:debug_hook_handler(Handler)),

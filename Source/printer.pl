@@ -21,11 +21,10 @@ Architecture:
     plan.pl           module plan        — build plan rendering
     info.pl           module info        — ebuild metadata + index display
     stats.pl          module stats       — test statistics tables
+    state.pl          module state       — prover state debugger display
 
 This hub retains:
 - print/5,6          — main entry point, delegates to plan + warning
-- display_state/4    — interactive prover debugger display
-- wait_for_input/0   — TTY pause helper
 - print_timing_header/footer — timing output for writer.pl
 - resolve_print_target — target(...) resolution for CLI proving
 - blocker_note_map   — inline blocker annotation lookup
@@ -40,97 +39,8 @@ The prove+plan+schedule pipeline lives in Source/pipeline.pl.
 :- module(printer, []).
 
 
-% -----------------------------------------------------------------------------
-%  PROVER state printing
-% -----------------------------------------------------------------------------
-
-%! printer:display_state(+Target, +Proof, +Model, +Constraints)
-%
-% Interactive debugger display: prints the current prover state including
-% the literal being proved, the proof stack, the to-do queue, the completed
-% model, and the active constraints.
-
-printer:display_state([],_,_,_) :- !.
-printer:display_state(Target, Proof, Model, Constraints) :-
-
-    % prepare aguments
-
-    ( Target = [ Current | Queue ]
-      -> true
-      ;  Current = Target, Queue = [] ),
-
-    prover:proof_to_list(Proof,ProofList),
-    prover:model_to_list(Model,ModelList),
-    constraint:constraints_to_list(Constraints,ConstraintList),
-
-    message:hl,
-
-    %tty_clear,
-
-    % proving subtitle
-
-    message:color(orange), message:style(bold),
-    format('--- Proving ---~n'),
-    message:color(normal), message:style(normal),
-    format('  ~w~n~n', [Current]),
-
-    % proving stack subtitle
-
-    message:color(magenta), message:style(bold),
-    format('--- Proving Stack (In Progress) ---~n'),
-    message:color(normal), message:style(normal),
-    ( ProofList == [] -> writeln('  (empty)') ;
-      ( reverse(ProofList, Tmp),
-        forall(member(rule(P,_), Tmp), format('  ~w~n', [P]))
-      )
-    ),
-    nl,
-
-    % to be proven queue subtitle
-
-    message:color(cyan), message:style(bold),
-    format('--- Proving Queue (To Do) ---~n'),
-    message:color(normal), message:style(normal),
-    ( Queue == [] -> writeln('  (empty)') ; forall(member(Q, Queue), format('  ~w~n', [Q])) ),
-    nl,
-
-    % model subtitle
-
-    message:color(green), message:style(bold),
-    format('--- Model (Completed) ---~n'),
-    message:color(normal), message:style(normal),
-
-    ( ModelList  == [] -> writeln('  (empty)')
-    ; forall(member(M, ModelList), ( format('  ~w~n', [M]) ))),
-    nl,
-
-    % constraints subtitle
-
-    message:color(green), message:style(bold),
-    format('--- Constraints (Completed) ---~n'),
-    message:color(normal), message:style(normal),
-
-    ( ConstraintList  == [] -> writeln('  (empty)')
-    ; forall(member(M, ConstraintList), ( format('  ~w~n', [M]) ))).
-
-    %wait_for_input.
-
-
-%! printer:wait_for_input
-%
-% Block until the user presses Enter. No-op when stdin is not a TTY
-% (e.g. here-doc piping, CI).
-
-printer:wait_for_input :-
-    % In non-interactive runs (e.g. here-doc piping), user_input is not a TTY and
-    % `get_char/1` can throw on EOF. Only prompt when we can actually read.
-    ( stream_property(user_input, tty(true)),
-      \+ at_end_of_stream(user_input) ->
-        format('~nPress Enter to continue...'),
-        flush_output,
-        catch(get_char(_), _E, true)
-    ; true
-    ).
+% Prover state display (display_state/4, wait_for_input/0) moved to
+% Source/Printer/state.pl (module state).
 
 
 

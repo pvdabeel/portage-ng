@@ -244,7 +244,7 @@ test:run_single_case(Repo://Id:Action?{Context}) :-
         -> test:write_description(EmergeLog)
         ;  message:inform('no emerge output available yet')),
        nl,nl,nl,nl)),
-   ignore(printer:wait_for_input),
+   ignore(state:wait_for_input),
    !.
 
 
