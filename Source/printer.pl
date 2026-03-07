@@ -22,10 +22,10 @@ Architecture:
     info.pl           module info        — ebuild metadata + index display
     stats.pl          module stats       — test statistics tables
     state.pl          module state       — prover state debugger display
+      timing.pl       module timing      — emerge-compatible timing output
 
 This hub retains:
 - print/5,6          — main entry point, delegates to plan + warning
-- print_timing_header/footer — timing output for writer.pl
 - resolve_print_target — target(...) resolution for CLI proving
 - blocker_note_map   — inline blocker annotation lookup
 - action_phase, dry_run, unify — small helpers
@@ -231,27 +231,8 @@ printer:dry_run(_Step) :-
   %message:color(normal).
 
 
-%! printer:print_timing_header(+Label, +T0) is det
-%
-% Print a "% <Label> started: <epoch> (<human>)" line to current output.
-
-printer:print_timing_header(Label, T0) :-
-  Epoch is truncate(T0),
-  format_time(string(Human), "%Y-%m-%d %H:%M:%S", T0),
-  format("% ~w started: ~w (~w)~n", [Label, Epoch, Human]).
-
-
-%! printer:print_timing_footer(+Label, +T0) is det
-%
-% Print ended + wall_time_ms lines matching the emerge format.
-
-printer:print_timing_footer(Label, T0) :-
-  get_time(T1),
-  Epoch1 is truncate(T1),
-  WallMs is truncate((T1 - T0) * 1000),
-  format_time(string(Human1), "%Y-%m-%d %H:%M:%S", T1),
-  format("% ~w ended: ~w (~w)~n", [Label, Epoch1, Human1]),
-  format("% ~w wall_time_ms: ~w~n", [Label, WallMs]).
+% Timing output (print_timing_header/2, print_timing_footer/2) moved to
+% Source/Printer/Plan/timing.pl (module timing).
 
 
 

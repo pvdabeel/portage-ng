@@ -53,9 +53,9 @@ writer:write_merge_file(Directory,Repository://Entry) :-
       setup_call_cleanup(
         tell(TmpFile),
         ( set_stream(current_output,tty(true)),
-          printer:print_timing_header('merge', T0),
+          timing:print_timing_header('merge', T0),
           printer:print(Goals,Model,Proof,Plan,Triggers),
-          printer:print_timing_footer('merge', T0)
+          timing:print_timing_footer('merge', T0)
         ),
         told
       ),
