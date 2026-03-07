@@ -356,4 +356,7 @@ PORTAGE_DIR=~/Git/portage/bin ~/gentoo-prefix/bin/emerge-wrapper --info
   VDB), so installed packages correctly show as `[nomerge]`.
 
 ## Compare to portage source code
-- The portage source code can be found in /Volumes/Disk\ 2/Git/portage on this system.
+- Tranditional emerge is available on this system and uses the same Portage 
+  tree and VDB pkg as portage-ng. The alias emerge-vp can be called to compare
+  with traditional emerge.
+- The portage source code can be found using `type -p emerge`.
