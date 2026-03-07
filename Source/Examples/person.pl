@@ -141,4 +141,4 @@ title(Title) ::-
 % of the class. So no access to instance state.
 
 classmethod :-
-  writeln('This is a class method').
+  writeln('This is a class method').

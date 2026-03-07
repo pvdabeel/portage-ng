@@ -43,23 +43,29 @@ assumption:assumption_type('?'(Inner, '{}'(Ctx)), Type) :-
   ),
   assumption:assumption_reason_type(Reason, Type),
   !.
+
 assumption:assumption_type('?'(Inner, _Ctx), Type) :-
   !,
   assumption:assumption_type(Inner, Type).
+
 assumption:assumption_type(cycle_break(_), cycle_break) :- !.
+
 assumption:assumption_type(domain(X), Type) :-
   assumption:assumption_reason_from_term(X, Reason),
   assumption:assumption_reason_type(Reason, Type),
   !.
+
 assumption:assumption_type(domain(X), Type) :-
   assumption:assumption_type(X, Type),
   !.
+
 assumption:assumption_type(domain(X), Type) :-
   ( assumption:assumption_reason_from_term(X, Reason) ->
       assumption:assumption_reason_type(Reason, Type),
       !
   ; fail
   ).
+
 assumption:assumption_type(package_dependency(_,_,_,_,_,_,_,_):_,              non_existent_dependency) :- !.
 assumption:assumption_type(grouped_package_dependency(_,_,_):_,                non_existent_dependency) :- !.
 assumption:assumption_type(grouped_package_dependency(_,_,_,_):_,              non_existent_dependency) :- !.
@@ -71,10 +77,12 @@ assumption:assumption_type(grouped_package_dependency(_,_,_,_):run?{_},        a
 assumption:assumption_type(grouped_package_dependency(_,_,_,_):install,        assumed_installed) :- !.
 assumption:assumption_type(grouped_package_dependency(_,_,_,_):run,            assumed_running) :- !.
 assumption:assumption_type(blocker(_Strength,_Phase,_C,_N,_O,_V,_SlotReq),     blocker_assumption) :- !.
+
 assumption:assumption_type(Term, issue_with_model) :-
   explainer:term_ctx(Term, Ctx),
   memberchk(issue_with_model(_), Ctx),
   !.
+
 assumption:assumption_type(required(_),                                        use_requirement_cycle) :- !.
 assumption:assumption_type(blocking(_),                                        use_requirement_cycle) :- !.
 assumption:assumption_type(use_conditional_group(_,_,_,_),                     use_conditional_cycle) :- !.

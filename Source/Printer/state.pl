@@ -33,6 +33,7 @@ plus the wait_for_input/0 TTY pause helper.
 % model, and the active constraints.
 
 state:display_state([],_,_,_) :- !.
+
 state:display_state(Target, Proof, Model, Constraints) :-
 
     ( Target = [ Current | Queue ]

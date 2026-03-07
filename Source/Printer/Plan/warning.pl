@@ -141,6 +141,10 @@ warning:print_warnings(_, ProofAVL, _) :-
 %  Blocker assumptions (Portage-like summary)
 % -----------------------------------------------------------------------------
 
+%! warning:is_blocker_assumption(+Content)
+%
+% Succeeds if Content is a blocker assumption (with or without context).
+
 warning:is_blocker_assumption(blocker(_Strength, _Phase, _C, _N, _O, _V, _SlotReq)?{_Ctx}) :- !.
 warning:is_blocker_assumption(blocker(_Strength, _Phase, _C, _N, _O, _V, _SlotReq)) :- !.
 warning:is_blocker_assumption(_) :- fail.
@@ -148,6 +152,11 @@ warning:is_blocker_assumption(_) :- fail.
 % -----------------------------------------------------------------------------
 %  Blocker section (configurable via config:print_blockers/1)
 % -----------------------------------------------------------------------------
+
+%! warning:print_blockers_section(+BlockerAssumptions)
+%
+% Prints the blockers section using the style configured via
+% config:print_blockers/1 (off, gentoo, fancy, or default).
 
 warning:print_blockers_section([]) :- !.
 warning:print_blockers_section(_) :-
@@ -184,6 +193,10 @@ warning:print_blockers_section(BlockerAssumptions) :-
          ( warning:print_assumption_detail(rule(Content, [])),
            nl )).
 
+%! warning:blocker_assumption_line(+Content, -Strength, -Phase, -BlockAtom, -RequiredBy)
+%
+% Destructures a blocker assumption into its display components.
+
 warning:blocker_assumption_line(Content, Strength, Phase, BlockAtom, RequiredBy) :-
   ( Content = blocker(Strength, Phase, C, N, O, V, SlotReq)?{Ctx} ->
       true
@@ -192,6 +205,10 @@ warning:blocker_assumption_line(Content, Strength, Phase, BlockAtom, RequiredBy)
   ),
   warning:blocker_atom(Strength, C, N, O, V, SlotReq, BlockAtom),
   ( memberchk(self(RequiredBy0), Ctx) -> RequiredBy = RequiredBy0 ; RequiredBy = unknown ).
+
+%! warning:blocker_atom(+Strength, +C, +N, +O, +V, +SlotReq, -Atom)
+%
+% Formats a blocker into a Portage-style atom string (e.g. =!!cat/pkg-1.0:slot).
 
 warning:blocker_atom(Strength, C, N, O, V0, SlotReq, Atom) :-
   ( Strength == strong -> Bang = '!!' ; Bang = '!' ),
@@ -203,12 +220,20 @@ warning:blocker_atom(Strength, C, N, O, V0, SlotReq, Atom) :-
   ; format(atom(Atom), '~w~w~w/~w-~w~w', [Bang, Sym, C, N, V, SlotSuf])
   ).
 
+%! warning:blocker_slot_suffix(+SlotReq, -Suffix)
+%
+% Maps a slot requirement list to its Portage-style suffix string.
+
 warning:blocker_slot_suffix([], '') :- !.
 warning:blocker_slot_suffix([slot(S)], Suf) :- !, format(atom(Suf), ':~w', [S]).
 warning:blocker_slot_suffix([slot(S),subslot(Ss)], Suf) :- !, format(atom(Suf), ':~w/~w', [S, Ss]).
 warning:blocker_slot_suffix([slot(S),equal], Suf) :- !, format(atom(Suf), ':~w', [S]).
 warning:blocker_slot_suffix([slot(S),subslot(Ss),equal], Suf) :- !, format(atom(Suf), ':~w/~w', [S, Ss]).
 warning:blocker_slot_suffix(_Other, '').
+
+%! warning:print_blocker_line(+Strength, +Phase, +BlockAtom, +RequiredBy)
+%
+% Prints a single blocker line in gentoo style.
 
 warning:print_blocker_line(Strength, Phase, BlockAtom, RequiredBy) :-
   ( Strength == strong ->
@@ -243,6 +268,11 @@ warning:print_suggestions_section(NonBlockerAssumptions, _BlockerAssumptions, Pr
     warning:print_use_change_suggestions(UseSuggestions)
   ).
 
+%! warning:collect_keyword_suggestions(+Assumptions, +ProofAVL, -Suggestions)
+%
+% Gathers keyword acceptance suggestions from both domain assumptions
+% and fully resolved proof entries tagged with suggestion(accept_keyword, _).
+
 warning:collect_keyword_suggestions(Assumptions, ProofAVL, Suggestions) :-
   % From domain assumptions (legacy fallback)
   findall(kw(C, N, K),
@@ -261,11 +291,20 @@ warning:collect_keyword_suggestions(Assumptions, ProofAVL, Suggestions) :-
   append(Suggestions1, Suggestions2, Suggestions0),
   sort(Suggestions0, Suggestions).
 
+%! warning:assumption_has_keyword_suggestion(+Content, -C, -N, -K)
+%
+% Extracts keyword suggestion details from a domain assumption context.
+
 warning:assumption_has_keyword_suggestion(Content, C, N, K) :-
   Content = grouped_package_dependency(C, N, _):_?{Ctx},
   is_list(Ctx),
   memberchk(suggestion(accept_keyword, K), Ctx),
   !.
+
+%! warning:collect_unmask_suggestions(+Assumptions, +ProofAVL, -Suggestions)
+%
+% Gathers package unmask suggestions from both domain assumptions
+% and fully resolved proof entries tagged with suggestion(unmask, _).
 
 warning:collect_unmask_suggestions(Assumptions, ProofAVL, Suggestions) :-
   % From domain assumptions (legacy fallback)
@@ -285,6 +324,10 @@ warning:collect_unmask_suggestions(Assumptions, ProofAVL, Suggestions) :-
   append(Suggestions1, Suggestions2, Suggestions0),
   sort(Suggestions0, Suggestions).
 
+%! warning:assumption_has_unmask_suggestion(+Content, -R, -E, -C, -N)
+%
+% Extracts unmask suggestion details from a domain assumption context.
+
 warning:assumption_has_unmask_suggestion(R://E:unmask?{Ctx}, R, E, C, N) :-
   is_list(Ctx),
   memberchk(suggestion(unmask), Ctx),
@@ -295,6 +338,10 @@ warning:assumption_has_unmask_suggestion(Content, _R, _E, C, N) :-
   is_list(Ctx),
   memberchk(suggestion(unmask), Ctx),
   !.
+
+%! warning:print_keyword_suggestions(+Suggestions)
+%
+% Prints keyword acceptance suggestions with package.accept_keywords instructions.
 
 warning:print_keyword_suggestions([]) :- !.
 warning:print_keyword_suggestions(KwSuggestions) :-
@@ -319,6 +366,10 @@ warning:print_keyword_suggestions(KwSuggestions) :-
   message:color(normal),
   nl.
 
+%! warning:print_unmask_suggestions(+Suggestions)
+%
+% Prints package unmask suggestions with package.unmask instructions.
+
 warning:print_unmask_suggestions([]) :- !.
 warning:print_unmask_suggestions(UnmaskSuggestions) :-
   length(UnmaskSuggestions, Count),
@@ -336,6 +387,11 @@ warning:print_unmask_suggestions(UnmaskSuggestions) :-
          )),
   message:color(normal),
   nl.
+
+%! warning:keyword_atom(+Keyword, -Atom)
+%
+% Converts a keyword term to its printable atom (e.g. stable(arm64) -> arm64,
+% unstable(arm64) -> ~arm64).
 
 warning:keyword_atom(stable(Arch), Arch) :- !.
 warning:keyword_atom(unstable(Arch), Atom) :- !, format(atom(Atom), '~~~w', [Arch]).
@@ -409,6 +465,11 @@ warning:print_use_change_suggestions(UseSuggestions) :-
 
 warning:print_use_changes(_ProofAVL).
 
+%! warning:collect_use_changes(+ProofAVL, -UseChanges)
+%
+% Walks the proof for build_with_use contexts and collects entries
+% where the effective USE differs from the requested state.
+
 warning:collect_use_changes(ProofAVL, UseChanges) :-
   findall(use_change(Entry, Enables, Disables),
           ( assoc:gen_assoc(Key, ProofAVL, _),
@@ -417,6 +478,11 @@ warning:collect_use_changes(ProofAVL, UseChanges) :-
           ),
           Changes0),
   sort(Changes0, UseChanges).
+
+%! warning:proof_key_use_changes(+Key, -Entry, -NeedEnable, -NeedDisable)
+%
+% For a proof key with build_with_use context, computes which USE flags
+% need enabling or disabling relative to the effective USE set.
 
 warning:proof_key_use_changes(Key, Entry, NeedEnable, NeedDisable) :-
   warning:proof_key_bwu_context(Key, Repo, Id, En, Dis),
@@ -427,10 +493,18 @@ warning:proof_key_use_changes(Key, Entry, NeedEnable, NeedDisable) :-
   sort(NeedEnable0, NeedEnable),
   sort(NeedDisable0, NeedDisable).
 
+%! warning:proof_key_bwu_context(+Key, -Repo, -Id, -Enable, -Disable)
+%
+% Extracts build_with_use enable/disable lists from a proof key context.
+
 warning:proof_key_bwu_context(Repo://Id:_Action?{Ctx}, Repo, Id, En, Dis) :-
   is_list(Ctx),
   memberchk(build_with_use:use_state(En, Dis), Ctx),
   !.
+
+%! warning:print_use_change_lines(+Changes)
+%
+% Prints USE change lines in package.use format (=entry flag1 -flag2 ...).
 
 warning:print_use_change_lines([]) :- !.
 warning:print_use_change_lines([use_change(Entry, Enables, Disables)|Rest]) :-
@@ -446,6 +520,11 @@ warning:print_use_change_lines([use_change(Entry, Enables, Disables)|Rest]) :-
 %  Bug report drafts (domain assumptions)
 % -----------------------------------------------------------------------------
 
+%! warning:print_bugreport_drafts(+DomainAssumptions)
+%
+% Groups domain assumptions into bug report drafts and prints them
+% under the "Bug report drafts (Gentoo Bugzilla)" header.
+
 warning:print_bugreport_drafts(DomainAssumptions) :-
   warning:bugreport_groups(DomainAssumptions, Groups),
   ( Groups == [] ->
@@ -458,7 +537,11 @@ warning:print_bugreport_drafts(DomainAssumptions) :-
              nl ))
   ).
 
-% Group per (Reason, C/N, Constraints, RequiredBy), merging run/install variants.
+%! warning:bugreport_groups(+DomainAssumptions, -Groups)
+%
+% Groups domain assumptions per (Reason, C/N, Constraints, RequiredBy),
+% merging run/install variants into unified report groups.
+
 warning:bugreport_groups(DomainAssumptions, Groups) :-
   findall(Key-Issue,
           ( member(Content, DomainAssumptions),
@@ -472,6 +555,11 @@ warning:bugreport_groups(DomainAssumptions, Groups) :-
             warning:merge_bugreport_issues(Issues, Group)
           ),
           Groups).
+
+%! warning:bugreport_issue(+Content, -Key, -Issue)
+%
+% Extracts a structured bug report issue from a grouped_package_dependency
+% assumption, including reason, provenance, and constraints.
 
 warning:bugreport_issue(Content, Key, issue(Reason, RequiredBy, C, N, Constraints, Actions)) :-
   % Only handle grouped_package_dependency assumptions for now (these dominate).
@@ -491,6 +579,11 @@ warning:bugreport_issue(Content, Key, issue(Reason, RequiredBy, C, N, Constraint
 warning:bugreport_issue(_Other, _Key, _Issue) :-
   fail.
 
+%! warning:merge_bugreport_issues(+Issues, -Group)
+%
+% Merges multiple issues sharing the same key into a single group
+% with a unified action set.
+
 warning:merge_bugreport_issues(Issues, group(Reason, RequiredBy, C, N, Constraints, ActionsU)) :-
   Issues = [issue(Reason, RequiredBy, C, N, Constraints, Actions0)|Rest],
   findall(A,
@@ -500,6 +593,10 @@ warning:merge_bugreport_issues(Issues, group(Reason, RequiredBy, C, N, Constrain
           ActionsAll),
   sort(ActionsAll, ActionsU).
 
+%! warning:extract_constraints_from_packagedeps(+C, +N, +PackageDeps, -Constraints)
+%
+% Extracts version/slot constraint triples from a list of package dependencies.
+
 warning:extract_constraints_from_packagedeps(C, N, PackageDeps, Constraints) :-
   findall(constraint(O,V,S),
           ( member(package_dependency(_Action,no,C,N,O,Ver,S,_U), PackageDeps),
@@ -508,9 +605,18 @@ warning:extract_constraints_from_packagedeps(C, N, PackageDeps, Constraints) :-
           Cs0),
   sort(Cs0, Constraints).
 
+%! warning:version_atom(+Version, -Atom)
+%
+% Extracts the human-readable atom from a version/7 term or version_none.
+
 warning:version_atom(version(_,_,_,_,_,_,A), A) :- !.
 warning:version_atom(version_none, '') :- !.
 warning:version_atom(A, A).
+
+%! warning:print_bugreport_group(+Group)
+%
+% Prints a single bug report draft: summary, affected package, dependency,
+% phases, unsatisfiable constraints, observed state, and potential fix.
 
 warning:print_bugreport_group(group(Reason, RequiredBy, C, N, Constraints, Actions)) :-
   warning:bugreport_summary(Reason, RequiredBy, C, N, Summary),
@@ -578,6 +684,10 @@ warning:print_bugreport_group(group(Reason, RequiredBy, C, N, Constraints, Actio
   warning:bugreport_potential_fix(Reason, C, N, Constraints, RequiredBy),
   message:color(normal).
 
+%! warning:bugreport_summary(+Reason, +RequiredBy, +C, +N, -Summary)
+%
+% Builds a one-line summary atom for a bug report title.
+
 warning:bugreport_summary(Reason, RequiredBy0, C0, N0, Summary) :-
   warning:bugreport_safe_atom(RequiredBy0, unknown_depender, RequiredBy),
   warning:bugreport_safe_atom(C0, unknown_category, C),
@@ -586,11 +696,20 @@ warning:bugreport_summary(Reason, RequiredBy0, C0, N0, Summary) :-
   % Always bind Summary to an atom (even if inputs are variables).
   format(atom(Summary), '~w: ~w dependency on ~w/~w', [RequiredBy, ReasonLabel, C, N]).
 
+%! warning:bugreport_safe_atom(+X, +Default, -Out)
+%
+% Safely converts X to a printable atom, falling back to Default if X
+% is unbound or not a recognized term.
+
 warning:bugreport_safe_atom(X, Default, Out) :-
   ( atom(X) -> Out = X
   ; X = Repo://Entry, atom(Repo), atom(Entry) -> Out = (Repo://Entry)
   ; Out = Default
   ).
+
+%! warning:bugreport_reason_label(+Reason, -Label)
+%
+% Maps an assumption reason atom to a human-readable label for bug report titles.
 
 warning:bugreport_reason_label(Reason, 'unsatisfied dependency') :-
   var(Reason),
@@ -607,10 +726,18 @@ warning:bugreport_reason_label(masked,             'masked') :- !.
 warning:bugreport_reason_label(installed_required, 'installed-only requirement') :- !.
 warning:bugreport_reason_label(Reason, Reason).
 
+%! warning:print_bugreport_constraint(+O, +C, +N, +V, +S)
+%
+% Prints a single constraint line (e.g. >=cat/pkg-1.0:slot) for a bug report.
+
 warning:print_bugreport_constraint(O, C, N, V, S) :-
   info:print_comparator(O),
   write(C), write('/'), write(N), write('-'), write(V),
   info:print_slot_restriction(S).
+
+%! warning:available_versions(+C, +N, -Sample)
+%
+% Returns up to 8 available version atoms for C/N across all repositories.
 
 warning:available_versions(C, N, Sample) :-
   findall(V,
@@ -622,6 +749,10 @@ warning:available_versions(C, N, Sample) :-
   % Take up to 8 to keep output short.
   warning:take_first_n(Vs, 8, Sample).
 warning:available_versions(_C, _N, []).
+
+%! warning:bugreport_potential_fix(+Reason, +C, +N, +Constraints, +RequiredBy)
+%
+% Prints a context-sensitive fix suggestion based on the assumption reason.
 
 warning:bugreport_potential_fix(Reason, C, N, Constraints, RequiredBy) :-
   ( Reason = version_no_candidate(Op, Ver) ->
@@ -648,7 +779,10 @@ warning:bugreport_potential_fix(Reason, C, N, Constraints, RequiredBy) :-
   ; format('  Review dependency metadata in ~w; constraint set: ~w.~n', [RequiredBy, Constraints])
   ).
 
-% Compute a human-readable (min..max) version range for a package in the current repo set.
+%! warning:available_version_range(+C, +N, -MinAtom, -MaxAtom, -Count)
+%
+% Computes a human-readable (min..max) version range for C/N across repositories.
+
 warning:available_version_range(C, N, MinAtom, MaxAtom, Count) :-
   findall(Ver, cache:ordered_entry(_Repo, _Id, C, N, Ver), Vers0Raw),
   Vers0Raw \= [],
@@ -660,16 +794,28 @@ warning:available_version_range(C, N, MinAtom, MaxAtom, Count) :-
   warning:version_atom(Min, MinAtom),
   warning:version_atom(Max, MaxAtom).
 
+%! warning:available_version_count_unique(+C, +N, -Count)
+%
+% Counts the number of unique versions available for C/N.
+
 warning:available_version_count_unique(C, N, Count) :-
   findall(Ver, cache:ordered_entry(_Repo, _Id, C, N, Ver), Vers0Raw),
   sort(Vers0Raw, Vers0),
   length(Vers0, Count).
+
+%! warning:compare_versions(-Delta, +A, +B)
+%
+% Version comparison callback for predsort/3.
 
 warning:compare_versions(Delta, A, B) :-
   ( system:compare(<, A, B) -> Delta = (<)
   ; system:compare(>, A, B) -> Delta = (>)
   ; Delta = (=)
   ).
+
+%! warning:take_first_n(+List, +N, -Prefix)
+%
+% Takes the first N elements from List, or all if fewer than N.
 
 warning:take_first_n(_, 0, []) :- !.
 warning:take_first_n([], _N, []) :- !.
@@ -678,12 +824,21 @@ warning:take_first_n([X|Xs], N, [X|Ys]) :-
   N1 is N - 1,
   warning:take_first_n(Xs, N1, Ys).
 
+
+%! warning:bugreport_constraint_short(+Op, +Ver, -Short)
+%
+% Formats a version constraint as a compact atom (e.g. ">=1.2.3").
+
 warning:bugreport_constraint_short(Op, Ver0, Short) :-
   eapi:comparator_symbol(Op, Sym),
   warning:version_atom(Ver0, Ver),
   format(atom(Short), '~w~w', [Sym, Ver]).
 
 
+
+% -----------------------------------------------------------------------------
+%  Assumption handling and detail printing
+% -----------------------------------------------------------------------------
 
 %! warning:handle_assumption(+ProofKey)
 %
@@ -858,8 +1013,11 @@ warning:print_assumption_detail(rule(C,_)) :-
     message:print('  '),
     message:print(C), nl.
 
-% Print a small provenance hint for domain assumptions when available.
-% Context is expected to be a list (most callers), but we stay defensive.
+%! warning:print_assumption_provenance(+Ctx)
+%
+% Prints a provenance hint ("required by: ...") for domain assumptions
+% when a self/1 tag is present in the context list.
+
 warning:print_assumption_provenance(Ctx0) :-
   ( is_list(Ctx0) ->
       ( memberchk(self(Repo://Entry), Ctx0) ->
@@ -873,6 +1031,10 @@ warning:print_assumption_provenance(Ctx0) :-
   ; true
   ).
 
+%! warning:print_tree_issue_note(+C, +N, +PackageDeps)
+%
+% Prints a contextual note if a known tree issue matches this dependency.
+
 warning:print_tree_issue_note(C, N, PackageDeps) :-
   ( issue:tree_issue_context(C, N, PackageDeps, Note) ->
       message:color(darkgray),
@@ -883,12 +1045,21 @@ warning:print_tree_issue_note(C, N, PackageDeps) :-
   ; true
   ).
 
+%! warning:assumption_reason_label(+CtxLike, -Label)
+%
+% Extracts the assumption reason from a context-like term and maps it
+% to a human-readable label via assumption_reason_label_/2.
+
 warning:assumption_reason_label(CtxLike, Label) :-
   explainer:term_ctx(_:_?{CtxLike}, Ctx),
   ( memberchk(assumption_reason(Reason), Ctx)
   -> warning:assumption_reason_label_(Reason, Label)
   ; Label = 'Non-existent'
   ).
+
+%! warning:assumption_reason_label_(+Reason, -Label)
+%
+% Maps an internal assumption reason atom to its display label.
 
 warning:assumption_reason_label_(missing,                 'Missing').
 warning:assumption_reason_label_(masked,                  'Masked').
