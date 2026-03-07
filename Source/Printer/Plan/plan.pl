@@ -20,6 +20,183 @@ SCC decomposition display.
 :- module(plan, []).
 
 
+% =============================================================================
+%  Main entry points
+% =============================================================================
+
+%! plan:print(+Target, +ModelAVL, +ProofAVL, +Plan, +TriggersAVL)
+%
+% Prints a plan. Triggers are required so the printer can explain assumptions
+% (e.g. dependency cycles) when present.
+
+plan:print(Target, ModelAVL, ProofAVL, Plan, TriggersAVL) :-
+  plan:print(Target, ModelAVL, ProofAVL, Plan, plan:dry_run, TriggersAVL).
+
+%! plan:print(+Target, +ModelAVL, +ProofAVL, +Plan, +Call, +TriggersAVL)
+
+plan:print(Target, ModelAVL, ProofAVL, Plan, Call, TriggersAVL) :-
+  plan:blocker_note_map(ProofAVL, BlockerNotes),
+  setup_call_cleanup(nb_setval(printer_blocker_notes, BlockerNotes),
+    ( plan:resolve_print_target(Target, ProofAVL, TargetPrint, TargetHeader),
+      plan:print_header(TargetHeader),
+      plan:collect_plan_pre_actions(ProofAVL, PreActions),
+      plan:print_plan_pre_actions(PreActions, 0, PreSteps),
+      plan:print_body(TargetPrint, Plan, Call, PreSteps, Steps),
+      plan:print_footer(Plan, ModelAVL, Steps, PreActions),
+      plan:print_scc_decomposition,
+      warning:print_warnings(ModelAVL, ProofAVL, TriggersAVL),
+      warning:print_use_changes(ProofAVL)
+    ),
+    nb_delete(printer_blocker_notes)).
+
+
+%! plan:dry_run(+Step)
+%
+% Default execution strategy for building steps in a plan.
+
+plan:dry_run(_Step) :- true.
+
+
+% =============================================================================
+%  Target resolution
+% =============================================================================
+
+%! plan:resolve_print_target(+Target0, +ProofAVL, -TargetPrint, -TargetHeader)
+%
+% Since the CLI defers candidate selection to the prover, the root target
+% can be target(Q, Arg):run?{Ctx}. This resolves it to the chosen
+% candidate's literal for display and highlighting.
+
+plan:resolve_print_target(Target0, ProofAVL, TargetPrint, TargetHeader) :-
+  ( is_list(Target0) ->
+      findall(P-H,
+              ( member(T, Target0),
+                plan:resolve_print_target_one(T, ProofAVL, P, H)
+              ),
+              Pairs),
+      findall(P, member(P-_, Pairs), TargetPrint),
+      findall(H, member(_-H, Pairs), TargetHeader)
+  ; plan:resolve_print_target_one(Target0, ProofAVL, TargetPrint, TargetHeader)
+  ),
+  !.
+
+plan:resolve_print_target_one(Full0, ProofAVL, Full, HeaderFull) :-
+  ( Full0 = target(Q, Arg):Action?{_Ctx0} ->
+      ( plan:proof_rule_body_(ProofAVL, target(Q, Arg):Action, Body),
+        plan:chosen_candidate_from_body(Action, Body, Repo, Ebuild) ->
+          HeaderFull = Repo://(Ebuild:Action?{[]}),
+          Full = Repo://(Ebuild:Action?{[]})
+      ; HeaderFull = Full0,
+        Full = Full0
+      )
+  ; HeaderFull = Full0,
+    Full = Full0
+  ),
+  !.
+
+plan:proof_rule_body_(ProofAVL, HeadCore, Body) :-
+  get_assoc(rule(HeadCore), ProofAVL, dep(_Count, Body)?_Ctx),
+  is_list(Body),
+  !.
+
+plan:chosen_candidate_from_body(run, Body, Repo, Ebuild) :-
+  member(Repo://Ebuild:run?{_}, Body),
+  !.
+plan:chosen_candidate_from_body(fetchonly, Body, Repo, Ebuild) :-
+  member(Repo://Ebuild:fetchonly?{_}, Body),
+  !.
+plan:chosen_candidate_from_body(uninstall, Body, Repo, Ebuild) :-
+  member(Repo://Ebuild:uninstall?{_}, Body),
+  !.
+
+
+% =============================================================================
+%  Blocker note annotations
+% =============================================================================
+
+plan:blocker_note_map(ProofAVL, Notes) :-
+  empty_assoc(Empty),
+  findall(K-V,
+          ( assoc:gen_assoc(rule(assumed(Content0)), ProofAVL, _),
+            plan:blocker_assumption_term(Content0, Strength, Phase, C, N, Origin),
+            K = key(C,N,Phase),
+            V = note(Strength, Origin)
+          ),
+          Pairs0),
+  sort(Pairs0, Pairs),
+  foldl(plan:blocker_note_put, Pairs, Empty, Notes).
+
+plan:blocker_note_put(K-V, In, Out) :-
+  ( get_assoc(K, In, _) ->
+      Out = In
+  ; put_assoc(K, In, V, Out)
+  ).
+
+plan:blocker_assumption_term(Content0, Strength, Phase, C, N, Origin) :-
+  ( Content0 = '?'(blocker(Strength, Phase, C, N, _O, _V, _SlotReq), Ctx0),
+    ( is_list(Ctx0) ->
+        Ctx = Ctx0
+    ; Ctx0 =.. ['{}'|Ctx] ->
+        true
+    ; Ctx = []
+    ),
+    ( memberchk(self(Origin), Ctx) -> true ; Origin = unknown )
+  )
+  ;
+  ( Content0 = blocker(Strength, Phase, C, N, _O2, _V2, _SlotReq2),
+    Origin = unknown
+  ),
+  ( Strength == weak ; Strength == strong ),
+  ( Phase == install ; Phase == run ).
+
+plan:print_newuse_note_if_any(update, Context) :-
+  memberchk(rebuild_reason(newuse), Context),
+  !,
+  message:color(orange),
+  message:print(' (newuse)'),
+  message:color(normal).
+plan:print_newuse_note_if_any(_Action, _Context).
+
+plan:print_blocker_note_if_any(Action, Repository, Entry) :-
+  ( ( Action == install ; Action == run ),
+    nb_current(printer_blocker_notes, Notes),
+    plan:action_phase(Action, Phase),
+    ( cache:ordered_entry(Repository, Entry, C, N, _) ->
+        true
+    ; query:search([category(C),name(N)], Repository://Entry)
+    ),
+    get_assoc(key(C,N,Phase), Notes, note(Strength, Origin))
+  ->
+    message:color(lightgray),
+    message:print(' ('),
+    message:color(lightred),
+    message:print('blocked'),
+    message:color(lightgray),
+    message:print(': '),
+    message:color(lightred),
+    ( Strength == strong -> message:print('hard') ; message:print('soft') ),
+    message:color(lightgray),
+    message:print(' by '),
+    ( Origin == unknown ->
+        message:print('unknown')
+    ; message:color(green),
+      message:print(Origin),
+      message:color(lightgray)
+    ),
+    message:print(')'),
+    message:color(normal)
+  ; true
+  ).
+
+plan:action_phase(run, run) :- !.
+plan:action_phase(install, install) :- !.
+plan:action_phase(reinstall, install) :- !.
+plan:action_phase(update, install) :- !.
+plan:action_phase(download, other) :- !.
+plan:action_phase(fetchonly, other) :- !.
+plan:action_phase(_Other, other).
+
+
 % -----------------------------------------------------------------------------
 %  Plan printing
 % -----------------------------------------------------------------------------
@@ -184,8 +361,8 @@ plan:print_element(Target,rule(Repository://Entry:Action?{Context},_Body)) :-
   % Ensure inline notes (e.g. blocker annotations) don't inherit the bold style
   % used for target entries.
   message:style(normal),
-  printer:print_blocker_note_if_any(Action, Repository, Entry),
-  printer:print_newuse_note_if_any(Action, Context),
+  plan:print_blocker_note_if_any(Action, Repository, Entry),
+  plan:print_newuse_note_if_any(Action, Context),
   message:color(normal),
   plan:print_config(Repository://Entry:Action?{Context}).
 
@@ -268,8 +445,8 @@ plan:print_element(_,rule(Repository://Entry:Action?{Context},_)) :-
      message:color(normal)
   ; true
   ),
-  printer:print_blocker_note_if_any(Action, Repository, Entry),
-  printer:print_newuse_note_if_any(Action, Context),
+  plan:print_blocker_note_if_any(Action, Repository, Entry),
+  plan:print_newuse_note_if_any(Action, Context),
   message:color(normal),
   plan:print_config(Repository://Entry:Action?{Context}).
 
