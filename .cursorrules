@@ -216,9 +216,9 @@ module:predicate_name(Arg1, Arg2) :-
 ## How to run (IMPORTANT)
 - Do NOT run ad-hoc `swipl -g "..."` snippets; they often miss required operator defs, libraries, and module load order.
 - Always launch via the project wrapper (project root):
-  - `./Source/Scripts/portage-ng-dev --mode standalone --pretend <target>`
-  - `./Source/Scripts/portage-ng-dev --mode standalone --shell`
-  - Non-interactive / CI-style: `./Source/Scripts/portage-ng-dev --mode standalone --ci --pretend <target>`
+  - `./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --pretend <target>`
+  - `./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --shell`
+  - Non-interactive / CI-style: `./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --ci --pretend <target>`
     Exit codes:
       - 0 = no assumptions
       - 1 = only prover cycle-break assumptions
@@ -231,7 +231,7 @@ module:predicate_name(Arg1, Arg2) :-
 For quick iteration and for reproducible debugging, prefer running a *scripted* Prolog session via `--shell` and a here-doc:
 
 ```sh
-./Source/Scripts/portage-ng-dev --mode standalone --shell --timeout 60 <<'PL'
+./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --shell --timeout 60 <<'PL'
 prover:test_stats(portage).
 % Any other queries you want:
 % prover:test_stats_pkgs(portage, ['kde-apps'-'kde-apps-meta']).
@@ -333,14 +333,7 @@ A gentoo-prefix environment at `~/gentoo-prefix/` allows running `emerge -vp`
 on macOS for quick comparison against portage-ng output.
 
 ### Setup
-- Installed via `Source/Scripts/emerge-install.sh` (run once per machine):
-  ```sh
-  ./Source/Scripts/emerge-install.sh \
-      --portage-src ~/Git/portage \
-      --portage-tree ~/Repository/portage-git \
-      --portage-ng ~/Desktop/Prolog \
-      --vdb ~/Repository/pkg
-  ```
+- Installed via the external `emerge-install.sh` script (run once per machine).
 - Requires a local clone of the portage source (e.g. `~/Git/portage`).
 - Config files under `~/gentoo-prefix/etc/portage/` are symlinked from the
   portage-ng config directory.

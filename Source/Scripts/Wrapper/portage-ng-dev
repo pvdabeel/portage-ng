@@ -4,8 +4,8 @@
 # Useful for CI and for running inside restricted shells (e.g. Cursor sandbox).
 #
 # Usage:
-#   ./Source/Scripts/portage-ng-dev --mode standalone accerciser
-#   ./Source/Scripts/portage-ng-dev --mode standalone --shell
+#   ./Source/Scripts/Wrapper/portage-ng-dev --mode standalone accerciser
+#   ./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --shell
 #
 set -eu
 

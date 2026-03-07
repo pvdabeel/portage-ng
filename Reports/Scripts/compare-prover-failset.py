@@ -3,7 +3,7 @@
 Compare failed package sets between two prover:test(portage) logs.
 
 Expected input logs are plain terminal captures of:
-  ./Source/Scripts/portage-ng-dev --mode standalone --shell <<'PL'
+  ./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --shell <<'PL'
   prover:test(portage).
   halt.
   PL

@@ -432,7 +432,7 @@ interface:process_upgrade(ArgsSets0, Options) :-
 % Proves the given targets and prints only the domain-assumption bug report
 % drafts (Gentoo Bugzilla style), without rendering the full plan.
 %
-% Example: portage-ng-dev --mode standalone --bugs ghc
+% Example: Source/Scripts/Wrapper/portage-ng-dev --mode standalone --bugs ghc
 
 interface:process_bugs([], _Options) :-
   !,
