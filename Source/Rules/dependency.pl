@@ -43,7 +43,6 @@ The rule/2 clauses in rules.pl call into this module when they need to:
 
 :- module(dependency, []).
 
-
 % =============================================================================
 %  Dependency context management
 % =============================================================================

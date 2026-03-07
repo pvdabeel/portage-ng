@@ -74,7 +74,6 @@ by the constraint_guard/2 prover hooks.
 
 :- module(candidate, []).
 
-
 % =============================================================================
 %  Slot primitives
 % =============================================================================
@@ -426,17 +425,32 @@ selected_cn_rejected_candidates(Action, C, N, SlotReq, PackageDeps, Context, Rej
   sort(Rejected0, Rejected),
   !.
 
+%! candidate:grouped_dep_candidate_satisfies_constraints(+Action, +C, +N, +PackageDeps, +Context, +RepoEntry)
+%
+% True if RepoEntry satisfies all version constraints and the effective
+% domain for (C,N) in the given context.
+
 grouped_dep_candidate_satisfies_constraints(Action, C, N, PackageDeps, Context, RepoEntry) :-
   forall(member(package_dependency(_Phase,no,C,N,O,V,_SlotReq,_Use), PackageDeps),
          query_search_version_select(O, V, RepoEntry)),
   grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps, Context, RepoEntry),
   !.
 
+%! candidate:grouped_dep_candidate_satisfies_constraints_precomputed(+C, +N, +PackageDeps, +EffDom, +RejectDom, +RepoEntry)
+%
+% Like grouped_dep_candidate_satisfies_constraints/6 but uses precomputed
+% effective and reject domains to avoid redundant domain intersection.
+
 grouped_dep_candidate_satisfies_constraints_precomputed(C, N, PackageDeps, EffDom, RejectDom, RepoEntry) :-
   forall(member(package_dependency(_Phase,no,C,N,O,V,_SlotReq,_Use), PackageDeps),
          query_search_version_select(O, V, RepoEntry)),
   grouped_dep_candidate_satisfies_effective_domain_precomputed(EffDom, RejectDom, C, N, RepoEntry),
   !.
+
+%! candidate:grouped_dep_effective_domain_precomputed(+Action, +C, +N, +PackageDeps, +Context, -EffDom, -RejectDom)
+%
+% Precomputes both the effective version domain and the scoped reject
+% domain for a grouped dependency. Avoids recomputing these per-candidate.
 
 grouped_dep_effective_domain_precomputed(Action, C, N, PackageDeps, Context, EffectiveDomain, RejectDomain) :-
   grouped_dep_effective_domain(Action, C, N, PackageDeps, Context, EffectiveDomain),
@@ -492,15 +506,28 @@ apply_learned_domain(C, N, PackageDeps, D0, D) :-
   ; D = D0
   ), !.
 
+%! candidate:dep_slot_key(+PackageDeps, -Slot)
+%
+% Extracts a canonical slot key from the first slotted dep in PackageDeps,
+% or returns `any` if none carries a slot requirement.
+
 dep_slot_key(PackageDeps, Slot) :-
   member(package_dependency(_, _, _, _, _, _, SlotReq, _), PackageDeps),
   SlotReq = [slot(S)|_], canon_slot(S, Slot), !.
 dep_slot_key(_, any).
 
+%! candidate:context_cn_domain_constraint(+C, +N, +Context, -Domain)
+%
+% Extracts the cn_domain constraint for (C,N) from the prover context.
+
 context_cn_domain_constraint(C, N, Context, Domain) :-
   is_list(Context),
   memberchk(constraint(cn_domain(C,N):{Domain}), Context),
   !.
+
+%! candidate:context_cn_domain_reason(+C, +N, +Context, -Reasons)
+%
+% Extracts domain reason tags for (C,N) from the prover context.
 
 context_cn_domain_reason(C, N, Context, Reasons) :-
   is_list(Context),
@@ -512,6 +539,11 @@ context_cn_domain_reason(C, N, Context, Reasons) :-
   ),
   !.
 
+%! candidate:context_selected_cn_candidates(+C, +N, +Context, -Candidates)
+%
+% Extracts the list of previously-selected candidates for (C,N) from
+% the constraint store in Context.
+
 context_selected_cn_candidates(C, N, Context, Candidates) :-
   is_list(Context),
   memberchk(constraint(selected_cn(C,N):{ordset(SelectedSet)}), Context),
@@ -521,6 +553,11 @@ context_selected_cn_candidates(C, N, Context, Candidates) :-
   sort(Candidates0, Candidates),
   Candidates \== [],
   !.
+
+%! candidate:context_cn_reject_scope(+C, +N, +Context, +Domain, -Scope)
+%
+% Determines the reject scope for (C,N): either a specific slot from
+% the context or derived from the domain.
 
 context_cn_reject_scope(C, N, Context, Domain, Scope) :-
   ( context_slot_scope(C, N, Context, Scope0) ->
@@ -555,10 +592,19 @@ cn_reject_scoped_domain(Scope0, Domain, scoped(Scope, Domain)) :-
   cn_reject_scope_canon(Scope0, Scope),
   !.
 
+%! candidate:snapshot_selected_cn_candidates(+C, +N, -Candidates)
+%
+% Retrieves the memoized snapshot of selected candidates for (C,N).
+
 snapshot_selected_cn_candidates(C, N, Candidates) :-
   memo:selected_cn_snap_(C, N, Candidates),
   Candidates \== [],
   !.
+
+%! candidate:record_selected_cn_snapshot(+C, +N, +SelectedSet)
+%
+% Records a snapshot of the current selected candidates for (C,N) into
+% the memoization store, replacing any previous snapshot.
 
 record_selected_cn_snapshot(C, N, SelectedSet) :-
   findall(Repo://Entry,
@@ -569,10 +615,19 @@ record_selected_cn_snapshot(C, N, SelectedSet) :-
   assertz(memo:selected_cn_snap_(C, N, Candidates)),
   !.
 
+%! candidate:snapshot_blocked_cn_sources(+C, +N, -Sources)
+%
+% Retrieves the memoized blocker source snapshot for (C,N).
+
 snapshot_blocked_cn_sources(C, N, Sources) :-
   memo:blocked_cn_source_snap_(C, N, Sources),
   Sources \== [],
   !.
+
+%! candidate:record_blocked_cn_source_snapshot(+C, +N, +Sources)
+%
+% Records blocker source entries for (C,N), merging with any existing
+% snapshot via ord_union.
 
 record_blocked_cn_source_snapshot(C, N, Sources0) :-
   sort(Sources0, Sources),
@@ -583,6 +638,11 @@ record_blocked_cn_source_snapshot(C, N, Sources0) :-
   !.
 record_blocked_cn_source_snapshot(_C, _N, _Sources) :-
   !.
+
+%! candidate:reason_linked_selected_reprove_target(+Reasons, -SourceC, -SourceN, -SourceCandidates)
+%
+% Follows introduced_by reason chains to find the originally-selected
+% candidate that should be rejected in a cross-package reprove.
 
 reason_linked_selected_reprove_target(Reasons, SourceC, SourceN, [SourceRepo://SourceEntry]) :-
   is_list(Reasons),
@@ -595,6 +655,10 @@ reason_linked_selected_reprove_target(Reasons, SourceC, SourceN, [SourceRepo://S
   memberchk(SourceRepo://SourceEntry, SelectedSourceCandidates),
   !.
 
+%! candidate:domain_conflicting_candidates(+Domain, +Candidates, -Conflicting)
+%
+% Filters Candidates to those not allowed by Domain.
+
 domain_conflicting_candidates(_Domain, [], []) :-
   !.
 domain_conflicting_candidates(Domain, Candidates, Conflicting) :-
@@ -605,6 +669,10 @@ domain_conflicting_candidates(Domain, Candidates, Conflicting) :-
           Conflicting0),
   sort(Conflicting0, Conflicting),
   !.
+
+%! candidate:constraint_conflicting_candidates(+Action, +C, +N, +PackageDeps, +Context, +Candidates, -Conflicting)
+%
+% Filters Candidates to those not satisfying the grouped dependency constraints.
 
 constraint_conflicting_candidates(_Action, _C, _N, _PackageDeps, _Context, [], []) :-
   !.
@@ -746,12 +814,24 @@ add_cn_domain_origin_rejects_([C-N-Repo://Entry|Rest], Added0, Added) :-
   ),
   add_cn_domain_origin_rejects_(Rest, Added2, Added).
 
+%! candidate:cn_domain_reprove_enabled
+%
+% Guard predicate: succeeds when the prover's reprove mechanism is active.
+
 cn_domain_reprove_enabled :-
   prover:reprove_enabled,
   !.
 
+%! candidate:maybe_request_cn_domain_reprove(+C, +N, +Domain, +Selected)
+%
+% Throws prover_reprove/1 if reprove is enabled and Selected is non-empty.
+
 maybe_request_cn_domain_reprove(C, N, Domain, Selected) :-
   maybe_request_cn_domain_reprove(C, N, Domain, Selected, []).
+
+%! candidate:maybe_request_cn_domain_reprove(+C, +N, +Domain, +Selected, +Reasons)
+%
+% Extended variant that includes reason tags in the reprove exception.
 
 maybe_request_cn_domain_reprove(C, N, Domain, Selected, Reasons) :-
   cn_domain_reprove_enabled,
@@ -808,6 +888,11 @@ selected_cn_unique_or_reprove(C, N, _SelectedMerged, Constraints) :-
 selected_cn_unique_or_reprove(_C, _N, _SelectedMerged, _Constraints) :-
   fail.
 
+%! candidate:find_adjustable_origin(+Reasons, -OriginC, -OriginN, -RepoEntry)
+%
+% Finds an origin candidate from introduced_by reasons that has a learned
+% domain, making it a candidate for version exclusion during reprove.
+
 find_adjustable_origin(Reasons, OriginC, OriginN, Repo://Entry) :-
   member(introduced_by(Repo://Entry, _Action, _Why), Reasons),
   cache:ordered_entry(Repo, Entry, OriginC, OriginN, _),
@@ -833,6 +918,11 @@ maybe_learn_parent_narrowing(C, N, PackageDeps, Context) :-
   cn_domain_reprove_enabled,
   throw(prover_reprove(cn_domain(ParentC, ParentN, none, [ParentRepo://ParentEntry], [parent_narrowing]))).
 
+%! candidate:is_pdepend_failure(+PackageDeps, +Context)
+%
+% True if the dependency set involves PDEPEND or after_only context,
+% where parent narrowing should not be applied.
+
 is_pdepend_failure(PackageDeps, _Context) :-
   member(package_dependency(pdepend, _, _, _, _, _, _, _), PackageDeps),
   !.
@@ -840,6 +930,11 @@ is_pdepend_failure(_, Context) :-
   is_list(Context),
   memberchk(after_only(_), Context),
   !.
+
+%! candidate:is_multislot_miss(+C, +N, +PackageDeps, +Context)
+%
+% True if the dep targets a slot not yet represented in the selected set,
+% where parent narrowing would be counterproductive.
 
 is_multislot_miss(C, N, PackageDeps, Context) :-
   member(package_dependency(_, _, C, N, _, _, [slot(DepSlot0)|_], _), PackageDeps),
@@ -849,6 +944,11 @@ is_multislot_miss(C, N, PackageDeps, Context) :-
   \+ ( member(selected(_, _, _, _, SlotMeta), Selected),
        selected_cn_slot_key_(SlotMeta, DepSlot) ),
   !.
+
+%! candidate:selected_cn_partition_by_domain(+Domain, +Selected, -Allowed, -Conflicting)
+%
+% Partitions selected entries into those allowed by Domain and those
+% that conflict with it.
 
 selected_cn_partition_by_domain(_Domain, [], [], []) :-
   !.
@@ -876,6 +976,11 @@ selected_cn_not_blocked_or_reprove(C, N, _Specs, _Selected, Constraints) :-
   throw(prover_reprove(cn_domain(SourceC, SourceN, none, Candidates, []))).
 selected_cn_not_blocked_or_reprove(_C, _N, _Specs, _Selected, _Constraints) :-
   fail.
+
+%! candidate:blocked_cn_source_reprove_target(+C, +N, +Constraints, -SourceC, -SourceN, -Candidates)
+%
+% Finds the source candidate that introduced a blocker on (C,N) for
+% targeted reprove rejection.
 
 blocked_cn_source_reprove_target(C, N, Constraints, SourceC, SourceN, [Repo://Entry]) :-
   get_assoc(blocked_cn_source(C,N), Constraints, ordset(Sources)),
@@ -922,6 +1027,12 @@ selected_cn_domain_compatible_or_reprove(C, N, Domain, Selected, Constraints) :-
   ),
   !.
 
+%! candidate:prefer_global_selected_reject_from_domain(+C, +N, +Domain, +Selected, +Constraints)
+%
+% Heuristic: for certain categories (dev-haskell, dev-lang/ghc, dev-ml/cmdliner)
+% or equal-bound domains, prefer a global (domain=none) reject to keep the
+% reprove search space manageable.
+
 prefer_global_selected_reject_from_domain(C, _N, Domain, Selected, _Constraints) :-
   C == 'dev-haskell',
   Selected \== [],
@@ -947,6 +1058,10 @@ prefer_global_selected_reject_from_domain(C, N, Domain, Selected, Constraints) :
   \+ selected_cn_requires_same_slot_multiversion(C, N, Constraints),
   !.
 
+%! candidate:domain_has_upper_bound(+Domain)
+%
+% True if Domain has a `smaller` or `smallerequal` bound.
+
 domain_has_upper_bound(version_domain(_Slots, Bounds)) :-
   member(bound(Op, _Req), Bounds),
   ( Op == smaller
@@ -954,9 +1069,18 @@ domain_has_upper_bound(version_domain(_Slots, Bounds)) :-
   ),
   !.
 
+%! candidate:domain_has_equal_bound(+Domain)
+%
+% True if Domain has an `equal` bound.
+
 domain_has_equal_bound(version_domain(_Slots, Bounds)) :-
   member(bound(equal, _Req), Bounds),
   !.
+
+%! candidate:selected_cn_allow_multislot_constraints(+C, +N, +SlotReq, +PackageDeps, -Constraints)
+%
+% Generates an `allow_multislot` constraint when the dependency carries
+% a slot or version restriction that justifies multi-slot selection.
 
 selected_cn_allow_multislot_constraints(C, N, SlotReq, PackageDeps, [constraint(selected_cn_allow_multislot(C,N):{true})]) :-
   ( SlotReq = [slot(_)|_]
@@ -967,6 +1091,11 @@ selected_cn_allow_multislot_constraints(C, N, SlotReq, PackageDeps, [constraint(
   ),
   !.
 selected_cn_allow_multislot_constraints(_C, _N, _SlotReq, _PackageDeps, []).
+
+%! candidate:selected_cn_unique(+C, +N, +SelectedMerged, +Constraints)
+%
+% Dispatches to strict, per-slot, or per-slot+subslot uniqueness check
+% based on whether multislot is allowed and multiversion is required.
 
 selected_cn_unique(C, N, SelectedMerged, Constraints) :-
   ( get_assoc(selected_cn_allow_multislot(C,N), Constraints, _AllowFlag) ->
@@ -1009,6 +1138,11 @@ selected_cn_unique_per_slot_or_subslot([selected(Repo,Entry,_Act,_Ver,SlotMeta)|
          )),
   selected_cn_unique_per_slot_or_subslot(Rest).
 
+%! candidate:selected_cn_requires_same_slot_multiversion(+C, +N, +Constraints)
+%
+% True if the CN domain is inconsistent, indicating that multiple
+% versions in the same slot are required (subslot-level uniqueness).
+
 selected_cn_requires_same_slot_multiversion(C, N, Constraints) :-
   get_assoc(cn_domain(C,N), Constraints, Domain),
   version_domain:domain_inconsistent(Domain),
@@ -1050,12 +1184,20 @@ specs_violate_selected(Specs, Selected) :-
   blocker_spec_matches_selected(SelVer, SelSlotMeta, Repo, Entry, O, V, SlotReq),
   !.
 
+%! candidate:action_phase(+Action, -Phase)
+%
+% Maps a build action to its blocker-relevant phase.
+
 action_phase(run, run) :- !.
 action_phase(install, install) :- !.
 action_phase(reinstall, install) :- !.
 action_phase(update, install) :- !.
 action_phase(download, install) :- !.
 action_phase(_Other, run).
+
+%! candidate:blocker_spec_matches_selected(+SelVer, +SelSlotMeta, +Repo, +Entry, +O, +V, +SlotReq)
+%
+% True if a blocker spec (O, V, SlotReq) matches a selected candidate.
 
 blocker_spec_matches_selected(SelVer, SelSlotMeta, Repo, Entry, O, V, SlotReq) :-
   blocker_version_matches(O, V, SelVer, Repo, Entry),
@@ -1254,16 +1396,29 @@ cn_domain_constraints(Action, C, N, PackageDeps, Context, DomainCons, DomainReas
   ),
   !.
 
+%! candidate:domain_constraints_for_any_different_slot(+SlotReq, +DomainCons0, -DomainCons)
+%
+% Suppresses domain constraints for any_different_slot deps since they
+% deliberately seek a different slot from the existing selection.
+
 domain_constraints_for_any_different_slot([any_different_slot], _DomainCons0, []) :-
   !.
 domain_constraints_for_any_different_slot(_SlotReq, DomainCons, DomainCons) :-
   !.
+
+%! candidate:add_domain_reason_context(+C, +N, +ReasonTags, +Ctx0, -Ctx)
+%
+% Merges domain reason tags into the proof context via feature unification.
 
 add_domain_reason_context(_C, _N, [], Ctx, Ctx) :-
   !.
 add_domain_reason_context(C, N, ReasonTags, Ctx0, Ctx) :-
   feature_unification:unify([domain_reason(cn_domain(C,N,ReasonTags))], Ctx0, Ctx),
   !.
+
+%! candidate:dep_has_upper_version_bound(+C, +N, +PackageDeps)
+%
+% True if PackageDeps contains a `smaller` or `smallerorequal` constraint on (C,N).
 
 dep_has_upper_version_bound(C, N, PackageDeps) :-
   member(package_dependency(_Phase, no, C, N, Op, _V, _S, _U), PackageDeps),
@@ -1272,11 +1427,19 @@ dep_has_upper_version_bound(C, N, PackageDeps) :-
   ),
   !.
 
+%! candidate:dep_has_version_constraint(+C, +N, +PackageDeps)
+%
+% True if any dep on (C,N) carries a non-trivial version operator.
+
 dep_has_version_constraint(C, N, PackageDeps) :-
   member(package_dependency(_Phase, no, C, N, Op, _V, _S, _U), PackageDeps),
   nonvar(Op),
   Op \== none,
   !.
+
+%! candidate:dep_has_explicit_slot_constraint(+C, +N, +PackageDeps)
+%
+% True if any dep on (C,N) carries an explicit slot requirement.
 
 dep_has_explicit_slot_constraint(C, N, PackageDeps) :-
   member(package_dependency(_Phase, no, C, N, _Op, _V, SlotReq, _U), PackageDeps),
@@ -1311,8 +1474,17 @@ version_term_has_wildcard_(V0) :-
 prioritize_deps(Deps, SortedDeps) :-
   prioritize_deps(Deps, [], SortedDeps).
 
+%! candidate:prioritize_deps(+Deps, +Context, -SortedDeps)
+%
+% Sorts dependency groups by rank using Context for installed/use checks.
+
 prioritize_deps(Deps, Context, SortedDeps) :-
   predsort(candidate:compare_dep_rank(Context), Deps, SortedDeps).
+
+%! candidate:prioritize_deps_keep_all(+Deps, +Context, -SortedDeps)
+%
+% Like prioritize_deps/3 but uses a multi-key ranking (license-ok,
+% intrinsic rank, overlap count, snapshot status) to break ties.
 
 prioritize_deps_keep_all(Deps, Context, SortedDeps) :-
   findall(NegLicOk-NegRank-NegOverlap-NegSnap-I-Dep,
@@ -1366,6 +1538,10 @@ compare_dep_rank(Context, Delta, A, B) :-
   ; Delta = (=)
   ).
 
+%! candidate:dep_rank(+Context, +Dep, -Rank)
+%
+% Computes a numeric rank for a dependency term. Higher rank = preferred.
+
 dep_rank(Context, Dep, Rank) :-
   Dep \= package_dependency(_,_,_,_,_,_,_,_),
   ( is_preferred_dep(Context, Dep) -> Pref = 1 ; Pref = 0 ),
@@ -1416,6 +1592,11 @@ lua_single_target_rank(Use, Rank) :-
   atom_concat('lua_single_target_lua5-', Suffix, Use),
   catch(atom_number(Suffix, N), _, fail),
   Rank is 90000 + N.
+
+%! candidate:is_preferred_dep(+Context, +Dep)
+%
+% True if a dependency is "preferred" based on USE flags, installed
+% status, or all_of_group member satisfaction.
 
 is_preferred_dep(_Context, use_conditional_group(positive, Use, RepoEntry, _Deps)) :-
   \+ Use =.. [minus,_],
@@ -1477,6 +1658,11 @@ group_member_preferred(Context, all_of_group(Deps)) :-
 group_member_preferred(_Context, _Other) :-
   fail.
 
+%! candidate:installed_pkg_satisfies_dep(+ParentContext, +PackageDep)
+%
+% True if an installed package satisfies the version and USE requirements
+% of the given package_dependency term.
+
 installed_pkg_satisfies_dep(ParentContext,
                              package_dependency(_Phase,_Strength,C,N,O,V,_S,UseReqs)) :-
   query:search([name(N),category(C),installed(true)], pkg://InstalledId),
@@ -1485,6 +1671,11 @@ installed_pkg_satisfies_dep(ParentContext,
   ),
   use:installed_pkg_satisfies_use_reqs(ParentContext, pkg://InstalledId, UseReqs),
   !.
+
+%! candidate:installed_version_mismatch_penalty(+PackageDep, -Penalty)
+%
+% Returns a large negative penalty if a package is installed but the
+% installed version does not match the constraint, indicating a forced upgrade.
 
 installed_version_mismatch_penalty(package_dependency(_Phase,_Strength,C,N,O,V,_S,_U), Penalty) :-
   O \== none,
@@ -1560,12 +1751,21 @@ all_deps_have_explicit_slot(Deps) :-
          slot_req_explicit_slot_key(SlotReq, _S)),
   !.
 
+%! candidate:multiple_distinct_slots(+Deps)
+%
+% True if Deps contains package_dependency terms targeting more than one
+% distinct slot.
+
 multiple_distinct_slots(Deps) :-
   member(package_dependency(_,_,_,_,_,_,SR1,_), Deps),
   slot_req_explicit_slot_key(SR1, S1), !,
   member(package_dependency(_,_,_,_,_,_,SR2,_), Deps),
   slot_req_explicit_slot_key(SR2, S2),
   S2 \== S1, !.
+
+%! candidate:slot_req_explicit_slot_key(+SlotReq, -Slot)
+%
+% Extracts and canonicalises the explicit slot from a slot requirement list.
 
 slot_req_explicit_slot_key([slot(S0)], S) :-
   canon_slot(S0, S),
@@ -1579,6 +1779,10 @@ slot_req_explicit_slot_key([slot(S0),subslot(_Ss)], S) :-
 slot_req_explicit_slot_key([slot(S0),subslot(_Ss),equal], S) :-
   canon_slot(S0, S),
   !.
+
+%! candidate:all_deps_exactish_versioned(+Deps)
+%
+% True if every dep uses `tilde` or `equal` with a bound version and no slot.
 
 all_deps_exactish_versioned([]) :- !, fail.
 all_deps_exactish_versioned(Deps) :-
@@ -1599,6 +1803,11 @@ multiple_distinct_exactish_versions(Deps) :-
   Vs = [_|Rest],
   Rest \== [],
   !.
+
+%! candidate:should_split_grouped_dep(+PackageDeps)
+%
+% True if the grouped dependency should be split into per-slot or
+% per-version sub-groups for independent resolution.
 
 should_split_grouped_dep(PackageDeps) :-
   ( all_deps_have_explicit_slot(PackageDeps),
@@ -1650,6 +1859,11 @@ augment_package_deps_with_self_rdepend(install, C, N, Context, PackageDeps0, Pac
 augment_package_deps_with_self_rdepend(_OtherAction, _C, _N, _Context, PackageDeps, PackageDeps) :-
   !.
 
+%! candidate:dep_has_version_constraints(+C, +N, +PackageDeps)
+%
+% True if PackageDeps already contains a non-trivial version operator
+% for (C,N). Used to skip RDEPEND augmentation when bounds already exist.
+
 dep_has_version_constraints(C, N, PackageDeps) :-
   member(package_dependency(_Phase, no, C, N, Op, _V, _S, _U), PackageDeps),
   Op \== none,
@@ -1667,6 +1881,11 @@ self_rdepend_extra_slot_compatible([slot(S0)|_],
   ).
 self_rdepend_extra_slot_compatible(_BaseSlotReq, _ExtraDep) :-
   !.
+
+%! candidate:self_rdepend_vbounds_for_cn(+Repo, +SelfId, +C, +N, -Extra)
+%
+% Returns version-bound deps from the parent's RDEPEND on (C,N), with
+% memoization via memo:rdepend_vbounds_cache_/5.
 
 self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra) :-
   ( memo:rdepend_vbounds_cache_(Repo, SelfId, C, N, Extra0) ->
@@ -1725,6 +1944,11 @@ rdepend_collect_vbounds_for_cn_list([T|Ts], C, N, SelfRepoEntry, Deps) :-
   rdepend_collect_vbounds_for_cn_list(Ts, C, N, SelfRepoEntry, D1),
   append(D0, D1, Deps),
   !.
+
+%! candidate:rdepend_self_use_conditional_active(+Polarity, +Use, +SelfRepoEntry)
+%
+% True if a USE-conditional guard in the parent's RDEPEND is active
+% based on the parent's effective USE flags.
 
 rdepend_self_use_conditional_active(positive, Use, SelfRepoEntry) :-
   ( use:effective_use_for_entry(SelfRepoEntry, Use, positive) ->
@@ -1802,6 +2026,11 @@ effective_license_term_(use_conditional_group(Pol, Use, _Self, Deps), RepoEntry,
   effective_license_term_(D, RepoEntry, License).
 effective_license_term_(License, _RepoEntry, License) :-
   atom(License).
+
+%! candidate:dep_license_ok(+Dep)
+%
+% True if at least one visible, license-accepted candidate exists for
+% the dependency's (C,N).
 
 dep_license_ok(package_dependency(_, _, C, N, _, _, _, _)) :- !,
   cache:ordered_entry(Repo, Entry, C, N, _),
@@ -1889,9 +2118,11 @@ accepted_keyword_candidate(Action, C, N, SlotReq0, Ss0, Context, FoundRepo://Can
   predsort(candidate:compare_candidate_version_desc, Candidates1, CandidatesSorted),
   member(FoundRepo://Candidate, CandidatesSorted).
 
-% Like query_keyword_candidate but accepts any candidate, including those with
-% non-accepted keywords or no keywords at all. Used when keyword_acceptance
-% fallback is active to let keyword-filtered packages through.
+%! candidate:query_keyword_candidate_any(+Action, +C, +N, +Context, -RepoEntry)
+%
+% Like query_keyword_candidate but accepts any candidate regardless of
+% keywords. Used when keyword_acceptance fallback is active.
+
 query_keyword_candidate_any(Action, C, N, Context, FoundRepo://Candidate) :-
   ( Action \== run,
     memberchk(self(SelfRepo0://SelfEntry0), Context),
@@ -1910,8 +2141,11 @@ query_keyword_candidate_any(Action, C, N, Context, FoundRepo://Candidate) :-
     \+ preference:masked(FoundRepo://Candidate)
   ).
 
-% Accepts masked candidates with any accepted keyword. Used when the unmask
+%! candidate:query_keyword_candidate_masked(+Action, +C, +N, +Context, -RepoEntry)
+%
+% Accepts masked candidates with any keyword. Used when the unmask
 % fallback is active to let masked packages through for full resolution.
+
 query_keyword_candidate_masked(Action, C, N, Context, FoundRepo://Candidate) :-
   ( Action \== run,
     memberchk(self(SelfRepo0://SelfEntry0), Context),
@@ -1927,6 +2161,11 @@ query_keyword_candidate_masked(Action, C, N, Context, FoundRepo://Candidate) :-
     )
   ; query:search([name(N),category(C),keyword(_)], FoundRepo://Candidate)
   ).
+
+%! candidate:accepted_keyword_slot_lock_arg(+C, +N, +SlotReq0, +Ss0, +Context, -SlotReq, -Ss, -LockKey)
+%
+% Resolves slot lock arguments for keyword-aware candidate enumeration,
+% incorporating context-level slot constraints.
 
 accepted_keyword_slot_lock_arg(C, N, SlotReq0, Ss0, Context, SlotReq, Ss, LockKey) :-
   ( memberchk(slot(C,N,SsCtx0):{_}, Context) ->
@@ -1970,6 +2209,11 @@ greedy_candidate_package('dev-lang', ocaml) :- !.
 greedy_candidate_package('dev-ml', findlib) :- !.
 greedy_candidate_package('dev-ml', ocamlbuild) :- !.
 
+%! candidate:accepted_keyword_candidates_cached(+Action, +C, +N, +SlotReq, +LockKey, -CandidatesSorted)
+%
+% Returns memoized keyword-accepted candidates sorted by version descending.
+% Builds and caches the result on first call for each (Action, C, N, SlotReq, LockKey).
+
 accepted_keyword_candidates_cached(Action, C, N, SlotReq, LockKey, CandidatesSorted) :-
   ( memo:keyword_cache_(Action, C, N, SlotReq, LockKey, CandidatesSorted) ->
     true
@@ -1986,6 +2230,11 @@ accepted_keyword_candidates_cached(Action, C, N, SlotReq, LockKey, CandidatesSor
     predsort(candidate:compare_candidate_version_desc, Candidates1, CandidatesSorted),
     assertz(memo:keyword_cache_(Action, C, N, SlotReq, LockKey, CandidatesSorted))
   ).
+
+%! candidate:query_keyword_candidate(+Action, +C, +N, +Keyword, +Context, -RepoEntry)
+%
+% Enumerates unmasked candidates for (C,N) matching keyword K. Handles
+% self-reference filtering when the parent is the same (C,N).
 
 query_keyword_candidate(Action, C, N, K, Context, FoundRepo://Candidate) :-
   ( Action \== run,
@@ -2004,6 +2253,11 @@ query_keyword_candidate(Action, C, N, K, Context, FoundRepo://Candidate) :-
   ; query:search([name(N),category(C),keyword(K)], FoundRepo://Candidate),
     \+ preference:masked(FoundRepo://Candidate)
   ).
+
+%! candidate:compare_candidate_version_desc(-Delta, +A, +B)
+%
+% Comparison predicate for predsort/3: orders candidates by version
+% descending (newest first).
 
 compare_candidate_version_desc(Delta, RepoA://IdA, RepoB://IdB) :-
   cache:ordered_entry(RepoA, IdA, _Ca, _Na, VerA),
@@ -2054,10 +2308,20 @@ candidates_prefer_proven_providers(virtual, _N, SlotReq, Candidates, Reordered) 
   append(Preferred, Rest, Reordered).
 candidates_prefer_proven_providers(_C, _N, _SlotReq, Candidates, Candidates).
 
+%! candidate:candidate_has_proven_provider(+RepoEntry)
+%
+% True if the candidate's RDEPEND references a (C,N) that has already
+% been selected in the current proof.
+
 candidate_has_proven_provider(Repo://Entry) :-
   cache:entry_metadata(Repo, Entry, rdepend, Dep),
   dep_references_selected_cn(Dep),
   !.
+
+%! candidate:dep_references_selected_cn(+DepTerm)
+%
+% True if a dependency term references a (C,N) pair that has been
+% selected in the current proof snapshot.
 
 dep_references_selected_cn(package_dependency(_Phase,_Str,C,N,_O,_V,Ss,_U)) :-
   snapshot_selected_cn_candidates(C, N, SelCandidates),

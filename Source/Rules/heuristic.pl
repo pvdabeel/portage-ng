@@ -59,7 +59,6 @@ The following predicates are called by the prover:
                       init_state/0,
                       cleanup_state/0]).
 
-
 % =============================================================================
 %  Obligation candidate filtering (domain hook for prover)
 % =============================================================================
