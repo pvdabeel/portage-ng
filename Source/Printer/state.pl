@@ -20,8 +20,12 @@ plus the wait_for_input/0 TTY pause helper.
 
 
 % =============================================================================
-%  Prover state printing
+%  STATE declarations
 % =============================================================================
+
+% -----------------------------------------------------------------------------
+%  Prover state display
+% -----------------------------------------------------------------------------
 
 %! state:display_state(+Target, +Proof, +Model, +Constraints)
 %
@@ -42,11 +46,13 @@ state:display_state(Target, Proof, Model, Constraints) :-
 
     message:hl,
 
+    % --- Current literal ---
     message:color(orange), message:style(bold),
     format('--- Proving ---~n'),
     message:color(normal), message:style(normal),
     format('  ~w~n~n', [Current]),
 
+    % --- Proof stack (in progress) ---
     message:color(magenta), message:style(bold),
     format('--- Proving Stack (In Progress) ---~n'),
     message:color(normal), message:style(normal),
@@ -57,12 +63,14 @@ state:display_state(Target, Proof, Model, Constraints) :-
     ),
     nl,
 
+    % --- To-do queue ---
     message:color(cyan), message:style(bold),
     format('--- Proving Queue (To Do) ---~n'),
     message:color(normal), message:style(normal),
     ( Queue == [] -> writeln('  (empty)') ; forall(member(Q, Queue), format('  ~w~n', [Q])) ),
     nl,
 
+    % --- Model (completed) ---
     message:color(green), message:style(bold),
     format('--- Model (Completed) ---~n'),
     message:color(normal), message:style(normal),
@@ -71,6 +79,7 @@ state:display_state(Target, Proof, Model, Constraints) :-
     ; forall(member(M, ModelList), ( format('  ~w~n', [M]) ))),
     nl,
 
+    % --- Constraints (completed) ---
     message:color(green), message:style(bold),
     format('--- Constraints (Completed) ---~n'),
     message:color(normal), message:style(normal),
@@ -78,6 +87,10 @@ state:display_state(Target, Proof, Model, Constraints) :-
     ( ConstraintList  == [] -> writeln('  (empty)')
     ; forall(member(M, ConstraintList), ( format('  ~w~n', [M]) ))).
 
+
+% -----------------------------------------------------------------------------
+%  TTY helpers
+% -----------------------------------------------------------------------------
 
 %! state:wait_for_input
 %

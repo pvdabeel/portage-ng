@@ -799,6 +799,20 @@ eapi:operator(none) -->
   [], !.
 
 
+%! eapi:comparator_symbol(+Op, -Symbol)
+%
+% Maps a comparator atom to its printable symbol.
+
+eapi:comparator_symbol(greaterequal, '>=').
+eapi:comparator_symbol(greater,      '>').
+eapi:comparator_symbol(smallerequal, '<=').
+eapi:comparator_symbol(smaller,      '<').
+eapi:comparator_symbol(equal,        '=').
+eapi:comparator_symbol(tilde,        '~').
+eapi:comparator_symbol(none,         '').
+eapi:comparator_symbol(Op,           Op).
+
+
 % -----------------------------------------------------------------------------
 %  DCG subtypes
 % -----------------------------------------------------------------------------

@@ -20,13 +20,17 @@ HTML index rendering has moved to Source/Printer/index.pl (module index).
 :- module(info, []).
 
 
+% =============================================================================
+%  INFO declarations
+% =============================================================================
+
 % -----------------------------------------------------------------------------
-%  Ebuild INFO printing
+%  Entry points
 % -----------------------------------------------------------------------------
 
-%! info:print_entry(Repository://Entry)
+%! info:print_entry(+Repository://Entry)
 %
-% Prints information an a repository entry
+% Prints information on a repository entry.
 
 info:print_entry(Repository://Entry) :-
   !,
@@ -35,18 +39,22 @@ info:print_entry(Repository://Entry) :-
   info:print_metadata(Repository://Entry).
 
 
-%! info:print_metadata(Repository://Entry)
+% -----------------------------------------------------------------------------
+%  Metadata dispatch
+% -----------------------------------------------------------------------------
+
+%! info:print_metadata(+Repository://Entry)
 %
-% Prints information an a repository entry metadata
+% Iterates over the printable metadata list and prints each item.
 
 info:print_metadata(Repository://Entry) :-
   config:printable_metadata(List),
   forall(member(I,List),info:print_metadata_item(I,Repository://Entry)).
 
 
-%! info:print_metadata_item(Item,Repository://Entry)
+%! info:print_metadata_item(+Item, +Repository://Entry)
 %
-% Prints specific metadata item
+% Prints a single metadata item (or separator).
 
 info:print_metadata_item(blank,_) :-
   !,
@@ -67,9 +75,13 @@ info:print_metadata_item(Item,Repository://Entry) :-
   info:print_metadata_item_details(Item,Values).
 
 
-%! info:print_metadata_item_details(Item,List)
+% -----------------------------------------------------------------------------
+%  Metadata item details
+% -----------------------------------------------------------------------------
+
+%! info:print_metadata_item_details(+Item, +Values)
 %
-% Prints specific metadata item detail list
+% Prints the detail list for a metadata item, or "[not set]" if empty.
 
 info:print_metadata_item_details(_Item,[]) :-
   !,
@@ -87,18 +99,29 @@ info:print_metadata_item_details(Item,List) :-
   forall(member(Value,List),(info:print_metadata_item_detail(Item,Prefix,Value),nl)).
 
 
-%! info:print_metadata_item_detail(Item,Prefix,Value)
-%
-% Prints specific metadata item detail
+% -----------------------------------------------------------------------------
+%  Detail: EAPI version
+% -----------------------------------------------------------------------------
 
 info:print_metadata_item_detail(eapi,Prefix,version(_,_,_,_,_,_,Value)) :-
   write(Prefix),
   write(Value).
 
+
+% -----------------------------------------------------------------------------
+%  Detail: source URI
+% -----------------------------------------------------------------------------
+
 info:print_metadata_item_detail(src_uri,Prefix,uri(_,_,Value)) :-
   !,
   write(Prefix),
   write(Value).
+
+
+% -----------------------------------------------------------------------------
+%  Detail: dependency groups (USE conditional, any_of, all_of, exactly_one_of,
+%          at_most_one_of)
+% -----------------------------------------------------------------------------
 
 info:print_metadata_item_detail(Item,Prefix,use_conditional_group(Type,Use,_Id,Values)) :-
   !,
@@ -150,6 +173,11 @@ info:print_metadata_item_detail(Item,Prefix,at_most_one_of_group(Values)) :-
   atom_concat('   ',Prefix,NewPrefix),
   forall(member(V,Values),(nl,message:color(darkgray),message:color(normal),info:print_metadata_item_detail(Item,NewPrefix,V))).
 
+
+% -----------------------------------------------------------------------------
+%  Detail: package dependencies
+% -----------------------------------------------------------------------------
+
 info:print_metadata_item_detail(_,Prefix,package_dependency(_,Blocking,Category,Name,none,[[],_,_,_,_],Slot,Use)) :-
   !,
   write(Prefix),
@@ -173,6 +201,11 @@ info:print_metadata_item_detail(_,Prefix,package_dependency(_,Blocking,Category,
   info:print_slot_restriction(Slot),
   info:print_use_dependencies(Use).
 
+
+% -----------------------------------------------------------------------------
+%  Detail: grouped package dependencies
+% -----------------------------------------------------------------------------
+
 info:print_metadata_item_detail(_,Prefix,grouped_package_dependency(_C,_N,List)) :-
   !,
   forall(member(V,List),(
@@ -187,14 +220,27 @@ info:print_metadata_item_detail(_,Prefix,grouped_package_dependency(_X,_C,_N,Lis
     nl
   )).
 
+
+% -----------------------------------------------------------------------------
+%  Detail: catch-all
+% -----------------------------------------------------------------------------
+
 info:print_metadata_item_detail(_,Prefix,Value) :-
   write(Prefix),
   write(Value).
 
 
-%! info:print_blocking(Type)
+% -----------------------------------------------------------------------------
+%  Dependency annotation helpers
+% -----------------------------------------------------------------------------
+
+% -----------------------------------------------------------------------------
+%  Blockers
+% -----------------------------------------------------------------------------
+
+%! info:print_blocking(+Type)
 %
-% Prints metadata for a blocking dependency
+% Prints blocker annotation for a dependency (no, weak, strong).
 
 info:print_blocking(no) :- !.
 
@@ -213,22 +259,26 @@ info:print_blocking(strong) :-
   message:color(normal).
 
 
-%! info:print_comparator(Type)
+% -----------------------------------------------------------------------------
+%  Comparators
+% -----------------------------------------------------------------------------
+
+%! info:print_comparator(+Op)
 %
-% Prints short version of comparator
+% Prints the symbol for a comparator operator.
 
-info:print_comparator(greaterequal) :- write('>=').
-info:print_comparator(greater)      :- write('>').
-info:print_comparator(smallerequal) :- write('<=').
-info:print_comparator(smaller)      :- write('<').
-info:print_comparator(equal)        :- write('=').
-info:print_comparator(tilde)        :- write('~').
-info:print_comparator(none)         :- write('').
+info:print_comparator(Op) :-
+  eapi:comparator_symbol(Op, Sym),
+  write(Sym).
 
 
-%! info:print_use_dependencies(Use)
+% -----------------------------------------------------------------------------
+%  USE dependencies
+% -----------------------------------------------------------------------------
+
+%! info:print_use_dependencies(+Use)
 %
-% Prints use dependencies
+% Prints the USE dependency list for a package dependency.
 
 info:print_use_dependencies([]) :- !.
 
@@ -243,9 +293,9 @@ info:print_use_dependencies(Use) :-
   message:color(normal).
 
 
-%! info:print_use_dependency(Use)
+%! info:print_use_dependency(+Dep)
 %
-% Print use dependency
+% Prints a single USE dependency term.
 
 info:print_use_dependency(use(inverse(U),D)) :-
   write('!'),
@@ -281,9 +331,9 @@ info:print_use_dependency(Other) :-
   write(Other).
 
 
-%! info:print_use_default(D)
+%! info:print_use_default(+Default)
 %
-% Prints use default for a use dependency
+% Prints the default indicator for a USE dependency.
 
 info:print_use_default(positive) :-
   write('(+)').
@@ -294,9 +344,13 @@ info:print_use_default(negative) :-
 info:print_use_default(none) :- !.
 
 
-%! info:print_slot_restriction(S)
+% -----------------------------------------------------------------------------
+%  Slot restrictions
+% -----------------------------------------------------------------------------
+
+%! info:print_slot_restriction(+SlotSpec)
 %
-% Prints slot restriction for a package dependency
+% Prints the slot restriction suffix for a package dependency.
 
 info:print_slot_restriction([]) :- !.
 

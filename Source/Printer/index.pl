@@ -15,13 +15,17 @@ HTML index page rendering for repository, category, and package listings.
 :- module(index, []).
 
 
+% =============================================================================
+%  INDEX declarations
+% =============================================================================
+
 % -----------------------------------------------------------------------------
-%  INDEX printing
+%  Entry point
 % -----------------------------------------------------------------------------
 
 %! index:print_index(+Type, +Title, +TitleHtml, +Generator, +Template, +Stylesheet)
 %
-% Print an index for a given Generator (repository:category, repository:package)
+% Print a complete HTML index page for a given Generator.
 
 index:print_index(Type,Title,TitleHtml,Generator,Template,Stylesheet) :-
   index:print_index_header(Title,TitleHtml,Stylesheet),
@@ -29,9 +33,13 @@ index:print_index(Type,Title,TitleHtml,Generator,Template,Stylesheet) :-
   index:print_index_footer.
 
 
+% -----------------------------------------------------------------------------
+%  Page structure
+% -----------------------------------------------------------------------------
+
 %! index:print_index_header(+Title, +TitleHtml, +Stylesheet)
 %
-% Print an index header with a given Title and Stylesheet
+% Print the XHTML page header including doctype, head, and opening body/list.
 
 index:print_index_header(Title,TitleHtml,Stylesheet) :-
   writeln('<?xml version="1.0" encoding="UTF-8" ?>'),
@@ -49,7 +57,7 @@ index:print_index_header(Title,TitleHtml,Stylesheet) :-
 
 %! index:print_index_footer
 %
-% Print an index footer
+% Print the closing list, body, and html tags.
 
 index:print_index_footer :-
   writeln('</ul>'),
@@ -57,9 +65,13 @@ index:print_index_footer :-
   writeln('</html>').
 
 
+% -----------------------------------------------------------------------------
+%  Element rendering
+% -----------------------------------------------------------------------------
+
 %! index:print_index_element(+Type, +Element)
 %
-% Print an element in the index
+% Print a single list item linking to the appropriate sub-page.
 
 index:print_index_element(repository,E) :-
   write('<li class="element"><a href="./'),

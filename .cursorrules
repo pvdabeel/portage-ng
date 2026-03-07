@@ -90,6 +90,104 @@ When testing changes to the learned constraint mechanism, ALWAYS verify:
 - Prolog module names follow the same rule (e.g. `:- module(gentoo, [])`).
 - Subdirectory names under `Source/` may use CamelCase (e.g. `Rules/`, `Config/`, `Scripts/`).
 
+
+## Source file documentation style
+
+Every `.pl` source file follows a strict layout. Use `Source/bonjour.pl` as the
+canonical reference.
+
+### 1. File header (block comment)
+
+```prolog
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2026, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+```
+
+- One blank line after the closing `*/`.
+
+### 2. Module documentation (PlDoc)
+
+```prolog
+/** <module> MODULE_NAME_UPPERCASE
+Short one-line description.
+
+Optional longer description (may span multiple lines).
+*/
+```
+
+- Module name in the `<module>` tag is UPPERCASE (e.g. `BONJOUR`, `INDEX`).
+- One blank line after the closing `*/`.
+
+### 3. Module declaration
+
+```prolog
+:- module(modulename, []).
+```
+
+- Two blank lines after the module declaration.
+
+### 4. Chapter header (one per file, immediately after module declaration)
+
+```prolog
+% =============================================================================
+%  MODULE_NAME_UPPERCASE declarations
+% =============================================================================
+```
+
+- Exactly one `=====` chapter per file, right after `:- module`.
+- Title format: `MODULE_NAME_UPPERCASE declarations`.
+- One blank line after the closing `%  ===...` line.
+
+### 5. Section headers (all subsequent sections)
+
+```prolog
+% -----------------------------------------------------------------------------
+%  Section title
+% -----------------------------------------------------------------------------
+```
+
+- All sections after the chapter header use `-----` dashes.
+- Title is a short descriptive phrase (e.g. `Advertise a service`,
+  `Dependency annotation helpers`).
+- One blank line after the closing `%  ---...` line.
+
+### 6. Predicate documentation (PlDoc)
+
+```prolog
+%! module:predicate_name(+Arg1, -Arg2)
+%
+% Short description of what the predicate does.
+
+module:predicate_name(Arg1, Arg2) :-
+  body.
+```
+
+- `%!` line declares the predicate with mode indicators (`+`, `-`, `?`).
+- `%` blank doc-comment line separates the signature from the description.
+- Description is one or more `%` lines.
+- One blank line between the description and the clause head.
+- Two blank lines between consecutive predicates.
+- Multi-clause predicates: no blank line between clauses of the same predicate;
+  two blank lines before the next predicate.
+
+### 7. Spacing summary
+
+| Element                        | Blank lines after |
+|-------------------------------|-------------------|
+| File header `*/`               | 1                 |
+| PlDoc module comment `*/`      | 1                 |
+| `:- module(...)` declaration   | 2                 |
+| `=====` chapter header         | 1                 |
+| `-----` section header         | 1                 |
+| Predicate doc + last clause    | 2                 |
+| Between clauses of same pred   | 0                 |
+
 ## Configuration
 
 ### Portage tree locations

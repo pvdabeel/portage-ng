@@ -188,7 +188,7 @@ warning:blocker_assumption_line(Content, Strength, Phase, BlockAtom, RequiredBy)
 
 warning:blocker_atom(Strength, C, N, O, V0, SlotReq, Atom) :-
   ( Strength == strong -> Bang = '!!' ; Bang = '!' ),
-  warning:comparator_symbol(O, Sym),
+  eapi:comparator_symbol(O, Sym),
   ( var(V0) -> V = '' ; warning:version_atom(V0, V) ),
   warning:blocker_slot_suffix(SlotReq, SlotSuf),
   ( V == '' ->
@@ -672,18 +672,10 @@ warning:take_first_n([X|Xs], N, [X|Ys]) :-
   warning:take_first_n(Xs, N1, Ys).
 
 warning:bugreport_constraint_short(Op, Ver0, Short) :-
-  warning:comparator_symbol(Op, Sym),
+  eapi:comparator_symbol(Op, Sym),
   warning:version_atom(Ver0, Ver),
   format(atom(Short), '~w~w', [Sym, Ver]).
 
-warning:comparator_symbol(greaterequal, '>=') :- !.
-warning:comparator_symbol(greater,      '>')  :- !.
-warning:comparator_symbol(smallerequal, '<=') :- !.
-warning:comparator_symbol(smaller,      '<')  :- !.
-warning:comparator_symbol(equal,        '=')  :- !.
-warning:comparator_symbol(tilde,        '~')  :- !.
-warning:comparator_symbol(none,         '')   :- !.
-warning:comparator_symbol(Op,           Op).
 
 
 %! warning:handle_assumption(+ProofKey)

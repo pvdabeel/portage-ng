@@ -18,53 +18,29 @@ prover:test/1 whole-repo runs.
 
 :- module(stats, []).
 
+
+% =============================================================================
+%  STATS declarations
+% =============================================================================
+
 % -----------------------------------------------------------------------------
-%  Test stats table formatting helpers
+%  Table layout (derived from config)
 % -----------------------------------------------------------------------------
-%
-% Column-width constants and formatting utilities shared by all test_stats
-% tables. All tables are 80 columns wide (including the 2-space indent).
-
-%! stats:test_stats_table_width(?Width)
-%
-% Total table width (characters) including the 2-space left indent.
-
-stats:test_stats_table_width(80).
-
-%! stats:test_stats_label_col_width(?Width)
-%
-% Width of the leftmost label/metric column.
-
-stats:test_stats_label_col_width(34).
-
-%! stats:test_stats_pct_col_width(?Width)
-%
-% Width of a percentage column.
-
-stats:test_stats_pct_col_width(10).
-
-%! stats:test_stats_rank_col_width(?Width)
-%
-% Width of the rank-number column in ranked tables.
-
-stats:test_stats_rank_col_width(4).
-
-%! stats:test_stats_count_col_width(?Width)
-%
-% Width of a count column (aligned with pct columns at 10 chars).
-
-stats:test_stats_count_col_width(10).
 
 %! stats:test_stats_item_col_width(-Width)
 %
 % Derived width for the item column in ranked tables.
 
 stats:test_stats_item_col_width(W) :-
-  stats:test_stats_table_width(TW),
-  stats:test_stats_rank_col_width(RW),
-  stats:test_stats_count_col_width(CW),
-  % "  " + rank(RW) + "  " + item + " " + count(CW)
+  config:test_stats_table_width(TW),
+  config:test_stats_rank_col_width(RW),
+  config:test_stats_count_col_width(CW),
   W is max(10, TW - 2 - RW - 2 - 1 - CW).
+
+
+% -----------------------------------------------------------------------------
+%  Text formatting utilities
+% -----------------------------------------------------------------------------
 
 %! stats:test_stats_to_atom(+Term, -Atom)
 %
@@ -78,7 +54,7 @@ stats:test_stats_to_atom(Term, Atom) :-
 
 %! stats:test_stats_fit_atom(+Atom0, +Width, -Atom)
 %
-% Truncate Atom0 to at most Width characters, appending '…' if needed.
+% Truncate Atom0 to at most Width characters, appending ellipsis if needed.
 
 stats:test_stats_fit_atom(Atom0, Width, Atom) :-
   ( atom_length(Atom0, L), L =< Width ->
@@ -129,13 +105,21 @@ stats:test_stats_pad_left(Atom0, Width, Atom) :-
 stats:test_stats_int_atom(Int, Atom) :-
   format(atom(Atom), '~d', [Int]).
 
+
+% -----------------------------------------------------------------------------
+%  Table rendering primitives
+% -----------------------------------------------------------------------------
+
+% -----------------------------------------------------------------------------
+%  Separators and key-value lines
+% -----------------------------------------------------------------------------
+
 %! stats:test_stats_print_sep
 %
 % Print a dashed separator line spanning the table width.
 
 stats:test_stats_print_sep :-
-  stats:test_stats_table_width(W),
-  % Use * as "tab stop from argument" (avoid printing W).
+  config:test_stats_table_width(W),
   format('  ~`-t~*|~n', [W]).
 
 %! stats:test_stats_print_kv_int(+Label, +Value)
@@ -153,15 +137,19 @@ stats:test_stats_print_kv_int_percent(Label, Count, Total) :-
   sampler:test_stats_percent(Count, Total, P),
   format('  ~w~t~30|: ~d (~2f%)~n', [Label, Count, P]).
 
+
+% -----------------------------------------------------------------------------
+%  Summary table (Metric / Ebuilds / Ebuild% / Pkgs / Pkg%)
+% -----------------------------------------------------------------------------
+
 %! stats:test_stats_print_table_header
 %
-% Print the column headers for the main test-stats summary table
-% (Metric / Ebuilds / Ebuild % / Pkgs / Pkg %).
+% Print column headers for the main test-stats summary table.
 
 stats:test_stats_print_table_header :-
-  stats:test_stats_label_col_width(LW),
-  stats:test_stats_count_col_width(CW),
-  stats:test_stats_pct_col_width(PW),
+  config:test_stats_label_col_width(LW),
+  config:test_stats_count_col_width(CW),
+  config:test_stats_pct_col_width(PW),
   stats:test_stats_pad_right('Metric', LW, MetricHdr),
   stats:test_stats_pad_left('Ebuilds', CW, EbuildsHdr),
   stats:test_stats_pad_left('Ebuild %', PW, EbuildPctHdr),
@@ -173,17 +161,16 @@ stats:test_stats_print_table_header :-
 
 %! stats:test_stats_print_table_row(+Label, +ECount, +ETotal, +PCount, +PTotal)
 %
-% Print one row of the main test-stats summary table with ebuild and
-% package counts plus their percentages.
+% Print one row of the main summary table.
 
 stats:test_stats_print_table_row(Label, ECount, ETotal, PCount, PTotal) :-
   sampler:test_stats_percent(ECount, ETotal, EP),
   sampler:test_stats_percent(PCount, PTotal, PP),
   format(atom(EPAtom), '~2f %', [EP]),
   format(atom(PPAtom), '~2f %', [PP]),
-  stats:test_stats_label_col_width(LW),
-  stats:test_stats_count_col_width(CW),
-  stats:test_stats_pct_col_width(PW),
+  config:test_stats_label_col_width(LW),
+  config:test_stats_count_col_width(CW),
+  config:test_stats_pct_col_width(PW),
   stats:test_stats_pad_right(Label, LW, Lbl),
   stats:test_stats_int_atom(ECount, EC0),
   stats:test_stats_int_atom(PCount, PC0),
@@ -194,15 +181,19 @@ stats:test_stats_print_table_row(Label, ECount, ETotal, PCount, PTotal) :-
   format('  ~w ~w ~w ~w ~w~n',
          [Lbl, EC, EPR, PC, PPR]).
 
+
+% -----------------------------------------------------------------------------
+%  Assumption-types table (Type / Ebuilds / Ebuild% / Occ / Occ%)
+% -----------------------------------------------------------------------------
+
 %! stats:test_stats_print_assumption_types_table_header
 %
-% Print column headers for the assumption-types breakdown table
-% (Type / Ebuilds / Ebuild % / Occ / Occ %).
+% Print column headers for the assumption-types breakdown table.
 
 stats:test_stats_print_assumption_types_table_header :-
-  stats:test_stats_label_col_width(LW),
-  stats:test_stats_count_col_width(CW),
-  stats:test_stats_pct_col_width(PW),
+  config:test_stats_label_col_width(LW),
+  config:test_stats_count_col_width(CW),
+  config:test_stats_pct_col_width(PW),
   stats:test_stats_pad_right('Type', LW, TypeHdr),
   stats:test_stats_pad_left('Ebuilds', CW, EbuildsHdr),
   stats:test_stats_pad_left('Ebuild %', PW, EbuildPctHdr),
@@ -221,9 +212,9 @@ stats:test_stats_print_assumption_types_row(Type, ECount, ETotal, OCount, OTotal
   sampler:test_stats_percent(OCount, OTotal, OP),
   format(atom(EPAtom), '~2f %', [EP]),
   format(atom(OPAtom), '~2f %', [OP]),
-  stats:test_stats_label_col_width(LW),
-  stats:test_stats_count_col_width(CW),
-  stats:test_stats_pct_col_width(PW),
+  config:test_stats_label_col_width(LW),
+  config:test_stats_count_col_width(CW),
+  config:test_stats_pct_col_width(PW),
   stats:test_stats_pad_right(Type, LW, TypeLbl),
   stats:test_stats_int_atom(ECount, EC0),
   stats:test_stats_int_atom(OCount, OC0),
@@ -234,18 +225,22 @@ stats:test_stats_print_assumption_types_row(Type, ECount, ETotal, OCount, OTotal
   format('  ~w ~w ~w ~w ~w~n',
          [TypeLbl, EC, EPR, OC, OPR]).
 
+
+% -----------------------------------------------------------------------------
+%  Ranked Top-N table (Rank / Item / Value)
+% -----------------------------------------------------------------------------
+
 %! stats:test_stats_print_ranked_table_header(+Title, +RightHeader)
 %
-% Print a section header and column headers (Rank / Item / RightHeader)
-% for a ranked Top-N table.
+% Print a section header and column headers for a ranked Top-N table.
 
 stats:test_stats_print_ranked_table_header(Title, RightHeader) :-
   nl,
   message:header(Title),
   nl,
   stats:test_stats_item_col_width(ItemW),
-  stats:test_stats_count_col_width(CountW),
-  stats:test_stats_rank_col_width(RankW),
+  config:test_stats_count_col_width(CountW),
+  config:test_stats_rank_col_width(RankW),
   stats:test_stats_pad_left('Rank', RankW, RankHdr),
   stats:test_stats_pad_right('Item', ItemW, ItemHdr),
   stats:test_stats_pad_left(RightHeader, CountW, RHdr),
@@ -263,16 +258,34 @@ stats:test_stats_print_ranked_table_rows([N-Item|Rest], Limit, I, W) :-
   stats:test_stats_to_atom(Item, ItemAtom0),
   stats:test_stats_fit_atom(ItemAtom0, ItemW, ItemAtom1),
   stats:test_stats_pad_right(ItemAtom1, ItemW, ItemAtom),
-  stats:test_stats_rank_col_width(RankW),
+  config:test_stats_rank_col_width(RankW),
   format(atom(RankAtom0), '~d', [I]),
   stats:test_stats_pad_left(RankAtom0, RankW, RankAtom),
-  stats:test_stats_count_col_width(CountW),
+  config:test_stats_count_col_width(CountW),
   format(atom(NAtom0), '~d', [N]),
   stats:test_stats_pad_left(NAtom0, CountW, NAtom),
   format('  ~w  ~w ~w~n', [RankAtom, ItemAtom, NAtom]),
   I1 is I + 1,
   Limit1 is Limit - 1,
   stats:test_stats_print_ranked_table_rows(Rest, Limit1, I1, W).
+
+%! stats:test_stats_print_top_cycle_mentions(+Sorted, +Limit, +Index)
+%
+% Print up to Limit ranked cycle-mention rows.
+
+stats:test_stats_print_top_cycle_mentions([], _Limit, I) :- !,
+  ( I =:= 1 -> writeln('  (none)') ; true ).
+stats:test_stats_print_top_cycle_mentions(_, 0, _I) :- !.
+stats:test_stats_print_top_cycle_mentions([N-RepoEntry|Rest], Limit, I) :-
+  format('  ~t~d~3+. ~w (~d)~n', [I, RepoEntry, N]),
+  I1 is I + 1,
+  Limit1 is Limit - 1,
+  stats:test_stats_print_top_cycle_mentions(Rest, Limit1, I1).
+
+
+% -----------------------------------------------------------------------------
+%  Main summary display
+% -----------------------------------------------------------------------------
 
 %! stats:test_stats_print
 %
@@ -285,7 +298,8 @@ stats:test_stats_print :-
 
 %! stats:test_stats_print(+TopN)
 %
-% Print the accumulated test_stats summary, showing top lists up to TopN.
+% Print the full test_stats summary, showing top lists up to TopN.
+
 stats:test_stats_print(TopN) :-
   sampler:test_stats_value(label, Label),
   sampler:test_stats_value(expected_total, Expected),
@@ -299,6 +313,8 @@ stats:test_stats_print(TopN) :-
   sampler:test_stats_unique_pkg_count(with_assumptions, WithAssPkgs),
   sampler:test_stats_unique_pkg_count(with_package_assumptions, WithPkgAssPkgs),
   sampler:test_stats_unique_pkg_count(with_cycles, WithCyclesPkgs),
+
+  % --- Overview ---
   nl,
   message:header(['Test statistics (',Label,')']),
   nl,
@@ -314,81 +330,138 @@ stats:test_stats_print(TopN) :-
       format('  ~w~t~30|: ~2f cycles per processed entry~n', ['Cycles per entry', CyclesFound/Processed])
   ; true
   ),
+
+  % --- Failure breakdown ---
   ( Expected =\= Processed ->
-      sampler:test_stats_value(entries_failed_blocker, FailedBlocker),
-      sampler:test_stats_value(entries_failed_timeout, FailedTimeout),
-      sampler:test_stats_value(entries_failed_other, FailedOther),
-      FailedTotal is Expected - Processed,
-      Unknown0 is FailedTotal - FailedBlocker - FailedTimeout - FailedOther,
-      Unknown is max(0, Unknown0),
-      format('  ~w~t~30|: ~d entries did not produce a plan/proof (failed/timeout).~n',
-             ['Note', FailedTotal]),
-      ( FailedBlocker > 0 ->
-          format('  ~w~t~30|: ~d failed due to blockers (detected).~n',
-                 ['Blocker failures', FailedBlocker])
-      ; true
-      ),
-      ( FailedTimeout > 0 ->
-          format('  ~w~t~30|: ~d timed out (detected).~n',
-                 ['Timeout failures', FailedTimeout])
-      ; true
-      ),
-      ( FailedOther > 0 ->
-          format('  ~w~t~30|: ~d failed for other reasons (detected).~n',
-                 ['Other failures', FailedOther])
-      ; true
-      ),
-      ( Unknown > 0 ->
-          format('  ~w~t~30|: ~d failed/timeout with unknown reason (not classified).~n',
-                 ['Unknown', Unknown])
-      ; true
-      )
-  , % Extra context: many "failed entries" are older versions of a package that
-    % has at least one other version that proved successfully in the same run.
-    findall(C-N,
-            ( sampler:test_stats_failed_entry(Repo0://Entry0, _R),
-              cache:ordered_entry(Repo0, Entry0, C, N, _)
-            ),
-            FailedCNs0),
-    sort(FailedCNs0, FailedCNs),
-    length(FailedCNs, FailedPkgsTotal),
-    findall(C-N,
-            ( member(C-N, FailedCNs),
-              sampler:test_stats_pkg(processed, C, N)
-            ),
-            MixedCNs0),
-    sort(MixedCNs0, MixedCNs),
-    length(MixedCNs, FailedPkgsWithSomeSuccess),
-    FailedPkgsAllFail is FailedPkgsTotal - FailedPkgsWithSomeSuccess,
-    ( FailedPkgsTotal > 0 ->
-        format('  ~w~t~30|: ~d unique packages had at least one failing entry.~n',
-               ['Note', FailedPkgsTotal])
-    ; true
-    ),
-    ( FailedPkgsWithSomeSuccess > 0 ->
-        format('  ~w~t~30|: ~d failing packages have another version that proved OK.~n',
-               ['Note', FailedPkgsWithSomeSuccess])
-    ; true
-    ),
-    ( FailedPkgsAllFail > 0 ->
-        format('  ~w~t~30|: ~d failing packages have no version that proved OK.~n',
-               ['Note', FailedPkgsAllFail])
-    ; true
-    ),
-    ( MixedCNs \== [] ->
-        format('  ~w~t~30|: ~w~n', ['Mixed (sample)', MixedCNs])
-    ; true
-    )
+      stats:test_stats_print_failure_breakdown(Expected, Processed)
   ; true
   ),
+
+  % --- Assumption types ---
+  stats:test_stats_print_assumption_types(Processed),
+
+  % --- Performance: slowest entries ---
+  stats:test_stats_print_slowest_entries(TopN),
+
+  % --- Performance: slowest packages (total) ---
+  stats:test_stats_print_slowest_packages_total(TopN),
+
+  % --- Performance: most expensive packages (inferences) ---
+  stats:test_stats_print_expensive_inferences(TopN),
+
+  % --- Performance: context union analysis ---
+  stats:test_stats_print_ctx_union_cost(TopN),
+  stats:test_stats_print_ctx_union_walltime(TopN),
+  stats:test_stats_print_ctx_share(TopN),
+  stats:test_stats_print_ctx_length_distribution(TopN),
+  stats:test_stats_print_ordset_impact,
+  stats:test_stats_print_largest_contexts(TopN),
+
+  % --- Performance: slowest packages (max) ---
+  stats:test_stats_print_slowest_packages_max(TopN),
+
+  % --- Assumption detail: per-type Top-N entries ---
+  findall(Type, sampler:test_stats_type(Type, _, _), Types0),
+  sort(Types0, Types),
+  stats:test_stats_print_per_type_entries(Types, TopN),
+
+  % --- Blocker analysis ---
+  stats:test_stats_print_blocker_analysis(TopN),
+
+  % --- Other assumptions ---
+  stats:test_stats_print_other_assumptions,
+
+  % --- Cycle mentions ---
+  stats:test_stats_print_cycle_mentions(TopN).
+
+
+% -----------------------------------------------------------------------------
+%  Summary subsections
+% -----------------------------------------------------------------------------
+
+% -----------------------------------------------------------------------------
+%  Failure breakdown
+% -----------------------------------------------------------------------------
+
+stats:test_stats_print_failure_breakdown(Expected, Processed) :-
+  sampler:test_stats_value(entries_failed_blocker, FailedBlocker),
+  sampler:test_stats_value(entries_failed_timeout, FailedTimeout),
+  sampler:test_stats_value(entries_failed_other, FailedOther),
+  FailedTotal is Expected - Processed,
+  Unknown0 is FailedTotal - FailedBlocker - FailedTimeout - FailedOther,
+  Unknown is max(0, Unknown0),
+  format('  ~w~t~30|: ~d entries did not produce a plan/proof (failed/timeout).~n',
+         ['Note', FailedTotal]),
+  ( FailedBlocker > 0 ->
+      format('  ~w~t~30|: ~d failed due to blockers (detected).~n',
+             ['Blocker failures', FailedBlocker])
+  ; true
+  ),
+  ( FailedTimeout > 0 ->
+      format('  ~w~t~30|: ~d timed out (detected).~n',
+             ['Timeout failures', FailedTimeout])
+  ; true
+  ),
+  ( FailedOther > 0 ->
+      format('  ~w~t~30|: ~d failed for other reasons (detected).~n',
+             ['Other failures', FailedOther])
+  ; true
+  ),
+  ( Unknown > 0 ->
+      format('  ~w~t~30|: ~d failed/timeout with unknown reason (not classified).~n',
+             ['Unknown', Unknown])
+  ; true
+  ),
+  stats:test_stats_print_failed_pkg_context.
+
+stats:test_stats_print_failed_pkg_context :-
+  findall(C-N,
+          ( sampler:test_stats_failed_entry(Repo0://Entry0, _R),
+            cache:ordered_entry(Repo0, Entry0, C, N, _)
+          ),
+          FailedCNs0),
+  sort(FailedCNs0, FailedCNs),
+  length(FailedCNs, FailedPkgsTotal),
+  findall(C-N,
+          ( member(C-N, FailedCNs),
+            sampler:test_stats_pkg(processed, C, N)
+          ),
+          MixedCNs0),
+  sort(MixedCNs0, MixedCNs),
+  length(MixedCNs, FailedPkgsWithSomeSuccess),
+  FailedPkgsAllFail is FailedPkgsTotal - FailedPkgsWithSomeSuccess,
+  ( FailedPkgsTotal > 0 ->
+      format('  ~w~t~30|: ~d unique packages had at least one failing entry.~n',
+             ['Note', FailedPkgsTotal])
+  ; true
+  ),
+  ( FailedPkgsWithSomeSuccess > 0 ->
+      format('  ~w~t~30|: ~d failing packages have another version that proved OK.~n',
+             ['Note', FailedPkgsWithSomeSuccess])
+  ; true
+  ),
+  ( FailedPkgsAllFail > 0 ->
+      format('  ~w~t~30|: ~d failing packages have no version that proved OK.~n',
+             ['Note', FailedPkgsAllFail])
+  ; true
+  ),
+  ( MixedCNs \== [] ->
+      format('  ~w~t~30|: ~w~n', ['Mixed (sample)', MixedCNs])
+  ; true
+  ).
+
+
+% -----------------------------------------------------------------------------
+%  Assumption types
+% -----------------------------------------------------------------------------
+
+stats:test_stats_print_assumption_types(Processed) :-
   nl,
   message:header('Assumption types'),
   nl,
   findall(O, sampler:test_stats_type(_, occurrences, O), Occs),
   sum_list(Occs, TotalOccs),
-  findall(Type,
-          ( sampler:test_stats_type(Type, _, _) ),
-          Types0),
+  findall(Type, sampler:test_stats_type(Type, _, _), Types0),
   sort(Types0, Types),
   ( Types == [] ->
       writeln('  (none)')
@@ -398,9 +471,18 @@ stats:test_stats_print(TopN) :-
              ( sampler:test_stats_type(Type, occurrences, O) -> true ; O = 0 ),
              stats:test_stats_print_assumption_types_row(Type, E, Processed, O, TotalOccs)
            ))
-  ),
+  ).
 
-  % Top-N slowest processed entries (by walltime in ms).
+
+% -----------------------------------------------------------------------------
+%  Performance: timing and cost Top-N tables
+% -----------------------------------------------------------------------------
+
+% -----------------------------------------------------------------------------
+%  Slowest entries
+% -----------------------------------------------------------------------------
+
+stats:test_stats_print_slowest_entries(TopN) :-
   nl,
   message:header(['Top ',TopN,' slowest proofs']),
   nl,
@@ -410,11 +492,16 @@ stats:test_stats_print(TopN) :-
   ( TimesSorted == [] ->
       writeln('  (none)')
   ; stats:test_stats_print_ranked_table_header('Slowest entries', 'ms'),
-    stats:test_stats_table_width(Wt),
+    config:test_stats_table_width(Wt),
     stats:test_stats_print_ranked_table_rows(TimesSorted, TopN, 1, Wt)
-  ),
+  ).
 
-  % Top-N slowest packages (Category/Name), by total time spent proving all entries.
+
+% -----------------------------------------------------------------------------
+%  Slowest packages (total walltime)
+% -----------------------------------------------------------------------------
+
+stats:test_stats_print_slowest_packages_total(TopN) :-
   nl,
   message:header(['Top ',TopN,' slowest packages (total)']),
   nl,
@@ -429,11 +516,16 @@ stats:test_stats_print(TopN) :-
   ( PkgSorted == [] ->
       writeln('  (none)')
   ; stats:test_stats_print_ranked_table_header('Slowest packages', 'ms'),
-    stats:test_stats_table_width(Wp),
+    config:test_stats_table_width(Wp),
     stats:test_stats_print_ranked_table_rows(PkgSorted, TopN, 1, Wp)
-  ),
+  ).
 
-  % Top-N packages by total inferences (proxy for "how much work did we do").
+
+% -----------------------------------------------------------------------------
+%  Most expensive packages (inferences)
+% -----------------------------------------------------------------------------
+
+stats:test_stats_print_expensive_inferences(TopN) :-
   nl,
   message:header(['Top ',TopN,' most expensive packages (inferences)']),
   nl,
@@ -447,11 +539,20 @@ stats:test_stats_print(TopN) :-
   ( PkgInfSorted == [] ->
       writeln('  (none)')
   ; stats:test_stats_print_ranked_table_header('Costly packages', 'inferences'),
-    stats:test_stats_table_width(Wi),
+    config:test_stats_table_width(Wi),
     stats:test_stats_print_ranked_table_rows(PkgInfSorted, TopN, 1, Wi)
-  ),
+  ).
 
-  % Top-N packages by context "union cost" (proxy for list-processing overhead in contexts).
+
+% -----------------------------------------------------------------------------
+%  Performance: context union analysis
+% -----------------------------------------------------------------------------
+
+% -----------------------------------------------------------------------------
+%  Context union cost (operations)
+% -----------------------------------------------------------------------------
+
+stats:test_stats_print_ctx_union_cost(TopN) :-
   nl,
   message:header(['Top ',TopN,' most expensive packages (context unions)']),
   nl,
@@ -465,11 +566,16 @@ stats:test_stats_print(TopN) :-
   ( PkgCtxSorted == [] ->
       writeln('  (none)')
   ; stats:test_stats_print_ranked_table_header('Costly packages', 'ctx-union-cost'),
-    stats:test_stats_table_width(Wctx),
+    config:test_stats_table_width(Wctx),
     stats:test_stats_print_ranked_table_rows(PkgCtxSorted, TopN, 1, Wctx)
-  ),
+  ).
 
-  % Top-N packages by estimated walltime spent in ctx unions (sampled).
+
+% -----------------------------------------------------------------------------
+%  Context union walltime (estimated)
+% -----------------------------------------------------------------------------
+
+stats:test_stats_print_ctx_union_walltime(TopN) :-
   nl,
   message:header(['Top ',TopN,' most expensive packages (context unions walltime, est)']),
   nl,
@@ -486,11 +592,16 @@ stats:test_stats_print(TopN) :-
   ( PkgCtxMsSorted == [] ->
       writeln('  (none)')
   ; stats:test_stats_print_ranked_table_header('Costly packages', 'ctx-union-ms'),
-    stats:test_stats_table_width(Wctxms),
+    config:test_stats_table_width(Wctxms),
     stats:test_stats_print_ranked_table_rows(PkgCtxMsSorted, TopN, 1, Wctxms)
-  ),
+  ).
 
-  % For the same ranking, show how much of total package time this represents.
+
+% -----------------------------------------------------------------------------
+%  Context union time share
+% -----------------------------------------------------------------------------
+
+stats:test_stats_print_ctx_share(TopN) :-
   nl,
   message:header(['Top ',TopN,' packages by context union time share (est)']),
   nl,
@@ -498,11 +609,16 @@ stats:test_stats_print(TopN) :-
   ( ShareRowsSorted == [] ->
       writeln('  (none)')
   ; stats:test_stats_print_ranked_table_header('Packages', 'ctx%*10'),
-    stats:test_stats_table_width(Wshare),
+    config:test_stats_table_width(Wshare),
     stats:test_stats_print_ranked_table_rows(ShareRowsSorted, TopN, 1, Wshare)
-  ),
+  ).
 
-  % Context length distribution (sampled from ctx_union/3 output lengths).
+
+% -----------------------------------------------------------------------------
+%  Context length distribution
+% -----------------------------------------------------------------------------
+
+stats:test_stats_print_ctx_length_distribution(TopN) :-
   nl,
   message:header('Context length distribution (sampled, ctx_union output)'),
   nl,
@@ -513,7 +629,6 @@ stats:test_stats_print(TopN) :-
   ; findall(C, member(_L-C, LenBins), LenCnts),
     sum_list(LenCnts, LenTotal),
     format('  Samples: ~d~n', [LenTotal]),
-    % Buckets: 0-3, 4-5, 6-10, 11+
     stats:test_stats_ctx_len_bucket(LenBins, 3,  Le3),
     stats:test_stats_ctx_len_bucket(LenBins, 5,  Le5),
     stats:test_stats_ctx_len_bucket(LenBins, 10, Le10),
@@ -530,8 +645,7 @@ stats:test_stats_print(TopN) :-
     ),
     nl,
     stats:test_stats_print_ranked_table_header('ctx-len', 'samples'),
-    stats:test_stats_table_width(Wlenhist),
-    % show the most common lengths (by count)
+    config:test_stats_table_width(Wlenhist),
     findall(Cnt-LenAtom,
             ( member(Len-Cnt, LenBins),
               format(atom(LenAtom), '~d', [Len])
@@ -540,9 +654,14 @@ stats:test_stats_print(TopN) :-
     keysort(LenByCount0, LenByCountAsc),
     reverse(LenByCountAsc, LenByCount),
     stats:test_stats_print_ranked_table_rows(LenByCount, min(TopN, 25), 1, Wlenhist)
-  ),
+  ).
 
-  % Ordset gain estimate (very rough): compare a quadratic proxy vs linear proxy.
+
+% -----------------------------------------------------------------------------
+%  Ordset impact estimate
+% -----------------------------------------------------------------------------
+
+stats:test_stats_print_ordset_impact :-
   ( sampler:test_stats_ctx_cost_model(SumMul, SumAdd, SamplesModel),
     SamplesModel > 0,
     SumMul > 0,
@@ -564,9 +683,14 @@ stats:test_stats_print(TopN) :-
       format('  ~w~t~30|: ~d ms~n',['Est ctx-union-ms w/ ordsets', OrdMsEst]),
       format('  ~w~t~30|: ~d ms~n',['Est savings', SavedMs])
   ; true
-  ),
+  ).
 
-  % Top-N packages by max context size observed.
+
+% -----------------------------------------------------------------------------
+%  Largest contexts observed
+% -----------------------------------------------------------------------------
+
+stats:test_stats_print_largest_contexts(TopN) :-
   nl,
   message:header(['Top ',TopN,' largest contexts observed']),
   nl,
@@ -580,11 +704,16 @@ stats:test_stats_print(TopN) :-
   ( PkgLenSorted == [] ->
       writeln('  (none)')
   ; stats:test_stats_print_ranked_table_header('Packages', 'max-ctx-len'),
-    stats:test_stats_table_width(Wlen),
+    config:test_stats_table_width(Wlen),
     stats:test_stats_print_ranked_table_rows(PkgLenSorted, TopN, 1, Wlen)
-  ),
+  ).
 
-  % Top-N slowest packages (Category/Name), by max single-entry time.
+
+% -----------------------------------------------------------------------------
+%  Slowest packages (max single-entry time)
+% -----------------------------------------------------------------------------
+
+stats:test_stats_print_slowest_packages_max(TopN) :-
   nl,
   message:header(['Top ',TopN,' slowest packages (max)']),
   nl,
@@ -599,98 +728,139 @@ stats:test_stats_print(TopN) :-
   ( PkgMaxSorted == [] ->
       writeln('  (none)')
   ; stats:test_stats_print_ranked_table_header('Slowest packages', 'ms'),
-    stats:test_stats_table_width(Wp2),
+    config:test_stats_table_width(Wp2),
     stats:test_stats_print_ranked_table_rows(PkgMaxSorted, TopN, 1, Wp2)
-  ),
+  ).
 
-  % Top-N entries per assumption type (by occurrence count).
-  forall(member(Type, Types),
-         ( findall(N-RepoEntry, sampler:test_stats_type_entry_mention(Type, RepoEntry, N), P0),
-           keysort(P0, PAsc),
-           reverse(PAsc, PSorted),
-           ( PSorted == [] ->
-               true
-           ; atomic_list_concat(['Top ',TopN,' entries for ',Type], TypeHeader),
-             stats:test_stats_print_ranked_table_header(TypeHeader, 'Occ'),
-             stats:test_stats_table_width(W),
-             stats:test_stats_print_ranked_table_rows(PSorted, TopN, 1, W)
-           )
-         )),
-  % Detailed breakdown for blocker assumptions (if present).
+
+% -----------------------------------------------------------------------------
+%  Assumption detail: per-type and blocker analysis
+% -----------------------------------------------------------------------------
+
+% -----------------------------------------------------------------------------
+%  Per-type Top-N entries
+% -----------------------------------------------------------------------------
+
+stats:test_stats_print_per_type_entries([], _TopN) :- !.
+stats:test_stats_print_per_type_entries([Type|Types], TopN) :-
+  findall(N-RepoEntry, sampler:test_stats_type_entry_mention(Type, RepoEntry, N), P0),
+  keysort(P0, PAsc),
+  reverse(PAsc, PSorted),
+  ( PSorted == [] ->
+      true
+  ; atomic_list_concat(['Top ',TopN,' entries for ',Type], TypeHeader),
+    stats:test_stats_print_ranked_table_header(TypeHeader, 'Occ'),
+    config:test_stats_table_width(W),
+    stats:test_stats_print_ranked_table_rows(PSorted, TopN, 1, W)
+  ),
+  stats:test_stats_print_per_type_entries(Types, TopN).
+
+
+% -----------------------------------------------------------------------------
+%  Blocker analysis
+% -----------------------------------------------------------------------------
+
+stats:test_stats_print_blocker_analysis(TopN) :-
   ( sampler:test_stats_type(blocker_assumption, occurrences, BlockOcc),
     BlockOcc > 0 ->
-      nl,
-      message:header('Blocker assumptions (breakdown)'),
-      nl,
-      stats:test_stats_print_ranked_table_header('Strength/phase', 'Occ'),
-      stats:test_stats_blocker_sp_rows(SpSorted),
-      ( SpSorted == [] ->
-          writeln('  (none)'),
-          ( sampler:test_stats_blocker_example(Ex) ->
-              format('  Note: could not parse blocker term for breakdown; example: ~q~n', [Ex])
-          ; true
-          )
-      ; stats:test_stats_table_width(Wsp),
-        stats:test_stats_print_ranked_table_rows(SpSorted, 10, 1, Wsp)
-      ),
-      nl,
-      message:header(['Top ',TopN,' blocker reasons']),
-      nl,
-      stats:test_stats_print_ranked_table_header('Reasons', 'Occ'),
-      stats:test_stats_blocker_reason_rows(ReasonRows),
-      ( ReasonRows == [] ->
-          writeln('  (none)')
-      ; stats:test_stats_table_width(Wbr),
-        stats:test_stats_print_ranked_table_rows(ReasonRows, TopN, 1, Wbr)
-      ),
-      nl,
-      message:header(['Top ',TopN,' blocker reasons (install)']),
-      nl,
-      stats:test_stats_print_ranked_table_header('Reasons', 'Occ'),
-      stats:test_stats_blocker_reason_phase_rows(install, RInstRows),
-      ( RInstRows == [] ->
-          writeln('  (none)')
-      ; stats:test_stats_table_width(Wbri),
-        stats:test_stats_print_ranked_table_rows(RInstRows, TopN, 1, Wbri)
-      ),
-      nl,
-      message:header(['Top ',TopN,' blocker reasons (run)']),
-      nl,
-      stats:test_stats_print_ranked_table_header('Reasons', 'Occ'),
-      stats:test_stats_blocker_reason_phase_rows(run, RRunRows),
-      ( RRunRows == [] ->
-          writeln('  (none)')
-      ; stats:test_stats_table_width(Wbrr),
-        stats:test_stats_print_ranked_table_rows(RRunRows, TopN, 1, Wbrr)
-      ),
-      nl,
-      message:header(['Top ',TopN,' most-blocking packages (C/N)']),
-      nl,
-      stats:test_stats_print_ranked_table_header('Packages', 'Occ'),
-      findall(OccCN-CN,
-              ( sampler:test_stats_blocker_cn(Cb, Nb, OccCN),
-                atomic_list_concat([Cb,Nb], '/', CN)
-              ),
-              Cn0),
-      keysort(Cn0, CnAsc),
-      reverse(CnAsc, CnSorted),
-      ( CnSorted == [] ->
-          writeln('  (none)')
-      ; stats:test_stats_table_width(Wcn),
-        stats:test_stats_print_ranked_table_rows(CnSorted, TopN, 1, Wcn)
-      )
+      stats:test_stats_print_blocker_breakdown(TopN)
   ; true
+  ).
+
+stats:test_stats_print_blocker_breakdown(TopN) :-
+  % Strength/phase breakdown
+  nl,
+  message:header('Blocker assumptions (breakdown)'),
+  nl,
+  stats:test_stats_print_ranked_table_header('Strength/phase', 'Occ'),
+  stats:test_stats_blocker_sp_rows(SpSorted),
+  ( SpSorted == [] ->
+      writeln('  (none)'),
+      ( sampler:test_stats_blocker_example(Ex) ->
+          format('  Note: could not parse blocker term for breakdown; example: ~q~n', [Ex])
+      ; true
+      )
+  ; config:test_stats_table_width(Wsp),
+    stats:test_stats_print_ranked_table_rows(SpSorted, 10, 1, Wsp)
   ),
+
+  % Blocker reasons (all phases)
+  nl,
+  message:header(['Top ',TopN,' blocker reasons']),
+  nl,
+  stats:test_stats_print_ranked_table_header('Reasons', 'Occ'),
+  stats:test_stats_blocker_reason_rows(ReasonRows),
+  ( ReasonRows == [] ->
+      writeln('  (none)')
+  ; config:test_stats_table_width(Wbr),
+    stats:test_stats_print_ranked_table_rows(ReasonRows, TopN, 1, Wbr)
+  ),
+
+  % Blocker reasons (install)
+  nl,
+  message:header(['Top ',TopN,' blocker reasons (install)']),
+  nl,
+  stats:test_stats_print_ranked_table_header('Reasons', 'Occ'),
+  stats:test_stats_blocker_reason_phase_rows(install, RInstRows),
+  ( RInstRows == [] ->
+      writeln('  (none)')
+  ; config:test_stats_table_width(Wbri),
+    stats:test_stats_print_ranked_table_rows(RInstRows, TopN, 1, Wbri)
+  ),
+
+  % Blocker reasons (run)
+  nl,
+  message:header(['Top ',TopN,' blocker reasons (run)']),
+  nl,
+  stats:test_stats_print_ranked_table_header('Reasons', 'Occ'),
+  stats:test_stats_blocker_reason_phase_rows(run, RRunRows),
+  ( RRunRows == [] ->
+      writeln('  (none)')
+  ; config:test_stats_table_width(Wbrr),
+    stats:test_stats_print_ranked_table_rows(RRunRows, TopN, 1, Wbrr)
+  ),
+
+  % Most-blocking packages
+  nl,
+  message:header(['Top ',TopN,' most-blocking packages (C/N)']),
+  nl,
+  stats:test_stats_print_ranked_table_header('Packages', 'Occ'),
+  findall(OccCN-CN,
+          ( sampler:test_stats_blocker_cn(Cb, Nb, OccCN),
+            atomic_list_concat([Cb,Nb], '/', CN)
+          ),
+          Cn0),
+  keysort(Cn0, CnAsc),
+  reverse(CnAsc, CnSorted),
+  ( CnSorted == [] ->
+      writeln('  (none)')
+  ; config:test_stats_table_width(Wcn),
+    stats:test_stats_print_ranked_table_rows(CnSorted, TopN, 1, Wcn)
+  ).
+
+
+% -----------------------------------------------------------------------------
+%  Other assumptions
+% -----------------------------------------------------------------------------
+
+stats:test_stats_print_other_assumptions :-
   ( ( sampler:test_stats_type(other, occurrences, OtherOcc), OtherOcc > 0 ) ->
       nl,
       findall(N-Key, sampler:test_stats_other_head(Key, N), H0),
       keysort(H0, HAsc),
       reverse(HAsc, HSorted),
       stats:test_stats_print_ranked_table_header('Top 15 other assumption heads', 'Count'),
-      stats:test_stats_table_width(W),
+      config:test_stats_table_width(W),
       stats:test_stats_print_ranked_table_rows(HSorted, 15, 1, W)
   ; true
-  ),
+  ).
+
+
+% -----------------------------------------------------------------------------
+%  Cycle mentions
+% -----------------------------------------------------------------------------
+
+stats:test_stats_print_cycle_mentions(TopN) :-
   nl,
   atomic_list_concat(['Top ',TopN,' cycle mentions (run)'], HeaderRun),
   findall(N-RepoEntry, sampler:test_stats_cycle_mention(run, RepoEntry, N), RunPairs0),
@@ -699,7 +869,7 @@ stats:test_stats_print(TopN) :-
   ( RunSorted == [] ->
       true
   ; stats:test_stats_print_ranked_table_header(HeaderRun, 'Mentions'),
-    stats:test_stats_table_width(W1),
+    config:test_stats_table_width(W1),
     stats:test_stats_print_ranked_table_rows(RunSorted, TopN, 1, W1)
   ),
   atomic_list_concat(['Top ',TopN,' cycle mentions (install)'], HeaderInstall),
@@ -709,23 +879,14 @@ stats:test_stats_print(TopN) :-
   ( InstallSorted == [] ->
       true
   ; stats:test_stats_print_ranked_table_header(HeaderInstall, 'Mentions'),
-    stats:test_stats_table_width(W2),
+    config:test_stats_table_width(W2),
     stats:test_stats_print_ranked_table_rows(InstallSorted, TopN, 1, W2)
   ).
 
-%! stats:test_stats_print_top_cycle_mentions(+Sorted, +Limit, +Index)
-%
-% Print up to Limit ranked cycle-mention rows from a descending-sorted
-% list of Count-RepoEntry pairs.
 
-stats:test_stats_print_top_cycle_mentions([], _Limit, I) :- !,
-  ( I =:= 1 -> writeln('  (none)') ; true ).
-stats:test_stats_print_top_cycle_mentions(_, 0, _I) :- !.
-stats:test_stats_print_top_cycle_mentions([N-RepoEntry|Rest], Limit, I) :-
-  format('  ~t~d~3+. ~w (~d)~n', [I, RepoEntry, N]),
-  I1 is I + 1,
-  Limit1 is Limit - 1,
-  stats:test_stats_print_top_cycle_mentions(Rest, Limit1, I1).
+% -----------------------------------------------------------------------------
+%  Data collection helpers
+% -----------------------------------------------------------------------------
 
 %! stats:test_stats_ctx_len_bucket(+LenBins, +Threshold, -CountLe)
 %
@@ -767,8 +928,7 @@ stats:test_stats_blocker_reason_rows(RowsSorted) :-
 
 %! stats:test_stats_blocker_reason_phase_rows(+Phase, -RowsSorted)
 %
-% Collect blocker reason rows for a specific Phase, sorted descending
-% by occurrence count.
+% Collect blocker reason rows for a specific Phase, sorted descending.
 
 stats:test_stats_blocker_reason_phase_rows(Phase, RowsSorted) :-
   findall(Occ-ReasonAtom,
@@ -781,9 +941,7 @@ stats:test_stats_blocker_reason_phase_rows(Phase, RowsSorted) :-
 
 %! stats:test_stats_ctx_share_rows(-ShareRowsSorted)
 %
-% Build rows for the context-time share table. Each row shows a package
-% and what percentage of its total prove time was spent in context/union
-% operations. Sorted descending by share percentage.
+% Build rows for the context-time share table, sorted descending by share.
 
 stats:test_stats_ctx_share_rows(ShareRowsSorted) :-
   findall(Pct10-Label,

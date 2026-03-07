@@ -777,6 +777,37 @@ config:test_style(parallel_verbose).
 config:test_stats_top_n(25).
 
 
+%! config:test_stats_table_width(?Width)
+%
+% Total table width (characters) including the 2-space left indent.
+
+config:test_stats_table_width(80).
+
+%! config:test_stats_label_col_width(?Width)
+%
+% Width of the leftmost label/metric column.
+
+config:test_stats_label_col_width(34).
+
+%! config:test_stats_pct_col_width(?Width)
+%
+% Width of a percentage column.
+
+config:test_stats_pct_col_width(10).
+
+%! config:test_stats_rank_col_width(?Width)
+%
+% Width of the rank-number column in ranked tables.
+
+config:test_stats_rank_col_width(4).
+
+%! config:test_stats_count_col_width(?Width)
+%
+% Width of a count column (aligned with pct columns at 10 chars).
+
+config:test_stats_count_col_width(10).
+
+
 %! config:bugreport_drafts_enabled(?Bool)
 %
 % Whether to print "Bug report drafts (Gentoo Bugzilla)" in the warnings section
