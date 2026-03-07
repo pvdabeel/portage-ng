@@ -65,6 +65,18 @@ user:goal_expansion(obligation_perf_report, true) :-
 user:goal_expansion(maybe_timeout_trace(_), true) :-
   \+ current_prolog_flag(instrumentation, true).
 
+user:goal_expansion(perf_walltime(_), true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
+user:goal_expansion(perf_record(_, _, _, _), true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
+user:goal_expansion(prove_plan_perf_reset, true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
+user:goal_expansion(prove_plan_perf_report, true) :-
+  \+ current_prolog_flag(instrumentation, true).
+
 
 % =============================================================================
 %  Proof obligation performance sampling
@@ -244,6 +256,503 @@ sampler:test_stats_get_ctx_distribution(ctx_len_hist(HistPairs),
   ( nb_current(prover_test_stats_ctx_cost_mul, SumMul) -> true ; SumMul = 0 ),
   ( nb_current(prover_test_stats_ctx_cost_add, SumAdd) -> true ; SumAdd = 0 ),
   ( nb_current(prover_test_stats_ctx_union_time_samples, Samples) -> true ; Samples = 0 ).
+
+
+% =============================================================================
+%  Test statistics: cross-test summary (recording)
+% =============================================================================
+%
+% Dynamic facts and recording predicates for whole-repo test runs.
+% Printing predicates remain in printer.pl and access these via sampler:*.
+
+:- dynamic sampler:test_stats_stat/2.
+:- dynamic sampler:test_stats_type/3.
+:- dynamic sampler:test_stats_cycle_mention/3.
+:- dynamic sampler:test_stats_entry_had_cycle/1.
+:- dynamic sampler:test_stats_other_head/2.
+:- dynamic sampler:test_stats_pkg/3.
+:- dynamic sampler:test_stats_type_entry_mention/3.
+:- dynamic sampler:test_stats_entry_time/2.
+:- dynamic sampler:test_stats_pkg_time/5.
+:- dynamic sampler:test_stats_entry_cost/4.      % RepoEntry, TimeMs, Inferences, RuleCalls
+:- dynamic sampler:test_stats_pkg_cost/6.        % C, N, SumMs, SumInf, SumRuleCalls, Cnt
+:- dynamic sampler:test_stats_entry_ctx/5.       % RepoEntry, UnionCalls, UnionCost, MaxCtxLen, UnionMsEst
+:- dynamic sampler:test_stats_pkg_ctx/6.         % C, N, SumUnionCost, MaxCtxLen, SumUnionMsEst, Cnt
+:- dynamic sampler:test_stats_ctx_len_bin/2.     % CtxLen, Count (sampled)
+:- dynamic sampler:test_stats_ctx_cost_model/3.  % SumMul, SumAdd, Samples (sampled)
+:- dynamic sampler:test_stats_failed_entry/2.    % RepoEntry, Reason
+:- dynamic sampler:test_stats_blocker_sp/3.      % Strength, Phase, Count
+:- dynamic sampler:test_stats_blocker_cn/3.      % C, N, Count
+:- dynamic sampler:test_stats_blocker_example/1. % Example term that failed to parse for breakdown
+:- dynamic sampler:test_stats_blocker_reason/2.  % Reason, Count
+:- dynamic sampler:test_stats_blocker_rp/3.      % Reason, Phase, Count
+:- dynamic sampler:test_stats_emerge_time/2.     % Entry (atom, e.g. 'dev-python/foo-1.2'), EmergeMs
+
+%! sampler:test_stats_reset(+Label, +ExpectedTotal)
+%
+% Reset all test_stats dynamic facts and initialise counters for a new
+% whole-repo test run identified by Label with ExpectedTotal entries.
+
+sampler:test_stats_reset(Label, ExpectedTotal) :-
+  with_mutex(test_stats,
+    ( retractall(sampler:test_stats_stat(_,_)),
+      retractall(sampler:test_stats_type(_,_,_)),
+      retractall(sampler:test_stats_cycle_mention(_,_,_)),
+      retractall(sampler:test_stats_entry_had_cycle(_)),
+      retractall(sampler:test_stats_entry_time(_,_)),
+      retractall(sampler:test_stats_pkg_time(_,_,_,_,_)),
+      retractall(sampler:test_stats_entry_cost(_,_,_,_)),
+      retractall(sampler:test_stats_pkg_cost(_,_,_,_,_,_)),
+      retractall(sampler:test_stats_entry_ctx(_,_,_,_,_)),
+      retractall(sampler:test_stats_pkg_ctx(_,_,_,_,_,_)),
+      retractall(sampler:test_stats_ctx_len_bin(_,_)),
+      retractall(sampler:test_stats_ctx_cost_model(_,_,_)),
+      retractall(sampler:test_stats_failed_entry(_,_)),
+      retractall(sampler:test_stats_blocker_sp(_,_,_)),
+      retractall(sampler:test_stats_blocker_cn(_,_,_)),
+      retractall(sampler:test_stats_blocker_example(_)),
+      retractall(sampler:test_stats_blocker_reason(_,_)),
+      retractall(sampler:test_stats_blocker_rp(_,_,_)),
+      retractall(sampler:test_stats_other_head(_,_)),
+      retractall(sampler:test_stats_pkg(_,_,_)),
+      retractall(sampler:test_stats_type_entry_mention(_,_,_)),
+      assertz(sampler:test_stats_stat(label, Label)),
+      assertz(sampler:test_stats_stat(expected_total, ExpectedTotal)),
+      assertz(sampler:test_stats_stat(expected_unique_packages, 0)),
+      assertz(sampler:test_stats_stat(processed, 0)),
+      assertz(sampler:test_stats_stat(entries_failed, 0)),
+      assertz(sampler:test_stats_stat(entries_failed_blocker, 0)),
+      assertz(sampler:test_stats_stat(entries_failed_timeout, 0)),
+      assertz(sampler:test_stats_stat(entries_failed_other, 0)),
+      assertz(sampler:test_stats_stat(entries_with_assumptions, 0)),
+      assertz(sampler:test_stats_stat(entries_with_package_assumptions, 0)),
+      assertz(sampler:test_stats_stat(entries_with_cycles, 0)),
+      assertz(sampler:test_stats_stat(cycles_found, 0))
+    )).
+
+sampler:test_stats_record_failed(Reason) :-
+  sampler:test_stats_inc(entries_failed),
+  ( Reason == blocker ->
+      sampler:test_stats_inc(entries_failed_blocker)
+  ; Reason == timeout ->
+      sampler:test_stats_inc(entries_failed_timeout)
+  ; sampler:test_stats_inc(entries_failed_other)
+  ).
+
+sampler:test_stats_record_failed_entry(RepoEntry, Reason) :-
+  with_mutex(test_stats,
+    ( assertz(sampler:test_stats_failed_entry(RepoEntry, Reason))
+    )).
+
+sampler:test_stats_set_expected_unique_packages(N) :-
+  with_mutex(test_stats,
+    ( retractall(sampler:test_stats_stat(expected_unique_packages,_)),
+      assertz(sampler:test_stats_stat(expected_unique_packages, N))
+    )).
+
+sampler:test_stats_add_pkg(Bucket, Repo, Entry) :-
+  ( cache:ordered_entry(Repo, Entry, C, N, _) ->
+      with_mutex(test_stats,
+        ( sampler:test_stats_pkg(Bucket, C, N) -> true
+        ; assertz(sampler:test_stats_pkg(Bucket, C, N))
+        ))
+  ; true
+  ).
+
+sampler:test_stats_unique_pkg_count(Bucket, Count) :-
+  findall(C-N, sampler:test_stats_pkg(Bucket, C, N), Pairs0),
+  sort(Pairs0, Pairs),
+  length(Pairs, Count).
+
+sampler:test_stats_set_current_entry(RepositoryEntry) :-
+  nb_setval(test_stats_current_entry, RepositoryEntry).
+
+sampler:test_stats_clear_current_entry :-
+  ( nb_current(test_stats_current_entry, _) ->
+      nb_delete(test_stats_current_entry)
+  ; true
+  ).
+
+sampler:test_stats_inc(Key) :-
+  with_mutex(test_stats,
+    ( ( retract(sampler:test_stats_stat(Key, N0)) -> true ; N0 = 0 ),
+      N is N0 + 1,
+      assertz(sampler:test_stats_stat(Key, N))
+    )).
+
+sampler:test_stats_inc_type(Type, Metric, Delta) :-
+  with_mutex(test_stats,
+    ( ( retract(sampler:test_stats_type(Type, Metric, N0)) -> true ; N0 = 0 ),
+      N is N0 + Delta,
+      assertz(sampler:test_stats_type(Type, Metric, N))
+    )).
+
+sampler:test_stats_inc_cycle_mention(Action, RepoEntry) :-
+  with_mutex(test_stats,
+    ( ( retract(sampler:test_stats_cycle_mention(Action, RepoEntry, N0)) -> true ; N0 = 0 ),
+      N is N0 + 1,
+      assertz(sampler:test_stats_cycle_mention(Action, RepoEntry, N))
+    )).
+
+sampler:test_stats_record_time(RepoEntry, TimeMs) :-
+  integer(TimeMs),
+  TimeMs >= 0,
+  ( RepoEntry = Repo0://Entry0,
+    cache:ordered_entry(Repo0, Entry0, C, N, _)
+  -> true
+  ; C = _, N = _
+  ),
+  with_mutex(test_stats,
+    ( ( retract(sampler:test_stats_entry_time(RepoEntry, OldMs)) ->
+          EntryMaxMs is max(OldMs, TimeMs)
+      ;   EntryMaxMs = TimeMs
+      ),
+      assertz(sampler:test_stats_entry_time(RepoEntry, EntryMaxMs)),
+      ( nonvar(C), nonvar(N) ->
+          ( retract(sampler:test_stats_pkg_time(C, N, Sum0, Max0, Cnt0)) ->
+              true
+          ;   Sum0 = 0, Max0 = 0, Cnt0 = 0
+          ),
+          Sum is Sum0 + TimeMs,
+          Max is max(Max0, TimeMs),
+          Cnt is Cnt0 + 1,
+          assertz(sampler:test_stats_pkg_time(C, N, Sum, Max, Cnt))
+      ; true
+      )
+    )).
+
+sampler:test_stats_record_costs(RepoEntry, TimeMs, Inferences, RuleCalls) :-
+  sampler:test_stats_record_time(RepoEntry, TimeMs),
+  integer(Inferences),
+  Inferences >= 0,
+  integer(RuleCalls),
+  RuleCalls >= 0,
+  ( RepoEntry = Repo0://Entry0,
+    cache:ordered_entry(Repo0, Entry0, C, N, _)
+  -> true
+  ; C = _, N = _
+  ),
+  with_mutex(test_stats,
+    ( ( retract(sampler:test_stats_entry_cost(RepoEntry, OldMs, OldInf, OldRule)) ->
+          KeepMs is max(OldMs, TimeMs),
+          KeepInf is max(OldInf, Inferences),
+          KeepRule is max(OldRule, RuleCalls)
+      ;   KeepMs = TimeMs,
+          KeepInf = Inferences,
+          KeepRule = RuleCalls
+      ),
+      assertz(sampler:test_stats_entry_cost(RepoEntry, KeepMs, KeepInf, KeepRule)),
+      ( nonvar(C), nonvar(N) ->
+          ( retract(sampler:test_stats_pkg_cost(C, N, Ms0, Inf0, Rule0, Cnt0)) ->
+              true
+          ;   Ms0 = 0, Inf0 = 0, Rule0 = 0, Cnt0 = 0
+          ),
+          Ms1 is Ms0 + TimeMs,
+          Inf1 is Inf0 + Inferences,
+          Rule1 is Rule0 + RuleCalls,
+          Cnt1 is Cnt0 + 1,
+          assertz(sampler:test_stats_pkg_cost(C, N, Ms1, Inf1, Rule1, Cnt1))
+      ; true
+      )
+    )).
+
+sampler:test_stats_record_context_costs(RepoEntry, UnionCalls, UnionCost, MaxCtxLen) :-
+  sampler:test_stats_record_context_costs(RepoEntry, UnionCalls, UnionCost, MaxCtxLen, 0).
+
+sampler:test_stats_record_context_costs(RepoEntry, UnionCalls, UnionCost, MaxCtxLen, UnionMsEst) :-
+  integer(UnionCalls),
+  UnionCalls >= 0,
+  integer(UnionCost),
+  UnionCost >= 0,
+  integer(MaxCtxLen),
+  MaxCtxLen >= 0,
+  integer(UnionMsEst),
+  UnionMsEst >= 0,
+  ( RepoEntry = Repo0://Entry0,
+    cache:ordered_entry(Repo0, Entry0, C, N, _)
+  -> true
+  ; C = _, N = _
+  ),
+  with_mutex(test_stats,
+    ( ( retract(sampler:test_stats_entry_ctx(RepoEntry, OldCalls, OldCost, OldMax, OldMs)) ->
+          Calls1 is max(OldCalls, UnionCalls),
+          Cost1 is max(OldCost, UnionCost),
+          Max1 is max(OldMax, MaxCtxLen),
+          Ms1 is max(OldMs, UnionMsEst)
+      ;   Calls1 = UnionCalls,
+          Cost1 = UnionCost,
+          Max1 = MaxCtxLen,
+          Ms1 = UnionMsEst
+      ),
+      assertz(sampler:test_stats_entry_ctx(RepoEntry, Calls1, Cost1, Max1, Ms1)),
+      ( nonvar(C), nonvar(N) ->
+          ( retract(sampler:test_stats_pkg_ctx(C, N, Sum0, Max0, SumMs0, Cnt0)) -> true
+          ; Sum0 = 0, Max0 = 0, SumMs0 = 0, Cnt0 = 0
+          ),
+          Sum1 is Sum0 + UnionCost,
+          Max2 is max(Max0, MaxCtxLen),
+          SumMs1 is SumMs0 + UnionMsEst,
+          Cnt1 is Cnt0 + 1,
+          assertz(sampler:test_stats_pkg_ctx(C, N, Sum1, Max2, SumMs1, Cnt1))
+      ; true
+      )
+    )).
+
+sampler:test_stats_record_ctx_len_distribution(HistPairs, SumMul, SumAdd, Samples) :-
+  with_mutex(test_stats,
+    ( forall(member(Len-Cnt, HistPairs),
+             ( integer(Len), Len >= 0,
+               integer(Cnt), Cnt >= 0,
+               ( retract(sampler:test_stats_ctx_len_bin(Len, Old)) ->
+                   New is Old + Cnt
+               ; New is Cnt
+               ),
+               assertz(sampler:test_stats_ctx_len_bin(Len, New))
+             )),
+      ( integer(SumMul), SumMul >= 0,
+        integer(SumAdd), SumAdd >= 0,
+        integer(Samples), Samples >= 0 ->
+          ( retract(sampler:test_stats_ctx_cost_model(M0, A0, S0)) ->
+              true
+          ; M0 = 0, A0 = 0, S0 = 0
+          ),
+          M1 is M0 + SumMul,
+          A1 is A0 + SumAdd,
+          S1 is S0 + Samples,
+          assertz(sampler:test_stats_ctx_cost_model(M1, A1, S1))
+      ; true
+      )
+    )).
+
+sampler:test_stats_inc_type_entry_mention(Type, RepoEntry) :-
+  with_mutex(test_stats,
+    ( ( retract(sampler:test_stats_type_entry_mention(Type, RepoEntry, N0)) -> true ; N0 = 0 ),
+      N is N0 + 1,
+      assertz(sampler:test_stats_type_entry_mention(Type, RepoEntry, N))
+    )).
+
+sampler:test_stats_note_cycle_for_current_entry :-
+  ( nb_current(test_stats_current_entry, RepoEntry) ->
+      with_mutex(test_stats,
+        ( sampler:test_stats_entry_had_cycle(RepoEntry) ->
+            true
+        ; assertz(sampler:test_stats_entry_had_cycle(RepoEntry)),
+          ( retract(sampler:test_stats_stat(entries_with_cycles, N0)) -> true ; N0 = 0 ),
+          N is N0 + 1,
+          assertz(sampler:test_stats_stat(entries_with_cycles, N))
+        ))
+      ,
+      ( RepoEntry = Repo://Entry -> sampler:test_stats_add_pkg(with_cycles, Repo, Entry) ; true )
+  ; true
+  ).
+
+sampler:test_stats_inc_other_head(Content) :-
+  ( Content = domain(X)      -> C1 = X
+  ; Content = cycle_break(X) -> C1 = X
+  ; C1 = Content
+  ),
+  printer:assumption_head_key(C1, Key),
+  with_mutex(test_stats,
+    ( ( retract(sampler:test_stats_other_head(Key, N0)) -> true ; N0 = 0 ),
+      N is N0 + 1,
+      assertz(sampler:test_stats_other_head(Key, N))
+    )).
+
+sampler:test_stats_record_blocker_assumption(Content) :-
+  ( Content = domain(X)      -> Content1 = X
+  ; Content = cycle_break(X) -> Content1 = X
+  ; Content1 = Content
+  ),
+  printer:collect_ctx_tags(Content1, Tags),
+  printer:unwrap_ctx_wrappers(Content1, Core),
+  ( Core = blocker(Strength, Phase, C, N, _O2, _V2, _SlotReq2) ->
+      ( sampler:test_stats_record_blocker_breakdown(Strength, Phase, C, N),
+        ( memberchk(assumption_reason(Reason), Tags) -> true ; Reason = unknown ),
+        sampler:test_stats_inc_blocker_reason(Reason, Phase)
+      )
+  ; with_mutex(test_stats,
+      ( sampler:test_stats_blocker_example(_) ->
+          true
+      ; assertz(sampler:test_stats_blocker_example(Content1))
+      ))
+  ).
+
+sampler:test_stats_record_blocker_breakdown(Strength, Phase, C, N) :-
+  with_mutex(test_stats,
+    ( ( retract(sampler:test_stats_blocker_sp(Strength, Phase, Nsp0)) -> true ; Nsp0 = 0 ),
+      Nsp is Nsp0 + 1,
+      assertz(sampler:test_stats_blocker_sp(Strength, Phase, Nsp)),
+      ( retract(sampler:test_stats_blocker_cn(C, N, Ncn0)) -> true ; Ncn0 = 0 ),
+      Ncn is Ncn0 + 1,
+      assertz(sampler:test_stats_blocker_cn(C, N, Ncn))
+    )).
+
+sampler:test_stats_inc_blocker_reason(Reason, Phase) :-
+  with_mutex(test_stats,
+    ( ( retract(sampler:test_stats_blocker_reason(Reason, N0)) -> true ; N0 = 0 ),
+      N is N0 + 1,
+      assertz(sampler:test_stats_blocker_reason(Reason, N)),
+      ( retract(sampler:test_stats_blocker_rp(Reason, Phase, M0)) -> true ; M0 = 0 ),
+      M is M0 + 1,
+      assertz(sampler:test_stats_blocker_rp(Reason, Phase, M))
+    )).
+
+sampler:test_stats_record_entry(RepositoryEntry, _ModelAVL, ProofAVL, TriggersAVL, DoCycles) :-
+  sampler:test_stats_inc(processed),
+  ( RepositoryEntry = Repo://Entry -> sampler:test_stats_add_pkg(processed, Repo, Entry) ; true ),
+  findall(ContentN,
+          ( assoc:gen_assoc(ProofKey, ProofAVL, _),
+            explainer:assumption_content_from_proof_key(ProofKey, Content0),
+            explainer:assumption_normalize(Content0, ContentN)
+          ),
+          Contents0),
+  ( Contents0 == [] ->
+      true
+  ; sampler:test_stats_inc(entries_with_assumptions),
+    ( RepositoryEntry = Repo://Entry -> sampler:test_stats_add_pkg(with_assumptions, Repo, Entry) ; true ),
+    ( once((member(C0, Contents0), printer:assumption_is_package_level(C0))) ->
+        sampler:test_stats_inc(entries_with_package_assumptions),
+        ( RepositoryEntry = Repo://Entry -> sampler:test_stats_add_pkg(with_package_assumptions, Repo, Entry) ; true )
+    ; true
+    ),
+    findall(Type,
+            ( member(Content, Contents0),
+              printer:assumption_type(Content, Type),
+              sampler:test_stats_inc_type(Type, occurrences, 1),
+              sampler:test_stats_inc_type_entry_mention(Type, RepositoryEntry),
+              ( Type == blocker_assumption ->
+                  sampler:test_stats_record_blocker_assumption(Content)
+              ; true
+              )
+            ),
+            TypesAll),
+    forall((member(Content, Contents0), printer:assumption_type(Content, other)),
+           sampler:test_stats_inc_other_head(Content)),
+    sort(TypesAll, TypesUnique),
+    forall(member(T, TypesUnique),
+           sampler:test_stats_inc_type(T, entries, 1))
+  ),
+  ( DoCycles == true ->
+      sampler:test_stats_set_current_entry(RepositoryEntry),
+      forall(member(Content, Contents0),
+             ( printer:cycle_for_assumption(Content, TriggersAVL, CyclePath0, CyclePath) ->
+                 sampler:test_stats_record_cycle(CyclePath0, CyclePath)
+             ; true
+             )),
+      sampler:test_stats_clear_current_entry
+  ; true
+  ).
+
+sampler:test_stats_record_cycle(_CyclePath0, CyclePath) :-
+  sampler:test_stats_inc(cycles_found),
+  sampler:test_stats_note_cycle_for_current_entry,
+  findall(Action-RepoEntry,
+          ( member(Node, CyclePath),
+            printer:cycle_pkg_repo_entry(Node, RepoEntry, Action),
+            ( Action == run ; Action == install )
+          ),
+          Mentions0),
+  sort(Mentions0, Mentions),
+  forall(member(Action-RepoEntry, Mentions),
+         sampler:test_stats_inc_cycle_mention(Action, RepoEntry)).
+
+sampler:test_stats_value(Key, Value) :-
+  ( sampler:test_stats_stat(Key, Value) -> true ; Value = 0 ).
+
+sampler:test_stats_percent(_, 0, 0.0) :- !.
+sampler:test_stats_percent(Part, Total, Percent) :-
+  Percent is (100.0 * Part) / Total.
+
+
+% =============================================================================
+%  Prove/plan/schedule performance counters
+% =============================================================================
+
+sampler:perf_walltime(T) :-
+  statistics(walltime, [T, _]).
+
+sampler:perf_record(T0, T1, T2, T3) :-
+  ProveMs is T1 - T0,
+  PlanMs is T2 - T1,
+  SchedMs is T3 - T2,
+  sampler:prove_plan_perf_add(ProveMs, PlanMs, SchedMs).
+
+sampler:prove_plan_perf_reset :-
+  flag(pp_perf_entries, _OldE, 0),
+  flag(pp_perf_prove_ms, _OldP, 0),
+  flag(pp_perf_plan_ms, _OldPl, 0),
+  flag(pp_perf_sched_ms, _OldS, 0),
+  !.
+
+sampler:prove_plan_perf_add(ProveMs, PlanMs, SchedMs) :-
+  flag(pp_perf_entries, E0, E0+1),
+  flag(pp_perf_prove_ms, P0, P0+ProveMs),
+  flag(pp_perf_plan_ms, Pl0, Pl0+PlanMs),
+  flag(pp_perf_sched_ms, S0, S0+SchedMs),
+  !.
+
+sampler:prove_plan_perf_report :-
+  flag(pp_perf_entries, E, E),
+  ( E =:= 0 ->
+      true
+  ; flag(pp_perf_prove_ms, P, P),
+    flag(pp_perf_plan_ms, Pl, Pl),
+    flag(pp_perf_sched_ms, S, S),
+    AvgP is P / E,
+    AvgPl is Pl / E,
+    AvgS is S / E,
+    message:scroll_notice(['prove_plan perf: entries=',E,
+                           ' prove_ms_sum=',P,' avg=',AvgP,
+                           ' plan_ms_sum=',Pl,' avg=',AvgPl,
+                           ' sched_ms_sum=',S,' avg=',AvgS])
+  ),
+  nl,
+  !.
+
+
+% =============================================================================
+%  PDEPEND perf counters
+% =============================================================================
+
+sampler:pdepend_perf_reset :-
+  flag(pdepend_perf_entries, _OldE, 0),
+  flag(pdepend_perf_pass1_ms, _OldP1, 0),
+  flag(pdepend_perf_extract_ms, _OldEx, 0),
+  flag(pdepend_perf_pass2_ms, _OldP2, 0),
+  flag(pdepend_perf_second_pass_entries, _OldS, 0),
+  flag(pdepend_perf_new_goals, _OldNg, 0),
+  !.
+
+sampler:pdepend_perf_add(Pass1Ms, ExtractMs, Pass2Ms, DidSecondPass, NewGoalsCount) :-
+  flag(pdepend_perf_entries, E0, E0+1),
+  flag(pdepend_perf_pass1_ms, P10, P10+Pass1Ms),
+  flag(pdepend_perf_extract_ms, Ex0, Ex0+ExtractMs),
+  flag(pdepend_perf_pass2_ms, P20, P20+Pass2Ms),
+  flag(pdepend_perf_second_pass_entries, S0, S0+DidSecondPass),
+  flag(pdepend_perf_new_goals, Ng0, Ng0+NewGoalsCount),
+  !.
+
+sampler:pdepend_perf_report :-
+  flag(pdepend_perf_entries, E, E),
+  ( E =:= 0 ->
+      true
+  ; flag(pdepend_perf_pass1_ms, P1, P1),
+    flag(pdepend_perf_extract_ms, Ex, Ex),
+    flag(pdepend_perf_pass2_ms, P2, P2),
+    flag(pdepend_perf_second_pass_entries, S, S),
+    flag(pdepend_perf_new_goals, Ng, Ng),
+    AvgP1 is P1 / E,
+    AvgEx is Ex / E,
+    AvgP2 is P2 / E,
+    AvgNg is Ng / E,
+    message:scroll_notice(['PDEPEND perf: entries=',E,
+                           ' pass1_ms_sum=',P1,' avg=',AvgP1,
+                           ' extract_ms_sum=',Ex,' avg=',AvgEx,
+                           ' pass2_ms_sum=',P2,' avg=',AvgP2,
+                           ' pass2_entries=',S,
+                           ' new_goals_sum=',Ng,' avg=',AvgNg])
+  ),
+  !.
 
 
 % =============================================================================

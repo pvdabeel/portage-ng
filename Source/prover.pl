@@ -1185,8 +1185,8 @@ prover:test(Repository) :-
 prover:test(Repository,Style) :-
   config:proving_target(Action0),
   prover:test_action(Action0, Action),
-  ( current_predicate(printer:prove_plan_perf_reset/0) ->
-      printer:prove_plan_perf_reset
+  ( current_predicate(sampler:prove_plan_perf_reset/0) ->
+      sampler:prove_plan_perf_reset
   ; true
   ),
   ( current_predicate(scheduler:perf_reset/0) ->
@@ -1202,8 +1202,8 @@ prover:test(Repository,Style) :-
                 prover:test_target_success(Target)
               )),
   sampler:obligation_counter_report,
-  ( current_predicate(printer:prove_plan_perf_report/0) ->
-      printer:prove_plan_perf_report
+  ( current_predicate(sampler:prove_plan_perf_report/0) ->
+      sampler:prove_plan_perf_report
   ; true
   ),
   ( current_predicate(scheduler:perf_report/0) ->
@@ -1281,9 +1281,9 @@ prover:test_stats(Repository, Style, TopN) :-
   config:proving_target(Action0),
   prover:test_action(Action0, Action),
   aggregate_all(count, (Repository:entry(_E)), ExpectedTotal),
-  printer:test_stats_reset('Proving', ExpectedTotal),
+  sampler:test_stats_reset('Proving', ExpectedTotal),
   aggregate_all(count, (Repository:package(_C,_N)), ExpectedPkgs),
-  printer:test_stats_set_expected_unique_packages(ExpectedPkgs),
+  sampler:test_stats_set_expected_unique_packages(ExpectedPkgs),
   tester:test(Style,
               'Proving',
               Repository://Entry,
@@ -1306,26 +1306,26 @@ prover:test_stats(Repository, Style, TopN) :-
                                                           ctx_cost_mul(CtxMul),
                                                           ctx_cost_add(CtxAdd),
                                                           ctx_len_samples(CtxLenSamples)),
-                    printer:test_stats_record_costs(Repository://Entry, TimeMs, Inferences, RuleCalls),
-                    printer:test_stats_record_context_costs(Repository://Entry, CtxUC, CtxCost, CtxMax, CtxMsEst),
-                    printer:test_stats_record_ctx_len_distribution(CtxHistPairs, CtxMul, CtxAdd, CtxLenSamples),
-                    printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
+                    sampler:test_stats_record_costs(Repository://Entry, TimeMs, Inferences, RuleCalls),
+                    sampler:test_stats_record_context_costs(Repository://Entry, CtxUC, CtxCost, CtxMax, CtxMsEst),
+                    sampler:test_stats_record_ctx_len_distribution(CtxHistPairs, CtxMul, CtxAdd, CtxLenSamples),
+                    sampler:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
                 ; % strict failure: classify blocker vs conflict vs other (best-effort)
                   % Time-budget: skip re-prove attempts if original prove already
                   % consumed more than 1/3 of the time limit to avoid timeouts.
                   config:time_limit(TLimit),
                   TimeBudgetMs is TLimit * 333,
                   ( TimeMs > TimeBudgetMs ->
-                      printer:test_stats_record_failed(other)
+                      sampler:test_stats_record_failed(other)
                   ;                   ( prover:assuming(blockers,
                         printer:prove_plan([Repository://Entry:Action?{[]}], _ProofAVL3, _ModelAVL3, _Plan3, _TriggersAVL3)
                       ) ->
-                        printer:test_stats_record_failed(blocker)
+                        sampler:test_stats_record_failed(blocker)
                     ; prover:assuming(conflicts,
                         prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
                       ) ->
-                        printer:test_stats_record_failed(conflict)
-                    ; printer:test_stats_record_failed(other)
+                        sampler:test_stats_record_failed(conflict)
+                    ; sampler:test_stats_record_failed(other)
                     )
                   )
                 )
@@ -1356,8 +1356,8 @@ prover:test_stats_pkgs(Repository, Style, TopN, Pkgs) :-
   is_list(Pkgs),
   config:proving_target(Action),
   length(Pkgs, ExpectedTotal),
-  printer:test_stats_reset('Proving', ExpectedTotal),
-  printer:test_stats_set_expected_unique_packages(ExpectedTotal),
+  sampler:test_stats_reset('Proving', ExpectedTotal),
+  sampler:test_stats_set_expected_unique_packages(ExpectedTotal),
   tester:test(Style,
               'Proving',
               Repository://Entry,
@@ -1382,20 +1382,20 @@ prover:test_stats_pkgs(Repository, Style, TopN, Pkgs) :-
                                                           ctx_cost_mul(CtxMul),
                                                           ctx_cost_add(CtxAdd),
                                                           ctx_len_samples(CtxLenSamples)),
-                    printer:test_stats_record_costs(Repository://Entry, TimeMs, Inferences, RuleCalls),
-                    printer:test_stats_record_context_costs(Repository://Entry, CtxUC, CtxCost, CtxMax, CtxMsEst),
-                    printer:test_stats_record_ctx_len_distribution(CtxHistPairs, CtxMul, CtxAdd, CtxLenSamples),
-                    printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
+                    sampler:test_stats_record_costs(Repository://Entry, TimeMs, Inferences, RuleCalls),
+                    sampler:test_stats_record_context_costs(Repository://Entry, CtxUC, CtxCost, CtxMax, CtxMsEst),
+                    sampler:test_stats_record_ctx_len_distribution(CtxHistPairs, CtxMul, CtxAdd, CtxLenSamples),
+                    sampler:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
                 ; % strict failure: classify blocker vs conflict vs other (best-effort)
                   ( prover:assuming(blockers,
                       prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
                     ) ->
-                      printer:test_stats_record_failed(blocker)
+                      sampler:test_stats_record_failed(blocker)
                   ; prover:assuming(conflicts,
                       prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
                     ) ->
-                      printer:test_stats_record_failed(conflict)
-                  ; printer:test_stats_record_failed(other)
+                      sampler:test_stats_record_failed(conflict)
+                  ; sampler:test_stats_record_failed(other)
                   )
                 )
               )),

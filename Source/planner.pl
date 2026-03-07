@@ -281,15 +281,15 @@ planner:test_stats(Repository, Style) :-
   config:proving_target(Action0),
   prover:test_action(Action0, Action),
   aggregate_all(count, (Repository:entry(_E)), ExpectedTotal),
-  printer:test_stats_reset('Planning', ExpectedTotal),
+  sampler:test_stats_reset('Planning', ExpectedTotal),
   aggregate_all(count, (Repository:package(_C,_N)), ExpectedPkgs),
-  printer:test_stats_set_expected_unique_packages(ExpectedPkgs),
+  sampler:test_stats_set_expected_unique_packages(ExpectedPkgs),
   tester:test(Style,
               'Planning',
               Repository://Entry,
               (Repository:entry(Entry)),
               ( prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers),
                 planner:plan(ProofAVL,Triggers,t,_Plan,_Remainder),
-                printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
+                sampler:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
               )),
   printer:test_stats_print.

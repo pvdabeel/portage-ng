@@ -490,9 +490,9 @@ scheduler:test_stats(Repository, Style) :-
   config:proving_target(Action0),
   prover:test_action(Action0, Action),
   aggregate_all(count, (Repository:entry(_E)), ExpectedTotal),
-  printer:test_stats_reset('Scheduling', ExpectedTotal),
+  sampler:test_stats_reset('Scheduling', ExpectedTotal),
   aggregate_all(count, (Repository:package(_C,_N)), ExpectedPkgs),
-  printer:test_stats_set_expected_unique_packages(ExpectedPkgs),
+  sampler:test_stats_set_expected_unique_packages(ExpectedPkgs),
   tester:test(Style,
               'Scheduling',
               Repository://Entry,
@@ -500,7 +500,7 @@ scheduler:test_stats(Repository, Style) :-
               ( prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,TriggersAVL),
                 planner:plan(ProofAVL,TriggersAVL,t,Plan0,Remainder0),
                 scheduler:schedule(ProofAVL,TriggersAVL,Plan0,Remainder0,_Plan,_Remainder),
-                printer:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, TriggersAVL, true)
+                sampler:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, TriggersAVL, true)
               )),
   printer:test_stats_print.
 

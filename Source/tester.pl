@@ -89,24 +89,24 @@ tester:test(single_verbose,Name,Repository://Item,Generator,Test,Report,Scroll) 
              ( message:scroll_failure([Item,' (time limit exceeded)']),
                message:clean,
                message:warning([Item,' (time limit exceeded)']),
-               ( current_predicate(printer:test_stats_record_failed/1) ->
-                   printer:test_stats_record_failed(timeout)
+               ( current_predicate(sampler:test_stats_record_failed/1) ->
+                   sampler:test_stats_record_failed(timeout)
                ; true
                ),
-               ( current_predicate(printer:test_stats_record_failed_entry/2) ->
-                   printer:test_stats_record_failed_entry(Repository://Item, timeout)
+               ( current_predicate(sampler:test_stats_record_failed_entry/2) ->
+                   sampler:test_stats_record_failed_entry(Repository://Item, timeout)
                ; true
                )
              )
            )
          ; message:clean,
            message:warning([Item,' (failed)']),
-           ( current_predicate(printer:test_stats_record_failed/1) ->
-               printer:test_stats_record_failed(other)
+           ( current_predicate(sampler:test_stats_record_failed/1) ->
+               sampler:test_stats_record_failed(other)
            ; true
            ),
-           ( current_predicate(printer:test_stats_record_failed_entry/2) ->
-               printer:test_stats_record_failed_entry(Repository://Item, other)
+           ( current_predicate(sampler:test_stats_record_failed_entry/2) ->
+               sampler:test_stats_record_failed_entry(Repository://Item, other)
            ; true
            )
          )),
@@ -175,12 +175,12 @@ tester:test(parallel_verbose,Name,Repository://Item,Generator,Test,Report,Scroll
                                   true)
                             ; true
                             ),
-                            ( current_predicate(printer:test_stats_record_failed/1) ->
-                                printer:test_stats_record_failed(timeout)
+                            ( current_predicate(sampler:test_stats_record_failed/1) ->
+                                sampler:test_stats_record_failed(timeout)
                             ; true
                             ),
-                            ( current_predicate(printer:test_stats_record_failed_entry/2) ->
-                                printer:test_stats_record_failed_entry(Repository://Item, timeout)
+                            ( current_predicate(sampler:test_stats_record_failed_entry/2) ->
+                                sampler:test_stats_record_failed_entry(Repository://Item, timeout)
                             ; true
                             )
                           )
@@ -205,24 +205,24 @@ tester:test(parallel_verbose,Name,Repository://Item,Generator,Test,Report,Scroll
                               true)
                         ; true
                         ),
-                        ( current_predicate(printer:test_stats_record_failed/1) ->
-                            printer:test_stats_record_failed(other)
+                        ( current_predicate(sampler:test_stats_record_failed/1) ->
+                            sampler:test_stats_record_failed(other)
                         ; true
                         ),
-                        ( current_predicate(printer:test_stats_record_failed_entry/2) ->
-                            printer:test_stats_record_failed_entry(Repository://Item, other)
+                        ( current_predicate(sampler:test_stats_record_failed_entry/2) ->
+                            sampler:test_stats_record_failed_entry(Repository://Item, other)
                         ; true
                         )
                       ),
                       E,
                       ( % Never let an exception from a worker thread abort the whole test run.
                         with_mutex(mutex, (message:clean, message:warning([Item,' (exception)']), print_message(error, E))),
-                        ( current_predicate(printer:test_stats_record_failed/1) ->
-                            printer:test_stats_record_failed(exception)
+                        ( current_predicate(sampler:test_stats_record_failed/1) ->
+                            sampler:test_stats_record_failed(exception)
                         ; true
                         ),
-                        ( current_predicate(printer:test_stats_record_failed_entry/2) ->
-                            printer:test_stats_record_failed_entry(Repository://Item, exception)
+                        ( current_predicate(sampler:test_stats_record_failed_entry/2) ->
+                            sampler:test_stats_record_failed_entry(Repository://Item, exception)
                         ; true
                         )
                       )
