@@ -255,3 +255,14 @@ vunify(F, [], [F], []) :- !.
 % CASE 3b: nothing to unify against, earlier unifications detected
 vunify(F, [], [], [F]) :- !.
 
+
+% =============================================================================
+%  Simple unifiability check
+% =============================================================================
+
+%! feature_unification:unify(+A, +B)
+%
+% Succeeds when A and B are unifiable (without binding).
+
+feature_unification:unify(A, B) :- unifiable(A, B, _), !.
+

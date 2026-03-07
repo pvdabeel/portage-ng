@@ -2095,8 +2095,8 @@ eapi:categorize_use(Use,negative,preference) :-
 eapi:categorize_use(Use,negative,default) :-
   \+(preference:use(Use)),
   \+(preference:use(minus(Use))),
-  \+(printer:unify(plus(_),Use)),
-  \+(printer:unify(minus(_),Use)),!.
+  \+(feature_unification:unify(plus(_),Use)),
+  \+(feature_unification:unify(minus(_),Use)),!.
 
 
 %! eapi:categorize_use_for_entry(+RawIuse, +Repo://Id, ?State, ?Reason)

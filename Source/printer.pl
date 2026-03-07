@@ -257,13 +257,6 @@ printer:print_timing_footer(Label, T0) :-
 
 
 
-%! unify(+A,+B)
-%
-% Helper predicate to check if two terms are unifiable.
-
-unify(A,B) :- unifiable(A,B,_),!.
-
-
 % -----------------------------------------------------------------------------
 %  Testing
 % -----------------------------------------------------------------------------
