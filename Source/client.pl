@@ -189,7 +189,9 @@ client:execute_remotely(Hostname,Port,Page) :-
     ).
 
 client:stream_flush_cr(Stream) :-
-    get_char(Stream, Char),
+    catch(get_char(Stream, Char),
+          error(io_error(read, _), _),
+          Char = end_of_file),
     ( Char == end_of_file -> true
     ; put_char(Char),
       ( (Char == '\r' ; Char == '\n') -> flush_output ; true ),
