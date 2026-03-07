@@ -1,5 +1,6 @@
 Source/Archive
-Source/Config/Private
+Source/Config/Private/api_key.pl
+Source/Config/Private/passwords.pl
 Source/Tests
 Source/Llm/Archive
 Source/Certificates/*-key.pem

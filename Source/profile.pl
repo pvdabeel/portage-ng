@@ -118,42 +118,6 @@ profile_package_mask_atoms(ProfileRel, Atoms) :-
   Atoms = Atoms0.
 
 
-%! write_profile_use_file
-%
-% Writes computed profile_use terms to Source/Config/Private/profile_use_generated.pl
-% under the installation directory.
-
-write_profile_use_file :-
-  config:installation_dir(Root),
-  os:compose_path([Root,'Source/Config/Private/profile_use_generated.pl'], File),
-  write_profile_use_file(File).
-
-
-%! write_profile_use_file(+File)
-%
-% Write computed profile_use terms to File.
-%
-% The selected profile comes from config:gentoo_profile/1.
-
-write_profile_use_file(File) :-
-  ( config:gentoo_profile(ProfileRel) -> true
-  ; throw(error(existence_error(predicate, config:gentoo_profile/1), profile:write_profile_use_file/1))
-  ),
-  profile_use_terms(ProfileRel, Terms),
-  file_directory_name(File, Dir),
-  os:ensure_directory_path(Dir),
-  setup_call_cleanup(
-    open(File, write, Out, [encoding(utf8)]),
-    ( format(Out, '/* Auto-generated from Gentoo profile~n', []),
-      format(Out, '   profile: ~w~n', [ProfileRel]),
-      format(Out, '*/~n~n', []),
-      forall(member(T, Terms),
-             format(Out, '~q.~n', [T]))
-    ),
-    close(Out)
-  ).
-
-
 % =============================================================================
 %  II. Profile inheritance chain
 % =============================================================================
