@@ -17,7 +17,7 @@ per-package USE, and license groups.
 
 It also provides profile cache serialization and deserialization.  During
 `--sync`, `profile:cache_save/0` serializes parsed profile data to
-`profile.qlf`.  At startup, `preference:init` can load the pre-parsed cache
+`Knowledge/profile.qlf`.  At startup, `preference:init` can load the pre-parsed cache
 instead of re-walking the profile tree, controlled by the per-mode
 `config:profile_loading/2` setting.
 */
@@ -663,22 +663,22 @@ profile_finalize(st(Enabled0, Disabled0, Force0, Mask0), Terms) :-
 %
 %  During --sync, profile:cache_save/0 walks the Gentoo profile tree and
 %  serializes the parsed data (USE flags, masks, per-package USE, license
-%  groups) to a cache file (profile.qlf).  At startup, preference:init can
+%  groups) to a cache file (Knowledge/profile.qlf).  At startup, preference:init can
 %  load the pre-parsed cache instead of re-walking the profile tree,
 %  controlled by the per-mode config:profile_loading/2 setting.
 
 %! profile:cache_file(-File) is det.
 %
-% Returns the path to the profile cache file (profile.qlf) in the
-% working directory, next to kb.qlf.
+% Returns the path to the profile cache file (Knowledge/profile.qlf) in the
+% working directory.
 
 profile:cache_file(File) :-
   working_directory(Cwd, Cwd),
-  directory_file_path(Cwd, 'profile.qlf', File).
+  directory_file_path(Cwd, 'Knowledge/profile.qlf', File).
 
 profile:raw_file(File) :-
   working_directory(Cwd, Cwd),
-  directory_file_path(Cwd, 'profile.raw', File).
+  directory_file_path(Cwd, 'Knowledge/profile.raw', File).
 
 
 % =============================================================================
@@ -688,7 +688,7 @@ profile:raw_file(File) :-
 %! profile:cache_save is det.
 %
 % Parse the Gentoo profile tree and serialize all profile-derived data
-% to profile.qlf.  Requires config:gentoo_profile/1 to be set.
+% to Knowledge/profile.qlf.  Requires config:gentoo_profile/1 to be set.
 
 profile:cache_save :-
   profile:raw_file(RawFile),
@@ -734,7 +734,7 @@ profile:cache_save_profile(ProfileRel, RawFile) :-
   ),
   catch(qcompile(RawFile), E,
         format(user_error, '% profile:cache_save — qcompile failed: ~w~n', [E])),
-  format('% Profile cache saved to profile.qlf~n', []).
+  format('% Profile cache saved to Knowledge/profile.qlf~n', []).
 
 
 % =============================================================================

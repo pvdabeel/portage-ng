@@ -29,7 +29,7 @@ database structure. See examples below.
 */
 
 
-% The actual module declaration is in kb.qlf, which is maintained by the 
+% The actual module declaration is in Knowledge/kb.qlf, which is maintained by the 
 % knowledgebase module. This file basically contains the structure of the dynamic 
 % facts in the cache database.
 

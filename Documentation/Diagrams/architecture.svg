@@ -361,10 +361,10 @@
 <!-- kb -->
 <g id="node16" class="node">
 <title>kb</title>
-<polygon fill="#ddf5dd" stroke="black" points="655.41,-1014.25 524.66,-1014.25 524.66,-972.5 655.41,-972.5 655.41,-1014.25"/>
+<polygon fill="#ddf5dd" stroke="black" points="663.28,-1014.25 516.78,-1014.25 516.78,-972.5 663.28,-972.5 663.28,-1014.25"/>
 <text text-anchor="middle" x="590.03" y="-1000.75" font-family="Helvetica,sans-Serif" font-size="10.00">knowledgebase.pl</text>
 <text text-anchor="middle" x="590.03" y="-989.5" font-family="Helvetica,sans-Serif" font-size="10.00">Repositories register here;</text>
-<text text-anchor="middle" x="590.03" y="-978.25" font-family="Helvetica,sans-Serif" font-size="10.00">serializes to kb.qlf</text>
+<text text-anchor="middle" x="590.03" y="-978.25" font-family="Helvetica,sans-Serif" font-size="10.00">serializes to Knowledge/kb.qlf</text>
 </g>
 <!-- repository&#45;&gt;kb -->
 <g id="edge10" class="edge">
@@ -378,7 +378,7 @@
 <title>kb&#45;&gt;cache</title>
 <path fill="none" stroke="black" d="M590.53,-972.28C591.41,-937.24 593.24,-863.68 594.55,-811.18"/>
 <polygon fill="black" stroke="black" points="597,-811.52 594.72,-804.46 592.1,-811.4 597,-811.52"/>
-<text text-anchor="middle" x="625.1" y="-884.83" font-family="Helvetica,sans-Serif" font-size="9.00">serialize (kb.qlf)</text>
+<text text-anchor="middle" x="649.48" y="-884.83" font-family="Helvetica,sans-Serif" font-size="9.00">serialize (Knowledge/kb.qlf)</text>
 </g>
 <!-- query -->
 <g id="node23" class="node">

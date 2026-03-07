@@ -79,7 +79,7 @@ digraph portage_ng_architecture {
     repository [shape=box, style=filled, fillcolor="#ddf5dd",
                 label="repository.pl\nSync, load, save\nportage tree operations"];
     kb         [shape=box, style=filled, fillcolor="#ddf5dd",
-                label="knowledgebase.pl\nRepositories register here;\nserializes to kb.qlf"];
+                label="knowledgebase.pl\nRepositories register here;\nserializes to Knowledge/kb.qlf"];
     cache      [shape=cylinder, style=filled, fillcolor="#ddf5dd",
                 label="cache.pl — Dynamic fact store\n─────────────────────────────\ncache:entry/5           (repo, path, C, N, ver)\ncache:entry_metadata/4  (repo, entry, key, val)\ncache:ordered_entry/5   (sorted by version)\ncache:manifest/5        (distfile metadata)"];
     vdb        [shape=box, style=filled, fillcolor="#ddf5dd",
@@ -366,7 +366,7 @@ digraph portage_ng_architecture {
   // Repository mgmt
   repository -> reader [label="triggers read"];
   repository -> kb     [label="registers repo"];
-  kb -> cache          [label="serialize (kb.qlf)"];
+  kb -> cache          [label="serialize (Knowledge/kb.qlf)"];
 
   // VDB
   vdb -> cache [label="pkg:// entries"];

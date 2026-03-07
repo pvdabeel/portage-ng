@@ -9,7 +9,7 @@ Source/Certificates/cacert.srl
 Source/Scripts/__pycache__/
 Source/Scripts/compare-merge-emerge.py
 todo
-kb.qlf
-kb.raw
-profile.qlf
-profile.raw
+Knowledge/kb.qlf
+Knowledge/kb.raw
+Knowledge/profile.qlf
+Knowledge/profile.raw

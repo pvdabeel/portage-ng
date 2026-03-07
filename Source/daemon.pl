@@ -10,7 +10,7 @@
 
 /** <module> DAEMON
 Implements a persistent local daemon for ipc mode. The daemon keeps the
-full standalone state (modules + kb.qlf + preferences) resident in memory and
+full standalone state (modules + Knowledge/kb.qlf + preferences) resident in memory and
 serves requests over a Unix domain socket.
 
 Two roles:

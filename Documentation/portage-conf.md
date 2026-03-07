@@ -117,25 +117,25 @@ cache (`cached`).  The strategy is configurable per mode:
 
 ```prolog
 config:profile_loading(standalone, live).    % parse profile tree on each startup
-config:profile_loading(daemon,     cached).  % load from profile.qlf (fast)
+config:profile_loading(daemon,     cached).  % load from Knowledge/profile.qlf (fast)
 config:profile_loading(worker,     cached).
 config:profile_loading(client,     live).
 config:profile_loading(server,     cached).
 ```
 
-When strategy is `cached` but `profile.qlf` is missing, falls back to `live`
+When strategy is `cached` but `Knowledge/profile.qlf` is missing, falls back to `live`
 automatically.
 
 ### Generating the profile cache
 
-Run `--sync` to generate `profile.qlf`:
+Run `--sync` to generate `Knowledge/profile.qlf`:
 
 ```sh
 ./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --sync
 ```
 
 This calls `profile:cache_save` after syncing the KB, which walks the profile
-tree once and serializes all profile-derived data to `profile.qlf`.
+tree once and serializes all profile-derived data to `Knowledge/profile.qlf`.
 
 ### What gets cached
 
@@ -161,7 +161,7 @@ Source/Config/gentoo.pl           /etc/portage configuration reader
   └── load_package_license/1      → gentoo:package_license_entry/2
 
 Source/profile.pl                  profile reading + cache serialization/deserialization
-  ├── cache_save/0                serialize profile tree → profile.qlf
+  ├── cache_save/0                serialize profile tree → Knowledge/profile.qlf
   ├── cache_load/3                deserialize USE terms/mask/force
   ├── apply_cached_package_masks/0
   ├── apply_cached_package_use/0

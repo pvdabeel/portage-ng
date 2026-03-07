@@ -451,7 +451,7 @@ preference:maybe_derive_ruby_single_target :-
 %! preference:use_cached_profile is semidet.
 %
 % Succeeds when the current mode is configured for cached profile loading
-% and a profile cache file (profile.qlf) is available.
+% and a profile cache file (Knowledge/profile.qlf) is available.
 
 preference:use_cached_profile :-
   current_predicate(interface:process_mode/1),
@@ -576,7 +576,7 @@ preference:init :-
   % 4. Apply Gentoo profile + /etc/portage overrides (package.mask / package.use).
   %
   % When using cached profile data, the profile-derived facts are loaded from
-  % profile.qlf instead of re-walking the profile tree.  The gentoo_package_*
+  % Knowledge/profile.qlf instead of re-walking the profile tree.  The gentoo_package_*
   % fallbacks (from config.pl facts) are always applied afterwards.
 
   ( preference:use_cached_profile ->

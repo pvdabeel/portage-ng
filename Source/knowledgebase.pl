@@ -186,7 +186,7 @@ save ::-
   working_directory(Cwd, Cwd),
   os:with_system_lock(kb_save(Cwd),
     with_mutex(save,
-      (tell('kb.raw'),
+      (tell('Knowledge/kb.raw'),
        format(':- module(cache,[]).\n'),
        forall(current_predicate(cache:N/A),
               (functor(H,N,A),
@@ -195,7 +195,7 @@ save ::-
                      ( write_canonical(H),
 		       format('.\n'))))),
        told,
-       qcompile('kb.raw')))),!.
+       qcompile('Knowledge/kb.raw')))),!.
 
 
 %! knowledgebase:load
@@ -212,8 +212,8 @@ load ::-
 
 load ::-
   \+ proxy,
-  exists_file('kb.qlf'),!,
-  ensure_loaded('kb.qlf').
+  exists_file('Knowledge/kb.qlf'),!,
+  ensure_loaded('Knowledge/kb.qlf').
 
 load ::-
   \+ proxy,
@@ -234,14 +234,14 @@ clear ::-
 
 clear ::-
   \+ proxy,
-  exists_file('kb.qlf'),
-  delete_file('kb.qlf'),
+  exists_file('Knowledge/kb.qlf'),
+  delete_file('Knowledge/kb.qlf'),
   fail.
 
 clear ::-
   \+ proxy,
-  exists_file('kb.raw'),!,
-  delete_file('kb.raw').
+  exists_file('Knowledge/kb.raw'),!,
+  delete_file('Knowledge/kb.raw').
 
 clear ::-
   \+ proxy,
