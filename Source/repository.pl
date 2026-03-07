@@ -146,7 +146,9 @@ sync(repository) ::-
   ::location(Local),
   ::remote(Remote),
   ::protocol(Protocol),
+  message:hc,
   script:exec_streaming(sync,[Protocol,Remote,Local],[]),
+  message:sc,
   !.
 
 

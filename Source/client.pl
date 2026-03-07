@@ -182,8 +182,19 @@ client:execute_remotely(Hostname,Port,Page) :-
                 password(Pass),
                 chunked
               ]),
-    copy_stream_data(In, current_output),
-    close(In).
+    set_stream(In, buffer(false)),
+    call_cleanup(
+        client:stream_flush_cr(In),
+        close(In)
+    ).
+
+client:stream_flush_cr(Stream) :-
+    get_char(Stream, Char),
+    ( Char == end_of_file -> true
+    ; put_char(Char),
+      ( (Char == '\r' ; Char == '\n') -> flush_output ; true ),
+      client:stream_flush_cr(Stream)
+    ).
 
 
 % -----------------------------------------------------------------------------
