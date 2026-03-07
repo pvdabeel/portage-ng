@@ -161,7 +161,7 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/ebuild.pl')),
    ensure_loaded(portage('Source/script.pl')),
    ensure_loaded(portage('Source/stat.pl')),
-   ensure_loaded(portage('Source/pkg.pl')),
+   ensure_loaded(portage('Source/vdb.pl')),
    ensure_loaded(portage('Source/Config/gentoo.pl')),
    ensure_loaded(portage('Source/preference')),
 
@@ -235,7 +235,7 @@ load_worker_modules :-
    ensure_loaded(portage('Source/ebuild.pl')),
    ensure_loaded(portage('Source/script.pl')),
    ensure_loaded(portage('Source/stat.pl')),
-   ensure_loaded(portage('Source/pkg.pl')),
+   ensure_loaded(portage('Source/vdb.pl')),
    ensure_loaded(portage('Source/Config/gentoo.pl')),
    ensure_loaded(portage('Source/preference')),
 
