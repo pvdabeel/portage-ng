@@ -186,3 +186,104 @@ process_build_with_use(Directives, Context0, Context, Conditions, Candidate) :-
 % per-package constraints modelled via context, not global constraints.
 
 build_with_use_constraints(_, [], _) :- !.
+
+
+% =============================================================================
+%  PDEPEND goal collection from a completed plan
+% =============================================================================
+
+%! dependency:pdepend_goals_from_plan(+Plan, -Goals)
+%
+% Walk the plan's merge anchors, look up each entry's PDEPEND metadata,
+% build dependency goals from it, and filter out goals already satisfied
+% by the current merge set.
+
+pdepend_goals_from_plan(Plan, Goals) :-
+  plan_merged_cn_sets(Plan, MergedCNSet, MergedCNSlotSet),
+  findall(Gs,
+          ( planner:plan_merge_anchor(Plan, Repo://Entry, AnchorCore, ActionCtx),
+            use:context_build_with_use_state(ActionCtx, B),
+            ModelKey = [build_with_use:B],
+            ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
+                query:memoized_search(model(dependency(Pdeps0, pdepend)):config?{ModelKey}, Repo://Entry),
+                dependency:add_self_to_dep_contexts(Repo://Entry, Pdeps0, Pdeps1),
+                rules:add_after_only_to_dep_contexts(AnchorCore, Pdeps1, Pdeps),
+                filter_redundant_pdepend_goals(MergedCNSet, MergedCNSlotSet, Pdeps, Gs)
+            ; Gs = []
+            )
+          ),
+          Nested),
+  append(Nested, Flat0),
+  sort(Flat0, Goals).
+
+
+%! dependency:plan_merged_cn_sets(+Plan, -CNSet, -CNSlotSet)
+%
+% Build fast assoc-based lookup sets for category/name pairs (and
+% category/name/slot triples) already being merged in the plan.
+
+plan_merged_cn_sets(Plan, CNSet, CNSlotSet) :-
+  findall(key(C,N),
+          ( planner:plan_merge_anchor(Plan, Repo://Entry, _AnchorCore, _Ctx),
+            query:search([category(C),name(N)], Repo://Entry)
+          ),
+          CNKeys0),
+  sort(CNKeys0, CNKeys),
+  scheduler:assoc_set_from_list(CNKeys, CNSet),
+  findall(key(C,N,Slot),
+          ( planner:plan_merge_anchor(Plan, Repo://Entry, _AnchorCore2, _Ctx2),
+            query:search([category(C),name(N)], Repo://Entry),
+            candidate:entry_slot_default(Repo, Entry, Slot)
+          ),
+          CNSlotKeys0),
+  sort(CNSlotKeys0, CNSlotKeys),
+  scheduler:assoc_set_from_list(CNSlotKeys, CNSlotSet).
+
+
+%! dependency:filter_redundant_pdepend_goals(+CNSet, +CNSlotSet, +Goals0, -Goals)
+%
+% Drop PDEPEND goals whose category/name (or category/name/slot) is
+% already present in the current plan's merge set.
+
+filter_redundant_pdepend_goals(_CNSet, _CNSlotSet, [], []) :- !.
+
+filter_redundant_pdepend_goals(CNSet, CNSlotSet, Goals0, Goals) :-
+  ( is_list(Goals0) ->
+      include(dependency:pdepend_goal_needed(CNSet, CNSlotSet), Goals0, Goals)
+  ; Goals = Goals0
+  ),
+  !.
+
+
+%! dependency:pdepend_goal_needed(+CNSet, +CNSlotSet, +Goal)
+%
+% Succeeds when Goal is not already covered by the plan's merge set.
+
+pdepend_goal_needed(CNSet, CNSlotSet, Goal) :-
+  ( target:dep_cn(Goal, C, N) ->
+      ( goal_specific_slot(Goal, Slot) ->
+          \+ get_assoc(key(C,N,Slot), CNSlotSet, _)
+      ; \+ get_assoc(key(C,N), CNSet, _)
+      )
+  ; true
+  ).
+
+
+%! dependency:goal_specific_slot(+Goal, -Slot)
+%
+% Extract an explicit slot requirement from a grouped dependency goal.
+% A goal is only dropped if the plan already merges the same (C,N,Slot).
+
+goal_specific_slot(grouped_package_dependency(_,C,N,PackageDeps):_Action?{_Ctx}, Slot) :-
+  member(package_dependency(_Phase,_Strength,C,N,_O,_V,SlotReq,_U), PackageDeps),
+  is_list(SlotReq),
+  member(slot(S0), SlotReq),
+  candidate:canon_slot(S0, Slot),
+  !.
+
+goal_specific_slot(grouped_package_dependency(C,N,PackageDeps):_Action?{_Ctx}, Slot) :-
+  member(package_dependency(_Phase,_Strength,C,N,_O,_V,SlotReq,_U), PackageDeps),
+  is_list(SlotReq),
+  member(slot(S0), SlotReq),
+  candidate:canon_slot(S0, Slot),
+  !.

@@ -551,7 +551,7 @@ sampler:test_stats_inc_other_head(Content) :-
   ; Content = cycle_break(X) -> C1 = X
   ; C1 = Content
   ),
-  printer:assumption_head_key(C1, Key),
+  assumption:assumption_head_key(C1, Key),
   with_mutex(test_stats,
     ( ( retract(sampler:test_stats_other_head(Key, N0)) -> true ; N0 = 0 ),
       N is N0 + 1,
@@ -563,8 +563,8 @@ sampler:test_stats_record_blocker_assumption(Content) :-
   ; Content = cycle_break(X) -> Content1 = X
   ; Content1 = Content
   ),
-  printer:collect_ctx_tags(Content1, Tags),
-  printer:unwrap_ctx_wrappers(Content1, Core),
+  assumption:collect_ctx_tags(Content1, Tags),
+  assumption:unwrap_ctx_wrappers(Content1, Core),
   ( Core = blocker(Strength, Phase, C, N, _O2, _V2, _SlotReq2) ->
       ( sampler:test_stats_record_blocker_breakdown(Strength, Phase, C, N),
         ( memberchk(assumption_reason(Reason), Tags) -> true ; Reason = unknown ),
@@ -610,14 +610,14 @@ sampler:test_stats_record_entry(RepositoryEntry, _ModelAVL, ProofAVL, TriggersAV
       true
   ; sampler:test_stats_inc(entries_with_assumptions),
     ( RepositoryEntry = Repo://Entry -> sampler:test_stats_add_pkg(with_assumptions, Repo, Entry) ; true ),
-    ( once((member(C0, Contents0), printer:assumption_is_package_level(C0))) ->
+    ( once((member(C0, Contents0), assumption:assumption_is_package_level(C0))) ->
         sampler:test_stats_inc(entries_with_package_assumptions),
         ( RepositoryEntry = Repo://Entry -> sampler:test_stats_add_pkg(with_package_assumptions, Repo, Entry) ; true )
     ; true
     ),
     findall(Type,
             ( member(Content, Contents0),
-              printer:assumption_type(Content, Type),
+              assumption:assumption_type(Content, Type),
               sampler:test_stats_inc_type(Type, occurrences, 1),
               sampler:test_stats_inc_type_entry_mention(Type, RepositoryEntry),
               ( Type == blocker_assumption ->
@@ -626,7 +626,7 @@ sampler:test_stats_record_entry(RepositoryEntry, _ModelAVL, ProofAVL, TriggersAV
               )
             ),
             TypesAll),
-    forall((member(Content, Contents0), printer:assumption_type(Content, other)),
+    forall((member(Content, Contents0), assumption:assumption_type(Content, other)),
            sampler:test_stats_inc_other_head(Content)),
     sort(TypesAll, TypesUnique),
     forall(member(T, TypesUnique),
@@ -635,7 +635,7 @@ sampler:test_stats_record_entry(RepositoryEntry, _ModelAVL, ProofAVL, TriggersAV
   ( DoCycles == true ->
       sampler:test_stats_set_current_entry(RepositoryEntry),
       forall(member(Content, Contents0),
-             ( printer:cycle_for_assumption(Content, TriggersAVL, CyclePath0, CyclePath) ->
+             ( assumption:cycle_for_assumption(Content, TriggersAVL, CyclePath0, CyclePath) ->
                  sampler:test_stats_record_cycle(CyclePath0, CyclePath)
              ; true
              )),
@@ -648,7 +648,7 @@ sampler:test_stats_record_cycle(_CyclePath0, CyclePath) :-
   sampler:test_stats_note_cycle_for_current_entry,
   findall(Action-RepoEntry,
           ( member(Node, CyclePath),
-            printer:cycle_pkg_repo_entry(Node, RepoEntry, Action),
+            cycle:cycle_pkg_repo_entry(Node, RepoEntry, Action),
             ( Action == run ; Action == install )
           ),
           Mentions0),

@@ -475,7 +475,7 @@ interface:process_bugs(ArgsSets, Options) :-
 %! interface:print_bugreport_drafts_from_proof(+ProofAVL) is det.
 %
 % Extracts domain assumptions from the proof AVL and delegates to
-% printer:print_bugreport_drafts/1. Prints "(none)" when clean.
+% warning:print_bugreport_drafts/1. Prints "(none)" when clean.
 
 interface:print_bugreport_drafts_from_proof(ProofAVL) :-
   findall(Content, assoc:gen_assoc(rule(assumed(Content)), ProofAVL, _), DomainAssumptions0),
@@ -484,7 +484,7 @@ interface:print_bugreport_drafts_from_proof(ProofAVL) :-
       message:header('Bug report drafts (Gentoo Bugzilla)'),
       nl,
       writeln('  (none)')
-  ; printer:print_bugreport_drafts(DomainAssumptions)
+  ; warning:print_bugreport_drafts(DomainAssumptions)
   ).
 
 
@@ -511,7 +511,7 @@ interface:process_action(info,Args,_Options) :-
   forall(member(Arg,Args),(atom_codes(Arg,Codes),
                            phrase(eapi:qualified_target(Q),Codes),
 			   once(kb:query(Q,R://E)),
-                           printer:print_entry(R://E))).
+                           info:print_entry(R://E))).
 
 
 % -----------------------------------------------------------------------------
@@ -572,30 +572,30 @@ interface:process_action(Action,ArgsSets,Options) :-
    ;  true),
   (Mode == 'client' ->
     (client:rpc_execute(Host,Port,
-     (printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers),
+     (pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers),
       printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
       ( PretendMode == false -> vdb:sync ; true )),
      Output),
      writeln(Output));
     ( ( memberchk(timeout(TimeLimitSec), Options) -> true ; TimeLimitSec = 0 ),
       ( TimeLimitSec =< 0 ->
-          ( ( printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers) ->
+          ( ( pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers) ->
                 FallbackUsed = false
             ; prover:assuming(keyword_acceptance,
-                printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
+                pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
               ) ->
                 FallbackUsed = keyword_acceptance
             ; prover:assuming(blockers,
-                printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
+                pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
               ) ->
                 FallbackUsed = blockers
             ; prover:assuming(unmask,
-                printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
+                pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
               ) ->
                 FallbackUsed = unmask
             ; prover:assuming(keyword_acceptance,
                 prover:assuming(unmask,
-                  printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
+                  pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
                 )
               ) ->
                 FallbackUsed = keyword_unmask
@@ -605,23 +605,23 @@ interface:process_action(Action,ArgsSets,Options) :-
           )
       ; catch(
           call_with_time_limit(TimeLimitSec,
-            ( ( printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers) ->
+            ( ( pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers) ->
                   FallbackUsed = false
               ; prover:assuming(keyword_acceptance,
-                  printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
+                  pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
                 ) ->
                   FallbackUsed = keyword_acceptance
               ; prover:assuming(blockers,
-                  printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
+                  pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
                 ) ->
                   FallbackUsed = blockers
               ; prover:assuming(unmask,
-                  printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
+                  pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
                 ) ->
                   FallbackUsed = unmask
               ; prover:assuming(keyword_acceptance,
                   prover:assuming(unmask,
-                    printer:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
+                    pipeline:prove_plan(Proposal, ProofAVL, ModelAVL, Plan, Triggers)
                   )
                 ) ->
                   FallbackUsed = keyword_unmask

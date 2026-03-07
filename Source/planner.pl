@@ -292,4 +292,27 @@ planner:test_stats(Repository, Style) :-
                 planner:plan(ProofAVL,Triggers,t,_Plan,_Remainder),
                 sampler:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
               )),
-  printer:test_stats_print.
+  stats:test_stats_print.
+
+
+% =============================================================================
+%  Plan inspection
+% =============================================================================
+
+%! planner:plan_merge_anchor(+Plan, -Repo://Entry, -AnchorCore, -Ctx)
+%
+% Non-deterministically enumerate every merge action in the plan.
+% A merge anchor is any rule whose action is install, update,
+% downgrade, or reinstall.
+
+planner:plan_merge_anchor(Plan, Repo://Entry, AnchorCore, Ctx) :-
+  member(Step, Plan),
+  member(Rule, Step),
+  ( Rule = rule(HeadWithCtx, _Body)
+  ; Rule = assumed(rule(HeadWithCtx, _Body))
+  ; Rule = rule(assumed(HeadWithCtx), _Body)
+  ),
+  prover:canon_literal(HeadWithCtx, AnchorCore, Ctx),
+  AnchorCore = (Repo://Entry:Action),
+  ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
+  true.

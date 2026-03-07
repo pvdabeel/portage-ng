@@ -1149,23 +1149,23 @@ prover:test_action(Action, Action).
 % This keeps whole-repo test runs robust for known blocker/conflict-heavy
 % packages while preserving strict behavior as first choice.
 prover:test_target_success(Target) :-
-  printer:prove_plan([Target], _ProofAVL, _ModelAVL, _Plan, _TriggersAVL),
+  pipeline:prove_plan([Target], _ProofAVL, _ModelAVL, _Plan, _TriggersAVL),
   !.
 prover:test_target_success(Target) :-
   prover:assuming(keyword_acceptance,
     prover:assuming(unmask,
-      printer:prove_plan([Target], _ProofAVL1, _ModelAVL1, _Plan1, _TriggersAVL1)
+      pipeline:prove_plan([Target], _ProofAVL1, _ModelAVL1, _Plan1, _TriggersAVL1)
     )
   ),
   !.
 prover:test_target_success(Target) :-
   prover:assuming(blockers,
-    printer:prove_plan([Target], _ProofAVL2, _ModelAVL2, _Plan2, _TriggersAVL2)
+    pipeline:prove_plan([Target], _ProofAVL2, _ModelAVL2, _Plan2, _TriggersAVL2)
   ),
   !.
 prover:test_target_success(Target) :-
   prover:assuming(conflicts,
-    printer:prove_plan([Target], _ProofAVL3, _ModelAVL3, _Plan3, _TriggersAVL3)
+    pipeline:prove_plan([Target], _ProofAVL3, _ModelAVL3, _Plan3, _TriggersAVL3)
   ).
 
 
@@ -1291,7 +1291,7 @@ prover:test_stats(Repository, Style, TopN) :-
               ( sampler:test_stats_reset_counters,
                 statistics(inferences, I0),
                 statistics(walltime, [T0,_]),
-                ( printer:prove_plan([Repository://Entry:Action?{[]}], ProofAVL, ModelAVL, _Plan, Triggers) ->
+                ( pipeline:prove_plan([Repository://Entry:Action?{[]}], ProofAVL, ModelAVL, _Plan, Triggers) ->
                     Proved = true
                 ; Proved = false
                 ),
@@ -1318,7 +1318,7 @@ prover:test_stats(Repository, Style, TopN) :-
                   ( TimeMs > TimeBudgetMs ->
                       sampler:test_stats_record_failed(other)
                   ;                   ( prover:assuming(blockers,
-                        printer:prove_plan([Repository://Entry:Action?{[]}], _ProofAVL3, _ModelAVL3, _Plan3, _TriggersAVL3)
+                        pipeline:prove_plan([Repository://Entry:Action?{[]}], _ProofAVL3, _ModelAVL3, _Plan3, _TriggersAVL3)
                       ) ->
                         sampler:test_stats_record_failed(blocker)
                     ; prover:assuming(conflicts,
@@ -1330,7 +1330,7 @@ prover:test_stats(Repository, Style, TopN) :-
                   )
                 )
               )),
-  printer:test_stats_print(TopN).
+  stats:test_stats_print(TopN).
 
 
 % -----------------------------------------------------------------------------
@@ -1399,4 +1399,4 @@ prover:test_stats_pkgs(Repository, Style, TopN, Pkgs) :-
                   )
                 )
               )),
-  printer:test_stats_print(TopN).
+  stats:test_stats_print(TopN).

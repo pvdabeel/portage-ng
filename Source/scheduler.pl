@@ -502,7 +502,7 @@ scheduler:test_stats(Repository, Style) :-
                 scheduler:schedule(ProofAVL,TriggersAVL,Plan0,Remainder0,_Plan,_Remainder),
                 sampler:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, TriggersAVL, true)
               )),
-  printer:test_stats_print.
+  stats:test_stats_print.
 
 
 % -----------------------------------------------------------------------------
