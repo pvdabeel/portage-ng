@@ -9,84 +9,15 @@
 
 
 /** <module> INFO
-Ebuild metadata display and index rendering.
+Ebuild metadata display.
 
 Handles printing of individual ebuild metadata (print_entry, print_metadata),
-package dependency and USE flag details, and HTML-style index pages
-(print_index).
+package dependency and USE flag details.
+
+HTML index rendering has moved to Source/Printer/index.pl (module index).
 */
 
 :- module(info, []).
-
-% -----------------------------------------------------------------------------
-%  INDEX printing
-% -----------------------------------------------------------------------------
-
-%! info:print_index(Generator)
-%
-% Print an index for a given Generator (repository:category, repository:package)
-
-info:print_index(Type,Title,TitleHtml,Generator,Template,Stylesheet) :-
-  print_index_header(Title,TitleHtml,Stylesheet),
-  forall(Generator,print_index_element(Type,Template)),
-  print_index_footer.
-
-
-%! info:print_index_header(Name,Stylesheet)
-%
-% Print an index header with a given Name and Stylesheet
-
-info:print_index_header(Title,TitleHtml,Stylesheet) :-
-  writeln('<?xml version="1.0" encoding="UTF-8" ?>'),
-  writeln('<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">'),
-  writeln('<html xmlns="http://www.w3.org/1999/xhtml">'),
-  writeln('<head>'),
-  writeln('<meta http-equiv="Content-Type" content="application/xml+xhtml; charset=UTF-8"/>'),
-  write('<title>'),write(Title),write('</title>'),nl,
-  write('<link rel="stylesheet" href="'),write(Stylesheet),write('"/>'),
-  writeln('</head>'),
-  writeln('<body>'),
-  write('<h1>'),write(TitleHtml),write('</h1>'),nl,
-  writeln('<ul>').
-
-
-%! info:print_index_footer
-%
-% Print an index footer
-
-info:print_index_footer :-
-  writeln('</ul>'),
-  writeln('</body>'),
-  writeln('</html>').
-
-
-%! info:print_index_element(E,Relpath)
-%
-% Print an element in the index
-
-info:print_index_element(repository,E) :-
-  write('<li class="element"><a href="./'),
-  write(E),
-  write('/index.html">'),
-  write(E),
-  write('</a></li>'),
-  nl.
-
-info:print_index_element(category,E) :-
-  write('<li class="element"><a href="./'),
-  write(E),
-  write('.html">'),
-  write(E),
-  write('</a></li>'),
-  nl.
-
-info:print_index_element(package,[E,V]) :-
-  write('<li class="element"><a href="./'),
-  write(E),write('-'),write(V),
-  write('.svg">'),
-  write(V),
-  write('</a></li>'),
-  nl.
 
 
 % -----------------------------------------------------------------------------

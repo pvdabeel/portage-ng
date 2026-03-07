@@ -20,7 +20,8 @@ Architecture:
       cycle.pl        module cycle       — cycle explanation + DFS/BFS
       timing.pl       module timing      — emerge-compatible timing output
     plan.pl           module plan        — build plan rendering + entry points
-    info.pl           module info        — ebuild metadata + index display
+    index.pl          module index       — HTML index page rendering
+    info.pl           module info        — ebuild metadata display
     stats.pl          module stats       — test statistics tables
     state.pl          module state       — prover state debugger display
 
