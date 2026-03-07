@@ -265,4 +265,3 @@ vunify(F, [], [], [F]) :- !.
 % Succeeds when A and B are unifiable (without binding).
 
 feature_unification:unify(A, B) :- unifiable(A, B, _), !.
-

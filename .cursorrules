@@ -187,6 +187,7 @@ module:predicate_name(Arg1, Arg2) :-
 | `-----` section header         | 1                 |
 | Predicate doc + last clause    | 2                 |
 | Between clauses of same pred   | 0                 |
+| End of file (after last clause)| 0 (no trailing blank line) |
 
 ## Configuration
 

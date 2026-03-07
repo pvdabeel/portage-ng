@@ -1104,5 +1104,3 @@ scheduler:get_full_rule_from_proof(Literal, ProofAVL, FullRule) :-
   ),
   !,
   prover:canon_rule(FullRule, ProofKey, ProofValue).
-
-

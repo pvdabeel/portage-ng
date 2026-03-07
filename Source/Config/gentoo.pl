@@ -300,5 +300,3 @@ gentoo:strip_comment_and_trim(Raw, Trimmed) :-
   ; S0 = Raw
   ),
   normalize_space(string(Trimmed), S0).
-
-

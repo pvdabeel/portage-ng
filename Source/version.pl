@@ -340,4 +340,3 @@ version_constraint_holds(Ver, bound(greaterequal, Req)) :- !,
   ).
 % Keep unknown operators non-blocking for symbolic consistency checks.
 version_constraint_holds(_Ver, _Other) :- !.
-
