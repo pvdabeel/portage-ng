@@ -194,7 +194,7 @@ client:stream_flush_cr(Stream) :-
           Char = end_of_file),
     ( Char == end_of_file -> true
     ; put_char(Char),
-      ( (Char == '\r' ; Char == '\n') -> flush_output ; true ),
+      flush_output,
       client:stream_flush_cr(Stream)
     ).
 

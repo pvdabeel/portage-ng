@@ -56,12 +56,12 @@ script:exec_streaming(S,Args,Env) :-
 script:stream_prefix_chars(Stream,BOL) :-
   get_char(Stream,Char),
   ( Char == end_of_file ->
-    ( BOL == false -> nl, flush_output ; true )
+    ( BOL == false -> format("\e[K"), nl, flush_output ; true )
   ; Char == '\n' ->
-    nl, flush_output,
+    format("\e[K"), nl, flush_output,
     script:stream_prefix_chars(Stream,true)
   ; Char == '\r' ->
-    put_char('\r'), flush_output,
+    put_char('\r'), format("\e[K"), flush_output,
     script:stream_prefix_chars(Stream,true)
   ;
     ( BOL == true -> write('% ') ; true ),
