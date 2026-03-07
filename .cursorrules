@@ -327,5 +327,40 @@ The canonical load graph for standalone is in `portage-ng.pl`:
 - Compare two `prover:test(portage)` logs:
   - `python3 Reports/Scripts/compare-prover-failset.py --baseline <baseline.log> --candidate <candidate.log> --out Reports/prover_failset_compare.json`
 
+## Running emerge -vp on macOS (comparison tool)
+
+A gentoo-prefix environment at `~/gentoo-prefix/` allows running `emerge -vp`
+on macOS for quick comparison against portage-ng output.
+
+### Setup
+- Installed via `Source/Scripts/emerge-install.sh` (run once per machine):
+  ```sh
+  ./Source/Scripts/emerge-install.sh \
+      --portage-src ~/Git/portage \
+      --portage-tree ~/Repository/portage-git \
+      --portage-ng ~/Desktop/Prolog \
+      --vdb ~/Repository/pkg
+  ```
+- Requires a local clone of the portage source (e.g. `~/Git/portage`).
+- Config files under `~/gentoo-prefix/etc/portage/` are symlinked from the
+  portage-ng config directory.
+
+### Usage
+```sh
+# Quick pretend (uses PORTAGE_DIR env or auto-detects):
+PORTAGE_DIR=~/Git/portage/bin ~/gentoo-prefix/bin/emerge-vp sys-apps/portage
+
+# General wrapper (pass any emerge flags):
+PORTAGE_DIR=~/Git/portage/bin ~/gentoo-prefix/bin/emerge-wrapper --info
+```
+
+### Key design decision
+- The wrappers set `EPREFIX` (and patch `portage.const.EPREFIX`) to the prefix
+  path. This tells portage it is running in a Gentoo Prefix environment, so it
+  creates a single config tree. Profile, VDB, and cache all resolve under the
+  prefix directory.
+- VDB is consulted via `~/gentoo-prefix/var/db/pkg` (symlinked to the portage-ng
+  VDB), so installed packages correctly show as `[nomerge]`.
+
 ## Compare to portage source code
 - The portage source code can be found in /Volumes/Disk\ 2/Git/portage on this system.
