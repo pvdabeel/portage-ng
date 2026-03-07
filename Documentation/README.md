@@ -10,5 +10,8 @@ This directory contains documentation for portage-ng.
   - `rules_assumptions_flow.dot` / `.svg` — BPMN-style flow diagram of the rules/prover assumption pipeline
 - `Specifications/` — EAPI PMS specifications
 - `Tests/` — test case documentation
-- `explainer.txt` — high-level explainer of the resolver design
-- `resolver-comparison.md` — comparison of Portage, Paludis, and portage-ng resolvers with academic foundations
+- `doc-context-terms.md` — how context terms evolve across dependencies (self, build_with_use, constraints, feature logic)
+- `doc-dependency-ordering.md` — dependency ordering and planning documentation
+- `doc-explainer.md` — explainer & explanation module usage guide
+- `doc-gentoo.md` — Gentoo portage configuration and profile loading
+- `doc-resolver-comparison.md` — comparison of Portage, Paludis, and portage-ng resolvers with academic foundations

@@ -71,7 +71,7 @@ Rules uses this store in three ways:
 
 Inspired by Zeller's feature logic (incremental domain narrowing) and
 Vermeir/Van Nieuwenborgh's ordered logic programs (priority-based conflict
-resolution). See `Documentation/resolver-comparison.md`.
+resolution). See `Documentation/doc-resolver-comparison.md`.
 
 ### Testing learned constraints
 When testing changes to the learned constraint mechanism, ALWAYS verify:
