@@ -19,6 +19,14 @@ suggestions, and Gentoo Bugzilla bug report drafts.
 :- module(warning, []).
 
 
+% =============================================================================
+%  WARNING declarations
+% =============================================================================
+
+% -----------------------------------------------------------------------------
+%  Print warnings
+% -----------------------------------------------------------------------------
+
 %! warning:print_warnings(+ModelAVL, +ProofAVL, +TriggersAVL)
 %
 % Prints assumptions found in the proof/model.

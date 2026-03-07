@@ -19,8 +19,12 @@ extraction from cached dependency metadata, and cycle path display.
 :- module(cycle, []).
 
 
+% =============================================================================
+%  CYCLE declarations
+% =============================================================================
+
 % -----------------------------------------------------------------------------
-%  Cycle explanation (minimal "works now" implementation)
+%  Cycle explanation
 % -----------------------------------------------------------------------------
 
 %! cycle:print_cycle_explanation(+StartKey,+ProofAVL,+TriggersAVL)

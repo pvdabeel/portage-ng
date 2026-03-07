@@ -9,28 +9,45 @@
 
 
 /** <module> OLLAMA
-Implements interaction with Ollama (typically locally running)
+Implements interaction with Ollama (typically locally running).
 We implement real-time streaming.
 
 We support any model available, default is set to 'llama3.2'.
 */
+
+:- module(ollama, [ollama/0, ollama/1, ollama/2]).
 
 
 % =============================================================================
 %  OLLAMA declarations
 % =============================================================================
 
-:- module(ollama, [ollama/0, ollama/1, ollama/2]).
+% -----------------------------------------------------------------------------
+%  Conversation history
+% -----------------------------------------------------------------------------
 
-% Dynamic predicate for conversation history
 :- dynamic history/1.
+
 history([]).
+
+
+%! ollama:update_history(+History)
+%
+% Replace the stored conversation history.
 
 update_history(History) :-
   retractall(ollama:history(_)),
   assertz(ollama:history(History)).
 
-% Main entry points for Ollama
+
+% -----------------------------------------------------------------------------
+%  Entry points
+% -----------------------------------------------------------------------------
+
+%! ollama:ollama(+Input, -ResponseContent)
+%
+% Send Input to Ollama and unify ResponseContent with the response text.
+
 ollama(Input,ResponseContent) :-
   Service = 'ollama',
   config:llm_api_key(Service,Key),
@@ -45,8 +62,18 @@ ollama(Input,ResponseContent) :-
    ;   Response = _{error: Error, history: _}
        ->  write('Error: '), write(Error), nl ),!.
 
+
+%! ollama:ollama(+Input)
+%
+% Send Input to Ollama, discarding the response content.
+
 ollama(Input) :-
   ollama(Input,_).
+
+
+%! ollama:ollama
+%
+% Interactive prompt: read user input, then send to Ollama.
 
 ollama :-
   llm:get_input(Msg),

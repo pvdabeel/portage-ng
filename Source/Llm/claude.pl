@@ -12,29 +12,45 @@
 Implements interaction with Anthropic Claude.
 We implement real-time streaming.
 
-We support any model available, default is set to 'claude-3-7-sonnet'.
+We support any model available, default is set to 'claude-sonnet-4-5'.
 
 Interfacing with Claude requires a specific protocol, different from OpenAI.
 We define the Claude specific protocol in this file.
 */
+
+:- module(claude, [claude/0, claude/1, claude/2]).
 
 
 % =============================================================================
 %  CLAUDE declarations
 % =============================================================================
 
-:- module(claude, [claude/0, claude/1, claude/2]).
+% -----------------------------------------------------------------------------
+%  Conversation history
+% -----------------------------------------------------------------------------
 
-
-% Dynamic predicate for conversation history
 :- dynamic history/1.
+
 history([]).
+
+
+%! claude:update_history(+History)
+%
+% Replace the stored conversation history.
 
 update_history(History) :-
   retractall(claude:history(_)),
   assertz(claude:history(History)).
 
-% Claude-specific streaming chat function
+
+% -----------------------------------------------------------------------------
+%  Claude-specific streaming
+% -----------------------------------------------------------------------------
+
+%! claude:llm_stream_claude(+Endpoint, +APIKey, +Model, +Messages, -Response)
+%
+% Send a streaming chat request to the Claude API and collect the response.
+
 llm_stream_claude(Endpoint, APIKey, Model, Messages, Response) :-
     config:llm_max_tokens(Max),
     config:llm_temperature(Temperature),
@@ -74,12 +90,9 @@ llm_stream_claude(Endpoint, APIKey, Model, Messages, Response) :-
 
             atomic_list_concat(Contents, ResponseContent),
 
-            % Find the last assistant message
             reverse(Messages, Reversed),
             llm:find_first_assistant(Reversed, LastAssistantMessage),
-            % Update the last assistant message with full content
             put_dict(content, LastAssistantMessage, ResponseContent, UpdatedAssistantMessage),
-            % Replace the last message in Messages with UpdatedAssistantMessage
             (  append(Prefix, [LastAssistantMessage|Rest], Messages)
             -> append(Prefix, [UpdatedAssistantMessage|Rest], NewMessages)
             ;  append(Messages, [UpdatedAssistantMessage], NewMessages) ),
@@ -91,61 +104,75 @@ llm_stream_claude(Endpoint, APIKey, Model, Messages, Response) :-
         )
     ).
 
-% Process the streaming response for Claude
+
+% -----------------------------------------------------------------------------
+%  Stream processing
+% -----------------------------------------------------------------------------
+
+%! claude:process_stream_claude(+In, -Contents)
+%
+% Read and process a Claude SSE stream, collecting content text fragments.
+
 process_stream_claude(In, Contents) :-
-    process_stream_claude(In, Contents, []). % Initial call with accumulator
+    process_stream_claude(In, Contents, []).
 
 process_stream_claude(In, Contents, Acc) :-
     read_line_to_string(In, Line),
     (   Line == end_of_file
     ->  reverse(Acc, Contents)
-    ;   % Handle 'event:' lines
-        (   sub_string(Line, 0, 7, _, 'event: ')
-        ->  % We can log the event type if needed for debugging
-            % sub_string(Line, 7, _, 0, EventType),
-            % format('~NEvent: ~w~n', [EventType]),
-            process_stream_claude(In, Contents, Acc) % Continue reading after an event
-        % Handle 'data:' lines
+    ;   (   sub_string(Line, 0, 7, _, 'event: ')
+        ->  process_stream_claude(In, Contents, Acc)
         ;   sub_string(Line, 0, 6, _, "data: ")
         ->  sub_string(Line, 6, _, 0, Data),
             (   Data == "[DONE]"
-            ->  reverse(Acc, Contents) % Stream is done
-            ;   % Attempt to parse JSON data
-                (   atom_json_dict(Data, Dict, []) % Use atom_json_dict for direct JSON atom parsing
-                ->  (   get_dict(type, Dict, "content_block_delta") % Look for content delta specifically
+            ->  reverse(Acc, Contents)
+            ;   (   atom_json_dict(Data, Dict, [])
+                ->  (   get_dict(type, Dict, "content_block_delta")
                     ->  get_dict(delta, Dict, Delta),
                         get_dict(text, Delta, Content)
-                    ;   % Handle other data types or ignore if not content delta
-                        % For example, message_delta might also have content
-                        (   get_dict(type, Dict, "message_delta"),
+                    ;   (   get_dict(type, Dict, "message_delta"),
                             get_dict(delta, Dict, MessageDelta),
                             get_dict(text, MessageDelta, Content)
                         )
                         ->  true
-                        ;   Content = "" % No relevant content found in this data block
+                        ;   Content = ""
                     )
-                ;   Content = "" % JSON parsing failed
+                ;   Content = ""
                 ),
                 (   Content \= ""
                 ->  write(Content), flush_output,
                     process_stream_claude(In, Contents, [Content | Acc])
-                ;   process_stream_claude(In, Contents, Acc) % No content, just continue
+                ;   process_stream_claude(In, Contents, Acc)
                 )
             )
-        % Ignore empty lines or other non-event/non-data lines
         ;   process_stream_claude(In, Contents, Acc)
         )
     ).
 
 
-% Claude specific streaming chat callback
+% -----------------------------------------------------------------------------
+%  Streaming callback
+% -----------------------------------------------------------------------------
+
+%! claude:claude_llm_stream(+APIKey, +Model, +History, +Query, -Response)
+%
+% Prepare messages and invoke the Claude streaming endpoint.
+
 claude_llm_stream(APIKey, Model, History, Query, Response) :-
     config:llm_endpoint(claude,Endpoint),
     UserMessage = _{role: user, content: Query},
     append(History, [UserMessage], Messages),
     llm_stream_claude(Endpoint, APIKey, Model, Messages, Response).
 
-% Main entry points for Claude
+
+% -----------------------------------------------------------------------------
+%  Entry points
+% -----------------------------------------------------------------------------
+
+%! claude:claude(+Input, -ResponseContent)
+%
+% Send Input to Claude and unify ResponseContent with the response text.
+
 claude(Input,ResponseContent) :-
   Service = 'claude',
   config:llm_api_key(Service,Key),
@@ -160,8 +187,18 @@ claude(Input,ResponseContent) :-
    ;   Response = _{error: Error, history: _}
        ->  write('Error: '), write(Error), nl ),!.
 
+
+%! claude:claude(+Input)
+%
+% Send Input to Claude, discarding the response content.
+
 claude(Input) :-
   claude(Input,_).
+
+
+%! claude:claude
+%
+% Interactive prompt: read user input, then send to Claude.
 
 claude :-
   llm:get_input(Msg),

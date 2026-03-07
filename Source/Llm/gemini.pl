@@ -9,28 +9,45 @@
 
 
 /** <module> GEMINI
-Implements interaction with Google Gemini
+Implements interaction with Google Gemini.
 We implement real-time streaming.
 
-We support any model available, default is set to 'gemini-1.5-flash'.
+We support any model available, default is set to 'gemini-3-pro-preview'.
 */
+
+:- module(gemini, [gemini/0, gemini/1, gemini/2]).
 
 
 % =============================================================================
 %  GEMINI declarations
 % =============================================================================
 
-:- module(gemini, [gemini/0, gemini/1, gemini/2]).
+% -----------------------------------------------------------------------------
+%  Conversation history
+% -----------------------------------------------------------------------------
 
-% Dynamic predicate for conversation history
 :- dynamic history/1.
+
 history([]).
+
+
+%! gemini:update_history(+History)
+%
+% Replace the stored conversation history.
 
 update_history(History) :-
   retractall(gemini:history(_)),
   assertz(gemini:history(History)).
 
-% Main entry points for Gemini
+
+% -----------------------------------------------------------------------------
+%  Entry points
+% -----------------------------------------------------------------------------
+
+%! gemini:gemini(+Input, -ResponseContent)
+%
+% Send Input to Gemini and unify ResponseContent with the response text.
+
 gemini(Input,ResponseContent) :-
   Service = 'gemini',
   config:llm_api_key(Service, Key),
@@ -45,8 +62,18 @@ gemini(Input,ResponseContent) :-
   ;   Response = _{error: Error, history: _}
       ->  write('Error: '), write(Error), nl ),!.
 
+
+%! gemini:gemini(+Input)
+%
+% Send Input to Gemini, discarding the response content.
+
 gemini(Input) :-
   gemini(Input,_).
+
+
+%! gemini:gemini
+%
+% Interactive prompt: read user input, then send to Gemini.
 
 gemini :-
   llm:get_input(Msg),
