@@ -14,7 +14,6 @@ HTML index page rendering for repository, category, and package listings.
 
 :- module(index, []).
 
-
 % =============================================================================
 %  INDEX declarations
 % =============================================================================

@@ -18,7 +18,6 @@ extraction from cached dependency metadata, and cycle path display.
 
 :- module(cycle, []).
 
-
 % =============================================================================
 %  CYCLE declarations
 % =============================================================================

@@ -17,7 +17,6 @@ We support any model available, default is set to 'gpt-4.1'.
 
 :- module(chatgpt, [chatgpt/0, chatgpt/1, chatgpt/2]).
 
-
 % =============================================================================
 %  CHATGPT declarations
 % =============================================================================

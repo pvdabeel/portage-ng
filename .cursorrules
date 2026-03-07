@@ -130,7 +130,7 @@ Optional longer description (may span multiple lines).
 :- module(modulename, []).
 ```
 
-- Two blank lines after the module declaration.
+- One blank line after the module declaration.
 
 ### 4. Chapter header (one per file, immediately after module declaration)
 
@@ -182,7 +182,7 @@ module:predicate_name(Arg1, Arg2) :-
 |-------------------------------|-------------------|
 | File header `*/`               | 1                 |
 | PlDoc module comment `*/`      | 1                 |
-| `:- module(...)` declaration   | 2                 |
+| `:- module(...)` declaration   | 1                 |
 | `=====` chapter header         | 1                 |
 | `-----` section header         | 1                 |
 | Predicate doc + last clause    | 2                 |

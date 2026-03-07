@@ -17,7 +17,6 @@ We support any model available, default is set to 'grok-4-1-fast-reasoning'.
 
 :- module(grok, [grok/0, grok/1, grok/2]).
 
-
 % =============================================================================
 %  GROK declarations
 % =============================================================================

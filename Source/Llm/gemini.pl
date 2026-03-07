@@ -17,7 +17,6 @@ We support any model available, default is set to 'gemini-3-pro-preview'.
 
 :- module(gemini, [gemini/0, gemini/1, gemini/2]).
 
-
 % =============================================================================
 %  GEMINI declarations
 % =============================================================================

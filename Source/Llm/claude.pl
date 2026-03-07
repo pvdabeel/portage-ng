@@ -20,7 +20,6 @@ We define the Claude specific protocol in this file.
 
 :- module(claude, [claude/0, claude/1, claude/2]).
 
-
 % =============================================================================
 %  CLAUDE declarations
 % =============================================================================

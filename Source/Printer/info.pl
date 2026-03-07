@@ -19,7 +19,6 @@ HTML index rendering has moved to Source/Printer/index.pl (module index).
 
 :- module(info, []).
 
-
 % =============================================================================
 %  INFO declarations
 % =============================================================================
