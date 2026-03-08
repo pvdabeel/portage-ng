@@ -32,6 +32,15 @@
 
 
 % -----------------------------------------------------------------------------
+%  Local distfiles directory
+% -----------------------------------------------------------------------------
+
+:- distfiles:newinstance(repository).
+:- distfiles:init('/Users/pvdabeel/Repository/portage-git/distfiles','', '', 'local','distfiles').
+:- kb:register(distfiles).
+
+
+% -----------------------------------------------------------------------------
 %  Overlay repository - local sync
 % -----------------------------------------------------------------------------
 

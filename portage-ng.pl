@@ -162,6 +162,7 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/script.pl')),
    ensure_loaded(portage('Source/stat.pl')),
    ensure_loaded(portage('Source/vdb.pl')),
+   ensure_loaded(portage('Source/distfiles.pl')),
    ensure_loaded(portage('Source/Config/gentoo.pl')),
    ensure_loaded(portage('Source/preference')),
 
@@ -182,8 +183,12 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/Printer/info.pl')),
    ensure_loaded(portage('Source/Printer/stats.pl')),
    ensure_loaded(portage('Source/Printer/state.pl')),
+   ensure_loaded(portage('Source/Printer/Build/build.pl')),
    ensure_loaded(portage('Source/printer.pl')),
    ensure_loaded(portage('Source/pipeline.pl')),
+   ensure_loaded(portage('Source/Builder/jobserver.pl')),
+   ensure_loaded(portage('Source/Builder/download.pl')),
+   ensure_loaded(portage('Source/builder.pl')),
    ensure_loaded(portage('Source/writer.pl')),
    ensure_loaded(portage('Source/grapher.pl')),
    ensure_loaded(portage('Source/worker.pl')),
@@ -236,6 +241,7 @@ load_worker_modules :-
    ensure_loaded(portage('Source/script.pl')),
    ensure_loaded(portage('Source/stat.pl')),
    ensure_loaded(portage('Source/vdb.pl')),
+   ensure_loaded(portage('Source/distfiles.pl')),
    ensure_loaded(portage('Source/Config/gentoo.pl')),
    ensure_loaded(portage('Source/preference')),
 

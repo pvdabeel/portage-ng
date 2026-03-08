@@ -1322,7 +1322,13 @@ plan:print_config_item('download',File,Size) :-
   message:print_bytes(Size),
   message:color(normal),
   message:print(' '),
-  message:print(File).
+  message:print(File),
+  ( distfiles:present(File)
+  -> message:color(green),
+     message:print(' \u2713'),
+     message:color(normal)
+  ;  true
+  ).
 
 plan:print_config_item('use',List,Assumed) :- !,
   upcase_atom('use',KeyU),
@@ -2014,8 +2020,15 @@ plan:print_footer(Plan, _ModelAVL, PrintedSteps, PreActions) :-
   plan:footer_action_breakdown(S, Breakdown),
   format('Total: ~d ~w (~w), grouped into ~d ~w.~n',
          [S.actions, TotalStr, Breakdown, PrintedSteps, PStr]),
-  message:convert_bytes(S.total_dl, BytesStr),
-  format('~7|~w to be downloaded.~n~n', [BytesStr]).
+  AlreadyDl = S.already_dl,
+  RemainingDl is S.total_dl - AlreadyDl,
+  ( AlreadyDl > 0
+  -> message:convert_bytes(RemainingDl, RemStr),
+     message:convert_bytes(AlreadyDl, AlrStr),
+     format('~7|~w to be downloaded, ~w already downloaded.~n~n', [RemStr, AlrStr])
+  ;  message:convert_bytes(S.total_dl, BytesStr),
+     format('~7|~w to be downloaded.~n~n', [BytesStr])
+  ).
 
 plan:footer_add_pre_actions([], S, S) :- !.
 plan:footer_add_pre_actions(PreActions, S0, S) :-
@@ -2073,7 +2086,7 @@ plan:pluralize(_, _, Plural, Plural).
 
 plan:footer_stats(ModelAVL, Stats) :-
    StatsInitial = stats{ass:0, con:0, naf:0, actions:0, fetches:0,
-                        downloads:0, runs:0, installs:0, updates:0, downgrades:0, reinstalls:0, total_dl:0},
+                        downloads:0, runs:0, installs:0, updates:0, downgrades:0, reinstalls:0, total_dl:0, already_dl:0},
    findall(Key, assoc:gen_assoc(Key, ModelAVL, _), Keys),
    foldl(plan:update_stats, Keys, StatsInitial, Stats).
 
@@ -2087,7 +2100,7 @@ plan:footer_stats(ModelAVL, Stats) :-
 % reinstall/run), matching the footer breakdown.
 %
 plan:footer_stats_from_plan(Plan, Stats) :-
-  Stats0 = stats{actions:0, downloads:0, runs:0, installs:0, updates:0, downgrades:0, reinstalls:0, total_dl:0},
+  Stats0 = stats{actions:0, downloads:0, runs:0, installs:0, updates:0, downgrades:0, reinstalls:0, total_dl:0, already_dl:0},
   foldl(plan:footer_stats_from_step, Plan, Stats0, Stats).
 
 plan:footer_stats_from_step(Step, S0, S) :-
@@ -2106,10 +2119,12 @@ plan:footer_stats_from_rule(_Other, S, S).
 plan:footer_stats_from_head(R://E:download, S0, S) :-
   !,
   ( ebuild:download_size(preference, R://E, Bytes) -> true ; Bytes = 0 ),
+  plan:already_downloaded_size(R, E, AlreadyBytes),
   NewDownloads is S0.downloads + 1,
   NewTotalDl is S0.total_dl + Bytes,
+  NewAlreadyDl is S0.already_dl + AlreadyBytes,
   NewActions is S0.actions + 1,
-  S = S0.put(_{downloads:NewDownloads, total_dl:NewTotalDl, actions:NewActions}).
+  S = S0.put(_{downloads:NewDownloads, total_dl:NewTotalDl, already_dl:NewAlreadyDl, actions:NewActions}).
 plan:footer_stats_from_head(_://_:run, S0, S) :-
   !,
   NewRuns is S0.runs + 1,
@@ -2137,6 +2152,21 @@ plan:footer_stats_from_head(_://_:reinstall, S0, S) :-
   S = S0.put(_{reinstalls:NewReinstalls, actions:NewActions}).
 plan:footer_stats_from_head(_Other, S, S).
 
+
+%! plan:already_downloaded_size(+Repository, +Entry, -Bytes) is det.
+%
+% Sum the sizes of distfiles for this entry that are already present
+% in the local distfiles directory.
+
+plan:already_downloaded_size(Repository, Entry, Bytes) :-
+  aggregate_all(sum(Size), File,
+    ( kb:query(manifest(preference, _, File, Size), Repository://Entry),
+      distfiles:present(File)
+    ),
+    Bytes), !.
+
+plan:already_downloaded_size(_, _, 0).
+
 %! plan:update_stats(+Key, +StatsIn, -StatsOut)
 %
 % Foldl helper to update stats
@@ -2160,8 +2190,10 @@ plan:update_stats_clauses(_://_:fetchonly, S0, S) :-
   S = S0.put(_{fetches:NewFetches}). %, actions:NewActions}).
 plan:update_stats_clauses(R://E:download, S0, S) :-
   (ebuild:download_size(preference, R://E, Bytes) -> true ; Bytes = 0),
-  NewDownloads is S0.downloads + 1, NewTotalDl is S0.total_dl + Bytes, NewActions is S0.actions + 1,
-  S = S0.put(_{downloads:NewDownloads, total_dl:NewTotalDl, actions:NewActions}).
+  plan:already_downloaded_size(R, E, AlreadyBytes),
+  NewDownloads is S0.downloads + 1, NewTotalDl is S0.total_dl + Bytes, NewAlreadyDl is S0.already_dl + AlreadyBytes,
+  NewActions is S0.actions + 1,
+  S = S0.put(_{downloads:NewDownloads, total_dl:NewTotalDl, already_dl:NewAlreadyDl, actions:NewActions}).
 plan:update_stats_clauses(_://_:run, S0, S) :-
   NewRuns is S0.runs + 1, NewActions is S0.actions + 1,
   S = S0.put(_{runs:NewRuns, actions:NewActions}).

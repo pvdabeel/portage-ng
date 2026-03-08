@@ -25,3 +25,15 @@
    portage:init(Repository,Cache,
                 'https://github.com/gentoo-mirror/gentoo','git','eapi').
 :- kb:register(portage).
+
+
+% -----------------------------------------------------------------------------
+%  Local distfiles directory
+% -----------------------------------------------------------------------------
+
+:- distfiles:newinstance(repository).
+
+:- config:installation_dir(Dir),
+   os:compose_path([Dir,'Repository/portage-git/distfiles'],Distdir),
+   distfiles:init(Distdir,'', '', 'local','distfiles').
+:- kb:register(distfiles).

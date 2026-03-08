@@ -477,7 +477,7 @@ stats_paths(Options, MirrorRoot, Distdir) :-
     )
   ),
   ( memberchk(distdir(Distdir), Options) -> true
-  ; ( current_predicate(config:distdir/1), config:distdir(Distdir) -> true
+  ; ( current_predicate(distfiles:get_location/1), distfiles:get_location(Distdir) -> true
     ; getenv_default('PORTAGE_NG_DISTDIR', '/var/cache/distfiles', Distdir)
     )
   ).
