@@ -215,20 +215,91 @@ ebuild_exec:log_file_size(Path, Size) :-
 
 
 % =============================================================================
+%  USE flag collection for ebuild environment
+% =============================================================================
+
+%! ebuild_exec:collect_use_string(+Repo, +Entry, +Ctx, -UseString) is det.
+%
+% Builds the USE environment variable value from the knowledge base,
+% then applies overrides from the proof context:
+%   - build_with_use(Uses) / required_use(Uses): assumed(Flag) or assumed(minus(Flag))
+%   - suggestion(use_change, _, Changes): use_change(Flag, enable/disable)
+% The context overrides take precedence over KB defaults.
+
+ebuild_exec:collect_use_string(Repo, Entry, Ctx, UseString) :-
+  findall(Flag-State,
+    ( kb:query(iuse(Flag, State0:_Reason), Repo://Entry),
+      ( State0 == positive -> State = positive ; State = negative )
+    ),
+    BasePairs),
+  list_to_assoc(BasePairs, BaseAssoc),
+  ebuild_exec:apply_ctx_use_overrides(Ctx, BaseAssoc, MergedAssoc),
+  assoc_to_keys(MergedAssoc, AllFlags),
+  findall(Token,
+    ( member(F, AllFlags),
+      get_assoc(F, MergedAssoc, S),
+      ( S == positive -> Token = F
+      ; atom_concat('-', F, Token)
+      )
+    ),
+    Tokens0),
+  sort(Tokens0, Tokens),
+  ( Tokens == []
+  -> UseString = ''
+  ;  atomic_list_concat(Tokens, ' ', UseString)
+  ).
+
+
+%! ebuild_exec:apply_ctx_use_overrides(+Ctx, +AssocIn, -AssocOut) is det.
+%
+% Applies USE flag overrides from the proof context on top of the
+% KB-derived base flags. Handles build_with_use, required_use, and
+% suggestion(use_change, ...) terms.
+
+ebuild_exec:apply_ctx_use_overrides(Ctx, AssocIn, AssocOut) :-
+  ( is_list(Ctx) -> CtxList = Ctx ; CtxList = [] ),
+  findall(Flag-State,
+    ( member(Term, CtxList),
+      ( Term = build_with_use(Uses) ; Term = required_use(Uses) ),
+      member(assumed(Raw), Uses),
+      ( Raw = minus(F) -> Flag = F, State = negative
+      ; Flag = Raw, State = positive
+      )
+    ),
+    DepOverrides),
+  findall(Flag-State,
+    ( member(suggestion(use_change, _, Changes), CtxList),
+      is_list(Changes),
+      member(use_change(Flag, Dir), Changes),
+      ( Dir == enable -> State = positive ; State = negative )
+    ),
+    SuggOverrides),
+  append(DepOverrides, SuggOverrides, AllOverrides),
+  foldl(ebuild_exec:apply_use_override, AllOverrides, AssocIn, AssocOut).
+
+
+%! ebuild_exec:apply_use_override(+FlagState, +AssocIn, -AssocOut) is det.
+
+ebuild_exec:apply_use_override(Flag-State, AssocIn, AssocOut) :-
+  put_assoc(Flag, AssocIn, State, AssocOut).
+
+
+% =============================================================================
 %  Async phase execution (for progress polling)
 % =============================================================================
 
-%! ebuild_exec:start_phase_async(+EbuildPath, +Phase, +LogPath, -Pid) is det.
+%! ebuild_exec:start_phase_async(+EbuildPath, +Phase, +LogPath, +UseString, -Pid) is det.
 %
 % Starts a single phase without blocking, appending output to LogPath.
+% Passes the resolved USE flags as an environment variable.
 
-ebuild_exec:start_phase_async(EbuildPath, Phase, LogPath, Pid) :-
+ebuild_exec:start_phase_async(EbuildPath, Phase, LogPath, UseString, Pid) :-
   config:ebuild_command(EbuildCmd),
   atom_string(Phase, PhaseStr),
   process_create(
     path(sh),
     ['-c', '"$1" --skip-manifest "$2" "$3" >>"$4" 2>&1', '_', EbuildCmd, EbuildPath, PhaseStr, LogPath],
-    [process(Pid)]).
+    [process(Pid), environment(['USE'=UseString])]).
 
 
 %! ebuild_exec:check_phase_done(+Pid, -ExitCode) is semidet.
@@ -282,33 +353,33 @@ ebuild_exec:dual_progress(BytesSoFar, ExpBytes, Elapsed, ExpSeconds, Pct) :-
 %  Phase execution
 % =============================================================================
 
-%! ebuild_exec:run_phase(+EbuildPath, +Phase, -ExitCode) is det.
+%! ebuild_exec:run_phase(+EbuildPath, +Phase, +UseString, -ExitCode) is det.
 %
 % Invokes the `ebuild` CLI for a single phase. Output is suppressed
 % (redirected to null) so it doesn't interfere with the display.
 
-ebuild_exec:run_phase(EbuildPath, Phase, ExitCode) :-
+ebuild_exec:run_phase(EbuildPath, Phase, UseString, ExitCode) :-
   config:ebuild_command(EbuildCmd),
   atom_string(Phase, PhaseStr),
   process_create(
     path(EbuildCmd),
     ['--skip-manifest', EbuildPath, PhaseStr],
-    [stdout(null), stderr(null), process(Pid)]),
+    [stdout(null), stderr(null), process(Pid), environment(['USE'=UseString])]),
   process_wait(Pid, exit(ExitCode)).
 
 
-%! ebuild_exec:run_phase_logged(+EbuildPath, +Phase, +LogPath, -ExitCode) is det.
+%! ebuild_exec:run_phase_logged(+EbuildPath, +Phase, +LogPath, +UseString, -ExitCode) is det.
 %
 % Invokes the `ebuild` CLI for a single phase, appending all
 % stdout/stderr output to LogPath via shell redirection.
 
-ebuild_exec:run_phase_logged(EbuildPath, Phase, LogPath, ExitCode) :-
+ebuild_exec:run_phase_logged(EbuildPath, Phase, LogPath, UseString, ExitCode) :-
   config:ebuild_command(EbuildCmd),
   atom_string(Phase, PhaseStr),
   process_create(
     path(sh),
     ['-c', '"$1" --skip-manifest "$2" "$3" >>"$4" 2>&1', '_', EbuildCmd, EbuildPath, PhaseStr, LogPath],
-    [process(Pid)]),
+    [process(Pid), environment(['USE'=UseString])]),
   process_wait(Pid, exit(ExitCode)).
 
 
@@ -324,18 +395,18 @@ ebuild_exec:log_phase_header(LogPath, Phase) :-
     ), _, true).
 
 
-%! ebuild_exec:run_phases(+EbuildPath, +Phases, -ExitCode) is det.
+%! ebuild_exec:run_phases(+EbuildPath, +Phases, +UseString, -ExitCode) is det.
 %
 % Invokes the `ebuild` CLI with all phase arguments at once.
 % Used for bulk execution without per-phase progress tracking.
 
-ebuild_exec:run_phases(EbuildPath, Phases, ExitCode) :-
+ebuild_exec:run_phases(EbuildPath, Phases, UseString, ExitCode) :-
   config:ebuild_command(EbuildCmd),
   maplist(atom_string, Phases, PhaseStrs),
   process_create(
     path(EbuildCmd),
     ['--skip-manifest', EbuildPath | PhaseStrs],
-    [stdout(null), stderr(null), process(Pid)]),
+    [stdout(null), stderr(null), process(Pid), environment(['USE'=UseString])]),
   process_wait(Pid, exit(ExitCode)).
 
 
@@ -361,81 +432,24 @@ ebuild_exec:compute_live_prefix([Phase|Rest], LiveConfig, LivePrefix, StubTail) 
 
 
 % =============================================================================
-%  Multi-phase execution (single ebuild invocation)
-% =============================================================================
-
-%! ebuild_exec:start_phases_async_multi(+EbuildPath, +Phases, +LogPath, -Pid) is det.
-%
-% Starts a single ebuild invocation with multiple phases, appending
-% all output to LogPath. Returns the process Pid for polling.
-
-ebuild_exec:start_phases_async_multi(EbuildPath, Phases, LogPath, Pid) :-
-  config:ebuild_command(EbuildCmd),
-  maplist(atom_string, Phases, PhaseStrs),
-  atomic_list_concat(PhaseStrs, ' ', PhasesStr),
-  format(atom(CmdStr), '"~w" --skip-manifest "~w" ~w >>"~w" 2>&1', [EbuildCmd, EbuildPath, PhasesStr, LogPath]),
-  process_create(path(sh), ['-c', CmdStr], [process(Pid)]).
-
-
-%! ebuild_exec:run_phases_logged_multi(+EbuildPath, +Phases, +LogPath, -ExitCode) is det.
-%
-% Blocking single-invocation with multiple phases, output to LogPath.
-
-ebuild_exec:run_phases_logged_multi(EbuildPath, Phases, LogPath, ExitCode) :-
-  ebuild_exec:start_phases_async_multi(EbuildPath, Phases, LogPath, Pid),
-  process_wait(Pid, exit(ExitCode)).
-
-
-%! ebuild_exec:aggregate_expected_stats(+Entry, +Phases, -TotalExpBytes, -TotalExpSecs) is det.
-%
-% Sums historical byte counts and seconds across multiple phases.
-
-ebuild_exec:aggregate_expected_stats(Entry, Phases, TotalExpBytes, TotalExpSecs) :-
-  aggregate_all(sum(B),
-    (member(P, Phases), ebuild_exec:phase_bytes(Entry, P, B)),
-    TotalExpBytes),
-  aggregate_all(sum(S),
-    (member(P, Phases), ebuild_exec:phase_seconds(Entry, P, S)),
-    TotalExpSecs).
-
-
-%! ebuild_exec:poll_live_progress(+Pid, +ProgressPhase, +LogPath, +SizeBefore, +T0, +ExpBytes, +ExpSecs, :Callback, -ExitCode) is det.
-%
-% Polls a running multi-phase process using aggregate byte/time stats
-% for progress estimation. Shows progress on ProgressPhase.
-
-ebuild_exec:poll_live_progress(Pid, ProgressPhase, LogPath, SizeBefore, T0, ExpBytes, ExpSecs, Callback, ExitCode) :-
-  ( ebuild_exec:check_phase_done(Pid, EC)
-  -> ExitCode = EC
-  ;  ebuild_exec:log_file_size(LogPath, CurrentSize),
-     BytesSoFar is CurrentSize - SizeBefore,
-     get_time(Now),
-     Elapsed is Now - T0,
-     ebuild_exec:dual_progress(BytesSoFar, ExpBytes, Elapsed, ExpSecs, Pct),
-     call(Callback, ProgressPhase, progress(Pct)),
-     sleep(0.5),
-     ebuild_exec:poll_live_progress(Pid, ProgressPhase, LogPath, SizeBefore, T0, ExpBytes, ExpSecs, Callback, ExitCode)
-  ).
-
-
-% =============================================================================
 %  Phase execution with live config
 % =============================================================================
 
-%! ebuild_exec:run_phases_with_config(+EbuildPath, +Entry, +AllPhases, +DisplayPhases, +LogPath, :PhaseCallback, -Outcome) is det.
+%! ebuild_exec:run_phases_with_config(+EbuildPath, +Entry, +AllPhases, +DisplayPhases, +LogPath, +UseString, :PhaseCallback, -Outcome) is det.
 %
-% Splits AllPhases into a live prefix (executed as a single ebuild
-% invocation) and a stub tail (marked as stub in the display).
-% Live display phases show as active during execution, then done/failed.
-% Uses aggregate byte/time stats for progress when available.
+% Splits AllPhases into a live prefix (phases to actually execute) and
+% a stub tail (phases beyond current config). Executes each live phase
+% individually, using exit codes for success/failure. Log file size
+% is used only for progress estimation, never for phase detection.
+% UseString carries the resolved USE flags for the ebuild environment.
 
-:- meta_predicate ebuild_exec:run_phases_with_config(+, +, +, +, +, 2, -).
+:- meta_predicate ebuild_exec:run_phases_with_config(+, +, +, +, +, +, 2, -).
 
-ebuild_exec:run_phases_with_config(EbuildPath, Entry, AllPhases, DisplayPhases, LogPath, Callback, Outcome) :-
+ebuild_exec:run_phases_with_config(EbuildPath, Entry, AllPhases, DisplayPhases, LogPath, UseString, Callback, Outcome) :-
   config:build_live_phases(LiveConfig),
   ebuild_exec:compute_live_prefix(AllPhases, LiveConfig, LivePrefix, StubTail),
   ( LivePrefix \= []
-  -> ebuild_exec:run_live_prefix(EbuildPath, Entry, LivePrefix, DisplayPhases, LogPath, Callback, LiveOutcome)
+  -> ebuild_exec:run_phases_sequential(EbuildPath, Entry, LivePrefix, DisplayPhases, LogPath, UseString, Callback, LiveOutcome)
   ;  LiveOutcome = done
   ),
   ( LiveOutcome == done
@@ -444,145 +458,101 @@ ebuild_exec:run_phases_with_config(EbuildPath, Entry, AllPhases, DisplayPhases, 
        call(Callback, P, stub)
      ),
      Outcome = done
-  ;  Outcome = LiveOutcome
+  ;  forall(
+       (member(P, StubTail), memberchk(P, DisplayPhases)),
+       call(Callback, P, skipped)
+     ),
+     Outcome = LiveOutcome
   ).
 
 
-%! ebuild_exec:run_live_prefix(+EbuildPath, +Entry, +LivePrefix, +DisplayPhases, +LogPath, :Callback, -Outcome) is det.
+%! ebuild_exec:run_phases_sequential(+EbuildPath, +Entry, +Phases, +DisplayPhases, +LogPath, +UseString, :Callback, -Outcome) is det.
 %
-% Executes all phases in LivePrefix as a single ebuild invocation.
-% Display phases are marked active, then done/failed on completion.
+% Executes each phase as a separate ebuild invocation. On success,
+% moves to the next phase. On failure, marks remaining phases as
+% skipped. Uses log file size growth for progress estimation only.
+% UseString is passed to each ebuild invocation as the USE env var.
 
-ebuild_exec:run_live_prefix(EbuildPath, Entry, LivePrefix, DisplayPhases, LogPath, Callback, Outcome) :-
-  forall(
-    (member(P, LivePrefix), memberchk(P, DisplayPhases)),
-    call(Callback, P, active)
+ebuild_exec:run_phases_sequential(_, _, [], _, _, _, _, done).
+
+ebuild_exec:run_phases_sequential(EbuildPath, Entry, [Phase|Rest], DisplayPhases, LogPath, UseString, Callback, Outcome) :-
+  ( memberchk(Phase, DisplayPhases)
+  -> call(Callback, Phase, active)
+  ;  true
   ),
+  ebuild_exec:log_phase_header(LogPath, Phase),
   ebuild_exec:log_file_size(LogPath, SizeBefore),
   get_time(T0),
-  ebuild_exec:aggregate_expected_stats(Entry, LivePrefix, ExpBytes, ExpSecs),
-  ( member(ProgressPhase, LivePrefix),
-    memberchk(ProgressPhase, DisplayPhases)
-  -> true
-  ;  LivePrefix = [ProgressPhase|_]
-  ),
-  ebuild_exec:start_phases_async_multi(EbuildPath, LivePrefix, LogPath, Pid),
-  last(LivePrefix, LastLive),
-  ( memberchk(LastLive, DisplayPhases) -> PPhase = LastLive ; PPhase = ProgressPhase ),
-  ebuild_exec:poll_live_progress(Pid, PPhase, LogPath, SizeBefore, T0, ExpBytes, ExpSecs, Callback, ExitCode),
+  ebuild_exec:expected_phase_stats(Entry, Phase, ExpBytes, ExpSecs),
+  !,
+  ebuild_exec:start_phase_async(EbuildPath, Phase, LogPath, UseString, Pid),
+  ebuild_exec:poll_phase_progress(Pid, Phase, LogPath, SizeBefore, T0, ExpBytes, ExpSecs, Callback, ExitCode),
   get_time(T1),
   TotalSecs is T1 - T0,
   ebuild_exec:log_file_size(LogPath, SizeAfter),
   TotalBytes is SizeAfter - SizeBefore,
-  ebuild_exec:record_phase_stats(Entry, live_prefix, TotalBytes, TotalSecs),
+  ebuild_exec:record_phase_stats(Entry, Phase, TotalBytes, TotalSecs),
   ( ExitCode =:= 0
-  -> forall(
-       (member(P, LivePrefix), memberchk(P, DisplayPhases)),
-       call(Callback, P, done)
+  -> ( memberchk(Phase, DisplayPhases)
+     -> call(Callback, Phase, done)
+     ;  true
      ),
-     Outcome = done
-  ;  ebuild_exec:scan_log_entered_phases(LogPath, EnteredPhases),
-     ebuild_exec:mark_phases_on_failure(LivePrefix, DisplayPhases, EnteredPhases, ExitCode, LogPath, Callback),
+     ebuild_exec:run_phases_sequential(EbuildPath, Entry, Rest, DisplayPhases, LogPath, UseString, Callback, Outcome)
+  ;  ( memberchk(Phase, DisplayPhases)
+     -> call(Callback, Phase, failed(ExitCode, LogPath))
+     ;  true
+     ),
+     forall(
+       (member(P, Rest), memberchk(P, DisplayPhases)),
+       call(Callback, P, skipped)
+     ),
+     Outcome = failed(ExitCode)
+  ).
+
+ebuild_exec:run_phases_sequential(EbuildPath, Entry, [Phase|Rest], DisplayPhases, LogPath, UseString, Callback, Outcome) :-
+  ( memberchk(Phase, DisplayPhases)
+  -> call(Callback, Phase, active)
+  ;  true
+  ),
+  ebuild_exec:log_phase_header(LogPath, Phase),
+  ebuild_exec:log_file_size(LogPath, SizeBefore),
+  get_time(T0),
+  ebuild_exec:start_phase_async(EbuildPath, Phase, LogPath, UseString, Pid),
+  ebuild_exec:poll_phase_spinning(Pid, Phase, Callback, ExitCode),
+  get_time(T1),
+  TotalSecs is T1 - T0,
+  ebuild_exec:log_file_size(LogPath, SizeAfter),
+  TotalBytes is SizeAfter - SizeBefore,
+  ebuild_exec:record_phase_stats(Entry, Phase, TotalBytes, TotalSecs),
+  ( ExitCode =:= 0
+  -> ( memberchk(Phase, DisplayPhases)
+     -> call(Callback, Phase, done)
+     ;  true
+     ),
+     ebuild_exec:run_phases_sequential(EbuildPath, Entry, Rest, DisplayPhases, LogPath, UseString, Callback, Outcome)
+  ;  ( memberchk(Phase, DisplayPhases)
+     -> call(Callback, Phase, failed(ExitCode, LogPath))
+     ;  true
+     ),
+     forall(
+       (member(P, Rest), memberchk(P, DisplayPhases)),
+       call(Callback, P, skipped)
+     ),
      Outcome = failed(ExitCode)
   ).
 
 
-% -----------------------------------------------------------------------------
-%  Failure diagnosis: scan log for entered phases
-% -----------------------------------------------------------------------------
-
-%! ebuild_exec:scan_log_entered_phases(+LogPath, -EnteredPhases) is det.
+%! ebuild_exec:poll_phase_spinning(+Pid, +Phase, :Callback, -ExitCode) is det.
 %
-% Scans the build log for Portage's phase markers (">>> Running phase: ...")
-% to determine which phases were actually entered. Returns a list of
-% phase atoms in execution order. Returns [] if log is empty/absent.
+% Polls a running phase without historical stats. Sends progress(0)
+% ticks to keep the spinner alive until the process exits.
 
-ebuild_exec:scan_log_entered_phases(LogPath, EnteredPhases) :-
-  ( exists_file(LogPath)
-  -> catch(
-       ( read_file_to_string(LogPath, Content, []),
-         ebuild_exec:extract_phase_markers(Content, EnteredPhases)
-       ),
-       _, EnteredPhases = [])
-  ;  EnteredPhases = []
-  ).
-
-
-%! ebuild_exec:extract_phase_markers(+Content, -Phases) is det.
-%
-% Extracts phase names from Portage log lines matching
-% ">>> Running phase: src_unpack" or ">>> Running phase: pkg_setup".
-
-ebuild_exec:extract_phase_markers(Content, Phases) :-
-  split_string(Content, "\n", "", Lines),
-  findall(Phase,
-    ( member(Line, Lines),
-      sub_string(Line, _, _, _, ">>> Running phase:"),
-      ebuild_exec:parse_phase_line(Line, Phase)
-    ),
-    Phases).
-
-ebuild_exec:parse_phase_line(Line, Phase) :-
-  split_string(Line, ":", "", Parts),
-  last(Parts, PhasePart),
-  split_string(PhasePart, " \t", " \t", [PhaseStr|_]),
-  ebuild_exec:portage_phase_to_atom(PhaseStr, Phase).
-
-
-%! ebuild_exec:portage_phase_to_atom(+PhaseStr, -Phase) is semidet.
-%
-% Maps Portage's phase function names (src_unpack, pkg_setup, etc.)
-% to the short phase atoms used in our display (unpack, setup, etc.).
-
-ebuild_exec:portage_phase_to_atom("src_unpack",    unpack).
-ebuild_exec:portage_phase_to_atom("src_prepare",   prepare).
-ebuild_exec:portage_phase_to_atom("src_configure",  configure).
-ebuild_exec:portage_phase_to_atom("src_compile",   compile).
-ebuild_exec:portage_phase_to_atom("src_install",   install).
-ebuild_exec:portage_phase_to_atom("src_test",      test).
-ebuild_exec:portage_phase_to_atom("pkg_setup",     setup).
-ebuild_exec:portage_phase_to_atom("pkg_preinst",   preinst).
-ebuild_exec:portage_phase_to_atom("pkg_postinst",  postinst).
-ebuild_exec:portage_phase_to_atom("pkg_prerm",     prerm).
-ebuild_exec:portage_phase_to_atom("pkg_postrm",    postrm).
-ebuild_exec:portage_phase_to_atom("pkg_nofetch",   nofetch).
-
-
-%! ebuild_exec:mark_phases_on_failure(+LivePrefix, +DisplayPhases, +EnteredPhases, +ExitCode, +LogPath, :Callback) is det.
-%
-% On failure, determines per-phase status:
-%   - Phases entered and not the last: completed successfully (done)
-%   - Last entered phase: the one that failed (failed)
-%   - Phases never entered: skipped (not attempted)
-% If no phases were entered (e.g., ebuild not found), the first
-% display phase is marked as failed and the rest as skipped.
-
-:- meta_predicate ebuild_exec:mark_phases_on_failure(+, +, +, +, +, 2).
-
-ebuild_exec:mark_phases_on_failure(LivePrefix, DisplayPhases, EnteredPhases, ExitCode, LogPath, Callback) :-
-  ( EnteredPhases == []
-  -> ( LivePrefix = [First|RestLive]
-     -> ( memberchk(First, DisplayPhases)
-        -> call(Callback, First, failed(ExitCode, LogPath))
-        ;  true
-        ),
-        forall(
-          (member(P, RestLive), memberchk(P, DisplayPhases)),
-          call(Callback, P, skipped)
-        )
-     ;  true
-     )
-  ;  last(EnteredPhases, FailedPhase),
-     forall(
-       (member(P, LivePrefix), memberchk(P, DisplayPhases)),
-       ( memberchk(P, EnteredPhases)
-       -> ( P == FailedPhase
-          -> call(Callback, P, failed(ExitCode, LogPath))
-          ;  call(Callback, P, done)
-          )
-       ;  call(Callback, P, skipped)
-       )
-     )
+ebuild_exec:poll_phase_spinning(Pid, Phase, Callback, ExitCode) :-
+  ( ebuild_exec:check_phase_done(Pid, EC)
+  -> ExitCode = EC
+  ;  call(Callback, Phase, progress(0)),
+     sleep(0.5),
+     ebuild_exec:poll_phase_spinning(Pid, Phase, Callback, ExitCode)
   ).
 
 
@@ -618,7 +588,8 @@ ebuild_exec:execute(Action, Repo, Entry, Ctx, Outcome) :-
 ebuild_exec:execute_phases(Action, Repo, Entry, Ctx, Outcome) :-
   ( ebuild_exec:action_phases(Action, Ctx, Phases),
     ebuild_exec:ebuild_path(Repo, Entry, EbuildPath)
-  -> ebuild_exec:run_phases(EbuildPath, Phases, ExitCode),
+  -> ebuild_exec:collect_use_string(Repo, Entry, Ctx, UseString),
+     ebuild_exec:run_phases(EbuildPath, Phases, UseString, ExitCode),
      ( ExitCode =:= 0
      -> Outcome = done
      ;  Outcome = failed(ExitCode)
@@ -652,10 +623,11 @@ ebuild_exec:execute_phases_sequential(Action, Repo, Entry, Ctx, PhaseCallback, O
   ( ebuild_exec:action_phases(Action, Ctx, AllPhases),
     ebuild_exec:ebuild_path(Repo, Entry, EbuildPath)
   -> ebuild_exec:display_phases(Action, Repo, Entry, Ctx, DisplayPhases),
+     ebuild_exec:collect_use_string(Repo, Entry, Ctx, UseString),
      ebuild_exec:ensure_log_dir,
      ebuild_exec:build_log_path(Entry, LogPath),
      ebuild_exec:load_phase_stats,
-     ebuild_exec:run_phases_with_config(EbuildPath, Entry, AllPhases, DisplayPhases, LogPath, PhaseCallback, Outcome),
+     ebuild_exec:run_phases_with_config(EbuildPath, Entry, AllPhases, DisplayPhases, LogPath, UseString, PhaseCallback, Outcome),
      ebuild_exec:save_phase_stats
   ;  Outcome = failed(no_ebuild)
   ).
@@ -674,7 +646,8 @@ ebuild_exec:unmerge_old(_Repo, Ctx) :-
   memberchk(replaces(OldRepo://OldEntry), Ctx),
   !,
   ebuild_exec:ebuild_path(OldRepo, OldEntry, OldEbuildPath),
-  ebuild_exec:run_phases(OldEbuildPath, [unmerge], ExitCode),
+  ebuild_exec:collect_use_string(OldRepo, OldEntry, [], UseString),
+  ebuild_exec:run_phases(OldEbuildPath, [unmerge], UseString, ExitCode),
   ExitCode =:= 0.
 
 ebuild_exec:unmerge_old(_, _).

@@ -685,7 +685,7 @@ build:render_phase_word(Phase, failed(_, _)) :-
   message:color(normal).
 
 build:render_phase_word(Phase, skipped) :-
-  message:color(cyan),
+  message:color(darkgray),
   message:print(Phase),
   message:color(normal).
 
