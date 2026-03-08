@@ -597,6 +597,33 @@ datetime(Datetime) :-
 
 
 % -----------------------------------------------------------------------------
+%  Spinners
+% -----------------------------------------------------------------------------
+
+%! message:spinner_frames(+Style, -Frames) is det.
+%
+% Returns the list of unicode frames for a given spinner style.
+% Available styles: braille, block, quarter, line.
+
+message:spinner_frames(braille,  ['\u2801','\u2802','\u2804','\u2840','\u2880','\u2820','\u2810','\u2808']).
+message:spinner_frames(block,    ['\u2589','\u258A','\u258B','\u258C','\u258D','\u258E','\u258F','\u258E','\u258D','\u258C','\u258B','\u258A','\u2589']).
+message:spinner_frames(quarter,  ['\u25F4','\u25F7','\u25F6','\u25F5']).
+message:spinner_frames(line,     ['|','/','-','\\']).
+
+
+%! message:spinner_frame(+Style, +Tick, -Frame) is det.
+%
+% Returns the frame for a given spinner style at a given tick count.
+% Cycles through frames using modular arithmetic.
+
+message:spinner_frame(Style, Tick, Frame) :-
+  message:spinner_frames(Style, Frames),
+  length(Frames, Len),
+  Idx is Tick mod Len,
+  nth0(Idx, Frames, Frame).
+
+
+% -----------------------------------------------------------------------------
 %  Misc helpers
 % -----------------------------------------------------------------------------
 

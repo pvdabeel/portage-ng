@@ -111,7 +111,55 @@ builder:execute_plan([], _PlanStep, _NumSteps, C, F, S, C, F, S).
 builder:execute_plan([Step|Rest], PlanStep, NumSteps, C0, F0, S0, C, F, S) :-
   builder:execute_step(Step, PlanStep, NumSteps, C0, F0, S0, C1, F1, S1, HasJobs),
   ( HasJobs == true -> PlanStep1 is PlanStep + 1 ; PlanStep1 = PlanStep ),
-  builder:execute_plan(Rest, PlanStep1, NumSteps, C1, F1, S1, C, F, S).
+  ( F1 > F0
+  -> builder:skip_remaining(Rest, PlanStep1, NumSteps, C1, F1, S1, C, F, S)
+  ;  builder:execute_plan(Rest, PlanStep1, NumSteps, C1, F1, S1, C, F, S)
+  ).
+
+
+%! builder:skip_remaining(+Plan, +PlanStep, +NumSteps, +C0, +F0, +S0, -C, -F, -S) is det.
+%
+% When a step has failures, skip all remaining steps. Each remaining
+% executable action is counted as failed since its dependencies weren't met.
+
+builder:skip_remaining([], _PlanStep, _NumSteps, C, F, S, C, F, S).
+
+builder:skip_remaining([Step|Rest], PlanStep, NumSteps, C0, F0, S0, C, F, S) :-
+  include(builder:is_executable_rule, Step, Executable),
+  length(Executable, NumJobs),
+  ( NumJobs > 0
+  -> builder:assign_slots(Executable, PlanStep, NumSteps, SlottedJobs, TotalLines),
+     build:print_skipped_slots(SlottedJobs, NumSteps),
+     builder:mark_skipped(SlottedJobs, TotalLines),
+     nl,
+     F1 is F0 + NumJobs,
+     PlanStep1 is PlanStep + 1
+  ;  F1 = F0,
+     PlanStep1 = PlanStep
+  ),
+  builder:skip_remaining(Rest, PlanStep1, NumSteps, C0, F1, S0, C, F, S).
+
+
+%! builder:mark_skipped(+SlottedJobs, +TotalLines) is det.
+%
+% Mark all slots in a skipped step as failed (dependency not met).
+
+builder:mark_skipped([], _).
+
+builder:mark_skipped([slotted(LineOff, TotalLines, PlanStep, NumSteps, ActionIdx, rule(Repo://Entry:Action?{_Ctx}, _Body), _FileInfo)|Rest], _) :-
+  !,
+  with_mutex(build_display,
+    build:update_slot(LineOff, TotalLines, skipped, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry)),
+  builder:mark_skipped(Rest, TotalLines).
+
+builder:mark_skipped([slotted(LineOff, TotalLines, PlanStep, NumSteps, ActionIdx, rule(world_action(Op, Arg):world?{_Ctx}, _Body), _FileInfo)|Rest], _) :-
+  !,
+  with_mutex(build_display,
+    build:update_slot(LineOff, TotalLines, skipped, PlanStep, NumSteps, ActionIdx, Op, Arg)),
+  builder:mark_skipped(Rest, TotalLines).
+
+builder:mark_skipped([_|Rest], TotalLines) :-
+  builder:mark_skipped(Rest, TotalLines).
 
 
 %! builder:execute_step(+Step, +PlanStep, +NumSteps, +C0, +F0, +S0, -C, -F, -S, -HasJobs) is det.
