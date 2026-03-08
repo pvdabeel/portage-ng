@@ -23,6 +23,7 @@ architecture
 
 sandbox:safe_primitive(config:certificate(_,_)).
 sandbox:safe_primitive(config:certificate(_,_,_)).
+sandbox:safe_primitive(config:build_live_phases(_)).
 sandbox:safe_primitive(config:dry_run_build(_)).
 sandbox:safe_primitive(config:failsilenton(_)).
 sandbox:safe_primitive(config:graph_directory(_,_)).
@@ -125,6 +126,13 @@ sandbox:safe_primitive(prover:test_stats(_,_)).
 sandbox:safe_primitive(prover:test_stats(_,_,_)).
 sandbox:safe_primitive(prover:test_stats_pkgs(_,_)).
 sandbox:safe_primitive(prover:test_stats_pkgs(_,_,_,_)).
+
+sandbox:safe_primitive(builder:test_stats(_)).
+sandbox:safe_primitive(builder:test_stats(_,_)).
+sandbox:safe_primitive(builder:test_stats(_,_,_)).
+sandbox:safe_primitive(builder:test_stats_pkgs(_,_)).
+sandbox:safe_primitive(builder:test_stats_pkgs(_,_,_,_)).
+sandbox:safe_primitive(builder:test_single(_,_)).
 
 sandbox:safe_primitive(constraint:is_constraint(_)).
 sandbox:safe_primitive(constraint:unify_constraints(_,_,_)).

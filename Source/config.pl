@@ -839,11 +839,24 @@ config:failsilenton(version).
 %  Building
 % -----------------------------------------------------------------------------
 
+%! config:build_live_phases(?Phases)
+%
+% List of ebuild phases that are actually executed during --build.
+% Phases not in this list are stubbed (displayed but not run).
+% An empty list means fully stubbed (equivalent to old dry_run_build(true)).
+% The full sequence [clean,setup,unpack,prepare,configure,compile,install,merge]
+% means fully live (equivalent to old dry_run_build(false)).
+
+config:build_live_phases([clean, setup, unpack]).
+
+
 %! config:dry_run_build(?Bool)
 %
-% Declare config:dry_run_build to avoid actually building software.
+% Derived predicate for backward compatibility.
+% Succeeds with true when build_live_phases is empty (fully stubbed).
 
-config:dry_run_build(true).
+config:dry_run_build(true) :-
+  config:build_live_phases([]).
 
 
 %! config:time_limit_build(?Limit)
@@ -854,6 +867,35 @@ config:dry_run_build(true).
 % In seconds.
 
 config:time_limit_build(6000).
+
+
+%! config:ebuild_command(?Command)
+%
+% Path or name of the `ebuild` CLI binary (from sys-apps/portage).
+% Used by ebuild_exec:run_phases/3 to execute build phases.
+% Override in per-machine config files if ebuild lives outside PATH
+% (e.g. Gentoo Prefix installations).
+
+:- dynamic config:ebuild_command/1.
+
+config:ebuild_command(ebuild).
+
+
+%! config:build_root(?Path)
+%
+% Root directory for build work (PORTAGE_TMPDIR equivalent).
+% Portage defaults to /var/tmp/portage; override here or per-machine.
+
+config:build_root('/var/tmp/portage').
+
+
+%! config:build_log_dir(?Path)
+%
+% Directory where per-package build logs are stored. Each build action
+% produces a log file that captures all phase stdout/stderr output.
+% Override per-machine if desired.
+
+config:build_log_dir('/var/tmp/portage-ng/logs').
 
 
 % -----------------------------------------------------------------------------

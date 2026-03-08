@@ -188,6 +188,7 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/pipeline.pl')),
    ensure_loaded(portage('Source/Builder/jobserver.pl')),
    ensure_loaded(portage('Source/Builder/download.pl')),
+   ensure_loaded(portage('Source/Builder/ebuild_exec.pl')),
    ensure_loaded(portage('Source/builder.pl')),
    ensure_loaded(portage('Source/writer.pl')),
    ensure_loaded(portage('Source/grapher.pl')),

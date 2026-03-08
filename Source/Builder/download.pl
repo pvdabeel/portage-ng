@@ -231,3 +231,33 @@ download:verify_hashes(_Path, []) :- !.
 download:verify_hashes(Path, Pairs) :-
   mirror:verify_hashes(Path, Pairs, OK, _UnsupportedCount),
   OK == true.
+
+
+% -----------------------------------------------------------------------------
+%  Upstream SRC_URI resolution
+% -----------------------------------------------------------------------------
+
+%! download:upstream_url(+Repo, +Entry, +Filename, -URL) is semidet.
+%
+% Resolves the upstream download URL for a distfile by looking up the
+% original SRC_URI metadata. The uri/3 term stores protocol, path,
+% and local filename. Fails if no matching upstream URL exists.
+
+download:upstream_url(Repo, Entry, Filename, URL) :-
+  kb:query(src_uri(uri(Proto, Base, Filename)), Repo://Entry),
+  Proto \= '',
+  atomic_list_concat([Proto, '://', Base], URL),
+  !.
+
+
+% -----------------------------------------------------------------------------
+%  RESTRICT=fetch detection
+% -----------------------------------------------------------------------------
+
+%! download:is_fetch_restricted(+Repo, +Entry) is semidet.
+%
+% Succeeds if the ebuild has RESTRICT="fetch", meaning distfiles
+% must be manually obtained by the user.
+
+download:is_fetch_restricted(Repo, Entry) :-
+  kb:query(restrict(fetch), Repo://Entry), !.
