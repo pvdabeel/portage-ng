@@ -54,6 +54,20 @@ build:right_edge_fail :-
   message:color(normal).
 
 
+%! build:right_edge_spinner(+Tick) is det.
+%
+% Print a gray spinner at the right edge using the quarter-circle style.
+
+build:right_edge_spinner(Tick) :-
+  config:printing_tty_size(_, W),
+  Col is W - 1,
+  format("\e[~dG", [Col]),
+  message:spinner_frame(braille, Tick, Frame),
+  message:color(darkgray),
+  message:print(Frame),
+  message:color(normal).
+
+
 % =============================================================================
 %  BUILD declarations
 % =============================================================================
@@ -121,6 +135,79 @@ build:print_job_slots([_|Rest], NumSteps) :-
 
 
 % -----------------------------------------------------------------------------
+%  Skipped slot printing (all gray, no color)
+% -----------------------------------------------------------------------------
+
+%! build:print_skipped_slots(+SlottedJobs, +NumSteps) is det.
+%
+% Print slots for steps that are being skipped due to earlier failures.
+% Everything is rendered in darkgray — no colored USE flags or phase names.
+
+build:print_skipped_slots([], _) :- !.
+
+build:print_skipped_slots([slotted(_LineOff, _TotalLines, PlanStep, NumSteps, ActionIdx, rule(Repo://Entry:Action?{Ctx}, _Body), SubInfo)|Rest], _) :-
+  !,
+  build:render_slot(skipped, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry),
+  ( SubInfo = phases(_ExecLine, _LogsLine, PhaseList, LogPath)
+  -> build:print_skipped_conf(Repo://Entry:Action?{Ctx}),
+     nl,
+     build:print_skipped_exec_and_logs(PhaseList, LogPath)
+  ;  nl
+  ),
+  build:print_skipped_slots(Rest, NumSteps).
+
+build:print_skipped_slots([slotted(_LineOff, _TotalLines, PlanStep, NumSteps, ActionIdx, rule(world_action(Op, Arg):world?{_Ctx}, _Body), _SubInfo)|Rest], _) :-
+  !,
+  build:render_slot(skipped, PlanStep, NumSteps, ActionIdx, Op, Arg),
+  nl,
+  build:print_skipped_slots(Rest, NumSteps).
+
+build:print_skipped_slots([_|Rest], NumSteps) :-
+  build:print_skipped_slots(Rest, NumSteps).
+
+
+%! build:print_skipped_conf(+RuleHead) is det.
+%
+% Print the config lines for skipped steps.
+% Calls plan:print_config directly to ensure output is produced.
+
+build:print_skipped_conf(RuleHead) :-
+  catch(plan:print_config(RuleHead), _, true),
+  !.
+build:print_skipped_conf(_).
+
+
+%! build:print_skipped_exec_and_logs(+PhaseList, +LogPath) is det.
+%
+% Print exec and logs lines in darkgray for skipped steps.
+
+build:print_skipped_exec_and_logs(PhaseList, LogPath) :-
+  build:exec_prefix,
+  message:color(darkgray),
+  build:print_skipped_phases(PhaseList),
+  message:color(normal),
+  nl,
+  ( catch(config:show_build_logs(true), _, fail)
+  -> build:logs_prefix,
+     message:color(darkgray),
+     message:print(LogPath),
+     message:color(normal),
+     nl
+  ;  true
+  ).
+
+build:print_skipped_phases([]).
+build:print_skipped_phases([Phase]) :-
+  !,
+  message:print(Phase).
+build:print_skipped_phases([Phase|Rest]) :-
+  message:print(Phase),
+  message:color(darkgray),
+  message:print(' \u2192 '),
+  build:print_skipped_phases(Rest).
+
+
+% -----------------------------------------------------------------------------
 %  In-place slot update
 % -----------------------------------------------------------------------------
 
@@ -162,7 +249,8 @@ build:render_slot(active, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
   message:print(Action),
   message:color(green),
   message:column(24, RepoEntry),
-  message:color(normal).
+  message:color(normal),
+  build:right_edge_spinner(0).
 
 build:render_slot(done, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
   build:print_slot_prefix(PlanStep, ActionIdx),
@@ -184,6 +272,14 @@ build:render_slot(failed(_Reason), PlanStep, _NumSteps, ActionIdx, Action, RepoE
 
 build:render_slot(failed, PlanStep, NumSteps, ActionIdx, Action, RepoEntry) :-
   build:render_slot(failed('error'), PlanStep, NumSteps, ActionIdx, Action, RepoEntry).
+
+build:render_slot(skipped, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
+  build:print_slot_prefix(PlanStep, ActionIdx),
+  message:color(darkgray),
+  message:print(Action),
+  message:color(darkgray),
+  message:column(24, RepoEntry),
+  message:color(normal).
 
 build:render_slot(stub, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
   build:print_slot_prefix(PlanStep, ActionIdx),
@@ -557,9 +653,9 @@ build:render_phase_word(Phase, active) :-
   message:print(Phase),
   message:color(normal).
 
-build:render_phase_word(Phase, progress(Pct)) :-
+build:render_phase_word(Phase, progress(_)) :-
   message:color(cyan),
-  format('~w ~d%%', [Phase, Pct]),
+  message:print(Phase),
   message:color(normal).
 
 build:render_phase_word(Phase, done) :-
@@ -602,18 +698,30 @@ build:render_phase_word(Phase, stub) :-
 %! build:render_overall_indicator(+PhaseStates) is det.
 %
 % Appends a green checkmark if all phases are done/stub,
-% or a red bold ! if any phase failed.
+% a red bold ! if any phase failed, or a gray spinner if still running.
 
 build:render_overall_indicator(PhaseStates) :-
   ( member(_-Status, PhaseStates),
     build:is_failed_status(Status)
   -> build:right_edge_fail
   ;  ( \+ member(_-pending, PhaseStates),
-       \+ member(_-active, PhaseStates)
+       \+ member(_-active, PhaseStates),
+       \+ member(_-progress(_), PhaseStates)
      -> build:right_edge_ok
-     ;  true
+     ;  build:compute_spinner_tick(PhaseStates, Tick),
+        build:right_edge_spinner(Tick)
      )
   ).
+
+
+%! build:compute_spinner_tick(+_PhaseStates, -Tick) is det.
+%
+% Derive a spinner tick from wall-clock time so the spinner cycles
+% smoothly at ~4 Hz regardless of callback frequency.
+
+build:compute_spinner_tick(_, Tick) :-
+  get_time(Now),
+  Tick is truncate(Now * 4).
 
 build:is_failed_status(failed).
 build:is_failed_status(failed(_)).

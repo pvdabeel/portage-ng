@@ -42,11 +42,11 @@ merge/VDB code.
 % For update/downgrade, the old package must be unmerged first; the
 % caller handles that via ebuild_exec:unmerge_old/2.
 
-ebuild_exec:action_phases(install,   _Ctx, [clean, setup, unpack, prepare, configure, compile, install, merge]).
-ebuild_exec:action_phases(run,       _Ctx, [clean, setup, unpack, prepare, configure, compile, install, merge]).
-ebuild_exec:action_phases(reinstall, _Ctx, [clean, setup, unpack, prepare, configure, compile, install, merge]).
-ebuild_exec:action_phases(update,    _Ctx, [clean, setup, unpack, prepare, configure, compile, install, merge]).
-ebuild_exec:action_phases(downgrade, _Ctx, [clean, setup, unpack, prepare, configure, compile, install, merge]).
+ebuild_exec:action_phases(install,   _Ctx, [clean, setup, unpack, prepare, configure, compile, test, install, merge]).
+ebuild_exec:action_phases(run,       _Ctx, []).
+ebuild_exec:action_phases(reinstall, _Ctx, [clean, setup, unpack, prepare, configure, compile, test, install, merge]).
+ebuild_exec:action_phases(update,    _Ctx, [clean, setup, unpack, prepare, configure, compile, test, install, merge]).
+ebuild_exec:action_phases(downgrade, _Ctx, [clean, setup, unpack, prepare, configure, compile, test, install, merge]).
 ebuild_exec:action_phases(uninstall, _Ctx, [unmerge]).
 
 
@@ -82,24 +82,11 @@ ebuild_exec:defined_phases(Repo, Entry, Phases) :-
 
 %! ebuild_exec:display_phases(+Action, +Repo, +Entry, +Ctx, -DisplayPhases) is det.
 %
-% Computes the phases to show as sub-lines in the build display.
-% Intersects the action's phase sequence with the ebuild's
-% DEFINED_PHASES. Maps ebuild CLI phase names to DEFINED_PHASES
-% names (e.g., unpack -> unpack, compile -> compile).
+% Returns the full phase lifecycle for the action. Every phase runs
+% regardless of DEFINED_PHASES (Portage uses defaults for undefined ones).
 
-ebuild_exec:display_phases(Action, Repo, Entry, Ctx, DisplayPhases) :-
-  ebuild_exec:action_phases(Action, Ctx, AllPhases),
-  ebuild_exec:defined_phases(Repo, Entry, Defined),
-  ( config:build_live_phases(Live), Live \= []
-  -> include(ebuild_exec:phase_in_live_or_defined(Live, Defined), AllPhases, DisplayPhases)
-  ;  include(ebuild_exec:phase_in_defined(Defined), AllPhases, DisplayPhases)
-  ).
-
-ebuild_exec:phase_in_defined(Defined, Phase) :-
-  memberchk(Phase, Defined).
-
-ebuild_exec:phase_in_live_or_defined(Live, Defined, Phase) :-
-  ( memberchk(Phase, Live) -> true ; memberchk(Phase, Defined) ).
+ebuild_exec:display_phases(Action, _Repo, _Entry, Ctx, DisplayPhases) :-
+  ebuild_exec:action_phases(Action, Ctx, DisplayPhases).
 
 
 % =============================================================================
@@ -474,15 +461,15 @@ ebuild_exec:run_live_prefix(EbuildPath, Entry, LivePrefix, DisplayPhases, LogPat
   ebuild_exec:log_file_size(LogPath, SizeBefore),
   get_time(T0),
   ebuild_exec:aggregate_expected_stats(Entry, LivePrefix, ExpBytes, ExpSecs),
-  ( (ExpBytes > 0 ; ExpSecs > 0.0),
-    member(ProgressPhase, LivePrefix),
+  ( member(ProgressPhase, LivePrefix),
     memberchk(ProgressPhase, DisplayPhases)
-  -> ebuild_exec:start_phases_async_multi(EbuildPath, LivePrefix, LogPath, Pid),
-     last(LivePrefix, LastLive),
-     ( memberchk(LastLive, DisplayPhases) -> PPhase = LastLive ; PPhase = ProgressPhase ),
-     ebuild_exec:poll_live_progress(Pid, PPhase, LogPath, SizeBefore, T0, ExpBytes, ExpSecs, Callback, ExitCode)
-  ;  ebuild_exec:run_phases_logged_multi(EbuildPath, LivePrefix, LogPath, ExitCode)
+  -> true
+  ;  LivePrefix = [ProgressPhase|_]
   ),
+  ebuild_exec:start_phases_async_multi(EbuildPath, LivePrefix, LogPath, Pid),
+  last(LivePrefix, LastLive),
+  ( memberchk(LastLive, DisplayPhases) -> PPhase = LastLive ; PPhase = ProgressPhase ),
+  ebuild_exec:poll_live_progress(Pid, PPhase, LogPath, SizeBefore, T0, ExpBytes, ExpSecs, Callback, ExitCode),
   get_time(T1),
   TotalSecs is T1 - T0,
   ebuild_exec:log_file_size(LogPath, SizeAfter),
@@ -619,6 +606,8 @@ ebuild_exec:execute(Action, Repo, Entry, Ctx, Outcome) :-
 ebuild_exec:execute(uninstall, Repo, Entry, Ctx, Outcome) :-
   !,
   ebuild_exec:execute_phases(uninstall, Repo, Entry, Ctx, Outcome).
+
+ebuild_exec:execute(run, _Repo, _Entry, _Ctx, done) :- !.
 
 ebuild_exec:execute(Action, Repo, Entry, Ctx, Outcome) :-
   ebuild_exec:execute_phases(Action, Repo, Entry, Ctx, Outcome).
