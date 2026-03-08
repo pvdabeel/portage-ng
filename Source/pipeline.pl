@@ -99,16 +99,83 @@ pipeline:prove_plan_with_fallback(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL, 
 %! pipeline:prove_plan_basic(+Goals, -ProofAVL, -ModelAVL, -Plan, -TriggersAVL)
 %
 % Single-pass pipeline with per-stage wall-time instrumentation.
+% Pre-injects selected_cn_allow_multislot constraints when the goal
+% list contains multiple targets for the same Category-Name (different
+% versions/slots).
 
 pipeline:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
   sampler:perf_walltime(T0),
-  prover:prove(Goals, t, ProofAVL, t, ModelAVL, t, _Constraints, t, TriggersAVL),
+  pipeline:multislot_initial_constraints(Goals, InitCons),
+  prover:prove(Goals, t, ProofAVL, t, ModelAVL, InitCons, _Constraints, t, TriggersAVL),
   sampler:perf_walltime(T1),
   planner:plan(ProofAVL, TriggersAVL, t, Plan0, Remainder0),
   sampler:perf_walltime(T2),
   scheduler:schedule(ProofAVL, TriggersAVL, Plan0, Remainder0, Plan, _Remainder),
   sampler:perf_walltime(T3),
   sampler:perf_record(T0, T1, T2, T3).
+
+
+% =============================================================================
+%  Multi-slot initial constraints
+% =============================================================================
+
+%! pipeline:multislot_initial_constraints(+Goals, -Constraints) is det.
+%
+% Scans the goal list for duplicate (Category, Name) pairs (different
+% versions of the same package). For each such pair, pre-populates the
+% constraint AVL with selected_cn_allow_multislot(C,N) so the prover
+% permits per-slot selection instead of enforcing single-selection.
+
+pipeline:multislot_initial_constraints(Goals, Constraints) :-
+  pipeline:extract_goal_cns(Goals, CNs),
+  msort(CNs, Sorted),
+  pipeline:collect_duplicate_cns(Sorted, DupCNs),
+  pipeline:build_multislot_avl(DupCNs, t, Constraints).
+
+
+%! pipeline:extract_goal_cns(+Goals, -CNPairs) is det.
+
+pipeline:extract_goal_cns([], []).
+
+pipeline:extract_goal_cns([target(Q, _):_?{_}|Rest], [C-N|More]) :-
+  once(kb:query(Q, R://E)),
+  query:search([category(C), name(N)], R://E),
+  !,
+  pipeline:extract_goal_cns(Rest, More).
+
+pipeline:extract_goal_cns([_|Rest], More) :-
+  pipeline:extract_goal_cns(Rest, More).
+
+
+%! pipeline:collect_duplicate_cns(+Sorted, -Duplicates) is det.
+
+pipeline:collect_duplicate_cns([], []).
+
+pipeline:collect_duplicate_cns([CN, CN|Rest], [CN|More]) :-
+  !,
+  pipeline:skip_same_cn(CN, Rest, Rest1),
+  pipeline:collect_duplicate_cns(Rest1, More).
+
+pipeline:collect_duplicate_cns([_|Rest], More) :-
+  pipeline:collect_duplicate_cns(Rest, More).
+
+
+%! pipeline:skip_same_cn(+CN, +List, -Rest) is det.
+
+pipeline:skip_same_cn(CN, [CN|Rest], Rest1) :-
+  !,
+  pipeline:skip_same_cn(CN, Rest, Rest1).
+
+pipeline:skip_same_cn(_, Rest, Rest).
+
+
+%! pipeline:build_multislot_avl(+DupCNs, +AVL0, -AVL) is det.
+
+pipeline:build_multislot_avl([], AVL, AVL).
+
+pipeline:build_multislot_avl([C-N|Rest], AVL0, AVL) :-
+  put_assoc(selected_cn_allow_multislot(C,N), AVL0, true, AVL1),
+  pipeline:build_multislot_avl(Rest, AVL1, AVL).
 
 
 % =============================================================================
