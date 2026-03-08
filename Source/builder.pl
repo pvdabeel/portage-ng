@@ -246,8 +246,8 @@ builder:rule_file_info(rule(Repo://Entry:Action?{Ctx}, _Body), _Distdir, LineOff
   catch(ebuild_exec:display_phases(Action, Repo, Entry, Ctx, PhaseList), _, fail),
   PhaseList \= [],
   !,
+  ExecLine is LineOff + 1,
   builder:count_conf_lines(Repo, Entry, Action, Ctx, ConfCount),
-  ExecLine is LineOff + 1 + ConfCount,
   ( predicate_property(ebuild_exec:build_log_path(_,_), defined)
   -> catch(ebuild_exec:build_log_path(Entry, LogPath), _, LogPath = '')
   ;  LogPath = ''

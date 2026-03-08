@@ -117,9 +117,10 @@ build:print_job_slots([slotted(_LineOff, _TotalLines, PlanStep, NumSteps, Action
   -> nl,
      build:print_file_subslots(DistFiles, Distdir)
   ;  SubInfo = phases(_ExecLine, _LogsLine, PhaseList, LogPath)
-  -> plan:print_config(Repo://Entry:Action?{Ctx}),
-     nl,
-     build:print_exec_and_logs(PhaseList, LogPath)
+  -> nl,
+     build:print_exec_and_logs(PhaseList, LogPath),
+     plan:print_config(Repo://Entry:Action?{Ctx}),
+     nl
   ;  nl
   ),
   build:print_job_slots(Rest, NumSteps).
@@ -149,9 +150,10 @@ build:print_skipped_slots([slotted(_LineOff, _TotalLines, PlanStep, NumSteps, Ac
   !,
   build:render_slot(skipped, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry),
   ( SubInfo = phases(_ExecLine, _LogsLine, PhaseList, LogPath)
-  -> build:print_skipped_conf(Repo://Entry:Action?{Ctx}),
-     nl,
-     build:print_skipped_exec_and_logs(PhaseList, LogPath)
+  -> nl,
+     build:print_skipped_exec_and_logs(PhaseList, LogPath),
+     build:print_skipped_conf(Repo://Entry:Action?{Ctx}),
+     nl
   ;  nl
   ),
   build:print_skipped_slots(Rest, NumSteps).
@@ -186,13 +188,12 @@ build:print_skipped_exec_and_logs(PhaseList, LogPath) :-
   message:color(darkgray),
   build:print_skipped_phases(PhaseList),
   message:color(normal),
-  nl,
   ( catch(config:show_build_logs(true), _, fail)
-  -> build:logs_prefix,
+  -> nl,
+     build:logs_prefix,
      message:color(darkgray),
      message:print(LogPath),
-     message:color(normal),
-     nl
+     message:color(normal)
   ;  true
   ).
 
@@ -547,11 +548,10 @@ build:print_exec_and_logs(PhaseList, LogPath) :-
   maplist([P, P-pending]>>true, PhaseList, PhaseStates),
   build:exec_prefix,
   build:render_inline_phases(PhaseStates),
-  nl,
   ( catch(config:show_build_logs(true), _, fail)
-  -> build:logs_prefix,
-     build:render_log_name(LogPath, pending),
-     nl
+  -> nl,
+     build:logs_prefix,
+     build:render_log_name(LogPath, pending)
   ;  true
   ).
 
@@ -618,6 +618,7 @@ build:update_logs_line(LogsLine, TotalLines, LogPath, OverallStatus) :-
 
 build:render_inline_phases(PhaseStates) :-
   build:render_phases_with_arrows(PhaseStates),
+  message:el,
   build:render_overall_indicator(PhaseStates).
 
 
@@ -698,7 +699,7 @@ build:render_phase_word(Phase, stub) :-
 %! build:render_overall_indicator(+PhaseStates) is det.
 %
 % Appends a green checkmark if all phases are done/stub,
-% a red bold ! if any phase failed, or a gray spinner if still running.
+% a red bold ! if any phase failed, or a phase fraction N/M if running.
 
 build:render_overall_indicator(PhaseStates) :-
   ( member(_-Status, PhaseStates),
@@ -708,20 +709,54 @@ build:render_overall_indicator(PhaseStates) :-
        \+ member(_-active, PhaseStates),
        \+ member(_-progress(_), PhaseStates)
      -> build:right_edge_ok
-     ;  build:compute_spinner_tick(PhaseStates, Tick),
-        build:right_edge_spinner(Tick)
+     ;  build:phase_progress(PhaseStates, AccPct, Current, LiveTotal),
+        build:right_edge_progress(AccPct, Current, LiveTotal)
      )
   ).
 
 
-%! build:compute_spinner_tick(+_PhaseStates, -Tick) is det.
+%! build:phase_progress(+PhaseStates, -AccPct, -Current, -LiveTotal) is det.
 %
-% Derive a spinner tick from wall-clock time so the spinner cycles
-% smoothly at ~4 Hz regardless of callback frequency.
+% Computes accumulated progress across all live (non-stub) phases.
+% AccPct = (done_count * 100 + current_phase_pct) / live_total.
+% Current is the 1-based index of the active phase within live phases.
+% LiveTotal excludes stub phases.
 
-build:compute_spinner_tick(_, Tick) :-
-  get_time(Now),
-  Tick is truncate(Now * 4).
+build:phase_progress(PhaseStates, AccPct, Current, LiveTotal) :-
+  include(build:is_live_phase, PhaseStates, LiveStates),
+  length(LiveStates, LiveTotal),
+  ( LiveTotal > 0
+  -> aggregate_all(count, member(_-done, LiveStates), DoneCount),
+     ( member(_-progress(P), LiveStates), P > 0 -> CurPct = P ; CurPct = 0 ),
+     AccPct is (DoneCount * 100 + CurPct) // LiveTotal,
+     build:current_phase_index(LiveStates, 1, Current)
+  ;  AccPct = 0, Current = 0
+  ).
+
+build:is_live_phase(_-stub) :- !, fail.
+build:is_live_phase(_).
+
+build:current_phase_index([], _, 1).
+build:current_phase_index([_-active|_], N, N) :- !.
+build:current_phase_index([_-progress(_)|_], N, N) :- !.
+build:current_phase_index([_|Rest], N, Current) :-
+  N1 is N + 1,
+  build:current_phase_index(Rest, N1, Current).
+
+
+%! build:right_edge_progress(+AccPct, +Current, +LiveTotal) is det.
+%
+% Print "(AccPct%) Current/LiveTotal" at the right edge of the terminal.
+
+build:right_edge_progress(AccPct, Current, LiveTotal) :-
+  config:printing_tty_size(_, W),
+  format(atom(Label), '(~d%) ~d/~d', [AccPct, Current, LiveTotal]),
+  atom_length(Label, Len),
+  Col is W - Len,
+  format("\e[~dG", [Col]),
+  message:color(darkgray),
+  message:print(Label),
+  message:color(normal).
 
 build:is_failed_status(failed).
 build:is_failed_status(failed(_)).
