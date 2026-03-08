@@ -116,6 +116,7 @@ interface:spec(S) :-
        [opt(deep),      type(boolean),   default(false),       shortflags(['d']), longflags(['deep']),      help('Also consider dependencies')],
        [opt(emptytree), type(boolean),   default(false),       shortflags(['e']), longflags(['emptytree']), help('Pretend no other packages are installed')],
        [opt(buildpkg),  type(boolean),   default(false),       shortflags(['b']), longflags(['buildpkg']),  help('Build packages')],
+       [opt(build),     type(boolean),   default(false),       shortflags(['B']), longflags(['build']),     help('Build target (print plan then execute with live progress)')],
        [opt(resume),    type(boolean),   default(false),       shortflags(['r']), longflags(['resume']),    help('Resume previous command')],
        [opt(newuse),    type(boolean),   default(false),       shortflags(['N']), longflags(['newuse']),    help('Take into account new use flags')],
        [opt(oneshot),   type(boolean),   default(false),       shortflags(['1']), longflags(['oneshot']),   help('Do not add package to world')],
@@ -324,6 +325,7 @@ interface:process_requests(Mode) :-
     memberchk(save(true),Options)     -> (kb:save,!, 						    Continue) ;
     memberchk(load(true),Options)     -> (kb:load,!, 						    Continue) ;
     memberchk(fetchonly(true),Options)-> (interface:process_action(fetchonly,Args,Options),         Continue) ;
+    memberchk(build(true),Options)   -> (interface:process_build(Args,Options),                    Continue) ;
     memberchk(merge(true),Options)    -> (interface:process_action(run,Args,Options),               Continue) ;
     memberchk(shell(true),Options)    -> (message:logo(['::- portage-ng shell - ',Version]),	    prolog)),
 
@@ -614,6 +616,26 @@ interface:process_action(Action,ArgsSets,Options) :-
         ; true
         )
     )).
+
+
+% -----------------------------------------------------------------------------
+%  Action: BUILD
+% -----------------------------------------------------------------------------
+
+interface:process_build(ArgsSets, _Options) :-
+  eapi:substitute_sets(ArgsSets, Args),
+  findall(target(Q,Arg):run?{[]},
+          ( member(Arg, Args),
+            atom_codes(Arg, Codes),
+            phrase(eapi:qualified_target(Q), Codes),
+            once(kb:query(Q, _R://_E))
+          ),
+          Proposal),
+  !,
+  ( Proposal == []
+  -> message:failure('No valid targets found.')
+  ;  builder:build(Proposal)
+  ).
 
 
 % -----------------------------------------------------------------------------

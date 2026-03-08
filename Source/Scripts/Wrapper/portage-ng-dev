@@ -9,8 +9,8 @@
 #
 set -eu
 
-# This script lives under Source/Scripts/, so the project root is two levels up.
-ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
+# This script lives under Source/Scripts/Wrapper/, so the project root is three levels up.
+ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)"
 
 
 # -----------------------------------------------------------------------------

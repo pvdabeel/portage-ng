@@ -557,16 +557,16 @@ config:graph_asset_source(meslo_ttf, Source) :-
 % source of truth here makes behavior consistent across CLI and scripts.
 %
 % - mirror_root/1: hashed distfiles mirror root (GLEP 75 layout.conf aware)
-% - distdir/1: local flat distfiles directory (typical Gentoo: /var/cache/distfiles)
+% - Local distfiles directory is configured per machine via distfiles repository
 
 config:mirror_root('/Volumes/Storage/Distfiles/distfiles').
 
-%! config:distdir(?Path)
+%! config:mirror_url(?URL)
 %
-% Gentoo default is usually /var/cache/distfiles. If you use /usr/portage/distfiles,
-% override here.
+% HTTP base URL of the local distfiles mirror. The mirror has the same
+% GLEP 75 directory layout as mirror_root/1, served over HTTP.
 
-config:distdir('/var/cache/distfiles').
+config:mirror_url('http://mac-pro.local/distfiles').
 
 %! config:mirror_verify_hashes_default(?Policy)
 %
