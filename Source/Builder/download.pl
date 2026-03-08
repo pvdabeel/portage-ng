@@ -173,7 +173,7 @@ download:mirror_download_url(MirrorUrl, Layout, Filename, URL) :-
 
 %! download:curl_download(+URL, +DestPath, -ExitCode) is det.
 %
-% Download a file from URL to DestPath using curl.
+% Download a file from URL to DestPath using curl (blocking).
 
 download:curl_download(URL, DestPath, ExitCode) :-
   process_create(
@@ -181,6 +181,31 @@ download:curl_download(URL, DestPath, ExitCode) :-
     ['-L', '-s', '-f', '-o', DestPath, URL],
     [stdout(null), stderr(null), process(Pid)]),
   process_wait(Pid, exit(ExitCode)).
+
+
+%! download:start_curl_async(+URL, +DestPath, -Pid) is det.
+%
+% Start a curl download without blocking. Returns the process Pid
+% for later polling via check_process_done/2.
+
+download:start_curl_async(URL, DestPath, Pid) :-
+  process_create(
+    path(curl),
+    ['-L', '-s', '-f', '-o', DestPath, URL],
+    [stdout(null), stderr(null), process(Pid)]).
+
+
+%! download:check_process_done(+Pid, -ExitCode) is semidet.
+%
+% Non-blocking check whether a process has exited. Succeeds with the
+% exit code if done, fails if still running.
+
+download:check_process_done(Pid, ExitCode) :-
+  catch(
+    process_wait(Pid, exit(ExitCode), [timeout(0)]),
+    _,
+    fail
+  ).
 
 
 %! download:verify_size(+Path, +ExpectedSize) is semidet.

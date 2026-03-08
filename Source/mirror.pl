@@ -694,25 +694,46 @@ verify_hashes(Path, Pairs, OK, UnsupportedCount) :-
 %! mirror:verify_one_hash(+Path, +AlgHash, +StateIn, -StateOut) is det.
 %
 % Verify a single algorithm/hash pair. Folds into `state(OK, UnsupportedCount)`.
+% Uses openssl dgst externally to avoid crypto_file_hash bugs with large files.
 
 verify_one_hash(Path, alg_hash(Alg, Expected), state(OK0,U0), state(OK,U)) :-
-  ( mirror:crypto_supported_alg(Alg) ->
-      crypto:crypto_file_hash(Path, Got0, [algorithm(Alg)]),
-      ( atom(Got0) -> downcase_atom(Got0, Got) ; Got = Got0 ),
-      ( Got == Expected -> OK1 = OK0 ; OK1 = false ),
-      OK = OK1,
-      U = U0
-  ; OK = OK0,
-    U is U0 + 1
+  ( mirror:openssl_alg_flag(Alg, Flag) ->
+      ( mirror:openssl_file_hash(Path, Flag, Got)
+      -> ( Got == Expected -> OK1 = OK0 ; OK1 = false ),
+         OK = OK1, U = U0
+      ;  OK = false, U = U0
+      )
+  ;  OK = OK0,
+     U is U0 + 1
   ).
 
 
-%! mirror:crypto_supported_alg(+Alg) is semidet.
+%! mirror:openssl_alg_flag(+Alg, -Flag) is semidet.
 %
-% True if Alg is a hash algorithm supported by `crypto:crypto_file_hash/3`.
+% Map internal algorithm names to openssl dgst flag atoms.
 
-crypto_supported_alg(Alg) :-
-  memberchk(Alg, [blake2b512, sha512, sha256, sha1, rmd160]).
+openssl_alg_flag(blake2b512, '-blake2b512').
+openssl_alg_flag(sha512, '-sha512').
+openssl_alg_flag(sha256, '-sha256').
+openssl_alg_flag(sha1, '-sha1').
+openssl_alg_flag(rmd160, '-rmd160').
+
+
+%! mirror:openssl_file_hash(+Path, +Flag, -Hash) is semidet.
+%
+% Compute a file hash via openssl dgst. Parses the output format
+% "ALGO(path)= hexhash" and returns the lowercase hex hash atom.
+
+openssl_file_hash(Path, Flag, Hash) :-
+  process_create(path(openssl), [dgst, Flag, Path],
+    [stdout(pipe(Out)), stderr(null), process(Pid)]),
+  read_line_to_string(Out, Line),
+  close(Out),
+  process_wait(Pid, exit(0)),
+  sub_string(Line, Before, 2, _, "= "),
+  After is Before + 2,
+  sub_string(Line, After, _, 0, HexStr),
+  atom_string(Hash, HexStr).
 
 
 %! mirror:print_test_stats(+Repo, +MirrorRoot, +Layout, +Distdir, +TotalFiles, +TotalBytes, +Stats) is det.
