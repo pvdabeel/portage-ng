@@ -124,7 +124,7 @@ interface:spec(S) :-
        [opt(style),     type(atom),      default('fancy'),                        longflags(['style']),     help('Set the printing style: fancy, column or short')],
        [opt(sync),      type(boolean),   default(false),                          longflags(['sync']),      help('Sync repository. Optional args: repository names (e.g. portage, pkg, overlay)')],
        [opt(clear),     type(boolean),   default(false),                          longflags(['clear']),     help('Clear knowledge base')],
-       [opt(graph),     type(boolean),   default(false),                          longflags(['graph']),     help('Create graph. Optional arg: "modified" or "full" (overrides config.pl for this run).')],
+       [opt(graph),     type(boolean),   default(false),                          longflags(['graph']),     help('Create graph. Args: "modified"|"full"|"build"|"build modified"|"build full".')],
        [opt(depclean),  type(boolean),   default(false),       shortflags(['c']), longflags(['depclean']),  help('Clean dependencies')],
        [opt(info),      type(boolean),   default(false),       shortflags(['i']), longflags(['info']),      help('Show package version')],
        [opt(bugs),      type(boolean),   default(false),                          longflags(['bugs']),      help('Print bug report drafts (Gentoo Bugzilla) for the given target, without printing a plan')],
@@ -145,6 +145,10 @@ interface:spec(S) :-
        [opt(background),type(boolean),   default(false),                          longflags(['background']),help('Fork to background (daemon and server modes)')],
        [opt(status),    type(boolean),   default(false),                          longflags(['status']),    help('Check if daemon/server is running (ipc and client modes)')],
        [opt(cmd),       type(atom),      default(none),                           longflags(['cmd']),       help('Send command to daemon/server: halt or relaunch (ipc and client modes)')],
+
+       % build options
+
+       [opt(logs),      type(boolean),   default(false),       shortflags(['l']), longflags(['logs']),      help('Show build log paths in --build output')],
 
        % debugging purposes
 
@@ -205,6 +209,7 @@ interface:process_flags:-
   (lists:memberchk(pretend(true),   Options) -> asserta(preference:local_flag(pretend))         ; true),
   (lists:memberchk(oneshot(true),   Options) -> asserta(preference:local_flag(oneshot))         ; true),
   (lists:memberchk(verbose(true),   Options) -> asserta(config:verbose(true))                   ; true),
+  (lists:memberchk(logs(true),     Options) -> asserta(config:show_build_logs(true))            ; true),
   (lists:memberchk(style(Style),    Options) -> asserta(config:interface_printing_style(Style)) ; true).
 
 
@@ -344,9 +349,12 @@ interface:process_requests(_) :-
 %! interface:process_graph(+Args) is det.
 %
 % Dispatches --graph with optional positional arguments:
-%   --graph            uses config:graph_modified_only/1
-%   --graph modified   overrides to modified-only for this run
-%   --graph full       overrides to graph everything for this run
+%   --graph                 uses config:graph_modified_only/1
+%   --graph modified        overrides to modified-only for this run
+%   --graph full            overrides to graph everything for this run
+%   --graph build           graph + builder test (download + safe phases)
+%   --graph build modified  graph modified + builder test
+%   --graph build full      graph full + builder test
 
 interface:process_graph([]) :-
   kb:graph,
@@ -364,6 +372,26 @@ interface:process_graph([full]) :-
     kb:graph,
     retractall(config:interface_graph_modified_only(_))
   ),
+  !.
+interface:process_graph([build]) :-
+  kb:graph,
+  builder:test_stats(portage),
+  !.
+interface:process_graph([build, modified]) :-
+  setup_call_cleanup(
+    asserta(config:interface_graph_modified_only(true)),
+    kb:graph,
+    retractall(config:interface_graph_modified_only(_))
+  ),
+  builder:test_stats(portage),
+  !.
+interface:process_graph([build, full]) :-
+  setup_call_cleanup(
+    asserta(config:interface_graph_modified_only(false)),
+    kb:graph,
+    retractall(config:interface_graph_modified_only(_))
+  ),
+  builder:test_stats(portage),
   !.
 interface:process_graph(Args) :-
   message:warning(['--graph: ignoring unexpected args: ', Args]),

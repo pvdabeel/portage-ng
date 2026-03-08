@@ -90,7 +90,7 @@ printer:test(Repository,Style) :-
               ),
               ( sampler:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, false),
                 sampler:test_stats_set_current_entry(Repository://Entry),
-                printer:print([Repository://Entry:Action?{[]}],ModelAVL,ProofAVL,Plan,Triggers),
+              printer:print([Repository://Entry:Action?{[]}],ModelAVL,ProofAVL,Plan,Triggers),
                 sampler:test_stats_clear_current_entry
               ),
               false),

@@ -23,6 +23,38 @@ the display side of builder execution, while builder.pl handles orchestration.
 :- module(build, []).
 
 % =============================================================================
+%  Right-edge indicator helpers
+% =============================================================================
+
+%! build:right_edge_ok is det.
+%
+% Print a green checkmark at the right edge of the terminal (1 space in).
+
+build:right_edge_ok :-
+  config:printing_tty_size(_, W),
+  Col is W - 1,
+  format("\e[~dG", [Col]),
+  message:color(green),
+  message:print('\u2713'),
+  message:color(normal).
+
+
+%! build:right_edge_fail is det.
+%
+% Print a red bold exclamation at the right edge of the terminal.
+
+build:right_edge_fail :-
+  config:printing_tty_size(_, W),
+  Col is W - 1,
+  format("\e[~dG", [Col]),
+  message:color(red),
+  message:style(bold),
+  message:print('!'),
+  message:style(normal),
+  message:color(normal).
+
+
+% =============================================================================
 %  BUILD declarations
 % =============================================================================
 
@@ -59,34 +91,48 @@ build:header(NumSteps, TotalActions) :-
 % For download actions with file metadata, also prints file sub-lines
 % inline below the header. Cursor parks on a blank line below all slots.
 
-build:print_job_slots([], _TotalSteps) :- !.
+build:print_job_slots([], _NumSteps) :- !.
 
-build:print_job_slots([slotted(_LineOff, _TotalLines, StepN, TotalSteps, rule(Repo://Entry:Action?{_Ctx}, _Body), FileInfo)|Rest], _) :-
-  build:render_slot(pending, StepN, TotalSteps, Action, Repo://Entry),
-  nl,
-  ( FileInfo = files(_FileStart, _NumFiles, DistFiles, Distdir)
-  -> build:print_file_subslots(DistFiles, Distdir)
-  ;  true
+build:print_job_slots([slotted(_LineOff, _TotalLines, PlanStep, NumSteps, ActionIdx, rule(Repo://Entry:Action?{Ctx}, _Body), SubInfo)|Rest], _) :-
+  !,
+  build:render_slot(pending, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry),
+  ( SubInfo = live_source(_LiveStart)
+  -> nl,
+     build:print_live_subslot
+  ;  SubInfo = files(_FileStart, _NumFiles, DistFiles, Distdir)
+  -> nl,
+     build:print_file_subslots(DistFiles, Distdir)
+  ;  SubInfo = phases(_ExecLine, _LogsLine, PhaseList, LogPath)
+  -> plan:print_config(Repo://Entry:Action?{Ctx}),
+     nl,
+     build:print_exec_and_logs(PhaseList, LogPath)
+  ;  nl
   ),
-  build:print_job_slots(Rest, TotalSteps).
+  build:print_job_slots(Rest, NumSteps).
 
-build:print_job_slots([_|Rest], TotalSteps) :-
-  build:print_job_slots(Rest, TotalSteps).
+build:print_job_slots([slotted(_LineOff, _TotalLines, PlanStep, NumSteps, ActionIdx, rule(world_action(Op, Arg):world?{_Ctx}, _Body), _SubInfo)|Rest], _) :-
+  !,
+  build:render_slot(pending, PlanStep, NumSteps, ActionIdx, Op, Arg),
+  nl,
+  build:print_job_slots(Rest, NumSteps).
+
+build:print_job_slots([_|Rest], NumSteps) :-
+  build:print_job_slots(Rest, NumSteps).
 
 
 % -----------------------------------------------------------------------------
 %  In-place slot update
 % -----------------------------------------------------------------------------
 
-%! build:update_slot(+Slot, +NumSlots, +Status, +StepN, +TotalSteps, +Action, +RepoEntry) is det.
+%! build:update_slot(+Slot, +NumSlots, +Status, +PlanStep, +NumSteps, +ActionIdx, +Action, +RepoEntry) is det.
 %
 % Update a specific slot line in-place using ANSI cursor movement.
 % Must be called inside with_mutex(build_display, ...).
 
-build:update_slot(Slot, NumSlots, Status, StepN, TotalSteps, Action, RepoEntry) :-
+build:update_slot(Slot, NumSlots, Status, PlanStep, NumSteps, ActionIdx, Action, RepoEntry) :-
   LinesUp is NumSlots - Slot,
   format("\e[~dA\r", [LinesUp]),
-  build:render_slot(Status, StepN, TotalSteps, Action, RepoEntry),
+  build:render_slot(Status, PlanStep, NumSteps, ActionIdx, Action, RepoEntry),
   message:el,
   format("\e[~dB\r", [LinesUp]),
   flush_output.
@@ -96,55 +142,51 @@ build:update_slot(Slot, NumSlots, Status, StepN, TotalSteps, Action, RepoEntry) 
 %  Slot rendering
 % -----------------------------------------------------------------------------
 
-%! build:render_slot(+Status, +StepN, +TotalSteps, +Action, +RepoEntry) is det.
+%! build:render_slot(+Status, +PlanStep, +NumSteps, +ActionIdx, +Action, +RepoEntry) is det.
 %
 % Render the content of a slot line based on its status. Uses the same
 % step bubble and action/target colors as the plan display.
+% ActionIdx=0 gets a step bubble; subsequent actions get a continuation prefix.
 
-build:render_slot(pending, StepN, _TotalSteps, Action, RepoEntry) :-
-  build:print_step_bubble(StepN),
+build:render_slot(pending, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
+  build:print_slot_prefix(PlanStep, ActionIdx),
   message:color(darkgray),
   message:print(Action),
   message:color(darkgray),
   message:column(24, RepoEntry),
   message:color(normal).
 
-build:render_slot(active, StepN, _TotalSteps, Action, RepoEntry) :-
-  build:print_step_bubble(StepN),
+build:render_slot(active, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
+  build:print_slot_prefix(PlanStep, ActionIdx),
   message:color(cyan),
   message:print(Action),
   message:color(green),
   message:column(24, RepoEntry),
   message:color(normal).
 
-build:render_slot(done, StepN, _TotalSteps, Action, RepoEntry) :-
-  build:print_step_bubble(StepN),
+build:render_slot(done, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
+  build:print_slot_prefix(PlanStep, ActionIdx),
   message:color(cyan),
   message:print(Action),
   message:color(green),
   message:column(24, RepoEntry),
-  message:color(green),
-  message:print(' \u2713'),
-  message:color(normal).
+  message:color(normal),
+  build:right_edge_ok.
 
-build:render_slot(failed(Reason), StepN, _TotalSteps, Action, RepoEntry) :-
-  build:print_step_bubble(StepN),
+build:render_slot(failed(_Reason), PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
+  build:print_slot_prefix(PlanStep, ActionIdx),
   message:color(cyan),
   message:print(Action),
   message:color(green),
   message:column(24, RepoEntry),
-  message:color(red),
-  message:style(bold),
-  message:print(' !'),
-  format(' (~w)', [Reason]),
-  message:style(normal),
-  message:color(normal).
+  message:color(normal),
+  build:right_edge_fail.
 
-build:render_slot(failed, StepN, TotalSteps, Action, RepoEntry) :-
-  build:render_slot(failed('error'), StepN, TotalSteps, Action, RepoEntry).
+build:render_slot(failed, PlanStep, NumSteps, ActionIdx, Action, RepoEntry) :-
+  build:render_slot(failed('error'), PlanStep, NumSteps, ActionIdx, Action, RepoEntry).
 
-build:render_slot(stub, StepN, _TotalSteps, Action, RepoEntry) :-
-  build:print_step_bubble(StepN),
+build:render_slot(stub, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
+  build:print_slot_prefix(PlanStep, ActionIdx),
   message:color(cyan),
   message:print(Action),
   message:color(green),
@@ -158,17 +200,22 @@ build:render_slot(stub, StepN, _TotalSteps, Action, RepoEntry) :-
 %  Step bubble helper
 % -----------------------------------------------------------------------------
 
-%! build:print_step_bubble(+StepN) is det.
+%! build:print_slot_prefix(+PlanStep, +ActionIdx) is det.
 %
-% Print a step bubble matching the plan's format: " └─[step  N]─┤"
-% Uses the same message:bubble/2 as the plan printer.
+% Print the slot prefix. First action in a step (ActionIdx=0) gets a
+% step bubble matching the plan's format: " └─[step  N]─┤"
+% Subsequent actions (ActionIdx>0) get a continuation line: "             │ "
 
-build:print_step_bubble(StepN) :-
-  format(atom(AtomStepN), '~t~0f~2|', [StepN]),
+build:print_slot_prefix(PlanStep, 0) :-
+  !,
+  format(atom(AtomStepN), '~t~0f~2|', [PlanStep]),
   format(atom(StepLabel), 'step ~a', [AtomStepN]),
   write(' \u2514\u2500'),
   message:bubble(darkgray, StepLabel),
   write('\u2500\u2524 ').
+
+build:print_slot_prefix(_PlanStep, _ActionIdx) :-
+  write('             \u2502 ').
 
 
 % =============================================================================
@@ -273,9 +320,7 @@ build:render_file_content(pending, Filename, Size, Distdir) :-
      message:color(normal),
      message:print(' '),
      message:print(Filename),
-     message:color(green),
-     message:print(' \u2713'),
-     message:color(normal)
+     build:right_edge_ok
   ;  message:color(darkgray),
      message:print_bytes(Size),
      message:color(darkgray),
@@ -309,9 +354,7 @@ build:render_file_content(done, Filename, Size, _Distdir) :-
   message:color(normal),
   message:print(' '),
   message:print(Filename),
-  message:color(green),
-  message:print(' \u2713'),
-  message:color(normal).
+  build:right_edge_ok.
 
 build:render_file_content(failed, Filename, Size, _Distdir) :-
   message:color(magenta),
@@ -319,11 +362,282 @@ build:render_file_content(failed, Filename, Size, _Distdir) :-
   message:color(normal),
   message:print(' '),
   message:print(Filename),
-  message:color(red),
+  build:right_edge_fail.
+
+build:render_file_content(restricted, Filename, Size, _Distdir) :-
+  message:color(magenta),
+  message:print_bytes(Size),
+  message:color(normal),
+  message:print(' '),
+  message:print(Filename),
+  message:color(yellow),
+  message:print(' (manual fetch required)'),
+  message:color(normal).
+
+
+% =============================================================================
+%  Live source sub-slot display
+% =============================================================================
+
+%! build:print_live_subslot is det.
+%
+% Print a single sub-line for live ebuilds: "└─ live ─┤ git repository"
+
+build:print_live_subslot :-
+  build:live_prefix,
+  message:color(darkgray),
+  message:print('git repository'),
+  message:color(normal),
+  nl.
+
+
+%! build:live_prefix is det.
+
+build:live_prefix :-
+  write('             \u2502           '),
+  message:color(darkgray),
+  message:print('\u2514\u2500 live \u2500\u2524 '),
+  message:color(normal).
+
+
+%! build:update_live_subslot(+Idx, +LiveStartLine, +TotalLines, +Status) is det.
+%
+% Update the live source sub-line in-place.
+% Must be called inside with_mutex(build_display, ...).
+
+build:update_live_subslot(_Idx, LiveStartLine, TotalLines, Status) :-
+  LinesUp is TotalLines - LiveStartLine,
+  format("\e[~dA\r", [LinesUp]),
+  build:live_prefix,
+  build:render_live_content(Status),
+  message:el,
+  format("\e[~dB\r", [LinesUp]),
+  flush_output.
+
+
+%! build:render_live_content(+Status) is det.
+
+build:render_live_content(pending) :-
+  message:color(darkgray),
+  message:print('git repository'),
+  message:color(normal).
+
+build:render_live_content(done) :-
+  message:color(normal),
+  message:print('git repository'),
+  build:right_edge_ok.
+
+build:render_live_content(failed) :-
+  message:color(normal),
+  message:print('git repository'),
+  build:right_edge_fail.
+
+
+% =============================================================================
+%  Inline phase display (exec line + logs line)
+% =============================================================================
+
+% -----------------------------------------------------------------------------
+%  Initial printing
+% -----------------------------------------------------------------------------
+
+%! build:print_exec_and_logs(+PhaseList, +LogPath) is det.
+%
+% Print two lines below the action header:
+%   └─ exec ─┤ [ phase1 → phase2 → ... ]
+%   └─ logs ─┤ logfile.log
+
+build:print_exec_and_logs(PhaseList, LogPath) :-
+  maplist([P, P-pending]>>true, PhaseList, PhaseStates),
+  build:exec_prefix,
+  build:render_inline_phases(PhaseStates),
+  nl,
+  ( catch(config:show_build_logs(true), _, fail)
+  -> build:logs_prefix,
+     build:render_log_name(LogPath, pending),
+     nl
+  ;  true
+  ).
+
+
+% -----------------------------------------------------------------------------
+%  Tree prefixes
+% -----------------------------------------------------------------------------
+
+build:exec_prefix :-
+  write('             \u2502           '),
+  message:color(darkgray),
+  message:print('\u2514\u2500 exec \u2500\u2524 '),
+  message:color(normal).
+
+build:logs_prefix :-
+  write('             \u2502           '),
+  message:color(darkgray),
+  message:print('\u2514\u2500 logs \u2500\u2524 '),
+  message:color(normal).
+
+
+% -----------------------------------------------------------------------------
+%  In-place updates
+% -----------------------------------------------------------------------------
+
+%! build:update_exec_line(+ExecLine, +TotalLines, +PhaseStates) is det.
+%
+% Re-render the inline exec line at ExecLine with current phase states.
+% Must be called inside with_mutex(build_display, ...).
+
+build:update_exec_line(ExecLine, TotalLines, PhaseStates) :-
+  LinesUp is TotalLines - ExecLine,
+  format("\e[~dA\r", [LinesUp]),
+  build:exec_prefix,
+  build:render_inline_phases(PhaseStates),
+  message:el,
+  format("\e[~dB\r", [LinesUp]),
+  flush_output.
+
+
+%! build:update_logs_line(+LogsLine, +TotalLines, +LogPath, +OverallStatus) is det.
+%
+% Re-render the logs line. Shows log filename in red if any phase failed.
+% Must be called inside with_mutex(build_display, ...).
+
+build:update_logs_line(LogsLine, TotalLines, LogPath, OverallStatus) :-
+  LinesUp is TotalLines - LogsLine,
+  format("\e[~dA\r", [LinesUp]),
+  build:logs_prefix,
+  build:render_log_name(LogPath, OverallStatus),
+  message:el,
+  format("\e[~dB\r", [LinesUp]),
+  flush_output.
+
+
+% -----------------------------------------------------------------------------
+%  Inline phase rendering
+% -----------------------------------------------------------------------------
+
+%! build:render_inline_phases(+PhaseStates) is det.
+%
+% Renders phases inline: [ phase1 → phase2 → ... ] with per-phase coloring.
+% Appends a green checkmark if all done, red ! if any failed.
+
+build:render_inline_phases(PhaseStates) :-
+  build:render_phases_with_arrows(PhaseStates),
+  build:render_overall_indicator(PhaseStates).
+
+
+%! build:render_phases_with_arrows(+PhaseStates) is det.
+%
+% Render phase names separated by arrows, each colored by status.
+
+build:render_phases_with_arrows([]).
+
+build:render_phases_with_arrows([Phase-Status]) :-
+  !,
+  build:render_phase_word(Phase, Status).
+
+build:render_phases_with_arrows([Phase-Status|Rest]) :-
+  build:render_phase_word(Phase, Status),
+  message:color(darkgray),
+  message:print(' \u2192 '),
+  message:color(normal),
+  build:render_phases_with_arrows(Rest).
+
+
+%! build:render_phase_word(+Phase, +Status) is det.
+%
+% Render a single phase word with status-appropriate color.
+
+build:render_phase_word(Phase, pending) :-
+  message:color(darkgray),
+  message:print(Phase),
+  message:color(normal).
+
+build:render_phase_word(Phase, active) :-
+  message:color(cyan),
+  message:print(Phase),
+  message:color(normal).
+
+build:render_phase_word(Phase, progress(Pct)) :-
+  message:color(cyan),
+  format('~w ~d%%', [Phase, Pct]),
+  message:color(normal).
+
+build:render_phase_word(Phase, done) :-
+  message:color(cyan),
+  message:print(Phase),
+  message:color(normal).
+
+build:render_phase_word(Phase, failed) :-
+  message:color(lightred),
   message:style(bold),
-  message:print(' !'),
+  message:print(Phase),
   message:style(normal),
   message:color(normal).
+
+build:render_phase_word(Phase, failed(_)) :-
+  message:color(lightred),
+  message:style(bold),
+  message:print(Phase),
+  message:style(normal),
+  message:color(normal).
+
+build:render_phase_word(Phase, failed(_, _)) :-
+  message:color(lightred),
+  message:style(bold),
+  message:print(Phase),
+  message:style(normal),
+  message:color(normal).
+
+build:render_phase_word(Phase, skipped) :-
+  message:color(cyan),
+  message:print(Phase),
+  message:color(normal).
+
+build:render_phase_word(Phase, stub) :-
+  message:color(darkgray),
+  message:print(Phase),
+  message:color(normal).
+
+
+%! build:render_overall_indicator(+PhaseStates) is det.
+%
+% Appends a green checkmark if all phases are done/stub,
+% or a red bold ! if any phase failed.
+
+build:render_overall_indicator(PhaseStates) :-
+  ( member(_-Status, PhaseStates),
+    build:is_failed_status(Status)
+  -> build:right_edge_fail
+  ;  ( \+ member(_-pending, PhaseStates),
+       \+ member(_-active, PhaseStates)
+     -> build:right_edge_ok
+     ;  true
+     )
+  ).
+
+build:is_failed_status(failed).
+build:is_failed_status(failed(_)).
+build:is_failed_status(failed(_, _)).
+
+
+% -----------------------------------------------------------------------------
+%  Log name rendering
+% -----------------------------------------------------------------------------
+
+%! build:render_log_name(+LogPath, +OverallStatus) is det.
+%
+% Render the log filename. Red if failed, darkgray otherwise.
+
+build:render_log_name(LogPath, OverallStatus) :-
+  ( LogPath == '' -> DisplayPath = '(no log)' ; DisplayPath = LogPath ),
+  ( build:is_failed_status(OverallStatus)
+  -> message:color(red),
+     message:print(DisplayPath),
+     message:color(normal)
+  ;  message:color(darkgray),
+     message:print(DisplayPath),
+     message:color(normal)
+  ).
 
 
 % =============================================================================
