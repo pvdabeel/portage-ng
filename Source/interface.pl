@@ -208,6 +208,7 @@ interface:process_flags:-
   (lists:memberchk(newuse(true),    Options) -> asserta(preference:local_flag(newuse))          ; true),
   (lists:memberchk(pretend(true),   Options) -> asserta(preference:local_flag(pretend))         ; true),
   (lists:memberchk(oneshot(true),   Options) -> asserta(preference:local_flag(oneshot))         ; true),
+  (lists:memberchk(buildpkg(true), Options) -> asserta(preference:local_flag(buildpkg))        ; true),
   (lists:memberchk(verbose(true),   Options) -> asserta(config:verbose(true))                   ; true),
   (lists:memberchk(logs(true),     Options) -> asserta(config:show_build_logs(true))            ; true),
   (lists:memberchk(style(Style),    Options) -> asserta(config:interface_printing_style(Style)) ; true).

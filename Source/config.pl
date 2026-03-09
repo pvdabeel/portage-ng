@@ -846,6 +846,8 @@ config:failsilenton(version).
 % An empty list means fully stubbed (equivalent to old dry_run_build(true)).
 % The full sequence [clean,setup,unpack,prepare,configure,compile,test,install,merge]
 % means fully live (equivalent to old dry_run_build(false)).
+% When --buildpkg is active, the `package` phase appears between
+% `install` and `merge` (added dynamically by ebuild_exec:build_phases/1).
 
 config:build_live_phases([clean, setup, unpack, prepare, configure, compile, test]).
 
