@@ -21,6 +21,9 @@ SHA512) using mirror:verify_hashes/4.
 The mirror layout (flat or filename-hash) is fetched once from the HTTP
 mirror's layout.conf and cached for the session.
 
+Upstream SRC_URI fallback supports mirror:// URIs by resolving them
+through the portage tree's profiles/thirdpartymirrors file.
+
 This module is pure execution logic -- no display calls. Progress
 rendering is handled by the builder and build printer.
 */
@@ -32,6 +35,7 @@ rendering is handled by the builder and build printer.
 % =============================================================================
 
 :- dynamic download:cached_mirror_layout/1.
+:- dynamic download:cached_thirdpartymirror/2.
 
 % -----------------------------------------------------------------------------
 %  Mirror layout (fetched from HTTP)
@@ -73,6 +77,96 @@ download:fetch_layout_conf(URL, Contents) :-
   ExitCode =:= 0,
   read_file_to_string(TmpPath, Contents, []),
   delete_file(TmpPath).
+
+
+% -----------------------------------------------------------------------------
+%  Thirdpartymirrors (mirror:// URI resolution)
+% -----------------------------------------------------------------------------
+
+%! download:load_thirdpartymirrors is det.
+%
+% Loads and caches profiles/thirdpartymirrors from the portage tree.
+% Each line maps a mirror name to a space-separated list of base URLs.
+% Skips comment lines and blank lines. Only loads once per session.
+
+download:load_thirdpartymirrors :-
+  download:cached_thirdpartymirror(_, _), !.
+
+download:load_thirdpartymirrors :-
+  ( catch(portage:get_location(Root), _, fail),
+    os:compose_path(Root, 'profiles/thirdpartymirrors', Path),
+    exists_file(Path)
+  -> setup_call_cleanup(
+       open(Path, read, S),
+       download:read_thirdpartymirror_lines(S),
+       close(S))
+  ;  true
+  ).
+
+
+%! download:read_thirdpartymirror_lines(+Stream) is det.
+%
+% Reads and asserts all mirror entries from the thirdpartymirrors file.
+
+download:read_thirdpartymirror_lines(S) :-
+  read_line_to_string(S, Line),
+  ( Line == end_of_file
+  -> true
+  ;  download:parse_thirdpartymirror_line(Line),
+     download:read_thirdpartymirror_lines(S)
+  ).
+
+
+%! download:parse_thirdpartymirror_line(+Line) is det.
+%
+% Parses a single thirdpartymirrors line. Format is tab-separated:
+% mirror_name\tURL1 URL2 URL3 ...
+
+download:parse_thirdpartymirror_line(Line) :-
+  ( sub_string(Line, 0, 1, _, "#") -> true
+  ; string_length(Line, 0) -> true
+  ; split_string(Line, "\t", "", [NameStr|URLParts]),
+    URLParts \= []
+  -> atom_string(Name, NameStr),
+     atomic_list_concat(URLParts, '\t', URLsJoined),
+     atom_string(URLsJoined, URLsStr),
+     split_string(URLsStr, " ", " ", URLStrs),
+     exclude(=(""), URLStrs, URLStrsClean),
+     maplist([US, UA]>>atom_string(UA, US), URLStrsClean, URLs),
+     assertz(download:cached_thirdpartymirror(Name, URLs))
+  ;  true
+  ).
+
+
+%! download:resolve_mirror_uri(+Base, +Filename, -URL) is nondet.
+%
+% Resolves a mirror:// URI to concrete download URLs. Base is the
+% path after mirror:// (e.g. 'gnu/emacs/emacs-29.4.tar.xz'), where
+% the first path segment is the mirror name and the rest is the
+% relative path. Tries each mirror URL in order on backtracking.
+
+download:resolve_mirror_uri(Base, _Filename, URL) :-
+  download:load_thirdpartymirrors,
+  atom_string(Base, BaseStr),
+  split_string(BaseStr, "/", "", [MirrorStr|PathParts]),
+  PathParts \= [],
+  atom_string(MirrorName, MirrorStr),
+  atomic_list_concat(PathParts, '/', RelPath),
+  download:cached_thirdpartymirror(MirrorName, URLs),
+  member(MirrorBase, URLs),
+  download:join_mirror_url(MirrorBase, RelPath, URL).
+
+
+%! download:join_mirror_url(+MirrorBase, +RelPath, -URL) is det.
+%
+% Joins a mirror base URL with a relative path, ensuring exactly
+% one '/' separator between them.
+
+download:join_mirror_url(MirrorBase, RelPath, URL) :-
+  ( sub_atom(MirrorBase, _, 1, 0, '/')
+  -> atomic_list_concat([MirrorBase, RelPath], URL)
+  ;  atomic_list_concat([MirrorBase, '/', RelPath], URL)
+  ).
 
 
 % -----------------------------------------------------------------------------
@@ -240,12 +334,21 @@ download:verify_hashes(Path, Pairs) :-
 %! download:upstream_url(+Repo, +Entry, +Filename, -URL) is semidet.
 %
 % Resolves the upstream download URL for a distfile by looking up the
-% original SRC_URI metadata. The uri/3 term stores protocol, path,
-% and local filename. Fails if no matching upstream URL exists.
+% original SRC_URI metadata. Handles mirror:// URIs by resolving them
+% through profiles/thirdpartymirrors. For direct http/https/ftp URIs,
+% constructs the URL from the stored protocol and path. Tries mirror://
+% URIs first (they are typically the canonical source), then falls back
+% to direct URIs.
+
+download:upstream_url(Repo, Entry, Filename, URL) :-
+  kb:query(src_uri(uri(mirror, Base, Filename)), Repo://Entry),
+  download:resolve_mirror_uri(Base, Filename, URL),
+  !.
 
 download:upstream_url(Repo, Entry, Filename, URL) :-
   kb:query(src_uri(uri(Proto, Base, Filename)), Repo://Entry),
   Proto \= '',
+  Proto \= mirror,
   atomic_list_concat([Proto, '://', Base], URL),
   !.
 
