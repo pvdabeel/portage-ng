@@ -43,12 +43,19 @@ builder:build(Goals) :-
   pipeline:prove_plan_with_fallback(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL),
   printer:print(Goals, ModelAVL, ProofAVL, Plan, TriggersAVL),
   nl,
-  builder:count_actions(Plan, 0, TotalActions),
-  builder:count_nonempty_steps(Plan, 0, NumSteps),
+  plan:collect_plan_pre_actions(ProofAVL, PreActions),
+  builder:count_actions(Plan, 0, PlanActions),
+  length(PreActions, PreCount),
+  ( PreCount > 0 -> PreSteps = 1 ; PreSteps = 0 ),
+  TotalActions is PlanActions + PreCount,
+  builder:count_nonempty_steps(Plan, 0, PlanSteps),
+  NumSteps is PlanSteps + PreSteps,
   build:header(NumSteps, TotalActions),
+  builder:print_pre_action_step(PreActions, PreSteps),
+  StartStep is PreSteps + 1,
   builder:num_workers(NumWorkers),
   jobserver:init(NumWorkers, builder:execute_build_job),
-  builder:execute_plan(Plan, 1, NumSteps, 0, 0, 0, Completed, Failed, Stubs),
+  builder:execute_plan(Plan, StartStep, NumSteps, 0, 0, 0, Completed, Failed, Stubs),
   jobserver:shutdown(NumWorkers),
   build:summary(Completed, Failed, Stubs).
 
@@ -63,6 +70,71 @@ builder:num_workers(N) :-
   ReservedLines = 6,
   MaxDisplay is max(1, H - ReservedLines),
   N is min(Cpus, MaxDisplay).
+
+
+% =============================================================================
+%  Pre-action steps (keyword/unmask/use_change)
+% =============================================================================
+
+%! builder:print_pre_action_step(+PreActions, +PreSteps) is det.
+%
+% Renders pre-actions (keyword acceptance, unmask, use flag changes) as
+% a completed step in the build display, matching the plan printer's
+% format. These are informational — the prover already assumed them.
+
+builder:print_pre_action_step([], _) :- !.
+
+builder:print_pre_action_step(PreActions, _PreSteps) :-
+  format(atom(AtomStepNum), '~t~0f~2|', [1]),
+  format(atom(StepLabel), 'step ~a', [AtomStepNum]),
+  write(' \u2514\u2500'),
+  message:bubble(darkgray, StepLabel),
+  write('\u2500\u2524 '),
+  builder:print_pre_actions(PreActions),
+  nl, nl.
+
+
+%! builder:print_pre_actions(+PreActions) is det.
+
+builder:print_pre_actions([Action]) :-
+  !,
+  builder:print_pre_action(Action),
+  build:right_edge_ok.
+
+builder:print_pre_actions([Action|Rest]) :-
+  builder:print_pre_action(Action),
+  build:right_edge_ok,
+  forall(member(A, Rest),
+         ( nl,
+           write('             \u2502 '),
+           builder:print_pre_action(A),
+           build:right_edge_ok
+         )).
+
+
+%! builder:print_pre_action(+PreAction) is det.
+
+builder:print_pre_action(unmask(R, E, _C, _N)) :-
+  message:bubble(orange, unmask),
+  message:color(green),
+  message:column(24, R://E),
+  message:color(normal).
+
+builder:print_pre_action(accept_keyword(R, E, _C, _N, K)) :-
+  warning:keyword_atom(K, KAtom),
+  message:bubble(orange, keyword),
+  message:color(green),
+  message:column(24, R://E),
+  message:color(darkgray),
+  format(atom(Msg), ' (~w)', [KAtom]),
+  message:print(Msg),
+  message:color(normal).
+
+builder:print_pre_action(use_change(R, E, _C, _N, _Changes)) :-
+  message:bubble(orange, useflag),
+  message:color(green),
+  message:column(24, R://E),
+  message:color(normal).
 
 
 % =============================================================================
@@ -342,11 +414,9 @@ builder:execute_build_job(
   with_mutex(build_display,
     build:update_slot(LineOff, TotalLines, active, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry)),
   ( FileInfo = live_source(LiveStartLine)
-  -> with_mutex(build_display,
-       build:update_live_subslot(0, LiveStartLine, TotalLines, done)),
-     with_mutex(build_display,
-       build:update_slot(LineOff, TotalLines, done, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry)),
-     ResultOutcome = display_handled(done)
+  -> builder:run_git_download(Repo, Entry, LiveStartLine, TotalLines,
+                               LineOff, PlanStep, NumSteps, ActionIdx, Action, Outcome),
+     ResultOutcome = display_handled(Outcome)
   ;  FileInfo = files(FileStartLine, _NumFiles, DistFiles, Distdir)
   -> builder:run_download_parallel(Repo, Entry, Ctx, LineOff, TotalLines, PlanStep, NumSteps, ActionIdx, Action,
                                     FileStartLine, DistFiles, Distdir, Outcome),
@@ -499,6 +569,55 @@ builder:stub_all_phases(Action, PhaseList, TotalLines, ExecLine, LogsLine, LogPa
        build:update_logs_line(LogsLine, TotalLines, LogPath, stub))
   ;  true
   ).
+
+
+%! builder:run_git_download(+Repo, +Entry, +LiveStartLine, +TotalLines, +LineOff, +PlanStep, +NumSteps, +ActionIdx, +Action, -Outcome) is det.
+%
+% Clones or fetches a live ebuild's git repository with progress tracking.
+% Extracts EGIT_REPO_URI from the ebuild, uses the distdir/git3-src cache
+% (matching Portage's git-r3.eclass convention), and polls for progress.
+
+builder:run_git_download(Repo, Entry, LiveStartLine, TotalLines,
+                          LineOff, PlanStep, NumSteps, ActionIdx, Action, Outcome) :-
+  ( download:extract_git_uri(Repo, Entry, URI)
+  -> distfiles:get_location(Distdir),
+     download:git_cache_dir(Distdir, GitCacheDir),
+     ( \+ exists_directory(GitCacheDir) -> make_directory_path(GitCacheDir) ; true ),
+     download:git_repo_cache_path(GitCacheDir, URI, RepoPath),
+     ebuild_exec:build_log_path(Entry, LogPath),
+     ebuild_exec:ensure_log_dir,
+     Callback = builder:git_progress_callback(LiveStartLine, TotalLines),
+     download:start_git_clone_async(URI, RepoPath, LogPath, Pid),
+     download:poll_git_progress(Pid, LogPath, Callback, ExitCode),
+     ( ExitCode =:= 0
+     -> with_mutex(build_display,
+          build:update_live_subslot(0, LiveStartLine, TotalLines, done)),
+        with_mutex(build_display,
+          build:update_slot(LineOff, TotalLines, done, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry)),
+        Outcome = done
+     ;  with_mutex(build_display,
+          build:update_live_subslot(0, LiveStartLine, TotalLines, failed)),
+        with_mutex(build_display,
+          build:update_slot(LineOff, TotalLines, failed(git), PlanStep, NumSteps, ActionIdx, Action, Repo://Entry)),
+        Outcome = failed(git)
+     )
+  ;  with_mutex(build_display,
+       build:update_live_subslot(0, LiveStartLine, TotalLines, done)),
+     with_mutex(build_display,
+       build:update_slot(LineOff, TotalLines, done, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry)),
+     Outcome = done
+  ).
+
+
+%! builder:git_progress_callback(+LiveStartLine, +TotalLines, +Phase, +Status) is det.
+%
+% Updates the live sub-slot display with git clone/fetch progress.
+
+builder:git_progress_callback(LiveStartLine, TotalLines, _Phase, progress(Pct)) :-
+  with_mutex(build_display,
+    build:update_live_subslot(0, LiveStartLine, TotalLines, progress(Pct))).
+
+builder:git_progress_callback(_, _, _, _).
 
 
 %! builder:run_download_parallel(+Repo, +Entry, +Ctx, +LineOff, +TotalLines, +PlanStep, +NumSteps, +ActionIdx, +Action, +FileStartLine, +DistFiles, +Distdir, -Outcome) is det.
