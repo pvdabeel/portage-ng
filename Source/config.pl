@@ -844,10 +844,10 @@ config:failsilenton(version).
 % List of ebuild phases that are actually executed during --build.
 % Phases not in this list are stubbed (displayed but not run).
 % An empty list means fully stubbed (equivalent to old dry_run_build(true)).
-% The full sequence [clean,setup,unpack,prepare,configure,compile,install,merge]
+% The full sequence [clean,setup,unpack,prepare,configure,compile,test,install,merge]
 % means fully live (equivalent to old dry_run_build(false)).
 
-config:build_live_phases([clean, setup, unpack]).
+config:build_live_phases([clean, setup, unpack, prepare, configure, compile, test]).
 
 
 %! config:dry_run_build(?Bool)
