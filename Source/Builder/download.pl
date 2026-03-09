@@ -261,3 +261,145 @@ download:upstream_url(Repo, Entry, Filename, URL) :-
 
 download:is_fetch_restricted(Repo, Entry) :-
   kb:query(restrict(fetch), Repo://Entry), !.
+
+
+% -----------------------------------------------------------------------------
+%  Git repository cloning for live ebuilds
+% -----------------------------------------------------------------------------
+
+%! download:extract_git_uri(+Repo, +Entry, -URI) is semidet.
+%
+% Extracts the EGIT_REPO_URI from the .ebuild file by grepping for
+% the assignment. Handles the common case where the URI is directly
+% assigned (e.g. EGIT_REPO_URI="https://...").
+
+download:extract_git_uri(Repo, Entry, URI) :-
+  Repo:get_ebuild_file(Entry, EbuildPath),
+  exists_file(EbuildPath),
+  setup_call_cleanup(
+    open(EbuildPath, read, S),
+    download:scan_for_git_uri(S, URI),
+    close(S)).
+
+download:scan_for_git_uri(S, URI) :-
+  read_line_to_string(S, Line),
+  Line \== end_of_file,
+  ( download:parse_git_uri_line(Line, URI)
+  -> true
+  ;  download:scan_for_git_uri(S, URI)
+  ).
+
+download:parse_git_uri_line(Line, URI) :-
+  sub_string(Line, _, _, _, "EGIT_REPO_URI="),
+  split_string(Line, "=", " \t", [_|Parts]),
+  Parts \= [],
+  atomic_list_concat(Parts, '=', RawValue),
+  atom_string(RawValue, RawStr),
+  split_string(RawStr, "\"'", "\"'", ValueParts),
+  member(VS, ValueParts),
+  VS \= "",
+  atom_string(URI, VS),
+  !.
+
+
+%! download:git_cache_dir(+Distdir, -GitCacheDir) is det.
+%
+% Computes the git3-src cache directory under the distdir, matching
+% the Portage git-r3.eclass convention.
+
+download:git_cache_dir(Distdir, GitCacheDir) :-
+  atomic_list_concat([Distdir, '/git3-src'], GitCacheDir).
+
+
+%! download:git_repo_cache_path(+GitCacheDir, +URI, -RepoPath) is det.
+%
+% Computes the bare repo cache path for a git URI. Converts the URI
+% to a safe directory name by replacing '://' and '/' with underscores,
+% then appending '.git'.
+
+download:git_repo_cache_path(GitCacheDir, URI, RepoPath) :-
+  atom_string(URI, URIStr),
+  split_string(URIStr, "://", "", Parts),
+  atomic_list_concat(Parts, '_', SafeName0),
+  atom_string(SafeName0, S0),
+  split_string(S0, "/", "", Segments),
+  atomic_list_concat(Segments, '_', SafeName),
+  ( sub_atom(SafeName, _, 4, 0, '.git')
+  -> RepoName = SafeName
+  ;  atom_concat(SafeName, '.git', RepoName)
+  ),
+  atomic_list_concat([GitCacheDir, '/', RepoName], RepoPath).
+
+
+%! download:start_git_clone_async(+URI, +RepoPath, +LogPath, -Pid) is det.
+%
+% Starts a git clone --bare (or fetch if already cloned) without blocking.
+% Progress output is appended to LogPath for polling.
+
+download:start_git_clone_async(URI, RepoPath, LogPath, Pid) :-
+  ( exists_directory(RepoPath)
+  -> process_create(
+       path(sh),
+       ['-c', 'cd "$1" && git fetch --progress --all >>"$2" 2>&1',
+        '_', RepoPath, LogPath],
+       [process(Pid)])
+  ;  process_create(
+       path(sh),
+       ['-c', 'git clone --bare --progress "$1" "$2" >>"$3" 2>&1',
+        '_', URI, RepoPath, LogPath],
+       [process(Pid)])
+  ).
+
+
+%! download:poll_git_progress(+Pid, +LogPath, :Callback, -ExitCode) is det.
+%
+% Polls a running git process. Parses the last progress line from
+% the log to extract a percentage, then calls Callback with the
+% current progress. Polls every 0.5 seconds.
+
+:- meta_predicate download:poll_git_progress(+, +, 2, -).
+
+download:poll_git_progress(Pid, LogPath, Callback, ExitCode) :-
+  ( download:check_process_done(Pid, EC)
+  -> ExitCode = EC
+  ;  download:read_git_progress(LogPath, Pct),
+     call(Callback, git, progress(Pct)),
+     sleep(0.5),
+     download:poll_git_progress(Pid, LogPath, Callback, ExitCode)
+  ).
+
+
+%! download:read_git_progress(+LogPath, -Pct) is det.
+%
+% Reads the last few lines of the git log file and extracts the most
+% recent progress percentage. Returns 0 if no percentage is found.
+
+download:read_git_progress(LogPath, Pct) :-
+  ( exists_file(LogPath)
+  -> catch(
+       ( read_file_to_string(LogPath, Content, []),
+         download:extract_last_pct(Content, Pct)
+       ), _, Pct = 0)
+  ;  Pct = 0
+  ).
+
+download:extract_last_pct(Content, Pct) :-
+  split_string(Content, "\r\n", "", Lines),
+  reverse(Lines, RevLines),
+  ( member(Line, RevLines),
+    Line \= "",
+    download:parse_pct_from_line(Line, P)
+  -> Pct = P
+  ;  Pct = 0
+  ).
+
+download:parse_pct_from_line(Line, Pct) :-
+  sub_string(Line, Before, 1, _, "%"),
+  BeforeStart is max(0, Before - 3),
+  Len is Before - BeforeStart,
+  sub_string(Line, BeforeStart, Len, _, NumStr),
+  split_string(NumStr, " (", " (", Parts),
+  last(Parts, PctStr),
+  PctStr \= "",
+  number_string(Pct0, PctStr),
+  Pct is min(99, max(0, Pct0)).

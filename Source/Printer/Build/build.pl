@@ -490,6 +490,8 @@ build:render_file_content(restricted, Filename, Size, _Distdir) :-
 build:print_live_subslot :-
   build:live_prefix,
   message:color(darkgray),
+  message:print_bytes('live'),
+  message:print(' '),
   message:print('git repository'),
   message:color(normal),
   nl.
@@ -523,16 +525,34 @@ build:update_live_subslot(_Idx, LiveStartLine, TotalLines, Status) :-
 
 build:render_live_content(pending) :-
   message:color(darkgray),
+  message:print_bytes('live'),
+  message:print(' '),
   message:print('git repository'),
   message:color(normal).
 
-build:render_live_content(done) :-
+build:render_live_content(progress(Pct)) :-
+  message:color(magenta),
+  message:print_bytes('live'),
   message:color(normal),
+  message:print(' '),
+  message:print('git repository'),
+  message:color(cyan),
+  format('  ~d%', [Pct]),
+  message:color(normal).
+
+build:render_live_content(done) :-
+  message:color(magenta),
+  message:print_bytes('live'),
+  message:color(normal),
+  message:print(' '),
   message:print('git repository'),
   build:right_edge_ok.
 
 build:render_live_content(failed) :-
+  message:color(magenta),
+  message:print_bytes('live'),
   message:color(normal),
+  message:print(' '),
   message:print('git repository'),
   build:right_edge_fail.
 
