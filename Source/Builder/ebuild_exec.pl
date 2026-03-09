@@ -41,13 +41,29 @@ merge/VDB code.
 % pkg_preinst, merging files to the live filesystem, unmerging the
 % old version (for update/downgrade/reinstall), and pkg_postinst.
 % The phase sequence is therefore identical for all build actions.
+% When --buildpkg is active, the `package` phase is inserted after
+% `install` to create a binary package before merging.
 
-ebuild_exec:action_phases(install,   _Ctx, [clean, setup, unpack, prepare, configure, compile, test, install, merge]).
+ebuild_exec:action_phases(install,   _Ctx, Phases) :- ebuild_exec:build_phases(Phases).
 ebuild_exec:action_phases(run,       _Ctx, []).
-ebuild_exec:action_phases(reinstall, _Ctx, [clean, setup, unpack, prepare, configure, compile, test, install, merge]).
-ebuild_exec:action_phases(update,    _Ctx, [clean, setup, unpack, prepare, configure, compile, test, install, merge]).
-ebuild_exec:action_phases(downgrade, _Ctx, [clean, setup, unpack, prepare, configure, compile, test, install, merge]).
+ebuild_exec:action_phases(reinstall, _Ctx, Phases) :- ebuild_exec:build_phases(Phases).
+ebuild_exec:action_phases(update,    _Ctx, Phases) :- ebuild_exec:build_phases(Phases).
+ebuild_exec:action_phases(downgrade, _Ctx, Phases) :- ebuild_exec:build_phases(Phases).
 ebuild_exec:action_phases(uninstall, _Ctx, [unmerge]).
+
+
+%! ebuild_exec:build_phases(-Phases) is det.
+%
+% Returns the build phase sequence. When --buildpkg is active,
+% the `package` phase is included after `install` to create a
+% binary package from the build output before merging to the
+% live filesystem.
+
+ebuild_exec:build_phases(Phases) :-
+  ( preference:flag(buildpkg)
+  -> Phases = [clean, setup, unpack, prepare, configure, compile, test, install, package, merge]
+  ;  Phases = [clean, setup, unpack, prepare, configure, compile, test, install, merge]
+  ).
 
 
 % =============================================================================
