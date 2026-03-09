@@ -1,0 +1,513 @@
+.\" portage-ng.1 — manpage for portage-ng
+.\" Copyright (c) 2005-2026, Pieter Van den Abeele
+.\"
+.\" Distributed under the terms of the LICENSE file in the root directory
+.\" of this project.
+.\"
+.TH PORTAGE\-NG 1 "2026-03-09" "portage-ng" "User Commands"
+.\"
+.SH NAME
+portage\-ng \- a Prolog-based package dependency resolver and build system for Gentoo
+.\"
+.SH SYNOPSIS
+.B portage\-ng
+.RB [ \-\-mode
+.IR MODE ]
+.RI [ OPTIONS ]
+.RI [ TARGETS .\|.\|.]
+.br
+.B portage\-ng
+.B \-\-mode standalone \-\-shell
+.br
+.B portage\-ng
+.B \-\-sync
+.RI [ REPOSITORY .\|.\|.]
+.\"
+.SH DESCRIPTION
+.B portage\-ng
+is a dependency resolver, planner, and build orchestrator for Gentoo
+Linux package trees.
+It reads Gentoo ebuild metadata (md5-cache), resolves dependency graphs
+using inductive proof search, generates ordered build plans, and
+optionally executes them by invoking the standard
+.BR ebuild (1)
+command.
+.PP
+The resolver supports the full PMS (Package Manager Specification)
+dependency language, including USE-conditional dependencies, slot
+operators, blockers, sub-slots, and PDEPEND (post-merge dependencies).
+.PP
+.B portage\-ng
+can operate in several modes: standalone (default, all in-process),
+client\-server (distributed proving via Pengines), or as a daemon
+serving IPC clients.
+.\"
+.SH MODES
+.TP
+.B standalone
+Default.  All operations run in a single process.  The knowledge base
+is loaded from a QLC-compiled cache on disk.
+.TP
+.B daemon
+Persistent background process serving local IPC clients via a Unix
+domain socket.
+.TP
+.B ipc
+Thin IPC client that connects to a running daemon.
+.TP
+.B server
+HTTP/Pengine server for distributed proving across a network.
+.TP
+.B client
+TCP/IP client connecting to a remote server.
+.TP
+.B worker
+Compute node for distributed proving; polls the server for jobs.
+.\"
+.SH ACTIONS
+Actions control what
+.B portage\-ng
+does with the given targets.  Exactly one action is performed per
+invocation.
+.SS Dependency resolution (default)
+.TP
+.BR \-m ", " \-\-merge
+Resolve the full dependency closure and print the resulting plan.
+This is the default action when no other action flag is given.
+Equivalent to Portage's
+.BR "emerge \-\-pretend" .
+.TP
+.BR \-u ", " \-\-update
+Update the given targets.  Resolves the full runtime closure and
+performs a transactional replace if needed.
+.TP
+.B \-\-upgrade
+Two-phase upgrade: first compute a fresh plan under
+.B \-\-emptytree
+semantics, then run
+.B \-\-depclean
+on the real installed graph.
+Defaults to
+.B @world
+when no targets are given.
+.SS Building
+.TP
+.BR \-B ", " \-\-build
+Build target: resolve the plan, then execute it with live progress
+display.  Downloads distfiles, runs ebuild phases, and shows
+per-phase status inline.
+.TP
+.BR \-f ", " \-\-fetchonly
+Only download source archives (distfiles) without building.
+.SS Package management
+.TP
+.BR \-C ", " \-\-unmerge
+Unmerge (remove) the specified packages.
+.TP
+.BR \-c ", " \-\-depclean
+Remove packages that are not part of the dependency closure of the
+world set or of the given targets.
+.SS Information
+.TP
+.BR \-i ", " \-\-info
+Show package version and metadata information for the given targets.
+.TP
+.BR \-s ", " \-\-search
+Search the knowledge base for matching packages.
+.TP
+.B \-\-bugs
+Print Gentoo Bugzilla bug report drafts for unresolvable
+dependencies (domain assumptions) of the given targets.
+.TP
+.BR \-V ", " \-\-version
+Print version information for portage\-ng and all registered
+repositories.
+.SS Repository management
+.TP
+.B \-\-sync
+Synchronise the portage tree, regenerate the md5-cache, load the
+knowledge base, and (in standalone mode) save it to disk.
+Optional positional arguments restrict the sync to specific
+repository names (e.g.\&
+.BR "portage" ", " "overlay" ).
+.TP
+.B \-\-graph
+Generate dependency graph output.  Accepts sub-commands:
+.BR modified ", " full ", " "build modified" ", " "build full" .
+.TP
+.B \-\-clear
+Clear the in-memory knowledge base.
+.TP
+.B \-\-save
+Save the knowledge base to disk (client mode).
+.TP
+.B \-\-load
+Load the knowledge base from disk (client mode).
+.TP
+.B \-\-shell
+Start an interactive Prolog shell with the full portage\-ng
+environment loaded.
+.\"
+.SH OPTIONS
+.SS Dependency resolution options
+.TP
+.BR \-p ", " \-\-pretend
+Pretend mode.  Show what would be done without making changes.
+.TP
+.BR \-d ", " \-\-deep
+Also consider (rebuild) dependencies, not just the direct targets.
+.TP
+.BR \-e ", " \-\-emptytree
+Pretend no other packages are installed when resolving dependencies.
+Forces a complete recalculation of the dependency graph.
+.TP
+.BR \-N ", " \-\-newuse
+Include packages whose USE flags have changed since installation.
+.TP
+.BR \-1 ", " \-\-oneshot
+Do not add the target packages to the world set.
+.SS Build options
+.TP
+.BR \-b ", " \-\-buildpkg
+Create binary packages after building from source.  When active, the
+.B package
+phase is inserted after
+.B install
+and before
+.B merge
+in the ebuild phase sequence, producing a binary package
+(.tbz2 / .gpkg) from the build output.
+.TP
+.BR \-l ", " \-\-logs
+Show build log file paths in
+.B \-\-build
+output.
+.TP
+.B \-\-timeout " " \fISECONDS\fR
+Abort proving and planning after
+.I SECONDS
+seconds.  A value of 0 (default) means no limit.
+When used with the wrapper script, also enforces a hard wall-clock
+timeout that kills the process group.
+.SS Output options
+.TP
+.BR \-v ", " \-\-verbose
+Enable verbose output with additional diagnostic information.
+.TP
+.BR \-q ", " \-\-quiet
+Reduced output.
+.TP
+.B \-\-style " " \fISTYLE\fR
+Set the printing style.  One of:
+.BR fancy " (default), " column ", or " short .
+.TP
+.B \-\-ci
+CI mode: non-interactive, exit with a nonzero exit code when
+the plan contains assumptions (see
+.BR "EXIT STATUS" ).
+.SS Network options (client/server modes)
+.TP
+.B \-\-host " " \fIHOSTNAME\fR
+Set the server hostname (client mode).
+.TP
+.B \-\-port " " \fIPORT\fR
+Set the server port (client or server mode).  Default: 4000.
+.SS Lifecycle options (daemon/server modes)
+.TP
+.B \-\-background
+Fork to background (daemon and server modes).
+.TP
+.B \-\-status
+Check if the daemon or server is running (ipc and client modes).
+.TP
+.B \-\-cmd " " \fICOMMAND\fR
+Send a command to the daemon or server.  Commands:
+.BR halt ", " relaunch .
+.SS Build prefix
+.TP
+.B \-\-prefix " " \fIDIR\fR
+Set the installation prefix directory.  Default:
+.BR / .
+.\"
+.SH TARGETS
+Targets identify which packages to operate on.  Several formats are
+supported:
+.TP
+.I name
+Unqualified package name (e.g.\&
+.BR vim ).
+Resolves to the best visible version.
+.TP
+.I category/name
+Category-qualified name (e.g.\&
+.BR app\-editors/vim ).
+.TP
+.I category/name\-version
+Exact version (e.g.\&
+.BR app\-editors/vim\-9.1.0 ).
+.TP
+.I @set
+A package set.  Built-in sets include
+.B @world
+and
+.BR @system .
+.\"
+.SH EBUILD PHASES
+When
+.B \-\-build
+is active,
+.B portage\-ng
+executes the following ebuild phases via the
+.BR ebuild (1)
+command:
+.PP
+.RS
+.B clean \(-> setup \(-> unpack \(-> prepare \(-> configure \(-> compile \(-> test \(-> install \(-> merge
+.RE
+.PP
+When
+.B \-\-buildpkg
+is also active, the
+.B package
+phase is inserted between
+.B install
+and
+.BR merge :
+.PP
+.RS
+.B clean \(-> \|.\|.\|. \(-> install \(-> package \(-> merge
+.RE
+.PP
+The
+.B merge
+phase is a composite operation that internally runs
+.BR pkg_preinst ,
+merges files to the live filesystem, unmerges the old version (for
+updates and downgrades), and runs
+.BR pkg_postinst .
+.PP
+Which phases are actually executed versus stubbed (displayed but
+skipped) is controlled by the
+.B build_live_phases
+configuration directive.
+For
+.B uninstall
+actions, only the
+.B unmerge
+phase is run.
+.\"
+.SH DOWNLOADING
+.B portage\-ng
+downloads source archives (distfiles) from a local HTTP mirror using
+the GLEP\ 75 layout.  When the mirror download fails, it falls back to
+the upstream SRC_URI.
+.PP
+.B mirror://
+URIs in SRC_URI are resolved through the portage tree's
+.I profiles/thirdpartymirrors
+file, which maps mirror names (e.g.\&
+.BR gnu ", " cpan ", " gentoo )
+to lists of concrete download URLs.
+.PP
+For live ebuilds (version 9999, inheriting
+.BR git\-r3 ),
+.B portage\-ng
+clones or fetches the upstream git repository into a local bare cache
+under
+.IR distdir/git3\-src/ ,
+with real-time progress display.
+.PP
+Fetch-restricted ebuilds
+.RB ( RESTRICT=fetch )
+are detected and reported as requiring manual download.
+.\"
+.SH CONFIGURATION
+.SS Machine-specific configuration
+.TP
+.I Source/Config/<hostname>.pl
+Per-machine configuration: portage tree location, md5-cache path,
+VDB path, and repository registration.
+.SS Portage configuration
+.TP
+.I Source/Config/gentoo.pl
+Reads standard Gentoo
+.I /etc/portage
+files:
+.BR make.conf ", " package.use ", " package.mask ,
+etc.
+.SS Build configuration
+.TP
+.B config:build_live_phases/1
+Controls which ebuild phases are actually executed during
+.BR \-\-build .
+Phases not in this list are stubbed (shown in the display but not
+run).
+.TP
+.B config:mirror_url/1
+HTTP base URL of the local distfiles mirror.
+.TP
+.B config:build_log_dir/1
+Directory for build log files.
+.\"
+.SH EXIT STATUS
+.TP
+.B 0
+Success.  The plan was resolved with no assumptions.
+.TP
+.B 1
+The plan was resolved but contains prover cycle-break assumptions
+only (dependency cycles that were broken to produce a plan).
+.TP
+.B 2
+The plan contains domain assumptions (e.g.\& missing or non-existent
+packages, unresolvable dependencies).
+.\"
+.SH EXAMPLES
+Resolve dependencies for
+.B vim
+in pretend mode:
+.PP
+.RS
+.nf
+portage\-ng \-\-mode standalone \-\-pretend vim
+.fi
+.RE
+.PP
+Build
+.B irssi
+with live progress (oneshot, do not add to world):
+.PP
+.RS
+.nf
+portage\-ng \-\-mode standalone \-\-build \-\-oneshot irssi
+.fi
+.RE
+.PP
+Build
+.B gcc
+and create a binary package:
+.PP
+.RS
+.nf
+portage\-ng \-\-mode standalone \-\-build \-\-buildpkg gcc
+.fi
+.RE
+.PP
+Fetch sources only, without building:
+.PP
+.RS
+.nf
+portage\-ng \-\-mode standalone \-\-fetchonly firefox
+.fi
+.RE
+.PP
+Synchronise the portage tree:
+.PP
+.RS
+.nf
+portage\-ng \-\-mode standalone \-\-sync
+.fi
+.RE
+.PP
+Start an interactive Prolog shell:
+.PP
+.RS
+.nf
+portage\-ng \-\-mode standalone \-\-shell
+.fi
+.RE
+.PP
+CI run with 60-second timeout:
+.PP
+.RS
+.nf
+portage\-ng \-\-mode standalone \-\-ci \-\-pretend \-\-timeout 60 kde\-apps\-meta
+.fi
+.RE
+.PP
+Upgrade the world set:
+.PP
+.RS
+.nf
+portage\-ng \-\-mode standalone \-\-upgrade
+.fi
+.RE
+.\"
+.SH FILES
+.TP
+.I portage\-ng.pl
+Main entry point and module load graph.
+.TP
+.I Source/Scripts/Wrapper/portage\-ng\-dev
+Development launcher script with timeout and instrumentation support.
+.TP
+.I Knowledge/kb.qlf
+QLC-compiled knowledge base cache (generated by
+.BR \-\-sync ).
+.TP
+.I Knowledge/profile.qlf
+Cached profile data (generated by
+.BR \-\-sync ).
+.TP
+.I Source/Config/
+Machine-specific and Gentoo configuration files.
+.TP
+.I Source/Config/Gentoo/
+Template files mirroring the
+.I /etc/portage
+layout.
+.\"
+.SH ARCHITECTURE
+.B portage\-ng
+follows a pipeline architecture:
+.TP
+.B Reader/Parser
+Reads ebuild md5-cache files using a PMS-conformant DCG grammar
+.RI ( Source/eapi.pl )
+and builds Prolog cache facts.
+.TP
+.B Prover
+Performs inductive proof search over the dependency rules to produce
+a proof tree, model, constraint set, and trigger map
+.RI ( Source/prover.pl ).
+.TP
+.B Planner
+Generates a topologically sorted, wave-based build plan from the
+proof
+.RI ( Source/planner.pl ).
+.TP
+.B Scheduler
+Post-processes cyclic remainder: SCC decomposition (Kosaraju) and
+merge-set computation
+.RI ( Source/scheduler.pl ).
+.TP
+.B Printer
+Renders the plan with assumptions and warnings
+.RI ( Source/Printer/ ).
+.TP
+.B Builder
+Orchestrates downloads and ebuild phase execution with a job server
+.RI ( Source/builder.pl ).
+.\"
+.SH ENVIRONMENT
+.TP
+.B PORTAGE_DIR
+When set, overrides the default portage tree location for the
+.B emerge\-vp
+comparison wrapper.
+.\"
+.SH SEE ALSO
+.BR emerge (1),
+.BR ebuild (1),
+.BR ebuild (5),
+.BR make.conf (5),
+.BR portage (5)
+.\"
+.SH AUTHORS
+Pieter Van den Abeele
+.RI < pvdabeel@mac.com >
+.\"
+.SH COPYRIGHT
+Copyright \(co 2005\-2026 Pieter Van den Abeele.
+.br
+Distributed under the terms of the LICENSE file in the project root.
