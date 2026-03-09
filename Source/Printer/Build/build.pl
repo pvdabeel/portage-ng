@@ -85,7 +85,7 @@ build:right_edge_spinner(Tick) :-
 
 build:header(NumSteps, TotalActions) :-
   message:color(green),
-  message:print('Progress merging the packages:'),
+  message:print('These are the packages being merged, in order:'),
   message:color(normal),
   nl, nl,
   ( TotalActions =:= 1 -> AWord = action ; AWord = actions ),
@@ -681,23 +681,17 @@ build:render_phase_word(Phase, done) :-
 
 build:render_phase_word(Phase, failed) :-
   message:color(lightred),
-  message:style(bold),
   message:print(Phase),
-  message:style(normal),
   message:color(normal).
 
 build:render_phase_word(Phase, failed(_)) :-
   message:color(lightred),
-  message:style(bold),
   message:print(Phase),
-  message:style(normal),
   message:color(normal).
 
 build:render_phase_word(Phase, failed(_, _)) :-
   message:color(lightred),
-  message:style(bold),
   message:print(Phase),
-  message:style(normal),
   message:color(normal).
 
 build:render_phase_word(Phase, skipped) :-
@@ -770,7 +764,7 @@ build:right_edge_progress(AccPct, Current, LiveTotal) :-
   atom_length(Label, Len),
   Col is W - Len,
   format("\e[~dG", [Col]),
-  message:color(darkgray),
+  message:color(cyan),
   message:print(Label),
   message:color(normal).
 
