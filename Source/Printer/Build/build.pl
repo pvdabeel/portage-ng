@@ -31,6 +31,7 @@ the display side of builder execution, while builder.pl handles orchestration.
 % Print a green checkmark at the right edge of the terminal (1 space in).
 
 build:right_edge_ok :-
+  message:el,
   config:printing_tty_size(_, W),
   Col is W - 1,
   format("\e[~dG", [Col]),
@@ -44,6 +45,7 @@ build:right_edge_ok :-
 % Print a red bold exclamation at the right edge of the terminal.
 
 build:right_edge_fail :-
+  message:el,
   config:printing_tty_size(_, W),
   Col is W - 1,
   format("\e[~dG", [Col]),
@@ -59,6 +61,7 @@ build:right_edge_fail :-
 % Print a gray spinner at the right edge using the quarter-circle style.
 
 build:right_edge_spinner(Tick) :-
+  message:el,
   config:printing_tty_size(_, W),
   Col is W - 1,
   format("\e[~dG", [Col]),
@@ -749,6 +752,7 @@ build:current_phase_index([_|Rest], N, Current) :-
 % Print "(AccPct%) Current/LiveTotal" at the right edge of the terminal.
 
 build:right_edge_progress(AccPct, Current, LiveTotal) :-
+  message:el,
   config:printing_tty_size(_, W),
   format(atom(Label), '(~d%) ~d/~d', [AccPct, Current, LiveTotal]),
   atom_length(Label, Len),
