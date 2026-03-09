@@ -37,10 +37,10 @@ merge/VDB code.
 %
 % Maps a portage-ng plan action to the sequence of ebuild CLI phases.
 % The `ebuild` command accepts multiple phase arguments and runs them
-% in order. `merge` is a composite phase (preinst + qmerge + postinst).
-%
-% For update/downgrade, the old package must be unmerged first; the
-% caller handles that via ebuild_exec:unmerge_old/2.
+% in order. `merge` is a composite phase that internally handles
+% pkg_preinst, merging files to the live filesystem, unmerging the
+% old version (for update/downgrade/reinstall), and pkg_postinst.
+% The phase sequence is therefore identical for all build actions.
 
 ebuild_exec:action_phases(install,   _Ctx, [clean, setup, unpack, prepare, configure, compile, test, install, merge]).
 ebuild_exec:action_phases(run,       _Ctx, []).
@@ -563,15 +563,22 @@ ebuild_exec:poll_phase_spinning(Pid, Phase, Callback, ExitCode) :-
 %! ebuild_exec:execute(+Action, +Repo, +Entry, +Ctx, -Outcome) is det.
 %
 % Execute a plan action end-to-end (bulk, no per-phase progress).
-% For update/downgrade, unmerges the old version first.
+% The merge phase handles replacement of old versions internally
+% (pkg_preinst, merge files, unmerge old, pkg_postinst), so
+% update/downgrade/reinstall use the same phase sequence as install.
 
-ebuild_exec:execute(Action, Repo, Entry, Ctx, Outcome) :-
-  memberchk(Action, [update, downgrade]),
-  !,
-  ( ebuild_exec:unmerge_old(Repo, Ctx)
-  -> ebuild_exec:execute_phases(Action, Repo, Entry, Ctx, Outcome)
-  ;  Outcome = failed(unmerge_old)
-  ).
+% Disabled: explicit unmerge before build is unnecessary and harmful.
+% The merge phase already handles old version replacement via the VDB.
+% Removing files before building can break builds that depend on the
+% old version's files at compile time.
+%
+% ebuild_exec:execute(Action, Repo, Entry, Ctx, Outcome) :-
+%   memberchk(Action, [update, downgrade]),
+%   !,
+%   ( ebuild_exec:unmerge_old(Repo, Ctx)
+%   -> ebuild_exec:execute_phases(Action, Repo, Entry, Ctx, Outcome)
+%   ;  Outcome = failed(unmerge_old)
+%   ).
 
 ebuild_exec:execute(uninstall, Repo, Entry, Ctx, Outcome) :-
   !,
@@ -601,17 +608,19 @@ ebuild_exec:execute_phases(Action, Repo, Entry, Ctx, Outcome) :-
 %! ebuild_exec:execute_with_progress(+Action, +Repo, +Entry, +Ctx, :PhaseCallback, -Outcome) is det.
 %
 % Execute a plan action with per-phase progress callbacks.
-% For update/downgrade, unmerges the old version first.
+% The merge phase handles replacement of old versions internally.
 
 :- meta_predicate ebuild_exec:execute_with_progress(+, +, +, +, 2, -).
 
-ebuild_exec:execute_with_progress(Action, Repo, Entry, Ctx, PhaseCallback, Outcome) :-
-  memberchk(Action, [update, downgrade]),
-  !,
-  ( ebuild_exec:unmerge_old(Repo, Ctx)
-  -> ebuild_exec:execute_phases_sequential(Action, Repo, Entry, Ctx, PhaseCallback, Outcome)
-  ;  Outcome = failed(unmerge_old)
-  ).
+% Disabled: see execute/5 comment above.
+%
+% ebuild_exec:execute_with_progress(Action, Repo, Entry, Ctx, PhaseCallback, Outcome) :-
+%   memberchk(Action, [update, downgrade]),
+%   !,
+%   ( ebuild_exec:unmerge_old(Repo, Ctx)
+%   -> ebuild_exec:execute_phases_sequential(Action, Repo, Entry, Ctx, PhaseCallback, Outcome)
+%   ;  Outcome = failed(unmerge_old)
+%   ).
 
 ebuild_exec:execute_with_progress(Action, Repo, Entry, Ctx, PhaseCallback, Outcome) :-
   ebuild_exec:execute_phases_sequential(Action, Repo, Entry, Ctx, PhaseCallback, Outcome).
@@ -637,17 +646,17 @@ ebuild_exec:execute_phases_sequential(Action, Repo, Entry, Ctx, PhaseCallback, O
 %  Update/downgrade: unmerge old version
 % =============================================================================
 
-%! ebuild_exec:unmerge_old(+Repo, +Ctx) is semidet.
+% Disabled: the merge phase handles old version replacement internally
+% via the VDB (pkg_preinst → merge files → unmerge old → pkg_postinst).
+% Explicit pre-build unmerge is unnecessary and can break builds that
+% depend on the old version's files at compile time.
 %
-% Extracts the replaces(OldRepo://OldEntry) term from the context and
-% unmerges the old version. Succeeds if the unmerge exits with code 0.
-
-ebuild_exec:unmerge_old(_Repo, Ctx) :-
-  memberchk(replaces(OldRepo://OldEntry), Ctx),
-  !,
-  ebuild_exec:ebuild_path(OldRepo, OldEntry, OldEbuildPath),
-  ebuild_exec:collect_use_string(OldRepo, OldEntry, [], UseString),
-  ebuild_exec:run_phases(OldEbuildPath, [unmerge], UseString, ExitCode),
-  ExitCode =:= 0.
-
-ebuild_exec:unmerge_old(_, _).
+% ebuild_exec:unmerge_old(_Repo, Ctx) :-
+%   memberchk(replaces(OldRepo://OldEntry), Ctx),
+%   !,
+%   ebuild_exec:ebuild_path(OldRepo, OldEntry, OldEbuildPath),
+%   ebuild_exec:collect_use_string(OldRepo, OldEntry, [], UseString),
+%   ebuild_exec:run_phases(OldEbuildPath, [unmerge], UseString, ExitCode),
+%   ExitCode =:= 0.
+%
+% ebuild_exec:unmerge_old(_, _).
