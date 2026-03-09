@@ -406,7 +406,7 @@ builder:run_action_with_phases(Action, Repo, Entry, Ctx,
   predicate_property(ebuild_exec:execute_with_progress(_,_,_,_,_,_), defined),
   !,
   builder:init_exec_phase_state(ExecLine, PhaseList),
-  Callback = builder:phase_callback(TotalLines, ExecLine, LogsLine, PhaseList, LogPath),
+  Callback = builder:phase_callback(TotalLines, ExecLine, LogsLine, Action, PhaseList, LogPath),
   ebuild_exec:execute_with_progress(Action, Repo, Entry, Ctx, Callback, Outcome),
   builder:outcome_to_status(Outcome, FinalStatus),
   builder:clear_exec_phase_state(ExecLine),
@@ -421,31 +421,31 @@ builder:run_action_with_phases(Action, Repo, Entry, Ctx,
 builder:run_action_with_phases(Action, Repo, Entry, _Ctx,
                                 TotalLines, ExecLine, LogsLine, PhaseList, LogPath,
                                 LineOff, PlanStep, NumSteps, ActionIdx, stub) :-
-  builder:stub_all_phases(PhaseList, TotalLines, ExecLine, LogsLine, LogPath),
+  builder:stub_all_phases(Action, PhaseList, TotalLines, ExecLine, LogsLine, LogPath),
   with_mutex(build_display,
     build:update_slot(LineOff, TotalLines, stub, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry)).
 
 
-%! builder:phase_callback(+TotalLines, +ExecLine, +LogsLine, +PhaseList, +LogPath, +Phase, +Status) is det.
+%! builder:phase_callback(+TotalLines, +ExecLine, +LogsLine, +Action, +PhaseList, +LogPath, +Phase, +Status) is det.
 %
 % Display callback invoked by ebuild_exec for each phase transition.
 % Updates the exec_phase_state facts and re-renders the inline exec line.
 
-builder:phase_callback(TotalLines, ExecLine, LogsLine, PhaseList, LogPath, Phase, Status) :-
+builder:phase_callback(TotalLines, ExecLine, LogsLine, Action, PhaseList, LogPath, Phase, Status) :-
   memberchk(Phase, PhaseList),
   !,
   ( retract(builder:exec_phase_state(ExecLine, Phase, _)) -> true ; true ),
   assertz(builder:exec_phase_state(ExecLine, Phase, Status)),
   builder:collect_phase_states(ExecLine, PhaseList, PhaseStates),
   with_mutex(build_display,
-    build:update_exec_line(ExecLine, TotalLines, PhaseStates)),
+    build:update_exec_line(ExecLine, TotalLines, Action, PhaseStates)),
   ( builder:is_failure_status(Status), LogsLine >= 0
   -> with_mutex(build_display,
        build:update_logs_line(LogsLine, TotalLines, LogPath, failed))
   ;  true
   ).
 
-builder:phase_callback(_, _, _, _, _, _, _).
+builder:phase_callback(_, _, _, _, _, _, _, _).
 
 
 %! builder:collect_phase_states(+ExecLine, +PhaseList, -PhaseStates) is det.
@@ -486,14 +486,14 @@ builder:is_failure_status(failed(_)).
 builder:is_failure_status(failed(_, _)).
 
 
-%! builder:stub_all_phases(+PhaseList, +TotalLines, +ExecLine, +LogsLine, +LogPath) is det.
+%! builder:stub_all_phases(+Action, +PhaseList, +TotalLines, +ExecLine, +LogsLine, +LogPath) is det.
 %
 % Mark all phases as stub and render the inline display accordingly.
 
-builder:stub_all_phases(PhaseList, TotalLines, ExecLine, LogsLine, LogPath) :-
+builder:stub_all_phases(Action, PhaseList, TotalLines, ExecLine, LogsLine, LogPath) :-
   maplist([P, P-stub]>>true, PhaseList, PhaseStates),
   with_mutex(build_display,
-    build:update_exec_line(ExecLine, TotalLines, PhaseStates)),
+    build:update_exec_line(ExecLine, TotalLines, Action, PhaseStates)),
   ( LogsLine >= 0
   -> with_mutex(build_display,
        build:update_logs_line(LogsLine, TotalLines, LogPath, stub))

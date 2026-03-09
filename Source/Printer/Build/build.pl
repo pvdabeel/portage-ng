@@ -121,7 +121,7 @@ build:print_job_slots([slotted(_LineOff, _TotalLines, PlanStep, NumSteps, Action
      build:print_file_subslots(DistFiles, Distdir)
   ;  SubInfo = phases(_ExecLine, _LogsLine, PhaseList, LogPath)
   -> nl,
-     build:print_exec_and_logs(PhaseList, LogPath),
+     build:print_exec_and_logs(Action, PhaseList, LogPath),
      plan:print_config(Repo://Entry:Action?{Ctx}),
      nl
   ;  nl
@@ -154,7 +154,7 @@ build:print_skipped_slots([slotted(_LineOff, _TotalLines, PlanStep, NumSteps, Ac
   build:render_slot(skipped, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry),
   ( SubInfo = phases(_ExecLine, _LogsLine, PhaseList, LogPath)
   -> nl,
-     build:print_skipped_exec_and_logs(PhaseList, LogPath),
+     build:print_skipped_exec_and_logs(Action, PhaseList, LogPath),
      build:print_skipped_conf(Repo://Entry:Action?{Ctx}),
      nl
   ;  nl
@@ -182,18 +182,22 @@ build:print_skipped_conf(RuleHead) :-
 build:print_skipped_conf(_).
 
 
-%! build:print_skipped_exec_and_logs(+PhaseList, +LogPath) is det.
+%! build:print_skipped_exec_and_logs(+Action, +PhaseList, +LogPath) is det.
 %
 % Print exec and logs lines in darkgray for skipped steps.
 
-build:print_skipped_exec_and_logs(PhaseList, LogPath) :-
+build:print_skipped_exec_and_logs(_Action, PhaseList, LogPath) :-
   build:exec_prefix,
+  message:bubble(darkgray, 'ACTION'),
+  message:print(' = '),
   message:color(darkgray),
   build:print_skipped_phases(PhaseList),
   message:color(normal),
   ( catch(config:show_build_logs(true), _, fail)
   -> nl,
-     build:logs_prefix,
+     build:exec_continuation_prefix,
+     message:bubble(darkgray, 'LOG'),
+     message:print(' = '),
      message:color(darkgray),
      message:print(LogPath),
      message:color(normal)
@@ -541,19 +545,23 @@ build:render_live_content(failed) :-
 %  Initial printing
 % -----------------------------------------------------------------------------
 
-%! build:print_exec_and_logs(+PhaseList, +LogPath) is det.
+%! build:print_exec_and_logs(+Action, +PhaseList, +LogPath) is det.
 %
-% Print two lines below the action header:
-%   └─ exec ─┤ [ phase1 → phase2 → ... ]
-%   └─ logs ─┤ logfile.log
+% Print lines below the action header:
+%   └─ exec ─┤ [ACTION] = phase1 → phase2 → ...
+%                    │ [LOG] = logfile.log
 
-build:print_exec_and_logs(PhaseList, LogPath) :-
+build:print_exec_and_logs(_Action, PhaseList, LogPath) :-
   maplist([P, P-pending]>>true, PhaseList, PhaseStates),
   build:exec_prefix,
+  message:bubble(darkgray, 'ACTION'),
+  message:print(' = '),
   build:render_inline_phases(PhaseStates),
   ( catch(config:show_build_logs(true), _, fail)
   -> nl,
-     build:logs_prefix,
+     build:exec_continuation_prefix,
+     message:bubble(darkgray, 'LOG'),
+     message:print(' = '),
      build:render_log_name(LogPath, pending)
   ;  true
   ).
@@ -569,10 +577,10 @@ build:exec_prefix :-
   message:print('\u2514\u2500 exec \u2500\u2524 '),
   message:color(normal).
 
-build:logs_prefix :-
-  write('             \u2502           '),
+build:exec_continuation_prefix :-
+  write('             \u2502                    '),
   message:color(darkgray),
-  message:print('\u2514\u2500 logs \u2500\u2524 '),
+  message:print('\u2502 '),
   message:color(normal).
 
 
@@ -580,15 +588,17 @@ build:logs_prefix :-
 %  In-place updates
 % -----------------------------------------------------------------------------
 
-%! build:update_exec_line(+ExecLine, +TotalLines, +PhaseStates) is det.
+%! build:update_exec_line(+ExecLine, +TotalLines, +Action, +PhaseStates) is det.
 %
 % Re-render the inline exec line at ExecLine with current phase states.
 % Must be called inside with_mutex(build_display, ...).
 
-build:update_exec_line(ExecLine, TotalLines, PhaseStates) :-
+build:update_exec_line(ExecLine, TotalLines, _Action, PhaseStates) :-
   LinesUp is TotalLines - ExecLine,
   format("\e[~dA\r", [LinesUp]),
   build:exec_prefix,
+  message:bubble(darkgray, 'ACTION'),
+  message:print(' = '),
   build:render_inline_phases(PhaseStates),
   message:el,
   format("\e[~dB\r", [LinesUp]),
@@ -597,13 +607,15 @@ build:update_exec_line(ExecLine, TotalLines, PhaseStates) :-
 
 %! build:update_logs_line(+LogsLine, +TotalLines, +LogPath, +OverallStatus) is det.
 %
-% Re-render the logs line. Shows log filename in red if any phase failed.
-% Must be called inside with_mutex(build_display, ...).
+% Re-render the LOG continuation line. Shows log filename in red if any
+% phase failed. Must be called inside with_mutex(build_display, ...).
 
 build:update_logs_line(LogsLine, TotalLines, LogPath, OverallStatus) :-
   LinesUp is TotalLines - LogsLine,
   format("\e[~dA\r", [LinesUp]),
-  build:logs_prefix,
+  build:exec_continuation_prefix,
+  message:bubble(darkgray, 'LOG'),
+  message:print(' = '),
   build:render_log_name(LogPath, OverallStatus),
   message:el,
   format("\e[~dB\r", [LinesUp]),

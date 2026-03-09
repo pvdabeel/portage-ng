@@ -97,12 +97,12 @@ download:fetch_distfiles(Repository, Entry, _Context, Failures) :-
 %! download:collect_distfile_specs(+Repository, +Entry, -Specs) is det.
 %
 % Collect distfile specs with checksums for a given entry. Uses the
-% SRC_URI-scoped manifest query to get only the distfiles needed for
-% this specific entry, then looks up checksums from manifest_metadata.
+% preference-scoped manifest query so only distfiles reachable under
+% the current USE flag settings are included (matching the plan display).
 
 download:collect_distfile_specs(Repository, Entry, Specs) :-
   findall(dist(Filename, Size, Pairs),
-    ( kb:query(manifest(all, dist, Filename, Size), Repository://Entry),
+    ( kb:query(manifest(preference, dist, Filename, Size), Repository://Entry),
       download:lookup_checksums(Repository, Entry, Filename, Pairs)
     ),
     Specs0),
