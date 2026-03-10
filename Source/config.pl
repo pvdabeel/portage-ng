@@ -658,6 +658,8 @@ config:verbose(false).
 :- dynamic config:cli_load_average/1.
 :- dynamic config:excluded_atom/1.
 :- dynamic config:skip_atom/1.
+:- dynamic config:usepkg_exclude_atom/1.
+:- dynamic config:usepkg_include_atom/1.
 
 config:color_output.
 

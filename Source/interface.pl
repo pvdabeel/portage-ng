@@ -112,20 +112,23 @@ interface:spec(S) :-
        [opt(verbose),   type(boolean),   default(false),       shortflags(['v']), longflags(['verbose']),   help('Turn on verbose mode')],
        [opt(pretend),   type(boolean),   default(false),       shortflags(['p']), longflags(['pretend']),   help('Turn on pretend mode')],
        [opt(fetchonly), type(boolean),   default(false),       shortflags(['f']), longflags(['fetchonly']), help('Turn on fetchonly mode')],
+       [opt(fetchall),  type(boolean),   default(false),       shortflags(['F']), longflags(['fetch-all-uri']),help('Fetch all SRC_URI files regardless of USE flags')],
        [opt(merge),     type(boolean),   default(true),        shortflags(['m']), longflags(['merge']),     help('Merge target package')],
        [opt(update),    type(boolean),   default(false),       shortflags(['u']), longflags(['update']),    help('Update target package')],
        [opt(upgrade),   type(boolean),   default(false),                          longflags(['upgrade']),   help('Upgrade set (default: @world): first compute a fresh plan under --emptytree, then run depclean')],
        [opt(deep),      type(boolean),   default(false),       shortflags(['d']), longflags(['deep']),      help('Also consider dependencies')],
        [opt(emptytree), type(boolean),   default(false),       shortflags(['e']), longflags(['emptytree']), help('Pretend no other packages are installed')],
        [opt(buildpkg),  type(boolean),   default(false),       shortflags(['b']), longflags(['buildpkg']),  help('Create binary packages after building from source')],
-       [opt(buildpkgonly),type(boolean), default(false),                          longflags(['buildpkgonly']),help('Build binary packages but do not merge to live filesystem')],
-       [opt(build),     type(boolean),   default(false),       shortflags(['B']), longflags(['build']),     help('Build target (print plan then execute with live progress)')],
+       [opt(buildpkgonly),type(boolean), default(false),       shortflags(['B']), longflags(['buildpkgonly']),help('Build binary packages but do not merge to live filesystem')],
+       [opt(build),     type(boolean),   default(false),                          longflags(['build']),     help('Build target (print plan then execute with live progress)')],
        [opt(resume),    type(boolean),   default(false),       shortflags(['r']), longflags(['resume']),    help('Resume previous command')],
        [opt(newuse),    type(boolean),   default(false),       shortflags(['N']), longflags(['newuse']),    help('Rebuild if USE or IUSE changed since install')],
-       [opt(changeduse),type(boolean),   default(false),                          longflags(['changed-use']),help('Rebuild only if effective USE flags changed')],
+       [opt(changeduse),type(boolean),   default(false),       shortflags(['U']), longflags(['changed-use']),help('Rebuild only if effective USE flags changed')],
        [opt(changeddeps),type(boolean),  default(false),                          longflags(['changed-deps']),help('Rebuild if runtime dependencies changed since install')],
        [opt(changedslot),type(boolean),  default(false),                          longflags(['changed-slot']),help('Rebuild if SLOT changed since install')],
        [opt(selective), type(boolean),   default(false),                          longflags(['selective']), help('Do not reinstall already-installed packages')],
+       [opt(select),    type(boolean),   default(true),                           longflags(['select']),    help('Add targets to world set (inverse of --oneshot)')],
+       [opt(deselect),  type(boolean),   default(false),                          longflags(['deselect']),  help('Remove targets from world set without unmerging')],
        [opt(noreplace), type(boolean),   default(false),       shortflags(['n']), longflags(['noreplace']), help('Skip already-installed packages')],
        [opt(nodeps),    type(boolean),   default(false),       shortflags(['O']), longflags(['nodeps']),    help('Merge without resolving dependencies')],
        [opt(onlydeps),  type(boolean),   default(false),       shortflags(['o']), longflags(['onlydeps']),  help('Only merge dependencies, not the target itself')],
@@ -159,6 +162,13 @@ interface:spec(S) :-
        [opt(usepkgonly),type(boolean),  default(false),       shortflags(['K']), longflags(['usepkg-only']),help('Use only binary packages, fail if unavailable')],
        [opt(getbinpkg), type(boolean),  default(false),       shortflags(['g']), longflags(['getbinpkg']), help('Download binary packages from BINHOST')],
        [opt(getbinpkgonly),type(boolean),default(false),      shortflags(['G']), longflags(['getbinpkg-only']),help('Use only remote binary packages from BINHOST')],
+       [opt(usepkgexclude),type(atom),  default(''),                             longflags(['usepkg-exclude']),help('Exclude atoms from binary package usage (repeatable)')],
+       [opt(usepkginclude),type(atom),  default(''),                             longflags(['usepkg-include']),help('Force binary package usage for specific atoms (repeatable)')],
+       [opt(usepkgexcludelive),type(boolean),default(false),                     longflags(['usepkg-exclude-live']),help('Do not use binary packages for live (9999) ebuilds')],
+       [opt(binpkgchangeddeps),type(boolean),default(false),                     longflags(['binpkg-changed-deps']),help('Ignore binpkgs whose deps have changed since build')],
+       [opt(binpkgrespectuse),type(boolean),default(false),                      longflags(['binpkg-respect-use']),help('Ignore binpkgs whose USE flags do not match')],
+       [opt(rebuiltbinaries),type(boolean),default(false),                       longflags(['rebuilt-binaries']),help('Replace installed packages with rebuilt binary packages')],
+       [opt(failclean), type(boolean),   default(false),                          longflags(['fail-clean']),help('Clean build directory on failure')],
        [opt(quiet),     type(boolean),   default(false),       shortflags(['q']), longflags(['quiet']),     help('Reduced output')],
        [opt(jobs),      type(integer),   default(0),           shortflags(['j']), longflags(['jobs']),      help('Number of parallel build jobs (0 = auto-detect)')],
        [opt(loadavg),   type(float),     default(0.0),                            longflags(['load-average']),help('Do not start new jobs if load average exceeds N (0 = no limit)')],
@@ -255,12 +265,19 @@ interface:process_flags:-
   (lists:memberchk(withtestdeps(y),Options) -> asserta(preference:local_flag(withtestdeps))    ; true),
   (lists:memberchk(pretend(true),   Options) -> asserta(preference:local_flag(pretend))         ; true),
   (lists:memberchk(oneshot(true),   Options) -> asserta(preference:local_flag(oneshot))         ; true),
+  (lists:memberchk(select(false),   Options) -> asserta(preference:local_flag(oneshot))         ; true),
   (lists:memberchk(buildpkg(true), Options) -> asserta(preference:local_flag(buildpkg))        ; true),
   (lists:memberchk(buildpkgonly(true),Options)->asserta(preference:local_flag(buildpkgonly))  ; true),
   (lists:memberchk(usepkg(true),    Options) -> asserta(preference:local_flag(usepkg))        ; true),
   (lists:memberchk(usepkgonly(true),Options) -> asserta(preference:local_flag(usepkgonly))    ; true),
   (lists:memberchk(getbinpkg(true), Options) -> asserta(preference:local_flag(getbinpkg))     ; true),
   (lists:memberchk(getbinpkgonly(true),Options)->asserta(preference:local_flag(getbinpkgonly)); true),
+  (lists:memberchk(fetchall(true),  Options) -> asserta(preference:local_flag(fetchall))      ; true),
+  (lists:memberchk(failclean(true), Options) -> asserta(preference:local_flag(failclean))     ; true),
+  (lists:memberchk(usepkgexcludelive(true),Options)->asserta(preference:local_flag(usepkgexcludelive));true),
+  (lists:memberchk(binpkgchangeddeps(true),Options)->asserta(preference:local_flag(binpkgchangeddeps));true),
+  (lists:memberchk(binpkgrespectuse(true),Options)->asserta(preference:local_flag(binpkgrespectuse));true),
+  (lists:memberchk(rebuiltbinaries(true),Options)->asserta(preference:local_flag(rebuiltbinaries));true),
   (lists:memberchk(ask(true),      Options) -> asserta(preference:local_flag(ask))              ; true),
   (lists:memberchk(alert(true),    Options) -> asserta(preference:local_flag(alert))            ; true),
   (lists:memberchk(verbose(true),   Options) -> asserta(config:verbose(true))                   ; true),
@@ -274,16 +291,20 @@ interface:process_flags:-
 
 %! interface:process_repeated_flags is det.
 %
-% Scans the raw argv for repeated --skip and --exclude flags and
-% asserts each value. This bypasses optparse's keeplast behaviour,
-% allowing --skip pkg1 --skip pkg2 without shell quoting.
+% Scans the raw argv for repeated value-taking flags and asserts
+% each value. This bypasses optparse's keeplast behaviour, allowing
+% e.g. --skip pkg1 --skip pkg2 without shell quoting.
 
 interface:process_repeated_flags :-
   current_prolog_flag(argv, RawArgs),
   interface:collect_flag_values(RawArgs, '--skip', Skips),
   forall(member(S, Skips), asserta(config:skip_atom(S))),
   interface:collect_flag_values(RawArgs, '--exclude', Excludes),
-  forall(member(E, Excludes), asserta(config:excluded_atom(E))).
+  forall(member(E, Excludes), asserta(config:excluded_atom(E))),
+  interface:collect_flag_values(RawArgs, '--usepkg-exclude', UExcl),
+  forall(member(U, UExcl), asserta(config:usepkg_exclude_atom(U))),
+  interface:collect_flag_values(RawArgs, '--usepkg-include', UIncl),
+  forall(member(I, UIncl), asserta(config:usepkg_include_atom(I))).
 
 
 %! interface:collect_flag_values(+ArgList, +Flag, -Values) is det.
@@ -406,6 +427,7 @@ interface:process_requests(Mode) :-
     memberchk(bugs(true),Options)     -> (interface:process_bugs(Args,Options),                     Continue) ;
     memberchk(clear(true),Options)    -> (kb:clear, 						    Continue) ;
     memberchk(graph(true),Options)    -> (interface:process_graph(Args), nl, 				  	    Continue) ;
+    memberchk(deselect(true),Options) -> (interface:process_deselect(Args),                       Continue) ;
     memberchk(unmerge(true),Options)  -> (interface:process_action(uninstall,Args,Options), 	    Continue) ;
     memberchk(depclean(true),Options) -> (interface:process_action(depclean,Args,Options),         Continue) ;
     memberchk(upgrade(true),Options)  -> (interface:process_upgrade(Args,Options),                 Continue) ;
@@ -827,6 +849,28 @@ interface:process_build(ArgsSets, _Options) :-
   ( Proposal == []
   -> message:failure('No valid targets found.')
   ;  builder:build(Proposal)
+  ).
+
+
+% -----------------------------------------------------------------------------
+%  Action: DESELECT (remove from world)
+% -----------------------------------------------------------------------------
+
+%! interface:process_deselect(+Args) is det.
+%
+% Removes each positional argument from the world set file.
+% The package remains installed but will no longer be tracked
+% for @world updates.
+
+interface:process_deselect(Args) :-
+  ( Args == []
+  -> message:failure('No targets specified for --deselect.')
+  ;  forall(member(Arg, Args),
+       ( world:unregister(Arg),
+         message:inform(['Removed \'', Arg, '\' from world set.'])
+       )),
+     world:save,
+     message:inform(['World set saved.'])
   ).
 
 
