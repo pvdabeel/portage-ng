@@ -651,6 +651,14 @@ config:avoid_reinstall(false).
 config:verbose(false).
 
 
+% Color output is enabled by default. Retract to disable ANSI color/style.
+
+:- dynamic config:color_output/0.
+:- dynamic config:cli_jobs/1.
+
+config:color_output.
+
+
 % Interface can dynamically set the printing style
 
 :- dynamic config:interface_printing_style/1.

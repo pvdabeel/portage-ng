@@ -43,6 +43,12 @@ builder:build(Goals) :-
   pipeline:prove_plan_with_fallback(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL),
   printer:print(Goals, ModelAVL, ProofAVL, Plan, TriggersAVL),
   nl,
+  ( builder:ask_confirmation
+  -> true
+  ;  message:inform('Aborted.'),
+     !,
+     fail
+  ),
   plan:collect_plan_pre_actions(ProofAVL, PreActions),
   builder:count_actions(Plan, 0, PlanActions),
   length(PreActions, PreCount),
@@ -60,16 +66,39 @@ builder:build(Goals) :-
   build:summary(Completed, Failed, Stubs).
 
 
+%! builder:ask_confirmation is semidet.
+%
+% When --ask is active, prompts the user to confirm before proceeding.
+% Succeeds immediately if --ask is not set. Fails if the user declines.
+
+builder:ask_confirmation :-
+  ( preference:flag(ask)
+  -> nl,
+     message:print('Would you like to merge these packages? [Yes/No] '),
+     flush_output,
+     read_line_to_string(current_input, Answer),
+     ( member(Answer, ["Yes", "yes", "Y", "y", ""])
+     -> true
+     ;  false
+     )
+  ;  true
+  ).
+
+
 %! builder:num_workers(-N) is det.
 %
 % Compute the number of worker threads: min(cpu_count, available_display_lines).
+% When --jobs N is specified and N > 0, uses that value instead.
 
 builder:num_workers(N) :-
-  config:number_of_cpus(Cpus),
-  config:printing_tty_size(H, _W),
-  ReservedLines = 6,
-  MaxDisplay is max(1, H - ReservedLines),
-  N is min(Cpus, MaxDisplay).
+  ( config:cli_jobs(J)
+  -> N = J
+  ;  config:number_of_cpus(Cpus),
+     config:printing_tty_size(H, _W),
+     ReservedLines = 6,
+     MaxDisplay is max(1, H - ReservedLines),
+     N is min(Cpus, MaxDisplay)
+  ).
 
 
 % =============================================================================
