@@ -395,6 +395,7 @@ interface:process_requests(Mode) :-
     memberchk(save(true),Options)     -> (kb:save,!, 						    Continue) ;
     memberchk(load(true),Options)     -> (kb:load,!, 						    Continue) ;
     memberchk(fetchonly(true),Options)-> (interface:process_action(fetchonly,Args,Options),         Continue) ;
+    memberchk(resume(true),Options)  -> (builder:build_resume,                                     Continue) ;
     memberchk(build(true),Options)   -> (interface:process_build(Args,Options),                    Continue) ;
     memberchk(merge(true),Options)    -> (interface:process_action(run,Args,Options),               Continue) ;
     memberchk(shell(true),Options)    -> (message:logo(['::- portage-ng shell - ',Version]),	    prolog)),

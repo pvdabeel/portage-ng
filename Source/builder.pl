@@ -28,6 +28,7 @@ are sequential (the next step starts only after the previous completes).
 :- dynamic builder:slot_info/6.
 :- dynamic builder:slot_outcome/2.
 :- dynamic builder:exec_phase_state/3.
+:- dynamic builder:resume_done/2.
 
 % =============================================================================
 %  BUILDER declarations
@@ -49,6 +50,8 @@ builder:build(Goals) :-
      !,
      fail
   ),
+  retractall(builder:resume_done(_, _)),
+  builder:save_resume_state(Goals, Plan),
   plan:collect_plan_pre_actions(ProofAVL, PreActions),
   builder:count_actions(Plan, 0, PlanActions),
   length(PreActions, PreCount),
@@ -63,8 +66,55 @@ builder:build(Goals) :-
   jobserver:init(NumWorkers, builder:execute_build_job),
   builder:execute_plan(Plan, StartStep, NumSteps, 0, 0, 0, Completed, Failed, Stubs),
   jobserver:shutdown(NumWorkers),
+  ( Failed =:= 0
+  -> builder:clear_resume_state
+  ;  true
+  ),
   build:summary(Completed, Failed, Stubs),
   builder:alert.
+
+
+%! builder:build_resume is det.
+%
+% Resumes a previously interrupted build. Loads the saved plan from
+% Knowledge/resume.pl, filters out completed packages, and re-executes
+% the remainder. Skips the clean phase so ebuild can pick up from the
+% preserved work directory.
+
+builder:build_resume :-
+  ( builder:load_resume_state(_Goals, Plan, DoneList)
+  -> true
+  ;  message:failure('No saved build state found. Run --build first.'),
+     !,
+     fail
+  ),
+  builder:filter_completed_plan(Plan, DoneList, FilteredPlan),
+  builder:count_actions(FilteredPlan, 0, RemainingActions),
+  ( RemainingActions =:= 0
+  -> message:inform('Nothing to resume — all packages completed successfully.'),
+     builder:clear_resume_state
+  ;  length(DoneList, CompletedCount),
+     format(atom(ResumeMsg), '>>> Resuming: ~d completed, ~d remaining', [CompletedCount, RemainingActions]),
+     message:color(green),
+     message:print(ResumeMsg),
+     message:reset,
+     nl, nl,
+     assertz(ebuild_exec:resuming),
+     retractall(builder:resume_done(_, _)),
+     builder:count_nonempty_steps(FilteredPlan, 0, NumSteps),
+     build:header(NumSteps, RemainingActions),
+     builder:num_workers(NumWorkers),
+     jobserver:init(NumWorkers, builder:execute_build_job),
+     builder:execute_plan(FilteredPlan, 1, NumSteps, 0, 0, 0, Completed, Failed, Stubs),
+     jobserver:shutdown(NumWorkers),
+     ( Failed =:= 0
+     -> builder:clear_resume_state
+     ;  true
+     ),
+     build:summary(Completed, Failed, Stubs),
+     builder:alert,
+     retractall(ebuild_exec:resuming)
+  ).
 
 
 %! builder:alert is det.
@@ -229,6 +279,7 @@ builder:execute_plan([], _PlanStep, _NumSteps, C, F, S, C, F, S).
 builder:execute_plan([Step|Rest], PlanStep, NumSteps, C0, F0, S0, C, F, S) :-
   builder:execute_step(Step, PlanStep, NumSteps, C0, F0, S0, C1, F1, S1, HasJobs),
   ( HasJobs == true -> PlanStep1 is PlanStep + 1 ; PlanStep1 = PlanStep ),
+  builder:flush_resume_done_to_disk,
   ( F1 > F0
   -> builder:skip_remaining(Rest, PlanStep1, NumSteps, C1, F1, S1, C, F, S)
   ;  builder:execute_plan(Rest, PlanStep1, NumSteps, C1, F1, S1, C, F, S)
@@ -901,14 +952,30 @@ builder:update_download_progress(FileIdx, Filename, ExpSize, DestPath,
 
 builder:handle_result(_TotalLines, LineOff, display_handled(Outcome)) :-
   !,
-  assertz(builder:slot_outcome(LineOff, Outcome)).
+  assertz(builder:slot_outcome(LineOff, Outcome)),
+  builder:maybe_record_resume_done(LineOff, Outcome).
 
 builder:handle_result(TotalLines, LineOff, Outcome) :-
   assertz(builder:slot_outcome(LineOff, Outcome)),
   builder:get_slot_info(LineOff, PlanStep, NumSteps, ActionIdx, Action, Entry),
   builder:outcome_to_status(Outcome, Status),
   with_mutex(build_display,
-    build:update_slot(LineOff, TotalLines, Status, PlanStep, NumSteps, ActionIdx, Action, Entry)).
+    build:update_slot(LineOff, TotalLines, Status, PlanStep, NumSteps, ActionIdx, Action, Entry)),
+  builder:maybe_record_resume_done(LineOff, Outcome).
+
+
+%! builder:maybe_record_resume_done(+LineOff, +Outcome) is det.
+%
+% Records a completed entry for resume tracking. Only records
+% repository entries (Repo://Entry pattern) with done outcome.
+
+builder:maybe_record_resume_done(LineOff, Outcome) :-
+  ( Outcome == done,
+    builder:slot_info(LineOff, _, _, _, Action, Entry),
+    Entry = _://_
+  -> assertz(builder:resume_done(Entry, Action))
+  ;  true
+  ).
 
 
 %! builder:outcome_to_status(+Outcome, -Status) is det.
@@ -937,6 +1004,129 @@ builder:tally_outcomes(C0, F0, S0, C, F, S) :-
   C is C0 + DC,
   F is F0 + FC,
   S is S0 + SC.
+
+
+% =============================================================================
+%  Resume state management
+% =============================================================================
+
+%! builder:resume_state_file(-Path) is det.
+%
+% Returns the path to the resume state file (Knowledge/resume.pl).
+
+builder:resume_state_file(Path) :-
+  config:installation_dir(Dir),
+  os:compose_path([Dir, 'Knowledge', 'resume.pl'], Path).
+
+
+%! builder:save_resume_state(+Goals, +Plan) is det.
+%
+% Saves the build goals and plan to Knowledge/resume.pl. This is
+% called at the start of a --build run so the plan can be loaded
+% later by --resume.
+
+builder:save_resume_state(Goals, Plan) :-
+  builder:resume_state_file(Path),
+  catch(
+    setup_call_cleanup(
+      open(Path, write, S),
+      ( write_term(S, resume_goals(Goals), [quoted(true)]),
+        format(S, '.~n', []),
+        write_term(S, resume_plan(Plan), [quoted(true)]),
+        format(S, '.~n', [])
+      ),
+      close(S)),
+    _, true).
+
+
+%! builder:flush_resume_done_to_disk is det.
+%
+% Appends any in-memory resume_done/2 facts to the resume state file,
+% then retracts them. Called after each plan step for crash safety.
+
+builder:flush_resume_done_to_disk :-
+  builder:resume_state_file(Path),
+  ( exists_file(Path)
+  -> findall(E-A, builder:resume_done(E, A), Entries),
+     ( Entries \= []
+     -> catch(
+          setup_call_cleanup(
+            open(Path, append, S),
+            forall(
+              member(E-A, Entries),
+              ( write_term(S, resume_done(E, A), [quoted(true)]),
+                format(S, '.~n', [])
+              )
+            ),
+            close(S)),
+          _, true),
+        retractall(builder:resume_done(_, _))
+     ;  true
+     )
+  ;  true
+  ).
+
+
+%! builder:load_resume_state(-Goals, -Plan, -DoneList) is semidet.
+%
+% Loads the resume state from Knowledge/resume.pl. Returns the
+% original goals, plan, and a list of done(Entry, Action) terms
+% for entries that already completed. Fails if no resume file exists.
+
+builder:load_resume_state(Goals, Plan, DoneList) :-
+  builder:resume_state_file(Path),
+  exists_file(Path),
+  catch(
+    setup_call_cleanup(
+      open(Path, read, S),
+      builder:read_all_resume_terms(S, Terms),
+      close(S)),
+    _, fail),
+  ( memberchk(resume_goals(Goals), Terms) -> true ; Goals = [] ),
+  ( memberchk(resume_plan(Plan), Terms) -> true ; Plan = [] ),
+  findall(done(E, A), member(resume_done(E, A), Terms), DoneList).
+
+
+%! builder:read_all_resume_terms(+Stream, -Terms) is det.
+%
+% Reads all Prolog terms from a stream until end_of_file.
+
+builder:read_all_resume_terms(S, Terms) :-
+  read_term(S, T, []),
+  ( T == end_of_file
+  -> Terms = []
+  ;  Terms = [T|Rest],
+     builder:read_all_resume_terms(S, Rest)
+  ).
+
+
+%! builder:clear_resume_state is det.
+%
+% Deletes the resume state file after a successful build.
+
+builder:clear_resume_state :-
+  builder:resume_state_file(Path),
+  ( exists_file(Path) -> delete_file(Path) ; true ).
+
+
+%! builder:filter_completed_plan(+Plan, +DoneList, -FilteredPlan) is det.
+%
+% Removes completed rules from each step in the plan. A rule is
+% considered completed if its Entry and Action appear in DoneList.
+
+builder:filter_completed_plan([], _, []).
+
+builder:filter_completed_plan([Step|Rest], DoneList, [Filtered|FilteredRest]) :-
+  exclude(builder:rule_is_done(DoneList), Step, Filtered),
+  builder:filter_completed_plan(Rest, DoneList, FilteredRest).
+
+
+%! builder:rule_is_done(+DoneList, +Rule) is semidet.
+%
+% True if the rule's package and action appear in the done list.
+
+builder:rule_is_done(DoneList, rule(Repo://Entry:Action?{_Ctx}, _Body)) :-
+  memberchk(done(Repo://Entry, Action), DoneList).
 
 
 % =============================================================================
