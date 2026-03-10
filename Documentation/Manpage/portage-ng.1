@@ -301,6 +301,31 @@ referenced by any installed package.
 Useful for disk space cleanup.
 Equivalent to Paludis
 .BR "cave print\-unused\-distfiles" .
+.TP
+.B \-\-import
+Track manually installed software as a package in the VDB.
+The target must be specified as
+.IR cat/name\-version
+(e.g.\&
+.BR "sys\-apps/myutil\-1.0" ).
+Creates a minimal VDB entry with CATEGORY, PF, SLOT\ (0),
+EAPI\ (8), and an empty CONTENTS file so that the package
+manager is aware of the software.
+When combined with
+.BR \-\-pretend ,
+shows what would be imported without making changes.
+Equivalent to Paludis
+.BR "cave import" .
+.TP
+.B \-\-unmanaged\-files " " \fR[\fIDIR\fR .\|.\|.]
+Find files on the filesystem not owned by any installed package.
+Builds an index of all files tracked in VDB CONTENTS and then
+recursively scans the given directories (default:
+.IR /usr )
+for files not in the index.
+Useful for system auditing and finding manually-installed files.
+Equivalent to Paludis
+.BR "cave print\-unmanaged\-files" .
 .\"
 .SH OPTIONS
 .SS Dependency resolution options

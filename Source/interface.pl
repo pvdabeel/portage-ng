@@ -251,6 +251,8 @@ interface:spec(S) :-
        [opt(report),      type(boolean), default(false),                          longflags(['report']),      help('Report problems with installed packages')],
        [opt(rdeps),       type(boolean), default(false),                          longflags(['rdeps']),       help('Show reverse dependencies of a package')],
        [opt(unuseddistfiles), type(boolean), default(false),                      longflags(['unused-distfiles']), help('List distfiles not used by any installed package')],
+       [opt(import),      type(boolean), default(false),                          longflags(['import']),       help('Track manually installed software in VDB')],
+       [opt(unmanagedfiles), type(boolean), default(false),                       longflags(['unmanaged-files']), help('Find files not owned by any installed package')],
 
        % resolver hints
 
@@ -578,6 +580,8 @@ interface:process_requests(Mode) :-
     memberchk(report(true),Options)  -> (interface:process_report(Options),                       Continue) ;
     memberchk(rdeps(true),Options)   -> (interface:process_rdeps(Args),                           Continue) ;
     memberchk(unuseddistfiles(true),Options) -> (interface:process_unused_distfiles(Options),     Continue) ;
+    memberchk(import(true),Options)  -> (interface:process_import(Args,Options),                   Continue) ;
+    memberchk(unmanagedfiles(true),Options) -> (interface:process_unmanaged_files(Args),           Continue) ;
     memberchk(upstream(true),Options) -> (interface:process_upstream(Args,Options),                 Continue) ;
     interface:extract_llm_opt(Options, LlmOpt)
                                       -> (interface:process_llm_chat(LlmOpt),                      Continue) ;
@@ -1472,6 +1476,79 @@ interface:process_unused_distfiles(_Options) :-
     )
   ; message:warning('Distfiles module not available.')
   ).
+
+
+% -----------------------------------------------------------------------------
+%  Action: IMPORT (track unpackaged software in VDB)
+% -----------------------------------------------------------------------------
+
+%! interface:process_import(+Args, +Options) is det.
+%
+% Creates VDB entries for manually installed software so the package
+% manager can track it. Accepts targets as Category/Name-Version or
+% Category/Name (defaults to version 0).
+
+interface:process_import([], _Options) :-
+  !,
+  message:failure('Usage: portage-ng --import cat/name-version [cat/name-version ...]').
+
+interface:process_import(Args, Options) :-
+  ( memberchk(pretend(true), Options) -> Pretend = true ; Pretend = false ),
+  forall(member(Arg, Args),
+    interface:do_import_one(Arg, Pretend)
+  ).
+
+
+%! interface:do_import_one(+Arg, +Pretend) is det.
+%
+% Imports a single package specification into the VDB.
+
+interface:do_import_one(Arg, Pretend) :-
+  atom_string(Arg, ArgStr),
+  ( split_string(ArgStr, "/", "", [CatStr, PVStr]) ->
+    atom_string(Category, CatStr),
+    vdb:split_pv(PVStr, Name, Version),
+    ( Pretend == true ->
+      format('Would import: ~w/~w-~w~n', [Category, Name, Version])
+    ; vdb:import_package(Category, Name, Version),
+      format('Imported: ~w/~w-~w~n', [Category, Name, Version])
+    )
+  ; message:warning(['Invalid import target (expected cat/name-version): ', Arg])
+  ).
+
+
+% -----------------------------------------------------------------------------
+%  Action: UNMANAGED FILES
+% -----------------------------------------------------------------------------
+
+%! interface:process_unmanaged_files(+Args) is det.
+%
+% Finds files on the filesystem not tracked by any installed package.
+% Args are directories to scan; defaults to /usr if none given.
+
+interface:process_unmanaged_files(Args) :-
+  ( Args == [] -> Dirs = ['/usr'] ; Dirs = Args ),
+  message:header(['Building file ownership index...']),
+  nl,
+  vdb:build_contents_index(OwnedSet),
+  rb_size(OwnedSet, IndexSize),
+  format('  Indexed ~w files from installed packages.~n~n', [IndexSize]),
+  forall(member(DirAtom, Dirs),
+    ( atom_string(DirAtom, DirStr),
+      ( exists_directory(DirStr) ->
+        message:header(['Scanning ', DirAtom, ' for unmanaged files...']),
+        nl,
+        vdb:find_unmanaged(DirAtom, OwnedSet, Unmanaged),
+        ( Unmanaged == [] ->
+          format('  No unmanaged files found in ~w.~n', [DirAtom])
+        ; length(Unmanaged, Count),
+          forall(member(F, Unmanaged), format('  ~w~n', [F])),
+          nl,
+          format('~w unmanaged file(s) in ~w.~n', [Count, DirAtom])
+        )
+      ; message:warning(['Directory does not exist: ', DirAtom])
+      )
+    )).
 
 
 % -----------------------------------------------------------------------------
