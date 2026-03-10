@@ -316,6 +316,32 @@ once per atom.
 .TP
 .BR \-1 ", " \-\-oneshot
 Do not add the target packages to the world set.
+.SS Binary package options
+.TP
+.BR \-k ", " \-\-usepkg
+Use binary packages from
+.B PKGDIR
+when available.  Falls back to building from source when no suitable
+binary package exists.
+.TP
+.BR \-K ", " \-\-usepkg\-only
+Use only binary packages.  If no binary package is available for a
+required package, the merge fails instead of building from source.
+.TP
+.BR \-g ", " \-\-getbinpkg
+Download binary packages from a remote binary package host
+.RB ( BINHOST )
+in addition to using local packages from
+.BR PKGDIR .
+Typically combined with
+.BR \-\-usepkg .
+.TP
+.BR \-G ", " \-\-getbinpkg\-only
+Use only remote binary packages from
+.BR BINHOST .
+Local binary packages in
+.B PKGDIR
+are not used and packages are not built from source.
 .SS Build options
 .TP
 .BR \-j ", " \-\-jobs " " \fIN\fR
@@ -340,6 +366,14 @@ and before
 .B merge
 in the ebuild phase sequence, producing a binary package
 (.tbz2 / .gpkg) from the build output.
+.TP
+.B \-\-buildpkgonly
+Like
+.B \-\-buildpkg
+but do not merge the packages to the live filesystem.  The build
+stops after creating the binary package (the
+.B merge
+phase is omitted).
 .TP
 .BR \-l ", " \-\-logs
 Show build log file paths in

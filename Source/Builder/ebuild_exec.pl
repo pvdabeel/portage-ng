@@ -55,24 +55,23 @@ ebuild_exec:action_phases(uninstall, _Ctx, [unmerge]).
 
 %! ebuild_exec:build_phases(-Phases) is det.
 %
-% Returns the build phase sequence. When --buildpkg is active,
-% the `package` phase is included after `install` to create a
-% binary package from the build output before merging to the
-% live filesystem. When --resume is active, the `clean` phase
-% is omitted so ebuild can pick up from the preserved work
-% directory (phase-level resume).
+% Returns the build phase sequence. When --buildpkgonly is active,
+% the merge phase is omitted (binary package only). When --buildpkg
+% is active, the `package` phase is inserted after `install` before
+% merging. When --resume is active, the `clean` phase is omitted so
+% ebuild can pick up from the preserved work directory.
 
 ebuild_exec:build_phases(Phases) :-
-  ( ebuild_exec:resuming
-  -> ( preference:flag(buildpkg)
-     -> Phases = [setup, unpack, prepare, configure, compile, test, install, package, merge]
-     ;  Phases = [setup, unpack, prepare, configure, compile, test, install, merge]
-     )
-  ;  ( preference:flag(buildpkg)
-     -> Phases = [clean, setup, unpack, prepare, configure, compile, test, install, package, merge]
-     ;  Phases = [clean, setup, unpack, prepare, configure, compile, test, install, merge]
-     )
-  ).
+  ( ebuild_exec:resuming -> Clean = [] ; Clean = [clean] ),
+  ( (preference:flag(buildpkgonly) ; preference:flag(buildpkg))
+  -> Pkg = [package]
+  ;  Pkg = []
+  ),
+  ( preference:flag(buildpkgonly)
+  -> Merge = []
+  ;  Merge = [merge]
+  ),
+  append([Clean, [setup, unpack, prepare, configure, compile, test, install], Pkg, Merge], Phases).
 
 
 % =============================================================================
