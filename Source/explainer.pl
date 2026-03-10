@@ -84,8 +84,8 @@ assumption_normalize(Content0, Content) :-
 term_ctx(_Spec:_Action?{Ctx0}, Ctx) :-
   ( is_list(Ctx0) ->
       Ctx = Ctx0
-  ; Ctx0 =.. ['{}'|Ctx] ->
-      true
+  ; Ctx0 = {Inner}, is_list(Inner) ->
+      Ctx = Inner
   ; Ctx = []
   ),
   !.

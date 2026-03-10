@@ -159,8 +159,8 @@ plan:blocker_assumption_term(Content0, Strength, Phase, C, N, Origin) :-
   ( Content0 = '?'(blocker(Strength, Phase, C, N, _O, _V, _SlotReq), Ctx0),
     ( is_list(Ctx0) ->
         Ctx = Ctx0
-    ; Ctx0 =.. ['{}'|Ctx] ->
-        true
+    ; Ctx0 = {InnerList}, is_list(InnerList) ->
+        Ctx = InnerList
     ; Ctx = []
     ),
     ( memberchk(self(Origin), Ctx) -> true ; Origin = unknown )
@@ -171,6 +171,21 @@ plan:blocker_assumption_term(Content0, Strength, Phase, C, N, Origin) :-
   ),
   ( Strength == weak ; Strength == strong ),
   ( Phase == install ; Phase == run ).
+
+
+%! plan:format_blocker_origin(+Origin)
+%
+% Prints a blocker origin in a human-readable format (Category/Name).
+
+plan:format_blocker_origin(Repo://Entry) :-
+  ( cache:ordered_entry(Repo, Entry, C, N, _)
+  -> message:print(C), message:print('/'), message:print(N)
+  ;  message:print(Repo://Entry)
+  ),
+  !.
+plan:format_blocker_origin(Origin) :-
+  message:print(Origin).
+
 
 plan:print_newuse_note_if_any(update, Context) :-
   memberchk(rebuild_reason(newuse), Context),
@@ -209,7 +224,7 @@ plan:print_blocker_note_if_any(Action, Repository, Entry) :-
     ( Origin == unknown ->
         message:print('unknown')
     ; message:color(green),
-      message:print(Origin),
+      plan:format_blocker_origin(Origin),
       message:color(lightgray)
     ),
     message:print(')'),

@@ -23,6 +23,21 @@ suggestions, and Gentoo Bugzilla bug report drafts.
 % =============================================================================
 
 % -----------------------------------------------------------------------------
+%  Context unwrapping
+% -----------------------------------------------------------------------------
+
+%! warning:unwrap_ctx(+Ctx0, -Ctx) is det.
+%
+% Extracts a plain list from a context term that may be wrapped in {}/1.
+
+warning:unwrap_ctx(Ctx0, Ctx) :-
+  ( is_list(Ctx0) -> Ctx = Ctx0
+  ; Ctx0 = {Inner}, is_list(Inner) -> Ctx = Inner
+  ; Ctx = []
+  ).
+
+
+% -----------------------------------------------------------------------------
 %  Print warnings
 % -----------------------------------------------------------------------------
 
@@ -198,8 +213,8 @@ warning:print_blockers_section(BlockerAssumptions) :-
 % Destructures a blocker assumption into its display components.
 
 warning:blocker_assumption_line(Content, Strength, Phase, BlockAtom, RequiredBy) :-
-  ( Content = blocker(Strength, Phase, C, N, O, V, SlotReq)?{Ctx} ->
-      true
+  ( Content = blocker(Strength, Phase, C, N, O, V, SlotReq)?{Ctx0} ->
+      warning:unwrap_ctx(Ctx0, Ctx)
   ; Content = blocker(Strength, Phase, C, N, O, V, SlotReq),
     Ctx = []
   ),
@@ -296,8 +311,8 @@ warning:collect_keyword_suggestions(Assumptions, ProofAVL, Suggestions) :-
 % Extracts keyword suggestion details from a domain assumption context.
 
 warning:assumption_has_keyword_suggestion(Content, C, N, K) :-
-  Content = grouped_package_dependency(C, N, _):_?{Ctx},
-  is_list(Ctx),
+  Content = grouped_package_dependency(C, N, _):_?{Ctx0},
+  warning:unwrap_ctx(Ctx0, Ctx),
   memberchk(suggestion(accept_keyword, K), Ctx),
   !.
 
@@ -315,8 +330,8 @@ warning:collect_unmask_suggestions(Assumptions, ProofAVL, Suggestions) :-
           Suggestions1),
   % From fully resolved proof entries (unmask fallback)
   findall(unmask(Repo, Entry, C, N),
-          ( assoc:gen_assoc(rule(Repo://Entry:_Action), ProofAVL, _?Ctx),
-            is_list(Ctx),
+          ( assoc:gen_assoc(rule(Repo://Entry:_Action), ProofAVL, _?Ctx0),
+            warning:unwrap_ctx(Ctx0, Ctx),
             memberchk(suggestion(unmask, _), Ctx),
             cache:ordered_entry(Repo, Entry, C, N, _)
           ),
@@ -328,14 +343,14 @@ warning:collect_unmask_suggestions(Assumptions, ProofAVL, Suggestions) :-
 %
 % Extracts unmask suggestion details from a domain assumption context.
 
-warning:assumption_has_unmask_suggestion(R://E:unmask?{Ctx}, R, E, C, N) :-
-  is_list(Ctx),
+warning:assumption_has_unmask_suggestion(R://E:unmask?{Ctx0}, R, E, C, N) :-
+  warning:unwrap_ctx(Ctx0, Ctx),
   memberchk(suggestion(unmask), Ctx),
   memberchk(masked_cn(C, N), Ctx),
   !.
 warning:assumption_has_unmask_suggestion(Content, _R, _E, C, N) :-
-  Content = grouped_package_dependency(C, N, _):_?{Ctx},
-  is_list(Ctx),
+  Content = grouped_package_dependency(C, N, _):_?{Ctx0},
+  warning:unwrap_ctx(Ctx0, Ctx),
   memberchk(suggestion(unmask), Ctx),
   !.
 
@@ -497,8 +512,8 @@ warning:proof_key_use_changes(Key, Entry, NeedEnable, NeedDisable) :-
 %
 % Extracts build_with_use enable/disable lists from a proof key context.
 
-warning:proof_key_bwu_context(Repo://Id:_Action?{Ctx}, Repo, Id, En, Dis) :-
-  is_list(Ctx),
+warning:proof_key_bwu_context(Repo://Id:_Action?{Ctx0}, Repo, Id, En, Dis) :-
+  warning:unwrap_ctx(Ctx0, Ctx),
   memberchk(build_with_use:use_state(En, Dis), Ctx),
   !.
 
@@ -563,8 +578,9 @@ warning:bugreport_groups(DomainAssumptions, Groups) :-
 
 warning:bugreport_issue(Content, Key, issue(Reason, RequiredBy, C, N, Constraints, Actions)) :-
   % Only handle grouped_package_dependency assumptions for now (these dominate).
-  Content = grouped_package_dependency(C,N,PackageDeps):Action?{Ctx},
+  Content = grouped_package_dependency(C,N,PackageDeps):Action?{Ctx0},
   !,
+  warning:unwrap_ctx(Ctx0, Ctx),
   % Extract reason from context if present; otherwise keep a stable placeholder.
   ( explainer:term_ctx(Content, CtxList),
     memberchk(assumption_reason(Reason0), CtxList)
@@ -989,8 +1005,8 @@ warning:print_assumption_detail(rule(blocker(Strength, Phase, C, N, _O, _V, _Slo
 warning:print_assumption_detail(rule(blocker(Strength, Phase, C, N, O, V, SlotReq), Body)) :- !,
     warning:print_assumption_detail(rule(blocker(Strength, Phase, C, N, O, V, SlotReq)?{[]}, Body)).
 
-warning:print_assumption_detail(rule(R://E:_Action?{Ctx}, _Body)) :-
-    is_list(Ctx),
+warning:print_assumption_detail(rule(R://E:_Action?{Ctx0}, _Body)) :-
+    warning:unwrap_ctx(Ctx0, Ctx),
     memberchk(issue_with_model(explanation), Ctx),
     !,
     query:search([category(C), name(N)], R://E),
@@ -1019,15 +1035,13 @@ warning:print_assumption_detail(rule(C,_)) :-
 % when a self/1 tag is present in the context list.
 
 warning:print_assumption_provenance(Ctx0) :-
-  ( is_list(Ctx0) ->
-      ( memberchk(self(Repo://Entry), Ctx0) ->
-          message:color(darkgray),
-          message:print('  required by: '),
-          message:print(Repo://Entry),
-          nl,
-          message:color(normal)
-      ; true
-      )
+  warning:unwrap_ctx(Ctx0, Ctx),
+  ( memberchk(self(Repo://Entry), Ctx) ->
+      message:color(darkgray),
+      message:print('  required by: '),
+      message:print(Repo://Entry),
+      nl,
+      message:color(normal)
   ; true
   ).
 
@@ -1051,7 +1065,7 @@ warning:print_tree_issue_note(C, N, PackageDeps) :-
 % to a human-readable label via assumption_reason_label_/2.
 
 warning:assumption_reason_label(CtxLike, Label) :-
-  explainer:term_ctx(_:_?{CtxLike}, Ctx),
+  warning:unwrap_ctx(CtxLike, Ctx),
   ( memberchk(assumption_reason(Reason), Ctx)
   -> warning:assumption_reason_label_(Reason, Label)
   ; Label = 'Non-existent'

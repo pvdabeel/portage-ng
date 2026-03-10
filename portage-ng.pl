@@ -204,6 +204,7 @@ load_standalone_modules :-
 
    ensure_loaded(portage('Source/kahn.pl')),
    ensure_loaded(portage('Source/depclean.pl')),
+   ensure_loaded(portage('Source/upstream.pl')),
 
    ensure_loaded(portage('Source/test.pl')),
 

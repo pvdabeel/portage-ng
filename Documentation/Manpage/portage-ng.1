@@ -510,6 +510,43 @@ Requires LLM modules to be loaded and a valid API key configured
 (see
 .BR config:llm_api_key/2 ).
 If LLM support is not available, a warning is printed instead.
+.SS LLM chat (requires LLM)
+.TP
+.B \-\-llm " " \fR[\fISERVICE\fR]
+Start an interactive chat session with a large language model.
+If
+.I SERVICE
+is omitted, the default service configured via
+.B config:llm_default/1
+is used (typically
+.BR claude ).
+.PP
+.RS
+Available services:
+.BR claude ", " grok ", " chatgpt ", " gemini ", " ollama .
+.PP
+The chat session preserves conversation history across turns within
+the same session.  Type
+.BR quit ", " exit ", or " q
+to leave.
+.RE
+.PP
+Requires LLM modules to be loaded and a valid API key for the
+chosen service.
+.SS Upstream version checking
+.TP
+.B \-\-upstream
+Check whether newer versions of the specified packages are available
+upstream.  Queries the Repology API (https://repology.org) to compare
+the version in the local portage tree against the latest version known
+across distributions.
+.PP
+.RS
+Packages can be specified as positional arguments or, when no arguments
+are given, the world set is checked.  For each package the local
+version, the upstream version, and whether an update is available are
+displayed.
+.RE
 .SS Snapshot and rollback
 .TP
 .B \-\-snapshot " " \fR[\fIID\fR]
@@ -1023,6 +1060,38 @@ Execute a rollback:
 .RS
 .nf
 portage\-ng \-\-rollback 20260309\-143022
+.fi
+.RE
+.PP
+Start a chat session with the default LLM:
+.PP
+.RS
+.nf
+portage\-ng \-\-llm
+.fi
+.RE
+.PP
+Chat with a specific LLM service:
+.PP
+.RS
+.nf
+portage\-ng \-\-llm grok
+.fi
+.RE
+.PP
+Check upstream versions for specific packages:
+.PP
+.RS
+.nf
+portage\-ng \-\-upstream sys\-apps/portage dev\-lang/python
+.fi
+.RE
+.PP
+Check upstream versions for the world set:
+.PP
+.RS
+.nf
+portage\-ng \-\-upstream @world
 .fi
 .RE
 .PP
