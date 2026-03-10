@@ -492,3 +492,149 @@ vdb:dep_tree_mentions(any_of_group(Deps), C, N) :-
   member(D, Deps), vdb:dep_tree_mentions(D, C, N), !.
 vdb:dep_tree_mentions(use_conditional_group(_,_,_,Deps), C, N) :-
   member(D, Deps), vdb:dep_tree_mentions(D, C, N), !.
+
+
+% -----------------------------------------------------------------------------
+%  VDB package import
+% -----------------------------------------------------------------------------
+
+%! vdb:import_package(+Category, +Name, +Version) is det.
+%
+% Creates a minimal VDB entry for manually installed software.
+% Writes CATEGORY, PF, SLOT, EAPI, repository, and an empty
+% CONTENTS file to the VDB pkg directory.
+
+vdb:import_package(Category, Name, Version) :-
+  config:hostname(Hostname),
+  config:pkg_directory(Hostname, PkgDir),
+  atomic_list_concat([Name, '-', Version], PV),
+  atomic_list_concat([PkgDir, '/', Category], CatDir),
+  atomic_list_concat([CatDir, '/', PV], EntryDir),
+  ( \+ exists_directory(CatDir) -> make_directory_path(CatDir) ; true ),
+  ( exists_directory(EntryDir) ->
+    message:warning(['VDB entry already exists: ', Category, '/', PV]),
+    format('  Overwriting metadata in ~w~n', [EntryDir])
+  ; make_directory_path(EntryDir)
+  ),
+  vdb:write_vdb_file(EntryDir, 'CATEGORY', Category),
+  vdb:write_vdb_file(EntryDir, 'PF', PV),
+  vdb:write_vdb_file(EntryDir, 'SLOT', '0'),
+  vdb:write_vdb_file(EntryDir, 'EAPI', '8'),
+  vdb:write_vdb_file(EntryDir, 'repository', 'manual'),
+  vdb:write_vdb_file(EntryDir, 'CONTENTS', ''),
+  vdb:write_vdb_file(EntryDir, 'DESCRIPTION', 'Manually imported package'),
+  atomic_list_concat([Category, '/', PV], FullEntry),
+  asserta(cache:entry_metadata(portage, FullEntry, installed, true)).
+
+
+%! vdb:write_vdb_file(+Dir, +FileName, +Content) is det.
+%
+% Writes a single VDB metadata file.
+
+vdb:write_vdb_file(Dir, FileName, Content) :-
+  atomic_list_concat([Dir, '/', FileName], Path),
+  setup_call_cleanup(
+    open(Path, write, Out),
+    ( atom_string(Content, ContentStr),
+      write(Out, ContentStr),
+      ( ContentStr \== "" -> nl(Out) ; true )
+    ),
+    close(Out)
+  ).
+
+
+%! vdb:split_pv(+PVString, -Name, -Version) is det.
+%
+% Splits a package-version string like "foo-1.2.3" into Name and
+% Version. Finds the last hyphen followed by a digit as the
+% version boundary. Falls back to Name=PV, Version='0'.
+
+vdb:split_pv(PVStr, Name, Version) :-
+  string_codes(PVStr, Codes),
+  ( vdb:find_version_boundary(Codes, 0, -1, BoundaryPos),
+    BoundaryPos >= 0 ->
+    sub_string(PVStr, 0, BoundaryPos, _, NameStr),
+    BP1 is BoundaryPos + 1,
+    sub_string(PVStr, BP1, _, 0, VerStr),
+    atom_string(Name, NameStr),
+    atom_string(Version, VerStr)
+  ; atom_string(Name, PVStr),
+    Version = '0'
+  ).
+
+
+%! vdb:find_version_boundary(+Codes, +Pos, +LastFound, -Boundary) is det.
+%
+% Walks code list finding the last position where a hyphen is
+% followed by a digit (version boundary).
+
+vdb:find_version_boundary([], _, Found, Found).
+
+vdb:find_version_boundary([0'-,D|Rest], Pos, _, Boundary) :-
+  D >= 0'0, D =< 0'9, !,
+  Pos1 is Pos + 2,
+  vdb:find_version_boundary(Rest, Pos1, Pos, Boundary).
+
+vdb:find_version_boundary([_|Rest], Pos, Acc, Boundary) :-
+  Pos1 is Pos + 1,
+  vdb:find_version_boundary(Rest, Pos1, Acc, Boundary).
+
+
+% -----------------------------------------------------------------------------
+%  Unmanaged files detection
+% -----------------------------------------------------------------------------
+
+%! vdb:build_contents_index(-OwnedSet) is det.
+%
+% Builds a red-black tree index of all file paths tracked by
+% installed packages. Efficient for O(log n) membership checks.
+
+vdb:build_contents_index(OwnedSet) :-
+  rb_empty(Empty),
+  findall(Path,
+    ( vdb:find_installed_pkg(portage://Entry),
+      vdb:read_contents(Entry, Contents),
+      member(Item, Contents),
+      vdb:contents_item_path(Item, Path)
+    ),
+    AllPaths),
+  foldl([P, TreeIn, TreeOut]>>(
+    ( rb_lookup(P, _, TreeIn) ->
+      TreeOut = TreeIn
+    ; rb_insert(TreeIn, P, true, TreeOut)
+    )
+  ), AllPaths, Empty, OwnedSet).
+
+
+%! vdb:find_unmanaged(+Dir, +OwnedSet, -Unmanaged) is det.
+%
+% Recursively scans Dir and returns files not present in OwnedSet.
+
+vdb:find_unmanaged(Dir, OwnedSet, Unmanaged) :-
+  catch(
+    directory_files(Dir, Entries0),
+    _, Entries0 = []
+  ),
+  exclude(vdb:is_dot_entry, Entries0, Entries),
+  foldl(vdb:check_unmanaged_entry(Dir, OwnedSet), Entries, [], Unmanaged0),
+  reverse(Unmanaged0, Unmanaged).
+
+
+%! vdb:is_dot_entry(+Name) is semidet.
+
+vdb:is_dot_entry('.').
+vdb:is_dot_entry('..').
+
+
+%! vdb:check_unmanaged_entry(+Dir, +OwnedSet, +Name, +Acc, -NewAcc) is det.
+
+vdb:check_unmanaged_entry(Dir, OwnedSet, Name, Acc, NewAcc) :-
+  atomic_list_concat([Dir, '/', Name], FullPath),
+  ( exists_directory(FullPath) ->
+    vdb:find_unmanaged(FullPath, OwnedSet, SubUnmanaged),
+    append(SubUnmanaged, Acc, NewAcc)
+  ; ( rb_lookup(FullPath, _, OwnedSet) ->
+      NewAcc = Acc
+    ; NewAcc = [FullPath|Acc]
+    )
+  ).
