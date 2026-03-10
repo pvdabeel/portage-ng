@@ -95,7 +95,26 @@ when no targets are given.
 .BR \-B ", " \-\-build
 Build target: resolve the plan, then execute it with live progress
 display.  Downloads distfiles, runs ebuild phases, and shows
-per-phase status inline.
+per-phase status inline.  The plan is saved to
+.I Knowledge/resume.pl
+so that an interrupted build can be continued with
+.BR \-\-resume .
+.TP
+.BR \-r ", " \-\-resume
+Resume a previously interrupted
+.B \-\-build
+run.  Loads the saved plan from
+.I Knowledge/resume.pl
+and re-executes only the packages that did not complete
+successfully.  The
+.B clean
+phase is skipped so that ebuild can pick up from the preserved work
+directory, avoiding redundant unpack, configure, and compile steps
+for the package that failed.  When all remaining packages complete
+successfully, the resume state is cleared.  If failures persist, the
+state is kept for another
+.B \-\-resume
+attempt.
 .TP
 .BR \-f ", " \-\-fetchonly
 Only download source archives (distfiles) without building.
@@ -433,6 +452,15 @@ For
 actions, only the
 .B unmerge
 phase is run.
+.PP
+When
+.B \-\-resume
+is active, the
+.B clean
+phase is omitted so that the work directory from the previous
+attempt is preserved.  This allows
+.BR ebuild (1)
+to pick up from the last completed phase instead of starting over.
 .\"
 .SH DOWNLOADING
 .B portage\-ng
@@ -528,6 +556,14 @@ and create a binary package:
 .RS
 .nf
 portage\-ng \-\-mode standalone \-\-build \-\-buildpkg gcc
+.fi
+.RE
+.PP
+Resume a previously interrupted build:
+.PP
+.RS
+.nf
+portage\-ng \-\-mode standalone \-\-resume
 .fi
 .RE
 .PP

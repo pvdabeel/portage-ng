@@ -27,6 +27,7 @@ merge/VDB code.
 :- dynamic ebuild_exec:phase_bytes/3.
 :- dynamic ebuild_exec:phase_seconds/3.
 :- dynamic ebuild_exec:phase_stats_loaded/0.
+:- dynamic ebuild_exec:resuming/0.
 
 
 % =============================================================================
@@ -57,12 +58,20 @@ ebuild_exec:action_phases(uninstall, _Ctx, [unmerge]).
 % Returns the build phase sequence. When --buildpkg is active,
 % the `package` phase is included after `install` to create a
 % binary package from the build output before merging to the
-% live filesystem.
+% live filesystem. When --resume is active, the `clean` phase
+% is omitted so ebuild can pick up from the preserved work
+% directory (phase-level resume).
 
 ebuild_exec:build_phases(Phases) :-
-  ( preference:flag(buildpkg)
-  -> Phases = [clean, setup, unpack, prepare, configure, compile, test, install, package, merge]
-  ;  Phases = [clean, setup, unpack, prepare, configure, compile, test, install, merge]
+  ( ebuild_exec:resuming
+  -> ( preference:flag(buildpkg)
+     -> Phases = [setup, unpack, prepare, configure, compile, test, install, package, merge]
+     ;  Phases = [setup, unpack, prepare, configure, compile, test, install, merge]
+     )
+  ;  ( preference:flag(buildpkg)
+     -> Phases = [clean, setup, unpack, prepare, configure, compile, test, install, package, merge]
+     ;  Phases = [clean, setup, unpack, prepare, configure, compile, test, install, merge]
+     )
   ).
 
 
