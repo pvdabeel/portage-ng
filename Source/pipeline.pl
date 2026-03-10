@@ -217,3 +217,102 @@ pipeline:prove_plan_with_pdepend(Goals0, ProofAVL, ModelAVL, Plan, TriggersAVL) 
       sampler:pdepend_perf_add(Pass1Ms, ExtractMs, Pass2Ms, 1, NewGoalsCount)
     )
   ).
+
+
+% =============================================================================
+%  Multi-variant pipeline (parallel re-proving)
+% =============================================================================
+
+%! pipeline:prove_plan_variants(+Goals, +Targets, +VariantSpecs, -Baseline, -VariantResults) is det.
+%
+% Proves the baseline plan, then re-proves each variant specification
+% in parallel using concurrent threads. Each thread gets its own
+% thread-local variant overrides and memo caches.
+%
+% Baseline = baseline(ProofAVL, ModelAVL, Plan, TriggersAVL)
+% VariantResults = list of variant_result(Spec, ProofAVL, ModelAVL, Plan, TriggersAVL)
+%                  or variant_result(Spec, failed) on proof failure.
+
+pipeline:prove_plan_variants(Goals, _Targets, VariantSpecs,
+                             baseline(ProofAVL, ModelAVL, Plan, TriggersAVL),
+                             VariantResults) :-
+  pipeline:prove_plan_with_fallback(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL),
+  pipeline:prove_variants_parallel(Goals, VariantSpecs, VariantResults).
+
+
+%! pipeline:prove_variants_parallel(+Goals, +Specs, -Results) is det.
+%
+% Proves each variant in a separate thread. Thread-local overrides
+% ensure variants don't interfere with each other or the main thread.
+
+pipeline:prove_variants_parallel(Goals, Specs, Results) :-
+  length(Specs, N),
+  ( N =:= 0
+  -> Results = []
+  ; length(Results, N),
+    pipeline:prove_variants_threads(Goals, Specs, Results)
+  ).
+
+
+%! pipeline:prove_variants_threads(+Goals, +Specs, -Results) is det.
+%
+% Spawns a thread per variant using a shared message queue to
+% collect results. Thread bindings do not propagate back via
+% thread_join, so each thread posts its result to the queue.
+
+pipeline:prove_variants_threads(Goals, Specs, Results) :-
+  message_queue_create(Queue),
+  length(Specs, N),
+  findall(ThreadId,
+    ( nth1(Idx, Specs, Spec),
+      thread_create(
+        pipeline:prove_single_variant(Goals, Spec, Idx, Queue),
+        ThreadId, [])
+    ),
+    ThreadIds),
+  maplist(pipeline:join_variant_thread, ThreadIds),
+  pipeline:collect_queue_results(Queue, N, Unsorted),
+  message_queue_destroy(Queue),
+  msort(Unsorted, Sorted),
+  pairs_values(Sorted, Results).
+
+
+%! pipeline:join_variant_thread(+ThreadId) is det.
+
+pipeline:join_variant_thread(ThreadId) :-
+  thread_join(ThreadId, _Status).
+
+
+%! pipeline:collect_queue_results(+Queue, +N, -Results) is det.
+
+pipeline:collect_queue_results(_, 0, []) :- !.
+pipeline:collect_queue_results(Queue, N, [Idx-Result|Rest]) :-
+  thread_get_message(Queue, result(Idx, Result)),
+  N1 is N - 1,
+  pipeline:collect_queue_results(Queue, N1, Rest).
+
+
+%! pipeline:prove_single_variant(+Goals, +Spec, +Idx, +Queue) is det.
+%
+% Runs inside a spawned thread. Applies the variant override,
+% clears memo caches (thread-local), proves, and posts the result
+% to the shared message queue.
+
+pipeline:prove_single_variant(Goals, Spec, Idx, Queue) :-
+  setup_call_cleanup(
+    ( variant:apply(Spec),
+      memo:clear_caches
+    ),
+    ( catch(
+        ( pipeline:prove_plan_with_fallback(Goals, P, M, Pl, T)
+        -> thread_send_message(Queue, result(Idx, variant_result(Spec, P, M, Pl, T)))
+        ;  thread_send_message(Queue, result(Idx, variant_result(Spec, failed)))
+        ),
+        _Error,
+        thread_send_message(Queue, result(Idx, variant_result(Spec, failed)))
+      )
+    ),
+    ( variant:cleanup,
+      memo:clear_caches
+    )
+  ).

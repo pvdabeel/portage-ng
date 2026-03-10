@@ -165,10 +165,17 @@ The packages remain installed but will no longer be pulled in by
 .SS Information
 .TP
 .BR \-i ", " \-\-info
-Show package version and metadata information for the given targets.
+Without arguments, show system information: portage\-ng version,
+profile, registered repositories, and world set contents.
+With targets, show detailed package metadata (version, slot,
+USE flags, dependencies) for each given package.
 .TP
 .BR \-s ", " \-\-search
-Search the knowledge base for matching packages.
+Search the knowledge base for matching packages using
+.I key=value
+queries.  See
+.B SEARCH SYNTAX
+below for details.
 .TP
 .B \-\-bugs
 Print Gentoo Bugzilla bug report drafts for unresolvable
@@ -442,6 +449,33 @@ Abort proving and planning after
 seconds.  A value of 0 (default) means no limit.
 When used with the wrapper script, also enforces a hard wall-clock
 timeout that kills the process group.
+.TP
+.B \-\-variants " " \fIMODE\fR
+Show alternative build plans when combined with
+.BR \-\-pretend .
+Each variant toggles a single USE flag or dependency branch
+choice and re-proves the full dependency tree in a separate
+thread.  Variants are proved in parallel.
+.RS
+.TP
+.B none
+Do not show variants (default).
+.TP
+.B auto
+Automatically detect impactful USE flags and
+.B ||
+/
+.B ^^
+branch choices from the baseline proof (up to 5 each).
+.TP
+.B all
+Explore all USE flags of the target package that gate
+at least one dependency (up to 20).
+.TP
+.I flag1,flag2,...
+Explore only the named USE flags.  Each flag is toggled
+from its current effective state.
+.RE
 .SS Output options
 .TP
 .BR \-A ", " \-\-alert
@@ -523,6 +557,128 @@ A package set.  Built-in sets include
 .B @world
 and
 .BR @system .
+.\"
+.SH SEARCH SYNTAX
+The
+.B \-\-search
+flag accepts one or more
+.I key=value
+arguments that are combined conjunctively (AND).
+Each argument has the form
+.IR key comparator value .
+.SS Search keys
+.TP
+.B name
+Package name (e.g.\&
+.BR gcc ", " vim ).
+.TP
+.B category
+Package category (e.g.\&
+.BR sys\-devel ", " app\-editors ).
+.TP
+.B repository
+Repository name (e.g.\&
+.BR portage ", " guru ).
+.TP
+.B version
+Package version.
+.TP
+.B eapi
+EAPI version number.
+.TP
+.B slot
+Package slot.
+.TP
+.B subslot
+Package sub-slot.
+.TP
+.B eclass
+Inherited eclass name.
+.TP
+.B eclasses
+Inherited eclasses (alternative form).
+.TP
+.B keywords
+Architecture keyword (e.g.\&
+.BR amd64 ", " ~amd64 ).
+.TP
+.B iuse
+USE flag, searched with the prefix stripped (e.g.\&
+.B X
+matches
+.BR +X ", " \-X ", and " X ).
+.TP
+.B download
+Source download filename.
+.TP
+.B masked
+Boolean; use
+.B masked=true
+or
+.BR masked=false .
+.SS Comparators
+.TP
+.B =
+Exact match.
+.TP
+.B !=
+Not equal.
+.TP
+.B <
+Smaller than (version/eapi).
+.TP
+.B >
+Greater than (version/eapi).
+.TP
+.B <=
+Smaller than or equal (version/eapi).
+.TP
+.B >=
+Greater than or equal (version/eapi).
+.TP
+.B ~
+Fuzzy match (approximate spelling, powered by
+.BR dwim_match ).
+.TP
+.B :=
+Wildcard match using
+.B *
+and
+.B ?
+glob patterns.
+.SS Examples
+.TP
+.B portage\-ng \-s name=gcc
+Find all versions of packages named
+.BR gcc .
+.TP
+.B portage\-ng \-s category=sys\-devel name=gcc
+Find gcc in the sys-devel category.
+.TP
+.B portage\-ng \-s name:=*python*
+Find packages with "python" anywhere in the name.
+.TP
+.B portage\-ng \-s name~gkc
+Fuzzy match \(em finds
+.B gcc
+despite the typo.
+.TP
+.B portage\-ng \-s iuse=wayland
+Find all packages that declare the
+.B wayland
+USE flag.
+.TP
+.B portage\-ng \-s keywords=amd64 eapi>=8
+Find packages with the
+.B amd64
+keyword on EAPI 8 or later.
+.TP
+.B portage\-ng \-s masked=true category=dev\-lang
+List masked packages in
+.BR dev\-lang .
+.TP
+.B portage\-ng \-s slot=0 name=python
+Find python packages in slot 0.
 .\"
 .SH EBUILD PHASES
 When
@@ -727,6 +883,28 @@ CI run with 60-second timeout:
 .RS
 .nf
 portage\-ng \-\-mode standalone \-\-ci \-\-pretend \-\-timeout 60 kde\-apps\-meta
+.fi
+.RE
+.PP
+Show variant plans for
+.B gtk+
+with auto-detected pivot points:
+.PP
+.RS
+.nf
+portage\-ng \-\-pretend \-\-variants auto dev\-libs/gtk+
+.fi
+.RE
+.PP
+Explore how toggling
+.B wayland
+and
+.B X
+affects a plan:
+.PP
+.RS
+.nf
+portage\-ng \-\-pretend \-\-variants wayland,X dev\-libs/gtk+
 .fi
 .RE
 .PP

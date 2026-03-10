@@ -1501,8 +1501,30 @@ prioritize_deps_keep_all(Deps, Context, SortedDeps) :-
           ),
           Ranked),
   keysort(Ranked, RankedSorted),
-  findall(Dep, member(_-_-_-_-_-Dep, RankedSorted), SortedDeps),
+  findall(Dep, member(_-_-_-_-_-Dep, RankedSorted), SortedDeps0),
+  candidate:boost_variant_preferred(SortedDeps0, SortedDeps),
   !.
+
+
+%! candidate:boost_variant_preferred(+Deps, -Reordered) is det.
+%
+% When a thread-local variant:branch_prefer/1 override is active,
+% moves matching deps to the front so the any_of_group cut selects them.
+
+candidate:boost_variant_preferred(Deps, Reordered) :-
+  ( variant:branch_prefer(Pref),
+    partition(candidate:dep_matches_prefer(Pref), Deps, Front, Rest),
+    Front \== []
+  -> append(Front, Rest, Reordered)
+  ;  Reordered = Deps
+  ).
+
+
+%! candidate:dep_matches_prefer(+Preferred, +Dep) is semidet.
+
+candidate:dep_matches_prefer(Pref, Dep) :-
+  Pref = package_dependency(_, _, PC, PN, _, _, _, _),
+  Dep  = package_dependency(_, _, PC, PN, _, _, _, _).
 
 dep_snapshot_selected(package_dependency(_Phase,_Strength,C,N,_O,_V,_S,_U)) :-
   snapshot_selected_cn_candidates(C, N, _),

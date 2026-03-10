@@ -80,6 +80,46 @@ interface:print_version_repos :-
   ).
 
 
+%! interface:print_system_info is det.
+%
+% Prints system information when --info is called without arguments,
+% similar to emerge --info: profile, repositories, key system
+% packages, and USE flags.
+
+interface:print_system_info :-
+  interface:version(Version),
+  current_prolog_flag(version, PrologVer),
+  format(atom(PrologVerAtom), '~w', [PrologVer]),
+  ( catch(config:hostname(Hostname), _, Hostname = unknown) -> true ; Hostname = unknown ),
+  ( catch(config:gentoo_profile(Profile), _, Profile = unknown) -> true ; Profile = unknown ),
+  nl,
+  format('portage-ng ~w (SWI-Prolog ~w, ~w)~n', [Version, PrologVerAtom, Profile]),
+  format('================================================================~n'),
+  format('System hostname: ~w~n', [Hostname]),
+  ( catch(config:installation_dir(Dir), _, fail)
+  -> format('Install dir:     ~w~n', [Dir])
+  ;  true
+  ),
+  ( catch(config:printing_tty_size(H, W), _, fail)
+  -> format('Terminal size:   ~wx~w~n', [W, H])
+  ;  format('Terminal size:   (not a TTY)~n')
+  ),
+  nl,
+  format('Repositories:~n'),
+  forall(
+    ( context:instances(repository, Name),
+      Name:get_location(Loc)
+    ),
+    format('  ~w~t~30|~w~n', [Name, Loc])
+  ),
+  nl,
+  format('World set:~n'),
+  ( catch(forall(world::entry(E), format('  ~w~n', [E])), _, true)
+  -> true
+  ;  format('  (not loaded)~n')
+  ).
+
+
 %! interface:status(-Status) is det.
 %
 % Unifies Status with the current release stage
@@ -174,6 +214,7 @@ interface:spec(S) :-
        [opt(loadavg),   type(float),     default(0.0),                            longflags(['load-average']),help('Do not start new jobs if load average exceeds N (0 = no limit)')],
        [opt(color),     type(atom),      default(y),                              longflags(['color']),     help('Enable or disable color output (y or n)')],
        [opt(timeout),   type(integer),   default(0),                              longflags(['timeout']),   help('Abort proving/planning after N seconds (0 = no limit)')],
+       [opt(variants),  type(atom),      default(none),                           longflags(['variants']),  help('Show alternative plans (none, auto, all, or comma-separated USE flags)')],
        [opt(host),      type(atom),      default(Hostname),                       longflags(['host']),      help('Set server hostname (client mode)')],
        [opt(port),      type(integer),   default(4000),                           longflags(['port']),      help('Set Server port (client or server mode)')],
        [opt(shell),     type(boolean),   default(false),                          longflags(['shell']),     help('Go to shell')],
@@ -704,14 +745,18 @@ interface:print_bugreport_drafts_from_proof(ProofAVL) :-
 
 interface:process_action(info,[],_) :-
   !,
-  message:inform('General information placeholder').
+  interface:print_system_info.
 
 interface:process_action(info,Args,_Options) :-
   !,
-  forall(member(Arg,Args),(atom_codes(Arg,Codes),
-                           phrase(eapi:qualified_target(Q),Codes),
-			   once(kb:query(Q,R://E)),
-                           info:print_entry(R://E))).
+  forall(member(Arg, Args),
+    ( atom_codes(Arg, Codes),
+      ( phrase(eapi:qualified_target(Q), Codes),
+        once(kb:query(Q, R://E))
+      -> info:print_entry(R://E)
+      ; message:warning(['Package not found: ', Arg])
+      )
+    )).
 
 
 % -----------------------------------------------------------------------------
@@ -720,13 +765,20 @@ interface:process_action(info,Args,_Options) :-
 
 interface:process_action(search,[],_) :-
   !,
-  message:inform('Need more arguments').
+  message:failure('Usage: portage-ng --search key=value ... (e.g. name=gcc, category=sys-devel, description=*compiler*)').
 
 interface:process_action(search,Args,_Options) :-
   !,
-  phrase(eapi:query(Q),Args),
-  message:log(['Query:   ',Q]),
-  forall(kb:query(Q,R://E), writeln(R://E)).
+  ( phrase(eapi:query(Q), Args)
+  -> message:log(['Query:   ',Q]),
+     aggregate_all(count, kb:query(Q, _), Count),
+     forall(kb:query(Q, R://E), writeln(R://E)),
+     ( Count =:= 0
+     -> message:inform('No matching packages found.')
+     ;  true
+     )
+  ; message:warning(['Invalid search query: ', Args])
+  ).
 
 % -----------------------------------------------------------------------------
 %  Action: DEPCLEAN
@@ -741,17 +793,16 @@ interface:process_action(depclean, ArgsSets, _Options) :-
 %  Action: MERGE
 % -----------------------------------------------------------------------------
 
-interface:process_action(_Action,[],_) :- !.
+interface:process_action(_Action,[],_) :-
+  !,
+  message:failure('No targets specified.').
 
 interface:process_action(Action,ArgsSets,Options) :-
   interface:process_mode(Mode),
   interface:process_server(Host,Port),
   ( memberchk(pretend(true), Options) -> PretendMode = true ; PretendMode = false ),
   eapi:substitute_sets(ArgsSets,Args),
-  % IMPORTANT:
-  % Do NOT resolve a concrete candidate here. We only check that the target has
-  % at least one candidate, then defer actual candidate selection to the prover
-  % via rules:rule/2 (target(Q,Arg):Action).
+  interface:report_unresolvable_targets(Action, Args),
   findall(target(Q,Arg):Action?{[]},
           ( member(Arg,Args),
             atom_codes(Arg,Codes),
@@ -778,14 +829,23 @@ interface:process_action(Action,ArgsSets,Options) :-
      Output),
      writeln(Output));
     ( ( memberchk(timeout(TimeLimitSec), Options) -> true ; TimeLimitSec = 0 ),
+      ( memberchk(variants(VariantsOpt), Options) -> true ; VariantsOpt = none ),
       ( TimeLimitSec =< 0 ->
           ( pipeline:prove_plan_with_fallback(Proposal, ProofAVL, ModelAVL, Plan, Triggers, FallbackUsed),
-            printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers)
+            printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
+            ( VariantsOpt \== none, PretendMode == true
+            -> interface:run_variants(VariantsOpt, Proposal, ProofAVL, Plan, Triggers)
+            ;  true
+            )
           )
       ; catch(
           call_with_time_limit(TimeLimitSec,
             ( pipeline:prove_plan_with_fallback(Proposal, ProofAVL, ModelAVL, Plan, Triggers, FallbackUsed),
-              printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers)
+              printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
+              ( VariantsOpt \== none, PretendMode == true
+              -> interface:run_variants(VariantsOpt, Proposal, ProofAVL, Plan, Triggers)
+              ;  true
+              )
             )),
           time_limit_exceeded,
           ( message:bubble(red,'Error'),
@@ -805,8 +865,6 @@ interface:process_action(Action,ArgsSets,Options) :-
           vdb:sync
       ; true
       ),
-      % Apply any world actions that were produced by the proof/plan.
-      % (This keeps "world update" rule-driven, but still executed by the CLI.)
       ( FallbackUsed == false,
         PretendMode == false ->
             interface:execute_world_actions_from_plan(Plan),
@@ -814,6 +872,108 @@ interface:process_action(Action,ArgsSets,Options) :-
         ; true
         )
     )).
+
+
+% -----------------------------------------------------------------------------
+%  Target validation helper
+% -----------------------------------------------------------------------------
+
+%! interface:report_unresolvable_targets(+Action, +Args) is det.
+%
+% Prints a warning for each target argument that cannot be parsed
+% or has no matching entry in the knowledge base.
+
+interface:report_unresolvable_targets(Action, Args) :-
+  forall(member(Arg, Args),
+    ( atom_codes(Arg, Codes),
+      ( \+ phrase(eapi:qualified_target(_), Codes)
+      -> message:warning(['Cannot parse target: ', Arg])
+      ; phrase(eapi:qualified_target(Q), Codes),
+        ( Action == uninstall
+        -> ( once((kb:query(Q, R0://E0), kb:query(installed(true), R0://E0)))
+           -> true
+           ;  message:warning(['Not installed: ', Arg])
+           )
+        ; ( once(kb:query(Q, _R://_E))
+          -> true
+          ;  message:warning(['Package not found: ', Arg])
+          )
+        )
+      )
+    )).
+
+
+% -----------------------------------------------------------------------------
+%  Action: VARIANTS (multi-variant pretend)
+% -----------------------------------------------------------------------------
+
+%! interface:run_variants(+VariantsOpt, +Proposal, +BaseProof, +BasePlan, +BaseTriggers) is det.
+%
+% Detects pivot points and proves variant plans in parallel, then
+% prints each variant sequentially with a diff summary.
+
+interface:run_variants(VariantsOpt, Proposal, BaseProof, BasePlan, _BaseTriggers) :-
+  variant:plan_entries(BasePlan, BaseEntries),
+  interface:build_variant_specs(VariantsOpt, Proposal, BaseProof, Specs),
+  ( Specs == []
+  -> message:inform('No variant pivot points detected.')
+  ;  length(Specs, N),
+     nl,
+     message:color(cyan),
+     ( N > 1 -> Plural = 's' ; Plural = '' ),
+     format('Proving ~w variant~w in parallel...', [N, Plural]),
+     message:color(normal), nl,
+     flush_output,
+     pipeline:prove_variants_parallel(Proposal, Specs, Results),
+     interface:print_variant_results(Results, BaseEntries, 1)
+  ).
+
+
+%! interface:build_variant_specs(+Opt, +Proposal, +ProofAVL, -Specs) is det.
+%
+% Builds variant specifications from the --variants option value.
+
+interface:build_variant_specs(auto, Proposal, ProofAVL, Specs) :-
+  !,
+  variant:detect_pivots(ProofAVL, Proposal, 5, UsePivots, BranchPivots),
+  variant:pivots_to_specs(UsePivots, BranchPivots, Specs).
+
+interface:build_variant_specs(all, Proposal, ProofAVL, Specs) :-
+  !,
+  variant:detect_use_pivots(ProofAVL, Proposal, 20, UsePivots),
+  variant:pivots_to_specs(UsePivots, [], Specs).
+
+interface:build_variant_specs(FlagList, Proposal, ProofAVL, Specs) :-
+  atomic_list_concat(Flags, ',', FlagList),
+  variant:user_flags_to_specs(Flags, Proposal, ProofAVL, Specs).
+
+
+%! interface:print_variant_results(+Results, +BaseEntries, +N) is det.
+
+interface:print_variant_results([], _, _).
+
+interface:print_variant_results([variant_result(Spec, failed)|Rest], BaseEntries, N) :-
+  !,
+  Spec = variant(_, _, _, _, Label),
+  nl,
+  message:color(cyan),
+  format('--- Variant ~w: ~w ---', [N, Label]),
+  message:color(normal), nl,
+  message:warning(['Variant proof failed.']),
+  N1 is N + 1,
+  interface:print_variant_results(Rest, BaseEntries, N1).
+
+interface:print_variant_results([variant_result(Spec, _Proof, _Model, Plan, _Triggers)|Rest], BaseEntries, N) :-
+  Spec = variant(_, _, _, _, Label),
+  nl,
+  plan:print_variant_header(N, Label),
+  variant:plan_entries(Plan, VarEntries),
+  length(VarEntries, VarCount),
+  variant:plan_diff(BaseEntries, VarEntries, Diff),
+  format('  Plan size: ~w actions~n', [VarCount]),
+  plan:print_variant_diff(Diff),
+  N1 is N + 1,
+  interface:print_variant_results(Rest, BaseEntries, N1).
 
 
 % -----------------------------------------------------------------------------
@@ -836,8 +996,13 @@ interface:assert_resume_skip_args([A|Rest]) :-
 %  Action: BUILD
 % -----------------------------------------------------------------------------
 
+interface:process_build([], _Options) :-
+  !,
+  message:failure('No targets specified for --build.').
+
 interface:process_build(ArgsSets, _Options) :-
   eapi:substitute_sets(ArgsSets, Args),
+  interface:report_unresolvable_targets(run, Args),
   findall(target(Q,Arg):run?{[]},
           ( member(Arg, Args),
             atom_codes(Arg, Codes),

@@ -99,7 +99,9 @@ effective_use_in_context(Context, Use, State) :-
   ;
   entry_iuse_default(Repo://Id, Use, Default),
   cache:ordered_entry(Repo, Id, C, N, _),
-      ( preference:profile_package_use_override_for_entry(Repo://Id, Use, Eff, _Reason0) ->
+      ( variant:use_overridden(Use, Eff) ->
+      true
+  ; preference:profile_package_use_override_for_entry(Repo://Id, Use, Eff, _Reason0) ->
       true
   ; preference:package_use_override(C, N, Use, positive) ->
       Eff = positive
@@ -136,7 +138,9 @@ effective_use_for_entry(RepoEntry0, Use, State) :-
   ;
   entry_iuse_default(Repo://Id, Use, Default),
   cache:ordered_entry(Repo, Id, C, N, _),
-      ( preference:profile_package_use_override_for_entry(Repo://Id, Use, Eff, _Reason0) ->
+      ( variant:use_overridden(Use, Eff) ->
+      true
+  ; preference:profile_package_use_override_for_entry(Repo://Id, Use, Eff, _Reason0) ->
       true
   ; preference:package_use_override(C, N, Use, positive) ->
       Eff = positive

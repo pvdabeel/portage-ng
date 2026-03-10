@@ -176,12 +176,12 @@ user:goal_expansion(style(blink),          (config:color_output -> ansi_term:kee
 % -----------------------------------------------------------------------------
 
 user:goal_expansion(bell,                   (format("\a",[]),flush_output)).
-user:goal_expansion(el,                    format("\e[K",[])).
-user:goal_expansion(hc,                    ansi_term:keep_line_pos(current_output,format("\e[?25l",[]))).
-user:goal_expansion(sc,                    ansi_term:keep_line_pos(current_output,format("\e[?25h",[]))).
-user:goal_expansion(bl,                    format("\e[1G",[])).
-user:goal_expansion(cl,                    format("\e[2J\e[H",[])).
-user:goal_expansion(clean,                 format("\e[K",[])).
+user:goal_expansion(el,                    (config:output_tty -> format("\e[K",[]) ; true)).
+user:goal_expansion(hc,                    (config:output_tty -> ansi_term:keep_line_pos(current_output,format("\e[?25l",[])) ; true)).
+user:goal_expansion(sc,                    (config:output_tty -> ansi_term:keep_line_pos(current_output,format("\e[?25h",[])) ; true)).
+user:goal_expansion(bl,                    (config:output_tty -> format("\e[1G",[]) ; true)).
+user:goal_expansion(cl,                    (config:output_tty -> format("\e[2J\e[H",[]) ; true)).
+user:goal_expansion(clean,                 (config:output_tty -> format("\e[K",[]) ; true)).
 
 
 % -----------------------------------------------------------------------------
@@ -251,13 +251,12 @@ user:goal_expansion(msg(Scroll,Level,Msg),
     Post,
     Continue )) :-
   ( ( is_list(Msg)
-      % IMPORTANT: `Msg` pieces are data, not a format string.
-      % Using `format(String, [])` will interpret any `~` in the message and can
-      % crash (e.g. diagnostics containing '~amd64' or similar). Print literally.
       -> Output = (atomic_list_concat(Msg,String),format('~a', [String]))
       ;  Output = (format(Msg,[])) ),
     ( Scroll == true
-      -> Post = (message:el,message:bl,flush_output)
+      -> Post = (( config:output_tty
+                 -> message:el, message:bl, flush_output
+                 ;  message:color(normal), nl ))
       ;  Post = (message:color(normal),nl) ),
     ( Level == failure
       -> Continue = fail
