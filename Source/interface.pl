@@ -228,6 +228,10 @@ interface:spec(S) :-
        [opt(rollback),  type(atom),      default(none),                           longflags(['rollback']),  help('Rollback to a named snapshot')],
        [opt(snapshots), type(boolean),   default(false),                          longflags(['snapshots']), help('List available snapshots')],
 
+       % explanation (requires LLM modules)
+
+       [opt(explain),   type(atom),      default(none),                           longflags(['explain']),   help('Explain the build plan via LLM (optionally pass a question)')],
+
        % lifecycle management
 
        [opt(background),type(boolean),   default(false),                          longflags(['background']),help('Fork to background (daemon and server modes)')],
@@ -840,11 +844,16 @@ interface:process_action(Action,ArgsSets,Options) :-
      writeln(Output));
     ( ( memberchk(timeout(TimeLimitSec), Options) -> true ; TimeLimitSec = 0 ),
       ( memberchk(variants(VariantsOpt), Options) -> true ; VariantsOpt = none ),
+      ( memberchk(explain(ExplainOpt), Options) -> true ; ExplainOpt = none ),
       ( TimeLimitSec =< 0 ->
           ( pipeline:prove_plan_with_fallback(Proposal, ProofAVL, ModelAVL, Plan, Triggers, FallbackUsed),
             printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
             ( VariantsOpt \== none, PretendMode == true
             -> interface:run_variants(VariantsOpt, Proposal, ProofAVL, Plan, Triggers)
+            ;  true
+            ),
+            ( ExplainOpt \== none, PretendMode == true
+            -> interface:run_explain(ExplainOpt, Proposal, ProofAVL, ModelAVL, Plan, Triggers)
             ;  true
             )
           )
@@ -854,6 +863,10 @@ interface:process_action(Action,ArgsSets,Options) :-
               printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
               ( VariantsOpt \== none, PretendMode == true
               -> interface:run_variants(VariantsOpt, Proposal, ProofAVL, Plan, Triggers)
+              ;  true
+              ),
+              ( ExplainOpt \== none, PretendMode == true
+              -> interface:run_explain(ExplainOpt, Proposal, ProofAVL, ModelAVL, Plan, Triggers)
               ;  true
               )
             )),
@@ -984,6 +997,26 @@ interface:print_variant_results([variant_result(Spec, _Proof, _Model, Plan, _Tri
   plan:print_variant_diff(Diff),
   N1 is N + 1,
   interface:print_variant_results(Rest, BaseEntries, N1).
+
+
+% -----------------------------------------------------------------------------
+%  Action: EXPLAIN (LLM-powered plan Q&A)
+% -----------------------------------------------------------------------------
+
+%! interface:run_explain(+ExplainOpt, +Proposal, +ProofAVL, +ModelAVL, +Plan, +TriggersAVL) is det.
+%
+% Dispatches to the explain module. Requires LLM modules to be loaded.
+% ExplainOpt is either 'true' (conversational mode) or a question atom
+% (single-shot mode).
+
+interface:run_explain(ExplainOpt, Proposal, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
+  ( predicate_property(explain:explain_plan(_,_,_,_,_,_), defined)
+  -> ( ExplainOpt == true
+     -> explain:explain_plan_interactive(Proposal, ProofAVL, ModelAVL, Plan, TriggersAVL)
+     ;  explain:explain_plan(ExplainOpt, Proposal, ProofAVL, ModelAVL, Plan, TriggersAVL)
+     )
+  ;  message:warning('--explain requires LLM support. LLM modules are not loaded.')
+  ).
 
 
 % -----------------------------------------------------------------------------
