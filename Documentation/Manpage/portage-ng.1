@@ -476,6 +476,40 @@ at least one dependency (up to 20).
 Explore only the named USE flags.  Each flag is toggled
 from its current effective state.
 .RE
+.SS Plan explanation (requires LLM)
+.TP
+.B \-\-explain " " \fR[\fIQUESTION\fR]
+Ask questions about the build plan using a configured LLM service.
+Must be combined with
+.BR \-\-pretend .
+After the plan is printed, the question is sent to the LLM along with
+a comprehensive summary of the plan (packages, actions, USE flags,
+dependency chains, and assumptions).
+.PP
+.RS
+Two modes are supported:
+.TP
+.B Single\-shot
+Pass a question as argument:
+.B \-\-explain \(dqWhy is dev\-libs/openssl in the plan?\(dq
+.br
+Prints the answer and exits.
+.TP
+.B Conversational
+Pass
+.B \-\-explain
+without a question to enter an interactive prompt where follow\-up
+questions can be asked.  Type
+.B quit
+or
+.B exit
+to leave.
+.RE
+.PP
+Requires LLM modules to be loaded and a valid API key configured
+(see
+.BR config:llm_api_key/2 ).
+If LLM support is not available, a warning is printed instead.
 .SS Snapshot and rollback
 .TP
 .B \-\-snapshot " " \fR[\fIID\fR]
@@ -933,6 +967,22 @@ affects a plan:
 .RS
 .nf
 portage\-ng \-\-pretend \-\-variants wayland,X dev\-libs/gtk+
+.fi
+.RE
+.PP
+Ask why a package is in the plan:
+.PP
+.RS
+.nf
+portage\-ng \-\-pretend \-\-explain "Why is dev\-libs/openssl in the plan?" vim
+.fi
+.RE
+.PP
+Interactive plan explanation:
+.PP
+.RS
+.nf
+portage\-ng \-\-pretend \-\-explain @world
 .fi
 .RE
 .PP
