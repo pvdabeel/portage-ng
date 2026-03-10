@@ -18,9 +18,6 @@ version available in the local portage tree.
 
 :- module(upstream, []).
 
-:- use_module(library(http/http_open)).
-:- use_module(library(http/http_json)).
-
 % =============================================================================
 %  UPSTREAM declarations
 % =============================================================================
