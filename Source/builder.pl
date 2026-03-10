@@ -50,6 +50,7 @@ builder:build(Goals) :-
      !,
      fail
   ),
+  builder:maybe_create_snapshot(Plan),
   retractall(builder:resume_done(_, _)),
   builder:save_resume_state(Goals, Plan),
   plan:collect_plan_pre_actions(ProofAVL, PreActions),
@@ -66,6 +67,7 @@ builder:build(Goals) :-
   jobserver:init(NumWorkers, builder:execute_build_job),
   builder:execute_plan(Plan, StartStep, NumSteps, 0, 0, 0, Completed, Failed, Stubs),
   jobserver:shutdown(NumWorkers),
+  snapshot:finalize,
   ( Failed =:= 0
   -> builder:clear_resume_state
   ;  true
@@ -512,6 +514,7 @@ builder:execute_build_job(
   !,
   with_mutex(build_display,
     build:update_slot(LineOff, TotalLines, active, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry)),
+  builder:maybe_quickpkg_old(Action, Ctx),
   ( FileInfo = live_source(LiveStartLine)
   -> builder:run_git_download(Repo, Entry, LiveStartLine, TotalLines,
                                LineOff, PlanStep, NumSteps, ActionIdx, Action, Outcome),
@@ -1146,6 +1149,37 @@ builder:collect_skip_entries(Plan, SkipDone) :-
       sub_atom(Entry, _, _, _, Skip)
     ),
     SkipDone).
+
+
+% =============================================================================
+%  Snapshot integration
+% =============================================================================
+
+%! builder:maybe_create_snapshot(+Plan) is det.
+%
+% If --snapshot is active (snapshot:active_id/1 has been asserted by
+% interface dispatch), creates a snapshot before the build begins.
+
+builder:maybe_create_snapshot(Plan) :-
+  ( snapshot:active_id(Id)
+  -> snapshot:create(Id, Plan)
+  ;  true
+  ).
+
+
+%! builder:maybe_quickpkg_old(+Action, +Ctx) is det.
+%
+% When a snapshot is active and the action replaces an installed
+% package, quickpkg the old version before the merge phase overwrites it.
+
+builder:maybe_quickpkg_old(Action, Ctx) :-
+  snapshot:active_id(_),
+  memberchk(Action, [install, update, downgrade, reinstall]),
+  memberchk(replaces(OldRepo://OldEntry), Ctx),
+  !,
+  snapshot:quickpkg_old(OldRepo, OldEntry).
+
+builder:maybe_quickpkg_old(_, _).
 
 
 % =============================================================================

@@ -222,6 +222,12 @@ interface:spec(S) :-
        [opt(load),      type(boolean),   default(false),                          longflags(['load']),      help('Load knowledgebase (only relevant in client mode)')],
        [opt(version),   type(boolean),   default(false),       shortflags(['V']), longflags(['version']),   help('Show version')],
 
+       % snapshot and rollback
+
+       [opt(snapshot),  type(atom),      default(none),                           longflags(['snapshot']),  help('Create snapshot before merge (optional ID, auto-generated if omitted)')],
+       [opt(rollback),  type(atom),      default(none),                           longflags(['rollback']),  help('Rollback to a named snapshot')],
+       [opt(snapshots), type(boolean),   default(false),                          longflags(['snapshots']), help('List available snapshots')],
+
        % lifecycle management
 
        [opt(background),type(boolean),   default(false),                          longflags(['background']),help('Fork to background (daemon and server modes)')],
@@ -327,7 +333,8 @@ interface:process_flags:-
   ((lists:memberchk(jobs(J),       Options), J > 0) -> asserta(config:cli_jobs(J))              ; true),
   ((lists:memberchk(loadavg(L),    Options), L > 0.0) -> asserta(config:cli_load_average(L))    ; true),
   (lists:memberchk(color(n),       Options) -> retractall(config:color_output)                  ; true),
-  interface:process_repeated_flags.
+  interface:process_repeated_flags,
+  interface:process_snapshot_flag.
 
 
 %! interface:process_repeated_flags is det.
@@ -462,7 +469,10 @@ interface:process_requests(Mode) :-
 
   set_prolog_flag(toplevel_prompt,'~m~d~l?- '),
 
-  ( memberchk(version(true),Options)  -> (message:logo(['::- portage-ng ',Version]),
+  ( memberchk(snapshots(true),Options) -> (snapshot:list,                                           Continue) ;
+    memberchk(rollback(RollbackId),Options), RollbackId \== none
+                                       -> (interface:process_rollback(RollbackId, Options),          Continue) ;
+    memberchk(version(true),Options)  -> (message:logo(['::- portage-ng ',Version]),
                                          interface:print_version_repos,             Continue) ;
     memberchk(info(true),Options)     -> (interface:process_action(info,Args,Options),              Continue) ;
     memberchk(bugs(true),Options)     -> (interface:process_bugs(Args,Options),                     Continue) ;
@@ -974,6 +984,46 @@ interface:print_variant_results([variant_result(Spec, _Proof, _Model, Plan, _Tri
   plan:print_variant_diff(Diff),
   N1 is N + 1,
   interface:print_variant_results(Rest, BaseEntries, N1).
+
+
+% -----------------------------------------------------------------------------
+%  Action: SNAPSHOT (flag processing + rollback dispatch)
+% -----------------------------------------------------------------------------
+
+%! interface:process_snapshot_flag is det.
+%
+% Activates snapshot mode if --snapshot was passed or config:snapshot_enabled
+% is asserted. Generates an ID from timestamp if none provided.
+
+interface:process_snapshot_flag :-
+  interface:argv(Options, _),
+  ( memberchk(snapshot(SnapVal), Options), SnapVal \== none
+  -> ( SnapVal == true
+     -> snapshot:generate_id(Id)
+     ;  Id = SnapVal
+     ),
+     assertz(snapshot:active_id(Id))
+  ;  config:snapshot_enabled
+  -> snapshot:generate_id(Id),
+     assertz(snapshot:active_id(Id))
+  ;  true
+  ).
+
+
+%! interface:process_rollback(+Id, +Options) is det.
+%
+% Dispatches rollback: with --pretend shows diff, without executes
+% the actual rollback.
+
+interface:process_rollback(Id, Options) :-
+  ( memberchk(pretend(true), Options)
+  -> snapshot:diff(Id)
+  ;  snapshot:diff(Id),
+     nl,
+     format('Proceeding with rollback...~n'),
+     nl,
+     snapshot:rollback(Id)
+  ).
 
 
 % -----------------------------------------------------------------------------
