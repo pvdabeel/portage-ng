@@ -224,6 +224,28 @@ config:world_file(Filename) :-
 
 
 % -----------------------------------------------------------------------------
+%  Snapshots
+% -----------------------------------------------------------------------------
+
+%! config:snapshot_dir(-Dir)
+%
+% Returns the base directory for snapshots on the current host.
+
+config:snapshot_dir(Dir) :-
+  config:installation_dir(Base),
+  config:hostname(Hostname),
+  os:compose_path([Base, 'Source/Snapshots', Hostname], Dir).
+
+
+%! config:snapshot_enabled
+%
+% When asserted, --snapshot is automatically active for every merge.
+% Disabled by default. Enable in per-machine config files.
+
+:- dynamic config:snapshot_enabled/0.
+
+
+% -----------------------------------------------------------------------------
 %  System
 % -----------------------------------------------------------------------------
 

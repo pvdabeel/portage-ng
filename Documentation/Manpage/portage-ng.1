@@ -476,6 +476,34 @@ at least one dependency (up to 20).
 Explore only the named USE flags.  Each flag is toggled
 from its current effective state.
 .RE
+.SS Snapshot and rollback
+.TP
+.B \-\-snapshot " " \fR[\fIID\fR]
+Record a snapshot before the merge operation begins.  The snapshot
+captures the current VDB state (all installed packages), a copy of
+the world set, and creates binary packages (quickpkg) of every
+package that is about to be replaced.  If
+.I ID
+is provided, it is used as the snapshot name; otherwise a
+timestamp-based ID is generated automatically
+.RB ( YYYYMMDD-HHMMSS ).
+Disabled by default; can be permanently enabled via
+.B config:snapshot_enabled
+in the configuration.
+.TP
+.B \-\-rollback " " \fIID\fR
+Roll back to a previously created snapshot.  When combined with
+.BR \-\-pretend ,
+shows a diff of what changed since the snapshot without making
+changes.  Without
+.BR \-\-pretend ,
+reinstalls the saved binary packages and restores the world set
+from the snapshot.
+.TP
+.B \-\-snapshots
+List all available snapshots for the current host, showing the
+timestamp, number of packages recorded, and number of binary
+packages saved.
 .SS Output options
 .TP
 .BR \-A ", " \-\-alert
@@ -905,6 +933,46 @@ affects a plan:
 .RS
 .nf
 portage\-ng \-\-pretend \-\-variants wayland,X dev\-libs/gtk+
+.fi
+.RE
+.PP
+Merge vim with a snapshot (auto-generated ID):
+.PP
+.RS
+.nf
+portage\-ng \-\-snapshot vim
+.fi
+.RE
+.PP
+Merge with a named snapshot:
+.PP
+.RS
+.nf
+portage\-ng \-\-snapshot before\-kde\-update \-\-update @world
+.fi
+.RE
+.PP
+List available snapshots:
+.PP
+.RS
+.nf
+portage\-ng \-\-snapshots
+.fi
+.RE
+.PP
+Preview what a rollback would change:
+.PP
+.RS
+.nf
+portage\-ng \-\-pretend \-\-rollback 20260309\-143022
+.fi
+.RE
+.PP
+Execute a rollback:
+.PP
+.RS
+.nf
+portage\-ng \-\-rollback 20260309\-143022
 .fi
 .RE
 .PP
