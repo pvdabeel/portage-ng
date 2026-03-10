@@ -966,3 +966,51 @@ profile:collect_license_groups(Groups) :-
               Groups)
   ; Groups = []
   ).
+
+
+% =============================================================================
+%  VI. USE flag descriptions
+% =============================================================================
+
+:- dynamic profile:use_description/2.
+
+%! profile:load_use_descriptions is det.
+%
+% Loads USE flag descriptions from profiles/use.desc in the
+% portage tree. Each line has the format: flag - Description text.
+
+profile:load_use_descriptions :-
+  retractall(profile:use_description(_, _)),
+  ( catch(portage:get_location(Root), _, fail),
+    os:compose_path([Root, 'profiles', 'use.desc'], File),
+    exists_file(File) ->
+      catch(read_file_to_string(File, S, []), _, S = ""),
+      split_string(S, "\n", "\r\n", Lines),
+      forall(
+        member(Line, Lines),
+        ( profile:parse_use_desc_line(Line, Flag, Desc) ->
+          assertz(profile:use_description(Flag, Desc))
+        ; true
+        )
+      )
+  ; true
+  ).
+
+
+%! profile:parse_use_desc_line(+Line, -Flag, -Description) is semidet.
+%
+% Parses a use.desc line of the form "flag - Description text".
+
+profile:parse_use_desc_line(Line, Flag, Desc) :-
+  \+ sub_string(Line, 0, 1, _, "#"),
+  Line \== "",
+  ( sub_string(Line, Before, 3, _, " - ") ->
+    sub_string(Line, 0, Before, _, FlagStr),
+    After is Before + 3,
+    sub_string(Line, After, _, 0, DescStr),
+    normalize_space(string(FlagNorm), FlagStr),
+    FlagNorm \== "",
+    atom_string(Flag, FlagNorm),
+    atom_string(Desc, DescStr)
+  ; fail
+  ).
