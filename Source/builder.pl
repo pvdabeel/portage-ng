@@ -285,9 +285,22 @@ builder:execute_plan([Step|Rest], PlanStep, NumSteps, C0, F0, S0, C, F, S) :-
   ( HasJobs == true -> PlanStep1 is PlanStep + 1 ; PlanStep1 = PlanStep ),
   builder:flush_resume_done_to_disk,
   ( F1 > F0
-  -> builder:skip_remaining(Rest, PlanStep1, NumSteps, C1, F1, S1, C, F, S)
+  -> ( builder:should_continue_on_failure ->
+       builder:execute_plan(Rest, PlanStep1, NumSteps, C1, F1, S1, C, F, S)
+     ; builder:skip_remaining(Rest, PlanStep1, NumSteps, C1, F1, S1, C, F, S)
+     )
   ;  builder:execute_plan(Rest, PlanStep1, NumSteps, C1, F1, S1, C, F, S)
   ).
+
+
+%! builder:should_continue_on_failure is semidet.
+%
+% Succeeds when --continue-on-failure is set to a value other
+% than 'never'.
+
+builder:should_continue_on_failure :-
+  config:continue_on_failure(Mode),
+  Mode \== never.
 
 
 %! builder:skip_remaining(+Plan, +PlanStep, +NumSteps, +C0, +F0, +S0, -C, -F, -S) is det.

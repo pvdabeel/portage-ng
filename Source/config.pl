@@ -682,6 +682,15 @@ config:verbose(false).
 :- dynamic config:skip_atom/1.
 :- dynamic config:usepkg_exclude_atom/1.
 :- dynamic config:usepkg_include_atom/1.
+:- dynamic config:dep_favour/1.
+:- dynamic config:dep_avoid/1.
+:- dynamic config:dep_preset/1.
+:- dynamic config:dep_hide/1.
+:- dynamic config:dep_early/1.
+:- dynamic config:dep_late/1.
+:- dynamic config:continue_on_failure/1.
+:- dynamic config:show_use_descriptions/1.
+:- dynamic config:show_build_logs/1.
 
 config:color_output.
 

@@ -1576,7 +1576,8 @@ dep_rank(Context, package_dependency(Phase,Strength,C,N,O,V,S,U), Rank) :-
   installed_version_mismatch_penalty(package_dependency(Phase,Strength,C,N,O,V,S,U), BaseInst),
   ( is_preferred_dep(Context, package_dependency(Phase,Strength,C,N,O,V,S,U)) -> Pref = 1 ; Pref = 0 ),
   dep_intrinsic_rank(package_dependency(Phase,Strength,C,N,O,V,S,U), Base1),
-  Rank is Pref*1000000000 + Base0 + BaseInst + Base1,
+  dep_favour_avoid_bonus(C, N, FavAvoid),
+  Rank is Pref*1000000000 + Base0 + BaseInst + Base1 + FavAvoid,
   !.
 
 self_cn(Context, C, N) :-
@@ -1596,6 +1597,24 @@ dep_intrinsic_rank(package_dependency(_Phase,_Strength,_C,N,_O,_V,_S,_U), Rank) 
   ),
   !.
 dep_intrinsic_rank(_, 0).
+
+
+%! candidate:dep_favour_avoid_bonus(+Category, +Name, -Bonus) is det.
+%
+% Returns a large positive bonus for --favour'd packages and a large
+% negative penalty for --avoid'd packages in || dep resolution.
+
+dep_favour_avoid_bonus(C, N, Bonus) :-
+  atomic_list_concat([C, '/', N], CN),
+  ( config:dep_favour(CN) -> FavBonus = 500000000
+  ; config:dep_favour(N)  -> FavBonus = 500000000
+  ; FavBonus = 0
+  ),
+  ( config:dep_avoid(CN) -> AvoidPen = -500000000
+  ; config:dep_avoid(N)  -> AvoidPen = -500000000
+  ; AvoidPen = 0
+  ),
+  Bonus is FavBonus + AvoidPen.
 
 use_rank(Use, Rank) :-
   atom(Use),

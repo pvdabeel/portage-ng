@@ -204,6 +204,8 @@ load_standalone_modules :-
 
    ensure_loaded(portage('Source/kahn.pl')),
    ensure_loaded(portage('Source/depclean.pl')),
+   ensure_loaded(portage('Source/linkage.pl')),
+   ensure_loaded(portage('Source/report.pl')),
 
    ensure_loaded(library('http/http_open')),
    ensure_loaded(library('http/http_json')),

@@ -596,6 +596,10 @@ preference:init :-
   ; catch(preference:load_license_groups, _, true)
   ),
   catch(preference:init_accept_license, _, true),
+
+  % 6. Load USE flag descriptions (for --show-descriptions).
+
+  catch(profile:load_use_descriptions, _, true),
   !.
 
 

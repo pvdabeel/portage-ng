@@ -233,6 +233,74 @@ Load the knowledge base from disk (client mode).
 .B \-\-shell
 Start an interactive Prolog shell with the full portage\-ng
 environment loaded.
+.SS "VDB queries"
+.TP
+.B \-\-contents
+List the files installed by one or more packages.
+Reads the VDB CONTENTS file for each matching installed package
+and prints all tracked files, directories, and symlinks.
+Equivalent to Paludis
+.BR "cave contents" .
+.TP
+.B \-\-owner
+Find which installed package owns a given file.
+Accepts full paths (e.g.\&
+.IR /usr/bin/python )
+or basenames (e.g.\&
+.IR python ).
+Equivalent to Paludis
+.BR "cave owner" .
+.TP
+.B \-\-size
+Show the total disk space consumed by an installed package's files.
+Equivalent to Paludis
+.BR "cave size" .
+.TP
+.B \-\-verify
+Verify that an installed package's files have not been modified
+since installation.
+Compares current file checksums against the MD5 hashes recorded
+in the VDB CONTENTS file.  Reports modified and missing files.
+Equivalent to Paludis
+.BR "cave verify" .
+.TP
+.B \-\-executables
+List executables (binaries in PATH directories) provided by an
+installed package.
+Equivalent to Paludis
+.BR "cave executables" .
+.SS "Maintenance"
+.TP
+.B \-\-fix\-linkage
+Scan installed packages for broken shared library linkage.
+Uses
+.BR ldd (1)
+on Linux or
+.BR otool (1)
+on macOS to detect missing shared library references.
+Lists packages that need rebuilding.
+Equivalent to Paludis
+.BR "cave fix\-linkage" .
+.TP
+.B \-\-report
+Display a summary of potential problems with installed packages.
+Checks for packages removed from the portage tree, masked
+packages, and available updates.
+Equivalent to Paludis
+.BR "cave report" .
+.TP
+.B \-\-rdeps
+Show reverse dependencies: packages whose dependency trees
+reference the given target.
+Equivalent to Paludis
+.BR "cave print\-dependent\-ids" .
+.TP
+.B \-\-unused\-distfiles
+List distfiles in the local distfiles directory that are not
+referenced by any installed package.
+Useful for disk space cleanup.
+Equivalent to Paludis
+.BR "cave print\-unused\-distfiles" .
 .\"
 .SH OPTIONS
 .SS Dependency resolution options
@@ -575,6 +643,119 @@ from the snapshot.
 List all available snapshots for the current host, showing the
 timestamp, number of packages recorded, and number of binary
 packages saved.
+.SS Resolver hints
+.TP
+.B \-\-favour " " \fIATOM\fR
+When resolving
+.B ||
+(any\-of) dependencies, favour the specified package.
+The resolver assigns a large positive score to the favoured
+alternative, making it the preferred choice.
+May be specified multiple times.
+Equivalent to Paludis
+.BR "cave resolve \-\-favour" .
+.TP
+.B \-\-avoid " " \fIATOM\fR
+When resolving
+.B ||
+(any\-of) dependencies, avoid the specified package.
+The resolver assigns a large negative score to the avoided
+alternative.
+May be specified multiple times.
+Equivalent to Paludis
+.BR "cave resolve \-\-avoid" .
+.TP
+.B \-\-permit\-downgrade
+Allow the resolver to select older package versions when
+appropriate, instead of always preferring the newest.
+Equivalent to Paludis
+.BR "cave resolve \-\-permit\-downgrade" .
+.TP
+.B \-\-preset " " \fISPEC\fR
+Pin a specific version during resolution.
+For example,
+.BR "\-\-preset =dev\-libs/boost\-1.84.0"
+tells the resolver to use that particular version.
+May be specified multiple times.
+Equivalent to Paludis
+.BR "cave resolve \-\-preset" .
+.TP
+.B \-\-hide " " \fISPEC\fR
+Pretend that packages matching the specification do not exist
+during resolution.
+For example,
+.BR "\-\-hide dev\-libs/libressl"
+excludes libressl from consideration.
+May be specified multiple times.
+Equivalent to Paludis
+.BR "cave resolve \-\-hide" .
+.TP
+.B \-\-early " " \fISPEC\fR
+When ordering the build plan, schedule packages matching the
+specification earlier.
+Useful for getting toolchains built first.
+May be specified multiple times.
+Equivalent to Paludis
+.BR "cave resolve \-\-early" .
+.TP
+.B \-\-late " " \fISPEC\fR
+When ordering the build plan, schedule packages matching the
+specification later.
+May be specified multiple times.
+Equivalent to Paludis
+.BR "cave resolve \-\-late" .
+.TP
+.B \-\-show\-descriptions " " \fIMODE\fR
+Control whether USE flag descriptions are shown in pretend output.
+.I MODE
+is one of:
+.BR none " (default), " new " (only for new/changed flags), or " all .
+Descriptions are sourced from the portage tree's
+.I profiles/use.desc
+file.
+Equivalent to Paludis
+.BR "cave resolve \-\-show\-option\-descriptions" .
+.TP
+.B \-\-continue\-on\-failure " " \fIMODE\fR
+Control whether the builder continues after a build failure.
+.I MODE
+is one of:
+.RS
+.TP
+.B never
+Stop on first failure (default).
+.TP
+.B if\-satisfied
+Continue if remaining packages' dependencies are satisfied.
+.TP
+.B if\-independent
+Continue if remaining packages do not depend on the failed package.
+.TP
+.B always
+Always continue (dangerous).
+.RE
+.IP
+Equivalent to Paludis
+.BR "cave resolve \-\-continue\-on\-failure" .
+.SS "Convenience presets"
+.TP
+.B \-\-lazy
+Minimal work.  Shorthand for
+.BR "\-\-noreplace \-\-nodeps" .
+Equivalent to Paludis
+.BR "cave resolve \-\-lazy" .
+.TP
+.B \-\-complete
+Full update.  Shorthand for
+.BR "\-\-deep \-\-newuse \-\-with\-bdeps y" .
+Equivalent to Paludis
+.BR "cave resolve \-\-complete" .
+.TP
+.B \-\-everything
+Reinstall everything.  Shorthand for
+.BR "\-\-emptytree \-\-deep" .
+Equivalent to Paludis
+.BR "cave resolve \-\-everything" .
 .SS Output options
 .TP
 .BR \-A ", " \-\-alert

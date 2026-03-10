@@ -237,6 +237,39 @@ interface:spec(S) :-
 
        [opt(upstream),  type(boolean),   default(false),                          longflags(['upstream']),  help('Check upstream for newer package versions')],
 
+       % VDB queries (Paludis cave-style)
+
+       [opt(contents),    type(boolean), default(false),                          longflags(['contents']),    help('List files installed by a package')],
+       [opt(owner),       type(boolean), default(false),                          longflags(['owner']),       help('Find which package owns a file')],
+       [opt(pkgsize),     type(boolean), default(false),                          longflags(['size']),        help('Show disk space used by an installed package')],
+       [opt(verify),      type(boolean), default(false),                          longflags(['verify']),      help('Verify installed package files against recorded checksums')],
+       [opt(executables), type(boolean), default(false),                          longflags(['executables']), help('Show executables provided by a package')],
+
+       % maintenance
+
+       [opt(fixlinkage),  type(boolean), default(false),                          longflags(['fix-linkage']), help('Rebuild packages with broken shared library linkage')],
+       [opt(report),      type(boolean), default(false),                          longflags(['report']),      help('Report problems with installed packages')],
+       [opt(rdeps),       type(boolean), default(false),                          longflags(['rdeps']),       help('Show reverse dependencies of a package')],
+       [opt(unuseddistfiles), type(boolean), default(false),                      longflags(['unused-distfiles']), help('List distfiles not used by any installed package')],
+
+       % resolver hints
+
+       [opt(continuefailure), type(atom), default(never),                         longflags(['continue-on-failure']), help('Continue after build failure: never, if-satisfied, if-independent, always')],
+       [opt(favour),      type(atom),    default(''),                             longflags(['favour']),      help('Favour package in || dep choices (repeatable)')],
+       [opt(avoid),       type(atom),    default(''),                             longflags(['avoid']),       help('Avoid package in || dep choices (repeatable)')],
+       [opt(showdescriptions), type(atom), default(none),                         longflags(['show-descriptions']), help('Show USE flag descriptions: none, new, all')],
+       [opt(permitdowngrade), type(boolean), default(false),                      longflags(['permit-downgrade']), help('Allow the resolver to pick older package versions')],
+       [opt(presetpkg),   type(atom),    default(''),                             longflags(['preset']),      help('Pin a specific version: --preset =cat/pkg-ver (repeatable)')],
+       [opt(hidepkg),     type(atom),    default(''),                             longflags(['hide']),        help('Exclude packages/repos from resolution (repeatable)')],
+       [opt(earlypkg),    type(atom),    default(''),                             longflags(['early']),       help('Order matching packages earlier in the plan (repeatable)')],
+       [opt(latepkg),     type(atom),    default(''),                             longflags(['late']),        help('Order matching packages later in the plan (repeatable)')],
+
+       % convenience presets
+
+       [opt(lazy),        type(boolean), default(false),                          longflags(['lazy']),        help('Minimal work: skip installed, no deep deps')],
+       [opt(complete),    type(boolean), default(false),                          longflags(['complete']),    help('Full update: deep, newuse, follow build deps')],
+       [opt(everything),  type(boolean), default(false),                          longflags(['everything']),  help('Reinstall everything: emptytree + deep')],
+
        % lifecycle management
 
        [opt(background),type(boolean),   default(false),                          longflags(['background']),help('Fork to background (daemon and server modes)')],
@@ -341,7 +374,23 @@ interface:process_flags:-
   (lists:memberchk(style(Style),    Options) -> asserta(config:interface_printing_style(Style)) ; true),
   ((lists:memberchk(jobs(J),       Options), J > 0) -> asserta(config:cli_jobs(J))              ; true),
   ((lists:memberchk(loadavg(L),    Options), L > 0.0) -> asserta(config:cli_load_average(L))    ; true),
+  (lists:memberchk(permitdowngrade(true),Options)->asserta(preference:local_flag(permitdowngrade));true),
   (lists:memberchk(color(n),       Options) -> retractall(config:color_output)                  ; true),
+  (lists:memberchk(showdescriptions(SD),Options), SD \== none
+                                           -> asserta(config:show_use_descriptions(SD))         ; true),
+  (lists:memberchk(continuefailure(CF),Options), CF \== never
+                                           -> asserta(config:continue_on_failure(CF))            ; true),
+  % convenience presets
+  (lists:memberchk(lazy(true), Options) ->
+    asserta(preference:local_flag(noreplace)),
+    asserta(preference:local_flag(nodeps)) ; true),
+  (lists:memberchk(complete(true), Options) ->
+    asserta(preference:local_flag(deep)),
+    asserta(preference:local_flag(newuse)),
+    retractall(preference:local_flag(nobdeps)) ; true),
+  (lists:memberchk(everything(true), Options) ->
+    asserta(preference:local_flag(emptytree)),
+    asserta(preference:local_flag(deep)) ; true),
   interface:process_repeated_flags,
   interface:process_snapshot_flag.
 
@@ -361,7 +410,19 @@ interface:process_repeated_flags :-
   interface:collect_flag_values(RawArgs, '--usepkg-exclude', UExcl),
   forall(member(U, UExcl), asserta(config:usepkg_exclude_atom(U))),
   interface:collect_flag_values(RawArgs, '--usepkg-include', UIncl),
-  forall(member(I, UIncl), asserta(config:usepkg_include_atom(I))).
+  forall(member(I, UIncl), asserta(config:usepkg_include_atom(I))),
+  interface:collect_flag_values(RawArgs, '--favour', Favours),
+  forall(member(Fv, Favours), asserta(config:dep_favour(Fv))),
+  interface:collect_flag_values(RawArgs, '--avoid', Avoids),
+  forall(member(Av, Avoids), asserta(config:dep_avoid(Av))),
+  interface:collect_flag_values(RawArgs, '--preset', Presets),
+  forall(member(Pr, Presets), asserta(config:dep_preset(Pr))),
+  interface:collect_flag_values(RawArgs, '--hide', Hides),
+  forall(member(Hi, Hides), asserta(config:dep_hide(Hi))),
+  interface:collect_flag_values(RawArgs, '--early', Earlys),
+  forall(member(Ea, Earlys), asserta(config:dep_early(Ea))),
+  interface:collect_flag_values(RawArgs, '--late', Lates),
+  forall(member(La, Lates), asserta(config:dep_late(La))).
 
 
 %! interface:collect_flag_values(+ArgList, +Flag, -Values) is det.
@@ -508,6 +569,15 @@ interface:process_requests(Mode) :-
     memberchk(resume(true),Options)  -> (interface:assert_resume_skip_args(Args),
                                          builder:build_resume,                                     Continue) ;
     memberchk(build(true),Options)   -> (interface:process_build(Args,Options),                    Continue) ;
+    memberchk(contents(true),Options) -> (interface:process_vdb_query(contents,Args),              Continue) ;
+    memberchk(owner(true),Options)   -> (interface:process_vdb_query(owner,Args),                 Continue) ;
+    memberchk(pkgsize(true),Options) -> (interface:process_vdb_query(size,Args),                  Continue) ;
+    memberchk(verify(true),Options)  -> (interface:process_vdb_query(verify,Args),                Continue) ;
+    memberchk(executables(true),Options) -> (interface:process_vdb_query(executables,Args),       Continue) ;
+    memberchk(fixlinkage(true),Options) -> (interface:process_fix_linkage(Args,Options),          Continue) ;
+    memberchk(report(true),Options)  -> (interface:process_report(Options),                       Continue) ;
+    memberchk(rdeps(true),Options)   -> (interface:process_rdeps(Args),                           Continue) ;
+    memberchk(unuseddistfiles(true),Options) -> (interface:process_unused_distfiles(Options),     Continue) ;
     memberchk(upstream(true),Options) -> (interface:process_upstream(Args,Options),                 Continue) ;
     interface:extract_llm_opt(Options, LlmOpt)
                                       -> (interface:process_llm_chat(LlmOpt),                      Continue) ;
@@ -1250,6 +1320,158 @@ interface:execute_world_actions_step([Rule|Rest]) :-
   ; true
   ),
   interface:execute_world_actions_step(Rest).
+
+
+% -----------------------------------------------------------------------------
+%  Action: VDB queries (contents, owner, size, verify, executables)
+% -----------------------------------------------------------------------------
+
+%! interface:process_vdb_query(+QueryType, +Args) is det.
+%
+% Dispatches VDB query commands. For --owner, Args are file paths;
+% for all others, Args are package targets.
+
+interface:process_vdb_query(_, []) :-
+  !, message:failure('No targets specified.').
+
+interface:process_vdb_query(owner, Args) :-
+  !,
+  forall(member(Arg, Args),
+    ( message:header(['Packages owning ', Arg]),
+      nl,
+      vdb:print_owner(Arg)
+    )).
+
+interface:process_vdb_query(QueryType, Args) :-
+  forall(member(Arg, Args),
+    ( vdb:resolve_vdb_entries(Arg, Entries),
+      ( Entries == [] ->
+        message:warning(['Not installed: ', Arg])
+      ; forall(member(Entry, Entries),
+          interface:run_vdb_query(QueryType, Entry))
+      )
+    )).
+
+
+%! interface:run_vdb_query(+QueryType, +Entry) is det.
+
+interface:run_vdb_query(contents, Entry) :-
+  message:header(['Contents of ', Entry]),
+  nl,
+  vdb:print_contents(Entry).
+
+interface:run_vdb_query(size, Entry) :-
+  vdb:print_size(Entry).
+
+interface:run_vdb_query(verify, Entry) :-
+  vdb:verify_package(Entry).
+
+interface:run_vdb_query(executables, Entry) :-
+  message:header(['Executables from ', Entry]),
+  nl,
+  vdb:print_executables(Entry).
+
+
+% -----------------------------------------------------------------------------
+%  Action: FIX-LINKAGE
+% -----------------------------------------------------------------------------
+
+%! interface:process_fix_linkage(+Args, +Options) is det.
+%
+% Scans installed packages for broken shared library linkage and
+% outputs packages that need rebuilding.
+
+interface:process_fix_linkage(_Args, _Options) :-
+  ( predicate_property(linkage:check(_), defined) ->
+    linkage:check(Results),
+    ( Results == [] ->
+      message:inform('No broken linkage detected.')
+    ; message:header(['Packages with broken linkage']),
+      nl,
+      forall(member(Entry-Libs, Results),
+        ( format('  ~w~n', [Entry]),
+          forall(member(Lib, Libs),
+            format('    broken: ~w~n', [Lib]))
+        )),
+      nl,
+      length(Results, N),
+      format('~w package(s) need rebuilding.~n', [N])
+    )
+  ; message:warning('Linkage checking module not loaded.')
+  ).
+
+
+% -----------------------------------------------------------------------------
+%  Action: REPORT
+% -----------------------------------------------------------------------------
+
+%! interface:process_report(+Options) is det.
+%
+% Displays a summary of potential problems with installed packages.
+
+interface:process_report(_Options) :-
+  ( predicate_property(report:check(_), defined) ->
+    report:check(Results),
+    report:print_results(Results)
+  ; message:warning('Report module not loaded.')
+  ).
+
+
+% -----------------------------------------------------------------------------
+%  Action: REVERSE DEPENDENCIES
+% -----------------------------------------------------------------------------
+
+%! interface:process_rdeps(+Args) is det.
+%
+% Shows which packages depend on the given targets.
+
+interface:process_rdeps([]) :-
+  !, message:failure('No targets specified.').
+
+interface:process_rdeps(Args) :-
+  forall(member(Arg, Args),
+    ( atom_codes(Arg, Codes),
+      ( phrase(eapi:qualified_target(Q), Codes),
+        once(kb:query(Q, _Repo://Entry))
+      -> query:search([category(Cat), name(Name)], _://Entry),
+         message:header(['Reverse dependencies of ', Cat, '/', Name]),
+         nl,
+         vdb:reverse_deps(Cat, Name, RevDeps),
+         ( RevDeps == [] ->
+           format('  (none found)~n')
+         ; length(RevDeps, Count),
+           forall(member(RD, RevDeps), format('  ~w~n', [RD])),
+           nl,
+           format('~w reverse dependency(ies) found.~n', [Count])
+         )
+      ; message:warning(['Package not found: ', Arg])
+      )
+    )).
+
+
+% -----------------------------------------------------------------------------
+%  Action: UNUSED DISTFILES
+% -----------------------------------------------------------------------------
+
+%! interface:process_unused_distfiles(+Options) is det.
+%
+% Lists distfiles not referenced by any installed package.
+
+interface:process_unused_distfiles(_Options) :-
+  ( predicate_property(distfiles:orphans(_,_), defined) ->
+    distfiles:get_location(DistDir),
+    message:header(['Unused distfiles in ', DistDir]),
+    nl,
+    distfiles:orphans(portage, Orphans),
+    ( Orphans == [] ->
+      message:inform('No unused distfiles found.')
+    ; length(Orphans, Count),
+      forall(member(F, Orphans), format('  ~w~n', [F])),
+      nl,
+      format('~w unused distfile(s).~n', [Count])
+    )
+  ; message:warning('Distfiles module not available.')
+  ).
 
 
 % -----------------------------------------------------------------------------

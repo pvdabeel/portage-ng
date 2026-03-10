@@ -1304,7 +1304,8 @@ plan:print_config_item_aligned('use', List, Assumed) :-
         plan:print_flags_unwrapped(AllFlags)
       )
   ),
-  message:print('"').
+  message:print('"'),
+  plan:maybe_print_use_descriptions(AllFlags).
 
 
 plan:print_config_item_aligned('slot', Slot, _) :-
@@ -1747,6 +1748,50 @@ plan:print_use_flag(negative:default, Flag, _Assumed) :-
   message:print('-'),
   message:print(Flag),
   message:color(normal).
+
+
+%! plan:maybe_print_use_descriptions(+AllFlags) is det.
+%
+% When --show-descriptions is active, prints a compact description
+% block below the USE flag line.
+
+plan:maybe_print_use_descriptions(AllFlags) :-
+  ( config:show_use_descriptions(Mode) ->
+    include(plan:flag_has_description(Mode), AllFlags, Described),
+    ( Described \== [] ->
+      nl,
+      forall(member(flag(_, Flag, _), Described),
+        ( profile:use_description(Flag, Desc) ->
+          format('             │   '),
+          message:color(darkgray),
+          format('~w: ~w', [Flag, Desc]),
+          message:color(normal),
+          nl
+        ; true
+        ))
+    ; true
+    )
+  ; true
+  ).
+
+
+%! plan:flag_has_description(+Mode, +FlagTerm) is semidet.
+%
+% Filter for which flags to show descriptions. Mode is 'all'
+% or 'new' (only flags from positive:ebuild or negative:ebuild).
+
+plan:flag_has_description(all, flag(_, Flag, _)) :-
+  profile:use_description(Flag, _).
+plan:flag_has_description(new, flag(positive:ebuild, Flag, _)) :-
+  profile:use_description(Flag, _).
+plan:flag_has_description(new, flag(negative:ebuild, Flag, _)) :-
+  profile:use_description(Flag, _).
+plan:flag_has_description(new, flag(negative:default, Flag, _)) :-
+  profile:use_description(Flag, _).
+plan:flag_has_description(changed, flag(positive:ebuild, Flag, _)) :-
+  profile:use_description(Flag, _).
+plan:flag_has_description(changed, flag(negative:ebuild, Flag, _)) :-
+  profile:use_description(Flag, _).
 
 
 %! plan:check_assumptions(+Model)
