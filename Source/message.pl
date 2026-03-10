@@ -85,6 +85,7 @@ message:color(_).
 message:bgcolor(_).
 message:bubble(_,_).
 message:style(_).
+message:bell.
 message:el.
 message:hc.
 message:sc.
@@ -174,6 +175,7 @@ user:goal_expansion(style(blink),          (config:color_output -> ansi_term:kee
 %  Goal expansion: Cursor
 % -----------------------------------------------------------------------------
 
+user:goal_expansion(bell,                   (format("\a",[]),flush_output)).
 user:goal_expansion(el,                    format("\e[K",[])).
 user:goal_expansion(hc,                    ansi_term:keep_line_pos(current_output,format("\e[?25l",[]))).
 user:goal_expansion(sc,                    ansi_term:keep_line_pos(current_output,format("\e[?25h",[]))).

@@ -73,8 +73,7 @@ builder:build(Goals) :-
 
 builder:alert :-
   ( preference:flag(alert)
-  -> format("\a", []),
-     flush_output
+  -> message:bell
   ;  true
   ).
 
@@ -86,7 +85,11 @@ builder:alert :-
 
 builder:ask_confirmation :-
   ( preference:flag(ask)
-  -> builder:alert,
+  -> ( preference:flag(readnews)
+     -> catch(news:check, _, true), nl
+     ;  true
+     ),
+     builder:alert,
      nl,
      message:print('Would you like to merge these packages? [Yes/No] '),
      flush_output,
