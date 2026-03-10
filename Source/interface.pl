@@ -136,7 +136,8 @@ interface:spec(S) :-
        [opt(rebuildnewslot),type(boolean),default(false),                         longflags(['rebuild-if-new-slot']),help('Rebuild packages when slot operator deps change')],
        [opt(rebuildunbuilt),type(boolean),default(false),                         longflags(['rebuild-if-unbuilt']),help('Rebuild deps that have been rebuilt from source')],
        [opt(updateifinstalled),type(boolean),default(false),                      longflags(['update-if-installed']),help('Like --update but only for already-installed packages')],
-       [opt(exclude),   type(atom),      default(''),                             longflags(['exclude']),   help('Exclude atoms from merge (comma-separated)')],
+       [opt(exclude),   type(atom),      default(''),                             longflags(['exclude']),   help('Exclude atoms from merge (repeatable)')],
+       [opt(skip),      type(atom),      default(''),                             longflags(['skip']),     help('Skip packages during --resume (repeatable)')],
        [opt(oneshot),   type(boolean),   default(false),       shortflags(['1']), longflags(['oneshot']),   help('Do not add package to world')],
        [opt(prefix),    type(atom),      default('/'),                            longflags(['prefix']),    help('Set the prefix directory')],
        [opt(style),     type(atom),      default('fancy'),                        longflags(['style']),     help('Set the printing style: fancy, column or short')],
@@ -259,18 +260,36 @@ interface:process_flags:-
   ((lists:memberchk(jobs(J),       Options), J > 0) -> asserta(config:cli_jobs(J))              ; true),
   ((lists:memberchk(loadavg(L),    Options), L > 0.0) -> asserta(config:cli_load_average(L))    ; true),
   (lists:memberchk(color(n),       Options) -> retractall(config:color_output)                  ; true),
-  (lists:memberchk(exclude(E),    Options), E \== '' -> interface:parse_exclude_atoms(E)        ; true).
+  interface:process_repeated_flags.
 
 
-%! interface:parse_exclude_atoms(+CommaList) is det.
+%! interface:process_repeated_flags is det.
 %
-% Parses a comma-separated list of atoms and asserts each as
-% config:excluded_atom/1 for the resolver to skip.
+% Scans the raw argv for repeated --skip and --exclude flags and
+% asserts each value. This bypasses optparse's keeplast behaviour,
+% allowing --skip pkg1 --skip pkg2 without shell quoting.
 
-interface:parse_exclude_atoms(CommaList) :-
-  atomic_list_concat(Atoms, ',', CommaList),
-  forall(member(A, Atoms),
-    ( A \== '' -> asserta(config:excluded_atom(A)) ; true )).
+interface:process_repeated_flags :-
+  current_prolog_flag(argv, RawArgs),
+  interface:collect_flag_values(RawArgs, '--skip', Skips),
+  forall(member(S, Skips), asserta(config:skip_atom(S))),
+  interface:collect_flag_values(RawArgs, '--exclude', Excludes),
+  forall(member(E, Excludes), asserta(config:excluded_atom(E))).
+
+
+%! interface:collect_flag_values(+ArgList, +Flag, -Values) is det.
+%
+% Walks the argument list and collects the value following each
+% occurrence of Flag.
+
+interface:collect_flag_values([], _, []).
+
+interface:collect_flag_values([Flag, Value|Rest], Flag, [Value|More]) :-
+  !,
+  interface:collect_flag_values(Rest, Flag, More).
+
+interface:collect_flag_values([_|Rest], Flag, Values) :-
+  interface:collect_flag_values(Rest, Flag, Values).
 
 
 %! interface:process_mode(-Mode) is det.
@@ -395,7 +414,8 @@ interface:process_requests(Mode) :-
     memberchk(save(true),Options)     -> (kb:save,!, 						    Continue) ;
     memberchk(load(true),Options)     -> (kb:load,!, 						    Continue) ;
     memberchk(fetchonly(true),Options)-> (interface:process_action(fetchonly,Args,Options),         Continue) ;
-    memberchk(resume(true),Options)  -> (builder:build_resume,                                     Continue) ;
+    memberchk(resume(true),Options)  -> (interface:assert_resume_skip_args(Args),
+                                         builder:build_resume,                                     Continue) ;
     memberchk(build(true),Options)   -> (interface:process_build(Args,Options),                    Continue) ;
     memberchk(merge(true),Options)    -> (interface:process_action(run,Args,Options),               Continue) ;
     memberchk(shell(true),Options)    -> (message:logo(['::- portage-ng shell - ',Version]),	    prolog)),
@@ -763,6 +783,22 @@ interface:process_action(Action,ArgsSets,Options) :-
         ; true
         )
     )).
+
+
+% -----------------------------------------------------------------------------
+%  Action: RESUME (skip args helper)
+% -----------------------------------------------------------------------------
+
+%! interface:assert_resume_skip_args(+Args) is det.
+%
+% Asserts each positional argument as a config:skip_atom/1 fact.
+% When --resume is active, positional args name packages to skip.
+
+interface:assert_resume_skip_args([]).
+
+interface:assert_resume_skip_args([A|Rest]) :-
+  asserta(config:skip_atom(A)),
+  interface:assert_resume_skip_args(Rest).
 
 
 % -----------------------------------------------------------------------------

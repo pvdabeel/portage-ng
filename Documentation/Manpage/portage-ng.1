@@ -116,6 +116,29 @@ state is kept for another
 .B \-\-resume
 attempt.
 .TP
+.B \-\-skip " " \fIPACKAGE\fR
+Used with
+.BR \-\-resume .
+Skip the named package instead of re-executing it.
+The flag is repeatable: use
+.B \-\-skip
+once per package.  Additionally, when
+.B \-\-resume
+is active, positional arguments are interpreted as packages to skip,
+so bare names after all flags work too.  This is more flexible than
+Portage's
+.BR \-\-skipfirst :
+instead of always skipping the first failed package, the user names
+exactly which packages to skip.
+.RS
+.PP
+Examples (all equivalent):
+.nf
+\-\-resume \-\-skip dev\-lang/python\-3.12.0 \-\-skip sys\-apps/portage\-2.3.99
+\-\-resume dev\-lang/python\-3.12.0 sys\-apps/portage\-2.3.99
+.fi
+.RE
+.TP
 .BR \-f ", " \-\-fetchonly
 Only download source archives (distfiles) without building.
 .SS Package management
@@ -284,10 +307,12 @@ Like
 but only consider packages that are already installed.
 New dependencies that are not yet installed are skipped.
 .TP
-.B \-\-exclude " " \fIATOMS\fR
-Exclude the given atoms (comma-separated) from the merge operation.
-Matching packages will be silently skipped during dependency
-resolution.
+.B \-\-exclude " " \fIATOM\fR
+Exclude the given atom from the merge operation.  Matching packages
+will be silently skipped during dependency resolution.
+The flag is repeatable: use
+.B \-\-exclude
+once per atom.
 .TP
 .BR \-1 ", " \-\-oneshot
 Do not add the target packages to the world set.
@@ -564,6 +589,22 @@ Resume a previously interrupted build:
 .RS
 .nf
 portage\-ng \-\-mode standalone \-\-resume
+.fi
+.RE
+.PP
+Resume, skipping two packages:
+.PP
+.RS
+.nf
+portage\-ng \-\-mode standalone \-\-resume \-\-skip dev\-lang/python\-3.12.0 \-\-skip sys\-apps/portage\-2.3.99
+.fi
+.RE
+.PP
+Same, using positional arguments:
+.PP
+.RS
+.nf
+portage\-ng \-\-mode standalone \-\-resume dev\-lang/python\-3.12.0 sys\-apps/portage\-2.3.99
 .fi
 .RE
 .PP
