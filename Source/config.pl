@@ -664,6 +664,25 @@ config:verbose(false).
 config:color_output.
 
 
+%! config:output_tty is semidet.
+%
+% Succeeds when stdout is a real TTY (not piped/redirected).
+% Used to decide between in-place ANSI slot updates and
+% sequential log-style output.
+
+:- dynamic config:output_tty_cached/1.
+
+config:output_tty :-
+  ( config:output_tty_cached(Val)
+  -> Val == true
+  ; ( stream_property(user_output, tty(true))
+    -> asserta(config:output_tty_cached(true))
+    ;  asserta(config:output_tty_cached(false)),
+       fail
+    )
+  ).
+
+
 % Interface can dynamically set the printing style
 
 :- dynamic config:interface_printing_style/1.

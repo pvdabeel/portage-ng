@@ -29,6 +29,10 @@ the display side of builder execution, while builder.pl handles orchestration.
 %! build:right_edge_ok is det.
 %
 % Print a green checkmark at the right edge of the terminal (1 space in).
+% No-op when stdout is not a TTY.
+
+build:right_edge_ok :-
+  \+ config:output_tty, !.
 
 build:right_edge_ok :-
   message:el,
@@ -43,6 +47,10 @@ build:right_edge_ok :-
 %! build:right_edge_fail is det.
 %
 % Print a red bold exclamation at the right edge of the terminal.
+% No-op when stdout is not a TTY.
+
+build:right_edge_fail :-
+  \+ config:output_tty, !.
 
 build:right_edge_fail :-
   message:el,
@@ -59,6 +67,9 @@ build:right_edge_fail :-
 %! build:right_edge_spinner(+Tick) is det.
 %
 % Print a gray spinner at the right edge using the quarter-circle style.
+
+build:right_edge_spinner(_Tick) :-
+  \+ config:output_tty, !.
 
 build:right_edge_spinner(Tick) :-
   message:el,
@@ -223,6 +234,12 @@ build:print_skipped_phases([Phase|Rest]) :-
 %
 % Update a specific slot line in-place using ANSI cursor movement.
 % Must be called inside with_mutex(build_display, ...).
+% When stdout is not a TTY, prints a log line instead.
+
+build:update_slot(_Slot, _NumSlots, Status, PlanStep, NumSteps, ActionIdx, Action, RepoEntry) :-
+  \+ config:output_tty,
+  !,
+  build:log_slot(Status, PlanStep, NumSteps, ActionIdx, Action, RepoEntry).
 
 build:update_slot(Slot, NumSlots, Status, PlanStep, NumSteps, ActionIdx, Action, RepoEntry) :-
   LinesUp is NumSlots - Slot,
@@ -298,6 +315,46 @@ build:render_slot(stub, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
   message:color(darkgray),
   message:print(' (stub)'),
   message:color(normal).
+
+
+% -----------------------------------------------------------------------------
+%  Log-style slot output (non-TTY)
+% -----------------------------------------------------------------------------
+
+%! build:log_slot(+Status, +PlanStep, +NumSteps, +ActionIdx, +Action, +RepoEntry) is det.
+%
+% Prints a single log line for a status transition. Only logs
+% final states (done, failed, skipped, stub) to avoid flooding.
+% Active/pending transitions are suppressed in pipe mode.
+
+build:log_slot(active, _, _, _, _, _) :- !.
+build:log_slot(pending, _, _, _, _, _) :- !.
+
+build:log_slot(Status, PlanStep, _NumSteps, _ActionIdx, Action, RepoEntry) :-
+  build:status_label(Status, Label),
+  message:color(normal),
+  format('[step ~0f] ', [PlanStep]),
+  message:print(Label),
+  message:print(' '),
+  message:print(Action),
+  message:print(' '),
+  message:print(RepoEntry),
+  nl,
+  flush_output.
+
+
+%! build:status_label(+Status, -Label) is det.
+%
+% Maps a slot status to a human-readable label for log output.
+
+build:status_label(done,            'OK  ').
+build:status_label(failed(Reason),  Label) :-
+  format(atom(Label), 'FAIL (~w)', [Reason]).
+build:status_label(failed,          'FAIL').
+build:status_label(skipped,         'SKIP').
+build:status_label(stub,            'STUB').
+build:status_label(Other,           Label) :-
+  format(atom(Label), '~w', [Other]).
 
 
 % -----------------------------------------------------------------------------
@@ -393,6 +450,17 @@ build:file_prefix_rest :-
 % FileIdx is 0-based within this download's files.
 % FileStartLine is the absolute line of the first file in the display.
 % TotalLines is the total display lines for the step.
+
+build:update_file_subslot(_FileIdx, _FileStartLine, _TotalLines, Status, Filename, Size, Distdir) :-
+  \+ config:output_tty,
+  !,
+  ( Status == done
+  -> format('  file OK   ~w (~w)~n', [Filename, Size])
+  ; Status = failed(_)
+  -> format('  file FAIL ~w (~w)~n', [Filename, Size])
+  ; true
+  ),
+  ignore(Distdir = _).
 
 build:update_file_subslot(FileIdx, FileStartLine, TotalLines, Status, Filename, Size, Distdir) :-
   AbsLine is FileStartLine + FileIdx,
@@ -511,6 +579,16 @@ build:live_prefix :-
 % Update the live source sub-line in-place.
 % Must be called inside with_mutex(build_display, ...).
 
+build:update_live_subslot(_Idx, _LiveStartLine, _TotalLines, Status) :-
+  \+ config:output_tty,
+  !,
+  ( Status == done
+  -> format('  live OK~n')
+  ; Status == failed
+  -> format('  live FAIL~n')
+  ; true
+  ).
+
 build:update_live_subslot(_Idx, LiveStartLine, TotalLines, Status) :-
   LinesUp is TotalLines - LiveStartLine,
   format("\e[~dA\r", [LinesUp]),
@@ -613,6 +691,9 @@ build:exec_continuation_prefix :-
 % Re-render the inline exec line at ExecLine with current phase states.
 % Must be called inside with_mutex(build_display, ...).
 
+build:update_exec_line(_ExecLine, _TotalLines, _Action, _PhaseStates) :-
+  \+ config:output_tty, !.
+
 build:update_exec_line(ExecLine, TotalLines, _Action, PhaseStates) :-
   LinesUp is TotalLines - ExecLine,
   format("\e[~dA\r", [LinesUp]),
@@ -629,6 +710,9 @@ build:update_exec_line(ExecLine, TotalLines, _Action, PhaseStates) :-
 %
 % Re-render the LOG continuation line. Shows log filename in red if any
 % phase failed. Must be called inside with_mutex(build_display, ...).
+
+build:update_logs_line(_LogsLine, _TotalLines, _LogPath, _OverallStatus) :-
+  \+ config:output_tty, !.
 
 build:update_logs_line(LogsLine, TotalLines, LogPath, OverallStatus) :-
   LinesUp is TotalLines - LogsLine,
@@ -776,6 +860,9 @@ build:current_phase_index([_|Rest], N, Current) :-
 %! build:right_edge_progress(+AccPct, +Current, +LiveTotal) is det.
 %
 % Print "(AccPct%) Current/LiveTotal" at the right edge of the terminal.
+
+build:right_edge_progress(_, _, _) :-
+  \+ config:output_tty, !.
 
 build:right_edge_progress(AccPct, Current, LiveTotal) :-
   message:el,

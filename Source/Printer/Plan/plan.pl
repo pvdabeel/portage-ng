@@ -28,6 +28,9 @@ SCC decomposition display.
 % Print a green checkmark at the right edge of the terminal (1 space in).
 
 plan:right_edge_ok :-
+  \+ config:output_tty, !.
+
+plan:right_edge_ok :-
   config:printing_tty_size(_, W),
   Col is W - 1,
   format("\e[~dG", [Col]),
@@ -2413,3 +2416,70 @@ plan:print_broken_needed(pkg://E, Tok, RemovedProviders) :-
            ; format('    - would lose provider: ~w~n', [pkg://P])
            )
          )).
+
+
+% -----------------------------------------------------------------------------
+%  Variant display
+% -----------------------------------------------------------------------------
+
+%! plan:print_variant_header(+N, +Label) is det.
+%
+% Prints a prominent header for a variant plan.
+
+plan:print_variant_header(N, Label) :-
+  message:color(cyan),
+  message:style(bold),
+  format('~n=== Variant ~w: ~w ===~n', [N, Label]),
+  message:style(normal),
+  message:color(normal).
+
+
+%! plan:print_variant_diff(+Diff) is det.
+%
+% Prints a compact diff summary between the baseline and variant plan.
+
+plan:print_variant_diff(diff(Added, Removed, Changed)) :-
+  length(Added, NA), length(Removed, NR), length(Changed, NC),
+  ( NA =:= 0, NR =:= 0, NC =:= 0
+  -> message:color(darkgray),
+     format('  (identical to baseline)~n'),
+     message:color(normal)
+  ;  ( NA > 0
+     -> message:color(green),
+        format('~n  Added (~w):~n', [NA]),
+        forall(member(entry(C, N, Ver, _), Added),
+          ( plan:version_string(Ver, VS),
+            format('    + ~w/~w-~w~n', [C, N, VS]) )),
+        message:color(normal)
+     ;  true
+     ),
+     ( NR > 0
+     -> message:color(red),
+        format('~n  Removed (~w):~n', [NR]),
+        forall(member(entry(C, N, Ver, _), Removed),
+          ( plan:version_string(Ver, VS),
+            format('    - ~w/~w-~w~n', [C, N, VS]) )),
+        message:color(normal)
+     ;  true
+     ),
+     ( NC > 0
+     -> message:color(orange),
+        format('~n  Version changed (~w):~n', [NC]),
+        forall(member(changed(C, N, BaseVer, VarVer), Changed),
+          ( plan:version_string(BaseVer, BVS),
+            plan:version_string(VarVer, VVS),
+            format('    ~~ ~w/~w  ~w -> ~w~n', [C, N, BVS, VVS]) )),
+        message:color(normal)
+     ;  true
+     ),
+     format('~n  Summary: +~w -~w ~~~w~n', [NA, NR, NC])
+  ).
+
+
+%! plan:version_string(+VersionTerm, -String) is det.
+%
+% Extracts the human-readable version string from a version/7 compound.
+
+plan:version_string(version(_,_,_,_,_,_,Full), Full) :- !.
+plan:version_string(version_none, '') :- !.
+plan:version_string(V, S) :- format(atom(S), '~w', [V]).
