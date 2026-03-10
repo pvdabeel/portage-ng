@@ -852,13 +852,14 @@ installed_entry_satisfies_build_with_use(pkg://InstalledEntry, Context) :-
 
 
 % =============================================================================
-%  --newuse support (Portage-like -N)
+%  --newuse / --changed-use support
 % =============================================================================
 
 %! use:newuse_mismatch(+InstalledEntry)
 %
 % True if the installed package has a USE mismatch compared to the
 % currently effective USE for the same version in the repo set.
+% Checks both enabled USE and declared IUSE for changes.
 % Used to implement `--newuse` / `-N` rebuild semantics.
 
 newuse_mismatch(pkg://InstalledEntry) :-
@@ -887,6 +888,37 @@ newuse_mismatch(pkg://InstalledEntry, CurRepo//CurEntry) :-
     symmetric_diff_nonempty(BuiltIuse, CurIuse)
   ),
   !.
+
+
+%! use:changeduse_mismatch(+InstalledEntry)
+%
+% True if the installed package's effective USE flags differ from what
+% the current configuration would produce. Unlike newuse_mismatch/1,
+% this ignores IUSE additions/removals and only checks whether flags
+% that are actually enabled/disabled have changed.
+
+changeduse_mismatch(pkg://InstalledEntry) :-
+  query:search([category(C),name(N),version(V)], pkg://InstalledEntry),
+  preference:accept_keywords(K),
+  ( query:search([select(repository,notequal,pkg),category(C),name(N),keywords(K),version(V)],
+                 CurRepo//CurEntry)
+  -> changeduse_mismatch(pkg://InstalledEntry, CurRepo//CurEntry)
+  ;  fail
+  ).
+
+
+%! use:changeduse_mismatch(+InstalledEntry, +RepoEntry)
+%
+% True if the installed package's built USE set differs from the
+% current repo entry's effective USE set. Only compares the enabled
+% flag sets, ignoring IUSE changes.
+
+changeduse_mismatch(pkg://InstalledEntry, CurRepo//CurEntry) :-
+  vdb_enabled_use_set(pkg://InstalledEntry, BuiltUse),
+  entry_enabled_use_set(CurRepo//CurEntry, CurUse),
+  symmetric_diff_nonempty(BuiltUse, CurUse),
+  !.
+
 
 %! use:vdb_enabled_use_set(+RepoEntry, -UseSet)
 %
