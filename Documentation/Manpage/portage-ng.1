@@ -142,6 +142,13 @@ or restart.  Without arguments, regenerates metadata for all
 repositories registered with the knowledge base.  With arguments,
 only the named repositories are regenerated.
 .TP
+.B \-\-metadata
+Alias for
+.BR \-\-regen .
+.TP
+.B \-\-list\-sets
+List all available package sets (@world, user-defined sets).
+.TP
 .B \-\-check\-news
 Check for and display GLEP 42 news items from the portage
 repository's
@@ -196,6 +203,72 @@ installation.  Unlike
 this ignores IUSE additions and removals and only triggers a rebuild
 when the actual enabled/disabled flag state differs.  This is
 the more conservative option.
+.TP
+.B \-\-changed\-deps
+Rebuild packages whose runtime dependencies have changed since
+they were installed.
+.TP
+.B \-\-changed\-slot
+Rebuild packages whose SLOT value has changed since installation.
+.TP
+.B \-\-selective
+Do not reinstall packages that are already installed and satisfy
+all dependency constraints.  Implied by
+.BR \-\-update " and " \-\-newuse .
+.TP
+.BR \-n ", " \-\-noreplace
+Skip packages that are already installed.  Equivalent to
+.BR \-\-selective .
+.TP
+.BR \-O ", " \-\-nodeps
+Merge the target without resolving any of its dependencies.
+.TP
+.BR \-o ", " \-\-onlydeps
+Only merge the dependencies of the given targets, not the targets
+themselves.
+.TP
+.B \-\-with\-bdeps " " \fIy\fR|\fIn\fR
+Include or exclude build-time dependencies (BDEPEND) from the
+dependency graph.  Default:
+.BR y .
+.TP
+.B \-\-with\-test\-deps " " \fIy\fR|\fIn\fR
+Include or exclude test dependencies from the dependency graph.
+Default:
+.BR n .
+.TP
+.B \-\-dynamic\-deps " " \fIy\fR|\fIn\fR
+When
+.B y
+(default), use dependency information from the repository ebuild
+rather than from the installed VDB.  Set to
+.B n
+to use the dependency information recorded at install time.
+.TP
+.B \-\-rebuild\-if\-new\-rev
+Rebuild installed packages when a newer revision (same version,
+higher \-rN) is available in the repository.
+.TP
+.B \-\-rebuild\-if\-new\-ver
+Rebuild installed packages when any newer version is available in
+the repository.
+.TP
+.B \-\-rebuild\-if\-new\-slot
+Rebuild packages when slot-operator dependencies have changed.
+.TP
+.B \-\-rebuild\-if\-unbuilt
+Rebuild dependencies of packages that have been rebuilt from source.
+.TP
+.B \-\-update\-if\-installed
+Like
+.B \-\-update
+but only consider packages that are already installed.
+New dependencies that are not yet installed are skipped.
+.TP
+.B \-\-exclude " " \fIATOMS\fR
+Exclude the given atoms (comma-separated) from the merge operation.
+Matching packages will be silently skipped during dependency
+resolution.
 .TP
 .BR \-1 ", " \-\-oneshot
 Do not add the target packages to the world set.
@@ -260,6 +333,11 @@ tools.  Default:
 .B \-\-style " " \fISTYLE\fR
 Set the printing style.  One of:
 .BR fancy " (default), " column ", or " short .
+.TP
+.B \-\-read\-news
+When used with
+.BR \-\-ask ,
+display news items before the confirmation prompt.
 .TP
 .B \-\-ci
 CI mode: non-interactive, exit with a nonzero exit code when

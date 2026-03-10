@@ -122,14 +122,32 @@ interface:spec(S) :-
        [opt(resume),    type(boolean),   default(false),       shortflags(['r']), longflags(['resume']),    help('Resume previous command')],
        [opt(newuse),    type(boolean),   default(false),       shortflags(['N']), longflags(['newuse']),    help('Rebuild if USE or IUSE changed since install')],
        [opt(changeduse),type(boolean),   default(false),                          longflags(['changed-use']),help('Rebuild only if effective USE flags changed')],
+       [opt(changeddeps),type(boolean),  default(false),                          longflags(['changed-deps']),help('Rebuild if runtime dependencies changed since install')],
+       [opt(changedslot),type(boolean),  default(false),                          longflags(['changed-slot']),help('Rebuild if SLOT changed since install')],
+       [opt(selective), type(boolean),   default(false),                          longflags(['selective']), help('Do not reinstall already-installed packages')],
+       [opt(noreplace), type(boolean),   default(false),       shortflags(['n']), longflags(['noreplace']), help('Skip already-installed packages')],
+       [opt(nodeps),    type(boolean),   default(false),       shortflags(['O']), longflags(['nodeps']),    help('Merge without resolving dependencies')],
+       [opt(onlydeps),  type(boolean),   default(false),       shortflags(['o']), longflags(['onlydeps']),  help('Only merge dependencies, not the target itself')],
+       [opt(withbdeps), type(atom),      default(y),                              longflags(['with-bdeps']),help('Include build-time dependencies (y or n)')],
+       [opt(withtestdeps),type(atom),    default(n),                              longflags(['with-test-deps']),help('Include test dependencies (y or n)')],
+       [opt(dynamicdeps),type(boolean),  default(true),                           longflags(['dynamic-deps']),help('Use repo dependency info instead of installed VDB')],
+       [opt(rebuildnewrev),type(boolean),default(false),                          longflags(['rebuild-if-new-rev']),help('Rebuild packages with new revision')],
+       [opt(rebuildnewver),type(boolean),default(false),                          longflags(['rebuild-if-new-ver']),help('Rebuild packages with new version available')],
+       [opt(rebuildnewslot),type(boolean),default(false),                         longflags(['rebuild-if-new-slot']),help('Rebuild packages when slot operator deps change')],
+       [opt(rebuildunbuilt),type(boolean),default(false),                         longflags(['rebuild-if-unbuilt']),help('Rebuild deps that have been rebuilt from source')],
+       [opt(updateifinstalled),type(boolean),default(false),                      longflags(['update-if-installed']),help('Like --update but only for already-installed packages')],
+       [opt(exclude),   type(atom),      default(''),                             longflags(['exclude']),   help('Exclude atoms from merge (comma-separated)')],
        [opt(oneshot),   type(boolean),   default(false),       shortflags(['1']), longflags(['oneshot']),   help('Do not add package to world')],
        [opt(prefix),    type(atom),      default('/'),                            longflags(['prefix']),    help('Set the prefix directory')],
        [opt(style),     type(atom),      default('fancy'),                        longflags(['style']),     help('Set the printing style: fancy, column or short')],
        [opt(sync),      type(boolean),   default(false),                          longflags(['sync']),      help('Sync repository. Optional args: repository names (e.g. portage, pkg, overlay)')],
        [opt(clear),     type(boolean),   default(false),                          longflags(['clear']),     help('Clear knowledge base')],
        [opt(regen),     type(boolean),   default(false),                          longflags(['regen']),     help('Regenerate the ebuild metadata cache (no network sync)')],
+       [opt(metadata),  type(boolean),   default(false),                          longflags(['metadata']), help('Regenerate the ebuild metadata cache (alias for --regen)')],
+       [opt(listsets),  type(boolean),   default(false),                          longflags(['list-sets']),help('List available package sets')],
        [opt(graph),     type(boolean),   default(false),                          longflags(['graph']),     help('Create graph. Args: "modified"|"full"|"build"|"build modified"|"build full".')],
        [opt(checknews), type(boolean),   default(false),                          longflags(['check-news']),help('Check for and display unread news items')],
+       [opt(readnews),  type(boolean),   default(false),                          longflags(['read-news']),help('Display news items when using --ask')],
        [opt(depclean),  type(boolean),   default(false),       shortflags(['c']), longflags(['depclean']),  help('Clean dependencies')],
        [opt(info),      type(boolean),   default(false),       shortflags(['i']), longflags(['info']),      help('Show package version')],
        [opt(bugs),      type(boolean),   default(false),                          longflags(['bugs']),      help('Print bug report drafts (Gentoo Bugzilla) for the given target, without printing a plan')],
@@ -215,6 +233,21 @@ interface:process_flags:-
   (lists:memberchk(depclean(true),  Options) -> asserta(preference:local_flag(depclean))        ; true),
   (lists:memberchk(newuse(true),    Options) -> asserta(preference:local_flag(newuse))          ; true),
   (lists:memberchk(changeduse(true),Options) -> asserta(preference:local_flag(changeduse))      ; true),
+  (lists:memberchk(changeddeps(true),Options)-> asserta(preference:local_flag(changeddeps))     ; true),
+  (lists:memberchk(changedslot(true),Options)-> asserta(preference:local_flag(changedslot))     ; true),
+  (lists:memberchk(selective(true),Options) -> asserta(preference:local_flag(selective))        ; true),
+  (lists:memberchk(noreplace(true),Options) -> asserta(preference:local_flag(noreplace))       ; true),
+  (lists:memberchk(nodeps(true),   Options) -> asserta(preference:local_flag(nodeps))           ; true),
+  (lists:memberchk(onlydeps(true), Options) -> asserta(preference:local_flag(onlydeps))        ; true),
+  (lists:memberchk(dynamicdeps(false),Options)-> asserta(preference:local_flag(nodynamicdeps)) ; true),
+  (lists:memberchk(rebuildnewrev(true),Options)-> asserta(preference:local_flag(rebuildnewrev)); true),
+  (lists:memberchk(rebuildnewver(true),Options)-> asserta(preference:local_flag(rebuildnewver)); true),
+  (lists:memberchk(rebuildnewslot(true),Options)->asserta(preference:local_flag(rebuildnewslot));true),
+  (lists:memberchk(rebuildunbuilt(true),Options)->asserta(preference:local_flag(rebuildunbuilt));true),
+  (lists:memberchk(updateifinstalled(true),Options)->asserta(preference:local_flag(updateifinstalled));true),
+  (lists:memberchk(readnews(true), Options) -> asserta(preference:local_flag(readnews))        ; true),
+  (lists:memberchk(withbdeps(n),   Options) -> asserta(preference:local_flag(nobdeps))          ; true),
+  (lists:memberchk(withtestdeps(y),Options) -> asserta(preference:local_flag(withtestdeps))    ; true),
   (lists:memberchk(pretend(true),   Options) -> asserta(preference:local_flag(pretend))         ; true),
   (lists:memberchk(oneshot(true),   Options) -> asserta(preference:local_flag(oneshot))         ; true),
   (lists:memberchk(buildpkg(true), Options) -> asserta(preference:local_flag(buildpkg))        ; true),
@@ -225,7 +258,19 @@ interface:process_flags:-
   (lists:memberchk(style(Style),    Options) -> asserta(config:interface_printing_style(Style)) ; true),
   ((lists:memberchk(jobs(J),       Options), J > 0) -> asserta(config:cli_jobs(J))              ; true),
   ((lists:memberchk(loadavg(L),    Options), L > 0.0) -> asserta(config:cli_load_average(L))    ; true),
-  (lists:memberchk(color(n),       Options) -> retractall(config:color_output)                  ; true).
+  (lists:memberchk(color(n),       Options) -> retractall(config:color_output)                  ; true),
+  (lists:memberchk(exclude(E),    Options), E \== '' -> interface:parse_exclude_atoms(E)        ; true).
+
+
+%! interface:parse_exclude_atoms(+CommaList) is det.
+%
+% Parses a comma-separated list of atoms and asserts each as
+% config:excluded_atom/1 for the resolver to skip.
+
+interface:parse_exclude_atoms(CommaList) :-
+  atomic_list_concat(Atoms, ',', CommaList),
+  forall(member(A, Atoms),
+    ( A \== '' -> asserta(config:excluded_atom(A)) ; true )).
 
 
 %! interface:process_mode(-Mode) is det.
@@ -341,8 +386,11 @@ interface:process_requests(Mode) :-
     % In portage-ng the "full closure" corresponds to proving :run.
     memberchk(update(true),Options)   -> (interface:process_action(run,Args,Options),               Continue) ;
     memberchk(search(true),Options)   -> (interface:process_action(search,Args,Options),            Continue) ;
+    memberchk(listsets(true),Options) -> (interface:process_list_sets,                              Continue) ;
     memberchk(checknews(true),Options)-> (news:check,                                              Continue) ;
+    memberchk(readnews(true),Options) -> (news:check,                                              Continue) ;
     memberchk(regen(true),Options)   -> (interface:process_regen(Mode, Args),!,                    Continue) ;
+    memberchk(metadata(true),Options)-> (interface:process_regen(Mode, Args),!,                    Continue) ;
     memberchk(sync(true),Options)     -> (interface:process_sync(Mode, Args),!,                    Continue) ;
     memberchk(save(true),Options)     -> (kb:save,!, 						    Continue) ;
     memberchk(load(true),Options)     -> (kb:load,!, 						    Continue) ;
@@ -413,6 +461,25 @@ interface:process_graph([build, full]) :-
 interface:process_graph(Args) :-
   message:warning(['--graph: ignoring unexpected args: ', Args]),
   kb:graph.
+
+
+% -----------------------------------------------------------------------------
+%  Action: LIST-SETS
+% -----------------------------------------------------------------------------
+
+%! interface:process_list_sets is det.
+%
+% Lists all available package sets (@world, @system, user-defined sets).
+
+interface:process_list_sets :-
+  message:topheader(['Available package sets']),
+  nl,
+  message:color(green), format(' * '), message:color(normal),
+  format('world~n'),
+  forall(preference:set(Name, _),
+    ( message:color(green), format(' * '), message:color(normal),
+      format('~w~n', [Name])
+    )).
 
 
 % -----------------------------------------------------------------------------

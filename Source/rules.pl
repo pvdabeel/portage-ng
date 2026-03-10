@@ -121,14 +121,23 @@ rule(target(Q, Arg):uninstall?{Context}, Conditions) :-
 % prover prefers installable versions before resorting to relaxation.
 % For CNV targets (explicit version), all candidates are tried in standard
 % order since the user explicitly requested that version.
+%
+% --nodeps: resolve target without proving dependencies.
+% --onlydeps: prove deps only, exclude the target from the plan.
+% --exclude: skip atoms matching config:excluded_atom/1.
 rule(target(Q, Arg):run?{Context}, Conditions) :-
   !,
   target:resolve_candidate(Q, Repository://Ebuild),
-  Conditions0 = [Repository://Ebuild:run?{Context}],
-  ( preference:flag(oneshot) ->
-      Conditions = Conditions0
-  ; Conditions = [Repository://Ebuild:run?{Context},
-                  world_action(register, Arg):world?{[after(Repository://Ebuild:run)]}]
+  ( rules:is_excluded(Repository://Ebuild)
+  -> Conditions = []
+  ; preference:flag(onlydeps)
+  -> Conditions = [Repository://Ebuild:run?{[onlydeps_target|Context]}]
+  ; Conditions0 = [Repository://Ebuild:run?{Context}],
+    ( preference:flag(oneshot) ->
+        Conditions = Conditions0
+    ; Conditions = [Repository://Ebuild:run?{Context},
+                    world_action(register, Arg):world?{[after(Repository://Ebuild:run)]}]
+    )
   ).
 
 
@@ -809,6 +818,11 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         \+ use:changeduse_mismatch(pkg://InstalledEntry)
     ; true
     ),
+    % --rebuild-if-new-rev / --rebuild-if-new-ver: do not keep installed if a
+    % newer revision or version exists in the repo.
+    \+ rules:rebuild_if_newer_available(pkg://InstalledEntry),
+    % --exclude: do not resolve excluded atoms.
+    \+ rules:is_excluded_cn(C, N),
     !   % commit to the first installed entry that satisfies constraints
   ->
     Conditions = []
@@ -976,6 +990,11 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
           preference:flag(changeduse),
           use:changeduse_mismatch(pkg://InstalledEntry2, FoundRepo://Candidate) ->
             feature_unification:unify([replaces(pkg://InstalledEntry2),rebuild_reason(changeduse)], NewerContext, UpdateCtx),
+            DepUpdateAction = update
+        ; % --rebuild-if-new-rev / --rebuild-if-new-ver: force rebuild when
+          % a newer revision or version exists.
+          rules:rebuild_if_newer_available(pkg://InstalledEntry2) ->
+            feature_unification:unify([replaces(pkg://InstalledEntry2),rebuild_reason(rebuild)], NewerContext, UpdateCtx),
             DepUpdateAction = update
         )
       ->
@@ -2161,4 +2180,61 @@ rules:depclean_rewrite_dep(Term:Action, _ParentCtx, Term:depclean?{[]}) :-
   nonvar(Action),
   !.
 rules:depclean_rewrite_dep(Term, _ParentCtx, Term:depclean?{[]}) :-
+  !.
+
+
+% =============================================================================
+%  CLI flag helpers (--exclude, --rebuild-if-*, --nodeps, etc.)
+% =============================================================================
+
+% -----------------------------------------------------------------------------
+%  --exclude support
+% -----------------------------------------------------------------------------
+
+%! rules:is_excluded(+RepoEntry) is semidet.
+%
+% True if the entry matches a config:excluded_atom/1 pattern.
+
+rules:is_excluded(Repository://Entry) :-
+  config:excluded_atom(Pattern),
+  query:search([category(C),name(N)], Repository://Entry),
+  ( atom_concat(C, '/', CN0), atom_concat(CN0, N, CN),
+    CN == Pattern
+  ; N == Pattern
+  ),
+  !.
+
+
+%! rules:is_excluded_cn(+Category, +Name) is semidet.
+%
+% True if the C/N pair matches a config:excluded_atom/1 pattern.
+
+rules:is_excluded_cn(C, N) :-
+  config:excluded_atom(Pattern),
+  ( atom_concat(C, '/', CN0), atom_concat(CN0, N, CN),
+    CN == Pattern
+  ; N == Pattern
+  ),
+  !.
+
+
+% -----------------------------------------------------------------------------
+%  --rebuild-if-new-rev / --rebuild-if-new-ver
+% -----------------------------------------------------------------------------
+
+%! rules:rebuild_if_newer_available(+InstalledEntry) is semidet.
+%
+% True if --rebuild-if-new-rev or --rebuild-if-new-ver is active and
+% a newer revision or version of the installed package exists in the repo.
+
+rules:rebuild_if_newer_available(pkg://InstalledEntry) :-
+  ( preference:flag(rebuildnewrev) ; preference:flag(rebuildnewver) ),
+  query:search([category(C),name(N),version(VInstalled)], pkg://InstalledEntry),
+  preference:accept_keywords(K),
+  query:search([select(repository,notequal,pkg),category(C),name(N),keywords(K),version(VRepo)],
+               _CurRepo//_CurEntry),
+  ( preference:flag(rebuildnewver)
+  -> VRepo @> VInstalled
+  ;  VRepo @>= VInstalled
+  ),
   !.
