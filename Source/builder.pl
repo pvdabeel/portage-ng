@@ -88,7 +88,9 @@ builder:build_resume :-
      !,
      fail
   ),
-  builder:filter_completed_plan(Plan, DoneList, FilteredPlan),
+  builder:collect_skip_entries(Plan, SkipDone),
+  append(DoneList, SkipDone, AllDone),
+  builder:filter_completed_plan(Plan, AllDone, FilteredPlan),
   builder:count_actions(FilteredPlan, 0, RemainingActions),
   ( RemainingActions =:= 0
   -> message:inform('Nothing to resume — all packages completed successfully.'),
@@ -1127,6 +1129,23 @@ builder:filter_completed_plan([Step|Rest], DoneList, [Filtered|FilteredRest]) :-
 
 builder:rule_is_done(DoneList, rule(Repo://Entry:Action?{_Ctx}, _Body)) :-
   memberchk(done(Repo://Entry, Action), DoneList).
+
+
+%! builder:collect_skip_entries(+Plan, -SkipDone) is det.
+%
+% Collects done/2 entries for rules whose Entry matches any
+% config:skip_atom/1 fact. Matches by sub_atom so the user can
+% specify a qualified name like dev-lang/python-3.12.0 and it
+% will match the full Entry atom in the plan.
+
+builder:collect_skip_entries(Plan, SkipDone) :-
+  findall(done(Repo://Entry, Action),
+    ( member(Step, Plan),
+      member(rule(Repo://Entry:Action?{_Ctx}, _Body), Step),
+      config:skip_atom(Skip),
+      sub_atom(Entry, _, _, _, Skip)
+    ),
+    SkipDone).
 
 
 % =============================================================================
