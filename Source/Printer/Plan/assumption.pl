@@ -203,8 +203,8 @@ assumption:collect_ctx_tags(_Other, []).
 assumption:ctx_term_to_list(Ctx0, Tags) :-
   ( is_list(Ctx0) ->
       Tags = Ctx0
-  ; Ctx0 =.. ['{}'|Tags] ->
-      true
+  ; Ctx0 = {Inner}, is_list(Inner) ->
+      Tags = Inner
   ; Tags = []
   ).
 

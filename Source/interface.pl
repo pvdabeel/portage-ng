@@ -228,9 +228,14 @@ interface:spec(S) :-
        [opt(rollback),  type(atom),      default(none),                           longflags(['rollback']),  help('Rollback to a named snapshot')],
        [opt(snapshots), type(boolean),   default(false),                          longflags(['snapshots']), help('List available snapshots')],
 
-       % explanation (requires LLM modules)
+       % LLM interaction (requires LLM modules)
 
        [opt(explain),   type(atom),      default(none),                           longflags(['explain']),   help('Explain the build plan via LLM (optionally pass a question)')],
+       [opt(llm),       type(atom),      default(none),                           longflags(['llm']),       help('Start interactive chat with an LLM (optionally specify service name)')],
+
+       % upstream version checking
+
+       [opt(upstream),  type(boolean),   default(false),                          longflags(['upstream']),  help('Check upstream for newer package versions')],
 
        % lifecycle management
 
@@ -503,6 +508,9 @@ interface:process_requests(Mode) :-
     memberchk(resume(true),Options)  -> (interface:assert_resume_skip_args(Args),
                                          builder:build_resume,                                     Continue) ;
     memberchk(build(true),Options)   -> (interface:process_build(Args,Options),                    Continue) ;
+    memberchk(upstream(true),Options) -> (interface:process_upstream(Args,Options),                 Continue) ;
+    interface:extract_llm_opt(Options, LlmOpt)
+                                      -> (interface:process_llm_chat(LlmOpt),                      Continue) ;
     memberchk(merge(true),Options)    -> (interface:process_action(run,Args,Options),               Continue) ;
     memberchk(shell(true),Options)    -> (message:logo(['::- portage-ng shell - ',Version]),	    prolog)),
 
@@ -1016,6 +1024,93 @@ interface:run_explain(ExplainOpt, Proposal, ProofAVL, ModelAVL, Plan, TriggersAV
      ;  explain:explain_plan(ExplainOpt, Proposal, ProofAVL, ModelAVL, Plan, TriggersAVL)
      )
   ;  message:warning('--explain requires LLM support. LLM modules are not loaded.')
+  ).
+
+
+% -----------------------------------------------------------------------------
+%  Action: UPSTREAM (version checking)
+% -----------------------------------------------------------------------------
+
+%! interface:process_upstream(+Args, +Options) is det.
+%
+% Checks upstream for newer versions of the specified packages.
+% Defaults to @world when no arguments are given.
+
+interface:process_upstream(Args, _Options) :-
+  ( Args == []
+  -> upstream:check([world])
+  ;  upstream:check(Args)
+  ).
+
+
+% -----------------------------------------------------------------------------
+%  Action: LLM chat
+% -----------------------------------------------------------------------------
+
+%! interface:extract_llm_opt(+Options, -LlmOpt) is semidet.
+%
+% Succeeds when --llm was passed on the command line. Unifies LlmOpt
+% with 'true' when no service name was given, or the service name atom.
+
+interface:extract_llm_opt(Options, LlmOpt) :-
+  memberchk(llm(Val), Options),
+  Val \== none,
+  ( Val == '' -> LlmOpt = true ; LlmOpt = Val ).
+
+
+%! interface:process_llm_chat(+LlmOpt) is det.
+%
+% Starts an interactive chat session with the specified LLM service.
+% LlmOpt is either 'true' (use default service) or a service name atom.
+
+interface:process_llm_chat(LlmOpt) :-
+  ( predicate_property(explainer:call_llm(_,_,_), defined)
+  -> ( LlmOpt == true
+     -> config:llm_default(Service)
+     ;  Service = LlmOpt
+     ),
+     ( config:llm_model(Service, Model)
+     -> nl,
+        message:color(cyan),
+        format('Chat session with ~w (~w). Type "quit" or "exit" to leave.~n', [Service, Model]),
+        message:color(normal),
+        nl,
+        interface:llm_chat_loop(Service)
+     ;  message:warning(['Unknown LLM service: ', Service,
+                         '. Available: claude, grok, chatgpt, gemini, ollama.'])
+     )
+  ;  message:warning('--llm requires LLM support. LLM modules are not loaded.')
+  ).
+
+
+%! interface:llm_chat_loop(+Service) is det.
+%
+% Interactive read-eval-print loop for LLM chat. Reads user input,
+% sends it to the LLM service, prints the streamed response, and
+% recurses until the user types quit/exit/q or EOF.
+
+interface:llm_chat_loop(Service) :-
+  message:color(green),
+  format('~w> ', [Service]),
+  message:color(normal),
+  flush_output,
+  catch(
+    read_line_to_string(user_input, Line),
+    _,
+    Line = end_of_file
+  ),
+  ( Line == end_of_file
+  -> nl
+  ; string_lower(Line, Lower),
+    ( member(Lower, ["quit", "exit", "q"])
+    -> true
+    ; Line == ""
+    -> interface:llm_chat_loop(Service)
+    ; nl,
+      explainer:call_llm(Service, Line, _Response),
+      nl, nl,
+      interface:llm_chat_loop(Service)
+    )
   ).
 
 
