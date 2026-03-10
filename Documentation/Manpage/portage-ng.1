@@ -92,7 +92,7 @@ Defaults to
 when no targets are given.
 .SS Building
 .TP
-.BR \-B ", " \-\-build
+.B \-\-build
 Build target: resolve the plan, then execute it with live progress
 display.  Downloads distfiles, runs ebuild phases, and shows
 per-phase status inline.  The plan is saved to
@@ -141,6 +141,14 @@ Examples (all equivalent):
 .TP
 .BR \-f ", " \-\-fetchonly
 Only download source archives (distfiles) without building.
+.TP
+.BR \-F ", " \-\-fetch\-all\-uri
+Like
+.B \-\-fetchonly
+but download all files listed in
+.B SRC_URI
+regardless of the current USE flag configuration.
+Useful for mirroring or pre-populating the distfiles directory.
 .SS Package management
 .TP
 .BR \-C ", " \-\-unmerge
@@ -149,6 +157,11 @@ Unmerge (remove) the specified packages.
 .BR \-c ", " \-\-depclean
 Remove packages that are not part of the dependency closure of the
 world set or of the given targets.
+.TP
+.B \-\-deselect
+Remove the given targets from the world set without unmerging them.
+The packages remain installed but will no longer be pulled in by
+.BR "@world" " updates."
 .SS Information
 .TP
 .BR \-i ", " \-\-info
@@ -238,7 +251,7 @@ Include packages whose USE flags or declared IUSE set have changed
 since installation.  This is the broader check: it triggers rebuilds
 when new flags are added to IUSE even if they default to disabled.
 .TP
-.B \-\-changed\-use
+.BR \-U ", " \-\-changed\-use
 Include packages whose effective USE flags have changed since
 installation.  Unlike
 .BR \-\-newuse ,
@@ -316,6 +329,15 @@ once per atom.
 .TP
 .BR \-1 ", " \-\-oneshot
 Do not add the target packages to the world set.
+.TP
+.B \-\-select
+Add target packages to the world set after merging.  This is the
+default behaviour; the explicit flag is provided for symmetry with
+.BR \-\-oneshot .
+Use
+.B \-\-select=n
+as an alternative to
+.BR \-\-oneshot .
 .SS Binary package options
 .TP
 .BR \-k ", " \-\-usepkg
@@ -342,6 +364,35 @@ Use only remote binary packages from
 Local binary packages in
 .B PKGDIR
 are not used and packages are not built from source.
+.TP
+.B \-\-usepkg\-exclude " " \fIATOM\fR
+Exclude the given atom from binary package usage.  Even when
+.B \-\-usepkg
+is active, matching packages are built from source.
+The flag is repeatable.
+.TP
+.B \-\-usepkg\-include " " \fIATOM\fR
+Force binary package usage for the given atom, overriding any
+.B \-\-usepkg\-exclude
+or general policy.
+The flag is repeatable.
+.TP
+.B \-\-usepkg\-exclude\-live
+Do not use binary packages for live ebuilds (version 9999).
+Live ebuilds will always be built from source.
+.TP
+.B \-\-binpkg\-changed\-deps
+Ignore binary packages whose dependency tree has changed since
+the binary package was built.  Forces a rebuild from source to
+ensure current dependencies are used.
+.TP
+.B \-\-binpkg\-respect\-use
+Ignore binary packages whose USE flag configuration does not match
+the current system settings.
+.TP
+.B \-\-rebuilt\-binaries
+Replace installed packages with binary packages that have been
+rebuilt more recently than the installed version was merged.
 .SS Build options
 .TP
 .BR \-j ", " \-\-jobs " " \fIN\fR
@@ -367,13 +418,18 @@ and before
 in the ebuild phase sequence, producing a binary package
 (.tbz2 / .gpkg) from the build output.
 .TP
-.B \-\-buildpkgonly
+.BR \-B ", " \-\-buildpkgonly
 Like
 .B \-\-buildpkg
 but do not merge the packages to the live filesystem.  The build
 stops after creating the binary package (the
 .B merge
 phase is omitted).
+.TP
+.B \-\-fail\-clean
+Clean the build directory when a package build fails.  By default,
+the build directory is preserved for debugging.  This option is
+useful in CI environments or when disk space is limited.
 .TP
 .BR \-l ", " \-\-logs
 Show build log file paths in
