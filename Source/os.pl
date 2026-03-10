@@ -108,6 +108,63 @@ find_files(Dir, Pattern, File) :-
 
 
 % -----------------------------------------------------------------------------
+%  System load average
+% -----------------------------------------------------------------------------
+
+%! os:current_load_average(-Load) is det.
+%
+% Reads the 1-minute system load average. Uses sysctl on macOS,
+% /proc/loadavg on Linux. Returns 0.0 on failure.
+
+current_load_average(Load) :-
+  ( current_prolog_flag(apple, true)
+  -> os:load_average_darwin(Load)
+  ;  os:load_average_linux(Load)
+  ).
+
+
+%! os:load_average_darwin(-Load) is det.
+%
+% Reads the 1-minute load average on macOS via sysctl.
+
+load_average_darwin(Load) :-
+  catch(
+    ( setup_call_cleanup(
+        process_create(path(sysctl), ['-n', 'vm.loadavg'],
+                       [stdout(pipe(Out))]),
+        read_string(Out, _, S),
+        close(Out)
+      ),
+      split_string(S, " ", "{ }\n", Parts),
+      Parts = [LoadStr|_],
+      number_codes(Load, LoadStr)
+    ),
+    _,
+    Load = 0.0
+  ).
+
+
+%! os:load_average_linux(-Load) is det.
+%
+% Reads the 1-minute load average on Linux from /proc/loadavg.
+
+load_average_linux(Load) :-
+  catch(
+    ( setup_call_cleanup(
+        open('/proc/loadavg', read, In),
+        read_string(In, _, S),
+        close(In)
+      ),
+      split_string(S, " ", "\n", Parts),
+      Parts = [LoadStr|_],
+      number_codes(Load, LoadStr)
+    ),
+    _,
+    Load = 0.0
+  ).
+
+
+% -----------------------------------------------------------------------------
 %  System-wide locking
 % -----------------------------------------------------------------------------
 

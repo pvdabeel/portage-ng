@@ -655,6 +655,7 @@ config:verbose(false).
 
 :- dynamic config:color_output/0.
 :- dynamic config:cli_jobs/1.
+:- dynamic config:cli_load_average/1.
 
 config:color_output.
 

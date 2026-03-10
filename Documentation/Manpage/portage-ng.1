@@ -131,6 +131,23 @@ Optional positional arguments restrict the sync to specific
 repository names (e.g.\&
 .BR "portage" ", " "overlay" ).
 .TP
+.B \-\-regen " " [\fIREPOSITORY\fR...]
+Regenerate the ebuild metadata cache (md5-cache) on disk without
+performing a network sync (no git pull).  This is the equivalent of
+running
+.BR egencache .
+The knowledge base is updated on the next
+.B \-\-sync
+or restart.  Without arguments, regenerates metadata for all
+repositories registered with the knowledge base.  With arguments,
+only the named repositories are regenerated.
+.TP
+.B \-\-check\-news
+Check for and display GLEP 42 news items from the portage
+repository's
+.I metadata/news/
+directory.  Shows title, date, and content for each item.
+.TP
 .B \-\-graph
 Generate dependency graph output.  Accepts sub-commands:
 .BR modified ", " full ", " "build modified" ", " "build full" .
@@ -180,6 +197,13 @@ Limit the number of parallel build jobs to
 A value of 0 (default) means auto-detect based on the number of CPUs
 and available terminal display lines.
 .TP
+.B \-\-load\-average " " \fIN\fR
+Do not start new build jobs while the system's 1-minute load average
+exceeds
+.IR N .
+Workers poll every 5 seconds until the load drops below the
+threshold.  A value of 0 (default) disables load-based throttling.
+.TP
 .BR \-b ", " \-\-buildpkg
 Create binary packages after building from source.  When active, the
 .B package
@@ -202,6 +226,12 @@ seconds.  A value of 0 (default) means no limit.
 When used with the wrapper script, also enforces a hard wall-clock
 timeout that kills the process group.
 .SS Output options
+.TP
+.BR \-A ", " \-\-alert
+Ring the terminal bell (BEL character) when an operation completes
+or when user attention is required (e.g.\& the
+.B \-\-ask
+confirmation prompt).
 .TP
 .BR \-v ", " \-\-verbose
 Enable verbose output with additional diagnostic information.
