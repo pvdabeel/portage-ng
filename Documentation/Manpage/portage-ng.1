@@ -151,6 +151,12 @@ environment loaded.
 .SH OPTIONS
 .SS Dependency resolution options
 .TP
+.BR \-a ", " \-\-ask
+Ask for confirmation before proceeding with the merge.
+After the plan is displayed, portage\-ng prompts with
+.RB \(dq "Would you like to merge these packages? [Yes/No]" \(dq
+and waits for user input.
+.TP
 .BR \-p ", " \-\-pretend
 Pretend mode.  Show what would be done without making changes.
 .TP
@@ -167,6 +173,12 @@ Include packages whose USE flags have changed since installation.
 .BR \-1 ", " \-\-oneshot
 Do not add the target packages to the world set.
 .SS Build options
+.TP
+.BR \-j ", " \-\-jobs " " \fIN\fR
+Limit the number of parallel build jobs to
+.IR N .
+A value of 0 (default) means auto-detect based on the number of CPUs
+and available terminal display lines.
 .TP
 .BR \-b ", " \-\-buildpkg
 Create binary packages after building from source.  When active, the
@@ -196,6 +208,14 @@ Enable verbose output with additional diagnostic information.
 .TP
 .BR \-q ", " \-\-quiet
 Reduced output.
+.TP
+.B \-\-color " " \fIy\fR|\fIn\fR
+Enable or disable colored output.  When set to
+.BR n ,
+all ANSI color, background-color and style escape sequences are
+suppressed.  Useful for piping output to files or non-color-aware
+tools.  Default:
+.BR y .
 .TP
 .B \-\-style " " \fISTYLE\fR
 Set the printing style.  One of:

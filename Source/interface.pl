@@ -107,6 +107,7 @@ interface:spec(S) :-
              , '  client:     TCP/IP client, requires running server'
              , '  server:     start as server'
              , '  worker:     start distributed prover worker'])],
+       [opt(ask),       type(boolean),   default(false),       shortflags(['a']), longflags(['ask']),       help('Ask for confirmation before proceeding')],
        [opt(verbose),   type(boolean),   default(false),       shortflags(['v']), longflags(['verbose']),   help('Turn on verbose mode')],
        [opt(pretend),   type(boolean),   default(false),       shortflags(['p']), longflags(['pretend']),   help('Turn on pretend mode')],
        [opt(fetchonly), type(boolean),   default(false),       shortflags(['f']), longflags(['fetchonly']), help('Turn on fetchonly mode')],
@@ -132,6 +133,8 @@ interface:spec(S) :-
        [opt(unmerge),   type(boolean),   default(false),       shortflags(['C']), longflags(['unmerge']),   help('Unmerge target')],
        [opt(usepkg),    type(boolean),   default(false),       shortflags(['k']), longflags(['usepkg']),    help('Use prebuilt packages')],
        [opt(quiet),     type(boolean),   default(false),       shortflags(['q']), longflags(['quiet']),     help('Reduced output')],
+       [opt(jobs),      type(integer),   default(0),           shortflags(['j']), longflags(['jobs']),      help('Number of parallel build jobs (0 = auto-detect)')],
+       [opt(color),     type(atom),      default(y),                              longflags(['color']),     help('Enable or disable color output (y or n)')],
        [opt(timeout),   type(integer),   default(0),                              longflags(['timeout']),   help('Abort proving/planning after N seconds (0 = no limit)')],
        [opt(host),      type(atom),      default(Hostname),                       longflags(['host']),      help('Set server hostname (client mode)')],
        [opt(port),      type(integer),   default(4000),                           longflags(['port']),      help('Set Server port (client or server mode)')],
@@ -209,9 +212,12 @@ interface:process_flags:-
   (lists:memberchk(pretend(true),   Options) -> asserta(preference:local_flag(pretend))         ; true),
   (lists:memberchk(oneshot(true),   Options) -> asserta(preference:local_flag(oneshot))         ; true),
   (lists:memberchk(buildpkg(true), Options) -> asserta(preference:local_flag(buildpkg))        ; true),
+  (lists:memberchk(ask(true),      Options) -> asserta(preference:local_flag(ask))              ; true),
   (lists:memberchk(verbose(true),   Options) -> asserta(config:verbose(true))                   ; true),
   (lists:memberchk(logs(true),     Options) -> asserta(config:show_build_logs(true))            ; true),
-  (lists:memberchk(style(Style),    Options) -> asserta(config:interface_printing_style(Style)) ; true).
+  (lists:memberchk(style(Style),    Options) -> asserta(config:interface_printing_style(Style)) ; true),
+  ((lists:memberchk(jobs(J),       Options), J > 0) -> asserta(config:cli_jobs(J))              ; true),
+  (lists:memberchk(color(n),       Options) -> retractall(config:color_output)                  ; true).
 
 
 %! interface:process_mode(-Mode) is det.

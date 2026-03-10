@@ -120,54 +120,54 @@ message:scroll_log(_).
 %  Goal expansion: Foreground color
 % -----------------------------------------------------------------------------
 
-user:goal_expansion(color(red),            ansi_term:keep_line_pos(current_output,format("\e[31m",[]))).
-user:goal_expansion(color(green),          ansi_term:keep_line_pos(current_output,format("\e[32m",[]))).
-user:goal_expansion(color(orange),         ansi_term:keep_line_pos(current_output,format("\e[33m",[]))).
-user:goal_expansion(color(blue),           ansi_term:keep_line_pos(current_output,format("\e[34m",[]))).
-user:goal_expansion(color(magenta),        ansi_term:keep_line_pos(current_output,format("\e[35m",[]))).
-user:goal_expansion(color(cyan),           ansi_term:keep_line_pos(current_output,format("\e[36m",[]))).
-user:goal_expansion(color(lightgray),      ansi_term:keep_line_pos(current_output,format("\e[37m",[]))).
-user:goal_expansion(color(darkgray),       ansi_term:keep_line_pos(current_output,format("\e[90m",[]))).
-user:goal_expansion(color(lightred),       ansi_term:keep_line_pos(current_output,format("\e[91m",[]))).
-user:goal_expansion(color(lightgreen),     ansi_term:keep_line_pos(current_output,format("\e[92m",[]))).
-user:goal_expansion(color(lightorange),    ansi_term:keep_line_pos(current_output,format("\e[93m",[]))).
-user:goal_expansion(color(lightblue),      ansi_term:keep_line_pos(current_output,format("\e[94m",[]))).
-user:goal_expansion(color(lightmagenta),   ansi_term:keep_line_pos(current_output,format("\e[95m",[]))).
-user:goal_expansion(color(lightcyan),      ansi_term:keep_line_pos(current_output,format("\e[96m",[]))).
-user:goal_expansion(color(normal),         ansi_term:keep_line_pos(current_output,format("\e[00m",[]))).
+user:goal_expansion(color(red),            (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[31m",[])) ; true)).
+user:goal_expansion(color(green),          (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[32m",[])) ; true)).
+user:goal_expansion(color(orange),         (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[33m",[])) ; true)).
+user:goal_expansion(color(blue),           (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[34m",[])) ; true)).
+user:goal_expansion(color(magenta),        (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[35m",[])) ; true)).
+user:goal_expansion(color(cyan),           (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[36m",[])) ; true)).
+user:goal_expansion(color(lightgray),      (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[37m",[])) ; true)).
+user:goal_expansion(color(darkgray),       (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[90m",[])) ; true)).
+user:goal_expansion(color(lightred),       (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[91m",[])) ; true)).
+user:goal_expansion(color(lightgreen),     (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[92m",[])) ; true)).
+user:goal_expansion(color(lightorange),    (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[93m",[])) ; true)).
+user:goal_expansion(color(lightblue),      (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[94m",[])) ; true)).
+user:goal_expansion(color(lightmagenta),   (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[95m",[])) ; true)).
+user:goal_expansion(color(lightcyan),      (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[96m",[])) ; true)).
+user:goal_expansion(color(normal),         (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[00m",[])) ; true)).
 
 
 % -----------------------------------------------------------------------------
 %  Goal expansion: Background color
 % -----------------------------------------------------------------------------
 
-user:goal_expansion(bgcolor(red),          ansi_term:keep_line_pos(current_output,format("\e[41m",[]))).
-user:goal_expansion(bgcolor(green),        ansi_term:keep_line_pos(current_output,format("\e[42m",[]))).
-user:goal_expansion(bgcolor(orange),       ansi_term:keep_line_pos(current_output,format("\e[43m",[]))).
-user:goal_expansion(bgcolor(blue),         ansi_term:keep_line_pos(current_output,format("\e[44m",[]))).
-user:goal_expansion(bgcolor(magenta),      ansi_term:keep_line_pos(current_output,format("\e[45m",[]))).
-user:goal_expansion(bgcolor(cyan),         ansi_term:keep_line_pos(current_output,format("\e[46m",[]))).
-user:goal_expansion(bgcolor(lightgray),    ansi_term:keep_line_pos(current_output,format("\e[47m",[]))).
-user:goal_expansion(bgcolor(darkgray),     ansi_term:keep_line_pos(current_output,format("\e[100m",[]))).
-user:goal_expansion(bgcolor(lightred),     ansi_term:keep_line_pos(current_output,format("\e[101m",[]))).
-user:goal_expansion(bgcolor(lightgreen),   ansi_term:keep_line_pos(current_output,format("\e[102m",[]))).
-user:goal_expansion(bgcolor(lightorange),  ansi_term:keep_line_pos(current_output,format("\e[103m",[]))).
-user:goal_expansion(bgcolor(lightblue),    ansi_term:keep_line_pos(current_output,format("\e[104m",[]))).
-user:goal_expansion(bgcolor(lightmagenta), ansi_term:keep_line_pos(current_output,format("\e[105m",[]))).
-user:goal_expansion(bgcolor(lightcyan),    ansi_term:keep_line_pos(current_output,format("\e[106m",[]))).
-user:goal_expansion(bgcolor(normal),       ansi_term:keep_line_pos(current_output,format("\e[00m",[]))).
+user:goal_expansion(bgcolor(red),          (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[41m",[])) ; true)).
+user:goal_expansion(bgcolor(green),        (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[42m",[])) ; true)).
+user:goal_expansion(bgcolor(orange),       (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[43m",[])) ; true)).
+user:goal_expansion(bgcolor(blue),         (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[44m",[])) ; true)).
+user:goal_expansion(bgcolor(magenta),      (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[45m",[])) ; true)).
+user:goal_expansion(bgcolor(cyan),         (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[46m",[])) ; true)).
+user:goal_expansion(bgcolor(lightgray),    (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[47m",[])) ; true)).
+user:goal_expansion(bgcolor(darkgray),     (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[100m",[])) ; true)).
+user:goal_expansion(bgcolor(lightred),     (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[101m",[])) ; true)).
+user:goal_expansion(bgcolor(lightgreen),   (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[102m",[])) ; true)).
+user:goal_expansion(bgcolor(lightorange),  (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[103m",[])) ; true)).
+user:goal_expansion(bgcolor(lightblue),    (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[104m",[])) ; true)).
+user:goal_expansion(bgcolor(lightmagenta), (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[105m",[])) ; true)).
+user:goal_expansion(bgcolor(lightcyan),    (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[106m",[])) ; true)).
+user:goal_expansion(bgcolor(normal),       (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[00m",[])) ; true)).
 
 
 % -----------------------------------------------------------------------------
 %  Goal expansion: Style
 % -----------------------------------------------------------------------------
 
-user:goal_expansion(style(normal),         ansi_term:keep_line_pos(current_output,format("\e[00m",[]))).
-user:goal_expansion(style(bold),           ansi_term:keep_line_pos(current_output,format("\e[01m",[]))).
-user:goal_expansion(style(dim),            ansi_term:keep_line_pos(current_output,format("\e[02m",[]))).
-user:goal_expansion(style(italic),         ansi_term:keep_line_pos(current_output,format("\e[03m",[]))).
-user:goal_expansion(style(underline),      ansi_term:keep_line_pos(current_output,format("\e[04m",[]))).
-user:goal_expansion(style(blink),          ansi_term:keep_line_pos(current_output,format("\e[05m",[]))).
+user:goal_expansion(style(normal),         (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[00m",[])) ; true)).
+user:goal_expansion(style(bold),           (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[01m",[])) ; true)).
+user:goal_expansion(style(dim),            (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[02m",[])) ; true)).
+user:goal_expansion(style(italic),         (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[03m",[])) ; true)).
+user:goal_expansion(style(underline),      (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[04m",[])) ; true)).
+user:goal_expansion(style(blink),          (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[05m",[])) ; true)).
 
 
 % -----------------------------------------------------------------------------
