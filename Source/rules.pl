@@ -801,10 +801,12 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
     -> true
     ; use:installed_entry_satisfies_build_with_use(pkg://InstalledEntry, ContextWU)
     ),
-    % --newuse: do not "keep installed" if USE/IUSE has changed since the installed
-    % package was built (Portage-like -N behavior).
+    % --newuse / --changed-use: do not "keep installed" if USE has changed.
+    % --newuse checks both USE and IUSE; --changed-use only checks effective USE.
     ( preference:flag(newuse) ->
         \+ use:newuse_mismatch(pkg://InstalledEntry)
+    ; preference:flag(changeduse) ->
+        \+ use:changeduse_mismatch(pkg://InstalledEntry)
     ; true
     ),
     !   % commit to the first installed entry that satisfies constraints
@@ -969,6 +971,11 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
           preference:flag(newuse),
           use:newuse_mismatch(pkg://InstalledEntry2, FoundRepo://Candidate) ->
             feature_unification:unify([replaces(pkg://InstalledEntry2),rebuild_reason(newuse)], NewerContext, UpdateCtx),
+            DepUpdateAction = update
+        ; % --changed-use: like --newuse but only when effective USE changed.
+          preference:flag(changeduse),
+          use:changeduse_mismatch(pkg://InstalledEntry2, FoundRepo://Candidate) ->
+            feature_unification:unify([replaces(pkg://InstalledEntry2),rebuild_reason(changeduse)], NewerContext, UpdateCtx),
             DepUpdateAction = update
         )
       ->

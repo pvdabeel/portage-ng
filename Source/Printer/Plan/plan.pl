@@ -175,6 +175,12 @@ plan:print_newuse_note_if_any(update, Context) :-
   message:color(orange),
   message:print(' (newuse)'),
   message:color(normal).
+plan:print_newuse_note_if_any(update, Context) :-
+  memberchk(rebuild_reason(changeduse), Context),
+  !,
+  message:color(orange),
+  message:print(' (changed-use)'),
+  message:color(normal).
 plan:print_newuse_note_if_any(_Action, _Context).
 
 plan:print_blocker_note_if_any(Action, Repository, Entry) :-

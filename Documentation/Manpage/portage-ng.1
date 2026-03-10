@@ -185,7 +185,17 @@ Pretend no other packages are installed when resolving dependencies.
 Forces a complete recalculation of the dependency graph.
 .TP
 .BR \-N ", " \-\-newuse
-Include packages whose USE flags have changed since installation.
+Include packages whose USE flags or declared IUSE set have changed
+since installation.  This is the broader check: it triggers rebuilds
+when new flags are added to IUSE even if they default to disabled.
+.TP
+.B \-\-changed\-use
+Include packages whose effective USE flags have changed since
+installation.  Unlike
+.BR \-\-newuse ,
+this ignores IUSE additions and removals and only triggers a rebuild
+when the actual enabled/disabled flag state differs.  This is
+the more conservative option.
 .TP
 .BR \-1 ", " \-\-oneshot
 Do not add the target packages to the world set.
