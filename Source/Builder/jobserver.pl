@@ -108,7 +108,8 @@ jobserver:worker_loop(Slot, Executor) :-
     jobserver:get_job(Job),
     ( Job == done
     -> !
-    ; ( catch(
+    ; jobserver:wait_for_load_average,
+      ( catch(
           call(Executor, Job, Slot, Result),
           Error,
           Result = error(Error)
@@ -118,6 +119,26 @@ jobserver:worker_loop(Slot, Executor) :-
       ),
       fail
     ).
+
+
+%! jobserver:wait_for_load_average is det.
+%
+% When --load-average is set, blocks until the 1-minute system load
+% average drops below the configured threshold. Polls every 5 seconds.
+
+jobserver:wait_for_load_average :-
+  ( config:cli_load_average(Limit)
+  -> jobserver:wait_until_load_below(Limit)
+  ;  true
+  ).
+
+jobserver:wait_until_load_below(Limit) :-
+  os:current_load_average(Load),
+  ( Load < Limit
+  -> true
+  ;  sleep(5),
+     jobserver:wait_until_load_below(Limit)
+  ).
 
 
 %! jobserver:shutdown(+NumWorkers) is det.

@@ -63,7 +63,20 @@ builder:build(Goals) :-
   jobserver:init(NumWorkers, builder:execute_build_job),
   builder:execute_plan(Plan, StartStep, NumSteps, 0, 0, 0, Completed, Failed, Stubs),
   jobserver:shutdown(NumWorkers),
-  build:summary(Completed, Failed, Stubs).
+  build:summary(Completed, Failed, Stubs),
+  builder:alert.
+
+
+%! builder:alert is det.
+%
+% When --alert is active, rings the terminal bell to attract attention.
+
+builder:alert :-
+  ( preference:flag(alert)
+  -> format("\a", []),
+     flush_output
+  ;  true
+  ).
 
 
 %! builder:ask_confirmation is semidet.
@@ -73,7 +86,8 @@ builder:build(Goals) :-
 
 builder:ask_confirmation :-
   ( preference:flag(ask)
-  -> nl,
+  -> builder:alert,
+     nl,
      message:print('Would you like to merge these packages? [Yes/No] '),
      flush_output,
      read_line_to_string(current_input, Answer),

@@ -30,7 +30,7 @@ swipl
   --
   -f /Users/pvdabeel/Desktop/Prolog/portage-ng.pl  -> load the main file
   -p portage=/Users/pvdabeel/Desktop/Prolog        -> set application home
-  -g main					                                 -> execute main
+  -g main					                           -> execute main
   --
 */
 
@@ -114,6 +114,7 @@ load_client_modules :-
    ensure_loaded(portage('Source/Printer/Plan/timing.pl')),
    ensure_loaded(portage('Source/Printer/index.pl')),
    ensure_loaded(portage('Source/Printer/info.pl')),
+   ensure_loaded(portage('Source/Printer/News/news.pl')),
    ensure_loaded(portage('Source/Printer/stats.pl')),
    ensure_loaded(portage('Source/Printer/state.pl')),
    ensure_loaded(portage('Source/printer.pl')),
@@ -181,6 +182,7 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/Printer/Plan/timing.pl')),
    ensure_loaded(portage('Source/Printer/index.pl')),
    ensure_loaded(portage('Source/Printer/info.pl')),
+   ensure_loaded(portage('Source/Printer/News/news.pl')),
    ensure_loaded(portage('Source/Printer/stats.pl')),
    ensure_loaded(portage('Source/Printer/state.pl')),
    ensure_loaded(portage('Source/Printer/Build/build.pl')),
@@ -261,6 +263,7 @@ load_worker_modules :-
    ensure_loaded(portage('Source/Printer/Plan/timing.pl')),
    ensure_loaded(portage('Source/Printer/index.pl')),
    ensure_loaded(portage('Source/Printer/info.pl')),
+   ensure_loaded(portage('Source/Printer/News/news.pl')),
    ensure_loaded(portage('Source/Printer/stats.pl')),
    ensure_loaded(portage('Source/Printer/state.pl')),
    ensure_loaded(portage('Source/printer.pl')),

@@ -108,6 +108,7 @@ interface:spec(S) :-
              , '  server:     start as server'
              , '  worker:     start distributed prover worker'])],
        [opt(ask),       type(boolean),   default(false),       shortflags(['a']), longflags(['ask']),       help('Ask for confirmation before proceeding')],
+       [opt(alert),     type(boolean),   default(false),       shortflags(['A']), longflags(['alert']),     help('Ring terminal bell when action needs attention')],
        [opt(verbose),   type(boolean),   default(false),       shortflags(['v']), longflags(['verbose']),   help('Turn on verbose mode')],
        [opt(pretend),   type(boolean),   default(false),       shortflags(['p']), longflags(['pretend']),   help('Turn on pretend mode')],
        [opt(fetchonly), type(boolean),   default(false),       shortflags(['f']), longflags(['fetchonly']), help('Turn on fetchonly mode')],
@@ -125,7 +126,9 @@ interface:spec(S) :-
        [opt(style),     type(atom),      default('fancy'),                        longflags(['style']),     help('Set the printing style: fancy, column or short')],
        [opt(sync),      type(boolean),   default(false),                          longflags(['sync']),      help('Sync repository. Optional args: repository names (e.g. portage, pkg, overlay)')],
        [opt(clear),     type(boolean),   default(false),                          longflags(['clear']),     help('Clear knowledge base')],
+       [opt(regen),     type(boolean),   default(false),                          longflags(['regen']),     help('Regenerate the ebuild metadata cache (no network sync)')],
        [opt(graph),     type(boolean),   default(false),                          longflags(['graph']),     help('Create graph. Args: "modified"|"full"|"build"|"build modified"|"build full".')],
+       [opt(checknews), type(boolean),   default(false),                          longflags(['check-news']),help('Check for and display unread news items')],
        [opt(depclean),  type(boolean),   default(false),       shortflags(['c']), longflags(['depclean']),  help('Clean dependencies')],
        [opt(info),      type(boolean),   default(false),       shortflags(['i']), longflags(['info']),      help('Show package version')],
        [opt(bugs),      type(boolean),   default(false),                          longflags(['bugs']),      help('Print bug report drafts (Gentoo Bugzilla) for the given target, without printing a plan')],
@@ -134,6 +137,7 @@ interface:spec(S) :-
        [opt(usepkg),    type(boolean),   default(false),       shortflags(['k']), longflags(['usepkg']),    help('Use prebuilt packages')],
        [opt(quiet),     type(boolean),   default(false),       shortflags(['q']), longflags(['quiet']),     help('Reduced output')],
        [opt(jobs),      type(integer),   default(0),           shortflags(['j']), longflags(['jobs']),      help('Number of parallel build jobs (0 = auto-detect)')],
+       [opt(loadavg),   type(float),     default(0.0),                            longflags(['load-average']),help('Do not start new jobs if load average exceeds N (0 = no limit)')],
        [opt(color),     type(atom),      default(y),                              longflags(['color']),     help('Enable or disable color output (y or n)')],
        [opt(timeout),   type(integer),   default(0),                              longflags(['timeout']),   help('Abort proving/planning after N seconds (0 = no limit)')],
        [opt(host),      type(atom),      default(Hostname),                       longflags(['host']),      help('Set server hostname (client mode)')],
@@ -213,10 +217,12 @@ interface:process_flags:-
   (lists:memberchk(oneshot(true),   Options) -> asserta(preference:local_flag(oneshot))         ; true),
   (lists:memberchk(buildpkg(true), Options) -> asserta(preference:local_flag(buildpkg))        ; true),
   (lists:memberchk(ask(true),      Options) -> asserta(preference:local_flag(ask))              ; true),
+  (lists:memberchk(alert(true),    Options) -> asserta(preference:local_flag(alert))            ; true),
   (lists:memberchk(verbose(true),   Options) -> asserta(config:verbose(true))                   ; true),
   (lists:memberchk(logs(true),     Options) -> asserta(config:show_build_logs(true))            ; true),
   (lists:memberchk(style(Style),    Options) -> asserta(config:interface_printing_style(Style)) ; true),
   ((lists:memberchk(jobs(J),       Options), J > 0) -> asserta(config:cli_jobs(J))              ; true),
+  ((lists:memberchk(loadavg(L),    Options), L > 0.0) -> asserta(config:cli_load_average(L))    ; true),
   (lists:memberchk(color(n),       Options) -> retractall(config:color_output)                  ; true).
 
 
@@ -333,6 +339,8 @@ interface:process_requests(Mode) :-
     % In portage-ng the "full closure" corresponds to proving :run.
     memberchk(update(true),Options)   -> (interface:process_action(run,Args,Options),               Continue) ;
     memberchk(search(true),Options)   -> (interface:process_action(search,Args,Options),            Continue) ;
+    memberchk(checknews(true),Options)-> (news:check,                                              Continue) ;
+    memberchk(regen(true),Options)   -> (interface:process_regen(Mode, Args),!,                    Continue) ;
     memberchk(sync(true),Options)     -> (interface:process_sync(Mode, Args),!,                    Continue) ;
     memberchk(save(true),Options)     -> (kb:save,!, 						    Continue) ;
     memberchk(load(true),Options)     -> (kb:load,!, 						    Continue) ;
@@ -429,6 +437,40 @@ interface:process_sync(Mode, RepoNames) :-
          kb:sync(Name)),
   catch(profile:cache_save, _, true),
   ( Mode == standalone -> kb:save ; true ).
+
+
+% -----------------------------------------------------------------------------
+%  Action: REGEN (regenerate metadata cache, no network sync)
+% -----------------------------------------------------------------------------
+
+%! interface:process_regen(+Mode, +RepoNames) is det.
+%
+% Regenerates the ebuild metadata cache (md5-cache on disk) without
+% performing a network sync (no git pull) or reloading into the
+% knowledge base. This is the equivalent of running egencache.
+% The knowledge base is updated on the next --sync or restart.
+
+interface:process_regen(_Mode, []) :-
+  !,
+  aggregate_all(count, kb:repository(_), Count),
+  ( Count == 1 ->
+    message:topheader(['Regenerating metadata for ',Count,' registered repository'])
+  ; message:topheader(['Regenerating metadata for ',Count,' registered repositories'])
+  ),
+  forall(kb:repository(Repository),
+    ( message:header(['Regenerating metadata for \"',Repository,'\"']), nl,
+      ( catch(Repository:sync(metadata), _, true) -> true ; true )
+    )).
+
+interface:process_regen(_Mode, RepoNames) :-
+  forall(member(Name, RepoNames),
+    ( kb:repository(Name) ->
+      ( message:header(['Regenerating metadata for \"',Name,'\"']), nl,
+        ( catch(Name:sync(metadata), _, true) -> true ; true )
+      )
+    ; message:failure(['Unknown repository: ', Name]),
+      fail
+    )).
 
 
 % -----------------------------------------------------------------------------
