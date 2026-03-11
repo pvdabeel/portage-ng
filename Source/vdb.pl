@@ -359,17 +359,24 @@ vdb:verify_files([], M, Mi, M, Mi).
 
 vdb:verify_files([obj(Path, MD5, _MTime)|Rest], MAcc, MiAcc, M, Mi) :-
   ( exists_file(Path) ->
-    catch(
-      ( crypto_file_hash(Path, Hash, [algorithm(md5), encoding(hex)]),
-        ( Hash == MD5 ->
-          MAcc1 = MAcc
-        ; MAcc1 is MAcc + 1,
-          format('  MOD ~w~n', [Path])
+    ( sanitize:not_symlink(Path) ->
+      catch(
+        ( size_file(Path, Size),
+          ( Size > 1073741824 ->
+            MAcc1 = MAcc, MiAcc1 = MiAcc
+          ; crypto_file_hash(Path, Hash, [algorithm(md5), encoding(hex)]),
+            ( Hash == MD5 ->
+              MAcc1 = MAcc
+            ; MAcc1 is MAcc + 1,
+              format('  MOD ~w~n', [Path])
+            ),
+            MiAcc1 = MiAcc
+          )
         ),
-        MiAcc1 = MiAcc
-      ),
-      _,
-      ( MAcc1 = MAcc, MiAcc1 = MiAcc )
+        _,
+        ( MAcc1 = MAcc, MiAcc1 = MiAcc )
+      )
+    ; MAcc1 = MAcc, MiAcc1 = MiAcc
     )
   ; MiAcc1 is MiAcc + 1,
     MAcc1 = MAcc,
@@ -505,6 +512,18 @@ vdb:dep_tree_mentions(use_conditional_group(_,_,_,Deps), C, N) :-
 % CONTENTS file to the VDB pkg directory.
 
 vdb:import_package(Category, Name, Version) :-
+  ( sanitize:safe_portage_category(Category) -> true
+  ; throw(error(permission_error(create, vdb_entry, Category),
+                context(vdb:import_package/3, 'Invalid category name')))
+  ),
+  ( sanitize:safe_portage_name(Name) -> true
+  ; throw(error(permission_error(create, vdb_entry, Name),
+                context(vdb:import_package/3, 'Invalid package name')))
+  ),
+  ( sanitize:safe_path_component(Version) -> true
+  ; throw(error(permission_error(create, vdb_entry, Version),
+                context(vdb:import_package/3, 'Invalid version string')))
+  ),
   config:hostname(Hostname),
   config:pkg_directory(Hostname, PkgDir),
   atomic_list_concat([Name, '-', Version], PV),
@@ -609,14 +628,26 @@ vdb:build_contents_index(OwnedSet) :-
 %! vdb:find_unmanaged(+Dir, +OwnedSet, -Unmanaged) is det.
 %
 % Recursively scans Dir and returns files not present in OwnedSet.
+% Limits recursion depth and skips symbolic links to directories
+% to prevent symlink traversal attacks and unbounded recursion.
 
 vdb:find_unmanaged(Dir, OwnedSet, Unmanaged) :-
+  vdb:find_unmanaged(Dir, OwnedSet, 64, Unmanaged).
+
+
+%! vdb:find_unmanaged(+Dir, +OwnedSet, +MaxDepth, -Unmanaged) is det.
+
+vdb:find_unmanaged(_Dir, _OwnedSet, MaxDepth, []) :-
+  MaxDepth =< 0, !.
+
+vdb:find_unmanaged(Dir, OwnedSet, MaxDepth, Unmanaged) :-
   catch(
     directory_files(Dir, Entries0),
     _, Entries0 = []
   ),
   exclude(vdb:is_dot_entry, Entries0, Entries),
-  foldl(vdb:check_unmanaged_entry(Dir, OwnedSet), Entries, [], Unmanaged0),
+  Depth1 is MaxDepth - 1,
+  foldl(vdb:check_unmanaged_entry(Dir, OwnedSet, Depth1), Entries, [], Unmanaged0),
   reverse(Unmanaged0, Unmanaged).
 
 
@@ -626,13 +657,16 @@ vdb:is_dot_entry('.').
 vdb:is_dot_entry('..').
 
 
-%! vdb:check_unmanaged_entry(+Dir, +OwnedSet, +Name, +Acc, -NewAcc) is det.
+%! vdb:check_unmanaged_entry(+Dir, +OwnedSet, +MaxDepth, +Name, +Acc, -NewAcc) is det.
 
-vdb:check_unmanaged_entry(Dir, OwnedSet, Name, Acc, NewAcc) :-
+vdb:check_unmanaged_entry(Dir, OwnedSet, MaxDepth, Name, Acc, NewAcc) :-
   atomic_list_concat([Dir, '/', Name], FullPath),
   ( exists_directory(FullPath) ->
-    vdb:find_unmanaged(FullPath, OwnedSet, SubUnmanaged),
-    append(SubUnmanaged, Acc, NewAcc)
+    ( sanitize:not_symlink(FullPath) ->
+      vdb:find_unmanaged(FullPath, OwnedSet, MaxDepth, SubUnmanaged),
+      append(SubUnmanaged, Acc, NewAcc)
+    ; NewAcc = Acc
+    )
   ; ( rb_lookup(FullPath, _, OwnedSet) ->
       NewAcc = Acc
     ; NewAcc = [FullPath|Acc]

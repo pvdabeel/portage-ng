@@ -74,7 +74,8 @@ upstream:fetch_project(Name, Packages) :-
       http_open(URL, In, [
         request_header('User-Agent' = UA),
         request_header('Accept' = 'application/json'),
-        status_code(Code)
+        status_code(Code),
+        cacerts(system)
       ]),
       ( Code == 200
       -> json_read_dict(In, Packages, [default_tag(json)])

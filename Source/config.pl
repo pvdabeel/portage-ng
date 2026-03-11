@@ -1055,7 +1055,7 @@ config:llm_temperature(0.7).
 %
 % Declares whether to turn on or turn off the LLM code execution sandbox
 
-config:llm_sandboxed_execution(false).
+config:llm_sandboxed_execution(true).
 
 
 %! config:llm_default(?Service)

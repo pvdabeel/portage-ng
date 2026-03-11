@@ -48,10 +48,11 @@ daemon:start :-
   ( access_file(SocketPath, exist) -> delete_file(SocketPath) ; true ),
   unix_domain_socket(Socket),
   tcp_bind(Socket, SocketPath),
+  atom_string(SocketPath, SP),
   catch(
-    ( atom_string(SocketPath, SP),
-      process_create(path(chmod), ['600', SP], []) ),
-    _, true),
+    ( process_create(path(chmod), ['600', SP], [stdout(null), stderr(null), process(ChPid)]),
+      process_wait(ChPid, _)
+    ), _, true),
   tcp_listen(Socket, 5),
   daemon_write_pid(PidPath),
   assertz(daemon:running),
@@ -138,14 +139,22 @@ daemon_accept_loop(Socket) :-
 
 daemon_handle_request(In, Out) :-
   catch(
-    read_term(In, Term, []),
+    read_term(In, Term, [
+      max_term_length(100000),
+      dotlists(false)
+    ]),
     _,
     ( format(Out, '~cEXIT:1~n', [0]),
       flush_output(Out),
       fail )
   ),
   !,
-  daemon_dispatch(Term, In, Out).
+  ( sanitize:safe_daemon_request(Term) ->
+    daemon_dispatch(Term, In, Out)
+  ; format(Out, 'Error: malformed request~n', []),
+    format(Out, '~cEXIT:1~n', [0]),
+    flush_output(Out)
+  ).
 
 daemon_handle_request(_, _).
 

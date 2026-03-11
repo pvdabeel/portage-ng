@@ -37,9 +37,14 @@ snapshot:base_dir(Dir) :-
 
 %! snapshot:snapshot_dir(+Id, -Dir) is det.
 %
-% Returns the directory for a specific snapshot.
+% Returns the directory for a specific snapshot. Validates Id against
+% path traversal (no slashes, no '..').
 
 snapshot:snapshot_dir(Id, Dir) :-
+  ( sanitize:safe_snapshot_id(Id) -> true
+  ; throw(error(permission_error(access, snapshot, Id),
+                context(snapshot:snapshot_dir/2, 'Invalid snapshot ID (path traversal rejected)')))
+  ),
   snapshot:base_dir(Base),
   os:compose_path(Base, Id, Dir).
 

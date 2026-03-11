@@ -85,13 +85,15 @@ load ::-
 
 load ::-
   ::file(File),
-  <-entry(_),
-  see(File),
-  current_input(Stream),
-  reader:read_lines_to_strings(Stream,Result),
-  seen,
-  forall(member(E,Result),
-         <+entry(E)),!.
+  with_mutex(set_file_mutex, (
+    <-entry(_),
+    see(File),
+    current_input(Stream),
+    reader:read_lines_to_strings(Stream,Result),
+    seen,
+    forall(member(E,Result),
+           <+entry(E))
+  )),!.
 
 
 %! set:save
@@ -100,10 +102,14 @@ load ::-
 
 save ::-
   ::file(File),
-  tell(File),
-  forall(::entry(E),
-         writeln(E)),
-  told,!.
+  with_mutex(set_file_mutex, (
+    atomic_list_concat([File, '.tmp'], TmpFile),
+    tell(TmpFile),
+    forall(::entry(E),
+           writeln(E)),
+    told,
+    catch(rename_file(TmpFile, File), _, true)
+  )),!.
 
 
 %! set:register(+List)

@@ -71,7 +71,8 @@ download:fetch_layout_conf(URL, Contents) :-
   close(Stream),
   process_create(
     path(curl),
-    ['-L', '-s', '-f', '-o', TmpPath, URL],
+    ['-L', '-s', '-f', '--proto', '=https,http,ftp',
+     '--max-time', '30', '--max-filesize', '1048576', '-o', TmpPath, URL],
     [stdout(null), stderr(null), process(Pid)]),
   process_wait(Pid, exit(ExitCode)),
   ExitCode =:= 0,
@@ -240,6 +241,10 @@ download:fetch_one(_MirrorUrl, _Layout, Distdir, Filename, _ExpectedSize, _Pairs
   mirror:flat_present(Distdir, Filename), !.
 
 download:fetch_one(MirrorUrl, Layout, Distdir, Filename, ExpectedSize, Pairs) :-
+  ( sanitize:safe_filename(Filename) -> true
+  ; throw(error(permission_error(write, distfile, Filename),
+                context(download:fetch_one/6, 'Invalid distfile name (path traversal rejected)')))
+  ),
   download:mirror_download_url(MirrorUrl, Layout, Filename, URL),
   atomic_list_concat([Distdir, '/', Filename], DestPath),
   download:curl_download(URL, DestPath, ExitCode),
@@ -272,7 +277,8 @@ download:mirror_download_url(MirrorUrl, Layout, Filename, URL) :-
 download:curl_download(URL, DestPath, ExitCode) :-
   process_create(
     path(curl),
-    ['-L', '-s', '-f', '-o', DestPath, URL],
+    ['-L', '-s', '-f', '--proto', '=https,http,ftp',
+     '--max-time', '600', '-o', DestPath, URL],
     [stdout(null), stderr(null), process(Pid)]),
   process_wait(Pid, exit(ExitCode)).
 
@@ -285,7 +291,8 @@ download:curl_download(URL, DestPath, ExitCode) :-
 download:start_curl_async(URL, DestPath, Pid) :-
   process_create(
     path(curl),
-    ['-L', '-s', '-f', '-o', DestPath, URL],
+    ['-L', '-s', '-f', '--proto', '=https,http,ftp',
+     '--max-time', '600', '-o', DestPath, URL],
     [stdout(null), stderr(null), process(Pid)]).
 
 
@@ -440,18 +447,38 @@ download:git_repo_cache_path(GitCacheDir, URI, RepoPath) :-
 % Progress output is appended to LogPath for polling.
 
 download:start_git_clone_async(URI, RepoPath, LogPath, Pid) :-
+  open(LogPath, append, LogStream),
   ( exists_directory(RepoPath)
   -> process_create(
-       path(sh),
-       ['-c', 'cd "$1" && git fetch --progress --all >>"$2" 2>&1',
-        '_', RepoPath, LogPath],
-       [process(Pid)])
+       path(git),
+       ['-C', RepoPath, 'fetch', '--progress', '--all'],
+       [stdout(pipe(Out)), stderr(pipe(Err)),
+        process(Pid)])
   ;  process_create(
-       path(sh),
-       ['-c', 'git clone --bare --progress "$1" "$2" >>"$3" 2>&1',
-        '_', URI, RepoPath, LogPath],
-       [process(Pid)])
-  ).
+       path(git),
+       ['clone', '--bare', '--progress', URI, RepoPath],
+       [stdout(pipe(Out)), stderr(pipe(Err)),
+        process(Pid)])
+  ),
+  thread_create(
+    download:pipe_to_log(Out, Err, LogStream), _, [detached(true)]).
+
+
+%! download:pipe_to_log(+Out, +Err, +LogStream) is det.
+%
+% Copies stdout and stderr pipe data into the log stream, then closes
+% all three streams. Runs in a detached thread for async git operations.
+
+download:pipe_to_log(Out, Err, LogStream) :-
+  catch(
+    ( thread_create(
+        (catch(copy_stream_data(Err, LogStream), _, true), close(Err)),
+        ErrTid, []),
+      catch(copy_stream_data(Out, LogStream), _, true),
+      close(Out),
+      thread_join(ErrTid, _)
+    ), _, true),
+  catch(close(LogStream), _, true).
 
 
 %! download:poll_git_progress(+Pid, +LogPath, :Callback, -ExitCode) is det.

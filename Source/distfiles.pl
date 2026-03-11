@@ -29,6 +29,7 @@ providing predicates to query, verify and clean the distfiles store.
 % True if Filename exists in the local distfiles directory.
 
 distfiles:present(Filename) :-
+  sanitize:safe_filename(Filename),
   distfiles:get_location(Dir),
   atomic_list_concat([Dir, '/', Filename], Path),
   exists_file(Path).
@@ -39,6 +40,10 @@ distfiles:present(Filename) :-
 % Computes the full filesystem path for a distfile in the local store.
 
 distfiles:path(Filename, Path) :-
+  ( sanitize:safe_filename(Filename) -> true
+  ; throw(error(permission_error(access, distfile, Filename),
+                context(distfiles:path/2, 'Invalid distfile name')))
+  ),
   distfiles:get_location(Dir),
   atomic_list_concat([Dir, '/', Filename], Path).
 
