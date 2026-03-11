@@ -149,6 +149,10 @@ sync ::-
 
 sync(Name) ::-
   proxy,!,
+  ( sanitize:safe_path_component(Name) -> true
+  ; throw(error(permission_error(sync, repository, Name),
+                context(knowledgebase:sync/1, 'Invalid repository name')))
+  ),
   ::host(Host),
   ::port(Port),
   atom_concat('/sync/', Name, Path),
