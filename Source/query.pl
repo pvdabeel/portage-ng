@@ -74,27 +74,19 @@ An implementation of a query language for the knowledge base
 
 user:goal_expansion(query:search(Q, Repo://Id), Expanded) :-
   is_list(Q),!,
-  query:compile_query_list(Q, Repo://Id, Expanded),
-  message:color(normal).
+  query:compile_query_list(Q, Repo://Id, Expanded).
 
 user:goal_expansion(query:search(Q, Repo://Id), Expanded) :-
   compound(Q),!,
-  query:compile_query_compound(Q, Repo://Id, Expanded),
-  message:color(normal).
+  query:compile_query_compound(Q, Repo://Id, Expanded).
 
 user:goal_expansion(search(Q, Repo://Id), Expanded) :-
   is_list(Q),!,
-  %write('Inside list macro: '),write(Q),nl,
-  compile_query_list(Q, Repo://Id, Expanded),
-  %write('Turned list into: '),write(Expanded),nl,nl,
-  message:color(normal).
+  compile_query_list(Q, Repo://Id, Expanded).
 
 user:goal_expansion(search(Q, Repo://Id), Expanded) :-
   compound(Q),!,
-  %write('Inside compound macro: '),write(Q),nl,
-  compile_query_compound(Q, Repo://Id, Expanded),
-  %write('Turned compound into: '),write(Expanded),nl,nl,
-  message:color(normal).
+  compile_query_compound(Q, Repo://Id, Expanded).
 
 
 % -----------------------------------------------------------------------------
@@ -113,6 +105,9 @@ compile_query_list([S|Ss], Repo://Id, (One, Rest)) :-
 % -----------------------------------------------------------------------------
 %  COMPOUND QUERY
 % -----------------------------------------------------------------------------
+
+% Clauses are grouped by query type (entry_metadata, select, all, etc.).
+:- discontiguous compile_query_compound/3.
 
 % We turn compound queries into cache statements
 
@@ -269,6 +264,10 @@ compile_query_compound(homepage(H), Repo://Id,
 
 compile_query_compound(license(L), Repo://Id,
   cache:entry_metadata(Repo,Id,license,L)) :- !.
+
+compile_query_compound(maintainer(M), Repo://Id,
+  cache:entry_metadata(Repo,Id,maintainer,Maintainers),
+  member(M,Maintainers)) :- !.
 
 compile_query_compound(eclass(E), Repo://Id,
   cache:entry_metadata(Repo,Id,eclasses,[eclass(E),_])) :- !.
@@ -568,6 +567,21 @@ compile_query_compound(select(keyword,equal,K),	Repo://Id,
 
 compile_query_compound(select(keywords,equal,K), Repo://Id,
   cache:entry_metadata(Repo,Id,keyword,K)) :- !.
+
+compile_query_compound(select(maintainer,equal,Pattern), Repo://Id,
+  cache:entry_metadata(Repo,Id,maintainer,Maintainers),
+  member(M,Maintainers),
+  dwim_match(Pattern,M)) :- !.
+
+compile_query_compound(select(maintainer,wildcard,Pattern), Repo://Id,
+  cache:entry_metadata(Repo,Id,maintainer,Maintainers),
+  member(M,Maintainers),
+  wildcard_match(Pattern,M)) :- !.
+
+compile_query_compound(select(maintainer,tilde,Pattern), Repo://Id,
+  cache:entry_metadata(Repo,Id,maintainer,Maintainers),
+  member(M,Maintainers),
+  dwim_match(Pattern,M)) :- !.
 
 compile_query_compound(select(masked,equal,true), Repo://Id,
   preference:masked(Repo://Id) ) :- !.
@@ -1409,6 +1423,25 @@ select(iuse,tilde,Value,R://I) :-
   query:iuse_sign_matches(Raw, RequiredSign),
   query:iuse_flag_atom(Raw, Flag),
   dwim_match(Pattern, Flag).
+
+% Maintainer is stored as a list of emails; match if Pattern matches any member.
+select(maintainer,equal,Pattern,R://I) :-
+  !,
+  cache:entry_metadata(R,I,maintainer,Maintainers),
+  member(M,Maintainers),
+  dwim_match(Pattern,M).
+
+select(maintainer,wildcard,Pattern,R://I) :-
+  !,
+  cache:entry_metadata(R,I,maintainer,Maintainers),
+  member(M,Maintainers),
+  wildcard_match(Pattern,M).
+
+select(maintainer,tilde,Pattern,R://I) :-
+  !,
+  cache:entry_metadata(R,I,maintainer,Maintainers),
+  member(M,Maintainers),
+  dwim_match(Pattern,M).
 
 select(Key,equal,Value,R://I) :-
   !,

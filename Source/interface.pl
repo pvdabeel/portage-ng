@@ -709,12 +709,14 @@ interface:process_list_sets :-
 interface:process_sync(Mode, []) :-
   !,
   kb:sync,
+  message:header(['Syncing profile']), nl,
   catch(profile:cache_save, _, true),
   ( Mode == standalone -> kb:save ; true ).
 
 interface:process_sync(Mode, RepoNames) :-
   forall(member(Name, RepoNames),
          kb:sync(Name)),
+  message:header(['Syncing profile']), nl,
   catch(profile:cache_save, _, true),
   ( Mode == standalone -> kb:save ; true ).
 
@@ -883,7 +885,7 @@ interface:process_action(info,Args,_Options) :-
 
 interface:process_action(search,[],_) :-
   !,
-  message:failure('Usage: portage-ng --search key=value ... (e.g. name=gcc, category=sys-devel, description=*compiler*)').
+  message:failure('Usage: portage-ng --search key=value ... (e.g. name=gcc, maintainer=''*@gentoo.org'' - quote * in shell)').
 
 interface:process_action(search,Args,_Options) :-
   !,

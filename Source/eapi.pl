@@ -2596,3 +2596,47 @@ eapi:vdb_kv_file_joined(Dir, File, Key, Line) :-
   atomic_list_concat(Values, ' ', Joined0),
   Joined0 \== "",
   format(string(Line), "~w=~s", [Key, Joined0]).
+
+
+% -----------------------------------------------------------------------------
+%  metadata.xml parsing (GLEP 68)
+% -----------------------------------------------------------------------------
+%
+% Package metadata.xml files specify maintainers and other metadata.
+% We extract maintainer email addresses for search.
+
+%! eapi:metadata_maintainers(+Path, -Emails)
+%
+% Parses metadata.xml at Path and returns a list of maintainer email addresses.
+% Emails is a list of atoms. Returns [] if the file cannot be parsed or
+% contains no maintainers (e.g. maintainer-needed packages).
+%
+% Uses simple pattern matching (<email>...</email>) to avoid load_structure
+% which would fetch the DOCTYPE DTD from the network and can fail or hang.
+
+eapi:metadata_maintainers(Path, Emails) :-
+  exists_file(Path),
+  catch(eapi:metadata_maintainers_from_file(Path, Emails), _Error, Emails = []),
+  !.
+eapi:metadata_maintainers(_, []).
+
+
+eapi:metadata_maintainers_from_file(Path, Emails) :-
+  read_file_to_string(Path, Content, [encoding(utf8)]),
+  eapi:metadata_emails_from_string(Content, Emails).
+
+
+eapi:metadata_emails_from_string(Content, Emails) :-
+  string(Content),
+  findall(Email,
+          ( sub_string(Content, P0, 7, _, "<email>"),
+            P1 is P0 + 7,
+            sub_string(Content, P1, _, 0, Rest),
+            once(sub_string(Rest, EndBefore, 8, _, "</email>")),
+            EndBefore > 0,
+            sub_string(Rest, 0, EndBefore, _, EmailStr),
+            atom_string(Email, EmailStr),
+            Email \== "" ),
+          Emails),
+  !.
+eapi:metadata_emails_from_string(_, []).
