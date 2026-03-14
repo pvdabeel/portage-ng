@@ -1148,24 +1148,25 @@ prover:test_action(Action, Action).
 %
 % This keeps whole-repo test runs robust for known blocker/conflict-heavy
 % packages while preserving strict behavior as first choice.
+% Prover test runs only prover:prove (no planner/scheduler).
 prover:test_target_success(Target) :-
-  pipeline:prove_plan([Target], _ProofAVL, _ModelAVL, _Plan, _TriggersAVL),
+  prover:prove([Target], t, _ProofAVL, t, _ModelAVL, t, _Constraint, t, _TriggersAVL),
   !.
 prover:test_target_success(Target) :-
   prover:assuming(keyword_acceptance,
     prover:assuming(unmask,
-      pipeline:prove_plan([Target], _ProofAVL1, _ModelAVL1, _Plan1, _TriggersAVL1)
+      prover:prove([Target], t, _ProofAVL1, t, _ModelAVL1, t, _Constraint1, t, _TriggersAVL1)
     )
   ),
   !.
 prover:test_target_success(Target) :-
   prover:assuming(blockers,
-    pipeline:prove_plan([Target], _ProofAVL2, _ModelAVL2, _Plan2, _TriggersAVL2)
+    prover:prove([Target], t, _ProofAVL2, t, _ModelAVL2, t, _Constraint2, t, _TriggersAVL2)
   ),
   !.
 prover:test_target_success(Target) :-
   prover:assuming(conflicts,
-    pipeline:prove_plan([Target], _ProofAVL3, _ModelAVL3, _Plan3, _TriggersAVL3)
+    prover:prove([Target], t, _ProofAVL3, t, _ModelAVL3, t, _Constraint3, t, _TriggersAVL3)
   ).
 
 
@@ -1291,7 +1292,7 @@ prover:test_stats(Repository, Style, TopN) :-
               ( sampler:test_stats_reset_counters,
                 statistics(inferences, I0),
                 statistics(walltime, [T0,_]),
-                ( pipeline:prove_plan([Repository://Entry:Action?{[]}], ProofAVL, ModelAVL, _Plan, Triggers) ->
+                ( prover:prove([Repository://Entry:Action?{[]}], t, ProofAVL, t, ModelAVL, t, _Constraint, t, Triggers) ->
                     Proved = true
                 ; Proved = false
                 ),
@@ -1317,12 +1318,12 @@ prover:test_stats(Repository, Style, TopN) :-
                   TimeBudgetMs is TLimit * 333,
                   ( TimeMs > TimeBudgetMs ->
                       sampler:test_stats_record_failed(other)
-                  ;                   ( prover:assuming(blockers,
-                        pipeline:prove_plan([Repository://Entry:Action?{[]}], _ProofAVL3, _ModelAVL3, _Plan3, _TriggersAVL3)
+                  ; ( prover:assuming(blockers,
+                        prover:prove([Repository://Entry:Action?{[]}], t, _, t, _, t, _, t, _)
                       ) ->
                         sampler:test_stats_record_failed(blocker)
                     ; prover:assuming(conflicts,
-                        prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
+                        prover:prove([Repository://Entry:Action?{[]}], t, _, t, _, t, _, t, _)
                       ) ->
                         sampler:test_stats_record_failed(conflict)
                     ; sampler:test_stats_record_failed(other)

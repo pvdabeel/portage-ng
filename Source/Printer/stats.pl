@@ -313,14 +313,14 @@ stats:test_stats_print(TopN) :-
   sampler:test_stats_unique_pkg_count(with_package_assumptions, WithPkgAssPkgs),
   sampler:test_stats_unique_pkg_count(with_cycles, WithCyclesPkgs),
 
-  % --- Overview ---
+  % --- Overview (all stages) ---
   nl,
   message:header(['Test statistics (',Label,')']),
   nl,
   stats:test_stats_print_table_header,
   stats:test_stats_print_table_row('Total', Expected, Expected, ExpectedPkgs, ExpectedPkgs),
   stats:test_stats_print_table_row('Processed', Processed, Expected, ProcessedPkgs, ExpectedPkgs),
-  ( Processed > 0 ->
+  ( Processed > 0, sampler:test_stats_stage_at_least(planner) ->
       stats:test_stats_print_table_row('With assumptions', WithAss, Processed, WithAssPkgs, ProcessedPkgs),
       stats:test_stats_print_table_row('With package assumptions', WithPkgAss, Processed, WithPkgAssPkgs, ProcessedPkgs),
       stats:test_stats_print_table_row('With cycles', WithCycles, Processed, WithCyclesPkgs, ProcessedPkgs),
@@ -330,48 +330,55 @@ stats:test_stats_print(TopN) :-
   ; true
   ),
 
-  % --- Failure breakdown ---
+  % --- Failure breakdown (all stages) ---
   ( Expected =\= Processed ->
       stats:test_stats_print_failure_breakdown(Expected, Processed)
   ; true
   ),
 
-  % --- Assumption types ---
-  stats:test_stats_print_assumption_types(Processed),
+  % --- Assumption types (planner+) ---
+  ( sampler:test_stats_stage_at_least(planner) ->
+      stats:test_stats_print_assumption_types(Processed)
+  ; true
+  ),
 
-  % --- Performance: slowest entries ---
+  % --- Performance: prover-level (all stages) ---
   stats:test_stats_print_slowest_entries(TopN),
-
-  % --- Performance: slowest packages (total) ---
   stats:test_stats_print_slowest_packages_total(TopN),
-
-  % --- Performance: most expensive packages (inferences) ---
   stats:test_stats_print_expensive_inferences(TopN),
-
-  % --- Performance: context union analysis ---
   stats:test_stats_print_ctx_union_cost(TopN),
   stats:test_stats_print_ctx_union_walltime(TopN),
   stats:test_stats_print_ctx_share(TopN),
   stats:test_stats_print_ctx_length_distribution(TopN),
   stats:test_stats_print_ordset_impact,
   stats:test_stats_print_largest_contexts(TopN),
-
-  % --- Performance: slowest packages (max) ---
   stats:test_stats_print_slowest_packages_max(TopN),
 
-  % --- Assumption detail: per-type Top-N entries ---
-  findall(Type, sampler:test_stats_type(Type, _, _), Types0),
-  sort(Types0, Types),
-  stats:test_stats_print_per_type_entries(Types, TopN),
+  % --- Assumption detail: per-type Top-N entries (planner+) ---
+  ( sampler:test_stats_stage_at_least(planner) ->
+      findall(Type, sampler:test_stats_type(Type, _, _), Types0),
+      sort(Types0, Types),
+      stats:test_stats_print_per_type_entries(Types, TopN)
+  ; true
+  ),
 
-  % --- Blocker analysis ---
-  stats:test_stats_print_blocker_analysis(TopN),
+  % --- Blocker analysis (scheduler+) ---
+  ( sampler:test_stats_stage_at_least(scheduler) ->
+      stats:test_stats_print_blocker_analysis(TopN)
+  ; true
+  ),
 
-  % --- Other assumptions ---
-  stats:test_stats_print_other_assumptions,
+  % --- Other assumptions (printer) ---
+  ( sampler:test_stats_stage_at_least(printer) ->
+      stats:test_stats_print_other_assumptions
+  ; true
+  ),
 
-  % --- Cycle mentions ---
-  stats:test_stats_print_cycle_mentions(TopN).
+  % --- Cycle mentions (printer) ---
+  ( sampler:test_stats_stage_at_least(printer) ->
+      stats:test_stats_print_cycle_mentions(TopN)
+  ; true
+  ).
 
 
 % -----------------------------------------------------------------------------

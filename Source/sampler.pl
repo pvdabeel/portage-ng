@@ -317,6 +317,14 @@ sampler:test_stats_reset(Label, ExpectedTotal) :-
       retractall(sampler:test_stats_pkg(_,_,_)),
       retractall(sampler:test_stats_type_entry_mention(_,_,_)),
       assertz(sampler:test_stats_stat(label, Label)),
+      ( Label == 'Proving'   -> Stage = prover
+      ; Label == 'Planning'  -> Stage = planner
+      ; Label == 'Scheduling'-> Stage = scheduler
+      ; Label == 'Printing'  -> Stage = printer
+      ; Label == 'Pipeline'  -> Stage = printer
+      ; Stage = printer
+      ),
+      assertz(sampler:test_stats_stat(stage, Stage)),
       assertz(sampler:test_stats_stat(expected_total, ExpectedTotal)),
       assertz(sampler:test_stats_stat(expected_unique_packages, 0)),
       assertz(sampler:test_stats_stat(processed, 0)),
@@ -658,6 +666,22 @@ sampler:test_stats_record_cycle(_CyclePath0, CyclePath) :-
 
 sampler:test_stats_value(Key, Value) :-
   ( sampler:test_stats_stat(Key, Value) -> true ; Value = 0 ).
+
+%! sampler:test_stats_stage_at_least(+MinStage) is semidet
+%
+% Succeeds when the current test_stats stage is at least MinStage.
+% Stage order: prover < planner < scheduler < printer.
+
+sampler:test_stats_stage_at_least(MinStage) :-
+  ( sampler:test_stats_stat(stage, Stage) -> true ; Stage = printer ),
+  sampler:test_stats_stage_rank(MinStage, MinRank),
+  sampler:test_stats_stage_rank(Stage, Rank),
+  Rank >= MinRank.
+
+sampler:test_stats_stage_rank(prover, 1).
+sampler:test_stats_stage_rank(planner, 2).
+sampler:test_stats_stage_rank(scheduler, 3).
+sampler:test_stats_stage_rank(printer, 4).
 
 sampler:test_stats_percent(_, 0, 0.0) :- !.
 sampler:test_stats_percent(Part, Total, Percent) :-
