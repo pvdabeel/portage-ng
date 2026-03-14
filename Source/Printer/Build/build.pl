@@ -130,10 +130,10 @@ build:print_job_slots([slotted(_LineOff, _TotalLines, PlanStep, NumSteps, Action
   ;  SubInfo = files(_FileStart, _NumFiles, DistFiles, Distdir)
   -> nl,
      build:print_file_subslots(DistFiles, Distdir)
-  ;  SubInfo = phases(_ExecLine, _LogsLine, PhaseList, LogPath)
+  ;  SubInfo = phases(_ExecLine, _ExecLineCount, _LogsLine, PhaseList, LogPath)
   -> nl,
      build:print_exec_and_logs(Action, PhaseList, LogPath),
-     plan:print_config(Repo://Entry:Action?{Ctx}),
+     build:print_build_config(Repo://Entry:Action?{Ctx}),
      nl
   ;  nl
   ),
@@ -163,7 +163,7 @@ build:print_skipped_slots([], _) :- !.
 build:print_skipped_slots([slotted(_LineOff, _TotalLines, PlanStep, NumSteps, ActionIdx, rule(Repo://Entry:Action?{Ctx}, _Body), SubInfo)|Rest], _) :-
   !,
   build:render_slot(skipped, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry),
-  ( SubInfo = phases(_ExecLine, _LogsLine, PhaseList, LogPath)
+  ( SubInfo = phases(_ExecLine, _ExecLineCount, _LogsLine, PhaseList, LogPath)
   -> nl,
      build:print_skipped_exec_and_logs(Action, PhaseList, LogPath),
      build:print_skipped_conf(Repo://Entry:Action?{Ctx}),
@@ -182,14 +182,33 @@ build:print_skipped_slots([_|Rest], NumSteps) :-
   build:print_skipped_slots(Rest, NumSteps).
 
 
+%! build:print_build_config(+RuleHead) is det.
+%
+% Print config (USE flags etc.) in build context. In column mode the pretend
+% plan places the first config item at column 104 on the step-header line,
+% but the build plan has exec/logs lines in between, so the column-104 jump
+% would land on the wrong line. We prepend a continuation line so that the
+% first print_config_prefix('conf') column-104 alignment lands correctly.
+
+build:print_build_config(RuleHead) :-
+  config:printing_style('column'), !,
+  with_output_to(string(S), catch(plan:print_config(RuleHead), _, true)),
+  ( S \== ""
+  -> nl, write('             │ '),
+     catch(plan:print_config(RuleHead), _, true)
+  ;  true
+  ).
+
+build:print_build_config(RuleHead) :-
+  catch(plan:print_config(RuleHead), _, true).
+
+
 %! build:print_skipped_conf(+RuleHead) is det.
 %
 % Print the config lines for skipped steps.
-% Calls plan:print_config directly to ensure output is produced.
 
 build:print_skipped_conf(RuleHead) :-
-  catch(plan:print_config(RuleHead), _, true),
-  !.
+  build:print_build_config(RuleHead), !.
 build:print_skipped_conf(_).
 
 
@@ -202,7 +221,8 @@ build:print_skipped_exec_and_logs(_Action, PhaseList, LogPath) :-
   message:bubble(darkgray, 'ACTION'),
   message:print(' = '),
   message:color(darkgray),
-  build:print_skipped_phases(PhaseList),
+  maplist([P, P-pending]>>true, PhaseList, PhaseStates),
+  build:render_phases_wrapped(PhaseStates),
   message:color(normal),
   ( catch(config:show_build_logs(true), _, fail)
   -> nl,
@@ -214,16 +234,6 @@ build:print_skipped_exec_and_logs(_Action, PhaseList, LogPath) :-
      message:color(normal)
   ;  true
   ).
-
-build:print_skipped_phases([]).
-build:print_skipped_phases([Phase]) :-
-  !,
-  message:print(Phase).
-build:print_skipped_phases([Phase|Rest]) :-
-  message:print(Phase),
-  message:color(darkgray),
-  message:print(' \u2192 '),
-  build:print_skipped_phases(Rest).
 
 
 % -----------------------------------------------------------------------------
@@ -414,29 +424,47 @@ build:print_file_subslots_([dist(Filename, Size, _)|Rest], N, Distdir) :-
 
 
 % -----------------------------------------------------------------------------
-%  File tree prefixes (matching plan style)
+%  File tree prefixes (style-aware, matching plan style)
 % -----------------------------------------------------------------------------
 
 %! build:file_prefix_first is det.
 %
-% Tree prefix for the first file: │  └─ file ─┤
+% Tree prefix for the first file line. Style-aware.
 
 build:file_prefix_first :-
+  config:printing_style('fancy'), !,
   write('             \u2502           '),
   message:color(darkgray),
   message:print('\u2514\u2500 file \u2500\u2524 '),
   message:color(normal).
 
+build:file_prefix_first :-
+  config:printing_style('column'), !,
+  write('             \u2502 '),
+  message:column(104, ' ').
+
+build:file_prefix_first :-
+  write('             \u2502           ').
+
 
 %! build:file_prefix_rest is det.
 %
-% Tree prefix for subsequent files: │           │
+% Tree prefix for subsequent file lines. Style-aware.
 
 build:file_prefix_rest :-
+  config:printing_style('fancy'), !,
   write('             \u2502          '),
   message:color(darkgray),
   message:print('          \u2502 '),
   message:color(normal).
+
+build:file_prefix_rest :-
+  config:printing_style('column'), !,
+  write('             \u2502 '),
+  message:column(104, ' ').
+
+build:file_prefix_rest :-
+  write('             \u2502           ').
 
 
 % -----------------------------------------------------------------------------
@@ -566,12 +594,23 @@ build:print_live_subslot :-
 
 
 %! build:live_prefix is det.
+%
+% Tree prefix for live source sub-slot. Style-aware.
 
 build:live_prefix :-
+  config:printing_style('fancy'), !,
   write('             \u2502           '),
   message:color(darkgray),
   message:print('\u2514\u2500 live \u2500\u2524 '),
   message:color(normal).
+
+build:live_prefix :-
+  config:printing_style('column'), !,
+  write('             \u2502 '),
+  message:column(104, ' ').
+
+build:live_prefix :-
+  write('             \u2502           ').
 
 
 %! build:update_live_subslot(+Idx, +LiveStartLine, +TotalLines, +Status) is det.
@@ -645,16 +684,18 @@ build:render_live_content(failed) :-
 
 %! build:print_exec_and_logs(+Action, +PhaseList, +LogPath) is det.
 %
-% Print lines below the action header:
+% Print lines below the action header. In fancy mode:
 %   └─ exec ─┤ [ACTION] = phase1 → phase2 → ...
 %                    │ [LOG] = logfile.log
+% In column/short mode, omits tree connectors and wraps long phase
+% lists across multiple lines.
 
 build:print_exec_and_logs(_Action, PhaseList, LogPath) :-
   maplist([P, P-pending]>>true, PhaseList, PhaseStates),
   build:exec_prefix,
   message:bubble(darkgray, 'ACTION'),
   message:print(' = '),
-  build:render_inline_phases(PhaseStates),
+  build:render_inline_phases_wrapped(PhaseStates),
   ( catch(config:show_build_logs(true), _, fail)
   -> nl,
      build:exec_continuation_prefix,
@@ -666,20 +707,39 @@ build:print_exec_and_logs(_Action, PhaseList, LogPath) :-
 
 
 % -----------------------------------------------------------------------------
-%  Tree prefixes
+%  Tree prefixes (style-aware)
 % -----------------------------------------------------------------------------
 
 build:exec_prefix :-
+  config:printing_style('fancy'), !,
   write('             \u2502           '),
   message:color(darkgray),
   message:print('\u2514\u2500 exec \u2500\u2524 '),
   message:color(normal).
 
+build:exec_prefix :-
+  config:printing_style('column'), !,
+  write('             \u2502 '),
+  message:column(104, ' ').
+
+build:exec_prefix :-
+  write('             \u2502           ').
+
+
 build:exec_continuation_prefix :-
+  config:printing_style('fancy'), !,
   write('             \u2502                    '),
   message:color(darkgray),
   message:print('\u2502 '),
   message:color(normal).
+
+build:exec_continuation_prefix :-
+  config:printing_style('column'), !,
+  write('             \u2502 '),
+  message:column(104, ' ').
+
+build:exec_continuation_prefix :-
+  write('             \u2502           ').
 
 
 % -----------------------------------------------------------------------------
@@ -732,8 +792,7 @@ build:update_logs_line(LogsLine, TotalLines, LogPath, OverallStatus) :-
 
 %! build:render_inline_phases(+PhaseStates) is det.
 %
-% Renders phases inline: [ phase1 → phase2 → ... ] with per-phase coloring.
-% Appends a green checkmark if all done, red ! if any failed.
+% Renders phases inline on a single line (used for in-place ANSI updates).
 
 build:render_inline_phases(PhaseStates) :-
   build:render_phases_with_arrows(PhaseStates),
@@ -741,9 +800,73 @@ build:render_inline_phases(PhaseStates) :-
   build:render_overall_indicator(PhaseStates).
 
 
+%! build:render_inline_phases_wrapped(+PhaseStates) is det.
+%
+% Renders phases with line wrapping when the content exceeds terminal width.
+% Used for initial printing. Falls back to single-line for in-place updates.
+
+build:render_inline_phases_wrapped(PhaseStates) :-
+  build:render_phases_wrapped(PhaseStates),
+  build:render_overall_indicator(PhaseStates).
+
+
+%! build:render_phases_wrapped(+PhaseStates) is det.
+%
+% Renders phase names separated by arrows, wrapping to a new continuation
+% line when the terminal width would be exceeded.
+
+build:render_phases_wrapped(PhaseStates) :-
+  config:printing_style('short'), !,
+  catch(
+    ( config:printing_tty_size(_, TermWidth),
+      build:exec_content_start_col(StartCol),
+      build:render_phases_wrap_(PhaseStates, StartCol, TermWidth, StartCol)
+    ),
+    _,
+    build:render_phases_with_arrows(PhaseStates)
+  ).
+
+build:render_phases_wrapped(PhaseStates) :-
+  build:render_phases_with_arrows(PhaseStates).
+
+build:render_phases_wrap_([], _, _, _).
+
+build:render_phases_wrap_([Phase-Status], _StartCol, _TermWidth, _Col) :-
+  !,
+  build:render_phase_word(Phase, Status).
+
+build:render_phases_wrap_([Phase-Status|Rest], StartCol, TermWidth, Col) :-
+  atom_length(Phase, PLen),
+  Need is PLen + 4,
+  ( Col + Need > TermWidth - 12 ->
+    build:exec_wrap_newline(StartCol),
+    build:render_phase_word(Phase, Status),
+    NewCol is StartCol + PLen
+  ; build:render_phase_word(Phase, Status),
+    NewCol is Col + PLen
+  ),
+  message:color(darkgray),
+  message:print(' \u2192 '),
+  message:color(normal),
+  NewCol2 is NewCol + 4,
+  build:render_phases_wrap_(Rest, StartCol, TermWidth, NewCol2).
+
+
+%! build:exec_wrap_newline(+StartCol) is det.
+%
+% Prints a newline and continuation prefix for wrapped exec phases.
+
+build:exec_wrap_newline(StartCol) :-
+  nl,
+  build:exec_continuation_prefix,
+  line_position(current_output, CurCol),
+  Spaces is max(0, StartCol - CurCol),
+  forall(between(1, Spaces, _), write(' ')).
+
+
 %! build:render_phases_with_arrows(+PhaseStates) is det.
 %
-% Render phase names separated by arrows, each colored by status.
+% Render phase names separated by arrows, each colored by status (single line).
 
 build:render_phases_with_arrows([]).
 
@@ -813,6 +936,9 @@ build:render_phase_word(Phase, stub) :-
 %
 % Appends a green checkmark if all phases are done/stub,
 % a red bold ! if any phase failed, or a phase fraction N/M if running.
+
+build:render_overall_indicator(_) :-
+  config:printing_style('column'), !.
 
 build:render_overall_indicator(PhaseStates) :-
   ( member(_-Status, PhaseStates),
@@ -898,6 +1024,51 @@ build:render_log_name(LogPath, OverallStatus) :-
      message:print(DisplayPath),
      message:color(normal)
   ).
+
+
+% =============================================================================
+%  Exec phase line count (for slot layout computation)
+% =============================================================================
+
+%! build:exec_phase_line_count(+PhaseList, -NumLines) is det.
+%
+% Computes how many display lines the exec phase list will occupy.
+% Wrapping is only used for short style; fancy and column always render
+% phases on a single line (required for ANSI in-place updates).
+
+build:exec_phase_line_count(_, 1) :-
+  \+ config:printing_style('short'), !.
+
+build:exec_phase_line_count(PhaseList, NumLines) :-
+  catch(
+    ( config:printing_tty_size(_, TermWidth),
+      build:exec_content_start_col(StartCol),
+      build:count_phase_lines(PhaseList, StartCol, TermWidth, StartCol, 1, NumLines)
+    ),
+    _,
+    NumLines = 1
+  ).
+
+build:exec_content_start_col(Col) :-
+  ( config:printing_style('fancy') ->
+    Col = 48
+  ; config:printing_style('column') ->
+    Col = 117
+  ; Col = 37
+  ).
+
+build:count_phase_lines([], _, _, _, N, N).
+
+build:count_phase_lines([Phase|Rest], StartCol, TermWidth, Col, Acc, N) :-
+  atom_length(Phase, PLen),
+  Need is PLen + 4,
+  ( Col + Need > TermWidth - 12, Col > StartCol ->
+    Acc1 is Acc + 1,
+    NewCol is StartCol + PLen + 4
+  ; Acc1 = Acc,
+    NewCol is Col + PLen + 4
+  ),
+  build:count_phase_lines(Rest, StartCol, TermWidth, NewCol, Acc1, N).
 
 
 % =============================================================================

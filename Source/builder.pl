@@ -433,17 +433,18 @@ builder:rule_file_info(rule(Repo://Entry:Action?{Ctx}, _Body), _Distdir, LineOff
   PhaseList \= [],
   !,
   ExecLine is LineOff + 1,
+  build:exec_phase_line_count(PhaseList, ExecLineCount),
   builder:count_conf_lines(Repo, Entry, Action, Ctx, ConfCount),
   ( predicate_property(ebuild_exec:build_log_path(_,_), defined)
   -> catch(ebuild_exec:build_log_path(Entry, LogPath), _, LogPath = '')
   ;  LogPath = ''
   ),
   ( catch(config:show_build_logs(true), _, fail)
-  -> LogsLine is ExecLine + 1,
-     SubInfo = phases(ExecLine, LogsLine, PhaseList, LogPath),
-     Lines is 1 + ConfCount + 2
-  ;  SubInfo = phases(ExecLine, -1, PhaseList, LogPath),
-     Lines is 1 + ConfCount + 1
+  -> LogsLine is ExecLine + ExecLineCount,
+     SubInfo = phases(ExecLine, ExecLineCount, LogsLine, PhaseList, LogPath),
+     Lines is 1 + ConfCount + ExecLineCount + 1
+  ;  SubInfo = phases(ExecLine, ExecLineCount, -1, PhaseList, LogPath),
+     Lines is 1 + ConfCount + ExecLineCount
   ).
 
 builder:rule_file_info(_, _, _, no_files, 1).
@@ -458,13 +459,30 @@ builder:rule_file_info(_, _, _, no_files, 1).
 builder:count_conf_lines(Repo, Entry, Action, Ctx, Count) :-
   memberchk(Action, [install, update, downgrade, reinstall]),
   !,
+  builder:count_conf_lines_as_short(Repo, Entry, Action, Ctx, Count).
+builder:count_conf_lines(_, _, _, _, 0).
+
+
+builder:count_conf_lines_as_short(Repo, Entry, Action, Ctx, Count) :-
+  config:printing_style('column'), !,
+  setup_call_cleanup(
+    ( retract(config:interface_printing_style('column')),
+      assertz(config:interface_printing_style('short')) ),
+    ( with_output_to(string(S),
+        catch(plan:print_config(Repo://Entry:Action?{Ctx}), _, true)),
+      split_string(S, "\n", "", Parts),
+      length(Parts, N),
+      Count is max(0, N - 1) ),
+    ( retract(config:interface_printing_style('short')),
+      assertz(config:interface_printing_style('column')) )
+  ).
+
+builder:count_conf_lines_as_short(Repo, Entry, Action, Ctx, Count) :-
   with_output_to(string(S),
     catch(plan:print_config(Repo://Entry:Action?{Ctx}), _, true)),
   split_string(S, "\n", "", Parts),
   length(Parts, N),
   Count is max(0, N - 1).
-
-builder:count_conf_lines(_, _, _, _, 0).
 
 
 % =============================================================================
@@ -540,9 +558,9 @@ builder:execute_build_job(
   -> with_mutex(build_display,
        build:update_slot(LineOff, TotalLines, done, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry)),
      ResultOutcome = display_handled(done)
-  ;  FileInfo = phases(ExecLine, LogsLine, PhaseList, LogPath)
+  ;  FileInfo = phases(ExecLine, ExecLineCount, LogsLine, PhaseList, LogPath)
   -> builder:run_action_with_phases(Action, Repo, Entry, Ctx,
-                                     TotalLines, ExecLine, LogsLine, PhaseList, LogPath,
+                                     TotalLines, ExecLine, ExecLineCount, LogsLine, PhaseList, LogPath,
                                      LineOff, PlanStep, NumSteps, ActionIdx, Outcome),
      ResultOutcome = display_handled(Outcome)
   ;  builder:run_action(Action, Repo, Entry, Ctx, Outcome),
@@ -579,13 +597,13 @@ builder:run_action(Action, Repo, Entry, Ctx, Outcome) :-
 builder:run_action(_Action, _Repo, _Entry, _Ctx, stub).
 
 
-%! builder:run_action_with_phases(+Action, +Repo, +Entry, +Ctx, +TotalLines, +ExecLine, +LogsLine, +PhaseList, +LogPath, +LineOff, +PlanStep, +NumSteps, +ActionIdx, -Outcome) is det.
+%! builder:run_action_with_phases(+Action, +Repo, +Entry, +Ctx, +TotalLines, +ExecLine, +ExecLineCount, +LogsLine, +PhaseList, +LogPath, +LineOff, +PlanStep, +NumSteps, +ActionIdx, -Outcome) is det.
 %
 % Execute a build action with inline phase progress tracking.
-% Uses a single exec line with arrow-separated phases and a logs line below.
+% Uses exec lines with arrow-separated phases and a logs line below.
 
 builder:run_action_with_phases(Action, Repo, Entry, Ctx,
-                                TotalLines, ExecLine, LogsLine, PhaseList, LogPath,
+                                TotalLines, ExecLine, _ExecLineCount, LogsLine, PhaseList, LogPath,
                                 LineOff, PlanStep, NumSteps, ActionIdx, Outcome) :-
   config:build_live_phases(LP), LP \= [],
   predicate_property(ebuild_exec:execute_with_progress(_,_,_,_,_,_), defined),
@@ -604,7 +622,7 @@ builder:run_action_with_phases(Action, Repo, Entry, Ctx,
     build:update_slot(LineOff, TotalLines, FinalStatus, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry)).
 
 builder:run_action_with_phases(Action, Repo, Entry, _Ctx,
-                                TotalLines, ExecLine, LogsLine, PhaseList, LogPath,
+                                TotalLines, ExecLine, _ExecLineCount, LogsLine, PhaseList, LogPath,
                                 LineOff, PlanStep, NumSteps, ActionIdx, stub) :-
   builder:stub_all_phases(Action, PhaseList, TotalLines, ExecLine, LogsLine, LogPath),
   with_mutex(build_display,
