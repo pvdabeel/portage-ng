@@ -373,7 +373,7 @@ interface:process_flags:-
   (lists:memberchk(alert(true),    Options) -> asserta(preference:local_flag(alert))            ; true),
   (lists:memberchk(verbose(true),   Options) -> asserta(config:verbose(true))                   ; true),
   (lists:memberchk(logs(true),     Options) -> asserta(config:show_build_logs(true))            ; true),
-  (lists:memberchk(style(Style),    Options) -> asserta(config:interface_printing_style(Style)) ; true),
+  (lists:memberchk(style(Style),    Options) -> interface:assert_valid_style(Style)              ; true),
   ((lists:memberchk(jobs(J),       Options), J > 0) -> asserta(config:cli_jobs(J))              ; true),
   ((lists:memberchk(loadavg(L),    Options), L > 0.0) -> asserta(config:cli_load_average(L))    ; true),
   (lists:memberchk(permitdowngrade(true),Options)->asserta(preference:local_flag(permitdowngrade));true),
@@ -440,6 +440,21 @@ interface:collect_flag_values([Flag, Value|Rest], Flag, [Value|More]) :-
 
 interface:collect_flag_values([_|Rest], Flag, Values) :-
   interface:collect_flag_values(Rest, Flag, Values).
+
+
+%! interface:assert_valid_style(+Style) is det.
+%
+% Asserts the given printing style if it is one of the known values
+% (fancy, column, short). Falls back to 'fancy' with a warning otherwise.
+
+interface:assert_valid_style(Style) :-
+  memberchk(Style, ['fancy', 'column', 'short']), !,
+  asserta(config:interface_printing_style(Style)).
+
+interface:assert_valid_style(Style) :-
+  format(atom(Msg), 'Unknown printing style "~w", falling back to "fancy"', [Style]),
+  message:warning(Msg),
+  asserta(config:interface_printing_style('fancy')).
 
 
 %! interface:process_mode(-Mode) is det.
