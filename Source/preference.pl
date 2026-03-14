@@ -102,65 +102,35 @@ preference:env_features('sign -ccache -buildpkg -sandbox -usersandbox -ebuild-lo
 
 
 % =============================================================================
-%  Core packages (system profile baseline)
+%  System packages (@system profile set)
 % =============================================================================
 
-%! preference:core_pkg(+Category, +Name) is semidet.
+%! preference:system_pkg(+Category, +Name) is semidet.
 %
-% Packages considered part of the system profile baseline.  In emptytree
-% mode, dependencies on these packages are trivially satisfied to avoid
-% forcing model construction for the entire OS base.
+% Packages belonging to the @system set as defined by the profile
+% `packages` files.  Dynamically asserted during profile loading from
+% profile:system_packages/2.
 
-preference:core_pkg('app-admin','eselect').
-preference:core_pkg('app-alternatives','awk').
-preference:core_pkg('app-alternatives','bzip2').
-preference:core_pkg('app-alternatives','gzip').
-preference:core_pkg('app-alternatives','sh').
-preference:core_pkg('app-alternatives','tar').
-preference:core_pkg('app-arch','bzip2').
-preference:core_pkg('app-arch','gzip').
-preference:core_pkg('app-arch','tar').
-preference:core_pkg('app-arch','xz-utils').
-preference:core_pkg('app-shells','bash').
-preference:core_pkg('dev-build','make').
-preference:core_pkg('net-mail','mailbase').
-preference:core_pkg('net-misc','iputils').
-preference:core_pkg('net-misc','rsync').
-preference:core_pkg('net-misc','wget').
-preference:core_pkg('sec-keys','openpgp-keys-gentoo-release').
-preference:core_pkg('sys-apps','baselayout').
-preference:core_pkg('sys-apps','coreutils').
-preference:core_pkg('sys-apps','diffutils').
-preference:core_pkg('sys-apps','file').
-preference:core_pkg('sys-apps','findutils').
-preference:core_pkg('sys-apps','gawk').
-preference:core_pkg('sys-apps','grep').
-preference:core_pkg('sys-apps','iproute2').
-preference:core_pkg('sys-apps','kbd').
-preference:core_pkg('sys-apps','kmod').
-preference:core_pkg('sys-apps','less').
-preference:core_pkg('sys-apps','man-pages').
-preference:core_pkg('sys-apps','net-tools').
-preference:core_pkg('sys-apps','sed').
-preference:core_pkg('sys-apps','shadow').
-preference:core_pkg('sys-apps','util-linux').
-preference:core_pkg('sys-apps','which').
-preference:core_pkg('sys-devel','binutils').
-preference:core_pkg('sys-devel','gcc').
-preference:core_pkg('sys-devel','gnuconfig').
-preference:core_pkg('sys-devel','patch').
-preference:core_pkg('sys-fs','e2fsprogs').
-preference:core_pkg('sys-process','procps').
-preference:core_pkg('sys-process','psmisc').
-preference:core_pkg('virtual','dev-manager').
-preference:core_pkg('virtual','editor').
-preference:core_pkg('virtual','libc').
-preference:core_pkg('virtual','man').
-preference:core_pkg('virtual','os-headers').
-preference:core_pkg('virtual','package-manager').
-preference:core_pkg('virtual','pager').
-preference:core_pkg('virtual','service-manager').
-preference:core_pkg('virtual','ssh').
+:- dynamic preference:system_pkg/2.
+
+
+%! preference:init_system_pkgs is det.
+%
+% Load @system packages from the profile chain and assert them as
+% preference:system_pkg/2 facts.  Called during preference:init.
+
+preference:init_system_pkgs :-
+  retractall(preference:system_pkg(_, _)),
+  ( preference:use_cached_profile ->
+      true
+  ; current_predicate(config:gentoo_profile/1),
+    config:gentoo_profile(ProfileRel) ->
+      catch(( profile:system_packages(ProfileRel, Pkgs),
+              forall(member(Cat-Name, Pkgs),
+                     assertz(preference:system_pkg(Cat, Name)))
+            ), _, true)
+  ; true
+  ).
 
 
 %! preference:default_env(+Name, -Value) is semidet.
@@ -588,6 +558,10 @@ preference:init :-
   ),
   catch(preference:apply_gentoo_package_mask,  _, true),
   catch(preference:apply_gentoo_package_use,   _, true),
+
+  % 4b. Load @system packages from profile chain.
+
+  catch(preference:init_system_pkgs, _, true),
 
   % 5. Load license groups and apply ACCEPT_LICENSE.
 

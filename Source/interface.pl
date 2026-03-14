@@ -680,6 +680,8 @@ interface:process_list_sets :-
   nl,
   message:color(green), format(' * '), message:color(normal),
   format('world~n'),
+  message:color(green), format(' * '), message:color(normal),
+  format('system~n'),
   forall(preference:set(Name, _),
     ( message:color(green), format(' * '), message:color(normal),
       format('~w~n', [Name])
