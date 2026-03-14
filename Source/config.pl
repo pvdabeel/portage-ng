@@ -712,16 +712,19 @@ config:color_output.
 
 %! config:output_tty is semidet.
 %
-% Succeeds when stdout is a real TTY (not piped/redirected).
-% Used to decide between in-place ANSI slot updates and
-% sequential log-style output.
+% Succeeds when the ultimate output destination is a real TTY.
+% In daemon/IPC mode the daemon's user_output is a socket, but
+% the client's stdout may be a TTY -- daemon:client_is_tty is
+% asserted when the client reports a TTY.
 
 :- dynamic config:output_tty_cached/1.
 
 config:output_tty :-
   ( config:output_tty_cached(Val)
   -> Val == true
-  ; ( stream_property(user_output, tty(true))
+  ; ( ( stream_property(user_output, tty(true))
+      ; catch(daemon:client_is_tty, _, fail)
+      )
     -> asserta(config:output_tty_cached(true))
     ;  asserta(config:output_tty_cached(false)),
        fail

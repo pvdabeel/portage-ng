@@ -92,8 +92,7 @@ llm:stream(Endpoint, APIKey, Model, Messages, Response) :-
   Headers = [method(post),
              authorization(bearer(APIKey)),
              request_header('Accept'='text/event-stream'),
-             post(json(Payload)),
-             cacerts(system)],
+             post(json(Payload))],
 
   catch(( http_open(Endpoint,In,Headers),
 
