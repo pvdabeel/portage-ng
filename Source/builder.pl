@@ -406,6 +406,7 @@ builder:assign_slots_([Rule|Rest], PlanStep, NumSteps, Distdir, LineOff, ActionI
 
 builder:rule_file_info(rule(Repo://Entry:Action?{_Ctx}, _Body), _Distdir, LineOff, FileInfo, Lines) :-
   memberchk(Action, [download, fetchonly]),
+  Repo:get_type(eapi),
   predicate_property(ebuild:is_live(_), defined),
   ebuild:is_live(Repo://Entry),
   !,
@@ -415,6 +416,7 @@ builder:rule_file_info(rule(Repo://Entry:Action?{_Ctx}, _Body), _Distdir, LineOf
 
 builder:rule_file_info(rule(Repo://Entry:Action?{_Ctx}, _Body), Distdir, LineOff, FileInfo, Lines) :-
   memberchk(Action, [download, fetchonly]),
+  Repo:get_type(eapi),
   !,
   download:collect_distfile_specs(Repo, Entry, DistFiles),
   length(DistFiles, NumFiles),
@@ -428,6 +430,7 @@ builder:rule_file_info(rule(Repo://Entry:Action?{_Ctx}, _Body), Distdir, LineOff
 
 builder:rule_file_info(rule(Repo://Entry:Action?{Ctx}, _Body), _Distdir, LineOff, SubInfo, Lines) :-
   \+ memberchk(Action, [download, fetchonly]),
+  Repo:get_type(eapi),
   predicate_property(ebuild_exec:display_phases(_,_,_,_,_), defined),
   catch(ebuild_exec:display_phases(Action, Repo, Entry, Ctx, PhaseList), _, fail),
   PhaseList \= [],
@@ -589,10 +592,21 @@ builder:execute_build_job(_, _WorkerSlot, result(0, stub)).
 % is unavailable.
 
 builder:run_action(Action, Repo, Entry, Ctx, Outcome) :-
+  Repo:get_type(eapi),
   config:build_live_phases(LP), LP \= [],
   predicate_property(ebuild_exec:execute(_,_,_,_,_), defined),
   !,
   ebuild_exec:execute(Action, Repo, Entry, Ctx, Outcome).
+
+builder:run_action(_Action, Repo, _Entry, _Ctx, Outcome) :-
+  Repo:get_type(Type),
+  Type \= eapi,
+  !,
+  Repo:get_location(Location),
+  ( script:exec(build, [Type, Location])
+  -> Outcome = ok
+  ;  Outcome = failed
+  ).
 
 builder:run_action(_Action, _Repo, _Entry, _Ctx, stub).
 
@@ -602,9 +616,25 @@ builder:run_action(_Action, _Repo, _Entry, _Ctx, stub).
 % Execute a build action with inline phase progress tracking.
 % Uses exec lines with arrow-separated phases and a logs line below.
 
+builder:run_action_with_phases(Action, Repo, Entry, _Ctx,
+                                TotalLines, _ExecLine, _ExecLineCount, _LogsLine, _PhaseList, _LogPath,
+                                LineOff, PlanStep, NumSteps, ActionIdx, Outcome) :-
+  Repo:get_type(Type),
+  Type \= eapi,
+  !,
+  Repo:get_location(Location),
+  ( script:exec(build, [Type, Location])
+  -> Outcome = ok
+  ;  Outcome = failed
+  ),
+  builder:outcome_to_status(Outcome, FinalStatus),
+  with_mutex(build_display,
+    build:update_slot(LineOff, TotalLines, FinalStatus, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry)).
+
 builder:run_action_with_phases(Action, Repo, Entry, Ctx,
                                 TotalLines, ExecLine, _ExecLineCount, LogsLine, PhaseList, LogPath,
                                 LineOff, PlanStep, NumSteps, ActionIdx, Outcome) :-
+  Repo:get_type(eapi),
   config:build_live_phases(LP), LP \= [],
   predicate_property(ebuild_exec:execute_with_progress(_,_,_,_,_,_), defined),
   !,
