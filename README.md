@@ -95,7 +95,7 @@ functions works unchanged.
 ## Architecture
 
 ```
-reader/parser ──> prover ──> planner ──> scheduler ──> printer
+reader/parser ──> prover ──> planner ──> scheduler ──> printer ──> builder
                   └──────── pipeline ────────┘
 ```
 
@@ -106,6 +106,7 @@ reader/parser ──> prover ──> planner ──> scheduler ──> printer
 | **Planner** | Wave scheduling (Kahn) with parallelism; returns an acyclic plan and a remainder |
 | **Scheduler** | Strongly Connected Component (SCC) decomposition (Kosaraju) and merge-set scheduling for cyclic remainders |
 | **Printer** | Renders the plan, assumptions, suggestions, and optional LLM explanation |
+| **Builder** | Executes the plan by delegating ebuild phases to Portage's build infrastructure |
 
 The prover, planner, and scheduler are **domain-agnostic** -- they operate on
 abstract literals, rules, and dependency graphs with no knowledge of Gentoo
