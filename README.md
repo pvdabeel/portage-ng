@@ -36,6 +36,13 @@ USE flag configuration space, taking into account constraints such as
 `build_with_use` and `required_use` as defined in PMS. Different valid
 configurations of the same target can be explored and compared.
 
+> **Example:** A `REQUIRED_USE="|| ( linux macos )"` constraint yields two
+> stable models:
+>
+> ```
+> Model A:  USE="linux -macos"     Model B:  USE="-linux macos"
+> ```
+
 **Constraint learning.** Version domains are narrowed incrementally across
 reprove retries (inspired by Zeller's feature logic). Learned constraints
 persist -- no full restart of the prover needed. Unlike traditional
