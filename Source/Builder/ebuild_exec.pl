@@ -314,8 +314,8 @@ ebuild_exec:apply_use_override(Flag-State, AssocIn, AssocOut) :-
 
 %! ebuild_exec:start_phase_async(+EbuildPath, +Phase, +LogPath, +UseString, -Pid) is det.
 %
-% Starts a single phase without blocking, appending output to LogPath.
-% Passes the resolved USE flags as an environment variable.
+% Starts a single phase without blocking, appending output to LogPath
+% via shell redirection. Positional parameters prevent injection.
 % Validates the phase name against a known allowlist before execution.
 
 ebuild_exec:start_phase_async(EbuildPath, Phase, LogPath, UseString, Pid) :-
@@ -324,14 +324,11 @@ ebuild_exec:start_phase_async(EbuildPath, Phase, LogPath, UseString, Pid) :-
   ),
   config:ebuild_command(EbuildCmd),
   atom_string(Phase, PhaseStr),
-  open(LogPath, append, LogStream),
   process_create(
-    path(EbuildCmd),
-    ['--skip-manifest', EbuildPath, PhaseStr],
-    [stdout(pipe(Out)), stderr(pipe(Err)),
-     process(Pid), environment(['USE'=UseString])]),
-  thread_create(
-    ebuild_exec:pipe_to_log(Out, Err, LogStream), _, [detached(true)]).
+    path(sh),
+    ['-c', '"$1" --skip-manifest "$2" "$3" >>"$4" 2>&1',
+     '_', EbuildCmd, EbuildPath, PhaseStr, LogPath],
+    [process(Pid), environment(['USE'=UseString])]).
 
 
 %! ebuild_exec:check_phase_done(+Pid, -ExitCode) is semidet.
@@ -403,8 +400,8 @@ ebuild_exec:run_phase(EbuildPath, Phase, UseString, ExitCode) :-
 %! ebuild_exec:run_phase_logged(+EbuildPath, +Phase, +LogPath, +UseString, -ExitCode) is det.
 %
 % Invokes the `ebuild` CLI for a single phase, appending all
-% stdout/stderr output to LogPath. Validates the phase name before
-% execution.
+% stdout/stderr output to LogPath via shell redirection.
+% Validates the phase name before execution.
 
 ebuild_exec:run_phase_logged(EbuildPath, Phase, LogPath, UseString, ExitCode) :-
   ( sanitize:safe_phase(Phase) -> true
@@ -412,40 +409,12 @@ ebuild_exec:run_phase_logged(EbuildPath, Phase, LogPath, UseString, ExitCode) :-
   ),
   config:ebuild_command(EbuildCmd),
   atom_string(Phase, PhaseStr),
-  setup_call_cleanup(
-    open(LogPath, append, LogStream),
-    ( process_create(
-        path(EbuildCmd),
-        ['--skip-manifest', EbuildPath, PhaseStr],
-        [stdout(pipe(Out)), stderr(pipe(Err)),
-         process(Pid), environment(['USE'=UseString])]),
-      thread_create(
-        (catch(copy_stream_data(Err, LogStream), _, true), close(Err)),
-        ErrTid, []),
-      catch(copy_stream_data(Out, LogStream), _, true),
-      close(Out),
-      thread_join(ErrTid, _),
-      process_wait(Pid, exit(ExitCode))
-    ),
-    close(LogStream)
-  ).
-
-
-%! ebuild_exec:pipe_to_log(+Out, +Err, +LogStream) is det.
-%
-% Copies stdout and stderr pipe data into the log stream, then closes
-% all three streams. Runs in a detached thread for async phase execution.
-
-ebuild_exec:pipe_to_log(Out, Err, LogStream) :-
-  catch(
-    ( thread_create(
-        (catch(copy_stream_data(Err, LogStream), _, true), close(Err)),
-        ErrTid, []),
-      catch(copy_stream_data(Out, LogStream), _, true),
-      close(Out),
-      thread_join(ErrTid, _)
-    ), _, true),
-  catch(close(LogStream), _, true).
+  process_create(
+    path(sh),
+    ['-c', '"$1" --skip-manifest "$2" "$3" >>"$4" 2>&1',
+     '_', EbuildCmd, EbuildPath, PhaseStr, LogPath],
+    [process(Pid), environment(['USE'=UseString])]),
+  process_wait(Pid, exit(ExitCode)).
 
 
 %! ebuild_exec:log_phase_header(+LogPath, +Phase) is det.
