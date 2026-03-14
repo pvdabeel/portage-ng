@@ -249,6 +249,20 @@ digraph portage_ng_architecture {
   }
 
   // =========================================================================
+  //  LAYER 5c — Pipeline (orchestration + fallback)
+  // =========================================================================
+
+  subgraph cluster_pipeline {
+    label="Pipeline (orchestration)  —  pipeline.pl";
+    color="#668844";
+    fontcolor="#668844";
+    style=rounded;
+
+    pipeline [shape=box, style="filled,bold", fillcolor="#e8f5e8",
+              label="pipeline.pl — Prove + Plan + Schedule\n─────────────────────────────\nprove_plan / prove_plan_basic\nprove_plan_with_fallback\nprove_with_fallback (prove only)\n─────────────────\nFallback chain (production + tests):\n  1. strict\n  2. keyword_acceptance\n  3. blockers\n  4. unmask\n  5. keyword_acceptance + unmask"];
+  }
+
+  // =========================================================================
   //  LAYER 6 — Planner / Scheduler
   // =========================================================================
 
@@ -277,9 +291,9 @@ digraph portage_ng_architecture {
     style=rounded;
 
     interface [shape=box, style=filled, fillcolor="#eeeeee",
-               label="interface.pl — CLI orchestration\n─────────────────────────────\nModes: --pretend, --graph,\n  --shell, --sync, --ci\nFallback chain:\n  1. strict (no assumptions)\n  2. with_assume_blockers\n  3. with_assume_conflicts\nExit codes: 0/1/2"];
+               label="interface.pl — CLI orchestration\n─────────────────────────────\nModes: --pretend, --graph,\n  --shell, --sync, --ci\nCalls pipeline:prove_plan_with_fallback\nExit codes: 0/1/2"];
     printer [shape=box, style=filled, fillcolor="#eeeeee",
-             label="printer.pl — Plan rendering\n─────────────────────────────\nStep-by-step plan with actions\nprove_plan / prove_plan_basic\nReason-aware assumption display:\n  version_conflict, slot_unsatisfied,\n  keyword_filtered, masked, missing,\n  unsatisfied_constraints, …\nBlockers, cycle-breaks\nSuggestions (unmask/keyword/USE)\nTree issue contextualisation\nDownload size totals\nUSE flag display"];
+             label="printer.pl — Plan rendering\n─────────────────────────────\nStep-by-step plan with actions\nCalls pipeline:prove_plan*\nReason-aware assumption display:\n  version_conflict, slot_unsatisfied,\n  keyword_filtered, masked, missing,\n  unsatisfied_constraints, …\nBlockers, cycle-breaks\nSuggestions (unmask/keyword/USE)\nTree issue contextualisation\nDownload size totals\nUSE flag display"];
     grapher [shape=box, style=filled, fillcolor="#eeeeee",
              label="grapher.pl — Batch processing\n─────────────────────────────\nIterates all targets\n--graph full / --graph partial\nWrites .merge files\nParallel via worker threads"];
     terminal [shape=note, label="Terminal output\nor .merge files\n(Graph directory)"];
@@ -344,7 +358,7 @@ digraph portage_ng_architecture {
     tester [shape=box, style=filled, fillcolor="#e0f0e0",
             label="tester.pl\nTest runner;\ntrace-to-string"];
     test   [shape=box, style=filled, fillcolor="#e0f0e0",
-            label="test.pl\nTest cases, expectations,\nxfail markers"];
+            label="test.pl\nTest cases, expectations,\nxfail markers\n─────────────────\nprover/planner/scheduler tests\nuse pipeline:prove_with_fallback\n(same fallback as production)"];
   }
 
   // =========================================================================
@@ -381,14 +395,14 @@ digraph portage_ng_architecture {
   mirror -> printer    [label="distfile URLs", style=dashed];
   ebuild_mod -> query  [label="sugar", style=dashed];
 
-  // Interface orchestrates the pipeline
-  interface -> printer    [label="orchestrates\nprove_plan"];
+  // Interface orchestrates
+  interface -> pipeline   [label="prove_plan_with_fallback"];
   interface -> grapher    [label="--graph mode"];
 
-  // Printer drives the full pipeline
-  printer -> prove_entry  [label="prove(Goals,\nt,P,t,M,t,C,t,T)"];
-  printer -> planner      [label="plan(P,T,\nt,Plan,Rem)"];
-  printer -> scheduler    [label="schedule(P,T,\nPlan,Rem,...)"];
+  // Pipeline orchestrates prove → plan → schedule (with fallback)
+  pipeline -> prove_entry [label="prove(Goals,...)"];
+  pipeline -> planner     [label="plan(Proof,Triggers,...)"];
+  pipeline -> scheduler   [label="schedule(...)"];
 
   // Grapher
   grapher -> printer      [label="per-target\nprove+plan+print"];
@@ -485,8 +499,8 @@ digraph portage_ng_architecture {
   llm -> explainer      [style=dashed, label="explain/2,3"];
 
   // Testing
-  tester -> prove_entry [style=dashed, label="test proofs"];
-  test -> tester        [label="test cases"];
+  tester -> pipeline   [style=dashed, label="prove_with_fallback"];
+  test -> tester       [label="test cases"];
 
   // Depclean
   depclean -> prove_entry [style=dashed, label="prove required"];
