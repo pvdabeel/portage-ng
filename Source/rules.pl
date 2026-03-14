@@ -764,7 +764,6 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
   ->
     Conditions = []
   ; \+ preference:flag(emptytree),
-    \+ preference:flag(deep),
     candidate:merge_slot_restriction(Action, C, N, PackageDeps1, SlotReq),
     % If an installed instance exists in the same slot, and it satisfies all
     % version constraints, treat the grouped dependency as satisfied.
@@ -1000,29 +999,17 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       append(Constraints, [ActionGoal], ConstraintsTail),
       append(AllowMultiSlotCons, [Selected|ConstraintsTail], Suffix),
       append(DomainCons, Suffix, Conditions)
-    ; % In --deep mode we *prefer* upgrades, but we should not create domain
-      % assumptions when the dependency is already installed in the vdb (`pkg`)
-      % and satisfies constraints. Instead, fall back to "keep installed".
-      ( preference:flag(deep),
-        candidate:merge_slot_restriction(Action, C, N, PackageDeps, SlotReq2),
-        query:search([name(N),category(C),installed(true)],
-                     pkg://InstalledEntryFallback),
-        candidate:query_search_slot_constraint(SlotReq2, pkg://InstalledEntryFallback, _),
-        !,
-        candidate:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps, pkg://InstalledEntryFallback)
-      ->
-        Conditions = []
-      ; % Before reprove, check if the parent should be narrowed — the parent
-        % introduced a dep that made (C,N) unsatisfiable (wrong-level fix).
-        % Skip for fetchonly: transitive dep failures (e.g. USE-flag mismatches)
-        % should not narrow the parent — fetchonly only needs to download sources.
-        Action \== fetchonly,
-        candidate:maybe_learn_parent_narrowing(C, N, PackageDeps1, Context),
-        fail
-      ; Action \== fetchonly,
-        candidate:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps1, Context),
-        fail
-      ; explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason),
+    ; % Before reprove, check if the parent should be narrowed — the parent
+      % introduced a dep that made (C,N) unsatisfiable (wrong-level fix).
+      % Skip for fetchonly: transitive dep failures (e.g. USE-flag mismatches)
+      % should not narrow the parent — fetchonly only needs to download sources.
+      Action \== fetchonly,
+      candidate:maybe_learn_parent_narrowing(C, N, PackageDeps1, Context),
+      fail
+    ; Action \== fetchonly,
+      candidate:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps1, Context),
+      fail
+    ; explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason),
         % Keyword-filtered and masked deps produce domain assumptions.
         % (Failing here causes excessive backtracking in complex packages;
         % target-level checks in :fetchonly/:install/:run handle fallbacks.)
@@ -1052,7 +1039,6 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
         ; Ctx4 = Ctx3
         ),
         Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps1):Action?{Ctx4})]
-      )
     )
   ).
 
