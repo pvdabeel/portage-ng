@@ -85,6 +85,11 @@ the start.
 
 **Best-of-breed CLI.** Compatible flags from emerge, paludis, and pkgcore.
 
+**Portage-compatible execution.** portage-ng focuses on reasoning -- proving,
+planning, and scheduling. Actual package building is delegated to Portage's own
+ebuild infrastructure, so the full ecosystem of ebuilds, eclasses, and phase
+functions works unchanged.
+
 <sup>1</sup> 2019 Mac Pro, 28-core.
 
 ## Architecture
