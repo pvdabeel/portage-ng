@@ -208,53 +208,6 @@ graph TD
 | `:install` | BDEPEND, CDEPEND, DEPEND, IDEPEND, **RDEPEND** |
 | `:run` | IDEPEND, RDEPEND |
 
-### The problem
-
-RDEPEND is included in the `:install` dependency model. This creates
-ordering edges between `:install` and runtime dependencies that should not
-exist per PMS. When these edges form cycles (which is common for RDEPEND),
-the scheduler breaks them without priority awareness, producing arbitrary
-ordering that violates build-time dependency constraints.
-
-### Measured impact
-
-| Metric | Value | Meaning |
-|---|---|---|
-| Viol% | 53.73% | 54% of build deps appear later in plan than their dependents |
-| DepConc% | 47.15% | Near-random ordering agreement on dep pairs |
-| Spearman rho | -0.03 | No rank correlation with Portage's ordering |
-| Order% (Kendall tau) | 48.13% | Near-random pairwise ordering agreement |
-| Install-only cycle breaks | 321 / 74,914 | Most cycles involve `:run` actions |
-
-### Proposed fix: Priority-aware planner
-
-Add dependency priority to the planner, matching the Portage/Paludis model:
-
-1. **Tag edges with priority** based on PMS source:
-   - DEPEND/BDEPEND: `dep_priority(buildtime)` -- hard
-   - RDEPEND: `dep_priority(runtime)` -- soft, breakable
-   - PDEPEND: `dep_priority(runtime_post)` -- softest
-
-2. **Multi-pass Kahn's algorithm**:
-   - Pass 1: topological sort respecting all edges
-   - Pass 2 (stuck): relax `runtime_post` edges
-   - Pass 3 (stuck): relax `runtime` edges
-   - Remainder: only hard buildtime cycles go to scheduler
-
-```mermaid
-graph TD
-    proof["Proof (from prover)"]
-    proof --> pass1["Pass 1: All edges"]
-    pass1 -->|progress| wave1["Waves (steps)"]
-    pass1 -->|stuck| pass2["Pass 2: Ignore runtime_post"]
-    pass2 -->|progress| wave2["More waves"]
-    pass2 -->|stuck| pass3["Pass 3: Ignore runtime"]
-    pass3 -->|progress| wave3["More waves"]
-    pass3 -->|stuck| scheduler["Scheduler (buildtime cycles only)"]
-    wave1 --> plan["Final Plan"]
-    wave2 --> plan
-    wave3 --> plan
-    scheduler --> plan
 ```
 
 ## References

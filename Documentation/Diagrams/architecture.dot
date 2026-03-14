@@ -85,7 +85,7 @@ digraph portage_ng_architecture {
     vdb        [shape=box, style=filled, fillcolor="#ddf5dd",
                 label="vdb.pl\nInstalled-package\nrepository (pkg://)"];
     pkg        [shape=box, style=filled, fillcolor="#ddf5dd",
-                label="pkg.pl\nInstalled package tracking;\nsync from /var/db/pkg"];
+                label="vdb.pl\nInstalled package tracking;\nsync from /var/db/pkg"];
     profile    [shape=box, style=filled, fillcolor="#c8eac8",
                 label="profile.pl\nReads Gentoo profile dirs;\nglobal USE, masks, forces"];
     preference [shape=box, style=filled, fillcolor="#c8eac8",

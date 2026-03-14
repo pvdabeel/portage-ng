@@ -102,6 +102,13 @@ reader/parser ──> prover ──> planner ──> scheduler ──> printer
 | **Scheduler** | Strongly Connected Component (SCC) decomposition (Kosaraju) and merge-set scheduling for cyclic remainders |
 | **Printer** | Renders the plan, assumptions, suggestions, and optional LLM explanation |
 
+The prover, planner, and scheduler are **domain-agnostic** -- they operate on
+abstract literals, rules, and dependency graphs with no knowledge of Gentoo
+specifics. All domain logic (ebuild parsing, USE flag interpretation, slot
+operators, blockers) lives in a separate rules layer. This clean separation
+means the same reasoning engine can be applied to different domains by
+supplying a different set of rules.
+
 See the full architecture diagram: [`Documentation/Diagrams/architecture.svg`](Documentation/Diagrams/architecture.svg).
 
 ## How it compares
@@ -178,4 +185,4 @@ The portage-ng handbook is under construction. Topics covered:
 
 ## License
 
-BSD 3-Clause. See [`LICENSE`](LICENSE).
+BSD 2-Clause. See [`LICENSE`](LICENSE).
