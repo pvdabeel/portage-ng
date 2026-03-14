@@ -1138,38 +1138,6 @@ prover:add_to_assoc(Key,InAssoc,OutAssoc) :-
 prover:test_action(Action, Action).
 
 
-%! prover:test_target_success(+Target)
-%
-% Test harness fallback chain:
-%  1) strict prove/plan
-%  2) keyword_acceptance + unmask (combined — widening candidate pool is cheap)
-%  3) allow blocker assumptions
-%  4) allow conflict assumptions
-%
-% This keeps whole-repo test runs robust for known blocker/conflict-heavy
-% packages while preserving strict behavior as first choice.
-% Prover test runs only prover:prove (no planner/scheduler).
-prover:test_target_success(Target) :-
-  prover:prove([Target], t, _ProofAVL, t, _ModelAVL, t, _Constraint, t, _TriggersAVL),
-  !.
-prover:test_target_success(Target) :-
-  prover:assuming(keyword_acceptance,
-    prover:assuming(unmask,
-      prover:prove([Target], t, _ProofAVL1, t, _ModelAVL1, t, _Constraint1, t, _TriggersAVL1)
-    )
-  ),
-  !.
-prover:test_target_success(Target) :-
-  prover:assuming(blockers,
-    prover:prove([Target], t, _ProofAVL2, t, _ModelAVL2, t, _Constraint2, t, _TriggersAVL2)
-  ),
-  !.
-prover:test_target_success(Target) :-
-  prover:assuming(conflicts,
-    prover:prove([Target], t, _ProofAVL3, t, _ModelAVL3, t, _Constraint3, t, _TriggersAVL3)
-  ).
-
-
 %! prover:test(+Repository) is det
 %
 % Run a whole-repo prove test using the default test style.
@@ -1200,7 +1168,7 @@ prover:test(Repository,Style) :-
               Repository://Entry,
               Repository:entry(Entry),
               ( Target = (Repository://Entry:Action?{[]}),
-                prover:test_target_success(Target)
+                pipeline:prove_with_fallback([Target], _Proof, _Model, _Triggers)
               )),
   sampler:obligation_counter_report,
   ( current_predicate(sampler:prove_plan_perf_report/0) ->
@@ -1234,7 +1202,7 @@ prover:test_latest(Repository,Style) :-
               Repository://Entry,
               ( Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_)) ),
               ( Target = (Repository://Entry:Action?{[]}),
-                prover:test_target_success(Target)
+                pipeline:prove_with_fallback([Target], _Proof, _Model, _Triggers)
               )).
 
 

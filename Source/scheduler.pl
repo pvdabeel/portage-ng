@@ -452,7 +452,7 @@ scheduler:test(Repository, Style) :-
   config:proving_target(Action0),
   prover:test_action(Action0, Action),
   tester:test(Style, 'Scheduling', Repository://Entry, (Repository:entry(Entry)),
-    ( prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,_ModelAVL,t,_Constraint,t,TriggersAVL),
+    ( pipeline:prove_with_fallback([Repository://Entry:Action?{[]}],ProofAVL,_ModelAVL,TriggersAVL),
       planner:plan(ProofAVL,TriggersAVL,t,Plan0,Remainder0),
       scheduler:schedule(ProofAVL,TriggersAVL,Plan0,Remainder0,_Plan,_Remainder)
     )).
@@ -471,7 +471,7 @@ scheduler:test_latest(Repository, Style) :-
   prover:test_action(Action0, Action),
   tester:test(Style, 'Scheduling latest', Repository://Entry,
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
-              ( prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,_ModelAVL,t,_Constraint,t,TriggersAVL),
+              ( pipeline:prove_with_fallback([Repository://Entry:Action?{[]}],ProofAVL,_ModelAVL,TriggersAVL),
                 planner:plan(ProofAVL,TriggersAVL,t,Plan0,Remainder0),
                 scheduler:schedule(ProofAVL,TriggersAVL,Plan0,Remainder0,_Plan,_Remainder)
               )).
@@ -497,7 +497,7 @@ scheduler:test_stats(Repository, Style) :-
               'Scheduling',
               Repository://Entry,
               (Repository:entry(Entry)),
-              ( prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,TriggersAVL),
+              ( pipeline:prove_with_fallback([Repository://Entry:Action?{[]}],ProofAVL,ModelAVL,TriggersAVL),
                 planner:plan(ProofAVL,TriggersAVL,t,Plan0,Remainder0),
                 scheduler:schedule(ProofAVL,TriggersAVL,Plan0,Remainder0,_Plan,_Remainder),
                 sampler:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, TriggersAVL, true)

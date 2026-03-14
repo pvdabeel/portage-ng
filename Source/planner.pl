@@ -254,7 +254,7 @@ planner:test(Repository,Style) :-
   config:proving_target(Action0),
   prover:test_action(Action0, Action),
   tester:test(Style, 'Planning', Repository://Entry, (Repository:entry(Entry)),
-    ( prover:prove(Repository://Entry:Action?{[]},t,Proof,t,_Model,t,_Constraint,t,Triggers),
+    ( pipeline:prove_with_fallback([Repository://Entry:Action?{[]}],Proof,_Model,Triggers),
       planner:plan(Proof,Triggers,t,_Plan,_Remainder)
     )).
 planner:test_latest(Repository) :- config:test_style(Style), planner:test_latest(Repository,Style).
@@ -263,7 +263,7 @@ planner:test_latest(Repository,Style) :-
   prover:test_action(Action0, Action),
   tester:test(Style, 'Planning latest', Repository://Entry,
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
-              ( prover:prove(Repository://Entry:Action?{[]},t,Proof,t,_Model,t,_Constraint,t,Triggers),
+              ( pipeline:prove_with_fallback([Repository://Entry:Action?{[]}],Proof,_Model,Triggers),
                 planner:plan(Proof,Triggers,t,_Plan,_Remainder)
               )).
 
@@ -288,7 +288,7 @@ planner:test_stats(Repository, Style) :-
               'Planning',
               Repository://Entry,
               (Repository:entry(Entry)),
-              ( prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers),
+              ( pipeline:prove_with_fallback([Repository://Entry:Action?{[]}],ProofAVL,ModelAVL,Triggers),
                 planner:plan(ProofAVL,Triggers,t,_Plan,_Remainder),
                 sampler:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
               )),

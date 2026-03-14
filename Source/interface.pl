@@ -288,7 +288,8 @@ interface:spec(S) :-
 
        % debugging purposes
 
-       [opt(ci),        type(boolean),   default(false),                          longflags(['ci']),        help('CI mode: non-interactive, fail with nonzero exit code on assumptions')]
+       [opt(ci),        type(boolean),   default(false),                          longflags(['ci']),        help('CI mode: non-interactive, fail with nonzero exit code on assumptions')],
+       [opt(profile),   type(boolean),   default(false),                          longflags(['profile']),   help('Enable instrumentation (sampler, debug hooks). Use wrapper or pass -Dinstrumentation=true to swipl.')]
       ].
 
 
@@ -304,13 +305,31 @@ interface:spec(S) :-
 
 :- dynamic interface:argv_/2.
 
-intarface:argv(Options,Args) :-
+interface:argv(Options,Args) :-
   interface:argv_(Options,Args),!.
 
 interface:argv(Options,Args) :-
   interface:spec(S),
-  catch(opt_arguments(S,Options,Args),_,true),
+  catch(
+    opt_arguments(S,Options,Args),
+    E,
+    interface:argv_handle_parse_error(E)
+  ),
   assertz(interface:argv_(Options,Args)).
+
+%! interface:argv_handle_parse_error(+Exception) is det.
+%
+% Handles optparse exceptions. For unknown options, prints a clear message
+% and halts. Other exceptions are rethrown.
+
+interface:argv_handle_parse_error(E) :-
+  E = error(ExType, _),
+  ExType = existence_error(commandline_option, Flag),
+  !,
+  format(user_error, 'Error: Unknown option ~w. Use --help for available options.~n', [Flag]),
+  halt(1).
+interface:argv_handle_parse_error(E) :-
+  throw(E).
 
 
 %! interface:getenv(+Name, -Value) is semidet.
