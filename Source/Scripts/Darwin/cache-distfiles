@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Distfiles repositories have no separate on-disk metadata cache; the directory
+# itself is the source (flat list of downloaded tarballs).
+
+true

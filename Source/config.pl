@@ -805,6 +805,7 @@ config:printable_metadata([blank,
                            hl, % -------------
                            description,
                            homepage,
+                           maintainer,
                            license,
                            eapi,
                            slot,

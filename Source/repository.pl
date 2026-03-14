@@ -58,11 +58,13 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 :- dpublic(find_category/1).
 :- dpublic(find_metadata/5).
 :- dpublic(find_manifest/4).
+:- dpublic(find_metadata_xml/4).
 :- dpublic(find_ebuild/5).
 
 :- dpublic(read_time/1).
 :- dpublic(read_metadata/3).
 :- dpublic(read_manifest/5).
+:- dpublic(read_metadata_xml/5).
 :- dpublic(read_ebuild/2).
 :- dpublic(read_ebuild/3).
 
@@ -353,6 +355,18 @@ sync(kb) ::-
            forall(member(manifest(Filetype,Filename,Filesize,Checksums),M),
                  assertz(cache:manifest_metadata(Repository,P,Filetype,Filename,Filesize,Checksums))))),
 
+  % Step 3.5: load metadata.xml maintainers and assert cache:entry_metadata(maintainer)
+  % Skip on parse error or empty maintainers; one bad metadata.xml must not abort sync.
+  concurrent_forall(:find_metadata_xml(Path,T,C,N),
+          ( catch((:read_metadata_xml(Path,T,C,N,Maintainers),
+                  Maintainers \== [],
+                  with_mutex(mutex,message:scroll(['Metadata.xml: ',C,'/',N])),
+                  forall(cache:entry(Repository,Entry,C,N,_),
+                         assertz(cache:entry_metadata(Repository,Entry,maintainer,Maintainers)))),
+                _Error,
+                true)
+          ; true )),
+
 
   % Step 4: Ordered prolog cache:category creation
 
@@ -473,6 +487,27 @@ find_manifest(Entry,Timestamp,Category,Name) ::-
   system:time_file(Entry,Timestamp).
 
 
+%! repository:find_metadata_xml(?Path, -Timestamp, -Category, -Name)
+%
+% Public predicate
+%
+% Finds metadata.xml files in the repository (GLEP 68).
+% Disk access required.
+
+find_metadata_xml(Path,Timestamp,Category,Name) ::-
+  ::location(Location),
+  ::cache(Cache),
+  os:directory_content(Cache,Category),
+  os:compose_path(Location,Category,CategoryDir),
+  exists_directory(CategoryDir),
+  os:directory_content(CategoryDir,Name),
+  os:compose_path(CategoryDir,Name,PackageDir),
+  exists_directory(PackageDir),
+  os:compose_path(PackageDir,'metadata.xml',Path),
+  exists_file(Path),
+  system:time_file(Path,Timestamp).
+
+
 %! repository:find_ebuild(?Entry, -Timestamp, -Category, -Name, -Version)
 %
 % Public predicate
@@ -557,6 +592,17 @@ read_manifest(Path,_,_,_,Metadata) ::-
 read_manifest(Path,_,_,_,[]) ::-
   message:failure(['Failed to parse ',Path,' metadata cache!']),
   fail.
+
+
+%! repository:read_metadata_xml(+Path, +Timestamp, +Category, +Name, -Maintainers)
+%
+% Public predicate
+%
+% Reads metadata.xml at Path and extracts maintainer email addresses.
+% Maintainers is a list of atoms. Disk access required.
+
+read_metadata_xml(Path,_Timestamp,_Category,_Name,Maintainers) ::-
+  eapi:metadata_maintainers(Path, Maintainers).
 
 
 %! repository:read_ebuild(?Entry, -Contents, -Metadata))
