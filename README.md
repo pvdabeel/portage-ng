@@ -1,92 +1,181 @@
 Automate building and maintaining custom operating systems using declarative reasoning.
 
-# Prolog code 
+# portage-ng
 
-This repository contains Prolog code:
+A declarative reasoning engine for software configuration, applied to Gentoo Linux.
 
-- [context](Source/context.pl): An implementation of a Contextual Object Oriented Logic Programming paradigm for SWI-Prolog,
-- [eapi](Source/eapi.pl): A DCG Grammar for reading EAPI-8 (or earlier) compliant Gentoo ebuild information into Prolog facts and rules,
-- [knowledgebase](Source/knowledgebase.pl): A structure to which Gentoo overlays and repositories can be registered. 
-- [repository](Source/repository.pl): A Prolog class representing a Gentoo Portage repository. Offers datalog-style querying and Git, Rsync or Webrsync syncing.
+## What is portage-ng?
 
-Other interesting files: 
-- An ebuild [reader](Source/reader.pl) & [parser](Source/parser.pl), 
-- A [prover](Source/prover.pl) which uses declarative reasoning to compute a Model and a logic Proof for realisation of a given ebuild,
-- A [planner](Source/planner.pl) capable of creating a build plan (Makefile) for realisation of a given ebuid proof,
-- A pretty [printer](Source/printer.pl) for build plans,
-- A [grapher](Source/grapher.pl) capable of creating graphviz DOT files and interactive SVG files,
-- Domain-specific [rules](Source/rules.pl) for reasoning about ebuilds and their possible configurations, 
+portage-ng uses **inductive proof search** to reason about package dependencies.
+Every build plan it produces is a formal proof -- not a heuristic guess. It fully
+implements **PMS 9 / EAPI 9** (USE-conditional dependencies, slot operators,
+sub-slots, blockers, PDEPEND) and is written in SWI-Prolog. It reads the same
+Portage tree, VDB, profiles, and `/etc/portage` configuration as traditional
+Portage.
 
-This repository also contains some bash [scripts](.bash_profile) to emulate Gentoo emerge.
+## The reasoning approach
 
-## Some examples: 
+**Inductive proof search.** Given a target package, the prover constructs a
+proof and a model that together guarantee every dependency is satisfied. Unlike
+Portage, portage-ng always produces a plan -- even for targets where Portage
+gives up. When strict proving fails, it makes explicit assumptions (USE flag
+changes, keyword acceptance, unmasking) and produces a proven plan under
+assumptions, with actionable suggestions for the user to approve, already
+applied within the build plan.
 
-This README is a bit outdated. While I work on updating it, let me tease you with two screenshots:
+**Prescient proving.** When a literal is re-encountered with a changed context
+(e.g. new USE requirements from a different dependency path), the prover merges
+contexts via feature-unification and re-expands only the difference. This
+shortens proofs because knowledge about requirements imposed later is
+incorporated into earlier decisions -- the prover is prescient about constraints
+that would otherwise require backtracking.
 
-![Buildplan](https://i.imgur.com/PSwHnLQ.png)
+**Multiple stable models.** Building upon the backtracking functionality built
+in to Prolog, the prover can produce different solutions (stable models) of the
+USE flag configuration space, taking into account constraints such as
+`build_with_use` and `required_use` as defined in PMS. Different valid
+configurations of the same target can be explored and compared.
 
-![Generative AI](https://i.imgur.com/Cj5xdeh.png)
- 
+**Constraint learning.** Version domains are narrowed incrementally across
+reprove retries (inspired by Zeller's feature logic). Learned constraints
+persist -- no full restart of the prover needed. Unlike traditional
+backtracking, the reprove mechanism is iterative refinement: when a domain
+conflict is detected, the prover records the conflict as a no-good, learns a
+narrowed domain, and restarts the complete proof with this additional knowledge.
+This is closer to CDCL-style learning than to Prolog backtracking.
 
-## Portage SVG Graphs
+**Progressive relaxation.** The pipeline tries strict mode first, then
+progressively relaxes (keyword acceptance, blockers, unmask). Each tier is a
+weaker proof that still carries formal guarantees. Every assumption is tracked
+and reported.
 
-The code is able to automatically generate interactive SVG graphs for all ebuilds, allowing you to walk
-through the Ebuild dependency graph. Dot files and corresponding SVG can be found [here](https://www.github.com/pvdabeel/portage-svg)
+**Wave planning with optimal parallelism.** The proven dependency graph is
+scheduled using Kahn's algorithm (acyclic portion) with parallelism calculated
+from the start -- the build plan shows which packages can be built concurrently.
+Cyclic remainders are handled via Kosaraju Strongly Connected Component (SCC)
+decomposition, matching PMS semantics.
 
-![Portage SVG Graphs](https://i.imgur.com/WhuEGxx.png)
+## What this enables
 
+**Always produces a plan.** portage-ng succeeds 100% of the time, including
+targets where Portage fails. Assumptions are explicit and actionable.
 
-## Contextual logic programming 
+**Measured correctness.** Correctness is measured against Portage for every
+ebuild in the tree, using an identical Portage tree, VDB, and `/etc/portage`
+configuration. Detailed comparison reports are available under
+[`Reports/`](Reports/).
 
-The following screenshot shows a simple 'Person' class being instantiated. Private data member can be set and retrieved, but not accessed 
-directly. 
+**Performance.** The entire Portage tree is loaded in-memory as Prolog facts
+with sub-second queries. A full prove of all 32,000 ebuilds in the tree takes
+less than a minute on a recent multi-core machine.<sup>1</sup> Parallel proving
+with `--jobs` enables plan "variants" showing build plan differences when
+enabling or disabling USE flags.
 
-The class code:
+**Actionable plans.** portage-ng builds plans incorporating suggested actions
+like `package.accept_keywords`, `package.unmask`, or `package.use` --
+suggestions are already applied within the plan for the user to review.
 
-![Imgur](https://i.imgur.com/MRZwVUS.png)
+**Automatic bug report drafts.** When the prover detects unsatisfiable
+dependencies, it generates structured Gentoo Bugzilla bug report drafts with
+a summary, affected package, unsatisfiable constraints, observed state, and a
+suggested fix.
 
-The instance:
+**Optimal parallelism.** Build plans include concurrent execution groups from
+the start.
 
-![Imgur](https://i.imgur.com/O7Luag9.png)
+**Best-of-breed CLI.** Compatible flags from emerge, paludis, and pkgcore.
 
+<sup>1</sup> 2019 Mac Pro, 28-core.
 
-## Syncing repositories
+## Architecture
 
-The following screenshot shows a Gentoo Portage repository and a Gentoo overlay being synced using git. Only the changed ebuilds have their 
-Logic metadata updated. 
-
-![Imgur](https://i.imgur.com/HNp6QYD.png)
-
-
-## Reading, parsing & querying ebuilds 
-
-In the following screenshots we show Gentoo ebuilds being read, parsed and queried using Prolog
-
-![Imgur](https://i.imgur.com/jHNSVdl.png)
-
-![Imgur](https://i.imgur.com/oGplVXX.png)
-
-![Imgur](https://i.imgur.com/wWAdjXn.png)
-
-![Imgur](https://i.imgur.com/yVED5fZ.png)
-
-
-## Installation instructions: 
-
-Not available at this time.
-
-## TLS certificates (client/server mode)
-
-When running in `--mode server` or `--mode client`, portage-ng expects a local CA and per-host certificates under `Source/Certificates/`:
-
-- `cacert.pem` / `cakey.pem`
-- `<hostname>.server-cert.pem` / `<hostname>.server-key.pem`
-- `<hostname>.client-cert.pem` / `<hostname>.client-key.pem`
-
-These are intentionally **not committed**. To generate them locally:
-
-```bash
-make certs HOST="$(hostname)"
+```
+reader/parser ──> prover ──> planner ──> scheduler ──> printer
+                  └──────── pipeline ────────┘
 ```
 
-If your environment uses a `.local` hostname (e.g. `mac-pro.local`), pass that exact value so it matches `config:hostname/1`.
+| Stage | Description |
+|-------|-------------|
+| **Reader / Parser** | Loads md5-cache into Prolog facts via a DCG grammar (PMS 9 / EAPI 9) |
+| **Prover** | Inductive proof search producing Proof, Model, Constraints, and Triggers |
+| **Planner** | Wave scheduling (Kahn) with parallelism; returns an acyclic plan and a remainder |
+| **Scheduler** | Strongly Connected Component (SCC) decomposition (Kosaraju) and merge-set scheduling for cyclic remainders |
+| **Printer** | Renders the plan, assumptions, suggestions, and optional LLM explanation |
+
+See the full architecture diagram: [`Documentation/Diagrams/architecture.svg`](Documentation/Diagrams/architecture.svg).
+
+## How it compares
+
+| | Portage | Paludis | pkgcore | portage-ng |
+|---|---------|---------|---------|------------|
+| **Language** | Python | C++ | Python | SWI-Prolog |
+| **Resolver model** | Greedy graph builder + backtracking | Constraint accumulator + exception-driven restart | Same imperative model as Portage | Single-pass inductive proof search |
+| **Conflict handling** | Up to 20 retries; masks accumulate negatively | Up to 9,000 restarts; fresh resolver each time | Same as Portage | Iterative refinement with learned domains (positive) and rejects (negative) |
+| **Completeness** | Sometimes fails to produce a plan | May exhaust restarts | Same as Portage | Always produces a plan (with explicit assumptions when needed) |
+| **Formal guarantees** | None | None | None | Every plan is a proof |
+
+For a deeper comparison of the reasoning models, see
+[`Documentation/doc-resolver-comparison.md`](Documentation/doc-resolver-comparison.md).
+
+## Unique capabilities
+
+- **Multiple modes** -- standalone, IPC daemon (Unix socket), client/server (TLS), distributed workers
+- **mDNS/Bonjour discovery** -- automatic cluster formation for distributed proving
+- **LLM integration** -- `--explain` / `--llm` for AI-assisted plan explanation
+- **Interactive Prolog shell** -- `--shell` for live querying of the knowledge base
+- **Graph generation** -- interactive SVG dependency graphs via Graphviz
+- **Contextual logic programming** -- an object-oriented paradigm for Prolog with contexts, classes, and inheritance ([documentation](Documentation/doc-contextual-logic-programming.md))
+
+## Quick start
+
+**Prerequisites:** SWI-Prolog >= 9.3, a Gentoo Portage tree (or md5-cache snapshot).
+
+```bash
+# Build and install
+make build && make install
+
+# Pretend (dry-run) a build plan
+portage-ng --mode standalone --pretend app-editors/neovim
+
+# Interactive Prolog shell
+portage-ng --mode standalone --shell
+
+# Sync the Portage tree
+portage-ng --mode standalone --sync
+```
+
+For the full command reference, see the
+[`portage-ng(1)` manpage](Documentation/Manpage/portage-ng.1).
+
+## Screenshots
+
+### Build plan
+
+![Build plan for app-editors/neovim](Documentation/Images/proof.png)
+
+### Bug search
+
+![Searching Gentoo Bugzilla for known issues](Documentation/Images/bugs.png)
+
+### Package search
+
+![Querying the in-memory knowledge base](Documentation/Images/search.png)
+
+### Upstream version check
+
+![Checking upstream versions via Repology](Documentation/Images/upstream.png)
+
+## Handbook
+
+The portage-ng handbook is under construction. Topics covered:
+
+- [Resolver comparison](Documentation/doc-resolver-comparison.md)
+- [Dependency ordering](Documentation/doc-dependency-ordering.md)
+- [Context terms](Documentation/doc-context-terms.md)
+- [Contextual logic programming](Documentation/doc-contextual-logic-programming.md)
+- [LLM explainer](Documentation/doc-explainer.md)
+- [TLS certificates](Documentation/doc-tls-certificates.md)
+
+## License
+
+BSD 3-Clause. See [`LICENSE`](LICENSE).
