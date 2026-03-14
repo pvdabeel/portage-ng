@@ -7,15 +7,19 @@ digraph rules_assumptions_bpmn {
   edge [fontname="Helvetica", fontsize=9, arrowsize=0.7];
 
   subgraph cluster_test_harness {
-    label="prover.pl : test_target_success/1 fallback chain";
+    label="pipeline.pl : prove_with_fallback / prove_plan_with_fallback";
     color="#888888";
     t_start [shape=circle, label="start"];
-    t_strict [shape=box, label="strict:\nprinter:prove_plan([Target], ...)"];
+    t_strict [shape=box, label="strict:\nprover:prove / pipeline:prove_plan"];
     t_strict_ok [shape=diamond, label="success?"];
-    t_blockers [shape=box, label="rules:with_assume_blockers(\n  printer:prove_plan(...)\n)"];
+    t_keyword [shape=box, label="prover:assuming(keyword_acceptance,\n  prove / prove_plan)"];
+    t_keyword_ok [shape=diamond, label="success?"];
+    t_blockers [shape=box, label="prover:assuming(blockers,\n  prove / prove_plan)"];
     t_blockers_ok [shape=diamond, label="success?"];
-    t_conflicts [shape=box, label="rules:with_assume_conflicts(\n  printer:prove_plan(...)\n)"];
-    t_done [shape=doublecircle, label="test target proven"];
+    t_unmask [shape=box, label="prover:assuming(unmask,\n  prove / prove_plan)"];
+    t_unmask_ok [shape=diamond, label="success?"];
+    t_keyword_unmask [shape=box, label="prover:assuming(keyword_acceptance,\n  prover:assuming(unmask, prove / prove_plan))"];
+    t_done [shape=doublecircle, label="proven"];
   }
 
   subgraph cluster_blockers_conflicts {
@@ -166,11 +170,17 @@ digraph rules_assumptions_bpmn {
   t_start -> t_strict;
   t_strict -> t_strict_ok;
   t_strict_ok -> t_done [label="yes"];
-  t_strict_ok -> t_blockers [label="no"];
+  t_strict_ok -> t_keyword [label="no"];
+  t_keyword -> t_keyword_ok;
+  t_keyword_ok -> t_done [label="yes"];
+  t_keyword_ok -> t_blockers [label="no"];
   t_blockers -> t_blockers_ok;
   t_blockers_ok -> t_done [label="yes"];
-  t_blockers_ok -> t_conflicts [label="no"];
-  t_conflicts -> t_done;
+  t_blockers_ok -> t_unmask [label="no"];
+  t_unmask -> t_unmask_ok;
+  t_unmask_ok -> t_done [label="yes"];
+  t_unmask_ok -> t_keyword_unmask [label="no"];
+  t_keyword_unmask -> t_done;
 
   // =========================================================================
   //  Edges: blocker + conflict handling
@@ -325,6 +335,15 @@ digraph rules_assumptions_bpmn {
   //  printer.pl : reason-aware plan step rendering
   // =========================================================================
 
+  subgraph cluster_printer_suggestions {
+    label="printer.pl / warning.pl : Suggestions section";
+    color="#555555";
+    fontcolor="#555555";
+
+    sugg_section [shape=box, style=filled, fillcolor="#f5f5e0",
+                  label="print_suggestions_section\n─────────────────\nWhen fallback tiers succeed, proof entries\ntagged with suggestion(...) in Context:\n• suggestion(accept_keyword, K) ← t_keyword\n• suggestion(unmask, _) ← t_unmask\n• suggestion(use_change, _, Changes)\n─────────────────\nPrints: package.accept_keywords,\npackage.unmask, package.use"];
+  }
+
   subgraph cluster_printer_render {
     label="printer.pl : print_element/2 reason-aware rendering";
     color="#555555";
@@ -374,8 +393,8 @@ digraph rules_assumptions_bpmn {
   g_emit -> r_guard [style=dashed, label="constraint_guard may request reprove"];
   g_reason_call -> e_start [style=dashed, label="classification path"];
   t_blockers -> b_assume_blockers [style=dashed, label="sets rules_assume_blockers=true"];
-  t_conflicts -> b_conflict [style=dashed, label="sets rules_assume_conflicts=true"];
-  t_conflicts -> b_anyof_guard [style=dashed, label="affects || model guard"];
+  t_keyword -> g_select [style=dashed, label="accepted_keyword_candidate\naccepts ~arch"];
+  t_unmask -> e_unmasked1 [style=dashed, label="bypasses package.mask"];
 
   // Assumption → printer type classification
   g_assume -> at_start [style=dashed, label="statistics"];
@@ -384,6 +403,14 @@ digraph rules_assumptions_bpmn {
   at_ctx_check -> at_generic [label="no"];
   at_reason_type -> at_out;
   at_generic -> at_out;
+
+  // Fallback tiers → suggestions (when tier succeeds, proof tagged)
+  t_keyword -> sugg_section [style=dashed, label="suggestion(accept_keyword)"];
+  t_unmask -> sugg_section [style=dashed, label="suggestion(unmask)"];
+  t_keyword_unmask -> sugg_section [style=dashed, label="both"];
+
+  // Assumption → suggestions (collect_keyword_suggestions, collect_unmask_suggestions)
+  g_assume -> sugg_section [style=dashed, label="assumptions with\nsuggestion tags"];
 
   // Assumption → printer rendering
   g_assume -> pr_start [style=dashed, label="plan output"];
