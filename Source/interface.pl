@@ -237,6 +237,10 @@ interface:spec(S) :-
 
        [opt(upstream),  type(boolean),   default(false),                          longflags(['upstream']),  help('Check upstream for newer package versions')],
 
+       % bug search (Bugzilla quicksearch)
+
+       [opt(searchbugs), type(boolean),   default(false),                          longflags(['search-bugs']), help('Search Bugzilla for bugs matching the given term')],
+
        % VDB queries (Paludis cave-style)
 
        [opt(contents),    type(boolean), default(false),                          longflags(['contents']),    help('List files installed by a package')],
@@ -598,6 +602,7 @@ interface:process_requests(Mode) :-
     memberchk(import(true),Options)  -> (interface:process_import(Args,Options),                   Continue) ;
     memberchk(unmanagedfiles(true),Options) -> (interface:process_unmanaged_files(Args),           Continue) ;
     memberchk(upstream(true),Options) -> (interface:process_upstream(Args,Options),                 Continue) ;
+    memberchk(searchbugs(true),Options) -> (interface:process_search_bugs(Args,Options),            Continue) ;
     interface:extract_llm_opt(Options, LlmOpt)
                                       -> (interface:process_llm_chat(LlmOpt),                      Continue) ;
     memberchk(merge(true),Options)    -> (interface:process_action(run,Args,Options),               Continue) ;
@@ -1132,6 +1137,15 @@ interface:process_upstream(Args, _Options) :-
   -> upstream:check([world])
   ;  upstream:check(Args)
   ).
+
+
+%! interface:process_search_bugs(+Args, +Options) is det.
+%
+% Searches Bugzilla for bugs matching the given terms.
+% Args are joined as the search query. With no args, shows usage.
+
+interface:process_search_bugs(Args, _Options) :-
+  bugs:check(Args).
 
 
 % -----------------------------------------------------------------------------

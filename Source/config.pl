@@ -601,6 +601,21 @@ config:mirror_url('http://mac-pro.local/distfiles').
 config:mirror_verify_hashes_default(none).
 
 
+%! config:bugzilla_url(?URL)
+%
+% Base URL of the Bugzilla instance for --search-bugs (e.g. bugs.gentoo.org).
+% Used to query the REST API at <URL>/rest/bug?quicksearch=<term>.
+
+config:bugzilla_url('https://bugs.gentoo.org').
+
+
+%! config:bugzilla_user_agent(?UA) is det.
+%
+% User-Agent string for Bugzilla API requests.
+
+config:bugzilla_user_agent('portage-ng/2026 (https://github.com/pvdabeel/prolog)').
+
+
 % -----------------------------------------------------------------------------
 %  Proving
 % -----------------------------------------------------------------------------
