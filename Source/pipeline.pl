@@ -116,6 +116,55 @@ pipeline:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
 
 
 % =============================================================================
+%  Testing
+% =============================================================================
+
+%! pipeline:test(+Repository) is det
+%
+% Runs the full pipeline (prove + plan + schedule + print) for every entry
+% in Repository. Same as printer:test/1.
+
+pipeline:test(Repository) :-
+  printer:test(Repository).
+
+
+%! pipeline:test_stats(+Repository) is det
+%
+% Runs the full pipeline with statistics recording and Top-N report.
+% Uses label 'Pipeline' for the stats output.
+
+pipeline:test_stats(Repository) :-
+  config:test_style(Style),
+  pipeline:test_stats(Repository, Style).
+
+%! pipeline:test_stats(+Repository, +Style) is det
+%
+% Same as pipeline:test_stats/1 with explicit Style.
+
+pipeline:test_stats(Repository, Style) :-
+  config:proving_target(Action),
+  aggregate_all(count, (Repository:entry(_E)), ExpectedTotal),
+  sampler:test_stats_reset('Pipeline', ExpectedTotal),
+  aggregate_all(count, (Repository:package(_C,_N)), ExpectedPkgs),
+  sampler:test_stats_set_expected_unique_packages(ExpectedPkgs),
+  tester:test(Style,
+              'Pipeline',
+              Repository://Entry,
+              (Repository:entry(Entry)),
+              ( prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers),
+                planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0),
+                scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder)
+              ),
+              ( sampler:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, false),
+                sampler:test_stats_set_current_entry(Repository://Entry),
+                printer:print([Repository://Entry:Action?{[]}],ModelAVL,ProofAVL,Plan,Triggers),
+                sampler:test_stats_clear_current_entry
+              ),
+              false),
+  stats:test_stats_print.
+
+
+% =============================================================================
 %  Multi-slot initial constraints
 % =============================================================================
 
