@@ -61,6 +61,28 @@ pipeline:prove_plan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
   pipeline:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL).
 
 
+%! pipeline:prove_with_fallback(+Goals, -ProofAVL, -ModelAVL, -TriggersAVL) is semidet
+%
+% Proves Goals with progressive relaxation (prover only, no plan/schedule).
+% Same fallback chain as prove_plan_with_fallback: strict, keyword_acceptance,
+% blockers, unmask, keyword_unmask. Used by tests so they exercise the same
+% proving capability as production.
+
+pipeline:prove_with_fallback(Goals, ProofAVL, ModelAVL, TriggersAVL) :-
+  pipeline:multislot_initial_constraints(Goals, InitCons),
+  ( prover:prove(Goals, t, ProofAVL, t, ModelAVL, InitCons, _Constraints, t, TriggersAVL)
+  ; prover:assuming(keyword_acceptance,
+      prover:prove(Goals, t, ProofAVL, t, ModelAVL, InitCons, _Constraints, t, TriggersAVL))
+  ; prover:assuming(blockers,
+      prover:prove(Goals, t, ProofAVL, t, ModelAVL, InitCons, _Constraints, t, TriggersAVL))
+  ; prover:assuming(unmask,
+      prover:prove(Goals, t, ProofAVL, t, ModelAVL, InitCons, _Constraints, t, TriggersAVL))
+  ; prover:assuming(keyword_acceptance,
+      prover:assuming(unmask,
+        prover:prove(Goals, t, ProofAVL, t, ModelAVL, InitCons, _Constraints, t, TriggersAVL)))
+  ).
+
+
 %! pipeline:prove_plan_with_fallback(+Goals, -ProofAVL, -ModelAVL, -Plan, -TriggersAVL)
 %
 % Proves with progressive relaxation: strict first, then keyword_acceptance,

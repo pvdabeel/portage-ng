@@ -172,6 +172,7 @@ sandbox:safe_primitive(pipeline:test(_)).
 sandbox:safe_primitive(pipeline:test_stats(_)).
 sandbox:safe_primitive(pipeline:test_stats(_,_)).
 sandbox:safe_primitive(pipeline:prove_plan(_,_,_,_,_)).
+sandbox:safe_primitive(pipeline:prove_with_fallback(_,_,_,_)).
 sandbox:safe_primitive(pipeline:prove_plan_with_fallback(_,_,_,_,_)).
 sandbox:safe_primitive(pipeline:prove_plan_with_fallback(_,_,_,_,_,_)).
 
