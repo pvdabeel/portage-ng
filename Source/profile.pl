@@ -119,6 +119,116 @@ profile_package_mask_atoms(ProfileRel, Atoms) :-
 
 
 % =============================================================================
+%  I.b  @system set — profile `packages` file reader
+% =============================================================================
+
+%! profile:system_packages(+ProfileRel, -Packages:list) is det.
+%
+% Collect @system package atoms from the `packages` files across the
+% full profile inheritance chain for ProfileRel.  Only lines prefixed
+% with `*` are included (per Gentoo PMS).  Version/slot constraints
+% are stripped so the result is a list of Category-Name pairs.
+
+profile:system_packages(ProfileRel, Packages) :-
+  profile_dirs(ProfileRel, Dirs),
+  findall(Cat-Name,
+          ( member(Dir, Dirs),
+            os:compose_path(Dir, 'packages', File),
+            exists_file(File),
+            catch(read_file_to_string(File, S, []), _, fail),
+            split_string(S, "\n", "\r\n", Lines),
+            member(L0, Lines),
+            profile_strip_comment(L0, L1),
+            normalize_space(string(L2), L1),
+            L2 \== "",
+            sub_string(L2, 0, 1, _, "*"),
+            sub_string(L2, 1, _, 0, AtomStr0),
+            normalize_space(string(AtomStr), AtomStr0),
+            AtomStr \== "",
+            profile:parse_system_atom(AtomStr, Cat, Name)
+          ),
+          Packages0),
+  sort(Packages0, Packages).
+
+
+%! profile:parse_system_atom(+AtomStr, -Category, -Name) is semidet.
+%
+% Parse a package atom string from a profile `packages` file into
+% Category and Name, stripping version constraints and slot specs.
+
+profile:parse_system_atom(AtomStr, Cat, Name) :-
+  atom_string(Atom0, AtomStr),
+  profile:strip_version_prefix(Atom0, Atom1),
+  profile:strip_slot(Atom1, Atom2),
+  profile:strip_version_suffix(Atom2, CatName),
+  atomic_list_concat([Cat, Name], '/', CatName),
+  Cat \== '',
+  Name \== ''.
+
+
+%! profile:strip_version_prefix(+Atom0, -Atom) is det.
+%
+% Remove leading version operators (>=, <=, >, <, =, ~).
+
+profile:strip_version_prefix(Atom0, Atom) :-
+  atom_string(Atom0, S0),
+  ( sub_string(S0, 0, 2, _, ">=") -> sub_string(S0, 2, _, 0, S)
+  ; sub_string(S0, 0, 2, _, "<=") -> sub_string(S0, 2, _, 0, S)
+  ; sub_string(S0, 0, 1, _, ">")  -> sub_string(S0, 1, _, 0, S)
+  ; sub_string(S0, 0, 1, _, "<")  -> sub_string(S0, 1, _, 0, S)
+  ; sub_string(S0, 0, 1, _, "=")  -> sub_string(S0, 1, _, 0, S)
+  ; sub_string(S0, 0, 1, _, "~")  -> sub_string(S0, 1, _, 0, S)
+  ; S = S0
+  ),
+  atom_string(Atom, S).
+
+
+%! profile:strip_slot(+Atom0, -Atom) is det.
+%
+% Remove slot specification (:SLOT) from a package atom.
+
+profile:strip_slot(Atom0, Atom) :-
+  atom_string(Atom0, S0),
+  ( sub_string(S0, Before, _, _, ":") ->
+      sub_string(S0, 0, Before, _, S)
+  ; S = S0
+  ),
+  atom_string(Atom, S).
+
+
+%! profile:strip_version_suffix(+Atom0, -CatName) is det.
+%
+% Given a cat/name-version atom, extract just cat/name by splitting
+% at the last hyphen followed by a digit.
+
+profile:strip_version_suffix(Atom0, CatName) :-
+  atom_string(Atom0, S0),
+  string_codes(S0, Codes),
+  ( profile:last_version_split(Codes, 0, -1, SplitPos),
+    SplitPos > 0 ->
+      sub_string(S0, 0, SplitPos, _, S)
+  ; S = S0
+  ),
+  atom_string(CatName, S).
+
+
+%! profile:last_version_split(+Codes, +Pos, +LastSplit, -SplitPos) is det.
+%
+% Find the position of the last '-' followed by a digit in the code list.
+
+profile:last_version_split([], _, Split, Split).
+
+profile:last_version_split([0'-,D|Rest], Pos, _, Split) :-
+  code_type(D, digit), !,
+  Pos1 is Pos + 2,
+  profile:last_version_split(Rest, Pos1, Pos, Split).
+
+profile:last_version_split([_|Rest], Pos, Acc, Split) :-
+  Pos1 is Pos + 1,
+  profile:last_version_split(Rest, Pos1, Acc, Split).
+
+
+% =============================================================================
 %  II. Profile inheritance chain
 % =============================================================================
 
@@ -707,6 +817,7 @@ profile:cache_save_profile(ProfileRel, RawFile) :-
   profile:collect_profile_package_use_mask(ProfileRel, PkgUseMaskEntries),
   profile:collect_profile_package_use_force(ProfileRel, PkgUseForceEntries),
   profile:collect_license_groups(LicenseGroups),
+  ( catch(profile:system_packages(ProfileRel, SystemPkgs), _, SystemPkgs = []) -> true ; SystemPkgs = [] ),
   setup_call_cleanup(
     open(RawFile, write, Out, [encoding(utf8)]),
     ( format(Out, ':- module(profiledata, []).~n', []),
@@ -728,7 +839,9 @@ profile:cache_save_profile(ProfileRel, RawFile) :-
       forall(member(pkg_use_force(Spec, Flag), PkgUseForceEntries),
              format(Out, '~q.~n', [entry(package_use_force, Spec, Flag)])),
       forall(member(lic_group(Name, Members), LicenseGroups),
-             format(Out, '~q.~n', [entry(license_group, Name, Members)]))
+             format(Out, '~q.~n', [entry(license_group, Name, Members)])),
+      forall(member(Cat-Name, SystemPkgs),
+             format(Out, '~q.~n', [entry(system_pkg, Cat, Name)]))
     ),
     close(Out)
   ),
@@ -823,6 +936,12 @@ profile:apply_entry(package_use_force, Spec, Flag) :-
 profile:apply_entry(license_group, Name, Members) :-
   !,
   assertz(preference:license_group_raw(Name, Members)).
+
+profile:apply_entry(system_pkg, Cat, Name) :-
+  !,
+  ( preference:system_pkg(Cat, Name) -> true
+  ; assertz(preference:system_pkg(Cat, Name))
+  ).
 
 profile:apply_entry(_, _, _).
 

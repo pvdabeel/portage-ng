@@ -574,6 +574,9 @@ eapi:qualified_package(C, P, V) -->
 eapi:qualified_target(world) -->
   [119, 111, 114, 108, 100],!.                           % world
 
+eapi:qualified_target(system) -->
+  [115, 121, 115, 116, 101, 109],!.                      % system
+
 eapi:qualified_target(S) -->                             % @set
   eapi:set(S),!.
 
@@ -2185,9 +2188,27 @@ eapi:version2numberlist(NumberAtom, NumberList) :-
 eapi:substitute_sets([],[]) :- !.
 
 eapi:substitute_sets([world|Tail],Result) :-
-  findall(E,world::entry(E),Targets),
+  !,
+  findall(E,world::entry(E),WorldTargets),
+  findall(Cat/Name, preference:system_pkg(Cat, Name), SystemPairs),
+  maplist([C/N, T]>>(atomic_list_concat([C, '/', N], T)), SystemPairs, SystemTargets0),
+  sort(SystemTargets0, SystemTargets),
+  append(WorldTargets, SystemTargets, Combined0),
+  sort(Combined0, Combined),
+  append(Combined,NewResult,Result),
+  eapi:substitute_sets(Tail,NewResult).
+
+eapi:substitute_sets([system|Tail],Result) :-
+  !,
+  findall(Cat/Name, preference:system_pkg(Cat, Name), SystemPairs),
+  maplist([C/N, T]>>(atomic_list_concat([C, '/', N], T)), SystemPairs, Targets0),
+  sort(Targets0, Targets),
   append(Targets,NewResult,Result),
   eapi:substitute_sets(Tail,NewResult).
+
+eapi:substitute_sets([[0'@|system]|Tail],Result) :-
+  !,
+  eapi:substitute_sets([system|Tail],Result).
 
 eapi:substitute_sets([Set|Tail],Result) :-
   preference:set(Set,Targets),!,

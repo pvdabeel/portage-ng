@@ -639,21 +639,6 @@ rule(package_dependency(Phase,strong,C,N,O,V,S,U):_Action?{Context},
 
 
 % -----------------------------------------------------------------------------
-%  Rule: Dependencies on the system profile / core packages
-% -----------------------------------------------------------------------------
-
-% In emptytree mode, we treat a small set of "core" packages as provided by the
-% system profile / baseline and *do not* force model construction to resolve them.
-% This keeps emptytree proofs from exploding into "build the whole OS" graphs.
-%
-% Note: core package handling during actual dependency *resolution* happens in
-% the grouped dependency rule below (`grouped_package_dependency/4`), not here.
-rule(package_dependency(_Phase,no,C,N,_O,_V,_S,_U):config?{_Context}, []) :-
-    preference:flag(emptytree),
-    preference:core_pkg(C,N), !.
-
-
-% -----------------------------------------------------------------------------
 %  Rule: Package dependencies
 % -----------------------------------------------------------------------------
 % A package dependency is satisfied when a suitable candidate is satisfied,
@@ -776,10 +761,6 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
   ( Action == run,
     memberchk(self(SelfRepo://SelfEntry), Context),
     query:search([category(C),name(N)], SelfRepo://SelfEntry)
-  ->
-    Conditions = []
-  ; preference:flag(emptytree),
-    preference:core_pkg(C,N)
   ->
     Conditions = []
   ; \+ preference:flag(emptytree),
