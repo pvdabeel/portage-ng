@@ -140,7 +140,7 @@
 <g id="node19" class="node">
 <title>pkg</title>
 <polygon fill="#ddf5dd" stroke="black" points="542.5,-1172.38 409.5,-1172.38 409.5,-1130.62 542.5,-1130.62 542.5,-1172.38"/>
-<text text-anchor="middle" x="476" y="-1158.88" font-family="Helvetica,sans-Serif" font-size="10.00">pkg.pl</text>
+<text text-anchor="middle" x="476" y="-1158.88" font-family="Helvetica,sans-Serif" font-size="10.00">vdb.pl</text>
 <text text-anchor="middle" x="476" y="-1147.62" font-family="Helvetica,sans-Serif" font-size="10.00">Installed package tracking;</text>
 <text text-anchor="middle" x="476" y="-1136.38" font-family="Helvetica,sans-Serif" font-size="10.00">sync from /var/db/pkg</text>
 </g>
