@@ -227,7 +227,7 @@ warning:blocker_assumption_line(Content, Strength, Phase, BlockAtom, RequiredBy)
 
 warning:blocker_atom(Strength, C, N, O, V0, SlotReq, Atom) :-
   ( Strength == strong -> Bang = '!!' ; Bang = '!' ),
-  eapi:comparator_symbol(O, Sym),
+  once(eapi:comparator_symbol(O, Sym)),
   ( var(V0) -> V = '' ; warning:version_atom(V0, V) ),
   warning:blocker_slot_suffix(SlotReq, SlotSuf),
   ( V == '' ->

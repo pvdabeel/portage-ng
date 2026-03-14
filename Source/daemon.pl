@@ -210,6 +210,12 @@ daemon_isolate_state(Args, Cols, Rows, Env) :-
   -> assertz(daemon:client_tty_size(Rows, Cols))
   ;  true
   ),
+  retractall(daemon:client_is_tty),
+  retractall(config:output_tty_cached(_)),
+  ( memberchk('_CLIENT_IS_TTY'-true, Env)
+  -> assertz(daemon:client_is_tty)
+  ;  true
+  ),
   daemon_apply_client_env(Env).
 
 
@@ -228,6 +234,7 @@ daemon_apply_client_env(Env) :-
   preference:init.
 
 :- dynamic daemon:client_tty_size/2.
+:- dynamic daemon:client_is_tty/0.
 :- dynamic daemon:client_env/2.
 :- dynamic daemon:running/0.
 
@@ -324,7 +331,11 @@ daemon_do_connect(SocketPath, ExitCode) :-
 daemon_send_request(Out) :-
   current_prolog_flag(argv, RawArgs),
   config:printing_tty_size(Rows, Cols),
-  daemon_collect_env(Env),
+  daemon_collect_env(Env0),
+  ( stream_property(user_output, tty(true))
+  -> Env = ['_CLIENT_IS_TTY'-true | Env0]
+  ;  Env = Env0
+  ),
   format(Out, 'request(~q, ~w, ~w, ~q).~n', [RawArgs, Cols, Rows, Env]).
 
 

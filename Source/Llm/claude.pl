@@ -68,8 +68,7 @@ llm_stream_claude(Endpoint, APIKey, Model, Messages, Response) :-
                request_header('x-api-key'=APIKey),
                request_header('anthropic-version'='2023-06-01'),
                request_header('Content-Type'='application/json'),
-               request_header('Accept'='text/event-stream'),
-               cacerts(system)],
+               request_header('Accept'='text/event-stream')],
 
     catch(
         (
