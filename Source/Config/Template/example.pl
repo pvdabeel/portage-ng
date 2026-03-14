@@ -73,3 +73,10 @@
 %               '/Users/pvdabeel/Repository/linux/metadata',
 %               'https://github.com/torvalds/linux','git','cmake').
 % :- kb:register(linux).
+
+
+% -----------------------------------------------------------------------------
+%  Bugzilla URL for --search-bugs (default: https://bugs.gentoo.org)
+% -----------------------------------------------------------------------------
+
+% :- config:bugzilla_url('https://bugs.gentoo.org').
