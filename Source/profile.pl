@@ -115,7 +115,9 @@ profile_package_mask_atoms(ProfileRel, Atoms) :-
   %
   % Do NOT sort/dedupe here; consumers (preference:init) apply the operations
   % sequentially.
-  Atoms = Atoms0.
+  %
+  % Exclude empty atoms (can occur from malformed or empty lines in mask files).
+  exclude(==(''), Atoms0, Atoms).
 
 
 % =============================================================================
@@ -831,7 +833,7 @@ profile:cache_save_profile(ProfileRel, RawFile) :-
       forall(member(U, UseForce),
              format(Out, '~q.~n', [entry(use, U, forced)])),
       forall(member(A, PkgMaskAtoms),
-             format(Out, '~q.~n', [entry(package_mask, A, true)])),
+             ( A \== '' -> format(Out, '~q.~n', [entry(package_mask, A, true)]) ; true )),
       forall(member(pkg_use(Spec, Flag, State), PkgUseEntries),
              format(Out, '~q.~n', [entry(package_use, Spec, use(Flag, State))])),
       forall(member(pkg_use_mask(Spec, Flag), PkgUseMaskEntries),
