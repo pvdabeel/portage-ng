@@ -12,3 +12,5 @@ Knowledge/kb.raw
 Knowledge/profile.qlf
 Knowledge/profile.raw
 Knowledge/phase_stats.pl
+Knowledge/resume.pl
+Source/Sets/**/*.local
