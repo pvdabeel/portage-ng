@@ -140,7 +140,7 @@ interface:status(S) :-
 
 interface:spec(S) :-
   config:hostname(Hostname),
-  S = [[opt(mode),      type(atom),      default('ipc'),                   longflags(['mode'] ),
+  S = [[opt(mode),      type(atom),      default('standalone'),                   longflags(['mode'] ),
         help([ '  standalone: start standalone (all in memory, no server required)'
              , '  ipc:        thin IPC client, requires running daemon'
              , '  daemon:     persistent daemon, serves ipc clients via Unix socket'
