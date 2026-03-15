@@ -70,11 +70,11 @@ targets where Portage fails. Assumptions are explicit and actionable.
 **Measured correctness.** Correctness is measured against Portage for every
 ebuild in the tree, using an identical Portage tree, VDB, and `/etc/portage`
 configuration. Detailed comparison reports are available under
-`[Reports/](Reports/)`.
+[`Reports/`](Reports/).
 
 **Performance.** The entire Portage tree is loaded in-memory as Prolog facts
 with sub-second queries. A full prove of all 32,000 ebuilds in the tree takes
-less than a minute on a recent multi-core machine.1 Parallel proving
+less than a minute on a recent multi-core machine.<sup>1</sup> Parallel proving
 with `--jobs` enables plan "variants" showing build plan differences when
 enabling or disabling USE flags.
 
@@ -97,7 +97,7 @@ planning, and scheduling. Actual package building is delegated to Portage's own
 ebuild infrastructure, so the full ecosystem of ebuilds, eclasses, and phase
 functions works unchanged.
 
-1 2019 Mac Pro, 28-core.
+<sup>1</sup> 2019 Mac Pro, 28-core.
 
 ## Architecture
 
@@ -124,7 +124,7 @@ operators, blockers) lives in a separate rules layer. This clean separation
 means the same reasoning engine can be applied to different domains by
 supplying a different set of rules.
 
-See the full architecture diagram: `[Documentation/Diagrams/architecture.svg](Documentation/Diagrams/architecture.svg)`.
+See the full architecture diagram: [`Documentation/Diagrams/architecture.svg`](Documentation/Diagrams/architecture.svg).
 
 ## How it compares
 
@@ -139,7 +139,7 @@ See the full architecture diagram: `[Documentation/Diagrams/architecture.svg](Do
 
 
 For a deeper comparison of the reasoning models, see
-`[Documentation/doc-resolver-comparison.md](Documentation/doc-resolver-comparison.md)`.
+[`Documentation/doc-resolver-comparison.md`](Documentation/doc-resolver-comparison.md).
 
 ## Unique capabilities
 
@@ -169,25 +169,25 @@ portage-ng --mode standalone --sync
 ```
 
 For the full command reference, see the
-`[portage-ng(1)` manpage](Documentation/Manpage/portage-ng.1.md).
+[`portage-ng(1)` manpage](Documentation/Manpage/portage-ng.1.md).
 
 ## Screenshots
 
 ### Build plan
 
-Build plan for app-editors/neovim
+![Build plan for app-editors/neovim](Documentation/Images/proof.png)
 
 ### Bug search
 
-Searching Gentoo Bugzilla for known issues
+![Searching Gentoo Bugzilla for known issues](Documentation/Images/bugs.png)
 
 ### Package search
 
-Querying the in-memory knowledge base
+![Querying the in-memory knowledge base](Documentation/Images/search.png)
 
 ### Upstream version check
 
-Checking upstream versions via Repology
+![Checking upstream versions via Repology](Documentation/Images/upstream.png)
 
 ## Handbook
 
@@ -202,4 +202,4 @@ The portage-ng handbook is under construction. Topics covered:
 
 ## License
 
-BSD 2-Clause. See `[LICENSE](LICENSE)`.
+BSD 2-Clause. See [`LICENSE`](LICENSE).
