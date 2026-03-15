@@ -1109,6 +1109,40 @@ config:llm_endpoint(ollama,  'http://localhost:11434/v1/chat/completions').
 
 
 % -----------------------------------------------------------------------------
+%  Semantic search (natural-language package search via embeddings)
+% -----------------------------------------------------------------------------
+
+%! config:semantic_search_enabled(?Bool) is det.
+%
+% Enable or disable natural-language semantic search. When false,
+% --search falls back to structured queries only and --train-model
+% is a no-op.
+
+config:semantic_search_enabled(true).
+
+
+%! config:semantic_model(?Model) is det.
+%
+% The Ollama model used for generating embeddings.
+
+config:semantic_model('nomic-embed-text').
+
+
+%! config:semantic_endpoint(?Endpoint) is det.
+%
+% The Ollama embeddings API endpoint.
+
+config:semantic_endpoint('http://localhost:11434/api/embed').
+
+
+%! config:semantic_top_n(?N) is det.
+%
+% Number of results returned by a semantic search query.
+
+config:semantic_top_n(10).
+
+
+% -----------------------------------------------------------------------------
 %  Daemon (ultralight mode)
 % -----------------------------------------------------------------------------
 

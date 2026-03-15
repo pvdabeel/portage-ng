@@ -64,3 +64,29 @@ server:stop_server :-
     print_message(error, "Server module not loaded, cannot stop server").
 
 :- endif.
+
+
+% -----------------------------------------------------------------------------
+%  Stubs for semantic search calls.
+% -----------------------------------------------------------------------------
+
+:- dynamic semantic:search/3.
+:- dynamic semantic:print_results/1.
+:- dynamic semantic:build_index/0.
+
+:- if(\+ current_module(semantic)).
+
+:- multifile semantic:search/3.
+:- multifile semantic:print_results/1.
+:- multifile semantic:build_index/0.
+
+semantic:search(_, _, []) :-
+    print_message(informational, "Semantic search module not loaded").
+
+semantic:print_results([]) :-
+    print_message(informational, "Semantic search module not loaded").
+
+semantic:build_index :-
+    print_message(error, "Semantic search module not loaded, cannot build index").
+
+:- endif.

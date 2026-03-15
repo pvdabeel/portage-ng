@@ -232,6 +232,7 @@ interface:spec(S) :-
 
        [opt(explain),   type(atom),      default(none),                           longflags(['explain']),   help('Explain the build plan via LLM (optionally pass a question)')],
        [opt(llm),       type(atom),      default(none),                           longflags(['llm']),       help('Start interactive chat with an LLM (optionally specify service name)')],
+       [opt(trainmodel),type(boolean),   default(false),                          longflags(['train-model']),help('Build the semantic search embedding index (requires Ollama)')],
 
        % upstream version checking
 
@@ -622,6 +623,7 @@ interface:process_requests(Mode) :-
     memberchk(unmanagedfiles(true),Options) -> (interface:process_unmanaged_files(Args),           Continue) ;
     memberchk(upstream(true),Options) -> (interface:process_upstream(Args,Options),                 Continue) ;
     memberchk(searchbugs(true),Options) -> (interface:process_search_bugs(Args,Options),            Continue) ;
+    memberchk(trainmodel(true),Options) -> (interface:process_train_model,                           Continue) ;
     interface:extract_llm_opt(Options, LlmOpt)
                                       -> (interface:process_llm_chat(LlmOpt),                      Continue) ;
     memberchk(merge(true),Options)    -> (interface:process_action(run,Args,Options),               Continue) ;
@@ -904,7 +906,7 @@ interface:process_action(info,Args,_Options) :-
 
 interface:process_action(search,[],_) :-
   !,
-  message:failure('Usage: portage-ng --search key=value ... (e.g. name=gcc, maintainer=''*@gentoo.org'' - quote * in shell)').
+  message:failure('Usage: portage-ng --search key=value | natural language query (e.g. name=gcc, or: text editor with syntax highlighting)').
 
 interface:process_action(search,Args,_Options) :-
   !,
@@ -916,7 +918,8 @@ interface:process_action(search,Args,_Options) :-
      -> message:inform('No matching packages found.')
      ;  true
      )
-  ; message:warning(['Invalid search query: ', Args])
+  ; atomic_list_concat(Args, ' ', Query),
+    interface:process_semantic_search(Query)
   ).
 
 % -----------------------------------------------------------------------------
@@ -1049,6 +1052,46 @@ interface:report_unresolvable_targets(Action, Args) :-
         )
       )
     )).
+
+
+% -----------------------------------------------------------------------------
+%  Action: Semantic search (natural-language fallback)
+% -----------------------------------------------------------------------------
+
+%! interface:process_semantic_search(+Query) is det.
+%
+% Fall back to semantic search when the query does not parse as a
+% structured key=value expression. Checks the config toggle first;
+% when the semantic module is not loaded, stubs.pl provides graceful
+% fallback predicates.
+
+interface:process_semantic_search(Query) :-
+  ( \+ catch(config:semantic_search_enabled(true), _, fail)
+  -> message:warning(['Semantic search is disabled. Set config:semantic_search_enabled(true) to enable it.'])
+  ; message:inform(['Semantic search: "', Query, '"']),
+    config:semantic_top_n(TopN),
+    ( catch(semantic:search(Query, TopN, Results), _, fail)
+    -> semantic:print_results(Results)
+    ; message:warning(['Semantic search unavailable. Run --train-model with Ollama running to build the index.'])
+    )
+  ).
+
+
+% -----------------------------------------------------------------------------
+%  Action: Train model (build semantic embedding index)
+% -----------------------------------------------------------------------------
+
+%! interface:process_train_model is det.
+%
+% Build the semantic search embedding index from the current knowledge base.
+% When the semantic module is not loaded, stubs.pl provides a graceful
+% fallback.
+
+interface:process_train_model :-
+  ( \+ catch(config:semantic_search_enabled(true), _, fail)
+  -> message:warning(['Semantic search is disabled. Set config:semantic_search_enabled(true) to enable it.'])
+  ; semantic:build_index
+  ).
 
 
 % -----------------------------------------------------------------------------
