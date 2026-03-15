@@ -149,6 +149,7 @@ For a deeper comparison of the reasoning models, see
 
 ## Unique capabilities
 
+- **Semantic search** -- `--search` accepts natural-language queries (e.g. *text editor with syntax highlighting*) using vector embeddings via Ollama, accelerated on Apple Silicon's GPU/Neural Engine
 - **Multiple modes** -- standalone, IPC daemon (Unix socket), client/server (TLS), distributed workers
 - **mDNS/Bonjour discovery** -- automatic cluster formation for distributed proving
 - **LLM integration** -- `--explain` / `--llm` for AI-assisted plan explanation

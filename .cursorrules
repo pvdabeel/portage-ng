@@ -17,6 +17,7 @@ See cache.pl for the datastructure. The actual data is contained in Knowledge/kb
 - `Source/cluster.pl`: high-level orchestration for distributed proving across workers
 - `Source/worker.pl`: compute node for distributed proving (polls server for jobs)
 - `Source/server.pl`: Pengine HTTP server + job/result queues for distributed proving
+- `Source/semantic.pl`: semantic (vector) search over the knowledge base via Ollama embeddings
 
 
 ## Architecture (mental model)

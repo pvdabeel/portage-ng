@@ -329,6 +329,7 @@ load_llm_modules :-
    ensure_loaded(portage('Source/Llm/gemini.pl')),
    ensure_loaded(portage('Source/Llm/ollama.pl')),
    ensure_loaded(portage('Source/Llm/explain.pl')),
+   ensure_loaded(portage('Source/semantic.pl')),
 
    message:log('Loaded Generative AI modules...').
 
