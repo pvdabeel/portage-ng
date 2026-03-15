@@ -389,6 +389,47 @@ semantic:sum_squares_([X|Xs], Acc, Sum) :-
 
 
 % -----------------------------------------------------------------------------
+% Similar packages
+% -----------------------------------------------------------------------------
+
+%! semantic:similar(+Category, +Name, +TopN, -Results) is det.
+%
+% Find the TopN most similar packages to Category/Name using the
+% pre-built embedding index. Does not require Ollama at query time.
+% Results is a list of Score-Cat/Name pairs, sorted descending,
+% excluding the query package itself.
+
+semantic:similar(Category, Name, TopN, Results) :-
+  semantic:load_index,
+  ( \+ semantic:index_loaded
+  -> Results = [],
+     message:warning(['No semantic index available. Run --train-model to build it.'])
+  ; ( semantic:embedding(Category, Name, QueryEmb)
+    -> Take is TopN + 1,
+       findall(Score-Cat/Nm,
+         ( semantic:embedding(Cat, Nm, PkgEmb),
+           semantic:dot_product(QueryEmb, PkgEmb, Score)
+         ),
+         AllScores),
+       msort(AllScores, Sorted),
+       reverse(Sorted, Descending),
+       semantic:take(Take, Descending, WithSelf),
+       exclude(semantic:is_self(Category, Name), WithSelf, Results0),
+       semantic:take(TopN, Results0, Results)
+    ; Results = [],
+      message:warning(['No embedding found for ', Category, '/', Name, '. Run --train-model to build the index.'])
+    )
+  ).
+
+
+%! semantic:is_self(+Cat, +Name, +Entry) is semidet.
+%
+% True when Entry matches Cat/Name (used to exclude self from results).
+
+semantic:is_self(Cat, Name, _-Cat/Name).
+
+
+% -----------------------------------------------------------------------------
 % Pretty printing
 % -----------------------------------------------------------------------------
 
@@ -404,7 +445,8 @@ semantic:print_results(Results) :-
     ( Pct is Score * 100,
       format('  ~1f%  ~w/~w~n', [Pct, Cat, Name]),
       ( cache:ordered_entry(_, Entry, Cat, Name, _),
-        cache:entry_metadata(_, Entry, description, [Desc|_])
+        cache:entry_metadata(_, Entry, description, Desc),
+        Desc \== ''
       -> format('         ~w~n', [Desc])
       ; true
       )

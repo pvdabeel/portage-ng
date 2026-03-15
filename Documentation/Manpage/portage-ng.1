@@ -641,6 +641,16 @@ Generates a vector embedding for every unique package (category/name)
 and stores the index in
 .IR Knowledge/embeddings.pl .
 On Apple Silicon machines, embedding generation is GPU-accelerated via Metal.
+.TP
+.B \-\-similar
+Find semantically similar packages to the given target(s).
+Uses the pre-built embedding index (see
+.BR \-\-train\-model );
+does not require Ollama at query time.
+.TP
+.B \-\-estimate
+Show estimated build time for the given packages, using VDB installed
+sizes and historical emerge.log data when available.
 .SS Upstream version checking
 .TP
 .B \-\-upstream
@@ -1354,6 +1364,22 @@ Semantic search \(em find packages by description:
 .RS
 .nf
 portage\-ng \-\-search text editor with syntax highlighting
+.fi
+.RE
+.PP
+Find packages similar to vim:
+.PP
+.RS
+.nf
+portage\-ng \-\-similar app\-editors/vim
+.fi
+.RE
+.PP
+Estimate build time for packages:
+.PP
+.RS
+.nf
+portage\-ng \-\-estimate dev\-qt/qtcore sys\-devel/gcc
 .fi
 .RE
 .PP

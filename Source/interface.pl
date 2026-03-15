@@ -233,6 +233,8 @@ interface:spec(S) :-
        [opt(explain),   type(atom),      default(none),                           longflags(['explain']),   help('Explain the build plan via LLM (optionally pass a question)')],
        [opt(llm),       type(atom),      default(none),                           longflags(['llm']),       help('Start interactive chat with an LLM (optionally specify service name)')],
        [opt(trainmodel),type(boolean),   default(false),                          longflags(['train-model']),help('Build the semantic search embedding index (requires Ollama)')],
+       [opt(similar),   type(boolean),   default(false),                          longflags(['similar']),   help('Find semantically similar packages (uses pre-built embedding index)')],
+       [opt(estimate),  type(boolean),   default(false),                          longflags(['estimate']),  help('Show estimated build time for given packages or a plan')],
 
        % upstream version checking
 
@@ -624,6 +626,8 @@ interface:process_requests(Mode) :-
     memberchk(upstream(true),Options) -> (interface:process_upstream(Args,Options),                 Continue) ;
     memberchk(searchbugs(true),Options) -> (interface:process_search_bugs(Args,Options),            Continue) ;
     memberchk(trainmodel(true),Options) -> (interface:process_train_model,                           Continue) ;
+    memberchk(similar(true),Options)   -> (interface:process_similar(Args),                          Continue) ;
+    memberchk(estimate(true),Options)  -> (interface:process_estimate(Args),                         Continue) ;
     interface:extract_llm_opt(Options, LlmOpt)
                                       -> (interface:process_llm_chat(LlmOpt),                      Continue) ;
     memberchk(merge(true),Options)    -> (interface:process_action(run,Args,Options),               Continue) ;
@@ -1091,6 +1095,91 @@ interface:process_train_model :-
   ( \+ catch(config:semantic_search_enabled(true), _, fail)
   -> message:warning(['Semantic search is disabled. Set config:semantic_search_enabled(true) to enable it.'])
   ; semantic:build_index
+  ).
+
+
+% -----------------------------------------------------------------------------
+%  Action: Resolve package argument
+% -----------------------------------------------------------------------------
+
+%! interface:resolve_pkg_arg(+Arg, -Cat, -Name) is semidet.
+%
+% Resolve a package argument to Category and Name. Accepts both
+% category/name (e.g. sys-devel/gcc) and bare name (e.g. gcc).
+% For bare names, looks up the knowledge base for a matching package.
+% When multiple categories match, picks the first one and informs
+% the user.
+
+interface:resolve_pkg_arg(Arg, Cat, Name) :-
+  atomic_list_concat([Cat, Name], '/', Arg), !.
+
+interface:resolve_pkg_arg(Arg, Cat, Arg) :-
+  findall(C, cache:package(_, C, Arg), Cats0),
+  sort(Cats0, Cats),
+  Cats = [Cat|Rest],
+  ( Rest \== []
+  -> message:inform(['Multiple categories for ', Arg, ': ',
+                      Cat, ' (using first). Others: ', Rest])
+  ; true
+  ).
+
+
+% -----------------------------------------------------------------------------
+%  Action: Similar packages
+% -----------------------------------------------------------------------------
+
+%! interface:process_similar(+Args) is det.
+%
+% Find packages semantically similar to the given target(s).
+% Accepts category/name or bare package name arguments.
+
+interface:process_similar([]) :-
+  message:failure('Usage: portage-ng --similar category/name').
+
+interface:process_similar(Args) :-
+  ( \+ catch(config:semantic_search_enabled(true), _, fail)
+  -> message:warning(['Semantic search is disabled. Set config:semantic_search_enabled(true) to enable it.'])
+  ; config:semantic_top_n(TopN),
+    forall(member(Arg, Args),
+      ( interface:resolve_pkg_arg(Arg, Cat, Name)
+      -> message:inform(['Packages similar to ', Cat, '/', Name, ':']),
+         ( catch(semantic:similar(Cat, Name, TopN, Results), _, fail)
+         -> semantic:print_results(Results)
+         ; message:warning(['Could not find similar packages. Run --train-model to build the index.'])
+         )
+      ; message:warning(['Package not found: ', Arg])
+      ))
+  ).
+
+
+% -----------------------------------------------------------------------------
+%  Action: Build time estimation
+% -----------------------------------------------------------------------------
+
+%! interface:process_estimate(+Args) is det.
+%
+% Show estimated build time for the given packages. Accepts
+% category/name or bare package name arguments.
+
+interface:process_estimate([]) :-
+  message:failure('Usage: portage-ng --estimate category/name ...').
+
+interface:process_estimate(Args) :-
+  ( \+ catch(config:buildtime_enabled(true), _, fail)
+  -> message:warning(['Build time estimation is disabled.'])
+  ; forall(member(Arg, Args),
+      ( interface:resolve_pkg_arg(Arg, Cat, Name)
+      -> buildtime:print_estimate(Cat, Name)
+      ; message:warning(['Package not found: ', Arg])
+      )),
+    findall(Cat/Name,
+      ( member(Arg, Args),
+        interface:resolve_pkg_arg(Arg, Cat, Name) ),
+      Actions),
+    ( Actions \== []
+    -> nl, buildtime:print_plan_estimate(Actions)
+    ; true
+    )
   ).
 
 
