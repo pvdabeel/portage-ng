@@ -34,8 +34,6 @@ The configuration directory defaults to config:portage_confdir/1 (typically
 
 :- module(gentoo, []).
 
-:- use_module(library(filesex), [directory_file_path/3]).
-
 
 % =============================================================================
 %  Dynamic state
