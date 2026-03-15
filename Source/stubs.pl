@@ -71,16 +71,21 @@ server:stop_server :-
 % -----------------------------------------------------------------------------
 
 :- dynamic semantic:search/3.
+:- dynamic semantic:similar/4.
 :- dynamic semantic:print_results/1.
 :- dynamic semantic:build_index/0.
 
 :- if(\+ current_module(semantic)).
 
 :- multifile semantic:search/3.
+:- multifile semantic:similar/4.
 :- multifile semantic:print_results/1.
 :- multifile semantic:build_index/0.
 
 semantic:search(_, _, []) :-
+    print_message(informational, "Semantic search module not loaded").
+
+semantic:similar(_, _, _, []) :-
     print_message(informational, "Semantic search module not loaded").
 
 semantic:print_results([]) :-

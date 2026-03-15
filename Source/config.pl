@@ -1143,6 +1143,25 @@ config:semantic_top_n(10).
 
 
 % -----------------------------------------------------------------------------
+%  Build time estimation
+% -----------------------------------------------------------------------------
+
+%! config:emerge_log_path(?Path) is semidet.
+%
+% Path to emerge.log for reading historical build durations.
+% Comment out or remove to disable emerge.log parsing.
+
+config:emerge_log_path('/var/log/emerge.log').
+
+
+%! config:buildtime_enabled(?Bool) is det.
+%
+% Enable or disable build time estimation in plan output.
+
+config:buildtime_enabled(true).
+
+
+% -----------------------------------------------------------------------------
 %  Daemon (ultralight mode)
 % -----------------------------------------------------------------------------
 

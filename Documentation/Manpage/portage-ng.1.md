@@ -181,6 +181,8 @@ action is performed per invocation.
 | **--explain** [*QUESTION*] | Ask questions about the build plan using a configured LLM service. Must be combined with `--pretend`. Without a question, enters interactive mode. |
 | **--llm** [*SERVICE*] | Start an interactive chat session with a large language model. Services: `claude`, `grok`, `chatgpt`, `gemini`, `ollama`. |
 | **--train-model** | Build the semantic search embedding index from the current knowledge base. Requires a locally running Ollama instance with the `nomic-embed-text` model. GPU-accelerated on Apple Silicon via Metal. |
+| **--similar** | Find semantically similar packages to the given target(s). Uses the pre-built embedding index; does not require Ollama at query time. |
+| **--estimate** | Show estimated build time for the given packages, using VDB installed sizes and historical emerge.log data when available. |
 
 ### Upstream version checking
 
@@ -482,6 +484,12 @@ portage-ng --train-model
 
 # Semantic search: find packages by description
 portage-ng --search text editor with syntax highlighting
+
+# Find packages similar to vim
+portage-ng --similar app-editors/vim
+
+# Estimate build time for packages
+portage-ng --estimate dev-qt/qtcore sys-devel/gcc
 
 # Search Bugzilla for bugs matching a term
 portage-ng --search-bugs "openssl segfault"
