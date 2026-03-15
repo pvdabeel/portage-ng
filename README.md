@@ -165,7 +165,7 @@ portage-ng --mode standalone --sync
 ```
 
 For the full command reference, see the
-[`portage-ng(1)` manpage](Documentation/Manpage/portage-ng.1).
+[`portage-ng(1)` manpage](Documentation/Manpage/portage-ng.1.md).
 
 ## Screenshots
 
