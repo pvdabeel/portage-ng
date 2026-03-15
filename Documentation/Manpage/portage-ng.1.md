@@ -281,6 +281,7 @@ conjunctively (AND). Each argument has the form `key comparator value`.
 | **keywords** | Architecture keyword (e.g. `amd64`, `~amd64`) |
 | **iuse** | USE flag, searched with prefix stripped |
 | **download** | Source download filename |
+| **maintainer** | Package maintainer email address (e.g. `dev@gentoo.org`). Matches any maintainer in the package's metadata. |
 | **masked** | Boolean: `masked=true` or `masked=false` |
 
 ### Comparators
