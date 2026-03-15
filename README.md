@@ -69,8 +69,9 @@ targets where Portage fails. Assumptions are explicit and actionable.
 
 **Measured correctness.** Correctness is measured against Portage for every
 ebuild in the tree, using an identical Portage tree, VDB, and `/etc/portage`
-configuration. Detailed comparison reports are available under
-[`Reports/`](Reports/).
+configuration. Because portage-ng produces valid plans for targets where Portage
+fails to find a solution, it can be considered strictly more correct. Detailed
+comparison reports are available under [`Reports/`](Reports/).
 
 **Performance.** The entire Portage tree is loaded in-memory as Prolog facts
 with sub-second queries. A full prove of all 32,000 ebuilds in the tree takes
@@ -88,14 +89,19 @@ a summary, affected package, unsatisfiable constraints, observed state, and a
 suggested fix.
 
 **Optimal parallelism.** Build plans include concurrent execution groups from
-the start.
+the start. Scheduling operates at the action level -- downloads, installs, and
+runs are independent actions, so packages can install while others are still
+downloading.
 
 **Best-of-breed CLI.** Compatible flags from emerge, paludis, and pkgcore.
 
 **Portage-compatible execution.** portage-ng focuses on reasoning -- proving,
 planning, and scheduling. Actual package building is delegated to Portage's own
 ebuild infrastructure, so the full ecosystem of ebuilds, eclasses, and phase
-functions works unchanged.
+functions works unchanged. portage-ng does ship its own metadata cache
+generator (`--regen`), which replaces `egencache`: it regenerates the md5-cache
+incrementally (only changed or new ebuilds) and in parallel, making repository
+updates significantly faster.
 
 <sup>1</sup> 2019 Mac Pro, 28-core.
 
