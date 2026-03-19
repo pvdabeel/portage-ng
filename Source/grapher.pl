@@ -9,13 +9,12 @@
 
 
 /** <module> GRAPHER
-Generates dependency graphs in DOT language for Gentoo ebuilds.
+Generates dependency graphs in DOT language and interactive HTML for Gentoo
+ebuilds.
 
 Given an ebuild (identified by its cache entry), the grapher traverses the
-dependency tree produced by the prover and emits a DOT graph that can be
-rendered to SVG by Graphviz.  The resulting SVG embeds interactive elements
-(hyperlinks, tooltips) so that a user can click through to dependencies,
-switch versions, or inspect command output.
+dependency tree produced by the prover and emits a graph.  DOT graphs can be
+rendered to SVG by Graphviz.  Gantt charts are self-contained interactive HTML.
 
 For a given ebuild, the following output can be produced:
 
@@ -36,6 +35,11 @@ For a given ebuild, the following output can be produced:
 
  - info:       A minimal dot file intended to show the output of displaying
                ebuild info.
+
+ - gantt:      An interactive HTML Gantt chart showing the execution plan with
+               step-based timeline, per-package detail rows (USE flags,
+               downloads), dependency arrows, and phase filters. Delegates to
+               the gantt submodule.
 
 The DOT output is intended to be converted into scalable vector graphics (SVG).
 The output contains interactive elements, enabling the user to click through to
@@ -97,6 +101,10 @@ grapher:graph(emerge,Repository://Id) :-
   grapher:graph_legend(emerge,Repository://Id),
   grapher:graph_root(emerge,Repository://Id),
   grapher:graph_footer(emerge,Repository://Id).
+
+grapher:graph(gantt,Repository://Id) :-
+  !,
+  gantt:graph(Repository://Id).
 
 grapher:graph(Type,Repository://Id) :-
   member(Type,[bdepend,cdepend,depend,idepend,rdepend,pdepend]),!,
@@ -798,6 +806,8 @@ grapher:write_graph_file(D,Repository://Entry) :-
   (forall(member(Type,Types),
       ((Type == detail
         -> atomic_list_concat([D,'/',Entry,'.dot'],F)
+        ;  Type == gantt
+        -> atomic_list_concat([D,'/',Entry,'-gantt.html'],F)
         ;  atomic_list_concat([D,'/',Entry,'-',Type,'.dot'],F)),
        tell(F),
        (grapher:graph(Type,Repository://Entry)
