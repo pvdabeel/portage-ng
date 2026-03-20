@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sys-apps/portage-9999 — Dependency Graph</title>
+<style>
+  :root {
+    --dl:  #e1f5fe; --dl-b:  #0288d1;
+    --inst:#dae8fc; --inst-b:#6c8ebf;
+    --run: #d5e8d4; --run-b: #82b366;
+    --bg:  #fdfdfd;
+    --hdr: #f5f5f5;
+    --bdepend: #ef6c00; --depend: #e53935; --rdepend: #7e57c2;
+    --pdepend: #00897b; --idepend: #6d4c41;
+    --node-bg: #fff; --node-border: #ccc;
+    --node-root-border: #e53935;
+    --node-installed: #43a047;
+    --edge-normal: #888;
+    --edge-weak: #ef6c00;
+    --edge-strong: #e53935;
+    --tooltip-bg: #fff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+         background: var(--bg); color: #333; padding: 24px 32px; overflow: hidden; }
+  h1 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+  .subtitle { font-size: 12px; color: #888; margin-bottom: 10px; }
+
+  /* Navigation bar */
+  .nav-bar { display: flex; gap: 0; margin-bottom: 10px; font-size: 10px;
+             flex-wrap: wrap; border: 1px solid #ccc; border-radius: 4px;
+             overflow: hidden; width: fit-content; }
+  .nav-group { display: flex; gap: 0; border-right: 1px solid #ccc; }
+  .nav-group:last-child { border-right: none; }
+  .nav-group-label { font-size: 8px; font-weight: 600; color: #999;
+                     text-transform: uppercase; letter-spacing: 0.3px;
+                     padding: 2px 6px; background: #f5f5f5; display: flex;
+                     align-items: center; border-right: 1px solid #e0e0e0; }
+  .nav-link { padding: 4px 8px; color: #1565c0; text-decoration: none;
+              border-right: 1px solid #eee; transition: background 0.1s; cursor: pointer; }
+  .nav-link:last-child { border-right: none; }
+  .nav-link:hover { background: #e3f2fd; }
+  .nav-link.active { font-weight: 600; text-decoration: underline;
+                     background: #e8eaf6; }
+  .nav-link.disabled { color: #bbb; cursor: default; }
+  .nav-link.disabled:hover { background: transparent; }
+
+  /* Dep type tabs */
+  .dep-tabs { display: flex; gap: 5px; margin-bottom: 12px; align-items: center;
+              flex-wrap: wrap; }
+  .dep-tabs .label { font-size: 11px; font-weight: 600; color: #666;
+                     margin-right: 2px; }
+  .dep-tab { display: inline-flex; align-items: center; gap: 4px;
+             padding: 3px 10px; border-radius: 4px; border: 1.5px solid;
+             font-size: 10px; font-weight: 500; cursor: pointer;
+             transition: opacity 0.15s, box-shadow 0.15s;
+             user-select: none; }
+  .dep-tab.active { box-shadow: 0 0 0 2px rgba(0,0,0,0.08); }
+  .dep-tab.off { opacity: 0.3; }
+  .dep-tab[data-type="bdepend"] { background: #fff3e0; border-color: var(--bdepend); color: #bf360c; }
+  .dep-tab[data-type="depend"]  { background: #ffebee; border-color: var(--depend);  color: #b71c1c; }
+  .dep-tab[data-type="rdepend"] { background: #ede7f6; border-color: var(--rdepend); color: #4527a0; }
+  .dep-tab[data-type="pdepend"] { background: #e0f2f1; border-color: var(--pdepend); color: #004d40; }
+  .dep-tab[data-type="idepend"] { background: #efebe9; border-color: var(--idepend); color: #3e2723; }
+  .dep-tab[data-type="cdepend"] { background: #fce4ec; border-color: #c2185b; color: #880e4f; }
+  .sep { width: 1px; height: 20px; background: #ddd; margin: 0 4px; }
+  .action-btn { display: inline-flex; align-items: center; gap: 4px;
+                padding: 3px 8px; border-radius: 4px; border: 1.5px solid #aaa;
+                font-size: 10px; font-weight: 500; cursor: pointer;
+                background: #fff; color: #555; user-select: none; }
+  .action-btn:hover { background: #f5f5f5; }
+
+  /* Graph container */
+  .graph-container { position: relative; width: 100%;
+                     height: calc(100vh - 170px);
+                     border: 1px solid #e0e0e0; border-radius: 6px;
+                     overflow: hidden; background: #fafbfc; }
+  .graph-container svg { width: 100%; height: 100%; }
+
+  /* Node cards (rendered in SVG foreignObject) */
+  .node-card { background: var(--node-bg); border: 1.5px solid var(--node-border);
+               border-radius: 5px; padding: 5px 8px; font-family: "Helvetica Neue", Helvetica, sans-serif;
+               cursor: pointer; transition: box-shadow 0.15s, border-color 0.15s;
+               white-space: nowrap; text-align: center; position: relative; }
+  .node-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+                     border-color: #999; z-index: 10; }
+  .node-card.root { border-color: var(--node-root-border); border-width: 2px; }
+  .node-card.installed { border-left: 3px solid var(--node-installed); }
+  .node-card .pkg-name { font-size: 9px; font-weight: 600; color: #333;
+                          line-height: 1.3; }
+  .node-card .pkg-ver  { font-size: 8px; color: #888; line-height: 1.2; }
+  .node-card .pkg-slot { font-size: 7px; color: #aaa; }
+  .node-card .collapse-indicator { position: absolute; right: 3px; bottom: 1px;
+                                    font-size: 7px; color: #999; }
+  .node-card.collapsed { opacity: 0.7; }
+  .node-card.collapsed .collapse-indicator { color: var(--rdepend); font-weight: 600; }
+  .node-card.hidden-node { display: none; }
+
+  /* Tooltip */
+  .tooltip { position: fixed; background: var(--tooltip-bg);
+             border: 1px solid #ccc; border-radius: 6px;
+             padding: 10px 14px; font-size: 10px; max-width: 340px;
+             box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+             pointer-events: none; z-index: 1000; display: none;
+             line-height: 1.5; }
+  .tooltip .tt-title { font-size: 12px; font-weight: 600; margin-bottom: 4px; color: #222; }
+  .tooltip .tt-desc { color: #555; margin-bottom: 6px; font-style: italic; }
+  .tooltip .tt-row { display: flex; gap: 6px; margin-bottom: 2px; }
+  .tooltip .tt-label { font-weight: 600; color: #888; min-width: 55px;
+                       text-transform: uppercase; font-size: 8px;
+                       letter-spacing: 0.3px; }
+  .tooltip .tt-value { color: #333; }
+  .tooltip .tt-installed { color: var(--node-installed); font-weight: 600; }
+  .tooltip .tt-not-installed { color: #bbb; }
+  .tooltip .use-flags { display: flex; gap: 2px; flex-wrap: wrap; margin-top: 4px; }
+  .tooltip .use-flag { font-size: 7px; padding: 1px 4px; border-radius: 2px;
+                       font-family: "SF Mono", Menlo, monospace; font-weight: 500; }
+  .tooltip .use-flag.on  { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+  .tooltip .use-flag.off { background: #fafafa; color: #bbb; border: 1px solid #e0e0e0;
+                           text-decoration: line-through; }
+  .tooltip .tt-link { color: #1565c0; text-decoration: none; font-size: 9px; }
+
+  /* Legend */
+  .legend { display: flex; gap: 14px; margin-top: 10px; font-size: 10px;
+            align-items: center; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 4px; }
+  .legend-swatch { width: 14px; height: 14px; border-radius: 3px; border: 1.5px solid; }
+  .legend-line { display: flex; align-items: center; }
+
+  /* Zoom controls */
+  .zoom-controls { position: absolute; bottom: 12px; right: 12px; display: flex;
+                   gap: 4px; z-index: 5; }
+  .zoom-btn { width: 28px; height: 28px; border-radius: 4px; border: 1px solid #ccc;
+              background: #fff; font-size: 14px; cursor: pointer; display: flex;
+              align-items: center; justify-content: center; color: #555;
+              box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .zoom-btn:hover { background: #f5f5f5; }
+  .zoom-level { font-size: 9px; color: #888; display: flex; align-items: center;
+                padding: 0 6px; }
+</style>
+</head>
+<body>
+
+<h1>sys-apps/portage-9999 &mdash; Dependency Graph</h1>
+<p class="subtitle" id="subtitle">22 nodes &middot; 22 edges &middot; 5 levels</p>
+
+<!-- Navigation bar -->
+<div class="nav-bar">
+  <div class="nav-group">
+    <span class="nav-group-label">nav</span>
+    <a class="nav-link" title="Repository index">portage</a>
+    <a class="nav-link" title="Category index">sys-apps</a>
+    <a class="nav-link" title="Package page">portage</a>
+  </div>
+  <div class="nav-group">
+    <span class="nav-group-label">graphs</span>
+    <a class="nav-link" title="Detail graph">detail</a>
+    <a class="nav-link" title="Gantt chart">gantt</a>
+  </div>
+  <div class="nav-group">
+    <span class="nav-group-label">version</span>
+    <a class="nav-link disabled">&laquo; newest</a>
+    <a class="nav-link disabled">&lsaquo; newer</a>
+    <a class="nav-link" title="portage-3.0.77-r3">older &rsaquo;</a>
+    <a class="nav-link" title="portage-3.0.72-r1">oldest &raquo;</a>
+  </div>
+  <div class="nav-group">
+    <span class="nav-group-label">cli</span>
+    <a class="nav-link" title="Merge plan">--merge</a>
+    <a class="nav-link" title="Fetch only">--fetchonly</a>
+    <a class="nav-link" title="Package info">--info</a>
+  </div>
+</div>
+
+<!-- Dep type tabs -->
+<div class="dep-tabs">
+  <span class="label">Dep type:</span>
+  <button class="dep-tab off" data-type="bdepend" onclick="switchDepType('bdepend',this)">BDEPEND</button>
+  <button class="dep-tab off" data-type="cdepend" onclick="switchDepType('cdepend',this)">CDEPEND</button>
+  <button class="dep-tab off" data-type="depend" onclick="switchDepType('depend',this)">DEPEND</button>
+  <button class="dep-tab off" data-type="idepend" onclick="switchDepType('idepend',this)">IDEPEND</button>
+  <button class="dep-tab active" data-type="rdepend" onclick="switchDepType('rdepend',this)">RDEPEND</button>
+  <button class="dep-tab off" data-type="pdepend" onclick="switchDepType('pdepend',this)">PDEPEND</button>
+  <div class="sep"></div>
+  <button class="action-btn" onclick="expandAll()">expand all</button>
+  <button class="action-btn" onclick="collapseAll()">collapse all</button>
+  <button class="action-btn" onclick="resetView()">reset view</button>
+</div>
+
+<!-- Graph -->
+<div class="graph-container" id="graph-container">
+  <svg id="graph-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div class="zoom-controls">
+    <button class="zoom-btn" onclick="zoomIn()">+</button>
+    <span class="zoom-level" id="zoom-level">100%</span>
+    <button class="zoom-btn" onclick="zoomOut()">&minus;</button>
+    <button class="zoom-btn" onclick="resetView()" title="Fit to view">&#8634;</button>
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div class="tooltip" id="tooltip"></div>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch" style="background:#fff;border-color:var(--node-root-border);border-width:2px"></div>root package</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#fff;border-color:#ccc;border-left:3px solid var(--node-installed)"></div>installed</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#fff;border-color:#ccc"></div>not installed</div>
+  <div class="legend-item">
+    <svg width="30" height="12"><line x1="0" y1="6" x2="24" y2="6" stroke="var(--edge-normal)" stroke-width="1.5"/>
+    <polygon points="24,3 30,6 24,9" fill="var(--edge-normal)"/></svg>dependency
+  </div>
+  <div class="legend-item">
+    <svg width="30" height="12"><line x1="0" y1="6" x2="24" y2="6" stroke="var(--edge-weak)" stroke-width="1.5" stroke-dasharray="4,2"/>
+    <polygon points="24,3 30,6 24,9" fill="var(--edge-weak)"/></svg>weak blocker
+  </div>
+  <div class="legend-item">
+    <svg width="30" height="12"><line x1="0" y1="6" x2="24" y2="6" stroke="var(--edge-strong)" stroke-width="1.5" stroke-dasharray="2,2"/>
+    <polygon points="24,3 30,6 24,9" fill="var(--edge-strong)"/></svg>strong blocker
+  </div>
+</div>
+
+<script>
+const treeData = {
+  rdepend: {
+    nodes: [
+      {id:"sys-apps/portage-9999",       cat:"sys-apps",    name:"portage",          ver:"9999",    slot:"0", installed:true,  desc:"The package management and distribution system for Gentoo", homepage:"https://wiki.gentoo.org/wiki/Portage", use:["+ipc","+native-extensions","+rsync-verify","-build","-doc","-gentoo-dev","-test"]},
+      {id:"acct-user/portage-0-r4",      cat:"acct-user",   name:"portage",          ver:"0-r4",    slot:"0", installed:true,  desc:"System user: portage", homepage:"", use:[]},
+      {id:"app-arch/tar-1.35",           cat:"app-arch",    name:"tar",              ver:"1.35",    slot:"0", installed:true,  desc:"Use GNU tar to create and manipulate archives", homepage:"https://www.gnu.org/software/tar/", use:["+acl","+nls","-minimal","-selinux","-verify-sig","-xattr"]},
+      {id:"app-misc/pax-utils-9999",     cat:"app-misc",    name:"pax-utils",        ver:"9999",    slot:"0", installed:false, desc:"ELF utils that can check files for security relevant properties", homepage:"https://wiki.gentoo.org/wiki/Hardened/PaX_Utilities", use:["+seccomp","-caps","-debug","-test"]},
+      {id:"dev-lang/python-exec-2.4.10", cat:"dev-lang",    name:"python-exec",      ver:"2.4.10",  slot:"2", installed:true,  desc:"Python script wrapper", homepage:"https://github.com/projg2/python-exec", use:[]},
+      {id:"sys-apps/baselayout-9999",    cat:"sys-apps",    name:"baselayout",       ver:"9999",    slot:"0", installed:false, desc:"Filesystem baselayout and target init scripts", homepage:"https://wiki.gentoo.org/wiki/Baselayout", use:["-build","-split-usr"]},
+      {id:"sys-apps/findutils-4.10.0",   cat:"sys-apps",    name:"findutils",        ver:"4.10.0",  slot:"0", installed:true,  desc:"GNU utilities for finding files", homepage:"https://www.gnu.org/software/findutils/", use:["+nls","-selinux","-test","-verify-sig"]},
+      {id:"acct-group/portage-0-r2",     cat:"acct-group",  name:"portage",          ver:"0-r2",    slot:"0", installed:true,  desc:"System group: portage", homepage:"", use:[]},
+      {id:"acct-group/jobserver-0",      cat:"acct-group",  name:"jobserver",        ver:"0",       slot:"0", installed:true,  desc:"System group: jobserver", homepage:"", use:[]},
+      {id:"dev-lang/python-exec-conf-2.4.6", cat:"dev-lang", name:"python-exec-conf", ver:"2.4.6", slot:"0", installed:true,  desc:"Configuration for python-exec", homepage:"https://github.com/projg2/python-exec", use:[]},
+      {id:"dev-lang/python-3.13.3",      cat:"dev-lang",    name:"python",           ver:"3.13.3",  slot:"3.13", installed:true, desc:"An interpreted, interactive, object-oriented programming language", homepage:"https://www.python.org/", use:["+ensurepip","+gdbm","+ncurses","+readline","+sqlite","+ssl","+xml","-bluetooth","-build","-debug","-examples","-libedit","-lto","-pgo","-test","-tk","-valgrind","-verify-sig"]},
+      {id:"app-arch/zstd-1.5.7-r1",     cat:"app-arch",    name:"zstd",             ver:"1.5.7-r1",slot:"0/1", installed:true, desc:"zstd fast compression library", homepage:"https://facebook.github.io/zstd", use:["+lz4","+threads","-static-libs","-test"]},
+      {id:"app-arch/bzip2-9999",         cat:"app-arch",    name:"bzip2",            ver:"9999",    slot:"0/1", installed:false, desc:"A high-quality data compressor", homepage:"https://sourceware.org/bzip2/", use:["-static-libs","-verify-sig"]},
+      {id:"app-arch/xz-utils-9999",      cat:"app-arch",    name:"xz-utils",         ver:"9999",    slot:"0/5.99", installed:false, desc:"Utils for managing LZMA compressed files", homepage:"https://tukaani.org/xz/", use:["+extra-filters","+nls","+threads","-doc","-static-libs","-verify-sig"]},
+      {id:"app-misc/mime-types-2.1.54",  cat:"app-misc",    name:"mime-types",       ver:"2.1.54",  slot:"0", installed:true,  desc:"Provides /etc/mime.types file", homepage:"https://pagure.io/mailcap", use:[]},
+      {id:"dev-libs/expat-2.7.4",        cat:"dev-libs",    name:"expat",            ver:"2.7.4",   slot:"0", installed:true,  desc:"Stream-oriented XML parser library", homepage:"https://libexpat.github.io/", use:["+unicode","-examples","-static-libs","-test"]},
+      {id:"dev-libs/libffi-9999",        cat:"dev-libs",    name:"libffi",           ver:"9999",    slot:"0/8", installed:false, desc:"A portable foreign function interface library", homepage:"https://sourceware.org/libffi/", use:["-debug","-exec-static-trampoline","-pax-kernel","-test","-verify-sig"]},
+      {id:"dev-libs/mpdecimal-4.0.1",    cat:"dev-libs",    name:"mpdecimal",        ver:"4.0.1",   slot:"0/4", installed:true, desc:"Library for arbitrary precision decimal arithmetic", homepage:"https://www.bytereef.org/mpdecimal/", use:["+cxx","-doc","-test"]},
+      {id:"dev-python/gentoo-common-1",  cat:"dev-python",  name:"gentoo-common",    ver:"1",       slot:"0", installed:true,  desc:"Common files needed for Gentoo Python packages", homepage:"https://github.com/projg2/gentoo-common", use:[]},
+      {id:"virtual/zlib-1.3.1-r1",       cat:"virtual",     name:"zlib",             ver:"1.3.1-r1",slot:"0/1", installed:true, desc:"Virtual for the zlib compression library", homepage:"", use:[]},
+      {id:"virtual/libintl-0-r2",        cat:"virtual",     name:"libintl",          ver:"0-r2",    slot:"0", installed:true,  desc:"Virtual for the GNU Internationalization Library", homepage:"", use:[]}
+    ],
+    edges: [
+      {from:"sys-apps/portage-9999",       to:"acct-user/portage-0-r4",      type:"no"},
+      {from:"sys-apps/portage-9999",       to:"app-arch/tar-1.35",           type:"no"},
+      {from:"sys-apps/portage-9999",       to:"app-arch/zstd-1.5.7-r1",     type:"no"},
+      {from:"sys-apps/portage-9999",       to:"app-misc/pax-utils-9999",     type:"no"},
+      {from:"sys-apps/portage-9999",       to:"dev-lang/python-exec-2.4.10", type:"no"},
+      {from:"sys-apps/portage-9999",       to:"sys-apps/baselayout-9999",    type:"no"},
+      {from:"sys-apps/portage-9999",       to:"sys-apps/findutils-4.10.0",   type:"no"},
+      {from:"acct-user/portage-0-r4",      to:"acct-group/portage-0-r2",     type:"no"},
+      {from:"acct-user/portage-0-r4",      to:"acct-group/jobserver-0",      type:"no"},
+      {from:"dev-lang/python-exec-2.4.10", to:"dev-lang/python-exec-conf-2.4.6", type:"no"},
+      {from:"dev-lang/python-exec-2.4.10", to:"dev-lang/python-3.13.3",      type:"weak"},
+      {from:"dev-lang/python-3.13.3",      to:"app-arch/zstd-1.5.7-r1",     type:"no"},
+      {from:"dev-lang/python-3.13.3",      to:"app-arch/bzip2-9999",         type:"no"},
+      {from:"dev-lang/python-3.13.3",      to:"app-arch/xz-utils-9999",      type:"no"},
+      {from:"dev-lang/python-3.13.3",      to:"app-misc/mime-types-2.1.54",  type:"no"},
+      {from:"dev-lang/python-3.13.3",      to:"dev-libs/expat-2.7.4",        type:"no"},
+      {from:"dev-lang/python-3.13.3",      to:"dev-libs/libffi-9999",        type:"no"},
+      {from:"dev-lang/python-3.13.3",      to:"dev-libs/mpdecimal-4.0.1",    type:"no"},
+      {from:"dev-lang/python-3.13.3",      to:"dev-python/gentoo-common-1",  type:"no"},
+      {from:"dev-lang/python-3.13.3",      to:"virtual/zlib-1.3.1-r1",       type:"no"},
+      {from:"dev-lang/python-3.13.3",      to:"virtual/libintl-0-r2",        type:"no"}
+    ],
+    root: "sys-apps/portage-9999"
+  }
+};
+
+let currentType = "rdepend";
+let collapsed = new Set();
+let viewBox = {x:0, y:0, w:0, h:0};
+let zoom = 1;
+let isPanning = false, panStart = {x:0,y:0}, vbStart = {x:0,y:0};
+
+const CARD_W = 130, CARD_H = 44, LAYER_H = 90, MIN_GAP = 16;
+const svg = document.getElementById("graph-svg");
+const container = document.getElementById("graph-container");
+const tooltip = document.getElementById("tooltip");
+const ns = "http://www.w3.org/2000/svg";
+
+function getTree() { return treeData[currentType]; }
+
+function buildLayout() {
+  const tree = getTree();
+  if (!tree) return {positions:{}, maxX:0, maxY:0};
+  const childMap = {}, nodeMap = {};
+  tree.nodes.forEach(n => { nodeMap[n.id] = n; childMap[n.id] = []; });
+  tree.edges.forEach(e => { if (childMap[e.from]) childMap[e.from].push(e.to); });
+
+  const hiddenSet = new Set();
+  function markHidden(id) {
+    (childMap[id]||[]).forEach(c => { hiddenSet.add(c); markHidden(c); });
+  }
+  collapsed.forEach(id => markHidden(id));
+
+  const layers = {};
+  const visited = new Set();
+  function bfs(startId) {
+    const queue = [{id: startId, depth: 0}];
+    visited.add(startId);
+    while (queue.length) {
+      const {id, depth} = queue.shift();
+      if (!layers[depth]) layers[depth] = [];
+      layers[depth].push(id);
+      (childMap[id]||[]).forEach(c => {
+        if (!visited.has(c) && !hiddenSet.has(c)) { visited.add(c); queue.push({id:c, depth:depth+1}); }
+      });
+    }
+  }
+  bfs(tree.root);
+
+  const positions = {};
+  const maxDepth = Math.max(...Object.keys(layers).map(Number));
+  const layerWidths = {};
+  for (let d = maxDepth; d >= 0; d--) {
+    const ids = layers[d] || [];
+    const totalW = ids.length * CARD_W + (ids.length - 1) * MIN_GAP;
+    layerWidths[d] = totalW;
+  }
+  const maxW = Math.max(...Object.values(layerWidths), 400);
+
+  for (let d = maxDepth; d >= 0; d--) {
+    const ids = layers[d] || [];
+    if (ids.length === 0) continue;
+    ids.forEach((id, i) => {
+      const children = (childMap[id]||[]).filter(c => !hiddenSet.has(c) && positions[c]);
+      let x;
+      if (children.length > 0) {
+        const cx = children.reduce((s, c) => s + positions[c].x, 0) / children.length;
+        x = cx;
+      } else {
+        const totalW = ids.length * CARD_W + (ids.length - 1) * MIN_GAP;
+        const startX = (maxW - totalW) / 2;
+        x = startX + i * (CARD_W + MIN_GAP) + CARD_W / 2;
+      }
+      positions[id] = {x, y: d * LAYER_H + 30};
+    });
+
+    resolveOverlaps(layers[d], positions);
+  }
+
+  for (let d = 0; d <= maxDepth; d++) {
+    const ids = layers[d] || [];
+    ids.forEach(id => {
+      const children = (childMap[id]||[]).filter(c => !hiddenSet.has(c) && positions[c]);
+      if (children.length > 0) {
+        const cx = children.reduce((s, c) => s + positions[c].x, 0) / children.length;
+        positions[id].x = cx;
+      }
+    });
+    resolveOverlaps(layers[d], positions);
+  }
+
+  return {positions, maxX: maxW, maxY: (maxDepth + 1) * LAYER_H + 40, hiddenSet, childMap, nodeMap};
+}
+
+function resolveOverlaps(ids, positions) {
+  if (!ids || ids.length <= 1) return;
+  ids.sort((a, b) => positions[a].x - positions[b].x);
+  for (let i = 1; i < ids.length; i++) {
+    const prev = positions[ids[i-1]], curr = positions[ids[i]];
+    const minX = prev.x + CARD_W + MIN_GAP;
+    if (curr.x < minX) curr.x = minX;
+  }
+}
+
+function render() {
+  const tree = getTree();
+  if (!tree) { svg.innerHTML = ""; return; }
+  const {positions, maxX, maxY, hiddenSet, childMap, nodeMap} = buildLayout();
+
+  const pad = 40;
+  viewBox = {x: -pad, y: -pad, w: maxX + pad * 2, h: maxY + pad * 2};
+  svg.setAttribute("viewBox", `${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`);
+
+  svg.innerHTML = "";
+
+  const defs = document.createElementNS(ns, "defs");
+  ["normal","weak","strong"].forEach(t => {
+    const col = t === "weak" ? "var(--edge-weak)" : t === "strong" ? "var(--edge-strong)" : "var(--edge-normal)";
+    const m = document.createElementNS(ns, "marker");
+    m.setAttribute("id", "arrow-" + t); m.setAttribute("markerWidth", "7");
+    m.setAttribute("markerHeight", "5"); m.setAttribute("refX", "7");
+    m.setAttribute("refY", "2.5"); m.setAttribute("orient", "auto");
+    const p = document.createElementNS(ns, "polygon");
+    p.setAttribute("points", "0 0,7 2.5,0 5"); p.setAttribute("fill", col);
+    m.appendChild(p); defs.appendChild(m);
+  });
+  svg.appendChild(defs);
+
+  const edgeG = document.createElementNS(ns, "g");
+  edgeG.setAttribute("class", "edges");
+  tree.edges.forEach(e => {
+    if (hiddenSet.has(e.to) || !positions[e.from] || !positions[e.to]) return;
+    const fp = positions[e.from], tp = positions[e.to];
+    const x1 = fp.x, y1 = fp.y + CARD_H / 2;
+    const x2 = tp.x, y2 = tp.y - CARD_H / 2;
+    const my = (y1 + y2) / 2;
+    const path = document.createElementNS(ns, "path");
+    path.setAttribute("d", `M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`);
+    const col = e.type === "weak" ? "var(--edge-weak)" : e.type === "strong" ? "var(--edge-strong)" : "var(--edge-normal)";
+    const markerT = e.type === "no" ? "normal" : e.type;
+    path.setAttribute("stroke", col); path.setAttribute("stroke-width", "1.3");
+    path.setAttribute("fill", "none"); path.setAttribute("marker-end", `url(#arrow-${markerT})`);
+    path.setAttribute("opacity", "0.6");
+    if (e.type === "weak") path.setAttribute("stroke-dasharray", "5,3");
+    if (e.type === "strong") path.setAttribute("stroke-dasharray", "3,2");
+    edgeG.appendChild(path);
+  });
+  svg.appendChild(edgeG);
+
+  const nodeG = document.createElementNS(ns, "g");
+  nodeG.setAttribute("class", "nodes");
+  tree.nodes.forEach(n => {
+    if (hiddenSet.has(n.id) || !positions[n.id]) return;
+    const pos = positions[n.id];
+    const isRoot = n.id === tree.root;
+    const isCollapsed = collapsed.has(n.id);
+    const childCount = (childMap[n.id]||[]).length;
+    const descendantCount = countDescendants(n.id, childMap);
+
+    const fo = document.createElementNS(ns, "foreignObject");
+    fo.setAttribute("x", pos.x - CARD_W / 2);
+    fo.setAttribute("y", pos.y - CARD_H / 2);
+    fo.setAttribute("width", CARD_W);
+    fo.setAttribute("height", CARD_H);
+
+    const card = document.createElement("div");
+    let cls = "node-card";
+    if (isRoot) cls += " root";
+    if (n.installed) cls += " installed";
+    if (isCollapsed) cls += " collapsed";
+    card.className = cls;
+    card.dataset.id = n.id;
+
+    const nameDiv = document.createElement("div");
+    nameDiv.className = "pkg-name";
+    nameDiv.textContent = n.name;
+
+    const verDiv = document.createElement("div");
+    verDiv.className = "pkg-ver";
+    verDiv.textContent = n.ver + (n.slot !== "0" ? "  :" + n.slot : "");
+
+    card.appendChild(nameDiv);
+    card.appendChild(verDiv);
+
+    if (childCount > 0) {
+      const ind = document.createElement("div");
+      ind.className = "collapse-indicator";
+      ind.textContent = isCollapsed ? "+" + descendantCount : "\u25BE";
+      card.appendChild(ind);
+    }
+
+    card.addEventListener("click", () => {
+      if (childCount === 0) return;
+      if (collapsed.has(n.id)) collapsed.delete(n.id);
+      else collapsed.add(n.id);
+      render();
+    });
+
+    card.addEventListener("mouseenter", (ev) => showTooltip(ev, n));
+    card.addEventListener("mousemove", (ev) => moveTooltip(ev));
+    card.addEventListener("mouseleave", hideTooltip);
+
+    fo.appendChild(card);
+    nodeG.appendChild(fo);
+  });
+  svg.appendChild(nodeG);
+
+  const visibleNodes = tree.nodes.filter(n => !hiddenSet.has(n) && positions[n.id]).length;
+  const visibleEdges = tree.edges.filter(e => !hiddenSet.has(e.to) && positions[e.from] && positions[e.to]).length;
+  const maxDepth = Math.max(...Object.values(positions).map(p => p.y)) / LAYER_H + 1;
+  document.getElementById("subtitle").textContent =
+    `${visibleNodes} nodes \u00b7 ${visibleEdges} edges \u00b7 ${Math.round(maxDepth)} levels`;
+}
+
+function countDescendants(id, childMap) {
+  let count = 0;
+  const stack = [...(childMap[id]||[])];
+  const seen = new Set();
+  while (stack.length) {
+    const c = stack.pop();
+    if (seen.has(c)) continue;
+    seen.add(c); count++;
+    (childMap[c]||[]).forEach(cc => stack.push(cc));
+  }
+  return count;
+}
+
+function showTooltip(ev, n) {
+  const useHtml = (n.use||[]).map(u => {
+    const on = u.startsWith("+");
+    const name = u.replace(/^[+-]/, "");
+    return `<span class="use-flag ${on?"on":"off"}">${u}</span>`;
+  }).join("");
+
+  tooltip.innerHTML = `
+    <div class="tt-title">${n.cat}/${n.name}-${n.ver}</div>
+    ${n.desc ? `<div class="tt-desc">${n.desc}</div>` : ""}
+    <div class="tt-row"><span class="tt-label">Slot</span><span class="tt-value">${n.slot}</span></div>
+    <div class="tt-row"><span class="tt-label">Status</span><span class="${n.installed?"tt-installed":"tt-not-installed"}">${n.installed?"Installed":"Not installed"}</span></div>
+    ${n.homepage ? `<div class="tt-row"><span class="tt-label">Home</span><a class="tt-link" href="${n.homepage}" target="_blank">${n.homepage.replace(/https?:\/\//,'').substring(0,40)}...</a></div>` : ""}
+    ${useHtml ? `<div style="margin-top:4px"><span class="tt-label">USE</span><div class="use-flags">${useHtml}</div></div>` : ""}
+  `;
+  tooltip.style.display = "block";
+  moveTooltip(ev);
+}
+function moveTooltip(ev) {
+  const pad = 12;
+  let x = ev.clientX + pad, y = ev.clientY + pad;
+  const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+  if (x + tw > window.innerWidth - pad) x = ev.clientX - tw - pad;
+  if (y + th > window.innerHeight - pad) y = ev.clientY - th - pad;
+  tooltip.style.left = x + "px"; tooltip.style.top = y + "px";
+}
+function hideTooltip() { tooltip.style.display = "none"; }
+
+function switchDepType(type, btn) {
+  if (!treeData[type]) return;
+  currentType = type;
+  collapsed.clear();
+  document.querySelectorAll(".dep-tab").forEach(b => {
+    b.classList.toggle("active", b.dataset.type === type);
+    b.classList.toggle("off", b.dataset.type !== type);
+  });
+  render();
+}
+
+function expandAll() { collapsed.clear(); render(); }
+function collapseAll() {
+  const tree = getTree(); if (!tree) return;
+  const childMap = {};
+  tree.nodes.forEach(n => childMap[n.id] = []);
+  tree.edges.forEach(e => { if (childMap[e.from]) childMap[e.from].push(e.to); });
+  tree.nodes.forEach(n => { if ((childMap[n.id]||[]).length > 0 && n.id !== tree.root) collapsed.add(n.id); });
+  render();
+}
+
+function resetView() {
+  zoom = 1;
+  document.getElementById("zoom-level").textContent = "100%";
+  render();
+}
+function zoomIn() {
+  zoom = Math.min(zoom * 1.25, 4);
+  applyZoom();
+}
+function zoomOut() {
+  zoom = Math.max(zoom / 1.25, 0.25);
+  applyZoom();
+}
+function applyZoom() {
+  const cx = viewBox.x + viewBox.w / 2, cy = viewBox.y + viewBox.h / 2;
+  const nw = viewBox.w / zoom, nh = viewBox.h / zoom;
+  svg.setAttribute("viewBox", `${cx - nw/2} ${cy - nh/2} ${nw} ${nh}`);
+  document.getElementById("zoom-level").textContent = Math.round(zoom * 100) + "%";
+}
+
+container.addEventListener("mousedown", e => {
+  if (e.target.closest(".node-card")) return;
+  isPanning = true;
+  panStart = {x: e.clientX, y: e.clientY};
+  const vb = svg.getAttribute("viewBox").split(" ").map(Number);
+  vbStart = {x: vb[0], y: vb[1]};
+  container.style.cursor = "grabbing";
+});
+container.addEventListener("mousemove", e => {
+  if (!isPanning) return;
+  const vb = svg.getAttribute("viewBox").split(" ").map(Number);
+  const scale = vb[2] / container.clientWidth;
+  const dx = (e.clientX - panStart.x) * scale;
+  const dy = (e.clientY - panStart.y) * scale;
+  svg.setAttribute("viewBox", `${vbStart.x - dx} ${vbStart.y - dy} ${vb[2]} ${vb[3]}`);
+});
+container.addEventListener("mouseup", () => { isPanning = false; container.style.cursor = ""; });
+container.addEventListener("mouseleave", () => { isPanning = false; container.style.cursor = ""; });
+container.addEventListener("wheel", e => {
+  e.preventDefault();
+  const factor = e.deltaY > 0 ? 0.9 : 1.1;
+  zoom *= factor;
+  zoom = Math.max(0.25, Math.min(4, zoom));
+  const vb = svg.getAttribute("viewBox").split(" ").map(Number);
+  const rect = container.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) / rect.width;
+  const my = (e.clientY - rect.top) / rect.height;
+  const nw = vb[2] / factor, nh = vb[3] / factor;
+  const nx = vb[0] + (vb[2] - nw) * mx;
+  const ny = vb[1] + (vb[3] - nh) * my;
+  svg.setAttribute("viewBox", `${nx} ${ny} ${nw} ${nh}`);
+  document.getElementById("zoom-level").textContent = Math.round(zoom * 100) + "%";
+}, {passive: false});
+
+render();
+</script>
+</body>
+</html>
