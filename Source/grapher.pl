@@ -106,6 +106,10 @@ grapher:graph(gantt,Repository://Id) :-
   !,
   gantt:graph(Repository://Id).
 
+grapher:graph(deptree,Repository://Id) :-
+  !,
+  deptree:graph(Repository://Id).
+
 grapher:graph(Type,Repository://Id) :-
   member(Type,[bdepend,cdepend,depend,idepend,rdepend,pdepend]),!,
   grapher:graph_header(Type,Repository://Id),
@@ -808,6 +812,8 @@ grapher:write_graph_file(D,Repository://Entry) :-
         -> atomic_list_concat([D,'/',Entry,'.dot'],F)
         ;  Type == gantt
         -> atomic_list_concat([D,'/',Entry,'-gantt.html'],F)
+        ;  Type == deptree
+        -> atomic_list_concat([D,'/',Entry,'-deptree.html'],F)
         ;  atomic_list_concat([D,'/',Entry,'-',Type,'.dot'],F)),
        tell(F),
        (grapher:graph(Type,Repository://Entry)
