@@ -554,7 +554,7 @@ config:print_blockers(gentoo).
 %
 % Targets (fixed names in output directory):
 %
-% - .index.css   (used by writer:write_index_files/2 HTML)
+% - .portage-ng.css (shared CSS for all HTML graph pages)
 % - .proof.css   (used by Scripts/*/print-aha to render proof output)
 % - .meslo.ttf   (font used by proof rendering)
 %
@@ -564,10 +564,6 @@ config:print_blockers(gentoo).
 %! config:graph_asset_source(+Key, -SourcePath)
 %
 % Returns the source path for a given asset key
-
-config:graph_asset_source(index_css, Source) :-
-  config:installation_dir(Dir),
-  os:compose_path([Dir,'Documentation/Assets/.index.css'], Source).
 
 config:graph_asset_source(portage_ng_css, Source) :-
   config:installation_dir(Dir),
