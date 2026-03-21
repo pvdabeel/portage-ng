@@ -71,16 +71,18 @@ build_tree(_Repo, package_dependency(_, Strength, Cat, Name, Cmpr, Ver, _, _),
            tree(pkg_dep(Strength, Cat, Name, Constraint), Candidates)) :-
     !,
     constraint_str(Cmpr, Ver, Constraint),
-    findall(candidate(Ch, Inst),
+    findall(CandVer-candidate(Ch, Inst),
             (   query:search([name(Name), category(Cat), select(version, Cmpr, Ver)],
                              _://Ch),
+                cache:ordered_entry(_, Ch, _, _, CandVer),
                 (   cache:entry_metadata(_, Ch, installed, true)
                 ->  Inst = true
                 ;   Inst = false
                 )
             ),
-            Candidates0),
-    sort(1, @<, Candidates0, Candidates).
+            Pairs0),
+    sort(1, @>=, Pairs0, Pairs),
+    pairs_values(Pairs, Candidates).
 
 build_tree(Repo, use_conditional_group(Type, Use, _, Deps),
            tree(use_cond(Type, Use), Children)) :-
