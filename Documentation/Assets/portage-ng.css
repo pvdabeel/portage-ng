@@ -45,6 +45,9 @@
   --dl: #1a3a4e; --dl-b: #0288d1; --dl-text: #4fc3f7;
   --inst: #1a2a4e; --inst-b: #6c8ebf; --inst-text: #90caf9;
   --run: #1a3a2a; --run-b: #82b366; --run-text: #a5d6a7;
+  --unmask: #3a2a1a; --unmask-b: #ef6c00; --unmask-text: #ffb74d;
+  --keyword: #3a1a3a; --keyword-b: #ab47bc; --keyword-text: #ce93d8;
+  --useflag: #1a3a3a; --useflag-b: #00897b; --useflag-text: #80cbc4;
   --bar: #555577; --sub-bg: #282840;
   --use-on-bg: #1a3a2a; --use-on-text: #66bb6a; --use-on-border: #2e7d32;
   --cached-bg: #1b3a2a; --cached-text: #66bb6a;
@@ -84,6 +87,9 @@
   --dl: #e1f5fe; --dl-b: #0288d1; --dl-text: #01579b;
   --inst: #dae8fc; --inst-b: #6c8ebf; --inst-text: #1a237e;
   --run: #d5e8d4; --run-b: #82b366; --run-text: #1b5e20;
+  --unmask: #fff3e0; --unmask-b: #ef6c00; --unmask-text: #bf360c;
+  --keyword: #f3e5f5; --keyword-b: #ab47bc; --keyword-text: #6a1b9a;
+  --useflag: #e0f2f1; --useflag-b: #00897b; --useflag-text: #004d40;
   --bar: #bdbdbd; --sub-bg: #f7f8fa;
   --use-on-bg: #e8f5e9; --use-on-text: #2e7d32; --use-on-border: #a5d6a7;
   --cached-bg: #e8f5e9; --cached-text: #2e7d32;
@@ -302,9 +308,12 @@ body.page-deptree .legend-swatch { width: 14px; height: 14px; border-radius: 3px
 }
 .filter-btn.active { box-shadow: 0 0 0 2px var(--shadow); }
 .filter-btn.off { opacity: 0.3; }
-.filter-btn[data-action="download"]  { background: var(--dl);  border-color: var(--dl-b);  color: var(--dl-text); }
-.filter-btn[data-action="install"]   { background: var(--inst); border-color: var(--inst-b); color: var(--inst-text); }
-.filter-btn[data-action="run"]       { background: var(--run);  border-color: var(--run-b);  color: var(--run-text); }
+.filter-btn[data-action="download"]  { background: var(--dl);      border-color: var(--dl-b);      color: var(--dl-text); }
+.filter-btn[data-action="install"]   { background: var(--inst);    border-color: var(--inst-b);    color: var(--inst-text); }
+.filter-btn[data-action="run"]       { background: var(--run);     border-color: var(--run-b);     color: var(--run-text); }
+.filter-btn[data-action="unmask"]    { background: var(--unmask);  border-color: var(--unmask-b);  color: var(--unmask-text); }
+.filter-btn[data-action="keyword"]   { background: var(--keyword); border-color: var(--keyword-b); color: var(--keyword-text); }
+.filter-btn[data-action="useflag"]   { background: var(--useflag); border-color: var(--useflag-b); color: var(--useflag-text); }
 .filter-btn[data-action="bdepend"]   { background: #fff3e0; border-color: var(--bdepend); color: #bf360c; }
 .filter-btn[data-action="depend"]    { background: #ffebee; border-color: var(--depend);  color: #b71c1c; }
 .filter-btn[data-action="rdepend"]   { background: #ede7f6; border-color: var(--rdepend); color: #4527a0; }
@@ -331,9 +340,13 @@ table.gantt td.empty { background: var(--surface2); }
   border-radius: 3px; padding: 2px 5px; font-size: 11px; font-weight: 500;
   display: inline-block; min-width: 44px; transition: opacity 0.2s;
 }
-.cell.dl   { background: var(--dl);  border: 1.5px solid var(--dl-b);  color: var(--dl-text); }
-.cell.inst { background: var(--inst); border: 1.5px solid var(--inst-b); color: var(--inst-text); }
-.cell.run  { background: var(--run);  border: 1.5px solid var(--run-b);  color: var(--run-text); }
+.cell.dl      { background: var(--dl);      border: 1.5px solid var(--dl-b);      color: var(--dl-text); }
+.cell.inst    { background: var(--inst);    border: 1.5px solid var(--inst-b);    color: var(--inst-text); }
+.cell.run     { background: var(--run);     border: 1.5px solid var(--run-b);     color: var(--run-text); }
+.cell.unmask  { background: var(--unmask);  border: 1.5px solid var(--unmask-b);  color: var(--unmask-text); }
+.cell.keyword { background: var(--keyword); border: 1.5px solid var(--keyword-b); color: var(--keyword-text); }
+.cell.useflag { background: var(--useflag); border: 1.5px solid var(--useflag-b); color: var(--useflag-text); }
+td.stacked { display: flex; flex-direction: column; gap: 1px; padding: 2px 3px; }
 .cell.hidden { opacity: 0.08; pointer-events: none; }
 tr.row-hidden { display: none; }
 

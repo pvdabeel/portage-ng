@@ -1127,6 +1127,10 @@ plan:print_config(Repository://Entry:downgrade?{Context}) :-
   !,
   plan:print_config(Repository://Entry:install?{Context}).
 
+plan:print_config(Repository://Entry:reinstall?{Context}) :-
+  !,
+  plan:print_config(Repository://Entry:install?{Context}).
+
 
 % ----------------
 % CASE: Run action

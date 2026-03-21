@@ -41,9 +41,11 @@ gantt:graph(Repository://Entry) :-
 % Emit the Gantt chart HTML for Target given a pre-computed proof and plan.
 
 gantt:emit(Repository://Entry, ProofAVL, Plan) :-
-    gantt:collect_grid(Plan, Grid, NumSteps),
+    gantt:collect_grid(Plan, Grid0, _NumSteps0),
+    gantt:collect_pre_actions(ProofAVL, Grid0, Grid, HasPre),
+    max_used_step(Grid, NumSteps),
     gantt:collect_deps(ProofAVL, Grid, Deps),
-    gantt:emit_html(Repository://Entry, Grid, Deps, NumSteps).
+    gantt:emit_html(Repository://Entry, Grid, Deps, NumSteps, HasPre).
 
 
 % -----------------------------------------------------------------------------
@@ -94,6 +96,9 @@ visible_action(update).
 visible_action(downgrade).
 visible_action(reinstall).
 visible_action(fetchonly).
+visible_action(unmask).
+visible_action(keyword).
+visible_action(useflag).
 
 add_action(Repo, Entry, StepN, Action, Acc, Acc1) :-
     (   select(Entry-pacc(Id, Repo, Cat, Name, Ver, Acts), Acc, Rest)
@@ -140,6 +145,59 @@ fix_dup_id(Dups, pkg(Id, Repo, Entry, Cat, Name, Ver, Acts),
         atomic_list_concat([CatId, '-', Id], NewId)
     ;   NewId = Id
     ).
+
+
+% -----------------------------------------------------------------------------
+%  Pre-action collection (unmask / keyword / useflag)
+% -----------------------------------------------------------------------------
+
+%! gantt:collect_pre_actions(+ProofAVL, +Grid0, -Grid, -NumSteps)
+%
+% Scan the proof for suggestion(unmask, ...), suggestion(accept_keyword, ...),
+% and suggestion(use_change, ...) annotations. Inject them as step 0 actions
+% into the grid, shifting existing steps by 1 when pre-actions are found.
+
+gantt:collect_pre_actions(ProofAVL, Grid0, Grid, HasPre) :-
+    assoc_to_list(ProofAVL, Pairs),
+    findall(Entry-unmask,
+            ( member(rule(R://Entry:_A)-(_?Ctx), Pairs),
+              is_list(Ctx),
+              memberchk(suggestion(unmask, _), Ctx),
+              entry_in_grid(Entry, Grid0, R)
+            ), Unmasks0),
+    sort(Unmasks0, Unmasks),
+    findall(Entry-keyword,
+            ( member(rule(R://Entry:_A2)-(_?Ctx2), Pairs),
+              is_list(Ctx2),
+              memberchk(suggestion(accept_keyword, _), Ctx2),
+              entry_in_grid(Entry, Grid0, R)
+            ), Keywords0),
+    sort(Keywords0, Keywords),
+    findall(Entry-useflag,
+            ( member(rule(R://Entry:_A3)-(_?Ctx3), Pairs),
+              is_list(Ctx3),
+              memberchk(suggestion(use_change, _, _), Ctx3),
+              entry_in_grid(Entry, Grid0, R)
+            ), UseChanges0),
+    sort(UseChanges0, UseChanges),
+    append([Unmasks, Keywords, UseChanges], AllPre),
+    (   AllPre == []
+    ->  Grid = Grid0,
+        HasPre = false
+    ;   inject_pre_actions(AllPre, Grid0, Grid),
+        HasPre = true
+    ).
+
+entry_in_grid(Entry, Grid, Repo) :-
+    member(pkg(_, Repo, Entry, _, _, _, _), Grid).
+
+inject_pre_actions([], Grid, Grid).
+inject_pre_actions([Entry-Action|Rest], Grid0, Grid) :-
+    (   select(pkg(Id, Repo, Entry, Cat, Name, Ver, Acts0), Grid0, GridRest)
+    ->  Grid1 = [pkg(Id, Repo, Entry, Cat, Name, Ver, [0-Action|Acts0])|GridRest]
+    ;   Grid1 = Grid0
+    ),
+    inject_pre_actions(Rest, Grid1, Grid).
 
 
 % -----------------------------------------------------------------------------
@@ -291,16 +349,18 @@ sum_pair(S-C, T0-C0, T1-C1) :-
 %  HTML emission - main
 % -----------------------------------------------------------------------------
 
-%! gantt:emit_html(+Target, +Grid, +Deps, +NumSteps)
+%! gantt:emit_html(+Target, +Grid, +Deps, +NumSteps, +HasPre)
 %
 % Emit a complete self-contained HTML document to the current output stream.
+% HasPre is true when pre-actions (unmask/keyword/useflag) exist at step 0.
 
-gantt:emit_html(Target, Grid, Deps, NumSteps) :-
+gantt:emit_html(Target, Grid, Deps, NumSteps, HasPre) :-
     Target = Repo://Entry,
     cache:ordered_entry(Repo, Entry, Cat, Name, Version),
     gantt:version_str(Version, Ver),
     length(Grid, PkgCount),
     collect_download_totals(Grid, Repo, TotalBytes, CachedBytes),
+    (HasPre == true -> MinStep = 0 ; MinStep = 1),
     emit_doctype,
     emit_head_open,
     emit_head_close,
@@ -314,8 +374,8 @@ gantt:emit_html(Target, Grid, Deps, NumSteps) :-
     emit_global_use(TargetFlags),
     emit_filters,
     emit_table_open,
-    emit_thead(NumSteps),
-    emit_tbody(Grid, NumSteps, Repo),
+    emit_thead(MinStep, NumSteps),
+    emit_tbody(Grid, MinStep, NumSteps, Repo),
     emit_table_close,
     emit_legend,
     emit_script(Grid, Deps),
@@ -387,6 +447,11 @@ emit_filters :-
     write('  <button class="filter-btn active" data-action="install" onclick="toggleFilter(this)">install</button>'), nl,
     write('  <button class="filter-btn active" data-action="run" onclick="toggleFilter(this)">run</button>'), nl,
     write('  <div class="sep"></div>'), nl,
+    write('  <span class="label">Actions:</span>'), nl,
+    write('  <button class="filter-btn active" data-action="unmask" onclick="toggleFilter(this)">unmask</button>'), nl,
+    write('  <button class="filter-btn active" data-action="keyword" onclick="toggleFilter(this)">keyword</button>'), nl,
+    write('  <button class="filter-btn active" data-action="useflag" onclick="toggleFilter(this)">useflag</button>'), nl,
+    write('  <div class="sep"></div>'), nl,
     write('  <button class="filter-btn" style="background:var(--surface2);border-color:var(--border2);color:var(--text2)" onclick="expandAll()">expand all</button>'), nl,
     write('  <button class="filter-btn" style="background:var(--surface2);border-color:var(--border2);color:var(--text2)" onclick="collapseAll()">collapse all</button>'), nl,
     write('  <div class="sep"></div>'), nl,
@@ -412,16 +477,20 @@ emit_table_close :-
     write('<svg class="deps" id="dep-svg"></svg>'), nl,
     write('</div>'), nl.
 
-emit_thead(NumSteps) :-
+emit_thead(MinStep, NumSteps) :-
     write('  <thead><tr>'), nl,
     write('    <th>Package</th>'), nl,
+    (   MinStep =:= 0
+    ->  write('    <th>Pre</th>'), nl
+    ;   true
+    ),
     forall(between(1, NumSteps, N),
         format('    <th>Step ~w</th>~n', [N])),
     write('  </tr></thead>'), nl.
 
-emit_tbody(Grid, NumSteps, Repo) :-
+emit_tbody(Grid, MinStep, NumSteps, Repo) :-
     write('  <tbody>'), nl,
-    maplist(emit_pkg_rows(NumSteps, Repo), Grid),
+    maplist(emit_pkg_rows(MinStep, NumSteps, Repo), Grid),
     write('  </tbody>'), nl.
 
 
@@ -429,14 +498,15 @@ emit_tbody(Grid, NumSteps, Repo) :-
 %
 % Emit the main row and detail row for a single package.
 
-emit_pkg_rows(NumSteps, Repo, pkg(Id, Repo, Entry, Cat, Name, Ver, Actions)) :-
+emit_pkg_rows(MinStep, NumSteps, Repo, pkg(Id, Repo, Entry, Cat, Name, Ver, Actions)) :-
     action_types_atom(Actions, TypesAtom),
     format('    <tr data-pkg="~w" data-actions="~w">~n', [Id, TypesAtom]),
     format('      <td class="pkg"><span class="toggle" onclick="toggleDetail(this)">&#9654;</span>~w/~w-~w</td>~n',
            [Cat, Name, Ver]),
-    emit_step_cells(Id, Actions, 1, NumSteps),
+    emit_step_cells(Id, Actions, MinStep, NumSteps),
     write('    </tr>'), nl,
-    emit_detail_row(Id, Repo, Entry, NumSteps).
+    TotalCols is NumSteps - MinStep + 1,
+    emit_detail_row(Id, Repo, Entry, TotalCols).
 
 action_types_atom(Actions, Atom) :-
     findall(A, member(_-A, Actions), As0),
@@ -446,13 +516,22 @@ action_types_atom(Actions, Atom) :-
 emit_step_cells(_, _, N, NumSteps) :-
     N > NumSteps, !.
 emit_step_cells(Id, Actions, N, NumSteps) :-
-    (   member(N-Action, Actions)
-    ->  action_css(Action, Css),
-        action_label(Action, Label),
-        action_id_suffix(Action, Suf),
+    findall(Action, member(N-Action, Actions), StepActions),
+    (   StepActions == []
+    ->  write('      <td class="empty"></td>'), nl
+    ;   StepActions = [Single]
+    ->  action_css(Single, Css),
+        action_label(Single, Label),
+        action_id_suffix(Single, Suf),
         format('      <td><span class="cell ~w" data-type="~w" id="~w-~w">~w</span></td>~n',
-               [Css, Action, Id, Suf, Label])
-    ;   write('      <td class="empty"></td>'), nl
+               [Css, Single, Id, Suf, Label])
+    ;   write('      <td class="stacked">'), nl,
+        forall(member(A, StepActions),
+               ( action_css(A, Cs), action_label(A, Lb), action_id_suffix(A, Sf),
+                 format('        <span class="cell ~w" data-type="~w" id="~w-~w">~w</span>~n',
+                        [Cs, A, Id, Sf, Lb])
+               )),
+        write('      </td>'), nl
     ),
     N1 is N + 1,
     emit_step_cells(Id, Actions, N1, NumSteps).
@@ -464,6 +543,9 @@ action_css(update, inst).
 action_css(downgrade, inst).
 action_css(reinstall, inst).
 action_css(fetchonly, dl).
+action_css(unmask, unmask).
+action_css(keyword, keyword).
+action_css(useflag, useflag).
 
 action_label(download, download).
 action_label(install, install).
@@ -472,6 +554,9 @@ action_label(update, update).
 action_label(downgrade, downgrade).
 action_label(reinstall, reinstall).
 action_label(fetchonly, fetchonly).
+action_label(unmask, unmask).
+action_label(keyword, keyword).
+action_label(useflag, useflag).
 
 action_id_suffix(download, dl).
 action_id_suffix(install, inst).
@@ -480,13 +565,16 @@ action_id_suffix(update, inst).
 action_id_suffix(downgrade, inst).
 action_id_suffix(reinstall, inst).
 action_id_suffix(fetchonly, dl).
+action_id_suffix(unmask, umsk).
+action_id_suffix(keyword, kw).
+action_id_suffix(useflag, uf).
 
 
 % -----------------------------------------------------------------------------
 %  HTML emission - detail rows
 % -----------------------------------------------------------------------------
 
-emit_detail_row(Id, Repo, Entry, NumSteps) :-
+emit_detail_row(Id, Repo, Entry, TotalCols) :-
     format('    <tr class="detail-row" data-parent="~w">~n', [Id]),
     write('      <td class="detail-pkg">'), nl,
     gantt:pkg_use_flags(Repo, Entry, Flags),
@@ -496,7 +584,7 @@ emit_detail_row(Id, Repo, Entry, NumSteps) :-
     gantt:pkg_src_uris(Repo, Entry, Uris),
     emit_src_table(Uris),
     write('      </td>'), nl,
-    EmptyCount is NumSteps - 1,
+    EmptyCount is TotalCols - 1,
     forall(between(1, EmptyCount, _),
         (write('      <td class="detail-empty"></td>'), nl)),
     write('    </tr>'), nl.
@@ -550,6 +638,9 @@ emit_legend :-
     write('  <div class="legend-item"><div class="legend-swatch" style="background:var(--dl);border-color:var(--dl-b)"></div>download</div>'), nl,
     write('  <div class="legend-item"><div class="legend-swatch" style="background:var(--inst);border-color:var(--inst-b)"></div>install</div>'), nl,
     write('  <div class="legend-item"><div class="legend-swatch" style="background:var(--run);border-color:var(--run-b)"></div>run</div>'), nl,
+    write('  <div class="legend-item"><div class="legend-swatch" style="background:var(--unmask);border-color:var(--unmask-b)"></div>unmask</div>'), nl,
+    write('  <div class="legend-item"><div class="legend-swatch" style="background:var(--keyword);border-color:var(--keyword-b)"></div>keyword</div>'), nl,
+    write('  <div class="legend-item"><div class="legend-swatch" style="background:var(--useflag);border-color:var(--useflag-b)"></div>useflag</div>'), nl,
     write('  <div class="legend-item"><svg width="24" height="12"><line x1="0" y1="6" x2="18" y2="6" stroke="var(--bdepend)" stroke-width="1.5"/><polygon points="18,3.5 24,6 18,8.5" fill="var(--bdepend)"/></svg>BDEPEND</div>'), nl,
     write('  <div class="legend-item"><svg width="24" height="12"><line x1="0" y1="6" x2="18" y2="6" stroke="var(--depend)" stroke-width="1.5"/><polygon points="18,3.5 24,6 18,8.5" fill="var(--depend)"/></svg>DEPEND</div>'), nl,
     write('  <div class="legend-item"><svg width="24" height="12"><line x1="0" y1="6" x2="18" y2="6" stroke="var(--rdepend)" stroke-width="1.5"/><polygon points="18,3.5 24,6 18,8.5" fill="var(--rdepend)"/></svg>RDEPEND</div>'), nl,
@@ -573,6 +664,7 @@ emit_script(Grid, Deps) :-
 emit_js_state :-
     write('const filters = {'), nl,
     write('  download:true, install:true, run:true,'), nl,
+    write('  unmask:true, keyword:true, useflag:true,'), nl,
     write('  bdepend:true, depend:true, rdepend:true, pdepend:true, idepend:true'), nl,
     write('};'), nl,
     write('const depColors = {bdepend:"#ef6c00",depend:"#e53935",rdepend:"#7e57c2",pdepend:"#00897b",idepend:"#6d4c41"};'), nl,

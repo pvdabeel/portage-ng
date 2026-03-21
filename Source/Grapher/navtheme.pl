@@ -31,7 +31,7 @@ theme toggle button, and theme persistence JavaScript.
 % (e.g. '../' for category-level files, '' for root-level files).
 
 navtheme:emit_css_link(Prefix) :-
-    format('<link rel="stylesheet" href="~wportage-ng.css">~n', [Prefix]).
+    format('<link rel="stylesheet" href="~w.portage-ng.css">~n', [Prefix]).
 
 
 % -----------------------------------------------------------------------------

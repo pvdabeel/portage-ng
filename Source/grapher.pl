@@ -152,7 +152,7 @@ grapher:write_graph_files(Directory,Repository) :-
 
 grapher:copy_graph_assets(Directory) :-
   grapher:copy_graph_asset(index_css, '.index.css', Directory),
-  grapher:copy_graph_asset(portage_ng_css, 'portage-ng.css', Directory),
+  grapher:copy_graph_asset(portage_ng_css, '.portage-ng.css', Directory),
   !.
 
 
