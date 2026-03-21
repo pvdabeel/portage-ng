@@ -17,6 +17,8 @@ versions. Supports day/night theme toggle.
 
 :- module(detail, []).
 
+:- discontiguous build_tree/3.
+
 % =============================================================================
 %  DETAIL declarations
 % =============================================================================
@@ -81,8 +83,31 @@ build_tree(_Repo, package_dependency(_, Strength, Cat, Name, Cmpr, Ver, _, _),
                 )
             ),
             Pairs0),
-    sort(1, @>=, Pairs0, Pairs),
+    sort(1, @>=, Pairs0, PairsSorted),
+    dedupe_candidate_pairs_by_entry(PairsSorted, Pairs),
     pairs_values(Pairs, Candidates).
+
+
+%! detail:dedupe_candidate_pairs_by_entry(+PairsSorted, -UniquePairs)
+%
+% Pairs are CandVer-candidate(Entry, Inst), sorted with newest version first.
+% query:search/2 may yield the same Entry multiple times; keep the first
+% occurrence per Entry so the detail tree lists each candidate once.
+
+dedupe_candidate_pairs_by_entry(Pairs, Unique) :-
+    dedupe_candidate_pairs_by_entry(Pairs, [], Unique).
+
+
+dedupe_candidate_pairs_by_entry([], _, []).
+dedupe_candidate_pairs_by_entry([Pair|Rest], Seen, Out) :-
+    Pair = _-candidate(Ch, _),
+    (   memberchk(Ch, Seen)
+    ->  dedupe_candidate_pairs_by_entry(Rest, Seen, Out)
+    ;   Out = [Pair|Out0],
+        dedupe_candidate_pairs_by_entry(Rest, [Ch|Seen], Out0)
+    ).
+
+
 
 build_tree(Repo, use_conditional_group(Type, Use, _, Deps),
            tree(use_cond(Type, Use), Children)) :-

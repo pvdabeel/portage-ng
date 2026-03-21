@@ -110,22 +110,43 @@
 }
 
 /* ================================================================
-   Reset & base
+   Web font: MesloLGS NF (Powerline / Nerd Font glyphs)
    ================================================================ */
 
 @font-face {
   font-family: "MesloLGS NF";
-  src: url(".meslo.ttf") format("truetype");
+  src: local("MesloLGS NF"),
+       local("MesloLGS Nerd Font"),
+       local("MesloLGS NF Regular"),
+       url("../.meslo.ttf") format("truetype"),
+       url(".meslo.ttf") format("truetype");
   font-weight: normal;
   font-style: normal;
-  font-display: swap;
 }
+
+@font-face {
+  font-family: "MesloLGS NF";
+  src: local("MesloLGS NF Bold"),
+       local("MesloLGS Nerd Font Bold"),
+       url("../.meslo.ttf") format("truetype"),
+       url(".meslo.ttf") format("truetype");
+  font-weight: bold;
+  font-style: normal;
+}
+
+/* ================================================================
+   Reset & base
+   ================================================================ */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   background: var(--bg); color: var(--text); padding: 24px 32px;
+}
+
+body.page-terminal {
+  padding: 24px 32px 56px 32px;
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -551,20 +572,23 @@ body.page-detail .legend-swatch { width: 12px; height: 12px; border-radius: 3px;
 pre.terminal {
   background: var(--pre-bg); border: 1px solid var(--border);
   border-radius: 6px; padding: 16px 20px; overflow-x: auto;
-  font-family: "MesloLGS NF", "SF Mono", "Cascadia Code", "Fira Code", Menlo, monospace;
+  font-family: "MesloLGS NF", "SF Mono", Menlo, "Cascadia Code", "Fira Code", ui-monospace, monospace;
   font-size: 14px; line-height: 1.5; color: var(--text);
   white-space: pre-wrap; word-wrap: break-word;
   max-height: calc(100vh - 200px); overflow-y: auto;
 }
 pre.terminal .pua {
-  display: inline-block; width: 1ch; text-align: center;
-  overflow: hidden; vertical-align: baseline;
+  font-family: "MesloLGS NF", "SF Mono", Menlo, monospace;
+  vertical-align: baseline;
 }
 
 body.page-terminal .terminal-stats {
-  margin-top: 14px; padding: 12px 16px; border-radius: 6px;
+  margin-top: 14px; margin-bottom: 20px; padding: 12px 16px; border-radius: 6px;
   border: 1px solid var(--border); background: var(--surface2);
   font-size: 13px; color: var(--text2);
+}
+body.page-terminal .terminal-stats .vs-portage-ng {
+  color: var(--text); font-weight: 400; margin-left: 0.35em;
 }
 body.page-terminal .terminal-stats dl {
   display: grid; grid-template-columns: auto 1fr; gap: 6px 20px;
@@ -619,6 +643,7 @@ body.page-terminal .terminal-stats dd {
 .ansi-italic { font-style: italic; }
 .ansi-underline { text-decoration: underline; }
 span[class*="bg-"] { border-radius: 4px; padding: 1px 6px; color: var(--bubble-text); }
+pre.terminal span[class*="bg-"] { margin: 0 -6px; position: relative; z-index: 1; }
 
 /* ================================================================
    PAGE: index (repository, category, package listings)

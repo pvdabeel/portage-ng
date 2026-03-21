@@ -14,7 +14,7 @@ Plan timing output in emerge-compatible format.
 Prints started/ended timestamps and wall-time duration lines used by
 writer.pl when generating .merge and .fetchonly files. The Grapher
 terminal HTML pages strip these lines from the main &lt;pre&gt; block
-and show wall time (seconds) plus started/ended below the output.
+and show only wall time (seconds) in a separate stats area below.
 */
 
 :- module(timing, []).

@@ -509,8 +509,7 @@ interface:process_continue(Continue) :-
    ->  message:logo(['::- portage-ng ',Version],Mode),
        Continue = true
    ;   (lists:memberchk(shell(true),Options)
-        -> message:logo(['::- portage-ng ',Version],Mode),
-           Continue = prolog
+        -> Continue = (message:logo(['::- portage-ng ',Version],Mode), prolog)
         ;  ( catch(daemon:running, _, fail)
            -> Continue = true
            ;  Continue = halt))).
@@ -630,8 +629,10 @@ interface:process_requests(Mode) :-
     memberchk(estimate(true),Options)  -> (interface:process_estimate(Args),                         Continue) ;
     interface:extract_llm_opt(Options, LlmOpt)
                                       -> (interface:process_llm_chat(LlmOpt),                      Continue) ;
-    memberchk(merge(true),Options)    -> (interface:process_action(run,Args,Options),               Continue) ;
-    memberchk(shell(true),Options)    -> (message:logo(['::- portage-ng shell - ',Version]),	    prolog)),
+    memberchk(shell(true),Options), Args \== []
+                                      -> (interface:process_action(run,Args,Options),               Continue) ;
+    memberchk(shell(true),Options)    -> Continue ;
+    memberchk(merge(true),Options)    -> (interface:process_action(run,Args,Options),               Continue)),
 
   Continue.
 

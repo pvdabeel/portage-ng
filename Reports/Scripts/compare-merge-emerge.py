@@ -555,7 +555,7 @@ def parse_merge(path: Path) -> Tuple[Dict[str, MergePkg], Dict[str, int], List[s
     #   update     portage://app-text/xmlto-0.0.28-r11 (replaces pkg://...)
     #   downgrade  portage://app-text/xmlto-0.0.27-r1  (replaces pkg://...)
     action_re = re.compile(r"\b(install|update|downgrade|reinstall|run|download)\s+(portage|overlay|pkg)://([A-Za-z0-9+_.-]+/[A-Za-z0-9+_.-]+)\b")
-    # portage-ng prints a fancy "USE" label, sometimes like: "USE = "..."
+    # portage-ng prints a styled USE label (background bubble) before " = "..."
     # and it may wrap long USE strings across multiple lines.
     use_start_re = re.compile(r'\bUSE\b[^=]*=\s*"(.*)$')
 
