@@ -151,8 +151,8 @@ grapher:write_graph_files(Directory,Repository) :-
 % are resolved via config:graph_asset_source/2.
 
 grapher:copy_graph_assets(Directory) :-
-  grapher:copy_graph_asset(index_css, '.index.css', Directory),
   grapher:copy_graph_asset(portage_ng_css, '.portage-ng.css', Directory),
+  grapher:copy_graph_asset(meslo_ttf, '.meslo.ttf', Directory),
   !.
 
 

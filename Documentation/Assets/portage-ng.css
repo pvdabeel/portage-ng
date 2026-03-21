@@ -113,6 +113,14 @@
    Reset & base
    ================================================================ */
 
+@font-face {
+  font-family: "MesloLGS NF";
+  src: url(".meslo.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
@@ -543,10 +551,30 @@ body.page-detail .legend-swatch { width: 12px; height: 12px; border-radius: 3px;
 pre.terminal {
   background: var(--pre-bg); border: 1px solid var(--border);
   border-radius: 6px; padding: 16px 20px; overflow-x: auto;
-  font-family: "SF Mono", "Cascadia Code", "Fira Code", Menlo, monospace;
+  font-family: "MesloLGS NF", "SF Mono", "Cascadia Code", "Fira Code", Menlo, monospace;
   font-size: 14px; line-height: 1.5; color: var(--text);
   white-space: pre-wrap; word-wrap: break-word;
   max-height: calc(100vh - 200px); overflow-y: auto;
+}
+pre.terminal .pua {
+  display: inline-block; width: 1ch; text-align: center;
+  overflow: hidden; vertical-align: baseline;
+}
+
+body.page-terminal .terminal-stats {
+  margin-top: 14px; padding: 12px 16px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface2);
+  font-size: 13px; color: var(--text2);
+}
+body.page-terminal .terminal-stats dl {
+  display: grid; grid-template-columns: auto 1fr; gap: 6px 20px;
+  align-items: baseline; margin: 0;
+}
+body.page-terminal .terminal-stats dt {
+  margin: 0; font-weight: 600; color: var(--text3);
+}
+body.page-terminal .terminal-stats dd {
+  margin: 0; font-family: "SF Mono", Menlo, monospace; color: var(--text);
 }
 
 /* ANSI foreground colors */

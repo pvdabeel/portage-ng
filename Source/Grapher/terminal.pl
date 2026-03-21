@@ -10,10 +10,14 @@
 /** <module> TERMINAL
 Terminal output to HTML renderer for portage-ng. Converts ANSI-escaped text
 (merge plans, fetchonly plans, package info, emerge output) into styled
-self-contained HTML pages with day/night theme toggle.
+self-contained HTML pages with day/night theme toggle. Lines of the form
+% merge|fetchonly|emerge started|ended|wall_time_ms are removed from the
+main &lt;pre&gt; and summarized below it (wall time in seconds).
 */
 
 :- module(terminal, []).
+
+:- use_module('../Printer/Plan/timing.pl', []).
 
 % =============================================================================
 %  TERMINAL declarations
@@ -31,8 +35,9 @@ self-contained HTML pages with day/night theme toggle.
 
 terminal:graph(Type, Repository://Entry) :-
     capture_content(Type, Repository://Entry, RawContent),
-    ansi_to_html(RawContent, HtmlContent),
-    emit_html(Type, Repository://Entry, HtmlContent).
+    split_timing_body(Type, RawContent, BodyContent, TimingStats),
+    ansi_to_html(BodyContent, HtmlContent),
+    emit_html(Type, Repository://Entry, HtmlContent, TimingStats).
 
 
 % -----------------------------------------------------------------------------
@@ -45,9 +50,15 @@ terminal:graph(Type, Repository://Entry) :-
 
 capture_content(merge, Repository://Entry, Content) :-
     Goals = [Repository://Entry:run?{[]}],
+    get_time(T0),
     (   catch(
             (   pipeline:prove_plan_with_fallback(Goals, Proof, Model, Plan, Triggers),
-                capture_output(printer:print(Goals, Model, Proof, Plan, Triggers), Content)
+                capture_output(
+                    (   timing:print_timing_header('merge', T0),
+                        printer:print(Goals, Model, Proof, Plan, Triggers),
+                        timing:print_timing_footer('merge', T0)
+                    ),
+                    Content)
             ),
             _,
             Content = "Failed to compute merge plan."
@@ -58,9 +69,15 @@ capture_content(merge, Repository://Entry, Content) :-
 
 capture_content(fetchonly, Repository://Entry, Content) :-
     Goals = [Repository://Entry:fetchonly?{[]}],
+    get_time(T0),
     (   catch(
             (   pipeline:prove_plan_with_fallback(Goals, Proof, Model, Plan, Triggers),
-                capture_output(printer:print(Goals, Model, Proof, Plan, Triggers), Content)
+                capture_output(
+                    (   timing:print_timing_header('fetchonly', T0),
+                        printer:print(Goals, Model, Proof, Plan, Triggers),
+                        timing:print_timing_footer('fetchonly', T0)
+                    ),
+                    Content)
             ),
             _,
             Content = "Failed to compute fetchonly plan."
@@ -127,6 +144,143 @@ resolve_graph_dir(Repository, Dir) :-
     !,
     atomic_list_concat([BaseDir, '/', Repository], Dir).
 resolve_graph_dir(_, '/tmp').
+
+
+% -----------------------------------------------------------------------------
+%  Timing metadata (merge / fetchonly / emerge)
+% -----------------------------------------------------------------------------
+
+%! terminal:split_timing_body(+Type, +Raw, -Body, -timing_display(WallSec, StartedH, EndedH))
+%
+% For merge, fetchonly, and emerge, strip "% <label> started|ended|wall_time_ms" lines
+% from Raw and return the remainder as Body. Aggregates human-readable started/ended
+% timestamps and wall clock seconds from wall_time_ms. For info, Body = Raw and
+% timing_display(none, '', '').
+
+split_timing_body(info, Raw, Raw, timing_display(none, '', '')) :-
+    !.
+split_timing_body(_, Raw, Body, Stats) :-
+    partition_timing_content(Raw, KeptLines, Infos),
+    (   Infos = []
+    ->  Body = Raw,
+        Stats = timing_display(none, '', '')
+    ;   (   KeptLines = []
+        ->  Body = ""
+        ;   atomics_to_string(KeptLines, '\n', Body)
+        ),
+        aggregate_timing_infos(Infos, Stats)
+    ).
+
+
+%! terminal:partition_timing_content(+Raw, -KeptLines, -InfoList)
+%
+% Split Raw into lines; lines matching timing metadata go to InfoList, others to KeptLines.
+
+partition_timing_content(Raw, KeptLines, InfoList) :-
+    split_string(Raw, "\n", "\r", Lines),
+    partition_timing_lines(Lines, KeptLines, InfoList).
+
+
+partition_timing_lines([], [], []).
+partition_timing_lines([Line|Rest], Kept, Infos) :-
+    (   parse_timing_meta(Line, Info)
+    ->  Kept = Krest,
+        Infos = [Info|Irest]
+    ;   Kept = [Line|Krest],
+        Infos = Irest
+    ),
+    partition_timing_lines(Rest, Krest, Irest).
+
+
+parse_timing_meta(Line, Meta) :-
+    parse_timing_started(Line, Meta),
+    !.
+parse_timing_meta(Line, Meta) :-
+    parse_timing_ended(Line, Meta),
+    !.
+parse_timing_meta(Line, Meta) :-
+    parse_timing_wall(Line, Meta),
+    !.
+
+
+parse_timing_started(Line, started(_Label, EpochStr, Human)) :-
+    normalize_space(string(T), Line),
+    member(Label, [merge, emerge, fetchonly]),
+    format(string(Pfx), '% ~w started: ', [Label]),
+    string_concat(Pfx, Rest, T),
+    parse_epoch_human_paren(Rest, EpochStr, Human).
+
+
+parse_timing_ended(Line, ended(_Label, EpochStr, Human)) :-
+    normalize_space(string(T), Line),
+    member(Label, [merge, emerge, fetchonly]),
+    format(string(Pfx), '% ~w ended: ', [Label]),
+    string_concat(Pfx, Rest, T),
+    parse_epoch_human_paren(Rest, EpochStr, Human).
+
+
+parse_timing_wall(Line, wall(_Label, Ms)) :-
+    normalize_space(string(T), Line),
+    member(Label, [merge, emerge, fetchonly]),
+    format(string(Pfx), '% ~w wall_time_ms: ', [Label]),
+    string_concat(Pfx, Rest, T),
+    normalize_space(string(MsStr), Rest),
+    number_string(Ms, MsStr).
+
+
+parse_epoch_human_paren(Rest, EpochStr, Human) :-
+    sub_string(Rest, EpLen, 3, _, " ("),
+    !,
+    sub_string(Rest, 0, EpLen, _, EpochStr),
+    string_length(Rest, Tot),
+    StartHum is EpLen + 3,
+    HumEnd is Tot - 1,
+    HumLen is HumEnd - StartHum,
+    HumLen >= 0,
+    sub_string(Rest, StartHum, HumLen, _, Human).
+
+
+%! terminal:aggregate_timing_infos(+Infos, -timing_display(WallSec, StartedH, EndedH))
+%
+% WallSec is a float seconds from wall_time_ms, or the atom none. StartedH and EndedH
+% are human timestamp strings from the parentheses in started/ended lines.
+
+aggregate_timing_infos(Infos, timing_display(WallSec, Sh, Eh)) :-
+    timing_started_human(Infos, Sh),
+    timing_ended_human(Infos, Eh),
+    timing_wall_seconds(Infos, WallSec).
+
+
+timing_started_human(Infos, H) :-
+    member(started(_, _, H), Infos),
+    !.
+timing_started_human(_, '').
+
+
+timing_ended_human(Infos, H) :-
+    member(ended(_, _, H), Infos),
+    !.
+timing_ended_human(_, '').
+
+
+timing_wall_seconds(Infos, Sec) :-
+    member(wall(_, Ms), Infos),
+    !,
+    Sec is Ms / 1000.0.
+timing_wall_seconds(_, none).
+
+
+%! terminal:format_wall_seconds(+Seconds, -String)
+%
+% Format wall-clock seconds for display (integer if whole, else up to 3 decimals).
+
+format_wall_seconds(Sec, Str) :-
+    Ms is round(Sec * 1000),
+    (   Ms mod 1000 =:= 0
+    ->  S0 is Ms // 1000,
+        format(string(Str), '~d', [S0])
+    ;   format(string(Str), '~3f', [Sec])
+    ).
 
 
 % -----------------------------------------------------------------------------
@@ -230,9 +384,13 @@ html_escape_codes([60 | R], [0'&, 0'l, 0't, 0'; | Out]) :- !,
     html_escape_codes(R, Out).
 html_escape_codes([62 | R], [0'&, 0'g, 0't, 0'; | Out]) :- !,
     html_escape_codes(R, Out).
-html_escape_codes([C | R], [0'  | Out]) :-
+html_escape_codes([C | R], Out) :-
     C >= 0xE000, C =< 0xF8FF, !,
-    html_escape_codes(R, Out).
+    atom_codes('<span class="pua">', Open),
+    atom_codes('</span>', Close),
+    append(Open, [C | Mid], Out),
+    append(Close, Tail, Mid),
+    html_escape_codes(R, Tail).
 html_escape_codes([C | R], [C | Out]) :- html_escape_codes(R, Out).
 
 
@@ -302,11 +460,12 @@ sgr_transition(Old, New, Acc, Result) :-
 %  HTML emission - main
 % -----------------------------------------------------------------------------
 
-%! terminal:emit_html(+Type, +Target, +HtmlContent)
+%! terminal:emit_html(+Type, +Target, +HtmlContent, +TimingStats)
 %
-% Emit a complete styled HTML document wrapping terminal output.
+% Emit a complete styled HTML document wrapping terminal output. TimingStats is
+% timing_display/3 for optional stats below the &lt;pre&gt;.
 
-emit_html(Type, Target, HtmlContent) :-
+emit_html(Type, Target, HtmlContent, TimingStats) :-
     Target = Repo://Entry,
     cache:ordered_entry(Repo, Entry, Cat, Name, Version),
     gantt:version_str(Version, Ver),
@@ -319,7 +478,7 @@ emit_html(Type, Target, HtmlContent) :-
     deptree:version_neighbours(Repo, Entry, Newer, Newest, Older, Oldest),
     navtheme:emit_nav_bar(Repo, Entry, Cat, Name, Type, Newer, Newest, Older, Oldest),
     write('</div>'), nl,
-    emit_content(HtmlContent),
+    emit_content(HtmlContent, TimingStats),
     emit_body_close.
 
 type_label(merge, 'Merge Plan').
@@ -366,10 +525,55 @@ emit_title_row(Cat, Name, Ver, Label) :-
     write('</div>'), nl.
 
 
-emit_content(HtmlContent) :-
+emit_content(HtmlContent, TimingStats) :-
     write('<div class="content">'), nl,
     write('<pre class="terminal">'),
     write(HtmlContent),
     write('</pre>'), nl,
+    emit_terminal_stats(TimingStats),
     write('</div>'), nl,
     navtheme:emit_theme_script('terminal-theme').
+
+
+%! terminal:emit_terminal_stats(+timing_display(WallSec, StartedH, EndedH))
+%
+% Emit a definition list below the terminal block when any timing field is present.
+
+emit_terminal_stats(timing_display(none, '', '')) :-
+    !.
+emit_terminal_stats(timing_display(W, Sh, Eh)) :-
+    W == none,
+    Sh == '',
+    Eh == '',
+    !.
+emit_terminal_stats(timing_display(WallSec, Sh, Eh)) :-
+    write('<div class="terminal-stats" role="status">'), nl,
+    write('  <dl>'), nl,
+    (   WallSec \== none
+    ->  format_wall_seconds(WallSec, WStr),
+        format(atom(Dd), '~w s', [WStr]),
+        emit_stat_row('Wall time', Dd)
+    ;   true
+    ),
+    (   Sh \== ''
+    ->  emit_stat_row('Started', Sh)
+    ;   true
+    ),
+    (   Eh \== ''
+    ->  emit_stat_row('Ended', Eh)
+    ;   true
+    ),
+    write('  </dl>'), nl,
+    write('</div>'), nl.
+
+
+%! terminal:emit_stat_row(+Label, +Value)
+%
+% Emit one &lt;dt&gt;/&lt;dd&gt; pair. Label and Value are atoms (safe literals / formatted times).
+
+emit_stat_row(Label, Value) :-
+    write('    <dt>'),
+    write(Label),
+    write('</dt><dd>'),
+    write(Value),
+    write('</dd>'), nl.

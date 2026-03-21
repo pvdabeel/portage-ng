@@ -13,7 +13,7 @@ The Writer produces per-ebuild plan files (.merge, .fetchonly, .info) and
 HTML index files for the graph directory.
 
 Responsibilities:
-- Writing .merge and .fetchonly plan files with timing metadata.
+- Writing .merge and .fetchonly plan files with timing metadata (% merge / % fetchonly lines).
 - Writing .info files with ebuild detail output.
 - Writing per-repository / per-category / per-package HTML index files.
 - Orchestrating batch proof-file generation for --graph.
@@ -78,6 +78,7 @@ writer:write_fetchonly_file(Directory,Repository://Entry) :-
   Action = fetchonly,
   Extension = '.fetchonly',
   Goals = [Repository://Entry:Action?{[]}],
+  get_time(T0),
   ( ( pipeline:prove_plan(Goals, Proof, Model, Plan, Triggers)
     ; prover:assuming(keyword_acceptance,
         prover:assuming(unmask,
@@ -90,7 +91,9 @@ writer:write_fetchonly_file(Directory,Repository://Entry) :-
       setup_call_cleanup(
         tell(TmpFile),
         ( set_stream(current_output,tty(true)),
-          printer:print(Goals,Model,Proof,Plan,Triggers)
+          timing:print_timing_header('fetchonly', T0),
+          printer:print(Goals,Model,Proof,Plan,Triggers),
+          timing:print_timing_footer('fetchonly', T0)
         ),
         told
       ),
