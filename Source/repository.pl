@@ -710,9 +710,7 @@ graph ::-
     (:prepare_directory(D),
      grapher:write_graph_files(D,Repository),
      writer:write_proof_files(D,Repository),
-     writer:write_index_files(D,Repository),
-     grapher:produce_svg(D),
-     writer:produce_html(D)
+     writer:write_index_files(D,Repository)
      )).
 
 

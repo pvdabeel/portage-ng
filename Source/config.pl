@@ -430,9 +430,18 @@ config:graph_modified_only(Bool) :-
 config:graph_modified_only_default(true).
 
 
+%! config:graph_html_type(?List)
+%
+% Defines all HTML graph types produced by --graph.  Each type maps to a
+% self-contained interactive HTML file per ebuild.
+
+config:graph_html_type([detail,deptree,gantt,merge,fetchonly,info,emerge]).
+
+
 %! config:graph_dependency_type(?List)
 %
-% Defines the dependency types for which you want a full graph
+% Legacy: dependency types for which DOT graphs can be produced.
+% No longer part of the default --graph output (superseded by deptree + detail).
 
 config:graph_dependency_type([detail,
                               bdepend,
@@ -445,14 +454,16 @@ config:graph_dependency_type([detail,
 
 %! config:graph_proof_type(?List)
 %
-% Defines the proof types for which you want to create svg
+% Legacy: proof types for which DOT graphs can be produced.
+% No longer part of the default --graph output (superseded by terminal HTML).
 
 config:graph_proof_type([merge,fetchonly,info]).
 
 
 %! config:graph_legacy_type(?List)
 %
-% Defines the legacy types for which you want to create svg
+% Legacy: legacy types for which DOT graphs can be produced.
+% No longer part of the default --graph output (superseded by terminal HTML).
 
 config:graph_legacy_type([emerge]).
 
