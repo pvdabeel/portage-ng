@@ -685,7 +685,7 @@ prepare_directory(D) ::-
   system:exists_directory(D),!,
   message:scroll_notice(['Directory already exists! Updating...']),
   vdb:create_repository_dirs(Repository,D),
-  vdb:copy_graph_assets(D).
+  grapher:copy_graph_assets(D).
 
 prepare_directory(D) ::-
   :this(Repository),
@@ -696,7 +696,7 @@ prepare_directory(D) ::-
   \+(system:exists_directory(D)),!,
   message:scroll_notice(['Directory does not exist! Creating...']),
   vdb:make_repository_dirs(Repository,D),
-  vdb:copy_graph_assets(D).
+  grapher:copy_graph_assets(D).
 
 
 %! repository:graph

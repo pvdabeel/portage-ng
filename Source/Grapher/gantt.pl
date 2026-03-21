@@ -303,11 +303,13 @@ gantt:emit_html(Target, Grid, Deps, NumSteps) :-
     collect_download_totals(Grid, Repo, TotalBytes, CachedBytes),
     emit_doctype,
     emit_head_open,
-    emit_css,
     emit_head_close,
     emit_body_open,
     emit_title(Cat, Name, Ver),
     emit_subtitle(PkgCount, NumSteps, TotalBytes, CachedBytes),
+    deptree:version_neighbours(Repo, Entry, Newer, Newest, Older, Oldest),
+    navtheme:emit_nav_bar(Repo, Entry, Cat, Name, gantt, Newer, Newest, Older, Oldest),
+    write('</div>'), nl,
     gantt:pkg_use_flags(Repo, Entry, TargetFlags),
     emit_global_use(TargetFlags),
     emit_filters,
@@ -328,23 +330,29 @@ emit_doctype :-
     write('<!DOCTYPE html>'), nl.
 
 emit_head_open :-
-    write('<html lang="en">'), nl,
+    write('<html lang="en" data-theme="dark">'), nl,
     write('<head>'), nl,
     write('<meta charset="UTF-8">'), nl,
-    write('<meta name="viewport" content="width=device-width, initial-scale=1.0">'), nl.
+    write('<meta name="viewport" content="width=device-width, initial-scale=1.0">'), nl,
+    navtheme:emit_css_link('../').
 
 emit_head_close :-
     write('</head>'), nl.
 
 emit_body_open :-
-    write('<body>'), nl.
+    write('<body class="page-gantt">'), nl.
 
 emit_body_close :-
+    navtheme:emit_theme_script('gantt-theme'),
     write('</body>'), nl,
     write('</html>'), nl.
 
 emit_title(Cat, Name, Ver) :-
-    format('<h1>~w/~w-~w &mdash; Execution Plan</h1>~n', [Cat, Name, Ver]).
+    write('<div class="header">'), nl,
+    write('<div class="title-row">'), nl,
+    format('<h1>~w/~w-~w &mdash; Execution Plan</h1>~n', [Cat, Name, Ver]),
+    navtheme:emit_theme_btn,
+    write('</div>'), nl.
 
 emit_subtitle(PkgCount, NumSteps, TotalBytes, CachedBytes) :-
     format_size(TotalBytes, TotalStr),
@@ -379,8 +387,8 @@ emit_filters :-
     write('  <button class="filter-btn active" data-action="install" onclick="toggleFilter(this)">install</button>'), nl,
     write('  <button class="filter-btn active" data-action="run" onclick="toggleFilter(this)">run</button>'), nl,
     write('  <div class="sep"></div>'), nl,
-    write('  <button class="filter-btn" style="background:#fff;border-color:#aaa;color:#555" onclick="expandAll()">expand all</button>'), nl,
-    write('  <button class="filter-btn" style="background:#fff;border-color:#aaa;color:#555" onclick="collapseAll()">collapse all</button>'), nl,
+    write('  <button class="filter-btn" style="background:var(--surface2);border-color:var(--border2);color:var(--text2)" onclick="expandAll()">expand all</button>'), nl,
+    write('  <button class="filter-btn" style="background:var(--surface2);border-color:var(--border2);color:var(--text2)" onclick="collapseAll()">collapse all</button>'), nl,
     write('  <div class="sep"></div>'), nl,
     write('  <span class="label">Deps:</span>'), nl,
     write('  <button class="filter-btn active" data-action="bdepend" onclick="toggleFilter(this)">BDEPEND</button>'), nl,
@@ -552,122 +560,6 @@ emit_legend :-
 
 
 % -----------------------------------------------------------------------------
-%  HTML emission - CSS
-% -----------------------------------------------------------------------------
-
-emit_css :-
-    write('<style>'), nl,
-    write('  :root {'), nl,
-    write('    --dl:  #e1f5fe; --dl-b:  #0288d1;'), nl,
-    write('    --inst:#dae8fc; --inst-b:#6c8ebf;'), nl,
-    write('    --run: #d5e8d4; --run-b: #82b366;'), nl,
-    write('    --bar: #bdbdbd;'), nl,
-    write('    --bg:  #fdfdfd;'), nl,
-    write('    --hdr: #f5f5f5;'), nl,
-    write('    --bdepend: #ef6c00; --depend: #e53935; --rdepend: #7e57c2;'), nl,
-    write('    --pdepend: #00897b; --idepend: #6d4c41;'), nl,
-    write('    --sub-bg: #f7f8fa;'), nl,
-    write('  }'), nl,
-    write('  * { box-sizing: border-box; margin: 0; padding: 0; }'), nl,
-    write('  body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;'), nl,
-    write('         background: var(--bg); color: #333; padding: 32px; }'), nl,
-    write('  h1 { font-size: 18px; font-weight: 600; margin-bottom: 6px; }'), nl,
-    write('  .global-use { display: flex; align-items: center; gap: 5px;'), nl,
-    write('                margin-bottom: 6px; flex-wrap: wrap; }'), nl,
-    write('  .global-use-label { font-size: 9px; font-weight: 600; color: #999;'), nl,
-    write('                      text-transform: uppercase; letter-spacing: 0.5px; }'), nl,
-    write('  .use-expand-btn { cursor: pointer; user-select: none; font-size: 8px;'), nl,
-    write('                    color: #999; transition: transform 0.15s;'), nl,
-    write('                    display: inline-block; }'), nl,
-    write('  .use-expand-btn.open { transform: rotate(90deg); color: #555; }'), nl,
-    write('  .use-flags { display: flex; gap: 3px; flex-wrap: wrap; }'), nl,
-    write('  .use-flags.collapsed { display: none; }'), nl,
-    write('  .use-flag { font-size: 8px; padding: 1px 5px; border-radius: 3px;'), nl,
-    write('              font-family: "SF Mono", Menlo, monospace; font-weight: 500; }'), nl,
-    write('  .use-flag.on  { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }'), nl,
-    write('  .use-flag.off { background: #fafafa; color: #bbb;    border: 1px solid #e0e0e0;'), nl,
-    write('                  text-decoration: line-through; }'), nl,
-    write('  .subtitle { font-size: 12px; color: #888; margin-bottom: 16px; }'), nl,
-    write('  .filters { display: flex; gap: 5px; margin-bottom: 16px; align-items: center;'), nl,
-    write('             flex-wrap: wrap; }'), nl,
-    write('  .filters .label { font-size: 11px; font-weight: 600; color: #666;'), nl,
-    write('                    margin-right: 2px; }'), nl,
-    write('  .filter-btn { display: inline-flex; align-items: center; gap: 4px;'), nl,
-    write('                padding: 3px 8px; border-radius: 4px; border: 1.5px solid;'), nl,
-    write('                font-size: 10px; font-weight: 500; cursor: pointer;'), nl,
-    write('                transition: opacity 0.15s, box-shadow 0.15s;'), nl,
-    write('                user-select: none; }'), nl,
-    write('  .filter-btn.active { box-shadow: 0 0 0 2px rgba(0,0,0,0.08); }'), nl,
-    write('  .filter-btn.off { opacity: 0.3; }'), nl,
-    write('  .filter-btn[data-action="download"]  { background: var(--dl);  border-color: var(--dl-b);  color: #01579b; }'), nl,
-    write('  .filter-btn[data-action="install"]   { background: var(--inst); border-color: var(--inst-b); color: #1a237e; }'), nl,
-    write('  .filter-btn[data-action="run"]       { background: var(--run);  border-color: var(--run-b);  color: #1b5e20; }'), nl,
-    write('  .filter-btn[data-action="bdepend"]   { background: #fff3e0; border-color: var(--bdepend); color: #bf360c; }'), nl,
-    write('  .filter-btn[data-action="depend"]    { background: #ffebee; border-color: var(--depend);  color: #b71c1c; }'), nl,
-    write('  .filter-btn[data-action="rdepend"]   { background: #ede7f6; border-color: var(--rdepend); color: #4527a0; }'), nl,
-    write('  .filter-btn[data-action="pdepend"]   { background: #e0f2f1; border-color: var(--pdepend); color: #004d40; }'), nl,
-    write('  .filter-btn[data-action="idepend"]   { background: #efebe9; border-color: var(--idepend); color: #3e2723; }'), nl,
-    write('  .sep { width: 1px; height: 20px; background: #ddd; margin: 0 4px; }'), nl,
-    write('  .gantt-wrapper { position: relative; overflow-x: auto; }'), nl,
-    write('  table.gantt { border-collapse: collapse; width: 100%; min-width: 1100px; }'), nl,
-    write('  table.gantt th, table.gantt td {'), nl,
-    write('    padding: 4px 6px; font-size: 10px; text-align: center;'), nl,
-    write('    border: 1px solid #e0e0e0; white-space: nowrap;'), nl,
-    write('  }'), nl,
-    write('  table.gantt th { background: var(--hdr); font-weight: 600; position: sticky; top: 0; z-index: 2; }'), nl,
-    write('  table.gantt td.pkg { text-align: left; font-weight: 500; background: #fafafa;'), nl,
-    write('                       min-width: 210px; position: sticky; left: 0; z-index: 1;'), nl,
-    write('                       border-right: 2px solid #ccc; }'), nl,
-    write('  table.gantt td.empty { background: #fff; }'), nl,
-    write('  .cell { border-radius: 3px; padding: 2px 5px; font-size: 9px; font-weight: 500;'), nl,
-    write('          display: inline-block; min-width: 44px; transition: opacity 0.2s; }'), nl,
-    write('  .cell.dl   { background: var(--dl);  border: 1.5px solid var(--dl-b);  color: #01579b; }'), nl,
-    write('  .cell.inst { background: var(--inst); border: 1.5px solid var(--inst-b); color: #1a237e; }'), nl,
-    write('  .cell.run  { background: var(--run);  border: 1.5px solid var(--run-b);  color: #1b5e20; }'), nl,
-    write('  .cell.hidden { opacity: 0.08; pointer-events: none; }'), nl,
-    write('  tr.row-hidden { display: none; }'), nl,
-    write('  .toggle { cursor: pointer; user-select: none; display: inline-block;'), nl,
-    write('            width: 14px; text-align: center; font-size: 9px; color: #999;'), nl,
-    write('            margin-right: 3px; transition: transform 0.15s; }'), nl,
-    write('  .toggle.open { transform: rotate(90deg); color: #555; }'), nl,
-    write('  tr.detail-row { display: none; }'), nl,
-    write('  tr.detail-row.visible { display: table-row; }'), nl,
-    write('  tr.detail-row td { background: var(--sub-bg); border-top: none; }'), nl,
-    write('  tr.detail-row td.detail-pkg { text-align: left; padding: 2px 6px 2px 22px;'), nl,
-    write('                                 background: var(--sub-bg); position: sticky;'), nl,
-    write('                                 left: 0; z-index: 1; border-right: 2px solid #ccc;'), nl,
-    write('                                 vertical-align: top; }'), nl,
-    write('  tr.detail-row td.detail-dl  { text-align: left; padding: 2px 4px;'), nl,
-    write('                                 background: var(--sub-bg); vertical-align: top; }'), nl,
-    write('  tr.detail-row td.detail-empty { background: var(--sub-bg); }'), nl,
-    write('  .detail-label { font-size: 8px; font-weight: 600; color: #999;'), nl,
-    write('                  text-transform: uppercase; letter-spacing: 0.5px;'), nl,
-    write('                  margin-bottom: 2px; }'), nl,
-    write('  table.src-table { border-collapse: collapse; width: auto; }'), nl,
-    write('  table.src-table td { padding: 0px 3px; font-size: 8px; border: none;'), nl,
-    write('                       border-bottom: 1px solid #eee; vertical-align: middle;'), nl,
-    write('                       white-space: nowrap; line-height: 1.4; }'), nl,
-    write('  table.src-table tr:last-child td { border-bottom: none; }'), nl,
-    write('  table.src-table td:nth-child(1) { text-align: left;'), nl,
-    write('                       font-family: "SF Mono", Menlo, monospace; font-size: 7.5px; }'), nl,
-    write('  table.src-table td:nth-child(1) a { color: #0277bd; text-decoration: none; }'), nl,
-    write('  table.src-table td:nth-child(1) a:hover { text-decoration: underline; }'), nl,
-    write('  table.src-table td.sz { text-align: right; color: #888; font-size: 7px;'), nl,
-    write('                          padding-right: 6px; }'), nl,
-    write('  table.src-table td:nth-child(3) { text-align: right; }'), nl,
-    write('  .src-status { font-size: 8px; padding: 1px 5px; border-radius: 3px;'), nl,
-    write('                white-space: nowrap; }'), nl,
-    write('  .src-status.cached  { background: #e8f5e9; color: #2e7d32; }'), nl,
-    write('  .src-status.pending { background: #fff3e0; color: #e65100; }'), nl,
-    write('  svg.deps { position: absolute; top: 0; left: 0; pointer-events: none; }'), nl,
-    write('  .legend { display: flex; gap: 12px; margin-top: 20px; font-size: 10px;'), nl,
-    write('            align-items: center; flex-wrap: wrap; }'), nl,
-    write('  .legend-item { display: flex; align-items: center; gap: 4px; }'), nl,
-    write('  .legend-swatch { width: 12px; height: 12px; border-radius: 2px; border: 1.5px solid; }'), nl,
-    write('</style>'), nl.
-
-
-% -----------------------------------------------------------------------------
 %  HTML emission - JavaScript
 % -----------------------------------------------------------------------------
 
@@ -737,7 +629,8 @@ emit_js_functions :-
     write('}'), nl,
     write('function drawOverlays(){'), nl,
     write('  const svg=document.getElementById("dep-svg"),wr=document.getElementById("gantt-wrapper"),'), nl,
-    write('        wR=wr.getBoundingClientRect(),ns="http://www.w3.org/2000/svg";'), nl,
+    write('        wR=wr.getBoundingClientRect(),ns="http://www.w3.org/2000/svg",'), nl,
+    write('        barColor=getComputedStyle(document.documentElement).getPropertyValue("--bar").trim();'), nl,
     write('  svg.setAttribute("width",wr.scrollWidth);svg.setAttribute("height",wr.scrollHeight);svg.innerHTML="";'), nl,
     write('  const defs=document.createElementNS(ns,"defs");'), nl,
     write('  for(const[t,c]of Object.entries(depColors)){'), nl,
@@ -757,7 +650,7 @@ emit_js_functions :-
     write('      l.setAttribute("y1",a.top+a.height/2-wR.top+wr.scrollTop);'), nl,
     write('      l.setAttribute("x2",b.left-wR.left+wr.scrollLeft);'), nl,
     write('      l.setAttribute("y2",b.top+b.height/2-wR.top+wr.scrollTop);'), nl,
-    write('      l.setAttribute("stroke","#bdbdbd");l.setAttribute("stroke-width","2");'), nl,
+    write('      l.setAttribute("stroke",barColor);l.setAttribute("stroke-width","2");'), nl,
     write('      l.setAttribute("stroke-dasharray","5,4");svg.appendChild(l);}'), nl,
     write('  });'), nl,
     write('  deps.forEach(([fid,tid,dt])=>{'), nl,

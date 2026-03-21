@@ -82,38 +82,6 @@ vdb:make_repository_dirs(Repository,Directory) :-
 
 
 % -----------------------------------------------------------------------------
-%  Graph directory helpers
-% -----------------------------------------------------------------------------
-
-%! vdb:copy_graph_assets(+Directory) is det.
-%
-% Copies static assets into the repository graph Directory. Sources
-% are resolved via config:graph_asset_source/2.
-
-vdb:copy_graph_assets(Directory) :-
-  vdb:copy_graph_asset(index_css, '.index.css', Directory),
-  !.
-
-%! vdb:copy_graph_asset(+Key, +TargetName, +Directory) is det.
-%
-% Copies the asset identified by Key to Directory/TargetName,
-% overwriting any existing file. Warns on missing sources or copy
-% failures.
-
-vdb:copy_graph_asset(Key, TargetName, Directory) :-
-  ( current_predicate(config:graph_asset_source/2),
-    config:graph_asset_source(Key, Source),
-    exists_file(Source)
-  ->
-    atomic_list_concat([Directory,'/',TargetName], Target),
-    ( exists_file(Target) -> catch(delete_file(Target), _, true) ; true ),
-    catch(copy_file(Source, Target), E,
-          message:warning(['Failed to copy graph asset ', Source, ' -> ', Target, ' (', E, ')']))
-  ; message:warning(['Missing graph asset source for ', Key, ' (or file not found)'])
-  ).
-
-
-% -----------------------------------------------------------------------------
 %  VDB helpers (diagnostics)
 % -----------------------------------------------------------------------------
 

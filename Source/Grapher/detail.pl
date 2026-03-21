@@ -233,19 +233,20 @@ emit_html(Target, InstallTree, RunTree, BothTree) :-
     gantt:version_str(Version, Ver),
     emit_doctype,
     emit_head_open(Cat, Name, Ver),
-    emit_css,
     emit_head_close,
     emit_body_open,
     emit_title_row(Cat, Name, Ver),
     emit_subtitle,
     deptree:version_neighbours(Repo, Entry, Newer, Newest, Older, Oldest),
-    emit_nav_bar(Repo, Entry, Cat, Name, Newer, Newest, Older, Oldest),
+    navtheme:emit_nav_bar(Repo, Entry, Cat, Name, detail, Newer, Newest, Older, Oldest),
+    write('</div>'), nl,
     emit_controls_row,
     emit_tree_toolbar,
     emit_tree_container,
     emit_graph_container,
     emit_legend,
     emit_script(Repo, Entry, Cat, Name, Ver, InstallTree, RunTree, BothTree),
+    navtheme:emit_theme_script('detail-theme'),
     emit_body_close.
 
 
@@ -267,206 +268,11 @@ emit_head_close :-
     write('</head>'), nl.
 
 emit_body_open :-
-    write('<body>'), nl.
+    write('<body class="page-detail">'), nl.
 
 emit_body_close :-
     write('</body>'), nl,
     write('</html>'), nl.
-
-
-% -----------------------------------------------------------------------------
-%  HTML emission - CSS with day/night theming
-% -----------------------------------------------------------------------------
-
-emit_css :-
-    write('<style>'), nl,
-    emit_css_variables,
-    emit_css_base,
-    emit_css_header,
-    emit_css_nav,
-    emit_css_controls,
-    emit_css_tree,
-    emit_css_graph,
-    emit_css_legend,
-    write('</style>'), nl.
-
-emit_css_variables :-
-    write('  :root {'), nl,
-    write('    --bg: #1e1e2e; --surface: #282840; --surface2: #313150;'), nl,
-    write('    --border: #444466; --border2: #555577;'), nl,
-    write('    --text: #e0e0f0; --text2: #a0a0c0; --text3: #777799;'), nl,
-    write('    --accent: #7aa2f7; --link: #7aa2f7;'), nl,
-    write('    --green: #9ece6a; --green-bg: rgba(158,206,106,0.15); --green-border: rgba(158,206,106,0.3);'), nl,
-    write('    --red: #f7768e; --red-bg: rgba(247,118,142,0.15); --red-border: rgba(247,118,142,0.3);'), nl,
-    write('    --orange: #e0af68; --orange-bg: rgba(224,175,104,0.15); --orange-border: rgba(224,175,104,0.3);'), nl,
-    write('    --blue: #7aa2f7; --blue-bg: rgba(122,162,247,0.15); --blue-border: rgba(122,162,247,0.3);'), nl,
-    write('    --purple: #bb9af7; --purple-bg: rgba(187,154,247,0.15); --purple-border: rgba(187,154,247,0.3);'), nl,
-    write('    --gray-c: #888899; --gray-bg: rgba(136,136,153,0.15); --gray-border: rgba(136,136,153,0.3);'), nl,
-    write('    --node-bg: #282840; --node-border: #444466; --edge-color: #555577;'), nl,
-    write('    --shadow: rgba(0,0,0,0.3); --hover-bg: rgba(122,162,247,0.06);'), nl,
-    write('    --tree-line: #444466; --cyan: #7dcfff;'), nl,
-    write('  }'), nl,
-    write('  [data-theme="light"] {'), nl,
-    write('    --bg: #fdfdfd; --surface: #f5f5f5; --surface2: #fafbfc;'), nl,
-    write('    --border: #e0e0e0; --border2: #ccc;'), nl,
-    write('    --text: #333; --text2: #888; --text3: #bbb;'), nl,
-    write('    --accent: #1565c0; --link: #1565c0;'), nl,
-    write('    --green: #2e7d32; --green-bg: #e8f5e9; --green-border: #a5d6a7;'), nl,
-    write('    --red: #c62828; --red-bg: #ffebee; --red-border: #ef9a9a;'), nl,
-    write('    --orange: #e65100; --orange-bg: #fff3e0; --orange-border: #ffcc80;'), nl,
-    write('    --blue: #1565c0; --blue-bg: #e3f2fd; --blue-border: #90caf9;'), nl,
-    write('    --purple: #6a1b9a; --purple-bg: #f3e5f5; --purple-border: #ce93d8;'), nl,
-    write('    --gray-c: #666; --gray-bg: #f5f5f5; --gray-border: #bdbdbd;'), nl,
-    write('    --node-bg: #fff; --node-border: #ccc; --edge-color: #888;'), nl,
-    write('    --shadow: rgba(0,0,0,0.08); --hover-bg: rgba(21,101,192,0.04);'), nl,
-    write('    --tree-line: #ddd; --cyan: #0277bd;'), nl,
-    write('  }'), nl.
-
-emit_css_base :-
-    write('  * { box-sizing: border-box; margin: 0; padding: 0; }'), nl,
-    write('  body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;'), nl,
-    write('         background: var(--bg); color: var(--text); padding: 24px 32px; }'), nl,
-    write('  ::-webkit-scrollbar { width: 8px; }'), nl,
-    write('  ::-webkit-scrollbar-track { background: var(--bg); }'), nl,
-    write('  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }'), nl.
-
-emit_css_header :-
-    write('  .header { padding-bottom: 10px; border-bottom: 1px solid var(--border); }'), nl,
-    write('  .title-row { display: flex; align-items: center; justify-content: space-between; }'), nl,
-    write('  h1 { font-size: 18px; font-weight: 600; }'), nl,
-    write('  .theme-btn { background: var(--surface); border: 1px solid var(--border);'), nl,
-    write('               border-radius: 6px; padding: 4px 10px; cursor: pointer;'), nl,
-    write('               font-size: 14px; color: var(--text2); transition: all 0.15s; }'), nl,
-    write('  .theme-btn:hover { background: var(--surface2); color: var(--text); }'), nl,
-    write('  .subtitle { font-size: 12px; color: var(--text2); margin: 4px 0 10px; }'), nl.
-
-emit_css_nav :-
-    write('  .nav-bar { display: flex; gap: 0; margin-bottom: 10px; font-size: 10px;'), nl,
-    write('             flex-wrap: wrap; border: 1px solid var(--border); border-radius: 4px;'), nl,
-    write('             overflow: hidden; width: fit-content; }'), nl,
-    write('  .nav-group { display: flex; gap: 0; border-right: 1px solid var(--border); }'), nl,
-    write('  .nav-group:last-child { border-right: none; }'), nl,
-    write('  .nav-group-label { font-size: 8px; font-weight: 600; color: var(--text3);'), nl,
-    write('                     text-transform: uppercase; letter-spacing: 0.3px;'), nl,
-    write('                     padding: 2px 6px; background: var(--surface); display: flex;'), nl,
-    write('                     align-items: center; border-right: 1px solid var(--border); }'), nl,
-    write('  .nav-link { padding: 4px 8px; color: var(--link); text-decoration: none;'), nl,
-    write('              border-right: 1px solid var(--border); transition: background 0.1s; cursor: pointer; }'), nl,
-    write('  .nav-link:last-child { border-right: none; }'), nl,
-    write('  .nav-link:hover { background: var(--hover-bg); }'), nl,
-    write('  .nav-link.active { font-weight: 600; text-decoration: underline; background: var(--blue-bg); }'), nl,
-    write('  .nav-link.disabled { color: var(--text3); cursor: default; }'), nl,
-    write('  .nav-link.disabled:hover { background: transparent; }'), nl.
-
-emit_css_controls :-
-    write('  .controls-row { display: flex; justify-content: space-between; align-items: center;'), nl,
-    write('                  padding: 10px 0; border-bottom: 1px solid var(--border); }'), nl,
-    write('  .phase-tabs { display: flex; gap: 4px; }'), nl,
-    write('  .phase-tab { padding: 5px 14px; background: var(--surface); border: 1px solid var(--border);'), nl,
-    write('               border-radius: 5px; color: var(--text2); cursor: pointer; font-size: 11px;'), nl,
-    write('               font-family: inherit; transition: all 0.15s; }'), nl,
-    write('  .phase-tab:hover { background: var(--surface2); color: var(--text); }'), nl,
-    write('  .phase-tab.active { background: var(--blue-bg); color: var(--accent);'), nl,
-    write('                      border-color: var(--accent); font-weight: 600; }'), nl,
-    write('  .phase-tab .badge { display: inline-block; background: var(--border);'), nl,
-    write('                      color: var(--text2); font-size: 9px; padding: 1px 5px;'), nl,
-    write('                      border-radius: 8px; margin-left: 5px; }'), nl,
-    write('  .phase-tab.active .badge { background: var(--accent); color: var(--bg); }'), nl,
-    write('  .view-toggle { display: flex; gap: 0; border: 1px solid var(--border);'), nl,
-    write('                 border-radius: 5px; overflow: hidden; }'), nl,
-    write('  .view-btn { padding: 5px 12px; background: var(--surface); color: var(--text2);'), nl,
-    write('              border: none; cursor: pointer; font-family: inherit; font-size: 11px;'), nl,
-    write('              transition: all 0.15s; }'), nl,
-    write('  .view-btn:first-child { border-right: 1px solid var(--border); }'), nl,
-    write('  .view-btn:hover { background: var(--surface2); color: var(--text); }'), nl,
-    write('  .view-btn.active { background: var(--accent); color: var(--bg); font-weight: 600; }'), nl,
-    write('  .tree-toolbar { display: flex; gap: 6px; padding: 8px 0;'), nl,
-    write('                  border-bottom: 1px solid var(--border); }'), nl,
-    write('  .tree-toolbar button { padding: 3px 10px; background: var(--surface);'), nl,
-    write('                         border: 1px solid var(--border); border-radius: 4px;'), nl,
-    write('                         color: var(--text2); cursor: pointer; font-family: inherit;'), nl,
-    write('                         font-size: 10px; transition: all 0.1s; }'), nl,
-    write('  .tree-toolbar button:hover { color: var(--text); border-color: var(--accent); }'), nl.
-
-emit_css_tree :-
-    write('  .tree-container { padding: 12px 0; overflow-y: auto; max-height: calc(100vh - 260px); }'), nl,
-    write('  .tree-node { margin: 0; }'), nl,
-    write('  .tree-children { padding-left: 24px; position: relative; }'), nl,
-    write('  .tree-children::before { content: ""; position: absolute; left: 11px;'), nl,
-    write('    top: 0; bottom: 8px; width: 1px; background: var(--tree-line); }'), nl,
-    write('  .group-row { display: flex; align-items: center; padding: 3px 0;'), nl,
-    write('               cursor: pointer; border-radius: 4px; transition: background 0.1s; }'), nl,
-    write('  .group-row:hover { background: var(--hover-bg); }'), nl,
-    write('  .toggle-icon { width: 16px; height: 16px; display: inline-flex;'), nl,
-    write('                 align-items: center; justify-content: center; color: var(--text2);'), nl,
-    write('                 font-size: 10px; flex-shrink: 0; margin-right: 4px;'), nl,
-    write('                 transition: transform 0.15s; }'), nl,
-    write('  .toggle-icon.collapsed { transform: rotate(-90deg); }'), nl,
-    write('  .type-badge { display: inline-block; padding: 1px 7px; border-radius: 3px;'), nl,
-    write('                font-size: 10px; font-weight: 600; margin-right: 6px;'), nl,
-    write('                white-space: nowrap; font-family: "SF Mono", Menlo, monospace; }'), nl,
-    write('  .badge-use-pos { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }'), nl,
-    write('  .badge-use-neg { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }'), nl,
-    write('  .badge-any-of { background: var(--orange-bg); color: var(--orange); border: 1px solid var(--orange-border); }'), nl,
-    write('  .badge-all-of { background: var(--blue-bg); color: var(--blue); border: 1px solid var(--blue-border); }'), nl,
-    write('  .badge-exactly-one { background: var(--purple-bg); color: var(--purple); border: 1px solid var(--purple-border); }'), nl,
-    write('  .badge-at-most-one { background: var(--gray-bg); color: var(--gray-c); border: 1px solid var(--gray-border); }'), nl,
-    write('  .group-label { color: var(--text2); font-size: 11px; }'), nl,
-    write('  .group-count { color: var(--text3); font-size: 10px; margin-left: auto; padding-right: 6px; }'), nl,
-    write('  .pkg-row { display: flex; align-items: center; padding: 2px 0 2px 22px;'), nl,
-    write('             border-radius: 4px; transition: background 0.1s; gap: 6px; }'), nl,
-    write('  .pkg-row:hover { background: var(--hover-bg); }'), nl,
-    write('  .pkg-connector { width: 10px; height: 1px; background: var(--tree-line);'), nl,
-    write('                   flex-shrink: 0; margin-right: 3px; }'), nl,
-    write('  .pkg-cat { color: var(--text2); font-size: 11px; }'), nl,
-    write('  .pkg-name { font-weight: 600; font-size: 11px; }'), nl,
-    write('  .pkg-name a { color: var(--text); text-decoration: none; }'), nl,
-    write('  .pkg-name a:hover { color: var(--accent); text-decoration: underline; }'), nl,
-    write('  .pkg-constraint { color: var(--cyan); font-size: 10px;'), nl,
-    write('                    font-family: "SF Mono", Menlo, monospace; }'), nl,
-    write('  .pkg-blocker { font-size: 9px; font-weight: 700; padding: 1px 4px;'), nl,
-    write('                 border-radius: 3px; }'), nl,
-    write('  .pkg-blocker.weak { color: var(--orange); border: 1px solid var(--orange); }'), nl,
-    write('  .pkg-blocker.strong { color: var(--red); border: 1px solid var(--red); }'), nl,
-    write('  .candidates-toggle { color: var(--text2); font-size: 10px; cursor: pointer;'), nl,
-    write('                       margin-left: auto; padding: 1px 6px; border-radius: 3px;'), nl,
-    write('                       white-space: nowrap; transition: color 0.1s; }'), nl,
-    write('  .candidates-toggle:hover { color: var(--accent); }'), nl,
-    write('  .candidates-toggle .arrow { font-size: 8px; margin-left: 3px; }'), nl,
-    write('  .candidates-list { display: none; padding: 2px 0 2px 55px; }'), nl,
-    write('  .candidates-list.open { display: block; }'), nl,
-    write('  .candidate-item { display: flex; align-items: center; gap: 6px;'), nl,
-    write('                    padding: 1px 0; font-size: 10px; }'), nl,
-    write('  .candidate-item a { color: var(--link); text-decoration: none; }'), nl,
-    write('  .candidate-item a:hover { text-decoration: underline; }'), nl,
-    write('  .candidate-installed { color: var(--green); font-size: 8px; padding: 1px 4px;'), nl,
-    write('                         border: 1px solid var(--green-border); border-radius: 3px; }'), nl,
-    write('  .tree-empty { padding: 20px; color: var(--text2); font-style: italic; }'), nl.
-
-emit_css_graph :-
-    write('  .graph-container { display: none; width: 100%; height: calc(100vh - 260px);'), nl,
-    write('                     position: relative; overflow: hidden;'), nl,
-    write('                     border: 1px solid var(--border); border-radius: 6px;'), nl,
-    write('                     background: var(--surface2); margin-top: 8px; }'), nl,
-    write('  .graph-container svg { width: 100%; height: 100%; }'), nl,
-    write('  .graph-container svg text { font-family: "Helvetica Neue", Helvetica, sans-serif; }'), nl,
-    write('  .zoom-controls { position: absolute; bottom: 12px; right: 12px; display: flex;'), nl,
-    write('                   gap: 4px; z-index: 5; }'), nl,
-    write('  .zoom-btn { width: 28px; height: 28px; border-radius: 4px; border: 1px solid var(--border);'), nl,
-    write('              background: var(--surface); font-size: 14px; cursor: pointer; display: flex;'), nl,
-    write('              align-items: center; justify-content: center; color: var(--text);'), nl,
-    write('              box-shadow: 0 1px 3px var(--shadow); }'), nl,
-    write('  .zoom-btn:hover { background: var(--surface2); }'), nl,
-    write('  .zoom-level { font-size: 9px; color: var(--text2); display: flex;'), nl,
-    write('                align-items: center; padding: 0 4px; }'), nl.
-
-emit_css_legend :-
-    write('  .legend { display: flex; gap: 14px; padding: 10px 0; font-size: 10px;'), nl,
-    write('            align-items: center; flex-wrap: wrap; border-top: 1px solid var(--border);'), nl,
-    write('            margin-top: 8px; }'), nl,
-    write('  .legend-title { font-weight: 600; color: var(--text2); }'), nl,
-    write('  .legend-item { display: flex; align-items: center; gap: 4px; color: var(--text2); }'), nl,
-    write('  .legend-swatch { width: 12px; height: 12px; border-radius: 3px; }'), nl.
 
 
 % -----------------------------------------------------------------------------
@@ -477,50 +283,11 @@ emit_title_row(Cat, Name, Ver) :-
     write('<div class="header">'), nl,
     write('<div class="title-row">'), nl,
     format('<h1>~w/~w-~w &mdash; Detail Graph</h1>~n', [Cat, Name, Ver]),
-    write('<button class="theme-btn" id="theme-btn" onclick="toggleTheme()" title="Toggle theme">&#9790;</button>'), nl,
+    navtheme:emit_theme_btn,
     write('</div>'), nl.
 
 emit_subtitle :-
     write('<p class="subtitle" id="subtitle"></p>'), nl.
-
-
-emit_nav_bar(Repo, Entry, Cat, Name, Newer, Newest, Older, Oldest) :-
-    write('<div class="nav-bar">'), nl,
-    write('  <div class="nav-group">'), nl,
-    write('    <span class="nav-group-label">nav</span>'), nl,
-    format('    <a class="nav-link" href="../index.html">~w</a>~n', [Repo]),
-    format('    <a class="nav-link" href="./index.html">~w</a>~n', [Cat]),
-    format('    <a class="nav-link" href="./~w.html">~w</a>~n', [Name, Name]),
-    write('  </div>'), nl,
-    write('  <div class="nav-group">'), nl,
-    write('    <span class="nav-group-label">graphs</span>'), nl,
-    format('    <a class="nav-link active">detail</a>~n', []),
-    format('    <a class="nav-link" href="../~w-gantt.html">gantt</a>~n', [Entry]),
-    format('    <a class="nav-link" href="../~w-deptree.html">deptree</a>~n', [Entry]),
-    write('  </div>'), nl,
-    write('  <div class="nav-group">'), nl,
-    write('    <span class="nav-group-label">version</span>'), nl,
-    emit_version_link(Newest, '&laquo; newest', 'detail'),
-    emit_version_link(Newer,  '&lsaquo; newer',  'detail'),
-    emit_version_link(Older,  'older &rsaquo;',   'detail'),
-    emit_version_link(Oldest, 'oldest &raquo;',   'detail'),
-    write('  </div>'), nl,
-    write('  <div class="nav-group">'), nl,
-    write('    <span class="nav-group-label">cli</span>'), nl,
-    format('    <a class="nav-link" href="../~w-merge.svg">--merge</a>~n', [Entry]),
-    format('    <a class="nav-link" href="../~w-fetchonly.svg">--fetchonly</a>~n', [Entry]),
-    format('    <a class="nav-link" href="../~w-info.svg">--info</a>~n', [Entry]),
-    write('  </div>'), nl,
-    write('</div>'), nl,
-    write('</div>'), nl.
-
-
-emit_version_link('', Label, _) :-
-    !,
-    format('    <a class="nav-link disabled">~w</a>~n', [Label]).
-emit_version_link(Entry, Label, GraphType) :-
-    format('    <a class="nav-link" href="../~w-~w.html" title="~w">~w</a>~n',
-           [Entry, GraphType, Entry, Label]).
 
 
 emit_controls_row :-
@@ -826,10 +593,10 @@ emit_js_graph_renderer :-
     write('    svgContent += "<rect x=\\"" + pos.x + "\\" y=\\"" + pos.y + "\\" width=\\"" + CARD_W + "\\" height=\\"" + CARD_H + "\\"" +'), nl,
     write('      " rx=\\"5\\" fill=\\"" + c.fill + "\\" stroke=\\"" + c.stroke + "\\" stroke-width=\\"1.5\\"/>";'), nl,
     write('    svgContent += "<text x=\\"" + (pos.x + CARD_W/2) + "\\" y=\\"" + (pos.y + 14) + "\\"" +'), nl,
-    write('      " text-anchor=\\"middle\\" font-size=\\"9\\" font-weight=\\"600\\" fill=\\"" + c.text + "\\">" + escHTML(n.label1) + "</text>";'), nl,
+    write('      " text-anchor=\\"middle\\" font-size=\\"11\\" font-weight=\\"600\\" fill=\\"" + c.text + "\\">" + escHTML(n.label1) + "</text>";'), nl,
     write('    if (n.label2) {'), nl,
     write('      svgContent += "<text x=\\"" + (pos.x + CARD_W/2) + "\\" y=\\"" + (pos.y + 27) + "\\"" +'), nl,
-    write('        " text-anchor=\\"middle\\" font-size=\\"8\\" fill=\\"var(--text2)\\">" + escHTML(n.label2) + "</text>";'), nl,
+    write('        " text-anchor=\\"middle\\" font-size=\\"10\\" fill=\\"var(--text2)\\">" + escHTML(n.label2) + "</text>";'), nl,
     write('    }'), nl,
     write('    svgContent += "</g>";'), nl,
     write('  });'), nl,
@@ -983,15 +750,6 @@ emit_js_controls :-
     write('  gZoom = 1;'), nl,
     write('  document.getElementById("zoom-level").textContent = "100%";'), nl,
     write('  renderGraph();'), nl,
-    write('}'), nl,
-    write('function toggleTheme() {'), nl,
-    write('  const html = document.documentElement;'), nl,
-    write('  const current = html.getAttribute("data-theme") || "dark";'), nl,
-    write('  const next = current === "dark" ? "light" : "dark";'), nl,
-    write('  html.setAttribute("data-theme", next);'), nl,
-    write('  document.getElementById("theme-btn").innerHTML = next === "light" ? "&#9788;" : "&#9790;";'), nl,
-    write('  localStorage.setItem("detail-theme", next);'), nl,
-    write('  if (currentView === "graph") renderGraph();'), nl,
     write('}'), nl.
 
 
@@ -1001,11 +759,6 @@ emit_js_controls :-
 
 emit_js_init :-
     write('(function() {'), nl,
-    write('  const saved = localStorage.getItem("detail-theme");'), nl,
-    write('  if (saved) {'), nl,
-    write('    document.documentElement.setAttribute("data-theme", saved);'), nl,
-    write('    document.getElementById("theme-btn").innerHTML = saved === "light" ? "&#9788;" : "&#9790;";'), nl,
-    write('  }'), nl,
     write('  ["install","run","both"].forEach(p => {'), nl,
     write('    const el = document.getElementById("badge-" + p);'), nl,
     write('    if (el) el.textContent = countDeps(depData[p] || []);'), nl,

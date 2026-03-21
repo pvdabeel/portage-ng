@@ -142,6 +142,40 @@ grapher:write_graph_files(Directory,Repository) :-
 
 
 % -----------------------------------------------------------------------------
+%  Graph asset copying
+% -----------------------------------------------------------------------------
+
+%! grapher:copy_graph_assets(+Directory) is det.
+%
+% Copies static assets into the repository graph Directory. Sources
+% are resolved via config:graph_asset_source/2.
+
+grapher:copy_graph_assets(Directory) :-
+  grapher:copy_graph_asset(index_css, '.index.css', Directory),
+  grapher:copy_graph_asset(portage_ng_css, 'portage-ng.css', Directory),
+  !.
+
+
+%! grapher:copy_graph_asset(+Key, +TargetName, +Directory) is det.
+%
+% Copies the asset identified by Key to Directory/TargetName,
+% overwriting any existing file. Warns on missing sources or copy
+% failures.
+
+grapher:copy_graph_asset(Key, TargetName, Directory) :-
+  ( current_predicate(config:graph_asset_source/2),
+    config:graph_asset_source(Key, Source),
+    exists_file(Source)
+  ->
+    atomic_list_concat([Directory,'/',TargetName], Target),
+    ( exists_file(Target) -> catch(delete_file(Target), _, true) ; true ),
+    catch(copy_file(Source, Target), E,
+          message:warning(['Failed to copy graph asset ', Source, ' -> ', Target, ' (', E, ')']))
+  ; message:warning(['Missing graph asset source for ', Key, ' (or file not found)'])
+  ).
+
+
+% -----------------------------------------------------------------------------
 %  Testers
 % -----------------------------------------------------------------------------
 

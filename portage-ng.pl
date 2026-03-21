@@ -199,6 +199,7 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/Builder/ebuild_exec.pl')),
    ensure_loaded(portage('Source/builder.pl')),
    ensure_loaded(portage('Source/writer.pl')),
+   ensure_loaded(portage('Source/Grapher/navtheme.pl')),
    ensure_loaded(portage('Source/Grapher/gantt.pl')),
    ensure_loaded(portage('Source/Grapher/deptree.pl')),
    ensure_loaded(portage('Source/Grapher/detail.pl')),

@@ -31,9 +31,10 @@ index:print_repository_index(Repository) :-
     length(Cats, Count),
     emit_page_open(Repository, '', Count, 'categories'),
     emit_breadcrumb_repo(Repository),
-    emit_grid_open,
-    forall(member(Cat, Cats),
-           emit_card_category(Cat)),
+    collect_letters(Cats, Letters),
+    emit_alphabet_bar(Letters),
+    emit_grid_open_vertical,
+    emit_anchored_items(Cats, category),
     emit_grid_close,
     emit_page_close.
 
@@ -48,9 +49,10 @@ index:print_category_index(Repository, Category) :-
     atomic_list_concat([Repository, '://', Category], Title),
     emit_page_open(Title, '../', Count, 'packages'),
     emit_breadcrumb_category(Repository, Category),
-    emit_grid_open,
-    forall(member(Name, Names),
-           emit_card_package(Name)),
+    collect_letters(Names, Letters),
+    emit_alphabet_bar(Letters),
+    emit_grid_open_vertical,
+    emit_anchored_items(Names, package),
     emit_grid_close,
     emit_page_close.
 
@@ -80,24 +82,24 @@ index:print_package_index(Repository, Category, Name) :-
 %  Page structure
 % -----------------------------------------------------------------------------
 
-emit_page_open(Title, _CssPrefix, Count, Unit) :-
+emit_page_open(Title, CssPrefix, Count, Unit) :-
     write('<!DOCTYPE html>'), nl,
     write('<html lang="en" data-theme="dark">'), nl,
     write('<head>'), nl,
     write('<meta charset="UTF-8">'), nl,
     write('<meta name="viewport" content="width=device-width, initial-scale=1.0">'), nl,
     format('<title>~w</title>~n', [Title]),
-    emit_css,
+    navtheme:emit_css_link(CssPrefix),
     write('</head>'), nl,
-    write('<body>'), nl,
+    write('<body class="page-index">'), nl,
     write('<div class="header">'), nl,
     write('<div class="title-row">'), nl,
     format('<h1>~w <span class="count">(~w ~w)</span></h1>~n', [Title, Count, Unit]),
-    write('<button class="theme-btn" id="theme-btn" onclick="toggleTheme()">&#9790;</button>'), nl,
+    navtheme:emit_theme_btn,
     write('</div>'), nl.
 
 emit_page_close :-
-    emit_theme_script,
+    navtheme:emit_theme_script('index-theme'),
     write('</body>'), nl,
     write('</html>'), nl.
 
@@ -143,6 +145,67 @@ emit_card_category(Cat) :-
 emit_card_package(Name) :-
     format('<a class="card" href="./~w.html">~w</a>~n', [Name, Name]).
 
+
+% -----------------------------------------------------------------------------
+%  Alphabet quick-jump bar
+% -----------------------------------------------------------------------------
+
+%! index:collect_letters(+Items, -Letters)
+%
+% Extract sorted unique first letters (uppercased) from a list of atoms.
+
+collect_letters(Items, Letters) :-
+    maplist(item_first_letter, Items, Raw),
+    sort(Raw, Letters).
+
+item_first_letter(Item, Letter) :-
+    sub_atom(Item, 0, 1, _, Ch),
+    upcase_atom(Ch, Letter).
+
+
+%! index:emit_alphabet_bar(+ActiveLetters)
+%
+% Emit a horizontal bar of A-Z letter links. Letters present in
+% ActiveLetters are clickable anchors; others are grayed out.
+
+emit_alphabet_bar(ActiveLetters) :-
+    write('<div class="alpha-bar">'), nl,
+    forall(member(L, ['A','B','C','D','E','F','G','H','I','J','K','L','M',
+                       'N','O','P','Q','R','S','T','U','V','W','X','Y','Z']),
+           emit_alpha_link(L, ActiveLetters)),
+    write('</div>'), nl.
+
+emit_alpha_link(Letter, Active) :-
+    (   memberchk(Letter, Active)
+    ->  format('<a class="alpha-link" href="#letter-~w">~w</a>~n', [Letter, Letter])
+    ;   format('<span class="alpha-link disabled">~w</span>~n', [Letter])
+    ).
+
+
+%! index:emit_anchored_items(+Items, +Type)
+%
+% Emit card items with anchor spans inserted before each new letter group.
+
+emit_anchored_items([], _).
+emit_anchored_items([Item|Rest], Type) :-
+    item_first_letter(Item, Letter),
+    format('<span class="anchor" id="letter-~w"></span>~n', [Letter]),
+    emit_letter_group(Letter, [Item|Rest], Type, Remaining),
+    emit_anchored_items(Remaining, Type).
+
+emit_letter_group(_, [], _, []).
+emit_letter_group(Letter, [Item|Rest], Type, Remaining) :-
+    item_first_letter(Item, ItemLetter),
+    (   ItemLetter == Letter
+    ->  emit_card_by_type(Type, Item),
+        emit_letter_group(Letter, Rest, Type, Remaining)
+    ;   Remaining = [Item|Rest]
+    ).
+
+emit_card_by_type(category, Cat) :- emit_card_category(Cat).
+emit_card_by_type(package, Name) :- emit_card_package(Name).
+
+
 emit_card_version(Name, Entry, Version) :-
     file_base_name(Entry, Base),
     write('<div class="card version-card">'), nl,
@@ -157,79 +220,6 @@ emit_card_version(Name, Entry, Version) :-
     write('</div>'), nl.
 
 
-% -----------------------------------------------------------------------------
-%  Inline CSS
-% -----------------------------------------------------------------------------
-
-emit_css :-
-    write('<style>'), nl,
-    write('  :root {'), nl,
-    write('    --bg: #1e1e2e; --surface: #282840; --surface2: #313150;'), nl,
-    write('    --border: #444466; --text: #e0e0f0; --text2: #a0a0c0; --text3: #777799;'), nl,
-    write('    --accent: #7aa2f7; --link: #7aa2f7;'), nl,
-    write('  }'), nl,
-    write('  [data-theme="light"] {'), nl,
-    write('    --bg: #f4f4f9; --surface: #fff; --surface2: #fafbfc;'), nl,
-    write('    --border: #e0e0e0; --text: #333; --text2: #888; --text3: #bbb;'), nl,
-    write('    --accent: #1565c0; --link: #1565c0;'), nl,
-    write('  }'), nl,
-    write('  * { box-sizing: border-box; margin: 0; padding: 0; }'), nl,
-    write('  body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;'), nl,
-    write('         background: var(--bg); color: var(--text); padding: 24px 32px; }'), nl,
-    write('  .header { padding-bottom: 12px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }'), nl,
-    write('  .title-row { display: flex; align-items: center; justify-content: space-between; }'), nl,
-    write('  h1 { font-size: 18px; font-weight: 600; }'), nl,
-    write('  .count { font-weight: 400; color: var(--text2); font-size: 14px; }'), nl,
-    write('  .theme-btn { background: var(--surface); border: 1px solid var(--border);'), nl,
-    write('               border-radius: 6px; padding: 4px 10px; cursor: pointer;'), nl,
-    write('               font-size: 14px; color: var(--text2); }'), nl,
-    write('  .theme-btn:hover { background: var(--surface2); color: var(--text); }'), nl,
-    write('  .breadcrumb { margin-top: 8px; font-size: 12px; color: var(--text2); }'), nl,
-    write('  .breadcrumb a { color: var(--link); text-decoration: none; }'), nl,
-    write('  .breadcrumb a:hover { text-decoration: underline; }'), nl,
-    write('  .breadcrumb .sep { color: var(--text3); margin: 0 2px; }'), nl,
-    write('  .grid { display: flex; flex-wrap: wrap; gap: 8px; }'), nl,
-    write('  .grid.vertical { flex-direction: column; }'), nl,
-    write('  .card { display: inline-block; padding: 8px 14px; background: var(--surface);'), nl,
-    write('          border: 1px solid var(--border); border-radius: 6px;'), nl,
-    write('          color: var(--text); text-decoration: none; font-size: 12px;'), nl,
-    write('          transition: background 0.15s, border-color 0.15s; cursor: pointer; }'), nl,
-    write('  .card:hover { background: var(--surface2); border-color: var(--accent); color: var(--accent); }'), nl,
-    write('  .version-card { display: flex; align-items: center; gap: 12px; cursor: default; }'), nl,
-    write('  .ver-label { font-weight: 600; min-width: 180px; font-size: 12px;'), nl,
-    write('               color: var(--text); text-decoration: none; }'), nl,
-    write('  .ver-label:hover { color: var(--accent); }'), nl,
-    write('  .ver-links { display: flex; gap: 0; border: 1px solid var(--border);'), nl,
-    write('               border-radius: 4px; overflow: hidden; }'), nl,
-    write('  .ver-links a { padding: 3px 8px; color: var(--link); text-decoration: none;'), nl,
-    write('                  font-size: 10px; border-right: 1px solid var(--border); }'), nl,
-    write('  .ver-links a:last-child { border-right: none; }'), nl,
-    write('  .ver-links a:hover { background: var(--surface2); }'), nl,
-    write('</style>'), nl.
-
-
-% -----------------------------------------------------------------------------
-%  Theme toggle script
-% -----------------------------------------------------------------------------
-
-emit_theme_script :-
-    write('<script>'), nl,
-    write('function toggleTheme() {'), nl,
-    write('  const html = document.documentElement;'), nl,
-    write('  const cur = html.getAttribute("data-theme") || "dark";'), nl,
-    write('  const next = cur === "dark" ? "light" : "dark";'), nl,
-    write('  html.setAttribute("data-theme", next);'), nl,
-    write('  document.getElementById("theme-btn").innerHTML = next === "light" ? "&#9788;" : "&#9790;";'), nl,
-    write('  localStorage.setItem("index-theme", next);'), nl,
-    write('}'), nl,
-    write('(function() {'), nl,
-    write('  const saved = localStorage.getItem("index-theme");'), nl,
-    write('  if (saved) {'), nl,
-    write('    document.documentElement.setAttribute("data-theme", saved);'), nl,
-    write('    document.getElementById("theme-btn").innerHTML = saved === "light" ? "&#9788;" : "&#9790;";'), nl,
-    write('  }'), nl,
-    write('})();'), nl,
-    write('</script>'), nl.
 
 
 % -----------------------------------------------------------------------------
