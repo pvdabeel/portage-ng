@@ -313,12 +313,12 @@ emit_html(Type, Target, HtmlContent) :-
     type_label(Type, Label),
     emit_doctype,
     emit_head_open(Cat, Name, Ver, Label),
-    emit_css,
     emit_head_close,
     emit_body_open,
     emit_title_row(Cat, Name, Ver, Label),
     deptree:version_neighbours(Repo, Entry, Newer, Newest, Older, Oldest),
-    emit_nav_bar(Repo, Entry, Cat, Name, Type, Newer, Newest, Older, Oldest),
+    navtheme:emit_nav_bar(Repo, Entry, Cat, Name, Type, Newer, Newest, Older, Oldest),
+    write('</div>'), nl,
     emit_content(HtmlContent),
     emit_body_close.
 
@@ -346,136 +346,11 @@ emit_head_close :-
     write('</head>'), nl.
 
 emit_body_open :-
-    write('<body>'), nl.
+    write('<body class="page-terminal">'), nl.
 
 emit_body_close :-
     write('</body>'), nl,
     write('</html>'), nl.
-
-
-% -----------------------------------------------------------------------------
-%  HTML emission - CSS with day/night theming and ANSI colors
-% -----------------------------------------------------------------------------
-
-emit_css :-
-    write('<style>'), nl,
-    emit_css_variables,
-    emit_css_base,
-    emit_css_ansi,
-    write('</style>'), nl.
-
-emit_css_variables :-
-    write('  :root {'), nl,
-    write('    --bg: #1e1e2e; --surface: #282840; --surface2: #313150;'), nl,
-    write('    --border: #444466; --text: #e0e0f0; --text2: #a0a0c0; --text3: #777799;'), nl,
-    write('    --accent: #7aa2f7; --link: #7aa2f7;'), nl,
-    write('    --pre-bg: #1a1a2a;'), nl,
-    write('    --ansi-black: #555; --ansi-red: #f7768e; --ansi-green: #9ece6a;'), nl,
-    write('    --ansi-yellow: #e0af68; --ansi-blue: #7aa2f7; --ansi-magenta: #bb9af7;'), nl,
-    write('    --ansi-cyan: #7dcfff; --ansi-white: #c0c0d0;'), nl,
-    write('    --ansi-bright-black: #888; --ansi-bright-red: #ff9e9e;'), nl,
-    write('    --ansi-bright-green: #b5e890; --ansi-bright-yellow: #f0c890;'), nl,
-    write('    --ansi-bright-blue: #9ec5ff; --ansi-bright-magenta: #d0b0ff;'), nl,
-    write('    --ansi-bright-cyan: #a0e0ff; --ansi-bright-white: #e0e0f0;'), nl,
-    write('    --ansi-bg-red: #a13050; --ansi-bg-green: #4a7a30; --ansi-bg-yellow: #8a6a20;'), nl,
-    write('    --ansi-bg-blue: #3060a0; --ansi-bg-magenta: #6a3090; --ansi-bg-cyan: #207080;'), nl,
-    write('    --ansi-bg-black: #505060; --ansi-bg-white: #707080;'), nl,
-    write('    --bubble-text: #f0f0f0;'), nl,
-    write('  }'), nl,
-    write('  [data-theme="light"] {'), nl,
-    write('    --bg: #fdfdfd; --surface: #f5f5f5; --surface2: #fafbfc;'), nl,
-    write('    --border: #e0e0e0; --text: #333; --text2: #888; --text3: #bbb;'), nl,
-    write('    --accent: #1565c0; --link: #1565c0;'), nl,
-    write('    --pre-bg: #fafafa;'), nl,
-    write('    --ansi-black: #333; --ansi-red: #c62828; --ansi-green: #2e7d32;'), nl,
-    write('    --ansi-yellow: #e65100; --ansi-blue: #1565c0; --ansi-magenta: #6a1b9a;'), nl,
-    write('    --ansi-cyan: #0277bd; --ansi-white: #888;'), nl,
-    write('    --ansi-bright-black: #666; --ansi-bright-red: #e53935;'), nl,
-    write('    --ansi-bright-green: #43a047; --ansi-bright-yellow: #ef6c00;'), nl,
-    write('    --ansi-bright-blue: #1e88e5; --ansi-bright-magenta: #8e24aa;'), nl,
-    write('    --ansi-bright-cyan: #00acc1; --ansi-bright-white: #333;'), nl,
-    write('    --bubble-text: #333;'), nl,
-    write('    --ansi-bg-red: #ffe0e0; --ansi-bg-green: #e0f0e0; --ansi-bg-yellow: #fff0d0;'), nl,
-    write('    --ansi-bg-blue: #e0e8ff; --ansi-bg-magenta: #f0e0ff; --ansi-bg-cyan: #e0f0f8;'), nl,
-    write('    --ansi-bg-black: #e0e0e0; --ansi-bg-white: #f0f0f0;'), nl,
-    write('  }'), nl.
-
-emit_css_base :-
-    write('  * { box-sizing: border-box; margin: 0; padding: 0; }'), nl,
-    write('  body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;'), nl,
-    write('         background: var(--bg); color: var(--text); padding: 24px 32px; }'), nl,
-    write('  .header { padding-bottom: 10px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }'), nl,
-    write('  .title-row { display: flex; align-items: center; justify-content: space-between; }'), nl,
-    write('  h1 { font-size: 18px; font-weight: 600; }'), nl,
-    write('  .theme-btn { background: var(--surface); border: 1px solid var(--border);'), nl,
-    write('               border-radius: 6px; padding: 4px 10px; cursor: pointer;'), nl,
-    write('               font-size: 14px; color: var(--text2); }'), nl,
-    write('  .theme-btn:hover { background: var(--surface2); color: var(--text); }'), nl,
-    write('  .nav-rows { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }'), nl,
-    write('  .nav-bar { display: flex; gap: 8px; font-size: 10px; width: fit-content; }'), nl,
-    write('  .nav-group { display: flex; gap: 0; border: 1px solid var(--border);'), nl,
-    write('               border-radius: 4px; overflow: hidden; }'), nl,
-    write('  .nav-group-label { font-size: 8px; font-weight: 600; color: var(--text2);'), nl,
-    write('                     text-transform: uppercase; letter-spacing: 0.5px;'), nl,
-    write('                     padding: 3px 8px; background: var(--surface); display: flex;'), nl,
-    write('                     align-items: center; border-right: 1px solid var(--border); }'), nl,
-    write('  .nav-link { padding: 4px 8px; color: var(--text); text-decoration: none;'), nl,
-    write('              border-right: 1px solid var(--border); cursor: pointer; }'), nl,
-    write('  .nav-link:last-child { border-right: none; }'), nl,
-    write('  .nav-link:hover { background: var(--surface2); color: var(--accent); }'), nl,
-    write('  .nav-link.active { font-weight: 700; color: var(--accent);'), nl,
-    write('                     background: var(--surface2); border-bottom: 2px solid var(--accent); }'), nl,
-    write('  .nav-link.disabled { color: var(--text3); cursor: default; }'), nl,
-    write('  .nav-link.disabled:hover { background: transparent; color: var(--text3); }'), nl,
-    write('  .content { margin-top: 12px; }'), nl,
-    write('  pre.terminal { background: var(--pre-bg); border: 1px solid var(--border);'), nl,
-    write('                 border-radius: 6px; padding: 16px 20px; overflow-x: auto;'), nl,
-    write('                 font-family: "SF Mono", "Cascadia Code", "Fira Code", Menlo, monospace;'), nl,
-    write('                 font-size: 12px; line-height: 1.5; color: var(--text);'), nl,
-    write('                 white-space: pre-wrap; word-wrap: break-word;'), nl,
-    write('                 max-height: calc(100vh - 200px); overflow-y: auto; }'), nl,
-    write('  ::-webkit-scrollbar { width: 8px; height: 8px; }'), nl,
-    write('  ::-webkit-scrollbar-track { background: var(--bg); }'), nl,
-    write('  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }'), nl.
-
-emit_css_ansi :-
-    write('  .fg-black { color: var(--ansi-black); }'), nl,
-    write('  .fg-red { color: var(--ansi-red); }'), nl,
-    write('  .fg-green { color: var(--ansi-green); }'), nl,
-    write('  .fg-yellow { color: var(--ansi-yellow); }'), nl,
-    write('  .fg-blue { color: var(--ansi-blue); }'), nl,
-    write('  .fg-magenta { color: var(--ansi-magenta); }'), nl,
-    write('  .fg-cyan { color: var(--ansi-cyan); }'), nl,
-    write('  .fg-white { color: var(--ansi-white); }'), nl,
-    write('  .fg-bright-black { color: var(--ansi-bright-black); }'), nl,
-    write('  .fg-bright-red { color: var(--ansi-bright-red); }'), nl,
-    write('  .fg-bright-green { color: var(--ansi-bright-green); }'), nl,
-    write('  .fg-bright-yellow { color: var(--ansi-bright-yellow); }'), nl,
-    write('  .fg-bright-blue { color: var(--ansi-bright-blue); }'), nl,
-    write('  .fg-bright-magenta { color: var(--ansi-bright-magenta); }'), nl,
-    write('  .fg-bright-cyan { color: var(--ansi-bright-cyan); }'), nl,
-    write('  .fg-bright-white { color: var(--ansi-bright-white); }'), nl,
-    write('  .bg-black { background: var(--ansi-bg-black); }'), nl,
-    write('  .bg-red { background: var(--ansi-bg-red); }'), nl,
-    write('  .bg-green { background: var(--ansi-bg-green); }'), nl,
-    write('  .bg-yellow { background: var(--ansi-bg-yellow); }'), nl,
-    write('  .bg-blue { background: var(--ansi-bg-blue); }'), nl,
-    write('  .bg-magenta { background: var(--ansi-bg-magenta); }'), nl,
-    write('  .bg-cyan { background: var(--ansi-bg-cyan); }'), nl,
-    write('  .bg-white { background: var(--ansi-bg-white); }'), nl,
-    write('  .bg-bright-black { background: var(--ansi-bg-black); }'), nl,
-    write('  .bg-bright-red { background: var(--ansi-bg-red); }'), nl,
-    write('  .bg-bright-green { background: var(--ansi-bg-green); }'), nl,
-    write('  .bg-bright-yellow { background: var(--ansi-bg-yellow); }'), nl,
-    write('  .bg-bright-blue { background: var(--ansi-bg-blue); }'), nl,
-    write('  .bg-bright-magenta { background: var(--ansi-bg-magenta); }'), nl,
-    write('  .bg-bright-cyan { background: var(--ansi-bg-cyan); }'), nl,
-    write('  .bg-bright-white { background: var(--ansi-bg-white); }'), nl,
-    write('  .ansi-bold { font-weight: 700; }'), nl,
-    write('  .ansi-dim { opacity: 0.6; }'), nl,
-    write('  .ansi-italic { font-style: italic; }'), nl,
-    write('  .ansi-underline { text-decoration: underline; }'), nl,
-    write('  span[class*="bg-"] { border-radius: 4px; padding: 1px 6px; color: var(--bubble-text); }'), nl.
 
 
 % -----------------------------------------------------------------------------
@@ -486,70 +361,8 @@ emit_title_row(Cat, Name, Ver, Label) :-
     write('<div class="header">'), nl,
     write('<div class="title-row">'), nl,
     format('<h1>~w/~w-~w &mdash; ~w</h1>~n', [Cat, Name, Ver, Label]),
-    write('<button class="theme-btn" id="theme-btn" onclick="toggleTheme()">&#9790;</button>'), nl,
+    navtheme:emit_theme_btn,
     write('</div>'), nl.
-
-
-emit_nav_bar(Repo, Entry, _Cat, Name, ActiveType, Newer, Newest, Older, Oldest) :-
-    write('<div class="nav-rows">'), nl,
-    write('<div class="nav-bar">'), nl,
-    write('  <div class="nav-group">'), nl,
-    write('    <span class="nav-group-label">nav</span>'), nl,
-    format('    <a class="nav-link" href="../index.html">~w</a>~n', [Repo]),
-    format('    <a class="nav-link" href="./~w.html">~w</a>~n', [Name, Name]),
-    write('  </div>'), nl,
-    write('  <div class="nav-group">'), nl,
-    write('    <span class="nav-group-label">version</span>'), nl,
-    emit_version_link(Newest, '&laquo;', ActiveType),
-    emit_version_link(Newer,  '&lsaquo;',  ActiveType),
-    emit_version_link(Older,  '&rsaquo;',   ActiveType),
-    emit_version_link(Oldest, '&raquo;',   ActiveType),
-    write('  </div>'), nl,
-    write('</div>'), nl,
-    write('<div class="nav-bar">'), nl,
-    write('  <div class="nav-group">'), nl,
-    write('    <span class="nav-group-label">graphs</span>'), nl,
-    emit_graph_link(Entry, detail, ActiveType),
-    emit_graph_link(Entry, deptree, ActiveType),
-    emit_graph_link(Entry, gantt, ActiveType),
-    write('  </div>'), nl,
-    write('  <div class="nav-group">'), nl,
-    write('    <span class="nav-group-label">cli</span>'), nl,
-    emit_cli_link(Entry, merge, ActiveType),
-    emit_cli_link(Entry, fetchonly, ActiveType),
-    emit_cli_link(Entry, info, ActiveType),
-    write('  </div>'), nl,
-    write('  <div class="nav-group">'), nl,
-    write('    <span class="nav-group-label">legacy</span>'), nl,
-    emit_cli_link(Entry, emerge, ActiveType),
-    write('  </div>'), nl,
-    write('</div>'), nl,
-    write('</div>'), nl,
-    write('</div>'), nl.
-
-
-emit_graph_link(Entry, Type, _Active) :-
-    format('    <a class="nav-link" href="../~w-~w.html">~w</a>~n', [Entry, Type, Type]).
-
-emit_cli_link(Entry, Type, Active) :-
-    cli_flag(Type, Flag),
-    (   Type == Active
-    ->  format('    <a class="nav-link active">~w</a>~n', [Flag])
-    ;   format('    <a class="nav-link" href="../~w-~w.html">~w</a>~n', [Entry, Type, Flag])
-    ).
-
-cli_flag(merge, '--merge').
-cli_flag(fetchonly, '--fetchonly').
-cli_flag(info, '--info').
-cli_flag(emerge, 'emerge').
-
-
-emit_version_link('', Label, _) :-
-    !,
-    format('    <a class="nav-link disabled">~w</a>~n', [Label]).
-emit_version_link(Entry, Label, Type) :-
-    format('    <a class="nav-link" href="../~w-~w.html" title="~w">~w</a>~n',
-           [Entry, Type, Entry, Label]).
 
 
 emit_content(HtmlContent) :-
@@ -558,24 +371,4 @@ emit_content(HtmlContent) :-
     write(HtmlContent),
     write('</pre>'), nl,
     write('</div>'), nl,
-    emit_theme_script.
-
-
-emit_theme_script :-
-    write('<script>'), nl,
-    write('function toggleTheme() {'), nl,
-    write('  const html = document.documentElement;'), nl,
-    write('  const cur = html.getAttribute("data-theme") || "dark";'), nl,
-    write('  const next = cur === "dark" ? "light" : "dark";'), nl,
-    write('  html.setAttribute("data-theme", next);'), nl,
-    write('  document.getElementById("theme-btn").innerHTML = next === "light" ? "&#9788;" : "&#9790;";'), nl,
-    write('  localStorage.setItem("terminal-theme", next);'), nl,
-    write('}'), nl,
-    write('(function() {'), nl,
-    write('  const saved = localStorage.getItem("terminal-theme");'), nl,
-    write('  if (saved) {'), nl,
-    write('    document.documentElement.setAttribute("data-theme", saved);'), nl,
-    write('    document.getElementById("theme-btn").innerHTML = saved === "light" ? "&#9788;" : "&#9790;";'), nl,
-    write('  }'), nl,
-    write('})();'), nl,
-    write('</script>'), nl.
+    navtheme:emit_theme_script('terminal-theme').

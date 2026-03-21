@@ -569,6 +569,10 @@ config:graph_asset_source(index_css, Source) :-
   config:installation_dir(Dir),
   os:compose_path([Dir,'Documentation/Assets/.index.css'], Source).
 
+config:graph_asset_source(portage_ng_css, Source) :-
+  config:installation_dir(Dir),
+  os:compose_path([Dir,'Documentation/Assets/portage-ng.css'], Source).
+
 config:graph_asset_source(proof_css, Source) :-
   config:installation_dir(Dir),
   os:compose_path([Dir,'Documentation/Assets/.proof.css'], Source).
