@@ -230,7 +230,7 @@ html_escape_codes([60 | R], [0'&, 0'l, 0't, 0'; | Out]) :- !,
     html_escape_codes(R, Out).
 html_escape_codes([62 | R], [0'&, 0'g, 0't, 0'; | Out]) :- !,
     html_escape_codes(R, Out).
-html_escape_codes([C | R], Out) :-
+html_escape_codes([C | R], [0'  | Out]) :-
     C >= 0xE000, C =< 0xF8FF, !,
     html_escape_codes(R, Out).
 html_escape_codes([C | R], [C | Out]) :- html_escape_codes(R, Out).
