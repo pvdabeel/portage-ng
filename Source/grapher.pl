@@ -67,12 +67,7 @@ a dependency, change the version, watch the output of a specific command, etc.
 
 grapher:graph(detail,Repository://Id) :-
   !,
-  grapher:tl_gensym_reset(_),
-  grapher:graph_header(detail,Repository://Id),
-  grapher:graph_legend(detail,Repository://Id),
-  grapher:graph_ebuild(detail,Repository://Id),
-  grapher:graph_depend(detail,Repository://Id),
-  grapher:graph_footer(detail,Repository://Id).
+  detail:graph(Repository://Id).
 
 grapher:graph(merge,Repository://Id) :-
   !,
@@ -808,8 +803,8 @@ grapher:write_graph_file(D,Repository://Entry) :-
   append(Deptypes,Prooftypes,TypesTemp),
   append(TypesTemp,LegacyTypes,Types),
   (forall(member(Type,Types),
-      ((Type == detail
-        -> atomic_list_concat([D,'/',Entry,'.dot'],F)
+      (      (Type == detail
+        -> atomic_list_concat([D,'/',Entry,'-detail.html'],F)
         ;  Type == gantt
         -> atomic_list_concat([D,'/',Entry,'-gantt.html'],F)
         ;  Type == deptree
