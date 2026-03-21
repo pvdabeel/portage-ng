@@ -262,7 +262,8 @@ emit_head_open(Cat, Name, Ver) :-
     write('<head>'), nl,
     write('<meta charset="UTF-8">'), nl,
     write('<meta name="viewport" content="width=device-width, initial-scale=1.0">'), nl,
-    format('<title>~w/~w-~w &mdash; Detail Graph</title>~n', [Cat, Name, Ver]).
+    format('<title>~w/~w-~w &mdash; Detail Graph</title>~n', [Cat, Name, Ver]),
+    navtheme:emit_css_link('../').
 
 emit_head_close :-
     write('</head>'), nl.
