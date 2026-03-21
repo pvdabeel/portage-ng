@@ -1007,6 +1007,7 @@ plan:print_config(Repository://Entry:fetchonly?{Context}) :-
          Assumed0),
  plan:use_changes_to_assumed(Context, SuggAssumed),
  append(Assumed0, SuggAssumed, Assumed),
+ plan:set_old_use_context(Repository://Entry, Context),
  findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
 
  (Useflags == [] ;
@@ -1072,6 +1073,8 @@ plan:print_config(Repository://Entry:install?{Context}) :-
          Assumed0),
   plan:use_changes_to_assumed(Context, SuggAssumed),
   append(Assumed0, SuggAssumed, Assumed),
+
+  plan:set_old_use_context(Repository://Entry, Context),
 
   % Get regular USE flags (filtered, excluding USE_EXPAND)
   findall([Reason,Group], group_by(Reason, Use, kb:query(iuse_filtered(Use,Reason),Repository://Entry), Group), Useflags),
@@ -1235,13 +1238,17 @@ plan:collect_expand_flags(Keyflags, Assumed, AllFlags) :-
 plan:print_config_items_aligned(Useflags, ValidUseExpandVariables, Assumed, Slot) :-
 
   % 1. First print USE flags with proper formatting and alignment
+  nb_setval(plan_use_expand_prefix, ''),
   plan:print_config_item_aligned('use', Useflags, Assumed),
 
   % 2. Second print USE_EXPAND variables with proper formatting and alignment
   (ValidUseExpandVariables == [] -> true ;
    forall(member([Key, Keyflags], ValidUseExpandVariables),
-          (plan:print_config_prefix,
-           plan:print_config_item_aligned(Key, Keyflags, Assumed)))),
+          (atom_concat(Key, '_', ExpandPrefix),
+           nb_setval(plan_use_expand_prefix, ExpandPrefix),
+           plan:print_config_prefix,
+           plan:print_config_item_aligned(Key, Keyflags, Assumed),
+           nb_setval(plan_use_expand_prefix, '')))),
 
   % 3. Lastly print SLOT with proper formatting and alignment
   (Slot == [] -> true ;
@@ -1345,8 +1352,11 @@ plan:print_config_value('slot', Slot, _) :-
 plan:print_config_value(Key, Keyflags, Assumed) :-
   eapi:use_expand(Key),
   !,
+  atom_concat(Key, '_', ExpandPrefix),
+  nb_setval(plan_use_expand_prefix, ExpandPrefix),
   plan:collect_expand_flags(Keyflags, Assumed, AllFlags),
-  plan:print_flags_unwrapped(AllFlags).
+  plan:print_flags_unwrapped(AllFlags),
+  nb_setval(plan_use_expand_prefix, '').
 
 
 
@@ -1597,10 +1607,27 @@ plan:print_flags_unwrapped([flag(Type, Flag, Assumed)|Rest]) :-
 % Gets the length of a flag.
 
 plan:get_flag_length(Type, Flag, Assumed, Length) :-
-    (   memberchk(minus(Flag), Assumed) -> atom_length(Flag, L), Length is L + 1
-    ;   memberchk(Flag, Assumed) -> atom_length(Flag, Length)
-    ;   plan:get_flag_length_typed(Type, Flag, Length)
+    (   memberchk(minus(Flag), Assumed)
+    ->  atom_length(Flag, L), Length is L + 1
+    ;   memberchk(Flag, Assumed)
+    ->  atom_length(Flag, Length)
+    ;   plan:get_flag_length_typed(Type, Flag, BaseLen),
+        plan:get_change_extra_length(Type, Flag, ChangeExtra),
+        Length is BaseLen + ChangeExtra
     ).
+
+
+%! plan:get_change_extra_length(+Type, +Flag, -ExtraLen)
+%
+% Returns the extra length from change annotations for line wrapping.
+
+plan:get_change_extra_length(positive:_, Flag, Extra) :-
+    !,
+    plan:change_annotation_length(Flag, positive, Extra).
+plan:get_change_extra_length(negative:_, Flag, Extra) :-
+    !,
+    plan:change_annotation_length(Flag, negative, Extra).
+plan:get_change_extra_length(_, _, 0).
 
 plan:get_flag_length_typed(positive:preference, Flag, Length) :-
     atom_length(Flag, L),
@@ -1641,6 +1668,166 @@ plan:get_flag_length_typed(negative:default, Flag, Length) :-
     Length is L + 1.
 
 
+% -----------------------------------------------------------------------------
+% Old USE/IUSE comparison helpers
+% -----------------------------------------------------------------------------
+
+%! plan:set_old_use_context(+RepositoryEntry, +Context)
+%
+% Looks up the installed version's USE/IUSE sets for the given entry
+% and stores them via nb_setval for use by print_use_flag/3.
+% For new packages (no installed version), sets IsNew = true.
+
+plan:set_old_use_context(Repository://Entry, Context) :-
+    cache:ordered_entry(Repository, Entry, Category, Name, _),
+    (memberchk(slot(_,_,SlotList):{Repository://Entry}, Context),
+     SlotList = [slot(SlotAtom)|_]
+    -> true
+    ;  SlotAtom = _),
+    (cache:ordered_entry(pkg, InstalledEntry, Category, Name, _),
+     (nonvar(SlotAtom)
+     -> cache:entry_metadata(pkg, InstalledEntry, slot, slot(SlotAtom))
+     ;  true)
+    -> use:vdb_enabled_use_set(pkg://InstalledEntry, OldUse),
+       use:entry_iuse_set(pkg://InstalledEntry, OldIuse),
+       nb_setval(plan_old_use_info, old_use_info(false, OldUse, OldIuse))
+    ;  nb_setval(plan_old_use_info, old_use_info(true, [], []))
+    ),
+    nb_setval(plan_use_expand_prefix, ''),
+    !.
+plan:set_old_use_context(_, _) :-
+    nb_setval(plan_old_use_info, old_use_info(true, [], [])),
+    nb_setval(plan_use_expand_prefix, '').
+
+
+%! plan:use_flag_full_name(+Flag, -FullFlag)
+%
+% Reconstructs the full USE flag name by prepending the current
+% USE_EXPAND prefix (if any).
+
+plan:use_flag_full_name(Flag, FullFlag) :-
+    nb_current(plan_use_expand_prefix, Prefix),
+    Prefix \== '',
+    !,
+    atom_concat(Prefix, Flag, FullFlag).
+plan:use_flag_full_name(Flag, Flag).
+
+
+%! plan:use_flag_change_type(+Flag, +Polarity, -ChangeType)
+%
+% Determines the change type of a USE flag relative to the installed version.
+% ChangeType is one of: steady, changed, new_flag.
+
+plan:use_flag_change_type(Flag, Polarity, ChangeType) :-
+    nb_current(plan_old_use_info, old_use_info(IsNew, OldUse, OldIuse)),
+    !,
+    plan:use_flag_full_name(Flag, FullFlag),
+    plan:classify_flag_change(FullFlag, Polarity, IsNew, OldUse, OldIuse, ChangeType).
+plan:use_flag_change_type(_, _, steady).
+
+
+%! plan:classify_flag_change(+Flag, +Polarity, +IsNew, +OldUse, +OldIuse, -ChangeType)
+%
+% Core classification: compares a flag against the installed USE/IUSE sets.
+
+plan:classify_flag_change(_, _, true, _, _, steady) :- !.
+plan:classify_flag_change(Flag, positive, false, OldUse, OldIuse, ChangeType) :-
+    !,
+    (\+ memberchk(Flag, OldIuse)
+    -> ChangeType = new_flag
+    ;  \+ memberchk(Flag, OldUse)
+    -> ChangeType = changed
+    ;  ChangeType = steady).
+plan:classify_flag_change(Flag, negative, false, OldUse, OldIuse, ChangeType) :-
+    !,
+    (\+ memberchk(Flag, OldIuse)
+    -> ChangeType = new_flag
+    ;  memberchk(Flag, OldUse)
+    -> ChangeType = changed
+    ;  ChangeType = steady).
+plan:classify_flag_change(_, _, _, _, _, steady).
+
+
+%! plan:change_annotation_length(+Flag, +Polarity, -ExtraLen)
+%
+% Returns the extra character length added by change annotations.
+
+plan:change_annotation_length(Flag, Polarity, ExtraLen) :-
+    plan:use_flag_change_type(Flag, Polarity, ChangeType),
+    (ChangeType == changed
+    -> ExtraLen = 1
+    ;  ChangeType == new_flag, Polarity == positive
+    -> ExtraLen = 2
+    ;  ChangeType == new_flag
+    -> ExtraLen = 1
+    ;  ExtraLen = 0).
+
+
+%! plan:maybe_print_change_annotation(+Flag, +Polarity)
+%
+% Prints a change annotation suffix when the flag state differs from
+% the installed version: * for changed, %* for new enabled, % for new disabled.
+
+plan:maybe_print_change_annotation(Flag, Polarity) :-
+    plan:use_flag_change_type(Flag, Polarity, ChangeType),
+    (ChangeType == changed
+    -> message:print('*')
+    ;  ChangeType == new_flag, Polarity == positive
+    -> message:print('%*')
+    ;  ChangeType == new_flag, Polarity == negative
+    -> message:print('%')
+    ;  true).
+
+
+%! plan:print_easy_positive(+ChangeType, +Flag)
+%
+% Prints an enabled USE flag with easy-palette coloring based on change type.
+
+plan:print_easy_positive(steady, Flag) :-
+    message:color(red),
+    message:style(bold),
+    message:print(Flag),
+    message:color(normal).
+plan:print_easy_positive(changed, Flag) :-
+    message:color(green),
+    message:style(bold),
+    message:print(Flag),
+    message:color(normal),
+    message:print('*').
+plan:print_easy_positive(new_flag, Flag) :-
+    message:color(lightorange),
+    message:style(bold),
+    message:print(Flag),
+    message:color(normal),
+    message:print('%*').
+
+
+%! plan:print_easy_negative(+ChangeType, +Flag)
+%
+% Prints a disabled USE flag with easy-palette coloring based on change type.
+
+plan:print_easy_negative(steady, Flag) :-
+    message:color(blue),
+    message:style(bold),
+    message:print('-'),
+    message:print(Flag),
+    message:color(normal).
+plan:print_easy_negative(changed, Flag) :-
+    message:color(green),
+    message:style(bold),
+    message:print('-'),
+    message:print(Flag),
+    message:color(normal),
+    message:print('*').
+plan:print_easy_negative(new_flag, Flag) :-
+    message:color(lightorange),
+    message:style(bold),
+    message:print('-'),
+    message:print(Flag),
+    message:color(normal),
+    message:print('%').
+
+
 %! plan:print_use_flag(+Reason,+Flag,Assumed)
 %
 % Prints a single flag.
@@ -1659,6 +1846,18 @@ plan:print_use_flag(_Reason, Flag, Assumed) :-
   %message:style(bold),
   message:print(Flag),
   message:color(normal).
+
+plan:print_use_flag(positive:Reason, Flag, _Assumed) :-
+  config:color_palette(easy),
+  Reason \== profile_package_use_force, !,
+  plan:use_flag_change_type(Flag, positive, ChangeType),
+  plan:print_easy_positive(ChangeType, Flag).
+
+plan:print_use_flag(negative:Reason, Flag, _Assumed) :-
+  config:color_palette(easy),
+  Reason \== profile_package_use_mask, !,
+  plan:use_flag_change_type(Flag, negative, ChangeType),
+  plan:print_easy_negative(ChangeType, Flag).
 
 plan:print_use_flag(positive:preference, Flag, _Assumed) :-
   preference:use(Flag,env), !,
@@ -1691,14 +1890,16 @@ plan:print_use_flag(positive:package_use, Flag, _Assumed) :-
   message:color(red),
   message:style(bold),
   message:print(Flag),
-  message:color(normal).
+  message:color(normal),
+  plan:maybe_print_change_annotation(Flag, positive).
 
 plan:print_use_flag(positive:ebuild, Flag, _Assumed) :-
   !,
   message:color(red),
   message:style(italic),
   message:print(Flag),
-  message:color(normal).
+  message:color(normal),
+  plan:maybe_print_change_annotation(Flag, positive).
 
 plan:print_use_flag(negative:preference, Flag, _Assumed) :-
   preference:use(minus(Flag),env), !,
@@ -1735,7 +1936,8 @@ plan:print_use_flag(negative:package_use, Flag, _Assumed) :-
   message:style(bold),
   message:print('-'),
   message:print(Flag),
-  message:color(normal).
+  message:color(normal),
+  plan:maybe_print_change_annotation(Flag, negative).
 
 plan:print_use_flag(negative:ebuild, Flag, _Assumed) :-
   !,
@@ -1743,7 +1945,8 @@ plan:print_use_flag(negative:ebuild, Flag, _Assumed) :-
   message:style(italic),
   message:print('-'),
   message:print(Flag),
-  message:color(normal).
+  message:color(normal),
+  plan:maybe_print_change_annotation(Flag, negative).
 
 plan:print_use_flag(negative:default, Flag, _Assumed) :-
   !,
@@ -1751,7 +1954,8 @@ plan:print_use_flag(negative:default, Flag, _Assumed) :-
   message:style(italic),
   message:print('-'),
   message:print(Flag),
-  message:color(normal).
+  message:color(normal),
+  plan:maybe_print_change_annotation(Flag, negative).
 
 
 %! plan:maybe_print_use_descriptions(+AllFlags) is det.
