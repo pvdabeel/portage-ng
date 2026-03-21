@@ -11,8 +11,10 @@
 Terminal output to HTML renderer for portage-ng. Converts ANSI-escaped text
 (merge plans, fetchonly plans, package info, emerge output) into styled
 self-contained HTML pages with day/night theme toggle. Lines of the form
-% merge|fetchonly|emerge started|ended|wall_time_ms are removed from the
-main &lt;pre&gt; and summarized below it (wall time in seconds).
+% merge|fetchonly|emerge started|ended|wall_time_ms are stripped from the
+main &lt;pre&gt; (including when prefixed by ANSI). Only wall_time_ms is
+shown below as seconds; emerge pages may add vs. portage-ng merge time
+from the sibling .merge file.
 */
 
 :- module(terminal, []).
@@ -35,9 +37,14 @@ main &lt;pre&gt; and summarized below it (wall time in seconds).
 
 terminal:graph(Type, Repository://Entry) :-
     capture_content(Type, Repository://Entry, RawContent),
-    split_timing_body(Type, RawContent, BodyContent, TimingStats),
+    split_timing_body(Type, RawContent, BodyContent, timing_display(Wall, _)),
+    (   Type = emerge
+    ->  merge_wall_seconds_from_graph(Repository, Entry, NgSec),
+        Stats = timing_display(Wall, NgSec)
+    ;   Stats = timing_display(Wall, none)
+    ),
     ansi_to_html(BodyContent, HtmlContent),
-    emit_html(Type, Repository://Entry, HtmlContent, TimingStats).
+    emit_html(Type, Repository://Entry, HtmlContent, Stats).
 
 
 % -----------------------------------------------------------------------------
@@ -146,24 +153,41 @@ resolve_graph_dir(Repository, Dir) :-
 resolve_graph_dir(_, '/tmp').
 
 
+%! terminal:merge_wall_seconds_from_graph(+Repository, +Entry, -Seconds)
+%
+% If graph output contains Entry.merge with a % merge wall_time_ms line, return
+% seconds as a float; otherwise none. Used on emerge HTML pages for comparison.
+
+merge_wall_seconds_from_graph(Repository, Entry, Sec) :-
+    resolve_graph_dir(Repository, Dir),
+    atomic_list_concat([Dir, '/', Entry, '.merge'], File),
+    exists_file(File),
+    read_file_to_string(File, MergeText, [encoding(utf8)]),
+    partition_timing_content(MergeText, _Kept, Infos),
+    member(wall(merge, Ms), Infos),
+    !,
+    Sec is Ms / 1000.0.
+merge_wall_seconds_from_graph(_, _, none).
+
+
 % -----------------------------------------------------------------------------
 %  Timing metadata (merge / fetchonly / emerge)
 % -----------------------------------------------------------------------------
 
-%! terminal:split_timing_body(+Type, +Raw, -Body, -timing_display(WallSec, StartedH, EndedH))
+%! terminal:split_timing_body(+Type, +Raw, -Body, -timing_display(WallSec, CompareSlot))
 %
 % For merge, fetchonly, and emerge, strip "% <label> started|ended|wall_time_ms" lines
-% from Raw and return the remainder as Body. Aggregates human-readable started/ended
-% timestamps and wall clock seconds from wall_time_ms. For info, Body = Raw and
-% timing_display(none, '', '').
+% from Raw and return the remainder as Body. CompareSlot in the result is always
+% none here; terminal:graph/2 may replace it for emerge with portage-ng merge seconds.
+% For info, Body = Raw and timing_display(none, none).
 
-split_timing_body(info, Raw, Raw, timing_display(none, '', '')) :-
+split_timing_body(info, Raw, Raw, timing_display(none, none)) :-
     !.
 split_timing_body(_, Raw, Body, Stats) :-
     partition_timing_content(Raw, KeptLines, Infos),
     (   Infos = []
     ->  Body = Raw,
-        Stats = timing_display(none, '', '')
+        Stats = timing_display(none, none)
     ;   (   KeptLines = []
         ->  Body = ""
         ;   atomics_to_string(KeptLines, '\n', Body)
@@ -183,13 +207,40 @@ partition_timing_content(Raw, KeptLines, InfoList) :-
 
 partition_timing_lines([], [], []).
 partition_timing_lines([Line|Rest], Kept, Infos) :-
-    (   parse_timing_meta(Line, Info)
+    timing_line_plain_for_meta(Line, Plain),
+    (   parse_timing_meta(Plain, Info)
     ->  Kept = Krest,
         Infos = [Info|Irest]
     ;   Kept = [Line|Krest],
         Infos = Irest
     ),
     partition_timing_lines(Rest, Krest, Irest).
+
+
+%! terminal:timing_line_plain_for_meta(+Line, -Plain)
+%
+% Strip leading ANSI CSI/OSC so "% emerge started: ..." matches even when
+% Portage colors the timing lines.
+
+timing_line_plain_for_meta(Line, Plain) :-
+    (atom(Line) -> atom_string(Line, S0) ; S0 = Line),
+    string_codes(S0, Cs0),
+    strip_timing_line_esc_prefix(Cs0, Cs),
+    string_codes(Plain, Cs).
+
+
+strip_timing_line_esc_prefix([27, 91 | Rest], Out) :-
+    !,
+    collect_csi(Rest, _, _Term, After),
+    strip_timing_line_esc_prefix(After, Out).
+strip_timing_line_esc_prefix([27, 93 | Rest], Out) :-
+    !,
+    skip_osc(Rest, After),
+    strip_timing_line_esc_prefix(After, Out).
+strip_timing_line_esc_prefix([27, _ | Rest], Out) :-
+    !,
+    strip_timing_line_esc_prefix(Rest, Out).
+strip_timing_line_esc_prefix(Cs, Cs).
 
 
 parse_timing_meta(Line, Meta) :-
@@ -229,38 +280,24 @@ parse_timing_wall(Line, wall(_Label, Ms)) :-
 
 
 parse_epoch_human_paren(Rest, EpochStr, Human) :-
-    sub_string(Rest, EpLen, 3, _, " ("),
+    sub_string(Rest, EpLen, 2, _, " ("),
     !,
     sub_string(Rest, 0, EpLen, _, EpochStr),
     string_length(Rest, Tot),
-    StartHum is EpLen + 3,
+    StartHum is EpLen + 2,
     HumEnd is Tot - 1,
     HumLen is HumEnd - StartHum,
     HumLen >= 0,
     sub_string(Rest, StartHum, HumLen, _, Human).
 
 
-%! terminal:aggregate_timing_infos(+Infos, -timing_display(WallSec, StartedH, EndedH))
+%! terminal:aggregate_timing_infos(+Infos, -timing_display(WallSec, none))
 %
-% WallSec is a float seconds from wall_time_ms, or the atom none. StartedH and EndedH
-% are human timestamp strings from the parentheses in started/ended lines.
+% WallSec is float seconds from any wall_time_ms line, or none. Second slot is
+% always none here (filled for emerge in terminal:graph/2).
 
-aggregate_timing_infos(Infos, timing_display(WallSec, Sh, Eh)) :-
-    timing_started_human(Infos, Sh),
-    timing_ended_human(Infos, Eh),
+aggregate_timing_infos(Infos, timing_display(WallSec, none)) :-
     timing_wall_seconds(Infos, WallSec).
-
-
-timing_started_human(Infos, H) :-
-    member(started(_, _, H), Infos),
-    !.
-timing_started_human(_, '').
-
-
-timing_ended_human(Infos, H) :-
-    member(ended(_, _, H), Infos),
-    !.
-timing_ended_human(_, '').
 
 
 timing_wall_seconds(Infos, Sec) :-
@@ -463,7 +500,8 @@ sgr_transition(Old, New, Acc, Result) :-
 %! terminal:emit_html(+Type, +Target, +HtmlContent, +TimingStats)
 %
 % Emit a complete styled HTML document wrapping terminal output. TimingStats is
-% timing_display/3 for optional stats below the &lt;pre&gt;.
+% timing_display(WallSec, CompareNgSec): CompareNgSec is merge seconds for emerge
+% pages only (none otherwise).
 
 emit_html(Type, Target, HtmlContent, TimingStats) :-
     Target = Repo://Entry,
@@ -478,7 +516,7 @@ emit_html(Type, Target, HtmlContent, TimingStats) :-
     deptree:version_neighbours(Repo, Entry, Newer, Newest, Older, Oldest),
     navtheme:emit_nav_bar(Repo, Entry, Cat, Name, Type, Newer, Newest, Older, Oldest),
     write('</div>'), nl,
-    emit_content(HtmlContent, TimingStats),
+    emit_content(Type, HtmlContent, TimingStats),
     emit_body_close.
 
 type_label(merge, 'Merge Plan').
@@ -525,55 +563,48 @@ emit_title_row(Cat, Name, Ver, Label) :-
     write('</div>'), nl.
 
 
-emit_content(HtmlContent, TimingStats) :-
+emit_content(Type, HtmlContent, TimingStats) :-
     write('<div class="content">'), nl,
     write('<pre class="terminal">'),
     write(HtmlContent),
     write('</pre>'), nl,
-    emit_terminal_stats(TimingStats),
+    emit_terminal_stats(Type, TimingStats),
     write('</div>'), nl,
     navtheme:emit_theme_script('terminal-theme').
 
 
-%! terminal:emit_terminal_stats(+timing_display(WallSec, StartedH, EndedH))
+%! terminal:emit_terminal_stats(+Type, +timing_display(WallSec, CompareNgSec))
 %
-% Emit a definition list below the terminal block when any timing field is present.
+% Emit wall time only. On emerge pages, append portage-ng merge time when
+% terminal:merge_wall_seconds_from_graph/3 found a .merge wall_time_ms.
 
-emit_terminal_stats(timing_display(none, '', '')) :-
+emit_terminal_stats(_, timing_display(none, _)) :-
     !.
-emit_terminal_stats(timing_display(W, Sh, Eh)) :-
+emit_terminal_stats(_, timing_display(W, _)) :-
     W == none,
-    Sh == '',
-    Eh == '',
     !.
-emit_terminal_stats(timing_display(WallSec, Sh, Eh)) :-
+emit_terminal_stats(Type, timing_display(WallSec, CompareNg)) :-
     write('<div class="terminal-stats" role="status">'), nl,
     write('  <dl>'), nl,
-    (   WallSec \== none
-    ->  format_wall_seconds(WallSec, WStr),
-        format(atom(Dd), '~w s', [WStr]),
-        emit_stat_row('Wall time', Dd)
-    ;   true
+    format_wall_seconds(WallSec, WStr),
+    (   CompareNg \== none,
+        Type = emerge
+    ->  format_wall_seconds(CompareNg, NgStr),
+        format(string(Dd), '~w s <span class="vs-portage-ng">vs. <span class="wall-time-sec">~w s</span> for portage-ng</span>', [WStr, NgStr])
+    ;   format(string(Dd), '~w s', [WStr])
     ),
-    (   Sh \== ''
-    ->  emit_stat_row('Started', Sh)
-    ;   true
-    ),
-    (   Eh \== ''
-    ->  emit_stat_row('Ended', Eh)
-    ;   true
-    ),
+    emit_stat_row_dd('Wall time', Dd),
     write('  </dl>'), nl,
     write('</div>'), nl.
 
 
-%! terminal:emit_stat_row(+Label, +Value)
+%! terminal:emit_stat_row_dd(+Label, +DdString)
 %
-% Emit one &lt;dt&gt;/&lt;dd&gt; pair. Label and Value are atoms (safe literals / formatted times).
+% Emit one &lt;dt&gt;/&lt;dd&gt; pair; DdString may contain inline HTML spans.
 
-emit_stat_row(Label, Value) :-
+emit_stat_row_dd(Label, Dd) :-
     write('    <dt>'),
     write(Label),
     write('</dt><dd>'),
-    write(Value),
+    write(Dd),
     write('</dd>'), nl.

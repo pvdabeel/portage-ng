@@ -721,6 +721,32 @@ config:verbose(false).
 config:color_output.
 
 
+% Color palette for USE flag display in plan output.
+%
+% easy (default) -- Classic Portage style:
+%   Enabled flags:  red bold      (matches emerge -vp output)
+%   Disabled flags: blue bold     (matches emerge -vp output)
+%   Assumed flags:  orange
+%   Forced/masked:  green bold ()
+%
+% full -- Detailed reason-based coloring:
+%   Enabled  preference (env):     green bold + *
+%   Enabled  preference (non-env): red bold
+%   Enabled  profile forced:       green bold ()
+%   Enabled  package_use:          red bold
+%   Enabled  ebuild default:       red italic
+%   Disabled preference (env):     green bold + *
+%   Disabled preference (non-env): blue bold
+%   Disabled profile masked:       green bold ()
+%   Disabled package_use:          blue bold
+%   Disabled ebuild default:       lightblue italic
+%   Disabled default:              darkgray italic
+
+:- dynamic config:color_palette/1.
+
+config:color_palette(full).
+
+
 %! config:output_tty is semidet.
 %
 % Succeeds when the ultimate output destination is a real TTY.
