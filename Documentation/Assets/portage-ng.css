@@ -628,4 +628,4 @@ body.page-index .header { margin-bottom: 16px; }
 .alpha-link:hover { background: var(--accent); color: var(--bg); border-color: var(--accent); }
 .alpha-link.disabled { color: var(--text3); cursor: default; border-color: transparent; background: none; }
 .alpha-link.disabled:hover { background: none; color: var(--text3); }
-.anchor { display: block; padding-top: 40px; margin-top: -40px; }
+.anchor { display: block; padding-top: 40px; margin-top: -40px; pointer-events: none; }
