@@ -202,6 +202,8 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/Grapher/gantt.pl')),
    ensure_loaded(portage('Source/Grapher/deptree.pl')),
    ensure_loaded(portage('Source/Grapher/detail.pl')),
+   ensure_loaded(portage('Source/Grapher/terminal.pl')),
+   ensure_loaded(portage('Source/Grapher/dot.pl')),
    ensure_loaded(portage('Source/grapher.pl')),
    ensure_loaded(portage('Source/worker.pl')),
    ensure_loaded(portage('Source/tester.pl')),

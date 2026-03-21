@@ -87,14 +87,11 @@ vdb:make_repository_dirs(Repository,Directory) :-
 
 %! vdb:copy_graph_assets(+Directory) is det.
 %
-% Copies all static assets (.index.css, .proof.css, .meslo.ttf) into
-% the repository graph Directory. Sources are resolved via
-% config:graph_asset_source/2.
+% Copies static assets into the repository graph Directory. Sources
+% are resolved via config:graph_asset_source/2.
 
 vdb:copy_graph_assets(Directory) :-
   vdb:copy_graph_asset(index_css, '.index.css', Directory),
-  vdb:copy_graph_asset(proof_css, '.proof.css', Directory),
-  vdb:copy_graph_asset(meslo_ttf, '.meslo.ttf', Directory),
   !.
 
 %! vdb:copy_graph_asset(+Key, +TargetName, +Directory) is det.

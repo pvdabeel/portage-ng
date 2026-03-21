@@ -128,10 +128,9 @@ writer:write_info_file(Directory,Repository://Entry) :-
 % Write the index file for a given repository, listing all categories.
 
 writer:write_repository_index_file(Directory,Repository) :-
-  atomic_list_concat(['Repository: ',Repository],Title),
   atomic_list_concat([Directory,'/index.html'],File),
   tell(File),
-  index:print_index(repository,Title,Title,cache:category(Repository,Category),Category,'./.index.css'),
+  index:print_repository_index(Repository),
   told.
 
 
@@ -140,24 +139,20 @@ writer:write_repository_index_file(Directory,Repository) :-
 % Write the index file for a given category, listing all packages.
 
 writer:write_category_index_file(Directory,Repository,Category) :-
-  atomic_list_concat(['Category: ',Repository,'://',Category],Title),
-  atomic_list_concat(['Category: <a href=\"../index.html\">',Repository,'</a>://',Category],TitleHtml),
   atomic_list_concat([Directory,'/',Category,'/index.html'],File),
   tell(File),
-  index:print_index(category,Title,TitleHtml,cache:package(Repository,Category,Name),Name,'../.index.css'),
+  index:print_category_index(Repository, Category),
   told.
 
 
 %! writer:write_package_index_file(+Directory,+Repository,+Category,+Name)
 %
-% Write the index file for a given package, listing all entries
+% Write the index file for a given package, listing all versions with graph links.
 
 writer:write_package_index_file(Directory,Repository,Category,Name) :-
-  atomic_list_concat(['Package: ',Repository,'://',Category,'/',Name],Title),
-  atomic_list_concat(['Package: <a href=\"../index.html\">',Repository,'</a>://<a href=\"./index.html\">',Category,'</a>/',Name],TitleHtml),
   atomic_list_concat([Directory,'/',Category,'/',Name,'.html'],File),
   tell(File),
-  index:print_index(package,Title,TitleHtml,( cache:ordered_entry(Repository,_,Category,Name,Ver), eapi:version_full(Ver,Version) ),[Name,Version],'../.index.css'),
+  index:print_package_index(Repository, Category, Name),
   told.
 
 
