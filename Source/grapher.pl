@@ -117,10 +117,10 @@ grapher:write_graph_file(D,Repository://Entry) :-
         catch(
           ( with_output_to(S,grapher:graph(Type,Repository://Entry))
           -> true
-          ;  message:warning([Repository://Entry,' ',Type])
+          ;  message:warning([Repository,'://',Entry,' ',Type])
           ),
           _,
-          message:warning([Repository://Entry,' ',Type])
+          message:warning([Repository,'://',Entry,' ',Type])
         ),
         close(S)
       )
