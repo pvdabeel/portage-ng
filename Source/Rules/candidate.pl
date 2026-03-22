@@ -2311,21 +2311,56 @@ compare_candidate_version_desc(Delta, RepoA://IdA, RepoB://IdB) :-
 
 %! candidate:candidate_non_accepted_keyword(+RepoEntry, -NonAccKw) is semidet.
 %
-% Succeeds with the first keyword on RepoEntry that is not in the
-% current ACCEPT_KEYWORDS. Used to tag context when keyword_acceptance
-% fallback selects a candidate.
+% Returns the most relevant non-accepted keyword on RepoEntry. Prefers a
+% keyword matching the user's architecture (e.g. ~amd64 when the user
+% accepts amd64). Falls back to ** when the package has no keyword for
+% the user's arch at all, or has no keywords whatsoever.
 
 candidate_non_accepted_keyword(Repo://Entry, NonAccKw) :-
   findall(K, preference:accept_keywords(K), AcceptedKs0),
   sort(AcceptedKs0, AcceptedKs),
-  ( cache:entry_metadata(Repo, Entry, keywords, NonAccKw),
-    \+ memberchk(NonAccKw, AcceptedKs)
+  findall(NK,
+          ( cache:entry_metadata(Repo, Entry, keywords, NK),
+            \+ memberchk(NK, AcceptedKs)
+          ),
+          NonAccKws0),
+  sort(NonAccKws0, NonAccKws),
+  candidate_best_keyword_suggestion(AcceptedKs, NonAccKws, NonAccKw),
+  !.
+
+
+%! candidate:candidate_best_keyword_suggestion(+AcceptedKs, +NonAccKws, -Best)
+%
+% Selects the most useful keyword suggestion. Prefers a keyword whose
+% architecture matches the user's ACCEPT_KEYWORDS (e.g. unstable(amd64)
+% for an amd64 user). Returns ** when no arch-relevant keyword exists.
+
+candidate_best_keyword_suggestion(AcceptedKs, NonAccKws, Best) :-
+  NonAccKws \== [],
+  findall(Arch,
+          ( member(K, AcceptedKs),
+            keyword_arch(K, Arch)
+          ),
+          Archs0),
+  sort(Archs0, Archs),
+  ( member(NK, NonAccKws),
+    keyword_arch(NK, A),
+    memberchk(A, Archs)
   ->
-    true
-  ; \+ cache:entry_metadata(Repo, Entry, keywords, _),
-    NonAccKw = '**'
+    Best = NK
+  ;
+    Best = '**'
   ),
   !.
+candidate_best_keyword_suggestion(_AcceptedKs, [], '**').
+
+
+%! candidate:keyword_arch(+Keyword, -Arch)
+%
+% Extracts the architecture atom from a keyword term.
+
+keyword_arch(stable(Arch), Arch).
+keyword_arch(unstable(Arch), Arch).
 
 
 % =============================================================================
