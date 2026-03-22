@@ -110,12 +110,21 @@ grapher:graph_dot(Type, Repository://Id) :-
 
 grapher:write_graph_file(D,Repository://Entry) :-
   config:graph_html_type(Types),
-  (forall(member(Type,Types),
-      (  atomic_list_concat([D,'/',Entry,'-',Type,'.html'],F),
-       tell(F),
-       (grapher:graph(Type,Repository://Entry)
-        -> told
-        ;  (told,message:warning([Repository://Entry,' ',Type])))))).
+  forall(member(Type,Types),
+    ( atomic_list_concat([D,'/',Entry,'-',Type,'.html'],F),
+      setup_call_cleanup(
+        open(F,write,S),
+        catch(
+          ( with_output_to(S,grapher:graph(Type,Repository://Entry))
+          -> true
+          ;  message:warning([Repository://Entry,' ',Type])
+          ),
+          _,
+          message:warning([Repository://Entry,' ',Type])
+        ),
+        close(S)
+      )
+    )).
 
 
 %! grapher:write_graph_files(+Directory,+Repository)

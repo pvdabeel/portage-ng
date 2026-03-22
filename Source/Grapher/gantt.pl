@@ -225,7 +225,9 @@ gantt:collect_deps(ProofAVL, Grid, Deps) :-
             PkgId \= DepId
         ),
         Deps0),
-    sort(Deps0, Deps).
+    collect_pdepend_deps(Pairs, Grid, EntryMap, PdependDeps),
+    append(Deps0, PdependDeps, Deps1),
+    sort(Deps1, Deps).
 
 entry_id_pair(pkg(Id, _, Entry, _, _, _, _), Entry-Id).
 
@@ -262,6 +264,41 @@ phase_deptype(run, rdepend).
 phase_deptype(pdepend, pdepend).
 phase_deptype(compile, depend).
 phase_deptype(_, depend).
+
+
+%! gantt:collect_pdepend_deps(+ProofPairs, +Grid, +EntryMap, -Deps)
+%
+% Reconstruct PDEPEND edges from obligation_done markers in the proof.
+% The prover appends PDEPEND goals to the queue (not to the rule body),
+% so collect_deps cannot see them. This predicate finds packages whose
+% install action triggered a PDEPEND obligation, queries the cache for
+% their PDEPEND metadata, and matches targets in the grid.
+
+collect_pdepend_deps(Pairs, Grid, EntryMap, Deps) :-
+    findall(dep(SrcId, SrcAct, DepId, install, pdepend),
+        (   member(KV, Pairs),
+            KV = obligation_done(pdepend(SrcCore, _))-true,
+            SrcCore = Repo://SrcEntry:SrcAct,
+            memberchk(SrcEntry-SrcId, EntryMap),
+            cache:entry_metadata(Repo, SrcEntry, pdepend, DepTerm),
+            pdepend_dep_cn(DepTerm, DepC, DepN),
+            member(pkg(DepId, _, _, DepC, DepN, _, _), Grid),
+            SrcId \= DepId
+        ),
+        Deps0),
+    sort(Deps0, Deps).
+
+
+%! gantt:pdepend_dep_cn(+DepTerm, -Category, -Name)
+%
+% Extract category/name from a PDEPEND dependency term, recursing into
+% USE-conditional and any-of groups.
+
+pdepend_dep_cn(package_dependency(_, _, C, N, _, _, _, _), C, N).
+pdepend_dep_cn(use_conditional_group(_, _, _, Deps), C, N) :-
+    member(D, Deps), pdepend_dep_cn(D, C, N).
+pdepend_dep_cn(any_of_group(Deps), C, N) :-
+    member(D, Deps), pdepend_dep_cn(D, C, N).
 
 
 % -----------------------------------------------------------------------------
