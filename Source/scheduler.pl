@@ -298,19 +298,54 @@ scheduler:rechunk_by_lengths_(Rules, [N|Ns], [Step|Rest]) :-
 
 %! scheduler:repair_ordering_violations(+PlanIn, -PlanOut)
 %
-% Fixed-point pass: build head-to-wave map, detect violations, relocate
-% violating rules to max(dep_wave) + 1, drop empty waves, repeat until
-% stable.
+% Two-phase repair for ordering violations introduced by rechunking.
+%
+% Phase 1 (strict): moves violated rules to ReqWave + 1, i.e. the wave
+% AFTER their latest dependency. Correct for one-way deps (e.g. install
+% before run). Bounded to prevent infinite oscillation on cyclic deps.
+%
+% Phase 2 (merge): moves remaining violated rules to ReqWave, i.e. the
+% SAME wave as their dependency. Handles cyclic deps that phase 1 cannot
+% resolve. Guaranteed to converge.
 
 scheduler:repair_ordering_violations(PlanIn, PlanOut) :-
-  scheduler:build_head_wave_map(PlanIn, 1, t, HeadWaveMap),
-  scheduler:collect_violations(PlanIn, 1, HeadWaveMap, Violations),
+  length(PlanIn, NumWaves),
+  MaxIter is max(NumWaves * 2, 20),
+  scheduler:repair_strict(PlanIn, MaxIter, PlanMid),
+  scheduler:repair_merge(PlanMid, PlanOut).
+
+
+%! scheduler:repair_strict(+PlanIn, +Remaining, -PlanOut)
+%
+% Phase 1: move violated rules to wave AFTER their dep (ReqWave + 1).
+
+scheduler:repair_strict(PlanIn, 0, PlanIn) :- !.
+scheduler:repair_strict(PlanIn, N, PlanOut) :-
+  scheduler:build_head_wave_map(PlanIn, 1, t, Map),
+  scheduler:collect_violations(strict, PlanIn, 1, Map, Violations),
   ( Violations == [] ->
       PlanOut = PlanIn
   ;
       scheduler:apply_violations(PlanIn, 1, Violations, PlanMoved),
       scheduler:drop_empty_waves(PlanMoved, PlanCompact),
-      scheduler:repair_ordering_violations(PlanCompact, PlanOut)
+      N1 is N - 1,
+      scheduler:repair_strict(PlanCompact, N1, PlanOut)
+  ).
+
+
+%! scheduler:repair_merge(+PlanIn, -PlanOut)
+%
+% Phase 2: move remaining violated rules to SAME wave as their dep.
+
+scheduler:repair_merge(PlanIn, PlanOut) :-
+  scheduler:build_head_wave_map(PlanIn, 1, t, Map),
+  scheduler:collect_violations(merge, PlanIn, 1, Map, Violations),
+  ( Violations == [] ->
+      PlanOut = PlanIn
+  ;
+      scheduler:apply_violations(PlanIn, 1, Violations, PlanMoved),
+      scheduler:drop_empty_waves(PlanMoved, PlanCompact),
+      scheduler:repair_merge(PlanCompact, PlanOut)
   ).
 
 
@@ -331,23 +366,30 @@ scheduler:add_head_wave(Idx, Rule, MapIn, MapOut) :-
   ).
 
 
-%! scheduler:collect_violations(+Plan, +WaveIdx, +HeadWaveMap, -Violations)
+%! scheduler:collect_violations(+Mode, +Plan, +WaveIdx, +HeadWaveMap, -Violations)
 %
-% Returns a list of move(Rule, FromWave, ToWave) for every rule whose
-% non-constraint body dep lives in the same or a later wave.
+% Collects ordering violations. Mode controls the target wave:
+%   strict — Target is ReqWave + 1 (rule placed AFTER its dep)
+%   merge  — Target is ReqWave     (rule placed WITH its dep)
 
-scheduler:collect_violations([], _Idx, _Map, []).
-scheduler:collect_violations([Wave|Waves], Idx, Map, Violations) :-
+scheduler:collect_violations(_Mode, [], _Idx, _Map, []).
+scheduler:collect_violations(Mode, [Wave|Waves], Idx, Map, Violations) :-
   findall(move(Rule, Idx, Target),
           ( member(Rule, Wave),
             scheduler:rule_required_wave(Rule, Map, ReqWave),
-            ReqWave > Idx,
-            Target = ReqWave
+            scheduler:violation_check(Mode, ReqWave, Idx),
+            scheduler:violation_target(Mode, ReqWave, Target)
           ),
           WaveViolations),
   Idx1 is Idx + 1,
-  scheduler:collect_violations(Waves, Idx1, Map, RestViolations),
+  scheduler:collect_violations(Mode, Waves, Idx1, Map, RestViolations),
   append(WaveViolations, RestViolations, Violations).
+
+scheduler:violation_check(strict, ReqWave, Idx) :- ReqWave >= Idx.
+scheduler:violation_check(merge,  ReqWave, Idx) :- ReqWave > Idx.
+
+scheduler:violation_target(strict, ReqWave, Target) :- Target is ReqWave + 1.
+scheduler:violation_target(merge,  ReqWave, ReqWave).
 
 
 %! scheduler:rule_required_wave(+Rule, +HeadWaveMap, -MaxDepWave)
