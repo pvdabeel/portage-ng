@@ -197,7 +197,8 @@ scheduler:enforce_order_after_constraints(PlanIn, PlanOut) :-
   ( scheduler:flat_has_order_after_constraints(Flat0) ->
       scheduler:plan_step_lengths(PlanIn, Lens),
       scheduler:flat_order_after_constraints(Flat0, Flat),
-      scheduler:rechunk_by_lengths(Flat, Lens, PlanOut)
+      scheduler:rechunk_by_lengths(Flat, Lens, PlanMid),
+      scheduler:repair_ordering_violations(PlanMid, PlanOut)
   ; PlanOut = PlanIn
   ),
   !.
@@ -285,6 +286,132 @@ scheduler:rechunk_by_lengths_(Rules, [N|Ns], [Step|Rest]) :-
   length(Step, N),
   append(Step, Tail, Rules),
   scheduler:rechunk_by_lengths_(Tail, Ns, Rest).
+
+
+% -----------------------------------------------------------------------------
+%  Repair ordering violations after rechunking
+% -----------------------------------------------------------------------------
+%
+% After order_after reordering + rechunking by original wave lengths, some
+% rules may end up in a wave that precedes one of their non-constraint body
+% dependencies. This pass moves such rules to the correct later wave.
+
+%! scheduler:repair_ordering_violations(+PlanIn, -PlanOut)
+%
+% Fixed-point pass: build head-to-wave map, detect violations, relocate
+% violating rules to max(dep_wave) + 1, drop empty waves, repeat until
+% stable.
+
+scheduler:repair_ordering_violations(PlanIn, PlanOut) :-
+  scheduler:build_head_wave_map(PlanIn, 1, t, HeadWaveMap),
+  scheduler:collect_violations(PlanIn, 1, HeadWaveMap, Violations),
+  ( Violations == [] ->
+      PlanOut = PlanIn
+  ;
+      scheduler:apply_violations(PlanIn, 1, Violations, PlanMoved),
+      scheduler:drop_empty_waves(PlanMoved, PlanCompact),
+      scheduler:repair_ordering_violations(PlanCompact, PlanOut)
+  ).
+
+
+%! scheduler:build_head_wave_map(+Plan, +WaveIdx, +MapIn, -MapOut)
+%
+% Assigns each rule head in the plan to its wave index.
+
+scheduler:build_head_wave_map([], _Idx, Map, Map).
+scheduler:build_head_wave_map([Wave|Waves], Idx, MapIn, MapOut) :-
+  foldl(scheduler:add_head_wave(Idx), Wave, MapIn, MapMid),
+  Idx1 is Idx + 1,
+  scheduler:build_head_wave_map(Waves, Idx1, MapMid, MapOut).
+
+scheduler:add_head_wave(Idx, Rule, MapIn, MapOut) :-
+  ( scheduler:rule_head(Rule, Head) ->
+      put_assoc(Head, MapIn, Idx, MapOut)
+  ; MapOut = MapIn
+  ).
+
+
+%! scheduler:collect_violations(+Plan, +WaveIdx, +HeadWaveMap, -Violations)
+%
+% Returns a list of move(Rule, FromWave, ToWave) for every rule whose
+% non-constraint body dep lives in the same or a later wave.
+
+scheduler:collect_violations([], _Idx, _Map, []).
+scheduler:collect_violations([Wave|Waves], Idx, Map, Violations) :-
+  findall(move(Rule, Idx, Target),
+          ( member(Rule, Wave),
+            scheduler:rule_required_wave(Rule, Map, ReqWave),
+            ReqWave >= Idx,
+            Target is ReqWave + 1
+          ),
+          WaveViolations),
+  Idx1 is Idx + 1,
+  scheduler:collect_violations(Waves, Idx1, Map, RestViolations),
+  append(WaveViolations, RestViolations, Violations).
+
+
+%! scheduler:rule_required_wave(+Rule, +HeadWaveMap, -MaxDepWave)
+%
+% Computes the maximum wave index among all non-constraint body deps of Rule
+% that are present in the plan. Fails if all deps are in earlier waves or
+% there are no in-plan deps.
+
+scheduler:rule_required_wave(Rule, Map, MaxDepWave) :-
+  scheduler:rule_body(Rule, Body),
+  findall(DepWave,
+          ( member(Dep, Body),
+            \+ constraint:is_constraint(Dep),
+            prover:canon_literal(Dep, DepHead, _),
+            get_assoc(DepHead, Map, DepWave)
+          ),
+          DepWaves),
+  DepWaves \== [],
+  max_list(DepWaves, MaxDepWave).
+
+
+%! scheduler:apply_violations(+Plan, +WaveIdx, +Violations, -PlanOut)
+%
+% Removes violated rules from their current wave and inserts them into their
+% target wave (extending the plan with new waves if needed).
+
+scheduler:apply_violations(PlanIn, _Idx, Violations, PlanOut) :-
+  scheduler:max_target_wave(Violations, MaxWave),
+  length(PlanIn, Len),
+  NExtra is max(0, MaxWave - Len),
+  length(Padding, NExtra),
+  maplist(=([] ), Padding),
+  append(PlanIn, Padding, PlanExt),
+  scheduler:apply_violations_(PlanExt, 1, Violations, PlanOut).
+
+scheduler:apply_violations_([], _Idx, _Violations, []).
+scheduler:apply_violations_([Wave|Waves], Idx, Violations, [WaveOut|RestOut]) :-
+  findall(Rule,
+          member(move(Rule, Idx, _), Violations),
+          ToRemove),
+  findall(Rule,
+          member(move(Rule, _, Idx), Violations),
+          ToAdd),
+  subtract(Wave, ToRemove, WaveKept),
+  append(WaveKept, ToAdd, WaveOut),
+  Idx1 is Idx + 1,
+  scheduler:apply_violations_(Waves, Idx1, Violations, RestOut).
+
+scheduler:max_target_wave(Violations, Max) :-
+  findall(T, member(move(_, _, T), Violations), Targets),
+  max_list(Targets, Max).
+
+
+%! scheduler:drop_empty_waves(+PlanIn, -PlanOut)
+%
+% Removes empty waves from the plan.
+
+scheduler:drop_empty_waves([], []).
+scheduler:drop_empty_waves([[]|Waves], Out) :-
+  !,
+  scheduler:drop_empty_waves(Waves, Out).
+scheduler:drop_empty_waves([Wave|Waves], [Wave|Out]) :-
+  scheduler:drop_empty_waves(Waves, Out).
+
 
 % -----------------------------------------------------------------------------
 %  Perf counters (whole-repo runs)
