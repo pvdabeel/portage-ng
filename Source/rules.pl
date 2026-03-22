@@ -1027,7 +1027,12 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
                       ),
                       KwCands1),
               explanation:candidate_keywords(KwCands1, CandKws),
-              ( CandKws = [SuggestedKw0|_] -> true ; SuggestedKw0 = none ),
+              ( CandKws \== [] ->
+                  findall(AK, preference:accept_keywords(AK), AKs0),
+                  sort(AKs0, AKs),
+                  candidate:candidate_best_keyword_suggestion(AKs, CandKws, SuggestedKw0)
+              ; SuggestedKw0 = none
+              ),
               assertz(memo:keyword_suggestion_cache_(C, N, SuggestedKw0))
             ),
             ( SuggestedKw0 \== none ->
