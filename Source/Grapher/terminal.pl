@@ -129,7 +129,7 @@ capture_output(Goal, String) :-
                 told
             ),
             _,
-            told
+            true
         )
     ->  true
     ;   true
