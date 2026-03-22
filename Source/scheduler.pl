@@ -341,8 +341,8 @@ scheduler:collect_violations([Wave|Waves], Idx, Map, Violations) :-
   findall(move(Rule, Idx, Target),
           ( member(Rule, Wave),
             scheduler:rule_required_wave(Rule, Map, ReqWave),
-            ReqWave >= Idx,
-            Target is ReqWave + 1
+            ReqWave > Idx,
+            Target = ReqWave
           ),
           WaveViolations),
   Idx1 is Idx + 1,
