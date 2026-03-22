@@ -119,8 +119,10 @@ grapher:write_graph_file(D,Repository://Entry) :-
           -> true
           ;  message:warning([Repository,'://',Entry,' ',Type])
           ),
-          _,
-          message:warning([Repository,'://',Entry,' ',Type])
+          E,
+          ( term_to_atom(E, EA),
+            message:warning([Repository,'://',Entry,' ',Type,' (',EA,')'])
+          )
         ),
         close(S)
       )
