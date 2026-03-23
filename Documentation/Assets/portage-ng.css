@@ -225,7 +225,9 @@ svg.deps { position: absolute; top: 0; left: 0; pointer-events: none; }
    PAGE: deptree
    ================================================================ */
 
-body.page-deptree { overflow: hidden; }
+body.page-deptree {
+  overflow: hidden; display: flex; flex-direction: column; height: 100vh;
+}
 
 .dep-tabs { display: flex; gap: 5px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
 .dep-tabs .label { font-size: 13px; font-weight: 600; color: var(--text2); margin-right: 2px; }
@@ -253,7 +255,7 @@ body.page-deptree { overflow: hidden; }
 .action-btn:hover { background: var(--surface2); }
 
 body.page-deptree .graph-container {
-  position: relative; width: 100%; height: calc(100vh - 170px);
+  position: relative; width: 100%; flex: 1; min-height: 0;
   border: 1px solid var(--border); border-radius: 6px;
   overflow: hidden; background: var(--surface2);
 }
