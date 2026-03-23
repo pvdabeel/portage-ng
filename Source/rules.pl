@@ -1001,13 +1001,9 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       append(DomainCons, Suffix, Conditions)
     ; % Before reprove, check if the parent should be narrowed — the parent
       % introduced a dep that made (C,N) unsatisfiable (wrong-level fix).
-      % Skip for fetchonly: transitive dep failures (e.g. USE-flag mismatches)
-      % should not narrow the parent — fetchonly only needs to download sources.
-      Action \== fetchonly,
       candidate:maybe_learn_parent_narrowing(C, N, PackageDeps1, Context),
       fail
-    ; Action \== fetchonly,
-      candidate:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps1, Context),
+    ; candidate:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps1, Context),
       fail
     ; explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason),
         % Keyword-filtered and masked deps produce domain assumptions.
