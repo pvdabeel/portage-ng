@@ -256,7 +256,8 @@ planner:test(Repository,Style) :-
   tester:test(Style, 'Planning', Repository://Entry, (Repository:entry(Entry)),
     ( pipeline:prove_with_fallback([Repository://Entry:Action?{[]}],Proof,_Model,Triggers),
       planner:plan(Proof,Triggers,t,_Plan,_Remainder)
-    )).
+    )),
+  nl.
 planner:test_latest(Repository) :- config:test_style(Style), planner:test_latest(Repository,Style).
 planner:test_latest(Repository,Style) :-
   config:proving_target(Action0),
@@ -265,7 +266,8 @@ planner:test_latest(Repository,Style) :-
               (Repository:package(C,N),once(Repository:ebuild(Entry,C,N,_))),
               ( pipeline:prove_with_fallback([Repository://Entry:Action?{[]}],Proof,_Model,Triggers),
                 planner:plan(Proof,Triggers,t,_Plan,_Remainder)
-              )).
+              )),
+  nl.
 
 % -----------------------------------------------------------------------------
 %  Testing + statistics
