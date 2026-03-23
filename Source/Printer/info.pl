@@ -177,7 +177,7 @@ info:print_metadata_item_detail(Item,Prefix,at_most_one_of_group(Values)) :-
 %  Detail: package dependencies
 % -----------------------------------------------------------------------------
 
-info:print_metadata_item_detail(_,Prefix,package_dependency(_,Blocking,Category,Name,none,[[],_,_,_,_],Slot,Use)) :-
+info:print_metadata_item_detail(_,Prefix,package_dependency(_,Blocking,Category,Name,none,version_none,Slot,Use)) :-
   !,
   write(Prefix),
   info:print_blocking(Blocking),
@@ -218,6 +218,43 @@ info:print_metadata_item_detail(_,Prefix,grouped_package_dependency(_X,_C,_N,Lis
     info:print_metadata_item_detail(_,Prefix,V),
     nl
   )).
+
+
+% -----------------------------------------------------------------------------
+%  Detail: IUSE flags
+% -----------------------------------------------------------------------------
+
+info:print_metadata_item_detail(iuse,Prefix,plus(U)) :-
+  !,
+  write(Prefix),
+  message:color(green),
+  write('+'),
+  write(U),
+  message:color(normal).
+
+info:print_metadata_item_detail(iuse,Prefix,minus(U)) :-
+  !,
+  write(Prefix),
+  message:color(red),
+  write('-'),
+  write(U),
+  message:color(normal).
+
+
+% -----------------------------------------------------------------------------
+%  Detail: required_use flags
+% -----------------------------------------------------------------------------
+
+info:print_metadata_item_detail(required_use,Prefix,required(U)) :-
+  !,
+  write(Prefix),
+  write(U).
+
+info:print_metadata_item_detail(required_use,Prefix,blocking(U)) :-
+  !,
+  write(Prefix),
+  write('!'),
+  write(U).
 
 
 % -----------------------------------------------------------------------------
