@@ -72,7 +72,10 @@ max_used_step(Grid, Max) :-
 collect_grid_steps([], _, Acc, Acc).
 collect_grid_steps([Step|Steps], N, Acc, Out) :-
     collect_step_rules(Step, N, Acc, Acc1),
-    N1 is N + 1,
+    (   Acc1 \== Acc
+    ->  N1 is N + 1
+    ;   N1 = N
+    ),
     collect_grid_steps(Steps, N1, Acc1, Out).
 
 collect_step_rules([], _, Acc, Acc).
