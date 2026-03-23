@@ -193,6 +193,22 @@ For the full command reference, see the
 
 ![Querying the in-memory knowledge base](Documentation/Images/search.png)
 
+### Merge plan
+
+![Merge plan output](Documentation/Images/plan.png)
+
+### Gantt chart
+
+![Gantt chart with parallel build steps](Documentation/Images/gantt.png)
+
+### Dependency graph
+
+![Interactive dependency graph](Documentation/Images/depgraph.png)
+
+### Detail view
+
+![Detailed package view](Documentation/Images/detail.png)
+
 ### Upstream version check
 
 ![Checking upstream versions via Repology](Documentation/Images/upstream.png)
