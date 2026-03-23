@@ -590,7 +590,8 @@ scheduler:test(Repository, Style) :-
     ( pipeline:prove_with_fallback([Repository://Entry:Action?{[]}],ProofAVL,_ModelAVL,TriggersAVL),
       planner:plan(ProofAVL,TriggersAVL,t,Plan0,Remainder0),
       scheduler:schedule(ProofAVL,TriggersAVL,Plan0,Remainder0,_Plan,_Remainder)
-    )).
+    )),
+  nl.
 
 %! scheduler:test_latest(+Repository)
 %
@@ -609,7 +610,8 @@ scheduler:test_latest(Repository, Style) :-
               ( pipeline:prove_with_fallback([Repository://Entry:Action?{[]}],ProofAVL,_ModelAVL,TriggersAVL),
                 planner:plan(ProofAVL,TriggersAVL,t,Plan0,Remainder0),
                 scheduler:schedule(ProofAVL,TriggersAVL,Plan0,Remainder0,_Plan,_Remainder)
-              )).
+              )),
+  nl.
 
 % -----------------------------------------------------------------------------
 %  Testing + statistics (mirror planner.pl)
