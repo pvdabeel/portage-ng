@@ -26,7 +26,7 @@ swipl
   -O                -> turns on Prolog performance optimizations
   --stack_limit=32G -> if you want to prove the all packages in the portage tree
                        you will need 32G stack space. Only needed in standalone
-		                   and server mode. Client mode works fine with default.
+		                 and server mode. Client mode works fine with default.
   --
   -f /Users/pvdabeel/Desktop/Prolog/portage-ng.pl  -> load the main file
   -p portage=/Users/pvdabeel/Desktop/Prolog        -> set application home
@@ -342,30 +342,87 @@ load_llm_modules :-
 
 
 % -----------------------------------------------------------------------------
+%  Per-mode initialization
+% -----------------------------------------------------------------------------
+
+%! main(+Mode) is det.
+%
+% Mode-specific startup. Verifies CLI flags, loads the appropriate
+% modules, initializes the system, starts mode-specific services,
+% and enters the request loop.
+
+main(standalone) :-
+  load_standalone_modules,
+  load_llm_modules,
+  init_knowledgebase,
+  interface:process_requests(standalone).
+
+main(ipc) :-
+  interface:verify(ipc),
+  daemon:autostart,
+  daemon:connect(ExitCode),
+  halt(ExitCode).
+
+main(daemon) :-
+  interface:verify(daemon),
+  load_standalone_modules,
+  load_llm_modules,
+  init_knowledgebase,
+  daemon:start,
+  interface:process_requests(daemon).
+
+main(client) :-
+  interface:verify(client),
+  load_client_modules,
+  load_llm_modules,
+  interface:process_server(Host, Port),
+  kb:newinstance(knowledgebase(Host, Port)),
+  preference:init,
+  interface:process_requests(client).
+
+main(worker) :-
+  load_worker_modules,
+  load_llm_modules,
+  init_knowledgebase,
+  interface:process_server(Host, Port),
+  worker:start(Host, Port),
+  interface:process_requests(worker).
+
+main(server) :-
+  interface:verify(server),
+  main(standalone),
+  load_server_modules,
+  server:start_server,
+  at_halt(server:stop_server),
+  bonjour:advertise,
+  interface:process_requests(server).
+
+
+%! init_knowledgebase is det.
+%
+% Common knowledge base bootstrap shared by standalone, daemon,
+% and worker modes.
+
+init_knowledgebase :-
+  stats:newinstance(stat),
+  kb:newinstance(knowledgebase),
+  config:systemconfig(Config),
+  ensure_loaded(Config),
+  kb:load,
+  preference:init.
+
+
+% -----------------------------------------------------------------------------
 %  Main predicate
 % -----------------------------------------------------------------------------
 
-%! main(+Mode).
+%! main is det.
 %
-% The main predicate.
+% Entry point. Loads common modules, determines the operating mode
+% from command-line arguments, and calls main/1 for mode-specific
+% initialization and request processing.
 %
-% Mode is one of standalone, client or server
-%
-% We declare (as an example) the following repositories:
-%
-% - Gentoo Portage github repository
-% - SWI-prolog source code github repository
-% - Linus Torvalds, Linux source code Github repository
-%
-% These repositories are instantiated as Prolog classes.
-%
-% The instances have several public/protected/private methods available. For
-% example: you can sync the remote repository to a local repository, retrieve
-% metadata (like releases available) from the repository, query the metadata
-% available in this repository)
-%
-% @see Source/context extends Prolog with a declarative OO programming paradigm
-% @see Source/repository defines the repository class
+% @see interface:verify/1 for CLI flag verification
 
 main :-
   load_common_modules,
@@ -377,109 +434,3 @@ main :-
   world:load,
   interface:init_tty,
   main(Mode).
-
-
-main(ipc) :-
-  interface:argv(Options, _),
-  ( memberchk(shell(true), Options)
-  -> format(user_error,
-       'Error: --shell is not supported in ipc mode. Use --mode standalone --shell instead.~n', []),
-     halt(1)
-  ;  memberchk(status(true), Options)
-  -> ( daemon:status -> halt(0) ; halt(1) )
-  ;  memberchk(cmd(Cmd), Options), Cmd \= none
-  -> daemon:send_command(Cmd),
-     halt(0)
-  ;  config:daemon_socket_path(SocketPath),
-     ( \+ access_file(SocketPath, exist),
-       config:daemon_autostart(true)
-     -> daemon:fork_background(daemon)
-     ;  true
-     ),
-     daemon:connect(ExitCode),
-     halt(ExitCode)
-  ).
-
-
-main(daemon) :-
-  interface:argv(Options, _),
-  ( memberchk(background(true), Options)
-  -> daemon:fork_background(daemon),
-     halt(0)
-  ;  load_standalone_modules,
-     load_llm_modules,
-     stats:newinstance(stat),
-     kb:newinstance(knowledgebase),
-     config:systemconfig(Config),
-     ensure_loaded(Config),
-     kb:load,
-     preference:init,
-     daemon:start,
-     interface:process_requests(daemon)
-  ).
-
-
-main(client) :-
-  interface:argv(Options, _),
-  ( memberchk(status(true), Options)
-  -> interface:process_server(Host, Port),
-     ( catch(
-         ( tcp_socket(Socket),
-           tcp_connect(Socket, Host:Port),
-           tcp_close_socket(Socket) ),
-         _, fail)
-     -> format('Server reachable at ~w:~w~n', [Host, Port]),
-        halt(0)
-     ;  format('Server not reachable at ~w:~w~n', [Host, Port]),
-        halt(1)
-     )
-  ;  memberchk(cmd(Cmd), Options), Cmd \= none
-  -> format(user_error, 'Error: --cmd is not yet supported for client mode.~n', []),
-     halt(1)
-  ;  load_client_modules,
-     load_llm_modules,
-     interface:process_server(Host,Port),
-     kb:newinstance(knowledgebase(Host,Port)),
-     preference:init,
-     interface:process_requests(client)
-  ).
-
-
-main(standalone) :-
-  load_standalone_modules,
-  load_llm_modules,
-  stats:newinstance(stat),
-  kb:newinstance(knowledgebase),
-  config:systemconfig(Config),
-  ensure_loaded(Config),
-  kb:load,
-  preference:init,
-  interface:process_requests(standalone).
-
-
-main(worker) :-
-  load_worker_modules,
-  load_llm_modules,
-  stats:newinstance(stat),
-  kb:newinstance(knowledgebase),
-  config:systemconfig(Config),
-  ensure_loaded(Config),
-  kb:load,
-  preference:init,
-  interface:process_server(Host, Port),
-  worker:start(Host, Port),
-  interface:process_requests(worker).
-
-
-main(server) :-
-  interface:argv(Options, _),
-  ( memberchk(background(true), Options)
-  -> daemon:fork_background(server),
-     halt(0)
-  ;  main(standalone),
-     load_server_modules,
-     server:start_server,
-     at_halt(server:stop_server),
-     bonjour:advertise,
-     interface:process_requests(server)
-  ).

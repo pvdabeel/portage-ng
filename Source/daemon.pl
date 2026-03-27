@@ -526,6 +526,20 @@ daemon:send_command(Cmd) :-
   format(user_error, 'Unknown command: ~w. Use halt or relaunch.~n', [Cmd]).
 
 
+%! daemon:autostart is det.
+%
+% If no daemon socket exists and autostart is configured, fork a
+% background daemon. Otherwise succeed silently.
+
+daemon:autostart :-
+  config:daemon_socket_path(SocketPath),
+  \+ access_file(SocketPath, exist),
+  config:daemon_autostart(true),
+  !,
+  daemon:fork_background(daemon).
+daemon:autostart.
+
+
 %! daemon:relaunch is det.
 %
 % Convenience: stops the current daemon and starts a new one in background.
