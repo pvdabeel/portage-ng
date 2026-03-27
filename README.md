@@ -221,6 +221,7 @@ The portage-ng handbook is under construction. Topics covered:
 - [Dependency ordering](Documentation/doc-dependency-ordering.md)
 - [Context terms](Documentation/doc-context-terms.md)
 - [Contextual logic programming](Documentation/doc-contextual-logic-programming.md)
+- [Gentoo configuration](Documentation/doc-gentoo.md)
 - [LLM explainer](Documentation/doc-explainer.md)
 - [TLS certificates](Documentation/doc-tls-certificates.md)
 
