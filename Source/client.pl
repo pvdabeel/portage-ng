@@ -222,3 +222,19 @@ client:require_tls_files(LocalHostname, CaCert, ClientCert, ClientKey) :-
                       'If your hostname includes a .local suffix, ensure HOST matches `config:hostname/1`.\n'
                      ])
   ).
+
+
+% -----------------------------------------------------------------------------
+%  Server reachability
+% -----------------------------------------------------------------------------
+
+%! client:reachable(+Host, +Port) is semidet.
+%
+% Succeeds if a TCP connection to Host:Port can be established.
+
+client:reachable(Host, Port) :-
+  catch(
+    ( tcp_socket(Socket),
+      tcp_connect(Socket, Host:Port),
+      tcp_close_socket(Socket) ),
+    _, fail).

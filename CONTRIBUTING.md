@@ -9,7 +9,18 @@
    cd portage-ng
    ```
 
-2. **Prerequisites:** SWI-Prolog >= 9.3 (development version recommended).
+2. **Prerequisites:**
+
+   | Dependency | Required | Used for |
+   |------------|----------|----------|
+   | SWI-Prolog >= 9.3 | Yes | Runtime (development version recommended) |
+   | Bash >= 5 | Yes | Shell completions, wrapper scripts |
+   | Git | Yes | Version detection, worker snapshot sync |
+   | curl | Yes | Distfile downloading (`download.pl`) |
+   | OpenSSL CLI | Yes | Manifest hash verification (`mirror.pl`) |
+   | Python 3 | Recommended | Hard timeout watchdog, report scripts (`Reports/Scripts/`) |
+   | dns-sd | Optional | Bonjour/Zeroconf service discovery (distributed mode) |
+   | ldd / otool | Optional | ELF linkage analysis (`linkage.pl`; otool on macOS, ldd on Linux) |
 
 3. **Host configuration:** Copy the template to match your hostname:
 
@@ -20,30 +31,58 @@
    Edit the new file to set your local Portage tree path, VDB location,
    and distfiles directory. See `Source/Config/default.pl` for reference.
 
-4. **Run from source** using the dev wrapper (never `swipl` directly):
+4. **Set up shell aliases.** Add the following to your `~/.zshrc` or
+   `~/.bash_profile`, adjusting the paths to match your checkout location:
 
    ```bash
-   ./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --pretend app-editors/neovim
+   # Main alias (replace /path/to/prolog with your checkout directory)
+   alias portage-ng-dev="swipl -O \
+     --stack-limit=256G --table-space=256G --shared-table-space=256G \
+     -f /path/to/prolog/portage-ng.pl \
+     -p portage=/path/to/prolog \
+     -Dverbose_autoload=false \
+     -g main --"
+
+   # Debug alias (enables debug-level tracing)
+   alias portage-ng-debug="swipl -O \
+     --stack-limit=256G --table-space=256G --shared-table-space=256G \
+     -f /path/to/prolog/portage-ng.pl \
+     -p portage=/path/to/prolog \
+     -Dverbose_autoload=false -Ddebug=true \
+     -g main --"
    ```
+
+   Then reload your shell (`source ~/.zshrc`) or open a new terminal.
+
+5. **Verify** by running a quick pretend:
+
+   ```bash
+   portage-ng-dev --mode standalone --pretend app-editors/neovim
+   ```
+
+> **Note:** The repository also ships a
+> `./Source/Scripts/Wrapper/portage-ng-dev` script for CI and automated
+> tooling. For day-to-day development the shell alias above is preferred
+> because it uses your local SWI-Prolog build and avoids hard-coded paths.
 
 ## Development workflow
 
 ### Running the application
 
-Always use `portage-ng-dev` from the project root:
+Always use `portage-ng-dev` (never raw `swipl` with ad-hoc goals):
 
 ```bash
 # Interactive shell
-./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --shell
+portage-ng-dev --mode standalone --shell
 
 # Scripted session (preferred for debugging)
-./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --shell --timeout 60 <<'PL'
+portage-ng-dev --mode standalone --shell --timeout 60 <<'PL'
 prover:test_stats(portage).
 halt.
 PL
 
 # CI mode (non-interactive, exit codes for automation)
-./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --ci --pretend sys-apps/portage
+portage-ng-dev --mode standalone --ci --pretend sys-apps/portage
 ```
 
 ### Exit codes (`--ci` mode)
