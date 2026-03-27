@@ -19,11 +19,37 @@ BUILDDIR=$(shell pwd)
 help:     ## Show this help.
 	  @sed -ne '/@sed/!s/## //p' $(MAKEFILE_LIST)
 
+check:    ## Verify development environment (SWI-Prolog, shell aliases).
+	  @ok=true; \
+	  if ! command -v swipl >/dev/null 2>&1; then \
+	    echo "ERROR: swipl not found in PATH."; \
+	    echo "  Install SWI-Prolog >= 10.0.0: https://www.swi-prolog.org/download/devel"; \
+	    ok=false; \
+	  else \
+	    echo "OK: swipl found ($$(swipl --version 2>&1 | head -1))"; \
+	  fi; \
+	  if ! command -v portage-ng-dev >/dev/null 2>&1; then \
+	    echo "WARNING: portage-ng-dev not found as alias."; \
+	    echo "  Add the following to your ~/.zshrc or ~/.bash_profile:"; \
+	    echo ""; \
+	    echo "  alias portage-ng-dev=\"swipl -O \\\\"; \
+	    echo "    --stack-limit=32G \\\\"; \
+	    echo "    -f $(BUILDDIR)/portage-ng.pl \\\\"; \
+	    echo "    -p portage=$(BUILDDIR) \\\\"; \
+	    echo "    -Dverbose_autoload=false \\\\"; \
+	    echo "    -g main --\""; \
+	    echo ""; \
+	    echo "  Then reload your shell: source ~/.zshrc or ~/.bash_profile"; \
+	  else \
+	    echo "OK: portage-ng-dev found"; \
+	  fi; \
+	  if [ "$$ok" = false ]; then exit 1; fi
+
 ## all:      build & install
-all:	  build install 
+all:	  check build install 
 
 build:	  ## Build the application.
-	  swipl -O --stack_limit=256G -o $(TARGET)  -q -f portage-ng.pl -p portage=${BUILDDIR} -g main --stand_alone=true -c portage-ng.pl
+	  swipl -O --stack_limit=32G -o $(TARGET)  -q -f portage-ng.pl -p portage=${BUILDDIR} -g main --stand_alone=true -c portage-ng.pl
 
 install:  ## Install the application.
 	  $(SUDO) cp $(TARGET) /usr/local/bin
@@ -50,4 +76,4 @@ HOST?=$(shell hostname)
 certs:    ## Generate local CA + per-host client/server TLS certs (for --mode client/server). Usage: make certs HOST=mac-pro.local
 	  sh $(CERTDIR)/Scripts/generate.sh $(HOST)
 
-.PHONY: help all build install test test-overlay clean certs
+.PHONY: help check all build install test test-overlay clean certs
