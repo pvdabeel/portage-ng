@@ -78,4 +78,10 @@ HOST?=$(shell hostname)
 certs:    ## Generate local CA + per-host client/server TLS certs (for --mode client/server). Usage: make certs HOST=mac-pro.local
 	  sh $(CERTDIR)/Scripts/generate.sh $(HOST)
 
-.PHONY: help check all build install test test-overlay clean certs
+certs-check: ## Check TLS certificate expiry status for all hosts.
+	  @sh $(CERTDIR)/Scripts/generate.sh --check
+
+certs-renew: ## Renew expired/expiring TLS certificates for all hosts.
+	  sh $(CERTDIR)/Scripts/generate.sh --renew
+
+.PHONY: help check all build install test test-overlay clean certs certs-check certs-renew
