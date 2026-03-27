@@ -227,7 +227,7 @@ module:predicate_name(Arg1, Arg2) :-
       - 2 = any domain assumptions (e.g. missing/non-existent deps)
 
 - For resolver/debug target runs in this workflow, always include `--pretend` to avoid
-  mutating local state (for example `Source/Sets/world/*.local`).
+  mutating local state (for example `Source/Knowledge/Sets/world/*.local`).
 
 ### Preferred scripted workflow (here-doc “piping”)
 For quick iteration and for reproducible debugging, prefer running a *scripted* Prolog session via `--shell` and a here-doc:

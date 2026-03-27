@@ -220,7 +220,7 @@ config:pkg_directory('vm-linux.local',    '/var/db/pkg')                     :- 
 config:world_file(Filename) :-
   config:installation_dir(Dir),
   config:hostname(Hostname),
-  os:compose_path([Dir,'Source/Sets/world',Hostname],Filename).
+  os:compose_path([Dir,'Source/Knowledge/Sets/world',Hostname],Filename).
 
 
 % -----------------------------------------------------------------------------

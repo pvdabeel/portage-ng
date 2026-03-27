@@ -14,6 +14,6 @@ Knowledge/profile.raw
 Knowledge/embeddings.pl
 Knowledge/phase_stats.pl
 Knowledge/resume.pl
-Source/Sets/**/*.local
+Source/Knowledge/Sets/**/*.local
 __pycache__/
 *.pyc
