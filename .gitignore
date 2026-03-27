@@ -1,10 +1,6 @@
 Source/Archive
 Source/Config/Private/api_key.pl
 Source/Config/Private/passwords.pl
-Source/Config/Private/profile_use_generated.pl
-Source/Private/api_key.pl
-Source/Private/passwords.pl
-Source/Private/profile_use_generated.pl
 Source/Tests
 Source/Llm/Archive
 Source/Certificates/*-key.pem
