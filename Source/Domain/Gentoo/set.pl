@@ -103,6 +103,8 @@ load ::-
 save ::-
   ::file(File),
   with_mutex(set_file_mutex, (
+    file_directory_name(File, Dir),
+    ( exists_directory(Dir) -> true ; make_directory_path(Dir) ),
     atomic_list_concat([File, '.tmp'], TmpFile),
     tell(TmpFile),
     forall(::entry(E),

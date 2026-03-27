@@ -29,7 +29,7 @@ ebuild:invoke(cache,Location,Entry,Stream) :-
   eapi:packageversion(Package,Name,version(_,_,_,_,_,_,_)),
   atomic_list_concat([Location,'/',Category,"/",Name,"/",Package,'.ebuild'],Ebuild),
   process_set_method(vfork),
-  process_create(portage('Source/Ebuild/ebuild-depend.sh'),
+  process_create(portage('Source/Domain/Gentoo/Ebuild/ebuild-depend.sh'),
     ['--single',Ebuild,Location],
     [stdout(pipe(Stream)),stderr(null)]),
   !.
@@ -66,7 +66,7 @@ ebuild:entry_to_descriptor(Location, Entry, Descriptor) :-
 ebuild:invoke_batch(Location, Entries, Results) :-
   process_set_method(vfork),
   process_create(
-    portage('Source/Ebuild/ebuild-depend.sh'),
+    portage('Source/Domain/Gentoo/Ebuild/ebuild-depend.sh'),
     ['--batch', Location],
     [stdin(pipe(In)), stdout(pipe(Out)), stderr(null)]),
   set_stream(In, encoding(utf8)),
@@ -133,7 +133,7 @@ ebuild:coprocess_start(Location) :-
   -> true
   ; process_set_method(vfork),
     process_create(
-      portage('Source/Ebuild/ebuild-depend.sh'),
+      portage('Source/Domain/Gentoo/Ebuild/ebuild-depend.sh'),
       ['--server', Location],
       [stdin(pipe(In)), stdout(pipe(Out)), stderr(null), process(Pid)]),
     set_stream(In, encoding(utf8)),
