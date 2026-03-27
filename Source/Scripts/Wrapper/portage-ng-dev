@@ -230,7 +230,7 @@ fi
 
 # No hard time limit -> behave like a normal launcher.
 exec swipl -O \
-  --stack-limit=256G --table-space=256G --shared-table-space=256G \
+  --stack-limit=32G \
   -f "$ROOT_DIR/portage-ng.pl" \
   -p "portage=$ROOT_DIR" \
   -Dverbose_autoload=false \
