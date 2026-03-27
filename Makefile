@@ -28,6 +28,13 @@ build:	  ## Build the application.
 install:  ## Install the application.
 	  $(SUDO) cp $(TARGET) /usr/local/bin
 
+test:     ## Run PLUnit tests.
+	  ./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --shell <<'PL'
+	load_files(portage('Source/unittest'), [if(true)]).
+	run_tests.
+	halt.
+	PL
+
 CERTDIR=Source/Certificates
 HOST?=$(shell hostname)
 
