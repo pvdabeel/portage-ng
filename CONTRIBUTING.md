@@ -13,7 +13,7 @@
 
    | Dependency | Required | Used for |
    |------------|----------|----------|
-   | SWI-Prolog >= 9.3 | Yes | Runtime (development version recommended) |
+   | SWI-Prolog >= 10.0.0 | Yes | Runtime (development version recommended) |
    | Bash >= 5 | Yes | Shell completions, wrapper scripts |
    | Git | Yes | Version detection, worker snapshot sync |
    | curl | Yes | Distfile downloading (`download.pl`) |
@@ -37,33 +37,27 @@
    ```bash
    # Main alias (replace /path/to/prolog with your checkout directory)
    alias portage-ng-dev="swipl -O \
-     --stack-limit=256G --table-space=256G --shared-table-space=256G \
+     --stack-limit=32G  \
      -f /path/to/prolog/portage-ng.pl \
      -p portage=/path/to/prolog \
      -Dverbose_autoload=false \
      -g main --"
-
-   # Debug alias (enables debug-level tracing)
-   alias portage-ng-debug="swipl -O \
-     --stack-limit=256G --table-space=256G --shared-table-space=256G \
-     -f /path/to/prolog/portage-ng.pl \
-     -p portage=/path/to/prolog \
-     -Dverbose_autoload=false -Ddebug=true \
-     -g main --"
    ```
 
-   Then reload your shell (`source ~/.zshrc`) or open a new terminal.
+   Then reload your shell (`source ~/.zshrc` or `source ~/.bash_profile`) 
+   or open a new terminal.
 
-5. **Verify** by running a quick pretend:
+5. **Sync the knowledge base** (required before first use):
+
+   ```bash
+   portage-ng-dev --mode standalone --sync
+   ```
+
+6. **Verify** by running a quick pretend:
 
    ```bash
    portage-ng-dev --mode standalone --pretend app-editors/neovim
    ```
-
-> **Note:** The repository also ships a
-> `./Source/Scripts/Wrapper/portage-ng-dev` script for CI and automated
-> tooling. For day-to-day development the shell alias above is preferred
-> because it uses your local SWI-Prolog build and avoids hard-coded paths.
 
 ## Development workflow
 
