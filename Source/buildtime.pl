@@ -260,9 +260,10 @@ buildtime:heavy_category('x11-libs').
 
 %! buildtime:estimate_plan(+Actions, -WallSeconds, -CpuSeconds) is det.
 %
-% Estimate total build time for a list of Cat/Name actions.
-% WallSeconds accounts for parallel waves (max per wave).
-% CpuSeconds is the naive serial sum.
+% Estimate total build time for a flat list of Cat/Name actions.
+% Both WallSeconds and CpuSeconds are the serial sum (no wave
+% structure available). Use estimate_plan_waves/3 when a
+% wave-structured plan is available for parallel-aware estimates.
 
 buildtime:estimate_plan(Actions, WallSeconds, CpuSeconds) :-
   buildtime:load,

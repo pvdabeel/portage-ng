@@ -36,7 +36,21 @@ subprocess:spawn(Program, Args, Lines) :-
   process_create(path(Program), Args, [stdout(pipe(Out)), process(Pid)]),
   call_cleanup(
     reader:read_lines_to_strings(Out, Lines),
-    ( close(Out), process_wait(Pid, _) )
+    ( close(Out), subprocess:wait_with_timeout(Pid, _) )
+  ).
+
+
+%! subprocess:wait_with_timeout(+Pid, -Status) is det.
+%
+% Wait for a child process with a bounded timeout (default 300s).
+% If the process does not exit within the limit, kill it with SIGKILL
+% and collect the exit status.
+
+subprocess:wait_with_timeout(Pid, Status) :-
+  ( process_wait(Pid, Status, [timeout(300)])
+  -> true
+  ; process_kill(Pid, 9),
+    process_wait(Pid, Status)
   ).
 
 %! subprocess:spawn(+Program, +Args, :Parser, -Results)

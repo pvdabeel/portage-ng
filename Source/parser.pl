@@ -48,6 +48,9 @@ parser:invoke(Type, Repository://Entry, [Line|Lines], [KeyValue|KeyValues]) :-
   phrase(eapi:keyvalue(Type, Repository://Entry, KeyValue), Codes), !,
   parser:invoke(Type, Repository://Entry, Lines, KeyValues).
 
+parser:invoke(Type, Repository://Entry, [_Line|Lines], KeyValues) :-
+  parser:invoke(Type, Repository://Entry, Lines, KeyValues).
+
 
 %! parser:test(+Repository)
 %

@@ -35,6 +35,12 @@ test:     ## Run PLUnit tests.
 	halt.
 	PL
 
+test-overlay: ## Run overlay regression tests (requires loaded overlay repository).
+	  ./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --shell <<'PL'
+	test:run(cases).
+	halt.
+	PL
+
 CERTDIR=Source/Certificates
 HOST?=$(shell hostname)
 

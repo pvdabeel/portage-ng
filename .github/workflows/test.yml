@@ -1,0 +1,28 @@
+name: Tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  plunit:
+    name: PLUnit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SWI-Prolog
+        run: |
+          sudo apt-add-repository -y ppa:swi-prolog/stable
+          sudo apt-get update -q
+          sudo apt-get install -y swi-prolog
+
+      - name: Run PLUnit tests
+        run: |
+          swipl -p portage=. -f portage-ng.pl -g "
+            load_files(portage('Source/unittest'), [if(true)]),
+            run_tests,
+            halt(0)
+          " -t 'halt(1)'

@@ -176,6 +176,32 @@ portage-ng --mode standalone --shell
 portage-ng --mode standalone --sync
 ```
 
+### Development
+
+When running from a source checkout, use the dev wrapper instead of the
+installed binary:
+
+```bash
+./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --pretend sys-apps/portage
+```
+
+### CI mode
+
+Use `--ci` for non-interactive automation. Exit codes indicate plan quality:
+
+| Code | Meaning |
+|------|---------|
+| 0 | Plan completed with no assumptions |
+| 1 | Plan completed with prover cycle-break assumptions only |
+| 2 | Plan completed with domain assumptions (e.g. missing deps) |
+
+### Tests
+
+```bash
+make test            # PLUnit tests
+make test-overlay    # Overlay regression tests
+```
+
 For the full command reference, see the
 [`portage-ng(1)` manpage](Documentation/Manpage/portage-ng.1.md).
 

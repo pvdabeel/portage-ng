@@ -1514,7 +1514,8 @@ sampler:find_external_callsite_frame(Frame0, Frame) :-
   Frame = Frame0.
 sampler:find_external_callsite_frame(Frame0, Frame) :-
   sampler:frame_callsite(Frame0, File, _Line, PI),
-  ( File == '/Users/pvdabeel/Desktop/Prolog/Source/query.pl'
+  ( source_file(query:_, QueryFile),
+    File == QueryFile
     ; sampler:skip_callsite_pi(PI)
   ),
   !,
