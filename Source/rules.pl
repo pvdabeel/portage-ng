@@ -453,8 +453,6 @@ rule(Repository://Ebuild:uninstall?{_},[]) :-
   \+(preference:flag(emptytree)),
   query:search(installed(true),Repository://Ebuild),!.
 
-% Note: this may leave the Model and Proof for the other packages incomplete - todo: implement depclean.
-
 
 % -----------------------------------------------------------------------------
 %  Rule: Update target
@@ -562,10 +560,6 @@ rule(Repository://Ebuild:downgrade?{Context},Conditions) :-
 % - it is reportedly installed, and the emptytree flag is not set,
 % - a higher version is available,
 % - the accept_keywords filter is satisfied.
-
-% Upgrade logic will be introduced later (world/set upgrades + --deep).
-
-% todo: deep
 
 
 % =============================================================================

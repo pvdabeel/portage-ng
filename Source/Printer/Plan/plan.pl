@@ -2602,7 +2602,7 @@ plan:print_removals(RequiredInstalled) :-
              format('  ~w/~w-~w~n', [C, N, V])
            ))
   ),
-  depclean:print_uninstall_order(Removable),
+  plan:print_uninstall_order(Removable),
   plan:print_linkage_risks(Installed, Removable),
   nl.
 
