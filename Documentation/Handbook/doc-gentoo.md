@@ -131,7 +131,7 @@ automatically.
 Run `--sync` to generate `Knowledge/profile.qlf`:
 
 ```sh
-./Source/System/Scripts/Wrapper/portage-ng-dev --mode standalone --sync
+./Source/Application/System/Scripts/Wrapper/portage-ng-dev --mode standalone --sync
 ```
 
 This calls `profile:cache_save` after syncing the KB, which walks the profile

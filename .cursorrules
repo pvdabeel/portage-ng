@@ -11,13 +11,13 @@ See cache.pl for the datastructure. The actual data is contained in Knowledge/kb
 - `Source/Domain/Gentoo/eapi.pl`: a Prolog DCG grammar to read md5-cache syntax
 - `Source/Domain/Gentoo/rules.pl`: domain specific (Gentoo) specific rules handling dependencies, interpreting use flags, PDEPEND hooks, etc.
 - `Source/Domain/Gentoo/vdb.pl`: a repository containing information about installed ebuilds
-- `Source/Pipeline/sampler.pl`: performance sampling and instrumentation (hook perf, test_stats counters, ctx_union sampling)
-- `Source/System/subprocess.pl`: generic external process spawning and dns-sd interface
-- `Source/interface.pl`: CLI option parsing, TTY init, request dispatching
-- `Source/Mode/cluster.pl`: high-level orchestration for distributed proving across workers
-- `Source/Mode/worker.pl`: compute node for distributed proving (polls server for jobs)
-- `Source/Mode/server.pl`: Pengine HTTP server + job/result queues for distributed proving
-- `Source/Llm/semantic.pl`: semantic (vector) search over the knowledge base via Ollama embeddings
+- `Source/Application/Performance/sampler.pl`: performance sampling and instrumentation (hook perf, test_stats counters, ctx_union sampling)
+- `Source/Application/System/subprocess.pl`: generic external process spawning and dns-sd interface
+- `Source/Application/interface.pl`: CLI option parsing, TTY init, request dispatching
+- `Source/Application/Mode/cluster.pl`: high-level orchestration for distributed proving across workers
+- `Source/Application/Mode/worker.pl`: compute node for distributed proving (polls server for jobs)
+- `Source/Application/Mode/server.pl`: Pengine HTTP server + job/result queues for distributed proving
+- `Source/Application/Llm/semantic.pl`: semantic (vector) search over the knowledge base via Ollama embeddings
 - `Source/Pipeline/Builder/buildtime.pl`: build time estimation from VDB sizes and emerge.log history
 
 
@@ -90,12 +90,12 @@ When testing changes to the learned constraint mechanism, ALWAYS verify:
   Use concatenated lowercase words (e.g. `gentoo.pl`, `knowledgebase.pl`).
   Exception: `portage-ng.pl` (project entry point / name).
 - Prolog module names follow the same rule (e.g. `:- module(gentoo, [])`).
-- Subdirectory names under `Source/` may use CamelCase (e.g. `Domain/`, `Config/`, `Pipeline/`).
+- Subdirectory names under `Source/` may use CamelCase (e.g. `Application/`, `Domain/`, `Config/`, `Pipeline/`).
 
 
 ## Source file documentation style
 
-Every `.pl` source file follows a strict layout. Use `Source/System/bonjour.pl` as the
+Every `.pl` source file follows a strict layout. Use `Source/Application/System/bonjour.pl` as the
 canonical reference.
 
 ### 1. File header (block comment)
@@ -218,9 +218,9 @@ module:predicate_name(Arg1, Arg2) :-
 ## How to run (IMPORTANT)
 - Do NOT run ad-hoc `swipl -g "..."` snippets; they often miss required operator defs, libraries, and module load order.
 - Always launch via the project wrapper (project root):
-  - `./Source/System/Scripts/Wrapper/portage-ng-dev --mode standalone --pretend <target>`
-  - `./Source/System/Scripts/Wrapper/portage-ng-dev --mode standalone --shell`
-  - Non-interactive / CI-style: `./Source/System/Scripts/Wrapper/portage-ng-dev --mode standalone --ci --pretend <target>`
+  - `./Source/Application/System/Scripts/Wrapper/portage-ng-dev --mode standalone --pretend <target>`
+  - `./Source/Application/System/Scripts/Wrapper/portage-ng-dev --mode standalone --shell`
+  - Non-interactive / CI-style: `./Source/Application/System/Scripts/Wrapper/portage-ng-dev --mode standalone --ci --pretend <target>`
     Exit codes:
       - 0 = no assumptions
       - 1 = only prover cycle-break assumptions
@@ -233,7 +233,7 @@ module:predicate_name(Arg1, Arg2) :-
 For quick iteration and for reproducible debugging, prefer running a *scripted* Prolog session via `--shell` and a here-doc:
 
 ```sh
-./Source/System/Scripts/Wrapper/portage-ng-dev --mode standalone --shell --timeout 60 <<'PL'
+./Source/Application/System/Scripts/Wrapper/portage-ng-dev --mode standalone --shell --timeout 60 <<'PL'
 prover:test_stats(portage).
 % Any other queries you want:
 % prover:test_stats_pkgs(portage, ['kde-apps'-'kde-apps-meta']).

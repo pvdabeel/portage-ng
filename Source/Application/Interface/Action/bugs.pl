@@ -7,7 +7,7 @@
 % Proves the given targets and prints only the domain-assumption bug report
 % drafts (Gentoo Bugzilla style), without rendering the full plan.
 %
-% Example: Source/System/Scripts/Wrapper/portage-ng-dev --mode standalone --bugs ghc
+% Example: Source/Application/System/Scripts/Wrapper/portage-ng-dev --mode standalone --bugs ghc
 
 process_bugs([], _Options) :-
   !,

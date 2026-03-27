@@ -26,11 +26,11 @@ digraph portage_ng_architecture {
 
   // =========================================================================
   //  LAYER 2 — Configuration & Infrastructure
-  //            Source/ root · Logic/ · Security/ · System/ · Output/
+  //            Source/ root · Logic/ · Application/Security/ · Application/System/ · Application/Output/
   // =========================================================================
 
   subgraph cluster_infra {
-    label="Configuration & Infrastructure\nSource/ root · Logic/ · Security/ · System/ · Output/ · Knowledge/";
+    label="Configuration & Infrastructure\nSource/ root · Logic/ · Application/Security/ · Application/System/ · Application/Output/ · Knowledge/";
     color="#888888";
     fontcolor="#888888";
     style=rounded;
@@ -38,15 +38,15 @@ digraph portage_ng_architecture {
     config   [shape=box, style=filled, fillcolor="#e8e8e8",
               label="config.pl  [Source/]\nPaths, hostname, ports,\ngraph directory, TTY size"];
     os_mod   [shape=box, style=filled, fillcolor="#e8e8e8",
-              label="os.pl  [System/]\nCross-platform OS interaction\n(locks, filesystem)"];
+              label="os.pl  [Application/System/]\nCross-platform OS interaction\n(locks, filesystem)"];
     context  [shape=box, style=filled, fillcolor="#e8e8e8",
               label="context.pl  [Logic/]\nDeclarative OOP framework\n(classes, instances, inheritance)"];
     message  [shape=box, style=filled, fillcolor="#e8e8e8",
-              label="message.pl  [Output/]\nPretty-printing, debug\nmessaging, formatting"];
+              label="message.pl  [Application/Output/]\nPretty-printing, debug\nmessaging, formatting"];
     stat     [shape=box, style=filled, fillcolor="#e8e8e8",
               label="stat.pl  [Knowledge/]\nProgress tracking,\ntiming, statistics"];
     sandbox  [shape=box, style=filled, fillcolor="#e8e8e8",
-              label="sandbox.pl  [Security/]\nSafe predicate\ndeclarations"];
+              label="sandbox.pl  [Application/Security/]\nSafe predicate\ndeclarations"];
   }
 
   // =========================================================================
@@ -283,21 +283,21 @@ digraph portage_ng_architecture {
 
   // =========================================================================
   //  LAYER 7 — Interface / Printer / Output
-  //            Source/interface.pl · Interface/ · Output/ · Pipeline/Printer/
+  //            Application/interface.pl · Application/Interface/ · Application/Output/ · Pipeline/Printer/
   // =========================================================================
 
   subgraph cluster_output {
-    label="Interface & Output\nSource/interface.pl · Interface/ · Output/ · Pipeline/Printer/";
+    label="Interface & Output\nApplication/interface.pl · Application/Interface/ · Application/Output/ · Pipeline/Printer/";
     color="#555555";
     fontcolor="#555555";
     style=rounded;
 
     interface [shape=box, style=filled, fillcolor="#eeeeee",
-               label="interface.pl + Interface/  [Source/]\n─────────────────────────────\nCLI: spec, argv, flags, verify\n+ action.pl → 15 Action/ handlers\n  (sync, graph, merge, build,\n   search, info, upgrade, …)\n+ target.pl (target resolution)\nModes: --pretend, --graph,\n  --shell, --sync, --ci\nExit codes: 0/1/2"];
+               label="interface.pl + Interface/  [Application/]\n─────────────────────────────\nCLI: spec, argv, flags, verify\n+ action.pl → 15 Action/ handlers\n  (sync, graph, merge, build,\n   search, info, upgrade, …)\n+ target.pl (target resolution)\nModes: --pretend, --graph,\n  --shell, --sync, --ci\nExit codes: 0/1/2"];
     printer [shape=box, style=filled, fillcolor="#eeeeee",
              label="printer.pl + Printer/  [Pipeline/]\n─────────────────────────────\nStep-by-step plan with actions\nReason-aware assumption display:\n  version_conflict, slot_unsatisfied,\n  keyword_filtered, masked, missing,\n  unsatisfied_constraints, …\nBlockers, cycle-breaks\nSuggestions (unmask/keyword/USE)\nTree issue contextualisation\nDownload size totals\nUSE flag display\n+ Plan/ Build/ News/ index\n  info stats state"];
     grapher [shape=box, style=filled, fillcolor="#eeeeee",
-             label="grapher.pl + Grapher/  [Output/]\n─────────────────────────────\nIterates all targets\n--graph full / --graph partial\nWrites .merge files\nParallel via worker threads\n+ Report/report.pl"];
+             label="grapher.pl + Grapher/  [Application/Output/]\n─────────────────────────────\nIterates all targets\n--graph full / --graph partial\nWrites .merge files\nParallel via worker threads\n+ Report/report.pl"];
     terminal [shape=note, label="Terminal output\nor .merge files\n(Graph directory)"];
   }
 
@@ -315,9 +315,9 @@ digraph portage_ng_architecture {
     builder [shape=box, style=filled, fillcolor="#f5e6d0",
              label="builder.pl + Builder/  [Pipeline/]\nExecutes plans: build steps,\nebuild phases, downloads\n+ download.pl, jobserver.pl,\n  snapshot.pl, buildtime.pl"];
     worker  [shape=box, style=filled, fillcolor="#f5e6d0",
-             label="worker.pl  [Mode/]\nMulti-threaded worker pool;\njob queues for parallel proofs"];
+             label="worker.pl  [Application/Mode/]\nMulti-threaded worker pool;\njob queues for parallel proofs"];
     script  [shape=box, style=filled, fillcolor="#f5e6d0",
-             label="script.pl  [System/]\nExecutes scripts from\nSystem/Scripts/ directory"];
+             label="script.pl  [Application/System/]\nExecutes scripts from\nApplication/System/Scripts/"];
     depclean [shape=box, style=filled, fillcolor="#f5e6d0",
               label="depclean.pl  [Domain/Gentoo/]\nProof-based depclean;\nfinds removable packages"];
     kahn     [shape=box, style=filled, fillcolor="#f5e6d0",
@@ -325,27 +325,27 @@ digraph portage_ng_architecture {
   }
 
   // =========================================================================
-  //  LAYER 9 — Network / Distributed  [Mode/ + Llm/ + System/]
+  //  LAYER 9 — Network / Distributed  [Application/Mode/ + Application/Llm/ + Application/System/]
   // =========================================================================
 
   subgraph cluster_network {
-    label="Network & Distributed  [Mode/ + Llm/ + System/]";
+    label="Network & Distributed  [Application/Mode/ + Application/Llm/ + Application/System/]";
     color="#447799";
     fontcolor="#447799";
     style=rounded;
 
     server  [shape=box, style=filled, fillcolor="#dde8f0",
-             label="server.pl  [Mode/]\nPengine HTTP server;\nendpoints: /sync, /prove,\n/save, /load, /plan"];
+             label="server.pl  [Application/Mode/]\nPengine HTTP server;\nendpoints: /sync, /prove,\n/save, /load, /plan"];
     client  [shape=box, style=filled, fillcolor="#dde8f0",
-             label="client.pl  [Mode/]\nPengine client;\nremote predicate calls"];
+             label="client.pl  [Application/Mode/]\nPengine client;\nremote predicate calls"];
     stubs   [shape=box, style=filled, fillcolor="#dde8f0",
-             label="stubs.pl  [Mode/]\nMode-specific stubs;\navoids undefined errors"];
+             label="stubs.pl  [Application/Mode/]\nMode-specific stubs;\navoids undefined errors"];
     bonjour [shape=box, style=filled, fillcolor="#dde8f0",
-             label="bonjour.pl  [System/]\nmDNS service discovery;\nauto-detect cluster nodes"];
+             label="bonjour.pl  [Application/System/]\nmDNS service discovery;\nauto-detect cluster nodes"];
     cluster [shape=box, style=filled, fillcolor="#dde8f0",
-             label="cluster.pl  [Mode/]\nDistributed proving;\njob/result queues\nacross nodes"];
+             label="cluster.pl  [Application/Mode/]\nDistributed proving;\njob/result queues\nacross nodes"];
     llm     [shape=box, style=filled, fillcolor="#dde8f0",
-             label="llm.pl [Source/] + Llm/\nLLM integration (claude, chatgpt,\ngemini, grok, ollama)\n+ explain.pl, semantic.pl\nStreaming, code execution,\nerror explanation"];
+             label="llm.pl + Llm/  [Application/]\nLLM integration (claude, chatgpt,\ngemini, grok, ollama)\n+ explain.pl, semantic.pl\nStreaming, code execution,\nerror explanation"];
   }
 
   // =========================================================================

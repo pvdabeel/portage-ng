@@ -28,7 +28,7 @@ This file declares a predicate to execute a script inside the scripts directory
 
 script:exec(S,Args,Env,Stream) :-
   !,
-  atomic_list_concat(['Source/System/Scripts/',S],Script),
+  atomic_list_concat(['Source/Application/System/Scripts/',S],Script),
   process_set_method(vfork),
   process_create(portage(Script),Args,[stdout(pipe(Stream)),stderr(null)|Env]),
   !.
@@ -43,7 +43,7 @@ script:exec(S,Args,Env,Stream) :-
 
 script:exec_streaming(S,Args,Env) :-
   !,
-  atomic_list_concat(['Source/System/Scripts/',S],Script),
+  atomic_list_concat(['Source/Application/System/Scripts/',S],Script),
   process_set_method(vfork),
   process_create(portage(Script),Args,[stdout(pipe(Stream)),process(Pid)|Env]),
   set_stream(Stream,buffer(false)),
@@ -80,7 +80,7 @@ script:stream_prefix_chars(Stream,BOL) :-
 
 script:exec(S,Args,Env) :-
   !,
-  atomic_list_concat(['Source/System/Scripts/',S],Script),
+  atomic_list_concat(['Source/Application/System/Scripts/',S],Script),
   process_set_method(vfork),
   process_create(portage(Script),Args,[stdout(std),stderr(std)|Env]),
   !.
@@ -101,7 +101,7 @@ script:exec(S,Args) :-
 
 script:exec(S,Var) :-
   \+ is_list(Var),!,
-  atomic_list_concat(['Source/System/Scripts/',S],Script),
+  atomic_list_concat(['Source/Application/System/Scripts/',S],Script),
   process_set_method(vfork),
   process_create(portage(Script),[],[stdout(pipe(Out)),stderr(std)]),
   read_string(Out,"\n","\r",_,Var),

@@ -1,8 +1,6 @@
-Source/Archive
 Source/Config/Private/api_key.pl
 Source/Config/Private/passwords.pl
 Source/Tests
-Source/Llm/Archive
 Certificates/*-key.pem
 Certificates/cakey.pem
 Certificates/cacert.srl
