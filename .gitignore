@@ -1,6 +1,7 @@
 Source/Archive
 Source/Config/Private/api_key.pl
 Source/Config/Private/passwords.pl
+Source/Config/Private/profile_use_generated.pl
 Source/Tests
 Source/Llm/Archive
 Source/Certificates/*-key.pem
@@ -15,3 +16,5 @@ Knowledge/embeddings.pl
 Knowledge/phase_stats.pl
 Knowledge/resume.pl
 Source/Sets/**/*.local
+__pycache__/
+*.pyc

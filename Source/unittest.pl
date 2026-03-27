@@ -11,8 +11,8 @@
 /** <module> UNITTEST
 PLUnit-based unit tests for core modules.
 
-Covers pure-logic predicates in eapi, version_domain, constraint, planner,
-and scheduler that can be tested without a loaded knowledge base.
+Covers pure-logic predicates in eapi, version_domain, and constraint
+that can be tested without a loaded knowledge base.
 
 Run via the project wrapper:
 
@@ -725,3 +725,167 @@ test(non_slot_passthrough, [true(I == depend(foo))]) :-
   eapi:normalize_entry_metadata(depend, depend(foo), I).
 
 :- end_tests(eapi_normalize_metadata).
+
+
+% =============================================================================
+%  Kahn topological sort tests
+% =============================================================================
+
+:- begin_tests(kahn_toposort).
+
+test(empty_graph, [true(Order-Cyclic == []-false)]) :-
+  empty_assoc(E),
+  kahn:toposort([], E, Order, Cyclic).
+
+test(single_node, [true(Order-Cyclic == [a]-false)]) :-
+  list_to_assoc([a-[]], E),
+  kahn:toposort([a], E, Order, Cyclic).
+
+test(linear_chain, [true(Order-Cyclic == [c,b,a]-false)]) :-
+  list_to_assoc([a-[b], b-[c], c-[]], E),
+  kahn:toposort([a,b,c], E, Order, Cyclic).
+
+test(diamond_dag, [true(Cyclic == false)]) :-
+  list_to_assoc([a-[b,c], b-[d], c-[d], d-[]], E),
+  kahn:toposort([a,b,c,d], E, Order, Cyclic),
+  last(Order, a),
+  Order = [d|_].
+
+test(two_component, [true(Cyclic == false)]) :-
+  list_to_assoc([a-[b], b-[], x-[y], y-[]], E),
+  kahn:toposort([a,b,x,y], E, Order, Cyclic),
+  length(Order, 4).
+
+test(simple_cycle, [true(Cyclic == true)]) :-
+  list_to_assoc([a-[b], b-[a]], E),
+  kahn:toposort([a,b], E, Order, Cyclic),
+  length(Order, 2).
+
+test(partial_cycle, [true(Cyclic == true)]) :-
+  list_to_assoc([a-[b], b-[c], c-[b], d-[]], E),
+  kahn:toposort([a,b,c,d], E, Order, Cyclic),
+  memberchk(d, Order).
+
+test(self_loop, [true(Cyclic == true)]) :-
+  list_to_assoc([a-[a]], E),
+  kahn:toposort([a], E, Order, Cyclic),
+  length(Order, 1).
+
+:- end_tests(kahn_toposort).
+
+
+% =============================================================================
+%  Sanitize validation tests
+% =============================================================================
+
+:- begin_tests(sanitize_path).
+
+test(valid_component) :-
+  sanitize:safe_path_component(hello).
+
+test(valid_component_with_dot) :-
+  sanitize:safe_path_component('file.txt').
+
+test(reject_empty, [fail]) :-
+  sanitize:safe_path_component('').
+
+test(reject_slash, [fail]) :-
+  sanitize:safe_path_component('a/b').
+
+test(reject_dotdot, [fail]) :-
+  sanitize:safe_path_component('..').
+
+test(reject_embedded_dotdot, [fail]) :-
+  sanitize:safe_path_component('foo/../bar').
+
+test(reject_non_atom, [fail]) :-
+  sanitize:safe_path_component(123).
+
+:- end_tests(sanitize_path).
+
+
+:- begin_tests(sanitize_filename).
+
+test(valid_filename) :-
+  sanitize:safe_filename('package-1.0.ebuild').
+
+test(reject_directory_traversal, [fail]) :-
+  sanitize:safe_filename('../etc/passwd').
+
+:- end_tests(sanitize_filename).
+
+
+:- begin_tests(sanitize_category).
+
+test(valid_category) :-
+  sanitize:safe_portage_category('sys-apps').
+
+test(reject_slash, [fail]) :-
+  sanitize:safe_portage_category('sys/apps').
+
+test(reject_empty, [fail]) :-
+  sanitize:safe_portage_category('').
+
+:- end_tests(sanitize_category).
+
+
+:- begin_tests(sanitize_name).
+
+test(valid_name) :-
+  sanitize:safe_portage_name(portage).
+
+test(reject_traversal, [fail]) :-
+  sanitize:safe_portage_name('../../etc').
+
+:- end_tests(sanitize_name).
+
+
+:- begin_tests(sanitize_snapshot).
+
+test(valid_id) :-
+  sanitize:safe_snapshot_id('snap-2026-01-01').
+
+test(reject_slash, [fail]) :-
+  sanitize:safe_snapshot_id('snap/bad').
+
+test(reject_backslash, [fail]) :-
+  sanitize:safe_snapshot_id('snap\\bad').
+
+test(reject_dotdot, [fail]) :-
+  sanitize:safe_snapshot_id('snap..bad').
+
+:- end_tests(sanitize_snapshot).
+
+
+:- begin_tests(sanitize_phase).
+
+test(known_phase) :-
+  sanitize:safe_phase(compile).
+
+test(all_phases) :-
+  forall(member(P, [clean,setup,unpack,prepare,configure,compile,
+                    test,install,package,merge,unmerge,
+                    preinst,postinst,prerm,postrm,config,info,nofetch]),
+         sanitize:safe_phase(P)).
+
+test(unknown_phase, [fail]) :-
+  sanitize:safe_phase(bogus).
+
+:- end_tests(sanitize_phase).
+
+
+:- begin_tests(sanitize_daemon_request).
+
+test(shutdown) :-
+  sanitize:safe_daemon_request(shutdown).
+
+test(valid_request) :-
+  sanitize:safe_daemon_request(request([foo, bar], 80, 24)).
+
+test(valid_request_with_env) :-
+  sanitize:safe_daemon_request(request([foo], 80, 24, [a,b])).
+
+test(reject_bad_args, [fail]) :-
+  sanitize:safe_daemon_request(request(notalist, 80, 24)).
+
+:- end_tests(sanitize_daemon_request).

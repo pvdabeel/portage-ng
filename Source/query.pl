@@ -521,7 +521,7 @@ compile_query_compound(select(subslot,notequal,S), Repo://Id,
 compile_query_compound(select(subslot,equal,S), Repo://Id,
   cache:entry_metadata(Repo,Id,slot,subslot(S))) :- !.
 
-compile_query_compound(select(slot,tilde,S), Repo://Id,
+compile_query_compound(select(subslot,tilde,S), Repo://Id,
   ( cache:entry_metadata(Repo,Id,slot,subslot(M)),
     dwim_match(S,M) ) ) :- !.
 

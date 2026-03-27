@@ -182,7 +182,7 @@ worker:poll_once(Host, Port, Continue) :-
 
 worker:execute_job(Job, Result) :-
   ( catch(
-      ( prover:prove(Job, [], Proof, [], Model, [], Cons, [], Triggers),
+      ( prover:prove(Job, t, Proof, t, Model, t, Cons, t, Triggers),
         !,
         planner:plan(Proof, Triggers, [], Plan0, Remainder0),
         scheduler:schedule(Proof, Triggers, Plan0, Remainder0, Plan, _Remainder),

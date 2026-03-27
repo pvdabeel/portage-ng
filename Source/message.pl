@@ -246,10 +246,7 @@ user:goal_expansion(label(_),
 % -----------------------------------------------------------------------------
 
 user:goal_expansion(msg(Scroll,Level,Msg),
-  ( message:label(Level),
-    Output,
-    Post,
-    Continue )) :-
+  Expanded) :-
   ( ( is_list(Msg)
       -> Output = (atomic_list_concat(Msg,String),format('~a', [String]))
       ;  Output = (format(Msg,[])) ),
@@ -260,7 +257,12 @@ user:goal_expansion(msg(Scroll,Level,Msg),
       ;  Post = (message:color(normal),nl) ),
     ( Level == failure
       -> Continue = fail
-      ;  Continue = true ) ).
+      ;  Continue = true ),
+    Body = ( message:label(Level), Output, Post, Continue ),
+    ( memberchk(Level, [failure, warning])
+      -> Expanded = Body
+      ;  Expanded = ( \+ preference:flag(quiet) -> Body ; Continue )
+    ) ).
 
 user:goal_expansion(msg(Level,Msg),        msg(false,Level,Msg)).
 user:goal_expansion(scroll_msg(Level,Msg), msg(true,Level,Msg)).
