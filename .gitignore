@@ -3,9 +3,9 @@ Source/Config/Private/api_key.pl
 Source/Config/Private/passwords.pl
 Source/Tests
 Source/Llm/Archive
-Source/Certificates/*-key.pem
-Source/Certificates/cakey.pem
-Source/Certificates/cacert.srl
+Certificates/*-key.pem
+Certificates/cakey.pem
+Certificates/cacert.srl
 todo
 Knowledge/kb.qlf
 Knowledge/kb.raw

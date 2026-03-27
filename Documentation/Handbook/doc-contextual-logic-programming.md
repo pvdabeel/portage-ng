@@ -73,7 +73,7 @@ CONTEXT defines several operators for interacting with contexts:
 
 ## Example: a Person class
 
-The following example (from [`Source/Examples/person.pl`](../Source/Examples/person.pl))
+The following example (from [`Source/Context/person.pl`](../Source/Context/person.pl))
 shows a simple class with public, protected, and private members:
 
 ```prolog
@@ -145,5 +145,5 @@ constraint propagation across the dependency graph.
 
 - A. Zeller, *Unified Versioning through Feature Logic*, 1997
 - [`Source/context.pl`](../Source/context.pl) -- full implementation
-- [`Documentation/doc-context-terms.md`](doc-context-terms.md) -- how context
+- [`Documentation/Handbook/doc-context-terms.md`](doc-context-terms.md) -- how context
   terms flow through the prover

@@ -4,9 +4,9 @@
 # portage-ng's mutual-TLS client/server mode.
 #
 # Usage:
-#   sh Source/Certificates/generate.sh <hostname>
+#   sh Certificates/Scripts/generate.sh <hostname>
 #
-# Outputs (in Source/Certificates/):
+# Outputs (in Certificates/):
 #   - cakey.pem
 #   - cacert.pem
 #   - <hostname>.server-key.pem
@@ -23,7 +23,7 @@ set -eu
 HOST="${1:-}"
 if [ -z "${HOST}" ]; then
   echo "error: missing hostname argument" >&2
-  echo "usage: sh Source/Certificates/generate.sh <hostname>" >&2
+  echo "usage: sh Certificates/Scripts/generate.sh <hostname>" >&2
   exit 2
 fi
 

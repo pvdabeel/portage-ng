@@ -2,7 +2,7 @@
 
 When running in `--mode server` or `--mode client`, portage-ng uses mutual TLS
 authentication. It expects a local CA and per-host certificates under
-`Source/Certificates/`:
+`Certificates/`:
 
 - `cacert.pem` / `cakey.pem`
 - `<hostname>.server-cert.pem` / `<hostname>.server-key.pem`

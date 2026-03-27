@@ -72,7 +72,7 @@ test-overlay: ## Run overlay regression tests (requires loaded overlay repositor
 clean:    ## Remove the built binary.
 	  rm -f $(TARGET)
 
-CERTDIR=Source/Certificates
+CERTDIR=Certificates
 HOST?=$(shell hostname)
 
 certs:    ## Generate local CA + per-host client/server TLS certs (for --mode client/server). Usage: make certs HOST=mac-pro.local

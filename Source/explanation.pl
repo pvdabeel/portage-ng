@@ -16,7 +16,7 @@ introspection layer in `explainer.pl`. It implements hook enrichment
 (`why_in_plan_hook/2`, `why_in_proof_hook/2`, `why_assumption_hook/2`) and
 assumption diagnosis (`assumption_reason_for_grouped_dep/6`).
 
-See `Documentation/doc-explainer.md` for architecture, usage examples, and the
+See `Documentation/Handbook/doc-explainer.md` for architecture, usage examples, and the
 full list of assumption reason values.
 */
 

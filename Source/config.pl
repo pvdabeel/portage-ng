@@ -358,7 +358,7 @@ config:initialize_cacert :-
 
 config:certificate(Certificate,Fullpath) :-
   config:installation_dir(Dir),
-  os:compose_path([Dir,'Source/Certificates',Certificate],Fullpath).
+  os:compose_path([Dir,'Certificates',Certificate],Fullpath).
 
 
 %! config:certificate(+Hostname,+Certificate,-Fullpath)
@@ -376,7 +376,7 @@ config:certificate(Hostname,Certificate,FullPath) :-
 
 config:digest_passwordfile(Filename) :-
   config:installation_dir(Dir),
-  os:compose_path([Dir,'Source/Certificates/passwordfile'],Filename).
+  os:compose_path([Dir,'Certificates/passwordfile'],Filename).
 
 
 % -----------------------------------------------------------------------------
@@ -558,7 +558,7 @@ config:print_blockers(gentoo).
 % - .proof.css   (used by Scripts/*/print-aha to render proof output)
 % - .meslo.ttf   (font used by proof rendering)
 %
-% Sources are configurable here (defaults are in Documentation/Assets/).
+% Sources are configurable here (defaults are in Documentation/Assets/Graph/).
 
 
 %! config:graph_asset_source(+Key, -SourcePath)
@@ -567,15 +567,15 @@ config:print_blockers(gentoo).
 
 config:graph_asset_source(portage_ng_css, Source) :-
   config:installation_dir(Dir),
-  os:compose_path([Dir,'Documentation/Assets/portage-ng.css'], Source).
+  os:compose_path([Dir,'Documentation/Assets/Graph/portage-ng.css'], Source).
 
 config:graph_asset_source(proof_css, Source) :-
   config:installation_dir(Dir),
-  os:compose_path([Dir,'Documentation/Assets/.proof.css'], Source).
+  os:compose_path([Dir,'Documentation/Assets/Graph/.proof.css'], Source).
 
 config:graph_asset_source(meslo_ttf, Source) :-
   config:installation_dir(Dir),
-  os:compose_path([Dir,'Documentation/Assets/.meslo.ttf'], Source).
+  os:compose_path([Dir,'Documentation/Assets/Graph/.meslo.ttf'], Source).
 
 
 % -----------------------------------------------------------------------------

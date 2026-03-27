@@ -145,7 +145,7 @@ See the full architecture diagram: [`Documentation/Diagrams/architecture.svg`](D
 
 
 For a deeper comparison of the reasoning models, see
-[`Documentation/doc-resolver-comparison.md`](Documentation/doc-resolver-comparison.md).
+[`Documentation/Handbook/doc-resolver-comparison.md`](Documentation/Handbook/doc-resolver-comparison.md).
 
 ## Unique capabilities
 
@@ -156,7 +156,7 @@ For a deeper comparison of the reasoning models, see
 - **LLM integration** -- `--explain` / `--llm` for AI-assisted plan explanation
 - **Interactive Prolog shell** -- `--shell` for live querying of the knowledge base
 - **Graph generation** -- interactive SVG dependency graphs via Graphviz
-- **Contextual logic programming** -- an object-oriented paradigm for Prolog with contexts, classes, and inheritance ([documentation](Documentation/doc-contextual-logic-programming.md))
+- **Contextual logic programming** -- an object-oriented paradigm for Prolog with contexts, classes, and inheritance ([documentation](Documentation/Handbook/doc-contextual-logic-programming.md))
 
 ## Quick start
 
@@ -243,13 +243,13 @@ For the full command reference, see the
 
 The portage-ng handbook is under construction. Topics covered:
 
-- [Resolver comparison](Documentation/doc-resolver-comparison.md)
-- [Dependency ordering](Documentation/doc-dependency-ordering.md)
-- [Context terms](Documentation/doc-context-terms.md)
-- [Contextual logic programming](Documentation/doc-contextual-logic-programming.md)
-- [Gentoo configuration](Documentation/doc-gentoo.md)
-- [LLM explainer](Documentation/doc-explainer.md)
-- [TLS certificates](Documentation/doc-tls-certificates.md)
+- [Resolver comparison](Documentation/Handbook/doc-resolver-comparison.md)
+- [Dependency ordering](Documentation/Handbook/doc-dependency-ordering.md)
+- [Context terms](Documentation/Handbook/doc-context-terms.md)
+- [Contextual logic programming](Documentation/Handbook/doc-contextual-logic-programming.md)
+- [Gentoo configuration](Documentation/Handbook/doc-gentoo.md)
+- [LLM explainer](Documentation/Handbook/doc-explainer.md)
+- [TLS certificates](Documentation/Handbook/doc-tls-certificates.md)
 
 ## License
 
