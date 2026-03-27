@@ -277,7 +277,7 @@ config:systemconfig(Filename) :-
 config:number_of_cpus(C) :- current_prolog_flag(cpu_count,C).
 
 
-%! config:number_of_cpus(?Count)
+%! config:verbosity(?Level)
 %
 % Different verbosity levels may be configured for printing runtime information
 
@@ -637,7 +637,7 @@ config:bugzilla_user_agent('portage-ng/2026 (https://github.com/pvdabeel/prolog)
 % automatically stop computation if it takes too long.
 %In seconds.
 
-config:time_limit(90).
+config:time_limit(300).
 
 
 %! config:proving_target(?Target)

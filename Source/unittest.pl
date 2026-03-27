@@ -11,8 +11,8 @@
 /** <module> UNITTEST
 PLUnit-based unit tests for core modules.
 
-Covers pure-logic predicates in eapi, version_domain, and constraint
-that can be tested without a loaded knowledge base.
+Covers pure-logic predicates in eapi, version_domain, constraint, kahn,
+and sanitize that can be tested without a loaded knowledge base.
 
 Run via the project wrapper:
 
@@ -889,3 +889,258 @@ test(reject_bad_args, [fail]) :-
   sanitize:safe_daemon_request(request(notalist, 80, 24)).
 
 :- end_tests(sanitize_daemon_request).
+
+
+% =============================================================================
+%  Depclean structural predicate tests
+% =============================================================================
+
+:- begin_tests(depclean_model_item).
+
+test(extract_depclean_bare, [true(R == myrepo://'cat/pkg-1.0')]) :-
+  depclean:model_item_repo_entry(myrepo://'cat/pkg-1.0':depclean, R).
+
+test(extract_depclean_ctx, [true(R == myrepo://'cat/pkg-1.0')]) :-
+  depclean:model_item_repo_entry(myrepo://'cat/pkg-1.0':depclean?{[]}, R).
+
+test(reject_non_depclean, [fail]) :-
+  depclean:model_item_repo_entry(myrepo://'cat/pkg-1.0':install, _).
+
+test(reject_plain_atom, [fail]) :-
+  depclean:model_item_repo_entry(something, _).
+
+:- end_tests(depclean_model_item).
+
+
+:- begin_tests(depclean_dep_term_cn).
+
+test(with_action_ctx, [true(A-C-N == run-'sys-libs'-glibc)]) :-
+  depclean:dep_term_cn_deps(
+    grouped_package_dependency(strong,'sys-libs',glibc,[dep1]):run?{[some_ctx]},
+    A, C, N, _).
+
+test(with_action_bare, [true(A-C-N == install-'dev-libs'-openssl)]) :-
+  depclean:dep_term_cn_deps(
+    grouped_package_dependency(weak,'dev-libs',openssl,[]):install,
+    A, C, N, _).
+
+test(no_action_defaults_run, [true(A-C-N == run-'app-misc'-foo)]) :-
+  depclean:dep_term_cn_deps(
+    grouped_package_dependency(strong,'app-misc',foo,[d1,d2]),
+    A, C, N, _).
+
+test(extracts_packagedeps, [true(PD == [d1,d2])]) :-
+  depclean:dep_term_cn_deps(
+    grouped_package_dependency(strong,c,n,[d1,d2]),
+    _, _, _, PD).
+
+:- end_tests(depclean_dep_term_cn).
+
+
+:- begin_tests(depclean_provides_tok).
+
+test(new_token, [true(V == [pkg://e1])]) :-
+  empty_assoc(E),
+  depclean:provides_tok_put(pkg://e1, 'libfoo.so', E, Out),
+  get_assoc('libfoo.so', Out, V).
+
+test(existing_token, [true(V == [pkg://e1, pkg://e2])]) :-
+  list_to_assoc(['libfoo.so'-[pkg://e1]], In),
+  depclean:provides_tok_put(pkg://e2, 'libfoo.so', In, Out),
+  get_assoc('libfoo.so', Out, V).
+
+:- end_tests(depclean_provides_tok).
+
+
+% =============================================================================
+%  USE helper predicate tests
+% =============================================================================
+
+:- begin_tests(use_empty_state).
+
+test(empty_state, [true(S == use_state([],[]))]) :-
+  use:empty_use_state(S).
+
+:- end_tests(use_empty_state).
+
+
+:- begin_tests(use_normalize_bwu).
+
+test(already_state, [true(R == use_state([a,b],[c]))]) :-
+  use:normalize_build_with_use(use_state([b,a],[c]), R).
+
+test(list_form, [true(R == use_state([x],[y]))]) :-
+  use:normalize_build_with_use([required(x), naf(required(y))], R).
+
+test(unknown_form, [true(R == use_state([],[]))]) :-
+  use:normalize_build_with_use(42, R).
+
+:- end_tests(use_normalize_bwu).
+
+
+:- begin_tests(use_context_bwu).
+
+test(with_bwu, [true(S == use_state([a],[]))]) :-
+  use:context_build_with_use_state([build_with_use:use_state([a],[])], S).
+
+test(without_bwu, [true(S == use_state([],[]))]) :-
+  use:context_build_with_use_state([other_key:val], S).
+
+test(empty_ctx, [true(S == use_state([],[]))]) :-
+  use:context_build_with_use_state([], S).
+
+:- end_tests(use_context_bwu).
+
+
+:- begin_tests(use_bwu_requirements).
+
+test(state_form, [true(En-Dis == [a,b]-[c])]) :-
+  use:build_with_use_requirements(use_state([b,a],[c]), En, Dis).
+
+test(list_form_enable, [true(En == [x])]) :-
+  use:build_with_use_requirements([required(x)], En, _).
+
+test(list_form_disable_naf, [true(Dis == [y])]) :-
+  use:build_with_use_requirements([naf(required(y))], _, Dis).
+
+test(list_form_disable_assumed, [true(Dis == [z])]) :-
+  use:build_with_use_requirements([assumed(minus(z))], _, Dis).
+
+:- end_tests(use_bwu_requirements).
+
+
+:- begin_tests(use_iuse_assoc).
+
+test(single_pair, [true(V == positive)]) :-
+  use:iuse_default_pairs_to_assoc([foo-positive], M),
+  get_assoc(foo, M, V).
+
+test(positive_wins, [true(V == positive)]) :-
+  use:iuse_default_pairs_to_assoc([foo-negative, foo-positive], M),
+  get_assoc(foo, M, V).
+
+test(negative_no_override, [true(V == negative)]) :-
+  use:iuse_default_pairs_to_assoc([foo-negative, foo-negative], M),
+  get_assoc(foo, M, V).
+
+test(empty_list) :-
+  use:iuse_default_pairs_to_assoc([], M),
+  empty_assoc(M).
+
+:- end_tests(use_iuse_assoc).
+
+
+:- begin_tests(use_symmetric_diff).
+
+test(different_lists) :-
+  use:symmetric_diff_nonempty([a,b], [b,c]).
+
+test(same_lists, [fail]) :-
+  use:symmetric_diff_nonempty([a,b], [a,b]).
+
+test(both_empty, [fail]) :-
+  use:symmetric_diff_nonempty([], []).
+
+test(one_empty) :-
+  use:symmetric_diff_nonempty([a], []).
+
+:- end_tests(use_symmetric_diff).
+
+
+:- begin_tests(use_abi_x86_flag).
+
+test(valid_abi_flag) :-
+  use:is_abi_x86_flag(abi_x86_64).
+
+test(valid_abi_flag_32) :-
+  use:is_abi_x86_flag(abi_x86_32).
+
+test(not_abi_flag, [fail]) :-
+  use:is_abi_x86_flag(python_targets_python3_12).
+
+test(not_atom, [fail]) :-
+  use:is_abi_x86_flag(123).
+
+:- end_tests(use_abi_x86_flag).
+
+
+% =============================================================================
+%  Linkage tests
+% =============================================================================
+
+:- begin_tests(linkage_is_linkable).
+
+test(shared_object) :-
+  linkage:is_linkable('/usr/lib64/libz.so').
+
+test(versioned_so) :-
+  linkage:is_linkable('/usr/lib64/libz.so.1.2.13').
+
+test(usr_bin) :-
+  linkage:is_linkable('/usr/bin/bash').
+
+test(usr_sbin) :-
+  linkage:is_linkable('/usr/sbin/sshd').
+
+test(usr_lib_prefix) :-
+  linkage:is_linkable('/usr/lib64/something').
+
+test(bin) :-
+  linkage:is_linkable('/bin/sh').
+
+test(sbin) :-
+  linkage:is_linkable('/sbin/init').
+
+test(lib_prefix) :-
+  linkage:is_linkable('/lib64/ld-linux-x86-64.so.2').
+
+test(reject_etc, [fail]) :-
+  linkage:is_linkable('/etc/portage/make.conf').
+
+test(reject_var, [fail]) :-
+  linkage:is_linkable('/var/log/messages').
+
+test(reject_share, [fail]) :-
+  linkage:is_linkable('/usr/share/doc/readme.txt').
+
+:- end_tests(linkage_is_linkable).
+
+
+% =============================================================================
+%  Version domain additional tests
+% =============================================================================
+
+:- begin_tests(version_normalize_term).
+
+test(var_passthrough) :-
+  version_domain:normalize_version_term(X, Y),
+  var(Y),
+  X == Y.
+
+test(wildcard_atom, [true(Ver == version([0],'',4,0,'',0,'1.0.*'))]) :-
+  version_domain:normalize_version_term('1.0.*', Ver).
+
+test(compound_passthrough, [true(Ver == foo(bar))]) :-
+  version_domain:normalize_version_term(foo(bar), Ver).
+
+test(version_eq_strip, [true(Ver == myver)]) :-
+  version_domain:normalize_version_term(version(a,b,c,d,e,f,g)=myver, Ver).
+
+:- end_tests(version_normalize_term).
+
+
+:- begin_tests(version_slot_domain_from_reqs).
+
+test(empty_reqs, [true(D == any)]) :-
+  version_domain:slot_domain_from_reqs([], D).
+
+test(single_slot_req, [true(D == slots(['3']))]) :-
+  version_domain:slot_domain_from_reqs([[slot(3)]], D).
+
+test(any_same_slot, [true(D == any)]) :-
+  version_domain:slot_domain_from_reqs([[any_same_slot]], D).
+
+test(any_different_slot, [true(D == any)]) :-
+  version_domain:slot_domain_from_reqs([[any_different_slot]], D).
+
+:- end_tests(version_slot_domain_from_reqs).

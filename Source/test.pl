@@ -95,6 +95,7 @@ test:cases([overlay://'test01/web-1.0':run?{[]},
             overlay://'test53/app-1.0':run?{[]},
             overlay://'test54/app-1.0':run?{[]},
             overlay://'test55/app-1.0':run?{[]},
+            overlay://'test56/app-1.0':run?{[]},
             overlay://'test57/web-1.0':run?{[]},
             overlay://'test58/web-1.0':run?{[]},
             overlay://'test59/web-1.0':run?{[]},
@@ -869,6 +870,13 @@ test:expect(overlay://'test54/app-1.0':run?{[]},
 % test55: version constraints: lib>3.0 and lib<6.0
 test:expect(overlay://'test55/app-1.0':run?{[]},
             [ test:must_have(overlay://'test55/app-1.0':run?{_}) ]).
+
+% test56: version range intersection via two dependency chains
+test:expect(overlay://'test56/app-1.0':run?{[]},
+            [ test:must_have(overlay://'test56/app-1.0':run?{_}),
+              test:must_have(overlay://'test56/modulea-1.0':run?{_}),
+              test:must_have(overlay://'test56/moduleb-1.0':run?{_})
+            ]).
 
 % -----------------------------------------------------------------------------
 %  Virtuals and PROVIDE (test57, test58)

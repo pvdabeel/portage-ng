@@ -1036,7 +1036,15 @@ interface:process_action(Action,ArgsSets,Options) :-
       ( memberchk(variants(VariantsOpt), Options) -> true ; VariantsOpt = none ),
       ( memberchk(explain(ExplainOpt), Options) -> true ; ExplainOpt = none ),
       ( TimeLimitSec =< 0 ->
-          ( pipeline:prove_plan_with_fallback(Proposal, ProofAVL, ModelAVL, Plan, Triggers, FallbackUsed),
+          ( ( pipeline:prove_plan_with_fallback(Proposal, ProofAVL, ModelAVL, Plan, Triggers, FallbackUsed) ->
+                true
+            ; message:bubble(red,'Error'),
+              message:color(red),
+              message:print(' Proof/planning failed. Check that the target is valid and all dependencies exist.'), nl,
+              message:color(normal),
+              flush_output,
+              halt(1)
+            ),
             printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
             ( VariantsOpt \== none, PretendMode == true
             -> interface:run_variants(VariantsOpt, Proposal, ProofAVL, Plan, Triggers)
@@ -1049,7 +1057,15 @@ interface:process_action(Action,ArgsSets,Options) :-
           )
       ; catch(
           call_with_time_limit(TimeLimitSec,
-            ( pipeline:prove_plan_with_fallback(Proposal, ProofAVL, ModelAVL, Plan, Triggers, FallbackUsed),
+            ( ( pipeline:prove_plan_with_fallback(Proposal, ProofAVL, ModelAVL, Plan, Triggers, FallbackUsed) ->
+                  true
+              ; message:bubble(red,'Error'),
+                message:color(red),
+                message:print(' Proof/planning failed. Check that the target is valid and all dependencies exist.'), nl,
+                message:color(normal),
+                flush_output,
+                halt(1)
+              ),
               printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
               ( VariantsOpt \== none, PretendMode == true
               -> interface:run_variants(VariantsOpt, Proposal, ProofAVL, Plan, Triggers)

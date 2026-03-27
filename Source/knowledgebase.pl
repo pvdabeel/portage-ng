@@ -266,7 +266,7 @@ graph ::-
 
 graph ::-
   \+ proxy,!,
-  with_mutex(graph, % todo: this should interate over all registered repositories
+  with_mutex(graph, % todo: this should iterate over all registered repositories
     (portage:graph)).
 
 
