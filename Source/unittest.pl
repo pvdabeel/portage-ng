@@ -741,15 +741,15 @@ test(single_node, [true(Order-Cyclic == [a]-false)]) :-
   list_to_assoc([a-[]], E),
   kahn:toposort([a], E, Order, Cyclic).
 
-test(linear_chain, [true(Order-Cyclic == [c,b,a]-false)]) :-
+test(linear_chain, [true(Order-Cyclic == [a,b,c]-false)]) :-
   list_to_assoc([a-[b], b-[c], c-[]], E),
   kahn:toposort([a,b,c], E, Order, Cyclic).
 
 test(diamond_dag, [true(Cyclic == false)]) :-
   list_to_assoc([a-[b,c], b-[d], c-[d], d-[]], E),
   kahn:toposort([a,b,c,d], E, Order, Cyclic),
-  last(Order, a),
-  Order = [d|_].
+  Order = [a|_],
+  last(Order, d).
 
 test(two_component, [true(Cyclic == false)]) :-
   list_to_assoc([a-[b], b-[], x-[y], y-[]], E),

@@ -15,14 +15,26 @@ jobs:
 
       - name: Install SWI-Prolog
         run: |
-          sudo apt-add-repository -y ppa:swi-prolog/stable
+          sudo apt-add-repository -y ppa:swi-prolog/devel
           sudo apt-get update -q
           sudo apt-get install -y swi-prolog
+          swipl --version
+
+      - name: Create private config files from templates
+        run: |
+          cp Source/Config/Private/template_api_key.pl Source/Config/Private/api_key.pl
+          cp Source/Config/Private/template_passwords.pl Source/Config/Private/passwords.pl
 
       - name: Run PLUnit tests
         run: |
-          swipl -p portage=. -f portage-ng.pl -g "
-            load_files(portage('Source/unittest'), [if(true)]),
-            run_tests,
-            halt(0)
-          " -t 'halt(1)'
+          swipl -O --stack-limit=4G \
+            -f portage-ng.pl \
+            -p portage=. \
+            -Dverbose_autoload=false \
+            -g "
+              load_common_modules,
+              load_standalone_modules,
+              load_llm_modules,
+              load_files(portage('Source/unittest'), [if(true)]),
+              (run_tests -> halt(0) ; halt(1))
+            " -t 'halt(2)'
