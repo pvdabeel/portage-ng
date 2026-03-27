@@ -41,8 +41,13 @@ test-overlay: ## Run overlay regression tests (requires loaded overlay repositor
 	halt.
 	PL
 
+clean:    ## Remove the built binary.
+	  rm -f $(TARGET)
+
 CERTDIR=Source/Certificates
 HOST?=$(shell hostname)
 
 certs:    ## Generate local CA + per-host client/server TLS certs (for --mode client/server). Usage: make certs HOST=mac-pro.local
 	  sh $(CERTDIR)/Scripts/generate.sh $(HOST)
+
+.PHONY: help all build install test test-overlay clean certs

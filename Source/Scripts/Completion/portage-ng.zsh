@@ -56,7 +56,7 @@ _portage-ng() {
     '--regen[Regenerate ebuild metadata cache]'
     '--metadata[Regenerate ebuild metadata cache]'
     '--list-sets[List available package sets]'
-    '--graph[Create graph]:type:(modified full build)'
+    '--graph[Create graph]:type:(modified full build "build modified" "build full")'
     '--check-news[Check for and display unread news items]'
     '--read-news[Display news items when using --ask]'
 

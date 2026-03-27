@@ -135,7 +135,7 @@ depclean:prove_required_(Roots, RequiredInstalled) :-
 
 depclean:model_required_installed([], []).
 depclean:model_required_installed([X|Xs], Out) :-
-  model_required_installed(Xs, Rest),
+  depclean:model_required_installed(Xs, Rest),
   ( depclean:model_item_repo_entry(X, Repo://Entry) ->
       ( query:search([category(C),name(N),version(V)], Repo://Entry),
         query:search([name(N),category(C),version(V),installed(true)], pkg://InstalledEntry) ->

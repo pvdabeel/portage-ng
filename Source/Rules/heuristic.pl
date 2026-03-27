@@ -9,25 +9,21 @@
 
 
 /** <module> HEURISTIC
-Prover hooks (domain side), reprove domain state management, constraint
-guards, proof obligations, and snapshot/rollback for the rules engine.
+Reprove state management, obligation candidate filtering, and
+snapshot/rollback for the domain-specific side of the prover.
 
-This module implements the domain-specific side of the prover's hook
-interface. The prover is kept domain-agnostic; it calls into heuristic:
-predicates for reprove state, constraint guards, and proof obligations.
+This module implements the reprove hooks that the prover calls
+when conflict-driven learning triggers a retry. The prover is
+domain-agnostic; it delegates to heuristic: for reprove handling
+and obligation filtering.
 
-== Prover Hook Interface ==
-
-The following predicates are called by the prover:
+== Predicates defined here ==
 
   * heuristic:handle_reprove(+Info, -Added)
     Called when a prover_reprove(Info) exception is caught.
-    Processes domain-specific conflict information and returns
-    whether new rejects were added.
 
   * heuristic:reprove_exhausted/0
-    Called when reprove retries are exhausted. Clears the reject
-    map for the final clean prove attempt.
+    Called when reprove retries are exhausted.
 
   * heuristic:init_state/0
     Save domain state at the start of a reprove-enabled proof.
@@ -36,20 +32,17 @@ The following predicates are called by the prover:
     Restore domain state saved by init_state/0.
 
   * heuristic:obligation_candidate(+Literal)
-    Domain hook for obligation filtering: succeeds when Literal
-    is eligible for proof obligations.
+    Succeeds when Literal is eligible for proof obligations.
 
-  * heuristic:constraint_unify_hook(+Key, +Value, +Constraints, -NewConstraints)
-    Domain-specific constraint merge for cn_domain keys.
+== Predicates defined in rules.pl ==
 
-  * heuristic:constraint_guard(+Constraint, +Constraints)
-    Called after merging a constraint; must succeed for consistent stores.
+The prover also calls the following hooks, which are implemented
+in rules.pl rather than here:
 
-  * heuristic:proof_obligation(+Literal, +Model, -HookKey, -ExtraLits)
-    Compute extra literals to enqueue after proving a literal.
-
-  * heuristic:proof_obligation_key(+Literal, +Model, -HookKey)
-    Fast-path: compute only the obligation key.
+  * rules:constraint_unify_hook/4
+  * rules:constraint_guard/2
+  * rules:proof_obligation/4
+  * rules:proof_obligation_key/3
 
 */
 

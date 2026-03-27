@@ -136,7 +136,7 @@ _portage_ng() {
       return 0
       ;;
     --graph)
-      COMPREPLY=( $(compgen -W "modified full build" -- "${cur}") )
+      COMPREPLY=( $(compgen -W "modified full build 'build modified' 'build full'" -- "${cur}") )
       return 0
       ;;
     --color|--with-bdeps|--with-test-deps)
