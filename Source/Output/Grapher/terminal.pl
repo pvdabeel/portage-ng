@@ -19,7 +19,7 @@ from the sibling .merge file.
 
 :- module(terminal, []).
 
-:- use_module('../Printer/Plan/timing.pl', []).
+:- use_module(portage('Source/Pipeline/Printer/Plan/timing.pl'), []).
 
 % =============================================================================
 %  TERMINAL declarations

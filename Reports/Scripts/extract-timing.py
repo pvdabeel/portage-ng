@@ -7,7 +7,7 @@ timing metadata lines (% emerge/merge started/ended/wall_time_ms), and writes
 a consolidated JSON file mapping each entry to its timing data.
 
 Usage:
-    python3 Source/Scripts/extract-timing.py \
+    python3 Reports/Scripts/extract-timing.py \
         --root /Volumes/Storage/Graph/portage \
         --out Reports/timing.json
 

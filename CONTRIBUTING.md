@@ -120,5 +120,5 @@ After making resolver changes:
 
 ## Code style
 
-See `Source/bonjour.pl` as the canonical reference for file layout, PlDoc
+See `Source/System/bonjour.pl` as the canonical reference for file layout, PlDoc
 documentation, section headers, and spacing conventions.

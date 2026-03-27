@@ -57,14 +57,14 @@ install:  ## Install the application.
 	  $(SUDO) cp $(TARGET) /usr/local/bin
 
 test:     ## Run PLUnit tests.
-	  ./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --shell <<'PL'
-	load_files(portage('Source/unittest'), [if(true)]).
+	  ./Source/System/Scripts/Wrapper/portage-ng-dev --mode standalone --shell <<'PL'
+	load_files(portage('Source/Test/unittest'), [if(true)]).
 	run_tests.
 	halt.
 	PL
 
 test-overlay: ## Run overlay regression tests (requires loaded overlay repository).
-	  ./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --shell <<'PL'
+	  ./Source/System/Scripts/Wrapper/portage-ng-dev --mode standalone --shell <<'PL'
 	test:run(cases).
 	halt.
 	PL

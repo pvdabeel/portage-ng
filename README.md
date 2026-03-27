@@ -182,7 +182,7 @@ When running from a source checkout, use the dev wrapper instead of the
 installed binary:
 
 ```bash
-./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --pretend sys-apps/portage
+./Source/System/Scripts/Wrapper/portage-ng-dev --mode standalone --pretend sys-apps/portage
 ```
 
 ### CI mode

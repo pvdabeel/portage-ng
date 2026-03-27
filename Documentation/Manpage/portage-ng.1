@@ -1404,7 +1404,7 @@ portage\-ng \-\-mode standalone \-\-upgrade
 .I portage\-ng.pl
 Main entry point and module load graph.
 .TP
-.I Source/Scripts/Wrapper/portage\-ng\-dev
+.I Source/System/Scripts/Wrapper/portage\-ng\-dev
 Development launcher script with timeout and instrumentation support.
 .TP
 .I Knowledge/kb.qlf
@@ -1433,31 +1433,31 @@ follows a pipeline architecture:
 .TP
 .B Reader/Parser
 Reads ebuild md5-cache files using a PMS-conformant DCG grammar
-.RI ( Source/eapi.pl )
+.RI ( Source/Domain/Gentoo/eapi.pl )
 and builds Prolog cache facts.
 .TP
 .B Prover
 Performs inductive proof search over the dependency rules to produce
 a proof tree, model, constraint set, and trigger map
-.RI ( Source/prover.pl ).
+.RI ( Source/Pipeline/prover.pl ).
 .TP
 .B Planner
 Generates a topologically sorted, wave-based build plan from the
 proof
-.RI ( Source/planner.pl ).
+.RI ( Source/Pipeline/planner.pl ).
 .TP
 .B Scheduler
 Post-processes cyclic remainder: SCC decomposition (Kosaraju) and
 merge-set computation
-.RI ( Source/scheduler.pl ).
+.RI ( Source/Pipeline/scheduler.pl ).
 .TP
 .B Printer
 Renders the plan with assumptions and warnings
-.RI ( Source/Printer/ ).
+.RI ( Source/Pipeline/Printer/ ).
 .TP
 .B Builder
 Orchestrates downloads and ebuild phase execution with a job server
-.RI ( Source/builder.pl ).
+.RI ( Source/Pipeline/builder.pl ).
 .\"
 .SH ENVIRONMENT
 .TP

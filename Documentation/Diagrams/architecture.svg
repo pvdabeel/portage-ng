@@ -63,7 +63,7 @@
 <g id="clust11" class="cluster">
 <title>cluster_rules_sub</title>
 <polygon fill="none" stroke="#aa88cc" stroke-dasharray="5,2" points="1025,-676.5 1025,-802.25 2223,-802.25 2223,-676.5 1025,-676.5"/>
-<text text-anchor="middle" x="1624" y="-784.95" font-family="Helvetica,sans-Serif" font-size="14.00" fill="#8855aa">Rules Submodules (Source/Rules/)</text>
+<text text-anchor="middle" x="1624" y="-784.95" font-family="Helvetica,sans-Serif" font-size="14.00" fill="#8855aa">Rules Submodules (Source/Domain/Gentoo/Rules/)</text>
 </g>
 <g id="clust12" class="cluster">
 <title>cluster_candidate</title>

@@ -54,7 +54,7 @@ client:remote_predicate_template(preference:profile_package_use_masked(_,_)).
 client:remote_predicate_template(preference:profile_package_use_forced(_,_)).
 
 % Package masking (profiles + /etc/portage/package.mask)
-remote_predicate_template(preference:masked(_)).
+client:remote_predicate_template(preference:masked(_)).
 
 % License acceptance
 client:remote_predicate_template(preference:accepted_license(_)).

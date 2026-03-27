@@ -1,7 +1,7 @@
 # Contextual Logic Programming
 
 CONTEXT is an object-oriented programming paradigm for Prolog, implemented in
-[`Source/context.pl`](../Source/context.pl). It provides contexts (namespaces),
+[`Source/Logic/context.pl`](../Source/Logic/context.pl). It provides contexts (namespaces),
 classes, and instances with public, protected, and private access control,
 multiple inheritance, cloning, and declarative static typing of data members.
 
@@ -73,7 +73,7 @@ CONTEXT defines several operators for interacting with contexts:
 
 ## Example: a Person class
 
-The following example (from [`Source/Context/person.pl`](../Source/Context/person.pl))
+The following example (from [`Source/Logic/Examples/person.pl`](../Source/Logic/Examples/person.pl))
 shows a simple class with public, protected, and private members:
 
 ```prolog
@@ -144,6 +144,6 @@ constraint propagation across the dependency graph.
 ## Further reading
 
 - A. Zeller, *Unified Versioning through Feature Logic*, 1997
-- [`Source/context.pl`](../Source/context.pl) -- full implementation
+- [`Source/Logic/context.pl`](../Source/Logic/context.pl) -- full implementation
 - [`Documentation/Handbook/doc-context-terms.md`](doc-context-terms.md) -- how context
   terms flow through the prover

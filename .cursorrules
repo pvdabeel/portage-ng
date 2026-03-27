@@ -5,20 +5,20 @@ This repository is a SWI-Prolog application (portage-ng).
 The application reads Gentoo ebuild md5-cache files from a Gentoo portage tree repository into SWI-Prolog cache predicates. 
 See cache.pl for the datastructure. The actual data is contained in Knowledge/kb.raw (which is qcompiled into Knowledge/kb.qlf).
 
-- `Source/repository.pl`: enables controlling of Portage tree (syncing, loading, saving facts)
-- `Source/knowledgebase.pl`: different repositories register themselves with the knowledge base. 
-- `Source/cache.pl`: the prolog cache data structure 
-- `Source/eapi.pl`: a Prolog DCG grammar to read md5-cache syntax
-- `Source/rules.pl`: domain specific (Gentoo) specific rules handling dependencies, interpreting use flags, PDEPEND hooks, etc.
-- `Source/vdb.pl`: a repository containing information about installed ebuilds
-- `Source/sampler.pl`: performance sampling and instrumentation (hook perf, test_stats counters, ctx_union sampling)
-- `Source/subprocess.pl`: generic external process spawning and dns-sd interface
+- `Source/Knowledge/repository.pl`: enables controlling of Portage tree (syncing, loading, saving facts)
+- `Source/Knowledge/knowledgebase.pl`: different repositories register themselves with the knowledge base. 
+- `Source/Knowledge/cache.pl`: the prolog cache data structure 
+- `Source/Domain/Gentoo/eapi.pl`: a Prolog DCG grammar to read md5-cache syntax
+- `Source/Domain/Gentoo/rules.pl`: domain specific (Gentoo) specific rules handling dependencies, interpreting use flags, PDEPEND hooks, etc.
+- `Source/Domain/Gentoo/vdb.pl`: a repository containing information about installed ebuilds
+- `Source/Pipeline/sampler.pl`: performance sampling and instrumentation (hook perf, test_stats counters, ctx_union sampling)
+- `Source/System/subprocess.pl`: generic external process spawning and dns-sd interface
 - `Source/interface.pl`: CLI option parsing, TTY init, request dispatching
-- `Source/cluster.pl`: high-level orchestration for distributed proving across workers
-- `Source/worker.pl`: compute node for distributed proving (polls server for jobs)
-- `Source/server.pl`: Pengine HTTP server + job/result queues for distributed proving
-- `Source/semantic.pl`: semantic (vector) search over the knowledge base via Ollama embeddings
-- `Source/buildtime.pl`: build time estimation from VDB sizes and emerge.log history
+- `Source/Mode/cluster.pl`: high-level orchestration for distributed proving across workers
+- `Source/Mode/worker.pl`: compute node for distributed proving (polls server for jobs)
+- `Source/Mode/server.pl`: Pengine HTTP server + job/result queues for distributed proving
+- `Source/Llm/semantic.pl`: semantic (vector) search over the knowledge base via Ollama embeddings
+- `Source/Pipeline/Builder/buildtime.pl`: build time estimation from VDB sizes and emerge.log history
 
 
 ## Architecture (mental model)
@@ -31,12 +31,12 @@ Pipeline (standalone):
 - printer renders plan + assumptions & warnings
 
 Key files:
-- `Source/prover.pl`: inductive proof search; cycles become prover cycle-break assumptions (`assumed(rule(Lit))` in proof, `assumed(Lit)` in model).
-- `Source/rules.pl`: domain rules; domain assumptions appear as `rule(assumed(X), [])` and show as “Domain assumptions”.
-- `Source/planner.pl`: wave planner; returns (Plan, RemainderRules).
-- `Source/scheduler.pl`: SCC/merge-set scheduling for remainder; acts only on :run SCCs.
-- `Source/printer.pl`: output + warnings; distinguishes domain assumptions vs prover cycle-breaks. `prove_plan/5` is the standard entry point (always uses delayed triggers and PDEPEND).
-- `Source/version.pl`: version domain model (`version_domain(Slots, Bounds)`), domain meet/intersection, consistency checks.
+- `Source/Pipeline/prover.pl`: inductive proof search; cycles become prover cycle-break assumptions (`assumed(rule(Lit))` in proof, `assumed(Lit)` in model).
+- `Source/Domain/Gentoo/rules.pl`: domain rules; domain assumptions appear as `rule(assumed(X), [])` and show as “Domain assumptions”.
+- `Source/Pipeline/planner.pl`: wave planner; returns (Plan, RemainderRules).
+- `Source/Pipeline/scheduler.pl`: SCC/merge-set scheduling for remainder; acts only on :run SCCs.
+- `Source/Pipeline/printer.pl`: output + warnings; distinguishes domain assumptions vs prover cycle-breaks. `prove_plan/5` is the standard entry point (always uses delayed triggers and PDEPEND).
+- `Source/Domain/Gentoo/version.pl`: version domain model (`version_domain(Slots, Bounds)`), domain meet/intersection, consistency checks.
 
 Version representation:
 - Versions are stored as `version/7` compound terms: `version(NumsNorm, Alpha, SuffixRank, SuffixNum, SuffixRest, Rev, Full)`.
@@ -90,12 +90,12 @@ When testing changes to the learned constraint mechanism, ALWAYS verify:
   Use concatenated lowercase words (e.g. `gentoo.pl`, `knowledgebase.pl`).
   Exception: `portage-ng.pl` (project entry point / name).
 - Prolog module names follow the same rule (e.g. `:- module(gentoo, [])`).
-- Subdirectory names under `Source/` may use CamelCase (e.g. `Rules/`, `Config/`, `Scripts/`).
+- Subdirectory names under `Source/` may use CamelCase (e.g. `Domain/`, `Config/`, `Pipeline/`).
 
 
 ## Source file documentation style
 
-Every `.pl` source file follows a strict layout. Use `Source/bonjour.pl` as the
+Every `.pl` source file follows a strict layout. Use `Source/System/bonjour.pl` as the
 canonical reference.
 
 ### 1. File header (block comment)
@@ -202,7 +202,7 @@ module:predicate_name(Arg1, Arg2) :-
 - `config:portage_confdir/1`: path to the configuration directory
 
 ### Profile loading
-- `Source/profile.pl`: profile reading + cache serialization/deserialization (Knowledge/profile.qlf)
+- `Source/Domain/Gentoo/profile.pl`: profile reading + cache serialization/deserialization (Knowledge/profile.qlf)
 - `config:profile_loading(Mode, Strategy)`: per-mode strategy (`live` or `cached`)
 - `--sync` generates `Knowledge/profile.qlf` via `profile:cache_save`
 - When `cached` is set but `Knowledge/profile.qlf` is missing, falls back to `live`
@@ -218,9 +218,9 @@ module:predicate_name(Arg1, Arg2) :-
 ## How to run (IMPORTANT)
 - Do NOT run ad-hoc `swipl -g "..."` snippets; they often miss required operator defs, libraries, and module load order.
 - Always launch via the project wrapper (project root):
-  - `./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --pretend <target>`
-  - `./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --shell`
-  - Non-interactive / CI-style: `./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --ci --pretend <target>`
+  - `./Source/System/Scripts/Wrapper/portage-ng-dev --mode standalone --pretend <target>`
+  - `./Source/System/Scripts/Wrapper/portage-ng-dev --mode standalone --shell`
+  - Non-interactive / CI-style: `./Source/System/Scripts/Wrapper/portage-ng-dev --mode standalone --ci --pretend <target>`
     Exit codes:
       - 0 = no assumptions
       - 1 = only prover cycle-break assumptions
@@ -233,7 +233,7 @@ module:predicate_name(Arg1, Arg2) :-
 For quick iteration and for reproducible debugging, prefer running a *scripted* Prolog session via `--shell` and a here-doc:
 
 ```sh
-./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --shell --timeout 60 <<'PL'
+./Source/System/Scripts/Wrapper/portage-ng-dev --mode standalone --shell --timeout 60 <<'PL'
 prover:test_stats(portage).
 % Any other queries you want:
 % prover:test_stats_pkgs(portage, ['kde-apps'-'kde-apps-meta']).
@@ -255,7 +255,7 @@ The canonical load graph for standalone is in `portage-ng.pl`:
 
 ## Performance/engineering notes
 - Proof/Model/Triggers are assoc/AVL-based; avoid repeated full traversals when possible.
-- Query performance uses `goal_expansion/2` macros in `Source/query.pl`.
+- Query performance uses `goal_expansion/2` macros in `Source/Knowledge/query.pl`.
 
 ## Development flow
 - We use a git workflow. 

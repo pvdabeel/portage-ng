@@ -16,8 +16,8 @@ and sanitize that can be tested without a loaded knowledge base.
 
 Run via the project wrapper:
 
-  ./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --shell <<'PL'
-  load_files(portage('Source/unittest'), [if(true)]).
+  ./Source/System/Scripts/Wrapper/portage-ng-dev --mode standalone --shell <<'PL'
+  load_files(portage('Source/Test/unittest'), [if(true)]).
   run_tests.
   halt.
   PL

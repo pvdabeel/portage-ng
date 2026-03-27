@@ -131,7 +131,7 @@ automatically.
 Run `--sync` to generate `Knowledge/profile.qlf`:
 
 ```sh
-./Source/Scripts/Wrapper/portage-ng-dev --mode standalone --sync
+./Source/System/Scripts/Wrapper/portage-ng-dev --mode standalone --sync
 ```
 
 This calls `profile:cache_save` after syncing the KB, which walks the profile
@@ -160,7 +160,7 @@ Source/Config/gentoo.pl           /etc/portage configuration reader
   ├── load_package_accept_keywords/1 → gentoo:package_keyword/2
   └── load_package_license/1      → gentoo:package_license_entry/2
 
-Source/profile.pl                  profile reading + cache serialization/deserialization
+Source/Domain/Gentoo/profile.pl                  profile reading + cache serialization/deserialization
   ├── cache_save/0                serialize profile tree → Knowledge/profile.qlf
   ├── cache_load/3                deserialize USE terms/mask/force
   ├── apply_cached_package_masks/0

@@ -149,9 +149,9 @@ Counts scheduler cycle breaks where every action in the cycle is :install
 cycles should ideally be resolved by the prover/planner, not the scheduler.
 
 Usage examples:
-  python3 Source/Scripts/compare-merge-emerge.py --root /Volumes/Storage/Graph/portage
-  python3 Source/Scripts/compare-merge-emerge.py --root ... --limit 200
-  python3 Source/Scripts/compare-merge-emerge.py --root ... --target-regex 'xdg-utils|gobject-introspection'
+  python3 Reports/Scripts/compare-merge-emerge.py --root /Volumes/Storage/Graph/portage
+  python3 Reports/Scripts/compare-merge-emerge.py --root ... --limit 200
+  python3 Reports/Scripts/compare-merge-emerge.py --root ... --target-regex 'xdg-utils|gobject-introspection'
 """
 
 from __future__ import annotations

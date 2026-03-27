@@ -83,7 +83,7 @@ When a conflict is detected:
 - Vermeir-style priority resolution for inconsistent domains
 - No package-specific code
 
-**Source:** `Source/prover.pl`, `Source/rules.pl`
+**Source:** `Source/Pipeline/prover.pl`, `Source/Domain/Gentoo/rules.pl`
 
 ## Comparison Table
 

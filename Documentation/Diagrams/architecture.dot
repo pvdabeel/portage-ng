@@ -183,7 +183,7 @@ digraph portage_ng_architecture {
                label="rules.pl — Declarative hub\n─────────────────\nrules:rule/2\nLit:Action?{Context} → Conditions\nContext helpers (ctx_take_after,\nctx_strip_planning, etc.)\nProver overrides (assume_blockers,\nassume_conflicts)"];
 
     subgraph cluster_rules_sub {
-      label="Rules Submodules (Source/Rules/)";
+      label="Rules Submodules (Source/Domain/Gentoo/Rules/)";
       color="#aa88cc";
       style=dashed;
 
