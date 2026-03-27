@@ -59,6 +59,7 @@ load_common_modules :-
    ensure_loaded(portage('Source/Domain/Gentoo/profile.pl')),
    ensure_loaded(portage('Source/Output/message.pl')),
    ensure_loaded(portage('Source/interface.pl')),
+   ensure_loaded(portage('Source/Interface/action.pl')),
    ensure_loaded(portage('Source/Domain/Gentoo/eapi.pl')),
    ensure_loaded(portage('Source/Pipeline/reader.pl')),
    ensure_loaded(portage('Source/Domain/Gentoo/set.pl')),
