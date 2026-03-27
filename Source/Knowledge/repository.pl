@@ -180,7 +180,7 @@ sync(metadata) ::-
   ::cache(Cache),
   % System-wide lock: multiple portage-ng instances must not update the same
   % on-disk metadata cache in parallel.
-  os:with_system_lock(repository_metadata_cache(Repository, Cache),
+  lock:with_system_lock(repository_metadata_cache(Repository, Cache),
     ( message:hc,
       ( config:trust_metadata(false)
         -> (:update_cache,
@@ -203,7 +203,7 @@ sync(metadata) ::-
   :this(Repository),
   % System-wide lock: multiple portage-ng instances must not update the same
   % on-disk metadata cache in parallel.
-  os:with_system_lock(repository_metadata_cache(Repository, Cache),
+  lock:with_system_lock(repository_metadata_cache(Repository, Cache),
     ( script:exec(cache,[Type,Repository,Remote,Local,Cache]),
       message:scroll(['Updated metadata.']),nl
     )).

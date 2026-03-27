@@ -55,6 +55,7 @@ load_common_modules :-
    ensure_loaded(portage('Source/Logic/context.pl')),
    ensure_loaded(portage('Source/config')),
    ensure_loaded(portage('Source/Application/System/os.pl')),
+   ensure_loaded(portage('Source/Application/System/lock.pl')),
    ensure_loaded(portage('Source/Application/Security/sanitize.pl')),
    ensure_loaded(portage('Source/Domain/Gentoo/profile.pl')),
    ensure_loaded(portage('Source/Application/Output/message.pl')),

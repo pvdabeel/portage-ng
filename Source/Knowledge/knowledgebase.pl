@@ -188,7 +188,7 @@ save ::-
 save ::-
   \+ proxy,!,
   working_directory(Cwd, Cwd),
-  os:with_system_lock(kb_save(Cwd),
+  lock:with_system_lock(kb_save(Cwd),
     with_mutex(save,
       (tell('Knowledge/kb.raw'),
        format(':- module(cache,[]).\n'),
