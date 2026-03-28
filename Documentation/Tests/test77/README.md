@@ -13,4 +13,52 @@ be retained.
 
 ![test77](test77.svg)
 
-**Output:** [emerge -vp](test77-emerge.log) | [portage-ng](test77-portage-ng.log)
+<details>
+<summary><b>emerge -vp</b></summary>
+
+```
+These are the packages that would be merged, in order:
+
+Calculating dependencies  
+!!! 'test77/app' has a category that is not listed in /etc/portage/categories
+... done!
+Dependency resolution took 0.47 s (backtrack: 0/20).
+
+
+emerge: there are no ebuilds to satisfy "test77/app".
+
+emerge: searching for similar names...
+emerge: Maybe you meant any of these: test57/app, test37/app, test27/app?
+```
+
+</details>
+
+<details>
+<summary><b>portage-ng</b></summary>
+
+```ansi
+[33m[00m[43mwarning[00m[33m[00m Package not found: test77/app[00m
+[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+The package `test77/app` does not exist in the Gentoo Portage tree. 
+
+**What's wrong:**
+- `test77` is not a valid Gentoo package category
+- This appears to be a test/dummy package name that was never in the official tree
+
+**Possible causes:**
+1. Typo in the package name
+2. Package from a custom/local overlay that isn't configured
+3. Test data or example that shouldn't be resolved against the main tree
+4. Package was removed or never existed
+
+**To fix:**
+- Verify the correct package name and category
+- If it's from an overlay, ensure the overlay is properly configured
+- Check if you meant a different package entirely
+
+Without more context about what you're trying to install, I cannot suggest the correct atom.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+[00m[00m
+```
+
+</details>

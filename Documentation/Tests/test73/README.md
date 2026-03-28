@@ -12,4 +12,47 @@ plan should show an update action for lib, not a fresh install.
 
 ![test73](test73.svg)
 
-**Output:** [emerge -vp](test73-emerge.log) | [portage-ng](test73-portage-ng.log)
+<details>
+<summary><b>emerge -vp</b></summary>
+
+```
+These are the packages that would be merged, in order:
+
+Calculating dependencies  
+!!! 'test73/app' has a category that is not listed in /etc/portage/categories
+... done!
+Dependency resolution took 0.47 s (backtrack: 0/20).
+
+
+emerge: there are no ebuilds to satisfy "test73/app".
+
+emerge: searching for similar names...
+emerge: Maybe you meant any of these: test57/app, test53/app, test43/app?
+```
+
+</details>
+
+<details>
+<summary><b>portage-ng</b></summary>
+
+```ansi
+[33m[00m[43mwarning[00m[33m[00m Package not found: test73/app[00m
+[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+The package atom `test73/app` appears to be a non-existent or test package. 
+
+**Issues:**
+1. `test73` is not a valid Gentoo category in the standard Portage tree
+2. This looks like a placeholder/test atom rather than a real package
+
+**Suggestions:**
+- Verify the correct package name and category
+- Check if you meant a package from a valid category like `app-*`, `dev-*`, `sys-*`, etc.
+- If this is from an overlay, ensure the overlay is properly configured and the metadata cache is generated
+- Run `emerge --regen` or `egencache --update` if using a custom overlay
+
+Without more context about what application you're trying to install, I cannot suggest the correct atom. What software were you actually trying to install?
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+[00m[00m
+```
+
+</details>

@@ -8,4 +8,116 @@ This test case checks the prover's ability to detect a slotting conflict. The tw
 
 ![test48](test48.svg)
 
-**Output:** [emerge -vp](test48-emerge.log) | [portage-ng](test48-portage-ng.log)
+<details>
+<summary><b>emerge -vp</b></summary>
+
+```
+These are the packages that would be merged, in order:
+
+Calculating dependencies  .... done!
+Dependency resolution took 4.50 s (backtrack: 6/20).
+
+[ebuild  N     ] test48/libmatrix-1.1:1/B::overlay  0 KiB
+[ebuild  N     ] test48/libmatrix-1.0:1/A::overlay  0 KiB
+[ebuild  N     ] test48/libgraphics-1.0::overlay  0 KiB
+[ebuild  N     ] test48/libphysics-1.0::overlay  0 KiB
+[ebuild  N     ] test48/app-1.0::overlay  0 KiB
+
+Total: 5 packages (5 new), Size of downloads: 0 KiB
+
+!!! Multiple package instances within a single package slot have been pulled
+!!! into the dependency graph, resulting in a slot conflict:
+
+test48/libmatrix:1
+
+  (test48/libmatrix-1.1:1/B::overlay, ebuild scheduled for merge) USE="" pulled in by
+    =test48/libmatrix-1.1:1/B required by (test48/libphysics-1.0:0/0::overlay, ebuild scheduled for merge) USE=""
+    ^                 ^^^^^^^                                                                                     
+
+  (test48/libmatrix-1.0:1/A::overlay, ebuild scheduled for merge) USE="" pulled in by
+    =test48/libmatrix-1.0:1/A required by (test48/libgraphics-1.0:0/0::overlay, ebuild scheduled for merge) USE=""
+    ^                 ^^^^^^^                                                                                      
+
+
+It may be possible to solve this problem by using package.mask to
+prevent one of those packages from being selected. However, it is also
+possible that conflicting dependencies exist such that they are
+impossible to satisfy simultaneously.  If such a conflict exists in
+the dependencies of two different packages, then those packages can
+not be installed simultaneously. You may want to try a larger value of
+the --backtrack option, such as --backtrack=30, in order to see if
+that will solve this conflict automatically.
+
+For more information, see MASKED PACKAGES section in the emerge man
+page or refer to the Gentoo Handbook.
+```
+
+</details>
+
+<details>
+<summary><b>portage-ng</b></summary>
+
+```ansi
+[93m>>> Emerging : overlay://test48/app-1.0:run?{[]}
+[00m
+[32mThese are the packages that would be merged, in order:
+
+[00mCalculating dependencies... done!
+
+ └─[90m[00m[100mstep  1[00m[90m[00m─┤ [00mverify[00m[00m  test48/libphysics[90m (unsatisfied constraints, assumed running)[00m
+             │ [36mdownload[32m  overlay://test48/libmatrix-1.0[00m
+             │ [36mdownload[32m  overlay://test48/libgraphics-1.0[00m
+             │ [36mdownload[32m  overlay://test48/app-1.0[00m
+
+ └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36minstall[32m   overlay://test48/libmatrix-1.0[00m
+
+ └─[90m[00m[100mstep  3[00m[90m[00m─┤ [36mrun[32m       overlay://test48/libmatrix-1.0[00m
+
+ └─[90m[00m[100mstep  4[00m[90m[00m─┤ [36minstall[32m   overlay://test48/libgraphics-1.0[00m
+
+ └─[90m[00m[100mstep  5[00m[90m[00m─┤ [36mrun[32m       overlay://test48/libgraphics-1.0[00m
+
+ └─[90m[00m[100mstep  6[00m[90m[00m─┤ [36minstall[32m   overlay://test48/app-1.0[00m
+
+ └─[90m[00m[100mstep  7[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test48/app-1.0[00m[00m
+
+Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
+       0.00 Kb to be downloaded.
+
+
+
+[31m[00m[41mError[00m[31m[00m[31m The proof for your build plan contains domain assumptions. Please verify:
+
+[00m
+[93m>>> Domain assumptions[00m
+
+[91m[01m- Unsatisfied constraints for run dependency: [00m
+[00m  test48/libphysics
+
+[90m  required by: overlay://test48/app-1.0
+[00m
+
+[93m>>> Bug report drafts (Gentoo Bugzilla)[00m
+
+[90m---
+[00m[01mSummary: [00moverlay://test48/app-1.0: unsatisfied_constraints dependency on test48/libphysics
+
+[01mAffected package: [00m[90moverlay://test48/app-1.0[00m
+[01mDependency: [00m[90mtest48/libphysics[00m
+[01mPhases: [00m[90m[run][00m
+
+[01mUnsatisfiable constraint(s):[00m
+[90m  test48/libphysics-[00m
+
+[01mObserved:[00m
+[90m  portage-ng reports no available candidate satisfies the above constraint(s).
+  Available versions in repo set (sample, first 1 of 1): [1.0]
+[00m
+[01mPotential fix (suggestion):[00m
+[90m  Review dependency metadata in overlay://test48/app-1.0; constraint set: [constraint(none,,[])].
+[00m
+
+[00m
+```
+
+</details>
