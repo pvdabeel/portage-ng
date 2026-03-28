@@ -268,8 +268,17 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
       use:build_with_use_resolve_required_use(B, Repository://Ebuild, BResolved),
 
       % 2b. Verify REQUIRED_USE is still satisfied after applying build_with_use.
-      %     Rejects candidates whose USE deps conflict with REQUIRED_USE.
-      use:verify_required_use_with_bwu(Repository://Ebuild, BResolved),
+      %     Fail (rather than assume) so that grouped_package_dependency can try
+      %     alternative candidates, parent narrowing, and reprove before assuming.
+      ( \+ use:verify_required_use_with_bwu(Repository://Ebuild, BResolved) ->
+          use:describe_required_use_violation(Repository://Ebuild, BResolved, ViolDesc),
+          ( \+ memo:requse_violation_(C, N, _) ->
+              assertz(memo:requse_violation_(C, N, ViolDesc))
+          ; true
+          ),
+          fail
+      ; true
+      ),
 
       % 3. Pass use model onto dependencies to calculate corresponding dependency model,
       %    We pass using config action to avoid package_dependency from generating choices.
@@ -277,17 +286,9 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
       %    all_of_group ... choice point generation
 
       % 4. Compute + memoize dependency model, already grouped by package Category & Name.
-      query:memoized_search(model(dependency(MergedDeps0,install)):config?{Model},Repository://Ebuild),
+      ( query:memoized_search(model(dependency(MergedDeps0,install)):config?{Model},Repository://Ebuild),
       dependency:add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
       rules:add_after_to_dep_contexts(AfterForDeps, MergedDeps, MergedDepsAfter),
-      % Heuristic (parity): prove explicit slot/subslot deps early.
-      % Some stacks (notably OCaml Jane Street) rely on a "release series" encoded
-      % in SUBSLOT. If we first satisfy a loose dependency (e.g. := / any_same_slot),
-      % we can lock selected_cn(C,N) to the newest series and later degrade an
-      % explicit :0/0.16 requirement into a bogus "non-existent assumed".
-      %
-      % Ordering explicit slot/subslot requirements first avoids this class of
-      % conflict without changing solver semantics.
       candidate:order_deps_for_proof(install, MergedDepsAfter, MergedDepsOrdered),
 
       % 5. Pass on relevant package dependencies and constraints to prover
@@ -315,6 +316,7 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
       feature_unification:unify([issue_with_model(explanation)], Context1, Ctx1),
       Conditions = [assumed(Repository://Ebuild:install?{Ctx1})]
     )
+  )
   ).
 
 
@@ -363,10 +365,18 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   use:build_with_use_resolve_required_use(B, Repository://Ebuild, BResolved),
 
   % 2b. Verify REQUIRED_USE is still satisfied after applying build_with_use.
-  use:verify_required_use_with_bwu(Repository://Ebuild, BResolved),
+  ( \+ use:verify_required_use_with_bwu(Repository://Ebuild, BResolved) ->
+      use:describe_required_use_violation(Repository://Ebuild, BResolved, ViolDesc),
+      ( \+ memo:requse_violation_(C, N, _) ->
+          assertz(memo:requse_violation_(C, N, ViolDesc))
+      ; true
+      ),
+      fail
+  ; true
+  ),
 
       % 3-4. Compute + memoize dependency model, already grouped by package Category & Name.
-  query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model},Repository://Ebuild),
+  ( query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model},Repository://Ebuild),
   dependency:add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
   rules:add_after_to_dep_contexts(AfterForDeps, MergedDeps, MergedDepsAfter),
   candidate:order_deps_for_proof(run, MergedDepsAfter, MergedDepsOrdered),
@@ -434,6 +444,7 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
       feature_unification:unify([issue_with_model(explanation)], Context1, Ctx1),
       Conditions = [assumed(Repository://Ebuild:run?{Ctx1})]
     )
+  )
   ).
 
 
@@ -1040,7 +1051,12 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
             feature_unification:unify([suggestion(unmask)], Ctx3, Ctx4)
         ; Ctx4 = Ctx3
         ),
-        Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps1):Action?{Ctx4})]
+        ( memo:requse_violation_(C, N, ViolDesc) ->
+            retractall(memo:requse_violation_(C, N, _)),
+            feature_unification:unify([required_use_violation(ViolDesc)], Ctx4, Ctx5)
+        ; Ctx5 = Ctx4
+        ),
+        Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps1):Action?{Ctx5})]
     )
   ).
 

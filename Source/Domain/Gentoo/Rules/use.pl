@@ -1170,3 +1170,17 @@ requse_term_ok_with_bwu(RepoEntry, Enable, Disable, at_most_one_of_group(Deps)) 
             Sat),
     length(Sat, N), N =< 1.
 requse_term_ok_with_bwu(_, _, _, _).
+
+
+%! use:describe_required_use_violation(+RepoEntry, +BWU, -Description)
+%
+% Collects the REQUIRED_USE terms that are violated by the build_with_use
+% overrides and produces a structured description for the assumption printer.
+
+describe_required_use_violation(Repo://Entry, use_state(Enable, Disable), Desc) :-
+    findall(Term,
+            ( cache:entry_metadata(Repo, Entry, required_use, Term),
+              \+ requse_term_ok_with_bwu(Repo://Entry, Enable, Disable, Term)
+            ),
+            Violated),
+    Desc = required_use_violation(Repo://Entry, Enable, Disable, Violated).

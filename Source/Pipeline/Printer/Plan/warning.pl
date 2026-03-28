@@ -912,6 +912,20 @@ warning:print_assumption_detail(rule(package_dependency(T,A,C,N,X,Y,Z,XX):_YY?{C
     info:print_metadata_item_detail(_,'  ',package_dependency(T,A,C,N,X,Y,Z,XX)),nl,
     warning:print_assumption_provenance(Ctx).
 
+warning:print_assumption_detail(rule(grouped_package_dependency(C,N,_R):_T?{Ctx0},_)) :-
+    warning:unwrap_ctx(Ctx0, Ctx),
+    memberchk(required_use_violation(ViolDesc), Ctx),
+    !,
+    message:color(lightred),
+    message:style(bold),
+    message:print('- REQUIRED_USE violation: '),
+    message:style(normal),
+    message:color(normal),
+    nl,
+    format('  ~w/~w~n', [C, N]),
+    warning:print_requse_violation_detail(ViolDesc),
+    warning:print_assumption_provenance(Ctx).
+
 warning:print_assumption_detail(rule(grouped_package_dependency(C,N,R):T?{Ctx},_)) :- !,
     message:color(lightred),
     message:style(bold),
@@ -1007,6 +1021,21 @@ warning:print_assumption_detail(rule(blocker(Strength, Phase, C, N, O, V, SlotRe
 
 warning:print_assumption_detail(rule(R://E:_Action?{Ctx0}, _Body)) :-
     warning:unwrap_ctx(Ctx0, Ctx),
+    memberchk(required_use_violation(ViolDesc), Ctx),
+    !,
+    query:search([category(C), name(N)], R://E),
+    message:color(lightred),
+    message:style(bold),
+    message:print('- REQUIRED_USE violation: '),
+    message:style(normal),
+    message:color(normal),
+    nl,
+    format('  ~w/~w~n', [C, N]),
+    warning:print_requse_violation_detail(ViolDesc),
+    warning:print_assumption_provenance(Ctx).
+
+warning:print_assumption_detail(rule(R://E:_Action?{Ctx0}, _Body)) :-
+    warning:unwrap_ctx(Ctx0, Ctx),
     memberchk(issue_with_model(explanation), Ctx),
     !,
     query:search([category(C), name(N)], R://E),
@@ -1044,6 +1073,67 @@ warning:print_assumption_provenance(Ctx0) :-
       message:color(normal)
   ; true
   ).
+
+
+%! warning:print_requse_violation_detail(+ViolationDescriptor)
+%
+% Renders a structured REQUIRED_USE violation produced by
+% use:describe_required_use_violation/3.
+
+warning:print_requse_violation_detail(
+        required_use_violation(_RepoEntry, Enable, Disable, Violated)) :- !,
+    ( Enable \== [] ->
+        format('  USE deps force:   ~w~n', [Enable])
+    ; true
+    ),
+    ( Disable \== [] ->
+        format('  USE deps disable: ~w~n', [Disable])
+    ; true
+    ),
+    ( Violated \== [] ->
+        forall(member(V, Violated),
+               ( warning:requse_term_to_text(V, Text),
+                 format('  violates: ~w~n', [Text])
+               ))
+    ; format('  (REQUIRED_USE constraint violated)~n', [])
+    ).
+warning:print_requse_violation_detail(_) :-
+    format('  (REQUIRED_USE constraint violated)~n', []).
+
+
+%! warning:requse_term_to_text(+ReqUseTerm, -Text)
+%
+% Converts a parsed REQUIRED_USE term back into human-readable PMS notation.
+
+warning:requse_term_to_text(required(Use), Text) :- !,
+    atom_string(Use, Text).
+warning:requse_term_to_text(required(minus(Use)), Text) :- !,
+    format(atom(Text), '-~w', [Use]).
+warning:requse_term_to_text(blocking(Use), Text) :- !,
+    format(atom(Text), '!~w', [Use]).
+warning:requse_term_to_text(exactly_one_of_group(Deps), Text) :- !,
+    maplist(warning:requse_term_to_text, Deps, Texts),
+    atomic_list_concat(Texts, ' ', Inner),
+    format(atom(Text), '^^ ( ~w )', [Inner]).
+warning:requse_term_to_text(at_most_one_of_group(Deps), Text) :- !,
+    maplist(warning:requse_term_to_text, Deps, Texts),
+    atomic_list_concat(Texts, ' ', Inner),
+    format(atom(Text), '?? ( ~w )', [Inner]).
+warning:requse_term_to_text(any_of_group(Deps), Text) :- !,
+    maplist(warning:requse_term_to_text, Deps, Texts),
+    atomic_list_concat(Texts, ' ', Inner),
+    format(atom(Text), '|| ( ~w )', [Inner]).
+warning:requse_term_to_text(use_conditional_group(positive, Use, _, Deps), Text) :- !,
+    maplist(warning:requse_term_to_text, Deps, Texts),
+    atomic_list_concat(Texts, ' ', Inner),
+    format(atom(Text), '~w? ( ~w )', [Use, Inner]).
+warning:requse_term_to_text(use_conditional_group(negative, Use, _, Deps), Text) :- !,
+    maplist(warning:requse_term_to_text, Deps, Texts),
+    atomic_list_concat(Texts, ' ', Inner),
+    format(atom(Text), '!~w? ( ~w )', [Use, Inner]).
+warning:requse_term_to_text(Term, Text) :-
+    format(atom(Text), '~w', [Term]).
+
 
 %! warning:print_tree_issue_note(+C, +N, +PackageDeps)
 %
