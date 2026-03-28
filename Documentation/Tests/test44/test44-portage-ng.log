@@ -9,6 +9,7 @@ Calculating dependencies... done!
              │ download  overlay://test44/app-1.0
 
  └─step  2─┤ install   overlay://test44/lib-1.0
+             │           └─ conf ─┤ SLOT = "1/A"
 
  └─step  3─┤ run       overlay://test44/lib-1.0
 

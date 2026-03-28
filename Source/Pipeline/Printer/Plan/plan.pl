@@ -983,6 +983,23 @@ plan:print_config_prefix :-
   message:column(104,' ').
 
 
+%! plan:resolve_slot(+Repository://Entry, +Context, -Slot)
+%
+% Extract slot info from proof context; fall back to KB query when absent.
+% Returns [] for default slot 0 or when no slot is available.
+
+plan:resolve_slot(Repository://Entry, Context, Slot) :-
+  ( memberchk(slot(_,_,Slot):{Repository://Entry}, Context)
+  -> true
+  ; kb:query(slot(S), Repository://Entry)
+  -> ( kb:query(subslot(Sub), Repository://Entry)
+     -> Slot = [slot(S), subslot(Sub)]
+     ;  Slot = [slot(S)]
+     )
+  ; Slot = []
+  ).
+
+
 %! plan:print_config(+Repository://+Entry:+Action:+Context)
 %
 % Prints the configuration for a given repository entry (USE flags, USE expand, ...)
@@ -1055,11 +1072,10 @@ plan:print_config(Repository://Ebuild:download?{_Context}) :-
 
 plan:print_config(Repository://Entry:install?{Context}) :-
   \+(kb:query(iuse(_),Repository://Entry)),!,
-  (memberchk(slot(_,_,Slot):{Repository://Entry},Context)
-  -> (Slot \== [slot('0')] ->
-        plan:print_config_prefix('conf'),
-        plan:print_config_item('slot',Slot)
-      ; true)
+  plan:resolve_slot(Repository://Entry, Context, Slot),
+  (Slot \== [], Slot \== [slot('0')]
+  -> plan:print_config_prefix('conf'),
+     plan:print_config_item('slot',Slot)
   ;  true).
 
 % use flags to show
@@ -1093,25 +1109,20 @@ plan:print_config(Repository://Entry:install?{Context}) :-
   % Filter out empty USE_EXPAND variables
   include(plan:valid_use_expand, UseExpandVariables, ValidUseExpandVariables),
 
-  % Check if a slot is present in the context
-  (memberchk(slot(_,_,Slot):{Repository://Entry},Context)
-  -> % Check if slot is relevant to print
-     (Slot \== [slot('0')]
-     -> % Case 1: Use flags and Expanded Use flags empty
-         (Useflags == [], ValidUseExpandVariables == []
-          -> % print just the slot
-             plan:print_config_prefix('conf'),
-             plan:print_config_item('slot',Slot)
-          ;  % print algined configuration
-           plan:print_config_prefix('conf'),
-           plan:print_config_items_aligned(Useflags, ValidUseExpandVariables, Assumed, Slot)
-        )
-     ; (Useflags == [], ValidUseExpandVariables == [] ;
-          (plan:print_config_prefix('conf'),
-           plan:print_config_items_aligned(Useflags, ValidUseExpandVariables, Assumed, []))))
-  ;  (Useflags == [], ValidUseExpandVariables == [] ;
-       (plan:print_config_prefix('conf'),
-        plan:print_config_items_aligned(Useflags, ValidUseExpandVariables, Assumed, [])))),!.
+  plan:resolve_slot(Repository://Entry, Context, Slot),
+  ( Slot \== [], Slot \== [slot('0')]
+  -> ( Useflags == [], ValidUseExpandVariables == []
+     -> plan:print_config_prefix('conf'),
+        plan:print_config_item('slot',Slot)
+     ;  plan:print_config_prefix('conf'),
+        plan:print_config_items_aligned(Useflags, ValidUseExpandVariables, Assumed, Slot)
+     )
+  ;  ( Useflags == [], ValidUseExpandVariables == []
+     -> true
+     ;  plan:print_config_prefix('conf'),
+        plan:print_config_items_aligned(Useflags, ValidUseExpandVariables, Assumed, [])
+     )
+  ),!.
 
 
 % --------------------
