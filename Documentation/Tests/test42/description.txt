@@ -1,7 +1,0 @@
-Test Case: test42
-
-What is being tested:
-This test case checks the prover's behavior with a wildcard slot dependency. 'app-1.0' requires 'lib', but it doesn't care which slot is used.
-
-Expected Outcome:
-Given the choice between two valid slots, the prover should follow the default behavior of picking the latest version, which is 'lib-2.0' in slot "2". The proof should be valid.

@@ -1,7 +1,0 @@
-Test Case: test22
-
-What is being tested:
-This test case combines test20 and test21. The 'os-1.0' package has the same 'any-of' choice group in both its compile-time and runtime dependencies.
-
-Expected Outcome:
-The prover can choose any of the OS packages to satisfy the compile-time dependency and any of the OS packages to satisfy the runtime dependency. They do not have to be the same. The proof should be valid.

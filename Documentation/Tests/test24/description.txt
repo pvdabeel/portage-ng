@@ -1,7 +1,0 @@
-Test Case: test24
-
-What is being tested:
-This is a variation of test23, with the 'at-most-one-of' dependency group in the runtime scope (RDEPEND).
-
-Expected Outcome:
-The prover should satisfy the runtime dependency by choosing to install none of the optional OS packages. The proof should be valid.

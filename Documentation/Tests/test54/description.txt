@@ -1,7 +1,0 @@
-Test Case: test54
-
-What is being tested:
-Expanding use flags output
-
-Expected Outcome:
-The printer should succesfully split up the different expanding use

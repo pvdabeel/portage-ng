@@ -1,7 +1,0 @@
-Test Case: test18
-
-What is being tested:
-This test case is a variation of test17, but the 'exactly-one-of' dependency is in the runtime scope (RDEPEND).
-
-Expected Outcome:
-The prover should handle the runtime choice group correctly, select one of the OS options, and generate a valid proof.

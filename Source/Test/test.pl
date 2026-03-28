@@ -193,7 +193,7 @@ test:run_single_case(Repo://Id:Action?{Context}) :-
   nl,
   config:working_dir(Dir),
   split_string(Id,'/','',[Category,Package]),
-  atomic_list_concat([Dir,'/Documentation/Tests/',Category,'/description.txt'],Description),
+  atomic_list_concat([Dir,'/Documentation/Tests/',Category,'/README.md'],Description),
   atomic_list_concat([Dir,'/Documentation/Tests/',Category,'/emerge-',Category,'.log'],EmergeLog),
   atomic_list_concat([Repo, Category,Package, Action], '_', TestName),
   atomic_list_concat([Dir, '/Source/Tests/', TestName, '.txt'], FilePath),

@@ -1,7 +1,0 @@
-Test Case: test47
-
-What is being tested:
-This test case presents a more complex, three-way circular dependency. The client needs the docs to build, the docs need the server to run, and the server needs the client to run. This creates a loop that cannot be resolved.
-
-Expected Outcome:
-The prover should be able to trace the dependency chain through all three packages and identify the circular dependency, causing the proof to fail.
