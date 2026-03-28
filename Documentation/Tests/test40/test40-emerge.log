@@ -5,7 +5,7 @@ Calculating dependencies
 
 !!! Problem resolving dependencies for test40/os
 ... done!
-Dependency resolution took 0.52 s (backtrack: 0/20).
+Dependency resolution took 0.47 s (backtrack: 0/20).
 
 
 !!! The ebuild selected to satisfy "test40/os" has unmet requirements.

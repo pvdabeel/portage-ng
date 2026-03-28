@@ -19,16 +19,14 @@ dependency.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test67/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.45 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
+[ebuild  N     ] test67/lib-1.0::overlay  0 KiB
+[ebuild  N     ] test67/toolchain-1.0::overlay  0 KiB
+[ebuild  N     ] test67/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test67/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test57/app, test56/app?
+Total: 3 packages (3 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -37,25 +35,27 @@ emerge: Maybe you meant any of these: test60/app, test57/app, test56/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test67/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom **`test67/app`** is invalid because:
+>>> Emerging : overlay://test67/app-1.0:run?{[]}
 
-1. **`test67` is not a valid Gentoo category** - Gentoo uses predefined categories like `app-misc`, `dev-libs`, `sys-apps`, etc. Custom categories like `test67` don't exist in the standard Portage tree.
+These are the packages that would be merged, in order:
 
-2. **This looks like a test/dummy package name** - The "test67" prefix suggests this is either:
-   - A placeholder used in testing
-   - A package from a custom/local overlay that isn't in the main tree
-   - A typo or incorrect package reference
+Calculating dependencies... done!
 
-**To fix this:**
-- If you're testing portage-ng, verify you're using a valid package atom from the actual Portage tree (e.g., `app-editors/vim`)
-- If this is from an overlay, ensure the overlay is properly configured
-- Check if you meant a different package entirely
+ └─step  1─┤ download  overlay://test67/toolchain-1.0
+             │ download  overlay://test67/lib-1.0
+             │ download  overlay://test67/app-1.0
 
-**Valid package atom format:** `category/package-name` where category must be one of Gentoo's official categories.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  2─┤ install   overlay://test67/lib-1.0
+             │ install   overlay://test67/toolchain-1.0
 
+ └─step  3─┤ run       overlay://test67/lib-1.0
+
+ └─step  4─┤ install   overlay://test67/app-1.0
+
+ └─step  5─┤ run     overlay://test67/app-1.0
+
+Total: 8 actions (3 downloads, 3 installs, 2 runs), grouped into 5 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>

@@ -15,7 +15,7 @@ Multiple requirements should be combined. Only one version should be selected
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.98 s (backtrack: 0/20).
+Dependency resolution took 0.73 s (backtrack: 0/20).
 
 [ebuild  N     ] test56/lib-6.0::overlay  0 KiB
 [ebuild  N     ] test56/modulea-1.0::overlay  0 KiB

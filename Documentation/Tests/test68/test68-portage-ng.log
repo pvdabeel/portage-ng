@@ -1,21 +1,22 @@
-[33m[00m[43mwarning[00m[33m[00m Package not found: test68/app[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom `test68/app` appears to be a **non-existent test package** rather than a real Gentoo package.
 
-**Issues:**
-1. **Invalid category**: `test68` is not a standard Gentoo category
-2. **Test naming pattern**: This looks like a synthetic test case or placeholder
+[93m>>> Emerging : overlay://test68/app-1.0:run?{[]}
+[00m
+[32mThese are the packages that would be merged, in order:
 
-**Likely causes:**
-- Test input for portage-ng development/debugging
-- Typo or placeholder that should reference an actual package
-- Missing overlay configuration if this is from a custom repository
+[00mCalculating dependencies... done!
 
-**To resolve:**
-- If this is a test: Check if portage-ng test suite requires specific test fixtures/repositories
-- If seeking a real package: Provide the actual package name you intended to install
-- Check if a custom overlay needs to be added to repos.conf
+ └─[90m[00m[100mstep  1[00m[90m[00m─┤ [36mdownload[32m  overlay://test68/lib-2.0[00m
+             │ [36mdownload[32m  overlay://test68/lib-1.0[00m
+             │ [36mdownload[32m  overlay://test68/app-1.0[00m
 
-Without more context about what software you're actually trying to install, this appears to be an intentionally invalid package atom for testing purposes.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+ └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36minstall[32m   overlay://test68/lib-1.0[00m
+             │ [36minstall[32m   overlay://test68/lib-2.0[00m
+
+ └─[90m[00m[100mstep  3[00m[90m[00m─┤ [36minstall[32m   overlay://test68/app-1.0[00m
+
+ └─[90m[00m[100mstep  4[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test68/app-1.0[00m[00m
+
+Total: 7 actions (3 downloads, 3 installs, 1 run), grouped into 4 steps.
+       0.00 Kb to be downloaded.
+
+

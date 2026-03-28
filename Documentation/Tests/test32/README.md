@@ -14,11 +14,11 @@ This test case examines the interplay between REQUIRED_USE and conditional depen
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  .
+Calculating dependencies  
 
 !!! Problem resolving dependencies for test32/os
 ... done!
-Dependency resolution took 0.53 s (backtrack: 0/20).
+Dependency resolution took 0.48 s (backtrack: 0/20).
 
 
 !!! The ebuild selected to satisfy "test32/os" has unmet requirements.

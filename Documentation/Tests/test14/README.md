@@ -16,7 +16,7 @@ This test case evaluates the handling of USE conditional dependencies. The depen
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.91 s (backtrack: 0/20).
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test14/os-1.0::overlay  0 KiB
 [ebuild  N     ] test14/db-1.0::overlay  0 KiB

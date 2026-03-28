@@ -1,19 +1,20 @@
-[33m[00m[43mwarning[00m[33m[00m Package not found: test72/app[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package `test72/app` appears to be a **non-existent test package** that doesn't exist in the Gentoo Portage tree.
 
-This looks like:
-1. A **test/dummy package name** used for debugging or testing portage-ng itself
-2. The category `test72` is not a valid Gentoo category
-3. No legitimate Gentoo package would be named this way
+[93m>>> Emerging : overlay://test72/app-1.0:run?{[]}
+[00m
+[32mThese are the packages that would be merged, in order:
 
-**What's likely wrong:**
-- You're testing portage-ng with a fictional package
-- There's a typo or placeholder that wasn't replaced with a real package atom
-- This is from a test suite or example configuration
+[00mCalculating dependencies... done!
 
-**To fix:** Replace with an actual Gentoo package atom like `app-editors/vim` or `sys-apps/portage`.
+ └─[90m[00m[100mstep  1[00m[90m[00m─┤ [36mdownload[32m  overlay://test72/installer-1.0[00m
+             │ [36mdownload[32m  overlay://test72/app-1.0[00m
 
-If you intended to test with a real package, please provide the actual package name you're looking for.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+ └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36minstall[32m   overlay://test72/installer-1.0[00m
+
+ └─[90m[00m[100mstep  3[00m[90m[00m─┤ [36minstall[32m   overlay://test72/app-1.0[00m
+
+ └─[90m[00m[100mstep  4[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test72/app-1.0[00m[00m
+
+Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
+       0.00 Kb to be downloaded.
+
+

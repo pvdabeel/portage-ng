@@ -15,7 +15,7 @@ This test case checks the prover's ability to handle a conflict between a "soft"
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.60 s (backtrack: 0/20).
+Dependency resolution took 0.48 s (backtrack: 0/20).
 
 
 The following USE changes are necessary to proceed:

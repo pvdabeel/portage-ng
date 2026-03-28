@@ -1,19 +1,20 @@
-[33m[00m[43mwarning[00m[33m[00m Package not found: test69/app[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom `test69/app` is **not a valid Gentoo package**. 
 
-This appears to be:
-1. A **test/dummy package name** (the "test69" category doesn't exist in Gentoo)
-2. Possibly used for testing portage-ng's error handling
-3. Or a typo/placeholder that needs to be replaced with an actual package atom
+[93m>>> Emerging : overlay://test69/app-1.0:run?{[]}
+[00m
+[32mThese are the packages that would be merged, in order:
 
-**What's wrong:** The category `test69` doesn't exist in the Gentoo Portage tree. Valid categories include things like `app-editors`, `sys-apps`, `dev-lang`, etc.
+[00mCalculating dependencies... done!
 
-**To fix:** Replace with an actual package atom like:
-- `app-editors/vim`
-- `sys-apps/portage`
-- Or whatever package you actually need
+ └─[90m[00m[100mstep  1[00m[90m[00m─┤ [36mdownload[32m  overlay://test69/lib-5.0[00m
+             │ [36mdownload[32m  overlay://test69/app-1.0[00m
 
-If you're testing portage-ng itself, this failure is expected behavior for a non-existent package.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+ └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36minstall[32m   overlay://test69/lib-5.0[00m
+
+ └─[90m[00m[100mstep  3[00m[90m[00m─┤ [36minstall[32m   overlay://test69/app-1.0[00m
+
+ └─[90m[00m[100mstep  4[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test69/app-1.0[00m[00m
+
+Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
+       0.00 Kb to be downloaded.
+
+

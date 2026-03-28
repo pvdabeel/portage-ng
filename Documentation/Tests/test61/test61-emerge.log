@@ -1,13 +1,37 @@
 
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test61/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.46 s (backtrack: 0/20).
+Calculating dependencies  .... done!
+Dependency resolution took 0.76 s (backtrack: 0/20).
 
 
-emerge: there are no ebuilds to satisfy "test61/app".
 
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test56/app, test51/app?
+[ebuild  N     ] test61/app-1.0::overlay  0 KiB
+[nomerge       ]  test61/a-1.0::overlay  USE="foo" 
+[ebuild  N     ]   test61/b-1.0::overlay  USE="foo" 0 KiB
+[ebuild  N     ]    test61/a-1.0::overlay  USE="foo" 0 KiB
+
+Total: 3 packages (3 new), Size of downloads: 0 KiB
+
+ * Error: circular dependencies:
+
+(test61/b-1.0:0/0::overlay, ebuild scheduled for merge) depends on
+ (test61/a-1.0:0/0::overlay, ebuild scheduled for merge) (buildtime)
+  (test61/b-1.0:0/0::overlay, ebuild scheduled for merge) (buildtime)
+
+ * Note that circular dependencies can often be avoided by temporarily
+ * disabling USE flags that trigger optional dependencies.
+
+The following USE changes are necessary to proceed:
+ (see "package.use" in the portage(5) man page for more details)
+# required by test61/a-1.0::overlay
+# required by test61/app-1.0::overlay
+# required by test61/app (argument)
+>=test61/b-1.0 foo
+# required by test61/b-1.0::overlay
+>=test61/a-1.0 foo
+
+ * In order to avoid wasting time, backtracking has terminated early
+ * due to the above autounmask change(s). The --autounmask-backtrack=y
+ * option can be used to force further backtracking, but there is no
+ * guarantee that it will produce a solution.

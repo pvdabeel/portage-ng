@@ -18,16 +18,13 @@ plan should show an update action for lib, not a fresh install.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test73/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.47 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.78 s (backtrack: 0/20).
 
+[ebuild  N     ] test73/lib-2.0::overlay  0 KiB
+[ebuild  N     ] test73/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test73/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test57/app, test53/app, test43/app?
+Total: 2 packages (2 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -36,23 +33,23 @@ emerge: Maybe you meant any of these: test57/app, test53/app, test43/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test73/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom `test73/app` appears to be a non-existent or test package. 
+>>> Emerging : overlay://test73/app-1.0:run?{[]}
 
-**Issues:**
-1. `test73` is not a valid Gentoo category in the standard Portage tree
-2. This looks like a placeholder/test atom rather than a real package
+These are the packages that would be merged, in order:
 
-**Suggestions:**
-- Verify the correct package name and category
-- Check if you meant a package from a valid category like `app-*`, `dev-*`, `sys-*`, etc.
-- If this is from an overlay, ensure the overlay is properly configured and the metadata cache is generated
-- Run `emerge --regen` or `egencache --update` if using a custom overlay
+Calculating dependencies... done!
 
-Without more context about what application you're trying to install, I cannot suggest the correct atom. What software were you actually trying to install?
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  1─┤ download  overlay://test73/lib-2.0
+             │ download  overlay://test73/app-1.0
 
+ └─step  2─┤ install   overlay://test73/lib-2.0
+
+ └─step  3─┤ install   overlay://test73/app-1.0
+
+ └─step  4─┤ run     overlay://test73/app-1.0
+
+Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>

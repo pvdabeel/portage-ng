@@ -19,16 +19,13 @@ be retained.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test77/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.47 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.73 s (backtrack: 0/20).
 
+[ebuild  N     ] test77/os-1.0::overlay  0 KiB
+[ebuild  N     ] test77/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test77/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test57/app, test37/app, test27/app?
+Total: 2 packages (2 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -37,28 +34,25 @@ emerge: Maybe you meant any of these: test57/app, test37/app, test27/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test77/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package `test77/app` does not exist in the Gentoo Portage tree. 
+>>> Emerging : overlay://test77/app-1.0:run?{[]}
 
-**What's wrong:**
-- `test77` is not a valid Gentoo package category
-- This appears to be a test/dummy package name that was never in the official tree
+These are the packages that would be merged, in order:
 
-**Possible causes:**
-1. Typo in the package name
-2. Package from a custom/local overlay that isn't configured
-3. Test data or example that shouldn't be resolved against the main tree
-4. Package was removed or never existed
+Calculating dependencies... done!
 
-**To fix:**
-- Verify the correct package name and category
-- If it's from an overlay, ensure the overlay is properly configured
-- Check if you meant a different package entirely
+ └─step  1─┤ download  overlay://test77/os-1.0
+             │ download  overlay://test77/app-1.0
 
-Without more context about what you're trying to install, I cannot suggest the correct atom.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  2─┤ install   overlay://test77/os-1.0
 
+ └─step  3─┤ run       overlay://test77/os-1.0
+
+ └─step  4─┤ install   overlay://test77/app-1.0
+
+ └─step  5─┤ run     overlay://test77/app-1.0
+
+Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>

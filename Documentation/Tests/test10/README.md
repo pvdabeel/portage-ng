@@ -15,7 +15,7 @@ This is a variation of test09. It checks for a missing dependency, but this time
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.23 s (backtrack: 1/20).
+Dependency resolution took 1.22 s (backtrack: 1/20).
 
 
 emerge: there are no ebuilds to satisfy "test10/notexists".

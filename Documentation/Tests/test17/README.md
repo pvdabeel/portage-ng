@@ -15,7 +15,7 @@ This test case evaluates the prover's handling of an 'exactly-one-of' dependency
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.37 s (backtrack: 1/20).
+Dependency resolution took 1.25 s (backtrack: 1/20).
 
 
 !!! All ebuilds that could satisfy "test17/os" have been masked.

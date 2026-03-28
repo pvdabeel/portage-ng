@@ -15,7 +15,7 @@ The prover will first prove os-1.0 through the liba path. This means os-1.0 will
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.92 s (backtrack: 0/20).
+Dependency resolution took 0.76 s (backtrack: 0/20).
 
 [ebuild  N     ] test52/os-1.0::overlay  USE="hardened threads" 0 KiB
 [ebuild  N     ] test52/liba-1.0::overlay  0 KiB

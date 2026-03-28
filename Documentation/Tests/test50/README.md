@@ -15,7 +15,7 @@ This test case examines the prover's handling of transitive dependencies, specif
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.90 s (backtrack: 0/20).
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
 [ebuild  N     ] test50/bar-1.0::overlay  0 KiB
 [ebuild  N     ] test50/foo-1.0::overlay  0 KiB

@@ -15,7 +15,7 @@ This test case examines the prover's ability to propagate a conditional USE flag
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.90 s (backtrack: 0/20).
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
 [ebuild  N     ] test36/os-1.0::overlay  USE="-darwin -linux" 0 KiB
 [ebuild  N     ] test36/lib-1.0::overlay  USE="-linux" 0 KiB

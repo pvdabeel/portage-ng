@@ -19,16 +19,9 @@ may still appear in the proof for dependency traversal purposes.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test78/web' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.47 s (backtrack: 0/20).
+[ebuild  N     ] test78/web-1.0::overlay  0 KiB
 
-
-emerge: there are no ebuilds to satisfy "test78/web".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test58/web, test57/web, test28/web?
+Total: 1 package (1 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -37,28 +30,35 @@ emerge: Maybe you meant any of these: test58/web, test57/web, test28/web?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test78/web
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom `test78/web` appears to be invalid. Here's what's wrong:
+>>> Emerging : overlay://test78/web-1.0:run?{[]}
 
-**Issue**: `test78` is not a valid Gentoo package category in the standard Portage tree.
+These are the packages that would be merged, in order:
 
-**Possible causes**:
-1. **Typo in category name** - There is no `test78` category in Gentoo
-2. **Local overlay package** - This might be from a custom/local overlay that portage-ng cannot see
-3. **Test/dummy package** - The name suggests this might be a test package that doesn't actually exist
+Calculating dependencies... done!
 
-**Suggestions**:
-- If you're looking for a web-related package, check valid categories like:
-  - `www-apps/` (web applications)
-  - `www-servers/` (web servers)
-  - `www-client/` (web browsers/clients)
-- Verify the package exists: `eix web` or check `/usr/portage/test78/`
-- If this is from a custom overlay, ensure portage-ng is configured to read that overlay's metadata
+ └─step  1─┤ download  overlay://test78/web-1.0
+             │ download  overlay://test78/os-1.0
+             │ download  overlay://test78/db-1.0
+             │ download  overlay://test78/app-1.0
 
-The atom format is correct (`category/package`), but the category doesn't exist in standard Gentoo.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  2─┤ install   overlay://test78/os-1.0
 
+ └─step  3─┤ run       overlay://test78/os-1.0
+
+ └─step  4─┤ install   overlay://test78/db-1.0
+
+ └─step  5─┤ run       overlay://test78/db-1.0
+
+ └─step  6─┤ install   overlay://test78/app-1.0
+
+ └─step  7─┤ run       overlay://test78/app-1.0
+
+ └─step  8─┤ install   overlay://test78/web-1.0
+
+ └─step  9─┤ run     overlay://test78/web-1.0
+
+Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>

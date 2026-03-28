@@ -16,7 +16,7 @@ This test case is similar to test14 but uses a negative USE conditional. The dep
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.95 s (backtrack: 0/20).
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test15/os-1.0::overlay  0 KiB
 [ebuild  N     ] test15/db-1.0::overlay  0 KiB

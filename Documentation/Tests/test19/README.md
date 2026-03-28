@@ -15,7 +15,7 @@ This test case combines test17 and test18. The 'os-1.0' package has the same 'ex
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.36 s (backtrack: 1/20).
+Dependency resolution took 1.23 s (backtrack: 1/20).
 
 
 !!! All ebuilds that could satisfy "test19/os" have been masked.

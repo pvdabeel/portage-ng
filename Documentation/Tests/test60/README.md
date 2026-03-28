@@ -22,7 +22,7 @@ should select windows-2.0 and avoid windows-1.0.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.04 s (backtrack: 0/20).
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test60/windows-2.0::overlay  0 KiB
 [ebuild  N     ] test60/os-1.0::overlay  0 KiB

@@ -1,14 +1,20 @@
-[33m[00m[43mwarning[00m[33m[00m Package not found: test80/app[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package `test80/app` doesn't exist in the Gentoo Portage tree. 
 
-This looks like:
-1. **A test/dummy package name** - "test80" is not a valid Gentoo category
-2. **A typo or placeholder** - possibly meant for testing portage-ng itself
-3. **A local overlay package** that's missing from your system
+[93m>>> Emerging : overlay://test80/app-1.0:run?{[]}
+[00m
+[32mThese are the packages that would be merged, in order:
 
-**Valid Gentoo categories** don't include "test80". If you're trying to test portage-ng, you should use a real package like `app-editors/vim` or `sys-apps/portage`.
+[00mCalculating dependencies... done!
 
-If this is supposed to be a real package, please provide more context about what you're actually trying to install.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+ └─[90m[00m[100mstep  1[00m[90m[00m─┤ [36mdownload[32m  overlay://test80/lib-3.0[00m
+             │ [36mdownload[32m  overlay://test80/app-1.0[00m
+
+ └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36minstall[32m   overlay://test80/lib-3.0[00m
+
+ └─[90m[00m[100mstep  3[00m[90m[00m─┤ [36minstall[32m   overlay://test80/app-1.0[00m
+
+ └─[90m[00m[100mstep  4[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test80/app-1.0[00m[00m
+
+Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
+       0.00 Kb to be downloaded.
+
+

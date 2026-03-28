@@ -16,18 +16,10 @@ install or run steps should be produced in the plan.
 <summary><b>emerge</b></summary>
 
 ```
-These are the packages that would be merged, in order:
+These are the packages that would be fetched, in order:
 
-Calculating dependencies  
-!!! 'test71/web' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.47 s (backtrack: 0/20).
-
-
-emerge: there are no ebuilds to satisfy "test71/web".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test57/web, test31/web, test27/web?
+Calculating dependencies  ... done!
+Dependency resolution took 0.75 s (backtrack: 0/20).
 ```
 
 </details>
@@ -36,25 +28,19 @@ emerge: Maybe you meant any of these: test57/web, test31/web, test27/web?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test71/web
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package `test71/web` appears to be a **non-existent or test package**. 
+>>> Emerging : overlay://test71/web-1.0:fetchonly?{[]}
 
-The category `test71` is not a standard Gentoo Portage category. This looks like:
+These are the packages that would be merged, in order:
 
-1. **A test/dummy package** used for debugging portage-ng itself
-2. **A typo** - you may have meant a real package like:
-   - `www-client/` or `www-servers/` category packages
-   - `net-libs/webkit-gtk` or similar web-related packages
+Calculating dependencies... done!
 
-**To fix:**
-- If testing portage-ng, ensure test packages are in your local overlay
-- If looking for a real package, check standard categories like `www-*`, `net-*`, or `dev-*`
-- Verify the package exists: `eix web` or `emerge --search web`
+ └─step  1─┤ download  overlay://test71/web-1.0
+             │ download  overlay://test71/os-1.0
+             │ download  overlay://test71/db-1.0
+             │ download  overlay://test71/app-1.0
 
-The "test71" category strongly suggests this is an intentional test case rather than a real package request.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
-
+Total: 4 actions (4 downloads), grouped into 1 step.
+       0.00 Kb to be downloaded.
 ```
 
 </details>

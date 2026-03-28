@@ -18,16 +18,13 @@ The plan should show a downgrade action for lib.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test74/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.48 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.77 s (backtrack: 0/20).
 
+[ebuild  N     ] test74/lib-1.0::overlay  0 KiB
+[ebuild  N     ] test74/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test74/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test57/app, test54/app, test49/app?
+Total: 2 packages (2 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -36,22 +33,23 @@ emerge: Maybe you meant any of these: test57/app, test54/app, test49/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test74/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package `test74/app` appears to be a **non-existent test package**. 
+>>> Emerging : overlay://test74/app-1.0:run?{[]}
 
-This looks like:
-1. A **test case** for portage-ng itself (the "test74" suggests automated testing)
-2. A **typo or placeholder** that was never meant to be resolved
-3. A **custom/local package** that doesn't exist in the standard Portage tree
+These are the packages that would be merged, in order:
 
-**What's wrong:** No package with category `test74` exists in Gentoo's official Portage tree. Categories like `test74` are not standard Gentoo categories.
+Calculating dependencies... done!
 
-**To verify:** Run `eix -C test74` or check if this is part of portage-ng's test suite rather than an actual package request.
+ └─step  1─┤ download  overlay://test74/lib-1.0
+             │ download  overlay://test74/app-1.0
 
-If you're testing portage-ng functionality, this failure is expected for non-existent packages.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  2─┤ install   overlay://test74/lib-1.0
 
+ └─step  3─┤ install   overlay://test74/app-1.0
+
+ └─step  4─┤ run     overlay://test74/app-1.0
+
+Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>

@@ -1,13 +1,10 @@
 
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test80/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.50 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
+[ebuild  N     ] test80/lib-3.0::overlay  0 KiB
+[ebuild  N     ] test80/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test80/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test58/app, test50/app?
+Total: 2 packages (2 new), Size of downloads: 0 KiB

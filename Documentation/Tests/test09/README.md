@@ -15,7 +15,7 @@ This test case checks the prover's ability to handle a missing dependency. The '
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.22 s (backtrack: 1/20).
+Dependency resolution took 1.21 s (backtrack: 1/20).
 
 
 emerge: there are no ebuilds to satisfy "test09/notexists".

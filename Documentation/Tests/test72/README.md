@@ -18,16 +18,13 @@ an install-time dependency and be available before app-1.0's install phase.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test72/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.48 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
+[ebuild  N     ] test72/installer-1.0::overlay  0 KiB
+[ebuild  N     ] test72/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test72/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test57/app, test52/app, test42/app?
+Total: 2 packages (2 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -36,25 +33,23 @@ emerge: Maybe you meant any of these: test57/app, test52/app, test42/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test72/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package `test72/app` appears to be a **non-existent test package** that doesn't exist in the Gentoo Portage tree.
+>>> Emerging : overlay://test72/app-1.0:run?{[]}
 
-This looks like:
-1. A **test/dummy package name** used for debugging or testing portage-ng itself
-2. The category `test72` is not a valid Gentoo category
-3. No legitimate Gentoo package would be named this way
+These are the packages that would be merged, in order:
 
-**What's likely wrong:**
-- You're testing portage-ng with a fictional package
-- There's a typo or placeholder that wasn't replaced with a real package atom
-- This is from a test suite or example configuration
+Calculating dependencies... done!
 
-**To fix:** Replace with an actual Gentoo package atom like `app-editors/vim` or `sys-apps/portage`.
+ └─step  1─┤ download  overlay://test72/installer-1.0
+             │ download  overlay://test72/app-1.0
 
-If you intended to test with a real package, please provide the actual package name you're looking for.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  2─┤ install   overlay://test72/installer-1.0
 
+ └─step  3─┤ install   overlay://test72/app-1.0
+
+ └─step  4─┤ run     overlay://test72/app-1.0
+
+Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>

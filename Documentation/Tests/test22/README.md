@@ -15,7 +15,7 @@ This test case combines test20 and test21. The 'os-1.0' package has the same 'an
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.05 s (backtrack: 0/20).
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
 [ebuild  N     ] test22/linux-1.0::overlay  0 KiB
 [ebuild  N     ] test22/os-1.0::overlay  0 KiB

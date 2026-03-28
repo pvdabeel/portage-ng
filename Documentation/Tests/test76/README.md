@@ -18,16 +18,19 @@ The plan should include a rebuild action for os-1.0.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test76/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.49 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.73 s (backtrack: 0/20).
 
+[ebuild  N     ] test76/os-1.0::overlay  USE="linux -darwin" 0 KiB
+[ebuild  N     ] test76/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test76/app".
+Total: 2 packages (2 new), Size of downloads: 0 KiB
 
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test57/app, test56/app?
+The following USE changes are necessary to proceed:
+ (see "package.use" in the portage(5) man page for more details)
+# required by test76/app-1.0::overlay
+# required by test76/app (argument)
+>=test76/os-1.0 linux
 ```
 
 </details>
@@ -36,25 +39,33 @@ emerge: Maybe you meant any of these: test60/app, test57/app, test56/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test76/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package `test76/app` appears to be a **non-existent test package**. 
+>>> Emerging : overlay://test76/app-1.0:run?{[]}
 
-This looks like:
-1. A synthetic test case for portage-ng development/testing
-2. An incorrectly formatted package atom
-3. Or a typo where `test76` is not a valid Gentoo category
+These are the packages that would be merged, in order:
 
-**Valid Gentoo categories** don't include `test76`. Standard categories include things like `app-admin`, `dev-libs`, `sys-apps`, etc.
+Calculating dependencies... done!
 
-**To resolve:**
-- If this is a test: The package simply doesn't exist in the Portage tree
-- If looking for a real package: Check the correct category (e.g., `app-misc/app`, `app-admin/app`)
-- Verify the package name is correct using `eix` or `emerge --search`
+ └─step  1─┤ useflag overlay://test76/os-1.0 (linux)
 
-The failure is expected since `test76/app` is not a valid Gentoo package atom in the standard Portage tree.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  2─┤ download  overlay://test76/os-1.0
+             │ download  overlay://test76/app-1.0
 
+ └─step  3─┤ install   overlay://test76/os-1.0 (USE modified)
+             │           └─ conf ─┤ USE = "-darwin linux"
+
+ └─step  4─┤ install   overlay://test76/app-1.0
+
+ └─step  5─┤ run     overlay://test76/app-1.0
+
+Total: 6 actions (1 useflag, 2 downloads, 2 installs, 1 run), grouped into 5 steps.
+       0.00 Kb to be downloaded.
+
+
+>>> Assumptions taken during proving & planning:
+
+  USE flag change (1 package):
+  Add to /etc/portage/package.use:
+    test76/os linux
 ```
 
 </details>

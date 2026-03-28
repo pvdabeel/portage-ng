@@ -1,20 +1,20 @@
-[33m[00m[43mwarning[00m[33m[00m Package not found: test70/app[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom `test70/app` appears to be invalid because:
 
-1. **`test70` is not a standard Gentoo category** - Valid categories include things like `app-admin`, `dev-lang`, `sys-apps`, etc.
+[93m>>> Emerging : overlay://test70/app-1.0:run?{[]}
+[00m
+[32mThese are the packages that would be merged, in order:
 
-2. **This looks like a test/example package** - The "test70" prefix suggests this is either:
-   - A custom overlay package that isn't in the standard Portage tree
-   - A fictional example used for testing portage-ng
-   - A typo or placeholder
+[00mCalculating dependencies... done!
 
-**To resolve this:**
+ └─[90m[00m[100mstep  1[00m[90m[00m─┤ [36mdownload[32m  overlay://test70/lib-2.0-r1[00m
+             │ [36mdownload[32m  overlay://test70/app-1.0[00m
 
-- If testing portage-ng, use a real package like `sys-apps/portage` or `app-portage/gentoolkit`
-- Check if you need to add a custom overlay that contains this package
-- Verify the correct category/package name if this was meant to be something else
+ └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36minstall[32m   overlay://test70/lib-2.0-r1[00m
 
-**Most likely:** This is a non-existent test package and you should replace it with an actual package atom from the Gentoo repository.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+ └─[90m[00m[100mstep  3[00m[90m[00m─┤ [36minstall[32m   overlay://test70/app-1.0[00m
+
+ └─[90m[00m[100mstep  4[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test70/app-1.0[00m[00m
+
+Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
+       0.00 Kb to be downloaded.
+
+

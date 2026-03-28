@@ -15,7 +15,7 @@ This test case is designed to assess the prover's ability to detect a USE flag c
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.71 s (backtrack: 0/20).
+Dependency resolution took 0.52 s (backtrack: 0/20).
 
 
 !!! The ebuild selected to satisfy "test46/core-utils[-feature_x]" has unmet requirements.

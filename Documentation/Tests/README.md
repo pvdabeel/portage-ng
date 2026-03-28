@@ -114,7 +114,7 @@ step. The final step installs web-1.0.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.69 s (backtrack: 0/20).
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test01/os-1.0::overlay  0 KiB
 [ebuild  N     ] test01/db-1.0::overlay  0 KiB
@@ -186,8 +186,8 @@ alternative plans.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  .... done!
-Dependency resolution took 0.90 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
 [ebuild  N     ] test02/os-2.0::overlay  0 KiB
 [ebuild  N     ] test02/db-2.0::overlay  0 KiB
@@ -259,7 +259,7 @@ all four packages.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.30 s (backtrack: 1/20).
+Dependency resolution took 1.22 s (backtrack: 1/20).
 
 
 
@@ -341,7 +341,7 @@ dependencies in this case.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.91 s (backtrack: 0/20).
+Dependency resolution took 0.78 s (backtrack: 0/20).
 
 [ebuild  N     ] test04/os-1.0::overlay  0 KiB
 [ebuild  N     ] test04/db-1.0::overlay  0 KiB
@@ -409,7 +409,7 @@ steps in the proposed plan.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.32 s (backtrack: 1/20).
+Dependency resolution took 1.21 s (backtrack: 1/20).
 
 
 
@@ -489,7 +489,7 @@ final plan.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.29 s (backtrack: 1/20).
+Dependency resolution took 1.19 s (backtrack: 1/20).
 
 
 
@@ -570,7 +570,7 @@ verify step in the proposed plan.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.34 s (backtrack: 1/20).
+Dependency resolution took 1.19 s (backtrack: 1/20).
 
 
 
@@ -645,7 +645,7 @@ two verify steps in the proposed plan.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.37 s (backtrack: 1/20).
+Dependency resolution took 1.19 s (backtrack: 1/20).
 
 
 
@@ -716,7 +716,7 @@ This test case checks the prover's ability to handle a missing dependency. The '
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.22 s (backtrack: 1/20).
+Dependency resolution took 1.21 s (backtrack: 1/20).
 
 
 emerge: there are no ebuilds to satisfy "test09/notexists".
@@ -798,7 +798,7 @@ This is a variation of test09. It checks for a missing dependency, but this time
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.23 s (backtrack: 1/20).
+Dependency resolution took 1.22 s (backtrack: 1/20).
 
 
 emerge: there are no ebuilds to satisfy "test10/notexists".
@@ -880,7 +880,7 @@ This test case combines test09 and test10. The 'os-1.0' package has both a compi
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.21 s (backtrack: 1/20).
+Dependency resolution took 1.23 s (backtrack: 1/20).
 
 
 emerge: there are no ebuilds to satisfy "test11/notexists".
@@ -968,7 +968,7 @@ This test case examines the prover's handling of package keywords and stability.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.91 s (backtrack: 0/20).
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test12/os-2.0::overlay  0 KiB
 [ebuild  N     ] test12/db-2.0::overlay  0 KiB
@@ -1032,7 +1032,17 @@ This test case introduces a specific version constraint. The 'app-2.0' package e
 <summary><b>emerge</b></summary>
 
 ```
-zsh:1: test13/web-2.0 not found
+These are the packages that would be merged, in order:
+
+Calculating dependencies  ... done!
+Dependency resolution took 0.74 s (backtrack: 0/20).
+
+[ebuild  N     ] test13/os-2.0::overlay  0 KiB
+[ebuild  N     ] test13/db-2.0::overlay  0 KiB
+[ebuild  N     ] test13/app-2.0::overlay  0 KiB
+[ebuild  N     ] test13/web-2.0::overlay  0 KiB
+
+Total: 4 packages (4 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -1093,7 +1103,7 @@ This test case evaluates the handling of USE conditional dependencies. The depen
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.91 s (backtrack: 0/20).
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test14/os-1.0::overlay  0 KiB
 [ebuild  N     ] test14/db-1.0::overlay  0 KiB
@@ -1162,7 +1172,7 @@ This test case is similar to test14 but uses a negative USE conditional. The dep
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.95 s (backtrack: 0/20).
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test15/os-1.0::overlay  0 KiB
 [ebuild  N     ] test15/db-1.0::overlay  0 KiB
@@ -1239,7 +1249,7 @@ db-1.0, and os-1.0 should all appear in the plan in the correct order.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.90 s (backtrack: 0/20).
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
 [ebuild  N     ] test16/os-1.0::overlay  0 KiB
 [ebuild  N     ] test16/db-1.0::overlay  0 KiB
@@ -1306,7 +1316,7 @@ This test case evaluates the prover's handling of an 'exactly-one-of' dependency
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.37 s (backtrack: 1/20).
+Dependency resolution took 1.25 s (backtrack: 1/20).
 
 
 !!! All ebuilds that could satisfy "test17/os" have been masked.
@@ -1445,8 +1455,8 @@ This test case is a variation of test17, but the 'exactly-one-of' dependency is 
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  ... done!
-Dependency resolution took 1.35 s (backtrack: 1/20).
+Calculating dependencies  .... done!
+Dependency resolution took 1.22 s (backtrack: 1/20).
 
 
 !!! All ebuilds that could satisfy "test18/os" have been masked.
@@ -1586,7 +1596,7 @@ This test case combines test17 and test18. The 'os-1.0' package has the same 'ex
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.36 s (backtrack: 1/20).
+Dependency resolution took 1.23 s (backtrack: 1/20).
 
 
 !!! All ebuilds that could satisfy "test19/os" have been masked.
@@ -1726,7 +1736,7 @@ This test case evaluates the prover's handling of an 'any-of' dependency group (
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.09 s (backtrack: 0/20).
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
 [ebuild  N     ] test20/linux-1.0::overlay  0 KiB
 [ebuild  N     ] test20/os-1.0::overlay  0 KiB
@@ -1796,7 +1806,7 @@ This is a variation of test20, with the 'any-of' dependency group in the runtime
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.04 s (backtrack: 0/20).
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test21/linux-1.0::overlay  0 KiB
 [ebuild  N     ] test21/os-1.0::overlay  0 KiB
@@ -1868,7 +1878,7 @@ This test case combines test20 and test21. The 'os-1.0' package has the same 'an
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.05 s (backtrack: 0/20).
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
 [ebuild  N     ] test22/linux-1.0::overlay  0 KiB
 [ebuild  N     ] test22/os-1.0::overlay  0 KiB
@@ -1941,7 +1951,7 @@ This test case evaluates the prover's handling of an 'at-most-one-of' dependency
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.37 s (backtrack: 1/20).
+Dependency resolution took 1.21 s (backtrack: 1/20).
 
 
 !!! All ebuilds that could satisfy "test23/os" have been masked.
@@ -2081,7 +2091,7 @@ This is a variation of test23, with the 'at-most-one-of' dependency group in the
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.32 s (backtrack: 1/20).
+Dependency resolution took 1.21 s (backtrack: 1/20).
 
 
 !!! All ebuilds that could satisfy "test24/os" have been masked.
@@ -2220,8 +2230,8 @@ This test case combines test23 and test24. The 'os-1.0' package has the same 'at
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  ... done!
-Dependency resolution took 1.33 s (backtrack: 1/20).
+Calculating dependencies  .... done!
+Dependency resolution took 1.22 s (backtrack: 1/20).
 
 
 !!! All ebuilds that could satisfy "test25/os" have been masked.
@@ -2367,8 +2377,8 @@ either 'linux-1.0' or 'bsd-1.0' to satisfy the any-of group on 'os-1.0', since
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  .... done!
-Dependency resolution took 1.08 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test26/linux-1.0::overlay  0 KiB
 [ebuild  N     ] test26/os-1.0::overlay  0 KiB
@@ -2444,7 +2454,7 @@ depending on blocker handling strategy.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.11 s (backtrack: 0/20).
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test27/linux-1.0::overlay  0 KiB
 [ebuild  N     ] test27/os-1.0::overlay  0 KiB
@@ -2525,7 +2535,7 @@ either 'linux-1.0' or 'bsd-1.0' to satisfy the any-of group on 'os-1.0', since
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.07 s (backtrack: 0/20).
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test28/linux-1.0::overlay  0 KiB
 [ebuild  N     ] test28/os-1.0::overlay  0 KiB
@@ -2598,8 +2608,8 @@ strongly blocked in both scopes.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  ... done!
-Dependency resolution took 1.09 s (backtrack: 0/20).
+Calculating dependencies  .... done!
+Dependency resolution took 0.76 s (backtrack: 0/20).
 
 [ebuild  N     ] test29/linux-1.0::overlay  0 KiB
 [ebuild  N     ] test29/os-1.0::overlay  0 KiB
@@ -2674,7 +2684,7 @@ depending on blocker handling strategy.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.09 s (backtrack: 0/20).
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test30/linux-1.0::overlay  0 KiB
 [ebuild  N     ] test30/os-1.0::overlay  0 KiB
@@ -2754,7 +2764,7 @@ depending on blocker handling strategy.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.07 s (backtrack: 0/20).
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
 [ebuild  N     ] test31/linux-1.0::overlay  0 KiB
 [ebuild  N     ] test31/os-1.0::overlay  0 KiB
@@ -2830,11 +2840,11 @@ This test case examines the interplay between REQUIRED_USE and conditional depen
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  .
+Calculating dependencies  
 
 !!! Problem resolving dependencies for test32/os
 ... done!
-Dependency resolution took 0.53 s (backtrack: 0/20).
+Dependency resolution took 0.48 s (backtrack: 0/20).
 
 
 !!! The ebuild selected to satisfy "test32/os" has unmet requirements.
@@ -2896,7 +2906,7 @@ This test case examines a direct USE dependency. The 'app-1.0' package requires 
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.87 s (backtrack: 0/20).
+Dependency resolution took 0.84 s (backtrack: 0/20).
 
 [ebuild  N     ] test33/os-1.0::overlay  USE="linux -darwin" 0 KiB
 [ebuild  N     ] test33/app-1.0::overlay  0 KiB
@@ -2965,7 +2975,7 @@ This test case is the inverse of test33. It checks the handling of a negative US
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.82 s (backtrack: 0/20).
+Dependency resolution took 0.76 s (backtrack: 0/20).
 
 [ebuild  N     ] test34/os-1.0::overlay  USE="-darwin -linux" 0 KiB
 [ebuild  N     ] test34/app-1.0::overlay  USE="-linux" 0 KiB
@@ -3022,7 +3032,7 @@ In both cases, the proof should be valid.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.81 s (backtrack: 0/20).
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
 [ebuild  N     ] test35/os-1.0::overlay  USE="-darwin -linux" 0 KiB
 [ebuild  N     ] test35/app-1.0::overlay  USE="-linux" 0 KiB
@@ -3077,7 +3087,7 @@ This test case examines the prover's ability to propagate a conditional USE flag
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.90 s (backtrack: 0/20).
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
 [ebuild  N     ] test36/os-1.0::overlay  USE="-darwin -linux" 0 KiB
 [ebuild  N     ] test36/lib-1.0::overlay  USE="-linux" 0 KiB
@@ -3139,7 +3149,7 @@ The proof should be valid in both scenarios.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.82 s (backtrack: 0/20).
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
 [ebuild  N     ] test37/os-1.0::overlay  USE="linux -darwin" 0 KiB
 [ebuild  N     ] test37/app-1.0::overlay  USE="-linux" 0 KiB
@@ -3211,7 +3221,7 @@ The proof should be valid in both scenarios.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.82 s (backtrack: 0/20).
+Dependency resolution took 0.76 s (backtrack: 0/20).
 
 [ebuild  N     ] test38/os-1.0::overlay  USE="-darwin -linux" 0 KiB
 [ebuild  N     ] test38/app-1.0::overlay  USE="-linux" 0 KiB
@@ -3268,7 +3278,7 @@ The proof should be valid in both scenarios.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.83 s (backtrack: 0/20).
+Dependency resolution took 0.73 s (backtrack: 0/20).
 
 [ebuild  N     ] test39/os-1.0::overlay  USE="-darwin -linux" 0 KiB
 [ebuild  N     ] test39/app-1.0::overlay  USE="-linux" 0 KiB
@@ -3328,7 +3338,7 @@ Calculating dependencies
 
 !!! Problem resolving dependencies for test40/os
 ... done!
-Dependency resolution took 0.52 s (backtrack: 0/20).
+Dependency resolution took 0.47 s (backtrack: 0/20).
 
 
 !!! The ebuild selected to satisfy "test40/os" has unmet requirements.
@@ -3389,8 +3399,8 @@ This test case checks the prover's ability to resolve dependencies based on slot
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  .... done!
-Dependency resolution took 0.89 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test41/lib-1.0:1::overlay  0 KiB
 [ebuild  N     ] test41/app-1.0::overlay  0 KiB
@@ -3445,7 +3455,7 @@ This test case checks the prover's behavior with a wildcard slot dependency. 'ap
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.83 s (backtrack: 0/20).
+Dependency resolution took 0.73 s (backtrack: 0/20).
 
 [ebuild  N     ] test42/lib-2.0:2::overlay  0 KiB
 [ebuild  N     ] test42/app-1.0::overlay  0 KiB
@@ -3500,7 +3510,7 @@ This test case examines the slot equality operator (:=). 'app-1.0' depends on 'l
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.84 s (backtrack: 0/20).
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test43/lib-2.0:2::overlay  0 KiB
 [ebuild  N     ] test43/app-1.0::overlay  0 KiB
@@ -3555,7 +3565,7 @@ This test case checks the prover's ability to resolve dependencies based on sub-
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.92 s (backtrack: 0/20).
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test44/lib-1.0:1/A::overlay  0 KiB
 [ebuild  N     ] test44/app-1.0::overlay  0 KiB
@@ -3610,7 +3620,7 @@ This test case checks the prover's ability to detect a direct and irreconcilable
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.68 s (backtrack: 0/20).
+Dependency resolution took 0.49 s (backtrack: 0/20).
 
 
 The following USE changes are necessary to proceed:
@@ -3693,7 +3703,7 @@ This test case is designed to assess the prover's ability to detect a USE flag c
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.71 s (backtrack: 0/20).
+Dependency resolution took 0.52 s (backtrack: 0/20).
 
 
 !!! The ebuild selected to satisfy "test46/core-utils[-feature_x]" has unmet requirements.
@@ -3783,8 +3793,8 @@ This test case presents a more complex, three-way circular dependency. The clien
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  . ... done!
-Dependency resolution took 1.32 s (backtrack: 1/20).
+Calculating dependencies  ... done!
+Dependency resolution took 1.20 s (backtrack: 1/20).
 
 
 
@@ -3854,7 +3864,7 @@ This test case checks the prover's ability to detect a slotting conflict. The tw
 These are the packages that would be merged, in order:
 
 Calculating dependencies  .... done!
-Dependency resolution took 4.50 s (backtrack: 6/20).
+Dependency resolution took 4.52 s (backtrack: 6/20).
 
 [ebuild  N     ] test48/libmatrix-1.1:1/B::overlay  0 KiB
 [ebuild  N     ] test48/libmatrix-1.0:1/A::overlay  0 KiB
@@ -3976,7 +3986,7 @@ This test case checks the prover's ability to handle a conflict between a "soft"
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.60 s (backtrack: 0/20).
+Dependency resolution took 0.48 s (backtrack: 0/20).
 
 
 The following USE changes are necessary to proceed:
@@ -4055,7 +4065,7 @@ This test case examines the prover's handling of transitive dependencies, specif
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.90 s (backtrack: 0/20).
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
 [ebuild  N     ] test50/bar-1.0::overlay  0 KiB
 [ebuild  N     ] test50/foo-1.0::overlay  0 KiB
@@ -4114,7 +4124,7 @@ This test case presents a direct and unsolvable conflict between a dependency's 
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.60 s (backtrack: 0/20).
+Dependency resolution took 0.48 s (backtrack: 0/20).
 
 
 The following USE changes are necessary to proceed:
@@ -4188,7 +4198,7 @@ The prover will first prove os-1.0 through the liba path. This means os-1.0 will
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.92 s (backtrack: 0/20).
+Dependency resolution took 0.76 s (backtrack: 0/20).
 
 [ebuild  N     ] test52/os-1.0::overlay  USE="hardened threads" 0 KiB
 [ebuild  N     ] test52/liba-1.0::overlay  0 KiB
@@ -4267,7 +4277,7 @@ The prover will first prove os-1.0 through the liba path. This means os-1.0 will
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.97 s (backtrack: 0/20).
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
 [ebuild  N     ] test53/libhardened-1.0::overlay  0 KiB
 [ebuild  N     ] test53/os-1.0::overlay  USE="hardened threads" 0 KiB
@@ -4350,8 +4360,8 @@ Expanding use flags output
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  .... done!
-Dependency resolution took 0.78 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.73 s (backtrack: 0/20).
 
 [ebuild  N     ] test54/app-1.0::overlay  USE="xattr -apidoc -bar1 -bar2 -bar3 -bar4 -bar5 -bar6 -bar7 -bar8 -bar9 -bar10 -bar11 -bar12 -bar13 -build -doc -foo1 -foo2 -foo3 -foo4 -foo5 -foo6 -foo7 -foo8 -foo9 -foo10 -foo11 -gentoo-dev -ipc -my_expanding_use_bar -my_expanding_use_cow -my_expanding_use_foo -native-extensions -rsync-verify (-selinux) -test" ALSA_CARDS="-bar -echo3g -emu10k1 -foo" VIDEO_CARDS="vmware -nouveau (-v3d) -zink" 0 KiB
 
@@ -4406,7 +4416,7 @@ Multiple requirements should be combined. Only one version should be selected
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.89 s (backtrack: 0/20).
+Dependency resolution took 0.72 s (backtrack: 0/20).
 
 [ebuild  N     ] test55/lib-6.0::overlay  0 KiB
 [ebuild  N     ] test55/app-1.0::overlay  0 KiB
@@ -4461,7 +4471,7 @@ Multiple requirements should be combined. Only one version should be selected
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.98 s (backtrack: 0/20).
+Dependency resolution took 0.73 s (backtrack: 0/20).
 
 [ebuild  N     ] test56/lib-6.0::overlay  0 KiB
 [ebuild  N     ] test56/modulea-1.0::overlay  0 KiB
@@ -4529,7 +4539,7 @@ virtualsdk-1.0). The full chain os -> virtualsdk -> linux should be resolved.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.02 s (backtrack: 0/20).
+Dependency resolution took 0.80 s (backtrack: 0/20).
 
 [ebuild  N     ] test57/linux-1.0::overlay  0 KiB
 [ebuild  N     ] test57/virtualsdk-1.0::overlay  0 KiB
@@ -4616,7 +4626,7 @@ test58/virtualsdk dependency.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.69 s (backtrack: 2/20).
+Dependency resolution took 1.52 s (backtrack: 2/20).
 
 
 emerge: there are no ebuilds to satisfy "test58/virtualsdk".
@@ -4761,7 +4771,7 @@ either data_fast-1.0 or data_best-1.0.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.02 s (backtrack: 0/20).
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
 [ebuild  N     ] test59/data_fast-1.0::overlay  0 KiB
 [ebuild  N     ] test59/os-1.0::overlay  0 KiB
@@ -4841,7 +4851,7 @@ should select windows-2.0 and avoid windows-1.0.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.04 s (backtrack: 0/20).
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test60/windows-2.0::overlay  0 KiB
 [ebuild  N     ] test60/os-1.0::overlay  0 KiB
@@ -4922,16 +4932,40 @@ context.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test61/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.46 s (backtrack: 0/20).
+Calculating dependencies  .... done!
+Dependency resolution took 0.76 s (backtrack: 0/20).
 
 
-emerge: there are no ebuilds to satisfy "test61/app".
 
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test56/app, test51/app?
+[ebuild  N     ] test61/app-1.0::overlay  0 KiB
+[nomerge       ]  test61/a-1.0::overlay  USE="foo" 
+[ebuild  N     ]   test61/b-1.0::overlay  USE="foo" 0 KiB
+[ebuild  N     ]    test61/a-1.0::overlay  USE="foo" 0 KiB
+
+Total: 3 packages (3 new), Size of downloads: 0 KiB
+
+ * Error: circular dependencies:
+
+(test61/b-1.0:0/0::overlay, ebuild scheduled for merge) depends on
+ (test61/a-1.0:0/0::overlay, ebuild scheduled for merge) (buildtime)
+  (test61/b-1.0:0/0::overlay, ebuild scheduled for merge) (buildtime)
+
+ * Note that circular dependencies can often be avoided by temporarily
+ * disabling USE flags that trigger optional dependencies.
+
+The following USE changes are necessary to proceed:
+ (see "package.use" in the portage(5) man page for more details)
+# required by test61/a-1.0::overlay
+# required by test61/app-1.0::overlay
+# required by test61/app (argument)
+>=test61/b-1.0 foo
+# required by test61/b-1.0::overlay
+>=test61/a-1.0 foo
+
+ * In order to avoid wasting time, backtracking has terminated early
+ * due to the above autounmask change(s). The --autounmask-backtrack=y
+ * option can be used to force further backtracking, but there is no
+ * guarantee that it will produce a solution.
 ```
 
 </details>
@@ -5000,16 +5034,14 @@ not spin or backtrack indefinitely. A cycle-break assumption is expected.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test62/web' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.47 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
+[ebuild  N     ] test62/a-1.0::overlay  0 KiB
+[ebuild  N     ] test62/b-1.0::overlay  0 KiB
+[ebuild  N     ] test62/web-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test62/web".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/web, test29/web, test28/web?
+Total: 3 packages (3 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -5065,16 +5097,22 @@ openmpi-4.1.6-r1 with a valid REQUIRED_USE configuration.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test63/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.45 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.48 s (backtrack: 0/20).
 
 
-emerge: there are no ebuilds to satisfy "test63/app".
+!!! The ebuild selected to satisfy "test63/openmpi" has unmet requirements.
+- test63/openmpi-4.1.6-r1::overlay USE="" OPENMPI_FABRICS="-ofed" OPENMPI_OFED_FEATURES="-control-hdr-padding -dynamic-sl -rdmacm -udcm" OPENMPI_RM="pbs slurm"
 
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test56/app, test53/app?
+  The following REQUIRED_USE flag constraints are unsatisfied:
+    openmpi_rm_slurm? ( !openmpi_rm_pbs ) openmpi_rm_pbs? ( !openmpi_rm_slurm )
+
+  The above constraints are a subset of the following complete expression:
+    openmpi_rm_slurm? ( !openmpi_rm_pbs ) openmpi_rm_pbs? ( !openmpi_rm_slurm ) openmpi_ofed_features_control-hdr-padding? ( openmpi_fabrics_ofed ) openmpi_ofed_features_udcm? ( openmpi_fabrics_ofed ) openmpi_ofed_features_rdmacm? ( openmpi_fabrics_ofed ) openmpi_ofed_features_dynamic-sl? ( openmpi_fabrics_ofed )
+
+(dependency required by "test63/mpibash-1.3-r1::overlay" [ebuild])
+(dependency required by "test63/app-1.0::overlay" [ebuild])
+(dependency required by "test63/app" [argument])
 ```
 
 </details>
@@ -5145,16 +5183,16 @@ respects all REQUIRED_USE constraints and USE-conditional dependencies.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test64/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.47 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.76 s (backtrack: 0/20).
 
+[ebuild  N     ] test64/perl-1.0::overlay  0 KiB
+[ebuild  N     ] test64/ninja-1.0::overlay  0 KiB
+[ebuild  N     ] test64/cmake-1.0::overlay  0 KiB
+[ebuild  N     ] test64/openmp-1.0::overlay  USE="-gdb-plugin -hwloc -test -verify-sig" PYTHON_SINGLE_TARGET="python3_13 -python3_12" 0 KiB
+[ebuild  N     ] test64/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test64/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test56/app, test54/app?
+Total: 5 packages (5 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -5219,16 +5257,12 @@ produce non-empty conditions.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test65/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.46 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.76 s (backtrack: 0/20).
 
+[ebuild  N     ] test65/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test65/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test59/app, test58/app?
+Total: 1 package (1 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -5275,16 +5309,14 @@ be ordered after lib-1.0's install step via the PDEPEND proof obligation mechani
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test66/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.46 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
+[ebuild  N     ] test66/plugin-1.0::overlay  0 KiB
+[ebuild  N     ] test66/lib-1.0::overlay  0 KiB
+[ebuild  N     ] test66/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test66/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test56/app, test46/app?
+Total: 3 packages (3 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -5293,24 +5325,29 @@ emerge: Maybe you meant any of these: test60/app, test56/app, test46/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test66/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom **`test66/app`** is not a valid Gentoo package. 
+>>> Emerging : overlay://test66/app-1.0:run?{[]}
 
-**What's wrong:**
-- `test66` is not a recognized category in the Gentoo Portage tree
-- This appears to be a test/dummy package name that doesn't exist
+These are the packages that would be merged, in order:
 
-**Possible issues:**
-1. **Typo in category name** - Check if you meant a real category like `app-*`, `dev-*`, `sys-*`, etc.
-2. **Missing overlay** - This might be a package from a custom/third-party overlay that isn't configured
-3. **Test data** - The name suggests this is test input rather than a real package request
+Calculating dependencies... done!
 
-**To fix:**
-- Verify the correct package atom (format: `category/package-name`)
-- If from an overlay, ensure it's added via `eselect repository` or layman
-- Check `eix test66/app` or search on packages.gentoo.org for the actual package name
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  1─┤ download  overlay://test66/plugin-1.0
+             │ download  overlay://test66/lib-1.0
+             │ download  overlay://test66/app-1.0
+
+ └─step  2─┤ install   overlay://test66/lib-1.0
+             │ install   overlay://test66/plugin-1.0
+
+ └─step  3─┤ run       overlay://test66/lib-1.0
+
+ └─step  4─┤ install   overlay://test66/app-1.0
+
+ └─step  5─┤ run     overlay://test66/app-1.0
+
+ └─step  6─┤ run       overlay://test66/plugin-1.0
+
+Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 6 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>
@@ -5337,16 +5374,14 @@ dependency.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test67/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.45 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
+[ebuild  N     ] test67/lib-1.0::overlay  0 KiB
+[ebuild  N     ] test67/toolchain-1.0::overlay  0 KiB
+[ebuild  N     ] test67/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test67/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test57/app, test56/app?
+Total: 3 packages (3 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -5355,24 +5390,27 @@ emerge: Maybe you meant any of these: test60/app, test57/app, test56/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test67/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom **`test67/app`** is invalid because:
+>>> Emerging : overlay://test67/app-1.0:run?{[]}
 
-1. **`test67` is not a valid Gentoo category** - Gentoo uses predefined categories like `app-misc`, `dev-libs`, `sys-apps`, etc. Custom categories like `test67` don't exist in the standard Portage tree.
+These are the packages that would be merged, in order:
 
-2. **This looks like a test/dummy package name** - The "test67" prefix suggests this is either:
-   - A placeholder used in testing
-   - A package from a custom/local overlay that isn't in the main tree
-   - A typo or incorrect package reference
+Calculating dependencies... done!
 
-**To fix this:**
-- If you're testing portage-ng, verify you're using a valid package atom from the actual Portage tree (e.g., `app-editors/vim`)
-- If this is from an overlay, ensure the overlay is properly configured
-- Check if you meant a different package entirely
+ └─step  1─┤ download  overlay://test67/toolchain-1.0
+             │ download  overlay://test67/lib-1.0
+             │ download  overlay://test67/app-1.0
 
-**Valid package atom format:** `category/package-name` where category must be one of Gentoo's official categories.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  2─┤ install   overlay://test67/lib-1.0
+             │ install   overlay://test67/toolchain-1.0
+
+ └─step  3─┤ run       overlay://test67/lib-1.0
+
+ └─step  4─┤ install   overlay://test67/app-1.0
+
+ └─step  5─┤ run     overlay://test67/app-1.0
+
+Total: 8 actions (3 downloads, 3 installs, 2 runs), grouped into 5 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>
@@ -5399,16 +5437,14 @@ include both in the plan.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test68/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.47 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
+[ebuild  N     ] test68/lib-1.0:1::overlay  0 KiB
+[ebuild  N     ] test68/lib-2.0:2::overlay  0 KiB
+[ebuild  N     ] test68/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test68/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test58/app, test56/app?
+Total: 3 packages (3 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -5417,26 +5453,25 @@ emerge: Maybe you meant any of these: test60/app, test58/app, test56/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test68/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom `test68/app` appears to be a **non-existent test package** rather than a real Gentoo package.
+>>> Emerging : overlay://test68/app-1.0:run?{[]}
 
-**Issues:**
-1. **Invalid category**: `test68` is not a standard Gentoo category
-2. **Test naming pattern**: This looks like a synthetic test case or placeholder
+These are the packages that would be merged, in order:
 
-**Likely causes:**
-- Test input for portage-ng development/debugging
-- Typo or placeholder that should reference an actual package
-- Missing overlay configuration if this is from a custom repository
+Calculating dependencies... done!
 
-**To resolve:**
-- If this is a test: Check if portage-ng test suite requires specific test fixtures/repositories
-- If seeking a real package: Provide the actual package name you intended to install
-- Check if a custom overlay needs to be added to repos.conf
+ └─step  1─┤ download  overlay://test68/lib-2.0
+             │ download  overlay://test68/lib-1.0
+             │ download  overlay://test68/app-1.0
 
-Without more context about what software you're actually trying to install, this appears to be an intentionally invalid package atom for testing purposes.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  2─┤ install   overlay://test68/lib-1.0
+             │ install   overlay://test68/lib-2.0
+
+ └─step  3─┤ install   overlay://test68/app-1.0
+
+ └─step  4─┤ run     overlay://test68/app-1.0
+
+Total: 7 actions (3 downloads, 3 installs, 1 run), grouped into 4 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>
@@ -5461,16 +5496,13 @@ dependency. Versions 1.0 and 2.0 should not appear in the proof.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test69/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.49 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
+[ebuild  N     ] test69/lib-5.0::overlay  0 KiB
+[ebuild  N     ] test69/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test69/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test59/app, test56/app?
+Total: 2 packages (2 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -5479,24 +5511,23 @@ emerge: Maybe you meant any of these: test60/app, test59/app, test56/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test69/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom `test69/app` is **not a valid Gentoo package**. 
+>>> Emerging : overlay://test69/app-1.0:run?{[]}
 
-This appears to be:
-1. A **test/dummy package name** (the "test69" category doesn't exist in Gentoo)
-2. Possibly used for testing portage-ng's error handling
-3. Or a typo/placeholder that needs to be replaced with an actual package atom
+These are the packages that would be merged, in order:
 
-**What's wrong:** The category `test69` doesn't exist in the Gentoo Portage tree. Valid categories include things like `app-editors`, `sys-apps`, `dev-lang`, etc.
+Calculating dependencies... done!
 
-**To fix:** Replace with an actual package atom like:
-- `app-editors/vim`
-- `sys-apps/portage`
-- Or whatever package you actually need
+ └─step  1─┤ download  overlay://test69/lib-5.0
+             │ download  overlay://test69/app-1.0
 
-If you're testing portage-ng itself, this failure is expected behavior for a non-existent package.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  2─┤ install   overlay://test69/lib-5.0
+
+ └─step  3─┤ install   overlay://test69/app-1.0
+
+ └─step  4─┤ run     overlay://test69/app-1.0
+
+Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>
@@ -5521,16 +5552,13 @@ lib-3.0 should not be considered a valid candidate for this dependency.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  .
-!!! 'test70/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.48 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.73 s (backtrack: 0/20).
 
+[ebuild  N     ] test70/lib-2.0-r1::overlay  0 KiB
+[ebuild  N     ] test70/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test70/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test57/app, test50/app?
+Total: 2 packages (2 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -5539,25 +5567,23 @@ emerge: Maybe you meant any of these: test60/app, test57/app, test50/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test70/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom `test70/app` appears to be invalid because:
+>>> Emerging : overlay://test70/app-1.0:run?{[]}
 
-1. **`test70` is not a standard Gentoo category** - Valid categories include things like `app-admin`, `dev-lang`, `sys-apps`, etc.
+These are the packages that would be merged, in order:
 
-2. **This looks like a test/example package** - The "test70" prefix suggests this is either:
-   - A custom overlay package that isn't in the standard Portage tree
-   - A fictional example used for testing portage-ng
-   - A typo or placeholder
+Calculating dependencies... done!
 
-**To resolve this:**
+ └─step  1─┤ download  overlay://test70/lib-2.0-r1
+             │ download  overlay://test70/app-1.0
 
-- If testing portage-ng, use a real package like `sys-apps/portage` or `app-portage/gentoolkit`
-- Check if you need to add a custom overlay that contains this package
-- Verify the correct category/package name if this was meant to be something else
+ └─step  2─┤ install   overlay://test70/lib-2.0-r1
 
-**Most likely:** This is a non-existent test package and you should replace it with an actual package atom from the Gentoo repository.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  3─┤ install   overlay://test70/app-1.0
+
+ └─step  4─┤ run     overlay://test70/app-1.0
+
+Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>
@@ -5581,18 +5607,10 @@ install or run steps should be produced in the plan.
 <summary><b>emerge</b></summary>
 
 ```
-These are the packages that would be merged, in order:
+These are the packages that would be fetched, in order:
 
-Calculating dependencies  
-!!! 'test71/web' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.47 s (backtrack: 0/20).
-
-
-emerge: there are no ebuilds to satisfy "test71/web".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test57/web, test31/web, test27/web?
+Calculating dependencies  ... done!
+Dependency resolution took 0.75 s (backtrack: 0/20).
 ```
 
 </details>
@@ -5601,24 +5619,19 @@ emerge: Maybe you meant any of these: test57/web, test31/web, test27/web?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test71/web
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package `test71/web` appears to be a **non-existent or test package**. 
+>>> Emerging : overlay://test71/web-1.0:fetchonly?{[]}
 
-The category `test71` is not a standard Gentoo Portage category. This looks like:
+These are the packages that would be merged, in order:
 
-1. **A test/dummy package** used for debugging portage-ng itself
-2. **A typo** - you may have meant a real package like:
-   - `www-client/` or `www-servers/` category packages
-   - `net-libs/webkit-gtk` or similar web-related packages
+Calculating dependencies... done!
 
-**To fix:**
-- If testing portage-ng, ensure test packages are in your local overlay
-- If looking for a real package, check standard categories like `www-*`, `net-*`, or `dev-*`
-- Verify the package exists: `eix web` or `emerge --search web`
+ └─step  1─┤ download  overlay://test71/web-1.0
+             │ download  overlay://test71/os-1.0
+             │ download  overlay://test71/db-1.0
+             │ download  overlay://test71/app-1.0
 
-The "test71" category strongly suggests this is an intentional test case rather than a real package request.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+Total: 4 actions (4 downloads), grouped into 1 step.
+       0.00 Kb to be downloaded.
 ```
 
 </details>
@@ -5644,16 +5657,13 @@ an install-time dependency and be available before app-1.0's install phase.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test72/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.48 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
+[ebuild  N     ] test72/installer-1.0::overlay  0 KiB
+[ebuild  N     ] test72/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test72/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test57/app, test52/app, test42/app?
+Total: 2 packages (2 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -5662,24 +5672,23 @@ emerge: Maybe you meant any of these: test57/app, test52/app, test42/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test72/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package `test72/app` appears to be a **non-existent test package** that doesn't exist in the Gentoo Portage tree.
+>>> Emerging : overlay://test72/app-1.0:run?{[]}
 
-This looks like:
-1. A **test/dummy package name** used for debugging or testing portage-ng itself
-2. The category `test72` is not a valid Gentoo category
-3. No legitimate Gentoo package would be named this way
+These are the packages that would be merged, in order:
 
-**What's likely wrong:**
-- You're testing portage-ng with a fictional package
-- There's a typo or placeholder that wasn't replaced with a real package atom
-- This is from a test suite or example configuration
+Calculating dependencies... done!
 
-**To fix:** Replace with an actual Gentoo package atom like `app-editors/vim` or `sys-apps/portage`.
+ └─step  1─┤ download  overlay://test72/installer-1.0
+             │ download  overlay://test72/app-1.0
 
-If you intended to test with a real package, please provide the actual package name you're looking for.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  2─┤ install   overlay://test72/installer-1.0
+
+ └─step  3─┤ install   overlay://test72/app-1.0
+
+ └─step  4─┤ run     overlay://test72/app-1.0
+
+Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>
@@ -5705,16 +5714,13 @@ plan should show an update action for lib, not a fresh install.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test73/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.47 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.78 s (backtrack: 0/20).
 
+[ebuild  N     ] test73/lib-2.0::overlay  0 KiB
+[ebuild  N     ] test73/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test73/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test57/app, test53/app, test43/app?
+Total: 2 packages (2 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -5723,22 +5729,23 @@ emerge: Maybe you meant any of these: test57/app, test53/app, test43/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test73/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom `test73/app` appears to be a non-existent or test package. 
+>>> Emerging : overlay://test73/app-1.0:run?{[]}
 
-**Issues:**
-1. `test73` is not a valid Gentoo category in the standard Portage tree
-2. This looks like a placeholder/test atom rather than a real package
+These are the packages that would be merged, in order:
 
-**Suggestions:**
-- Verify the correct package name and category
-- Check if you meant a package from a valid category like `app-*`, `dev-*`, `sys-*`, etc.
-- If this is from an overlay, ensure the overlay is properly configured and the metadata cache is generated
-- Run `emerge --regen` or `egencache --update` if using a custom overlay
+Calculating dependencies... done!
 
-Without more context about what application you're trying to install, I cannot suggest the correct atom. What software were you actually trying to install?
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  1─┤ download  overlay://test73/lib-2.0
+             │ download  overlay://test73/app-1.0
+
+ └─step  2─┤ install   overlay://test73/lib-2.0
+
+ └─step  3─┤ install   overlay://test73/app-1.0
+
+ └─step  4─┤ run     overlay://test73/app-1.0
+
+Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>
@@ -5764,16 +5771,13 @@ The plan should show a downgrade action for lib.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test74/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.48 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.77 s (backtrack: 0/20).
 
+[ebuild  N     ] test74/lib-1.0::overlay  0 KiB
+[ebuild  N     ] test74/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test74/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test57/app, test54/app, test49/app?
+Total: 2 packages (2 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -5782,21 +5786,23 @@ emerge: Maybe you meant any of these: test57/app, test54/app, test49/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test74/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package `test74/app` appears to be a **non-existent test package**. 
+>>> Emerging : overlay://test74/app-1.0:run?{[]}
 
-This looks like:
-1. A **test case** for portage-ng itself (the "test74" suggests automated testing)
-2. A **typo or placeholder** that was never meant to be resolved
-3. A **custom/local package** that doesn't exist in the standard Portage tree
+These are the packages that would be merged, in order:
 
-**What's wrong:** No package with category `test74` exists in Gentoo's official Portage tree. Categories like `test74` are not standard Gentoo categories.
+Calculating dependencies... done!
 
-**To verify:** Run `eix -C test74` or check if this is part of portage-ng's test suite rather than an actual package request.
+ └─step  1─┤ download  overlay://test74/lib-1.0
+             │ download  overlay://test74/app-1.0
 
-If you're testing portage-ng functionality, this failure is expected for non-existent packages.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  2─┤ install   overlay://test74/lib-1.0
+
+ └─step  3─┤ install   overlay://test74/app-1.0
+
+ └─step  4─┤ run     overlay://test74/app-1.0
+
+Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>
@@ -5822,16 +5828,13 @@ The plan should include a reinstall or fresh install action for os-1.0.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test75/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.46 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
+[ebuild  N     ] test75/os-1.0::overlay  0 KiB
+[ebuild  N     ] test75/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test75/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test59/app, test58/app, test57/app?
+Total: 2 packages (2 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -5840,24 +5843,25 @@ emerge: Maybe you meant any of these: test59/app, test58/app, test57/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test75/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom `test75/app` appears to be **invalid/non-existent**. 
+>>> Emerging : overlay://test75/app-1.0:run?{[]}
 
-**Issue**: `test75` is not a standard Gentoo package category. Valid Gentoo categories include things like `app-admin`, `dev-python`, `sys-apps`, etc., but not `test75`.
+These are the packages that would be merged, in order:
 
-**Possible causes**:
-1. **Typo in category name** - You may have meant a real category
-2. **Local overlay package** - This might be from a custom overlay that portage-ng cannot see
-3. **Test/dummy package** - The name suggests this is a test package that doesn't exist in the main tree
+Calculating dependencies... done!
 
-**To fix**:
-- Check if you meant a real package (search with `eix` or `emerge --search`)
-- If it's from an overlay, ensure portage-ng can access that overlay's metadata
-- Verify the package actually exists: `ls /var/db/repos/gentoo/test75/app` or `/usr/portage/test75/app`
+ └─step  1─┤ download  overlay://test75/os-1.0
+             │ download  overlay://test75/app-1.0
 
-Without more context, this looks like either a typo or a reference to a non-existent test package.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  2─┤ install   overlay://test75/os-1.0
+
+ └─step  3─┤ run       overlay://test75/os-1.0
+
+ └─step  4─┤ install   overlay://test75/app-1.0
+
+ └─step  5─┤ run     overlay://test75/app-1.0
+
+Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>
@@ -5883,16 +5887,19 @@ The plan should include a rebuild action for os-1.0.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test76/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.49 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.73 s (backtrack: 0/20).
 
+[ebuild  N     ] test76/os-1.0::overlay  USE="linux -darwin" 0 KiB
+[ebuild  N     ] test76/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test76/app".
+Total: 2 packages (2 new), Size of downloads: 0 KiB
 
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test57/app, test56/app?
+The following USE changes are necessary to proceed:
+ (see "package.use" in the portage(5) man page for more details)
+# required by test76/app-1.0::overlay
+# required by test76/app (argument)
+>=test76/os-1.0 linux
 ```
 
 </details>
@@ -5901,24 +5908,33 @@ emerge: Maybe you meant any of these: test60/app, test57/app, test56/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test76/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package `test76/app` appears to be a **non-existent test package**. 
+>>> Emerging : overlay://test76/app-1.0:run?{[]}
 
-This looks like:
-1. A synthetic test case for portage-ng development/testing
-2. An incorrectly formatted package atom
-3. Or a typo where `test76` is not a valid Gentoo category
+These are the packages that would be merged, in order:
 
-**Valid Gentoo categories** don't include `test76`. Standard categories include things like `app-admin`, `dev-libs`, `sys-apps`, etc.
+Calculating dependencies... done!
 
-**To resolve:**
-- If this is a test: The package simply doesn't exist in the Portage tree
-- If looking for a real package: Check the correct category (e.g., `app-misc/app`, `app-admin/app`)
-- Verify the package name is correct using `eix` or `emerge --search`
+ └─step  1─┤ useflag overlay://test76/os-1.0 (linux)
 
-The failure is expected since `test76/app` is not a valid Gentoo package atom in the standard Portage tree.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  2─┤ download  overlay://test76/os-1.0
+             │ download  overlay://test76/app-1.0
+
+ └─step  3─┤ install   overlay://test76/os-1.0 (USE modified)
+             │           └─ conf ─┤ USE = "-darwin linux"
+
+ └─step  4─┤ install   overlay://test76/app-1.0
+
+ └─step  5─┤ run     overlay://test76/app-1.0
+
+Total: 6 actions (1 useflag, 2 downloads, 2 installs, 1 run), grouped into 5 steps.
+       0.00 Kb to be downloaded.
+
+
+>>> Assumptions taken during proving & planning:
+
+  USE flag change (1 package):
+  Add to /etc/portage/package.use:
+    test76/os linux
 ```
 
 </details>
@@ -5945,16 +5961,13 @@ be retained.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test77/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.47 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.73 s (backtrack: 0/20).
 
+[ebuild  N     ] test77/os-1.0::overlay  0 KiB
+[ebuild  N     ] test77/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test77/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test57/app, test37/app, test27/app?
+Total: 2 packages (2 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -5963,27 +5976,25 @@ emerge: Maybe you meant any of these: test57/app, test37/app, test27/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test77/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package `test77/app` does not exist in the Gentoo Portage tree. 
+>>> Emerging : overlay://test77/app-1.0:run?{[]}
 
-**What's wrong:**
-- `test77` is not a valid Gentoo package category
-- This appears to be a test/dummy package name that was never in the official tree
+These are the packages that would be merged, in order:
 
-**Possible causes:**
-1. Typo in the package name
-2. Package from a custom/local overlay that isn't configured
-3. Test data or example that shouldn't be resolved against the main tree
-4. Package was removed or never existed
+Calculating dependencies... done!
 
-**To fix:**
-- Verify the correct package name and category
-- If it's from an overlay, ensure the overlay is properly configured
-- Check if you meant a different package entirely
+ └─step  1─┤ download  overlay://test77/os-1.0
+             │ download  overlay://test77/app-1.0
 
-Without more context about what you're trying to install, I cannot suggest the correct atom.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  2─┤ install   overlay://test77/os-1.0
+
+ └─step  3─┤ run       overlay://test77/os-1.0
+
+ └─step  4─┤ install   overlay://test77/app-1.0
+
+ └─step  5─┤ run     overlay://test77/app-1.0
+
+Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>
@@ -6010,16 +6021,9 @@ may still appear in the proof for dependency traversal purposes.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test78/web' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.47 s (backtrack: 0/20).
+[ebuild  N     ] test78/web-1.0::overlay  0 KiB
 
-
-emerge: there are no ebuilds to satisfy "test78/web".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test58/web, test57/web, test28/web?
+Total: 1 package (1 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -6028,27 +6032,35 @@ emerge: Maybe you meant any of these: test58/web, test57/web, test28/web?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test78/web
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom `test78/web` appears to be invalid. Here's what's wrong:
+>>> Emerging : overlay://test78/web-1.0:run?{[]}
 
-**Issue**: `test78` is not a valid Gentoo package category in the standard Portage tree.
+These are the packages that would be merged, in order:
 
-**Possible causes**:
-1. **Typo in category name** - There is no `test78` category in Gentoo
-2. **Local overlay package** - This might be from a custom/local overlay that portage-ng cannot see
-3. **Test/dummy package** - The name suggests this might be a test package that doesn't actually exist
+Calculating dependencies... done!
 
-**Suggestions**:
-- If you're looking for a web-related package, check valid categories like:
-  - `www-apps/` (web applications)
-  - `www-servers/` (web servers)
-  - `www-client/` (web browsers/clients)
-- Verify the package exists: `eix web` or check `/usr/portage/test78/`
-- If this is from a custom overlay, ensure portage-ng is configured to read that overlay's metadata
+ └─step  1─┤ download  overlay://test78/web-1.0
+             │ download  overlay://test78/os-1.0
+             │ download  overlay://test78/db-1.0
+             │ download  overlay://test78/app-1.0
 
-The atom format is correct (`category/package`), but the category doesn't exist in standard Gentoo.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  2─┤ install   overlay://test78/os-1.0
+
+ └─step  3─┤ run       overlay://test78/os-1.0
+
+ └─step  4─┤ install   overlay://test78/db-1.0
+
+ └─step  5─┤ run       overlay://test78/db-1.0
+
+ └─step  6─┤ install   overlay://test78/app-1.0
+
+ └─step  7─┤ run       overlay://test78/app-1.0
+
+ └─step  8─┤ install   overlay://test78/web-1.0
+
+ └─step  9─┤ run     overlay://test78/web-1.0
+
+Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>
@@ -6076,16 +6088,13 @@ hard circular dependency requiring assumptions.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test79/server' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.46 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.73 s (backtrack: 0/20).
 
+[ebuild  N     ] test79/client-1.0::overlay  0 KiB
+[ebuild  N     ] test79/server-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test79/server".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test47/app-server, test59/os, test57/os?
+Total: 2 packages (2 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -6094,23 +6103,25 @@ emerge: Maybe you meant any of these: test47/app-server, test59/os, test57/os?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test79/server
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom **`test79/server`** is not a valid Gentoo package. 
+>>> Emerging : overlay://test79/server-1.0:run?{[]}
 
-**`test79`** is not a recognized category in the Gentoo Portage tree. This appears to be either:
+These are the packages that would be merged, in order:
 
-1. **A typo or test input** - The "test79" prefix suggests this might be placeholder/test data
-2. **A custom overlay package** that doesn't exist in the standard Portage tree
-3. **Completely fictional** package name
+Calculating dependencies... done!
 
-**If you're looking for a server package**, you might want:
-- `www-servers/*` (web servers like nginx, apache)
-- `net-misc/*` (network services)
-- `mail-mta/*` (mail servers)
+ └─step  1─┤ download  overlay://test79/server-1.0
+             │ download  overlay://test79/client-1.0
 
-**To fix**: Specify a valid package atom from the official Gentoo repository or ensure your custom overlay is properly configured if this is supposed to be a local package.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  2─┤ install   overlay://test79/client-1.0
+
+ └─step  3─┤ run       overlay://test79/client-1.0
+
+ └─step  4─┤ install   overlay://test79/server-1.0
+
+ └─step  5─┤ run     overlay://test79/server-1.0
+
+Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>
@@ -6135,16 +6146,13 @@ dependency. Versions 4.0 and 5.0 should not be considered valid candidates.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test80/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.50 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
+[ebuild  N     ] test80/lib-3.0::overlay  0 KiB
+[ebuild  N     ] test80/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test80/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test58/app, test50/app?
+Total: 2 packages (2 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -6153,19 +6161,23 @@ emerge: Maybe you meant any of these: test60/app, test58/app, test50/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test80/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package `test80/app` doesn't exist in the Gentoo Portage tree. 
+>>> Emerging : overlay://test80/app-1.0:run?{[]}
 
-This looks like:
-1. **A test/dummy package name** - "test80" is not a valid Gentoo category
-2. **A typo or placeholder** - possibly meant for testing portage-ng itself
-3. **A local overlay package** that's missing from your system
+These are the packages that would be merged, in order:
 
-**Valid Gentoo categories** don't include "test80". If you're trying to test portage-ng, you should use a real package like `app-editors/vim` or `sys-apps/portage`.
+Calculating dependencies... done!
 
-If this is supposed to be a real package, please provide more context about what you're actually trying to install.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  1─┤ download  overlay://test80/lib-3.0
+             │ download  overlay://test80/app-1.0
+
+ └─step  2─┤ install   overlay://test80/lib-3.0
+
+ └─step  3─┤ install   overlay://test80/app-1.0
+
+ └─step  4─┤ run     overlay://test80/app-1.0
+
+Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>

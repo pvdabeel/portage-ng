@@ -17,16 +17,14 @@ be ordered after lib-1.0's install step via the PDEPEND proof obligation mechani
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test66/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.46 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
+[ebuild  N     ] test66/plugin-1.0::overlay  0 KiB
+[ebuild  N     ] test66/lib-1.0::overlay  0 KiB
+[ebuild  N     ] test66/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test66/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test56/app, test46/app?
+Total: 3 packages (3 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -35,25 +33,29 @@ emerge: Maybe you meant any of these: test60/app, test56/app, test46/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test66/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom **`test66/app`** is not a valid Gentoo package. 
+>>> Emerging : overlay://test66/app-1.0:run?{[]}
 
-**What's wrong:**
-- `test66` is not a recognized category in the Gentoo Portage tree
-- This appears to be a test/dummy package name that doesn't exist
+These are the packages that would be merged, in order:
 
-**Possible issues:**
-1. **Typo in category name** - Check if you meant a real category like `app-*`, `dev-*`, `sys-*`, etc.
-2. **Missing overlay** - This might be a package from a custom/third-party overlay that isn't configured
-3. **Test data** - The name suggests this is test input rather than a real package request
+Calculating dependencies... done!
 
-**To fix:**
-- Verify the correct package atom (format: `category/package-name`)
-- If from an overlay, ensure it's added via `eselect repository` or layman
-- Check `eix test66/app` or search on packages.gentoo.org for the actual package name
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  1─┤ download  overlay://test66/plugin-1.0
+             │ download  overlay://test66/lib-1.0
+             │ download  overlay://test66/app-1.0
 
+ └─step  2─┤ install   overlay://test66/lib-1.0
+             │ install   overlay://test66/plugin-1.0
+
+ └─step  3─┤ run       overlay://test66/lib-1.0
+
+ └─step  4─┤ install   overlay://test66/app-1.0
+
+ └─step  5─┤ run     overlay://test66/app-1.0
+
+ └─step  6─┤ run       overlay://test66/plugin-1.0
+
+Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 6 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>

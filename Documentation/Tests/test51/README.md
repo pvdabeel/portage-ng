@@ -15,7 +15,7 @@ This test case presents a direct and unsolvable conflict between a dependency's 
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.60 s (backtrack: 0/20).
+Dependency resolution took 0.48 s (backtrack: 0/20).
 
 
 The following USE changes are necessary to proceed:

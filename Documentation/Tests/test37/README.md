@@ -17,7 +17,7 @@ The proof should be valid in both scenarios.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.82 s (backtrack: 0/20).
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
 [ebuild  N     ] test37/os-1.0::overlay  USE="linux -darwin" 0 KiB
 [ebuild  N     ] test37/app-1.0::overlay  USE="-linux" 0 KiB

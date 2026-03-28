@@ -18,8 +18,8 @@ strongly blocked in both scopes.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  ... done!
-Dependency resolution took 1.09 s (backtrack: 0/20).
+Calculating dependencies  .... done!
+Dependency resolution took 0.76 s (backtrack: 0/20).
 
 [ebuild  N     ] test29/linux-1.0::overlay  0 KiB
 [ebuild  N     ] test29/os-1.0::overlay  0 KiB

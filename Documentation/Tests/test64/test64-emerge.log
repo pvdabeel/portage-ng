@@ -1,13 +1,13 @@
 
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test64/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.47 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.76 s (backtrack: 0/20).
 
+[ebuild  N     ] test64/perl-1.0::overlay  0 KiB
+[ebuild  N     ] test64/ninja-1.0::overlay  0 KiB
+[ebuild  N     ] test64/cmake-1.0::overlay  0 KiB
+[ebuild  N     ] test64/openmp-1.0::overlay  USE="-gdb-plugin -hwloc -test -verify-sig" PYTHON_SINGLE_TARGET="python3_13 -python3_12" 0 KiB
+[ebuild  N     ] test64/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test64/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test56/app, test54/app?
+Total: 5 packages (5 new), Size of downloads: 0 KiB

@@ -18,16 +18,14 @@ not spin or backtrack indefinitely. A cycle-break assumption is expected.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test62/web' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.47 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
+[ebuild  N     ] test62/a-1.0::overlay  0 KiB
+[ebuild  N     ] test62/b-1.0::overlay  0 KiB
+[ebuild  N     ] test62/web-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test62/web".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/web, test29/web, test28/web?
+Total: 3 packages (3 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -57,10 +55,6 @@ Calculating dependencies... done!
 
 Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 4 steps.
        0.00 Kb to be downloaded.
-
-
-
-
 ```
 
 </details>

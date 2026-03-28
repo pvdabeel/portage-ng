@@ -15,7 +15,7 @@ This test case checks the prover's behavior with a wildcard slot dependency. 'ap
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.83 s (backtrack: 0/20).
+Dependency resolution took 0.73 s (backtrack: 0/20).
 
 [ebuild  N     ] test42/lib-2.0:2::overlay  0 KiB
 [ebuild  N     ] test42/app-1.0::overlay  0 KiB

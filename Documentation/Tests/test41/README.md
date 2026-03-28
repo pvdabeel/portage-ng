@@ -14,8 +14,8 @@ This test case checks the prover's ability to resolve dependencies based on slot
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  .... done!
-Dependency resolution took 0.89 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test41/lib-1.0:1::overlay  0 KiB
 [ebuild  N     ] test41/app-1.0::overlay  0 KiB

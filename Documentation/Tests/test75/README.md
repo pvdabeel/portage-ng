@@ -18,16 +18,13 @@ The plan should include a reinstall or fresh install action for os-1.0.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test75/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.46 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
+[ebuild  N     ] test75/os-1.0::overlay  0 KiB
+[ebuild  N     ] test75/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test75/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test59/app, test58/app, test57/app?
+Total: 2 packages (2 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -36,25 +33,25 @@ emerge: Maybe you meant any of these: test59/app, test58/app, test57/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test75/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom `test75/app` appears to be **invalid/non-existent**. 
+>>> Emerging : overlay://test75/app-1.0:run?{[]}
 
-**Issue**: `test75` is not a standard Gentoo package category. Valid Gentoo categories include things like `app-admin`, `dev-python`, `sys-apps`, etc., but not `test75`.
+These are the packages that would be merged, in order:
 
-**Possible causes**:
-1. **Typo in category name** - You may have meant a real category
-2. **Local overlay package** - This might be from a custom overlay that portage-ng cannot see
-3. **Test/dummy package** - The name suggests this is a test package that doesn't exist in the main tree
+Calculating dependencies... done!
 
-**To fix**:
-- Check if you meant a real package (search with `eix` or `emerge --search`)
-- If it's from an overlay, ensure portage-ng can access that overlay's metadata
-- Verify the package actually exists: `ls /var/db/repos/gentoo/test75/app` or `/usr/portage/test75/app`
+ └─step  1─┤ download  overlay://test75/os-1.0
+             │ download  overlay://test75/app-1.0
 
-Without more context, this looks like either a typo or a reference to a non-existent test package.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  2─┤ install   overlay://test75/os-1.0
 
+ └─step  3─┤ run       overlay://test75/os-1.0
+
+ └─step  4─┤ install   overlay://test75/app-1.0
+
+ └─step  5─┤ run     overlay://test75/app-1.0
+
+Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>

@@ -21,8 +21,8 @@ either 'linux-1.0' or 'bsd-1.0' to satisfy the any-of group on 'os-1.0', since
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  .... done!
-Dependency resolution took 1.08 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test26/linux-1.0::overlay  0 KiB
 [ebuild  N     ] test26/os-1.0::overlay  0 KiB

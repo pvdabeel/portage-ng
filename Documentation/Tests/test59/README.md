@@ -23,7 +23,7 @@ either data_fast-1.0 or data_best-1.0.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.02 s (backtrack: 0/20).
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
 [ebuild  N     ] test59/data_fast-1.0::overlay  0 KiB
 [ebuild  N     ] test59/os-1.0::overlay  0 KiB

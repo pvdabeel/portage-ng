@@ -15,7 +15,7 @@ This test case examines the slot equality operator (:=). 'app-1.0' depends on 'l
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.84 s (backtrack: 0/20).
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test43/lib-2.0:2::overlay  0 KiB
 [ebuild  N     ] test43/app-1.0::overlay  0 KiB

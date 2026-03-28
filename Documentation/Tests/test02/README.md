@@ -20,8 +20,8 @@ alternative plans.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  .... done!
-Dependency resolution took 0.90 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
 [ebuild  N     ] test02/os-2.0::overlay  0 KiB
 [ebuild  N     ] test02/db-2.0::overlay  0 KiB

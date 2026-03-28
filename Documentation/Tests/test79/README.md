@@ -20,16 +20,13 @@ hard circular dependency requiring assumptions.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test79/server' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.46 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.73 s (backtrack: 0/20).
 
+[ebuild  N     ] test79/client-1.0::overlay  0 KiB
+[ebuild  N     ] test79/server-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test79/server".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test47/app-server, test59/os, test57/os?
+Total: 2 packages (2 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -38,24 +35,25 @@ emerge: Maybe you meant any of these: test47/app-server, test59/os, test57/os?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test79/server
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom **`test79/server`** is not a valid Gentoo package. 
+>>> Emerging : overlay://test79/server-1.0:run?{[]}
 
-**`test79`** is not a recognized category in the Gentoo Portage tree. This appears to be either:
+These are the packages that would be merged, in order:
 
-1. **A typo or test input** - The "test79" prefix suggests this might be placeholder/test data
-2. **A custom overlay package** that doesn't exist in the standard Portage tree
-3. **Completely fictional** package name
+Calculating dependencies... done!
 
-**If you're looking for a server package**, you might want:
-- `www-servers/*` (web servers like nginx, apache)
-- `net-misc/*` (network services)
-- `mail-mta/*` (mail servers)
+ └─step  1─┤ download  overlay://test79/server-1.0
+             │ download  overlay://test79/client-1.0
 
-**To fix**: Specify a valid package atom from the official Gentoo repository or ensure your custom overlay is properly configured if this is supposed to be a local package.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  2─┤ install   overlay://test79/client-1.0
 
+ └─step  3─┤ run       overlay://test79/client-1.0
+
+ └─step  4─┤ install   overlay://test79/server-1.0
+
+ └─step  5─┤ run     overlay://test79/server-1.0
+
+Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>

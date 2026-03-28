@@ -14,8 +14,8 @@ This test case presents a more complex, three-way circular dependency. The clien
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  . ... done!
-Dependency resolution took 1.32 s (backtrack: 1/20).
+Calculating dependencies  ... done!
+Dependency resolution took 1.20 s (backtrack: 1/20).
 
 
 

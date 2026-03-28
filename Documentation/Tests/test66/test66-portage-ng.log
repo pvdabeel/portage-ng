@@ -1,19 +1,26 @@
-[33m[00m[43mwarning[00m[33m[00m Package not found: test66/app[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom **`test66/app`** is not a valid Gentoo package. 
 
-**What's wrong:**
-- `test66` is not a recognized category in the Gentoo Portage tree
-- This appears to be a test/dummy package name that doesn't exist
+[93m>>> Emerging : overlay://test66/app-1.0:run?{[]}
+[00m
+[32mThese are the packages that would be merged, in order:
 
-**Possible issues:**
-1. **Typo in category name** - Check if you meant a real category like `app-*`, `dev-*`, `sys-*`, etc.
-2. **Missing overlay** - This might be a package from a custom/third-party overlay that isn't configured
-3. **Test data** - The name suggests this is test input rather than a real package request
+[00mCalculating dependencies... done!
 
-**To fix:**
-- Verify the correct package atom (format: `category/package-name`)
-- If from an overlay, ensure it's added via `eselect repository` or layman
-- Check `eix test66/app` or search on packages.gentoo.org for the actual package name
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+ └─[90m[00m[100mstep  1[00m[90m[00m─┤ [36mdownload[32m  overlay://test66/plugin-1.0[00m
+             │ [36mdownload[32m  overlay://test66/lib-1.0[00m
+             │ [36mdownload[32m  overlay://test66/app-1.0[00m
+
+ └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36minstall[32m   overlay://test66/lib-1.0[00m
+             │ [36minstall[32m   overlay://test66/plugin-1.0[00m
+
+ └─[90m[00m[100mstep  3[00m[90m[00m─┤ [36mrun[32m       overlay://test66/lib-1.0[00m
+
+ └─[90m[00m[100mstep  4[00m[90m[00m─┤ [36minstall[32m   overlay://test66/app-1.0[00m
+
+ └─[90m[00m[100mstep  5[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test66/app-1.0[00m[00m
+
+ └─[90m[00m[100mstep  6[00m[90m[00m─┤ [36mrun[32m       overlay://test66/plugin-1.0[00m
+
+Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 6 steps.
+       0.00 Kb to be downloaded.
+
+

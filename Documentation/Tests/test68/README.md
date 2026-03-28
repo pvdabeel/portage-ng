@@ -19,16 +19,14 @@ include both in the plan.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test68/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.47 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
+[ebuild  N     ] test68/lib-1.0:1::overlay  0 KiB
+[ebuild  N     ] test68/lib-2.0:2::overlay  0 KiB
+[ebuild  N     ] test68/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test68/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test58/app, test56/app?
+Total: 3 packages (3 new), Size of downloads: 0 KiB
 ```
 
 </details>
@@ -37,27 +35,25 @@ emerge: Maybe you meant any of these: test60/app, test58/app, test56/app?
 <summary><b>portage-ng</b></summary>
 
 ```
-warning Package not found: test68/app
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom `test68/app` appears to be a **non-existent test package** rather than a real Gentoo package.
+>>> Emerging : overlay://test68/app-1.0:run?{[]}
 
-**Issues:**
-1. **Invalid category**: `test68` is not a standard Gentoo category
-2. **Test naming pattern**: This looks like a synthetic test case or placeholder
+These are the packages that would be merged, in order:
 
-**Likely causes:**
-- Test input for portage-ng development/debugging
-- Typo or placeholder that should reference an actual package
-- Missing overlay configuration if this is from a custom repository
+Calculating dependencies... done!
 
-**To resolve:**
-- If this is a test: Check if portage-ng test suite requires specific test fixtures/repositories
-- If seeking a real package: Provide the actual package name you intended to install
-- Check if a custom overlay needs to be added to repos.conf
+ └─step  1─┤ download  overlay://test68/lib-2.0
+             │ download  overlay://test68/lib-1.0
+             │ download  overlay://test68/app-1.0
 
-Without more context about what software you're actually trying to install, this appears to be an intentionally invalid package atom for testing purposes.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  2─┤ install   overlay://test68/lib-1.0
+             │ install   overlay://test68/lib-2.0
 
+ └─step  3─┤ install   overlay://test68/app-1.0
+
+ └─step  4─┤ run     overlay://test68/app-1.0
+
+Total: 7 actions (3 downloads, 3 installs, 1 run), grouped into 4 steps.
+       0.00 Kb to be downloaded.
 ```
 
 </details>

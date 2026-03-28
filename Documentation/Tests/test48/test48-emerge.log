@@ -2,7 +2,7 @@
 These are the packages that would be merged, in order:
 
 Calculating dependencies  .... done!
-Dependency resolution took 4.50 s (backtrack: 6/20).
+Dependency resolution took 4.52 s (backtrack: 6/20).
 
 [ebuild  N     ] test48/libmatrix-1.1:1/B::overlay  0 KiB
 [ebuild  N     ] test48/libmatrix-1.0:1/A::overlay  0 KiB

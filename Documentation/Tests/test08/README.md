@@ -18,7 +18,7 @@ two verify steps in the proposed plan.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.37 s (backtrack: 1/20).
+Dependency resolution took 1.19 s (backtrack: 1/20).
 
 
 

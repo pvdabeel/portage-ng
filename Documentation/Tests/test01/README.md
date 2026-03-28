@@ -20,7 +20,7 @@ step. The final step installs web-1.0.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.69 s (backtrack: 0/20).
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test01/os-1.0::overlay  0 KiB
 [ebuild  N     ] test01/db-1.0::overlay  0 KiB

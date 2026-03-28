@@ -15,7 +15,7 @@ This test case examines the prover's handling of package keywords and stability.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.91 s (backtrack: 0/20).
+Dependency resolution took 0.75 s (backtrack: 0/20).
 
 [ebuild  N     ] test12/os-2.0::overlay  0 KiB
 [ebuild  N     ] test12/db-2.0::overlay  0 KiB

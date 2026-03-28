@@ -14,8 +14,8 @@ This test case combines test23 and test24. The 'os-1.0' package has the same 'at
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  ... done!
-Dependency resolution took 1.33 s (backtrack: 1/20).
+Calculating dependencies  .... done!
+Dependency resolution took 1.22 s (backtrack: 1/20).
 
 
 !!! All ebuilds that could satisfy "test25/os" have been masked.

@@ -1,22 +1,22 @@
-[33m[00m[43mwarning[00m[33m[00m Package not found: test77/app[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package `test77/app` does not exist in the Gentoo Portage tree. 
 
-**What's wrong:**
-- `test77` is not a valid Gentoo package category
-- This appears to be a test/dummy package name that was never in the official tree
+[93m>>> Emerging : overlay://test77/app-1.0:run?{[]}
+[00m
+[32mThese are the packages that would be merged, in order:
 
-**Possible causes:**
-1. Typo in the package name
-2. Package from a custom/local overlay that isn't configured
-3. Test data or example that shouldn't be resolved against the main tree
-4. Package was removed or never existed
+[00mCalculating dependencies... done!
 
-**To fix:**
-- Verify the correct package name and category
-- If it's from an overlay, ensure the overlay is properly configured
-- Check if you meant a different package entirely
+ └─[90m[00m[100mstep  1[00m[90m[00m─┤ [36mdownload[32m  overlay://test77/os-1.0[00m
+             │ [36mdownload[32m  overlay://test77/app-1.0[00m
 
-Without more context about what you're trying to install, I cannot suggest the correct atom.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+ └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36minstall[32m   overlay://test77/os-1.0[00m
+
+ └─[90m[00m[100mstep  3[00m[90m[00m─┤ [36mrun[32m       overlay://test77/os-1.0[00m
+
+ └─[90m[00m[100mstep  4[00m[90m[00m─┤ [36minstall[32m   overlay://test77/app-1.0[00m
+
+ └─[90m[00m[100mstep  5[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test77/app-1.0[00m[00m
+
+Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
+       0.00 Kb to be downloaded.
+
+

@@ -19,7 +19,7 @@ depending on blocker handling strategy.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.07 s (backtrack: 0/20).
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
 [ebuild  N     ] test31/linux-1.0::overlay  0 KiB
 [ebuild  N     ] test31/os-1.0::overlay  0 KiB

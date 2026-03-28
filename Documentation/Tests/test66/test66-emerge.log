@@ -1,13 +1,11 @@
 
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test66/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.46 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
+[ebuild  N     ] test66/plugin-1.0::overlay  0 KiB
+[ebuild  N     ] test66/lib-1.0::overlay  0 KiB
+[ebuild  N     ] test66/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test66/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test56/app, test46/app?
+Total: 3 packages (3 new), Size of downloads: 0 KiB

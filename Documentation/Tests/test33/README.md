@@ -15,7 +15,7 @@ This test case examines a direct USE dependency. The 'app-1.0' package requires 
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.87 s (backtrack: 0/20).
+Dependency resolution took 0.84 s (backtrack: 0/20).
 
 [ebuild  N     ] test33/os-1.0::overlay  USE="linux -darwin" 0 KiB
 [ebuild  N     ] test33/app-1.0::overlay  0 KiB

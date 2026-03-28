@@ -21,7 +21,7 @@ db-1.0, and os-1.0 should all appear in the plan in the correct order.
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.90 s (backtrack: 0/20).
+Dependency resolution took 0.74 s (backtrack: 0/20).
 
 [ebuild  N     ] test16/os-1.0::overlay  0 KiB
 [ebuild  N     ] test16/db-1.0::overlay  0 KiB

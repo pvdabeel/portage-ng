@@ -15,7 +15,7 @@ This test case checks the prover's ability to detect a direct and irreconcilable
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 0.68 s (backtrack: 0/20).
+Dependency resolution took 0.49 s (backtrack: 0/20).
 
 
 The following USE changes are necessary to proceed:

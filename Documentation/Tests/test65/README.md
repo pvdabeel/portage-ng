@@ -21,16 +21,12 @@ produce non-empty conditions.
 ```
 These are the packages that would be merged, in order:
 
-Calculating dependencies  
-!!! 'test65/app' has a category that is not listed in /etc/portage/categories
-... done!
-Dependency resolution took 0.46 s (backtrack: 0/20).
+Calculating dependencies  ... done!
+Dependency resolution took 0.76 s (backtrack: 0/20).
 
+[ebuild  N     ] test65/app-1.0::overlay  0 KiB
 
-emerge: there are no ebuilds to satisfy "test65/app".
-
-emerge: searching for similar names...
-emerge: Maybe you meant any of these: test60/app, test59/app, test58/app?
+Total: 1 package (1 new), Size of downloads: 0 KiB
 ```
 
 </details>

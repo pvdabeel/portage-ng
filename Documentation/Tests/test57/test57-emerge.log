@@ -2,7 +2,7 @@
 These are the packages that would be merged, in order:
 
 Calculating dependencies  ... done!
-Dependency resolution took 1.02 s (backtrack: 0/20).
+Dependency resolution took 0.80 s (backtrack: 0/20).
 
 [ebuild  N     ] test57/linux-1.0::overlay  0 KiB
 [ebuild  N     ] test57/virtualsdk-1.0::overlay  0 KiB
