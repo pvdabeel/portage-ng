@@ -13,7 +13,7 @@ plan should show an update action for lib, not a fresh install.
 ![test73](test73.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

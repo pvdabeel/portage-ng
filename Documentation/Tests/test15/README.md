@@ -10,7 +10,7 @@ This test case is similar to test14 but uses a negative USE conditional. The dep
 ![test15](test15.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

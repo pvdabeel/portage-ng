@@ -12,7 +12,7 @@ dependency. Versions 1.0 and 2.0 should not appear in the proof.
 ![test69](test69.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

@@ -13,7 +13,7 @@ The plan should show a downgrade action for lib.
 ![test74](test74.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

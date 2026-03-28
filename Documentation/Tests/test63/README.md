@@ -14,7 +14,7 @@ openmpi-4.1.6-r1 with a valid REQUIRED_USE configuration.
 ![test63](test63.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

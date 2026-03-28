@@ -15,7 +15,7 @@ db-1.0, and os-1.0 should all appear in the plan in the correct order.
 ![test16](test16.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

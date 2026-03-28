@@ -9,7 +9,7 @@ This test case is the inverse of test33. It checks the handling of a negative US
 ![test34](test34.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

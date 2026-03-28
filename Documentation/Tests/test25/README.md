@@ -9,7 +9,7 @@ This test case combines test23 and test24. The 'os-1.0' package has the same 'at
 ![test25](test25.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

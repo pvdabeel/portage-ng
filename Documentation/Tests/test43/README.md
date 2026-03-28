@@ -9,7 +9,7 @@ This test case examines the slot equality operator (:=). 'app-1.0' depends on 'l
 ![test43](test43.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

@@ -12,7 +12,7 @@ two verify steps in the proposed plan.
 ![test08](test08.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

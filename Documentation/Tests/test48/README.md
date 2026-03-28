@@ -9,7 +9,7 @@ This test case checks the prover's ability to detect a slotting conflict. The tw
 ![test48](test48.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

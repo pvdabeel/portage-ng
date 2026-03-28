@@ -13,7 +13,7 @@ install or run steps should be produced in the plan.
 ![test71](test71.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

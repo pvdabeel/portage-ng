@@ -9,7 +9,7 @@ This is a variation of test09. It checks for a missing dependency, but this time
 ![test10](test10.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

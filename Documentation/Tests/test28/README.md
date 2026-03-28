@@ -14,7 +14,7 @@ either 'linux-1.0' or 'bsd-1.0' to satisfy the any-of group on 'os-1.0', since
 ![test28](test28.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

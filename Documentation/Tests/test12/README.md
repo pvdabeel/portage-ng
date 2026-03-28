@@ -9,7 +9,7 @@ This test case examines the prover's handling of package keywords and stability.
 ![test12](test12.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

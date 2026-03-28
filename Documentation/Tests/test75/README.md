@@ -13,7 +13,7 @@ The plan should include a reinstall or fresh install action for os-1.0.
 ![test75](test75.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

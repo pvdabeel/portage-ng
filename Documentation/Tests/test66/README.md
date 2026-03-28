@@ -12,7 +12,7 @@ be ordered after lib-1.0's install step via the PDEPEND proof obligation mechani
 ![test66](test66.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

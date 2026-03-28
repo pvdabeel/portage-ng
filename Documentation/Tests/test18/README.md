@@ -9,7 +9,7 @@ This test case is a variation of test17, but the 'exactly-one-of' dependency is 
 ![test18](test18.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

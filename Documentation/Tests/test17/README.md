@@ -9,7 +9,7 @@ This test case evaluates the prover's handling of an 'exactly-one-of' dependency
 ![test17](test17.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

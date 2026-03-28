@@ -16,7 +16,7 @@ produce non-empty conditions.
 ![test65](test65.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

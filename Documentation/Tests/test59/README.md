@@ -17,7 +17,7 @@ either data_fast-1.0 or data_best-1.0.
 ![test59](test59.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

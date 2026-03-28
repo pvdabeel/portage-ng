@@ -9,7 +9,7 @@ This test case introduces a specific version constraint. The 'app-2.0' package e
 ![test13](test13.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 zsh:1: test13/web-2.0 not found

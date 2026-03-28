@@ -15,7 +15,7 @@ depending on blocker handling strategy.
 ![test27](test27.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

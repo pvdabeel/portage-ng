@@ -9,7 +9,7 @@ This test case checks the prover's ability to resolve dependencies based on sub-
 ![test44](test44.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

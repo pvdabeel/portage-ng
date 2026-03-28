@@ -13,7 +13,7 @@ The plan should include a rebuild action for os-1.0.
 ![test76](test76.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

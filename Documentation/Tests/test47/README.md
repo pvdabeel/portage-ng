@@ -9,7 +9,7 @@ This test case presents a more complex, three-way circular dependency. The clien
 ![test47](test47.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

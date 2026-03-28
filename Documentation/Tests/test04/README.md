@@ -14,7 +14,7 @@ dependencies in this case.
 ![test04](test04.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

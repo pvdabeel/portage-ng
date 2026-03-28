@@ -13,7 +13,7 @@ not spin or backtrack indefinitely. A cycle-break assumption is expected.
 ![test62](test62.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

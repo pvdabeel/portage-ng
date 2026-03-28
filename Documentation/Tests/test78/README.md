@@ -14,7 +14,7 @@ may still appear in the proof for dependency traversal purposes.
 ![test78](test78.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

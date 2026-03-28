@@ -9,7 +9,7 @@ This test case combines test09 and test10. The 'os-1.0' package has both a compi
 ![test11](test11.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

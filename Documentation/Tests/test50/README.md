@@ -9,7 +9,7 @@ This test case examines the prover's handling of transitive dependencies, specif
 ![test50](test50.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

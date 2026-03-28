@@ -13,7 +13,7 @@ an install-time dependency and be available before app-1.0's install phase.
 ![test72](test72.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

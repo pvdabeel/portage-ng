@@ -12,7 +12,7 @@ lib-3.0 should not be considered a valid candidate for this dependency.
 ![test70](test70.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

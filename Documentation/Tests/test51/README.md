@@ -9,7 +9,7 @@ This test case presents a direct and unsolvable conflict between a dependency's 
 ![test51](test51.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

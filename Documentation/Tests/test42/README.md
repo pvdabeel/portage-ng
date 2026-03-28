@@ -9,7 +9,7 @@ This test case checks the prover's behavior with a wildcard slot dependency. 'ap
 ![test42](test42.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

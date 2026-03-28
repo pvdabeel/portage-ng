@@ -107,7 +107,7 @@ step. The final step installs web-1.0.
 
 ![test01](test01/test01.svg)
 
-[emerge -vp](test01/test01-emerge.log) | [portage-ng](test01/test01-portage-ng.log) 
+[emerge](test01/test01-emerge.log) | [portage-ng](test01/test01-portage-ng.log) 
 
 ---
 
@@ -126,7 +126,7 @@ alternative plans.
 
 ![test02](test02/test02.svg)
 
-[emerge -vp](test02/test02-emerge.log) | [portage-ng](test02/test02-portage-ng.log) 
+[emerge](test02/test02-emerge.log) | [portage-ng](test02/test02-portage-ng.log) 
 
 ---
 
@@ -144,7 +144,7 @@ all four packages.
 
 ![test03](test03/test03.svg)
 
-[emerge -vp](test03/test03-emerge.log) | [portage-ng](test03/test03-portage-ng.log) 
+[emerge](test03/test03-emerge.log) | [portage-ng](test03/test03-portage-ng.log) 
 
 ---
 
@@ -162,7 +162,7 @@ dependencies in this case.
 
 ![test04](test04/test04.svg)
 
-[emerge -vp](test04/test04-emerge.log) | [portage-ng](test04/test04-portage-ng.log) 
+[emerge](test04/test04-emerge.log) | [portage-ng](test04/test04-portage-ng.log) 
 
 ---
 
@@ -178,7 +178,7 @@ steps in the proposed plan.
 
 ![test05](test05/test05.svg)
 
-[emerge -vp](test05/test05-emerge.log) | [portage-ng](test05/test05-portage-ng.log) 
+[emerge](test05/test05-emerge.log) | [portage-ng](test05/test05-portage-ng.log) 
 
 ---
 
@@ -196,7 +196,7 @@ final plan.
 
 ![test06](test06/test06.svg)
 
-[emerge -vp](test06/test06-emerge.log) | [portage-ng](test06/test06-portage-ng.log) 
+[emerge](test06/test06-emerge.log) | [portage-ng](test06/test06-portage-ng.log) 
 
 ---
 
@@ -212,7 +212,7 @@ verify step in the proposed plan.
 
 ![test07](test07/test07.svg)
 
-[emerge -vp](test07/test07-emerge.log) | [portage-ng](test07/test07-portage-ng.log) 
+[emerge](test07/test07-emerge.log) | [portage-ng](test07/test07-portage-ng.log) 
 
 ---
 
@@ -228,7 +228,7 @@ two verify steps in the proposed plan.
 
 ![test08](test08/test08.svg)
 
-[emerge -vp](test08/test08-emerge.log) | [portage-ng](test08/test08-portage-ng.log) 
+[emerge](test08/test08-emerge.log) | [portage-ng](test08/test08-portage-ng.log) 
 
 ---
 
@@ -241,7 +241,7 @@ This test case checks the prover's ability to handle a missing dependency. The '
 
 ![test09](test09/test09.svg)
 
-[emerge -vp](test09/test09-emerge.log) | [portage-ng](test09/test09-portage-ng.log) 
+[emerge](test09/test09-emerge.log) | [portage-ng](test09/test09-portage-ng.log) 
 
 ---
 
@@ -254,7 +254,7 @@ This is a variation of test09. It checks for a missing dependency, but this time
 
 ![test10](test10/test10.svg)
 
-[emerge -vp](test10/test10-emerge.log) | [portage-ng](test10/test10-portage-ng.log) 
+[emerge](test10/test10-emerge.log) | [portage-ng](test10/test10-portage-ng.log) 
 
 ---
 
@@ -267,7 +267,7 @@ This test case combines test09 and test10. The 'os-1.0' package has both a compi
 
 ![test11](test11/test11.svg)
 
-[emerge -vp](test11/test11-emerge.log) | [portage-ng](test11/test11-portage-ng.log) 
+[emerge](test11/test11-emerge.log) | [portage-ng](test11/test11-portage-ng.log) 
 
 ---
 
@@ -280,7 +280,7 @@ This test case examines the prover's handling of package keywords and stability.
 
 ![test12](test12/test12.svg)
 
-[emerge -vp](test12/test12-emerge.log) | [portage-ng](test12/test12-portage-ng.log) 
+[emerge](test12/test12-emerge.log) | [portage-ng](test12/test12-portage-ng.log) 
 
 ---
 
@@ -293,7 +293,7 @@ This test case introduces a specific version constraint. The 'app-2.0' package e
 
 ![test13](test13/test13.svg)
 
-[emerge -vp](test13/test13-emerge.log) | [portage-ng](test13/test13-portage-ng.log) 
+[emerge](test13/test13-emerge.log) | [portage-ng](test13/test13-portage-ng.log) 
 
 ---
 
@@ -307,7 +307,7 @@ This test case evaluates the handling of USE conditional dependencies. The depen
 
 ![test14](test14/test14.svg)
 
-[emerge -vp](test14/test14-emerge.log) | [portage-ng](test14/test14-portage-ng.log) 
+[emerge](test14/test14-emerge.log) | [portage-ng](test14/test14-portage-ng.log) 
 
 ---
 
@@ -321,7 +321,7 @@ This test case is similar to test14 but uses a negative USE conditional. The dep
 
 ![test15](test15/test15.svg)
 
-[emerge -vp](test15/test15-emerge.log) | [portage-ng](test15/test15-portage-ng.log) 
+[emerge](test15/test15-emerge.log) | [portage-ng](test15/test15-portage-ng.log) 
 
 ---
 
@@ -340,7 +340,7 @@ db-1.0, and os-1.0 should all appear in the plan in the correct order.
 
 ![test16](test16/test16.svg)
 
-[emerge -vp](test16/test16-emerge.log) | [portage-ng](test16/test16-portage-ng.log) 
+[emerge](test16/test16-emerge.log) | [portage-ng](test16/test16-portage-ng.log) 
 
 ---
 
@@ -353,7 +353,7 @@ This test case evaluates the prover's handling of an 'exactly-one-of' dependency
 
 ![test17](test17/test17.svg)
 
-[emerge -vp](test17/test17-emerge.log) | [portage-ng](test17/test17-portage-ng.log) 
+[emerge](test17/test17-emerge.log) | [portage-ng](test17/test17-portage-ng.log) 
 
 ---
 
@@ -366,7 +366,7 @@ This test case is a variation of test17, but the 'exactly-one-of' dependency is 
 
 ![test18](test18/test18.svg)
 
-[emerge -vp](test18/test18-emerge.log) | [portage-ng](test18/test18-portage-ng.log) 
+[emerge](test18/test18-emerge.log) | [portage-ng](test18/test18-portage-ng.log) 
 
 ---
 
@@ -379,7 +379,7 @@ This test case combines test17 and test18. The 'os-1.0' package has the same 'ex
 
 ![test19](test19/test19.svg)
 
-[emerge -vp](test19/test19-emerge.log) | [portage-ng](test19/test19-portage-ng.log) 
+[emerge](test19/test19-emerge.log) | [portage-ng](test19/test19-portage-ng.log) 
 
 ---
 
@@ -392,7 +392,7 @@ This test case evaluates the prover's handling of an 'any-of' dependency group (
 
 ![test20](test20/test20.svg)
 
-[emerge -vp](test20/test20-emerge.log) | [portage-ng](test20/test20-portage-ng.log) 
+[emerge](test20/test20-emerge.log) | [portage-ng](test20/test20-portage-ng.log) 
 
 ---
 
@@ -405,7 +405,7 @@ This is a variation of test20, with the 'any-of' dependency group in the runtime
 
 ![test21](test21/test21.svg)
 
-[emerge -vp](test21/test21-emerge.log) | [portage-ng](test21/test21-portage-ng.log) 
+[emerge](test21/test21-emerge.log) | [portage-ng](test21/test21-portage-ng.log) 
 
 ---
 
@@ -418,7 +418,7 @@ This test case combines test20 and test21. The 'os-1.0' package has the same 'an
 
 ![test22](test22/test22.svg)
 
-[emerge -vp](test22/test22-emerge.log) | [portage-ng](test22/test22-portage-ng.log) 
+[emerge](test22/test22-emerge.log) | [portage-ng](test22/test22-portage-ng.log) 
 
 ---
 
@@ -431,7 +431,7 @@ This test case evaluates the prover's handling of an 'at-most-one-of' dependency
 
 ![test23](test23/test23.svg)
 
-[emerge -vp](test23/test23-emerge.log) | [portage-ng](test23/test23-portage-ng.log) 
+[emerge](test23/test23-emerge.log) | [portage-ng](test23/test23-portage-ng.log) 
 
 ---
 
@@ -444,7 +444,7 @@ This is a variation of test23, with the 'at-most-one-of' dependency group in the
 
 ![test24](test24/test24.svg)
 
-[emerge -vp](test24/test24-emerge.log) | [portage-ng](test24/test24-portage-ng.log) 
+[emerge](test24/test24-emerge.log) | [portage-ng](test24/test24-portage-ng.log) 
 
 ---
 
@@ -457,7 +457,7 @@ This test case combines test23 and test24. The 'os-1.0' package has the same 'at
 
 ![test25](test25/test25.svg)
 
-[emerge -vp](test25/test25-emerge.log) | [portage-ng](test25/test25-portage-ng.log) 
+[emerge](test25/test25-emerge.log) | [portage-ng](test25/test25-portage-ng.log) 
 
 ---
 
@@ -477,7 +477,7 @@ either 'linux-1.0' or 'bsd-1.0' to satisfy the any-of group on 'os-1.0', since
 
 ![test26](test26/test26.svg)
 
-[emerge -vp](test26/test26-emerge.log) | [portage-ng](test26/test26-portage-ng.log) 
+[emerge](test26/test26-emerge.log) | [portage-ng](test26/test26-portage-ng.log) 
 
 ---
 
@@ -496,7 +496,7 @@ depending on blocker handling strategy.
 
 ![test27](test27/test27.svg)
 
-[emerge -vp](test27/test27-emerge.log) | [portage-ng](test27/test27-portage-ng.log) 
+[emerge](test27/test27-emerge.log) | [portage-ng](test27/test27-portage-ng.log) 
 
 ---
 
@@ -514,7 +514,7 @@ either 'linux-1.0' or 'bsd-1.0' to satisfy the any-of group on 'os-1.0', since
 
 ![test28](test28/test28.svg)
 
-[emerge -vp](test28/test28-emerge.log) | [portage-ng](test28/test28-portage-ng.log) 
+[emerge](test28/test28-emerge.log) | [portage-ng](test28/test28-portage-ng.log) 
 
 ---
 
@@ -531,7 +531,7 @@ strongly blocked in both scopes.
 
 ![test29](test29/test29.svg)
 
-[emerge -vp](test29/test29-emerge.log) | [portage-ng](test29/test29-portage-ng.log) 
+[emerge](test29/test29-emerge.log) | [portage-ng](test29/test29-portage-ng.log) 
 
 ---
 
@@ -549,7 +549,7 @@ depending on blocker handling strategy.
 
 ![test30](test30/test30.svg)
 
-[emerge -vp](test30/test30-emerge.log) | [portage-ng](test30/test30-portage-ng.log) 
+[emerge](test30/test30-emerge.log) | [portage-ng](test30/test30-portage-ng.log) 
 
 ---
 
@@ -566,7 +566,7 @@ depending on blocker handling strategy.
 
 ![test31](test31/test31.svg)
 
-[emerge -vp](test31/test31-emerge.log) | [portage-ng](test31/test31-portage-ng.log) 
+[emerge](test31/test31-emerge.log) | [portage-ng](test31/test31-portage-ng.log) 
 
 ---
 
@@ -579,7 +579,7 @@ This test case examines the interplay between REQUIRED_USE and conditional depen
 
 ![test32](test32/test32.svg)
 
-[emerge -vp](test32/test32-emerge.log) | [portage-ng](test32/test32-portage-ng.log) 
+[emerge](test32/test32-emerge.log) | [portage-ng](test32/test32-portage-ng.log) 
 
 ---
 
@@ -592,7 +592,7 @@ This test case examines a direct USE dependency. The 'app-1.0' package requires 
 
 ![test33](test33/test33.svg)
 
-[emerge -vp](test33/test33-emerge.log) | [portage-ng](test33/test33-portage-ng.log) 
+[emerge](test33/test33-emerge.log) | [portage-ng](test33/test33-portage-ng.log) 
 
 ---
 
@@ -605,7 +605,7 @@ This test case is the inverse of test33. It checks the handling of a negative US
 
 ![test34](test34/test34.svg)
 
-[emerge -vp](test34/test34-emerge.log) | [portage-ng](test34/test34-portage-ng.log) 
+[emerge](test34/test34-emerge.log) | [portage-ng](test34/test34-portage-ng.log) 
 
 ---
 
@@ -620,7 +620,7 @@ In both cases, the proof should be valid.
 
 ![test35](test35/test35.svg)
 
-[emerge -vp](test35/test35-emerge.log) | [portage-ng](test35/test35-portage-ng.log) 
+[emerge](test35/test35-emerge.log) | [portage-ng](test35/test35-portage-ng.log) 
 
 ---
 
@@ -633,7 +633,7 @@ This test case examines the prover's ability to propagate a conditional USE flag
 
 ![test36](test36/test36.svg)
 
-[emerge -vp](test36/test36-emerge.log) | [portage-ng](test36/test36-portage-ng.log) 
+[emerge](test36/test36-emerge.log) | [portage-ng](test36/test36-portage-ng.log) 
 
 ---
 
@@ -648,7 +648,7 @@ The proof should be valid in both scenarios.
 
 ![test37](test37/test37.svg)
 
-[emerge -vp](test37/test37-emerge.log) | [portage-ng](test37/test37-portage-ng.log) 
+[emerge](test37/test37-emerge.log) | [portage-ng](test37/test37-portage-ng.log) 
 
 ---
 
@@ -663,7 +663,7 @@ The proof should be valid in both scenarios.
 
 ![test38](test38/test38.svg)
 
-[emerge -vp](test38/test38-emerge.log) | [portage-ng](test38/test38-portage-ng.log) 
+[emerge](test38/test38-emerge.log) | [portage-ng](test38/test38-portage-ng.log) 
 
 ---
 
@@ -678,7 +678,7 @@ The proof should be valid in both scenarios.
 
 ![test39](test39/test39.svg)
 
-[emerge -vp](test39/test39-emerge.log) | [portage-ng](test39/test39-portage-ng.log) 
+[emerge](test39/test39-emerge.log) | [portage-ng](test39/test39-portage-ng.log) 
 
 ---
 
@@ -693,7 +693,7 @@ This test case checks the prover's ability to handle a REQUIRED_USE 'any-of' (||
 
 ![test40](test40/test40.svg)
 
-[emerge -vp](test40/test40-emerge.log) | [portage-ng](test40/test40-portage-ng.log) 
+[emerge](test40/test40-emerge.log) | [portage-ng](test40/test40-portage-ng.log) 
 
 ---
 
@@ -706,7 +706,7 @@ This test case checks the prover's ability to resolve dependencies based on slot
 
 ![test41](test41/test41.svg)
 
-[emerge -vp](test41/test41-emerge.log) | [portage-ng](test41/test41-portage-ng.log) 
+[emerge](test41/test41-emerge.log) | [portage-ng](test41/test41-portage-ng.log) 
 
 ---
 
@@ -719,7 +719,7 @@ This test case checks the prover's behavior with a wildcard slot dependency. 'ap
 
 ![test42](test42/test42.svg)
 
-[emerge -vp](test42/test42-emerge.log) | [portage-ng](test42/test42-portage-ng.log) 
+[emerge](test42/test42-emerge.log) | [portage-ng](test42/test42-portage-ng.log) 
 
 ---
 
@@ -732,7 +732,7 @@ This test case examines the slot equality operator (:=). 'app-1.0' depends on 'l
 
 ![test43](test43/test43.svg)
 
-[emerge -vp](test43/test43-emerge.log) | [portage-ng](test43/test43-portage-ng.log) 
+[emerge](test43/test43-emerge.log) | [portage-ng](test43/test43-portage-ng.log) 
 
 ---
 
@@ -745,7 +745,7 @@ This test case checks the prover's ability to resolve dependencies based on sub-
 
 ![test44](test44/test44.svg)
 
-[emerge -vp](test44/test44-emerge.log) | [portage-ng](test44/test44-portage-ng.log) 
+[emerge](test44/test44-emerge.log) | [portage-ng](test44/test44-portage-ng.log) 
 
 ---
 
@@ -758,7 +758,7 @@ This test case checks the prover's ability to detect a direct and irreconcilable
 
 ![test45](test45/test45.svg)
 
-[emerge -vp](test45/test45-emerge.log) | [portage-ng](test45/test45-portage-ng.log) 
+[emerge](test45/test45-emerge.log) | [portage-ng](test45/test45-portage-ng.log) 
 
 ---
 
@@ -771,7 +771,7 @@ This test case is designed to assess the prover's ability to detect a USE flag c
 
 ![test46](test46/test46.svg)
 
-[emerge -vp](test46/test46-emerge.log) | [portage-ng](test46/test46-portage-ng.log) 
+[emerge](test46/test46-emerge.log) | [portage-ng](test46/test46-portage-ng.log) 
 
 ---
 
@@ -784,7 +784,7 @@ This test case presents a more complex, three-way circular dependency. The clien
 
 ![test47](test47/test47.svg)
 
-[emerge -vp](test47/test47-emerge.log) | [portage-ng](test47/test47-portage-ng.log) 
+[emerge](test47/test47-emerge.log) | [portage-ng](test47/test47-portage-ng.log) 
 
 ---
 
@@ -797,7 +797,7 @@ This test case checks the prover's ability to detect a slotting conflict. The tw
 
 ![test48](test48/test48.svg)
 
-[emerge -vp](test48/test48-emerge.log) | [portage-ng](test48/test48-portage-ng.log) 
+[emerge](test48/test48-emerge.log) | [portage-ng](test48/test48-portage-ng.log) 
 
 ---
 
@@ -810,7 +810,7 @@ This test case checks the prover's ability to handle a conflict between a "soft"
 
 ![test49](test49/test49.svg)
 
-[emerge -vp](test49/test49-emerge.log) | [portage-ng](test49/test49-portage-ng.log) 
+[emerge](test49/test49-emerge.log) | [portage-ng](test49/test49-portage-ng.log) 
 
 ---
 
@@ -823,7 +823,7 @@ This test case examines the prover's handling of transitive dependencies, specif
 
 ![test50](test50/test50.svg)
 
-[emerge -vp](test50/test50-emerge.log) | [portage-ng](test50/test50-portage-ng.log) 
+[emerge](test50/test50-emerge.log) | [portage-ng](test50/test50-portage-ng.log) 
 
 ---
 
@@ -836,7 +836,7 @@ This test case presents a direct and unsolvable conflict between a dependency's 
 
 ![test51](test51/test51.svg)
 
-[emerge -vp](test51/test51-emerge.log) | [portage-ng](test51/test51-portage-ng.log) 
+[emerge](test51/test51-emerge.log) | [portage-ng](test51/test51-portage-ng.log) 
 
 ---
 
@@ -849,7 +849,7 @@ The prover will first prove os-1.0 through the liba path. This means os-1.0 will
 
 ![test52](test52/test52.svg)
 
-[emerge -vp](test52/test52-emerge.log) | [portage-ng](test52/test52-portage-ng.log) 
+[emerge](test52/test52-emerge.log) | [portage-ng](test52/test52-portage-ng.log) 
 
 ---
 
@@ -862,7 +862,7 @@ The prover will first prove os-1.0 through the liba path. This means os-1.0 will
 
 ![test53](test53/test53.svg)
 
-[emerge -vp](test53/test53-emerge.log) | [portage-ng](test53/test53-portage-ng.log) 
+[emerge](test53/test53-emerge.log) | [portage-ng](test53/test53-portage-ng.log) 
 
 ---
 
@@ -875,7 +875,7 @@ Expanding use flags output
 
 ![test54](test54/test54.svg)
 
-[emerge -vp](test54/test54-emerge.log) | [portage-ng](test54/test54-portage-ng.log) 
+[emerge](test54/test54-emerge.log) | [portage-ng](test54/test54-portage-ng.log) 
 
 ---
 
@@ -888,7 +888,7 @@ Multiple requirements should be combined. Only one version should be selected
 
 ![test55](test55/test55.svg)
 
-[emerge -vp](test55/test55-emerge.log) | [portage-ng](test55/test55-portage-ng.log) 
+[emerge](test55/test55-emerge.log) | [portage-ng](test55/test55-portage-ng.log) 
 
 ---
 
@@ -901,7 +901,7 @@ Multiple requirements should be combined. Only one version should be selected
 
 ![test56](test56/test56.svg)
 
-[emerge -vp](test56/test56-emerge.log) | [portage-ng](test56/test56-portage-ng.log) 
+[emerge](test56/test56-emerge.log) | [portage-ng](test56/test56-portage-ng.log) 
 
 ---
 
@@ -917,7 +917,7 @@ virtualsdk-1.0). The full chain os -> virtualsdk -> linux should be resolved.
 
 ![test57](test57/test57.svg)
 
-[emerge -vp](test57/test57-emerge.log) | [portage-ng](test57/test57-portage-ng.log) 
+[emerge](test57/test57-emerge.log) | [portage-ng](test57/test57-portage-ng.log) 
 
 ---
 
@@ -939,7 +939,7 @@ test58/virtualsdk dependency.
 
 ![test58](test58/test58.svg)
 
-[emerge -vp](test58/test58-emerge.log) | [portage-ng](test58/test58-portage-ng.log) 
+[emerge](test58/test58-emerge.log) | [portage-ng](test58/test58-portage-ng.log) 
 
 ---
 
@@ -961,7 +961,7 @@ either data_fast-1.0 or data_best-1.0.
 
 ![test59](test59/test59.svg)
 
-[emerge -vp](test59/test59-emerge.log) | [portage-ng](test59/test59-portage-ng.log) 
+[emerge](test59/test59-emerge.log) | [portage-ng](test59/test59-portage-ng.log) 
 
 ---
 
@@ -982,7 +982,7 @@ should select windows-2.0 and avoid windows-1.0.
 
 ![test60](test60/test60.svg)
 
-[emerge -vp](test60/test60-emerge.log) | [portage-ng](test60/test60-portage-ng.log) 
+[emerge](test60/test60-emerge.log) | [portage-ng](test60/test60-portage-ng.log) 
 
 ---
 
@@ -1000,7 +1000,7 @@ context.
 
 ![test61](test61/test61.svg)
 
-[emerge -vp](test61/test61-emerge.log) | [portage-ng](test61/test61-portage-ng.log) 
+[emerge](test61/test61-emerge.log) | [portage-ng](test61/test61-portage-ng.log) 
 
 ---
 
@@ -1017,7 +1017,7 @@ not spin or backtrack indefinitely. A cycle-break assumption is expected.
 
 ![test62](test62/test62.svg)
 
-[emerge -vp](test62/test62-emerge.log) | [portage-ng](test62/test62-portage-ng.log) 
+[emerge](test62/test62-emerge.log) | [portage-ng](test62/test62-portage-ng.log) 
 
 ---
 
@@ -1035,7 +1035,7 @@ openmpi-4.1.6-r1 with a valid REQUIRED_USE configuration.
 
 ![test63](test63/test63.svg)
 
-[emerge -vp](test63/test63-emerge.log) | [portage-ng](test63/test63-portage-ng.log) 
+[emerge](test63/test63-emerge.log) | [portage-ng](test63/test63-portage-ng.log) 
 
 ---
 
@@ -1052,7 +1052,7 @@ respects all REQUIRED_USE constraints and USE-conditional dependencies.
 
 ![test64](test64/test64.svg)
 
-[emerge -vp](test64/test64-emerge.log) | [portage-ng](test64/test64-portage-ng.log) 
+[emerge](test64/test64-emerge.log) | [portage-ng](test64/test64-portage-ng.log) 
 
 ---
 
@@ -1072,7 +1072,7 @@ produce non-empty conditions.
 
 ![test65](test65/test65.svg)
 
-[emerge -vp](test65/test65-emerge.log) | [portage-ng](test65/test65-portage-ng.log) 
+[emerge](test65/test65-emerge.log) | [portage-ng](test65/test65-portage-ng.log) 
 
 ---
 
@@ -1088,7 +1088,7 @@ be ordered after lib-1.0's install step via the PDEPEND proof obligation mechani
 
 ![test66](test66/test66.svg)
 
-[emerge -vp](test66/test66-emerge.log) | [portage-ng](test66/test66-portage-ng.log) 
+[emerge](test66/test66-emerge.log) | [portage-ng](test66/test66-portage-ng.log) 
 
 ---
 
@@ -1106,7 +1106,7 @@ dependency.
 
 ![test67](test67/test67.svg)
 
-[emerge -vp](test67/test67-emerge.log) | [portage-ng](test67/test67-portage-ng.log) 
+[emerge](test67/test67-emerge.log) | [portage-ng](test67/test67-portage-ng.log) 
 
 ---
 
@@ -1124,7 +1124,7 @@ include both in the plan.
 
 ![test68](test68/test68.svg)
 
-[emerge -vp](test68/test68-emerge.log) | [portage-ng](test68/test68-portage-ng.log) 
+[emerge](test68/test68-emerge.log) | [portage-ng](test68/test68-portage-ng.log) 
 
 ---
 
@@ -1140,7 +1140,7 @@ dependency. Versions 1.0 and 2.0 should not appear in the proof.
 
 ![test69](test69/test69.svg)
 
-[emerge -vp](test69/test69-emerge.log) | [portage-ng](test69/test69-portage-ng.log) 
+[emerge](test69/test69-emerge.log) | [portage-ng](test69/test69-portage-ng.log) 
 
 ---
 
@@ -1156,7 +1156,7 @@ lib-3.0 should not be considered a valid candidate for this dependency.
 
 ![test70](test70/test70.svg)
 
-[emerge -vp](test70/test70-emerge.log) | [portage-ng](test70/test70-portage-ng.log) 
+[emerge](test70/test70-emerge.log) | [portage-ng](test70/test70-portage-ng.log) 
 
 ---
 
@@ -1173,7 +1173,7 @@ install or run steps should be produced in the plan.
 
 ![test71](test71/test71.svg)
 
-[emerge -vp](test71/test71-emerge.log) | [portage-ng](test71/test71-portage-ng.log) 
+[emerge](test71/test71-emerge.log) | [portage-ng](test71/test71-portage-ng.log) 
 
 ---
 
@@ -1190,7 +1190,7 @@ an install-time dependency and be available before app-1.0's install phase.
 
 ![test72](test72/test72.svg)
 
-[emerge -vp](test72/test72-emerge.log) | [portage-ng](test72/test72-portage-ng.log) 
+[emerge](test72/test72-emerge.log) | [portage-ng](test72/test72-portage-ng.log) 
 
 ---
 
@@ -1207,7 +1207,7 @@ plan should show an update action for lib, not a fresh install.
 
 ![test73](test73/test73.svg)
 
-[emerge -vp](test73/test73-emerge.log) | [portage-ng](test73/test73-portage-ng.log) 
+[emerge](test73/test73-emerge.log) | [portage-ng](test73/test73-portage-ng.log) 
 
 ---
 
@@ -1224,7 +1224,7 @@ The plan should show a downgrade action for lib.
 
 ![test74](test74/test74.svg)
 
-[emerge -vp](test74/test74-emerge.log) | [portage-ng](test74/test74-portage-ng.log) 
+[emerge](test74/test74-emerge.log) | [portage-ng](test74/test74-portage-ng.log) 
 
 ---
 
@@ -1241,7 +1241,7 @@ The plan should include a reinstall or fresh install action for os-1.0.
 
 ![test75](test75/test75.svg)
 
-[emerge -vp](test75/test75-emerge.log) | [portage-ng](test75/test75-portage-ng.log) 
+[emerge](test75/test75-emerge.log) | [portage-ng](test75/test75-portage-ng.log) 
 
 ---
 
@@ -1258,7 +1258,7 @@ The plan should include a rebuild action for os-1.0.
 
 ![test76](test76/test76.svg)
 
-[emerge -vp](test76/test76-emerge.log) | [portage-ng](test76/test76-portage-ng.log) 
+[emerge](test76/test76-emerge.log) | [portage-ng](test76/test76-portage-ng.log) 
 
 ---
 
@@ -1276,7 +1276,7 @@ be retained.
 
 ![test77](test77/test77.svg)
 
-[emerge -vp](test77/test77-emerge.log) | [portage-ng](test77/test77-portage-ng.log) 
+[emerge](test77/test77-emerge.log) | [portage-ng](test77/test77-portage-ng.log) 
 
 ---
 
@@ -1294,7 +1294,7 @@ may still appear in the proof for dependency traversal purposes.
 
 ![test78](test78/test78.svg)
 
-[emerge -vp](test78/test78-emerge.log) | [portage-ng](test78/test78-portage-ng.log) 
+[emerge](test78/test78-emerge.log) | [portage-ng](test78/test78-portage-ng.log) 
 
 ---
 
@@ -1313,7 +1313,7 @@ hard circular dependency requiring assumptions.
 
 ![test79](test79/test79.svg)
 
-[emerge -vp](test79/test79-emerge.log) | [portage-ng](test79/test79-portage-ng.log) 
+[emerge](test79/test79-emerge.log) | [portage-ng](test79/test79-portage-ng.log) 
 
 ---
 
@@ -1329,6 +1329,6 @@ dependency. Versions 4.0 and 5.0 should not be considered valid candidates.
 
 ![test80](test80/test80.svg)
 
-[emerge -vp](test80/test80-emerge.log) | [portage-ng](test80/test80-portage-ng.log) 
+[emerge](test80/test80-emerge.log) | [portage-ng](test80/test80-portage-ng.log) 
 
 ---

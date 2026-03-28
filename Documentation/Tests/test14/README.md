@@ -10,7 +10,7 @@ This test case evaluates the handling of USE conditional dependencies. The depen
 ![test14](test14.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

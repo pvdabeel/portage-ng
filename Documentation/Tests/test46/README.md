@@ -9,7 +9,7 @@ This test case is designed to assess the prover's ability to detect a USE flag c
 ![test46](test46.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

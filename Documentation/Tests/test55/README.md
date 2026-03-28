@@ -9,7 +9,7 @@ Multiple requirements should be combined. Only one version should be selected
 ![test55](test55.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

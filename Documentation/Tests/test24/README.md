@@ -9,7 +9,7 @@ This is a variation of test23, with the 'at-most-one-of' dependency group in the
 ![test24](test24.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

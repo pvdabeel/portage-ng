@@ -9,7 +9,7 @@ This test case checks the prover's ability to handle a missing dependency. The '
 ![test09](test09.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

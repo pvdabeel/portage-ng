@@ -12,7 +12,7 @@ virtualsdk-1.0). The full chain os -> virtualsdk -> linux should be resolved.
 ![test57](test57.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:

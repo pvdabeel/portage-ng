@@ -9,7 +9,7 @@ The prover will first prove os-1.0 through the liba path. This means os-1.0 will
 ![test52](test52.svg)
 
 <details>
-<summary><b>emerge -vp</b></summary>
+<summary><b>emerge</b></summary>
 
 ```
 These are the packages that would be merged, in order:
