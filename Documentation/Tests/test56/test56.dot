@@ -1,35 +1,29 @@
 digraph test56 {
   label=<<B>test56</B> — Version range via dep chains>;
   labelloc=t; fontname=Helvetica; fontsize=12;
-  graph [rankdir=LR];
+  graph [rankdir=LR,compound=true];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
   edge  [fontname=Helvetica,fontsize=9];
+
+  subgraph cluster_lib {
+    label="lib"; style=dashed; color=gray;
+    lib1 [label="lib-1.0"];
+    lib2 [label="lib-2.0"];
+    lib3 [label="lib-3.0"];
+    lib4 [label="lib-4.0",fillcolor=palegreen];
+    lib5 [label="lib-5.0",fillcolor=palegreen];
+    lib6 [label="lib-6.0",fillcolor=palegreen];
+    lib7 [label="lib-7.0"];
+    lib8 [label="lib-8.0"];
+    lib9 [label="lib-9.0"];
+  }
 
   app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
   modulea [label="modulea-1.0"];
   moduleb [label="moduleb-1.0"];
-  lib1 [label="lib-1.0"];
-  lib2 [label="lib-2.0"];
-  lib3 [label="lib-3.0"];
-  lib4 [label="lib-4.0",fillcolor=palegreen];
-  lib5 [label="lib-5.0",fillcolor=palegreen];
-  lib6 [label="lib-6.0",fillcolor=palegreen];
-  lib7 [label="lib-7.0"];
-  lib8 [label="lib-8.0"];
-  lib9 [label="lib-9.0"];
 
   app -> modulea;
   app -> moduleb;
-  modulea -> lib4 [label=">3"];
-  modulea -> lib5 [label=">3"];
-  modulea -> lib6 [label=">3"];
-  modulea -> lib7 [label=">3"];
-  modulea -> lib8 [label=">3"];
-  modulea -> lib9 [label=">3"];
-  moduleb -> lib1 [label="<7"];
-  moduleb -> lib2 [label="<7"];
-  moduleb -> lib3 [label="<7"];
-  moduleb -> lib4 [label="<7"];
-  moduleb -> lib5 [label="<7"];
-  moduleb -> lib6 [label="<7"];
+  modulea -> lib4 [lhead=cluster_lib,label=">3"];
+  moduleb -> lib6 [lhead=cluster_lib,label="<7"];
 }

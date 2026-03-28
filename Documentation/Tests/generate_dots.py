@@ -274,33 +274,19 @@ def test12():
 
 
 def test13():
-    return dot("test13", "Pinpointed version =pkg-ver", [], [
-        edge("web_2", "app_2", 'label="=app-2.0"'),
-        edge("web_2", "db_2", 'label="=db-2.0"'),
-        edge("web_2", "os_1", 'lhead=cluster_os'),
-        edge("web_1", "app_1", 'label="=app-1.0"'),
-        edge("web_1", "db_1", 'label="=db-1.0"'),
-        edge("web_1", "os_1", 'lhead=cluster_os,label="=os-1.0"'),
-        edge("app_2", "db_2", 'label="=db-2.0"'),
-        edge("app_2", "os_1", 'lhead=cluster_os'),
-        edge("app_1", "db_1", 'label="=db-1.0"'),
-        edge("app_1", "os_1", 'lhead=cluster_os'),
-        edge("db_1", "os_1", 'lhead=cluster_os'),
-        edge("db_2", "os_1", 'lhead=cluster_os'),
-    ], clusters_list=[
-        cluster("web", "web", [
-            ("web_2", "web-2.0", ENTRY), ("web_1", "web-1.0", ""),
-        ]),
-        cluster("app", "app", [
-            ("app_2", "app-2.0", ""), ("app_1", "app-1.0", ""),
-        ]),
-        cluster("db", "db", [
-            ("db_2", "db-2.0", ""), ("db_1", "db-1.0", ""),
-        ]),
-        cluster("os", "os", [
-            ("os_1", "os-1.0", ""), ("os_2", "os-2.0", ""),
-        ]),
-    ], compound=True)
+    return dot("test13", "Pinpointed version =pkg-ver", [
+        node("web", "web-2.0", ENTRY),
+        node("app", "app-2.0"),
+        node("db", "db-2.0"),
+        node("os", "os-1.0"),
+    ], [
+        edge("web", "app", 'label="=app-2.0"'),
+        edge("web", "db", 'label="=db-2.0"'),
+        edge("web", "os"),
+        edge("app", "db", 'label="=db-2.0"'),
+        edge("app", "os"),
+        edge("db", "os"),
+    ])
 
 
 def test14():
@@ -903,41 +889,35 @@ def test54():
 
 
 def test55():
-    ns = [node("app", "app-1.0", ENTRY)]
+    members = []
     for v in range(1, 10):
         fill = 'fillcolor=palegreen' if 3 < v < 7 else ""
-        ns.append(node(f"lib{v}", f"lib-{v}.0", fill))
-    return dot("test55", "Version range &gt;3 &lt;7", ns, [
-        edge("app", "lib4", 'label=">3 <7"'),
-        edge("app", "lib5", 'label=">3 <7"'),
-        edge("app", "lib6", 'label=">3 <7"'),
-    ])
+        members.append((f"lib{v}", f"lib-{v}.0", fill))
+    return dot("test55", "Version range &gt;3 &lt;7", [
+        node("app", "app-1.0", ENTRY),
+    ], [
+        edge("app", "lib4", 'lhead=cluster_lib,label=">3 <7"'),
+    ], clusters_list=[
+        cluster("lib", "lib", members),
+    ], compound=True)
 
 
 def test56():
-    ns = [
+    members = []
+    for v in range(1, 10):
+        fill = 'fillcolor=palegreen' if 3 < v < 7 else ""
+        members.append((f"lib{v}", f"lib-{v}.0", fill))
+    return dot("test56", "Version range via dep chains", [
         node("app", "app-1.0", ENTRY),
         node("modulea", "modulea-1.0"),
         node("moduleb", "moduleb-1.0"),
-    ]
-    for v in range(1, 10):
-        fill = 'fillcolor=palegreen' if 3 < v < 7 else ""
-        ns.append(node(f"lib{v}", f"lib-{v}.0", fill))
-    return dot("test56", "Version range via dep chains", ns, [
+    ], [
         edge("app", "modulea"), edge("app", "moduleb"),
-        edge("modulea", "lib4", 'label=">3"'),
-        edge("modulea", "lib5", 'label=">3"'),
-        edge("modulea", "lib6", 'label=">3"'),
-        edge("modulea", "lib7", 'label=">3"'),
-        edge("modulea", "lib8", 'label=">3"'),
-        edge("modulea", "lib9", 'label=">3"'),
-        edge("moduleb", "lib1", 'label="<7"'),
-        edge("moduleb", "lib2", 'label="<7"'),
-        edge("moduleb", "lib3", 'label="<7"'),
-        edge("moduleb", "lib4", 'label="<7"'),
-        edge("moduleb", "lib5", 'label="<7"'),
-        edge("moduleb", "lib6", 'label="<7"'),
-    ])
+        edge("modulea", "lib4", 'lhead=cluster_lib,label=">3"'),
+        edge("moduleb", "lib6", 'lhead=cluster_lib,label="<7"'),
+    ], clusters_list=[
+        cluster("lib", "lib", members),
+    ], compound=True)
 
 
 def test57():
@@ -1003,7 +983,7 @@ def test60():
         edge("web", "app"), edge("web", "db"), edge("web", "os"),
         edge("app", "os"), edge("app", "db"),
         edge("app", "windows1",
-             'color=red,style=dashed,label="!<2.0",fontcolor=red'),
+             'color=red,style=bold,label="!<2.0",fontcolor=red'),
         edge("db", "os"),
         edge("os", "g1"),
         edge("g1", "windows1", 'label="=1.0"'),
@@ -1111,27 +1091,31 @@ def test68():
 
 
 def test69():
-    ns = [node("app", "app-1.0", ENTRY)]
+    members = []
     for v in range(1, 6):
         fill = 'fillcolor=palegreen' if v >= 3 else ""
-        ns.append(node(f"lib{v}", f"lib-{v}.0", fill))
-    return dot("test69", "Version &gt;=", ns, [
-        edge("app", "lib3", 'label=">=3.0"'),
-        edge("app", "lib4", 'label=">=3.0"'),
-        edge("app", "lib5", 'label=">=3.0"'),
-    ])
+        members.append((f"lib{v}", f"lib-{v}.0", fill))
+    return dot("test69", "Version &gt;=", [
+        node("app", "app-1.0", ENTRY),
+    ], [
+        edge("app", "lib3", 'lhead=cluster_lib,label=">=3.0"'),
+    ], clusters_list=[
+        cluster("lib", "lib", members),
+    ], compound=True)
 
 
 def test70():
     return dot("test70", "Version ~ (revision)", [
         node("app", "app-1.0", ENTRY),
-        node("lib20", "lib-2.0", 'fillcolor=palegreen'),
-        node("lib20r1", "lib-2.0-r1", 'fillcolor=palegreen'),
-        node("lib30", "lib-3.0"),
     ], [
-        edge("app", "lib20", 'label="~2.0"'),
-        edge("app", "lib20r1", 'label="~2.0"'),
-    ])
+        edge("app", "lib20", 'lhead=cluster_lib,label="~2.0"'),
+    ], clusters_list=[
+        cluster("lib", "lib", [
+            ("lib20", "lib-2.0", 'fillcolor=palegreen'),
+            ("lib20r1", "lib-2.0-r1", 'fillcolor=palegreen'),
+            ("lib30", "lib-3.0", ""),
+        ]),
+    ], compound=True)
 
 
 def test71():
@@ -1159,21 +1143,27 @@ def test72():
 def test73():
     return dot("test73", "Update (VDB)", [
         node("app", "app-1.0", ENTRY),
-        node("lib1", "lib-1.0", VDB),
-        node("lib2", "lib-2.0"),
     ], [
-        edge("app", "lib2", 'label="newest"'),
-    ])
+        edge("app", "lib2", 'lhead=cluster_lib,label="newest"'),
+    ], clusters_list=[
+        cluster("lib", "lib", [
+            ("lib1", "lib-1.0", VDB),
+            ("lib2", "lib-2.0", ""),
+        ]),
+    ], compound=True)
 
 
 def test74():
     return dot("test74", "Downgrade (VDB)", [
         node("app", "app-1.0", ENTRY),
-        node("lib1", "lib-1.0"),
-        node("lib2", "lib-2.0", VDB),
     ], [
-        edge("app", "lib1", 'label="=lib-1.0"'),
-    ])
+        edge("app", "lib1", 'lhead=cluster_lib,label="=lib-1.0"'),
+    ], clusters_list=[
+        cluster("lib", "lib", [
+            ("lib1", "lib-1.0", ""),
+            ("lib2", "lib-2.0", VDB),
+        ]),
+    ], compound=True)
 
 
 def test75():
@@ -1224,22 +1214,23 @@ def test79():
         node("client", "client-1.0"),
     ], [
         edge("server", "client"),
-        edge("client", "server", PDEP_E.replace(
-            'label="PDEPEND"',
-            'label="PDEPEND",color=red')),
+        edge("client", "server",
+             'color=red,style=bold,label="PDEPEND",fontcolor=red'),
     ])
 
 
 def test80():
-    ns = [node("app", "app-1.0", ENTRY)]
+    members = []
     for v in range(1, 6):
         fill = 'fillcolor=palegreen' if v <= 3 else ""
-        ns.append(node(f"lib{v}", f"lib-{v}.0", fill))
-    return dot("test80", "Version &lt;=", ns, [
-        edge("app", "lib1", 'label="<=3.0"'),
-        edge("app", "lib2", 'label="<=3.0"'),
-        edge("app", "lib3", 'label="<=3.0"'),
-    ])
+        members.append((f"lib{v}", f"lib-{v}.0", fill))
+    return dot("test80", "Version &lt;=", [
+        node("app", "app-1.0", ENTRY),
+    ], [
+        edge("app", "lib1", 'lhead=cluster_lib,label="<=3.0"'),
+    ], clusters_list=[
+        cluster("lib", "lib", members),
+    ], compound=True)
 
 
 # ── main ─────────────────────────────────────────────────────────────────────

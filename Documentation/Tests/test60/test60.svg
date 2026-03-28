@@ -74,8 +74,8 @@
 <!-- app&#45;&gt;windows1 -->
 <g id="edge6" class="edge">
 <title>app&#45;&gt;windows1</title>
-<path fill="none" stroke="red" stroke-dasharray="5,2" d="M144.53,-128.36C161.63,-138.88 185.13,-150 208,-150 208,-150 208,-150 383.71,-150 403.4,-150 425.03,-148.1 443.6,-145.88"/>
-<polygon fill="red" stroke="red" points="444.03,-149.36 453.51,-144.63 443.15,-142.41 444.03,-149.36"/>
+<path fill="none" stroke="red" stroke-width="2" d="M144.53,-128.36C161.63,-138.88 185.13,-150 208,-150 208,-150 208,-150 383.71,-150 403.4,-150 425.03,-148.1 443.6,-145.88"/>
+<polygon fill="red" stroke="red" stroke-width="2" points="442.53,-149.55 452.01,-144.82 441.64,-142.6 442.53,-149.55"/>
 <text text-anchor="middle" x="300" y="-151.2" font-family="Helvetica,sans-Serif" font-size="9.00" fill="red">!&lt;2.0</text>
 </g>
 <!-- db&#45;&gt;os -->

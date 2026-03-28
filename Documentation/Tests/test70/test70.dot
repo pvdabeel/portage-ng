@@ -1,15 +1,18 @@
 digraph test70 {
   label=<<B>test70</B> — Version ~ (revision)>;
   labelloc=t; fontname=Helvetica; fontsize=12;
-  graph [rankdir=LR];
+  graph [rankdir=LR,compound=true];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
   edge  [fontname=Helvetica,fontsize=9];
 
-  app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
-  lib20 [label="lib-2.0",fillcolor=palegreen];
-  lib20r1 [label="lib-2.0-r1",fillcolor=palegreen];
-  lib30 [label="lib-3.0"];
+  subgraph cluster_lib {
+    label="lib"; style=dashed; color=gray;
+    lib20 [label="lib-2.0",fillcolor=palegreen];
+    lib20r1 [label="lib-2.0-r1",fillcolor=palegreen];
+    lib30 [label="lib-3.0"];
+  }
 
-  app -> lib20 [label="~2.0"];
-  app -> lib20r1 [label="~2.0"];
+  app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
+
+  app -> lib20 [lhead=cluster_lib,label="~2.0"];
 }

@@ -49,7 +49,7 @@ The overlay repository itself is at [`Repository/Overlay/`](../../Repository/Ove
 | [37](#test37) | USE dep | Inverse equality [!linux=] |
 | [38](#test38) | USE dep | Weak conditional [linux?] |
 | [39](#test39) | USE dep | Negative weak [-linux?] |
-| [40](#test40) | REQUIRED_USE | || on standalone package |
+| [40](#test40) | REQUIRED_USE | \|\| on standalone package |
 | [41](#test41) | Slot | Explicit slot :1 |
 | [42](#test42) | Slot | Wildcard slot :* |
 | [43](#test43) | Slot | Slot equality := |

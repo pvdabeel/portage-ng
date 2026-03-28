@@ -1,42 +1,19 @@
 digraph test13 {
   label=<<B>test13</B> — Pinpointed version =pkg-ver>;
   labelloc=t; fontname=Helvetica; fontsize=12;
-  graph [rankdir=LR,compound=true];
+  graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
   edge  [fontname=Helvetica,fontsize=9];
 
-  subgraph cluster_web {
-    label="web"; style=dashed; color=gray;
-    web_2 [label="web-2.0",fillcolor=lightcoral,fontcolor=white];
-    web_1 [label="web-1.0"];
-  }
-  subgraph cluster_app {
-    label="app"; style=dashed; color=gray;
-    app_2 [label="app-2.0"];
-    app_1 [label="app-1.0"];
-  }
-  subgraph cluster_db {
-    label="db"; style=dashed; color=gray;
-    db_2 [label="db-2.0"];
-    db_1 [label="db-1.0"];
-  }
-  subgraph cluster_os {
-    label="os"; style=dashed; color=gray;
-    os_1 [label="os-1.0"];
-    os_2 [label="os-2.0"];
-  }
+  web [label="web-2.0",fillcolor=lightcoral,fontcolor=white];
+  app [label="app-2.0"];
+  db [label="db-2.0"];
+  os [label="os-1.0"];
 
-
-  web_2 -> app_2 [label="=app-2.0"];
-  web_2 -> db_2 [label="=db-2.0"];
-  web_2 -> os_1 [lhead=cluster_os];
-  web_1 -> app_1 [label="=app-1.0"];
-  web_1 -> db_1 [label="=db-1.0"];
-  web_1 -> os_1 [lhead=cluster_os,label="=os-1.0"];
-  app_2 -> db_2 [label="=db-2.0"];
-  app_2 -> os_1 [lhead=cluster_os];
-  app_1 -> db_1 [label="=db-1.0"];
-  app_1 -> os_1 [lhead=cluster_os];
-  db_1 -> os_1 [lhead=cluster_os];
-  db_2 -> os_1 [lhead=cluster_os];
+  web -> app [label="=app-2.0"];
+  web -> db [label="=db-2.0"];
+  web -> os;
+  app -> db [label="=db-2.0"];
+  app -> os;
+  db -> os;
 }

@@ -9,5 +9,5 @@ digraph test79 {
   client [label="client-1.0"];
 
   server -> client;
-  client -> server [style=dashed,label="PDEPEND",color=red];
+  client -> server [color=red,style=bold,label="PDEPEND",fontcolor=red];
 }

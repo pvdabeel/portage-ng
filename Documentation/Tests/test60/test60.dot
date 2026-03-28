@@ -18,7 +18,7 @@ digraph test60 {
   web -> os;
   app -> os;
   app -> db;
-  app -> windows1 [color=red,style=dashed,label="!<2.0",fontcolor=red];
+  app -> windows1 [color=red,style=bold,label="!<2.0",fontcolor=red];
   db -> os;
   os -> g1;
   g1 -> windows1 [label="=1.0"];

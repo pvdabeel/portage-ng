@@ -32,9 +32,9 @@
 <!-- client&#45;&gt;server -->
 <g id="edge2" class="edge">
 <title>client&#45;&gt;server</title>
-<path fill="none" stroke="red" stroke-dasharray="5,2" d="M139.32,-9.66C133.57,-8.24 127.5,-6.99 121.75,-6.25 102.24,-3.74 97.02,-3.83 77.5,-6.25 75.44,-6.5 73.34,-6.82 71.23,-7.18"/>
-<polygon fill="red" stroke="red" points="70.55,-3.75 61.45,-9.18 71.95,-10.61 70.55,-3.75"/>
-<text text-anchor="middle" x="99.62" y="-7.45" font-family="Helvetica,sans-Serif" font-size="9.00">PDEPEND</text>
+<path fill="none" stroke="red" stroke-width="2" d="M139.32,-9.66C133.57,-8.24 127.5,-6.99 121.75,-6.25 102.24,-3.74 97.02,-3.83 77.5,-6.25 75.44,-6.5 73.34,-6.82 71.23,-7.18"/>
+<polygon fill="red" stroke="red" stroke-width="2" points="72.03,-3.45 62.93,-8.88 73.43,-10.3 72.03,-3.45"/>
+<text text-anchor="middle" x="99.62" y="-7.45" font-family="Helvetica,sans-Serif" font-size="9.00" fill="red">PDEPEND</text>
 </g>
 </g>
 </svg>

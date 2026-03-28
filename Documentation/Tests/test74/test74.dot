@@ -1,13 +1,17 @@
 digraph test74 {
   label=<<B>test74</B> — Downgrade (VDB)>;
   labelloc=t; fontname=Helvetica; fontsize=12;
-  graph [rankdir=LR];
+  graph [rankdir=LR,compound=true];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
   edge  [fontname=Helvetica,fontsize=9];
 
-  app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
-  lib1 [label="lib-1.0"];
-  lib2 [label="lib-2.0",fillcolor=lightblue];
+  subgraph cluster_lib {
+    label="lib"; style=dashed; color=gray;
+    lib1 [label="lib-1.0"];
+    lib2 [label="lib-2.0",fillcolor=lightblue];
+  }
 
-  app -> lib1 [label="=lib-1.0"];
+  app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
+
+  app -> lib1 [lhead=cluster_lib,label="=lib-1.0"];
 }
