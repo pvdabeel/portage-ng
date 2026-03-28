@@ -1,0 +1,16 @@
+# test67 — Build-only dependency (separate from DEPEND)
+
+**Category:** BDEPEND
+
+This test case checks the prover's handling of BDEPEND (build dependencies). The
+'app-1.0' package requires 'toolchain-1.0' only for building (BDEPEND), separate
+from its runtime dependency on 'lib-1.0'. BDEPEND is resolved alongside DEPEND
+for the install phase.
+
+**Expected:** All three packages should appear in the proof. The toolchain-1.0 should be
+resolved as a build dependency of app-1.0, while lib-1.0 is resolved as a runtime
+dependency.
+
+![test67](test67.svg)
+
+**Output:** [emerge -vp](emerge-test67.log) | [portage-ng](portage-ng-test67.log)

@@ -1,0 +1,11 @@
+# test44 — Sub-slot :1/A
+
+**Category:** Slot
+
+This test case checks the prover's ability to resolve dependencies based on sub-slots. 'app-1.0' requires a version of 'lib' in slot "1" and sub-slot "A".
+
+**Expected:** The prover should correctly select 'lib-1.0' to satisfy the sub-slot dependency. It should ignore 'lib-1.1' (wrong sub-slot) and 'lib-2.0' (wrong slot). The proof should be valid.
+
+![test44](test44.svg)
+
+**Output:** [emerge -vp](emerge-test44.log) | [portage-ng](portage-ng-test44.log)

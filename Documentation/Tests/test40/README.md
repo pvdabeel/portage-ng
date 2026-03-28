@@ -1,0 +1,13 @@
+# test40 — || on standalone package
+
+**Category:** REQUIRED_USE
+
+This test case checks the prover's ability to handle a REQUIRED_USE 'any-of' (||) constraint on a standalone package. To install 'os-1.0', the user or the configuration must ensure that at least one of the 'linux' or 'darwin' USE flags is enabled.
+
+**Expected:** - If the prover is run for 'os-1.0' and the configuration provides either USE="linux" or USE="darwin", the proof should be valid.
+- If no configuration is provided, the prover should make a choice and enable one of the flags to satisfy the constraint, resulting in a valid proof.
+- If the configuration explicitly disables both (e.g., USE="-linux -darwin"), the proof should fail.
+
+![test40](test40.svg)
+
+**Output:** [emerge -vp](emerge-test40.log) | [portage-ng](portage-ng-test40.log)
