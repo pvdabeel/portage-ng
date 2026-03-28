@@ -19,7 +19,8 @@ digraph portage_ng_architecture {
 
     portage_tree [shape=folder, label="Gentoo Portage Tree\n(metadata/md5-cache\n+ Manifest files)"];
     vdb_tree     [shape=folder, label="VDB\n(/var/db/pkg)"];
-    profile_dir  [shape=folder, label="Profile + make.conf\n(USE, KEYWORDS, masks,\npackage.use, package.mask)"];
+    profile_dir  [shape=folder, label="Profile tree\n(cascading make.defaults,\nuse.mask, use.force)"];
+    userconf_dir [shape=folder, label="/etc/portage\n(make.conf, package.use,\npackage.mask, package.accept_keywords,\npackage.license)"];
     world_file   [shape=folder, label="World file\n+ package sets"];
     user_target  [shape=note,   label="User target\ne.g. =sys-apps/portage-3.0"];
   }
@@ -95,6 +96,8 @@ digraph portage_ng_architecture {
                 label="set.pl  [Domain/Gentoo/]\nPackage sets (world file,\nsystem set, user sets)\n[data: Knowledge/Sets/]"];
     query      [shape=box, style=filled, fillcolor="#c8eac8",
                 label="query.pl  [Knowledge/] — Goal-expanded queries\n─────────────────────────────\nquery:search/2\nquery:memoized_search/2\ngoal_expansion/2 macros\n(compile-time optimization)"];
+    userconfig [shape=box, style=filled, fillcolor="#c8eac8",
+                label="userconfig.pl  [Domain/Gentoo/]\nReads /etc/portage user config:\nmake.conf, package.use,\npackage.mask, package.accept_keywords,\npackage.license"];
     mirror     [shape=box, style=filled, fillcolor="#c8eac8",
                 label="mirror.pl  [Domain/Gentoo/]\nDistfile mirrors;\nGLEP 75 layout"];
     ebuild_mod [shape=box, style=filled, fillcolor="#c8eac8",
@@ -371,7 +374,8 @@ digraph portage_ng_architecture {
   // External → System
   portage_tree -> reader    [label="md5-cache +\nManifest"];
   vdb_tree     -> pkg       [label="installed pkgs"];
-  profile_dir  -> profile   [label="USE, masks,\nforces"];
+  profile_dir  -> profile    [label="USE, masks,\nforces"];
+  userconf_dir -> userconfig [label="make.conf,\npackage.*", constraint=false];
   world_file   -> set_mod   [label="world entries"];
   user_target  -> interface [label="target atom"];
 
@@ -392,7 +396,8 @@ digraph portage_ng_architecture {
   // KB queries
   cache -> query      [label="backing store"];
   vdb   -> query      [label="pkg:// queries"];
-  profile -> preference [label="global USE"];
+  profile    -> preference [label="global USE"];
+  userconfig -> preference [label="env, keywords,\nlicense, masks"];
   preference -> query [label="USE/KEYWORDS\nfiltering"];
   set_mod -> interface [label="world targets", style=dashed];
   mirror -> printer    [label="distfile URLs", style=dashed];
