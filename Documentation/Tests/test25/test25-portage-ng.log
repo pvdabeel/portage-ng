@@ -5,96 +5,31 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  test25/os (unsatisfied constraints, assumed running)
-             │ verify  test25/os (unsatisfied constraints, assumed installed)
-             │ verify  test25/db (unsatisfied constraints, assumed running)
-             │ verify  test25/app (unsatisfied constraints, assumed running)
-             │ download  overlay://test25/web-1.0
+ └─step  1─┤ download  overlay://test25/web-1.0
+             │ download  overlay://test25/os-1.0
+             │ download  overlay://test25/linux-1.0
+             │ download  overlay://test25/db-1.0
+             │ download  overlay://test25/app-1.0
 
- └─step  2─┤ install   overlay://test25/web-1.0
+ └─step  2─┤ install   overlay://test25/linux-1.0
 
- └─step  3─┤ run     overlay://test25/web-1.0
+ └─step  3─┤ run       overlay://test25/linux-1.0
 
-Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
+ └─step  4─┤ install   overlay://test25/os-1.0
+
+ └─step  5─┤ run       overlay://test25/os-1.0
+
+ └─step  6─┤ install   overlay://test25/db-1.0
+
+ └─step  7─┤ run       overlay://test25/db-1.0
+
+ └─step  8─┤ install   overlay://test25/app-1.0
+
+ └─step  9─┤ run       overlay://test25/app-1.0
+
+ └─step 10─┤ install   overlay://test25/web-1.0
+
+ └─step 11─┤ run     overlay://test25/web-1.0
+
+Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 11 steps.
        0.00 Kb to be downloaded.
-
-
-
-Error The proof for your build plan contains domain assumptions. Please verify:
-
-
->>> Domain assumptions
-
-- Unsatisfied constraints for run dependency: 
-  test25/app
-
-  required by: overlay://test25/web-1.0
-
-- Unsatisfied constraints for run dependency: 
-  test25/db
-
-  required by: overlay://test25/web-1.0
-
-- Unsatisfied constraints for install dependency: 
-  test25/os
-
-  required by: overlay://test25/web-1.0
-
-- Unsatisfied constraints for run dependency: 
-  test25/os
-
-  required by: overlay://test25/web-1.0
-
-
->>> Bug report drafts (Gentoo Bugzilla)
-
----
-Summary: overlay://test25/web-1.0: unsatisfied_constraints dependency on test25/app
-
-Affected package: overlay://test25/web-1.0
-Dependency: test25/app
-Phases: [run]
-
-Unsatisfiable constraint(s):
-  test25/app-
-
-Observed:
-  portage-ng reports no available candidate satisfies the above constraint(s).
-  Available versions in repo set (sample, first 1 of 1): [1.0]
-
-Potential fix (suggestion):
-  Review dependency metadata in overlay://test25/web-1.0; constraint set: [constraint(none,,[])].
-
----
-Summary: overlay://test25/web-1.0: unsatisfied_constraints dependency on test25/db
-
-Affected package: overlay://test25/web-1.0
-Dependency: test25/db
-Phases: [run]
-
-Unsatisfiable constraint(s):
-  test25/db-
-
-Observed:
-  portage-ng reports no available candidate satisfies the above constraint(s).
-  Available versions in repo set (sample, first 1 of 1): [1.0]
-
-Potential fix (suggestion):
-  Review dependency metadata in overlay://test25/web-1.0; constraint set: [constraint(none,,[])].
-
----
-Summary: overlay://test25/web-1.0: unsatisfied_constraints dependency on test25/os
-
-Affected package: overlay://test25/web-1.0
-Dependency: test25/os
-Phases: [install,run]
-
-Unsatisfiable constraint(s):
-  test25/os-
-
-Observed:
-  portage-ng reports no available candidate satisfies the above constraint(s).
-  Available versions in repo set (sample, first 1 of 1): [1.0]
-
-Potential fix (suggestion):
-  Review dependency metadata in overlay://test25/web-1.0; constraint set: [constraint(none,,[])].

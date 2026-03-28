@@ -40,99 +40,31 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  test23/os (unsatisfied constraints, assumed running)
-             │ verify  test23/os (unsatisfied constraints, assumed installed)
-             │ verify  test23/db (unsatisfied constraints, assumed running)
-             │ verify  test23/app (unsatisfied constraints, assumed running)
-             │ download  overlay://test23/web-1.0
+ └─step  1─┤ download  overlay://test23/web-1.0
+             │ download  overlay://test23/os-1.0
+             │ download  overlay://test23/linux-1.0
+             │ download  overlay://test23/db-1.0
+             │ download  overlay://test23/app-1.0
 
- └─step  2─┤ install   overlay://test23/web-1.0
+ └─step  2─┤ install   overlay://test23/os-1.0
+             │ install   overlay://test23/linux-1.0
 
- └─step  3─┤ run     overlay://test23/web-1.0
+ └─step  3─┤ run       overlay://test23/os-1.0
 
-Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
+ └─step  4─┤ install   overlay://test23/db-1.0
+
+ └─step  5─┤ run       overlay://test23/db-1.0
+
+ └─step  6─┤ install   overlay://test23/app-1.0
+
+ └─step  7─┤ run       overlay://test23/app-1.0
+
+ └─step  8─┤ install   overlay://test23/web-1.0
+
+ └─step  9─┤ run     overlay://test23/web-1.0
+
+Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
-
-
-
-Error The proof for your build plan contains domain assumptions. Please verify:
-
-
->>> Domain assumptions
-
-- Unsatisfied constraints for run dependency: 
-  test23/app
-
-  required by: overlay://test23/web-1.0
-
-- Unsatisfied constraints for run dependency: 
-  test23/db
-
-  required by: overlay://test23/web-1.0
-
-- Unsatisfied constraints for install dependency: 
-  test23/os
-
-  required by: overlay://test23/web-1.0
-
-- Unsatisfied constraints for run dependency: 
-  test23/os
-
-  required by: overlay://test23/web-1.0
-
-
->>> Bug report drafts (Gentoo Bugzilla)
-
----
-Summary: overlay://test23/web-1.0: unsatisfied_constraints dependency on test23/app
-
-Affected package: overlay://test23/web-1.0
-Dependency: test23/app
-Phases: [run]
-
-Unsatisfiable constraint(s):
-  test23/app-
-
-Observed:
-  portage-ng reports no available candidate satisfies the above constraint(s).
-  Available versions in repo set (sample, first 1 of 1): [1.0]
-
-Potential fix (suggestion):
-  Review dependency metadata in overlay://test23/web-1.0; constraint set: [constraint(none,,[])].
-
----
-Summary: overlay://test23/web-1.0: unsatisfied_constraints dependency on test23/db
-
-Affected package: overlay://test23/web-1.0
-Dependency: test23/db
-Phases: [run]
-
-Unsatisfiable constraint(s):
-  test23/db-
-
-Observed:
-  portage-ng reports no available candidate satisfies the above constraint(s).
-  Available versions in repo set (sample, first 1 of 1): [1.0]
-
-Potential fix (suggestion):
-  Review dependency metadata in overlay://test23/web-1.0; constraint set: [constraint(none,,[])].
-
----
-Summary: overlay://test23/web-1.0: unsatisfied_constraints dependency on test23/os
-
-Affected package: overlay://test23/web-1.0
-Dependency: test23/os
-Phases: [install,run]
-
-Unsatisfiable constraint(s):
-  test23/os-
-
-Observed:
-  portage-ng reports no available candidate satisfies the above constraint(s).
-  Available versions in repo set (sample, first 1 of 1): [1.0]
-
-Potential fix (suggestion):
-  Review dependency metadata in overlay://test23/web-1.0; constraint set: [constraint(none,,[])].
 ```
 
 </details>

@@ -1237,11 +1237,25 @@ rule(exactly_one_of_group(Deps),[assumed(conflict(required_use,exactly_one_of_gr
   nb_current(query_required_use_self, _Self),
   !.
 
-rule(exactly_one_of_group(Deps):Action?{Context},[D:Action?{Context}|NafDeps]) :-
-  candidate:prioritize_deps(Deps, Context, SortedDeps),
+% Config phase: record chosen dep in model (same pattern as any_of_group).
+rule(exactly_one_of_group(Deps):config?{Context}, [D:config?{Context}]) :-
+  candidate:prioritize_deps_keep_all(Deps, Context, SortedDeps),
+  member(D0, SortedDeps),
+  rules:any_of_config_dep_ok(Context, D0),
+  D = D0,
+  !.
+
+% Runtime: select one, reject domain-assumption-only choices.
+rule(exactly_one_of_group(Deps):Action?{Context}, Conditions) :-
+  candidate:prioritize_deps_keep_all(Deps, Context, SortedDeps),
   member(D0, SortedDeps),
   rules:group_choice_dep(D0, D),
-  findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
+  rule(D:Action?{Context}, Conditions0),
+  ( rules:any_of_reject_assumed_choice(D, Conditions0) ->
+      fail
+  ; Conditions = Conditions0
+  ),
+  !.
 
 rule(exactly_one_of_group(Deps),[D|NafDeps]) :-
   candidate:prioritize_deps(Deps, SortedDeps),
@@ -1265,25 +1279,38 @@ rule(at_most_one_of_group(Deps),[assumed(conflict(required_use,at_most_one_of_gr
   nb_current(query_required_use_self, _Self),
   !.
 
-rule(at_most_one_of_group(Deps):Action?{Context},[D:Action?{Context}|NafDeps]) :-
-  candidate:prioritize_deps(Deps, Context, SortedDeps),
+% Config phase: record chosen dep in model (same pattern as any_of_group).
+rule(at_most_one_of_group(Deps):config?{Context}, [D:config?{Context}]) :-
+  candidate:prioritize_deps_keep_all(Deps, Context, SortedDeps),
+  member(D0, SortedDeps),
+  rules:any_of_config_dep_ok(Context, D0),
+  D = D0,
+  !.
+
+% Config phase: choosing none is valid for ?? groups.
+rule(at_most_one_of_group(_Deps):config?{_Context}, []) :- !.
+
+% Runtime: select one, reject domain-assumption-only choices.
+rule(at_most_one_of_group(Deps):Action?{Context}, Conditions) :-
+  candidate:prioritize_deps_keep_all(Deps, Context, SortedDeps),
   member(D0, SortedDeps),
   rules:group_choice_dep(D0, D),
-  findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
+  rule(D:Action?{Context}, Conditions0),
+  ( rules:any_of_reject_assumed_choice(D, Conditions0) ->
+      fail
+  ; Conditions = Conditions0
+  ),
+  !.
 
-% Allow choosing none (all negated) — Portage REQUIRED_USE '?? ( ... )' does NOT
-% require any of the flags to be enabled. Put this *after* the choice clause so
-% we first try to satisfy already-enabled / preferred flags before negating all.
+% Runtime: choosing none (all negated) is valid for ?? groups.
 rule(at_most_one_of_group(Deps):_Action?{_Context}, NafDeps) :-
   findall(naf(N),(member(N,Deps)),NafDeps).
 
-% Contextless variant: allow choosing none.
 rule(at_most_one_of_group(Deps),[D|NafDeps]) :-
   candidate:prioritize_deps(Deps, SortedDeps),
   member(D, SortedDeps),
   findall(naf(N),(member(N,Deps), \+(D = N)),NafDeps).
 
-% Contextless variant: allow choosing none (after attempting a choice).
 rule(at_most_one_of_group(Deps), NafDeps) :-
   findall(naf(N),(member(N,Deps)),NafDeps).
 

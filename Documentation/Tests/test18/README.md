@@ -40,99 +40,33 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  test18/os (unsatisfied constraints, assumed running)
-             │ verify  test18/os (unsatisfied constraints, assumed installed)
-             │ verify  test18/db (unsatisfied constraints, assumed running)
-             │ verify  test18/app (unsatisfied constraints, assumed running)
-             │ download  overlay://test18/web-1.0
+ └─step  1─┤ download  overlay://test18/web-1.0
+             │ download  overlay://test18/os-1.0
+             │ download  overlay://test18/linux-1.0
+             │ download  overlay://test18/db-1.0
+             │ download  overlay://test18/app-1.0
 
- └─step  2─┤ install   overlay://test18/web-1.0
+ └─step  2─┤ install   overlay://test18/os-1.0
+             │ install   overlay://test18/linux-1.0
 
- └─step  3─┤ run     overlay://test18/web-1.0
+ └─step  3─┤ run       overlay://test18/linux-1.0
 
-Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
+ └─step  4─┤ run       overlay://test18/os-1.0
+
+ └─step  5─┤ install   overlay://test18/db-1.0
+
+ └─step  6─┤ run       overlay://test18/db-1.0
+
+ └─step  7─┤ install   overlay://test18/app-1.0
+
+ └─step  8─┤ run       overlay://test18/app-1.0
+
+ └─step  9─┤ install   overlay://test18/web-1.0
+
+ └─step 10─┤ run     overlay://test18/web-1.0
+
+Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 10 steps.
        0.00 Kb to be downloaded.
-
-
-
-Error The proof for your build plan contains domain assumptions. Please verify:
-
-
->>> Domain assumptions
-
-- Unsatisfied constraints for run dependency: 
-  test18/app
-
-  required by: overlay://test18/web-1.0
-
-- Unsatisfied constraints for run dependency: 
-  test18/db
-
-  required by: overlay://test18/web-1.0
-
-- Unsatisfied constraints for install dependency: 
-  test18/os
-
-  required by: overlay://test18/web-1.0
-
-- Unsatisfied constraints for run dependency: 
-  test18/os
-
-  required by: overlay://test18/web-1.0
-
-
->>> Bug report drafts (Gentoo Bugzilla)
-
----
-Summary: overlay://test18/web-1.0: unsatisfied_constraints dependency on test18/app
-
-Affected package: overlay://test18/web-1.0
-Dependency: test18/app
-Phases: [run]
-
-Unsatisfiable constraint(s):
-  test18/app-
-
-Observed:
-  portage-ng reports no available candidate satisfies the above constraint(s).
-  Available versions in repo set (sample, first 1 of 1): [1.0]
-
-Potential fix (suggestion):
-  Review dependency metadata in overlay://test18/web-1.0; constraint set: [constraint(none,,[])].
-
----
-Summary: overlay://test18/web-1.0: unsatisfied_constraints dependency on test18/db
-
-Affected package: overlay://test18/web-1.0
-Dependency: test18/db
-Phases: [run]
-
-Unsatisfiable constraint(s):
-  test18/db-
-
-Observed:
-  portage-ng reports no available candidate satisfies the above constraint(s).
-  Available versions in repo set (sample, first 1 of 1): [1.0]
-
-Potential fix (suggestion):
-  Review dependency metadata in overlay://test18/web-1.0; constraint set: [constraint(none,,[])].
-
----
-Summary: overlay://test18/web-1.0: unsatisfied_constraints dependency on test18/os
-
-Affected package: overlay://test18/web-1.0
-Dependency: test18/os
-Phases: [install,run]
-
-Unsatisfiable constraint(s):
-  test18/os-
-
-Observed:
-  portage-ng reports no available candidate satisfies the above constraint(s).
-  Available versions in repo set (sample, first 1 of 1): [1.0]
-
-Potential fix (suggestion):
-  Review dependency metadata in overlay://test18/web-1.0; constraint set: [constraint(none,,[])].
 ```
 
 </details>
