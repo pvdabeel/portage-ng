@@ -74,18 +74,21 @@ Calculating dependencies... done!
              │ download  overlay://test61/app-1.0
              │ download  overlay://test61/a-1.0
 
- └─step  3─┤ install   overlay://test61/a-1.0
-             │           └─ conf ─┤ USE = "-foo"
-             │ install   overlay://test61/b-1.0 (USE modified)
+ └─step  3─┤ install   overlay://test61/b-1.0 (USE modified)
              │           └─ conf ─┤ USE = "foo"
-             │ run       overlay://test61/a-1.0 (USE modified)
-             │ run       overlay://test61/b-1.0 (USE modified)
 
- └─step  4─┤ install   overlay://test61/app-1.0
+ └─step  4─┤ run       overlay://test61/b-1.0 (USE modified)
 
- └─step  5─┤ run     overlay://test61/app-1.0
+ └─step  5─┤ install   overlay://test61/a-1.0
+             │           └─ conf ─┤ USE = "-foo"
 
-Total: 11 actions (2 useflags, 3 downloads, 3 installs, 3 runs), grouped into 5 steps.
+ └─step  6─┤ run       overlay://test61/a-1.0 (USE modified)
+
+ └─step  7─┤ install   overlay://test61/app-1.0
+
+ └─step  8─┤ run     overlay://test61/app-1.0
+
+Total: 11 actions (2 useflags, 3 downloads, 3 installs, 3 runs), grouped into 8 steps.
        0.00 Kb to be downloaded.
 
 

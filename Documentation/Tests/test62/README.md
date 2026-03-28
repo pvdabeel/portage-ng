@@ -45,15 +45,18 @@ Calculating dependencies... done!
              │ download  overlay://test62/a-1.0
 
  └─step  2─┤ install   overlay://test62/b-1.0
-             │ install   overlay://test62/a-1.0
-             │ run       overlay://test62/b-1.0
-             │ run       overlay://test62/a-1.0
 
- └─step  3─┤ install   overlay://test62/web-1.0
+ └─step  3─┤ run       overlay://test62/b-1.0
 
- └─step  4─┤ run     overlay://test62/web-1.0
+ └─step  4─┤ install   overlay://test62/a-1.0
 
-Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 4 steps.
+ └─step  5─┤ run       overlay://test62/a-1.0
+
+ └─step  6─┤ install   overlay://test62/web-1.0
+
+ └─step  7─┤ run     overlay://test62/web-1.0
+
+Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
        0.00 Kb to be downloaded.
 ```
 

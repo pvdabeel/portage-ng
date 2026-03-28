@@ -11,13 +11,16 @@ Calculating dependencies... done!
              │ download  overlay://test08/app-1.0
 
  └─step  2─┤ install   overlay://test08/web-1.0
-             │ install   overlay://test08/os-1.0
              │ install   overlay://test08/app-1.0
              │ install   overlay://test08/db-1.0
-             │ run     overlay://test08/web-1.0
+
+ └─step  3─┤ run     overlay://test08/web-1.0
              │ run       overlay://test08/app-1.0
              │ run       overlay://test08/db-1.0
-             │ run       overlay://test08/os-1.0
 
-Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 2 steps.
+ └─step  4─┤ install   overlay://test08/os-1.0
+
+ └─step  5─┤ run       overlay://test08/os-1.0
+
+Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.

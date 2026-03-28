@@ -1056,23 +1056,44 @@ scheduler:dec_dependents_list([N|Ns], RemSet, Indeg0, Indeg, R0, R) :-
   scheduler:dec_dependents_list(Ns, RemSet, Indeg1, Indeg, R1, R).
 
 scheduler:expand_component_waves_from_map([], _Comps, _Forward, _HeadRuleMap, []).
-scheduler:expand_component_waves_from_map([WaveIds|Rest], Comps, Forward, HeadRuleMap, [WaveRules|Out]) :-
-  findall(Rule,
+scheduler:expand_component_waves_from_map([WaveIds|Rest], Comps, Forward, HeadRuleMap, AllWaves) :-
+  findall(CompWaves,
           ( member(Id, WaveIds),
             member(comp(Id, Kind, Members), Comps),
-            scheduler:expand_component(Kind, Members, Forward, HeadRuleMap, CompRules),
-            member(Rule, CompRules)
+            scheduler:expand_component(Kind, Members, Forward, HeadRuleMap, CompWaves)
           ),
-          WaveRules),
-  scheduler:expand_component_waves_from_map(Rest, Comps, Forward, HeadRuleMap, Out).
+          ComponentWaveLists),
+  scheduler:merge_component_waves(ComponentWaveLists, MergedWaves),
+  scheduler:expand_component_waves_from_map(Rest, Comps, Forward, HeadRuleMap, RestWaves),
+  append(MergedWaves, RestWaves, AllWaves).
 
-% Expand a single component into an ordered list of rules.
-% merge_set SCCs with multiple members get priority-aware linearization;
-% everything else is returned in member order.
-scheduler:expand_component(merge_set, Members, Forward, HeadRuleMap, Rules) :-
+
+%! scheduler:merge_component_waves(+ComponentWaveLists, -MergedWaves)
+%
+% Merge wave lists from independent components in the same Kahn wave.
+% Single-wave components are collected into a shared first wave (legitimate
+% parallelism). Multi-wave SCC components emit their waves sequentially.
+
+scheduler:merge_component_waves(ComponentWaveLists, MergedWaves) :-
+  partition(scheduler:is_single_wave, ComponentWaveLists, Singles, Multis),
+  append(Singles, FlatSingleRules),
+  append(FlatSingleRules, SharedWave),
+  findall(W, (member(Ws, Multis), member(W, Ws)), MultiWaves),
+  ( SharedWave == []
+  -> MergedWaves = MultiWaves
+  ; MergedWaves = [SharedWave | MultiWaves]
+  ).
+
+scheduler:is_single_wave([_]).
+
+% Expand a single component into a list of waves (list of lists of rules).
+% merge_set SCCs with multiple members get priority-aware linearization
+% producing multiple waves; everything else is a single wave.
+
+scheduler:expand_component(merge_set, Members, Forward, HeadRuleMap, Waves) :-
   length(Members, N), N > 1, !,
-  scheduler:linearize_scc(Members, Forward, HeadRuleMap, Rules).
-scheduler:expand_component(_Kind, Members, _Forward, HeadRuleMap, Rules) :-
+  scheduler:linearize_scc(Members, Forward, HeadRuleMap, Waves).
+scheduler:expand_component(_Kind, Members, _Forward, HeadRuleMap, [Rules]) :-
   scheduler:scc_get_rules(Members, HeadRuleMap, Rules).
 
 % Retrieve rules for a list of SCC member heads.
@@ -1098,12 +1119,15 @@ scheduler:scc_get_rules(Members, HeadRuleMap, Rules) :-
 %
 % This matches Portage's _serialize_tasks() cycle linearization.
 
-%! scheduler:linearize_scc(+Members, +Forward, +HeadRuleMap, -OrderedRules)
-scheduler:linearize_scc(Members, Forward, HeadRuleMap, OrderedRules) :-
+%! scheduler:linearize_scc(+Members, +Forward, +HeadRuleMap, -OrderedWaves)
+%
+% Returns a list of waves (list of lists of rules) respecting internal deps.
+
+scheduler:linearize_scc(Members, Forward, HeadRuleMap, OrderedWaves) :-
   scheduler:scc_internal_forward(Members, Forward, IntFwd),
   scheduler:scc_internal_forward_no_run(Members, Forward, IntFwdNoRun),
   empty_assoc(Done0),
-  scheduler:linearize_iter(Members, IntFwd, IntFwdNoRun, HeadRuleMap, Done0, [], OrderedRules).
+  scheduler:linearize_iter(Members, IntFwd, IntFwdNoRun, HeadRuleMap, Done0, [], OrderedWaves).
 
 % Build SCC-internal forward edges: for each member, keep only deps that
 % are also SCC members.
@@ -1143,13 +1167,16 @@ scheduler:is_non_run_internal(MemberSet, Dep) :-
 %          then re-enter phase 1 so completed :run deps can cascade.
 % Phase 3: Hard cycle (all remaining edges are build-time) — pick the node
 %          with fewest unsatisfied hard deps.
+%
+% Returns a list of waves (each wave is a list of rules that can be parallel).
+
 scheduler:linearize_iter([], _, _, _, _, Acc, Acc) :- !.
 scheduler:linearize_iter(Remaining, IntFwd, IntFwdNoRun, HRM, Done, Acc, Result) :-
   scheduler:scc_ready_nodes(Remaining, IntFwd, Done, Ready1),
   ( Ready1 \= [] ->
       sort(Ready1, ReadySorted),
       scheduler:scc_get_rules(ReadySorted, HRM, Rules),
-      append(Acc, Rules, Acc1),
+      append(Acc, [Rules], Acc1),
       foldl(scheduler:mark_done, ReadySorted, Done, Done1),
       subtract(Remaining, ReadySorted, Remaining1),
       scheduler:linearize_iter(Remaining1, IntFwd, IntFwdNoRun, HRM, Done1, Acc1, Result)
@@ -1159,7 +1186,7 @@ scheduler:linearize_iter(Remaining, IntFwd, IntFwdNoRun, HRM, Done, Acc, Result)
       ( Ready2 \= [] ->
           scheduler:pick_best_relaxed_node(Ready2, IntFwd, Done, Best),
           scheduler:scc_get_rules([Best], HRM, Rules),
-          append(Acc, Rules, Acc1),
+          append(Acc, [Rules], Acc1),
           scheduler:mark_done(Best, Done, Done1),
           subtract(Remaining, [Best], Remaining1),
           scheduler:linearize_iter(Remaining1, IntFwd, IntFwdNoRun, HRM, Done1, Acc1, Result)
@@ -1167,7 +1194,7 @@ scheduler:linearize_iter(Remaining, IntFwd, IntFwdNoRun, HRM, Done, Acc, Result)
           % Phase 3: hard cycle — pick node with fewest unsatisfied hard deps
           scheduler:pick_best_cycle_node(Remaining, IntFwdNoRun, Done, Best),
           scheduler:scc_get_rules([Best], HRM, Rules),
-          append(Acc, Rules, Acc1),
+          append(Acc, [Rules], Acc1),
           scheduler:mark_done(Best, Done, Done1),
           subtract(Remaining, [Best], Remaining1),
           scheduler:linearize_iter(Remaining1, IntFwd, IntFwdNoRun, HRM, Done1, Acc1, Result)

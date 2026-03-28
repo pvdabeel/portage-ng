@@ -613,12 +613,14 @@ Calculating dependencies... done!
  └─step  3─┤ install   overlay://test07/web-1.0
              │ install   overlay://test07/app-1.0
              │ install   overlay://test07/db-1.0
-             │ run     overlay://test07/web-1.0
+
+ └─step  4─┤ run     overlay://test07/web-1.0
              │ run       overlay://test07/app-1.0
              │ run       overlay://test07/db-1.0
-             │ run       overlay://test07/os-1.0
 
-Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 3 steps.
+ └─step  5─┤ run       overlay://test07/os-1.0
+
+Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
 ```
 
@@ -684,15 +686,18 @@ Calculating dependencies... done!
              │ download  overlay://test08/app-1.0
 
  └─step  2─┤ install   overlay://test08/web-1.0
-             │ install   overlay://test08/os-1.0
              │ install   overlay://test08/app-1.0
              │ install   overlay://test08/db-1.0
-             │ run     overlay://test08/web-1.0
+
+ └─step  3─┤ run     overlay://test08/web-1.0
              │ run       overlay://test08/app-1.0
              │ run       overlay://test08/db-1.0
-             │ run       overlay://test08/os-1.0
 
-Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 2 steps.
+ └─step  4─┤ install   overlay://test08/os-1.0
+
+ └─step  5─┤ run       overlay://test08/os-1.0
+
+Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
 ```
 
@@ -3834,15 +3839,19 @@ Calculating dependencies... done!
              │ download  overlay://test47/app-client-1.0
              │ download  overlay://test47/api-docs-1.0
 
- └─step  2─┤ install   overlay://test47/api-docs-1.0
-             │ install   overlay://test47/app-server-1.0
-             │ install   overlay://test47/app-client-1.0
-             │ run       overlay://test47/app-server-1.0
-             │ run       overlay://test47/app-client-1.0
+ └─step  2─┤ install   overlay://test47/app-server-1.0
 
- └─step  3─┤ run     overlay://test47/api-docs-1.0
+ └─step  3─┤ run       overlay://test47/app-server-1.0
 
-Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 3 steps.
+ └─step  4─┤ install   overlay://test47/api-docs-1.0
+
+ └─step  5─┤ install   overlay://test47/app-client-1.0
+
+ └─step  6─┤ run       overlay://test47/app-client-1.0
+
+ └─step  7─┤ run     overlay://test47/api-docs-1.0
+
+Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
        0.00 Kb to be downloaded.
 ```
 
@@ -4989,18 +4998,21 @@ Calculating dependencies... done!
              │ download  overlay://test61/app-1.0
              │ download  overlay://test61/a-1.0
 
- └─step  3─┤ install   overlay://test61/a-1.0
-             │           └─ conf ─┤ USE = "-foo"
-             │ install   overlay://test61/b-1.0 (USE modified)
+ └─step  3─┤ install   overlay://test61/b-1.0 (USE modified)
              │           └─ conf ─┤ USE = "foo"
-             │ run       overlay://test61/a-1.0 (USE modified)
-             │ run       overlay://test61/b-1.0 (USE modified)
 
- └─step  4─┤ install   overlay://test61/app-1.0
+ └─step  4─┤ run       overlay://test61/b-1.0 (USE modified)
 
- └─step  5─┤ run     overlay://test61/app-1.0
+ └─step  5─┤ install   overlay://test61/a-1.0
+             │           └─ conf ─┤ USE = "-foo"
 
-Total: 11 actions (2 useflags, 3 downloads, 3 installs, 3 runs), grouped into 5 steps.
+ └─step  6─┤ run       overlay://test61/a-1.0 (USE modified)
+
+ └─step  7─┤ install   overlay://test61/app-1.0
+
+ └─step  8─┤ run     overlay://test61/app-1.0
+
+Total: 11 actions (2 useflags, 3 downloads, 3 installs, 3 runs), grouped into 8 steps.
        0.00 Kb to be downloaded.
 
 
@@ -5063,15 +5075,18 @@ Calculating dependencies... done!
              │ download  overlay://test62/a-1.0
 
  └─step  2─┤ install   overlay://test62/b-1.0
-             │ install   overlay://test62/a-1.0
-             │ run       overlay://test62/b-1.0
-             │ run       overlay://test62/a-1.0
 
- └─step  3─┤ install   overlay://test62/web-1.0
+ └─step  3─┤ run       overlay://test62/b-1.0
 
- └─step  4─┤ run     overlay://test62/web-1.0
+ └─step  4─┤ install   overlay://test62/a-1.0
 
-Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 4 steps.
+ └─step  5─┤ run       overlay://test62/a-1.0
+
+ └─step  6─┤ install   overlay://test62/web-1.0
+
+ └─step  7─┤ run     overlay://test62/web-1.0
+
+Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
        0.00 Kb to be downloaded.
 ```
 
