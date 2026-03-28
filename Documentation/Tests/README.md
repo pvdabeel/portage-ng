@@ -291,7 +291,8 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ download  overlay://test03/web-1.0
+ └─step  1─┤ verify  test03/os (assumed installed) 
+             │ download  overlay://test03/web-1.0
              │ download  overlay://test03/os-1.0
              │ download  overlay://test03/db-1.0
              │ download  overlay://test03/app-1.0
@@ -314,6 +315,11 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
+>>> Cycle breaks (prover)
+
+  grouped_package_dependency(no,test03,os,[package_dependency(install,no,test03,os,none,version_none,[],[])]):install
 ```
 
 </details>
@@ -441,7 +447,8 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ download  overlay://test05/web-1.0
+ └─step  1─┤ verify  test05/os (assumed installed) 
+             │ download  overlay://test05/web-1.0
              │ download  overlay://test05/os-1.0
              │ download  overlay://test05/db-1.0
              │ download  overlay://test05/app-1.0
@@ -462,6 +469,11 @@ Calculating dependencies... done!
 
 Total: 11 actions (4 downloads, 4 installs, 3 runs), grouped into 8 steps.
        0.00 Kb to be downloaded.
+
+
+>>> Cycle breaks (prover)
+
+  grouped_package_dependency(no,test05,os,[package_dependency(install,no,test05,os,none,version_none,[],[])]):install
 ```
 
 </details>
@@ -522,7 +534,8 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ download  overlay://test06/web-1.0
+ └─step  1─┤ verify  overlay://test06/web-1.0 (assumed installed)
+             │ download  overlay://test06/web-1.0
              │ download  overlay://test06/os-1.0
              │ download  overlay://test06/db-1.0
              │ download  overlay://test06/app-1.0
@@ -545,6 +558,11 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
+>>> Cycle breaks (prover)
+
+  overlay://test06/web-1.0:install
 ```
 
 </details>
@@ -603,7 +621,8 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ download  overlay://test07/web-1.0
+ └─step  1─┤ verify  overlay://test07/web-1.0 (assumed running) 
+             │ download  overlay://test07/web-1.0
              │ download  overlay://test07/os-1.0
              │ download  overlay://test07/db-1.0
              │ download  overlay://test07/app-1.0
@@ -622,6 +641,11 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
+
+
+>>> Cycle breaks (prover)
+
+  overlay://test07/web-1.0:run
 ```
 
 </details>
@@ -680,7 +704,9 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ download  overlay://test08/web-1.0
+ └─step  1─┤ verify  overlay://test08/web-1.0 (assumed installed)
+             │ verify  overlay://test08/web-1.0 (assumed running) 
+             │ download  overlay://test08/web-1.0
              │ download  overlay://test08/os-1.0
              │ download  overlay://test08/db-1.0
              │ download  overlay://test08/app-1.0
@@ -699,6 +725,12 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
+
+
+>>> Cycle breaks (prover)
+
+  overlay://test08/web-1.0:install
+  overlay://test08/web-1.0:run
 ```
 
 </details>
@@ -3087,6 +3119,7 @@ Calculating dependencies... done!
              │ download  overlay://test42/app-1.0
 
  └─step  2─┤ install   overlay://test42/lib-2.0
+             │           └─ conf ─┤ SLOT = "2"
 
  └─step  3─┤ run       overlay://test42/lib-2.0
 
@@ -3142,6 +3175,7 @@ Calculating dependencies... done!
              │ download  overlay://test43/app-1.0
 
  └─step  2─┤ install   overlay://test43/lib-2.0
+             │           └─ conf ─┤ SLOT = "2"
 
  └─step  3─┤ run       overlay://test43/lib-2.0
 
@@ -3342,7 +3376,8 @@ Calculating dependencies... done!
  └─step  1─┤ useflag overlay://test46/core-utils-1.0 (feature_x)
              │ useflag overlay://test46/core-utils-1.0 (feature_x feature_y)
 
- └─step  2─┤ download  overlay://test46/libd-1.0
+ └─step  2─┤ verify  overlay://test46/core-utils-1.0 (assumed running) 
+             │ download  overlay://test46/libd-1.0
              │ download  overlay://test46/libc-1.0
              │ download  overlay://test46/libb-1.0
              │ download  overlay://test46/liba-1.0
@@ -3381,6 +3416,10 @@ Total: 20 actions (2 useflags, 6 downloads, 6 installs, 6 runs), grouped into 10
   Add to /etc/portage/package.use:
     test46/core-utils feature_x
     test46/core-utils feature_x feature_y
+
+>>> Cycle breaks (prover)
+
+  overlay://test46/core-utils-1.0:run
 ```
 
 </details>
@@ -3437,7 +3476,8 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ download  overlay://test47/app-server-1.0
+ └─step  1─┤ verify  overlay://test47/api-docs-1.0 (assumed installed)
+             │ download  overlay://test47/app-server-1.0
              │ download  overlay://test47/app-client-1.0
              │ download  overlay://test47/api-docs-1.0
 
@@ -3455,6 +3495,11 @@ Calculating dependencies... done!
 
 Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
        0.00 Kb to be downloaded.
+
+
+>>> Cycle breaks (prover)
+
+  overlay://test47/api-docs-1.0:install
 ```
 
 </details>
@@ -3532,6 +3577,7 @@ Calculating dependencies... done!
              │ download  overlay://test48/app-1.0
 
  └─step  2─┤ install   overlay://test48/libmatrix-1.0
+             │           └─ conf ─┤ SLOT = "1/A"
 
  └─step  3─┤ run       overlay://test48/libmatrix-1.0
 
@@ -3630,27 +3676,17 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ useflag overlay://test49/libhelper-1.0 (feature_z)
+ └─step  1─┤ verify  test49/libhelper (unsatisfied constraints, assumed running)
+             │ download  overlay://test49/app-1.0
 
- └─step  2─┤ download  overlay://test49/app-1.0
-
- └─step  3─┤ run       overlay://test49/libhelper-1.0 (USE modified)
-
- └─step  4─┤ install   overlay://test49/app-1.0
+ └─step  2─┤ install   overlay://test49/app-1.0
              │           └─ conf ─┤ USE = "-feature_z"
 
- └─step  5─┤ run     overlay://test49/app-1.0
+ └─step  3─┤ run     overlay://test49/app-1.0
 
-Total: 5 actions (1 useflag, 1 download, 1 install, 2 runs), grouped into 5 steps.
+Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
        0.00 Kb to be downloaded.
 
-
-
->>> Assumptions taken during proving & planning:
-
-  USE flag change (1 package):
-  Add to /etc/portage/package.use:
-    test49/libhelper feature_z
 
 
 Error The proof for your build plan contains domain assumptions. Please verify:
@@ -3658,10 +3694,31 @@ Total: 5 actions (1 useflag, 1 download, 1 install, 2 runs), grouped into 5 step
 
 >>> Domain assumptions
 
-- Model unavailable: 
-  test49/libhelper — dependency model could not be built
-  (some dependencies may be missing from the tree or keyword-filtered)
+- REQUIRED_USE violation: 
+  test49/libhelper
+  USE deps force:   [feature_z]
+  violates: !feature_z
   required by: overlay://test49/app-1.0
+
+
+>>> Bug report drafts (Gentoo Bugzilla)
+
+---
+Summary: overlay://test49/app-1.0: unsatisfied_constraints dependency on test49/libhelper
+
+Affected package: overlay://test49/app-1.0
+Dependency: test49/libhelper
+Phases: [run]
+
+Unsatisfiable constraint(s):
+  test49/libhelper-
+
+Observed:
+  portage-ng reports no available candidate satisfies the above constraint(s).
+  Available versions in repo set (sample, first 1 of 1): [1.0]
+
+Potential fix (suggestion):
+  Review dependency metadata in overlay://test49/app-1.0; constraint set: [constraint(none,,[])].
 ```
 
 </details>
@@ -3774,27 +3831,16 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ useflag overlay://test51/os-1.0 (linux)
+ └─step  1─┤ verify  test51/os (unsatisfied constraints, assumed installed)
+             │ download  overlay://test51/app-1.0
 
- └─step  2─┤ download  overlay://test51/app-1.0
+ └─step  2─┤ install   overlay://test51/app-1.0
 
- └─step  3─┤ install   overlay://test51/os-1.0 (USE modified)
-             │           └─ conf ─┤ USE = "linux"
+ └─step  3─┤ run     overlay://test51/app-1.0
 
- └─step  4─┤ install   overlay://test51/app-1.0
-
- └─step  5─┤ run     overlay://test51/app-1.0
-
-Total: 5 actions (1 useflag, 1 download, 2 installs, 1 run), grouped into 5 steps.
+Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
        0.00 Kb to be downloaded.
 
-
-
->>> Assumptions taken during proving & planning:
-
-  USE flag change (1 package):
-  Add to /etc/portage/package.use:
-    test51/os linux
 
 
 Error The proof for your build plan contains domain assumptions. Please verify:
@@ -3802,10 +3848,31 @@ Total: 5 actions (1 useflag, 1 download, 2 installs, 1 run), grouped into 5 step
 
 >>> Domain assumptions
 
-- Model unavailable: 
-  test51/os — dependency model could not be built
-  (some dependencies may be missing from the tree or keyword-filtered)
+- REQUIRED_USE violation: 
+  test51/os
+  USE deps force:   [linux]
+  violates: !linux
   required by: overlay://test51/app-1.0
+
+
+>>> Bug report drafts (Gentoo Bugzilla)
+
+---
+Summary: overlay://test51/app-1.0: unsatisfied_constraints dependency on test51/os
+
+Affected package: overlay://test51/app-1.0
+Dependency: test51/os
+Phases: [install]
+
+Unsatisfiable constraint(s):
+  test51/os-
+
+Observed:
+  portage-ng reports no available candidate satisfies the above constraint(s).
+  Available versions in repo set (sample, first 1 of 1): [1.0]
+
+Potential fix (suggestion):
+  Review dependency metadata in overlay://test51/app-1.0; constraint set: [constraint(none,,[])].
 ```
 
 </details>
@@ -4613,7 +4680,12 @@ Calculating dependencies... done!
  └─step  1─┤ useflag overlay://test61/a-1.0 (foo)
              │ useflag overlay://test61/b-1.0 (foo)
 
- └─step  2─┤ download  overlay://test61/b-1.0
+ └─step  2─┤ verify  overlay://test61/a-1.0 (assumed installed)
+             │ verify  overlay://test61/a-1.0 (assumed running) 
+             │ verify  overlay://test61/b-1.0 (assumed installed)
+             │ verify  test61/a (assumed running) 
+             │ verify  test61/b (assumed running) 
+             │ download  overlay://test61/b-1.0
              │ download  overlay://test61/app-1.0
              │ download  overlay://test61/a-1.0
 
@@ -4642,6 +4714,14 @@ Total: 11 actions (2 useflags, 3 downloads, 3 installs, 3 runs), grouped into 8 
   Add to /etc/portage/package.use:
     test61/a foo
     test61/b foo
+
+>>> Cycle breaks (prover)
+
+  grouped_package_dependency(no,test61,a,[package_dependency(run,no,test61,a,none,version_none,[],[use(enable(foo),none)])]):run
+  grouped_package_dependency(no,test61,b,[package_dependency(run,no,test61,b,none,version_none,[],[use(enable(foo),none)])]):run
+  overlay://test61/a-1.0:install
+  overlay://test61/a-1.0:run
+  overlay://test61/b-1.0:install
 ```
 
 </details>
@@ -4689,7 +4769,8 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ download  overlay://test62/web-1.0
+ └─step  1─┤ verify  test62/a (assumed running) 
+             │ download  overlay://test62/web-1.0
              │ download  overlay://test62/b-1.0
              │ download  overlay://test62/a-1.0
 
@@ -4707,6 +4788,11 @@ Calculating dependencies... done!
 
 Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
        0.00 Kb to be downloaded.
+
+
+>>> Cycle breaks (prover)
+
+  grouped_package_dependency(no,test62,a,[package_dependency(run,no,test62,a,none,version_none,[],[])]):run
 ```
 
 </details>
@@ -5747,7 +5833,8 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ download  overlay://test79/server-1.0
+ └─step  1─┤ verify  overlay://test79/server-1.0 (assumed running) 
+             │ download  overlay://test79/server-1.0
              │ download  overlay://test79/client-1.0
 
  └─step  2─┤ install   overlay://test79/client-1.0
@@ -5760,6 +5847,11 @@ Calculating dependencies... done!
 
 Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
+
+
+>>> Cycle breaks (prover)
+
+  overlay://test79/server-1.0:run
 ```
 
 </details>

@@ -1,11 +1,12 @@
 
->>> Emerging : overlay://test14/app-1.0:run?{[]}
+>>> Emerging : overlay://test14/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ download  overlay://test14/os-1.0
+ └─step  1─┤ download  overlay://test14/web-1.0
+             │ download  overlay://test14/os-1.0
              │ download  overlay://test14/db-1.0
              │ download  overlay://test14/app-1.0
 
@@ -20,9 +21,13 @@ Calculating dependencies... done!
  └─step  6─┤ install   overlay://test14/app-1.0
              │           └─ conf ─┤ USE = "-lib"
 
- └─step  7─┤ run     overlay://test14/app-1.0
+ └─step  7─┤ run       overlay://test14/app-1.0
 
-Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
+ └─step  8─┤ install   overlay://test14/web-1.0
+
+ └─step  9─┤ run     overlay://test14/web-1.0
+
+Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
 
 

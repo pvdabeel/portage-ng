@@ -1,20 +1,54 @@
-warning Package not found: test61/web
---- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
-The package atom `test61/web` appears to be invalid. 
 
-**Issues:**
-1. `test61` is not a standard Gentoo category
-2. This looks like a test/dummy package that doesn't exist in the official Portage tree
+>>> Emerging : overlay://test61/app-1.0:run?{[]}
 
-**Possible causes:**
-- Typo in the category name
-- Package from a custom/local overlay that isn't configured
-- Test data or example that was never meant to be installed
+These are the packages that would be merged, in order:
 
-**Suggestions:**
-- Check if you meant a real web-related package like `www-servers/apache`, `www-client/firefox`, etc.
-- Verify your overlays are properly configured if this is from a custom repository
-- Check for typos in the package name
+Calculating dependencies... done!
 
-Without more context about what you're trying to install, it's likely this is either test data or a misconfigured package reference.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ └─step  1─┤ useflag overlay://test61/a-1.0 (foo)
+             │ useflag overlay://test61/b-1.0 (foo)
+
+ └─step  2─┤ verify  overlay://test61/a-1.0 (assumed installed)
+             │ verify  overlay://test61/a-1.0 (assumed running) 
+             │ verify  overlay://test61/b-1.0 (assumed installed)
+             │ verify  test61/a (assumed running) 
+             │ verify  test61/b (assumed running) 
+             │ download  overlay://test61/b-1.0
+             │ download  overlay://test61/app-1.0
+             │ download  overlay://test61/a-1.0
+
+ └─step  3─┤ install   overlay://test61/b-1.0 (USE modified)
+             │           └─ conf ─┤ USE = "foo"
+
+ └─step  4─┤ run       overlay://test61/b-1.0 (USE modified)
+
+ └─step  5─┤ install   overlay://test61/a-1.0
+             │           └─ conf ─┤ USE = "-foo"
+
+ └─step  6─┤ run       overlay://test61/a-1.0 (USE modified)
+
+ └─step  7─┤ install   overlay://test61/app-1.0
+
+ └─step  8─┤ run     overlay://test61/app-1.0
+
+Total: 11 actions (2 useflags, 3 downloads, 3 installs, 3 runs), grouped into 8 steps.
+       0.00 Kb to be downloaded.
+
+
+
+>>> Assumptions taken during proving & planning:
+
+  USE flag change (2 packages):
+  Add to /etc/portage/package.use:
+    test61/a foo
+    test61/b foo
+
+>>> Cycle breaks (prover)
+
+  grouped_package_dependency(no,test61,a,[package_dependency(run,no,test61,a,none,version_none,[],[use(enable(foo),none)])]):run
+  grouped_package_dependency(no,test61,b,[package_dependency(run,no,test61,b,none,version_none,[],[use(enable(foo),none)])]):run
+  overlay://test61/a-1.0:install
+  overlay://test61/a-1.0:run
+  overlay://test61/b-1.0:install
+
+

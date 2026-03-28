@@ -39,6 +39,7 @@ Calculating dependencies... done!
              │ download  overlay://test42/app-1.0
 
  └─step  2─┤ install   overlay://test42/lib-2.0
+             │           └─ conf ─┤ SLOT = "2"
 
  └─step  3─┤ run       overlay://test42/lib-2.0
 

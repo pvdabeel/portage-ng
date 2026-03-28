@@ -46,27 +46,16 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ useflag overlay://test51/os-1.0 (linux)
+ └─step  1─┤ verify  test51/os (unsatisfied constraints, assumed installed)
+             │ download  overlay://test51/app-1.0
 
- └─step  2─┤ download  overlay://test51/app-1.0
+ └─step  2─┤ install   overlay://test51/app-1.0
 
- └─step  3─┤ install   overlay://test51/os-1.0 (USE modified)
-             │           └─ conf ─┤ USE = "linux"
+ └─step  3─┤ run     overlay://test51/app-1.0
 
- └─step  4─┤ install   overlay://test51/app-1.0
-
- └─step  5─┤ run     overlay://test51/app-1.0
-
-Total: 5 actions (1 useflag, 1 download, 2 installs, 1 run), grouped into 5 steps.
+Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
        0.00 Kb to be downloaded.
 
-
-
->>> Assumptions taken during proving & planning:
-
-  USE flag change (1 package):
-  Add to /etc/portage/package.use:
-    test51/os linux
 
 
 Error The proof for your build plan contains domain assumptions. Please verify:
@@ -74,10 +63,31 @@ Total: 5 actions (1 useflag, 1 download, 2 installs, 1 run), grouped into 5 step
 
 >>> Domain assumptions
 
-- Model unavailable: 
-  test51/os — dependency model could not be built
-  (some dependencies may be missing from the tree or keyword-filtered)
+- REQUIRED_USE violation: 
+  test51/os
+  USE deps force:   [linux]
+  violates: !linux
   required by: overlay://test51/app-1.0
+
+
+>>> Bug report drafts (Gentoo Bugzilla)
+
+---
+Summary: overlay://test51/app-1.0: unsatisfied_constraints dependency on test51/os
+
+Affected package: overlay://test51/app-1.0
+Dependency: test51/os
+Phases: [install]
+
+Unsatisfiable constraint(s):
+  test51/os-
+
+Observed:
+  portage-ng reports no available candidate satisfies the above constraint(s).
+  Available versions in repo set (sample, first 1 of 1): [1.0]
+
+Potential fix (suggestion):
+  Review dependency metadata in overlay://test51/app-1.0; constraint set: [constraint(none,,[])].
 ```
 
 </details>

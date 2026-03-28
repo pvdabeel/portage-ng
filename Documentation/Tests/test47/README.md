@@ -49,7 +49,8 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ download  overlay://test47/app-server-1.0
+ └─step  1─┤ verify  overlay://test47/api-docs-1.0 (assumed installed)
+             │ download  overlay://test47/app-server-1.0
              │ download  overlay://test47/app-client-1.0
              │ download  overlay://test47/api-docs-1.0
 
@@ -67,6 +68,11 @@ Calculating dependencies... done!
 
 Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
        0.00 Kb to be downloaded.
+
+
+>>> Cycle breaks (prover)
+
+  overlay://test47/api-docs-1.0:install
 ```
 
 </details>

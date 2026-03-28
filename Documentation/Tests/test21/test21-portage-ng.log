@@ -1,11 +1,12 @@
 
->>> Emerging : overlay://test21/app-1.0:run?{[]}
+>>> Emerging : overlay://test21/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ download  overlay://test21/os-1.0
+ └─step  1─┤ download  overlay://test21/web-1.0
+             │ download  overlay://test21/os-1.0
              │ download  overlay://test21/linux-1.0
              │ download  overlay://test21/db-1.0
              │ download  overlay://test21/app-1.0
@@ -23,9 +24,13 @@ Calculating dependencies... done!
 
  └─step  7─┤ install   overlay://test21/app-1.0
 
- └─step  8─┤ run     overlay://test21/app-1.0
+ └─step  8─┤ run       overlay://test21/app-1.0
 
-Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 8 steps.
+ └─step  9─┤ install   overlay://test21/web-1.0
+
+ └─step 10─┤ run     overlay://test21/web-1.0
+
+Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 10 steps.
        0.00 Kb to be downloaded.
 
 

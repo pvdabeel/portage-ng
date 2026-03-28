@@ -51,23 +51,23 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  overlay://test07/web-1.0 (assumed running) 
+ └─step  1─┤ verify  overlay://test07/web-1.0 (assumed running) 
              │ download  overlay://test07/web-1.0
              │ download  overlay://test07/os-1.0
              │ download  overlay://test07/db-1.0
              │ download  overlay://test07/app-1.0
 
- └─step  2─┤ install   overlay://test07/os-1.0
+ └─step  2─┤ install   overlay://test07/os-1.0
 
- └─step  3─┤ install   overlay://test07/web-1.0
+ └─step  3─┤ install   overlay://test07/web-1.0
              │ install   overlay://test07/app-1.0
              │ install   overlay://test07/db-1.0
 
- └─step  4─┤ run     overlay://test07/web-1.0
+ └─step  4─┤ run     overlay://test07/web-1.0
              │ run       overlay://test07/app-1.0
              │ run       overlay://test07/db-1.0
 
- └─step  5─┤ run       overlay://test07/os-1.0
+ └─step  5─┤ run       overlay://test07/os-1.0
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.

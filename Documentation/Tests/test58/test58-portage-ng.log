@@ -1,5 +1,5 @@
 
->>> Emerging : overlay://test58/app-1.0:run?{[]}
+>>> Emerging : overlay://test58/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
@@ -8,11 +8,12 @@ Calculating dependencies... done!
  └─step  1─┤ verify  test58/os (unsatisfied constraints, assumed running)
              │ verify  test58/os (unsatisfied constraints, assumed installed)
              │ verify  test58/db (unsatisfied constraints, assumed running)
-             │ download  overlay://test58/app-1.0
+             │ verify  test58/app (unsatisfied constraints, assumed running)
+             │ download  overlay://test58/web-1.0
 
- └─step  2─┤ install   overlay://test58/app-1.0
+ └─step  2─┤ install   overlay://test58/web-1.0
 
- └─step  3─┤ run     overlay://test58/app-1.0
+ └─step  3─┤ run     overlay://test58/web-1.0
 
 Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
        0.00 Kb to be downloaded.
@@ -25,27 +26,49 @@ Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
 >>> Domain assumptions
 
 - Unsatisfied constraints for run dependency: 
+  test58/app
+
+  required by: overlay://test58/web-1.0
+
+- Unsatisfied constraints for run dependency: 
   test58/db
 
-  required by: overlay://test58/app-1.0
+  required by: overlay://test58/web-1.0
 
 - Unsatisfied constraints for install dependency: 
   test58/os
 
-  required by: overlay://test58/app-1.0
+  required by: overlay://test58/web-1.0
 
 - Unsatisfied constraints for run dependency: 
   test58/os
 
-  required by: overlay://test58/app-1.0
+  required by: overlay://test58/web-1.0
 
 
 >>> Bug report drafts (Gentoo Bugzilla)
 
 ---
-Summary: overlay://test58/app-1.0: unsatisfied_constraints dependency on test58/db
+Summary: overlay://test58/web-1.0: unsatisfied_constraints dependency on test58/app
 
-Affected package: overlay://test58/app-1.0
+Affected package: overlay://test58/web-1.0
+Dependency: test58/app
+Phases: [run]
+
+Unsatisfiable constraint(s):
+  test58/app-
+
+Observed:
+  portage-ng reports no available candidate satisfies the above constraint(s).
+  Available versions in repo set (sample, first 1 of 1): [1.0]
+
+Potential fix (suggestion):
+  Review dependency metadata in overlay://test58/web-1.0; constraint set: [constraint(none,,[])].
+
+---
+Summary: overlay://test58/web-1.0: unsatisfied_constraints dependency on test58/db
+
+Affected package: overlay://test58/web-1.0
 Dependency: test58/db
 Phases: [run]
 
@@ -57,12 +80,12 @@ Observed:
   Available versions in repo set (sample, first 1 of 1): [1.0]
 
 Potential fix (suggestion):
-  Review dependency metadata in overlay://test58/app-1.0; constraint set: [constraint(none,,[])].
+  Review dependency metadata in overlay://test58/web-1.0; constraint set: [constraint(none,,[])].
 
 ---
-Summary: overlay://test58/app-1.0: unsatisfied_constraints dependency on test58/os
+Summary: overlay://test58/web-1.0: unsatisfied_constraints dependency on test58/os
 
-Affected package: overlay://test58/app-1.0
+Affected package: overlay://test58/web-1.0
 Dependency: test58/os
 Phases: [install,run]
 
@@ -74,7 +97,7 @@ Observed:
   Available versions in repo set (sample, first 1 of 1): [1.0]
 
 Potential fix (suggestion):
-  Review dependency metadata in overlay://test58/app-1.0; constraint set: [constraint(none,,[])].
+  Review dependency metadata in overlay://test58/web-1.0; constraint set: [constraint(none,,[])].
 
 
 

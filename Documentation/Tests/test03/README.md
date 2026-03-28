@@ -52,7 +52,8 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ download  overlay://test03/web-1.0
+ └─step  1─┤ verify  test03/os (assumed installed) 
+             │ download  overlay://test03/web-1.0
              │ download  overlay://test03/os-1.0
              │ download  overlay://test03/db-1.0
              │ download  overlay://test03/app-1.0
@@ -75,6 +76,11 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
+>>> Cycle breaks (prover)
+
+  grouped_package_dependency(no,test03,os,[package_dependency(install,no,test03,os,none,version_none,[],[])]):install
 ```
 
 </details>

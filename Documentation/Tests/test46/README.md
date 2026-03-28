@@ -45,7 +45,8 @@ Calculating dependencies... done!
  └─step  1─┤ useflag overlay://test46/core-utils-1.0 (feature_x)
              │ useflag overlay://test46/core-utils-1.0 (feature_x feature_y)
 
- └─step  2─┤ download  overlay://test46/libd-1.0
+ └─step  2─┤ verify  overlay://test46/core-utils-1.0 (assumed running) 
+             │ download  overlay://test46/libd-1.0
              │ download  overlay://test46/libc-1.0
              │ download  overlay://test46/libb-1.0
              │ download  overlay://test46/liba-1.0
@@ -84,6 +85,10 @@ Total: 20 actions (2 useflags, 6 downloads, 6 installs, 6 runs), grouped into 10
   Add to /etc/portage/package.use:
     test46/core-utils feature_x
     test46/core-utils feature_x feature_y
+
+>>> Cycle breaks (prover)
+
+  overlay://test46/core-utils-1.0:run
 ```
 
 </details>

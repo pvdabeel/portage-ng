@@ -1,19 +1,17 @@
 
->>> Emerging : overlay://test11/web-1.0:run?{[]}
+>>> Emerging : overlay://test11/os-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  test11/os (unsatisfied constraints, assumed running)
-             │ verify  test11/os (unsatisfied constraints, assumed installed)
-             │ verify  test11/db (unsatisfied constraints, assumed running)
-             │ verify  test11/app (unsatisfied constraints, assumed running)
-             │ download  overlay://test11/web-1.0
+ └─step  1─┤ verify  test11/notexists (non-existent, assumed running)
+             │ verify  test11/notexists (non-existent, assumed installed)
+             │ download  overlay://test11/os-1.0
 
- └─step  2─┤ install   overlay://test11/web-1.0
+ └─step  2─┤ install   overlay://test11/os-1.0
 
- └─step  3─┤ run     overlay://test11/web-1.0
+ └─step  3─┤ run     overlay://test11/os-1.0
 
 Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
        0.00 Kb to be downloaded.
@@ -25,79 +23,34 @@ Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
 
 >>> Domain assumptions
 
-- Unsatisfied constraints for run dependency: 
-  test11/app
+- Missing install dependency: 
+  test11/notexists
 
-  required by: overlay://test11/web-1.0
+  required by: overlay://test11/os-1.0
 
-- Unsatisfied constraints for run dependency: 
-  test11/db
+- Missing run dependency: 
+  test11/notexists
 
-  required by: overlay://test11/web-1.0
-
-- Unsatisfied constraints for install dependency: 
-  test11/os
-
-  required by: overlay://test11/web-1.0
-
-- Unsatisfied constraints for run dependency: 
-  test11/os
-
-  required by: overlay://test11/web-1.0
+  required by: overlay://test11/os-1.0
 
 
 >>> Bug report drafts (Gentoo Bugzilla)
 
 ---
-Summary: overlay://test11/web-1.0: unsatisfied_constraints dependency on test11/app
+Summary: overlay://test11/os-1.0: missing dependency on test11/notexists
 
-Affected package: overlay://test11/web-1.0
-Dependency: test11/app
-Phases: [run]
-
-Unsatisfiable constraint(s):
-  test11/app-
-
-Observed:
-  portage-ng reports no available candidate satisfies the above constraint(s).
-  Available versions in repo set (sample, first 1 of 1): [1.0]
-
-Potential fix (suggestion):
-  Review dependency metadata in overlay://test11/web-1.0; constraint set: [constraint(none,,[])].
-
----
-Summary: overlay://test11/web-1.0: unsatisfied_constraints dependency on test11/db
-
-Affected package: overlay://test11/web-1.0
-Dependency: test11/db
-Phases: [run]
-
-Unsatisfiable constraint(s):
-  test11/db-
-
-Observed:
-  portage-ng reports no available candidate satisfies the above constraint(s).
-  Available versions in repo set (sample, first 1 of 1): [1.0]
-
-Potential fix (suggestion):
-  Review dependency metadata in overlay://test11/web-1.0; constraint set: [constraint(none,,[])].
-
----
-Summary: overlay://test11/web-1.0: unsatisfied_constraints dependency on test11/os
-
-Affected package: overlay://test11/web-1.0
-Dependency: test11/os
+Affected package: overlay://test11/os-1.0
+Dependency: test11/notexists
 Phases: [install,run]
 
 Unsatisfiable constraint(s):
-  test11/os-
+  test11/notexists-
 
 Observed:
   portage-ng reports no available candidate satisfies the above constraint(s).
-  Available versions in repo set (sample, first 1 of 1): [1.0]
 
 Potential fix (suggestion):
-  Review dependency metadata in overlay://test11/web-1.0; constraint set: [constraint(none,,[])].
+  Review dependency metadata in overlay://test11/os-1.0; constraint set: [constraint(none,,[])].
 
 
 
