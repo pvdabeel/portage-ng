@@ -12,4 +12,4 @@ strongly blocked in both scopes.
 
 ![test29](test29.svg)
 
-**Output:** [emerge -vp](emerge-test29.log) | [portage-ng](portage-ng-test29.log)
+**Output:** [emerge -vp](test29-emerge.log) | [portage-ng](test29-portage-ng.log)

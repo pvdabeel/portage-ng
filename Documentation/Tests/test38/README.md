@@ -10,4 +10,4 @@ The proof should be valid in both scenarios.
 
 ![test38](test38.svg)
 
-**Output:** [emerge -vp](emerge-test38.log) | [portage-ng](portage-ng-test38.log)
+**Output:** [emerge -vp](test38-emerge.log) | [portage-ng](test38-portage-ng.log)

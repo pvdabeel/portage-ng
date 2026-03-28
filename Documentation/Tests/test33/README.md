@@ -8,4 +8,4 @@ This test case examines a direct USE dependency. The 'app-1.0' package requires 
 
 ![test33](test33.svg)
 
-**Output:** [emerge -vp](emerge-test33.log) | [portage-ng](portage-ng-test33.log)
+**Output:** [emerge -vp](test33-emerge.log) | [portage-ng](test33-portage-ng.log)

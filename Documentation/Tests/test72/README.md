@@ -12,4 +12,4 @@ an install-time dependency and be available before app-1.0's install phase.
 
 ![test72](test72.svg)
 
-**Output:** [emerge -vp](emerge-test72.log) | [portage-ng](portage-ng-test72.log)
+**Output:** [emerge -vp](test72-emerge.log) | [portage-ng](test72-portage-ng.log)

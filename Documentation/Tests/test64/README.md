@@ -12,4 +12,4 @@ respects all REQUIRED_USE constraints and USE-conditional dependencies.
 
 ![test64](test64.svg)
 
-**Output:** [emerge -vp](emerge-test64.log) | [portage-ng](portage-ng-test64.log)
+**Output:** [emerge -vp](test64-emerge.log) | [portage-ng](test64-portage-ng.log)

@@ -12,4 +12,4 @@ depending on blocker handling strategy.
 
 ![test31](test31.svg)
 
-**Output:** [emerge -vp](emerge-test31.log) | [portage-ng](portage-ng-test31.log)
+**Output:** [emerge -vp](test31-emerge.log) | [portage-ng](test31-portage-ng.log)

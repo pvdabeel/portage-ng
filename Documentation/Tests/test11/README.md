@@ -8,4 +8,4 @@ This test case combines test09 and test10. The 'os-1.0' package has both a compi
 
 ![test11](test11.svg)
 
-**Output:** [emerge -vp](emerge-test11.log) | [portage-ng](portage-ng-test11.log)
+**Output:** [emerge -vp](test11-emerge.log) | [portage-ng](test11-portage-ng.log)

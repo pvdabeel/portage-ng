@@ -11,4 +11,4 @@ dependency. Versions 1.0 and 2.0 should not appear in the proof.
 
 ![test69](test69.svg)
 
-**Output:** [emerge -vp](emerge-test69.log) | [portage-ng](portage-ng-test69.log)
+**Output:** [emerge -vp](test69-emerge.log) | [portage-ng](test69-portage-ng.log)

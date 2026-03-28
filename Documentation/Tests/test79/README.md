@@ -14,4 +14,4 @@ hard circular dependency requiring assumptions.
 
 ![test79](test79.svg)
 
-**Output:** [emerge -vp](emerge-test79.log) | [portage-ng](portage-ng-test79.log)
+**Output:** [emerge -vp](test79-emerge.log) | [portage-ng](test79-portage-ng.log)

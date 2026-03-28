@@ -11,4 +11,4 @@ virtualsdk-1.0). The full chain os -> virtualsdk -> linux should be resolved.
 
 ![test57](test57.svg)
 
-**Output:** [emerge -vp](emerge-test57.log) | [portage-ng](portage-ng-test57.log)
+**Output:** [emerge -vp](test57-emerge.log) | [portage-ng](test57-portage-ng.log)

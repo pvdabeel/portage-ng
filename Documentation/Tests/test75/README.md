@@ -12,4 +12,4 @@ The plan should include a reinstall or fresh install action for os-1.0.
 
 ![test75](test75.svg)
 
-**Output:** [emerge -vp](emerge-test75.log) | [portage-ng](portage-ng-test75.log)
+**Output:** [emerge -vp](test75-emerge.log) | [portage-ng](test75-portage-ng.log)

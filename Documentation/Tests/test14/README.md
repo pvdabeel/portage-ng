@@ -9,4 +9,4 @@ This test case evaluates the handling of USE conditional dependencies. The depen
 
 ![test14](test14.svg)
 
-**Output:** [emerge -vp](emerge-test14.log) | [portage-ng](portage-ng-test14.log)
+**Output:** [emerge -vp](test14-emerge.log) | [portage-ng](test14-portage-ng.log)

@@ -8,4 +8,4 @@ This test case examines the slot equality operator (:=). 'app-1.0' depends on 'l
 
 ![test43](test43.svg)
 
-**Output:** [emerge -vp](emerge-test43.log) | [portage-ng](portage-ng-test43.log)
+**Output:** [emerge -vp](test43-emerge.log) | [portage-ng](test43-portage-ng.log)

@@ -8,4 +8,4 @@ This is a variation of test09. It checks for a missing dependency, but this time
 
 ![test10](test10.svg)
 
-**Output:** [emerge -vp](emerge-test10.log) | [portage-ng](portage-ng-test10.log)
+**Output:** [emerge -vp](test10-emerge.log) | [portage-ng](test10-portage-ng.log)

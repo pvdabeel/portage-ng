@@ -8,4 +8,4 @@ This test case presents a more complex, three-way circular dependency. The clien
 
 ![test47](test47.svg)
 
-**Output:** [emerge -vp](emerge-test47.log) | [portage-ng](portage-ng-test47.log)
+**Output:** [emerge -vp](test47-emerge.log) | [portage-ng](test47-portage-ng.log)

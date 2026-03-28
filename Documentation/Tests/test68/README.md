@@ -13,4 +13,4 @@ include both in the plan.
 
 ![test68](test68.svg)
 
-**Output:** [emerge -vp](emerge-test68.log) | [portage-ng](portage-ng-test68.log)
+**Output:** [emerge -vp](test68-emerge.log) | [portage-ng](test68-portage-ng.log)

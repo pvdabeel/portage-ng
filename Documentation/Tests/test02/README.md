@@ -14,4 +14,4 @@ alternative plans.
 
 ![test02](test02.svg)
 
-**Output:** [emerge -vp](emerge-test02.log) | [portage-ng](portage-ng-test02.log)
+**Output:** [emerge -vp](test02-emerge.log) | [portage-ng](test02-portage-ng.log)

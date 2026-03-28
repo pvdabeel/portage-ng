@@ -8,4 +8,4 @@ Multiple requirements should be combined. Only one version should be selected
 
 ![test56](test56.svg)
 
-**Output:** [emerge -vp](emerge-test56.log) | [portage-ng](portage-ng-test56.log)
+**Output:** [emerge -vp](test56-emerge.log) | [portage-ng](test56-portage-ng.log)

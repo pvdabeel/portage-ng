@@ -15,4 +15,4 @@ produce non-empty conditions.
 
 ![test65](test65.svg)
 
-**Output:** [emerge -vp](emerge-test65.log) | [portage-ng](portage-ng-test65.log)
+**Output:** [emerge -vp](test65-emerge.log) | [portage-ng](test65-portage-ng.log)

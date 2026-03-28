@@ -8,4 +8,4 @@ This test case checks the prover's ability to handle a missing dependency. The '
 
 ![test09](test09.svg)
 
-**Output:** [emerge -vp](emerge-test09.log) | [portage-ng](portage-ng-test09.log)
+**Output:** [emerge -vp](test09-emerge.log) | [portage-ng](test09-portage-ng.log)

@@ -8,4 +8,4 @@ This test case examines the prover's handling of package keywords and stability.
 
 ![test12](test12.svg)
 
-**Output:** [emerge -vp](emerge-test12.log) | [portage-ng](portage-ng-test12.log)
+**Output:** [emerge -vp](test12-emerge.log) | [portage-ng](test12-portage-ng.log)

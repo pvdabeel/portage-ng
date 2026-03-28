@@ -8,4 +8,4 @@ This test case is the inverse of test33. It checks the handling of a negative US
 
 ![test34](test34.svg)
 
-**Output:** [emerge -vp](emerge-test34.log) | [portage-ng](portage-ng-test34.log)
+**Output:** [emerge -vp](test34-emerge.log) | [portage-ng](test34-portage-ng.log)

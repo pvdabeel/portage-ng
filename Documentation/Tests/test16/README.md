@@ -14,4 +14,4 @@ db-1.0, and os-1.0 should all appear in the plan in the correct order.
 
 ![test16](test16.svg)
 
-**Output:** [emerge -vp](emerge-test16.log) | [portage-ng](portage-ng-test16.log)
+**Output:** [emerge -vp](test16-emerge.log) | [portage-ng](test16-portage-ng.log)

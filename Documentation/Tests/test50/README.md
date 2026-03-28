@@ -8,4 +8,4 @@ This test case examines the prover's handling of transitive dependencies, specif
 
 ![test50](test50.svg)
 
-**Output:** [emerge -vp](emerge-test50.log) | [portage-ng](portage-ng-test50.log)
+**Output:** [emerge -vp](test50-emerge.log) | [portage-ng](test50-portage-ng.log)

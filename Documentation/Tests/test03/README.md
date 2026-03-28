@@ -13,4 +13,4 @@ all four packages.
 
 ![test03](test03.svg)
 
-**Output:** [emerge -vp](emerge-test03.log) | [portage-ng](portage-ng-test03.log)
+**Output:** [emerge -vp](test03-emerge.log) | [portage-ng](test03-portage-ng.log)

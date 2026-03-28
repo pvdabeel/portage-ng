@@ -8,4 +8,4 @@ This test case checks the prover's ability to handle a conflict between a "soft"
 
 ![test49](test49.svg)
 
-**Output:** [emerge -vp](emerge-test49.log) | [portage-ng](portage-ng-test49.log)
+**Output:** [emerge -vp](test49-emerge.log) | [portage-ng](test49-portage-ng.log)

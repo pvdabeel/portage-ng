@@ -11,4 +11,4 @@ verify step in the proposed plan.
 
 ![test07](test07.svg)
 
-**Output:** [emerge -vp](emerge-test07.log) | [portage-ng](portage-ng-test07.log)
+**Output:** [emerge -vp](test07-emerge.log) | [portage-ng](test07-portage-ng.log)

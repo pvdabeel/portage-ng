@@ -16,4 +16,4 @@ test58/virtualsdk dependency.
 
 ![test58](test58.svg)
 
-**Output:** [emerge -vp](emerge-test58.log) | [portage-ng](portage-ng-test58.log)
+**Output:** [emerge -vp](test58-emerge.log) | [portage-ng](test58-portage-ng.log)

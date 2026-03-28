@@ -8,4 +8,4 @@ This test case checks the prover's ability to detect a direct and irreconcilable
 
 ![test45](test45.svg)
 
-**Output:** [emerge -vp](emerge-test45.log) | [portage-ng](portage-ng-test45.log)
+**Output:** [emerge -vp](test45-emerge.log) | [portage-ng](test45-portage-ng.log)

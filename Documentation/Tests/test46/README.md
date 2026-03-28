@@ -8,4 +8,4 @@ This test case is designed to assess the prover's ability to detect a USE flag c
 
 ![test46](test46.svg)
 
-**Output:** [emerge -vp](emerge-test46.log) | [portage-ng](portage-ng-test46.log)
+**Output:** [emerge -vp](test46-emerge.log) | [portage-ng](test46-portage-ng.log)

@@ -11,4 +11,4 @@ steps in the proposed plan.
 
 ![test05](test05.svg)
 
-**Output:** [emerge -vp](emerge-test05.log) | [portage-ng](portage-ng-test05.log)
+**Output:** [emerge -vp](test05-emerge.log) | [portage-ng](test05-portage-ng.log)

@@ -8,4 +8,4 @@ This test case introduces a specific version constraint. The 'app-2.0' package e
 
 ![test13](test13.svg)
 
-**Output:** [emerge -vp](emerge-test13.log) | [portage-ng](portage-ng-test13.log)
+**Output:** [emerge -vp](test13-emerge.log) | [portage-ng](test13-portage-ng.log)

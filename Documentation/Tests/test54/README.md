@@ -8,4 +8,4 @@ Expanding use flags output
 
 ![test54](test54.svg)
 
-**Output:** [emerge -vp](emerge-test54.log) | [portage-ng](portage-ng-test54.log)
+**Output:** [emerge -vp](test54-emerge.log) | [portage-ng](test54-portage-ng.log)

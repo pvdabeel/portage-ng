@@ -13,4 +13,4 @@ dependencies in this case.
 
 ![test04](test04.svg)
 
-**Output:** [emerge -vp](emerge-test04.log) | [portage-ng](portage-ng-test04.log)
+**Output:** [emerge -vp](test04-emerge.log) | [portage-ng](test04-portage-ng.log)

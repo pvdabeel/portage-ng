@@ -11,4 +11,4 @@ dependency. Versions 4.0 and 5.0 should not be considered valid candidates.
 
 ![test80](test80.svg)
 
-**Output:** [emerge -vp](emerge-test80.log) | [portage-ng](portage-ng-test80.log)
+**Output:** [emerge -vp](test80-emerge.log) | [portage-ng](test80-portage-ng.log)

@@ -8,4 +8,4 @@ This test case combines test23 and test24. The 'os-1.0' package has the same 'at
 
 ![test25](test25.svg)
 
-**Output:** [emerge -vp](emerge-test25.log) | [portage-ng](portage-ng-test25.log)
+**Output:** [emerge -vp](test25-emerge.log) | [portage-ng](test25-portage-ng.log)

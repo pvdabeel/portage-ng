@@ -15,4 +15,4 @@ should select windows-2.0 and avoid windows-1.0.
 
 ![test60](test60.svg)
 
-**Output:** [emerge -vp](emerge-test60.log) | [portage-ng](portage-ng-test60.log)
+**Output:** [emerge -vp](test60-emerge.log) | [portage-ng](test60-portage-ng.log)

@@ -8,4 +8,4 @@ This test case is a variation of test17, but the 'exactly-one-of' dependency is 
 
 ![test18](test18.svg)
 
-**Output:** [emerge -vp](emerge-test18.log) | [portage-ng](portage-ng-test18.log)
+**Output:** [emerge -vp](test18-emerge.log) | [portage-ng](test18-portage-ng.log)

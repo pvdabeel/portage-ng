@@ -8,4 +8,4 @@ This test case checks the prover's ability to resolve dependencies based on sub-
 
 ![test44](test44.svg)
 
-**Output:** [emerge -vp](emerge-test44.log) | [portage-ng](portage-ng-test44.log)
+**Output:** [emerge -vp](test44-emerge.log) | [portage-ng](test44-portage-ng.log)

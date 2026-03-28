@@ -13,4 +13,4 @@ final plan.
 
 ![test06](test06.svg)
 
-**Output:** [emerge -vp](emerge-test06.log) | [portage-ng](portage-ng-test06.log)
+**Output:** [emerge -vp](test06-emerge.log) | [portage-ng](test06-portage-ng.log)

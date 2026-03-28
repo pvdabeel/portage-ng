@@ -13,4 +13,4 @@ openmpi-4.1.6-r1 with a valid REQUIRED_USE configuration.
 
 ![test63](test63.svg)
 
-**Output:** [emerge -vp](emerge-test63.log) | [portage-ng](portage-ng-test63.log)
+**Output:** [emerge -vp](test63-emerge.log) | [portage-ng](test63-portage-ng.log)

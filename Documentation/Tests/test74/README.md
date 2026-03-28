@@ -12,4 +12,4 @@ The plan should show a downgrade action for lib.
 
 ![test74](test74.svg)
 
-**Output:** [emerge -vp](emerge-test74.log) | [portage-ng](portage-ng-test74.log)
+**Output:** [emerge -vp](test74-emerge.log) | [portage-ng](test74-portage-ng.log)

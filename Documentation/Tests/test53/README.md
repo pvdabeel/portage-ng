@@ -8,4 +8,4 @@ The prover will first prove os-1.0 through the liba path. This means os-1.0 will
 
 ![test53](test53.svg)
 
-**Output:** [emerge -vp](emerge-test53.log) | [portage-ng](portage-ng-test53.log)
+**Output:** [emerge -vp](test53-emerge.log) | [portage-ng](test53-portage-ng.log)

@@ -13,4 +13,4 @@ be retained.
 
 ![test77](test77.svg)
 
-**Output:** [emerge -vp](emerge-test77.log) | [portage-ng](portage-ng-test77.log)
+**Output:** [emerge -vp](test77-emerge.log) | [portage-ng](test77-portage-ng.log)

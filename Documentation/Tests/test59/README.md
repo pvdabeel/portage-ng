@@ -16,4 +16,4 @@ either data_fast-1.0 or data_best-1.0.
 
 ![test59](test59.svg)
 
-**Output:** [emerge -vp](emerge-test59.log) | [portage-ng](portage-ng-test59.log)
+**Output:** [emerge -vp](test59-emerge.log) | [portage-ng](test59-portage-ng.log)

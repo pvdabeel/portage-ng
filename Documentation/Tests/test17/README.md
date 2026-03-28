@@ -8,4 +8,4 @@ This test case evaluates the prover's handling of an 'exactly-one-of' dependency
 
 ![test17](test17.svg)
 
-**Output:** [emerge -vp](emerge-test17.log) | [portage-ng](portage-ng-test17.log)
+**Output:** [emerge -vp](test17-emerge.log) | [portage-ng](test17-portage-ng.log)

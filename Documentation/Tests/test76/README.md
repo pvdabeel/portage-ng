@@ -12,4 +12,4 @@ The plan should include a rebuild action for os-1.0.
 
 ![test76](test76.svg)
 
-**Output:** [emerge -vp](emerge-test76.log) | [portage-ng](portage-ng-test76.log)
+**Output:** [emerge -vp](test76-emerge.log) | [portage-ng](test76-portage-ng.log)

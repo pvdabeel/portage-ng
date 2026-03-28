@@ -9,4 +9,4 @@ This test case is similar to test14 but uses a negative USE conditional. The dep
 
 ![test15](test15.svg)
 
-**Output:** [emerge -vp](emerge-test15.log) | [portage-ng](portage-ng-test15.log)
+**Output:** [emerge -vp](test15-emerge.log) | [portage-ng](test15-portage-ng.log)

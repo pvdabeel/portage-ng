@@ -13,4 +13,4 @@ step. The final step installs web-1.0.
 
 ![test01](test01.svg)
 
-**Output:** [emerge -vp](emerge-test01.log) | [portage-ng](portage-ng-test01.log)
+**Output:** [emerge -vp](test01-emerge.log) | [portage-ng](test01-portage-ng.log)

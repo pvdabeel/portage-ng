@@ -8,4 +8,4 @@ This test case checks the prover's behavior with a wildcard slot dependency. 'ap
 
 ![test42](test42.svg)
 
-**Output:** [emerge -vp](emerge-test42.log) | [portage-ng](portage-ng-test42.log)
+**Output:** [emerge -vp](test42-emerge.log) | [portage-ng](test42-portage-ng.log)

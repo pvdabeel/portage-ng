@@ -11,4 +11,4 @@ lib-3.0 should not be considered a valid candidate for this dependency.
 
 ![test70](test70.svg)
 
-**Output:** [emerge -vp](emerge-test70.log) | [portage-ng](portage-ng-test70.log)
+**Output:** [emerge -vp](test70-emerge.log) | [portage-ng](test70-portage-ng.log)

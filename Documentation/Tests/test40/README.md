@@ -10,4 +10,4 @@ This test case checks the prover's ability to handle a REQUIRED_USE 'any-of' (||
 
 ![test40](test40.svg)
 
-**Output:** [emerge -vp](emerge-test40.log) | [portage-ng](portage-ng-test40.log)
+**Output:** [emerge -vp](test40-emerge.log) | [portage-ng](test40-portage-ng.log)

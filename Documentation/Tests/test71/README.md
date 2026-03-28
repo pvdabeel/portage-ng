@@ -12,4 +12,4 @@ install or run steps should be produced in the plan.
 
 ![test71](test71.svg)
 
-**Output:** [emerge -vp](emerge-test71.log) | [portage-ng](portage-ng-test71.log)
+**Output:** [emerge -vp](test71-emerge.log) | [portage-ng](test71-portage-ng.log)

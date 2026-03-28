@@ -13,4 +13,4 @@ may still appear in the proof for dependency traversal purposes.
 
 ![test78](test78.svg)
 
-**Output:** [emerge -vp](emerge-test78.log) | [portage-ng](portage-ng-test78.log)
+**Output:** [emerge -vp](test78-emerge.log) | [portage-ng](test78-portage-ng.log)

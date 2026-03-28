@@ -11,4 +11,4 @@ be ordered after lib-1.0's install step via the PDEPEND proof obligation mechani
 
 ![test66](test66.svg)
 
-**Output:** [emerge -vp](emerge-test66.log) | [portage-ng](portage-ng-test66.log)
+**Output:** [emerge -vp](test66-emerge.log) | [portage-ng](test66-portage-ng.log)

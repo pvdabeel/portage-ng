@@ -8,4 +8,4 @@ This test case presents a direct and unsolvable conflict between a dependency's 
 
 ![test51](test51.svg)
 
-**Output:** [emerge -vp](emerge-test51.log) | [portage-ng](portage-ng-test51.log)
+**Output:** [emerge -vp](test51-emerge.log) | [portage-ng](test51-portage-ng.log)

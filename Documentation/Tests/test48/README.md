@@ -8,4 +8,4 @@ This test case checks the prover's ability to detect a slotting conflict. The tw
 
 ![test48](test48.svg)
 
-**Output:** [emerge -vp](emerge-test48.log) | [portage-ng](portage-ng-test48.log)
+**Output:** [emerge -vp](test48-emerge.log) | [portage-ng](test48-portage-ng.log)

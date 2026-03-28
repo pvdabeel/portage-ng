@@ -13,4 +13,4 @@ either 'linux-1.0' or 'bsd-1.0' to satisfy the any-of group on 'os-1.0', since
 
 ![test28](test28.svg)
 
-**Output:** [emerge -vp](emerge-test28.log) | [portage-ng](portage-ng-test28.log)
+**Output:** [emerge -vp](test28-emerge.log) | [portage-ng](test28-portage-ng.log)

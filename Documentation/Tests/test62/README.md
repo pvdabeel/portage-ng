@@ -12,4 +12,4 @@ not spin or backtrack indefinitely. A cycle-break assumption is expected.
 
 ![test62](test62.svg)
 
-**Output:** [emerge -vp](emerge-test62.log) | [portage-ng](portage-ng-test62.log)
+**Output:** [emerge -vp](test62-emerge.log) | [portage-ng](test62-portage-ng.log)

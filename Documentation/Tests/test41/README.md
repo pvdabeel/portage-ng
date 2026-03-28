@@ -8,4 +8,4 @@ This test case checks the prover's ability to resolve dependencies based on slot
 
 ![test41](test41.svg)
 
-**Output:** [emerge -vp](emerge-test41.log) | [portage-ng](portage-ng-test41.log)
+**Output:** [emerge -vp](test41-emerge.log) | [portage-ng](test41-portage-ng.log)

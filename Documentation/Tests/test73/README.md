@@ -12,4 +12,4 @@ plan should show an update action for lib, not a fresh install.
 
 ![test73](test73.svg)
 
-**Output:** [emerge -vp](emerge-test73.log) | [portage-ng](portage-ng-test73.log)
+**Output:** [emerge -vp](test73-emerge.log) | [portage-ng](test73-portage-ng.log)

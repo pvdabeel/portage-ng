@@ -8,4 +8,4 @@ This test case evaluates the prover's handling of an 'at-most-one-of' dependency
 
 ![test23](test23.svg)
 
-**Output:** [emerge -vp](emerge-test23.log) | [portage-ng](portage-ng-test23.log)
+**Output:** [emerge -vp](test23-emerge.log) | [portage-ng](test23-portage-ng.log)

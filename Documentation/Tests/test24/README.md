@@ -8,4 +8,4 @@ This is a variation of test23, with the 'at-most-one-of' dependency group in the
 
 ![test24](test24.svg)
 
-**Output:** [emerge -vp](emerge-test24.log) | [portage-ng](portage-ng-test24.log)
+**Output:** [emerge -vp](test24-emerge.log) | [portage-ng](test24-portage-ng.log)

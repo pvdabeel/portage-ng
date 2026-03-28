@@ -13,4 +13,4 @@ context.
 
 ![test61](test61.svg)
 
-**Output:** [emerge -vp](emerge-test61.log) | [portage-ng](portage-ng-test61.log)
+**Output:** [emerge -vp](test61-emerge.log) | [portage-ng](test61-portage-ng.log)

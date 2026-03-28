@@ -8,4 +8,4 @@ This test case examines the prover's ability to propagate a conditional USE flag
 
 ![test36](test36.svg)
 
-**Output:** [emerge -vp](emerge-test36.log) | [portage-ng](portage-ng-test36.log)
+**Output:** [emerge -vp](test36-emerge.log) | [portage-ng](test36-portage-ng.log)

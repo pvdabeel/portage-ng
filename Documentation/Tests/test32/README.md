@@ -8,4 +8,4 @@ This test case examines the interplay between REQUIRED_USE and conditional depen
 
 ![test32](test32.svg)
 
-**Output:** [emerge -vp](emerge-test32.log) | [portage-ng](portage-ng-test32.log)
+**Output:** [emerge -vp](test32-emerge.log) | [portage-ng](test32-portage-ng.log)

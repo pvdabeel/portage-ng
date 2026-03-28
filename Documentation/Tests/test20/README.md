@@ -8,4 +8,4 @@ This test case evaluates the prover's handling of an 'any-of' dependency group (
 
 ![test20](test20.svg)
 
-**Output:** [emerge -vp](emerge-test20.log) | [portage-ng](portage-ng-test20.log)
+**Output:** [emerge -vp](test20-emerge.log) | [portage-ng](test20-portage-ng.log)
