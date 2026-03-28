@@ -578,15 +578,15 @@ config:print_blockers(gentoo).
 
 config:graph_asset_source(portage_ng_css, Source) :-
   config:installation_dir(Dir),
-  os:compose_path([Dir,'Documentation/Assets/Graph/portage-ng.css'], Source).
+  os:compose_path([Dir,'Documentation/Assets/Graph/Stylesheets/portage-ng.css'], Source).
 
 config:graph_asset_source(proof_css, Source) :-
   config:installation_dir(Dir),
-  os:compose_path([Dir,'Documentation/Assets/Graph/.proof.css'], Source).
+  os:compose_path([Dir,'Documentation/Assets/Graph/Stylesheets/proof.css'], Source).
 
 config:graph_asset_source(meslo_ttf, Source) :-
   config:installation_dir(Dir),
-  os:compose_path([Dir,'Documentation/Assets/Graph/.meslo.ttf'], Source).
+  os:compose_path([Dir,'Documentation/Assets/Graph/Fonts/meslo.ttf'], Source).
 
 
 % -----------------------------------------------------------------------------
