@@ -2056,13 +2056,13 @@ license_masked(Repo://Entry) :-
 %! candidate:package_license_accepted(+RepoEntry, +License) is semidet.
 %
 % True if License is accepted for RepoEntry via a per-package override
-% in /etc/portage/package.license (loaded into gentoo:package_license_entry/2).
+% in /etc/portage/package.license (loaded into userconfig:package_license_entry/2).
 
 candidate:package_license_accepted(Repo://Entry, Lic) :-
-  current_predicate(gentoo:package_license_entry/2),
+  current_predicate(userconfig:package_license_entry/2),
   query:search([category(C), name(N)], Repo://Entry),
   atomic_list_concat([C, N], '/', CatPkg),
-  gentoo:package_license_entry(CatPkg, Lic).
+  userconfig:package_license_entry(CatPkg, Lic).
 
 %! candidate:effective_license(+RepoEntry, -License)
 %
@@ -2298,9 +2298,9 @@ accepted_keyword_candidates_cached(Action, C, N, SlotReq, LockKey, CandidatesSor
 % /etc/portage/package.accept_keywords overrides.
 
 candidate:package_keyword_entry(C, N, K) :-
-  current_predicate(gentoo:package_keyword/2),
+  current_predicate(userconfig:package_keyword/2),
   atomic_list_concat([C, N], '/', CatPkg),
-  gentoo:package_keyword(CatPkg, RawKW),
+  userconfig:package_keyword(CatPkg, RawKW),
   candidate:raw_kw_to_term_(RawKW, K).
 
 candidate:raw_kw_to_term_(RawKW, K) :-

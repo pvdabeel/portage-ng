@@ -106,14 +106,14 @@ preference:init_system_pkgs :-
 %
 % Reads an environment variable with the following fallback chain:
 %   1. OS environment (interface:getenv/2)
-%   2. /etc/portage/make.conf (gentoo:env/2, loaded by gentoo:load)
+%   2. /etc/portage/make.conf (userconfig:env/2, loaded by userconfig:load)
 %   3. config:gentoo_env/2 facts in config.pl (authoritative defaults)
 
 preference:getenv(Name, Value) :-
   ( interface:getenv(Name, Value) ->
       true
-  ; current_predicate(gentoo:env/2),
-    gentoo:env(Name, Value),
+  ; current_predicate(userconfig:env/2),
+    userconfig:env(Name, Value),
     Value \== '' ->
       true
   ; current_predicate(config:gentoo_env/2),
@@ -236,12 +236,12 @@ preference:accept_keywords(X) :-
 %
 % True if keyword K is accepted for category C / name N via a
 % per-package entry in /etc/portage/package.accept_keywords
-% (loaded into gentoo:package_keyword/2 by gentoo:load).
+% (loaded into userconfig:package_keyword/2 by userconfig:load).
 
 preference:package_keyword_accepted(C, N, K) :-
-  current_predicate(gentoo:package_keyword/2),
+  current_predicate(userconfig:package_keyword/2),
   atomic_list_concat([C, N], '/', CatPkg),
-  gentoo:package_keyword(CatPkg, RawKW),
+  userconfig:package_keyword(CatPkg, RawKW),
   preference:raw_keyword_matches_(RawKW, K),
   !.
 
@@ -394,12 +394,12 @@ preference:init :-
 
   % 1. Load /etc/portage configuration files (if portage_confdir is set).
   %
-  % This reads make.conf (-> gentoo:env/2), package.use, package.mask,
+  % This reads make.conf (-> userconfig:env/2), package.use, package.mask,
   % package.unmask, package.accept_keywords, and package.license from the
   % configured directory.  Must happen before USE/keyword computation so
   % that make.conf values are available via getenv/2.
 
-  catch(gentoo:load, _, true),
+  catch(userconfig:load, _, true),
 
   % 2. Set use flags
 

@@ -226,9 +226,9 @@ sandbox:safe_primitive(preference:world_entry(_)).
 %  Portage configuration
 % -----------------------------------------------------------------------------
 
-sandbox:safe_primitive(gentoo:env(_,_)).
-sandbox:safe_primitive(gentoo:package_keyword(_,_)).
-sandbox:safe_primitive(gentoo:package_license_entry(_,_)).
+sandbox:safe_primitive(userconfig:env(_,_)).
+sandbox:safe_primitive(userconfig:package_keyword(_,_)).
+sandbox:safe_primitive(userconfig:package_license_entry(_,_)).
 
 % -----------------------------------------------------------------------------
 %  Profile cache

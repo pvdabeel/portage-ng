@@ -121,12 +121,12 @@ config:profile_loading(server,     cached).
 %  /etc/portage configuration directory
 % -----------------------------------------------------------------------------
 %
-% Path to the Gentoo /etc/portage configuration directory.  gentoo:load/0
+% Path to the Gentoo /etc/portage configuration directory.  userconfig:load/0
 % reads make.conf, package.use, package.mask, package.unmask,
 % package.accept_keywords, and package.license from this directory.
 %
 % On a Gentoo system, set this to '/etc/portage'.
-% For development, use the bundled templates in Source/Config/Config/Gentoo.
+% For development, use the bundled templates in Source/Domain/Gentoo/UserConfig.
 % Comment out to disable file-based configuration entirely (falls back to the
 % config:gentoo_env/2 and config:gentoo_package_*/1-2 facts below).
 

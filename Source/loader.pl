@@ -108,7 +108,7 @@ load_client_modules :-
    ensure_loaded(portage('Source/Domain/Gentoo/variant.pl')),
    ensure_loaded(portage('Source/Pipeline/Builder/snapshot.pl')),
    ensure_loaded(portage('Source/Application/Output/writer.pl')),
-   ensure_loaded(portage('Source/Config/gentoo.pl')),
+   ensure_loaded(portage('Source/Domain/Gentoo/userconfig.pl')),
    ensure_loaded(portage('Source/Domain/Gentoo/preference')),
    ensure_loaded(portage('Source/Application/System/script.pl')),
    ensure_loaded(portage('Source/Application/Mode/client.pl')),
@@ -158,7 +158,7 @@ load_standalone_modules :-
    ensure_loaded(portage('Source/Domain/Gentoo/vdb.pl')),
    ensure_loaded(portage('Source/Pipeline/Builder/buildtime.pl')),
    ensure_loaded(portage('Source/Domain/Gentoo/distfiles.pl')),
-   ensure_loaded(portage('Source/Config/gentoo.pl')),
+   ensure_loaded(portage('Source/Domain/Gentoo/userconfig.pl')),
    ensure_loaded(portage('Source/Domain/Gentoo/preference')),
 
    ensure_loaded(portage('Source/Application/Performance/sampler.pl')),
@@ -258,7 +258,7 @@ load_worker_modules :-
    ensure_loaded(portage('Source/Knowledge/stat.pl')),
    ensure_loaded(portage('Source/Domain/Gentoo/vdb.pl')),
    ensure_loaded(portage('Source/Domain/Gentoo/distfiles.pl')),
-   ensure_loaded(portage('Source/Config/gentoo.pl')),
+   ensure_loaded(portage('Source/Domain/Gentoo/userconfig.pl')),
    ensure_loaded(portage('Source/Domain/Gentoo/preference')),
 
    ensure_loaded(portage('Source/Application/Performance/sampler.pl')),

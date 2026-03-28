@@ -197,8 +197,8 @@ module:predicate_name(Arg1, Arg2) :-
 - `Source/Config/mac-pro.pl`: contains the specific configuration (location of repository, md5-cache, vdb pkg installation data)
 
 ### /etc/portage configuration
-- `Source/Config/gentoo.pl`: reads standard Gentoo /etc/portage files (make.conf, package.use, package.mask, etc.)
-- `Source/Config/Gentoo/`: template files mirroring /etc/portage layout
+- `Source/Domain/Gentoo/userconfig.pl`: reads standard Gentoo /etc/portage user configuration files (make.conf, package.use, package.mask, etc.)
+- `Source/Domain/Gentoo/UserConfig/`: template files mirroring /etc/portage layout
 - `config:portage_confdir/1`: path to the configuration directory
 
 ### Profile loading
