@@ -35,9 +35,9 @@ emerge: Maybe you meant any of these: test57/app, test52/app, test42/app?
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[33m[00m[43mwarning[00m[33m[00m Package not found: test72/app[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+```
+warning Package not found: test72/app
+--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
 The package `test72/app` appears to be a **non-existent test package** that doesn't exist in the Gentoo Portage tree.
 
 This looks like:
@@ -54,7 +54,7 @@ This looks like:
 
 If you intended to test with a real package, please provide the actual package name you're looking for.
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+
 ```
 
 </details>

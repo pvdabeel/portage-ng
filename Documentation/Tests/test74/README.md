@@ -35,9 +35,9 @@ emerge: Maybe you meant any of these: test57/app, test54/app, test49/app?
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[33m[00m[43mwarning[00m[33m[00m Package not found: test74/app[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+```
+warning Package not found: test74/app
+--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
 The package `test74/app` appears to be a **non-existent test package**. 
 
 This looks like:
@@ -51,7 +51,7 @@ This looks like:
 
 If you're testing portage-ng functionality, this failure is expected for non-existent packages.
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+
 ```
 
 </details>

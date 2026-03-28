@@ -33,109 +33,109 @@ man page or refer to the Gentoo Handbook.
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[93m>>> Emerging : overlay://test23/web-1.0:run?{[]}
-[00m
-[32mThese are the packages that would be merged, in order:
+```
+>>> Emerging : overlay://test23/web-1.0:run?{[]}
 
-[00mCalculating dependencies... done!
+These are the packages that would be merged, in order:
 
- └─[90m[00m[100mstep  1[00m[90m[00m─┤ [00mverify[00m[00m  test23/os[90m (unsatisfied constraints, assumed running)[00m
-             │ [00mverify[00m[00m  test23/os[90m (unsatisfied constraints, assumed installed)[00m
-             │ [00mverify[00m[00m  test23/db[90m (unsatisfied constraints, assumed running)[00m
-             │ [00mverify[00m[00m  test23/app[90m (unsatisfied constraints, assumed running)[00m
-             │ [36mdownload[32m  overlay://test23/web-1.0[00m
+Calculating dependencies... done!
 
- └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36minstall[32m   overlay://test23/web-1.0[00m
+ └─step  1─┤ verify  test23/os (unsatisfied constraints, assumed running)
+             │ verify  test23/os (unsatisfied constraints, assumed installed)
+             │ verify  test23/db (unsatisfied constraints, assumed running)
+             │ verify  test23/app (unsatisfied constraints, assumed running)
+             │ download  overlay://test23/web-1.0
 
- └─[90m[00m[100mstep  3[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test23/web-1.0[00m[00m
+ └─step  2─┤ install   overlay://test23/web-1.0
+
+ └─step  3─┤ run     overlay://test23/web-1.0
 
 Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
        0.00 Kb to be downloaded.
 
 
 
-[31m[00m[41mError[00m[31m[00m[31m The proof for your build plan contains domain assumptions. Please verify:
+Error The proof for your build plan contains domain assumptions. Please verify:
 
-[00m
-[93m>>> Domain assumptions[00m
 
-[91m[01m- Unsatisfied constraints for run dependency: [00m
-[00m  test23/app
+>>> Domain assumptions
 
-[90m  required by: overlay://test23/web-1.0
-[00m
-[91m[01m- Unsatisfied constraints for run dependency: [00m
-[00m  test23/db
+- Unsatisfied constraints for run dependency: 
+  test23/app
 
-[90m  required by: overlay://test23/web-1.0
-[00m
-[91m[01m- Unsatisfied constraints for install dependency: [00m
-[00m  test23/os
+  required by: overlay://test23/web-1.0
 
-[90m  required by: overlay://test23/web-1.0
-[00m
-[91m[01m- Unsatisfied constraints for run dependency: [00m
-[00m  test23/os
+- Unsatisfied constraints for run dependency: 
+  test23/db
 
-[90m  required by: overlay://test23/web-1.0
-[00m
+  required by: overlay://test23/web-1.0
 
-[93m>>> Bug report drafts (Gentoo Bugzilla)[00m
+- Unsatisfied constraints for install dependency: 
+  test23/os
 
-[90m---
-[00m[01mSummary: [00moverlay://test23/web-1.0: unsatisfied_constraints dependency on test23/app
+  required by: overlay://test23/web-1.0
 
-[01mAffected package: [00m[90moverlay://test23/web-1.0[00m
-[01mDependency: [00m[90mtest23/app[00m
-[01mPhases: [00m[90m[run][00m
+- Unsatisfied constraints for run dependency: 
+  test23/os
 
-[01mUnsatisfiable constraint(s):[00m
-[90m  test23/app-[00m
+  required by: overlay://test23/web-1.0
 
-[01mObserved:[00m
-[90m  portage-ng reports no available candidate satisfies the above constraint(s).
+
+>>> Bug report drafts (Gentoo Bugzilla)
+
+---
+Summary: overlay://test23/web-1.0: unsatisfied_constraints dependency on test23/app
+
+Affected package: overlay://test23/web-1.0
+Dependency: test23/app
+Phases: [run]
+
+Unsatisfiable constraint(s):
+  test23/app-
+
+Observed:
+  portage-ng reports no available candidate satisfies the above constraint(s).
   Available versions in repo set (sample, first 1 of 1): [1.0]
-[00m
-[01mPotential fix (suggestion):[00m
-[90m  Review dependency metadata in overlay://test23/web-1.0; constraint set: [constraint(none,,[])].
-[00m
-[90m---
-[00m[01mSummary: [00moverlay://test23/web-1.0: unsatisfied_constraints dependency on test23/db
 
-[01mAffected package: [00m[90moverlay://test23/web-1.0[00m
-[01mDependency: [00m[90mtest23/db[00m
-[01mPhases: [00m[90m[run][00m
+Potential fix (suggestion):
+  Review dependency metadata in overlay://test23/web-1.0; constraint set: [constraint(none,,[])].
 
-[01mUnsatisfiable constraint(s):[00m
-[90m  test23/db-[00m
+---
+Summary: overlay://test23/web-1.0: unsatisfied_constraints dependency on test23/db
 
-[01mObserved:[00m
-[90m  portage-ng reports no available candidate satisfies the above constraint(s).
+Affected package: overlay://test23/web-1.0
+Dependency: test23/db
+Phases: [run]
+
+Unsatisfiable constraint(s):
+  test23/db-
+
+Observed:
+  portage-ng reports no available candidate satisfies the above constraint(s).
   Available versions in repo set (sample, first 1 of 1): [1.0]
-[00m
-[01mPotential fix (suggestion):[00m
-[90m  Review dependency metadata in overlay://test23/web-1.0; constraint set: [constraint(none,,[])].
-[00m
-[90m---
-[00m[01mSummary: [00moverlay://test23/web-1.0: unsatisfied_constraints dependency on test23/os
 
-[01mAffected package: [00m[90moverlay://test23/web-1.0[00m
-[01mDependency: [00m[90mtest23/os[00m
-[01mPhases: [00m[90m[install,run][00m
+Potential fix (suggestion):
+  Review dependency metadata in overlay://test23/web-1.0; constraint set: [constraint(none,,[])].
 
-[01mUnsatisfiable constraint(s):[00m
-[90m  test23/os-[00m
+---
+Summary: overlay://test23/web-1.0: unsatisfied_constraints dependency on test23/os
 
-[01mObserved:[00m
-[90m  portage-ng reports no available candidate satisfies the above constraint(s).
+Affected package: overlay://test23/web-1.0
+Dependency: test23/os
+Phases: [install,run]
+
+Unsatisfiable constraint(s):
+  test23/os-
+
+Observed:
+  portage-ng reports no available candidate satisfies the above constraint(s).
   Available versions in repo set (sample, first 1 of 1): [1.0]
-[00m
-[01mPotential fix (suggestion):[00m
-[90m  Review dependency metadata in overlay://test23/web-1.0; constraint set: [constraint(none,,[])].
-[00m
 
-[00m
+Potential fix (suggestion):
+  Review dependency metadata in overlay://test23/web-1.0; constraint set: [constraint(none,,[])].
+
+
+
 ```
 
 </details>

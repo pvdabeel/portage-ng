@@ -36,9 +36,9 @@ emerge: Maybe you meant any of these: test60/app, test58/app, test56/app?
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[33m[00m[43mwarning[00m[33m[00m Package not found: test68/app[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+```
+warning Package not found: test68/app
+--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
 The package atom `test68/app` appears to be a **non-existent test package** rather than a real Gentoo package.
 
 **Issues:**
@@ -57,7 +57,7 @@ The package atom `test68/app` appears to be a **non-existent test package** rath
 
 Without more context about what software you're actually trying to install, this appears to be an intentionally invalid package atom for testing purposes.
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+
 ```
 
 </details>

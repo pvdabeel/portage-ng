@@ -36,9 +36,9 @@ emerge: Maybe you meant any of these: test58/web, test57/web, test28/web?
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[33m[00m[43mwarning[00m[33m[00m Package not found: test78/web[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+```
+warning Package not found: test78/web
+--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
 The package atom `test78/web` appears to be invalid. Here's what's wrong:
 
 **Issue**: `test78` is not a valid Gentoo package category in the standard Portage tree.
@@ -58,7 +58,7 @@ The package atom `test78/web` appears to be invalid. Here's what's wrong:
 
 The atom format is correct (`category/package`), but the category doesn't exist in standard Gentoo.
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+
 ```
 
 </details>

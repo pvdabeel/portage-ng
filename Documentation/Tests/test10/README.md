@@ -28,56 +28,56 @@ emerge: there are no ebuilds to satisfy "test10/notexists".
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[93m>>> Emerging : overlay://test10/os-1.0:run?{[]}
-[00m
-[32mThese are the packages that would be merged, in order:
+```
+>>> Emerging : overlay://test10/os-1.0:run?{[]}
 
-[00mCalculating dependencies... done!
+These are the packages that would be merged, in order:
 
- └─[90m[00m[100mstep  1[00m[90m[00m─┤ [31m[00m[41mverify[00m[31m[00m[31m  test10/notexists (non-existent, assumed running)[00m
-             │ [36mdownload[32m  overlay://test10/os-1.0[00m
+Calculating dependencies... done!
 
- └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36minstall[32m   overlay://test10/os-1.0[00m
+ └─step  1─┤ verify  test10/notexists (non-existent, assumed running)
+             │ download  overlay://test10/os-1.0
 
- └─[90m[00m[100mstep  3[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test10/os-1.0[00m[00m
+ └─step  2─┤ install   overlay://test10/os-1.0
+
+ └─step  3─┤ run     overlay://test10/os-1.0
 
 Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
        0.00 Kb to be downloaded.
 
 
 
-[31m[00m[41mError[00m[31m[00m[31m The proof for your build plan contains domain assumptions. Please verify:
+Error The proof for your build plan contains domain assumptions. Please verify:
 
-[00m
-[93m>>> Domain assumptions[00m
 
-[91m[01m- Missing run dependency: [00m
-[00m  test10/notexists
+>>> Domain assumptions
 
-[90m  required by: overlay://test10/os-1.0
-[00m
+- Missing run dependency: 
+  test10/notexists
 
-[93m>>> Bug report drafts (Gentoo Bugzilla)[00m
+  required by: overlay://test10/os-1.0
 
-[90m---
-[00m[01mSummary: [00moverlay://test10/os-1.0: missing dependency on test10/notexists
 
-[01mAffected package: [00m[90moverlay://test10/os-1.0[00m
-[01mDependency: [00m[90mtest10/notexists[00m
-[01mPhases: [00m[90m[run][00m
+>>> Bug report drafts (Gentoo Bugzilla)
 
-[01mUnsatisfiable constraint(s):[00m
-[90m  test10/notexists-[00m
+---
+Summary: overlay://test10/os-1.0: missing dependency on test10/notexists
 
-[01mObserved:[00m
-[90m  portage-ng reports no available candidate satisfies the above constraint(s).
-[00m
-[01mPotential fix (suggestion):[00m
-[90m  Review dependency metadata in overlay://test10/os-1.0; constraint set: [constraint(none,,[])].
-[00m
+Affected package: overlay://test10/os-1.0
+Dependency: test10/notexists
+Phases: [run]
 
-[00m
+Unsatisfiable constraint(s):
+  test10/notexists-
+
+Observed:
+  portage-ng reports no available candidate satisfies the above constraint(s).
+
+Potential fix (suggestion):
+  Review dependency metadata in overlay://test10/os-1.0; constraint set: [constraint(none,,[])].
+
+
+
 ```
 
 </details>

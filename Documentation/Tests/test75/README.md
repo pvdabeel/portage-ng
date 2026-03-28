@@ -35,9 +35,9 @@ emerge: Maybe you meant any of these: test59/app, test58/app, test57/app?
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[33m[00m[43mwarning[00m[33m[00m Package not found: test75/app[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+```
+warning Package not found: test75/app
+--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
 The package atom `test75/app` appears to be **invalid/non-existent**. 
 
 **Issue**: `test75` is not a standard Gentoo package category. Valid Gentoo categories include things like `app-admin`, `dev-python`, `sys-apps`, etc., but not `test75`.
@@ -54,7 +54,7 @@ The package atom `test75/app` appears to be **invalid/non-existent**.
 
 Without more context, this looks like either a typo or a reference to a non-existent test package.
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+
 ```
 
 </details>

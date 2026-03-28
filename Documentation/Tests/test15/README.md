@@ -32,36 +32,36 @@ Total: 5 packages (5 new), Size of downloads: 0 KiB
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[93m>>> Emerging : overlay://test15/web-1.0:run?{[]}
-[00m
-[32mThese are the packages that would be merged, in order:
+```
+>>> Emerging : overlay://test15/web-1.0:run?{[]}
 
-[00mCalculating dependencies... done!
+These are the packages that would be merged, in order:
 
- └─[90m[00m[100mstep  1[00m[90m[00m─┤ [36mdownload[32m  overlay://test15/web-1.0[00m
-             │ [36mdownload[32m  overlay://test15/os-1.0[00m
-             │ [36mdownload[32m  overlay://test15/lib-1.0[00m
-             │ [36mdownload[32m  overlay://test15/db-1.0[00m
-             │ [36mdownload[32m  overlay://test15/app-1.0[00m
+Calculating dependencies... done!
 
- └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36minstall[32m   overlay://test15/os-1.0[00m
+ └─step  1─┤ download  overlay://test15/web-1.0
+             │ download  overlay://test15/os-1.0
+             │ download  overlay://test15/lib-1.0
+             │ download  overlay://test15/db-1.0
+             │ download  overlay://test15/app-1.0
 
- └─[90m[00m[100mstep  3[00m[90m[00m─┤ [36mrun[32m       overlay://test15/os-1.0[00m
+ └─step  2─┤ install   overlay://test15/os-1.0
 
- └─[90m[00m[100mstep  4[00m[90m[00m─┤ [36minstall[32m   overlay://test15/db-1.0[00m
-             │ [36minstall[32m   overlay://test15/lib-1.0[00m
+ └─step  3─┤ run       overlay://test15/os-1.0
 
- └─[90m[00m[100mstep  5[00m[90m[00m─┤ [36mrun[32m       overlay://test15/db-1.0[00m
+ └─step  4─┤ install   overlay://test15/db-1.0
+             │ install   overlay://test15/lib-1.0
 
- └─[90m[00m[100mstep  6[00m[90m[00m─┤ [36minstall[32m   overlay://test15/app-1.0[00m
-             │           [90m└─ conf ─┤ [00m[90m[00m[100mUSE[00m[90m[00m = "[90m[03m-nolib[00m"
+ └─step  5─┤ run       overlay://test15/db-1.0
 
- └─[90m[00m[100mstep  7[00m[90m[00m─┤ [36mrun[32m       overlay://test15/app-1.0[00m
+ └─step  6─┤ install   overlay://test15/app-1.0
+             │           └─ conf ─┤ USE = "-nolib"
 
- └─[90m[00m[100mstep  8[00m[90m[00m─┤ [36minstall[32m   overlay://test15/web-1.0[00m
+ └─step  7─┤ run       overlay://test15/app-1.0
 
- └─[90m[00m[100mstep  9[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test15/web-1.0[00m[00m
+ └─step  8─┤ install   overlay://test15/web-1.0
+
+ └─step  9─┤ run     overlay://test15/web-1.0
 
 Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.

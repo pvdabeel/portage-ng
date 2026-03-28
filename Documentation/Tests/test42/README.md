@@ -28,23 +28,23 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[93m>>> Emerging : overlay://test42/app-1.0:run?{[]}
-[00m
-[32mThese are the packages that would be merged, in order:
+```
+>>> Emerging : overlay://test42/app-1.0:run?{[]}
 
-[00mCalculating dependencies... done!
+These are the packages that would be merged, in order:
 
- └─[90m[00m[100mstep  1[00m[90m[00m─┤ [36mdownload[32m  overlay://test42/lib-2.0[00m
-             │ [36mdownload[32m  overlay://test42/app-1.0[00m
+Calculating dependencies... done!
 
- └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36minstall[32m   overlay://test42/lib-2.0[00m
+ └─step  1─┤ download  overlay://test42/lib-2.0
+             │ download  overlay://test42/app-1.0
 
- └─[90m[00m[100mstep  3[00m[90m[00m─┤ [36mrun[32m       overlay://test42/lib-2.0[00m
+ └─step  2─┤ install   overlay://test42/lib-2.0
 
- └─[90m[00m[100mstep  4[00m[90m[00m─┤ [36minstall[32m   overlay://test42/app-1.0[00m
+ └─step  3─┤ run       overlay://test42/lib-2.0
 
- └─[90m[00m[100mstep  5[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test42/app-1.0[00m[00m
+ └─step  4─┤ install   overlay://test42/app-1.0
+
+ └─step  5─┤ run     overlay://test42/app-1.0
 
 Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.

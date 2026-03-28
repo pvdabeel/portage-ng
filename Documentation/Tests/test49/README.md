@@ -39,40 +39,40 @@ The following USE changes are necessary to proceed:
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[93m>>> Emerging : overlay://test49/app-1.0:run?{[]}
-[00m
-[32mThese are the packages that would be merged, in order:
+```
+>>> Emerging : overlay://test49/app-1.0:run?{[]}
 
-[00mCalculating dependencies... done!
+These are the packages that would be merged, in order:
 
- └─[90m[00m[100mstep  1[00m[90m[00m─┤ [33m[00m[43museflag[00m[33m[00m[32m overlay://test49/libhelper-1.0[90m (feature_z -feature_z)[00m
-             │ [33m[00m[43museflag[00m[33m[00m[32m overlay://test49/libhelper-1.0[90m (feature_z)[00m
+Calculating dependencies... done!
 
- └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36mdownload[32m  overlay://test49/libhelper-1.0[00m
-             │ [36mdownload[32m  overlay://test49/app-1.0[00m
+ └─step  1─┤ useflag overlay://test49/libhelper-1.0 (feature_z -feature_z)
+             │ useflag overlay://test49/libhelper-1.0 (feature_z)
 
- └─[90m[00m[100mstep  3[00m[90m[00m─┤ [36minstall[32m   overlay://test49/libhelper-1.0[90m (USE modified)[00m
-             │           [90m└─ conf ─┤ [00m[90m[00m[100mUSE[00m[90m[00m = "[33m-feature_z[00m"
+ └─step  2─┤ download  overlay://test49/libhelper-1.0
+             │ download  overlay://test49/app-1.0
 
- └─[90m[00m[100mstep  4[00m[90m[00m─┤ [36mrun[32m       overlay://test49/libhelper-1.0[90m (USE modified)[00m
+ └─step  3─┤ install   overlay://test49/libhelper-1.0 (USE modified)
+             │           └─ conf ─┤ USE = "-feature_z"
 
- └─[90m[00m[100mstep  5[00m[90m[00m─┤ [36minstall[32m   overlay://test49/app-1.0[00m
-             │           [90m└─ conf ─┤ [00m[90m[00m[100mUSE[00m[90m[00m = "[90m[03m-feature_z[00m"
+ └─step  4─┤ run       overlay://test49/libhelper-1.0 (USE modified)
 
- └─[90m[00m[100mstep  6[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test49/app-1.0[00m[00m
+ └─step  5─┤ install   overlay://test49/app-1.0
+             │           └─ conf ─┤ USE = "-feature_z"
+
+ └─step  6─┤ run     overlay://test49/app-1.0
 
 Total: 8 actions (2 useflags, 2 downloads, 2 installs, 2 runs), grouped into 6 steps.
        0.00 Kb to be downloaded.
 
 
-[93m>>> Assumptions taken during proving & planning:[00m
+>>> Assumptions taken during proving & planning:
 
   USE flag change (2 packages):
-[00m[90m  Add to /etc/portage/package.use:
+  Add to /etc/portage/package.use:
     test49/libhelper feature_z -feature_z
     test49/libhelper feature_z
-[00m
+
 ```
 
 </details>

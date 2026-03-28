@@ -37,9 +37,9 @@ emerge: Maybe you meant any of these: test47/app-server, test59/os, test57/os?
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[33m[00m[43mwarning[00m[33m[00m Package not found: test79/server[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+```
+warning Package not found: test79/server
+--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
 The package atom **`test79/server`** is not a valid Gentoo package. 
 
 **`test79`** is not a recognized category in the Gentoo Portage tree. This appears to be either:
@@ -55,7 +55,7 @@ The package atom **`test79/server`** is not a valid Gentoo package.
 
 **To fix**: Specify a valid package atom from the official Gentoo repository or ensure your custom overlay is properly configured if this is supposed to be a local package.
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+
 ```
 
 </details>

@@ -29,26 +29,26 @@ Total: 3 packages (3 new), Size of downloads: 0 KiB
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[93m>>> Emerging : overlay://test50/app-1.0:run?{[]}
-[00m
-[32mThese are the packages that would be merged, in order:
+```
+>>> Emerging : overlay://test50/app-1.0:run?{[]}
 
-[00mCalculating dependencies... done!
+These are the packages that would be merged, in order:
 
- └─[90m[00m[100mstep  1[00m[90m[00m─┤ [36mdownload[32m  overlay://test50/foo-1.0[00m
-             │ [36mdownload[32m  overlay://test50/bar-1.0[00m
-             │ [36mdownload[32m  overlay://test50/app-1.0[00m
+Calculating dependencies... done!
 
- └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36minstall[32m   overlay://test50/bar-1.0[00m
+ └─step  1─┤ download  overlay://test50/foo-1.0
+             │ download  overlay://test50/bar-1.0
+             │ download  overlay://test50/app-1.0
 
- └─[90m[00m[100mstep  3[00m[90m[00m─┤ [36mrun[32m       overlay://test50/bar-1.0[00m
+ └─step  2─┤ install   overlay://test50/bar-1.0
 
- └─[90m[00m[100mstep  4[00m[90m[00m─┤ [36minstall[32m   overlay://test50/foo-1.0[00m
+ └─step  3─┤ run       overlay://test50/bar-1.0
 
- └─[90m[00m[100mstep  5[00m[90m[00m─┤ [36minstall[32m   overlay://test50/app-1.0[00m
+ └─step  4─┤ install   overlay://test50/foo-1.0
 
- └─[90m[00m[100mstep  6[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test50/app-1.0[00m[00m
+ └─step  5─┤ install   overlay://test50/app-1.0
+
+ └─step  6─┤ run     overlay://test50/app-1.0
 
 Total: 8 actions (3 downloads, 3 installs, 2 runs), grouped into 6 steps.
        0.00 Kb to be downloaded.

@@ -57,67 +57,67 @@ page or refer to the Gentoo Handbook.
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[93m>>> Emerging : overlay://test48/app-1.0:run?{[]}
-[00m
-[32mThese are the packages that would be merged, in order:
+```
+>>> Emerging : overlay://test48/app-1.0:run?{[]}
 
-[00mCalculating dependencies... done!
+These are the packages that would be merged, in order:
 
- └─[90m[00m[100mstep  1[00m[90m[00m─┤ [00mverify[00m[00m  test48/libphysics[90m (unsatisfied constraints, assumed running)[00m
-             │ [36mdownload[32m  overlay://test48/libmatrix-1.0[00m
-             │ [36mdownload[32m  overlay://test48/libgraphics-1.0[00m
-             │ [36mdownload[32m  overlay://test48/app-1.0[00m
+Calculating dependencies... done!
 
- └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36minstall[32m   overlay://test48/libmatrix-1.0[00m
+ └─step  1─┤ verify  test48/libphysics (unsatisfied constraints, assumed running)
+             │ download  overlay://test48/libmatrix-1.0
+             │ download  overlay://test48/libgraphics-1.0
+             │ download  overlay://test48/app-1.0
 
- └─[90m[00m[100mstep  3[00m[90m[00m─┤ [36mrun[32m       overlay://test48/libmatrix-1.0[00m
+ └─step  2─┤ install   overlay://test48/libmatrix-1.0
 
- └─[90m[00m[100mstep  4[00m[90m[00m─┤ [36minstall[32m   overlay://test48/libgraphics-1.0[00m
+ └─step  3─┤ run       overlay://test48/libmatrix-1.0
 
- └─[90m[00m[100mstep  5[00m[90m[00m─┤ [36mrun[32m       overlay://test48/libgraphics-1.0[00m
+ └─step  4─┤ install   overlay://test48/libgraphics-1.0
 
- └─[90m[00m[100mstep  6[00m[90m[00m─┤ [36minstall[32m   overlay://test48/app-1.0[00m
+ └─step  5─┤ run       overlay://test48/libgraphics-1.0
 
- └─[90m[00m[100mstep  7[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test48/app-1.0[00m[00m
+ └─step  6─┤ install   overlay://test48/app-1.0
+
+ └─step  7─┤ run     overlay://test48/app-1.0
 
 Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
        0.00 Kb to be downloaded.
 
 
 
-[31m[00m[41mError[00m[31m[00m[31m The proof for your build plan contains domain assumptions. Please verify:
+Error The proof for your build plan contains domain assumptions. Please verify:
 
-[00m
-[93m>>> Domain assumptions[00m
 
-[91m[01m- Unsatisfied constraints for run dependency: [00m
-[00m  test48/libphysics
+>>> Domain assumptions
 
-[90m  required by: overlay://test48/app-1.0
-[00m
+- Unsatisfied constraints for run dependency: 
+  test48/libphysics
 
-[93m>>> Bug report drafts (Gentoo Bugzilla)[00m
+  required by: overlay://test48/app-1.0
 
-[90m---
-[00m[01mSummary: [00moverlay://test48/app-1.0: unsatisfied_constraints dependency on test48/libphysics
 
-[01mAffected package: [00m[90moverlay://test48/app-1.0[00m
-[01mDependency: [00m[90mtest48/libphysics[00m
-[01mPhases: [00m[90m[run][00m
+>>> Bug report drafts (Gentoo Bugzilla)
 
-[01mUnsatisfiable constraint(s):[00m
-[90m  test48/libphysics-[00m
+---
+Summary: overlay://test48/app-1.0: unsatisfied_constraints dependency on test48/libphysics
 
-[01mObserved:[00m
-[90m  portage-ng reports no available candidate satisfies the above constraint(s).
+Affected package: overlay://test48/app-1.0
+Dependency: test48/libphysics
+Phases: [run]
+
+Unsatisfiable constraint(s):
+  test48/libphysics-
+
+Observed:
+  portage-ng reports no available candidate satisfies the above constraint(s).
   Available versions in repo set (sample, first 1 of 1): [1.0]
-[00m
-[01mPotential fix (suggestion):[00m
-[90m  Review dependency metadata in overlay://test48/app-1.0; constraint set: [constraint(none,,[])].
-[00m
 
-[00m
+Potential fix (suggestion):
+  Review dependency metadata in overlay://test48/app-1.0; constraint set: [constraint(none,,[])].
+
+
+
 ```
 
 </details>

@@ -34,9 +34,9 @@ emerge: Maybe you meant any of these: test60/app, test59/app, test56/app?
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[33m[00m[43mwarning[00m[33m[00m Package not found: test69/app[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+```
+warning Package not found: test69/app
+--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
 The package atom `test69/app` is **not a valid Gentoo package**. 
 
 This appears to be:
@@ -53,7 +53,7 @@ This appears to be:
 
 If you're testing portage-ng itself, this failure is expected behavior for a non-existent package.
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+
 ```
 
 </details>

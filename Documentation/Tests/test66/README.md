@@ -34,9 +34,9 @@ emerge: Maybe you meant any of these: test60/app, test56/app, test46/app?
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[33m[00m[43mwarning[00m[33m[00m Package not found: test66/app[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+```
+warning Package not found: test66/app
+--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
 The package atom **`test66/app`** is not a valid Gentoo package. 
 
 **What's wrong:**
@@ -53,7 +53,7 @@ The package atom **`test66/app`** is not a valid Gentoo package.
 - If from an overlay, ensure it's added via `eselect repository` or layman
 - Check `eix test66/app` or search on packages.gentoo.org for the actual package name
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+
 ```
 
 </details>

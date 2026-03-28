@@ -34,9 +34,9 @@ emerge: Maybe you meant any of these: test60/app, test57/app, test50/app?
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[33m[00m[43mwarning[00m[33m[00m Package not found: test70/app[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+```
+warning Package not found: test70/app
+--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
 The package atom `test70/app` appears to be invalid because:
 
 1. **`test70` is not a standard Gentoo category** - Valid categories include things like `app-admin`, `dev-lang`, `sys-apps`, etc.
@@ -54,7 +54,7 @@ The package atom `test70/app` appears to be invalid because:
 
 **Most likely:** This is a non-existent test package and you should replace it with an actual package atom from the Gentoo repository.
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+
 ```
 
 </details>

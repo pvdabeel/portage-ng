@@ -36,9 +36,9 @@ emerge: Maybe you meant any of these: test60/app, test57/app, test56/app?
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[33m[00m[43mwarning[00m[33m[00m Package not found: test67/app[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+```
+warning Package not found: test67/app
+--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
 The package atom **`test67/app`** is invalid because:
 
 1. **`test67` is not a valid Gentoo category** - Gentoo uses predefined categories like `app-misc`, `dev-libs`, `sys-apps`, etc. Custom categories like `test67` don't exist in the standard Portage tree.
@@ -55,7 +55,7 @@ The package atom **`test67/app`** is invalid because:
 
 **Valid package atom format:** `category/package-name` where category must be one of Gentoo's official categories.
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+
 ```
 
 </details>

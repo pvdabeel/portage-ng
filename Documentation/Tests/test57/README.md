@@ -35,42 +35,42 @@ Total: 6 packages (6 new), Size of downloads: 0 KiB
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[93m>>> Emerging : overlay://test57/web-1.0:run?{[]}
-[00m
-[32mThese are the packages that would be merged, in order:
+```
+>>> Emerging : overlay://test57/web-1.0:run?{[]}
 
-[00mCalculating dependencies... done!
+These are the packages that would be merged, in order:
 
- └─[90m[00m[100mstep  1[00m[90m[00m─┤ [36mdownload[32m  overlay://test57/web-1.0[00m
-             │ [36mdownload[32m  overlay://test57/virtualsdk-1.0[00m
-             │ [36mdownload[32m  overlay://test57/os-1.0[00m
-             │ [36mdownload[32m  overlay://test57/linux-1.0[00m
-             │ [36mdownload[32m  overlay://test57/db-1.0[00m
-             │ [36mdownload[32m  overlay://test57/app-1.0[00m
+Calculating dependencies... done!
 
- └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36minstall[32m   overlay://test57/virtualsdk-1.0[00m
-             │ [36minstall[32m   overlay://test57/linux-1.0[00m
+ └─step  1─┤ download  overlay://test57/web-1.0
+             │ download  overlay://test57/virtualsdk-1.0
+             │ download  overlay://test57/os-1.0
+             │ download  overlay://test57/linux-1.0
+             │ download  overlay://test57/db-1.0
+             │ download  overlay://test57/app-1.0
 
- └─[90m[00m[100mstep  3[00m[90m[00m─┤ [36mrun[32m       overlay://test57/linux-1.0[00m
+ └─step  2─┤ install   overlay://test57/virtualsdk-1.0
+             │ install   overlay://test57/linux-1.0
 
- └─[90m[00m[100mstep  4[00m[90m[00m─┤ [36minstall[32m   overlay://test57/os-1.0[00m
+ └─step  3─┤ run       overlay://test57/linux-1.0
 
- └─[90m[00m[100mstep  5[00m[90m[00m─┤ [36mrun[32m       overlay://test57/virtualsdk-1.0[00m
+ └─step  4─┤ install   overlay://test57/os-1.0
 
- └─[90m[00m[100mstep  6[00m[90m[00m─┤ [36mrun[32m       overlay://test57/os-1.0[00m
+ └─step  5─┤ run       overlay://test57/virtualsdk-1.0
 
- └─[90m[00m[100mstep  7[00m[90m[00m─┤ [36minstall[32m   overlay://test57/db-1.0[00m
+ └─step  6─┤ run       overlay://test57/os-1.0
 
- └─[90m[00m[100mstep  8[00m[90m[00m─┤ [36mrun[32m       overlay://test57/db-1.0[00m
+ └─step  7─┤ install   overlay://test57/db-1.0
 
- └─[90m[00m[100mstep  9[00m[90m[00m─┤ [36minstall[32m   overlay://test57/app-1.0[00m
+ └─step  8─┤ run       overlay://test57/db-1.0
 
- └─[90m[00m[100mstep 10[00m[90m[00m─┤ [36mrun[32m       overlay://test57/app-1.0[00m
+ └─step  9─┤ install   overlay://test57/app-1.0
 
- └─[90m[00m[100mstep 11[00m[90m[00m─┤ [36minstall[32m   overlay://test57/web-1.0[00m
+ └─step 10─┤ run       overlay://test57/app-1.0
 
- └─[90m[00m[100mstep 12[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test57/web-1.0[00m[00m
+ └─step 11─┤ install   overlay://test57/web-1.0
+
+ └─step 12─┤ run     overlay://test57/web-1.0
 
 Total: 18 actions (6 downloads, 6 installs, 6 runs), grouped into 12 steps.
        0.00 Kb to be downloaded.

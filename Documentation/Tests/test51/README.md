@@ -39,35 +39,35 @@ The following USE changes are necessary to proceed:
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[93m>>> Emerging : overlay://test51/app-1.0:run?{[]}
-[00m
-[32mThese are the packages that would be merged, in order:
+```
+>>> Emerging : overlay://test51/app-1.0:run?{[]}
 
-[00mCalculating dependencies... done!
+These are the packages that would be merged, in order:
 
- └─[90m[00m[100mstep  1[00m[90m[00m─┤ [33m[00m[43museflag[00m[33m[00m[32m overlay://test51/os-1.0[90m (linux)[00m
+Calculating dependencies... done!
 
- └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36mdownload[32m  overlay://test51/os-1.0[00m
-             │ [36mdownload[32m  overlay://test51/app-1.0[00m
+ └─step  1─┤ useflag overlay://test51/os-1.0 (linux)
 
- └─[90m[00m[100mstep  3[00m[90m[00m─┤ [36minstall[32m   overlay://test51/os-1.0[90m (USE modified)[00m
-             │           [90m└─ conf ─┤ [00m[90m[00m[100mUSE[00m[90m[00m = "[33mlinux[00m"
+ └─step  2─┤ download  overlay://test51/os-1.0
+             │ download  overlay://test51/app-1.0
 
- └─[90m[00m[100mstep  4[00m[90m[00m─┤ [36minstall[32m   overlay://test51/app-1.0[00m
+ └─step  3─┤ install   overlay://test51/os-1.0 (USE modified)
+             │           └─ conf ─┤ USE = "linux"
 
- └─[90m[00m[100mstep  5[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test51/app-1.0[00m[00m
+ └─step  4─┤ install   overlay://test51/app-1.0
+
+ └─step  5─┤ run     overlay://test51/app-1.0
 
 Total: 6 actions (1 useflag, 2 downloads, 2 installs, 1 run), grouped into 5 steps.
        0.00 Kb to be downloaded.
 
 
-[93m>>> Assumptions taken during proving & planning:[00m
+>>> Assumptions taken during proving & planning:
 
   USE flag change (1 package):
-[00m[90m  Add to /etc/portage/package.use:
+  Add to /etc/portage/package.use:
     test51/os linux
-[00m
+
 ```
 
 </details>

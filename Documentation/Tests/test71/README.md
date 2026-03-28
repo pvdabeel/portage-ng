@@ -35,9 +35,9 @@ emerge: Maybe you meant any of these: test57/web, test31/web, test27/web?
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[33m[00m[43mwarning[00m[33m[00m Package not found: test71/web[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+```
+warning Package not found: test71/web
+--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
 The package `test71/web` appears to be a **non-existent or test package**. 
 
 The category `test71` is not a standard Gentoo Portage category. This looks like:
@@ -54,7 +54,7 @@ The category `test71` is not a standard Gentoo Portage category. This looks like
 
 The "test71" category strongly suggests this is an intentional test case rather than a real package request.
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+
 ```
 
 </details>

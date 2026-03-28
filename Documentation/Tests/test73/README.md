@@ -35,9 +35,9 @@ emerge: Maybe you meant any of these: test57/app, test53/app, test43/app?
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[33m[00m[43mwarning[00m[33m[00m Package not found: test73/app[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+```
+warning Package not found: test73/app
+--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
 The package atom `test73/app` appears to be a non-existent or test package. 
 
 **Issues:**
@@ -52,7 +52,7 @@ The package atom `test73/app` appears to be a non-existent or test package.
 
 Without more context about what application you're trying to install, I cannot suggest the correct atom. What software were you actually trying to install?
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+
 ```
 
 </details>

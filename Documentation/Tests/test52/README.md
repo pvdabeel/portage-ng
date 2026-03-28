@@ -37,42 +37,42 @@ The following USE changes are necessary to proceed:
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[93m>>> Emerging : overlay://test52/app-1.0:run?{[]}
-[00m
-[32mThese are the packages that would be merged, in order:
+```
+>>> Emerging : overlay://test52/app-1.0:run?{[]}
 
-[00mCalculating dependencies... done!
+These are the packages that would be merged, in order:
 
- └─[90m[00m[100mstep  1[00m[90m[00m─┤ [33m[00m[43museflag[00m[33m[00m[32m overlay://test52/os-1.0[90m (hardened)[00m
+Calculating dependencies... done!
 
- └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36mdownload[32m  overlay://test52/os-1.0[00m
-             │ [36mdownload[32m  overlay://test52/libb-1.0[00m
-             │ [36mdownload[32m  overlay://test52/liba-1.0[00m
-             │ [36mdownload[32m  overlay://test52/app-1.0[00m
+ └─step  1─┤ useflag overlay://test52/os-1.0 (hardened)
 
- └─[90m[00m[100mstep  3[00m[90m[00m─┤ [36minstall[32m   overlay://test52/liba-1.0[00m
-             │ [36minstall[32m   overlay://test52/libb-1.0[00m
-             │ [36minstall[32m   overlay://test52/os-1.0[90m (USE modified)[00m
-             │           [90m└─ conf ─┤ [00m[90m[00m[100mUSE[00m[90m[00m = "[32m[01mthreads[00m* [33mhardened[00m"
+ └─step  2─┤ download  overlay://test52/os-1.0
+             │ download  overlay://test52/libb-1.0
+             │ download  overlay://test52/liba-1.0
+             │ download  overlay://test52/app-1.0
 
- └─[90m[00m[100mstep  4[00m[90m[00m─┤ [36mrun[32m       overlay://test52/libb-1.0[00m
-             │ [36mrun[32m       overlay://test52/liba-1.0[00m
+ └─step  3─┤ install   overlay://test52/liba-1.0
+             │ install   overlay://test52/libb-1.0
+             │ install   overlay://test52/os-1.0 (USE modified)
+             │           └─ conf ─┤ USE = "threads* hardened"
 
- └─[90m[00m[100mstep  5[00m[90m[00m─┤ [36minstall[32m   overlay://test52/app-1.0[00m
+ └─step  4─┤ run       overlay://test52/libb-1.0
+             │ run       overlay://test52/liba-1.0
 
- └─[90m[00m[100mstep  6[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test52/app-1.0[00m[00m
+ └─step  5─┤ install   overlay://test52/app-1.0
+
+ └─step  6─┤ run     overlay://test52/app-1.0
 
 Total: 12 actions (1 useflag, 4 downloads, 4 installs, 3 runs), grouped into 6 steps.
        0.00 Kb to be downloaded.
 
 
-[93m>>> Assumptions taken during proving & planning:[00m
+>>> Assumptions taken during proving & planning:
 
   USE flag change (1 package):
-[00m[90m  Add to /etc/portage/package.use:
+  Add to /etc/portage/package.use:
     test52/os hardened
-[00m
+
 ```
 
 </details>

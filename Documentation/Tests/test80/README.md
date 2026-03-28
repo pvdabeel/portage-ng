@@ -34,9 +34,9 @@ emerge: Maybe you meant any of these: test60/app, test58/app, test50/app?
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[33m[00m[43mwarning[00m[33m[00m Package not found: test80/app[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+```
+warning Package not found: test80/app
+--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
 The package `test80/app` doesn't exist in the Gentoo Portage tree. 
 
 This looks like:
@@ -48,7 +48,7 @@ This looks like:
 
 If this is supposed to be a real package, please provide more context about what you're actually trying to install.
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+
 ```
 
 </details>

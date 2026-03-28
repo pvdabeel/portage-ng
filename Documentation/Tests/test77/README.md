@@ -36,9 +36,9 @@ emerge: Maybe you meant any of these: test57/app, test37/app, test27/app?
 <details>
 <summary><b>portage-ng</b></summary>
 
-```ansi
-[33m[00m[43mwarning[00m[33m[00m Package not found: test77/app[00m
-[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+```
+warning Package not found: test77/app
+--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
 The package `test77/app` does not exist in the Gentoo Portage tree. 
 
 **What's wrong:**
@@ -58,7 +58,7 @@ The package `test77/app` does not exist in the Gentoo Portage tree.
 
 Without more context about what you're trying to install, I cannot suggest the correct atom.
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-[00m[00m
+
 ```
 
 </details>
