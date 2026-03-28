@@ -1,0 +1,19 @@
+[33m[00m[43mwarning[00m[33m[00m Package not found: test69/app[00m
+[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+The package atom `test69/app` is **not a valid Gentoo package**. 
+
+This appears to be:
+1. A **test/dummy package name** (the "test69" category doesn't exist in Gentoo)
+2. Possibly used for testing portage-ng's error handling
+3. Or a typo/placeholder that needs to be replaced with an actual package atom
+
+**What's wrong:** The category `test69` doesn't exist in the Gentoo Portage tree. Valid categories include things like `app-editors`, `sys-apps`, `dev-lang`, etc.
+
+**To fix:** Replace with an actual package atom like:
+- `app-editors/vim`
+- `sys-apps/portage`
+- Or whatever package you actually need
+
+If you're testing portage-ng itself, this failure is expected behavior for a non-existent package.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+[00m[00m

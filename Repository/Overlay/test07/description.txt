@@ -1,6 +1,0 @@
-Testing simple dependency resolution with indirect circular dependency detection.
-
-Expected Outcome:
-
-The os package lists web as a run-time dependency. The web package in turn depends on os.
-The prover should take an assumption while producing the plan, yielding a verify step in the proposed plan.

@@ -1,0 +1,15 @@
+digraph test43 {
+  label="test43 \u2014 Slot :=";
+  labelloc=t; fontname=Helvetica; fontsize=12;
+  graph [rankdir=LR];
+  node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+
+  app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
+  lib_1_0 [label="lib-1.0"];
+  lib_2_0 [label="lib-2.0"];
+
+  app -> lib_1_0;
+  app -> lib_2_0;
+  app -> lib_1_0 [label=":="];
+  app -> lib_2_0 [label=":="];
+}

@@ -1,0 +1,16 @@
+digraph test52 {
+  label="test52 \u2014 Multi-USE on shared dep";
+  labelloc=t; fontname=Helvetica; fontsize=12;
+  graph [rankdir=LR];
+  node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+
+  app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
+  liba [label="liba-1.0"];
+  libb [label="libb-1.0"];
+  os [label="os-1.0"];
+
+  app -> liba;
+  app -> libb;
+  liba -> os [label="[threads]"];
+  libb -> os [label="[hardened]"];
+}

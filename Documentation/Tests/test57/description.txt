@@ -1,0 +1,10 @@
+Test Case: test57
+
+What is being tested:
+This test case validates that dependencies of a virtual-style ebuild are traversed
+and that its provider package is included in the proof/model. The 'virtualsdk-1.0'
+ebuild acts as a virtual by depending on 'linux-1.0' as its concrete provider.
+
+Expected Outcome:
+When proving web-1.0, the plan/model should include linux-1.0 (via
+virtualsdk-1.0). The full chain os -> virtualsdk -> linux should be resolved.

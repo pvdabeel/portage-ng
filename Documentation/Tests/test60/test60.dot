@@ -1,0 +1,28 @@
+digraph test60 {
+  label="test60 \u2014 Versioned blocker (XFAIL)";
+  labelloc=t; fontname=Helvetica; fontsize=12;
+  graph [rankdir=LR];
+  node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+
+  app [label="app-1.0"];
+  db [label="db-1.0"];
+  g1 [label="||",shape=diamond,fillcolor=lightyellow,fontsize=9,width=0.4,height=0.4];
+  g2 [label="||",shape=diamond,fillcolor=lightyellow,fontsize=9,width=0.4,height=0.4];
+  os [label="os-1.0"];
+  web [label="web-1.0",fillcolor=lightcoral,fontcolor=white];
+  windows_1_0 [label="windows-1.0"];
+  windows_2_0 [label="windows-2.0"];
+
+  app -> os;
+  app -> windows_2_0 [color="red",label="!",style="dashed"];
+  db -> os;
+  os -> g1;
+  g1 -> windows_1_0 [label="="];
+  g1 -> windows_2_0 [label="="];
+  os -> g2;
+  g2 -> windows_1_0 [label="="];
+  g2 -> windows_2_0 [label="="];
+  web -> os;
+  web -> app;
+  web -> db;
+}

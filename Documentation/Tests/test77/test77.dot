@@ -1,0 +1,12 @@
+digraph test77 {
+  label="test77 \u2014 Depclean (VDB)";
+  labelloc=t; fontname=Helvetica; fontsize=12;
+  graph [rankdir=LR];
+  node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+
+  app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
+  orphan [label="orphan-1.0",fillcolor=lightblue];
+  os [label="os-1.0",fillcolor=lightblue];
+
+  app -> os;
+}

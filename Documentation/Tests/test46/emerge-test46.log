@@ -1,0 +1,17 @@
+
+These are the packages that would be merged, in order:
+
+Calculating dependencies  ... done!
+Dependency resolution took 0.71 s (backtrack: 0/20).
+
+
+!!! The ebuild selected to satisfy "test46/core-utils[-feature_x]" has unmet requirements.
+- test46/core-utils-1.0::overlay USE="-feature_x -feature_y"
+
+  The following REQUIRED_USE flag constraints are unsatisfied:
+    exactly-one-of ( feature_x feature_y )
+
+(dependency required by "test46/libd-1.0::overlay" [ebuild])
+(dependency required by "test46/libb-1.0::overlay" [ebuild])
+(dependency required by "test46/app-1.0::overlay" [ebuild])
+(dependency required by "test46/app" [argument])

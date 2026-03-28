@@ -1,0 +1,40 @@
+
+These are the packages that would be merged, in order:
+
+Calculating dependencies  .... done!
+Dependency resolution took 4.50 s (backtrack: 6/20).
+
+[ebuild  N     ] test48/libmatrix-1.1:1/B::overlay  0 KiB
+[ebuild  N     ] test48/libmatrix-1.0:1/A::overlay  0 KiB
+[ebuild  N     ] test48/libgraphics-1.0::overlay  0 KiB
+[ebuild  N     ] test48/libphysics-1.0::overlay  0 KiB
+[ebuild  N     ] test48/app-1.0::overlay  0 KiB
+
+Total: 5 packages (5 new), Size of downloads: 0 KiB
+
+!!! Multiple package instances within a single package slot have been pulled
+!!! into the dependency graph, resulting in a slot conflict:
+
+test48/libmatrix:1
+
+  (test48/libmatrix-1.1:1/B::overlay, ebuild scheduled for merge) USE="" pulled in by
+    =test48/libmatrix-1.1:1/B required by (test48/libphysics-1.0:0/0::overlay, ebuild scheduled for merge) USE=""
+    ^                 ^^^^^^^                                                                                     
+
+  (test48/libmatrix-1.0:1/A::overlay, ebuild scheduled for merge) USE="" pulled in by
+    =test48/libmatrix-1.0:1/A required by (test48/libgraphics-1.0:0/0::overlay, ebuild scheduled for merge) USE=""
+    ^                 ^^^^^^^                                                                                      
+
+
+It may be possible to solve this problem by using package.mask to
+prevent one of those packages from being selected. However, it is also
+possible that conflicting dependencies exist such that they are
+impossible to satisfy simultaneously.  If such a conflict exists in
+the dependencies of two different packages, then those packages can
+not be installed simultaneously. You may want to try a larger value of
+the --backtrack option, such as --backtrack=30, in order to see if
+that will solve this conflict automatically.
+
+For more information, see MASKED PACKAGES section in the emerge man
+page or refer to the Gentoo Handbook.
+

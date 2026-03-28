@@ -1,0 +1,16 @@
+
+These are the packages that would be merged, in order:
+
+Calculating dependencies  
+
+!!! Problem resolving dependencies for test40/os
+... done!
+Dependency resolution took 0.52 s (backtrack: 0/20).
+
+
+!!! The ebuild selected to satisfy "test40/os" has unmet requirements.
+- test40/os-1.0::overlay USE="-darwin -linux"
+
+  The following REQUIRED_USE flag constraints are unsatisfied:
+    any-of ( linux darwin )
+

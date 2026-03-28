@@ -1,0 +1,13 @@
+digraph test74 {
+  label="test74 \u2014 Downgrade (VDB)";
+  labelloc=t; fontname=Helvetica; fontsize=12;
+  graph [rankdir=LR];
+  node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+
+  app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
+  lib_1_0 [label="lib-1.0",fillcolor=lightblue];
+  lib_2_0 [label="lib-2.0",fillcolor=lightblue];
+
+  app -> lib_1_0 [label="="];
+  app -> lib_2_0 [label="="];
+}

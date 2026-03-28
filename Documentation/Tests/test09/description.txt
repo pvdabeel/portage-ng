@@ -1,0 +1,7 @@
+Test Case: test09
+
+What is being tested:
+This test case checks the prover's ability to handle a missing dependency. The 'os-1.0' package depends on 'test09/notexists', which is not a real package available in the repository.
+
+Expected Outcome:
+The prover should fail to find a candidate for the 'notexists' package and report that the dependency cannot be satisfied. This should result in a failed proof.

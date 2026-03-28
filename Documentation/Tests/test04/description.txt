@@ -1,0 +1,12 @@
+Test Case: test04
+
+What is being tested:
+This test case is a variation of test03 where the self-dependency is in the runtime
+scope (RDEPEND) instead of compile-time. The 'os-1.0' package lists itself as a
+runtime dependency.
+
+Expected Outcome:
+The prover should take a cycle-break assumption for os-1.0's runtime dependency on
+itself, yielding a verify step in the proposed plan. Note that Gentoo emerge is
+less strict about runtime self-dependencies and may not report circular
+dependencies in this case.

@@ -1,0 +1,11 @@
+
+These are the packages that would be merged, in order:
+
+Calculating dependencies  ... done!
+Dependency resolution took 0.90 s (backtrack: 0/20).
+
+[ebuild  N     ] test50/bar-1.0::overlay  0 KiB
+[ebuild  N     ] test50/foo-1.0::overlay  0 KiB
+[ebuild  N     ] test50/app-1.0::overlay  0 KiB
+
+Total: 3 packages (3 new), Size of downloads: 0 KiB

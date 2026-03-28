@@ -12,9 +12,12 @@
 Unit and regression test framework for the portage-ng resolver.
 
 Tests are organised around an overlay repository containing synthetic
-ebuilds (test01..test65). Each test case targets a specific resolver
+ebuilds (test01..test80). Each test case targets a specific resolver
 feature: basic dependency resolution, version selection, cycle handling,
-USE flag propagation, slot requirements, blockers, etc.
+USE flag propagation, slot requirements, blockers, PDEPEND, BDEPEND,
+IDEPEND, version operators, fetchonly, multi-slot, and VDB-dependent
+scenarios (update, downgrade, reinstall, newuse rebuild, depclean,
+onlydeps).
 
 The validation layer supports two styles:
 - Legacy:     multifile test:is_success/5 clauses with explicit in_model checks
@@ -104,7 +107,22 @@ test:cases([overlay://'test01/web-1.0':run?{[]},
             overlay://'test62/web-1.0':run?{[]},
             overlay://'test63/app-1.0':run?{[]},
             overlay://'test64/app-1.0':run?{[]},
-            overlay://'test65/app-1.0':run?{[]}
+            overlay://'test65/app-1.0':run?{[]},
+            overlay://'test66/app-1.0':run?{[]},
+            overlay://'test67/app-1.0':run?{[]},
+            overlay://'test68/app-1.0':run?{[]},
+            overlay://'test69/app-1.0':run?{[]},
+            overlay://'test70/app-1.0':run?{[]},
+            overlay://'test71/web-1.0':fetchonly?{[]},
+            overlay://'test72/app-1.0':run?{[]},
+            overlay://'test73/app-1.0':run?{[]},
+            overlay://'test74/app-1.0':run?{[]},
+            overlay://'test75/app-1.0':run?{[]},
+            overlay://'test76/app-1.0':run?{[]},
+            overlay://'test77/app-1.0':run?{[]},
+            overlay://'test78/web-1.0':run?{[onlydeps_target]},
+            overlay://'test79/server-1.0':run?{[]},
+            overlay://'test80/app-1.0':run?{[]}
             ]).
 
 
@@ -175,9 +193,8 @@ test:run_single_case(Repo://Id:Action?{Context}) :-
   nl,
   config:working_dir(Dir),
   split_string(Id,'/','',[Category,Package]),
-  Repo:get_location(RepoLoc),
-  atomic_list_concat([RepoLoc,'/',Category,'/description.txt'],Description),
-  atomic_list_concat([RepoLoc,'/',Category,'/emerge-',Category,'.log'],EmergeLog),
+  atomic_list_concat([Dir,'/Documentation/Tests/',Category,'/description.txt'],Description),
+  atomic_list_concat([Dir,'/Documentation/Tests/',Category,'/emerge-',Category,'.log'],EmergeLog),
   atomic_list_concat([Repo, Category,Package, Action], '_', TestName),
   atomic_list_concat([Dir, '/Source/Tests/', TestName, '.txt'], FilePath),
   open(FilePath, write, Stream),
@@ -954,3 +971,158 @@ test:expect(overlay://'test65/app-1.0':run?{[]},
                 Conds \== []
               )
             ]).
+
+
+% -----------------------------------------------------------------------------
+%  PDEPEND and BDEPEND (test66, test67)
+% -----------------------------------------------------------------------------
+
+% test66: PDEPEND -- lib-1.0 has post-merge dep on plugin-1.0
+test:expect(overlay://'test66/app-1.0':run?{[]},
+            [ test:must_have(overlay://'test66/app-1.0':run?{_}),
+              test:must_have(overlay://'test66/lib-1.0':run?{_}),
+              test:must_have(overlay://'test66/plugin-1.0':run?{_})
+            ]).
+
+% test67: BDEPEND -- app-1.0 has build dep on toolchain-1.0
+test:expect(overlay://'test67/app-1.0':run?{[]},
+            [ test:must_have(overlay://'test67/app-1.0':run?{_}),
+              test:must_have(overlay://'test67/toolchain-1.0':run?{_}),
+              test:must_have(overlay://'test67/lib-1.0':run?{_})
+            ]).
+
+% -----------------------------------------------------------------------------
+%  Multi-slot co-installation (test68)
+% -----------------------------------------------------------------------------
+
+% test68: app needs lib:1 AND lib:2
+test:expect(overlay://'test68/app-1.0':run?{[]},
+            [ test:must_have(overlay://'test68/app-1.0':run?{_}),
+              test:must_have(overlay://'test68/lib-1.0':run?{_}),
+              test:must_have(overlay://'test68/lib-2.0':run?{_})
+            ]).
+
+% -----------------------------------------------------------------------------
+%  Version operators (test69, test70, test80)
+% -----------------------------------------------------------------------------
+
+% test69: app -> >=lib-3.0 -- should pick lib-5.0 (latest valid)
+test:expect(overlay://'test69/app-1.0':run?{[]},
+            [ test:must_have(overlay://'test69/app-1.0':run?{_}),
+              test:must_have(overlay://'test69/lib-5.0':run?{_}),
+              \+ test:must_have(overlay://'test69/lib-1.0':_?{_}),
+              \+ test:must_have(overlay://'test69/lib-2.0':_?{_})
+            ]).
+
+% test70: app -> ~lib-2.0 -- should pick lib-2.0-r1 (latest matching revision)
+test:expect(overlay://'test70/app-1.0':run?{[]},
+            [ test:must_have(overlay://'test70/app-1.0':run?{_}),
+              ( test:must_have(overlay://'test70/lib-2.0-r1':run?{_})
+              ; test:must_have(overlay://'test70/lib-2.0':run?{_})
+              ),
+              \+ test:must_have(overlay://'test70/lib-3.0':_?{_})
+            ]).
+
+% test80: app -> <=lib-3.0 -- should pick lib-3.0 (latest valid)
+test:expect(overlay://'test80/app-1.0':run?{[]},
+            [ test:must_have(overlay://'test80/app-1.0':run?{_}),
+              test:must_have(overlay://'test80/lib-3.0':run?{_}),
+              \+ test:must_have(overlay://'test80/lib-4.0':_?{_}),
+              \+ test:must_have(overlay://'test80/lib-5.0':_?{_})
+            ]).
+
+% -----------------------------------------------------------------------------
+%  Fetchonly action (test71)
+% -----------------------------------------------------------------------------
+
+% test71: fetchonly action -- same deps as test01, download only
+test:expect(overlay://'test71/web-1.0':fetchonly?{[]},
+            [ test:must_have(overlay://'test71/web-1.0':fetchonly?{_}),
+              test:must_have(overlay://'test71/app-1.0':fetchonly?{_}),
+              test:must_have(overlay://'test71/db-1.0':fetchonly?{_}),
+              test:must_have(overlay://'test71/os-1.0':fetchonly?{_})
+            ]).
+
+% -----------------------------------------------------------------------------
+%  IDEPEND (test72)
+% -----------------------------------------------------------------------------
+
+% test72: IDEPEND -- app-1.0 has install-time dep on installer-1.0
+test:expect(overlay://'test72/app-1.0':run?{[]},
+            [ test:must_have(overlay://'test72/app-1.0':run?{_}),
+              test:must_have(overlay://'test72/installer-1.0':run?{_})
+            ]).
+
+% -----------------------------------------------------------------------------
+%  VDB-dependent tests (test73..test78)
+% -----------------------------------------------------------------------------
+
+% test73: update -- lib-1.0 installed, lib-2.0 available
+test:expect(overlay://'test73/app-1.0':run?{[]},
+            [ test:must_have(overlay://'test73/app-1.0':run?{_}),
+              test:must_have(overlay://'test73/lib-2.0':run?{_})
+            ]).
+
+% test74: downgrade -- lib-2.0 installed, =lib-1.0 required
+test:expect(overlay://'test74/app-1.0':run?{[]},
+            [ test:must_have(overlay://'test74/app-1.0':run?{_}),
+              test:must_have(overlay://'test74/lib-1.0':run?{_})
+            ]).
+
+% test75: reinstall -- os-1.0 installed, emptytree re-proves
+test:expect(overlay://'test75/app-1.0':run?{[]},
+            [ test:must_have(overlay://'test75/app-1.0':run?{_}),
+              test:must_have(overlay://'test75/os-1.0':run?{_})
+            ]).
+
+% test76: newuse rebuild -- os-1.0 installed without linux USE
+test:expect(overlay://'test76/app-1.0':run?{[]},
+            [ test:must_have(overlay://'test76/app-1.0':run?{_}),
+              test:must_have(overlay://'test76/os-1.0':run?{_})
+            ]).
+
+% test77: depclean -- orphan-1.0 should be identified as removable
+test:expect(overlay://'test77/app-1.0':run?{[]},
+            [ test:must_have(overlay://'test77/app-1.0':run?{_}),
+              test:must_have(overlay://'test77/os-1.0':run?{_})
+            ]).
+
+% test78: onlydeps -- target (web) excluded, deps included
+test:expect(overlay://'test78/web-1.0':run?{[onlydeps_target]},
+            [ test:must_have(overlay://'test78/app-1.0':run?{_}),
+              test:must_have(overlay://'test78/db-1.0':run?{_}),
+              test:must_have(overlay://'test78/os-1.0':run?{_})
+            ]).
+
+% -----------------------------------------------------------------------------
+%  PDEPEND cycle (test79)
+% -----------------------------------------------------------------------------
+
+% test79: server -> client, client PDEPEND server -- cycle via PDEPEND
+test:expect(overlay://'test79/server-1.0':run?{[]},
+            [ test:must_have(overlay://'test79/server-1.0':run?{_}),
+              test:must_have(overlay://'test79/client-1.0':run?{_})
+            ]).
+
+
+% =============================================================================
+%  VDB simulation infrastructure
+% =============================================================================
+
+%! test:setup_vdb(+TestCase, +InstalledList)
+%
+% Simulates installed packages by asserting cache:entry_metadata/4 facts.
+% InstalledList is a list of Category/Name-Version atoms (e.g. 'test73/lib-1.0').
+
+test:setup_vdb(_TestCase, InstalledList) :-
+  forall(member(Entry, InstalledList),
+         asserta(cache:entry_metadata(overlay, Entry, installed, true))).
+
+
+%! test:cleanup_vdb(+InstalledList)
+%
+% Removes previously asserted VDB simulation facts.
+
+test:cleanup_vdb(InstalledList) :-
+  forall(member(Entry, InstalledList),
+         retractall(cache:entry_metadata(overlay, Entry, installed, true))).

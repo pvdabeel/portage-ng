@@ -1,0 +1,12 @@
+digraph test79 {
+  label="test79 \u2014 PDEPEND cycle";
+  labelloc=t; fontname=Helvetica; fontsize=12;
+  graph [rankdir=LR];
+  node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+
+  client [label="client-1.0"];
+  server [label="server-1.0",fillcolor=lightcoral,fontcolor=white];
+
+  client -> server [label="PDEPEND",style="dashed"];
+  server -> client;
+}

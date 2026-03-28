@@ -1,0 +1,16 @@
+
+These are the packages that would be merged, in order:
+
+Calculating dependencies  ... done!
+Dependency resolution took 0.87 s (backtrack: 0/20).
+
+[ebuild  N     ] test33/os-1.0::overlay  USE="linux -darwin" 0 KiB
+[ebuild  N     ] test33/app-1.0::overlay  0 KiB
+
+Total: 2 packages (2 new), Size of downloads: 0 KiB
+
+The following USE changes are necessary to proceed:
+ (see "package.use" in the portage(5) man page for more details)
+# required by test33/app-1.0::overlay
+# required by test33/app (argument)
+>=test33/os-1.0 linux

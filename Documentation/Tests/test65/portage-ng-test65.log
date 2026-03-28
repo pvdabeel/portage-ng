@@ -1,0 +1,17 @@
+
+[93m>>> Emerging : overlay://test65/app-1.0:run?{[]}
+[00m
+[32mThese are the packages that would be merged, in order:
+
+[00mCalculating dependencies... done!
+
+ └─[90m[00m[100mstep  1[00m[90m[00m─┤ [36mdownload[32m  overlay://test65/app-1.0[00m
+
+ └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36minstall[32m   overlay://test65/app-1.0[00m
+
+ └─[90m[00m[100mstep  3[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test65/app-1.0[00m[00m
+
+Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
+       0.00 Kb to be downloaded.
+
+

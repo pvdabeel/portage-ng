@@ -1,0 +1,13 @@
+digraph test36 {
+  label="test36 \u2014 Chained USE [linux=]";
+  labelloc=t; fontname=Helvetica; fontsize=12;
+  graph [rankdir=LR];
+  node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+
+  app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
+  lib [label="lib-1.0"];
+  os [label="os-1.0"];
+
+  app -> lib [label="[linux=]"];
+  lib -> os [label="[linux=]"];
+}

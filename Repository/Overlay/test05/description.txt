@@ -1,6 +1,0 @@
-Testing simple dependency resolution with circular dependency detection. 
-
-Expected Outcome:
-
-The os package lists itself as both a compile and run-time dependency. 
-The prover should take an assumption while producing the plan, yielding a verify step in the proposed plan.

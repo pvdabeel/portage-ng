@@ -1,0 +1,13 @@
+digraph test50 {
+  label="test50 \u2014 Transitive RDEPEND";
+  labelloc=t; fontname=Helvetica; fontsize=12;
+  graph [rankdir=LR];
+  node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+
+  app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
+  bar [label="bar-1.0"];
+  foo [label="foo-1.0"];
+
+  app -> foo;
+  foo -> bar;
+}

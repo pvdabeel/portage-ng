@@ -1,0 +1,15 @@
+digraph test68 {
+  label="test68 \u2014 Multi-slot co-install";
+  labelloc=t; fontname=Helvetica; fontsize=12;
+  graph [rankdir=LR];
+  node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+
+  app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
+  lib_1_0 [label="lib-1.0"];
+  lib_2_0 [label="lib-2.0"];
+
+  app -> lib_1_0 [label=":1"];
+  app -> lib_2_0 [label=":1"];
+  app -> lib_1_0 [label=":2"];
+  app -> lib_2_0 [label=":2"];
+}

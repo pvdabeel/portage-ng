@@ -1,0 +1,19 @@
+[33m[00m[43mwarning[00m[33m[00m Package not found: test76/app[00m
+[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+The package `test76/app` appears to be a **non-existent test package**. 
+
+This looks like:
+1. A synthetic test case for portage-ng development/testing
+2. An incorrectly formatted package atom
+3. Or a typo where `test76` is not a valid Gentoo category
+
+**Valid Gentoo categories** don't include `test76`. Standard categories include things like `app-admin`, `dev-libs`, `sys-apps`, etc.
+
+**To resolve:**
+- If this is a test: The package simply doesn't exist in the Portage tree
+- If looking for a real package: Check the correct category (e.g., `app-misc/app`, `app-admin/app`)
+- Verify the package name is correct using `eix` or `emerge --search`
+
+The failure is expected since `test76/app` is not a valid Gentoo package atom in the standard Portage tree.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+[00m[00m

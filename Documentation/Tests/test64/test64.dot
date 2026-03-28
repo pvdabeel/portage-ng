@@ -1,0 +1,32 @@
+digraph test64 {
+  label="test64 \u2014 USE-conditional churn (openmp)";
+  labelloc=t; fontname=Helvetica; fontsize=12;
+  graph [rankdir=LR];
+  node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+
+  app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
+  cmake [label="cmake-1.0"];
+  g1 [label="||",shape=diamond,fillcolor=lightyellow,fontsize=9,width=0.4,height=0.4];
+  gnupg [label="gnupg-1.0"];
+  gpg [label="gpg-1.0"];
+  hwloc [label="hwloc-1.0"];
+  ninja [label="ninja-1.0"];
+  openmp [label="openmp-1.0"];
+  perl [label="perl-1.0"];
+  python [label="python-1.0"];
+
+  app -> openmp;
+  gnupg -> python [label="[python_single_target_python3_13]"];
+  gpg -> python [label="[python_single_target_python3_12]"];
+  openmp -> python [label="[python_single_target_python3_12]"];
+  openmp -> python [label="[python_single_target_python3_13]"];
+  openmp -> hwloc [label="hwloc?"];
+  openmp -> perl [label="BDEPEND",style="dotted"];
+  openmp -> ninja [label="BDEPEND",style="dotted"];
+  openmp -> cmake [label="BDEPEND",style="dotted"];
+  openmp -> g1;
+  g1 -> gpg [label="BDEPEND",style="dotted"];
+  g1 -> gnupg [label="BDEPEND",style="dotted"];
+  python -> openmp [label="[python_single_target_python3_13]"];
+  python -> openmp [label="[python_single_target_python3_12]"];
+}

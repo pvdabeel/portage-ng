@@ -1,0 +1,7 @@
+Test Case: test20
+
+What is being tested:
+This test case evaluates the prover's handling of an 'any-of' dependency group (||). The 'os-1.0' package requires that at least one of the three OS packages be installed.
+
+Expected Outcome:
+The prover should recognize the choice and select one of the available options to satisfy the dependency. Since there are no other constraints, any of the three choices should lead to a valid proof.

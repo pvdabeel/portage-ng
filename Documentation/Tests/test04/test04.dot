@@ -1,0 +1,19 @@
+digraph test04 {
+  label="test04 \u2014 Self-dependency (runtime)";
+  labelloc=t; fontname=Helvetica; fontsize=12;
+  graph [rankdir=LR];
+  node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+
+  app [label="app-1.0"];
+  db [label="db-1.0"];
+  os [label="os-1.0"];
+  web [label="web-1.0",fillcolor=lightcoral,fontcolor=white];
+
+  app -> os;
+  app -> db;
+  db -> os;
+  os -> os [color="red"];
+  web -> os;
+  web -> app;
+  web -> db;
+}

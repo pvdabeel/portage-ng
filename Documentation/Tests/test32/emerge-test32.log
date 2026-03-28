@@ -1,0 +1,16 @@
+
+These are the packages that would be merged, in order:
+
+Calculating dependencies  .
+
+!!! Problem resolving dependencies for test32/os
+... done!
+Dependency resolution took 0.53 s (backtrack: 0/20).
+
+
+!!! The ebuild selected to satisfy "test32/os" has unmet requirements.
+- test32/os-1.0::overlay USE="-darwin -linux"
+
+  The following REQUIRED_USE flag constraints are unsatisfied:
+    exactly-one-of ( linux darwin )
+

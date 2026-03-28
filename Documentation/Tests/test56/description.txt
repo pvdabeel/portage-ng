@@ -1,0 +1,7 @@
+Test Case: test56
+
+What is being tested:
+Multiple requirements should be combined. Only one version should be selected
+
+Expected Outcome:
+The constraints on the lib versions should be combined. Only one version should be selected, since there is only one slot to fill.

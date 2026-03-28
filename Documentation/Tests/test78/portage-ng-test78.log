@@ -1,0 +1,22 @@
+[33m[00m[43mwarning[00m[33m[00m Package not found: test78/web[00m
+[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+The package atom `test78/web` appears to be invalid. Here's what's wrong:
+
+**Issue**: `test78` is not a valid Gentoo package category in the standard Portage tree.
+
+**Possible causes**:
+1. **Typo in category name** - There is no `test78` category in Gentoo
+2. **Local overlay package** - This might be from a custom/local overlay that portage-ng cannot see
+3. **Test/dummy package** - The name suggests this might be a test package that doesn't actually exist
+
+**Suggestions**:
+- If you're looking for a web-related package, check valid categories like:
+  - `www-apps/` (web applications)
+  - `www-servers/` (web servers)
+  - `www-client/` (web browsers/clients)
+- Verify the package exists: `eix web` or check `/usr/portage/test78/`
+- If this is from a custom overlay, ensure portage-ng is configured to read that overlay's metadata
+
+The atom format is correct (`category/package`), but the category doesn't exist in standard Gentoo.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+[00m[00m

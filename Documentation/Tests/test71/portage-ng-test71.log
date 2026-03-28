@@ -1,0 +1,19 @@
+[33m[00m[43mwarning[00m[33m[00m Package not found: test71/web[00m
+[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+The package `test71/web` appears to be a **non-existent or test package**. 
+
+The category `test71` is not a standard Gentoo Portage category. This looks like:
+
+1. **A test/dummy package** used for debugging portage-ng itself
+2. **A typo** - you may have meant a real package like:
+   - `www-client/` or `www-servers/` category packages
+   - `net-libs/webkit-gtk` or similar web-related packages
+
+**To fix:**
+- If testing portage-ng, ensure test packages are in your local overlay
+- If looking for a real package, check standard categories like `www-*`, `net-*`, or `dev-*`
+- Verify the package exists: `eix web` or `emerge --search web`
+
+The "test71" category strongly suggests this is an intentional test case rather than a real package request.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+[00m[00m

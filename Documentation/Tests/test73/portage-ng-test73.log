@@ -1,0 +1,17 @@
+[33m[00m[43mwarning[00m[33m[00m Package not found: test73/app[00m
+[37m[03m--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+The package atom `test73/app` appears to be a non-existent or test package. 
+
+**Issues:**
+1. `test73` is not a valid Gentoo category in the standard Portage tree
+2. This looks like a placeholder/test atom rather than a real package
+
+**Suggestions:**
+- Verify the correct package name and category
+- Check if you meant a package from a valid category like `app-*`, `dev-*`, `sys-*`, etc.
+- If this is from an overlay, ensure the overlay is properly configured and the metadata cache is generated
+- Run `emerge --regen` or `egencache --update` if using a custom overlay
+
+Without more context about what application you're trying to install, I cannot suggest the correct atom. What software were you actually trying to install?
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+[00m[00m

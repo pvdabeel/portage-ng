@@ -1,0 +1,19 @@
+
+These are the packages that would be merged, in order:
+
+Calculating dependencies  ... done!
+Dependency resolution took 0.92 s (backtrack: 0/20).
+
+[ebuild  N     ] test52/os-1.0::overlay  USE="hardened threads" 0 KiB
+[ebuild  N     ] test52/liba-1.0::overlay  0 KiB
+[ebuild  N     ] test52/libb-1.0::overlay  0 KiB
+[ebuild  N     ] test52/app-1.0::overlay  0 KiB
+
+Total: 4 packages (4 new), Size of downloads: 0 KiB
+
+The following USE changes are necessary to proceed:
+ (see "package.use" in the portage(5) man page for more details)
+# required by test52/libb-1.0::overlay
+# required by test52/app-1.0::overlay
+# required by test52/app (argument)
+>=test52/os-1.0 hardened

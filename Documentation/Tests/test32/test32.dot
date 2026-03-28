@@ -1,0 +1,13 @@
+digraph test32 {
+  label="test32 \u2014 REQUIRED_USE ^^";
+  labelloc=t; fontname=Helvetica; fontsize=12;
+  graph [rankdir=LR];
+  node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+
+  darwin [label="darwin-1.0"];
+  linux [label="linux-1.0"];
+  os [label="os-1.0",fillcolor=lightcoral,fontcolor=white];
+
+  os -> linux [label="linux?"];
+  os -> darwin [label="darwin?"];
+}

@@ -1,0 +1,12 @@
+Test Case: test77
+
+What is being tested:
+This test case checks the depclean action. When run with :depclean, the prover
+should traverse the installed dependency graph starting from world targets and
+identify packages that are not reachable. The 'orphan-1.0' package is installed
+but nothing depends on it, making it a candidate for removal.
+
+Expected Outcome:
+The depclean analysis should identify orphan-1.0 as removable since it has no
+reverse dependencies in the installed package graph. app-1.0 and os-1.0 should
+be retained.

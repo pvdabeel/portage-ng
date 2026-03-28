@@ -1,0 +1,13 @@
+
+These are the packages that would be merged, in order:
+
+Calculating dependencies  .... done!
+Dependency resolution took 1.08 s (backtrack: 0/20).
+
+[ebuild  N     ] test26/linux-1.0::overlay  0 KiB
+[ebuild  N     ] test26/os-1.0::overlay  0 KiB
+[ebuild  N     ] test26/db-1.0::overlay  0 KiB
+[ebuild  N     ] test26/app-1.0::overlay  0 KiB
+[ebuild  N     ] test26/web-1.0::overlay  0 KiB
+
+Total: 5 packages (5 new), Size of downloads: 0 KiB

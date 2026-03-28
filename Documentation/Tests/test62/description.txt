@@ -1,0 +1,11 @@
+Test Case: test62
+
+What is being tested:
+This test case is a prover termination regression test for simple mutual dependency
+cycles without blockers, slots, or USE flags. It checks whether per-goal context
+growth (e.g. accumulating self() markers or slot information) can defeat cycle
+detection and cause backtracking until timeout.
+
+Expected Outcome:
+The prover should terminate quickly with a finite model/plan, or fail fast. It must
+not spin or backtrack indefinitely. A cycle-break assumption is expected.

@@ -1,0 +1,42 @@
+digraph test13 {
+  label="test13 \u2014 Pinpointed version =pkg-ver";
+  labelloc=t; fontname=Helvetica; fontsize=12;
+  graph [rankdir=LR];
+  node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+
+  app_1_0 [label="app-1.0"];
+  app_2_0 [label="app-2.0"];
+  db_1_0 [label="db-1.0"];
+  db_2_0 [label="db-2.0"];
+  os_1_0 [label="os-1.0"];
+  os_2_0 [label="os-2.0"];
+  web_1_0 [label="web-1.0"];
+  web_2_0 [label="web-2.0",fillcolor=lightcoral,fontcolor=white];
+
+  app_1_0 -> os_1_0;
+  app_1_0 -> os_2_0;
+  app_1_0 -> db_1_0 [label="="];
+  app_1_0 -> db_2_0 [label="="];
+  app_2_0 -> os_1_0;
+  app_2_0 -> os_2_0;
+  app_2_0 -> db_1_0 [label="="];
+  app_2_0 -> db_2_0 [label="="];
+  db_1_0 -> os_1_0;
+  db_1_0 -> os_2_0;
+  db_2_0 -> os_1_0;
+  db_2_0 -> os_2_0;
+  web_1_0 -> os_1_0 [label="="];
+  web_1_0 -> os_2_0 [label="="];
+  web_1_0 -> app_1_0 [label="="];
+  web_1_0 -> app_2_0 [label="="];
+  web_1_0 -> db_1_0 [label="="];
+  web_1_0 -> db_2_0 [label="="];
+  web_1_0 -> os_1_0;
+  web_1_0 -> os_2_0;
+  web_2_0 -> os_1_0;
+  web_2_0 -> os_2_0;
+  web_2_0 -> app_1_0 [label="="];
+  web_2_0 -> app_2_0 [label="="];
+  web_2_0 -> db_1_0 [label="="];
+  web_2_0 -> db_2_0 [label="="];
+}

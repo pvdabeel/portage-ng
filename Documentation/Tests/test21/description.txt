@@ -1,0 +1,7 @@
+Test Case: test21
+
+What is being tested:
+This is a variation of test20, with the 'any-of' dependency group in the runtime scope (RDEPEND).
+
+Expected Outcome:
+The prover should handle the runtime choice group correctly, select one of the OS options, and generate a valid proof.

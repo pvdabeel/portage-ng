@@ -1,0 +1,21 @@
+digraph test58 {
+  label="test58 \u2014 PROVIDE virtual (XFAIL)";
+  labelloc=t; fontname=Helvetica; fontsize=12;
+  graph [rankdir=LR];
+  node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+
+  app [label="app-1.0"];
+  db [label="db-1.0"];
+  linux [label="linux-1.0"];
+  os [label="os-1.0"];
+  virtualsdk [label="virtualsdk",style="rounded,dashed,filled",fillcolor=mistyrose];
+  web [label="web-1.0",fillcolor=lightcoral,fontcolor=white];
+
+  app -> os;
+  app -> db;
+  db -> os;
+  os -> virtualsdk;
+  web -> os;
+  web -> app;
+  web -> db;
+}

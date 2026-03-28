@@ -1,0 +1,12 @@
+
+These are the packages that would be merged, in order:
+
+Calculating dependencies  ... done!
+Dependency resolution took 0.91 s (backtrack: 0/20).
+
+[ebuild  N     ] test14/os-1.0::overlay  0 KiB
+[ebuild  N     ] test14/db-1.0::overlay  0 KiB
+[ebuild  N     ] test14/app-1.0::overlay  USE="-lib" 0 KiB
+[ebuild  N     ] test14/web-1.0::overlay  0 KiB
+
+Total: 4 packages (4 new), Size of downloads: 0 KiB
