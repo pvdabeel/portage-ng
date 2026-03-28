@@ -5,27 +5,17 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ useflag overlay://test49/libhelper-1.0 (feature_z)
+ └─step  1─┤ verify  test49/libhelper (unsatisfied constraints, assumed running)
+             │ download  overlay://test49/app-1.0
 
- └─step  2─┤ download  overlay://test49/app-1.0
-
- └─step  3─┤ run       overlay://test49/libhelper-1.0 (USE modified)
-
- └─step  4─┤ install   overlay://test49/app-1.0
+ └─step  2─┤ install   overlay://test49/app-1.0
              │           └─ conf ─┤ USE = "-feature_z"
 
- └─step  5─┤ run     overlay://test49/app-1.0
+ └─step  3─┤ run     overlay://test49/app-1.0
 
-Total: 5 actions (1 useflag, 1 download, 1 install, 2 runs), grouped into 5 steps.
+Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
        0.00 Kb to be downloaded.
 
-
-
->>> Assumptions taken during proving & planning:
-
-  USE flag change (1 package):
-  Add to /etc/portage/package.use:
-    test49/libhelper feature_z
 
 
 Error The proof for your build plan contains domain assumptions. Please verify:
@@ -33,7 +23,31 @@ Total: 5 actions (1 useflag, 1 download, 1 install, 2 runs), grouped into 5 step
 
 >>> Domain assumptions
 
-- Model unavailable: 
-  test49/libhelper — dependency model could not be built
-  (some dependencies may be missing from the tree or keyword-filtered)
+- REQUIRED_USE violation: 
+  test49/libhelper
+  USE deps force:   [feature_z]
+  violates: !feature_z
   required by: overlay://test49/app-1.0
+
+
+>>> Bug report drafts (Gentoo Bugzilla)
+
+---
+Summary: overlay://test49/app-1.0: unsatisfied_constraints dependency on test49/libhelper
+
+Affected package: overlay://test49/app-1.0
+Dependency: test49/libhelper
+Phases: [run]
+
+Unsatisfiable constraint(s):
+  test49/libhelper-
+
+Observed:
+  portage-ng reports no available candidate satisfies the above constraint(s).
+  Available versions in repo set (sample, first 1 of 1): [1.0]
+
+Potential fix (suggestion):
+  Review dependency metadata in overlay://test49/app-1.0; constraint set: [constraint(none,,[])].
+
+
+

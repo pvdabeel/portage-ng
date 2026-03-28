@@ -1,25 +1,17 @@
+warning Package not found: test47/web
+--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+The package atom **`test47/web`** is not a valid Gentoo package.
 
->>> Emerging : overlay://test47/api-docs-1.0:run?{[]}
+**Issues:**
+1. **`test47` is not a valid category** in the Gentoo Portage tree. Standard categories include `www-apps`, `www-servers`, `dev-python`, etc.
+2. **`web` is too generic** - no package with this simple name exists in that form.
 
-These are the packages that would be merged, in order:
+**Possible interpretations:**
+- If you're looking for a web server: `www-servers/nginx` or `www-servers/apache`
+- If you're looking for web frameworks: `dev-python/django`, `dev-python/flask`
+- If this is a custom/local package: Check your local overlay configuration
 
-Calculating dependencies... done!
+**Most likely cause:** This appears to be a test package name or a typo. The `test47` category suggests this might be from a testing scenario or custom overlay that isn't present in your Portage tree.
 
- └─step  1─┤ download  overlay://test47/app-server-1.0
-             │ download  overlay://test47/app-client-1.0
-             │ download  overlay://test47/api-docs-1.0
-
- └─step  2─┤ install   overlay://test47/app-server-1.0
-
- └─step  3─┤ run       overlay://test47/app-server-1.0
-
- └─step  4─┤ install   overlay://test47/api-docs-1.0
-
- └─step  5─┤ install   overlay://test47/app-client-1.0
-
- └─step  6─┤ run       overlay://test47/app-client-1.0
-
- └─step  7─┤ run     overlay://test47/api-docs-1.0
-
-Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
-       0.00 Kb to be downloaded.
+**Solution:** Verify the correct package atom or check if you need to add a custom overlay that contains this package.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------

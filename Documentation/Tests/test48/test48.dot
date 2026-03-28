@@ -1,5 +1,5 @@
 digraph test48 {
-  label=<<B>test48</B> — Slot conflict>;
+  label=<<B>test48</B> — Slot conflict (same slot, different versions)>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
@@ -8,11 +8,19 @@ digraph test48 {
   app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
   libgraphics [label="libgraphics-1.0"];
   libphysics [label="libphysics-1.0"];
-  libmatrix10 [label="libmatrix-1.0 :1/A"];
-  libmatrix11 [label="libmatrix-1.1 :1/B"];
 
-  app -> libgraphics;
-  app -> libphysics;
-  libgraphics -> libmatrix10 [label="=1.0 :1/A"];
-  libphysics -> libmatrix11 [label="=1.1 :1/B"];
+  subgraph cluster_libmatrix {
+    label=<<I>test48/libmatrix  (slot 1)</I>>;
+    style="dashed,rounded"; color=grey60; fontcolor=grey40; fontsize=9;
+    libmatrix10 [label="libmatrix-1.0\n:1/A"];
+    libmatrix11 [label="libmatrix-1.1\n:1/B"];
+  }
+
+  app -> libgraphics [label="RDEPEND"];
+  app -> libphysics  [label="RDEPEND"];
+  libgraphics -> libmatrix10 [label="=1.0:1/A"];
+  libphysics  -> libmatrix11 [label="=1.1:1/B"];
+
+  libmatrix10 -> libmatrix11 [style=dashed,color=red,
+    label="slot conflict",fontcolor=red,constraint=false];
 }

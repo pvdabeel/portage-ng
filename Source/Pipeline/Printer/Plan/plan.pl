@@ -64,8 +64,9 @@ plan:print(Target, ModelAVL, ProofAVL, Plan, Call, TriggersAVL) :-
       plan:print_header(TargetHeader),
       plan:collect_plan_pre_actions(ProofAVL, PreActions),
       plan:print_plan_pre_actions(PreActions, 0, PreSteps),
-      plan:print_body(TargetPrint, Plan, Call, PreSteps, Steps),
-      plan:print_footer(Plan, ModelAVL, Steps, PreActions),
+      plan:inject_cycle_break_verifies(ProofAVL, Plan, AugmentedPlan),
+      plan:print_body(TargetPrint, AugmentedPlan, Call, PreSteps, Steps),
+      plan:print_footer(AugmentedPlan, ModelAVL, Steps, PreActions),
       plan:print_scc_decomposition,
       warning:print_warnings(ModelAVL, ProofAVL, TriggersAVL),
       warning:print_use_changes(ProofAVL)
@@ -272,20 +273,25 @@ plan:printable_element(rule(_Repository://_Entry:downgrade?{_Context},Body)) :-
 plan:printable_element(rule(_Repository://_Entry:update?_,_)) :- !.
 plan:printable_element(rule(_Repository://_Entry:downgrade?_,_)) :- !.
 plan:printable_element(rule(_Repository://_Entry:upgrade?_,_)) :- !.
-% Prover cycle-break rules (`assumed(rule(...))`) are printed in the warnings
-% section with cycle explanations. Do not print them as "verify" steps.
-plan:printable_element(assumed(rule(_,_))) :- !, fail.
+% Domain assumptions (rule(assumed(X))) — printable as verify steps.
 plan:printable_element(rule(assumed(_Repository://_Entry:_?_,_))) :- !.
-plan:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_):install?_,_))) :- !.
-plan:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_):run?_,_))) :- !.
 plan:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_):install?_,_))) :- !.
 plan:printable_element(rule(assumed(package_dependency(_,_,_,_,_,_,_,_):run?_,_))) :- !.
+plan:printable_element(rule(assumed(grouped_package_dependency(_,_,_):install?_),_)) :- !.
+plan:printable_element(rule(assumed(grouped_package_dependency(_,_,_):run?_),_)) :- !.
+% Prover cycle-break assumptions (assumed(rule(X))) — entry-rule and
+% dependency-level cycle-breaks show as verify steps in the plan.
+plan:printable_element(assumed(rule(_Repository://_Entry:install?_,_))) :- !.
+plan:printable_element(assumed(rule(_Repository://_Entry:run?_,_))) :- !.
+plan:printable_element(assumed(rule(_Repository://_Entry:fetchonly?_,_))) :- !.
+plan:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_):install?_,_))) :- !.
+plan:printable_element(assumed(rule(package_dependency(_,_,_,_,_,_,_,_):run?_,_))) :- !.
 plan:printable_element(assumed(rule(grouped_package_dependency(_,_,_,_):install?_,_))) :- !. % todo: phase out
 plan:printable_element(assumed(rule(grouped_package_dependency(_,_,_,_):run?_,_))) :- !. % todo: phase out
 plan:printable_element(assumed(rule(grouped_package_dependency(_,_,_):install?_,_))) :- !.
 plan:printable_element(assumed(rule(grouped_package_dependency(_,_,_):run?_,_))) :- !.
-plan:printable_element(rule(assumed(grouped_package_dependency(_,_,_):install?_),_)) :- !.
-plan:printable_element(rule(assumed(grouped_package_dependency(_,_,_):run?_),_)) :- !.
+% Suppress any remaining cycle-break types from plan display.
+plan:printable_element(assumed(rule(_,_))) :- !, fail.
 
 % Suppress assumed dependency verifies when a concrete ebuild for the same
 % package is already scheduled in the plan.
@@ -2084,6 +2090,28 @@ plan:collect_plan_pre_actions(ProofAVL, PreActions) :-
   append(Unmasks, Keywords, PreActions0),
   append(PreActions0, UseChanges, PreActions).
 
+
+%! plan:inject_cycle_break_verifies(+ProofAVL, +Plan, -AugmentedPlan)
+%
+% Collects prover cycle-break assumptions from the proof and injects
+% synthetic verify elements into the first plan step.
+
+plan:inject_cycle_break_verifies(ProofAVL, Plan, AugmentedPlan) :-
+  findall(CanonRule,
+          ( assoc:gen_assoc(assumed(rule(Lit)), ProofAVL, Value),
+            prover:canon_rule(CanonRule, assumed(rule(Lit)), Value)
+          ),
+          CycleBreaks0),
+  sort(CycleBreaks0, CycleBreaks),
+  ( CycleBreaks == []
+  -> AugmentedPlan = Plan
+  ; Plan = [FirstStep|RestSteps]
+  -> append(CycleBreaks, FirstStep, NewFirstStep),
+     AugmentedPlan = [NewFirstStep|RestSteps]
+  ; AugmentedPlan = [CycleBreaks|Plan]
+  ).
+
+
 %! plan:print_plan_pre_actions(+PreActions, +StepIn, -StepOut)
 %
 % Prints pre-plan actions (unmask, keyword acceptance) as steps.
@@ -2409,10 +2437,10 @@ plan:footer_stats_from_plan(Plan, Stats) :-
 plan:footer_stats_from_step(Step, S0, S) :-
   foldl(plan:footer_stats_from_rule, Step, S0, S).
 
+plan:footer_stats_from_rule(assumed(rule(_, _)), S, S) :- !.
 plan:footer_stats_from_rule(Rule0, S0, S) :-
   ( Rule0 = rule(HeadWithCtx, _Body)
   ; Rule0 = rule(assumed(HeadWithCtx), _Body)
-  ; Rule0 = assumed(rule(HeadWithCtx, _Body))
   ),
   !,
   prover:canon_literal(HeadWithCtx, Head, _Ctx),

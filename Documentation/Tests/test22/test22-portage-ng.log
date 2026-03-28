@@ -1,12 +1,11 @@
 
->>> Emerging : overlay://test22/web-1.0:run?{[]}
+>>> Emerging : overlay://test22/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ download  overlay://test22/web-1.0
-             │ download  overlay://test22/os-1.0
+ └─step  1─┤ download  overlay://test22/os-1.0
              │ download  overlay://test22/linux-1.0
              │ download  overlay://test22/db-1.0
              │ download  overlay://test22/app-1.0
@@ -25,11 +24,9 @@ Calculating dependencies... done!
 
  └─step  8─┤ install   overlay://test22/app-1.0
 
- └─step  9─┤ run       overlay://test22/app-1.0
+ └─step  9─┤ run     overlay://test22/app-1.0
 
- └─step 10─┤ install   overlay://test22/web-1.0
-
- └─step 11─┤ run     overlay://test22/web-1.0
-
-Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 11 steps.
+Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+

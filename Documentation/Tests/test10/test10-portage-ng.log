@@ -1,16 +1,19 @@
 
->>> Emerging : overlay://test10/os-1.0:run?{[]}
+>>> Emerging : overlay://test10/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  test10/notexists (non-existent, assumed running)
-             │ download  overlay://test10/os-1.0
+ └─step  1─┤ verify  test10/os (unsatisfied constraints, assumed running)
+             │ verify  test10/os (unsatisfied constraints, assumed installed)
+             │ verify  test10/db (unsatisfied constraints, assumed running)
+             │ verify  test10/app (unsatisfied constraints, assumed running)
+             │ download  overlay://test10/web-1.0
 
- └─step  2─┤ install   overlay://test10/os-1.0
+ └─step  2─┤ install   overlay://test10/web-1.0
 
- └─step  3─┤ run     overlay://test10/os-1.0
+ └─step  3─┤ run     overlay://test10/web-1.0
 
 Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
        0.00 Kb to be downloaded.
@@ -22,26 +25,79 @@ Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
 
 >>> Domain assumptions
 
-- Missing run dependency: 
-  test10/notexists
+- Unsatisfied constraints for run dependency: 
+  test10/app
 
-  required by: overlay://test10/os-1.0
+  required by: overlay://test10/web-1.0
+
+- Unsatisfied constraints for run dependency: 
+  test10/db
+
+  required by: overlay://test10/web-1.0
+
+- Unsatisfied constraints for install dependency: 
+  test10/os
+
+  required by: overlay://test10/web-1.0
+
+- Unsatisfied constraints for run dependency: 
+  test10/os
+
+  required by: overlay://test10/web-1.0
 
 
 >>> Bug report drafts (Gentoo Bugzilla)
 
 ---
-Summary: overlay://test10/os-1.0: missing dependency on test10/notexists
+Summary: overlay://test10/web-1.0: unsatisfied_constraints dependency on test10/app
 
-Affected package: overlay://test10/os-1.0
-Dependency: test10/notexists
+Affected package: overlay://test10/web-1.0
+Dependency: test10/app
 Phases: [run]
 
 Unsatisfiable constraint(s):
-  test10/notexists-
+  test10/app-
 
 Observed:
   portage-ng reports no available candidate satisfies the above constraint(s).
+  Available versions in repo set (sample, first 1 of 1): [1.0]
 
 Potential fix (suggestion):
-  Review dependency metadata in overlay://test10/os-1.0; constraint set: [constraint(none,,[])].
+  Review dependency metadata in overlay://test10/web-1.0; constraint set: [constraint(none,,[])].
+
+---
+Summary: overlay://test10/web-1.0: unsatisfied_constraints dependency on test10/db
+
+Affected package: overlay://test10/web-1.0
+Dependency: test10/db
+Phases: [run]
+
+Unsatisfiable constraint(s):
+  test10/db-
+
+Observed:
+  portage-ng reports no available candidate satisfies the above constraint(s).
+  Available versions in repo set (sample, first 1 of 1): [1.0]
+
+Potential fix (suggestion):
+  Review dependency metadata in overlay://test10/web-1.0; constraint set: [constraint(none,,[])].
+
+---
+Summary: overlay://test10/web-1.0: unsatisfied_constraints dependency on test10/os
+
+Affected package: overlay://test10/web-1.0
+Dependency: test10/os
+Phases: [install,run]
+
+Unsatisfiable constraint(s):
+  test10/os-
+
+Observed:
+  portage-ng reports no available candidate satisfies the above constraint(s).
+  Available versions in repo set (sample, first 1 of 1): [1.0]
+
+Potential fix (suggestion):
+  Review dependency metadata in overlay://test10/web-1.0; constraint set: [constraint(none,,[])].
+
+
+

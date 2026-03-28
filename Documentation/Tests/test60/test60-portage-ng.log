@@ -1,14 +1,12 @@
 
->>> Emerging : overlay://test60/web-1.0:run?{[]}
+>>> Emerging : overlay://test60/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
  └─step  1─┤ download  overlay://test60/windows-1.0
-             │ download  overlay://test60/web-1.0
              │ download  overlay://test60/os-1.0
-             │ download  overlay://test60/db-1.0
              │ download  overlay://test60/app-1.0
 
  └─step  2─┤ install   overlay://test60/windows-1.0
@@ -20,16 +18,10 @@ Calculating dependencies... done!
  └─step  5─┤ run       overlay://test60/os-1.0
 
  └─step  6─┤ install   overlay://test60/app-1.0
-             │ install   overlay://test60/db-1.0
 
- └─step  7─┤ run       overlay://test60/db-1.0
-             │ run       overlay://test60/app-1.0
+ └─step  7─┤ run     overlay://test60/app-1.0
 
- └─step  8─┤ install   overlay://test60/web-1.0
-
- └─step  9─┤ run     overlay://test60/web-1.0
-
-Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 9 steps.
+Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
        0.00 Kb to be downloaded.
 
 
@@ -37,3 +29,6 @@ Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 9 steps.
 >>> Blockers added during proving & planning:
 
   [blocks B] !<test60/windows-2.0 (soft blocker, phase: run, required by: overlay://test60/app-1.0)
+
+
+

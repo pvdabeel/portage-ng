@@ -1,25 +1,18 @@
+warning Package not found: test40/app
+--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+The package `test40/app` doesn't exist in the Gentoo Portage tree. This appears to be:
 
->>> Emerging : overlay://test40/os-1.0:run?{[]}
+1. **A test/example package name** - The "test40" category is not a valid Gentoo category
+2. **Likely from a test suite or documentation** - Used to demonstrate portage-ng functionality
 
-These are the packages that would be merged, in order:
+**What's wrong:**
+- Invalid category name (`test40/` is not in the standard Gentoo tree)
+- No such package exists
 
-Calculating dependencies... done!
+**To fix:**
+- If this is from a tutorial/test, you may need to create a local overlay with this test package
+- If you meant a real package, provide the actual package name (e.g., `app-editors/vim`)
+- Check if portage-ng requires specific test packages to be set up in a local repository
 
- └─step  1─┤ useflag overlay://test40/os-1.0 (darwin)
-
- └─step  2─┤ download  overlay://test40/os-1.0
-
- └─step  3─┤ install   overlay://test40/os-1.0 (USE modified)
-             │           └─ conf ─┤ USE = "darwin -linux"
-
- └─step  4─┤ run     overlay://test40/os-1.0
-
-Total: 4 actions (1 useflag, 1 download, 1 install, 1 run), grouped into 4 steps.
-       0.00 Kb to be downloaded.
-
-
->>> Assumptions taken during proving & planning:
-
-  USE flag change (1 package):
-  Add to /etc/portage/package.use:
-    test40/os darwin
+This looks like a placeholder/test atom rather than a real package request.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------

@@ -497,11 +497,11 @@ config:print_prover_cycles(false).
 %! config:print_prover_cycles_style(?Style)
 %
 % Display style for the cycle breaks section:
-%   - `off`      : do not print cycle breaks section (default)
-%   - `flat`     : one cycle break per line, compact list
+%   - `off`      : do not print cycle breaks section
+%   - `flat`     : one cycle break per line, compact list (default)
 %   - `detailed` : each cycle break on two lines with "- Cycle break:" header
 
-config:print_prover_cycles_style(off).
+config:print_prover_cycles_style(flat).
 
 
 %! config:print_prover_cycles_max_total(?N)

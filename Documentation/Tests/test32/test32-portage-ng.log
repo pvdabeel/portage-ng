@@ -1,25 +1,20 @@
+warning Package not found: test32/app
+--- claude-sonnet-4-5 ------------------------------------------------------------------------------------------------------------------------------------------
+The package atom `test32/app` appears to be **invalid/non-existent**. 
 
->>> Emerging : overlay://test32/os-1.0:run?{[]}
+**Issues:**
+1. **`test32/` is not a valid Gentoo category** - Standard Gentoo categories include things like `app-editors`, `sys-apps`, `dev-libs`, etc., not `test32`
+2. This looks like a **test/dummy package name** rather than a real package
 
-These are the packages that would be merged, in order:
+**Possible explanations:**
+- It's a **typo** or placeholder name
+- It's from a **custom overlay** that isn't configured
+- It's a **test case** for portage-ng development
 
-Calculating dependencies... done!
+**What to check:**
+- Verify the correct package name with `eix <package>` or `emerge --search <name>`
+- If it's meant to be from an overlay, ensure the overlay is added to `/etc/portage/repos.conf/`
+- Check if you meant a real package like `app-*/<something>`
 
- └─step  1─┤ useflag overlay://test32/os-1.0 (darwin)
-
- └─step  2─┤ download  overlay://test32/os-1.0
-
- └─step  3─┤ install   overlay://test32/os-1.0 (USE modified)
-             │           └─ conf ─┤ USE = "darwin -linux"
-
- └─step  4─┤ run     overlay://test32/os-1.0
-
-Total: 4 actions (1 useflag, 1 download, 1 install, 1 run), grouped into 4 steps.
-       0.00 Kb to be downloaded.
-
-
->>> Assumptions taken during proving & planning:
-
-  USE flag change (1 package):
-  Add to /etc/portage/package.use:
-    test32/os darwin
+What package were you actually trying to install?
+----------------------------------------------------------------------------------------------------------------------------------------------------------------

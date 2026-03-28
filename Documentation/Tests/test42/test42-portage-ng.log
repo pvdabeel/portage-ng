@@ -9,6 +9,7 @@ Calculating dependencies... done!
              │ download  overlay://test42/app-1.0
 
  └─step  2─┤ install   overlay://test42/lib-2.0
+             │           └─ conf ─┤ SLOT = "2"
 
  └─step  3─┤ run       overlay://test42/lib-2.0
 
@@ -18,3 +19,5 @@ Calculating dependencies... done!
 
 Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
+
+

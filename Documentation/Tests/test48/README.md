@@ -64,29 +64,30 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  test48/libphysics (unsatisfied constraints, assumed running)
+ └─step  1─┤ verify  test48/libphysics (unsatisfied constraints, assumed running)
              │ download  overlay://test48/libmatrix-1.0
              │ download  overlay://test48/libgraphics-1.0
              │ download  overlay://test48/app-1.0
 
- └─step  2─┤ install   overlay://test48/libmatrix-1.0
+ └─step  2─┤ install   overlay://test48/libmatrix-1.0
+             │           └─ conf ─┤ SLOT = "1/A"
 
- └─step  3─┤ run       overlay://test48/libmatrix-1.0
+ └─step  3─┤ run       overlay://test48/libmatrix-1.0
 
- └─step  4─┤ install   overlay://test48/libgraphics-1.0
+ └─step  4─┤ install   overlay://test48/libgraphics-1.0
 
- └─step  5─┤ run       overlay://test48/libgraphics-1.0
+ └─step  5─┤ run       overlay://test48/libgraphics-1.0
 
- └─step  6─┤ install   overlay://test48/app-1.0
+ └─step  6─┤ install   overlay://test48/app-1.0
 
- └─step  7─┤ run     overlay://test48/app-1.0
+ └─step  7─┤ run     overlay://test48/app-1.0
 
 Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
        0.00 Kb to be downloaded.
 
 
 
-Error The proof for your build plan contains domain assumptions. Please verify:
+Error The proof for your build plan contains domain assumptions. Please verify:
 
 
 >>> Domain assumptions
@@ -95,26 +96,6 @@ Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
   test48/libphysics
 
   required by: overlay://test48/app-1.0
-
-
->>> Bug report drafts (Gentoo Bugzilla)
-
----
-Summary: overlay://test48/app-1.0: unsatisfied_constraints dependency on test48/libphysics
-
-Affected package: overlay://test48/app-1.0
-Dependency: test48/libphysics
-Phases: [run]
-
-Unsatisfiable constraint(s):
-  test48/libphysics-
-
-Observed:
-  portage-ng reports no available candidate satisfies the above constraint(s).
-  Available versions in repo set (sample, first 1 of 1): [1.0]
-
-Potential fix (suggestion):
-  Review dependency metadata in overlay://test48/app-1.0; constraint set: [constraint(none,,[])].
 ```
 
 </details>
