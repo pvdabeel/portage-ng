@@ -1,16 +1,14 @@
 
-[93m>>> Emerging : overlay://test71/web-1.0:fetchonly?{[]}
-[00m
-[32mThese are the packages that would be merged, in order:
+>>> Emerging : overlay://test71/web-1.0:fetchonly?{[]}
 
-[00mCalculating dependencies... done!
+These are the packages that would be merged, in order:
 
- └─[90m[00m[100mstep  1[00m[90m[00m─┤ [36mdownload[32m  overlay://test71/web-1.0[00m
-             │ [36mdownload[32m  overlay://test71/os-1.0[00m
-             │ [36mdownload[32m  overlay://test71/db-1.0[00m
-             │ [36mdownload[32m  overlay://test71/app-1.0[00m
+Calculating dependencies... done!
+
+ └─step  1─┤ download  overlay://test71/web-1.0
+             │ download  overlay://test71/os-1.0
+             │ download  overlay://test71/db-1.0
+             │ download  overlay://test71/app-1.0
 
 Total: 4 actions (4 downloads), grouped into 1 step.
        0.00 Kb to be downloaded.
-
-

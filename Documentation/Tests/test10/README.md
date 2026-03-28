@@ -75,9 +75,6 @@ Observed:
 
 Potential fix (suggestion):
   Review dependency metadata in overlay://test10/os-1.0; constraint set: [constraint(none,,[])].
-
-
-
 ```
 
 </details>

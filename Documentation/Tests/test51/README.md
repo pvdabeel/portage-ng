@@ -67,7 +67,6 @@ Total: 6 actions (1 useflag, 2 downloads, 2 installs, 1 run), grouped into 5 ste
   USE flag change (1 package):
   Add to /etc/portage/package.use:
     test51/os linux
-
 ```
 
 </details>

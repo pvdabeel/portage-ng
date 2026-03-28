@@ -1,31 +1,29 @@
 
-[93m>>> Emerging : overlay://test64/app-1.0:run?{[]}
-[00m
-[32mThese are the packages that would be merged, in order:
+>>> Emerging : overlay://test64/app-1.0:run?{[]}
 
-[00mCalculating dependencies... done!
+These are the packages that would be merged, in order:
 
- └─[90m[00m[100mstep  1[00m[90m[00m─┤ [36mdownload[32m  overlay://test64/perl-1.0[00m
-             │ [36mdownload[32m  overlay://test64/openmp-1.0[00m
-             │ [36mdownload[32m  overlay://test64/ninja-1.0[00m
-             │ [36mdownload[32m  overlay://test64/cmake-1.0[00m
-             │ [36mdownload[32m  overlay://test64/app-1.0[00m
+Calculating dependencies... done!
 
- └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36minstall[32m   overlay://test64/cmake-1.0[00m
-             │ [36minstall[32m   overlay://test64/ninja-1.0[00m
-             │ [36minstall[32m   overlay://test64/perl-1.0[00m
+ └─step  1─┤ download  overlay://test64/perl-1.0
+             │ download  overlay://test64/openmp-1.0
+             │ download  overlay://test64/ninja-1.0
+             │ download  overlay://test64/cmake-1.0
+             │ download  overlay://test64/app-1.0
 
- └─[90m[00m[100mstep  3[00m[90m[00m─┤ [36minstall[32m   overlay://test64/openmp-1.0[00m
-             │           [90m└─ conf ─┤ [00m[90m[00m[100mUSE[00m[90m[00m = "[90m[03m-gdb-plugin[00m [90m[03m-hwloc[00m [90m[03m-test[00m [90m[03m-verify-sig[00m"
-             │          [90m          │ [00m[90m[00m[100mPYTHON_SINGLE_TARGET[00m[90m[00m = "[31m[01mpython3_13[00m [90m[03m-python3_12[00m"
+ └─step  2─┤ install   overlay://test64/cmake-1.0
+             │ install   overlay://test64/ninja-1.0
+             │ install   overlay://test64/perl-1.0
 
- └─[90m[00m[100mstep  4[00m[90m[00m─┤ [36mrun[32m       overlay://test64/openmp-1.0[00m
+ └─step  3─┤ install   overlay://test64/openmp-1.0
+             │           └─ conf ─┤ USE = "-gdb-plugin -hwloc -test -verify-sig"
+             │                    │ PYTHON_SINGLE_TARGET = "python3_13 -python3_12"
 
- └─[90m[00m[100mstep  5[00m[90m[00m─┤ [36minstall[32m   overlay://test64/app-1.0[00m
+ └─step  4─┤ run       overlay://test64/openmp-1.0
 
- └─[90m[00m[100mstep  6[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test64/app-1.0[00m[00m
+ └─step  5─┤ install   overlay://test64/app-1.0
+
+ └─step  6─┤ run     overlay://test64/app-1.0
 
 Total: 12 actions (5 downloads, 5 installs, 2 runs), grouped into 6 steps.
        0.00 Kb to be downloaded.
-
-

@@ -84,9 +84,6 @@ Total: 20 actions (2 useflags, 6 downloads, 6 installs, 6 runs), grouped into 10
   Add to /etc/portage/package.use:
     test46/core-utils feature_x
     test46/core-utils feature_x feature_y
-
-
-
 ```
 
 </details>

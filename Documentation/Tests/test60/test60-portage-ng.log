@@ -1,42 +1,39 @@
 
-[93m>>> Emerging : overlay://test60/web-1.0:run?{[]}
-[00m
-[32mThese are the packages that would be merged, in order:
+>>> Emerging : overlay://test60/web-1.0:run?{[]}
 
-[00mCalculating dependencies... done!
+These are the packages that would be merged, in order:
 
- └─[90m[00m[100mstep  1[00m[90m[00m─┤ [36mdownload[32m  overlay://test60/windows-1.0[00m
-             │ [36mdownload[32m  overlay://test60/web-1.0[00m
-             │ [36mdownload[32m  overlay://test60/os-1.0[00m
-             │ [36mdownload[32m  overlay://test60/db-1.0[00m
-             │ [36mdownload[32m  overlay://test60/app-1.0[00m
+Calculating dependencies... done!
 
- └─[90m[00m[100mstep  2[00m[90m[00m─┤ [36minstall[32m   overlay://test60/windows-1.0[00m
+ └─step  1─┤ download  overlay://test60/windows-1.0
+             │ download  overlay://test60/web-1.0
+             │ download  overlay://test60/os-1.0
+             │ download  overlay://test60/db-1.0
+             │ download  overlay://test60/app-1.0
 
- └─[90m[00m[100mstep  3[00m[90m[00m─┤ [36mrun[32m       overlay://test60/windows-1.0[37m ([91mblocked[37m: [91msoft[37m by [32mtest60/app[37m)[00m[00m
+ └─step  2─┤ install   overlay://test60/windows-1.0
 
- └─[90m[00m[100mstep  4[00m[90m[00m─┤ [36minstall[32m   overlay://test60/os-1.0[00m
+ └─step  3─┤ run       overlay://test60/windows-1.0 (blocked: soft by test60/app)
 
- └─[90m[00m[100mstep  5[00m[90m[00m─┤ [36mrun[32m       overlay://test60/os-1.0[00m
+ └─step  4─┤ install   overlay://test60/os-1.0
 
- └─[90m[00m[100mstep  6[00m[90m[00m─┤ [36minstall[32m   overlay://test60/app-1.0[00m
-             │ [36minstall[32m   overlay://test60/db-1.0[00m
+ └─step  5─┤ run       overlay://test60/os-1.0
 
- └─[90m[00m[100mstep  7[00m[90m[00m─┤ [36mrun[32m       overlay://test60/db-1.0[00m
-             │ [36mrun[32m       overlay://test60/app-1.0[00m
+ └─step  6─┤ install   overlay://test60/app-1.0
+             │ install   overlay://test60/db-1.0
 
- └─[90m[00m[100mstep  8[00m[90m[00m─┤ [36minstall[32m   overlay://test60/web-1.0[00m
+ └─step  7─┤ run       overlay://test60/db-1.0
+             │ run       overlay://test60/app-1.0
 
- └─[90m[00m[100mstep  9[00m[90m[00m─┤ [32m[00m[42mrun[00m[32m[00m[01m[32m     overlay://test60/web-1.0[00m[00m
+ └─step  8─┤ install   overlay://test60/web-1.0
+
+ └─step  9─┤ run     overlay://test60/web-1.0
 
 Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
 
 
 
-[93m>>> Blockers added during proving & planning:[00m
+>>> Blockers added during proving & planning:
 
-[90m  [blocks B] !<test60/windows-2.0 (soft blocker, phase: run, required by: overlay://test60/app-1.0)
-[00m
-
-[00m
+  [blocks B] !<test60/windows-2.0 (soft blocker, phase: run, required by: overlay://test60/app-1.0)

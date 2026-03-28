@@ -72,7 +72,6 @@ Total: 8 actions (2 useflags, 2 downloads, 2 installs, 2 runs), grouped into 6 s
   Add to /etc/portage/package.use:
     test49/libhelper feature_z -feature_z
     test49/libhelper feature_z
-
 ```
 
 </details>
