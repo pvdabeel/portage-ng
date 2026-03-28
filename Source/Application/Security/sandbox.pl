@@ -216,9 +216,11 @@ sandbox:safe_primitive(message:print_bytes(_)).
 
 sandbox:safe_primitive(preference:use(_)).
 sandbox:safe_primitive(preference:accept_keywords(_)).
+sandbox:safe_primitive(preference:package_keyword_accepted(_,_,_)).
 sandbox:safe_primitive(preference:masked(_)).
 sandbox:safe_primitive(preference:flag(_)).
 sandbox:safe_primitive(preference:set(_,_)).
+sandbox:safe_primitive(preference:world_entry(_)).
 
 % -----------------------------------------------------------------------------
 %  Portage configuration

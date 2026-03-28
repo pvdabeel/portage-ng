@@ -2189,7 +2189,11 @@ eapi:substitute_sets([],[]) :- !.
 
 eapi:substitute_sets([world|Tail],Result) :-
   !,
-  findall(E,world::entry(E),WorldTargets),
+  ( pengine_self(M) ->
+      findall(E, M:world_entry(E), WorldTargets)
+  ; findall(E, ( preference:world_entry(E) ; world::entry(E) ), WorldTargets0),
+    sort(WorldTargets0, WorldTargets)
+  ),
   findall(Cat/Name, preference:system_pkg(Cat, Name), SystemPairs),
   maplist([C/N, T]>>(atomic_list_concat([C, '/', N], T)), SystemPairs, SystemTargets0),
   sort(SystemTargets0, SystemTargets),

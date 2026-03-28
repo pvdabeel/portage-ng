@@ -162,6 +162,7 @@ config:gentoo_env('INPUT_DEVICES', 'evdev keyboard mouse vmmouse').
 config:gentoo_env('ALSA_CARDS', 'ens1371').
 config:gentoo_env('CPU_FLAGS_X86', 'aes avx avx2 avx512f avx512dq avx512cd avx512bw avx512vl f16c fma3 mmx mmxext pclmul popcnt rdrand sse sse2 sse3 sse4_1 sse4_2 ssse3').
 config:gentoo_env('PERL_FEATURES', 'ithreads').
+config:gentoo_env('RUBY_TARGETS', 'ruby32 ruby33').
 config:gentoo_env('ACCEPT_KEYWORDS', '~amd64').
 config:gentoo_env('ACCEPT_LICENSE', '-* @FREE').
 
@@ -221,6 +222,16 @@ config:world_file(Filename) :-
   config:installation_dir(Dir),
   config:hostname(Hostname),
   os:compose_path([Dir,'Source/Knowledge/Sets/world',Hostname],Filename).
+
+
+%! config:set_dir(-Dir)
+%
+% Directory containing named set files (one entry per line).
+% Each file @Name becomes a preference:set('@Name', Entries) fact.
+
+config:set_dir(Dir) :-
+  config:installation_dir(Base),
+  os:compose_path([Base, 'Source/Knowledge/Sets'], Dir).
 
 
 % -----------------------------------------------------------------------------
@@ -833,6 +844,19 @@ config:printing_tty_size(80,160).
 % Defines whether we print information that is normally not printed
 
 config:print_expand_use(false).
+
+
+%! config:use_expand_hidden(?Prefix) is nondet.
+%
+% USE_EXPAND prefixes hidden from printer output.
+
+config:use_expand_hidden('abi_mips').
+config:use_expand_hidden('abi_ppc').
+config:use_expand_hidden('abi_riscv').
+config:use_expand_hidden('abi_s390').
+config:use_expand_hidden('abi_x86').
+config:use_expand_hidden('cpu_flags_arm').
+config:use_expand_hidden('cpu_flags_ppc').
 
 
 %! config:printable_metadata(?List)

@@ -1166,7 +1166,7 @@ plan:is_use_expand_flag(UseFlag) :-
 
 plan:group_use_expand_flags(UseExpandFlags, ExpandKey, ExpandFlags, Repository://Entry) :-
   eapi:use_expand(ExpandKey),
-  \+ preference:use_expand_hidden(ExpandKey),
+  \+ config:use_expand_hidden(ExpandKey),
   findall(UseFlag,
           (member(UseFlag, UseExpandFlags),
            eapi:check_prefix_atom(ExpandKey, UseFlag)),

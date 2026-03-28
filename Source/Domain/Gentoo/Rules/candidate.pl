@@ -2049,7 +2049,20 @@ rdepend_collect_vbounds_for_cn_choice_intersection_([Dep|Deps], C, N, SelfRepoEn
 license_masked(Repo://Entry) :-
   effective_license(Repo://Entry, Lic),
   \+ preference:license_accepted(Lic),
+  \+ candidate:package_license_accepted(Repo://Entry, Lic),
   !.
+
+
+%! candidate:package_license_accepted(+RepoEntry, +License) is semidet.
+%
+% True if License is accepted for RepoEntry via a per-package override
+% in /etc/portage/package.license (loaded into gentoo:package_license_entry/2).
+
+candidate:package_license_accepted(Repo://Entry, Lic) :-
+  current_predicate(gentoo:package_license_entry/2),
+  query:search([category(C), name(N)], Repo://Entry),
+  atomic_list_concat([C, N], '/', CatPkg),
+  gentoo:package_license_entry(CatPkg, Lic).
 
 %! candidate:effective_license(+RepoEntry, -License)
 %
@@ -2099,7 +2112,9 @@ dep_license_ok(_).
 accepted_keyword_candidate(Action, C, N, SlotReq0, Ss0, Context, FoundRepo://Candidate) :-
   accepted_keyword_slot_lock_arg(C, N, SlotReq0, Ss0, Context, SlotReq, Ss, LockKey),
   ( preference:keyword_selection_mode(keyword_order) ->
-      preference:accept_keywords(K),
+      ( preference:accept_keywords(K)
+      ; candidate:package_keyword_entry(C, N, K)
+      ),
       query_keyword_candidate(Action, C, N, K, Context, FoundRepo://Candidate),
       query_search_slot_constraint(SlotReq, FoundRepo://Candidate, Ss)
   ; ( Action \== run,
@@ -2107,7 +2122,9 @@ accepted_keyword_candidate(Action, C, N, SlotReq0, Ss0, Context, FoundRepo://Can
       query:search([category(C),name(N)], SelfRepo0://SelfEntry0)
     ->
       findall(FoundRepo0://Candidate0,
-              ( preference:accept_keywords(K0),
+              ( ( preference:accept_keywords(K0)
+                ; candidate:package_keyword_entry(C, N, K0)
+                ),
                 query_keyword_candidate(Action, C, N, K0, Context, FoundRepo0://Candidate0),
                 query_search_slot_constraint(SlotReq, FoundRepo0://Candidate0, Ss)
               ),
@@ -2261,7 +2278,9 @@ accepted_keyword_candidates_cached(Action, C, N, SlotReq, LockKey, CandidatesSor
   ;
     accepted_keyword_slot_lock_filter(SlotReq, LockKey, SsFilter),
     findall(FoundRepo0://Candidate0,
-            ( preference:accept_keywords(K0),
+            ( ( preference:accept_keywords(K0)
+              ; candidate:package_keyword_entry(C, N, K0)
+              ),
               query_keyword_candidate(Action, C, N, K0, [], FoundRepo0://Candidate0),
               query_search_slot_constraint(SlotReq, FoundRepo0://Candidate0, SsFilter)
             ),
@@ -2271,6 +2290,22 @@ accepted_keyword_candidates_cached(Action, C, N, SlotReq, LockKey, CandidatesSor
     predsort(candidate:compare_candidate_version_desc, Candidates1, CandidatesSorted),
     assertz(memo:keyword_cache_(Action, C, N, SlotReq, LockKey, CandidatesSorted))
   ).
+
+
+%! candidate:package_keyword_entry(+C, +N, -K) is nondet.
+%
+% Enumerate keyword terms accepted for C/N via per-package
+% /etc/portage/package.accept_keywords overrides.
+
+candidate:package_keyword_entry(C, N, K) :-
+  current_predicate(gentoo:package_keyword/2),
+  atomic_list_concat([C, N], '/', CatPkg),
+  gentoo:package_keyword(CatPkg, RawKW),
+  candidate:raw_kw_to_term_(RawKW, K).
+
+candidate:raw_kw_to_term_(RawKW, K) :-
+  atom_codes(RawKW, Codes),
+  catch(phrase(eapi:keywords([K]), Codes), _, fail).
 
 %! candidate:query_keyword_candidate(+Action, +C, +N, +Keyword, +Context, -RepoEntry)
 %

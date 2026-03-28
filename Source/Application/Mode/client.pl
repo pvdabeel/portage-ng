@@ -65,8 +65,8 @@ client:remote_predicate_template(preference:license_group_raw(_,_)).
 client:remote_predicate_template(preference:profile_masked_use_flag(_)).
 client:remote_predicate_template(preference:profile_forced_use_flag(_)).
 
-% World and sets (optional, only when client/server are on different machines)
-client:remote_predicate_template(preference:world(_)).
+% World entries and named sets (file-backed, loaded during preference:init)
+client:remote_predicate_template(preference:world_entry(_)).
 client:remote_predicate_template(preference:set(_,_)).
 
 % Installed state (todo: needs client-side VDB handling)
@@ -81,7 +81,7 @@ client:remote_predicate_instance(config:printing_style(_)).
 client:remote_predicate_instance(config:printing_tty_size(_,_)).
 client:remote_predicate_instance(preference:accept_license_wildcard).
 client:remote_predicate_instance(preference:use_expand_env(_,_)).
-client:remote_predicate_instance(preference:use_expand_hidden(_)).
+client:remote_predicate_instance(config:use_expand_hidden(_)).
 client:remote_predicate_instance(preference:keyword_selection_mode(_)).
 
 

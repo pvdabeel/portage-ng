@@ -1836,11 +1836,18 @@ rules:entry_has_keyword(Repo://Entry) :-
 
 %! rules:entry_has_accepted_keyword(+RepoEntry)
 %
-% True if the entry has at least one keyword in ACCEPT_KEYWORDS.
+% True if the entry has at least one keyword in ACCEPT_KEYWORDS or
+% is accepted via per-package /etc/portage/package.accept_keywords.
 
 rules:entry_has_accepted_keyword(Repo://Entry) :-
   preference:accept_keywords(K),
   query:search(keyword(K), Repo://Entry),
+  !.
+
+rules:entry_has_accepted_keyword(Repo://Entry) :-
+  query:search([category(C), name(N)], Repo://Entry),
+  cache:entry_metadata(Repo, Entry, keywords, K),
+  preference:package_keyword_accepted(C, N, K),
   !.
 
 %! rules:entry_is_keyword_filtered(+RepoEntry)
