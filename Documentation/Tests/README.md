@@ -53,7 +53,7 @@ The overlay repository itself is at [`Repository/Overlay/`](../../Repository/Ove
 | [41](#test41) | Slot | Explicit slot :1 |
 | [42](#test42) | Slot | Wildcard slot :* |
 | [43](#test43) | Slot | Slot equality := |
-| [44](#test44) | Slot | Sub-slot :1/A |
+| [44](#test44) | Slot | Sub-slot `:1/A` |
 | [45](#test45) | Conflict | Irreconcilable USE conflict via ^^ |
 | [46](#test46) | Conflict | Deep diamond USE conflict |
 | [47](#test47) | Cycle | Three-way dependency cycle |

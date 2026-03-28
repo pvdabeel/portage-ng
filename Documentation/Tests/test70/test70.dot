@@ -1,15 +1,15 @@
 digraph test70 {
-  label="test70 \u2014 Version ~ (revision)";
+  label=<<B>test70</B> — Version ~ (revision)>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
   app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
-  lib_2_0 [label="lib-2.0"];
-  lib_2_0_r1 [label="lib-2.0-r1"];
-  lib_3_0 [label="lib-3.0"];
+  lib20 [label="lib-2.0",fillcolor=palegreen];
+  lib20r1 [label="lib-2.0-r1",fillcolor=palegreen];
+  lib30 [label="lib-3.0"];
 
-  app -> lib_2_0 [label="~lib-2.0"];
-  app -> lib_2_0_r1 [label="~lib-2.0"];
-  app -> lib_3_0 [label="~lib-2.0"];
+  app -> lib20 [label="~2.0"];
+  app -> lib20r1 [label="~2.0"];
 }

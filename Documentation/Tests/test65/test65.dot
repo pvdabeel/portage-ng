@@ -1,8 +1,9 @@
 digraph test65 {
-  label="test65 \u2014 build_with_use reinstall";
+  label=<<B>test65</B> — build_with_use reinstall>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
   app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
 

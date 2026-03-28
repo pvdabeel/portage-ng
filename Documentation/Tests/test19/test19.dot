@@ -1,19 +1,22 @@
 digraph test19 {
-  label="test19 \u2014 Exactly-one-of ^^ (both)";
+  label=<<B>test19</B> — Exactly-one-of ^^ (both)>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
-  app [label="app-1.0"];
-  bsd [label="bsd-1.0"];
-  db [label="db-1.0"];
-  g1 [label="^^",shape=diamond,fillcolor=lightyellow,fontsize=9,width=0.4,height=0.4];
-  g2 [label="^^",shape=diamond,fillcolor=lightyellow,fontsize=9,width=0.4,height=0.4];
-  linux [label="linux-1.0"];
-  os [label="os-1.0"];
   web [label="web-1.0",fillcolor=lightcoral,fontcolor=white];
+  app [label="app-1.0"];
+  db [label="db-1.0"];
+  os [label="os-1.0"];
+  g1 [label="^^",shape=diamond,fillcolor=purple,fontcolor=white,fontsize=11,width=0.5,height=0.5];
+  linux [label="linux-1.0"];
+  bsd [label="bsd-1.0"];
   windows [label="windows-1.0"];
 
+  web -> app;
+  web -> db;
+  web -> os;
   app -> os;
   app -> db;
   db -> os;
@@ -21,11 +24,4 @@ digraph test19 {
   g1 -> linux;
   g1 -> bsd;
   g1 -> windows;
-  os -> g2;
-  g2 -> linux;
-  g2 -> bsd;
-  g2 -> windows;
-  web -> os;
-  web -> app;
-  web -> db;
 }

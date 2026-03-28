@@ -1,22 +1,23 @@
 digraph test57 {
-  label="test57 \u2014 Virtual-style ebuild";
+  label=<<B>test57</B> — Virtual-style ebuild>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
+  web [label="web-1.0",fillcolor=lightcoral,fontcolor=white];
   app [label="app-1.0"];
   db [label="db-1.0"];
-  linux [label="linux-1.0"];
   os [label="os-1.0"];
   virtualsdk [label="virtualsdk-1.0"];
-  web [label="web-1.0",fillcolor=lightcoral,fontcolor=white];
+  linux [label="linux-1.0"];
 
+  web -> app;
+  web -> db;
+  web -> os;
   app -> os;
   app -> db;
   db -> os;
   os -> virtualsdk;
   virtualsdk -> linux;
-  web -> os;
-  web -> app;
-  web -> db;
 }

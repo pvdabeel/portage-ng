@@ -1,13 +1,14 @@
 digraph test66 {
-  label="test66 \u2014 PDEPEND (post-merge)";
+  label=<<B>test66</B> — PDEPEND (post-merge)>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
   app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
   lib [label="lib-1.0"];
   plugin [label="plugin-1.0"];
 
   app -> lib;
-  lib -> plugin [label="PDEPEND",style="dashed"];
+  lib -> plugin [style=dashed,label="PDEPEND"];
 }

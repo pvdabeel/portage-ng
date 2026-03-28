@@ -1,21 +1,22 @@
 digraph test16 {
-  label="test16 \u2014 Explicit all-of group ( )";
+  label=<<B>test16</B> — Explicit all-of group ( )>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
+  web [label="web-1.0",fillcolor=lightcoral,fontcolor=white];
   app [label="app-1.0"];
   db [label="db-1.0"];
-  g1 [label="all-of",shape=diamond,fillcolor=lightyellow,fontsize=9,width=0.4,height=0.4];
   os [label="os-1.0"];
-  web [label="web-1.0",fillcolor=lightcoral,fontcolor=white];
+  g1 [label="()",shape=diamond,fillcolor=gray60,fontcolor=white,fontsize=11,width=0.5,height=0.5];
 
-  app -> os;
-  app -> db;
-  db -> os;
-  web -> os;
   web -> app;
+  web -> os;
   web -> g1;
   g1 -> db;
   g1 -> os;
+  app -> os;
+  app -> db;
+  db -> os;
 }

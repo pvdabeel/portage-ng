@@ -1,40 +1,36 @@
 digraph test12 {
-  label="test12 \u2014 Keywords: stable vs unstable";
+  label=<<B>test12</B> — Stable vs unstable keywords>;
   labelloc=t; fontname=Helvetica; fontsize=12;
-  graph [rankdir=LR];
+  graph [rankdir=LR,compound=true];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
-  app_1_0 [label="app-1.0"];
-  app_2_0 [label="app-2.0"];
-  db_1_0 [label="db-1.0"];
-  db_2_0 [label="db-2.0"];
-  os_1_0 [label="os-1.0"];
-  os_2_0 [label="os-2.0"];
-  web_1_0 [label="web-1.0",fillcolor=lightcoral,fontcolor=white];
-  web_2_0 [label="web-2.0"];
+  subgraph cluster_web {
+    label="web"; style=dashed; color=gray;
+    web_1 [label="web-1.0",fillcolor=lightcoral,fontcolor=white];
+    web_2 [label="web-2.0"];
+  }
+  subgraph cluster_app {
+    label="app"; style=dashed; color=gray;
+    app_1 [label="app-1.0"];
+    app_2 [label="app-2.0"];
+  }
+  subgraph cluster_db {
+    label="db"; style=dashed; color=gray;
+    db_1 [label="db-1.0"];
+    db_2 [label="db-2.0"];
+  }
+  subgraph cluster_os {
+    label="os"; style=dashed; color=gray;
+    os_1 [label="os-1.0"];
+    os_2 [label="os-2.0 (~kw)",fillcolor=wheat];
+  }
 
-  app_1_0 -> os_1_0;
-  app_1_0 -> os_2_0;
-  app_1_0 -> db_1_0;
-  app_1_0 -> db_2_0;
-  app_2_0 -> os_1_0;
-  app_2_0 -> os_2_0;
-  app_2_0 -> db_1_0;
-  app_2_0 -> db_2_0;
-  db_1_0 -> os_1_0;
-  db_1_0 -> os_2_0;
-  db_2_0 -> os_1_0;
-  db_2_0 -> os_2_0;
-  web_1_0 -> os_1_0;
-  web_1_0 -> os_2_0;
-  web_1_0 -> app_1_0;
-  web_1_0 -> app_2_0;
-  web_1_0 -> db_1_0;
-  web_1_0 -> db_2_0;
-  web_2_0 -> os_1_0;
-  web_2_0 -> os_2_0;
-  web_2_0 -> app_1_0;
-  web_2_0 -> app_2_0;
-  web_2_0 -> db_1_0;
-  web_2_0 -> db_2_0;
+
+  web_1 -> app_1 [lhead=cluster_app];
+  web_1 -> db_1 [lhead=cluster_db];
+  web_1 -> os_1 [lhead=cluster_os];
+  app_1 -> os_1 [lhead=cluster_os];
+  app_1 -> db_1 [lhead=cluster_db];
+  db_1 -> os_1 [lhead=cluster_os];
 }

@@ -1,14 +1,15 @@
 digraph test61 {
-  label="test61 \u2014 Mutual recursion [foo]";
+  label=<<B>test61</B> — Mutual recursion [foo]>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
-  a [label="a-1.0"];
   app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
+  a [label="a-1.0"];
   b [label="b-1.0"];
 
-  a -> b [label="[foo]"];
   app -> a;
-  b -> a [label="[foo]"];
+  a -> b [color=red,style=bold,label="[foo]",fontcolor=red];
+  b -> a [color=red,style=bold,label="[foo]",fontcolor=red];
 }

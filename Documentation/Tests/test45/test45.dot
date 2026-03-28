@@ -1,16 +1,23 @@
 digraph test45 {
-  label="test45 \u2014 Irreconcilable USE conflict";
+  label=<<B>test45</B> — Irreconcilable USE conflict>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
   app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
   liba [label="liba-1.0"];
   libb [label="libb-1.0"];
   os [label="os-1.0"];
+  g1 [label="^^",shape=diamond,fillcolor=purple,fontcolor=white,fontsize=11,width=0.5,height=0.5];
+  linux [label="linux",style="rounded,filled"];
+  darwin [label="darwin",style="rounded,filled"];
 
   app -> liba;
   app -> libb;
   liba -> os [label="[linux]"];
   libb -> os [label="[darwin]"];
+  os -> g1 [label="REQUIRED_USE"];
+  g1 -> linux;
+  g1 -> darwin;
 }

@@ -1,11 +1,12 @@
 digraph test72 {
-  label="test72 \u2014 IDEPEND (install-time)";
+  label=<<B>test72</B> — IDEPEND (install-time)>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
   app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
   installer [label="installer-1.0"];
 
-  app -> installer [label="IDEPEND",style="dotted"];
+  app -> installer [style=dotted,label="IDEPEND"];
 }

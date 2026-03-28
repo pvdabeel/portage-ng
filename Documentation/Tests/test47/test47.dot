@@ -1,14 +1,15 @@
 digraph test47 {
-  label="test47 \u2014 Three-way cycle";
+  label=<<B>test47</B> — Three-way cycle>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
-  api_docs [label="api-docs-1.0",fillcolor=lightcoral,fontcolor=white];
-  app_client [label="app-client-1.0"];
-  app_server [label="app-server-1.0"];
+  apidocs [label="api-docs-1.0",fillcolor=lightcoral,fontcolor=white];
+  appserver [label="app-server-1.0"];
+  appclient [label="app-client-1.0"];
 
-  api_docs -> app_server;
-  app_client -> api_docs;
-  app_server -> app_client;
+  apidocs -> appserver;
+  appserver -> appclient [color=red,style=bold,label="R",fontcolor=red];
+  appclient -> apidocs [color=red,style=bold,label="C",fontcolor=red];
 }

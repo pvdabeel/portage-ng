@@ -1,19 +1,18 @@
 digraph test69 {
-  label="test69 \u2014 Version >=";
+  label=<<B>test69</B> — Version &gt;=>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
   app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
-  lib_1_0 [label="lib-1.0"];
-  lib_2_0 [label="lib-2.0"];
-  lib_3_0 [label="lib-3.0"];
-  lib_4_0 [label="lib-4.0"];
-  lib_5_0 [label="lib-5.0"];
+  lib1 [label="lib-1.0"];
+  lib2 [label="lib-2.0"];
+  lib3 [label="lib-3.0",fillcolor=palegreen];
+  lib4 [label="lib-4.0",fillcolor=palegreen];
+  lib5 [label="lib-5.0",fillcolor=palegreen];
 
-  app -> lib_1_0 [label=">=lib-3.0"];
-  app -> lib_2_0 [label=">=lib-3.0"];
-  app -> lib_3_0 [label=">=lib-3.0"];
-  app -> lib_4_0 [label=">=lib-3.0"];
-  app -> lib_5_0 [label=">=lib-3.0"];
+  app -> lib3 [label=">=3.0"];
+  app -> lib4 [label=">=3.0"];
+  app -> lib5 [label=">=3.0"];
 }

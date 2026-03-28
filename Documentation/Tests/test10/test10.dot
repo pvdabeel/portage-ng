@@ -1,20 +1,12 @@
 digraph test10 {
-  label="test10 \u2014 Missing dep (runtime)";
+  label=<<B>test10</B> — Missing dep (runtime)>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
-  app [label="app-1.0"];
-  db [label="db-1.0"];
-  notexists [label="notexists",style="rounded,dashed,filled",fillcolor=mistyrose];
   os [label="os-1.0",fillcolor=lightcoral,fontcolor=white];
-  web [label="web-1.0"];
+  notexists [label="notexists",style="rounded,dashed,filled",fillcolor=mistyrose];
 
-  app -> os;
-  app -> db;
-  db -> os;
   os -> notexists;
-  web -> os;
-  web -> app;
-  web -> db;
 }

@@ -1,8 +1,9 @@
 digraph test52 {
-  label="test52 \u2014 Multi-USE on shared dep";
+  label=<<B>test52</B> — Multi-USE on shared dep>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
   app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
   liba [label="liba-1.0"];

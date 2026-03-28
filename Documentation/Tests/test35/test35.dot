@@ -1,8 +1,9 @@
 digraph test35 {
-  label="test35 \u2014 USE dep [linux=]";
+  label=<<B>test35</B> — USE dep [linux=]>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
   app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
   os [label="os-1.0"];

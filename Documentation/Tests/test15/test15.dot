@@ -1,21 +1,22 @@
 digraph test15 {
-  label="test15 \u2014 Negative USE !nolib? ( )";
+  label=<<B>test15</B> — Negative USE !nolib? ( )>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
+  web [label="web-1.0",fillcolor=lightcoral,fontcolor=white];
   app [label="app-1.0"];
   db [label="db-1.0"];
-  lib [label="lib-1.0"];
   os [label="os-1.0"];
-  web [label="web-1.0",fillcolor=lightcoral,fontcolor=white];
+  lib [label="lib-1.0",style="rounded,dashed,filled"];
 
-  app -> os;
-  app -> lib [label="!nolib?"];
-  app -> db;
-  db -> os;
-  lib -> os;
-  web -> os;
   web -> app;
   web -> db;
+  web -> os;
+  app -> os;
+  app -> db;
+  app -> lib [style=dashed,label="!nolib?"];
+  db -> os;
+  lib -> os;
 }

@@ -1,8 +1,9 @@
 digraph test37 {
-  label="test37 \u2014 Inverse USE [!linux=]";
+  label=<<B>test37</B> — Inverse USE [!linux=]>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
   app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
   os [label="os-1.0"];

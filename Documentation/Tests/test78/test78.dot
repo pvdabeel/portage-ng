@@ -1,18 +1,19 @@
 digraph test78 {
-  label="test78 \u2014 Onlydeps (skip target)";
+  label=<<B>test78</B> — Onlydeps (skip target)>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
+  web [label="web-1.0",fillcolor=lightgray,style="rounded,dashed,filled"];
   app [label="app-1.0"];
   db [label="db-1.0"];
   os [label="os-1.0"];
-  web [label="web-1.0",fillcolor=lightcoral,fontcolor=white];
 
+  web -> app [style=dashed];
+  web -> db [style=dashed];
+  web -> os [style=dashed];
   app -> os;
   app -> db;
   db -> os;
-  web -> os;
-  web -> app;
-  web -> db;
 }

@@ -1,15 +1,16 @@
 digraph test62 {
-  label="test62 \u2014 Simple mutual cycle";
+  label=<<B>test62</B> — Simple mutual cycle>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
+  web [label="web-1.0",fillcolor=lightcoral,fontcolor=white];
   a [label="a-1.0"];
   b [label="b-1.0"];
-  web [label="web-1.0",fillcolor=lightcoral,fontcolor=white];
 
-  a -> b;
-  b -> a;
   web -> a;
   web -> b;
+  a -> b [color=red,style=bold,label="R",fontcolor=red];
+  b -> a [color=red,style=bold,label="R",fontcolor=red];
 }

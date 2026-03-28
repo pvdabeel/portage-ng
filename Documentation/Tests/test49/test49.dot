@@ -1,16 +1,12 @@
 digraph test49 {
-  label="test49 \u2014 USE default (+) vs REQUIRED_USE";
+  label=<<B>test49</B> — USE default (+) vs REQUIRED_USE>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
-  _ [label="+"];
   app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
-  g1 [label="all-of",shape=diamond,fillcolor=lightyellow,fontsize=9,width=0.4,height=0.4];
   libhelper [label="libhelper-1.0"];
 
-  app -> libhelper [label="[feature_z"];
-  app -> g1;
-  g1 -> _;
-  app -> _;
+  app -> libhelper [label="[feature_z(+)]"];
 }

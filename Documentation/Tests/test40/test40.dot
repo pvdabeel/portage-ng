@@ -1,9 +1,16 @@
 digraph test40 {
-  label="test40 \u2014 REQUIRED_USE ||";
+  label=<<B>test40</B> — REQUIRED_USE ||>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
   os [label="os-1.0",fillcolor=lightcoral,fontcolor=white];
+  g1 [label="||",shape=diamond,fillcolor=orange,fontcolor=white,fontsize=11,width=0.5,height=0.5];
+  linux [label="linux",style="rounded,filled",fillcolor=lightyellow];
+  darwin [label="darwin",style="rounded,filled",fillcolor=lightyellow];
 
+  os -> g1 [label="REQUIRED_USE"];
+  g1 -> linux;
+  g1 -> darwin;
 }

@@ -1,365 +1,1261 @@
 #!/usr/bin/env python3
-"""Generate clean, focused .dot dependency graphs for overlay test cases.
+"""Generate all 80 test .dot graphs with clean, focused styling.
 
-One testNN.dot per test.  Only shows what is relevant to the scenario.
-
-Visual conventions:
-  - Entry-point node:  lightcoral fill, white text
-  - Normal node:       lightyellow fill, rounded box
-  - Missing dep:       dashed border, mistyrose fill
-  - Installed (VDB):   lightblue fill
-  - Plain edge:        black, solid
-  - Blocker:           red dashed, "!!" or "!" label
-  - PDEPEND:           dashed, "PDEPEND" label
-  - BDEPEND:           dotted, "BDEPEND" label
-  - IDEPEND:           dotted, "IDEPEND" label
-  - Version constraint: label on edge
-  - USE dep:           "[flag]" label on edge
-  - USE conditional:   "flag?" label on edge
-  - Self-loop:         red
-  - Choice group:      diamond node
+Style conventions:
+  - Title uses HTML label: <B>testNN</B> — description
+  - Entry point: lightcoral fill, white text
+  - Missing dep: dashed border, mistyrose fill
+  - VDB installed: lightblue fill
+  - Conditional dep: dashed border on node, dashed edge
+  - Group diamonds: || orange, ^^ purple, ?? darkcyan, () gray60
+  - Cycle edges: red bold, labeled C / R / C+R
+  - Strong blocker: red bold edge, "strong blocker"
+  - Soft blocker: red dashed edge, "soft blocker"
+  - PDEPEND/BDEPEND/IDEPEND: dashed/dotted with labels
+  - Multi-version unversioned deps: cluster per package
 """
 
-import re, sys
 from pathlib import Path
 
-OVERLAY = Path(__file__).resolve().parent.parent.parent / "Repository" / "Overlay"
-CACHE   = OVERLAY / "metadata" / "md5-cache"
-OUTDIR  = Path(__file__).resolve().parent
-
-# ─── tokeniser / parser ─────────────────────────────────────────────────────
-
-def tokenize(s):
-    toks, i = [], 0
-    while i < len(s):
-        if s[i] in " \t\n": i += 1; continue
-        if s[i] in "()": toks.append(s[i]); i += 1
-        else:
-            j = i
-            while j < len(s) and s[j] not in " \t\n()": j += 1
-            toks.append(s[i:j]); i = j
-    return toks
-
-def parse(toks, pos=0):
-    out = []
-    while pos < len(toks):
-        t = toks[pos]
-        if t == ")": return out, pos+1
-        if t in ("||","^^","??"):
-            pos += 1
-            if pos < len(toks) and toks[pos] == "(":
-                pos += 1; ch, pos = parse(toks, pos)
-                out.append(("group", t, ch))
-            else: out.append(t)
-        elif t == "(":
-            pos += 1; ch, pos = parse(toks, pos)
-            out.append(("group", "all-of", ch))
-        elif t.endswith("?") and not t[0] in (">","<","=","~"):
-            flag = t[:-1]; neg = flag.startswith("!"); flag = flag.lstrip("!")
-            pos += 1
-            if pos < len(toks) and toks[pos] == "(":
-                pos += 1; ch, pos = parse(toks, pos)
-                out.append(("cond", flag, neg, ch))
-            else: out.append(t)
-        else: out.append(t); pos += 1
-    return out, pos
-
-# ─── atom helpers ────────────────────────────────────────────────────────────
-
-def atom_parts(atom):
-    a = atom; blocker = ""
-    if a.startswith("!!"): blocker = "!!"; a = a[2:]
-    elif a.startswith("!"): blocker = "!"; a = a[1:]
-    op = ""
-    for v in (">=","<=",">","<","=","~"):
-        if a.startswith(v): op = v; a = a[len(v):]; break
-    use_dep = ""
-    if "[" in a: idx = a.index("["); use_dep = a[idx:]; a = a[:idx]
-    slot = ""
-    if ":" in a: idx = a.index(":"); slot = a[idx:]; a = a[:idx]
-    base = a.split("/")[-1] if "/" in a else a
-    return blocker, op, base, slot, use_dep
-
-def pkg_base(versioned_name):
-    """'app-1.0' -> 'app', 'lib-2.0-r1' -> 'lib'."""
-    m = re.match(r'^(.+?)-\d', versioned_name)
-    return m.group(1) if m else versioned_name
-
-def safe_id(s):
-    return re.sub(r'[^a-zA-Z0-9_]', '_', s)
-
-# ─── per-test metadata ──────────────────────────────────────────────────────
-
-ENTRY_POINTS = {
-    "test01":"web-1.0","test02":"web-2.0","test03":"web-1.0","test04":"web-1.0",
-    "test05":"web-1.0","test06":"web-1.0","test07":"web-1.0","test08":"web-1.0",
-    "test09":"os-1.0","test10":"os-1.0","test11":"os-1.0","test12":"web-1.0",
-    "test13":"web-2.0","test14":"web-1.0","test15":"web-1.0","test16":"web-1.0",
-    "test17":"web-1.0","test18":"web-1.0","test19":"web-1.0",
-    "test20":"web-1.0","test21":"web-1.0","test22":"web-1.0",
-    "test23":"web-1.0","test24":"web-1.0","test25":"web-1.0",
-    "test26":"web-1.0","test27":"web-1.0","test28":"web-1.0",
-    "test29":"web-1.0","test30":"web-1.0","test31":"web-1.0",
-    "test32":"os-1.0","test40":"os-1.0",
-    "test47":"api-docs-1.0","test51":"app-1.0",
-    "test57":"web-1.0","test58":"web-1.0","test59":"web-1.0","test60":"web-1.0",
-    "test62":"web-1.0","test71":"web-1.0","test78":"web-1.0",
-    "test79":"server-1.0",
-}
-
-TITLES = {
-    "test01":"Basic dependency ordering","test02":"Version selection (2.0 over 1.0)",
-    "test03":"Self-dependency (compile)","test04":"Self-dependency (runtime)",
-    "test05":"Self-dependency (compile+runtime)","test06":"Indirect cycle (compile)",
-    "test07":"Indirect cycle (runtime)","test08":"Indirect cycle (compile+runtime)",
-    "test09":"Missing dep (compile)","test10":"Missing dep (runtime)",
-    "test11":"Missing dep (compile+runtime)",
-    "test12":"Keywords: stable vs unstable","test13":"Pinpointed version =pkg-ver",
-    "test14":"USE conditional lib? ( )","test15":"Negative USE !nolib? ( )",
-    "test16":"Explicit all-of group ( )","test17":"Exactly-one-of ^^ (compile)",
-    "test18":"Exactly-one-of ^^ (runtime)","test19":"Exactly-one-of ^^ (both)",
-    "test20":"Any-of || (compile)","test21":"Any-of || (runtime)",
-    "test22":"Any-of || (both)","test23":"At-most-one-of ?? (compile)",
-    "test24":"At-most-one-of ?? (runtime)","test25":"At-most-one-of ?? (both)",
-    "test26":"Strong blocker !! (runtime)","test27":"Weak blocker ! (runtime)",
-    "test28":"Strong blocker !! (compile)","test29":"Strong blocker !! (both)",
-    "test30":"Weak blocker ! (compile)","test31":"Weak blocker ! (both)",
-    "test32":"REQUIRED_USE ^^","test33":"USE dep [linux]",
-    "test34":"USE dep [-linux]","test35":"USE dep [linux=]",
-    "test36":"Chained USE [linux=]","test37":"Inverse USE [!linux=]",
-    "test38":"Weak USE [linux?]","test39":"Negative weak [-linux?]",
-    "test40":"REQUIRED_USE ||","test41":"Slot :1","test42":"Slot :*",
-    "test43":"Slot :=","test44":"Sub-slot :1/A",
-    "test45":"Irreconcilable USE conflict","test46":"Deep diamond USE conflict",
-    "test47":"Three-way cycle","test48":"Slot conflict",
-    "test49":"USE default (+) vs REQUIRED_USE","test50":"Transitive RDEPEND",
-    "test51":"USE dep vs REQUIRED_USE","test52":"Multi-USE on shared dep",
-    "test53":"USE merge + conditional dep","test54":"USE flag expansion",
-    "test55":"Version range >3 <6","test56":"Version range via dep chains",
-    "test57":"Virtual-style ebuild","test58":"PROVIDE virtual (XFAIL)",
-    "test59":"Any-of || regression (XFAIL)","test60":"Versioned blocker (XFAIL)",
-    "test61":"Mutual recursion [foo]","test62":"Simple mutual cycle",
-    "test63":"REQUIRED_USE loop (openmpi)","test64":"USE-conditional churn (openmp)",
-    "test65":"build_with_use reinstall","test66":"PDEPEND (post-merge)",
-    "test67":"BDEPEND (build-only)","test68":"Multi-slot co-install",
-    "test69":"Version >=","test70":"Version ~ (revision)","test71":"Fetchonly",
-    "test72":"IDEPEND (install-time)","test73":"Update (VDB)",
-    "test74":"Downgrade (VDB)","test75":"Reinstall / emptytree (VDB)",
-    "test76":"Newuse rebuild (VDB)","test77":"Depclean (VDB)",
-    "test78":"Onlydeps (skip target)","test79":"PDEPEND cycle",
-    "test80":"Version <=",
-}
-
-VDB_INSTALLED = {
-    "test73": {"lib"}, "test74": {"lib"}, "test75": {"os"},
-    "test76": {"os"}, "test77": {"app","os","orphan"},
-}
-
-MISSING_BASES = {
-    "test09": {"notexists"}, "test10": {"notexists"}, "test11": {"notexists"},
-    "test58": {"virtualsdk"},
-}
-
-# ─── graph builder ───────────────────────────────────────────────────────────
-
-def read_cache(test):
-    entries = {}
-    d = CACHE / test
-    if not d.is_dir(): return entries
-    for f in sorted(d.iterdir()):
-        if f.is_file():
-            data = {}
-            for line in f.read_text().splitlines():
-                if "=" in line: k, v = line.split("=", 1); data[k] = v
-            entries[f.name] = data
-    return entries
+OUTDIR = Path(__file__).resolve().parent
 
 
-def build_graph(test, entries):
-    entry = ENTRY_POINTS.get(test)
-    if not entry:
-        for n in sorted(entries):
-            if n.startswith("web-") or n.startswith("app-"):
-                entry = n; break
-        if not entry and entries: entry = sorted(entries)[0]
+# ── style constants ──────────────────────────────────────────────────────────
 
-    title = TITLES.get(test, test)
-    vdb = VDB_INSTALLED.get(test, set())
-    miss = MISSING_BASES.get(test, set())
+ENTRY = 'fillcolor=lightcoral,fontcolor=white'
+MISS  = 'style="rounded,dashed,filled",fillcolor=mistyrose'
+VDB   = 'fillcolor=lightblue'
+COND  = 'style="rounded,dashed,filled"'
 
-    base_to_versions = {}
-    for name in entries:
-        b = pkg_base(name)
-        base_to_versions.setdefault(b, []).append(name)
+def diamond(sym, color):
+    return (f'shape=diamond,fillcolor={color},'
+            f'fontcolor=white,fontsize=11,width=0.5,height=0.5')
 
-    multi_version = {b for b, vs in base_to_versions.items() if len(vs) > 1}
+OR_D    = diamond("||", "orange")
+XOR_D   = diamond("^^", "purple")
+ATMOST_D = diamond("??", "darkcyan")
+ALLOF_D = diamond("()", "gray60")
 
-    nodes = {}
-    edges = []
-    gcounter = [0]
+CYCLE_C   = 'color=red,style=bold,label="C",fontcolor=red'
+CYCLE_R   = 'color=red,style=bold,label="R",fontcolor=red'
+CYCLE_CR  = 'color=red,style=bold,label="C+R",fontcolor=red'
+STRONG_B  = 'color=red,style=bold,label="strong blocker",fontcolor=red'
+SOFT_B    = 'color=red,style=dashed,label="soft blocker",fontcolor=red'
+PDEP_E    = 'style=dashed,label="PDEPEND"'
+BDEP_E    = 'style=dotted,label="BDEPEND"'
+IDEP_E    = 'style=dotted,label="IDEPEND"'
 
-    def ensure_node(versioned_name, base=None):
-        if base is None: base = pkg_base(versioned_name)
-        use_versioned_id = base in multi_version
-        nid = safe_id(versioned_name) if use_versioned_id else safe_id(base)
-        if nid not in nodes:
-            label = versioned_name if use_versioned_id else versioned_name
-            slot = entries.get(versioned_name, {}).get("SLOT", "0")
-            if slot not in ("0", "") and base not in multi_version:
-                label += f":{slot}"
-            style = ""
-            if versioned_name == entry:
-                style = 'fillcolor=lightcoral,fontcolor=white'
-            elif base in vdb:
-                style = 'fillcolor=lightblue'
-            elif base in miss:
-                style = 'style="rounded,dashed,filled",fillcolor=mistyrose'
-            nodes[nid] = (label, style)
-        return nid
 
-    def resolve_dep(dep_base):
-        """Map a dependency base name to the node id(s) it should target."""
-        if dep_base in base_to_versions:
-            versions = base_to_versions[dep_base]
-            if len(versions) == 1:
-                return [ensure_node(versions[0], dep_base)]
-            else:
-                return [ensure_node(v, dep_base) for v in sorted(versions)]
-        nid = safe_id(dep_base)
-        if nid not in nodes:
-            style = ""
-            if dep_base in miss:
-                style = 'style="rounded,dashed,filled",fillcolor=mistyrose'
-            nodes[nid] = (dep_base, style)
-        return [nid]
+def hdr(test, title, compound=False):
+    c = ",compound=true" if compound else ""
+    return (f'digraph {test} {{\n'
+            f'  label=<<B>{test}</B> \u2014 {title}>;\n'
+            f'  labelloc=t; fontname=Helvetica; fontsize=12;\n'
+            f'  graph [rankdir=LR{c}];\n'
+            f'  node  [fontname=Helvetica,fontsize=10,shape=box,'
+            f'style="rounded,filled",fillcolor=lightyellow];\n'
+            f'  edge  [fontname=Helvetica,fontsize=9];\n')
 
-    for vname in sorted(entries):
-        ensure_node(vname)
 
-    for mbase in miss:
-        nid = safe_id(mbase)
-        if nid not in nodes:
-            nodes[nid] = (mbase, 'style="rounded,dashed,filled",fillcolor=mistyrose')
+def node(nid, label, extra=""):
+    e = f",{extra}" if extra else ""
+    return f'  {nid} [label="{label}"{e}];'
 
-    for pkg_name, data in sorted(entries.items()):
-        src_base = pkg_base(pkg_name)
-        src_nid = safe_id(pkg_name) if src_base in multi_version else safe_id(src_base)
 
-        for field in ("DEPEND","BDEPEND","RDEPEND","PDEPEND","IDEPEND"):
-            dep_str = data.get(field, "").strip()
-            if not dep_str: continue
-            tree, _ = parse(tokenize(dep_str))
-            walk(test, src_nid, tree, field, edges, nodes, resolve_dep,
-                 gcounter, miss, multi_version, base_to_versions)
+def edge(src, dst, attrs=""):
+    a = f" [{attrs}]" if attrs else ""
+    return f'  {src} -> {dst}{a};'
 
-    lines = []
-    lines.append(f'digraph {test} {{')
-    lines.append(f'  label="{test} \\u2014 {title}";')
-    lines.append(f'  labelloc=t; fontname=Helvetica; fontsize=12;')
-    lines.append(f'  graph [rankdir=LR];')
-    lines.append(f'  node  [fontname=Helvetica,fontsize=10,shape=box,'
-                 f'style="rounded,filled",fillcolor=lightyellow];')
-    lines.append(f'')
 
-    for nid in sorted(nodes):
-        label, style = nodes[nid]
-        extra = f",{style}" if style else ""
-        lines.append(f'  {nid} [label="{label}"{extra}];')
-
-    lines.append(f'')
-
-    seen = set()
-    for s, d, attrs in edges:
-        key = (s, d, tuple(sorted(attrs.items())))
-        if key in seen: continue
-        seen.add(key)
-        astr = ",".join(f'{k}="{v}"' for k,v in sorted(attrs.items()))
-        astr = f" [{astr}]" if astr else ""
-        lines.append(f'  {s} -> {d}{astr};')
-
-    lines.append(f'}}')
+def cluster(name, label, members):
+    lines = [f'  subgraph cluster_{name} {{',
+             f'    label="{label}"; style=dashed; color=gray;']
+    for nid, lbl, extra in members:
+        e = f",{extra}" if extra else ""
+        lines.append(f'    {nid} [label="{lbl}"{e}];')
+    lines.append('  }')
     return "\n".join(lines)
 
 
-def walk(test, src, tree, field, edges, nodes, resolve_dep,
-         gcounter, miss, multi_version, base_to_versions):
-    for node in tree:
-        if isinstance(node, str):
-            blocker, op, base, slot, use_dep = atom_parts(node)
-            attrs = {}
+def dot(test, title, nodes, edges_list, clusters_list=None, compound=False,
+        rank_min=None, extra_lines=None):
+    lines = [hdr(test, title, compound)]
+    if clusters_list:
+        for c in clusters_list:
+            lines.append(c)
+        lines.append("")
+    for n in nodes:
+        lines.append(n)
+    if rank_min:
+        items = "; ".join(rank_min)
+        lines.append(f'  {{rank=min; {items}}}')
+    if extra_lines:
+        for el in extra_lines:
+            lines.append(el)
+    lines.append("")
+    for e in edges_list:
+        lines.append(e)
+    lines.append("}")
+    return "\n".join(lines)
 
-            if blocker:
-                attrs["color"] = "red"; attrs["style"] = "dashed"
-                attrs["label"] = blocker
-            elif field == "PDEPEND":
-                attrs["style"] = "dashed"; attrs["label"] = "PDEPEND"
-            elif field == "BDEPEND":
-                attrs["style"] = "dotted"; attrs["label"] = "BDEPEND"
-            elif field == "IDEPEND":
-                attrs["style"] = "dotted"; attrs["label"] = "IDEPEND"
 
-            if op and not blocker:
-                ver_part = base if op in (">=","<=",">","<","~") else ""
-                attrs["label"] = f"{op}{ver_part}"
-                base_only = re.match(r'^(.+?)-\d', base)
-                if base_only: base = base_only.group(1)
+# ── test graph definitions ───────────────────────────────────────────────────
 
-            if use_dep and not blocker:
-                lbl = attrs.get("label","")
-                attrs["label"] = f"{lbl} {use_dep}".strip() if lbl else use_dep
+def test01():
+    return dot("test01", "Basic dependency ordering", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+    ])
 
-            if slot and slot not in (":0","") and not blocker:
-                lbl = attrs.get("label","")
-                attrs["label"] = f"{lbl} {slot}".strip() if lbl else slot
 
-            targets = resolve_dep(base)
-            for t in targets:
-                ea = dict(attrs)
-                if src == t: ea["color"] = ea.get("color", "red")
-                edges.append((src, t, ea))
+def test02():
+    return dot("test02", "Version selection", [],[
+        edge("web_2", "app_1", 'lhead=cluster_app'),
+        edge("web_2", "db_1", 'lhead=cluster_db'),
+        edge("web_2", "os_1", 'lhead=cluster_os'),
+        edge("app_2", "os_1", 'lhead=cluster_os'),
+        edge("app_2", "db_1", 'lhead=cluster_db'),
+        edge("db_2", "os_1", 'lhead=cluster_os'),
+    ], clusters_list=[
+        cluster("web", "web", [
+            ("web_2", "web-2.0", ENTRY), ("web_1", "web-1.0", ""),
+        ]),
+        cluster("app", "app", [
+            ("app_2", "app-2.0", ""), ("app_1", "app-1.0", ""),
+        ]),
+        cluster("db", "db", [
+            ("db_2", "db-2.0", ""), ("db_1", "db-1.0", ""),
+        ]),
+        cluster("os", "os", [
+            ("os_2", "os-2.0", ""), ("os_1", "os-1.0", ""),
+        ]),
+    ], compound=True)
 
-        elif isinstance(node, tuple):
-            if node[0] == "group":
-                op_sym, children = node[1], node[2]
-                gcounter[0] += 1
-                gid = f"g{gcounter[0]}"
-                nodes[gid] = (op_sym, 'shape=diamond,fillcolor=lightyellow,'
-                              'fontsize=9,width=0.4,height=0.4')
-                edges.append((src, gid, {}))
-                walk(test, gid, children, field, edges, nodes, resolve_dep,
-                     gcounter, miss, multi_version, base_to_versions)
-            elif node[0] == "cond":
-                flag, neg, children = node[1], node[2], node[3]
-                pol = "!" if neg else ""
-                cond_label = f"{pol}{flag}?"
-                walk(test, src, children, field, edges, nodes, resolve_dep,
-                     gcounter, miss, multi_version, base_to_versions)
-                for child in children:
-                    if isinstance(child, str):
-                        _, _, cbase, _, _ = atom_parts(child)
-                        cb = re.match(r'^(.+?)-\d', cbase)
-                        if cb: cbase = cb.group(1)
-                        targets = resolve_dep(cbase)
-                        for t in targets:
-                            for i, (s, d, a) in enumerate(edges):
-                                if s == src and d == t and not a:
-                                    edges[i] = (s, d, {"label": cond_label})
-                                    break
+
+def test03():
+    return dot("test03", "Self-dependency (compile)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+        edge("os", "os", CYCLE_C),
+    ])
+
+
+def test04():
+    return dot("test04", "Self-dependency (runtime)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+        edge("os", "os", CYCLE_R),
+    ])
+
+
+def test05():
+    return dot("test05", "Self-dependency (compile+runtime)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+        edge("os", "os", CYCLE_CR),
+    ])
+
+
+def test06():
+    return dot("test06", "Indirect cycle (compile)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+        edge("os", "web", CYCLE_C),
+    ], rank_min=["web"])
+
+
+def test07():
+    return dot("test07", "Indirect cycle (runtime)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+        edge("os", "web", CYCLE_R),
+    ], rank_min=["web"])
+
+
+def test08():
+    return dot("test08", "Indirect cycle (compile+runtime)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+        edge("os", "web", CYCLE_CR),
+    ], rank_min=["web"])
+
+
+def test09():
+    return dot("test09", "Missing dep (compile)", [
+        node("os", "os-1.0", ENTRY),
+        node("notexists", "notexists", MISS),
+    ], [
+        edge("os", "notexists"),
+    ])
+
+
+def test10():
+    return dot("test10", "Missing dep (runtime)", [
+        node("os", "os-1.0", ENTRY),
+        node("notexists", "notexists", MISS),
+    ], [
+        edge("os", "notexists"),
+    ])
+
+
+def test11():
+    return dot("test11", "Missing dep (compile+runtime)", [
+        node("os", "os-1.0", ENTRY),
+        node("notexists", "notexists", MISS),
+    ], [
+        edge("os", "notexists"),
+    ])
+
+
+def test12():
+    return dot("test12", "Stable vs unstable keywords", [], [
+        edge("web_1", "app_1", 'lhead=cluster_app'),
+        edge("web_1", "db_1", 'lhead=cluster_db'),
+        edge("web_1", "os_1", 'lhead=cluster_os'),
+        edge("app_1", "os_1", 'lhead=cluster_os'),
+        edge("app_1", "db_1", 'lhead=cluster_db'),
+        edge("db_1", "os_1", 'lhead=cluster_os'),
+    ], clusters_list=[
+        cluster("web", "web", [
+            ("web_1", "web-1.0", ENTRY), ("web_2", "web-2.0", ""),
+        ]),
+        cluster("app", "app", [
+            ("app_1", "app-1.0", ""), ("app_2", "app-2.0", ""),
+        ]),
+        cluster("db", "db", [
+            ("db_1", "db-1.0", ""), ("db_2", "db-2.0", ""),
+        ]),
+        cluster("os", "os", [
+            ("os_1", "os-1.0", ""), ("os_2", "os-2.0 (~kw)", 'fillcolor=wheat'),
+        ]),
+    ], compound=True)
+
+
+def test13():
+    return dot("test13", "Pinpointed version =pkg-ver", [], [
+        edge("web_2", "app_2", 'label="=app-2.0"'),
+        edge("web_2", "db_2", 'label="=db-2.0"'),
+        edge("web_2", "os_1", 'lhead=cluster_os'),
+        edge("web_1", "app_1", 'label="=app-1.0"'),
+        edge("web_1", "db_1", 'label="=db-1.0"'),
+        edge("web_1", "os_1", 'lhead=cluster_os,label="=os-1.0"'),
+        edge("app_2", "db_2", 'label="=db-2.0"'),
+        edge("app_2", "os_1", 'lhead=cluster_os'),
+        edge("app_1", "db_1", 'label="=db-1.0"'),
+        edge("app_1", "os_1", 'lhead=cluster_os'),
+        edge("db_1", "os_1", 'lhead=cluster_os'),
+        edge("db_2", "os_1", 'lhead=cluster_os'),
+    ], clusters_list=[
+        cluster("web", "web", [
+            ("web_2", "web-2.0", ENTRY), ("web_1", "web-1.0", ""),
+        ]),
+        cluster("app", "app", [
+            ("app_2", "app-2.0", ""), ("app_1", "app-1.0", ""),
+        ]),
+        cluster("db", "db", [
+            ("db_2", "db-2.0", ""), ("db_1", "db-1.0", ""),
+        ]),
+        cluster("os", "os", [
+            ("os_1", "os-1.0", ""), ("os_2", "os-2.0", ""),
+        ]),
+    ], compound=True)
+
+
+def test14():
+    return dot("test14", "USE conditional lib? ( )", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("lib", "lib-1.0", COND),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("app", "lib", 'style=dashed,label="lib?"'),
+        edge("db", "os"),
+        edge("lib", "os"),
+    ])
+
+
+def test15():
+    return dot("test15", "Negative USE !nolib? ( )", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("lib", "lib-1.0", COND),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("app", "lib", 'style=dashed,label="!nolib?"'),
+        edge("db", "os"),
+        edge("lib", "os"),
+    ])
+
+
+def test16():
+    return dot("test16", "Explicit all-of group ( )", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("g1", "()", ALLOF_D),
+    ], [
+        edge("web", "app"), edge("web", "os"),
+        edge("web", "g1"),
+        edge("g1", "db"), edge("g1", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+    ])
+
+
+def test17():
+    return dot("test17", "Exactly-one-of ^^ (compile)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("g1", "^^", XOR_D),
+        node("linux", "linux-1.0"),
+        node("bsd", "bsd-1.0"),
+        node("windows", "windows-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+        edge("os", "g1"),
+        edge("g1", "linux"), edge("g1", "bsd"), edge("g1", "windows"),
+    ])
+
+
+def test18():
+    return dot("test18", "Exactly-one-of ^^ (runtime)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("g1", "^^", XOR_D),
+        node("linux", "linux-1.0"),
+        node("bsd", "bsd-1.0"),
+        node("windows", "windows-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+        edge("os", "g1"),
+        edge("g1", "linux"), edge("g1", "bsd"), edge("g1", "windows"),
+    ])
+
+
+def test19():
+    return dot("test19", "Exactly-one-of ^^ (both)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("g1", "^^", XOR_D),
+        node("linux", "linux-1.0"),
+        node("bsd", "bsd-1.0"),
+        node("windows", "windows-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+        edge("os", "g1"),
+        edge("g1", "linux"), edge("g1", "bsd"), edge("g1", "windows"),
+    ])
+
+
+def test20():
+    return dot("test20", "Any-of || (compile)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("g1", "||", OR_D),
+        node("linux", "linux-1.0"),
+        node("bsd", "bsd-1.0"),
+        node("windows", "windows-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+        edge("os", "g1"),
+        edge("g1", "linux"), edge("g1", "bsd"), edge("g1", "windows"),
+    ])
+
+
+def test21():
+    return dot("test21", "Any-of || (runtime)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("g1", "||", OR_D),
+        node("linux", "linux-1.0"),
+        node("bsd", "bsd-1.0"),
+        node("windows", "windows-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+        edge("os", "g1"),
+        edge("g1", "linux"), edge("g1", "bsd"), edge("g1", "windows"),
+    ])
+
+
+def test22():
+    return dot("test22", "Any-of || (both)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("g1", "||", OR_D),
+        node("linux", "linux-1.0"),
+        node("bsd", "bsd-1.0"),
+        node("windows", "windows-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+        edge("os", "g1"),
+        edge("g1", "linux"), edge("g1", "bsd"), edge("g1", "windows"),
+    ])
+
+
+def test23():
+    return dot("test23", "At-most-one-of ?? (compile)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("g1", "??", ATMOST_D),
+        node("linux", "linux-1.0"),
+        node("bsd", "bsd-1.0"),
+        node("windows", "windows-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+        edge("os", "g1"),
+        edge("g1", "linux"), edge("g1", "bsd"), edge("g1", "windows"),
+    ])
+
+
+def test24():
+    return dot("test24", "At-most-one-of ?? (runtime)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("g1", "??", ATMOST_D),
+        node("linux", "linux-1.0"),
+        node("bsd", "bsd-1.0"),
+        node("windows", "windows-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+        edge("os", "g1"),
+        edge("g1", "linux"), edge("g1", "bsd"), edge("g1", "windows"),
+    ])
+
+
+def test25():
+    return dot("test25", "At-most-one-of ?? (both)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("g1", "??", ATMOST_D),
+        node("linux", "linux-1.0"),
+        node("bsd", "bsd-1.0"),
+        node("windows", "windows-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+        edge("os", "g1"),
+        edge("g1", "linux"), edge("g1", "bsd"), edge("g1", "windows"),
+    ])
+
+
+def test26():
+    return dot("test26", "Strong blocker !! (runtime)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("g1", "||", OR_D),
+        node("linux", "linux-1.0"),
+        node("bsd", "bsd-1.0"),
+        node("windows", "windows-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("app", "windows", STRONG_B),
+        edge("db", "os"),
+        edge("os", "g1"),
+        edge("g1", "linux"), edge("g1", "bsd"), edge("g1", "windows"),
+    ])
+
+
+def test27():
+    return dot("test27", "Weak blocker ! (runtime)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("g1", "||", OR_D),
+        node("linux", "linux-1.0"),
+        node("bsd", "bsd-1.0"),
+        node("windows", "windows-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("app", "windows", SOFT_B),
+        edge("db", "os"),
+        edge("os", "g1"),
+        edge("g1", "linux"), edge("g1", "bsd"), edge("g1", "windows"),
+    ])
+
+
+def test28():
+    return dot("test28", "Strong blocker !! (compile)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("g1", "||", OR_D),
+        node("linux", "linux-1.0"),
+        node("bsd", "bsd-1.0"),
+        node("windows", "windows-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("app", "windows", STRONG_B),
+        edge("db", "os"),
+        edge("os", "g1"),
+        edge("g1", "linux"), edge("g1", "bsd"), edge("g1", "windows"),
+    ])
+
+
+def test29():
+    return dot("test29", "Strong blocker !! (both)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("g1", "||", OR_D),
+        node("linux", "linux-1.0"),
+        node("bsd", "bsd-1.0"),
+        node("windows", "windows-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("app", "windows", STRONG_B),
+        edge("db", "os"),
+        edge("os", "g1"),
+        edge("g1", "linux"), edge("g1", "bsd"), edge("g1", "windows"),
+    ])
+
+
+def test30():
+    return dot("test30", "Weak blocker ! (compile)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("g1", "||", OR_D),
+        node("linux", "linux-1.0"),
+        node("bsd", "bsd-1.0"),
+        node("windows", "windows-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("app", "windows", SOFT_B),
+        edge("db", "os"),
+        edge("os", "g1"),
+        edge("g1", "linux"), edge("g1", "bsd"), edge("g1", "windows"),
+    ])
+
+
+def test31():
+    return dot("test31", "Weak blocker ! (both)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("g1", "||", OR_D),
+        node("linux", "linux-1.0"),
+        node("bsd", "bsd-1.0"),
+        node("windows", "windows-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("app", "windows", SOFT_B),
+        edge("db", "os"),
+        edge("os", "g1"),
+        edge("g1", "linux"), edge("g1", "bsd"), edge("g1", "windows"),
+    ])
+
+
+def test32():
+    return dot("test32", "REQUIRED_USE ^^", [
+        node("os", "os-1.0", ENTRY),
+        node("g1", "^^", XOR_D),
+        node("linux", "linux", 'style="rounded,filled",fillcolor=lightyellow'),
+        node("darwin", "darwin", 'style="rounded,filled",fillcolor=lightyellow'),
+    ], [
+        edge("os", "g1", 'label="REQUIRED_USE"'),
+        edge("g1", "linux"), edge("g1", "darwin"),
+    ])
+
+
+def test33():
+    return dot("test33", "USE dep [linux]", [
+        node("app", "app-1.0", ENTRY),
+        node("os", "os-1.0"),
+    ], [
+        edge("app", "os", 'label="[linux]"'),
+    ])
+
+
+def test34():
+    return dot("test34", "USE dep [-linux]", [
+        node("app", "app-1.0", ENTRY),
+        node("os", "os-1.0"),
+    ], [
+        edge("app", "os", 'label="[-linux]"'),
+    ])
+
+
+def test35():
+    return dot("test35", "USE dep [linux=]", [
+        node("app", "app-1.0", ENTRY),
+        node("os", "os-1.0"),
+    ], [
+        edge("app", "os", 'label="[linux=]"'),
+    ])
+
+
+def test36():
+    return dot("test36", "Chained USE [linux=]", [
+        node("app", "app-1.0", ENTRY),
+        node("lib", "lib-1.0"),
+        node("os", "os-1.0"),
+    ], [
+        edge("app", "lib", 'label="[linux=]"'),
+        edge("lib", "os", 'label="[linux=]"'),
+    ])
+
+
+def test37():
+    return dot("test37", "Inverse USE [!linux=]", [
+        node("app", "app-1.0", ENTRY),
+        node("os", "os-1.0"),
+    ], [
+        edge("app", "os", 'label="[!linux=]"'),
+    ])
+
+
+def test38():
+    return dot("test38", "Weak USE [linux?]", [
+        node("app", "app-1.0", ENTRY),
+        node("os", "os-1.0"),
+    ], [
+        edge("app", "os", 'label="[linux?]"'),
+    ])
+
+
+def test39():
+    return dot("test39", "Negative weak [-linux?]", [
+        node("app", "app-1.0", ENTRY),
+        node("os", "os-1.0"),
+    ], [
+        edge("app", "os", 'label="[!linux?]"'),
+    ])
+
+
+def test40():
+    return dot("test40", "REQUIRED_USE ||", [
+        node("os", "os-1.0", ENTRY),
+        node("g1", "||", OR_D),
+        node("linux", "linux", 'style="rounded,filled",fillcolor=lightyellow'),
+        node("darwin", "darwin", 'style="rounded,filled",fillcolor=lightyellow'),
+    ], [
+        edge("os", "g1", 'label="REQUIRED_USE"'),
+        edge("g1", "linux"), edge("g1", "darwin"),
+    ])
+
+
+def test41():
+    return dot("test41", "Slot :1", [
+        node("app", "app-1.0", ENTRY),
+        node("lib1", "lib-1.0 :1"),
+        node("lib2", "lib-2.0 :2"),
+    ], [
+        edge("app", "lib1", 'label=":1"'),
+    ])
+
+
+def test42():
+    return dot("test42", "Slot :*", [
+        node("app", "app-1.0", ENTRY),
+        node("lib1", "lib-1.0 :1"),
+        node("lib2", "lib-2.0 :2"),
+    ], [
+        edge("app", "lib1", 'label=":*"'),
+        edge("app", "lib2", 'label=":*",style=dashed,color=gray'),
+    ])
+
+
+def test43():
+    return dot("test43", "Slot :=", [
+        node("app", "app-1.0", ENTRY),
+        node("lib1", "lib-1.0 :1"),
+        node("lib2", "lib-2.0 :2"),
+    ], [
+        edge("app", "lib1", 'label=":="'),
+        edge("app", "lib2", 'label=":=",style=dashed,color=gray'),
+    ])
+
+
+def test44():
+    return dot("test44", "Sub-slot :1/A", [
+        node("app", "app-1.0", ENTRY),
+        node("lib10", "lib-1.0 :1/A"),
+        node("lib11", "lib-1.1 :1/B"),
+        node("lib20", "lib-2.0 :2/A"),
+    ], [
+        edge("app", "lib10", 'label=":1/A"'),
+    ])
+
+
+def test45():
+    return dot("test45", "Irreconcilable USE conflict", [
+        node("app", "app-1.0", ENTRY),
+        node("liba", "liba-1.0"),
+        node("libb", "libb-1.0"),
+        node("os", "os-1.0"),
+        node("g1", "^^", XOR_D),
+        node("linux", "linux", 'style="rounded,filled"'),
+        node("darwin", "darwin", 'style="rounded,filled"'),
+    ], [
+        edge("app", "liba"), edge("app", "libb"),
+        edge("liba", "os", 'label="[linux]"'),
+        edge("libb", "os", 'label="[darwin]"'),
+        edge("os", "g1", 'label="REQUIRED_USE"'),
+        edge("g1", "linux"), edge("g1", "darwin"),
+    ])
+
+
+def test46():
+    return dot("test46", "Deep diamond USE conflict", [
+        node("app", "app-1.0", ENTRY),
+        node("liba", "liba-1.0"),
+        node("libb", "libb-1.0"),
+        node("libc", "libc-1.0"),
+        node("libd", "libd-1.0"),
+        node("core", "core-utils-1.0"),
+        node("g1", "^^", XOR_D),
+        node("fx", "feature_x", 'style="rounded,filled"'),
+        node("fy", "feature_y", 'style="rounded,filled"'),
+    ], [
+        edge("app", "liba"), edge("app", "libb"),
+        edge("liba", "libc"), edge("libb", "libd"),
+        edge("libc", "core", 'label="[feature_x]"'),
+        edge("libd", "core", 'label="[-feature_x]"'),
+        edge("core", "g1", 'label="REQUIRED_USE"'),
+        edge("g1", "fx"), edge("g1", "fy"),
+    ])
+
+
+def test47():
+    return dot("test47", "Three-way cycle", [
+        node("apidocs", "api-docs-1.0", ENTRY),
+        node("appserver", "app-server-1.0"),
+        node("appclient", "app-client-1.0"),
+    ], [
+        edge("apidocs", "appserver"),
+        edge("appserver", "appclient", CYCLE_R),
+        edge("appclient", "apidocs", CYCLE_C),
+    ])
+
+
+def test48():
+    return dot("test48", "Slot conflict", [
+        node("app", "app-1.0", ENTRY),
+        node("libgraphics", "libgraphics-1.0"),
+        node("libphysics", "libphysics-1.0"),
+        node("libmatrix10", "libmatrix-1.0 :1/A"),
+        node("libmatrix11", "libmatrix-1.1 :1/B"),
+    ], [
+        edge("app", "libgraphics"), edge("app", "libphysics"),
+        edge("libgraphics", "libmatrix10", 'label="=1.0 :1/A"'),
+        edge("libphysics", "libmatrix11", 'label="=1.1 :1/B"'),
+    ])
+
+
+def test49():
+    return dot("test49", "USE default (+) vs REQUIRED_USE", [
+        node("app", "app-1.0", ENTRY),
+        node("libhelper", "libhelper-1.0"),
+    ], [
+        edge("app", "libhelper", 'label="[feature_z(+)]"'),
+    ])
+
+
+def test50():
+    return dot("test50", "Transitive RDEPEND", [
+        node("app", "app-1.0", ENTRY),
+        node("foo", "foo-1.0"),
+        node("bar", "bar-1.0"),
+    ], [
+        edge("app", "foo"),
+        edge("foo", "bar"),
+    ])
+
+
+def test51():
+    return dot("test51", "USE dep vs REQUIRED_USE", [
+        node("app", "app-1.0", ENTRY),
+        node("os", "os-1.0"),
+    ], [
+        edge("app", "os", 'label="[linux]"'),
+    ])
+
+
+def test52():
+    return dot("test52", "Multi-USE on shared dep", [
+        node("app", "app-1.0", ENTRY),
+        node("liba", "liba-1.0"),
+        node("libb", "libb-1.0"),
+        node("os", "os-1.0"),
+    ], [
+        edge("app", "liba"), edge("app", "libb"),
+        edge("liba", "os", 'label="[threads]"'),
+        edge("libb", "os", 'label="[hardened]"'),
+    ])
+
+
+def test53():
+    return dot("test53", "USE merge + conditional dep", [
+        node("app", "app-1.0", ENTRY),
+        node("liba", "liba-1.0"),
+        node("libb", "libb-1.0"),
+        node("os", "os-1.0"),
+        node("libhardened", "libhardened-1.0", COND),
+    ], [
+        edge("app", "liba"), edge("app", "libb"),
+        edge("liba", "os", 'label="[threads]"'),
+        edge("libb", "os", 'label="[hardened]"'),
+        edge("os", "libhardened", 'style=dashed,label="hardened?"'),
+    ])
+
+
+def test54():
+    return dot("test54", "USE flag expansion", [
+        node("app", "app-1.0", ENTRY),
+    ], [])
+
+
+def test55():
+    ns = [node("app", "app-1.0", ENTRY)]
+    for v in range(1, 10):
+        fill = 'fillcolor=palegreen' if 3 < v < 7 else ""
+        ns.append(node(f"lib{v}", f"lib-{v}.0", fill))
+    return dot("test55", "Version range &gt;3 &lt;7", ns, [
+        edge("app", "lib4", 'label=">3 <7"'),
+        edge("app", "lib5", 'label=">3 <7"'),
+        edge("app", "lib6", 'label=">3 <7"'),
+    ])
+
+
+def test56():
+    ns = [
+        node("app", "app-1.0", ENTRY),
+        node("modulea", "modulea-1.0"),
+        node("moduleb", "moduleb-1.0"),
+    ]
+    for v in range(1, 10):
+        fill = 'fillcolor=palegreen' if 3 < v < 7 else ""
+        ns.append(node(f"lib{v}", f"lib-{v}.0", fill))
+    return dot("test56", "Version range via dep chains", ns, [
+        edge("app", "modulea"), edge("app", "moduleb"),
+        edge("modulea", "lib4", 'label=">3"'),
+        edge("modulea", "lib5", 'label=">3"'),
+        edge("modulea", "lib6", 'label=">3"'),
+        edge("modulea", "lib7", 'label=">3"'),
+        edge("modulea", "lib8", 'label=">3"'),
+        edge("modulea", "lib9", 'label=">3"'),
+        edge("moduleb", "lib1", 'label="<7"'),
+        edge("moduleb", "lib2", 'label="<7"'),
+        edge("moduleb", "lib3", 'label="<7"'),
+        edge("moduleb", "lib4", 'label="<7"'),
+        edge("moduleb", "lib5", 'label="<7"'),
+        edge("moduleb", "lib6", 'label="<7"'),
+    ])
+
+
+def test57():
+    return dot("test57", "Virtual-style ebuild", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("virtualsdk", "virtualsdk-1.0"),
+        node("linux", "linux-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+        edge("os", "virtualsdk"),
+        edge("virtualsdk", "linux"),
+    ])
+
+
+def test58():
+    return dot("test58", "PROVIDE virtual (XFAIL)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("virtualsdk", "virtualsdk", MISS),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+        edge("os", "virtualsdk"),
+    ])
+
+
+def test59():
+    return dot("test59", "Any-of || regression (XFAIL)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("g1", "||", OR_D),
+        node("data_fast", "data_fast-1.0"),
+        node("data_best", "data_best-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+        edge("os", "g1"),
+        edge("g1", "data_fast"), edge("g1", "data_best"),
+    ])
+
+
+def test60():
+    return dot("test60", "Versioned blocker (XFAIL)", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+        node("g1", "||", OR_D),
+        node("windows1", "windows-1.0"),
+        node("windows2", "windows-2.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("app", "windows1",
+             'color=red,style=dashed,label="!<2.0",fontcolor=red'),
+        edge("db", "os"),
+        edge("os", "g1"),
+        edge("g1", "windows1", 'label="=1.0"'),
+        edge("g1", "windows2", 'label="=2.0"'),
+    ])
+
+
+def test61():
+    return dot("test61", "Mutual recursion [foo]", [
+        node("app", "app-1.0", ENTRY),
+        node("a", "a-1.0"),
+        node("b", "b-1.0"),
+    ], [
+        edge("app", "a"),
+        edge("a", "b", 'color=red,style=bold,label="[foo]",fontcolor=red'),
+        edge("b", "a", 'color=red,style=bold,label="[foo]",fontcolor=red'),
+    ])
+
+
+def test62():
+    return dot("test62", "Simple mutual cycle", [
+        node("web", "web-1.0", ENTRY),
+        node("a", "a-1.0"),
+        node("b", "b-1.0"),
+    ], [
+        edge("web", "a"), edge("web", "b"),
+        edge("a", "b", CYCLE_R),
+        edge("b", "a", CYCLE_R),
+    ])
+
+
+def test63():
+    return dot("test63", "REQUIRED_USE loop", [
+        node("app", "app-1.0", ENTRY),
+        node("mpibash", "mpibash-1.3-r1"),
+        node("openmpi", "openmpi-4.1.6-r1"),
+    ], [
+        edge("app", "mpibash"),
+        edge("mpibash", "openmpi"),
+    ])
+
+
+def test64():
+    return dot("test64", "USE-conditional churn", [
+        node("app", "app-1.0", ENTRY),
+        node("openmp", "openmp-1.0"),
+        node("python", "python-1.0"),
+        node("hwloc", "hwloc-1.0"),
+        node("perl", "perl-1.0"),
+        node("ninja", "ninja-1.0"),
+        node("cmake", "cmake-1.0"),
+        node("g1", "||", OR_D),
+        node("gpg", "gpg-1.0"),
+        node("gnupg", "gnupg-1.0"),
+    ], [
+        edge("app", "openmp"),
+        edge("openmp", "python", 'style=dashed,label="gdb-plugin?"'),
+        edge("openmp", "hwloc", 'style=dashed,label="hwloc?"'),
+        edge("openmp", "perl", BDEP_E),
+        edge("openmp", "ninja", BDEP_E),
+        edge("openmp", "cmake", BDEP_E),
+        edge("openmp", "g1", 'style=dashed,label="verify-sig?"'),
+        edge("g1", "gpg"), edge("g1", "gnupg"),
+        edge("python", "openmp", CYCLE_CR),
+    ])
+
+
+def test65():
+    return dot("test65", "build_with_use reinstall", [
+        node("app", "app-1.0", ENTRY),
+    ], [])
+
+
+def test66():
+    return dot("test66", "PDEPEND (post-merge)", [
+        node("app", "app-1.0", ENTRY),
+        node("lib", "lib-1.0"),
+        node("plugin", "plugin-1.0"),
+    ], [
+        edge("app", "lib"),
+        edge("lib", "plugin", PDEP_E),
+    ])
+
+
+def test67():
+    return dot("test67", "BDEPEND (build-only)", [
+        node("app", "app-1.0", ENTRY),
+        node("lib", "lib-1.0"),
+        node("toolchain", "toolchain-1.0"),
+    ], [
+        edge("app", "lib"),
+        edge("app", "toolchain", BDEP_E),
+    ])
+
+
+def test68():
+    return dot("test68", "Multi-slot co-install", [
+        node("app", "app-1.0", ENTRY),
+        node("lib1", "lib-1.0 :1"),
+        node("lib2", "lib-2.0 :2"),
+    ], [
+        edge("app", "lib1", 'label=":1"'),
+        edge("app", "lib2", 'label=":2"'),
+    ])
+
+
+def test69():
+    ns = [node("app", "app-1.0", ENTRY)]
+    for v in range(1, 6):
+        fill = 'fillcolor=palegreen' if v >= 3 else ""
+        ns.append(node(f"lib{v}", f"lib-{v}.0", fill))
+    return dot("test69", "Version &gt;=", ns, [
+        edge("app", "lib3", 'label=">=3.0"'),
+        edge("app", "lib4", 'label=">=3.0"'),
+        edge("app", "lib5", 'label=">=3.0"'),
+    ])
+
+
+def test70():
+    return dot("test70", "Version ~ (revision)", [
+        node("app", "app-1.0", ENTRY),
+        node("lib20", "lib-2.0", 'fillcolor=palegreen'),
+        node("lib20r1", "lib-2.0-r1", 'fillcolor=palegreen'),
+        node("lib30", "lib-3.0"),
+    ], [
+        edge("app", "lib20", 'label="~2.0"'),
+        edge("app", "lib20r1", 'label="~2.0"'),
+    ])
+
+
+def test71():
+    return dot("test71", "Fetchonly", [
+        node("web", "web-1.0", ENTRY),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+    ], [
+        edge("web", "app"), edge("web", "db"), edge("web", "os"),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+    ])
+
+
+def test72():
+    return dot("test72", "IDEPEND (install-time)", [
+        node("app", "app-1.0", ENTRY),
+        node("installer", "installer-1.0"),
+    ], [
+        edge("app", "installer", IDEP_E),
+    ])
+
+
+def test73():
+    return dot("test73", "Update (VDB)", [
+        node("app", "app-1.0", ENTRY),
+        node("lib1", "lib-1.0", VDB),
+        node("lib2", "lib-2.0"),
+    ], [
+        edge("app", "lib2", 'label="newest"'),
+    ])
+
+
+def test74():
+    return dot("test74", "Downgrade (VDB)", [
+        node("app", "app-1.0", ENTRY),
+        node("lib1", "lib-1.0"),
+        node("lib2", "lib-2.0", VDB),
+    ], [
+        edge("app", "lib1", 'label="=lib-1.0"'),
+    ])
+
+
+def test75():
+    return dot("test75", "Reinstall / emptytree (VDB)", [
+        node("app", "app-1.0", ENTRY),
+        node("os", "os-1.0", VDB),
+    ], [
+        edge("app", "os"),
+    ])
+
+
+def test76():
+    return dot("test76", "Newuse rebuild (VDB)", [
+        node("app", "app-1.0", ENTRY),
+        node("os", "os-1.0", VDB),
+    ], [
+        edge("app", "os", 'label="[linux]"'),
+    ])
+
+
+def test77():
+    return dot("test77", "Depclean (VDB)", [
+        node("app", "app-1.0", ENTRY),
+        node("os", "os-1.0", VDB),
+        node("orphan", "orphan-1.0", 'fillcolor=lightsalmon'),
+    ], [
+        edge("app", "os"),
+    ])
+
+
+def test78():
+    return dot("test78", "Onlydeps (skip target)", [
+        node("web", "web-1.0", 'fillcolor=lightgray,style="rounded,dashed,filled"'),
+        node("app", "app-1.0"),
+        node("db", "db-1.0"),
+        node("os", "os-1.0"),
+    ], [
+        edge("web", "app", 'style=dashed'), edge("web", "db", 'style=dashed'),
+        edge("web", "os", 'style=dashed'),
+        edge("app", "os"), edge("app", "db"),
+        edge("db", "os"),
+    ])
+
+
+def test79():
+    return dot("test79", "PDEPEND cycle", [
+        node("server", "server-1.0", ENTRY),
+        node("client", "client-1.0"),
+    ], [
+        edge("server", "client"),
+        edge("client", "server", PDEP_E.replace(
+            'label="PDEPEND"',
+            'label="PDEPEND",color=red')),
+    ])
+
+
+def test80():
+    ns = [node("app", "app-1.0", ENTRY)]
+    for v in range(1, 6):
+        fill = 'fillcolor=palegreen' if v <= 3 else ""
+        ns.append(node(f"lib{v}", f"lib-{v}.0", fill))
+    return dot("test80", "Version &lt;=", ns, [
+        edge("app", "lib1", 'label="<=3.0"'),
+        edge("app", "lib2", 'label="<=3.0"'),
+        edge("app", "lib3", 'label="<=3.0"'),
+    ])
+
+
+# ── main ─────────────────────────────────────────────────────────────────────
+
+TESTS = {f"test{i:02d}": globals()[f"test{i:02d}"]
+         for i in range(1, 81)}
 
 
 def main():
-    tests = sorted(d.name for d in CACHE.iterdir()
-                   if d.is_dir() and d.name.startswith("test"))
-    print(f"Generating graphs for {len(tests)} tests")
-    for test in tests:
-        entries = read_cache(test)
-        if not entries: print(f"  {test}: skip"); continue
-        outdir = OUTDIR / test
+    for name, fn in sorted(TESTS.items()):
+        outdir = OUTDIR / name
         outdir.mkdir(parents=True, exist_ok=True)
-        dot = build_graph(test, entries)
-        (outdir / f"{test}.dot").write_text(dot)
-        print(f"  {test}: {len(entries)} pkgs")
-    print("Done")
+        content = fn()
+        (outdir / f"{name}.dot").write_text(content)
+        print(f"  {name}")
+    print(f"Generated {len(TESTS)} .dot files")
 
 
 if __name__ == "__main__":

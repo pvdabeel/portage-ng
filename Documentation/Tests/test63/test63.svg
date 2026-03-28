@@ -9,7 +9,8 @@
 <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 60.75)">
 <title>test63</title>
 <polygon fill="white" stroke="none" points="-4,4 -4,-60.75 299.25,-60.75 299.25,4 -4,4"/>
-<text text-anchor="middle" x="147.62" y="-41.35" font-family="Helvetica,sans-Serif" font-size="12.00">test63 u2014 REQUIRED_USE loop (openmpi)</text>
+<text text-anchor="start" x="59.88" y="-42.35" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="12.00">test63</text>
+<text text-anchor="start" x="94.38" y="-42.35" font-family="Helvetica,sans-Serif" font-size="12.00"> — REQUIRED_USE loop</text>
 <!-- app -->
 <g id="node1" class="node">
 <title>app</title>

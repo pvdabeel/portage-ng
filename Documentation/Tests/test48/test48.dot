@@ -1,19 +1,18 @@
 digraph test48 {
-  label="test48 \u2014 Slot conflict";
+  label=<<B>test48</B> — Slot conflict>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
   app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
   libgraphics [label="libgraphics-1.0"];
-  libmatrix_1_0 [label="libmatrix-1.0"];
-  libmatrix_1_1 [label="libmatrix-1.1"];
   libphysics [label="libphysics-1.0"];
+  libmatrix10 [label="libmatrix-1.0 :1/A"];
+  libmatrix11 [label="libmatrix-1.1 :1/B"];
 
   app -> libgraphics;
   app -> libphysics;
-  libgraphics -> libmatrix_1_0 [label="= :1/A"];
-  libgraphics -> libmatrix_1_1 [label="= :1/A"];
-  libphysics -> libmatrix_1_0 [label="= :1/B"];
-  libphysics -> libmatrix_1_1 [label="= :1/B"];
+  libgraphics -> libmatrix10 [label="=1.0 :1/A"];
+  libphysics -> libmatrix11 [label="=1.1 :1/B"];
 }

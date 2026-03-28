@@ -1,18 +1,19 @@
 digraph test53 {
-  label="test53 \u2014 USE merge + conditional dep";
+  label=<<B>test53</B> — USE merge + conditional dep>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
   app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
   liba [label="liba-1.0"];
   libb [label="libb-1.0"];
-  libhardened [label="libhardened-1.0"];
   os [label="os-1.0"];
+  libhardened [label="libhardened-1.0",style="rounded,dashed,filled"];
 
   app -> liba;
   app -> libb;
   liba -> os [label="[threads]"];
   libb -> os [label="[hardened]"];
-  os -> libhardened [label="hardened?"];
+  os -> libhardened [style=dashed,label="hardened?"];
 }

@@ -1,20 +1,27 @@
 digraph test46 {
-  label="test46 \u2014 Deep diamond USE conflict";
+  label=<<B>test46</B> — Deep diamond USE conflict>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
   app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
-  core_utils [label="core-utils-1.0"];
   liba [label="liba-1.0"];
   libb [label="libb-1.0"];
   libc [label="libc-1.0"];
   libd [label="libd-1.0"];
+  core [label="core-utils-1.0"];
+  g1 [label="^^",shape=diamond,fillcolor=purple,fontcolor=white,fontsize=11,width=0.5,height=0.5];
+  fx [label="feature_x",style="rounded,filled"];
+  fy [label="feature_y",style="rounded,filled"];
 
   app -> liba;
   app -> libb;
   liba -> libc;
   libb -> libd;
-  libc -> core_utils [label="[feature_x]"];
-  libd -> core_utils [label="[-feature_x]"];
+  libc -> core [label="[feature_x]"];
+  libd -> core [label="[-feature_x]"];
+  core -> g1 [label="REQUIRED_USE"];
+  g1 -> fx;
+  g1 -> fy;
 }

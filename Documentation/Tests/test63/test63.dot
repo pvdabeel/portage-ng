@@ -1,8 +1,9 @@
 digraph test63 {
-  label="test63 \u2014 REQUIRED_USE loop (openmpi)";
+  label=<<B>test63</B> — REQUIRED_USE loop>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
   app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
   mpibash [label="mpibash-1.3-r1"];

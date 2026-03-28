@@ -1,27 +1,28 @@
 digraph test27 {
-  label="test27 \u2014 Weak blocker ! (runtime)";
+  label=<<B>test27</B> — Weak blocker ! (runtime)>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
-  app [label="app-1.0"];
-  bsd [label="bsd-1.0"];
-  db [label="db-1.0"];
-  g1 [label="||",shape=diamond,fillcolor=lightyellow,fontsize=9,width=0.4,height=0.4];
-  linux [label="linux-1.0"];
-  os [label="os-1.0"];
   web [label="web-1.0",fillcolor=lightcoral,fontcolor=white];
+  app [label="app-1.0"];
+  db [label="db-1.0"];
+  os [label="os-1.0"];
+  g1 [label="||",shape=diamond,fillcolor=orange,fontcolor=white,fontsize=11,width=0.5,height=0.5];
+  linux [label="linux-1.0"];
+  bsd [label="bsd-1.0"];
   windows [label="windows-1.0"];
 
+  web -> app;
+  web -> db;
+  web -> os;
   app -> os;
   app -> db;
-  app -> windows [color="red",label="!",style="dashed"];
+  app -> windows [color=red,style=dashed,label="soft blocker",fontcolor=red];
   db -> os;
   os -> g1;
   g1 -> linux;
   g1 -> bsd;
   g1 -> windows;
-  web -> os;
-  web -> app;
-  web -> db;
 }

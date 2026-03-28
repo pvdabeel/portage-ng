@@ -1,13 +1,13 @@
 digraph test73 {
-  label="test73 \u2014 Update (VDB)";
+  label=<<B>test73</B> — Update (VDB)>;
   labelloc=t; fontname=Helvetica; fontsize=12;
   graph [rankdir=LR];
   node  [fontname=Helvetica,fontsize=10,shape=box,style="rounded,filled",fillcolor=lightyellow];
+  edge  [fontname=Helvetica,fontsize=9];
 
   app [label="app-1.0",fillcolor=lightcoral,fontcolor=white];
-  lib_1_0 [label="lib-1.0",fillcolor=lightblue];
-  lib_2_0 [label="lib-2.0",fillcolor=lightblue];
+  lib1 [label="lib-1.0",fillcolor=lightblue];
+  lib2 [label="lib-2.0"];
 
-  app -> lib_1_0;
-  app -> lib_2_0;
+  app -> lib2 [label="newest"];
 }
