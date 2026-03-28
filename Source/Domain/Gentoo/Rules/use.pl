@@ -1088,3 +1088,85 @@ bwu_conflict_disable(use_conditional_group(negative, Use, _, SubDeps), Enable, R
     \+ memberchk(Use, Enable),
     member(SubTerm, SubDeps),
     bwu_conflict_disable(SubTerm, Enable, RepoEntry, Other).
+
+
+% =============================================================================
+%  Post-BWU REQUIRED_USE validation
+% =============================================================================
+
+%! use:verify_required_use_with_bwu(+RepoEntry, +BWU)
+%
+% Fails when the build_with_use overrides (Enable/Disable lists) would
+% violate the ebuild's REQUIRED_USE.  Called after
+% build_with_use_resolve_required_use to catch irreconcilable conflicts
+% (e.g. [linux] USE dep vs REQUIRED_USE=!linux).
+
+verify_required_use_with_bwu(Repo://Entry, use_state(Enable, Disable)) :-
+    ( Enable == [], Disable == [] -> true
+    ; findall(ReqUse,
+              cache:entry_metadata(Repo, Entry, required_use, ReqUse),
+              AllReqUse),
+      ( AllReqUse == [] -> true
+      ; forall(member(Term, AllReqUse),
+               requse_term_ok_with_bwu(Repo://Entry, Enable, Disable, Term))
+      )
+    ).
+
+
+%! use:requse_term_ok_with_bwu(+RepoEntry, +Enable, +Disable, +Term)
+%
+% Succeeds when a single REQUIRED_USE term is satisfiable after
+% applying the Enable/Disable overrides.
+
+requse_term_ok_with_bwu(RepoEntry, Enable, Disable, required(Use)) :-
+    \+ Use =.. [minus,_], !,
+    ( memberchk(Use, Enable) -> true
+    ; memberchk(Use, Disable) -> fail
+    ; effective_use_for_entry(RepoEntry, Use, positive)
+    ).
+requse_term_ok_with_bwu(RepoEntry, Enable, Disable, required(minus(Use))) :-
+    \+ Use =.. [minus,_], !,
+    ( memberchk(Use, Disable) -> true
+    ; memberchk(Use, Enable) -> fail
+    ; effective_use_for_entry(RepoEntry, Use, negative)
+    ).
+requse_term_ok_with_bwu(RepoEntry, Enable, Disable, blocking(Use)) :-
+    \+ Use =.. [minus,_], !,
+    ( memberchk(Use, Disable) -> true
+    ; memberchk(Use, Enable) -> fail
+    ; effective_use_for_entry(RepoEntry, Use, negative)
+    ).
+requse_term_ok_with_bwu(RepoEntry, Enable, Disable,
+                        use_conditional_group(positive, Use, _, SubDeps)) :- !,
+    ( ( memberchk(Use, Enable) -> true
+      ; \+ memberchk(Use, Disable),
+        effective_use_for_entry(RepoEntry, Use, positive)
+      )
+    -> forall(member(D, SubDeps),
+              requse_term_ok_with_bwu(RepoEntry, Enable, Disable, D))
+    ; true
+    ).
+requse_term_ok_with_bwu(RepoEntry, Enable, Disable,
+                        use_conditional_group(negative, Use, _, SubDeps)) :- !,
+    ( ( memberchk(Use, Disable) -> true
+      ; \+ memberchk(Use, Enable),
+        effective_use_for_entry(RepoEntry, Use, negative)
+      )
+    -> forall(member(D, SubDeps),
+              requse_term_ok_with_bwu(RepoEntry, Enable, Disable, D))
+    ; true
+    ).
+requse_term_ok_with_bwu(RepoEntry, Enable, Disable, any_of_group(Deps)) :- !,
+    member(D, Deps),
+    requse_term_ok_with_bwu(RepoEntry, Enable, Disable, D), !.
+requse_term_ok_with_bwu(RepoEntry, Enable, Disable, exactly_one_of_group(Deps)) :- !,
+    findall(1, (member(D, Deps),
+                requse_term_ok_with_bwu(RepoEntry, Enable, Disable, D)),
+            Sat),
+    length(Sat, 1).
+requse_term_ok_with_bwu(RepoEntry, Enable, Disable, at_most_one_of_group(Deps)) :- !,
+    findall(1, (member(D, Deps),
+                requse_term_ok_with_bwu(RepoEntry, Enable, Disable, D)),
+            Sat),
+    length(Sat, N), N =< 1.
+requse_term_ok_with_bwu(_, _, _, _).

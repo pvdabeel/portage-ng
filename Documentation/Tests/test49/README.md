@@ -46,32 +46,38 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ useflag overlay://test49/libhelper-1.0 (feature_z -feature_z)
-             │ useflag overlay://test49/libhelper-1.0 (feature_z)
+ └─step  1─┤ useflag overlay://test49/libhelper-1.0 (feature_z)
 
- └─step  2─┤ download  overlay://test49/libhelper-1.0
-             │ download  overlay://test49/app-1.0
+ └─step  2─┤ download  overlay://test49/app-1.0
 
- └─step  3─┤ install   overlay://test49/libhelper-1.0 (USE modified)
+ └─step  3─┤ run       overlay://test49/libhelper-1.0 (USE modified)
+
+ └─step  4─┤ install   overlay://test49/app-1.0
              │           └─ conf ─┤ USE = "-feature_z"
 
- └─step  4─┤ run       overlay://test49/libhelper-1.0 (USE modified)
+ └─step  5─┤ run     overlay://test49/app-1.0
 
- └─step  5─┤ install   overlay://test49/app-1.0
-             │           └─ conf ─┤ USE = "-feature_z"
-
- └─step  6─┤ run     overlay://test49/app-1.0
-
-Total: 8 actions (2 useflags, 2 downloads, 2 installs, 2 runs), grouped into 6 steps.
+Total: 5 actions (1 useflag, 1 download, 1 install, 2 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
+
 
 
 >>> Assumptions taken during proving & planning:
 
-  USE flag change (2 packages):
+  USE flag change (1 package):
   Add to /etc/portage/package.use:
-    test49/libhelper feature_z -feature_z
     test49/libhelper feature_z
+
+
+Error The proof for your build plan contains domain assumptions. Please verify:
+
+
+>>> Domain assumptions
+
+- Model unavailable: 
+  test49/libhelper — dependency model could not be built
+  (some dependencies may be missing from the tree or keyword-filtered)
+  required by: overlay://test49/app-1.0
 ```
 
 </details>

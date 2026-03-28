@@ -267,6 +267,10 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
       query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
       use:build_with_use_resolve_required_use(B, Repository://Ebuild, BResolved),
 
+      % 2b. Verify REQUIRED_USE is still satisfied after applying build_with_use.
+      %     Rejects candidates whose USE deps conflict with REQUIRED_USE.
+      use:verify_required_use_with_bwu(Repository://Ebuild, BResolved),
+
       % 3. Pass use model onto dependencies to calculate corresponding dependency model,
       %    We pass using config action to avoid package_dependency from generating choices.
       %    The config action triggers use_conditional, any_of_group, exactly_one_of_group,
@@ -357,6 +361,9 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   use:context_build_with_use_state(Context1, B),
   query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
   use:build_with_use_resolve_required_use(B, Repository://Ebuild, BResolved),
+
+  % 2b. Verify REQUIRED_USE is still satisfied after applying build_with_use.
+  use:verify_required_use_with_bwu(Repository://Ebuild, BResolved),
 
       % 3-4. Compute + memoize dependency model, already grouped by package Category & Name.
   query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model},Repository://Ebuild),

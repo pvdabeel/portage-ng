@@ -48,8 +48,7 @@ Calculating dependencies... done!
 
  └─step  1─┤ useflag overlay://test51/os-1.0 (linux)
 
- └─step  2─┤ download  overlay://test51/os-1.0
-             │ download  overlay://test51/app-1.0
+ └─step  2─┤ download  overlay://test51/app-1.0
 
  └─step  3─┤ install   overlay://test51/os-1.0 (USE modified)
              │           └─ conf ─┤ USE = "linux"
@@ -58,8 +57,9 @@ Calculating dependencies... done!
 
  └─step  5─┤ run     overlay://test51/app-1.0
 
-Total: 6 actions (1 useflag, 2 downloads, 2 installs, 1 run), grouped into 5 steps.
+Total: 5 actions (1 useflag, 1 download, 2 installs, 1 run), grouped into 5 steps.
        0.00 Kb to be downloaded.
+
 
 
 >>> Assumptions taken during proving & planning:
@@ -67,6 +67,17 @@ Total: 6 actions (1 useflag, 2 downloads, 2 installs, 1 run), grouped into 5 ste
   USE flag change (1 package):
   Add to /etc/portage/package.use:
     test51/os linux
+
+
+Error The proof for your build plan contains domain assumptions. Please verify:
+
+
+>>> Domain assumptions
+
+- Model unavailable: 
+  test51/os — dependency model could not be built
+  (some dependencies may be missing from the tree or keyword-filtered)
+  required by: overlay://test51/app-1.0
 ```
 
 </details>
