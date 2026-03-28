@@ -25,11 +25,11 @@ make certs-renew    # renew any certs expiring within 30 days
 Or use the script directly for more control:
 
 ```bash
-sh Certificates/Scripts/generate.sh --check              # check all hosts
-sh Certificates/Scripts/generate.sh --check mac-pro.local # check one host
-sh Certificates/Scripts/generate.sh --renew              # renew expired (all hosts)
-sh Certificates/Scripts/generate.sh --renew mac-pro.local # renew expired (one host)
-sh Certificates/Scripts/generate.sh --renew-all          # renew all unconditionally
+sh Certificates/Scripts/generate.sh --check                # check all hosts
+sh Certificates/Scripts/generate.sh --check mac-pro.local  # check one host
+sh Certificates/Scripts/generate.sh --renew                # renew expired (all hosts)
+sh Certificates/Scripts/generate.sh --renew mac-pro.local  # renew expired (one host)
+sh Certificates/Scripts/generate.sh --renew-all            # renew all unconditionally
 ```
 
 ## File layout
