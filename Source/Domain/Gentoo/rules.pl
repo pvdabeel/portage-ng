@@ -1656,6 +1656,47 @@ rules:constraint_guard(constraint(selected_cn(C,N):{ordset(_SelectedNew)}), Cons
   ; true
   ).
 rules:constraint_guard(_Other, _Constraints).
+
+
+% -----------------------------------------------------------------------------
+%  Prover hook: benign cycle classification
+% -----------------------------------------------------------------------------
+%
+% The prover is kept domain-agnostic.  When it detects a cycle (a literal
+% already on the proof stack), it calls `rules:cycle_benign(Lit)` before
+% creating a cycle-break assumption.  If the hook succeeds, the cycle is
+% considered harmless and the literal is silently treated as already proven;
+% no `assumed(rule(Lit))` entry is recorded and no "verify" step appears
+% in the plan.
+%
+% Rationale:
+%
+% Dependency-level literals (`grouped_package_dependency` and
+% `package_dependency`) represent a dependency *on* a package that is being
+% resolved by an ancestor frame.  Since that ancestor is already committed
+% to installing/running the package, any sub-dependency referencing the
+% same (Category, Name) is trivially satisfied.  This matches the
+% behaviour of traditional resolvers (Portage) that silently handle such
+% cyclic references.
+%
+% The prover itself does not understand these domain-specific literal
+% shapes.  By implementing this hook in the domain layer, the prover
+% remains generic and other domains can provide their own classification.
+%
+% Note: this hook does NOT affect cross-package mutual cycles (e.g.
+% A depends on B and B depends on A); those literals are repo://entry
+% terms, not dependency terms, and do not match these clauses.  Such
+% cycles are genuine and continue to produce cycle-break assumptions.
+
+%! rules:cycle_benign(+Lit)
+%
+% Succeeds if Lit is a dependency-level literal whose cycle is benign.
+
+rules:cycle_benign(grouped_package_dependency(_,_,_,_):_).
+rules:cycle_benign(grouped_package_dependency(_,_,_):_).
+rules:cycle_benign(package_dependency(_,_,_,_,_,_,_,_):_).
+
+
 % -----------------------------------------------------------------------------
 %  Prover hook: domain-driven goal enqueueing (single-pass extensions)
 % -----------------------------------------------------------------------------

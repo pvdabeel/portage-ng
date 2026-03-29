@@ -51,11 +51,23 @@ Key design points:
 - Cycle detection and cycle-break assumptions: during depth-first
   proof search, a per-proof *cycle stack* tracks literals currently
   being proved.  When a literal is encountered that is already on
-  the stack, the prover records a cycle-break assumption instead of
-  diverging.  In Proof, cycle-breaks appear under the key
-  `assumed(rule(Lit))` (as opposed to `rule(Lit)` for normally
-  proven literals).  In Model, they appear as `assumed(Lit)`.
-  This is distinct from *domain-level* assumptions introduced by the
+  the stack, the prover consults the domain hook `rules:cycle_benign/1`
+  (if defined) before deciding how to handle the cycle:
+
+  * *Benign cycle* (`rules:cycle_benign(Lit)` succeeds): the literal
+    is already being resolved by an ancestor on the proof stack and
+    the domain considers the cycle harmless.  The prover treats it as
+    already proven -- it adds `Lit` to the Model and continues without
+    recording any assumption.  No `assumed(rule(Lit))` key is stored.
+    This matches the behaviour of resolvers like Portage that silently
+    handle dependency-level self-referential cycles.
+
+  * *Structural cycle* (hook absent or fails): the prover records a
+    cycle-break assumption.  In Proof, cycle-breaks appear under the
+    key `assumed(rule(Lit))` (as opposed to `rule(Lit)` for normally
+    proven literals).  In Model, they appear as `assumed(Lit)`.
+
+  Both are distinct from *domain-level* assumptions introduced by the
   rule layer via `rule(assumed(X), [])`.
 
 - Triggers form a reverse-dependency index: for each body literal B
@@ -411,32 +423,41 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
       (   prover:currently_proving(Lit),
           \+ prover:assumed_proving(Lit, Proof) ->
 
-	        %message:color(orange),
-          %writeln('PROVER: circular proof, taking assumption'),
-          %message:color(normal),
+          ( current_predicate(rules:cycle_benign/1),
+            rules:cycle_benign(Lit) ->
 
-          % Cycle-break mechanism:
-          % - In the Proof: record a special key `assumed(rule(Lit))`
-          % - In the Model: record `assumed(Lit)`
-          %
-          % This is distinct from domain-level assumptions introduced by rules
-          % via the literal `assumed(X)` (which are proven by `rule(assumed(_), [])`
-          % and stored under `rule(assumed(X))` in the proof).
-          % Store the *current* body of the in-progress rule so downstream
-          % planning/SCC logic can still see the cycle edges. Mark the depcount
-          % as -1 to indicate "deferred / cyclic".
-          ( get_assoc(rule(Lit), Proof, dep(_OldCount, OldBody)?_OldCtx)
-            -> BodyForPlanning = OldBody
-            ;  BodyForPlanning = []
-          ),
-          put_assoc(assumed(rule(Lit)), Proof, dep(-1, BodyForPlanning)?Ctx, Proof1),
-          ( prover:cycle_path_for(Lit, CyclePath) ->
-              put_assoc(cycle_path(Lit), Proof1, CyclePath, NewProof)
-          ; NewProof = Proof1
-          ),
-          put_assoc(assumed(Lit), Model, Ctx, NewModel),
-          NewConstraints = Constraints,
-          NewTriggers = Triggers
+              % Benign cycle: the domain says this literal is already being
+              % resolved by an ancestor and the cycle is harmless.  Treat as
+              % proven without creating a cycle-break assumption.  rule(Lit)
+              % was already stored in Proof by the outer call before body
+              % proving began, so the planner will find it.
+              put_assoc(Lit, Model, Ctx, NewModel),
+              NewProof = Proof,
+              NewConstraints = Constraints,
+              NewTriggers = Triggers
+          ;
+              % Structural cycle: cycle-break assumption.
+              % - In the Proof: record a special key `assumed(rule(Lit))`
+              % - In the Model: record `assumed(Lit)`
+              %
+              % This is distinct from domain-level assumptions introduced by
+              % rules via `rule(assumed(X), [])`.
+              % Store the *current* body of the in-progress rule so downstream
+              % planning/SCC logic can still see the cycle edges.  Mark the
+              % depcount as -1 to indicate "deferred / cyclic".
+              ( get_assoc(rule(Lit), Proof, dep(_OldCount, OldBody)?_OldCtx)
+                -> BodyForPlanning = OldBody
+                ;  BodyForPlanning = []
+              ),
+              put_assoc(assumed(rule(Lit)), Proof, dep(-1, BodyForPlanning)?Ctx, Proof1),
+              ( prover:cycle_path_for(Lit, CyclePath) ->
+                  put_assoc(cycle_path(Lit), Proof1, CyclePath, NewProof)
+              ; NewProof = Proof1
+              ),
+              put_assoc(assumed(Lit), Model, Ctx, NewModel),
+              NewConstraints = Constraints,
+              NewTriggers = Triggers
+          )
       ;
 
       % Case: regular proof

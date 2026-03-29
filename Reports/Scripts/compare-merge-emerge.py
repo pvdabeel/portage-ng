@@ -403,6 +403,8 @@ def _spearman_rho(order_a: List[Tuple[str, str]], order_b: List[Tuple[str, str]]
 
 
 _CYCLE_ACTION_RE = re.compile(r'└─(install|run|update|downgrade|reinstall)─>')
+_FLAT_CYCLE_ENTRY_RE = re.compile(r'\):(install|run|fetchonly)\s*$')
+_CYCLE_OMITTED_RE = re.compile(r'\(\S*\s*(\d+)\s+more\s+cycle\s+breaks?\s+omitted\)')
 
 
 def _flush_cycle(actions: Set[str], counters: Dict[str, int]) -> None:
@@ -686,13 +688,25 @@ def parse_merge(path: Path) -> Tuple[Dict[str, MergePkg], Dict[str, int], List[s
         if in_cycles:
             stripped = line.strip()
             if stripped.startswith("- Cycle break"):
+                # detailed style: "- Cycle break:" header line
                 _flush_cycle(cycle_actions, counters)
                 cycle_actions = set()
                 counters["cycle_breaks"] += 1
             else:
-                cam = _CYCLE_ACTION_RE.search(line)
-                if cam:
-                    cycle_actions.add(cam.group(1))
+                # flat style: each entry is a bare Prolog term ending with :action
+                fm = _FLAT_CYCLE_ENTRY_RE.search(stripped)
+                if fm:
+                    _flush_cycle(cycle_actions, counters)
+                    cycle_actions = {fm.group(1)}
+                    counters["cycle_breaks"] += 1
+                else:
+                    om = _CYCLE_OMITTED_RE.search(stripped)
+                    if om:
+                        counters["cycle_breaks"] += int(om.group(1))
+                    else:
+                        cam = _CYCLE_ACTION_RE.search(line)
+                        if cam:
+                            cycle_actions.add(cam.group(1))
     _flush_cycle(cycle_actions, counters)
     if domain_buf:
         _classify_domain_assumption(domain_buf, counters)
