@@ -423,14 +423,15 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
       (   prover:currently_proving(Lit),
           \+ prover:assumed_proving(Lit, Proof) ->
 
-          ( current_predicate(rules:cycle_benign/1),
-            rules:cycle_benign(Lit) ->
+          prover:cycle_path_for(Lit, CyclePath),
+          ( current_predicate(rules:cycle_benign/2),
+            rules:cycle_benign(Lit, CyclePath) ->
 
-              % Benign cycle: the domain says this literal is already being
-              % resolved by an ancestor and the cycle is harmless.  Treat as
-              % proven without creating a cycle-break assumption.  rule(Lit)
-              % was already stored in Proof by the outer call before body
-              % proving began, so the planner will find it.
+              % Benign cycle: the domain classifies this cycle as harmless
+              % based on the cycle path (e.g. RDEPEND-mediated cycles that
+              % Portage/Paludis handle as ordering issues, not resolution
+              % failures).  Treat as proven without creating a cycle-break
+              % assumption.
               put_assoc(Lit, Model, Ctx, NewModel),
               NewProof = Proof,
               NewConstraints = Constraints,
@@ -450,10 +451,7 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
                 ;  BodyForPlanning = []
               ),
               put_assoc(assumed(rule(Lit)), Proof, dep(-1, BodyForPlanning)?Ctx, Proof1),
-              ( prover:cycle_path_for(Lit, CyclePath) ->
-                  put_assoc(cycle_path(Lit), Proof1, CyclePath, NewProof)
-              ; NewProof = Proof1
-              ),
+              put_assoc(cycle_path(Lit), Proof1, CyclePath, NewProof),
               put_assoc(assumed(Lit), Model, Ctx, NewModel),
               NewConstraints = Constraints,
               NewTriggers = Triggers

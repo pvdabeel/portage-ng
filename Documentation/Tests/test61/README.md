@@ -62,6 +62,7 @@ The following USE changes are necessary to proceed:
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test61/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -72,8 +73,6 @@ Calculating dependencies... done!
              │ useflag overlay://test61/b-1.0 (foo)
 
  └─step  2─┤ verify  overlay://test61/a-1.0 (assumed installed)
-             │ verify  overlay://test61/a-1.0 (assumed running) 
-             │ verify  overlay://test61/b-1.0 (assumed installed)
              │ download  overlay://test61/b-1.0
              │ download  overlay://test61/app-1.0
              │ download  overlay://test61/a-1.0
@@ -107,8 +106,6 @@ Total: 11 actions (2 useflags, 3 downloads, 3 installs, 3 runs), grouped into 8 
 >>> Cycle breaks (prover)
 
   overlay://test61/a-1.0:install
-  overlay://test61/a-1.0:run
-  overlay://test61/b-1.0:install
 ```
 
 </details>

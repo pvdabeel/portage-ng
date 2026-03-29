@@ -29,6 +29,7 @@ emerge: there are no ebuilds to satisfy "test10/notexists".
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test10/os-1.0:run?{[]}
 
 These are the packages that would be merged, in order:

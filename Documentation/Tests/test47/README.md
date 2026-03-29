@@ -2,9 +2,15 @@
 
 **Category:** Cycle
 
-This test case presents a more complex, three-way circular dependency. The client needs the docs to build, the docs need the server to run, and the server needs the client to run. This creates a loop that cannot be resolved.
+This test case presents a more complex, three-way circular dependency. The client
+needs the docs to build, the docs need the server to run, and the server needs the
+client to run. Because the cycle path passes through runtime dependency edges
+(RDEPEND), the cycle is classified as RDEPEND-mediated and therefore benign
+(matching Portage's MEDIUM priority / Paludis's "freely orderable" semantics).
 
-**Expected:** The prover should be able to trace the dependency chain through all three packages and identify the circular dependency, causing the proof to fail.
+**Expected:** The prover should detect the cycle but classify it as benign, producing a clean plan
+with all three packages and no cycle-break assumptions. Emerge reports the cycle as
+a warning but still produces a valid merge list.
 
 ![test47](test47.svg)
 
@@ -43,14 +49,14 @@ Total: 3 packages (3 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test47/api-docs-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  overlay://test47/api-docs-1.0 (assumed installed)
-             │ download  overlay://test47/app-server-1.0
+ └─step  1─┤ download  overlay://test47/app-server-1.0
              │ download  overlay://test47/app-client-1.0
              │ download  overlay://test47/api-docs-1.0
 
@@ -68,11 +74,6 @@ Calculating dependencies... done!
 
 Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
        0.00 Kb to be downloaded.
-
-
->>> Cycle breaks (prover)
-
-  overlay://test47/api-docs-1.0:install
 ```
 
 </details>

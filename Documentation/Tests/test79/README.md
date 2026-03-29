@@ -35,14 +35,14 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test79/server-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  overlay://test79/server-1.0 (assumed running) 
-             │ download  overlay://test79/server-1.0
+ └─step  1─┤ download  overlay://test79/server-1.0
              │ download  overlay://test79/client-1.0
 
  └─step  2─┤ install   overlay://test79/client-1.0
@@ -55,11 +55,6 @@ Calculating dependencies... done!
 
 Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
-
-
->>> Cycle breaks (prover)
-
-  overlay://test79/server-1.0:run
 ```
 
 </details>

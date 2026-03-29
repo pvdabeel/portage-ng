@@ -1091,6 +1091,176 @@ bwu_conflict_disable(use_conditional_group(negative, Use, _, SubDeps), Enable, R
 
 
 % =============================================================================
+%  Post-BWU REQUIRED_USE stabilization
+% =============================================================================
+%
+% After build_with_use_resolve_required_use handles mutual-exclusion
+% conflicts, some REQUIRED_USE constraints may still be violated --
+% typically any_of_group or exactly_one_of_group where no member is
+% currently satisfied, or conditional groups whose sub-requirements
+% fail after BWU adjustments.
+%
+% Portage explicitly does not auto-unmask for REQUIRED_USE (see
+% depgraph.py: "unsatisfied REQUIRED_USE (currently has no autounmask
+% support)").  This stabilization step goes beyond Portage by
+% proactively adjusting the BWU Enable/Disable sets to satisfy
+% constraints, reducing false domain-assumption rejections.
+
+%! use:stabilize_required_use(+RepoEntry, +BWU_In, -BWU_Out)
+%
+% Adjusts the build_with_use state to satisfy REQUIRED_USE constraints
+% that build_with_use_resolve_required_use could not handle.  Handles
+% any_of_group (enable one member), exactly_one_of_group (enable one
+% when zero satisfied), nested conditional groups, and simple
+% required(Flag) implications.
+%
+% Uses a fixed-point loop: enabling a flag to satisfy one constraint
+% (e.g. webengine requires quick) may activate another conditional
+% (e.g. quick requires qml).  The loop repeats until no more changes
+% are made, capped at 5 iterations to avoid infinite loops.
+
+stabilize_required_use(Repo://Entry, BWU_In, BWU_Out) :-
+    BWU_In = use_state(Enable0, Disable0),
+    ( Enable0 == [], Disable0 == [] ->
+        BWU_Out = BWU_In
+    ; findall(ReqUse,
+              cache:entry_metadata(Repo, Entry, required_use, ReqUse),
+              AllReqUse),
+      ( AllReqUse == [] ->
+          BWU_Out = BWU_In
+      ; stabilize_required_use_loop(Repo://Entry, AllReqUse, BWU_In, BWU_Out, 5)
+      )
+    ).
+
+
+%! use:stabilize_required_use_loop(+RepoEntry, +AllReqUse, +BWU_In, -BWU_Out, +Limit)
+%
+% Fixed-point iteration: runs one stabilization pass over all
+% REQUIRED_USE terms.  If the BWU changed, repeats (up to Limit
+% times) to resolve cascading implications.
+
+stabilize_required_use_loop(_RepoEntry, _AllReqUse, BWU_In, BWU_In, 0) :- !.
+stabilize_required_use_loop(RepoEntry, AllReqUse, BWU_In, BWU_Out, Limit) :-
+    foldl(stabilize_requse_term(RepoEntry), AllReqUse, BWU_In, BWU_Mid),
+    ( BWU_Mid == BWU_In ->
+        BWU_Out = BWU_Mid
+    ; Limit1 is Limit - 1,
+      stabilize_required_use_loop(RepoEntry, AllReqUse, BWU_Mid, BWU_Out, Limit1)
+    ).
+
+
+%! use:stabilize_requse_term(+RepoEntry, +Term, +BWU_In, -BWU_Out)
+%
+% Fold helper: if Term is satisfied under the current BWU, pass through.
+% Otherwise compute fixes and apply them.
+
+stabilize_requse_term(RepoEntry, Term, use_state(En0, Dis0), use_state(EnOut, DisOut)) :-
+    ( requse_term_ok_with_bwu(RepoEntry, En0, Dis0, Term) ->
+        EnOut = En0, DisOut = Dis0
+    ; requse_term_fixes(RepoEntry, En0, Dis0, Term, Fixes),
+      Fixes \== [] ->
+        foldl(apply_requse_fix, Fixes, use_state(En0, Dis0), use_state(EnOut, DisOut))
+    ; EnOut = En0, DisOut = Dis0
+    ).
+
+
+%! use:requse_term_fixes(+RepoEntry, +Enable, +Disable, +Term, -Fixes)
+%
+% Computes a list of enable(Flag)/disable(Flag) fixes for a violated
+% REQUIRED_USE term.
+
+requse_term_fixes(_RepoEntry, _En, _Dis, any_of_group(Deps), [enable(Flag)]) :-
+    requse_pick_satisfying_flag(Deps, Flag), !.
+requse_term_fixes(RepoEntry, En, Dis, exactly_one_of_group(Deps), [enable(Flag)]) :-
+    findall(1, (member(D, Deps), requse_term_ok_with_bwu(RepoEntry, En, Dis, D)), Sat),
+    length(Sat, 0),
+    requse_pick_satisfying_flag(Deps, Flag), !.
+requse_term_fixes(RepoEntry, En, Dis,
+                  use_conditional_group(positive, Use, _, SubDeps), Fixes) :-
+    requse_flag_is_positive(RepoEntry, En, Dis, Use),
+    foldl(collect_requse_fixes(RepoEntry, En, Dis), SubDeps, [], Fixes),
+    Fixes \== [], !.
+requse_term_fixes(RepoEntry, En, Dis,
+                  use_conditional_group(negative, Use, _, SubDeps), Fixes) :-
+    requse_flag_is_negative(RepoEntry, En, Dis, Use),
+    foldl(collect_requse_fixes(RepoEntry, En, Dis), SubDeps, [], Fixes),
+    Fixes \== [], !.
+requse_term_fixes(RepoEntry, En, Dis, required(Use), [enable(Use)]) :-
+    \+ Use =.. [minus,_],
+    \+ requse_flag_is_positive(RepoEntry, En, Dis, Use), !.
+requse_term_fixes(RepoEntry, En, Dis, required(minus(Use)), [disable(Use)]) :-
+    \+ Use =.. [minus,_],
+    \+ requse_flag_is_negative(RepoEntry, En, Dis, Use), !.
+requse_term_fixes(RepoEntry, En, Dis, blocking(Use), [disable(Use)]) :-
+    \+ Use =.. [minus,_],
+    \+ requse_flag_is_negative(RepoEntry, En, Dis, Use), !.
+requse_term_fixes(_RepoEntry, _En, _Dis, _, []).
+
+
+%! use:requse_pick_satisfying_flag(+Deps, -Flag)
+%
+% Pick a flag from a REQUIRED_USE group to enable.  Prefers flags
+% already in USE defaults; falls back to the last flag in the list.
+
+requse_pick_satisfying_flag(Deps, Flag) :-
+    findall(F, (member(required(F), Deps), atom(F), \+ F = minus(_)), Flags),
+    Flags \== [],
+    ( member(F, Flags), preference:use(F) ->
+        Flag = F
+    ; last(Flags, Flag)
+    ).
+
+
+%! use:requse_flag_is_positive(+RepoEntry, +Enable, +Disable, +Use)
+%
+% True if Use is effectively positive under the current BWU state.
+
+requse_flag_is_positive(RepoEntry, En, Dis, Use) :-
+    ( memberchk(Use, En) -> true
+    ; \+ memberchk(Use, Dis),
+      effective_use_for_entry(RepoEntry, Use, positive)
+    ).
+
+
+%! use:requse_flag_is_negative(+RepoEntry, +Enable, +Disable, +Use)
+%
+% True if Use is effectively negative under the current BWU state.
+
+requse_flag_is_negative(RepoEntry, En, Dis, Use) :-
+    ( memberchk(Use, Dis) -> true
+    ; \+ memberchk(Use, En),
+      effective_use_for_entry(RepoEntry, Use, negative)
+    ).
+
+
+%! use:collect_requse_fixes(+RepoEntry, +Enable, +Disable, +Term, +Fixes0, -FixesOut)
+%
+% Fold helper: collects fixes for sub-terms of a conditional group.
+
+collect_requse_fixes(RepoEntry, En, Dis, Term, Fixes0, FixesOut) :-
+    ( requse_term_ok_with_bwu(RepoEntry, En, Dis, Term) ->
+        FixesOut = Fixes0
+    ; requse_term_fixes(RepoEntry, En, Dis, Term, NewFixes),
+      NewFixes \== [] ->
+        append(Fixes0, NewFixes, FixesOut)
+    ; FixesOut = Fixes0
+    ).
+
+
+%! use:apply_requse_fix(+Fix, +BWU_In, -BWU_Out)
+%
+% Applies a single enable/disable fix to the BWU state, maintaining
+% consistency (a flag cannot be in both Enable and Disable).
+
+apply_requse_fix(enable(Flag), use_state(En0, Dis0), use_state(En1, Dis1)) :-
+    ( memberchk(Flag, En0) -> En1 = En0 ; sort([Flag|En0], En1) ),
+    ( select(Flag, Dis0, Dis1) -> true ; Dis1 = Dis0 ).
+apply_requse_fix(disable(Flag), use_state(En0, Dis0), use_state(En1, Dis1)) :-
+    ( memberchk(Flag, Dis0) -> Dis1 = Dis0 ; sort([Flag|Dis0], Dis1) ),
+    ( select(Flag, En0, En1) -> true ; En1 = En0 ).
+
+
+% =============================================================================
 %  Post-BWU REQUIRED_USE validation
 % =============================================================================
 

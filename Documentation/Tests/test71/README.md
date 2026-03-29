@@ -28,6 +28,7 @@ Dependency resolution took 0.75 s (backtrack: 0/20).
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test71/web-1.0:fetchonly?{[]}
 
 These are the packages that would be merged, in order:

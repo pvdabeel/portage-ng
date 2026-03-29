@@ -49,11 +49,11 @@ The overlay repository itself is at [`Repository/Overlay/`](../../Repository/Ove
 | [37](#test37) | USE dep | Inverse equality [!linux=] |
 | [38](#test38) | USE dep | Weak conditional [linux?] |
 | [39](#test39) | USE dep | Negative weak [-linux?] |
-| [40](#test40) | REQUIRED_USE | \|\| on standalone package |
+| [40](#test40) | REQUIRED_USE | || on standalone package |
 | [41](#test41) | Slot | Explicit slot :1 |
 | [42](#test42) | Slot | Wildcard slot :* |
 | [43](#test43) | Slot | Slot equality := |
-| [44](#test44) | Slot | Sub-slot `:1/A` |
+| [44](#test44) | Slot | Sub-slot :1/A |
 | [45](#test45) | Conflict | Irreconcilable USE conflict via ^^ |
 | [46](#test46) | Conflict | Deep diamond USE conflict |
 | [47](#test47) | Cycle | Three-way dependency cycle |
@@ -93,8 +93,9 @@ The overlay repository itself is at [`Repository/Overlay/`](../../Repository/Ove
 
 ---
 
-## test01
-**Basic** — Simple dependency ordering
+## test01 — Simple dependency ordering
+
+**Category:** Basic
 
 This test case checks basic dependency resolution with both compile-time and
 runtime dependencies. The prover must correctly order all four packages and
@@ -130,6 +131,7 @@ Total: 4 packages (4 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test01/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -162,11 +164,11 @@ Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
 ```
 
 </details>
-
 ---
 
-## test02
-**Basic** — Version selection (2.0 over 1.0)
+## test02 — Version selection (2.0 over 1.0)
+
+**Category:** Basic
 
 This test case checks that the prover selects the latest available version when
 multiple versions exist and no version constraints are specified. All dependencies
@@ -203,6 +205,7 @@ Total: 4 packages (4 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test02/web-2.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -235,11 +238,11 @@ Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
 ```
 
 </details>
-
 ---
 
-## test03
-**Cycle** — Self-dependency (compile)
+## test03 — Self-dependency (compile)
+
+**Category:** Cycle
 
 This test case checks the prover's handling of a direct self-dependency in the
 compile-time scope. The 'os-1.0' package lists itself as a compile-time dependency,
@@ -286,6 +289,7 @@ Total: 4 packages (4 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test03/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -318,11 +322,11 @@ Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
 ```
 
 </details>
-
 ---
 
-## test04
-**Cycle** — Self-dependency (runtime)
+## test04 — Self-dependency (runtime)
+
+**Category:** Cycle
 
 This test case is a variation of test03 where the self-dependency is in the runtime
 scope (RDEPEND) instead of compile-time. The 'os-1.0' package lists itself as a
@@ -359,6 +363,7 @@ Total: 4 packages (4 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test04/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -389,11 +394,11 @@ Total: 11 actions (4 downloads, 4 installs, 3 runs), grouped into 8 steps.
 ```
 
 </details>
-
 ---
 
-## test05
-**Cycle** — Self-dependency (compile + runtime)
+## test05 — Self-dependency (compile + runtime)
+
+**Category:** Cycle
 
 This test case combines test03 and test04. The 'os-1.0' package lists itself as
 both a compile-time and runtime dependency, creating two self-referential cycles.
@@ -439,6 +444,7 @@ Total: 4 packages (4 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test05/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -469,20 +475,22 @@ Total: 11 actions (4 downloads, 4 installs, 3 runs), grouped into 8 steps.
 ```
 
 </details>
-
 ---
 
-## test06
-**Cycle** — Indirect cycle (compile)
+## test06 — Indirect cycle (compile)
+
+**Category:** Cycle
 
 This test case checks the prover's handling of an indirect circular dependency in
 the compile-time scope. The 'os-1.0' package lists 'web-1.0' as a compile-time
 dependency, while 'web-1.0' in turn depends on 'os-1.0', creating a two-node
-cycle.
+cycle. Because the proof path passes through RDEPEND entries, the cycle is
+classified as RDEPEND-mediated and therefore benign (matching Portage's MEDIUM
+priority / Paludis's "freely orderable" semantics for runtime cycles).
 
-**Expected:** The prover should detect the cycle and take an assumption to break it, yielding a
-verify step in the proposed plan. All four packages should still appear in the
-final plan.
+**Expected:** The prover should detect the cycle but classify it as benign, producing a clean plan
+with all four packages and no cycle-break assumptions or verify steps. Emerge
+reports the cycle as a warning but still produces a valid merge list.
 
 ![test06](test06/test06.svg)
 
@@ -520,14 +528,14 @@ Total: 4 packages (4 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test06/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  overlay://test06/web-1.0 (assumed installed)
-             │ download  overlay://test06/web-1.0
+ └─step  1─┤ download  overlay://test06/web-1.0
              │ download  overlay://test06/os-1.0
              │ download  overlay://test06/db-1.0
              │ download  overlay://test06/app-1.0
@@ -550,26 +558,24 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
-
-
->>> Cycle breaks (prover)
-
-  overlay://test06/web-1.0:install
 ```
 
 </details>
-
 ---
 
-## test07
-**Cycle** — Indirect cycle (runtime)
+## test07 — Indirect cycle (runtime)
+
+**Category:** Cycle
 
 This test case is a variation of test06 where the indirect circular dependency is
 in the runtime scope (RDEPEND). The 'os-1.0' package lists 'web-1.0' as a runtime
-dependency, creating a two-node runtime cycle.
+dependency, creating a two-node runtime cycle. Runtime cycles are classified as
+benign (matching Portage's MEDIUM priority / Paludis's "freely orderable"
+semantics), so no cycle-break assumption is needed.
 
-**Expected:** The prover should detect the cycle and take an assumption to break it, yielding a
-verify step in the proposed plan.
+**Expected:** The prover should detect the cycle but classify it as benign, producing a clean plan
+with all four packages and no cycle-break assumptions or verify steps. Emerge
+reports the cycle as a warning but still produces a valid merge list.
 
 ![test07](test07/test07.svg)
 
@@ -607,14 +613,14 @@ Total: 4 packages (4 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test07/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  overlay://test07/web-1.0 (assumed running) 
-             │ download  overlay://test07/web-1.0
+ └─step  1─┤ download  overlay://test07/web-1.0
              │ download  overlay://test07/os-1.0
              │ download  overlay://test07/db-1.0
              │ download  overlay://test07/app-1.0
@@ -633,26 +639,22 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
-
-
->>> Cycle breaks (prover)
-
-  overlay://test07/web-1.0:run
 ```
 
 </details>
-
 ---
 
-## test08
-**Cycle** — Indirect cycle (compile + runtime)
+## test08 — Indirect cycle (compile + runtime)
+
+**Category:** Cycle
 
 This test case combines test06 and test07. The 'os-1.0' package lists 'web-1.0' as
 both a compile-time and runtime dependency, creating two indirect cycles through
-the dependency graph.
+the dependency graph. Because the proof paths pass through RDEPEND entries, the
+cycles are classified as RDEPEND-mediated and therefore benign.
 
-**Expected:** The prover should detect both cycles and take assumptions to break them, yielding
-two verify steps in the proposed plan.
+**Expected:** The prover should detect the cycles but classify them as benign, producing a clean
+plan with all four packages and no cycle-break assumptions or verify steps.
 
 ![test08](test08/test08.svg)
 
@@ -690,15 +692,14 @@ Total: 4 packages (4 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test08/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  overlay://test08/web-1.0 (assumed installed)
-             │ verify  overlay://test08/web-1.0 (assumed running) 
-             │ download  overlay://test08/web-1.0
+ └─step  1─┤ download  overlay://test08/web-1.0
              │ download  overlay://test08/os-1.0
              │ download  overlay://test08/db-1.0
              │ download  overlay://test08/app-1.0
@@ -717,20 +718,14 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
-
-
->>> Cycle breaks (prover)
-
-  overlay://test08/web-1.0:install
-  overlay://test08/web-1.0:run
 ```
 
 </details>
-
 ---
 
-## test09
-**Missing** — Non-existent dep (compile)
+## test09 — Non-existent dep (compile)
+
+**Category:** Missing
 
 This test case checks the prover's ability to handle a missing dependency. The 'os-1.0' package depends on 'test09/notexists', which is not a real package available in the repository.
 
@@ -759,6 +754,7 @@ emerge: there are no ebuilds to satisfy "test09/notexists".
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test09/os-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -808,11 +804,11 @@ Potential fix (suggestion):
 ```
 
 </details>
-
 ---
 
-## test10
-**Missing** — Non-existent dep (runtime)
+## test10 — Non-existent dep (runtime)
+
+**Category:** Missing
 
 This is a variation of test09. It checks for a missing dependency, but this time in the runtime (RDEPEND) scope. The 'os-1.0' package requires 'test10/notexists' to run.
 
@@ -841,6 +837,7 @@ emerge: there are no ebuilds to satisfy "test10/notexists".
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test10/os-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -890,11 +887,11 @@ Potential fix (suggestion):
 ```
 
 </details>
-
 ---
 
-## test11
-**Missing** — Non-existent dep (compile + runtime)
+## test11 — Non-existent dep (compile + runtime)
+
+**Category:** Missing
 
 This test case combines test09 and test10. The 'os-1.0' package has both a compile-time and a runtime dependency on the non-existent 'test11/notexists' package.
 
@@ -923,6 +920,7 @@ emerge: there are no ebuilds to satisfy "test11/notexists".
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test11/os-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -978,11 +976,11 @@ Potential fix (suggestion):
 ```
 
 </details>
-
 ---
 
-## test12
-**Keywords** — Stable vs unstable keyword acceptance
+## test12 — Stable vs unstable keyword acceptance
+
+**Category:** Keywords
 
 This test case examines the prover's handling of package keywords and stability. The latest (2.0) versions of the packages are marked as unstable. Without a specific configuration to accept these unstable keywords, the package manager should not select them.
 
@@ -1013,6 +1011,7 @@ Total: 4 packages (4 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test12/web-2.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -1045,11 +1044,11 @@ Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
 ```
 
 </details>
-
 ---
 
-## test13
-**Version** — Pinpointed version =pkg-ver
+## test13 — Pinpointed version =pkg-ver
+
+**Category:** Version
 
 This test case introduces a specific version constraint. The 'app-2.0' package explicitly requires 'db-2.0' (using the '=' operator), even though a 'db-1.0' is also available.
 
@@ -1080,6 +1079,7 @@ Total: 4 packages (4 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test13/web-2.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -1112,11 +1112,11 @@ Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
 ```
 
 </details>
-
 ---
 
-## test14
-**USE cond** — Positive USE conditional lib? ( )
+## test14 — Positive USE conditional lib? ( )
+
+**Category:** USE cond
 
 This test case evaluates the handling of USE conditional dependencies. The dependency on 'lib-1.0' is only active if the 'lib' USE flag is enabled for the 'app-1.0' package.
 
@@ -1148,6 +1148,7 @@ Total: 4 packages (4 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test14/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -1181,11 +1182,11 @@ Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
 ```
 
 </details>
-
 ---
 
-## test15
-**USE cond** — Negative USE conditional !nolib? ( )
+## test15 — Negative USE conditional !nolib? ( )
+
+**Category:** USE cond
 
 This test case is similar to test14 but uses a negative USE conditional. The dependency is triggered by the absence of a USE flag.
 
@@ -1218,6 +1219,7 @@ Total: 5 packages (5 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test15/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -1253,11 +1255,11 @@ Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
 ```
 
 </details>
-
 ---
 
-## test16
-**Parser** — Explicit all-of group ( ) syntax
+## test16 — Explicit all-of group ( ) syntax
+
+**Category:** Parser
 
 This test case checks the parser's handling of explicit all-of group
 parenthesization in dependency specifications. The 'web-1.0' package wraps two of
@@ -1294,6 +1296,7 @@ Total: 4 packages (4 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test16/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -1326,11 +1329,11 @@ Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
 ```
 
 </details>
-
 ---
 
-## test17
-**Choice** — Exactly-one-of ^^ (compile)
+## test17 — Exactly-one-of ^^ (compile)
+
+**Category:** Choice
 
 This test case evaluates the prover's handling of an 'exactly-one-of' dependency group (^^). The 'os-1.0' package requires that exactly one of the three OS packages be installed.
 
@@ -1364,6 +1367,7 @@ man page or refer to the Gentoo Handbook.
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test17/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -1398,11 +1402,11 @@ Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
 ```
 
 </details>
-
 ---
 
-## test18
-**Choice** — Exactly-one-of ^^ (runtime)
+## test18 — Exactly-one-of ^^ (runtime)
+
+**Category:** Choice
 
 This test case is a variation of test17, but the 'exactly-one-of' dependency is in the runtime scope (RDEPEND).
 
@@ -1436,6 +1440,7 @@ man page or refer to the Gentoo Handbook.
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test18/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -1472,11 +1477,11 @@ Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 10 steps.
 ```
 
 </details>
-
 ---
 
-## test19
-**Choice** — Exactly-one-of ^^ (compile + runtime)
+## test19 — Exactly-one-of ^^ (compile + runtime)
+
+**Category:** Choice
 
 This test case combines test17 and test18. The 'os-1.0' package has the same 'exactly-one-of' choice group in both its compile-time and runtime dependencies.
 
@@ -1510,6 +1515,7 @@ man page or refer to the Gentoo Handbook.
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test19/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -1547,11 +1553,11 @@ Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 11 steps.
 ```
 
 </details>
-
 ---
 
-## test20
-**Choice** — Any-of || (compile)
+## test20 — Any-of || (compile)
+
+**Category:** Choice
 
 This test case evaluates the prover's handling of an 'any-of' dependency group (||). The 'os-1.0' package requires that at least one of the three OS packages be installed.
 
@@ -1583,6 +1589,7 @@ Total: 5 packages (5 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test20/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -1617,11 +1624,11 @@ Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
 ```
 
 </details>
-
 ---
 
-## test21
-**Choice** — Any-of || (runtime)
+## test21 — Any-of || (runtime)
+
+**Category:** Choice
 
 This is a variation of test20, with the 'any-of' dependency group in the runtime scope (RDEPEND).
 
@@ -1653,6 +1660,7 @@ Total: 5 packages (5 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test21/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -1689,11 +1697,11 @@ Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 10 steps.
 ```
 
 </details>
-
 ---
 
-## test22
-**Choice** — Any-of || (compile + runtime)
+## test22 — Any-of || (compile + runtime)
+
+**Category:** Choice
 
 This test case combines test20 and test21. The 'os-1.0' package has the same 'any-of' choice group in both its compile-time and runtime dependencies.
 
@@ -1725,6 +1733,7 @@ Total: 5 packages (5 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test22/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -1762,11 +1771,11 @@ Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 11 steps.
 ```
 
 </details>
-
 ---
 
-## test23
-**Choice** — At-most-one-of ?? (compile)
+## test23 — At-most-one-of ?? (compile)
+
+**Category:** Choice
 
 This test case evaluates the prover's handling of an 'at-most-one-of' dependency group (??). The 'os-1.0' package requires that at most one of the three OS packages be installed. This also means that installing *none* of them is a valid resolution.
 
@@ -1800,6 +1809,7 @@ man page or refer to the Gentoo Handbook.
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test23/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -1834,11 +1844,11 @@ Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
 ```
 
 </details>
-
 ---
 
-## test24
-**Choice** — At-most-one-of ?? (runtime)
+## test24 — At-most-one-of ?? (runtime)
+
+**Category:** Choice
 
 This is a variation of test23, with the 'at-most-one-of' dependency group in the runtime scope (RDEPEND).
 
@@ -1872,6 +1882,7 @@ man page or refer to the Gentoo Handbook.
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test24/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -1908,11 +1919,11 @@ Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 10 steps.
 ```
 
 </details>
-
 ---
 
-## test25
-**Choice** — At-most-one-of ?? (compile + runtime)
+## test25 — At-most-one-of ?? (compile + runtime)
+
+**Category:** Choice
 
 This test case combines test23 and test24. The 'os-1.0' package has the same 'at-most-one-of' choice group in both its compile-time and runtime dependencies.
 
@@ -1946,6 +1957,7 @@ man page or refer to the Gentoo Handbook.
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test25/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -1983,11 +1995,11 @@ Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 11 steps.
 ```
 
 </details>
-
 ---
 
-## test26
-**Blocker** — Strong blocker !! (runtime) + any-of
+## test26 — Strong blocker !! (runtime) + any-of
+
+**Category:** Blocker
 
 This test case checks the prover's handling of a strong blocker (!!). The 'app-1.0'
 package has a strong runtime blocker against 'windows-1.0'. At the same time,
@@ -2026,6 +2038,7 @@ Total: 5 packages (5 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test26/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -2060,11 +2073,11 @@ Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
 ```
 
 </details>
-
 ---
 
-## test27
-**Blocker** — Weak blocker ! (runtime) + any-of
+## test27 — Weak blocker ! (runtime) + any-of
+
+**Category:** Blocker
 
 This test case checks the prover's handling of a weak blocker (!). The 'app-1.0'
 package has a weak runtime blocker against 'windows-1.0'. Unlike the strong blocker
@@ -2102,6 +2115,7 @@ Total: 5 packages (5 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test27/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -2142,11 +2156,11 @@ Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
 ```
 
 </details>
-
 ---
 
-## test28
-**Blocker** — Strong blocker !! (compile) + any-of
+## test28 — Strong blocker !! (compile) + any-of
+
+**Category:** Blocker
 
 This test case is a variation of test26 where the strong blocker (!!) is in the
 compile-time scope (DEPEND) rather than the runtime scope (RDEPEND). The 'app-1.0'
@@ -2183,6 +2197,7 @@ Total: 5 packages (5 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test28/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -2217,11 +2232,11 @@ Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
 ```
 
 </details>
-
 ---
 
-## test29
-**Blocker** — Strong blocker !! (compile+runtime) + any-of
+## test29 — Strong blocker !! (compile+runtime) + any-of
+
+**Category:** Blocker
 
 This test case combines test26 and test28. The 'app-1.0' package has a strong
 blocker (!!) against 'windows-1.0' in both the compile-time (DEPEND) and runtime
@@ -2257,6 +2272,7 @@ Total: 5 packages (5 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test29/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -2291,11 +2307,11 @@ Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
 ```
 
 </details>
-
 ---
 
-## test30
-**Blocker** — Weak blocker ! (compile) + any-of
+## test30 — Weak blocker ! (compile) + any-of
+
+**Category:** Blocker
 
 This test case is a variation of test27 where the weak blocker (!) is in the
 compile-time scope (DEPEND) rather than the runtime scope (RDEPEND). The 'app-1.0'
@@ -2332,6 +2348,7 @@ Total: 5 packages (5 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test30/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -2372,11 +2389,11 @@ Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
 ```
 
 </details>
-
 ---
 
-## test31
-**Blocker** — Weak blocker ! (compile+runtime) + any-of
+## test31 — Weak blocker ! (compile+runtime) + any-of
+
+**Category:** Blocker
 
 This test case combines test27 and test30. The 'app-1.0' package has a weak
 blocker (!) against 'windows-1.0' in both the compile-time (DEPEND) and runtime
@@ -2412,6 +2429,7 @@ Total: 5 packages (5 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test31/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -2453,11 +2471,11 @@ Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
 ```
 
 </details>
-
 ---
 
-## test32
-**REQUIRED_USE** — ^^ with conditional DEPEND
+## test32 — ^^ with conditional DEPEND
+
+**Category:** REQUIRED_USE
 
 This test case examines the interplay between REQUIRED_USE and conditional dependencies. The 'os-1.0' package must have exactly one of 'linux' or 'darwin' enabled. The choice of which flag is enabled will then trigger the corresponding dependency.
 
@@ -2491,6 +2509,7 @@ Dependency resolution took 0.48 s (backtrack: 0/20).
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test32/os-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -2518,11 +2537,11 @@ Total: 4 actions (1 useflag, 1 download, 1 install, 1 run), grouped into 4 steps
 ```
 
 </details>
-
 ---
 
-## test33
-**USE dep** — Positive [linux]
+## test33 — Positive [linux]
+
+**Category:** USE dep
 
 This test case examines a direct USE dependency. The 'app-1.0' package requires that 'os-1.0' be built with the 'linux' USE flag enabled.
 
@@ -2557,6 +2576,7 @@ The following USE changes are necessary to proceed:
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test33/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -2587,11 +2607,11 @@ Total: 6 actions (1 useflag, 2 downloads, 2 installs, 1 run), grouped into 5 ste
 ```
 
 </details>
-
 ---
 
-## test34
-**USE dep** — Negative [-linux]
+## test34 — Negative [-linux]
+
+**Category:** USE dep
 
 This test case is the inverse of test33. It checks the handling of a negative USE dependency. The 'app-1.0' package requires that 'os-1.0' be built with the 'linux' USE flag disabled.
 
@@ -2620,6 +2640,7 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test34/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -2642,11 +2663,11 @@ Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
 ```
 
 </details>
-
 ---
 
-## test35
-**USE dep** — Equality [linux=]
+## test35 — Equality [linux=]
+
+**Category:** USE dep
 
 This test case checks the handling of conditional USE propagation. The dependency `os[linux=]` means that if 'app-1.0' is built with USE="linux", then 'os-1.0' must also be built with USE="linux". If 'app-1.0' is built with USE="-linux", then 'os-1.0' must be built with USE="-linux".
 
@@ -2677,6 +2698,7 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test35/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -2699,11 +2721,11 @@ Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
 ```
 
 </details>
-
 ---
 
-## test36
-**USE dep** — Chained equality [linux=] through lib
+## test36 — Chained equality [linux=] through lib
+
+**Category:** USE dep
 
 This test case examines the prover's ability to propagate a conditional USE flag requirement down a dependency chain. The USE="linux" setting on 'app-1.0' should flow down to 'lib-1.0', which in turn should flow down to 'os-1.0'.
 
@@ -2733,6 +2755,7 @@ Total: 3 packages (3 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test36/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -2759,11 +2782,11 @@ Total: 7 actions (3 downloads, 3 installs, 1 run), grouped into 5 steps.
 ```
 
 </details>
-
 ---
 
-## test37
-**USE dep** — Inverse equality [!linux=]
+## test37 — Inverse equality [!linux=]
+
+**Category:** USE dep
 
 This test case checks the handling of an inverse conditional USE dependency. The dependency `os[!linux=]` means that the 'linux' flag on 'os-1.0' must be the inverse of the setting on 'app-1.0'.
 
@@ -2800,6 +2823,7 @@ The following USE changes are necessary to proceed:
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test37/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -2831,11 +2855,11 @@ Total: 6 actions (1 useflag, 2 downloads, 2 installs, 1 run), grouped into 5 ste
 ```
 
 </details>
-
 ---
 
-## test38
-**USE dep** — Weak conditional [linux?]
+## test38 — Weak conditional [linux?]
+
+**Category:** USE dep
 
 This test case checks the handling of a weak USE dependency. The dependency `os[linux?]` means that 'os-1.0' will have the 'linux' flag enabled *only if* 'app-1.0' also has the 'linux' flag enabled. It does not force the flag to be enabled on 'app-1.0'.
 
@@ -2866,6 +2890,7 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test38/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -2888,11 +2913,11 @@ Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
 ```
 
 </details>
-
 ---
 
-## test39
-**USE dep** — Negative weak [-linux?]
+## test39 — Negative weak [-linux?]
+
+**Category:** USE dep
 
 This test case checks the handling of a negative weak USE dependency. The dependency `os[-linux?]` means that 'os-1.0' will have the 'linux' flag disabled *only if* 'app-1.0' also has the 'linux' flag disabled.
 
@@ -2923,6 +2948,7 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test39/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -2945,11 +2971,11 @@ Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
 ```
 
 </details>
-
 ---
 
-## test40
-**REQUIRED_USE** — || on standalone package
+## test40 — || on standalone package
+
+**Category:** REQUIRED_USE
 
 This test case checks the prover's ability to handle a REQUIRED_USE 'any-of' (||) constraint on a standalone package. To install 'os-1.0', the user or the configuration must ensure that at least one of the 'linux' or 'darwin' USE flags is enabled.
 
@@ -2985,6 +3011,7 @@ Dependency resolution took 0.47 s (backtrack: 0/20).
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test40/os-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -3012,11 +3039,11 @@ Total: 4 actions (1 useflag, 1 download, 1 install, 1 run), grouped into 4 steps
 ```
 
 </details>
-
 ---
 
-## test41
-**Slot** — Explicit slot :1
+## test41 — Explicit slot :1
+
+**Category:** Slot
 
 This test case checks the prover's ability to resolve dependencies based on slotting. 'app-1.0' requires a version of 'lib' that is in slot "1". Even though 'lib-2.0' is a higher version, it is in a different slot and therefore not a candidate.
 
@@ -3045,6 +3072,7 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test41/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -3068,11 +3096,11 @@ Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
 ```
 
 </details>
-
 ---
 
-## test42
-**Slot** — Wildcard slot :*
+## test42 — Wildcard slot :*
+
+**Category:** Slot
 
 This test case checks the prover's behavior with a wildcard slot dependency. 'app-1.0' requires 'lib', but it doesn't care which slot is used.
 
@@ -3101,6 +3129,7 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test42/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -3124,11 +3153,11 @@ Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
 ```
 
 </details>
-
 ---
 
-## test43
-**Slot** — Slot equality :=
+## test43 — Slot equality :=
+
+**Category:** Slot
 
 This test case examines the slot equality operator (:=). 'app-1.0' depends on 'lib' at compile time. The prover will choose the latest version, 'lib-2.0'. The runtime dependency then requires that the same slot ('2') be used.
 
@@ -3157,6 +3186,7 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test43/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -3180,11 +3210,11 @@ Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
 ```
 
 </details>
-
 ---
 
-## test44
-**Slot** — Sub-slot :1/A
+## test44 — Sub-slot :1/A
+
+**Category:** Slot
 
 This test case checks the prover's ability to resolve dependencies based on sub-slots. 'app-1.0' requires a version of 'lib' in slot "1" and sub-slot "A".
 
@@ -3213,6 +3243,7 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test44/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -3236,11 +3267,11 @@ Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
 ```
 
 </details>
-
 ---
 
-## test45
-**Conflict** — Irreconcilable USE conflict via ^^
+## test45 — Irreconcilable USE conflict via ^^
+
+**Category:** Conflict
 
 This test case checks the prover's ability to detect a direct and irreconcilable USE flag conflict. The 'os' package has a REQUIRED_USE constraint of "^^ ( linux darwin )", meaning exactly one of those USE flags must be enabled. However, the dependency graph requires both to be enabled simultaneously to satisfy liba and libb.
 
@@ -3282,6 +3313,7 @@ The following USE changes are necessary to proceed:
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test45/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -3319,11 +3351,11 @@ Total: 12 actions (1 useflag, 4 downloads, 4 installs, 3 runs), grouped into 6 s
 ```
 
 </details>
-
 ---
 
-## test46
-**Conflict** — Deep diamond USE conflict
+## test46 — Deep diamond USE conflict
+
+**Category:** Conflict
 
 This test case is designed to assess the prover's ability to detect a USE flag conflict that is hidden several layers deep in the dependency graph. The two main dependency branches ('liba' and 'libb') converge on 'core-utils' with contradictory requirements for the 'feature_x' USE flag.
 
@@ -3359,6 +3391,7 @@ Dependency resolution took 0.52 s (backtrack: 0/20).
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test46/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -3368,8 +3401,7 @@ Calculating dependencies... done!
  └─step  1─┤ useflag overlay://test46/core-utils-1.0 (feature_x)
              │ useflag overlay://test46/core-utils-1.0 (feature_x feature_y)
 
- └─step  2─┤ verify  overlay://test46/core-utils-1.0 (assumed running) 
-             │ download  overlay://test46/libd-1.0
+ └─step  2─┤ download  overlay://test46/libd-1.0
              │ download  overlay://test46/libc-1.0
              │ download  overlay://test46/libb-1.0
              │ download  overlay://test46/liba-1.0
@@ -3384,11 +3416,11 @@ Calculating dependencies... done!
  └─step  5─┤ install   overlay://test46/libd-1.0
              │ install   overlay://test46/libc-1.0
 
- └─step  6─┤ run       overlay://test46/libd-1.0
-             │ run       overlay://test46/libc-1.0
+ └─step  6─┤ run       overlay://test46/libc-1.0
+             │ run       overlay://test46/libd-1.0
 
- └─step  7─┤ install   overlay://test46/libb-1.0
-             │ install   overlay://test46/liba-1.0
+ └─step  7─┤ install   overlay://test46/liba-1.0
+             │ install   overlay://test46/libb-1.0
 
  └─step  8─┤ run       overlay://test46/libb-1.0
              │ run       overlay://test46/liba-1.0
@@ -3401,29 +3433,30 @@ Total: 20 actions (2 useflags, 6 downloads, 6 installs, 6 runs), grouped into 10
        0.00 Kb to be downloaded.
 
 
-
 >>> Assumptions taken during proving & planning:
 
   USE flag change (2 packages):
   Add to /etc/portage/package.use:
     test46/core-utils feature_x
     test46/core-utils feature_x feature_y
-
->>> Cycle breaks (prover)
-
-  overlay://test46/core-utils-1.0:run
 ```
 
 </details>
-
 ---
 
-## test47
-**Cycle** — Three-way dependency cycle
+## test47 — Three-way dependency cycle
 
-This test case presents a more complex, three-way circular dependency. The client needs the docs to build, the docs need the server to run, and the server needs the client to run. This creates a loop that cannot be resolved.
+**Category:** Cycle
 
-**Expected:** The prover should be able to trace the dependency chain through all three packages and identify the circular dependency, causing the proof to fail.
+This test case presents a more complex, three-way circular dependency. The client
+needs the docs to build, the docs need the server to run, and the server needs the
+client to run. Because the cycle path passes through runtime dependency edges
+(RDEPEND), the cycle is classified as RDEPEND-mediated and therefore benign
+(matching Portage's MEDIUM priority / Paludis's "freely orderable" semantics).
+
+**Expected:** The prover should detect the cycle but classify it as benign, producing a clean plan
+with all three packages and no cycle-break assumptions. Emerge reports the cycle as
+a warning but still produces a valid merge list.
 
 ![test47](test47/test47.svg)
 
@@ -3462,14 +3495,14 @@ Total: 3 packages (3 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test47/api-docs-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  overlay://test47/api-docs-1.0 (assumed installed)
-             │ download  overlay://test47/app-server-1.0
+ └─step  1─┤ download  overlay://test47/app-server-1.0
              │ download  overlay://test47/app-client-1.0
              │ download  overlay://test47/api-docs-1.0
 
@@ -3487,19 +3520,14 @@ Calculating dependencies... done!
 
 Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
        0.00 Kb to be downloaded.
-
-
->>> Cycle breaks (prover)
-
-  overlay://test47/api-docs-1.0:install
 ```
 
 </details>
-
 ---
 
-## test48
-**Conflict** — Slot conflict (same slot, different versions)
+## test48 — Slot conflict (same slot, different versions)
+
+**Category:** Conflict
 
 This test case checks the prover's ability to detect a slotting conflict. The two main dependencies, 'libgraphics' and 'libphysics', require different versions of 'libmatrix' to be installed into the same slot ('1'). A package slot can only be occupied by one version at a time.
 
@@ -3557,6 +3585,7 @@ page or refer to the Gentoo Handbook.
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test48/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -3618,11 +3647,11 @@ Potential fix (suggestion):
 ```
 
 </details>
-
 ---
 
-## test49
-**Conflict** — USE default (+) vs REQUIRED_USE
+## test49 — USE default (+) vs REQUIRED_USE
+
+**Category:** Conflict
 
 This test case checks the prover's ability to handle a conflict between a "soft" USE flag suggestion from a dependency and a "hard" REQUIRED_USE constraint in the target package. The `(+)` syntax is a default and should be overridden by the stricter `REQUIRED_USE`.
 
@@ -3662,63 +3691,47 @@ The following USE changes are necessary to proceed:
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test49/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  test49/libhelper (unsatisfied constraints, assumed running)
+ └─step  1─┤ useflag overlay://test49/libhelper-1.0 (-feature_z)
+             │ useflag overlay://test49/libhelper-1.0 (feature_z)
+
+ └─step  2─┤ download  overlay://test49/libhelper-1.0
              │ download  overlay://test49/app-1.0
 
- └─step  2─┤ install   overlay://test49/app-1.0
+ └─step  3─┤ install   overlay://test49/libhelper-1.0 (USE modified)
              │           └─ conf ─┤ USE = "-feature_z"
 
- └─step  3─┤ run     overlay://test49/app-1.0
+ └─step  4─┤ run       overlay://test49/libhelper-1.0 (USE modified)
 
-Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
+ └─step  5─┤ install   overlay://test49/app-1.0
+             │           └─ conf ─┤ USE = "-feature_z"
+
+ └─step  6─┤ run     overlay://test49/app-1.0
+
+Total: 8 actions (2 useflags, 2 downloads, 2 installs, 2 runs), grouped into 6 steps.
        0.00 Kb to be downloaded.
 
 
+>>> Assumptions taken during proving & planning:
 
-Error The proof for your build plan contains domain assumptions. Please verify:
-
-
->>> Domain assumptions
-
-- REQUIRED_USE violation: 
-  test49/libhelper
-  USE deps force:   [feature_z]
-  violates: !feature_z
-  required by: overlay://test49/app-1.0
-
-
->>> Bug report drafts (Gentoo Bugzilla)
-
----
-Summary: overlay://test49/app-1.0: unsatisfied_constraints dependency on test49/libhelper
-
-Affected package: overlay://test49/app-1.0
-Dependency: test49/libhelper
-Phases: [run]
-
-Unsatisfiable constraint(s):
-  test49/libhelper-
-
-Observed:
-  portage-ng reports no available candidate satisfies the above constraint(s).
-  Available versions in repo set (sample, first 1 of 1): [1.0]
-
-Potential fix (suggestion):
-  Review dependency metadata in overlay://test49/app-1.0; constraint set: [constraint(none,,[])].
+  USE flag change (2 packages):
+  Add to /etc/portage/package.use:
+    test49/libhelper -feature_z
+    test49/libhelper feature_z
 ```
 
 </details>
-
 ---
 
-## test50
-**Transitive** — Compile dep's RDEPEND must appear
+## test50 — Compile dep's RDEPEND must appear
+
+**Category:** Transitive
 
 This test case examines the prover's handling of transitive dependencies, specifically how a runtime dependency of a compile-time dependency is treated. 'app-1.0' needs 'foo-1.0' to build. 'foo-1.0' itself needs 'bar-1.0' to run.
 
@@ -3748,6 +3761,7 @@ Total: 3 packages (3 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test50/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -3773,11 +3787,11 @@ Total: 8 actions (3 downloads, 3 installs, 2 runs), grouped into 6 steps.
 ```
 
 </details>
-
 ---
 
-## test51
-**Conflict** — USE dep vs REQUIRED_USE contradiction
+## test51 — USE dep vs REQUIRED_USE contradiction
+
+**Category:** Conflict
 
 This test case presents a direct and unsolvable conflict between a dependency's USE requirement and the target package's REQUIRED_USE. 'app-1.0' needs 'os-1.0' with the 'linux' flag, but 'os-1.0' explicitly forbids that flag from being enabled.
 
@@ -3817,62 +3831,42 @@ The following USE changes are necessary to proceed:
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test51/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  test51/os (unsatisfied constraints, assumed installed)
+ └─step  1─┤ useflag overlay://test51/os-1.0 (linux)
+
+ └─step  2─┤ download  overlay://test51/os-1.0
              │ download  overlay://test51/app-1.0
 
- └─step  2─┤ install   overlay://test51/app-1.0
+ └─step  3─┤ install   overlay://test51/os-1.0 (USE modified)
+             │           └─ conf ─┤ USE = "linux"
 
- └─step  3─┤ run     overlay://test51/app-1.0
+ └─step  4─┤ install   overlay://test51/app-1.0
 
-Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
+ └─step  5─┤ run     overlay://test51/app-1.0
+
+Total: 6 actions (1 useflag, 2 downloads, 2 installs, 1 run), grouped into 5 steps.
        0.00 Kb to be downloaded.
 
 
+>>> Assumptions taken during proving & planning:
 
-Error The proof for your build plan contains domain assumptions. Please verify:
-
-
->>> Domain assumptions
-
-- REQUIRED_USE violation: 
-  test51/os
-  USE deps force:   [linux]
-  violates: !linux
-  required by: overlay://test51/app-1.0
-
-
->>> Bug report drafts (Gentoo Bugzilla)
-
----
-Summary: overlay://test51/app-1.0: unsatisfied_constraints dependency on test51/os
-
-Affected package: overlay://test51/app-1.0
-Dependency: test51/os
-Phases: [install]
-
-Unsatisfiable constraint(s):
-  test51/os-
-
-Observed:
-  portage-ng reports no available candidate satisfies the above constraint(s).
-  Available versions in repo set (sample, first 1 of 1): [1.0]
-
-Potential fix (suggestion):
-  Review dependency metadata in overlay://test51/app-1.0; constraint set: [constraint(none,,[])].
+  USE flag change (1 package):
+  Add to /etc/portage/package.use:
+    test51/os linux
 ```
 
 </details>
-
 ---
 
-## test52
-**USE merge** — Multiple USE flags on shared dep
+## test52 — Multiple USE flags on shared dep
+
+**Category:** USE merge
 
 The prover will first prove os-1.0 through the liba path. This means os-1.0 will have 'threads' enabled. Later prover needs to enable 'hardened' through the libb path. The prover should be able to produce a proof with just one os install, for both 'threads' and 'hardeded'. This should also be reflected in the download for os-1.0
 
@@ -3910,6 +3904,7 @@ The following USE changes are necessary to proceed:
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test52/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -3947,11 +3942,11 @@ Total: 12 actions (1 useflag, 4 downloads, 4 installs, 3 runs), grouped into 6 s
 ```
 
 </details>
-
 ---
 
-## test53
-**USE merge** — USE merge + conditional extra dep
+## test53 — USE merge + conditional extra dep
+
+**Category:** USE merge
 
 The prover will first prove os-1.0 through the liba path. This means os-1.0 will have 'threads' enabled. Later prover needs to enable 'hardened' through the libb path. The prover should be able to produce a proof with just one os install, for both 'threads' and 'hardeded'. This should also be reflected in the download for os-1.0. Introducing 'hardened' on the already proven os-1.0 should pull in a new dependency on libhardened-1.0
 
@@ -3990,6 +3985,7 @@ The following USE changes are necessary to proceed:
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test53/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -4031,11 +4027,11 @@ Total: 15 actions (1 useflag, 5 downloads, 5 installs, 4 runs), grouped into 7 s
 ```
 
 </details>
-
 ---
 
-## test54
-**Printer** — Expanding USE flags output
+## test54 — Expanding USE flags output
+
+**Category:** Printer
 
 Expanding use flags output
 
@@ -4063,6 +4059,7 @@ Total: 1 package (1 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test54/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -4086,11 +4083,11 @@ Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
 ```
 
 </details>
-
 ---
 
-## test55
-**Version** — Constraint intersection (direct >3 + <6)
+## test55 — Constraint intersection (direct >3 + <6)
+
+**Category:** Version
 
 Multiple requirements should be combined. Only one version should be selected
 
@@ -4119,6 +4116,7 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test55/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -4141,11 +4139,11 @@ Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
 ```
 
 </details>
-
 ---
 
-## test56
-**Version** — Constraint intersection via dep chains
+## test56 — Constraint intersection via dep chains
+
+**Category:** Version
 
 Multiple requirements should be combined. Only one version should be selected
 
@@ -4176,6 +4174,7 @@ Total: 4 packages (4 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test56/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -4206,11 +4205,11 @@ Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 7 steps.
 ```
 
 </details>
-
 ---
 
-## test57
-**Virtual** — Virtual-style ebuild (explicit dep)
+## test57 — Virtual-style ebuild (explicit dep)
+
+**Category:** Virtual
 
 This test case validates that dependencies of a virtual-style ebuild are traversed
 and that its provider package is included in the proof/model. The 'virtualsdk-1.0'
@@ -4246,6 +4245,7 @@ Total: 6 packages (6 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test57/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -4287,14 +4287,13 @@ Total: 18 actions (6 downloads, 6 installs, 6 runs), grouped into 12 steps.
 ```
 
 </details>
-
 ---
 
-## test58
-**Virtual** — PROVIDE-based virtual (XFAIL)
+## test58 — PROVIDE-based virtual (XFAIL)
+
+**Category:** Virtual
 
 > **XFAIL** — expected to fail.
-
 
 This test case checks PROVIDE-based virtual satisfaction. The 'linux-1.0' package
 claims to provide 'virtualsdk', which is not available as a standalone ebuild. The
@@ -4330,6 +4329,7 @@ emerge: there are no ebuilds to satisfy "test58/virtualsdk".
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test58/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -4432,14 +4432,13 @@ Potential fix (suggestion):
 ```
 
 </details>
-
 ---
 
-## test59
-**Regression** — Any-of || selection regression (XFAIL)
+## test59 — Any-of || selection regression (XFAIL)
+
+**Category:** Regression
 
 > **XFAIL** — expected to fail.
-
 
 This is an XFAIL regression test for a known bug where the any-of group (||) does
 not force the solver to select at least one alternative. Structurally similar to
@@ -4477,6 +4476,7 @@ Total: 5 packages (5 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test59/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -4513,14 +4513,13 @@ Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 10 steps.
 ```
 
 </details>
-
 ---
 
-## test60
-**Blocker** — Versioned soft blocker !<pkg-ver (XFAIL)
+## test60 — Versioned soft blocker !<pkg-ver (XFAIL)
+
+**Category:** Blocker
 
 > **XFAIL** — expected to fail.
-
 
 This test case checks the handling of versioned soft blockers (!<pkg-version). The
 'app-1.0' package blocks any version of 'windows' less than 2.0. The any-of group
@@ -4557,6 +4556,7 @@ Total: 5 packages (5 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test60/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -4598,11 +4598,11 @@ Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 9 steps.
 ```
 
 </details>
-
 ---
 
-## test61
-**Cycle** — Mutual recursion with bracketed USE
+## test61 — Mutual recursion with bracketed USE
+
+**Category:** Cycle
 
 This test case checks termination and cycle handling when bracketed USE
 dependencies ([foo]) are present in a mutual recursion. The 'a' and 'b' packages
@@ -4664,6 +4664,7 @@ The following USE changes are necessary to proceed:
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test61/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -4674,8 +4675,6 @@ Calculating dependencies... done!
              │ useflag overlay://test61/b-1.0 (foo)
 
  └─step  2─┤ verify  overlay://test61/a-1.0 (assumed installed)
-             │ verify  overlay://test61/a-1.0 (assumed running) 
-             │ verify  overlay://test61/b-1.0 (assumed installed)
              │ download  overlay://test61/b-1.0
              │ download  overlay://test61/app-1.0
              │ download  overlay://test61/a-1.0
@@ -4709,16 +4708,14 @@ Total: 11 actions (2 useflags, 3 downloads, 3 installs, 3 runs), grouped into 8 
 >>> Cycle breaks (prover)
 
   overlay://test61/a-1.0:install
-  overlay://test61/a-1.0:run
-  overlay://test61/b-1.0:install
 ```
 
 </details>
-
 ---
 
-## test62
-**Cycle** — Simple mutual cycle (termination)
+## test62 — Simple mutual cycle (termination)
+
+**Category:** Cycle
 
 This test case is a prover termination regression test for simple mutual dependency
 cycles without blockers, slots, or USE flags. It checks whether per-goal context
@@ -4754,6 +4751,7 @@ Total: 3 packages (3 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test62/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -4781,11 +4779,11 @@ Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
 ```
 
 </details>
-
 ---
 
-## test63
-**Cycle** — REQUIRED_USE loop reproducer (openmpi-style)
+## test63 — REQUIRED_USE loop reproducer (openmpi-style)
+
+**Category:** Cycle
 
 This test case reproduces the prover timeout trace seen in portage for packages
 that pull sys-cluster/openmpi, where proving hits a sequence of
@@ -4828,6 +4826,7 @@ Dependency resolution took 0.48 s (backtrack: 0/20).
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test63/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -4868,11 +4867,11 @@ Total: 10 actions (1 useflag, 3 downloads, 3 installs, 3 runs), grouped into 8 s
 ```
 
 </details>
-
 ---
 
-## test64
-**Cycle** — USE-conditional churn reproducer (openmp-style)
+## test64 — USE-conditional churn reproducer (openmp-style)
+
+**Category:** Cycle
 
 This test case reproduces the small backtracking/churn pattern observed for
 llvm-runtimes/openmp in a tiny overlay-only setup. The real openmp metadata
@@ -4908,6 +4907,7 @@ Total: 5 packages (5 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test64/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -4939,11 +4939,11 @@ Total: 12 actions (5 downloads, 5 installs, 2 runs), grouped into 6 steps.
 ```
 
 </details>
-
 ---
 
-## test65
-**Installed** — build_with_use reinstall semantics
+## test65 — build_with_use reinstall semantics
+
+**Category:** Installed
 
 This test case is a regression test for rules:installed_entry_satisfies_build_with_use/2.
 It ensures that an installed VDB entry cannot be treated as satisfying a dependency
@@ -4978,6 +4978,7 @@ Total: 1 package (1 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test65/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -4995,11 +4996,11 @@ Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
 ```
 
 </details>
-
 ---
 
-## test66
-**PDEPEND** — Post-merge dependency resolution
+## test66 — Post-merge dependency resolution
+
+**Category:** PDEPEND
 
 This test case checks the prover's handling of PDEPEND (post-merge dependencies).
 The 'lib-1.0' package declares 'plugin-1.0' as a PDEPEND, meaning plugin-1.0
@@ -5032,6 +5033,7 @@ Total: 3 packages (3 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test66/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -5058,11 +5060,11 @@ Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 6 steps.
 ```
 
 </details>
-
 ---
 
-## test67
-**BDEPEND** — Build-only dependency (separate from DEPEND)
+## test67 — Build-only dependency (separate from DEPEND)
+
+**Category:** BDEPEND
 
 This test case checks the prover's handling of BDEPEND (build dependencies). The
 'app-1.0' package requires 'toolchain-1.0' only for building (BDEPEND), separate
@@ -5097,6 +5099,7 @@ Total: 3 packages (3 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test67/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -5121,11 +5124,11 @@ Total: 8 actions (3 downloads, 3 installs, 2 runs), grouped into 5 steps.
 ```
 
 </details>
-
 ---
 
-## test68
-**Multi-slot** — Co-installation of same CN in different slots
+## test68 — Co-installation of same CN in different slots
+
+**Category:** Multi-slot
 
 This test case checks the prover's ability to resolve dependencies on multiple
 slots of the same package simultaneously. The 'app-1.0' package requires both
@@ -5160,6 +5163,7 @@ Total: 3 packages (3 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test68/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -5184,11 +5188,11 @@ Total: 7 actions (3 downloads, 3 installs, 1 run), grouped into 4 steps.
 ```
 
 </details>
-
 ---
 
-## test69
-**Version** — Operator >= (greater-or-equal)
+## test69 — Operator >= (greater-or-equal)
+
+**Category:** Version
 
 This test case checks the prover's handling of the >= (greater-or-equal) version
 operator. The 'app-1.0' package requires lib version 3.0 or higher. Versions 1.0
@@ -5220,6 +5224,7 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test69/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -5240,11 +5245,11 @@ Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
 ```
 
 </details>
-
 ---
 
-## test70
-**Version** — Operator ~ (revision match)
+## test70 — Operator ~ (revision match)
+
+**Category:** Version
 
 This test case checks the prover's handling of the ~ (revision match) version
 operator. The dependency ~lib-2.0 should match lib-2.0 and lib-2.0-r1 (any
@@ -5276,6 +5281,7 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test70/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -5296,11 +5302,11 @@ Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
 ```
 
 </details>
-
 ---
 
-## test71
-**Fetchonly** — Download-only action
+## test71 — Download-only action
+
+**Category:** Fetchonly
 
 This test case checks the prover's handling of the fetchonly action. The dependency
 structure is identical to test01, but the entry point uses :fetchonly instead of
@@ -5328,6 +5334,7 @@ Dependency resolution took 0.75 s (backtrack: 0/20).
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test71/web-1.0:fetchonly?{[]}
 
 These are the packages that would be merged, in order:
@@ -5344,11 +5351,11 @@ Total: 4 actions (4 downloads), grouped into 1 step.
 ```
 
 </details>
-
 ---
 
-## test72
-**IDEPEND** — Install-time dependency
+## test72 — Install-time dependency
+
+**Category:** IDEPEND
 
 This test case checks the prover's handling of IDEPEND (install-time dependencies).
 IDEPEND is an EAPI 8 feature that specifies packages needed at install time on the
@@ -5381,6 +5388,7 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test72/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -5401,11 +5409,11 @@ Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
 ```
 
 </details>
-
 ---
 
-## test73
-**Update** — Installed old version, newer available (VDB)
+## test73 — Installed old version, newer available (VDB)
+
+**Category:** Update
 
 This test case checks the prover's update path. When lib-1.0 is already installed
 and lib-2.0 is available, the prover should detect that an update is possible and
@@ -5438,6 +5446,7 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test73/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -5458,11 +5467,11 @@ Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
 ```
 
 </details>
-
 ---
 
-## test74
-**Downgrade** — Installed newer, constraint forces older (VDB)
+## test74 — Installed newer, constraint forces older (VDB)
+
+**Category:** Downgrade
 
 This test case checks the prover's downgrade path. When lib-2.0 is installed but
 app-1.0 requires exactly lib-1.0 (via the = operator), the prover should detect
@@ -5495,6 +5504,7 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test74/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -5515,11 +5525,11 @@ Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
 ```
 
 </details>
-
 ---
 
-## test75
-**Reinstall** — Installed same version, emptytree (VDB)
+## test75 — Installed same version, emptytree (VDB)
+
+**Category:** Reinstall
 
 This test case checks the prover's behavior when the --emptytree flag is active.
 Even though os-1.0 is already installed, the emptytree flag should force the
@@ -5552,6 +5562,7 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test75/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -5574,11 +5585,11 @@ Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
 ```
 
 </details>
-
 ---
 
-## test76
-**Newuse** — Installed with wrong USE, rebuild needed (VDB)
+## test76 — Installed with wrong USE, rebuild needed (VDB)
+
+**Category:** Newuse
 
 This test case checks the prover's newuse rebuild behavior. The installed os-1.0
 was built without the 'linux' USE flag, but app-1.0 requires os[linux]. The prover
@@ -5617,6 +5628,7 @@ The following USE changes are necessary to proceed:
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test76/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -5647,11 +5659,11 @@ Total: 6 actions (1 useflag, 2 downloads, 2 installs, 1 run), grouped into 5 ste
 ```
 
 </details>
-
 ---
 
-## test77
-**Depclean** — Unused package removal (VDB)
+## test77 — Unused package removal (VDB)
+
+**Category:** Depclean
 
 This test case checks the depclean action. When run with :depclean, the prover
 should traverse the installed dependency graph starting from world targets and
@@ -5685,6 +5697,7 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test77/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -5707,11 +5720,11 @@ Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
 ```
 
 </details>
-
 ---
 
-## test78
-**Onlydeps** — Skip target, install deps only
+## test78 — Skip target, install deps only
+
+**Category:** Onlydeps
 
 This test case checks the --onlydeps behavior. When the entry point target
 (web-1.0) is proven with the onlydeps_target context flag, the target package
@@ -5741,6 +5754,7 @@ Total: 1 package (1 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test78/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -5773,11 +5787,11 @@ Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
 ```
 
 </details>
-
 ---
 
-## test79
-**PDEPEND** — PDEPEND cycle (A needs B, B PDEPEND A)
+## test79 — PDEPEND cycle (A needs B, B PDEPEND A)
+
+**Category:** PDEPEND
 
 This test case checks the handling of cycles involving PDEPEND. The server needs
 the client at runtime, and the client has a PDEPEND back on the server. Since
@@ -5812,14 +5826,14 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test79/server-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  overlay://test79/server-1.0 (assumed running) 
-             │ download  overlay://test79/server-1.0
+ └─step  1─┤ download  overlay://test79/server-1.0
              │ download  overlay://test79/client-1.0
 
  └─step  2─┤ install   overlay://test79/client-1.0
@@ -5832,19 +5846,14 @@ Calculating dependencies... done!
 
 Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
-
-
->>> Cycle breaks (prover)
-
-  overlay://test79/server-1.0:run
 ```
 
 </details>
-
 ---
 
-## test80
-**Version** — Operator <= (less-or-equal)
+## test80 — Operator <= (less-or-equal)
+
+**Category:** Version
 
 This test case checks the prover's handling of the <= (less-or-equal) version
 operator. The 'app-1.0' package requires lib version 3.0 or lower. Versions 4.0
@@ -5876,6 +5885,7 @@ Total: 2 packages (2 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test80/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
@@ -5896,5 +5906,3 @@ Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
 ```
 
 </details>
-
----

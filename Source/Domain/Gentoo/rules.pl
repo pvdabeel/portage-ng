@@ -265,7 +265,8 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
       use:context_build_with_use_state(Context1, B),
       ( memberchk(required_use:R,Context1) -> true ; true ),
       query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
-      use:build_with_use_resolve_required_use(B, Repository://Ebuild, BResolved),
+      use:build_with_use_resolve_required_use(B, Repository://Ebuild, BResolved0),
+      use:stabilize_required_use(Repository://Ebuild, BResolved0, BResolved),
 
       % 2b. Verify REQUIRED_USE is still satisfied after applying build_with_use.
       %     Fail (rather than assume) so that grouped_package_dependency can try
@@ -362,7 +363,8 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   % 2. Compute required_use stable model, extend with build_with_use requirements.
   use:context_build_with_use_state(Context1, B),
   query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
-  use:build_with_use_resolve_required_use(B, Repository://Ebuild, BResolved),
+  use:build_with_use_resolve_required_use(B, Repository://Ebuild, BResolved0),
+  use:stabilize_required_use(Repository://Ebuild, BResolved0, BResolved),
 
   % 2b. Verify REQUIRED_USE is still satisfied after applying build_with_use.
   ( \+ use:verify_required_use_with_bwu(Repository://Ebuild, BResolved) ->
@@ -1663,38 +1665,68 @@ rules:constraint_guard(_Other, _Constraints).
 % -----------------------------------------------------------------------------
 %
 % The prover is kept domain-agnostic.  When it detects a cycle (a literal
-% already on the proof stack), it calls `rules:cycle_benign(Lit)` before
-% creating a cycle-break assumption.  If the hook succeeds, the cycle is
-% considered harmless and the literal is silently treated as already proven;
-% no `assumed(rule(Lit))` entry is recorded and no "verify" step appears
-% in the plan.
+% already on the proof stack), it calls `rules:cycle_benign(Lit, CyclePath)`
+% before creating a cycle-break assumption.  If the hook succeeds, the
+% cycle is considered harmless and the literal is silently treated as
+% already proven; no `assumed(rule(Lit))` entry is recorded and no
+% "verify" step appears in the plan.
 %
-% Rationale:
+% Rationale (Portage / Paludis alignment):
 %
-% Dependency-level literals (`grouped_package_dependency` and
-% `package_dependency`) represent a dependency *on* a package that is being
-% resolved by an ancestor frame.  Since that ancestor is already committed
-% to installing/running the package, any sub-dependency referencing the
-% same (Category, Name) is trivially satisfied.  This matches the
-% behaviour of traditional resolvers (Portage) that silently handle such
-% cyclic references.
+% Both Portage and Paludis distinguish between hard and soft dependency
+% edges for cycle handling:
 %
-% The prover itself does not understand these domain-specific literal
-% shapes.  By implementing this hook in the domain layer, the prover
-% remains generic and other domains can provide their own classification.
+%   - Portage: DEPEND/BDEPEND use DepPriorityNormalRange (HARD), while
+%     RDEPEND uses MEDIUM.  The slot_operator_rebuild backtracker
+%     progressively ignores MEDIUM edges when resolving cycles.
 %
-% Note: this hook does NOT affect cross-package mutual cycles (e.g.
-% A depends on B and B depends on A); those literals are repo://entry
-% terms, not dependency terms, and do not match these clauses.  Such
-% cycles are genuine and continue to produce cycle-break assumptions.
+%   - Paludis: the Orderer builds a NAG (Nattily Arranged Graph) where
+%     build-time deps create `build` edges (hard) and runtime deps create
+%     `run` edges (soft).  Post-deps create no edge at all.  Cycles
+%     containing only `run` edges are "freely orderable".
+%
+% In portage-ng's architecture the prover interleaves resolution and
+% ordering via depth-first proof search.  Both `:install` and `:run`
+% rules include RDEPEND (matching Portage/Paludis single-pass resolution),
+% but this creates cycles when an RDEPEND chain loops back to a package
+% being proven.  These cycles are ordering artefacts, not resolution
+% failures.
+%
+% This hook inspects the cycle path entries to determine whether the
+% cycle contains any `:run` step.  If it does, the cycle is
+% RDEPEND-mediated and benign (matches Portage MEDIUM / Paludis "freely
+% orderable" classification).  Cycles consisting entirely of `:install`
+% steps (build-time only) are structural and produce cycle-break
+% assumptions, matching Portage HARD / Paludis "build" edge treatment.
+%
+% The prover itself does not understand these domain-specific concepts.
+% By implementing this hook in the domain layer, the prover remains
+% generic and other domains can provide their own classification.
 
-%! rules:cycle_benign(+Lit)
+%! rules:cycle_benign(+Lit, +CyclePath)
 %
-% Succeeds if Lit is a dependency-level literal whose cycle is benign.
+% Succeeds if the cycle at Lit is benign.  Two cases:
+%
+%   1. Dependency-level literals (grouped_package_dependency, package_dependency)
+%      represent a reference to a package already being resolved by an ancestor
+%      frame.  These are always benign regardless of phase: the ancestor is
+%      already committed to the package, so the dependency is trivially satisfied.
+%
+%   2. Cross-package cycles (repo://entry literals) are benign when any step
+%      in the CyclePath is a :run entry, indicating RDEPEND mediation (Portage
+%      MEDIUM priority / Paludis "freely orderable" classification).  Cycles
+%      consisting entirely of :install steps are structural and produce
+%      cycle-break assumptions.
 
-rules:cycle_benign(grouped_package_dependency(_,_,_,_):_).
-rules:cycle_benign(grouped_package_dependency(_,_,_):_).
-rules:cycle_benign(package_dependency(_,_,_,_,_,_,_,_):_).
+rules:cycle_benign(Lit, _CyclePath) :-
+    ( Lit = grouped_package_dependency(_,_,_,_):_
+    ; Lit = grouped_package_dependency(_,_,_):_
+    ; Lit = package_dependency(_,_,_,_,_,_,_,_):_
+    ), !.
+rules:cycle_benign(_Lit, CyclePath) :-
+    member(Entry, CyclePath),
+    Entry = _:run,
+    !.
 
 
 % -----------------------------------------------------------------------------

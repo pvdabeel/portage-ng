@@ -28,6 +28,7 @@ Total: 1 package (1 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test54/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:

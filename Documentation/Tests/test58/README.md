@@ -38,6 +38,7 @@ emerge: there are no ebuilds to satisfy "test58/virtualsdk".
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test58/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:

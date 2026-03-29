@@ -4,10 +4,11 @@
 
 This test case combines test06 and test07. The 'os-1.0' package lists 'web-1.0' as
 both a compile-time and runtime dependency, creating two indirect cycles through
-the dependency graph.
+the dependency graph. Because the proof paths pass through RDEPEND entries, the
+cycles are classified as RDEPEND-mediated and therefore benign.
 
-**Expected:** The prover should detect both cycles and take assumptions to break them, yielding
-two verify steps in the proposed plan.
+**Expected:** The prover should detect the cycles but classify them as benign, producing a clean
+plan with all four packages and no cycle-break assumptions or verify steps.
 
 ![test08](test08.svg)
 
@@ -45,15 +46,14 @@ Total: 4 packages (4 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test08/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  overlay://test08/web-1.0 (assumed installed)
-             │ verify  overlay://test08/web-1.0 (assumed running) 
-             │ download  overlay://test08/web-1.0
+ └─step  1─┤ download  overlay://test08/web-1.0
              │ download  overlay://test08/os-1.0
              │ download  overlay://test08/db-1.0
              │ download  overlay://test08/app-1.0
@@ -72,12 +72,6 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
-
-
->>> Cycle breaks (prover)
-
-  overlay://test08/web-1.0:install
-  overlay://test08/web-1.0:run
 ```
 
 </details>

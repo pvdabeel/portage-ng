@@ -58,6 +58,7 @@ page or refer to the Gentoo Handbook.
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test48/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:

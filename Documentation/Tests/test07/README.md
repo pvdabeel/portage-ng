@@ -4,10 +4,13 @@
 
 This test case is a variation of test06 where the indirect circular dependency is
 in the runtime scope (RDEPEND). The 'os-1.0' package lists 'web-1.0' as a runtime
-dependency, creating a two-node runtime cycle.
+dependency, creating a two-node runtime cycle. Runtime cycles are classified as
+benign (matching Portage's MEDIUM priority / Paludis's "freely orderable"
+semantics), so no cycle-break assumption is needed.
 
-**Expected:** The prover should detect the cycle and take an assumption to break it, yielding a
-verify step in the proposed plan.
+**Expected:** The prover should detect the cycle but classify it as benign, producing a clean plan
+with all four packages and no cycle-break assumptions or verify steps. Emerge
+reports the cycle as a warning but still produces a valid merge list.
 
 ![test07](test07.svg)
 
@@ -45,14 +48,14 @@ Total: 4 packages (4 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test07/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  overlay://test07/web-1.0 (assumed running) 
-             │ download  overlay://test07/web-1.0
+ └─step  1─┤ download  overlay://test07/web-1.0
              │ download  overlay://test07/os-1.0
              │ download  overlay://test07/db-1.0
              │ download  overlay://test07/app-1.0
@@ -71,11 +74,6 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
-
-
->>> Cycle breaks (prover)
-
-  overlay://test07/web-1.0:run
 ```
 
 </details>

@@ -5,8 +5,7 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  overlay://test07/web-1.0 (assumed running) 
-             │ download  overlay://test07/web-1.0
+ └─step  1─┤ download  overlay://test07/web-1.0
              │ download  overlay://test07/os-1.0
              │ download  overlay://test07/db-1.0
              │ download  overlay://test07/app-1.0
@@ -27,6 +26,3 @@ Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
 
 
->>> Cycle breaks (prover)
-
-  overlay://test07/web-1.0:run

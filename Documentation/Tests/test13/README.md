@@ -31,6 +31,7 @@ Total: 4 packages (4 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test13/web-2.0:run?{[]}
 
 These are the packages that would be merged, in order:

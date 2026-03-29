@@ -36,6 +36,7 @@ Dependency resolution took 0.47 s (backtrack: 0/20).
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test40/os-1.0:run?{[]}
 
 These are the packages that would be merged, in order:

@@ -39,6 +39,7 @@ The following USE changes are necessary to proceed:
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test76/app-1.0:run?{[]}
 
 These are the packages that would be merged, in order:

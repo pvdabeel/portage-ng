@@ -5,11 +5,13 @@
 This test case checks the prover's handling of an indirect circular dependency in
 the compile-time scope. The 'os-1.0' package lists 'web-1.0' as a compile-time
 dependency, while 'web-1.0' in turn depends on 'os-1.0', creating a two-node
-cycle.
+cycle. Because the proof path passes through RDEPEND entries, the cycle is
+classified as RDEPEND-mediated and therefore benign (matching Portage's MEDIUM
+priority / Paludis's "freely orderable" semantics for runtime cycles).
 
-**Expected:** The prover should detect the cycle and take an assumption to break it, yielding a
-verify step in the proposed plan. All four packages should still appear in the
-final plan.
+**Expected:** The prover should detect the cycle but classify it as benign, producing a clean plan
+with all four packages and no cycle-break assumptions or verify steps. Emerge
+reports the cycle as a warning but still produces a valid merge list.
 
 ![test06](test06.svg)
 
@@ -47,14 +49,14 @@ Total: 4 packages (4 new), Size of downloads: 0 KiB
 <summary><b>portage-ng</b></summary>
 
 ```
+
 >>> Emerging : overlay://test06/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  overlay://test06/web-1.0 (assumed installed)
-             │ download  overlay://test06/web-1.0
+ └─step  1─┤ download  overlay://test06/web-1.0
              │ download  overlay://test06/os-1.0
              │ download  overlay://test06/db-1.0
              │ download  overlay://test06/app-1.0
@@ -77,11 +79,6 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
-
-
->>> Cycle breaks (prover)
-
-  overlay://test06/web-1.0:install
 ```
 
 </details>
