@@ -7,8 +7,10 @@ cycles without blockers, slots, or USE flags. It checks whether per-goal context
 growth (e.g. accumulating self() markers or slot information) can defeat cycle
 detection and cause backtracking until timeout.
 
-**Expected:** The prover should terminate quickly with a finite model/plan, or fail fast. It must
-not spin or backtrack indefinitely. A cycle-break assumption is expected.
+**Expected:** The prover should terminate quickly with a clean plan. The runtime self-dependency
+on test62/a is classified as a benign cycle (dependency-level literal referring to
+a package already being resolved by an ancestor) and silently resolved. The plan
+must not spin or backtrack indefinitely.
 
 ![test62](test62.svg)
 
@@ -40,8 +42,7 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  test62/a (assumed running) 
-             │ download  overlay://test62/web-1.0
+ └─step  1─┤ download  overlay://test62/web-1.0
              │ download  overlay://test62/b-1.0
              │ download  overlay://test62/a-1.0
 
@@ -59,11 +60,6 @@ Calculating dependencies... done!
 
 Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
        0.00 Kb to be downloaded.
-
-
->>> Cycle breaks (prover)
-
-  grouped_package_dependency(no,test62,a,[package_dependency(run,no,test62,a,none,version_none,[],[])]):run
 ```
 
 </details>

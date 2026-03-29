@@ -4,12 +4,13 @@
 
 This test case is a variation of test03 where the self-dependency is in the runtime
 scope (RDEPEND) instead of compile-time. The 'os-1.0' package lists itself as a
-runtime dependency.
+runtime dependency. Runtime self-dependencies are trivially satisfied (a package
+provides itself once built) and are silently resolved by both Portage and
+portage-ng.
 
-**Expected:** The prover should take a cycle-break assumption for os-1.0's runtime dependency on
-itself, yielding a verify step in the proposed plan. Note that Gentoo emerge is
-less strict about runtime self-dependencies and may not report circular
-dependencies in this case.
+**Expected:** The prover should produce a clean plan with all four packages and no cycle-break
+assumptions or verify steps. Gentoo emerge also handles runtime self-dependencies
+silently.
 
 ![test04](test04.svg)
 

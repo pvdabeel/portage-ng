@@ -4,12 +4,13 @@
 
 This test case checks the prover's handling of a direct self-dependency in the
 compile-time scope. The 'os-1.0' package lists itself as a compile-time dependency,
-creating an immediate cycle. The prover must detect this cycle and take an
-assumption to break it.
+creating an immediate cycle. The prover classifies this as a benign cycle (the
+dependency-level literal refers to a package already being resolved by an ancestor)
+and silently resolves it without a cycle-break assumption.
 
-**Expected:** The prover should take a cycle-break assumption for os-1.0's compile dependency on
-itself, yielding a verify step in the proposed plan. The plan should still include
-all four packages.
+**Expected:** The prover should produce a clean plan with all four packages and no cycle-break
+assumptions or verify steps. This matches Portage's behavior for self-referential
+dependency-level cycles.
 
 ![test03](test03.svg)
 
@@ -52,8 +53,7 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  test03/os (assumed installed) 
-             │ download  overlay://test03/web-1.0
+ └─step  1─┤ download  overlay://test03/web-1.0
              │ download  overlay://test03/os-1.0
              │ download  overlay://test03/db-1.0
              │ download  overlay://test03/app-1.0
@@ -76,11 +76,6 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
-
-
->>> Cycle breaks (prover)
-
-  grouped_package_dependency(no,test03,os,[package_dependency(install,no,test03,os,none,version_none,[],[])]):install
 ```
 
 </details>

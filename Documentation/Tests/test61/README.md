@@ -7,9 +7,10 @@ dependencies ([foo]) are present in a mutual recursion. The 'a' and 'b' packages
 each require the other with a specific USE flag. The prover must ensure that the
 build_with_use context does not grow unbounded as it traverses the cycle.
 
-**Expected:** The solver should terminate quickly, either by cycle breaking or by producing a
-finite plan. It must not spin or backtrack indefinitely due to accumulating USE
-context.
+**Expected:** The solver should terminate quickly. Dependency-level self-referential cycles are
+classified as benign and silently resolved. Cross-package mutual cycles (a-1.0 and
+b-1.0 depending on each other) still produce cycle-break assumptions. The plan
+must not spin or backtrack indefinitely due to accumulating USE context.
 
 ![test61](test61.svg)
 
@@ -73,8 +74,6 @@ Calculating dependencies... done!
  └─step  2─┤ verify  overlay://test61/a-1.0 (assumed installed)
              │ verify  overlay://test61/a-1.0 (assumed running) 
              │ verify  overlay://test61/b-1.0 (assumed installed)
-             │ verify  test61/a (assumed running) 
-             │ verify  test61/b (assumed running) 
              │ download  overlay://test61/b-1.0
              │ download  overlay://test61/app-1.0
              │ download  overlay://test61/a-1.0
@@ -107,8 +106,6 @@ Total: 11 actions (2 useflags, 3 downloads, 3 installs, 3 runs), grouped into 8 
 
 >>> Cycle breaks (prover)
 
-  grouped_package_dependency(no,test61,a,[package_dependency(run,no,test61,a,none,version_none,[],[use(enable(foo),none)])]):run
-  grouped_package_dependency(no,test61,b,[package_dependency(run,no,test61,b,none,version_none,[],[use(enable(foo),none)])]):run
   overlay://test61/a-1.0:install
   overlay://test61/a-1.0:run
   overlay://test61/b-1.0:install

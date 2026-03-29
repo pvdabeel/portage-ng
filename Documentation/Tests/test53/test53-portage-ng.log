@@ -37,5 +37,3 @@ Total: 15 actions (1 useflag, 5 downloads, 5 installs, 4 runs), grouped into 7 s
   USE flag change (1 package):
   Add to /etc/portage/package.use:
     test53/os hardened
-
-

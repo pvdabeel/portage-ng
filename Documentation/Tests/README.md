@@ -243,12 +243,13 @@ Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
 
 This test case checks the prover's handling of a direct self-dependency in the
 compile-time scope. The 'os-1.0' package lists itself as a compile-time dependency,
-creating an immediate cycle. The prover must detect this cycle and take an
-assumption to break it.
+creating an immediate cycle. The prover classifies this as a benign cycle (the
+dependency-level literal refers to a package already being resolved by an ancestor)
+and silently resolves it without a cycle-break assumption.
 
-**Expected:** The prover should take a cycle-break assumption for os-1.0's compile dependency on
-itself, yielding a verify step in the proposed plan. The plan should still include
-all four packages.
+**Expected:** The prover should produce a clean plan with all four packages and no cycle-break
+assumptions or verify steps. This matches Portage's behavior for self-referential
+dependency-level cycles.
 
 ![test03](test03/test03.svg)
 
@@ -291,8 +292,7 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  test03/os (assumed installed) 
-             │ download  overlay://test03/web-1.0
+ └─step  1─┤ download  overlay://test03/web-1.0
              │ download  overlay://test03/os-1.0
              │ download  overlay://test03/db-1.0
              │ download  overlay://test03/app-1.0
@@ -315,11 +315,6 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
-
-
->>> Cycle breaks (prover)
-
-  grouped_package_dependency(no,test03,os,[package_dependency(install,no,test03,os,none,version_none,[],[])]):install
 ```
 
 </details>
@@ -331,12 +326,13 @@ Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
 
 This test case is a variation of test03 where the self-dependency is in the runtime
 scope (RDEPEND) instead of compile-time. The 'os-1.0' package lists itself as a
-runtime dependency.
+runtime dependency. Runtime self-dependencies are trivially satisfied (a package
+provides itself once built) and are silently resolved by both Portage and
+portage-ng.
 
-**Expected:** The prover should take a cycle-break assumption for os-1.0's runtime dependency on
-itself, yielding a verify step in the proposed plan. Note that Gentoo emerge is
-less strict about runtime self-dependencies and may not report circular
-dependencies in this case.
+**Expected:** The prover should produce a clean plan with all four packages and no cycle-break
+assumptions or verify steps. Gentoo emerge also handles runtime self-dependencies
+silently.
 
 ![test04](test04/test04.svg)
 
@@ -401,10 +397,12 @@ Total: 11 actions (4 downloads, 4 installs, 3 runs), grouped into 8 steps.
 
 This test case combines test03 and test04. The 'os-1.0' package lists itself as
 both a compile-time and runtime dependency, creating two self-referential cycles.
+Both are classified as benign cycles (the dependency-level literals refer to a
+package already being resolved by an ancestor) and are silently resolved.
 
-**Expected:** The prover should take two cycle-break assumptions: one for the compile-time
-self-dependency and one for the runtime self-dependency. Both should yield verify
-steps in the proposed plan.
+**Expected:** The prover should produce a clean plan with all four packages and no cycle-break
+assumptions or verify steps. This matches Portage's behavior for self-referential
+dependency-level cycles.
 
 ![test05](test05/test05.svg)
 
@@ -447,8 +445,7 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  test05/os (assumed installed) 
-             │ download  overlay://test05/web-1.0
+ └─step  1─┤ download  overlay://test05/web-1.0
              │ download  overlay://test05/os-1.0
              │ download  overlay://test05/db-1.0
              │ download  overlay://test05/app-1.0
@@ -469,11 +466,6 @@ Calculating dependencies... done!
 
 Total: 11 actions (4 downloads, 4 installs, 3 runs), grouped into 8 steps.
        0.00 Kb to be downloaded.
-
-
->>> Cycle breaks (prover)
-
-  grouped_package_dependency(no,test05,os,[package_dependency(install,no,test05,os,none,version_none,[],[])]):install
 ```
 
 </details>
@@ -4617,9 +4609,10 @@ dependencies ([foo]) are present in a mutual recursion. The 'a' and 'b' packages
 each require the other with a specific USE flag. The prover must ensure that the
 build_with_use context does not grow unbounded as it traverses the cycle.
 
-**Expected:** The solver should terminate quickly, either by cycle breaking or by producing a
-finite plan. It must not spin or backtrack indefinitely due to accumulating USE
-context.
+**Expected:** The solver should terminate quickly. Dependency-level self-referential cycles are
+classified as benign and silently resolved. Cross-package mutual cycles (a-1.0 and
+b-1.0 depending on each other) still produce cycle-break assumptions. The plan
+must not spin or backtrack indefinitely due to accumulating USE context.
 
 ![test61](test61/test61.svg)
 
@@ -4683,8 +4676,6 @@ Calculating dependencies... done!
  └─step  2─┤ verify  overlay://test61/a-1.0 (assumed installed)
              │ verify  overlay://test61/a-1.0 (assumed running) 
              │ verify  overlay://test61/b-1.0 (assumed installed)
-             │ verify  test61/a (assumed running) 
-             │ verify  test61/b (assumed running) 
              │ download  overlay://test61/b-1.0
              │ download  overlay://test61/app-1.0
              │ download  overlay://test61/a-1.0
@@ -4717,8 +4708,6 @@ Total: 11 actions (2 useflags, 3 downloads, 3 installs, 3 runs), grouped into 8 
 
 >>> Cycle breaks (prover)
 
-  grouped_package_dependency(no,test61,a,[package_dependency(run,no,test61,a,none,version_none,[],[use(enable(foo),none)])]):run
-  grouped_package_dependency(no,test61,b,[package_dependency(run,no,test61,b,none,version_none,[],[use(enable(foo),none)])]):run
   overlay://test61/a-1.0:install
   overlay://test61/a-1.0:run
   overlay://test61/b-1.0:install
@@ -4736,8 +4725,10 @@ cycles without blockers, slots, or USE flags. It checks whether per-goal context
 growth (e.g. accumulating self() markers or slot information) can defeat cycle
 detection and cause backtracking until timeout.
 
-**Expected:** The prover should terminate quickly with a finite model/plan, or fail fast. It must
-not spin or backtrack indefinitely. A cycle-break assumption is expected.
+**Expected:** The prover should terminate quickly with a clean plan. The runtime self-dependency
+on test62/a is classified as a benign cycle (dependency-level literal referring to
+a package already being resolved by an ancestor) and silently resolved. The plan
+must not spin or backtrack indefinitely.
 
 ![test62](test62/test62.svg)
 
@@ -4769,8 +4760,7 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ verify  test62/a (assumed running) 
-             │ download  overlay://test62/web-1.0
+ └─step  1─┤ download  overlay://test62/web-1.0
              │ download  overlay://test62/b-1.0
              │ download  overlay://test62/a-1.0
 
@@ -4788,11 +4778,6 @@ Calculating dependencies... done!
 
 Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
        0.00 Kb to be downloaded.
-
-
->>> Cycle breaks (prover)
-
-  grouped_package_dependency(no,test62,a,[package_dependency(run,no,test62,a,none,version_none,[],[])]):run
 ```
 
 </details>
