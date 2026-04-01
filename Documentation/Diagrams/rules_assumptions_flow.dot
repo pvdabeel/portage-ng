@@ -91,6 +91,11 @@ digraph rules_assumptions_bpmn {
     g_use_guard [shape=diamond, label="candidate_satisfies_use_deps?\n(use.pl)"];
     g_use_slot [shape=box, label="process_build_with_use (use.pl)\n+ process_slot (candidate.pl)\n(query_search_slot_constraint)"];
 
+    g_bwu_ed_check [shape=diamond, style=filled, fillcolor="#ffe0e0",
+                     label="check_bwu_ed_conflict(C,N,Ctx):\nBWU from context vs\nmemo:candidate_bwu_(C,N)?\n(feature_unification:val_hook)"];
+    g_bwu_ed_fail [shape=box, style=filled, fillcolor="#ffdddd",
+                    label="E/D conflict detected:\nassert memo:requse_violation_\n(use_flag_conflict descriptor)\n→ fail"];
+
     g_action_path [shape=diamond, label="same-slot installed instance\nfor update path?\n(SlotInstalled == SlotChosen)"];
 
     g_action_update [shape=box, label="ActionGoal = Candidate:update?{UpdateCtx}\n─────────────────\nChooses first matching:\n• version change → replaces(InstalledEntry)\n• !avoid_reinstall, !virtual,\n  build_with_use unsatisfied\n  → rebuild_reason(build_with_use)\n• --newuse mismatch\n  → rebuild_reason(newuse)"];
@@ -104,13 +109,54 @@ digraph rules_assumptions_bpmn {
     g_deep_keep [shape=diamond, label="deep fallback keep-installed?\n(installed same-slot satisfies\nall version constraints)"];
     g_ok_deep [shape=box, label="Conditions = []"];
 
+    g_requse_guard [shape=diamond, style=filled, fillcolor="#ffe0e0",
+                     label="memo:requse_violation_(C,N,_)?\n(skip reprove when\nUSE conflict already recorded)"];
+
     g_learn_parent [shape=box, label="maybe_learn_parent_narrowing(C,N,...)\n(heuristic.pl)\n─────────────────\nParent introduced a dep that made\n(C,N) unsatisfiable: narrow parent.\nSkipped for PDEPEND and multislot misses."];
 
     g_reprove [shape=box, label="maybe_request_grouped_dep_reprove(...)\n(heuristic.pl)\n→ throw rules_reprove_cn_domain(...)"];
 
     g_reason_call [shape=box, label="call explanation:\nassumption_reason_for_grouped_dep\n(..., _Reason)\nfor classification"];
 
-    g_assume [shape=box, label="fallback assumption:\nassumed(grouped_package_dependency\n  (C,N,PackageDeps):Action?{Ctx2})\nCtx2 augmented with\ndomain_reason(cn_domain(...)) tags"];
+    g_slot_conflict_check [shape=diamond, style=filled, fillcolor="#e0e0ff",
+                            label="find_dep_slot_conflict(C,N,Desc)?\n(check memo:slot_conflict_\nfor this pkg or its deps)"];
+
+    g_requse_ctx [shape=diamond, style=filled, fillcolor="#ffe0e0",
+                   label="memo:requse_violation_(C,N,ViolDesc)?\n(retract and add to context)"];
+
+    g_assume [shape=box, label="fallback assumption:\nassumed(grouped_package_dependency\n  (C,N,PackageDeps):Action?{Ctx})\nCtx augmented with:\n• domain_reason(cn_domain(...))\n• required_use_violation(ViolDesc)\n• slot_conflict(SlotConflictDesc)"];
+  }
+
+  subgraph cluster_bwu_cross_dep {
+    label="rules.pl : :install / :run BWU cross-dep REQUIRED_USE check";
+    color="#888888";
+    fontcolor="#555555";
+
+    bwu_start [shape=circle, label=":install / :run\nrule body"];
+    bwu_check [shape=box, style=filled, fillcolor="#ffe0e0",
+               label="check_bwu_cross_dep(C,N,Repo://Entry,BWU)\n─────────────────\nMerge BWU with memo:candidate_bwu_(C,N):\n• first occurrence: assert candidate_bwu_\n• subsequent: val_hook merge + verify_required_use_with_bwu"];
+    bwu_merge_ok [shape=diamond, label="val_hook merge\nsucceeds?"];
+    bwu_requse_ok [shape=diamond, label="verify_required_use\n_with_bwu passes?"];
+    bwu_update [shape=box, label="update memo:candidate_bwu_\nwith merged BWU → continue"];
+    bwu_requse_viol [shape=box, style=filled, fillcolor="#ffdddd",
+                     label="describe_required_use_violation\n→ assert memo:requse_violation_\n→ fail"];
+    bwu_ed_viol [shape=box, style=filled, fillcolor="#ffdddd",
+                 label="compute_ed_conflict_desc\n→ assert memo:requse_violation_\n(use_flag_conflict)\n→ fail"];
+  }
+
+  subgraph cluster_cn_domain_conflict {
+    label="rules.pl : constraint_unify_hook(cn_domain) — slot conflict detection";
+    color="#888888";
+    fontcolor="#555555";
+
+    cd_start [shape=circle, label="cn_domain\nunify hook"];
+    cd_has_existing [shape=diamond, label="cn_domain(C,N)\nalready in constraints?"];
+    cd_put_new [shape=box, label="put_assoc(cn_domain(C,N),\nDomainDelta)"];
+    cd_meet [shape=diamond, style=filled, fillcolor="#e0e0ff",
+             label="version_domain:domain_meet\n(CurrentDomain, DomainDelta,\nMergedDomain) succeeds?"];
+    cd_meet_ok [shape=box, label="put_assoc(cn_domain(C,N),\nMergedDomain)"];
+    cd_meet_fail [shape=box, style=filled, fillcolor="#ffdddd",
+                  label="domain_meet FAILED:\nassert memo:slot_conflict_(C,N,\n  domain_conflict(Current,Delta))\n→ fail"];
   }
 
   subgraph cluster_cn_reprove {
@@ -244,7 +290,11 @@ digraph rules_assumptions_bpmn {
   g_ctx_drop -> g_use_guard;
   g_use_guard -> g_use_slot [label="yes"];
   g_use_guard -> g_select [label="no: try next"];
-  g_use_slot -> g_action_path;
+
+  g_use_slot -> g_bwu_ed_check;
+  g_bwu_ed_check -> g_action_path [label="no conflict"];
+  g_bwu_ed_check -> g_bwu_ed_fail [label="E/D conflict\ndetected"];
+  g_bwu_ed_fail -> g_select [label="fail: try next\n(but requse_violation_\nmemo is set)"];
 
   g_action_path -> g_action_update [label="yes"];
   g_action_path -> g_action_install [label="no"];
@@ -257,11 +307,41 @@ digraph rules_assumptions_bpmn {
   // Fallback chain (no viable candidate)
   g_slotreq -> g_deep_keep [style=dashed, label="no viable candidate branch"];
   g_deep_keep -> g_ok_deep [label="yes"];
-  g_deep_keep -> g_learn_parent [label="no"];
+  g_deep_keep -> g_requse_guard [label="no"];
+  g_requse_guard -> g_reason_call [label="yes: skip reprove,\ngo straight to assumption"];
+  g_requse_guard -> g_learn_parent [label="no: no USE violation"];
   g_learn_parent -> g_reprove [label="narrowing did not help\n(or not applicable)"];
   g_reprove -> g_reason_call [label="no reprove request\n(or not eligible)"];
   g_reprove -> r_throw [style=dashed, label="throw rules_reprove_cn_domain"];
-  g_reason_call -> g_assume;
+
+  g_reason_call -> g_requse_ctx;
+  g_requse_ctx -> g_slot_conflict_check [label="add required_use_violation\nto Ctx (if memo set)"];
+  g_slot_conflict_check -> g_assume [label="add slot_conflict\nto Ctx (if memo set)"];
+
+  // =========================================================================
+  //  Edges: BWU cross-dep REQUIRED_USE check (:install / :run rules)
+  // =========================================================================
+
+  bwu_start -> bwu_check;
+  bwu_check -> bwu_merge_ok;
+  bwu_merge_ok -> bwu_requse_ok [label="yes"];
+  bwu_merge_ok -> bwu_ed_viol [label="no: val_hook fails\n(E/D conflict)"];
+  bwu_requse_ok -> bwu_update [label="yes"];
+  bwu_requse_ok -> bwu_requse_viol [label="no: REQUIRED_USE\nviolated"];
+
+  // Link BWU check to grouped_dep flow
+  g_emit -> bwu_start [style=dashed, label="after :install/:run\ngoal emitted, BWU\nchecked before\nrequired_use resolution"];
+
+  // =========================================================================
+  //  Edges: cn_domain constraint unify hook (slot conflict detection)
+  // =========================================================================
+
+  cd_start -> cd_has_existing;
+  cd_has_existing -> cd_put_new [label="no: first time"];
+  cd_has_existing -> cd_meet [label="yes: merge"];
+  cd_meet -> cd_meet_ok [label="yes"];
+  cd_meet -> cd_meet_fail [label="no: incompatible\nversion domains"];
+  cd_meet_fail -> g_slot_conflict_check [style=dashed, label="memo:slot_conflict_\nrecorded for\nassumption clause"];
 
   // =========================================================================
   //  Edges: CN-domain reprove retry loop
@@ -320,12 +400,20 @@ digraph rules_assumptions_bpmn {
   // =========================================================================
 
   subgraph cluster_printer_type {
-    label="printer.pl : assumption_type/2 classification for statistics";
+    label="assumption.pl : assumption_type/2 classification for statistics";
     color="#555555";
     fontcolor="#555555";
 
     at_start [shape=circle, label="assumption\nterm"];
     at_ctx_check [shape=diamond, label="has ?{Ctx} with\nassumption_reason(R)?"];
+    at_requse_check [shape=diamond, style=filled, fillcolor="#ffe0e0",
+                      label="has ?{Ctx} with\nrequired_use_violation(_)?"];
+    at_slot_check [shape=diamond, style=filled, fillcolor="#e0e0ff",
+                    label="has ?{Ctx} with\nslot_conflict(_)?"];
+    at_requse_type [shape=box, style=filled, fillcolor="#ffe0e0",
+                     label="Type = required_use_violation"];
+    at_slot_type [shape=box, style=filled, fillcolor="#e0e0ff",
+                   label="Type = slot_conflict"];
     at_reason_type [shape=box, label="assumption_reason_type(R, Type)\n─────────────────\nmissing → missing_dependency\nmasked → masked_dependency\nkeyword_filtered → keyword_filtered_dependency\nversion_conflict → version_conflict_dependency\nversion_no_candidate → version_no_candidate_dependency\nslot_unsatisfied → slot_unsatisfied_dependency\ninstalled_required → installed_required_dependency\nunsatisfied_constraints → unsatisfied_constraints_dependency"];
     at_generic [shape=box, label="generic unwrap:\n─────────────────\n?{Ctx} → strip wrapper\ndomain(X) → recurse\nfall through to:\n  non_existent_dependency\n  cycle_break\n  blocker_assumption\n  etc."];
     at_out [shape=note, label="Type atom\n(used in test_stats\nfor statistics\nbucketing)"];
@@ -345,12 +433,20 @@ digraph rules_assumptions_bpmn {
   }
 
   subgraph cluster_printer_render {
-    label="printer.pl : print_element/2 reason-aware rendering";
+    label="warning.pl : print_assumption_detail/1 reason-aware rendering";
     color="#555555";
     fontcolor="#555555";
 
     pr_start [shape=circle, label="assumed\nplan step"];
     pr_ctx_check [shape=diamond, label="has ?{Ctx} with\nassumption_reason(R)?"];
+    pr_requse_check [shape=diamond, style=filled, fillcolor="#ffe0e0",
+                      label="has ?{Ctx} with\nrequired_use_violation(V)?"];
+    pr_slot_check [shape=diamond, style=filled, fillcolor="#e0e0ff",
+                    label="has ?{Ctx} with\nslot_conflict(D)?"];
+    pr_requse_render [shape=box, style=filled, fillcolor="#ffe0e0",
+                       label="REQUIRED_USE violation:\nred 'verify' bubble\n─────────────────\n• requse_violation: shows forced\n  USE flags + violated constraint\n• use_flag_conflict: shows conflicting\n  flags (enabled + disabled sets)"];
+    pr_slot_render [shape=box, style=filled, fillcolor="#e0e0ff",
+                     label="Slot conflict:\nred 'verify' bubble\n─────────────────\n• domain_conflict: shows C/N with\n  conflicting version requirements\n  (e.g. =1.0 vs =1.1)\n• list entries: shows multiple versions\n  pulled into same slot"];
     pr_version_conflict [shape=box, style=filled, fillcolor="#fff3cc",
                          label="version_conflict:\nyellow 'verify' bubble\n(version conflict, assumed installed/running)"];
     pr_version_nocand [shape=box, style=filled, fillcolor="#fff3cc",
@@ -398,9 +494,15 @@ digraph rules_assumptions_bpmn {
 
   // Assumption → printer type classification
   g_assume -> at_start [style=dashed, label="statistics"];
-  at_start -> at_ctx_check;
+  at_start -> at_requse_check;
+  at_requse_check -> at_requse_type [label="yes"];
+  at_requse_check -> at_slot_check [label="no"];
+  at_slot_check -> at_slot_type [label="yes"];
+  at_slot_check -> at_ctx_check [label="no"];
   at_ctx_check -> at_reason_type [label="yes"];
   at_ctx_check -> at_generic [label="no"];
+  at_requse_type -> at_out;
+  at_slot_type -> at_out;
   at_reason_type -> at_out;
   at_generic -> at_out;
 
@@ -414,7 +516,11 @@ digraph rules_assumptions_bpmn {
 
   // Assumption → printer rendering
   g_assume -> pr_start [style=dashed, label="plan output"];
-  pr_start -> pr_ctx_check;
+  pr_start -> pr_requse_check;
+  pr_requse_check -> pr_requse_render [label="yes:\nrequired_use_violation"];
+  pr_requse_check -> pr_slot_check [label="no"];
+  pr_slot_check -> pr_slot_render [label="yes:\nslot_conflict"];
+  pr_slot_check -> pr_ctx_check [label="no"];
   pr_ctx_check -> pr_version_conflict [label="version_conflict"];
   pr_ctx_check -> pr_version_nocand [label="version_no_candidate"];
   pr_ctx_check -> pr_slot_unsat [label="slot_unsatisfied"];
