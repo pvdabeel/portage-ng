@@ -4,7 +4,7 @@
 
 This test case is designed to assess the prover's ability to detect a USE flag conflict that is hidden several layers deep in the dependency graph. The two main dependency branches ('liba' and 'libb') converge on 'core-utils' with contradictory requirements for the 'feature_x' USE flag.
 
-**Expected:** The prover must trace the entire dependency tree and identify that 'core-utils' is required with both 'feature_x' enabled and disabled simultaneously. As this is a logical contradiction, the prover should fail to produce a valid installation proof.
+**Expected:** The prover must trace the entire dependency tree and identify that `core-utils` is required with `feature_x` both enabled (via `libc`) and disabled (via `libd`) simultaneously. This Enable/Disable conflict produces a domain assumption with a USE flag conflict descriptor. Exit code 2.
 
 ![test46](test46.svg)
 
@@ -46,7 +46,8 @@ Calculating dependencies... done!
  └─step  1─┤ useflag overlay://test46/core-utils-1.0 (feature_x)
              │ useflag overlay://test46/core-utils-1.0 (feature_x feature_y)
 
- └─step  2─┤ download  overlay://test46/libd-1.0
+ └─step  2─┤ verify  test46/core-utils (unsatisfied constraints, assumed running)
+             │ download  overlay://test46/libd-1.0
              │ download  overlay://test46/libc-1.0
              │ download  overlay://test46/libb-1.0
              │ download  overlay://test46/liba-1.0
@@ -56,26 +57,29 @@ Calculating dependencies... done!
  └─step  3─┤ install   overlay://test46/core-utils-1.0 (USE modified)
              │           └─ conf ─┤ USE = "feature_x feature_y"
 
- └─step  4─┤ run       overlay://test46/core-utils-1.0 (USE modified)
+ └─step  4─┤ install   overlay://test46/libd-1.0
+             │ run       overlay://test46/core-utils-1.0 (USE modified)
 
- └─step  5─┤ install   overlay://test46/libd-1.0
-             │ install   overlay://test46/libc-1.0
+ └─step  5─┤ run       overlay://test46/libd-1.0
 
- └─step  6─┤ run       overlay://test46/libc-1.0
-             │ run       overlay://test46/libd-1.0
+ └─step  6─┤ install   overlay://test46/libc-1.0
 
- └─step  7─┤ install   overlay://test46/liba-1.0
-             │ install   overlay://test46/libb-1.0
+ └─step  7─┤ install   overlay://test46/libb-1.0
+             │ run       overlay://test46/libc-1.0
 
  └─step  8─┤ run       overlay://test46/libb-1.0
-             │ run       overlay://test46/liba-1.0
 
- └─step  9─┤ install   overlay://test46/app-1.0
+ └─step  9─┤ install   overlay://test46/liba-1.0
 
- └─step 10─┤ run     overlay://test46/app-1.0
+ └─step 10─┤ run       overlay://test46/liba-1.0
 
-Total: 20 actions (2 useflags, 6 downloads, 6 installs, 6 runs), grouped into 10 steps.
+ └─step 11─┤ install   overlay://test46/app-1.0
+
+ └─step 12─┤ run     overlay://test46/app-1.0
+
+Total: 20 actions (2 useflags, 6 downloads, 6 installs, 6 runs), grouped into 12 steps.
        0.00 Kb to be downloaded.
+
 
 
 >>> Assumptions taken during proving & planning:
@@ -84,6 +88,43 @@ Total: 20 actions (2 useflags, 6 downloads, 6 installs, 6 runs), grouped into 10
   Add to /etc/portage/package.use:
     test46/core-utils feature_x
     test46/core-utils feature_x feature_y
+
+
+Error The proof for your build plan contains domain assumptions. Please verify:
+
+
+>>> Domain assumptions
+
+- REQUIRED_USE violation: 
+  test46/core-utils
+  Conflicting USE flags: [feature_x]
+  Required enabled by:  [feature_x]
+  Required disabled by: [feature_x]
+  (cannot satisfy both enable and disable for the same flag)
+  required by: overlay://test46/libd-1.0
+
+
+>>> Bug report drafts (Gentoo Bugzilla)
+
+---
+Summary: overlay://test46/libd-1.0: unsatisfied_constraints dependency on test46/core-utils
+
+Affected package: overlay://test46/libd-1.0
+Dependency: test46/core-utils
+Phases: [run]
+
+Unsatisfiable constraint(s):
+  test46/core-utils-
+
+Observed:
+  portage-ng reports no available candidate satisfies the above constraint(s).
+  Available versions in repo set (sample, first 1 of 1): [1.0]
+
+Potential fix (suggestion):
+  Review dependency metadata in overlay://test46/libd-1.0; constraint set: [constraint(none,,[])].
+
+
+
 ```
 
 </details>

@@ -926,6 +926,20 @@ warning:print_assumption_detail(rule(grouped_package_dependency(C,N,_R):_T?{Ctx0
     warning:print_requse_violation_detail(ViolDesc),
     warning:print_assumption_provenance(Ctx).
 
+warning:print_assumption_detail(rule(grouped_package_dependency(C,N,_R):_T?{Ctx0},_)) :-
+    warning:unwrap_ctx(Ctx0, Ctx),
+    memberchk(slot_conflict(SlotConflictDesc), Ctx),
+    !,
+    message:color(lightred),
+    message:style(bold),
+    message:print('- Slot conflict: '),
+    message:style(normal),
+    message:color(normal),
+    nl,
+    format('  ~w/~w~n', [C, N]),
+    warning:print_slot_conflict_detail(SlotConflictDesc),
+    warning:print_assumption_provenance(Ctx).
+
 warning:print_assumption_detail(rule(grouped_package_dependency(C,N,R):T?{Ctx},_)) :- !,
     message:color(lightred),
     message:style(bold),
@@ -1097,8 +1111,63 @@ warning:print_requse_violation_detail(
                ))
     ; format('  (REQUIRED_USE constraint violated)~n', [])
     ).
+warning:print_requse_violation_detail(
+        use_flag_conflict(Conflicts, Enable, Disable)) :- !,
+    format('  Conflicting USE flags: ~w~n', [Conflicts]),
+    format('  Required enabled by:  ~w~n', [Enable]),
+    format('  Required disabled by: ~w~n', [Disable]),
+    format('  (cannot satisfy both enable and disable for the same flag)~n', []).
 warning:print_requse_violation_detail(_) :-
     format('  (REQUIRED_USE constraint violated)~n', []).
+
+
+%! warning:print_slot_conflict_detail(+SlotConflictDesc)
+%
+% Renders slot conflict details showing which versions of a package were
+% pulled into the same slot by different dependencies.
+
+warning:print_slot_conflict_detail(
+        slot_conflict_info(ConflictC, ConflictN, domain_conflict(Domain1, Domain2))) :- !,
+    format('  ~w/~w has conflicting version requirements:~n',
+           [ConflictC, ConflictN]),
+    warning:print_domain_bound(Domain1),
+    warning:print_domain_bound(Domain2),
+    format('  These constraints cannot be satisfied simultaneously.~n', []).
+warning:print_slot_conflict_detail(
+        slot_conflict_info(ConflictC, ConflictN, Entries)) :-
+    is_list(Entries), !,
+    format('  Multiple versions of ~w/~w pulled into the same slot:~n',
+           [ConflictC, ConflictN]),
+    forall(member(slot_entry(Repo, Entry, Ver, SlotKey), Entries),
+           format('    ~w/~w-~w (slot ~w, repo ~w)~n',
+                  [ConflictC, Entry, Ver, SlotKey, Repo])).
+warning:print_slot_conflict_detail(_) :-
+    format('  (slot conflict detected)~n', []).
+
+
+%! warning:print_domain_bound(+Domain)
+%
+% Renders a version domain's bounds as human-readable constraints.
+
+warning:print_domain_bound(version_domain(_Slots, Bounds)) :- !,
+    forall(member(bound(Op, Ver), Bounds),
+           ( warning:version_op_symbol(Op, OpSym),
+             warning:version_full_string(Ver, VerStr),
+             format('    ~w~w~n', [OpSym, VerStr])
+           )).
+warning:print_domain_bound(Domain) :-
+    format('    ~w~n', [Domain]).
+
+warning:version_op_symbol(equal, '=') :- !.
+warning:version_op_symbol(greaterequal, '>=') :- !.
+warning:version_op_symbol(greater, '>') :- !.
+warning:version_op_symbol(smallerequal, '<=') :- !.
+warning:version_op_symbol(smaller, '<') :- !.
+warning:version_op_symbol(tilde, '~') :- !.
+warning:version_op_symbol(Op, Op).
+
+warning:version_full_string(version(_, _, _, _, _, _, Full), Full) :- !.
+warning:version_full_string(V, V).
 
 
 %! warning:requse_term_to_text(+ReqUseTerm, -Text)

@@ -1,11 +1,11 @@
 
->>> Emerging : overlay://test12/web-2.0:run?{[]}
+>>> Emerging : overlay://test12/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ download  overlay://test12/web-2.0
+ └─step  1─┤ download  overlay://test12/web-1.0
              │ download  overlay://test12/os-2.0
              │ download  overlay://test12/db-2.0
              │ download  overlay://test12/app-2.0
@@ -22,9 +22,9 @@ Calculating dependencies... done!
 
  └─step  7─┤ run       overlay://test12/app-2.0
 
- └─step  8─┤ install   overlay://test12/web-2.0
+ └─step  8─┤ install   overlay://test12/web-1.0
 
- └─step  9─┤ run     overlay://test12/web-2.0
+ └─step  9─┤ run     overlay://test12/web-1.0
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.

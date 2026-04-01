@@ -265,10 +265,16 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
       use:context_build_with_use_state(Context1, B),
       ( memberchk(required_use:R,Context1) -> true ; true ),
       query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
+
+      % 2b. Cross-dependency BWU conflict detection: use the RAW BWU (before
+      %     resolve/stabilize) so that build_with_use_resolve_required_use
+      %     cannot silently mask a cross-dep conflict.
+      rules:check_bwu_cross_dep(C, N, Repository://Ebuild, B),
+
       use:build_with_use_resolve_required_use(B, Repository://Ebuild, BResolved0),
       use:stabilize_required_use(Repository://Ebuild, BResolved0, BResolved),
 
-      % 2b. Verify REQUIRED_USE is still satisfied after applying build_with_use.
+      % 2c. Verify REQUIRED_USE is still satisfied after applying build_with_use.
       %     Fail (rather than assume) so that grouped_package_dependency can try
       %     alternative candidates, parent narrowing, and reprove before assuming.
       ( \+ use:verify_required_use_with_bwu(Repository://Ebuild, BResolved) ->
@@ -363,10 +369,14 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
   % 2. Compute required_use stable model, extend with build_with_use requirements.
   use:context_build_with_use_state(Context1, B),
   query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
+
+  % 2b. Cross-dependency BWU conflict detection (see :install rule).
+  rules:check_bwu_cross_dep(C, N, Repository://Ebuild, B),
+
   use:build_with_use_resolve_required_use(B, Repository://Ebuild, BResolved0),
   use:stabilize_required_use(Repository://Ebuild, BResolved0, BResolved),
 
-  % 2b. Verify REQUIRED_USE is still satisfied after applying build_with_use.
+  % 2c. Verify REQUIRED_USE is still satisfied after applying build_with_use.
   ( \+ use:verify_required_use_with_bwu(Repository://Ebuild, BResolved) ->
       use:describe_required_use_violation(Repository://Ebuild, BResolved, ViolDesc),
       ( \+ memo:requse_violation_(C, N, _) ->
@@ -905,6 +915,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       % Enforce bracketed USE constraints (e.g. sys-devel/gcc[objc], python[xml(+)], foo[bar?]).
       use:candidate_satisfies_use_deps(ContextDep, FoundRepo://Candidate, MergedUse),
       dependency:process_build_with_use(MergedUse,ContextDep,NewContext,Constraints,FoundRepo://Candidate),
+      rules:check_bwu_ed_conflict(C, N, NewContext),
       candidate:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, SlotMeta),
       dependency:process_slot(SlotReq, SlotMeta, C, N, FoundRepo://Candidate, NewContext, NewerContext0),
 
@@ -1015,9 +1026,13 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       append(DomainCons, Suffix, Conditions)
     ; % Before reprove, check if the parent should be narrowed — the parent
       % introduced a dep that made (C,N) unsatisfiable (wrong-level fix).
+      % Skip reprove when the failure is a cross-dep BWU REQUIRED_USE conflict
+      % (the conflict is inherent and cannot be fixed by version narrowing).
+      \+ memo:requse_violation_(C, N, _),
       candidate:maybe_learn_parent_narrowing(C, N, PackageDeps1, Context),
       fail
-    ; candidate:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps1, Context),
+    ; \+ memo:requse_violation_(C, N, _),
+      candidate:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps1, Context),
       fail
     ; explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDeps, Context, Reason),
         % Keyword-filtered and masked deps produce domain assumptions.
@@ -1058,7 +1073,11 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
             feature_unification:unify([required_use_violation(ViolDesc)], Ctx4, Ctx5)
         ; Ctx5 = Ctx4
         ),
-        Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps1):Action?{Ctx5})]
+        ( rules:find_dep_slot_conflict(C, N, SlotConflictDesc) ->
+            feature_unification:unify([slot_conflict(SlotConflictDesc)], Ctx5, Ctx6)
+        ; Ctx6 = Ctx5
+        ),
+        Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps1):Action?{Ctx6})]
     )
   ).
 
@@ -1598,8 +1617,17 @@ rules:constraint_unify_hook(cn_domain(C,N), DomainDelta0, Constraints, NewConstr
   !,
   version_domain:domain_normalize(DomainDelta0, DomainDelta),
   ( get_assoc(cn_domain(C,N), Constraints, CurrentDomain, Constraints1, CurrentDomain) ->
-      version_domain:domain_meet(CurrentDomain, DomainDelta, MergedDomain),
-      put_assoc(cn_domain(C,N), Constraints1, MergedDomain, NewConstraints)
+      ( version_domain:domain_meet(CurrentDomain, DomainDelta, MergedDomain) ->
+          put_assoc(cn_domain(C,N), Constraints1, MergedDomain, NewConstraints)
+      ; % domain_meet failed: incompatible version constraints (slot conflict).
+        % Record a memo so the assumption clause can include conflict details.
+        ( \+ memo:slot_conflict_(C, N, _) ->
+            assertz(memo:slot_conflict_(C, N,
+                        domain_conflict(CurrentDomain, DomainDelta)))
+        ; true
+        ),
+        fail
+      )
   ; put_assoc(cn_domain(C,N), Constraints, DomainDelta, NewConstraints)
   ).
 
@@ -2068,6 +2096,132 @@ rules:ctx_add_after_only(Ctx0, After, Ctx) :-
   ; Ctx = [after_only(After)]
   ),
   !.
+
+
+% -----------------------------------------------------------------------------
+%  Cross-dependency BWU REQUIRED_USE conflict detection
+% -----------------------------------------------------------------------------
+
+%! rules:check_bwu_cross_dep(+C, +N, +RepoEntry, +Context)
+%
+% Detects irreconcilable REQUIRED_USE conflicts across independent dependency
+% branches.  When two grouped_package_dependency rules for the same (C,N)
+% request conflicting build_with_use flags (e.g. os[linux] from liba and
+% os[darwin] from libb with REQUIRED_USE: ^^ ( linux darwin )), the prover's
+% model may not retain the first entry by the time the second branch proves
+% it (due to context-changed re-proofs resetting the model).
+%
+% This predicate uses a memo to track committed BWU per (C,N).  When a
+% second grouped_dep for the same (C,N) computes a BWU that, merged with
+% the existing one, violates REQUIRED_USE, the candidate is rejected.
+% The grouped_dep then falls to the assumption path and creates a domain
+% assumption with a REQUIRED_USE violation descriptor.
+
+rules:check_bwu_cross_dep(C, N, RepoEntry, BWU) :-
+    ( BWU \= use_state([], []) ->
+        ( memo:candidate_bwu_(C, N, OldBWU) ->
+            ( feature_unification:val_hook(OldBWU, BWU, MergedBWU) ->
+                ( use:verify_required_use_with_bwu(RepoEntry, MergedBWU) ->
+                    retractall(memo:candidate_bwu_(C, N, _)),
+                    assertz(memo:candidate_bwu_(C, N, MergedBWU))
+                ; use:describe_required_use_violation(RepoEntry, MergedBWU, ViolDesc),
+                  ( \+ memo:requse_violation_(C, N, _) ->
+                      assertz(memo:requse_violation_(C, N, ViolDesc))
+                  ; true
+                  ),
+                  fail
+                )
+            ; % E/D conflict: a USE flag is both enabled and disabled by different
+              % dependency branches.  Record violation and fail.
+              rules:compute_ed_conflict_desc(OldBWU, BWU, ViolDesc),
+              ( \+ memo:requse_violation_(C, N, _) ->
+                  assertz(memo:requse_violation_(C, N, ViolDesc))
+              ; true
+              ),
+              fail
+            )
+        ; assertz(memo:candidate_bwu_(C, N, BWU))
+        )
+    ; true
+    ).
+
+
+%! rules:clear_bwu_cross_dep_memos
+%
+% Cleans up candidate_bwu_ memos.  Called at proof initialization.
+
+rules:clear_bwu_cross_dep_memos :-
+    retractall(memo:candidate_bwu_(_, _, _)).
+
+
+%! rules:check_bwu_ed_conflict(+C, +N, +Context)
+%
+% Lightweight Enable/Disable conflict check for the grouped_package_dependency
+% rule.  Unlike check_bwu_cross_dep (which runs inside :install/:run rules
+% and additionally validates REQUIRED_USE), this predicate only detects direct
+% E/D conflicts — a USE flag that one dependency branch enables and another
+% disables.  E/D conflicts cause ctx_union to fail in the prover's
+% CTX_CHANGED path, which can silently drop the second proof attempt.
+% Detecting them here lets the grouped_dep fall cleanly to the assumption
+% clause with the requse_violation_ memo set.
+
+rules:check_bwu_ed_conflict(C, N, Context) :-
+    ( use:context_build_with_use_state(Context, BWU),
+      BWU \= use_state([], []) ->
+        ( memo:candidate_bwu_(C, N, OldBWU) ->
+            ( feature_unification:val_hook(OldBWU, BWU, _) ->
+                true
+            ; rules:compute_ed_conflict_desc(OldBWU, BWU, ViolDesc),
+              ( \+ memo:requse_violation_(C, N, _) ->
+                  assertz(memo:requse_violation_(C, N, ViolDesc))
+              ; true
+              ),
+              fail
+            )
+        ; true
+        )
+    ; true
+    ).
+
+
+%! rules:compute_ed_conflict_desc(+OldBWU, +NewBWU, -ViolDesc)
+%
+% Computes a use_flag_conflict descriptor from two incompatible BWU states.
+
+rules:compute_ed_conflict_desc(use_state(OldEn, OldDis), use_state(NewEn, NewDis),
+                               use_flag_conflict(Conflicts, AllEn, AllDis)) :-
+    ord_union(OldEn, NewEn, AllEn),
+    ord_union(OldDis, NewDis, AllDis),
+    ord_intersection(AllEn, AllDis, Conflicts).
+
+
+%! rules:find_dep_slot_conflict(+C, +N, -SlotConflictDesc)
+%
+% Checks whether a slot conflict memo exists for any dependency of (C,N).
+% The memo is recorded by selected_cn_domain_compatible_or_reprove when
+% an inconsistent domain is detected for a package with multiple selected
+% entries in the same slot.
+
+rules:find_dep_slot_conflict(C, N, slot_conflict_info(ConflictC, ConflictN, ConflictData)) :-
+    memo:slot_conflict_(ConflictC, ConflictN, ConflictData),
+    query:search([category(C), name(N)], Repo://Entry),
+    rules:candidate_depends_on(Repo://Entry, ConflictC, ConflictN),
+    !.
+rules:find_dep_slot_conflict(_C, _N, slot_conflict_info(ConflictC, ConflictN, ConflictData)) :-
+    memo:slot_conflict_(ConflictC, ConflictN, ConflictData),
+    !.
+
+
+%! rules:candidate_depends_on(+RepoEntry, +DepC, +DepN)
+%
+% True if RepoEntry has any dependency (DEPEND/RDEPEND/BDEPEND/PDEPEND)
+% on category DepC, name DepN.
+
+rules:candidate_depends_on(Repo://Entry, DepC, DepN) :-
+    member(Phase, [depend, rdepend, bdepend, pdepend, idepend]),
+    cache:entry_metadata(Repo, Entry, Phase,
+                         package_dependency(_, _, DepC, DepN, _, _, _, _)),
+    !.
 
 
 % -----------------------------------------------------------------------------

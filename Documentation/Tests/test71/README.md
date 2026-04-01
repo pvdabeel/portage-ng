@@ -35,13 +35,15 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ download  overlay://test71/web-1.0
+ └─step  1─┤ download  overlay://test71/web-1.0
              │ download  overlay://test71/os-1.0
              │ download  overlay://test71/db-1.0
              │ download  overlay://test71/app-1.0
 
 Total: 4 actions (4 downloads), grouped into 1 step.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>

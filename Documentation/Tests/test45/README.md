@@ -4,7 +4,7 @@
 
 This test case checks the prover's ability to detect a direct and irreconcilable USE flag conflict. The 'os' package has a REQUIRED_USE constraint of "^^ ( linux darwin )", meaning exactly one of those USE flags must be enabled. However, the dependency graph requires both to be enabled simultaneously to satisfy liba and libb.
 
-**Expected:** The prover should correctly identify the conflict and fail to produce a valid installation proof. There is no possible configuration of USE flags that can satisfy these dependencies.
+**Expected:** The prover should detect the REQUIRED_USE violation on `os` (both `linux` and `darwin` required, but `^^ ( linux darwin )` allows exactly one) and produce a domain assumption with a detailed REQUIRED_USE violation descriptor. Exit code 2.
 
 ![test45](test45.svg)
 
@@ -49,9 +49,10 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ useflag overlay://test45/os-1.0 (darwin)
+ └─step  1─┤ useflag overlay://test45/os-1.0 (linux)
 
- └─step  2─┤ download  overlay://test45/os-1.0
+ └─step  2─┤ verify  test45/os (unsatisfied constraints, assumed installed)
+             │ download  overlay://test45/os-1.0
              │ download  overlay://test45/libb-1.0
              │ download  overlay://test45/liba-1.0
              │ download  overlay://test45/app-1.0
@@ -59,7 +60,7 @@ Calculating dependencies... done!
  └─step  3─┤ install   overlay://test45/liba-1.0
              │ install   overlay://test45/libb-1.0
              │ install   overlay://test45/os-1.0 (USE modified)
-             │           └─ conf ─┤ USE = "darwin -linux"
+             │           └─ conf ─┤ USE = "-darwin linux"
 
  └─step  4─┤ run       overlay://test45/libb-1.0
              │ run       overlay://test45/liba-1.0
@@ -72,11 +73,47 @@ Total: 12 actions (1 useflag, 4 downloads, 4 installs, 3 runs), grouped into 6 s
        0.00 Kb to be downloaded.
 
 
+
 >>> Assumptions taken during proving & planning:
 
   USE flag change (1 package):
   Add to /etc/portage/package.use:
-    test45/os darwin
+    test45/os linux
+
+
+Error The proof for your build plan contains domain assumptions. Please verify:
+
+
+>>> Domain assumptions
+
+- REQUIRED_USE violation: 
+  test45/os
+  USE deps force:   [darwin,linux]
+  violates: ^^ ( linux darwin )
+  required by: overlay://test45/libb-1.0
+
+
+>>> Bug report drafts (Gentoo Bugzilla)
+
+---
+Summary: overlay://test45/libb-1.0: unsatisfied_constraints dependency on test45/os
+
+Affected package: overlay://test45/libb-1.0
+Dependency: test45/os
+Phases: [install]
+
+Unsatisfiable constraint(s):
+  test45/os-
+
+Observed:
+  portage-ng reports no available candidate satisfies the above constraint(s).
+  Available versions in repo set (sample, first 1 of 1): [1.0]
+
+Potential fix (suggestion):
+  Review dependency metadata in overlay://test45/libb-1.0; constraint set: [constraint(none,,[])].
+
+
+
 ```
 
 </details>

@@ -33,9 +33,12 @@ Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
 
 >>> Domain assumptions
 
-- Unsatisfied constraints for run dependency: 
+- Slot conflict: 
   test48/libphysics
-
+  test48/libmatrix has conflicting version requirements:
+    =1.0
+    =1.1
+  These constraints cannot be satisfied simultaneously.
   required by: overlay://test48/app-1.0
 
 

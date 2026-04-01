@@ -31,35 +31,37 @@ Total: 1 package (1 new), Size of downloads: 0 KiB
 
 ```
 
->>> Emerging : overlay://test78/web-1.0:run?{[]}
+>>> Emerging : overlay://test78/web-1.0:run?{[onlydeps_target]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ download  overlay://test78/web-1.0
+ └─step  1─┤ download  overlay://test78/web-1.0
              │ download  overlay://test78/os-1.0
              │ download  overlay://test78/db-1.0
              │ download  overlay://test78/app-1.0
 
- └─step  2─┤ install   overlay://test78/os-1.0
+ └─step  2─┤ install   overlay://test78/os-1.0
 
- └─step  3─┤ run       overlay://test78/os-1.0
+ └─step  3─┤ run       overlay://test78/os-1.0
 
- └─step  4─┤ install   overlay://test78/db-1.0
+ └─step  4─┤ install   overlay://test78/db-1.0
 
- └─step  5─┤ run       overlay://test78/db-1.0
+ └─step  5─┤ run       overlay://test78/db-1.0
 
- └─step  6─┤ install   overlay://test78/app-1.0
+ └─step  6─┤ install   overlay://test78/app-1.0
 
- └─step  7─┤ run       overlay://test78/app-1.0
+ └─step  7─┤ run       overlay://test78/app-1.0
 
- └─step  8─┤ install   overlay://test78/web-1.0
+ └─step  8─┤ install   overlay://test78/web-1.0
 
- └─step  9─┤ run     overlay://test78/web-1.0
+ └─step  9─┤ run     overlay://test78/web-1.0
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>

@@ -71,6 +71,11 @@ assumption:assumption_type(Term, required_use_violation) :-
   memberchk(required_use_violation(_), Ctx),
   !.
 
+assumption:assumption_type(Term, slot_conflict) :-
+  explainer:term_ctx(Term, Ctx),
+  memberchk(slot_conflict(_), Ctx),
+  !.
+
 assumption:assumption_type(package_dependency(_,_,_,_,_,_,_,_):_,              non_existent_dependency) :- !.
 assumption:assumption_type(grouped_package_dependency(_,_,_):_,                non_existent_dependency) :- !.
 assumption:assumption_type(grouped_package_dependency(_,_,_,_):_,              non_existent_dependency) :- !.

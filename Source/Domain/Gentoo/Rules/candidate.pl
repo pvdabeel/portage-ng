@@ -888,6 +888,25 @@ selected_cn_unique_or_reprove(C, N, _SelectedMerged, Constraints) :-
 selected_cn_unique_or_reprove(_C, _N, _SelectedMerged, _Constraints) :-
   fail.
 
+%! candidate:record_slot_conflict_if_multiple(+C, +N, +Selected)
+%
+% Records a slot conflict memo when the domain is inconsistent and
+% multiple entries are selected for (C,N).  Persists across reprove
+% attempts so the assumption clause can include slot conflict details.
+
+record_slot_conflict_if_multiple(C, N, Selected) :-
+  ( Selected = [_,_|_],
+    \+ memo:slot_conflict_(C, N, _) ->
+      findall(slot_entry(Repo, Entry, Ver, SlotKey),
+              ( member(selected(Repo, Entry, _Act, Ver, SlotMeta), Selected),
+                ( selected_cn_slot_key_(SlotMeta, SlotKey) -> true ; SlotKey = unknown )
+              ),
+              Entries),
+      assertz(memo:slot_conflict_(C, N, Entries))
+  ; true
+  ).
+
+
 %! candidate:find_adjustable_origin(+Reasons, -OriginC, -OriginN, -RepoEntry)
 %
 % Finds an origin candidate from introduced_by reasons that has a learned
@@ -1005,7 +1024,8 @@ selected_cn_domain_compatible_or_reprove(C, N, Domain, Selected, Constraints) :-
           prover:learn(cn_domain(C,N,SelSlot), Domain, _),
           ( SelSlot \== any -> prover:learn(cn_domain(C,N,any), Domain, _) ; true )
         -> true ; true )
-    ; ( get_assoc(cn_domain_reason(C,N), Constraints, ordset(Reasons0)) -> true ; Reasons0 = [] ),
+    ; record_slot_conflict_if_multiple(C, N, Selected),
+      ( get_assoc(cn_domain_reason(C,N), Constraints, ordset(Reasons0)) -> true ; Reasons0 = [] ),
       ( Reasons0 \== [],
         find_adjustable_origin(Reasons0, OriginC, OriginN, OriginRepo://OriginEntry),
         query:search(version(OriginVer), OriginRepo://OriginEntry),

@@ -4,7 +4,7 @@
 
 This test case checks the prover's ability to detect a slotting conflict. The two main dependencies, 'libgraphics' and 'libphysics', require different versions of 'libmatrix' to be installed into the same slot ('1'). A package slot can only be occupied by one version at a time.
 
-**Expected:** The prover should identify that the dependencies for 'app-1.0' lead to a request to install two different packages ('libmatrix-1.0' and 'libmatrix-1.1') into the same slot. This is an impossible condition, so the prover must fail to find a valid proof.
+**Expected:** The prover should detect that `libgraphics` requires `=libmatrix-1.0:1/A` while `libphysics` requires `=libmatrix-1.1:1/B`, creating an irreconcilable slot conflict in slot 1. The domain assumption should include slot conflict details showing the incompatible version constraints (`=1.0` vs `=1.1`). Exit code 2.
 
 ![test48](test48.svg)
 
@@ -93,9 +93,12 @@ Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
 
 >>> Domain assumptions
 
-- Unsatisfied constraints for run dependency: 
+- Slot conflict: 
   test48/libphysics
-
+  test48/libmatrix has conflicting version requirements:
+    =1.0
+    =1.1
+  These constraints cannot be satisfied simultaneously.
   required by: overlay://test48/app-1.0
 
 
@@ -117,6 +120,9 @@ Observed:
 
 Potential fix (suggestion):
   Review dependency metadata in overlay://test48/app-1.0; constraint set: [constraint(none,,[])].
+
+
+
 ```
 
 </details>

@@ -1,23 +1,21 @@
 
->>> Emerging : overlay://test51/app-1.0:run?{[]}
+>>> Emerging : overlay://test51/app-1.0:install?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ useflag overlay://test51/os-1.0 (linux)
+ └─step  1─┤ useflag overlay://test51/os-1.0 (linux)
 
- └─step  2─┤ download  overlay://test51/os-1.0
+ └─step  2─┤ download  overlay://test51/os-1.0
              │ download  overlay://test51/app-1.0
 
- └─step  3─┤ install   overlay://test51/os-1.0 (USE modified)
-             │           └─ conf ─┤ USE = "linux"
+ └─step  3─┤ install   overlay://test51/os-1.0 (USE modified)
+             │           └─ conf ─┤ USE = "linux"
 
- └─step  4─┤ install   overlay://test51/app-1.0
+ └─step  4─┤ install overlay://test51/app-1.0
 
- └─step  5─┤ run     overlay://test51/app-1.0
-
-Total: 6 actions (1 useflag, 2 downloads, 2 installs, 1 run), grouped into 5 steps.
+Total: 5 actions (1 useflag, 2 downloads, 2 installs), grouped into 4 steps.
        0.00 Kb to be downloaded.
 
 
@@ -26,5 +24,4 @@ Total: 6 actions (1 useflag, 2 downloads, 2 installs, 1 run), grouped into 5 ste
   USE flag change (1 package):
   Add to /etc/portage/package.use:
     test51/os linux
-
 

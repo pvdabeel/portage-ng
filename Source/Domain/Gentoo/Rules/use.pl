@@ -1171,6 +1171,9 @@ stabilize_requse_term(RepoEntry, Term, use_state(En0, Dis0), use_state(EnOut, Di
 
 requse_term_fixes(_RepoEntry, _En, _Dis, any_of_group(Deps), [enable(Flag)]) :-
     requse_pick_satisfying_flag(Deps, Flag), !.
+requse_term_fixes(RepoEntry, En, Dis, exactly_one_of_group(Deps), []) :-
+    findall(1, (member(D, Deps), requse_term_ok_with_bwu(RepoEntry, En, Dis, D)), Sat),
+    length(Sat, N), N > 1, !.
 requse_term_fixes(RepoEntry, En, Dis, exactly_one_of_group(Deps), [enable(Flag)]) :-
     findall(1, (member(D, Deps), requse_term_ok_with_bwu(RepoEntry, En, Dis, D)), Sat),
     length(Sat, 0),
@@ -1194,6 +1197,9 @@ requse_term_fixes(RepoEntry, En, Dis, required(minus(Use)), [disable(Use)]) :-
 requse_term_fixes(RepoEntry, En, Dis, blocking(Use), [disable(Use)]) :-
     \+ Use =.. [minus,_],
     \+ requse_flag_is_negative(RepoEntry, En, Dis, Use), !.
+requse_term_fixes(RepoEntry, En, Dis, at_most_one_of_group(Deps), []) :-
+    findall(1, (member(D, Deps), requse_term_ok_with_bwu(RepoEntry, En, Dis, D)), Sat),
+    length(Sat, N), N > 1, !.
 requse_term_fixes(_RepoEntry, _En, _Dis, _, []).
 
 

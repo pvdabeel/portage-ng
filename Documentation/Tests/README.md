@@ -161,6 +161,8 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -235,6 +237,8 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -319,6 +323,8 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -391,6 +397,8 @@ Calculating dependencies... done!
 
 Total: 11 actions (4 downloads, 4 installs, 3 runs), grouped into 8 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -472,6 +480,8 @@ Calculating dependencies... done!
 
 Total: 11 actions (4 downloads, 4 installs, 3 runs), grouped into 8 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -558,6 +568,8 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -639,6 +651,8 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -718,6 +732,8 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -801,6 +817,9 @@ Observed:
 
 Potential fix (suggestion):
   Review dependency metadata in overlay://test09/os-1.0; constraint set: [constraint(none,,[])].
+
+
+
 ```
 
 </details>
@@ -884,6 +903,9 @@ Observed:
 
 Potential fix (suggestion):
   Review dependency metadata in overlay://test10/os-1.0; constraint set: [constraint(none,,[])].
+
+
+
 ```
 
 </details>
@@ -973,6 +995,9 @@ Observed:
 
 Potential fix (suggestion):
   Review dependency metadata in overlay://test11/os-1.0; constraint set: [constraint(none,,[])].
+
+
+
 ```
 
 </details>
@@ -1012,13 +1037,13 @@ Total: 4 packages (4 new), Size of downloads: 0 KiB
 
 ```
 
->>> Emerging : overlay://test12/web-2.0:run?{[]}
+>>> Emerging : overlay://test12/web-1.0:run?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ download  overlay://test12/web-2.0
+ └─step  1─┤ download  overlay://test12/web-1.0
              │ download  overlay://test12/os-2.0
              │ download  overlay://test12/db-2.0
              │ download  overlay://test12/app-2.0
@@ -1035,12 +1060,14 @@ Calculating dependencies... done!
 
  └─step  7─┤ run       overlay://test12/app-2.0
 
- └─step  8─┤ install   overlay://test12/web-2.0
+ └─step  8─┤ install   overlay://test12/web-1.0
 
- └─step  9─┤ run     overlay://test12/web-2.0
+ └─step  9─┤ run     overlay://test12/web-1.0
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -1109,6 +1136,8 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -1179,6 +1208,8 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -1252,6 +1283,8 @@ Calculating dependencies... done!
 
 Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -1326,6 +1359,8 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -1399,6 +1434,8 @@ Calculating dependencies... done!
 
 Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -1474,6 +1511,8 @@ Calculating dependencies... done!
 
 Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 10 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -1550,6 +1589,8 @@ Calculating dependencies... done!
 
 Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 11 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -1621,6 +1662,8 @@ Calculating dependencies... done!
 
 Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -1694,6 +1737,8 @@ Calculating dependencies... done!
 
 Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 10 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -1768,6 +1813,8 @@ Calculating dependencies... done!
 
 Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 11 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -1841,6 +1888,8 @@ Calculating dependencies... done!
 
 Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -1916,6 +1965,8 @@ Calculating dependencies... done!
 
 Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 10 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -1992,6 +2043,8 @@ Calculating dependencies... done!
 
 Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 11 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -2070,6 +2123,8 @@ Calculating dependencies... done!
 
 Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -2153,6 +2208,9 @@ Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
 >>> Blockers added during proving & planning:
 
   [blocks B] !test27/windows (soft blocker, phase: run, required by: overlay://test27/app-1.0)
+
+
+
 ```
 
 </details>
@@ -2229,6 +2287,8 @@ Calculating dependencies... done!
 
 Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -2304,6 +2364,8 @@ Calculating dependencies... done!
 
 Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -2386,6 +2448,9 @@ Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
 >>> Blockers added during proving & planning:
 
   [blocks B] !test30/windows (soft blocker, phase: install, required by: overlay://test30/app-1.0)
+
+
+
 ```
 
 </details>
@@ -2468,6 +2533,9 @@ Total: 14 actions (5 downloads, 5 installs, 4 runs), grouped into 9 steps.
 
   [blocks B] !test31/windows (soft blocker, phase: install, required by: overlay://test31/app-1.0)
   [blocks B] !test31/windows (soft blocker, phase: run, required by: overlay://test31/app-1.0)
+
+
+
 ```
 
 </details>
@@ -2534,6 +2602,8 @@ Total: 4 actions (1 useflag, 1 download, 1 install, 1 run), grouped into 4 steps
   USE flag change (1 package):
   Add to /etc/portage/package.use:
     test32/os darwin
+
+
 ```
 
 </details>
@@ -2604,6 +2674,8 @@ Total: 6 actions (1 useflag, 2 downloads, 2 installs, 1 run), grouped into 5 ste
   USE flag change (1 package):
   Add to /etc/portage/package.use:
     test33/os linux
+
+
 ```
 
 </details>
@@ -2660,6 +2732,8 @@ Calculating dependencies... done!
 
 Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -2718,6 +2792,8 @@ Calculating dependencies... done!
 
 Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -2779,6 +2855,8 @@ Calculating dependencies... done!
 
 Total: 7 actions (3 downloads, 3 installs, 1 run), grouped into 5 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -2852,6 +2930,8 @@ Total: 6 actions (1 useflag, 2 downloads, 2 installs, 1 run), grouped into 5 ste
   USE flag change (1 package):
   Add to /etc/portage/package.use:
     test37/os linux
+
+
 ```
 
 </details>
@@ -2910,6 +2990,8 @@ Calculating dependencies... done!
 
 Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -2968,6 +3050,8 @@ Calculating dependencies... done!
 
 Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -3036,6 +3120,8 @@ Total: 4 actions (1 useflag, 1 download, 1 install, 1 run), grouped into 4 steps
   USE flag change (1 package):
   Add to /etc/portage/package.use:
     test40/os darwin
+
+
 ```
 
 </details>
@@ -3093,6 +3179,8 @@ Calculating dependencies... done!
 
 Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -3150,6 +3238,8 @@ Calculating dependencies... done!
 
 Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -3207,6 +3297,8 @@ Calculating dependencies... done!
 
 Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -3264,6 +3356,8 @@ Calculating dependencies... done!
 
 Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -3275,7 +3369,7 @@ Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
 
 This test case checks the prover's ability to detect a direct and irreconcilable USE flag conflict. The 'os' package has a REQUIRED_USE constraint of "^^ ( linux darwin )", meaning exactly one of those USE flags must be enabled. However, the dependency graph requires both to be enabled simultaneously to satisfy liba and libb.
 
-**Expected:** The prover should correctly identify the conflict and fail to produce a valid installation proof. There is no possible configuration of USE flags that can satisfy these dependencies.
+**Expected:** The prover should detect the REQUIRED_USE violation on `os` (both `linux` and `darwin` required, but `^^ ( linux darwin )` allows exactly one) and produce a domain assumption with a detailed REQUIRED_USE violation descriptor. Exit code 2.
 
 ![test45](test45/test45.svg)
 
@@ -3320,9 +3414,10 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ useflag overlay://test45/os-1.0 (darwin)
+ └─step  1─┤ useflag overlay://test45/os-1.0 (linux)
 
- └─step  2─┤ download  overlay://test45/os-1.0
+ └─step  2─┤ verify  test45/os (unsatisfied constraints, assumed installed)
+             │ download  overlay://test45/os-1.0
              │ download  overlay://test45/libb-1.0
              │ download  overlay://test45/liba-1.0
              │ download  overlay://test45/app-1.0
@@ -3330,7 +3425,7 @@ Calculating dependencies... done!
  └─step  3─┤ install   overlay://test45/liba-1.0
              │ install   overlay://test45/libb-1.0
              │ install   overlay://test45/os-1.0 (USE modified)
-             │           └─ conf ─┤ USE = "darwin -linux"
+             │           └─ conf ─┤ USE = "-darwin linux"
 
  └─step  4─┤ run       overlay://test45/libb-1.0
              │ run       overlay://test45/liba-1.0
@@ -3343,11 +3438,47 @@ Total: 12 actions (1 useflag, 4 downloads, 4 installs, 3 runs), grouped into 6 s
        0.00 Kb to be downloaded.
 
 
+
 >>> Assumptions taken during proving & planning:
 
   USE flag change (1 package):
   Add to /etc/portage/package.use:
-    test45/os darwin
+    test45/os linux
+
+
+Error The proof for your build plan contains domain assumptions. Please verify:
+
+
+>>> Domain assumptions
+
+- REQUIRED_USE violation: 
+  test45/os
+  USE deps force:   [darwin,linux]
+  violates: ^^ ( linux darwin )
+  required by: overlay://test45/libb-1.0
+
+
+>>> Bug report drafts (Gentoo Bugzilla)
+
+---
+Summary: overlay://test45/libb-1.0: unsatisfied_constraints dependency on test45/os
+
+Affected package: overlay://test45/libb-1.0
+Dependency: test45/os
+Phases: [install]
+
+Unsatisfiable constraint(s):
+  test45/os-
+
+Observed:
+  portage-ng reports no available candidate satisfies the above constraint(s).
+  Available versions in repo set (sample, first 1 of 1): [1.0]
+
+Potential fix (suggestion):
+  Review dependency metadata in overlay://test45/libb-1.0; constraint set: [constraint(none,,[])].
+
+
+
 ```
 
 </details>
@@ -3359,7 +3490,7 @@ Total: 12 actions (1 useflag, 4 downloads, 4 installs, 3 runs), grouped into 6 s
 
 This test case is designed to assess the prover's ability to detect a USE flag conflict that is hidden several layers deep in the dependency graph. The two main dependency branches ('liba' and 'libb') converge on 'core-utils' with contradictory requirements for the 'feature_x' USE flag.
 
-**Expected:** The prover must trace the entire dependency tree and identify that 'core-utils' is required with both 'feature_x' enabled and disabled simultaneously. As this is a logical contradiction, the prover should fail to produce a valid installation proof.
+**Expected:** The prover must trace the entire dependency tree and identify that `core-utils` is required with `feature_x` both enabled (via `libc`) and disabled (via `libd`) simultaneously. This Enable/Disable conflict produces a domain assumption with a USE flag conflict descriptor. Exit code 2.
 
 ![test46](test46/test46.svg)
 
@@ -3401,7 +3532,8 @@ Calculating dependencies... done!
  └─step  1─┤ useflag overlay://test46/core-utils-1.0 (feature_x)
              │ useflag overlay://test46/core-utils-1.0 (feature_x feature_y)
 
- └─step  2─┤ download  overlay://test46/libd-1.0
+ └─step  2─┤ verify  test46/core-utils (unsatisfied constraints, assumed running)
+             │ download  overlay://test46/libd-1.0
              │ download  overlay://test46/libc-1.0
              │ download  overlay://test46/libb-1.0
              │ download  overlay://test46/liba-1.0
@@ -3411,26 +3543,29 @@ Calculating dependencies... done!
  └─step  3─┤ install   overlay://test46/core-utils-1.0 (USE modified)
              │           └─ conf ─┤ USE = "feature_x feature_y"
 
- └─step  4─┤ run       overlay://test46/core-utils-1.0 (USE modified)
+ └─step  4─┤ install   overlay://test46/libd-1.0
+             │ run       overlay://test46/core-utils-1.0 (USE modified)
 
- └─step  5─┤ install   overlay://test46/libd-1.0
-             │ install   overlay://test46/libc-1.0
+ └─step  5─┤ run       overlay://test46/libd-1.0
 
- └─step  6─┤ run       overlay://test46/libc-1.0
-             │ run       overlay://test46/libd-1.0
+ └─step  6─┤ install   overlay://test46/libc-1.0
 
- └─step  7─┤ install   overlay://test46/liba-1.0
-             │ install   overlay://test46/libb-1.0
+ └─step  7─┤ install   overlay://test46/libb-1.0
+             │ run       overlay://test46/libc-1.0
 
  └─step  8─┤ run       overlay://test46/libb-1.0
-             │ run       overlay://test46/liba-1.0
 
- └─step  9─┤ install   overlay://test46/app-1.0
+ └─step  9─┤ install   overlay://test46/liba-1.0
 
- └─step 10─┤ run     overlay://test46/app-1.0
+ └─step 10─┤ run       overlay://test46/liba-1.0
 
-Total: 20 actions (2 useflags, 6 downloads, 6 installs, 6 runs), grouped into 10 steps.
+ └─step 11─┤ install   overlay://test46/app-1.0
+
+ └─step 12─┤ run     overlay://test46/app-1.0
+
+Total: 20 actions (2 useflags, 6 downloads, 6 installs, 6 runs), grouped into 12 steps.
        0.00 Kb to be downloaded.
+
 
 
 >>> Assumptions taken during proving & planning:
@@ -3439,6 +3574,43 @@ Total: 20 actions (2 useflags, 6 downloads, 6 installs, 6 runs), grouped into 10
   Add to /etc/portage/package.use:
     test46/core-utils feature_x
     test46/core-utils feature_x feature_y
+
+
+Error The proof for your build plan contains domain assumptions. Please verify:
+
+
+>>> Domain assumptions
+
+- REQUIRED_USE violation: 
+  test46/core-utils
+  Conflicting USE flags: [feature_x]
+  Required enabled by:  [feature_x]
+  Required disabled by: [feature_x]
+  (cannot satisfy both enable and disable for the same flag)
+  required by: overlay://test46/libd-1.0
+
+
+>>> Bug report drafts (Gentoo Bugzilla)
+
+---
+Summary: overlay://test46/libd-1.0: unsatisfied_constraints dependency on test46/core-utils
+
+Affected package: overlay://test46/libd-1.0
+Dependency: test46/core-utils
+Phases: [run]
+
+Unsatisfiable constraint(s):
+  test46/core-utils-
+
+Observed:
+  portage-ng reports no available candidate satisfies the above constraint(s).
+  Available versions in repo set (sample, first 1 of 1): [1.0]
+
+Potential fix (suggestion):
+  Review dependency metadata in overlay://test46/libd-1.0; constraint set: [constraint(none,,[])].
+
+
+
 ```
 
 </details>
@@ -3520,6 +3692,8 @@ Calculating dependencies... done!
 
 Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -3531,7 +3705,7 @@ Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
 
 This test case checks the prover's ability to detect a slotting conflict. The two main dependencies, 'libgraphics' and 'libphysics', require different versions of 'libmatrix' to be installed into the same slot ('1'). A package slot can only be occupied by one version at a time.
 
-**Expected:** The prover should identify that the dependencies for 'app-1.0' lead to a request to install two different packages ('libmatrix-1.0' and 'libmatrix-1.1') into the same slot. This is an impossible condition, so the prover must fail to find a valid proof.
+**Expected:** The prover should detect that `libgraphics` requires `=libmatrix-1.0:1/A` while `libphysics` requires `=libmatrix-1.1:1/B`, creating an irreconcilable slot conflict in slot 1. The domain assumption should include slot conflict details showing the incompatible version constraints (`=1.0` vs `=1.1`). Exit code 2.
 
 ![test48](test48/test48.svg)
 
@@ -3620,9 +3794,12 @@ Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
 
 >>> Domain assumptions
 
-- Unsatisfied constraints for run dependency: 
+- Slot conflict: 
   test48/libphysics
-
+  test48/libmatrix has conflicting version requirements:
+    =1.0
+    =1.1
+  These constraints cannot be satisfied simultaneously.
   required by: overlay://test48/app-1.0
 
 
@@ -3644,6 +3821,9 @@ Observed:
 
 Potential fix (suggestion):
   Review dependency metadata in overlay://test48/app-1.0; constraint set: [constraint(none,,[])].
+
+
+
 ```
 
 </details>
@@ -3655,7 +3835,7 @@ Potential fix (suggestion):
 
 This test case checks the prover's ability to handle a conflict between a "soft" USE flag suggestion from a dependency and a "hard" REQUIRED_USE constraint in the target package. The `(+)` syntax is a default and should be overridden by the stricter `REQUIRED_USE`.
 
-**Expected:** The prover should recognize that the dependency from 'app-1.0' attempts to enable a USE flag that is explicitly forbidden by 'libhelper-1.0'. The hard constraint of REQUIRED_USE must take precedence, leading to an unresolvable conflict. The prover should fail to find a valid proof.
+**Expected:** The prover should recognize that the dependency from `app-1.0` attempts to enable `feature_z` via `[feature_z(+)]`, but `libhelper-1.0` has `REQUIRED_USE="!feature_z"` forbidding it. The hard constraint takes precedence, producing a domain assumption. Exit code 2.
 
 ![test49](test49/test49.svg)
 
@@ -3698,32 +3878,41 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ useflag overlay://test49/libhelper-1.0 (-feature_z)
-             │ useflag overlay://test49/libhelper-1.0 (feature_z)
+ └─step  1─┤ useflag overlay://test49/libhelper-1.0 (feature_z)
 
- └─step  2─┤ download  overlay://test49/libhelper-1.0
-             │ download  overlay://test49/app-1.0
+ └─step  2─┤ download  overlay://test49/app-1.0
 
- └─step  3─┤ install   overlay://test49/libhelper-1.0 (USE modified)
+ └─step  3─┤ run       overlay://test49/libhelper-1.0 (USE modified)
+
+ └─step  4─┤ install   overlay://test49/app-1.0
              │           └─ conf ─┤ USE = "-feature_z"
 
- └─step  4─┤ run       overlay://test49/libhelper-1.0 (USE modified)
+ └─step  5─┤ run     overlay://test49/app-1.0
 
- └─step  5─┤ install   overlay://test49/app-1.0
-             │           └─ conf ─┤ USE = "-feature_z"
-
- └─step  6─┤ run     overlay://test49/app-1.0
-
-Total: 8 actions (2 useflags, 2 downloads, 2 installs, 2 runs), grouped into 6 steps.
+Total: 5 actions (1 useflag, 1 download, 1 install, 2 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
+
 
 
 >>> Assumptions taken during proving & planning:
 
-  USE flag change (2 packages):
+  USE flag change (1 package):
   Add to /etc/portage/package.use:
-    test49/libhelper -feature_z
     test49/libhelper feature_z
+
+
+Error The proof for your build plan contains domain assumptions. Please verify:
+
+
+>>> Domain assumptions
+
+- Model unavailable: 
+  test49/libhelper — dependency model could not be built
+  (some dependencies may be missing from the tree or keyword-filtered)
+  required by: overlay://test49/app-1.0
+
+
+
 ```
 
 </details>
@@ -3784,6 +3973,8 @@ Calculating dependencies... done!
 
 Total: 8 actions (3 downloads, 3 installs, 2 runs), grouped into 6 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -3832,25 +4023,23 @@ The following USE changes are necessary to proceed:
 
 ```
 
->>> Emerging : overlay://test51/app-1.0:run?{[]}
+>>> Emerging : overlay://test51/app-1.0:install?{[]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ useflag overlay://test51/os-1.0 (linux)
+ └─step  1─┤ useflag overlay://test51/os-1.0 (linux)
 
- └─step  2─┤ download  overlay://test51/os-1.0
+ └─step  2─┤ download  overlay://test51/os-1.0
              │ download  overlay://test51/app-1.0
 
- └─step  3─┤ install   overlay://test51/os-1.0 (USE modified)
-             │           └─ conf ─┤ USE = "linux"
+ └─step  3─┤ install   overlay://test51/os-1.0 (USE modified)
+             │           └─ conf ─┤ USE = "linux"
 
- └─step  4─┤ install   overlay://test51/app-1.0
+ └─step  4─┤ install overlay://test51/app-1.0
 
- └─step  5─┤ run     overlay://test51/app-1.0
-
-Total: 6 actions (1 useflag, 2 downloads, 2 installs, 1 run), grouped into 5 steps.
+Total: 5 actions (1 useflag, 2 downloads, 2 installs), grouped into 4 steps.
        0.00 Kb to be downloaded.
 
 
@@ -3859,6 +4048,7 @@ Total: 6 actions (1 useflag, 2 downloads, 2 installs, 1 run), grouped into 5 ste
   USE flag change (1 package):
   Add to /etc/portage/package.use:
     test51/os linux
+
 ```
 
 </details>
@@ -3939,6 +4129,8 @@ Total: 12 actions (1 useflag, 4 downloads, 4 installs, 3 runs), grouped into 6 s
   USE flag change (1 package):
   Add to /etc/portage/package.use:
     test52/os hardened
+
+
 ```
 
 </details>
@@ -4024,6 +4216,8 @@ Total: 15 actions (1 useflag, 5 downloads, 5 installs, 4 runs), grouped into 7 s
   USE flag change (1 package):
   Add to /etc/portage/package.use:
     test53/os hardened
+
+
 ```
 
 </details>
@@ -4080,6 +4274,8 @@ Calculating dependencies... done!
 
 Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -4136,6 +4332,8 @@ Calculating dependencies... done!
 
 Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -4202,6 +4400,8 @@ Calculating dependencies... done!
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 7 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -4284,6 +4484,8 @@ Calculating dependencies... done!
 
 Total: 18 actions (6 downloads, 6 installs, 6 runs), grouped into 12 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -4429,6 +4631,9 @@ Observed:
 
 Potential fix (suggestion):
   Review dependency metadata in overlay://test58/web-1.0; constraint set: [constraint(none,,[])].
+
+
+
 ```
 
 </details>
@@ -4510,6 +4715,8 @@ Calculating dependencies... done!
 
 Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 10 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -4595,6 +4802,9 @@ Total: 15 actions (5 downloads, 5 installs, 5 runs), grouped into 9 steps.
 >>> Blockers added during proving & planning:
 
   [blocks B] !<test60/windows-2.0 (soft blocker, phase: run, required by: overlay://test60/app-1.0)
+
+
+
 ```
 
 </details>
@@ -4708,6 +4918,8 @@ Total: 11 actions (2 useflags, 3 downloads, 3 installs, 3 runs), grouped into 8 
 >>> Cycle breaks (prover)
 
   overlay://test61/a-1.0:install
+
+
 ```
 
 </details>
@@ -4776,6 +4988,8 @@ Calculating dependencies... done!
 
 Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 7 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -4864,6 +5078,8 @@ Total: 10 actions (1 useflag, 3 downloads, 3 installs, 3 runs), grouped into 8 s
   USE flag change (1 package):
   Add to /etc/portage/package.use:
     test63/openmpi -openmpi_rm_pbs -openmpi_rm_slurm
+
+
 ```
 
 </details>
@@ -4936,6 +5152,8 @@ Calculating dependencies... done!
 
 Total: 12 actions (5 downloads, 5 installs, 2 runs), grouped into 6 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -4993,6 +5211,8 @@ Calculating dependencies... done!
 
 Total: 3 actions (1 download, 1 install, 1 run), grouped into 3 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -5057,6 +5277,8 @@ Calculating dependencies... done!
 
 Total: 9 actions (3 downloads, 3 installs, 3 runs), grouped into 6 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -5121,6 +5343,8 @@ Calculating dependencies... done!
 
 Total: 8 actions (3 downloads, 3 installs, 2 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -5185,6 +5409,8 @@ Calculating dependencies... done!
 
 Total: 7 actions (3 downloads, 3 installs, 1 run), grouped into 4 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -5242,6 +5468,8 @@ Calculating dependencies... done!
 
 Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -5299,6 +5527,8 @@ Calculating dependencies... done!
 
 Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -5341,13 +5571,15 @@ These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ download  overlay://test71/web-1.0
+ └─step  1─┤ download  overlay://test71/web-1.0
              │ download  overlay://test71/os-1.0
              │ download  overlay://test71/db-1.0
              │ download  overlay://test71/app-1.0
 
 Total: 4 actions (4 downloads), grouped into 1 step.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -5406,6 +5638,8 @@ Calculating dependencies... done!
 
 Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -5464,6 +5698,8 @@ Calculating dependencies... done!
 
 Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -5522,6 +5758,8 @@ Calculating dependencies... done!
 
 Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -5582,6 +5820,8 @@ Calculating dependencies... done!
 
 Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -5656,6 +5896,8 @@ Total: 6 actions (1 useflag, 2 downloads, 2 installs, 1 run), grouped into 5 ste
   USE flag change (1 package):
   Add to /etc/portage/package.use:
     test76/os linux
+
+
 ```
 
 </details>
@@ -5717,6 +5959,8 @@ Calculating dependencies... done!
 
 Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -5755,35 +5999,37 @@ Total: 1 package (1 new), Size of downloads: 0 KiB
 
 ```
 
->>> Emerging : overlay://test78/web-1.0:run?{[]}
+>>> Emerging : overlay://test78/web-1.0:run?{[onlydeps_target]}
 
 These are the packages that would be merged, in order:
 
 Calculating dependencies... done!
 
- └─step  1─┤ download  overlay://test78/web-1.0
+ └─step  1─┤ download  overlay://test78/web-1.0
              │ download  overlay://test78/os-1.0
              │ download  overlay://test78/db-1.0
              │ download  overlay://test78/app-1.0
 
- └─step  2─┤ install   overlay://test78/os-1.0
+ └─step  2─┤ install   overlay://test78/os-1.0
 
- └─step  3─┤ run       overlay://test78/os-1.0
+ └─step  3─┤ run       overlay://test78/os-1.0
 
- └─step  4─┤ install   overlay://test78/db-1.0
+ └─step  4─┤ install   overlay://test78/db-1.0
 
- └─step  5─┤ run       overlay://test78/db-1.0
+ └─step  5─┤ run       overlay://test78/db-1.0
 
- └─step  6─┤ install   overlay://test78/app-1.0
+ └─step  6─┤ install   overlay://test78/app-1.0
 
- └─step  7─┤ run       overlay://test78/app-1.0
+ └─step  7─┤ run       overlay://test78/app-1.0
 
- └─step  8─┤ install   overlay://test78/web-1.0
+ └─step  8─┤ install   overlay://test78/web-1.0
 
- └─step  9─┤ run     overlay://test78/web-1.0
+ └─step  9─┤ run     overlay://test78/web-1.0
 
 Total: 12 actions (4 downloads, 4 installs, 4 runs), grouped into 9 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -5846,6 +6092,8 @@ Calculating dependencies... done!
 
 Total: 6 actions (2 downloads, 2 installs, 2 runs), grouped into 5 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>
@@ -5903,6 +6151,8 @@ Calculating dependencies... done!
 
 Total: 5 actions (2 downloads, 2 installs, 1 run), grouped into 4 steps.
        0.00 Kb to be downloaded.
+
+
 ```
 
 </details>

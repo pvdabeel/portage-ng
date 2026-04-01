@@ -179,6 +179,10 @@ prover:handle_reprove(Target, InProof, OutProof, InModel, OutModel, InCons, OutC
 
 prover:prove_once(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers) :-
   prover:debug_hook(Target, InProof, InModel, InCons),
+  ( current_predicate(rules:clear_bwu_cross_dep_memos/0) ->
+      rules:clear_bwu_cross_dep_memos
+  ; true
+  ),
   prover:with_cycle_stack(
     prover:prove_recursive(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers)
   ).
