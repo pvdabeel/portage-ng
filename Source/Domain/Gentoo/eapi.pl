@@ -595,27 +595,30 @@ eapi:qualified_target(Q) -->
   eapi:repository(R),                                    % required
   eapi:repositoryseparator,!,                            % required
   eapi:category(C),eapi:separator,eapi:package(P),       % required
-  eapi:version0(V),                                      % optional
+  eapi:version0(V, W),                                   % optional
   eapi:slot_restriction(S),                              % optional
   eapi:use_dependencies(U),                              % optional
-  { Q = qualified_target(O,R,C,P,V,[S,U]) }.
+  { eapi:select_operator(O, W, FO),
+    Q = qualified_target(FO,R,C,P,V,[S,U]) }.
 
 eapi:qualified_target(Q) -->
   eapi:operator(O),                                      % optional
   eapi:category(C),eapi:separator,!,                     % required
   eapi:package(P),!,                                     % required
-  eapi:version0(V),                                      % optional
+  eapi:version0(V, W),                                   % optional
   eapi:slot_restriction(S),                              % optional
   eapi:use_dependencies(U),                              % optional
-  { Q = qualified_target(O,_,C,P,V,[S,U]) }.
+  { eapi:select_operator(O, W, FO),
+    Q = qualified_target(FO,_,C,P,V,[S,U]) }.
 
 eapi:qualified_target(Q) -->
   eapi:operator(O),                                      % optional
   eapi:package(P),!,                                     % required
-  eapi:version0(V),                                      % optional
+  eapi:version0(V, W),                                   % optional
   eapi:slot_restriction(S),                              % optional
   eapi:use_dependencies(U),                              % optional
-  { Q = qualified_target(O,_,_,P,V,[S,U]) }.
+  { eapi:select_operator(O, W, FO),
+    Q = qualified_target(FO,_,_,P,V,[S,U]) }.
 
 
 % -----------------------------------------------------------------------------
@@ -670,13 +673,14 @@ eapi:querypartcont(_,Value) -->
 %
 % PMS 9, Section 8.3: package dependency specification.
 
-eapi:package_dependency(T, _R://_E, package_dependency(T, B, C, P, O, V, S, U)) -->
+eapi:package_dependency(T, _R://_E, package_dependency(T, B, C, P, FinalOp, V, S, U)) -->
   eapi:blocking(B),                                      % optional
   eapi:operator(O),                                      % optional
   eapi:category(C), eapi:separator, !, eapi:package(P),  % required
-  eapi:version0(V),                                      % optional
+  eapi:version0(V, W),                                   % optional
   eapi:slot_restriction(S),                              % optional
-  eapi:use_dependencies(U).                              % optional
+  eapi:use_dependencies(U),                              % optional
+  { eapi:select_operator(O, W, FinalOp) }.
 
 
 %! DCG use_conditional_group
@@ -926,13 +930,21 @@ eapi:version(V) -->
 
 %! DCG version0
 %
-% eapi:version0 starts with '-', and can be empty
+% eapi:version0 starts with '-', and can be empty.
+% version0(V, W) additionally exposes the wildcard marker W ('*' or '').
 
 eapi:version0(V) -->
   eapi:version2([N, W, A, S]),
   { eapi:version2atom(N, W, A, S, V) }.
 
 eapi:version0(version_none) -->
+  [].
+
+eapi:version0(V, W) -->
+  eapi:version2([N, W, A, S]),
+  { eapi:version2atom(N, W, A, S, V) }.
+
+eapi:version0(version_none, '') -->
   [].
 
 
@@ -2153,6 +2165,16 @@ eapi:categorize_use_for_entry(RawIuse, Repo://Id, State, Reason) :-
 % -----------------------------------------------------------------------------
 %  Helper predicates
 % -----------------------------------------------------------------------------
+
+%! eapi:select_operator(+Op, +W, -FinalOp)
+%
+% PMS 9 Section 8.3: =cat/pkg-1.2* is a prefix match, not exact equality.
+% When the parser detects a wildcard (W = '*') with the equal operator,
+% the effective operator is wildcard.
+
+eapi:select_operator(equal, '*', wildcard) :- !.
+eapi:select_operator(Op, _, Op).
+
 
 %! eapi:version2atom(+N, +W, +A, +S, -V)
 %

@@ -1197,14 +1197,6 @@ preference:slot_req_match_(_Other, _Repo, _Id) :- fail.
 preference:version_match(none, _Proposed, _Req) :- !.
 
 preference:version_match(equal, Proposed, Req) :-
-  Req = version(_,_,_,_,_,_,Pattern),
-  atom(Pattern),
-  sub_atom(Pattern, _, 1, 0, '*'),
-  !,
-  Proposed = version(_,_,_,_,_,_,ProposedStr),
-  query:wildcard_match(Pattern, ProposedStr).
-
-preference:version_match(equal, Proposed, Req) :-
   Proposed == Req,
   !.
 

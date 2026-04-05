@@ -304,6 +304,7 @@ normalize_bound_op(smaller, smaller) :- !.
 % - include upper-bounds and exact-equality bounds;
 % - still avoid lower-bounds, which were a major source of broad search blowups.
 normalize_bound_op(equal, equal) :- !.
+normalize_bound_op(wildcard, none) :- !.
 normalize_bound_op(_Other, none).
 
 canon_slot(S0, S) :-
@@ -314,28 +315,30 @@ canon_slot(S0, S) :-
   ),
   !.
 
-normalize_version_term(Ver0, Ver) :-
-  var(Ver0),
-  !,
-  Ver = Ver0.
-normalize_version_term(version(_,_,_,_,_,_,_)=Ver, Ver) :-
-  !.
-normalize_version_term(Full, version([0], '', 4, 0, '', 0, Full)) :-
+normalize_version_term(V, V) :-
+  var(V), !.
+normalize_version_term(version(A,B,C,D,E,F,G), version(A,B,C,D,E,F,G)) :- !.
+normalize_version_term(V, R) :-
+  normalize_version_term_other(V, R).
+
+
+normalize_version_term_other(version(_,_,_,_,_,_,_)=Ver, Ver) :- !.
+normalize_version_term_other(Full, version([0], '', 4, 0, '', 0, Full)) :-
   atom(Full),
   sub_atom(Full, _, 1, 0, '*'),
   !.
-normalize_version_term(Full, version(Nums, '', 4, 0, '', 0, Full)) :-
+normalize_version_term_other(Full, version(Nums, '', 4, 0, '', 0, Full)) :-
   atom(Full),
   eapi:version2numberlist(Full, Nums),
   Nums \== [],
   !.
-normalize_version_term(Num, Ver) :-
+normalize_version_term_other(Num, Ver) :-
   number(Num),
   !,
   number_string(Num, S),
   atom_string(Full, S),
-  normalize_version_term(Full, Ver).
-normalize_version_term(Other, Other).
+  normalize_version_term_other(Full, Ver).
+normalize_version_term_other(Other, Other).
 
 version_constraint_holds(_Ver, bound(none, _Req)) :- !.
 version_constraint_holds(Ver, bound(equal, Req)) :- !, Ver == Req.

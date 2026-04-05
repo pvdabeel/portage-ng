@@ -118,6 +118,12 @@ user:goal_expansion(search(Q, Repo://Id), Expanded) :-
   compound(Q),!,
   compile_query_compound(Q, Repo://Id, Expanded).
 
+user:goal_expansion(version_domain:normalize_version_term(V, V1),
+  ( nonvar(V), functor(V, version, 7)
+  -> V1 = V
+  ; version_domain:normalize_version_term_other(V, V1)
+  )).
+
 
 % -----------------------------------------------------------------------------
 %  LIST QUERY
@@ -361,6 +367,40 @@ compile_query_compound(dependency(D,fetchonly), Repo://Id,
 
 % 7. key=value queries needed for --search
 
+compile_query_compound(select(version, Op, Ver), Repo://Id, Expanded) :-
+  var(Op), !,
+  Expanded = (
+    Op == none ->
+      cache:ordered_entry(Repo, Id, _, _, _)
+  ; Op == equal ->
+      cache:ordered_entry(Repo, Id, _, _, Ver)
+  ; Op == smaller ->
+      ( cache:ordered_entry(Repo, Id, _, _, PV1),
+        eapi:version_compare(<, PV1, Ver) )
+  ; Op == greater ->
+      ( cache:ordered_entry(Repo, Id, _, _, PV2),
+        eapi:version_compare(>, PV2, Ver) )
+  ; Op == smallerequal ->
+      ( cache:ordered_entry(Repo, Id, _, _, PV3),
+        ( eapi:version_compare(<, PV3, Ver)
+        ; eapi:version_compare(=, PV3, Ver) ) )
+  ; Op == greaterequal ->
+      ( cache:ordered_entry(Repo, Id, _, _, PV4),
+        ( eapi:version_compare(>, PV4, Ver)
+        ; eapi:version_compare(=, PV4, Ver) ) )
+  ; Op == notequal ->
+      ( cache:ordered_entry(Repo, Id, _, _, PV5),
+        PV5 \== Ver )
+  ; Op == wildcard ->
+      ( Ver = version(_,_,_,_,_,_,VW),
+        cache:ordered_entry(Repo, Id, _, _, version(_,_,_,_,_,_,PV6)),
+        wildcard_match(VW, PV6) )
+  ; Op == tilde ->
+      ( Ver = version(VT,LT,SRT,SNT,SReT,_,_),
+        cache:ordered_entry(Repo, Id, _, _, version(VT,LT,SRT,SNT,SReT,_,_)) )
+  ; search(select(version, Op, Ver), Repo://Id)
+  ).
+
 compile_query_compound(select(Key,Cmp,Value), Repo://Id,
   ( search(select(Key,Cmp,Value), Repo://Id ) ))  :-
   nonground(Cmp,_),!.   % Important: filter out runtime bound Cmp
@@ -415,13 +455,6 @@ compile_query_compound(select(version,none,_), Repo://Id,
 
 compile_query_compound(select(version,equal,version_none), Repo://Id,
  cache:ordered_entry(Repo,Id,_,_,_)) :- !.
-
-compile_query_compound(select(version,equal,version(_,_,_,_,_,_,Pattern)), Repo://Id,
-  ( cache:ordered_entry(Repo, Id, _, _, version(_,_,_,_,_,_,ProposedVersion)),
-    wildcard_match(Pattern, ProposedVersion) )) :-
-  atom(Pattern),
-  sub_atom(Pattern, _, 1, 0, '*'),
-  !.
 
 compile_query_compound(select(version,equal,Ver), Repo://Id,
   cache:ordered_entry(Repo,Id,_,_,Ver)) :- !.
@@ -1141,13 +1174,6 @@ search(select(version,none,_),Repo://Id) :-
 search(select(version,equal,version_none),Repo://Id) :-
   !,
   cache:ordered_entry(Repo,Id,_,_,_).
-
-search(select(version,equal,version(_,_,_,_,_,_,Pattern)), Repo://Id) :-
-  atom(Pattern),
-  sub_atom(Pattern, _, 1, 0, '*'),
-  !,
-  cache:ordered_entry(Repo, Id, _, _, version(_,_,_,_,_,_,ProposedVersion)),
-  wildcard_match(Pattern, ProposedVersion).
 
 search(select(version,equal,Ver),Repo://Id) :-
   !,

@@ -63,8 +63,8 @@ issue:detect_version_range_gap(C, N, PackageDeps) :-
   memberchk(OpLo, [greaterequal, greater]),
   memberchk(OpHi, [smallerequal, smaller]),
   \+ ( query:search([category(C), name(N)], Repo://Entry),
-       candidate:query_search_version_select(OpLo, VLo, Repo://Entry),
-       candidate:query_search_version_select(OpHi, VHi, Repo://Entry)
+       query:search(select(version, OpLo, VLo), Repo://Entry),
+       query:search(select(version, OpHi, VHi), Repo://Entry)
      ).
 
 

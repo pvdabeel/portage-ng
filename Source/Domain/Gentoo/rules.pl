@@ -895,7 +895,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
       ( CandPreVerified == true ->
           true
       ; forall(member(package_dependency(_P1,no,C,N,O,V,_,_), PackageDeps1),
-             candidate:query_search_version_select(O, V, FoundRepo://Candidate)),
+             query:search(select(version, O, V), FoundRepo://Candidate)),
         candidate:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps1, Context, FoundRepo://Candidate)
       ),
       candidate:candidate_reverse_deps_compatible_with_parent(Context, FoundRepo://Candidate),
@@ -1048,7 +1048,7 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
                       ( query:search([category(C), name(N)], Repo4://Entry4),
                         \+ preference:masked(Repo4://Entry4),
                         forall(member(package_dependency(_,no,C,N,O4,V4,_,_), PackageDeps1),
-                               candidate:query_search_version_select(O4, V4, Repo4://Entry4))
+                               query:search(select(version, O4, V4), Repo4://Entry4))
                       ),
                       KwCands1),
               explanation:candidate_keywords(KwCands1, CandKws),
@@ -2355,7 +2355,7 @@ rules:any_of_config_dep_ok(Context, package_dependency(Phase, _Strength, C, N, O
   % construction fail at the root `entry(...:run)` literal.
   findall(Repo://Id,
           ( candidate:accepted_keyword_candidate(Phase, C, N, SlotReq, _Ss, Context, Repo://Id),
-            candidate:query_search_version_select(O, V, Repo://Id)
+            query:search(select(version, O, V), Repo://Id)
           ),
           Candidates0),
   sort(Candidates0, Candidates),

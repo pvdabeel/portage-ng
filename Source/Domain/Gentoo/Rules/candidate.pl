@@ -21,24 +21,21 @@ by the constraint_guard/2 prover hooks.
   1. *Slot primitives* -- canon_slot/2, canon_any_same_slot_meta/2,
      entry_slot_default/3: normalise slot atoms and retrieve defaults.
 
-  2. *Version primitives* -- coerce_version_term/2: normalise version
-     representations for comparison.
-
-  3. *Slot restriction merging* -- merge_slot_restriction/5: combine
+  2. *Slot restriction merging* -- merge_slot_restriction/5: combine
      slot requirements from multiple deps on the same (C,N).
 
-  4. *Slot/version constraint queries* -- query_search_slot_constraint/3,
-     query_search_version_select/3: bridge between dependency constraints
-     and the query engine.
+  3. *Slot constraint queries* -- query_search_slot_constraint/3:
+     bridge between slot constraints and the query engine. Version
+     constraints are handled directly via query:search goal expansion.
 
-  5. *Installed entry satisfaction* -- installed_entry_satisfies_package_deps/5,
+  4. *Installed entry satisfaction* -- installed_entry_satisfies_package_deps/5,
      installed_entry_cn/4: fast-path checks for already-installed packages.
 
-  6. *CN-consistency* -- selected_cn_candidate/5 and friends: ensure that
+  5. *CN-consistency* -- selected_cn_candidate/5 and friends: ensure that
      for a given (Category, Name) pair only compatible candidates are
      selected across the proof.
 
-  7. *CN-domain reject map* -- cn_domain_reject_key/4,
+  6. *CN-domain reject map* -- cn_domain_reject_key/4,
      cn_domain_candidate_rejected/4, add_cn_domain_rejects/5: bounded
      reprove retry mechanism that learns which candidates to exclude.
 
@@ -111,41 +108,6 @@ entry_slot_default(Repo, Entry, Slot) :-
     -> canon_slot(Slot0, Slot)
     ;  Slot = '0'
   ).
-
-
-% =============================================================================
-%  Version primitives
-% =============================================================================
-
-%! candidate:coerce_version_term(+Ver0, -Ver)
-%
-% Normalises a version representation into the canonical version/7 compound
-% used by the resolver. Handles version/7 terms, wildcard atoms (e.g.
-% `'1.2.*'`), plain atoms parseable as version numbers, numeric values,
-% and unbound variables (passed through).
-
-coerce_version_term(Ver0, Ver) :-
-  var(Ver0),
-  !,
-  Ver = Ver0.
-coerce_version_term(version(_,_,_,_,_,_,_)=Ver, Ver) :- !.
-coerce_version_term(Full, Ver) :-
-  atom(Full),
-  sub_atom(Full, _, 1, 0, '*'),
-  !,
-  Ver = version([0], '', 4, 0, '', 0, Full).
-coerce_version_term(Full, version(Nums, '', 4, 0, '', 0, Full)) :-
-  atom(Full),
-  eapi:version2numberlist(Full, Nums),
-  Nums \== [],
-  !.
-coerce_version_term(Num, Ver) :-
-  number(Num),
-  number_string(Num, S),
-  atom_string(Full, S),
-  !,
-  coerce_version_term(Full, Ver).
-coerce_version_term(Other, Other).
 
 
 % =============================================================================
@@ -319,66 +281,6 @@ slot_constraint_match(SlotReq, Repo, Id, AllMeta, SlotMeta) :-
 
 
 % =============================================================================
-%  Version select queries
-% =============================================================================
-
-%! candidate:query_search_version_select(+Op, +Ver, +RepoEntry)
-%
-% Queries the knowledge base for entries matching a version constraint.
-% Op is a comparison operator (equal, smaller, greater, smallerequal,
-% greaterequal, notequal, wildcard, tilde, none). Wildcard versions
-% (ending in `*`) are matched via wildcard_match/2. The special operator
-% `none` always succeeds (unconstrained).
-
-query_search_version_select(equal, Ver0, RepoEntry) :-
-  RepoEntry = Repo://Id,
-  coerce_version_term(Ver0, Ver1),
-  Ver1 = version(_,_,_,_,_,_,Pattern),
-  atom(Pattern),
-  sub_atom(Pattern, _, 1, 0, '*'),
-  !,
-  cache:ordered_entry(Repo, Id, _C, _N, version(_,_,_,_,_,_,ProposedVersion)),
-  wildcard_match(Pattern, ProposedVersion).
-query_search_version_select(equal, Ver, RepoEntry) :- !,
-  RepoEntry = Repo://Id,
-  coerce_version_term(Ver, Ver1),
-  cache:ordered_entry(Repo, Id, _C, _N, Ver1).
-query_search_version_select(none, _Ver, _RepoEntry) :- !.
-query_search_version_select(smaller, Ver, RepoEntry) :- !,
-  RepoEntry = Repo://Id,
-  coerce_version_term(Ver, Ver1),
-  query:search(select(version,smaller,Ver1), Repo://Id).
-query_search_version_select(greater, Ver, RepoEntry) :- !,
-  RepoEntry = Repo://Id,
-  coerce_version_term(Ver, Ver1),
-  query:search(select(version,greater,Ver1), Repo://Id).
-query_search_version_select(smallerequal, Ver, RepoEntry) :- !,
-  RepoEntry = Repo://Id,
-  coerce_version_term(Ver, Ver1),
-  query:search(select(version,smallerequal,Ver1), Repo://Id).
-query_search_version_select(greaterequal, Ver, RepoEntry) :- !,
-  RepoEntry = Repo://Id,
-  coerce_version_term(Ver, Ver1),
-  query:search(select(version,greaterequal,Ver1), Repo://Id).
-query_search_version_select(notequal, Ver, RepoEntry) :- !,
-  RepoEntry = Repo://Id,
-  coerce_version_term(Ver, Ver1),
-  query:search(select(version,notequal,Ver1), Repo://Id).
-query_search_version_select(wildcard, Ver, RepoEntry) :- !,
-  RepoEntry = Repo://Id,
-  coerce_version_term(Ver, Ver1),
-  query:search(select(version,wildcard,Ver1), Repo://Id).
-query_search_version_select(tilde, Ver, RepoEntry) :- !,
-  RepoEntry = Repo://Id,
-  coerce_version_term(Ver, Ver1),
-  query:search(select(version,tilde,Ver1), Repo://Id).
-query_search_version_select(Op, Ver, RepoEntry) :-
-  RepoEntry = Repo://Id,
-  coerce_version_term(Ver, Ver1),
-  query:search(select(version,Op,Ver1), Repo://Id).
-
-
-% =============================================================================
 %  Installed entry satisfaction
 % =============================================================================
 
@@ -392,10 +294,10 @@ query_search_version_select(Op, Ver, RepoEntry) :-
 installed_entry_satisfies_package_deps(_Action, _C, _N, [], _Installed) :- !.
 installed_entry_satisfies_package_deps(Action, C, N,
                                        [package_dependency(_Phase,no,C,N,O,V,_,_)|Rest],
-                                       Installed) :-
+                                       Repo://Id) :-
   !,
-  query_search_version_select(O, V, Installed),
-  installed_entry_satisfies_package_deps(Action, C, N, Rest, Installed).
+  query:search(select(version, O, V), Repo://Id),
+  installed_entry_satisfies_package_deps(Action, C, N, Rest, Repo://Id).
 installed_entry_satisfies_package_deps(Action, C, N, [_|Rest], Installed) :-
   installed_entry_satisfies_package_deps(Action, C, N, Rest, Installed).
 
@@ -467,10 +369,10 @@ selected_cn_rejected_candidates(Action, C, N, SlotReq, PackageDeps, Context, Rej
 % True if RepoEntry satisfies all version constraints and the effective
 % domain for (C,N) in the given context.
 
-grouped_dep_candidate_satisfies_constraints(Action, C, N, PackageDeps, Context, RepoEntry) :-
+grouped_dep_candidate_satisfies_constraints(Action, C, N, PackageDeps, Context, Repo://Entry) :-
   forall(member(package_dependency(_Phase,no,C,N,O,V,_SlotReq,_Use), PackageDeps),
-         query_search_version_select(O, V, RepoEntry)),
-  grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps, Context, RepoEntry),
+         query:search(select(version, O, V), Repo://Entry)),
+  grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps, Context, Repo://Entry),
   !.
 
 %! candidate:grouped_dep_candidate_satisfies_constraints_precomputed(+C, +N, +PackageDeps, +EffDom, +RejectDom, +RepoEntry)
@@ -478,10 +380,10 @@ grouped_dep_candidate_satisfies_constraints(Action, C, N, PackageDeps, Context, 
 % Like grouped_dep_candidate_satisfies_constraints/6 but uses precomputed
 % effective and reject domains to avoid redundant domain intersection.
 
-grouped_dep_candidate_satisfies_constraints_precomputed(C, N, PackageDeps, EffDom, RejectDom, RepoEntry) :-
+grouped_dep_candidate_satisfies_constraints_precomputed(C, N, PackageDeps, EffDom, RejectDom, Repo://Entry) :-
   forall(member(package_dependency(_Phase,no,C,N,O,V,_SlotReq,_Use), PackageDeps),
-         query_search_version_select(O, V, RepoEntry)),
-  grouped_dep_candidate_satisfies_effective_domain_precomputed(EffDom, RejectDom, C, N, RepoEntry),
+         query:search(select(version, O, V), Repo://Entry)),
+  grouped_dep_candidate_satisfies_effective_domain_precomputed(EffDom, RejectDom, C, N, Repo://Entry),
   !.
 
 %! candidate:grouped_dep_effective_domain_precomputed(+Action, +C, +N, +PackageDeps, +Context, -EffDom, -RejectDom)
@@ -1418,10 +1320,9 @@ dep_tightest_upper_bound(C, N, PackageDeps, Tightest) :-
   member(package_dependency(_, no, C, N, Op0, _, _, _), PackageDeps),
   ( Op0 == smaller ; Op0 == smallerorequal ),
   !,
-  findall(Vn,
-          ( member(package_dependency(_Phase, no, C, N, Op, V0, _S, _U), PackageDeps),
-            ( Op == smaller ; Op == smallerorequal ),
-            coerce_version_term(V0, Vn)
+  findall(V,
+          ( member(package_dependency(_Phase, no, C, N, Op, V, _S, _U), PackageDeps),
+            ( Op == smaller ; Op == smallerorequal )
           ),
           [First|Rest]),
   foldl(min_version_bound_, Rest, First, Tightest).
@@ -1731,7 +1632,7 @@ is_preferred_dep(Context, all_of_group(Deps)) :-
 
 is_preferred_dep(_Context, package_dependency(_Phase,_Strength,C,N,O,V,_S,_U)) :-
   query:search([name(N),category(C),installed(true)], pkg://Installed),
-  ( O == none ; query_search_version_select(O, V, pkg://Installed) ),
+  ( O == none ; query:search(select(version, O, V), pkg://Installed) ),
   !.
 
 
@@ -1770,7 +1671,7 @@ installed_pkg_satisfies_dep(ParentContext,
                              package_dependency(_Phase,_Strength,C,N,O,V,_S,UseReqs)) :-
   query:search([name(N),category(C),installed(true)], pkg://InstalledId),
   ( O == none
-  ; query_search_version_select(O, V, pkg://InstalledId)
+  ; query:search(select(version, O, V), pkg://InstalledId)
   ),
   use:installed_pkg_satisfies_use_reqs(ParentContext, pkg://InstalledId, UseReqs),
   !.
@@ -1784,7 +1685,7 @@ installed_version_mismatch_penalty(package_dependency(_Phase,_Strength,C,N,O,V,_
   O \== none,
   query:search([name(N),category(C),installed(true)], pkg://_),
   \+ ( query:search([name(N),category(C),installed(true)], pkg://InstalledId),
-       query_search_version_select(O, V, pkg://InstalledId)
+       query:search(select(version, O, V), pkg://InstalledId)
      ),
   Penalty is -50000000,
   !.
