@@ -94,7 +94,7 @@ Key design points:
 
 :- module(prover, []).
 
-:- thread_local prover:learned_constraint_/2.
+:- use_module(library(assoc), [empty_assoc/1, get_assoc/3, put_assoc/4]).
 
 user:goal_expansion(debug_hook(_, _, _, _), true) :-
   \+ current_prolog_flag(instrumentation, true).
@@ -210,14 +210,14 @@ prover:reprove_max_retries(Max) :-
 % to `rules:reprove_init_state/0` and `rules:reprove_cleanup_state/0`.
 
 prover:with_reprove_state(Goal) :-
-  findall(L-C, prover:learned_constraint_(L, C), SavedLC),
-  retractall(prover:learned_constraint_(_, _)),
+  ( nb_current(prover_learned_constraints, SavedAVL) -> true ; empty_assoc(SavedAVL) ),
+  empty_assoc(EmptyAVL),
+  nb_setval(prover_learned_constraints, EmptyAVL),
   ( current_predicate(heuristic:init_state/0) -> heuristic:init_state ; true ),
   setup_call_cleanup(true,
                      Goal,
                      ( ( current_predicate(heuristic:cleanup_state/0) -> heuristic:cleanup_state ; true ),
-                       retractall(prover:learned_constraint_(_, _)),
-                       forall(member(L-C, SavedLC), assertz(prover:learned_constraint_(L, C)))
+                       nb_setval(prover_learned_constraints, SavedAVL)
                      )).
 
 
@@ -707,7 +707,8 @@ prover:select_new_literals_to_enqueue_([L0|Ls], Model, Proof0, Proof, Acc0, Acc)
 %  Look up a learned constraint. Fails if none exists.
 
 prover:learned(Literal, Constraint) :-
-  prover:learned_constraint_(Literal, Constraint).
+  nb_current(prover_learned_constraints, AVL),
+  get_assoc(Literal, AVL, Constraint).
 
 
 %! prover:learn(+Literal, +Constraint, -Added)
@@ -717,21 +718,23 @@ prover:learned(Literal, Constraint) :-
 %  store changed, false if Constraint was already subsumed.
 
 prover:learn(Literal, Constraint, Added) :-
-  ( prover:learned_constraint_(Literal, Old) ->
+  ( nb_current(prover_learned_constraints, AVL0) -> true ; empty_assoc(AVL0) ),
+  ( get_assoc(Literal, AVL0, Old) ->
       ( Old == Constraint ->
           Added = false
       ; feature_unification:val_hook(Old, Constraint, Merged) ->
           ( Merged == Old ->
               Added = false
-          ; retract(prover:learned_constraint_(Literal, _)),
-            assertz(prover:learned_constraint_(Literal, Merged)),
+          ; put_assoc(Literal, AVL0, Merged, AVL1),
+            nb_setval(prover_learned_constraints, AVL1),
             Added = true
           )
-      ; retract(prover:learned_constraint_(Literal, _)),
-        assertz(prover:learned_constraint_(Literal, Constraint)),
+      ; put_assoc(Literal, AVL0, Constraint, AVL1),
+        nb_setval(prover_learned_constraints, AVL1),
         Added = true
       )
-  ; assertz(prover:learned_constraint_(Literal, Constraint)),
+  ; put_assoc(Literal, AVL0, Constraint, AVL1),
+    nb_setval(prover_learned_constraints, AVL1),
     Added = true
   ),
   !.

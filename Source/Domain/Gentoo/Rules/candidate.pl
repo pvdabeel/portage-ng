@@ -597,7 +597,8 @@ cn_reject_scoped_domain(Scope0, Domain, scoped(Scope, Domain)) :-
 % Retrieves the memoized snapshot of selected candidates for (C,N).
 
 snapshot_selected_cn_candidates(C, N, Candidates) :-
-  memo:selected_cn_snap_(C, N, Candidates),
+  nb_current(memo_selected_cn_snap, AVL),
+  get_assoc(C-N, AVL, Candidates),
   Candidates \== [],
   !.
 
@@ -611,8 +612,9 @@ record_selected_cn_snapshot(C, N, SelectedSet) :-
           member(selected(Repo,Entry,_Act,_SelVer,_SelSlotMeta), SelectedSet),
           Candidates0),
   sort(Candidates0, Candidates),
-  ( retract(memo:selected_cn_snap_(C, N, _)) -> true ; true ),
-  assertz(memo:selected_cn_snap_(C, N, Candidates)),
+  ( nb_current(memo_selected_cn_snap, AVL0) -> true ; empty_assoc(AVL0) ),
+  put_assoc(C-N, AVL0, Candidates, AVL1),
+  nb_setval(memo_selected_cn_snap, AVL1),
   !.
 
 %! candidate:snapshot_blocked_cn_sources(+C, +N, -Sources)
@@ -620,7 +622,8 @@ record_selected_cn_snapshot(C, N, SelectedSet) :-
 % Retrieves the memoized blocker source snapshot for (C,N).
 
 snapshot_blocked_cn_sources(C, N, Sources) :-
-  memo:blocked_cn_source_snap_(C, N, Sources),
+  nb_current(memo_blocked_cn_source_snap, AVL),
+  get_assoc(C-N, AVL, Sources),
   Sources \== [],
   !.
 
@@ -632,9 +635,11 @@ snapshot_blocked_cn_sources(C, N, Sources) :-
 record_blocked_cn_source_snapshot(C, N, Sources0) :-
   sort(Sources0, Sources),
   Sources \== [],
-  ( retract(memo:blocked_cn_source_snap_(C, N, OldSources)) -> true ; OldSources = [] ),
+  ( nb_current(memo_blocked_cn_source_snap, AVL0) -> true ; empty_assoc(AVL0) ),
+  ( get_assoc(C-N, AVL0, OldSources) -> true ; OldSources = [] ),
   ord_union(OldSources, Sources, MergedSources),
-  assertz(memo:blocked_cn_source_snap_(C, N, MergedSources)),
+  put_assoc(C-N, AVL0, MergedSources, AVL1),
+  nb_setval(memo_blocked_cn_source_snap, AVL1),
   !.
 record_blocked_cn_source_snapshot(_C, _N, _Sources) :-
   !.

@@ -21,8 +21,8 @@ Each thread-local predicate caches a different aspect of resolver state:
 | Predicate                          | Cached data                                    |
 |------------------------------------|------------------------------------------------|
 | effective_use_fact/3               | Effective USE set for a repo entry (candidate)  |
-| selected_cn_snap_/3               | Snapshot of selected CN candidates              |
-| blocked_cn_source_snap_/3          | Snapshot of blocked CN source entries            |
+| memo_selected_cn_snap (nb_setval)  | AVL of selected CN candidates (keyed by C-N)    |
+| memo_blocked_cn_source_snap (nb)   | AVL of blocked CN sources (keyed by C-N)        |
 | cn_domain_reject_/2               | Rejected candidates per CN-domain key           |
 | rdepend_vbounds_cache_/5           | Self-RDEPEND version bounds for a (C,N) pair    |
 | keyword_cache_/6                   | Keyword-filtered candidate lists per action     |
@@ -39,13 +39,13 @@ heuristic:cleanup_state/0 during reprove retries.
 
 :- module(memo, []).
 
+:- use_module(library(assoc), [empty_assoc/1]).
+
 % =============================================================================
 %  Thread-local caching facts
 % =============================================================================
 
 :- thread_local memo:effective_use_fact/3.      % effective_use_fact(Repo, Entry, EnabledUseSet)
-:- thread_local memo:selected_cn_snap_/3.       % selected_cn_snap_(C, N, CandidateList)
-:- thread_local memo:blocked_cn_source_snap_/3. % blocked_cn_source_snap_(C, N, SourceList)
 :- thread_local memo:cn_domain_reject_/2.       % cn_domain_reject_(Key, RejectedSet)
 :- thread_local memo:rdepend_vbounds_cache_/5.  % rdepend_vbounds_cache_(Repo, Entry, C, N, ExtraDeps)
 :- thread_local memo:keyword_cache_/6.          % keyword_cache_(Action, C, N, SlotReq, LockKey, Sorted)
@@ -66,8 +66,9 @@ heuristic:cleanup_state/0 during reprove retries.
 
 clear_caches :-
   retractall(memo:effective_use_fact(_, _, _)),
-  retractall(memo:selected_cn_snap_(_, _, _)),
-  retractall(memo:blocked_cn_source_snap_(_, _, _)),
+  empty_assoc(EmptyAVL),
+  nb_setval(memo_selected_cn_snap, EmptyAVL),
+  nb_setval(memo_blocked_cn_source_snap, EmptyAVL),
   retractall(memo:cn_domain_reject_(_, _)),
   retractall(memo:rdepend_vbounds_cache_(_, _, _, _, _)),
   retractall(memo:keyword_cache_(_, _, _, _, _, _)),
