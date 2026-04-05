@@ -4,13 +4,13 @@
 # Useful for CI and for running inside restricted shells (e.g. Cursor sandbox).
 #
 # Usage:
-#   ./Source/Application/System/Scripts/Wrapper/portage-ng-dev --mode standalone accerciser
-#   ./Source/Application/System/Scripts/Wrapper/portage-ng-dev --mode standalone --shell
+#   ./Source/Application/Wrapper/portage-ng-dev --mode standalone accerciser
+#   ./Source/Application/Wrapper/portage-ng-dev --mode standalone --shell
 #
 set -eu
 
-# This script lives under Source/Application/System/Scripts/Wrapper/, so the project root is five levels up.
-ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/../../../../.." && pwd)"
+# This script lives under Source/Application/Wrapper/, so the project root is three levels up.
+ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)"
 
 
 # -----------------------------------------------------------------------------

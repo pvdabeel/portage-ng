@@ -7,6 +7,7 @@
   project.
 */
 
+
 /** <module> TERMINAL
 Terminal output to HTML renderer for portage-ng. Converts ANSI-escaped text
 (merge plans, fetchonly plans, package info, emerge output) into styled
@@ -18,8 +19,6 @@ from the sibling .merge file.
 */
 
 :- module(terminal, []).
-
-:- use_module(portage('Source/Pipeline/Printer/Plan/timing.pl'), []).
 
 % =============================================================================
 %  TERMINAL declarations

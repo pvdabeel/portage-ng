@@ -7,6 +7,7 @@
   project.
 */
 
+
 /** <module> DEPTREE
 Interactive HTML dependency graph visualisation for portage-ng packages.
 Generates a self-contained HTML file with a layered tree graph showing

@@ -103,6 +103,7 @@ rule(target(Q, _Arg):fetchonly?{Context}, Conditions) :-
   target:resolve_candidate(Q, Repository://Ebuild),
   Conditions = [Repository://Ebuild:fetchonly?{Context}].
 
+
 rule(target(Q, Arg):uninstall?{Context}, Conditions) :-
   !,
   kb:query(Q, Repository://Ebuild),
@@ -112,6 +113,7 @@ rule(target(Q, Arg):uninstall?{Context}, Conditions) :-
   ; WorldConds = [world_action(unregister, Arg):world?{[after(Repository://Ebuild:uninstall)]}]
   ),
   Conditions = [Repository://Ebuild:uninstall?{Context}|WorldConds].
+
 
 % Portage-style merge semantics for a requested target:
 % - prove the merge (run)
@@ -125,6 +127,7 @@ rule(target(Q, Arg):uninstall?{Context}, Conditions) :-
 % --nodeps: resolve target without proving dependencies.
 % --onlydeps: prove deps only, exclude the target from the plan.
 % --exclude: skip atoms matching config:excluded_atom/1.
+
 rule(target(Q, Arg):run?{Context}, Conditions) :-
   !,
   target:resolve_candidate(Q, Repository://Ebuild),
@@ -1758,6 +1761,7 @@ rules:cycle_benign(Lit, _CyclePath) :-
     ; Lit = grouped_package_dependency(_,_,_):_
     ; Lit = package_dependency(_,_,_,_,_,_,_,_):_
     ), !.
+
 rules:cycle_benign(_Lit, CyclePath) :-
     member(Entry, CyclePath),
     Entry = _:run,

@@ -7,6 +7,7 @@
   project.
 */
 
+
 /** <module> NAVTHEME
 Shared navigation bar and day/night theme infrastructure for all graph HTML
 pages. Provides a uniform two-row navigation bar, base CSS custom properties,

@@ -218,9 +218,9 @@ module:predicate_name(Arg1, Arg2) :-
 ## How to run (IMPORTANT)
 - Do NOT run ad-hoc `swipl -g "..."` snippets; they often miss required operator defs, libraries, and module load order.
 - Always launch via the project wrapper (project root):
-  - `./Source/Application/System/Scripts/Wrapper/portage-ng-dev --mode standalone --pretend <target>`
-  - `./Source/Application/System/Scripts/Wrapper/portage-ng-dev --mode standalone --shell`
-  - Non-interactive / CI-style: `./Source/Application/System/Scripts/Wrapper/portage-ng-dev --mode standalone --ci --pretend <target>`
+  - `./Source/Application/Wrapper/portage-ng-dev --mode standalone --pretend <target>`
+  - `./Source/Application/Wrapper/portage-ng-dev --mode standalone --shell`
+  - Non-interactive / CI-style: `./Source/Application/Wrapper/portage-ng-dev --mode standalone --ci --pretend <target>`
     Exit codes:
       - 0 = no assumptions
       - 1 = only prover cycle-break assumptions
@@ -233,7 +233,7 @@ module:predicate_name(Arg1, Arg2) :-
 For quick iteration and for reproducible debugging, prefer running a *scripted* Prolog session via `--shell` and a here-doc:
 
 ```sh
-./Source/Application/System/Scripts/Wrapper/portage-ng-dev --mode standalone --shell --timeout 60 <<'PL'
+./Source/Application/Wrapper/portage-ng-dev --mode standalone --shell --timeout 60 <<'PL'
 prover:test_stats(portage).
 % Any other queries you want:
 % prover:test_stats_pkgs(portage, ['kde-apps'-'kde-apps-meta']).

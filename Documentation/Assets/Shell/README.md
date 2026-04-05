@@ -23,5 +23,5 @@ for running portage-ng from a source checkout.
 
 Edit the `/path/to/prolog` placeholder to match your checkout location,
 then add the alias to your shell profile. Alternatively, use the wrapper
-script at `Source/Application/System/Scripts/Wrapper/portage-ng-dev`
+script at `Source/Application/Wrapper/portage-ng-dev`
 which requires no alias setup.

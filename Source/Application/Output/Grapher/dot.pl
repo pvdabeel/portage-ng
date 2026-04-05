@@ -7,6 +7,7 @@
   project.
 */
 
+
 /** <module> DOT
 Legacy Graphviz DOT graph generation for Gentoo ebuilds.
 

@@ -1,3 +1,17 @@
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2026, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
+
+/** <module> TARGET
+Target validation and resolution for CLI commands.
+*/
+
 % -----------------------------------------------------------------------------
 %  Target validation helper
 % -----------------------------------------------------------------------------

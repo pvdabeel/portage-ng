@@ -7,6 +7,7 @@
   project.
 */
 
+
 /** <module> DETAIL
 Interactive HTML detail graph visualisation for portage-ng packages.
 Generates a self-contained HTML file with a tree view (default) and a graph

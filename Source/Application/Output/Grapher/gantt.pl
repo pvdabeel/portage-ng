@@ -7,6 +7,7 @@
   project.
 */
 
+
 /** <module> GANTT
 Interactive Gantt chart HTML visualisation of a portage-ng execution plan.
 Generates a self-contained HTML file with step-based timeline, per-package
