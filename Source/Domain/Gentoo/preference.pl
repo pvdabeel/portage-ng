@@ -281,20 +281,23 @@ preference:flag(Flag) :-
 %
 % Obtains profile-derived USE terms.
 %
-% If `config:gentoo_profile/1` is set and the Portage profile tree is available,
-% we derive these from Gentoo's inherited profile files via `profile.pl`.
-% Otherwise we fall back to the (legacy) static `preference:profile_use/1`
-% facts declared in this file.
+% If `config:gentoo_profile/1` is defined and the Portage profile tree is
+% available, we derive these from Gentoo's inherited profile files via
+% `profile.pl`.  If the predicate is not defined at all, a warning is emitted.
+% If defined but profile data cannot be loaded (e.g. during --sync before the
+% profile tree is ready), silently falls back to an empty list.
 
 preference:profile_use_terms(Terms) :-
-  ( config:gentoo_profile(ProfileRel),
+  ( \+ current_predicate(config:gentoo_profile/1) ->
+      ( current_predicate(message:inform/1) ->
+          catch(message:inform(['Warning: config:gentoo_profile/1 not set; profile USE flags unavailable. please investigate']), _, true)
+      ; true
+      ),
+      Terms = []
+  ; config:gentoo_profile(ProfileRel),
     catch(profile:profile_use_terms(ProfileRel, Terms0), _, fail) ->
       Terms = Terms0
-  ; ( current_predicate(message:inform/1) ->
-        catch(message:inform(['Warning: config:gentoo_profile/1 not set; profile USE flags unavailable.']), _, true)
-    ; true
-    ),
-    Terms = []
+  ; Terms = []
   ).
 
 % -----------------------------------------------------------------------------
