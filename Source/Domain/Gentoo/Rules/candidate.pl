@@ -292,14 +292,10 @@ slot_constraint_match(SlotReq, Repo, Id, AllMeta, SlotMeta) :-
 % already satisfies the dependency.
 
 installed_entry_satisfies_package_deps(_Action, _C, _N, [], _Installed) :- !.
-installed_entry_satisfies_package_deps(Action, C, N,
-                                       [package_dependency(_Phase,no,C,N,O,V,_,_)|Rest],
-                                       Repo://Id) :-
-  !,
-  query:search(select(version, O, V), Repo://Id),
-  installed_entry_satisfies_package_deps(Action, C, N, Rest, Repo://Id).
-installed_entry_satisfies_package_deps(Action, C, N, [_|Rest], Installed) :-
-  installed_entry_satisfies_package_deps(Action, C, N, Rest, Installed).
+installed_entry_satisfies_package_deps(_Action, C, N, PackageDeps, Repo://Id) :-
+  cache:ordered_entry(Repo, Id, _, _, InstalledVer),
+  forall(member(package_dependency(_,no,C,N,O,V,_,_), PackageDeps),
+         preference:version_match(O, InstalledVer, V)).
 
 %! candidate:installed_entry_cn(+C, +N, -Repo, -Entry)
 %

@@ -875,9 +875,15 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
           CandPreVerified = false
       ; candidate:selected_cn_candidate_compatible(Action, C, N, SlotReq, PackageDeps1, Context, FoundRepo://Candidate) ->
           CandPreVerified = true
-      ; candidate:selected_cn_rejected_candidates(Action, C, N, SlotReq, PackageDeps1, Context, RejectedSelected),
+      ; candidate:grouped_dep_effective_domain_precomputed(Action, C, N, PackageDeps1, Context, EffDom, RejectDom),
         candidate:accepted_keyword_candidate(Action, C, N, SlotReq, SsLock, Context, FoundRepo://Candidate),
-        \+ memberchk(FoundRepo://Candidate, RejectedSelected),
+        ( candidate:selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate),
+          candidate:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, _)
+        ->
+          candidate:grouped_dep_candidate_satisfies_constraints_precomputed(
+              C, N, PackageDeps1, EffDom, RejectDom, FoundRepo://Candidate)
+        ; true
+        ),
         CandPreVerified = false
       ),
 
@@ -894,8 +900,9 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions)
 
       ( CandPreVerified == true ->
           true
-      ; forall(member(package_dependency(_P1,no,C,N,O,V,_,_), PackageDeps1),
-             query:search(select(version, O, V), FoundRepo://Candidate)),
+      ; cache:ordered_entry(FoundRepo, Candidate, _, _, CandVer),
+        forall(member(package_dependency(_P1,no,C,N,O,V,_,_), PackageDeps1),
+               preference:version_match(O, CandVer, V)),
         candidate:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps1, Context, FoundRepo://Candidate)
       ),
       candidate:candidate_reverse_deps_compatible_with_parent(Context, FoundRepo://Candidate),
