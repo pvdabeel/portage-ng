@@ -324,19 +324,19 @@ sampler:test_stats_reset(Label, ExpectedTotal) :-
       ; Label == 'Pipeline'  -> Stage = printer
       ; Stage = printer
       ),
-      assertz(sampler:test_stats_stat(stage, Stage)),
-      assertz(sampler:test_stats_stat(expected_total, ExpectedTotal)),
-      assertz(sampler:test_stats_stat(expected_unique_packages, 0)),
-      assertz(sampler:test_stats_stat(processed, 0)),
-      assertz(sampler:test_stats_stat(entries_failed, 0)),
-      assertz(sampler:test_stats_stat(entries_failed_blocker, 0)),
-      assertz(sampler:test_stats_stat(entries_failed_timeout, 0)),
-      assertz(sampler:test_stats_stat(entries_failed_other, 0)),
-      assertz(sampler:test_stats_stat(entries_with_assumptions, 0)),
-      assertz(sampler:test_stats_stat(entries_with_package_assumptions, 0)),
-      assertz(sampler:test_stats_stat(entries_with_cycles, 0)),
-      assertz(sampler:test_stats_stat(cycles_found, 0))
-    )).
+      assertz(sampler:test_stats_stat(stage, Stage))
+    )),
+  flag(expected_total, _, ExpectedTotal),
+  flag(expected_unique_packages, _, 0),
+  flag(processed, _, 0),
+  flag(entries_failed, _, 0),
+  flag(entries_failed_blocker, _, 0),
+  flag(entries_failed_timeout, _, 0),
+  flag(entries_failed_other, _, 0),
+  flag(entries_with_assumptions, _, 0),
+  flag(entries_with_package_assumptions, _, 0),
+  flag(entries_with_cycles, _, 0),
+  flag(cycles_found, _, 0).
 
 sampler:test_stats_record_failed(Reason) :-
   sampler:test_stats_inc(entries_failed),
@@ -353,10 +353,7 @@ sampler:test_stats_record_failed_entry(RepoEntry, Reason) :-
     )).
 
 sampler:test_stats_set_expected_unique_packages(N) :-
-  with_mutex(test_stats,
-    ( retractall(sampler:test_stats_stat(expected_unique_packages,_)),
-      assertz(sampler:test_stats_stat(expected_unique_packages, N))
-    )).
+  flag(expected_unique_packages, _, N).
 
 sampler:test_stats_add_pkg(Bucket, Repo, Entry) :-
   ( cache:ordered_entry(Repo, Entry, C, N, _) ->
@@ -382,11 +379,7 @@ sampler:test_stats_clear_current_entry :-
   ).
 
 sampler:test_stats_inc(Key) :-
-  with_mutex(test_stats,
-    ( ( retract(sampler:test_stats_stat(Key, N0)) -> true ; N0 = 0 ),
-      N is N0 + 1,
-      assertz(sampler:test_stats_stat(Key, N))
-    )).
+  flag(Key, N, N + 1).
 
 sampler:test_stats_inc_type(Type, Metric, Delta) :-
   with_mutex(test_stats,
@@ -545,9 +538,7 @@ sampler:test_stats_note_cycle_for_current_entry :-
         ( sampler:test_stats_entry_had_cycle(RepoEntry) ->
             true
         ; assertz(sampler:test_stats_entry_had_cycle(RepoEntry)),
-          ( retract(sampler:test_stats_stat(entries_with_cycles, N0)) -> true ; N0 = 0 ),
-          N is N0 + 1,
-          assertz(sampler:test_stats_stat(entries_with_cycles, N))
+          flag(entries_with_cycles, Nc, Nc+1)
         ))
       ,
       ( RepoEntry = Repo://Entry -> sampler:test_stats_add_pkg(with_cycles, Repo, Entry) ; true )
@@ -606,7 +597,7 @@ sampler:test_stats_inc_blocker_reason(Reason, Phase) :-
     )).
 
 sampler:test_stats_record_entry(RepositoryEntry, _ModelAVL, ProofAVL, TriggersAVL, DoCycles) :-
-  sampler:test_stats_inc(processed),
+  flag(processed, Np, Np+1),
   ( RepositoryEntry = Repo://Entry -> sampler:test_stats_add_pkg(processed, Repo, Entry) ; true ),
   findall(ContentN,
           ( assoc:gen_assoc(ProofKey, ProofAVL, _),
@@ -616,35 +607,53 @@ sampler:test_stats_record_entry(RepositoryEntry, _ModelAVL, ProofAVL, TriggersAV
           Contents0),
   ( Contents0 == [] ->
       true
-  ; sampler:test_stats_inc(entries_with_assumptions),
+  ; flag(entries_with_assumptions, Na, Na+1),
     ( RepositoryEntry = Repo://Entry -> sampler:test_stats_add_pkg(with_assumptions, Repo, Entry) ; true ),
     ( once((member(C0, Contents0), assumption:assumption_is_package_level(C0))) ->
-        sampler:test_stats_inc(entries_with_package_assumptions),
+        flag(entries_with_package_assumptions, Npa, Npa+1),
         ( RepositoryEntry = Repo://Entry -> sampler:test_stats_add_pkg(with_package_assumptions, Repo, Entry) ; true )
     ; true
     ),
-    findall(Type,
+    findall(Type-Content,
             ( member(Content, Contents0),
-              assumption:assumption_type(Content, Type),
-              sampler:test_stats_inc_type(Type, occurrences, 1),
-              sampler:test_stats_inc_type_entry_mention(Type, RepositoryEntry),
-              ( Type == blocker_assumption ->
-                  sampler:test_stats_record_blocker_assumption(Content)
-              ; true
-              )
+              assumption:assumption_type(Content, Type)
             ),
-            TypesAll),
-    forall((member(Content, Contents0), assumption:assumption_type(Content, other)),
-           sampler:test_stats_inc_other_head(Content)),
+            TypeContentPairs),
+    pairs_keys(TypeContentPairs, TypesAll),
     sort(TypesAll, TypesUnique),
-    forall(member(T, TypesUnique),
-           sampler:test_stats_inc_type(T, entries, 1))
+    with_mutex(test_stats,
+      ( forall(member(Type-_TC, TypeContentPairs),
+               ( ( retract(sampler:test_stats_type(Type, occurrences, N0)) -> true ; N0 = 0 ),
+                 N is N0 + 1,
+                 assertz(sampler:test_stats_type(Type, occurrences, N)),
+                 ( retract(sampler:test_stats_type_entry_mention(Type, RepositoryEntry, M0)) -> true ; M0 = 0 ),
+                 M is M0 + 1,
+                 assertz(sampler:test_stats_type_entry_mention(Type, RepositoryEntry, M))
+               )),
+        forall(member(T, TypesUnique),
+               ( ( retract(sampler:test_stats_type(T, entries, TE0)) -> true ; TE0 = 0 ),
+                 TE is TE0 + 1,
+                 assertz(sampler:test_stats_type(T, entries, TE))
+               )),
+        forall(member(blocker_assumption-BC, TypeContentPairs),
+               sampler:test_stats_record_blocker_assumption(BC)),
+        forall((member(other-OC, TypeContentPairs)),
+               sampler:test_stats_inc_other_head(OC))
+      ))
   ),
   ( DoCycles == true ->
       sampler:test_stats_set_current_entry(RepositoryEntry),
+      statistics(walltime, [CycleBudgetT0, _]),
+      CycleBudgetEnd is CycleBudgetT0 + 2000,
       forall(member(Content, Contents0),
-             ( assumption:cycle_for_assumption(Content, TriggersAVL, CyclePath0, CyclePath) ->
-                 sampler:test_stats_record_cycle(CyclePath0, CyclePath)
+             ( statistics(walltime, [CycleTNow, _]),
+               CycleTNow < CycleBudgetEnd
+             -> ( catch(call_with_time_limit(0.5,
+                    assumption:cycle_for_assumption(Content, TriggersAVL, CyclePath0, CyclePath)),
+                    time_limit_exceeded, fail)
+                -> sampler:test_stats_record_cycle(CyclePath0, CyclePath)
+                ; true
+                )
              ; true
              )),
       sampler:test_stats_clear_current_entry
@@ -665,7 +674,9 @@ sampler:test_stats_record_cycle(_CyclePath0, CyclePath) :-
          sampler:test_stats_inc_cycle_mention(Action, RepoEntry)).
 
 sampler:test_stats_value(Key, Value) :-
-  ( sampler:test_stats_stat(Key, Value) -> true ; Value = 0 ).
+  ( sampler:test_stats_stat(Key, Value) -> true
+  ; flag(Key, Value, Value)
+  ).
 
 %! sampler:test_stats_stage_at_least(+MinStage) is semidet
 %

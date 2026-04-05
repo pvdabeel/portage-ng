@@ -1286,7 +1286,8 @@ prover:test_stats(Repository, Style, TopN) :-
               ( sampler:test_stats_reset_counters,
                 statistics(inferences, I0),
                 statistics(walltime, [T0,_]),
-                ( prover:prove([Repository://Entry:Action?{[]}], t, ProofAVL, t, ModelAVL, t, _Constraint, t, Triggers) ->
+                Target = (Repository://Entry:Action?{[]}),
+                ( pipeline:prove_with_fallback([Target], ProofAVL, ModelAVL, Triggers) ->
                     Proved = true
                 ; Proved = false
                 ),
@@ -1301,28 +1302,13 @@ prover:test_stats(Repository, Style, TopN) :-
                                                           ctx_cost_mul(CtxMul),
                                                           ctx_cost_add(CtxAdd),
                                                           ctx_len_samples(CtxLenSamples)),
-                    sampler:test_stats_record_costs(Repository://Entry, TimeMs, Inferences, RuleCalls),
-                    sampler:test_stats_record_context_costs(Repository://Entry, CtxUC, CtxCost, CtxMax, CtxMsEst),
-                    sampler:test_stats_record_ctx_len_distribution(CtxHistPairs, CtxMul, CtxAdd, CtxLenSamples),
+                    with_mutex(test_stats,
+                      ( sampler:test_stats_record_costs(Repository://Entry, TimeMs, Inferences, RuleCalls),
+                        sampler:test_stats_record_context_costs(Repository://Entry, CtxUC, CtxCost, CtxMax, CtxMsEst),
+                        sampler:test_stats_record_ctx_len_distribution(CtxHistPairs, CtxMul, CtxAdd, CtxLenSamples)
+                      )),
                     sampler:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
-                ; % strict failure: classify blocker vs conflict vs other (best-effort)
-                  % Time-budget: skip re-prove attempts if original prove already
-                  % consumed more than 1/3 of the time limit to avoid timeouts.
-                  config:time_limit(TLimit),
-                  TimeBudgetMs is TLimit * 333,
-                  ( TimeMs > TimeBudgetMs ->
-                      sampler:test_stats_record_failed(other)
-                  ; ( prover:assuming(blockers,
-                        prover:prove([Repository://Entry:Action?{[]}], t, _, t, _, t, _, t, _)
-                      ) ->
-                        sampler:test_stats_record_failed(blocker)
-                    ; prover:assuming(conflicts,
-                        prover:prove([Repository://Entry:Action?{[]}], t, _, t, _, t, _, t, _)
-                      ) ->
-                        sampler:test_stats_record_failed(conflict)
-                    ; sampler:test_stats_record_failed(other)
-                    )
-                  )
+                ; sampler:test_stats_record_failed(other)
                 )
               )),
   stats:test_stats_print(TopN).
@@ -1349,7 +1335,8 @@ prover:test_stats_pkgs(Repository, Pkgs) :-
 
 prover:test_stats_pkgs(Repository, Style, TopN, Pkgs) :-
   is_list(Pkgs),
-  config:proving_target(Action),
+  config:proving_target(Action0),
+  prover:test_action(Action0, Action),
   length(Pkgs, ExpectedTotal),
   sampler:test_stats_reset('Proving', ExpectedTotal),
   sampler:test_stats_set_expected_unique_packages(ExpectedTotal),
@@ -1362,7 +1349,8 @@ prover:test_stats_pkgs(Repository, Style, TopN, Pkgs) :-
               ( sampler:test_stats_reset_counters,
                 statistics(inferences, I0),
                 statistics(walltime, [T0,_]),
-                ( prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers) ->
+                Target = (Repository://Entry:Action?{[]}),
+                ( pipeline:prove_with_fallback([Target], ProofAVL, ModelAVL, Triggers) ->
                     Proved = true
                 ; Proved = false
                 ),
@@ -1377,21 +1365,13 @@ prover:test_stats_pkgs(Repository, Style, TopN, Pkgs) :-
                                                           ctx_cost_mul(CtxMul),
                                                           ctx_cost_add(CtxAdd),
                                                           ctx_len_samples(CtxLenSamples)),
-                    sampler:test_stats_record_costs(Repository://Entry, TimeMs, Inferences, RuleCalls),
-                    sampler:test_stats_record_context_costs(Repository://Entry, CtxUC, CtxCost, CtxMax, CtxMsEst),
-                    sampler:test_stats_record_ctx_len_distribution(CtxHistPairs, CtxMul, CtxAdd, CtxLenSamples),
+                    with_mutex(test_stats,
+                      ( sampler:test_stats_record_costs(Repository://Entry, TimeMs, Inferences, RuleCalls),
+                        sampler:test_stats_record_context_costs(Repository://Entry, CtxUC, CtxCost, CtxMax, CtxMsEst),
+                        sampler:test_stats_record_ctx_len_distribution(CtxHistPairs, CtxMul, CtxAdd, CtxLenSamples)
+                      )),
                     sampler:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
-                ; % strict failure: classify blocker vs conflict vs other (best-effort)
-                  ( prover:assuming(blockers,
-                      prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
-                    ) ->
-                      sampler:test_stats_record_failed(blocker)
-                  ; prover:assuming(conflicts,
-                      prover:prove(Repository://Entry:Action?{[]},t,_,t,_,t,_,t,_)
-                    ) ->
-                      sampler:test_stats_record_failed(conflict)
-                  ; sampler:test_stats_record_failed(other)
-                  )
+                ; sampler:test_stats_record_failed(other)
                 )
               )),
   stats:test_stats_print(TopN).
