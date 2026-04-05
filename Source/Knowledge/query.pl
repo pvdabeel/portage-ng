@@ -14,8 +14,38 @@ An implementation of a query language for the knowledge base
 
 :- module(query,[]).
 
-% dep_model_cache_ removed: context R can contain unbound variables from
-% query:search(model(Model,...)), causing incorrect cache sharing.
+% dep_model_cache_ removed — memoized_search/2 is NOT actually memoized.
+%
+% A cache (dep_model_cache_) was attempted but removed because the output
+% of model construction depends on mutable proof state beyond the explicit
+% context argument R:
+%
+%   1. Context R (build_with_use:use_state(Pos,Neg)) — the same (Ebuild,Phase)
+%      is reached through different dependency paths that impose different USE
+%      requirements (e.g. qtbase reached with [concurrent,dbus,...] vs [gui]).
+%
+%   2. prover:assuming(keyword_acceptance) / prover:assuming(unmask) — these
+%      nb_setval flags change between fallback attempts in prove_with_fallback.
+%      any_of_config_dep_ok calls candidate:accepted_keyword_candidate, which
+%      checks these flags.  A cached model from the strict attempt may be wrong
+%      in the unmask attempt (previously-unsatisfiable OR branches become viable).
+%
+%   3. memo:selected_cn_snap_/3 — evolves DURING a single proof attempt as
+%      packages are selected.  any_of_group:config calls prioritize_deps_keep_all
+%      -> dep_snapshot_selected -> selected_cn_snap_.  Since any_of_group:config
+%      takes the first satisfiable dep (member + cut), different ordering can lock
+%      a different OR branch into the model.
+%
+%   4. variant:use_override/2 and variant:branch_prefer/1 — thread_local state
+%      active only during variant exploration; affects effective_use_for_entry
+%      and OR group ordering respectively.
+%
+% Despite the name, every call recomputes: goal-expanded query:search (findall
+% over cache:entry_metadata + prover:prove_model for USE conditionals) followed
+% by group_dependencies (findall + group_by).  Profiling shows 25-30% of proving
+% time is spent here, with up to 88% of calls being redundant (same result as a
+% previous call).  However, correct caching requires accounting for all the above
+% mutable state, not just the context R.
 
 % =============================================================================
 %  QUERY MACROS
@@ -1469,18 +1499,19 @@ select(Key,wildcard,Value,R://I) :-
 
 
 % -----------------------------------------------------------------------------
-%  Query: Memoized Search - only dependency models for now
+%  Query: Dependency model search (NOT memoized — see top-of-file comment)
 % -----------------------------------------------------------------------------
 
 %! query:memoized_search(+Query, +Target)
 %
-%  A wrapper for query:search that provides memoization for expensive
-%  model computations.
-
-% Note: We cache *grouped* dependencies (via group_dependencies/2) because
-% grouping dominates runtime and the dependency model is already memoized.
-% We use distinct keys (install_grouped/run_grouped/fetchonly_grouped) to avoid
-% mixing old cached values with the new representation in long-running sessions.
+%  Computes the grouped dependency model for an ebuild.  Despite the name,
+%  this predicate performs no caching — each call recomputes from scratch.
+%  See the dep_model_cache_ comment at the top of this file for why.
+%
+%  The query:search/2 inside is goal-expanded at compile time into inline
+%  findall + cache:entry_metadata + prover:prove_model.  The expensive parts
+%  are prove_model (USE-conditional evaluation) and group_dependencies
+%  (findall + group_by).
 
 memoized_search(model(dependency(Merged,install)):config?{R}, Repository://Ebuild) :-
   !,

@@ -256,6 +256,15 @@ The canonical load graph for standalone is in `portage-ng.pl`:
 ## Performance/engineering notes
 - Proof/Model/Triggers are assoc/AVL-based; avoid repeated full traversals when possible.
 - Query performance uses `goal_expansion/2` macros in `Source/Knowledge/query.pl`.
+- `query:memoized_search/2` is **NOT actually memoized** despite its name.
+  A cache (`dep_model_cache_`) was attempted but removed because model
+  construction depends on mutable proof state beyond the explicit context:
+  (1) `build_with_use` context varies per dependency path,
+  (2) `prover:assuming` flags change between fallback attempts,
+  (3) `memo:selected_cn_snap_` evolves during the proof (affects OR group ordering),
+  (4) `variant:use_override` / `variant:branch_prefer` change during variant mode.
+  Profiling shows 25-30% of proving time in `memoized_search`, with up to 88%
+  of calls redundant for complex packages. See top-of-file comment in `query.pl`.
 
 ## Development flow
 - We use a git workflow. 
