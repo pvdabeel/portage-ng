@@ -989,44 +989,14 @@ selected_cn_domain_compatible_or_reprove(C, N, Domain, Selected, Constraints) :-
 
 %! candidate:prefer_global_selected_reject_from_domain(+C, +N, +Domain, +Selected, +Constraints)
 %
-% Heuristic: for certain categories (dev-haskell, dev-lang/ghc, dev-ml/cmdliner)
-% or equal-bound domains, prefer a global (domain=none) reject to keep the
+% Heuristic: when there are already selected candidates and the domain
+% has an equal bound, prefer a global (domain=none) reject to keep the
 % reprove search space manageable.
 
-prefer_global_selected_reject_from_domain(C, _N, Domain, Selected, _Constraints) :-
-  C == 'dev-haskell',
-  Selected \== [],
-  domain_has_upper_bound(Domain),
-  !.
-prefer_global_selected_reject_from_domain(C, N, Domain, Selected, Constraints) :-
-  C == 'dev-lang',
-  N == ghc,
-  Selected \== [],
-  domain_has_upper_bound(Domain),
-  \+ selected_cn_requires_same_slot_multiversion(C, N, Constraints),
-  !.
-prefer_global_selected_reject_from_domain(C, N, Domain, Selected, Constraints) :-
-  C == 'dev-ml',
-  N == cmdliner,
-  Selected \== [],
-  domain_has_upper_bound(Domain),
-  \+ selected_cn_requires_same_slot_multiversion(C, N, Constraints),
-  !.
 prefer_global_selected_reject_from_domain(C, N, Domain, Selected, Constraints) :-
   Selected \== [],
   domain_has_equal_bound(Domain),
   \+ selected_cn_requires_same_slot_multiversion(C, N, Constraints),
-  !.
-
-%! candidate:domain_has_upper_bound(+Domain)
-%
-% True if Domain has a `smaller` or `smallerequal` bound.
-
-domain_has_upper_bound(version_domain(_Slots, Bounds)) :-
-  member(bound(Op, _Req), Bounds),
-  ( Op == smaller
-  ; Op == smallerequal
-  ),
   !.
 
 %! candidate:domain_has_equal_bound(+Domain)
@@ -1283,16 +1253,15 @@ dep_priority_kv(Dep, K-Dep) :-
 %
 % Computes a priority key for a dependency literal. Lower keys are
 % proved first. Key is `key(BaseK, TightUpper, C, N)` where BaseK
-% accounts for upper-bound tightness, slot specificity, and special
-% categories.
+% accounts for upper-bound tightness, wildcard constraints, and slot
+% specificity.
 
 dep_priority(grouped_package_dependency(_T,C,N,PackageDeps):Action?{_Context}, K) :-
   !,
   ( merge_slot_restriction(Action, C, N, PackageDeps, SlotReq) ->
       ( dep_tightest_upper_bound(C, N, PackageDeps, TightUpper) ->
           UpperK0 = 1
-      ; C == 'dev-ml',
-        dep_has_equal_wildcard_constraint(C, N, PackageDeps) ->
+      ; dep_has_equal_wildcard_constraint(C, N, PackageDeps) ->
           UpperK0 = 8,
           TightUpper = none
       ; UpperK0 = 999,
@@ -2093,12 +2062,8 @@ accepted_keyword_candidate(Action, C, N, SlotReq0, Ss0, Context, FoundRepo://Can
     ;
       accepted_keyword_candidates_cached(Action, C, N, SlotReq, LockKey, CandidatesSorted0),
       candidates_prefer_proven_providers(C, N, SlotReq, CandidatesSorted0, CandidatesSorted),
-      ( greedy_candidate_package(C, N) ->
-          member(FoundRepo://Candidate, CandidatesSorted),
-          query_search_slot_constraint(SlotReq, FoundRepo://Candidate, Ss)
-      ; member(FoundRepo://Candidate, CandidatesSorted),
-        query_search_slot_constraint(SlotReq, FoundRepo://Candidate, Ss)
-      )
+      member(FoundRepo://Candidate, CandidatesSorted),
+      query_search_slot_constraint(SlotReq, FoundRepo://Candidate, Ss)
     )
   ).
 
@@ -2219,10 +2184,6 @@ accepted_keyword_slot_lock_filter([any_same_slot], slot(S), [slot(S)]) :-
   !.
 accepted_keyword_slot_lock_filter(_SlotReq, _LockKey, _SsFilter) :-
   !.
-
-greedy_candidate_package('dev-lang', ocaml) :- !.
-greedy_candidate_package('dev-ml', findlib) :- !.
-greedy_candidate_package('dev-ml', ocamlbuild) :- !.
 
 %! candidate:accepted_keyword_candidates_cached(+Action, +C, +N, +SlotReq, +LockKey, -CandidatesSorted)
 %
