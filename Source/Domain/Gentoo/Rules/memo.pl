@@ -69,6 +69,7 @@ clear_caches :-
   empty_assoc(EmptyAVL),
   nb_setval(memo_selected_cn_snap, EmptyAVL),
   nb_setval(memo_blocked_cn_source_snap, EmptyAVL),
+  nb_setval(memo_slot_meta_cache, EmptyAVL),
   retractall(memo:cn_domain_reject_(_, _)),
   retractall(memo:rdepend_vbounds_cache_(_, _, _, _, _)),
   retractall(memo:keyword_cache_(_, _, _, _, _, _)),

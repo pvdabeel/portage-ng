@@ -33,23 +33,35 @@ feature_unification:val_hook(version_domain(S, B), none, version_domain(S, B)) :
 % -----------------------------------------------------------------------------
 
 domain_from_packagedeps(_Action, C, N, PackageDeps, Domain) :-
-  findall(SlotReq,
-          member(package_dependency(_, no, C, N, _Op, _V, SlotReq, _), PackageDeps),
-          SlotReqs),
+  collect_slots_and_bounds(PackageDeps, C, N, SlotReqs, Bounds0),
   slot_domain_from_reqs(SlotReqs, SlotDomain),
-  findall(bound(OpN, VerN),
-          ( member(package_dependency(_, no, C, N, Op0, Ver0, _S, _), PackageDeps),
-            normalize_bound_op(Op0, OpN),
-            OpN \== none,
-            normalize_version_term(Ver0, VerN)
-          ),
-          Bounds0),
   sort(Bounds0, Bounds),
   ( Bounds == [] ->
       Domain = none
   ; Domain = version_domain(SlotDomain, Bounds)
   ),
   !.
+
+
+%! collect_slots_and_bounds(+PackageDeps, +C, +N, -SlotReqs, -Bounds)
+%
+% Single-pass collection of slot requirements and version bounds from
+% PackageDeps matching category C and name N (non-blocker only).
+
+collect_slots_and_bounds([], _, _, [], []).
+collect_slots_and_bounds([package_dependency(_, no, C, N, Op0, Ver0, SlotReq, _)|Rest], C, N, [SlotReq|SRs], Bounds) :-
+  !,
+  ( normalize_bound_op(Op0, OpN),
+    OpN \== none,
+    normalize_version_term(Ver0, VerN)
+  ->
+    Bounds = [bound(OpN, VerN)|Bounds1]
+  ;
+    Bounds = Bounds1
+  ),
+  collect_slots_and_bounds(Rest, C, N, SRs, Bounds1).
+collect_slots_and_bounds([_|Rest], C, N, SRs, Bounds) :-
+  collect_slots_and_bounds(Rest, C, N, SRs, Bounds).
 
 slot_domain_from_reqs([], any) :- !.
 slot_domain_from_reqs([Req|Rest], SlotDomain) :-

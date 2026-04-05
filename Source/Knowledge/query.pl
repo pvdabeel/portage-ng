@@ -1568,15 +1568,35 @@ memoized_search(model(dependency(Merged,fetchonly)):config?{R}, Repository://Ebu
 %
 dependency_key((package_dependency(Phase,T,C,N,_,_,S,_):_?{_}), Phase-T-C-N-S).
 
+
+%! dep_to_keyed_pair(+DepElem, -Pair)
+%
+% Maps a dependency element E:Action?{Context} to a Key-E pair for sorting.
+
+dep_to_keyed_pair(E:Action?{Context}, (Phase-T-C-N-S:Action?{Context})-E) :-
+    E = package_dependency(Phase,T,C,N,_,_,S,_).
+
+
+%! keyed_group_to_dep(+KeyGroup, -GroupedDep)
+%
+% Converts a key-group pair from group_pairs_by_key into the
+% grouped_package_dependency output format.
+
+keyed_group_to_dep((_Phase-T-C-N-_S:Action?{Context})-Group,
+                   grouped_package_dependency(T,C,N,Group):Action?{Context}).
+
+
 %! group_dependencies(+List, -Groups)
 %
-% Groups dependencies by their key. (Category & Name) This is used to merge
-% dependencies with the same key.
+% Groups dependencies by their key (Phase, BlockType, Category, Name, Slot).
+% Uses msort + group_pairs_by_key for O(n log n) grouping instead of the
+% O(n * g) group_by/4 + member/2 approach.
 
 group_dependencies(L, Groups) :-
-    findall(grouped_package_dependency(T,C,N,Group):Action?{Context},
-		    group_by(Phase-T-C-N-S:Action?{Context}, E, (member(E:Action?{Context}, L), dependency_key(E:Action?{Context}, Phase-T-C-N-S)), Group),
-            Groups).
+    maplist(dep_to_keyed_pair, L, Pairs),
+    msort(Pairs, Sorted),
+    group_pairs_by_key(Sorted, Grouped),
+    maplist(keyed_group_to_dep, Grouped, Groups).
 
 
 

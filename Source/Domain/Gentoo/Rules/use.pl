@@ -88,9 +88,7 @@ feature_unification:val_hook([], use_state(En, Dis), use_state(En, Dis)) :- !.
 
 effective_use_in_context(Context, Use, State) :-
   ( memberchk(self(RepoEntry0), Context) ->
-      ( RepoEntry0 = Repo://Id -> true
-      ; RepoEntry0 = Repo//Id  -> true
-      )
+      RepoEntry0 = Repo://Id
   ; nb_current(query_required_use_self, Repo://Id)
   ),
   \+ Use =.. [minus,_],
@@ -129,9 +127,7 @@ effective_use_in_context(Context, Use, State) :-
 % for the ebuild that owns the conditional.
 
 effective_use_for_entry(RepoEntry0, Use, State) :-
-  ( RepoEntry0 = Repo://Id -> true
-  ; RepoEntry0 = Repo//Id  -> true
-  ),
+  RepoEntry0 = Repo://Id,
   \+ Use =.. [minus,_],
   ( memo:eff_use_cache_(Repo, Id, Use, Cached) ->
       State = Cached
@@ -459,9 +455,7 @@ ctx_assumed_minus(Ctx, Use) :-
 
 self_context_use_state(Ctx, Use, State) :-
   memberchk(self(RepoEntry0), Ctx),
-  ( RepoEntry0 = Repo://Id -> true
-  ; RepoEntry0 = Repo//Id  -> true
-  ),
+  RepoEntry0 = Repo://Id,
   ( memo:self_use_cache_(Repo, Id, Use, Cached) ->
       Cached \== miss,
       State = Cached
@@ -870,8 +864,8 @@ newuse_mismatch(pkg://InstalledEntry) :-
   query:search([category(C),name(N),version(V)], pkg://InstalledEntry),
   preference:accept_keywords(K),
   ( query:search([select(repository,notequal,pkg),category(C),name(N),keywords(K),version(V)],
-                 CurRepo//CurEntry)
-  -> newuse_mismatch(pkg://InstalledEntry, CurRepo//CurEntry)
+                 CurRepo://CurEntry)
+  -> newuse_mismatch(pkg://InstalledEntry, CurRepo://CurEntry)
   ;  fail
   ).
 
@@ -881,12 +875,12 @@ newuse_mismatch(pkg://InstalledEntry) :-
 % current repo entry's effective USE or IUSE. Checks both the enabled
 % USE set and the declared IUSE set for symmetric differences.
 
-newuse_mismatch(pkg://InstalledEntry, CurRepo//CurEntry) :-
+newuse_mismatch(pkg://InstalledEntry, CurRepo://CurEntry) :-
   vdb_enabled_use_set(pkg://InstalledEntry, BuiltUse),
-  entry_enabled_use_set(CurRepo//CurEntry, CurUse),
+  entry_enabled_use_set(CurRepo://CurEntry, CurUse),
   ( symmetric_diff_nonempty(BuiltUse, CurUse)
   ; vdb_iuse_set(pkg://InstalledEntry, BuiltIuse),
-    entry_iuse_set(CurRepo//CurEntry, CurIuse),
+    entry_iuse_set(CurRepo://CurEntry, CurIuse),
     BuiltIuse \== [],
     CurIuse \== [],
     symmetric_diff_nonempty(BuiltIuse, CurIuse)
@@ -905,8 +899,8 @@ changeduse_mismatch(pkg://InstalledEntry) :-
   query:search([category(C),name(N),version(V)], pkg://InstalledEntry),
   preference:accept_keywords(K),
   ( query:search([select(repository,notequal,pkg),category(C),name(N),keywords(K),version(V)],
-                 CurRepo//CurEntry)
-  -> changeduse_mismatch(pkg://InstalledEntry, CurRepo//CurEntry)
+                 CurRepo://CurEntry)
+  -> changeduse_mismatch(pkg://InstalledEntry, CurRepo://CurEntry)
   ;  fail
   ).
 
@@ -917,9 +911,9 @@ changeduse_mismatch(pkg://InstalledEntry) :-
 % current repo entry's effective USE set. Only compares the enabled
 % flag sets, ignoring IUSE changes.
 
-changeduse_mismatch(pkg://InstalledEntry, CurRepo//CurEntry) :-
+changeduse_mismatch(pkg://InstalledEntry, CurRepo://CurEntry) :-
   vdb_enabled_use_set(pkg://InstalledEntry, BuiltUse),
-  entry_enabled_use_set(CurRepo//CurEntry, CurUse),
+  entry_enabled_use_set(CurRepo://CurEntry, CurUse),
   symmetric_diff_nonempty(BuiltUse, CurUse),
   !.
 

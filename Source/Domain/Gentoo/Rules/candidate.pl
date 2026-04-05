@@ -243,40 +243,77 @@ merge_slot_restriction_pair([slot(S0),subslot(Ss0),equal], [slot(S1),equal], [sl
 
 query_search_slot_constraint(SlotReq, RepoEntry, SlotMeta) :-
   RepoEntry = Repo://Id,
+  cached_slot_meta(Repo, Id, AllMeta),
+  slot_constraint_match(SlotReq, Repo, Id, AllMeta, SlotMeta).
+
+
+%! candidate:cached_slot_meta(+Repo, +Id, -AllMeta)
+%
+% Returns the full slot metadata list for Repo/Id, using
+% memo_slot_meta_cache AVL to avoid redundant findall allocations.
+
+cached_slot_meta(Repo, Id, AllMeta) :-
+  ( nb_current(memo_slot_meta_cache, CacheAVL),
+    get_assoc(Repo-Id, CacheAVL, Cached)
+  ->
+    AllMeta = Cached
+  ;
+    findall(R, cache:entry_metadata(Repo, Id, slot, R), AllMeta),
+    ( nb_current(memo_slot_meta_cache, AVL0) -> true ; empty_assoc(AVL0) ),
+    put_assoc(Repo-Id, AVL0, AllMeta, AVL1),
+    nb_setval(memo_slot_meta_cache, AVL1)
+  ).
+
+
+%! candidate:slot_constraint_match(+SlotReq, +Repo, +Id, +AllMeta, -SlotMeta)
+%
+% Validates a slot constraint against the cached slot metadata and returns
+% the appropriate metadata list. Preserves the semantics of the original
+% query:search(select(slot,...)) dispatch.
+
+slot_constraint_match(SlotReq, Repo, Id, AllMeta, SlotMeta) :-
   ( SlotReq == [] ->
-      query:search(select(slot,constraint([]),SlotMeta), Repo://Id)
+      cache:ordered_entry(Repo, Id, _, _, _),
+      SlotMeta = AllMeta
   ; SlotReq = [slot(S0)] ->
       canon_slot(S0, S),
-      query:search(select(slot,constraint([slot(S)]),SlotMeta), Repo://Id)
+      memberchk(slot(S), AllMeta),
+      SlotMeta = AllMeta
   ; SlotReq = [slot(S0),subslot(Ss)] ->
       canon_slot(S0, S),
-      ( query:search(select(slot,constraint([slot(S),subslot(Ss)]),SlotMeta), Repo://Id)
-      -> true
+      ( memberchk(slot(S), AllMeta),
+        memberchk(subslot(Ss), AllMeta)
+      ->
+        SlotMeta = AllMeta
       ; canon_slot(Ss, Ss1),
         Ss1 == S,
         \+ cache:entry_metadata(Repo, Id, subslot, _),
-        query:search(select(slot,constraint([slot(S)]),_SlotMeta0), Repo://Id),
+        memberchk(slot(S), AllMeta),
         SlotMeta = [slot(S),subslot(Ss1)]
       )
   ; SlotReq = [slot(S0),equal] ->
       canon_slot(S0, S),
-      query:search(select(slot,constraint([slot(S),equal]),SlotMeta), Repo://Id)
+      memberchk(slot(S), AllMeta),
+      SlotMeta = AllMeta
   ; SlotReq = [slot(S0),subslot(Ss),equal] ->
       canon_slot(S0, S),
-      ( query:search(select(slot,constraint([slot(S),subslot(Ss),equal]),SlotMeta), Repo://Id)
-      -> true
+      ( memberchk(slot(S), AllMeta),
+        memberchk(subslot(Ss), AllMeta)
+      ->
+        SlotMeta = AllMeta
       ; canon_slot(Ss, Ss1),
         Ss1 == S,
         \+ cache:entry_metadata(Repo, Id, subslot, _),
-        query:search(select(slot,constraint([slot(S)]),_SlotMeta0), Repo://Id),
+        memberchk(slot(S), AllMeta),
         SlotMeta = [slot(S),subslot(Ss1),equal]
       )
   ; SlotReq = [any_same_slot] ->
-      query:search(select(slot,constraint([any_same_slot]),SlotMeta0), Repo://Id),
+      cache:ordered_entry(Repo, Id, _, _, _),
+      findall(slot(S), member(slot(S), AllMeta), SlotMeta0),
       canon_any_same_slot_meta(SlotMeta0, SlotMeta)
   ; SlotReq = [any_different_slot] ->
-      query:search(select(slot,constraint([any_different_slot]),SlotMeta0), Repo://Id),
-      SlotMeta = SlotMeta0
+      cache:ordered_entry(Repo, Id, _, _, _),
+      findall(slot(S), member(slot(S), AllMeta), SlotMeta)
   ; query:search(select(slot,constraint(SlotReq),SlotMeta), Repo://Id)
   ).
 
@@ -1666,12 +1703,12 @@ lua_single_target_rank(Use, Rank) :-
 
 is_preferred_dep(_Context, use_conditional_group(positive, Use, RepoEntry, _Deps)) :-
   \+ Use =.. [minus,_],
-  ( RepoEntry = _Repo://_Id ; RepoEntry = _Repo//_Id ),
+  RepoEntry = _Repo://_Id,
   use:effective_use_for_entry(RepoEntry, Use, positive),
   !.
 is_preferred_dep(_Context, use_conditional_group(negative, Use, RepoEntry, _Deps)) :-
   \+ Use =.. [minus,_],
-  ( RepoEntry = _Repo://_Id ; RepoEntry = _Repo//_Id ),
+  RepoEntry = _Repo://_Id,
   use:effective_use_for_entry(RepoEntry, Use, negative),
   !.
 
@@ -1899,9 +1936,7 @@ should_split_grouped_dep(PackageDeps) :-
 
 augment_package_deps_with_self_rdepend(install, C, N, Context, PackageDeps0, PackageDeps) :-
   ( memberchk(self(RepoEntry0), Context) ->
-      ( RepoEntry0 = Repo://SelfId -> true
-      ; RepoEntry0 = Repo//SelfId  -> true
-      )
+      RepoEntry0 = Repo://SelfId
   ; fail
   ),
   ( dep_has_version_constraints(C, N, PackageDeps0) ->

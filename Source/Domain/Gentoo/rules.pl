@@ -693,7 +693,7 @@ rule(package_dependency(Phase,no,C,N,O,V,S,_U):config?{Context},[]) :-
     ( memberchk(slot(C,N,Ss):{_}, Context) -> true ; Ss = _ ),
     query:search([name(N),category(C),keyword(K),installed(true),
                   select(version,O,V),select(slot,constraint(S),Ss)],
-                 _FoundRepo//Candidate),
+                 _://Candidate),
     Candidate = Candidate
   ; true
   ),
@@ -1114,9 +1114,9 @@ rule(grouped_package_dependency(no,C,N,PackageDeps):depclean?{_Context}, Conditi
     query:search(version(V), pkg://InstalledEntry),
     preference:accept_keywords(K),
     query:search([select(repository,notequal,pkg),category(C),name(N),keywords(K),version(V)],
-                 Repo//InstalledEntry)
+                 Repo://InstalledEntry)
   ->
-    Conditions = [Repo//InstalledEntry:depclean?{[]}]
+    Conditions = [Repo://InstalledEntry:depclean?{[]}]
   ; Conditions = []
   ).
 
@@ -2478,7 +2478,7 @@ rules:rebuild_if_newer_available(pkg://InstalledEntry) :-
   query:search([category(C),name(N),version(VInstalled)], pkg://InstalledEntry),
   preference:accept_keywords(K),
   query:search([select(repository,notequal,pkg),category(C),name(N),keywords(K),version(VRepo)],
-               _CurRepo//_CurEntry),
+               _://_),
   ( preference:flag(rebuildnewver)
   -> VRepo @> VInstalled
   ;  VRepo @>= VInstalled

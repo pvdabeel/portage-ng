@@ -89,12 +89,12 @@ depclean:installed_to_repo_entry(pkg://InstalledEntry, RepoEntry) :-
   query:search([category(C),name(N),version(V)], pkg://InstalledEntry),
   preference:accept_keywords(K),
   ( query:search([select(repository,notequal,pkg),category(C),name(N),keywords(K),version(V)],
-                 Repo//InstalledEntry)
-  -> RepoEntry = Repo//InstalledEntry
+                 Repo://InstalledEntry)
+  -> RepoEntry = Repo://InstalledEntry
   ; % Fallback: if keywords/overlay differ, allow any repo except pkg.
     query:search([select(repository,notequal,pkg),category(C),name(N),version(V)],
-                 Repo2//InstalledEntry),
-    RepoEntry = Repo2//InstalledEntry
+                 Repo2://InstalledEntry),
+    RepoEntry = Repo2://InstalledEntry
   ).
 
 
