@@ -54,7 +54,7 @@ terminal:graph(Type, Repository://Entry) :-
 %
 % Obtain the raw ANSI text content for the given type.
 
-capture_content(merge, Repository://Entry, Content) :-
+terminal:capture_content(merge, Repository://Entry, Content) :-
     Goals = [Repository://Entry:run?{[]}],
     get_time(T0),
     (   catch(
@@ -73,7 +73,7 @@ capture_content(merge, Repository://Entry, Content) :-
     ;   Content = "Failed to compute merge plan."
     ).
 
-capture_content(fetchonly, Repository://Entry, Content) :-
+terminal:capture_content(fetchonly, Repository://Entry, Content) :-
     Goals = [Repository://Entry:fetchonly?{[]}],
     get_time(T0),
     (   catch(
@@ -92,7 +92,7 @@ capture_content(fetchonly, Repository://Entry, Content) :-
     ;   Content = "Failed to compute fetchonly plan."
     ).
 
-capture_content(info, Repository://Entry, Content) :-
+terminal:capture_content(info, Repository://Entry, Content) :-
     (   catch(
             capture_output(info:print_entry(Repository://Entry), Content),
             _,
@@ -102,7 +102,7 @@ capture_content(info, Repository://Entry, Content) :-
     ;   Content = "Failed to retrieve package info."
     ).
 
-capture_content(emerge, Repository://Entry, Content) :-
+terminal:capture_content(emerge, Repository://Entry, Content) :-
     resolve_graph_dir(Repository, Dir),
     atomic_list_concat([Dir, '/', Entry, '.emerge'], File),
     (   exists_file(File)
@@ -116,7 +116,7 @@ capture_content(emerge, Repository://Entry, Content) :-
 % Run Goal with output redirected to a temp file (TTY mode enabled for ANSI),
 % then read the file content back as a string.
 
-capture_output(Goal, String) :-
+terminal:capture_output(Goal, String) :-
     tmp_file_stream(utf8, TmpFile, TmpStream),
     close(TmpStream),
     (   catch(
@@ -144,12 +144,12 @@ capture_output(Goal, String) :-
 %
 % Resolve the graph output directory for a repository.
 
-resolve_graph_dir(Repository, Dir) :-
+terminal:resolve_graph_dir(Repository, Dir) :-
     gethostname(Host),
     config:graph_directory(Host, BaseDir),
     !,
     atomic_list_concat([BaseDir, '/', Repository], Dir).
-resolve_graph_dir(_, '/tmp').
+terminal:resolve_graph_dir(_, '/tmp').
 
 
 %! terminal:merge_wall_seconds_from_graph(+Repository, +Entry, -Seconds)
@@ -157,7 +157,7 @@ resolve_graph_dir(_, '/tmp').
 % If graph output contains Entry.merge with a % merge wall_time_ms line, return
 % seconds as a float; otherwise none. Used on emerge HTML pages for comparison.
 
-merge_wall_seconds_from_graph(Repository, Entry, Sec) :-
+terminal:merge_wall_seconds_from_graph(Repository, Entry, Sec) :-
     resolve_graph_dir(Repository, Dir),
     atomic_list_concat([Dir, '/', Entry, '.merge'], File),
     exists_file(File),
@@ -166,7 +166,7 @@ merge_wall_seconds_from_graph(Repository, Entry, Sec) :-
     member(wall(merge, Ms), Infos),
     !,
     Sec is Ms / 1000.0.
-merge_wall_seconds_from_graph(_, _, none).
+terminal:merge_wall_seconds_from_graph(_, _, none).
 
 
 % -----------------------------------------------------------------------------
@@ -180,9 +180,9 @@ merge_wall_seconds_from_graph(_, _, none).
 % none here; terminal:graph/2 may replace it for emerge with portage-ng merge seconds.
 % For info, Body = Raw and timing_display(none, none).
 
-split_timing_body(info, Raw, Raw, timing_display(none, none)) :-
+terminal:split_timing_body(info, Raw, Raw, timing_display(none, none)) :-
     !.
-split_timing_body(_, Raw, Body, Stats) :-
+terminal:split_timing_body(_, Raw, Body, Stats) :-
     partition_timing_content(Raw, KeptLines, Infos),
     (   Infos = []
     ->  Body = Raw,
@@ -199,13 +199,13 @@ split_timing_body(_, Raw, Body, Stats) :-
 %
 % Split Raw into lines; lines matching timing metadata go to InfoList, others to KeptLines.
 
-partition_timing_content(Raw, KeptLines, InfoList) :-
+terminal:partition_timing_content(Raw, KeptLines, InfoList) :-
     split_string(Raw, "\n", "\r", Lines),
     partition_timing_lines(Lines, KeptLines, InfoList).
 
 
-partition_timing_lines([], [], []).
-partition_timing_lines([Line|Rest], Kept, Infos) :-
+terminal:partition_timing_lines([], [], []).
+terminal:partition_timing_lines([Line|Rest], Kept, Infos) :-
     timing_line_plain_for_meta(Line, Plain),
     (   parse_timing_meta(Plain, Info)
     ->  Kept = Krest,
@@ -221,39 +221,39 @@ partition_timing_lines([Line|Rest], Kept, Infos) :-
 % Strip leading ANSI CSI/OSC so "% emerge started: ..." matches even when
 % Portage colors the timing lines.
 
-timing_line_plain_for_meta(Line, Plain) :-
+terminal:timing_line_plain_for_meta(Line, Plain) :-
     (atom(Line) -> atom_string(Line, S0) ; S0 = Line),
     string_codes(S0, Cs0),
     strip_timing_line_esc_prefix(Cs0, Cs),
     string_codes(Plain, Cs).
 
 
-strip_timing_line_esc_prefix([27, 91 | Rest], Out) :-
+terminal:strip_timing_line_esc_prefix([27, 91 | Rest], Out) :-
     !,
     collect_csi(Rest, _, _Term, After),
     strip_timing_line_esc_prefix(After, Out).
-strip_timing_line_esc_prefix([27, 93 | Rest], Out) :-
+terminal:strip_timing_line_esc_prefix([27, 93 | Rest], Out) :-
     !,
     skip_osc(Rest, After),
     strip_timing_line_esc_prefix(After, Out).
-strip_timing_line_esc_prefix([27, _ | Rest], Out) :-
+terminal:strip_timing_line_esc_prefix([27, _ | Rest], Out) :-
     !,
     strip_timing_line_esc_prefix(Rest, Out).
-strip_timing_line_esc_prefix(Cs, Cs).
+terminal:strip_timing_line_esc_prefix(Cs, Cs).
 
 
-parse_timing_meta(Line, Meta) :-
+terminal:parse_timing_meta(Line, Meta) :-
     parse_timing_started(Line, Meta),
     !.
-parse_timing_meta(Line, Meta) :-
+terminal:parse_timing_meta(Line, Meta) :-
     parse_timing_ended(Line, Meta),
     !.
-parse_timing_meta(Line, Meta) :-
+terminal:parse_timing_meta(Line, Meta) :-
     parse_timing_wall(Line, Meta),
     !.
 
 
-parse_timing_started(Line, started(_Label, EpochStr, Human)) :-
+terminal:parse_timing_started(Line, started(_Label, EpochStr, Human)) :-
     normalize_space(string(T), Line),
     member(Label, [merge, emerge, fetchonly]),
     format(string(Pfx), '% ~w started: ', [Label]),
@@ -261,7 +261,7 @@ parse_timing_started(Line, started(_Label, EpochStr, Human)) :-
     parse_epoch_human_paren(Rest, EpochStr, Human).
 
 
-parse_timing_ended(Line, ended(_Label, EpochStr, Human)) :-
+terminal:parse_timing_ended(Line, ended(_Label, EpochStr, Human)) :-
     normalize_space(string(T), Line),
     member(Label, [merge, emerge, fetchonly]),
     format(string(Pfx), '% ~w ended: ', [Label]),
@@ -269,7 +269,7 @@ parse_timing_ended(Line, ended(_Label, EpochStr, Human)) :-
     parse_epoch_human_paren(Rest, EpochStr, Human).
 
 
-parse_timing_wall(Line, wall(_Label, Ms)) :-
+terminal:parse_timing_wall(Line, wall(_Label, Ms)) :-
     normalize_space(string(T), Line),
     member(Label, [merge, emerge, fetchonly]),
     format(string(Pfx), '% ~w wall_time_ms: ', [Label]),
@@ -278,7 +278,7 @@ parse_timing_wall(Line, wall(_Label, Ms)) :-
     number_string(Ms, MsStr).
 
 
-parse_epoch_human_paren(Rest, EpochStr, Human) :-
+terminal:parse_epoch_human_paren(Rest, EpochStr, Human) :-
     sub_string(Rest, EpLen, 2, _, " ("),
     !,
     sub_string(Rest, 0, EpLen, _, EpochStr),
@@ -295,22 +295,22 @@ parse_epoch_human_paren(Rest, EpochStr, Human) :-
 % WallSec is float seconds from any wall_time_ms line, or none. Second slot is
 % always none here (filled for emerge in terminal:graph/2).
 
-aggregate_timing_infos(Infos, timing_display(WallSec, none)) :-
+terminal:aggregate_timing_infos(Infos, timing_display(WallSec, none)) :-
     timing_wall_seconds(Infos, WallSec).
 
 
-timing_wall_seconds(Infos, Sec) :-
+terminal:timing_wall_seconds(Infos, Sec) :-
     member(wall(_, Ms), Infos),
     !,
     Sec is Ms / 1000.0.
-timing_wall_seconds(_, none).
+terminal:timing_wall_seconds(_, none).
 
 
 %! terminal:format_wall_seconds(+Seconds, -String)
 %
 % Format wall-clock seconds for display (integer if whole, else up to 3 decimals).
 
-format_wall_seconds(Sec, Str) :-
+terminal:format_wall_seconds(Sec, Str) :-
     Ms is round(Sec * 1000),
     (   Ms mod 1000 =:= 0
     ->  S0 is Ms // 1000,
@@ -329,7 +329,7 @@ format_wall_seconds(Sec, Str) :-
 % elements using CSS classes for styling. Handles SGR codes for colors,
 % bold, dim, italic, underline, and resets.
 
-ansi_to_html(Input, Output) :-
+terminal:ansi_to_html(Input, Output) :-
     (atom(Input) -> atom_codes(Input, Codes) ; string_codes(Input, Codes)),
     ansi_walk(Codes, [], [], RevParts),
     reverse(RevParts, Parts),
@@ -340,10 +340,10 @@ ansi_to_html(Input, Output) :-
 %
 % Walk character codes, accumulating HTML output atoms in reverse order.
 
-ansi_walk([], Classes, Acc, Result) :-
+terminal:ansi_walk([], Classes, Acc, Result) :-
     (Classes \= [] -> Result = ['</span>' | Acc] ; Result = Acc).
 
-ansi_walk([27, 91 | Rest], Classes, Acc, Result) :-
+terminal:ansi_walk([27, 91 | Rest], Classes, Acc, Result) :-
     !,
     collect_csi(Rest, ParamCodes, Term, After),
     (   Term == 109
@@ -354,16 +354,16 @@ ansi_walk([27, 91 | Rest], Classes, Acc, Result) :-
     ;   ansi_walk(After, Classes, Acc, Result)
     ).
 
-ansi_walk([27, 93 | Rest], Classes, Acc, Result) :-
+terminal:ansi_walk([27, 93 | Rest], Classes, Acc, Result) :-
     !,
     skip_osc(Rest, After),
     ansi_walk(After, Classes, Acc, Result).
 
-ansi_walk([27, _ | Rest], Classes, Acc, Result) :-
+terminal:ansi_walk([27, _ | Rest], Classes, Acc, Result) :-
     !,
     ansi_walk(Rest, Classes, Acc, Result).
 
-ansi_walk(Codes, Classes, Acc, Result) :-
+terminal:ansi_walk(Codes, Classes, Acc, Result) :-
     collect_plain(Codes, Plain, Rest),
     Plain \= [],
     !,
@@ -371,7 +371,7 @@ ansi_walk(Codes, Classes, Acc, Result) :-
     atom_codes(Atom, Escaped),
     ansi_walk(Rest, Classes, [Atom | Acc], Result).
 
-ansi_walk([_ | Rest], Classes, Acc, Result) :-
+terminal:ansi_walk([_ | Rest], Classes, Acc, Result) :-
     ansi_walk(Rest, Classes, Acc, Result).
 
 
@@ -379,110 +379,110 @@ ansi_walk([_ | Rest], Classes, Acc, Result) :-
 %  ANSI parser helpers
 % -----------------------------------------------------------------------------
 
-collect_csi([C | Rest], [], C, Rest) :-
+terminal:collect_csi([C | Rest], [], C, Rest) :-
     C >= 64, C =< 126, !.
-collect_csi([C | Rest], [C | Params], Term, After) :-
+terminal:collect_csi([C | Rest], [C | Params], Term, After) :-
     collect_csi(Rest, Params, Term, After).
-collect_csi([], [], 0, []).
+terminal:collect_csi([], [], 0, []).
 
 
-parse_sgr_params([], [0]) :- !.
-parse_sgr_params(Codes, Params) :-
+terminal:parse_sgr_params([], [0]) :- !.
+terminal:parse_sgr_params(Codes, Params) :-
     split_semicolon(Codes, Groups),
     maplist(param_number, Groups, Params).
 
-split_semicolon([], [[]]).
-split_semicolon([59 | Rest], [[] | Groups]) :- !,
+terminal:split_semicolon([], [[]]).
+terminal:split_semicolon([59 | Rest], [[] | Groups]) :- !,
     split_semicolon(Rest, Groups).
-split_semicolon([C | Rest], [[C | G] | Gs]) :-
+terminal:split_semicolon([C | Rest], [[C | G] | Gs]) :-
     split_semicolon(Rest, [G | Gs]).
 
-param_number([], 0).
-param_number(Codes, N) :- Codes \= [], catch(number_codes(N, Codes), _, N = 0).
+terminal:param_number([], 0).
+terminal:param_number(Codes, N) :- Codes \= [], catch(number_codes(N, Codes), _, N = 0).
 
 
-skip_osc([], []).
-skip_osc([7 | Rest], Rest) :- !.
-skip_osc([27, 92 | Rest], Rest) :- !.
-skip_osc([_ | Rest], After) :- skip_osc(Rest, After).
+terminal:skip_osc([], []).
+terminal:skip_osc([7 | Rest], Rest) :- !.
+terminal:skip_osc([27, 92 | Rest], Rest) :- !.
+terminal:skip_osc([_ | Rest], After) :- skip_osc(Rest, After).
 
 
-collect_plain([], [], []).
-collect_plain([27 | Rest], [], [27 | Rest]) :- !.
-collect_plain([C | Rest], [C | Plain], After) :-
+terminal:collect_plain([], [], []).
+terminal:collect_plain([27 | Rest], [], [27 | Rest]) :- !.
+terminal:collect_plain([C | Rest], [C | Plain], After) :-
     collect_plain(Rest, Plain, After).
 
 
-html_escape_codes([], []).
-html_escape_codes([38 | R], [0'&, 0'a, 0'm, 0'p, 0'; | Out]) :- !,
+terminal:html_escape_codes([], []).
+terminal:html_escape_codes([38 | R], [0'&, 0'a, 0'm, 0'p, 0'; | Out]) :- !,
     html_escape_codes(R, Out).
-html_escape_codes([60 | R], [0'&, 0'l, 0't, 0'; | Out]) :- !,
+terminal:html_escape_codes([60 | R], [0'&, 0'l, 0't, 0'; | Out]) :- !,
     html_escape_codes(R, Out).
-html_escape_codes([62 | R], [0'&, 0'g, 0't, 0'; | Out]) :- !,
+terminal:html_escape_codes([62 | R], [0'&, 0'g, 0't, 0'; | Out]) :- !,
     html_escape_codes(R, Out).
-html_escape_codes([C | R], Out) :-
+terminal:html_escape_codes([C | R], Out) :-
     C >= 0xE000, C =< 0xF8FF, !,
     atom_codes('<span class="pua">', Open),
     atom_codes('</span>', Close),
     append(Open, [C | Mid], Out),
     append(Close, Tail, Mid),
     html_escape_codes(R, Tail).
-html_escape_codes([C | R], [C | Out]) :- html_escape_codes(R, Out).
+terminal:html_escape_codes([C | R], [C | Out]) :- html_escape_codes(R, Out).
 
 
 % -----------------------------------------------------------------------------
 %  SGR state management
 % -----------------------------------------------------------------------------
 
-apply_sgr_params([], C, C).
-apply_sgr_params([P | Rest], C, Final) :-
+terminal:apply_sgr_params([], C, C).
+terminal:apply_sgr_params([P | Rest], C, Final) :-
     apply_one_sgr(P, C, Mid),
     apply_sgr_params(Rest, Mid, Final).
 
-apply_one_sgr(0, _, []) :- !.
-apply_one_sgr(1, C, R) :- !, add_class(C, 'ansi-bold', R).
-apply_one_sgr(2, C, R) :- !, add_class(C, 'ansi-dim', R).
-apply_one_sgr(3, C, R) :- !, add_class(C, 'ansi-italic', R).
-apply_one_sgr(4, C, R) :- !, add_class(C, 'ansi-underline', R).
-apply_one_sgr(22, C, R) :- !, delete(C, 'ansi-bold', C1), delete(C1, 'ansi-dim', R).
-apply_one_sgr(23, C, R) :- !, delete(C, 'ansi-italic', R).
-apply_one_sgr(24, C, R) :- !, delete(C, 'ansi-underline', R).
-apply_one_sgr(N, C, R) :- N >= 30, N =< 37, !, fg_class(N, Cls), set_fg(C, Cls, R).
-apply_one_sgr(39, C, R) :- !, remove_fg(C, R).
-apply_one_sgr(N, C, R) :- N >= 40, N =< 47, !, bg_class(N, Cls), set_bg(C, Cls, R).
-apply_one_sgr(49, C, R) :- !, remove_bg(C, R).
-apply_one_sgr(N, C, R) :- N >= 90, N =< 97, !, bfg_class(N, Cls), set_fg(C, Cls, R).
-apply_one_sgr(N, C, R) :- N >= 100, N =< 107, !, bbg_class(N, Cls), set_bg(C, Cls, R).
-apply_one_sgr(_, C, C).
+terminal:apply_one_sgr(0, _, []) :- !.
+terminal:apply_one_sgr(1, C, R) :- !, add_class(C, 'ansi-bold', R).
+terminal:apply_one_sgr(2, C, R) :- !, add_class(C, 'ansi-dim', R).
+terminal:apply_one_sgr(3, C, R) :- !, add_class(C, 'ansi-italic', R).
+terminal:apply_one_sgr(4, C, R) :- !, add_class(C, 'ansi-underline', R).
+terminal:apply_one_sgr(22, C, R) :- !, delete(C, 'ansi-bold', C1), delete(C1, 'ansi-dim', R).
+terminal:apply_one_sgr(23, C, R) :- !, delete(C, 'ansi-italic', R).
+terminal:apply_one_sgr(24, C, R) :- !, delete(C, 'ansi-underline', R).
+terminal:apply_one_sgr(N, C, R) :- N >= 30, N =< 37, !, fg_class(N, Cls), set_fg(C, Cls, R).
+terminal:apply_one_sgr(39, C, R) :- !, remove_fg(C, R).
+terminal:apply_one_sgr(N, C, R) :- N >= 40, N =< 47, !, bg_class(N, Cls), set_bg(C, Cls, R).
+terminal:apply_one_sgr(49, C, R) :- !, remove_bg(C, R).
+terminal:apply_one_sgr(N, C, R) :- N >= 90, N =< 97, !, bfg_class(N, Cls), set_fg(C, Cls, R).
+terminal:apply_one_sgr(N, C, R) :- N >= 100, N =< 107, !, bbg_class(N, Cls), set_bg(C, Cls, R).
+terminal:apply_one_sgr(_, C, C).
 
-fg_class(30,'fg-black').   fg_class(31,'fg-red').      fg_class(32,'fg-green').
-fg_class(33,'fg-yellow').  fg_class(34,'fg-blue').     fg_class(35,'fg-magenta').
-fg_class(36,'fg-cyan').    fg_class(37,'fg-white').
+terminal:fg_class(30,'fg-black').   terminal:fg_class(31,'fg-red').      terminal:fg_class(32,'fg-green').
+terminal:fg_class(33,'fg-yellow').  terminal:fg_class(34,'fg-blue').     terminal:fg_class(35,'fg-magenta').
+terminal:fg_class(36,'fg-cyan').    terminal:fg_class(37,'fg-white').
 
-bg_class(40,'bg-black').   bg_class(41,'bg-red').      bg_class(42,'bg-green').
-bg_class(43,'bg-yellow').  bg_class(44,'bg-blue').     bg_class(45,'bg-magenta').
-bg_class(46,'bg-cyan').    bg_class(47,'bg-white').
+terminal:bg_class(40,'bg-black').   terminal:bg_class(41,'bg-red').      terminal:bg_class(42,'bg-green').
+terminal:bg_class(43,'bg-yellow').  terminal:bg_class(44,'bg-blue').     terminal:bg_class(45,'bg-magenta').
+terminal:bg_class(46,'bg-cyan').    terminal:bg_class(47,'bg-white').
 
-bfg_class(90,'fg-bright-black').  bfg_class(91,'fg-bright-red').
-bfg_class(92,'fg-bright-green').  bfg_class(93,'fg-bright-yellow').
-bfg_class(94,'fg-bright-blue').   bfg_class(95,'fg-bright-magenta').
-bfg_class(96,'fg-bright-cyan').   bfg_class(97,'fg-bright-white').
+terminal:bfg_class(90,'fg-bright-black').  terminal:bfg_class(91,'fg-bright-red').
+terminal:bfg_class(92,'fg-bright-green').  terminal:bfg_class(93,'fg-bright-yellow').
+terminal:bfg_class(94,'fg-bright-blue').   terminal:bfg_class(95,'fg-bright-magenta').
+terminal:bfg_class(96,'fg-bright-cyan').   terminal:bfg_class(97,'fg-bright-white').
 
-bbg_class(100,'bg-bright-black'). bbg_class(101,'bg-bright-red').
-bbg_class(102,'bg-bright-green'). bbg_class(103,'bg-bright-yellow').
-bbg_class(104,'bg-bright-blue').  bbg_class(105,'bg-bright-magenta').
-bbg_class(106,'bg-bright-cyan').  bbg_class(107,'bg-bright-white').
+terminal:bbg_class(100,'bg-bright-black'). terminal:bbg_class(101,'bg-bright-red').
+terminal:bbg_class(102,'bg-bright-green'). terminal:bbg_class(103,'bg-bright-yellow').
+terminal:bbg_class(104,'bg-bright-blue').  terminal:bbg_class(105,'bg-bright-magenta').
+terminal:bbg_class(106,'bg-bright-cyan').  terminal:bbg_class(107,'bg-bright-white').
 
-set_fg(Classes, New, [New | Rest]) :- exclude(is_fg, Classes, Rest).
-set_bg(Classes, New, [New | Rest]) :- exclude(is_bg, Classes, Rest).
-remove_fg(Classes, Rest) :- exclude(is_fg, Classes, Rest).
-remove_bg(Classes, Rest) :- exclude(is_bg, Classes, Rest).
-add_class(C, Cls, C) :- memberchk(Cls, C), !.
-add_class(C, Cls, [Cls | C]).
-is_fg(C) :- atom_concat('fg-', _, C).
-is_bg(C) :- atom_concat('bg-', _, C).
+terminal:set_fg(Classes, New, [New | Rest]) :- exclude(is_fg, Classes, Rest).
+terminal:set_bg(Classes, New, [New | Rest]) :- exclude(is_bg, Classes, Rest).
+terminal:remove_fg(Classes, Rest) :- exclude(is_fg, Classes, Rest).
+terminal:remove_bg(Classes, Rest) :- exclude(is_bg, Classes, Rest).
+terminal:add_class(C, Cls, C) :- memberchk(Cls, C), !.
+terminal:add_class(C, Cls, [Cls | C]).
+terminal:is_fg(C) :- atom_concat('fg-', _, C).
+terminal:is_bg(C) :- atom_concat('bg-', _, C).
 
-sgr_transition(Old, New, Acc, Result) :-
+terminal:sgr_transition(Old, New, Acc, Result) :-
     (Old \= [] -> A1 = ['</span>' | Acc] ; A1 = Acc),
     (   New \= []
     ->  atomic_list_concat(New, ' ', Str),
@@ -502,7 +502,7 @@ sgr_transition(Old, New, Acc, Result) :-
 % timing_display(WallSec, CompareNgSec): CompareNgSec is merge seconds for emerge
 % pages only (none otherwise).
 
-emit_html(Type, Target, HtmlContent, TimingStats) :-
+terminal:emit_html(Type, Target, HtmlContent, TimingStats) :-
     Target = Repo://Entry,
     cache:ordered_entry(Repo, Entry, Cat, Name, Version),
     gantt:version_str(Version, Ver),
@@ -518,20 +518,20 @@ emit_html(Type, Target, HtmlContent, TimingStats) :-
     emit_content(Type, HtmlContent, TimingStats),
     emit_body_close.
 
-type_label(merge, 'Merge Plan').
-type_label(fetchonly, 'Fetch Plan').
-type_label(info, 'Package Info').
-type_label(emerge, 'Emerge Output').
+terminal:type_label(merge, 'Merge Plan').
+terminal:type_label(fetchonly, 'Fetch Plan').
+terminal:type_label(info, 'Package Info').
+terminal:type_label(emerge, 'Emerge Output').
 
 
 % -----------------------------------------------------------------------------
 %  HTML emission - document structure
 % -----------------------------------------------------------------------------
 
-emit_doctype :-
+terminal:emit_doctype :-
     write('<!DOCTYPE html>'), nl.
 
-emit_head_open(Cat, Name, Ver, Label) :-
+terminal:emit_head_open(Cat, Name, Ver, Label) :-
     write('<html lang="en" data-theme="dark">'), nl,
     write('<head>'), nl,
     write('<meta charset="UTF-8">'), nl,
@@ -539,13 +539,13 @@ emit_head_open(Cat, Name, Ver, Label) :-
     format('<title>~w/~w-~w &mdash; ~w</title>~n', [Cat, Name, Ver, Label]),
     navtheme:emit_css_link('../').
 
-emit_head_close :-
+terminal:emit_head_close :-
     write('</head>'), nl.
 
-emit_body_open :-
+terminal:emit_body_open :-
     write('<body class="page-terminal">'), nl.
 
-emit_body_close :-
+terminal:emit_body_close :-
     write('</body>'), nl,
     write('</html>'), nl.
 
@@ -554,7 +554,7 @@ emit_body_close :-
 %  HTML emission - body elements
 % -----------------------------------------------------------------------------
 
-emit_title_row(Cat, Name, Ver, Label) :-
+terminal:emit_title_row(Cat, Name, Ver, Label) :-
     write('<div class="header">'), nl,
     write('<div class="title-row">'), nl,
     format('<h1>~w/~w-~w &mdash; ~w</h1>~n', [Cat, Name, Ver, Label]),
@@ -562,7 +562,7 @@ emit_title_row(Cat, Name, Ver, Label) :-
     write('</div>'), nl.
 
 
-emit_content(Type, HtmlContent, TimingStats) :-
+terminal:emit_content(Type, HtmlContent, TimingStats) :-
     write('<div class="content">'), nl,
     write('<pre class="terminal">'),
     write(HtmlContent),
@@ -577,12 +577,12 @@ emit_content(Type, HtmlContent, TimingStats) :-
 % Emit wall time only. On emerge pages, append portage-ng merge time when
 % terminal:merge_wall_seconds_from_graph/3 found a .merge wall_time_ms.
 
-emit_terminal_stats(_, timing_display(none, _)) :-
+terminal:emit_terminal_stats(_, timing_display(none, _)) :-
     !.
-emit_terminal_stats(_, timing_display(W, _)) :-
+terminal:emit_terminal_stats(_, timing_display(W, _)) :-
     W == none,
     !.
-emit_terminal_stats(Type, timing_display(WallSec, CompareNg)) :-
+terminal:emit_terminal_stats(Type, timing_display(WallSec, CompareNg)) :-
     write('<div class="terminal-stats" role="status">'), nl,
     write('  <dl>'), nl,
     format_wall_seconds(WallSec, WStr),
@@ -601,7 +601,7 @@ emit_terminal_stats(Type, timing_display(WallSec, CompareNg)) :-
 %
 % Emit one &lt;dt&gt;/&lt;dd&gt; pair; DdString may contain inline HTML spans.
 
-emit_stat_row_dd(Label, Dd) :-
+terminal:emit_stat_row_dd(Label, Dd) :-
     write('    <dt>'),
     write(Label),
     write('</dt><dd>'),

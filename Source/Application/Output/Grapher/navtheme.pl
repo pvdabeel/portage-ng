@@ -59,7 +59,11 @@ navtheme:emit_nav_bar(Repo, Entry, Cat, Name, ActiveType, Newer, Newest, Older, 
     write('</div>'), nl.
 
 
-emit_nav_group(Repo, Cat, Name) :-
+%! navtheme:emit_nav_group(+Repo, +Cat, +Name) is det.
+%
+% Emit the navigation group with repository, category, and package links.
+
+navtheme:emit_nav_group(Repo, Cat, Name) :-
     write('  <div class="nav-group">'), nl,
     write('    <span class="nav-group-label">nav</span>'), nl,
     format('    <a class="nav-link" href="../index.html">~w</a>~n', [Repo]),
@@ -68,7 +72,11 @@ emit_nav_group(Repo, Cat, Name) :-
     write('  </div>'), nl.
 
 
-emit_version_group(_Entry, ActiveType, Newer, Newest, Older, Oldest) :-
+%! navtheme:emit_version_group(+Entry, +ActiveType, +Newer, +Newest, +Older, +Oldest) is det.
+%
+% Emit the version navigation group with newest/newer/older/oldest links.
+
+navtheme:emit_version_group(_Entry, ActiveType, Newer, Newest, Older, Oldest) :-
     write('  <div class="nav-group">'), nl,
     write('    <span class="nav-group-label">version</span>'), nl,
     emit_version_link(Newest, '&laquo;', ActiveType),
@@ -78,7 +86,11 @@ emit_version_group(_Entry, ActiveType, Newer, Newest, Older, Oldest) :-
     write('  </div>'), nl.
 
 
-emit_graphs_group(Entry, ActiveType) :-
+%! navtheme:emit_graphs_group(+Entry, +ActiveType) is det.
+%
+% Emit the graphs navigation group with detail, deptree, and gantt links.
+
+navtheme:emit_graphs_group(Entry, ActiveType) :-
     write('  <div class="nav-group">'), nl,
     write('    <span class="nav-group-label">graphs</span>'), nl,
     emit_type_link(Entry, detail,  detail,  ActiveType),
@@ -87,7 +99,11 @@ emit_graphs_group(Entry, ActiveType) :-
     write('  </div>'), nl.
 
 
-emit_cli_group(Entry, ActiveType) :-
+%! navtheme:emit_cli_group(+Entry, +ActiveType) is det.
+%
+% Emit the CLI navigation group with merge, fetchonly, and info links.
+
+navtheme:emit_cli_group(Entry, ActiveType) :-
     write('  <div class="nav-group">'), nl,
     write('    <span class="nav-group-label">cli</span>'), nl,
     emit_type_link(Entry, merge,    '--merge',    ActiveType),
@@ -96,7 +112,11 @@ emit_cli_group(Entry, ActiveType) :-
     write('  </div>'), nl.
 
 
-emit_legacy_group(Entry, ActiveType) :-
+%! navtheme:emit_legacy_group(+Entry, +ActiveType) is det.
+%
+% Emit the legacy navigation group with emerge link.
+
+navtheme:emit_legacy_group(Entry, ActiveType) :-
     write('  <div class="nav-group">'), nl,
     write('    <span class="nav-group-label">legacy</span>'), nl,
     emit_type_link(Entry, emerge, emerge, ActiveType),
@@ -107,11 +127,11 @@ emit_legacy_group(Entry, ActiveType) :-
 %
 % Emit a navigation link. Active when Type == ActiveType.
 
-emit_type_link(_Entry, Type, Label, Type) :-
+navtheme:emit_type_link(_Entry, Type, Label, Type) :-
     !,
     format('    <a class="nav-link active">~w</a>~n', [Label]).
 
-emit_type_link(Entry, Type, Label, _) :-
+navtheme:emit_type_link(Entry, Type, Label, _) :-
     format('    <a class="nav-link" href="../~w-~w.html">~w</a>~n',
            [Entry, Type, Label]).
 
@@ -120,11 +140,11 @@ emit_type_link(Entry, Type, Label, _) :-
 %
 % Emit a version navigation link. Disabled when Entry is empty.
 
-emit_version_link('', Label, _) :-
+navtheme:emit_version_link('', Label, _) :-
     !,
     format('    <a class="nav-link disabled">~w</a>~n', [Label]).
 
-emit_version_link(Entry, Label, Type) :-
+navtheme:emit_version_link(Entry, Label, Type) :-
     format('    <a class="nav-link" href="../~w-~w.html" title="~w">~w</a>~n',
            [Entry, Type, Entry, Label]).
 

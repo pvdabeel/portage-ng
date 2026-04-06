@@ -132,13 +132,19 @@ report:print_results(Results) :-
 
 
 %! report:partition_issues(+Results, -Removed, -Masked, -Updates) is det.
+%
+% Partitions the list of issues into three lists: Removed, Masked, and Updates.
 
 report:partition_issues([], [], [], []).
+
 report:partition_issues([issue(E,removed,D)|Rest], [issue(E,removed,D)|R], M, U) :-
   report:partition_issues(Rest, R, M, U).
+
 report:partition_issues([issue(E,masked,D)|Rest], R, [issue(E,masked,D)|M], U) :-
   report:partition_issues(Rest, R, M, U).
+
 report:partition_issues([issue(E,update,D)|Rest], R, M, [issue(E,update,D)|U]) :-
   report:partition_issues(Rest, R, M, U).
+
 report:partition_issues([_|Rest], R, M, U) :-
   report:partition_issues(Rest, R, M, U).
