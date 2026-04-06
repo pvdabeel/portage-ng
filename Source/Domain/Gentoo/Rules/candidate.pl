@@ -2570,7 +2570,7 @@ candidate:resolve_grouped_dep(Action, C, N, PackageDeps1, _PackageDepsOrig, Cont
   candidate:grouped_dep_select_and_build(Action, C, N, PackageDeps1, Context, Conditions),
   !.
 
-candidate:resolve_grouped_dep(Action, C, N, PackageDeps1, _PackageDepsOrig, Context, _) :-
+candidate:resolve_grouped_dep(_Action, C, N, PackageDeps1, _PackageDepsOrig, Context, _) :-
   \+ memo:requse_violation_(C, N, _),
   candidate:maybe_learn_parent_narrowing(C, N, PackageDeps1, Context),
   fail.
@@ -2717,7 +2717,7 @@ candidate:grouped_dep_verify_candidate(false, Action, C, N, PackageDeps1, Contex
 % Processes USE deps (bracketed constraints, PDEPEND stripping, BWU conflict
 % checks) and slot binding for the selected candidate.
 
-candidate:grouped_dep_use_and_slot(Action, C, N, PackageDeps1, SlotReq, Context,
+candidate:grouped_dep_use_and_slot(_Action, C, N, PackageDeps1, SlotReq, Context,
                                    FoundRepo://Candidate,
                                    Constraints, SlotMeta, NewerContext0) :-
   ( member(package_dependency(pdepend,_,C,N,_,_,_,_), PackageDeps1) ->
