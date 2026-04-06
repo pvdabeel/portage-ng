@@ -192,13 +192,13 @@ digraph portage_ng_architecture {
       style=dashed;
 
       rule_candidate [shape=box, style=filled, fillcolor="#f5eeff",
-                      label="candidate.pl\n─────────────────\nCandidate selection pipeline\nSlot merging & processing\nVersion coercion & CN-consistency\nBlocker matching & ranking\nDependency ordering"];
+                      label="candidate.pl\n─────────────────\nCandidate selection pipeline\nSlot merging & processing\nVersion domain matching & CN-consistency\nBlocker matching & ranking\nDependency ordering"];
       rule_use       [shape=box, style=filled, fillcolor="#f5eeff",
                       label="use.pl\n─────────────────\nEffective USE resolution\nbuild_with_use propagation\nREQUIRED_USE satisfaction\n--newuse detection\nUSE conditionals (=, ?, !)"];
       rule_heuristic [shape=box, style=filled, fillcolor="#f5eeff",
                       label="heuristic.pl\n─────────────────\nDomain prover hooks:\nhandle_reprove, reprove_exhausted\nobligation_candidate\nSnapshot init/cleanup"];
       rule_dependency [shape=box, style=filled, fillcolor="#f5eeff",
-                       label="dependency.pl\n─────────────────\nSelf-context injection\nUSE requirement collection\nSlot/build_with_use context\npropagation"];
+                       label="dependency.pl\n─────────────────\nSelf-entry injection\nUSE requirement collection\nSlot/build_with_use ?{Context}\npropagation"];
       rule_target    [shape=box, style=filled, fillcolor="#f5eeff",
                       label="target.pl\n─────────────────\nTransactional update/downgrade\ncondition building\nDeep-update goal generation\nDependency CN extraction"];
       rule_memo      [shape=box, style=filled, fillcolor="#f5eeff",
@@ -248,7 +248,7 @@ digraph portage_ng_architecture {
       explainer      [shape=box, style=filled, fillcolor="#f5eeff",
                       label="explainer.pl  [Pipeline/Prover/]\n─────────────────\nwhy_in_plan/5,6\nwhy_in_proof/3,4\nwhy_assumption/4,5\nexplain/2,3 → LLM\n(introspection + explanation)"];
       issue_mod      [shape=box, style=filled, fillcolor="#f5eeff",
-                      label="issue.pl  [Domain/Gentoo/]\n─────────────────\nknown_tree_issue/3\ndetect_version_range_gap/3\ntree_issue_context/4\n(tree issue contextualisation)"];
+                      label="issue.pl  [Domain/Gentoo/]\n─────────────────\nknown_tree_issue/3\ndetect_version_range_gap/3\ntree_issue_context/4\n(tree issue notes)"];
     }
   }
 
@@ -298,7 +298,7 @@ digraph portage_ng_architecture {
     interface [shape=box, style=filled, fillcolor="#eeeeee",
                label="interface.pl + Interface/  [Application/]\n─────────────────────────────\nCLI: spec, argv, flags, verify\n+ action.pl → 15 Action/ handlers\n  (sync, graph, merge, build,\n   search, info, upgrade, …)\n+ target.pl (target resolution)\nModes: --pretend, --graph,\n  --shell, --sync, --ci\nExit codes: 0/1/2"];
     printer [shape=box, style=filled, fillcolor="#eeeeee",
-             label="printer.pl + Printer/  [Pipeline/]\n─────────────────────────────\nStep-by-step plan with actions\nReason-aware assumption display:\n  version_conflict, slot_unsatisfied,\n  keyword_filtered, masked, missing,\n  unsatisfied_constraints, …\nBlockers, cycle-breaks\nSuggestions (unmask/keyword/USE)\nTree issue contextualisation\nDownload size totals\nUSE flag display\n+ Plan/ Build/ News/ index\n  info stats state"];
+             label="printer.pl + Printer/  [Pipeline/]\n─────────────────────────────\nStep-by-step plan with actions\nReason-aware assumption display:\n  version_conflict, slot_unsatisfied,\n  keyword_filtered, masked, missing,\n  unsatisfied_constraints, …\nBlockers, cycle-breaks\nSuggestions (unmask/keyword/USE)\nTree issue notes\nDownload size totals\nUSE flag display\n+ Plan/ Build/ News/ index\n  info stats state"];
     grapher [shape=box, style=filled, fillcolor="#eeeeee",
              label="grapher.pl + Grapher/  [Application/Output/]\n─────────────────────────────\nIterates all targets\n--graph full / --graph partial\nWrites .merge files\nParallel via worker threads\n+ Report/report.pl"];
     terminal [shape=note, label="Terminal output\nor .merge files\n(Graph directory)"];
@@ -440,7 +440,7 @@ digraph portage_ng_architecture {
   // Submodule usage
   rule_grouped -> rule_candidate [label="selection +\nslot logic", style=dashed];
   rule_install -> rule_use       [label="USE evaluation", style=dashed];
-  rule_install -> rule_dependency [label="context\npropagation", style=dashed];
+  rule_install -> rule_dependency [label="?{Context}\npropagation", style=dashed];
   rule_update  -> rule_target    [label="txn conditions", style=dashed];
   rule_hook    -> rule_memo      [style=dashed, label="cache lookups"];
   rule_hook    -> rule_heuristic [style=dashed, label="reprove hooks"];
@@ -475,7 +475,7 @@ digraph portage_ng_architecture {
   ctx_union -> feat_unify [style=dashed];
   assumption -> explanation_m [style=dashed, label="classify"];
   explanation_m -> explainer [style=dashed];
-  issue_mod -> printer       [style=dashed, constraint=false, label="tree issue\ncontextualisation"];
+  issue_mod -> printer       [style=dashed, constraint=false, label="tree issue\nnotes"];
   explanation_m -> issue_mod [style=dashed, label="known issue\nlookup"];
 
   // Prover output

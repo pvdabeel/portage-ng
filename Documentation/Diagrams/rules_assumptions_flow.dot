@@ -76,12 +76,12 @@ digraph rules_assumptions_bpmn {
     g_sslock [shape=diamond, label="SlotReq == [any_same_slot]\nAND context has slot(C,N,Ss)?"];
     g_sslock_bind [shape=box, label="SsLock = canon_any_same_slot_meta(Ss)\n(:= slot lock binding)"];
 
-    g_select [shape=box, label="candidate selection (candidate.pl):\n─────────────────\n1. explicit slot dep → accepted_keyword_candidate\n2. selected_cn_candidate_compatible\n   (slot+domain check, CandPreVerified=true)\n3. accepted_keyword_candidate\n   excluding selected_cn rejects for this dep\n   (CandPreVerified=false)"];
+    g_select [shape=box, label="candidate selection (candidate.pl):\n─────────────────\n1. explicit slot dep → accepted_keyword_candidate\n2. selected_cn_candidate_compatible\n   (slot+domain check, CandPreVerified=true)\n3. accepted_keyword_candidate\n   with lazy inline rejection check\n   (CandPreVerified=false)"];
 
     g_self_guard [shape=diamond, label="candidate == self entry?"];
     g_self_installed [shape=diamond, label="if self candidate:\n!emptytree AND installed(true)?"];
 
-    g_version_guard [shape=diamond, label="CandPreVerified == true\nOR all version constraints\n+ effective domain pass?"];
+    g_version_guard [shape=diamond, label="CandPreVerified == true\nOR cache:ordered_entry version\n+ preference:version_match\n+ effective domain pass?"];
 
     g_reverse_dep [shape=diamond, label="candidate_reverse_deps_compatible\n_with_parent?\n(RDEPEND back-check)"];
 
@@ -468,7 +468,7 @@ digraph rules_assumptions_bpmn {
   // =========================================================================
 
   subgraph cluster_issue {
-    label="issue.pl : tree issue contextualisation";
+    label="issue.pl : tree issue notes";
     color="#888888";
     fontcolor="#888888";
 
@@ -530,7 +530,7 @@ digraph rules_assumptions_bpmn {
   pr_ctx_check -> pr_generic [label="no reason"];
 
   // Assumption → issue contextualisation
-  g_assume -> iss_start [style=dashed, label="tree issue context"];
+  g_assume -> iss_start [style=dashed, label="tree issue notes"];
   iss_start -> iss_known;
   iss_known -> iss_known_note [label="yes"];
   iss_known -> iss_detect [label="no"];
