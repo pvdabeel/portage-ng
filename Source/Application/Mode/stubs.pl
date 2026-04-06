@@ -51,17 +51,22 @@ client:execute_remotely(_,_,_) :-
 
 :- dynamic server:start_server/0.
 :- dynamic server:stop_server/0.
+:- dynamic server:git_head/2.
 
 :- if(\+ current_module(server)).
 
 :- multifile server:start_server/0.
 :- multifile server:stop_server/0.
+:- multifile server:git_head/2.
 
 server:start_server :-
     print_message(error, "Server module not loaded, cannot start server").
 
 server:stop_server :-
     print_message(error, "Server module not loaded, cannot stop server").
+
+server:git_head(_, _) :-
+    print_message(error, "Server module not loaded, cannot determine git head").
 
 :- endif.
 
