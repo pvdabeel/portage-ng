@@ -47,11 +47,11 @@ client:remote_predicate_template(preference:local_accept_keywords(_)).
 client:remote_predicate_template(preference:local_flag(_)).
 
 % Per-package USE overrides (/etc/portage/package.use + profile)
-client:remote_predicate_template(preference:package_use_override(_,_,_,_)).
-client:remote_predicate_template(preference:gentoo_package_use_soft(_,_,_)).
-client:remote_predicate_template(preference:profile_package_use_soft(_,_,_)).
-client:remote_predicate_template(preference:profile_package_use_masked(_,_)).
-client:remote_predicate_template(preference:profile_package_use_forced(_,_)).
+client:remote_predicate_template(preference:userconfig_use(_,_,_,_)).
+client:remote_predicate_template(preference:userconfig_use_versioned(_,_,_)).
+client:remote_predicate_template(preference:profile_use_soft(_,_,_)).
+client:remote_predicate_template(preference:profile_use_masked(_,_)).
+client:remote_predicate_template(preference:profile_use_forced(_,_)).
 
 % Package masking (profiles + /etc/portage/package.mask)
 client:remote_predicate_template(preference:masked(_)).

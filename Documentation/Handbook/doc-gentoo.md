@@ -19,14 +19,14 @@ config:portage_confdir('Source/Config/Gentoo').
 ```
 
 Comment the predicate out (or leave it undefined) to fall back to the
-legacy `config:gentoo_env/2` and `config:gentoo_package_*/1-2` facts.
+`fallback:env/2` and `fallback:package_*/1-2` defaults.
 
 ## Supported files
 
 | File | Gentoo path | portage-ng mapping | Notes |
 |------|-------------|-------------------|-------|
-| `make.conf` | `/etc/portage/make.conf` | `gentoo:env/2` → feeds `preference:getenv/2` | USE, ACCEPT_KEYWORDS, ACCEPT_LICENSE, VIDEO_CARDS, INPUT_DEVICES, CPU_FLAGS_X86, PYTHON_TARGETS, etc. |
-| `package.use` | `/etc/portage/package.use` | `preference:gentoo_package_use_soft/3`, `preference:package_use_override/4` | Per-package USE flag overrides |
+| `make.conf` | `/etc/portage/make.conf` | `userconfig:env/2` → feeds `preference:getenv/2` | USE, ACCEPT_KEYWORDS, ACCEPT_LICENSE, VIDEO_CARDS, INPUT_DEVICES, CPU_FLAGS_X86, PYTHON_TARGETS, etc. |
+| `package.use` | `/etc/portage/package.use` | `preference:userconfig_use_versioned/3`, `preference:userconfig_use/4` | Per-package USE flag overrides |
 | `package.mask` | `/etc/portage/package.mask` | `preference:masked/1` | User package masks |
 | `package.unmask` | `/etc/portage/package.unmask` | Retracts `preference:masked/1` | Overrides profile-level masks |
 | `package.accept_keywords` | `/etc/portage/package.accept_keywords` | `gentoo:package_keyword/2` | Per-package keyword acceptance |
@@ -98,8 +98,8 @@ The configuration precedence chain for environment-like settings (USE,
 ACCEPT_KEYWORDS, etc.) from highest to lowest:
 
 1. **CLI environment variables** (`interface:getenv/2`)
-2. **make.conf values** (`gentoo:env/2`)
-3. **config.pl facts** (`config:gentoo_env/2`)
+2. **make.conf values** (`userconfig:env/2`)
+3. **fallback defaults** (`fallback:env/2`)
 4. **Built-in defaults** (`preference:default_env/2`)
 
 For package masks and USE overrides, the application order in
@@ -107,7 +107,7 @@ For package masks and USE overrides, the application order in
 
 1. Gentoo profile tree (profile `package.mask`, `package.use`, `use.mask`, `use.force`)
 2. `/etc/portage` files via `gentoo:load`
-3. Legacy `config:gentoo_package_mask/1` and `config:gentoo_package_use/2` facts
+3. Fallback defaults `fallback:package_mask/1` and `fallback:package_use/2`
 
 ## Profile loading strategy
 
@@ -153,8 +153,8 @@ tree once and serializes all profile-derived data to `Knowledge/profile.qlf`.
 ```
 Source/Config/gentoo.pl           /etc/portage configuration reader
   ├── load/0                      main entry point
-  ├── load_make_conf/1            KEY="value" → gentoo:env/2
-  ├── load_package_use/1          → preference:register_gentoo_package_use/2
+  ├── load_make_conf/1            KEY="value" → userconfig:env/2
+  ├── load_package_use/1          → preference:register_fallback_package_use/2
   ├── load_package_mask/1         → preference:mask_profile_atom/1
   ├── load_package_unmask/1       → preference:unmask_profile_atom/1
   ├── load_package_accept_keywords/1 → gentoo:package_keyword/2
@@ -171,7 +171,7 @@ Source/Domain/Gentoo/profile.pl                  profile reading + cache seriali
 
 preference.pl
   ├── use_cached_profile/0        checks mode + config + cache availability
-  ├── getenv/2                    consults gentoo:env/2 (between CLI and config.pl)
+  ├── getenv/2                    consults userconfig:env/2 then fallback:env/2
   └── init/0                     uses cached or live profile based on config
 ```
 

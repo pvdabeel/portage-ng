@@ -4,8 +4,8 @@
 #         =cat/pkg-1.2  flag1   (versioned atoms supported)
 #
 # This can also be a directory containing multiple files.
-# portage-ng reads it and maps entries into preference:gentoo_package_use_soft/3
-# and preference:package_use_override/4.
+# portage-ng reads it and maps entries into preference:userconfig_use_versioned/3
+# and preference:userconfig_use/4.
 #
 # See: https://wiki.gentoo.org/wiki//etc/portage/package.use
 

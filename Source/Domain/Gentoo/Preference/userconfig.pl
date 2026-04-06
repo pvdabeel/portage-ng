@@ -9,19 +9,17 @@
 
 
 /** <module> USERCONFIG
-Reads standard Gentoo /etc/portage user configuration files.
+Pure I/O layer: reads standard Gentoo /etc/portage user configuration files.
 
-This module makes portage-ng a drop-in replacement for Gentoo's Portage by
-reading the same configuration files that Portage reads from /etc/portage/.
-Each file is parsed and mapped into the existing preference system.
+This module performs no policy decisions.  It parses the files and feeds
+the results into preference.pl, which controls layering and precedence.
 
 Portage calls this directory the "user config" (USER_CONFIG_PATH in
 portage/const.py), as distinct from the profile configuration tree.
 
 Supported files:
   - make.conf           -> userconfig:env/2  (feeds preference:getenv/2)
-  - package.use          -> preference:gentoo_package_use_soft/3,
-                           preference:package_use_override/4
+  - package.use          -> preference:register_fallback_package_use/2
   - package.mask         -> preference:masked/1
   - package.unmask       -> unmasks profile/user masks
   - package.accept_keywords -> userconfig:package_keyword/2
@@ -32,7 +30,8 @@ convention: if the path is a directory, all files in it are read in sorted
 order).
 
 The configuration directory defaults to config:portage_confdir/1 (typically
-/etc/portage on a Gentoo system, or Source/Domain/Gentoo/UserConfig for development).
+/etc/portage on a Gentoo system, or Source/Domain/Gentoo/Preference/UserConfig for
+development).
 */
 
 :- module(userconfig, []).
@@ -110,7 +109,7 @@ userconfig:load_make_conf(Dir) :-
 %! userconfig:load_package_use(+Dir) is det.
 %
 % Parse package.use (file or directory) and register per-package USE
-% overrides via preference:register_gentoo_package_use/2.
+% overrides via preference:register_fallback_package_use/2.
 
 userconfig:load_package_use(Dir) :-
   directory_file_path(Dir, 'package.use', Path),
@@ -125,7 +124,7 @@ userconfig:apply_package_use_line(Line) :-
       atom_string(Atom, AtomS),
       maplist([S,A]>>atom_string(A,S), FlagSs, FlagAtoms),
       atomic_list_concat(FlagAtoms, ' ', UseStr),
-      catch(preference:register_gentoo_package_use(Atom, UseStr), _, true)
+      catch(preference:register_fallback_package_use(Atom, UseStr), _, true)
   ; true
   ).
 

@@ -99,19 +99,19 @@ effective_use_in_context(Context, Use, State) :-
   cache:ordered_entry(Repo, Id, C, N, _),
       ( variant:use_overridden(Use, Eff) ->
       true
-  ; preference:profile_package_use_override_for_entry(Repo://Id, Use, Eff, _Reason0) ->
+  ; preference:profile_use_hard(Repo://Id, Use, Eff, _Reason0) ->
       true
-  ; preference:package_use_override(C, N, Use, positive) ->
+  ; preference:userconfig_use(C, N, Use, positive) ->
       Eff = positive
-  ; preference:package_use_override(C, N, Use, negative) ->
+  ; preference:userconfig_use(C, N, Use, negative) ->
       Eff = negative
-  ; preference:gentoo_package_use_override_for_entry_soft(Repo://Id, Use, Eff0) ->
+  ; preference:userconfig_use_match(Repo://Id, Use, Eff0) ->
       Eff = Eff0
-  ; preference:profile_package_use_override_for_entry_soft(Repo://Id, Use, Eff0) ->
+  ; preference:profile_use_soft_match(Repo://Id, Use, Eff0) ->
       Eff = Eff0
-  ; preference:use(Use) ->
+  ; preference:global_use(Use) ->
       Eff = positive
-  ; preference:use(minus(Use)) ->
+  ; preference:global_use(minus(Use)) ->
       Eff = negative
   ; Eff = Default
   ),
@@ -136,19 +136,19 @@ effective_use_for_entry(RepoEntry0, Use, State) :-
   cache:ordered_entry(Repo, Id, C, N, _),
       ( variant:use_overridden(Use, Eff) ->
       true
-  ; preference:profile_package_use_override_for_entry(Repo://Id, Use, Eff, _Reason0) ->
+  ; preference:profile_use_hard(Repo://Id, Use, Eff, _Reason0) ->
       true
-  ; preference:package_use_override(C, N, Use, positive) ->
+  ; preference:userconfig_use(C, N, Use, positive) ->
       Eff = positive
-  ; preference:package_use_override(C, N, Use, negative) ->
+  ; preference:userconfig_use(C, N, Use, negative) ->
       Eff = negative
-  ; preference:gentoo_package_use_override_for_entry_soft(Repo://Id, Use, Eff0) ->
+  ; preference:userconfig_use_match(Repo://Id, Use, Eff0) ->
       Eff = Eff0
-  ; preference:profile_package_use_override_for_entry_soft(Repo://Id, Use, Eff0) ->
+  ; preference:profile_use_soft_match(Repo://Id, Use, Eff0) ->
       Eff = Eff0
-  ; preference:use(Use) ->
+  ; preference:global_use(Use) ->
       Eff = positive
-  ; preference:use(minus(Use)) ->
+  ; preference:global_use(minus(Use)) ->
       Eff = negative
   ; Eff = Default
   ),
@@ -383,7 +383,7 @@ model_assumption_to_change(assumed(conflict(required_use, at_most_one_of_group(D
 required_use_group_pick_flag(Deps, Flag) :-
     findall(F, ( member(required(F), Deps), atom(F), \+ F = minus(_) ), Flags),
     Flags \== [],
-    ( member(F, Flags), preference:use(F) ->
+    ( member(F, Flags), preference:global_use(F) ->
         Flag = F
     ; last(Flags, Flag)
     ).
@@ -393,7 +393,7 @@ required_use_group_pick_flag(Deps, Flag) :-
 % the first. The first enabled flag is kept; extras should be disabled.
 required_use_group_excess_flags(Deps, Flag) :-
     findall(F, ( member(required(F), Deps), atom(F), \+ F = minus(_),
-                 preference:use(F) ), Enabled),
+                 preference:global_use(F) ), Enabled),
     Enabled = [_Keep|Extras],
     Extras \== [],
     member(Flag, Extras).
@@ -678,27 +678,27 @@ entry_effective_use_set(Repo://Entry, EnabledSet) :-
 
 candidate_effective_use_enabled_raw(Repo://Entry, Use) :-
   cache:ordered_entry(Repo, Entry, C, N, _),
-  ( preference:profile_package_use_override_for_entry(Repo://Entry, Use, positive, _Reason0) ->
+  ( preference:profile_use_hard(Repo://Entry, Use, positive, _Reason0) ->
       true
-  ; preference:profile_package_use_override_for_entry(Repo://Entry, Use, negative, _Reason0) ->
+  ; preference:profile_use_hard(Repo://Entry, Use, negative, _Reason0) ->
       fail
-  ; preference:package_use_override(C, N, Use, positive) ->
+  ; preference:userconfig_use(C, N, Use, positive) ->
       true
-  ; preference:package_use_override(C, N, Use, negative) ->
+  ; preference:userconfig_use(C, N, Use, negative) ->
       fail
-  ; preference:gentoo_package_use_override_for_entry_soft(Repo://Entry, Use, positive) ->
+  ; preference:userconfig_use_match(Repo://Entry, Use, positive) ->
       true
-  ; preference:gentoo_package_use_override_for_entry_soft(Repo://Entry, Use, negative) ->
+  ; preference:userconfig_use_match(Repo://Entry, Use, negative) ->
       fail
-  ; preference:profile_package_use_override_for_entry_soft(Repo://Entry, Use, positive) ->
+  ; preference:profile_use_soft_match(Repo://Entry, Use, positive) ->
       true
-  ; preference:profile_package_use_override_for_entry_soft(Repo://Entry, Use, negative) ->
+  ; preference:profile_use_soft_match(Repo://Entry, Use, negative) ->
       fail
-  ; preference:use(Use) ->
+  ; preference:global_use(Use) ->
       true
   ; use_expand_selector_flag_unset(Use) ->
       fail
-  ; preference:use(minus(Use)),
+  ; preference:global_use(minus(Use)),
     \+ is_abi_x86_flag(Use) ->
       fail
   ; entry_iuse_info(Repo://Entry, iuse_info(_IuseSet, PlusSet)),
@@ -721,8 +721,8 @@ use_expand_selector_flag_unset(Use) :-
   atom_concat(Prefix, '_', PrefixUnderscore),
   atom_concat(PrefixUnderscore, _, Use),
   use_expand_prefix_has_explicit_selection(Prefix),
-  \+ preference:use(Use),
-  \+ preference:use(minus(Use)),
+  \+ preference:global_use(Use),
+  \+ preference:global_use(minus(Use)),
   !.
 
 %! use:use_expand_prefix_has_explicit_selection(+Prefix)
@@ -732,8 +732,8 @@ use_expand_selector_flag_unset(Use) :-
 
 use_expand_prefix_has_explicit_selection(Prefix) :-
   atom_concat(Prefix, '_', PrefixUnderscore),
-  ( preference:use(Use0)
-  ; preference:use(minus(Use0))
+  ( preference:global_use(Use0)
+  ; preference:global_use(minus(Use0))
   ),
   atom(Use0),
   atom_concat(PrefixUnderscore, _, Use0),
@@ -742,7 +742,7 @@ use_expand_prefix_has_explicit_selection(Prefix) :-
 %! use:is_abi_x86_flag(+Use)
 %
 % True if Use starts with `abi_x86_`. These flags receive special
-% treatment: `preference:use(minus(abi_x86_*))` does not override
+% treatment: `preference:global_use(minus(abi_x86_*))` does not override
 % IUSE `+` defaults, because ABI flags are typically profile-managed.
 
 is_abi_x86_flag(Use) :-
@@ -1205,7 +1205,7 @@ requse_term_fixes(_RepoEntry, _En, _Dis, _, []).
 requse_pick_satisfying_flag(Deps, Flag) :-
     findall(F, (member(required(F), Deps), atom(F), \+ F = minus(_)), Flags),
     Flags \== [],
-    ( member(F, Flags), preference:use(F) ->
+    ( member(F, Flags), preference:global_use(F) ->
         Flag = F
     ; last(Flags, Flag)
     ).

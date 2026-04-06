@@ -126,72 +126,15 @@ config:profile_loading(server,     cached).
 % package.accept_keywords, and package.license from this directory.
 %
 % On a Gentoo system, set this to '/etc/portage'.
-% For development, use the bundled templates in Source/Domain/Gentoo/UserConfig.
+% For development, use the bundled templates in Source/Domain/Gentoo/Preference/UserConfig.
 % Comment out to disable file-based configuration entirely (falls back to the
-% config:gentoo_env/2 and config:gentoo_package_*/1-2 facts below).
+% fallback:env/2 and fallback:package_*/1-2 facts in Preference/fallback.pl).
 
 % config:portage_confdir('/etc/portage').
 
-% Optional: model selected Portage /etc/portage settings without exporting envvars.
-% If set, `preference:getenv/2` will consult these when the real environment
-% variable is absent.  When config:portage_confdir/1 is set, make.conf values
-% take precedence over these facts (but both are consulted).
-%
-% Example:
-%   config:gentoo_env('USE', 'X alsa dbus truetype -systemd -introspection -launcher').
-%
-% Leave unset (or empty) if you prefer to drive this via real envvars or make.conf.
-
-% Proposed baseline USE to match the parity diffs we observed:
-% - Fixes major missing deps driven by disabled flags in portage-ng plans:
-%     X       -> xprop/xset/libXtst/... (e.g. xdg-utils, conky)
-%     alsa    -> alsa-lib/alsa-ucm-conf/... (e.g. flite)
-%     dbus    -> pulls dbus-related deps where emerge has dbus enabled
-%     truetype-> matches emerge defaults seen in conky
-% - Prevents the known large "extra in merge" chains:
-%     -launcher (dbus-broker) and -introspection (glib stack)
-%     -systemd  (OpenRC profile expectations)
-%
-% Mirror Gentoo /etc/portage/make.conf (vm-linux) USE, normalized (last occurrence wins).
-% NOTE: The USE string is incremental; "last occurrence wins".
-% Keep `introspection` enabled for GNOME/KDE stacks (many deps require glib[introspection]).
-
-config:gentoo_env('USE', 'berkdb harfbuzz lto dnet resolutionkms o-flag-munging pgo graphite optimizations aio npm http split-usr -elogind policykit json -systemd -llvm -lua -berkdb -gdbm -introspection -vala -xen -hcache -ruby python gdbm fbcondecor messages smp qemu sqlite mmxext -svg avahi mmx sse sse2 sse3 ssse3 sse4 sse4_2 gmp cvs git x86emu gpg imap pop sidebar smime smtp dbus truetype X -xvmc xa xkb libkms cairo glitz png jpeg tiff gif mp3 opengl xcb xlib-xcb alsa aac aacplus jpeg2k fontconfig openssl ssh threads x264 x265 xvid dts md5sum a52 aalib zeroconf pkcs11 apng xattr nova account container object proxy directfb pcre16 -mdnsresponder-compat gpm').
-config:gentoo_env('VIDEO_CARDS', 'vmware vesa vga').
-config:gentoo_env('INPUT_DEVICES', 'evdev keyboard mouse vmmouse').
-config:gentoo_env('ALSA_CARDS', 'ens1371').
-config:gentoo_env('CPU_FLAGS_X86', 'aes avx avx2 avx512f avx512dq avx512cd avx512bw avx512vl f16c fma3 mmx mmxext pclmul popcnt rdrand sse sse2 sse3 sse4_1 sse4_2 ssse3').
-config:gentoo_env('PERL_FEATURES', 'ithreads').
-config:gentoo_env('RUBY_TARGETS', 'ruby32 ruby33').
-config:gentoo_env('ACCEPT_KEYWORDS', '~amd64').
-config:gentoo_env('ACCEPT_LICENSE', '-* @FREE').
-
-% -----------------------------------------------------------------------------
-%  Gentoo /etc/portage overrides (subset)
-% -----------------------------------------------------------------------------
-%
-% These mirror simple /etc/portage files from your Gentoo system.
-% Current scope:
-% - package.mask: simple cat/pkg atoms (all versions masked)
-% - package.use : per-package USE toggles (plus/minus)
-%
-% This is intentionally a small, explicit subset to improve parity without
-% pulling in the full Portage config stack.
-
-% /etc/portage/package.mask
-config:gentoo_package_mask('sys-apps/systemd').
-
-% /etc/portage/package.use
-config:gentoo_package_use('app-emulation/open-vm-tools', '-dnet -X -multimon resolutionkms').
-config:gentoo_package_use('app-editors/vim',             '-X').
-config:gentoo_package_use('dev-lang/swi-prolog',         '-X').
-config:gentoo_package_use('www-client/links',            '-X -jpeg -png -tiff').
-config:gentoo_package_use('>=sys-libs/gdbm-1.26',        'berkdb').
-config:gentoo_package_use('x11-wm/compiz-fusion',         'unsupported emerald').
-config:gentoo_package_use('sys-kernel/gentoo-sources',    'symlink build').
-
-% Note: we intentionally do not mirror extra /etc/portage tweaks here unless they
-% exist on the Gentoo system (this keeps comparisons honest).
+% Fallback environment defaults, package masks, and per-package USE overrides
+% are in Source/Domain/Gentoo/Preference/fallback.pl.  They are only consulted
+% when config:portage_confdir/1 is not set (no real /etc/portage configured).
 
 
 % -----------------------------------------------------------------------------
@@ -311,6 +254,7 @@ config:verbosity(debug).
 % The mDNS service used to advertise and discover the server on the network.
 
 config:bonjour_service('_portage-ng._tcp.').
+
 
 %! config:bonjour_worker_service(?Service)
 %
@@ -605,12 +549,14 @@ config:graph_asset_source(meslo_ttf, Source) :-
 
 config:mirror_root('/Volumes/Storage/Distfiles/distfiles').
 
+
 %! config:mirror_url(?URL)
 %
 % HTTP base URL of the local distfiles mirror. The mirror has the same
 % GLEP 75 directory layout as mirror_root/1, served over HTTP.
 
 config:mirror_url('http://mac-pro.local/distfiles').
+
 
 %! config:mirror_verify_hashes_default(?Policy)
 %
@@ -635,7 +581,7 @@ config:bugzilla_url('https://bugs.gentoo.org').
 %
 % User-Agent string for Bugzilla API requests.
 
-config:bugzilla_user_agent('portage-ng/2026 (https://github.com/pvdabeel/prolog)').
+config:bugzilla_user_agent('portage-ng/2026 (https://github.com/pvdabeel/portage-ng)').
 
 
 % -----------------------------------------------------------------------------
@@ -784,6 +730,7 @@ config:output_tty :-
 
 :- dynamic config:interface_printing_style/1.
 
+
 % The default printing style
 
 config:default_printing_style('fancy').
@@ -926,11 +873,13 @@ config:test_stats_top_n(25).
 
 config:test_stats_table_width(80).
 
+
 %! config:test_stats_label_col_width(?Width)
 %
 % Width of the leftmost label/metric column.
 
 config:test_stats_label_col_width(34).
+
 
 %! config:test_stats_pct_col_width(?Width)
 %
@@ -938,11 +887,13 @@ config:test_stats_label_col_width(34).
 
 config:test_stats_pct_col_width(10).
 
+
 %! config:test_stats_rank_col_width(?Width)
 %
 % Width of the rank-number column in ranked tables.
 
 config:test_stats_rank_col_width(4).
+
 
 %! config:test_stats_count_col_width(?Width)
 %
@@ -1151,7 +1102,7 @@ config:llm_default(claude).
 
 config:llm_model(grok,       'grok-4-1-fast-reasoning').
 config:llm_model(chatgpt,    'gpt-4o').
-config:llm_model(claude,     'claude-sonnet-4-5').
+config:llm_model(claude,     'claude-sonnet-4-6').
 config:llm_model(gemini ,    'gemini-3-pro-preview').
 config:llm_model(llama ,     'Llama-4-Maverick-17B-128E-Instruct-FP8').
 config:llm_model(ollama ,    'llama3.2').
@@ -1240,6 +1191,7 @@ config:daemon_socket_path(Path) :-
   ( \+ exists_directory(Dir) -> make_directory(Dir) ; true ),
   atomic_list_concat([Dir, '/portage-ng.sock'], Path).
 
+
 %! config:daemon_pid_path(-Path) is det.
 %
 % Path to the PID file co-located with the daemon socket.
@@ -1253,12 +1205,14 @@ config:daemon_pid_path(Path) :-
   ( \+ exists_directory(Dir) -> make_directory(Dir) ; true ),
   atomic_list_concat([Dir, '/portage-ng.pid'], Path).
 
+
 %! config:daemon_inactivity_timeout(?Seconds) is det.
 %
 % Seconds of inactivity after which the daemon auto-shuts down.
 % 0 means never auto-shutdown.
 
 config:daemon_inactivity_timeout(1800).
+
 
 %! config:daemon_autostart(?Bool) is det.
 %

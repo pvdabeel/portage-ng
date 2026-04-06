@@ -1156,7 +1156,7 @@ rule(use_conditional_group(positive,Use,_R://_E,Deps):Action?{Context},Condition
 % conditionals; they are profile-driven, not package-driven.
 rule(use_conditional_group(positive,Use,R://E,Deps):Action?{Context},Conditions) :-
   \+ Use =.. [minus,_],
-  preference:use(Use),
+  preference:global_use(Use),
   \+ ( query:search(iuse(Value), R://E),
        eapi:strip_use_default(Value, Use) ),
   !,
@@ -1196,7 +1196,7 @@ rule(use_conditional_group(negative,Use,_R://_E,Deps):Action?{Context},Condition
 
 % 1b. Explicitly disabled globally (profile/env), but not an IUSE flag.
 rule(use_conditional_group(negative,Use,R://E,Deps):Action?{Context},Conditions) :-
-  preference:use(minus(Use)),
+  preference:global_use(minus(Use)),
   \+ ( query:search(iuse(Value), R://E),
        eapi:strip_use_default(Value, Use) ),
   !,
@@ -1205,8 +1205,8 @@ rule(use_conditional_group(negative,Use,R://E,Deps):Action?{Context},Conditions)
 
 % 1c. Default-off globally (not set), but not an IUSE flag.
 rule(use_conditional_group(negative,Use,R://E,Deps):Action?{Context},Conditions) :-
-  \+ preference:use(Use),
-  \+ preference:use(minus(Use)),
+  \+ preference:global_use(Use),
+  \+ preference:global_use(minus(Use)),
   \+ ( query:search(iuse(Value), R://E),
        eapi:strip_use_default(Value, Use) ),
   !,
@@ -1249,7 +1249,7 @@ rule(use_conditional_group(positive,Use,Self,Deps),Conditions) :-
   sort(Conditions0, Conditions).
 
 rule(use_conditional_group(positive,Use,_://_,Deps),Conditions) :-
-  preference:use(Use),!,
+  preference:global_use(Use),!,
   findall(D,member(D,Deps),Conditions0),
   sort(Conditions0, Conditions).
 
@@ -1269,7 +1269,7 @@ rule(use_conditional_group(negative,Use,Self,Deps),Conditions) :-
   sort(Conditions0, Conditions).
 
 rule(use_conditional_group(negative,Use,_://_,Deps),Conditions) :-
-  preference:use(minus(Use)),!,
+  preference:global_use(minus(Use)),!,
   findall(D,member(D,Deps),Conditions0),
   sort(Conditions0, Conditions).
 
@@ -1469,29 +1469,29 @@ rule(required(minus(Use)):_?{Context},[]) :-
 
 rule(required(minus(Use)),[minus(Use)]) :-
   \+Use =.. [minus,_],
-  preference:use(minus(Use)),!.
+  preference:global_use(minus(Use)),!.
 
 rule(required(Use),[Use]) :-
   \+Use =.. [minus,_],
-  preference:use(Use),!.
+  preference:global_use(Use),!.
 
 rule(required(Use),[assumed(conflict(required,Use))]) :-
   \+Use =.. [minus,_],
-  preference:use(minus(Use)),!.
+  preference:global_use(minus(Use)),!.
 
 rule(required(minus(Use)),[assumed(conflict(required,minus(Use)))]) :-
   \+Use =.. [minus,_],
-  preference:use(Use),!.
+  preference:global_use(Use),!.
 
 rule(required(minus(Use)),[assumed(minus(Use))]) :-
   \+Use =.. [minus,_],
-  \+preference:use(Use),
-  \+preference:use(minus(Use)),!.
+  \+preference:global_use(Use),
+  \+preference:global_use(minus(Use)),!.
 
 rule(required(Use),[assumed(Use)]) :-
   \+Use =.. [minus,_],
-  \+preference:use(Use),
-  \+preference:use(minus(Use)),!.
+  \+preference:global_use(Use),
+  \+preference:global_use(minus(Use)),!.
 
 
 % -----------------------------------------------------------------------------
@@ -1500,29 +1500,29 @@ rule(required(Use),[assumed(Use)]) :-
 
 rule(blocking(minus(Use)),[Use]) :-
   \+Use =.. [minus,_],
-  preference:use(Use),!.
+  preference:global_use(Use),!.
 
 rule(blocking(Use),[minus(Use)]) :-
   \+Use =.. [minus,_],
-  preference:use(minus(Use)),!.
+  preference:global_use(minus(Use)),!.
 
 rule(blocking(Use),[assumed(conflict(blocking,Use))]) :-
   \+Use =.. [minus,_],
-  preference:use(Use),!.
+  preference:global_use(Use),!.
 
 rule(blocking(minus(Use)),[assumed(conflict(blocking,minus(Use)))]) :- % test needed
   \+Use =.. [minus,_],
-  preference:use(minus(Use)),!.
+  preference:global_use(minus(Use)),!.
 
 rule(blocking(minus(Use)),[assumed(minus(Use)),naf(required(Use))]) :- % this doesnet make sense I think)
   \+Use =.. [minus,_],
-  \+preference:use(Use),
-  \+preference:use(minus(Use)),!.
+  \+preference:global_use(Use),
+  \+preference:global_use(minus(Use)),!.
 
 rule(blocking(Use),[assumed(minus(Use)),naf(required(Use))]) :-
   \+Use =.. [minus,_],
-  \+preference:use(Use),
-  \+preference:use(minus(Use)),!.
+  \+preference:global_use(Use),
+  \+preference:global_use(minus(Use)),!.
 
 
 
@@ -1543,11 +1543,11 @@ rule(assumed(_),[]) :- !.
 
 rule(naf(Statement),C) :-
   Statement =.. [required,Use],!,
-  ( preference:use(Use) -> C = [conflict(Use,naf(required(Use)))] ; C = []).
+  ( preference:global_use(Use) -> C = [conflict(Use,naf(required(Use)))] ; C = []).
 
 rule(naf(Statement),C) :-
   Statement =.. [blocking,Use],!,
-  ( preference:use(minus(Use)) -> C = [conflict(Use,naf(blocking(Use)))] ; C = [] ).
+  ( preference:global_use(minus(Use)) -> C = [conflict(Use,naf(blocking(Use)))] ; C = [] ).
 
 % Conflicts:
 

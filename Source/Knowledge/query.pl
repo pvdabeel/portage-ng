@@ -1694,5 +1694,5 @@ deep_member(all,Predicate,Model) :-
 deep_member(preference,Predicate,Model) :-
   member(Predicate,Model);
   (member(use_conditional_group(Sign,Use,_,Conditional),Model),
-   (Sign == positive -> preference:use(Use) ; preference:use(minus(Use))),
+   (Sign == positive -> preference:global_use(Use) ; preference:global_use(minus(Use))),
      deep_member(preference,Predicate,Conditional)).

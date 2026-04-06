@@ -229,7 +229,7 @@ sandbox:safe_primitive(message:print_bytes(_)).
 %  Preference
 % -----------------------------------------------------------------------------
 
-sandbox:safe_primitive(preference:use(_)).
+sandbox:safe_primitive(preference:global_use(_)).
 sandbox:safe_primitive(preference:accept_keywords(_)).
 sandbox:safe_primitive(preference:package_keyword_accepted(_,_,_)).
 sandbox:safe_primitive(preference:masked(_)).

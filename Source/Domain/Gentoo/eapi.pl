@@ -2093,36 +2093,36 @@ eapi:check_use_expand_atom(Atom) :-
 % Categorize a given use flag
 
 eapi:categorize_use(plus(Use),positive,preference) :-
-  preference:use(Use),!.
+  preference:global_use(Use),!.
 
 eapi:categorize_use(plus(Use),negative,preference) :-
-  preference:use(minus(Use)),!.
+  preference:global_use(minus(Use)),!.
 
 eapi:categorize_use(plus(Use),positive,ebuild) :-
-  \+(preference:use(Use)),
-  \+(preference:use(minus(Use))),
+  \+(preference:global_use(Use)),
+  \+(preference:global_use(minus(Use))),
   !.
 
 eapi:categorize_use(minus(Use),positive,preference) :-
-  preference:use(Use),!.
+  preference:global_use(Use),!.
 
 eapi:categorize_use(minus(Use),negative,preference) :-
-  preference:use(minus(Use)),!.
+  preference:global_use(minus(Use)),!.
 
 eapi:categorize_use(minus(Use),negative,ebuild) :-
-  \+(preference:use(Use)),
-  \+(preference:use(minus(Use))),
+  \+(preference:global_use(Use)),
+  \+(preference:global_use(minus(Use))),
   !.
 
 eapi:categorize_use(Use,positive,preference) :-
-  preference:use(Use),!.
+  preference:global_use(Use),!.
 
 eapi:categorize_use(Use,negative,preference) :-
-  preference:use(minus(Use)),!.
+  preference:global_use(minus(Use)),!.
 
 eapi:categorize_use(Use,negative,default) :-
-  \+(preference:use(Use)),
-  \+(preference:use(minus(Use))),
+  \+(preference:global_use(Use)),
+  \+(preference:global_use(minus(Use))),
   \+(feature_unification:unify(plus(_),Use)),
   \+(feature_unification:unify(minus(_),Use)),!.
 
@@ -2136,7 +2136,7 @@ eapi:categorize_use_for_entry(RawIuse, Repo://Id, State, Reason) :-
   eapi:strip_use_default(RawIuse, Use),
   cache:ordered_entry(Repo, Id, C, N, _),
   ( % Profile-enforced per-package constraints (hard): package.use.mask/force
-    preference:profile_package_use_override_for_entry(Repo://Id, Use, State0, Reason0),
+    preference:profile_use_hard(Repo://Id, Use, State0, Reason0),
     % Portage-like precedence nuance:
     % A globally profile-masked flag stays masked even if a package.use.force
     % entry from an earlier parent profile would otherwise force it.
@@ -2147,15 +2147,15 @@ eapi:categorize_use_for_entry(RawIuse, Repo://Id, State, Reason) :-
       State = State0,
       Reason = Reason0
   ; % User /etc/portage/package.use (soft; overridden by profile mask/force)
-    preference:package_use_override(C, N, Use, State0) ->
+    preference:userconfig_use(C, N, Use, State0) ->
       State = State0,
       Reason = package_use
   ; % User /etc/portage/package.use with version operators (soft)
-    preference:gentoo_package_use_override_for_entry_soft(Repo://Id, Use, State0) ->
+    preference:userconfig_use_match(Repo://Id, Use, State0) ->
       State = State0,
       Reason = package_use
   ; % Profile package.use (soft; version/slot-aware)
-    preference:profile_package_use_override_for_entry_soft(Repo://Id, Use, State0) ->
+    preference:profile_use_soft_match(Repo://Id, Use, State0) ->
       State = State0,
       Reason = package_use
   ; eapi:categorize_use(RawIuse, State, Reason)

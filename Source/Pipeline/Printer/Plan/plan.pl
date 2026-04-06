@@ -1648,7 +1648,7 @@ plan:get_change_extra_length(_, _, 0).
 
 plan:get_flag_length_typed(positive:preference, Flag, Length) :-
     atom_length(Flag, L),
-    ( preference:use(Flag,env) -> EnvExtra = 1 ; EnvExtra = 0),
+    ( preference:global_use(Flag,env) -> EnvExtra = 1 ; EnvExtra = 0),
     ( preference:profile_forced_use_flag(Flag) -> ProfileExtra = 1 ; ProfileExtra = 0),
     Length is L + EnvExtra + ProfileExtra.
 
@@ -1664,7 +1664,7 @@ plan:get_flag_length_typed(positive:ebuild, Flag, Length) :-
 
 plan:get_flag_length_typed(negative:preference, Flag, Length) :-
     atom_length(Flag, L),
-    ( preference:use(minus(Flag),env) -> EnvExtra = 1 ; EnvExtra = 0), % '*' marker
+    ( preference:global_use(minus(Flag),env) -> EnvExtra = 1 ; EnvExtra = 0), % '*' marker
     ( preference:profile_masked_use_flag(Flag) -> ProfileExtra = 1 ; ProfileExtra = 0), % '%' marker
     Length is L + 1 + EnvExtra + ProfileExtra.
 
@@ -1877,7 +1877,7 @@ plan:print_use_flag(negative:Reason, Flag, _Assumed) :-
   plan:print_easy_negative(ChangeType, Flag).
 
 plan:print_use_flag(positive:preference, Flag, _Assumed) :-
-  preference:use(Flag,env), !,
+  preference:global_use(Flag,env), !,
   message:color(green),
   message:style(bold),
   message:print(Flag),
@@ -1919,7 +1919,7 @@ plan:print_use_flag(positive:ebuild, Flag, _Assumed) :-
   plan:maybe_print_change_annotation(Flag, positive).
 
 plan:print_use_flag(negative:preference, Flag, _Assumed) :-
-  preference:use(minus(Flag),env), !,
+  preference:global_use(minus(Flag),env), !,
   message:color(green),
   message:style(bold),
   message:print('-'),

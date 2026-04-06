@@ -251,7 +251,7 @@ explain:format_use_flags(Repo, Entry, Str) :-
 % Renders a single USE flag with annotations.
 
 explain:format_one_flag(Flag, positive, preference, Token) :-
-  preference:use(Flag, env), !,
+  preference:global_use(Flag, env), !,
   ( preference:profile_forced_use_flag(Flag)
   -> format(atom(Token), '~w%*', [Flag])
   ;  format(atom(Token), '~w*', [Flag])
@@ -274,7 +274,7 @@ explain:format_one_flag(Flag, positive, ebuild, Token) :-
   !, atom_string(Flag, Token).
 
 explain:format_one_flag(Flag, negative, preference, Token) :-
-  preference:use(minus(Flag), env), !,
+  preference:global_use(minus(Flag), env), !,
   ( preference:profile_masked_use_flag(Flag)
   -> format(atom(Token), '-~w%*', [Flag])
   ;  format(atom(Token), '-~w*', [Flag])

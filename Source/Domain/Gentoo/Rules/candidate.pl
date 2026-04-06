@@ -1580,12 +1580,12 @@ is_preferred_dep(_Context, use_conditional_group(negative, Use, RepoEntry, _Deps
 
 is_preferred_dep(Context, required(Use)) :-
   Use \= minus(_),
-  ( preference:use(Use)
+  ( preference:global_use(Use)
   ; use:effective_use_in_context(Context, Use, positive)
   ),
   !.
 is_preferred_dep(Context, required(minus(Use))) :-
-  ( preference:use(minus(Use))
+  ( preference:global_use(minus(Use))
   ; use:effective_use_in_context(Context, Use, negative)
   ),
   !.
@@ -1922,17 +1922,17 @@ rdepend_self_use_conditional_active(positive, Use, SelfRepoEntry) :-
   ( use:effective_use_for_entry(SelfRepoEntry, Use, positive) ->
       true
   ; \+ rdepend_self_entry_has_iuse_flag(SelfRepoEntry, Use),
-    preference:use(Use)
+    preference:global_use(Use)
   ),
   !.
 rdepend_self_use_conditional_active(negative, Use, SelfRepoEntry) :-
   ( use:effective_use_for_entry(SelfRepoEntry, Use, negative) ->
       true
   ; \+ rdepend_self_entry_has_iuse_flag(SelfRepoEntry, Use),
-    preference:use(minus(Use))
+    preference:global_use(minus(Use))
   ; \+ rdepend_self_entry_has_iuse_flag(SelfRepoEntry, Use),
-    \+ preference:use(Use),
-    \+ preference:use(minus(Use))
+    \+ preference:global_use(Use),
+    \+ preference:global_use(minus(Use))
   ),
   !.
 rdepend_self_use_conditional_active(_Pol, _Use, _SelfRepoEntry) :-

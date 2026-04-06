@@ -9,10 +9,19 @@
 
 
 /** <module> PREFERENCE
-The preferences module manages build-specific configuration: USE flags,
-ACCEPT_KEYWORDS, package masking, per-package USE overrides, license
-acceptance, and profile integration.  It mirrors the semantics of
-Gentoo's make.conf / profiles / /etc/portage layering.
+Meta-layer that merges environment, userconfig, profile, and fallback
+sources into a unified runtime preference store.
+
+Controls layering order and precedence:
+  1. Profile (base): masks, package.use.mask/force, package.use (soft)
+  2. Userconfig / fallback: /etc/portage overrides (or fallback defaults)
+  3. Environment: OS envvars and make.conf via getenv/2
+All runtime USE/mask/keyword queries go through this module.
+
+Data sources (pure I/O, no policy):
+  - profile.pl      : reads the Gentoo profile tree
+  - userconfig.pl   : reads /etc/portage files
+  - fallback.pl     : hardcoded development defaults
 */
 
 :- module(preference, []).
@@ -38,9 +47,9 @@ Gentoo's make.conf / profiles / /etc/portage layering.
 
 % -- Per-package USE overrides (from /etc/portage/package.use) --
 
-:- dynamic preference:package_use_override/4.         % Category, Name, Use, State(positive|negative)
-:- dynamic preference:profile_package_use_soft/3.     % Spec, Use, State(positive|negative)
-:- dynamic preference:gentoo_package_use_soft/3.      % Spec, Use, State(positive|negative)
+:- dynamic preference:userconfig_use/4.                % Category, Name, Use, State(positive|negative)
+:- dynamic preference:profile_use_soft/3.             % Spec, Use, State(positive|negative)
+:- dynamic preference:userconfig_use_versioned/3.     % Spec, Use, State(positive|negative)
 
 % -- Global profile use.mask / use.force sets --
 
@@ -51,8 +60,8 @@ Gentoo's make.conf / profiles / /etc/portage layering.
 % (from profiles/**/package.use.{mask,force}).
 % These are *hard* constraints and override /etc/portage/package.use.
 
-:- dynamic preference:profile_package_use_masked/2.   % Spec, Use
-:- dynamic preference:profile_package_use_forced/2.   % Spec, Use
+:- dynamic preference:profile_use_masked/2.            % Spec, Use
+:- dynamic preference:profile_use_forced/2.            % Spec, Use
 
 % -- World entries (snapshot of file-backed world set for client-server transfer) --
 
@@ -107,7 +116,7 @@ preference:init_system_pkgs :-
 % Reads an environment variable with the following fallback chain:
 %   1. OS environment (interface:getenv/2)
 %   2. /etc/portage/make.conf (userconfig:env/2, loaded by userconfig:load)
-%   3. config:gentoo_env/2 facts in config.pl (authoritative defaults)
+%   3. fallback:env/2 facts (development defaults)
 
 preference:getenv(Name, Value) :-
   ( interface:getenv(Name, Value) ->
@@ -116,8 +125,8 @@ preference:getenv(Name, Value) :-
     userconfig:env(Name, Value),
     Value \== '' ->
       true
-  ; current_predicate(config:gentoo_env/2),
-    config:gentoo_env(Name, Value),
+  ; current_predicate(fallback:env/2),
+    fallback:env(Name, Value),
     Value \== '' ->
       true
   ).
@@ -160,7 +169,7 @@ preference:env_use_expand(Use) :-
 %
 % Maps USE_EXPAND environment variable names to their flag prefix.
 
-preference:use_expand_env('PYTHON_TARGETS',        python_targets).
+preference:use_expand_env('PYTHON_TARGETS',       python_targets).
 preference:use_expand_env('PYTHON_SINGLE_TARGET', python_single_target).
 preference:use_expand_env('RUBY_TARGETS',         ruby_targets).
 preference:use_expand_env('RUBY_SINGLE_TARGET',   ruby_single_target).
@@ -190,33 +199,33 @@ preference:env_accept_keywords(Keyword) :-
 %  USE / keywords / flag resolution
 % -----------------------------------------------------------------------------
 
-%! preference:use(?Use) is nondet.
+%! preference:global_use(?Use) is nondet.
 %
 % Returns active USE flag settings.  In standalone mode, the flags are
 % asserted by preference:init/0.  In client-server mode, they are
 % injected as thread-local clauses by the Pengines sandbox.
 
-preference:use(X) :-
+preference:global_use(X) :-
   ( pengine_self(M) ->
       M:local_use(X)
   ; preference:local_use(X)
   ).
 
 
-%! preference:use(?Use, +Source) is nondet.
+%! preference:global_use(?Use, +Source) is nondet.
 %
 % Returns USE flag settings filtered by Source:
 %   - `env`   : only flags set via the environment
 %   - `other` : all active flags (delegates to preference:use/1)
 
-preference:use(X,env) :-
+preference:global_use(X,env) :-
   ( pengine_self(M) ->
       M:local_env_use(X)
   ; preference:local_env_use(X)
   ).
 
-preference:use(X,other) :-
-  preference:use(X).
+preference:global_use(X,other) :-
+  preference:global_use(X).
 
 
 %! preference:accept_keywords(?Keyword) is nondet.
@@ -377,16 +386,16 @@ preference:init :-
 
   % Reset derived state (important when regenerating lots of plans in one session).
   retractall(preference:masked(_)),
-  retractall(preference:package_use_override(_,_,_,_)),
+  retractall(preference:userconfig_use(_,_,_,_)),
   retractall(preference:profile_masked_use_flag(_)),
   retractall(preference:profile_forced_use_flag(_)),
-  retractall(preference:profile_package_use_masked(_,_)),
-  retractall(preference:profile_package_use_forced(_,_)),
-  retractall(preference:profile_package_use_soft(_,_,_)),
-  retractall(preference:gentoo_package_use_soft(_,_,_)),
-  ( nb_current(pref_gentoo_use_soft_flags, _) -> nb_setval(pref_gentoo_use_soft_flags, t) ; true ),
+  retractall(preference:profile_use_masked(_,_)),
+  retractall(preference:profile_use_forced(_,_)),
+  retractall(preference:profile_use_soft(_,_,_)),
+  retractall(preference:userconfig_use_versioned(_,_,_)),
+  ( nb_current(pref_userconfig_use_soft_flags, _) -> nb_setval(pref_userconfig_use_soft_flags, t) ; true ),
   ( nb_current(pref_profile_use_soft_flags, _) -> nb_setval(pref_profile_use_soft_flags, t) ; true ),
-  ( nb_current(pref_gentoo_use_soft_cns, _) -> nb_setval(pref_gentoo_use_soft_cns, t) ; true ),
+  ( nb_current(pref_userconfig_use_soft_cns, _) -> nb_setval(pref_userconfig_use_soft_cns, t) ; true ),
   ( nb_current(pref_profile_use_soft_cns, _) -> nb_setval(pref_profile_use_soft_cns, t) ; true ),
   ( nb_current(pref_profile_forced_cns, _) -> nb_setval(pref_profile_forced_cns, t) ; true ),
   ( nb_current(pref_profile_masked_cns, _) -> nb_setval(pref_profile_masked_cns, t) ; true ),
@@ -401,14 +410,16 @@ preference:init :-
   % package.unmask, package.accept_keywords, and package.license from the
   % configured directory.  Must happen before USE/keyword computation so
   % that make.conf values are available via getenv/2.
+  %
+  % When portage_confdir is NOT set, fallback:env/2 provides lowest-priority
+  % defaults via getenv/2, and fallback package.mask/package.use are applied
+  % in step 4 below.
 
   catch(userconfig:load, _, true),
 
-  % 2. Set use flags
-
-  % IMPORTANT:
-  % `preference:init/0` must never fail. If it fails, the application startup
-  % will retry KB load/init paths and can surface unrelated errors. Be defensive:
+  % 2. Compute global USE flags (env > make.conf > fallback)
+  %
+  % IMPORTANT: preference:init/0 must never fail.  Be defensive:
   % treat unexpected issues as "skip that bit" rather than aborting init.
   % Portage semantics: USE is incremental; last occurrence wins.
   % Example: USE="berkdb ... -berkdb" means berkdb is OFF.
@@ -483,11 +494,12 @@ preference:init :-
      )
    ),
 
-  % 4. Apply Gentoo profile + /etc/portage overrides (package.mask / package.use).
+  % 4. Apply profile layer (base), then userconfig/fallback overrides.
   %
-  % When using cached profile data, the profile-derived facts are loaded from
-  % Knowledge/profile.qlf instead of re-walking the profile tree.  The gentoo_package_*
-  % fallbacks (from config.pl facts) are always applied afterwards.
+  % Profile is applied first (masks, package.use.mask/force, package.use).
+  % Then: if portage_confdir is set, userconfig:load already handled
+  % /etc/portage masks and package.use in step 1.  If NOT set, apply
+  % fallback defaults from fallback.pl.
 
   ( preference:use_cached_profile ->
       catch(profile:apply_cached_profile_data, _, true)
@@ -496,8 +508,12 @@ preference:init :-
     catch(preference:apply_profile_package_use_force, _, true),
     catch(preference:apply_profile_package_use,  _, true)
   ),
-  catch(preference:apply_gentoo_package_mask,  _, true),
-  catch(preference:apply_gentoo_package_use,   _, true),
+  ( current_predicate(config:portage_confdir/1),
+    config:portage_confdir(_) ->
+      true
+  ; catch(preference:apply_fallback_package_mask,  _, true),
+    catch(preference:apply_fallback_package_use,   _, true)
+  ),
 
   % 4b. Load @system packages from profile chain.
 
@@ -579,7 +595,7 @@ preference:profile_package_use_spec(Atom, Spec) :-
 %! preference:apply_profile_package_use_mask is det.
 %
 % Load package.use.mask files from the Gentoo profile tree and assert
-% profile_package_use_masked/2 facts.
+% profile_use_masked/2 facts.
 
 preference:apply_profile_package_use_mask :-
   ( current_predicate(config:gentoo_profile/1),
@@ -595,7 +611,7 @@ preference:apply_profile_package_use_mask :-
 %! preference:apply_profile_package_use_force is det.
 %
 % Load package.use.force files from the Gentoo profile tree and assert
-% profile_package_use_forced/2 facts.
+% profile_use_forced/2 facts.
 
 preference:apply_profile_package_use_force :-
   ( current_predicate(config:gentoo_profile/1),
@@ -660,34 +676,34 @@ preference:apply_profile_package_use_flag(Kind, Spec, FlagS0) :-
 
 %! preference:apply_profile_package_use_op(+Action, +Kind, +Spec, +Flag) is det.
 %
-% Assert or retract a profile_package_use_masked/2 or
-% profile_package_use_forced/2 fact for the given Spec and Flag.
+% Assert or retract a profile_use_masked/2 or
+% profile_use_forced/2 fact for the given Spec and Flag.
 
 preference:apply_profile_package_use_op(add, masked, Spec, Flag) :-
-  ( preference:profile_package_use_masked(Spec, Flag) -> true
-  ; assertz(preference:profile_package_use_masked(Spec, Flag))
+  ( preference:profile_use_masked(Spec, Flag) -> true
+  ; assertz(preference:profile_use_masked(Spec, Flag))
   ),
   !.
 
 preference:apply_profile_package_use_op(del, masked, Spec, Flag) :-
   ( preference:profile_package_use_cp_from_spec_(Spec, C, N) ->
-      retractall(preference:profile_package_use_masked(simple(C, N, _), Flag)),
-      retractall(preference:profile_package_use_masked(versioned(_, C, N, _, _), Flag))
-  ; retractall(preference:profile_package_use_masked(Spec, Flag))
+      retractall(preference:profile_use_masked(simple(C, N, _), Flag)),
+      retractall(preference:profile_use_masked(versioned(_, C, N, _, _), Flag))
+  ; retractall(preference:profile_use_masked(Spec, Flag))
   ),
   !.
 
 preference:apply_profile_package_use_op(add, forced, Spec, Flag) :-
-  ( preference:profile_package_use_forced(Spec, Flag) -> true
-  ; assertz(preference:profile_package_use_forced(Spec, Flag))
+  ( preference:profile_use_forced(Spec, Flag) -> true
+  ; assertz(preference:profile_use_forced(Spec, Flag))
   ),
   !.
 
 preference:apply_profile_package_use_op(del, forced, Spec, Flag) :-
   ( preference:profile_package_use_cp_from_spec_(Spec, C, N) ->
-      retractall(preference:profile_package_use_forced(simple(C, N, _), Flag)),
-      retractall(preference:profile_package_use_forced(versioned(_, C, N, _, _), Flag))
-  ; retractall(preference:profile_package_use_forced(Spec, Flag))
+      retractall(preference:profile_use_forced(simple(C, N, _), Flag)),
+      retractall(preference:profile_use_forced(versioned(_, C, N, _, _), Flag))
+  ; retractall(preference:profile_use_forced(Spec, Flag))
   ),
   !.
 
@@ -700,26 +716,26 @@ preference:profile_package_use_cp_from_spec_(simple(C, N, _), C, N) :- !.
 preference:profile_package_use_cp_from_spec_(versioned(_, C, N, _, _), C, N) :- !.
 
 
-%! preference:profile_package_use_override_for_entry(+Entry, ?Use, -State, -Reason) is semidet.
+%! preference:profile_use_hard(+Entry, ?Use, -State, -Reason) is semidet.
 %
 % Determine whether a profile enforces a hard per-package USE state for
 % an entry.  Precedence: mask wins over force (Portage-like).
 
-preference:profile_package_use_override_for_entry(Repo://Id, Use, State, Reason) :-
+preference:profile_use_hard(Repo://Id, Use, State, Reason) :-
   cache:ordered_entry(Repo, Id, C, N, ProposedVersion),
   ( preference:profile_masked_cn_known(C, N),
-    ( preference:profile_package_use_masked(simple(C,N,SlotReq), Use),
+    ( preference:profile_use_masked(simple(C,N,SlotReq), Use),
       preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
-    ; preference:profile_package_use_masked(versioned(Op,C,N,ReqVer,SlotReq), Use),
+    ; preference:profile_use_masked(versioned(Op,C,N,ReqVer,SlotReq), Use),
       preference:version_match(Op, ProposedVersion, ReqVer),
       preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
     ) ->
       State = negative,
       Reason = profile_package_use_mask
   ; preference:profile_forced_cn_known(C, N),
-    ( preference:profile_package_use_forced(simple(C,N,SlotReq), Use),
+    ( preference:profile_use_forced(simple(C,N,SlotReq), Use),
       preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
-    ; preference:profile_package_use_forced(versioned(Op,C,N,ReqVer,SlotReq), Use),
+    ; preference:profile_use_forced(versioned(Op,C,N,ReqVer,SlotReq), Use),
       preference:version_match(Op, ProposedVersion, ReqVer),
       preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
     ) ->
@@ -797,7 +813,7 @@ preference:apply_profile_package_use_dir(Dir) :-
                      atom_string(AtomA, AtomS),
                      ( preference:profile_package_use_spec(AtomA, Spec) ->
                          forall(member(FlagS0, FlagSs),
-                                preference:apply_profile_package_use_soft_flag(Spec, FlagS0))
+                                preference:apply_profile_use_soft_flag(Spec, FlagS0))
                      ; true )
                  ; true
                  )
@@ -807,11 +823,11 @@ preference:apply_profile_package_use_dir(Dir) :-
   ).
 
 
-%! preference:apply_profile_package_use_soft_flag(+Spec, +FlagS0) is det.
+%! preference:apply_profile_use_soft_flag(+Spec, +FlagS0) is det.
 %
-% Parse a single flag string and assert a profile_package_use_soft/3 fact.
+% Parse a single flag string and assert a profile_use_soft/3 fact.
 
-preference:apply_profile_package_use_soft_flag(Spec, FlagS0) :-
+preference:apply_profile_use_soft_flag(Spec, FlagS0) :-
   normalize_space(string(FlagS), FlagS0),
   ( FlagS == "" ->
       true
@@ -820,26 +836,26 @@ preference:apply_profile_package_use_soft_flag(Spec, FlagS0) :-
       normalize_space(string(Name), Name0),
       Name \== "",
       atom_string(Flag, Name),
-      retractall(preference:profile_package_use_soft(Spec, Flag, _)),
-      assertz(preference:profile_package_use_soft(Spec, Flag, negative))
+      retractall(preference:profile_use_soft(Spec, Flag, _)),
+      assertz(preference:profile_use_soft(Spec, Flag, negative))
   ; atom_string(Flag, FlagS),
-    retractall(preference:profile_package_use_soft(Spec, Flag, _)),
-    assertz(preference:profile_package_use_soft(Spec, Flag, positive))
+    retractall(preference:profile_use_soft(Spec, Flag, _)),
+    assertz(preference:profile_use_soft(Spec, Flag, positive))
   ),
   !.
 
 
-%! preference:profile_package_use_override_for_entry_soft(+Entry, ?Use, -State) is semidet.
+%! preference:profile_use_soft_match(+Entry, ?Use, -State) is semidet.
 %
 % Look up the soft (profile-derived) per-package USE override for Entry.
 % Last-wins semantics across matching specs.
 
-preference:profile_package_use_override_for_entry_soft(Repo://Id, Use, State) :-
+preference:profile_use_soft_match(Repo://Id, Use, State) :-
   preference:profile_use_soft_flag_known(Use),
   cache:ordered_entry(Repo, Id, C, N, ProposedVersion),
   preference:profile_use_soft_cn_known(C, N),
   findall(State0,
-          ( preference:profile_package_use_soft(Spec, Use, State0),
+          ( preference:profile_use_soft(Spec, Use, State0),
             preference:profile_package_use_spec_matches_entry_(Spec, Repo, Id, C, N, ProposedVersion)
           ),
           States),
@@ -848,17 +864,17 @@ preference:profile_package_use_override_for_entry_soft(Repo://Id, Use, State) :-
   !.
 
 
-%! preference:gentoo_package_use_override_for_entry_soft(+Entry, ?Use, -State) is semidet.
+%! preference:userconfig_use_match(+Entry, ?Use, -State) is semidet.
 %
-% Look up the soft (/etc/portage-derived) per-package USE override for Entry.
-% Last-wins semantics across matching specs.
+% Look up the soft (userconfig/fallback-derived) per-package USE override
+% for Entry.  Last-wins semantics across matching specs.
 
-preference:gentoo_package_use_override_for_entry_soft(Repo://Id, Use, State) :-
-  preference:gentoo_use_soft_flag_known(Use),
+preference:userconfig_use_match(Repo://Id, Use, State) :-
+  preference:userconfig_use_soft_flag_known(Use),
   cache:ordered_entry(Repo, Id, C, N, ProposedVersion),
-  preference:gentoo_use_soft_cn_known(C, N),
+  preference:userconfig_use_soft_cn_known(C, N),
   findall(State0,
-          ( preference:gentoo_package_use_soft(Spec, Use, State0),
+          ( preference:userconfig_use_versioned(Spec, Use, State0),
             preference:profile_package_use_spec_matches_entry_(Spec, Repo, Id, C, N, ProposedVersion)
           ),
           States),
@@ -871,37 +887,37 @@ preference:gentoo_package_use_override_for_entry_soft(Repo://Id, Use, State) :-
 %  Lazy AVL indexes for soft-override fast-fail
 % -----------------------------------------------------------------------------
 
-%! preference:gentoo_use_soft_flag_known(+Use) is semidet.
+%! preference:userconfig_use_soft_flag_known(+Use) is semidet.
 %
-% True if any gentoo_package_use_soft/3 fact references Use.
+% True if any userconfig_use_versioned/3 fact references Use.
 % Builds a lazy AVL index on first call.
 
-preference:gentoo_use_soft_flag_known(Use) :-
-  ( nb_current(pref_gentoo_use_soft_flags, FlagSet) ->
+preference:userconfig_use_soft_flag_known(Use) :-
+  ( nb_current(pref_userconfig_use_soft_flags, FlagSet) ->
       true
   ;
-      findall(F-true, preference:gentoo_package_use_soft(_, F, _), Pairs0),
+      findall(F-true, preference:userconfig_use_versioned(_, F, _), Pairs0),
       sort(1, @<, Pairs0, Pairs),
       ( Pairs == [] ->
           empty_assoc(FlagSet)
       ;
           list_to_assoc(Pairs, FlagSet)
       ),
-      nb_setval(pref_gentoo_use_soft_flags, FlagSet)
+      nb_setval(pref_userconfig_use_soft_flags, FlagSet)
   ),
   get_assoc(Use, FlagSet, _).
 
 
 %! preference:profile_use_soft_flag_known(+Use) is semidet.
 %
-% True if any profile_package_use_soft/3 fact references Use.
+% True if any profile_use_soft/3 fact references Use.
 % Builds a lazy AVL index on first call.
 
 preference:profile_use_soft_flag_known(Use) :-
   ( nb_current(pref_profile_use_soft_flags, FlagSet) ->
       true
   ;
-      findall(F-true, preference:profile_package_use_soft(_, F, _), Pairs0),
+      findall(F-true, preference:profile_use_soft(_, F, _), Pairs0),
       sort(1, @<, Pairs0, Pairs),
       ( Pairs == [] ->
           empty_assoc(FlagSet)
@@ -913,30 +929,30 @@ preference:profile_use_soft_flag_known(Use) :-
   get_assoc(Use, FlagSet, _).
 
 
-%! preference:gentoo_use_soft_cn_known(+C, +N) is semidet.
+%! preference:userconfig_use_soft_cn_known(+C, +N) is semidet.
 %
-% True if any gentoo_package_use_soft/3 fact references category C, name N.
+% True if any userconfig_use_versioned/3 fact references category C, name N.
 % Builds a lazy AVL index on first call.
 
-preference:gentoo_use_soft_cn_known(C, N) :-
-  ( nb_current(pref_gentoo_use_soft_cns, CNSet) ->
+preference:userconfig_use_soft_cn_known(C, N) :-
+  ( nb_current(pref_userconfig_use_soft_cns, CNSet) ->
       true
   ;
       findall(cn(C0,N0)-true,
-              ( preference:gentoo_package_use_soft(Spec, _, _),
+              ( preference:userconfig_use_versioned(Spec, _, _),
                 preference:soft_spec_cn(Spec, C0, N0)
               ),
               Pairs0),
       sort(1, @<, Pairs0, Pairs),
       ( Pairs == [] -> empty_assoc(CNSet) ; list_to_assoc(Pairs, CNSet) ),
-      nb_setval(pref_gentoo_use_soft_cns, CNSet)
+      nb_setval(pref_userconfig_use_soft_cns, CNSet)
   ),
   get_assoc(cn(C,N), CNSet, _).
 
 
 %! preference:profile_use_soft_cn_known(+C, +N) is semidet.
 %
-% True if any profile_package_use_soft/3 fact references category C, name N.
+% True if any profile_use_soft/3 fact references category C, name N.
 % Builds a lazy AVL index on first call.
 
 preference:profile_use_soft_cn_known(C, N) :-
@@ -944,7 +960,7 @@ preference:profile_use_soft_cn_known(C, N) :-
       true
   ;
       findall(cn(C0,N0)-true,
-              ( preference:profile_package_use_soft(Spec, _, _),
+              ( preference:profile_use_soft(Spec, _, _),
                 preference:soft_spec_cn(Spec, C0, N0)
               ),
               Pairs0),
@@ -965,7 +981,7 @@ preference:soft_spec_cn(versioned(_, C, N, _, _), C, N).
 
 %! preference:profile_forced_cn_known(+C, +N) is semidet.
 %
-% True if any profile_package_use_forced/2 fact references category C, name N.
+% True if any profile_use_forced/2 fact references category C, name N.
 % Builds a lazy AVL index on first call.
 
 preference:profile_forced_cn_known(C, N) :-
@@ -973,7 +989,7 @@ preference:profile_forced_cn_known(C, N) :-
       true
   ;
       findall(cn(C0,N0)-true,
-              ( preference:profile_package_use_forced(Spec, _),
+              ( preference:profile_use_forced(Spec, _),
                 preference:soft_spec_cn(Spec, C0, N0)
               ),
               Pairs0),
@@ -986,7 +1002,7 @@ preference:profile_forced_cn_known(C, N) :-
 
 %! preference:profile_masked_cn_known(+C, +N) is semidet.
 %
-% True if any profile_package_use_masked/2 fact references category C, name N.
+% True if any profile_use_masked/2 fact references category C, name N.
 % Builds a lazy AVL index on first call.
 
 preference:profile_masked_cn_known(C, N) :-
@@ -994,7 +1010,7 @@ preference:profile_masked_cn_known(C, N) :-
       true
   ;
       findall(cn(C0,N0)-true,
-              ( preference:profile_package_use_masked(Spec, _),
+              ( preference:profile_use_masked(Spec, _),
                 preference:soft_spec_cn(Spec, C0, N0)
               ),
               Pairs0),
@@ -1020,16 +1036,18 @@ preference:profile_package_use_spec_matches_entry_(versioned(Op, C, N, ReqVer, S
 
 
 % -----------------------------------------------------------------------------
-%  Gentoo /etc/portage integration (subset)
+%  Fallback package masks (when no portage_confdir)
 % -----------------------------------------------------------------------------
 
-%! preference:apply_gentoo_package_mask is det.
+%! preference:apply_fallback_package_mask is det.
 %
-% Apply package masks from /etc/portage/package.mask (via config:gentoo_package_mask/1).
+% Apply package masks from fallback defaults (fallback:package_mask/1).
+% Only effective when config:portage_confdir/1 is not set (no real
+% /etc/portage configured).
 
-preference:apply_gentoo_package_mask :-
-  ( current_predicate(config:gentoo_package_mask/1) ->
-      forall(config:gentoo_package_mask(Atom),
+preference:apply_fallback_package_mask :-
+  ( current_predicate(fallback:package_mask/1) ->
+      forall(fallback:package_mask(Atom),
              preference:mask_catpkg_atom(Atom))
   ; true
   ).
@@ -1411,38 +1429,40 @@ preference:license_accepted(License) :-
 
 
 % -----------------------------------------------------------------------------
-%  Gentoo /etc/portage/package.use
+%  Fallback / userconfig per-package USE
 % -----------------------------------------------------------------------------
 
-%! preference:apply_gentoo_package_use is det.
+%! preference:apply_fallback_package_use is det.
 %
-% Apply per-package USE overrides from /etc/portage/package.use
-% (via config:gentoo_package_use/2).
+% Apply per-package USE overrides from fallback defaults
+% (fallback:package_use/2).  Only effective when config:portage_confdir/1
+% is not set (no real /etc/portage configured).
 
-preference:apply_gentoo_package_use :-
-  ( current_predicate(config:gentoo_package_use/2) ->
-      forall(config:gentoo_package_use(CNAtom, UseStr),
-             preference:register_gentoo_package_use(CNAtom, UseStr))
+preference:apply_fallback_package_use :-
+  ( current_predicate(fallback:package_use/2) ->
+      forall(fallback:package_use(CNAtom, UseStr),
+             preference:register_fallback_package_use(CNAtom, UseStr))
   ; true
   ).
 
 
-%! preference:register_gentoo_package_use(+CNAtom, +UseStr) is det.
+%! preference:register_fallback_package_use(+CNAtom, +UseStr) is det.
 %
-% Register a single /etc/portage/package.use line.  Simple cat/pkg atoms
-% produce package_use_override/4; versioned atoms produce soft overrides.
+% Register a single package.use line from fallback or /etc/portage.
+% Simple cat/pkg atoms produce userconfig_use/4; versioned atoms
+% produce userconfig_use_versioned/3 soft overrides.
 
-preference:register_gentoo_package_use(CNAtom, UseStr) :-
+preference:register_fallback_package_use(CNAtom, UseStr) :-
   atom(CNAtom),
   ( preference:is_simple_catpkg_atom_(CNAtom) ->
       preference:register_package_use(CNAtom, UseStr)
   ; preference:profile_package_use_spec(CNAtom, Spec) ->
-      preference:register_gentoo_package_use_soft(Spec, UseStr)
+      preference:register_userconfig_use_soft(Spec, UseStr)
   ; true
   ),
   !.
 
-preference:register_gentoo_package_use(_, _) :-
+preference:register_fallback_package_use(_, _) :-
   true.
 
 
@@ -1464,11 +1484,11 @@ preference:is_simple_catpkg_atom_(Atom) :-
   !.
 
 
-%! preference:register_gentoo_package_use_soft(+Spec, +UseStr) is det.
+%! preference:register_userconfig_use_soft(+Spec, +UseStr) is det.
 %
 % Register per-package USE overrides for a versioned/slotted spec.
 
-preference:register_gentoo_package_use_soft(Spec, UseStr) :-
+preference:register_userconfig_use_soft(Spec, UseStr) :-
   ( string(UseStr) ->
       UseS = UseStr
   ; atom(UseStr) ->
@@ -1478,24 +1498,24 @@ preference:register_gentoo_package_use_soft(Spec, UseStr) :-
   split_string(UseS, " ", " \t\r\n", Parts0),
   exclude(=(""), Parts0, Parts),
   forall(member(P, Parts),
-         preference:apply_gentoo_package_use_soft_flag(Spec, P)),
+         preference:apply_userconfig_use_soft_flag(Spec, P)),
   !.
 
 
-%! preference:apply_gentoo_package_use_soft_flag(+Spec, +P) is det.
+%! preference:apply_userconfig_use_soft_flag(+Spec, +P) is det.
 %
-% Parse and assert a single USE flag for a soft gentoo package.use override.
+% Parse and assert a single USE flag for a userconfig soft override.
 
-preference:apply_gentoo_package_use_soft_flag(Spec, P) :-
+preference:apply_userconfig_use_soft_flag(Spec, P) :-
   ( sub_atom(P, 0, 1, _, '-') ->
       sub_atom(P, 1, _, 0, Flag0),
       Flag0 \== '',
       atom_string(Flag, Flag0),
-      retractall(preference:gentoo_package_use_soft(Spec, Flag, _)),
-      assertz(preference:gentoo_package_use_soft(Spec, Flag, negative))
+      retractall(preference:userconfig_use_versioned(Spec, Flag, _)),
+      assertz(preference:userconfig_use_versioned(Spec, Flag, negative))
   ; atom_string(Flag, P),
-    retractall(preference:gentoo_package_use_soft(Spec, Flag, _)),
-    assertz(preference:gentoo_package_use_soft(Spec, Flag, positive))
+    retractall(preference:userconfig_use_versioned(Spec, Flag, _)),
+    assertz(preference:userconfig_use_versioned(Spec, Flag, positive))
   ),
   !.
 
@@ -1503,7 +1523,7 @@ preference:apply_gentoo_package_use_soft_flag(Spec, P) :-
 %! preference:register_package_use(+CNAtom, +UseStr) is det.
 %
 % Register per-package USE overrides for a simple cat/pkg atom.  Asserts
-% package_use_override/4 facts with positive/negative state.
+% userconfig_use/4 facts with positive/negative state.
 
 preference:register_package_use(CNAtom, UseStr) :-
   atom(CNAtom),
@@ -1522,11 +1542,11 @@ preference:register_package_use(CNAtom, UseStr) :-
              sub_atom(P, 1, _, 0, Flag0),
              Flag0 \== '',
              atom_string(Flag, Flag0),
-             retractall(preference:package_use_override(C, N, Flag, _)),
-             assertz(preference:package_use_override(C, N, Flag, negative))
+             retractall(preference:userconfig_use(C, N, Flag, _)),
+             assertz(preference:userconfig_use(C, N, Flag, negative))
          ; atom_string(Flag, P),
-           retractall(preference:package_use_override(C, N, Flag, _)),
-           assertz(preference:package_use_override(C, N, Flag, positive))
+           retractall(preference:userconfig_use(C, N, Flag, _)),
+           assertz(preference:userconfig_use(C, N, Flag, positive))
          )).
 
 
@@ -1639,3 +1659,36 @@ preference:init_world_entries :-
              assertz(preference:world_entry(E)))
   ; true
   ).
+
+
+% -----------------------------------------------------------------------------
+%  Configuration status
+% -----------------------------------------------------------------------------
+
+%! preference:status is det.
+%
+% Display which configuration sources are currently active.
+
+preference:status :-
+  format('~n  Configuration sources:~n'),
+  ( current_predicate(config:portage_confdir/1),
+    config:portage_confdir(Dir) ->
+      format('    /etc/portage:   ~w~n', [Dir])
+  ; format('    /etc/portage:   not configured (using fallback defaults)~n')
+  ),
+  ( current_predicate(config:gentoo_profile/1),
+    config:gentoo_profile(P) ->
+      format('    Profile:        ~w~n', [P])
+  ; format('    Profile:        not configured~n')
+  ),
+  ( preference:use_cached_profile ->
+      format('    Profile cache:  active (Knowledge/profile.qlf)~n')
+  ; format('    Profile cache:  not used (live parsing)~n')
+  ),
+  aggregate_all(count, preference:global_use(_), UseCount),
+  aggregate_all(count, preference:masked(_), MaskCount),
+  aggregate_all(count, preference:userconfig_use(_,_,_,_), PkgUseCount),
+  format('    Global USE:     ~d flags~n', [UseCount]),
+  format('    Package masks:  ~d entries~n', [MaskCount]),
+  format('    Package USE:    ~d overrides~n', [PkgUseCount]),
+  nl.
