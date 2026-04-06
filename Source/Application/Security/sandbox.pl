@@ -138,6 +138,21 @@ sandbox:safe_primitive(constraint:is_constraint(_)).
 sandbox:safe_primitive(constraint:unify_constraints(_,_,_)).
 
 % -----------------------------------------------------------------------------
+%  Sampler
+% -----------------------------------------------------------------------------
+
+sandbox:safe_primitive(sampler:fact(_)).
+sandbox:safe_primitive(sampler:value(_,_)).
+sandbox:safe_primitive(sampler:percent(_,_,_)).
+sandbox:safe_primitive(sampler:stage_at_least(_)).
+sandbox:safe_primitive(sampler:pkg_count(_,_)).
+sandbox:safe_primitive(sampler:counters(_)).
+sandbox:safe_primitive(sampler:ctx_counters(_,_,_,_)).
+sandbox:safe_primitive(sampler:ctx_distribution(_,_,_,_)).
+sandbox:safe_primitive(sampler:report_callsites(_)).
+sandbox:safe_primitive(sampler:report_callsites_sig(_)).
+
+% -----------------------------------------------------------------------------
 %  Rules
 % -----------------------------------------------------------------------------
 
