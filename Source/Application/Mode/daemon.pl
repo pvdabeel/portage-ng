@@ -54,19 +54,19 @@ daemon:start :-
       process_wait(ChPid, _)
     ), _, true),
   tcp_listen(Socket, 5),
-  daemon_write_pid(PidPath),
+  write_pid(PidPath),
   assertz(daemon:running),
-  at_halt(daemon_cleanup(SocketPath, PidPath)),
+  at_halt(cleanup(SocketPath, PidPath)),
   current_prolog_flag(pid, Pid),
   format('Daemon started (PID ~w), listening on ~w~n', [Pid, SocketPath]),
-  daemon_accept_loop(Socket).
+  accept_loop(Socket).
 
 
-%! daemon_write_pid(+PidPath) is det.
+%! daemon:write_pid(+PidPath) is det.
 %
 % Writes the current process PID to the given file.
 
-daemon_write_pid(PidPath) :-
+daemon:write_pid(PidPath) :-
   current_prolog_flag(pid, Pid),
   setup_call_cleanup(
     open(PidPath, write, S),
@@ -74,70 +74,70 @@ daemon_write_pid(PidPath) :-
     close(S)).
 
 
-%! daemon_cleanup(+SocketPath, +PidPath) is det.
+%! daemon:cleanup(+SocketPath, +PidPath) is det.
 %
 % Removes the socket and PID files on daemon exit.
 
-daemon_cleanup(SocketPath, PidPath) :-
+daemon:cleanup(SocketPath, PidPath) :-
   ( access_file(SocketPath, exist) -> delete_file(SocketPath) ; true ),
   ( access_file(PidPath, exist) -> delete_file(PidPath) ; true ).
 
 
 :- dynamic daemon:inactivity_alarm/1.
 
-%! daemon_reset_timer is det.
+%! daemon:reset_timer is det.
 %
 % Resets the inactivity timer. If timeout is 0, no timer is set.
 
-daemon_reset_timer :-
+daemon:reset_timer :-
   ( retract(daemon:inactivity_alarm(OldAlarm))
   -> catch(remove_alarm(OldAlarm), _, true)
   ;  true
   ),
   config:daemon_inactivity_timeout(Timeout),
   ( Timeout > 0
-  -> alarm(Timeout, daemon_inactivity_shutdown, Alarm, []),
+  -> alarm(Timeout, inactivity_shutdown, Alarm, []),
      assertz(daemon:inactivity_alarm(Alarm))
   ;  true
   ).
 
 
-%! daemon_inactivity_shutdown is det.
+%! daemon:inactivity_shutdown is det.
 %
 % Called when the inactivity timer fires.
 
-daemon_inactivity_shutdown :-
+daemon:inactivity_shutdown :-
   format(user_error, 'Daemon shutting down due to inactivity~n', []),
   halt(0).
 
 
-%! daemon_accept_loop(+Socket) is det.
+%! daemon:accept_loop(+Socket) is det.
 %
 % Main accept loop. Accepts connections one at a time (serialized requests).
 
-daemon_accept_loop(Socket) :-
-  daemon_reset_timer,
+daemon:accept_loop(Socket) :-
+  reset_timer,
   tcp_accept(Socket, ClientSocket, _Peer),
   tcp_open_socket(ClientSocket, StreamPair),
   stream_pair(StreamPair, In, Out),
   set_stream(In, encoding(utf8)),
   set_stream(Out, encoding(utf8)),
-  ( daemon_handle_request(In, Out)
+  ( handle_request(In, Out)
   -> true
   ;  true
   ),
   catch(close(In), _, true),
   catch(close(Out), _, true),
-  daemon_accept_loop(Socket).
+  accept_loop(Socket).
 
 
-%! daemon_handle_request(+In, +Out) is det.
+%! daemon:handle_request(+In, +Out) is det.
 %
 % Handles a single request from a client connection.
 % Reads the request term, isolates state, runs the request with
 % output redirected to the socket stream.
 
-daemon_handle_request(In, Out) :-
+daemon:handle_request(In, Out) :-
   catch(
     read_term(In, Term, [
       max_term_length(100000),
@@ -150,32 +150,32 @@ daemon_handle_request(In, Out) :-
   ),
   !,
   ( sanitize:safe_daemon_request(Term) ->
-    daemon_dispatch(Term, In, Out)
+    dispatch(Term, In, Out)
   ; format(Out, 'Error: malformed request~n', []),
     format(Out, '~cEXIT:1~n', [0]),
     flush_output(Out)
   ).
 
-daemon_handle_request(_, _).
+daemon:handle_request(_, _).
 
 
-%! daemon_dispatch(+Term, +In, +Out) is det.
+%! daemon:dispatch(+Term, +In, +Out) is det.
 %
 % Dispatches a parsed request term.
 
-daemon_dispatch(shutdown, _In, Out) :-
+daemon:dispatch(shutdown, _In, Out) :-
   !,
   format(Out, 'Daemon shutting down~n', []),
   flush_output(Out),
   halt(0).
 
-daemon_dispatch(request(Args, Cols, Rows, Env), _In, Out) :-
+daemon:dispatch(request(Args, Cols, Rows, Env), _In, Out) :-
   !,
-  daemon_reset_timer,
-  daemon_isolate_state(Args, Cols, Rows, Env),
+  reset_timer,
+  isolate_state(Args, Cols, Rows, Env),
   ExitCode = exit_code(0),
   catch(
-    daemon_run_with_output(Out, ExitCode),
+    run_with_output(Out, ExitCode),
     Error,
     ( format(Out, 'Error: ~w~n', [Error]),
       nb_setarg(1, ExitCode, 1) )
@@ -184,23 +184,23 @@ daemon_dispatch(request(Args, Cols, Rows, Env), _In, Out) :-
   format(Out, '~cEXIT:~w~n', [0, Code]),
   flush_output(Out).
 
-daemon_dispatch(request(Args, Cols, Rows), In, Out) :-
+daemon:dispatch(request(Args, Cols, Rows), In, Out) :-
   !,
-  daemon_dispatch(request(Args, Cols, Rows, []), In, Out).
+  dispatch(request(Args, Cols, Rows, []), In, Out).
 
-daemon_dispatch(_, _In, Out) :-
+daemon:dispatch(_, _In, Out) :-
   format(Out, 'Error: unknown request~n', []),
   format(Out, '~cEXIT:1~n', [0]),
   flush_output(Out).
 
 
-%! daemon_isolate_state(+Args, +Cols, +Rows, +Env) is det.
+%! daemon:isolate_state(+Args, +Cols, +Rows, +Env) is det.
 %
 % Prepares clean state for a new request: clears memoized CLI args
 % and per-request preference flags, injects the new arguments,
 % applies client environment overrides, and re-initializes preferences.
 
-daemon_isolate_state(Args, Cols, Rows, Env) :-
+daemon:isolate_state(Args, Cols, Rows, Env) :-
   retractall(interface:argv_(_,_)),
   retractall(preference:local_flag(_)),
   set_prolog_flag(argv, Args),
@@ -216,15 +216,15 @@ daemon_isolate_state(Args, Cols, Rows, Env) :-
   -> assertz(daemon:client_is_tty)
   ;  true
   ),
-  daemon_apply_client_env(Env).
+  apply_client_env(Env).
 
 
-%! daemon_apply_client_env(+Env:list) is det.
+%! daemon:apply_client_env(+Env:list) is det.
 %
 % Applies client environment overrides for this request and
 % re-initializes preferences so USE/ACCEPT_KEYWORDS take effect.
 
-daemon_apply_client_env(Env) :-
+daemon:apply_client_env(Env) :-
   retractall(daemon:client_env(_,_)),
   forall(member(Name-Value, Env),
     assertz(daemon:client_env(Name, Value))),
@@ -239,12 +239,12 @@ daemon_apply_client_env(Env) :-
 :- dynamic daemon:running/0.
 
 
-%! daemon_run_with_output(+Out, +ExitCodeTerm) is det.
+%! daemon:run_with_output(+Out, +ExitCodeTerm) is det.
 %
 % Runs interface:process_requests(standalone) with current_output
 % and current_error redirected to the socket stream Out.
 
-daemon_run_with_output(Out, ExitCodeTerm) :-
+daemon:run_with_output(Out, ExitCodeTerm) :-
   stream_property(OldOut, alias(user_output)),
   stream_property(OldErr, alias(user_error)),
   current_output(OldCurr),
@@ -256,7 +256,7 @@ daemon_run_with_output(Out, ExitCodeTerm) :-
     catch(
       interface:process_requests(standalone),
       Error,
-      daemon_handle_error(Out, Error, ExitCodeTerm)
+      handle_error(Out, Error, ExitCodeTerm)
     ),
     ( set_stream(OldOut, alias(user_output)),
       set_stream(OldErr, alias(user_error)),
@@ -265,18 +265,18 @@ daemon_run_with_output(Out, ExitCodeTerm) :-
   ).
 
 
-%! daemon_handle_error(+Out, +Error, +ExitCodeTerm) is det.
+%! daemon:handle_error(+Out, +Error, +ExitCodeTerm) is det.
 %
 % Interprets exceptions thrown during request processing.
 % halt/1 throws unwind(halt(Code)) in SWI-Prolog.
 
-daemon_handle_error(_Out, unwind(halt(Code)), ExitCodeTerm) :-
+daemon:handle_error(_Out, unwind(halt(Code)), ExitCodeTerm) :-
   integer(Code), !,
   nb_setarg(1, ExitCodeTerm, Code).
-daemon_handle_error(_Out, halt(Code), ExitCodeTerm) :-
+daemon:handle_error(_Out, halt(Code), ExitCodeTerm) :-
   integer(Code), !,
   nb_setarg(1, ExitCodeTerm, Code).
-daemon_handle_error(Out, Error, ExitCodeTerm) :-
+daemon:handle_error(Out, Error, ExitCodeTerm) :-
   format(Out, 'Daemon error: ~w~n', [Error]),
   nb_setarg(1, ExitCodeTerm, 1).
 
@@ -294,44 +294,44 @@ daemon_handle_error(Out, Error, ExitCodeTerm) :-
 daemon:connect(ExitCode) :-
   config:daemon_socket_path(SocketPath),
   ( \+ access_file(SocketPath, exist)
-  -> daemon_no_daemon_error,
+  -> no_daemon_error,
      ExitCode = 1
   ;  catch(
-       daemon_do_connect(SocketPath, ExitCode),
+       do_connect(SocketPath, ExitCode),
        _Error,
-       ( daemon_no_daemon_error,
+       ( no_daemon_error,
          ExitCode = 1 )
      )
   ).
 
 
-%! daemon_do_connect(+SocketPath, -ExitCode) is det.
+%! daemon:do_connect(+SocketPath, -ExitCode) is det.
 %
 % Performs the actual connection and I/O with the daemon.
 
-daemon_do_connect(SocketPath, ExitCode) :-
+daemon:do_connect(SocketPath, ExitCode) :-
   unix_domain_socket(Socket),
   tcp_connect(Socket, SocketPath),
   tcp_open_socket(Socket, StreamPair),
   stream_pair(StreamPair, In, Out),
   set_stream(Out, encoding(utf8)),
   set_stream(In, encoding(utf8)),
-  daemon_send_request(Out),
+  send_request(Out),
   flush_output(Out),
-  daemon_stream_response(In, ExitCode),
+  stream_response(In, ExitCode),
   catch(close(In), _, true),
   catch(close(Out), _, true).
 
 
-%! daemon_send_request(+Out) is det.
+%! daemon:send_request(+Out) is det.
 %
 % Sends the current CLI arguments, terminal dimensions, and
 % portage-relevant environment variables to the daemon.
 
-daemon_send_request(Out) :-
+daemon:send_request(Out) :-
   current_prolog_flag(argv, RawArgs),
   config:printing_tty_size(Rows, Cols),
-  daemon_collect_env(Env0),
+  collect_env(Env0),
   ( stream_property(user_output, tty(true))
   -> Env = ['_CLIENT_IS_TTY'-true | Env0]
   ;  Env = Env0
@@ -339,55 +339,55 @@ daemon_send_request(Out) :-
   format(Out, 'request(~q, ~w, ~w, ~q).~n', [RawArgs, Cols, Rows, Env]).
 
 
-%! daemon_collect_env(-Env:list) is det.
+%! daemon:collect_env(-Env:list) is det.
 %
 % Collects portage-relevant environment variables that are set in the
 % client process, as Name-Value pairs.
 
-daemon_collect_env(Env) :-
+daemon:collect_env(Env) :-
   findall(Name-Value,
-    ( daemon_forwarded_env_var(Name),
+    ( forwarded_env_var(Name),
       system:getenv(Name, Value)
     ),
     Env).
 
 
-%! daemon_forwarded_env_var(?Name) is nondet.
+%! daemon:forwarded_env_var(?Name) is nondet.
 %
 % Environment variables forwarded from IPC client to daemon.
 
-daemon_forwarded_env_var('USE').
-daemon_forwarded_env_var('ACCEPT_KEYWORDS').
-daemon_forwarded_env_var('PYTHON_TARGETS').
-daemon_forwarded_env_var('PYTHON_SINGLE_TARGET').
-daemon_forwarded_env_var('RUBY_TARGETS').
-daemon_forwarded_env_var('RUBY_SINGLE_TARGET').
-daemon_forwarded_env_var('LUA_SINGLE_TARGET').
-daemon_forwarded_env_var('PERL_FEATURES').
-daemon_forwarded_env_var('LLVM_SLOT').
-daemon_forwarded_env_var('VIDEO_CARDS').
-daemon_forwarded_env_var('INPUT_DEVICES').
-daemon_forwarded_env_var('CPU_FLAGS_X86').
-daemon_forwarded_env_var('APACHE2_MODULES').
-daemon_forwarded_env_var('APACHE2_MPMS').
+daemon:forwarded_env_var('USE').
+daemon:forwarded_env_var('ACCEPT_KEYWORDS').
+daemon:forwarded_env_var('PYTHON_TARGETS').
+daemon:forwarded_env_var('PYTHON_SINGLE_TARGET').
+daemon:forwarded_env_var('RUBY_TARGETS').
+daemon:forwarded_env_var('RUBY_SINGLE_TARGET').
+daemon:forwarded_env_var('LUA_SINGLE_TARGET').
+daemon:forwarded_env_var('PERL_FEATURES').
+daemon:forwarded_env_var('LLVM_SLOT').
+daemon:forwarded_env_var('VIDEO_CARDS').
+daemon:forwarded_env_var('INPUT_DEVICES').
+daemon:forwarded_env_var('CPU_FLAGS_X86').
+daemon:forwarded_env_var('APACHE2_MODULES').
+daemon:forwarded_env_var('APACHE2_MPMS').
 
 
-%! daemon_stream_response(+In, -ExitCode) is det.
+%! daemon:stream_response(+In, -ExitCode) is det.
 %
 % Reads the daemon's output byte by byte, writing to current_output,
 % until the EXIT terminator is encountered.
 
-daemon_stream_response(In, ExitCode) :-
+daemon:stream_response(In, ExitCode) :-
   read_string(In, _, FullOutput),
-  daemon_parse_output(FullOutput, ExitCode).
+  parse_output(FullOutput, ExitCode).
 
 
-%! daemon_parse_output(+Output, -ExitCode) is det.
+%! daemon:parse_output(+Output, -ExitCode) is det.
 %
 % Splits the output at the EXIT terminator, prints the main output,
 % and extracts the exit code.
 
-daemon_parse_output(Output, ExitCode) :-
+daemon:parse_output(Output, ExitCode) :-
   atom_codes(Sentinel, [0, 0'E, 0'X, 0'I, 0'T, 0':]),
   ( sub_string(Output, Before, _, _, Sentinel)
   -> sub_string(Output, 0, Before, _, MainOutput),
@@ -407,11 +407,11 @@ daemon_parse_output(Output, ExitCode) :-
   ).
 
 
-%! daemon_no_daemon_error is det.
+%! daemon:no_daemon_error is det.
 %
 % Prints an error message when no daemon is running.
 
-daemon_no_daemon_error :-
+daemon:no_daemon_error :-
   config:daemon_socket_path(SocketPath),
   format(user_error,
     'Error: No daemon running (socket ~w not found).~n\c
@@ -453,7 +453,7 @@ daemon:fork_background(Mode) :-
   format('Starting ~w in background (PID ~w)...~n', [ModeStr, Pid]),
   ( Mode == daemon
   -> config:daemon_pid_path(PidPath),
-     daemon_wait_for_file(PidPath, 100),
+     wait_for_file(PidPath, 100),
      ( exists_file(PidPath)
      -> format('Daemon ready (PID ~w).~n', [Pid])
      ;  format(user_error, 'Warning: daemon may not have started.~n', [])
@@ -463,17 +463,17 @@ daemon:fork_background(Mode) :-
   ).
 
 
-%! daemon_wait_for_file(+Path, +Retries) is det.
+%! daemon:wait_for_file(+Path, +Retries) is det.
 %
 % Polls for a file to appear, sleeping 100ms between retries.
 
-daemon_wait_for_file(_, 0) :- !.
-daemon_wait_for_file(Path, N) :-
+daemon:wait_for_file(_, 0) :- !.
+daemon:wait_for_file(Path, N) :-
   ( access_file(Path, exist)
   -> true
   ;  sleep(0.1),
      N1 is N - 1,
-     daemon_wait_for_file(Path, N1)
+     wait_for_file(Path, N1)
   ).
 
 
@@ -510,7 +510,7 @@ daemon:send_command(halt) :-
   config:daemon_socket_path(SocketPath),
   ( \+ access_file(SocketPath, exist)
   -> format(user_error, 'No daemon running.~n', [])
-  ;  daemon_send_term(SocketPath, shutdown),
+  ;  send_term(SocketPath, shutdown),
      format('Daemon stopped.~n', [])
   ).
 
@@ -519,7 +519,7 @@ daemon:send_command(relaunch) :-
   daemon:send_command(halt),
   sleep(1),
   config:daemon_socket_path(SocketPath),
-  daemon_wait_for_socket_gone(SocketPath, 50),
+  wait_for_socket_gone(SocketPath, 50),
   daemon:fork_background(daemon).
 
 daemon:send_command(Cmd) :-
@@ -548,11 +548,11 @@ daemon:relaunch :-
   daemon:send_command(relaunch).
 
 
-%! daemon_send_term(+SocketPath, +Term) is det.
+%! daemon:send_term(+SocketPath, +Term) is det.
 %
 % Connects to the daemon socket and sends a Prolog term.
 
-daemon_send_term(SocketPath, Term) :-
+daemon:send_term(SocketPath, Term) :-
   catch(
     ( unix_domain_socket(Socket),
       tcp_connect(Socket, SocketPath),
@@ -571,15 +571,15 @@ daemon_send_term(SocketPath, Term) :-
   ).
 
 
-%! daemon_wait_for_socket_gone(+Path, +Retries) is det.
+%! daemon:wait_for_socket_gone(+Path, +Retries) is det.
 %
 % Polls until the socket file disappears, sleeping 100ms between retries.
 
-daemon_wait_for_socket_gone(_, 0) :- !.
-daemon_wait_for_socket_gone(Path, N) :-
+daemon:wait_for_socket_gone(_, 0) :- !.
+daemon:wait_for_socket_gone(Path, N) :-
   ( \+ access_file(Path, exist)
   -> true
   ;  sleep(0.1),
      N1 is N - 1,
-     daemon_wait_for_socket_gone(Path, N1)
+     wait_for_socket_gone(Path, N1)
   ).
