@@ -1002,7 +1002,7 @@ search([Statement|Rest],Repository://Entry) :-
 %  \+(search(Statement,Repository://Entry)).
 
 
-% Case : an all statement (single argument, contextualized)
+% Case : an all statement (single argument, with ?{Context})
 
 search(all(Statement):Context,Repository://Entry) :-
   Statement =.. [Key,Values],
@@ -1013,7 +1013,7 @@ search(all(Statement):Context,Repository://Entry) :-
           Values).
 
 
-% Case : an all statement (single argument, no context)
+% Case : an all statement (single argument, without ?{Context})
 
 search(all(Statement),Repository://Entry) :-
   Statement =.. [Key,Values],
@@ -1024,7 +1024,7 @@ search(all(Statement),Repository://Entry) :-
           Values).
 
 
-% Case : an all statement (dual argument, contextualized)
+% Case : an all statement (dual argument, with ?{Context})
 
 search(all(Statement):Context,Repository://Entry) :-
   Statement =.. [Key,Values,Filter],
@@ -1035,7 +1035,7 @@ search(all(Statement):Context,Repository://Entry) :-
           Values).
 
 
-% Case : an all statement (dual argument, no context)
+% Case : an all statement (dual argument, without ?{Context})
 
 search(all(Statement),Repository://Entry) :-
   Statement =.. [Key,Values,Filter],
@@ -1046,7 +1046,7 @@ search(all(Statement),Repository://Entry) :-
           Values).
 
 
-% Case : a model statement (dual argument, contextualized),Add commentMore actions
+% Case : a model statement (dual argument, with ?{Context})
 
 search(model(Statement):Action?{Context},Repository://Id) :-
   Statement =.. [Key,Model,Arg],
@@ -1057,7 +1057,7 @@ search(model(Statement):Action?{Context},Repository://Id) :-
   prover:model_to_list(AvlModel,Model).
 
 
-% Case : a model statement (dual argument, no context),
+% Case : a model statement (dual argument, without ?{Context})
 
 search(model(Statement),Repository://Id) :-
   Statement =.. [Key,Model,Arg],
@@ -1068,7 +1068,7 @@ search(model(Statement),Repository://Id) :-
   prover:model_to_list(AvlModel,Model).
 
 
-% Case : a model statement (single argument, contextualized)
+% Case : a model statement (single argument, with ?{Context})
 
 search(model(Statement):Action?{Context},Repository://Id) :-
   Statement =.. [Key,Model],
@@ -1079,7 +1079,7 @@ search(model(Statement):Action?{Context},Repository://Id) :-
   prover:model_to_list(AvlModel,Model).
 
 
-% Case : a model statement (single argument, no context)
+% Case : a model statement (single argument, without ?{Context})
 
 search(model(Statement),Repository://Id) :-
   Statement =.. [Key,Model],

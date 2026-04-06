@@ -314,22 +314,23 @@ proxy ::-
   ::host(_).
 
 
-%! knowledgebase:rpc_wrapper(Term)
+%! knowledgebase:rpc_wrapper(Module:Term)
 %
 % Protected predicate
 %
 % Wrap predicates into a remote procedure call if host,
-% port and proxy are set.
+% port and proxy are set. Module is the target module atom
+% (e.g. cache, query).
 
-rpc_wrapper(Context:Term) ::-
+rpc_wrapper(Module:Term) ::-
   ::host(Host),!,
   ::port(Port),
-  client:rpc_execute(Host,Port,Context:Term).
+  client:rpc_execute(Host,Port,Module:Term).
 
-rpc_wrapper(Context:Term) ::-
+rpc_wrapper(Module:Term) ::-
   \+ proxy,!,
   once(goal_expansion(Term,Expanded)),
-  Context:Expanded.
+  Module:Expanded.
 
 
 %! knowledgebase:repository(?Repository)

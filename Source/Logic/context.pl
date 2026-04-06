@@ -22,12 +22,10 @@ In short, a clever mechanism to enable:
 - Better conrol of dynamic facts and rules
 - Better performance by evaluating rules in the right context
 
-Contexts can be unified and can serve as powerfull Feature Terms describing
-Software Configurations. (A. Zeller - Unified Versioning through Feature Logic)
-
 The syntax is comparable to LogTalk, but LogTalk takes a compilation approach,
 translating to regular prolog. This implementation works at runtime by
 dynamically generating the necessary predicates.
+
 
 -------------------------------------------------------------------------------
  * CONTEXT - Contextual Object Oriented Logic Programming

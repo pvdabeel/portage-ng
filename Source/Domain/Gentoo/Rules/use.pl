@@ -443,15 +443,15 @@ ctx_assumed_minus(Ctx, Use) :-
 
 
 % =============================================================================
-%  Self-context USE state
+%  Self-entry USE state (from ?{Context} list)
 % =============================================================================
 
 %! use:self_context_use_state(+Context, +Use, -State)
 %
-% Determine the USE state for flag Use on the "self" entry in Context.
-% This is used by optional USE deps (`foo(+)`, `foo(-)`) to check the
-% parent ebuild's own USE configuration. Results are memoized in
-% memo:self_use_cache_/4.
+% Determine the USE state for flag Use on the self/1 entry in the
+% ?{Context} list.  This is used by optional USE deps (`foo(+)`,
+% `foo(-)`) to check the parent ebuild's own USE configuration.
+% Results are memoized in memo:self_use_cache_/4.
 
 self_context_use_state(Ctx, Use, State) :-
   memberchk(self(RepoEntry0), Ctx),

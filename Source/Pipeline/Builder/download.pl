@@ -174,11 +174,12 @@ download:join_mirror_url(MirrorBase, RelPath, URL) :-
 %  Distfile fetching
 % -----------------------------------------------------------------------------
 
-%! download:fetch_distfiles(+Repository, +Entry, +Context, -Failures) is det.
+%! download:fetch_distfiles(+Repository, +Entry, +_Context, -Failures) is det.
 %
 % Download all distfiles for a given ebuild entry. Returns a list of
 % filenames that failed to download. Each file is verified against both
-% size and Manifest checksums after download.
+% size and Manifest checksums after download. The ?{Context} list is
+% currently unused but reserved for future use.
 
 download:fetch_distfiles(Repository, Entry, _Context, Failures) :-
   distfiles:get_location(Distdir),

@@ -453,7 +453,7 @@ dep_slot_key(_, any).
 
 %! candidate:context_cn_domain_constraint(+C, +N, +Context, -Domain)
 %
-% Extracts the cn_domain constraint for (C,N) from the prover context.
+% Extracts the cn_domain constraint for (C,N) from the ?{Context} list.
 
 context_cn_domain_constraint(C, N, Context, Domain) :-
   is_list(Context),
@@ -462,7 +462,7 @@ context_cn_domain_constraint(C, N, Context, Domain) :-
 
 %! candidate:context_cn_domain_reason(+C, +N, +Context, -Reasons)
 %
-% Extracts domain reason tags for (C,N) from the prover context.
+% Extracts domain reason tags for (C,N) from the ?{Context} list.
 
 context_cn_domain_reason(C, N, Context, Reasons) :-
   is_list(Context),
@@ -1630,7 +1630,8 @@ group_member_preferred(_Context, _Other) :-
 %! candidate:installed_pkg_satisfies_dep(+ParentContext, +PackageDep)
 %
 % True if an installed package satisfies the version and USE requirements
-% of the given package_dependency term.
+% of the given package_dependency term. ParentContext is the ?{Context}
+% list of the parent literal.
 
 installed_pkg_satisfies_dep(ParentContext,
                              package_dependency(_Phase,_Strength,C,N,O,V,_S,UseReqs)) :-

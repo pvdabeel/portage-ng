@@ -194,7 +194,7 @@ preference:env_accept_keywords(Keyword) :-
 %
 % Returns active USE flag settings.  In standalone mode, the flags are
 % asserted by preference:init/0.  In client-server mode, they are
-% injected as thread-local clauses by the pengines context.
+% injected as thread-local clauses by the Pengines sandbox.
 
 preference:use(X) :-
   ( pengine_self(M) ->
@@ -223,7 +223,7 @@ preference:use(X,other) :-
 %
 % Returns active ACCEPT_KEYWORDS settings.  In standalone mode, the
 % keywords are asserted by preference:init/0.  In client-server mode,
-% they are injected as thread-local clauses by the pengines context.
+% they are injected as thread-local clauses by the Pengines sandbox.
 
 preference:accept_keywords(X) :-
   ( pengine_self(M) ->
@@ -258,7 +258,7 @@ preference:raw_keyword_matches_(RawKW, K) :-
 %
 % Returns active interface flags (deep, emptytree, pdepend, etc.).
 % In standalone mode, set by interface.  In client-server mode,
-% injected as thread-local clauses by the pengines context.
+% injected as thread-local clauses by the Pengines sandbox.
 
 preference:flag(Flag) :-
   ( pengine_self(M) ->

@@ -9,31 +9,32 @@
 
 
 /** <module> DEPENDENCY
-Package dependency context management for the rules engine.
+Package dependency ?{Context} list management for the rules engine.
 
 This module provides predicates that annotate dependency literals with
-provenance information (self-references), manage slot context propagation
-across dependency edges, and handle build-with-use state threading.
+provenance information (self-references), manage slot propagation across
+dependency edges in the ?{Context} list, and handle build-with-use state
+threading.
 
 The rule/2 clauses in rules.pl call into this module when they need to:
 
   1. Tag dependency literals with `self(Repo://Entry)` so downstream rules
      can distinguish self-dependencies from external ones.
 
-  2. Propagate slot locks into the dependency context so that `:=`
+  2. Propagate slot locks into the ?{Context} list so that `:=`
      (rebuild-on-slot-change) semantics work correctly.
 
   3. Thread `build_with_use` state from bracketed USE constraints
-     (e.g. `dev-libs/foo[bar]`) into the child dependency context.
+     (e.g. `dev-libs/foo[bar]`) into the child's ?{Context} list.
 
   4. Collect USE requirements from dependency edges into the format
      expected by the prover's assumption mechanism.
 
 == Key design constraints ==
 
-  * Self-context (`self/1`): at most one `self/1` term is kept in any
-    context to prevent context growth along deep dependency chains (which
-    would defeat memoization).
+  * Self-entry (`self/1`): at most one `self/1` term is kept in any
+    ?{Context} list to prevent list growth along deep dependency chains
+    (which would defeat memoization).
 
   * Build-with-use: per-package state.  A child's build_with_use must NOT
     inherit the parent's; only the directives from the current dependency

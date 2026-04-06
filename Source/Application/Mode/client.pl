@@ -35,10 +35,10 @@ returns a dependency plan that the client can print or execute.
 
 %! client:remote_predicate_template(?Predicate)
 %
-% Predicates whose full clause set is shipped to the remote Pengine context.
+% Predicates whose full clause set is shipped to the remote Pengines sandbox.
 % This is a list of predicates that are declared as remote in the server.
 % The client will ship these predicates to the server and the server will
-% evaluate them in its pengines context.
+% evaluate them in its Pengines sandbox.
 
 % Global USE, keywords, flags
 client:remote_predicate_template(preference:local_use(_)).
@@ -91,12 +91,12 @@ client:remote_predicate_instance(preference:keyword_selection_mode(_)).
 
 %! client:rpc_execute(Host,Port,Cmd)
 %
-% Use pengine_rpc to remotely call a sandboxed predicate in a pengines context.
+% Use pengine_rpc to remotely call a sandboxed predicate in a Pengines sandbox.
 % Use to run computationally expensive procedures on a server but retrieve the
 % result in Prolog Term locally.
 %
 % Predicates declared as remote_predicate/1 will be injected in the remote
-% server pengines context
+% remote Pengines sandbox
 
 client:rpc_execute(Hostname,Port,Cmd) :-
   format(atom(URL), 'https://~w:~d', [Hostname,Port]),

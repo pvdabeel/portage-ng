@@ -9,12 +9,12 @@
 
 
 /** <module> ISSUE
-Known tree issues and dependency resolution contextualisation.
+Known tree issues and dependency resolution notes.
 
 This module documents known issues in the Portage tree that cause
 domain assumptions during proof search. When the prover encounters
 an unsatisfiable dependency, the printer can check this module to
-provide contextual information to the end user.
+provide supplementary information to the end user.
 
 Issue categories:
   - version_range_gap : version constraints define a range with no
@@ -23,7 +23,7 @@ Issue categories:
   - slot_mismatch     : dependency requires a slot that no candidate provides
 
 @see Source/explanation.pl for assumption reason classification
-@see Source/printer.pl for rendering domain assumptions with context
+@see Source/printer.pl for rendering domain assumptions with notes
 */
 
 :- module(issue, []).
@@ -70,7 +70,7 @@ issue:detect_version_range_gap(C, N, PackageDeps) :-
 
 %! issue:tree_issue_context(+C, +N, +PackageDeps, -Note) is semidet.
 %
-% Provides a contextual note for the user when a domain assumption
+% Provides a supplementary note for the user when a domain assumption
 % matches a known tree issue or a detectable pattern.
 
 issue:tree_issue_context(C, N, _PackageDeps, Note) :-

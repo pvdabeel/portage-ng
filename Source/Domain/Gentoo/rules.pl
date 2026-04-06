@@ -23,8 +23,8 @@ load_worker_modules).
 |--------------|----------------------------------------------------------|
 | candidate.pl | Candidate selection, slot merging, version handling,     |
 |              | CN-consistency, blocker matching, dependency ordering    |
-| dependency.pl| Self-context injection, USE-requirement collection,      |
-|              | slot/build-with-use context propagation                  |
+| dependency.pl| Self-entry injection, USE-requirement collection,        |
+|              | slot/build-with-use propagation in ?{Context} lists      |
 | heuristic.pl | Domain-specific prover hooks (reprove, snapshots)        |
 | memo.pl      | Thread-local caching declarations, clear_caches/0        |
 | target.pl    | Transactional update/downgrade condition building        |
@@ -38,16 +38,16 @@ load_worker_modules).
   2. *Dependency resolution* -- package_dependency/8 (weak/strong
      blockers), grouped_package_dependency/4, depclean traversal.
   3. *USE conditionals* -- use_conditional_group/4 (positive/negative,
-     context-aware and contextless variants).
+     with and without ?{Context} list variants).
   4. *Choice groups* -- exactly_one_of_group, at_most_one_of_group,
      any_of_group, all_of_group.
   5. *Required USE* -- required/1, blocking/1, naf/1, conflict/2.
   6. *Prover contract* -- constraint_unify_hook/4, constraint_guard/2,
      proof_obligation/4, proof_obligation_key/3,4.
 
-== Context helpers ==
+== Proof-context (?{Context} list) helpers ==
 
-This file also contains lightweight context manipulation predicates
+This file also contains lightweight ?{Context} list manipulation predicates
 (ctx_take_after, ctx_add_after, ctx_drop_build_with_use, etc.) that
 are used by rule/2 bodies for planning-marker threading.  These remain
 here because they are tightly coupled to the rule clause structure and
@@ -341,7 +341,7 @@ rule(Repository://Ebuild:install?{Context},Conditions) :-
 %
 % - if it is installed and if its runtime dependencies are satisfied
 %
-% Accepted in context:
+% Accepted in the ?{Context} list:
 %
 % - build_with_use(B)
 
@@ -472,7 +472,7 @@ rule(Repository://Ebuild:run?{Context},Conditions) :-
 
 rule(Repository://Ebuild:reinstall?{_},[]) :-
   \+(preference:flag(emptytree)),
-  query:search(installed(true),Repository://Ebuild),!. % todo: retrieve installation context
+  query:search(installed(true),Repository://Ebuild),!. % todo: retrieve installed entry's ?{Context} list
 
 
 % -----------------------------------------------------------------------------

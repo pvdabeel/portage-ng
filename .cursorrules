@@ -53,6 +53,32 @@ Assumption taxonomy (do not mix these up):
 - Domain assumptions (rules-level): proof key `rule(assumed(X))`
 - Prover cycle-break assumptions: proof key `assumed(rule(X))`
 
+## "Context" disambiguation (do not conflate these)
+
+The word "context" has three distinct meanings in this codebase:
+
+1. **OO context** (`Source/Logic/context.pl`): The Logtalk-style meta-object
+   protocol providing class declaration, instance creation, and visibility
+   guards (`dpublic`, `dprotected`, `dprivate`).  Used by `repository.pl`,
+   `knowledgebase.pl`, `stat.pl`, etc.  Recognisable by `:this`, `::`, `::=`,
+   `::-`.  In comments, refer to this as "OO context" or "instance context".
+
+2. **Proof-term context** (`?{Context}`): A plain Prolog list wrapped in `{}`
+   and attached to every proof literal: `Repo://Entry:Action?{[...]}`.
+   Carries parameters like `required_use/1`, `build_with_use/1`, `self/1`,
+   `constraint/1`, slot info, etc. — a lightweight Zeller-style feature term
+   threaded through proof search.  In comments, refer to this as "proof
+   context", "literal context", or "`?{Context}` list".
+
+3. **Pengines / sandbox context**: The execution environment used in
+   client-server mode (`Source/Application/Mode/server.pl`).  Pengines create
+   a sandboxed "context" with thread-local clauses.  In comments, refer to
+   this as "Pengines context" or "sandbox context".
+
+When writing comments, always qualify which meaning is intended.  Avoid bare
+"context" or "in context" when it could refer to more than one of the above.
+
+
 ## Learned constraint refinement
 
 The prover offers a generic learned constraint store that persists across
