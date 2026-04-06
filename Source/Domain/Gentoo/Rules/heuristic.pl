@@ -71,10 +71,10 @@ and obligation filtering.
 % Only install, update, downgrade, and reinstall actions generate
 % obligations; constraints, downloads, and other action types do not.
 
-obligation_candidate(_Repo://_Entry:Action?{_Ctx}) :-
+heuristic:obligation_candidate(_Repo://_Entry:Action?{_Ctx}) :-
   ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !.
-obligation_candidate(_Repo://_Entry:Action) :-
+heuristic:obligation_candidate(_Repo://_Entry:Action) :-
   ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !.
 
@@ -88,7 +88,7 @@ obligation_candidate(_Repo://_Entry:Action) :-
 % Process a reprove conflict. Delegates domain conflict processing
 % to candidate:add_cn_domain_rejects/5 and candidate:add_cn_domain_origin_rejects/2.
 
-handle_reprove(cn_domain(C, N, Domain, Candidates, Reasons), Added) :-
+heuristic:handle_reprove(cn_domain(C, N, Domain, Candidates, Reasons), Added) :-
   candidate:add_cn_domain_rejects(C, N, Domain, Candidates, AddedDomain),
   ( Candidates == [] ->
       candidate:add_cn_domain_origin_rejects(Reasons, AddedOrigins)
@@ -99,7 +99,7 @@ handle_reprove(cn_domain(C, N, Domain, Candidates, Reasons), Added) :-
   ; Added = false
   ),
   !.
-handle_reprove(_, false).
+heuristic:handle_reprove(_, false).
 
 
 %! heuristic:reprove_exhausted

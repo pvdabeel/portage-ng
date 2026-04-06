@@ -91,7 +91,7 @@ target:resolve_candidate(Q, Repository://Ebuild) :-
 % conditions (USE + slot + download + deps). For virtual/acct-group/acct-user
 % packages the download goal is omitted.
 
-update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
+target:update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
   use:context_build_with_use_state(Context, B),
   (memberchk(required_use:R,Context) -> true ; R = []),
   query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
@@ -130,7 +130,7 @@ update_txn_conditions(Repository://Ebuild, Context, Conditions) :-
 % `replaces(OldRepo://OldEntry)`. Only packages from the VDB (`pkg`) are
 % considered. The parent entry (Self) is excluded to prevent self-update loops.
 
-deep_update_goals(Self, MergedDeps, DeepUpdates) :-
+target:deep_update_goals(Self, MergedDeps, DeepUpdates) :-
   ( preference:accept_keywords(K)
     -> KeywordQ = [keywords(K)]
     ;  KeywordQ = []
@@ -170,12 +170,12 @@ deep_update_goals(Self, MergedDeps, DeepUpdates) :-
 % grouped_package_dependency/4, grouped_package_dependency/3, and concrete
 % Repo://Entry:Action literals.
 
-dep_cn(grouped_package_dependency(_,C,N,_):_Action?{_Ctx}, C, N) :- !.
-dep_cn(grouped_package_dependency(C,N,_):_Action?{_Ctx}, C, N) :- !.
-dep_cn(Repo://Entry:_Action?{_Ctx}, C, N) :-
+target:dep_cn(grouped_package_dependency(_,C,N,_):_Action?{_Ctx}, C, N) :- !.
+target:dep_cn(grouped_package_dependency(C,N,_):_Action?{_Ctx}, C, N) :- !.
+target:dep_cn(Repo://Entry:_Action?{_Ctx}, C, N) :-
   query:search([category(C),name(N)], Repo://Entry),
   !.
-dep_cn(Repo://Entry:_Action, C, N) :-
+target:dep_cn(Repo://Entry:_Action, C, N) :-
   query:search([category(C),name(N)], Repo://Entry),
   !.
 

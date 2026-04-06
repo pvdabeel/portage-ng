@@ -54,8 +54,8 @@ The rule/2 clauses in rules.pl call into this module when they need to:
 % downstream rules can identify the parent ebuild. Keeps at most one
 % `self/1` term per context to prevent growth along chains.
 
-add_self_to_dep_contexts(_Self, [], []) :- !.
-add_self_to_dep_contexts(Self, [D0|Rest0], [D|Rest]) :-
+dependency:add_self_to_dep_contexts(_Self, [], []) :- !.
+dependency:add_self_to_dep_contexts(Self, [D0|Rest0], [D|Rest]) :-
   ( D0 = Term:Action?{Ctx} ->
       ctx_set_self(Ctx, Self, Ctx1),
       D = Term:Action?{Ctx1}
@@ -68,7 +68,7 @@ add_self_to_dep_contexts(Self, [D0|Rest0], [D|Rest]) :-
 % Replaces or inserts a `self(Self)` term in context Ctx0.
 % If Ctx0 already contains a self/1 term it is replaced (not stacked).
 
-ctx_set_self(Ctx0, Self, Ctx) :-
+dependency:ctx_set_self(Ctx0, Self, Ctx) :-
   ( is_list(Ctx0) ->
       ( selectchk(self(_), Ctx0, Ctx1) -> true ; Ctx1 = Ctx0 ),
       Ctx = [self(Self)|Ctx1]
@@ -87,26 +87,26 @@ ctx_set_self(Ctx0, Self, Ctx) :-
 % assumption format: `required(Use)` for enable directives,
 % `naf(required(Use))` for disable directives.
 
-collect_use_requirements([], []).
-collect_use_requirements([use(enable(Use), _)|Rest], [required(Use)|RestRequirements]) :-
+dependency:collect_use_requirements([], []).
+dependency:collect_use_requirements([use(enable(Use), _)|Rest], [required(Use)|RestRequirements]) :-
     !,
     collect_use_requirements(Rest, RestRequirements).
-collect_use_requirements([use(disable(Use), _)|Rest], [naf(required(Use))|RestRequirements]) :-
+dependency:collect_use_requirements([use(disable(Use), _)|Rest], [naf(required(Use))|RestRequirements]) :-
     !,
     collect_use_requirements(Rest, RestRequirements).
-collect_use_requirements([use(equal(Use), _)|Rest], [required(Use)|RestRequirements]) :-
+dependency:collect_use_requirements([use(equal(Use), _)|Rest], [required(Use)|RestRequirements]) :-
     !,
     collect_use_requirements(Rest, RestRequirements).
-collect_use_requirements([use(inverse(Use), _)|Rest], [naf(required(Use))|RestRequirements]) :-
+dependency:collect_use_requirements([use(inverse(Use), _)|Rest], [naf(required(Use))|RestRequirements]) :-
     !,
     collect_use_requirements(Rest, RestRequirements).
-collect_use_requirements([use(optenable(Use), _)|Rest], [required(Use)|RestRequirements]) :-
+dependency:collect_use_requirements([use(optenable(Use), _)|Rest], [required(Use)|RestRequirements]) :-
     !,
     collect_use_requirements(Rest, RestRequirements).
-collect_use_requirements([use(optdisable(Use), _)|Rest], [naf(required(Use))|RestRequirements]) :-
+dependency:collect_use_requirements([use(optdisable(Use), _)|Rest], [naf(required(Use))|RestRequirements]) :-
     !,
     collect_use_requirements(Rest, RestRequirements).
-collect_use_requirements([_|Rest], RestRequirements) :-
+dependency:collect_use_requirements([_|Rest], RestRequirements) :-
     !,
     collect_use_requirements(Rest, RestRequirements).
 
@@ -119,7 +119,7 @@ collect_use_requirements([_|Rest], RestRequirements) :-
 % causes massive backtracking explosions when build-with-use context is
 % propagated through dependency cycles.
 
-process_use(ParentContext, use(Directive, Default), Acc, AccOut) :-
+dependency:process_use(ParentContext, use(Directive, Default), Acc, AccOut) :-
     !,
     use:use_dep_requirement(ParentContext, Directive, Default, Requirement),
     ( Requirement = requirement(enable, Use, _Default) ->
@@ -129,7 +129,7 @@ process_use(ParentContext, use(Directive, Default), Acc, AccOut) :-
     ; AccOut = Acc
     ).
 
-process_use(_ParentContext, _Other, Acc, Acc) :- !.
+dependency:process_use(_ParentContext, _Other, Acc, Acc) :- !.
 
 
 % =============================================================================
@@ -144,9 +144,9 @@ process_use(_ParentContext, _Other, Acc, Acc) :- !.
 % coexistence (e.g. Ruby :3.2 + :3.3) and `any_different_slot` is by
 % definition not lockable.
 
-process_slot([any_different_slot], _, _, _, _, Context, Context) :- !.
-process_slot([slot(_)|_], _SlotMeta, _C, _N, _Repository://_Candidate, Context, Context) :- !.
-process_slot(_, Slot, C, N, _Repository://Candidate, Context0, Context) :-
+dependency:process_slot([any_different_slot], _, _, _, _, Context, Context) :- !.
+dependency:process_slot([slot(_)|_], _SlotMeta, _C, _N, _Repository://_Candidate, Context, Context) :- !.
+dependency:process_slot(_, Slot, C, N, _Repository://Candidate, Context0, Context) :-
   feature_unification:unify([slot(C, N, Slot):{Candidate}], Context0, Context).
 
 
@@ -168,7 +168,7 @@ process_slot(_, Slot, C, N, _Repository://Candidate, Context0, Context) :-
 % IMPORTANT (performance): at most one build_with_use term is kept in the
 % context to prevent growth that defeats cycle detection/memoization.
 
-process_build_with_use(Directives, Context0, Context, Conditions, Candidate) :-
+dependency:process_build_with_use(Directives, Context0, Context, Conditions, Candidate) :-
     ( select(build_with_use:_, Context0, Context1) -> true ; Context1 = Context0 ),
     use:empty_use_state(PrevState),
     foldl(use:process_bwu_directive(Context0), Directives, PrevState, State0),
@@ -185,7 +185,7 @@ process_build_with_use(Directives, Context0, Context, Conditions, Candidate) :-
 % Currently a no-op (returns []) because Portage-style USE deps are
 % per-package constraints modelled via context, not global constraints.
 
-build_with_use_constraints(_, [], _) :- !.
+dependency:build_with_use_constraints(_, [], _) :- !.
 
 
 % =============================================================================
@@ -198,7 +198,7 @@ build_with_use_constraints(_, [], _) :- !.
 % build dependency goals from it, and filter out goals already satisfied
 % by the current merge set.
 
-pdepend_goals_from_plan(Plan, Goals) :-
+dependency:pdepend_goals_from_plan(Plan, Goals) :-
   plan_merged_cn_sets(Plan, MergedCNSet, MergedCNSlotSet),
   findall(Gs,
           ( planner:plan_merge_anchor(Plan, Repo://Entry, AnchorCore, ActionCtx),
@@ -222,7 +222,7 @@ pdepend_goals_from_plan(Plan, Goals) :-
 % Build fast assoc-based lookup sets for category/name pairs (and
 % category/name/slot triples) already being merged in the plan.
 
-plan_merged_cn_sets(Plan, CNSet, CNSlotSet) :-
+dependency:plan_merged_cn_sets(Plan, CNSet, CNSlotSet) :-
   findall(key(C,N),
           ( planner:plan_merge_anchor(Plan, Repo://Entry, _AnchorCore, _Ctx),
             query:search([category(C),name(N)], Repo://Entry)
@@ -245,9 +245,9 @@ plan_merged_cn_sets(Plan, CNSet, CNSlotSet) :-
 % Drop PDEPEND goals whose category/name (or category/name/slot) is
 % already present in the current plan's merge set.
 
-filter_redundant_pdepend_goals(_CNSet, _CNSlotSet, [], []) :- !.
+dependency:filter_redundant_pdepend_goals(_CNSet, _CNSlotSet, [], []) :- !.
 
-filter_redundant_pdepend_goals(CNSet, CNSlotSet, Goals0, Goals) :-
+dependency:filter_redundant_pdepend_goals(CNSet, CNSlotSet, Goals0, Goals) :-
   ( is_list(Goals0) ->
       include(dependency:pdepend_goal_needed(CNSet, CNSlotSet), Goals0, Goals)
   ; Goals = Goals0
@@ -259,7 +259,7 @@ filter_redundant_pdepend_goals(CNSet, CNSlotSet, Goals0, Goals) :-
 %
 % Succeeds when Goal is not already covered by the plan's merge set.
 
-pdepend_goal_needed(CNSet, CNSlotSet, Goal) :-
+dependency:pdepend_goal_needed(CNSet, CNSlotSet, Goal) :-
   ( target:dep_cn(Goal, C, N) ->
       ( goal_specific_slot(Goal, Slot) ->
           \+ get_assoc(key(C,N,Slot), CNSlotSet, _)
@@ -274,14 +274,14 @@ pdepend_goal_needed(CNSet, CNSlotSet, Goal) :-
 % Extract an explicit slot requirement from a grouped dependency goal.
 % A goal is only dropped if the plan already merges the same (C,N,Slot).
 
-goal_specific_slot(grouped_package_dependency(_,C,N,PackageDeps):_Action?{_Ctx}, Slot) :-
+dependency:goal_specific_slot(grouped_package_dependency(_,C,N,PackageDeps):_Action?{_Ctx}, Slot) :-
   member(package_dependency(_Phase,_Strength,C,N,_O,_V,SlotReq,_U), PackageDeps),
   is_list(SlotReq),
   member(slot(S0), SlotReq),
   candidate:canon_slot(S0, Slot),
   !.
 
-goal_specific_slot(grouped_package_dependency(C,N,PackageDeps):_Action?{_Ctx}, Slot) :-
+dependency:goal_specific_slot(grouped_package_dependency(C,N,PackageDeps):_Action?{_Ctx}, Slot) :-
   member(package_dependency(_Phase,_Strength,C,N,_O,_V,SlotReq,_U), PackageDeps),
   is_list(SlotReq),
   member(slot(S0), SlotReq),
