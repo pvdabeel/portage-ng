@@ -9,19 +9,24 @@
 
 
 /** <module> PREFERENCE
-Meta-layer that merges environment, userconfig, profile, and fallback
-sources into a unified runtime preference store.
+Meta-layer that merges configuration from multiple sources into a
+unified preference store.  All USE, mask, keyword, and license queries
+go through this module.
 
-Controls layering order and precedence:
-  1. Profile (base): masks, package.use.mask/force, package.use (soft)
-  2. Userconfig / fallback: /etc/portage overrides (or fallback defaults)
-  3. Environment: OS envvars and make.conf via getenv/2
-All runtime USE/mask/keyword queries go through this module.
+Configuration sources (highest priority first):
 
-Data sources (pure I/O, no policy):
-  - profile.pl      : reads the Gentoo profile tree
-  - userconfig.pl   : reads /etc/portage files
-  - fallback.pl     : hardcoded development defaults
+  1. Profile tree 
+
+  2. User configuration 
+
+  3. Environment
+
+  4. Per-ebuild defaults
+
+Submodules:
+  - profile.pl      : reads the profile tree
+  - userconfig.pl   : reads user configurationfiles
+  - fallback.pl     : hardcoded defaults fallback
 */
 
 :- module(preference, []).
@@ -31,249 +36,51 @@ Data sources (pure I/O, no policy):
 % =============================================================================
 
 % -----------------------------------------------------------------------------
-%  Interface overrides some preferences
+%  Dynamic state
 % -----------------------------------------------------------------------------
 
 % -- Package masking (profiles + /etc/portage/package.mask) --
 
 :- dynamic preference:masked/1.
 
-% -- Local use flags (not inherited from profiles) --
+% -- Global USE / keywords / flags --
 
 :- dynamic preference:local_use/1.
 :- dynamic preference:local_env_use/1.
 :- dynamic preference:local_accept_keywords/1.
 :- dynamic preference:local_flag/1.
 
-% -- Per-package USE overrides (from /etc/portage/package.use) --
+% -- Per-package USE overrides --
 
 :- dynamic preference:userconfig_use/4.                % Category, Name, Use, State(positive|negative)
 :- dynamic preference:profile_use_soft/3.             % Spec, Use, State(positive|negative)
 :- dynamic preference:userconfig_use_versioned/3.     % Spec, Use, State(positive|negative)
 
-% -- Global profile use.mask / use.force sets --
+% -- Profile USE constraints (use.mask / use.force / package.use.mask / package.use.force) --
 
 :- dynamic preference:profile_masked_use_flag/1.      % Use flag that is masked
 :- dynamic preference:profile_forced_use_flag/1.      % Use flag that is forced
-
-% -- Profile-enforced per-package USE constraints --
-% (from profiles/**/package.use.{mask,force}).
-% These are *hard* constraints and override /etc/portage/package.use.
-
 :- dynamic preference:profile_use_masked/2.            % Spec, Use
 :- dynamic preference:profile_use_forced/2.            % Spec, Use
 
-% -- World entries (snapshot of file-backed world set for client-server transfer) --
+% -- System packages (@system profile set) --
+
+:- dynamic preference:system_pkg/2.
+
+% -- Package sets --
+
+:- dynamic preference:set/2.
+
+% -- World entries (snapshot for client-server transfer) --
 
 :- dynamic preference:world_entry/1.
 
-% -- License acceptance (ACCEPT_LICENSE / license_groups) --
+% -- License acceptance --
 
 :- dynamic preference:license_group_raw/2.            % GroupName, [RawMembers]
 :- dynamic preference:accept_license_wildcard/0.      % asserted when '*' is in effect
 :- dynamic preference:accepted_license/1.             % individual accepted license atoms
 :- dynamic preference:denied_license/1.               % individual denied license atoms (for '* -X' patterns)
-
-
-% =============================================================================
-%  System packages (@system profile set)
-% =============================================================================
-
-%! preference:system_pkg(+Category, +Name) is semidet.
-%
-% Packages belonging to the @system set as defined by the profile
-% `packages` files.  Dynamically asserted during profile loading from
-% profile:system_packages/2.
-
-:- dynamic preference:system_pkg/2.
-
-
-%! preference:init_system_pkgs is det.
-%
-% Load @system packages from the profile chain and assert them as
-% preference:system_pkg/2 facts.  Called during preference:init.
-
-preference:init_system_pkgs :-
-  retractall(preference:system_pkg(_, _)),
-  ( preference:use_cached_profile ->
-      true
-  ; current_predicate(config:gentoo_profile/1),
-    config:gentoo_profile(ProfileRel) ->
-      catch(( profile:system_packages(ProfileRel, Pkgs),
-              forall(member(Cat-Name, Pkgs),
-                     assertz(preference:system_pkg(Cat, Name)))
-            ), _, true)
-  ; true
-  ).
-
-
-% -----------------------------------------------------------------------------
-%  Environment accessors
-% -----------------------------------------------------------------------------
-
-%! preference:getenv(+Name, -Value) is semidet.
-%
-% Reads an environment variable with the following fallback chain:
-%   1. OS environment (interface:getenv/2)
-%   2. /etc/portage/make.conf (userconfig:env/2, loaded by userconfig:load)
-%   3. fallback:env/2 facts (development defaults)
-
-preference:getenv(Name, Value) :-
-  ( interface:getenv(Name, Value) ->
-      true
-  ; current_predicate(userconfig:env/2),
-    userconfig:env(Name, Value),
-    Value \== '' ->
-      true
-  ; current_predicate(fallback:env/2),
-    fallback:env(Name, Value),
-    Value \== '' ->
-      true
-  ).
-
-
-%! preference:env_use_terms(-Terms:list) is semidet.
-%
-% Parses USE in one go, preserving order (incremental semantics).
-
-preference:env_use_terms(Terms) :-
-  preference:getenv('USE', Atom),
-  atom_codes(Atom, Codes),
-  phrase(eapi:iuse(_://_, Terms), Codes),
-  !.
-
-
-%! preference:env_use_expand(?Use) is nondet.
-%
-% Imports USE_EXPAND-like environment variables (e.g. RUBY_TARGETS="ruby33")
-% into portage-ng's USE flag space (e.g. ruby_targets_ruby33).
-%
-% This helps align portage-ng with Portage, where such variables influence USE
-% but are not necessarily present in the global USE envvar string.
-%
-% NOTE: This is a pragmatic approximation: Portage applies these per-package
-% based on IUSE_EXPAND. We model them as globally enabled flags.
-
-preference:env_use_expand(Use) :-
-  preference:use_expand_env(EnvVar, Prefix),
-  preference:getenv(EnvVar, Atom),
-  Atom \== '',
-  split_string(Atom, " ", " \t\n", Parts),
-  member(S, Parts),
-  S \== "",
-  atom_string(Token, S),
-  atomic_list_concat([Prefix, Token], '_', Use).
-
-
-%! preference:use_expand_env(?EnvVar, ?Prefix) is nondet.
-%
-% Maps USE_EXPAND environment variable names to their flag prefix.
-
-preference:use_expand_env('PYTHON_TARGETS',       python_targets).
-preference:use_expand_env('PYTHON_SINGLE_TARGET', python_single_target).
-preference:use_expand_env('RUBY_TARGETS',         ruby_targets).
-preference:use_expand_env('RUBY_SINGLE_TARGET',   ruby_single_target).
-preference:use_expand_env('LUA_SINGLE_TARGET',    lua_single_target).
-preference:use_expand_env('PERL_FEATURES',        perl_features).
-preference:use_expand_env('LLVM_SLOT',            llvm_slot).
-preference:use_expand_env('VIDEO_CARDS',          video_cards).
-preference:use_expand_env('INPUT_DEVICES',        input_devices).
-preference:use_expand_env('CPU_FLAGS_X86',        cpu_flags_x86).
-preference:use_expand_env('APACHE2_MODULES',      apache2_modules).
-preference:use_expand_env('APACHE2_MPMS',         apache2_mpms).
-
-
-%! preference:env_accept_keywords(?Keyword) is nondet.
-%
-% Returns individual parsed ACCEPT_KEYWORDS terms as read from the
-% ACCEPT_KEYWORDS environment variable.
-
-preference:env_accept_keywords(Keyword) :-
-  preference:getenv('ACCEPT_KEYWORDS',Atom),
-  atom_codes(Atom,Codes),
-  phrase(eapi:keywords(List),Codes),
-  member(Keyword,List).
-
-
-% -----------------------------------------------------------------------------
-%  USE / keywords / flag resolution
-% -----------------------------------------------------------------------------
-
-%! preference:global_use(?Use) is nondet.
-%
-% Returns active USE flag settings.  In standalone mode, the flags are
-% asserted by preference:init/0.  In client-server mode, they are
-% injected as thread-local clauses by the Pengines sandbox.
-
-preference:global_use(X) :-
-  ( pengine_self(M) ->
-      M:local_use(X)
-  ; preference:local_use(X)
-  ).
-
-
-%! preference:global_use(?Use, +Source) is nondet.
-%
-% Returns USE flag settings filtered by Source:
-%   - `env`   : only flags set via the environment
-%   - `other` : all active flags (delegates to preference:use/1)
-
-preference:global_use(X,env) :-
-  ( pengine_self(M) ->
-      M:local_env_use(X)
-  ; preference:local_env_use(X)
-  ).
-
-preference:global_use(X,other) :-
-  preference:global_use(X).
-
-
-%! preference:accept_keywords(?Keyword) is nondet.
-%
-% Returns active ACCEPT_KEYWORDS settings.  In standalone mode, the
-% keywords are asserted by preference:init/0.  In client-server mode,
-% they are injected as thread-local clauses by the Pengines sandbox.
-
-preference:accept_keywords(X) :-
-  ( pengine_self(M) ->
-      M:local_accept_keywords(X)
-  ; preference:local_accept_keywords(X)
-  ).
-
-
-%! preference:package_keyword_accepted(+C, +N, +K) is semidet.
-%
-% True if keyword K is accepted for category C / name N via a
-% per-package entry in /etc/portage/package.accept_keywords
-% (loaded into userconfig:package_keyword/2 by userconfig:load).
-
-preference:package_keyword_accepted(C, N, K) :-
-  current_predicate(userconfig:package_keyword/2),
-  atomic_list_concat([C, N], '/', CatPkg),
-  userconfig:package_keyword(CatPkg, RawKW),
-  preference:raw_keyword_matches_(RawKW, K),
-  !.
-
-preference:raw_keyword_matches_('**', _) :- !.
-preference:raw_keyword_matches_('~*', unstable(_)) :- !.
-preference:raw_keyword_matches_(RawKW, K) :-
-  atom_codes(RawKW, Codes),
-  catch(phrase(eapi:keywords([K0]), Codes), _, fail),
-  K0 == K,
-  !.
-
-
-%! preference:flag(?Flag) is nondet.
-%
-% Returns active interface flags (deep, emptytree, pdepend, etc.).
-% In standalone mode, set by interface.  In client-server mode,
-% injected as thread-local clauses by the Pengines sandbox.
-
-preference:flag(Flag) :-
-  ( pengine_self(M) ->
-      M:local_flag(Flag)
-  ; preference:local_flag(Flag)
-  ).
 
 
 % -----------------------------------------------------------------------------
@@ -285,99 +92,6 @@ preference:flag(Flag) :-
 % Sets the active local USE flags and ACCEPT_KEYWORDS according to
 % environment, profile, and /etc/portage overrides.  Also loads license
 % groups and applies ACCEPT_LICENSE.  Must never fail.
-
-%! preference:profile_use_terms(-Terms:list) is det.
-%
-% Obtains profile-derived USE terms.
-%
-% If `config:gentoo_profile/1` is defined and the Portage profile tree is
-% available, we derive these from Gentoo's inherited profile files via
-% `profile.pl`.  If the predicate is not defined at all, a warning is emitted.
-% If defined but profile data cannot be loaded (e.g. during --sync before the
-% profile tree is ready), silently falls back to an empty list.
-
-preference:profile_use_terms(Terms) :-
-  ( \+ current_predicate(config:gentoo_profile/1) ->
-      ( current_predicate(message:inform/1) ->
-          catch(message:inform(['Warning: config:gentoo_profile/1 not set; profile USE flags unavailable. please investigate']), _, true)
-      ; true
-      ),
-      Terms = []
-  ; config:gentoo_profile(ProfileRel),
-    catch(profile:profile_use_terms(ProfileRel, Terms0), _, fail) ->
-      Terms = Terms0
-  ; Terms = []
-  ).
-
-% -----------------------------------------------------------------------------
-%  Fallback: derive *_SINGLE_TARGET from *_TARGETS
-% -----------------------------------------------------------------------------
-
-%! preference:any_local_use_prefix(+Prefix) is semidet.
-%
-% True if any asserted local_use/1 flag starts with Prefix followed by '_'.
-
-preference:any_local_use_prefix(Prefix) :-
-  atom(Prefix),
-  atom_concat(Prefix, '_', PrefixUnderscore),
-  preference:local_use(U),
-  atom(U),
-  sub_atom(U, 0, _, _, PrefixUnderscore),
-  !.
-
-
-%! preference:last_env_token(+Atom, -Token) is semidet.
-%
-% Splits Atom on whitespace and unifies Token with the last non-empty part.
-
-preference:last_env_token(Atom, Token) :-
-  atom(Atom),
-  Atom \== '',
-  split_string(Atom, " ", " \t\n", Parts0),
-  exclude(=(""), Parts0, Parts),
-  Parts \== [],
-  last(Parts, LastS),
-  atom_string(Token, LastS),
-  Token \== ''.
-
-
-%! preference:maybe_derive_ruby_single_target is det.
-%
-% If RUBY_SINGLE_TARGET is not explicitly set, derive it from the last
-% token of RUBY_TARGETS to avoid dependency/model divergences.
-
-preference:maybe_derive_ruby_single_target :-
-  ( preference:getenv('RUBY_SINGLE_TARGET', Atom),
-    Atom \== '' ->
-      true
-  ; preference:any_local_use_prefix(ruby_single_target) ->
-      true
-  ; preference:getenv('RUBY_TARGETS', TargetsAtom),
-    TargetsAtom \== '',
-    preference:last_env_token(TargetsAtom, Token),
-    atomic_list_concat([ruby_single_target, Token], '_', Use),
-    ( preference:local_env_use(Use) -> true ; assertz(preference:local_env_use(Use)) ),
-    ( preference:local_use(Use)     -> true ; assertz(preference:local_use(Use)) )
-  ),
-  !.
-
-preference:maybe_derive_ruby_single_target :-
-  true.
-
-
-%! preference:use_cached_profile is semidet.
-%
-% Succeeds when the current mode is configured for cached profile loading
-% and a profile cache file (Knowledge/profile.qlf) is available.
-
-preference:use_cached_profile :-
-  current_predicate(interface:process_mode/1),
-  catch(interface:process_mode(Mode), _, fail),
-  current_predicate(config:profile_loading/2),
-  config:profile_loading(Mode, cached),
-  current_predicate(profile:cache_available/0),
-  profile:cache_available.
-
 
 preference:init :-
 
@@ -564,8 +278,288 @@ preference:apply_env_use_term(Use) :-
   assertz(preference:local_use(Use)).
 
 
+%! preference:profile_use_terms(-Terms:list) is det.
+%
+% Obtains profile-derived USE terms.
+%
+% If `config:gentoo_profile/1` is defined and the Portage profile tree is
+% available, we derive these from Gentoo's inherited profile files via
+% `profile.pl`.  If the predicate is not defined at all, a warning is emitted.
+% If defined but profile data cannot be loaded (e.g. during --sync before the
+% profile tree is ready), silently falls back to an empty list.
+
+preference:profile_use_terms(Terms) :-
+  ( \+ current_predicate(config:gentoo_profile/1) ->
+      ( current_predicate(message:inform/1) ->
+          catch(message:inform(['Warning: config:gentoo_profile/1 not set; profile USE flags unavailable. please investigate']), _, true)
+      ; true
+      ),
+      Terms = []
+  ; config:gentoo_profile(ProfileRel),
+    catch(profile:profile_use_terms(ProfileRel, Terms0), _, fail) ->
+      Terms = Terms0
+  ; Terms = []
+  ).
+
+
+%! preference:use_cached_profile is semidet.
+%
+% Succeeds when the current mode is configured for cached profile loading
+% and a profile cache file (Knowledge/profile.qlf) is available.
+
+preference:use_cached_profile :-
+  current_predicate(interface:process_mode/1),
+  catch(interface:process_mode(Mode), _, fail),
+  current_predicate(config:profile_loading/2),
+  config:profile_loading(Mode, cached),
+  current_predicate(profile:cache_available/0),
+  profile:cache_available.
+
+
 % -----------------------------------------------------------------------------
-%  Profile per-package USE constraints (package.use.mask / package.use.force)
+%  Environment accessors
+% -----------------------------------------------------------------------------
+
+%! preference:getenv(+Name, -Value) is semidet.
+%
+% Reads an environment variable with the following fallback chain:
+%   1. OS environment (interface:getenv/2)
+%   2. /etc/portage/make.conf (userconfig:env/2, loaded by userconfig:load)
+%   3. fallback:env/2 facts (development defaults)
+
+preference:getenv(Name, Value) :-
+  ( interface:getenv(Name, Value) ->
+      true
+  ; current_predicate(userconfig:env/2),
+    userconfig:env(Name, Value),
+    Value \== '' ->
+      true
+  ; current_predicate(fallback:env/2),
+    fallback:env(Name, Value),
+    Value \== '' ->
+      true
+  ).
+
+
+%! preference:env_use_terms(-Terms:list) is semidet.
+%
+% Parses USE in one go, preserving order (incremental semantics).
+
+preference:env_use_terms(Terms) :-
+  preference:getenv('USE', Atom),
+  atom_codes(Atom, Codes),
+  phrase(eapi:iuse(_://_, Terms), Codes),
+  !.
+
+
+%! preference:env_use_expand(?Use) is nondet.
+%
+% Imports USE_EXPAND-like environment variables (e.g. RUBY_TARGETS="ruby33")
+% into portage-ng's USE flag space (e.g. ruby_targets_ruby33).
+%
+% This helps align portage-ng with Portage, where such variables influence USE
+% but are not necessarily present in the global USE envvar string.
+%
+% NOTE: This is a pragmatic approximation: Portage applies these per-package
+% based on IUSE_EXPAND. We model them as globally enabled flags.
+
+preference:env_use_expand(Use) :-
+  preference:use_expand_env(EnvVar, Prefix),
+  preference:getenv(EnvVar, Atom),
+  Atom \== '',
+  split_string(Atom, " ", " \t\n", Parts),
+  member(S, Parts),
+  S \== "",
+  atom_string(Token, S),
+  atomic_list_concat([Prefix, Token], '_', Use).
+
+
+%! preference:use_expand_env(?EnvVar, ?Prefix) is nondet.
+%
+% Maps USE_EXPAND environment variable names to their flag prefix.
+
+preference:use_expand_env('PYTHON_TARGETS',       python_targets).
+preference:use_expand_env('PYTHON_SINGLE_TARGET', python_single_target).
+preference:use_expand_env('RUBY_TARGETS',         ruby_targets).
+preference:use_expand_env('RUBY_SINGLE_TARGET',   ruby_single_target).
+preference:use_expand_env('LUA_SINGLE_TARGET',    lua_single_target).
+preference:use_expand_env('PERL_FEATURES',        perl_features).
+preference:use_expand_env('LLVM_SLOT',            llvm_slot).
+preference:use_expand_env('VIDEO_CARDS',          video_cards).
+preference:use_expand_env('INPUT_DEVICES',        input_devices).
+preference:use_expand_env('CPU_FLAGS_X86',        cpu_flags_x86).
+preference:use_expand_env('APACHE2_MODULES',      apache2_modules).
+preference:use_expand_env('APACHE2_MPMS',         apache2_mpms).
+
+
+%! preference:env_accept_keywords(?Keyword) is nondet.
+%
+% Returns individual parsed ACCEPT_KEYWORDS terms as read from the
+% ACCEPT_KEYWORDS environment variable.
+
+preference:env_accept_keywords(Keyword) :-
+  preference:getenv('ACCEPT_KEYWORDS',Atom),
+  atom_codes(Atom,Codes),
+  phrase(eapi:keywords(List),Codes),
+  member(Keyword,List).
+
+
+%! preference:any_local_use_prefix(+Prefix) is semidet.
+%
+% True if any asserted local_use/1 flag starts with Prefix followed by '_'.
+
+preference:any_local_use_prefix(Prefix) :-
+  atom(Prefix),
+  atom_concat(Prefix, '_', PrefixUnderscore),
+  preference:local_use(U),
+  atom(U),
+  sub_atom(U, 0, _, _, PrefixUnderscore),
+  !.
+
+
+%! preference:last_env_token(+Atom, -Token) is semidet.
+%
+% Splits Atom on whitespace and unifies Token with the last non-empty part.
+
+preference:last_env_token(Atom, Token) :-
+  atom(Atom),
+  Atom \== '',
+  split_string(Atom, " ", " \t\n", Parts0),
+  exclude(=(""), Parts0, Parts),
+  Parts \== [],
+  last(Parts, LastS),
+  atom_string(Token, LastS),
+  Token \== ''.
+
+
+%! preference:maybe_derive_ruby_single_target is det.
+%
+% If RUBY_SINGLE_TARGET is not explicitly set, derive it from the last
+% token of RUBY_TARGETS to avoid dependency/model divergences.
+
+preference:maybe_derive_ruby_single_target :-
+  ( preference:getenv('RUBY_SINGLE_TARGET', Atom),
+    Atom \== '' ->
+      true
+  ; preference:any_local_use_prefix(ruby_single_target) ->
+      true
+  ; preference:getenv('RUBY_TARGETS', TargetsAtom),
+    TargetsAtom \== '',
+    preference:last_env_token(TargetsAtom, Token),
+    atomic_list_concat([ruby_single_target, Token], '_', Use),
+    ( preference:local_env_use(Use) -> true ; assertz(preference:local_env_use(Use)) ),
+    ( preference:local_use(Use)     -> true ; assertz(preference:local_use(Use)) )
+  ),
+  !.
+
+preference:maybe_derive_ruby_single_target :-
+  true.
+
+
+% -----------------------------------------------------------------------------
+%  Query predicates
+% -----------------------------------------------------------------------------
+
+%! preference:global_use(?Use) is nondet.
+%
+% Returns active USE flag settings.  In standalone mode, the flags are
+% asserted by preference:init/0.  In client-server mode, they are
+% injected as thread-local clauses by the Pengines sandbox.
+
+preference:global_use(X) :-
+  ( pengine_self(M) ->
+      M:local_use(X)
+  ; preference:local_use(X)
+  ).
+
+
+%! preference:global_use(?Use, +Source) is nondet.
+%
+% Returns USE flag settings filtered by Source:
+%   - `env`   : only flags set via the environment
+%   - `other` : all active flags (delegates to preference:global_use/1)
+
+preference:global_use(X,env) :-
+  ( pengine_self(M) ->
+      M:local_env_use(X)
+  ; preference:local_env_use(X)
+  ).
+
+preference:global_use(X,other) :-
+  preference:global_use(X).
+
+
+%! preference:accept_keywords(?Keyword) is nondet.
+%
+% Returns active ACCEPT_KEYWORDS settings.  In standalone mode, the
+% keywords are asserted by preference:init/0.  In client-server mode,
+% they are injected as thread-local clauses by the Pengines sandbox.
+
+preference:accept_keywords(X) :-
+  ( pengine_self(M) ->
+      M:local_accept_keywords(X)
+  ; preference:local_accept_keywords(X)
+  ).
+
+
+%! preference:package_keyword_accepted(+C, +N, +K) is semidet.
+%
+% True if keyword K is accepted for category C / name N via a
+% per-package entry in /etc/portage/package.accept_keywords
+% (loaded into userconfig:package_keyword/2 by userconfig:load).
+
+preference:package_keyword_accepted(C, N, K) :-
+  current_predicate(userconfig:package_keyword/2),
+  atomic_list_concat([C, N], '/', CatPkg),
+  userconfig:package_keyword(CatPkg, RawKW),
+  preference:raw_keyword_matches_(RawKW, K),
+  !.
+
+preference:raw_keyword_matches_('**', _) :- !.
+preference:raw_keyword_matches_('~*', unstable(_)) :- !.
+preference:raw_keyword_matches_(RawKW, K) :-
+  atom_codes(RawKW, Codes),
+  catch(phrase(eapi:keywords([K0]), Codes), _, fail),
+  K0 == K,
+  !.
+
+
+%! preference:flag(?Flag) is nondet.
+%
+% Returns active interface flags (deep, emptytree, pdepend, etc.).
+% In standalone mode, set by interface.  In client-server mode,
+% injected as thread-local clauses by the Pengines sandbox.
+
+preference:flag(Flag) :-
+  ( pengine_self(M) ->
+      M:local_flag(Flag)
+  ; preference:local_flag(Flag)
+  ).
+
+
+%! preference:keyword_selection_mode(?Mode) is det.
+%
+% Controls how accepted keywords influence version selection:
+%
+% - max_version   : Portage-like. Treat ACCEPT_KEYWORDS as a set; prefer the
+%                  highest version among all candidates that match any accepted
+%                  keyword.
+% - keyword_order : Legacy/experimental. Treat the enumeration order of
+%                  preference:accept_keywords/1 as a preference (e.g. stable
+%                  before unstable), even if a newer version exists under a
+%                  later keyword.
+%
+% NOTE: This affects how `rules.pl` enumerates dependency candidates.
+
+% For Portage parity with ACCEPT_KEYWORDS="amd64 ~amd64", Portage generally
+% treats both as accepted and prefers the highest version available (i.e. don't
+% artificially prefer stable over unstable when both are accepted).
+
+preference:keyword_selection_mode(max_version).
+
+
+% -----------------------------------------------------------------------------
+%  Per-package USE resolution
 % -----------------------------------------------------------------------------
 
 %! preference:profile_package_use_spec(+Atom, -Spec) is semidet.
@@ -588,6 +582,106 @@ preference:profile_package_use_spec(Atom, Spec) :-
   ; Op == none ->
       Spec = versioned(equal, C, N, Ver0, SlotReq)
   ; Spec = versioned(Op, C, N, Ver0, SlotReq)
+  ),
+  !.
+
+
+%! preference:is_simple_catpkg_atom_(+Atom) is semidet.
+%
+% True if Atom is a plain cat/pkg atom without version operators, slots,
+% USE deps, or wildcards.
+
+preference:is_simple_catpkg_atom_(Atom) :-
+  atom(Atom),
+  atomic_list_concat([_C, _N], '/', Atom),
+  \+ sub_atom(Atom, 0, 1, _, '>'),
+  \+ sub_atom(Atom, 0, 1, _, '<'),
+  \+ sub_atom(Atom, 0, 1, _, '='),
+  \+ sub_atom(Atom, 0, 1, _, '~'),
+  \+ sub_atom(Atom, _, 1, _, ':'),
+  \+ sub_atom(Atom, _, 1, _, '['),
+  \+ sub_atom(Atom, _, 1, _, '*'),
+  !.
+
+
+%! preference:entry_satisfies_slot_req_(+Repo, +Id, +SlotReq) is semidet.
+%
+% Slot matching helper for profile atoms.  SlotReq is the parsed slot
+% restriction list from eapi:qualified_target/1 (e.g. [], [slot('26')]).
+
+preference:entry_satisfies_slot_req_(_Repo, _Id, []) :- !.
+
+preference:entry_satisfies_slot_req_(Repo, Id, SlotReq) :-
+  ( member(slot(S0), SlotReq) ->
+      cache:entry_metadata(Repo, Id, slot, slot(S1)),
+      preference:canon_slot_atom_(S0, S),
+      preference:canon_slot_atom_(S1, Slot),
+      S == Slot
+  ; true
+  ),
+  !.
+
+
+%! preference:canon_slot_atom_(+S0, -S) is det.
+%
+% Normalize a slot value to an atom (integers/numbers are converted).
+
+preference:canon_slot_atom_(S0, S) :-
+  ( atom(S0) -> S = S0
+  ; integer(S0) -> atom_number(S, S0)
+  ; number(S0) -> atom_number(S, S0)
+  ; S = S0
+  ),
+  !.
+
+
+%! preference:profile_package_use_cp_from_spec_(+Spec, -C, -N) is semidet.
+%
+% Extract category and name from a spec term.
+
+preference:profile_package_use_cp_from_spec_(simple(C, N, _), C, N) :- !.
+preference:profile_package_use_cp_from_spec_(versioned(_, C, N, _, _), C, N) :- !.
+
+
+%! preference:profile_package_use_spec_matches_entry_(+Spec, +Repo, +Id, +C, +N, +ProposedVersion) is semidet.
+%
+% True if Spec matches the given entry (slot and version constraints checked).
+
+preference:profile_package_use_spec_matches_entry_(simple(C, N, SlotReq), Repo, Id, C, N, _ProposedVersion) :-
+  preference:entry_satisfies_slot_req_(Repo, Id, SlotReq),
+  !.
+
+preference:profile_package_use_spec_matches_entry_(versioned(Op, C, N, ReqVer, SlotReq), Repo, Id, C, N, ProposedVersion) :-
+  preference:version_match(Op, ProposedVersion, ReqVer),
+  preference:entry_satisfies_slot_req_(Repo, Id, SlotReq),
+  !.
+
+
+%! preference:profile_use_hard(+Entry, ?Use, -State, -Reason) is semidet.
+%
+% Determine whether a profile enforces a hard per-package USE state for
+% an entry.  Precedence: mask wins over force (Portage-like).
+
+preference:profile_use_hard(Repo://Id, Use, State, Reason) :-
+  cache:ordered_entry(Repo, Id, C, N, ProposedVersion),
+  ( preference:profile_masked_cn_known(C, N),
+    ( preference:profile_use_masked(simple(C,N,SlotReq), Use),
+      preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
+    ; preference:profile_use_masked(versioned(Op,C,N,ReqVer,SlotReq), Use),
+      preference:version_match(Op, ProposedVersion, ReqVer),
+      preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
+    ) ->
+      State = negative,
+      Reason = profile_package_use_mask
+  ; preference:profile_forced_cn_known(C, N),
+    ( preference:profile_use_forced(simple(C,N,SlotReq), Use),
+      preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
+    ; preference:profile_use_forced(versioned(Op,C,N,ReqVer,SlotReq), Use),
+      preference:version_match(Op, ProposedVersion, ReqVer),
+      preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
+    ) ->
+      State = positive,
+      Reason = profile_package_use_force
   ),
   !.
 
@@ -708,74 +802,6 @@ preference:apply_profile_package_use_op(del, forced, Spec, Flag) :-
   !.
 
 
-%! preference:profile_package_use_cp_from_spec_(+Spec, -C, -N) is semidet.
-%
-% Extract category and name from a spec term.
-
-preference:profile_package_use_cp_from_spec_(simple(C, N, _), C, N) :- !.
-preference:profile_package_use_cp_from_spec_(versioned(_, C, N, _, _), C, N) :- !.
-
-
-%! preference:profile_use_hard(+Entry, ?Use, -State, -Reason) is semidet.
-%
-% Determine whether a profile enforces a hard per-package USE state for
-% an entry.  Precedence: mask wins over force (Portage-like).
-
-preference:profile_use_hard(Repo://Id, Use, State, Reason) :-
-  cache:ordered_entry(Repo, Id, C, N, ProposedVersion),
-  ( preference:profile_masked_cn_known(C, N),
-    ( preference:profile_use_masked(simple(C,N,SlotReq), Use),
-      preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
-    ; preference:profile_use_masked(versioned(Op,C,N,ReqVer,SlotReq), Use),
-      preference:version_match(Op, ProposedVersion, ReqVer),
-      preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
-    ) ->
-      State = negative,
-      Reason = profile_package_use_mask
-  ; preference:profile_forced_cn_known(C, N),
-    ( preference:profile_use_forced(simple(C,N,SlotReq), Use),
-      preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
-    ; preference:profile_use_forced(versioned(Op,C,N,ReqVer,SlotReq), Use),
-      preference:version_match(Op, ProposedVersion, ReqVer),
-      preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
-    ) ->
-      State = positive,
-      Reason = profile_package_use_force
-  ),
-  !.
-
-
-%! preference:entry_satisfies_slot_req_(+Repo, +Id, +SlotReq) is semidet.
-%
-% Slot matching helper for profile atoms.  SlotReq is the parsed slot
-% restriction list from eapi:qualified_target/1 (e.g. [], [slot('26')]).
-
-preference:entry_satisfies_slot_req_(_Repo, _Id, []) :- !.
-
-preference:entry_satisfies_slot_req_(Repo, Id, SlotReq) :-
-  ( member(slot(S0), SlotReq) ->
-      cache:entry_metadata(Repo, Id, slot, slot(S1)),
-      preference:canon_slot_atom_(S0, S),
-      preference:canon_slot_atom_(S1, Slot),
-      S == Slot
-  ; true
-  ),
-  !.
-
-
-%! preference:canon_slot_atom_(+S0, -S) is det.
-%
-% Normalize a slot value to an atom (integers/numbers are converted).
-
-preference:canon_slot_atom_(S0, S) :-
-  ( atom(S0) -> S = S0
-  ; integer(S0) -> atom_number(S, S0)
-  ; number(S0) -> atom_number(S, S0)
-  ; S = S0
-  ),
-  !.
-
-
 %! preference:apply_profile_package_use is det.
 %
 % Apply per-package USE from the Gentoo profile tree (profiles/*/package.use).
@@ -864,6 +890,106 @@ preference:profile_use_soft_match(Repo://Id, Use, State) :-
   !.
 
 
+%! preference:apply_fallback_package_use is det.
+%
+% Apply per-package USE overrides from fallback defaults
+% (fallback:package_use/2).  Only effective when config:portage_confdir/1
+% is not set (no real /etc/portage configured).
+
+preference:apply_fallback_package_use :-
+  ( current_predicate(fallback:package_use/2) ->
+      forall(fallback:package_use(CNAtom, UseStr),
+             preference:register_fallback_package_use(CNAtom, UseStr))
+  ; true
+  ).
+
+
+%! preference:register_fallback_package_use(+CNAtom, +UseStr) is det.
+%
+% Register a single package.use line from fallback or /etc/portage.
+% Simple cat/pkg atoms produce userconfig_use/4; versioned atoms
+% produce userconfig_use_versioned/3 soft overrides.
+
+preference:register_fallback_package_use(CNAtom, UseStr) :-
+  atom(CNAtom),
+  ( preference:is_simple_catpkg_atom_(CNAtom) ->
+      preference:register_package_use(CNAtom, UseStr)
+  ; preference:profile_package_use_spec(CNAtom, Spec) ->
+      preference:register_userconfig_use_soft(Spec, UseStr)
+  ; true
+  ),
+  !.
+
+preference:register_fallback_package_use(_, _) :-
+  true.
+
+
+%! preference:register_package_use(+CNAtom, +UseStr) is det.
+%
+% Register per-package USE overrides for a simple cat/pkg atom.  Asserts
+% userconfig_use/4 facts with positive/negative state.
+
+preference:register_package_use(CNAtom, UseStr) :-
+  atom(CNAtom),
+  atomic_list_concat([C,N], '/', CNAtom),
+  ( string(UseStr) ->
+      UseS = UseStr
+  ; atom(UseStr) ->
+      atom_string(UseStr, UseS)
+  ; % Unexpected input type - ignore defensively
+    UseS = ""
+  ),
+  split_string(UseS, " ", " \t\r\n", Parts0),
+  exclude(=(""), Parts0, Parts),
+  forall(member(P, Parts),
+         ( sub_atom(P, 0, 1, _, '-') ->
+             sub_atom(P, 1, _, 0, Flag0),
+             Flag0 \== '',
+             atom_string(Flag, Flag0),
+             retractall(preference:userconfig_use(C, N, Flag, _)),
+             assertz(preference:userconfig_use(C, N, Flag, negative))
+         ; atom_string(Flag, P),
+           retractall(preference:userconfig_use(C, N, Flag, _)),
+           assertz(preference:userconfig_use(C, N, Flag, positive))
+         )).
+
+
+%! preference:register_userconfig_use_soft(+Spec, +UseStr) is det.
+%
+% Register per-package USE overrides for a versioned/slotted spec.
+
+preference:register_userconfig_use_soft(Spec, UseStr) :-
+  ( string(UseStr) ->
+      UseS = UseStr
+  ; atom(UseStr) ->
+      atom_string(UseStr, UseS)
+  ; UseS = ""
+  ),
+  split_string(UseS, " ", " \t\r\n", Parts0),
+  exclude(=(""), Parts0, Parts),
+  forall(member(P, Parts),
+         preference:apply_userconfig_use_soft_flag(Spec, P)),
+  !.
+
+
+%! preference:apply_userconfig_use_soft_flag(+Spec, +P) is det.
+%
+% Parse and assert a single USE flag for a userconfig soft override.
+
+preference:apply_userconfig_use_soft_flag(Spec, P) :-
+  ( sub_atom(P, 0, 1, _, '-') ->
+      sub_atom(P, 1, _, 0, Flag0),
+      Flag0 \== '',
+      atom_string(Flag, Flag0),
+      retractall(preference:userconfig_use_versioned(Spec, Flag, _)),
+      assertz(preference:userconfig_use_versioned(Spec, Flag, negative))
+  ; atom_string(Flag, P),
+    retractall(preference:userconfig_use_versioned(Spec, Flag, _)),
+    assertz(preference:userconfig_use_versioned(Spec, Flag, positive))
+  ),
+  !.
+
+
 %! preference:userconfig_use_match(+Entry, ?Use, -State) is semidet.
 %
 % Look up the soft (userconfig/fallback-derived) per-package USE override
@@ -882,10 +1008,6 @@ preference:userconfig_use_match(Repo://Id, Use, State) :-
   last(States, State),
   !.
 
-
-% -----------------------------------------------------------------------------
-%  Lazy AVL indexes for soft-override fast-fail
-% -----------------------------------------------------------------------------
 
 %! preference:userconfig_use_soft_flag_known(+Use) is semidet.
 %
@@ -1021,22 +1143,8 @@ preference:profile_masked_cn_known(C, N) :-
   get_assoc(cn(C,N), CNSet, _).
 
 
-%! preference:profile_package_use_spec_matches_entry_(+Spec, +Repo, +Id, +C, +N, +ProposedVersion) is semidet.
-%
-% True if Spec matches the given entry (slot and version constraints checked).
-
-preference:profile_package_use_spec_matches_entry_(simple(C, N, SlotReq), Repo, Id, C, N, _ProposedVersion) :-
-  preference:entry_satisfies_slot_req_(Repo, Id, SlotReq),
-  !.
-
-preference:profile_package_use_spec_matches_entry_(versioned(Op, C, N, ReqVer, SlotReq), Repo, Id, C, N, ProposedVersion) :-
-  preference:version_match(Op, ProposedVersion, ReqVer),
-  preference:entry_satisfies_slot_req_(Repo, Id, SlotReq),
-  !.
-
-
 % -----------------------------------------------------------------------------
-%  Fallback package masks (when no portage_confdir)
+%  Package masking
 % -----------------------------------------------------------------------------
 
 %! preference:apply_fallback_package_mask is det.
@@ -1081,7 +1189,6 @@ preference:apply_profile_package_mask :-
 preference:mask_catpkg_atom(Atom) :-
   atom(Atom),
   atomic_list_concat([C,N], '/', Atom),
-  % Mask all matching entries in the main repo (not VDB).
   forall(cache:ordered_entry(portage, Id, C, N, _),
          assertz(preference:masked(portage://Id))).
 
@@ -1104,25 +1211,20 @@ preference:unmask_catpkg_atom(Atom) :-
 
 preference:mask_profile_atom(Atom) :-
   atom(Atom),
-  % Fast path: simple cat/pkg
   ( atomic_list_concat([_C,_N], '/', Atom),
     \+ sub_atom(Atom, 0, 1, _, '>'),
     \+ sub_atom(Atom, 0, 1, _, '<'),
     \+ sub_atom(Atom, 0, 1, _, '='),
     \+ sub_atom(Atom, 0, 1, _, '~'),
-    \+ sub_atom(Atom, _, 1, _, ':'),   % slots
-    \+ sub_atom(Atom, _, 1, _, '['),   % usedeps
-    \+ sub_atom(Atom, _, 1, _, '*')    % wildcards
+    \+ sub_atom(Atom, _, 1, _, ':'),
+    \+ sub_atom(Atom, _, 1, _, '['),
+    \+ sub_atom(Atom, _, 1, _, '*')
   ) ->
     preference:mask_catpkg_atom(Atom)
-  ; % Slow path: attempt to parse versioned atoms
-    atom_codes(Atom, Codes),
+  ; atom_codes(Atom, Codes),
     catch(phrase(eapi:qualified_target(Q), Codes), _, fail),
     Q = qualified_target(Op, _Repo, C, N, Ver, Filters),
     nonvar(C), nonvar(N) ->
-      % Avoid over-masking: if the mask atom contains USE deps, we currently
-      % don't model those at init time, so skip it rather than masking all.
-      % (Slot restrictions *are* supported below.)
       ( Filters = [SlotReq,UseReq], UseReq == [] -> true ; SlotReq = [] ),
       forall(cache:ordered_entry(portage, Id, C, N, _),
              ( cache:ordered_entry(portage, Id, C, N, ProposedVersion),
@@ -1145,9 +1247,9 @@ preference:unmask_profile_atom(Atom) :-
     \+ sub_atom(Atom, 0, 1, _, '<'),
     \+ sub_atom(Atom, 0, 1, _, '='),
     \+ sub_atom(Atom, 0, 1, _, '~'),
-    \+ sub_atom(Atom, _, 1, _, ':'),   % slots
-    \+ sub_atom(Atom, _, 1, _, '['),   % usedeps
-    \+ sub_atom(Atom, _, 1, _, '*')    % wildcards
+    \+ sub_atom(Atom, _, 1, _, ':'),
+    \+ sub_atom(Atom, _, 1, _, '['),
+    \+ sub_atom(Atom, _, 1, _, '*')
   ) ->
     preference:unmask_catpkg_atom(Atom)
   ; atom_codes(Atom, Codes),
@@ -1195,19 +1297,12 @@ preference:slot_req_match_([slot(S0),subslot(Ss0),equal], Repo, Id) :-
   ; Ss0 == S0
   ).
 
-% Conservatively treat any_same_slot/any_different_slot as "match any slot" for
-% package.mask atoms; these forms are primarily meaningful in dependency edges.
 preference:slot_req_match_([any_same_slot], _Repo, _Id) :- !.
 
 preference:slot_req_match_([any_different_slot], _Repo, _Id) :- !.
 
-% Unknown/complex slot req (e.g. subslot/equal): do not match to avoid over-masking.
 preference:slot_req_match_(_Other, _Repo, _Id) :- fail.
 
-
-% -----------------------------------------------------------------------------
-%  Version matching
-% -----------------------------------------------------------------------------
 
 %! preference:version_match(+Op, +Proposed, +Req) is semidet.
 %
@@ -1257,7 +1352,7 @@ preference:version_match(notequal, Proposed, Req) :-
 
 
 % -----------------------------------------------------------------------------
-%  License groups and ACCEPT_LICENSE
+%  License acceptance
 % -----------------------------------------------------------------------------
 
 %! preference:load_license_groups is det.
@@ -1429,174 +1524,39 @@ preference:license_accepted(License) :-
 
 
 % -----------------------------------------------------------------------------
-%  Fallback / userconfig per-package USE
+%  System packages, sets, and world
 % -----------------------------------------------------------------------------
 
-%! preference:apply_fallback_package_use is det.
+%! preference:system_pkg(+Category, +Name) is semidet.
 %
-% Apply per-package USE overrides from fallback defaults
-% (fallback:package_use/2).  Only effective when config:portage_confdir/1
-% is not set (no real /etc/portage configured).
+% Packages belonging to the @system set as defined by the profile
+% `packages` files.  Dynamically asserted during profile loading from
+% profile:system_packages/2.
 
-preference:apply_fallback_package_use :-
-  ( current_predicate(fallback:package_use/2) ->
-      forall(fallback:package_use(CNAtom, UseStr),
-             preference:register_fallback_package_use(CNAtom, UseStr))
+
+%! preference:init_system_pkgs is det.
+%
+% Load @system packages from the profile chain and assert them as
+% preference:system_pkg/2 facts.  Called during preference:init.
+
+preference:init_system_pkgs :-
+  retractall(preference:system_pkg(_, _)),
+  ( preference:use_cached_profile ->
+      true
+  ; current_predicate(config:gentoo_profile/1),
+    config:gentoo_profile(ProfileRel) ->
+      catch(( profile:system_packages(ProfileRel, Pkgs),
+              forall(member(Cat-Name, Pkgs),
+                     assertz(preference:system_pkg(Cat, Name)))
+            ), _, true)
   ; true
   ).
 
-
-%! preference:register_fallback_package_use(+CNAtom, +UseStr) is det.
-%
-% Register a single package.use line from fallback or /etc/portage.
-% Simple cat/pkg atoms produce userconfig_use/4; versioned atoms
-% produce userconfig_use_versioned/3 soft overrides.
-
-preference:register_fallback_package_use(CNAtom, UseStr) :-
-  atom(CNAtom),
-  ( preference:is_simple_catpkg_atom_(CNAtom) ->
-      preference:register_package_use(CNAtom, UseStr)
-  ; preference:profile_package_use_spec(CNAtom, Spec) ->
-      preference:register_userconfig_use_soft(Spec, UseStr)
-  ; true
-  ),
-  !.
-
-preference:register_fallback_package_use(_, _) :-
-  true.
-
-
-%! preference:is_simple_catpkg_atom_(+Atom) is semidet.
-%
-% True if Atom is a plain cat/pkg atom without version operators, slots,
-% USE deps, or wildcards.
-
-preference:is_simple_catpkg_atom_(Atom) :-
-  atom(Atom),
-  atomic_list_concat([_C, _N], '/', Atom),
-  \+ sub_atom(Atom, 0, 1, _, '>'),
-  \+ sub_atom(Atom, 0, 1, _, '<'),
-  \+ sub_atom(Atom, 0, 1, _, '='),
-  \+ sub_atom(Atom, 0, 1, _, '~'),
-  \+ sub_atom(Atom, _, 1, _, ':'),
-  \+ sub_atom(Atom, _, 1, _, '['),
-  \+ sub_atom(Atom, _, 1, _, '*'),
-  !.
-
-
-%! preference:register_userconfig_use_soft(+Spec, +UseStr) is det.
-%
-% Register per-package USE overrides for a versioned/slotted spec.
-
-preference:register_userconfig_use_soft(Spec, UseStr) :-
-  ( string(UseStr) ->
-      UseS = UseStr
-  ; atom(UseStr) ->
-      atom_string(UseStr, UseS)
-  ; UseS = ""
-  ),
-  split_string(UseS, " ", " \t\r\n", Parts0),
-  exclude(=(""), Parts0, Parts),
-  forall(member(P, Parts),
-         preference:apply_userconfig_use_soft_flag(Spec, P)),
-  !.
-
-
-%! preference:apply_userconfig_use_soft_flag(+Spec, +P) is det.
-%
-% Parse and assert a single USE flag for a userconfig soft override.
-
-preference:apply_userconfig_use_soft_flag(Spec, P) :-
-  ( sub_atom(P, 0, 1, _, '-') ->
-      sub_atom(P, 1, _, 0, Flag0),
-      Flag0 \== '',
-      atom_string(Flag, Flag0),
-      retractall(preference:userconfig_use_versioned(Spec, Flag, _)),
-      assertz(preference:userconfig_use_versioned(Spec, Flag, negative))
-  ; atom_string(Flag, P),
-    retractall(preference:userconfig_use_versioned(Spec, Flag, _)),
-    assertz(preference:userconfig_use_versioned(Spec, Flag, positive))
-  ),
-  !.
-
-
-%! preference:register_package_use(+CNAtom, +UseStr) is det.
-%
-% Register per-package USE overrides for a simple cat/pkg atom.  Asserts
-% userconfig_use/4 facts with positive/negative state.
-
-preference:register_package_use(CNAtom, UseStr) :-
-  atom(CNAtom),
-  atomic_list_concat([C,N], '/', CNAtom),
-  ( string(UseStr) ->
-      UseS = UseStr
-  ; atom(UseStr) ->
-      atom_string(UseStr, UseS)
-  ; % Unexpected input type - ignore defensively
-    UseS = ""
-  ),
-  split_string(UseS, " ", " \t\r\n", Parts0),
-  exclude(=(""), Parts0, Parts),
-  forall(member(P, Parts),
-         ( sub_atom(P, 0, 1, _, '-') ->
-             sub_atom(P, 1, _, 0, Flag0),
-             Flag0 \== '',
-             atom_string(Flag, Flag0),
-             retractall(preference:userconfig_use(C, N, Flag, _)),
-             assertz(preference:userconfig_use(C, N, Flag, negative))
-         ; atom_string(Flag, P),
-           retractall(preference:userconfig_use(C, N, Flag, _)),
-           assertz(preference:userconfig_use(C, N, Flag, positive))
-         )).
-
-
-% -----------------------------------------------------------------------------
-%  Keyword selection
-% -----------------------------------------------------------------------------
-
-%! preference:keyword_selection_mode(?Mode) is det.
-%
-% Controls how accepted keywords influence version selection:
-%
-% - max_version   : Portage-like. Treat ACCEPT_KEYWORDS as a set; prefer the
-%                  highest version among all candidates that match any accepted
-%                  keyword.
-% - keyword_order : Legacy/experimental. Treat the enumeration order of
-%                  preference:accept_keywords/1 as a preference (e.g. stable
-%                  before unstable), even if a newer version exists under a
-%                  later keyword.
-%
-% NOTE: This affects how `rules.pl` enumerates dependency candidates.
-
-% For Portage parity with ACCEPT_KEYWORDS="amd64 ~amd64", Portage generally
-% treats both as accepted and prefers the highest version available (i.e. don't
-% artificially prefer stable over unstable when both are accepted).
-
-preference:keyword_selection_mode(max_version).
-
-
-
-
-% -----------------------------------------------------------------------------
-%  Package masking (dynamic)
-% -----------------------------------------------------------------------------
-
-%! preference:masked(?Entry) is nondet.
-%
-% Dynamic fact which marks a Repository://Entry as masked.  Asserted by
-% the init pipeline from profile + /etc/portage package.mask files.
-
-
-% -----------------------------------------------------------------------------
-%  Sample sets and world list
-% -----------------------------------------------------------------------------
 
 %! preference:set(?Name, ?List) is nondet.
 %
 % Package set definitions. Populated from file-backed set files
 % under Source/Knowledge/Sets/ during init, similar to the world set.
-
-:- dynamic preference:set/2.
 
 
 %! preference:init_sets is det.
