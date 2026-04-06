@@ -16,11 +16,8 @@ go through this module.
 Configuration sources (highest priority first):
 
   1. Profile tree 
-
   2. User configuration 
-
   3. Environment
-
   4. Per-ebuild defaults
 
 Submodules:
@@ -95,10 +92,8 @@ Submodules:
 
 preference:init :-
 
-  % PDEPEND handling is always enabled.
-  ( preference:local_flag(pdepend) -> true ; asserta(preference:local_flag(pdepend)) ),
+  % Retract all dynamic facts
 
-  % Reset derived state (important when regenerating lots of plans in one session).
   retractall(preference:masked(_)),
   retractall(preference:userconfig_use(_,_,_,_)),
   retractall(preference:profile_masked_use_flag(_)),
@@ -107,36 +102,27 @@ preference:init :-
   retractall(preference:profile_use_forced(_,_)),
   retractall(preference:profile_use_soft(_,_,_)),
   retractall(preference:userconfig_use_versioned(_,_,_)),
-  ( nb_current(pref_userconfig_use_soft_flags, _) -> nb_setval(pref_userconfig_use_soft_flags, t) ; true ),
-  ( nb_current(pref_profile_use_soft_flags, _) -> nb_setval(pref_profile_use_soft_flags, t) ; true ),
-  ( nb_current(pref_userconfig_use_soft_cns, _) -> nb_setval(pref_userconfig_use_soft_cns, t) ; true ),
-  ( nb_current(pref_profile_use_soft_cns, _) -> nb_setval(pref_profile_use_soft_cns, t) ; true ),
-  ( nb_current(pref_profile_forced_cns, _) -> nb_setval(pref_profile_forced_cns, t) ; true ),
-  ( nb_current(pref_profile_masked_cns, _) -> nb_setval(pref_profile_masked_cns, t) ; true ),
   retractall(preference:license_group_raw(_,_)),
   retractall(preference:accept_license_wildcard),
   retractall(preference:accepted_license(_)),
   retractall(preference:denied_license(_)),
 
-  % 1. Load /etc/portage configuration files (if portage_confdir is set).
-  %
-  % This reads make.conf (-> userconfig:env/2), package.use, package.mask,
-  % package.unmask, package.accept_keywords, and package.license from the
-  % configured directory.  Must happen before USE/keyword computation so
-  % that make.conf values are available via getenv/2.
-  %
-  % When portage_confdir is NOT set, fallback:env/2 provides lowest-priority
-  % defaults via getenv/2, and fallback package.mask/package.use are applied
-  % in step 4 below.
+  % Reset preference AVL indexes
+
+  ( nb_current(pref_userconfig_use_soft_flags, _) -> nb_setval(pref_userconfig_use_soft_flags, t) ; true ),
+  ( nb_current(pref_userconfig_use_soft_cns, _) -> nb_setval(pref_userconfig_use_soft_cns, t) ; true ),
+  ( nb_current(pref_profile_use_soft_flags, _) -> nb_setval(pref_profile_use_soft_flags, t) ; true ), 
+  ( nb_current(pref_profile_use_soft_cns, _) -> nb_setval(pref_profile_use_soft_cns, t) ; true ),
+  ( nb_current(pref_profile_forced_cns, _) -> nb_setval(pref_profile_forced_cns, t) ; true ),
+  ( nb_current(pref_profile_masked_cns, _) -> nb_setval(pref_profile_masked_cns, t) ; true ),
+
+  % 1. Load /etc/portage configuration (if portage_confdir is set).
+  %    When unset, fallback defaults are used instead (step 4).
 
   catch(userconfig:load, _, true),
 
-  % 2. Compute global USE flags (env > make.conf > fallback)
-  %
-  % IMPORTANT: preference:init/0 must never fail.  Be defensive:
-  % treat unexpected issues as "skip that bit" rather than aborting init.
-  % Portage semantics: USE is incremental; last occurrence wins.
-  % Example: USE="berkdb ... -berkdb" means berkdb is OFF.
+  % 2. Compute global USE flags (env > make.conf > fallback).
+  %    Incremental; last occurrence wins.
 
   ( catch(preference:env_use_terms(EnvUseTerms), _, EnvUseTerms = []) ->
       forall(member(Term, EnvUseTerms),
@@ -158,12 +144,7 @@ preference:init :-
   forall(member(U, Masked), assertz(preference:profile_masked_use_flag(U))),
   forall(member(U, Forced), assertz(preference:profile_forced_use_flag(U))),
 
-  % Portage semantics for USE_EXPAND selectors:
-  % when a selector variable is explicitly set (via environment/config/default_env),
-  % it overrides profile defaults for that prefix (do not union them).
-  %
-  % This is important for parity-sensitive selectors such as INPUT_DEVICES and
-  % VIDEO_CARDS, where profile defaults can otherwise force extra dependencies.
+  % Explicit USE_EXPAND values override profile defaults for that prefix.
 
   findall(Prefix,
           ( preference:use_expand_env(EnvVar, Prefix),
@@ -186,8 +167,9 @@ preference:init :-
            (preference:local_use(minus(Use)) ; assertz(preference:local_use(Use)))
          )),
 
-  % Derive a Ruby single target if not set by env/profile.
-  catch(preference:maybe_derive_ruby_single_target, _, true),
+  % Derive single targets from multi-targets when not explicitly set.
+  forall(preference:single_target_source(SingleEnv, Prefix, TargetsEnv),
+         catch(preference:maybe_derive_single_target(SingleEnv, Prefix, TargetsEnv), _, true)),
 
   % 3. Set accept_keywords
   %
@@ -208,12 +190,7 @@ preference:init :-
      )
    ),
 
-  % 4. Apply profile layer (base), then userconfig/fallback overrides.
-  %
-  % Profile is applied first (masks, package.use.mask/force, package.use).
-  % Then: if portage_confdir is set, userconfig:load already handled
-  % /etc/portage masks and package.use in step 1.  If NOT set, apply
-  % fallback defaults from fallback.pl.
+  % 4. Apply profile, then userconfig overrides (or fallback if no portage_confdir).
 
   ( preference:use_cached_profile ->
       catch(profile:apply_cached_profile_data, _, true)
@@ -376,20 +353,11 @@ preference:env_use_expand(Use) :-
 
 %! preference:use_expand_env(?EnvVar, ?Prefix) is nondet.
 %
-% Maps USE_EXPAND environment variable names to their flag prefix.
+% Derives the env var name from the canonical eapi:use_expand/1 list.
 
-preference:use_expand_env('PYTHON_TARGETS',       python_targets).
-preference:use_expand_env('PYTHON_SINGLE_TARGET', python_single_target).
-preference:use_expand_env('RUBY_TARGETS',         ruby_targets).
-preference:use_expand_env('RUBY_SINGLE_TARGET',   ruby_single_target).
-preference:use_expand_env('LUA_SINGLE_TARGET',    lua_single_target).
-preference:use_expand_env('PERL_FEATURES',        perl_features).
-preference:use_expand_env('LLVM_SLOT',            llvm_slot).
-preference:use_expand_env('VIDEO_CARDS',          video_cards).
-preference:use_expand_env('INPUT_DEVICES',        input_devices).
-preference:use_expand_env('CPU_FLAGS_X86',        cpu_flags_x86).
-preference:use_expand_env('APACHE2_MODULES',      apache2_modules).
-preference:use_expand_env('APACHE2_MPMS',         apache2_mpms).
+preference:use_expand_env(EnvVar, Prefix) :-
+  eapi:use_expand(Prefix),
+  upcase_atom(Prefix, EnvVar).
 
 
 %! preference:env_accept_keywords(?Keyword) is nondet.
@@ -432,28 +400,40 @@ preference:last_env_token(Atom, Token) :-
   Token \== ''.
 
 
-%! preference:maybe_derive_ruby_single_target is det.
+%! preference:single_target_source(?SingleEnv, ?Prefix, ?TargetsEnv) is nondet.
 %
-% If RUBY_SINGLE_TARGET is not explicitly set, derive it from the last
-% token of RUBY_TARGETS to avoid dependency/model divergences.
+% Derives *_SINGLE_TARGET / *_TARGETS pairs from eapi:use_expand/1.
 
-preference:maybe_derive_ruby_single_target :-
-  ( preference:getenv('RUBY_SINGLE_TARGET', Atom),
+preference:single_target_source(SingleEnv, SinglePrefix, TargetsEnv) :-
+  eapi:use_expand(SinglePrefix),
+  atom_concat(Base, '_single_target', SinglePrefix),
+  atom_concat(Base, '_targets', TargetsPrefix),
+  eapi:use_expand(TargetsPrefix),
+  upcase_atom(SinglePrefix, SingleEnv),
+  upcase_atom(TargetsPrefix, TargetsEnv).
+
+
+%! preference:maybe_derive_single_target(+SingleEnv, +Prefix, +TargetsEnv) is det.
+%
+% If SingleEnv is not explicitly set, derive it from the last token of
+% TargetsEnv.
+
+preference:maybe_derive_single_target(SingleEnv, Prefix, TargetsEnv) :-
+  ( preference:getenv(SingleEnv, Atom),
     Atom \== '' ->
       true
-  ; preference:any_local_use_prefix(ruby_single_target) ->
+  ; preference:any_local_use_prefix(Prefix) ->
       true
-  ; preference:getenv('RUBY_TARGETS', TargetsAtom),
+  ; preference:getenv(TargetsEnv, TargetsAtom),
     TargetsAtom \== '',
     preference:last_env_token(TargetsAtom, Token),
-    atomic_list_concat([ruby_single_target, Token], '_', Use),
+    atomic_list_concat([Prefix, Token], '_', Use),
     ( preference:local_env_use(Use) -> true ; assertz(preference:local_env_use(Use)) ),
     ( preference:local_use(Use)     -> true ; assertz(preference:local_use(Use)) )
   ),
   !.
 
-preference:maybe_derive_ruby_single_target :-
-  true.
+preference:maybe_derive_single_target(_, _, _).
 
 
 % -----------------------------------------------------------------------------
@@ -526,7 +506,7 @@ preference:raw_keyword_matches_(RawKW, K) :-
 
 %! preference:flag(?Flag) is nondet.
 %
-% Returns active interface flags (deep, emptytree, pdepend, etc.).
+% Returns active interface flags (deep, emptytree, etc.).
 % In standalone mode, set by interface.  In client-server mode,
 % injected as thread-local clauses by the Pengines sandbox.
 

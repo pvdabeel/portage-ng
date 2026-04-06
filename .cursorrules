@@ -44,8 +44,7 @@ Version representation:
 - Comparison uses standard `compare/3` directly on the compound term (no runtime key conversion).
 
 PDEPEND handling:
-- PDEPEND is always enabled (unconditionally asserted in `preference:init`).
-- There is no `--pdepend` CLI flag. Do NOT add `preference:flag(pdepend)` guards.
+- PDEPEND is always enabled; there is no preference flag for it.
 - PDEPEND deps are resolved single-pass inside the prover via `rules:literal_hook/4`.
 
 Assumption taxonomy (do not mix these up):
