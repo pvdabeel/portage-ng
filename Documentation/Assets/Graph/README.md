@@ -19,3 +19,6 @@ Custom web fonts bundled for offline use by graph pages.
 | File        | Installed as  | Purpose                         |
 |-------------|---------------|----------------------------------|
 | `meslo.ttf` | `.meslo.ttf`  | Meslo font for proof rendering   |
+
+The `LICENSE` file in `Fonts/` applies to `meslo.ttf`.
+Meslo LG by André Berg is licensed under the Apache License 2.0.
