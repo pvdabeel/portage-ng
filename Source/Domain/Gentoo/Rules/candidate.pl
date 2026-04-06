@@ -2368,3 +2368,555 @@ dep_references_selected_cn(any_of_group(Deps)) :-
   member(D, Deps),
   dep_references_selected_cn(D),
   !.
+
+
+% =============================================================================
+%  Keyword helpers
+% =============================================================================
+
+%! candidate:entry_has_keyword(+RepoEntry)
+%
+% True if the entry has any keyword metadata at all.
+
+candidate:entry_has_keyword(Repo://Entry) :-
+  query:search(keyword(_), Repo://Entry),
+  !.
+
+
+%! candidate:entry_has_accepted_keyword(+RepoEntry)
+%
+% True if the entry has at least one keyword in ACCEPT_KEYWORDS or
+% is accepted via per-package /etc/portage/package.accept_keywords.
+
+candidate:entry_has_accepted_keyword(Repo://Entry) :-
+  preference:accept_keywords(K),
+  query:search(keyword(K), Repo://Entry),
+  !.
+
+candidate:entry_has_accepted_keyword(Repo://Entry) :-
+  query:search([category(C), name(N)], Repo://Entry),
+  cache:entry_metadata(Repo, Entry, keywords, K),
+  preference:package_keyword_accepted(C, N, K),
+  !.
+
+
+%! candidate:entry_is_keyword_filtered(+RepoEntry)
+%
+% True if the entry has keyword metadata but none match ACCEPT_KEYWORDS.
+
+candidate:entry_is_keyword_filtered(Repo://Entry) :-
+  candidate:entry_has_keyword(Repo://Entry),
+  \+ candidate:entry_has_accepted_keyword(Repo://Entry).
+
+
+%! candidate:entry_needs_keyword_acceptance(+RepoEntry)
+%
+% True if the entry should be rejected in strict mode.
+
+candidate:entry_needs_keyword_acceptance(Repo://Entry) :-
+  candidate:entry_is_keyword_filtered(Repo://Entry),
+  !.
+candidate:entry_needs_keyword_acceptance(Repo://Entry) :-
+  \+ candidate:entry_has_keyword(Repo://Entry),
+  \+ query:search(slot(_), Repo://Entry).
+
+
+% =============================================================================
+%  Blocker/conflict assumption overrides
+% =============================================================================
+
+%! candidate:assume_blockers
+%
+% True when blocker constraints should be treated as domain assumptions.
+
+candidate:assume_blockers :-
+  prover:assuming(blockers).
+
+
+%! candidate:with_assume_blockers(:Goal)
+%
+% Runs Goal in a scope where blockers are treated as domain assumptions.
+
+candidate:with_assume_blockers(Goal) :-
+  prover:assuming(blockers, Goal).
+
+
+%! candidate:assume_conflicts
+%
+% True when USE/REQUIRED_USE conflicts should be treated as domain
+% assumptions rather than hard failures.
+
+candidate:assume_conflicts :-
+  prover:assuming(conflicts).
+
+
+%! candidate:with_assume_conflicts(:Goal)
+%
+% Runs Goal in a scope where conflicts are treated as domain assumptions.
+
+candidate:with_assume_conflicts(Goal) :-
+  prover:assuming(conflicts, Goal).
+
+
+% =============================================================================
+%  any_of config-phase validation
+% =============================================================================
+
+%! candidate:any_of_reject_assumed_choice(+Dep, +Conditions)
+%
+% True if the chosen any_of alternative resolved only via a domain
+% assumption.  Forces backtracking to the next alternative.
+
+candidate:any_of_reject_assumed_choice(grouped_package_dependency(_Strength, C, N, _PackageDeps),
+                                   [assumed(grouped_package_dependency(C, N, _Deps):_Act?{_Ctx})]) :-
+  !.
+
+
+candidate:any_of_config_dep_ok(Context, all_of_group(Deps)) :-
+  !,
+  candidate:any_of_config_deps_all_ok(Context, Deps).
+candidate:any_of_config_dep_ok(Context, any_of_group(Deps)) :-
+  !,
+  candidate:any_of_config_deps_any_ok(Context, Deps).
+candidate:any_of_config_dep_ok(Context, use_conditional_group(Pol, Use, RepoEntry, Deps)) :-
+  !,
+  rule(use_conditional_group(Pol, Use, RepoEntry, Deps):config?{Context}, Conditions),
+  Conditions \== [],
+  candidate:any_of_config_conditions_all_ok(Context, Conditions).
+
+candidate:any_of_config_dep_ok(Context, package_dependency(Phase, _Strength, C, N, O, V, SlotReq, U)) :-
+  findall(Repo://Id,
+          ( candidate:accepted_keyword_candidate(Phase, C, N, SlotReq, _Ss, Context, Repo://Id),
+            query:search(select(version, O, V), Repo://Id)
+          ),
+          Candidates0),
+  sort(Candidates0, Candidates),
+  Candidates \== [],
+  ( U == []
+  -> true
+  ; member(Candidate, Candidates),
+    use:candidate_satisfies_use_deps(Context, Candidate, U)
+  ),
+  !.
+candidate:any_of_config_dep_ok(_Context, package_dependency(_Phase, _Strength, _C, _N, _O, _V, _S, _U)) :-
+  candidate:assume_conflicts,
+  !.
+candidate:any_of_config_dep_ok(_Context, package_dependency(_Phase, _Strength, _C, _N, _O, _V, _S, _U)) :-
+  !,
+  fail.
+candidate:any_of_config_dep_ok(_Context, _Other) :-
+  true.
+
+
+candidate:any_of_config_deps_all_ok(_Context, []) :- !.
+candidate:any_of_config_deps_all_ok(Context, [Dep|Rest]) :-
+  candidate:any_of_config_dep_ok(Context, Dep),
+  candidate:any_of_config_deps_all_ok(Context, Rest).
+
+
+candidate:any_of_config_deps_any_ok(Context, Deps) :-
+  member(Dep, Deps),
+  candidate:any_of_config_dep_ok(Context, Dep),
+  !.
+
+
+candidate:any_of_config_conditions_all_ok(_Context, []) :- !.
+candidate:any_of_config_conditions_all_ok(Context, [Cond|Rest]) :-
+  candidate:any_of_config_condition_dep(Cond, Dep),
+  candidate:any_of_config_dep_ok(Context, Dep),
+  candidate:any_of_config_conditions_all_ok(Context, Rest).
+
+
+candidate:any_of_config_condition_dep(Dep:config?{_Ctx}, Dep) :- !.
+candidate:any_of_config_condition_dep(Dep, Dep).
+
+
+%! candidate:group_choice_dep(+Dep0, -Dep)
+%
+% Lifts a plain package_dependency/8 into a grouped_package_dependency/4
+% wrapper so it can be resolved by the grouped dependency rule.
+
+candidate:group_choice_dep(package_dependency(Phase,Strength,C,N,O,V,S,U),
+                       grouped_package_dependency(Strength,C,N,
+                           [package_dependency(Phase,Strength,C,N,O,V,S,U)])) :- !.
+candidate:group_choice_dep(D, D).
+
+
+% -----------------------------------------------------------------------------
+%  Grouped-dependency resolution (multi-clause orchestrator)
+% -----------------------------------------------------------------------------
+
+%! candidate:resolve_grouped_dep(+Action, +C, +N, +PackageDeps1, +PackageDepsOrig, +Context, -Conditions)
+%
+% Multi-clause orchestrator for the grouped_package_dependency rule.
+% Each clause implements one resolution path, tried in order:
+%   1. Self-satisfied (runtime self-dependency)
+%   2. Keep-installed (existing VDB entry satisfies all constraints)
+%   3. Candidate resolution (select, verify, assemble proof conditions)
+%   4. Learning / reprove (narrow parent domain or request reprove)
+%   5. Assumption fallback (mark as assumed with diagnostics)
+
+candidate:resolve_grouped_dep(run, C, N, _PackageDeps1, _PackageDepsOrig, Context, []) :-
+  memberchk(self(SelfRepo://SelfEntry), Context),
+  query:search([category(C),name(N)], SelfRepo://SelfEntry),
+  !.
+
+candidate:resolve_grouped_dep(Action, C, N, PackageDeps1, _PackageDepsOrig, Context, []) :-
+  \+ preference:flag(emptytree),
+  candidate:grouped_dep_keep_installed(Action, C, N, PackageDeps1, Context),
+  !.
+
+candidate:resolve_grouped_dep(Action, C, N, PackageDeps1, _PackageDepsOrig, Context, Conditions) :-
+  candidate:grouped_dep_select_and_build(Action, C, N, PackageDeps1, Context, Conditions),
+  !.
+
+candidate:resolve_grouped_dep(Action, C, N, PackageDeps1, _PackageDepsOrig, Context, _) :-
+  \+ memo:requse_violation_(C, N, _),
+  candidate:maybe_learn_parent_narrowing(C, N, PackageDeps1, Context),
+  fail.
+candidate:resolve_grouped_dep(Action, C, N, PackageDeps1, _PackageDepsOrig, Context, _) :-
+  \+ memo:requse_violation_(C, N, _),
+  candidate:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps1, Context),
+  fail.
+
+candidate:resolve_grouped_dep(Action, C, N, PackageDeps1, PackageDepsOrig, Context, Conditions) :-
+  candidate:grouped_dep_build_assumption(Action, C, N, PackageDeps1, PackageDepsOrig, Context, Conditions).
+
+
+% -----------------------------------------------------------------------------
+%  Phase 2: Keep-installed fast path
+% -----------------------------------------------------------------------------
+
+%! candidate:grouped_dep_keep_installed(+Action, +C, +N, +PackageDeps, +Context) is semidet.
+%
+% Succeeds when an installed VDB entry satisfies all version constraints,
+% bracketed USE deps, and rebuild flags for this grouped dependency.
+
+candidate:grouped_dep_keep_installed(Action, C, N, PackageDeps1, Context) :-
+  candidate:merge_slot_restriction(Action, C, N, PackageDeps1, SlotReq),
+  query:search([name(N),category(C),installed(true)], pkg://InstalledEntry),
+  candidate:query_search_slot_constraint(SlotReq, pkg://InstalledEntry, _),
+  candidate:installed_entry_satisfies_package_deps(Action, C, N, PackageDeps1, pkg://InstalledEntry),
+  findall(U0, member(package_dependency(_P0,no,C,N,_O,_V,_,U0),PackageDeps1), MergedUse0),
+  append(MergedUse0, MergedUse),
+  dependency:process_build_with_use(MergedUse, Context, ContextWU, _BWUCons, pkg://InstalledEntry),
+  ( C == 'virtual'
+  -> true
+  ; use:installed_entry_satisfies_build_with_use(pkg://InstalledEntry, ContextWU)
+  ),
+  ( preference:flag(newuse) ->
+      \+ use:newuse_mismatch(pkg://InstalledEntry)
+  ; preference:flag(changeduse) ->
+      \+ use:changeduse_mismatch(pkg://InstalledEntry)
+  ; true
+  ),
+  \+ target:rebuild_if_newer_available(pkg://InstalledEntry),
+  \+ target:is_excluded_cn(C, N),
+  !.
+
+
+% -----------------------------------------------------------------------------
+%  Phase 3: Candidate selection and constraint assembly
+% -----------------------------------------------------------------------------
+
+%! candidate:grouped_dep_select_and_build(+Action, +C, +N, +PackageDeps, +Context, -Conditions) is nondet.
+%
+% Selects a candidate from portage/overlays, verifies version/slot/USE
+% constraints, tags suggestions, determines update-vs-install action,
+% and assembles the final proof conditions list.
+
+candidate:grouped_dep_select_and_build(Action, C, N, PackageDeps1, Context, Conditions) :-
+  candidate:merge_slot_restriction(Action, C, N, PackageDeps1, SlotReq),
+  candidate:grouped_dep_slot_lock(SlotReq, C, N, Context, SsLock),
+  candidate:grouped_dep_find_candidate(Action, C, N, SlotReq, SsLock, PackageDeps1, Context,
+                                       FoundRepo://Candidate, CandPreVerified),
+  candidate:grouped_dep_avoid_self(C, N, Context, FoundRepo://Candidate),
+  candidate:grouped_dep_verify_candidate(CandPreVerified, Action, C, N, PackageDeps1, Context,
+                                         FoundRepo://Candidate),
+  candidate:candidate_reverse_deps_compatible_with_parent(Context, FoundRepo://Candidate),
+  candidate:grouped_dep_use_and_slot(Action, C, N, PackageDeps1, SlotReq, Context,
+                                     FoundRepo://Candidate,
+                                     Constraints, SlotMeta, NewerContext0),
+  candidate:grouped_dep_tag_suggestions(FoundRepo://Candidate, NewerContext0, NewerContext),
+  candidate:grouped_dep_determine_action(Action, C, N, FoundRepo://Candidate,
+                                         SlotMeta, NewerContext, ActionGoal),
+  candidate:grouped_dep_assemble_conditions(Action, C, N, PackageDeps1, SlotReq, Context,
+                                            FoundRepo://Candidate, SlotMeta,
+                                            Constraints, ActionGoal, Conditions).
+
+
+%! candidate:grouped_dep_slot_lock(+SlotReq, +C, +N, +Context, -SsLock) is det.
+%
+% When the context carries a slot lock for (C,N) via :=, bind SsLock to
+% restrict candidate enumeration. Otherwise SsLock is unbound.
+
+candidate:grouped_dep_slot_lock([any_same_slot], C, N, Context, SsLock) :-
+  memberchk(slot(C,N,SsLock0):{_}, Context),
+  candidate:canon_any_same_slot_meta(SsLock0, SsLock),
+  !.
+candidate:grouped_dep_slot_lock(_, _, _, _, _).
+
+
+%! candidate:grouped_dep_find_candidate(+Action, +C, +N, +SlotReq, +SsLock, +PackageDeps, +Context, -Entry, -PreVerified) is nondet.
+%
+% Enumerates candidate entries respecting slot constraints and CN-consistency.
+
+candidate:grouped_dep_find_candidate(Action, C, N, [slot(_)|_] = SlotReq, _SsLock, _PackageDeps1, Context,
+                                     FoundRepo://Candidate, false) :-
+  !,
+  candidate:accepted_keyword_candidate(Action, C, N, SlotReq, _Ss0, Context, FoundRepo://Candidate).
+candidate:grouped_dep_find_candidate(Action, C, N, SlotReq, _SsLock, PackageDeps1, Context,
+                                     FoundRepo://Candidate, true) :-
+  candidate:selected_cn_candidate_compatible(Action, C, N, SlotReq, PackageDeps1, Context, FoundRepo://Candidate),
+  !.
+candidate:grouped_dep_find_candidate(Action, C, N, SlotReq, SsLock, PackageDeps1, Context,
+                                     FoundRepo://Candidate, false) :-
+  candidate:grouped_dep_effective_domain_precomputed(Action, C, N, PackageDeps1, Context, EffDom, RejectDom),
+  candidate:accepted_keyword_candidate(Action, C, N, SlotReq, SsLock, Context, FoundRepo://Candidate),
+  ( candidate:selected_cn_candidate(Action, C, N, Context, FoundRepo://Candidate),
+    candidate:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, _)
+  ->
+    candidate:grouped_dep_candidate_satisfies_constraints_precomputed(
+        C, N, PackageDeps1, EffDom, RejectDom, FoundRepo://Candidate)
+  ; true
+  ).
+
+
+%! candidate:grouped_dep_avoid_self(+C, +N, +Context, +Entry) is semidet.
+%
+% Prevents resolving a dependency to the parent package itself unless
+% the candidate is already installed.
+
+candidate:grouped_dep_avoid_self(C, N, Context, FoundRepo://Candidate) :-
+  ( ( memberchk(self(_SelfRepo://SelfEntry1), Context)
+    ; memberchk(slot(C,N,_SelfSlot):{SelfEntry1}, Context)
+    ),
+    Candidate == SelfEntry1
+  ->
+    \+ preference:flag(emptytree),
+    query:search(installed(true), FoundRepo://Candidate)
+  ; true
+  ).
+
+
+%! candidate:grouped_dep_verify_candidate(+PreVerified, +Action, +C, +N, +PackageDeps, +Context, +Entry) is semidet.
+%
+% When PreVerified is false, checks that the candidate satisfies all
+% version constraints and the effective domain.
+
+candidate:grouped_dep_verify_candidate(true, _, _, _, _, _, _) :- !.
+candidate:grouped_dep_verify_candidate(false, Action, C, N, PackageDeps1, Context, FoundRepo://Candidate) :-
+  cache:ordered_entry(FoundRepo, Candidate, _, _, CandVer),
+  forall(member(package_dependency(_P1,no,C,N,O,V,_,_), PackageDeps1),
+         preference:version_match(O, CandVer, V)),
+  candidate:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps1, Context, FoundRepo://Candidate).
+
+
+%! candidate:grouped_dep_use_and_slot(+Action, +C, +N, +PackageDeps, +SlotReq, +Context, +Entry, -Constraints, -SlotMeta, -NewContext) is semidet.
+%
+% Processes USE deps (bracketed constraints, PDEPEND stripping, BWU conflict
+% checks) and slot binding for the selected candidate.
+
+candidate:grouped_dep_use_and_slot(Action, C, N, PackageDeps1, SlotReq, Context,
+                                   FoundRepo://Candidate,
+                                   Constraints, SlotMeta, NewerContext0) :-
+  ( member(package_dependency(pdepend,_,C,N,_,_,_,_), PackageDeps1) ->
+      MergedUse = [],
+      featureterm:ctx_drop_build_with_use_and_assumption_reason(Context, ContextDep)
+  ; findall(U0, member(package_dependency(_P2,no,C,N,_O,_V,_,U0),PackageDeps1), MergedUse0),
+    append(MergedUse0, MergedUse),
+    ContextDep = Context
+  ),
+  use:candidate_satisfies_use_deps(ContextDep, FoundRepo://Candidate, MergedUse),
+  dependency:process_build_with_use(MergedUse, ContextDep, NewContext, Constraints, FoundRepo://Candidate),
+  use:check_bwu_ed_conflict(C, N, NewContext),
+  candidate:query_search_slot_constraint(SlotReq, FoundRepo://Candidate, SlotMeta),
+  dependency:process_slot(SlotReq, SlotMeta, C, N, FoundRepo://Candidate, NewContext, NewerContext0).
+
+
+%! candidate:grouped_dep_tag_suggestions(+Entry, +Context0, -Context) is det.
+%
+% Tags the context with keyword-acceptance, unmask, license, and USE-change
+% suggestions when applicable.
+
+candidate:grouped_dep_tag_suggestions(FoundRepo://Candidate, Ctx0, Ctx) :-
+  ( prover:assuming(keyword_acceptance),
+    candidate:candidate_non_accepted_keyword(FoundRepo://Candidate, NonAccKw)
+  ->
+    feature_unification:unify([suggestion(accept_keyword, NonAccKw)], Ctx0, Ctx1)
+  ; prover:assuming(unmask),
+    preference:masked(FoundRepo://Candidate)
+  ->
+    feature_unification:unify([suggestion(unmask, FoundRepo://Candidate)], Ctx0, Ctx1)
+  ; candidate:license_masked(FoundRepo://Candidate)
+  ->
+    feature_unification:unify([suggestion(unmask, FoundRepo://Candidate)], Ctx0, Ctx1)
+  ; Ctx1 = Ctx0
+  ),
+  ( use:context_build_with_use_state(Ctx1, BWUState),
+    use:build_with_use_changes(BWUState, FoundRepo://Candidate, UseChanges),
+    UseChanges \== []
+  ->
+    feature_unification:unify([suggestion(use_change, FoundRepo://Candidate, UseChanges)], Ctx1, Ctx)
+  ; Ctx = Ctx1
+  ).
+
+
+%! candidate:grouped_dep_determine_action(+Action, +C, +N, +Entry, +SlotMeta, +Context, -ActionGoal) is det.
+%
+% Determines whether the dep is a fresh install, update, downgrade, or
+% rebuild based on the installed VDB state and CLI flags.
+
+candidate:grouped_dep_determine_action(Action, C, N, FoundRepo://Candidate,
+                                       SlotMeta, NewerContext, ActionGoal) :-
+  ( \+ preference:flag(emptytree),
+    candidate:selected_cn_slot_key_(SlotMeta, SlotChosen),
+    query:search([name(N),category(C),installed(true)], pkg://InstalledEntry2),
+    ( query:search(slot(SlotInstalled0), pkg://InstalledEntry2)
+      -> candidate:canon_slot(SlotInstalled0, SlotInstalled)
+      ;  SlotInstalled = SlotChosen
+    ),
+    SlotInstalled == SlotChosen,
+    !,
+    candidate:grouped_dep_update_reason(C, N, FoundRepo://Candidate,
+                                        pkg://InstalledEntry2, NewerContext,
+                                        DepUpdateAction, UpdateCtx)
+  ->
+    ActionGoal = FoundRepo://Candidate:DepUpdateAction?{UpdateCtx}
+  ; ActionGoal = FoundRepo://Candidate:Action?{NewerContext}
+  ).
+
+
+%! candidate:grouped_dep_update_reason(+C, +N, +CandEntry, +InstalledEntry, +Context, -UpdateAction, -UpdateCtx) is semidet.
+%
+% Determines the specific update reason (version change, BWU rebuild,
+% --newuse, --changed-use, --rebuild-if-new-*).
+
+candidate:grouped_dep_update_reason(_C, _N, FoundRepo://Candidate,
+                                    pkg://InstalledEntry2, NewerContext,
+                                    DepUpdateAction, UpdateCtx) :-
+  InstalledEntry2 \== Candidate,
+  query:search(version(OldVer), pkg://InstalledEntry2),
+  query:search(version(CandVer0), FoundRepo://Candidate),
+  OldVer \== CandVer0,
+  !,
+  feature_unification:unify([replaces(pkg://InstalledEntry2)], NewerContext, UpdateCtx),
+  ( eapi:version_compare(<, CandVer0, OldVer)
+  -> DepUpdateAction = downgrade
+  ;  DepUpdateAction = update
+  ).
+candidate:grouped_dep_update_reason(C, _N, _FoundRepo://_Candidate,
+                                    pkg://InstalledEntry2, NewerContext,
+                                    update, UpdateCtx) :-
+  ( current_predicate(config:avoid_reinstall/1),
+    config:avoid_reinstall(true) ->
+      fail
+  ; C \== 'virtual',
+    \+ use:installed_entry_satisfies_build_with_use(pkg://InstalledEntry2, NewerContext)
+  ),
+  !,
+  feature_unification:unify([replaces(pkg://InstalledEntry2),rebuild_reason(build_with_use)], NewerContext, UpdateCtx).
+candidate:grouped_dep_update_reason(_C, _N, FoundRepo://Candidate,
+                                    pkg://InstalledEntry2, NewerContext,
+                                    update, UpdateCtx) :-
+  preference:flag(newuse),
+  use:newuse_mismatch(pkg://InstalledEntry2, FoundRepo://Candidate),
+  !,
+  feature_unification:unify([replaces(pkg://InstalledEntry2),rebuild_reason(newuse)], NewerContext, UpdateCtx).
+candidate:grouped_dep_update_reason(_C, _N, FoundRepo://Candidate,
+                                    pkg://InstalledEntry2, NewerContext,
+                                    update, UpdateCtx) :-
+  preference:flag(changeduse),
+  use:changeduse_mismatch(pkg://InstalledEntry2, FoundRepo://Candidate),
+  !,
+  feature_unification:unify([replaces(pkg://InstalledEntry2),rebuild_reason(changeduse)], NewerContext, UpdateCtx).
+candidate:grouped_dep_update_reason(_C, _N, _FoundRepo://_Candidate,
+                                    pkg://InstalledEntry2, NewerContext,
+                                    update, UpdateCtx) :-
+  target:rebuild_if_newer_available(pkg://InstalledEntry2),
+  feature_unification:unify([replaces(pkg://InstalledEntry2),rebuild_reason(rebuild)], NewerContext, UpdateCtx).
+
+
+%! candidate:grouped_dep_assemble_conditions(+Action, +C, +N, +PackageDeps, +SlotReq, +Context, +Entry, +SlotMeta, +Constraints, +ActionGoal, -Conditions) is det.
+%
+% Assembles the final proof conditions list from the selected candidate,
+% its constraints, domain constraints, and the action goal.
+
+candidate:grouped_dep_assemble_conditions(Action, C, N, PackageDeps1, SlotReq, Context,
+                                          FoundRepo://Candidate, SlotMeta,
+                                          Constraints, ActionGoal, Conditions) :-
+  ( ActionGoal = _://_:ActSel?{_} -> true
+  ; ActionGoal = _://_:ActSel     -> true
+  ; ActSel = Action
+  ),
+  query:search(version(CandVer), FoundRepo://Candidate),
+  Selected = constraint(selected_cn(C,N):{ordset([selected(FoundRepo,Candidate,ActSel,CandVer,SlotMeta)])}),
+  candidate:selected_cn_allow_multislot_constraints(C, N, SlotReq, PackageDeps1, AllowMultiSlotCons),
+  candidate:cn_domain_constraints(Action, C, N, PackageDeps1, Context, DomainCons0, _DomainReasonTags),
+  candidate:domain_constraints_for_any_different_slot(SlotReq, DomainCons0, DomainCons),
+  append(Constraints, [ActionGoal], ConstraintsTail),
+  append(AllowMultiSlotCons, [Selected|ConstraintsTail], Suffix),
+  append(DomainCons, Suffix, Conditions).
+
+
+% -----------------------------------------------------------------------------
+%  Phase 5: Assumption fallback with diagnostics
+% -----------------------------------------------------------------------------
+
+%! candidate:grouped_dep_build_assumption(+Action, +C, +N, +PackageDeps, +PackageDepsOrig, +Context, -Conditions) is det.
+%
+% Builds an assumption condition when no candidate could satisfy the
+% grouped dependency. Tags context with explanation reason and
+% actionable suggestions (keyword, unmask, slot conflict, REQUIRED_USE).
+
+candidate:grouped_dep_build_assumption(Action, C, N, PackageDeps1, PackageDepsOrig, Context, Conditions) :-
+  explanation:assumption_reason_for_grouped_dep(Action, C, N, PackageDepsOrig, Context, Reason),
+  version_domain:domain_reason_terms(Action, C, N, PackageDeps1, Context, DomainReasonTags),
+  candidate:add_domain_reason_context(C, N, DomainReasonTags, Context, Ctx2),
+  feature_unification:unify([assumption_reason(Reason)], Ctx2, Ctx3),
+  candidate:grouped_dep_tag_assumption_suggestion(C, N, PackageDeps1, Reason, Ctx3, Ctx4),
+  ( memo:requse_violation_(C, N, ViolDesc) ->
+      retractall(memo:requse_violation_(C, N, _)),
+      feature_unification:unify([required_use_violation(ViolDesc)], Ctx4, Ctx5)
+  ; Ctx5 = Ctx4
+  ),
+  ( use:find_dep_slot_conflict(C, N, SlotConflictDesc) ->
+      feature_unification:unify([slot_conflict(SlotConflictDesc)], Ctx5, Ctx6)
+  ; Ctx6 = Ctx5
+  ),
+  Conditions = [assumed(grouped_package_dependency(C,N,PackageDeps1):Action?{Ctx6})].
+
+
+%! candidate:grouped_dep_tag_assumption_suggestion(+C, +N, +PackageDeps, +Reason, +Ctx0, -Ctx) is det.
+%
+% For keyword-filtered or masked assumptions, tags the context with the
+% best actionable suggestion (accept-keyword or unmask).
+
+candidate:grouped_dep_tag_assumption_suggestion(C, N, PackageDeps1, keyword_filtered, Ctx0, Ctx) :-
+  !,
+  ( memo:keyword_suggestion_cache_(C, N, CachedKw) ->
+      SuggestedKw = CachedKw
+  ; findall(Repo4://Entry4,
+            ( query:search([category(C), name(N)], Repo4://Entry4),
+              \+ preference:masked(Repo4://Entry4),
+              forall(member(package_dependency(_,no,C,N,O4,V4,_,_), PackageDeps1),
+                     query:search(select(version, O4, V4), Repo4://Entry4))
+            ),
+            KwCands1),
+    explanation:candidate_keywords(KwCands1, CandKws),
+    ( CandKws \== [] ->
+        findall(AK, preference:accept_keywords(AK), AKs0),
+        sort(AKs0, AKs),
+        candidate:candidate_best_keyword_suggestion(AKs, CandKws, SuggestedKw)
+    ; SuggestedKw = none
+    ),
+    assertz(memo:keyword_suggestion_cache_(C, N, SuggestedKw))
+  ),
+  ( SuggestedKw \== none ->
+      feature_unification:unify([suggestion(accept_keyword, SuggestedKw)], Ctx0, Ctx)
+  ; Ctx = Ctx0
+  ).
+candidate:grouped_dep_tag_assumption_suggestion(_C, _N, _PackageDeps1, masked, Ctx0, Ctx) :-
+  !,
+  feature_unification:unify([suggestion(unmask)], Ctx0, Ctx).
+candidate:grouped_dep_tag_assumption_suggestion(_C, _N, _PackageDeps1, _Reason, Ctx, Ctx).

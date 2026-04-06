@@ -1354,3 +1354,106 @@ describe_required_use_violation(Repo://Entry, use_state(Enable, Disable), Desc) 
             ),
             Violated),
     Desc = required_use_violation(Repo://Entry, Enable, Disable, Violated).
+
+
+% =============================================================================
+%  Cross-dependency BWU REQUIRED_USE conflict detection
+% =============================================================================
+
+%! use:check_bwu_cross_dep(+C, +N, +RepoEntry, +BWU)
+%
+% Detects irreconcilable REQUIRED_USE conflicts across independent dependency
+% branches.  Uses a memo to track committed BWU per (C,N).
+
+use:check_bwu_cross_dep(C, N, RepoEntry, BWU) :-
+    ( BWU \= use_state([], []) ->
+        ( memo:candidate_bwu_(C, N, OldBWU) ->
+            ( feature_unification:val_hook(OldBWU, BWU, MergedBWU) ->
+                ( use:verify_required_use_with_bwu(RepoEntry, MergedBWU) ->
+                    retractall(memo:candidate_bwu_(C, N, _)),
+                    assertz(memo:candidate_bwu_(C, N, MergedBWU))
+                ; use:describe_required_use_violation(RepoEntry, MergedBWU, ViolDesc),
+                  ( \+ memo:requse_violation_(C, N, _) ->
+                      assertz(memo:requse_violation_(C, N, ViolDesc))
+                  ; true
+                  ),
+                  fail
+                )
+            ; use:compute_ed_conflict_desc(OldBWU, BWU, ViolDesc),
+              ( \+ memo:requse_violation_(C, N, _) ->
+                  assertz(memo:requse_violation_(C, N, ViolDesc))
+              ; true
+              ),
+              fail
+            )
+        ; assertz(memo:candidate_bwu_(C, N, BWU))
+        )
+    ; true
+    ).
+
+
+%! use:clear_bwu_cross_dep_memos
+%
+% Cleans up candidate_bwu_ memos.  Called at proof initialization.
+
+use:clear_bwu_cross_dep_memos :-
+    retractall(memo:candidate_bwu_(_, _, _)).
+
+
+%! use:check_bwu_ed_conflict(+C, +N, +Context)
+%
+% Lightweight Enable/Disable conflict check for grouped_package_dependency.
+
+use:check_bwu_ed_conflict(C, N, Context) :-
+    ( use:context_build_with_use_state(Context, BWU),
+      BWU \= use_state([], []) ->
+        ( memo:candidate_bwu_(C, N, OldBWU) ->
+            ( feature_unification:val_hook(OldBWU, BWU, _) ->
+                true
+            ; use:compute_ed_conflict_desc(OldBWU, BWU, ViolDesc),
+              ( \+ memo:requse_violation_(C, N, _) ->
+                  assertz(memo:requse_violation_(C, N, ViolDesc))
+              ; true
+              ),
+              fail
+            )
+        ; true
+        )
+    ; true
+    ).
+
+
+%! use:compute_ed_conflict_desc(+OldBWU, +NewBWU, -ViolDesc)
+%
+% Computes a use_flag_conflict descriptor from two incompatible BWU states.
+
+use:compute_ed_conflict_desc(use_state(OldEn, OldDis), use_state(NewEn, NewDis),
+                               use_flag_conflict(Conflicts, AllEn, AllDis)) :-
+    ord_union(OldEn, NewEn, AllEn),
+    ord_union(OldDis, NewDis, AllDis),
+    ord_intersection(AllEn, AllDis, Conflicts).
+
+
+%! use:find_dep_slot_conflict(+C, +N, -SlotConflictDesc)
+%
+% Checks whether a slot conflict memo exists for any dependency of (C,N).
+
+use:find_dep_slot_conflict(C, N, slot_conflict_info(ConflictC, ConflictN, ConflictData)) :-
+    memo:slot_conflict_(ConflictC, ConflictN, ConflictData),
+    query:search([category(C), name(N)], Repo://Entry),
+    use:candidate_depends_on(Repo://Entry, ConflictC, ConflictN),
+    !.
+use:find_dep_slot_conflict(_C, _N, slot_conflict_info(ConflictC, ConflictN, ConflictData)) :-
+    memo:slot_conflict_(ConflictC, ConflictN, ConflictData),
+    !.
+
+
+%! use:candidate_depends_on(+RepoEntry, +DepC, +DepN)
+%
+% True if RepoEntry has any dependency on category DepC, name DepN.
+
+use:candidate_depends_on(Repo://Entry, DepC, DepN) :-
+    member(Phase, [depend, rdepend, bdepend, pdepend, idepend]),
+    cache:entry_metadata(Repo, Entry, Phase,
+                         package_dependency(_, _, DepC, DepN, _, _, _, _)),
+    !.

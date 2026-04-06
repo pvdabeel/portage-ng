@@ -98,7 +98,7 @@ os:directory_content(Directory,Content) :-
 % Non-deterministically unify File with regular files under Dir whose
 % names match the glob Pattern. Follows no symlinks.
 
-find_files(Dir, Pattern, File) :-
+os:find_files(Dir, Pattern, File) :-
   directory_member(Dir, File,
                    [ recursive(true),
                      follow_links(false),
@@ -116,7 +116,7 @@ find_files(Dir, Pattern, File) :-
 % Reads the 1-minute system load average. Uses sysctl on macOS,
 % /proc/loadavg on Linux. Returns 0.0 on failure.
 
-current_load_average(Load) :-
+os:current_load_average(Load) :-
   ( current_prolog_flag(apple, true)
   -> os:load_average_darwin(Load)
   ;  os:load_average_linux(Load)
@@ -127,7 +127,7 @@ current_load_average(Load) :-
 %
 % Reads the 1-minute load average on macOS via sysctl.
 
-load_average_darwin(Load) :-
+os:load_average_darwin(Load) :-
   catch(
     ( setup_call_cleanup(
         process_create(path(sysctl), ['-n', 'vm.loadavg'],
@@ -148,7 +148,7 @@ load_average_darwin(Load) :-
 %
 % Reads the 1-minute load average on Linux from /proc/loadavg.
 
-load_average_linux(Load) :-
+os:load_average_linux(Load) :-
   catch(
     ( setup_call_cleanup(
         open('/proc/loadavg', read, In),
@@ -162,4 +162,3 @@ load_average_linux(Load) :-
     _,
     Load = 0.0
   ).
-

@@ -16,7 +16,7 @@ Provides the constraint data type, incremental constraint unification
 and conversion utilities between constraint AVL trees and lists.
 
 Domain-specific merge logic can be injected via the
-=rules:constraint_unify_hook/4= hook; the generic fallback handles
+=heuristic:constraint_unify_hook/4= hook; the generic fallback handles
 ordsets, atoms, lists, and AVL-to-AVL merging.
 */
 
@@ -45,11 +45,11 @@ constraint:is_constraint(constraint(_)).
 %! constraint:unify_constraints(+Constraint, +Constraints, -NewConstraints)
 %
 % Unify a constraint with the current constraints.  Domain-specific
-% merge logic is delegated to =rules:constraint_unify_hook/4=.
+% merge logic is delegated to =heuristic:constraint_unify_hook/4=.
 
 constraint:unify_constraints(constraint(Key:{Value}), Constraints, NewConstraints) :-
-  current_predicate(rules:constraint_unify_hook/4),
-  rules:constraint_unify_hook(Key, Value, Constraints, NewConstraints),
+  current_predicate(heuristic:constraint_unify_hook/4),
+  heuristic:constraint_unify_hook(Key, Value, Constraints, NewConstraints),
   !.
 
 constraint:unify_constraints(constraint(Key:{Value}),Constraints,NewConstraints) :-

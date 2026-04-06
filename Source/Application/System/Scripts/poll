@@ -18,7 +18,7 @@ fi
 
 # Define the alias for portage-ng-dev:
 
-alias portage-ng-dev='swipl -O --stack_limit=256G --table-space=256G --shared-table-space=256G -f /Users/pvdabeel/Desktop/Prolog/portage-ng.pl -p portage=/Users/pvdabeel/Desktop/Prolog -Dverbose_autoload=false -Dreadline=editline -g main --'
+alias portage-ng-dev='swipl -O --stack_limit=32G -f /Users/pvdabeel/Desktop/Prolog/portage-ng.pl -p portage=/Users/pvdabeel/Desktop/Prolog -Dverbose_autoload=false -g main --'
 
 
 # Key locations

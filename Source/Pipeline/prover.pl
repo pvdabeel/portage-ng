@@ -51,10 +51,10 @@ Key design points:
 - Cycle detection and cycle-break assumptions: during depth-first
   proof search, a per-proof *cycle stack* tracks literals currently
   being proved.  When a literal is encountered that is already on
-  the stack, the prover consults the domain hook `rules:cycle_benign/1`
+  the stack, the prover consults the domain hook `heuristic:cycle_benign/1`
   (if defined) before deciding how to handle the cycle:
 
-  * *Benign cycle* (`rules:cycle_benign(Lit)` succeeds): the literal
+  * *Benign cycle* (`heuristic:cycle_benign(Lit)` succeeds): the literal
     is already being resolved by an ancestor on the proof stack and
     the domain considers the cycle harmless.  The prover treats it as
     already proven -- it adds `Lit` to the Model and continues without
@@ -81,7 +81,7 @@ Key design points:
 - A lightweight =prove_model= variant skips Proof and Triggers
   bookkeeping for internal query-side model construction.
 
-- Proof obligations (`rules:proof_obligation/4`): after a literal is
+- Proof obligations (`heuristic:proof_obligation/4`): after a literal is
   proven, the prover queries the domain for additional proof
   obligations -- extra literals to be appended to the remaining proof
   queue.  This lets the domain inject derived proof obligations
@@ -179,8 +179,8 @@ prover:handle_reprove(Target, InProof, OutProof, InModel, OutModel, InCons, OutC
 
 prover:prove_once(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers) :-
   prover:debug_hook(Target, InProof, InModel, InCons),
-  ( current_predicate(rules:clear_bwu_cross_dep_memos/0) ->
-      rules:clear_bwu_cross_dep_memos
+  ( current_predicate(use:clear_bwu_cross_dep_memos/0) ->
+      use:clear_bwu_cross_dep_memos
   ; true
   ),
   prover:with_cycle_stack(
@@ -342,8 +342,8 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
       constraint:unify_constraints(Lit, Constraints, Constraints1),
       % Domain hook (keeps prover generic): if the domain provides a constraint
       % guard, it can reject inconsistent states by failing here.
-      ( current_predicate(rules:constraint_guard/2) ->
-          ( rules:constraint_guard(Lit, Constraints1) ->
+      ( current_predicate(heuristic:constraint_guard/2) ->
+          ( heuristic:constraint_guard(Lit, Constraints1) ->
               NewConstraints = Constraints1
           ; fail
           )
@@ -428,8 +428,8 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
           \+ prover:assumed_proving(Lit, Proof) ->
 
           prover:cycle_path_for(Lit, CyclePath),
-          ( current_predicate(rules:cycle_benign/2),
-            rules:cycle_benign(Lit, CyclePath) ->
+          ( current_predicate(heuristic:cycle_benign/2),
+            heuristic:cycle_benign(Lit, CyclePath) ->
 
               % Benign cycle: the domain classifies this cycle as harmless
               % based on the cycle path (e.g. RDEPEND-mediated cycles that
@@ -569,7 +569,7 @@ prover:prove_model(Full, Model0, Model, Constraints0, Constraints, InProg0) :-
 % The prover stays domain-agnostic.  After proving a literal, it consults
 % an optional domain predicate to discover additional proof obligations:
 %
-%   rules:proof_obligation(+Literal, +Model, -Key, -ExtraLits)
+%   heuristic:proof_obligation(+Literal, +Model, -Key, -ExtraLits)
 %
 % - Key is an arbitrary term identifying this obligation.  The prover stores
 %   `obligation_done(Key)` in the ProofAVL to ensure each obligation is
@@ -590,13 +590,13 @@ prover:collect_proof_obligations(Literal, Proof, Proof, _Model, Rest, Rest) :-
   \+ prover:obligation_candidate(Literal),
   !.
 prover:collect_proof_obligations(_Literal, Proof, Proof, _Model, Rest, Rest) :-
-  \+ current_predicate(rules:proof_obligation/4),
+  \+ current_predicate(heuristic:proof_obligation/4),
   !.
 prover:collect_proof_obligations(Literal, Proof0, Proof, Model, Rest0, Rest) :-
   % Cheap skip: if the domain can compute the key without doing expensive work,
   % avoid calling the full obligation when that key is already marked done.
-  ( current_predicate(rules:proof_obligation_key/4),
-    once(rules:proof_obligation_key(Literal, Model, Key0, NeedsFull)),
+  ( current_predicate(heuristic:proof_obligation_key/4),
+    once(heuristic:proof_obligation_key(Literal, Model, Key0, NeedsFull)),
     ( get_assoc(obligation_done(Key0), Proof0, true) ->
         sampler:hook_done_hit,
         Proof = Proof0,
@@ -606,8 +606,8 @@ prover:collect_proof_obligations(Literal, Proof0, Proof, Model, Rest0, Rest) :-
         Rest = Rest0
     ; fail
     )
-  ; current_predicate(rules:proof_obligation_key/3),
-    once(rules:proof_obligation_key(Literal, Model, Key1)),
+  ; current_predicate(heuristic:proof_obligation_key/3),
+    once(heuristic:proof_obligation_key(Literal, Model, Key1)),
     get_assoc(obligation_done(Key1), Proof0, true) ->
       sampler:hook_done_hit,
       Proof = Proof0,
@@ -616,7 +616,7 @@ prover:collect_proof_obligations(Literal, Proof0, Proof, Model, Rest0, Rest) :-
   % The domain obligation predicate is expected to be deterministic (0 or 1
   % result). Keep this fast: avoid `findall/3` for the common case where
   % there is no result.
-  ( once(rules:proof_obligation(Literal, Model, Key, ExtraLits)) ->
+  ( once(heuristic:proof_obligation(Literal, Model, Key, ExtraLits)) ->
       Obligations = [obligation(Key, ExtraLits)]
   ; Obligations = []
   ),
