@@ -265,22 +265,24 @@ target:rebuild_if_newer_available(pkg://InstalledEntry) :-
 
 target:resolve_install(Repository://Ebuild, Context, Conditions) :-
   featureterm:ctx_take_after_with_mode(Context, After, AfterForDeps, Context1),
-  ( target:install_proof_body(Repository://Ebuild, Context1, After, AfterForDeps, Conditions)
+  query:search([category(C),name(N),select(slot,constraint([]),S)], Repository://Ebuild),
+  query:search(version(Ver), Repository://Ebuild),
+  Selected = constraint(selected_cn(C,N):{ordset([selected(Repository,Ebuild,install,Ver,S)])}),
+  target:resolve_required_use(install, C, N, Repository://Ebuild, Context1, R, BResolved, Model),
+  ( target:install_dep_model(Repository://Ebuild, Model, AfterForDeps, install,
+                             Selected, C, N, S, R, BResolved, After, Conditions)
   ; feature_unification:unify([issue_with_model(explanation)], Context1, Ctx1),
     Conditions = [assumed(Repository://Ebuild:install?{Ctx1})]
   ).
 
 
-%! target:install_proof_body(+Entry, +Context, +After, +AfterForDeps, -Conditions) is semidet.
+%! target:install_dep_model(+Entry, +Model, +AfterForDeps, +Phase, +Selected, +C, +N, +S, +R, +BResolved, +After, -Conditions) is semidet.
 %
-% Normal install proof path: metadata, REQUIRED_USE, dependency model,
-% condition assembly.
+% Computes and assembles the dependency model for the :install proof.
+% The model-fallback assumption in resolve_install only wraps this step.
 
-target:install_proof_body(Repository://Ebuild, Context1, After, AfterForDeps, Conditions) :-
-  query:search([category(C),name(N),select(slot,constraint([]),S)], Repository://Ebuild),
-  query:search(version(Ver), Repository://Ebuild),
-  Selected = constraint(selected_cn(C,N):{ordset([selected(Repository,Ebuild,install,Ver,S)])}),
-  target:resolve_required_use(install, C, N, Repository://Ebuild, Context1, R, BResolved, Model),
+target:install_dep_model(Repository://Ebuild, Model, AfterForDeps, install,
+                         Selected, C, N, S, R, BResolved, After, Conditions) :-
   query:memoized_search(model(dependency(MergedDeps0,install)):config?{Model}, Repository://Ebuild),
   dependency:add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
   featureterm:add_after_to_dep_contexts(AfterForDeps, MergedDeps, MergedDepsAfter),
@@ -317,22 +319,24 @@ target:install_proof_body(Repository://Ebuild, Context1, After, AfterForDeps, Co
 
 target:resolve_run(Repository://Ebuild, Context, Conditions) :-
   featureterm:ctx_take_after_with_mode(Context, After, AfterForDeps, Context1),
-  ( target:run_proof_body(Repository://Ebuild, Context1, After, AfterForDeps, Conditions)
+  query:search([category(C),name(N),select(slot,constraint([]),S)], Repository://Ebuild),
+  query:search(version(Ver), Repository://Ebuild),
+  Selected = constraint(selected_cn(C,N):{ordset([selected(Repository,Ebuild,run,Ver,S)])}),
+  target:resolve_required_use(run, C, N, Repository://Ebuild, Context1, R, BResolved, Model),
+  ( target:run_dep_model(Repository://Ebuild, Model, AfterForDeps, run,
+                         Selected, C, N, S, R, BResolved, After, Context1, Conditions)
   ; feature_unification:unify([issue_with_model(explanation)], Context1, Ctx1),
     Conditions = [assumed(Repository://Ebuild:run?{Ctx1})]
   ).
 
 
-%! target:run_proof_body(+Entry, +Context, +After, +AfterForDeps, -Conditions) is semidet.
+%! target:run_dep_model(+Entry, +Model, +AfterForDeps, +Phase, +Selected, +C, +N, +S, +R, +BResolved, +After, +Context, -Conditions) is semidet.
 %
-% Normal run proof path: metadata, REQUIRED_USE, dependency model,
-% update-vs-install decision, suggestion tagging, condition assembly.
+% Computes and assembles the dependency model for the :run proof.
+% The model-fallback assumption in resolve_run only wraps this step.
 
-target:run_proof_body(Repository://Ebuild, Context1, After, AfterForDeps, Conditions) :-
-  query:search([category(C),name(N),select(slot,constraint([]),S)], Repository://Ebuild),
-  query:search(version(Ver), Repository://Ebuild),
-  Selected = constraint(selected_cn(C,N):{ordset([selected(Repository,Ebuild,run,Ver,S)])}),
-  target:resolve_required_use(run, C, N, Repository://Ebuild, Context1, R, BResolved, Model),
+target:run_dep_model(Repository://Ebuild, Model, AfterForDeps, run,
+                     Selected, C, N, S, R, BResolved, After, _Context1, Conditions) :-
   query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model}, Repository://Ebuild),
   dependency:add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
   featureterm:add_after_to_dep_contexts(AfterForDeps, MergedDeps, MergedDepsAfter),

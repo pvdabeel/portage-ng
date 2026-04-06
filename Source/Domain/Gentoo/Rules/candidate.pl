@@ -2567,8 +2567,7 @@ candidate:resolve_grouped_dep(Action, C, N, PackageDeps1, _PackageDepsOrig, Cont
   !.
 
 candidate:resolve_grouped_dep(Action, C, N, PackageDeps1, _PackageDepsOrig, Context, Conditions) :-
-  candidate:grouped_dep_select_and_build(Action, C, N, PackageDeps1, Context, Conditions),
-  !.
+  candidate:grouped_dep_select_and_build(Action, C, N, PackageDeps1, Context, Conditions).
 
 candidate:resolve_grouped_dep(_Action, C, N, PackageDeps1, _PackageDepsOrig, Context, _) :-
   \+ memo:requse_violation_(C, N, _),
