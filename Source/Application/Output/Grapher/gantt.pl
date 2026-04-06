@@ -63,15 +63,23 @@ gantt:collect_grid(Plan, Grid, NumSteps) :-
     build_grid(Acc, Grid),
     max_used_step(Grid, NumSteps).
 
-max_used_step(Grid, Max) :-
+%! gantt:max_used_step(+Grid, -Max) is det.
+%
+% Find the highest step number used in the grid.
+
+gantt:max_used_step(Grid, Max) :-
     findall(S, (member(pkg(_,_,_,_,_,_,Acts), Grid), member(S-_, Acts)), Steps),
     (   Steps == []
     ->  Max = 0
     ;   max_list(Steps, Max)
     ).
 
-collect_grid_steps([], _, Acc, Acc).
-collect_grid_steps([Step|Steps], N, Acc, Out) :-
+%! gantt:collect_grid_steps(+Steps, +N, +Acc, -Out) is det.
+%
+% Walk plan steps, accumulating package actions with step numbers.
+
+gantt:collect_grid_steps([], _, Acc, Acc).
+gantt:collect_grid_steps([Step|Steps], N, Acc, Out) :-
     collect_step_rules(Step, N, Acc, Acc1),
     (   Acc1 \== Acc
     ->  N1 is N + 1
@@ -79,8 +87,12 @@ collect_grid_steps([Step|Steps], N, Acc, Out) :-
     ),
     collect_grid_steps(Steps, N1, Acc1, Out).
 
-collect_step_rules([], _, Acc, Acc).
-collect_step_rules([Rule|Rules], N, Acc, Out) :-
+%! gantt:collect_step_rules(+Rules, +N, +Acc, -Out) is det.
+%
+% Process rules within a single plan step.
+
+gantt:collect_step_rules([], _, Acc, Acc).
+gantt:collect_step_rules([Rule|Rules], N, Acc, Out) :-
     (   rule_pkg_action(Rule, Repo, Entry, Action),
         visible_action(Action)
     ->  add_action(Repo, Entry, N, Action, Acc, Acc1)
@@ -88,23 +100,35 @@ collect_step_rules([Rule|Rules], N, Acc, Out) :-
     ),
     collect_step_rules(Rules, N, Acc1, Out).
 
-rule_pkg_action(rule(Head, _), Repo, Entry, Action) :-
+%! gantt:rule_pkg_action(+Rule, -Repo, -Entry, -Action) is semidet.
+%
+% Extract repository, entry, and action from a proof rule term.
+
+gantt:rule_pkg_action(rule(Head, _), Repo, Entry, Action) :-
     prover:canon_literal(Head, Repo://Entry:Action, _).
-rule_pkg_action(assumed(rule(Head, _)), Repo, Entry, Action) :-
+gantt:rule_pkg_action(assumed(rule(Head, _)), Repo, Entry, Action) :-
     prover:canon_literal(Head, Repo://Entry:Action, _).
 
-visible_action(download).
-visible_action(install).
-visible_action(run).
-visible_action(update).
-visible_action(downgrade).
-visible_action(reinstall).
-visible_action(fetchonly).
-visible_action(unmask).
-visible_action(keyword).
-visible_action(useflag).
+%! gantt:visible_action(+Action) is semidet.
+%
+% Actions that appear as cells in the Gantt chart.
 
-add_action(Repo, Entry, StepN, Action, Acc, Acc1) :-
+gantt:visible_action(download).
+gantt:visible_action(install).
+gantt:visible_action(run).
+gantt:visible_action(update).
+gantt:visible_action(downgrade).
+gantt:visible_action(reinstall).
+gantt:visible_action(fetchonly).
+gantt:visible_action(unmask).
+gantt:visible_action(keyword).
+gantt:visible_action(useflag).
+
+%! gantt:add_action(+Repo, +Entry, +StepN, +Action, +Acc, -Acc1) is det.
+%
+% Add an action to the accumulator, creating or updating the package entry.
+
+gantt:add_action(Repo, Entry, StepN, Action, Acc, Acc1) :-
     (   select(Entry-pacc(Id, Repo, Cat, Name, Ver, Acts), Acc, Rest)
     ->  Acc1 = [Entry-pacc(Id, Repo, Cat, Name, Ver, [StepN-Action|Acts])|Rest]
     ;   (   cache:ordered_entry(Repo, Entry, Cat, Name, Version)
@@ -115,16 +139,28 @@ add_action(Repo, Entry, StepN, Action, Acc, Acc1) :-
         )
     ).
 
-build_grid(Pairs, Grid) :-
+%! gantt:build_grid(+Pairs, -Grid) is det.
+%
+% Convert accumulated entry-pacc pairs into a sorted grid of pkg/7 terms.
+
+gantt:build_grid(Pairs, Grid) :-
     reverse(Pairs, Ordered),
     maplist(pair_to_pkg, Ordered, Grid0),
     disambiguate_ids(Grid0, Grid).
 
-pair_to_pkg(Entry-pacc(Id, Repo, Cat, Name, Ver, Acts0),
+%! gantt:pair_to_pkg(+Pair, -Pkg) is det.
+%
+% Convert an Entry-pacc pair into a pkg/7 term with sorted actions.
+
+gantt:pair_to_pkg(Entry-pacc(Id, Repo, Cat, Name, Ver, Acts0),
             pkg(Id, Repo, Entry, Cat, Name, Ver, Acts)) :-
     msort(Acts0, Acts).
 
-disambiguate_ids(Grid0, Grid) :-
+%! gantt:disambiguate_ids(+Grid0, -Grid) is det.
+%
+% Prefix duplicate HTML ids with the category to make them unique.
+
+gantt:disambiguate_ids(Grid0, Grid) :-
     maplist(pkg_id, Grid0, Ids),
     msort(Ids, Sorted),
     find_dups(Sorted, Dups),
@@ -133,16 +169,32 @@ disambiguate_ids(Grid0, Grid) :-
     ;   maplist(fix_dup_id(Dups), Grid0, Grid)
     ).
 
-pkg_id(pkg(Id, _, _, _, _, _, _), Id).
+%! gantt:pkg_id(+Pkg, -Id) is det.
+%
+% Extract the HTML id from a pkg/7 term.
 
-find_dups([], []).
-find_dups([X, X|T], [X|Ds]) :- !, skip_same(X, T, Rest), find_dups(Rest, Ds).
-find_dups([_|T], Ds) :- find_dups(T, Ds).
+gantt:pkg_id(pkg(Id, _, _, _, _, _, _), Id).
 
-skip_same(X, [X|T], Rest) :- !, skip_same(X, T, Rest).
-skip_same(_, L, L).
+%! gantt:find_dups(+Sorted, -Dups) is det.
+%
+% Find duplicate elements in a sorted list.
 
-fix_dup_id(Dups, pkg(Id, Repo, Entry, Cat, Name, Ver, Acts),
+gantt:find_dups([], []).
+gantt:find_dups([X, X|T], [X|Ds]) :- !, skip_same(X, T, Rest), find_dups(Rest, Ds).
+gantt:find_dups([_|T], Ds) :- find_dups(T, Ds).
+
+%! gantt:skip_same(+X, +List, -Rest) is det.
+%
+% Skip consecutive occurrences of X at the head of List.
+
+gantt:skip_same(X, [X|T], Rest) :- !, skip_same(X, T, Rest).
+gantt:skip_same(_, L, L).
+
+%! gantt:fix_dup_id(+Dups, +PkgIn, -PkgOut) is det.
+%
+% Prepend category to the id of packages whose name appears in Dups.
+
+gantt:fix_dup_id(Dups, pkg(Id, Repo, Entry, Cat, Name, Ver, Acts),
                  pkg(NewId, Repo, Entry, Cat, Name, Ver, Acts)) :-
     (   memberchk(Id, Dups)
     ->  gantt:make_id(Cat, CatId),
@@ -192,11 +244,19 @@ gantt:collect_pre_actions(ProofAVL, Grid0, Grid, HasPre) :-
         HasPre = true
     ).
 
-entry_in_grid(Entry, Grid, Repo) :-
+%! gantt:entry_in_grid(+Entry, +Grid, -Repo) is semidet.
+%
+% Check whether Entry appears in the grid and unify its repository.
+
+gantt:entry_in_grid(Entry, Grid, Repo) :-
     member(pkg(_, Repo, Entry, _, _, _, _), Grid).
 
-inject_pre_actions([], Grid, Grid).
-inject_pre_actions([Entry-Action|Rest], Grid0, Grid) :-
+%! gantt:inject_pre_actions(+PreActions, +Grid0, -Grid) is det.
+%
+% Inject step-0 pre-actions into existing grid entries.
+
+gantt:inject_pre_actions([], Grid, Grid).
+gantt:inject_pre_actions([Entry-Action|Rest], Grid0, Grid) :-
     (   select(pkg(Id, Repo, Entry, Cat, Name, Ver, Acts0), Grid0, GridRest)
     ->  Grid1 = [pkg(Id, Repo, Entry, Cat, Name, Ver, [0-Action|Acts0])|GridRest]
     ;   Grid1 = Grid0
@@ -233,14 +293,18 @@ gantt:collect_deps(ProofAVL, Grid, Deps) :-
     append(Deps0, PdependDeps, Deps1),
     sort(Deps1, Deps).
 
-entry_id_pair(pkg(Id, _, Entry, _, _, _, _), Entry-Id).
+%! gantt:entry_id_pair(+Pkg, -EntryIdPair) is det.
+%
+% Extract an Entry-Id pair from a pkg/7 term for dependency lookup.
+
+gantt:entry_id_pair(pkg(Id, _, Entry, _, _, _, _), Entry-Id).
 
 
 %! gantt:build_pd_resolutions(+ProofAVL, -PDRes)
 %
 % Pre-compute resolutions for package_dependency intermediate nodes.
 
-build_pd_resolutions(ProofAVL, PDRes) :-
+gantt:build_pd_resolutions(ProofAVL, PDRes) :-
     assoc_to_list(ProofAVL, Pairs),
     findall(pd(PDCore, Phase, DepEntry, DepAct),
         (   member(KV, Pairs),
@@ -252,22 +316,34 @@ build_pd_resolutions(ProofAVL, PDRes) :-
         ),
         PDRes).
 
-pd_phase(package_dependency(Phase, _, _, _, _, _, _, _):_, Phase).
-pd_phase(grouped_package_dependency(_, _, _, PackageDeps):_, Phase) :-
+%! gantt:pd_phase(+PDCore, -Phase) is semidet.
+%
+% Extract the dependency phase from a package_dependency proof key.
+
+gantt:pd_phase(package_dependency(Phase, _, _, _, _, _, _, _):_, Phase).
+gantt:pd_phase(grouped_package_dependency(_, _, _, PackageDeps):_, Phase) :-
     member(package_dependency(Phase, _, _, _, _, _, _, _), PackageDeps).
 
-resolve_body(_R://DepEntry:DepAct, _, EntryMap, DepId, DepAct, depend) :-
+%! gantt:resolve_body(+BodyCore, +PDRes, +EntryMap, -DepId, -DepAct, -DepType) is semidet.
+%
+% Resolve a proof body literal to a grid dependency edge.
+
+gantt:resolve_body(_R://DepEntry:DepAct, _, EntryMap, DepId, DepAct, depend) :-
     memberchk(DepEntry-DepId, EntryMap), !.
-resolve_body(BodyCore, PDRes, EntryMap, DepId, DepAct, DepType) :-
+gantt:resolve_body(BodyCore, PDRes, EntryMap, DepId, DepAct, DepType) :-
     member(pd(BodyCore, Phase, DepEntry, DepAct), PDRes),
     memberchk(DepEntry-DepId, EntryMap),
     phase_deptype(Phase, DepType), !.
 
-phase_deptype(install, depend).
-phase_deptype(run, rdepend).
-phase_deptype(pdepend, pdepend).
-phase_deptype(compile, depend).
-phase_deptype(_, depend).
+%! gantt:phase_deptype(+Phase, -DepType) is det.
+%
+% Map a dependency phase atom to a dependency type label.
+
+gantt:phase_deptype(install, depend).
+gantt:phase_deptype(run, rdepend).
+gantt:phase_deptype(pdepend, pdepend).
+gantt:phase_deptype(compile, depend).
+gantt:phase_deptype(_, depend).
 
 
 %! gantt:collect_pdepend_deps(+ProofPairs, +Grid, +EntryMap, -Deps)
@@ -278,7 +354,7 @@ phase_deptype(_, depend).
 % install action triggered a PDEPEND obligation, queries the cache for
 % their PDEPEND metadata, and matches targets in the grid.
 
-collect_pdepend_deps(Pairs, Grid, EntryMap, Deps) :-
+gantt:collect_pdepend_deps(Pairs, Grid, EntryMap, Deps) :-
     findall(dep(SrcId, SrcAct, DepId, install, pdepend),
         (   member(KV, Pairs),
             KV = obligation_done(pdepend(SrcCore, _))-true,
@@ -298,10 +374,10 @@ collect_pdepend_deps(Pairs, Grid, EntryMap, Deps) :-
 % Extract category/name from a PDEPEND dependency term, recursing into
 % USE-conditional and any-of groups.
 
-pdepend_dep_cn(package_dependency(_, _, C, N, _, _, _, _), C, N).
-pdepend_dep_cn(use_conditional_group(_, _, _, Deps), C, N) :-
+gantt:pdepend_dep_cn(package_dependency(_, _, C, N, _, _, _, _), C, N).
+gantt:pdepend_dep_cn(use_conditional_group(_, _, _, Deps), C, N) :-
     member(D, Deps), pdepend_dep_cn(D, C, N).
-pdepend_dep_cn(any_of_group(Deps), C, N) :-
+gantt:pdepend_dep_cn(any_of_group(Deps), C, N) :-
     member(D, Deps), pdepend_dep_cn(D, C, N).
 
 
@@ -342,20 +418,28 @@ gantt:pkg_src_uris(Repo, Entry, Uris) :-
     !.
 gantt:pkg_src_uris(_, _, []).
 
-resolve_url(Proto, Base, Local, Url) :-
+%! gantt:resolve_url(+Proto, +Base, +Local, -Url) is det.
+%
+% Construct a full download URL from protocol, base, and local filename.
+
+gantt:resolve_url(Proto, Base, Local, Url) :-
     (   var(Proto) ; var(Base) ; Proto == '' ),
     !,
     atom_concat('https://distfiles.gentoo.org/distfiles/', Local, Url).
-resolve_url(mirror, Base, _Local, Url) :-
+gantt:resolve_url(mirror, Base, _Local, Url) :-
     !,
     (   catch(download:resolve_mirror_uri(Base, _, Url0), _, fail)
     ->  Url = Url0
     ;   atomic_list_concat(['mirror://', Base], Url)
     ).
-resolve_url(Proto, Base, _Local, Url) :-
+gantt:resolve_url(Proto, Base, _Local, Url) :-
     atomic_list_concat([Proto, '://', Base], Url).
 
-manifest_size(Repo, Entry, Filename, Size) :-
+%! gantt:manifest_size(+Repo, +Entry, +Filename, -Size) is det.
+%
+% Look up the manifest size for a distfile, defaulting to 0.
+
+gantt:manifest_size(Repo, Entry, Filename, Size) :-
     (   kb:query(manifest(all, dist, Filename, S), Repo://Entry)
     ->  Size = S
     ;   Size = 0
@@ -371,7 +455,7 @@ manifest_size(Repo, Entry, Filename, Size) :-
 % Sum manifest sizes across all grid packages. CachedBytes counts only files
 % that are locally present in the distfiles directory.
 
-collect_download_totals(Grid, Repo, TotalBytes, CachedBytes) :-
+gantt:collect_download_totals(Grid, Repo, TotalBytes, CachedBytes) :-
     findall(Size-Cached,
         (   member(pkg(_, Repo, Entry, _, _, _, _), Grid),
             query:search(src_uri(uri(_, _, Local)), Repo://Entry),
@@ -381,7 +465,11 @@ collect_download_totals(Grid, Repo, TotalBytes, CachedBytes) :-
         Pairs),
     foldl(sum_pair, Pairs, 0-0, TotalBytes-CachedBytes).
 
-sum_pair(S-C, T0-C0, T1-C1) :-
+%! gantt:sum_pair(+Pair, +Acc, -Acc1) is det.
+%
+% Fold helper: accumulate size and cached-size pairs.
+
+gantt:sum_pair(S-C, T0-C0, T1-C1) :-
     T1 is T0 + S,
     C1 is C0 + C.
 
@@ -427,35 +515,63 @@ gantt:emit_html(Target, Grid, Deps, NumSteps, HasPre) :-
 %  HTML emission - document structure
 % -----------------------------------------------------------------------------
 
-emit_doctype :-
+%! gantt:emit_doctype is det.
+%
+% Emit the HTML5 doctype declaration.
+
+gantt:emit_doctype :-
     write('<!DOCTYPE html>'), nl.
 
-emit_head_open :-
+%! gantt:emit_head_open is det.
+%
+% Emit the opening head element with meta tags and CSS link.
+
+gantt:emit_head_open :-
     write('<html lang="en" data-theme="dark">'), nl,
     write('<head>'), nl,
     write('<meta charset="UTF-8">'), nl,
     write('<meta name="viewport" content="width=device-width, initial-scale=1.0">'), nl,
     navtheme:emit_css_link('../').
 
-emit_head_close :-
+%! gantt:emit_head_close is det.
+%
+% Emit the closing head tag.
+
+gantt:emit_head_close :-
     write('</head>'), nl.
 
-emit_body_open :-
+%! gantt:emit_body_open is det.
+%
+% Emit the opening body tag with Gantt page class.
+
+gantt:emit_body_open :-
     write('<body class="page-gantt">'), nl.
 
-emit_body_close :-
+%! gantt:emit_body_close is det.
+%
+% Emit theme script and closing body/html tags.
+
+gantt:emit_body_close :-
     navtheme:emit_theme_script('gantt-theme'),
     write('</body>'), nl,
     write('</html>'), nl.
 
-emit_title(Cat, Name, Ver) :-
+%! gantt:emit_title(+Cat, +Name, +Ver) is det.
+%
+% Emit the page title header with theme toggle button.
+
+gantt:emit_title(Cat, Name, Ver) :-
     write('<div class="header">'), nl,
     write('<div class="title-row">'), nl,
     format('<h1>~w/~w-~w &mdash; Execution Plan</h1>~n', [Cat, Name, Ver]),
     navtheme:emit_theme_btn,
     write('</div>'), nl.
 
-emit_subtitle(PkgCount, NumSteps, TotalBytes, CachedBytes) :-
+%! gantt:emit_subtitle(+PkgCount, +NumSteps, +TotalBytes, +CachedBytes) is det.
+%
+% Emit the summary subtitle with package count, steps, and download sizes.
+
+gantt:emit_subtitle(PkgCount, NumSteps, TotalBytes, CachedBytes) :-
     format_size(TotalBytes, TotalStr),
     format_size(CachedBytes, CachedStr),
     format('<p class="subtitle">~w packages &middot; ~w steps &middot; ', [PkgCount, NumSteps]),
@@ -466,8 +582,12 @@ emit_subtitle(PkgCount, NumSteps, TotalBytes, CachedBytes) :-
     ),
     write('</p>'), nl.
 
-emit_global_use([]) :- !.
-emit_global_use(Flags) :-
+%! gantt:emit_global_use(+Flags) is det.
+%
+% Emit the collapsible global USE flags section for the target package.
+
+gantt:emit_global_use([]) :- !.
+gantt:emit_global_use(Flags) :-
     write('<div class="global-use">'), nl,
     write('  <span class="global-use-label">USE</span>'), nl,
     write('  <span class="use-expand-btn" onclick="toggleUseExpand()">&#9654;</span>'), nl,
@@ -481,7 +601,11 @@ emit_global_use(Flags) :-
 %  HTML emission - filters
 % -----------------------------------------------------------------------------
 
-emit_filters :-
+%! gantt:emit_filters is det.
+%
+% Emit the phase, action, and dependency type filter buttons.
+
+gantt:emit_filters :-
     write('<div class="filters">'), nl,
     write('  <span class="label">Phases:</span>'), nl,
     write('  <button class="filter-btn active" data-action="download" onclick="toggleFilter(this)">download</button>'), nl,
@@ -509,16 +633,28 @@ emit_filters :-
 %  HTML emission - table
 % -----------------------------------------------------------------------------
 
-emit_table_open :-
+%! gantt:emit_table_open is det.
+%
+% Emit the Gantt table wrapper and opening table tag.
+
+gantt:emit_table_open :-
     write('<div class="gantt-wrapper" id="gantt-wrapper">'), nl,
     write('<table class="gantt" id="gantt">'), nl.
 
-emit_table_close :-
+%! gantt:emit_table_close is det.
+%
+% Emit the closing table tag, dependency SVG overlay, and wrapper close.
+
+gantt:emit_table_close :-
     write('</table>'), nl,
     write('<svg class="deps" id="dep-svg"></svg>'), nl,
     write('</div>'), nl.
 
-emit_thead(MinStep, NumSteps) :-
+%! gantt:emit_thead(+MinStep, +NumSteps) is det.
+%
+% Emit the table header row with step column headings.
+
+gantt:emit_thead(MinStep, NumSteps) :-
     write('  <thead><tr>'), nl,
     write('    <th>Package</th>'), nl,
     (   MinStep =:= 0
@@ -529,7 +665,11 @@ emit_thead(MinStep, NumSteps) :-
         format('    <th>Step ~w</th>~n', [N])),
     write('  </tr></thead>'), nl.
 
-emit_tbody(Grid, MinStep, NumSteps, Repo) :-
+%! gantt:emit_tbody(+Grid, +MinStep, +NumSteps, +Repo) is det.
+%
+% Emit the table body with one row per package.
+
+gantt:emit_tbody(Grid, MinStep, NumSteps, Repo) :-
     write('  <tbody>'), nl,
     maplist(emit_pkg_rows(MinStep, NumSteps, Repo), Grid),
     write('  </tbody>'), nl.
@@ -539,7 +679,7 @@ emit_tbody(Grid, MinStep, NumSteps, Repo) :-
 %
 % Emit the main row and detail row for a single package.
 
-emit_pkg_rows(MinStep, NumSteps, Repo, pkg(Id, Repo, Entry, Cat, Name, Ver, Actions)) :-
+gantt:emit_pkg_rows(MinStep, NumSteps, Repo, pkg(Id, Repo, Entry, Cat, Name, Ver, Actions)) :-
     action_types_atom(Actions, TypesAtom),
     format('    <tr data-pkg="~w" data-actions="~w">~n', [Id, TypesAtom]),
     format('      <td class="pkg"><span class="toggle" onclick="toggleDetail(this)">&#9654;</span>~w/~w-~w</td>~n',
@@ -549,14 +689,22 @@ emit_pkg_rows(MinStep, NumSteps, Repo, pkg(Id, Repo, Entry, Cat, Name, Ver, Acti
     TotalCols is NumSteps - MinStep + 1,
     emit_detail_row(Id, Repo, Entry, TotalCols).
 
-action_types_atom(Actions, Atom) :-
+%! gantt:action_types_atom(+Actions, -Atom) is det.
+%
+% Collect distinct action types from a step-action list into a space-separated atom.
+
+gantt:action_types_atom(Actions, Atom) :-
     findall(A, member(_-A, Actions), As0),
     sort(As0, As),
     atomic_list_concat(As, ' ', Atom).
 
-emit_step_cells(_, _, N, NumSteps) :-
+%! gantt:emit_step_cells(+Id, +Actions, +N, +NumSteps) is det.
+%
+% Emit table cells for steps N through NumSteps, showing action badges.
+
+gantt:emit_step_cells(_, _, N, NumSteps) :-
     N > NumSteps, !.
-emit_step_cells(Id, Actions, N, NumSteps) :-
+gantt:emit_step_cells(Id, Actions, N, NumSteps) :-
     findall(Action, member(N-Action, Actions), StepActions),
     (   StepActions == []
     ->  write('      <td class="empty"></td>'), nl
@@ -577,45 +725,61 @@ emit_step_cells(Id, Actions, N, NumSteps) :-
     N1 is N + 1,
     emit_step_cells(Id, Actions, N1, NumSteps).
 
-action_css(download, dl).
-action_css(install, inst).
-action_css(run, run).
-action_css(update, inst).
-action_css(downgrade, inst).
-action_css(reinstall, inst).
-action_css(fetchonly, dl).
-action_css(unmask, unmask).
-action_css(keyword, keyword).
-action_css(useflag, useflag).
+%! gantt:action_css(+Action, -CssClass) is det.
+%
+% Map an action type to its CSS class name.
 
-action_label(download, download).
-action_label(install, install).
-action_label(run, run).
-action_label(update, update).
-action_label(downgrade, downgrade).
-action_label(reinstall, reinstall).
-action_label(fetchonly, fetchonly).
-action_label(unmask, unmask).
-action_label(keyword, keyword).
-action_label(useflag, useflag).
+gantt:action_css(download, dl).
+gantt:action_css(install, inst).
+gantt:action_css(run, run).
+gantt:action_css(update, inst).
+gantt:action_css(downgrade, inst).
+gantt:action_css(reinstall, inst).
+gantt:action_css(fetchonly, dl).
+gantt:action_css(unmask, unmask).
+gantt:action_css(keyword, keyword).
+gantt:action_css(useflag, useflag).
 
-action_id_suffix(download, dl).
-action_id_suffix(install, inst).
-action_id_suffix(run, run).
-action_id_suffix(update, inst).
-action_id_suffix(downgrade, inst).
-action_id_suffix(reinstall, inst).
-action_id_suffix(fetchonly, dl).
-action_id_suffix(unmask, umsk).
-action_id_suffix(keyword, kw).
-action_id_suffix(useflag, uf).
+%! gantt:action_label(+Action, -Label) is det.
+%
+% Map an action type to its display label.
+
+gantt:action_label(download, download).
+gantt:action_label(install, install).
+gantt:action_label(run, run).
+gantt:action_label(update, update).
+gantt:action_label(downgrade, downgrade).
+gantt:action_label(reinstall, reinstall).
+gantt:action_label(fetchonly, fetchonly).
+gantt:action_label(unmask, unmask).
+gantt:action_label(keyword, keyword).
+gantt:action_label(useflag, useflag).
+
+%! gantt:action_id_suffix(+Action, -Suffix) is det.
+%
+% Map an action type to its HTML id suffix for dependency arrow targeting.
+
+gantt:action_id_suffix(download, dl).
+gantt:action_id_suffix(install, inst).
+gantt:action_id_suffix(run, run).
+gantt:action_id_suffix(update, inst).
+gantt:action_id_suffix(downgrade, inst).
+gantt:action_id_suffix(reinstall, inst).
+gantt:action_id_suffix(fetchonly, dl).
+gantt:action_id_suffix(unmask, umsk).
+gantt:action_id_suffix(keyword, kw).
+gantt:action_id_suffix(useflag, uf).
 
 
 % -----------------------------------------------------------------------------
 %  HTML emission - detail rows
 % -----------------------------------------------------------------------------
 
-emit_detail_row(Id, Repo, Entry, TotalCols) :-
+%! gantt:emit_detail_row(+Id, +Repo, +Entry, +TotalCols) is det.
+%
+% Emit the collapsible detail row showing USE flags and source URIs.
+
+gantt:emit_detail_row(Id, Repo, Entry, TotalCols) :-
     format('    <tr class="detail-row" data-parent="~w">~n', [Id]),
     write('      <td class="detail-pkg">'), nl,
     gantt:pkg_use_flags(Repo, Entry, Flags),
@@ -630,43 +794,67 @@ emit_detail_row(Id, Repo, Entry, TotalCols) :-
         (write('      <td class="detail-empty"></td>'), nl)),
     write('    </tr>'), nl.
 
-emit_use_section([]) :- !.
-emit_use_section(Flags) :-
+%! gantt:emit_use_section(+Flags) is det.
+%
+% Emit the USE flags subsection within a detail row.
+
+gantt:emit_use_section([]) :- !.
+gantt:emit_use_section(Flags) :-
     write('        <div class="detail-label">USE</div>'), nl,
     write('        <div class="use-flags">'), nl,
     maplist(emit_use_flag_span, Flags),
     write('        </div>'), nl.
 
-emit_use_flag_span(flag(Name, on)) :-
+%! gantt:emit_use_flag_span(+Flag) is det.
+%
+% Emit a single USE flag span element with on/off styling.
+
+gantt:emit_use_flag_span(flag(Name, on)) :-
     format('          <span class="use-flag on">+~w</span>~n', [Name]).
-emit_use_flag_span(flag(Name, off)) :-
+gantt:emit_use_flag_span(flag(Name, off)) :-
     format('          <span class="use-flag off">-~w</span>~n', [Name]).
 
-emit_src_table([]) :- !.
-emit_src_table(Uris) :-
+%! gantt:emit_src_table(+Uris) is det.
+%
+% Emit the source URI table within a detail row.
+
+gantt:emit_src_table([]) :- !.
+gantt:emit_src_table(Uris) :-
     write('        <table class="src-table">'), nl,
     maplist(emit_src_row, Uris),
     write('        </table>'), nl.
 
-emit_src_row(src(Url, Filename, SizeBytes, Status)) :-
+%! gantt:emit_src_row(+Src) is det.
+%
+% Emit a single source URI table row with filename, size, and cache status.
+
+gantt:emit_src_row(src(Url, Filename, SizeBytes, Status)) :-
     format_size(SizeBytes, SizeStr),
     status_label(Status, CssClass, Label),
     format('          <tr><td><a href="~w" target="_blank">~w</a></td><td class="sz">~w</td><td><span class="src-status ~w">~w</span></td></tr>~n',
            [Url, Filename, SizeStr, CssClass, Label]).
 
-status_label(cached, cached, cached).
-status_label(pending, pending, fetch).
+%! gantt:status_label(+Status, -CssClass, -Label) is det.
+%
+% Map a distfile cache status to CSS class and display label.
 
-format_size(0, '-') :- !.
-format_size(B, Str) :-
+gantt:status_label(cached, cached, cached).
+gantt:status_label(pending, pending, fetch).
+
+%! gantt:format_size(+Bytes, -Str) is det.
+%
+% Format a byte count as a human-readable size string (B, KB, or MB).
+
+gantt:format_size(0, '-') :- !.
+gantt:format_size(B, Str) :-
     B >= 1048576, !,
     V is B / 1048576,
     format(atom(Str), '~1f MB', [V]).
-format_size(B, Str) :-
+gantt:format_size(B, Str) :-
     B >= 1024, !,
     V is B / 1024,
     format(atom(Str), '~0f KB', [V]).
-format_size(B, Str) :-
+gantt:format_size(B, Str) :-
     format(atom(Str), '~w B', [B]).
 
 
@@ -674,7 +862,11 @@ format_size(B, Str) :-
 %  HTML emission - legend
 % -----------------------------------------------------------------------------
 
-emit_legend :-
+%! gantt:emit_legend is det.
+%
+% Emit the color legend showing action types and dependency arrow styles.
+
+gantt:emit_legend :-
     write('<div class="legend">'), nl,
     write('  <div class="legend-item"><div class="legend-swatch" style="background:var(--dl);border-color:var(--dl-b)"></div>download</div>'), nl,
     write('  <div class="legend-item"><div class="legend-swatch" style="background:var(--inst);border-color:var(--inst-b)"></div>install</div>'), nl,
@@ -695,14 +887,22 @@ emit_legend :-
 %  HTML emission - JavaScript
 % -----------------------------------------------------------------------------
 
-emit_script(Grid, Deps) :-
+%! gantt:emit_script(+Grid, +Deps) is det.
+%
+% Emit the JavaScript block with state, dependency data, and UI functions.
+
+gantt:emit_script(Grid, Deps) :-
     write('<script>'), nl,
     emit_js_state,
     emit_js_dep_array(Deps, Grid),
     emit_js_functions,
     write('</script>'), nl.
 
-emit_js_state :-
+%! gantt:emit_js_state is det.
+%
+% Emit JavaScript filter state and dependency color/dash definitions.
+
+gantt:emit_js_state :-
     write('const filters = {'), nl,
     write('  download:true, install:true, run:true,'), nl,
     write('  unmask:true, keyword:true, useflag:true,'), nl,
@@ -711,20 +911,32 @@ emit_js_state :-
     write('const depColors = {bdepend:"#ef6c00",depend:"#e53935",rdepend:"#7e57c2",pdepend:"#00897b",idepend:"#6d4c41"};'), nl,
     write('const depDash = {bdepend:"",depend:"",rdepend:"",pdepend:"6,3",idepend:"3,3"};'), nl.
 
-emit_js_dep_array(Deps, _Grid) :-
+%! gantt:emit_js_dep_array(+Deps, +Grid) is det.
+%
+% Emit the JavaScript dependency edge array.
+
+gantt:emit_js_dep_array(Deps, _Grid) :-
     write('const deps = ['), nl,
     emit_dep_entries(Deps),
     write('];'), nl.
 
-emit_dep_entries([]).
-emit_dep_entries([dep(DepId, DepAct, PkgId, PkgAct, DepType)|Rest]) :-
+%! gantt:emit_dep_entries(+Deps) is det.
+%
+% Emit individual dependency array entries as JavaScript literals.
+
+gantt:emit_dep_entries([]).
+gantt:emit_dep_entries([dep(DepId, DepAct, PkgId, PkgAct, DepType)|Rest]) :-
     action_id_suffix(DepAct, DepSuf),
     action_id_suffix(PkgAct, PkgSuf),
     format('  ["~w-~w","~w-~w","~w"]', [DepId, DepSuf, PkgId, PkgSuf, DepType]),
     (Rest == [] -> nl ; (write(','), nl)),
     emit_dep_entries(Rest).
 
-emit_js_functions :-
+%! gantt:emit_js_functions is det.
+%
+% Emit all JavaScript UI functions for filtering, toggling, and drawing.
+
+gantt:emit_js_functions :-
     write('function toggleFilter(btn){'), nl,
     write('  const a=btn.dataset.action; filters[a]=!filters[a];'), nl,
     write('  btn.classList.toggle("active",filters[a]); btn.classList.toggle("off",!filters[a]);'), nl,
@@ -835,9 +1047,13 @@ gantt:make_id(Name, Id) :-
     maplist(safe_id_char, Chars, SafeChars),
     atom_chars(Id, SafeChars).
 
-safe_id_char(C, C) :- char_type(C, alnum), !.
-safe_id_char(-, -) :- !.
-safe_id_char(_, '_').
+%! gantt:safe_id_char(+Char, -SafeChar) is det.
+%
+% Map a character to an HTML-id-safe character, replacing non-alnum with underscore.
+
+gantt:safe_id_char(C, C) :- char_type(C, alnum), !.
+gantt:safe_id_char(-, -) :- !.
+gantt:safe_id_char(_, '_').
 
 
 %! gantt:html_escape(+In, -Out)
@@ -849,9 +1065,13 @@ gantt:html_escape(In, Out) :-
     esc_codes(Codes, OutCodes),
     atom_codes(Out, OutCodes).
 
-esc_codes([], []).
-esc_codes([0'<|T], Out) :- !, append(`&lt;`, R, Out), esc_codes(T, R).
-esc_codes([0'>|T], Out) :- !, append(`&gt;`, R, Out), esc_codes(T, R).
-esc_codes([0'&|T], Out) :- !, append(`&amp;`, R, Out), esc_codes(T, R).
-esc_codes([0'"|T], Out) :- !, append(`&quot;`, R, Out), esc_codes(T, R).
-esc_codes([H|T], [H|R]) :- esc_codes(T, R).
+%! gantt:esc_codes(+Codes, -Escaped) is det.
+%
+% Escape HTML special character codes in a code list.
+
+gantt:esc_codes([], []).
+gantt:esc_codes([0'<|T], Out) :- !, append(`&lt;`, R, Out), esc_codes(T, R).
+gantt:esc_codes([0'>|T], Out) :- !, append(`&gt;`, R, Out), esc_codes(T, R).
+gantt:esc_codes([0'&|T], Out) :- !, append(`&amp;`, R, Out), esc_codes(T, R).
+gantt:esc_codes([0'"|T], Out) :- !, append(`&quot;`, R, Out), esc_codes(T, R).
+gantt:esc_codes([H|T], [H|R]) :- esc_codes(T, R).
