@@ -283,16 +283,16 @@ planner:test_stats(Repository, Style) :-
   config:proving_target(Action0),
   prover:test_action(Action0, Action),
   aggregate_all(count, (Repository:entry(_E)), ExpectedTotal),
-  sampler:test_stats_reset('Planning', ExpectedTotal),
+  sampler:reset('Planning', ExpectedTotal),
   aggregate_all(count, (Repository:package(_C,_N)), ExpectedPkgs),
-  sampler:test_stats_set_expected_unique_packages(ExpectedPkgs),
+  sampler:set_expected_pkgs(ExpectedPkgs),
   tester:test(Style,
               'Planning',
               Repository://Entry,
               (Repository:entry(Entry)),
               ( pipeline:prove_with_fallback([Repository://Entry:Action?{[]}],ProofAVL,ModelAVL,Triggers),
                 planner:plan(ProofAVL,Triggers,t,_Plan,_Remainder),
-                sampler:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
+                sampler:record(entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true))
               )),
   stats:test_stats_print.
 

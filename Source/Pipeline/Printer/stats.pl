@@ -133,7 +133,7 @@ stats:test_stats_print_kv_int(Label, Value) :-
 % Print a "Label: Count (Pct%)" line.
 
 stats:test_stats_print_kv_int_percent(Label, Count, Total) :-
-  sampler:test_stats_percent(Count, Total, P),
+  sampler:percent(Count, Total, P),
   format('  ~w~t~30|: ~d (~2f%)~n', [Label, Count, P]).
 
 
@@ -163,8 +163,8 @@ stats:test_stats_print_table_header :-
 % Print one row of the main summary table.
 
 stats:test_stats_print_table_row(Label, ECount, ETotal, PCount, PTotal) :-
-  sampler:test_stats_percent(ECount, ETotal, EP),
-  sampler:test_stats_percent(PCount, PTotal, PP),
+  sampler:percent(ECount, ETotal, EP),
+  sampler:percent(PCount, PTotal, PP),
   format(atom(EPAtom), '~2f %', [EP]),
   format(atom(PPAtom), '~2f %', [PP]),
   config:test_stats_label_col_width(LW),
@@ -207,8 +207,8 @@ stats:test_stats_print_assumption_types_table_header :-
 % Print one row of the assumption-types table.
 
 stats:test_stats_print_assumption_types_row(Type, ECount, ETotal, OCount, OTotal) :-
-  sampler:test_stats_percent(ECount, ETotal, EP),
-  sampler:test_stats_percent(OCount, OTotal, OP),
+  sampler:percent(ECount, ETotal, EP),
+  sampler:percent(OCount, OTotal, OP),
   format(atom(EPAtom), '~2f %', [EP]),
   format(atom(OPAtom), '~2f %', [OP]),
   config:test_stats_label_col_width(LW),
@@ -300,18 +300,18 @@ stats:test_stats_print :-
 % Print the full test_stats summary, showing top lists up to TopN.
 
 stats:test_stats_print(TopN) :-
-  sampler:test_stats_value(label, Label),
-  sampler:test_stats_value(expected_total, Expected),
-  sampler:test_stats_value(expected_unique_packages, ExpectedPkgs),
-  sampler:test_stats_value(processed, Processed),
-  sampler:test_stats_value(entries_with_assumptions, WithAss),
-  sampler:test_stats_value(entries_with_package_assumptions, WithPkgAss),
-  sampler:test_stats_value(entries_with_cycles, WithCycles),
-  sampler:test_stats_value(cycles_found, CyclesFound),
-  sampler:test_stats_unique_pkg_count(processed, ProcessedPkgs),
-  sampler:test_stats_unique_pkg_count(with_assumptions, WithAssPkgs),
-  sampler:test_stats_unique_pkg_count(with_package_assumptions, WithPkgAssPkgs),
-  sampler:test_stats_unique_pkg_count(with_cycles, WithCyclesPkgs),
+  sampler:value(label, Label),
+  sampler:value(expected_total, Expected),
+  sampler:value(expected_unique_packages, ExpectedPkgs),
+  sampler:value(processed, Processed),
+  sampler:value(entries_with_assumptions, WithAss),
+  sampler:value(entries_with_package_assumptions, WithPkgAss),
+  sampler:value(entries_with_cycles, WithCycles),
+  sampler:value(cycles_found, CyclesFound),
+  sampler:pkg_count(processed, ProcessedPkgs),
+  sampler:pkg_count(with_assumptions, WithAssPkgs),
+  sampler:pkg_count(with_package_assumptions, WithPkgAssPkgs),
+  sampler:pkg_count(with_cycles, WithCyclesPkgs),
 
   % --- Overview (all stages) ---
   nl,
@@ -320,7 +320,7 @@ stats:test_stats_print(TopN) :-
   stats:test_stats_print_table_header,
   stats:test_stats_print_table_row('Total', Expected, Expected, ExpectedPkgs, ExpectedPkgs),
   stats:test_stats_print_table_row('Processed', Processed, Expected, ProcessedPkgs, ExpectedPkgs),
-  ( Processed > 0, sampler:test_stats_stage_at_least(planner) ->
+  ( Processed > 0, sampler:stage_at_least(planner) ->
       stats:test_stats_print_table_row('With assumptions', WithAss, Processed, WithAssPkgs, ProcessedPkgs),
       stats:test_stats_print_table_row('With package assumptions', WithPkgAss, Processed, WithPkgAssPkgs, ProcessedPkgs),
       stats:test_stats_print_table_row('With cycles', WithCycles, Processed, WithCyclesPkgs, ProcessedPkgs),
@@ -337,7 +337,7 @@ stats:test_stats_print(TopN) :-
   ),
 
   % --- Assumption types (planner+) ---
-  ( sampler:test_stats_stage_at_least(planner) ->
+  ( sampler:stage_at_least(planner) ->
       stats:test_stats_print_assumption_types(Processed)
   ; true
   ),
@@ -355,27 +355,27 @@ stats:test_stats_print(TopN) :-
   stats:test_stats_print_slowest_packages_max(TopN),
 
   % --- Assumption detail: per-type Top-N entries (planner+) ---
-  ( sampler:test_stats_stage_at_least(planner) ->
-      findall(Type, sampler:test_stats_type(Type, _, _), Types0),
+  ( sampler:stage_at_least(planner) ->
+      findall(Type, sampler:fact(type(Type, _, _)), Types0),
       sort(Types0, Types),
       stats:test_stats_print_per_type_entries(Types, TopN)
   ; true
   ),
 
   % --- Blocker analysis (scheduler+) ---
-  ( sampler:test_stats_stage_at_least(scheduler) ->
+  ( sampler:stage_at_least(scheduler) ->
       stats:test_stats_print_blocker_analysis(TopN)
   ; true
   ),
 
   % --- Other assumptions (printer) ---
-  ( sampler:test_stats_stage_at_least(printer) ->
+  ( sampler:stage_at_least(printer) ->
       stats:test_stats_print_other_assumptions
   ; true
   ),
 
   % --- Cycle mentions (printer) ---
-  ( sampler:test_stats_stage_at_least(printer) ->
+  ( sampler:stage_at_least(printer) ->
       stats:test_stats_print_cycle_mentions(TopN)
   ; true
   ).
@@ -390,9 +390,9 @@ stats:test_stats_print(TopN) :-
 % -----------------------------------------------------------------------------
 
 stats:test_stats_print_failure_breakdown(Expected, Processed) :-
-  sampler:test_stats_value(entries_failed_blocker, FailedBlocker),
-  sampler:test_stats_value(entries_failed_timeout, FailedTimeout),
-  sampler:test_stats_value(entries_failed_other, FailedOther),
+  sampler:value(entries_failed_blocker, FailedBlocker),
+  sampler:value(entries_failed_timeout, FailedTimeout),
+  sampler:value(entries_failed_other, FailedOther),
   FailedTotal is Expected - Processed,
   Unknown0 is FailedTotal - FailedBlocker - FailedTimeout - FailedOther,
   Unknown is max(0, Unknown0),
@@ -422,7 +422,7 @@ stats:test_stats_print_failure_breakdown(Expected, Processed) :-
 
 stats:test_stats_print_failed_pkg_context :-
   findall(C-N,
-          ( sampler:test_stats_failed_entry(Repo0://Entry0, _R),
+          ( sampler:fact(failed_entry(Repo0://Entry0, _R)),
             cache:ordered_entry(Repo0, Entry0, C, N, _)
           ),
           FailedCNs0),
@@ -430,7 +430,7 @@ stats:test_stats_print_failed_pkg_context :-
   length(FailedCNs, FailedPkgsTotal),
   findall(C-N,
           ( member(C-N, FailedCNs),
-            sampler:test_stats_pkg(processed, C, N)
+            sampler:fact(pkg(processed, C, N))
           ),
           MixedCNs0),
   sort(MixedCNs0, MixedCNs),
@@ -465,16 +465,16 @@ stats:test_stats_print_assumption_types(Processed) :-
   nl,
   message:header('Assumption types'),
   nl,
-  findall(O, sampler:test_stats_type(_, occurrences, O), Occs),
+  findall(O, sampler:fact(type(_, occurrences, O)), Occs),
   sum_list(Occs, TotalOccs),
-  findall(Type, sampler:test_stats_type(Type, _, _), Types0),
+  findall(Type, sampler:fact(type(Type, _, _)), Types0),
   sort(Types0, Types),
   ( Types == [] ->
       writeln('  (none)')
   ; stats:test_stats_print_assumption_types_table_header,
     forall(member(Type, Types),
-           ( ( sampler:test_stats_type(Type, entries, E) -> true ; E = 0 ),
-             ( sampler:test_stats_type(Type, occurrences, O) -> true ; O = 0 ),
+           ( ( sampler:fact(type(Type, entries, E)) -> true ; E = 0 ),
+             ( sampler:fact(type(Type, occurrences, O)) -> true ; O = 0 ),
              stats:test_stats_print_assumption_types_row(Type, E, Processed, O, TotalOccs)
            ))
   ).
@@ -492,7 +492,7 @@ stats:test_stats_print_slowest_entries(TopN) :-
   nl,
   message:header(['Top ',TopN,' slowest proofs']),
   nl,
-  findall(Ms-RepoEntry, sampler:test_stats_entry_time(RepoEntry, Ms), Times0),
+  findall(Ms-RepoEntry, sampler:fact(entry_time(RepoEntry, Ms)), Times0),
   keysort(Times0, TimesAsc),
   reverse(TimesAsc, TimesSorted),
   ( TimesSorted == [] ->
@@ -511,7 +511,7 @@ stats:test_stats_print_slowest_packages_total(TopN) :-
   nl,
   message:header(['Top ',TopN,' slowest packages (total)']),
   nl,
-  findall(SumMs-C-N, sampler:test_stats_pkg_time(C, N, SumMs, _MaxMs, _Cnt), PkgTimes0),
+  findall(SumMs-C-N, sampler:fact(pkg_time(C, N, SumMs, _MaxMs, _Cnt)), PkgTimes0),
   keysort(PkgTimes0, PkgAsc0),
   reverse(PkgAsc0, PkgSorted0),
   findall(SumMs-PkgAtom,
@@ -536,7 +536,7 @@ stats:test_stats_print_expensive_inferences(TopN) :-
   message:header(['Top ',TopN,' most expensive packages (inferences)']),
   nl,
   findall(SumInf-PkgAtomInf,
-          ( sampler:test_stats_pkg_cost(Ci, Ni, _MsI, SumInf, _RuleI, _CntI),
+          ( sampler:fact(pkg_cost(Ci, Ni, _MsI, SumInf, _RuleI, _CntI)),
             atomic_list_concat([Ci,Ni], '/', PkgAtomInf)
           ),
           PkgInf0),
@@ -563,7 +563,7 @@ stats:test_stats_print_ctx_union_cost(TopN) :-
   message:header(['Top ',TopN,' most expensive packages (context unions)']),
   nl,
   findall(SumCtxCost-PkgAtomCtx,
-          ( sampler:test_stats_pkg_ctx(Cc, Nc, SumCtxCost, _MaxLenC, _SumMsC, _CntC),
+          ( sampler:fact(pkg_ctx(Cc, Nc, SumCtxCost, _MaxLenC, _SumMsC, _CntC)),
             atomic_list_concat([Cc,Nc], '/', PkgAtomCtx)
           ),
           PkgCtx0),
@@ -586,7 +586,7 @@ stats:test_stats_print_ctx_union_walltime(TopN) :-
   message:header(['Top ',TopN,' most expensive packages (context unions walltime, est)']),
   nl,
   findall(UnionMs-CcMs-NcMs,
-          sampler:test_stats_pkg_ctx(CcMs, NcMs, _SumCtxCostMs, _MaxLenMs, UnionMs, _CntMs),
+          sampler:fact(pkg_ctx(CcMs, NcMs, _SumCtxCostMs, _MaxLenMs, UnionMs, _CntMs)),
           PkgCtxMsCN0),
   keysort(PkgCtxMsCN0, PkgCtxMsAscCN),
   reverse(PkgCtxMsAscCN, PkgCtxMsSortedCN),
@@ -628,7 +628,7 @@ stats:test_stats_print_ctx_length_distribution(TopN) :-
   nl,
   message:header('Context length distribution (sampled, ctx_union output)'),
   nl,
-  findall(Len-Cnt, sampler:test_stats_ctx_len_bin(Len, Cnt), LenBins0),
+  findall(Len-Cnt, sampler:fact(ctx_len_bin(Len, Cnt)), LenBins0),
   keysort(LenBins0, LenBins),
   ( LenBins == [] ->
       writeln('  (none)')
@@ -668,12 +668,12 @@ stats:test_stats_print_ctx_length_distribution(TopN) :-
 % -----------------------------------------------------------------------------
 
 stats:test_stats_print_ordset_impact :-
-  ( sampler:test_stats_ctx_cost_model(SumMul, SumAdd, SamplesModel),
+  ( sampler:fact(ctx_cost_model(SumMul, SumAdd, SamplesModel)),
     SamplesModel > 0,
     SumMul > 0,
     SumAdd > 0 ->
       Speedup is SumMul / SumAdd,
-      findall(SumMs0, sampler:test_stats_pkg_ctx(_Ccm,_Ncm,_Costcm,_Maxcm,SumMs0,_Cntcm), Ms0s),
+      findall(SumMs0, sampler:fact(pkg_ctx(_Ccm,_Ncm,_Costcm,_Maxcm,SumMs0,_Cntcm)), Ms0s),
       sum_list(Ms0s, TotalCtxMsEst),
       OrdMsEst0 is TotalCtxMsEst / Speedup,
       OrdMsEst is round(OrdMsEst0),
@@ -701,7 +701,7 @@ stats:test_stats_print_largest_contexts(TopN) :-
   message:header(['Top ',TopN,' largest contexts observed']),
   nl,
   findall(MaxLen-PkgAtomLen,
-          ( sampler:test_stats_pkg_ctx(Cc2, Nc2, _SumCtxCost2, MaxLen, _SumCtxMs2, _CntC2),
+          ( sampler:fact(pkg_ctx(Cc2, Nc2, _SumCtxCost2, MaxLen, _SumCtxMs2, _CntC2)),
             atomic_list_concat([Cc2,Nc2], '/', PkgAtomLen)
           ),
           PkgLen0),
@@ -723,7 +723,7 @@ stats:test_stats_print_slowest_packages_max(TopN) :-
   nl,
   message:header(['Top ',TopN,' slowest packages (max)']),
   nl,
-  findall(MaxMs-C-N, sampler:test_stats_pkg_time(C, N, _SumTotalMs2, MaxMs, _Cnt2), PkgMax0),
+  findall(MaxMs-C-N, sampler:fact(pkg_time(C, N, _SumTotalMs2, MaxMs, _Cnt2)), PkgMax0),
   keysort(PkgMax0, PkgMaxAsc0),
   reverse(PkgMaxAsc0, PkgMaxSorted0),
   findall(MaxMs-PkgAtom2,
@@ -749,7 +749,7 @@ stats:test_stats_print_slowest_packages_max(TopN) :-
 
 stats:test_stats_print_per_type_entries([], _TopN) :- !.
 stats:test_stats_print_per_type_entries([Type|Types], TopN) :-
-  findall(N-RepoEntry, sampler:test_stats_type_entry_mention(Type, RepoEntry, N), P0),
+  findall(N-RepoEntry, sampler:fact(type_entry_mention(Type, RepoEntry, N)), P0),
   keysort(P0, PAsc),
   reverse(PAsc, PSorted),
   ( PSorted == [] ->
@@ -767,7 +767,7 @@ stats:test_stats_print_per_type_entries([Type|Types], TopN) :-
 % -----------------------------------------------------------------------------
 
 stats:test_stats_print_blocker_analysis(TopN) :-
-  ( sampler:test_stats_type(blocker_assumption, occurrences, BlockOcc),
+  ( sampler:fact(type(blocker_assumption, occurrences, BlockOcc)),
     BlockOcc > 0 ->
       stats:test_stats_print_blocker_breakdown(TopN)
   ; true
@@ -782,7 +782,7 @@ stats:test_stats_print_blocker_breakdown(TopN) :-
   stats:test_stats_blocker_sp_rows(SpSorted),
   ( SpSorted == [] ->
       writeln('  (none)'),
-      ( sampler:test_stats_blocker_example(Ex) ->
+      ( sampler:fact(blocker_example(Ex)) ->
           format('  Note: could not parse blocker term for breakdown; example: ~q~n', [Ex])
       ; true
       )
@@ -832,7 +832,7 @@ stats:test_stats_print_blocker_breakdown(TopN) :-
   nl,
   stats:test_stats_print_ranked_table_header('Packages', 'Occ'),
   findall(OccCN-CN,
-          ( sampler:test_stats_blocker_cn(Cb, Nb, OccCN),
+          ( sampler:fact(blocker_cn(Cb, Nb, OccCN)),
             atomic_list_concat([Cb,Nb], '/', CN)
           ),
           Cn0),
@@ -850,9 +850,9 @@ stats:test_stats_print_blocker_breakdown(TopN) :-
 % -----------------------------------------------------------------------------
 
 stats:test_stats_print_other_assumptions :-
-  ( ( sampler:test_stats_type(other, occurrences, OtherOcc), OtherOcc > 0 ) ->
+  ( ( sampler:fact(type(other, occurrences, OtherOcc)), OtherOcc > 0 ) ->
       nl,
-      findall(N-Key, sampler:test_stats_other_head(Key, N), H0),
+      findall(N-Key, sampler:fact(other_head(Key, N)), H0),
       keysort(H0, HAsc),
       reverse(HAsc, HSorted),
       stats:test_stats_print_ranked_table_header('Top 15 other assumption heads', 'Count'),
@@ -869,7 +869,7 @@ stats:test_stats_print_other_assumptions :-
 stats:test_stats_print_cycle_mentions(TopN) :-
   nl,
   atomic_list_concat(['Top ',TopN,' cycle mentions (run)'], HeaderRun),
-  findall(N-RepoEntry, sampler:test_stats_cycle_mention(run, RepoEntry, N), RunPairs0),
+  findall(N-RepoEntry, sampler:fact(cycle_mention(run, RepoEntry, N)), RunPairs0),
   keysort(RunPairs0, RunSortedAsc),
   reverse(RunSortedAsc, RunSorted),
   ( RunSorted == [] ->
@@ -879,7 +879,7 @@ stats:test_stats_print_cycle_mentions(TopN) :-
     stats:test_stats_print_ranked_table_rows(RunSorted, TopN, 1, W1)
   ),
   atomic_list_concat(['Top ',TopN,' cycle mentions (install)'], HeaderInstall),
-  findall(N-RepoEntry, sampler:test_stats_cycle_mention(install, RepoEntry, N), InstallPairs0),
+  findall(N-RepoEntry, sampler:fact(cycle_mention(install, RepoEntry, N)), InstallPairs0),
   keysort(InstallPairs0, InstallSortedAsc),
   reverse(InstallSortedAsc, InstallSorted),
   ( InstallSorted == [] ->
@@ -912,7 +912,7 @@ stats:test_stats_ctx_len_bucket(LenBins, Threshold, CountLe) :-
 
 stats:test_stats_blocker_sp_rows(SpSorted) :-
   findall(Occ-Label,
-          ( sampler:test_stats_blocker_sp(S, P, Occ),
+          ( sampler:fact(blocker_sp(S, P, Occ)),
             format(atom(Label), '~w/~w', [S, P])
           ),
           Sp0),
@@ -925,7 +925,7 @@ stats:test_stats_blocker_sp_rows(SpSorted) :-
 
 stats:test_stats_blocker_reason_rows(RowsSorted) :-
   findall(Occ-ReasonAtom,
-          ( sampler:test_stats_blocker_reason(Reason, Occ),
+          ( sampler:fact(blocker_reason(Reason, Occ)),
             format(atom(ReasonAtom), '~w', [Reason])
           ),
           R0),
@@ -938,7 +938,7 @@ stats:test_stats_blocker_reason_rows(RowsSorted) :-
 
 stats:test_stats_blocker_reason_phase_rows(Phase, RowsSorted) :-
   findall(Occ-ReasonAtom,
-          ( sampler:test_stats_blocker_rp(Reason, Phase, Occ),
+          ( sampler:fact(blocker_rp(Reason, Phase, Occ)),
             format(atom(ReasonAtom), '~w', [Reason])
           ),
           R0),
@@ -951,9 +951,9 @@ stats:test_stats_blocker_reason_phase_rows(Phase, RowsSorted) :-
 
 stats:test_stats_ctx_share_rows(ShareRowsSorted) :-
   findall(Pct10-Label,
-          ( sampler:test_stats_pkg_ctx(C, N, _SumCost, _MaxLen, UnionMs, _CntCtx),
+          ( sampler:fact(pkg_ctx(C, N, _SumCost, _MaxLen, UnionMs, _CntCtx)),
             UnionMs > 0,
-            sampler:test_stats_pkg_time(C, N, TotalMs, _MaxMs, _CntTime),
+            sampler:fact(pkg_time(C, N, TotalMs, _MaxMs, _CntTime)),
             TotalMs > 0,
             Pct10 is round(UnionMs * 1000 / TotalMs),
             Pct1 is Pct10 / 10,

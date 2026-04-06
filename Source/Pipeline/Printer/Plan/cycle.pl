@@ -49,7 +49,7 @@ cycle:print_cycle_explanation(StartKey, ProofAVL, TriggersAVL) :-
     )
   ),
   ( CyclePath = [_|_] ->
-    sampler:test_stats_record_cycle(CyclePath0, CyclePath),
+    sampler:record(cycle(CyclePath0, CyclePath)),
     nl,
     message:color(darkgray),
     message:print('  Reason : Dependency cycle :'), nl,

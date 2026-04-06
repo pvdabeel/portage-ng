@@ -627,9 +627,9 @@ scheduler:test_stats(Repository, Style) :-
   config:proving_target(Action0),
   prover:test_action(Action0, Action),
   aggregate_all(count, (Repository:entry(_E)), ExpectedTotal),
-  sampler:test_stats_reset('Scheduling', ExpectedTotal),
+  sampler:reset('Scheduling', ExpectedTotal),
   aggregate_all(count, (Repository:package(_C,_N)), ExpectedPkgs),
-  sampler:test_stats_set_expected_unique_packages(ExpectedPkgs),
+  sampler:set_expected_pkgs(ExpectedPkgs),
   tester:test(Style,
               'Scheduling',
               Repository://Entry,
@@ -637,7 +637,7 @@ scheduler:test_stats(Repository, Style) :-
               ( pipeline:prove_with_fallback([Repository://Entry:Action?{[]}],ProofAVL,ModelAVL,TriggersAVL),
                 planner:plan(ProofAVL,TriggersAVL,t,Plan0,Remainder0),
                 scheduler:schedule(ProofAVL,TriggersAVL,Plan0,Remainder0,_Plan,_Remainder),
-                sampler:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, TriggersAVL, true)
+                sampler:record(entry(Repository://Entry, ModelAVL, ProofAVL, TriggersAVL, true))
               )),
   stats:test_stats_print.
 

@@ -1328,9 +1328,9 @@ builder:test_stats(Repository, Style) :-
 
 builder:test_stats(Repository, Style, TopN) :-
   aggregate_all(count, (Repository:entry(_E)), ExpectedTotal),
-  sampler:test_stats_reset('Building', ExpectedTotal),
+  sampler:reset('Building', ExpectedTotal),
   aggregate_all(count, (Repository:package(_C,_N)), ExpectedPkgs),
-  sampler:test_stats_set_expected_unique_packages(ExpectedPkgs),
+  sampler:set_expected_pkgs(ExpectedPkgs),
   tester:test(Style,
               'Building',
               Repository://Entry,
@@ -1354,8 +1354,8 @@ builder:test_stats_pkgs(Repository, Pkgs) :-
 builder:test_stats_pkgs(Repository, Style, TopN, Pkgs) :-
   is_list(Pkgs),
   length(Pkgs, ExpectedTotal),
-  sampler:test_stats_reset('Building', ExpectedTotal),
-  sampler:test_stats_set_expected_unique_packages(ExpectedTotal),
+  sampler:reset('Building', ExpectedTotal),
+  sampler:set_expected_pkgs(ExpectedTotal),
   tester:test(Style,
               'Building',
               Repository://Entry,
@@ -1381,7 +1381,7 @@ builder:test_stats_pkgs(Repository, Style, TopN, Pkgs) :-
 % and succeeds (tester:test handles outer error classification).
 
 builder:test_single(Repository, Entry) :-
-  sampler:test_stats_reset_counters,
+  sampler:reset_counters,
   statistics(inferences, I0),
   statistics(walltime, [T0, _]),
   Goals = [Repository://Entry:run?{[]}],
@@ -1400,10 +1400,10 @@ builder:test_single(Repository, Entry) :-
      statistics(inferences, I1),
      TimeMs is T1 - T0,
      Inferences is I1 - I0,
-     sampler:test_stats_get_counters(rule_calls(RuleCalls)),
-     sampler:test_stats_record_costs(Repository://Entry, TimeMs, Inferences, RuleCalls)
-  ;  ( current_predicate(sampler:test_stats_record_failed/1)
-     -> sampler:test_stats_record_failed(other)
+     sampler:counters(rule_calls(RuleCalls)),
+     sampler:record(costs(Repository://Entry, TimeMs, Inferences, RuleCalls))
+  ;  ( current_predicate(sampler:record/1)
+     -> sampler:record(failed(other))
      ;  true
      )
   ).

@@ -77,9 +77,9 @@ printer:test(Repository,parallel_fast) :-
 printer:test(Repository,Style) :-
   config:proving_target(Action),
   aggregate_all(count, (Repository:entry(_E)), ExpectedTotal),
-  sampler:test_stats_reset('Printing', ExpectedTotal),
+  sampler:reset('Printing', ExpectedTotal),
   aggregate_all(count, (Repository:package(_C,_N)), ExpectedPkgs),
-  sampler:test_stats_set_expected_unique_packages(ExpectedPkgs),
+  sampler:set_expected_pkgs(ExpectedPkgs),
   tester:test(Style,
               'Printing',
               Repository://Entry,
@@ -88,10 +88,10 @@ printer:test(Repository,Style) :-
                 planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0),
                 scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder)
               ),
-              ( sampler:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, false),
-                sampler:test_stats_set_current_entry(Repository://Entry),
+              ( sampler:record(entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, false)),
+                sampler:set_current_entry(Repository://Entry),
               printer:print([Repository://Entry:Action?{[]}],ModelAVL,ProofAVL,Plan,Triggers),
-                sampler:test_stats_clear_current_entry
+                sampler:clear_current_entry
               ),
               false),
   stats:test_stats_print.
@@ -110,9 +110,9 @@ printer:test_latest(Repository,Style) :-
   aggregate_all(count,
                 (Repository:package(C,N),once(Repository:ebuild(_Entry,C,N,_))),
                 ExpectedTotal),
-  sampler:test_stats_reset('Printing latest', ExpectedTotal),
+  sampler:reset('Printing latest', ExpectedTotal),
   aggregate_all(count, (Repository:package(_C,_N)), ExpectedPkgs),
-  sampler:test_stats_set_expected_unique_packages(ExpectedPkgs),
+  sampler:set_expected_pkgs(ExpectedPkgs),
   tester:test(Style,
               'Printing latest',
               Repository://Entry,
@@ -121,10 +121,10 @@ printer:test_latest(Repository,Style) :-
                 planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0),
                 scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder)
               ),
-              ( sampler:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, false),
-                sampler:test_stats_set_current_entry(Repository://Entry),
+              ( sampler:record(entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, false)),
+                sampler:set_current_entry(Repository://Entry),
                 printer:print([Repository://Entry:Action?{[]}],ModelAVL,ProofAVL,Plan,Triggers),
-                sampler:test_stats_clear_current_entry
+                sampler:clear_current_entry
               ),
               false),
   stats:test_stats_print.

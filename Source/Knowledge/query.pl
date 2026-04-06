@@ -971,7 +971,7 @@ compile_query_compound(Stmt, Entry,
 % If there is no compilation rule, `compile_query_compound/3` falls back to
 % `search(Stmt,Entry)`; detect that and let the normal runtime clauses handle it.
 search(Q, Repository://Entry) :-
-  sampler:maybe_record_search_callsite(Q, Repository://Entry),
+  sampler:maybe_record_callsite(Q, Repository://Entry),
   ( is_list(Q)
     -> compile_query_list(Q, Repository://Entry, Goal)
     ; compound(Q)

@@ -33,8 +33,8 @@ Pipeline stages:
 2. planner:plan/5   — wave planning for acyclic portion, yields Plan + Remainder
 3. scheduler:schedule/6 — SCC / merge-set scheduling for Remainder
 
-Each stage is timed via sampler:perf_walltime and recorded via
-sampler:perf_record for performance analysis.
+Each stage is timed via sampler:phase_walltime and recorded via
+sampler:phase_record for performance analysis.
 
 PDEPEND handling:
 Post-dependencies are normally resolved single-pass inside the prover
@@ -126,15 +126,15 @@ pipeline:prove_plan_with_fallback(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL, 
 % versions/slots).
 
 pipeline:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
-  sampler:perf_walltime(T0),
+  sampler:phase_walltime(T0),
   pipeline:multislot_initial_constraints(Goals, InitCons),
   prover:prove(Goals, t, ProofAVL, t, ModelAVL, InitCons, _Constraints, t, TriggersAVL),
-  sampler:perf_walltime(T1),
+  sampler:phase_walltime(T1),
   planner:plan(ProofAVL, TriggersAVL, t, Plan0, Remainder0),
-  sampler:perf_walltime(T2),
+  sampler:phase_walltime(T2),
   scheduler:schedule(ProofAVL, TriggersAVL, Plan0, Remainder0, Plan, _Remainder),
-  sampler:perf_walltime(T3),
-  sampler:perf_record(T0, T1, T2, T3).
+  sampler:phase_walltime(T3),
+  sampler:phase_record(T0, T1, T2, T3).
 
 
 % =============================================================================
@@ -166,9 +166,9 @@ pipeline:test_stats(Repository) :-
 pipeline:test_stats(Repository, Style) :-
   config:proving_target(Action),
   aggregate_all(count, (Repository:entry(_E)), ExpectedTotal),
-  sampler:test_stats_reset('Pipeline', ExpectedTotal),
+  sampler:reset('Pipeline', ExpectedTotal),
   aggregate_all(count, (Repository:package(_C,_N)), ExpectedPkgs),
-  sampler:test_stats_set_expected_unique_packages(ExpectedPkgs),
+  sampler:set_expected_pkgs(ExpectedPkgs),
   tester:test(Style,
               'Pipeline',
               Repository://Entry,
@@ -177,10 +177,10 @@ pipeline:test_stats(Repository, Style) :-
                 planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0),
                 scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder)
               ),
-              ( sampler:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, false),
-                sampler:test_stats_set_current_entry(Repository://Entry),
+              ( sampler:record(entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, false)),
+                sampler:set_current_entry(Repository://Entry),
                 printer:print([Repository://Entry:Action?{[]}],ModelAVL,ProofAVL,Plan,Triggers),
-                sampler:test_stats_clear_current_entry
+                sampler:clear_current_entry
               ),
               false),
   stats:test_stats_print.

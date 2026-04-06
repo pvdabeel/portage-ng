@@ -1867,7 +1867,7 @@ rules:proof_obligation_applicable(Repo://Entry:install) :-
 rules:proof_obligation(Repo://Entry:Action?{_Ctx}, Model, HookKey, ExtraLits) :-
   ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !,
-  sampler:obligation_maybe_sample(
+  sampler:hook_maybe_sample(
     ( AnchorCore = (Repo://Entry:Action),
       ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
           flag(po_has_extra, HP0, HP0+1),
@@ -1889,7 +1889,7 @@ rules:proof_obligation(Repo://Entry:Action?{_Ctx}, Model, HookKey, ExtraLits) :-
 rules:proof_obligation(Repo://Entry:Action, Model, HookKey, ExtraLits) :-
   ( Action == install ; Action == update ; Action == downgrade ; Action == reinstall ),
   !,
-  sampler:obligation_maybe_sample(
+  sampler:hook_maybe_sample(
     ( AnchorCore = (Repo://Entry:Action),
       ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
           flag(po_has_extra, HP0, HP0+1),

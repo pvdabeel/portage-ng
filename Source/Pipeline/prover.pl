@@ -373,7 +373,7 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
       sampler:ctx_union(ModelCtx, Ctx, NewCtx),
       prover:canon_literal(NewFull, Lit, NewCtx),
 
-      sampler:test_stats_rule_call,
+      sampler:rule_call,
       sampler:maybe_timeout_trace(Lit),
       rule(NewFull,NewBody),
 
@@ -468,7 +468,7 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
           %writeln('PROVER: regular proof'),
           %message:color(normal),
 
-          sampler:test_stats_rule_call,
+          sampler:rule_call,
           sampler:maybe_timeout_trace(Lit),
           rule(Full, Body),
 
@@ -535,7 +535,7 @@ prover:prove_model(Full, Model0, Model, Constraints0, Constraints, InProg0) :-
           Model = Model0,
           Constraints = Constraints0
       ; prover:canon_literal(NewFull, Lit, NewCtx),
-        sampler:test_stats_rule_call,
+        sampler:rule_call,
         rule(NewFull, NewBody),
         prover:prove_model(NewBody, Model0, BodyModel, Constraints0, BodyConstraints, InProg0),
         put_assoc(Lit, BodyModel, NewCtx, Model),
@@ -552,7 +552,7 @@ prover:prove_model(Full, Model0, Model, Constraints0, Constraints, InProg0) :-
 
   ;   % Case: regular proof (model-only)
       put_assoc(Lit, InProg0, true, InProg1),
-      sampler:test_stats_rule_call,
+      sampler:rule_call,
       rule(Full, Body),
       prover:prove_model(Body, Model0, BodyModel, Constraints0, BodyConstraints, InProg1),
       del_assoc(Lit, InProg1, _Old, InProg2),
@@ -598,7 +598,7 @@ prover:collect_proof_obligations(Literal, Proof0, Proof, Model, Rest0, Rest) :-
   ( current_predicate(rules:proof_obligation_key/4),
     once(rules:proof_obligation_key(Literal, Model, Key0, NeedsFull)),
     ( get_assoc(obligation_done(Key0), Proof0, true) ->
-        sampler:obligation_counter_done_hit,
+        sampler:hook_done_hit,
         Proof = Proof0,
         Rest = Rest0
     ; NeedsFull == false ->
@@ -609,7 +609,7 @@ prover:collect_proof_obligations(Literal, Proof0, Proof, Model, Rest0, Rest) :-
   ; current_predicate(rules:proof_obligation_key/3),
     once(rules:proof_obligation_key(Literal, Model, Key1)),
     get_assoc(obligation_done(Key1), Proof0, true) ->
-      sampler:obligation_counter_done_hit,
+      sampler:hook_done_hit,
       Proof = Proof0,
       Rest = Rest0
   ;
@@ -646,13 +646,13 @@ prover:obligation_candidate(Literal) :-
 prover:collect_proof_obligations_list([], Proof, Proof, _Model, Rest, Rest) :- !.
 prover:collect_proof_obligations_list([obligation(Key, ExtraLits)|Hs], Proof0, Proof, Model, Rest0, Rest) :-
   ( get_assoc(obligation_done(Key), Proof0, true) ->
-      sampler:obligation_counter_done_hit,
+      sampler:hook_done_hit,
       Proof1 = Proof0,
       Rest1 = Rest0
   ; put_assoc(obligation_done(Key), Proof0, true, Proof1),
-    sampler:obligation_counter_fired(ExtraLits),
+    sampler:hook_fired(ExtraLits),
     prover:select_new_literals_to_enqueue(ExtraLits, Model, Proof1, Proof2, FreshLits),
-    sampler:obligation_counter_fresh(FreshLits),
+    sampler:hook_fresh(FreshLits),
     ( FreshLits == [] ->
         Rest1 = Rest0
     ; append(FreshLits, Rest0, Rest1)
@@ -1180,15 +1180,15 @@ prover:test(Repository) :-
 prover:test(Repository,Style) :-
   config:proving_target(Action0),
   prover:test_action(Action0, Action),
-  ( current_predicate(sampler:prove_plan_perf_reset/0) ->
-      sampler:prove_plan_perf_reset
+  ( current_predicate(sampler:phase_perf_reset/0) ->
+      sampler:phase_perf_reset
   ; true
   ),
   ( current_predicate(scheduler:perf_reset/0) ->
       scheduler:perf_reset
   ; true
   ),
-  sampler:obligation_counter_reset,
+  sampler:hook_counter_reset,
   tester:test(Style,
               'Proving',
               Repository://Entry,
@@ -1196,9 +1196,9 @@ prover:test(Repository,Style) :-
               ( Target = (Repository://Entry:Action?{[]}),
                 pipeline:prove_with_fallback([Target], _Proof, _Model, _Triggers)
               )),
-  sampler:obligation_counter_report,
-  ( current_predicate(sampler:prove_plan_perf_report/0) ->
-      sampler:prove_plan_perf_report
+  sampler:hook_counter_report,
+  ( current_predicate(sampler:phase_perf_report/0) ->
+      sampler:phase_perf_report
   ; true
   ),
   ( current_predicate(scheduler:perf_report/0) ->
@@ -1276,14 +1276,14 @@ prover:test_stats(Repository, Style, TopN) :-
   config:proving_target(Action0),
   prover:test_action(Action0, Action),
   aggregate_all(count, (Repository:entry(_E)), ExpectedTotal),
-  sampler:test_stats_reset('Proving', ExpectedTotal),
+  sampler:reset('Proving', ExpectedTotal),
   aggregate_all(count, (Repository:package(_C,_N)), ExpectedPkgs),
-  sampler:test_stats_set_expected_unique_packages(ExpectedPkgs),
+  sampler:set_expected_pkgs(ExpectedPkgs),
   tester:test(Style,
               'Proving',
               Repository://Entry,
               Repository:entry(Entry),
-              ( sampler:test_stats_reset_counters,
+              ( sampler:reset_counters,
                 statistics(inferences, I0),
                 statistics(walltime, [T0,_]),
                 Target = (Repository://Entry:Action?{[]}),
@@ -1296,19 +1296,19 @@ prover:test_stats(Repository, Style, TopN) :-
                 TimeMs is T1 - T0,
                 Inferences is I1 - I0,
                 ( Proved == true ->
-                    sampler:test_stats_get_counters(rule_calls(RuleCalls)),
-                    sampler:test_stats_get_ctx_counters(ctx_union_calls(CtxUC), ctx_union_cost(CtxCost), ctx_max_len(CtxMax), ctx_union_ms_est(CtxMsEst)),
-                    sampler:test_stats_get_ctx_distribution(ctx_len_hist(CtxHistPairs),
+                    sampler:counters(rule_calls(RuleCalls)),
+                    sampler:ctx_counters(ctx_union_calls(CtxUC), ctx_union_cost(CtxCost), ctx_max_len(CtxMax), ctx_union_ms_est(CtxMsEst)),
+                    sampler:ctx_distribution(ctx_len_hist(CtxHistPairs),
                                                           ctx_cost_mul(CtxMul),
                                                           ctx_cost_add(CtxAdd),
                                                           ctx_len_samples(CtxLenSamples)),
                     with_mutex(test_stats,
-                      ( sampler:test_stats_record_costs(Repository://Entry, TimeMs, Inferences, RuleCalls),
-                        sampler:test_stats_record_context_costs(Repository://Entry, CtxUC, CtxCost, CtxMax, CtxMsEst),
-                        sampler:test_stats_record_ctx_len_distribution(CtxHistPairs, CtxMul, CtxAdd, CtxLenSamples)
+                      ( sampler:record(costs(Repository://Entry, TimeMs, Inferences, RuleCalls)),
+                        sampler:record(ctx_costs(Repository://Entry, CtxUC, CtxCost, CtxMax, CtxMsEst)),
+                        sampler:record(ctx_dist(CtxHistPairs, CtxMul, CtxAdd, CtxLenSamples))
                       )),
-                    sampler:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
-                ; sampler:test_stats_record_failed(other)
+                    sampler:record(entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true))
+                ; sampler:record(failed(other))
                 )
               )),
   stats:test_stats_print(TopN).
@@ -1338,15 +1338,15 @@ prover:test_stats_pkgs(Repository, Style, TopN, Pkgs) :-
   config:proving_target(Action0),
   prover:test_action(Action0, Action),
   length(Pkgs, ExpectedTotal),
-  sampler:test_stats_reset('Proving', ExpectedTotal),
-  sampler:test_stats_set_expected_unique_packages(ExpectedTotal),
+  sampler:reset('Proving', ExpectedTotal),
+  sampler:set_expected_pkgs(ExpectedTotal),
   tester:test(Style,
               'Proving',
               Repository://Entry,
               ( member(C-N, Pkgs),
                 once(Repository:ebuild(Entry, C, N, _))
               ),
-              ( sampler:test_stats_reset_counters,
+              ( sampler:reset_counters,
                 statistics(inferences, I0),
                 statistics(walltime, [T0,_]),
                 Target = (Repository://Entry:Action?{[]}),
@@ -1359,19 +1359,19 @@ prover:test_stats_pkgs(Repository, Style, TopN, Pkgs) :-
                 TimeMs is T1 - T0,
                 Inferences is I1 - I0,
                 ( Proved == true ->
-                    sampler:test_stats_get_counters(rule_calls(RuleCalls)),
-                    sampler:test_stats_get_ctx_counters(ctx_union_calls(CtxUC), ctx_union_cost(CtxCost), ctx_max_len(CtxMax), ctx_union_ms_est(CtxMsEst)),
-                    sampler:test_stats_get_ctx_distribution(ctx_len_hist(CtxHistPairs),
+                    sampler:counters(rule_calls(RuleCalls)),
+                    sampler:ctx_counters(ctx_union_calls(CtxUC), ctx_union_cost(CtxCost), ctx_max_len(CtxMax), ctx_union_ms_est(CtxMsEst)),
+                    sampler:ctx_distribution(ctx_len_hist(CtxHistPairs),
                                                           ctx_cost_mul(CtxMul),
                                                           ctx_cost_add(CtxAdd),
                                                           ctx_len_samples(CtxLenSamples)),
                     with_mutex(test_stats,
-                      ( sampler:test_stats_record_costs(Repository://Entry, TimeMs, Inferences, RuleCalls),
-                        sampler:test_stats_record_context_costs(Repository://Entry, CtxUC, CtxCost, CtxMax, CtxMsEst),
-                        sampler:test_stats_record_ctx_len_distribution(CtxHistPairs, CtxMul, CtxAdd, CtxLenSamples)
+                      ( sampler:record(costs(Repository://Entry, TimeMs, Inferences, RuleCalls)),
+                        sampler:record(ctx_costs(Repository://Entry, CtxUC, CtxCost, CtxMax, CtxMsEst)),
+                        sampler:record(ctx_dist(CtxHistPairs, CtxMul, CtxAdd, CtxLenSamples))
                       )),
-                    sampler:test_stats_record_entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true)
-                ; sampler:test_stats_record_failed(other)
+                    sampler:record(entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, true))
+                ; sampler:record(failed(other))
                 )
               )),
   stats:test_stats_print(TopN).
