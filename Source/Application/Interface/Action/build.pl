@@ -1,3 +1,12 @@
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2026, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
 % -----------------------------------------------------------------------------
 %  Action: RESUME (skip args helper)
 % -----------------------------------------------------------------------------
@@ -7,9 +16,9 @@
 % Asserts each positional argument as a config:skip_atom/1 fact.
 % When --resume is active, positional args name packages to skip.
 
-assert_resume_skip_args([]).
+action:assert_resume_skip_args([]).
 
-assert_resume_skip_args([A|Rest]) :-
+action:assert_resume_skip_args([A|Rest]) :-
   asserta(config:skip_atom(A)),
   assert_resume_skip_args(Rest).
 
@@ -23,11 +32,11 @@ assert_resume_skip_args([A|Rest]) :-
 % Handles the --build CLI flag. Resolves targets, proves a plan, then
 % builds with live progress output.
 
-process_build([], _Options) :-
+action:process_build([], _Options) :-
   !,
   message:failure('No targets specified for --build.').
 
-process_build(ArgsSets, _Options) :-
+action:process_build(ArgsSets, _Options) :-
   eapi:substitute_sets(ArgsSets, Args),
   interface:report_unresolvable_targets(run, Args),
   findall(target(Q,Arg):run?{[]},

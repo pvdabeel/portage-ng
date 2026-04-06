@@ -1,3 +1,12 @@
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2026, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
 % -----------------------------------------------------------------------------
 %  Action: INFO
 % -----------------------------------------------------------------------------
@@ -7,11 +16,11 @@
 % Handles the --info CLI flag. With no arguments, prints system info.
 % With arguments, prints detailed information for each matching package.
 
-process_action(info,[],_) :-
+action:process_action(info,[],_) :-
   !,
   interface:print_system_info.
 
-process_action(info,Args,_Options) :-
+action:process_action(info,Args,_Options) :-
   !,
   forall(member(Arg, Args),
     ( atom_codes(Arg, Codes),

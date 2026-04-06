@@ -1,3 +1,12 @@
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2026, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
 % -----------------------------------------------------------------------------
 %  Action: VDB queries (contents, owner, size, verify, executables)
 % -----------------------------------------------------------------------------
@@ -7,10 +16,10 @@
 % Dispatches VDB query commands. For --owner, Args are file paths;
 % for all others, Args are package targets.
 
-process_vdb_query(_, []) :-
+action:process_vdb_query(_, []) :-
   !, message:failure('No targets specified.').
 
-process_vdb_query(owner, Args) :-
+action:process_vdb_query(owner, Args) :-
   !,
   forall(member(Arg, Args),
     ( message:header(['Packages owning ', Arg]),
@@ -18,7 +27,7 @@ process_vdb_query(owner, Args) :-
       vdb:print_owner(Arg)
     )).
 
-process_vdb_query(QueryType, Args) :-
+action:process_vdb_query(QueryType, Args) :-
   forall(member(Arg, Args),
     ( vdb:resolve_vdb_entries(Arg, Entries),
       ( Entries == [] ->
@@ -31,18 +40,18 @@ process_vdb_query(QueryType, Args) :-
 
 %! action:run_vdb_query(+QueryType, +Entry) is det.
 
-run_vdb_query(contents, Entry) :-
+action:run_vdb_query(contents, Entry) :-
   message:header(['Contents of ', Entry]),
   nl,
   vdb:print_contents(Entry).
 
-run_vdb_query(size, Entry) :-
+action:run_vdb_query(size, Entry) :-
   vdb:print_size(Entry).
 
-run_vdb_query(verify, Entry) :-
+action:run_vdb_query(verify, Entry) :-
   vdb:verify_package(Entry).
 
-run_vdb_query(executables, Entry) :-
+action:run_vdb_query(executables, Entry) :-
   message:header(['Executables from ', Entry]),
   nl,
   vdb:print_executables(Entry).
@@ -57,7 +66,7 @@ run_vdb_query(executables, Entry) :-
 % Scans installed packages for broken shared library linkage and
 % outputs packages that need rebuilding.
 
-process_fix_linkage(_Args, _Options) :-
+action:process_fix_linkage(_Args, _Options) :-
   ( predicate_property(linkage:check(_), defined) ->
     linkage:check(Results),
     ( Results == [] ->
@@ -85,7 +94,7 @@ process_fix_linkage(_Args, _Options) :-
 %
 % Displays a summary of potential problems with installed packages.
 
-process_report(_Options) :-
+action:process_report(_Options) :-
   ( predicate_property(report:check(_), defined) ->
     report:check(Results),
     report:print_results(Results)
@@ -101,10 +110,10 @@ process_report(_Options) :-
 %
 % Shows which packages depend on the given targets.
 
-process_rdeps([]) :-
+action:process_rdeps([]) :-
   !, message:failure('No targets specified.').
 
-process_rdeps(Args) :-
+action:process_rdeps(Args) :-
   forall(member(Arg, Args),
     ( atom_codes(Arg, Codes),
       ( phrase(eapi:qualified_target(Q), Codes),
@@ -133,7 +142,7 @@ process_rdeps(Args) :-
 %
 % Lists distfiles not referenced by any installed package.
 
-process_unused_distfiles(_Options) :-
+action:process_unused_distfiles(_Options) :-
   ( predicate_property(distfiles:orphans(_,_), defined) ->
     distfiles:get_location(DistDir),
     message:header(['Unused distfiles in ', DistDir]),
@@ -160,11 +169,11 @@ process_unused_distfiles(_Options) :-
 % manager can track it. Accepts targets as Category/Name-Version or
 % Category/Name (defaults to version 0).
 
-process_import([], _Options) :-
+action:process_import([], _Options) :-
   !,
   message:failure('Usage: portage-ng --import cat/name-version [cat/name-version ...]').
 
-process_import(Args, Options) :-
+action:process_import(Args, Options) :-
   ( memberchk(pretend(true), Options) -> Pretend = true ; Pretend = false ),
   forall(member(Arg, Args),
     do_import_one(Arg, Pretend)
@@ -175,7 +184,7 @@ process_import(Args, Options) :-
 %
 % Imports a single package specification into the VDB.
 
-do_import_one(Arg, Pretend) :-
+action:do_import_one(Arg, Pretend) :-
   atom_string(Arg, ArgStr),
   ( split_string(ArgStr, "/", "", [CatStr, PVStr]) ->
     atom_string(Category, CatStr),
@@ -198,7 +207,7 @@ do_import_one(Arg, Pretend) :-
 % Finds files on the filesystem not tracked by any installed package.
 % Args are directories to scan; defaults to /usr if none given.
 
-process_unmanaged_files(Args) :-
+action:process_unmanaged_files(Args) :-
   ( Args == [] -> Dirs = ['/usr'] ; Dirs = Args ),
   message:header(['Building file ownership index...']),
   nl,

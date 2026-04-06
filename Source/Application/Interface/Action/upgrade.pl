@@ -1,3 +1,12 @@
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2026, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
 % -----------------------------------------------------------------------------
 %  Action: DEPCLEAN
 % -----------------------------------------------------------------------------
@@ -6,7 +15,7 @@
 %
 % Handles the --depclean CLI flag. Delegates to depclean:run/1.
 
-process_action(depclean, ArgsSets, _Options) :-
+action:process_action(depclean, ArgsSets, _Options) :-
   !,
   depclean:run(ArgsSets).
 
@@ -24,7 +33,7 @@ process_action(depclean, ArgsSets, _Options) :-
 % Defaults to @world when no positional arguments are given.
 % Enforces --oneshot semantics so @world is not modified.
 
-process_upgrade(ArgsSets0, Options) :-
+action:process_upgrade(ArgsSets0, Options) :-
   ( ArgsSets0 == [] -> ArgsSets = [world] ; ArgsSets = ArgsSets0 ),
   setup_call_cleanup(
     ( asserta(preference:local_flag(oneshot)),

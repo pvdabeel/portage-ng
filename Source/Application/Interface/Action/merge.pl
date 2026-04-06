@@ -1,3 +1,12 @@
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2026, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
 % -----------------------------------------------------------------------------
 %  Action: MERGE
 % -----------------------------------------------------------------------------
@@ -8,11 +17,11 @@
 % These clauses MUST appear after the specific info/search/depclean
 % clauses (ensured by include order in action.pl).
 
-process_action(_Action,[],_) :-
+action:process_action(_Action,[],_) :-
   !,
   message:failure('No targets specified.').
 
-process_action(Action,ArgsSets,Options) :-
+action:process_action(Action,ArgsSets,Options) :-
   interface:process_mode(Mode),
   interface:process_server(Host,Port),
   ( memberchk(pretend(true), Options) -> PretendMode = true ; PretendMode = false ),
@@ -123,8 +132,8 @@ process_action(Action,ArgsSets,Options) :-
 % Walks the plan (list of steps, each a list of rules) and executes any
 % world_action/2 side effects (register/unregister packages in @world).
 
-execute_world_actions_from_plan([]) :- !.
-execute_world_actions_from_plan([Step|Rest]) :-
+action:execute_world_actions_from_plan([]) :- !.
+action:execute_world_actions_from_plan([Step|Rest]) :-
   execute_world_actions_step(Step),
   execute_world_actions_from_plan(Rest).
 
@@ -133,8 +142,8 @@ execute_world_actions_from_plan([Step|Rest]) :-
 % Processes a single plan step (list of rules), executing world_action
 % side effects for any rule whose head is world_action(Op, Arg):world.
 
-execute_world_actions_step([]) :- !.
-execute_world_actions_step([Rule|Rest]) :-
+action:execute_world_actions_step([]) :- !.
+action:execute_world_actions_step([Rule|Rest]) :-
   ( Rule = rule(Head,_Body),
     prover:canon_literal(Head, Core, _Ctx),
     Core = world_action(Op, Arg):world ->

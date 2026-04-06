@@ -1,3 +1,12 @@
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2026, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
 % -----------------------------------------------------------------------------
 %  Action: BUG REPORT DRAFTS
 % -----------------------------------------------------------------------------
@@ -9,11 +18,11 @@
 %
 % Example: Source/Application/Wrapper/portage-ng-dev --mode standalone --bugs ghc
 
-process_bugs([], _Options) :-
+action:process_bugs([], _Options) :-
   !,
   message:inform('Need more arguments').
 
-process_bugs(ArgsSets, Options) :-
+action:process_bugs(ArgsSets, Options) :-
   interface:process_mode(Mode),
   interface:process_server(Host,Port),
   eapi:substitute_sets(ArgsSets,Args),
@@ -49,7 +58,7 @@ process_bugs(ArgsSets, Options) :-
 % Extracts domain assumptions from the proof AVL and delegates to
 % warning:print_bugreport_drafts/1. Prints "(none)" when clean.
 
-print_bugreport_drafts_from_proof(ProofAVL) :-
+action:print_bugreport_drafts_from_proof(ProofAVL) :-
   findall(Content, assoc:gen_assoc(rule(assumed(Content)), ProofAVL, _), DomainAssumptions0),
   sort(DomainAssumptions0, DomainAssumptions),
   ( DomainAssumptions == [] ->
@@ -69,5 +78,5 @@ print_bugreport_drafts_from_proof(ProofAVL) :-
 % Searches Bugzilla for bugs matching the given terms.
 % Args are joined as the search query. With no args, shows usage.
 
-process_search_bugs(Args, _Options) :-
+action:process_search_bugs(Args, _Options) :-
   bugs:check(Args).

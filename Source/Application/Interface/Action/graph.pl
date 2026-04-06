@@ -1,3 +1,12 @@
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2026, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
 % -----------------------------------------------------------------------------
 %  Action: GRAPH (optional mode argument)
 % -----------------------------------------------------------------------------
@@ -12,28 +21,28 @@
 %   --graph build modified  graph modified + builder test
 %   --graph build full      graph full + builder test
 
-process_graph([]) :-
+action:process_graph([]) :-
   kb:graph,
   !.
-process_graph([modified]) :-
+action:process_graph([modified]) :-
   setup_call_cleanup(
     asserta(config:interface_graph_modified_only(true)),
     kb:graph,
     retractall(config:interface_graph_modified_only(_))
   ),
   !.
-process_graph([full]) :-
+action:process_graph([full]) :-
   setup_call_cleanup(
     asserta(config:interface_graph_modified_only(false)),
     kb:graph,
     retractall(config:interface_graph_modified_only(_))
   ),
   !.
-process_graph([build]) :-
+action:process_graph([build]) :-
   kb:graph,
   builder:test_stats(portage),
   !.
-process_graph([build, modified]) :-
+action:process_graph([build, modified]) :-
   setup_call_cleanup(
     asserta(config:interface_graph_modified_only(true)),
     kb:graph,
@@ -41,7 +50,7 @@ process_graph([build, modified]) :-
   ),
   builder:test_stats(portage),
   !.
-process_graph([build, full]) :-
+action:process_graph([build, full]) :-
   setup_call_cleanup(
     asserta(config:interface_graph_modified_only(false)),
     kb:graph,
@@ -49,6 +58,6 @@ process_graph([build, full]) :-
   ),
   builder:test_stats(portage),
   !.
-process_graph(Args) :-
+action:process_graph(Args) :-
   message:warning(['--graph: ignoring unexpected args: ', Args]),
   kb:graph.

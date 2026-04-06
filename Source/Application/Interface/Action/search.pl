@@ -1,3 +1,12 @@
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2026, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
 % -----------------------------------------------------------------------------
 %  Action: SEARCH
 % -----------------------------------------------------------------------------
@@ -8,11 +17,11 @@
 % key=value expression, performs a knowledge base search. Otherwise
 % falls back to semantic (natural-language) search.
 
-process_action(search,[],_) :-
+action:process_action(search,[],_) :-
   !,
   message:failure('Usage: portage-ng --search key=value | natural language query (e.g. name=gcc, or: text editor with syntax highlighting)').
 
-process_action(search,Args,_Options) :-
+action:process_action(search,Args,_Options) :-
   !,
   ( phrase(eapi:query(Q), Args)
   -> message:log(['Query:   ',Q]),
@@ -38,7 +47,7 @@ process_action(search,Args,_Options) :-
 % when the semantic module is not loaded, stubs.pl provides graceful
 % fallback predicates.
 
-process_semantic_search(Query) :-
+action:process_semantic_search(Query) :-
   ( \+ catch(config:semantic_search_enabled(true), _, fail)
   -> message:warning(['Semantic search is disabled. Set config:semantic_search_enabled(true) to enable it.'])
   ; message:inform(['Semantic search: "', Query, '"']),
@@ -60,7 +69,7 @@ process_semantic_search(Query) :-
 % When the semantic module is not loaded, stubs.pl provides a graceful
 % fallback.
 
-process_train_model :-
+action:process_train_model :-
   ( \+ catch(config:semantic_search_enabled(true), _, fail)
   -> message:warning(['Semantic search is disabled. Set config:semantic_search_enabled(true) to enable it.'])
   ; semantic:build_index
@@ -76,10 +85,10 @@ process_train_model :-
 % Find packages semantically similar to the given target(s).
 % Accepts category/name or bare package name arguments.
 
-process_similar([]) :-
+action:process_similar([]) :-
   message:failure('Usage: portage-ng --similar category/name').
 
-process_similar(Args) :-
+action:process_similar(Args) :-
   ( \+ catch(config:semantic_search_enabled(true), _, fail)
   -> message:warning(['Semantic search is disabled. Set config:semantic_search_enabled(true) to enable it.'])
   ; config:semantic_top_n(TopN),

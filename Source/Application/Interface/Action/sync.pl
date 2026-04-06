@@ -1,3 +1,12 @@
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2026, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
 % -----------------------------------------------------------------------------
 %  Action: LIST-SETS
 % -----------------------------------------------------------------------------
@@ -6,7 +15,7 @@
 %
 % Lists all available package sets (@world, @system, user-defined sets).
 
-process_list_sets :-
+action:process_list_sets :-
   message:topheader(['Available package sets']),
   nl,
   message:color(green), format(' * '), message:color(normal),
@@ -32,14 +41,14 @@ process_list_sets :-
 %
 % In standalone mode the knowledge base is saved to disk after syncing.
 
-process_sync(Mode, []) :-
+action:process_sync(Mode, []) :-
   !,
   kb:sync,
   message:header(['Syncing profile']), nl,
   catch(profile:cache_save, _, true),
   ( Mode == standalone -> kb:save ; true ).
 
-process_sync(Mode, RepoNames) :-
+action:process_sync(Mode, RepoNames) :-
   forall(member(Name, RepoNames),
          kb:sync(Name)),
   message:header(['Syncing profile']), nl,
@@ -58,7 +67,7 @@ process_sync(Mode, RepoNames) :-
 % knowledge base. This is the equivalent of running egencache.
 % The knowledge base is updated on the next --sync or restart.
 
-process_regen(_Mode, []) :-
+action:process_regen(_Mode, []) :-
   !,
   aggregate_all(count, kb:repository(_), Count),
   ( Count == 1 ->
@@ -70,7 +79,7 @@ process_regen(_Mode, []) :-
       ( catch(Repository:sync(metadata), _, true) -> true ; true )
     )).
 
-process_regen(_Mode, RepoNames) :-
+action:process_regen(_Mode, RepoNames) :-
   forall(member(Name, RepoNames),
     ( kb:repository(Name) ->
       ( message:header(['Regenerating metadata for \"',Name,'\"']), nl,

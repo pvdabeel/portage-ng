@@ -1,3 +1,12 @@
+/*
+  Author:   Pieter Van den Abeele
+  E-mail:   pvdabeel@mac.com
+  Copyright (c) 2005-2026, Pieter Van den Abeele
+
+  Distributed under the terms of the LICENSE file in the root directory of this
+  project.
+*/
+
 % -----------------------------------------------------------------------------
 %  Action: EXPLAIN (LLM-powered plan Q&A)
 % -----------------------------------------------------------------------------
@@ -8,7 +17,7 @@
 % ExplainOpt is either 'true' (conversational mode) or a question atom
 % (single-shot mode).
 
-run_explain(ExplainOpt, Proposal, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
+action:run_explain(ExplainOpt, Proposal, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
   ( predicate_property(explain:explain_plan(_,_,_,_,_,_), defined)
   -> ( ExplainOpt == true
      -> explain:explain_plan_interactive(Proposal, ProofAVL, ModelAVL, Plan, TriggersAVL)
@@ -27,7 +36,7 @@ run_explain(ExplainOpt, Proposal, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
 % Succeeds when --llm was passed on the command line. Unifies LlmOpt
 % with 'true' when no service name was given, or the service name atom.
 
-extract_llm_opt(Options, LlmOpt) :-
+action:extract_llm_opt(Options, LlmOpt) :-
   memberchk(llm(Val), Options),
   Val \== none,
   ( Val == '' -> LlmOpt = true ; LlmOpt = Val ).
@@ -38,7 +47,7 @@ extract_llm_opt(Options, LlmOpt) :-
 % Starts an interactive chat session with the specified LLM service.
 % LlmOpt is either 'true' (use default service) or a service name atom.
 
-process_llm_chat(LlmOpt) :-
+action:process_llm_chat(LlmOpt) :-
   ( predicate_property(explainer:call_llm(_,_,_), defined)
   -> ( LlmOpt == true
      -> config:llm_default(Service)
@@ -64,7 +73,7 @@ process_llm_chat(LlmOpt) :-
 % sends it to the LLM service, prints the streamed response, and
 % recurses until the user types quit/exit/q or EOF.
 
-llm_chat_loop(Service) :-
+action:llm_chat_loop(Service) :-
   message:color(green),
   format('~w> ', [Service]),
   message:color(normal),
