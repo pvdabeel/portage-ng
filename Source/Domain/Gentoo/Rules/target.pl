@@ -280,6 +280,20 @@ candidate:resolve(required_use(any_of, Deps):validate?{_},
 %  Choice group resolution
 % =============================================================================
 
+%! candidate:resolve(choice_group(+Deps):config?{+Context}, -Conditions)
+%
+% Config phase: pick one alternative and record it in the dependency
+% model. The chosen dep is returned as a sub-goal so it enters the
+% memoized model (AvlModel) and survives into the resolve phase.
+
+candidate:resolve(choice_group(Deps):config?{Context}, [D:config?{Context}]) :-
+  candidate:prioritize_deps_keep_all(Deps, Context, SortedDeps),
+  member(D0, SortedDeps),
+  candidate:any_of_config_dep_ok(Context, D0),
+  D = D0,
+  !.
+
+
 %! candidate:resolve(choice_group(+Deps):+Action?{+Context}, -Conditions)
 %
 % Resolve phase: pick the best alternative, prove it via rule/2, and

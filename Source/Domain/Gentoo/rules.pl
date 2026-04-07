@@ -565,21 +565,9 @@ rule(exactly_one_of_group(Deps):validate?{Context}, Conditions) :-
   !,
   candidate:resolve(required_use(exactly_one_of, Deps):validate?{Context}, Conditions).
 
-rule(exactly_one_of_group(Deps):config?{Context}, [D:config?{Context}]) :-
-  candidate:prioritize_deps_keep_all(Deps, Context, SortedDeps),
-  member(D0, SortedDeps),
-  candidate:any_of_config_dep_ok(Context, D0),
-  D = D0,
-  !.
-
 rule(exactly_one_of_group(Deps):Action?{Context}, Conditions) :-
   !,
   candidate:resolve(choice_group(Deps):Action?{Context}, Conditions).
-
-rule(exactly_one_of_group(Deps), [D|NafDeps]) :-
-  candidate:prioritize_deps(Deps, SortedDeps),
-  member(D, SortedDeps),
-  findall(naf(N), (member(N, Deps), \+(D = N)), NafDeps).
 
 
 % -----------------------------------------------------------------------------
@@ -594,25 +582,10 @@ rule(at_most_one_of_group(Deps):validate?{Context}, Conditions) :-
   !,
   candidate:resolve(required_use(at_most_one_of, Deps):validate?{Context}, Conditions).
 
-rule(at_most_one_of_group(Deps):config?{Context}, [D:config?{Context}]) :-
-  candidate:prioritize_deps_keep_all(Deps, Context, SortedDeps),
-  member(D0, SortedDeps),
-  candidate:any_of_config_dep_ok(Context, D0),
-  D = D0,
-  !.
-rule(at_most_one_of_group(_):config?{_}, []) :- !.
-
 rule(at_most_one_of_group(Deps):Action?{Context}, Conditions) :-
   candidate:resolve(choice_group(Deps):Action?{Context}, Conditions),
   !.
 rule(at_most_one_of_group(Deps):_?{_}, NafDeps) :-
-  findall(naf(N), member(N, Deps), NafDeps).
-
-rule(at_most_one_of_group(Deps), [D|NafDeps]) :-
-  candidate:prioritize_deps(Deps, SortedDeps),
-  member(D, SortedDeps),
-  findall(naf(N), (member(N, Deps), \+(D = N)), NafDeps).
-rule(at_most_one_of_group(Deps), NafDeps) :-
   findall(naf(N), member(N, Deps), NafDeps).
 
 
@@ -628,22 +601,9 @@ rule(any_of_group(Deps):validate?{Context}, Conditions) :-
   !,
   candidate:resolve(required_use(any_of, Deps):validate?{Context}, Conditions).
 
-rule(any_of_group(Deps):config?{Context}, [D:config?{Context}]) :-
-  candidate:prioritize_deps_keep_all(Deps, Context, SortedDeps),
-  member(D0, SortedDeps),
-  candidate:any_of_config_dep_ok(Context, D0),
-  D = D0,
-  !.
-
 rule(any_of_group(Deps):Action?{Context}, Conditions) :-
   !,
   candidate:resolve(choice_group(Deps):Action?{Context}, Conditions).
-
-rule(any_of_group(Deps), Conditions) :-
-  candidate:prioritize_deps_keep_all(Deps, [], SortedDeps),
-  member(D, SortedDeps),
-  rule(D, Conditions),
-  !.
 
 
 % -----------------------------------------------------------------------------
@@ -781,7 +741,6 @@ rule(blocking(Use),[assumed(minus(Use)),naf(required(Use))]) :-
   \+Use =.. [minus,_],
   \+preference:global_use(Use),
   \+preference:global_use(minus(Use)),!.
-
 
 
 % -----------------------------------------------------------------------------
