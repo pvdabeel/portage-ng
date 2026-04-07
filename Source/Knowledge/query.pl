@@ -245,10 +245,10 @@ compile_query_compound(keyword(KW), Repo://Id,
 compile_query_compound(keywords(KW), Repo://Id,
   cache:entry_metadata(Repo,Id,keywords,KW)) :- !.
 
-compile_query_compound(installed(true), _Repo://Id,
-  cache:ordered_entry(pkg, Id, _, _, _)) :- !.
-compile_query_compound(installed(false), _Repo://Id,
-  \+ cache:ordered_entry(pkg, Id, _, _, _)) :- !.
+compile_query_compound(installed(true), Repo://Id,
+  (cache:ordered_entry(pkg, Id, _, _, _), (var(Repo) -> Repo = pkg ; true))) :- !.
+compile_query_compound(installed(false), Repo://Id,
+  (cache:ordered_entry(Repo, Id, _, _, _), \+ cache:ordered_entry(pkg, Id, _, _, _))) :- !.
 
 % VDB metadata: USE flags enabled for the installed package.
 compile_query_compound(use(Use), Repo://Id,
@@ -661,6 +661,18 @@ compile_query_compound(select(masked,notequal,false), Repo://Id,
 compile_query_compound(select(masked,notequal,true), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,_),
     \+ preference:masked(Repo://Id) )) :- !.
+
+compile_query_compound(select(installed,equal,true), Repo://Id,
+  (cache:ordered_entry(pkg, Id, _, _, _), (var(Repo) -> Repo = pkg ; true))) :- !.
+
+compile_query_compound(select(installed,equal,false), Repo://Id,
+  (cache:ordered_entry(Repo, Id, _, _, _), \+ cache:ordered_entry(pkg, Id, _, _, _))) :- !.
+
+compile_query_compound(select(installed,notequal,true), Repo://Id,
+  (cache:ordered_entry(Repo, Id, _, _, _), \+ cache:ordered_entry(pkg, Id, _, _, _))) :- !.
+
+compile_query_compound(select(installed,notequal,false), Repo://Id,
+  (cache:ordered_entry(pkg, Id, _, _, _), (var(Repo) -> Repo = pkg ; true))) :- !.
 
 
 % 8. all query is treated at runtime, except for a few exceptions
