@@ -48,6 +48,7 @@ digraph rules_dispatch {
     update      [label="R://E:update"];
     downgrade   [label="R://E:downgrade"];
     upgrade     [label="R://E:upgrade"];
+    depclean    [label="R://E:depclean"];
   }
 
   /* ── Cluster: Dependency resolution ─────────────────────────────── */
@@ -60,6 +61,42 @@ digraph rules_dispatch {
     weak_blocker    [label="grouped_package_dependency\n(weak)"];
     strong_blocker  [label="grouped_package_dependency\n(strong)"];
     grouped_dep     [label="grouped_package_dependency\n(no)"];
+    depclean_dep    [label="grouped_package_dependency\n(no) :depclean"];
+    depclean_blocker[label="grouped_package_dependency\n(blocker) :depclean"];
+  }
+
+  /* ── Cluster: USE conditionals ──────────────────────────────────── */
+
+  subgraph cluster_use {
+    label="Ruleset: USE CONDITIONALS";
+    style=dashed; color="#888888"; fontcolor="#555555";
+
+    use_cond_pos [label="use_conditional_group\n(positive)"];
+    use_cond_neg [label="use_conditional_group\n(negative)"];
+  }
+
+  /* ── Cluster: Choice groups ─────────────────────────────────────── */
+
+  subgraph cluster_choice {
+    label="Ruleset: CHOICE GROUPS";
+    style=dashed; color="#888888"; fontcolor="#555555";
+
+    exactly_one  [label="exactly_one_of_group\n:validate / :Action"];
+    at_most_one  [label="at_most_one_of_group\n:validate / :Action"];
+    any_of       [label="any_of_group\n:validate / :Action"];
+    all_of       [label="all_of_group\n:Action"];
+  }
+
+  /* ── Cluster: Required USE / blocking ───────────────────────────── */
+
+  subgraph cluster_required {
+    label="Ruleset: REQUIRED USE / BLOCKING";
+    style=dashed; color="#888888"; fontcolor="#555555";
+
+    required     [label="required(Use)\n:_?{Context}"];
+    blocking     [label="blocking(Use)\n:_?{Context}"];
+    required_bare[label="required(Use)\n(bare)"];
+    blocking_bare[label="blocking(Use)\n(bare)"];
   }
 
   /* ── Delegation predicates (candidate: / target:) ───────────────── */
@@ -70,21 +107,27 @@ digraph rules_dispatch {
   resolve_installed_candidate [label="target:\nresolve_installed_candidate"];
   eligible                    [label="candidate:\neligible"];
   installed                   [label="candidate:\ninstalled"];
+  eligible_use_cond           [label="candidate:eligible\n(use_conditional)"];
+  is_self_dep                 [label="candidate:\nis_self_dep"];
 
   node [shape=ellipse, fillcolor="#fff3e0"];
 
-  resolve_fetchonly    [label="candidate:resolve\n(R://E:fetchonly)"];
-  resolve_download     [label="candidate:resolve\n(R://E:download)"];
-  resolve_install      [label="candidate:resolve\n(R://E:install)"];
-  resolve_run          [label="candidate:resolve\n(R://E:run)"];
-  resolve_update       [label="candidate:resolve\n(R://E:update)"];
-  resolve_downgrade    [label="candidate:resolve\n(R://E:downgrade)"];
-  resolve_upgrade      [label="candidate:resolve\n(R://E:upgrade)"];
-  resolve_weak_blocker [label="candidate:resolve\n(weak_blocker)"];
-  resolve_strong_blocker[label="candidate:resolve\n(strong_blocker)"];
-  resolve_grouped_dep  [label="candidate:resolve\n(grouped_dep)"];
-
-  is_self_dep          [label="candidate:\nis_self_dep"];
+  resolve_fetchonly      [label="candidate:resolve\n(R://E:fetchonly)"];
+  resolve_download       [label="candidate:resolve\n(R://E:download)"];
+  resolve_install        [label="candidate:resolve\n(R://E:install)"];
+  resolve_run            [label="candidate:resolve\n(R://E:run)"];
+  resolve_update         [label="candidate:resolve\n(R://E:update)"];
+  resolve_downgrade      [label="candidate:resolve\n(R://E:downgrade)"];
+  resolve_upgrade        [label="candidate:resolve\n(R://E:upgrade)"];
+  resolve_depclean       [label="candidate:resolve\n(R://E:depclean)"];
+  resolve_weak_blocker   [label="candidate:resolve\n(weak_blocker)"];
+  resolve_strong_blocker [label="candidate:resolve\n(strong_blocker)"];
+  resolve_grouped_dep    [label="candidate:resolve\n(grouped_dep)"];
+  resolve_use_cond       [label="candidate:resolve\n(use_conditional)"];
+  resolve_choice_config  [label="candidate:resolve\n(choice_group:config)"];
+  resolve_choice_action  [label="candidate:resolve\n(choice_group:Action)"];
+  resolve_required_use   [label="candidate:resolve\n(required_use)"];
+  effective_use          [label="use:\neffective_use_in_context"];
 
   /* ── Condition outputs ──────────────────────────────────────────── */
 
@@ -103,6 +146,9 @@ digraph rules_dispatch {
   cond_replacement     [label="R://Old:run\n{replaces(...)}"];
   cond_empty           [label="[] (satisfied)"];
   cond_world           [label="world(Atom)\n:register/unregister"];
+  cond_naf             [label="naf(N)\n(negate all)"];
+  cond_assumed_use     [label="assumed(Use)\nor conflict"];
+  cond_req_use_sat     [label="[] (satisfied)\nor violation"];
 
   /* ── Edges: target → resolution ─────────────────────────────────── */
 
@@ -148,6 +194,8 @@ digraph rules_dispatch {
   upgrade    -> eligible;
   upgrade    -> resolve_upgrade;
 
+  depclean   -> resolve_depclean;
+
   /* ── Edges: resolve → conditions ────────────────────────────────── */
 
   resolve_fetchonly -> cond_download;
@@ -170,6 +218,8 @@ digraph rules_dispatch {
   resolve_downgrade -> cond_replacement;
   resolve_upgrade   -> cond_replacement;
 
+  resolve_depclean -> cond_deps [label="runtime\n(:depclean)"];
+
   /* ── Edges: dependencies ────────────────────────────────────────── */
 
   pkg_dep_config -> is_self_dep [label="guard"];
@@ -178,6 +228,8 @@ digraph rules_dispatch {
   weak_blocker   -> resolve_weak_blocker;
   strong_blocker -> resolve_strong_blocker;
   grouped_dep    -> resolve_grouped_dep;
+  depclean_dep   -> resolve_grouped_dep [label=":depclean"];
+  depclean_blocker -> cond_empty;
 
   resolve_weak_blocker -> cond_blocked_cn_src;
   resolve_weak_blocker -> cond_assumed_blocker;
@@ -191,4 +243,50 @@ digraph rules_dispatch {
   resolve_grouped_dep -> cond_cn_domain;
   resolve_grouped_dep -> cond_deps;
   resolve_grouped_dep -> cond_assumed_nonexist [label="fallback"];
+
+  /* ── Edges: USE conditionals ────────────────────────────────────── */
+
+  use_cond_pos -> eligible_use_cond [label="positive"];
+  use_cond_neg -> eligible_use_cond [label="negative"];
+  use_cond_pos -> resolve_use_cond;
+  use_cond_neg -> resolve_use_cond;
+  use_cond_pos -> cond_empty [style=dotted, label="flag off"];
+  use_cond_neg -> cond_empty [style=dotted, label="flag on"];
+
+  resolve_use_cond -> cond_deps [label="D:Action?{Ctx}"];
+
+  /* ── Edges: choice groups ───────────────────────────────────────── */
+
+  exactly_one -> resolve_required_use [label=":validate"];
+  exactly_one -> resolve_choice_config [label=":config"];
+  exactly_one -> resolve_choice_action [label=":Action"];
+
+  at_most_one -> resolve_required_use [label=":validate"];
+  at_most_one -> resolve_choice_config [label=":config"];
+  at_most_one -> resolve_choice_action [label=":Action"];
+  at_most_one -> cond_naf [style=dotted, label="none chosen"];
+
+  any_of -> resolve_required_use [label=":validate"];
+  any_of -> resolve_choice_config [label=":config"];
+  any_of -> resolve_choice_action [label=":Action"];
+
+  all_of -> cond_deps [label="all deps\n:Action?{Ctx}"];
+
+  resolve_choice_config -> cond_deps [label="D:config?{Ctx}"];
+  resolve_choice_action -> cond_deps [label="proven dep"];
+
+  resolve_required_use -> cond_req_use_sat;
+
+  /* ── Edges: required USE / blocking ─────────────────────────────── */
+
+  required -> effective_use [label="self(R://E)\nin context"];
+  required -> cond_empty [style=dotted, label="satisfied"];
+  required -> required_bare [style=dotted, label="fallback"];
+
+  blocking -> effective_use [label="self(R://E)\nin context"];
+  blocking -> cond_empty [style=dotted, label="satisfied"];
+  blocking -> blocking_bare [style=dotted, label="fallback"];
+
+  required_bare -> cond_assumed_use [label="global_use\nlookup"];
+  blocking_bare -> cond_assumed_use [label="global_use\nlookup"];
 }
