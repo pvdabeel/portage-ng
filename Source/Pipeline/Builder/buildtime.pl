@@ -72,7 +72,7 @@ buildtime:load_vdb_sizes :-
   config:hostname(Hostname),
   config:pkg_directory(Hostname, VdbDir),
   forall(
-    ( cache:entry_metadata(portage, Entry, installed, true),
+    ( cache:ordered_entry(pkg, Entry, _, _, _),
       buildtime:read_vdb_file(VdbDir, Entry, 'SIZE', SizeAtom),
       atom_number(SizeAtom, Size)
     ),

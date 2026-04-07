@@ -240,8 +240,8 @@ self_hosting_requires_installed(_Action, _C, _N, _Context, false).
 %
 % True if the candidate has `installed` metadata set to `true`.
 
-explanation:is_installed_candidate(Repo://Entry) :-
-  cache:entry_metadata(Repo, Entry, installed, true).
+explanation:is_installed_candidate(_Repo://Entry) :-
+  cache:ordered_entry(pkg, Entry, _, _, _).
 
 
 %! explanation:is_unmasked_candidate(+Repo://Entry) is semidet.

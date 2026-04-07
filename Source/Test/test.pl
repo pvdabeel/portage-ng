@@ -1116,7 +1116,7 @@ test:expect(overlay://'test79/server-1.0':run?{[]},
 
 test:setup_vdb(_TestCase, InstalledList) :-
   forall(member(Entry, InstalledList),
-         asserta(cache:entry_metadata(overlay, Entry, installed, true))).
+         asserta(cache:ordered_entry(pkg, Entry, _, _, _))).
 
 
 %! test:cleanup_vdb(+InstalledList)
@@ -1125,4 +1125,4 @@ test:setup_vdb(_TestCase, InstalledList) :-
 
 test:cleanup_vdb(InstalledList) :-
   forall(member(Entry, InstalledList),
-         retractall(cache:entry_metadata(overlay, Entry, installed, true))).
+         retractall(cache:ordered_entry(pkg, Entry, _, _, _))).

@@ -22,34 +22,17 @@ and to copy static graph assets.
 % =============================================================================
 
 % -----------------------------------------------------------------------------
-%  VDB synchronisation
+%  VDB installed entry enumeration
 % -----------------------------------------------------------------------------
 
-%! vdb:sync is det.
+%! vdb:installed_entry(-Entry) is nondet.
 %
-% Refreshes the in-memory installed-package metadata by scanning the VDB
-% directory. Retracts all existing `installed` metadata for the portage
-% repository and re-asserts a fact for every package found on disk.
+% Enumerates installed packages from the pkg repository cache.
+% On backtracking, unifies Entry with each Category/Package-Version
+% found in the VDB cache.
 
-vdb:sync :-
-  retractall(cache:entry_metadata(portage,_,installed,_)),
-  forall(vdb:find_installed_pkg(portage://Entry),
-         (asserta(cache:entry_metadata(portage,Entry,installed,true)))).
-
-
-%! vdb:find_installed_pkg(-RepoEntry) is nondet.
-%
-% Enumerates installed packages from the host-specific VDB directory
-% (config:pkg_directory/2). On backtracking, unifies RepoEntry with
-% each portage://Category/Package-Version found on disk.
-
-vdb:find_installed_pkg(portage://Entry) :-
-  config:hostname(Hostname),
-  config:pkg_directory(Hostname,Directory),
-  os:directory_content(Directory,Category),
-  os:compose_path(Directory,Category,CategoryDir),
-  os:directory_content(CategoryDir,Package),
-  os:compose_path(Category,Package,Entry).
+vdb:installed_entry(Entry) :-
+  cache:ordered_entry(pkg, Entry, _, _, _).
 
 
 % -----------------------------------------------------------------------------
@@ -205,7 +188,7 @@ vdb:print_contents_item(sym(Path, Target, _MTime)) :-
 vdb:find_owner(Pattern, Owners) :-
   atom_string(Pattern, PS),
   findall(Entry-Path,
-    ( vdb:find_installed_pkg(portage://Entry),
+    ( vdb:installed_entry(Entry),
       vdb:read_contents(Entry, Contents),
       member(Item, Contents),
       vdb:contents_item_path(Item, Path),
@@ -429,7 +412,7 @@ vdb:entry_matches(Entry, Query) :-
 
 vdb:resolve_vdb_entries(Query, Entries) :-
   findall(Entry,
-    ( vdb:find_installed_pkg(portage://Entry),
+    ( vdb:installed_entry(Entry),
       vdb:entry_matches(Entry, Query)
     ),
     Entries).
@@ -508,7 +491,7 @@ vdb:import_package(Category, Name, Version) :-
   vdb:write_vdb_file(EntryDir, 'CONTENTS', ''),
   vdb:write_vdb_file(EntryDir, 'DESCRIPTION', 'Manually imported package'),
   atomic_list_concat([Category, '/', PV], FullEntry),
-  asserta(cache:entry_metadata(portage, FullEntry, installed, true)).
+  assertz(cache:ordered_entry(pkg, FullEntry, Category, Name, version_none)).
 
 
 %! vdb:write_vdb_file(+Dir, +FileName, +Content) is det.
@@ -576,7 +559,7 @@ vdb:find_version_boundary([_|Rest], Pos, Acc, Boundary) :-
 vdb:build_contents_index(OwnedSet) :-
   rb_empty(Empty),
   findall(Path,
-    ( vdb:find_installed_pkg(portage://Entry),
+    ( vdb:installed_entry(Entry),
       vdb:read_contents(Entry, Contents),
       member(Item, Contents),
       vdb:contents_item_path(Item, Path)

@@ -236,8 +236,6 @@ sync(kb) ::-
     :find_vdb_entry(E,C,N,V),
     ( with_mutex(mutex,message:scroll(['VDB: ',E])),
       assertz(cache:entry(Repository,E,C,N,V)),
-      % Always mark installed (VDB == installed database).
-      assertz(cache:entry_metadata(Repository,E,installed,true)),
       :read_metadata(E,_T,M),
       forall(member(L,M),
              ( L =.. [Key,Value],

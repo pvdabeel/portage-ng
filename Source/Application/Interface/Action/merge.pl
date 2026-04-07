@@ -48,8 +48,7 @@ action:process_action(Action,ArgsSets,Options) :-
   (Mode == 'client' ->
     (client:rpc_execute(Host,Port,
      (pipeline:prove_plan_with_fallback(Proposal, ProofAVL, ModelAVL, Plan, Triggers),
-      printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers),
-      ( PretendMode == false -> vdb:sync ; true )),
+      printer:print(Proposal,ModelAVL,ProofAVL,Plan,Triggers)),
      Output),
      writeln(Output));
     ( ( memberchk(timeout(TimeLimitSec), Options) -> true ; TimeLimitSec = 0 ),
@@ -109,9 +108,6 @@ action:process_action(Action,ArgsSets,Options) :-
       ( memberchk(ci(true), Options) ->
           interface:ci_exit_code(ModelAVL, ProofAVL, ExitCode),
           halt(ExitCode)
-      ; FallbackUsed == false,
-        PretendMode == false ->
-          vdb:sync
       ; true
       ),
       ( FallbackUsed == false,

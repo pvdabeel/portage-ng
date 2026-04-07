@@ -137,7 +137,6 @@ sync ::-
    forall(::repository(Repository),
  	 (message:header(['Syncing repository \"',Repository,'\"']),nl,
          Repository:sync)),!,
-   vdb:sync,
    true)).
 
 

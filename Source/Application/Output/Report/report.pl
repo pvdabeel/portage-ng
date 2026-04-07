@@ -31,7 +31,7 @@ available updates.
 
 report:check(Results) :-
   findall(Issue,
-    ( vdb:find_installed_pkg(portage://Entry),
+    ( vdb:installed_entry(Entry),
       report:check_entry(Entry, Issue)
     ),
     Results).

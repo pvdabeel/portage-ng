@@ -126,7 +126,7 @@ make_node(Repo, Entry, node(Entry, Cat, Name, Ver, Slot, Installed)) :-
     ->  atom_string(S, Slot)
     ;   Slot = "0"
     ),
-    (   cache:entry_metadata(Repo, Entry, installed, true)
+    (   cache:ordered_entry(pkg, Entry, _, _, _)
     ->  Installed = true
     ;   Installed = false
     ).

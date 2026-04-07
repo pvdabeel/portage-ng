@@ -76,7 +76,7 @@ build_tree(_Repo, package_dependency(_, Strength, Cat, Name, Cmpr, Ver, _, _),
             (   query:search([name(Name), category(Cat), select(version, Cmpr, Ver)],
                              _://Ch),
                 cache:ordered_entry(_, Ch, _, _, CandVer),
-                (   cache:entry_metadata(_, Ch, installed, true)
+                (   cache:ordered_entry(pkg, Ch, _, _, _)
                 ->  Inst = true
                 ;   Inst = false
                 )

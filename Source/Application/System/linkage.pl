@@ -31,7 +31,7 @@ shared library references. Produces a list of packages that need rebuilding.
 
 linkage:check(Results) :-
   findall(Entry-BrokenLibs,
-    ( vdb:find_installed_pkg(portage://Entry),
+    ( vdb:installed_entry(Entry),
       linkage:check_package(Entry, BrokenLibs),
       BrokenLibs \== []
     ),
