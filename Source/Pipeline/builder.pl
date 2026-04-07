@@ -268,7 +268,7 @@ builder:count_nonempty_steps([Step|Rest], Acc, Total) :-
 %! builder:is_executable_rule(+Rule) is semidet.
 
 builder:is_executable_rule(rule(_Repository://_Entry:_Action?{_Context}, _Body)) :- !.
-builder:is_executable_rule(rule(world_action(_Op, _Arg):world?{_Ctx}, _Body)) :- !.
+builder:is_executable_rule(rule(world(_Atom):_Action?{_Ctx}, _Body)) :- !.
 builder:is_executable_rule(_) :- fail.
 
 
@@ -338,10 +338,10 @@ builder:mark_skipped([slotted(LineOff, TotalLines, PlanStep, NumSteps, ActionIdx
     build:update_slot(LineOff, TotalLines, skipped, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry)),
   builder:mark_skipped(Rest, TotalLines).
 
-builder:mark_skipped([slotted(LineOff, TotalLines, PlanStep, NumSteps, ActionIdx, rule(world_action(Op, Arg):world?{_Ctx}, _Body), _FileInfo)|Rest], _) :-
+builder:mark_skipped([slotted(LineOff, TotalLines, PlanStep, NumSteps, ActionIdx, rule(world(Atom):Action?{_Ctx}, _Body), _FileInfo)|Rest], _) :-
   !,
   with_mutex(build_display,
-    build:update_slot(LineOff, TotalLines, skipped, PlanStep, NumSteps, ActionIdx, Op, Arg)),
+    build:update_slot(LineOff, TotalLines, skipped, PlanStep, NumSteps, ActionIdx, Action, Atom)),
   builder:mark_skipped(Rest, TotalLines).
 
 builder:mark_skipped([_|Rest], TotalLines) :-
@@ -504,9 +504,9 @@ builder:register_slot_info([slotted(LineOff, _TotalLines, PlanStep, NumSteps, Ac
   assertz(builder:slot_info(LineOff, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry)),
   builder:register_slot_info(Rest).
 
-builder:register_slot_info([slotted(LineOff, _TotalLines, PlanStep, NumSteps, ActionIdx, rule(world_action(Op, Arg):world?{_Ctx}, _Body), _FileInfo)|Rest]) :-
+builder:register_slot_info([slotted(LineOff, _TotalLines, PlanStep, NumSteps, ActionIdx, rule(world(Atom):Action?{_Ctx}, _Body), _FileInfo)|Rest]) :-
   !,
-  assertz(builder:slot_info(LineOff, PlanStep, NumSteps, ActionIdx, Op, Arg)),
+  assertz(builder:slot_info(LineOff, PlanStep, NumSteps, ActionIdx, Action, Atom)),
   builder:register_slot_info(Rest).
 
 builder:register_slot_info([_|Rest]) :-
@@ -572,12 +572,12 @@ builder:execute_build_job(
   builder:dispatch_suggestions(Ctx).
 
 builder:execute_build_job(
-    slotted(LineOff, TotalLines, PlanStep, NumSteps, ActionIdx, rule(world_action(Op, Arg):world?{_Ctx}, _Body), _FileInfo),
+    slotted(LineOff, TotalLines, PlanStep, NumSteps, ActionIdx, rule(world(Atom):Action?{_Ctx}, _Body), _FileInfo),
     _WorkerSlot, result(LineOff, display_handled(done))) :-
   !,
-  builder:execute_world_action(Op, Arg),
+  builder:execute_world(Action, Atom),
   with_mutex(build_display,
-    build:update_slot(LineOff, TotalLines, done, PlanStep, NumSteps, ActionIdx, Op, Arg)).
+    build:update_slot(LineOff, TotalLines, done, PlanStep, NumSteps, ActionIdx, Action, Atom)).
 
 builder:execute_build_job(_, _WorkerSlot, result(0, stub)).
 
@@ -1247,13 +1247,13 @@ builder:maybe_quickpkg_old(_, _).
 %  World action execution (stubs)
 % =============================================================================
 
-%! builder:execute_world_action(+Op, +Arg) is det.
+%! builder:execute_world(+Op, +Arg) is det.
 %
 % Stub for world set modifications. Currently a no-op; future
 % implementation will call world:register/1 or world:unregister/1.
 
-builder:execute_world_action(register, _Arg).
-builder:execute_world_action(unregister, _Arg).
+builder:execute_world(register, _Arg).
+builder:execute_world(unregister, _Arg).
 
 
 % =============================================================================

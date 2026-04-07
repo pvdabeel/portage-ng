@@ -139,9 +139,9 @@ build:print_job_slots([slotted(_LineOff, _TotalLines, PlanStep, NumSteps, Action
   ),
   build:print_job_slots(Rest, NumSteps).
 
-build:print_job_slots([slotted(_LineOff, _TotalLines, PlanStep, NumSteps, ActionIdx, rule(world_action(Op, Arg):world?{_Ctx}, _Body), _SubInfo)|Rest], _) :-
+build:print_job_slots([slotted(_LineOff, _TotalLines, PlanStep, NumSteps, ActionIdx, rule(world(Atom):Action?{_Ctx}, _Body), _SubInfo)|Rest], _) :-
   !,
-  build:render_slot(pending, PlanStep, NumSteps, ActionIdx, Op, Arg),
+  build:render_slot(pending, PlanStep, NumSteps, ActionIdx, Action, Atom),
   nl,
   build:print_job_slots(Rest, NumSteps).
 
@@ -172,9 +172,9 @@ build:print_skipped_slots([slotted(_LineOff, _TotalLines, PlanStep, NumSteps, Ac
   ),
   build:print_skipped_slots(Rest, NumSteps).
 
-build:print_skipped_slots([slotted(_LineOff, _TotalLines, PlanStep, NumSteps, ActionIdx, rule(world_action(Op, Arg):world?{_Ctx}, _Body), _SubInfo)|Rest], _) :-
+build:print_skipped_slots([slotted(_LineOff, _TotalLines, PlanStep, NumSteps, ActionIdx, rule(world(Atom):Action?{_Ctx}, _Body), _SubInfo)|Rest], _) :-
   !,
-  build:render_slot(skipped, PlanStep, NumSteps, ActionIdx, Op, Arg),
+  build:render_slot(skipped, PlanStep, NumSteps, ActionIdx, Action, Atom),
   nl,
   build:print_skipped_slots(Rest, NumSteps).
 

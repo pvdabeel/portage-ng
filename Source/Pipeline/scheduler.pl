@@ -186,7 +186,7 @@ scheduler:reorder_waves_by_refcount([Wave|Ws], RefCountMap, [Sorted|Rs]) :-
 %  Enforce ordering-only constraints (after_only)
 % -----------------------------------------------------------------------------
 %
-% `featureterm:ctx_add_after_condition/4` represents after_only/1 as:
+% `featureterm:add_after_condition/4` represents after_only/1 as:
 %   constraint(order_after(Anchor):{[]})
 %
 % The wave planner ignores constraints, so we enforce them here by reordering the

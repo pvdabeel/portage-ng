@@ -208,8 +208,8 @@ explain:format_one_entry(ProofAVL, TriggersAVL, Proposal, step(Step, Rule), Text
         ], Text)
      ;  format(atom(Text), '  [Step ~w] ~w://~w [~w]~n', [Step, Repo, Entry, Action])
      )
-  ;  Rule = rule(world_action(Op, Arg):world?{_}, _)
-  -> format(atom(Text), '  [Step ~w] @world: ~w ~w~n', [Step, Op, Arg])
+  ;  Rule = rule(world(Atom):Action?{_}, _)
+  -> format(atom(Text), '  [Step ~w] @world: ~w ~w~n', [Step, Action, Atom])
   ;  Text = ''
   ).
 

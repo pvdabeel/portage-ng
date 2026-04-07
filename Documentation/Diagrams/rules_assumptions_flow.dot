@@ -30,12 +30,12 @@ digraph rules_assumptions_bpmn {
 
     b_kind [shape=diamond, label="blocker strength?"];
 
-    b_pkg_weak [shape=box, label="package_dependency(weak):\nassume blocker + emit\nblocker_source_constraints"];
+    b_pkg_weak [shape=box, label="package_dependency(weak):\nassume blocker + emit\nmake_blocker_constraint"];
     b_pkg_strong [shape=diamond, label="package_dependency(strong):\nbracket USE?"];
     b_pkg_strong_uncond [shape=box, label="unconditional (U == []):\nconstraint(blocked_cn(C,N))"];
     b_pkg_strong_cond [shape=box, label="conditional (U \\= []):\nassume blocker (avoid over-approximation)"];
 
-    b_grouped_weak [shape=box, label="grouped_package_dependency(weak):\ncandidate:grouped_blocker_specs → all assumed\n+ blocker_source_constraints"];
+    b_grouped_weak [shape=box, label="grouped_package_dependency(weak):\ncandidate:grouped_blocker_specs → all assumed\n+ make_blocker_constraint"];
     b_grouped_strong [shape=box, label="grouped_package_dependency(strong):\ncandidate:grouped_blocker_specs_partition(...,\nEnforceSpecs, AssumeSpecs)"];
 
     b_assume_blockers [shape=diamond, label="rules:assume_blockers?"];

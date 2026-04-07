@@ -42,7 +42,7 @@ only the directives from the current dependency edge apply.
 
 REQUIRED_USE evaluation checks whether the current effective USE state
 satisfies boolean constraints (any-of, exactly-one-of, at-most-one-of,
-conditionals).  `required_use_term_satisfied/1` drives this recursively.
+conditionals).  `required_use_term_satisfied/2` drives this recursively.
 
 == Newuse ==
 
@@ -82,15 +82,12 @@ feature_unification:val_hook([], use_state(En, Dis), use_state(En, Dis)) :- !.
 %! use:effective_use_in_context(+Context, +Use, -State)
 %
 % Determine the effective state of USE flag Use for the ebuild identified
-% by the `self/1` term in Context (or the global `query_required_use_self`).
-% State is unified with `positive` or `negative`.
-% Results are memoized in memo:eff_use_cache_/4.
+% by the `self/1` term in Context. State is unified with `positive` or
+% `negative`. Results are memoized in memo:eff_use_cache_/4.
 
 use:effective_use_in_context(Context, Use, State) :-
-  ( memberchk(self(RepoEntry0), Context) ->
-      RepoEntry0 = Repo://Id
-  ; nb_current(query_required_use_self, Repo://Id)
-  ),
+  memberchk(self(RepoEntry0), Context),
+  RepoEntry0 = Repo://Id,
   \+ Use =.. [minus,_],
   ( memo:eff_use_cache_(Repo, Id, Use, Cached) ->
       State = Cached
@@ -398,39 +395,39 @@ use:required_use_group_excess_flags(Deps, Flag) :-
 %  Context helpers for per-package USE (build_with_use)
 % =============================================================================
 
-%! use:ctx_assumed(+Context, +Use)
+%! use:assumed(+Context, +Use)
 %
 % True if Use is positively assumed in Context -- either via an explicit
 % `assumed(Use)` term or via the enable set of a `build_with_use` state.
 
-use:ctx_assumed(Ctx, Use) :-
+use:assumed(Ctx, Use) :-
   memberchk(assumed(Use), Ctx),
   !.
-use:ctx_assumed(Ctx, Use) :-
+use:assumed(Ctx, Use) :-
   memberchk(build_with_use:BU, Ctx),
   BU = use_state(En, _Dis),
   memberchk(Use, En),
   !.
-use:ctx_assumed(Ctx, Use) :-
+use:assumed(Ctx, Use) :-
   memberchk(build_with_use:BU, Ctx),
   is_list(BU),
   memberchk(assumed(Use), BU),
   !.
 
-%! use:ctx_assumed_minus(+Context, +Use)
+%! use:assumed_minus(+Context, +Use)
 %
 % True if Use is negatively assumed in Context -- either via an explicit
 % `assumed(minus(Use))` term or via the disable set of a `build_with_use`.
 
-use:ctx_assumed_minus(Ctx, Use) :-
+use:assumed_minus(Ctx, Use) :-
   memberchk(assumed(minus(Use)), Ctx),
   !.
-use:ctx_assumed_minus(Ctx, Use) :-
+use:assumed_minus(Ctx, Use) :-
   memberchk(build_with_use:BU, Ctx),
   BU = use_state(_En, Dis),
   memberchk(Use, Dis),
   !.
-use:ctx_assumed_minus(Ctx, Use) :-
+use:assumed_minus(Ctx, Use) :-
   memberchk(build_with_use:BU, Ctx),
   is_list(BU),
   memberchk(assumed(minus(Use)), BU),
@@ -515,9 +512,9 @@ use:use_dep_requirement(_Ctx, enable(Use), Default, requirement(enable, Use, Def
 use:use_dep_requirement(_Ctx, disable(Use), Default, requirement(disable, Use, Default)) :- !.
 
 use:use_dep_requirement(Ctx, equal(Use), Default, requirement(enable, Use, Default)) :-
-  use:ctx_assumed(Ctx, Use), !.
+  use:assumed(Ctx, Use), !.
 use:use_dep_requirement(Ctx, equal(Use), Default, requirement(disable, Use, Default)) :-
-  use:ctx_assumed_minus(Ctx, Use), !.
+  use:assumed_minus(Ctx, Use), !.
 use:use_dep_requirement(Ctx, equal(Use), Default, requirement(enable, Use, Default)) :-
   use:effective_use_in_context(Ctx, Use, positive), !.
 use:use_dep_requirement(Ctx, equal(Use), Default, requirement(disable, Use, Default)) :-
@@ -530,9 +527,9 @@ use:use_dep_requirement(_Ctx, equal(Use), Default, Requirement) :-
   !.
 
 use:use_dep_requirement(Ctx, inverse(Use), Default, requirement(disable, Use, Default)) :-
-  use:ctx_assumed(Ctx, Use), !.
+  use:assumed(Ctx, Use), !.
 use:use_dep_requirement(Ctx, inverse(Use), Default, requirement(enable, Use, Default)) :-
-  use:ctx_assumed_minus(Ctx, Use), !.
+  use:assumed_minus(Ctx, Use), !.
 use:use_dep_requirement(Ctx, inverse(Use), Default, requirement(disable, Use, Default)) :-
   use:effective_use_in_context(Ctx, Use, positive), !.
 use:use_dep_requirement(Ctx, inverse(Use), Default, requirement(enable, Use, Default)) :-
@@ -545,7 +542,7 @@ use:use_dep_requirement(_Ctx, inverse(Use), Default, Requirement) :-
   !.
 
 use:use_dep_requirement(Ctx, optenable(Use), Default, requirement(enable, Use, Default)) :-
-  ( use:ctx_assumed(Ctx, Use)
+  ( use:assumed(Ctx, Use)
   ; use:self_context_use_state(Ctx, Use, positive)
   ; \+ memberchk(self(_), Ctx),
     use:effective_use_in_context(Ctx, Use, positive)
@@ -554,7 +551,7 @@ use:use_dep_requirement(Ctx, optenable(Use), Default, requirement(enable, Use, D
 use:use_dep_requirement(_Ctx, optenable(_Use), _Default, none) :- !.
 
 use:use_dep_requirement(Ctx, optdisable(Use), Default, requirement(disable, Use, Default)) :-
-  ( use:ctx_assumed_minus(Ctx, Use)
+  ( use:assumed_minus(Ctx, Use)
   ; use:self_context_use_state(Ctx, Use, negative)
   ; \+ memberchk(self(_), Ctx),
     use:effective_use_in_context(Ctx, Use, negative)
@@ -969,44 +966,43 @@ use:symmetric_diff_nonempty(A, B) :-
 %  REQUIRED_USE helpers
 % =============================================================================
 
-%! use:required_use_term_satisfied(+Term)
+%! use:required_use_term_satisfied(+Context, +Term)
 %
 % Recursively check whether a REQUIRED_USE term is satisfied by the
-% current effective USE state. Handles required/1, use_conditional_group/4,
-% any_of_group/1, exactly_one_of_group/1, and at_most_one_of_group/1.
+% effective USE state for the ebuild identified by self/1 in Context.
+% Handles required/1, use_conditional_group/4, any_of_group/1,
+% exactly_one_of_group/1, and at_most_one_of_group/1.
 
-use:required_use_term_satisfied(required(Use)) :-
+use:required_use_term_satisfied(Ctx, required(Use)) :-
   \+ Use =.. [minus,_],
-  use:effective_use_in_context([], Use, positive),
+  use:effective_use_in_context(Ctx, Use, positive),
   !.
-use:required_use_term_satisfied(required(minus(Use))) :-
+use:required_use_term_satisfied(Ctx, required(minus(Use))) :-
   \+ Use =.. [minus,_],
-  use:effective_use_in_context([], Use, negative),
+  use:effective_use_in_context(Ctx, Use, negative),
   !.
-use:required_use_term_satisfied(use_conditional_group(positive, Use, Self, Deps)) :-
-  nb_current(query_required_use_self, Self),
-  ( use:effective_use_in_context([], Use, positive) ->
-      forall(member(D, Deps), use:required_use_term_satisfied(D))
+use:required_use_term_satisfied(Ctx, use_conditional_group(positive, Use, _Self, Deps)) :-
+  ( use:effective_use_in_context(Ctx, Use, positive) ->
+      forall(member(D, Deps), use:required_use_term_satisfied(Ctx, D))
   ; true
   ),
   !.
-use:required_use_term_satisfied(use_conditional_group(negative, Use, Self, Deps)) :-
-  nb_current(query_required_use_self, Self),
-  ( use:effective_use_in_context([], Use, negative) ->
-      forall(member(D, Deps), use:required_use_term_satisfied(D))
+use:required_use_term_satisfied(Ctx, use_conditional_group(negative, Use, _Self, Deps)) :-
+  ( use:effective_use_in_context(Ctx, Use, negative) ->
+      forall(member(D, Deps), use:required_use_term_satisfied(Ctx, D))
   ; true
   ),
   !.
-use:required_use_term_satisfied(any_of_group(Deps)) :-
+use:required_use_term_satisfied(Ctx, any_of_group(Deps)) :-
   member(D, Deps),
-  use:required_use_term_satisfied(D),
+  use:required_use_term_satisfied(Ctx, D),
   !.
-use:required_use_term_satisfied(exactly_one_of_group(Deps)) :-
-  findall(1, (member(D, Deps), use:required_use_term_satisfied(D)), Ones),
+use:required_use_term_satisfied(Ctx, exactly_one_of_group(Deps)) :-
+  findall(1, (member(D, Deps), use:required_use_term_satisfied(Ctx, D)), Ones),
   length(Ones, 1),
   !.
-use:required_use_term_satisfied(at_most_one_of_group(Deps)) :-
-  findall(1, (member(D, Deps), use:required_use_term_satisfied(D)), Ones),
+use:required_use_term_satisfied(Ctx, at_most_one_of_group(Deps)) :-
+  findall(1, (member(D, Deps), use:required_use_term_satisfied(Ctx, D)), Ones),
   length(Ones, N),
   N =< 1,
   !.

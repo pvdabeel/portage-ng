@@ -112,7 +112,7 @@ action:process_action(Action,ArgsSets,Options) :-
       ),
       ( FallbackUsed == false,
         PretendMode == false ->
-            execute_world_actions_from_plan(Plan),
+            execute_world_plan(Plan),
             world:save
         ; true
         )
@@ -123,32 +123,32 @@ action:process_action(Action,ArgsSets,Options) :-
 %  Side effects: execute planned world actions
 % -----------------------------------------------------------------------------
 
-%! action:execute_world_actions_from_plan(+Plan) is det.
+%! action:execute_world_plan(+Plan) is det.
 %
 % Walks the plan (list of steps, each a list of rules) and executes any
-% world_action/2 side effects (register/unregister packages in @world).
+% world(Atom):Action side effects (register/unregister packages in @world).
 
-action:execute_world_actions_from_plan([]) :- !.
-action:execute_world_actions_from_plan([Step|Rest]) :-
-  execute_world_actions_step(Step),
-  execute_world_actions_from_plan(Rest).
+action:execute_world_plan([]) :- !.
+action:execute_world_plan([Step|Rest]) :-
+  execute_world_step(Step),
+  execute_world_plan(Rest).
 
-%! action:execute_world_actions_step(+Step) is det.
+%! action:execute_world_step(+Step) is det.
 %
-% Processes a single plan step (list of rules), executing world_action
-% side effects for any rule whose head is world_action(Op, Arg):world.
+% Processes a single plan step (list of rules), executing world
+% side effects for any rule whose head is world(Atom):Action.
 
-action:execute_world_actions_step([]) :- !.
-action:execute_world_actions_step([Rule|Rest]) :-
+action:execute_world_step([]) :- !.
+action:execute_world_step([Rule|Rest]) :-
   ( Rule = rule(Head,_Body),
     prover:canon_literal(Head, Core, _Ctx),
-    Core = world_action(Op, Arg):world ->
-      ( Op == register ->
-          world:register(Arg)
-      ; Op == unregister ->
-          world:unregister(Arg)
+    Core = world(Atom):Action ->
+      ( Action == register ->
+          world:register(Atom)
+      ; Action == unregister ->
+          world:unregister(Atom)
       ; true
       )
   ; true
   ),
-  execute_world_actions_step(Rest).
+  execute_world_step(Rest).

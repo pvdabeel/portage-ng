@@ -118,6 +118,21 @@ user:goal_expansion(search(Q, Repo://Id), Expanded) :-
   compound(Q),!,
   compile_query_compound(Q, Repo://Id, Expanded).
 
+user:goal_expansion(candidate:installed(Repo://Id),
+  (cache:ordered_entry(pkg, Id, _, _, _), (var(Repo) -> Repo = pkg ; true))).
+
+user:goal_expansion(candidate:eligible(Repo://Id:download?{_}),
+  cache:ordered_entry(Repo, Id, _, _, _)).
+
+user:goal_expansion(candidate:eligible(Repo://Id:_Action?{_}),
+  ( ( preference:masked(Repo://Id) -> prover:assuming(unmask) ; true ),
+    ( candidate:entry_has_accepted_keyword(Repo://Id) -> true
+    ; prover:assuming(keyword_acceptance) )
+  )).
+
+user:goal_expansion(candidate:resolve(_Repo://_Id:download?{Context}, Conditions),
+  featureterm:get(after, Context, Conditions)).
+
 user:goal_expansion(version_domain:normalize_version_term(V, V1),
   ( nonvar(V), functor(V, version, 7)
   -> V1 = V
@@ -186,21 +201,28 @@ query:pdepend_dep_as_pdepend(T, T).
 
 
 % -----------------------------------------------------------------------------
-%  Helpers: thread required_use "self" through proof
+%  Helpers: annotate REQUIRED_USE terms for :validate proof
 % -----------------------------------------------------------------------------
 %
 % The REQUIRED_USE grammar contains pure boolean constraints over USE flags.
-% When proving it, we need access to the current ebuild to prefer alternatives
-% already satisfied by effective USE (IUSE defaults + profile/env/package.use).
+% When proving them, we annotate every term with :validate?{[self(Self)]} so
+% the rules know (a) we are validating, and (b) which ebuild provides the
+% effective USE context.  No global flag is needed.
 %
-query:with_required_use_self(Self, Goal) :-
-  ( nb_current(query_required_use_self, Old) -> HadOld = true ; HadOld = false ),
-  nb_setval(query_required_use_self, Self),
-  setup_call_cleanup(true,
-                     Goal,
-                     ( HadOld == true -> nb_setval(query_required_use_self, Old)
-                     ; nb_delete(query_required_use_self)
-                     )).
+query:with_required_use_validate(Self, Terms, AnnotatedTerms) :-
+  Ctx = [self(Self)],
+  maplist(query:annotate_validate(Ctx), Terms, AnnotatedTerms).
+
+query:annotate_validate(Ctx, T, T:validate?{Ctx}).
+
+
+%! query:strip_validate_annotation(+AnnotatedKey, -Key)
+%
+% Strips :validate?{_} annotation from model keys produced by
+% REQUIRED_USE validation. Non-annotated keys pass through unchanged.
+
+query:strip_validate_annotation(AKey, Key) :-
+  ( AKey = Key0:validate -> Key = Key0 ; Key = AKey ).
 
 
 % 1. syntactic suggar
@@ -788,10 +810,11 @@ compile_query_compound(model(FullModel,required_use(Model),build_with_use(Input)
             cache:entry_metadata(Repo,Id,required_use,ReqUse),
             AllReqUse),
     sort(AllReqUse, AllReqUseU),
-    query:with_required_use_self(Repo://Id,
-      prover:prove_model(AllReqUseU, t, AvlModel, t, _ConsOut, t)),
+    query:with_required_use_validate(Repo://Id, AllReqUseU, AnnotatedReqUse),
+    prover:prove_model(AnnotatedReqUse, t, AvlModel, t, _ConsOut, t),
     findall(Key,
-            (gen_assoc(Key,AvlModel,_),
+            (gen_assoc(AKey,AvlModel,_),
+             query:strip_validate_annotation(AKey, Key),
    	     \+eapi:abstract_syntax_construct(Key)),
             Model),
     % FullModel is a compact context passed into dependency-model construction.
@@ -824,10 +847,11 @@ compile_query_compound(model(required_use(Model)), Repo://Id,
             cache:entry_metadata(Repo,Id,required_use,ReqUse),
             AllReqUse),
     sort(AllReqUse, AllReqUseU),
-    query:with_required_use_self(Repo://Id,
-      prover:prove_model(AllReqUseU, t, AvlModel, t, _ConsOut, t)),
+    query:with_required_use_validate(Repo://Id, AllReqUseU, AnnotatedReqUse2),
+    prover:prove_model(AnnotatedReqUse2, t, AvlModel, t, _ConsOut, t),
     findall(Key,
-            (gen_assoc(Key,AvlModel,_Value),
+            (gen_assoc(AKey,AvlModel,_Value),
+             query:strip_validate_annotation(AKey, Key),
    	     \+eapi:abstract_syntax_construct(Key)),
             Model) ) ) :- !.
 
@@ -1631,12 +1655,32 @@ keyed_group_to_dep((_Phase-T-C-N-_S:Action?{Context})-Group,
 % Groups dependencies by their key (Phase, BlockType, Category, Name, Slot).
 % Uses msort + group_pairs_by_key for O(n log n) grouping instead of the
 % O(n * g) group_by/4 + member/2 approach.
+%
+% After grouping, multi-slot groups (deps targeting distinct slots or
+% distinct exactish versions of the same C/N) are split back into
+% individual singleton groups so each slot is resolved independently.
 
 group_dependencies(L, Groups) :-
     maplist(dep_to_keyed_pair, L, Pairs),
     msort(Pairs, Sorted),
     group_pairs_by_key(Sorted, Grouped),
-    maplist(keyed_group_to_dep, Grouped, Groups).
+    maplist(keyed_group_to_dep, Grouped, Groups0),
+    foldl(split_multislot_group, Groups0, [], GroupsRev),
+    reverse(GroupsRev, Groups).
+
+
+%! split_multislot_group(+GroupedDep, +Acc, -Acc1)
+%
+% If a regular (no-blocker) group contains deps that target multiple
+% slots or multiple exactish versions, split it into one singleton
+% group per dep. Otherwise keep the group as-is.
+
+split_multislot_group(grouped_package_dependency(no,C,N,PackageDeps):Action?{Ctx}, Acc, Acc1) :-
+    candidate:should_split_grouped_dep(PackageDeps),
+    !,
+    foldl([D,A0,[grouped_package_dependency(no,C,N,[D]):Action?{Ctx}|A0]]>>true,
+          PackageDeps, Acc, Acc1).
+split_multislot_group(Group, Acc, [Group|Acc]).
 
 
 

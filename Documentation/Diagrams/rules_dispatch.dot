@@ -1,0 +1,194 @@
+/*
+  rules_dispatch.dot — Visual overview of rules:rule/2 dispatch in rules.pl
+
+  Shows which rule literals delegate to which candidate:/target: predicates
+  and what kind of proof conditions each resolve path produces.
+
+  Generate SVG:  dot -Tsvg rules_dispatch.dot -o rules_dispatch.svg
+*/
+
+digraph rules_dispatch {
+  rankdir=LR;
+  fontname="Helvetica";
+  node [fontname="Helvetica", fontsize=10, shape=box, style="rounded,filled", fillcolor="#f0f4ff"];
+  edge [fontname="Helvetica", fontsize=9];
+
+  /* ── Cluster: User-facing targets ───────────────────────────────── */
+
+  subgraph cluster_targets {
+    label="Ruleset: TARGET";
+    style=dashed; color="#888888"; fontcolor="#555555";
+
+    target_fetchonly  [label="target(Q,Arg)\n:fetchonly"];
+    target_uninstall  [label="target(Q,Arg)\n:uninstall"];
+    target_run        [label="target(Q,Arg)\n:run"];
+  }
+
+  /* ── Cluster: World ─────────────────────────────────────────────── */
+
+  subgraph cluster_world {
+    label="Ruleset: WORLD";
+    style=dashed; color="#888888"; fontcolor="#555555";
+
+    world [label="world(Atom)\n:register / :unregister"];
+  }
+
+  /* ── Cluster: Ebuild actions ────────────────────────────────────── */
+
+  subgraph cluster_ebuild {
+    label="Ruleset: EBUILD";
+    style=dashed; color="#888888"; fontcolor="#555555";
+
+    fetchonly   [label="R://E:fetchonly"];
+    download    [label="R://E:download"];
+    install     [label="R://E:install"];
+    run         [label="R://E:run"];
+    reinstall   [label="R://E:reinstall"];
+    uninstall   [label="R://E:uninstall"];
+    update      [label="R://E:update"];
+    downgrade   [label="R://E:downgrade"];
+    upgrade     [label="R://E:upgrade"];
+  }
+
+  /* ── Cluster: Dependency resolution ─────────────────────────────── */
+
+  subgraph cluster_deps {
+    label="Ruleset: DEPENDENCIES";
+    style=dashed; color="#888888"; fontcolor="#555555";
+
+    pkg_dep_config  [label="package_dependency\n:config"];
+    weak_blocker    [label="grouped_package_dependency\n(weak)"];
+    strong_blocker  [label="grouped_package_dependency\n(strong)"];
+    grouped_dep     [label="grouped_package_dependency\n(no)"];
+  }
+
+  /* ── Delegation predicates (candidate: / target:) ───────────────── */
+
+  node [shape=ellipse, fillcolor="#e8f5e9"];
+
+  resolve_candidate           [label="target:\nresolve_candidate"];
+  resolve_installed_candidate [label="target:\nresolve_installed_candidate"];
+  eligible                    [label="candidate:\neligible"];
+  installed                   [label="candidate:\ninstalled"];
+
+  node [shape=ellipse, fillcolor="#fff3e0"];
+
+  resolve_fetchonly    [label="candidate:resolve\n(R://E:fetchonly)"];
+  resolve_download     [label="candidate:resolve\n(R://E:download)"];
+  resolve_install      [label="candidate:resolve\n(R://E:install)"];
+  resolve_run          [label="candidate:resolve\n(R://E:run)"];
+  resolve_update       [label="candidate:resolve\n(R://E:update)"];
+  resolve_downgrade    [label="candidate:resolve\n(R://E:downgrade)"];
+  resolve_upgrade      [label="candidate:resolve\n(R://E:upgrade)"];
+  resolve_weak_blocker [label="candidate:resolve\n(weak_blocker)"];
+  resolve_strong_blocker[label="candidate:resolve\n(strong_blocker)"];
+  resolve_grouped_dep  [label="candidate:resolve\n(grouped_dep)"];
+
+  is_self_dep          [label="candidate:\nis_self_dep"];
+
+  /* ── Condition outputs ──────────────────────────────────────────── */
+
+  node [shape=note, fillcolor="#fce4ec", fontsize=8];
+
+  cond_subgoals        [label="sub-goals\n(R://E:action)"];
+  cond_selected_cn     [label="constraint\n(selected_cn)"];
+  cond_cn_domain       [label="constraint\n(cn_domain)"];
+  cond_selected_slot   [label="constraint\n(selected_slot)"];
+  cond_download        [label="download\nsub-goal"];
+  cond_deps            [label="dependency\nsub-goals"];
+  cond_blocked_cn_src  [label="constraint\n(blocked_cn_source)"];
+  cond_blocked_cn      [label="constraint\n(blocked_cn)"];
+  cond_assumed_blocker [label="assumed\n(blocker(...))"];
+  cond_assumed_nonexist[label="assumed\n(non_existent)"];
+  cond_replacement     [label="R://Old:run\n{replaces(...)}"];
+  cond_empty           [label="[] (satisfied)"];
+  cond_world           [label="world(Atom)\n:register/unregister"];
+
+  /* ── Edges: target → resolution ─────────────────────────────────── */
+
+  target_fetchonly -> resolve_candidate;
+  target_fetchonly -> cond_subgoals [style=dotted, label="R://E:fetchonly"];
+
+  target_uninstall -> resolve_installed_candidate;
+  target_uninstall -> cond_subgoals [style=dotted, label="R://E:uninstall"];
+  target_uninstall -> cond_world [style=dotted];
+
+  target_run -> resolve_candidate;
+  target_run -> cond_subgoals [style=dotted, label="R://E:run"];
+  target_run -> cond_world [style=dotted];
+
+  world -> cond_empty [label="after(...)\nordering"];
+
+  /* ── Edges: ebuild → eligible + resolve ─────────────────────────── */
+
+  fetchonly  -> eligible;
+  fetchonly  -> installed [label="short-circuit\nif installed"];
+  fetchonly  -> resolve_fetchonly;
+
+  download   -> eligible;
+  download   -> resolve_download;
+
+  install    -> eligible;
+  install    -> installed [label="short-circuit\nif installed"];
+  install    -> resolve_install;
+
+  run        -> eligible;
+  run        -> installed [label="short-circuit\nif installed"];
+  run        -> resolve_run;
+
+  reinstall  -> installed;
+  uninstall  -> installed;
+
+  update     -> eligible;
+  update     -> resolve_update;
+
+  downgrade  -> eligible;
+  downgrade  -> resolve_downgrade;
+
+  upgrade    -> eligible;
+  upgrade    -> resolve_upgrade;
+
+  /* ── Edges: resolve → conditions ────────────────────────────────── */
+
+  resolve_fetchonly -> cond_download;
+  resolve_fetchonly -> cond_deps;
+
+  resolve_download -> cond_download;
+
+  resolve_install -> cond_selected_cn;
+  resolve_install -> cond_cn_domain;
+  resolve_install -> cond_selected_slot;
+  resolve_install -> cond_download;
+  resolve_install -> cond_deps [label="compile-time"];
+
+  resolve_run -> cond_selected_cn;
+  resolve_run -> cond_cn_domain;
+  resolve_run -> cond_deps [label="runtime"];
+  resolve_run -> cond_subgoals [label="R://E:install"];
+
+  resolve_update    -> cond_replacement;
+  resolve_downgrade -> cond_replacement;
+  resolve_upgrade   -> cond_replacement;
+
+  /* ── Edges: dependencies ────────────────────────────────────────── */
+
+  pkg_dep_config -> is_self_dep [label="guard"];
+  pkg_dep_config -> cond_empty;
+
+  weak_blocker   -> resolve_weak_blocker;
+  strong_blocker -> resolve_strong_blocker;
+  grouped_dep    -> resolve_grouped_dep;
+
+  resolve_weak_blocker -> cond_blocked_cn_src;
+  resolve_weak_blocker -> cond_assumed_blocker;
+
+  resolve_strong_blocker -> cond_blocked_cn [label="unconditional"];
+  resolve_strong_blocker -> cond_blocked_cn_src;
+  resolve_strong_blocker -> cond_assumed_blocker [label="USE-conditional"];
+
+  resolve_grouped_dep -> cond_empty [label="self-satisfied\nor keep-installed"];
+  resolve_grouped_dep -> cond_selected_cn;
+  resolve_grouped_dep -> cond_cn_domain;
+  resolve_grouped_dep -> cond_deps;
+  resolve_grouped_dep -> cond_assumed_nonexist [label="fallback"];
+}

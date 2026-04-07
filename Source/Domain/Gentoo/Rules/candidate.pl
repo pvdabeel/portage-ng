@@ -99,6 +99,32 @@ candidate:canon_any_same_slot_meta(Meta0, [slot(S)]) :-
   canon_slot(S0, S),
   !.
 
+%! candidate:is_self_dep(+C, +N, +Phase, +Context)
+%
+% True when Context indicates a build/install self-dependency: the
+% parent ebuild (self/1) has the same category and name as the dep.
+
+candidate:is_self_dep(C, N, Phase, Context) :-
+  memberchk(self(SelfRepo://SelfEntry), Context),
+  query:search([category(C),name(N)], SelfRepo://SelfEntry),
+  Phase \== run,
+  \+ preference:flag(emptytree).
+
+
+%! candidate:self_dep_satisfiable(+C, +N, +O, +V, +S, +Context)
+%
+% True when an installed version of C/N satisfies the version and slot
+% constraints. Fails otherwise, causing backtracking to bootstrap
+% alternatives.
+
+candidate:self_dep_satisfiable(C, N, O, V, S, Context) :-
+  preference:accept_keywords(K),
+  ( memberchk(slot(C,N,Ss):{_}, Context) -> true ; Ss = _ ),
+  query:search([name(N),category(C),keyword(K),installed(true),
+                select(version,O,V),select(slot,constraint(S),Ss)],
+               _://_).
+
+
 %! candidate:entry_slot_default(+Repo, +Entry, -Slot)
 %
 % Looks up the slot for an entry, defaulting to '0' if unset.
@@ -1164,67 +1190,61 @@ candidate:blocker_slot_matches(SlotReq, _SelSlotMeta, Repo, Entry) :-
 %  Blocker helpers
 % =============================================================================
 
-%! candidate:grouped_blocker_specs(+Strength, +Phase, +C, +N, +PackageDeps, -Specs)
+%! candidate:is_unconditional_dep(+PackageDep) is semidet.
 %
-% Collects all blocker specs from PackageDeps matching (C,N) into a sorted list.
+% True when a package_dependency has no USE condition (U == []).
 
-candidate:grouped_blocker_specs(Strength, Phase, C, N, PackageDeps, Specs) :-
+candidate:is_unconditional_dep(package_dependency(_Phase, _Strength, _C, _N, _O, _V, _S, U)) :-
+  U == [].
+
+
+%! candidate:make_enforced_specs(+PackageDeps, -Specs)
+%
+% Extracts blocked(...) spec terms from package_dependency terms
+% for use in the blocked_cn constraint store.
+
+candidate:make_enforced_specs(PackageDeps, Specs) :-
   findall(blocked(Strength, Phase, O, V, SlotReq),
-          ( member(package_dependency(Phase, Strength, C, N, O, V, SlotReq, _U), PackageDeps) ),
+          member(package_dependency(Phase, Strength, _C, _N, O, V, SlotReq, _U), PackageDeps),
           Specs0),
   sort(Specs0, Specs).
 
-%! candidate:grouped_blocker_specs_partition(+Strength, +Phase, +C, +N, +PackageDeps, -Enforce, -Assume)
+
+%! candidate:make_blocker_assumption(+Context, +PackageDeps, +C, +N, -Assumptions)
 %
-% Partitions blocker specs into unconditional (enforceable) and
-% USE-conditional (assumed). Unconditional blockers have empty USE
-% requirements; conditional blockers are recorded as assumptions.
+% Builds a list of assumed(blocker(...)) terms from package_dependency
+% terms, annotated with a minimal assumption context preserving the
+% self/1 reference from the original context if present.
 
-candidate:grouped_blocker_specs_partition(Strength, Phase, C, N, PackageDeps, EnforceSpecs, AssumeSpecs) :-
-  findall(blocked(Strength, Phase, O, V, SlotReq),
-          ( member(package_dependency(Phase, Strength, C, N, O, V, SlotReq, U), PackageDeps),
-            U == []
-          ),
-          Enforce0),
-  sort(Enforce0, EnforceSpecs),
-  findall(blocked(Strength, Phase, O, V, SlotReq),
-          ( member(package_dependency(Phase, Strength, C, N, O, V, SlotReq, U), PackageDeps),
-            U \== []
-          ),
-          Assume0),
-  sort(Assume0, AssumeSpecs),
-  !.
-
-%! candidate:blocker_assumption_ctx(+Ctx0, -AssCtx)
-%
-% Builds a minimal assumption context for blocker assumptions, preserving
-% the self/1 reference from the original context if present.
-
-candidate:blocker_assumption_ctx(Ctx0, AssCtx) :-
+candidate:make_blocker_assumption(Ctx0, PackageDeps, C, N, Assumptions) :-
   ( is_list(Ctx0),
     memberchk(self(Repo://Entry), Ctx0) ->
       AssCtx = [suggestion(loosen_blocker), assumption_reason(blocker_conflict), self(Repo://Entry)]
   ; AssCtx = [suggestion(loosen_blocker), assumption_reason(blocker_conflict)]
-  ).
+  ),
+  findall(assumed(blocker(Strength, Phase, C, N, O, V, SlotReq)?{AssCtx}),
+          member(package_dependency(Phase, Strength, C, N, O, V, SlotReq, _U), PackageDeps),
+          Assumptions).
 
-%! candidate:blocker_source_constraints(+C, +N, +Specs, +Context, -Constraints)
+
+%! candidate:make_blocker_constraint(+C, +N, +PackageDeps, +Context, -Constraints)
 %
 % Generates `blocked_cn_source` constraints that record which parent
 % entry introduced the blocker. Used for reprove source tracking.
 
-candidate:blocker_source_constraints(_C, _N, Specs, _Context, []) :-
-  Specs == [],
+candidate:make_blocker_constraint(_C, _N, PackageDeps, _Context, []) :-
+  PackageDeps == [],
   !.
-candidate:blocker_source_constraints(C, N, Specs, Context, [constraint(blocked_cn_source(C,N):{ordset(Sources)})]) :-
+candidate:make_blocker_constraint(C, N, PackageDeps, Context, [constraint(blocked_cn_source(C,N):{ordset(Sources)})]) :-
   is_list(Context),
   memberchk(self(SelfRepo://SelfEntry), Context),
   findall(source(SelfRepo,SelfEntry,Phase,O,V,SlotReq),
-          member(blocked(_Strength,Phase,O,V,SlotReq), Specs),
+          member(package_dependency(Phase, _Strength, _C, _N, O, V, SlotReq, _U), PackageDeps),
           Sources0),
   sort(Sources0, Sources),
   Sources \== [],
   !.
-candidate:blocker_source_constraints(_C, _N, _Specs, _Context, []) :-
+candidate:make_blocker_constraint(_C, _N, _PackageDeps, _Context, []) :-
   !.
 
 
@@ -2371,6 +2391,76 @@ candidate:dep_references_selected_cn(any_of_group(Deps)) :-
 
 
 % =============================================================================
+%  Candidate eligibility
+% =============================================================================
+
+%! candidate:eligible(+Literal) is semidet.
+%
+% Succeeds when the candidate is eligible for the given action.
+% Goal-expanded at compile time per action:
+%   - :download  — entry exists in the repository
+%   - all others — not masked (unless assuming unmask) and keyword-accepted
+%                   (unless assuming keyword_acceptance)
+
+candidate:eligible(Repo://Entry:download?{_}) :-
+  !,
+  query:search(ebuild(Entry), Repo://Entry).
+
+candidate:eligible(Repo://Entry:_Action?{_}) :-
+  ( query:search(masked(true), Repo://Entry) ->
+      prover:assuming(unmask)
+  ; true
+  ),
+  ( candidate:entry_has_accepted_keyword(Repo://Entry) ->
+      true
+  ; prover:assuming(keyword_acceptance)
+  ).
+
+
+%! candidate:eligible(use_conditional(+Polarity, +Use, +R://+E):+Action?{+Context})
+%
+% Succeeds when a USE conditional is active. Checks in order:
+%   1. Context-assumed (dependency-induced or required_use)
+%   2. Global profile USE on a non-IUSE flag (e.g. kernel_linux)
+%   3. Effective USE for the ebuild (IUSE defaults + profile/env/package.use)
+
+candidate:eligible(use_conditional(positive, Use, _R://_E):_?{Context}) :-
+  use:assumed(Context, Use), !.
+candidate:eligible(use_conditional(positive, Use, R://E):_?{_}) :-
+  \+ Use =.. [minus,_],
+  preference:global_use(Use),
+  \+ ( query:search(iuse(Value), R://E),
+       eapi:strip_use_default(Value, Use) ), !.
+candidate:eligible(use_conditional(positive, Use, R://E):_?{_}) :-
+  use:effective_use_for_entry(R://E, Use, positive), !.
+
+candidate:eligible(use_conditional(negative, Use, _R://_E):_?{Context}) :-
+  use:assumed_minus(Context, Use), !.
+candidate:eligible(use_conditional(negative, Use, R://E):_?{_}) :-
+  preference:global_use(minus(Use)),
+  \+ ( query:search(iuse(Value), R://E),
+       eapi:strip_use_default(Value, Use) ), !.
+candidate:eligible(use_conditional(negative, Use, R://E):_?{_}) :-
+  \+ preference:global_use(Use),
+  \+ preference:global_use(minus(Use)),
+  \+ ( query:search(iuse(Value), R://E),
+       eapi:strip_use_default(Value, Use) ), !.
+candidate:eligible(use_conditional(negative, Use, R://E):_?{_}) :-
+  use:effective_use_for_entry(R://E, Use, negative), !.
+
+
+
+
+%! candidate:installed(+RepoEntry) is semidet.
+%
+% Succeeds when the entry is installed (exists in the pkg repository).
+% Goal-expanded at compile time to cache:ordered_entry(pkg, Id, _, _, _).
+
+candidate:installed(Repo://Entry) :-
+  query:search(installed(true), Repo://Entry).
+
+
+% =============================================================================
 %  Keyword helpers
 % =============================================================================
 
@@ -2543,43 +2633,8 @@ candidate:group_choice_dep(D, D).
 
 
 % -----------------------------------------------------------------------------
-%  Grouped-dependency resolution (multi-clause orchestrator)
+%  Grouped-dependency resolution helpers
 % -----------------------------------------------------------------------------
-
-%! candidate:resolve_grouped_dep(+Action, +C, +N, +PackageDeps1, +PackageDepsOrig, +Context, -Conditions)
-%
-% Multi-clause orchestrator for the grouped_package_dependency rule.
-% Each clause implements one resolution path, tried in order:
-%   1. Self-satisfied (runtime self-dependency)
-%   2. Keep-installed (existing VDB entry satisfies all constraints)
-%   3. Candidate resolution (select, verify, assemble proof conditions)
-%   4. Learning / reprove (narrow parent domain or request reprove)
-%   5. Assumption fallback (mark as assumed with diagnostics)
-
-candidate:resolve_grouped_dep(run, C, N, _PackageDeps1, _PackageDepsOrig, Context, []) :-
-  memberchk(self(SelfRepo://SelfEntry), Context),
-  query:search([category(C),name(N)], SelfRepo://SelfEntry),
-  !.
-
-candidate:resolve_grouped_dep(Action, C, N, PackageDeps1, _PackageDepsOrig, Context, []) :-
-  \+ preference:flag(emptytree),
-  candidate:grouped_dep_keep_installed(Action, C, N, PackageDeps1, Context),
-  !.
-
-candidate:resolve_grouped_dep(Action, C, N, PackageDeps1, _PackageDepsOrig, Context, Conditions) :-
-  candidate:grouped_dep_select_and_build(Action, C, N, PackageDeps1, Context, Conditions).
-
-candidate:resolve_grouped_dep(_Action, C, N, PackageDeps1, _PackageDepsOrig, Context, _) :-
-  \+ memo:requse_violation_(C, N, _),
-  candidate:maybe_learn_parent_narrowing(C, N, PackageDeps1, Context),
-  fail.
-candidate:resolve_grouped_dep(Action, C, N, PackageDeps1, _PackageDepsOrig, Context, _) :-
-  \+ memo:requse_violation_(C, N, _),
-  candidate:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps1, Context),
-  fail.
-
-candidate:resolve_grouped_dep(Action, C, N, PackageDeps1, PackageDepsOrig, Context, Conditions) :-
-  candidate:grouped_dep_build_assumption(Action, C, N, PackageDeps1, PackageDepsOrig, Context, Conditions).
 
 
 % -----------------------------------------------------------------------------
@@ -2721,7 +2776,7 @@ candidate:grouped_dep_use_and_slot(_Action, C, N, PackageDeps1, SlotReq, Context
                                    Constraints, SlotMeta, NewerContext0) :-
   ( member(package_dependency(pdepend,_,C,N,_,_,_,_), PackageDeps1) ->
       MergedUse = [],
-      featureterm:ctx_drop_build_with_use_and_assumption_reason(Context, ContextDep)
+      featureterm:drop_build_with_use_and_assumption_reason(Context, ContextDep)
   ; findall(U0, member(package_dependency(_P2,no,C,N,_O,_V,_,U0),PackageDeps1), MergedUse0),
     append(MergedUse0, MergedUse),
     ContextDep = Context

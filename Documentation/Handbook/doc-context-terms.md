@@ -155,13 +155,13 @@ It is critical for:
 
 - **USE evaluation**: `use:effective_use_in_context/3` looks up the USE
   model of the ebuild in `self/1` to evaluate USE conditionals.
-- **Blocker source**: `candidate:blocker_source_constraints/5` uses `self/1`
+- **Blocker source**: `candidate:make_blocker_constraint/5` uses `self/1`
   to determine who is blocking whom.
 - **Parent narrowing**: `candidate:maybe_learn_parent_narrowing/4` uses
   `self/1` to learn that the parent version should be excluded when a child
   dependency cannot be satisfied.
-- **REQUIRED_USE**: `query:with_required_use_self/2` evaluates REQUIRED_USE
-  against the USE model of the package in `self/1`.
+- **REQUIRED_USE**: `query:with_required_use_validate/3` annotates REQUIRED_USE
+  terms with `:validate?{[self(...)]}` so the prover knows the ebuild context.
 
 ### Invariant: at most one `self/1`
 
