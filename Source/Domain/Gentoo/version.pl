@@ -49,6 +49,20 @@ version_domain:domain_from_packagedeps(_Action, C, N, PackageDeps, Domain) :-
 % PackageDeps matching category C and name N (non-blocker only).
 
 version_domain:collect_slots_and_bounds([], _, _, [], []).
+version_domain:collect_slots_and_bounds([package_dependency(_, no, C, N, wildcard, Ver0, SlotReq, _)|Rest], C, N, [SlotReq|SRs], Bounds) :-
+  !,
+  ( wildcard_upper_bound(Ver0, UpperVer) ->
+      Bounds = [bound(smaller, UpperVer)|Bounds1]
+  ; Bounds = Bounds1
+  ),
+  collect_slots_and_bounds(Rest, C, N, SRs, Bounds1).
+version_domain:collect_slots_and_bounds([package_dependency(_, no, C, N, tilde, Ver0, SlotReq, _)|Rest], C, N, [SlotReq|SRs], Bounds) :-
+  !,
+  ( tilde_upper_bound(Ver0, UpperVer) ->
+      Bounds = [bound(smaller, UpperVer)|Bounds1]
+  ; Bounds = Bounds1
+  ),
+  collect_slots_and_bounds(Rest, C, N, SRs, Bounds1).
 version_domain:collect_slots_and_bounds([package_dependency(_, no, C, N, Op0, Ver0, SlotReq, _)|Rest], C, N, [SlotReq|SRs], Bounds) :-
   !,
   ( normalize_bound_op(Op0, OpN),
@@ -303,9 +317,46 @@ version_domain:normalize_bound_op(smaller, smaller) :- !.
 % Keep domain narrowing conservative:
 % - include upper-bounds and exact-equality bounds;
 % - still avoid lower-bounds, which were a major source of broad search blowups.
+% Wildcard (=pkg-X.Y*) and tilde (~pkg-X.Y.Z) are handled separately in
+% collect_slots_and_bounds via wildcard_upper_bound / tilde_upper_bound,
+% producing an upper bound (smaller).
 version_domain:normalize_bound_op(equal, equal) :- !.
 version_domain:normalize_bound_op(wildcard, none) :- !.
+version_domain:normalize_bound_op(tilde, none) :- !.
 version_domain:normalize_bound_op(_Other, none).
+
+
+%! version_domain:wildcard_upper_bound(+Ver, -UpperVer) is semidet.
+%
+% Computes the exclusive upper bound for a wildcard version constraint.
+% =pkg-0.6* matches [0.6, 0.7), so the upper bound is 0.7.
+% The bound is constructed by incrementing the last component of the
+% version number list.
+
+version_domain:wildcard_upper_bound(Ver0, version(UpperNums, '', 4, 0, '', 0, UpperFull)) :-
+  normalize_version_term(Ver0, version(Nums, _, _, _, _, _, _)),
+  Nums \== [],
+  increment_last(Nums, UpperNums),
+  atomic_list_concat(UpperNums, '.', UpperFull).
+
+
+%! version_domain:tilde_upper_bound(+Ver, -UpperVer) is semidet.
+%
+% Computes the exclusive upper bound for a tilde version constraint.
+% ~pkg-8.1.1 matches [8.1.1, 8.1.2) (same base version, any revision),
+% so the upper bound is 8.1.2.
+
+version_domain:tilde_upper_bound(Ver0, version(UpperNums, '', 4, 0, '', 0, UpperFull)) :-
+  normalize_version_term(Ver0, version(Nums, _, _, _, _, _, _)),
+  Nums \== [],
+  increment_last(Nums, UpperNums),
+  atomic_list_concat(UpperNums, '.', UpperFull).
+
+
+version_domain:increment_last([X], [X1]) :- !,
+  X1 is X + 1.
+version_domain:increment_last([H|T], [H|T1]) :-
+  increment_last(T, T1).
 
 version_domain:canon_slot(S0, S) :-
   ( atom(S0)   -> S = S0
