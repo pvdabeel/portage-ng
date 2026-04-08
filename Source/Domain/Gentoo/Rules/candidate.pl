@@ -483,7 +483,9 @@ candidate:dep_slot_key(_, any).
 
 candidate:context_cn_domain_constraint(C, N, Context, Domain) :-
   is_list(Context),
-  memberchk(constraint(cn_domain(C,N):{Domain}), Context),
+  ( memberchk(constraint(cn_domain(C,N,_):{Domain}), Context) -> true
+  ; memberchk(constraint(cn_domain(C,N):{Domain}), Context)
+  ),
   !.
 
 %! candidate:context_cn_domain_reason(+C, +N, +Context, -Reasons)
@@ -499,6 +501,54 @@ candidate:context_cn_domain_reason(C, N, Context, Reasons) :-
   ; Reasons = []
   ),
   !.
+
+%! candidate:cn_domain_for_slot(+C, +N, +Slot, +Constraints, -Domain) is semidet.
+%
+% Looks up the effective cn_domain for a (C,N,Slot) triple. Tries the
+% slot-specific entry first, then falls back to the `any` entry.
+
+candidate:cn_domain_for_slot(C, N, Slot, Constraints, Domain) :-
+  ( Slot \== any, get_assoc(cn_domain(C,N,Slot), Constraints, Domain) -> true
+  ; get_assoc(cn_domain(C,N,any), Constraints, Domain)
+  ).
+
+
+%! candidate:selected_cn_check_slot_domains(+C, +N, +SelectedMerged, +Constraints)
+%
+% For each slot represented in SelectedMerged, looks up the
+% slot-specific and `any` cn_domains, meets them, and checks
+% compatibility.  Called by the selected_cn constraint guard.
+
+candidate:selected_cn_check_slot_domains(C, N, SelectedMerged, Constraints) :-
+  findall(Slot,
+          ( member(selected(_,_,_,_,SM), SelectedMerged),
+            ( candidate:selected_cn_slot_key_(SM, Slot0) -> true ; Slot0 = any ),
+            Slot = Slot0
+          ),
+          Slots0),
+  sort(Slots0, Slots),
+  forall(member(Slot, Slots),
+         selected_cn_check_one_slot_domain(C, N, Slot, SelectedMerged, Constraints)),
+  !.
+
+candidate:selected_cn_check_one_slot_domain(C, N, Slot, SelectedMerged, Constraints) :-
+  ( Slot \== any, get_assoc(cn_domain(C,N,Slot), Constraints, DSlot) -> true ; DSlot = none ),
+  ( get_assoc(cn_domain(C,N,any), Constraints, DAny0) -> true ; DAny0 = none ),
+  ( DAny0 \== none, version_domain:domain_inconsistent(DAny0) -> DAny = none ; DAny = DAny0 ),
+  ( DSlot \== none, DAny \== none ->
+      ( version_domain:domain_meet(DSlot, DAny, Domain) -> true ; Domain = DSlot )
+  ; DSlot \== none -> Domain = DSlot
+  ; DAny \== none -> Domain = DAny
+  ; true
+  ),
+  ( var(Domain) -> true
+  ; heuristic:filter_selected_by_slot(Slot, SelectedMerged, SlotSelected),
+    ( SlotSelected == [] -> true
+    ; candidate:selected_cn_domain_compatible_or_reprove(C, N, Domain, SlotSelected, Constraints)
+    )
+  ),
+  !.
+
 
 %! candidate:context_selected_cn_candidates(+C, +N, +Context, -Candidates)
 %
@@ -827,7 +877,7 @@ candidate:selected_cn_unique_or_reprove(C, N, SelectedMerged, Constraints) :-
   !.
 candidate:selected_cn_unique_or_reprove(C, N, SelectedMerged, Constraints) :-
   cn_domain_reprove_enabled,
-  get_assoc(cn_domain(C,N), Constraints, Domain),
+  cn_domain_for_slot(C, N, any, Constraints, Domain),
   \+ selected_cn_requires_same_slot_multiversion(C, N, Constraints),
   selected_cn_partition_by_domain(Domain, SelectedMerged, Allowed, Conflicting),
   Allowed \== [],
@@ -840,7 +890,7 @@ candidate:selected_cn_unique_or_reprove(C, N, SelectedMerged, Constraints) :-
   fail.
 candidate:selected_cn_unique_or_reprove(C, N, _SelectedMerged, Constraints) :-
   cn_domain_reprove_enabled,
-  get_assoc(cn_domain(C,N), Constraints, _Domain),
+  cn_domain_for_slot(C, N, any, Constraints, _Domain),
   selected_cn_requires_same_slot_multiversion(C, N, Constraints),
   ( get_assoc(cn_domain_reason(C,N), Constraints, ordset(Reasons)) -> true ; Reasons = [] ),
   Reasons \== [],
@@ -1100,7 +1150,7 @@ candidate:selected_cn_unique_per_slot_or_subslot([selected(Repo,Entry,_Act,_Ver,
 % versions in the same slot are required (subslot-level uniqueness).
 
 candidate:selected_cn_requires_same_slot_multiversion(C, N, Constraints) :-
-  get_assoc(cn_domain(C,N), Constraints, Domain),
+  cn_domain_for_slot(C, N, any, Constraints, Domain),
   version_domain:domain_inconsistent(Domain),
   !.
 
@@ -1340,7 +1390,8 @@ candidate:cn_domain_constraints(Action, C, N, PackageDeps, Context, DomainCons, 
   ),
   ( Domain == none ->
       DomainCons = ReasonCons
-  ; DomainCons = [constraint(cn_domain(C,N):{Domain})|ReasonCons]
+  ; dep_slot_key(PackageDeps, Slot),
+    DomainCons = [constraint(cn_domain(C,N,Slot):{Domain})|ReasonCons]
   ),
   !.
 

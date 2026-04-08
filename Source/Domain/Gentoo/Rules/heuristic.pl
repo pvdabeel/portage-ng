@@ -154,16 +154,17 @@ cleanup_state :-
 
 %! heuristic:constraint_unify_hook(+Key, +Value, +Constraints, -NewConstraints)
 %
-% Domain-specific constraint merge for `cn_domain(C,N)` keys: normalises
-% the incoming version domain and intersects it with any existing domain
-% via `version_domain:domain_meet/3`.
+% Domain-specific constraint merge for `cn_domain(C,N,Slot)` keys:
+% normalises the incoming version domain and intersects it with any
+% existing domain via `version_domain:domain_meet/3`.  Per-slot keys
+% prevent cross-slot domain collisions for multi-slot packages.
 
-heuristic:constraint_unify_hook(cn_domain(C,N), DomainDelta0, Constraints, NewConstraints) :-
+heuristic:constraint_unify_hook(cn_domain(C,N,Slot), DomainDelta0, Constraints, NewConstraints) :-
   !,
   version_domain:domain_normalize(DomainDelta0, DomainDelta),
-  ( get_assoc(cn_domain(C,N), Constraints, CurrentDomain, Constraints1, CurrentDomain) ->
+  ( get_assoc(cn_domain(C,N,Slot), Constraints, CurrentDomain, Constraints1, CurrentDomain) ->
       ( version_domain:domain_meet(CurrentDomain, DomainDelta, MergedDomain) ->
-          put_assoc(cn_domain(C,N), Constraints1, MergedDomain, NewConstraints)
+          put_assoc(cn_domain(C,N,Slot), Constraints1, MergedDomain, NewConstraints)
       ; ( \+ memo:slot_conflict_(C, N, _) ->
             assertz(memo:slot_conflict_(C, N,
                         domain_conflict(CurrentDomain, DomainDelta)))
@@ -171,7 +172,7 @@ heuristic:constraint_unify_hook(cn_domain(C,N), DomainDelta0, Constraints, NewCo
         ),
         fail
       )
-  ; put_assoc(cn_domain(C,N), Constraints, DomainDelta, NewConstraints)
+  ; put_assoc(cn_domain(C,N,Slot), Constraints, DomainDelta, NewConstraints)
   ).
 
 
@@ -184,13 +185,16 @@ heuristic:constraint_unify_hook(cn_domain(C,N), DomainDelta0, Constraints, NewCo
 % Called by the prover after merging any constraint literal. Must succeed
 % for consistent constraint stores, fail to force backtracking.
 
-heuristic:constraint_guard(constraint(cn_domain(C,N):{Domain0}), Constraints) :-
+heuristic:constraint_guard(constraint(cn_domain(C,N,Slot):{Domain0}), Constraints) :-
   !,
-  ( get_assoc(cn_domain(C,N), Constraints, Domain) -> true ; Domain = Domain0 ),
+  ( get_assoc(cn_domain(C,N,Slot), Constraints, Domain) -> true ; Domain = Domain0 ),
   ( version_domain:domain_inconsistent(Domain) ->
       get_assoc(selected_cn_allow_multislot(C,N), Constraints, _AllowMultiSlot)
   ; ( get_assoc(selected_cn(C,N), Constraints, ordset(Selected)) ->
-      candidate:selected_cn_domain_compatible_or_reprove(C, N, Domain, Selected, Constraints)
+      filter_selected_by_slot(Slot, Selected, SlotSelected),
+      ( SlotSelected == [] -> true
+      ; candidate:selected_cn_domain_compatible_or_reprove(C, N, Domain, SlotSelected, Constraints)
+      )
   ; true
     )
   ).
@@ -209,7 +213,7 @@ heuristic:constraint_guard(constraint(selected_cn(C,N):{ordset(_SelectedNew)}), 
   !,
   get_assoc(selected_cn(C,N), Constraints, ordset(SelectedMerged)),
   candidate:record_selected_cn_snapshot(C, N, SelectedMerged),
-  ( get_assoc(cn_domain(C,N), Constraints, Domain) ->
+  ( candidate:cn_domain_for_slot(C, N, any, Constraints, Domain) ->
       candidate:selected_cn_domain_compatible_or_reprove(C, N, Domain, SelectedMerged, Constraints)
   ; true
   ),
@@ -219,6 +223,23 @@ heuristic:constraint_guard(constraint(selected_cn(C,N):{ordset(_SelectedNew)}), 
   ; true
   ).
 heuristic:constraint_guard(_Other, _Constraints).
+
+
+% -----------------------------------------------------------------------------
+%  Slot filtering for per-slot domain checks
+% -----------------------------------------------------------------------------
+
+%! heuristic:filter_selected_by_slot(+Slot, +Selected, -Filtered)
+%
+% When Slot is `any`, returns all Selected unchanged.  Otherwise keeps
+% only entries whose slot metadata matches Slot.
+
+heuristic:filter_selected_by_slot(any, Selected, Selected) :- !.
+heuristic:filter_selected_by_slot(Slot, Selected, Filtered) :-
+  include(selected_on_slot_(Slot), Selected, Filtered).
+
+heuristic:selected_on_slot_(Slot, selected(_Repo, _Entry, _Act, _Ver, SlotMeta)) :-
+  candidate:selected_cn_slot_key_(SlotMeta, Slot).
 
 
 % =============================================================================

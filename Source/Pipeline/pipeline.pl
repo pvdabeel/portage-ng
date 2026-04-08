@@ -126,6 +126,7 @@ pipeline:prove_plan_with_fallback(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL, 
 % versions/slots).
 
 pipeline:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
+  memo:clear_caches,
   sampler:phase_walltime(T0),
   pipeline:multislot_initial_constraints(Goals, InitCons),
   prover:prove(Goals, t, ProofAVL, t, ModelAVL, InitCons, _Constraints, t, TriggersAVL),

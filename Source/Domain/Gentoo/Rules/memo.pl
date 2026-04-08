@@ -30,6 +30,7 @@ Each thread-local predicate caches a different aspect of resolver state:
 | iuse_info_cache_/3                 | Per-entry IUSE flag set + IUSE(+) set           |
 | eff_use_cache_/4                   | Per-entry effective USE resolution               |
 | self_use_cache_/4                  | Per-entry self-context USE resolution            |
+| candidate_bwu_/3                   | Per-(C,N) accumulated build_with_use state       |
 
 All caches are invalidated together by clear_caches/0 at the start of each
 proof run.  Individual caches (selected_cn_snap_, blocked_cn_source_snap_,
@@ -57,6 +58,7 @@ heuristic:cleanup_state/0 during reprove retries.
 :- thread_local memo:keyword_suggestion_cache_/3. % keyword_suggestion_cache_(C, N, SuggestedKw)
 :- thread_local memo:requse_violation_/3.        % requse_violation_(C, N, ViolDesc)
 :- thread_local memo:slot_conflict_/3.          % slot_conflict_(C, N, Entries)
+:- thread_local memo:candidate_bwu_/3.          % candidate_bwu_(C, N, BWU)
 
 
 %! memo:clear_caches
@@ -80,4 +82,5 @@ clear_caches :-
   retractall(memo:assumption_reason_cache_(_, _, _, _)),
   retractall(memo:keyword_suggestion_cache_(_, _, _)),
   retractall(memo:requse_violation_(_, _, _)),
-  retractall(memo:slot_conflict_(_, _, _)).
+  retractall(memo:slot_conflict_(_, _, _)),
+  retractall(memo:candidate_bwu_(_, _, _)).

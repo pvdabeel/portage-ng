@@ -706,7 +706,7 @@ graph ::-
   atomic_concat(graph,Repository,Mutex),
   with_mutex(Mutex,
     (:prepare_directory(D),
-     grapher:write_graph_files(D,Repository),
+     %grapher:write_graph_files(D,Repository), % TODO : relocate to writer
      writer:write_proof_files(D,Repository),
      writer:write_index_files(D,Repository)
      )).

@@ -76,7 +76,7 @@ Helper predicates used by these rules live in the Rules/ submodules.
 %
 %        Ebuild actions (R://E:Action?{Ctx}):
 %          - constraint(selected_cn(C,N):{...})   candidate selection
-%          - constraint(cn_domain(C,N):{...})      version domain
+%          - constraint(cn_domain(C,N,Slot):{...})  version domain (per-slot)
 %          - constraint(selected_slot(C,N):{...})  slot occupancy
 %          - R://E:download?{...}                  download sub-goal
 %          - grouped_package_dependency(...)        dependency sub-goals
