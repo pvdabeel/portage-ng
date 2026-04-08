@@ -184,7 +184,8 @@ writer:write_index_files(Directory,Repository) :-
 
 %! writer:write_proof_files(+Directory,+Repository)
 %
-% Print merge, fetchonly & info to file for all entries in a repository
+% Write text proof files (.merge, .fetchonly, .info) and HTML graph
+% files for all entries in a repository.
 % Assumes directory exists. (See repository:prepare_directory)
 
 writer:write_proof_files(Directory,Repository) :-
@@ -201,7 +202,8 @@ writer:write_proof_files(Directory,Repository) :-
                 ;  true)),
 	      ((writer:write_merge_file(Directory,Repository://Entry);true),
 	       (writer:write_fetchonly_file(Directory,Repository://Entry);true),
-               (writer:write_info_file(Directory,Repository://Entry);true))).
+               (writer:write_info_file(Directory,Repository://Entry);true))),
+  grapher:write_graph_files(Directory,Repository).
 
 
 %! writer:produce_html(+Directory)
