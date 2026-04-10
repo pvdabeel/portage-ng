@@ -18,25 +18,52 @@ delegating to submodules under `Source/Pipeline/Printer/`.
 ### Merge list
 
 The plan is rendered as a merge list.  Each line represents one
-action and shows:
+action, printed as a numbered step with a coloured **action bubble**
+and the full package atom.
 
-- **Wave number** — which parallel group this action belongs to.
-  Actions in the same wave can run concurrently.
-- **Action type** — a single letter indicating the operation:
-  - `N` — new install
-  - `U` — version upgrade
-  - `D` — version downgrade
-  - `R` — reinstall (same version)
-  - `r` — rebuild (sub-slot change)
-  - `F` — fetch only
-- **Package atom** — category, name, and version (e.g.
-  `dev-libs/openssl-3.1.4`).
-- **USE flags** — colour-coded: red for newly enabled flags, blue for
-  newly disabled, plain for unchanged.  Flags forced by
-  `build_with_use` from a parent are marked distinctly.
-- **Slot and sub-slot** — shown when the package uses non-default
-  slots.
-- **Repository** — the source repository name.
+A typical plan fragment looks like this:
+
+```
+ └─step 01─┤ install  portage://dev-libs/expat-2.6.4
+             │ install  portage://dev-libs/libxml2-2.13.5
+
+ └─step 02─┤ install  portage://dev-lang/python-3.12.3
+             │ run      portage://dev-lang/python-3.12.3
+             │ confirm  portage://dev-lang/python-3.12.3
+
+ └─step 03─┤ update   portage://sys-apps/portage-3.0.77-r3
+             │          (replaces portage-3.0.65)
+             │ download https://.../portage-3.0.77-r3.tar.xz
+
+ └─step 04─┤ verify   dev-python/tree-sitter
+             │          (non-existent, assumed installed)
+```
+
+Actions within the same step can run concurrently — the step number
+is the wave.  Each line shows:
+
+- **Step number** — which parallel wave this action belongs to.
+- **Action bubble** — a full word indicating the operation:
+  - `install` — new install
+  - `update` — version upgrade (shows the replaced version)
+  - `downgrade` — version downgrade (shows the replaced version)
+  - `reinstall` — reinstall of the same version
+  - `run` — runtime dependency check
+  - `confirm` — verify that a running dependency is available
+  - `download` — fetch source from a mirror
+  - `fetchonly` — fetch only, do not build
+  - `verify` — assumed dependency that needs manual verification
+- **Package atom** — repository, category, name, and version (e.g.
+  `portage://dev-libs/openssl-3.1.4`).
+- **Annotations** — contextual notes such as `(replaces ...)` for
+  upgrades/downgrades, `(~amd64)` for keyword-accepted packages,
+  `(USE modified)` for USE flag changes, or `(non-existent, assumed
+  installed)` for unresolvable dependencies.
+
+Target packages — the ones you explicitly asked to prove — appear in
+**bold green** with a green action bubble.  Non-target dependencies
+use cyan text.  Assumed or unresolvable dependencies use yellow or
+red bubbles to draw attention.
 
 ### Printing styles
 

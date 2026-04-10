@@ -8,8 +8,8 @@ digraph scc_scheduling {
     node [fontname="Helvetica", fontsize=11, style=filled, shape=box];
     edge [fontname="Helvetica", fontsize=10];
     compound=true;
+    newrank=true;
 
-    // Title
     label="Kahn remainder -> Kosaraju SCC -> merge-sets";
     labelloc=t;
     fontsize=13;
@@ -52,8 +52,20 @@ digraph scc_scheduling {
             wheel_run [label="wheel:run"];
         }
 
-        setuptools_run -> wheel_run [label="RDEPEND", ltail=cluster_scc1];
+        // Cross-cluster edge
+        pip_run -> wheel_run [label="RDEPEND"];
+
+        // Keep SCC 2 beside SCC 1
+        {rank=same; pip_run; wheel_run}
     }
+
+    // Kosaraju steps as a vertical sequence
+    node [shape=plaintext, fillcolor=white, style=""];
+    step1 [label=<<B>1.</B> DFS forward pass (record finish order)>];
+    step2 [label=<<B>2.</B> DFS on transposed graph (reverse finish order)>];
+    step3 [label=<<B>3.</B> Each DFS tree = one SCC; :run SCCs become merge-sets>];
+
+    step1 -> step2 -> step3 [style=invis];
 
     // Scheduling result
     subgraph cluster_result {
@@ -63,21 +75,14 @@ digraph scc_scheduling {
         fillcolor="#e8e8e8";
         color="#666666";
 
-        node [fillcolor="#d4edda"];
+        node [fillcolor="#d4edda", style=filled];
         merge_set [label="Merge-set\n{python, setuptools, pip}\n(merged together as\nruntime cycle)"];
         single [label="Schedule normally\n{wheel}\n(after merge-set)"];
 
         merge_set -> single [label="then"];
     }
 
-    // Kosaraju steps
-    node [shape=plaintext, fillcolor=white];
-    step1 [label=<<B>1.</B> DFS forward pass<BR/>(record finish order)>];
-    step2 [label=<<B>2.</B> DFS on transposed graph<BR/>(reverse finish order)>];
-    step3 [label=<<B>3.</B> Each DFS tree = one SCC<BR/>(:run SCCs become merge-sets)>];
-
-    // Layout
-    python_run -> step1 [style=invis];
-    step1 -> step2 -> step3 [style=invis];
+    // Vertical flow: remainder -> steps -> result
+    pip_run -> step1 [style=invis];
     step3 -> merge_set [style=invis];
 }

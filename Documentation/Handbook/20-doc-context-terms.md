@@ -245,7 +245,7 @@ in `use.pl` takes the **union** of enable sets and the **union** of disable
 sets.  If a flag appears in both enable and disable, the merge **fails**
 (contradiction), forcing the prover to backtrack.
 
-### PDEPEND edge
+### Post dependencies
 
 On PDEPEND edges, `build_with_use` is dropped because PDEPEND dependencies
 are resolved at runtime, not build time, so build-time USE constraints do

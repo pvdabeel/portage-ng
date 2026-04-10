@@ -58,7 +58,7 @@ worker posts the result back to the server.
 completed proof in its result queue.  The client retrieves the result
 as a JSON document over HTTPS.
 
-### Server (`Source/Application/Mode/server.pl`)
+### Server
 
 The server is the central coordination point.  It runs an HTTP server
 backed by SWI-Prolog's Pengines library and manages four things: the
@@ -67,7 +67,7 @@ of proof targets waiting to be processed, a result queue of completed
 proofs, and the Pengine sandbox that controls what remote callers can
 execute.
 
-### Worker (`Source/Application/Mode/worker.pl`)
+### Worker
 
 Each worker is an independent OS process with its own Prolog VM.  On
 startup it loads the knowledge base, then enters a poll loop: it asks
@@ -76,14 +76,14 @@ schedule), and posts the result back.  Workers are stateless between
 jobs, so you can add or remove them at any time without affecting
 other workers or the server.
 
-### Client (`Source/Application/Mode/client.pl`)
+### Client
 
 The client is a thin request layer.  It does not carry the knowledge
 base — it simply submits target packages to the server and collects
 the completed proofs.  This makes it suitable for lightweight
 machines or scripts that want to drive resolution remotely.
 
-### Cluster orchestration (`Source/Application/Mode/cluster.pl`)
+### Cluster orchestration
 
 The cluster module sits above the individual roles and provides
 high-level orchestration: distributing a batch of targets across

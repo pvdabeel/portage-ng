@@ -77,7 +77,7 @@ The machine config file is where repositories are created and registered — cov
 | `config:color_output/0` | asserted | ANSI colour in terminal output.  Retract to disable. |
 | `config:color_palette/1` | `full` | Use flag colouring: `easy` (classic Portage red/blue) or `full` (reason-based, showing where each flag came from). |
 
-### Network (distributed mode)
+### Network
 
 | **Setting** | **Default** | **Purpose** |
 |:---|:---|:---|

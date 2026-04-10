@@ -70,7 +70,7 @@ Each test under `Documentation/Tests/testNN/` contains:
 | Fetch-only | 71 |
 | Onlydeps | 78 |
 
-### XFAIL tests
+### Failure testing
 
 Tests 58, 59, and 60 are explicitly marked as expected failures (XFAIL)
 in the test matrix — known limitations that are documented but not yet
