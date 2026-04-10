@@ -1,0 +1,29 @@
+digraph ingestion {
+  rankdir=LR;
+  fontname="Helvetica Neue";
+  fontsize=9;
+  node [fontname="Helvetica Neue", fontsize=8, style=filled, margin="0.06,0.03"];
+  edge [fontname="Helvetica Neue", fontsize=7, arrowsize=0.5];
+  nodesep=0.20;
+  ranksep=0.45;
+
+  md5cache [shape=note, fillcolor="#e8e8e8",
+    label="md5-cache file\nKEY=VALUE"];
+  reader   [shape=box, style="filled,rounded", fillcolor="#cce5ff",
+    label="reader.pl\nread lines"];
+  parser   [shape=box, style="filled,rounded", fillcolor="#cce5ff",
+    label="parser.pl\nroute keys"];
+  eapi     [shape=box, style="filled,rounded", fillcolor="#cce5ff",
+    label="eapi.pl\nDCG grammar"];
+  cache    [shape=cylinder, fillcolor="#d4edda",
+    label="cache:entry/5\ncache:entry_metadata/3\ncache:ordered_entry/5"];
+  qlf      [shape=cylinder, fillcolor="#d4edda",
+    label="Knowledge/kb.qlf\n(QCompiled)"];
+
+  md5cache -> reader  [label="  open  "];
+  reader   -> parser  [label="  lines  "];
+  parser   -> eapi    [label="  char codes  "];
+  eapi     -> cache   [label="  assertz  "];
+  cache    -> qlf     [label="  qcompile\n  (--sync)  ", style=dashed];
+  qlf      -> cache   [label="  qload\n  (startup)  ", style=dashed];
+}

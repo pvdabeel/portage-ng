@@ -1,0 +1,14 @@
+// Chapter 10 — Meet example 4: tilde + revision bound
+// Render: dot -Tsvg 10-domain-meet-ex4.dot -o 10-domain-meet-ex4.svg
+digraph ex4 {
+    rankdir=LR;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=8, style=filled, shape=box, margin="0.06,0.04"];
+    edge [arrowsize=0.5];
+    nodesep=0.15; ranksep=0.25;
+    d1 [label="~1.0", fillcolor="#cce5ff"];
+    d2 [label=">=1.0-r2", fillcolor="#cce5ff"];
+    m  [label="meet", fillcolor="#e8e8e8"];
+    r  [label=">=1.0-r2\nin 1.0.x", fillcolor="#d4edda"];
+    d1 -> m; d2 -> m; m -> r;
+}

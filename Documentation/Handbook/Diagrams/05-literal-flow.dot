@@ -1,0 +1,37 @@
+digraph literal_flow {
+  rankdir=LR;
+  fontname="Helvetica Neue";
+  fontsize=9;
+  node [fontname="Helvetica Neue", fontsize=8, style=filled, margin="0.08,0.04"];
+  edge [fontname="Helvetica Neue", fontsize=7, arrowsize=0.5];
+  nodesep=0.15;
+  ranksep=0.6;
+
+  // Pipeline stages
+  rules [shape=box, style="filled,rounded", fillcolor="#eeddff",
+    label="Rules\nrule/2\ntarget/2\ndependencies"];
+
+  prover [shape=box, style="filled,rounded", fillcolor="#ffeedd",
+    label="Prover\nprove/9\nProof + Model"];
+
+  planner [shape=box, style="filled,rounded", fillcolor="#ddffee",
+    label="Planner\nKahn's algorithm\nwaves"];
+
+  printer [shape=box, style="filled,rounded", fillcolor="#eeeeee",
+    label="Printer\nformatted\noutput"];
+
+  // Data flowing between stages
+  rules -> prover [label="  R://E:A?{C}\n  (full literals)  "];
+  prover -> planner [label="  R://L:A\n  (core keys in\n  Proof + Triggers)  "];
+  planner -> printer [label="  Plan\n  (ordered waves)  "];
+
+  // Side annotations
+  model [shape=note, fillcolor="#fff5ee",
+    label="Model AVL\nkey: R://L:A\nval: Context"];
+  proof [shape=note, fillcolor="#fff5ee",
+    label="Proof AVL\nkey: rule(R://L:A)\nval: Body"];
+
+  prover -> model [style=dashed, arrowhead=none];
+  prover -> proof [style=dashed, arrowhead=none];
+  model -> printer [style=dashed, label="  context\n  lookup  "];
+}

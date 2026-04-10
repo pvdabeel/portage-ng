@@ -1,0 +1,19 @@
+digraph generation {
+  rankdir=LR;
+  fontname="Helvetica Neue";
+  fontsize=9;
+  node [fontname="Helvetica Neue", fontsize=8, style=filled, margin="0.06,0.03"];
+  edge [fontname="Helvetica Neue", fontsize=7, arrowsize=0.5];
+  nodesep=0.25;
+  ranksep=0.5;
+
+  ebuild    [shape=note, fillcolor="#fff3cd",
+    label="Ebuild\n(bash script)\ncategory/name-ver.ebuild"];
+  egencache [shape=box, style="filled,rounded", fillcolor="#cce5ff",
+    label="egencache\n(or portage-ng --regen)"];
+  md5cache  [shape=note, fillcolor="#e8e8e8",
+    label="md5-cache file\nKEY=VALUE lines"];
+
+  ebuild    -> egencache [label="  bash metadata  "];
+  egencache -> md5cache  [label="  extract  "];
+}

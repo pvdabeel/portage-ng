@@ -145,7 +145,7 @@ See the full architecture diagram: [`Documentation/Diagrams/architecture.svg`](D
 
 
 For a deeper comparison of the reasoning models, see
-[`Documentation/Handbook/doc-resolver-comparison.md`](Documentation/Handbook/doc-resolver-comparison.md).
+[`Documentation/Handbook/21-doc-resolver-comparison.md`](Documentation/Handbook/21-doc-resolver-comparison.md).
 
 ## Unique capabilities
 
@@ -156,7 +156,7 @@ For a deeper comparison of the reasoning models, see
 - **LLM integration** -- `--explain` / `--llm` for AI-assisted plan explanation
 - **Interactive Prolog shell** -- `--shell` for live querying of the knowledge base
 - **Graph generation** -- interactive SVG dependency graphs via Graphviz
-- **Contextual logic programming** -- an object-oriented paradigm for Prolog with contexts, classes, and inheritance ([documentation](Documentation/Handbook/doc-contextual-logic-programming.md))
+- **Contextual logic programming** -- an object-oriented paradigm for Prolog with contexts, classes, and inheritance ([documentation](Documentation/Handbook/19-doc-contextual-logic-programming.md))
 
 ## Quick start
 
@@ -241,15 +241,49 @@ For the full command reference, see the
 
 ## Handbook
 
-The portage-ng handbook is under construction. Topics covered:
+The portage-ng handbook is available as a [PDF](Documentation/Handbook/portage-ng-handbook.pdf)
+and as individual Markdown chapters:
 
-- [Resolver comparison](Documentation/Handbook/doc-resolver-comparison.md)
-- [Dependency ordering](Documentation/Handbook/doc-dependency-ordering.md)
-- [Context terms](Documentation/Handbook/doc-context-terms.md)
-- [Contextual logic programming](Documentation/Handbook/doc-contextual-logic-programming.md)
-- [Gentoo configuration](Documentation/Handbook/doc-gentoo.md)
-- [LLM explainer](Documentation/Handbook/doc-explainer.md)
-- [TLS certificates](Documentation/Handbook/doc-tls-certificates.md)
+**Part I — Getting Started**
+
+1. [Introduction](Documentation/Handbook/01-doc-introduction.md)
+2. [Installation and Quick Start](Documentation/Handbook/02-doc-installation.md)
+3. [Configuration](Documentation/Handbook/03-doc-gentoo.md)
+
+**Part II — Architecture and Internals**
+
+4. [Architecture Overview](Documentation/Handbook/04-doc-architecture.md)
+5. [Proof Literals](Documentation/Handbook/05-doc-proof-literals.md)
+6. [Knowledge Base and Cache](Documentation/Handbook/06-doc-knowledgebase.md)
+7. [The EAPI Grammar](Documentation/Handbook/07-doc-eapi-grammar.md)
+8. [The Prover](Documentation/Handbook/08-doc-prover.md)
+9. [Assumptions and Constraint Learning](Documentation/Handbook/09-doc-prover-assumptions.md)
+10. [Version Domains](Documentation/Handbook/10-doc-version-domains.md)
+11. [Rules and Domain Logic](Documentation/Handbook/11-doc-rules.md)
+12. [Planning and Scheduling](Documentation/Handbook/12-doc-planning.md)
+13. [Output and Visualization](Documentation/Handbook/13-doc-building.md)
+
+**Part III — Features**
+
+14. [Command-Line Interface](Documentation/Handbook/14-doc-cli.md)
+15. [Building and Execution](Documentation/Handbook/15-doc-output.md)
+16. [Semantic Search and LLM Integration](Documentation/Handbook/16-doc-explainer.md)
+17. [Distributed Proving](Documentation/Handbook/17-doc-tls-certificates.md)
+18. [Upstream and Bug Tracking](Documentation/Handbook/18-doc-upstream-bugs.md)
+
+**Part IV — Foundations**
+
+19. [Contextual Logic Programming](Documentation/Handbook/19-doc-contextual-logic-programming.md)
+20. [Context Terms and Feature Unification](Documentation/Handbook/20-doc-context-terms.md)
+21. [Resolver Comparison](Documentation/Handbook/21-doc-resolver-comparison.md)
+22. [Dependency Ordering](Documentation/Handbook/22-doc-dependency-ordering.md)
+
+**Part V — Development**
+
+23. [Testing and Regression](Documentation/Handbook/23-doc-testing.md)
+24. [Performance and Profiling](Documentation/Handbook/24-doc-performance.md)
+25. [Contributing](Documentation/Handbook/25-doc-contributing.md)
+26. [Closing Thoughts](Documentation/Handbook/26-doc-closing.md)
 
 ## License
 

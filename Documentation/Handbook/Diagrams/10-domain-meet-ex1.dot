@@ -1,0 +1,14 @@
+// Chapter 10 — Meet example 1: overlapping ranges
+// Render: dot -Tsvg 10-domain-meet-ex1.dot -o 10-domain-meet-ex1.svg
+digraph ex1 {
+    rankdir=LR;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=8, style=filled, shape=box, margin="0.06,0.04"];
+    edge [arrowsize=0.5];
+    nodesep=0.15; ranksep=0.25;
+    d1 [label=">=1.0", fillcolor="#cce5ff"];
+    d2 [label="<2.0", fillcolor="#cce5ff"];
+    m  [label="meet", fillcolor="#e8e8e8"];
+    r  [label="[1.0, 2.0)", fillcolor="#d4edda"];
+    d1 -> m; d2 -> m; m -> r;
+}

@@ -1,0 +1,101 @@
+digraph gentoo_files {
+  rankdir=TB;
+  fontname="Helvetica Neue";
+  node [fontname="Helvetica Neue", fontsize=10, style=filled];
+  edge [fontname="Helvetica Neue", fontsize=9];
+  compound=true;
+
+  // Root
+  root [label="/", shape=folder, fillcolor="#E8E8E8"];
+
+  // /etc/portage
+  subgraph cluster_etc {
+    label="/etc/portage/";
+    labeljust=l;
+    style="rounded";
+    color="#4A90D9";
+    fontsize=10;
+    fillcolor="#EBF3FC";
+
+    etc_files [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">
+      <TR><TD ALIGN="LEFT">make.conf</TD><TD ALIGN="LEFT"><FONT COLOR="#888888">USE, keywords, licenses</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">package.use/</TD><TD ALIGN="LEFT"><FONT COLOR="#888888">per-package USE</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">package.mask</TD><TD ALIGN="LEFT"><FONT COLOR="#888888">user masks</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">package.unmask</TD><TD ALIGN="LEFT"><FONT COLOR="#888888">override profile masks</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">package.accept_keywords</TD><TD ALIGN="LEFT"><FONT COLOR="#888888">keyword acceptance</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">package.license</TD><TD ALIGN="LEFT"><FONT COLOR="#888888">license acceptance</FONT></TD></TR>
+    </TABLE>>, shape=box, fillcolor="#D4EDDA"];
+  }
+
+  // Profile
+  subgraph cluster_profile {
+    label="/usr/portage/profiles/";
+    labeljust=l;
+    style="rounded";
+    color="#9B59B6";
+    fontsize=10;
+    fillcolor="#F3E8FC";
+
+    profile_files [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">
+      <TR><TD ALIGN="LEFT">default/linux/amd64/23.0/</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#666666">  </FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">parent</TD><TD ALIGN="LEFT"><FONT COLOR="#888888">profile inheritance chain</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">make.defaults</TD><TD ALIGN="LEFT"><FONT COLOR="#888888">baseline USE, env</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">package.mask</TD><TD ALIGN="LEFT"><FONT COLOR="#888888">profile-level masks</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">use.mask / use.force</TD><TD ALIGN="LEFT"><FONT COLOR="#888888">USE constraints</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">package.use</TD><TD ALIGN="LEFT"><FONT COLOR="#888888">profile USE overrides</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">license_groups</TD><TD ALIGN="LEFT"><FONT COLOR="#888888">license group definitions</FONT></TD></TR>
+    </TABLE>>, shape=box, fillcolor="#E2D9F3"];
+  }
+
+  // VDB
+  subgraph cluster_vdb {
+    label="/var/db/pkg/";
+    labeljust=l;
+    style="rounded";
+    color="#E67E22";
+    fontsize=10;
+    fillcolor="#FEF5E7";
+
+    vdb_files [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">
+      <TR><TD ALIGN="LEFT">sys-apps/portage-2.3.99/</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#888888">  DEPEND  RDEPEND  PDEPEND</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#888888">  USE  SLOT  KEYWORDS</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#888888">  CONTENTS  BUILD_TIME  SIZE</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">dev-lang/python-3.12.9/</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#999999">  ...</FONT></TD></TR>
+    </TABLE>>, shape=box, fillcolor="#FFF3CD"];
+  }
+
+  // Portage tree
+  subgraph cluster_tree {
+    label="/usr/portage/";
+    labeljust=l;
+    style="rounded";
+    color="#27AE60";
+    fontsize=10;
+    fillcolor="#EAFAF1";
+
+    tree_files [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">
+      <TR><TD ALIGN="LEFT">metadata/md5-cache/</TD><TD ALIGN="LEFT"><FONT COLOR="#888888">precomputed metadata</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">sys-apps/portage/</TD><TD ALIGN="LEFT"><FONT COLOR="#888888">ebuilds</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">dev-lang/python/</TD><TD ALIGN="LEFT"><FONT COLOR="#888888">ebuilds</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#999999">... 30,000+ packages</FONT></TD></TR>
+    </TABLE>>, shape=box, fillcolor="#D4EDDA"];
+  }
+
+  // portage-ng
+  png [label="portage-ng", shape=box, style="filled,bold", fillcolor="#FFD6D6"];
+
+  // Edges from root
+  root -> etc_files [lhead=cluster_etc, label="user\nconfig"];
+  root -> profile_files [lhead=cluster_profile, label="profile"];
+  root -> vdb_files [lhead=cluster_vdb, label="installed\npackages"];
+  root -> tree_files [lhead=cluster_tree, label="available\npackages"];
+
+  // portage-ng reads all
+  png -> etc_files [label="reads", style=bold, color="#4A90D9"];
+  png -> profile_files [label="reads", style=bold, color="#9B59B6"];
+  png -> vdb_files [label="reads", style=bold, color="#E67E22"];
+  png -> tree_files [label="reads", style=bold, color="#27AE60"];
+}

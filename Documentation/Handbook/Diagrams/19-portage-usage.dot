@@ -1,0 +1,58 @@
+// Chapter 19 — How portage-ng uses contexts
+// Render: dot -Tsvg 19-portage-usage.dot -o 19-portage-usage.svg
+
+digraph portage_usage {
+    rankdir=TB;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=7, style=filled, shape=box,
+          margin="0.08,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=6, arrowsize=0.4];
+    nodesep=0.22; ranksep=0.30;
+
+    // Classes
+    subgraph cluster_classes {
+        label="Classes"; labeljust=l; fontsize=8;
+        style=filled; fillcolor="#fff8e6"; color="#c8a84a"; margin=8;
+
+        repo_cls [label="repository\n(class)\n\nsync, read, query,\ncategory, package,\nebuild, manifest", fillcolor="#fff3cd"];
+        kb_cls   [label="knowledgebase\n(class)\n\nregister, save,\nload, compile,\nquery", fillcolor="#fff3cd"];
+    }
+
+    // Repository instances
+    subgraph cluster_repos {
+        label="Repository instances"; labeljust=l; fontsize=8;
+        style=filled; fillcolor="#e6f0ff"; color="#4a86c8"; margin=8;
+
+        portage [label="portage\n\nGentoo Portage tree\n30,000+ ebuilds\nmd5-cache, git sync", fillcolor="#cce5ff"];
+        pkg     [label="pkg\n\nVDB (installed pkgs)\n/var/db/pkg\nlocal, read-only", fillcolor="#cce5ff"];
+        overlay [label="overlay\n\nLocal overlay\ncustom ebuilds\nmd5-cache", fillcolor="#cce5ff"];
+        dist    [label="distfiles\n\nSource archives\ndownload cache\nmirror layout", fillcolor="#cce5ff"];
+    }
+
+    // KB instance
+    subgraph cluster_kb {
+        label="Knowledge base instance"; labeljust=l; fontsize=8;
+        style=filled; fillcolor="#e6ffe6"; color="#4a8c4a"; margin=8;
+
+        kb [label="kb\n\nRegisters all repos\nUnified query interface\nSerialization (qlf)", fillcolor="#ccf2cc"];
+    }
+
+    // Edges
+    repo_cls -> portage [label="newinstance"];
+    repo_cls -> pkg [label="newinstance"];
+    repo_cls -> overlay [label="newinstance"];
+    repo_cls -> dist [label="newinstance"];
+    kb_cls -> kb [label="newinstance"];
+
+    kb -> portage [label="register", style=dashed];
+    kb -> pkg [label="register", style=dashed];
+    kb -> overlay [label="register", style=dashed];
+    kb -> dist [label="register", style=dashed];
+
+    // Usage
+    prover [label="Prover / Planner\n\nportage://Entry\npkg://Entry\noverlay://Entry", fillcolor="#e8e8e8", shape=ellipse];
+
+    prover -> kb [label="kb://query(...)"];
+    prover -> portage [label="portage://entry(...)"];
+    prover -> pkg [label="pkg://entry(...)"];
+}

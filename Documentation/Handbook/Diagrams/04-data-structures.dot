@@ -1,0 +1,69 @@
+digraph data_structures {
+  rankdir=LR;
+  fontname="Helvetica Neue";
+  node [fontname="Helvetica Neue", fontsize=10, style=filled];
+  edge [fontname="Helvetica Neue", fontsize=9];
+  compound=true;
+
+  // Prover
+  prover [label="Prover", shape=box, style="filled,bold", fillcolor="#FFD6D6"];
+
+  // Four structures
+  subgraph cluster_state {
+    label="Proof state (threaded through recursion)";
+    labeljust=l;
+    style="rounded,dashed";
+    color="#888888";
+    fontsize=10;
+
+    proof [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">
+      <TR><TD ALIGN="LEFT"><B>Proof</B></TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#666666">────────────────────</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">rule(Lit) → dep(N, Body)?Ctx</TD></TR>
+      <TR><TD ALIGN="LEFT">assumed(rule(Lit)) → ...</TD></TR>
+      <TR><TD ALIGN="LEFT">rule(assumed(Lit)) → ...</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#888888"><I>Why was each literal accepted?</I></FONT></TD></TR>
+    </TABLE>>, shape=box, fillcolor="#CCE5FF"];
+
+    model [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">
+      <TR><TD ALIGN="LEFT"><B>Model</B></TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#666666">────────────────────</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">Lit → Ctx</TD></TR>
+      <TR><TD ALIGN="LEFT">assumed(Lit) → Ctx</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#888888"><I>What has been proven?</I></FONT></TD></TR>
+    </TABLE>>, shape=box, fillcolor="#D4EDDA"];
+
+    constraints [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">
+      <TR><TD ALIGN="LEFT"><B>Constraints</B></TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#666666">────────────────────</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">cn_domain(C,N,S) → Domain</TD></TR>
+      <TR><TD ALIGN="LEFT">selected_cn(C,N) → true</TD></TR>
+      <TR><TD ALIGN="LEFT">blocker → ...</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#888888"><I>What restrictions must hold?</I></FONT></TD></TR>
+    </TABLE>>, shape=box, fillcolor="#FFF3CD"];
+
+    triggers [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">
+      <TR><TD ALIGN="LEFT"><B>Triggers</B></TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#666666">────────────────────</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">body_lit → [head₁, head₂, ...]</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#888888"><I>Who depends on this body?</I></FONT></TD></TR>
+    </TABLE>>, shape=box, fillcolor="#E2D9F3"];
+  }
+
+  // Consumers
+  planner [label="Planner", shape=box, fillcolor="#E8E8E8"];
+  printer [label="Printer", shape=box, fillcolor="#E8E8E8"];
+  explainer [label="Explainer", shape=box, fillcolor="#E8E8E8"];
+
+  // Edges
+  prover -> proof [label="writes"];
+  prover -> model [label="writes"];
+  prover -> constraints [label="writes"];
+  prover -> triggers [label="writes"];
+
+  proof -> planner [label="plan from"];
+  triggers -> planner;
+  proof -> printer [label="display"];
+  model -> printer;
+  proof -> explainer [label="explain"];
+}

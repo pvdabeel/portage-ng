@@ -1,0 +1,52 @@
+// Chapter 16 — Inter-LLM communication (section 16.4.4)
+// Render: dot -Tsvg 16-inter-llm.dot -o 16-inter-llm.svg
+
+digraph inter_llm {
+    rankdir=LR;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=7, style=filled, shape=box,
+          margin="0.08,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=6, arrowsize=0.4];
+    nodesep=0.18; ranksep=0.35;
+
+    // Actors
+    user [label="User", shape=ellipse, fillcolor="#e2e3e5"];
+
+    subgraph cluster_ng {
+        label="portage-ng"; labeljust=l; fontsize=8;
+        style=rounded; color="#999999";
+
+        dispatch [label="dispatch\n+ stream", fillcolor="#cce5ff"];
+        extract  [label="extract_calls\n(regex scan)", fillcolor="#cce5ff"];
+        history1 [label="Conversation\nhistory\n(Claude)", fillcolor="#fff3cd"];
+        history2 [label="Conversation\nhistory\n(Ollama)", fillcolor="#fff3cd"];
+    }
+
+    subgraph cluster_llms {
+        label="LLM services"; labeljust=l; fontsize=8;
+        style=rounded; color="#999999";
+
+        claude  [label="Claude", fillcolor="#f0e6ff"];
+        ollama  [label="Ollama\n(local)", fillcolor="#f0e6ff"];
+    }
+
+    // Forward path
+    user -> dispatch [label="question"];
+    dispatch -> claude [label="① prompt"];
+    dispatch -> history1 [label="update", style=dotted, constraint=false];
+
+    // Claude responds with inter-LLM call
+    claude -> extract [label="② response with\n<call:ollama>…</call:ollama>"];
+    extract -> ollama [label="③ delegated\nquestion"];
+    extract -> history2 [label="update", style=dotted, constraint=false];
+
+    // Ollama responds
+    ollama -> dispatch [label="④ Ollama\nresponse"];
+
+    // Re-inject into Claude
+    dispatch -> claude [label="⑤ function\nresult", style=dashed];
+
+    // Final answer
+    claude -> dispatch [label="⑥ final\nresponse", style=dashed];
+    dispatch -> user [label="⑦ answer\n(streamed)"];
+}

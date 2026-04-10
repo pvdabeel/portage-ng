@@ -1,0 +1,83 @@
+// Chapter 12 — SCC decomposition and merge-sets (Kosaraju)
+// Render: dot -Tsvg 12-scc-scheduling.dot -o 12-scc-scheduling.svg
+
+digraph scc_scheduling {
+    rankdir=TB;
+    fontname="Helvetica";
+    fontsize=11;
+    node [fontname="Helvetica", fontsize=11, style=filled, shape=box];
+    edge [fontname="Helvetica", fontsize=10];
+    compound=true;
+
+    // Title
+    label="Kahn remainder -> Kosaraju SCC -> merge-sets";
+    labelloc=t;
+    fontsize=13;
+
+    // Kahn remainder (cyclic portion)
+    subgraph cluster_remainder {
+        label="Kahn remainder\n(in-degree never reaches 0)";
+        labeljust=l;
+        style=filled;
+        fillcolor="#fff0f0";
+        color="#c84a4a";
+
+        // SCC 1: mutual runtime deps
+        subgraph cluster_scc1 {
+            label="SCC 1  (:run cycle)";
+            labeljust=l;
+            style=filled;
+            fillcolor="#e6f0ff";
+            color="#4a86c8";
+
+            node [fillcolor="#cce5ff"];
+            python_run [label="python:run"];
+            setuptools_run [label="setuptools:run"];
+            pip_run [label="pip:run"];
+
+            python_run -> setuptools_run [label="RDEPEND"];
+            setuptools_run -> pip_run [label="RDEPEND"];
+            pip_run -> python_run [label="RDEPEND", style=dashed, color="#c84a4a"];
+        }
+
+        // SCC 2: single node (not truly cyclic)
+        subgraph cluster_scc2 {
+            label="SCC 2  (single node)";
+            labeljust=l;
+            style=filled;
+            fillcolor="#e6ffe6";
+            color="#4a8c4a";
+
+            node [fillcolor="#ccf2cc"];
+            wheel_run [label="wheel:run"];
+        }
+
+        setuptools_run -> wheel_run [label="RDEPEND", ltail=cluster_scc1];
+    }
+
+    // Scheduling result
+    subgraph cluster_result {
+        label="Scheduled output";
+        labeljust=l;
+        style=filled;
+        fillcolor="#e8e8e8";
+        color="#666666";
+
+        node [fillcolor="#d4edda"];
+        merge_set [label="Merge-set\n{python, setuptools, pip}\n(merged together as\nruntime cycle)"];
+        single [label="Schedule normally\n{wheel}\n(after merge-set)"];
+
+        merge_set -> single [label="then"];
+    }
+
+    // Kosaraju steps
+    node [shape=plaintext, fillcolor=white];
+    step1 [label=<<B>1.</B> DFS forward pass<BR/>(record finish order)>];
+    step2 [label=<<B>2.</B> DFS on transposed graph<BR/>(reverse finish order)>];
+    step3 [label=<<B>3.</B> Each DFS tree = one SCC<BR/>(:run SCCs become merge-sets)>];
+
+    // Layout
+    python_run -> step1 [style=invis];
+    step1 -> step2 -> step3 [style=invis];
+    step3 -> merge_set [style=invis];
+}

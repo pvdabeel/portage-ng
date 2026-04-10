@@ -1,0 +1,44 @@
+// Chapter 17 — mDNS/Bonjour discovery flow (section 17.4)
+// Render: dot -Tsvg 17-bonjour-discovery.dot -o 17-bonjour-discovery.svg
+
+digraph bonjour {
+    rankdir=LR;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=7, style=filled, shape=box,
+          margin="0.08,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=6, arrowsize=0.4];
+    nodesep=0.20; ranksep=0.40;
+
+    // Network
+    mdns [label="Local network\nmDNS multicast\n(224.0.0.251:5353)",
+          shape=ellipse, fillcolor="#e8e8e8"];
+
+    // Server side
+    subgraph cluster_server {
+        label="Server host"; labeljust=l; fontsize=8;
+        style=filled; fillcolor="#fff8e6"; color="#c8a84a"; margin=8;
+
+        srv_start [label="server:start\nHTTPS on port P", fillcolor="#fff3cd"];
+        srv_reg   [label="bonjour:advertise\ndns-sd -R\n_portage-ng._tcp\nport P", fillcolor="#fff3cd"];
+    }
+
+    // Worker side
+    subgraph cluster_worker {
+        label="Worker host"; labeljust=l; fontsize=8;
+        style=filled; fillcolor="#e6ffe6"; color="#4a8c4a"; margin=8;
+
+        wrk_browse [label="bonjour:browse\ndns-sd -B\n_portage-ng._tcp", fillcolor="#ccf2cc"];
+        wrk_resolve [label="Resolve\nhostname → IP\nport P", fillcolor="#ccf2cc"];
+        wrk_tls    [label="Mutual TLS\nhandshake", fillcolor="#ccf2cc"];
+        wrk_poll   [label="worker:poll\n(job loop)", fillcolor="#ccf2cc"];
+    }
+
+    // Flow
+    srv_start -> srv_reg [label="① Register"];
+    srv_reg -> mdns [label="② Announce\nservice"];
+    mdns -> wrk_browse [label="③ Discover\nservice"];
+    wrk_browse -> wrk_resolve [label="④ Resolve\naddress"];
+    wrk_resolve -> wrk_tls [label="⑤ Connect"];
+    wrk_tls -> srv_start [label="⑥ Verified\nconnection", style=dashed, constraint=false];
+    wrk_tls -> wrk_poll [label="⑦ Start\npoll loop"];
+}

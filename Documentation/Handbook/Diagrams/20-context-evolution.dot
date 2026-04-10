@@ -1,0 +1,46 @@
+// Chapter 20 — Context evolution through a dependency chain
+// Render: dot -Tsvg 20-context-evolution.dot -o 20-context-evolution.svg
+
+digraph ctx_evolution {
+    rankdir=TB;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=7, style=filled, shape=box, margin="0.06,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=6, arrowsize=0.4];
+    nodesep=0.20; ranksep=0.28;
+
+    // Level 1: target
+    target [label="target(sys-apps/portage)\nContext: {}", fillcolor="#cce5ff"];
+
+    // Level 2: portage install
+    portage [label="portage-3.0.77-r3:install\nContext: {}", fillcolor="#cce5ff"];
+
+    // Level 3: deps of portage
+    python_dep [label="grouped_dep(python):install\n\nself(portage://portage-3.0.77-r3)\nbwu:use_state([ssl,threads],[])\nafter(portage:install)", fillcolor="#d4edda"];
+    tar_dep [label="grouped_dep(tar):install\n\nself(portage://portage-3.0.77-r3)\nbwu:use_state([],[])\nafter_only(portage:install)", fillcolor="#fff3cd"];
+
+    // Level 4: python resolved
+    python [label="python-3.13.2:install\n\nself(portage://portage-3.0.77-r3)\nbwu:use_state([ssl,threads],[])\nafter(portage:install)\n\nemits: selected_cn(dev-lang,python)", fillcolor="#d4edda"];
+
+    // Level 5: deps of python
+    openssl_dep [label="grouped_dep(openssl):install\n\nself(portage://python-3.13.2)\nbwu:use_state([],[])\nslot(dev-libs,openssl,0/3.4.1)\nafter(portage:install)", fillcolor="#d4edda"];
+    mime_dep [label="grouped_dep(mime-types):install\n\nself(portage://python-3.13.2)\nbwu:use_state([],[])\nafter_only(python:install)", fillcolor="#fff3cd"];
+
+    // Legend
+    subgraph cluster_legend {
+        label=""; style=invis;
+        node [shape=plaintext, fillcolor=white, fontsize=6, margin="0.02,0.01"];
+        leg [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="1">
+            <TR><TD BGCOLOR="#cce5ff" WIDTH="10"> </TD><TD ALIGN="LEFT"> root / no context</TD></TR>
+            <TR><TD BGCOLOR="#d4edda" WIDTH="10"> </TD><TD ALIGN="LEFT"> DEPEND (after propagates)</TD></TR>
+            <TR><TD BGCOLOR="#fff3cd" WIDTH="10"> </TD><TD ALIGN="LEFT"> RDEPEND (after_only, stops)</TD></TR>
+        </TABLE>>];
+    }
+
+    // Edges
+    target -> portage [label="select best\ncandidate"];
+    portage -> python_dep [label="DEPEND\npython[ssl,threads]"];
+    portage -> tar_dep [label="RDEPEND\ntar"];
+    python_dep -> python [label="candidate\nselected"];
+    python -> openssl_dep [label="DEPEND\nopenssl:="];
+    python -> mime_dep [label="RDEPEND\nmime-types"];
+}

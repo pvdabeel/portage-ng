@@ -1,0 +1,58 @@
+// Chapter 4 — portage-ng pipeline overview (compact)
+// Render: dot -Tsvg 04-pipeline-overview.dot -o 04-pipeline-overview.svg
+
+digraph pipeline {
+    rankdir=TB;
+    fontname="Helvetica Neue";
+    fontsize=11;
+    node [fontname="Helvetica Neue", fontsize=10, style=filled, margin="0.10,0.06"];
+    edge [fontname="Helvetica Neue", fontsize=9];
+    nodesep=0.30;
+    ranksep=0.35;
+
+    // Input row
+    md5cache   [label="md5-cache\nfiles", shape=ellipse, fillcolor="#e8e8e8"];
+    reader     [label="Reader / Parser", shape=box, fillcolor="#cce5ff"];
+    user       [label="User", shape=house, fillcolor="#FFF3CD"];
+
+    // Knowledge
+    facts      [label="Prolog facts", shape=ellipse, fillcolor="#e8e8e8"];
+
+    // Pipeline cluster
+    subgraph cluster_pipeline {
+        label="pipeline module";
+        labeljust=l;
+        style=dashed;
+        color="#666666";
+        fontcolor="#666666";
+        fontsize=9;
+
+        prover     [label="Prover", shape=box, fillcolor="#cce5ff"];
+        planner    [label="Planner", shape=box, fillcolor="#cce5ff"];
+        scheduler  [label="Scheduler", shape=box, fillcolor="#cce5ff"];
+
+        prover -> planner -> scheduler;
+    }
+
+    // Output row
+    printer    [label="Printer", shape=box, fillcolor="#cce5ff"];
+    builder    [label="Builder", shape=box, fillcolor="#cce5ff"];
+    output     [label="Terminal\noutput", shape=ellipse, fillcolor="#e8e8e8"];
+    builds     [label="Installed\npackages", shape=ellipse, fillcolor="#e8e8e8"];
+
+    // Flow
+    md5cache  -> reader;
+    reader    -> facts;
+    facts     -> prover  [style=dashed];
+    user      -> prover;
+    scheduler -> printer;
+    prover    -> printer [style=dashed, constraint=false];
+    printer   -> output;
+    printer   -> builder [style=dashed];
+    builder   -> builds;
+
+    // Rank alignment
+    { rank=same; md5cache; reader; user; }
+    { rank=same; printer; builder; }
+    { rank=same; output; builds; }
+}

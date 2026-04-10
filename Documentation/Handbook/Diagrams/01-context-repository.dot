@@ -1,0 +1,87 @@
+digraph context_repository {
+  rankdir=TB;
+  fontname="Helvetica Neue";
+  node [fontname="Helvetica Neue", fontsize=10, style=filled];
+  edge [fontname="Helvetica Neue", fontsize=9];
+  compound=true;
+  newrank=true;
+
+  // Class definition
+  subgraph cluster_class {
+    label="Class: repository";
+    labeljust=l;
+    style="dashed,rounded";
+    color="#888888";
+    fontsize=10;
+
+    class_def [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">
+      <TR><TD COLSPAN="2" ALIGN="LEFT"><B>public</B></TD></TR>
+      <TR><TD ALIGN="LEFT">  </TD><TD ALIGN="LEFT">init/5, sync/1</TD></TR>
+      <TR><TD ALIGN="LEFT">  </TD><TD ALIGN="LEFT">query/2, graph/1</TD></TR>
+      <TR><TD ALIGN="LEFT">  </TD><TD ALIGN="LEFT">entry/1, find_metadata/4</TD></TR>
+      <TR><TD COLSPAN="2" ALIGN="LEFT"><B>protected</B></TD></TR>
+      <TR><TD ALIGN="LEFT">  </TD><TD ALIGN="LEFT">path/1, cache_path/1</TD></TR>
+      <TR><TD ALIGN="LEFT">  </TD><TD ALIGN="LEFT">remote/1, protocol/1</TD></TR>
+      <TR><TD COLSPAN="2" ALIGN="LEFT"><B>private</B></TD></TR>
+      <TR><TD ALIGN="LEFT">  </TD><TD ALIGN="LEFT">type/1</TD></TR>
+    </TABLE>>, shape=box, fillcolor="#E8E8E8"];
+  }
+
+  // Instance portage
+  subgraph cluster_portage {
+    label="Instance: portage";
+    labeljust=l;
+    style="rounded";
+    color="#4A90D9";
+    fontsize=10;
+    fillcolor="#EBF3FC";
+
+    portage_state [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#228B22">path</FONT></TD><TD ALIGN="LEFT">'/usr/portage'</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#228B22">cache_path</FONT></TD><TD ALIGN="LEFT">'.../md5-cache'</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#228B22">remote</FONT></TD><TD ALIGN="LEFT">'https://...gentoo'</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#228B22">protocol</FONT></TD><TD ALIGN="LEFT">git</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#CC0000">type</FONT></TD><TD ALIGN="LEFT">eapi</TD></TR>
+      <TR><TD COLSPAN="2" ALIGN="LEFT"><FONT COLOR="#666666">─────────────────────</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#333333">entry</FONT></TD><TD ALIGN="LEFT">'sys-apps/portage-2.3.99'</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#333333">entry</FONT></TD><TD ALIGN="LEFT">'dev-lang/python-3.12.9'</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#333333">entry</FONT></TD><TD ALIGN="LEFT">'app-editors/neovim-0.12.0'</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#999999">  </FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#999999">... 30,000+ entries</FONT></TD></TR>
+    </TABLE>>, shape=box, fillcolor="#D4EDDA"];
+  }
+
+  // Instance myoverlay
+  subgraph cluster_overlay {
+    label="Instance: myoverlay";
+    labeljust=l;
+    style="rounded";
+    color="#4A90D9";
+    fontsize=10;
+    fillcolor="#EBF3FC";
+
+    overlay_state [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#228B22">path</FONT></TD><TD ALIGN="LEFT">'/var/db/repos/myoverlay'</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#228B22">cache_path</FONT></TD><TD ALIGN="LEFT">'.../md5-cache'</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#228B22">remote</FONT></TD><TD ALIGN="LEFT">'/var/db/repos/myoverlay/'</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#228B22">protocol</FONT></TD><TD ALIGN="LEFT">rsync</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#CC0000">type</FONT></TD><TD ALIGN="LEFT">eapi</TD></TR>
+      <TR><TD COLSPAN="2" ALIGN="LEFT"><FONT COLOR="#666666">─────────────────────</FONT></TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#333333">entry</FONT></TD><TD ALIGN="LEFT">'dev-libs/custom-lib-1.0'</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#333333">entry</FONT></TD><TD ALIGN="LEFT">'app-misc/my-tool-0.5'</TD></TR>
+    </TABLE>>, shape=box, fillcolor="#D4EDDA"];
+  }
+
+  // Prover
+  prover [label="Prover", shape=box, fillcolor="#FFD6D6"];
+
+  // Instantiation edges
+  class_def -> portage_state [label="portage:newinstance(repository)", style=dashed];
+  class_def -> overlay_state [label="myoverlay:newinstance(repository)", style=dashed];
+
+  // Prover queries
+  prover -> portage_state [label="portage::entry(E)"];
+  prover -> overlay_state [label="myoverlay::entry(E)"];
+
+  // Same rank for instances
+  {rank=same; portage_state; overlay_state;}
+}

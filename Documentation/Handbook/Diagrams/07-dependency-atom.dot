@@ -1,0 +1,71 @@
+// Chapter 7 — Anatomy of a dependency atom
+// Render: dot -Tsvg 07-dependency-atom.dot -o 07-dependency-atom.svg
+
+digraph dep_atom {
+    rankdir=TB;
+    fontname="Helvetica";
+    fontsize=11;
+    node [fontname="Helvetica", fontsize=11, style=filled];
+    edge [fontname="Helvetica", fontsize=10];
+
+    // The full atom
+    node [shape=box, fillcolor="#fff3cd"];
+    full [label=">=dev-libs/openssl-3.0:0/3=[ssl,-test]", fontsize=13];
+
+    // DCG rule nodes
+    node [shape=box, fillcolor="#cce5ff"];
+    blocking   [label="eapi:blocking\n(none)"];
+    operator   [label="eapi:operator\ngreaterequal"];
+    category   [label="eapi:category\n'dev-libs'"];
+    sep        [label="eapi:separator\n/"];
+    package    [label="eapi:package\nopenssl"];
+    version    [label="eapi:version0\nversion([3,0], ...)"];
+    slot       [label="eapi:slot_restriction\n[slot('0'), subslot('3'),\nequal]"];
+    usedeps    [label="eapi:use_dependencies\n[use(enable(ssl), none),\nuse(disable(test), none)]"];
+
+    // Parsed term pieces
+    node [shape=ellipse, fillcolor="#d4edda"];
+    piece_op   [label=">="];
+    piece_cat  [label="dev-libs"];
+    piece_sep  [label="/"];
+    piece_pkg  [label="openssl"];
+    piece_ver  [label="-3.0"];
+    piece_slot [label=":0/3="];
+    piece_use  [label="[ssl,-test]"];
+
+    // Full atom decomposition
+    full -> piece_op   [style=invis];
+    full -> piece_cat  [style=invis];
+    full -> piece_sep  [style=invis];
+    full -> piece_pkg  [style=invis];
+    full -> piece_ver  [style=invis];
+    full -> piece_slot [style=invis];
+    full -> piece_use  [style=invis];
+
+    // Same rank for pieces
+    { rank=same; piece_op; piece_cat; piece_sep; piece_pkg; piece_ver; piece_slot; piece_use; }
+
+    // Piece to DCG rule
+    piece_op   -> operator  [label="parse"];
+    piece_cat  -> category  [label="parse"];
+    piece_sep  -> sep       [label="parse"];
+    piece_pkg  -> package   [label="parse"];
+    piece_ver  -> version   [label="parse"];
+    piece_slot -> slot      [label="parse"];
+    piece_use  -> usedeps   [label="parse"];
+
+    // Result
+    node [shape=box, fillcolor="#e8e8e8"];
+    result [label="package_dependency(\n  install, no,\n  'dev-libs', openssl,\n  greaterequal,\n  version([3,0], '', 4, 0, '', 0, '3.0'),\n  [slot('0'), subslot('3'), equal],\n  [use(enable(ssl),none),\n   use(disable(test),none)])", fontsize=10];
+
+    blocking -> result [style=invis];
+    operator -> result;
+    category -> result;
+    package  -> result;
+    version  -> result;
+    slot     -> result;
+    usedeps  -> result;
+
+    // Ordering
+    { rank=same; blocking; operator; category; sep; package; version; slot; usedeps; }
+}

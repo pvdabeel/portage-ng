@@ -1,0 +1,63 @@
+// Chapter 22 — PMS dependency types → resolver edge mapping
+// Render: dot -Tsvg 22-dep-edge-mapping.dot -o 22-dep-edge-mapping.svg
+
+digraph dep_edge_mapping {
+    rankdir=TB;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=7, style=filled, shape=box,
+          margin="0.06,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=6, arrowsize=0.4];
+    nodesep=0.22; ranksep=0.30;
+
+    // Row 1: PMS
+    pms_build [label="DEPEND / BDEPEND\n\"before building\"", fillcolor="#cce5ff"];
+    pms_run   [label="RDEPEND\n\"before usable\"", fillcolor="#d4edda"];
+    pms_post  [label="PDEPEND\n\"before batch ends\"", fillcolor="#fff3cd"];
+
+    // Row 2: Portage
+    p_build [label="buildtime edge\nnever broken", fillcolor="#cce5ff"];
+    p_run   [label="runtime edge\nbroken for cycles", fillcolor="#d4edda"];
+    p_post  [label="runtime_post\nfirst to break", fillcolor="#fff3cd"];
+
+    // Row 3: Paludis
+    pal_build [label="build()=true\nnever broken", fillcolor="#cce5ff"];
+    pal_run   [label="run()=true\ncycles = free order", fillcolor="#d4edda"];
+    pal_post  [label="no edge\ncreated", fillcolor="#f0f0f0"];
+
+    // Row 4: portage-ng
+    ng_build [label=":install + after()\npropagates down", fillcolor="#cce5ff"];
+    ng_run   [label=":run + after_only()\nstops at children", fillcolor="#d4edda"];
+    ng_post  [label="literal_hook\nsingle-pass", fillcolor="#fff3cd"];
+
+    // Vertical connections
+    pms_build -> p_build;
+    pms_run   -> p_run;
+    pms_post  -> p_post;
+
+    p_build   -> pal_build;
+    p_run     -> pal_run;
+    p_post    -> pal_post;
+
+    pal_build -> ng_build;
+    pal_run   -> ng_run;
+    pal_post  -> ng_post;
+
+    // Invisible horizontal edges to force grid alignment
+    pms_build -> pms_run -> pms_post [style=invis];
+    p_build -> p_run -> p_post [style=invis];
+    pal_build -> pal_run -> pal_post [style=invis];
+    ng_build -> ng_run -> ng_post [style=invis];
+
+    // Row labels (left side)
+    node [shape=plaintext, fillcolor=white, fontsize=7];
+    lbl_pms [label="PMS"];
+    lbl_portage [label="Portage"];
+    lbl_paludis [label="Paludis"];
+    lbl_ng [label="portage-ng"];
+
+    lbl_pms -> lbl_portage -> lbl_paludis -> lbl_ng [style=invis];
+    lbl_pms -> pms_build [style=invis];
+    lbl_portage -> p_build [style=invis];
+    lbl_paludis -> pal_build [style=invis];
+    lbl_ng -> ng_build [style=invis];
+}

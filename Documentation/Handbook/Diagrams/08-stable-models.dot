@@ -1,0 +1,58 @@
+// Chapter 8 — Multiple stable models via backtracking
+// Render: dot -Tsvg 08-stable-models.dot -o 08-stable-models.svg
+
+digraph stable_models {
+    rankdir=TB;
+    fontname="Helvetica Neue";
+    fontsize=12;
+    node [fontname="Helvetica Neue", fontsize=11, style=filled, shape=box, margin="0.12,0.08"];
+    edge [fontname="Helvetica Neue", fontsize=10];
+    nodesep=0.40;
+    ranksep=0.50;
+
+    // Entry
+    req [label="REQUIRED_USE\n|| ( linux macos )", fillcolor="#FFF3CD", shape=box];
+
+    // Choice point
+    choice [label="Backtracking\nchoice point", shape=diamond, fillcolor="#e8e8e8", width=2.0, height=0.8];
+
+    // Model A
+    subgraph cluster_a {
+        label="Model A";
+        labeljust=l;
+        style=rounded;
+        color="#2266aa";
+        fontcolor="#2266aa";
+        fontsize=10;
+        bgcolor="#eef4ff";
+
+        a_flags [label="USE = linux -macos", fillcolor="#cce5ff"];
+        a_proof [label="Proof + Plan A", fillcolor="#d4edda"];
+        a_flags -> a_proof;
+    }
+
+    // Model B
+    subgraph cluster_b {
+        label="Model B";
+        labeljust=l;
+        style=rounded;
+        color="#aa6622";
+        fontcolor="#aa6622";
+        fontsize=10;
+        bgcolor="#fff8ee";
+
+        b_flags [label="USE = -linux macos", fillcolor="#FFF3CD"];
+        b_proof [label="Proof + Plan B", fillcolor="#d4edda"];
+        b_flags -> b_proof;
+    }
+
+    // Compare
+    compare [label="--variants\ncompare models", fillcolor="#e2d6f3", shape=box];
+
+    // Edges
+    req -> choice;
+    choice -> a_flags [label="  enable linux  "];
+    choice -> b_flags [label="  enable macos  "];
+    a_proof -> compare;
+    b_proof -> compare;
+}

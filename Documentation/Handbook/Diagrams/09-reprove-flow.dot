@@ -1,0 +1,64 @@
+// Chapter 9 — Reprove mechanism flow
+// Render: dot -Tsvg 09-reprove-flow.dot -o 09-reprove-flow.svg
+
+digraph reprove {
+    rankdir=TB;
+    fontname="Helvetica";
+    fontsize=11;
+    node [fontname="Helvetica", fontsize=11, style=filled];
+    edge [fontname="Helvetica", fontsize=10];
+
+    // Entry
+    node [shape=box, fillcolor="#cce5ff"];
+    prove9 [label="prove/9\n(top-level)"];
+    reprove_state [label="with_cn_domain_reprove_state\n(save/restore learned store)"];
+    prove_retries [label="prove_with_retries\n(Attempt, MaxRetries)"];
+
+    node [shape=box, fillcolor="#d4edda"];
+    prove_once [label="prove_once\nwith_cycle_stack\nprove_recursive"];
+
+    // Decision
+    node [shape=diamond, fillcolor="#fff3cd"];
+    success_q [label="Success?"];
+    new_info_q [label="New info\nlearned?"];
+    budget_q [label="Attempt <\nMaxRetries?"];
+
+    // Exception
+    node [shape=box, fillcolor="#f8d7da"];
+    reprove_thrown [label="prover_reprove(Info)\nthrown by:\n- grouped_dep_reprove\n- parent_narrowing\n- selected_cn_reprove\n- blocked_cn_reprove"];
+
+    // Handling
+    node [shape=box, fillcolor="#cce5ff"];
+    handle [label="handle_reprove(Info)\n- add_cn_domain_rejects\n- add origin rejects\n- prover:learn(...)"];
+
+    node [shape=box, fillcolor="#f8d7da"];
+    exhausted [label="reprove_exhausted\n- clear cn_domain_reject_\n- with_reprove_disabled"];
+
+    node [shape=box, fillcolor="#d4edda"];
+    final_prove [label="prove_once\n(reprove disabled)\nassumptions allowed"];
+
+    // Results
+    node [shape=ellipse, fillcolor="#e8e8e8"];
+    strict_proof [label="Strict proof\n(exit code 0 or 1)"];
+    assumption_proof [label="Proof under\nassumptions\n(exit code 2)"];
+
+    // Flow
+    prove9 -> reprove_state;
+    reprove_state -> prove_retries;
+    prove_retries -> prove_once;
+
+    prove_once -> success_q;
+    success_q -> strict_proof [label="yes"];
+    success_q -> reprove_thrown [label="no\n(exception)"];
+
+    reprove_thrown -> handle;
+    handle -> new_info_q;
+    new_info_q -> budget_q [label="yes"];
+    new_info_q -> exhausted [label="no"];
+
+    budget_q -> prove_retries [label="yes\n(retry)", style=dashed];
+    budget_q -> exhausted [label="no"];
+
+    exhausted -> final_prove;
+    final_prove -> assumption_proof;
+}

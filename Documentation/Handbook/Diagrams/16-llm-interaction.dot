@@ -1,0 +1,50 @@
+// Chapter 16 — LLM interaction loop (code execution + inter-LLM messaging)
+// Render: dot -Tsvg 16-llm-interaction.dot -o 16-llm-interaction.svg
+
+digraph llm_interaction {
+    rankdir=LR;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=7, style=filled, shape=box,
+          margin="0.06,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=6, arrowsize=0.4];
+    nodesep=0.16; ranksep=0.30;
+
+    user [label="User", shape=ellipse, fillcolor="#e2e3e5"];
+
+    subgraph cluster_ng {
+        label="portage-ng"; labeljust=l; fontsize=8;
+        style=rounded; color="#999999";
+
+        dispatch [label="llm.pl\ndispatch +\nstream", fillcolor="#cce5ff"];
+        extract  [label="extract_calls\n(regex scan)", fillcolor="#cce5ff"];
+        sandbox  [label="Sandbox\nexecute_llm_code\n(temporary module)", fillcolor="#d4edda"];
+        history  [label="Conversation\nhistory\n(per service)", fillcolor="#fff3cd"];
+    }
+
+    subgraph cluster_llms {
+        label="LLM services"; labeljust=l; fontsize=8;
+        style=rounded; color="#999999";
+
+        claude  [label="Claude\nclaude-sonnet-4-6", fillcolor="#f0e6ff"];
+        grok    [label="Grok\ngrok-4-1", fillcolor="#f0e6ff"];
+        chatgpt [label="ChatGPT\ngpt-4o", fillcolor="#f0e6ff"];
+        gemini  [label="Gemini\ngemini-3-pro", fillcolor="#f0e6ff"];
+        ollama  [label="Ollama\n(local)", fillcolor="#f0e6ff"];
+    }
+
+    // User flow
+    user -> dispatch [label="question /\n--llm / --explain"];
+    dispatch -> claude [label="stream"];
+    dispatch -> grok [label="stream", style=dashed];
+    dispatch -> chatgpt [label="stream", style=dashed];
+    dispatch -> gemini [label="stream", style=dashed];
+    dispatch -> ollama [label="stream", style=dashed];
+
+    // Response flow
+    claude -> extract [label="response\n(streamed)"];
+    extract -> sandbox [label="<call:swi_prolog>\ncode"];
+    extract -> grok [label="<call:grok>\nmessage", style=dashed];
+    sandbox -> dispatch [label="output\n(captured)"];
+    dispatch -> history [label="update"];
+    dispatch -> user [label="answer\n(streamed)"];
+}

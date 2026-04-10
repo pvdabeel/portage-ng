@@ -1,0 +1,49 @@
+// Chapter 17 — Mutual TLS handshake (section 17.6)
+// Render: dot -Tsvg 17-tls-handshake.dot -o 17-tls-handshake.svg
+
+digraph tls_handshake {
+    rankdir=LR;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=7, style=filled, shape=box,
+          margin="0.08,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=6, arrowsize=0.4];
+    nodesep=0.18; ranksep=0.45;
+
+    // Worker side
+    subgraph cluster_worker {
+        label="Worker (worker.local)"; labeljust=l; fontsize=8;
+        style=filled; fillcolor="#e6ffe6"; color="#4a8c4a"; margin=8;
+
+        w_cacert  [label="cacert.pem\n(shared CA)", fillcolor="#fff3cd"];
+        w_cert    [label="worker.local\n.client-cert.pem", fillcolor="#ccf2cc"];
+        w_key     [label="worker.local\n.client-key.pem", fillcolor="#ffcccc"];
+        w_verify  [label="① Verify server cert\nagainst cacert.pem", fillcolor="#ccf2cc", shape=diamond];
+        w_present [label="③ Present own\nclient certificate", fillcolor="#ccf2cc"];
+    }
+
+    // Server side
+    subgraph cluster_server {
+        label="Server (server.local)"; labeljust=l; fontsize=8;
+        style=filled; fillcolor="#e6f0ff"; color="#4a86c8"; margin=8;
+
+        s_cacert  [label="cacert.pem\n(shared CA)", fillcolor="#fff3cd"];
+        s_cert    [label="server.local\n.server-cert.pem", fillcolor="#cce5ff"];
+        s_key     [label="server.local\n.server-key.pem", fillcolor="#ffcccc"];
+        s_present [label="② Present own\nserver certificate", fillcolor="#cce5ff"];
+        s_verify  [label="④ Verify client cert\nagainst cacert.pem", fillcolor="#cce5ff", shape=diamond];
+        s_accept  [label="⑤ Accept\nconnection", fillcolor="#d4edda"];
+    }
+
+    // TLS handshake flow
+    s_cert -> s_present [style=dotted];
+    s_key -> s_present [style=dotted];
+    s_present -> w_verify [label="server cert"];
+    w_cacert -> w_verify [style=dotted, label="trust\nroot"];
+
+    w_cert -> w_present [style=dotted];
+    w_key -> w_present [style=dotted];
+    w_present -> s_verify [label="client cert"];
+    s_cacert -> s_verify [style=dotted, label="trust\nroot"];
+
+    s_verify -> s_accept [label="OK"];
+}

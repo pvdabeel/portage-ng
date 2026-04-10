@@ -1,0 +1,41 @@
+// Chapter 8 — Prescient proving: two paths into openssl
+// Render: dot -Tsvg 08-prescient-proving.dot -o 08-prescient-proving.svg
+
+digraph prescient {
+    rankdir=TB;
+    fontname="Helvetica Neue";
+    fontsize=12;
+    node [fontname="Helvetica Neue", fontsize=11, style=filled, shape=box, margin="0.12,0.08"];
+    edge [fontname="Helvetica Neue", fontsize=10];
+    nodesep=0.35;
+    ranksep=0.50;
+
+    // Two parent packages
+    firefox [label="app-editors/neovim\n:install", fillcolor="#cce5ff"];
+    python  [label="dev-lang/python\n:install", fillcolor="#cce5ff"];
+
+    // First encounter
+    ssl_ctx [label="openssl:install\n?{use_state([ssl],[])}", fillcolor="#FFF3CD", shape=box];
+
+    // Second encounter
+    thr_ctx [label="openssl:install\n?{use_state([threads],[])}", fillcolor="#FFF3CD", shape=box];
+
+    // Merge
+    merge [label="Feature term\nunification", shape=diamond, fillcolor="#e8e8e8", width=2.0, height=0.8];
+
+    // Merged result
+    merged [label="openssl:install\n?{use_state([ssl,threads],[])}", fillcolor="#d4edda", shape=box];
+
+    // Downstream
+    re_expand [label="Re-expand only\nnew body literals", fillcolor="#cce5ff"];
+
+    // Edges
+    firefox -> ssl_ctx [label="  Path A: needs ssl  "];
+    python  -> thr_ctx [label="  Path B: needs threads  "];
+
+    ssl_ctx -> merge [label="  stored context  "];
+    thr_ctx -> merge [label="  new context  "];
+
+    merge -> merged [label="  merge succeeds  "];
+    merged -> re_expand;
+}

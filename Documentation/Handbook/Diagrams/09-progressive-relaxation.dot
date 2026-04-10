@@ -1,0 +1,49 @@
+// Chapter 9 — Progressive relaxation tiers (compact)
+// Render: dot -Tsvg 09-progressive-relaxation.dot -o 09-progressive-relaxation.svg
+
+digraph relaxation {
+    rankdir=TB;
+    fontname="Helvetica Neue";
+    fontsize=10;
+    node [fontname="Helvetica Neue", fontsize=9, style=filled, shape=box, margin="0.08,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=8];
+    nodesep=0.20;
+    ranksep=0.25;
+
+    // Entry
+    goals [label="Goals", shape=ellipse, fillcolor="#FFF3CD"];
+
+    // Tiers and decisions on same rank where possible
+    t1 [label="Tier 1: strict", fillcolor="#d4edda"];
+    d1 [label="ok?", shape=diamond, fillcolor="#e8e8e8", width=0.7, height=0.5];
+
+    t2 [label="Tier 2: keyword_acceptance", fillcolor="#cce5ff"];
+    d2 [label="ok?", shape=diamond, fillcolor="#e8e8e8", width=0.7, height=0.5];
+
+    t3 [label="Tier 3: blockers", fillcolor="#cce5ff"];
+    d3 [label="ok?", shape=diamond, fillcolor="#e8e8e8", width=0.7, height=0.5];
+
+    t4 [label="Tier 4: unmask", fillcolor="#cce5ff"];
+    d4 [label="ok?", shape=diamond, fillcolor="#e8e8e8", width=0.7, height=0.5];
+
+    t5 [label="Tier 5: keyword + unmask", fillcolor="#f8d7da"];
+
+    // Output
+    plan [label="Plan + suggestions", shape=ellipse, fillcolor="#d4edda"];
+
+    // Flow
+    goals -> t1;
+    t1 -> d1;
+    d1 -> plan [label=" yes", color="#228B22", fontcolor="#228B22"];
+    d1 -> t2 [label=" no", color="#cc3333", fontcolor="#cc3333"];
+    t2 -> d2;
+    d2 -> plan [label=" yes", color="#228B22", fontcolor="#228B22"];
+    d2 -> t3 [label=" no", color="#cc3333", fontcolor="#cc3333"];
+    t3 -> d3;
+    d3 -> plan [label=" yes", color="#228B22", fontcolor="#228B22"];
+    d3 -> t4 [label=" no", color="#cc3333", fontcolor="#cc3333"];
+    t4 -> d4;
+    d4 -> plan [label=" yes", color="#228B22", fontcolor="#228B22"];
+    d4 -> t5 [label=" no", color="#cc3333", fontcolor="#cc3333"];
+    t5 -> plan;
+}

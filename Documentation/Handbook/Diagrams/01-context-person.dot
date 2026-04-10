@@ -1,0 +1,85 @@
+digraph context_person {
+  rankdir=TB;
+  fontname="Helvetica Neue";
+  node [fontname="Helvetica Neue", fontsize=10, style=filled];
+  edge [fontname="Helvetica Neue", fontsize=9];
+  compound=true;
+  newrank=true;
+
+  // Class definition
+  subgraph cluster_class {
+    label="Class: person";
+    labeljust=l;
+    style="dashed,rounded";
+    color="#888888";
+    fontsize=10;
+
+    class_def [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">
+      <TR><TD COLSPAN="2" ALIGN="LEFT"><B>public</B></TD></TR>
+      <TR><TD ALIGN="LEFT">  </TD><TD ALIGN="LEFT">person/1, ~person/0</TD></TR>
+      <TR><TD ALIGN="LEFT">  </TD><TD ALIGN="LEFT">get_name/1, set_name/1</TD></TR>
+      <TR><TD ALIGN="LEFT">  </TD><TD ALIGN="LEFT">get_age/1, set_age/1</TD></TR>
+      <TR><TD ALIGN="LEFT">  </TD><TD ALIGN="LEFT">add_title/1, remove_title/1</TD></TR>
+      <TR><TD COLSPAN="2" ALIGN="LEFT"><B>protected</B></TD></TR>
+      <TR><TD ALIGN="LEFT">  </TD><TD ALIGN="LEFT">name/1</TD></TR>
+      <TR><TD COLSPAN="2" ALIGN="LEFT"><B>private</B></TD></TR>
+      <TR><TD ALIGN="LEFT">  </TD><TD ALIGN="LEFT">age/1, title/1</TD></TR>
+    </TABLE>>, shape=box, fillcolor="#E8E8E8"];
+  }
+
+  // Instance pieter
+  subgraph cluster_pieter {
+    label="Instance: pieter";
+    labeljust=l;
+    style="rounded";
+    color="#4A90D9";
+    fontsize=10;
+    fillcolor="#EBF3FC";
+
+    pieter_state [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#228B22">name</FONT></TD><TD ALIGN="LEFT">'Pieter'</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#CC0000">age</FONT></TD><TD ALIGN="LEFT">40</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#CC0000">title</FONT></TD><TD ALIGN="LEFT">'Dr.'</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#CC0000">title</FONT></TD><TD ALIGN="LEFT">'Prof.'</TD></TR>
+    </TABLE>>, shape=box, fillcolor="#D4EDDA"];
+  }
+
+  // Instance alice
+  subgraph cluster_alice {
+    label="Instance: alice";
+    labeljust=l;
+    style="rounded";
+    color="#4A90D9";
+    fontsize=10;
+    fillcolor="#EBF3FC";
+
+    alice_state [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#228B22">name</FONT></TD><TD ALIGN="LEFT">'Alice'</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#CC0000">age</FONT></TD><TD ALIGN="LEFT">35</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#CC0000">title</FONT></TD><TD ALIGN="LEFT">'Ir.'</TD></TR>
+    </TABLE>>, shape=box, fillcolor="#D4EDDA"];
+  }
+
+  // Instance bob
+  subgraph cluster_bob {
+    label="Instance: bob";
+    labeljust=l;
+    style="rounded";
+    color="#4A90D9";
+    fontsize=10;
+    fillcolor="#EBF3FC";
+
+    bob_state [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#228B22">name</FONT></TD><TD ALIGN="LEFT">'Bob'</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#CC0000">age</FONT></TD><TD ALIGN="LEFT">28</TD></TR>
+    </TABLE>>, shape=box, fillcolor="#D4EDDA"];
+  }
+
+  // Instantiation edges
+  class_def -> pieter_state [label="::new(pieter, 'Pieter')", style=dashed];
+  class_def -> alice_state [label="::new(alice, 'Alice')", style=dashed];
+  class_def -> bob_state [label="::new(bob, 'Bob')", style=dashed];
+
+  // Same rank for instances
+  {rank=same; pieter_state; alice_state; bob_state;}
+}

@@ -1,0 +1,64 @@
+// Chapter 19 — Class and instance lifecycle
+// Render: dot -Tsvg 19-class-instance.dot -o 19-class-instance.svg
+
+digraph class_instance {
+    rankdir=TB;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=7, style=filled, shape=box,
+          margin="0.08,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=6, arrowsize=0.4];
+    nodesep=0.20; ranksep=0.35;
+
+    // Class declaration
+    subgraph cluster_class {
+        label="Class declaration"; labeljust=l; fontsize=8;
+        style=filled; fillcolor="#fff8e6"; color="#c8a84a"; margin=8;
+
+        decl [label=":- class.\n:- dpublic(name/1).\n:- dprotected(age/1).\n:- dprivate(secret/1).",
+              fillcolor="#fff3cd", shape=note];
+        meta [label="$__meta facts\ntype(class)\nproperty(name/1, public)\nproperty(age/1, protected)\nproperty(secret/1, private)",
+              fillcolor="#fff3cd"];
+
+        decl -> meta [label="assertz"];
+    }
+
+    // Inheritance
+    parent [label="Parent class\n(optional)", fillcolor="#e8e8e8", shape=ellipse];
+
+    // Instance creation
+    subgraph cluster_instance {
+        label="Instance (newinstance)"; labeljust=l; fontsize=8;
+        style=filled; fillcolor="#e6f0ff"; color="#4a86c8"; margin=8;
+
+        guard [label="Generate guarded\npredicates\n(access control)", fillcolor="#cce5ff"];
+        token [label="Thread-local\n$_token\n(access tokens)", fillcolor="#cce5ff"];
+        freeze [label="compile_predicates\n(freeze for performance)", fillcolor="#cce5ff"];
+        ctor [label="Call constructor\n(if declared)", fillcolor="#cce5ff"];
+
+        guard -> token [style=invis];
+        token -> freeze [style=invis];
+        freeze -> ctor [style=invis];
+    }
+
+    // Instance contexts
+    subgraph cluster_instances {
+        label="Live instances"; labeljust=l; fontsize=8;
+        style=filled; fillcolor="#e6ffe6"; color="#4a8c4a"; margin=8;
+
+        i1 [label="portage\n(repository instance)\nown facts + state", fillcolor="#ccf2cc"];
+        i2 [label="pkg\n(repository instance)\nown facts + state", fillcolor="#ccf2cc"];
+        i3 [label="kb\n(knowledgebase instance)\nregistered repos", fillcolor="#ccf2cc"];
+    }
+
+    // Destruction
+    destr [label="~Instance\n(destructor)\nabolish all predicates", fillcolor="#ffcccc"];
+
+    // Edges
+    parent -> decl [label="inherit/1", style=dashed];
+    meta -> guard [label="newinstance/1"];
+    ctor -> i1 [label="creates", style=dashed];
+    ctor -> i2 [label="creates", style=dashed];
+    ctor -> i3 [label="creates", style=dashed];
+    i1 -> destr [style=dashed, label="~/1"];
+    i2 -> destr [style=dashed, label="~/1"];
+}

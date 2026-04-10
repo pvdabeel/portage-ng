@@ -1,0 +1,27 @@
+// Chapter 21 — Paludis conflict-resolution loop
+// Render: dot -Tsvg 21-paludis-loop.dot -o 21-paludis-loop.svg
+
+digraph paludis_loop {
+    rankdir=TB;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=7, style=filled, shape=box,
+          margin="0.06,0.04", fillcolor="#cce5ff"];
+    edge [fontname="Helvetica Neue", fontsize=6, arrowsize=0.4];
+    nodesep=0.18; ranksep=0.22;
+
+    start [label="Start\n(empty resolver)", shape=ellipse, fillcolor="#e2e3e5"];
+    resolve [label="Add dependencies\naccumulate constraints\nper package+slot"];
+    conflict [label="New constraint\nconflicts with\ndecision?", shape=diamond, fillcolor="#fff3cd"];
+    find [label="Evaluate ALL constraints\nfind correct candidate", fillcolor="#d4edda"];
+    preset [label="Create preload:\n\"use this candidate\nnext time\"", fillcolor="#d4edda"];
+    restart [label="Discard resolver\ncreate fresh one\n(with preloads)", fillcolor="#fff3cd"];
+    done [label="Done\n(all resolved)", shape=ellipse, fillcolor="#d4edda"];
+
+    start -> resolve;
+    resolve -> conflict;
+    conflict -> done [label="no"];
+    conflict -> find [label="yes"];
+    find -> preset;
+    preset -> restart;
+    restart -> resolve [label="retry with\npositive guidance"];
+}

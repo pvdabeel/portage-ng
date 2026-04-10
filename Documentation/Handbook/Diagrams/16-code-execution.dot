@@ -1,0 +1,41 @@
+// Chapter 16 — Code execution example (section 16.4.3)
+// Render: dot -Tsvg 16-code-execution.dot -o 16-code-execution.svg
+
+digraph code_execution {
+    rankdir=TB;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=7, style=filled, shape=box,
+          margin="0.08,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=6, arrowsize=0.4];
+    nodesep=0.20; ranksep=0.30;
+
+    // Actors
+    user     [label="User", shape=ellipse, fillcolor="#e2e3e5"];
+    llm      [label="LLM\n(e.g. Claude)", shape=ellipse, fillcolor="#f0e6ff"];
+
+    // Steps
+    q        [label="① \"How many ebuilds\n   are in the tree?\"", fillcolor="#cce5ff",
+              shape=note];
+    dispatch [label="② Forward to LLM\nwith system prompt\n(capabilities listed)", fillcolor="#cce5ff"];
+    respond  [label="③ LLM generates response\ncontaining <call:swi_prolog>", fillcolor="#f0e6ff"];
+    extract  [label="④ extract_calls\ndetects <call:swi_prolog> tag", fillcolor="#cce5ff"];
+    sandbox  [label="⑤ execute_llm_code\nin temporary module\n(sandboxed)", fillcolor="#d4edda"];
+    capture  [label="⑥ Capture output:\n\"The portage tree\ncontains 32,147 ebuilds.\"", fillcolor="#d4edda"];
+    reinject [label="⑦ Send output back\nto LLM as function result", fillcolor="#cce5ff"];
+    final    [label="⑧ LLM incorporates\nverified fact into\nfinal answer", fillcolor="#f0e6ff"];
+    answer   [label="⑨ Stream answer\nto user", fillcolor="#cce5ff"];
+
+    // Flow
+    user -> q;
+    q -> dispatch;
+    dispatch -> llm [style=dashed, label="prompt +\ncapabilities"];
+    llm -> respond;
+    respond -> extract;
+    extract -> sandbox [label="Prolog code"];
+    sandbox -> capture;
+    capture -> reinject [label="stdout"];
+    reinject -> llm [style=dashed, label="function\nresponse"];
+    llm -> final;
+    final -> answer;
+    answer -> user;
+}

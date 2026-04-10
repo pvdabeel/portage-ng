@@ -1,0 +1,46 @@
+// Chapter 8 — Triggers: reverse-dependency index
+// Render: dot -Tsvg 08-triggers.dot -o 08-triggers.svg
+
+digraph triggers {
+    rankdir=TB;
+    fontname="Helvetica Neue";
+    fontsize=12;
+    node [fontname="Helvetica Neue", fontsize=11, style=filled, shape=box, margin="0.12,0.08"];
+    edge [fontname="Helvetica Neue", fontsize=10];
+    nodesep=0.40;
+    ranksep=0.55;
+
+    // Head
+    A [label="Head A\nsys-apps/portage\n:install", fillcolor="#cce5ff"];
+
+    // Body literals
+    B [label="Body B\ndev-lang/python\n:install", fillcolor="#FFF3CD"];
+    C [label="Body C\ndev-libs/openssl\n:install", fillcolor="#FFF3CD"];
+    D [label="Body D\nsys-libs/glibc\n:install", fillcolor="#FFF3CD"];
+
+    // Proof direction (forward)
+    subgraph cluster_proof {
+        label="Proof AVL (forward)";
+        labeljust=l;
+        style=dashed;
+        color="#666666";
+        fontcolor="#666666";
+        fontsize=10;
+        A -> B [label="  rule/2  "];
+        A -> C;
+        A -> D;
+    }
+
+    // Triggers direction (reverse)
+    B -> A [label="  trigger  ", style=dashed, color="#cc3333", fontcolor="#cc3333", constraint=false];
+    C -> A [label="  trigger  ", style=dashed, color="#cc3333", fontcolor="#cc3333", constraint=false];
+    D -> A [label="  trigger  ", style=dashed, color="#cc3333", fontcolor="#cc3333", constraint=false];
+
+    // Legend
+    legend [shape=none, fillcolor=white, label=<
+        <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="4">
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#333333">→ Proof: head depends on body</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#cc3333">⇢ Trigger: body notifies head</FONT></TD></TR>
+        </TABLE>
+    >];
+}

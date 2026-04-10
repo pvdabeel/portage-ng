@@ -1,0 +1,32 @@
+// Chapter 10 — Learned domain narrowing: conflict detection
+// Render: dot -Tsvg 10-learned-domain-conflict.dot -o 10-learned-domain-conflict.svg
+
+digraph learned_conflict {
+    rankdir=TB;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=8, style=filled, shape=box, margin="0.08,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=7, arrowsize=0.5];
+    nodesep=0.20; ranksep=0.25;
+
+    // Two dependency edges
+    dep1 [label="Dependency edge A\nrequires lib >=2.0", fillcolor="#cce5ff"];
+    dep2 [label="Dependency edge B\nrequires lib <1.5", fillcolor="#cce5ff"];
+
+    // Guard
+    guard [label="Constraint guard\ndomain_meet(>=2.0, <1.5)", shape=diamond, fillcolor="#FFF3CD", width=2.4, height=0.55];
+
+    // Conflict
+    conflict [label="Conflict: empty intersection\nno version satisfies both", fillcolor="#f8d7da"];
+
+    // Learn
+    learn [label="prover:learn(\n  cn_domain(cat, lib, slot),\n  narrowed_domain, _)", fillcolor="#d4edda", fontname="Courier", fontsize=7];
+
+    // Reprove
+    reprove [label="Throw prover_reprove\nretry with learned constraint", fillcolor="#e8e8e8"];
+
+    dep1 -> guard;
+    dep2 -> guard;
+    guard -> conflict [label=" empty"];
+    conflict -> learn;
+    learn -> reprove;
+}

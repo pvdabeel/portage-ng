@@ -1,0 +1,64 @@
+// Chapter 4 — Domain-agnostic core vs Gentoo-specific rules
+// Render: dot -Tsvg 04-layer-separation.dot -o 04-layer-separation.svg
+
+digraph layers {
+    rankdir=TB;
+    fontname="Helvetica";
+    fontsize=11;
+    node [fontname="Helvetica", fontsize=11, shape=box, style=filled];
+    edge [fontname="Helvetica", fontsize=10];
+    compound=true;
+
+    subgraph cluster_core {
+        label="Domain-agnostic core";
+        labeljust=l;
+        style=filled;
+        fillcolor="#e6f0ff";
+        color="#4a86c8";
+
+        prover      [label="prover.pl", fillcolor="#cce5ff"];
+        planner     [label="planner.pl\nkahn.pl", fillcolor="#cce5ff"];
+        scheduler   [label="scheduler.pl", fillcolor="#cce5ff"];
+        constraint  [label="constraint.pl", fillcolor="#cce5ff"];
+        featunify   [label="feature_unification\nunify.pl", fillcolor="#cce5ff"];
+        context     [label="context.pl\n(OO / CONTEXT)", fillcolor="#cce5ff"];
+
+        prover -> planner -> scheduler [style=invis];
+    }
+
+    // rule/2 interface
+    node [shape=diamond, fillcolor="#fff3cd"];
+    rule_iface [label="rule/2\ninterface"];
+
+    subgraph cluster_domain {
+        label="Gentoo domain layer";
+        labeljust=l;
+        style=filled;
+        fillcolor="#e6ffe6";
+        color="#4a8c4a";
+
+        rules       [label="rules.pl", fillcolor="#ccf2cc"];
+        candidate   [label="Rules/\ncandidate.pl", fillcolor="#ccf2cc"];
+        use         [label="Rules/\nuse.pl", fillcolor="#ccf2cc"];
+        heuristic   [label="Rules/\nheuristic.pl", fillcolor="#ccf2cc"];
+        dependency  [label="Rules/\ndependency.pl", fillcolor="#ccf2cc"];
+        memo        [label="Rules/\nmemo.pl", fillcolor="#ccf2cc"];
+        version     [label="version.pl", fillcolor="#ccf2cc"];
+        eapi        [label="eapi.pl", fillcolor="#ccf2cc"];
+        preference  [label="preference.pl\nprofile.pl", fillcolor="#ccf2cc"];
+        vdb         [label="vdb.pl", fillcolor="#ccf2cc"];
+
+        rules -> candidate [style=invis];
+        rules -> use [style=invis];
+        candidate -> heuristic [style=invis];
+    }
+
+    // Connections through rule/2
+    prover -> rule_iface [label="calls rule/2"];
+    rule_iface -> rules [label="Head -> Body"];
+
+    // Hooks back
+    heuristic -> constraint [label="constraint_unify_hook\nconstraint_guard", style=dashed];
+    heuristic -> prover [label="cycle_benign\nhandle_reprove", style=dashed];
+    candidate -> featunify [label="val_hook/3", style=dashed];
+}

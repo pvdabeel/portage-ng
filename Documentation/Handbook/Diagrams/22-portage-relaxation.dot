@@ -1,0 +1,30 @@
+// Chapter 22 — Portage progressive edge relaxation
+// Render: dot -Tsvg 22-portage-relaxation.dot -o 22-portage-relaxation.svg
+
+digraph portage_relaxation {
+    rankdir=LR;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=7, style=filled, shape=box,
+          margin="0.06,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=6, arrowsize=0.4];
+    nodesep=0.14; ranksep=0.22;
+
+    start [label="Topo-sort\n(all edges)", shape=ellipse, fillcolor="#e2e3e5"];
+    p1 [label="Leaf\nfound?", shape=diamond, fillcolor="#fff3cd"];
+    emit [label="Emit\npackage", fillcolor="#d4edda"];
+    p2 [label="Drop\noptional", fillcolor="#cce5ff"];
+    p3 [label="Drop\nPDEPEND", fillcolor="#cce5ff"];
+    p4 [label="Drop\nRDEPEND", fillcolor="#cce5ff"];
+    err [label="Build cycle\n(error)", shape=ellipse, fillcolor="#f8d7da"];
+
+    start -> p1;
+    p1 -> emit [label="yes"];
+    emit -> p1 [label="next"];
+    p1 -> p2 [label="no leaf"];
+    p2 -> p1 [label="freed?", style=dashed];
+    p2 -> p3 [label="still\nstuck"];
+    p3 -> p1 [label="freed?", style=dashed];
+    p3 -> p4 [label="still\nstuck"];
+    p4 -> p1 [label="freed?", style=dashed];
+    p4 -> err [label="still\nstuck"];
+}

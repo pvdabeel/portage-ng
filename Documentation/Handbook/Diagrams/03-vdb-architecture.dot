@@ -1,0 +1,67 @@
+digraph vdb_architecture {
+  rankdir=TB;
+  fontname="Helvetica Neue";
+  node [fontname="Helvetica Neue", fontsize=10, style=filled];
+  edge [fontname="Helvetica Neue", fontsize=9];
+
+  // VDB on disk
+  subgraph cluster_vdb {
+    label="/var/db/pkg/";
+    labeljust=l;
+    style=dashed;
+    color="#888888";
+    fontsize=10;
+
+    vdb_root [label="/var/db/pkg/", shape=folder, fillcolor="#FFF3CD"];
+
+    subgraph cluster_cat1 {
+      label="sys-apps/";
+      labeljust=l;
+      style=dotted;
+      color="#AAAAAA";
+      fontsize=9;
+
+      pkg1 [label="portage-2.3.99/\n────────────\nDEPEND\nRDEPEND\nPDEPEND\nUSE\nSLOT\nKEYWORDS\nCONTENTS\nBUILD_TIME\nSIZE", shape=note, fillcolor="#FFFACD", fontsize=8];
+      pkg2 [label="systemd-256.11/\n────────────\nDEPEND\nRDEPEND\n...", shape=note, fillcolor="#FFFACD", fontsize=8];
+    }
+
+    subgraph cluster_cat2 {
+      label="dev-lang/";
+      labeljust=l;
+      style=dotted;
+      color="#AAAAAA";
+      fontsize=9;
+
+      pkg3 [label="python-3.12.9/\n────────────\nDEPEND\nRDEPEND\n...", shape=note, fillcolor="#FFFACD", fontsize=8];
+    }
+  }
+
+  // portage-ng sync
+  sync [label="repository:sync(kb)\nfor type vdb", shape=box, fillcolor="#B3D9FF"];
+
+  // In-memory facts
+  subgraph cluster_facts {
+    label="In-memory Prolog facts";
+    labeljust=l;
+    style=dashed;
+    color="#888888";
+    fontsize=10;
+
+    entry [label="cache:entry/5\npkg://sys-apps/portage-2.3.99\npkg://dev-lang/python-3.12.9\n...", shape=box, fillcolor="#D4EDDA"];
+    metadata [label="cache:entry_metadata/4\nDEPEND, RDEPEND, USE,\nSLOT, KEYWORDS, ...", shape=box, fillcolor="#D4EDDA"];
+    ordered [label="cache:ordered_entry/5\n(indexed for fast lookup)", shape=box, fillcolor="#D4EDDA"];
+  }
+
+  // Prover
+  prover [label="Prover", shape=box, fillcolor="#FFD6D6"];
+
+  // Edges
+  vdb_root -> pkg1 [style=invis];
+  vdb_root -> pkg3 [style=invis];
+  sync -> vdb_root [label="walk\nVDB tree", dir=back];
+  sync -> entry [label="assert"];
+  sync -> metadata [label="assert"];
+  sync -> ordered [label="build index"];
+  prover -> entry [label="query\npkg://..."];
+  prover -> metadata [label="query"];
+}

@@ -1,0 +1,72 @@
+// Chapter 10 — Version domain meet (intersection) examples, 2x2 grid
+// Render: dot -Tsvg 10-domain-meet.dot -o 10-domain-meet.svg
+
+digraph domain_meet {
+    fontname="Helvetica Neue";
+    fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=8, style=filled, shape=box, margin="0.06,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=7, arrowsize=0.5];
+    newrank=true;
+    nodesep=0.15;
+    ranksep=0.18;
+
+    // --- Example 1 ---
+    subgraph cluster_ex1 {
+        label="Ex 1: Overlapping ranges";
+        labeljust=l; fontsize=8; fontname="Helvetica Neue";
+        style=filled; fillcolor="#e6f0ff"; color="#4a86c8"; margin=6;
+        ex1_d1  [label="A: >=1.0", fillcolor="#cce5ff"];
+        ex1_d2  [label="B: <2.0", fillcolor="#cce5ff"];
+        ex1_m   [label="meet", fillcolor="#e8e8e8"];
+        ex1_r   [label="[1.0, 2.0)", fillcolor="#d4edda"];
+        ex1_d1 -> ex1_m; ex1_d2 -> ex1_m; ex1_m -> ex1_r;
+    }
+
+    // --- Example 2 ---
+    subgraph cluster_ex2 {
+        label="Ex 2: Two lower bounds";
+        labeljust=l; fontsize=8; fontname="Helvetica Neue";
+        style=filled; fillcolor="#e6f0ff"; color="#4a86c8"; margin=6;
+        ex2_d1  [label="A: >=1.0", fillcolor="#cce5ff"];
+        ex2_d2  [label="B: >=1.5", fillcolor="#cce5ff"];
+        ex2_m   [label="meet", fillcolor="#e8e8e8"];
+        ex2_r   [label=">=1.5", fillcolor="#d4edda"];
+        ex2_d1 -> ex2_m; ex2_d2 -> ex2_m; ex2_m -> ex2_r;
+    }
+
+    // --- Example 3 ---
+    subgraph cluster_ex3 {
+        label="Ex 3: Disjoint (conflict)";
+        labeljust=l; fontsize=8; fontname="Helvetica Neue";
+        style=filled; fillcolor="#fff0f0"; color="#c84a4a"; margin=6;
+        ex3_d1  [label="A: >=2.0", fillcolor="#cce5ff"];
+        ex3_d2  [label="B: <1.0", fillcolor="#cce5ff"];
+        ex3_m   [label="meet", fillcolor="#e8e8e8"];
+        ex3_r   [label="FAIL", fillcolor="#f8d7da"];
+        ex3_d1 -> ex3_m; ex3_d2 -> ex3_m; ex3_m -> ex3_r;
+    }
+
+    // --- Example 4 ---
+    subgraph cluster_ex4 {
+        label="Ex 4: Tilde + revision";
+        labeljust=l; fontsize=8; fontname="Helvetica Neue";
+        style=filled; fillcolor="#e6f0ff"; color="#4a86c8"; margin=6;
+        ex4_d1  [label="A: ~1.0", fillcolor="#cce5ff"];
+        ex4_d2  [label="B: >=1.0-r2", fillcolor="#cce5ff"];
+        ex4_m   [label="meet", fillcolor="#e8e8e8"];
+        ex4_r   [label=">=1.0-r2\nin 1.0.x", fillcolor="#d4edda"];
+        ex4_d1 -> ex4_m; ex4_d2 -> ex4_m; ex4_m -> ex4_r;
+    }
+
+    // Force row 1: ex1 beside ex2
+    ex1_d1 -> ex2_d1 [style=invis];
+    ex1_d2 -> ex2_d2 [style=invis];
+
+    // Force row 2: ex3 beside ex4
+    ex3_d1 -> ex4_d1 [style=invis];
+    ex3_d2 -> ex4_d2 [style=invis];
+
+    // Force ex1 above ex3, ex2 above ex4
+    ex1_r -> ex3_d1 [style=invis];
+    ex2_r -> ex4_d1 [style=invis];
+}

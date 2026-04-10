@@ -1,0 +1,64 @@
+// Chapter 16 — Explainer architecture
+// Render: dot -Tsvg 16-explainer-arch.dot -o 16-explainer-arch.svg
+
+digraph explainer_arch {
+    rankdir=LR;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=8, style=filled, shape=box, margin="0.08,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=7, arrowsize=0.5];
+    nodesep=0.20; ranksep=0.35;
+    compound=true;
+
+    // Proof artifacts
+    subgraph cluster_proof {
+        label="Proof artifacts"; labeljust=l;
+        fontsize=8; fontname="Helvetica Neue";
+        style=filled; fillcolor="#e6f0ff"; color="#4a86c8"; margin=8;
+        proof [label="ProofAVL", fillcolor="#cce5ff"];
+        model [label="ModelAVL", fillcolor="#cce5ff"];
+        plan  [label="Plan", fillcolor="#cce5ff"];
+        trig  [label="TriggersAVL", fillcolor="#cce5ff"];
+    }
+
+    // Explainer (domain-agnostic)
+    subgraph cluster_explainer {
+        label="explainer.pl\n(domain-agnostic)"; labeljust=l;
+        fontsize=8; fontname="Helvetica Neue";
+        style=filled; fillcolor="#FFF3CD"; color="#d4a017"; margin=8;
+        why_proof [label="why_in_proof/3,4"];
+        why_plan  [label="why_in_plan/5,6"];
+        why_assum [label="why_assumption/4,5"];
+        term_ctx  [label="term_ctx/2", fillcolor="#ffe8a0"];
+        explain   [label="explain/2,3\nformat_why_prompt/2", fillcolor="#ffe8a0"];
+    }
+
+    // Explanation hooks (domain-specific)
+    subgraph cluster_explanation {
+        label="explanation.pl\n(domain-specific hooks)"; labeljust=l;
+        fontsize=8; fontname="Helvetica Neue";
+        style=filled; fillcolor="#d4edda"; color="#228B22"; margin=8;
+        hook_proof [label="why_in_proof_hook/2"];
+        hook_plan  [label="why_in_plan_hook/2"];
+        hook_assum [label="why_assumption_hook/2"];
+        reason     [label="assumption_reason_\nfor_grouped_dep/6"];
+    }
+
+    // LLM
+    llm [label="LLM backend\n(Ollama / Claude / ...)", fillcolor="#e8e8e8", shape=box];
+
+    // Flows
+    proof -> why_proof [lhead=cluster_explainer];
+    model -> why_proof [style=invis];
+    plan  -> why_plan  [lhead=cluster_explainer];
+    trig  -> why_plan  [style=invis];
+
+    why_proof -> hook_proof [label=" enriches"];
+    why_plan  -> hook_plan  [label=" enriches"];
+    why_assum -> hook_assum [label=" enriches"];
+    hook_assum -> reason [style=dashed, label=" diagnoses"];
+
+    why_proof -> explain [style=dashed, constraint=false];
+    why_plan  -> explain [style=dashed, constraint=false];
+    why_assum -> explain [style=dashed, constraint=false];
+    explain -> llm [label=" prompt"];
+}

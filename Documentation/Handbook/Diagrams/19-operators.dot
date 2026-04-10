@@ -1,0 +1,39 @@
+// Chapter 19 — Context operators
+// Render: dot -Tsvg 19-operators.dot -o 19-operators.svg
+
+digraph operators {
+    rankdir=LR;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=7, style=filled, shape=box,
+          margin="0.08,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=6, arrowsize=0.4];
+    nodesep=0.14; ranksep=0.40;
+
+    // Caller
+    caller [label="Calling\ncontext", shape=ellipse, fillcolor="#e2e3e5"];
+
+    // Instance
+    subgraph cluster_instance {
+        label="Instance context"; labeljust=l; fontsize=8;
+        style=filled; fillcolor="#e6f0ff"; color="#4a86c8"; margin=8;
+
+        pub  [label="Public\npredicates", fillcolor="#d4edda"];
+        prot [label="Protected\npredicates", fillcolor="#fff3cd"];
+        priv [label="Private\npredicates", fillcolor="#ffcccc"];
+        cache [label="Cached data\nmembers\n($__meta(cache(...)))", fillcolor="#cce5ff"];
+    }
+
+    // Operators
+    caller -> pub  [label="Ctx://Pred\n(call in context)"];
+    caller -> cache [label="Ctx::Pred\n(read cached)"];
+    caller -> cache [label="Ctx<=Pred\n(set/replace)", style=dashed];
+    caller -> cache [label="Ctx<+Pred\n(append)", style=dashed];
+    caller -> cache [label="Ctx<-Pred\n(remove)", style=dashed];
+
+    // Internal calls (self)
+    pub -> prot [label=":Pred\n(self-call)", style=dotted];
+    prot -> priv [label=":Pred\n(self-call)", style=dotted];
+
+    // Token flow
+    pub -> prot [label="$_token\n(thread-local)", style=dashed, constraint=false];
+}

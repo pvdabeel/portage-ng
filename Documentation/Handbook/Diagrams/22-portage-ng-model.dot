@@ -1,0 +1,28 @@
+// Chapter 22 — portage-ng two-phase dependency model
+// Render: dot -Tsvg 22-portage-ng-model.dot -o 22-portage-ng-model.svg
+
+digraph ng_model {
+    rankdir=TB;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=7, style=filled, shape=box,
+          margin="0.06,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=6, arrowsize=0.4];
+    nodesep=0.20; ranksep=0.25;
+
+    target_run [label="target:run", fillcolor="#d4edda"];
+    target_install [label="target:install", fillcolor="#cce5ff"];
+    target_download [label="target:download", fillcolor="#e2e3e5"];
+
+    bdep_install [label="build-dep:install", fillcolor="#cce5ff"];
+    rdep_run     [label="runtime-dep:run", fillcolor="#d4edda"];
+    rdep_install [label="runtime-dep:install", fillcolor="#cce5ff"];
+
+    pdep_run     [label="post-dep:run\n(via literal_hook)", fillcolor="#fff3cd"];
+
+    target_run -> target_install [label="requires"];
+    target_run -> rdep_run [label="RDEPEND\nafter_only"];
+    target_run -> pdep_run [label="PDEPEND\n(single-pass)", style=dashed];
+    target_install -> target_download [label="requires"];
+    target_install -> bdep_install [label="DEPEND\nafter"];
+    rdep_run -> rdep_install [label="requires"];
+}

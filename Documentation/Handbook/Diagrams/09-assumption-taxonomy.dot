@@ -1,0 +1,42 @@
+// Chapter 9 — Assumption taxonomy: domain vs cycle-break (compact)
+// Render: dot -Tsvg 09-assumption-taxonomy.dot -o 09-assumption-taxonomy.svg
+
+digraph taxonomy {
+    rankdir=TB;
+    fontname="Helvetica Neue";
+    fontsize=10;
+    node [fontname="Helvetica Neue", fontsize=9, style=filled, margin="0.10,0.06"];
+    edge [fontname="Helvetica Neue", fontsize=8];
+    nodesep=0.30;
+    ranksep=0.30;
+
+    // Top
+    proof [label="Proof AVL", shape=box, fillcolor="#e8e8e8"];
+
+    // Two branches
+    domain_hdr [label="Domain Assumption", shape=box, fillcolor="#cce5ff"];
+    cycle_hdr  [label="Cycle-Break Assumption", shape=box, fillcolor="#cce5ff"];
+
+    proof -> domain_hdr;
+    proof -> cycle_hdr;
+
+    // Domain side — compact
+    domain_keys [label="Proof: rule(assumed(X))\nModel: normal literal\ndep count: 0", shape=box, fillcolor="#fff3cd"];
+    domain_info [label="Introduced by: rules layer\nRepresents: unsatisfiable dep\n(missing, masked, REQUIRED_USE)", shape=box, fillcolor="#fff3cd"];
+    domain_out  [label="Exit code: 2\nPrinted: Domain assumptions", shape=box, fillcolor="#f8d7da"];
+
+    // Cycle side — compact
+    cycle_keys [label="Proof: assumed(rule(X))\nModel: assumed(Lit)\ndep count: -1", shape=box, fillcolor="#fff3cd"];
+    cycle_info [label="Introduced by: prover layer\nRepresents: cyclic dependency\n(mutual runtime deps)", shape=box, fillcolor="#fff3cd"];
+    cycle_out  [label="Exit code: 1\nPrinted: SCC / merge-set", shape=box, fillcolor="#fff3cd"];
+
+    // Connect
+    domain_hdr -> domain_keys -> domain_info -> domain_out;
+    cycle_hdr -> cycle_keys -> cycle_info -> cycle_out;
+
+    // Align
+    { rank=same; domain_hdr; cycle_hdr; }
+    { rank=same; domain_keys; cycle_keys; }
+    { rank=same; domain_info; cycle_info; }
+    { rank=same; domain_out; cycle_out; }
+}

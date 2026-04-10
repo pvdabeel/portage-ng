@@ -1,0 +1,51 @@
+// Chapter 8 — Model construction and feature term unification
+// Render: dot -Tsvg 08-model-construction.dot -o 08-model-construction.svg
+
+digraph model_construction {
+    rankdir=TB;
+    fontname="Helvetica Neue";
+    fontsize=12;
+    node [fontname="Helvetica Neue", fontsize=11, style=filled, shape=box, margin="0.12,0.08"];
+    edge [fontname="Helvetica Neue", fontsize=10];
+    nodesep=0.25;
+    ranksep=0.45;
+
+    // Entry
+    literal [label="Literal arrives\nfrom proof queue", shape=ellipse, fillcolor="#FFF3CD"];
+
+    // Decision: in model?
+    in_model [label="Literal in\nModel?", shape=diamond, fillcolor="#e8e8e8", width=1.6, height=0.8];
+
+    // New literal path
+    prove [label="Prove via rule/2\nexpand body literals", fillcolor="#cce5ff"];
+    add_model [label="Add to Model\nLit → Context", fillcolor="#cce5ff"];
+    add_proof [label="Record in Proof\nrule(Lit) → dep(N, Body)", fillcolor="#cce5ff"];
+
+    // Seen literal path
+    same_ctx [label="Context\nequivalent?", shape=diamond, fillcolor="#e8e8e8", width=1.6, height=0.8];
+    skip [label="Skip\n(already proven)", fillcolor="#d4edda"];
+
+    // Merge path
+    merge [label="Feature term\nunification", fillcolor="#f8d7da"];
+    merge_ok [label="Merge\nsucceeds?", shape=diamond, fillcolor="#e8e8e8", width=1.6, height=0.8];
+    backtrack [label="Backtrack\n(conflict)", fillcolor="#f5c6cb", shape=ellipse];
+    diff [label="Re-expand only\nnew body literals", fillcolor="#cce5ff"];
+    update [label="Update Model\nLit → MergedCtx", fillcolor="#cce5ff"];
+
+    // Edges
+    literal -> in_model;
+
+    in_model -> prove [label="  No  ", fontcolor="#333333"];
+    in_model -> same_ctx [label="  Yes  ", fontcolor="#333333"];
+
+    prove -> add_model;
+    add_model -> add_proof;
+
+    same_ctx -> skip [label="  Yes  ", fontcolor="#333333"];
+    same_ctx -> merge [label="  No  ", fontcolor="#333333"];
+
+    merge -> merge_ok;
+    merge_ok -> backtrack [label="  No  ", fontcolor="#333333"];
+    merge_ok -> diff [label="  Yes  ", fontcolor="#333333"];
+    diff -> update;
+}

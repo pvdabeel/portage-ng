@@ -1,0 +1,46 @@
+// Chapter 6 — Metadata pipeline: ebuild to Prolog facts
+// Render: dot -Tsvg 06-metadata-pipeline.dot -o 06-metadata-pipeline.svg
+
+digraph metadata {
+    rankdir=LR;
+    fontname="Helvetica";
+    fontsize=11;
+    node [fontname="Helvetica", fontsize=11, style=filled];
+    edge [fontname="Helvetica", fontsize=10];
+
+    // Source
+    node [shape=note, fillcolor="#fff3cd"];
+    ebuild [label="Ebuild\n(bash script)\ncategory/name-ver.ebuild"];
+
+    // Processing stages
+    node [shape=box, fillcolor="#cce5ff"];
+    egencache [label="egencache\n(or --regen)"];
+    reader    [label="reader.pl\nread lines"];
+    parser    [label="parser.pl\nroute keys"];
+    eapi      [label="eapi.pl\nDCG grammar"];
+
+    // Intermediate data
+    node [shape=ellipse, fillcolor="#e8e8e8"];
+    md5cache  [label="md5-cache file\nKEY=VALUE lines"];
+    lines     [label="List of\nstring lines"];
+    codes     [label="Character\ncodes"];
+    terms     [label="Structured\nProlog terms\npackage_dependency/8\nslot/1, eapi/1, ..."];
+
+    // Storage
+    node [shape=cylinder, fillcolor="#d4edda"];
+    cache     [label="cache:entry/5\ncache:entry_metadata/3\ncache:ordered_entry/5"];
+    qlf       [label="Knowledge/kb.qlf\n(QCompiled\nbytecode)"];
+
+    // Flow
+    ebuild    -> egencache [label="bash\nmetadata"];
+    egencache -> md5cache  [label="extract"];
+    md5cache  -> reader    [label="open file"];
+    reader    -> lines     [label="read_lines"];
+    lines     -> parser    [label="per line"];
+    parser    -> codes     [label="string_codes"];
+    codes     -> eapi      [label="phrase/2"];
+    eapi      -> terms     [label="parse"];
+    terms     -> cache     [label="assertz"];
+    cache     -> qlf       [label="qcompile\n(--sync)", style=dashed];
+    qlf       -> cache     [label="qload\n(startup)", style=dashed];
+}

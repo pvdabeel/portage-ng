@@ -1,0 +1,46 @@
+digraph mode_clientserver {
+  rankdir=LR;
+  fontname="Helvetica Neue";
+  node [fontname="Helvetica Neue", fontsize=10, style=filled];
+  edge [fontname="Helvetica Neue", fontsize=9];
+  compound=true;
+
+  subgraph cluster_client_machine {
+    label="Client machine (e.g. embedded device)";
+    labeljust=l;
+    style="rounded";
+    color="#E67E22";
+    fontsize=11;
+    fontcolor="#E67E22";
+    fillcolor="#FEF5E7";
+
+    user [label="User", shape=house, fillcolor="#FFF3CD"];
+    client [label="portage-ng\n(client)", shape=box, fillcolor="#CCE5FF"];
+
+    user -> client [label="request"];
+  }
+
+  subgraph cluster_server_machine {
+    label="Server machine";
+    labeljust=l;
+    style="rounded";
+    color="#2980B9";
+    fontsize=11;
+    fontcolor="#2980B9";
+    fillcolor="#EBF5FB";
+
+    server [label="portage-ng\n(server)", shape=box, fillcolor="#CCE5FF"];
+    kb     [label="Knowledge\nBase", shape=cylinder, fillcolor="#D4EDDA"];
+    prover [label="Prover → Planner\n→ Scheduler", shape=box, fillcolor="#CCE5FF"];
+    tree   [label="Portage tree\n+ VDB\n+ /etc/portage", shape=folder, fillcolor="#E8E8E8"];
+
+    tree -> kb [label="--sync", style=dashed];
+    kb -> prover [label="query", style=dashed];
+    server -> prover [label="prove"];
+    prover -> server [label="plan", style=dashed];
+  }
+
+  // Network
+  client -> server [label="TCP/IP + SSL\n(HTTPS)", style=bold, color="#CC0000"];
+  server -> client [label="plan result", style="bold,dashed", color="#CC0000"];
+}

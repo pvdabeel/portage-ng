@@ -1,0 +1,152 @@
+digraph portage_ng_architecture {
+  rankdir=LR;
+  fontname="Helvetica Neue";
+  fontsize=8;
+  node [fontname="Helvetica Neue", fontsize=7, style=filled, margin="0.04,0.02", height=0.25];
+  edge [fontname="Helvetica Neue", fontsize=6, arrowsize=0.4];
+  nodesep=0.10;
+  ranksep=0.55;
+
+  // ── Column 1: External inputs ───────────────────────────────────────
+  subgraph cluster_inputs {
+    label="External inputs"; labeljust=l; fontsize=7;
+    style=dashed; color="#aaaaaa"; fontcolor="#666666";
+
+    portage_tree [shape=folder, label="Portage tree\nmd5-cache", fillcolor="#f0f0f0"];
+    profile_dir  [shape=folder, label="Profiles", fillcolor="#f0f0f0"];
+    userconf_dir [shape=folder, label="/etc/portage", fillcolor="#f0f0f0"];
+    vdb_tree     [shape=folder, label="VDB", fillcolor="#f0f0f0"];
+    user_target  [shape=house,  label="User target", fillcolor="#FFF3CD"];
+  }
+
+  // ── Column 2: Ingestion + Config ────────────────────────────────────
+  subgraph cluster_ingest {
+    label="Ingestion"; labeljust=l; fontsize=7;
+    color="#4477aa"; fontcolor="#4477aa"; style=rounded;
+    reader [shape=box, label="reader · parser", fillcolor="#ddeeff"];
+    eapi   [shape=box, label="eapi DCG", fillcolor="#ddeeff"];
+  }
+
+  subgraph cluster_config {
+    label="Infrastructure"; labeljust=l; fontsize=7;
+    color="#888888"; fontcolor="#888888"; style=rounded;
+    config    [shape=box, label="config", fillcolor="#e8e8e8"];
+    context   [shape=box, label="context OO", fillcolor="#e8e8e8"];
+    featunify [shape=box, label="feature unif.", fillcolor="#e8e8e8"];
+  }
+
+  // ── Column 3: Knowledge Base (compact) ──────────────────────────────
+  subgraph cluster_kb {
+    label="Knowledge Base"; labeljust=l; fontsize=7;
+    color="#44aa77"; fontcolor="#44aa77"; style=rounded;
+
+    cache      [shape=cylinder, label="cache\nentry/5", fillcolor="#ddf5dd"];
+    repository [shape=box, label="repository", fillcolor="#ddf5dd"];
+    vdb        [shape=box, label="vdb", fillcolor="#ddf5dd"];
+    query      [shape=box, label="query", fillcolor="#c8eac8"];
+    preference [shape=box, label="preference", fillcolor="#c8eac8"];
+    profile    [shape=box, label="profile", fillcolor="#c8eac8"];
+    userconfig [shape=box, label="userconfig", fillcolor="#c8eac8"];
+  }
+
+  // ── Column 4: Prover + Rules ────────────────────────────────────────
+  subgraph cluster_prover {
+    label="Prover"; labeljust=l; fontsize=7;
+    color="#cc6644"; fontcolor="#cc6644"; style=rounded;
+    prove_entry [shape=box, style="filled,bold", label="prover\nprove/9", fillcolor="#ffeedd"];
+    constraint  [shape=box, label="constraints", fillcolor="#fff5ee"];
+    learned     [shape=box, label="learned store", fillcolor="#ffe8cc"];
+    reprove     [shape=box, label="reprove", fillcolor="#fff5ee"];
+  }
+
+  subgraph cluster_rules {
+    label="Rules (domain)"; labeljust=l; fontsize=7;
+    color="#8855aa"; fontcolor="#8855aa"; style=rounded;
+    rule_hook      [shape=box, style="filled,bold", label="rules · rule/2", fillcolor="#eeddff"];
+    rule_candidate [shape=box, label="candidate", fillcolor="#f5eeff"];
+    rule_use       [shape=box, label="use", fillcolor="#f5eeff"];
+    rule_dep       [shape=box, label="dependency", fillcolor="#f5eeff"];
+    version_domain [shape=box, label="version domain", fillcolor="#f5eeff"];
+    assumption     [shape=box, label="assumption", fillcolor="#ffdddd"];
+  }
+
+  // ── Column 5: Pipeline ─────────────────────────────────────────────
+  proof_out [shape=note, label="Proof · Model\nConstraints\nTriggers", fillcolor="#ffeedd"];
+
+  subgraph cluster_pipeline {
+    label="Pipeline"; labeljust=l; fontsize=7;
+    color="#338866"; fontcolor="#338866"; style=rounded;
+    pipeline  [shape=box, style="filled,bold", label="pipeline\nprove_plan", fillcolor="#e8f5e8"];
+    planner   [shape=box, label="planner (Kahn)", fillcolor="#ddffee"];
+    scheduler [shape=box, label="scheduler (Kosaraju)", fillcolor="#ddffee"];
+  }
+
+  subgraph cluster_network {
+    label="Network"; labeljust=l; fontsize=7;
+    color="#447799"; fontcolor="#447799"; style=rounded;
+    server  [shape=box, label="server · Pengine", fillcolor="#dde8f0"];
+    client  [shape=box, label="client · RPC", fillcolor="#dde8f0"];
+    cluster [shape=box, label="cluster · jobs", fillcolor="#dde8f0"];
+    bonjour [shape=box, label="bonjour", fillcolor="#dde8f0"];
+    llm     [shape=box, label="llm · semantic", fillcolor="#dde8f0"];
+  }
+
+  // ── Column 6: Output ───────────────────────────────────────────────
+  subgraph cluster_output {
+    label="Interface & Output"; labeljust=l; fontsize=7;
+    color="#555555"; fontcolor="#555555"; style=rounded;
+    interface [shape=box, label="interface · CLI", fillcolor="#eeeeee"];
+    printer   [shape=box, label="printer", fillcolor="#eeeeee"];
+    grapher   [shape=box, label="grapher · SVG", fillcolor="#eeeeee"];
+    explainer [shape=box, label="explainer", fillcolor="#eeeeee"];
+    builder   [shape=box, label="builder", fillcolor="#f5e6d0"];
+  }
+
+  terminal [shape=note, label="Terminal\n.merge", fillcolor="#f8f8f8"];
+  test     [shape=box, label="test · PLUnit", fillcolor="#e0f0e0"];
+
+  // ── Main flow ──────────────────────────────────────────────────────
+  portage_tree -> reader;
+  vdb_tree -> vdb;
+  profile_dir -> profile;
+  userconf_dir -> userconfig;
+  user_target -> interface;
+
+  reader -> eapi;
+  eapi -> cache [label="assert"];
+  repository -> cache;
+  repository -> reader;
+  vdb -> cache;
+  profile -> preference;
+  userconfig -> preference;
+  cache -> query;
+  preference -> query;
+
+  query -> prove_entry;
+  interface -> pipeline;
+  pipeline -> prove_entry;
+
+  prove_entry -> rule_hook [label="rule/2"];
+  prove_entry -> proof_out;
+
+  proof_out -> planner;
+  planner -> scheduler;
+  scheduler -> printer;
+  printer -> terminal;
+  grapher -> terminal;
+
+  // ── Internal (dashed) ──────────────────────────────────────────────
+  rule_hook -> rule_candidate [style=dashed];
+  rule_hook -> rule_use [style=dashed];
+  rule_hook -> rule_dep [style=dashed];
+  rule_candidate -> version_domain [style=dashed];
+  rule_candidate -> assumption [style=dashed];
+
+  prove_entry -> constraint [style=dashed];
+  constraint -> learned [style=dashed];
+  prove_entry -> reprove [style=dashed];
+
+  client -> server [style=dashed];
+  bonjour -> cluster [style=dashed];
+  cluster -> client [style=dashed];
+}

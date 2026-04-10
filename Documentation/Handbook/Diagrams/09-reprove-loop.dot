@@ -1,0 +1,42 @@
+// Chapter 9 — Reprove loop structure
+// Render: dot -Tsvg 09-reprove-loop.dot -o 09-reprove-loop.svg
+
+digraph reprove_loop {
+    rankdir=TB;
+    fontname="Helvetica Neue";
+    fontsize=10;
+    node [fontname="Helvetica Neue", fontsize=10, style=filled, shape=box, margin="0.10,0.06"];
+    edge [fontname="Helvetica Neue", fontsize=9];
+    nodesep=0.25;
+    ranksep=0.35;
+
+    prove9 [label="prove/9\n(top-level)", fillcolor="#cce5ff"];
+
+    reprove_state [label="with_reprove_state\nsave/restore learned store", fillcolor="#e8e8e8"];
+
+    retries [label="prove_with_retries\ncatch(prove_once,\n  prover_reprove,\n  handle_reprove)", fillcolor="#cce5ff"];
+
+    handle [label="handle_reprove\nAttempt < MaxRetries?", shape=diamond, fillcolor="#FFF3CD", width=2.2, height=0.8];
+
+    learn [label="learn constraints\n+ retry", fillcolor="#d4edda"];
+
+    exhausted [label="reprove_exhausted\nclear rejects\nprove_once (disabled)", fillcolor="#f8d7da"];
+
+    prove_once [label="prove_once\nwith_cycle_stack\nprove_recursive", fillcolor="#cce5ff"];
+
+    result [label="Proof, Model,\nConstraints, Triggers", shape=ellipse, fillcolor="#d4edda"];
+
+    // Flow
+    prove9 -> reprove_state;
+    reprove_state -> retries;
+    retries -> handle [label="  prover_reprove(Info)  ", style=dashed, color="#cc3333", fontcolor="#cc3333"];
+    retries -> prove_once [label="  success  ", color="#228B22", fontcolor="#228B22"];
+
+    handle -> learn [label="  yes  ", color="#228B22", fontcolor="#228B22"];
+    handle -> exhausted [label="  no  ", color="#cc3333", fontcolor="#cc3333"];
+
+    learn -> retries [label="  Attempt+1  ", style=dashed];
+    exhausted -> prove_once [label="  final attempt  "];
+
+    prove_once -> result;
+}

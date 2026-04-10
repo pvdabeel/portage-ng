@@ -1,0 +1,27 @@
+// Chapter 21 — portage-ng conflict-resolution loop
+// Render: dot -Tsvg 21-portage-ng-loop.dot -o 21-portage-ng-loop.svg
+
+digraph portage_ng_loop {
+    rankdir=TB;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=7, style=filled, shape=box,
+          margin="0.06,0.04", fillcolor="#cce5ff"];
+    edge [fontname="Helvetica Neue", fontsize=6, arrowsize=0.4];
+    nodesep=0.18; ranksep=0.22;
+
+    start [label="Start\n(proof search)", shape=ellipse, fillcolor="#e2e3e5"];
+    prove [label="Depth-first proving\nselect candidate\nadd constraints"];
+    guard [label="Constraint\nguard fires?", shape=diamond, fillcolor="#fff3cd"];
+    learn [label="Learn domain\nconstraint\n(narrow version set)", fillcolor="#d4edda"];
+    reject [label="Add reject\n(skip this\ncandidate)", fillcolor="#f8d7da"];
+    retry [label="Retry subtree\n(learned domain\nalready applied)", fillcolor="#d4edda"];
+    done [label="Done\n(proof complete)", shape=ellipse, fillcolor="#d4edda"];
+
+    start -> prove;
+    prove -> guard;
+    guard -> done [label="no conflict\n(99%+ of targets)"];
+    guard -> learn [label="conflict"];
+    learn -> reject;
+    reject -> retry;
+    retry -> prove [label="narrowed\ncandidates"];
+}

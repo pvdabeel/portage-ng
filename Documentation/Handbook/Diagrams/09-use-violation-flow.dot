@@ -1,0 +1,30 @@
+// Chapter 9 — Use model violation flow (compact)
+// Render: dot -Tsvg 09-use-violation-flow.dot -o 09-use-violation-flow.svg
+
+digraph use_violation {
+    rankdir=TB;
+    fontname="Helvetica Neue";
+    fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=8, style=filled, shape=box, margin="0.08,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=7];
+    nodesep=0.20;
+    ranksep=0.22;
+
+    // Steps
+    parent [label="1  Parent: lib[feature_z]\npropagates USE to lib", fillcolor="#cce5ff"];
+    verify [label="2  Entry rule: verify\nREQUIRED_USE", shape=diamond, fillcolor="#FFF3CD", width=1.8, height=0.5];
+    cache_fail [label="3  Cache violation\nentry rule FAILS", fillcolor="#f8d7da"];
+    backtrack [label="4  Backtrack:\nnext candidate?", shape=diamond, fillcolor="#FFF3CD", width=1.6, height=0.5];
+    narrow [label="5a  Parent narrowing\n+ reprove", fillcolor="#cce5ff"];
+    assume [label="5b  Assumption\n+ violation detail", fillcolor="#f8d7da"];
+    output [label="6  Warning:\nREQUIRED_USE violation", fillcolor="#d4edda"];
+
+    // Flow
+    parent -> verify;
+    verify -> cache_fail [label=" fails", color="#cc3333", fontcolor="#cc3333"];
+    cache_fail -> backtrack;
+    backtrack -> verify [label=" yes", style=dashed, constraint=false];
+    backtrack -> narrow [label=" exhausted", color="#cc3333", fontcolor="#cc3333"];
+    narrow -> assume [label=" retries exhausted"];
+    assume -> output;
+}

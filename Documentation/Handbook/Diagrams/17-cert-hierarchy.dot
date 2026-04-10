@@ -1,0 +1,54 @@
+// Chapter 17 — Certificate hierarchy and file layout (section 17.6)
+// Render: dot -Tsvg 17-cert-hierarchy.dot -o 17-cert-hierarchy.svg
+
+digraph cert_hierarchy {
+    rankdir=TB;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=7, style=filled, shape=box,
+          margin="0.08,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=6, arrowsize=0.4];
+    nodesep=0.25; ranksep=0.35;
+
+    // CA (trust root)
+    ca [label="portage-ng local CA\n(self-signed, RSA 4096)\n\ncacert.pem  (public)\ncakey.pem   (private)",
+        fillcolor="#fff3cd", shape=folder];
+
+    // Server host A
+    subgraph cluster_host_a {
+        label="server.local"; labeljust=l; fontsize=8;
+        style=filled; fillcolor="#e6f0ff"; color="#4a86c8"; margin=8;
+
+        srv_a [label="Server certificate\nCN = server.local\nOU = Server\n\nserver.local.server-cert.pem\nserver.local.server-key.pem",
+               fillcolor="#cce5ff"];
+        cli_a [label="Client certificate\nCN = server.local\nOU = Client\n\nserver.local.client-cert.pem\nserver.local.client-key.pem",
+               fillcolor="#cce5ff"];
+    }
+
+    // Worker host B
+    subgraph cluster_host_b {
+        label="worker.local"; labeljust=l; fontsize=8;
+        style=filled; fillcolor="#e6ffe6"; color="#4a8c4a"; margin=8;
+
+        srv_b [label="Server certificate\nCN = worker.local\nOU = Server\n\nworker.local.server-cert.pem\nworker.local.server-key.pem",
+               fillcolor="#ccf2cc"];
+        cli_b [label="Client certificate\nCN = worker.local\nOU = Client\n\nworker.local.client-cert.pem\nworker.local.client-key.pem",
+               fillcolor="#ccf2cc"];
+    }
+
+    // Signing edges
+    ca -> srv_a [label="signs"];
+    ca -> cli_a [label="signs"];
+    ca -> srv_b [label="signs"];
+    ca -> cli_b [label="signs"];
+
+    // Legend
+    subgraph cluster_legend {
+        label="Legend"; labeljust=l; fontsize=7;
+        style=rounded; color="#999999"; margin=6;
+        node [fontsize=6, margin="0.04,0.02"];
+
+        leg_pub  [label="Certificates (.cert.pem)\nshared / committed", fillcolor="#e8e8e8"];
+        leg_priv [label="Private keys (.key.pem)\nnever committed", fillcolor="#ffcccc"];
+        leg_pub -> leg_priv [style=invis];
+    }
+}

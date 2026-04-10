@@ -1,0 +1,60 @@
+// Chapter 17 — Distributed proving: client-server-worker architecture
+// Render: dot -Tsvg 17-cluster-architecture.dot -o 17-cluster-architecture.svg
+
+digraph cluster {
+    rankdir=TB;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=8, style=filled, shape=box, margin="0.08,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=7, arrowsize=0.5];
+    nodesep=0.25; ranksep=0.30;
+    compound=true;
+
+    // --- Client ---
+    subgraph cluster_client {
+        label="Client"; labeljust=l;
+        fontsize=8; fontname="Helvetica Neue";
+        style=filled; fillcolor="#e6f0ff"; color="#4a86c8"; margin=8;
+        client [label="Submit targets /\nReceive results", fillcolor="#cce5ff"];
+    }
+
+    // --- Server ---
+    subgraph cluster_server {
+        label="Server (KB host)"; labeljust=l;
+        fontsize=8; fontname="Helvetica Neue";
+        style=filled; fillcolor="#fff8e6"; color="#c8a84a"; margin=8;
+
+        pengine  [label="Pengines\n(sandboxed engines)", fillcolor="#fff3cd"];
+        kb       [label="Knowledge Base", fillcolor="#fff3cd"];
+        job_q    [label="Job Queue", fillcolor="#fff3cd"];
+        result_q [label="Result Queue", fillcolor="#fff3cd"];
+
+        kb -> pengine [style=dashed, label="facts"];
+    }
+
+    // --- Workers ---
+    subgraph cluster_workers {
+        label="Workers"; labeljust=l;
+        fontsize=8; fontname="Helvetica Neue";
+        style=filled; fillcolor="#e6ffe6"; color="#4a8c4a"; margin=8;
+
+        w1 [label="Worker 1\n(full pipeline)", fillcolor="#ccf2cc"];
+        w2 [label="Worker 2\n(full pipeline)", fillcolor="#ccf2cc"];
+    }
+
+    // --- Infrastructure (outside clusters) ---
+    infra [label="mDNS discovery\n+ Mutual TLS", shape=ellipse, fillcolor="#e8e8e8"];
+
+    // --- Main flows ---
+    client -> pengine [label="HTTPS\nrequest"];
+    result_q -> client [label="HTTPS\nresults"];
+
+    job_q -> w1 [label="poll job"];
+    job_q -> w2 [label="poll job"];
+
+    w1 -> result_q [label="post result"];
+    w2 -> result_q [label="post result"];
+
+    // Infrastructure links (subtle)
+    infra -> client [style=dotted, constraint=false];
+    infra -> w1 [style=dotted, constraint=false];
+}

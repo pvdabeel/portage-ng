@@ -1,0 +1,30 @@
+// Chapter 10 — Learned domain narrowing: applying on reprove
+// Render: dot -Tsvg 10-learned-domain-apply.dot -o 10-learned-domain-apply.svg
+
+digraph learned_apply {
+    rankdir=TB;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=8, style=filled, shape=box, margin="0.08,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=7, arrowsize=0.5];
+    nodesep=0.20; ranksep=0.25;
+
+    // Inputs
+    local [label="Local domain\nfrom current proof\n(e.g. >=1.0)", fillcolor="#cce5ff"];
+    learned [label="Learned domain\nfrom prior conflict\n(e.g. <2.0)", fillcolor="#d4edda"];
+
+    // Intersection
+    meet [label="grouped_dep_effective_domain\nintersects local + learned", shape=diamond, fillcolor="#FFF3CD", width=2.6, height=0.55];
+
+    // Outcomes
+    nonempty [label="Non-empty: [1.0, 2.0)\nfilter candidates against\nstricter domain", fillcolor="#d4edda"];
+    empty [label="Empty: no overlap\nskip to assumption\nor failure handling", fillcolor="#f8d7da"];
+
+    // Candidates
+    cands [label="Candidate selection\nonly versions in [1.0, 2.0)", fillcolor="#e8e8e8"];
+
+    local -> meet;
+    learned -> meet;
+    meet -> nonempty [label=" non-empty"];
+    meet -> empty [label=" empty", color="#cc3333", fontcolor="#cc3333"];
+    nonempty -> cands;
+}

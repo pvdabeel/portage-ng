@@ -1,0 +1,52 @@
+digraph sync_architecture {
+  rankdir=TB;
+  fontname="Helvetica Neue";
+  node [fontname="Helvetica Neue", fontsize=10, style=filled];
+  edge [fontname="Helvetica Neue", fontsize=9];
+
+  // CLI layer
+  cli [label="CLI\n(interface.pl)", shape=box, fillcolor="#E8E8E8"];
+
+  // Knowledge base
+  kb [label="Knowledge Base\n(knowledgebase.pl)", shape=box, fillcolor="#B3D9FF",
+      style="filled,bold"];
+
+  // Repositories
+  subgraph cluster_repos {
+    label="Registered repositories";
+    labeljust=l;
+    style=dashed;
+    color="#888888";
+    fontsize=10;
+
+    portage [label="portage\n(Gentoo tree)", shape=component, fillcolor="#D4EDDA"];
+    overlay [label="myoverlay\n(user overlay)", shape=component, fillcolor="#D4EDDA"];
+    pkg [label="pkg\n(VDB)", shape=component, fillcolor="#FFF3CD"];
+    distfiles [label="distfiles\n(local mirror)", shape=component, fillcolor="#F0F0F0"];
+  }
+
+  // Profile + preference
+  profile [label="Profile\n(profile.pl)", shape=box, fillcolor="#E2D9F3"];
+  preference [label="Preference\n(userconfig +\nfallback)", shape=box, fillcolor="#E2D9F3"];
+
+  // Output
+  kbqlf [label="Knowledge/kb.qlf", shape=note, fillcolor="#FFFACD"];
+  profqlf [label="Knowledge/profile.qlf", shape=note, fillcolor="#FFFACD"];
+
+  // Prover
+  prover [label="Prover / Planner\n(pipeline.pl)", shape=box, fillcolor="#FFD6D6"];
+
+  // Edges
+  cli -> kb [label="--sync\n--sync portage\n--sync myoverlay"];
+  kb -> portage [label="sync"];
+  kb -> overlay [label="sync"];
+  kb -> pkg [label="sync"];
+  kb -> distfiles [label="sync", style=dashed];
+  kb -> kbqlf [label="save"];
+  kb -> profile [label="sync profile"];
+  profile -> profqlf [label="save"];
+  profile -> preference [label="USE, masks,\nkeywords"];
+
+  prover -> kb [label="query", dir=back];
+  prover -> preference [label="consult", dir=back];
+}

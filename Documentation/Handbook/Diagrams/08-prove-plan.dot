@@ -1,0 +1,41 @@
+// Chapter 8 — prove_plan/5 entry point pipeline
+// Render: dot -Tsvg 08-prove-plan.dot -o 08-prove-plan.svg
+
+digraph prove_plan {
+    rankdir=LR;
+    fontname="Helvetica Neue";
+    fontsize=12;
+    node [fontname="Helvetica Neue", fontsize=11, style=filled, shape=box, margin="0.15,0.10"];
+    edge [fontname="Helvetica Neue", fontsize=10];
+    nodesep=0.25;
+    ranksep=0.50;
+
+    // Input
+    goals [label="Goal\nliterals", shape=ellipse, fillcolor="#FFF3CD"];
+
+    // Stages
+    prove [label="prover:prove/9\nbackward chaining\ncycle handling", fillcolor="#cce5ff"];
+    plan  [label="planner:plan/5\nwave planning\n(acyclic portion)", fillcolor="#cce5ff"];
+    sched [label="scheduler:schedule/6\nSCC decomposition\n(remainder)", fillcolor="#cce5ff"];
+
+    // Outputs
+    proof_model [label="Proof, Model\nConstraints, Triggers", shape=ellipse, fillcolor="#d4edda"];
+    plan_out    [label="Plan +\nRemainder", shape=ellipse, fillcolor="#d4edda"];
+    final_plan  [label="Fully ordered\nPlan", shape=ellipse, fillcolor="#d4edda"];
+
+    // Wrapper
+    subgraph cluster_pipeline {
+        label="pipeline:prove_plan/5";
+        labeljust=l;
+        style=dashed;
+        color="#666666";
+        fontcolor="#666666";
+        fontsize=10;
+        prove -> plan -> sched;
+    }
+
+    goals -> prove;
+    prove -> proof_model [style=dashed, constraint=false];
+    plan -> plan_out [style=dashed, constraint=false];
+    sched -> final_plan;
+}

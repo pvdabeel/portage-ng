@@ -1,0 +1,79 @@
+// Chapter 20 — Context lifecycle: creation, extension, merging, stripping
+// Render: dot -Tsvg 20-context-lifecycle.dot -o 20-context-lifecycle.svg
+
+digraph context_lifecycle {
+    rankdir=TB;
+    fontname="Helvetica";
+    fontsize=11;
+    node [fontname="Helvetica", fontsize=11, style=filled];
+    edge [fontname="Helvetica", fontsize=10];
+
+    // Phase 1: Creation
+    subgraph cluster_create {
+        label="1. Creation (root)";
+        labeljust=l;
+        style=filled;
+        fillcolor="#e6f0ff";
+        color="#4a86c8";
+
+        node [shape=box, fillcolor="#cce5ff"];
+        root [label="target(sys-apps/portage)?{}\n(empty context)"];
+    }
+
+    // Phase 2: Extension
+    subgraph cluster_extend {
+        label="2. Extension (downward propagation)";
+        labeljust=l;
+        style=filled;
+        fillcolor="#e6ffe6";
+        color="#4a8c4a";
+
+        node [shape=box, fillcolor="#ccf2cc"];
+        dep_edge [label="Dependency edge\nfrom parent to child"];
+        add_self [label="ctx_set_self\nself(parent_entry)\n(replaces, not accumulates)"];
+        add_bwu [label="process_build_with_use\nbuild_with_use:use_state(En,Dis)\n(per-edge, fresh)"];
+        add_after [label="ctx_add_after\nafter(parent) — propagates\nafter_only(parent) — local only"];
+        add_slot [label="process_slot\nslot(C,N,Ss):{Candidate}\n(from := operator)"];
+
+        dep_edge -> add_self -> add_bwu -> add_after -> add_slot;
+    }
+
+    // Phase 3: Merging
+    subgraph cluster_merge {
+        label="3. Merging (join points)";
+        labeljust=l;
+        style=filled;
+        fillcolor="#fff8e6";
+        color="#c8a84a";
+
+        node [shape=box, fillcolor="#fff3cd"];
+        join [label="Same literal reached\nfrom two proof branches"];
+        strip_self [label="Strip self/1 from old ctx\nKeep one self/1 from new ctx"];
+        feat_unify [label="feature_unification:unify/3\n- Feature:Value pairs merged by val_hook/3\n- Plain terms: union (dedup)\n- Contradictions: merge fails (backtrack)"];
+        merged [label="Merged context\n(well-defined meet)"];
+
+        join -> strip_self -> feat_unify -> merged;
+    }
+
+    // Phase 4: Stripping
+    subgraph cluster_strip {
+        label="4. Stripping (memoisation)";
+        labeljust=l;
+        style=filled;
+        fillcolor="#f0e6ff";
+        color="#8c4ac8";
+
+        node [shape=box, fillcolor="#e6ccff"];
+        memo_check [label="Before memoisation lookup"];
+        strip_plan [label="ctx_strip_planning\nremove after/1, world_atom/1\n(ordering is not part of key)"];
+        memo_key [label="Cleaned context\nused as memo key"];
+
+        memo_check -> strip_plan -> memo_key;
+    }
+
+    // Flow between phases
+    root -> dep_edge [label="first rule\nexpansion"];
+    add_slot -> join [label="literal already\nin model?", style=dashed];
+    merged -> memo_check [label="continue\nproof search", style=dashed];
+    add_slot -> memo_check [label="new literal", style=dashed];
+}

@@ -1,0 +1,29 @@
+// Chapter 21 — Portage conflict-resolution loop
+// Render: dot -Tsvg 21-portage-loop.dot -o 21-portage-loop.svg
+
+digraph portage_loop {
+    rankdir=TB;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=7, style=filled, shape=box,
+          margin="0.06,0.04", fillcolor="#cce5ff"];
+    edge [fontname="Helvetica Neue", fontsize=6, arrowsize=0.4];
+    nodesep=0.18; ranksep=0.22;
+
+    start [label="Start\n(empty graph)", shape=ellipse, fillcolor="#e2e3e5"];
+    build [label="Build dependency graph\n(pick newest stable\nfor each dep)"];
+    conflict [label="Slot conflict\ndetected?", shape=diamond, fillcolor="#fff3cd"];
+    mask [label="Mask ONE\nconflicting package", fillcolor="#f8d7da"];
+    rebuild [label="Discard entire graph\nbuild from scratch\n(masks accumulate)", fillcolor="#f8d7da"];
+    limit [label="Retries < N?", shape=diamond, fillcolor="#fff3cd"];
+    done [label="Done\n(graph complete)", shape=ellipse, fillcolor="#d4edda"];
+    fail [label="Give up\n(unresolvable)", shape=ellipse, fillcolor="#f8d7da"];
+
+    start -> build;
+    build -> conflict;
+    conflict -> done [label="no"];
+    conflict -> mask [label="yes"];
+    mask -> rebuild;
+    rebuild -> limit;
+    limit -> build [label="yes"];
+    limit -> fail [label="no\n(default 20)"];
+}

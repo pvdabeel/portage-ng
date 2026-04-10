@@ -1,0 +1,34 @@
+// Chapter 17 — Distributed proving: interaction flow
+// Render: dot -Tsvg 17-cluster-flow.dot -o 17-cluster-flow.svg
+
+digraph cluster_flow {
+    rankdir=TB;
+    fontname="Helvetica Neue"; fontsize=9;
+    node [fontname="Helvetica Neue", fontsize=8, style=filled, shape=box, margin="0.08,0.04"];
+    edge [fontname="Helvetica Neue", fontsize=7, arrowsize=0.5];
+    nodesep=0.25; ranksep=0.22;
+
+    // Row 1: client -> server
+    submit  [label="1  Client submits\ntarget packages", fillcolor="#cce5ff"];
+    pengine [label="2  Server creates\nPengine", fillcolor="#fff3cd"];
+    enqueue [label="3  Targets queued", fillcolor="#fff3cd"];
+
+    // Row 2: worker loop
+    poll    [label="4  Worker polls\nfor job", fillcolor="#ccf2cc"];
+    prove   [label="5  Worker proves\n(full pipeline)", fillcolor="#ccf2cc"];
+    post    [label="6  Worker posts\nresult", fillcolor="#ccf2cc"];
+
+    // Row 3: results back
+    collect [label="7  Server queues\nresult", fillcolor="#fff3cd"];
+    deliver [label="8  Client receives\nJSON proof", fillcolor="#cce5ff"];
+
+    { rank=same; submit; pengine; enqueue; }
+    { rank=same; poll; prove; post; }
+    { rank=same; collect; deliver; }
+
+    submit -> pengine -> enqueue;
+    enqueue -> poll;
+    poll -> prove -> post;
+    post -> collect;
+    collect -> deliver;
+}

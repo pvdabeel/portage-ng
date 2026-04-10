@@ -1,0 +1,87 @@
+// Chapter 12 — Wave planning via Kahn's algorithm
+// Render: dot -Tsvg 12-wave-planning.dot -o 12-wave-planning.svg
+
+digraph wave_planning {
+    rankdir=LR;
+    fontname="Helvetica";
+    fontsize=11;
+    node [fontname="Helvetica", fontsize=11, style=filled];
+    edge [fontname="Helvetica", fontsize=10];
+
+    // Wave 1
+    subgraph cluster_w1 {
+        label="Wave 1  (in-degree 0)";
+        labeljust=l;
+        style=filled;
+        fillcolor="#e6f0ff";
+        color="#4a86c8";
+
+        node [shape=box, fillcolor="#cce5ff"];
+        dl_A [label="download\nopenssl"];
+        dl_B [label="download\npython"];
+        dl_C [label="download\ntar"];
+    }
+
+    // Wave 2
+    subgraph cluster_w2 {
+        label="Wave 2";
+        labeljust=l;
+        style=filled;
+        fillcolor="#e6ffe6";
+        color="#4a8c4a";
+
+        node [shape=box, fillcolor="#ccf2cc"];
+        inst_A [label="install\nopenssl"];
+        dl_D   [label="download\nportage"];
+    }
+
+    // Wave 3
+    subgraph cluster_w3 {
+        label="Wave 3";
+        labeljust=l;
+        style=filled;
+        fillcolor="#fff8e6";
+        color="#c8a84a";
+
+        node [shape=box, fillcolor="#fff3cd"];
+        inst_B [label="install\npython"];
+        inst_C [label="install\ntar"];
+    }
+
+    // Wave 4
+    subgraph cluster_w4 {
+        label="Wave 4";
+        labeljust=l;
+        style=filled;
+        fillcolor="#f0e6ff";
+        color="#8c4ac8";
+
+        node [shape=box, fillcolor="#e6ccff"];
+        inst_D [label="install\nportage"];
+    }
+
+    // Wave 5
+    subgraph cluster_w5 {
+        label="Wave 5";
+        labeljust=l;
+        style=filled;
+        fillcolor="#e8e8e8";
+        color="#666666";
+
+        node [shape=box, fillcolor="#d0d0d0"];
+        run_D [label="run\nportage"];
+    }
+
+    // Dependencies (define the DAG)
+    dl_A -> inst_A [label="fetched"];
+    dl_B -> inst_B [label="fetched"];
+    dl_C -> inst_C [label="fetched"];
+    dl_D -> inst_D [label="fetched"];
+
+    inst_A -> inst_B [label="DEPEND"];
+    inst_A -> inst_D [label="DEPEND"];
+    inst_B -> inst_D [label="DEPEND"];
+    inst_C -> inst_D [label="DEPEND"];
+
+    inst_D -> run_D [label="installed"];
+}

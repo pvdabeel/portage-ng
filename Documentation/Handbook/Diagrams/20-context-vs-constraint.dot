@@ -1,0 +1,67 @@
+// Chapter 20 — Context vs constraint interaction
+// Render: dot -Tsvg 20-context-vs-constraint.dot -o 20-context-vs-constraint.svg
+
+digraph ctx_vs_con {
+    rankdir=TB;
+    fontname="Helvetica";
+    fontsize=11;
+    node [fontname="Helvetica", fontsize=11, style=filled];
+    edge [fontname="Helvetica", fontsize=10];
+    compound=true;
+
+    // Context side
+    subgraph cluster_context {
+        label="Context (per-literal, local)";
+        labeljust=l;
+        style=filled;
+        fillcolor="#e6f0ff";
+        color="#4a86c8";
+
+        node [shape=box, fillcolor="#cce5ff"];
+        ctx_list [label="?{[self(...),\n   build_with_use:...,\n   after(...),\n   constraint(cn_domain(...):...)]}\n\nAttached to each literal\nBounded growth by design"];
+
+        ctx_tags [label="Carries:\n- Provenance (self)\n- USE requirements (bwu)\n- Ordering (after)\n- Inline constraints"];
+
+        ctx_list -> ctx_tags [style=invis];
+    }
+
+    // Constraint side
+    subgraph cluster_constraint {
+        label="ConstraintsAVL (global, across proof)";
+        labeljust=l;
+        style=filled;
+        fillcolor="#e6ffe6";
+        color="#4a8c4a";
+
+        node [shape=box, fillcolor="#ccf2cc"];
+        con_avl [label="AVL tree:\n  selected_cn(C,N) -> ordset([...])\n  cn_domain(C,N,Slot) -> version_domain(...)\n  selected_slot(C,N) -> ...\n  blocked_cn(C,N) -> ...\n\nGrows with proof"];
+
+        con_purpose [label="Enforces:\n- One version per CN\n- Version domain consistency\n- Slot occupancy\n- Blocker conflicts"];
+
+        con_avl -> con_purpose [style=invis];
+    }
+
+    // Interactions
+    node [shape=diamond, fillcolor="#fff3cd"];
+    emit [label="Context -> Constraint\n(emit on candidate selection)"];
+    inline [label="Constraint -> Context\n(inline constraint terms\nscope child domains)"];
+    guard [label="Constraint guard\n(fires after merge)"];
+    learn [label="Constraint learning\n(persists across\nreprove retries)"];
+
+    // Flow
+    ctx_list -> emit [label="selected_cn,\ncn_domain,\nslot"];
+    emit -> con_avl;
+
+    con_avl -> inline [label="cn_domain\nvalue"];
+    inline -> ctx_list [label="constraint(cn_domain(...))"];
+
+    con_avl -> guard;
+    guard -> con_avl [label="consistent:\ncontinue", style=dashed];
+
+    node [shape=box, fillcolor="#f8d7da"];
+    conflict [label="Conflict detected:\nbacktrack or\nprover_reprove"];
+
+    guard -> conflict [label="inconsistent"];
+    conflict -> learn;
+    learn -> con_avl [label="prover:learn\n(narrowed domain)", style=dashed];
+}
