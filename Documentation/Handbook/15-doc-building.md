@@ -310,7 +310,7 @@ later time.  Old snapshots can be removed with
 
 - [Chapter 12: Planning and Scheduling](12-doc-planning.md) — how the
   plan is constructed
-- [Chapter 13: Output and Visualization](13-doc-building.md) — plan
+- [Chapter 13: Output and Visualization](13-doc-output.md) — plan
   display and `.merge` file generation
 - [Chapter 14: Command-Line Interface](14-doc-cli.md) — `--merge`,
   `--jobs`, `--estimate` flags

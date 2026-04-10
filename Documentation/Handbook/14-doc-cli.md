@@ -72,7 +72,7 @@ planner), then adds an HTTPS Pengine server, TLS, and Bonjour
 service advertisement.  The server exposes job and result message
 queues so that workers can poll for proving tasks.  Use
 `--background` to fork the server process.  See [Chapter 17:
-Distributed Proving](17-doc-tls-certificates.md).
+Distributed Proving](17-doc-distributed.md).
 
 ### Worker
 
@@ -83,7 +83,7 @@ startup, the worker discovers the server via Bonjour or explicit
 snapshot, registers its CPU count, and spawns one thread per core.
 Each thread polls the server for jobs, proves them locally, and
 posts results back.  See [Chapter 17: Distributed
-Proving](17-doc-tls-certificates.md).
+Proving](17-doc-distributed.md).
 
 
 ## Actions
@@ -226,7 +226,7 @@ Short recipes that match how people actually use the tool:
 
 - **Why is this package in my plan?**  
   `portage-ng --pretend --explain cat/pkg` — ask the explainer/LLM path to
-  narrate the plan (see [Chapter 16: Semantic Search and LLM Integration](16-doc-explainer.md)).
+  narrate the plan (see [Chapter 16: Semantic Search and LLM Integration](16-doc-llm.md)).
 
 - **What would change if I enabled this USE flag?**  
   `portage-ng --pretend --variants cat/pkg` — surface alternative proofs when
@@ -285,7 +285,7 @@ portage-ng --search "text editor with syntax highlighting"  # semantic search
 ```
 
 Semantic search requires Ollama with a loaded embedding model.  See
-[Chapter 16: Semantic Search and LLM Integration](16-doc-explainer.md).
+[Chapter 16: Semantic Search and LLM Integration](16-doc-llm.md).
 
 ### Fuzzy and wildcard search
 
@@ -323,5 +323,5 @@ shell would expand `*` (e.g. `--search 'name:=*vim*'`).
   reference
 - [Chapter 2: Installation and Quick Start](02-doc-installation.md) — first run
   examples
-- [Chapter 13: Output and Visualization](13-doc-building.md) — what the output
+- [Chapter 13: Output and Visualization](13-doc-output.md) — what the output
   looks like

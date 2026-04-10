@@ -7,7 +7,7 @@ software configuration, applied to Gentoo Linux.
 
 1. [Introduction](01-doc-introduction.md)
 2. [Installation and Quick Start](02-doc-installation.md)
-3. [Configuration](03-doc-gentoo.md)
+3. [Configuration](03-doc-configuration.md)
 
 ## Part II — Architecture and Internals
 
@@ -20,14 +20,14 @@ software configuration, applied to Gentoo Linux.
 10. [Version Domains](10-doc-version-domains.md)
 11. [Rules and Domain Logic](11-doc-rules.md)
 12. [Planning and Scheduling](12-doc-planning.md)
-13. [Output and Visualization](13-doc-building.md)
+13. [Output and Visualization](13-doc-output.md)
 
 ## Part III — Features
 
 14. [Command-Line Interface](14-doc-cli.md)
-15. [Building and Execution](15-doc-output.md)
-16. [Semantic Search and LLM Integration](16-doc-explainer.md)
-17. [Distributed Proving](17-doc-tls-certificates.md)
+15. [Building and Execution](15-doc-building.md)
+16. [Semantic Search and LLM Integration](16-doc-llm.md)
+17. [Distributed Proving](17-doc-distributed.md)
 18. [Upstream and Bug Tracking](18-doc-upstream-bugs.md)
 
 ## Part IV — Foundations

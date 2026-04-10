@@ -266,7 +266,7 @@ See [Chapter 23: Testing and Regression](23-doc-testing.md) for details.
 
 ## Further reading
 
-- [Chapter 3: Configuration](03-doc-gentoo.md) — setting up Portage tree
+- [Chapter 3: Configuration](03-doc-configuration.md) — setting up Portage tree
   paths, `/etc/portage`, and profiles
 - [Chapter 14: Command-Line Interface](14-doc-cli.md) — full CLI reference
 - [`portage-ng(1)` manpage](../Manpage/portage-ng.1.md) — exhaustive option

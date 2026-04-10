@@ -229,9 +229,9 @@ for execution.
 ## Further reading
 
 - [Chapter 8: The Prover](08-doc-prover.md) — how the Proof AVL is constructed
-- [Chapter 13: Output and Visualization](13-doc-building.md) — how the plan is
+- [Chapter 13: Output and Visualization](13-doc-output.md) — how the plan is
   rendered
-- [Chapter 15: Building and Execution](15-doc-output.md) — how the plan is
+- [Chapter 15: Building and Execution](15-doc-building.md) — how the plan is
   executed
 - [Chapter 22: Dependency Ordering](22-doc-dependency-ordering.md) — PMS
   ordering semantics

@@ -318,6 +318,6 @@ fully indexed and compiled.
 
 - [Chapter 7: The EAPI Grammar](07-doc-eapi-grammar.md) — how md5-cache files
   are parsed into cache predicates
-- [Chapter 3: Configuration](03-doc-gentoo.md) — repository path setup
+- [Chapter 3: Configuration](03-doc-configuration.md) — repository path setup
 - [Chapter 8: The Prover](08-doc-prover.md) — how the prover queries the
   knowledge base

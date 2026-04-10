@@ -1355,7 +1355,7 @@ details.
 
 == Further reading
 <further-reading-1>
-- #link("03-doc-gentoo.md")[Chapter 3: Configuration] --- setting up
+- #link("03-doc-configuration.md")[Chapter 3: Configuration] --- setting up
   Portage tree paths, `/etc/portage`, and profiles
 - #link("14-doc-cli.md")[Chapter 14: Command-Line Interface] --- full
   CLI reference
@@ -2260,7 +2260,7 @@ machines reduces wall-clock time for large proof sets.
 
 See #link("14-doc-cli.md")[Chapter 14: Command-Line Interface] for the
 full mode reference and
-#link("17-doc-tls-certificates.md")[Chapter 17: Distributed Proving] for
+#link("17-doc-distributed.md")[Chapter 17: Distributed Proving] for
 TLS certificate setup and cluster configuration.
 
 == Module load order
@@ -3425,7 +3425,7 @@ fully indexed and compiled.
 <further-reading-5>
 - #link("07-doc-eapi-grammar.md")[Chapter 7: The EAPI Grammar] --- how
   md5-cache files are parsed into cache predicates
-- #link("03-doc-gentoo.md")[Chapter 3: Configuration] --- repository
+- #link("03-doc-configuration.md")[Chapter 3: Configuration] --- repository
   path setup
 - #link("08-doc-prover.md")[Chapter 8: The Prover] --- how the prover
   queries the knowledge base
@@ -5693,9 +5693,9 @@ builder for execution.
 <further-reading-11>
 - #link("08-doc-prover.md")[Chapter 8: The Prover] --- how the Proof AVL
   is constructed
-- #link("13-doc-building.md")[Chapter 13: Building and Execution] ---
+- #link("13-doc-output.md")[Chapter 13: Building and Execution] ---
   how the plan is executed
-- #link("15-doc-output.md")[Chapter 15: Output and Visualization] ---
+- #link("15-doc-building.md")[Chapter 15: Output and Visualization] ---
   how the plan is rendered
 - #link("22-doc-dependency-ordering.md")[Chapter 22: Dependency Ordering]
   --- PMS ordering semantics
@@ -5792,7 +5792,7 @@ The `snapshot.pl` module provides system state snapshot and restore:
   how the plan is constructed
 - #link("14-doc-cli.md")[Chapter 14: Command-Line Interface] ---
   `--merge`, `--jobs`, `--estimate` flags
-- #link("15-doc-output.md")[Chapter 15: Output and Visualization] ---
+- #link("15-doc-building.md")[Chapter 15: Output and Visualization] ---
   build progress display
 
 = Command-Line Interface
@@ -5846,7 +5846,7 @@ resolution, planning, and building happens locally.
 The server hosts the knowledge base and distributes proving jobs.
 Workers connect, poll for jobs, prove them locally, and return results.
 See
-#link("17-doc-tls-certificates.md")[Chapter 17: Distributed Proving].
+#link("17-doc-distributed.md")[Chapter 17: Distributed Proving].
 
 == Actions
 <actions>
@@ -6050,7 +6050,7 @@ Short recipes that match how people actually use the tool:
 - #strong[Why is this package in my plan?] \
   `portage-ng --pretend --explain cat/pkg` --- ask the explainer/LLM
   path to narrate the plan (see
-  #link("16-doc-explainer.md")[Chapter 16: Semantic Search and LLM Integration]).
+  #link("16-doc-llm.md")[Chapter 16: Semantic Search and LLM Integration]).
 
 - #strong[What would change if I enabled this USE flag?] \
   `portage-ng --pretend --variants cat/pkg` --- surface alternative
@@ -6108,7 +6108,7 @@ portage-ng --search "text editor with syntax highlighting"  # semantic search
 ```
 
 Semantic search requires Ollama with a loaded embedding model. See
-#link("16-doc-explainer.md")[Chapter 16: Semantic Search and LLM Integration].
+#link("16-doc-llm.md")[Chapter 16: Semantic Search and LLM Integration].
 
 === Fuzzy and wildcard search
 <fuzzy-and-wildcard-search>
@@ -6155,7 +6155,7 @@ result set, e.g. `category=dev-libs name:=*ssl*`.
   exhaustive option reference
 - #link("02-doc-installation.md")[Chapter 2: Installation and Quick Start]
   --- first run examples
-- #link("15-doc-output.md")[Chapter 15: Output and Visualization] ---
+- #link("15-doc-building.md")[Chapter 15: Output and Visualization] ---
   what the output looks like
 
 = Output and Visualization

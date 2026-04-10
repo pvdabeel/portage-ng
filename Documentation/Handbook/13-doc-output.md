@@ -260,7 +260,7 @@ The printer pipeline is split across focused submodules:
   waves and parallelism are computed
 - [Chapter 14: Command-Line Interface](14-doc-cli.md) — `--graph`,
   `--verbose`, `--quiet`, and other output flags
-- [Chapter 15: Building and Execution](15-doc-output.md) — how the
+- [Chapter 15: Building and Execution](15-doc-building.md) — how the
   plan is executed
 - [Chapter 23: Testing and Regression](23-doc-testing.md) — how
   `.merge` files are used for regression testing

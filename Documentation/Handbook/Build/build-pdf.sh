@@ -26,7 +26,7 @@ pandoc \
   -o "$OUTFILE" \
   01-doc-introduction.md \
   02-doc-installation.md \
-  03-doc-gentoo.md \
+  03-doc-configuration.md \
   04-doc-architecture.md \
   05-doc-proof-literals.md \
   06-doc-knowledgebase.md \
@@ -36,11 +36,11 @@ pandoc \
   10-doc-version-domains.md \
   11-doc-rules.md \
   12-doc-planning.md \
-  13-doc-building.md \
+  13-doc-output.md \
   14-doc-cli.md \
-  15-doc-output.md \
-  16-doc-explainer.md \
-  17-doc-tls-certificates.md \
+  15-doc-building.md \
+  16-doc-llm.md \
+  17-doc-distributed.md \
   18-doc-upstream-bugs.md \
   19-doc-contextual-logic-programming.md \
   20-doc-context-terms.md \

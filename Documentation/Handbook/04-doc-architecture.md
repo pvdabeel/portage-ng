@@ -79,7 +79,7 @@ Each worker machine maintains its own local copy of the Portage tree (typically 
 
 Once a worker discovers the server, it polls the job queue for proving tasks: the server breaks a large proof (e.g. `@world`) into independent sub-goals, distributes them to available workers, and collects the results.  Each worker runs the full pipeline locally (prover, planner, scheduler), so proving scales horizontally — adding more worker machines reduces wall-clock time for large proof sets.
 
-See [Chapter 14: Command-Line Interface](14-doc-cli.md) for the full mode reference and [Chapter 17: Distributed Proving](17-doc-tls-certificates.md) for TLS certificate setup and cluster configuration.
+See [Chapter 14: Command-Line Interface](14-doc-cli.md) for the full mode reference and [Chapter 17: Distributed Proving](17-doc-distributed.md) for TLS certificate setup and cluster configuration.
 
 
 ## Module load order
