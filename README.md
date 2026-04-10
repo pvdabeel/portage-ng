@@ -46,18 +46,18 @@ portage-ng --mode standalone --sync
 ```
 
 For the full command reference, see the
-`[portage-ng(1)` manpage](Documentation/Manpage/portage-ng.1.md).
+[`portage-ng(1)` manpage](Documentation/Manpage/portage-ng.1.md).
 
 ## Screenshots
 
-Build plan
-Merge plan
-Gantt chart
-Dependency graph
-Detail view
-Package search
-Bug search
-Upstream version check
+![Build plan](Documentation/Images/proof.png)
+![Merge plan](Documentation/Images/plan.png)
+![Gantt chart](Documentation/Images/gantt.png)
+![Dependency graph](Documentation/Images/depgraph.png)
+![Detail view](Documentation/Images/detail.png)
+![Package search](Documentation/Images/search.png)
+![Bug search](Documentation/Images/bugs.png)
+![Upstream version check](Documentation/Images/upstream.png)
 
 ## Handbook
 
@@ -73,4 +73,4 @@ The portage-ng handbook is available as a
 
 ## License
 
-BSD 2-Clause.  See `[LICENSE](LICENSE)`.
+BSD 2-Clause.  See [`LICENSE`](LICENSE).
