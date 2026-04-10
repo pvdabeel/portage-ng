@@ -131,6 +131,7 @@ user:goal_expansion(color(lightgray),      (config:color_output -> ansi_term:kee
 user:goal_expansion(color(darkgray),       (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[90m",[])) ; true)).
 user:goal_expansion(color(lightred),       (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[91m",[])) ; true)).
 user:goal_expansion(color(lightgreen),     (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[92m",[])) ; true)).
+user:goal_expansion(color(yellow),          (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[93m",[])) ; true)).
 user:goal_expansion(color(lightorange),    (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[93m",[])) ; true)).
 user:goal_expansion(color(lightblue),      (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[94m",[])) ; true)).
 user:goal_expansion(color(lightmagenta),   (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[95m",[])) ; true)).
@@ -152,6 +153,7 @@ user:goal_expansion(bgcolor(lightgray),    (config:color_output -> ansi_term:kee
 user:goal_expansion(bgcolor(darkgray),     (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[100m",[])) ; true)).
 user:goal_expansion(bgcolor(lightred),     (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[101m",[])) ; true)).
 user:goal_expansion(bgcolor(lightgreen),   (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[102m",[])) ; true)).
+user:goal_expansion(bgcolor(yellow),       (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[103m",[])) ; true)).
 user:goal_expansion(bgcolor(lightorange),  (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[103m",[])) ; true)).
 user:goal_expansion(bgcolor(lightblue),    (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[104m",[])) ; true)).
 user:goal_expansion(bgcolor(lightmagenta), (config:color_output -> ansi_term:keep_line_pos(current_output,format("\e[105m",[])) ; true)).
