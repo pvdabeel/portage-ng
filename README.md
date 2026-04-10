@@ -1,5 +1,3 @@
-Automate building and maintaining custom operating systems using declarative reasoning.
-
 # ::- portage-ng
 
 A declarative reasoning engine for software configuration, applied to Gentoo Linux.
