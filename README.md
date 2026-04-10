@@ -23,7 +23,7 @@ and so on.
 - Portage-compatible execution and pre-upgrade snapshots
 - Domain-agnostic reasoning core -- Gentoo-specific logic is a pluggable rules layer
 
-See the full [feature list](FEATURES.md) and the
+See the full [feature list](Documentation/FEATURES.md) and the
 [handbook](Documentation/Handbook/portage-ng-handbook.pdf) for architecture,
 internals, and reference documentation.
 
