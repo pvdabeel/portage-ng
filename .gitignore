@@ -4,7 +4,6 @@ Source/Tests
 Certificates/*-key.pem
 Certificates/cakey.pem
 Certificates/cacert.srl
-todo
 Knowledge/kb.qlf
 Knowledge/kb.raw
 Knowledge/profile.qlf
