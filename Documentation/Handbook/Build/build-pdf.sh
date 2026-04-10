@@ -1,11 +1,14 @@
 #!/bin/sh
 # Build the portage-ng handbook PDF from all chapter markdown files.
 # Requires: pandoc (>= 3.0), typst
-# Usage: cd Documentation/Handbook && ./build-pdf.sh
+# Usage: Documentation/Handbook/Build/build-pdf.sh
 
 set -e
 
-cd "$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+HANDBOOK_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+cd "$HANDBOOK_DIR"
 
 OUTFILE="portage-ng-handbook.pdf"
 
@@ -13,12 +16,12 @@ pandoc \
   --pdf-engine=typst \
   -f markdown-citations \
   --template=default \
-  -V template="template.typst" \
+  -V template="Build/template.typst" \
   -V papersize=a4 \
   -V section-numbering="1.1.1" \
   -V page-numbering="1" \
   --resource-path=. \
-  --metadata-file=metadata.yaml \
+  --metadata-file=Build/metadata.yaml \
   -V date="$(date '+%B %Y')" \
   -o "$OUTFILE" \
   01-doc-introduction.md \
