@@ -1,6 +1,5 @@
 # portage-ng — Feature highlights
 
-
 ## Reasoning engine
 
 **Proof-based build plans.**
@@ -41,7 +40,6 @@ applied within the plan for you to review before committing.
 portage-ng succeeds for every target, including targets where traditional
 resolvers give up.  Assumptions are explicit, never silent.
 
-
 ## Planning and scheduling
 
 **Wave planning.**
@@ -62,7 +60,6 @@ semantics, matching PMS ordering requirements.
 **Build-time estimation.**
 `--estimate` predicts per-package and total build duration using VDB sizes and
 historical `emerge.log` data, accounting for the parallelism in the plan.
-
 
 ## Knowledge base
 
@@ -87,11 +84,10 @@ lookups at compile time, eliminating runtime dispatch overhead.
 `egencache` with a faster alternative that only processes changed or new
 ebuilds.
 
-
 ## Gentoo domain
 
 **Full PMS coverage.**
-USE-conditional dependencies, slot operators (`:=`, `:*`), sub-slots, blockers,
+USE-conditional dependencies, slot operators (`:=`, `:`*), sub-slots, blockers,
 PDEPEND, BDEPEND, IDEPEND, REQUIRED_USE -- all handled natively in the rules
 layer.
 
@@ -113,7 +109,6 @@ resolution targets.
 `--depclean` identifies orphaned packages through the same proof-based
 reasoning -- no separate graph walk.
 
-
 ## Execution and building
 
 **Portage-compatible execution.**
@@ -132,7 +127,6 @@ and `mirror://` resolution.
 Before upgrading, `--snapshot` creates quickpkg-style binary archives of
 installed packages, enabling `--rollback` to a known-good state if an upgrade
 causes problems.
-
 
 ## Search, discovery, and diagnostics
 
@@ -159,7 +153,6 @@ loaded -- useful for ad-hoc queries, debugging, and exploration.
 `--graph` produces interactive SVG dependency graphs and Gantt charts via
 Graphviz, with detail, dependency-type, and merge/fetch views.
 
-
 ## LLM integration
 
 **Plan explanation.**
@@ -176,7 +169,6 @@ Ollama, Claude, ChatGPT, Gemini, and Grok are supported as backends.
 **Sandboxed code execution.**
 LLMs can execute Prolog queries against the knowledge base through a sandboxed
 Pengine interface -- safe introspection without arbitrary code execution.
-
 
 ## Distributed proving
 
@@ -198,7 +190,6 @@ All traffic is encrypted.
 `--background` runs portage-ng as a Unix-socket daemon for lightweight local
 IPC without the overhead of TLS.
 
-
 ## Modes
 
 **Standalone.**
@@ -218,7 +209,6 @@ returns results.
 **Cluster.**
 Orchestration layer that distributes targets across discovered workers and
 collects results.
-
 
 ## CLI ergonomics
 
@@ -242,7 +232,6 @@ Mistyped flags get "did you mean?" suggestions.
 `--style fancy`, `--style column`, `--style short` -- choose the level of
 detail.
 
-
 ## Performance and quality
 
 **Measured correctness.**
@@ -258,6 +247,54 @@ context-union sampling for performance analysis.
 PLUnit tests and overlay regression scenarios verify resolver behaviour across
 dependency patterns.
 
+## Performance comparison: portage-ng vs Portage
+
+Both resolvers start from the same input: an identical Portage tree snapshot
+(~32,000 ebuilds), the same VDB, and the same `/etc/portage` configuration.
+The measurement is **dependency resolution time only** -- how long it takes to
+produce a merge plan, not how long actual builds take.
+
+### Resolution speed
+
+The comparison covers **30,097 packages** resolved by both tools.  For the
+22,971 packages where Portage itself reports a clean result, portage-ng is
+faster in **100%** of cases:
+
+
+|                          | **Portage** | **portage-ng** | **Speedup** |
+| ------------------------ | ----------- | -------------- | ----------- |
+| Average                  | 1,607 ms    | 34 ms          | **48x**     |
+| Median                   | 1,413 ms    | 7 ms           | **202x**    |
+| 95th percentile          | 2,869 ms    | 154 ms         | **19x**     |
+| Cumulative (22,971 pkgs) | 10.3 hours  | 12.9 minutes   | **48x**     |
+
+
+The median package resolves in **7 milliseconds** versus **1.4 seconds** -- a
+two-hundred-fold improvement.  Even at the 95th percentile (complex packages
+with deep dependency chains), portage-ng finishes in 154 ms while Portage needs
+nearly 3 seconds.  Across all 30,097 packages, portage-ng is faster in
+**99.8%** of cases.
+
+### Why portage-ng is faster
+
+The performance gap comes from architectural differences that compound across
+thousands of packages:
+
+
+| **Factor**         | **Portage**                                        | **portage-ng**                                           |
+| ------------------ | -------------------------------------------------- | -------------------------------------------------------- |
+| Startup cost       | Python interpreter + module imports per invocation | Qcompiled cache loads once, shared across all queries    |
+| Graph construction | Build full graph, then check for conflicts         | Single-pass proof -- no separate graph phase             |
+| Conflict recovery  | Discard entire graph, rebuild from scratch         | Retry only the affected subtree with learned constraints |
+| Repeated queries   | Each `emerge -vp` starts cold                      | In-memory facts persist; subsequent queries are instant  |
+| Parallelism        | Sequential graph walk                              | Wave planner identifies parallel steps automatically     |
+
+
+The largest single factor is the **qcompiled cache**: once loaded, all 32,000
+ebuilds are in memory as indexed Prolog facts, and queries hit first-argument
+indexing directly.  Portage re-reads and re-parses metadata structures on each
+invocation.  The second factor is **single-pass proving**: for over 99% of  
+packages, portage-ng needs no retries at all.
 
 ## Architecture
 
