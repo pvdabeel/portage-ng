@@ -2,7 +2,6 @@
 
 A declarative reasoning engine for software configuration, applied to Gentoo Linux.
 
-
 ## Reasoning engine
 
 portage-ng is a declarative reasoning engine for large-scale software
@@ -14,7 +13,6 @@ presents them as actionable suggestions as part of the plan: enabling or
 disabling specific USE flags, keywording specific ebuilds, unmasking packages,
 and so on.
 
-
 ## Highlights
 
 - Proof-based plans with feature-term unification and constraint learning
@@ -25,13 +23,13 @@ and so on.
 - Portage-compatible execution and pre-upgrade snapshots
 - Domain-agnostic reasoning core -- Gentoo-specific logic is a pluggable rules layer
 
-See the [handbook](Documentation/Handbook/portage-ng-handbook.pdf) for the full
-architecture, internals, and feature reference.
-
+See the full [feature list](FEATURES.md) and the
+[handbook](Documentation/Handbook/portage-ng-handbook.pdf) for architecture,
+internals, and reference documentation.
 
 ## Quick start
 
-**Prerequisites:** SWI-Prolog >= 9.3, a Gentoo Portage tree (or md5-cache snapshot).
+**Prerequisites:** SWI-Prolog >= 10.0.0, a Gentoo Portage tree.
 
 ```bash
 # Build and install
@@ -48,20 +46,18 @@ portage-ng --mode standalone --sync
 ```
 
 For the full command reference, see the
-[`portage-ng(1)` manpage](Documentation/Manpage/portage-ng.1.md).
-
+`[portage-ng(1)` manpage](Documentation/Manpage/portage-ng.1.md).
 
 ## Screenshots
 
-![Build plan](Documentation/Images/proof.png)
-![Merge plan](Documentation/Images/plan.png)
-![Gantt chart](Documentation/Images/gantt.png)
-![Dependency graph](Documentation/Images/depgraph.png)
-![Detail view](Documentation/Images/detail.png)
-![Package search](Documentation/Images/search.png)
-![Bug search](Documentation/Images/bugs.png)
-![Upstream version check](Documentation/Images/upstream.png)
-
+Build plan
+Merge plan
+Gantt chart
+Dependency graph
+Detail view
+Package search
+Bug search
+Upstream version check
 
 ## Handbook
 
@@ -75,7 +71,6 @@ The portage-ng handbook is available as a
 - **Part IV** -- Foundations (contextual logic programming, context terms, resolver comparison, dependency ordering)
 - **Part V** -- Development (testing, performance, contributing)
 
-
 ## License
 
-BSD 2-Clause.  See [`LICENSE`](LICENSE).
+BSD 2-Clause.  See `[LICENSE](LICENSE)`.
