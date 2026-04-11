@@ -320,7 +320,7 @@ stats:test_stats_print(TopN) :-
   stats:test_stats_print_table_header,
   stats:test_stats_print_table_row('Total', Expected, Expected, ExpectedPkgs, ExpectedPkgs),
   stats:test_stats_print_table_row('Processed', Processed, Expected, ProcessedPkgs, ExpectedPkgs),
-  ( Processed > 0, sampler:stage_at_least(planner) ->
+  ( Processed > 0 ->
       stats:test_stats_print_table_row('With assumptions', WithAss, Processed, WithAssPkgs, ProcessedPkgs),
       stats:test_stats_print_table_row('With package assumptions', WithPkgAss, Processed, WithPkgAssPkgs, ProcessedPkgs),
       stats:test_stats_print_table_row('With cycles', WithCycles, Processed, WithCyclesPkgs, ProcessedPkgs),
@@ -336,8 +336,8 @@ stats:test_stats_print(TopN) :-
   ; true
   ),
 
-  % --- Assumption types (planner+) ---
-  ( sampler:stage_at_least(planner) ->
+  % --- Assumption types (all stages) ---
+  ( Processed > 0 ->
       stats:test_stats_print_assumption_types(Processed)
   ; true
   ),
@@ -354,28 +354,28 @@ stats:test_stats_print(TopN) :-
   stats:test_stats_print_largest_contexts(TopN),
   stats:test_stats_print_slowest_packages_max(TopN),
 
-  % --- Assumption detail: per-type Top-N entries (planner+) ---
-  ( sampler:stage_at_least(planner) ->
+  % --- Assumption detail: per-type Top-N entries ---
+  ( Processed > 0 ->
       findall(Type, sampler:fact(type(Type, _, _)), Types0),
       sort(Types0, Types),
       stats:test_stats_print_per_type_entries(Types, TopN)
   ; true
   ),
 
-  % --- Blocker analysis (scheduler+) ---
-  ( sampler:stage_at_least(scheduler) ->
+  % --- Blocker analysis ---
+  ( Processed > 0 ->
       stats:test_stats_print_blocker_analysis(TopN)
   ; true
   ),
 
-  % --- Other assumptions (printer) ---
-  ( sampler:stage_at_least(printer) ->
+  % --- Other assumptions ---
+  ( Processed > 0 ->
       stats:test_stats_print_other_assumptions
   ; true
   ),
 
-  % --- Cycle mentions (printer) ---
-  ( sampler:stage_at_least(printer) ->
+  % --- Cycle mentions ---
+  ( Processed > 0 ->
       stats:test_stats_print_cycle_mentions(TopN)
   ; true
   ).

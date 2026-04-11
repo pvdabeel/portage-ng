@@ -49,20 +49,6 @@ version_domain:domain_from_packagedeps(_Action, C, N, PackageDeps, Domain) :-
 % PackageDeps matching category C and name N (non-blocker only).
 
 version_domain:collect_slots_and_bounds([], _, _, [], []).
-version_domain:collect_slots_and_bounds([package_dependency(_, no, C, N, wildcard, Ver0, SlotReq, _)|Rest], C, N, [SlotReq|SRs], Bounds) :-
-  !,
-  ( wildcard_upper_bound(Ver0, UpperVer) ->
-      Bounds = [bound(smaller, UpperVer)|Bounds1]
-  ; Bounds = Bounds1
-  ),
-  collect_slots_and_bounds(Rest, C, N, SRs, Bounds1).
-version_domain:collect_slots_and_bounds([package_dependency(_, no, C, N, tilde, Ver0, SlotReq, _)|Rest], C, N, [SlotReq|SRs], Bounds) :-
-  !,
-  ( tilde_upper_bound(Ver0, UpperVer) ->
-      Bounds = [bound(smaller, UpperVer)|Bounds1]
-  ; Bounds = Bounds1
-  ),
-  collect_slots_and_bounds(Rest, C, N, SRs, Bounds1).
 version_domain:collect_slots_and_bounds([package_dependency(_, no, C, N, Op0, Ver0, SlotReq, _)|Rest], C, N, [SlotReq|SRs], Bounds) :-
   !,
   ( normalize_bound_op(Op0, OpN),
@@ -317,9 +303,12 @@ version_domain:normalize_bound_op(smaller, smaller) :- !.
 % Keep domain narrowing conservative:
 % - include upper-bounds and exact-equality bounds;
 % - still avoid lower-bounds, which were a major source of broad search blowups.
-% Wildcard (=pkg-X.Y*) and tilde (~pkg-X.Y.Z) are handled separately in
-% collect_slots_and_bounds via wildcard_upper_bound / tilde_upper_bound,
-% producing an upper bound (smaller).
+% Wildcard and tilde ops map to none: their version ranges are enforced
+% at candidate selection time (grouped_dep_find_candidate), not via
+% cn_domain constraints.  Generating domain constraints for wildcards
+% caused cross-package conflicts (e.g. =pkg-0.25* vs =pkg-0.26* from
+% different parents) to produce unresolvable domain assumptions instead
+% of being handled by the selected_cn reprove mechanism.
 version_domain:normalize_bound_op(equal, equal) :- !.
 version_domain:normalize_bound_op(wildcard, none) :- !.
 version_domain:normalize_bound_op(tilde, none) :- !.

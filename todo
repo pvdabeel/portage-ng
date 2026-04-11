@@ -1,6 +1,8 @@
 Feature exploration
 ===================
 
+- Dark & Light mode colors
+
 - Client-server mode: explore passing the client machine name (hostname)
   to the server so each client can have its own per-machine settings
   (profile, USE flags, keywords, masks) stored on the server side.  This

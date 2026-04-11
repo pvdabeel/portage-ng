@@ -69,6 +69,7 @@ pipeline:prove_plan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
 % proving capability as production.
 
 pipeline:prove_with_fallback(Goals, ProofAVL, ModelAVL, TriggersAVL) :-
+  memo:clear_caches,
   pipeline:multislot_initial_constraints(Goals, InitCons),
   ( prover:prove(Goals, t, ProofAVL, t, ModelAVL, InitCons, _Constraints, t, TriggersAVL)
   ; prover:assuming(keyword_acceptance,
