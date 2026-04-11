@@ -348,18 +348,18 @@ All predicates are called with the `explainer:` module prefix.
 
 ### Step 1: Obtain proof artifacts
 
-Run the prover/planner pipeline to get the proof, model, plan, and triggers:
+Run the pipeline to get the proof, model, plan, and triggers:
 
 ```prolog
 Goals = [portage://'dev-libs'-'openssl':run?{[]}],
-printer:prove_plan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL).
+pipeline:prove_plan_with_fallback(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL).
 ```
 
 Or from a `--shell` session after loading a repository:
 
 ```prolog
-printer:prove_plan([portage://'dev-libs'-'openssl':run?{[]}],
-                   Proof, Model, Plan, Triggers).
+pipeline:prove_plan_with_fallback([portage://'dev-libs'-'openssl':run?{[]}],
+                                  Proof, Model, Plan, Triggers).
 ```
 
 

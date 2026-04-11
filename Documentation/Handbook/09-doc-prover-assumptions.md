@@ -446,11 +446,19 @@ dynamic flag that the domain rules consult at decision points.
 | 4 | `unmask` | Masked packages unmasked |
 | 5 | `keyword_acceptance` + `unmask` | Both relaxations combined (last resort) |
 
-The tiers are tried in order via Prolog's semicolon (`;`)
-disjunction — a compact encoding that reads like an `if-elif-else`
-chain but relies on backtracking.  The first tier whose `prove_plan`
-succeeds commits and returns a `FallbackUsed` tag (`false`,
-`keyword_acceptance`, `blockers`, `unmask`, or `keyword_unmask`).
+The tiers are tried in order via Prolog's committed-choice
+if-then-else (`->` / `;`) — the first tier that succeeds commits
+and returns a `FallbackUsed` tag (`false`, `keyword_acceptance`,
+`blockers`, `unmask`, or `keyword_unmask`).
+
+The same 5-tier fallback chain is shared by two canonical entry
+points in the pipeline module:
+
+- `prove_plan_with_fallback/5` — full pipeline (prove + plan + schedule),
+  used by production paths (`--pretend`, `--graph`, `--build`).
+- `prove_with_fallback/4` — prover only (no plan/schedule), used by
+  layered tests (`prover:test`, `planner:test`, `scheduler:test`)
+  and `--bugs`.  Each test layer adds its own stages on top.
 
 ### How `assuming/2` works
 

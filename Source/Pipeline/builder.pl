@@ -1373,7 +1373,7 @@ builder:test_stats_pkgs(Repository, Style, TopN, Pkgs) :-
 %! builder:test_single(+Repository, +Entry) is det.
 %
 % Test a single entry end-to-end without display:
-%   1. Prove plan (with keyword/unmask fallback)
+%   1. Prove plan via prove_plan_with_fallback (canonical 5-tier fallback)
 %   2. Download distfiles (skips already-present, verifies hashes)
 %   3. Run safe build phases via ebuild_exec
 %
@@ -1385,11 +1385,7 @@ builder:test_single(Repository, Entry) :-
   statistics(inferences, I0),
   statistics(walltime, [T0, _]),
   Goals = [Repository://Entry:run?{[]}],
-  ( ( pipeline:prove_plan(Goals, _Proof, _Model, Plan, _Triggers)
-    ; prover:assuming(keyword_acceptance,
-        prover:assuming(unmask,
-          pipeline:prove_plan(Goals, _Proof2, _Model2, Plan, _Triggers2)))
-    )
+  ( pipeline:prove_plan_with_fallback(Goals, _Proof, _Model, Plan, _Triggers)
   -> catch(builder:test_plan_downloads(Plan), DlErr,
        with_mutex(mutex,
          (term_to_atom(DlErr, DA), message:warning([Entry, ' download error: ', DA])))),

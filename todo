@@ -1,6 +1,8 @@
 Feature exploration
 ===================
 
+- grapher:write_graph_files not at the correct place
+
 - Dark & Light mode colors
 
 - Client-server mode: explore passing the client machine name (hostname)
@@ -12,7 +14,7 @@ Feature exploration
 Investigation tasks
 ===================
 
-- Investigate neovim domain assumptions: dev-python/tree-sitter-0.25.2
+X Investigate neovim domain assumptions: dev-python/tree-sitter-0.25.2
   requires >=dev-libs/tree-sitter-0.25*:= while neovim requires
   >=dev-libs/tree-sitter-0.26*:=.  These wildcard ranges are disjoint,
   causing a version conflict.  The prover should be able to backtrack to

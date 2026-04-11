@@ -13,7 +13,8 @@
 
 %! action:process_bugs(+ArgsSets, +Options) is det.
 %
-% Proves the given targets and prints only the domain-assumption bug report
+% Proves the given targets via prove_with_fallback (canonical 5-tier
+% prover-only fallback) and prints only the domain-assumption bug report
 % drafts (Gentoo Bugzilla style), without rendering the full plan.
 %
 % Example: Source/Application/Wrapper/portage-ng-dev --mode standalone --bugs ghc
@@ -40,12 +41,12 @@ action:process_bugs(ArgsSets, Options) :-
   ),
   ( Mode == 'client' ->
       client:rpc_execute(Host,Port,
-        ( prover:prove(Proposal,t,ProofAVL,t,_ModelAVL,t,_Constraint,t,_Triggers),
+        ( pipeline:prove_with_fallback(Proposal,ProofAVL,_ModelAVL,_Triggers),
           action:print_bugreport_drafts_from_proof(ProofAVL)
         ),
         Output),
       writeln(Output)
-  ; prover:prove(Proposal,t,ProofAVL,t,_ModelAVL,t,_Constraint,t,_Triggers),
+  ; pipeline:prove_with_fallback(Proposal,ProofAVL,_ModelAVL,_Triggers),
     print_bugreport_drafts_from_proof(ProofAVL),
     ( memberchk(ci(true), Options) ->
         halt(0)

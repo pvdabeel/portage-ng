@@ -35,7 +35,8 @@ Key files:
 - `Source/Domain/Gentoo/rules.pl`: domain rules; domain assumptions appear as `rule(assumed(X), [])` and show as “Domain assumptions”.
 - `Source/Pipeline/planner.pl`: wave planner; returns (Plan, RemainderRules).
 - `Source/Pipeline/scheduler.pl`: SCC/merge-set scheduling for remainder; acts only on :run SCCs.
-- `Source/Pipeline/printer.pl`: output + warnings; distinguishes domain assumptions vs prover cycle-breaks. `prove_plan/5` is the standard entry point (always uses delayed triggers and PDEPEND).
+- `Source/Pipeline/pipeline.pl`: orchestrates prover+planner+scheduler. Two canonical entry points with 5-tier committed-choice progressive relaxation (strict, keyword_acceptance, blockers, unmask, keyword_unmask): `prove_plan_with_fallback/5` (full pipeline) and `prove_with_fallback/4` (prover only, for layered tests and --bugs).
+- `Source/Pipeline/printer.pl`: output + warnings; distinguishes domain assumptions vs prover cycle-breaks.
 - `Source/Domain/Gentoo/version.pl`: version domain model (`version_domain(Slots, Bounds)`), domain meet/intersection, consistency checks.
 
 Version representation:

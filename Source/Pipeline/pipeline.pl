@@ -23,10 +23,18 @@ returns a completed proof, model, scheduled plan, and triggers AVL:
 
   prove_plan(+Goals, -ProofAVL, -ModelAVL, -Plan, -TriggersAVL)
 
+Two canonical entry points with 5-tier progressive relaxation:
+- prove_plan_with_fallback/5  — full pipeline (prove + plan + schedule)
+- prove_with_fallback/4       — prover only (for layered tests)
+
 Callers:
 - interface.pl  — interactive CLI proving  (--pretend / --merge)
 - writer.pl     — batch file generation    (--graph)
-- prover.pl     — test-target validation   (prover:test/1)
+- builder.pl    — build testing            (--build)
+- bugs.pl       — bug report drafts        (--bugs)
+- prover.pl     — prover tests             (prover:test/1, test_stats)
+- planner.pl    — planner tests            (planner:test/1, test_stats)
+- scheduler.pl  — scheduler tests          (scheduler:test/1, test_stats)
 
 Pipeline stages:
 1. prover:prove/9   — inductive proof search, builds ProofAVL + ModelAVL
@@ -64,23 +72,33 @@ pipeline:prove_plan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL) :-
 %! pipeline:prove_with_fallback(+Goals, -ProofAVL, -ModelAVL, -TriggersAVL) is semidet
 %
 % Proves Goals with progressive relaxation (prover only, no plan/schedule).
-% Same fallback chain as prove_plan_with_fallback: strict, keyword_acceptance,
-% blockers, unmask, keyword_unmask. Used by tests so they exercise the same
-% proving capability as production.
+% Same 5-tier committed-choice fallback chain as prove_plan_with_fallback:
+% strict, keyword_acceptance, blockers, unmask, keyword_unmask.
+% Clears memo caches and computes multislot initial constraints.
+%
+% Used by layered tests (prover:test, planner:test, scheduler:test and
+% their test_stats/test_latest variants) and by --bugs, so each stage
+% exercises the same proving semantics as production.
 
 pipeline:prove_with_fallback(Goals, ProofAVL, ModelAVL, TriggersAVL) :-
   memo:clear_caches,
   pipeline:multislot_initial_constraints(Goals, InitCons),
-  ( prover:prove(Goals, t, ProofAVL, t, ModelAVL, InitCons, _Constraints, t, TriggersAVL)
+  ( prover:prove(Goals, t, ProofAVL, t, ModelAVL, InitCons, _Constraints, t, TriggersAVL) ->
+      true
   ; prover:assuming(keyword_acceptance,
-      prover:prove(Goals, t, ProofAVL, t, ModelAVL, InitCons, _Constraints, t, TriggersAVL))
+      prover:prove(Goals, t, ProofAVL, t, ModelAVL, InitCons, _Constraints, t, TriggersAVL)) ->
+      true
   ; prover:assuming(blockers,
-      prover:prove(Goals, t, ProofAVL, t, ModelAVL, InitCons, _Constraints, t, TriggersAVL))
+      prover:prove(Goals, t, ProofAVL, t, ModelAVL, InitCons, _Constraints, t, TriggersAVL)) ->
+      true
   ; prover:assuming(unmask,
-      prover:prove(Goals, t, ProofAVL, t, ModelAVL, InitCons, _Constraints, t, TriggersAVL))
+      prover:prove(Goals, t, ProofAVL, t, ModelAVL, InitCons, _Constraints, t, TriggersAVL)) ->
+      true
   ; prover:assuming(keyword_acceptance,
       prover:assuming(unmask,
-        prover:prove(Goals, t, ProofAVL, t, ModelAVL, InitCons, _Constraints, t, TriggersAVL)))
+        prover:prove(Goals, t, ProofAVL, t, ModelAVL, InitCons, _Constraints, t, TriggersAVL))) ->
+      true
+  ; fail
   ).
 
 
@@ -164,6 +182,8 @@ pipeline:test_stats(Repository) :-
 %! pipeline:test_stats(+Repository, +Style) is det
 %
 % Same as pipeline:test_stats/1 with explicit Style.
+% Uses prove_plan_with_fallback for full-pipeline proving with the
+% canonical 5-tier fallback chain, then prints via printer:print/5.
 
 pipeline:test_stats(Repository, Style) :-
   config:proving_target(Action),
@@ -175,9 +195,7 @@ pipeline:test_stats(Repository, Style) :-
               'Pipeline',
               Repository://Entry,
               (Repository:entry(Entry)),
-              ( prover:prove(Repository://Entry:Action?{[]},t,ProofAVL,t,ModelAVL,t,_Constraint,t,Triggers),
-                planner:plan(ProofAVL,Triggers,t,Plan0,Remainder0),
-                scheduler:schedule(ProofAVL,Triggers,Plan0,Remainder0,Plan,_Remainder)
+              ( pipeline:prove_plan_with_fallback([Repository://Entry:Action?{[]}],ProofAVL,ModelAVL,Plan,Triggers)
               ),
               ( sampler:record(entry(Repository://Entry, ModelAVL, ProofAVL, Triggers, false)),
                 sampler:set_current_entry(Repository://Entry),

@@ -312,15 +312,25 @@ literal, and the graph carried out of proving would be incomplete for
 anything that walks dependencies backwards.
 
 
-## Entry rules and `prove_plan/5`
+## Entry rules and the pipeline
 
 ![prove_plan pipeline](Diagrams/08-prove-plan.svg)
 
-The standard pipeline entry point is `prove_plan/5`, which chains
-three stages:
+The pipeline module provides two canonical entry points, both with
+the same 5-tier committed-choice progressive relaxation (strict,
+keyword_acceptance, blockers, unmask, keyword_unmask):
+
+- `pipeline:prove_plan_with_fallback/5` — full pipeline (prove + plan
+  + schedule).  Used by production paths (`--pretend`, `--graph`,
+  `--build`) and `pipeline:test_stats`.
+- `pipeline:prove_with_fallback/4` — prover only.  Used by layered
+  tests (`prover:test`, `planner:test`, `scheduler:test`) and
+  `--bugs`.  Each test layer adds its own stages on top.
+
+Underneath, `prove_plan_basic/5` chains three stages:
 
 ```prolog
-pipeline:prove_plan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL)
+pipeline:prove_plan_basic(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL)
 ```
 
 1. `prover:prove/9` — constructs Proof, Model, Constraints, and Triggers

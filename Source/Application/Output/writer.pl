@@ -33,7 +33,8 @@ to produce the content written to files.
 
 %! writer:write_merge_file(+Directory,+Repository://Entry)
 %
-% Print merge plan to file for an entry in a repository
+% Proves and writes the merge plan to file for an entry in a repository.
+% Uses prove_plan_with_fallback for the canonical 5-tier fallback chain.
 % Assumes directory exists. (See repository:prepare_directory)
 
 writer:write_merge_file(Directory,Repository://Entry) :-
@@ -41,11 +42,7 @@ writer:write_merge_file(Directory,Repository://Entry) :-
   Extension = '.merge',
   Goals = [Repository://Entry:Action?{[]}],
   get_time(T0),
-  ( ( pipeline:prove_plan(Goals, Proof, Model, Plan, Triggers)
-    ; prover:assuming(keyword_acceptance,
-        prover:assuming(unmask,
-          pipeline:prove_plan(Goals, Proof, Model, Plan, Triggers)))
-    ),
+  ( pipeline:prove_plan_with_fallback(Goals, Proof, Model, Plan, Triggers),
     atomic_list_concat([Directory,'/',Entry,Extension],File)
   ),
   atomic_list_concat([File,'.tmp'], TmpFile),
@@ -71,7 +68,8 @@ writer:write_merge_file(Directory,Repository://Entry) :-
 
 %! writer:write_fetchonly_file(+Directory,+Repository://Entry)
 %
-% Print fetchonly plan to file for an entry in a repository
+% Proves and writes the fetchonly plan to file for an entry in a repository.
+% Uses prove_plan_with_fallback for the canonical 5-tier fallback chain.
 % Assumes directory exists. (See repository:prepare_directory)
 
 writer:write_fetchonly_file(Directory,Repository://Entry) :-
@@ -79,11 +77,7 @@ writer:write_fetchonly_file(Directory,Repository://Entry) :-
   Extension = '.fetchonly',
   Goals = [Repository://Entry:Action?{[]}],
   get_time(T0),
-  ( ( pipeline:prove_plan(Goals, Proof, Model, Plan, Triggers)
-    ; prover:assuming(keyword_acceptance,
-        prover:assuming(unmask,
-          pipeline:prove_plan(Goals, Proof, Model, Plan, Triggers)))
-    ),
+  ( pipeline:prove_plan_with_fallback(Goals, Proof, Model, Plan, Triggers),
     atomic_list_concat([Directory,'/',Entry,Extension],File)
   ),
   atomic_list_concat([File,'.tmp'], TmpFile),

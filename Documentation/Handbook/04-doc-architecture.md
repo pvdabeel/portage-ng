@@ -21,11 +21,18 @@ Section [Data structures](#data-structures) describes each one in
 detail.
 
 The prover, planner, and scheduler together form the `pipeline` module.
-The standard entry point is:
+Two canonical entry points share the same 5-tier committed-choice
+progressive relaxation (strict, keyword_acceptance, blockers, unmask,
+keyword_unmask):
 
 ```prolog
-pipeline:prove_plan(Goals, Proof, Model, Plan, Triggers)
+pipeline:prove_plan_with_fallback(Goals, Proof, Model, Plan, Triggers)
+pipeline:prove_with_fallback(Goals, Proof, Model, Triggers)
 ```
+
+The first runs the full pipeline (prove + plan + schedule) and is used
+by all production paths.  The second runs the prover only and is used
+by layered tests and `--bugs`.
 
 | **Stage** | **Module** | **Input** | **Output** |
 |:---|:---|:---|:---|
