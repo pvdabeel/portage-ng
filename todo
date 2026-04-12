@@ -1,20 +1,4 @@
 Feature exploration
 ===================
 
-- grapher:write_graph_files not at the correct place
-
 - Dark & Light mode colors
-
-- Client-server mode: explore passing the client machine name (hostname)
-  to the server so each client can have its own per-machine settings
-  (profile, USE flags, keywords, masks) stored on the server side.  This
-  would allow a single server to reason on behalf of multiple heterogeneous
-  clients without each client needing its own knowledge base or config.
-
-Refactoring tasks
-=================
-
-- [DONE] Profile data naming: removed legacy backward-compat code for
-  old profiledata:use_term/1, package_mask_atom/1, etc.  The cache
-  format is now uniformly profiledata:entry/3 (written by cache_save,
-  read by cache_load and apply_cached_profile_data).

@@ -170,7 +170,7 @@ config:world_file(Filename) :-
 %! config:set_dir(-Dir)
 %
 % Directory containing named set files (one entry per line).
-% Each file @Name becomes a preference:set('@Name', Entries) fact.
+% Each file @Name becomes a preference:local_set('@Name', Entries) fact.
 
 config:set_dir(Dir) :-
   config:installation_dir(Base),

@@ -176,10 +176,19 @@ writer:write_index_files(Directory,Repository) :-
               writer:write_package_index_file(Directory,Repository,Category,Name)).
 
 
+%! writer:write_graph_files(+Directory,+Repository)
+%
+% Write HTML graph files for all entries in a repository.
+% Assumes directory exists. (See repository:prepare_directory)
+
+writer:write_graph_files(Directory,Repository) :-
+  grapher:write_graph_files(Directory,Repository).
+
+
 %! writer:write_proof_files(+Directory,+Repository)
 %
-% Write text proof files (.merge, .fetchonly, .info) and HTML graph
-% files for all entries in a repository.
+% Write text proof files (.merge, .fetchonly, .info) for all entries
+% in a repository.
 % Assumes directory exists. (See repository:prepare_directory)
 
 writer:write_proof_files(Directory,Repository) :-
@@ -196,8 +205,7 @@ writer:write_proof_files(Directory,Repository) :-
                 ;  true)),
 	      ((writer:write_merge_file(Directory,Repository://Entry);true),
 	       (writer:write_fetchonly_file(Directory,Repository://Entry);true),
-               (writer:write_info_file(Directory,Repository://Entry);true))),
-  grapher:write_graph_files(Directory,Repository).
+               (writer:write_info_file(Directory,Repository://Entry);true))).
 
 
 %! writer:produce_html(+Directory)

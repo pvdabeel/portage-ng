@@ -2212,7 +2212,7 @@ eapi:substitute_sets([],[]) :- !.
 eapi:substitute_sets([world|Tail],Result) :-
   !,
   ( pengine_self(M) ->
-      findall(E, M:world_entry(E), WorldTargets)
+      findall(E, M:local_world_entry(E), WorldTargets)
   ; findall(E, ( preference:world_entry(E) ; world::entry(E) ), WorldTargets0),
     sort(WorldTargets0, WorldTargets)
   ),

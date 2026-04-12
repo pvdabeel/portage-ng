@@ -897,19 +897,19 @@ profile:apply_entry(package_mask, Atom, true) :-
 
 profile:apply_entry(package_use, Spec, use(Flag, State)) :-
   !,
-  assertz(preference:profile_use_soft(Spec, Flag, State)).
+  assertz(preference:local_profile_use_soft(Spec, Flag, State)).
 
 profile:apply_entry(package_use_mask, Spec, Flag) :-
   !,
-  assertz(preference:profile_use_masked(Spec, Flag)).
+  assertz(preference:local_profile_use_masked(Spec, Flag)).
 
 profile:apply_entry(package_use_force, Spec, Flag) :-
   !,
-  assertz(preference:profile_use_forced(Spec, Flag)).
+  assertz(preference:local_profile_use_forced(Spec, Flag)).
 
 profile:apply_entry(license_group, Name, Members) :-
   !,
-  assertz(preference:license_group_raw(Name, Members)).
+  assertz(preference:local_license_group_raw(Name, Members)).
 
 profile:apply_entry(system_pkg, Cat, Name) :-
   !,

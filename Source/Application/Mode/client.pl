@@ -47,27 +47,27 @@ client:remote_predicate_template(preference:local_accept_keywords(_)).
 client:remote_predicate_template(preference:local_flag(_)).
 
 % Per-package USE overrides (/etc/portage/package.use + profile)
-client:remote_predicate_template(preference:userconfig_use(_,_,_,_)).
-client:remote_predicate_template(preference:userconfig_use_versioned(_,_,_)).
-client:remote_predicate_template(preference:profile_use_soft(_,_,_)).
-client:remote_predicate_template(preference:profile_use_masked(_,_)).
-client:remote_predicate_template(preference:profile_use_forced(_,_)).
+client:remote_predicate_template(preference:local_userconfig_use(_,_,_,_)).
+client:remote_predicate_template(preference:local_userconfig_use_versioned(_,_,_)).
+client:remote_predicate_template(preference:local_profile_use_soft(_,_,_)).
+client:remote_predicate_template(preference:local_profile_use_masked(_,_)).
+client:remote_predicate_template(preference:local_profile_use_forced(_,_)).
 
 % Package masking (profiles + /etc/portage/package.mask)
-client:remote_predicate_template(preference:masked(_)).
+client:remote_predicate_template(preference:local_masked(_)).
 
 % License acceptance
-client:remote_predicate_template(preference:accepted_license(_)).
-client:remote_predicate_template(preference:denied_license(_)).
-client:remote_predicate_template(preference:license_group_raw(_,_)).
+client:remote_predicate_template(preference:local_accepted_license(_)).
+client:remote_predicate_template(preference:local_denied_license(_)).
+client:remote_predicate_template(preference:local_license_group_raw(_,_)).
 
 % Profile USE display markers
-client:remote_predicate_template(preference:profile_masked_use_flag(_)).
-client:remote_predicate_template(preference:profile_forced_use_flag(_)).
+client:remote_predicate_template(preference:local_profile_masked_use_flag(_)).
+client:remote_predicate_template(preference:local_profile_forced_use_flag(_)).
 
 % World entries and named sets (file-backed, loaded during preference:init)
-client:remote_predicate_template(preference:world_entry(_)).
-client:remote_predicate_template(preference:set(_,_)).
+client:remote_predicate_template(preference:local_world_entry(_)).
+client:remote_predicate_template(preference:local_set(_,_)).
 
 % Installed state (todo: needs client-side VDB handling)
 % remote_predicate_template(cache:entry_metadata(_,_,installed,true)).
@@ -79,7 +79,7 @@ client:remote_predicate_template(preference:set(_,_)).
 
 client:remote_predicate_instance(config:printing_style(_)).
 client:remote_predicate_instance(config:printing_tty_size(_,_)).
-client:remote_predicate_instance(preference:accept_license_wildcard).
+client:remote_predicate_instance(preference:local_accept_license_wildcard).
 client:remote_predicate_instance(preference:use_expand_env(_,_)).
 client:remote_predicate_instance(config:use_expand_hidden(_)).
 client:remote_predicate_instance(preference:keyword_selection_mode(_)).

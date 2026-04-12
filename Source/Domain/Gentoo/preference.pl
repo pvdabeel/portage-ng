@@ -37,8 +37,9 @@ Submodules:
 % -----------------------------------------------------------------------------
 
 % -- Package masking (profiles + /etc/portage/package.mask) --
+%    Storage predicate; query via preference:masked/1 dispatcher.
 
-:- dynamic preference:masked/1.
+:- dynamic preference:local_masked/1.
 
 % -- Global USE / keywords / flags --
 
@@ -48,17 +49,18 @@ Submodules:
 :- dynamic preference:local_flag/1.
 
 % -- Per-package USE overrides --
+%    Storage predicates; query via dispatchers of the same name without local_.
 
-:- dynamic preference:userconfig_use/4.                % Category, Name, Use, State(positive|negative)
-:- dynamic preference:profile_use_soft/3.             % Spec, Use, State(positive|negative)
-:- dynamic preference:userconfig_use_versioned/3.     % Spec, Use, State(positive|negative)
+:- dynamic preference:local_userconfig_use/4.          % Category, Name, Use, State(positive|negative)
+:- dynamic preference:local_profile_use_soft/3.       % Spec, Use, State(positive|negative)
+:- dynamic preference:local_userconfig_use_versioned/3. % Spec, Use, State(positive|negative)
 
 % -- Profile USE constraints (use.mask / use.force / package.use.mask / package.use.force) --
 
-:- dynamic preference:profile_masked_use_flag/1.      % Use flag that is masked
-:- dynamic preference:profile_forced_use_flag/1.      % Use flag that is forced
-:- dynamic preference:profile_use_masked/2.            % Spec, Use
-:- dynamic preference:profile_use_forced/2.            % Spec, Use
+:- dynamic preference:local_profile_masked_use_flag/1. % Use flag that is masked
+:- dynamic preference:local_profile_forced_use_flag/1. % Use flag that is forced
+:- dynamic preference:local_profile_use_masked/2.      % Spec, Use
+:- dynamic preference:local_profile_use_forced/2.      % Spec, Use
 
 % -- System packages (@system profile set) --
 
@@ -66,18 +68,18 @@ Submodules:
 
 % -- Package sets --
 
-:- dynamic preference:set/2.
+:- dynamic preference:local_set/2.
 
 % -- World entries (snapshot for client-server transfer) --
 
-:- dynamic preference:world_entry/1.
+:- dynamic preference:local_world_entry/1.
 
 % -- License acceptance --
 
-:- dynamic preference:license_group_raw/2.            % GroupName, [RawMembers]
-:- dynamic preference:accept_license_wildcard/0.      % asserted when '*' is in effect
-:- dynamic preference:accepted_license/1.             % individual accepted license atoms
-:- dynamic preference:denied_license/1.               % individual denied license atoms (for '* -X' patterns)
+:- dynamic preference:local_license_group_raw/2.       % GroupName, [RawMembers]
+:- dynamic preference:local_accept_license_wildcard/0. % asserted when '*' is in effect
+:- dynamic preference:local_accepted_license/1.        % individual accepted license atoms
+:- dynamic preference:local_denied_license/1.          % individual denied license atoms (for '* -X' patterns)
 
 
 % -----------------------------------------------------------------------------
@@ -94,18 +96,18 @@ preference:init :-
 
   % Retract all dynamic facts
 
-  retractall(preference:masked(_)),
-  retractall(preference:userconfig_use(_,_,_,_)),
-  retractall(preference:profile_masked_use_flag(_)),
-  retractall(preference:profile_forced_use_flag(_)),
-  retractall(preference:profile_use_masked(_,_)),
-  retractall(preference:profile_use_forced(_,_)),
-  retractall(preference:profile_use_soft(_,_,_)),
-  retractall(preference:userconfig_use_versioned(_,_,_)),
-  retractall(preference:license_group_raw(_,_)),
-  retractall(preference:accept_license_wildcard),
-  retractall(preference:accepted_license(_)),
-  retractall(preference:denied_license(_)),
+  retractall(preference:local_masked(_)),
+  retractall(preference:local_userconfig_use(_,_,_,_)),
+  retractall(preference:local_profile_masked_use_flag(_)),
+  retractall(preference:local_profile_forced_use_flag(_)),
+  retractall(preference:local_profile_use_masked(_,_)),
+  retractall(preference:local_profile_use_forced(_,_)),
+  retractall(preference:local_profile_use_soft(_,_,_)),
+  retractall(preference:local_userconfig_use_versioned(_,_,_)),
+  retractall(preference:local_license_group_raw(_,_)),
+  retractall(preference:local_accept_license_wildcard),
+  retractall(preference:local_accepted_license(_)),
+  retractall(preference:local_denied_license(_)),
 
   % Reset preference AVL indexes
 
@@ -141,8 +143,8 @@ preference:init :-
     ; Masked = [], Forced = []
     )
   ),
-  forall(member(U, Masked), assertz(preference:profile_masked_use_flag(U))),
-  forall(member(U, Forced), assertz(preference:profile_forced_use_flag(U))),
+  forall(member(U, Masked), assertz(preference:local_profile_masked_use_flag(U))),
+  forall(member(U, Forced), assertz(preference:local_profile_forced_use_flag(U))),
 
   % Explicit USE_EXPAND values override profile defaults for that prefix.
 
@@ -517,6 +519,175 @@ preference:flag(Flag) :-
   ).
 
 
+%! preference:masked(?Entry) is nondet.
+%
+% Returns masked entries.  In standalone mode, the masks are asserted
+% by preference:init/0.  In client-server mode, they are injected as
+% thread-local clauses by the Pengines sandbox.
+
+preference:masked(X) :-
+  ( pengine_self(M) ->
+      M:local_masked(X)
+  ; preference:local_masked(X)
+  ).
+
+
+%! preference:userconfig_use(?C, ?N, ?Use, ?State) is nondet.
+%
+% Per-package USE overrides from /etc/portage/package.use.
+% Dispatches to the Pengine module in client-server mode.
+
+preference:userconfig_use(C, N, Use, State) :-
+  ( pengine_self(M) ->
+      M:local_userconfig_use(C, N, Use, State)
+  ; preference:local_userconfig_use(C, N, Use, State)
+  ).
+
+
+%! preference:userconfig_use_versioned(?Spec, ?Use, ?State) is nondet.
+%
+% Versioned per-package USE overrides.
+% Dispatches to the Pengine module in client-server mode.
+
+preference:userconfig_use_versioned(Spec, Use, State) :-
+  ( pengine_self(M) ->
+      M:local_userconfig_use_versioned(Spec, Use, State)
+  ; preference:local_userconfig_use_versioned(Spec, Use, State)
+  ).
+
+
+%! preference:profile_use_soft(?Spec, ?Use, ?State) is nondet.
+%
+% Soft per-package USE from the profile tree.
+% Dispatches to the Pengine module in client-server mode.
+
+preference:profile_use_soft(Spec, Use, State) :-
+  ( pengine_self(M) ->
+      M:local_profile_use_soft(Spec, Use, State)
+  ; preference:local_profile_use_soft(Spec, Use, State)
+  ).
+
+
+%! preference:profile_use_masked(?Spec, ?Use) is nondet.
+%
+% Per-package USE masks from the profile tree.
+% Dispatches to the Pengine module in client-server mode.
+
+preference:profile_use_masked(Spec, Use) :-
+  ( pengine_self(M) ->
+      M:local_profile_use_masked(Spec, Use)
+  ; preference:local_profile_use_masked(Spec, Use)
+  ).
+
+
+%! preference:profile_use_forced(?Spec, ?Use) is nondet.
+%
+% Per-package USE forces from the profile tree.
+% Dispatches to the Pengine module in client-server mode.
+
+preference:profile_use_forced(Spec, Use) :-
+  ( pengine_self(M) ->
+      M:local_profile_use_forced(Spec, Use)
+  ; preference:local_profile_use_forced(Spec, Use)
+  ).
+
+
+%! preference:profile_masked_use_flag(?Use) is nondet.
+%
+% Global USE flags masked by the profile.
+% Dispatches to the Pengine module in client-server mode.
+
+preference:profile_masked_use_flag(U) :-
+  ( pengine_self(M) ->
+      M:local_profile_masked_use_flag(U)
+  ; preference:local_profile_masked_use_flag(U)
+  ).
+
+
+%! preference:profile_forced_use_flag(?Use) is nondet.
+%
+% Global USE flags forced by the profile.
+% Dispatches to the Pengine module in client-server mode.
+
+preference:profile_forced_use_flag(U) :-
+  ( pengine_self(M) ->
+      M:local_profile_forced_use_flag(U)
+  ; preference:local_profile_forced_use_flag(U)
+  ).
+
+
+%! preference:set(?Name, ?List) is nondet.
+%
+% Named package sets.
+% Dispatches to the Pengine module in client-server mode.
+
+preference:set(Name, List) :-
+  ( pengine_self(M) ->
+      M:local_set(Name, List)
+  ; preference:local_set(Name, List)
+  ).
+
+
+%! preference:world_entry(?Entry) is nondet.
+%
+% World set entries.
+% Dispatches to the Pengine module in client-server mode.
+
+preference:world_entry(E) :-
+  ( pengine_self(M) ->
+      M:local_world_entry(E)
+  ; preference:local_world_entry(E)
+  ).
+
+
+%! preference:license_group_raw(?Name, ?Members) is nondet.
+%
+% Raw license group definitions from the profile.
+% Dispatches to the Pengine module in client-server mode.
+
+preference:license_group_raw(Name, Members) :-
+  ( pengine_self(M) ->
+      M:local_license_group_raw(Name, Members)
+  ; preference:local_license_group_raw(Name, Members)
+  ).
+
+
+%! preference:accept_license_wildcard is semidet.
+%
+% True when ACCEPT_LICENSE contains '*'.
+% Dispatches to the Pengine module in client-server mode.
+
+preference:accept_license_wildcard :-
+  ( pengine_self(M) ->
+      M:local_accept_license_wildcard
+  ; preference:local_accept_license_wildcard
+  ).
+
+
+%! preference:accepted_license(?License) is nondet.
+%
+% Individual accepted license atoms.
+% Dispatches to the Pengine module in client-server mode.
+
+preference:accepted_license(L) :-
+  ( pengine_self(M) ->
+      M:local_accepted_license(L)
+  ; preference:local_accepted_license(L)
+  ).
+
+
+%! preference:denied_license(?License) is nondet.
+%
+% Individual denied license atoms (for '* -X' patterns).
+% Dispatches to the Pengine module in client-server mode.
+
+preference:denied_license(L) :-
+  ( pengine_self(M) ->
+      M:local_denied_license(L)
+  ; preference:local_denied_license(L)
+  ).
+
+
 %! preference:keyword_selection_mode(?Mode) is det.
 %
 % Controls how accepted keywords influence version selection:
@@ -755,29 +926,29 @@ preference:apply_profile_package_use_flag(Kind, Spec, FlagS0) :-
 
 preference:apply_profile_package_use_op(add, masked, Spec, Flag) :-
   ( preference:profile_use_masked(Spec, Flag) -> true
-  ; assertz(preference:profile_use_masked(Spec, Flag))
+  ; assertz(preference:local_profile_use_masked(Spec, Flag))
   ),
   !.
 
 preference:apply_profile_package_use_op(del, masked, Spec, Flag) :-
   ( preference:profile_package_use_cp_from_spec_(Spec, C, N) ->
-      retractall(preference:profile_use_masked(simple(C, N, _), Flag)),
-      retractall(preference:profile_use_masked(versioned(_, C, N, _, _), Flag))
-  ; retractall(preference:profile_use_masked(Spec, Flag))
+      retractall(preference:local_profile_use_masked(simple(C, N, _), Flag)),
+      retractall(preference:local_profile_use_masked(versioned(_, C, N, _, _), Flag))
+  ; retractall(preference:local_profile_use_masked(Spec, Flag))
   ),
   !.
 
 preference:apply_profile_package_use_op(add, forced, Spec, Flag) :-
   ( preference:profile_use_forced(Spec, Flag) -> true
-  ; assertz(preference:profile_use_forced(Spec, Flag))
+  ; assertz(preference:local_profile_use_forced(Spec, Flag))
   ),
   !.
 
 preference:apply_profile_package_use_op(del, forced, Spec, Flag) :-
   ( preference:profile_package_use_cp_from_spec_(Spec, C, N) ->
-      retractall(preference:profile_use_forced(simple(C, N, _), Flag)),
-      retractall(preference:profile_use_forced(versioned(_, C, N, _, _), Flag))
-  ; retractall(preference:profile_use_forced(Spec, Flag))
+      retractall(preference:local_profile_use_forced(simple(C, N, _), Flag)),
+      retractall(preference:local_profile_use_forced(versioned(_, C, N, _, _), Flag))
+  ; retractall(preference:local_profile_use_forced(Spec, Flag))
   ),
   !.
 
@@ -842,11 +1013,11 @@ preference:apply_profile_use_soft_flag(Spec, FlagS0) :-
       normalize_space(string(Name), Name0),
       Name \== "",
       atom_string(Flag, Name),
-      retractall(preference:profile_use_soft(Spec, Flag, _)),
-      assertz(preference:profile_use_soft(Spec, Flag, negative))
+      retractall(preference:local_profile_use_soft(Spec, Flag, _)),
+      assertz(preference:local_profile_use_soft(Spec, Flag, negative))
   ; atom_string(Flag, FlagS),
-    retractall(preference:profile_use_soft(Spec, Flag, _)),
-    assertz(preference:profile_use_soft(Spec, Flag, positive))
+    retractall(preference:local_profile_use_soft(Spec, Flag, _)),
+    assertz(preference:local_profile_use_soft(Spec, Flag, positive))
   ),
   !.
 
@@ -926,11 +1097,11 @@ preference:register_package_use(CNAtom, UseStr) :-
              sub_atom(P, 1, _, 0, Flag0),
              Flag0 \== '',
              atom_string(Flag, Flag0),
-             retractall(preference:userconfig_use(C, N, Flag, _)),
-             assertz(preference:userconfig_use(C, N, Flag, negative))
+             retractall(preference:local_userconfig_use(C, N, Flag, _)),
+             assertz(preference:local_userconfig_use(C, N, Flag, negative))
          ; atom_string(Flag, P),
-           retractall(preference:userconfig_use(C, N, Flag, _)),
-           assertz(preference:userconfig_use(C, N, Flag, positive))
+           retractall(preference:local_userconfig_use(C, N, Flag, _)),
+           assertz(preference:local_userconfig_use(C, N, Flag, positive))
          )).
 
 
@@ -961,11 +1132,11 @@ preference:apply_userconfig_use_soft_flag(Spec, P) :-
       sub_atom(P, 1, _, 0, Flag0),
       Flag0 \== '',
       atom_string(Flag, Flag0),
-      retractall(preference:userconfig_use_versioned(Spec, Flag, _)),
-      assertz(preference:userconfig_use_versioned(Spec, Flag, negative))
+      retractall(preference:local_userconfig_use_versioned(Spec, Flag, _)),
+      assertz(preference:local_userconfig_use_versioned(Spec, Flag, negative))
   ; atom_string(Flag, P),
-    retractall(preference:userconfig_use_versioned(Spec, Flag, _)),
-    assertz(preference:userconfig_use_versioned(Spec, Flag, positive))
+    retractall(preference:local_userconfig_use_versioned(Spec, Flag, _)),
+    assertz(preference:local_userconfig_use_versioned(Spec, Flag, positive))
   ),
   !.
 
@@ -1170,7 +1341,7 @@ preference:mask_catpkg_atom(Atom) :-
   atom(Atom),
   atomic_list_concat([C,N], '/', Atom),
   forall(cache:ordered_entry(portage, Id, C, N, _),
-         assertz(preference:masked(portage://Id))).
+         assertz(preference:local_masked(portage://Id))).
 
 
 %! preference:unmask_catpkg_atom(+Atom) is det.
@@ -1181,7 +1352,7 @@ preference:unmask_catpkg_atom(Atom) :-
   atom(Atom),
   atomic_list_concat([C,N], '/', Atom),
   forall(cache:ordered_entry(portage, Id, C, N, _),
-         retractall(preference:masked(portage://Id))).
+         retractall(preference:local_masked(portage://Id))).
 
 
 %! preference:mask_profile_atom(+Atom) is det.
@@ -1210,7 +1381,7 @@ preference:mask_profile_atom(Atom) :-
              ( cache:ordered_entry(portage, Id, C, N, ProposedVersion),
                ( preference:version_match(Op, ProposedVersion, Ver),
                  preference:slot_req_match_(SlotReq, portage, Id) ->
-                 assertz(preference:masked(portage://Id))
+                 assertz(preference:local_masked(portage://Id))
                ; true
                )))
   ; true.
@@ -1241,7 +1412,7 @@ preference:unmask_profile_atom(Atom) :-
              ( cache:ordered_entry(portage, Id, C, N, ProposedVersion),
                ( preference:version_match(Op, ProposedVersion, Ver),
                  preference:slot_req_match_(SlotReq, portage, Id) ->
-                 retractall(preference:masked(portage://Id))
+                 retractall(preference:local_masked(portage://Id))
                ; true
                )))
   ; true.
@@ -1338,11 +1509,11 @@ preference:version_match(notequal, Proposed, Req) :-
 %! preference:load_license_groups is det.
 %
 % Reads the profiles/license_groups file and asserts raw group definitions.
-% Each group is stored as preference:license_group_raw(GroupName, Members)
+% Each group is stored as preference:local_license_group_raw(GroupName, Members)
 % where Members is a list of atoms (license names or @GroupRef).
 
 preference:load_license_groups :-
-  retractall(preference:license_group_raw(_, _)),
+  retractall(preference:local_license_group_raw(_, _)),
   ( portage:get_location(PortageRoot) ->
     os:compose_path(PortageRoot, 'profiles/license_groups', LicGroupFile),
     ( exists_file(LicGroupFile) ->
@@ -1372,7 +1543,7 @@ preference:parse_license_group_line_(Line) :-
       atom_string(GroupName, GroupNameS),
       maplist([S,A]>>atom_string(A, S), MemberSs, Members0),
       exclude(==(''), Members0, Members),
-      assertz(preference:license_group_raw(GroupName, Members))
+      assertz(preference:local_license_group_raw(GroupName, Members))
     ; true
     )
   ).
@@ -1421,9 +1592,9 @@ preference:expand_license_member_(Seen, Member, Acc0, Acc) :-
 % Semantics are incremental left-to-right (like Portage).
 
 preference:init_accept_license :-
-  retractall(preference:accept_license_wildcard),
-  retractall(preference:accepted_license(_)),
-  retractall(preference:denied_license(_)),
+  retractall(preference:local_accept_license_wildcard),
+  retractall(preference:local_accepted_license(_)),
+  retractall(preference:local_denied_license(_)),
   ( preference:getenv('ACCEPT_LICENSE', Atom), Atom \== '' ->
     split_string(Atom, " ", " \t", TokenSs),
     maplist([S,A]>>atom_string(A, S), TokenSs, Tokens0),
@@ -1439,15 +1610,15 @@ preference:init_accept_license :-
 % Apply a single ACCEPT_LICENSE token with incremental semantics.
 
 preference:apply_accept_license_token_('*') :- !,
-  retractall(preference:denied_license(_)),
+  retractall(preference:local_denied_license(_)),
   ( preference:accept_license_wildcard -> true
-  ; assertz(preference:accept_license_wildcard)
+  ; assertz(preference:local_accept_license_wildcard)
   ).
 
 preference:apply_accept_license_token_('-*') :- !,
-  retractall(preference:accept_license_wildcard),
-  retractall(preference:accepted_license(_)),
-  retractall(preference:denied_license(_)).
+  retractall(preference:local_accept_license_wildcard),
+  retractall(preference:local_accepted_license(_)),
+  retractall(preference:local_denied_license(_)).
 
 preference:apply_accept_license_token_(Token) :-
   atom_concat('-@', GroupRef, Token), !,
@@ -1455,9 +1626,9 @@ preference:apply_accept_license_token_(Token) :-
   forall(member(L, Lics),
          ( ( preference:accept_license_wildcard ->
                ( preference:denied_license(L) -> true
-               ; assertz(preference:denied_license(L))
+               ; assertz(preference:local_denied_license(L))
                )
-           ; retractall(preference:accepted_license(L))
+           ; retractall(preference:local_accepted_license(L))
            )
          )).
 
@@ -1466,9 +1637,9 @@ preference:apply_accept_license_token_(Token) :-
   preference:expand_license_group(GroupRef, Lics),
   forall(member(L, Lics),
          ( ( preference:accept_license_wildcard ->
-               retractall(preference:denied_license(L))
+               retractall(preference:local_denied_license(L))
            ; ( preference:accepted_license(L) -> true
-             ; assertz(preference:accepted_license(L))
+             ; assertz(preference:local_accepted_license(L))
              )
            )
          )).
@@ -1478,16 +1649,16 @@ preference:apply_accept_license_token_(Token) :-
   Lic \== '', !,
   ( preference:accept_license_wildcard ->
     ( preference:denied_license(Lic) -> true
-    ; assertz(preference:denied_license(Lic))
+    ; assertz(preference:local_denied_license(Lic))
     )
-  ; retractall(preference:accepted_license(Lic))
+  ; retractall(preference:local_accepted_license(Lic))
   ).
 
 preference:apply_accept_license_token_(Lic) :-
   ( preference:accept_license_wildcard ->
-    retractall(preference:denied_license(Lic))
+    retractall(preference:local_denied_license(Lic))
   ; ( preference:accepted_license(Lic) -> true
-    ; assertz(preference:accepted_license(Lic))
+    ; assertz(preference:local_accepted_license(Lic))
     )
   ).
 
@@ -1533,20 +1704,14 @@ preference:init_system_pkgs :-
   ).
 
 
-%! preference:set(?Name, ?List) is nondet.
-%
-% Package set definitions. Populated from file-backed set files
-% under Source/Knowledge/Sets/ during init, similar to the world set.
-
-
 %! preference:init_sets is det.
 %
 % Load named set files from config:set_dir/1.  Each file whose name
-% does not start with '.' becomes a preference:set('@Name', Entries)
+% does not start with '.' becomes a preference:local_set('@Name', Entries)
 % fact.  The 'world' subdirectory is excluded (handled separately).
 
 preference:init_sets :-
-  retractall(preference:set(_, _)),
+  retractall(preference:local_set(_, _)),
   ( current_predicate(config:set_dir/1),
     config:set_dir(Dir),
     exists_directory(Dir) ->
@@ -1570,7 +1735,7 @@ preference:set_skip_entry_(Name) :-
 
 %! preference:load_set_file_(+Dir, +Name) is det.
 %
-% Read a single set file and assert preference:set/2.
+% Read a single set file and assert preference:local_set/2.
 
 preference:load_set_file_(Dir, Name) :-
   os:compose_path(Dir, Name, File),
@@ -1581,7 +1746,7 @@ preference:load_set_file_(Dir, Name) :-
       exclude(=(""), Lines0, Lines),
       maplist([S,A]>>atom_string(A, S), Lines, Entries),
       atom_concat('@', Name, SetName),
-      assertz(preference:set(SetName, Entries))
+      assertz(preference:local_set(SetName, Entries))
   ; true
   ).
 
@@ -1593,10 +1758,10 @@ preference:load_set_file_(Dir, Name) :-
 % eapi:substitute_sets/2 can resolve @world on the server side.
 
 preference:init_world_entries :-
-  retractall(preference:world_entry(_)),
+  retractall(preference:local_world_entry(_)),
   ( current_predicate(world:entry/1) ->
       forall(world::entry(E),
-             assertz(preference:world_entry(E)))
+             assertz(preference:local_world_entry(E)))
   ; true
   ).
 
