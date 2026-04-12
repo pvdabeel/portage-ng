@@ -356,15 +356,16 @@ The canonical load graph for standalone is in `portage-ng.pl`:
 
 - The configuration on both the Gentoo system and portage-ng is identical (same portage snapshot, same vdb pkg data, same config
 
-- Report filename format: `compare-<YYYY-MM-DD>-<short-commit-hash>.json`
-  - Example: `compare-2026-02-26-cbef075.json`
+- Report filename format: `compare-<YYYY-MM-DD>-<short-commit-hash>.json.gz`
+  - Example: `compare-2026-02-26-cbef075.json.gz`
   - Use `git rev-parse --short HEAD` for the commit hash (7 chars).
+  - Reports are gzipped before committing (raw JSON is in `.gitignore`).
 
 - Full run:
-  - `python3 -u Reports/Scripts/compare-merge-emerge.py --root /Volumes/Storage/Graph/portage --full-lists --out Reports/compare-$(date +%Y-%m-%d)-$(git rev-parse --short HEAD).json`
+  - `python3 -u Reports/Scripts/compare-merge-emerge.py --root /Volumes/Storage/Graph/portage --full-lists --out Reports/compare-$(date +%Y-%m-%d)-$(git rev-parse --short HEAD).json && gzip Reports/compare-$(date +%Y-%m-%d)-$(git rev-parse --short HEAD).json`
 
 - Targeted run:
-  - `python3 -u Reports/Scripts/compare-merge-emerge.py --root /Volumes/Storage/Graph/portage --target-regex '^pkg-ver$' --full-lists --out Reports/compare-$(date +%Y-%m-%d)-$(git rev-parse --short HEAD).json`
+  - `python3 -u Reports/Scripts/compare-merge-emerge.py --root /Volumes/Storage/Graph/portage --target-regex '^pkg-ver$' --full-lists --out Reports/compare-$(date +%Y-%m-%d)-$(git rev-parse --short HEAD).json && gzip Reports/compare-$(date +%Y-%m-%d)-$(git rev-parse --short HEAD).json`
 
 - Useful output fields:
   - `aggregate_counts` (missing/extra/version/use/action totals)
