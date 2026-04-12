@@ -78,7 +78,6 @@ sandbox:safe_primitive(cache:manifest_metadata(_,_,_,_,_,_)).
 % -----------------------------------------------------------------------------
 
 sandbox:safe_primitive(query:search(_,_)).
-sandbox:safe_primitive(query:memoized_search(_,_)).
 sandbox:safe_primitive(query:apply_filters(_,_)).
 sandbox:safe_primitive(query:apply_filter(_,_)).
 sandbox:safe_primitive(query:pdepend_dep_as_pdepend(_,_)).

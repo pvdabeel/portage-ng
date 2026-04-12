@@ -313,6 +313,47 @@ lookups with the appropriate comparison. This keeps the version hot path
 — which is exercised thousands of times during candidate selection —
 fully indexed and compiled.
 
+### `model(...)` queries — dependency model construction
+
+Beyond simple metadata lookups, `query:search/2` also supports
+**model queries** that compute derived structures from the raw cache
+data.  The most important of these constructs the **grouped dependency
+model** for an ebuild:
+
+```prolog
+query:search(model(dependency(Merged, install)):config?{Ctx}, R://E).
+query:search(model(dependency(Merged, run)):config?{Ctx}, R://E).
+query:search(model(dependency(Merged, pdepend)):config?{Ctx}, R://E).
+query:search(model(dependency(Merged, fetchonly)):config?{Ctx}, R://E).
+```
+
+Each of these is expanded at compile time into a sequence of:
+
+1. **Self-context injection** — ensures `self(R://E)` is present in
+   `Ctx`, so downstream rules can identify circular self-dependencies.
+2. **`findall` over raw dependency metadata** — collects all
+   `cache:entry_metadata/4` facts for the relevant dependency keys
+   (BDEPEND, CDEPEND, DEPEND, IDEPEND, RDEPEND, and/or PDEPEND
+   depending on the phase).
+3. **`prover:prove_model/6`** — evaluates USE-conditional branches
+   in the dependency specification, producing an AVL model of active
+   dependency literals.
+4. **`group_dependencies/2`** — groups the flat dependency list by
+   category/name/slot/phase, producing the `grouped_package_dependency`
+   terms that the rules layer consumes.
+
+The result `Merged` is a list of grouped dependency terms ready for
+resolution by the rules layer (see [Chapter 11](11-doc-rules.md)).
+
+**Why not cached?**  Model construction depends on mutable proof state
+beyond the explicit context argument: `build_with_use` varies per
+dependency path, `prover:assuming` flags change between fallback
+attempts, and `memo:selected_cn_snap_` evolves during the proof.
+A cache was attempted but removed because it could not produce a
+sound cache key that captured all of these dimensions.  See the
+comment at the top of `Source/Knowledge/query.pl` for the full
+rationale.
+
 
 ## Further reading
 

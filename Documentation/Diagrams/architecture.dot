@@ -95,7 +95,7 @@ digraph portage_ng_architecture {
     set_mod    [shape=box, style=filled, fillcolor="#c8eac8",
                 label="set.pl  [Domain/Gentoo/]\nPackage sets (world file,\nsystem set, user sets)\n[data: Knowledge/Sets/]"];
     query      [shape=box, style=filled, fillcolor="#c8eac8",
-                label="query.pl  [Knowledge/] — Goal-expanded queries\n─────────────────────────────\nquery:search/2\nquery:memoized_search/2\ngoal_expansion/2 macros\n(compile-time optimization)"];
+                label="query.pl  [Knowledge/] — Goal-expanded queries\n─────────────────────────────\nquery:search/2\ngoal_expansion/2 macros\n(compile-time optimization)"];
     userconfig [shape=box, style=filled, fillcolor="#c8eac8",
                 label="userconfig.pl  [Domain/Gentoo/]\nReads /etc/portage user config:\nmake.conf, package.use,\npackage.mask, package.accept_keywords,\npackage.license"];
     mirror     [shape=box, style=filled, fillcolor="#c8eac8",

@@ -365,7 +365,7 @@ heuristic:proof_obligation(Repo://Entry:Action?{_Ctx}, Model, HookKey, ExtraLits
           use:context_build_with_use_state(AnchorCtx, B),
           HookKey = pdepend(AnchorCore, B),
           ModelKey = [build_with_use:B],
-          query:memoized_search(model(dependency(Pdeps0, pdepend)):config?{ModelKey}, Repo://Entry),
+          query:search(model(dependency(Pdeps0, pdepend)):config?{ModelKey}, Repo://Entry),
           dependency:add_self_to_dep_contexts(Repo://Entry, Pdeps0, Pdeps1),
           featureterm:drop_build_with_use_from_dep_contexts(Pdeps1, Pdeps2),
           featureterm:add_after_only_to_dep_contexts(AnchorCore, Pdeps2, ExtraLits)
@@ -386,7 +386,7 @@ heuristic:proof_obligation(Repo://Entry:Action, Model, HookKey, ExtraLits) :-
           use:context_build_with_use_state(AnchorCtx, B),
           HookKey = pdepend(AnchorCore, B),
           ModelKey = [build_with_use:B],
-          query:memoized_search(model(dependency(Pdeps0, pdepend)):config?{ModelKey}, Repo://Entry),
+          query:search(model(dependency(Pdeps0, pdepend)):config?{ModelKey}, Repo://Entry),
           dependency:add_self_to_dep_contexts(Repo://Entry, Pdeps0, Pdeps1),
           featureterm:drop_build_with_use_from_dep_contexts(Pdeps1, Pdeps2),
           featureterm:add_after_only_to_dep_contexts(AnchorCore, Pdeps2, ExtraLits)
@@ -417,7 +417,7 @@ heuristic:profile_run_entry(RepoEntry, Context, report(RepoEntry, Steps)) :-
                   ),
                   S2),
   heuristic:step_time(dep_model_run_config,
-                  ( query:memoized_search(model(dependency(_MergedDeps0,run)):config?{[]}, RepoEntry) ),
+                  ( query:search(model(dependency(_MergedDeps0,run)):config?{[]}, RepoEntry) ),
                   S3),
   Steps = [S1,S2,S3].
 

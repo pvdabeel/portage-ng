@@ -11,29 +11,10 @@ Feature exploration
   would allow a single server to reason on behalf of multiple heterogeneous
   clients without each client needing its own knowledge base or config.
 
-Investigation tasks
-===================
-
-X Investigate neovim domain assumptions: dev-python/tree-sitter-0.25.2
-  requires >=dev-libs/tree-sitter-0.25*:= while neovim requires
-  >=dev-libs/tree-sitter-0.26*:=.  These wildcard ranges are disjoint,
-  causing a version conflict.  The prover should be able to backtrack to
-  dev-python/tree-sitter-0.24.0 (which would allow 0.26.x), but currently
-  does not.  Opportunity for improved conflict-driven learning / backtracking.
-
 Refactoring tasks
 =================
 
-- Remove memoized_search: query:memoized_search/2 is not actually memoized.
-  The memoization cache was removed because model construction depends on
-  mutable proof state (build_with_use, prover:assuming flags, selected_cn
-  snapshots, variant overrides) that cannot be captured in a sound cache key.
-  Rename to something honest (e.g. query:build_dep_model/2) and remove the
-  misleading name.
-
-- Profile data naming inconsistency: the live-loading predicates use plural
-  forms (e.g. profile:profile_use_terms) while the cached predicates use
-  singular forms (e.g. profiledata:use_term/1).  The module split between
-  profile.pl and profiledata is also inconsistent — consider unifying the
-  naming convention and consolidating the interface so live and cached paths
-  use the same predicate names.
+- [DONE] Profile data naming: removed legacy backward-compat code for
+  old profiledata:use_term/1, package_mask_atom/1, etc.  The cache
+  format is now uniformly profiledata:entry/3 (written by cache_save,
+  read by cache_load and apply_cached_profile_data).

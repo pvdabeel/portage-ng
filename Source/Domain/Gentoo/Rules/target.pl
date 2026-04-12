@@ -433,7 +433,7 @@ candidate:resolve(grouped_dep(C,N,PackageDeps):depclean?{_}, Conditions) :-
 
 candidate:resolve(Repository://Ebuild:depclean?{Context}, Conditions) :-
   ( query:search(model(Model,required_use(_),build_with_use(_)), Repository://Ebuild),
-    query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model}, Repository://Ebuild),
+    query:search(model(dependency(MergedDeps0,run)):config?{Model}, Repository://Ebuild),
     dependency:add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
     target:depclean_rewrite_deps(MergedDeps, Context, Conditions)
   -> true
@@ -503,7 +503,7 @@ candidate:resolve(Repository://Ebuild:update?{Context}, Conditions) :-
   (memberchk(required_use:R,Context) -> true ; R = []),
   query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
 
-  query:memoized_search(model(dependency(MergedDeps0,install)):config?{Model},Repository://Ebuild),
+  query:search(model(dependency(MergedDeps0,install)):config?{Model},Repository://Ebuild),
   dependency:add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
 
   ( preference:flag(deep)
@@ -635,7 +635,7 @@ candidate:resolve(Repository://Ebuild:fetchonly?{Context}, Conditions) :-
   use:context_build_with_use_state(Context, B),
   ( memberchk(required_use:R, Context) -> true ; true ),
   query:search(model(Model, required_use(R), build_with_use(B)), Repository://Ebuild),
-  ( query:memoized_search(model(dependency(MergedDeps0, fetchonly)):config?{Model}, Repository://Ebuild) ->
+  ( query:search(model(dependency(MergedDeps0, fetchonly)):config?{Model}, Repository://Ebuild) ->
       dependency:add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
       ( memberchk(C, ['virtual','acct-group','acct-user']) ->
           Conditions = [constraint(use(Repository://Ebuild):{R}),
@@ -707,7 +707,7 @@ candidate:resolve(Repository://Ebuild:run?{Context}, Conditions) :-
 
 candidate:install_dep_model(Repository://Ebuild, Model, AfterForDeps, install,
                          Selected, C, N, S, R, BResolved, After, Conditions) :-
-  query:memoized_search(model(dependency(MergedDeps0,install)):config?{Model}, Repository://Ebuild),
+  query:search(model(dependency(MergedDeps0,install)):config?{Model}, Repository://Ebuild),
   dependency:add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
   featureterm:add_after_to_dep_contexts(AfterForDeps, MergedDeps, MergedDepsAfter),
   candidate:order_deps_for_proof(install, MergedDepsAfter, MergedDepsOrdered),
@@ -742,7 +742,7 @@ candidate:install_dep_model(Repository://Ebuild, Model, AfterForDeps, install,
 
 candidate:run_dep_model(Repository://Ebuild, Model, AfterForDeps, run,
                      Selected, C, N, S, R, BResolved, After, _Context1, Conditions) :-
-  query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model}, Repository://Ebuild),
+  query:search(model(dependency(MergedDeps0,run)):config?{Model}, Repository://Ebuild),
   dependency:add_self_to_dep_contexts(Repository://Ebuild, MergedDeps0, MergedDeps),
   featureterm:add_after_to_dep_contexts(AfterForDeps, MergedDeps, MergedDepsAfter),
   candidate:order_deps_for_proof(run, MergedDepsAfter, MergedDepsOrdered),

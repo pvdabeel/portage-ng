@@ -870,10 +870,6 @@ profile:cache_load(UseTerms, UseMask, UseForce) :-
       findall(T, profiledata:entry(use, T, profile), UseTerms),
       findall(U, profiledata:entry(use, U, masked),  UseMask),
       findall(U, profiledata:entry(use, U, forced),  UseForce)
-  ; current_predicate(profiledata:use_term/1) ->
-      findall(T, profiledata:use_term(T), UseTerms),
-      findall(U, profiledata:use_mask(U), UseMask),
-      findall(U, profiledata:use_force(U), UseForce)
   ; UseTerms = [], UseMask = [], UseForce = []
   ).
 
@@ -885,35 +881,10 @@ profile:cache_load(UseTerms, UseMask, UseForce) :-
 
 profile:apply_cached_profile_data :-
   ( current_predicate(profiledata:entry/3) ->
-      profile:apply_cached_entries
-  ; profile:apply_cached_legacy
+      forall(profiledata:entry(Type, Key, Value),
+             profile:apply_entry(Type, Key, Value))
+  ; true
   ).
-
-profile:apply_cached_legacy :-
-  ( current_predicate(profiledata:package_mask_atom/1) ->
-    forall(profiledata:package_mask_atom(Atom),
-           profile:apply_entry(package_mask, Atom, true))
-  ; true ),
-  ( current_predicate(profiledata:package_use/3) ->
-    forall(profiledata:package_use(Spec, Flag, State),
-           profile:apply_entry(package_use, Spec, use(Flag, State)))
-  ; true ),
-  ( current_predicate(profiledata:package_use_mask/2) ->
-    forall(profiledata:package_use_mask(Spec, Flag),
-           profile:apply_entry(package_use_mask, Spec, Flag))
-  ; true ),
-  ( current_predicate(profiledata:package_use_force/2) ->
-    forall(profiledata:package_use_force(Spec, Flag),
-           profile:apply_entry(package_use_force, Spec, Flag))
-  ; true ),
-  ( current_predicate(profiledata:license_group/2) ->
-    forall(profiledata:license_group(Name, Members),
-           profile:apply_entry(license_group, Name, Members))
-  ; true ).
-
-profile:apply_cached_entries :-
-  forall(profiledata:entry(Type, Key, Value),
-         profile:apply_entry(Type, Key, Value)).
 
 profile:apply_entry(package_mask, Atom, true) :-
   !,

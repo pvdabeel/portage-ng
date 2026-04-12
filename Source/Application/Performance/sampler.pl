@@ -1539,7 +1539,6 @@ sampler:skip_trivial_frames(Frame0, Frame) :-
 % Predicate indicators to skip when walking the call stack.
 
 sampler:skip_frame_pi(query:search/2).
-sampler:skip_frame_pi(query:memoized_search/2).
 sampler:skip_frame_pi(search/2).
 sampler:skip_frame_pi(system:call/1).
 sampler:skip_frame_pi(system:once/1).

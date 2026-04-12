@@ -205,7 +205,7 @@ dependency:pdepend_goals_from_plan(Plan, Goals) :-
             use:context_build_with_use_state(ActionCtx, B),
             ModelKey = [build_with_use:B],
             ( cache:entry_metadata(Repo, Entry, pdepend, _) ->
-                query:memoized_search(model(dependency(Pdeps0, pdepend)):config?{ModelKey}, Repo://Entry),
+                query:search(model(dependency(Pdeps0, pdepend)):config?{ModelKey}, Repo://Entry),
                 dependency:add_self_to_dep_contexts(Repo://Entry, Pdeps0, Pdeps1),
                 featureterm:add_after_only_to_dep_contexts(AnchorCore, Pdeps1, Pdeps),
                 filter_redundant_pdepend_goals(MergedCNSet, MergedCNSlotSet, Pdeps, Gs)

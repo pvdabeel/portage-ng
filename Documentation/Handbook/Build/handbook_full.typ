@@ -4610,7 +4610,7 @@ rule(Repo://Ebuild:Action?{Context}, Conditions) :-
       ),
 
       % Build dependency model
-      ( memoized_search(dependency model),
+      ( search(model(dependency), grouped),
         order deps,
         Conditions = [selected_cn, constraints, download, deps…]
       ; % Model-computation fallback
@@ -8333,12 +8333,11 @@ PL
 
 == Known bottlenecks
 <known-bottlenecks>
-=== `memoized_search` (25-30% of proving time)
-<memoized_search-25-30-of-proving-time>
-`query:memoized_search/2` accounts for 25-30% of total proving time,
+=== `model(dependency)` queries (25-30% of proving time)
+<model-dependency-queries-25-30-of-proving-time>
+`query:search(model(dependency(...)):config?{...})` accounts for 25-30% of total proving time,
 with up to 88% of calls redundant for complex packages. The function is
-not actually memoized (despite its name) because model construction
-depends on mutable proof state:
+not cached because model construction depends on mutable proof state:
 
 + `build_with_use` context varies per dependency path
 + `prover:assuming` flags change between fallback attempts

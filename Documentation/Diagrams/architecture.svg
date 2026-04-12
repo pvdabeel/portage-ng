@@ -28,7 +28,7 @@
 </g>
 <g id="clust4" class="cluster">
 <title>cluster_kb</title>
-<path fill="none" stroke="#44aa77" d="M408.05,-511.75C408.05,-511.75 1153.05,-511.75 1153.05,-511.75 1159.05,-511.75 1165.05,-517.75 1165.05,-523.75 1165.05,-523.75 1165.05,-1208.25 1165.05,-1208.25 1165.05,-1214.25 1159.05,-1220.25 1153.05,-1220.25 1153.05,-1220.25 408.05,-1220.25 408.05,-1220.25 402.05,-1220.25 396.05,-1214.25 396.05,-1208.25 396.05,-1208.25 396.05,-523.75 396.05,-523.75 396.05,-517.75 402.05,-511.75 408.05,-511.75"/>
+<path fill="none" stroke="#44aa77" d="M408.05,-517.38C408.05,-517.38 1153.05,-517.38 1153.05,-517.38 1159.05,-517.38 1165.05,-523.38 1165.05,-529.38 1165.05,-529.38 1165.05,-1208.25 1165.05,-1208.25 1165.05,-1214.25 1159.05,-1220.25 1153.05,-1220.25 1153.05,-1220.25 408.05,-1220.25 408.05,-1220.25 402.05,-1220.25 396.05,-1214.25 396.05,-1208.25 396.05,-1208.25 396.05,-529.38 396.05,-529.38 396.05,-523.38 402.05,-517.38 408.05,-517.38"/>
 <text text-anchor="middle" x="780.55" y="-1202.95" font-family="Helvetica,sans-Serif" font-size="14.00" fill="#44aa77">Knowledge Base &#160;[Knowledge/ + Domain/Gentoo/]</text>
 </g>
 <g id="clust5" class="cluster">
@@ -420,19 +420,18 @@
 <!-- query -->
 <g id="node24" class="node">
 <title>query</title>
-<polygon fill="#c8eac8" stroke="black" points="1157.42,-595.25 858.67,-595.25 858.67,-519.75 1157.42,-519.75 1157.42,-595.25"/>
-<text text-anchor="middle" x="1008.05" y="-581.75" font-family="Helvetica,sans-Serif" font-size="10.00">query.pl &#160;[Knowledge/] — Goal&#45;expanded queries</text>
-<text text-anchor="middle" x="1008.05" y="-570.5" font-family="Helvetica,sans-Serif" font-size="10.00">─────────────────────────────</text>
-<text text-anchor="middle" x="1008.05" y="-559.25" font-family="Helvetica,sans-Serif" font-size="10.00">query:search/2</text>
-<text text-anchor="middle" x="1008.05" y="-548" font-family="Helvetica,sans-Serif" font-size="10.00">query:memoized_search/2</text>
-<text text-anchor="middle" x="1008.05" y="-536.75" font-family="Helvetica,sans-Serif" font-size="10.00">goal_expansion/2 macros</text>
-<text text-anchor="middle" x="1008.05" y="-525.5" font-family="Helvetica,sans-Serif" font-size="10.00">(compile&#45;time optimization)</text>
+<polygon fill="#c8eac8" stroke="black" points="1157.42,-589.62 858.67,-589.62 858.67,-525.38 1157.42,-525.38 1157.42,-589.62"/>
+<text text-anchor="middle" x="1008.05" y="-576.12" font-family="Helvetica,sans-Serif" font-size="10.00">query.pl &#160;[Knowledge/] — Goal&#45;expanded queries</text>
+<text text-anchor="middle" x="1008.05" y="-564.88" font-family="Helvetica,sans-Serif" font-size="10.00">─────────────────────────────</text>
+<text text-anchor="middle" x="1008.05" y="-553.62" font-family="Helvetica,sans-Serif" font-size="10.00">query:search/2</text>
+<text text-anchor="middle" x="1008.05" y="-542.38" font-family="Helvetica,sans-Serif" font-size="10.00">goal_expansion/2 macros</text>
+<text text-anchor="middle" x="1008.05" y="-531.12" font-family="Helvetica,sans-Serif" font-size="10.00">(compile&#45;time optimization)</text>
 </g>
 <!-- cache&#45;&gt;query -->
 <g id="edge15" class="edge">
 <title>cache&#45;&gt;query</title>
-<path fill="none" stroke="black" d="M804.16,-675.49C824.83,-658.18 848.87,-639.48 872.3,-624.5 886.15,-615.64 901.36,-607.16 916.44,-599.41"/>
-<polygon fill="black" stroke="black" points="917.34,-601.7 922.47,-596.35 915.12,-597.33 917.34,-601.7"/>
+<path fill="none" stroke="black" d="M804.16,-675.49C824.83,-658.18 848.87,-639.48 872.3,-624.5 889.64,-613.41 909.13,-602.91 927.81,-593.68"/>
+<polygon fill="black" stroke="black" points="928.62,-596.01 933.84,-590.74 926.47,-591.61 928.62,-596.01"/>
 <text text-anchor="middle" x="899.67" y="-630.58" font-family="Helvetica,sans-Serif" font-size="9.00">backing store</text>
 </g>
 <!-- vdb -->
@@ -453,8 +452,8 @@
 <!-- vdb&#45;&gt;query -->
 <g id="edge16" class="edge">
 <title>vdb&#45;&gt;query</title>
-<path fill="none" stroke="black" d="M856.26,-931.87C869.55,-907.26 891.6,-864.03 905.05,-824.75 929.05,-754.64 912.71,-730.37 941.3,-662 949.96,-641.28 962.75,-620.13 974.83,-602.4"/>
-<polygon fill="black" stroke="black" points="976.76,-603.92 978.73,-596.77 972.73,-601.13 976.76,-603.92"/>
+<path fill="none" stroke="black" d="M856.26,-931.87C869.55,-907.26 891.6,-864.03 905.05,-824.75 929.05,-754.64 912.71,-730.37 941.3,-662 950.92,-638.98 965.63,-615.45 978.8,-596.65"/>
+<polygon fill="black" stroke="black" points="980.63,-598.3 982.69,-591.18 976.64,-595.46 980.63,-598.3"/>
 <text text-anchor="middle" x="968.67" y="-724.2" font-family="Helvetica,sans-Serif" font-size="9.00">pkg:// queries</text>
 </g>
 <!-- pkg&#45;&gt;vdb -->
@@ -548,8 +547,8 @@
 <!-- ebuild_mod&#45;&gt;query -->
 <g id="edge22" class="edge">
 <title>ebuild_mod&#45;&gt;query</title>
-<path fill="none" stroke="black" stroke-dasharray="5,2" d="M1069.8,-700.94C1058.55,-675 1041.04,-634.59 1027.53,-603.43"/>
-<polygon fill="black" stroke="black" points="1029.82,-602.56 1024.79,-597.11 1025.32,-604.51 1029.82,-602.56"/>
+<path fill="none" stroke="black" stroke-dasharray="5,2" d="M1069.8,-700.94C1057.85,-673.38 1038.83,-629.5 1025.05,-597.72"/>
+<polygon fill="black" stroke="black" points="1027.3,-596.76 1022.27,-591.31 1022.81,-598.71 1027.3,-596.76"/>
 <text text-anchor="middle" x="1056.17" y="-630.58" font-family="Helvetica,sans-Serif" font-size="9.00">sugar</text>
 </g>
 <!-- prove_entry -->
@@ -1083,8 +1082,8 @@
 <!-- rule_install&#45;&gt;query -->
 <g id="edge68" class="edge">
 <title>rule_install&#45;&gt;query</title>
-<path fill="none" stroke="black" stroke-dasharray="5,2" d="M1533.63,-909.23C1516.41,-894.18 1495.26,-878.88 1473.05,-870.25 1416.17,-848.15 1244.42,-893.05 1199.05,-852.25 1135.23,-794.87 1213.17,-733.72 1166.05,-662 1149.34,-636.57 1123.99,-615.98 1098.46,-600.06"/>
-<polygon fill="black" stroke="black" points="1099.81,-598.02 1092.55,-596.48 1097.27,-602.21 1099.81,-598.02"/>
+<path fill="none" stroke="black" stroke-dasharray="5,2" d="M1533.63,-909.23C1516.41,-894.18 1495.26,-878.88 1473.05,-870.25 1416.17,-848.15 1244.42,-893.05 1199.05,-852.25 1135.23,-794.87 1213.17,-733.72 1166.05,-662 1147.21,-633.32 1117.37,-610.8 1088.68,-594.19"/>
+<polygon fill="black" stroke="black" points="1090.03,-592.14 1082.73,-590.84 1087.63,-596.41 1090.03,-592.14"/>
 </g>
 <!-- rule_install&#45;&gt;rule_use -->
 <g id="edge46" class="edge">
@@ -1104,8 +1103,8 @@
 <!-- rule_run&#45;&gt;query -->
 <g id="edge69" class="edge">
 <title>rule_run&#45;&gt;query</title>
-<path fill="none" stroke="black" stroke-dasharray="5,2" d="M1346.08,-920.45C1325.57,-895.52 1297.48,-859.28 1277.05,-824.75 1227.35,-740.78 1258.39,-691.07 1187.05,-624.5 1176.82,-614.96 1165.1,-606.77 1152.66,-599.75"/>
-<polygon fill="black" stroke="black" points="1153.91,-597.64 1146.59,-596.47 1151.58,-601.95 1153.91,-597.64"/>
+<path fill="none" stroke="black" stroke-dasharray="5,2" d="M1346.08,-920.45C1325.57,-895.52 1297.48,-859.28 1277.05,-824.75 1227.35,-740.78 1258.39,-691.07 1187.05,-624.5 1173.59,-611.94 1157.54,-601.73 1140.67,-593.43"/>
+<polygon fill="black" stroke="black" points="1142.13,-591.41 1134.75,-590.64 1140.04,-595.84 1142.13,-591.41"/>
 </g>
 <!-- rule_update&#45;&gt;rule_target -->
 <g id="edge48" class="edge">

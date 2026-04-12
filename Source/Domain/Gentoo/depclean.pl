@@ -213,7 +213,7 @@ depclean:direct_deps_installed(pkg://InstalledEntry, DepsInstalled) :-
 
 depclean:direct_deps_from_repo_entry(Repo://Entry, DepsInstalled) :-
   query:search(model(Model,required_use(_),build_with_use(_)), Repo://Entry),
-  query:memoized_search(model(dependency(MergedDeps0,run)):config?{Model}, Repo://Entry),
+  query:search(model(dependency(MergedDeps0,run)):config?{Model}, Repo://Entry),
   dependency:add_self_to_dep_contexts(Repo://Entry, MergedDeps0, MergedDeps),
   findall(pkg://DepInstalled,
           depclean:dep_literal_installed_dep(MergedDeps, DepInstalled),
