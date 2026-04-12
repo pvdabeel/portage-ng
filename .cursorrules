@@ -269,6 +269,45 @@ PL
 
 This keeps the full project load graph intact (same as interactive `--shell`), while letting you run multi-line “scripts” non-interactively.
 
+### Running test_stats in Cursor (IMPORTANT)
+The full `prover:test_stats(portage)` run processes ~31k ebuilds and takes
+~2.5 minutes. Its progress lines overflow Cursor’s 1MB terminal buffer,
+so the stats summary at the end gets truncated. **Always redirect to a file**:
+
+```sh
+./Source/Application/Wrapper/portage-ng-dev --mode standalone --shell --timeout 600 <<'PL' > /tmp/portage-ng-test-stats.log 2>&1
+prover:test_stats(portage).
+halt.
+PL
+```
+
+Then read `/tmp/portage-ng-test-stats.log` to inspect the results.
+Use `block_until_ms: 0` to background the command and poll with `Await`.
+
+For spot-checking a few packages (fast, no file redirect needed):
+
+```sh
+./Source/Application/Wrapper/portage-ng-dev --mode standalone --shell --timeout 60 <<'PL'
+prover:test_stats_pkgs(portage, ['dev-libs'-'glib', 'app-misc'-'geneweb']).
+halt.
+PL
+```
+
+### test_stats vs .merge accuracy
+`prover:test_stats` uses `prove_with_fallback` (prover-only) while `.merge`
+files use `prove_plan_with_fallback` (full pipeline). Both share the same
+5-tier fallback chain and produce **identical domain assumptions per ebuild**.
+Aggregate differences between test_stats and the compare report are explained by:
+- Coverage: test_stats runs all ebuilds; compare report only includes pairs
+  with both `.merge` and `.emerge` files
+- Versions: `test_stats_pkgs` tests latest versions only; `.merge` covers all
+- Cycle breaks: `config:print_prover_cycles(false)` suppresses the cycle
+  break section in `.merge` output, so the compare script reports 0
+- Blockers: count differences track the coverage gap above
+
+Bottom line: `prover:test_stats` is a valid substitute for regenerating
+`.merge` files when checking domain assumption accuracy.
+
 The canonical load graph for standalone is in `portage-ng.pl`:
 - `load_common_modules/0`
 - `load_standalone_modules/0`

@@ -67,6 +67,18 @@ by the constraint_guard/2 prover hooks.
  15. *Provider-reuse reordering* -- candidates_prefer_proven_providers/4:
      Portage-like heuristic to prefer virtual providers whose dependencies
      have already been proven.
+
+ 16. *Tilde dep priority* -- dep_has_tilde_constraint/3:
+     tilde deps get elevated priority (BaseK=4) in dep ordering so they
+     are proved before unconstrained siblings. selected_cn then locks the
+     version, preventing greedy sibling selection of a conflicting version.
+
+ 17. *Wildcard domain learning* -- maybe_learn_wildcard_domain/4:
+     when resolution of a wildcard dep fails AND the parent has already
+     been narrowed, learns an upper-bound cn_domain from the wildcard
+     constraint and reproves. The parent-already-narrowed guard ensures
+     parent_narrowing gets the first attempt, handling cross-package
+     conflicts correctly.
 */
 
 :- module(candidate, []).
@@ -933,6 +945,44 @@ candidate:find_adjustable_origin(Reasons, OriginC, OriginN, Repo://Entry) :-
   cache:ordered_entry(Repo, Entry, OriginC, OriginN, _),
   prover:learned(cn_domain(OriginC, OriginN, _), _), !.
 
+%! candidate:maybe_learn_wildcard_domain(+C, +N, +PackageDeps, +Context) is semidet.
+%
+% When resolution of a wildcard dep on (C,N) fails, learns an
+% upper-bound cn_domain from the wildcard constraint and reproves.
+% Fires when the parent has already been narrowed by a prior
+% parent_narrowing attempt, OR when the parent has only one version
+% (where parent_narrowing would be futile). This ensures
+% parent_narrowing gets priority for multi-version parents, correctly
+% handling cross-package wildcard conflicts, while single-version
+% parents get immediate wildcard domain learning.
+
+candidate:maybe_learn_wildcard_domain(C, N, PackageDeps, Context) :-
+  cn_domain_reprove_enabled,
+  is_list(Context),
+  memberchk(self(ParentRepo://ParentEntry), Context),
+  cache:ordered_entry(ParentRepo, ParentEntry, ParentC, ParentN, _),
+  ( prover:learned(cn_domain(ParentC, ParentN, _), _)
+  ; parent_is_single_version(ParentC, ParentN)
+  ),
+  wildcard_upper_bound_domain(C, N, PackageDeps, Domain),
+  dep_slot_key(PackageDeps, Slot),
+  prover:learn(cn_domain(C, N, Slot), Domain, Added),
+  Added == true,
+  throw(prover_reprove(cn_domain(C, N, none, [], [wildcard_domain_learning]))).
+candidate:maybe_learn_wildcard_domain(_, _, _, _) :- fail.
+
+
+%! candidate:parent_is_single_version(+C, +N) is semidet.
+%
+% True if there is exactly one cache entry for (C,N). When the parent
+% has only one version, parent_narrowing would make it unavailable, so
+% wildcard domain learning should be preferred.
+
+candidate:parent_is_single_version(C, N) :-
+  once(cache:ordered_entry(_, E1, C, N, _)),
+  \+ (cache:ordered_entry(_, E2, C, N, _), E2 \== E1).
+
+
 %! candidate:maybe_learn_parent_narrowing(+C, +N, +PackageDeps, +Context)
 %
 % When a dependency on (C,N) is unsatisfiable, learns to exclude the
@@ -1323,14 +1373,20 @@ candidate:dep_priority_kv(Dep, K-Dep) :-
 %
 % Computes a priority key for a dependency literal. Lower keys are
 % proved first. Key is `key(BaseK, TightUpper, C, N)` where BaseK
-% accounts for upper-bound tightness, wildcard constraints, and slot
-% specificity.
+% accounts for upper-bound tightness, tilde constraints, wildcard
+% constraints, and slot specificity. Tilde deps (BaseK=4) are proved
+% before wildcards (8) and unconstrained deps (999) so that
+% selected_cn locks the version before a sibling picks a conflicting
+% one.
 
 candidate:dep_priority(grouped_package_dependency(_T,C,N,PackageDeps):Action?{_Context}, K) :-
   !,
   ( merge_slot_restriction(Action, C, N, PackageDeps, SlotReq) ->
       ( dep_tightest_upper_bound(C, N, PackageDeps, TightUpper) ->
           UpperK0 = 1
+      ; dep_has_tilde_constraint(C, N, PackageDeps) ->
+          UpperK0 = 4,
+          TightUpper = none
       ; dep_has_equal_wildcard_constraint(C, N, PackageDeps) ->
           UpperK0 = 8,
           TightUpper = none
@@ -1368,6 +1424,15 @@ candidate:min_version_bound_(V, Best0, Best) :-
   ; Best = Best0
   ),
   !.
+
+
+%! candidate:dep_extract_cn_packagedeps(+DepLiteral, -C, -N, -PackageDeps) is semidet.
+%
+% Extracts the category, name, and package deps from a grouped
+% dependency literal. Handles both Context and bare forms.
+
+candidate:dep_extract_cn_packagedeps(grouped_package_dependency(_T, C, N, PackageDeps):_Action?{_}, C, N, PackageDeps) :- !.
+candidate:dep_extract_cn_packagedeps(grouped_package_dependency(_T, C, N, PackageDeps):_Action, C, N, PackageDeps) :- !.
 
 
 % =============================================================================
@@ -1445,9 +1510,13 @@ candidate:dep_has_explicit_slot_constraint(C, N, PackageDeps) :-
   slot_req_explicit_slot_key(SlotReq, _S),
   !.
 
+candidate:dep_has_tilde_constraint(C, N, PackageDeps) :-
+  member(package_dependency(_Phase, no, C, N, tilde, _, _S, _U), PackageDeps),
+  !.
+
 candidate:dep_has_equal_wildcard_constraint(C, N, PackageDeps) :-
-  member(package_dependency(_Phase, no, C, N, equal, V0, _S, _U), PackageDeps),
-  version_term_has_wildcard_(V0),
+  member(package_dependency(_Phase, no, C, N, Op, V0, _S, _U), PackageDeps),
+  ( Op == wildcard -> true ; Op == equal, version_term_has_wildcard_(V0) ),
   !.
 
 candidate:version_term_has_wildcard_(V0) :-
@@ -1458,6 +1527,93 @@ candidate:version_term_has_wildcard_(V0) :-
   ),
   sub_atom(A, _Start, _Len, _After, '*'),
   !.
+
+
+%! candidate:wildcard_cn_domain_constraints(+MergedDeps, -Constraints) is det.
+%
+% Scans a list of grouped dependencies for wildcard version constraints
+% and emits cn_domain constraint terms for each unique (C,N). These
+% constraints are added to the parent's condition list BEFORE the deps,
+% so they flow through the constraint store and enable
+% selected_cn_unique_or_reprove to resolve sibling conflicts.
+
+candidate:wildcard_cn_domain_constraints(MergedDeps, Constraints) :-
+  findall(C-N-PackageDeps,
+          ( member(grouped_package_dependency(_T, C, N, PackageDeps):_?{_}, MergedDeps),
+            member(package_dependency(_, no, C, N, Op, _, _, _), PackageDeps),
+            ( Op == wildcard ; Op == equal )
+          ),
+          CNPairs0),
+  sort(1, @<, CNPairs0, CNPairs),
+  wildcard_cn_domain_constraints_(CNPairs, Constraints).
+
+candidate:wildcard_cn_domain_constraints_([], []).
+candidate:wildcard_cn_domain_constraints_([C-N-PackageDeps|Rest], Cons) :-
+  ( wildcard_upper_bound_domain(C, N, PackageDeps, Domain) ->
+      dep_slot_key(PackageDeps, Slot),
+      Cons = [constraint(cn_domain(C,N,Slot):{Domain})|Cons1]
+  ; Cons = Cons1
+  ),
+  wildcard_cn_domain_constraints_(Rest, Cons1).
+
+
+%! candidate:wildcard_upper_bound_domain(+C, +N, +PackageDeps, -Domain) is semidet.
+%
+% Derives an upper-bound version_domain from wildcard deps on (C,N).
+% For =pkg-0.6* the upper bound is <0.7 (last component incremented).
+% Only upper bounds are produced to avoid cross-package conflicts from
+% lower bounds. The domain is used by cn_domain_constraints to populate
+% the constraint store, enabling selected_cn_unique_or_reprove to
+% resolve conflicts when a sibling's transitive dep selects a version
+% outside the wildcard range.
+
+candidate:wildcard_upper_bound_domain(C, N, PackageDeps, version_domain(any, Bounds)) :-
+  findall(bound(smaller, UpperVer),
+          ( member(package_dependency(_, no, C, N, Op, V0, _, _), PackageDeps),
+            ( Op == wildcard -> true ; Op == equal, version_term_has_wildcard_(V0) ),
+            wildcard_to_upper(V0, UpperVer)
+          ),
+          Bounds0),
+  Bounds0 \== [],
+  sort(Bounds0, Bounds).
+
+
+%! candidate:wildcard_to_upper(+Ver0, -UpperVer) is semidet.
+%
+% Converts a wildcard version to its exclusive upper bound by
+% incrementing the last numeric component. Handles both version/7
+% terms (current format) and atom/list legacy formats.
+% =0.6* -> <0.7,  =1.2.3* -> <1.2.4
+
+candidate:wildcard_to_upper(version(Nums, _, _, _, _, _, _), version(UpperNums, '', 4, 0, '', 0, UpperFull)) :-
+  !,
+  Nums = [_|_],
+  wildcard_increment_last(Nums, UpperNums),
+  atomic_list_concat(UpperNums, '.', UpperFull).
+candidate:wildcard_to_upper(V0, version(UpperNums, '', 4, 0, '', 0, UpperFull)) :-
+  ( atom(V0) -> A = V0
+  ; V0 = [_,_,_,A], atom(A)
+  ),
+  ( sub_atom(A, _, 1, 0, '*') ->
+      sub_atom(A, 0, _, 1, Base)
+  ; Base = A
+  ),
+  atomic_list_concat(Parts, '.', Base),
+  maplist(atom_number, Parts, Nums),
+  Nums = [_|_],
+  wildcard_increment_last(Nums, UpperNums),
+  atomic_list_concat(UpperNums, '.', UpperFull).
+
+
+%! candidate:wildcard_increment_last(+Nums, -UpperNums) is det.
+%
+% Increments the last element of a number list.
+% [0,6] -> [0,7],  [1,2,3] -> [1,2,4]
+
+candidate:wildcard_increment_last(Nums, UpperNums) :-
+  append(Init, [Last], Nums),
+  Next is Last + 1,
+  append(Init, [Next], UpperNums).
 
 
 % =============================================================================

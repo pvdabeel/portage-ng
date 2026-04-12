@@ -376,6 +376,12 @@ candidate:resolve(grouped_dep(C,N,PackageDeps):Action?{Context}, Conditions) :-
   candidate:augment_package_deps_with_self_rdepend(Action, C, N, Context, PackageDeps, PackageDeps1),
   candidate:grouped_dep_select_and_build(Action, C, N, PackageDeps1, Context, Conditions).
 
+candidate:resolve(grouped_dep(C,N,PackageDeps):Action?{Context}, _) :-
+  candidate:augment_package_deps_with_self_rdepend(Action, C, N, Context, PackageDeps, PackageDeps1),
+  \+ memo:requse_violation_(C, N, _),
+  candidate:maybe_learn_wildcard_domain(C, N, PackageDeps1, Context),
+  fail.
+
 candidate:resolve(grouped_dep(C,N,PackageDeps):_Action?{Context}, _) :-
   candidate:augment_package_deps_with_self_rdepend(_, C, N, Context, PackageDeps, PackageDeps1),
   \+ memo:requse_violation_(C, N, _),
