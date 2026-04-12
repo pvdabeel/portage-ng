@@ -500,7 +500,7 @@ candidate:resolve(Repository://Ebuild:update?{_Context}, []) :-
 candidate:resolve(Repository://Ebuild:update?{Context}, Conditions) :-
   memberchk(replaces(_), Context),
   use:context_build_with_use_state(Context, B),
-  (memberchk(required_use:R,Context) -> true ; R = []),
+  (memberchk(required_use:R,Context) -> true ; true),
   query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
 
   query:search(model(dependency(MergedDeps0,install)):config?{Model},Repository://Ebuild),
