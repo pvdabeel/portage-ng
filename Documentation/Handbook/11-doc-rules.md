@@ -135,12 +135,54 @@ the entry rule fails and Prolog backtracks to try the next candidate.
 `cache:ordered_entry/5`, so the prover naturally prefers the latest
 eligible version.
 
+### Dependency ordering within a group
+
+Before proving the dependencies of a package, `candidate:dep_priority/2`
+sorts them so that tightly constrained siblings are proved first.  This
+reduces greedy conflicts where an unconstrained sibling selects a version
+that later clashes with a tighter constraint:
+
+| **BaseK** | **Constraint type** | **Example** |
+| :--- | :--- | :--- |
+| 1 | Tight upper bound (range) | `>=1.0 <2.0` |
+| 4 | Tilde constraint | `~dev-ruby/railties-8.1.1` |
+| 8 | Wildcard constraint | `=dev-python/gast-0.6*` |
+| 999 | Unconstrained | `dev-libs/openssl` |
+
+Lower keys are proved first.  Within each tier, slot specificity
+further refines the order.  The effect is that tilde and wildcard
+dependencies lock their `selected_cn` before unconstrained siblings
+pick a potentially conflicting version.
+
+### Self-dependencies and cross-slot handling
+
+When a package lists itself as a build dependency (e.g. `antlr-tool:4`
+needing `antlr-tool:3.5` to bootstrap), the rules layer distinguishes
+**same-slot self-deps** from **cross-slot self-deps**.
+
+Same-slot self-deps (same category, name, and slot as the parent) are
+treated as bootstrap dependencies: if the package is already installed,
+the dependency is satisfied; otherwise the rule fails so that
+backtracking can reach a bootstrap alternative.
+
+Cross-slot self-deps (same category and name but a *different* slot)
+are treated as **regular dependencies** and resolved normally.  This
+prevents model build failures when the cross-slot version is not yet
+installed.
+
 ### Fallback chain
 
 When every candidate for a grouped dependency has been tried and none
 succeeded, the rules layer activates a fallback chain before giving
 up:
 
+- **Wildcard domain learning** — `maybe_learn_wildcard_domain` fires
+  when a wildcard dependency (e.g. `=dev-python/gast-0.6*`) fails
+  resolution and the parent has already been narrowed by a prior
+  parent-narrowing attempt, or the parent is a single-version package
+  (where parent narrowing would be futile).  It derives an upper-bound
+  `cn_domain` from the wildcard constraint (e.g. `< 0.7`) and learns
+  it via `prover:learn/3`, then throws `prover_reprove`.
 - **Parent narrowing** — `maybe_learn_parent_narrowing` records that
   the current parent version led to a dead end and throws
   `prover_reprove`, so the prover can retry with a different parent.

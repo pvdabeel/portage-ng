@@ -214,6 +214,23 @@ empty domain.
 Chapter 9 walks through the reprove and learning mechanics in full;
 Chapter 11 ties domains into rule evaluation and candidate generation.
 
+### Wildcard domain learning
+
+When a wildcard dependency like `=dev-python/gast-0.6*` cannot be
+satisfied, `candidate:maybe_learn_wildcard_domain/4` derives an
+upper-bound domain from the wildcard: the last numeric component is
+incremented to produce an exclusive upper bound (e.g. `0.6*` → `< 0.7`,
+`1.2.3*` → `< 1.2.4`).  The resulting `version_domain(any, [bound(smaller, UpperVer)])`
+is learned via `prover:learn/3` and triggers a reprove.
+
+This mechanism is guarded: it only fires when the parent has already
+been narrowed by a prior `maybe_learn_parent_narrowing` attempt (or
+when the parent is a single-version package, making parent narrowing
+futile).  The guard ensures parent narrowing gets priority for
+multi-version parents, correctly handling cross-package wildcard
+conflicts (e.g. two packages requiring different wildcard ranges of
+the same dependency).
+
 ### Connection to feature logic
 
 This mechanism is inspired by Zeller's feature logic: version sets are

@@ -148,8 +148,11 @@ The `:config` phase evaluates each dependency term against the effective USE
 flags and retains only the **active** dependencies.  In the example above,
 if `ssl` is enabled and `readline` is disabled, the model will contain
 `dev-libs/openssl` and `sys-libs/libedit` — the `sys-libs/readline`
-dependency is dropped because its USE guard is not satisfied.  Self-references
-(a package listing itself as a dependency) are silently skipped.
+dependency is dropped because its USE guard is not satisfied.  Same-slot
+self-references (a package listing itself as a build dependency in the
+same slot) are treated as bootstrap dependencies and checked against the
+VDB.  Cross-slot self-references (same category and name but a different
+slot) are resolved normally as regular dependencies.
 
 When a choice group or constraint forces a decision, the prover may also
 **assume** a flag — for instance, if an `exactly_one_of` group requires at
@@ -297,9 +300,13 @@ serves three purposes:
    `self` tag tells the REQUIRED_USE checker which package’s USE
    configuration to consult.
 
-3. **Self-dependency detection.** When a package lists itself as a dependency
-   (which happens in practice), the rules recognise this by comparing the
-   dependency target to the `self` entry, and skip circular resolution.
+3. **Self-dependency detection.** When a package lists itself as a
+   build dependency in the same slot (which happens for bootstrap
+   packages), the rules recognise this by comparing the dependency
+   target's category, name, and slot to the `self` entry.  Same-slot
+   self-deps are checked against installed packages; cross-slot
+   self-deps (e.g. `antlr-tool:4` depending on `antlr-tool:3.5`) are
+   treated as regular dependencies and resolved normally.
 
 At most one `self` tag is present per context. When a literal is stamped, any
 previous `self` is replaced — the immediate parent is what matters.

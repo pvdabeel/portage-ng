@@ -127,7 +127,19 @@ relaxation: runtime-only cycles are not just *breakable* — they are
 portage-ng models dependencies as a two-phase proof tree.  Each
 package has an `:install` action (building) and a `:run` action
 (being usable).  The different dependency types map naturally onto
-this structure:
+this structure.
+
+### Intra-group dependency ordering
+
+Before proving the dependencies within a single package,
+`candidate:dep_priority/2` sorts them by constraint tightness.
+Tightly constrained dependencies are proved first so that their
+`selected_cn` locks early, preventing greedy conflicts where an
+unconstrained sibling picks a version that later clashes.  The
+priority ladder (lower = proved first): tight upper bound (1) →
+tilde (4) → wildcard (8) → unconstrained (999).  Within each tier,
+slot specificity further refines the order.  See
+[Chapter 11](11-doc-rules.md) for details.
 
 ![portage-ng two-phase dependency model](Diagrams/22-portage-ng-model.svg){width=55%}
 

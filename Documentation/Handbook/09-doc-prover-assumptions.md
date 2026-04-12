@@ -218,8 +218,9 @@ Several predicates can throw `prover_reprove(Info)`:
 
 | **Source** | **When** |
 | :--------------------------------- | :--------------------------------------------- |
-| `maybe_request_grouped_dep_reprove` | Effective domain conflicts with selected CN; domain inconsistent; version/slot constraints present |
+| `maybe_learn_wildcard_domain`   | Wildcard dep fails and parent already narrowed or single-version; learns upper-bound `cn_domain` from wildcard |
 | `maybe_learn_parent_narrowing`  | Parent introduced a dep that made (C,N) unsatisfiable; learns to exclude parent version |
+| `maybe_request_grouped_dep_reprove` | Effective domain conflicts with selected CN; domain inconsistent; version/slot constraints present |
 | `selected_cn_unique_or_reprove` | CN-domain constraint conflicts with already-selected candidate (constraint guard) |
 | `selected_cn_not_blocked_or_reprove` | Blocker detected via blocked source snapshot |
 
@@ -266,6 +267,10 @@ The domain uses learned constraints for:
   conflict is detected.
 - **Parent narrowing** — `maybe_learn_parent_narrowing` learns to
   exclude the parent version when a child dep cannot be satisfied.
+- **Wildcard failure learning** — `maybe_learn_wildcard_domain` derives
+  an upper-bound domain from a wildcard constraint (e.g. `=pkg-0.6*`
+  → `< 0.7`) when parent narrowing alone could not resolve the
+  conflict.
 
 ### Retry Budget
 

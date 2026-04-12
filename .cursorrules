@@ -89,13 +89,24 @@ proof retries (managed by `with_cn_domain_reprove_state`):
 - Merge semantics: `feature_unification:val_hook` (e.g., domain intersection)
 - Literal format: `cn_domain(Category, Name, Slot)` for version domains
 
-Rules uses this store in three ways:
+Rules uses this store in four ways:
 1. **Candidate narrowing**: `grouped_dep_effective_domain` intersects the
    local+context domain with any learned domain (`apply_learned_domain`).
 2. **Conflict learning**: constraint guards learn the domain when a conflict
    is detected (alongside the existing reject-based reprove mechanism).
 3. **Parent narrowing**: `maybe_learn_parent_narrowing` learns to exclude the
    parent version when a child dep can't be satisfied (wrong-level fix).
+4. **Wildcard domain learning**: `maybe_learn_wildcard_domain` derives an
+   upper-bound cn_domain from a wildcard dep (e.g. `=pkg-0.6*` → `< 0.7`)
+   when parent narrowing alone failed or is futile (single-version parent).
+
+Self-dep handling:
+- `is_self_dep/5` detects bootstrap self-deps (same C/N/slot as parent).
+- Cross-slot self-deps (same C/N, different slot) are regular dependencies.
+
+Dep priority ordering (`dep_priority/2`):
+- BaseK=1 (tight upper bound), 4 (tilde), 8 (wildcard), 999 (unconstrained).
+- Tighter constraints proved first to lock `selected_cn` early.
 
 Inspired by Zeller's feature logic (incremental domain narrowing) and
 Vermeir/Van Nieuwenborgh's ordered logic programs (priority-based conflict
