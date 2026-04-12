@@ -415,7 +415,7 @@ rule(Repository://Ebuild:depclean?{Context}, Conditions) :-
 % alternative in an any_of_group.
 
 rule(package_dependency(Phase,no,C,N,O,V,S,_U):config?{Context},[]) :-
-  candidate:is_self_dep(C, N, Phase, Context),
+  candidate:is_self_dep(C, N, Phase, S, Context),
   !,
   candidate:self_dep_satisfiable(C, N, O, V, S, Context).
 

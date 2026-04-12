@@ -111,16 +111,26 @@ candidate:canon_any_same_slot_meta(Meta0, [slot(S)]) :-
   canon_slot(S0, S),
   !.
 
-%! candidate:is_self_dep(+C, +N, +Phase, +Context)
+%! candidate:is_self_dep(+C, +N, +Phase, +DepSlotReq, +Context)
 %
 % True when Context indicates a build/install self-dependency: the
-% parent ebuild (self/1) has the same category and name as the dep.
+% parent ebuild (self/1) has the same category and name as the dep,
+% and the dep's slot requirement (if any) matches the parent's slot.
+% Cross-slot deps (e.g. antlr-tool:4 depending on antlr-tool:3.5)
+% are regular deps, not bootstrap self-deps.
 
-candidate:is_self_dep(C, N, Phase, Context) :-
+candidate:is_self_dep(C, N, Phase, DepSlotReq, Context) :-
   memberchk(self(SelfRepo://SelfEntry), Context),
   query:search([category(C),name(N)], SelfRepo://SelfEntry),
   Phase \== run,
-  \+ preference:flag(emptytree).
+  \+ preference:flag(emptytree),
+  \+ is_cross_slot_dep(SelfRepo, SelfEntry, DepSlotReq).
+
+candidate:is_cross_slot_dep(Repo, Entry, DepSlotReq) :-
+  is_list(DepSlotReq),
+  member(slot(DepSlot), DepSlotReq),
+  entry_slot_default(Repo, Entry, SelfSlot),
+  DepSlot \== SelfSlot.
 
 
 %! candidate:self_dep_satisfiable(+C, +N, +O, +V, +S, +Context)
