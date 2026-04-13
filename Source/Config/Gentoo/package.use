@@ -1,0 +1,7 @@
+app-emulation/open-vm-tools -dnet -X -multimon resolutionkms
+app-editors/vim -X
+dev-lang/swi-prolog -X
+www-client/links -X -jpeg -png -tiff
+>=sys-libs/gdbm-1.26 berkdb
+x11-wm/compiz-fusion unsupported emerald
+sys-kernel/gentoo-sources symlink build
