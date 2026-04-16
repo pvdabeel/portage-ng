@@ -254,26 +254,42 @@ Both resolvers start from the same input: an identical Portage tree snapshot
 The measurement is **dependency resolution time only** -- how long it takes to
 produce a merge plan, not how long actual builds take.
 
-### Resolution speed
+### Resolution speed (emerge_ok packages)
 
-The comparison covers **30,097 packages** resolved by both tools.  For the
-22,971 packages where Portage itself reports a clean result, portage-ng is
-faster in **100%** of cases:
-
-
-|                          | **Portage** | **portage-ng** | **Speedup** |
-| ------------------------ | ----------- | -------------- | ----------- |
-| Average                  | 1,607 ms    | 34 ms          | **48x**     |
-| Median                   | 1,413 ms    | 7 ms           | **202x**    |
-| 95th percentile          | 2,869 ms    | 154 ms         | **19x**     |
-| Cumulative (22,971 pkgs) | 10.3 hours  | 12.9 minutes   | **48x**     |
+The comparison covers **31,331 packages** resolved by both tools.  For the
+**22,781** packages where Portage itself reports a clean result (`emerge_ok`),
+portage-ng is faster in **100%** of cases:
 
 
-The median package resolves in **7 milliseconds** versus **1.4 seconds** -- a
-two-hundred-fold improvement.  Even at the 95th percentile (complex packages
-with deep dependency chains), portage-ng finishes in 154 ms while Portage needs
-nearly 3 seconds.  Across all 30,097 packages, portage-ng is faster in
-**99.8%** of cases.
+|                           | **Portage** | **portage-ng** | **Speedup** |
+| ------------------------- | ----------: | -------------: | ----------: |
+| Average                   |    1,239 ms |          32 ms |     **38x** |
+| Median                    |    1,159 ms |           6 ms |    **193x** |
+| 95th percentile           |    1,679 ms |         165 ms |     **10x** |
+| Maximum                   |   11,165 ms |         920 ms |     **12x** |
+| Cumulative (22,781 pkgs)  |  7.84 hours |    12.3 minutes|     **38x** |
+
+
+### Resolution speed (all packages)
+
+Across all **31,331** packages (including those where Portage reports errors),
+portage-ng is faster in **99.7%** of cases:
+
+
+|                           | **Portage** | **portage-ng** | **Speedup** |
+| ------------------------- | ----------: | -------------: | ----------: |
+| Average                   |    1,302 ms |          71 ms |     **18x** |
+| Median                    |    1,161 ms |          11 ms |    **106x** |
+| 95th percentile           |    2,069 ms |         264 ms |      **8x** |
+| Maximum                   |   11,165 ms |       9,107 ms |    **1.2x** |
+| Cumulative (31,331 pkgs)  | 11.33 hours |   37.2 minutes |     **18x** |
+
+
+The 103 cases (0.3%) where Portage finishes faster are all packages where
+**Portage itself fails** (`emerge_notok`).  Portage exits early with an error
+while portage-ng still performs a full resolution attempt.  Among the
+`emerge_ok` population -- the apples-to-apples comparison -- portage-ng wins
+100% of cases.
 
 ### Why portage-ng is faster
 
@@ -293,7 +309,7 @@ thousands of packages:
 The largest single factor is the **qcompiled cache**: once loaded, all 32,000
 ebuilds are in memory as indexed Prolog facts, and queries hit first-argument
 indexing directly.  Portage re-reads and re-parses metadata structures on each
-invocation.  The second factor is **single-pass proving**: for over 99% of  
+invocation.  The second factor is **single-pass proving**: for over 99% of
 packages, portage-ng needs no retries at all.
 
 ## Architecture
