@@ -27,14 +27,20 @@ the pass-1 proof and the VDB (installed packages):
                  when the grouped :install is keep-installed, and the
                  runtime providers of a virtual being merged)?
   - prefers/2  : what would a step like placed earlier without insisting
-                 (runtime dep groups, PDEPEND ordering hints)?
+                 (runtime dep groups, PDEPEND ordering hints)? Under the
+                 default `--optimize parallelism` strategy a preference
+                 whose provider depends back on its consumer is void
+                 (same_component/2); `--optimize soft-requirements`
+                 hands every preference to the projection.
   - world/2    : does the installed system, as it stands, already provide
                  this requirement for this consumer?
 
 No graph algorithms live here: requires/prefers are a reading of the
 pass-1 proof bodies (dependency provenance), world is a reading of the
-VDB. See Documentation/Handbook/13-doc-planning.md (the planning laws
-and the Gentoo bindings).
+VDB, and the mutual-reachability classes behind same_component/2 come
+from the generic components:classes/3 (Source/Logic/components.pl). See
+Documentation/Handbook/13-doc-planning.md (the planning laws, the Gentoo
+bindings and the two ordering strategies).
 */
 
 :- module(ordering, []).
@@ -208,7 +214,57 @@ requires(H, D) :-
 
 %! ordering:prefers(+H, -D)
 %
-% Preference: H would like D placed earlier, without insisting. Five
+% Preference: H would like D placed earlier, without insisting. The raw
+% preferences come from ordering:prefers0/2; which of them are handed to
+% the projection depends on the ordering strategy (`--optimize`):
+%
+%   - parallelism (default): a preference whose provider depends back on
+%     its consumer — H and D lie in the same mutual-reachability class
+%     over requires ∪ prefers0 — is void. Inside a cycle the runtime
+%     order is free (Portage treats runtime cycles as freely orderable),
+%     so the cycle's members merge side by side instead of one per step;
+%     preferences between classes are always kept. The accepted edge set
+%     is acyclic by construction (an edge on a cycle is, by definition,
+%     inside a class), so the projection never has to arbitrate;
+%   - soft-requirements: every raw preference is handed to the projection,
+%     which honors as many as it can in processing order and drops only
+%     the ones that would close a cycle (orderer:honor_preferences/4).
+%     Serialises a cycle's members one step per package; the choice of
+%     which member goes first is processing-order dependent.
+%
+% Hard requirements (requires/2) are unaffected by the strategy.
+
+prefers(H, D) :-
+  ordering:prefers0(H, D),
+  ( preference:local_flag(optimize_soft_requirements) -> true
+  ; \+ ordering:same_component(H, D)
+  ).
+
+
+%! ordering:same_component(+H, +D)
+%
+% H and D are mutually reachable over ordering:edge/2 (requires ∪
+% prefers0): each depends, directly or transitively, on the other. Read
+% from the per-pass component index.
+
+same_component(H, D) :-
+  ordering:component_index(Idx),
+  get_assoc(H, Idx, C),
+  get_assoc(D, Idx, C).
+
+
+%! ordering:edge(+H, -D)
+%
+% The edge relation the component index is built over: everything H
+% waits for, whether it insists (requires/2) or merely wishes (prefers0/2).
+
+edge(H, D) :- ordering:requires(H, D).
+edge(H, D) :- ordering:prefers0(H, D).
+
+
+%! ordering:prefers0(+H, -D)
+%
+% Raw preference: H would like D placed earlier, without insisting. Five
 % sources, all read from the pass-1 proof:
 %
 %   - preference-only deps (`runtime_dep/1`: grouped :run heads, and
@@ -238,7 +294,7 @@ requires(H, D) :-
 %     prefers the concretely planned action of the same package earlier,
 %     when another proof path planned that package for the same phase.
 
-prefers(H, D) :-
+prefers0(H, D) :-
   ordering:step_body(H, Body),
   member(Literal, Body),
   prover:canon_literal(Literal, Core, _),
@@ -254,7 +310,7 @@ prefers(H, D) :-
   ordering:step(D).
 
 % PDEPEND completion (portage-ng#18/#19).
-prefers(H, T) :-
+prefers0(H, T) :-
   ordering:step_body(H, Body),
   member(Literal, Body),
   prover:canon_literal(Literal, Core, _),
@@ -265,7 +321,7 @@ prefers(H, T) :-
   T \== H.
 
 % Configure closure (portage-ng#21).
-prefers(Repository://Entry:install, D) :-
+prefers0(Repository://Entry:install, D) :-
   ordering:step(Repository://Entry:run),
   ordering:step_body(Repository://Entry:run, RunBody),
   member(Literal, RunBody),
@@ -275,7 +331,7 @@ prefers(Repository://Entry:install, D) :-
   D = Core.
 
 % Assumed-dep alias (portage-ng#95).
-prefers(H, D) :-
+prefers0(H, D) :-
   ordering:step_body(H, Body),
   member(Literal, Body),
   prover:canon_literal(Literal, assumed(Inner), _),
@@ -306,13 +362,18 @@ runtime_dep(_://_:fetchonly).
 
 
 % -----------------------------------------------------------------------------
-% Per-pass indexes (PDEPEND anchors, concrete actions by package)
+% Per-pass indexes (components, PDEPEND anchors, concrete actions by package)
 % -----------------------------------------------------------------------------
 %
-% Two lazily-built views over the published pass-1 proof, reset at the
+% Three lazily-built views over the published pass-1 proof, reset at the
 % start of every ordering pass (orderer:with_ordering_pass calls
 % ordering:prepare_pass/0); thread-local like the published proof itself.
 %
+%   - the component index maps every plan step to its mutual-reachability
+%     class over ordering:edge/2, so prefers/2 can tell a preference on a
+%     cycle from one between cycles (same_component/2). The classes are
+%     computed by the generic components:classes/3 (Source/Logic); this
+%     module only names the nodes and the edges;
 %   - the PDEPEND anchor index maps a provider identity to the steps that
 %     carry a `constraint(order_after(Provider))` marker — i.e. the
 %     provider's PDEPEND group. Consumers of the provider look themselves
@@ -328,8 +389,33 @@ runtime_dep(_://_:fetchonly).
 % Reset the per-pass caches. Called by orderer:with_ordering_pass/2.
 
 prepare_pass :-
+  nb_setval(portage_ordering_component_idx, none),
   nb_setval(portage_ordering_pdepend_idx, none),
   nb_setval(portage_ordering_cnaction_idx, none).
+
+
+%! ordering:component_index(-Idx)
+%
+% The component index for the current pass, built on first use: plan
+% step -> class identifier (components:classes/3 over all pass-1 proof
+% heads and ordering:edge/2).
+
+component_index(Idx) :-
+  ( nb_current(portage_ordering_component_idx, Idx0), Idx0 \== none ->
+      Idx = Idx0
+  ; ordering:build_component_index(Idx),
+    nb_setval(portage_ordering_component_idx, Idx)
+  ).
+
+build_component_index(Idx) :-
+  ordering:proof(Proof),
+  findall(H,
+          ( assoc:gen_assoc(Key, Proof, _),
+            ( Key = rule(H) -> true ; Key = assumed(rule(H)) )
+          ),
+          Heads0),
+  sort(Heads0, Heads),
+  components:classes(Heads, ordering:edge, Idx).
 
 
 %! ordering:pdepend_anchor_index(-Idx)

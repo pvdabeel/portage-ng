@@ -1,0 +1,39 @@
+// Chapter 13 — --optimize soft-requirements: every wish reaches the
+// projection; the first one met is granted, the second would close the
+// loop and is dropped. The loop costs one extra step.
+// Render: dot -Tsvg 13-strategy-soft-requirements.dot -o 13-strategy-soft-requirements.svg
+
+digraph strategy_soft_requirements {
+    rankdir=LR;
+    fontname="Helvetica";
+    fontsize=11;
+    label="--optimize soft-requirements: 3 steps";
+    labelloc=t;
+    node [fontname="Helvetica", fontsize=11, style=filled, shape=box];
+    edge [fontname="Helvetica", fontsize=10];
+
+    subgraph cluster_w1 {
+        label="Step 1"; labeljust=l; style=filled;
+        fillcolor="#e6f0ff"; color="#4a86c8";
+        node [fillcolor="#cce5ff"];
+        n_inst [label="install\nnautilus"];
+        s_inst [label="install\nsushi"];
+    }
+    subgraph cluster_w2 {
+        label="Step 2"; labeljust=l; style=filled;
+        fillcolor="#e6ffe6"; color="#4a8c4a";
+        node [fillcolor="#ccf2cc"];
+        s_run [label="run\nsushi"];
+    }
+    subgraph cluster_w3 {
+        label="Step 3"; labeljust=l; style=filled;
+        fillcolor="#fff8e6"; color="#c8a84a";
+        node [fillcolor="#fff3cd"];
+        n_run [label="run\nnautilus"];
+    }
+
+    n_inst -> n_run [label="requires", penwidth=1.6];
+    s_inst -> s_run [label="requires", penwidth=1.6];
+    s_run  -> n_run [label="wish granted:\nsushi runs before\nnautilus is complete", style=dashed, color="#4a86c8", fontcolor="#4a86c8"];
+    n_run  -> s_run [label="wish dropped:\nwould close the loop", style=dotted, color="#c0392b", fontcolor="#c0392b", constraint=false];
+}

@@ -267,6 +267,62 @@ test(cyclic_preference_dropped_silently) :-
   issue73_wave(Plan, G, WG),
   WProg < WLib, WLib < WG.
 
+% Ordering strategies (--optimize). A pure runtime cycle — the
+% nautilus/sushi shape, each side's grouped :run wanting the other placed
+% first — has no order that grants both wishes.
+%
+% parallelism (default): both preferences lie inside one mutual-
+% reachability class (ordering:same_component/2) and are void; the two
+% packages share a wave and their groups share the next one.
+test(runtime_cycle_parallelism_shares_waves, [nondet]) :-
+  GS = grouped_package_dependency(no, cat, sushi, []):run,
+  GN = grouped_package_dependency(no, cat, nautilus, []):run,
+  issue73_rules([nautilus-[GS], GS-[sushi], sushi-[GN], GN-[nautilus]]),
+  ordering_engine_plan([nautilus], ProofOut, Plan),
+  ordering_engine_unreachables(ProofOut, []),
+  issue73_wave(Plan, nautilus, WN),
+  issue73_wave(Plan, sushi, WS),
+  issue73_wave(Plan, GS, WGS),
+  issue73_wave(Plan, GN, WGN),
+  WN =:= WS, WGS =:= WGN, WN < WGS,
+  length(Plan, 2).
+
+% soft-requirements: every preference reaches the projection, which
+% honors the first one and drops the second (it would close the cycle):
+% the same four steps become a staircase, one per wave.
+test(runtime_cycle_soft_requirements_serialises,
+     [setup(asserta(preference:local_flag(optimize_soft_requirements))),
+      cleanup(retractall(preference:local_flag(optimize_soft_requirements))),
+      nondet]) :-
+  GS = grouped_package_dependency(no, cat, sushi, []):run,
+  GN = grouped_package_dependency(no, cat, nautilus, []):run,
+  issue73_rules([nautilus-[GS], GS-[sushi], sushi-[GN], GN-[nautilus]]),
+  ordering_engine_plan([nautilus], ProofOut, Plan),
+  ordering_engine_unreachables(ProofOut, []),
+  length(Plan, 4),
+  forall(member(Wave, Plan), length(Wave, 1)),
+  % The hard structure is honored under both strategies.
+  issue73_wave(Plan, nautilus, WN),
+  issue73_wave(Plan, sushi, WS),
+  issue73_wave(Plan, GS, WGS),
+  issue73_wave(Plan, GN, WGN),
+  WS < WGS, WN < WGN.
+
+% A preference between two classes (the audacious/audacious-plugins
+% shape: the plugins want the player first, the player only wishes for
+% its library) is kept under parallelism: only preferences on a cycle
+% are void.
+test(acyclic_preference_kept_under_parallelism, [nondet]) :-
+  GA = grouped_package_dependency(no, cat, audacious, []):run,
+  GL = grouped_package_dependency(no, cat, lib, []):run,
+  issue73_rules([plugins-[GA], GA-[audacious], audacious-[GL], GL-[lib], lib-[]]),
+  ordering_engine_plan([plugins], ProofOut, Plan),
+  ordering_engine_unreachables(ProofOut, []),
+  issue73_wave(Plan, lib, WLib),
+  issue73_wave(Plan, audacious, WA),
+  issue73_wave(Plan, plugins, WP),
+  WLib < WA, WA < WP.
+
 % Fetchonly inter-package edges are preferences, not hard requirements.
 % A parent<->child fetchonly cycle (the calligra / qtbase shape) must
 % not produce unreachable/2 domain assumptions: distfiles can be

@@ -11,7 +11,8 @@
 PLUnit-based unit tests for core modules.
 
 Loads the unit test files under Source/Test/Unit/, one per subject
-(EAPI grammar, version domains, constraints, sanitize, depclean,
+(EAPI grammar, version domains, constraints, mutual-reachability classes,
+sanitize, depclean,
 exception fixups, USE rules, ranking, rebuilds, resolving heuristics,
 query layer, synthetic-rule prover core, printer, builder, interface,
 VDB import, GLSA), and re-exports the two standalone harnesses
@@ -55,6 +56,7 @@ Regenerate the golden snapshot after an intentional mask-logic change:
 :- use_module(portage('Source/Test/Unit/eapitest')).
 :- use_module(portage('Source/Test/Unit/versiontest')).
 :- use_module(portage('Source/Test/Unit/constrainttest')).
+:- use_module(portage('Source/Test/Unit/componentstest')).
 :- use_module(portage('Source/Test/Unit/sanitizetest')).
 :- use_module(portage('Source/Test/Unit/depcleantest')).
 :- use_module(portage('Source/Test/Unit/fixuptest')).

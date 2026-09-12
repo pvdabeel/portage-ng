@@ -326,8 +326,9 @@ propagation:
 In `after_only` mode the marker is rewritten to a
 `constraint(order_after(...):{[]})` term — an ordering-only **soft
 preference** that the pass-2 orderer (`prefers/2` in
-`Source/Domain/Gentoo/Rules/ordering.pl`) honors exactly when doing so
-closes no cycle.  Neither marker is minted per DEPEND/RDEPEND edge;
+`Source/Domain/Gentoo/Rules/ordering.pl`) honors when it lies on no loop
+(the exact policy is the `--optimize` strategy, Chapter 13).  Neither
+marker is minted per DEPEND/RDEPEND edge;
 build-time vs runtime ordering is decided in pass 2 by the ordering
 rule set (`requires/2` / `prefers/2`), not by context markers.
 

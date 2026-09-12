@@ -60,6 +60,7 @@ working-directory init)
 % | readnews, ask, alert      | builder (pre-build prompt / bell)                   |
 % | quiet                     | message:scroll expansion                            |
 % | permitdowngrade           | ranking:dep_no_downgrade_value/3 (neutralises downgrade demotion) |
+% | optimize_soft_requirements (--optimize soft-requirements) | ordering:prefers/2 (hand cyclic preferences to the projection) |
 % | config:cli_prefix/1       | ebuild_exec:prefix_env/1 (EPREFIX for the ebuild run) |
 % | config:usepkg_{in,ex}clude_atom/1 | binpkg_exec:entry_allowed/2                 |
 
@@ -117,6 +118,7 @@ interface:process_flags :-
   (lists:memberchk(logs(true),              Options) -> asserta(config:show_build_logs(true)) ; true),
   (lists:memberchk(ci(true),                Options) -> asserta(config:cli_ci(true)) ; true),
   (lists:memberchk(style(Style),            Options) -> interface:assert_valid_style(Style) ; true),
+  (lists:memberchk(optimize(Strategy),      Options) -> interface:assert_valid_optimize(Strategy) ; true),
   ((lists:memberchk(jobs(J),                Options), J > 0) -> asserta(config:cli_jobs(J)) ; true),
   ((lists:memberchk(loadavg(L),             Options), L > 0.0) -> asserta(config:cli_load_average(L)) ; true),
   (lists:memberchk(permitdowngrade(true),   Options) -> asserta(preference:local_flag(permitdowngrade)) ; true),
@@ -199,6 +201,24 @@ interface:assert_valid_style(Style) :-
   format(atom(Msg), 'Unknown printing style "~w", falling back to "fancy"', [Style]),
   message:warning(Msg),
   asserta(config:interface_printing_style('fancy')).
+
+
+%! interface:assert_valid_optimize(+Strategy) is det.
+%
+% Selects the plan ordering strategy (`--optimize`). `parallelism` is the
+% default and asserts nothing; `soft-requirements` asserts
+% preference:local_flag(optimize_soft_requirements), read by
+% ordering:prefers/2. Unknown values warn and keep the default.
+
+interface:assert_valid_optimize(parallelism) :- !.
+
+interface:assert_valid_optimize('soft-requirements') :-
+  !,
+  asserta(preference:local_flag(optimize_soft_requirements)).
+
+interface:assert_valid_optimize(Strategy) :-
+  format(atom(Msg), 'Unknown --optimize strategy "~w", using "parallelism"', [Strategy]),
+  message:warning(Msg).
 
 
 %! interface:process_snapshot_flag is det.

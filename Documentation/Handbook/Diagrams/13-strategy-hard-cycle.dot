@@ -1,0 +1,46 @@
+// Chapter 13 — A loop with a hard edge in it: media-sound/audacious
+// PDEPENDs on media-plugins/audacious-plugins (a wish), while the plugins
+// DEPEND on audacious (a requirement). The requirement is honored under
+// both strategies; only the wish is at stake, and it is void under
+// parallelism / dropped under soft-requirements for the same reason.
+// Render: dot -Tsvg 13-strategy-hard-cycle.dot -o 13-strategy-hard-cycle.svg
+
+digraph strategy_hard_cycle {
+    rankdir=LR;
+    fontname="Helvetica";
+    fontsize=11;
+    label="Both strategies: 4 steps, identical";
+    labelloc=t;
+    node [fontname="Helvetica", fontsize=11, style=filled, shape=box];
+    edge [fontname="Helvetica", fontsize=10];
+
+    subgraph cluster_w1 {
+        label="Step 1"; labeljust=l; style=filled;
+        fillcolor="#e6f0ff"; color="#4a86c8";
+        node [fillcolor="#cce5ff"];
+        a_inst [label="install\naudacious"];
+    }
+    subgraph cluster_w2 {
+        label="Step 2"; labeljust=l; style=filled;
+        fillcolor="#e6ffe6"; color="#4a8c4a";
+        node [fillcolor="#ccf2cc"];
+        a_run [label="run\naudacious"];
+    }
+    subgraph cluster_w3 {
+        label="Step 3"; labeljust=l; style=filled;
+        fillcolor="#fff8e6"; color="#c8a84a";
+        node [fillcolor="#fff3cd"];
+        p_inst [label="install\naudacious-plugins"];
+    }
+    subgraph cluster_w4 {
+        label="Step 4"; labeljust=l; style=filled;
+        fillcolor="#f0e6ff"; color="#8c4ac8";
+        node [fillcolor="#e6ccff"];
+        p_run [label="run\naudacious-plugins"];
+    }
+
+    a_inst -> a_run  [label="requires", penwidth=1.6];
+    a_run  -> p_inst [label="DEPEND (requires):\nplugins build against\nan installed audacious", penwidth=1.6];
+    p_inst -> p_run  [label="requires", penwidth=1.6];
+    p_run  -> a_run  [label="PDEPEND (wish):\naudacious complete\nonce plugins run", style=dotted, color="#888888", fontcolor="#888888", constraint=false];
+}

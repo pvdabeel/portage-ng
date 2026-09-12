@@ -97,6 +97,7 @@ interface:spec(S) :-
        [opt(failclean),         type(boolean),   default(false),                          longflags(['fail-clean']),           help('Clean build directory on failure')],
        [opt(quiet),             type(boolean),   default(false),       shortflags(['q']), longflags(['quiet']),                help('Reduced output')],
        [opt(jobs),              type(integer),   default(0),           shortflags(['j']), longflags(['jobs']),                 help('Number of parallel build jobs (0 = auto-detect)')],
+       [opt(optimize),          type(atom),      default(parallelism),                    longflags(['optimize']),             help('Plan ordering strategy: parallelism (default) or soft-requirements')],
        [opt(loadavg),           type(float),     default(0.0),                            longflags(['load-average']),         help('Do not start new jobs if load average exceeds N (0 = no limit)')],
        [opt(color),             type(atom),      default(y),                              longflags(['color']),                help('Enable or disable color output (y or n)')],
        [opt(timeout),           type(integer),   default(0),                              longflags(['timeout']),              help('Abort proving/planning after N seconds (0 = no limit)')],

@@ -407,6 +407,44 @@ Include or exclude test dependencies from the dependency graph.
 Default:
 .BR n .
 .TP
+.B \-\-optimize " " \fIparallelism\fR|\fIsoft\-requirements\fR
+Select the plan ordering strategy.  Hard requirements (a package's
+build\-time dependencies must be merged before the package itself) are
+always satisfied by both strategies; they differ only in how the
+\fIsoft\fR requirements are handled.  A soft requirement is a wish, not
+a rule: a runtime dependency (RDEPEND) would ideally be merged before
+its consumer, a PDEPEND group would ideally complete right after its
+provider.  Wishes can contradict each other \(em two packages that
+each list the other as a runtime dependency both want to go second \(em
+and no order can grant them all.
+.RS
+.TP
+.B parallelism
+(default) A wish whose provider depends back on its consumer, directly
+or through other packages, is void.  Every package in such a cycle is
+placed as early as its hard requirements allow, so the cycle's members
+merge side by side in the same step instead of one per step.  Wishes
+between packages that are not on a common cycle are always granted.
+Plans are shallower (fewer, wider steps) and the outcome does not
+depend on the order in which the planner happens to visit the
+packages.
+.TP
+.B soft\-requirements
+Every wish is handed to the planner, which grants as many as it can
+and drops only the ones that would close a cycle.  Members of a
+runtime cycle are merged one per step, in the order the planner
+visited them.  Plans are deeper and every step contains fewer packages
+that could have run in parallel, but more of the individual runtime
+orderings are honored, and the listing resembles the linear order
+printed by traditional
+.BR emerge (1).
+.RE
+.IP
+See the
+.I Planning
+chapter of the handbook for a worked example and diagrams of both
+strategies.
+.TP
 .B \-\-dynamic\-deps " " \fIy\fR|\fIn\fR
 When
 .B y

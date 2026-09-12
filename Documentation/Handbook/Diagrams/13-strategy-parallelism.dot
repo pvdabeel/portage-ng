@@ -1,0 +1,33 @@
+// Chapter 13 — --optimize parallelism (default): both wishes lie on the
+// same loop, so both are void; only the hard requirements shape the plan
+// and the loop's members merge side by side.
+// Render: dot -Tsvg 13-strategy-parallelism.dot -o 13-strategy-parallelism.svg
+
+digraph strategy_parallelism {
+    rankdir=LR;
+    fontname="Helvetica";
+    fontsize=11;
+    label="--optimize parallelism: 2 steps";
+    labelloc=t;
+    node [fontname="Helvetica", fontsize=11, style=filled, shape=box];
+    edge [fontname="Helvetica", fontsize=10];
+
+    subgraph cluster_w1 {
+        label="Step 1"; labeljust=l; style=filled;
+        fillcolor="#e6f0ff"; color="#4a86c8";
+        node [fillcolor="#cce5ff"];
+        n_inst [label="install\nnautilus"];
+        s_inst [label="install\nsushi"];
+    }
+    subgraph cluster_w2 {
+        label="Step 2"; labeljust=l; style=filled;
+        fillcolor="#e6ffe6"; color="#4a8c4a";
+        node [fillcolor="#ccf2cc"];
+        n_run [label="run\nnautilus"];
+        s_run [label="run\nsushi"];
+    }
+
+    n_inst -> n_run [label="requires", penwidth=1.6];
+    s_inst -> s_run [label="requires", penwidth=1.6];
+    n_run  -> s_run [label="  both wishes void:\n  they lie on one loop", dir=both, style=dotted, color="#888888", fontcolor="#888888", constraint=false];
+}

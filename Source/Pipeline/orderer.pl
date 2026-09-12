@@ -216,9 +216,17 @@ waves_of([D|Ds], Edges, WIn, WOut, MaxIn, MaxOut) :-
 % no cycle against the hard edges and the previously accepted preferences;
 % accepted preferences delay H (and, transitively, H's consumers) — they
 % can never pull D earlier, so hard availability is preserved by
-% construction. When preferences conflict (the cyclic case), the ones
-% processed later are simply not honored — silently and safely, matching
-% the retired scheduler's :run relaxation but without SCC machinery.
+% construction.
+%
+% Which preferences reach this fold is the ordering strategy's business
+% (ordering:prefers/2, `--optimize`). Under the default `parallelism`
+% strategy the bindings already withhold every preference that lies on a
+% cycle, so the set handed in is acyclic and the fold is a pure
+% evaluator: the cycle branch below is never taken. Under
+% `soft-requirements` the raw preferences arrive, conflicts (the cyclic
+% case) are resolved here in processing order, and the ones processed
+% later are simply not honored — silently and safely, matching the
+% retired scheduler's :run relaxation but without SCC machinery.
 %
 % Cycle test: accepting H-D is unsafe iff H is reachable from D over the
 % accepted edge set (consumer -> provider direction). Preferences whose

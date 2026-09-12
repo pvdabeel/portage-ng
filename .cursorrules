@@ -41,8 +41,17 @@ with a rule set:
   waves; cycles fall through a `currently_proving` guard into a VDB "world"
   citation or a negative `unreachable/2` domain assumption; soft preferences
   (RDEPEND groups, `order_after` anchors, `schedule_after` rebuild anchors,
-  PDEPEND completion, assumed-dep aliases) are honored by the projection
-  exactly when they close no cycle
+  PDEPEND completion, assumed-dep aliases) are raw `ordering:prefers0/2`
+  facts; `ordering:prefers/2` applies the `--optimize` strategy:
+  `parallelism` (default) voids a preference whose ends are mutually
+  reachable over requires ∪ prefers0 (`ordering:same_component/2`, class
+  index from the generic `components:classes/3` in
+  `Source/Logic/components.pl`, built once per pass), so cycle members
+  merge side by side; `soft-requirements`
+  (`preference:local_flag(optimize_soft_requirements)`) hands every
+  preference to the projection, which honors them greedily exactly when
+  they close no cycle (order-dependent, serialises cycle members). Hard
+  requirements are identical under both strategies.
 - printer renders plan + assumptions & warnings
 
 `--fetchonly` / `-f` and `--fetch-all-uri` / `-F` are a restriction on

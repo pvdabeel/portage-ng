@@ -178,11 +178,15 @@ ordered after `P`'s whole post-install group, matching emerge's behaviour
 (portage-ng#18).
 
 Because this is a *preference*, not a hard requirement, it is inherently
-cycle-safe: the wave projection accepts each preference exactly when it
-closes no cycle against the hard edges and the previously accepted
-preferences.  A consumer that is itself a member of the provider's
-PDEPEND group is therefore never bumped — the preference back onto its
-own group would close a cycle and is dropped silently (portage-ng#19).
+cycle-safe: under the default `--optimize parallelism` strategy a
+preference whose two ends are mutually reachable is void in the rules
+(`ordering:same_component/2`); under `--optimize soft-requirements` the
+wave projection accepts each preference exactly when it closes no cycle
+against the hard edges and the previously accepted preferences (Chapter
+13, "Preferences: wishes, not promises").  A consumer that is itself a
+member of the provider's PDEPEND group is therefore never bumped — the
+preference back onto its own group lies on a loop and is void / dropped
+silently (portage-ng#19).
 Densely cyclic toolchain closures (e.g. LLVM) are safe for the same
 reason: no preference can collapse the ordering of an acyclic chain
 elsewhere in the plan (portage-ng#26).

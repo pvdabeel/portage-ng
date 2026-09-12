@@ -1,0 +1,42 @@
+// Chapter 13 — Two wishes that cannot both be granted (gnome-base/nautilus
+// built with USE=previewer PDEPENDs on gnome-extra/sushi; sushi RDEPENDs
+// on nautilus). Solid = hard requirement, dashed = soft requirement (wish).
+// Render: dot -Tsvg 13-strategy-wishes.dot -o 13-strategy-wishes.svg
+
+digraph strategy_wishes {
+    rankdir=LR;
+    fontname="Helvetica";
+    fontsize=11;
+    node [fontname="Helvetica", fontsize=11, style=filled, shape=box];
+    edge [fontname="Helvetica", fontsize=10];
+
+    subgraph cluster_nautilus {
+        label="gnome-base/nautilus";
+        labeljust=l;
+        style=filled;
+        fillcolor="#e6f0ff";
+        color="#4a86c8";
+        node [fillcolor="#cce5ff"];
+        n_inst [label="install\nnautilus"];
+        n_run  [label="run\nnautilus"];
+    }
+
+    subgraph cluster_sushi {
+        label="gnome-extra/sushi";
+        labeljust=l;
+        style=filled;
+        fillcolor="#e6ffe6";
+        color="#4a8c4a";
+        node [fillcolor="#ccf2cc"];
+        s_inst [label="install\nsushi"];
+        s_run  [label="run\nsushi"];
+    }
+
+    // Hard: a package runs only once it is installed.
+    n_inst -> n_run [label="requires", penwidth=1.6];
+    s_inst -> s_run [label="requires", penwidth=1.6];
+
+    // Wishes: each side wants the other's runtime in place first.
+    s_run -> n_run [label="PDEPEND:\nnautilus is complete\nonly once sushi runs", style=dashed, color="#4a86c8", fontcolor="#4a86c8"];
+    n_run -> s_run [label="RDEPEND:\nsushi wants a\nrunning nautilus first", style=dashed, color="#4a8c4a", fontcolor="#4a8c4a"];
+}
