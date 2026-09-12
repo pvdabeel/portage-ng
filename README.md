@@ -34,14 +34,14 @@ internals, and reference documentation.
 # Build and install
 make build && make install
 
+# Sync the Portage tree (builds Knowledge/kb.qlf — not shipped)
+portage-ng --mode standalone --sync
+
 # Pretend (dry-run) a build plan
 portage-ng --mode standalone --pretend app-editors/neovim
 
 # Interactive Prolog shell
 portage-ng --mode standalone --shell
-
-# Sync the Portage tree
-portage-ng --mode standalone --sync
 ```
 
 For the full command reference, see the

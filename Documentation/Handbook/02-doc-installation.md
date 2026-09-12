@@ -84,6 +84,79 @@ self-contained binary.
 
 ## First run
 
+The clone does not include a knowledge base (`Knowledge/kb.qlf` is
+gitignored).  `--sync` is the first run after install: it materializes
+the Portage tree into qcompiled facts that `--pretend` and `--shell`
+load.
+
+### Sync the Portage tree
+
+Sync the repository and regenerate the knowledge base cache:
+
+```bash
+portage-ng --sync
+```
+
+The sync performs three phases for each registered repository:
+
+1. **Repository sync** — pulls the latest Portage tree (via git, rsync, or
+   HTTP tarball depending on configuration).
+2. **Metadata sync** — reads the md5-cache files and, if configured,
+   regenerates cache entries for ebuilds that have changed.
+3. **Knowledge base sync** — parses all cache entries into Prolog facts
+   (the `cache:entry`, `cache:entry_metadata`, `cache:manifest`, etc.
+   predicates) and saves the compiled knowledge base to disk.
+
+```
+>>> Syncing 1 registered repository
+
+--- Syncing repository "portage" ---
+
+ Syncing repository ... ok
+ Syncing metadata   ... Ebuild: sys-apps/portage-2.3.99-r1
+                        Ebuild: dev-lang/python-3.13.3
+                        Ebuild: sys-libs/glibc-2.41
+                        ...
+                        Updated metadata.
+ Syncing kb         ... Ebuild: acct-group/abrt-0
+                        Ebuild: acct-group/adm-0
+                        Ebuild: acct-group/audio-0
+                        ...
+                        Manifest: app-accessibility/at-spi2-core
+                        Manifest: app-accessibility/brltty
+                        ...
+                        Updated prolog knowledgebase.
+
+--- Syncing profile ---
+
+ Saving knowledge base ... ok
+```
+
+During the knowledge base sync, every ebuild's metadata — dependencies,
+Use flags, keywords, slots, descriptions, manifests — is parsed and
+asserted as Prolog facts.  The entire Gentoo repository (over 30,000
+ebuilds) is held in memory as a native Prolog database, enabling
+lightning-fast lookups without any disk I/O during reasoning.
+
+SWI-Prolog's just-in-time (JIT) indexing further accelerates these
+lookups.  When a predicate like `cache:entry_metadata(portage,
+'app-editors/neovim-0.12.0', description, D)` is first called,
+the runtime automatically builds hash indices on the arguments that
+are bound.  Subsequent calls with the same argument pattern jump
+straight to matching clauses instead of scanning all 30,000+ entries
+linearly.  This indexing is created on demand and updated
+transparently as facts are asserted or retracted — no manual index
+declarations are needed.
+
+Once syncing completes, the knowledge base is saved to disk using
+SWI-Prolog's qcompile mechanism (`Knowledge/kb.qlf`).  qcompile
+serializes Prolog clauses into a compact binary format that can be
+loaded back in a fraction of the time it takes to parse the original
+source.  On subsequent runs, portage-ng loads the `.qlf` file directly,
+making startup near-instantaneous — even for a repository with tens of
+thousands of ebuilds.
+
+
 ### Pretend (dry-run)
 
 Generate a build plan without executing it:
@@ -192,74 +265,6 @@ D = "Vim-fork focused on extensibility and agility".
 
 The full cache schema and query language are documented in
 [Chapter 6: Knowledge Base](06-doc-knowledgebase.md).
-
-
-### Sync the Portage tree
-
-Sync the repository and regenerate the knowledge base cache:
-
-```bash
-portage-ng --sync
-```
-
-The sync performs three phases for each registered repository:
-
-1. **Repository sync** — pulls the latest Portage tree (via git, rsync, or
-   HTTP tarball depending on configuration).
-2. **Metadata sync** — reads the md5-cache files and, if configured,
-   regenerates cache entries for ebuilds that have changed.
-3. **Knowledge base sync** — parses all cache entries into Prolog facts
-   (the `cache:entry`, `cache:entry_metadata`, `cache:manifest`, etc.
-   predicates) and saves the compiled knowledge base to disk.
-
-```
->>> Syncing 1 registered repository
-
---- Syncing repository "portage" ---
-
- Syncing repository ... ok
- Syncing metadata   ... Ebuild: sys-apps/portage-2.3.99-r1
-                        Ebuild: dev-lang/python-3.13.3
-                        Ebuild: sys-libs/glibc-2.41
-                        ...
-                        Updated metadata.
- Syncing kb         ... Ebuild: acct-group/abrt-0
-                        Ebuild: acct-group/adm-0
-                        Ebuild: acct-group/audio-0
-                        ...
-                        Manifest: app-accessibility/at-spi2-core
-                        Manifest: app-accessibility/brltty
-                        ...
-                        Updated prolog knowledgebase.
-
---- Syncing profile ---
-
- Saving knowledge base ... ok
-```
-
-During the knowledge base sync, every ebuild's metadata — dependencies,
-Use flags, keywords, slots, descriptions, manifests — is parsed and
-asserted as Prolog facts.  The entire Gentoo repository (over 30,000
-ebuilds) is held in memory as a native Prolog database, enabling
-lightning-fast lookups without any disk I/O during reasoning.
-
-SWI-Prolog's just-in-time (JIT) indexing further accelerates these
-lookups.  When a predicate like `cache:entry_metadata(portage,
-'app-editors/neovim-0.12.0', description, D)` is first called,
-the runtime automatically builds hash indices on the arguments that
-are bound.  Subsequent calls with the same argument pattern jump
-straight to matching clauses instead of scanning all 30,000+ entries
-linearly.  This indexing is created on demand and updated
-transparently as facts are asserted or retracted — no manual index
-declarations are needed.
-
-Once syncing completes, the knowledge base is saved to disk using
-SWI-Prolog's qcompile mechanism (`Knowledge/kb.qlf`).  qcompile
-serializes Prolog clauses into a compact binary format that can be
-loaded back in a fraction of the time it takes to parse the original
-source.  On subsequent runs, portage-ng loads the `.qlf` file directly,
-making startup near-instantaneous — even for a repository with tens of
-thousands of ebuilds.
 
 
 ## Running tests
