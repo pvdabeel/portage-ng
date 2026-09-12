@@ -12,7 +12,7 @@
 Proof-context list manipulation helpers for rule/2 bodies.
 
 The resolver uses `after/1` and `after_only/1` markers in dependency
-contexts to express ordering constraints between actions.  The
+contexts to express ordering requirements between actions.  The
 predicates in this module thread, extract, and strip these markers.
 
 Additional helpers strip `build_with_use:_` and `assumption_reason(_)`
@@ -72,7 +72,7 @@ featureterm:get_after_with_mode(Context0, After, AfterForDeps, Context) :-
 
 %! featureterm:add_after_condition(+After, +AfterForDeps, +Conds0, -Conds)
 %
-% Prepends an ordering constraint to Conds0 based on the extracted markers.
+% Prepends an ordering literal to Conds0 based on the extracted markers.
 % `after/1` becomes a real dependency; `after_only/1` becomes a
 % `constraint(order_after(...))` that the orderer uses for ordering only.
 
@@ -105,8 +105,8 @@ featureterm:get_rebuild_after(Context0, Anchor, Context) :-
 %! featureterm:add_rebuild_after_condition(+Anchor, +Conds0, -Conds)
 %
 % Prepends a `constraint(schedule_after(...))` pseudo-constraint for an
-% extracted rebuild_after marker: a soft ordering preference the orderer
-% honors when it closes no cycle. Unlike order_after, schedule_after is
+% extracted rebuild_after marker: a preference (soft requirement) the
+% orderer honors when it lies on no cycle. Unlike order_after, schedule_after is
 % NOT indexed as a PDEPEND completion group — consumers of the anchor do
 % not wait for the carrier (portage-ng#89 ABI rebuilds).
 
@@ -128,7 +128,7 @@ featureterm:get(after, Context, Conditions) :-
 %! featureterm:set(+Feature, +Entry, +Context, -Conditions)
 %
 % Builds a reinstall literal from Entry and Context, prepending any
-% ordering constraint extracted from the after/after_only markers.
+% ordering literal extracted from the after/after_only markers.
 
 featureterm:set(reinstall, Repository://Ebuild, Context, Conditions) :-
   featureterm:get_after_with_mode(Context, After, AfterForDeps, Context1),

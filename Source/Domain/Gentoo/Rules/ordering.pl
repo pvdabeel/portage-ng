@@ -256,7 +256,7 @@ same_component(H, D) :-
 %! ordering:edge(+H, -D)
 %
 % The edge relation the component index is built over: everything H
-% waits for, whether it insists (requires/2) or merely wishes (prefers0/2).
+% waits for, whether it insists (requires/2) or merely prefers (prefers0/2).
 
 edge(H, D) :- ordering:requires(H, D).
 edge(H, D) :- ordering:prefers0(H, D).

@@ -130,8 +130,54 @@ whatever rule set it was given.
 ## Dependency types and ordering strength
 
 Gentoo's dependency classes do not all impose the same ordering strength.
-The bindings translate each class into either a hard requirement or a soft
-preference:
+The bindings translate each class into one of two kinds of edge, a hard
+requirement or a soft requirement (preference).  Since the same two
+words recur elsewhere in portage-ng, here is what they mean everywhere:
+
+> **Hard and soft: terminology**
+>
+> Throughout portage-ng *hard* means "enforced by the proof — the proof
+> fails without it" and *soft* means "can never make a proof fail".
+> The pair is used for three things:
+>
+> | | **Hard** | **Soft** |
+> | :--- | :--- | :--- |
+> | **Ordering edge** (pass 2) | **hard requirement**, `requires/2`: the plan is invalid unless the provider comes first — DEPEND/BDEPEND | **soft requirement** or **preference**, `prefers/2`: the plan is better if the provider comes first, valid if not — RDEPEND, PDEPEND completion, `order_after` / `schedule_after`, configure closure, assumed-dep alias |
+> | **Blocker** (pass 1) | **hard blocker**, `!!atom`: the constraint guard refuses any model in which the blocked package is selected | **soft blocker**, `!atom`: pass 1 walks past it and records `assumed(blocker(...))`; the printer reports the *effective* ones as an actionable domain assumption |
+> | **USE dependency** | unconditional `[flag]`: the provider must be built with the flag (a "HARD usedep" in the use-enable feedback code) | conditional `[flag?]`, `[flag=]`: follows the consumer's own USE state |
+>
+> A soft blocker is the negative counterpart of a preference — "I would
+> rather this package were not here" against "I would rather this one
+> came first" — and both are soft in the same sense.  They differ in
+> what happens when they are not satisfied: a preference on a loop is
+> void and silent, because nothing is at stake; an effective soft blocker
+> is reported, because something is — the blocked package is on the
+> system, and Portage would unmerge it once the blocking package is
+> merged.
+>
+> PMS calls the two blocker kinds *weak* (`!`) and *strong* (`!!`), and
+> the rules mirror that in their atom names
+> (`grouped_package_dependency(weak|strong, ...)`; `--info` prints
+> `[weak block]` / `[strong block]` when describing an ebuild's syntax).
+> Plan output and this handbook say *soft* and *hard*, the words emerge
+> users know from `[blocks b]` / `[blocks B]`.  Strictly, PMS's
+> distinction is one of timing — a weak blocker's target may coexist
+> until the end of the batch, a strong blocker's never — and emerge's
+> "soft" means "auto-resolvable by a later unmerge"; in practice the two
+> coincide with `!`.
+>
+> *Constraint* is a synonym for neither: it is reserved for the
+> constraint store (Chapters 8–10), where `constraint/1` literals narrow
+> the model.  `constraint(order_after(...))` travels through that store
+> but is a preference.  Ordinary English "hard failure" or "hard
+> timeout" carries none of these meanings.
+
+The two ordering edge kinds are:
+
+- a **hard requirement** (`requires/2`): the plan is invalid unless the
+  provider comes first;
+- a **soft requirement**, or **preference** (`prefers/2`): the plan is
+  better if the provider comes first, but still valid if it does not.
 
 - **DEPEND** and **BDEPEND** — build-time dependencies.  They must be
   satisfied before the build can start, so they become **`requires/2`**
@@ -152,9 +198,10 @@ preference:
 
 - **RDEPEND** — runtime dependencies.  They must be satisfied before the
   package is *used*, not before it is built.  They become **`prefers/2`**
-  edges — wishes, honored when they lie on no loop (see "Preferences:
-  wishes, not promises" below for the two `--optimize` strategies), never
-  allowed to force a world bridge or an unreachable assumption.  One
+  edges — soft requirements, honored when they lie on no loop (see
+  "Preferences: soft requirements" below for the two `--optimize`
+  strategies), never allowed to force a world bridge or an unreachable
+  assumption.  One
   exception, the
   **virtual collapse** (portage-ng#119): a `virtual/*` package has no
   build and installs no files, so a DEPEND/BDEPEND on it means the
@@ -222,7 +269,7 @@ and `unreachable` assumptions concern the *ordering* and appear in the
 plan's assumption report separately.
 
 
-## Preferences: wishes, not promises
+## Preferences: soft requirements
 
 A preference is not a promise.  Runtime-ish edges are collected separately
 from hard requirements and are folded into the plan **after** the hard
@@ -250,23 +297,24 @@ The bindings currently derive preferences from six sources:
    degraded to a domain assumption in pass 1 but a concrete action for
    the same package *is* planned, the consumer prefers that action.
 
-Wishes can contradict each other.  Two packages that each name the other
-as a runtime dependency both wish to go second; a package whose PDEPEND
-group in turn depends on it wishes to be "complete" only after something
-that wishes to come after it.  No order grants every wish in such a loop,
-so *some* wish has to go — and there are two reasonable policies for
-choosing which.  They are selected on the command line with
-`--optimize`.
+Preferences can contradict each other.  Two packages that each name the
+other as a runtime dependency both prefer to go second; a package whose
+PDEPEND group in turn depends on it prefers to be "complete" only after
+something that prefers to come after it.  No order honors every
+preference in such a loop, so *some* preference has to go — and there
+are two reasonable policies for choosing which.  They are selected on
+the command line with `--optimize`.
 
 
-### A loop of wishes: Nautilus and Sushi
+### A loop of soft requirements: Nautilus and Sushi
 
-GNOME's file manager `gnome-base/nautilus`, built with `USE=previewer`,
-declares a PDEPEND on `gnome-extra/sushi`, the quick-look previewer: the
-file manager is only *complete* once Sushi is in place.  Sushi in turn
-declares an RDEPEND on Nautilus: it wants a running file manager before
-it is merged.  Neither package needs the other to *build*; both edges are
-wishes.
+In this worked example a soft requirement is called what it is in plain
+English: a *wish*.  GNOME's file manager `gnome-base/nautilus`, built
+with `USE=previewer`, declares a PDEPEND on `gnome-extra/sushi`, the
+quick-look previewer: the file manager is only *complete* once Sushi is
+in place.  Sushi in turn declares an RDEPEND on Nautilus: it wants a
+running file manager before it is merged.  Neither package needs the
+other to *build*; both edges are soft requirements — wishes.
 
 ![Two wishes that cannot both be granted](Diagrams/13-strategy-wishes.svg)
 
@@ -276,38 +324,39 @@ and you walk in a circle: `run nautilus` wants to come after `run sushi`,
 which wants to come after `run nautilus`.
 
 
-### `--optimize soft-requirements`: grant as many wishes as possible
+### `--optimize soft-requirements`: honor as many preferences as possible
 
-Under this strategy every wish is handed to the wave projection, which
-accepts them one by one and keeps each exactly when it closes no cycle
-against the hard edges and the wishes already accepted.  In the loop
-above the first wish it meets is granted; the second would close the loop
-and is dropped — silently and safely, matching how Portage treats
-runtime cycles as freely orderable.
+Under this strategy every preference is handed to the wave projection,
+which accepts them one by one and keeps each exactly when it closes no
+cycle against the hard requirements and the preferences already
+accepted.  In the loop above the first wish it meets is granted; the
+second would close the loop and is dropped — silently and safely,
+matching how Portage treats runtime cycles as freely orderable.
 
 ![soft-requirements: one wish granted, one dropped](Diagrams/13-strategy-soft-requirements.svg)
 
 The plan is three steps long: both installs, then Sushi's run, then
 Nautilus' run.  One of the two wishes has been honored; which one depends
 on the order in which the projection happened to visit them.  Larger
-loops pay more: with *n* packages wishing in a circle, the projection
-keeps *n − 1* wishes and lines the members up one per step — a staircase
+loops pay more: with *n* packages preferring each other in a circle, the
+projection keeps *n − 1* preferences and lines the members up one per
+step — a staircase
 of single-package steps in the Gantt chart.  The listing is close to the
 linear order traditional `emerge` prints, which is what this strategy is
 for: a familiar-looking plan, and the most individual runtime orderings
 honored.
 
 
-### `--optimize parallelism` (default): a wish on a loop is void
+### `--optimize parallelism` (default): a preference on a loop is void
 
 Under the default strategy the decision is made in the rules, before the
-projection sees anything.  A wish from H for D is void when H and D are
-*mutually reachable* — each depends on the other, directly or through
-other steps, counting hard requirements and wishes alike.  Inside such a
-loop no order is better than another (there is nothing for the wishes to
-agree on), so all of them are void and only the hard requirements shape
-the plan; wishes between packages that are *not* on a common loop are
-kept, every one of them.
+projection sees anything.  A preference from H for D is void when H and
+D are *mutually reachable* — each depends on the other, directly or
+through other steps, counting hard requirements and preferences alike.
+Inside such a loop no order is better than another (there is nothing for
+the preferences to agree on), so all of them are void and only the hard
+requirements shape the plan; preferences between packages that are *not*
+on a common loop are kept, every one of them.
 
 ![parallelism: both wishes void](Diagrams/13-strategy-parallelism.svg)
 
@@ -316,12 +365,12 @@ then both runs side by side.  For a loop of *n* packages the saving is
 proportionally larger — the 22-package runtime loop under
 `app-xemacs/xemacs-devel` planned as 47 steps under `soft-requirements`
 and as 19 under `parallelism`; `dev-ruby/dalli`'s gem loop went from 85
-to 21.  Because a wish is void or kept on the basis of the graph alone,
-the outcome does not depend on visiting order, and the set of wishes
-that reaches the projection is acyclic by construction: the projection
-becomes a pure evaluator and its cycle branch is never taken.
+to 21.  Because a preference is void or kept on the basis of the graph
+alone, the outcome does not depend on visiting order, and the set of
+preferences that reaches the projection is acyclic by construction: the
+projection becomes a pure evaluator and its cycle branch is never taken.
 
-The cost is the wish itself.  On the Nautilus/Sushi loop the
+The cost is the soft requirement itself.  On the Nautilus/Sushi loop the
 `soft-requirements` plan did get Sushi in before Nautilus was declared
 complete; the `parallelism` plan makes no such attempt.  For runtime
 dependencies this is harmless — the files are on disk either way, and
@@ -343,20 +392,20 @@ the plugins under both strategies; the PDEPEND wish is the only edge that
 could give way, and it does — void under `parallelism`, dropped under
 `soft-requirements` — for the same reason: it points back along a path
 the hard edge already fixed.  The plans are identical.  The strategies
-differ only where a loop consists of wishes alone.
+differ only where a loop consists of soft requirements alone.
 
 Two consequences follow for anyone comparing plans across strategies:
 
 - **Plans never break.**  The hard requirements are the same edges under
-  both strategies; `parallelism` only ever withholds wishes.  Every step
-  in a `parallelism` plan is buildable when its wave is reached.
+  both strategies; `parallelism` only ever withholds preferences.  Every
+  step in a `parallelism` plan is buildable when its wave is reached.
 - **Loops are read off the declared edges.**  Mutual reachability is
   computed over `requires` ∪ raw preferences *before* pass 2 bridges any
-  hard cycle through the installed world (previous section).  A wish
-  that sits on a hard cycle the world later bridges is therefore void
-  too; the hard edges of that cycle are still enforced.
+  hard cycle through the installed world (previous section).  A
+  preference that sits on a hard cycle the world later bridges is
+  therefore void too; the hard edges of that cycle are still enforced.
 
-Where the two strategies live in the code: the raw wishes are
+Where the two strategies live in the code: the raw preferences are
 `ordering:prefers0/2`; `ordering:prefers/2` hands them on unchanged under
 `soft-requirements` and filters them through `ordering:same_component/2`
 under `parallelism`.  The mutual-reachability classes come from a

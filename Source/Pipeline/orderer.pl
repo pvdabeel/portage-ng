@@ -209,7 +209,7 @@ waves_of([D|Ds], Edges, WIn, WOut, MaxIn, MaxOut) :-
 
 
 % -----------------------------------------------------------------------------
-% Preference honoring (soft edges)
+% Preference honoring (soft requirements)
 % -----------------------------------------------------------------------------
 %
 % A preference H-D ("D earlier than H") is accepted exactly when it closes

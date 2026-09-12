@@ -269,7 +269,7 @@ test(cyclic_preference_dropped_silently) :-
 
 % Ordering strategies (--optimize). A pure runtime cycle — the
 % nautilus/sushi shape, each side's grouped :run wanting the other placed
-% first — has no order that grants both wishes.
+% first — has no order that honors both preferences.
 %
 % parallelism (default): both preferences lie inside one mutual-
 % reachability class (ordering:same_component/2) and are void; the two
@@ -309,7 +309,7 @@ test(runtime_cycle_soft_requirements_serialises,
   WS < WGS, WN < WGN.
 
 % A preference between two classes (the audacious/audacious-plugins
-% shape: the plugins want the player first, the player only wishes for
+% shape: the plugins want the player first, the player only prefers
 % its library) is kept under parallelism: only preferences on a cycle
 % are void.
 test(acyclic_preference_kept_under_parallelism, [nondet]) :-

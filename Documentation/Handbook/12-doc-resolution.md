@@ -36,7 +36,7 @@ The resolution then branches depending on the action:
   handled in the same pass through the prover's proof-obligation hook
   (see [Hooks](#hooks)).
 - **`:install`** resolves build-time dependencies (DEPEND and BDEPEND)
-  and attaches ordering constraints (`after/1`) that express which
+  and attaches ordering markers (`after/1`) that express which
   packages must be installed before others.
 
 Each dependency atom from the metadata becomes a
@@ -470,8 +470,13 @@ distinguishes two strengths:
 
 | **Type** | **Syntax** | **Behaviour** |
 | :--- | :--- | :--- |
-| Weak blocker | `!cat/pkg` | The blocked package should not be present; resolved at plan time |
-| Strong blocker | `!!cat/pkg` | The blocked package must not be present; the constraint guard fires immediately |
+| Soft blocker (PMS: *weak*) | `!cat/pkg` | The blocked package should not be present; never fails the proof — walked past, recorded, and reported as an actionable assumption when effective |
+| Hard blocker (PMS: *strong*) | `!!cat/pkg` | The blocked package must not be present; the constraint guard fires immediately |
+
+Plan output says *soft* / *hard*; the rules name the atoms `weak` /
+`strong` after the PMS syntax.  A soft blocker is the negative
+counterpart of an ordering preference — see the terminology box in
+Chapter 13 ("Dependency types and ordering strength").
 
 Internally, blockers produce `blocked_cn` constraint terms.  These are
 checked against `selected_cn` constraints by

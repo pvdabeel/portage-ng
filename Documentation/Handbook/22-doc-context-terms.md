@@ -61,7 +61,7 @@ Propagates to children.
 
 **`after_only(Literal)`** — injected on PDEPEND edges (via
 `featureterm:add_after_only_to_dep_contexts`).  Becomes an
-`order_after` soft preference honored by the pass-2 orderer; does
+`order_after` preference (soft requirement) honored by the pass-2 orderer; does
 **not** propagate to children.
 
 **`replaces(pkg://Entry)`** — set by install/update rules.  Records
@@ -324,8 +324,10 @@ propagation:
 | `after_only(Lit)` | No | PDEPEND completion: only this package (not its deps) prefers to come after `Lit` |
 
 In `after_only` mode the marker is rewritten to a
-`constraint(order_after(...):{[]})` term — an ordering-only **soft
-preference** that the pass-2 orderer (`prefers/2` in
+`constraint(order_after(...):{[]})` term — an ordering-only
+**preference** (a soft requirement; it travels through the constraint
+store but is not a constraint on the model) that the pass-2 orderer
+(`prefers/2` in
 `Source/Domain/Gentoo/Rules/ordering.pl`) honors when it lies on no loop
 (the exact policy is the `--optimize` strategy, Chapter 13).  Neither
 marker is minted per DEPEND/RDEPEND edge;
@@ -356,7 +358,7 @@ dependencies.  The diagram shows the key context tags at each step.
 The user runs `emerge sys-apps/portage`.  The target rule selects the
 best visible candidate (`portage-3.0.77-r3`).  At this point the
 context is empty — there is no parent, no USE requirement, and no
-ordering constraint.
+ordering marker.
 
 ### Step 2 — Expanding portage's dependencies
 
@@ -400,7 +402,7 @@ is rebuilt at this level:
   sub-slot for rebuild tracking.
 - **`after_only`** — had python carried a PDEPEND, that edge would get
   `after_only(python:install)`, later rewritten to an `order_after`
-  soft preference that does not propagate to the child's own deps.
+  preference that does not propagate to the child's own deps.
 
 ### Key observations
 

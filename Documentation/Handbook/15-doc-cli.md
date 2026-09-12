@@ -165,13 +165,13 @@ fetch; without `--build` the filtered plan is printed only (same split as
 | `--deep` | Deep dependency resolution |
 | `--newuse` | Detect USE flag changes requiring rebuilds |
 | `--update` | Update to newest version |
-| `--optimize parallelism` | Plan ordering strategy (default): a soft requirement (runtime-order wish) whose two ends lie on a common loop is void, so the loop's members merge side by side; wishes between loops are all kept. Shallower plans, order-independent |
-| `--optimize soft-requirements` | Hand every wish to the planner, which grants as many as it can and drops only those that would close a loop; loop members merge one per step, resembling `emerge`'s linear listing |
+| `--optimize parallelism` | Plan ordering strategy (default): a soft requirement (preference, e.g. RDEPEND-before-consumer) whose two ends lie on a common loop is void, so the loop's members merge side by side; preferences between loops are all kept. Shallower plans, order-independent |
+| `--optimize soft-requirements` | Hand every preference to the planner, which honors as many as it can and drops only those that would close a loop; loop members merge one per step, resembling `emerge`'s linear listing |
 
 Both `--optimize` strategies satisfy every hard requirement; they differ
-only in what happens to soft requirements that contradict each other.
-See [Chapter 13](13-doc-planning.md), "Preferences: wishes, not
-promises", for a worked example with diagrams.
+only in what happens to soft requirements (preferences) that contradict
+each other.  See [Chapter 13](13-doc-planning.md), "Preferences: soft
+requirements", for a worked example with diagrams.
 
 ### Output options
 

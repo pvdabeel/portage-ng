@@ -519,7 +519,9 @@ installed, but was built with the wrong USE set — e.g.
 `kde-frameworks/kwindowsystem` was merged `-X` on a headless profile
 (portage-ng#110).  Re-adding a bare `cat/name` BDEPEND (the #102 path)
 is a no-op: the package is already in the plan/VDB.  What is missing is
-a HARD `[flag]` usedep.
+a HARD `[flag]` usedep — an unconditional USE dependency, as opposed to
+a `[flag?]` / `[flag=]` one that follows the consumer (terminology box,
+Chapter 13).
 
 `useenable.pl`, gated by `config:use_enable_feedback/1`, mirrors the
 #102 three seams: detect a compile/configure symbol, resolve it via a

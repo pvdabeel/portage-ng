@@ -16,7 +16,7 @@ Each component answers a question that arises at a different stage of the pipeli
 
 - **`Action`** — *how* should the pipeline treat this entry?  The rules assign an action (`:install`, `:run`, `:download`, `:update`, ...) that tells the **orderer** which phase of work this literal represents and how to order it relative to others.
 
-- **`Context`** — *why* and *under what conditions* was this literal introduced?  As the prover expands the dependency graph, each literal accumulates a feature-term context: which parent introduced it (`self`), which USE flags are required (`build_with_use`), ordering constraints (`after`), slot locks, and so on.  At join points where two dependency paths reach the same literal, the prover **merges** their contexts via feature unification.  The **printer** reads the final context to display USE flags, slot information, and assumption reasons.
+- **`Context`** — *why* and *under what conditions* was this literal introduced?  As the prover expands the dependency graph, each literal accumulates a feature-term context: which parent introduced it (`self`), which USE flags are required (`build_with_use`), ordering markers (`after`), slot locks, and so on.  At join points where two dependency paths reach the same literal, the prover **merges** their contexts via feature unification.  The **printer** reads the final context to display USE flags, slot information, and assumption reasons.
 
 Traditional resolvers scatter this information across separate side structures.  portage-ng packs it into the literal itself, making every term **self-describing**: you can inspect a single literal and know its repository, version, phase, and full provenance without consulting external tables.
 
@@ -365,10 +365,10 @@ defaults. The `build_with_use` tag captures what *other packages demand of
 this package*. The printer reads both to display the final USE flag set,
 marking flags that were pulled in by dependency requirements.
 
-### `after` — ordering constraints
+### `after` — ordering markers
 
 The ordering pass needs to know the order in which actions should be
-scheduled. The `after(Literal)` tag expresses a hard ordering constraint:
+scheduled. The `after(Literal)` tag expresses a hard ordering requirement:
 "this literal must come after the specified literal in the final plan."
 
 ```prolog
@@ -377,7 +377,7 @@ portage://'dev-lang/python-3.13.2':download?{[
 ]}
 ```
 
-Ordering constraints arise naturally from the dependency structure. When
+Ordering requirements arise naturally from the dependency structure. When
 package A depends on package B, the rules add `after(B:install)` to A’s
 download and dependency contexts. This ensures that B is installed before A
 starts building.
@@ -390,7 +390,7 @@ that entire subtrees are correctly ordered.
 For cases where ordering should *not* propagate, the `after_only` variant
 exists. This is used primarily for PDEPEND (post-dependencies): a package’s
 post-dependencies must come after the package itself, but the
-post-dependency’s own children should not inherit that ordering constraint.
+post-dependency’s own children should not inherit that ordering requirement.
 
 ```prolog
 after_only(portage://'app-editors/neovim-0.12.0':run)
@@ -398,7 +398,9 @@ after_only(portage://'app-editors/neovim-0.12.0':run)
 
 The ordering bindings (`Source/Domain/Gentoo/Rules/ordering.pl`) read both `after`
 and `after_only` from every literal’s context to derive the hard requirements
-and soft preferences that drive the second proving pass (Chapter 13).
+(`requires/2`) and the soft requirements — preferences (`prefers/2`) — that
+drive the second proving pass (Chapter 13).  Neither is a constraint in the
+constraint-store sense (Chapters 8 and 9); the markers only steer ordering.
 
 ### Summary of context tags
 

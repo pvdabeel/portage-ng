@@ -19,13 +19,13 @@ The PMS (Chapter 8) groups dependencies into five classes based on
   installed and usable before `pkg_setup` runs and throughout the
   `src_*` build phases.  BDEPEND (introduced in EAPI 7) targets the
   build host (CBUILD), while DEPEND targets the target host (CHOST).
-  Both create **hard ordering constraints**: the dependency must be
-  merged before the dependent can be built.
+  Both create **hard requirements**: the dependency must be merged
+  before the dependent can be built.
 
 - **RDEPEND** — runtime dependencies.  These must be installed before
-  the package is "treated as usable."  This is a **soft ordering
-  constraint**: ideally satisfied before the dependent is merged, but
-  the constraint can be relaxed when cycles exist.
+  the package is "treated as usable."  This is a **soft requirement**
+  — a *preference*: ideally satisfied before the dependent is merged,
+  but it may give way when cycles exist.
 
 - **PDEPEND** — post-dependencies.  These only need to be installed
   "before the package manager finishes the batch."  This is the
@@ -55,7 +55,7 @@ Different ebuild phases have access to different dependency classes:
 
 Portage builds a single dependency graph where every package is a node
 and every dependency creates a directed edge.  Each edge carries a
-*priority* that records how hard the ordering constraint is:
+*priority* that records how binding the edge is:
 
 | **Dependency** | **Priority** | **Breakable?** |
 | :--- | :--- | :--- |
@@ -145,10 +145,10 @@ slot specificity further refines the order.  See
 
 - **DEPEND / BDEPEND** create edges to `:install` actions with
   `after()` context tags that propagate down the dependency chain.
-  These are hard ordering constraints.
+  These are hard requirements (`requires/2` in the ordering bindings).
 - **RDEPEND** create edges to `:run` actions with `after_only()`
-  context tags that stop at the immediate children.  This makes them
-  naturally softer.
+  context tags that stop at the immediate children.  These are soft
+  requirements — preferences (`prefers/2`).
 - **PDEPEND** are handled by the `heuristic:proof_obligation/4` hook in a
   single pass during proof search, without creating explicit ordering
   edges in the proof.
@@ -157,9 +157,9 @@ When cycles appear, the ordering pass (Chapter 13) resolves them at
 proof time: a requirement whose provider is still being scheduled falls
 through to a citation of the installed world (VDB), or — when nothing
 bridges the loop — to an honest `unreachable` assumption.  Runtime-only
-cycles never bind at all, because RDEPEND edges are soft preferences
-(matching Paludis's insight) that are simply dropped when they would
-close a cycle.
+cycles never bind at all, because RDEPEND edges are preferences
+(matching Paludis's insight) that are void or dropped when they lie on
+a cycle (Chapter 13, `--optimize`).
 
 ### PDEPEND completion ordering
 
@@ -183,7 +183,7 @@ preference whose two ends are mutually reachable is void in the rules
 (`ordering:same_component/2`); under `--optimize soft-requirements` the
 wave projection accepts each preference exactly when it closes no cycle
 against the hard edges and the previously accepted preferences (Chapter
-13, "Preferences: wishes, not promises").  A consumer that is itself a
+13, "Preferences: soft requirements").  A consumer that is itself a
 member of the provider's PDEPEND group is therefore never bumped — the
 preference back onto its own group lies on a loop and is void / dropped
 silently (portage-ng#19).
@@ -199,8 +199,8 @@ without any PDEPEND provider pay only an empty index probe.
 
 The diagram below traces how each PMS dependency type is implemented
 across the three resolvers.  Blue indicates hard (build-time)
-constraints, green indicates soft (runtime) constraints, and yellow
-indicates the weakest (post-dependency) constraints.
+requirements, green indicates soft (runtime) requirements —
+preferences — and yellow the weakest (post-dependency) edges.
 
 ![Dependency type mapping across resolvers](Diagrams/22-dep-edge-mapping.svg){width=60%}
 
@@ -369,7 +369,7 @@ installed before `lib`.
 
 Portage merges `plugin` first (it has no hard dependencies), then `lib`,
 then `app`.  portage-ng installs `lib` and `plugin` in parallel in
-step 2, since PDEPEND creates no ordering constraint between them here.
+step 2, since PDEPEND creates no ordering requirement between them here.
 The plugin's `:run` action comes last, after the main target.  (When a
 package *outside* the PDEPEND closure consumes the provider, the
 ordering pass's [PDEPEND completion preference](#pdepend-completion-ordering)
