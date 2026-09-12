@@ -179,11 +179,76 @@ bugs:bug_url(Base, Id, URL) :-
 %! bugs:fetch_json(+URL, -Dict) is semidet.
 %
 % GET URL as JSON with the configured User-Agent. Fails (after a notice)
-% on network errors and on non-200 replies, so callers can stop a crawl
+% on network errors and on non-2xx replies, so callers can stop a crawl
 % and resume on the next sync.
+%
+% Transport is curl piped straight into the JSON reader — the same
+% choice as download.pl. SWI's own http_open/3 was observed to block
+% indefinitely in the TLS handshake on one macOS host (imac-pro) while
+% curl on the same host answered in under a second; curl is also what
+% every other network fetch in portage-ng already relies on. http_open/3
+% remains as the fallback when no curl binary is installed.
 
 bugs:fetch_json(URL, Dict) :-
   config:bugzilla_user_agent(UA),
+  catch(bugs:fetch_json_curl(URL, UA, Dict, Status), E,
+        ( bugs:error_text(E, Text),
+          message:warning(['Bugzilla request failed: ', Text]),
+          Status = error )),
+  ( Status == ok
+  -> true
+  ;  Status == no_curl
+  -> bugs:fetch_json_http_open(URL, UA, Dict)
+  ;  fail ).
+
+
+%! bugs:fetch_json_curl(+URL, +UA, -Dict, -Status) is det.
+%
+% Status is `ok` (Dict bound), `no_curl` (binary missing) or `failed`
+% (curl exit code / unparsable body, already reported).
+
+bugs:fetch_json_curl(URL, UA, Dict, Status) :-
+  format(atom(UAHeader), 'User-Agent: ~w', [UA]),
+  catch(process_create(path(curl),
+                       ['-s', '-f', '-L', '--proto', '=http,https',
+                        '--max-time', '180',
+                        '-H', UAHeader, '-H', 'Accept: application/json',
+                        URL],
+                       [stdout(pipe(Out)), stderr(null), process(Pid)]),
+        error(existence_error(_, _), _),
+        Status = no_curl),
+  ( Status == no_curl
+  -> true
+  ;  set_stream(Out, encoding(utf8)),
+     catch(call_cleanup(json_read_dict(Out, Dict0, [default_tag(json)]), close(Out)),
+           _, Dict0 = none),
+     process_wait(Pid, exit(Code)),
+     ( Code =:= 0, Dict0 \== none
+     -> Dict = Dict0, Status = ok
+     ;  bugs:curl_exit_text(Code, Why),
+        message:warning(['Bugzilla request failed (', Why, '): ', URL]),
+        Status = failed )
+  ).
+
+
+%! bugs:curl_exit_text(+Code, -Text) is det.
+%
+% Human-readable reason for a curl exit code.
+
+bugs:curl_exit_text(0,  'unparsable JSON') :- !.
+bugs:curl_exit_text(22, 'HTTP error reply') :- !.
+bugs:curl_exit_text(28, 'timeout') :- !.
+bugs:curl_exit_text(6,  'could not resolve host') :- !.
+bugs:curl_exit_text(7,  'connection refused') :- !.
+bugs:curl_exit_text(Code, Text) :-
+  format(atom(Text), 'curl exit ~w', [Code]).
+
+
+%! bugs:fetch_json_http_open(+URL, +UA, -Dict) is semidet.
+%
+% Fallback transport through SWI-Prolog's HTTP client.
+
+bugs:fetch_json_http_open(URL, UA, Dict) :-
   catch(
     setup_call_cleanup(
       http_open(URL, In, [
