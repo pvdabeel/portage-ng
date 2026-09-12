@@ -1355,7 +1355,8 @@ warning:print_known_bugs(C, N, Ver) :-
 warning:rank_known_bugs(Ids, _, _, version_none, Ids) :- !.
 warning:rank_known_bugs(Ids, C, N, Ver, Ranked) :-
   ( catch(bugs:atom_version_bugs(C, N, Ver, Exact0), _, fail) -> Exact = Exact0 ; Exact = [] ),
-  partition([Id]>>memberchk(Id, Exact), Ids, First, Rest),
+  findall(Id, ( member(Id, Ids), memberchk(Id, Exact) ), First),
+  findall(Id, ( member(Id, Ids), \+ memberchk(Id, Exact) ), Rest),
   append(First, Rest, Ranked).
 
 
