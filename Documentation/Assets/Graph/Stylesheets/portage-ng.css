@@ -1042,6 +1042,35 @@ details.bug-item[data-status="resolved"] { border-left-color: var(--gray-border)
 .glsa-badge.status.resolved { background: var(--gray-bg); color: var(--gray-c); border-color: var(--gray-border); }
 .glsa-badge.version         { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
 body.page-bugs .glsa-summary-text code { font-family: var(--mono); font-size: 12px; }
+#bugs-shown { color: var(--accent); font-weight: 600; }
+.bug-filters-toggle .glsa-chevron { width: auto; margin-right: -1px; }
+.bug-filters-toggle[aria-expanded="true"] .glsa-chevron { transform: rotate(90deg); }
+.bug-filters-toggle .nav-badge:empty { display: none; }
+.bug-filters-toggle .nav-badge {
+  display: inline-block; min-width: 16px; padding: 0 5px; border-radius: 8px;
+  font-size: 10px; font-weight: 600; line-height: 15px; text-align: center;
+  background: var(--gray-bg); color: var(--text2); border: 1px solid var(--gray-border);
+}
+.bug-filters-toggle .nav-badge.affected { background: var(--blue-bg); color: var(--accent); border-color: var(--accent); }
+
+.bug-filters { display: flex; flex-direction: column; gap: 6px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.bug-filters.collapsed { display: none; }
+.bug-filters .filter-row { padding: 0; border-bottom: none; gap: 4px; }
+.bug-filters .nav-group-label {
+  border: none; background: transparent; padding: 0 4px 0 0;
+  min-width: 78px; color: var(--text3);
+}
+.bug-filters .filter-btn { padding: 2px 8px; font-size: 11px; }
+.bug-filters .filter-btn:not(.active) { opacity: 0.55; }
+.bug-filters .filter-btn:not(.active):hover { opacity: 0.85; }
+.bug-filters .filter-btn[data-group="keyword"] { text-transform: uppercase; letter-spacing: 0.3px; font-size: 10px; }
+.bug-search {
+  padding: 3px 10px; border: 1px solid var(--border); border-radius: 4px;
+  background: var(--surface); color: var(--text); font-family: inherit;
+  font-size: 12px; width: 180px; appearance: none; outline: none;
+}
+.bug-search:focus { border-color: var(--accent); }
+.bug-search::placeholder { color: var(--text3); }
 
 /* ================================================================
    PAGE: index (repository, category, package listings)

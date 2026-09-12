@@ -692,13 +692,15 @@ bugs:tokens(Text, Tokens) :-
 
 %! bugs:token_atom(+Token, -C, -N, -V) is semidet.
 %
-% Parse one token as a package atom.
+% Parse one token as a package atom. The eapi version grammar is written
+% for md5-cache input and throws on prose such as `mesa-25.2.x`; a token
+% that makes it throw is simply not an atom.
 
 bugs:token_atom(Token, C, N, V) :-
   bugs:clean_token(Token, Clean),
   sub_atom(Clean, _, _, _, '/'),
   atom_codes(Clean, Codes),
-  phrase(bugs:package_atom(C, N, V), Codes, []),
+  catch(phrase(bugs:package_atom(C, N, V), Codes, []), _, fail),
   bugs:known_category(C).
 
 

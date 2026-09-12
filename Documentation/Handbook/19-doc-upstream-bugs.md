@@ -134,7 +134,22 @@ portage-ng --search-bugs "openssl segfault"
 - `--graph` renders a **bugs** page per ebuild (`<entry>-bugs.html`,
   `Source/Application/Output/Grapher/tracker.pl`): every bug naming the
   package, newest first, open bugs and bugs naming the page's exact
-  version highlighted, each folding open to its stored columns.  The
+  version highlighted, each folding open to its stored columns.  Facet
+  chips, folded away behind the toolbar's **Filters** button (its badge
+  counts the groups that differ from the defaults), filter the list
+  client-side: status (open / resolved) and, for
+  resolved bugs, resolution; version relevance (names this version /
+  names another version / no version); component; severity; keyword
+  (lit chips *require* one of them); last-changed age (any / 30 / 90 /
+  365 days); plus a free-text box over id, summary, assignee, component
+  and keywords.  Chips are OR-ed within a group and AND-ed across
+  groups.  Defaults show open bugs only and hide the `Stabilization`
+  and `Keywording` components, which are workflow tickets rather than
+  defects.  The filter state is kept in the URL hash
+  (`…-bugs.html#status=open,resolved&severity=major,critical&q=clang`)
+  so a filtered view can be linked (opening such a link unfolds the
+  chips), and a `#bug-<id>` fragment lights
+  whatever chips are needed to show that bug and folds it open.  The
   navigation bar's `bugs` pill counts the open bugs naming the package.
   See [Chapter 14](14-doc-output.md#graph-submodules).
 - The plan printer lists up to three known open bugs (exact-version

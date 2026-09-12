@@ -59,7 +59,30 @@ test(duplicates_collapse) :-
   bugs:summary_atoms('dev-lang/rust-1.97.1: stablereq', '=dev-lang/rust-1.97.1 amd64', Atoms),
   length(Atoms, 1).
 
+test(prose_version_does_not_throw) :-
+  bugs:summary_atoms('media-libs/mesa-25.2.x fails; see >=media-libs/mesa-25.3.0', '', Atoms),
+  Atoms = [atom('media-libs', mesa, version(_,_,_,_,_,_,'25.3.0'))].
+
 :- end_tests(bugs_atoms).
+
+:- begin_tests(bugs_tracker).
+
+test(slug_lowercases_and_collapses_punctuation) :-
+  tracker:slug('Current packages', 'current-packages'),
+  tracker:slug('[OLD] Core system', 'old-core-system'),
+  tracker:slug('TEST-REQUEST', 'test-request'),
+  tracker:slug('', other).
+
+test(severity_order_known_first) :-
+  tracker:severity_order([normal, qa, blocker, minor], [blocker, normal, minor, qa]).
+
+test(default_hidden_resolved_and_workflow_components) :-
+  tracker:default_hidden(resolved, 'current-packages'),
+  tracker:default_hidden(open, stabilization),
+  tracker:default_hidden(open, keywording),
+  \+ tracker:default_hidden(open, 'current-packages').
+
+:- end_tests(bugs_tracker).
 
 
 % -----------------------------------------------------------------------------
