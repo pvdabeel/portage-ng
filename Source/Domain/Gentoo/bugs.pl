@@ -770,14 +770,14 @@ bugs:build_cache_locked(Location, Qlf, Count) :-
   bugs:load_store(Qlf),
   bugs:pending_pages(Location, Pages),
   length(Pages, NPages),
-  ( NPages > 0
-  -> message:scroll(['Bugzilla: folding ', NPages, ' pending pages']), nl
-  ;  true ),
-  forall(member(File, Pages), bugs:apply_page(File)),
+  bugs:fold_pages(Pages, NPages),
   bugs:prune_scope,
   aggregate_all(count, bugsdata:bug(_,_,_,_,_,_,_,_,_,_,_,_), Count),
   ( NPages > 0 ; \+ exists_file(Qlf) ),
   !,
+  % No newline: the caller's "Updated bug tracker knowledgebase" line
+  % replaces this one once the (slow) qcompile of the store is done.
+  message:scroll(['Bugzilla: compiling the bug store (', Count, ' bugs) ...']),
   bugs:write_store(Qlf),
   forall(member(File, Pages), catch(delete_file(File), _, true)),
   retractall(bugs:loaded),
@@ -803,14 +803,47 @@ bugs:load_store(Qlf) :-
   ;  true ).
 
 
-%! bugs:apply_page(+File) is det.
+%! bugs:fold_pages(+Pages, +NPages) is det.
 %
-% Fold one page: replace each bug's row and atom index entries.
+% Apply every pending page in order behind one scroll line that tracks
+% the page index, the percentage done and the running bug count (the
+% same shape as the crawl progress); the completed line is kept on
+% screen, followed by a blank line that separates the fold block from
+% the store summary. Nothing is printed when there are no pages.
 
-bugs:apply_page(File) :-
+bugs:fold_pages([], _) :- !.
+bugs:fold_pages(Pages, NPages) :-
+  message:scroll(['Bugzilla: folding ', NPages, ' pending pages']), nl,
+  foldl(bugs:fold_page(NPages), Pages, 0-0, _),
+  nl, nl.
+
+
+%! bugs:fold_page(+NPages, +File, +Index0-Folded0, -Index-Folded) is det.
+%
+% foldl/4 step for fold_pages/2: apply one page and refresh the progress
+% line.
+
+bugs:fold_page(NPages, File, I0-Folded0, I-Folded) :-
+  I is I0 + 1,
+  bugs:apply_page(File, N),
+  Folded is Folded0 + N,
+  Pct is 100 * I / NPages,
+  format(atom(Ratio), '~d/~d (~1f%)', [I, NPages, Pct]),
+  message:scroll(['Bugzilla: folding pages ', Ratio, ', ', Folded, ' bugs folded']).
+
+
+%! bugs:apply_page(+File, -Count) is det.
+%
+% Fold one page: replace each bug's row and atom index entries. Count is
+% the number of bugs folded (dicts without an integer id are skipped).
+
+bugs:apply_page(File, Count) :-
   bugs:read_page(File, Dicts),
-  forall(( member(D, Dicts), bugs:project_bug(D, Bug, Atoms) ),
-         bugs:store_bug(Bug, Atoms)).
+  aggregate_all(count,
+                ( member(D, Dicts),
+                  bugs:project_bug(D, Bug, Atoms),
+                  bugs:store_bug(Bug, Atoms) ),
+                Count).
 
 
 %! bugs:store_bug(+Bug, +Atoms) is det.

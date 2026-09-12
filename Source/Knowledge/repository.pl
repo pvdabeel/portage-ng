@@ -1231,4 +1231,6 @@ repository:sync_limit_notice(Repository) :-
   message:scroll_notice(['Network sync of \"', Repository, '\" skipped: daily cap of ',
                          PerDay, ' reached; next allowed after ', When,
                          '. Rebuilding from local data.']),
-  nl.
+  % Second newline: keep the blank line message:wrap/1 would have left
+  % after the network step this notice replaces.
+  nl, nl.
