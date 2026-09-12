@@ -214,6 +214,7 @@ dependency tree.
 | `gantt` | Gantt chart rendering (see below) |
 | `terminal` | Terminal-based ASCII graph rendering |
 | `security` | GLSA page: advisories referencing the package, fold-open full text (see [Chapter 20](20-doc-glsa.md#graph-pages)) |
+| `tracker` | Bugs page: Bugzilla bugs naming the package from the synced bug store, open bugs and exact-version matches highlighted (see [Chapter 19](19-doc-upstream-bugs.md#consumers-of-the-store)) |
 | `navtheme` | JavaScript navigation theme for interactive SVGs |
 
 

@@ -69,3 +69,4 @@ Regenerate the golden snapshot after an intentional mask-logic change:
 :- use_module(portage('Source/Test/Unit/interfacetest')).
 :- use_module(portage('Source/Test/Unit/vdbtest')).
 :- use_module(portage('Source/Test/Unit/glsatest')).
+:- use_module(portage('Source/Test/Unit/bugstest')).

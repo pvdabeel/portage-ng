@@ -57,9 +57,7 @@ config:emerge_vp_path('/Volumes/Disk 1/gentoo-prefix/bin/emerge-vp').
 % -----------------------------------------------------------------------------
 
 :- bugzilla:newinstance(repository).
-:- config:installation_dir(Dir),
-   os:compose_path([Dir,'Knowledge/bugs.qlf'],Cache),
-   bugzilla:init('/Volumes/Disk 1/Repository/bugzilla',Cache,
+:- bugzilla:init('/Volumes/Disk 1/Repository/bugzilla','/Users/pvdabeel/Desktop/Prolog/Knowledge/bugs.qlf',
                  'https://bugs.gentoo.org','rest','bugzilla').
 :- kb:register(bugzilla).
 

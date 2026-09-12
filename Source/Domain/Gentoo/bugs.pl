@@ -201,7 +201,8 @@ bugs:fetch_json(URL, Dict) :-
       close(In)
     ),
     E,
-    ( message:warning(['Bugzilla request failed: ', E]), fail )
+    ( bugs:error_text(E, Text),
+      message:warning(['Bugzilla request failed: ', Text]), fail )
   ).
 
 
@@ -695,8 +696,11 @@ bugs:build_cache_locked(_, _, Count) :-
 bugs:load_store(Qlf) :-
   ( \+ bugsdata:bug(_,_,_,_,_,_,_,_,_,_,_,_),
     exists_file(Qlf)
-  -> catch(ensure_loaded(Qlf), E,
-           message:warning(['bugs: could not load ', Qlf, ': ', E]))
+  -> bugs:raw_file(Qlf, Raw),
+     bugs:detach_store_file(Raw),
+     catch(ensure_loaded(Qlf), E,
+           ( bugs:error_text(E, Text),
+             message:warning(['bugs: could not load ', Qlf, ': ', Text]) ))
   ;  true ).
 
 
@@ -763,9 +767,33 @@ bugs:write_store(Qlf) :-
   % store is emptied first and repopulated from the file — otherwise every
   % row would end up twice (the asserted copy plus the loaded one).
   bugs:clear_facts,
+  bugs:detach_store_file(Raw),
   catch(qcompile(Raw), E,
-        ( message:warning(['bugs: qcompile failed: ', E]),
+        ( bugs:error_text(E, Text),
+          message:warning(['bugs: qcompile failed: ', Text]),
           catch(load_files(Raw, []), _, true) )).
+
+
+%! bugs:detach_store_file(+Raw) is det.
+%
+% The `bugsdata` module may only be (re)loaded from the file it was first
+% loaded from. When the store is about to be loaded from another path
+% (tests, a relocated Knowledge directory), unload the old file first.
+
+bugs:detach_store_file(Raw) :-
+  ( current_module(bugsdata),
+    module_property(bugsdata, file(Old)),
+    Old \== Raw
+  -> unload_file(Old)
+  ;  true ).
+
+
+%! bugs:error_text(+Error, -Text) is det.
+%
+% Render an exception term as a single atom for message lists.
+
+bugs:error_text(E, Text) :-
+  format(atom(Text), '~w', [E]).
 
 
 % -----------------------------------------------------------------------------
@@ -789,7 +817,11 @@ bugs:cache_load :-
   bugs:cache_file(File),
   exists_file(File),
   bugs:clear_facts,
-  ensure_loaded(File),
+  bugs:raw_file(File, Raw),
+  bugs:detach_store_file(Raw),
+  % if(true): the facts were just retracted, so an "already loaded"
+  % short-cut would leave the store empty.
+  load_files(File, [if(true)]),
   retractall(bugs:loaded),
   assertz(bugs:loaded).
 

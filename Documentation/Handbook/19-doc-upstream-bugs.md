@@ -49,25 +49,100 @@ the latest upstream version, and the status for each package.
 
 ## Gentoo Bugzilla integration
 
-The bugs module (`Source/Domain/Gentoo/bugs.pl`) searches Gentoo's
-Bugzilla instance for known issues related to packages.
+The bugs module (`Source/Domain/Gentoo/bugs.pl`) plays two roles: it is
+the backend of the `bugzilla` repository type (a local, synced copy of
+the public bug tracker), and it answers `--search-bugs` queries.
 
-### Usage
+### The `bugzilla` repository type
 
-```bash
-portage-ng --bugs sys-apps/portage
+Like `eapi` (a Portage tree), `vdb` (installed packages) or `binpkg`, a
+repository instance can be declared with type `bugzilla`.  Its remote is
+a Bugzilla instance, its location holds the raw pages fetched from the
+REST API plus a resume state file, and its cache slot names the qcompiled
+store the rest of portage-ng reads:
+
+```prolog
+:- bugzilla:newinstance(repository).
+:- bugzilla:init('/var/cache/bugzilla',             % pages/ + state.pl
+                 '/root/prolog/Knowledge/bugs.qlf',  % the bug store
+                 'https://bugs.gentoo.org','rest','bugzilla').
+:- kb:register(bugzilla).
+
+config:repository_sync_limit(bugzilla, 1).           % network syncs per day
 ```
 
-### How it works
+`--sync` (or `--sync bugzilla`) then runs the usual three phases:
 
-1. The module queries Gentoo Bugzilla's REST API for bugs matching the
-   package atom.
+1. `sync(repository)` — the network step.  The first run walks the whole
+   public bug space by bug-id keyset (`f1=bug_id&o1=greaterthan`, ordered
+   by id, `config:bugzilla_page_size/1` bugs per page, a
+   `config:bugzilla_request_delay/1` pause between pages).  Every page is
+   written to `<location>/pages/` and the state file advances after each
+   one, so an interrupted crawl resumes where it stopped.  Once complete,
+   later runs only fetch bugs whose `last_change_time` moved since the
+   previous run (with a ten-minute overlap).
+2. `sync(metadata)` — a no-op; the pages are the metadata.
+3. `sync(kb)` — folds the pending pages onto the store (a bug delivered
+   again replaces its earlier row), writes `Knowledge/bugs.raw`, qcompiles
+   it to `Knowledge/bugs.qlf` and deletes the consumed pages.  With
+   `config:bugzilla_scope(open)` closed bugs are dropped at this point;
+   the default `all` keeps every public bug (about 600k rows, ~100 MB
+   qlf).
 
-2. Results are filtered and displayed with bug number, summary, status,
-   and assignee.
+The store is separate from `kb.qlf` and loaded lazily
+(`bugs:ensure_loaded/0`) by its consumers.  Two fact families live in
+module `bugsdata`:
 
-This helps users identify whether a dependency resolution failure is due
-to a known upstream bug rather than a portage-ng issue.
+- `bug(Id, Product, Component, Status, Resolution, Severity, Priority,
+  Assignee, Created, Changed, Keywords, Summary)`
+- `bug_atom(Id, Category, Name, Version)` — every `category/name[-version]`
+  atom found in the summary or in `cf_stabilisation_atoms`, with
+  Version a `version/7` term or `version_none`.  Categories are validated
+  against the loaded tree so prose such as `usr/bin` is not indexed.
+
+### Daily sync cap
+
+`config:repository_sync_limit(Repository, PerDay)` bounds the number of
+network syncs of any registered repository within a rolling 24-hour
+window; stamps are kept in `Knowledge/<Repository>.sync`.  When the cap is
+reached the network step is skipped with a notice and the metadata / kb
+steps still rebuild from local data.  Repositories without a declaration
+are unlimited.  The default host configs declare `bugzilla, 1`, which is
+the intended way to stay well within
+[Gentoo's bot policy](https://bugs.gentoo.org/bots.html) while keeping
+the local store fresh.
+
+### Searching (`--search-bugs`)
+
+```bash
+portage-ng --search-bugs dev-lang/rust
+portage-ng --search-bugs "openssl segfault"
+```
+
+`config:bugzilla_search/1` selects the policy:
+
+- `cache_first` (default) — a `category/name` term is answered from the
+  atom index, anything else by a case-insensitive summary match, both
+  against the local store (the output names the store's sync time).  The
+  live REST quicksearch is only used when nothing matches locally or no
+  store has been synced.
+- `rest` — always query the Bugzilla REST API directly.
+
+### Consumers of the store
+
+- `--graph` renders a **bugs** page per ebuild (`<entry>-bugs.html`,
+  `Source/Application/Output/Grapher/tracker.pl`): every bug naming the
+  package, newest first, open bugs and bugs naming the page's exact
+  version highlighted, each folding open to its stored columns.  The
+  navigation bar's `bugs` pill counts the open bugs naming the package.
+  See [Chapter 14](14-doc-output.md#graph-submodules).
+- The plan printer lists up to three known open bugs (exact-version
+  matches first) under every domain assumption that names a package,
+  gated by `config:bugzilla_annotate/1`.  This is informational only: it
+  changes neither the assumption nor the exit code.
+
+Without a synced store all consumers stay silent, so hosts that never
+register a `bugzilla` repository see no change.
 
 
 ## Automatic bug report drafts

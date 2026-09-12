@@ -70,9 +70,7 @@ config:graph_directory('/root/Graph').
 % -----------------------------------------------------------------------------
 
 :- bugzilla:newinstance(repository).
-:- config:installation_dir(Dir),
-   os:compose_path([Dir,'Knowledge/bugs.qlf'],Cache),
-   bugzilla:init('/var/cache/bugzilla',Cache,
+:- bugzilla:init('/var/cache/bugzilla','/root/prolog/Knowledge/bugs.qlf',
                  'https://bugs.gentoo.org','rest','bugzilla').
 :- kb:register(bugzilla).
 

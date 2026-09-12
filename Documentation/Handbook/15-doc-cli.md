@@ -146,7 +146,7 @@ fetch; without `--build` the filtered plan is printed only (same split as
 | **Flag** | **Action** |
 | :--- | :--- |
 | `--bugs <target>` | Prove the target (resolve-only) and print Gentoo Bugzilla bug-report drafts for its domain assumptions |
-| `--search-bugs <term>` | Search Gentoo Bugzilla for known issues |
+| `--search-bugs <term>` | Search for known issues: local bug store first, then Gentoo Bugzilla (policy `config:bugzilla_search/1`, see [Chapter 19](19-doc-upstream-bugs.md#searching-search-bugs)) |
 | `--upstream <target>` | Check upstream versions via Repology |
 | `--explain` / `--llm` | Get AI-assisted plan explanation |
 | `--diagnose` / `--log` | Metacircular LLM diagnose of a failed build |
@@ -346,7 +346,15 @@ Short recipes that match how people actually use the tool:
   Bugzilla-style bug-report drafts for its domain assumptions.
 
 - **Search Bugzilla**  
-  `portage-ng --search-bugs term` — query Gentoo Bugzilla for known issues.
+  `portage-ng --search-bugs term` — look up known issues.  With a synced
+  `bugzilla` repository the local bug store answers first (a `cat/name`
+  term uses the package atom index); the live REST quicksearch is the
+  fallback, or the only source with `config:bugzilla_search(rest)`.
+
+- **Keep the local bug store fresh**  
+  `portage-ng --sync bugzilla` — fetch changed bugs into
+  `Knowledge/bugs.qlf`; `config:repository_sync_limit(bugzilla, 1)` caps
+  the network step at one run per day.
 
 
 ## Search query language
