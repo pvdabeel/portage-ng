@@ -107,8 +107,9 @@ network syncs of any registered repository within a rolling 24-hour
 window; stamps are kept in `Knowledge/<Repository>.sync`.  When the cap is
 reached the network step is skipped with a notice and the metadata / kb
 steps still rebuild from local data.  Repositories without a declaration
-are unlimited.  The default host configs declare `bugzilla, 1`, which is
-the intended way to stay well within
+are unlimited.  The repository is opt-in per host (it is not registered
+in `Source/Config/default.pl`); hosts that register it declare
+`bugzilla, 1`, which is the intended way to stay well within
 [Gentoo's bot policy](https://bugs.gentoo.org/bots.html) while keeping
 the local store fresh.
 

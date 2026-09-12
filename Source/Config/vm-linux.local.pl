@@ -66,18 +66,6 @@ config:graph_directory('/root/Graph').
 
 
 % -----------------------------------------------------------------------------
-%  Gentoo Bugzilla - paginated REST sync into Knowledge/bugs.qlf
-% -----------------------------------------------------------------------------
-
-:- bugzilla:newinstance(repository).
-:- bugzilla:init('/var/cache/bugzilla','/root/prolog/Knowledge/bugs.qlf',
-                 'https://bugs.gentoo.org','rest','bugzilla').
-:- kb:register(bugzilla).
-
-config:repository_sync_limit(bugzilla, 1).
-
-
-% -----------------------------------------------------------------------------
 %  Binary package cache (gpkg multi-instance)
 % -----------------------------------------------------------------------------
 %
