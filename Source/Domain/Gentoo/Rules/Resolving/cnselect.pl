@@ -667,13 +667,29 @@ cnselect:record_slot_conflict_if_multiple(C, N, Selected) :-
 
 %! cnselect:find_adjustable_origin(+Reasons, -OriginC, -OriginN, -RepoEntry)
 %
-% Finds an origin candidate from introduced_by reasons that has a learned
-% domain, making it a candidate for version exclusion during reprove.
+% Finds an origin candidate from introduced_by reasons that has already
+% been narrowed in this proof, making it a candidate for version
+% exclusion during reprove.
 
 cnselect:find_adjustable_origin(Reasons, OriginC, OriginN, Repo://Entry) :-
   member(introduced_by(Repo://Entry, _Action, _Why), Reasons),
   cache:ordered_entry(Repo, Entry, OriginC, OriginN, _),
-  prover:learned(cn_domain(OriginC, OriginN, _), _), !.
+  cn_previously_narrowed(OriginC, OriginN), !.
+
+
+%! cnselect:cn_previously_narrowed(+C, +N) is semidet.
+%
+% True when an earlier reprove iteration of this proof already narrowed
+% (C,N): either a learned cn_domain exists (conflict / wildcard learning)
+% or a globally rejected candidate exists (parent narrowing, which
+% rejects the exact parent entry rather than learning a version cut).
+
+cnselect:cn_previously_narrowed(C, N) :-
+  ( prover:learned(cn_domain(C, N, _), _) -> true
+  ; memo:cn_domain_reject_(key(C, N, any, none), Set),
+    Set \== []
+  ),
+  !.
 
 %! cnselect:maybe_learn_wildcard_domain(+C, +N, +PackageDeps, +Context) is semidet.
 %
@@ -691,7 +707,7 @@ cnselect:maybe_learn_wildcard_domain(C, N, PackageDeps, Context) :-
   is_list(Context),
   memberchk(self(ParentRepo://ParentEntry), Context),
   cache:ordered_entry(ParentRepo, ParentEntry, ParentC, ParentN, _),
-  ( prover:learned(cn_domain(ParentC, ParentN, _), _)
+  ( cn_previously_narrowed(ParentC, ParentN)
   ; parent_is_single_version(ParentC, ParentN)
   ),
   wildcard_upper_bound_domain(C, N, PackageDeps, Domain),
@@ -727,6 +743,21 @@ cnselect:parent_is_single_version(C, N) :-
 % parent_narrowing would churn through all parent versions and then emit
 % a spurious assumption. This guard makes parent_narrowing yield to the
 % child-level reprove in that situation.
+%
+% The yield is conditional on the child-level repair being *possible*:
+% some non-rejected candidate of (C,N) must satisfy this dep's own
+% constraints inside the effective domain (child_reselection_possible/4).
+% When none does, re-selecting the child cannot help and the conflict
+% lives at the parent level after all. Without this condition the
+% child-level reprove rejects the selected child, the consumer's other
+% deps select the next child version, the same dep rejects that one
+% too, and so on through every version of the child; the last request
+% repeats an existing reject, heuristic:handle_reprove/2 reports no
+% progress and the prover drops the whole reject map for the final
+% pass (dev-ada/gnatformat-25.0.0-r3: libadalang-26.0.0's ~gpr-26.0.0
+% after gpr-26.0.0 had been rejected for gnatformat's own <gpr-26 walked
+% through gpr-25.0.0-r4, 24.2.0-r1 and 24.0.0-r3 instead of narrowing
+% libadalang to 25.0.0-r1, which is the consistent plan).
 
 cnselect:dep_target_selected_conflict(C, N, PackageDeps, Context) :-
   ( context_selected_cn_candidates(C, N, Context, Selected)
@@ -736,6 +767,26 @@ cnselect:dep_target_selected_conflict(C, N, PackageDeps, Context) :-
   member(SelRepo://SelEntry, Selected),
   \+ forall( member(package_dependency(_Phase,no,C,N,O,V,_Slot,_Use), PackageDeps),
              query:search(select(version, O, V), SelRepo://SelEntry) ),
+  child_reselection_possible(C, N, PackageDeps, Context),
+  !.
+
+
+%! cnselect:child_reselection_possible(+C, +N, +PackageDeps, +Context) is semidet.
+%
+% True when at least one candidate of (C,N) satisfies every version
+% constraint of PackageDeps, lies inside the effective (dep + proof
+% context + learned) domain, and is not in the reject map for that
+% domain: the candidate a child-level reprove could switch to.
+
+cnselect:child_reselection_possible(C, N, PackageDeps, Context) :-
+  ( member(package_dependency(Phase, no, C, N, _, _, _, _), PackageDeps),
+    Phase \== pdepend
+  -> Action = Phase
+  ;  Action = run
+  ),
+  grouped_dep_effective_domain_precomputed(Action, C, N, PackageDeps, Context, EffDom, RejectDom),
+  cache:ordered_entry(Repo, Entry, C, N, _),
+  grouped_dep_candidate_satisfies_constraints_precomputed(C, N, PackageDeps, EffDom, RejectDom, Repo://Entry),
   !.
 
 
@@ -761,10 +812,25 @@ cnselect:dep_failure_is_visibility_only(C, N, PackageDeps, Context) :-
 
 %! cnselect:maybe_learn_parent_narrowing(+C, +N, +PackageDeps, +Context)
 %
-% When a dependency on (C,N) is unsatisfiable, learns to exclude the
-% parent version that introduced the dependency. This is the
-% "wrong-level fix": the parent introduced a dep that cannot be
-% satisfied, so exclude the parent version and reprove.
+% When a dependency on (C,N) is unsatisfiable, excludes the parent
+% version that introduced the dependency. This is the "wrong-level
+% fix": the parent introduced a dep that cannot be satisfied, so
+% exclude the parent version and reprove.
+%
+% The exclusion is the exact parent entry, recorded in the reject map
+% by heuristic:handle_reprove/2 when the thrown prover_reprove/1 is
+% processed. It is deliberately NOT a learned `< ParentVer` version
+% cut: a cut also discards every newer parent version that was still
+% eligible — newer versions are visited after older ones whenever they
+% are keyword-filtered or ranked lower, and a version is "newer" for
+% every consumer while the failure was proven for one dependency path.
+% Tree-wide A/B (33k ebuilds): the cut lost still-eligible newer
+% versions in 194 targets and the exact reject removed a net ~540
+% NEGATIVE unsatisfied_constraints assumptions at identical inference
+% cost. Like every other reject, it is dropped by
+% heuristic:reprove_exhausted/0 before the final reprove-disabled pass;
+% keeping it alive across exhaustion was measured to cost +168 CN-level
+% assumptions tree-wide (3 targets better, 48 worse, 75 mixed).
 %
 % Skipped when dep_target_selected_conflict/4 holds: a conflicting
 % pin on the child (C,N) is repaired by re-selecting the child via
@@ -782,6 +848,13 @@ cnselect:dep_failure_is_visibility_only(C, N, PackageDeps, Context) :-
 % visibility-relaxed concretization (grouped_dep_concretize_hidden,
 % portage-ng#14), which plans the hidden dep concretely and surfaces a
 % single POSITIVE unmask / accept-keyword assumption instead.
+%
+% Also skipped when the parent is a root target of the current prove
+% (prover:root_goal/1): the root is the request, not a choice, so its
+% :install/:run literal is proven regardless of the reject map. The
+% reject would only cost a full-restart retry and, should another
+% package in the plan depend on the target's CN, steer that consumer
+% onto a *different* version of it (a self-inflicted slot conflict).
 
 cnselect:maybe_learn_parent_narrowing(C, N, PackageDeps, Context) :-
   \+ is_pdepend_failure(PackageDeps, Context),
@@ -790,13 +863,27 @@ cnselect:maybe_learn_parent_narrowing(C, N, PackageDeps, Context) :-
   \+ dep_failure_is_visibility_only(C, N, PackageDeps, Context),
   is_list(Context),
   memberchk(self(ParentRepo://ParentEntry), Context),
+  \+ entry_is_root_target(ParentRepo://ParentEntry),
   cache:ordered_entry(ParentRepo, ParentEntry, ParentC, ParentN, _),
-  query:search(version(ParentVer), ParentRepo://ParentEntry),
-  ExcludeDomain = version_domain(any, [bound(smaller, ParentVer)]),
-  prover:learn(cn_domain(ParentC, ParentN, any), ExcludeDomain, Added),
-  Added == true,
+  % Progress guard: only throw when this exact entry is not yet rejected,
+  % so the bounded reprove loop cannot spin on the same parent.
+  \+ cn_domain_candidate_rejected(ParentC, ParentN, none, ParentRepo://ParentEntry),
   cn_domain_reprove_enabled,
   throw(prover_reprove(cn_domain(ParentC, ParentN, none, [ParentRepo://ParentEntry], [parent_narrowing]))).
+
+
+%! cnselect:entry_is_root_target(+RepoEntry) is semidet.
+%
+% True when RepoEntry is the entry of one of the literals the current
+% prove was asked to prove (prover:root_goal/1), whatever its action or
+% proof context.
+
+cnselect:entry_is_root_target(Repo://Entry) :-
+  prover:root_goal(Goal),
+  ( Goal = (Repo://Entry:_?{_}) -> true
+  ; Goal = (Repo://Entry:_)
+  ),
+  !.
 
 %! cnselect:is_pdepend_failure(+PackageDeps, +Context)
 %

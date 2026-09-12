@@ -231,9 +231,10 @@ incremented to produce an exclusive upper bound (e.g. `0.6*` → `< 0.7`,
 is learned via `prover:learn/3` and triggers a reprove.
 
 This mechanism is guarded: it only fires when the parent has already
-been narrowed by a prior `maybe_learn_parent_narrowing` attempt (or
-when the parent is a single-version package, making parent narrowing
-futile).  The guard ensures parent narrowing gets priority for
+been narrowed in this proof (`cnselect:cn_previously_narrowed/2`: a
+learned domain exists, or a prior `maybe_learn_parent_narrowing`
+attempt rejected one of its entries) or when the parent is a
+single-version package, making parent narrowing futile.  The guard ensures parent narrowing gets priority for
 multi-version parents, correctly handling cross-package wildcard
 conflicts (e.g. two packages requiring different wildcard ranges of
 the same dependency).

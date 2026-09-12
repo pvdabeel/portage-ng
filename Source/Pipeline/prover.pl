@@ -181,12 +181,44 @@ prover:rule_call(Full, Body) :-
 prover:prove(Rules, Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers) :-
   prover:reprove_max_retries(MaxRetries),
   prover:with_rule_module(Rules,
-    prover:with_reprove_state(
-      prover:prove_with_retries(
-        Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers, 0, MaxRetries
+    prover:with_root_goals(Target,
+      prover:with_reprove_state(
+        prover:prove_with_retries(
+          Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers, 0, MaxRetries
+        )
       )
     )
   ).
+
+
+%! prover:with_root_goals(+Target, :Goal) is det
+%
+% Run Goal with Target published as the root goal list of the current
+% prove (see prover:root_goal/1).  Saved and restored around Goal so a
+% nested prove does not clobber the outer one's roots.
+
+prover:with_root_goals(Target, Goal) :-
+  ( nb_current(prover_root_goals, Saved) -> true ; Saved = '$absent' ),
+  ( is_list(Target) -> Goals = Target ; Goals = [Target] ),
+  nb_setval(prover_root_goals, Goals),
+  setup_call_cleanup(true,
+                     Goal,
+                     ( Saved == '$absent' -> nb_delete(prover_root_goals)
+                     ; nb_setval(prover_root_goals, Saved)
+                     )).
+
+
+%! prover:root_goal(?Goal) is nondet
+%
+% Goal is one of the literals the current prove was asked to prove (the
+% Target list handed to prover:prove/10), as opposed to a literal derived
+% while proving.  Rule sets use it to recognise a root target where a
+% learning step aimed at "choose a different version of this entry" is
+% pointless: the root is not chosen, it is the request.
+
+prover:root_goal(Goal) :-
+  nb_current(prover_root_goals, Goals),
+  member(Goal, Goals).
 
 
 %! prover:prove_with_retries(+Target, +InProof, -OutProof, +InModel, -OutModel, +InCons, -OutCons, +InTriggers, -OutTriggers, +Attempt, +MaxRetries) is det

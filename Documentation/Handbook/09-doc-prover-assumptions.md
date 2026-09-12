@@ -221,7 +221,7 @@ Several predicates can throw `prover_reprove(Info)`:
 | **Source** | **When** |
 | :--------------------------------- | :--------------------------------------------- |
 | `maybe_learn_wildcard_domain`   | Wildcard dep fails and parent already narrowed or single-version; learns upper-bound `cn_domain` from wildcard |
-| `maybe_learn_parent_narrowing`  | Parent introduced a dep that made (C,N) unsatisfiable; learns to exclude parent version |
+| `maybe_learn_parent_narrowing`  | Parent introduced a dep that made (C,N) unsatisfiable; rejects the exact parent entry |
 | `maybe_request_grouped_dep_reprove` | Effective domain conflicts with selected CN; domain inconsistent; version/slot constraints present |
 | `selected_cn_unique_or_reprove` | CN-domain constraint conflicts with already-selected candidate (constraint guard) |
 | `selected_cn_not_blocked_or_reprove` | Blocker detected via blocked source snapshot |
@@ -267,8 +267,12 @@ The domain uses learned constraints for:
   the local+context domain with any learned domain.
 - **Conflict learning** — constraint guards learn the domain when a
   conflict is detected.
-- **Parent narrowing** — `maybe_learn_parent_narrowing` learns to
-  exclude the parent version when a child dep cannot be satisfied.
+- **Parent narrowing** — `maybe_learn_parent_narrowing` excludes the
+  parent version when a child dep cannot be satisfied.  This one does
+  *not* go through the learned store: a version domain cannot express
+  a hole, and a `< ParentVer` cut would also discard every newer parent
+  version that was still eligible.  The exact parent entry is placed in
+  the reject map instead.
 - **Wildcard failure learning** — `maybe_learn_wildcard_domain` derives
   an upper-bound domain from a wildcard constraint (e.g. `=pkg-0.6*`
   → `< 0.7`) when parent narrowing alone could not resolve the
@@ -279,6 +283,12 @@ The domain uses learned constraints for:
 `reprove_max_retries` defaults to 20 (configurable via
 `config:reprove_max_retries/1`).  The final attempt runs with reprove
 disabled so the proof can complete with assumptions if necessary.
+Before it runs, `heuristic:reprove_exhausted/0` clears the reject map
+(including the parent-narrowing rejects) so the final pass starts from
+a clean candidate set; only the learned constraint store survives.
+Keeping the parent-narrowing rejects alive across exhaustion was
+measured tree-wide and rejected: it fixed 3 targets but added NEGATIVE
+assumptions in 48 and changed them in 75 more.
 
 ## Use model violation flow
 
@@ -321,8 +331,8 @@ different `REQUIRED_USE` that does not conflict with `feature_z`.
 
 **Step 5a — Parent narrowing + reprove.**
 When all candidates are exhausted, the fallback chain activates.
-`maybe_learn_parent_narrowing` learns to exclude the current parent
-version (`app-1.0`) and throws `prover_reprove`, giving the prover a
+`maybe_learn_parent_narrowing` rejects the current parent entry
+(`app-1.0`) and throws `prover_reprove`, giving the prover a
 chance to retry with a different parent that may not force `feature_z`.
 
 **Step 5b — Assumption with violation detail.**
