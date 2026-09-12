@@ -39,6 +39,11 @@ graphs.  For a given ebuild, the following output is produced:
  - emerge:     Styled HTML page embedding the traditional emerge output file.
                Delegates to the terminal submodule.
 
+ - glsa:       Security advisories referencing the ebuild's package, each
+               folding open to the full GLSA text, with the page's version
+               marked as vulnerable / unaffected.  Delegates to the security
+               submodule.
+
 Legacy DOT graph generation is available via dot:graph/2 in
 Source/Application/Output/Grapher/dot.pl and can be invoked manually through
 grapher:graph_dot/2.
@@ -85,6 +90,10 @@ grapher:graph(gantt,Repository://Id) :-
 grapher:graph(deptree,Repository://Id) :-
   !,
   deptree:graph(Repository://Id).
+
+grapher:graph(glsa,Repository://Id) :-
+  !,
+  security:graph(Repository://Id).
 
 
 % -----------------------------------------------------------------------------

@@ -731,7 +731,7 @@ config:graph_include_emerge(false).
 % Defines all HTML graph types produced by --graph.  Each type maps to a
 % self-contained interactive HTML file per ebuild.
 
-config:graph_html_type([detail,deptree,gantt,merge,fetchonly,info,emerge]).
+config:graph_html_type([detail,deptree,gantt,merge,fetchonly,info,glsa,emerge]).
 
 
 %! config:graph_site_url(?Url)

@@ -102,4 +102,121 @@ glsa_filter_cleanup :-
   ),
   glsa:clear_facts.
 
+
+% -----------------------------------------------------------------------------
+%  Advisory detail (full text) tests
+% -----------------------------------------------------------------------------
+
+glsa_detail_fixture_xml(Xml) :-
+  atomic_list_concat([
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<!DOCTYPE glsa SYSTEM "http://www.gentoo.org/dtd/glsa.dtd">',
+    '<glsa id="209902-01">',
+    '  <title>libfoo: Multiple vulnerabilities</title>',
+    '  <synopsis>',
+    '    Multiple vulnerabilities in libfoo &lt;= 1.2 might allow',
+    '    code execution.',
+    '  </synopsis>',
+    '  <product type="ebuild">libfoo</product>',
+    '  <announced>2099-02-01</announced>',
+    '  <revised count="3">2099-02-05</revised>',
+    '  <bug>123456</bug>',
+    '  <bug>123457</bug>',
+    '  <access>local, remote</access>',
+    '  <affected>',
+    '    <package name="dev-libs/libfoo" auto="yes" arch="*">',
+    '      <unaffected range="ge">1.3</unaffected>',
+    '      <vulnerable range="lt">1.3</vulnerable>',
+    '    </package>',
+    '  </affected>',
+    '  <background>',
+    '    <p>libfoo is a <i>library</i>.</p>',
+    '  </background>',
+    '  <description>',
+    '    <p>Multiple issues were found:</p>',
+    '    <ul>',
+    '      <li>A buffer overflow (CVE-2099-0001)</li>',
+    '      <li>An <b>integer</b> overflow (CVE-2099-0002)</li>',
+    '    </ul>',
+    '  </description>',
+    '  <impact type="high">',
+    '    <p>An attacker could execute code.</p>',
+    '  </impact>',
+    '  <workaround>',
+    '    <p>There is no known workaround at this time.</p>',
+    '  </workaround>',
+    '  <resolution>',
+    '    <p>All libfoo users should upgrade:</p>',
+    '    <code>',
+    '      # emerge --sync',
+    '      # emerge --ask --oneshot --verbose "&gt;=dev-libs/libfoo-1.3"',
+    '    </code>',
+    '  </resolution>',
+    '  <references>',
+    '    <uri link="https://nvd.nist.gov/vuln/detail/CVE-2099-0001">CVE-2099-0001</uri>',
+    '    <uri>https://example.org/advisory</uri>',
+    '  </references>',
+    '</glsa>'
+  ], '\n', Xml).
+
+glsa_detail_fixture_file(File) :-
+  tmp_file_stream(text, File, Out),
+  glsa_detail_fixture_xml(Xml),
+  write(Out, Xml),
+  close(Out).
+
+test(detail_scalar_fields, [setup(glsa_detail_fixture_file(File)),
+                            cleanup(delete_file(File))]) :-
+  glsa:detail_from_file(File, Detail),
+  memberchk(synopsis(Syn), Detail),
+  Syn == "Multiple vulnerabilities in libfoo <= 1.2 might allow code execution.",
+  memberchk(announced('2099-02-01'), Detail),
+  memberchk(revised('2099-02-05', 3), Detail),
+  memberchk(access("local, remote"), Detail),
+  memberchk(severity(high), Detail),
+  memberchk(bugs(['123456', '123457']), Detail).
+
+test(detail_prose_blocks, [setup(glsa_detail_fixture_file(File)),
+                           cleanup(delete_file(File))]) :-
+  glsa:detail_from_file(File, Detail),
+  memberchk(background([p("libfoo is a library.")]), Detail),
+  memberchk(description([p("Multiple issues were found:"), list(Items)]), Detail),
+  Items == ["A buffer overflow (CVE-2099-0001)",
+            "An integer overflow (CVE-2099-0002)"],
+  memberchk(impact([p("An attacker could execute code.")]), Detail),
+  memberchk(resolution([p("All libfoo users should upgrade:"), code(Code)]), Detail),
+  Code == "# emerge --sync\n# emerge --ask --oneshot --verbose \">=dev-libs/libfoo-1.3\"".
+
+test(detail_references, [setup(glsa_detail_fixture_file(File)),
+                         cleanup(delete_file(File))]) :-
+  glsa:detail_from_file(File, Detail),
+  memberchk(references(Refs), Detail),
+  Refs == [ref('CVE-2099-0001', 'https://nvd.nist.gov/vuln/detail/CVE-2099-0001'),
+           ref('https://example.org/advisory', 'https://example.org/advisory')].
+
+test(xml_unescape, [true(Out == "a <= b && \"q\" 'AB' &unknown; x&")]) :-
+  glsa:xml_unescape("a &lt;= b &amp;&amp; &quot;q&quot; &apos;&#65;&#x42;&apos; &unknown; x&", Out).
+
+test(xml_element_word_boundary, [true(Inner == "text")]) :-
+  once(glsa:xml_element("<product>x</product><p class=\"a\">text</p>", "p", _, Inner, _)).
+
+test(package_advisories_newest_first,
+     [setup(glsa_pkg_setup), cleanup(glsa:clear_facts),
+      true(Ids == ['209901-03', '209901-02', '209812-01'])]) :-
+  glsa:package_advisories('dev-libs', libfoo, Ids).
+
+glsa_pkg_setup :-
+  glsa:clear_facts,
+  assertz(glsa:advisory('209812-01', 'old')),
+  assertz(glsa:advisory('209901-02', 'mid')),
+  assertz(glsa:advisory('209901-03', 'new')),
+  assertz(glsa:advisory('209901-04', 'other package')),
+  assertz(glsa:package('209901-02', 'dev-libs', libfoo, '*')),
+  assertz(glsa:package('209812-01', 'dev-libs', libfoo, '*')),
+  assertz(glsa:package('209901-03', 'dev-libs', libfoo, 'amd64 x86')),
+  assertz(glsa:package('209901-03', 'dev-libs', libfoo, '*')),
+  assertz(glsa:package('209901-04', 'dev-libs', libbar, '*')),
+  assertz(glsa:loaded),
+  assertz(glsa:cache_source(test)).
+
 :- end_tests(glsa).

@@ -247,8 +247,8 @@ navtheme:emit_term_close :-
 
 %! navtheme:emit_nav_bar(+Repo, +Entry, +Cat, +Name, +ActiveType, +Newer, +Newest, +Older, +Oldest)
 %
-% Emit the in-page tab bar: version, graph types, CLI, and legacy in one
-% wrapping row. Repo/Cat/Name live in the top-bar crumb.
+% Emit the in-page tab bar: version, graph types, CLI, security, and
+% legacy in one wrapping row. Repo/Cat/Name live in the top-bar crumb.
 
 navtheme:emit_nav_bar(Repo, Entry, Cat, Name, ActiveType, Newer, Newest, Older, Oldest) :-
     navtheme:emit_nav_bar(Repo, Entry, Cat, Name, ActiveType, Newer, Newest, Older, Oldest, '').
@@ -258,12 +258,13 @@ navtheme:emit_nav_bar(Repo, Entry, Cat, Name, ActiveType, Newer, Newest, Older, 
 %
 % As emit_nav_bar/9, with Ver shown between the version arrows.
 
-navtheme:emit_nav_bar(_Repo, Entry, _Cat, _Name, ActiveType, Newer, Newest, Older, Oldest, Ver) :-
+navtheme:emit_nav_bar(Repo, Entry, Cat, Name, ActiveType, Newer, Newest, Older, Oldest, Ver) :-
     write('<div class="nav-rows">'), nl,
     write('<div class="nav-bar">'), nl,
     emit_version_group(Entry, ActiveType, Newer, Newest, Older, Oldest, Ver),
     emit_graphs_group(Entry, ActiveType),
     emit_cli_group(Entry, ActiveType),
+    emit_security_group(Repo, Entry, Cat, Name, ActiveType),
     emit_legacy_group(Entry, ActiveType),
     write('</div>'), nl,
     write('</div>'), nl.
@@ -319,6 +320,42 @@ navtheme:emit_cli_group(Entry, ActiveType) :-
     emit_type_link(Entry, fetchonly, '--fetchonly', ActiveType),
     emit_type_link(Entry, info,     '--info',     ActiveType),
     write('  </div>'), nl.
+
+
+%! navtheme:emit_security_group(+Repo, +Entry, +Cat, +Name, +ActiveType) is det.
+%
+% Emit the security navigation group with the glsa link. The link
+% carries a count pill when advisories reference Cat/Name; the pill is
+% marked `affected` when one of them places this Entry in a vulnerable
+% range.
+
+navtheme:emit_security_group(Repo, Entry, Cat, Name, ActiveType) :-
+    write('  <div class="nav-group">'), nl,
+    write('    <span class="nav-group-label">security</span>'), nl,
+    navtheme:glsa_badge(Repo, Entry, Cat, Name, Badge),
+    atom_concat(glsa, Badge, Label),
+    emit_type_link(Entry, glsa, Label, ActiveType),
+    write('  </div>'), nl.
+
+
+%! navtheme:glsa_badge(+Repo, +Entry, +Cat, +Name, -Badge) is det.
+%
+% Badge is '' when no advisory references Cat/Name, else a leading
+% space plus the count pill markup. Any failure in the GLSA store
+% (no cache, no tree) degrades to no badge.
+
+navtheme:glsa_badge(Repo, Entry, Cat, Name, Badge) :-
+    (   catch(glsa:package_advisories(Cat, Name, Ids), _, fail),
+        Ids \== []
+    ->  length(Ids, N),
+        (   member(Id, Ids),
+            catch(glsa:entry_covered(Id, Repo://Entry), _, fail)
+        ->  Cls = 'nav-badge affected'
+        ;   Cls = 'nav-badge'
+        ),
+        format(atom(Badge), ' <span class="~w">~w</span>', [Cls, N])
+    ;   Badge = ''
+    ).
 
 
 %! navtheme:emit_legacy_group(+Entry, +ActiveType) is det.

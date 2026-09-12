@@ -97,8 +97,10 @@ glsa:range(Id, Category, Name, Kind, Op, Version, Slot).
 | `ArchSpec` | `*` or a space-separated arch list |
 
 Synopsis and body text are intentionally omitted from the hot store;
-set expansion and vulnerability checks only need package/range rows. A
-future dump/CLI can add richer fields without changing the set path.
+set expansion and vulnerability checks only need package/range rows.
+Consumers that want the prose read one advisory's XML on demand through
+`glsa:detail/2` (see [Advisory detail](#advisory-detail) below), so the
+cache path never grows with it.
 
 
 ## Matching installed packages
@@ -209,14 +211,87 @@ These bridges do **not** invent `glsa://` entries. Prefer `glsa:search/2`
 inside set logic so the package query hot path stays free of advisory
 scans unless asked.
 
+### Package-centric views
+
+Two helpers serve callers that start from a package rather than from
+the VDB (the `--graph` security page is the main one):
+
+| Predicate | Meaning |
+| :-- | :-- |
+| `glsa:package_advisories(+C, +N, -Ids)` | Advisory ids naming `C/N`, newest first |
+| `glsa:entry_status(+Id, +Repo://Entry, -Status)` | `vulnerable`, `unaffected` or `unlisted` for one tree entry (ARCH ignored) |
+
+`vulnerable` uses the same test as `glsa:entry_covered/2` (in a
+vulnerable range, not in an unaffected one); `unlisted` means the
+advisory names the package but neither range mentions this
+version/slot.
+
+
+## Advisory detail
+
+`glsa:detail(+Id, -Detail)` returns the full advisory text by reading
+`glsa-<Id>.xml` from the GLSA source directory — the same DTD-safe
+string extraction as the parser, no `load_structure/3`. It fails on
+hosts that only carry `Knowledge/glsa.qlf` without the XML tree, so
+callers must degrade gracefully (the graph page falls back to the
+cached title and ranges plus a link to security.gentoo.org).
+
+`Detail` is a list of field terms, each present at most once:
+
+| Field | Content |
+| :-- | :-- |
+| `synopsis(Text)` | One-line summary |
+| `announced(Date)`, `revised(Date, Count)` | Publication dates; `Count` is the `<revised count="…">` value |
+| `access(Text)`, `severity(Level)` | `<access>` text and the `<impact type="…">` level (`high`, `normal`, `low`, …) |
+| `bugs([Bug, …])` | Gentoo bug numbers |
+| `background(Blocks)`, `description(Blocks)`, `impact(Blocks)`, `workaround(Blocks)`, `resolution(Blocks)` | Prose sections |
+| `references([ref(Label, Url), …])` | CVE identifiers and other URIs |
+
+`Blocks` is an ordered list of `p(Text)`, `code(Text)` (dedented,
+line structure kept) and `list([Item, …])` terms. Inline markup
+(`<i>`, `<b>`, `<uri>`) is stripped and XML entities are decoded, so
+every `Text` is plain text ready for re-escaping by the consumer.
+`glsa:advisory_url/2` and `glsa:bug_url/2` build the canonical
+security.gentoo.org and bugs.gentoo.org links.
+
+
+## Graph pages
+
+`--graph` writes a `<category>/<name>-<version>-glsa.html` page next
+to the other per-ebuild pages (type `glsa` in
+`config:graph_html_type/1`, rendered by
+`Source/Application/Output/Grapher/security.pl`). Every ebuild page
+carries a **security** group in its tab bar whose `glsa` link shows
+the number of advisories naming the package; the pill turns red when
+one of them places the page's version in a vulnerable range.
+
+The page lists those advisories newest first. Each row shows the
+GLSA id, title, a status badge for the page's version (*affects this
+version* / *this version unaffected* / *version not in range*), an
+*installed copy vulnerable* badge when the VDB copy is in a vulnerable
+range, the severity and access badges, and the announcement date. A
+row folds open (native `<details>`) to the synopsis, metadata
+(announced, revised, access, bug links, advisory link), the
+affected-package table with vulnerable and unaffected ranges for every
+package the advisory names, the prose sections and the reference
+links. The toolbar filters to advisories affecting this version and
+expands or collapses all rows; a `#glsa-<id>` URL fragment opens that
+advisory directly.
+
+Because the page is rendered at `--graph` time, it reflects the GLSA
+tree and VDB of the generating host, exactly like the installed
+markers on the deptree page.
+
 
 ## Module map
 
 | File | Role |
 | :-- | :-- |
-| `Source/Domain/Gentoo/glsa.pl` | Parse, facts, cache, match, search, set atoms |
+| `Source/Domain/Gentoo/glsa.pl` | Parse, facts, cache, match, search, set atoms, on-demand `detail/2` |
 | `Source/Domain/Gentoo/Preference/sets.pl` | Registers `@security` and siblings |
 | `Source/Knowledge/query.pl` | `vulnerable/1` and `glsa/1` bridges |
+| `Source/Application/Output/Grapher/security.pl` | `--graph` per-ebuild GLSA page (`-glsa.html`) |
+| `Source/Application/Output/Grapher/navtheme.pl` | `security` tab group with the advisory count pill |
 | `Source/Application/Interface/Action/sync.pl` | Calls `glsa:cache_save` during `--sync`; lists computed sets |
 | `Source/config.pl` | `config:glsa_dir/1`, `config:glsa_injected_file/1` |
 
@@ -230,8 +305,9 @@ preference and before `sets.pl`.
   `kb.qlf`.
 - **Not prover logic.** No new rules, assumptions, or fallback tiers.
   Remediations are ordinary `=cpv` targets.
-- **Not a full `glsa-check` clone (yet).** List/dump/mail/fix modes can
-  wrap the same facts later; set expansion and search are the v1 surface.
+- **Not a full `glsa-check` clone (yet).** List/mail/fix modes can wrap
+  the same facts later; set expansion, search and the graph page are the
+  current surface.
 - **Not network-fetched.** Advisories arrive with the tree after the user
   runs `--sync`.
 

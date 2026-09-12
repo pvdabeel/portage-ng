@@ -213,6 +213,7 @@ dependency tree.
 | `detail` | Detailed single-package view with all metadata |
 | `gantt` | Gantt chart rendering (see below) |
 | `terminal` | Terminal-based ASCII graph rendering |
+| `security` | GLSA page: advisories referencing the package, fold-open full text (see [Chapter 20](20-doc-glsa.md#graph-pages)) |
 | `navtheme` | JavaScript navigation theme for interactive SVGs |
 
 

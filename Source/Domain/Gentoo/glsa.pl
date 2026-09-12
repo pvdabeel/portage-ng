@@ -24,6 +24,11 @@ Security computed sets (`@security`, …) expand through `sets:expand/2` by
 calling `glsa:security_atoms/2`, which joins these facts against the VDB
 and emits `=cat/name-version` remediation atoms (Portage NewAffectedSet
 semantics by default).
+
+The hot store holds only title / package / range rows. The full advisory
+text (synopsis, description, impact, resolution, references, …) is read
+on demand from the XML file by `glsa:detail/2` — used by the `--graph`
+security page (`Source/Application/Output/Grapher/security.pl`).
 */
 
 :- module(glsa, []).
@@ -205,11 +210,23 @@ glsa:cache_load :-
 %! glsa:ensure_loaded is det.
 %
 % Ensures advisory facts are available: prefer qlf cache, else live-parse
-% the GLSA directory. Idempotent within a process.
+% the GLSA directory. Idempotent within a process and safe to call from
+% concurrent threads (the grapher renders pages in parallel): the first
+% caller loads under a mutex, later callers see `glsa:loaded`.
 
 glsa:ensure_loaded :-
   glsa:loaded, !.
 glsa:ensure_loaded :-
+  with_mutex(glsa_ensure_loaded, glsa:ensure_loaded_locked).
+
+
+%! glsa:ensure_loaded_locked is det.
+%
+% Body of ensure_loaded/0, run while holding the load mutex.
+
+glsa:ensure_loaded_locked :-
+  glsa:loaded, !.
+glsa:ensure_loaded_locked :-
   ( glsa:cache_load -> true
   ; glsa:directory(Dir) ->
       glsa:clear_facts,
@@ -534,6 +551,412 @@ glsa:xml_attr(OpenTag, Attr, Value) :-
 
 
 % -----------------------------------------------------------------------------
+%  Advisory detail (on-demand XML read)
+% -----------------------------------------------------------------------------
+%
+% The hot store keeps only title / package / range rows. Consumers that
+% want the full advisory text (the `--graph` security page) read the
+% XML file for one advisory on demand; nothing here touches the cache.
+
+%! glsa:advisory_file(+Id, -Path) is semidet.
+%
+% Path of `glsa-<Id>.xml` in the GLSA source directory. Fails when the
+% directory or the file is absent (qlf-only hosts).
+
+glsa:advisory_file(Id, Path) :-
+  glsa:directory(Dir),
+  atomic_list_concat(['glsa-', Id, '.xml'], File),
+  os:compose_path(Dir, File, Path),
+  exists_file(Path).
+
+
+%! glsa:advisory_url(+Id, -Url) is det.
+%
+% Canonical advisory page on security.gentoo.org.
+
+glsa:advisory_url(Id, Url) :-
+  atomic_list_concat(['https://security.gentoo.org/glsa/', Id], Url).
+
+
+%! glsa:bug_url(+Bug, -Url) is det.
+%
+% Gentoo Bugzilla page for a `<bug>` number.
+
+glsa:bug_url(Bug, Url) :-
+  atomic_list_concat(['https://bugs.gentoo.org/', Bug], Url).
+
+
+%! glsa:detail(+Id, -Detail) is semidet.
+%
+% Full advisory text for Id, read from its XML file. Detail is a list of
+% field terms (each present at most once, absent when the file omits it):
+%
+%   synopsis(Text)       announced(Date)        revised(Date, Count)
+%   access(Text)         severity(Level)        bugs([Bug, ...])
+%   background(Blocks)   description(Blocks)    impact(Blocks)
+%   workaround(Blocks)   resolution(Blocks)     references([ref(Label, Url), ...])
+%
+% Blocks is an ordered list of `p(Text)`, `code(Text)` and
+% `list([Item, ...])` terms; inline markup is stripped and XML entities
+% are decoded, so every Text is plain (unescaped) text. Fails when the
+% XML file is not available locally.
+
+glsa:detail(Id, Detail) :-
+  glsa:advisory_file(Id, Path),
+  glsa:detail_from_file(Path, Detail).
+
+
+%! glsa:detail_from_file(+Path, -Detail) is det.
+%
+% detail/2 on an explicit XML file path.
+
+glsa:detail_from_file(Path, Detail) :-
+  read_file_to_string(Path, Content, [encoding(utf8)]),
+  findall(Field, glsa:detail_field(Content, Field), Detail).
+
+
+%! glsa:detail_field(+Content, -Field) is nondet.
+%
+% One detail/2 field extracted from the advisory XML text.
+
+glsa:detail_field(Content, synopsis(Text)) :-
+  glsa:xml_tag_text(Content, "synopsis", Raw),
+  glsa:plain_text(Raw, Text).
+glsa:detail_field(Content, announced(Date)) :-
+  glsa:xml_tag_text(Content, "announced", Raw),
+  atom_string(Date, Raw).
+glsa:detail_field(Content, revised(Date, Count)) :-
+  once(glsa:xml_element(Content, "revised", OpenTag, Raw, _)),
+  normalize_space(atom(Date), Raw),
+  ( glsa:xml_attr(OpenTag, "count", CountStr),
+    normalize_space(string(CountNorm), CountStr),
+    number_string(Count, CountNorm)
+  -> true
+  ;  Count = 1
+  ).
+glsa:detail_field(Content, access(Text)) :-
+  glsa:xml_tag_text(Content, "access", Raw),
+  glsa:plain_text(Raw, Text).
+glsa:detail_field(Content, severity(Level)) :-
+  once(glsa:xml_element(Content, "impact", OpenTag, _, _)),
+  glsa:xml_attr(OpenTag, "type", Raw),
+  normalize_space(atom(Level), Raw).
+glsa:detail_field(Content, bugs(Bugs)) :-
+  findall(Bug,
+          ( glsa:xml_element(Content, "bug", _, Raw, _),
+            normalize_space(atom(Bug), Raw),
+            Bug \== ''
+          ),
+          Bugs),
+  Bugs \== [].
+glsa:detail_field(Content, Field) :-
+  member(Tag-Name, ["background"-background, "description"-description,
+                    "impact"-impact, "workaround"-workaround,
+                    "resolution"-resolution]),
+  once(glsa:xml_element(Content, Tag, _, Inner, _)),
+  glsa:section_blocks(Inner, Blocks),
+  Blocks \== [],
+  Field =.. [Name, Blocks].
+glsa:detail_field(Content, references(Refs)) :-
+  once(glsa:xml_element(Content, "references", _, Inner, _)),
+  findall(ref(Label, Url), glsa:uri_element(Inner, Label, Url), Refs),
+  Refs \== [].
+
+
+%! glsa:xml_element(+Content, +Tag, -OpenTag, -Inner, -Rest) is nondet.
+%
+% Backtracks over every `<Tag …>Inner</Tag>` element in Content, in
+% document order. OpenTag is the complete opening tag (for xml_attr/3),
+% Inner the raw text between the tags, Rest the text after the closing
+% tag. `<Tag/>` yields an empty Inner. Same-tag nesting is not expected
+% in GLSA documents and is not handled.
+
+glsa:xml_element(Content, Tag, OpenTag, Inner, Rest) :-
+  string_concat("<", Tag, Open0),
+  string_length(Open0, OpenLen0),
+  string_concat("</", Tag, Close0),
+  string_concat(Close0, ">", Close),
+  string_length(Close, CloseLen),
+  sub_string(Content, P0, _, _, Open0),
+  Next is P0 + OpenLen0,
+  sub_string(Content, Next, 1, _, Ch),
+  memberchk(Ch, [" ", ">", "/", "\n", "\t", "\r"]),
+  once((
+    sub_string(Content, P0, _, 0, From),
+    sub_string(From, PClose, _, _, ">"),
+    OpenLen is PClose + 1,
+    sub_string(From, 0, OpenLen, _, OpenTag),
+    sub_string(From, OpenLen, _, 0, After),
+    ( sub_string(OpenTag, _, 2, 0, "/>")
+    -> Inner = "",
+       Rest = After
+    ;  sub_string(After, ILen, _, _, Close),
+       sub_string(After, 0, ILen, _, Inner),
+       Skip is ILen + CloseLen,
+       sub_string(After, Skip, _, 0, Rest)
+    )
+  )).
+
+
+%! glsa:section_blocks(+Inner, -Blocks) is det.
+%
+% Converts the inner XML of a prose section into ordered `p/1`,
+% `code/1` and `list/1` blocks. Text outside any block element is kept
+% as a paragraph when non-blank.
+
+glsa:section_blocks(Inner, Blocks) :-
+  ( glsa:next_block(Inner, Before, Block, Rest)
+  -> glsa:loose_paragraph(Before, Blocks, Blocks1),
+     Blocks1 = [Block|More],
+     glsa:section_blocks(Rest, More)
+  ;  glsa:loose_paragraph(Inner, Blocks, [])
+  ).
+
+
+%! glsa:loose_paragraph(+Text, -Blocks, -Tail) is det.
+%
+% Difference-list cell holding `p(Text)` when Text has content once
+% tags are stripped, else the empty cell.
+
+glsa:loose_paragraph(Raw, Blocks, Tail) :-
+  glsa:plain_text(Raw, Text),
+  ( Text == "" -> Blocks = Tail ; Blocks = [p(Text)|Tail] ).
+
+
+%! glsa:next_block(+Inner, -Before, -Block, -Rest) is semidet.
+%
+% Locates the first block element (`p`, `code`, `ul`, `ol`) in Inner.
+% Before is the text preceding it, Rest the text following it.
+
+glsa:next_block(Inner, Before, Block, Rest) :-
+  findall(P-Tag,
+          ( member(Tag, ["p", "code", "ul", "ol"]),
+            glsa:tag_position(Inner, Tag, P)
+          ),
+          Positions),
+  Positions \== [],
+  min_member(P-Tag, Positions),
+  sub_string(Inner, 0, P, _, Before),
+  sub_string(Inner, P, _, 0, From),
+  once(glsa:xml_element(From, Tag, _, ElInner, Rest)),
+  glsa:block_term(Tag, ElInner, Block).
+
+
+%! glsa:tag_position(+Text, +Tag, -Pos) is semidet.
+%
+% Offset of the first `<Tag` opening (word boundary respected) in Text.
+
+glsa:tag_position(Text, Tag, Pos) :-
+  string_concat("<", Tag, Open0),
+  string_length(Open0, Len),
+  once((
+    sub_string(Text, Pos, _, _, Open0),
+    Next is Pos + Len,
+    sub_string(Text, Next, 1, _, Ch),
+    memberchk(Ch, [" ", ">", "/", "\n", "\t", "\r"])
+  )).
+
+
+%! glsa:block_term(+Tag, +Inner, -Block) is det.
+%
+% Builds the block term for one element.
+
+glsa:block_term("p", Inner, p(Text)) :-
+  glsa:plain_text(Inner, Text).
+glsa:block_term("code", Inner, code(Text)) :-
+  glsa:code_text(Inner, Text).
+glsa:block_term(Tag, Inner, list(Items)) :-
+  memberchk(Tag, ["ul", "ol"]),
+  findall(Item,
+          ( glsa:xml_element(Inner, "li", _, Raw, _),
+            glsa:plain_text(Raw, Item),
+            Item \== ""
+          ),
+          Items).
+
+
+%! glsa:uri_element(+Inner, -Label, -Url) is nondet.
+%
+% One `<uri link="…">Label</uri>` reference; a `<uri>` without a link
+% attribute uses its text as the URL, an empty label falls back to the
+% URL.
+
+glsa:uri_element(Inner, Label, Url) :-
+  glsa:xml_element(Inner, "uri", OpenTag, Raw, _),
+  glsa:plain_text(Raw, LabelStr),
+  ( glsa:xml_attr(OpenTag, "link", LinkRaw)
+  -> glsa:xml_unescape(LinkRaw, LinkStr),
+     normalize_space(atom(Url), LinkStr)
+  ;  atom_string(Url, LabelStr)
+  ),
+  Url \== '',
+  ( LabelStr == "" -> Label = Url ; atom_string(Label, LabelStr) ).
+
+
+%! glsa:plain_text(+Raw, -Text) is det.
+%
+% Inline XML to plain text: tags stripped, entities decoded, whitespace
+% normalized. Text is a string.
+
+glsa:plain_text(Raw, Text) :-
+  glsa:strip_tags(Raw, S0),
+  glsa:xml_unescape(S0, S1),
+  normalize_space(string(Text), S1).
+
+
+%! glsa:code_text(+Raw, -Text) is det.
+%
+% `<code>` content to display text: tags stripped, entities decoded,
+% surrounding blank lines dropped and the common indentation removed
+% while keeping the line structure.
+
+glsa:code_text(Raw, Text) :-
+  glsa:strip_tags(Raw, S0),
+  glsa:xml_unescape(S0, S1),
+  split_string(S1, "\n", "\r", Lines0),
+  glsa:trim_blank_lines(Lines0, Lines),
+  glsa:common_indent(Lines, Indent),
+  maplist(glsa:drop_indent(Indent), Lines, Dedented),
+  atomic_list_concat(Dedented, '\n', Atom),
+  atom_string(Atom, Text).
+
+
+%! glsa:trim_blank_lines(+Lines, -Trimmed) is det.
+%
+% Drops leading and trailing whitespace-only lines.
+
+glsa:trim_blank_lines(Lines0, Lines) :-
+  glsa:drop_blank_prefix(Lines0, L1),
+  reverse(L1, R1),
+  glsa:drop_blank_prefix(R1, R2),
+  reverse(R2, Lines).
+
+
+glsa:drop_blank_prefix([L|Ls], Out) :-
+  normalize_space(string(""), L),
+  !,
+  glsa:drop_blank_prefix(Ls, Out).
+glsa:drop_blank_prefix(Ls, Ls).
+
+
+%! glsa:common_indent(+Lines, -Indent) is det.
+%
+% Smallest leading-whitespace count over the non-blank lines (0 when
+% there are none).
+
+glsa:common_indent(Lines, Indent) :-
+  findall(N,
+          ( member(L, Lines),
+            \+ normalize_space(string(""), L),
+            glsa:leading_space_count(L, N)
+          ),
+          Ns),
+  ( Ns == [] -> Indent = 0 ; min_list(Ns, Indent) ).
+
+
+glsa:leading_space_count(Line, N) :-
+  string_codes(Line, Codes),
+  glsa:count_leading_space(Codes, 0, N).
+
+
+glsa:count_leading_space([C|Cs], Acc, N) :-
+  ( C == 0'\s ; C == 0'\t ),
+  !,
+  Acc1 is Acc + 1,
+  glsa:count_leading_space(Cs, Acc1, N).
+glsa:count_leading_space(_, N, N).
+
+
+%! glsa:drop_indent(+Indent, +Line, -Out) is det.
+%
+% Removes up to Indent leading characters; shorter (blank) lines become
+% empty.
+
+glsa:drop_indent(Indent, Line, Out) :-
+  string_length(Line, Len),
+  ( Len =< Indent
+  -> Out = ""
+  ;  sub_string(Line, Indent, _, 0, Out)
+  ).
+
+
+%! glsa:strip_tags(+In, -Out) is det.
+%
+% Removes every `<…>` markup run from a string.
+
+glsa:strip_tags(In, Out) :-
+  string_codes(In, Codes),
+  glsa:strip_tag_codes(Codes, Stripped),
+  string_codes(Out, Stripped).
+
+
+glsa:strip_tag_codes([], []).
+glsa:strip_tag_codes([0'<|T], Out) :-
+  !,
+  glsa:skip_past_gt(T, Rest),
+  glsa:strip_tag_codes(Rest, Out).
+glsa:strip_tag_codes([C|T], [C|Out]) :-
+  glsa:strip_tag_codes(T, Out).
+
+
+glsa:skip_past_gt([], []).
+glsa:skip_past_gt([0'>|T], T) :- !.
+glsa:skip_past_gt([_|T], Rest) :-
+  glsa:skip_past_gt(T, Rest).
+
+
+%! glsa:xml_unescape(+In, -Out) is det.
+%
+% Decodes the XML predefined entities and numeric character references.
+% Unknown entities are left untouched.
+
+glsa:xml_unescape(In, Out) :-
+  string_codes(In, Codes),
+  glsa:unescape_codes(Codes, Decoded),
+  string_codes(Out, Decoded).
+
+
+glsa:unescape_codes([], []).
+glsa:unescape_codes([0'&|T], [C|Out]) :-
+  glsa:entity_reference(T, C, Rest),
+  !,
+  glsa:unescape_codes(Rest, Out).
+glsa:unescape_codes([C|T], [C|Out]) :-
+  glsa:unescape_codes(T, Out).
+
+
+%! glsa:entity_reference(+Codes, -Char, -Rest) is semidet.
+%
+% Codes start right after `&`; succeeds when they open a known entity
+% terminated by `;`.
+
+glsa:entity_reference(Codes, Char, Rest) :-
+  append(Name, [0';|Rest], Codes),
+  !,
+  length(Name, Len),
+  Len >= 2, Len =< 8,
+  atom_codes(Entity, Name),
+  glsa:entity_char(Entity, Char).
+
+
+glsa:entity_char(lt,   0'<).
+glsa:entity_char(gt,   0'>).
+glsa:entity_char(amp,  0'&).
+glsa:entity_char(quot, 0'").
+glsa:entity_char(apos, 0'\').
+glsa:entity_char(Entity, Char) :-
+  atom_concat('#x', Hex, Entity),
+  !,
+  atom_codes(Hex, HexCodes),
+  catch(number_codes(Char, [0'0, 0'x|HexCodes]), _, fail),
+  integer(Char).
+glsa:entity_char(Entity, Char) :-
+  atom_concat('#', Dec, Entity),
+  atom_number(Dec, Char),
+  integer(Char).
+
+
+% -----------------------------------------------------------------------------
 %  Version / ARCH matching
 % -----------------------------------------------------------------------------
 
@@ -796,6 +1219,48 @@ glsa:search_goal(vulnerable(true), Id, _) :-
   glsa:is_vulnerable(Id).
 glsa:search_goal(vulnerable(false), Id, _) :-
   \+ glsa:is_vulnerable(Id).
+
+
+% -----------------------------------------------------------------------------
+%  Package-centric views
+% -----------------------------------------------------------------------------
+
+%! glsa:package_advisories(+C, +N, -Ids) is det.
+%
+% Advisory ids whose `<affected>` list names package C/N, newest first
+% (ids are `YYYYMM-NN`, so the standard order of atoms is chronological).
+
+glsa:package_advisories(C, N, Ids) :-
+  glsa:ensure_loaded,
+  findall(Id, glsa:package(Id, C, N, _), Ids0),
+  sort(Ids0, Ascending),
+  reverse(Ascending, Ids).
+
+
+%! glsa:entry_status(+Id, +Repo://+Entry, -Status) is det.
+%
+% How advisory Id relates to one tree entry (ARCH ignored):
+%
+%   - `vulnerable`  — a vulnerable range covers Entry's version/slot and
+%                     no unaffected range does (same test as entry_covered/2)
+%   - `unaffected`  — an unaffected range covers it
+%   - `unlisted`    — the advisory names the package but neither range
+%                     mentions this version/slot (or Entry is unknown)
+
+glsa:entry_status(Id, Repo://Entry, Status) :-
+  glsa:ensure_loaded,
+  (   query:search([category(C), name(N), version(Ver)], Repo://Entry),
+      Ver \== version_none,
+      slotmeta:entry_slot_default(Repo, Entry, Slot),
+      glsa:package(Id, C, N, _)
+  ->  (   glsa:range_matches(Id, C, N, unaffected, Ver, Slot)
+      ->  Status = unaffected
+      ;   glsa:range_matches(Id, C, N, vulnerable, Ver, Slot)
+      ->  Status = vulnerable
+      ;   Status = unlisted
+      )
+  ;   Status = unlisted
+  ).
 
 
 % -----------------------------------------------------------------------------

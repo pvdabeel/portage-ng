@@ -210,6 +210,7 @@ emit_card_version(Name, Entry, Version) :-
     format('    <a href="./~w-gantt.html" title="gantt">gantt</a>~n', [Base]),
     format('    <a href="./~w-merge.html" title="merge">merge</a>~n', [Base]),
     format('    <a href="./~w-info.html" title="info">info</a>~n', [Base]),
+    format('    <a href="./~w-glsa.html" title="glsa">glsa</a>~n', [Base]),
     write('  </div>'), nl,
     write('</div>'), nl.
 

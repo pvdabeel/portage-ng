@@ -3,7 +3,7 @@
 
   Sections: Theme variables (handbook tokens), Reset & base, Top bar,
   In-page navigation, Shared components, then page-specific blocks
-  (deptree, gantt, detail, terminal, index).
+  (deptree, gantt, detail, terminal, glsa, index).
 
   Each page sets a body class (page-deptree, page-gantt, page-404, etc.)
   so that conflicting rules can be scoped when needed. Light is the
@@ -306,6 +306,15 @@ h1 { font-size: 20px; font-weight: 600; font-family: var(--mono); letter-spacing
 }
 .nav-link.disabled { color: var(--text3); cursor: default; }
 .nav-link.disabled:hover { background: transparent; color: var(--text3); }
+.nav-link .nav-badge {
+  display: inline-block; min-width: 16px; padding: 0 5px; margin-left: 2px;
+  border-radius: 8px; font-size: 10px; font-weight: 600; line-height: 15px;
+  text-align: center; vertical-align: 1px;
+  background: var(--gray-bg); color: var(--text2); border: 1px solid var(--gray-border);
+}
+.nav-link .nav-badge.affected {
+  background: var(--red-bg); color: var(--red); border-color: var(--red-border);
+}
 
 /* ================================================================
    Shared components
@@ -907,6 +916,120 @@ body.page-terminal .terminal-stats dd {
 .ansi-underline { text-decoration: underline; }
 span[class*="bg-"] { border-radius: 4px; padding: 1px 6px; color: var(--bubble-text); }
 pre.terminal span[class*="bg-"] { margin: 0 -6px; position: relative; z-index: 1; }
+
+/* ================================================================
+   PAGE: glsa (security advisories)
+   ================================================================ */
+
+body.page-glsa .term-body { padding: 12px 14px 14px; }
+
+.glsa-toolbar {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 8px 16px; flex-wrap: wrap; padding: 0 0 10px;
+  border-bottom: 1px solid var(--border);
+}
+.glsa-summary-text { font-size: 13px; color: var(--text2); }
+.glsa-summary-text b { color: var(--text); font-weight: 600; }
+.glsa-summary-text b.glsa-affecting { color: var(--red); }
+.glsa-btns { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+.glsa-empty { padding: 28px 0 12px; color: var(--text2); font-style: italic; font-size: 13px; }
+.glsa-list { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; }
+
+details.glsa-item {
+  border: 1px solid var(--border); border-left-width: 3px;
+  border-radius: 8px; background: var(--surface); overflow: hidden;
+}
+details.glsa-item.hidden { display: none; }
+details.glsa-item[data-status="vulnerable"] { border-left-color: var(--red); }
+details.glsa-item[data-status="unaffected"] { border-left-color: var(--green); }
+details.glsa-item[data-status="unlisted"]   { border-left-color: var(--gray-border); }
+
+.glsa-summary {
+  list-style: none; display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; cursor: pointer; font-size: 13px; user-select: none;
+}
+.glsa-summary::-webkit-details-marker { display: none; }
+.glsa-summary::marker { content: ""; }
+.glsa-summary:hover { background: var(--hover-bg); }
+.glsa-chevron {
+  width: 12px; flex-shrink: 0; font-size: 11px; color: var(--text3);
+  transition: transform 0.15s; display: inline-block;
+}
+details[open] > .glsa-summary .glsa-chevron { transform: rotate(90deg); color: var(--text2); }
+.glsa-id { font-family: var(--mono); font-weight: 600; color: var(--accent); white-space: nowrap; }
+.glsa-title { flex: 1; min-width: 160px; color: var(--text); }
+.glsa-badges { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.glsa-badge {
+  font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px;
+  border: 1px solid var(--gray-border); background: var(--gray-bg); color: var(--gray-c);
+  white-space: nowrap;
+}
+.glsa-badge.status.vulnerable { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
+.glsa-badge.status.unaffected { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+.glsa-badge.installed { background: var(--orange-bg); color: var(--orange); border-color: var(--orange-border); }
+.glsa-badge.severity.high   { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
+.glsa-badge.severity.normal { background: var(--orange-bg); color: var(--orange); border-color: var(--orange-border); }
+.glsa-badge.severity.low    { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+.glsa-date { font-family: var(--mono); font-size: 11px; color: var(--text3); white-space: nowrap; }
+
+.glsa-body {
+  padding: 4px 16px 14px 34px; border-top: 1px solid var(--border);
+  font-size: 13px; line-height: 1.55; color: var(--text);
+}
+.glsa-body h4 {
+  margin: 14px 0 6px; font-size: 10px; font-weight: 600; color: var(--text3);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.glsa-body p { margin: 0 0 8px; color: var(--text2); }
+.glsa-body p.glsa-synopsis { margin: 10px 0 0; color: var(--text); font-style: italic; }
+.glsa-body ul { margin: 0 0 8px 18px; color: var(--text2); }
+.glsa-body li { margin: 0 0 3px; }
+.glsa-body a { color: var(--link); text-decoration: none; }
+.glsa-body a:hover { text-decoration: underline; }
+.glsa-body code { font-family: var(--mono); font-size: 12px; }
+.glsa-body pre.glsa-code {
+  margin: 0 0 8px; padding: 10px 12px; overflow-x: auto;
+  font-family: var(--mono); font-size: 12px; line-height: 1.5; color: var(--text);
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+  white-space: pre;
+}
+.glsa-muted { color: var(--text3); font-family: var(--sans); }
+
+dl.glsa-meta {
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 16px;
+  margin: 10px 0 0; align-items: baseline;
+}
+dl.glsa-meta dt {
+  margin: 0; font-size: 10px; font-weight: 600; color: var(--text3);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+dl.glsa-meta dd { margin: 0; font-family: var(--mono); font-size: 12px; color: var(--text); }
+
+table.glsa-ranges { border-collapse: collapse; font-size: 12px; margin: 0 0 4px; }
+table.glsa-ranges th, table.glsa-ranges td {
+  padding: 3px 14px 3px 0; text-align: left; border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+table.glsa-ranges th {
+  font-size: 10px; font-weight: 600; color: var(--text3);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+table.glsa-ranges tr:last-child td { border-bottom: none; }
+table.glsa-ranges td.arch { color: var(--text3); font-family: var(--mono); }
+table.glsa-ranges td.range { font-family: var(--mono); white-space: nowrap; }
+table.glsa-ranges td.range.vulnerable { color: var(--red); }
+table.glsa-ranges td.range.unaffected { color: var(--green); }
+table.glsa-ranges tr.current td:first-child { font-weight: 600; color: var(--accent); }
+table.glsa-ranges tr.current td:first-child a { color: var(--accent); }
+
+ul.glsa-refs { columns: 2; column-gap: 24px; list-style: none; margin-left: 0; }
+ul.glsa-refs li { break-inside: avoid; font-family: var(--mono); font-size: 12px; }
+
+.glsa-note {
+  margin-top: 12px; padding: 8px 10px; border-radius: 6px; font-size: 12px;
+  background: var(--orange-bg); border: 1px solid var(--orange-border); color: var(--orange);
+}
 
 /* ================================================================
    PAGE: index (repository, category, package listings)
