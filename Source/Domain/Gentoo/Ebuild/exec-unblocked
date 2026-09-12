@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+"""Clear the inherited signal mask, then exec the real command.
+
+SWI-Prolog worker threads block SIGINT. process_create/3 + exec inherits
+that mask, so a child that probes BSD signal semantics with
+signal(SIGINT) + kill(getpid(), SIGINT) never runs its handler. Netkit
+0.17 ./configure then prints "Checking for BSD signal semantics... no"
+and exits 0 without writing MCONFIG.
+
+This trampoline is the argv prefix of every ebuild spawn
+(ebuild_exec:spawn_ebuild/6).
+"""
+
+import os
+import signal
+import sys
+
+
+def unblock_signals():
+    if hasattr(signal, "pthread_sigmask"):
+        signal.pthread_sigmask(signal.SIG_SETMASK, set())
+
+
+def main(argv):
+    if argv == ["--self-test"]:
+        return self_test()
+    if not argv:
+        sys.stderr.write("exec-unblocked: missing command\n")
+        return 2
+    unblock_signals()
+    try:
+        os.execvp(argv[0], argv)
+    except OSError as exc:
+        sys.stderr.write("exec-unblocked: %s: %s\n" % (argv[0], exc))
+        return 127
+
+
+def self_test():
+    """Block SIGINT like a SWI worker, then re-enter through this helper."""
+    if not hasattr(signal, "pthread_sigmask"):
+        sys.stderr.write("exec-unblocked: pthread_sigmask unavailable\n")
+        return 2
+    probe = (
+        "import os,signal,sys;"
+        "g=[];"
+        "signal.signal(signal.SIGINT, lambda s,f: g.append(s));"
+        "os.kill(os.getpid(), signal.SIGINT);"
+        "sys.exit(0 if g else 1)"
+    )
+    signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
+    os.execv(
+        sys.executable,
+        [sys.executable, os.path.abspath(__file__), sys.executable, "-c", probe],
+    )
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

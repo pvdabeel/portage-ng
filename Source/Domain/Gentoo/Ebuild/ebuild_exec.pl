@@ -441,6 +441,10 @@ ebuild_exec:start_phase_async(EbuildPath, Phase, LogPath, UseString, ExtraEnv, P
 %                      phase name is ever interpolated into shell syntax
 %                      (sanitize argv contract).
 %
+% Both sinks exec through Source/Domain/Gentoo/Ebuild/exec-unblocked so
+% the child does not inherit the SWI worker-thread SIGINT mask (netkit
+% BSD-signal configure probes die otherwise).
+%
 % The environment carries USE, the non-interactive git settings (a live
 % ebuild's git fetch must fail on a 401 rather than prompt), the EPREFIX
 % of `--prefix` when given (prefix_env/1) and ExtraEnv (e.g. the
@@ -471,20 +475,35 @@ ebuild_exec:prefix_env(Env) :-
   ).
 
 
+%! ebuild_exec:exec_unblocked(-Helper) is det.
+%
+% Absolute path of the SIGINT-unmask trampoline. Exists as a file in
+% the install tree; spawn_ebuild/6 invokes it via `python3` so the
+% helper does not need to be +x on noexec mounts.
+
+ebuild_exec:exec_unblocked(Helper) :-
+  absolute_file_name(portage('Source/Domain/Gentoo/Ebuild/exec-unblocked'),
+                     Helper,
+                     [access(exist)]).
+
+
 %! ebuild_exec:ebuild_argv(+Sink, +EbuildCmd, +EbuildPath, +PhaseStrs, -Exe, -Argv, -SinkOpts) is det.
 %
 % Executable, argument vector and process_create/3 stream options for
-% spawn_ebuild/6's Sink.
+% spawn_ebuild/6's Sink. The real `ebuild` CLI is always reached through
+% exec-unblocked (python3 Helper ebuild --skip-manifest ...).
 
 ebuild_exec:ebuild_argv(null, EbuildCmd, EbuildPath, PhaseStrs,
-                        path(EbuildCmd),
-                        ['--skip-manifest', EbuildPath|PhaseStrs],
-                        [stdout(null), stderr(null)]).
+                        path(python3),
+                        [Helper, EbuildCmd, '--skip-manifest', EbuildPath|PhaseStrs],
+                        [stdout(null), stderr(null)]) :-
+  ebuild_exec:exec_unblocked(Helper).
 ebuild_exec:ebuild_argv(log(LogPath), EbuildCmd, EbuildPath, PhaseStrs,
                         path(sh),
-                        ['-c', Script, '_', EbuildCmd, EbuildPath, LogPath|PhaseStrs],
+                        ['-c', Script, '_', python3, Helper, EbuildCmd, EbuildPath, LogPath|PhaseStrs],
                         []) :-
-  Script = 'cmd="$1"; ebuild="$2"; log="$3"; shift 3; "$cmd" --skip-manifest "$ebuild" "$@" >>"$log" 2>&1'.
+  ebuild_exec:exec_unblocked(Helper),
+  Script = 'py="$1"; helper="$2"; cmd="$3"; ebuild="$4"; log="$5"; shift 5; "$py" "$helper" "$cmd" --skip-manifest "$ebuild" "$@" >>"$log" 2>&1'.
 
 
 %! ebuild_exec:poll_phase_progress(+Pid, +Phase, +LogPath, +SizeBefore, +T0, +ExpBytes, +ExpSeconds, :Callback, -ExitCode) is det.

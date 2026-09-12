@@ -282,3 +282,37 @@ test(merge_still_executes_install,
   builder:is_executable_rule(rule(r://'p-1':install?{[]}, [])).
 
 :- end_tests(fetchonly_execute_filter).
+
+
+% -----------------------------------------------------------------------------
+%  ebuild spawn unblocks SIGINT (netkit BSD-signal configure)
+% -----------------------------------------------------------------------------
+%
+% Jobserver workers are SWI threads that block SIGINT. process_create/3
+% inherits that mask, so netkit ./configure's kill(getpid(), SIGINT)
+% probe never fires and MCONFIG is never written. Both argv sinks prefix
+% exec-unblocked.
+
+:- begin_tests(ebuild_exec_unblocked).
+
+test(null_sink_prefixes_helper) :-
+  ebuild_exec:ebuild_argv(null, ebuild, '/tmp/x.ebuild', ["compile"],
+                          path(python3), Argv, [stdout(null), stderr(null)]),
+  Argv = [Helper, ebuild, '--skip-manifest', '/tmp/x.ebuild', "compile"],
+  atom_concat(_, 'exec-unblocked', Helper).
+
+test(log_sink_prefixes_helper) :-
+  ebuild_exec:ebuild_argv(log('/tmp/x.log'), ebuild, '/tmp/x.ebuild', ["compile"],
+                          path(sh), Argv, []),
+  Argv = ['-c', _Script, '_', python3, Helper, ebuild, '/tmp/x.ebuild',
+          '/tmp/x.log', "compile"],
+  atom_concat(_, 'exec-unblocked', Helper).
+
+test(helper_clears_sigint_mask) :-
+  ebuild_exec:exec_unblocked(Helper),
+  process_create(path(python3), [Helper, '--self-test'],
+                 [process(Pid), stdout(null), stderr(null)]),
+  process_wait(Pid, Status),
+  assertion(Status == exit(0)).
+
+:- end_tests(ebuild_exec_unblocked).
