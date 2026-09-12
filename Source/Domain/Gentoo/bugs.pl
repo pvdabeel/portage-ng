@@ -398,11 +398,12 @@ bugs:sync_pages(Location, Remote) :-
   ( Complete == true
   -> bugs:state_get(State0, since, Since, StartIso),
      message:scroll(['Bugzilla: fetching bugs changed since ', Since]), nl,
-     bugs:crawl(Location, [last_change_time=Since], 0, State0, State1, 0, Fetched)
+     bugs:crawl(Location, [last_change_time=Since], 0, 0, State0, State1, 0, Fetched)
   ;  bugs:state_get(State0, last_id, LastId, 0),
      bugs:scope_params(ScopeParams),
-     message:scroll(['Bugzilla: full crawl from bug id ', LastId]), nl,
-     bugs:crawl(Location, ScopeParams, LastId, State0, State1, 0, Fetched)
+     bugs:highest_bug_id(MaxId),
+     message:scroll(['Bugzilla: full crawl from bug id ', LastId, ' to ', MaxId]), nl,
+     bugs:crawl(Location, ScopeParams, LastId, MaxId, State0, State1, 0, Fetched)
   ),
   bugs:state_get(State1, complete, Complete1, false),
   ( Complete1 == true
@@ -419,15 +420,45 @@ bugs:sync_pages(Location, Remote) :-
   ).
 
 
-%! bugs:crawl(+Location, +Params, +AfterId, +State0, -State, +Acc, -Fetched)
+%! bugs:highest_bug_id(-MaxId) is det.
+%
+% Highest public bug id (one request); 0 when the lookup fails. Only used
+% as the denominator of the full-crawl progress line.
+
+bugs:highest_bug_id(MaxId) :-
+  bugs:base_url(Base),
+  format(atom(URL), '~w/rest/bug?f1=bug_id&o1=greaterthan&v1=0&order=bug_id%20DESC&limit=1&include_fields=id', [Base]),
+  ( bugs:fetch_json(URL, Response),
+    get_dict(bugs, Response, [Top|_]),
+    get_dict(id, Top, Id), integer(Id)
+  -> MaxId = Id
+  ;  MaxId = 0 ).
+
+
+%! bugs:progress(+Verb, +Fetched, +Id, +MaxId) is det.
+%
+% One scroll line: `Bugzilla: <Verb> ... <Fetched> bugs, id <Id>/<MaxId>
+% (<pct>%)`; the id ratio is omitted when MaxId is unknown (0).
+
+bugs:progress(Verb, Fetched, Id, MaxId) :-
+  ( MaxId > 0
+  -> Pct is min(100.0, 100 * Id / MaxId),
+     format(atom(Ratio), ', id ~d/~d (~1f%)', [Id, MaxId, Pct])
+  ;  Ratio = '' ),
+  message:scroll(['Bugzilla: ', Verb, ' ', Fetched, ' bugs fetched', Ratio]).
+
+
+%! bugs:crawl(+Location, +Params, +AfterId, +MaxId, +State0, -State, +Acc, -Fetched)
 %
 % Keyset pagination: each page asks for bugs with id > AfterId ordered by
 % id; the page's maximum id seeds the next request. A short page ends the
 % crawl and marks the state complete. `last_id` is only tracked for the
 % initial full crawl (Params without last_change_time); incremental runs
-% keep their own cursor in the recursion.
+% keep their own cursor in the recursion. MaxId (0 = unknown) drives the
+% progress percentage.
 
-bugs:crawl(Location, Params, AfterId, State0, State, Acc, Fetched) :-
+bugs:crawl(Location, Params, AfterId, MaxId0, State0, State, Acc, Fetched) :-
+  bugs:progress('requesting page,', Acc, AfterId, MaxId0),
   bugs:page_url([f1=bug_id, o1=greaterthan, v1=AfterId, order=bug_id|Params], URL),
   ( bugs:fetch_json(URL, Response),
     get_dict(bugs, Response, Page),
@@ -436,7 +467,7 @@ bugs:crawl(Location, Params, AfterId, State0, State, Acc, Fetched) :-
      Acc1 is Acc + N,
      ( N > 0
      -> bugs:write_page(Location, Page, MaxId),
-        message:scroll(['Bugzilla: ', Acc1, ' bugs (last id ', MaxId, ')'])
+        bugs:progress('page stored,', Acc1, MaxId, MaxId0)
      ;  MaxId = AfterId ),
      ( memberchk(last_change_time=_, Params)
      -> State1 = State0
@@ -450,7 +481,7 @@ bugs:crawl(Location, Params, AfterId, State0, State, Acc, Fetched) :-
         bugs:write_state(Location, State2),
         bugs:request_delay(Delay),
         ( Delay > 0 -> sleep(Delay) ; true ),
-        bugs:crawl(Location, Params, MaxId, State2, State, Acc1, Fetched) )
+        bugs:crawl(Location, Params, MaxId, MaxId0, State2, State, Acc1, Fetched) )
   ;  % transport failure: keep what we have, stay incomplete
      bugs:state_put(State0, complete(false), State),
      bugs:write_state(Location, State),
