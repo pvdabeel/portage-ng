@@ -394,7 +394,7 @@ body.page-deptree .dep-tabs .nav-group-label {
 .dep-tab:hover, .action-btn:hover, .filter-btn:hover {
   color: var(--text); border-color: var(--accent);
 }
-.dep-tab.active, .filter-btn.active {
+.dep-tab.active, .action-btn.active, .filter-btn.active {
   background: var(--blue-bg); color: var(--accent);
   border-color: var(--accent); font-weight: 600;
 }
@@ -548,6 +548,14 @@ table.gantt td.pkg {
   border-right: 2px solid var(--border2);
 }
 table.gantt td.empty { background: var(--surface2); }
+/* Hover mode: all edges hidden, only those touching the hovered row shown.
+   Edge colour/dash stay on the SVG element, so type colours are preserved. */
+svg.deps.hover-mode .dep-edge,
+svg.deps.hover-mode .bar-edge { visibility: hidden; }
+svg.deps.hover-mode .dep-edge.lit,
+svg.deps.hover-mode .bar-edge.lit { visibility: visible; opacity: 1; }
+table.gantt.hover-mode tr.hover-lit td { background: var(--blue-bg); }
+table.gantt.hover-mode tr.hover-lit td.pkg { color: var(--accent); }
 .cell {
   border-radius: 3px; padding: 2px 5px; font-size: 11px; font-weight: 500;
   display: inline-block; min-width: 44px; transition: opacity 0.2s;
