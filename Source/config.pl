@@ -731,7 +731,7 @@ config:graph_include_emerge(false).
 % Defines all HTML graph types produced by --graph.  Each type maps to a
 % self-contained interactive HTML file per ebuild.
 
-config:graph_html_type([detail,deptree,gantt,merge,fetchonly,info,glsa,emerge]).
+config:graph_html_type([detail,deptree,gantt,merge,fetchonly,info,glsa,bugs,emerge]).
 
 
 %! config:graph_site_url(?Url)
@@ -967,6 +967,72 @@ config:bugzilla_url('https://bugs.gentoo.org').
 % User-Agent string for Bugzilla API requests.
 
 config:bugzilla_user_agent('portage-ng/2026 (https://github.com/pvdabeel/portage-ng)').
+
+
+%! config:bugzilla_scope(?Scope)
+%
+% Bug population kept by a `bugzilla`-type repository (see
+% Source/Domain/Gentoo/bugs.pl): `all` public bugs, or `open` only
+% (UNCONFIRMED / CONFIRMED / IN_PROGRESS). The initial crawl of `all`
+% fetches roughly 600 pages of 1000 bugs; later syncs only fetch bugs
+% whose last_change_time moved.
+%
+% The bugzilla_* knobs below are dynamic so a host config can override
+% them with retractall/assertz (same pattern as config:curl_allow_http/1).
+
+:- dynamic config:bugzilla_scope/1.
+:- dynamic config:bugzilla_page_size/1.
+:- dynamic config:bugzilla_request_delay/1.
+:- dynamic config:bugzilla_search/1.
+:- dynamic config:bugzilla_annotate/1.
+
+config:bugzilla_scope(all).
+
+
+%! config:bugzilla_page_size(?N)
+%
+% Bugs requested per REST page during a bugzilla repository sync.
+
+config:bugzilla_page_size(1000).
+
+
+%! config:bugzilla_request_delay(?Seconds)
+%
+% Politeness pause between consecutive REST pages of one sync.
+
+config:bugzilla_request_delay(2).
+
+
+%! config:bugzilla_search(?Policy)
+%
+% Where --search-bugs looks first: `cache_first` answers from the synced
+% local bug store and only falls back to the live REST quicksearch when
+% nothing matches locally (or no store exists); `rest` always queries the
+% Bugzilla REST API directly.
+
+config:bugzilla_search(cache_first).
+
+
+%! config:bugzilla_annotate(?Bool)
+%
+% When true, the plan printer lists known open bugs (from the local bug
+% store) under each domain assumption that names a package. Silent when
+% no store has been synced.
+
+config:bugzilla_annotate(true).
+
+
+%! config:repository_sync_limit(?Repository, ?PerDay) is multi.
+%
+% Maximum number of network syncs (`sync(repository)`) of a registered
+% repository in any rolling 24-hour window. Repositories without a clause
+% are unlimited. Enforced in repository:sync/0; the metadata and kb steps
+% still run from local data when the cap is reached. Stamps live in
+% Knowledge/<Repository>.sync. Declared in the host config next to the
+% repository instance, e.g. `config:repository_sync_limit(bugzilla, 1).`
+
+:- multifile config:repository_sync_limit/2.
+:- dynamic config:repository_sync_limit/2.
 
 
 % -----------------------------------------------------------------------------

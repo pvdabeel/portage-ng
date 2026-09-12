@@ -133,9 +133,15 @@ init(Location,Cache,Remote,Protocol,Type) ::-
 
 sync ::-
   :this(Repository),
-  ( message:wrap(Repository:sync(repository))
-  -> true
-  ; format('% sync(repository) failed for ~w~n', [Repository]), flush_output, fail ),
+  % Network step, subject to the optional per-repository daily cap
+  % (config:repository_sync_limit/2). When the cap is exhausted the
+  % remote fetch is skipped with a notice; metadata and kb still rebuild
+  % from what is on disk.
+  ( repository:network_sync_allowed(Repository)
+  -> ( message:wrap(Repository:sync(repository))
+     -> repository:record_network_sync(Repository)
+     ; format('% sync(repository) failed for ~w~n', [Repository]), flush_output, fail )
+  ;  repository:sync_limit_notice(Repository) ),
   ( message:wrap(Repository:sync(metadata))
   -> true
   ; format('% sync(metadata) failed for ~w~n', [Repository]), flush_output, fail ),
@@ -151,6 +157,21 @@ sync ::-
 %
 % Updates files in local repository by invoking script to sync local repository
 % with remote repository (e.g. git / rsync / http tarball / ...)
+
+% Bugzilla sync(repository): paginated REST crawl into JSON pages under
+% the repository location (see bugs:sync_pages/2). No external script;
+% the protocol slot ('rest') documents the transport. Must precede the
+% generic script-driven clause below (clause order is dispatch order in
+% the OO context system).
+sync(repository) ::-
+  ::type('bugzilla'),!,
+  ::location(Local),
+  ::remote(Remote),
+  message:hc,
+  os:ensure_directory_path(Local),
+  bugs:sync_pages(Local, Remote),
+  message:sc,
+  !.
 
 sync(repository) ::-
   ::location(Local),
@@ -205,6 +226,12 @@ sync(metadata) ::-
 % order in the OO context system).
 sync(metadata) ::-
   ::type('binpkg'),!.
+
+
+% Bugzilla sync(metadata): no-op. The JSON pages written by
+% sync(repository) are already the metadata; sync(kb) folds them.
+sync(metadata) ::-
+  ::type('bugzilla'),!.
 
 
 sync(metadata) ::-
@@ -307,6 +334,27 @@ sync(kb) ::-
 
   message:sc,
   message:scroll(['Updated prolog knowledgebase. Binpkg variants: ', NRec]), nl,
+  message:clean,
+  !.
+
+
+% Bugzilla sync(kb): fold the pending JSON pages onto the bug store and
+% serialise it to the qcompiled file named by the cache slot
+% (Knowledge/bugs.qlf). Bugs are not tree entries: no cache:ordered_entry
+% or cache:entry_metadata rows are produced, only cache:repository/1 so the
+% repository shows up as registered. The store lives outside kb.qlf and
+% is loaded lazily by its consumers (bugs:ensure_loaded/0).
+sync(kb) ::-
+  ::type('bugzilla'),!,
+  :this(Repository),
+  ::location(Local),
+  ::cache(Qlf),
+  message:hc,
+  bugs:build_cache(Local, Qlf, Count),
+  retractall(cache:repository(Repository)),
+  assertz(cache:repository(Repository)),
+  message:sc,
+  message:scroll(['Updated bug tracker knowledgebase. Bugs: ', Count]), nl,
   message:clean,
   !.
 
@@ -1087,3 +1135,100 @@ protocol(Protocol) ::-
 
 type(Type) ::-
   atom(Type).
+
+
+% -----------------------------------------------------------------------------
+%  Per-repository network sync cap
+% -----------------------------------------------------------------------------
+
+% Plain module predicates (not instance methods): the cap is keyed by the
+% repository name and its state is a stamp file, so no instance state is
+% involved. `config:repository_sync_limit(Repo, PerDay)` declares the
+% maximum number of network syncs (`sync(repository)`) in any rolling
+% 24-hour window; repositories without a declaration are unlimited. The
+% stamps live in `Knowledge/<Repo>.sync`, one POSIX time per line.
+
+%! repository:sync_stamp_file(+Repository, -File) is det.
+%
+% Path of the network-sync stamp file for Repository.
+
+repository:sync_stamp_file(Repository, File) :-
+  config:working_dir(Dir),
+  format(atom(Name), 'Knowledge/~w.sync', [Repository]),
+  os:compose_path(Dir, Name, File).
+
+
+%! repository:sync_limit(+Repository, -PerDay) is semidet.
+%
+% Declared daily cap for Repository, when any.
+
+repository:sync_limit(Repository, PerDay) :-
+  current_predicate(config:repository_sync_limit/2),
+  config:repository_sync_limit(Repository, PerDay),
+  integer(PerDay),
+  PerDay >= 0,
+  !.
+
+
+%! repository:recent_sync_stamps(+Repository, -Stamps) is det.
+%
+% POSIX times of the network syncs of Repository within the last 24h.
+
+repository:recent_sync_stamps(Repository, Stamps) :-
+  repository:sync_stamp_file(Repository, File),
+  ( exists_file(File)
+  -> catch(read_file_to_terms(File, Terms, []), _, Terms = [])
+  ;  Terms = [] ),
+  get_time(Now),
+  Cutoff is Now - 86400,
+  findall(T, ( member(T, Terms), number(T), T > Cutoff ), Stamps).
+
+
+%! repository:network_sync_allowed(+Repository) is semidet.
+%
+% True unless a daily cap is declared for Repository and already reached.
+
+repository:network_sync_allowed(Repository) :-
+  ( repository:sync_limit(Repository, PerDay)
+  -> repository:recent_sync_stamps(Repository, Stamps),
+     length(Stamps, Done),
+     Done < PerDay
+  ;  true ).
+
+
+%! repository:record_network_sync(+Repository) is det.
+%
+% Append the current time to the stamp file (only when a cap is declared,
+% so uncapped repositories never write stamps). Stale stamps are pruned
+% on the way.
+
+repository:record_network_sync(Repository) :-
+  ( repository:sync_limit(Repository, _)
+  -> repository:recent_sync_stamps(Repository, Stamps),
+     get_time(Now),
+     append(Stamps, [Now], All),
+     repository:sync_stamp_file(Repository, File),
+     file_directory_name(File, Dir),
+     os:ensure_directory_path(Dir),
+     setup_call_cleanup(
+       open(File, write, Out),
+       forall(member(T, All), format(Out, '~q.~n', [T])),
+       close(Out))
+  ;  true ).
+
+
+%! repository:sync_limit_notice(+Repository) is det.
+%
+% Explain why the network step was skipped and when it becomes available.
+
+repository:sync_limit_notice(Repository) :-
+  repository:sync_limit(Repository, PerDay),
+  repository:recent_sync_stamps(Repository, Stamps),
+  ( Stamps = [Oldest|_]
+  -> Next is Oldest + 86400,
+     format_time(atom(When), '%F %T', Next)
+  ;  When = 'later' ),
+  message:scroll_notice(['Network sync of \"', Repository, '\" skipped: daily cap of ',
+                         PerDay, ' reached; next allowed after ', When,
+                         '. Rebuilding from local data.']),
+  nl.

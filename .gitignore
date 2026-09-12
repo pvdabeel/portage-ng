@@ -11,6 +11,9 @@ Knowledge/profile.qlf
 Knowledge/profile.raw
 Knowledge/glsa.qlf
 Knowledge/glsa.raw
+Knowledge/bugs.qlf
+Knowledge/bugs.raw
+Knowledge/*.sync
 Knowledge/preference.qlf
 Knowledge/preference.raw
 Knowledge/preference.stamp

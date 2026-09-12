@@ -53,6 +53,20 @@ config:emerge_vp_path('/opt/local/gentoo-prefix/bin/emerge-vp').
 
 
 % -----------------------------------------------------------------------------
+%  Gentoo Bugzilla - paginated REST sync into Knowledge/bugs.qlf
+% -----------------------------------------------------------------------------
+
+:- bugzilla:newinstance(repository).
+:- config:installation_dir(Dir),
+   os:compose_path([Dir,'Knowledge/bugs.qlf'],Cache),
+   bugzilla:init('/Users/pvdabeel/Repository/bugzilla',Cache,
+                 'https://bugs.gentoo.org','rest','bugzilla').
+:- kb:register(bugzilla).
+
+config:repository_sync_limit(bugzilla, 1).
+
+
+% -----------------------------------------------------------------------------
 %  Ebuild command (Gentoo Prefix wrapper)
 % -----------------------------------------------------------------------------
 

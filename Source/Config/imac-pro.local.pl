@@ -53,6 +53,20 @@ config:emerge_vp_path('/Volumes/Disk 1/gentoo-prefix/bin/emerge-vp').
 
 
 % -----------------------------------------------------------------------------
+%  Gentoo Bugzilla - paginated REST sync into Knowledge/bugs.qlf
+% -----------------------------------------------------------------------------
+
+:- bugzilla:newinstance(repository).
+:- config:installation_dir(Dir),
+   os:compose_path([Dir,'Knowledge/bugs.qlf'],Cache),
+   bugzilla:init('/Volumes/Disk 1/Repository/bugzilla',Cache,
+                 'https://bugs.gentoo.org','rest','bugzilla').
+:- kb:register(bugzilla).
+
+config:repository_sync_limit(bugzilla, 1).
+
+
+% -----------------------------------------------------------------------------
 %  Overlay repository - local sync
 % -----------------------------------------------------------------------------
 

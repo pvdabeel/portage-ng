@@ -984,7 +984,8 @@ warning:print_assumption_detail(rule(package_dependency(T,A,C,N,X,Y,Z,XX):_YY?{C
     nl,
     message:color(normal),
     info:print_metadata_item_detail(_,'  ',package_dependency(T,A,C,N,X,Y,Z,XX)),nl,
-    warning:print_assumption_provenance(Ctx).
+    warning:print_assumption_provenance(Ctx),
+    warning:print_known_bugs(C, N, version_none).
 
 warning:print_assumption_detail(rule(grouped_package_dependency(C,N,_R):_T?{Ctx0},_)) :-
     warning:unwrap_ctx(Ctx0, Ctx),
@@ -998,7 +999,8 @@ warning:print_assumption_detail(rule(grouped_package_dependency(C,N,_R):_T?{Ctx0
     nl,
     format('  ~w/~w~n', [C, N]),
     warning:print_requse_violation_detail(ViolDesc),
-    warning:print_assumption_provenance(Ctx).
+    warning:print_assumption_provenance(Ctx),
+    warning:print_known_bugs(C, N, version_none).
 
 warning:print_assumption_detail(rule(grouped_package_dependency(C,N,_R):_T?{Ctx0},_)) :-
     warning:unwrap_ctx(Ctx0, Ctx),
@@ -1012,7 +1014,8 @@ warning:print_assumption_detail(rule(grouped_package_dependency(C,N,_R):_T?{Ctx0
     nl,
     format('  ~w/~w~n', [C, N]),
     warning:print_slot_conflict_detail(SlotConflictDesc),
-    warning:print_assumption_provenance(Ctx).
+    warning:print_assumption_provenance(Ctx),
+    warning:print_known_bugs(C, N, version_none).
 
 warning:print_assumption_detail(rule(grouped_package_dependency(C,N,R):T?{Ctx},_)) :- !,
     message:color(lightred),
@@ -1028,7 +1031,8 @@ warning:print_assumption_detail(rule(grouped_package_dependency(C,N,R):T?{Ctx},_
     message:color(normal),
     info:print_metadata_item_detail(_,'  ',grouped_package_dependency(C,N,R)),nl,
     warning:print_assumption_provenance(Ctx),
-    warning:print_tree_issue_note(C, N, R).
+    warning:print_tree_issue_note(C, N, R),
+    warning:print_known_bugs(C, N, version_none).
 
 warning:print_assumption_detail(rule(grouped_package_dependency(X,C,N,R):install,_)) :- !,
     message:color(lightred),
@@ -1073,7 +1077,8 @@ warning:print_assumption_detail(rule(R://E:unmask?{_Ctx},_)) :- !,
     message:style(normal),
     message:color(normal),nl,
     message:print('  '),
-    message:print(R://E), nl.
+    message:print(R://E), nl,
+    warning:print_entry_known_bugs(R://E).
 
 warning:print_assumption_detail(rule(R://E:unmask,_)) :- !,
     message:color(lightred),
@@ -1082,7 +1087,8 @@ warning:print_assumption_detail(rule(R://E:unmask,_)) :- !,
     message:style(normal),
     message:color(normal),nl,
     message:print('  '),
-    message:print(R://E), nl.
+    message:print(R://E), nl,
+    warning:print_entry_known_bugs(R://E).
 
 % Blocker assumptions (introduced by resolving.pl when we print a "plan with blocker
 % assumptions" after a failed strict solve).
@@ -1102,7 +1108,8 @@ warning:print_assumption_detail(rule(blocker(Strength, Phase, C, N, _O, _V, _Slo
     message:print(Phase),
     message:print(')'),
     nl,
-    warning:print_assumption_provenance(Ctx).
+    warning:print_assumption_provenance(Ctx),
+    warning:print_known_bugs(C, N, version_none).
 
 warning:print_assumption_detail(rule(blocker(Strength, Phase, C, N, O, V, SlotReq), Body)) :- !,
     warning:print_assumption_detail(rule(blocker(Strength, Phase, C, N, O, V, SlotReq)?{[]}, Body)).
@@ -1294,6 +1301,72 @@ warning:print_tree_issue_note(C, N, PackageDeps) :-
       nl,
       message:color(normal)
   ; true
+  ).
+
+
+%! warning:print_entry_known_bugs(+Repo://+Entry)
+%
+% print_known_bugs/3 for a tree entry (category, name and exact version
+% taken from the cache).
+
+warning:print_entry_known_bugs(Repo://Entry) :-
+  ( cache:ordered_entry(Repo, Entry, C, N, Ver) ->
+      warning:print_known_bugs(C, N, Ver)
+  ; true
+  ).
+
+
+%! warning:print_known_bugs(+C, +N, +Ver)
+%
+% Lists up to three open Bugzilla bugs naming package C/N from the local
+% bug store (`Source/Domain/Gentoo/bugs.pl`), bugs naming exactly Ver
+% first, each with its URL. Gated by config:bugzilla_annotate/1 and the
+% presence of a synced store; silent otherwise. Purely informational: it
+% does not change the assumption, its polarity or the exit code.
+
+warning:print_known_bugs(C, N, Ver) :-
+  ( config:bugzilla_annotate(true),
+    catch(bugs:cache_available, _, fail),
+    catch(bugs:open_package_bugs(C, N, Ids), _, fail),
+    Ids \== [] ->
+      warning:rank_known_bugs(Ids, C, N, Ver, Ranked),
+      warning:known_bugs_prefix(3, Ranked, Shown),
+      length(Ids, Total),
+      message:color(darkgray),
+      ( Total =:= 1 ->
+          format('  Known open bug:~n', [])
+      ; format('  Known open bugs (~w, showing ~w):~n', [Total, 3])
+      ),
+      forall(member(Id, Shown),
+             ( bugs:bug(Id, _, _, _, Summary),
+               bugs:bug_url(Id, Url),
+               format('    #~w  ~w~n', [Id, Summary]),
+               format('           ~w~n', [Url]) )),
+      message:color(normal)
+  ; true
+  ).
+
+
+%! warning:rank_known_bugs(+Ids, +C, +N, +Ver, -Ranked)
+%
+% Bugs whose atom index names C/N at exactly Ver come first (each group
+% keeps its newest-first order).
+
+warning:rank_known_bugs(Ids, _, _, version_none, Ids) :- !.
+warning:rank_known_bugs(Ids, C, N, Ver, Ranked) :-
+  ( catch(bugs:atom_version_bugs(C, N, Ver, Exact), _, fail) -> true ; Exact = [] ),
+  partition([Id]>>memberchk(Id, Exact), Ids, First, Rest),
+  append(First, Rest, Ranked).
+
+
+%! warning:known_bugs_prefix(+N, +List, -Prefix)
+%
+% First N elements of List (all of it when shorter).
+
+warning:known_bugs_prefix(N, List, Prefix) :-
+  length(List, Len),
+  ( Len =< N -> Prefix = List
+  ; length(Prefix, N), append(Prefix, _, List)
   ).
 
 %! warning:assumption_reason_label(+CtxLike, -Label)

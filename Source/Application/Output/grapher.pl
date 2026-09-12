@@ -44,6 +44,10 @@ graphs.  For a given ebuild, the following output is produced:
                marked as vulnerable / unaffected.  Delegates to the security
                submodule.
 
+ - bugs:       Bugzilla bugs (from the synced bug store) naming the ebuild's
+               package, newest first, with open bugs and bugs naming this
+               exact version marked.  Delegates to the tracker submodule.
+
 Legacy DOT graph generation is available via dot:graph/2 in
 Source/Application/Output/Grapher/dot.pl and can be invoked manually through
 grapher:graph_dot/2.
@@ -94,6 +98,10 @@ grapher:graph(deptree,Repository://Id) :-
 grapher:graph(glsa,Repository://Id) :-
   !,
   security:graph(Repository://Id).
+
+grapher:graph(bugs,Repository://Id) :-
+  !,
+  tracker:graph(Repository://Id).
 
 
 % -----------------------------------------------------------------------------

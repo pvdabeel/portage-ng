@@ -76,6 +76,26 @@
 
 
 % -----------------------------------------------------------------------------
+%  Example: Bugzilla bug tracker - paginated REST sync into Knowledge/bugs.qlf
+% -----------------------------------------------------------------------------
+
+% Location holds the raw JSON pages and the resume state file; the cache
+% slot names the qcompiled bug store consumed by --graph, --search-bugs
+% and the plan printer. The daily cap bounds network use (network step is
+% skipped once reached; the store still rebuilds from local pages).
+
+% :- bugzilla:newinstance(repository).
+% :- bugzilla:init('/Users/pvdabeel/Repository/bugzilla',
+%                  '/Users/pvdabeel/Desktop/Prolog/Knowledge/bugs.qlf',
+%                  'https://bugs.gentoo.org','rest','bugzilla').
+% :- kb:register(bugzilla).
+%
+% config:repository_sync_limit(bugzilla, 1).
+% config:bugzilla_scope(all).            % or: open
+% config:bugzilla_search(cache_first).   % or: rest
+
+
+% -----------------------------------------------------------------------------
 %  Bugzilla URL for --search-bugs (default: https://bugs.gentoo.org)
 % -----------------------------------------------------------------------------
 

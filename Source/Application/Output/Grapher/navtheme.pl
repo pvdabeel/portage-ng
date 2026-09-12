@@ -324,10 +324,11 @@ navtheme:emit_cli_group(Entry, ActiveType) :-
 
 %! navtheme:emit_security_group(+Repo, +Entry, +Cat, +Name, +ActiveType) is det.
 %
-% Emit the security navigation group with the glsa link. The link
-% carries a count pill when advisories reference Cat/Name; the pill is
-% marked `affected` when one of them places this Entry in a vulnerable
-% range.
+% Emit the security navigation group with the glsa and bugs links. The
+% glsa link carries a count pill when advisories reference Cat/Name; the
+% pill is marked `affected` when one of them places this Entry in a
+% vulnerable range. The bugs link carries the number of open bugs naming
+% Cat/Name; `affected` when one of them names this exact version.
 
 navtheme:emit_security_group(Repo, Entry, Cat, Name, ActiveType) :-
     write('  <div class="nav-group">'), nl,
@@ -335,7 +336,31 @@ navtheme:emit_security_group(Repo, Entry, Cat, Name, ActiveType) :-
     navtheme:glsa_badge(Repo, Entry, Cat, Name, Badge),
     atom_concat(glsa, Badge, Label),
     emit_type_link(Entry, glsa, Label, ActiveType),
+    navtheme:bugs_badge(Repo, Entry, Cat, Name, BugsBadge),
+    atom_concat(bugs, BugsBadge, BugsLabel),
+    emit_type_link(Entry, bugs, BugsLabel, ActiveType),
     write('  </div>'), nl.
+
+
+%! navtheme:bugs_badge(+Repo, +Entry, +Cat, +Name, -Badge) is det.
+%
+% Badge is '' when no open bug names Cat/Name, else a leading space plus
+% the count pill markup. Any failure in the bug store (no cache) degrades
+% to no badge.
+
+navtheme:bugs_badge(Repo, Entry, Cat, Name, Badge) :-
+    (   catch(bugs:open_package_bugs(Cat, Name, Ids), _, fail),
+        Ids \== []
+    ->  length(Ids, N),
+        (   catch(bugs:entry_bugs(Repo://Entry, EntryIds), _, fail),
+            member(Id, Ids),
+            memberchk(Id, EntryIds)
+        ->  Cls = 'nav-badge affected'
+        ;   Cls = 'nav-badge'
+        ),
+        format(atom(Badge), ' <span class="~w">~w</span>', [Cls, N])
+    ;   Badge = ''
+    ).
 
 
 %! navtheme:glsa_badge(+Repo, +Entry, +Cat, +Name, -Badge) is det.

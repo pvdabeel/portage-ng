@@ -344,6 +344,22 @@ sandbox:safe_primitive(glsa:entry_covered(_,_)).
 sandbox:safe_primitive(glsa:entry_status(_,_,_)).
 sandbox:safe_primitive(glsa:package_advisories(_,_,_)).
 sandbox:safe_primitive(glsa:ensure_loaded).
+
+% -----------------------------------------------------------------------------
+%  Bugzilla bug store
+% -----------------------------------------------------------------------------
+
+sandbox:safe_primitive(bugs:cache_available).
+sandbox:safe_primitive(bugs:ensure_loaded).
+sandbox:safe_primitive(bugs:bug(_,_,_,_,_)).
+sandbox:safe_primitive(bugs:bug_detail(_,_)).
+sandbox:safe_primitive(bugs:is_open(_)).
+sandbox:safe_primitive(bugs:package_bugs(_,_,_)).
+sandbox:safe_primitive(bugs:open_package_bugs(_,_,_)).
+sandbox:safe_primitive(bugs:entry_bugs(_,_)).
+sandbox:safe_primitive(bugs:atom_version_bugs(_,_,_,_)).
+sandbox:safe_primitive(bugs:search_local(_,_)).
+sandbox:safe_primitive(bugs:bug_url(_,_)).
 sandbox:safe_primitive(sets:expand(_,_)).
 sandbox:safe_primitive(sets:is_computed_set(_)).
 sandbox:safe_primitive(sets:entry_deps_outdated(_)).

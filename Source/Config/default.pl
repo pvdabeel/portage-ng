@@ -51,3 +51,21 @@
    os:compose_path([Dir,'Repository/portage-git/distfiles'],Distdir),
    distfiles:init(Distdir,'', '', 'local','distfiles').
 :- kb:register(distfiles).
+
+
+% -----------------------------------------------------------------------------
+%  Gentoo Bugzilla - paginated REST sync into Knowledge/bugs.qlf
+% -----------------------------------------------------------------------------
+
+% Location holds the raw JSON pages + resume state; the cache slot names
+% the qcompiled bug store. At most one network sync per day.
+
+:- bugzilla:newinstance(repository).
+
+:- config:installation_dir(Dir),
+   os:compose_path([Dir,'Repository/bugzilla'],Location),
+   os:compose_path([Dir,'Knowledge/bugs.qlf'],Cache),
+   bugzilla:init(Location,Cache,'https://bugs.gentoo.org','rest','bugzilla').
+:- kb:register(bugzilla).
+
+config:repository_sync_limit(bugzilla, 1).

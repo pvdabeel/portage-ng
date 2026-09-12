@@ -66,6 +66,20 @@ config:graph_directory('/root/Graph').
 
 
 % -----------------------------------------------------------------------------
+%  Gentoo Bugzilla - paginated REST sync into Knowledge/bugs.qlf
+% -----------------------------------------------------------------------------
+
+:- bugzilla:newinstance(repository).
+:- config:installation_dir(Dir),
+   os:compose_path([Dir,'Knowledge/bugs.qlf'],Cache),
+   bugzilla:init('/var/cache/bugzilla',Cache,
+                 'https://bugs.gentoo.org','rest','bugzilla').
+:- kb:register(bugzilla).
+
+config:repository_sync_limit(bugzilla, 1).
+
+
+% -----------------------------------------------------------------------------
 %  Binary package cache (gpkg multi-instance)
 % -----------------------------------------------------------------------------
 %

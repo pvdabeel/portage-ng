@@ -50,6 +50,20 @@ config:emerge_vp_path('/Volumes/Storage/gentoo-prefix/bin/emerge-vp').
 :- distfiles:init('/Volumes/Storage/Distfiles/distfiles','', '', 'local','distfiles').
 :- kb:register(distfiles).
 
+
+% -----------------------------------------------------------------------------
+%  Gentoo Bugzilla - paginated REST sync into Knowledge/bugs.qlf
+% -----------------------------------------------------------------------------
+
+:- bugzilla:newinstance(repository).
+:- config:installation_dir(Dir),
+   os:compose_path([Dir,'Knowledge/bugs.qlf'],Cache),
+   bugzilla:init('/Volumes/Storage/Repository/bugzilla',Cache,
+                 'https://bugs.gentoo.org','rest','bugzilla').
+:- kb:register(bugzilla).
+
+config:repository_sync_limit(bugzilla, 1).
+
 % Trusted LAN distfiles mirror (cleartext). Tried before the public
 % https mirror when curl_allow_http is enabled.
 config:mirror_url('http://mac-pro.local/distfiles').

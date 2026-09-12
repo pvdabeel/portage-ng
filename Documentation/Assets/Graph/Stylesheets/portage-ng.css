@@ -1032,6 +1032,18 @@ ul.glsa-refs li { break-inside: avoid; font-family: var(--mono); font-size: 12px
 }
 
 /* ================================================================
+   PAGE: bugs (Bugzilla bug tracker) - reuses the glsa fold-open list
+   ================================================================ */
+
+details.bug-item[data-status="open"]     { border-left-color: var(--orange); }
+details.bug-item[data-status="open"][data-version="this"] { border-left-color: var(--red); }
+details.bug-item[data-status="resolved"] { border-left-color: var(--gray-border); }
+.glsa-badge.status.open     { background: var(--orange-bg); color: var(--orange); border-color: var(--orange-border); }
+.glsa-badge.status.resolved { background: var(--gray-bg); color: var(--gray-c); border-color: var(--gray-border); }
+.glsa-badge.version         { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+body.page-bugs .glsa-summary-text code { font-family: var(--mono); font-size: 12px; }
+
+/* ================================================================
    PAGE: index (repository, category, package listings)
    ================================================================ */
 
