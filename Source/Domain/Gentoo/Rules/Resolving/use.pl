@@ -317,6 +317,9 @@ use:context_build_with_use_state(Context, State) :-
 % on the actual VM, and then `!ads?(!addc)` would flip it back.
 % Trusting R keeps us aligned with the prover's view of what flags
 % will actually change for this package, with no extra speculation.
+% Group-level leftover conflicts (`assumed(conflict(required_use, ^^))`)
+% are interpreted against BResolved: if stabilize already chose a
+% member, do not invent a sibling via last-flag fallback (portage-ng#120).
 %
 % Examples (observed in the all-packages matrix):
 %   - app-admin/fluentd: REQUIRED_USE=||(ruby_targets_ruby32) →
@@ -329,7 +332,7 @@ use:context_build_with_use_state(Context, State) :-
 %     to pull a text-mode browser.
 
 use:dep_walk_context(R, BResolved, Model0, Model) :-
-  use:model_required_use_changes(R, Changes),
+  use:model_required_use_changes(R, BResolved, Changes),
   use:apply_use_changes_to_state(Changes, BResolved, BWUEff),
   ( select(build_with_use:_, Model0, Rest) -> true ; Rest = Model0 ),
   Model = [build_with_use:BWUEff | Rest].
@@ -401,43 +404,77 @@ use:build_with_use_changes(use_state(Enable, Disable), Repo://Entry, Changes) :-
 
 
 %! use:model_required_use_changes(+ModelKeys, -Changes)
+%! use:model_required_use_changes(+ModelKeys, +BWU, -Changes)
 %
 % Extract USE flag changes that the REQUIRED_USE model proof had to assume.
 % ModelKeys is the R list from query:search(model(_,required_use(R),_), ...).
 % Returns use_change(Flag, enable|disable) for each assumption.
 % Handles both individual flag assumptions and group-level REQUIRED_USE
 % assumptions (exactly_one_of_group, any_of_group, at_most_one_of_group).
+%
+% The BWU-aware form skips a group-conflict pick when BWU already
+% enables a member of that group, so a leftover `^^` assumption cannot
+% invent a sibling (portage-ng#120). The 2-argument form uses an empty
+% BWU and keeps the historical last-member fallback.
 
 use:model_required_use_changes(ModelKeys, Changes) :-
+    use:model_required_use_changes(ModelKeys, use_state([], []), Changes).
+
+
+use:model_required_use_changes(ModelKeys, BWU, Changes) :-
     findall(Change,
             ( member(A, ModelKeys),
-              use:model_assumption_to_change(A, Change)
+              use:model_assumption_to_change(A, BWU, Change)
             ),
             Changes).
 
-use:model_assumption_to_change(assumed(Use), use_change(Use, enable)) :-
-    atom(Use), \+ Use = minus(_).
-use:model_assumption_to_change(assumed(minus(Use)), use_change(Use, disable)) :-
-    atom(Use), \+ Use = minus(_).
-use:model_assumption_to_change(assumed(conflict(required, Use)), use_change(Use, enable)) :-
-    atom(Use), \+ Use = minus(_).
-use:model_assumption_to_change(assumed(conflict(required, minus(Use))), use_change(Use, disable)) :-
-    atom(Use), \+ Use = minus(_).
-use:model_assumption_to_change(assumed(conflict(blocking, minus(Use))), use_change(Use, enable)) :-
-    atom(Use), \+ Use = minus(_).
-use:model_assumption_to_change(assumed(conflict(blocking, Use)), use_change(Use, disable)) :-
-    atom(Use), \+ Use = minus(_).
 
+use:model_assumption_to_change(A, Change) :-
+    use:model_assumption_to_change(A, use_state([], []), Change).
+
+
+use:model_assumption_to_change(assumed(Use), _BWU, use_change(Use, enable)) :-
+    atom(Use), \+ Use = minus(_).
+use:model_assumption_to_change(assumed(minus(Use)), _BWU, use_change(Use, disable)) :-
+    atom(Use), \+ Use = minus(_).
+use:model_assumption_to_change(assumed(conflict(required, Use)), _BWU, use_change(Use, enable)) :-
+    atom(Use), \+ Use = minus(_).
+use:model_assumption_to_change(assumed(conflict(required, minus(Use))), _BWU, use_change(Use, disable)) :-
+    atom(Use), \+ Use = minus(_).
+use:model_assumption_to_change(assumed(conflict(blocking, minus(Use))), _BWU, use_change(Use, enable)) :-
+    atom(Use), \+ Use = minus(_).
+use:model_assumption_to_change(assumed(conflict(blocking, Use)), _BWU, use_change(Use, disable)) :-
+    atom(Use), \+ Use = minus(_).
 use:model_assumption_to_change(assumed(conflict(required_use, exactly_one_of_group(Deps))),
-                           use_change(Flag, enable)) :-
+                               use_state(En, Dis),
+                               use_change(Flag, enable)) :-
+    \+ use:bwu_covers_required_use_member(En, Dis, Deps),
     use:required_use_group_pick_flag(Deps, Flag).
 use:model_assumption_to_change(assumed(conflict(required_use, any_of_group(Deps))),
-                           use_change(Flag, enable)) :-
+                               use_state(En, Dis),
+                               use_change(Flag, enable)) :-
+    \+ use:bwu_covers_required_use_member(En, Dis, Deps),
     use:required_use_group_pick_flag(Deps, Flag).
-
 use:model_assumption_to_change(assumed(conflict(required_use, at_most_one_of_group(Deps))),
-                           use_change(Flag, disable)) :-
+                               use_state(En, Dis),
+                               use_change(Flag, disable)) :-
+    \+ use:bwu_covers_required_use_member(En, Dis, Deps),
     use:required_use_group_excess_flags(Deps, Flag).
+
+
+%! use:bwu_covers_required_use_member(+Enable, +Disable, +Deps) is semidet.
+%
+% True when at least one required(F) member of Deps is already enabled
+% in the BWU state. Keeps leftover REQUIRED_USE group-conflict
+% assumptions from inventing a second ^^ / || member (portage-ng#120).
+
+use:bwu_covers_required_use_member(En, Dis, Deps) :-
+    member(required(F), Deps),
+    atom(F),
+    \+ F = minus(_),
+    memberchk(F, En),
+    \+ memberchk(F, Dis).
+
 
 %! use:required_use_group_pick_flag(+Deps, -Flag)
 % Pick a single flag from a REQUIRED_USE group to satisfy the constraint.
@@ -1575,6 +1612,57 @@ use:describe_use_dep_unsat(RepoEntry, BWU, use_dep_unsat(RepoEntry, BWU, Why)) :
 use:use_dep_atom_satisfiable(RepoEntry, BWU) :-
     use:bwu_respects_profile_hard(RepoEntry, BWU),
     use:verify_required_use_with_bwu(RepoEntry, BWU).
+
+
+%! use:reconcile_required_use_model(+RepoEntry, +BResolved, +R0, -R) is det.
+%
+% After stabilize succeeds, drop leftover
+% `assumed(conflict(required_use, ...))` keys that BResolved already
+% resolved. The :validate model is proved against `self/1` only (no
+% BWU), so a parent `[gitea]` atom plus empty profile USE records a
+% `^^` conflict even though BResolved is legal (portage-ng#111).
+% Leaving that key in R lets `required_use_group_pick_flag/2` invent a
+% sibling enable (last member = gitolite) that the executor then
+% applies (portage-ng#120).
+%
+% Real `assumed(Flag)` keys are kept — those are what
+% `dep_walk_context/4` needs for fluentd-style `||` seeds. Empty BWU
+% keeps every conflict key (stabilize has not chosen a member yet).
+
+use:reconcile_required_use_model(RepoEntry, BResolved, R0, R) :-
+    ( is_list(R0) -> RIn = R0 ; RIn = [] ),
+    ( BResolved = use_state(En, Dis),
+      ( En \== [] ; Dis \== [] ),
+      use:verify_required_use_with_bwu(RepoEntry, BResolved)
+    -> exclude(use:required_use_conflict_assumption, RIn, R)
+    ; exclude(use:stale_required_use_conflict(BResolved), RIn, R)
+    ).
+
+
+%! use:required_use_conflict_assumption(+Term) is semidet.
+%
+% True for a group-level REQUIRED_USE conflict assumption.
+
+use:required_use_conflict_assumption(assumed(conflict(required_use, _))).
+
+
+%! use:stale_required_use_conflict(+BWU, +Term) is semidet.
+%
+% True when Term is a REQUIRED_USE group conflict whose group already
+% has a member enabled in BWU (the leftover is stale relative to
+% stabilize).
+
+use:stale_required_use_conflict(use_state(En, Dis),
+                               assumed(conflict(required_use, Group))) :-
+    use:required_use_conflict_group_deps(Group, Deps),
+    use:bwu_covers_required_use_member(En, Dis, Deps).
+
+
+%! use:required_use_conflict_group_deps(+Group, -Deps) is semidet.
+
+use:required_use_conflict_group_deps(exactly_one_of_group(Deps), Deps).
+use:required_use_conflict_group_deps(any_of_group(Deps), Deps).
+use:required_use_conflict_group_deps(at_most_one_of_group(Deps), Deps).
 
 
 %! use:requse_term_ok_with_bwu(+RepoEntry, +Enable, +Disable, +Term)

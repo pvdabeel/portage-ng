@@ -18,6 +18,7 @@ detection and the VDB reconciliation backstop.
 
 :- use_module(library(plunit)).
 :- use_module(library(lists)).
+:- use_module(library(assoc)).
 
 % =============================================================================
 %  BUILDERTEST declarations
@@ -58,6 +59,47 @@ test(prefers_effective_negative, [true(S == negative)]) :-
   ).
 
 :- end_tests(builder_base_use_state).
+
+
+% -----------------------------------------------------------------------------
+%  Planned BWU wins over leftover ^^ suggestion (portage-ng#120)
+% -----------------------------------------------------------------------------
+%
+% The install job for acct-user/git[gitea] can still carry a leftover
+% required_use conflict plus suggestion(use_change, [gitea, gitolite])
+% next to the planned build_with_use:use_state([gitea], []). The
+% executor must not enable gitolite.
+
+:- begin_tests(builder_ctx_use_overrides).
+
+test(planned_bwu_wins_over_leftover_sibling,
+     [true(Gitea-Git-Gitolite == positive-negative-negative)]) :-
+  empty_assoc(Empty),
+  put_assoc(git, Empty, negative, A1),
+  put_assoc(gitea, A1, negative, A2),
+  put_assoc(gitolite, A2, negative, Base),
+  Ctx = [
+    build_with_use:use_state([gitea], []),
+    required_use:[assumed(conflict(required_use,
+      exactly_one_of_group([required(git), required(gitea),
+                            required(gitolite)])))],
+    suggestion(use_change, qtest://'acct-user/git-0',
+               [use_change(gitea, enable), use_change(gitolite, enable)])
+  ],
+  ebuild_exec:apply_ctx_use_overrides(Ctx, Base, Out),
+  get_assoc(gitea, Out, Gitea),
+  get_assoc(git, Out, Git),
+  get_assoc(gitolite, Out, Gitolite).
+
+test(empty_bwu_still_applies_suggestion,
+     [true(Gitea == positive)]) :-
+  empty_assoc(Empty),
+  put_assoc(gitea, Empty, negative, Base),
+  Ctx = [suggestion(use_change, qtest://'p-1', [use_change(gitea, enable)])],
+  ebuild_exec:apply_ctx_use_overrides(Ctx, Base, Out),
+  get_assoc(gitea, Out, Gitea).
+
+:- end_tests(builder_ctx_use_overrides).
 
 
 % -----------------------------------------------------------------------------

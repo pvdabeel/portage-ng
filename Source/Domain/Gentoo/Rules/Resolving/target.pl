@@ -668,8 +668,8 @@ candidate:resolve(Repository://Ebuild:update?{Context0}, Conditions) :-
   featureterm:get_rebuild_after(Context0, RebuildAnchor, Context1),
   featureterm:get_after_with_mode(Context1, After, AfterForDeps, Context),
   use:context_build_with_use_state(Context, B),
-  (memberchk(required_use:R,Context) -> true ; true),
-  query:search(model(Model,required_use(R),build_with_use(B)),Repository://Ebuild),
+  query:search(model(Model,required_use(R0),build_with_use(B)),Repository://Ebuild),
+  use:reconcile_required_use_model(Repository://Ebuild, B, R0, R),
   % Thread REQUIRED_USE-derived flag changes (R) into the dep-walk
   % context so conditional dep groups gated by a flipped flag expand.
   % See use:dep_walk_context/4 for the rationale.
@@ -807,8 +807,8 @@ candidate:resolve(_Repository://_Ebuild:download?{Context}, Conditions) :-
 candidate:resolve(Repository://Ebuild:fetchonly?{Context}, Conditions) :-
   query:search([category(C),name(N),select(slot,constraint([]),S)], Repository://Ebuild),
   use:context_build_with_use_state(Context, B),
-  ( memberchk(required_use:R, Context) -> true ; true ),
-  query:search(model(Model, required_use(R), build_with_use(B)), Repository://Ebuild),
+  query:search(model(Model, required_use(R0), build_with_use(B)), Repository://Ebuild),
+  use:reconcile_required_use_model(Repository://Ebuild, B, R0, R),
   % Thread R into the fetchonly dep walk so conditional `flag?(uri)`
   % SRC_URI groups follow the prover's REQUIRED_USE assumptions.
   use:dep_walk_context(R, B, Model, ModelExt),
@@ -979,14 +979,17 @@ candidate:run_dep_model(Repository://Ebuild, Model, AfterForDeps, run,
 %
 % Computes the REQUIRED_USE stable model, verifies BWU cross-dep conflicts,
 % and resolves build_with_use against REQUIRED_USE. Fails (recording the
-% violation) when REQUIRED_USE cannot be satisfied.
+% violation) when REQUIRED_USE cannot be satisfied. On success, R is
+% reconciled against BResolved so leftover `^^` / `||` conflict keys
+% do not leak into the install job (portage-ng#120). Context's
+% `required_use` key is not unified with the model: after reconcile it
+% may be `[]` while :validate (self-only) still records a conflict.
 
 candidate:resolve_required_use(_Phase, C, N, Repository://Ebuild, Context1, R, BResolved, Model) :-
   use:context_build_with_use_state(Context1, B0),
   use:merge_memo_candidate_bwu(C, N, B0, B1),
   ranking:apply_equality_pins(Repository://Ebuild, B1, B),
-  ( memberchk(required_use:R, Context1) -> true ; true ),
-  query:search(model(Model,required_use(R),build_with_use(B)), Repository://Ebuild),
+  query:search(model(Model,required_use(R0),build_with_use(B)), Repository://Ebuild),
   use:build_with_use_resolve_required_use(B, Repository://Ebuild, BResolved0),
   use:stabilize_required_use(Repository://Ebuild, BResolved0, BResolved),
   use:check_bwu_cross_dep(C, N, Repository://Ebuild, BResolved),
@@ -997,7 +1000,7 @@ candidate:resolve_required_use(_Phase, C, N, Repository://Ebuild, Context1, R, B
       ; true
       ),
       fail
-  ; true
+  ; use:reconcile_required_use_model(Repository://Ebuild, BResolved, R0, R)
   ).
 
 
@@ -1064,7 +1067,7 @@ target:run_tag_suggestions(Repository://Ebuild, BResolved, R, Ctx0, Ctx) :-
   -> true
   ; BWUChanges = []
   ),
-  ( use:model_required_use_changes(R, RUChanges),
+  ( use:model_required_use_changes(R, BResolved, RUChanges),
     RUChanges \== []
   -> true
   ; RUChanges = []

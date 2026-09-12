@@ -11,10 +11,11 @@
 Unit tests for the USE rules (Source/Domain/Gentoo/Rules/Resolving/use.pl).
 
 build_with_use state helpers, REQUIRED_USE choice-group seeding,
-use_dep_unsat fail-closed checks, use.mask precedence over soft
-defaults and use.force, the cross-dependency build_with_use memo,
-equality USE pins, IUSE assoc helpers and ABI_X86 flags. Synthetic
-qtest entries only; no knowledge base is needed.
+use_dep_unsat fail-closed checks, leftover ^^ conflict reconciliation
+(portage-ng#120), use.mask precedence over soft defaults and use.force,
+the cross-dependency build_with_use memo, equality USE pins, IUSE
+assoc helpers and ABI_X86 flags. Synthetic qtest entries only; no
+knowledge base is needed.
 */
 
 :- module(usetest, []).
@@ -275,6 +276,84 @@ test(use_dep_atom_sat_after_disable_sibling,
   use:use_dep_atom_satisfiable(E, use_state([gitea], [git, gitolite])).
 
 :- end_tests(rules_use_dep_unsat).
+
+
+% Leftover REQUIRED_USE ^^ conflict after stabilize (portage-ng#120).
+% The :validate model is proved without BWU, so empty profile USE plus
+% a parent [gitea] atom records assumed(conflict(required_use, ^^))
+% even though BResolved is already legal. That leftover must not invent
+% gitolite (last-member pick) for dep-walk, suggestions, or the executor.
+
+:- begin_tests(rules_requse_leftover_conflict).
+
+% Local copy of the #111 qtest fixture: PLUnit setups are module-local.
+lfc_entry(qtest://'acct-user/git-0').
+lfc_group(exactly_one_of_group([required(git), required(gitea),
+                                required(gitolite)])).
+lfc_conflict(assumed(conflict(required_use, Group))) :-
+  lfc_group(Group).
+
+lfc_setup :-
+  lfc_entry(E),
+  lfc_cleanup,
+  E = Repo://Id,
+  lfc_group(RU),
+  assertz(cache:entry_metadata(Repo, Id, required_use, RU)),
+  assertz(memo:eff_use_cache_(Repo, Id, git, positive)).
+
+lfc_cleanup :-
+  lfc_entry(Repo://Id),
+  use_entry_memo_reset(Repo://Id),
+  retractall(cache:entry_metadata(Repo, Id, required_use, _)).
+
+test(conflict_pick_skipped_when_bwu_has_member, [true(Changes == [])]) :-
+  lfc_conflict(C),
+  use:model_required_use_changes([C], use_state([gitea], []), Changes).
+
+% z1/z2/z3 are not in global USE, so pick_flag falls back to last.
+test(conflict_pick_without_bwu_still_last_member,
+     [true(Changes == [use_change(z3, enable)])]) :-
+  C = assumed(conflict(required_use,
+        exactly_one_of_group([required(z1), required(z2), required(z3)]))),
+  use:model_required_use_changes([C], Changes).
+
+test(reconcile_drops_when_verify_ok,
+     [setup(lfc_setup), cleanup(lfc_cleanup),
+      true(R == [])]) :-
+  lfc_entry(E),
+  lfc_conflict(C),
+  use:reconcile_required_use_model(E, use_state([gitea], [git, gitolite]),
+                                   [C], R).
+
+test(reconcile_drops_covered_even_if_verify_open,
+     [setup(lfc_setup), cleanup(lfc_cleanup),
+      true(R == [])]) :-
+  lfc_entry(E),
+  lfc_conflict(C),
+  use:reconcile_required_use_model(E, use_state([gitea], []), [C], R).
+
+test(reconcile_keeps_conflict_on_empty_bwu,
+     [setup(lfc_setup), cleanup(lfc_cleanup)]) :-
+  lfc_entry(E),
+  lfc_conflict(C),
+  use:reconcile_required_use_model(E, use_state([], []), [C], R),
+  assertion(R == [C]).
+
+test(reconcile_keeps_real_assumed_flag,
+     [setup(lfc_setup), cleanup(lfc_cleanup),
+      true(R == [assumed(gitea)])]) :-
+  lfc_entry(E),
+  lfc_conflict(C),
+  use:reconcile_required_use_model(E, use_state([gitea], [git, gitolite]),
+                                   [assumed(gitea), C], R).
+
+test(dep_walk_does_not_add_sibling,
+     [true(BWU == use_state([gitea], []))]) :-
+  lfc_conflict(C),
+  use:dep_walk_context([C], use_state([gitea], []), [other:x], Model),
+  memberchk(build_with_use:BWU, Model).
+
+:- end_tests(rules_requse_leftover_conflict).
 
 
 % Global use.mask beats soft profile package.use (clang-runtime abi_x86_32

@@ -305,17 +305,23 @@ ebuild_exec:collect_use_string(Repo, Entry, Ctx, UseString) :-
 % Applies USE flag overrides from the proof context on top of the
 % KB-derived base flags. Handles three sources, in this order (later
 % wins on conflict):
-%   1. `build_with_use:use_state(Enable, Disable)` -- the per-package
-%      BWU set by the dep walker (e.g. when a parent dep `cairo[X]`
-%      forces cairo's X on for this build).
-%   2. `required_use:R` -- the prover's REQUIRED_USE proof keys, with
+%   1. `required_use:R` -- the prover's REQUIRED_USE proof keys, with
 %      their implied flag changes derived via
-%      `use:model_required_use_changes/2` (handles both plain
-%      `assumed(F)` keys and `assumed(conflict(required_use, ...))`).
-%   3. `suggestion(use_change, _, Changes)` -- explicit
+%      `use:model_assumption_to_change/2` (plain `assumed(F)` keys and
+%      group-level `assumed(conflict(required_use, ...))`).
+%   2. `suggestion(use_change, _, Changes)` -- explicit
 %      `use_change(F, enable|disable)` items added by
 %      `target:run_tag_suggestions/5` (covers self-flips of the
 %      package being installed).
+%   3. `build_with_use:use_state(Enable, Disable)` -- the planned
+%      per-package assignment after stabilize (portage-ng#111). Applied
+%      last so it wins over leftover `R` / suggestion siblings
+%      (portage-ng#120).
+%
+% When a non-empty BWU is present, required_use and suggestion flips
+% for flags it does not mention are dropped. That is the executor
+% safety net for a leftover `^^` pick (`gitolite` next to planned
+% `gitea`): BWU last-wins cannot turn an unmentioned sibling off.
 %
 % Note: previous versions of this predicate looked for
 % `build_with_use(Uses)` and `required_use(Uses)` in *functor* form
@@ -340,23 +346,38 @@ ebuild_exec:apply_ctx_use_overrides(Ctx, AssocIn, AssocOut) :-
       )
     ),
     BWUOverrides),
+  ebuild_exec:pairs_to_assoc_dedup(BWUOverrides, BWUIndex),
   findall(Flag-State,
     ( member(required_use:R, CtxList),
       is_list(R),
       member(A, R),
       use:model_assumption_to_change(A, use_change(Flag, Dir)),
-      ( Dir == enable -> State = positive ; State = negative )
+      ( Dir == enable -> State = positive ; State = negative ),
+      ebuild_exec:override_allowed_by_bwu(BWUOverrides, BWUIndex, Flag, State)
     ),
     RUOverrides),
   findall(Flag-State,
     ( member(suggestion(use_change, _, Changes), CtxList),
       is_list(Changes),
       member(use_change(Flag, Dir), Changes),
-      ( Dir == enable -> State = positive ; State = negative )
+      ( Dir == enable -> State = positive ; State = negative ),
+      ebuild_exec:override_allowed_by_bwu(BWUOverrides, BWUIndex, Flag, State)
     ),
     SuggOverrides),
-  append([BWUOverrides, RUOverrides, SuggOverrides], AllOverrides),
+  append([RUOverrides, SuggOverrides, BWUOverrides], AllOverrides),
   foldl(ebuild_exec:apply_use_override, AllOverrides, AssocIn, AssocOut).
+
+
+%! ebuild_exec:override_allowed_by_bwu(+BWUOverrides, +BWUIndex, +Flag, +State) is semidet.
+%
+% When the planned build_with_use is non-empty, ignore leftover
+% required_use / suggestion flips for flags it does not mention, or
+% whose polarity disagrees with the plan (portage-ng#120). Empty BWU
+% keeps the old apply-everything behaviour.
+
+ebuild_exec:override_allowed_by_bwu([], _Index, _Flag, _State) :- !.
+ebuild_exec:override_allowed_by_bwu([_|_], Index, Flag, State) :-
+  get_assoc(Flag, Index, State).
 
 
 %! ebuild_exec:apply_use_override(+FlagState, +AssocIn, -AssocOut) is det.
