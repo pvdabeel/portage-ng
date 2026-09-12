@@ -401,6 +401,7 @@ bugs:sync_pages(Location, Remote) :-
      bugs:crawl(Location, [last_change_time=Since], 0, 0, State0, State1, 0, Fetched)
   ;  bugs:state_get(State0, last_id, LastId, 0),
      bugs:scope_params(ScopeParams),
+     message:scroll(['Bugzilla: looking up the highest bug id ...']),
      bugs:highest_bug_id(MaxId),
      message:scroll(['Bugzilla: full crawl from bug id ', LastId, ' to ', MaxId]), nl,
      bugs:crawl(Location, ScopeParams, LastId, MaxId, State0, State1, 0, Fetched)
