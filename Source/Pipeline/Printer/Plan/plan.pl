@@ -229,6 +229,13 @@ plan:action_phase(_Other, other).
 % (see plan:print_body/6); only the planned-package suppression clauses
 % consult it. `--fetchonly` keeps downloads (and uri/verify/assumptions)
 % and hides merge-phase actions; pre-actions are printed separately.
+%
+% Package-action matching goes through prover:rule_parts/4 and
+% prover:canon_literal/3 — the same path the footer and Gantt chart use —
+% so context-free heads (`Repo://Entry:install`) and parenthesized /
+% double-wrapped `?{Ctx}` forms stay visible. Rigid `Action?{Ctx}`
+% unification dropped those shapes, which is what produced the
+% docker-29.8.0 merge page: 57 actions counted, 2 steps rendered.
 
 plan:printable_element(_, Rule) :-
   plan:fetchonly_hidden_element(Rule),
@@ -236,59 +243,19 @@ plan:printable_element(_, Rule) :-
   fail.
 plan:printable_element(_,rule(uri(_,_,_),_)) :- !.
 plan:printable_element(_,rule(uri(_),_)) :- !.
-plan:printable_element(_,rule(_Repository://_Entry:run?_,_)) :- !.
-plan:printable_element(_,rule(_Repository://_Entry:download?_,_)) :- !.
-plan:printable_element(_,rule(_Repository://_Entry:install?_,_)) :- !.
-plan:printable_element(_,rule(_Repository://_Entry:reinstall?_,_)) :- !.
-plan:printable_element(_,rule(_Repository://_Entry:uninstall?_,_)) :- !.
-
-% Suppress printing the "wrapper" update/downgrade target when it schedules the
-% actual transactional update/downgrade on a chosen replacement version.
-plan:printable_element(_,rule(_Repository://_Entry:update?{_Context},Body)) :-
-  member(_NewRepo://_NewEntry:update?{_}, Body),
-  !,
-  fail.
-plan:printable_element(_,rule(_Repository://_Entry:downgrade?{_Context},Body)) :-
-  member(_NewRepo://_NewEntry:downgrade?{_}, Body),
-  !,
-  fail.
-
-plan:printable_element(_,rule(_Repository://_Entry:update?_,_)) :- !.
-plan:printable_element(_,rule(_Repository://_Entry:downgrade?_,_)) :- !.
-plan:printable_element(_,rule(_Repository://_Entry:upgrade?_,_)) :- !.
-
-% Suppress assumed dependency verifies when a concrete ebuild for the same
-% package is already scheduled in the plan. These clauses must precede the
-% domain assumption accept clauses below (which cut), or they never fire.
-plan:printable_element(State,rule(assumed(grouped_package_dependency(C,N,_Deps):install?{_Context}),[])) :-
-  plan:planned_pkg(State, install, C, N),
-  !,
-  fail.
-plan:printable_element(State,rule(assumed(package_dependency(install,no,C,N,_,_,_,_):install?{_Context}),[])) :-
-  plan:planned_pkg(State, install, C, N),
-  !,
-  fail.
-plan:printable_element(State,rule(assumed(grouped_package_dependency(C,N,_Deps):run?{_Context}),[])) :-
-  plan:planned_pkg(State, run, C, N),
-  !,
-  fail.
-plan:printable_element(State,rule(assumed(package_dependency(run,no,C,N,_,_,_,_):run?{_Context}),[])) :-
-  plan:planned_pkg(State, run, C, N),
-  !,
-  fail.
-% Domain assumptions (rule(assumed(X))) — printable as verify steps.
-plan:printable_element(_,rule(assumed(_Repository://_Entry:_?_),_)) :- !.
-plan:printable_element(_,rule(assumed(package_dependency(install,no,_,_,_,_,_,_):install?_),_)) :- !. % legacy form
-plan:printable_element(_,rule(assumed(package_dependency(run,no,_,_,_,_,_,_):run?_),_)) :- !. % legacy form
-plan:printable_element(_,rule(assumed(grouped_package_dependency(_,_,_):install?_),_)) :- !.
-plan:printable_element(_,rule(assumed(grouped_package_dependency(_,_,_):run?_),_)) :- !.
-% Prover cycle-break assumptions (assumed(rule(X))) — entry-rule and
-% dependency-level cycle-breaks show as verify steps in the plan.
-plan:printable_element(_,assumed(rule(_Repository://_Entry:install?_,_))) :- !.
-plan:printable_element(_,assumed(rule(_Repository://_Entry:run?_,_))) :- !.
-plan:printable_element(_,assumed(rule(_Repository://_Entry:fetchonly?_,_))) :- !.
-plan:printable_element(_,assumed(rule(package_dependency(_,_,_,_,_,_,_,_):install?_,_))) :- !.
-plan:printable_element(_,assumed(rule(package_dependency(_,_,_,_,_,_,_,_):run?_,_))) :- !.
+plan:printable_element(State, Rule) :-
+  plan:rule_pkg_info(Rule, Action, Body, Kind, Core),
+  plan:printable_kind_action(Kind, Core, Action),
+  ( Kind == regular,
+    memberchk(Action, [update, downgrade]),
+    plan:wrapper_update_body(Body, Action)
+  -> fail
+  ; Kind == domain_assumption,
+    plan:suppress_assumed_planned(State, Core)
+  -> fail
+  ; true
+  ),
+  !.
 % Suppress any remaining cycle-break types from plan display
 % (including grouped_package_dependency — always benign via heuristic:cycle_benign/2).
 plan:printable_element(_,assumed(rule(_,_))) :- !, fail.
@@ -297,10 +264,152 @@ plan:printable_element(_,assumed(rule(_,_))) :- !, fail.
 %! plan:fetchonly_hidden_element(+Literal) is semidet.
 %
 % True when Literal is a concrete merge-phase plan rule that `--fetchonly`
-% must not print.
+% must not print. Head shape is normalised via rule_pkg_info/5 so
+% context-free and double-wrapped actions hide the same way as `?{Ctx}`.
 
-plan:fetchonly_hidden_element(rule(_Repository://_Entry:Action?_, _)) :-
+plan:fetchonly_hidden_element(Rule) :-
+  plan:rule_pkg_info(Rule, Action, _Body, regular, _Repo://_Entry:_),
   preference:fetchonly_skips_action(Action).
+
+
+%! plan:rule_pkg_info(+Rule, -Action, -Body, -Kind, -Core) is semidet.
+%
+% Destructure a plan rule into its action, body, kind and canonical core
+% when the head is a package or dependency action (`Repo://Entry:Action`
+% or `grouped_package_dependency(...):Phase` / `package_dependency(...):Phase`).
+
+plan:rule_pkg_info(Rule, Action, Body, Kind, Core) :-
+  prover:rule_parts(Rule, Head0, Body, Kind),
+  prover:canon_literal(Head0, Core, _),
+  ( Core = _Repo://_Entry:Action
+  ; Core = grouped_package_dependency(_,_,_,_):Action
+  ; Core = grouped_package_dependency(_,_,_):Action
+  ; Core = package_dependency(_,_,_,_,_,_,_,_):Action
+  ).
+
+
+%! plan:printable_kind_action(+Kind, +Core, +Action) is semidet.
+%
+% Which (kind, core, action) triples belong on the merge list.
+
+plan:printable_kind_action(cycle_break, _Repo://_Entry:Action, Action) :-
+  memberchk(Action, [install, run, fetchonly]),
+  !.
+plan:printable_kind_action(cycle_break, package_dependency(_,_,_,_,_,_,_,_):Action, Action) :-
+  memberchk(Action, [install, run]),
+  !.
+plan:printable_kind_action(cycle_break, _, _) :-
+  !,
+  fail.
+plan:printable_kind_action(domain_assumption, _Repo://_Entry:_, _) :-
+  !.
+plan:printable_kind_action(domain_assumption, grouped_package_dependency(_,_,_,_):Action, Action) :-
+  memberchk(Action, [install, run]),
+  !.
+plan:printable_kind_action(domain_assumption, grouped_package_dependency(_,_,_):Action, Action) :-
+  memberchk(Action, [install, run]),
+  !.
+plan:printable_kind_action(domain_assumption, package_dependency(_,_,_,_,_,_,_,_):Action, Action) :-
+  memberchk(Action, [install, run]),
+  !.
+plan:printable_kind_action(domain_assumption, _, _) :-
+  !,
+  fail.
+plan:printable_kind_action(regular, _Core, Action) :-
+  plan:printable_pkg_action(Action).
+
+
+%! plan:printable_pkg_action(+Action) is semidet.
+%
+% Concrete merge-list package actions the printer will show.
+
+plan:printable_pkg_action(Action) :-
+  memberchk(Action, [run, download, fetchonly, install, reinstall,
+                     uninstall, update, downgrade, upgrade]).
+
+
+%! plan:wrapper_update_body(+Body, +Action) is semidet.
+%
+% True when Body already schedules the transactional update/downgrade on a
+% chosen replacement version, so the wrapper target should be hidden.
+
+plan:wrapper_update_body(Body, Action) :-
+  member(Dep, Body),
+  prover:canon_literal(Dep, _NewRepo://_NewEntry:Action, _).
+
+
+%! plan:suppress_assumed_planned(+State, +Core) is semidet.
+%
+% Hide an assumed dependency verify when a concrete ebuild for the same
+% package is already scheduled in the plan.
+
+plan:suppress_assumed_planned(State, grouped_package_dependency(_, C, N, _):Phase) :-
+  ( Phase == install ; Phase == run ),
+  plan:planned_pkg(State, Phase, C, N).
+plan:suppress_assumed_planned(State, grouped_package_dependency(C, N, _):Phase) :-
+  ( Phase == install ; Phase == run ),
+  plan:planned_pkg(State, Phase, C, N).
+plan:suppress_assumed_planned(State, package_dependency(Phase, no, C, N, _, _, _, _):Phase) :-
+  ( Phase == install ; Phase == run ),
+  plan:planned_pkg(State, Phase, C, N).
+
+
+%! plan:ctx_list(+Ctx0, -Ctx) is det.
+%
+% Normalise canon_literal's `{}` (no proof context) to `[]` so renderers
+% that expect a list (`memberchk/2`, `is_list/1`) keep working.
+
+plan:ctx_list({}, []) :- !.
+plan:ctx_list(Ctx, Ctx) :- is_list(Ctx), !.
+plan:ctx_list(_, []).
+
+
+%! plan:canonicalize_print_rule(+Rule, -Canon) is semidet.
+%
+% Rewrite a package/dependency rule whose head is a canon_literal variant
+% (context-free, parenthesized, or double-wrapped `?{Ctx}`) into the
+% `Repo://(Entry:Action?{Ctx})` form the print_element clauses already
+% handle (dependency cores stay `Core?{Ctx}`).
+
+plan:canonicalize_print_rule(Rule, Canon) :-
+  prover:rule_parts(Rule, Head0, Body, Kind),
+  prover:canon_literal(Head0, Core, Ctx0),
+  plan:canonical_print_core(Core),
+  plan:ctx_list(Ctx0, Ctx),
+  plan:canonical_print_head(Core, Ctx, CanonicalHead),
+  Head0 \== CanonicalHead,
+  plan:rebuild_print_rule(Kind, CanonicalHead, Body, Canon).
+
+
+%! plan:canonical_print_head(+Core, +Ctx, -Head) is det.
+%
+% Rebuild the print-element head. Package actions must be
+% `Repo://(Entry:Action?{Ctx})` — the form the print_element clauses
+% match. `(Repo://Entry:Action)?{Ctx}` looks equivalent but is a
+% different principal functor (`?` outside `://`).
+
+plan:canonical_print_head(Repo://Entry:Action, Ctx, Repo://(Entry:Action?{Ctx})) :-
+  !.
+plan:canonical_print_head(Core, Ctx, Core?{Ctx}).
+
+
+%! plan:canonical_print_core(+Core) is semidet.
+%
+% Heads the merge printer can rewrite into `Core?{Ctx}`.
+
+plan:canonical_print_core(_Repo://_Entry:_Action).
+plan:canonical_print_core(grouped_package_dependency(_,_,_,_):_Phase).
+plan:canonical_print_core(grouped_package_dependency(_,_,_):_Phase).
+plan:canonical_print_core(package_dependency(_,_,_,_,_,_,_,_):_Phase).
+
+
+%! plan:rebuild_print_rule(+Kind, +Head, +Body, -Rule) is det.
+%
+% Rebuild a full-format rule from a canonical head and the original body.
+
+plan:rebuild_print_rule(regular, Head, Body, rule(Head, Body)).
+plan:rebuild_print_rule(domain_assumption, Head, Body, rule(assumed(Head), Body)).
+plan:rebuild_print_rule(cycle_break, Head, Body, assumed(rule(Head, Body))).
 
 
 % Uncomment if you want 'confirm' steps shown in the plan:
@@ -333,16 +442,12 @@ plan:element_kind(rule(assumed(_),_),                             assumed)   :- 
 plan:element_kind(rule(uri(_),_),                                 provide)   :- !.
 plan:element_kind(rule(uri(_,_,_),_),                             fetch)     :- !.
 plan:element_kind(rule(package_dependency(_,_,_,_,_,_,_,_),_),    confirm)   :- !.
-plan:element_kind(rule(_Repository://_Entry:verify?_,_),          verify)    :- !.
-plan:element_kind(rule(_Repository://_Entry:run?_,_),             run)       :- !.
-plan:element_kind(rule(_Repository://_Entry:download?_,_),        download)  :- !.
-plan:element_kind(rule(_Repository://_Entry:fetchonly?_,_),       fetchonly) :- !.
-plan:element_kind(rule(_Repository://_Entry:install?_,_),         install)   :- !.
-plan:element_kind(rule(_Repository://_Entry:reinstall?_,_),       reinstall) :- !.
-plan:element_kind(rule(_Repository://_Entry:uninstall?_,_),       uninstall) :- !.
-plan:element_kind(rule(_Repository://_Entry:update?_,_),          update)    :- !.
-plan:element_kind(rule(_Repository://_Entry:downgrade?_,_),       downgrade) :- !.
-plan:element_kind(rule(_Repository://_Entry:upgrade?_,_),         upgrade)   :- !.
+plan:element_kind(Rule, Kind) :-
+  plan:rule_pkg_info(Rule, Action, _Body, _RKind, _Repo://_Entry:_),
+  memberchk(Action, [verify, run, download, fetchonly, install,
+                     reinstall, uninstall, update, downgrade, upgrade]),
+  Kind = Action,
+  !.
 plan:element_kind(_,                                              other).
 
 
@@ -379,6 +484,11 @@ plan:tag_with_position_index([R|Rs], I, [(P-I)-R|Rest]) :-
 %
 % Prints a printable Literal. State is the ps/3 print-state term carrying
 % the resolved print target, blocker notes and planned-package set.
+
+plan:print_element(State, Rule) :-
+  plan:canonicalize_print_rule(Rule, Canon),
+  !,
+  plan:print_element(State, Canon).
 
 plan:print_element(_,rule(package_dependency(run_post,_,_C,_N,_,_,_,_),[Repository://Entry:_Action?{_Context}])) :-
   !,

@@ -8,10 +8,12 @@
 */
 
 /** <module> PRINTERTEST
-Unit tests for plan annotation and assumption classification (Source/Pipeline/Printer/Plan/).
+Unit tests for plan annotation, assumption classification, and merge
+printer head normalisation (Source/Pipeline/Printer/Plan/).
 
-Blocker relevance in annotation:collect/2 and the assumption polarity
-table of assumption:assumption_type/2.
+Blocker relevance in annotation:collect/2, the assumption polarity
+table of assumption:assumption_type/2, `--fetchonly` print filtering,
+and printable/render agreement across canon_literal head shapes.
 */
 
 :- module(printertest, []).
@@ -329,3 +331,109 @@ test(scoped_flag_is_thread_local,
   message_queue_destroy(Q).
 
 :- end_tests(fetchonly_print_filter).
+
+
+% -----------------------------------------------------------------------------
+%  Printer: plan-rule head shapes
+% -----------------------------------------------------------------------------
+%
+% The merge printer used to require a rigid `Repo://Entry:Action?{Ctx}`
+% functor. Footer stats and the Gantt chart already go through
+% prover:canon_literal/3, so context-free and double-wrapped heads were
+% counted (and drawn) but not rendered — docker-29.8.0-merge.html showed
+% 57 actions grouped into 2 steps. These tests lock the printer to the
+% same head normalisation.
+
+:- begin_tests(printer_plan_head_shapes).
+
+printer_empty_state(ps([], Notes, Set)) :-
+  empty_assoc(Notes),
+  empty_assoc(Set).
+
+phs_fo_cleanup :-
+  retractall(preference:local_flag(fetchonly)),
+  retractall(preference:scoped_flag(fetchonly)).
+
+test(printable_context_free_install) :-
+  printer_empty_state(State),
+  Rule = rule(portage://'dev-libs/jansson-2.15.1':install, []),
+  plan:printable_element(State, Rule).
+
+test(printable_double_wrapped_install) :-
+  printer_empty_state(State),
+  Inner = [self(portage://'app-containers/docker-29.8.0')],
+  Outer = [slot(0, none, [slot('0')]):{portage://'dev-libs/jansson-2.15.1'}],
+  Head = portage://(('dev-libs/jansson-2.15.1':install?{Inner})?{Outer}),
+  Rule = rule(Head, []),
+  plan:printable_element(State, Rule).
+
+test(printable_parenthesized_install) :-
+  printer_empty_state(State),
+  Rule = rule(portage://('dev-libs/jansson-2.15.1':install?{[]}), []),
+  plan:printable_element(State, Rule).
+
+test(printable_context_free_update) :-
+  printer_empty_state(State),
+  Rule = rule(portage://'dev-python/installer-1.0.1':update, []),
+  plan:printable_element(State, Rule).
+
+test(printable_context_free_run) :-
+  printer_empty_state(State),
+  Rule = rule(portage://'dev-libs/jansson-2.15.1':run, []),
+  plan:printable_element(State, Rule).
+
+test(wrapper_update_still_hidden) :-
+  printer_empty_state(State),
+  Chosen = portage://'dev-python/installer-1.0.1':update?{[]},
+  Wrapper = rule(portage://'dev-python/installer-0.7.0':update?{[]}, [Chosen]),
+  \+ plan:printable_element(State, Wrapper).
+
+test(wrapper_update_hidden_context_free_body) :-
+  printer_empty_state(State),
+  Chosen = portage://'dev-python/installer-1.0.1':update,
+  Wrapper = rule(portage://'dev-python/installer-0.7.0':update, [Chosen]),
+  \+ plan:printable_element(State, Wrapper).
+
+test(element_kind_context_free_install) :-
+  plan:element_kind(rule(portage://'dev-libs/jansson-2.15.1':install, []), install).
+
+test(fetchonly_hides_context_free_install,
+     [setup(phs_fo_cleanup), cleanup(phs_fo_cleanup)]) :-
+  preference:with_local_flag(fetchonly,
+    \+ plan:printable_element(_, rule(portage://'p-1':install, []))).
+
+test(print_steps_counts_context_free_wave) :-
+  printer_empty_state(State),
+  Step1 = [rule(r://'docker-0-r3':install?{[]}, [])],
+  Step2 = [rule(r://'jansson-2.15.1':install, []),
+           rule(r://'libnftnl-1.3.2':install, [])],
+  with_output_to(string(_),
+                 plan:print_steps_in_plan(State, [Step1, Step2], plan:dry_run, 0, Steps)),
+  Steps == 2.
+
+test(print_steps_counts_double_wrapped_later_waves) :-
+  printer_empty_state(State),
+  Inner = [self(r://'docker-29.8.0')],
+  Head = r://(('libnftnl-1.3.2':install?{Inner})?{[]}),
+  Step1 = [rule(r://'jansson-2.15.1':install?{[]}, [])],
+  Step2 = [rule(Head, [])],
+  with_output_to(string(Out),
+                 plan:print_steps_in_plan(State, [Step1, Step2], plan:dry_run, 0, Steps)),
+  Steps == 2,
+  once(sub_string(Out, _, _, _, 'libnftnl-1.3.2')).
+
+test(footer_and_printer_agree_on_mixed_heads) :-
+  printer_empty_state(State),
+  Plan = [[rule(r://'jansson-2.15.1':download?{[]}, []),
+           rule(r://'jansson-2.15.1':install, []),
+           rule(r://'jansson-2.15.1':run, [])]],
+  plan:footer_stats_from_plan(Plan, S),
+  S.actions =:= 3,
+  with_output_to(string(Out),
+                 plan:print_steps_in_plan(State, Plan, plan:dry_run, 0, Steps)),
+  Steps == 1,
+  once(sub_string(Out, _, _, _, 'download')),
+  once(sub_string(Out, _, _, _, 'install')),
+  once(sub_string(Out, _, _, _, 'run')).
+
+:- end_tests(printer_plan_head_shapes).
