@@ -548,10 +548,21 @@ table.gantt td.pkg {
   border-right: 2px solid var(--border2);
 }
 table.gantt td.empty { background: var(--surface2); }
+/* Critical path mode: the longest chain of dependent actions (bars + forward
+   dependency edges) is emphasised, everything else dimmed. */
+svg.deps.crit-mode .dep-edge:not(.crit),
+svg.deps.crit-mode .bar-edge:not(.crit) { opacity: 0.12; }
+svg.deps.crit-mode .dep-edge.crit { opacity: 1; stroke-width: 2.4; }
+svg.deps.crit-mode .bar-edge.crit { opacity: 1; stroke-width: 3; stroke: var(--accent); }
+table.gantt.crit-mode .cell:not(.crit):not(.hidden) { opacity: 0.35; }
+table.gantt.crit-mode .cell.crit { box-shadow: 0 0 0 2px var(--accent); }
 /* Hover mode: all edges hidden, only those touching the hovered row shown.
-   Edge colour/dash stay on the SVG element, so type colours are preserved. */
+   Edge colour/dash stay on the SVG element, so type colours are preserved.
+   Critical-path edges stay visible when both modes are on. */
 svg.deps.hover-mode .dep-edge,
 svg.deps.hover-mode .bar-edge { visibility: hidden; }
+svg.deps.hover-mode .dep-edge.crit,
+svg.deps.hover-mode .bar-edge.crit { visibility: visible; }
 svg.deps.hover-mode .dep-edge.lit,
 svg.deps.hover-mode .bar-edge.lit { visibility: visible; opacity: 1; }
 table.gantt.hover-mode tr.hover-lit td { background: var(--blue-bg); }
