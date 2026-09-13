@@ -226,10 +226,12 @@ wave-accurate: each column is one planning step, and packages in the
 same wave sit side by side.  **Critical path** highlights the longest
 *duration-weighted* chain of dependent actions (forward edges only).
 Durations come from `Knowledge/phase_stats.pl` (`phase_seconds/3`,
-exact CPV or the median of other versions of the same C/N);
-downloads use manifest size at `config:download_mbit/1`
-(default 100 Mbit/s). Actions with no
-measurement keep a unit weight so the path degrades to hop count.  **Time** keeps that wave order and sizes each wave by its
+exact CPV or the average of other versions of the same C/N).
+Downloads use bytes at `config:download_mbit/1` (default 100 Mbit/s):
+a live git3-src cache, else this CPV's Manifest, else the average
+Manifest size of other same-C/N versions (so a `9999` ebuild is
+sized from release tarballs when the git cache is cold). Actions with
+no measurement keep a unit weight so the path degrades to hop count.  **Time** keeps that wave order and sizes each wave by its
 longest recorded action — a wave starts only when the previous wave
 finishes — so a 20-minute rust compile is a wide band and later
 steps sit to its right.

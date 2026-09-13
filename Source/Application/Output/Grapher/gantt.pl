@@ -22,6 +22,7 @@ wave start = previous wave finish).
 :- dynamic gantt:seconds_cache/3.
 :- dynamic gantt:cn_entry/3.
 :- dynamic gantt:cn_index_ready/0.
+:- dynamic gantt:dir_bytes_cache/2.
 
 % =============================================================================
 %  GANTT declarations
@@ -472,6 +473,7 @@ gantt:manifest_size(Repo, Entry, Filename, Size) :-
 gantt:prepare_durations :-
     ebuild_exec:load_phase_stats,
     retractall(gantt:seconds_cache(_, _, _)),
+    retractall(gantt:dir_bytes_cache(_, _)),
     gantt:ensure_cn_index.
 
 
@@ -500,11 +502,13 @@ gantt:ensure_cn_index :-
 % Forecast wall-clock seconds for a Gantt action. Merge-class actions
 % (`install` / `:update` / `:reinstall` / `:downgrade`) sum recorded
 % `phase_seconds/3` for the ebuild phases of that entry; if the exact
-% CPV is missing, the median of same-C/N versions is used. `download`
-% / `fetchonly` are manifest bytes at `config:download_mbit/1`. `:run` and
-% config pre-actions are 0. Timed is `true` when the figure came from
-% phase_stats or a known distfile size, and `false` when the unit (1s)
-% fallback was used.
+% CPV is missing, the average of same-C/N versions is used. `download`
+% / `fetchonly` are bytes at `config:download_mbit/1`: a live git3-src
+% cache first, else this CPV's Manifest, else the average Manifest
+% size of other versions of the same C/N (the git approximation when
+% PROPERTIES=live has no distfile). `:run` and config pre-actions are
+% 0. Timed is `true` when the figure came from phase_stats or a known
+% byte count, and `false` when the unit (1s) fallback was used.
 
 gantt:action_seconds(Repo, Entry, Action, Seconds, Timed) :-
     gantt:action_time_class(Action, Class),
@@ -567,22 +571,119 @@ gantt:download_bytes_per_second(BytesPerSec) :-
 
 %! gantt:entry_download_seconds(+Repo, +Entry, -Seconds) is semidet.
 %
-% Wall-clock seconds to fetch every distfile of Entry at the configured
-% download rate. Files share the link, so sizes are summed. At least 1s
-% when any byte is known (handshake / write-out). Fails when no manifest
-% size is available.
+% Wall-clock seconds to fetch Entry at the configured download rate.
+% Prefers a live git3-src cache, then this CPV's Manifest bytes, then
+% the average Manifest total of other same-C/N versions. Files share
+% the link, so sizes are summed. At least 1s when any byte is known.
+% Fails when no byte count is available.
 
 gantt:entry_download_seconds(Repo, Entry, Seconds) :-
+    gantt:entry_fetch_bytes(Repo, Entry, Bytes),
+    gantt:bytes_to_download_seconds(Bytes, Seconds).
+
+
+%! gantt:bytes_to_download_seconds(+Bytes, -Seconds) is semidet.
+%
+% Convert a positive byte count to ceiling seconds at the configured
+% link rate. Handshake / write-out is at least 1s.
+
+gantt:bytes_to_download_seconds(Bytes, Seconds) :-
+    number(Bytes),
+    Bytes > 0,
+    gantt:download_bytes_per_second(Rate),
+    Seconds is max(1, ceiling(Bytes / Rate)).
+
+
+%! gantt:entry_fetch_bytes(+Repo, +Entry, -Bytes) is semidet.
+%
+% Resolve a download size. Live git3-src cache wins; otherwise this
+% CPV's Manifest, otherwise the same-C/N tarball average.
+
+gantt:entry_fetch_bytes(Repo, Entry, Bytes) :-
+    gantt:entry_git_bytes(Repo, Entry, Bytes),
+    Bytes > 0,
+    !.
+gantt:entry_fetch_bytes(Repo, Entry, Bytes) :-
+    gantt:entry_manifest_bytes(Repo, Entry, Bytes),
+    Bytes > 0,
+    !.
+gantt:entry_fetch_bytes(Repo, Entry, Bytes) :-
+    gantt:cn_manifest_bytes(Repo, Entry, Bytes),
+    Bytes > 0.
+
+
+%! gantt:entry_manifest_bytes(+Repo, +Entry, -Bytes) is det.
+%
+% Sum Manifest sizes of Entry's SRC_URI distfiles. 0 when none are
+% recorded.
+
+gantt:entry_manifest_bytes(Repo, Entry, Bytes) :-
     findall(S,
             (   query:search(src_uri(uri(_, _, Local)), Repo://Entry),
                 gantt:manifest_size(Repo, Entry, Local, S),
                 S > 0
             ),
             Ss),
-    Ss \== [],
-    sum_list(Ss, Bytes),
-    gantt:download_bytes_per_second(Rate),
-    Seconds is max(1, ceiling(Bytes / Rate)).
+    (   Ss == []
+    ->  Bytes = 0
+    ;   sum_list(Ss, Bytes)
+    ).
+
+
+%! gantt:cn_manifest_bytes(+Repo, +Entry, -Bytes) is semidet.
+%
+% Average SRC_URI Manifest total across other versions of the same
+% C/N in Repo. Used for unbuilt CPVs and live ebuilds that have no
+% distfile of their own.
+
+gantt:cn_manifest_bytes(Repo, Entry, Bytes) :-
+    gantt:entry_cn(Entry, Cat, Name),
+    findall(B,
+            (   cache:ordered_entry(Repo, Other, Cat, Name, _),
+                Other \== Entry,
+                gantt:entry_manifest_bytes(Repo, Other, B),
+                B > 0
+            ),
+            Bs),
+    gantt:average(Bs, Bytes).
+
+
+%! gantt:entry_git_bytes(+Repo, +Entry, -Bytes) is semidet.
+%
+% On-disk size of the git-r3 bare cache for a live ebuild. Fails
+% when the entry is not live, has no EGIT_REPO_URI, or the cache
+% is absent.
+
+gantt:entry_git_bytes(Repo, Entry, Bytes) :-
+    ebuild:is_live(Repo://Entry),
+    catch(download:extract_git_uri(Repo, Entry, URI), _, fail),
+    distfiles:get_location(Distdir),
+    download:git_cache_dir(Distdir, GitCacheDir),
+    download:git_repo_cache_path(GitCacheDir, URI, RepoPath),
+    gantt:directory_bytes(RepoPath, Bytes),
+    Bytes > 0.
+
+
+%! gantt:directory_bytes(+Dir, -Bytes) is semidet.
+%
+% Sum regular-file sizes under Dir. Cached per path for one emit.
+
+gantt:directory_bytes(Dir, Bytes) :-
+    exists_directory(Dir),
+    gantt:dir_bytes_cache(Dir, Bytes),
+    !.
+gantt:directory_bytes(Dir, Bytes) :-
+    exists_directory(Dir),
+    aggregate_all(sum(S),
+                  (   directory_member(Dir, File,
+                                       [ recursive(true),
+                                         follow_links(false),
+                                         file_type(regular)
+                                       ]),
+                      catch(size_file(File, S), _, S = 0)
+                  ),
+                  Bytes),
+    assertz(gantt:dir_bytes_cache(Dir, Bytes)).
 
 
 %! gantt:entry_phase_seconds(+Entry, +Phase, -Seconds) is semidet.
@@ -612,7 +713,7 @@ gantt:entry_merge_seconds(Entry, Seconds) :-
 
 %! gantt:cn_phase_seconds(+Entry, +Phase, -Seconds) is semidet.
 %
-% Median of Phase seconds across other versions of the same C/N.
+% Average of Phase seconds across other versions of the same C/N.
 
 gantt:cn_phase_seconds(Entry, Phase, Seconds) :-
     gantt:entry_cn(Entry, Cat, Name),
@@ -622,12 +723,12 @@ gantt:cn_phase_seconds(Entry, Phase, Seconds) :-
                 gantt:entry_phase_seconds(Other, Phase, S)
             ),
             Ss),
-    gantt:median(Ss, Seconds).
+    gantt:average(Ss, Seconds).
 
 
 %! gantt:cn_merge_seconds(+Entry, -Seconds) is semidet.
 %
-% Median of merge-phase sums across other versions of the same C/N.
+% Average of merge-phase sums across other versions of the same C/N.
 
 gantt:cn_merge_seconds(Entry, Seconds) :-
     gantt:entry_cn(Entry, Cat, Name),
@@ -637,7 +738,7 @@ gantt:cn_merge_seconds(Entry, Seconds) :-
                 gantt:entry_merge_seconds(Other, S)
             ),
             Ss),
-    gantt:median(Ss, Seconds).
+    gantt:average(Ss, Seconds).
 
 
 %! gantt:entry_cn(+Entry, -Cat, -Name) is semidet.
@@ -678,25 +779,17 @@ gantt:merge_phase(postinst).
 gantt:merge_phase(qmerge).
 
 
-%! gantt:median(+List, -Median) is semidet.
+%! gantt:average(+List, -Average) is semidet.
 %
-% Median of a non-empty list of numbers.
+% Arithmetic mean of a non-empty list of numbers.
 
-gantt:median([X], X) :-
+gantt:average([X], X) :-
     !.
-gantt:median(List, Median) :-
+gantt:average(List, Average) :-
     List \== [],
-    msort(List, Sorted),
-    length(Sorted, N),
-    (   N mod 2 =:= 1
-    ->  I is N // 2,
-        nth0(I, Sorted, Median)
-    ;   I is N // 2 - 1,
-        J is I + 1,
-        nth0(I, Sorted, A),
-        nth0(J, Sorted, B),
-        Median is (A + B) / 2
-    ).
+    sum_list(List, Sum),
+    length(List, N),
+    Average is Sum / N.
 
 
 % -----------------------------------------------------------------------------

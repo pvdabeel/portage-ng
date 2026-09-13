@@ -2227,7 +2227,8 @@ config:buildtime_enabled(true).
 %
 % Assumed download link rate in megabits per second (decimal, 1 Mbit =
 % 1e6 bit). The Gantt time view and critical-path download bars convert
-% manifest sizes at this rate. Override in the host-local config
+% Manifest sizes, live git3-src cache size, or the same-C/N Manifest
+% average at this rate. Override in the host-local config
 % (`retractall(config:download_mbit(_))` then assert) for a different
 % link. Default is 100 Mbit/s.
 
