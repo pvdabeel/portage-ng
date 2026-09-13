@@ -221,15 +221,16 @@ dependency tree.
 ## Gantt charts
 
 The `gantt` module produces Gantt charts that visualise the parallel
-build schedule computed by the ordering pass.  Each horizontal bar
-represents a package, positioned on a timeline according to its wave
-assignment and estimated build duration.
-
-The chart makes the parallelism visible: packages in the same wave
-appear side by side, and you can see how downloads, installs, and
-runtime checks overlap across waves.  When build time estimates are
-available (from VDB sizes or `emerge.log` history), the bar lengths
-reflect predicted durations.
+build schedule computed by the ordering pass.  The default view is
+wave-accurate: each column is one planning step, and packages in the
+same wave sit side by side.  **Critical path** highlights the longest
+*duration-weighted* chain of dependent actions (forward edges only).
+Durations come from `Knowledge/phase_stats.pl` (`phase_seconds/3`,
+exact CPV or the median of other versions of the same C/N); actions
+with no measurement keep a unit weight so the path degrades to hop
+count.  **Time** relayouts the same bars by earliest start × recorded
+duration, so a 20-minute rust compile is visibly longer than a
+20-second Python update.
 
 The screenshot below shows the execution plan for
 `app-editors/neovim`.  Each row is a package; colour-coded blocks

@@ -556,6 +556,40 @@ svg.deps.crit-mode .dep-edge.crit { opacity: 1; stroke-width: 2.4; }
 svg.deps.crit-mode .bar-edge.crit { opacity: 1; stroke-width: 3; stroke: var(--accent); }
 table.gantt.crit-mode .cell:not(.crit):not(.hidden) { opacity: 0.35; }
 table.gantt.crit-mode .cell.crit { box-shadow: 0 0 0 2px var(--accent); }
+.gantt-time.crit-mode .cell:not(.crit):not(.hidden) { opacity: 0.35; }
+.gantt-time.crit-mode .cell.crit { box-shadow: 0 0 0 2px var(--accent); }
+/* Time view: bars sized by earliest start + phase_stats duration. */
+.gantt-time { display: none; }
+.gantt-wrapper.time-mode #gantt { display: none; }
+.gantt-wrapper.time-mode .gantt-time { display: block; min-width: 1100px; }
+.gantt-time-ruler {
+  position: sticky; top: 0; z-index: 2;
+  height: 22px; margin-left: 210px; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.gantt-time-tick {
+  position: absolute; top: 0; font-size: 10px; color: var(--text3);
+  transform: translateX(-50%); padding-top: 4px; white-space: nowrap;
+}
+.gantt-time-row {
+  display: flex; align-items: stretch; min-height: 28px;
+  border-bottom: 1px solid var(--border);
+}
+.gantt-time-row.row-hidden { display: none; }
+.gantt-time-label {
+  flex: 0 0 210px; position: sticky; left: 0; z-index: 1;
+  background: var(--surface2); font-size: 12px; font-weight: 500;
+  padding: 4px 8px; border-right: 2px solid var(--border2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gantt-time-track { position: relative; flex: 1; min-height: 28px; }
+.gantt-time-track .cell {
+  position: absolute; top: 4px; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gantt-wrapper.time-mode.hover-mode .gantt-time-row.hover-lit,
+.gantt-time-row.hover-lit { background: var(--blue-bg); }
+.gantt-time-row.hover-lit .gantt-time-label { color: var(--accent); }
 /* Hover mode: all edges hidden, only those touching the hovered row shown.
    Edge colour/dash stay on the SVG element, so type colours are preserved.
    Critical-path edges stay visible when both modes are on. */
