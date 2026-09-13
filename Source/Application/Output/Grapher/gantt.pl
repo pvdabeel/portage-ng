@@ -549,7 +549,7 @@ gantt:emit_filters :-
     write('    <button class="action-btn" onclick="expandAll()">Expand All</button>'), nl,
     write('    <button class="action-btn" onclick="collapseAll()">Collapse All</button>'), nl,
     write('    <button class="action-btn" id="hover-mode-btn" onclick="toggleHoverMode(this)" aria-pressed="false" title="Hide dependency edges; show only those of the hovered package">Hover</button>'), nl,
-    write('    <button class="action-btn" id="crit-mode-btn" onclick="toggleCritMode(this)" aria-pressed="false" title="Highlight the longest chain of dependent actions (backward cycle-break edges excluded)">Critical path</button>'), nl,
+    write('    <button class="action-btn" id="crit-mode-btn" onclick="toggleCritMode(this)" aria-pressed="false" title="Highlight the longest chain of dependent actions (ignored / backward RDEPEND edges excluded)">Critical path</button>'), nl,
     write('  </div>'), nl,
     write('</div>'), nl.
 
@@ -793,6 +793,9 @@ gantt:format_size(B, Str) :-
 %! gantt:emit_legend is det.
 %
 % Emit the color legend showing action types and dependency arrow styles.
+% Honored RDEPEND is a solid purple arrow; an RDEPEND whose provider is
+% not strictly earlier than its consumer (same-wave / backwards — the
+% preference `--optimize parallelism` voids on a runtime cycle) is dashed.
 
 gantt:emit_legend :-
     write('<div class="legend">'), nl,
@@ -805,6 +808,7 @@ gantt:emit_legend :-
     write('  <div class="legend-item"><svg width="24" height="12"><line x1="0" y1="6" x2="18" y2="6" stroke="var(--bdepend)" stroke-width="1.5"/><polygon points="18,3.5 24,6 18,8.5" fill="var(--bdepend)"/></svg>BDEPEND</div>'), nl,
     write('  <div class="legend-item"><svg width="24" height="12"><line x1="0" y1="6" x2="18" y2="6" stroke="var(--depend)" stroke-width="1.5"/><polygon points="18,3.5 24,6 18,8.5" fill="var(--depend)"/></svg>DEPEND</div>'), nl,
     write('  <div class="legend-item"><svg width="24" height="12"><line x1="0" y1="6" x2="18" y2="6" stroke="var(--rdepend)" stroke-width="1.5"/><polygon points="18,3.5 24,6 18,8.5" fill="var(--rdepend)"/></svg>RDEPEND</div>'), nl,
+    write('  <div class="legend-item" title="RDEPEND preference voided on a runtime cycle; not an ordering constraint"><svg width="24" height="12"><line x1="0" y1="6" x2="18" y2="6" stroke="var(--rdepend)" stroke-width="1.5" stroke-dasharray="4,3"/><polygon points="18,3.5 24,6 18,8.5" fill="var(--rdepend)"/></svg>RDEPEND (ignored)</div>'), nl,
     write('  <div class="legend-item"><svg width="24" height="12"><line x1="0" y1="6" x2="18" y2="6" stroke="var(--pdepend)" stroke-width="1.5" stroke-dasharray="4,2"/><polygon points="18,3.5 24,6 18,8.5" fill="var(--pdepend)"/></svg>PDEPEND</div>'), nl,
     write('  <div class="legend-item"><svg width="24" height="12"><line x1="0" y1="6" x2="18" y2="6" stroke="var(--idepend)" stroke-width="1.5" stroke-dasharray="2,2"/><polygon points="18,3.5 24,6 18,8.5" fill="var(--idepend)"/></svg>IDEPEND</div>'), nl,
     write('  <div class="legend-item"><svg width="24" height="12"><line x1="0" y1="6" x2="24" y2="6" stroke="var(--bar)" stroke-width="2" stroke-dasharray="4,3"/></svg>same pkg</div>'), nl,
@@ -943,9 +947,11 @@ gantt:emit_js_functions :-
     write('    p.setAttribute("stroke",depColors[dt]);p.setAttribute("stroke-width","1.2");'), nl,
     write('    p.setAttribute("fill","none");p.setAttribute("marker-end",`url(#arrow-${dt})`);'), nl,
     write('    p.setAttribute("opacity","0.7");if(depDash[dt])p.setAttribute("stroke-dasharray",depDash[dt]);'), nl,
-    write('    p.setAttribute("class","dep-edge");p.dataset.fromPkg=fr.dataset.pkg;p.dataset.toPkg=tr2.dataset.pkg;'), nl,
+    write('    p.setAttribute("class","dep-edge");p.dataset.fromPkg=fr.dataset.pkg;p.dataset.toPkg=tr2.dataset.pkg;p.dataset.depType=dt;'), nl,
     write('    svg.appendChild(p);'), nl,
-    write('    if(stepOf(fe)<stepOf(te))edges.push({el:p,from:fe,to:te});else p.classList.add("back-edge");'), nl,
+    write('    if(stepOf(fe)<stepOf(te))edges.push({el:p,from:fe,to:te});'), nl,
+    write('    else{p.classList.add("back-edge");'), nl,
+    write('      if(dt==="rdepend")p.setAttribute("stroke-dasharray","4,3");}'), nl,
     write('  });'), nl,
     write('  markCritical(edges,stepOf);'), nl,
     write('  if(hoverMode&&hoverPkg)litEdges(hoverPkg);'), nl,
