@@ -436,4 +436,36 @@ test(footer_and_printer_agree_on_mixed_heads) :-
   once(sub_string(Out, _, _, _, 'install')),
   once(sub_string(Out, _, _, _, 'run')).
 
+% Pass-1 dependency-group rules ride along in the plan waves. They are
+% not merge actions: printing them (or failing to) produced empty `│`
+% rows and empty steps after the docker-29.8.0 head-shape widening.
+test(regular_grouped_dep_not_printable) :-
+  printer_empty_state(State),
+  Rule = rule(grouped_package_dependency(no, 'dev-libs', jansson, []):install?{[]}, []),
+  \+ plan:printable_element(State, Rule).
+
+test(regular_package_dep_not_printable) :-
+  printer_empty_state(State),
+  Rule = rule(package_dependency(install, no, 'dev-libs', jansson,
+                                none, version_none, [], []):install?{[]}, []),
+  \+ plan:printable_element(State, Rule).
+
+test(assumed_grouped_dep_still_printable) :-
+  printer_empty_state(State),
+  Rule = rule(assumed(grouped_package_dependency(no, 'dev-libs', missing, []):install?{[assumption_reason(masked)]}), []),
+  plan:printable_element(State, Rule).
+
+test(grouped_deps_do_not_emit_blank_rows_or_empty_steps) :-
+  printer_empty_state(State),
+  Grouped = rule(grouped_package_dependency(no, 'dev-libs', jansson, []):install?{[]}, []),
+  Plan = [[Grouped, Grouped],
+          [rule(r://'jansson-2.15.1':download?{[]}, []),
+           Grouped,
+           rule(r://'jansson-2.15.1':install, [])]],
+  with_output_to(string(Out),
+                 plan:print_steps_in_plan(State, Plan, plan:dry_run, 0, Steps)),
+  Steps == 1,
+  findall(_, sub_string(Out, _, _, _, '             │ '), Prefs),
+  length(Prefs, 1).
+
 :- end_tests(printer_plan_head_shapes).

@@ -315,7 +315,12 @@ plan:printable_kind_action(domain_assumption, package_dependency(_,_,_,_,_,_,_,_
 plan:printable_kind_action(domain_assumption, _, _) :-
   !,
   fail.
-plan:printable_kind_action(regular, _Core, Action) :-
+% Regular merge-list lines are concrete ebuild actions only. Pass-1
+% grouped_package_dependency / package_dependency heads share :install
+% and :run as their phase, sit in the same plan waves, and have no
+% print_element clause — treating them as printable produced the empty
+% `│` rows and empty steps (gnucash).
+plan:printable_kind_action(regular, _Repo://_Entry:Action, Action) :-
   plan:printable_pkg_action(Action).
 
 
