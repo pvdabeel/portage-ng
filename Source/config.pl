@@ -2223,6 +2223,17 @@ config:emerge_log_path('/var/log/emerge.log').
 config:buildtime_enabled(true).
 
 
+%! config:download_mbit(?Mbit) is det.
+%
+% Assumed download link rate in megabits per second (decimal, 1 Mbit =
+% 1e6 bit). The Gantt time view and critical-path download bars convert
+% manifest sizes at this rate. Override in the host-local config
+% (`retractall(config:download_mbit(_))` then assert) for a different
+% link. Default is 100 Mbit/s.
+
+config:download_mbit(100).
+
+
 % -----------------------------------------------------------------------------
 %  Daemon (ultralight mode)
 % -----------------------------------------------------------------------------

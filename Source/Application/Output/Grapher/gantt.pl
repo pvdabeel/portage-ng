@@ -13,7 +13,8 @@ Interactive Gantt chart HTML visualisation of a portage-ng execution plan.
 Generates a self-contained HTML file with a wave-column timeline, per-package
 detail rows (USE flags, downloads), phase and dependency-type filters, SVG
 dependency arrows, a duration-weighted critical path (phase_stats when
-available), and an optional earliest-start time layout.
+available), and an optional wave-timed layout (bar width = duration,
+wave start = previous wave finish).
 */
 
 :- module(gantt, []).
@@ -500,15 +501,16 @@ gantt:ensure_cn_index :-
 % (`install` / `:update` / `:reinstall` / `:downgrade`) sum recorded
 % `phase_seconds/3` for the ebuild phases of that entry; if the exact
 % CPV is missing, the median of same-C/N versions is used. `download`
-% / `fetchonly` use the `fetch` phase the same way. `:run` and config
-% pre-actions are 0. Timed is `true` when the figure came from
-% phase_stats and `false` when the unit (1s) fallback was used.
+% / `fetchonly` are manifest bytes at `config:download_mbit/1`. `:run` and
+% config pre-actions are 0. Timed is `true` when the figure came from
+% phase_stats or a known distfile size, and `false` when the unit (1s)
+% fallback was used.
 
-gantt:action_seconds(_Repo, Entry, Action, Seconds, Timed) :-
+gantt:action_seconds(Repo, Entry, Action, Seconds, Timed) :-
     gantt:action_time_class(Action, Class),
     (   gantt:seconds_cache(Entry, Class, Seconds-Timed)
     ->  true
-    ;   gantt:compute_seconds(Entry, Class, Seconds, Timed),
+    ;   gantt:compute_seconds(Repo, Entry, Class, Seconds, Timed),
         assertz(gantt:seconds_cache(Entry, Class, Seconds-Timed))
     ).
 
@@ -526,22 +528,20 @@ gantt:action_time_class(fetchonly, fetch).
 gantt:action_time_class(_, none).
 
 
-%! gantt:compute_seconds(+Entry, +Class, -Seconds, -Timed) is det.
+%! gantt:compute_seconds(+Repo, +Entry, +Class, -Seconds, -Timed) is det.
 %
 % Resolve a duration class to seconds. `none` is always 0.
 
-gantt:compute_seconds(_Entry, none, 0, false) :-
+gantt:compute_seconds(_Repo, _Entry, none, 0, false) :-
     !.
-gantt:compute_seconds(Entry, fetch, Seconds, Timed) :-
+gantt:compute_seconds(Repo, Entry, fetch, Seconds, Timed) :-
     !,
-    (   gantt:entry_phase_seconds(Entry, fetch, Seconds)
-    ->  Timed = true
-    ;   gantt:cn_phase_seconds(Entry, fetch, Seconds)
+    (   gantt:entry_download_seconds(Repo, Entry, Seconds)
     ->  Timed = true
     ;   Seconds = 1,
         Timed = false
     ).
-gantt:compute_seconds(Entry, merge, Seconds, Timed) :-
+gantt:compute_seconds(_Repo, Entry, merge, Seconds, Timed) :-
     (   gantt:entry_merge_seconds(Entry, Seconds)
     ->  Timed = true
     ;   gantt:cn_merge_seconds(Entry, Seconds)
@@ -549,6 +549,40 @@ gantt:compute_seconds(Entry, merge, Seconds, Timed) :-
     ;   Seconds = 1,
         Timed = false
     ).
+
+
+%! gantt:download_bytes_per_second(-BytesPerSec) is det.
+%
+% Convert `config:download_mbit/1` to bytes per second (decimal Mbit).
+% Falls back to 100 Mbit/s when the setting is missing or non-positive.
+
+gantt:download_bytes_per_second(BytesPerSec) :-
+    (   catch(config:download_mbit(Mbit), _, fail),
+        number(Mbit),
+        Mbit > 0
+    ->  BytesPerSec is Mbit * 1_000_000 / 8
+    ;   BytesPerSec is 100 * 1_000_000 / 8
+    ).
+
+
+%! gantt:entry_download_seconds(+Repo, +Entry, -Seconds) is semidet.
+%
+% Wall-clock seconds to fetch every distfile of Entry at the configured
+% download rate. Files share the link, so sizes are summed. At least 1s
+% when any byte is known (handshake / write-out). Fails when no manifest
+% size is available.
+
+gantt:entry_download_seconds(Repo, Entry, Seconds) :-
+    findall(S,
+            (   query:search(src_uri(uri(_, _, Local)), Repo://Entry),
+                gantt:manifest_size(Repo, Entry, Local, S),
+                S > 0
+            ),
+            Ss),
+    Ss \== [],
+    sum_list(Ss, Bytes),
+    gantt:download_bytes_per_second(Rate),
+    Seconds is max(1, ceiling(Bytes / Rate)).
 
 
 %! gantt:entry_phase_seconds(+Entry, +Phase, -Seconds) is semidet.
@@ -761,7 +795,7 @@ gantt:emit_filters :-
     write('    <button class="action-btn" onclick="collapseAll()">Collapse All</button>'), nl,
     write('    <button class="action-btn" id="hover-mode-btn" onclick="toggleHoverMode(this)" aria-pressed="false" title="Hide dependency edges; show only those of the hovered package">Hover</button>'), nl,
     write('    <button class="action-btn" id="crit-mode-btn" onclick="toggleCritMode(this)" aria-pressed="false" title="Highlight the longest duration-weighted chain of dependent actions (phase_stats when available; ignored / backward RDEPEND edges excluded)">Critical path</button>'), nl,
-    write('    <button class="action-btn" id="time-mode-btn" onclick="toggleTimeMode(this)" aria-pressed="false" title="Lay out bars by earliest start and recorded duration instead of equal wave columns">Time</button>'), nl,
+    write('    <button class="action-btn" id="time-mode-btn" onclick="toggleTimeMode(this)" aria-pressed="false" title="Keep the plan wave order; size each wave by its longest recorded action (a wave starts when the previous wave finishes)">Time</button>'), nl,
     write('  </div>'), nl,
     write('</div>'), nl.
 
@@ -1293,33 +1327,23 @@ gantt:emit_js_functions :-
     write('function layoutTimeView(){'), nl,
     write('  const tv=ensureTimeView();syncTimeRows();'), nl,
     write('  const bars=[...tv.querySelectorAll(".gantt-time-row:not(.row-hidden) .cell:not(.hidden)")];'), nl,
-    write('  const byId=new Map(bars.map(b=>[b.dataset.id,b]));'), nl,
-    write('  const pred=new Map();'), nl,
-    write('  tv.querySelectorAll(".gantt-time-row:not(.row-hidden)").forEach(row=>{'), nl,
-    write('    const cs=[...row.querySelectorAll(".cell:not(.hidden)")].sort((a,b)=>waveOf(a)-waveOf(b));'), nl,
-    write('    for(let i=0;i<cs.length-1;i++)pred.set(cs[i+1],(pred.get(cs[i+1])||[]).concat([cs[i]]));});'), nl,
-    write('  deps.forEach(([fid,tid,dt])=>{'), nl,
-    write('    if(!filters[dt])return;'), nl,
-    write('    const fe=byId.get(fid),te=byId.get(tid);'), nl,
-    write('    if(!fe||!te||waveOf(fe)>=waveOf(te))return;'), nl,
-    write('    pred.set(te,(pred.get(te)||[]).concat([fe]));});'), nl,
-    write('  const es=new Map();'), nl,
-    write('  const seen=new Set();'), nl,
-    write('  function earliest(n){if(es.has(n))return es.get(n);if(seen.has(n))return 0;seen.add(n);'), nl,
-    write('    let m=0;(pred.get(n)||[]).forEach(p=>{m=Math.max(m,earliest(p)+secs(p));});'), nl,
-    write('    es.set(n,m);return m;}'), nl,
-    write('  bars.forEach(b=>{b.dataset.es=String(earliest(b));});'), nl,
-    write('  const maxEnd=bars.reduce((m,b)=>Math.max(m,earliest(b)+secs(b)),0);'), nl,
+    write('  const waveMax=new Map();'), nl,
+    write('  bars.forEach(b=>{const w=waveOf(b);waveMax.set(w,Math.max(waveMax.get(w)||0,secs(b)));});'), nl,
+    write('  const waves=[...waveMax.keys()].sort((a,b)=>a-b);'), nl,
+    write('  const waveStart=new Map();let t=0;'), nl,
+    write('  waves.forEach(w=>{waveStart.set(w,t);t+=waveMax.get(w);});'), nl,
+    write('  const maxEnd=t;'), nl,
+    write('  bars.forEach(b=>b.dataset.es=String(waveStart.get(waveOf(b))||0));'), nl,
     write('  const px=Math.max(0.5,Math.min(8,1400/Math.max(maxEnd,1)));'), nl,
     write('  const width=Math.max(400,Math.ceil(maxEnd*px)+24);'), nl,
-    write('  tv.querySelectorAll(".gantt-time-track").forEach(t=>{t.style.width=width+"px";});'), nl,
-    write('  bars.forEach(b=>{const d=Math.max(secs(b),0);b.style.left=(earliest(b)*px)+"px";'), nl,
+    write('  tv.querySelectorAll(".gantt-time-track").forEach(tr=>{tr.style.width=width+"px";});'), nl,
+    write('  bars.forEach(b=>{const d=Math.max(secs(b),0);b.style.left=((waveStart.get(waveOf(b))||0)*px)+"px";'), nl,
     write('    b.style.width=Math.max(d>0?d*px:8,8)+"px";});'), nl,
     write('  const ruler=document.getElementById("gantt-time-ruler");ruler.innerHTML="";'), nl,
     write('  ruler.style.width=width+"px";'), nl,
-    write('  const step=maxEnd<=120?30:maxEnd<=600?60:maxEnd<=2400?300:600;'), nl,
-    write('  for(let t=0;t<=maxEnd;t+=step){const tick=document.createElement("span");tick.className="gantt-time-tick";'), nl,
-    write('    tick.style.left=(t*px)+"px";tick.textContent=fmtDur(t);ruler.appendChild(tick);}'), nl,
+    write('  const step=maxEnd<=120?30:maxEnd<=600?60:maxEnd<=1800?300:maxEnd<=7200?600:1800;'), nl,
+    write('  for(let u=0;u<=maxEnd;u+=step){const tick=document.createElement("span");tick.className="gantt-time-tick";'), nl,
+    write('    tick.style.left=(u*px)+"px";tick.textContent=fmtDur(u);ruler.appendChild(tick);}'), nl,
     write('}'), nl,
     write('function toggleUseExpand(){'), nl,
     write('  const f=document.getElementById("global-use-flags"),'), nl,
