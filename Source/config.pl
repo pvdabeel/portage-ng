@@ -1036,6 +1036,47 @@ config:bugzilla_annotate(true).
 
 
 % -----------------------------------------------------------------------------
+%  Repology (--upstream)
+% -----------------------------------------------------------------------------
+
+%! config:repology_url(?URL)
+%
+% Base URL of the Repology instance used by `--upstream`. The API path
+% `/api/v1/project/<name>` is appended. The official host is still
+% `https://repology.org`. Since 2026-09-13 that domain has been on
+% registrar hold and public DNS returns `127.0.0.1` (see
+% https://github.com/repology/repology-rs/issues/560). Do not point this
+% at another hostname unless AMDmi3 publishes a replacement domain —
+% pin the still-live address with `config:repology_address/1` instead.
+
+:- dynamic config:repology_url/1.
+:- multifile config:repology_url/1.
+
+config:repology_url('https://repology.org').
+
+
+%! config:repology_user_agent(?UA) is det.
+%
+% User-Agent string for Repology API requests (required by their TOS).
+
+config:repology_user_agent('portage-ng/2026 (https://github.com/pvdabeel/prolog)').
+
+
+%! config:repology_address(?IP)
+%
+% Optional IPv4 or IPv6 pin passed to curl as
+% `--resolve <host>:443:<IP>` so `--upstream` can reach the still-live
+% Repology host while public DNS is on hold. No default clause. AMDmi3
+% published `92.63.176.157` / `2a03:6f01:1:2::f159` in
+% https://github.com/repology/repology-rs/issues/560 — set one of those
+% in a host config only as a temporary workaround, and retract it once
+% DNS recovers. TLS still verifies the `repology.org` certificate.
+
+:- dynamic config:repology_address/1.
+:- multifile config:repology_address/1.
+
+
+% -----------------------------------------------------------------------------
 %  Proving
 % -----------------------------------------------------------------------------
 

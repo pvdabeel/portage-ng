@@ -100,3 +100,9 @@
 % -----------------------------------------------------------------------------
 
 % :- config:bugzilla_url('https://bugs.gentoo.org').
+%
+% Temporary Repology DNS workaround while repology.org is on registrar
+% hold (https://github.com/repology/repology-rs/issues/560). Retract
+% once public DNS recovers; do not switch config:repology_url/1 unless
+% a replacement domain is announced.
+% :- config:repology_address('92.63.176.157').

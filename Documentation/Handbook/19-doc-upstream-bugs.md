@@ -31,7 +31,12 @@ portage-ng --upstream @world
 ### How it works
 
 1. For each target package, the module queries the Repology API
-   (`https://repology.org/api/v1/project/<name>`) for version information.
+   (`<config:repology_url>/api/v1/project/<name>`, default
+   `https://repology.org`) for version information. A transport
+   failure is reported as unreachable (and aborts the remaining
+   checks) rather than "not found". While `repology.org` DNS is on
+   registrar hold, set `config:repology_address/1` to the IPv4/IPv6
+   published in https://github.com/repology/repology-rs/issues/560.
 
 2. The response includes version data across multiple distributions,
    which is compared against the version in the local Portage tree.

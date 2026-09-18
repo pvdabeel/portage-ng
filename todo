@@ -8,3 +8,5 @@ Feature exploration
 - choicelog: do we actually need this
 
 - overall code cleanup
+
+- Remove curl dependency
