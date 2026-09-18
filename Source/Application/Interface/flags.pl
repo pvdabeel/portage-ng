@@ -54,6 +54,7 @@ working-directory init)
 % | usepkgexcludelive         | binpkg_exec:entry_allowed/2                         |
 % | binpkgchangeddeps         | binpkg_exec:changed_deps_policy/1                   |
 % | binpkgrespectuse          | binpkg_exec:respect_use_policy/1                    |
+% | nobinpkgrespectuserpatches | binpkg_exec:respect_user_patches_policy/1          |
 % | fetchonly                 | printer + builder (hide/skip merge actions; keep downloads) |
 % | fetchall                  | fetchonly + ebuild:distfile_scope/1 (all SRC_URI) |
 % | failclean                 | ebuild_exec:maybe_fail_clean/4                      |
@@ -103,6 +104,8 @@ interface:process_flags :-
   (lists:memberchk(usepkgexcludelive(true), Options) -> asserta(preference:local_flag(usepkgexcludelive)) ; true),
   (lists:memberchk(binpkgchangeddeps(true), Options) -> asserta(preference:local_flag(binpkgchangeddeps)) ; true),
   (lists:memberchk(binpkgrespectuse(true),  Options) -> asserta(preference:local_flag(binpkgrespectuse)) ; true),
+  ( interface:binpkg_respect_user_patches_off(Options)
+  -> asserta(preference:local_flag(nobinpkgrespectuserpatches)) ; true),
   (lists:memberchk(rebuiltbinaries(true),   Options) -> asserta(preference:local_flag(rebuiltbinaries)) ; true),
   (lists:memberchk(ask(true),               Options) -> asserta(preference:local_flag(ask)) ; true),
   (lists:memberchk(alert(true),             Options) -> asserta(preference:local_flag(alert)) ; true),
@@ -186,6 +189,16 @@ interface:collect_flag_values([Flag, Value|Rest], Flag, [Value|More]) :-
 
 interface:collect_flag_values([_|Rest], Flag, Values) :-
   interface:collect_flag_values(Rest, Flag, Values).
+
+
+%! interface:binpkg_respect_user_patches_off(+Options) is semidet.
+%
+% True when `--binpkg-respect-user-patches` was passed as `n`, `no`, or
+% `false` (emerge's `=n`). The spec default is `y`.
+
+interface:binpkg_respect_user_patches_off(Options) :-
+  memberchk(binpkgrespectuserpatches(Val), Options),
+  memberchk(Val, [n, no, false, 'n', 'no', 'false']).
 
 
 %! interface:assert_valid_style(+Style) is det.

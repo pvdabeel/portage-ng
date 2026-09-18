@@ -111,6 +111,19 @@ config:use_binpkg(true).
 config:binpkg_respect_use(strict).
 
 
+%! config:binpkg_respect_user_patches(?Bool)
+%
+% Mirrors emerge's `--binpkg-respect-user-patches=y|n`. When `true` (the
+% default), a binpkg is not selected if `/etc/portage/patches` would
+% apply to the corresponding ebuild (`${PN}`, `${P}`, `${PF}` or
+% `${P}-${PR}`, each optionally `:${SLOT}`). This prevents a binary from
+% silently reverting user patches. `--usepkg-include` does not override
+% it. Set `false` or pass `--binpkg-respect-user-patches n` to accept
+% the binpkg anyway.
+
+config:binpkg_respect_user_patches(true).
+
+
 %! config:binpkg_changed_deps(?Mode)
 %
 % Mirrors emerge's `--binpkg-changed-deps=y|n`. When `skip`, binpkgs whose

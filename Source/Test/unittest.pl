@@ -14,8 +14,8 @@ Loads the unit test files under Source/Test/Unit/, one per subject
 (EAPI grammar, version domains, constraints, mutual-reachability classes,
 sanitize, depclean,
 exception fixups, USE rules, ranking, rebuilds, resolving heuristics,
-query layer, synthetic-rule prover core, printer, builder, interface,
-VDB import, GLSA), and re-exports the two standalone harnesses
+query layer, synthetic-rule prover core, printer, builder, binpkg,
+interface, VDB import, GLSA), and re-exports the two standalone harnesses
 (Source/Test/md5cache.pl, Source/Test/profilemask.pl).
 
 Run via the project wrapper:
@@ -68,6 +68,7 @@ Regenerate the golden snapshot after an intentional mask-logic change:
 :- use_module(portage('Source/Test/Unit/synthetictest')).
 :- use_module(portage('Source/Test/Unit/printertest')).
 :- use_module(portage('Source/Test/Unit/buildertest')).
+:- use_module(portage('Source/Test/Unit/binpkgtest')).
 :- use_module(portage('Source/Test/Unit/interfacetest')).
 :- use_module(portage('Source/Test/Unit/vdbtest')).
 :- use_module(portage('Source/Test/Unit/glsatest')).

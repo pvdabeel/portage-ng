@@ -93,6 +93,7 @@ interface:spec(S) :-
        [opt(usepkgexcludelive), type(boolean),   default(false),                          longflags(['usepkg-exclude-live']),  help('Do not use binary packages for live (9999) ebuilds')],
        [opt(binpkgchangeddeps), type(boolean),   default(false),                          longflags(['binpkg-changed-deps']),  help('Ignore binpkgs whose deps have changed since build')],
        [opt(binpkgrespectuse),  type(boolean),   default(false),                          longflags(['binpkg-respect-use']),   help('Ignore binpkgs whose USE flags do not match')],
+       [opt(binpkgrespectuserpatches), type(atom), default(y),                             longflags(['binpkg-respect-user-patches']), help('Skip binpkgs when /etc/portage/patches applies (y or n)')],
        [opt(rebuiltbinaries),   type(boolean),   default(false),                          longflags(['rebuilt-binaries']),     help('Replace installed packages with rebuilt binary packages')],
        [opt(failclean),         type(boolean),   default(false),                          longflags(['fail-clean']),           help('Clean build directory on failure')],
        [opt(quiet),             type(boolean),   default(false),       shortflags(['q']), longflags(['quiet']),                help('Reduced output')],

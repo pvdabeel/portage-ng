@@ -156,10 +156,11 @@ action is performed per invocation.
 | **-g**, **--getbinpkg** | Download binary packages from a remote `BINHOST`. |
 | **-G**, **--getbinpkg-only** | Use only remote binary packages from `BINHOST`. |
 | **--usepkg-exclude** *ATOM* | Exclude the given atom from binary package usage. Repeatable. |
-| **--usepkg-include** *ATOM* | Force binary package usage for the given atom. Repeatable. |
+| **--usepkg-include** *ATOM* | Force binary package usage for the given atom, overriding `--usepkg-exclude`. Repeatable. User patches still skip the binpkg unless `--binpkg-respect-user-patches n`. |
 | **--usepkg-exclude-live** | Do not use binary packages for live ebuilds (version 9999). |
 | **--binpkg-changed-deps** | Ignore binary packages whose dependency tree has changed. |
 | **--binpkg-respect-use** | Ignore binary packages whose USE flags do not match current settings. |
+| **--binpkg-respect-user-patches** *y\|n* | Skip binary packages when `/etc/portage/patches` would apply to the ebuild (default **y**). |
 | **--rebuilt-binaries** | Replace installed packages with more recently rebuilt binary packages. |
 
 ### Build options

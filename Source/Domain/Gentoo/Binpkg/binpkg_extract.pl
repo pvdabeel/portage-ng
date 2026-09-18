@@ -40,6 +40,12 @@ After `prepare_builddir/3` succeeds, callers (i.e. `binpkg_exec`) can
 spawn `ebuild --skip-manifest <SOURCE_EBUILD> qmerge` with environment
 `MERGE_TYPE=binary`, `PORTAGE_BINPKG_FILE=<gpkg>`, `PORTAGE_BUILDDIR=...`.
 
+Every tar (outer gpkg, `image.tar.zst`, `metadata.tar.zst`) is listed and
+checked before extraction. Absolute paths, `..` components, device/fifo
+nodes, hardlinks that escape, and writes through a symlink whose target
+leaves the destination (Gentoo bug 982208) are refused. Metadata members
+must be regular files or directories.
+
 This whole flow was validated end-to-end against `app-misc/jq-1.8.1`
 BUILD_IDs 8 (oniguruma=on) and 10 (oniguruma=off) during initial bring-up.
 */
@@ -167,10 +173,10 @@ binpkg_extract:remove_scratch_dir(ScratchDir) :-
 % Untars the outer (uncompressed) gpkg archive into ScratchDir. The result
 % is a single sub-directory named after the package PF + BUILD_ID
 % (e.g. `jq-1.8.1-9/`) holding `image.tar.zst`, `metadata.tar.zst`,
-% `gpkg-1`, and `Manifest`.
+% `gpkg-1`, and `Manifest`. Refuses the archive when the listing is unsafe.
 
 binpkg_extract:extract_outer(GpkgPath, ScratchDir) :-
-  binpkg_extract:run_command(path(tar), ['xf', GpkgPath, '-C', ScratchDir], 0).
+  binpkg_extract:safe_extract(GpkgPath, ScratchDir, [], outer).
 
 
 %! binpkg_extract:extract_image(+ImageTarZst, +BuildDir) is semidet.
@@ -178,28 +184,313 @@ binpkg_extract:extract_outer(GpkgPath, ScratchDir) :-
 % Decompresses + untars `image.tar.zst` into BuildDir. The archive
 % includes the `image/` prefix, so the result lands at `BuildDir/image/`.
 % Requires GNU tar (uses `-I zstd` to delegate decompression to the zstd
-% command in PATH).
+% command in PATH). Refuses the archive when the listing is unsafe.
 
 binpkg_extract:extract_image(ImageTarZst, BuildDir) :-
-  binpkg_extract:run_command(
-    path(tar),
-    ['-I', 'zstd', '-xf', ImageTarZst, '-C', BuildDir],
-    0).
+  binpkg_extract:safe_extract(ImageTarZst, BuildDir, ['-I', 'zstd'], image).
 
 
 %! binpkg_extract:extract_metadata_to_build_info(+MetaTarZst, +BuildDir) is semidet.
 %
-% Decompresses + untars `metadata.tar.zst` into BuildDir, but rewrites
-% the leading `metadata/` path component to `build-info/` (matching what
-% `portage/dbapi/vartree.py:merge()` expects). Uses GNU tar's
-% `--transform` sed-like rule.
+% Decompresses + untars `metadata.tar.zst` into BuildDir, then rewrites
+% a leading `metadata/` prefix to `build-info/` (matching what
+% `portage/dbapi/vartree.py:merge()` expects). Metadata members must be
+% regular files or directories. Refuses the archive when the listing is
+% unsafe (including metadata symlinks, Gentoo bug 982208).
 
 binpkg_extract:extract_metadata_to_build_info(MetaTarZst, BuildDir) :-
-  binpkg_extract:run_command(
-    path(tar),
-    ['-I', 'zstd', '-xf', MetaTarZst, '-C', BuildDir,
-     '--transform', 's,^metadata/,build-info/,'],
-    0).
+  binpkg_extract:safe_extract(MetaTarZst, BuildDir, ['-I', 'zstd'], metadata),
+  binpkg_extract:relocate_metadata_prefix(BuildDir).
+
+
+% -----------------------------------------------------------------------------
+%  Safe tar extract (list, check, then extract)
+% -----------------------------------------------------------------------------
+
+%! binpkg_extract:safe_extract(+Archive, +DestDir, +ExtraTarArgs, +Kind) is semidet.
+%
+% Lists Archive (ExtraTarArgs are inserted before `-t`/`-x`, e.g. `-I zstd`),
+% refuses it when `members_safe/2` fails, then extracts into DestDir.
+% Kind is `outer`, `image`, or `metadata` (metadata forbids link members).
+
+binpkg_extract:safe_extract(Archive, DestDir, ExtraTarArgs, Kind) :-
+  ( binpkg_extract:archive_members(Archive, ExtraTarArgs, Members)
+  -> true
+  ;  format(user_error, 'binpkg_extract: cannot list archive ~w~n', [Archive]),
+     fail
+  ),
+  ( binpkg_extract:members_safe(Kind, Members)
+  -> true
+  ;  format(user_error, 'binpkg_extract: refused unsafe archive ~w (~w)~n', [Archive, Kind]),
+     fail
+  ),
+  append(ExtraTarArgs, ['-xf', Archive, '-C', DestDir], ExtractArgs),
+  binpkg_extract:run_command(path(tar), ExtractArgs, 0).
+
+
+%! binpkg_extract:archive_members(+Archive, +ExtraTarArgs, -Members) is semidet.
+%
+% Members is a list of `member(Type, Name, Target)` from a paired
+% `tar -tf` / `tar -tvf` listing. Type is `file`, `dir`, `symlink`,
+% `hardlink`, `device`, `fifo`, `socket`, `skip`, or `other`. Target is
+% the link destination for symlink/hardlink members and `''` otherwise.
+
+binpkg_extract:archive_members(Archive, ExtraTarArgs, Members) :-
+  append(ExtraTarArgs, ['-tf', Archive], NameArgs),
+  append(ExtraTarArgs, ['-tvf', Archive], VerboseArgs),
+  binpkg_extract:run_command_lines(path(tar), NameArgs, NameLines0),
+  binpkg_extract:run_command_lines(path(tar), VerboseArgs, VerboseLines0),
+  exclude(binpkg_extract:blank_line, NameLines0, NameLines),
+  exclude(binpkg_extract:blank_line, VerboseLines0, VerboseLines),
+  length(NameLines, N),
+  length(VerboseLines, N),
+  maplist(binpkg_extract:pair_listing, NameLines, VerboseLines, Members).
+
+
+%! binpkg_extract:blank_line(+Line) is semidet.
+
+binpkg_extract:blank_line(Line) :-
+  split_string(Line, " \t", " \t", []).
+
+
+%! binpkg_extract:pair_listing(+Name, +VerboseLine, -Member) is det.
+
+binpkg_extract:pair_listing(Name0, VerboseLine, member(Type, Name, Target)) :-
+  binpkg_extract:normalize_member_name(Name0, Name),
+  binpkg_extract:tv_type_target(VerboseLine, Type, Target).
+
+
+%! binpkg_extract:tv_type_target(+Line, -Type, -Target) is det.
+
+binpkg_extract:tv_type_target(Line, Type, Target) :-
+  ( sub_string(Line, 0, 1, _, TypeChar)
+  -> binpkg_extract:type_char(TypeChar, Type)
+  ;  Type = other
+  ),
+  ( Type == symlink
+  -> ( binpkg_extract:tv_after(Line, " -> ", Target0)
+     -> binpkg_extract:normalize_link_target(Target0, Target)
+     ;  Target = ''
+     )
+  ; Type == hardlink
+  -> ( binpkg_extract:tv_after(Line, " link to ", Target0)
+     -> binpkg_extract:normalize_link_target(Target0, Target)
+     ;  Target = ''
+     )
+  ;  Target = ''
+  ).
+
+
+%! binpkg_extract:type_char(+Char, -Type) is det.
+
+binpkg_extract:type_char("-", file) :- !.
+binpkg_extract:type_char("d", dir) :- !.
+binpkg_extract:type_char("l", symlink) :- !.
+binpkg_extract:type_char("h", hardlink) :- !.
+binpkg_extract:type_char("b", device) :- !.
+binpkg_extract:type_char("c", device) :- !.
+binpkg_extract:type_char("p", fifo) :- !.
+binpkg_extract:type_char("s", socket) :- !.
+binpkg_extract:type_char("g", skip) :- !.
+binpkg_extract:type_char("x", skip) :- !.
+binpkg_extract:type_char(_, other).
+
+
+%! binpkg_extract:tv_after(+Line, +Delim, -After) is semidet.
+
+binpkg_extract:tv_after(Line, Delim, After) :-
+  sub_string(Line, Pos, DelimLen, AfterLen, Delim),
+  AfterLen > 0,
+  Start is Pos + DelimLen,
+  sub_string(Line, Start, AfterLen, 0, After0),
+  \+ sub_string(After0, _, _, _, Delim),
+  After = After0.
+
+
+%! binpkg_extract:normalize_member_name(+Raw, -Name) is det.
+
+binpkg_extract:normalize_member_name(Raw, Name) :-
+  atom_string(Raw, S0),
+  binpkg_extract:strip_trailing_slash(S0, S1),
+  ( sub_string(S1, 0, 2, _, "./")
+  -> sub_string(S1, 2, _, 0, S2)
+  ;  S2 = S1
+  ),
+  atom_string(Name, S2).
+
+
+%! binpkg_extract:normalize_link_target(+Raw, -Target) is det.
+
+binpkg_extract:normalize_link_target(Raw, Target) :-
+  split_string(Raw, "", " \t", [S]),
+  atom_string(Target, S).
+
+
+%! binpkg_extract:strip_trailing_slash(+S0, -S) is det.
+
+binpkg_extract:strip_trailing_slash(S0, S) :-
+  ( string_length(S0, L), L > 1,
+    sub_string(S0, _, 1, 0, "/")
+  -> L1 is L - 1,
+     sub_string(S0, 0, L1, _, S1),
+     binpkg_extract:strip_trailing_slash(S1, S)
+  ;  S = S0
+  ).
+
+
+%! binpkg_extract:members_safe(+Kind, +Members) is semidet.
+%
+% True when every member may be extracted into a fresh destination.
+% Kind `metadata` also rejects symlink and hardlink members.
+
+binpkg_extract:members_safe(Kind, Members) :-
+  binpkg_extract:members_safe_loop(Kind, Members, []),
+  !.
+
+
+%! binpkg_extract:members_safe_loop(+Kind, +Members, +Seen) is semidet.
+
+binpkg_extract:members_safe_loop(_, [], _) :- !.
+binpkg_extract:members_safe_loop(Kind, [member(skip, _, _)|Rest], Seen) :-
+  !,
+  binpkg_extract:members_safe_loop(Kind, Rest, Seen).
+binpkg_extract:members_safe_loop(Kind, [member(Type, Name, Target)|Rest], Seen) :-
+  binpkg_extract:check_member(Kind, Type, Name, Target, Seen, Seen1),
+  binpkg_extract:members_safe_loop(Kind, Rest, Seen1).
+
+
+%! binpkg_extract:check_member(+Kind, +Type, +Name, +Target, +Seen, -Seen1) is semidet.
+
+binpkg_extract:check_member(Kind, Type, Name, Target, Seen, Seen1) :-
+  \+ binpkg_extract:forbidden_type(Kind, Type),
+  \+ binpkg_extract:name_unsafe(Name),
+  ( Type == hardlink
+  -> \+ binpkg_extract:name_unsafe(Target)
+  ;  true
+  ),
+  binpkg_extract:path_components(Name, Comps),
+  Comps \== [],
+  append(ParentComps, [_Leaf], Comps),
+  binpkg_extract:resolve_components(ParentComps, Seen, _ResolvedParent),
+  ( Type == symlink
+  -> binpkg_extract:normalize_member_name(Name, Norm),
+     Seen1 = [symlink(Norm, Target)|Seen]
+  ;  Seen1 = Seen
+  ).
+
+
+%! binpkg_extract:forbidden_type(+Kind, +Type) is semidet.
+
+binpkg_extract:forbidden_type(_, device).
+binpkg_extract:forbidden_type(_, fifo).
+binpkg_extract:forbidden_type(_, socket).
+binpkg_extract:forbidden_type(_, other).
+binpkg_extract:forbidden_type(metadata, symlink).
+binpkg_extract:forbidden_type(metadata, hardlink).
+
+
+%! binpkg_extract:name_unsafe(+Name) is semidet.
+
+binpkg_extract:name_unsafe(Name) :-
+  atom_string(Name, S),
+  ( S == ""
+  ; sub_string(S, 0, 1, _, "/")
+  ; binpkg_extract:path_components(S, Comps),
+    member("..", Comps)
+  ).
+
+
+%! binpkg_extract:path_components(+Name, -Components) is det.
+
+binpkg_extract:path_components(Name, Components) :-
+  atom_string(Name, S),
+  split_string(S, "/", "/", Parts0),
+  exclude(binpkg_extract:skip_component, Parts0, Components).
+
+binpkg_extract:skip_component("").
+binpkg_extract:skip_component(".").
+
+
+%! binpkg_extract:resolve_components(+Comps, +Seen, -Resolved) is semidet.
+%
+% Walks Comps, following previously listed symlink members. Fails when a
+% followed target is absolute or pops above the extract root.
+
+binpkg_extract:resolve_components(Comps, Seen, Resolved) :-
+  binpkg_extract:resolve_components(Comps, Seen, [], Resolved, 32).
+
+binpkg_extract:resolve_components([], _Seen, Acc, Acc, _) :- !.
+binpkg_extract:resolve_components([Comp|Rest], Seen, Acc, Resolved, Depth) :-
+  Depth > 0,
+  append(Acc, [Comp], Next0),
+  binpkg_extract:follow_symlinks(Next0, Seen, Next, Depth),
+  Depth1 is Depth - 1,
+  binpkg_extract:resolve_components(Rest, Seen, Next, Resolved, Depth1).
+
+
+%! binpkg_extract:follow_symlinks(+Acc, +Seen, -Out, +Depth) is semidet.
+
+binpkg_extract:follow_symlinks(Acc, _Seen, Acc, Depth) :-
+  Depth =< 0, !, fail.
+binpkg_extract:follow_symlinks(Acc, Seen, Out, Depth) :-
+  atomic_list_concat(Acc, '/', Path),
+  memberchk(symlink(Path, Target), Seen),
+  !,
+  \+ binpkg_extract:name_unsafe(Target),
+  \+ sub_atom(Target, 0, 1, _, '/'),
+  append(Parent, [_], Acc),
+  binpkg_extract:join_target(Parent, Target, Joined),
+  Depth1 is Depth - 1,
+  binpkg_extract:follow_symlinks(Joined, Seen, Out, Depth1).
+binpkg_extract:follow_symlinks(Acc, _Seen, Acc, _).
+
+
+%! binpkg_extract:join_target(+Parent, +Target, -Joined) is semidet.
+
+binpkg_extract:join_target(Parent, Target, Joined) :-
+  binpkg_extract:path_components(Target, TComps),
+  binpkg_extract:apply_components(Parent, TComps, Joined).
+
+binpkg_extract:apply_components(Acc, [], Acc) :- !.
+binpkg_extract:apply_components(Acc, [".."|Rest], Out) :-
+  !,
+  Acc = [_|_],
+  append(Parent, [_], Acc),
+  binpkg_extract:apply_components(Parent, Rest, Out).
+binpkg_extract:apply_components(Acc, [Comp|Rest], Out) :-
+  append(Acc, [Comp], Acc1),
+  binpkg_extract:apply_components(Acc1, Rest, Out).
+
+
+%! binpkg_extract:relocate_metadata_prefix(+BuildDir) is det.
+%
+% Moves `BuildDir/metadata/` onto `BuildDir/build-info/` when the archive
+% used the stock gpkg `metadata/` prefix. No-op when that directory is
+% absent (the members already landed at the destination names).
+
+binpkg_extract:relocate_metadata_prefix(BuildDir) :-
+  os:compose_path([BuildDir, 'metadata'], MetaDir),
+  os:compose_path([BuildDir, 'build-info'], InfoDir),
+  ( exists_directory(MetaDir)
+  -> binpkg_extract:move_dir_contents(MetaDir, InfoDir),
+     binpkg_extract:run_command(path(rm), ['-rf', MetaDir], _)
+  ;  true
+  ).
+
+
+%! binpkg_extract:move_dir_contents(+SrcDir, +DestDir) is det.
+
+binpkg_extract:move_dir_contents(SrcDir, DestDir) :-
+  os:ensure_directory_path(DestDir),
+  directory_files(SrcDir, Names0),
+  exclude(=('.'), Names0, Names1),
+  exclude(=('..'), Names1, Names),
+  forall(
+    member(Name, Names),
+    ( os:compose_path([SrcDir, Name], Src),
+      os:compose_path([DestDir, Name], Dest),
+      rename_file(Src, Dest)
+    )).
 
 
 %! binpkg_extract:decompress_environment_if_present(+BuildInfoDir, +EnvFile) is det.
@@ -478,3 +769,19 @@ binpkg_extract:run_command(Exe, Args, ExitCode) :-
   ( var(ExitCode) -> ExitCode = Got
   ; Got =:= ExitCode
   ).
+
+
+%! binpkg_extract:run_command_lines(+ExeSpec, +Args, -Lines) is semidet.
+%
+% Spawns ExeSpec(Args), captures stdout as a list of lines, and succeeds
+% only when the child exits 0.
+
+binpkg_extract:run_command_lines(Exe, Args, Lines) :-
+  setup_call_cleanup(
+    process_create(Exe, Args, [stdout(pipe(Out)), stderr(null), process(Pid)]),
+    ( read_string(Out, _, Text),
+      process_wait(Pid, exit(0)),
+      split_string(Text, "\n", "", Lines0),
+      exclude(==(""), Lines0, Lines)
+    ),
+    close(Out)).

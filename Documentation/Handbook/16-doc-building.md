@@ -256,6 +256,22 @@ with environment including the resolver's `USE`, plus
 source path.  Producing binpkgs (`package` phase under `--buildpkg`)
 stays on the source path in `ebuild_exec`.
 
+`binpkg_extract` lists each tar (the outer gpkg, `image.tar.zst`, and
+`metadata.tar.zst`) and refuses it before extraction when a member is
+an absolute path, contains `..`, is a device/fifo node, is a hardlink
+that escapes, or would write through a symlink whose target leaves the
+destination directory (Gentoo bug 982208).  Metadata members must be
+regular files or directories.
+
+`binpkg_exec:entry_allowed/2` also skips a binpkg when
+`/etc/portage/patches` would apply to the corresponding ebuild
+(`${PN}`, `${P}`, `${PF}` or `${P}-${PR}`, each optionally
+`:${SLOT}`), matching emerge's `--binpkg-respect-user-patches`
+(default **y**).  `--usepkg-include` does not override that skip.
+Pass `--binpkg-respect-user-patches n` (or set
+`config:binpkg_respect_user_patches(false)`) to accept the binpkg
+anyway.
+
 
 ### What a replacement backend must provide
 

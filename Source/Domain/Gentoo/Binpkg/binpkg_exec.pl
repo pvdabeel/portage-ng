@@ -54,6 +54,10 @@ acceptable in lieu of a source build.
     -- per-package allow / deny lists (`entry_allowed/2`)
   - `config:binpkg_respect_use(strict|relaxed)` -- USE matching mode;
     `--binpkg-respect-use` forces strict (`respect_use_policy/1`)
+  - `config:binpkg_respect_user_patches(true|false)` -- skip binpkgs when
+    `/etc/portage/patches` would apply; `--binpkg-respect-user-patches n`
+    disables (`respect_user_patches_policy/1`). `--usepkg-include` does
+    not override this (same as emerge).
   - `config:binpkg_changed_deps(skip|warn)`     -- RDEPEND-drift policy;
     `--binpkg-changed-deps` forces skip (`changed_deps_policy/1`)
   - `config:binpkg_refresh(manual|mtime)`       -- index refresh policy
@@ -123,10 +127,12 @@ binpkg_exec:binary_only :-
 % atom forces consumption for its packages; otherwise consumption must be
 % enabled and the package must not match a `--usepkg-exclude` atom nor, under
 % `--usepkg-exclude-live`, carry PROPERTIES=live. Atoms are `cat/name` or
-% `name` (the same shapes as `--exclude`).
+% `name` (the same shapes as `--exclude`). User patches under
+% `config:portage_confdir/1/patches` still skip the binpkg unless
+% `--binpkg-respect-user-patches n` (or `config:binpkg_respect_user_patches(false)`).
 
 binpkg_exec:entry_allowed(SrcRepo, SrcEntry) :-
-  cache:ordered_entry(SrcRepo, SrcEntry, C, N, _),
+  cache:ordered_entry(SrcRepo, SrcEntry, C, N, Version),
   ( config:usepkg_include_atom(Pattern),
     binpkg_exec:cn_matches_atom(C, N, Pattern)
   -> true
@@ -135,7 +141,8 @@ binpkg_exec:entry_allowed(SrcRepo, SrcEntry) :-
           binpkg_exec:cn_matches_atom(C, N, Pattern) ),
      \+ ( preference:flag(usepkgexcludelive),
           ebuild:is_live(SrcRepo://SrcEntry) )
-  ).
+  ),
+  binpkg_exec:user_patches_allow(SrcRepo, SrcEntry, C, N, Version).
 
 
 %! binpkg_exec:cn_matches_atom(+C, +N, +Pattern) is semidet.
@@ -171,9 +178,139 @@ binpkg_exec:changed_deps_policy(Mode) :-
   ).
 
 
+%! binpkg_exec:respect_user_patches_policy(-Mode) is det.
+%
+% `respect` (default) skips a binpkg when `/etc/portage/patches` would
+% apply to the source ebuild. `ignore` accepts the binpkg anyway
+% (`--binpkg-respect-user-patches n` or `config:binpkg_respect_user_patches(false)`).
+
+binpkg_exec:respect_user_patches_policy(Mode) :-
+  ( preference:flag(nobinpkgrespectuserpatches) -> Mode = ignore
+  ; config:binpkg_respect_user_patches(false)   -> Mode = ignore
+  ; Mode = respect
+  ).
+
+
 % -----------------------------------------------------------------------------
-%  Dispatch probe: is there a USE-compatible binpkg for SrcRepo://SrcEntry?
+%  User patches (/etc/portage/patches) vs binpkg consumption
 % -----------------------------------------------------------------------------
+
+:- dynamic binpkg_exec:user_patches_warned/2.
+
+
+%! binpkg_exec:user_patches_allow(+SrcRepo, +SrcEntry, +C, +N, +Version) is semidet.
+%
+% Succeeds when a binpkg may still be used for this source entry under
+% the user-patch policy. Fails (and warns once per CN) when `respect`
+% is on and a matching `*.patch` / `*.diff` exists.
+
+binpkg_exec:user_patches_allow(SrcRepo, SrcEntry, C, N, Version) :-
+  ( binpkg_exec:respect_user_patches_policy(ignore)
+  -> true
+  ;  binpkg_exec:src_slot(SrcRepo, SrcEntry, Slot),
+     binpkg_exec:user_patches_apply(C, N, Version, Slot, PatchDir)
+  -> binpkg_exec:warn_user_patches(C, N, PatchDir),
+     fail
+  ;  true
+  ).
+
+
+%! binpkg_exec:warn_user_patches(+C, +N, +PatchDir) is det.
+
+binpkg_exec:warn_user_patches(C, N, PatchDir) :-
+  ( binpkg_exec:user_patches_warned(C, N)
+  -> true
+  ;  assertz(binpkg_exec:user_patches_warned(C, N)),
+     message:warning(['binpkg: skipping binary for ', C, '/', N,
+                      ' because user patches apply (', PatchDir, ')'])
+  ).
+
+
+%! binpkg_exec:src_slot(+SrcRepo, +SrcEntry, -Slot) is det.
+%
+% Source SLOT, or `0` when the ebuild does not declare one.
+
+binpkg_exec:src_slot(SrcRepo, SrcEntry, Slot) :-
+  ( cache:entry_metadata(SrcRepo, SrcEntry, slot, slot(Slot0))
+  -> Slot = Slot0
+  ; cache:entry_metadata(SrcRepo, SrcEntry, slot, Slot0),
+    atomic(Slot0),
+    Slot0 \== ''
+  -> Slot = Slot0
+  ; Slot = '0'
+  ).
+
+
+%! binpkg_exec:user_patches_apply(+C, +N, +Version, +Slot, -PatchDir) is semidet.
+%
+% First `/etc/portage/patches` directory that matches this CN/version/slot
+% and contains a `*.patch` or `*.diff` file. Fails when `portage_confdir`
+% is unset, `patches/` is absent, or no matching directory has patch files.
+% Directory names follow portage(5): `${P}-${PR}[:${SLOT}]`, `${P}[:${SLOT}]`,
+% `${PN}[:${SLOT}]` (PF is `${PN}-${PVR}` and is also checked).
+
+binpkg_exec:user_patches_apply(C, N, Version, Slot, PatchDir) :-
+  current_predicate(config:portage_confdir/1),
+  config:portage_confdir(ConfDir),
+  os:compose_path([ConfDir, 'patches'], PatchesRoot),
+  exists_directory(PatchesRoot),
+  binpkg_exec:user_patch_leafs(N, Version, Slot, Leafs),
+  member(Leaf, Leafs),
+  os:compose_path([PatchesRoot, C, Leaf], Candidate),
+  binpkg_exec:directory_has_patch_files(Candidate),
+  !,
+  PatchDir = Candidate.
+
+
+%! binpkg_exec:user_patch_leafs(+Name, +Version, +Slot, -Leafs) is det.
+
+binpkg_exec:user_patch_leafs(Name, Version, Slot, Leafs) :-
+  binpkg_exec:version_pvr(Version, PV, PVR, Rev),
+  atomic_list_concat([Name, PV], '-', P),
+  atomic_list_concat([Name, PVR], '-', PF),
+  format(atom(PPR), '~w-~w-r~w', [Name, PV, Rev]),
+  format(atom(SlotS), '~w', [Slot]),
+  atomic_list_concat([PF, SlotS], ':', PFSlot),
+  atomic_list_concat([P, SlotS], ':', PSlot),
+  atomic_list_concat([PPR, SlotS], ':', PPRSlot),
+  atomic_list_concat([Name, SlotS], ':', PNSlot),
+  Leafs = [PF, PFSlot, PPR, PPRSlot, P, PSlot, Name, PNSlot].
+
+
+%! binpkg_exec:version_pvr(+Version, -PV, -PVR, -Rev) is det.
+%
+% Splits a `version/7` term or display atom into PV (no revision), PVR
+% (display string) and numeric revision (0 when absent).
+
+binpkg_exec:version_pvr(version(_,_,_,_,_,Rev,Full), PV, Full, Rev) :-
+  !,
+  atom_string(Full, FullS),
+  eapi:split_revision(FullS, PVS, _),
+  atom_string(PV, PVS).
+binpkg_exec:version_pvr(version_none, none, none, 0) :- !.
+binpkg_exec:version_pvr(Version, PV, PVR, Rev) :-
+  version_domain:display_atom(Version, PVR),
+  atom_string(PVR, PVRStr),
+  eapi:split_revision(PVRStr, PVS, Rev),
+  atom_string(PV, PVS).
+
+
+%! binpkg_exec:directory_has_patch_files(+Dir) is semidet.
+%
+% True when Dir exists and contains a non-hidden regular file whose name
+% ends in `.patch` or `.diff`.
+
+binpkg_exec:directory_has_patch_files(Dir) :-
+  exists_directory(Dir),
+  directory_files(Dir, Names),
+  member(Name, Names),
+  \+ sub_atom(Name, 0, 1, _, '.'),
+  ( sub_atom(Name, _, _, 0, '.patch')
+  ; sub_atom(Name, _, _, 0, '.diff')
+  ),
+  os:compose_path([Dir, Name], File),
+  exists_file(File),
+  !.
 
 %! binpkg_exec:available_for(+SrcRepo, +SrcEntry, +Ctx, -BinpkgEntryId) is semidet.
 %

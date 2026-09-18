@@ -528,9 +528,11 @@ The flag is repeatable.
 .TP
 .B \-\-usepkg\-include " " \fIATOM\fR
 Force binary package usage for the given atom, overriding any
-.B \-\-usepkg\-exclude
-or general policy.
-The flag is repeatable.
+.B \-\-usepkg\-exclude.
+The flag is repeatable.  User patches still skip the binary
+unless
+.B \-\-binpkg\-respect\-user\-patches n
+is given.
 .TP
 .B \-\-usepkg\-exclude\-live
 Do not use binary packages for live ebuilds (version 9999).
@@ -544,6 +546,15 @@ ensure current dependencies are used.
 .B \-\-binpkg\-respect\-use
 Ignore binary packages whose USE flag configuration does not match
 the current system settings.
+.TP
+.B \-\-binpkg\-respect\-user\-patches " " \fIy|n\fR
+Skip binary packages when
+.I /etc/portage/patches
+would apply to the corresponding ebuild.  Enabled by default
+.RB ( y )
+so a binary cannot silently revert user patches.  Pass
+.B n
+to accept the binary anyway.
 .TP
 .B \-\-rebuilt\-binaries
 Replace installed packages with binary packages that have been
