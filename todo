@@ -1,12 +1,6 @@
 Feature exploration
 ===================
 
-- grapher: make lighter , integrate with portage-ng.ai style, perhaps separate? 
-
 - consider splitting up knowledge. - lazy loading mechanism to speed up one-liners
 
-- choicelog: do we actually need this
-
 - overall code cleanup
-
-- Remove curl dependency
