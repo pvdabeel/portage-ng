@@ -27,9 +27,6 @@ The rule/2 clauses in resolving.pl call into this module when they need to:
   3. Thread `build_with_use` state from bracketed USE constraints
      (e.g. `dev-libs/foo[bar]`) into the child's ?{Context} list.
 
-  4. Collect USE requirements from dependency edges into the format
-     expected by the prover's assumption mechanism.
-
 == Key design constraints ==
 
   * Self-entry (`self/1`): at most one `self/1` term is kept in any
@@ -79,61 +76,6 @@ dependency:ctx_set_self(Ctx0, Self, Ctx) :-
   ; Ctx = [self(Self)]
   ),
   !.
-
-
-% -----------------------------------------------------------------------------
-%  USE requirement collection for dependency edges
-% -----------------------------------------------------------------------------
-
-%! dependency:collect_use_requirements(+UseDeps, -Requirements)
-%
-% Converts a list of `use(Directive, Default)` terms into the prover's
-% assumption format: `required(Use)` for enable directives,
-% `naf(required(Use))` for disable directives.
-
-dependency:collect_use_requirements([], []).
-dependency:collect_use_requirements([use(enable(Use), _)|Rest], [required(Use)|RestRequirements]) :-
-    !,
-    collect_use_requirements(Rest, RestRequirements).
-dependency:collect_use_requirements([use(disable(Use), _)|Rest], [naf(required(Use))|RestRequirements]) :-
-    !,
-    collect_use_requirements(Rest, RestRequirements).
-dependency:collect_use_requirements([use(equal(Use), _)|Rest], [required(Use)|RestRequirements]) :-
-    !,
-    collect_use_requirements(Rest, RestRequirements).
-dependency:collect_use_requirements([use(inverse(Use), _)|Rest], [naf(required(Use))|RestRequirements]) :-
-    !,
-    collect_use_requirements(Rest, RestRequirements).
-dependency:collect_use_requirements([use(optenable(Use), _)|Rest], [required(Use)|RestRequirements]) :-
-    !,
-    collect_use_requirements(Rest, RestRequirements).
-dependency:collect_use_requirements([use(optdisable(Use), _)|Rest], [naf(required(Use))|RestRequirements]) :-
-    !,
-    collect_use_requirements(Rest, RestRequirements).
-dependency:collect_use_requirements([_|Rest], RestRequirements) :-
-    !,
-    collect_use_requirements(Rest, RestRequirements).
-
-%! dependency:process_use(+ParentContext, +UseDirective, +Acc, -AccOut)
-%
-% Fold helper: processes a single USE dependency directive and accumulates
-% assumption terms for the dependency context.
-%
-% CRITICAL: this predicate must be deterministic. Non-determinism here
-% causes massive backtracking explosions when build-with-use context is
-% propagated through dependency cycles.
-
-dependency:process_use(ParentContext, use(Directive, Default), Acc, AccOut) :-
-    !,
-    use:use_dep_requirement(ParentContext, Directive, Default, Requirement),
-    ( Requirement = requirement(enable, Use, _Default) ->
-        AccOut = [required(Use), assumed(Use)|Acc]
-    ; Requirement = requirement(disable, Use, _Default) ->
-        AccOut = [naf(required(Use)), assumed(minus(Use))|Acc]
-    ; AccOut = Acc
-    ).
-
-dependency:process_use(_ParentContext, _Other, Acc, Acc) :- !.
 
 
 % -----------------------------------------------------------------------------
