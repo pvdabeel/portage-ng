@@ -172,10 +172,11 @@ heuristic:handle_reprove(cn_domain(C, N, Domain, Candidates, Reasons), Added) :-
   choicelog:clog_emit(reprove, recorded, reprove(cn_domain(C, N, Domain, Candidates, Reasons))),
   !.
 heuristic:handle_reprove(bwu_force_flush(Pending), true) :-
-  % portage-ng#91 sub-mechanism B / portage-ng#94: end-of-pass batched flush
-  % of the shared-dep USE forces learned during the pass that just completed
-  % (see heuristic:reprove_pending/1). The forces are already in the learned
-  % constraint store (use:maybe_force_shared_dep_use/3); confirming progress
+  % portage-ng#91 sub-mechanism B / portage-ng#94 / portage-ng#121:
+  % end-of-pass batched flush of the USE forces learned during the pass that
+  % just completed (see heuristic:reprove_pending/1). The forces are already
+  % in the learned constraint store (use:maybe_force_shared_dep_use/3,
+  % use:maybe_follow_equality_overturns/4); confirming progress
   % makes the bounded reprove loop run one clean re-proof with all of them
   % applied from the start. Each flush corresponds to at least one
   % prover:learn with Added==true, so the loop terminates once a pass learns
@@ -194,13 +195,15 @@ heuristic:handle_reprove(Info, false) :-
 % at least one conflict that warrants a re-proof; Info is passed to
 % heuristic:handle_reprove/2 exactly like a thrown prover_reprove(Info).
 %
-% Currently the only deferred conflict class is the shared-dep HARD-USE
-% force (portage-ng#94): use:maybe_force_shared_dep_use/3 records newly
-% learned forces in memo:bwu_force_pending_/3 instead of aborting the
-% pass, and this hook flushes them as a single batched reprove.
+% Two deferred conflict classes travel this channel, both recorded as
+% pending USE forces instead of aborting the pass, and both flushed here
+% as a single batched reprove: the shared-dep HARD-USE force on a
+% provider (portage-ng#94, use:maybe_force_shared_dep_use/3) and the
+% consumer-side equality follow (portage-ng#121,
+% use:maybe_follow_equality_overturns/4).
 
 heuristic:reprove_pending(bwu_force_flush(Pending)) :-
-  use:bwu_force_pending_any(Pending).
+  use:deferred_use_pending(Pending).
 
 
 %! heuristic:reprove_exhausted
@@ -284,7 +287,17 @@ heuristic:begin_pass(resume) :-
 % run, download, ...) of a forced (C,N) provider is a seed: its
 % committed build_with_use state predates the force, so the literal
 % (and, through the prover's dependents-closure, everything that could
-% observe it) must re-derive with the force applied.
+% observe it) must re-derive with the force applied. Contexts are
+% stripped first: an assumed action literal keeps its `?{Context}`
+% inside the `assumed/1` wrapper (`assumed(Repo://E:install?{[...]})`),
+% and matching the bare shape alone let those degraded literals survive
+% the flush -- they then stayed in the final model as a stale
+% "model unavailable" assumption for a package the re-proof planned
+% properly.
+%
+% An equality follow (#121) seeds both ends of the edge: the consumer
+% that has to change, and the provider whose dependency literal was
+% resolved -- or assumed -- against the consumer's old value.
 %
 % Grouped-dependency literals naming a forced (C,N) are seeds as well.
 % Proven ones are already reached through the provider's trigger edges,
@@ -295,19 +308,32 @@ heuristic:begin_pass(resume) :-
 % store, so the flush invalidates them (and, through the closure, their
 % consumers) even though the provider itself never proved.
 
-heuristic:restart_seed(bwu_force_flush(Pending), Repo://Entry:_Action) :-
-  !,
-  cache:ordered_entry(Repo, Entry, C, N, _),
-  memberchk(bwu_force(C, N, _), Pending).
 heuristic:restart_seed(bwu_force_flush(Pending), Lit0) :-
   heuristic:strip_ctx(Lit0, Lit),
-  ( Lit = grouped_package_dependency(_Strength, C, N, _Deps):_Action ->
+  ( Lit = Repo://Entry:_Action ->
+      cache:ordered_entry(Repo, Entry, C, N, _)
+  ; Lit = grouped_package_dependency(_Strength, C, N, _Deps):_Action1 ->
       true
   ; Lit = grouped_package_dependency(C, N, _Deps2):_Action2 ->
       true
   ; fail
   ),
-  memberchk(bwu_force(C, N, _), Pending).
+  heuristic:pending_use_force_cn(Pending, C, N).
+
+
+%! heuristic:pending_use_force_cn(+Pending, +C, +N) is semidet
+%
+% True when the flush carries a USE force involving (C,N): a shared-dep
+% HARD force on it as a provider (#94), or an equality follow on it as
+% the consumer that has to change, or on it as the provider whose
+% dependency literal was resolved against the consumer's old value
+% (#121). In every case its committed state predates the force.
+
+heuristic:pending_use_force_cn(Pending, C, N) :-
+  ( memberchk(bwu_force(C, N, _), Pending) -> true
+  ; memberchk(eq_follow(C, N, _, _), Pending) -> true
+  ; memberchk(eq_follow(_, _, _, provider(C, N)), Pending)
+  ).
 
 
 %! heuristic:restart_obligation_head(+ObligationKey, -Core) is semidet

@@ -992,6 +992,7 @@ candidate:resolve_required_use(_Phase, C, N, Repository://Ebuild, Context1, R, B
   query:search(model(Model,required_use(R0),build_with_use(B)), Repository://Ebuild),
   use:build_with_use_resolve_required_use(B, Repository://Ebuild, BResolved0),
   use:stabilize_required_use(Repository://Ebuild, BResolved0, BResolved),
+  use:maybe_follow_equality_overturns(C, N, Repository://Ebuild, BResolved),
   use:check_bwu_cross_dep(C, N, Repository://Ebuild, BResolved),
   ( \+ use:verify_required_use_with_bwu(Repository://Ebuild, BResolved) ->
       use:describe_required_use_violation(Repository://Ebuild, BResolved, ViolDesc),

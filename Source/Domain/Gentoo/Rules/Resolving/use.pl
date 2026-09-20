@@ -1777,7 +1777,8 @@ use:merge_memo_candidate_bwu(C, N, BWU0, BWU) :-
         )
     ; BWU1 = BWU0
     ),
-    use:apply_learned_bwu_force(C, N, BWU1, BWU).
+    use:apply_learned_eq_follow(C, N, BWU1, BWU2),
+    use:apply_learned_bwu_force(C, N, BWU2, BWU).
 
 
 %! use:apply_learned_bwu_force(+C, +N, +BWU0, -BWU) is det.
@@ -1804,6 +1805,163 @@ use:apply_learned_bwu_force(C, N, use_state(En0, Dis0), use_state(En, Dis)) :-
         ord_union(En0s, ForceEn, En)
     ; En = En0, Dis = Dis0
     ).
+
+
+%! use:apply_learned_eq_follow(+C, +N, +BWU0, -BWU) is det.
+%
+% Union any persistent `eq_follow(C,N)` learned during an earlier pass into
+% BWU0: the consumer-side half of a `[F=]` / `[!F=]` edge whose provider
+% could not take the projected value (portage-ng#121). Applied BEFORE
+% apply_learned_bwu_force/4 so a HARD force still outranks a follow.
+% A no-op when nothing is learned.
+
+use:apply_learned_eq_follow(C, N, use_state(En0, Dis0), use_state(En, Dis)) :-
+    ( prover:learned(eq_follow(C, N), use_state(FollowEn0, FollowDis0)),
+      ( FollowEn0 \== [] ; FollowDis0 \== [] )
+    ->
+        % The follow is derived from a value the provider cannot change, so
+        % it overrides whatever this candidate's own edges projected: move
+        % each flag to the followed side rather than unioning through
+        % val_hook, which would read enable-vs-disable as a conflict.
+        sort(FollowEn0, FollowEn),
+        sort(FollowDis0, FollowDis),
+        sort(En0, En0s),
+        sort(Dis0, Dis0s),
+        ord_subtract(Dis0s, FollowEn, Dis1),
+        ord_union(Dis1, FollowDis, Dis),
+        ord_subtract(En0s, FollowDis, En1),
+        ord_union(En1, FollowEn, En)
+    ; En = En0, Dis = Dis0
+    ).
+
+
+%! use:equality_follow_enabled is semidet.
+%
+% Gate for consumer-side equality following (portage-ng#121). Enabled by
+% default; set config:equality_use_follow(false) to disable.
+
+use:equality_follow_enabled :-
+    ( current_predicate(config:equality_use_follow/1) ->
+        config:equality_use_follow(true)
+    ; true
+    ).
+
+
+%! use:maybe_follow_equality_overturns(+C, +N, +RepoEntry, +BResolved) is det.
+%
+% portage-ng#121. Provider (C,N) has settled on BResolved. For every
+% `[F=]` / `[!F=]` edge that projected a value onto it, check whether the
+% provider actually took that value; when it did not, learn an
+% `eq_follow` on the CONSUMER so the equality holds from the other side.
+%
+% This is the case emerge reports as a choice between two USE changes and
+% resolves on the consumer: `app-emulation/virtualbox` has X off and
+% depends on `dev-qt/qtbase:6[X=]`, so the edge projects `-X` onto qtbase
+% -- which `gui? ( any-of ( X eglfs wayland ) )` immediately overturns,
+% X being the `+`-default arm. Following on the provider is impossible,
+% so the consumer must build with `+X`; before this, qtbase kept X, the
+% consumer kept it off, and nothing reported the violated equality.
+%
+% Narrow by construction: it fires only for a flag some equality edge
+% projected, only when the provider's settled value contradicts it, and
+% only for a flag the consumer can actually flip (in IUSE, not
+% USE_EXPAND, not masked off by the profile). Convergence comes from the
+% learned store: the follow is recorded once (`Added == true`), the
+% batched flush re-proves with it applied, and the re-proof's projection
+% then agrees with the provider, so nothing new is learned.
+
+use:maybe_follow_equality_overturns(C, N, RepoEntry, BResolved) :-
+    ( use:equality_follow_enabled,
+      memo:bwu_eq_origin_(C, N, _, _, _, _)
+    ->
+        forall( ( memo:bwu_eq_origin_(C, N, Flag, Projected, Mode, Consumer),
+                  use:bwu_flag_settled_state(RepoEntry, BResolved, Flag, Settled),
+                  Settled \== Projected
+                ),
+                use:learn_equality_follow(Consumer, Flag, Settled, Mode,
+                                          provider(C, N)) )
+    ; true
+    ).
+
+
+%! use:bwu_flag_settled_state(+RepoEntry, +BWU, +Flag, -State) is semidet.
+%
+% The value Flag will be built with: the build_with_use override when it
+% carries one, the entry's own effective USE otherwise. Fails when the
+% flag is not part of the entry's IUSE at all.
+
+use:bwu_flag_settled_state(_RepoEntry, use_state(En, _Dis), Flag, enable) :-
+    memberchk(Flag, En),
+    !.
+use:bwu_flag_settled_state(_RepoEntry, use_state(_En, Dis), Flag, disable) :-
+    memberchk(Flag, Dis),
+    !.
+use:bwu_flag_settled_state(RepoEntry, _BWU, Flag, State) :-
+    ( use:effective_use_for_entry(RepoEntry, Flag, positive) ->
+        State = enable
+    ; use:effective_use_for_entry(RepoEntry, Flag, negative) ->
+        State = disable
+    ).
+
+
+%! use:learn_equality_follow(+Consumer, +Flag, +Settled, +Mode, +Provider) is det.
+%
+% Learn the flag value Consumer has to build with for its equality edge to
+% hold against Provider, which settled on Settled. Silent no-op when the
+% consumer cannot take that value, or when the follow is already learned.
+
+use:learn_equality_follow(Repo://Entry, Flag, Settled, Mode, Provider) :-
+    ( use:eq_follow_wanted_state(Settled, Mode, Wanted),
+      cache:ordered_entry(Repo, Entry, C, N, _),
+      use:eq_follow_flag_eligible(Repo://Entry, Flag),
+      use:eq_follow_bwu(Wanted, Flag, FollowBWU),
+      prover:learn(eq_follow(C, N), FollowBWU, Added),
+      Added == true
+    ->
+        use:record_eq_follow_pending(C, N, FollowBWU, Provider)
+    ; true
+    ).
+
+
+%! use:eq_follow_wanted_state(+Settled, +Mode, -Wanted) is det.
+%
+% `[F=]` wants the provider's value, `[!F=]` its opposite.
+
+use:eq_follow_wanted_state(Settled, same, Settled).
+use:eq_follow_wanted_state(enable, opposite, disable).
+use:eq_follow_wanted_state(disable, opposite, enable).
+
+
+%! use:eq_follow_bwu(+Wanted, +Flag, -BWU) is det.
+
+use:eq_follow_bwu(enable, Flag, use_state([Flag], [])).
+use:eq_follow_bwu(disable, Flag, use_state([], [Flag])).
+
+
+%! use:eq_follow_flag_eligible(+RepoEntry, +Flag) is semidet.
+%
+% True when the consumer can actually be built with a different value for
+% Flag: it is in IUSE, it is not USE_EXPAND-derived (those belong to their
+% eclasses), and the profile does not mask it off.
+
+use:eq_follow_flag_eligible(RepoEntry, Flag) :-
+    \+ use:is_use_expand_flag(Flag),
+    use:candidate_iuse_present(RepoEntry, Flag),
+    use:requse_flag_seedable(RepoEntry, Flag).
+
+
+%! use:record_eq_follow_pending(+C, +N, +BWU, +Provider) is det.
+%
+% Record a newly-learned equality follow for the end-of-pass batched
+% reprove, the same channel the shared-dep HARD forces use (#94). The
+% provider is kept alongside the consumer because the restart has to seed
+% BOTH ends of the equality edge: the consumer's committed USE predates
+% the follow, and the provider's dependency literal was resolved (or
+% assumed) against the old consumer value.
+
+use:record_eq_follow_pending(C, N, BWU, Provider) :-
+    retractall(memo:eq_follow_pending_(C, N, _, Provider)),
+    assertz(memo:eq_follow_pending_(C, N, BWU, Provider)).
 
 
 %! use:shared_dep_use_forcing_enabled is semidet.
@@ -1895,6 +2053,24 @@ use:bwu_force_pending_any(Pending) :-
     findall(bwu_force(C, N, ForceEn),
             memo:bwu_force_pending_(C, N, ForceEn),
             Pending),
+    Pending \== [].
+
+
+%! use:deferred_use_pending(-Pending) is semidet.
+%
+% True when the current pass learned at least one new USE force of either
+% kind: a shared-dep HARD force on a provider (#94) or a consumer-side
+% equality follow (#121). Both travel in one batched reprove, so the
+% flush applies everything the pass discovered in a single re-proof.
+
+use:deferred_use_pending(Pending) :-
+    findall(bwu_force(C, N, ForceEn),
+            memo:bwu_force_pending_(C, N, ForceEn),
+            Forces),
+    findall(eq_follow(FC, FN, FollowBWU, Provider),
+            memo:eq_follow_pending_(FC, FN, FollowBWU, Provider),
+            Follows),
+    append(Forces, Follows, Pending),
     Pending \== [].
 
 
@@ -2231,7 +2407,9 @@ use:clear_bwu_cross_dep_memos :-
     retractall(memo:candidate_bwu_hard_(_, _, _)),
     retractall(memo:candidate_bwu_eq_(_, _, _)),
     retractall(memo:bwu_force_seen_(_, _, _)),
-    retractall(memo:bwu_force_pending_(_, _, _)).
+    retractall(memo:bwu_force_pending_(_, _, _)),
+    retractall(memo:bwu_eq_origin_(_, _, _, _, _, _)),
+    retractall(memo:eq_follow_pending_(_, _, _, _)).
 
 
 %! use:check_bwu_ed_conflict(+C, +N, +Context)
@@ -2261,6 +2439,52 @@ use:check_bwu_ed_conflict_pv(C, N, ParentCtx, UseDeps, Context) :-
     use:edge_eq_state(ParentCtx, UseDeps, EqState),
     use:split_hard_from_full(FullBWU, EqState, HardState),
     use:accumulate_candidate_bwu_pv(C, N, HardState, EqState).
+
+
+%! use:record_eq_edge_origins(+C, +N, +ParentCtx, +UseDeps) is det.
+%
+% Remember which consumer projected which value onto provider (C,N) through
+% a `[F=]` / `[!F=]` edge, and in which direction the equality reads.
+%
+% The projection alone is not enough to keep an equality honest: the
+% provider may end up with the opposite value anyway -- its own
+% REQUIRED_USE can overturn the projection, and a hard bracket from
+% another consumer outranks it in the cross-dep merge. Both leave the
+% equality violated in the finished plan unless the CONSUMER follows
+% instead, which is what maybe_follow_equality_overturns/4 does with
+% these records (portage-ng#121).
+
+use:record_eq_edge_origins(C, N, ParentCtx, UseDeps) :-
+    ( use:equality_follow_enabled,
+      memberchk(self(Consumer), ParentCtx)
+    ->
+        forall( ( member(Dep, UseDeps),
+                  use:eq_directive_flag_mode(Dep, Flag, Mode),
+                  Dep = use(Directive, Default),
+                  use:use_dep_requirement(ParentCtx, Directive, Default,
+                                          requirement(Projected, Flag, _))
+                ),
+                use:store_eq_edge_origin(C, N, Flag, Projected, Mode, Consumer) )
+    ; true
+    ).
+
+
+%! use:eq_directive_flag_mode(+Directive, -Flag, -Mode) is semidet.
+%
+% The flag an equality directive reads and how the consumer's value
+% relates to the provider's: `same` for `[F=]`, `opposite` for `[!F=]`.
+
+use:eq_directive_flag_mode(use(equal(Flag), _), Flag, same).
+use:eq_directive_flag_mode(use(inverse(Flag), _), Flag, opposite).
+
+
+%! use:store_eq_edge_origin(+C, +N, +Flag, +Projected, +Mode, +Consumer) is det.
+
+use:store_eq_edge_origin(C, N, Flag, Projected, Mode, Consumer) :-
+    ( memo:bwu_eq_origin_(C, N, Flag, Projected, Mode, Consumer) ->
+        true
+    ; assertz(memo:bwu_eq_origin_(C, N, Flag, Projected, Mode, Consumer))
+    ).
 
 
 %! use:edge_eq_state(+ParentCtx, +UseDeps, -EqState)

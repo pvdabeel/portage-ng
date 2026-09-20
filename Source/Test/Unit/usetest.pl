@@ -506,6 +506,135 @@ test(solved_disable_drives_inverse,
 :- end_tests(rules_gated_use_dep_solved_state).
 
 
+% An equality edge projects the consumer's value onto the provider, but the
+% provider can refuse it -- its REQUIRED_USE overturns the projection, or a
+% hard bracket from another consumer outranks it. The consumer then has to
+% follow instead, or the finished plan violates the equality it proved
+% (portage-ng#121, virtualbox -X vs qtbase[X=]).
+:- begin_tests(rules_equality_follow).
+
+ef_consumer(qtest://'app-emulation/consumer-0').
+ef_provider(qtest://'dev-qt/provider-0').
+
+ef_setup :-
+  ef_cleanup,
+  ef_consumer(CRepo://CId),
+  assertz(cache:ordered_entry(CRepo, CId, 'app-emulation', 'consumer',
+                              version([0],'',4,0,[],0,'0'))),
+  assertz(cache:entry_metadata(CRepo, CId, iuse, x11)),
+  assertz(memo:eff_use_cache_(CRepo, CId, x11, negative)),
+  ef_provider(PRepo://PId),
+  assertz(cache:ordered_entry(PRepo, PId, 'dev-qt', 'provider',
+                              version([0],'',4,0,[],0,'0'))),
+  assertz(cache:entry_metadata(PRepo, PId, iuse, plus(x11))).
+
+ef_cleanup :-
+  ef_consumer(CRepo://CId),
+  retractall(cache:ordered_entry(CRepo, CId, _, _, _)),
+  retractall(cache:entry_metadata(CRepo, CId, _, _)),
+  use_entry_memo_reset(CRepo://CId),
+  ef_provider(PRepo://PId),
+  retractall(cache:ordered_entry(PRepo, PId, _, _, _)),
+  retractall(cache:entry_metadata(PRepo, PId, _, _)),
+  use_entry_memo_reset(PRepo://PId),
+  retractall(memo:bwu_eq_origin_(_, _, _, _, _, _)),
+  retractall(memo:eq_follow_pending_(_, _, _, _)),
+  retractall(memo:bwu_force_pending_(_, _, _)),
+  empty_assoc(Empty),
+  nb_setval(prover_learned_constraints, Empty).
+
+% The consumer has x11 off, so `provider[x11=]` projects `-x11`.
+ef_record_origin(Directive) :-
+  ef_consumer(C),
+  use:record_eq_edge_origins('dev-qt', 'provider', [self(C)], [Directive]).
+
+test(records_projected_value_and_mode,
+     [setup(ef_setup), cleanup(ef_cleanup),
+      true([Flag, Projected, Mode] == [x11, disable, same])]) :-
+  ef_record_origin(use(equal(x11), none)),
+  ef_consumer(C),
+  memo:bwu_eq_origin_('dev-qt', 'provider', Flag, Projected, Mode, C).
+
+% The provider settled on +x11 against a projected -x11: the consumer must
+% build with +x11, and the provider is remembered so the restart seeds both
+% ends of the edge.
+test(overturned_projection_learns_consumer_follow,
+     [setup(ef_setup), cleanup(ef_cleanup),
+      true([Follow, Provider] == [use_state([x11], []),
+                                  provider('dev-qt', 'provider')])]) :-
+  ef_record_origin(use(equal(x11), none)),
+  ef_provider(P),
+  use:maybe_follow_equality_overturns('dev-qt', 'provider', P,
+                                      use_state([x11], [])),
+  memo:eq_follow_pending_('app-emulation', 'consumer', Follow, Provider).
+
+% `[!x11=]` reads the other way round: a provider on +x11 wants the consumer
+% off, which it already is, so nothing is learned.
+test(inverse_mode_agrees_with_settled_value,
+     [setup(ef_setup), cleanup(ef_cleanup), fail]) :-
+  ef_record_origin(use(inverse(x11), none)),
+  ef_provider(P),
+  use:maybe_follow_equality_overturns('dev-qt', 'provider', P,
+                                      use_state([x11], [])),
+  memo:eq_follow_pending_(_, _, _, _).
+
+% Provider took the projected value: no follow.
+test(honoured_projection_learns_nothing,
+     [setup(ef_setup), cleanup(ef_cleanup), fail]) :-
+  ef_record_origin(use(equal(x11), none)),
+  ef_provider(P),
+  use:maybe_follow_equality_overturns('dev-qt', 'provider', P,
+                                      use_state([], [x11])),
+  memo:eq_follow_pending_(_, _, _, _).
+
+% A flag the consumer does not declare cannot be followed.
+test(unknown_consumer_flag_is_ineligible,
+     [setup(ef_setup), cleanup(ef_cleanup), fail]) :-
+  ef_consumer(C),
+  use:eq_follow_flag_eligible(C, wayland).
+
+% The follow overrides whatever the consumer's own edges projected, so the
+% flag moves to the followed side instead of colliding with it.
+test(apply_follow_moves_flag_to_followed_side,
+     [setup(ef_setup), cleanup(ef_cleanup),
+      true(BWU == use_state([other, x11], []))]) :-
+  prover:learn(eq_follow('app-emulation', 'consumer'),
+               use_state([x11], []), _),
+  use:apply_learned_eq_follow('app-emulation', 'consumer',
+                              use_state([other], [x11]), BWU).
+
+test(apply_follow_is_noop_without_a_learned_follow,
+     [setup(ef_setup), cleanup(ef_cleanup),
+      true(BWU == use_state([other], [x11]))]) :-
+  use:apply_learned_eq_follow('app-emulation', 'consumer',
+                              use_state([other], [x11]), BWU).
+
+% Both deferred force kinds ride the same batched reprove.
+test(deferred_pending_collects_both_force_kinds,
+     [setup(ef_setup), cleanup(ef_cleanup),
+      true(Pending == [bwu_force('dev-qt', 'provider', [icu]),
+                       eq_follow('app-emulation', 'consumer',
+                                 use_state([x11], []),
+                                 provider('dev-qt', 'provider'))])]) :-
+  use:record_bwu_force_pending('dev-qt', 'provider', [icu]),
+  use:record_eq_follow_pending('app-emulation', 'consumer',
+                               use_state([x11], []),
+                               provider('dev-qt', 'provider')),
+  use:deferred_use_pending(Pending).
+
+% The restart seeds the consumer that changes AND the provider whose
+% dependency literal was resolved against the consumer's old value.
+test(flush_seeds_both_ends_of_the_equality_edge,
+     [setup(ef_setup), cleanup(ef_cleanup)]) :-
+  Pending = [eq_follow('app-emulation', 'consumer', use_state([x11], []),
+                       provider('dev-qt', 'provider'))],
+  heuristic:pending_use_force_cn(Pending, 'app-emulation', 'consumer'),
+  heuristic:pending_use_force_cn(Pending, 'dev-qt', 'provider'),
+  \+ heuristic:pending_use_force_cn(Pending, 'dev-libs', 'bystander').
+
+:- end_tests(rules_equality_follow).
+
+
 % Global use.mask beats global use.force when both apply (Gentoo
 % arch/base big-endian: "Forced and masked by default"). Force-before-
 % mask incorrectly enabled the flag and broke strict binpkg USE match

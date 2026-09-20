@@ -124,8 +124,25 @@ test(restart_seed_matches_pending_provider_actions,
   Info = bwu_force_flush([bwu_force(cat, pkg, [icu])]),
   heuristic:restart_seed(Info, fakerepo://'cat/pkg-1.0':install),
   heuristic:restart_seed(Info, fakerepo://'cat/pkg-1.0':run),
+  % A degraded literal keeps its context inside the assumed/1 wrapper, so
+  % the context-carrying shape has to seed as well or the stale assumption
+  % survives the flush.
+  heuristic:restart_seed(Info, fakerepo://'cat/pkg-1.0':install?{[issue_with_model(explanation)]}),
   \+ heuristic:restart_seed(Info, fakerepo://'cat/other-1.0':install),
+  \+ heuristic:restart_seed(Info, fakerepo://'cat/other-1.0':install?{[]}),
   \+ heuristic:restart_seed(Info, grouped_dep(cat, pkg, []):install).
+
+test(restart_seed_matches_equality_follow_on_both_ends,
+     [setup(( retractall(cache:ordered_entry(fakerepo, _, _, _, _)),
+              assertz(cache:ordered_entry(fakerepo, 'cat/consumer-1.0', cat, consumer, v)),
+              assertz(cache:ordered_entry(fakerepo, 'cat/provider-1.0', cat, provider, v)),
+              assertz(cache:ordered_entry(fakerepo, 'cat/other-1.0', cat, other, v)) )),
+      cleanup(retractall(cache:ordered_entry(fakerepo, _, _, _, _)))]) :-
+  Info = bwu_force_flush([eq_follow(cat, consumer, use_state([icu], []),
+                                    provider(cat, provider))]),
+  heuristic:restart_seed(Info, fakerepo://'cat/consumer-1.0':install),
+  heuristic:restart_seed(Info, fakerepo://'cat/provider-1.0':install?{[]}),
+  \+ heuristic:restart_seed(Info, fakerepo://'cat/other-1.0':install).
 
 test(restart_obligation_head_maps_pdepend_keys) :-
   heuristic:restart_obligation_head(pdepend(fakerepo://'cat/pkg-1.0':install, bwu), Core1),

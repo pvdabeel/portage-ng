@@ -213,6 +213,19 @@ reject-map mechanism that deliberately does NOT use it:
    +168 CN-level assumptions tree-wide (3 targets better, 48 worse, 75
    mixed) and rejected. `cnselect:cn_previously_narrowed/2` is the
    "was this CN narrowed already" test that covers both stores.
+5. **USE forces** (`bwu_force(C,N)` / `eq_follow(C,N)`, both
+   `use_state/2`): a provider that has to be rebuilt with a HARD flag a
+   consumer required after it was committed (#91/#94,
+   `use:maybe_force_shared_dep_use/3`), and a consumer that has to follow
+   a `[F=]`/`[!F=]` provider which could not take the projected value —
+   its REQUIRED_USE overturned it, or another consumer's hard bracket
+   outranked it (#121, `use:maybe_follow_equality_overturns/4`, the
+   virtualbox `-X` vs `qtbase[X=]` case). Neither aborts the pass: both
+   are recorded pending and flushed as ONE batched reprove by
+   `heuristic:reprove_pending/1`, whose partial restart seeds every CN a
+   force names (for an equality follow, both ends of the edge). HARD
+   forces apply after follows, so a hard requirement still outranks a
+   following one.
 
 Self-dep handling:
 - `is_self_dep/5` detects bootstrap self-deps (same C/N/slot as parent).

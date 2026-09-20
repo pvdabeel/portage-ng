@@ -123,7 +123,8 @@ test:cases([overlay://'test01/web-1.0':run?{[]},
             overlay://'test77/app-1.0':run?{[]},
             overlay://'test78/web-1.0':run?{[onlydeps_target]},
             overlay://'test79/server-1.0':run?{[]},
-            overlay://'test80/app-1.0':run?{[]}
+            overlay://'test80/app-1.0':run?{[]},
+            overlay://'test81/app-1.0':run?{[]}
             ]).
 
 
@@ -189,6 +190,10 @@ test:requires_vdb(overlay://'test65/app-1.0':run?{[]}).
 test:skip_case(Case,'requires installed packages (pkg vdb)') :-
   test:requires_vdb(Case),
   \+ cache:ordered_entry(pkg,_,_,_,_).
+test:skip_case(Case,'overlay entry not in the loaded cache (sync the overlay)') :-
+  Case = Repo://Entry:_Action?{_},
+  Repo == overlay,
+  \+ cache:ordered_entry(overlay,Entry,_,_,_).
 
 
 % =============================================================================
@@ -1214,6 +1219,25 @@ test:expect(overlay://'test80/app-1.0':run?{[]},
               test:must_have(overlay://'test80/lib-3.0':install?{_}),
               \+ test:must_have(overlay://'test80/lib-4.0':_?{_}),
               \+ test:must_have(overlay://'test80/lib-5.0':_?{_})
+            ]).
+
+% -----------------------------------------------------------------------------
+%  Consumer-side equality following (test81)
+% -----------------------------------------------------------------------------
+
+% test81: app (x11 off) -> lib[x11=], and lib's
+% `gui? ( || ( x11 wayland ) )` puts x11 straight back on, so the provider
+% cannot follow. app must build with x11 instead, or the plan violates the
+% equality it proved (portage-ng#121, the virtualbox/qtbase[X=] case).
+test:expect(overlay://'test81/app-1.0':run?{[]},
+            [ test:must_have(overlay://'test81/app-1.0':run?{_}),
+              test:must_have(overlay://'test81/app-1.0':install?{AppCtx}),
+              member(build_with_use:use_state(AppEn,_AppDis), AppCtx),
+              memberchk(x11, AppEn),
+              test:must_have(overlay://'test81/lib-1.0':install?{LibCtx}),
+              member(build_with_use:use_state(LibEn,_LibDis), LibCtx),
+              memberchk(x11, LibEn),
+              \+ test:must_have(assumed(grouped_package_dependency(test81,lib,_):install?{_}))
             ]).
 
 % -----------------------------------------------------------------------------

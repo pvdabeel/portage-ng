@@ -1182,6 +1182,32 @@ config:reprove_max_retries(20).
 config:shared_dep_use_forcing(true).
 
 
+%! config:equality_use_follow(?Bool)
+%
+% When true, a `[flag=]` / `[!flag=]` dependency whose provider could not
+% take the projected value is satisfied from the CONSUMER side instead: the
+% resolver learns an `eq_follow(C,N)` for the consumer and flushes it through
+% the same batched reprove as the shared-dep HARD forces (portage-ng#121).
+%
+% An equality bracket means "provider.flag == my flag", and the resolver
+% projects the consumer's solved value onto the provider. That projection can
+% fail to stick two ways: the provider's own REQUIRED_USE overturns it, or a
+% hard bracket from another consumer outranks it in the cross-dependency
+% merge. Either way the finished plan violates the equality with nothing
+% reported. The canonical case is `app-emulation/virtualbox` with X off
+% depending on `dev-qt/qtbase:6[X=]`: `gui? ( any-of ( X eglfs wayland ) )`
+% puts X straight back on (it is the `+`-default arm), so the provider cannot
+% follow and the consumer has to -- which is also the change emerge proposes.
+%
+% Narrow by construction: it fires only for a flag an equality edge
+% projected, only when the provider's settled value contradicts it, only for
+% a flag the consumer can flip (in IUSE, not USE_EXPAND, not profile-masked),
+% and once per consumer flag-set via the learned-store dedup. Set to `false`
+% to disable.
+
+config:equality_use_follow(true).
+
+
 %! config:dep_model_cache(?Bool)
 %
 % When true (default), model(dependency(...)):config?{Ctx} query results

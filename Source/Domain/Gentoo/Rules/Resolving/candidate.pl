@@ -866,6 +866,10 @@ candidate:grouped_dep_use_and_slot(gd(_Action, C, N, PackageDeps1, SlotReq, Cont
   ),
   use:candidate_satisfies_use_deps(ContextDep, FoundRepo://Candidate, MergedUse),
   dependency:process_build_with_use(MergedUse, ContextDep, NewContext0, Constraints, FoundRepo://Candidate),
+  % Before REQUIRED_USE gets a say: remember which value this edge's
+  % `[F=]` / `[!F=]` directives projected, so a stabilization that
+  % overturns one can make the consumer follow instead (portage-ng#121).
+  use:record_eq_edge_origins(C, N, ContextDep, MergedUse),
   candidate:grouped_dep_stabilize_bwu(FoundRepo://Candidate, NewContext0, NewContext1),
   candidate:grouped_dep_apply_equality_pins(FoundRepo://Candidate, NewContext1, NewContext),
   use:check_bwu_ed_conflict_pv(C, N, ContextDep, MergedUse, NewContext),
@@ -962,17 +966,43 @@ candidate:grouped_dep_stabilize_bwu(Repo://Entry, CtxIn, CtxOut) :-
 % Unify BWU into the proof context only when the joint USE-dep check
 % passes. On failure, record a requse_violation_ memo (so the assumption
 % fallback can tag the domain assumption) and fail the edge.
+%
+% Both failure paths -- the atom is unsatisfiable, or the stabilized BWU
+% no longer unifies with the one already in the context -- mean the
+% provider did not take the value some directive asked for. When that
+% directive was an equality, the consumer can follow instead, so record
+% the follow before failing (portage-ng#121); the edge still fails here,
+% and the batched reprove at the end of the pass applies the follow,
+% exactly like a shared-dep HARD force.
 
 candidate:commit_stabilized_bwu(Repo://Entry, CtxIn, BWU, CtxOut) :-
   ( use:use_dep_atom_satisfiable(Repo://Entry, BWU)
-  -> feature_unification:unify([build_with_use:BWU], CtxIn, CtxOut)
+  -> ( feature_unification:unify([build_with_use:BWU], CtxIn, CtxOut)
+     -> true
+     ;  candidate:follow_equality_overturn(Repo://Entry, BWU),
+        fail
+     )
   ; use:describe_use_dep_unsat(Repo://Entry, BWU, ViolDesc),
     cache:ordered_entry(Repo, Entry, C, N, _),
+    use:maybe_follow_equality_overturns(C, N, Repo://Entry, BWU),
     ( \+ memo:requse_violation_(C, N, _) ->
         assertz(memo:requse_violation_(C, N, ViolDesc))
     ; true
     ),
     fail
+  ).
+
+
+%! candidate:follow_equality_overturn(+RepoEntry, +BWU) is det.
+%
+% Let consumers follow a provider that settled on BWU instead of on the
+% value their `[F=]` / `[!F=]` edge projected (portage-ng#121). Used where
+% the provider's (C,N) is not already at hand.
+
+candidate:follow_equality_overturn(Repo://Entry, BWU) :-
+  ( cache:ordered_entry(Repo, Entry, C, N, _) ->
+      use:maybe_follow_equality_overturns(C, N, Repo://Entry, BWU)
+  ; true
   ).
 
 
