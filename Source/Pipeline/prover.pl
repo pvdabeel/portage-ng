@@ -295,11 +295,12 @@ prover:reprove_from_completed(Target, InProof, OutProof, InModel, OutModel, InCo
     Added == true
   ->
     Attempt1 is Attempt + 1,
-    ( prover:partial_restart_state(Info, Proof1, Model1, Cons1, Trig1, RProof, RModel, RCons, RTrig) ->
+    ( prover:partial_restart_state(Info, Proof1, Model1, Cons1, Trig1, RProof, RModel, RCons, RTrig, ResumeLits) ->
         flag(prover_partial_restarts, PR, PR + 1),
+        prover:resume_target(ResumeLits, Target, ResumeTarget),
         catch(
           ( prover:mark_resume_pass,
-            prover:prove_once(Target, RProof, Proof2, RModel, Model2, RCons, Cons2, RTrig, Trig2),
+            prover:prove_once(ResumeTarget, RProof, Proof2, RModel, Model2, RCons, Cons2, RTrig, Trig2),
             Resumed = completed
           ),
           prover_reprove(ThrownInfo),
@@ -566,14 +567,17 @@ prover:assuming(Literal) :-
 % classical full restart.
 
 
-%! prover:partial_restart_state(+Info, +Proof, +Model, +Cons, +Trig, -RProof, -RModel, -RCons, -RTrig) is semidet
+%! prover:partial_restart_state(+Info, +Proof, +Model, +Cons, +Trig, -RProof, -RModel, -RCons, -RTrig, -ResumeLits) is semidet
 %
 % Compute pruned artifacts for a partial restart after a deferred
 % conflict Info.  Fails (falling back to a full restart) when partial
 % restart is disabled, the domain does not provide the seed hook, or no
 % seed literal is found in the Model.
+%
+% ResumeLits are literals the resumed pass must be handed alongside the
+% proof targets; see restart_resume_anchors/4.
 
-prover:partial_restart_state(Info, Proof, Model, Cons, Trig, RProof, RModel, RCons, RTrig) :-
+prover:partial_restart_state(Info, Proof, Model, Cons, Trig, RProof, RModel, RCons, RTrig, ResumeLits) :-
   prover:partial_restart_enabled,
   current_predicate(heuristic:restart_seed/2),
   prover:restart_seeds(Info, Model, Seeds),
@@ -583,8 +587,62 @@ prover:partial_restart_state(Info, Proof, Model, Cons, Trig, RProof, RModel, RCo
   prover:prune_proof(Proof, Affected, Info, RProof),
   prover:prune_triggers(Trig, Affected, RTrig),
   prover:prune_constraints(Cons, Affected, Info, RCons),
+  prover:restart_resume_anchors(Proof, Affected, RModel, ResumeLits),
   prover:restart_note_prior_proven(Model, Affected),
   !.
+
+
+%! prover:restart_resume_anchors(+Proof, +Affected, +RModel, -ResumeLits) is det
+%
+% The anchor literals whose proof obligations lost a contributed literal
+% to the pruning while the anchor itself stayed proven.
+%
+% Such an anchor is unreachable for the resumed pass: it short-circuits
+% on the `proven` fast path only if something re-requests it, and nothing
+% does -- its own dependents were never pruned. Handing it to the resume
+% as an extra target costs one fast-path lookup and gets the obligation
+% re-consulted, which re-enqueues the pruned contribution (its
+% `obligation_pending/1` marker went with it). Each anchor is re-requested
+% with the proof context the pruned Model still holds for it, so the
+% fast path recognises it and no rule body is re-walked under a
+% different context.
+
+prover:restart_resume_anchors(Proof, Affected, RModel, ResumeLits) :-
+  ( current_predicate(heuristic:restart_obligation_head/2) ->
+      findall(Full,
+              ( gen_assoc(obligation_done(OKey), Proof, Cores),
+                prover:obligation_contribution_affected(Cores, Affected),
+                \+ prover:obligation_anchor_affected(OKey, Affected),
+                heuristic:restart_obligation_head(OKey, Anchor),
+                get_assoc(Anchor, RModel, Ctx),
+                prover:canon_literal(Full, Anchor, Ctx)
+              ),
+              ResumeLits0),
+      sort(ResumeLits0, ResumeLits)
+  ; ResumeLits = []
+  ).
+
+
+%! prover:resume_target(+ResumeLits, +Target, -ResumeTarget) is det
+%
+% The resumed pass proves the original Target plus the obligation anchors
+% restart_resume_anchors/4 found -- the anchors LAST.
+%
+% An obligation fires once its anchor is proven, so its contribution is
+% derived against a walk that has already settled the surrounding
+% per-package state (the cross-dependency build_with_use memos above all).
+% Re-requesting the anchors before the target reproduces neither: the
+% contribution would be proven against a freshly pruned state and pick up
+% a narrower USE set than the pass it is replacing, which showed up as
+% spurious USE changes and `assumed(...)` bridges on the KDE PDEPEND
+% closures.
+
+prover:resume_target([], Target, Target) :- !.
+prover:resume_target(ResumeLits, Target, ResumeTarget) :-
+  ( is_list(Target) ->
+      append(Target, ResumeLits, ResumeTarget)
+  ; ResumeTarget = [Target|ResumeLits]
+  ).
 
 
 %! prover:restart_note_prior_proven(+Model, +Affected) is det
@@ -741,26 +799,59 @@ prover:model_pair_affected(Affected, Key-_Value) :-
 % Remove affected entries from the Proof AVL: `rule/1` (and
 % `assumed(rule/1)`) entries, `cycle_path/1` witnesses and
 % `obligation_pending/1` markers whose core is affected, plus
-% `obligation_done/1` markers whose anchor literal (resolved through the
-% domain hook `heuristic:restart_obligation_head/2`) is affected, so
-% obligations re-fire when their anchor re-proves.
+% `obligation_done/1` markers that have to re-fire -- either because
+% their anchor literal (resolved through the domain hook
+% `heuristic:restart_obligation_head/2`) is affected and re-proves, or
+% because a literal the obligation contributed is itself being pruned.
 
 prover:prune_proof(Proof, Affected, Info, RProof) :-
   assoc_to_list(Proof, Pairs),
   exclude(prover:proof_pair_affected(Affected, Info), Pairs, Kept),
   ord_list_to_assoc(Kept, RProof).
 
-prover:proof_pair_affected(Affected, _Info, Key-_Value) :-
+prover:proof_pair_affected(Affected, _Info, Key-Value) :-
   ( Key = rule(Inner)               -> prover:restart_affected(Affected, Inner)
   ; Key = assumed(rule(Inner))      -> prover:restart_affected(Affected, Inner)
   ; Key = cycle_path(Inner)         -> prover:restart_affected(Affected, Inner)
   ; Key = obligation_pending(Inner) -> prover:restart_affected(Affected, Inner)
   ; Key = obligation_done(OKey)     ->
-      current_predicate(heuristic:restart_obligation_head/2),
-      heuristic:restart_obligation_head(OKey, Inner),
-      prover:restart_affected(Affected, Inner)
+      ( prover:obligation_anchor_affected(OKey, Affected) -> true
+      ; prover:obligation_contribution_affected(Value, Affected)
+      )
   ; fail
   ).
+
+
+%! prover:obligation_anchor_affected(+ObligationKey, +Affected) is semidet
+%
+% The obligation's anchor literal is in the affected set, so the anchor
+% re-proves and walks its body -- and the obligation re-fires with it.
+
+prover:obligation_anchor_affected(OKey, Affected) :-
+  current_predicate(heuristic:restart_obligation_head/2),
+  heuristic:restart_obligation_head(OKey, Anchor),
+  prover:restart_affected(Affected, Anchor).
+
+
+%! prover:obligation_contribution_affected(+Cores, +Affected) is semidet
+%
+% A literal the obligation contributed is being pruned.
+%
+% Contributed literals are enqueued by the obligation, not by any rule
+% body, so nothing in the Triggers index leads from them back to a proof
+% target: the affected-set closure that reaches one of them does NOT
+% reach the anchor that produced it. Left alone, the marker would keep
+% the obligation from re-firing on the resume and the contributed
+% subtree would be silently absent from the completed proof (a PDEPEND
+% closure vanishing when the restart seed sat inside it,
+% portage-ng#121). Dropping the marker is one half of the repair;
+% restart_resume_anchors/4 supplies the other (re-visiting the anchor).
+
+prover:obligation_contribution_affected(Cores, Affected) :-
+  is_list(Cores),
+  member(Core, Cores),
+  prover:restart_affected(Affected, Core),
+  !.
 
 
 %! prover:prune_triggers(+Triggers, +Affected, -RTriggers) is det
@@ -1155,12 +1246,12 @@ prover:collect_proof_obligations(Literal, Proof0, Proof, Model, Rest0, Rest) :-
   % dependency-model work, an obligation already marked done -- or one the
   % domain says cannot yield extra literals -- never reaches the full hook.
   ( prover:obligation_key(Literal, Model, Key, NeedsFull) ->
-      ( get_assoc(obligation_done(Key), Proof0, true) ->
+      ( get_assoc(obligation_done(Key), Proof0, _) ->
           sampler:hook_done_hit,
           Proof = Proof0,
           Rest = Rest0
       ; NeedsFull == false ->
-          put_assoc(obligation_done(Key), Proof0, true, Proof),
+          put_assoc(obligation_done(Key), Proof0, [], Proof),
           Rest = Rest0
       ; prover:run_proof_obligation(Literal, Proof0, Proof, Model, Rest0, Rest)
       )
@@ -1214,24 +1305,50 @@ prover:obligation_candidate(Literal) :-
 % Process a list of obligation(Key, ExtraLits) results: mark each key
 % done in the proof, filter already-proven/pending literals, and append
 % fresh ones to the remaining literal queue.
+%
+% The done marker's VALUE is the canonical core of every literal the
+% obligation contributed (`[]` when it contributed none). A partial
+% restart consults it: pruning a contributed literal has to invalidate
+% the marker as well, or the obligation never re-fires and the
+% contributed subtree is lost for good (see prune_proof/4 and
+% restart_resume_anchors/4).
 
 prover:collect_proof_obligations_list([], Proof, Proof, _Model, Rest, Rest) :- !.
 prover:collect_proof_obligations_list([obligation(Key, ExtraLits)|Hs], Proof0, Proof, Model, Rest0, Rest) :-
-  ( get_assoc(obligation_done(Key), Proof0, true) ->
+  ( get_assoc(obligation_done(Key), Proof0, _) ->
       sampler:hook_done_hit,
-      Proof1 = Proof0,
+      ProofNext = Proof0,
       Rest1 = Rest0
-  ; put_assoc(obligation_done(Key), Proof0, true, Proof1),
-    sampler:hook_fired(ExtraLits),
-    prover:select_new_literals_to_enqueue(ExtraLits, Model, Proof1, Proof2, FreshLits),
+  ; sampler:hook_fired(ExtraLits),
+    prover:select_new_literals_to_enqueue(ExtraLits, Model, Proof0, Proof1, FreshLits),
     sampler:hook_fresh(FreshLits),
+    prover:obligation_cores(ExtraLits, Cores),
+    put_assoc(obligation_done(Key), Proof1, Cores, ProofNext),
     ( FreshLits == [] ->
         Rest1 = Rest0
     ; append(FreshLits, Rest0, Rest1)
     )
   ),
-  ( var(Proof2) -> ProofNext = Proof1 ; ProofNext = Proof2 ),
   prover:collect_proof_obligations_list(Hs, ProofNext, Proof, Model, Rest1, Rest).
+
+
+%! prover:obligation_cores(+ExtraLits, -Cores) is det
+%
+% The canonical cores an obligation contributed, deduplicated. Includes
+% the literals that were filtered out as already proven or pending: the
+% obligation covers them too, so a restart that prunes one of them must
+% let it re-fire.
+
+prover:obligation_cores(ExtraLits, Cores) :-
+  ( is_list(ExtraLits) ->
+      findall(Core,
+              ( member(Lit, ExtraLits),
+                prover:canon_literal(Lit, Core, _)
+              ),
+              Cores0),
+      sort(Cores0, Cores)
+  ; Cores = []
+  ).
 
 
 %! prover:select_new_literals_to_enqueue(+Lits0, +Model, +Proof0, -Proof, -Lits) is det

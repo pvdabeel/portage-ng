@@ -219,11 +219,57 @@ test(partial_restart_state_prunes_provider_and_dependents,
                  cn_domain(cat, pkg, '0')-d1], Cons),
   Info = bwu_force_flush([bwu_force(cat, pkg, [icu])]),
   prover:partial_restart_state(Info, Proof, Model, Cons, Triggers,
-                               RProof, RModel, RCons, RTrig),
+                               RProof, RModel, RCons, RTrig, ResumeLits),
   assoc_to_keys(RModel, [Bystander]),
   assoc_to_keys(RProof, [rule(Bystander)]),
   assoc_to_keys(RTrig, []),
-  assoc_to_keys(RCons, [use(fakerepo://'cat/bystander-1.0'), cn_domain(cat, pkg, '0')]).
+  assoc_to_keys(RCons, [use(fakerepo://'cat/bystander-1.0'), cn_domain(cat, pkg, '0')]),
+  ResumeLits == [].
+
+
+% An obligation contributes literals to the queue instead of to a rule
+% body, so the Triggers index holds no edge from a contributed literal
+% back to its anchor. Pruning a contributed literal therefore leaves the
+% anchor proven and unreachable: unless the done marker is dropped AND
+% the anchor re-requested, the contribution is gone from the completed
+% proof for good (a PDEPEND closure vanishing when the restart seed sat
+% inside it, portage-ng#121).
+test(prune_proof_drops_obligation_whose_contribution_is_pruned,
+     [true(Keys == [obligation_done(pdepend_none(anchor2)), rule(anchor1), rule(anchor2)])]) :-
+  list_to_assoc([rule(anchor1)-v1,
+                 rule(anchor2)-v2,
+                 rule(contributed)-v3,
+                 obligation_done(pdepend(anchor1, bwu))-[contributed],
+                 obligation_done(pdepend_none(anchor2))-[]], Proof),
+  list_to_assoc([contributed-true], Affected),
+  prover:prune_proof(Proof, Affected, bwu_force_flush([]), RProof),
+  assoc_to_keys(RProof, Keys).
+
+
+test(restart_resume_anchors_re_requests_anchor_with_stored_context,
+     [true(ResumeLits == [fakerepo://'cat/pkg-1.0':install?{[self(x)]}])]) :-
+  Anchor = (fakerepo://'cat/pkg-1.0':install),
+  list_to_assoc([obligation_done(pdepend(Anchor, bwu))-[contributed],
+                 obligation_done(pdepend_none(other))-[]], Proof),
+  list_to_assoc([contributed-true], Affected),
+  list_to_assoc([Anchor-[self(x)]], RModel),
+  prover:restart_resume_anchors(Proof, Affected, RModel, ResumeLits).
+
+
+% An anchor that is itself pruned re-walks its body, which re-fires the
+% obligation on its own -- no extra resume target needed.
+test(restart_resume_anchors_skips_affected_anchor, [true(ResumeLits == [])]) :-
+  Anchor = (fakerepo://'cat/pkg-1.0':install),
+  list_to_assoc([obligation_done(pdepend(Anchor, bwu))-[contributed]], Proof),
+  list_to_assoc([Anchor-true, contributed-true], Affected),
+  empty_assoc(RModel),
+  prover:restart_resume_anchors(Proof, Affected, RModel, ResumeLits).
+
+
+test(resume_target_appends_anchors_to_list_and_single_target) :-
+  prover:resume_target([], [t1], T1), T1 == [t1],
+  prover:resume_target([a1], [t1, t2], T2), T2 == [t1, t2, a1],
+  prover:resume_target([a1], t1, T3), T3 == [t1, a1].
 
 test(begin_pass_clears_per_pass_memos_for_both_kinds,
      [cleanup(use:clear_bwu_cross_dep_memos)]) :-

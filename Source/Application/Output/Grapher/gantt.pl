@@ -373,7 +373,7 @@ gantt:phase_deptype(_, depend).
 gantt:collect_pdepend_deps(Pairs, Grid, EntryMap, Deps) :-
     findall(dep(SrcId, SrcAct, DepId, install, pdepend),
         (   member(KV, Pairs),
-            KV = obligation_done(pdepend(SrcCore, _))-true,
+            KV = obligation_done(pdepend(SrcCore, _))-_,
             SrcCore = Repo://SrcEntry:SrcAct,
             memberchk(SrcEntry-SrcId, EntryMap),
             cache:entry_metadata(Repo, SrcEntry, pdepend, DepTerm),
