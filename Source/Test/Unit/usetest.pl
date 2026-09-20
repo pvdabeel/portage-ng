@@ -396,6 +396,116 @@ test(optenable_skips_globally_masked_flag,
 :- end_tests(rules_use_mask_beats_soft).
 
 
+% Consumer-gated USE deps (`[F?]`, `[!F?]`, `[F=]`, `[!F=]`) must be decided
+% from the consumer's SOLVED USE -- the ?{Context} build_with_use that
+% dep_walk_context/4 fills with the post-REQUIRED_USE picks -- not from the
+% profile + IUSE reading alone (portage-ng#121). Both polarities matter: a
+% solved enable makes the gate live, a solved disable vetoes it.
+:- begin_tests(rules_gated_use_dep_solved_state).
+
+% Profile says the flag is OFF (IUSE `bar`, i.e. declared default-off).
+gus_off_entry(qtest://'x11-libs/consumer-off-0').
+
+% Profile says the flag is ON (IUSE `+bar`, nothing overriding it).
+gus_on_entry(qtest://'x11-libs/consumer-on-0').
+
+gus_setup :-
+  gus_cleanup,
+  gus_off_entry(OffRepo://OffId),
+  assertz(cache:ordered_entry(OffRepo, OffId, 'x11-libs', 'consumer-off',
+                              version([0],'',4,0,[],0,'0'))),
+  assertz(cache:entry_metadata(OffRepo, OffId, iuse, bar)),
+  assertz(memo:eff_use_cache_(OffRepo, OffId, bar, negative)),
+  gus_on_entry(OnRepo://OnId),
+  assertz(cache:ordered_entry(OnRepo, OnId, 'x11-libs', 'consumer-on',
+                              version([0],'',4,0,[],0,'0'))),
+  assertz(cache:entry_metadata(OnRepo, OnId, iuse, plus(bar))).
+
+gus_cleanup :-
+  gus_off_entry(OffRepo://OffId),
+  retractall(cache:ordered_entry(OffRepo, OffId, _, _, _)),
+  retractall(cache:entry_metadata(OffRepo, OffId, _, _)),
+  use_entry_memo_reset(OffRepo://OffId),
+  gus_on_entry(OnRepo://OnId),
+  retractall(cache:ordered_entry(OnRepo, OnId, _, _, _)),
+  retractall(cache:entry_metadata(OnRepo, OnId, _, _)),
+  use_entry_memo_reset(OnRepo://OnId).
+
+% REQUIRED_USE forced the flag on: `[bar?]` is live even though the profile
+% has it off. The prover's `assumed(bar)` key reaches the gate as the
+% consumer's build_with_use via dep_walk_context/4.
+test(requse_enable_makes_optenable_live,
+     [setup(gus_setup), cleanup(gus_cleanup),
+      true(Req == requirement(enable, bar, none))]) :-
+  gus_off_entry(E),
+  use:dep_walk_context([assumed(bar)], use_state([],[]),
+                       [build_with_use:use_state([],[])], Model),
+  use:use_dep_requirement([self(E)|Model], optenable(bar), none, Req).
+
+% Same solved state for the bidirectional form.
+test(requse_enable_makes_equal_follow,
+     [setup(gus_setup), cleanup(gus_cleanup),
+      true(Req == requirement(enable, bar, none))]) :-
+  gus_off_entry(E),
+  use:use_dep_requirement([self(E), build_with_use:use_state([bar],[])],
+                          equal(bar), none, Req).
+
+% Nothing flipped the flag: the gate stays inert.
+test(profile_off_keeps_optenable_inert,
+     [setup(gus_setup), cleanup(gus_cleanup),
+      true(Req == none)]) :-
+  gus_off_entry(E),
+  use:use_dep_requirement([self(E)], optenable(bar), none, Req).
+
+% The veto direction: profile has the flag on, but the solved state turns it
+% off, so `[bar?]` must not force `+bar` onto the provider.
+test(solved_disable_vetoes_optenable,
+     [setup(gus_setup), cleanup(gus_cleanup),
+      true(Req == none)]) :-
+  gus_on_entry(E),
+  use:use_dep_requirement([self(E), build_with_use:use_state([],[bar])],
+                          optenable(bar), none, Req).
+
+% Without a solved disable the same edge stays live (profile reading).
+test(profile_on_keeps_optenable_live,
+     [setup(gus_setup), cleanup(gus_cleanup),
+      true(Req == requirement(enable, bar, none))]) :-
+  gus_on_entry(E),
+  use:use_dep_requirement([self(E)], optenable(bar), none, Req).
+
+% Mirror image: profile has the flag off, the solved state turns it on, so
+% `[!bar?]` must not force `-bar` onto the provider.
+test(solved_enable_vetoes_optdisable,
+     [setup(gus_setup), cleanup(gus_cleanup),
+      true(Req == none)]) :-
+  gus_off_entry(E),
+  use:use_dep_requirement([self(E), build_with_use:use_state([bar],[])],
+                          optdisable(bar), none, Req).
+
+test(profile_off_keeps_optdisable_live,
+     [setup(gus_setup), cleanup(gus_cleanup),
+      true(Req == requirement(disable, bar, none))]) :-
+  gus_off_entry(E),
+  use:use_dep_requirement([self(E)], optdisable(bar), none, Req).
+
+% A solved disable is also what `[bar=]` / `[!bar=]` follow.
+test(solved_disable_drives_equal,
+     [setup(gus_setup), cleanup(gus_cleanup),
+      true(Req == requirement(disable, bar, none))]) :-
+  gus_on_entry(E),
+  use:use_dep_requirement([self(E), build_with_use:use_state([],[bar])],
+                          equal(bar), none, Req).
+
+test(solved_disable_drives_inverse,
+     [setup(gus_setup), cleanup(gus_cleanup),
+      true(Req == requirement(enable, bar, none))]) :-
+  gus_on_entry(E),
+  use:use_dep_requirement([self(E), build_with_use:use_state([],[bar])],
+                          inverse(bar), none, Req).
+
+:- end_tests(rules_gated_use_dep_solved_state).
+
+
 % Global use.mask beats global use.force when both apply (Gentoo
 % arch/base big-endian: "Forced and masked by default"). Force-before-
 % mask incorrectly enabled the flag and broke strict binpkg USE match

@@ -615,6 +615,17 @@ use:self_context_use_state_compute_(Repo, Id, Use, State) :-
 % Returns `requirement(Mode, Use, Default)` where Mode is `enable` or
 % `disable`, or the atom `none` for optional deps where the flag is
 % not actively set.
+%
+% The four consumer-gated forms (`[F?]`, `[!F?]`, `[F=]`, `[!F=]`) mean
+% "match MY flag", where "I" is the consumer after REQUIRED_USE and after
+% any bracketed flip a parent edge imposed on it. That solved state is the
+% `build_with_use` of the consumer's ?{Context} list (dep_walk_context/4
+% folds the REQUIRED_USE picks into it), so both its enable AND its
+% disable set outrank the profile + IUSE reading. Consulting only the
+% enable set fired `[F?]` for a flag the consumer will NOT have -- forcing
+% a USE change onto the provider that emerge never asks for
+% (portage-ng#121); the symmetric case turned `[!F?]` into a spurious
+% `-F`.
 
 use:use_dep_requirement(_Ctx, enable(Use), Default, requirement(enable, Use, Default)) :- !.
 use:use_dep_requirement(_Ctx, disable(Use), Default, requirement(disable, Use, Default)) :- !.
@@ -650,8 +661,11 @@ use:use_dep_requirement(_Ctx, inverse(Use), Default, Requirement) :-
   !.
 
 use:use_dep_requirement(Ctx, optenable(Use), Default, requirement(enable, Use, Default)) :-
-  ( use:assumed(Ctx, Use)
-  ; use:self_context_use_state(Ctx, Use, positive)
+  use:assumed(Ctx, Use), !.
+use:use_dep_requirement(Ctx, optenable(Use), _Default, none) :-
+  use:assumed_minus(Ctx, Use), !.
+use:use_dep_requirement(Ctx, optenable(Use), Default, requirement(enable, Use, Default)) :-
+  ( use:self_context_use_state(Ctx, Use, positive)
   ; \+ memberchk(self(_), Ctx),
     use:effective_use_in_context(Ctx, Use, positive)
   ),
@@ -659,8 +673,11 @@ use:use_dep_requirement(Ctx, optenable(Use), Default, requirement(enable, Use, D
 use:use_dep_requirement(_Ctx, optenable(_Use), _Default, none) :- !.
 
 use:use_dep_requirement(Ctx, optdisable(Use), Default, requirement(disable, Use, Default)) :-
-  ( use:assumed_minus(Ctx, Use)
-  ; use:self_context_use_state(Ctx, Use, negative)
+  use:assumed_minus(Ctx, Use), !.
+use:use_dep_requirement(Ctx, optdisable(Use), _Default, none) :-
+  use:assumed(Ctx, Use), !.
+use:use_dep_requirement(Ctx, optdisable(Use), Default, requirement(disable, Use, Default)) :-
+  ( use:self_context_use_state(Ctx, Use, negative)
   ; \+ memberchk(self(_), Ctx),
     use:effective_use_in_context(Ctx, Use, negative)
   ),
