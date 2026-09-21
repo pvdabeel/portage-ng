@@ -351,6 +351,7 @@ choosing a magnitude.
 | `use_unmasked` | `yes`/`no` | Among USE-unsat arms, prefer flips that do not fight use.mask / use.force | `all_use_unmasked` (masked → `other`) |
 | `preference` | `pref/6` | Installed / profile-preferred, `--favour` / `--avoid`, not self-CN, no forced upgrade, `-bootstrap`, USE_EXPAND target — in that order, as the six arguments of one compound | `preferred_installed` + favour |
 | `snap_all` | `yes`/`no` | Prefer arms whose non-`virtual/` CNs are already in the proof snapshot | `all_in_graph` |
+| `snap_admits` | `yes`/`no` | Prefer an arm whose version bounds admit the already-selected candidate. Vacuous when that CN is not selected yet (so `version` still picks the newest arm) and, for a `pkg:N` atom, when nothing is selected in slot `N` | Selected atom vs arm bounds |
 | `slot` | digit list / `none` | Prefer higher explicit package slot (`pkg:N`) — only active when *all* arms target the same (C,N) | `want_update` / higher-slot promotion |
 | `no_downgrade` | `yes`/`no` | Demote arms whose newest admitted version is below installed or snap-selected | `downgrade_probe` → `other` |
 | `installed` | count | Prefer arms that reuse more installed CNs | `other_installed` / `_some` / `_any_slot` |
@@ -362,7 +363,7 @@ choosing a magnitude.
 Worked examples:
 
 - `|| ( foo[a] foo[b] )` with `a` already effective → `use_sat` picks `foo[a]`.
-- Cabal text ranges (above) → `version` picks the text-2.x arm.
+- Cabal text ranges (above) → `version` picks the text-2.x arm when neither is selected. Once text-1.2.5.0 is selected, `snap_admits` keeps the 1.2 arm (portage-ng#123).
 - `|| ( sys-devel/llvm:18 sys-devel/llvm:20 )` → `slot` prefers `:20`.
 - An arm whose packages are already in `selected_cn` beats a fresh CN → `snap_all`.
 

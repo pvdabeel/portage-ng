@@ -410,3 +410,119 @@ test(record_visibility_override_noop_without_selection,
   \+ memo:visibility_override_(_, _).
 
 :- end_tests(phantom_grouped_dep_assumption).
+
+
+% A candidate whose hard version pin excludes the already-selected
+% package conflicts; the sibling whose pin agrees does not
+% (portage-ng#123, opam-installer vs a locked opam-common).
+:- begin_tests(selected_pin_conflict).
+
+py_common('dev-ml/common-2.3.0').
+py_new('dev-ml/installer-2.5.2').
+py_old('dev-ml/installer-2.3.0').
+py_ver(common, version([2,3,0],'',4,0,[],0,'2.3.0')).
+py_ver(new, version([2,5,2],'',4,0,[],0,'2.5.2')).
+
+py_setup :-
+  py_cleanup,
+  py_common(CId), py_ver(common, CV),
+  assertz(cache:ordered_entry(qtest, CId, 'dev-ml', common, CV)),
+  py_new(NId), py_ver(new, NV),
+  assertz(cache:entry_metadata(qtest, NId, depend,
+    package_dependency(install, no, 'dev-ml', common, tilde, NV, [], []))),
+  py_old(OId),
+  assertz(cache:entry_metadata(qtest, OId, depend,
+    package_dependency(install, no, 'dev-ml', common, tilde, CV, [], []))),
+  ( nb_current(memo_selected_cn_snap, Old) -> nb_setval(py_saved_snap, Old)
+  ; nb_setval(py_saved_snap, none)
+  ),
+  cnselect:record_selected_cn_snapshot('dev-ml', common,
+    [selected(qtest, CId, install, CV, slot(0))]).
+
+py_cleanup :-
+  py_common(CId),
+  retractall(cache:ordered_entry(qtest, CId, _, _, _)),
+  py_new(NId),
+  retractall(cache:entry_metadata(qtest, NId, _, _)),
+  retractall(memo:entry_version_pins_(qtest://NId, _)),
+  py_old(OId),
+  retractall(cache:entry_metadata(qtest, OId, _, _)),
+  retractall(memo:entry_version_pins_(qtest://OId, _)),
+  ( nb_current(py_saved_snap, Saved), Saved \== none ->
+      nb_setval(memo_selected_cn_snap, Saved)
+  ; empty_assoc(Empty),
+    nb_setval(memo_selected_cn_snap, Empty)
+  ).
+
+test(newer_sibling_conflicts_with_selected_pin,
+     [setup(py_setup), cleanup(py_cleanup)]) :-
+  py_new(Id),
+  candidate:entry_conflicts_with_selected(qtest://Id).
+
+test(matching_sibling_agrees_with_selected_pin,
+     [setup(py_setup), cleanup(py_cleanup), fail]) :-
+  py_old(Id),
+  candidate:entry_conflicts_with_selected(qtest://Id).
+
+% A pin with an explicit slot judges only selected candidates of that
+% slot: `>=common-2.5:2` while common:0 is selected is not a conflict.
+test(slotted_pin_ignores_other_slot,
+     [setup(( py_setup,
+              py_ver(new, NV),
+              assertz(cache:entry_metadata(qtest, 'dev-ml/slotted-1', depend,
+                package_dependency(install, no, 'dev-ml', common, greaterequal, NV, [slot('2')], []))) )),
+      cleanup(( retractall(cache:entry_metadata(qtest, 'dev-ml/slotted-1', _, _)),
+                retractall(memo:entry_version_pins_(qtest://'dev-ml/slotted-1', _)),
+                py_cleanup )),
+      fail]) :-
+  candidate:entry_conflicts_with_selected(qtest://'dev-ml/slotted-1').
+
+:- end_tests(selected_pin_conflict).
+
+
+% A learned upper bound must knock a newer || arm out of config-time
+% acceptance even when that arm's own version atoms match a tree
+% candidate (portage-ng#123, cabal text-2 vs text < 1.3).
+
+:- begin_tests(learned_choice_arm).
+
+ld_old(qtest://'dev-haskell/text-1.2').
+ld_new(qtest://'dev-haskell/text-2.1').
+ld_cut(version([1,3],'',4,0,[],0,'1.3')).
+
+ld_setup :-
+  ld_cleanup,
+  ld_old(R1://Id1),
+  assertz(cache:ordered_entry(R1, Id1, 'dev-haskell', text,
+                              version([1,2],'',4,0,[],0,'1.2'))),
+  ld_new(R2://Id2),
+  assertz(cache:ordered_entry(R2, Id2, 'dev-haskell', text,
+                              version([2,1],'',4,0,[],0,'2.1'))),
+  ( nb_current(prover_learned_constraints, Old) ->
+      nb_setval(ld_saved_learned, Old)
+  ; nb_setval(ld_saved_learned, none)
+  ),
+  ld_cut(Cut),
+  prover:learn(cn_domain('dev-haskell', text, any),
+               version_domain(any, [bound(smaller, Cut)]), _).
+
+ld_cleanup :-
+  ld_old(R1://Id1),
+  retractall(cache:ordered_entry(R1, Id1, _, _, _)),
+  ld_new(R2://Id2),
+  retractall(cache:ordered_entry(R2, Id2, _, _, _)),
+  ( nb_current(ld_saved_learned, Saved), Saved \== none ->
+      nb_setval(prover_learned_constraints, Saved)
+  ; nb_delete(prover_learned_constraints)
+  ).
+
+test(keeps_in_domain_text, [setup(ld_setup), cleanup(ld_cleanup)]) :-
+  ld_old(Old),
+  candidate:config_learned_domain_allows('dev-haskell', text, [], Old).
+
+test(drops_text_outside_learned_bound,
+     [setup(ld_setup), cleanup(ld_cleanup), fail]) :-
+  ld_new(New),
+  candidate:config_learned_domain_allows('dev-haskell', text, [], New).
+
+:- end_tests(learned_choice_arm).

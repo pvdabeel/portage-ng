@@ -875,19 +875,32 @@ compile_query_compound(all(dependency(D,fetchonly)):A?{C}, Repo://Id,
 %
 %   3. memo_selected_cn_snap — evolves during a single proof attempt as
 %      packages are selected.  any_of_group:config calls
-%      prioritize_deps_keep_all -> dep_snap_all_ok (the snap_all
-%      criterion), so the snapshot
-%      can reorder OR branches and lock a different choice into the model.
+%      prioritize_deps_keep_all, whose snap_all / snap_admits criteria
+%      reorder OR branches and lock a different choice into the model.
+%      Presence is not enough: cabal's text-1.2 arm vs text-2 arm both
+%      see "text is selected", and a model cached for text-2.1 stays
+%      cached after a reprove selects text-1.2 (portage-ng#123).
 %      -> per-entry choice-group C/N pairs are extracted once from the dep
-%      metadata (memo:dep_model_choice_cns_/3); those currently present in
-%      the snapshot are part of the key (dep_model_selected_choice_cns/3).
-%      Entries without choice groups contribute [] and are immune to this
-%      hazard.
+%      metadata (memo:dep_model_choice_cns_/3); each pair that currently
+%      has a snapshot contributes that pair plus the selected entry ids
+%      (dep_model_selected_choice_cns/3). Entries without choice groups
+%      contribute [] and are immune to this hazard.
 %
 %   4. variant:use_override/4 and variant:branch_prefer/1 — thread_local state
 %      active only during variant exploration; affects effective_use_for_entry
 %      (per-package USE flips) and OR group ordering.
 %      -> cache bypassed entirely while variant state is active (key = none).
+%
+%   5. prover learned constraints (prover_learned_constraints) — the
+%      learned cn_domain store persists across reprove passes and is
+%      reset per fallback tier. any_of_config_dep_ok reads it through
+%      candidate:config_candidate_blocked (an arm whose version match lies
+%      outside a learned domain, or whose hard pins have no candidate left
+%      inside one, is not kept; portage-ng#123). A model cached before
+%      `ghc < 9.5` was learned must not answer after it.
+%      -> the learned store term is part of the key
+%      (dep_model_learned/1); `none` when no store is active. Learning is
+%      rare (pass boundaries), so this costs one miss per change.
 %
 % Remaining inputs (VDB installed state, /etc/portage preferences, profile,
 % keyword/license/mask config, favour/avoid flags) are constant within one
@@ -918,8 +931,21 @@ query:dep_model_key(Repo, Id, Context, Key) :-
   ->
     query:dep_model_assuming(Assuming),
     query:dep_model_selected_choice_cns(Repo, Id, Selected),
-    Key = key(Context, Assuming, Selected)
+    query:dep_model_learned(Learned),
+    Key = key(Context, Assuming, Selected, Learned)
   ; Key = none
+  ).
+
+
+%! query:dep_model_learned(-Learned) is det
+%
+% The prover's learned constraint store as it stands now (hazard 5), or
+% `none` outside any reprove-managed proof.
+
+query:dep_model_learned(Learned) :-
+  ( nb_current(prover_learned_constraints, Store) ->
+      Learned = Store
+  ; Learned = none
   ).
 
 
@@ -967,19 +993,28 @@ query:dep_model_assuming(Active) :-
 %! query:dep_model_selected_choice_cns(+Repo, +Id, -Selected) is det
 %
 % The entry's choice-group member C/N pairs that currently have a
-% selected_cn snapshot (hazard 3), in the (sorted, static) order of
-% dep_model_choice_cns/3.  [] when the entry's dep metadata contains no
-% choice groups (the common case).
+% selected_cn snapshot, each paired with the selected entry ids
+% (hazard 3). The entry ids matter: snap_admits ranks an arm by whether
+% it admits the selected candidate, so a version change must miss the
+% cache (portage-ng#123). Order follows dep_model_choice_cns/3. [] when
+% the entry's dep metadata contains no choice groups, or none of those
+% C/N pairs are selected yet.
 
 query:dep_model_selected_choice_cns(Repo, Id, Selected) :-
   query:dep_model_choice_cns(Repo, Id, CNs),
-  include(query:dep_model_cn_selected, CNs, Selected).
+  findall(C-N-Entries,
+          ( member(C-N, CNs),
+            query:dep_model_cn_selected(C-N, Entries)
+          ),
+          Selected).
 
 
-%! query:dep_model_cn_selected(+CN) is semidet
+%! query:dep_model_cn_selected(+CN, -Entries) is semidet
+%
+% Entries is the sorted list of selected repo-entries for CN.
 
-query:dep_model_cn_selected(C-N) :-
-  cnselect:snapshot_selected_cn_candidates(C, N, _), !.
+query:dep_model_cn_selected(C-N, Entries) :-
+  cnselect:snapshot_selected_cn_candidates(C, N, Entries), !.
 
 
 %! query:dep_model_choice_cns(+Repo, +Id, -CNs) is det

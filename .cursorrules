@@ -226,6 +226,19 @@ reject-map mechanism that deliberately does NOT use it:
    force names (for an equality follow, both ends of the edge). HARD
    forces apply after follows, so a hard requirement still outranks a
    following one.
+6. **Config-time choice pruning** (#123, `candidate:config_candidate_blocked/4`):
+   a `||` arm's version match is not kept by `assume_conflicts` when it
+   lies outside the learned domain of its own CN, or when one of its hard
+   version pins (`candidate:entry_version_pins/2`, slot-aware) has no
+   candidate left inside a learned domain. Config-time reads ONLY the
+   learned store (part of the dep-model cache key, hazard 5 in
+   `query.pl`); the live `selected_cn` snapshot of other CNs is consulted
+   at resolve time instead, by
+   `candidate:yield_to_selected_compatible_sibling/6`, which fails a newer
+   candidate whose pins contradict a selected package when an in-domain
+   sibling agrees (opam-installer-2.5.2 vs a locked opam-common-2.3).
+   `ranking:choice_criteria` `snap_admits` is the ranking-side
+   counterpart (arm bounds vs the selected candidate).
 
 Self-dep handling:
 - `is_self_dep/5` detects bootstrap self-deps (same C/N/slot as parent).

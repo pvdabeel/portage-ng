@@ -439,6 +439,10 @@ ranking:dep_extract_cn_packagedeps(grouped_package_dependency(_T, C, N, PackageD
 %   preference    installed / profile-preferred / --favour / self-CN
 %                 (pref/6 compound, see preference_value/3)
 %   snap_all      every non-virtual CN already in the selected_cn snapshot
+%   snap_admits   the already-selected candidate satisfies the arm's
+%                 version bounds (portage-ng#123). Vacuous when nothing
+%                 of that CN is selected, so `version` still picks the
+%                 newest arm (portage-ng#112).
 %   slot          highest explicit slot -- same-CN groups only
 %   no_downgrade  newest admitted version not below installed / snapshot
 %   installed     number of installed CNs the arm reuses
@@ -461,6 +465,7 @@ ranking:choice_criteria([license_ok,
                          use_unmasked,
                          preference,
                          snap_all,
+                         snap_admits,
                          slot,
                          no_downgrade,
                          installed,
@@ -577,6 +582,8 @@ ranking:criterion_value(preference, Context, _Gate, arm(Dep, _, _, _, _), Pref) 
   ranking:preference_value(Context, Dep, Pref).
 ranking:criterion_value(snap_all, _Context, _Gate, arm(_, Atoms, _, _, _), Value) :-
   ranking:yes_no(ranking:dep_snap_all_ok(Atoms), Value).
+ranking:criterion_value(snap_admits, _Context, _Gate, arm(_, Atoms, _, _, _), Value) :-
+  ranking:yes_no(ranking:dep_snap_admits(Atoms), Value).
 ranking:criterion_value(slot, _Context, same_cn, arm(_, Atoms, _, _, _), Slot) :-
   ranking:dep_slot_value(Atoms, Slot).
 ranking:criterion_value(slot, _Context, multi_cn, _Arm, none).
@@ -713,6 +720,31 @@ ranking:dep_snap_all_ok(Atoms) :-
          ( ranking:dep_blocker_strength(Str) -> true
          ; C == virtual -> true
          ; cnselect:snapshot_selected_cn_candidates(C, N, _)
+         )).
+
+
+%! ranking:dep_snap_admits(+Atoms) is semidet.
+%
+% True when every already-selected candidate of an atom's (C,N) satisfies
+% that atom's version operator. An atom with nothing selected is vacuous,
+% so an unconstrained choice still falls through to the `version`
+% criterion (portage-ng#112). An arm that excludes the selected candidate
+% loses to one that admits it (portage-ng#123: cabal's text-2 arm must
+% not beat the text-1.2 arm once text-1.2.5.0 is selected). An atom with
+% an explicit slot judges only the selected candidates of that slot;
+% another slot can be installed side by side, so it is vacuous too.
+
+ranking:dep_snap_admits(Atoms) :-
+  forall(member(package_dependency(_, Str, C, N, Op, Ver, SlotReq, _), Atoms),
+         ( ranking:dep_blocker_strength(Str) -> true
+         ; C == virtual -> true
+         ; \+ cnselect:snapshot_selected_cn_candidates(C, N, _) -> true
+         ; cnselect:snapshot_selected_cn_candidates(C, N, Selected0),
+           candidate:pin_slot_selected(SlotReq, Selected0, Selected),
+           ( Selected == [] -> true
+           ; member(SRepo://SEntry, Selected),
+             query:search(select(version, Op, Ver), SRepo://SEntry)
+           )
          )).
 
 

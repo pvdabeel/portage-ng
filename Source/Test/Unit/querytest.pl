@@ -52,7 +52,11 @@ test(choice_sig_reflects_snapshot_presence,
                 retractall(memo:dep_model_choice_cns_(_, _, _)) ))]) :-
   query:dep_model_selected_choice_cns(testrepo, 'x/y-1', []),
   cnselect:record_selected_cn_snapshot('dev-lang', 'python', [selected(portage,'dev-lang/python-3.13',run,v,'3.13')]),
-  query:dep_model_selected_choice_cns(testrepo, 'x/y-1', ['dev-lang'-'python']).
+  query:dep_model_selected_choice_cns(testrepo, 'x/y-1',
+    ['dev-lang'-'python'-[portage://'dev-lang/python-3.13']]),
+  cnselect:record_selected_cn_snapshot('dev-lang', 'python', [selected(portage,'dev-lang/python-3.12',run,v,'3.12')]),
+  query:dep_model_selected_choice_cns(testrepo, 'x/y-1', Sig312),
+  Sig312 \== ['dev-lang'-'python'-[portage://'dev-lang/python-3.13']].
 
 test(choice_sig_zero_without_choice_groups,
      [setup(( retractall(memo:dep_model_choice_cns_(_, _, _)),
@@ -82,9 +86,27 @@ test(key_encodes_context_bits_and_sig,
       cleanup(( restore_selected_cn_snap(Saved),
                 retractall(memo:dep_model_choice_cns_(_, _, _)) ))]) :-
   Ctx = [build_with_use:use_state([icu], [])],
-  query:dep_model_key(testrepo, 'x/y-1', Ctx, key(Ctx, [], [])),
-  prover:assuming(unmask,
-    query:dep_model_key(testrepo, 'x/y-1', Ctx, key(Ctx, [unmask], []))).
+  query:dep_model_learned(Learned),
+  query:dep_model_key(testrepo, 'x/y-1', Ctx, key(Ctx, [], [], Learned)),
+    prover:assuming(unmask,
+    query:dep_model_key(testrepo, 'x/y-1', Ctx, key(Ctx, [unmask], [], Learned))).
+
+% Hazard 5: config-time arm rejection reads the learned store, so a
+% learned domain must change the key (portage-ng#123).
+test(key_encodes_learned_store,
+     [setup(( stash_selected_cn_snap(Saved),
+              ( nb_current(prover_learned_constraints, OldL) -> nb_setval(qt_saved_learned, OldL)
+              ; nb_setval(qt_saved_learned, none) ) )),
+      cleanup(( restore_selected_cn_snap(Saved),
+                ( nb_current(qt_saved_learned, S), S \== none ->
+                    nb_setval(prover_learned_constraints, S)
+                ; nb_delete(prover_learned_constraints) ) ))]) :-
+  Ctx = [build_with_use:use_state([], [])],
+  query:dep_model_key(testrepo, 'x/y-1', Ctx, key(_, _, _, Before)),
+  prover:learn(cn_domain('dev-lang', ghc, any),
+               version_domain(any, [bound(smaller, version([9,5],'',4,0,[],0,'9.5'))]), _),
+  query:dep_model_key(testrepo, 'x/y-1', Ctx, key(_, _, _, After)),
+  Before \== After.
 
 :- end_tests(dep_model_cache).
 

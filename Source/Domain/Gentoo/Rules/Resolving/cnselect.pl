@@ -155,7 +155,7 @@ cnselect:grouped_dep_candidate_satisfies_effective_domain_precomputed(EffectiveD
   \+ version_domain:domain_inconsistent(EffectiveDomain),
   \+ cn_domain_candidate_rejected(C, N, RejectDomain, RepoEntry),
   \+ feedback:version_excluded(C, N, RepoEntry),
-  \+ ghcabi:version_incompatible_with_selected_ghc(C, N, RepoEntry),
+  \+ ghcabi:version_incompatible_with_selected_ghc(C, N, EffectiveDomain, RepoEntry),
   version_domain:domain_allows_candidate(EffectiveDomain, RepoEntry),
   !.
 

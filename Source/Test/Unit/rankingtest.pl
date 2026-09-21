@@ -214,6 +214,21 @@ test(same_cn_group_still_version_ranked,
   ranking:prioritize_deps_keep_all([B1, B2], [], [First|_]),
   First == B2.
 
+% A selected text-1.2 must keep the 1.2 arm ahead of the newer 2.x arm
+% (portage-ng#123). Nothing selected still prefers 2.x via `version`.
+rap_text12_setup(Saved) :-
+  text_tree_setup,
+  stash_selected_cn_snap(Saved),
+  cnselect:record_selected_cn_snapshot('dev-haskell', text,
+    [selected(qtest, 'dev-haskell/text-1.2.5.0-r1', run,
+              version([1,2,5,0],'',4,0,[],1,'1.2.5.0-r1'), '0')]).
+
+test(selected_older_text_keeps_admitting_arm,
+     [setup(rap_text12_setup(Saved)), cleanup(rap_text_cleanup(Saved))]) :-
+  text_arm12(B1), text_arm2(B2),
+  ranking:prioritize_deps_keep_all([B2, B1], [], [First|_]),
+  First == B1.
+
 % SlotScore must likewise stay inactive across different CNs: a later arm
 % carrying a higher-slotted package must not beat the first arm's ebuild
 % order. ruby-single || arms list the profile-default target first, and
@@ -304,8 +319,8 @@ test(digit_groups_none, [true(G == [])]) :-
 % The documented criterion order (12-doc-resolution.md, "Preference keys").
 test(choice_criteria_order) :-
   ranking:choice_criteria(Cs),
-  Cs == [license_ok, use_sat, use_unmasked, preference, snap_all, slot,
-         no_downgrade, installed, overlap, version, use_expand].
+  Cs == [license_ok, use_sat, use_unmasked, preference, snap_all, snap_admits,
+         slot, no_downgrade, installed, overlap, version, use_expand].
 
 % Every criterion yields a value for every arm shape (keys always align).
 test(arm_key_is_total_over_arm_shapes) :-

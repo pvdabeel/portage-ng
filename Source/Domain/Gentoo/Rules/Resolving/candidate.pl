@@ -562,7 +562,8 @@ candidate:any_of_config_dep_ok(Context, use_conditional_group(Pol, Use, RepoEntr
 candidate:any_of_config_dep_ok(Context, package_dependency(Phase, _Strength, C, N, O, V, SlotReq, U)) :-
   findall(Repo://Id,
           ( acceptance:accepted_keyword_candidate(Phase, C, N, SlotReq, _Ss, Context, Repo://Id),
-            query:search(select(version, O, V), Repo://Id)
+            query:search(select(version, O, V), Repo://Id),
+            \+ candidate:config_candidate_blocked(C, N, SlotReq, Repo://Id)
           ),
           Candidates0),
   sort(Candidates0, Candidates),
@@ -573,6 +574,16 @@ candidate:any_of_config_dep_ok(Context, package_dependency(Phase, _Strength, C, 
     use:candidate_satisfies_use_deps(Context, Candidate, U)
   ),
   !.
+% A version match that the learned cn_domain excludes, or whose own
+% hard pins have no candidate left inside a learned cn_domain, must not
+% be kept by assume_conflicts (portage-ng#123). The next || arm may
+% admit both.
+candidate:any_of_config_dep_ok(Context, package_dependency(Phase, _Strength, C, N, O, V, SlotReq, _U)) :-
+  acceptance:accepted_keyword_candidate(Phase, C, N, SlotReq, _Ss, Context, Repo://Id),
+  query:search(select(version, O, V), Repo://Id),
+  candidate:config_candidate_blocked(C, N, SlotReq, Repo://Id),
+  !,
+  fail.
 candidate:any_of_config_dep_ok(_Context, package_dependency(_Phase, _Strength, _C, _N, _O, _V, _S, _U)) :-
   candidate:assume_conflicts,
   !.
@@ -581,6 +592,37 @@ candidate:any_of_config_dep_ok(_Context, package_dependency(_Phase, _Strength, _
   fail.
 candidate:any_of_config_dep_ok(_Context, _Other) :-
   true.
+
+
+%! candidate:config_learned_domain_allows(+C, +N, +SlotReq, +RepoEntry) is semidet.
+%
+% True when RepoEntry is inside the learned cn_domain for (C,N), or when
+% nothing has been learned. Used while a choice arm is still only a
+% config-time candidate (portage-ng#123).
+
+candidate:config_learned_domain_allows(C, N, SlotReq, Repo://Id) :-
+  cnselect:apply_learned_domain(C, N,
+    [package_dependency(install, no, C, N, none, version_none, SlotReq, [])],
+    version_domain(any, []),
+    Domain),
+  version_domain:domain_allows_candidate(Domain, Repo://Id).
+
+
+%! candidate:config_candidate_blocked(+C, +N, +SlotReq, +RepoEntry) is semidet.
+%
+% True when RepoEntry cannot be the config-time choice: it falls outside
+% a learned cn_domain, or a hard version pin in its metadata has no
+% candidate left inside a learned cn_domain (portage-ng#123). Both read
+% only the learned store, which is part of the dependency-model cache
+% key; the live selected_cn snapshot of other packages is not, so the
+% snapshot-based conflict is left to resolve-time verification
+% (yield_to_selected_compatible_sibling/6).
+
+candidate:config_candidate_blocked(C, N, SlotReq, Repo://Id) :-
+  \+ candidate:config_learned_domain_allows(C, N, SlotReq, Repo://Id),
+  !.
+candidate:config_candidate_blocked(_C, _N, _SlotReq, Repo://Id) :-
+  candidate:entry_conflicts_with_learned(Repo://Id).
 
 
 candidate:any_of_config_deps_all_ok(_Context, []) :- !.
@@ -846,7 +888,157 @@ candidate:grouped_dep_verify_candidate(false, gd(Action, C, N, PackageDeps1, _Sl
   cache:ordered_entry(FoundRepo, Candidate, _, _, CandVer),
   forall(member(package_dependency(_P1,no,C,N,O,V,_,_), PackageDeps1),
          preference:version_match(O, CandVer, V)),
-  cnselect:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps1, Context, FoundRepo://Candidate).
+  cnselect:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageDeps1, Context, FoundRepo://Candidate),
+  % A newer sibling whose own version pin contradicts an already-selected
+  % package yields to one that agrees (portage-ng#123): opam-2.3.0 locks
+  % opam-common-2.3, so opam-installer-2.5.2 (`~opam-common-2.5.2`) must
+  % not be the committed candidate while installer-2.3.0 exists. No yield
+  % when every in-domain sibling disagrees — that conflict belongs to the
+  % selected package (the GHC core-lib case), not to this candidate.
+  \+ candidate:yield_to_selected_compatible_sibling(Action, C, N, PackageDeps1, Context, FoundRepo://Candidate).
+
+
+%! candidate:yield_to_selected_compatible_sibling(+Action, +C, +N, +PackageDeps, +Context, +RepoEntry) is semidet.
+%
+% True when RepoEntry's hard version pins contradict an already-selected
+% package and another candidate admitted by this edge does not
+% (portage-ng#123). The caller fails the candidate so enumeration
+% continues with that sibling.
+
+candidate:yield_to_selected_compatible_sibling(Action, C, N, PackageDeps, Context, Repo://Entry) :-
+  candidate:entry_conflicts_with_selected(Repo://Entry),
+  candidate:selected_compatible_sibling(Action, C, N, PackageDeps, Context, Repo://Entry),
+  !.
+
+
+%! candidate:selected_compatible_sibling(+Action, +C, +N, +PackageDeps, +Context, +RepoEntry) is semidet.
+%
+% Another keyword-accepted candidate of (C,N) that this edge admits and
+% whose own version pins agree with every already-selected package.
+
+candidate:selected_compatible_sibling(Action, C, N, PackageDeps, Context, Repo://Entry) :-
+  cnselect:grouped_dep_effective_domain_precomputed(Action, C, N, PackageDeps, Context, EffDom, RejectDom),
+  slotmeta:merge_slot_restriction(Action, C, N, PackageDeps, SlotReq),
+  acceptance:accepted_keyword_candidate(Action, C, N, SlotReq, _Ss, Context, OtherRepo://Other),
+  OtherRepo://Other \== Repo://Entry,
+  cnselect:grouped_dep_candidate_satisfies_constraints_precomputed(
+      C, N, PackageDeps, EffDom, RejectDom, OtherRepo://Other),
+  \+ candidate:entry_conflicts_with_selected(OtherRepo://Other),
+  !.
+
+
+%! candidate:entry_conflicts_with_selected(+RepoEntry) is semidet.
+%
+% True when a hard version pin in RepoEntry's DEPEND, RDEPEND or BDEPEND
+% excludes every already-selected candidate of that package, or excludes
+% every candidate admitted by a learned cn_domain (portage-ng#123).
+
+candidate:entry_conflicts_with_selected(Repo://Entry) :-
+  candidate:entry_version_pins(Repo://Entry, Pins),
+  member(Pin, Pins),
+  ( candidate:selected_pin_miss(Pin)
+  ; candidate:learned_pin_miss(Pin)
+  ),
+  !.
+
+
+%! candidate:entry_conflicts_with_learned(+RepoEntry) is semidet.
+%
+% The learned-store half of entry_conflicts_with_selected/1: a hard pin
+% that no candidate inside the learned cn_domain satisfies. Used at
+% config time, where the ?{Context}-free choice is memoized per proof
+% and must depend only on inputs that are part of the dependency-model
+% cache key (portage-ng#123, see query.pl "Dependency-model cache key").
+
+candidate:entry_conflicts_with_learned(Repo://Entry) :-
+  candidate:entry_version_pins(Repo://Entry, Pins),
+  member(Pin, Pins),
+  candidate:learned_pin_miss(Pin),
+  !.
+
+
+%! candidate:selected_pin_miss(+Pin) is semidet.
+%
+% True when already-selected candidates of the pin's (C,N) exist in the
+% pin's slot and none of them satisfy the version operator. A pin with an
+% explicit slot only judges the selected candidates of that slot: another
+% slot can be installed side by side (`>=python-3.12:3.12` while
+% python:3.11 is selected is not a conflict).
+
+candidate:selected_pin_miss(pin(C, N, Op, Ver, SlotReq)) :-
+  cnselect:snapshot_selected_cn_candidates(C, N, Selected0),
+  candidate:pin_slot_selected(SlotReq, Selected0, Selected),
+  Selected \== [],
+  \+ ( member(SRepo://SEntry, Selected),
+       query:search(select(version, Op, Ver), SRepo://SEntry)
+     ).
+
+
+%! candidate:pin_slot_selected(+SlotReq, +Selected0, -Selected) is det.
+%
+% Selected candidates that lie in the slot a pin names; every candidate
+% when the pin has no explicit slot.
+
+candidate:pin_slot_selected(SlotReq, Selected0, Selected) :-
+  ( SlotReq = [slot(_)|_] ->
+      findall(RE,
+              ( member(RE, Selected0),
+                slotmeta:query_search_slot_constraint(SlotReq, RE, _)
+              ),
+              Selected)
+  ; Selected = Selected0
+  ).
+
+
+%! candidate:learned_pin_miss(+Pin) is semidet.
+%
+% True when a learned cn_domain for the pin's (C,N) admits no
+% keyword-accepted candidate that also satisfies the pin. The selected
+% snapshot may still be empty: a previous pass learned `ghc < 9.5`, so a
+% package that pins `ghc >= 9.4` has no remaining compiler
+% (portage-ng#123).
+
+candidate:learned_pin_miss(pin(C, N, Op, Ver, SlotReq)) :-
+  prover:learned(cn_domain(C, N, any), Domain),
+  \+ ( acceptance:accepted_keyword_candidate(install, C, N, SlotReq, _Ss, [], Repo://Id),
+       query:search(select(version, Op, Ver), Repo://Id),
+       version_domain:domain_allows_candidate(Domain, Repo://Id)
+     ).
+
+
+%! candidate:entry_version_pins(+RepoEntry, -Pins) is det.
+%
+% The hard (non-optional, non-blocker) version pins declared by the
+% entry. Memoized: the metadata does not change during a proof.
+
+candidate:entry_version_pins(Repo://Entry, Pins) :-
+  ( memo:entry_version_pins_(Repo://Entry, Cached) ->
+      Pins = Cached
+  ; findall(Pin,
+            ( member(Key, [depend, rdepend, bdepend]),
+              cache:entry_metadata(Repo, Entry, Key, Term),
+              candidate:pin_from_dep_term(Term, Pin)
+            ),
+            Pins0),
+    sort(Pins0, Pins),
+    assertz(memo:entry_version_pins_(Repo://Entry, Pins))
+  ).
+
+
+%! candidate:pin_from_dep_term(+Term, -Pin) is nondet.
+%
+% A hard versioned package atom inside Term, as
+% `pin(C, N, Op, Ver, SlotReq)`. Use-conditional groups are not pins: a
+% flag that is off does not constrain the selected package, and one that
+% is on is proved as its own dependency edge.
+
+candidate:pin_from_dep_term(package_dependency(_Phase, no, C, N, Op, Ver, SlotReq, _Use),
+                            pin(C, N, Op, Ver, SlotReq)) :-
+  Op \== none,
+  Ver \== version_none.
+candidate:pin_from_dep_term(all_of_group(Deps), Pin) :-
+  member(Dep, Deps),
+  candidate:pin_from_dep_term(Dep, Pin).
 
 
 %! candidate:grouped_dep_use_and_slot(+GD, +Entry, -Constraints, -SlotMeta, -NewContext) is semidet.

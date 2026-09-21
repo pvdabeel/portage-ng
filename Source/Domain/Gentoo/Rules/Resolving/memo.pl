@@ -72,6 +72,7 @@ heuristic:cleanup_state/0 during reprove retries.
 :- thread_local memo:bwu_force_pending_/3.      % bwu_force_pending_(C, N, ForceEn) -- forces learned this pass, awaiting the end-of-pass batched reprove (#94)
 :- thread_local memo:bwu_eq_origin_/6.          % bwu_eq_origin_(C, N, Flag, Projected, Mode, Consumer) -- which consumer's [F=]/[!F=] edge projected Projected onto provider (C,N) (#121)
 :- thread_local memo:eq_follow_pending_/4.      % eq_follow_pending_(C, N, BWU, provider(PC,PN)) -- consumer-side equality follows learned this pass, awaiting the same batched reprove (#121)
+:- thread_local memo:entry_version_pins_/2.     % entry_version_pins_(Repo://Entry, Pins) -- hard version pins in DEPEND/RDEPEND/BDEPEND (#123)
 :- thread_local memo:dep_model_cache_/5.        % dep_model_cache_(Repo, Id, Phase, Key, Merged) -- dependency-model query results, hazard-encoded key (see query.pl)
 :- thread_local memo:dep_model_choice_cns_/3.   % dep_model_choice_cns_(Repo, Id, CNs) -- static C-N pairs appearing in choice groups of the entry's dep metadata
 
@@ -104,5 +105,6 @@ clear_caches :-
   retractall(memo:candidate_bwu_eq_(_, _, _)),
   retractall(memo:bwu_eq_origin_(_, _, _, _, _, _)),
   retractall(memo:eq_follow_pending_(_, _, _, _)),
+  retractall(memo:entry_version_pins_(_, _)),
   retractall(memo:dep_model_cache_(_, _, _, _, _)),
   retractall(memo:dep_model_choice_cns_(_, _, _)).

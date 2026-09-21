@@ -359,20 +359,34 @@ ghcabi:boot_lib(binary).
 :- dynamic ghcabi:cabal_core_cache_/2.
 
 
-%! ghcabi:version_incompatible_with_selected_ghc(+C, +N, +RepoEntry) is semidet.
+%! ghcabi:version_incompatible_with_selected_ghc(+C, +N, +Domain, +RepoEntry) is semidet.
 %
 % True when RepoEntry declares a non-empty CABAL_CORE_LIB_GHC_PV that does
 % not cover the already-selected GHC, and another (C,N) candidate does
-% cover it. Mirrors haskell-cabal.eclass `cabal-is-dummy-lib`: the matching
-% sibling is the known-good (dummy) install for that GHC; the mismatched
-% older core-lib ebuild would attempt a real Cabal build against incompatible
-% boot libraries (text-1.2.5 vs ghc-9.8 → portage-ng#108/#112).
+% cover it AND is admitted by Domain. Mirrors haskell-cabal.eclass
+% `cabal-is-dummy-lib`: the matching sibling is the known-good (dummy)
+% install for that GHC; the mismatched older core-lib ebuild would attempt
+% a real Cabal build against incompatible boot libraries (text-1.2.5 vs
+% ghc-9.8 → portage-ng#108/#112).
+%
+% The domain guard is the other direction (portage-ng#123). An exact old
+% atom such as `=dev-haskell/adjunctions-4.4` requires `mtl < 2.3`, and the
+% only in-domain mtl is the GHC-9.2 core lib. The GHC-9.8 sibling matches
+% the selected compiler but sits outside that bound, so it is not a real
+% alternative: rejecting the in-domain core lib here made the dep
+% unsatisfiable and left GHC 9.8 locked. Keeping the in-domain lib lets its
+% own `<dev-lang/ghc-9.5` constraint re-select the compiler.
 %
 % Inactive when no GHC is selected yet, or when the entry has no
 % CABAL_CORE_LIB_GHC_PV (regular Haskell packages).
 
-ghcabi:version_incompatible_with_selected_ghc(C, N, Repo://Entry) :-
+ghcabi:version_incompatible_with_selected_ghc(C, N, Domain, Repo://Entry) :-
   ghcabi:selected_ghc_numeric_version(GhcNumeric),
+  % A learned ghc domain from an earlier pass can already have ruled the
+  % selected compiler out (portage-ng#123: ghc < 9.5 while 9.8 is still
+  % the snapshot). Filtering core libs against that stale compiler would
+  % reject the lib that matches the domain's compiler.
+  ghcabi:selected_ghc_inside_learned_domain,
   ghcabi:cabal_core_ghc_pvs(Repo://Entry, PVs),
   PVs \== [],
   \+ ghcabi:cabal_core_matches(PVs, GhcNumeric),
@@ -381,6 +395,7 @@ ghcabi:version_incompatible_with_selected_ghc(C, N, Repo://Entry) :-
   ghcabi:cabal_core_ghc_pvs(OtherRepo://OtherEntry, OtherPVs),
   OtherPVs \== [],
   ghcabi:cabal_core_matches(OtherPVs, GhcNumeric),
+  version_domain:domain_allows_candidate(Domain, OtherRepo://OtherEntry),
   !.
 
 
@@ -392,6 +407,20 @@ ghcabi:selected_ghc_numeric_version(Numeric) :-
   cnselect:snapshot_selected_cn_candidates('dev-lang', ghc, [GhcRepo://GhcEntry|_]),
   cache:ordered_entry(GhcRepo, GhcEntry, _, _, Ver),
   ghcabi:version_numeric_atom(Ver, Numeric),
+  !.
+
+
+%! ghcabi:selected_ghc_inside_learned_domain is semidet.
+%
+% True when no learned ghc domain exists, or the selected GHC is inside
+% it. A selected compiler outside the learned domain is stale.
+
+ghcabi:selected_ghc_inside_learned_domain :-
+  ( prover:learned(cn_domain('dev-lang', ghc, any), Domain) ->
+      cnselect:snapshot_selected_cn_candidates('dev-lang', ghc, [Repo://Entry|_]),
+      version_domain:domain_allows_candidate(Domain, Repo://Entry)
+  ; true
+  ),
   !.
 
 
