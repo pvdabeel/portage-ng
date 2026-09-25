@@ -177,12 +177,15 @@ grapher:write_graph_files(Directory,Repository) :-
 %! grapher:copy_graph_assets(+Directory) is det.
 %
 % Copies static assets into the repository graph Directory. Sources
-% are resolved via config:graph_asset_source/2. 404.html, robots.txt
-% and the sitemap set are generated separately by sitefiles:write_site_files/2.
+% are resolved via config:graph_asset_source/2. favicon.svg is the
+% portage-ng.ai mark so the published graph origin can serve it.
+% 404.html, robots.txt and the sitemap set are generated separately by
+% sitefiles:write_site_files/2.
 
 grapher:copy_graph_assets(Directory) :-
   grapher:copy_graph_asset(portage_ng_css, '.portage-ng.css', Directory),
   grapher:copy_graph_asset(meslo_ttf, '.meslo.ttf', Directory),
+  grapher:copy_graph_asset(favicon_svg, 'favicon.svg', Directory),
   !.
 
 

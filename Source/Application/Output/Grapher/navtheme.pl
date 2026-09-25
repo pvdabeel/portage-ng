@@ -33,6 +33,19 @@ navtheme:emit_css_link(Prefix) :-
     format('<link rel="stylesheet" href="~w.portage-ng.css">~n', [Prefix]).
 
 
+
+%! navtheme:emit_favicon_link(+Prefix) is det.
+%
+% Emit the icon link for favicon.svg, copied into the graph root by
+% grapher:copy_graph_assets/1. Prefix is the same relative path used
+% for the stylesheet, so a page at any depth resolves the graph-root
+% file (the portage-ng.ai mark).
+
+navtheme:emit_favicon_link(Prefix) :-
+    format('<link rel="icon" type="image/svg+xml" href="~wfavicon.svg">~n', [Prefix]).
+
+
+
 % -----------------------------------------------------------------------------
 %  HTML: document scaffolding
 % -----------------------------------------------------------------------------
@@ -48,7 +61,7 @@ navtheme:emit_doctype :-
 %! navtheme:emit_head_open(+Title, +Prefix) is det.
 %
 % Emit the opening <html>/<head> elements: light-theme default, FOUC +
-% embed script, title, and the shared CSS link at Prefix.
+% embed script, title, the favicon, and the shared CSS link at Prefix.
 
 navtheme:emit_head_open(Title, Prefix) :-
     write('<html lang="en" data-theme="light">'), nl,
@@ -57,6 +70,7 @@ navtheme:emit_head_open(Title, Prefix) :-
     write('<meta name="viewport" content="width=device-width, initial-scale=1.0">'), nl,
     write('<script>try{if(window.parent!==window)document.documentElement.classList.add("embedded");if(localStorage.getItem("png-theme")==="dark")document.documentElement.removeAttribute("data-theme")}catch(e){}</script>'), nl,
     format('<title>~w</title>~n', [Title]),
+    navtheme:emit_favicon_link(Prefix),
     navtheme:emit_css_link(Prefix).
 
 

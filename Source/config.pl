@@ -867,6 +867,7 @@ config:print_blockers(gentoo).
 % - .portage-ng.css (shared CSS for all HTML graph pages)
 % - .proof.css   (used by Scripts/*/print-aha to render proof output)
 % - .meslo.ttf   (font used by proof rendering)
+% - favicon.svg  (portage-ng.ai mark, linked from every graph page)
 %
 % Sources are configurable here (defaults are in Documentation/Assets/Graph/).
 
@@ -886,6 +887,10 @@ config:graph_asset_source(proof_css, Source) :-
 config:graph_asset_source(meslo_ttf, Source) :-
   config:installation_dir(Dir),
   os:compose_path([Dir,'Documentation/Assets/Graph/Fonts/meslo.ttf'], Source).
+
+config:graph_asset_source(favicon_svg, Source) :-
+  config:installation_dir(Dir),
+  os:compose_path([Dir,'Documentation/Images/icon.svg'], Source).
 
 
 % -----------------------------------------------------------------------------

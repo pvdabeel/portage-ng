@@ -109,6 +109,7 @@ sitefiles:emit_404 :-
     write('<script>try{if(localStorage.getItem("png-theme")==="dark")document.documentElement.removeAttribute("data-theme")}catch(e){}</script>'), nl,
     write('<base href="/">'), nl,
     write('<title>404 — portage-ng</title>'), nl,
+    write('<link rel="icon" type="image/svg+xml" href="favicon.svg">'), nl,
     write('<link rel="stylesheet" href=".portage-ng.css">'), nl,
     write('</head>'), nl,
     write('<body class="page-404">'), nl,
