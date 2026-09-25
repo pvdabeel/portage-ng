@@ -273,8 +273,10 @@ Targets identify which packages to operate on. Several formats are supported:
 
 Package sets expand to concrete target atoms before proving. File-backed
 sets (`@world`, `@system`, and files under the sets directory) come from
-preference configuration. **Computed sets** are derived on demand from the
-VDB and/or portage tree via `sets:expand/2`
+preference configuration. A set file or the world file may list another
+`@name`; those nested references are expanded in place (a cycle, or an
+unknown `@name` reached from inside a set, is an error). **Computed sets**
+are derived on demand from the VDB and/or portage tree via `sets:expand/2`
 (`Source/Domain/Gentoo/Preference/sets.pl`). Use `--list-sets` to see every
 name registered on the current host.
 

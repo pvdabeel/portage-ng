@@ -201,9 +201,12 @@ Targets can be specified in several formats:
 
 `@name` targets expand to concrete atoms via `eapi:substitute_sets/2`
 before proving. File-backed sets (`@world`, `@system`, user sets under
-`config:set_dir/1`) come from preference configuration. **Computed sets**
-are registered in `Source/Domain/Gentoo/Preference/sets.pl` and resolved
-on demand by `sets:expand/2`.
+`config:set_dir/1`) come from preference configuration. A set file (or
+the world file) may contain another `@name`; those nested references
+are expanded in place. A cycle, or an `@name` that is not a configured
+set, is a hard error when reached from inside another set. **Computed
+sets** are registered in `Source/Domain/Gentoo/Preference/sets.pl` and
+resolved on demand by `sets:expand/2`.
 
 ```bash
 portage-ng --mode standalone --list-sets

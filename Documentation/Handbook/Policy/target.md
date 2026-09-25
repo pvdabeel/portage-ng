@@ -23,7 +23,9 @@ selection. Sets expand before resolution.
 - `:uninstall` may unregister unless `--oneshot`.
 - Set atoms (`@world`, `@security`, `@preserved-rebuild`, `@changed-deps`,
   …) expand to ordinary package atoms before target rules run
-  (`sets:expand/2` for computed sets).
+  (`sets:expand/2` for computed sets). File-backed / world members that
+  are themselves `@name` references are expanded recursively (cycle or
+  unknown name from inside a set is a hard error).
 
 **Examples:** [test01](examples.md#test01), [test71](examples.md#test71),
 [test78](examples.md#test78).  

@@ -60,7 +60,9 @@ tree:
 
 The expansion entry point is `sets:expand/2`; `eapi:substitute_sets/2`
 recognises the names enumerated by `sets:is_computed_set/1` and replaces an
-`@<name>` reference with the resolved target atoms.
+`@<name>` reference with the resolved target atoms. File-backed and world
+members that are themselves `@name` references are expanded recursively
+(cycle or unknown name reached from inside a set is a hard error).
 */
 
 :- module(sets, []).

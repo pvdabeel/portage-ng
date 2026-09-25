@@ -842,19 +842,60 @@ download:git_repo_cache_path(GitCacheDir, URI, RepoPath) :-
 %! download:start_git_clone_async(+URI, +RepoPath, +LogPath, -Pid) is det.
 %
 % Starts a git clone --bare (or fetch if already cloned) without blocking.
-% Progress output is appended to LogPath for polling.
+% Progress output is appended to LogPath for polling. The URI is refused
+% when git would read it as an option, and passed after `--` on clone.
 
 download:start_git_clone_async(URI, RepoPath, LogPath, Pid) :-
+  download:require_git_uri_safe(URI),
   open(LogPath, append, LogStream),
   download:git_spawn_opts(Out, Err, Pid, Opts),
   download:git_no_cred_args(NoCred),
   ( exists_directory(RepoPath)
   -> append(NoCred, ['-C', RepoPath, 'fetch', '--progress', '--all'], Args)
-  ;  append(NoCred, ['clone', '--bare', '--progress', URI, RepoPath], Args)
+  ;  append(NoCred, ['clone', '--bare', '--progress', '--', URI, RepoPath], Args)
   ),
   process_create(path(git), Args, Opts),
   thread_create(
     download:pipe_to_log(Out, Err, LogStream), _, [detached(true)]).
+
+
+%! download:git_uri_safe(+URI) is semidet.
+%
+% True when URI would not be read as a git option. The `git+` prefix
+% is stripped first so `git+--upload-pack=x` is rejected the same way
+% as `--upload-pack=x` (pkgcore 9c6ae8d).
+
+download:git_uri_safe(URI) :-
+  ( atom(URI)
+  -> atom_string(URI, S)
+  ;  string(URI)
+  -> S = URI
+  ),
+  download:git_uri_effective_(S, Effective),
+  \+ sub_string(Effective, 0, 1, _, "-").
+
+
+%! download:git_uri_effective_(+URI, -Effective) is det.
+%
+% Strip a leading `git+` transport prefix, if present.
+
+download:git_uri_effective_(S, Effective) :-
+  ( sub_string(S, 0, 4, _, "git+")
+  -> sub_string(S, 4, _, 0, Effective)
+  ;  Effective = S
+  ).
+
+
+%! download:require_git_uri_safe(+URI) is semidet.
+%
+% Fail (after a user-visible message) when URI is a git option.
+
+download:require_git_uri_safe(URI) :-
+  ( download:git_uri_safe(URI)
+  -> true
+  ;  message:failure(['Refusing git URI that git would read as an option: ', URI]),
+     fail
+  ).
 
 
 %! download:git_no_cred_args(-Args) is det.

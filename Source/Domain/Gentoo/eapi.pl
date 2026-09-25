@@ -2291,9 +2291,14 @@ eapi:version2numberlist(NumberAtom, NumberList) :-
 % apply package moves (profiles/updates renames) to the resulting
 % target atoms so old names in the world file, named sets or CLI
 % arguments resolve against the current tree.
+%
+% File-backed and world members that are themselves `@name` references
+% are expanded (Portage-compatible nested sets). A cycle, or an
+% unknown `@name` reached from inside another set, is a hard error.
+% An unknown `@name` typed on the CLI is left as a query token.
 
 eapi:substitute_sets(Query,Result) :-
-  eapi:substitute_sets_(Query,Result0),
+  eapi:substitute_sets_(Query,[],Result0),
   maplist(eapi:apply_pkgmove_target,Result0,Result).
 
 
@@ -2313,61 +2318,136 @@ eapi:apply_pkgmove_target(Atom0,Atom) :-
   ).
 
 
-%! eapi:substitute_sets_(Query,Result)
+%! eapi:substitute_sets_(+Query, +Seen, -Result)
 %
 % Worker behind eapi:substitute_sets/2 (set expansion only, no package
-% move translation).
+% move translation). Seen is the stack of set refs currently being
+% expanded (`world`, `system`, or `@name`). Members of an expanded set
+% are prepended onto the remaining query so nested `@name` lines are
+% walked (pkgcore issue 280).
 
-eapi:substitute_sets_([],[]) :- !.
+eapi:substitute_sets_([],_,[]) :- !.
 
-eapi:substitute_sets_([world|Tail],Result) :-
+eapi:substitute_sets_([Item|Tail],Seen,Result) :-
+  string(Item),
   !,
-  ( pengine_self(M) ->
-      findall(E, M:local_world_entry(E), WorldTargets)
-  ; findall(E, ( preference:world_entry(E) ; world::entry(E) ), WorldTargets0),
-    sort(WorldTargets0, WorldTargets)
-  ),
-  findall(Cat/Name, preference:system_pkg(Cat, Name), SystemPairs),
-  maplist([C/N, T]>>(atomic_list_concat([C, '/', N], T)), SystemPairs, SystemTargets0),
-  sort(SystemTargets0, SystemTargets),
-  append(WorldTargets, SystemTargets, Combined0),
-  sort(Combined0, Combined),
-  append(Combined,NewResult,Result),
-  eapi:substitute_sets_(Tail,NewResult).
+  atom_string(Atom,Item),
+  eapi:substitute_sets_([Atom|Tail],Seen,Result).
 
-eapi:substitute_sets_([system|Tail],Result) :-
+eapi:substitute_sets_([world|Tail],Seen,Result) :-
   !,
-  findall(Cat/Name, preference:system_pkg(Cat, Name), SystemPairs),
-  maplist([C/N, T]>>(atomic_list_concat([C, '/', N], T)), SystemPairs, Targets0),
-  sort(Targets0, Targets),
-  append(Targets,NewResult,Result),
-  eapi:substitute_sets_(Tail,NewResult).
+  eapi:guard_set_cycle_(world,Seen),
+  eapi:world_set_members_(Combined),
+  append(Combined,Tail,Next),
+  eapi:substitute_sets_(Next,[world|Seen],Result).
 
-eapi:substitute_sets_([Atom|Tail],Result) :-
+eapi:substitute_sets_([system|Tail],Seen,Result) :-
+  !,
+  eapi:guard_set_cycle_(system,Seen),
+  eapi:system_set_members_(Targets),
+  append(Targets,Tail,Next),
+  eapi:substitute_sets_(Next,[system|Seen],Result).
+
+eapi:substitute_sets_([Atom|Tail],Seen,Result) :-
   atom(Atom),
   atom_concat('@',Set,Atom),
   memberchk(Set,[world,system]),
   !,
-  eapi:substitute_sets_([Set|Tail],Result).
+  eapi:substitute_sets_([Set|Tail],Seen,Result).
 
-eapi:substitute_sets_([Atom|Tail],Result) :-
+eapi:substitute_sets_([Atom|Tail],Seen,Result) :-
   atom(Atom),
   atom_concat('@',Name,Atom),
   current_predicate(sets:is_computed_set/1),
   sets:is_computed_set(Name),
   !,
+  eapi:guard_set_cycle_(Atom,Seen),
   sets:expand(Name,Targets),
-  append(Targets,NewResult,Result),
-  eapi:substitute_sets_(Tail,NewResult).
+  append(Targets,Tail,Next),
+  eapi:substitute_sets_(Next,[Atom|Seen],Result).
 
-eapi:substitute_sets_([Set|Tail],Result) :-
-  preference:set(Set,Targets),!,
-  append(Targets,NewResult,Result),
-  eapi:substitute_sets_(Tail,NewResult).
-
-eapi:substitute_sets_([Query|Tail],[Query|Rest]) :-
+eapi:substitute_sets_([Set|Tail],Seen,Result) :-
+  preference:set(Set,Targets),
   !,
-  eapi:substitute_sets_(Tail,Rest).
+  eapi:guard_set_cycle_(Set,Seen),
+  append(Targets,Tail,Next),
+  eapi:substitute_sets_(Next,[Set|Seen],Result).
+
+eapi:substitute_sets_([Atom|_Tail], Seen, _Result) :-
+  atom(Atom),
+  eapi:looks_like_set_ref_(Atom),
+  Seen \== [],
+  !,
+  eapi:set_expand_fail_(unknown, Atom, Seen).
+
+eapi:substitute_sets_([Query|Tail],Seen,[Query|Rest]) :-
+  !,
+  eapi:substitute_sets_(Tail,Seen,Rest).
+
+
+%! eapi:world_set_members_(-Members) is det.
+%
+% Package atoms recorded in the world file plus the profile @system
+% set, sorted uniquely. Members that are themselves `@name` references
+% are left intact for the recursive walker.
+
+eapi:world_set_members_(Combined) :-
+  ( pengine_self(M) ->
+      findall(E, M:local_world_entry(E), WorldTargets)
+  ; findall(E, ( preference:world_entry(E) ; world::entry(E) ), WorldTargets0),
+    sort(WorldTargets0, WorldTargets)
+  ),
+  eapi:system_set_members_(SystemTargets),
+  append(WorldTargets, SystemTargets, Combined0),
+  sort(Combined0, Combined).
+
+
+%! eapi:system_set_members_(-Targets) is det.
+%
+% Profile @system packages as `cat/name` atoms, sorted uniquely.
+
+eapi:system_set_members_(Targets) :-
+  findall(Cat/Name, preference:system_pkg(Cat, Name), SystemPairs),
+  maplist([C/N, T]>>(atomic_list_concat([C, '/', N], T)), SystemPairs, Targets0),
+  sort(Targets0, Targets).
+
+
+%! eapi:looks_like_set_ref_(+Atom) is semidet.
+%
+% True when Atom is a non-empty `@name` set reference.
+
+eapi:looks_like_set_ref_(Atom) :-
+  atom(Atom),
+  atom_concat('@', Name, Atom),
+  Name \== ''.
+
+
+%! eapi:guard_set_cycle_(+Ref, +Seen) is det.
+%
+% Fails with a user-visible message when Ref is already on the
+% expansion stack.
+
+eapi:guard_set_cycle_(Ref, Seen) :-
+  ( memberchk(Ref, Seen)
+  -> eapi:set_expand_fail_(cycle, Ref, Seen)
+  ;  true
+  ).
+
+
+%! eapi:set_expand_fail_(+Why, +Ref, +Seen) is failure.
+%
+% Report a nested-set expansion error and fail. Why is `cycle` or
+% `unknown`. `message:failure/1` itself fails, so `ignore/1` keeps the
+% printed line without depending on that.
+
+eapi:set_expand_fail_(cycle, Ref, Seen) :-
+  atomic_list_concat(Seen, ', ', Via),
+  ignore(message:failure(['Set cycle: ', Ref, ' (via ', Via, ')'])),
+  fail.
+eapi:set_expand_fail_(unknown, Ref, Seen) :-
+  atomic_list_concat(Seen, ', ', Via),
+  ignore(message:failure(['Unknown set ', Ref, ' referenced from ', Via])),
+  fail.
 
 
 % -----------------------------------------------------------------------------

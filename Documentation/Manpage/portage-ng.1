@@ -991,6 +991,12 @@ File\-backed sets (
 .BR @system ,
 and files under the sets directory) come from preference
 configuration.
+A set file or the world file may list another
+.BR @name ;
+those nested references are expanded in place (a cycle, or an
+unknown
+.B @name
+reached from inside a set, is an error).
 .B Computed sets
 are derived on demand from the VDB and/or portage tree via
 .BR sets:expand/2

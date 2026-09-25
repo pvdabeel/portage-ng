@@ -55,8 +55,18 @@ sync_lock_acquire() {
 
 sync_lock_acquire "${2}"
 
-if [ -d "${2}" ]; then 
+# Reject a remote that git would read as an option (pkgcore 9c6ae8d).
+# The git+ prefix is stripped first so git+--upload-pack=x is caught.
+effective="${1#git+}"
+case "${effective}" in
+  -*)
+    echo "portage-ng: refusing git remote that git would read as an option: ${1}" >&2
+    exit 64
+    ;;
+esac
+
+if [ -d "${2}" ]; then
   git -C "${2}" pull --no-rebase --progress
 else
-  git -C "`dirname \"${2}\"`" clone --depth 1 --progress "${1}" "${2}"
+  git -C "`dirname \"${2}\"`" clone --depth 1 --progress -- "${1}" "${2}"
 fi

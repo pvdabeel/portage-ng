@@ -11,7 +11,8 @@
 Unit tests for the builder (Source/Pipeline/builder.pl and Source/Domain/Gentoo/Ebuild/).
 
 The base USE state handed to ebuild (portage-ng#22), linkable-object
-detection and the VDB reconciliation backstop.
+detection, the VDB reconciliation backstop, and git URI option-injection
+rejection (download:git_uri_safe/1).
 */
 
 :- module(buildertest, []).
@@ -358,3 +359,33 @@ test(helper_clears_sigint_mask) :-
   assertion(Status == exit(0)).
 
 :- end_tests(ebuild_exec_unblocked).
+
+
+% -----------------------------------------------------------------------------
+%  Git URI option-injection reject (pkgcore 9c6ae8d)
+% -----------------------------------------------------------------------------
+
+:- begin_tests(download_git_uri_safe).
+
+test(https_ok) :-
+  download:git_uri_safe('https://git.example/repo.git').
+
+test(git_scheme_ok) :-
+  download:git_uri_safe('git://git.example/repo.git').
+
+test(git_plus_https_ok) :-
+  download:git_uri_safe('git+https://git.example/repo.git').
+
+test(git_plus_ssh_ok) :-
+  download:git_uri_safe('git+ssh://git.example/repo.git').
+
+test(leading_dash_rejected, [fail]) :-
+  download:git_uri_safe('--upload-pack=evil').
+
+test(git_plus_dash_rejected, [fail]) :-
+  download:git_uri_safe('git+--upload-pack=evil').
+
+test(require_unsafe_fails, [fail]) :-
+  download:require_git_uri_safe('--upload-pack=evil').
+
+:- end_tests(download_git_uri_safe).

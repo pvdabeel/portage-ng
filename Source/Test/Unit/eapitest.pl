@@ -13,8 +13,9 @@ Unit tests for the EAPI grammar (Source/Domain/Gentoo/eapi.pl).
 Version parsing and PMS comparison, operators, blockers, keywords,
 slots, IUSE, package and category names, dependency trees, key=value
 metadata, Manifest and SRC_URI lines, REQUIRED_USE, LICENSE, bracketed
-USE dependencies, VDB slot lines and metadata normalization. Pure
-grammar: no knowledge base is needed.
+USE dependencies, VDB slot lines, metadata normalization, and nested
+`@set` expansion. Grammar tests need no knowledge base; set-expansion
+tests assert temporary `preference:local_set/2` facts.
 */
 
 :- module(eapitest, []).
@@ -834,3 +835,101 @@ test(non_slot_passthrough, [true(I == depend(foo))]) :-
   eapi:normalize_entry_metadata(depend, depend(foo), I).
 
 :- end_tests(eapi_normalize_metadata).
+
+
+% -----------------------------------------------------------------------------
+%  Nested @set expansion (pkgcore issue 280)
+% -----------------------------------------------------------------------------
+
+:- begin_tests(eapi_nested_sets).
+
+test(expands_nested_file_set,
+     [setup(eapitest:install_sets_(outer_inner)),
+      cleanup(eapitest:uninstall_sets_(outer_inner))]) :-
+  eapi:substitute_sets(['@eapi_test_outer'], Result),
+  Result == ['testcat/inner', 'testcat/outer'].
+
+test(expands_three_levels,
+     [setup(eapitest:install_sets_(three_deep)),
+      cleanup(eapitest:uninstall_sets_(three_deep))]) :-
+  eapi:substitute_sets(['@eapi_test_a'], Result),
+  Result == ['testcat/c', 'testcat/b', 'testcat/a'].
+
+test(cycle_fails,
+     [setup(eapitest:install_sets_(cycle_ab)),
+      cleanup(eapitest:uninstall_sets_(cycle_ab)),
+      fail]) :-
+  eapi:substitute_sets(['@eapi_test_a'], _).
+
+test(self_cycle_fails,
+     [setup(eapitest:install_sets_(self_cycle)),
+      cleanup(eapitest:uninstall_sets_(self_cycle)),
+      fail]) :-
+  eapi:substitute_sets(['@eapi_test_self'], _).
+
+test(unknown_nested_fails,
+     [setup(eapitest:install_sets_(unknown_nested)),
+      cleanup(eapitest:uninstall_sets_(unknown_nested)),
+      fail]) :-
+  eapi:substitute_sets(['@eapi_test_bad'], _).
+
+test(unknown_cli_passthrough) :-
+  eapi:substitute_sets(['@eapi_test_unknown_cli'], Result),
+  Result == ['@eapi_test_unknown_cli'].
+
+test(plain_atom_passthrough) :-
+  eapi:substitute_sets(['testcat/pkg'], Result),
+  Result == ['testcat/pkg'].
+
+test(string_member_coerced,
+     [setup(eapitest:install_sets_(string_member)),
+      cleanup(eapitest:uninstall_sets_(string_member))]) :-
+  eapi:substitute_sets(['@eapi_test_str'], Result),
+  Result == ['testcat/from-string'].
+
+:- end_tests(eapi_nested_sets).
+
+
+%! eapitest:set_pairs_(+Id, -Pairs) is det.
+%
+% Named `preference:local_set/2` fixtures for nested-set tests.
+
+eapitest:set_pairs_(outer_inner,
+  ['@eapi_test_outer'-['@eapi_test_inner', 'testcat/outer'],
+   '@eapi_test_inner'-['testcat/inner']]).
+eapitest:set_pairs_(three_deep,
+  ['@eapi_test_a'-['@eapi_test_b', 'testcat/a'],
+   '@eapi_test_b'-['@eapi_test_c', 'testcat/b'],
+   '@eapi_test_c'-['testcat/c']]).
+eapitest:set_pairs_(cycle_ab,
+  ['@eapi_test_a'-['@eapi_test_b'],
+   '@eapi_test_b'-['@eapi_test_a']]).
+eapitest:set_pairs_(self_cycle,
+  ['@eapi_test_self'-['@eapi_test_self', 'testcat/x']]).
+eapitest:set_pairs_(unknown_nested,
+  ['@eapi_test_bad'-['@eapi_test_missing', 'testcat/x']]).
+eapitest:set_pairs_(string_member,
+  ['@eapi_test_str'-["@eapi_test_inner"],
+   '@eapi_test_inner'-['testcat/from-string']]).
+
+
+%! eapitest:install_sets_(+Id) is det.
+%! eapitest:uninstall_sets_(+Id) is det.
+%
+% Assert or retract the fixture identified by Id.
+
+eapitest:install_sets_(Id) :-
+  eapitest:set_pairs_(Id, Pairs),
+  eapitest:uninstall_set_pairs_(Pairs),
+  forall(member(Name-Entries, Pairs),
+         assertz(preference:local_set(Name, Entries))).
+
+
+eapitest:uninstall_sets_(Id) :-
+  eapitest:set_pairs_(Id, Pairs),
+  eapitest:uninstall_set_pairs_(Pairs).
+
+
+eapitest:uninstall_set_pairs_(Pairs) :-
+  forall(member(Name-_, Pairs),
+         retractall(preference:local_set(Name, _))).
