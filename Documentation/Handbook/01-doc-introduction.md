@@ -1020,3 +1020,6 @@ Gentoo tree.
   detail
 - [Chapter 23: Resolver Comparison](23-doc-resolver-comparison.md) — deep dive
   into how portage-ng compares with Portage, Paludis, and pkgcore
+- [Chapter 29: Position in the Solver Literature](29-doc-academic-position.md)
+  — where the prover sits among feature logic, ordered logic,
+  answer-set solvers and the package solvers that followed them

@@ -40,8 +40,9 @@ The book traced this idea from concept to implementation:
   programming, feature unification, and the comparison with other
   resolvers — showing how portage-ng's approach relates to Portage's
   progressive relaxation, pkgcore's frame-stack backtracking,
-  Paludis's constraint accumulation, and academic work on feature
-  logic and ordered logic programs.
+  Paludis's constraint accumulation, and the solver literature from
+  feature logic and ordered logic through answer-set solving to the
+  package solvers that followed.
 
 - **Part V** described the practical side of development: testing
   strategies, performance profiling, and contribution guidelines.

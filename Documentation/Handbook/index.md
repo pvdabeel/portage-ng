@@ -43,6 +43,7 @@ software configuration, applied to Gentoo Linux.
 22. [Context Terms and Feature Unification](22-doc-context-terms.md)
 23. [Resolver Comparison](23-doc-resolver-comparison.md)
 24. [Dependency Ordering](24-doc-dependency-ordering.md)
+29. [Position in the Solver Literature](29-doc-academic-position.md)
 
 ## Part V — Development
 
