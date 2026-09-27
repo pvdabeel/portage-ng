@@ -231,8 +231,8 @@ Do not create ad-hoc compare scripts outside these two locations.
 
 ## Further reading
 
-- [Chapter 25: Testing and Regression](25-doc-testing.md) — testing methodology
-- [Chapter 26: Performance and Profiling](26-doc-performance.md) — performance
+- [Chapter 26: Testing and Regression](26-doc-testing.md) — testing methodology
+- [Chapter 27: Performance and Profiling](27-doc-performance.md) — performance
   testing
 - [Chapter 2: Installation and Quick Start](02-doc-installation.md) — build
   and run instructions

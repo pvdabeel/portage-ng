@@ -274,7 +274,7 @@ make test            # PLUnit tests
 make test-overlay    # Overlay regression tests (80 scenarios)
 ```
 
-See [Chapter 25: Testing and Regression](25-doc-testing.md) for details.
+See [Chapter 26: Testing and Regression](26-doc-testing.md) for details.
 
 
 ## Further reading

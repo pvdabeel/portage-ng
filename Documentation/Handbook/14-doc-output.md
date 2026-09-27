@@ -156,7 +156,7 @@ are stored in the graph directory configured by
   `.emerge` files (the corresponding `emerge -vp` output for the same
   target), the compare tooling can detect regressions in dependency
   resolution accuracy.  See
-  [Chapter 25](25-doc-testing.md) for the comparison workflow.
+  [Chapter 26](26-doc-testing.md) for the comparison workflow.
 - **Offline review** — the files provide a persistent record of what
   portage-ng would do for each target, without needing to rerun the
   resolver.
@@ -290,5 +290,5 @@ The printer pipeline is split across focused submodules:
   `--verbose`, `--quiet`, and other output flags
 - [Chapter 16: Building and Execution](16-doc-building.md) — how the
   plan is executed
-- [Chapter 25: Testing and Regression](25-doc-testing.md) — how
+- [Chapter 26: Testing and Regression](26-doc-testing.md) — how
   `.merge` files are used for regression testing

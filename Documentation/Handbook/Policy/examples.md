@@ -6,7 +6,7 @@ regression matrix — for all 80 cases see
 [Documentation/Tests/README.md](../../Tests/README.md).
 
 Run a single scenario after loading the overlay (see
-[Chapter 25](../25-doc-testing.md)):
+[Chapter 26](../26-doc-testing.md)):
 
 ```bash
 make test-overlay

@@ -253,8 +253,8 @@ mechanics used above.
 The notes below name the results that the mechanisms cite.  How those
 lines relate to each other, to smodels, clasp, DLV, the Glasgow
 solvers and the current package solvers, and what portage-ng takes
-from each, is [Chapter 29: Position in the Solver
-Literature](29-doc-academic-position.md).
+from each, is [Chapter 25: Position in the Solver
+Literature](25-doc-academic-position.md).
 
 ### Zeller & Snelting: Feature Logic (ESEC 1995, TOSEM 1997)
 

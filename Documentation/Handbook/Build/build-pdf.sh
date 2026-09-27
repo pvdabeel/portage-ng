@@ -48,9 +48,10 @@ pandoc \
   22-doc-context-terms.md \
   23-doc-resolver-comparison.md \
   24-doc-dependency-ordering.md \
-  25-doc-testing.md \
-  26-doc-performance.md \
-  27-doc-contributing.md \
-  28-doc-closing.md
+  25-doc-academic-position.md \
+  26-doc-testing.md \
+  27-doc-performance.md \
+  28-doc-contributing.md \
+  29-doc-closing.md
 
 echo "Built $OUTFILE ($(wc -c < "$OUTFILE" | tr -d ' ') bytes)"

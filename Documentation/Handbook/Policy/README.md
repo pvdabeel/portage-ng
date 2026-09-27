@@ -49,4 +49,4 @@ feel stale.
 - [Full overlay matrix](../../Tests/README.md) — all 80 scenarios
 - [Chapter 12: Resolution](../12-doc-resolution.md) — end-to-end resolution story
 - [Chapter 9: Assumptions](../09-doc-prover-assumptions.md) — fallback / learning
-- [Chapter 25: Testing](../25-doc-testing.md) — how to run the suite
+- [Chapter 26: Testing](../26-doc-testing.md) — how to run the suite

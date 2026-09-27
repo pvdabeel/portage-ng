@@ -1,7 +1,7 @@
 # Building the handbook
 
 The portage-ng handbook is written as individual Markdown chapters
-(`01-doc-introduction.md` through `28-doc-closing.md`) and compiled into
+(`01-doc-introduction.md` through `29-doc-closing.md`) and compiled into
 a single PDF using **Pandoc** with the **Typst** PDF engine.
 
 ## Prerequisites

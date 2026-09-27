@@ -43,14 +43,14 @@ software configuration, applied to Gentoo Linux.
 22. [Context Terms and Feature Unification](22-doc-context-terms.md)
 23. [Resolver Comparison](23-doc-resolver-comparison.md)
 24. [Dependency Ordering](24-doc-dependency-ordering.md)
-29. [Position in the Solver Literature](29-doc-academic-position.md)
+25. [Position in the Solver Literature](25-doc-academic-position.md)
 
 ## Part V — Development
 
-25. [Testing and Regression](25-doc-testing.md)
-26. [Performance and Profiling](26-doc-performance.md)
-27. [Contributing](27-doc-contributing.md)
+26. [Testing and Regression](26-doc-testing.md)
+27. [Performance and Profiling](27-doc-performance.md)
+28. [Contributing](28-doc-contributing.md)
 
 ## Closing
 
-28. [Closing Thoughts](28-doc-closing.md)
+29. [Closing Thoughts](29-doc-closing.md)
