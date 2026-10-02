@@ -24,6 +24,8 @@ wave start = previous wave finish).
 :- dynamic gantt:cn_index_ready/0.
 :- dynamic gantt:dir_bytes_cache/2.
 
+:- mutex_create(gantt_cn_index).
+
 % =============================================================================
 %  GANTT declarations
 % =============================================================================
@@ -479,12 +481,29 @@ gantt:prepare_durations :-
 
 %! gantt:ensure_cn_index is det.
 %
-% Build a Cat/Name → Entry index over phase_stats once per session so
+% Build a Cat/Name → Entry index over phase_stats once per process so
 % same-C/N fallback does not rescan every `phase_seconds/3` fact.
+% Loads the table first. The ready flag is asserted only after every
+% `cn_entry` fact exists, while `gantt_cn_index` is held, so a
+% concurrent `--graph` worker cannot freeze an empty index.
 
 gantt:ensure_cn_index :-
+    ebuild_exec:load_phase_stats,
     gantt:cn_index_ready, !.
 gantt:ensure_cn_index :-
+    with_mutex(gantt_cn_index,
+        (   gantt:cn_index_ready
+        ->  true
+        ;   gantt:build_cn_index
+        )).
+
+
+%! gantt:build_cn_index is det.
+%
+% Replace the Cat/Name index from the phase_stats facts already loaded.
+% Caller holds `gantt_cn_index`.
+
+gantt:build_cn_index :-
     retractall(gantt:cn_entry(_, _, _)),
     findall(E, ebuild_exec:phase_seconds(E, _, _), Es0),
     sort(Es0, Es),

@@ -30,6 +30,7 @@ merge/VDB code.
 :- dynamic ebuild_exec:resuming/0.
 
 :- mutex_create(portage_pkg_merge).
+:- mutex_create(phase_stats_io).
 
 
 % =============================================================================
@@ -159,24 +160,50 @@ ebuild_exec:phase_stats_file(Path) :-
 
 %! ebuild_exec:load_phase_stats is det.
 %
-% Loads historical phase log byte counts from disk (once per session).
+% Load Knowledge/phase_stats.pl once per process. The loaded flag is
+% asserted only after the file has been read, and the read holds
+% `phase_stats_io`, so a concurrent caller waits for that read or
+% observes a complete table. `--graph full` runs one worker per CPU;
+% publishing the flag first let those workers index an empty table.
 
 ebuild_exec:load_phase_stats :-
   ebuild_exec:phase_stats_loaded, !.
-
 ebuild_exec:load_phase_stats :-
   with_mutex(phase_stats_io,
     ( ebuild_exec:phase_stats_loaded -> true
-    ;  assertz(ebuild_exec:phase_stats_loaded),
-       ebuild_exec:phase_stats_file(Path),
-       ( exists_file(Path)
-       -> setup_call_cleanup(
-            open(Path, read, S),
-            ebuild_exec:read_phase_stats(S),
-            close(S))
-       ;  true
-       )
+    ;  ebuild_exec:load_phase_stats_file,
+       assertz(ebuild_exec:phase_stats_loaded)
     )).
+
+
+%! ebuild_exec:load_phase_stats_file is det.
+%
+% Read the on-disk phase stats into the dynamic store. A missing file
+% is a completed empty load. A failed read drops the facts it already
+% asserted so the next attempt does not duplicate them.
+
+ebuild_exec:load_phase_stats_file :-
+  ebuild_exec:phase_stats_file(Path),
+  ( exists_file(Path)
+  -> catch(ebuild_exec:read_phase_stats_file(Path),
+           E,
+           ( retractall(ebuild_exec:phase_bytes(_, _, _)),
+             retractall(ebuild_exec:phase_seconds(_, _, _)),
+             throw(E)))
+  ;  true
+  ).
+
+
+%! ebuild_exec:read_phase_stats_file(+Path) is det.
+%
+% Open Path and assert every phase_bytes/3 and phase_seconds/3 term.
+
+ebuild_exec:read_phase_stats_file(Path) :-
+  setup_call_cleanup(
+    open(Path, read, S),
+    ebuild_exec:read_phase_stats(S),
+    close(S)).
+
 
 ebuild_exec:read_phase_stats(S) :-
   read_term(S, Term, []),
