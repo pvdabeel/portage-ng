@@ -768,6 +768,8 @@ commands work directly with no `PREFIX` indirection.
   `pmerge --pretend --verbose --color true =<category>/<pkg>-<version>`.
   The legacy nav tab reads that file. `--graph pmerge full` regenerates
   every file; otherwise a `.pmerge` newer than its ebuild is left in place.
+  `--graph legacy` writes both `.emerge` and `.pmerge` (`modified` / `full`
+  apply to both).
 - `<prefix>/bin` on `$PATH` makes the bare `pmerge` command work. GNU bash
   from MacPorts (`/opt/local/bin`) must stay on `PATH`; the wrapper prepends
   it when that directory exists.

@@ -76,7 +76,7 @@ interface:spec(S) :-
        [opt(regen),             type(boolean),   default(false),                          longflags(['regen']),                help('Regenerate the ebuild metadata cache (no network sync)')],
        [opt(metadata),          type(boolean),   default(false),                          longflags(['metadata']),             help('Regenerate the ebuild metadata cache (alias for --regen)')],
        [opt(listsets),          type(boolean),   default(false),                          longflags(['list-sets']),            help('List available package sets')],
-       [opt(graph),             type(boolean),   default(false),                          longflags(['graph']),                help('Create graph. Args: "modified"|"full"|"emerge"|"emerge modified"|"emerge full".')],
+       [opt(graph),             type(boolean),   default(false),                          longflags(['graph']),                help('Create graph. Args: "modified"|"full"|"emerge"|"pmerge"|"legacy", each with optional "modified"|"full".')],
        [opt(checknews),         type(boolean),   default(false),                          longflags(['check-news']),           help('Check for and display unread news items')],
        [opt(readnews),          type(boolean),   default(false),                          longflags(['read-news']),            help('Display news items when using --ask')],
        [opt(depclean),          type(boolean),   default(false),       shortflags(['c']), longflags(['depclean']),             help('Clean dependencies')],

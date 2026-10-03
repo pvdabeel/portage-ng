@@ -24,6 +24,9 @@
 %   --graph pmerge          generates only .pmerge files (pmerge --pretend --verbose)
 %   --graph pmerge modified .pmerge files for modified ebuilds only
 %   --graph pmerge full     force-regenerate all .pmerge files
+%   --graph legacy          generates .emerge and .pmerge files
+%   --graph legacy modified .emerge and .pmerge for modified ebuilds only
+%   --graph legacy full     force-regenerate all .emerge and .pmerge files
 
 action:process_graph([]) :-
   kb:graph,
@@ -85,6 +88,31 @@ action:process_graph([pmerge, full]) :-
       asserta(config:force_pmerge_regen(true)) ),
     kb:graph_pmerge,
     ( retractall(config:interface_graph_modified_only(_)),
+      retractall(config:force_pmerge_regen(_)) )
+  ),
+  !.
+
+action:process_graph([legacy]) :-
+  kb:graph_emerge,
+  kb:graph_pmerge,
+  !.
+
+action:process_graph([legacy, modified]) :-
+  setup_call_cleanup(
+    asserta(config:interface_graph_modified_only(true)),
+    ( kb:graph_emerge, kb:graph_pmerge ),
+    retractall(config:interface_graph_modified_only(_))
+  ),
+  !.
+
+action:process_graph([legacy, full]) :-
+  setup_call_cleanup(
+    ( asserta(config:interface_graph_modified_only(false)),
+      asserta(config:force_emerge_regen(true)),
+      asserta(config:force_pmerge_regen(true)) ),
+    ( kb:graph_emerge, kb:graph_pmerge ),
+    ( retractall(config:interface_graph_modified_only(_)),
+      retractall(config:force_emerge_regen(_)),
       retractall(config:force_pmerge_regen(_)) )
   ),
   !.
