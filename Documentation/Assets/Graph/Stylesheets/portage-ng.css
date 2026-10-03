@@ -561,7 +561,7 @@ table.gantt.crit-mode .cell.crit { box-shadow: 0 0 0 2px var(--accent); }
 /* Time view: bars sized by earliest start + phase_stats duration. */
 .gantt-time { display: none; }
 .gantt-wrapper.time-mode #gantt { display: none; }
-.gantt-wrapper.time-mode .gantt-time { display: block; min-width: 1100px; }
+.gantt-wrapper.time-mode .gantt-time { display: block; min-width: 100%; }
 .gantt-time-ruler {
   position: sticky; top: 0; z-index: 2;
   height: 22px; margin-left: 210px; background: var(--surface);
@@ -574,7 +574,7 @@ table.gantt.crit-mode .cell.crit { box-shadow: 0 0 0 2px var(--accent); }
 .gantt-time-row {
   display: flex; align-items: stretch; min-height: 28px;
   border-bottom: 1px solid var(--border);
-  width: max-content; min-width: 100%;
+  width: 100%;
 }
 .gantt-time-row.row-hidden { display: none; }
 .gantt-time-label {
