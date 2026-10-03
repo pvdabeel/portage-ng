@@ -44,6 +44,7 @@ Query module. The knowledge base is typically initialized as a singleton instanc
 :- dpublic(compile/0).
 :- dpublic(graph/0).
 :- dpublic(graph_emerge/0).
+:- dpublic(graph_pmerge/0).
 
 :- dpublic(entry/1).
 :- dpublic(query/2).
@@ -305,6 +306,27 @@ graph_emerge ::-
   \+ proxy,!,
   config:graph_repository(Repository),
   with_mutex(graph, Repository:graph_emerge).
+
+
+%! knowledgebase:graph_pmerge
+%
+% Public predicate
+%
+% Generate .pmerge files (via pmerge --pretend --verbose) for entries in
+% the repository named by config:graph_repository/1. Mirrors
+% knowledgebase:graph_emerge/0 but writes only the .pmerge artefacts.
+% Invoked by --graph pmerge.
+
+graph_pmerge ::-
+  proxy,!,
+  ::host(Host),
+  ::port(Port),
+  client:execute_remotely(Host,Port,'/graph_pmerge'),!.
+
+graph_pmerge ::-
+  \+ proxy,!,
+  config:graph_repository(Repository),
+  with_mutex(graph, Repository:graph_pmerge).
 
 
 %! knowledgebase:compile

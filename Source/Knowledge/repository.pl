@@ -70,6 +70,7 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 
 :- dpublic(graph/0).
 :- dpublic(graph_emerge/0).
+:- dpublic(graph_pmerge/0).
 :- dpublic(prepare_directory/1).
 
 
@@ -871,6 +872,24 @@ graph_emerge ::-
   with_mutex(Mutex,
     (:prepare_directory(D),
      writer:write_emerge_files(D,Repository)
+     )).
+
+
+
+%! repository:graph_pmerge
+%
+% Generates .pmerge files for the repository by invoking the gentoo-prefix
+% `pmerge` wrapper (`pmerge --pretend --verbose`) for every ebuild. Skips
+% entries whose .pmerge file is already newer than the source .ebuild
+% unless force_pmerge_regen is asserted. Intended to be driven by
+% `--graph pmerge` (see graph.pl).
+
+graph_pmerge ::-
+  :this(Repository),
+  atomic_concat(graph_pmerge,Repository,Mutex),
+  with_mutex(Mutex,
+    (:prepare_directory(D),
+     writer:write_pmerge_files(D,Repository)
      )).
 
 

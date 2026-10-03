@@ -33,6 +33,11 @@ sandbox:safe_primitive(config:emerge_vp_path(_)).
 sandbox:safe_primitive(config:emerge_vp_timeout(_)).
 sandbox:safe_primitive(config:emerge_vp_concurrency(_)).
 sandbox:safe_primitive(config:force_emerge_regen(_)).
+sandbox:safe_primitive(config:graph_include_pmerge(_)).
+sandbox:safe_primitive(config:pmerge_path(_)).
+sandbox:safe_primitive(config:pmerge_timeout(_)).
+sandbox:safe_primitive(config:pmerge_concurrency(_)).
+sandbox:safe_primitive(config:force_pmerge_regen(_)).
 sandbox:safe_primitive(config:print_prover_cycles(_)).
 sandbox:safe_primitive(config:print_prover_cycles_max_total(_)).
 sandbox:safe_primitive(config:print_prover_cycles_max_depth(_)).

@@ -52,7 +52,7 @@ dot:graph(detail, Repository://Id) :-
     dot:graph_footer(detail, Repository://Id).
 
 dot:graph(Type, Repository://Id) :-
-    member(Type, [merge, fetchonly, info, emerge]),
+    member(Type, [merge, fetchonly, info, emerge, pmerge]),
     !,
     dot:graph_header(Type, Repository://Id),
     dot:graph_legend(Type, Repository://Id),
@@ -268,6 +268,12 @@ dot:graph_legend_href(emerge, Repository://Id, Name) :-
     !,
     write('<TD title=\"'), write(Repository://Id), write('\" href=\"../'),
     write(Id), write('-emerge.svg'), write('\">'),
+    write(Name), write('</TD>').
+
+dot:graph_legend_href(pmerge, Repository://Id, Name) :-
+    !,
+    write('<TD title=\"'), write(Repository://Id), write('\" href=\"../'),
+    write(Id), write('-pmerge.svg'), write('\">'),
     write(Name), write('</TD>').
 
 dot:graph_legend_href(detail, Repository://Id, Name) :-

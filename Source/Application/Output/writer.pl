@@ -10,7 +10,7 @@
 
 /** <module> WRITER
 The Writer produces per-ebuild plan files (.merge, .fetchonly, .info,
-.emerge) and HTML index files for the graph directory.
+.emerge, .pmerge) and HTML index files for the graph directory.
 
 Responsibilities:
 - Writing .merge and .fetchonly plan files with timing metadata (% merge / % fetchonly lines). `.fetchonly` is the `:run` proof printed under `preference:local_flag(fetchonly)`.
@@ -18,6 +18,9 @@ Responsibilities:
 - Writing .emerge files capturing `emerge -vp` output via the gentoo-prefix
   emerge-vp wrapper, wrapped with `% emerge started/ended/wall_time_ms`
   lines so the terminal grapher can render them next to .merge files.
+- Writing .pmerge files capturing `pmerge --pretend --verbose` output via
+  the gentoo-prefix pmerge wrapper, wrapped with `% pmerge started/ended/wall_time_ms`
+  lines so the terminal grapher can render them in the legacy group.
 - Writing per-repository / per-category / per-package HTML index files.
 - Orchestrating batch proof-file generation for --graph.
 - Converting proof files to HTML via the aha script.
@@ -217,8 +220,119 @@ writer:do_write_emerge_file(OutFile, Repository://Entry) :-
 % SIGKILL. Replicates `gtimeout T emerge-vp --color y =cat/pkg-ver 2>&1`.
 
 writer:run_emerge_vp(Bin, Target, Timeout) :-
+  writer:run_captured(Bin, ['--color','y', Target], Timeout).
+
+
+
+% -----------------------------------------------------------------------------
+%  Pmerge file writer
+% -----------------------------------------------------------------------------
+
+%! writer:write_pmerge_file(+Directory, +Repository://Entry) is det.
+%
+% Run the external `pmerge` wrapper for the ebuild and write its
+% output to <Directory>/<Entry>.pmerge, wrapped with timing lines
+% (`% pmerge started/ended/wall_time_ms`). The invocation is
+% `pmerge --pretend --verbose`.
+%
+% Skips when the .pmerge file is already newer than the corresponding
+% .ebuild (incremental mode). Set `config:force_pmerge_regen(true)` to
+% bypass the check (this is what `--graph pmerge full` does).
+% Assumes Directory exists. (See repository:prepare_directory.)
+
+writer:write_pmerge_file(Directory, Repository://Entry) :-
+  atomic_list_concat([Directory,'/',Entry,'.pmerge'], File),
+  ( catch(Repository:get_ebuild_file(Entry, Ebuild), _, fail) -> true
+  ; with_mutex(mutex, message:warning([Repository,'://',Entry,' pmerge (no ebuild)'])),
+    fail
+  ),
+  ( writer:pmerge_file_fresh(File, Ebuild)
+  -> true
+  ;  writer:do_write_pmerge_file(File, Repository://Entry)
+  ).
+
+
+%! writer:pmerge_file_fresh(+PmergeFile, +EbuildFile) is semidet.
+%
+% Succeed when PmergeFile exists and is newer than EbuildFile, and
+% no forced-regeneration override is active.
+
+writer:pmerge_file_fresh(PmergeFile, Ebuild) :-
+  \+ config:force_pmerge_regen(true),
+  exists_file(PmergeFile),
+  exists_file(Ebuild),
+  time_file(PmergeFile, FT),
+  time_file(Ebuild, ET),
+  FT > ET.
+
+
+%! writer:do_write_pmerge_file(+OutFile, +Repository://Entry) is det.
+%
+% Resolve the pmerge binary for the current host, spawn
+% `pmerge --pretend --verbose` on the target ebuild (with stdout+stderr
+% merged to OutFile via an atomic rename), and surround the output with
+% timing header/footer lines. `--color true` forces ANSI when stdout is
+% a pipe, matching emerge-vp's `--color y`.
+
+writer:do_write_pmerge_file(OutFile, Repository://Entry) :-
+  atom_concat(OutFile, '.tmp', TmpFile),
+  atom_concat('=', Entry, PmergeTarget),
+  ( current_predicate(config:pmerge_path/1),
+    config:pmerge_path(PmergeBin) -> true
+  ; config:hostname(H),
+    with_mutex(mutex,
+      message:warning(['No config:pmerge_path/1 in Source/Config/', H,
+                       '.pl; cannot write .pmerge'])),
+    fail
+  ),
+  config:pmerge_timeout(Timeout),
+  file_directory_name(OutFile, OutDir),
+  catch(os:ensure_directory_path(OutDir), _, true),
+  get_time(T0),
+  ( catch(
+      setup_call_cleanup(
+        tell(TmpFile),
+        ( set_stream(current_output, tty(true)),
+          timing:print_timing_header('pmerge', T0),
+          nl,
+          writer:run_pmerge(PmergeBin, PmergeTarget, Timeout),
+          nl,
+          timing:print_timing_footer('pmerge', T0)
+        ),
+        told
+      ),
+      E,
+      ( told,
+        catch(delete_file(TmpFile), _, true),
+        term_to_atom(E, EA),
+        with_mutex(mutex,
+          message:warning([Repository,'://',Entry,' pmerge (',EA,')'])),
+        fail
+      )
+    )
+  -> catch(rename_file(TmpFile, OutFile), _, true)
+  ;  catch(delete_file(TmpFile), _, true),
+     with_mutex(mutex, message:warning([Repository,'://',Entry,' pmerge']))
+  ).
+
+
+%! writer:run_pmerge(+Bin, +Target, +Timeout) is det.
+%
+% Spawn `Bin --pretend --verbose --color true Target` and bound the run
+% with Timeout seconds.
+
+writer:run_pmerge(Bin, Target, Timeout) :-
+  writer:run_captured(Bin, ['--pretend','--verbose','--color','true', Target], Timeout).
+
+
+%! writer:run_captured(+Bin, +Args, +Timeout) is det.
+%
+% Spawn Bin with Args, stream stdout+stderr to current_output, and bound
+% the run with Timeout seconds. On timeout the child is sent SIGKILL.
+
+writer:run_captured(Bin, Args, Timeout) :-
   process_set_method(vfork),
-  process_create(Bin, ['--color','y', Target],
+  process_create(Bin, Args,
                  [ stdout(pipe(Out)),
                    stderr(pipe(Out)),
                    process(Pid) ]),
@@ -308,7 +422,9 @@ writer:write_graph_files(Directory,Repository) :-
 % Write text proof files (.merge, .fetchonly, .info) for all entries
 % in a repository. When config:graph_include_emerge(true), also writes
 % .emerge files via the emerge-vp wrapper (otherwise use
-% `--graph emerge` for explicit regeneration).
+% `--graph emerge` for explicit regeneration). When
+% config:graph_include_pmerge(true), also writes .pmerge files
+% (otherwise use `--graph pmerge`).
 % Assumes directory exists. (See repository:prepare_directory)
 
 writer:write_proof_files(Directory,Repository) :-
@@ -328,6 +444,10 @@ writer:write_proof_files(Directory,Repository) :-
                (writer:write_info_file(Directory,Repository://Entry);true))),
   ( config:graph_include_emerge(true)
   -> writer:write_emerge_files(Directory, Repository)
+  ;  true
+  ),
+  ( config:graph_include_pmerge(true)
+  -> writer:write_pmerge_files(Directory, Repository)
   ;  true
   ).
 
@@ -356,8 +476,8 @@ writer:write_emerge_files(Directory, Repository) :-
 
 %! writer:emerge_candidate(+Repository, -Entry) is nondet.
 %
-% Enumerate ebuild entries that should be considered for .emerge
-% generation. When config:graph_modified_only/1 is true, only yields
+% Enumerate ebuild entries that should be considered for .emerge and
+% .pmerge generation. When config:graph_modified_only/1 is true, only yields
 % entries whose .ebuild is newer than the md5-cache mtime; otherwise
 % yields every entry.
 
@@ -385,6 +505,43 @@ writer:write_emerge_file_with_progress(Directory, Repository://Entry) :-
           ( term_to_atom(E, EA),
             with_mutex(mutex,
               message:warning([Repository,'://',Entry,' emerge (',EA,')']))
+          ))
+  ; true
+  ).
+
+
+%! writer:write_pmerge_files(+Directory, +Repository) is det.
+%
+% Generate `.pmerge` files for every entry in Repository by invoking
+% `pmerge --pretend --verbose`. Honours `config:graph_modified_only/1`
+% for coarse filtering and the per-file mtime check in
+% writer:pmerge_file_fresh/2 for fine-grained incremental behaviour.
+%
+% Concurrency is controlled by `config:pmerge_concurrency/1` (default 1).
+
+writer:write_pmerge_files(Directory, Repository) :-
+  config:pmerge_concurrency(N),
+  Goal = writer:write_pmerge_file_with_progress(Directory, Repository://Entry),
+  ( integer(N), N > 1
+  -> concurrent_forall(writer:emerge_candidate(Repository, Entry), Goal,
+                       [threads(N)])
+  ;  forall(writer:emerge_candidate(Repository, Entry), Goal)
+  ),
+  with_mutex(mutex, format('~N')).
+
+
+%! writer:write_pmerge_file_with_progress(+Directory, +Repository://Entry) is det.
+%
+% Wrap writer:write_pmerge_file/2 with mutex-protected progress output
+% so the user sees per-ebuild status during long `--graph pmerge` runs.
+
+writer:write_pmerge_file_with_progress(Directory, Repository://Entry) :-
+  with_mutex(mutex,
+    message:scroll_notice(['Writing pmerge - ',Repository,'://',Entry])),
+  ( catch(writer:write_pmerge_file(Directory, Repository://Entry), E,
+          ( term_to_atom(E, EA),
+            with_mutex(mutex,
+              message:warning([Repository,'://',Entry,' pmerge (',EA,')']))
           ))
   ; true
   ).

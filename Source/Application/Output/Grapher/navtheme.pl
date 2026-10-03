@@ -399,12 +399,13 @@ navtheme:glsa_badge(Repo, Entry, Cat, Name, Badge) :-
 
 %! navtheme:emit_legacy_group(+Entry, +ActiveType) is det.
 %
-% Emit the legacy navigation group with emerge link.
+% Emit the legacy navigation group with emerge and pmerge links.
 
 navtheme:emit_legacy_group(Entry, ActiveType) :-
     write('  <div class="nav-group">'), nl,
     write('    <span class="nav-group-label">legacy</span>'), nl,
     emit_type_link(Entry, emerge, emerge, ActiveType),
+    emit_type_link(Entry, pmerge, pmerge, ActiveType),
     write('  </div>'), nl.
 
 

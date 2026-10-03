@@ -755,6 +755,23 @@ commands work directly with no `PREFIX` indirection.
   `config:emerge_vp_path/1` (and `config:ebuild_command/1` if used) plus the
   user's `PATH`, and it keeps working.
 
+### pkgcore (`pmerge`) for `--graph pmerge`
+- Host path: `config:pmerge_path/1` in `Source/Config/<host>.local.pl`.
+  - `imac-pro.local` → `/Volumes/Disk 1/gentoo-prefix/bin/pmerge`
+  - `mac-pro.local` → `/Volumes/Storage/gentoo-prefix/bin/pmerge`
+  - `macbook-pro.local` → `/opt/local/gentoo-prefix/bin/pmerge`
+- That wrapper execs the pkgcore venv at `<prefix>/usr/lib/pkgcore` (MacPorts
+  Python 3.14; `pip install pkgcore`). It pins pkgcore's domain root to the
+  prefix, because pkgcore otherwise looks for the VDB at `/var/db/pkg`, and
+  passes `--config <prefix>/etc/portage`.
+- `--graph pmerge` writes `<entry>.pmerge` by running
+  `pmerge --pretend --verbose --color true =<category>/<pkg>-<version>`.
+  The legacy nav tab reads that file. `--graph pmerge full` regenerates
+  every file; otherwise a `.pmerge` newer than its ebuild is left in place.
+- `<prefix>/bin` on `$PATH` makes the bare `pmerge` command work. GNU bash
+  from MacPorts (`/opt/local/bin`) must stay on `PATH`; the wrapper prepends
+  it when that directory exists.
+
 ## Compare to portage source code
 - Traditional emerge is available on this system and uses the same Portage
   tree and VDB pkg as portage-ng. The alias emerge-vp can be called to compare

@@ -39,6 +39,9 @@ graphs.  For a given ebuild, the following output is produced:
  - emerge:     Styled HTML page embedding the traditional emerge output file.
                Delegates to the terminal submodule.
 
+ - pmerge:     Styled HTML page embedding pkgcore `pmerge --pretend --verbose`
+               output. Delegates to the terminal submodule.
+
  - glsa:       Security advisories referencing the ebuild's package, each
                folding open to the full GLSA text, with the page's version
                marked as vulnerable / unaffected.  Delegates to the security
@@ -86,6 +89,10 @@ grapher:graph(info,Repository://Id) :-
 grapher:graph(emerge,Repository://Id) :-
   !,
   terminal:graph(emerge,Repository://Id).
+
+grapher:graph(pmerge,Repository://Id) :-
+  !,
+  terminal:graph(pmerge,Repository://Id).
 
 grapher:graph(gantt,Repository://Id) :-
   !,

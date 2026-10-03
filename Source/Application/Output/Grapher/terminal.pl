@@ -10,12 +10,13 @@
 
 /** <module> TERMINAL
 Terminal output to HTML renderer for portage-ng. Converts ANSI-escaped text
-(merge plans, fetchonly plans, package info, emerge output) into styled
-self-contained HTML pages with day/night theme toggle. Lines of the form
-% merge|fetchonly|emerge started|ended|wall_time_ms are stripped from the
-main &lt;pre&gt; (including when prefixed by ANSI). Only wall_time_ms is
-shown below as seconds; emerge pages may add vs. portage-ng merge time
-from the sibling .merge file.
+(merge plans, fetchonly plans, package info, emerge output, pmerge
+output) into styled self-contained HTML pages with day/night theme
+toggle. Lines of the form
+% merge|fetchonly|emerge|pmerge started|ended|wall_time_ms are stripped
+from the main &lt;pre&gt; (including when prefixed by ANSI). Only
+wall_time_ms is shown below as seconds; emerge and pmerge pages may add
+vs. portage-ng merge time from the sibling .merge file.
 */
 
 :- module(terminal, []).
@@ -32,12 +33,12 @@ from the sibling .merge file.
 %! terminal:graph(+Type, +Target)
 %
 % Generate a terminal-output HTML page for the given graph type.
-% Type is one of merge, fetchonly, info, emerge.
+% Type is one of merge, fetchonly, info, emerge, pmerge.
 
 terminal:graph(Type, Repository://Entry) :-
     capture_content(Type, Repository://Entry, RawContent),
     split_timing_body(Type, RawContent, BodyContent, timing_display(Wall, _)),
-    (   Type = emerge
+    (   memberchk(Type, [emerge, pmerge])
     ->  merge_wall_seconds_from_graph(Repository, Entry, NgSec),
         Stats = timing_display(Wall, NgSec)
     ;   Stats = timing_display(Wall, none)
@@ -112,6 +113,14 @@ terminal:capture_content(emerge, Repository://Entry, Content) :-
     ;   Content = "No emerge output available."
     ).
 
+terminal:capture_content(pmerge, Repository://Entry, Content) :-
+    resolve_graph_dir(Repository, Dir),
+    atomic_list_concat([Dir, '/', Entry, '.pmerge'], File),
+    (   exists_file(File)
+    ->  read_file_to_string(File, Content, [encoding(utf8)])
+    ;   Content = "No pmerge output available."
+    ).
+
 
 %! terminal:capture_output(+Goal, -String)
 %
@@ -157,7 +166,8 @@ terminal:resolve_graph_dir(_, '/tmp').
 %! terminal:merge_wall_seconds_from_graph(+Repository, +Entry, -Seconds)
 %
 % If graph output contains Entry.merge with a % merge wall_time_ms line, return
-% seconds as a float; otherwise none. Used on emerge HTML pages for comparison.
+% seconds as a float; otherwise none. Used on emerge and pmerge HTML pages
+% for comparison.
 
 terminal:merge_wall_seconds_from_graph(Repository, Entry, Sec) :-
     resolve_graph_dir(Repository, Dir),
@@ -177,9 +187,9 @@ terminal:merge_wall_seconds_from_graph(_, _, none).
 
 %! terminal:split_timing_body(+Type, +Raw, -Body, -timing_display(WallSec, CompareSlot))
 %
-% For merge, fetchonly, and emerge, strip "% <label> started|ended|wall_time_ms" lines
-% from Raw and return the remainder as Body. CompareSlot in the result is always
-% none here; terminal:graph/2 may replace it for emerge with portage-ng merge seconds.
+% For merge, fetchonly, emerge, and pmerge, strip "% <label> started|ended|wall_time_ms"
+% lines from Raw and return the remainder as Body. CompareSlot in the result is always
+% none here; terminal:graph/2 may replace it for emerge and pmerge with portage-ng merge seconds.
 % For info, Body = Raw and timing_display(none, none).
 
 terminal:split_timing_body(info, Raw, Raw, timing_display(none, none)) :-
@@ -221,7 +231,7 @@ terminal:partition_timing_lines([Line|Rest], Kept, Infos) :-
 %! terminal:timing_line_plain_for_meta(+Line, -Plain)
 %
 % Strip leading ANSI CSI/OSC so "% emerge started: ..." matches even when
-% Portage colors the timing lines.
+% the captured tool colors the timing lines.
 
 terminal:timing_line_plain_for_meta(Line, Plain) :-
     (atom(Line) -> atom_string(Line, S0) ; S0 = Line),
@@ -257,7 +267,7 @@ terminal:parse_timing_meta(Line, Meta) :-
 
 terminal:parse_timing_started(Line, started(_Label, EpochStr, Human)) :-
     normalize_space(string(T), Line),
-    member(Label, [merge, emerge, fetchonly]),
+    member(Label, [merge, emerge, fetchonly, pmerge]),
     format(string(Pfx), '% ~w started: ', [Label]),
     string_concat(Pfx, Rest, T),
     parse_epoch_human_paren(Rest, EpochStr, Human).
@@ -265,7 +275,7 @@ terminal:parse_timing_started(Line, started(_Label, EpochStr, Human)) :-
 
 terminal:parse_timing_ended(Line, ended(_Label, EpochStr, Human)) :-
     normalize_space(string(T), Line),
-    member(Label, [merge, emerge, fetchonly]),
+    member(Label, [merge, emerge, fetchonly, pmerge]),
     format(string(Pfx), '% ~w ended: ', [Label]),
     string_concat(Pfx, Rest, T),
     parse_epoch_human_paren(Rest, EpochStr, Human).
@@ -273,7 +283,7 @@ terminal:parse_timing_ended(Line, ended(_Label, EpochStr, Human)) :-
 
 terminal:parse_timing_wall(Line, wall(_Label, Ms)) :-
     normalize_space(string(T), Line),
-    member(Label, [merge, emerge, fetchonly]),
+    member(Label, [merge, emerge, fetchonly, pmerge]),
     format(string(Pfx), '% ~w wall_time_ms: ', [Label]),
     string_concat(Pfx, Rest, T),
     normalize_space(string(MsStr), Rest),
@@ -295,7 +305,7 @@ terminal:parse_epoch_human_paren(Rest, EpochStr, Human) :-
 %! terminal:aggregate_timing_infos(+Infos, -timing_display(WallSec, none))
 %
 % WallSec is float seconds from any wall_time_ms line, or none. Second slot is
-% always none here (filled for emerge in terminal:graph/2).
+% always none here (filled for emerge and pmerge in terminal:graph/2).
 
 terminal:aggregate_timing_infos(Infos, timing_display(WallSec, none)) :-
     timing_wall_seconds(Infos, WallSec).
@@ -503,7 +513,7 @@ terminal:sgr_transition(Old, New, Acc, Result) :-
 %
 % Emit a complete styled HTML document wrapping terminal output. TimingStats is
 % timing_display(WallSec, CompareNgSec): CompareNgSec is merge seconds for emerge
-% pages only (none otherwise).
+% and pmerge pages (none otherwise).
 
 terminal:emit_html(Type, Target, HtmlContent, TimingStats) :-
     Target = Repo://Entry,
@@ -531,6 +541,7 @@ terminal:type_label(merge, 'Merge Plan').
 terminal:type_label(fetchonly, 'Fetch Plan').
 terminal:type_label(info, 'Package Info').
 terminal:type_label(emerge, 'Emerge Output').
+terminal:type_label(pmerge, 'Pmerge Output').
 
 
 %! terminal:type_window_title(+Type, -Title) is det.
@@ -541,6 +552,7 @@ terminal:type_window_title(merge, 'portage-ng --merge').
 terminal:type_window_title(fetchonly, 'portage-ng --fetchonly').
 terminal:type_window_title(info, 'portage-ng --info').
 terminal:type_window_title(emerge, 'emerge -vp').
+terminal:type_window_title(pmerge, 'pmerge --pretend --verbose').
 
 
 % -----------------------------------------------------------------------------
@@ -573,8 +585,8 @@ terminal:emit_content(Type, HtmlContent, TimingStats) :-
 
 %! terminal:emit_terminal_stats(+Type, +timing_display(WallSec, CompareNgSec))
 %
-% Emit wall time only. On emerge pages, append portage-ng merge time when
-% terminal:merge_wall_seconds_from_graph/3 found a .merge wall_time_ms.
+% Emit wall time only. On emerge and pmerge pages, append portage-ng merge
+% time when terminal:merge_wall_seconds_from_graph/3 found a .merge wall_time_ms.
 
 terminal:emit_terminal_stats(_, timing_display(none, _)) :-
     !.
@@ -586,7 +598,7 @@ terminal:emit_terminal_stats(Type, timing_display(WallSec, CompareNg)) :-
     write('  <dl>'), nl,
     format_wall_seconds(WallSec, WStr),
     (   CompareNg \== none,
-        Type = emerge
+        memberchk(Type, [emerge, pmerge])
     ->  format_wall_seconds(CompareNg, NgStr),
         format(string(Dd), '<span class="wall-time-sec">~w s</span> <span class="vs-portage-ng">vs. <span class="wall-time-sec">~w s</span> for portage-ng</span>', [WStr, NgStr])
     ;   format(string(Dd), '~w s', [WStr])

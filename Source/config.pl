@@ -739,12 +739,60 @@ config:emerge_vp_concurrency(1).
 config:graph_include_emerge(false).
 
 
+% -----------------------------------------------------------------------------
+%  Pmerge file generation (--graph pmerge)
+% -----------------------------------------------------------------------------
+
+% Interface can dynamically force full regeneration for a single run.
+% (Used by `--graph pmerge full`.)
+
+:- dynamic config:force_pmerge_regen/1.
+
+%! config:pmerge_path(?Path)
+%
+% Per-host path to the `pmerge` wrapper used by `--graph pmerge` to
+% generate `.pmerge` files alongside the `.merge` files in the graph
+% directory. The wrapper invokes pkgcore as
+% `pmerge --pretend --verbose` against the same gentoo-prefix config
+% and VDB as `emerge-vp`.
+%
+% Host-specific: defined in Source/Config/<host>.local.pl (the file loaded
+% via config:systemconfig/1), NOT here. When the host config defines no
+% clause, `--graph pmerge` prints a clear warning instead of writing
+% `.pmerge` files.
+
+
+%! config:pmerge_timeout(?Seconds)
+%
+% Per-ebuild timeout for pmerge invocations.
+
+config:pmerge_timeout(120).
+
+
+%! config:pmerge_concurrency(?N)
+%
+% Number of parallel pmerge workers spawned by `--graph pmerge`.
+% Defaults to 1. Increase cautiously: concurrent pkgcore runs load the
+% same Portage tree and can saturate I/O.
+
+config:pmerge_concurrency(1).
+
+
+%! config:graph_include_pmerge(?Bool)
+%
+% When true, the default `--graph` run also generates `.pmerge` files at
+% the end of the pipeline (after writing proof files). False by default;
+% use `--graph pmerge` for explicit regeneration.
+
+config:graph_include_pmerge(false).
+
+
 %! config:graph_html_type(?List)
 %
 % Defines all HTML graph types produced by --graph.  Each type maps to a
 % self-contained interactive HTML file per ebuild.
 
-config:graph_html_type([detail,deptree,gantt,merge,fetchonly,info,glsa,bugs,emerge]).
+config:graph_html_type([detail,deptree,gantt,merge,fetchonly,info,glsa,bugs,emerge,pmerge]).
 
 
 %! config:graph_site_url(?Url)
@@ -783,7 +831,7 @@ config:graph_proof_type([merge,fetchonly,info]).
 % Legacy: legacy types for which DOT graphs can be produced.
 % No longer part of the default --graph output (superseded by terminal HTML).
 
-config:graph_legacy_type([emerge]).
+config:graph_legacy_type([emerge,pmerge]).
 
 
 % -----------------------------------------------------------------------------

@@ -16,12 +16,14 @@
 %  Host-specific paths
 % -----------------------------------------------------------------------------
 
-% Installed package database (vdb), graph output directory and the
-% gentoo-prefix emerge-vp wrapper used by --graph emerge.
+% Installed package database (vdb), graph output directory, the
+% gentoo-prefix emerge-vp wrapper used by --graph emerge, and the
+% pkgcore pmerge wrapper used by --graph pmerge.
 
 config:pkg_directory('/Volumes/Storage/Repository/pkg').
 config:graph_directory('/Volumes/Storage/Graph').
 config:emerge_vp_path('/Volumes/Storage/gentoo-prefix/bin/emerge-vp').
+config:pmerge_path('/Volumes/Storage/gentoo-prefix/bin/pmerge').
 
 
 % -----------------------------------------------------------------------------
