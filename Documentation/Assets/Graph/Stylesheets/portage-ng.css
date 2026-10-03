@@ -574,6 +574,7 @@ table.gantt.crit-mode .cell.crit { box-shadow: 0 0 0 2px var(--accent); }
 .gantt-time-row {
   display: flex; align-items: stretch; min-height: 28px;
   border-bottom: 1px solid var(--border);
+  width: max-content; min-width: 100%;
 }
 .gantt-time-row.row-hidden { display: none; }
 .gantt-time-label {
@@ -582,14 +583,14 @@ table.gantt.crit-mode .cell.crit { box-shadow: 0 0 0 2px var(--accent); }
   padding: 4px 8px; border-right: 2px solid var(--border2);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.gantt-time-track { position: relative; flex: 1; min-height: 28px; }
+.gantt-time-track { position: relative; flex: 0 0 auto; min-height: 28px; }
 .gantt-time-track .cell {
   position: absolute; top: 4px; min-width: 0; overflow: hidden;
   text-overflow: ellipsis;
 }
 .gantt-wrapper.time-mode.hover-mode .gantt-time-row.hover-lit,
 .gantt-time-row.hover-lit { background: var(--blue-bg); }
-.gantt-time-row.hover-lit .gantt-time-label { color: var(--accent); }
+.gantt-time-row.hover-lit .gantt-time-label { color: var(--accent); background: var(--blue-bg); }
 /* Hover mode: all edges hidden, only those touching the hovered row shown.
    Edge colour/dash stay on the SVG element, so type colours are preserved.
    Critical-path edges stay visible when both modes are on. */
