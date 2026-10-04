@@ -191,6 +191,7 @@ test(all_masked_falls_back_to_full_list,
 use_entry_memo_reset(Repo://Id) :-
   retractall(memo:eff_use_cache_(Repo, Id, _, _)),
   retractall(memo:iuse_default_cache_(Repo, Id, _)),
+  retractall(memo:iuse_info_cache_(Repo, Id, _)),
   retractall(memo:self_use_cache_(Repo, Id, _, _)).
 
 
@@ -281,7 +282,9 @@ test(use_dep_atom_sat_after_disable_sibling,
 
 % HARD consumer pin vs a soft `flag? ( implied )` implication. Body-push
 % is preferred when it does not fight BWU; otherwise the soft antecedent
-% is retracted. Empty BWU and HARD/profile antecedents stay untouched.
+% is retracted -- except an IUSE `+` default in the body, which overturns
+% the disable pin (portage-ng#121 / overlay test81). Empty BWU and
+% HARD/profile antecedents stay untouched.
 :- begin_tests(rules_requse_antecedent_retract).
 
 rar_entry(qtest://'net-fs/samba-0').
@@ -422,6 +425,47 @@ rar_two_cleanup :-
   retractall(cache:ordered_entry(Repo, Id, _, _, _)),
   retractall(cache:entry_metadata(Repo, Id, required_use, _)),
   use_entry_memo_reset(Repo://Id).
+
+rar_qt_entry(qtest://'dev-qt/qtbase-0').
+rar_qt_impl(use_conditional_group(positive, gui, qtest://'dev-qt/qtbase-0',
+                                 [any_of_group([required(x11),
+                                                required(wayland)])])).
+
+rar_qt_setup :-
+  rar_qt_cleanup,
+  rar_qt_entry(Repo://Id),
+  rar_qt_impl(Impl),
+  assertz(cache:ordered_entry(Repo, Id, 'dev-qt', qtbase,
+                              version([0],'',4,0,[],0,'0'))),
+  assertz(cache:entry_metadata(Repo, Id, required_use, Impl)),
+  assertz(cache:entry_metadata(Repo, Id, iuse, plus(gui))),
+  assertz(cache:entry_metadata(Repo, Id, iuse, plus(x11))),
+  assertz(cache:entry_metadata(Repo, Id, iuse, wayland)),
+  assertz(memo:iuse_info_cache_(Repo, Id,
+                               iuse_info([gui,wayland,x11],[gui,x11]))),
+  assertz(memo:eff_use_cache_(Repo, Id, gui, positive)),
+  assertz(memo:eff_use_cache_(Repo, Id, x11, positive)),
+  assertz(memo:eff_use_cache_(Repo, Id, wayland, negative)).
+
+rar_qt_cleanup :-
+  rar_qt_entry(Repo://Id),
+  retractall(cache:ordered_entry(Repo, Id, _, _, _)),
+  retractall(cache:entry_metadata(Repo, Id, _, _)),
+  use_entry_memo_reset(Repo://Id).
+
+% Overlay test81 / virtualbox-vs-qtbase: projected `-x11` vs IUSE `+x11`
+% inside `gui? ( || ( x11 wayland ) )` must keep x11, not retract gui.
+test(iuse_plus_arm_overturns_disable_pin,
+     [setup(rar_qt_setup), cleanup(rar_qt_cleanup),
+      true(Fixes == [enable(x11)])]) :-
+  rar_qt_entry(E), rar_qt_impl(Impl),
+  use:requse_term_fixes(E, [], [x11], Impl, Fixes).
+
+test(iuse_plus_stabilize_keeps_preferred_arm,
+     [setup(rar_qt_setup), cleanup(rar_qt_cleanup),
+      true(Out == use_state([x11], []))]) :-
+  rar_qt_entry(E),
+  use:stabilize_required_use(E, use_state([], [x11]), Out).
 
 :- end_tests(rules_requse_antecedent_retract).
 

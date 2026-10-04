@@ -45,7 +45,10 @@ satisfies boolean constraints (any-of, exactly-one-of, at-most-one-of,
 conditionals).  `required_use_term_satisfied/2` drives this recursively.
 When a committed HARD `build_with_use` pin blocks an implication body
 (`gpg? ( addc )` vs `[ -addc ]`), stabilize retracts a soft antecedent
-rather than failing closed. Empty-BWU seeding still ignores conditionals.
+rather than failing closed. An IUSE `+` default in that body still
+overturns a disable pin (`gui? ( || ( x11 wayland ) )` vs projected
+`[ -x11 ]`, portage-ng#121) so the provider keeps its preferred arm
+and the consumer follows. Empty-BWU seeding still ignores conditionals.
 
 == Newuse ==
 
@@ -1475,7 +1478,8 @@ use:stabilize_requse_term(RepoEntry, Term, use_state(En0, Dis0), use_state(EnOut
 % committed by a consumer (plus earlier stabilize steps). Body-push
 % fixes that fight those pins are dropped; a positive conditional
 % whose body cannot be repaired that way falls back to disabling a
-% soft antecedent.
+% soft antecedent, unless an IUSE `+` default in the body is what the
+% pin is fighting -- that pin is overturned (portage-ng#121).
 
 use:requse_term_fixes(RepoEntry, _En, _Dis, any_of_group(Deps), [enable(Flag)]) :-
     use:requse_pick_satisfying_flag(RepoEntry, Deps, Flag), !.
@@ -1509,6 +1513,9 @@ use:requse_term_fixes(RepoEntry, En, Dis,
     Term = use_conditional_group(positive, Use, Self, SubDeps),
     ( use:requse_fixes_satisfy(RepoEntry, En, Dis, Term, BodyFixes) ->
         Fixes = BodyFixes
+    ; use:requse_iuse_plus_overturn(RepoEntry, Dis, BodyFixes0, Overturn),
+      use:requse_fixes_satisfy(RepoEntry, En, Dis, Term, Overturn) ->
+        Fixes = Overturn
     ; use:requse_soft_antecedent_disable(RepoEntry, En, Use) ->
         Fixes = [disable(Use)]
     ).
@@ -1563,6 +1570,24 @@ use:requse_fixes_satisfy(RepoEntry, En, Dis, Term, Fixes) :-
     Fixes \== [],
     foldl(use:apply_requse_fix, Fixes, use_state(En, Dis), use_state(En1, Dis1)),
     use:requse_term_ok_with_bwu(RepoEntry, En1, Dis1, Term).
+
+
+%! use:requse_iuse_plus_overturn(+RepoEntry, +Disable, +BodyFixes0, -Overturn)
+%
+% Body-push enables that `requse_keep_legal_fixes` dropped because they
+% fight a disable pin, but that are IUSE `+` defaults for this entry.
+% Those pins are equality-style projections the package's own preferred
+% arm immediately overturns (portage-ng#121: qtbase `+X` vs `[X=]`).
+% Applying them via `apply_requse_fix` removes the flag from Disable.
+
+use:requse_iuse_plus_overturn(RepoEntry, Dis, BodyFixes0, Overturn) :-
+    findall(enable(Flag),
+            ( member(enable(Flag), BodyFixes0),
+              memberchk(Flag, Dis),
+              use:entry_iuse_plus_default(RepoEntry, Flag)
+            ),
+            Overturn),
+    Overturn \== [].
 
 
 %! use:requse_soft_antecedent_disable(+RepoEntry, +Enable, +Use) is semidet.
