@@ -120,7 +120,7 @@ if [ "$LOCAL" != "$REMOTE" ]; then
 
         if [[ -z ${has_ebuild["$category/$ebuild"]} ]]; then
             echo -e "\033[1;90m% Removing ${GRAPHDIR}/${category}/${relevant} files (no matching ${ebuild} found)"
-            rm -f -- "${GRAPHDIR}/${category}/${relevant}".{merge,info,fetchonly,emerge,dot,svg} "${GRAPHDIR}/${category}/${relevant}"-*.{html,dot,svg} 2>/dev/null || true
+            rm -f -- "${GRAPHDIR}/${category}/${relevant}".{merge,info,fetchonly,emerge,pmerge,dot,svg} "${GRAPHDIR}/${category}/${relevant}"-*.{html,dot,svg} 2>/dev/null || true
         fi
     done
 
