@@ -44,6 +44,12 @@ assumption:assumption_type('?'(Inner, '{}'(Ctx)), Type) :-
   assumption:assumption_reason_type(Reason, Type),
   !.
 
+assumption:assumption_type('?'(_Inner, '{}'(Ctx)), Type) :-
+  is_list(Ctx),
+  memberchk(assumption_reason(Reason), Ctx),
+  assumption:assumption_reason_type(Reason, Type),
+  !.
+
 % Read context tags before stripping ?{Ctx}. The unwrap clause below would
 % otherwise classify the bare grouped/package dependency as non_existent.
 assumption:assumption_type('?'(_Inner, '{}'(Ctx)), use_dep_unsat) :-
@@ -137,6 +143,13 @@ assumption:assumption_type(all_of_group(_),                                    d
 assumption:assumption_type(exactly_one_of_group(_),                            dependency_group_cycle) :- !.
 assumption:assumption_type(at_most_one_of_group(_),                            dependency_group_cycle) :- !.
 assumption:assumption_type(naf(_),                                             naf_cycle) :- !.
+
+assumption:assumption_type(Term, Type) :-
+  explainer:term_ctx(Term, Ctx),
+  memberchk(assumption_reason(Reason), Ctx),
+  assumption:assumption_reason_type(Reason, Type),
+  !.
+
 assumption:assumption_type(_,                                                  other).
 
 
@@ -165,6 +178,7 @@ assumption:assumption_reason_type(version_no_candidate,                        v
 assumption:assumption_reason_type(version_conflict,                            version_conflict_dependency).
 assumption:assumption_reason_type(version_unsatisfied,                         version_no_candidate_dependency).
 assumption:assumption_reason_type(unsatisfied_constraints,                     unsatisfied_constraints_dependency).
+assumption:assumption_reason_type(no_tree_ebuild,                              no_tree_ebuild).
 
 
 %! assumption:assumption_is_package_level(+Content)

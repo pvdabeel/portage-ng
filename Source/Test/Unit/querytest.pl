@@ -425,7 +425,9 @@ test(issue59_version_domain_hook_matches_predicate) :-
 test(issue59_eligible_install_uses_masked_macro) :-
   candidate:goal_expansion(eligible(qtest://'dev-test/foo-1.0':install?{[]}), G),
   !,
-  G = ((Masked -> (prover:assuming(unmask) -> true ; memo:visibility_override_(_, _)) ; true), _),
+  G = ( candidate:abi_repair_eligible(qtest, 'dev-test/foo-1.0', []) -> true
+      ; (Masked -> (prover:assuming(unmask) -> true ; memo:visibility_override_(_, _)) ; true),
+        _ ),
   query:compile_query_compound(masked(true), qtest://'dev-test/foo-1.0', MaskedExpected),
   Masked == MaskedExpected.
 

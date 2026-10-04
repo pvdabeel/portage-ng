@@ -424,7 +424,8 @@ candidate:rdepend_collect_vbounds_for_cn_choice_intersection_([Dep|Deps], C, N, 
 % Goal-expanded at compile time per action:
 %   - :download  — entry exists in the repository
 %   - all others — not masked (unless assuming unmask) and keyword-accepted
-%                   (unless assuming keyword_acceptance)
+%                   (unless assuming keyword_acceptance), or a same-CPV
+%                   ABI repair (candidate:abi_repair_eligible/3)
 
 candidate:eligible(Repo://Entry:download?{_}) :-
   !,
@@ -434,17 +435,19 @@ candidate:eligible(Repo://Entry:annotate?{_}) :-
   !,
   query:search(ebuild(Entry), Repo://Entry).
 
-candidate:eligible(Repo://Entry:_Action?{_}) :-
-  ( query:search(masked(true), Repo://Entry) ->
-      ( prover:assuming(unmask) -> true
-      ; memo:visibility_override_(Repo, Entry)
-      )
-  ; true
-  ),
-  ( acceptance:entry_has_accepted_keyword(Repo://Entry) ->
-      true
-  ; prover:assuming(keyword_acceptance) -> true
-  ; memo:visibility_override_(Repo, Entry)
+candidate:eligible(Repo://Entry:_Action?{Ctx}) :-
+  ( candidate:abi_repair_eligible(Repo, Entry, Ctx) -> true
+  ; ( query:search(masked(true), Repo://Entry) ->
+        ( prover:assuming(unmask) -> true
+        ; memo:visibility_override_(Repo, Entry)
+        )
+    ; true
+    ),
+    ( acceptance:entry_has_accepted_keyword(Repo://Entry) ->
+        true
+    ; prover:assuming(keyword_acceptance) -> true
+    ; memo:visibility_override_(Repo, Entry)
+    )
   ).
 
 
@@ -484,6 +487,20 @@ candidate:eligible(use_conditional(negative, Use, R://E):_?{_}) :-
   use:effective_use_for_entry(R://E, Use, negative), !.
 
 
+%! candidate:abi_repair_eligible(+Repo, +Entry, +Context) is semidet.
+%
+% True when Context is a same-CPV ABI / unbuilt rebuild of an already
+% installed Entry (`rebuild_reason` + `replaces(pkg://Entry)`). Those
+% repairs must pass eligibility without `prover:assuming(unmask)` or
+% `keyword_acceptance`, so a hidden installed consumer does not climb
+% the whole-proof fallback ladder (portage-ng#118).
+
+candidate:abi_repair_eligible(Repo, Entry, Ctx) :-
+  atom(Repo),
+  atom(Entry),
+  is_list(Ctx),
+  memberchk(rebuild_reason(_), Ctx),
+  memberchk(replaces(pkg://Entry), Ctx).
 
 
 %! candidate:installed(+RepoEntry) is semidet.

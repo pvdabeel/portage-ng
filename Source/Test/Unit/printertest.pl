@@ -260,7 +260,8 @@ test(assumption_reason_type_table) :-
                   version_conflict(x)          - version_conflict_dependency,
                   version_conflict             - version_conflict_dependency,
                   version_unsatisfied          - version_no_candidate_dependency,
-                  unsatisfied_constraints      - unsatisfied_constraints_dependency ]),
+                  unsatisfied_constraints      - unsatisfied_constraints_dependency,
+                  no_tree_ebuild               - no_tree_ebuild ]),
          ( assumption:assumption_reason_type(Reason, Got),
            Got == Type )).
 

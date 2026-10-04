@@ -103,10 +103,13 @@ Sub-slot (`:=`) ABI rebuilds (portage-ng#89/#118):
   context marker becomes a `constraint(schedule_after(Anchor))` body
   literal so pass 2 places it after the provider (plain anchoring — NOT
   order_after, which doubles as the PDEPEND completion group and would
-  serialize the plan). Masked / keyword-filtered consumers degrade to
-  `assumed(...)` domain assumptions instead of escalating the proof to
-  the unmask tier. Gate: `config:subslot_rebuild/1`; the bulk harness
-  `pipeline:test_stats` suspends via `abirebuild:suspended`.
+  serialize the plan). A masked CPV with a visible same-slot sibling is
+  replaced by that sibling; a keyword-filtered (live / `~arch`) or
+  wholly-masked consumer whose ebuild is still in the tree is repaired
+  in place via `candidate:abi_repair_eligible/3` so the proof does not
+  climb the unmask / keyword_unmask tier; a VDB-only orphan is
+  `assumed(... no_tree_ebuild)`. Gate: `config:subslot_rebuild/1`; the
+  bulk harness `pipeline:test_stats` suspends via `abirebuild:suspended`.
   `pipeline.pl` contains no domain logic for this — prove, don't patch
   the plan.
 

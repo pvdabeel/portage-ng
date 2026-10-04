@@ -1396,3 +1396,4 @@ warning:assumption_reason_label_(version_conflict(_),       'Conflicting version
 warning:assumption_reason_label_(version_no_candidate,    'Unsatisfied version constraint for').
 warning:assumption_reason_label_(version_conflict,        'Conflicting version constraints for').
 warning:assumption_reason_label_(unsatisfied_constraints, 'Unsatisfied constraints for').
+warning:assumption_reason_label_(no_tree_ebuild,          'No tree ebuild for').

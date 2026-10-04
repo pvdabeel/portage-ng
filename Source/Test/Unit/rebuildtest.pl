@@ -79,15 +79,50 @@ test(ordered_goal_adds_rebuild_after_marker,
   abirebuild:ordered_goal(portage://'dev-x/p-2':update,
       portage://'dev-x/c-1':update?{[replaces(pkg://'dev-x/c-1')]}, Goal).
 
-% Masked / keyword-filtered consumers become assumed(...) literals carrying
-% the assumption reason, proven via the standard domain-assumption rule.
+% A VDB-only orphan is reported as assumed(... no_tree_ebuild), not as
+% a masked/keyword leftover. The wrap is the standard domain-assumption
+% rule so the proof does not climb the unmask tier.
 test(skipped_assumption_adds_reason,
-     [true(Assumed == assumed(portage://'dev-x/c-1':update?{[assumption_reason(masked),
+     [true(Assumed == assumed(pkg://'dev-x/c-1':update?{[assumption_reason(no_tree_ebuild),
               replaces(pkg://'dev-x/c-1'),
               rebuild_reason(subslot_change('dev-x'/p, '0', '1'))]}))]) :-
-  Goal = portage://'dev-x/c-1':update?{[replaces(pkg://'dev-x/c-1'),
+  Goal = pkg://'dev-x/c-1':update?{[replaces(pkg://'dev-x/c-1'),
               rebuild_reason(subslot_change('dev-x'/p, '0', '1'))]},
-  abirebuild:skipped_assumption(masked, Goal, Assumed).
+  abirebuild:skipped_assumption(no_tree_ebuild, Goal, Assumed).
+
+% Visible sibling older than the installed CPV is a downgrade; newer or
+% equal is an update. Mask substitute uses this; keyword-filtered never
+% does (it stays on the installed CPV).
+test(replace_action_older_is_downgrade,
+     [true(Action == downgrade)]) :-
+  atom_codes('0.470.0', OldCs), once(phrase(eapi:version(Old), OldCs)),
+  atom_codes('0.480.0', NewCs), once(phrase(eapi:version(New), NewCs)),
+  abirebuild:replace_action(New, Old, Action).
+
+test(replace_action_newer_is_update,
+     [true(Action == update)]) :-
+  atom_codes('0.470.0', OldCs), once(phrase(eapi:version(Old), OldCs)),
+  atom_codes('0.480.0', NewCs), once(phrase(eapi:version(New), NewCs)),
+  abirebuild:replace_action(Old, New, Action).
+
+test(replace_action_equal_is_update,
+     [true(Action == update)]) :-
+  atom_codes('0.480.0', Cs), once(phrase(eapi:version(V), Cs)),
+  abirebuild:replace_action(V, V, Action).
+
+% Same-CPV ABI repair context passes eligibility without assuming unmask.
+test(abi_repair_eligible_same_cpv, [true]) :-
+  candidate:abi_repair_eligible(portage, 'dev-x/c-1',
+      [rebuild_reason(subslot_change('dev-x'/p, '0', '1')),
+       replaces(pkg://'dev-x/c-1')]).
+
+test(abi_repair_eligible_rejects_other_cpv, [fail]) :-
+  candidate:abi_repair_eligible(portage, 'dev-x/other-1',
+      [rebuild_reason(subslot_change('dev-x'/p, '0', '1')),
+       replaces(pkg://'dev-x/c-1')]).
+
+test(abi_repair_eligible_rejects_plain_update, [fail]) :-
+  candidate:abi_repair_eligible(portage, 'dev-x/c-1', []).
 
 % A consumer whose entry is already merged in the model needs no rebuild.
 test(model_merge_covers_rebuild, [true]) :-

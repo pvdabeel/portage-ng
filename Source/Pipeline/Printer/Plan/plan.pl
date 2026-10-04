@@ -794,6 +794,7 @@ plan:assumption_reason_note(version_no_candidate(_,_),'version unavailable').
 plan:assumption_reason_note(slot_unsatisfied,         'slot unavailable').
 plan:assumption_reason_note(installed_required,       'requires installed').
 plan:assumption_reason_note(unsatisfied_constraints,  'unsatisfied constraints').
+plan:assumption_reason_note(no_tree_ebuild,           'no tree ebuild').
 
 
 %! plan:assumed_phase_word(+Phase, -Word)

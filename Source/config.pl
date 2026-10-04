@@ -1934,14 +1934,17 @@ config:toolchain_reactivation(true).
 % `dev-haskell/*` library rebuilt with a new GHC ABI hash, `dev-lang/ocaml`
 % with a new ABI, or a `dev-lang/perl` major bump), the proof-obligation
 % channel (heuristic:proof_obligation/4 -> abirebuild:obligations/3)
-% contributes same-version `:update` rebuild goals (carrying
-% `rebuild_reason(subslot_change(...))`) for the installed packages that
-% bound to it through a `:=` / `:slot=` dependency. Each rebuild is proven
-% in the same pass and ordered after the provider through its own
-% dependency edges, keeping `ghc-pkg check` / OCaml's findlib registry
-% consistent before the next consumer configures (portage-ng#89).
-% Masked / keyword-filtered consumers degrade to domain assumptions
-% instead of escalating the proof to the unmask tier (portage-ng#118).
+% contributes rebuild goals (carrying `rebuild_reason(subslot_change(...))`)
+% for the installed packages that bound to it through a `:=` / `:slot=`
+% dependency. A masked CPV with a visible same-slot sibling is replaced
+% by that sibling; a keyword-filtered (live / `~arch`) or wholly-masked
+% consumer whose ebuild is still in the tree is repaired in place
+% without climbing the unmask / keyword_unmask tier (portage-ng#118);
+% a VDB-only orphan is reported as `no_tree_ebuild`. Each planned
+% rebuild is proven in the same pass and ordered after the provider
+% through its own dependency edges, keeping `ghc-pkg check` / OCaml's
+% findlib registry consistent before the next consumer configures
+% (portage-ng#89).
 %
 % The obligation is transaction-driven: it only fires when a proven merge
 % itself changes a `:=` provider's sub-slot, so for the common case it is
