@@ -12,7 +12,8 @@ Unit tests for the USE rules (Source/Domain/Gentoo/Rules/Resolving/use.pl).
 
 build_with_use state helpers, REQUIRED_USE choice-group seeding,
 use_dep_unsat fail-closed checks, leftover ^^ conflict reconciliation
-(portage-ng#120), use.mask precedence over soft defaults and use.force,
+(portage-ng#120), soft-antecedent retract when a HARD BWU pin blocks
+`flag? ( body )`, use.mask precedence over soft defaults and use.force,
 the cross-dependency build_with_use memo, equality USE pins, IUSE
 assoc helpers and ABI_X86 flags. Synthetic qtest entries only; no
 knowledge base is needed.
@@ -276,6 +277,153 @@ test(use_dep_atom_sat_after_disable_sibling,
   use:use_dep_atom_satisfiable(E, use_state([gitea], [git, gitolite])).
 
 :- end_tests(rules_use_dep_unsat).
+
+
+% HARD consumer pin vs a soft `flag? ( implied )` implication. Body-push
+% is preferred when it does not fight BWU; otherwise the soft antecedent
+% is retracted. Empty BWU and HARD/profile antecedents stay untouched.
+:- begin_tests(rules_requse_antecedent_retract).
+
+rar_entry(qtest://'net-fs/samba-0').
+rar_impl(use_conditional_group(positive, gpg, qtest://'net-fs/samba-0',
+                              [required(addc)])).
+rar_ads(use_conditional_group(negative, ads, qtest://'net-fs/samba-0',
+                             [required(minus(addc))])).
+rar_outer(use_conditional_group(negative, unsupported, qtest://'sci-libs/hdf5-0',
+                               [use_conditional_group(positive, threads,
+                                   qtest://'sci-libs/hdf5-0',
+                                   [required(minus(hl))])])).
+
+rar_setup :-
+  rar_cleanup,
+  rar_entry(Repo://Id),
+  rar_impl(Impl),
+  rar_ads(Ads),
+  assertz(cache:ordered_entry(Repo, Id, 'net-fs', samba,
+                              version([0],'',4,0,[],0,'0'))),
+  assertz(cache:entry_metadata(Repo, Id, required_use, Impl)),
+  assertz(cache:entry_metadata(Repo, Id, required_use, Ads)),
+  assertz(memo:eff_use_cache_(Repo, Id, gpg, positive)),
+  assertz(memo:eff_use_cache_(Repo, Id, addc, negative)),
+  assertz(memo:eff_use_cache_(Repo, Id, ads, negative)),
+  assertz(memo:eff_use_cache_(Repo, Id, client, positive)).
+
+rar_cleanup :-
+  rar_entry(Repo://Id),
+  retractall(cache:ordered_entry(Repo, Id, _, _, _)),
+  retractall(cache:entry_metadata(Repo, Id, required_use, _)),
+  use_entry_memo_reset(Repo://Id),
+  retractall(preference:local_profile_forced_use_flag(gpg)).
+
+rar_hdf_entry(qtest://'sci-libs/hdf5-0').
+
+rar_hdf_setup :-
+  rar_hdf_cleanup,
+  rar_hdf_entry(Repo://Id),
+  rar_outer(Outer),
+  assertz(cache:ordered_entry(Repo, Id, 'sci-libs', hdf5,
+                              version([0],'',4,0,[],0,'0'))),
+  assertz(cache:entry_metadata(Repo, Id, required_use, Outer)),
+  assertz(memo:eff_use_cache_(Repo, Id, threads, positive)),
+  assertz(memo:eff_use_cache_(Repo, Id, hl, negative)),
+  assertz(memo:eff_use_cache_(Repo, Id, unsupported, negative)).
+
+rar_hdf_cleanup :-
+  rar_hdf_entry(Repo://Id),
+  retractall(cache:ordered_entry(Repo, Id, _, _, _)),
+  retractall(cache:entry_metadata(Repo, Id, required_use, _)),
+  use_entry_memo_reset(Repo://Id).
+
+% Consumer HARD `-addc` + soft global gpg → disable gpg, do not enable addc.
+test(hard_disable_retracts_soft_antecedent,
+     [setup(rar_setup), cleanup(rar_cleanup),
+      true(Fixes == [disable(gpg)])]) :-
+  rar_entry(E), rar_impl(Impl),
+  use:requse_term_fixes(E, [client], [addc], Impl, Fixes).
+
+% No HARD `-addc`: keep the preferred body-push (enable addc).
+test(no_hard_pin_still_enables_body,
+     [setup(rar_setup), cleanup(rar_cleanup),
+      true(Fixes == [enable(addc)])]) :-
+  rar_entry(E), rar_impl(Impl),
+  use:requse_term_fixes(E, [client], [], Impl, Fixes).
+
+% Another consumer HARD `[gpg]` + HARD `-addc` is an unsat meet.
+test(hard_antecedent_not_retracted,
+     [setup(rar_setup), cleanup(rar_cleanup), fail]) :-
+  rar_entry(E), rar_impl(Impl),
+  use:requse_term_fixes(E, [client, gpg], [addc], Impl, _).
+
+% Profile use.force on the antecedent is not soft.
+test(profile_forced_antecedent_not_retracted,
+     [setup((rar_setup,
+             assertz(preference:local_profile_forced_use_flag(gpg)))),
+      cleanup(rar_cleanup), fail]) :-
+  rar_entry(E), rar_impl(Impl),
+  use:requse_term_fixes(E, [client], [addc], Impl, _).
+
+% Full stabilize on a samba-like pair: `-addc` stays, gpg is retracted.
+test(stabilize_retracts_gpg_keeps_hard_addc,
+     [setup(rar_setup), cleanup(rar_cleanup),
+      true(Out == use_state([client], [addc, gpg]))]) :-
+  rar_entry(E),
+  use:stabilize_required_use(E, use_state([client], [addc]), Out).
+
+test(stabilize_after_retract_is_sat,
+     [setup(rar_setup), cleanup(rar_cleanup), true]) :-
+  rar_entry(E),
+  use:stabilize_required_use(E, use_state([client], [addc]), Out),
+  use:use_dep_atom_satisfiable(E, Out).
+
+% Empty BWU still must not invent -gpg from global USE (seed path).
+test(empty_bwu_does_not_retract_conditional,
+     [setup(rar_setup), cleanup(rar_cleanup),
+      true(Out == use_state([], []))]) :-
+  rar_entry(E),
+  use:stabilize_required_use(E, use_state([], []), Out).
+
+% hdf5: HARD hl(+) vs threads? ( !hl ) → -threads, not +unsupported.
+test(nested_retracts_inner_not_escape_hatch,
+     [setup(rar_hdf_setup), cleanup(rar_hdf_cleanup),
+      true(Out == use_state([hl], [threads]))]) :-
+  rar_hdf_entry(E),
+  use:stabilize_required_use(E, use_state([hl], []), Out).
+
+test(nested_retract_sat,
+     [setup(rar_hdf_setup), cleanup(rar_hdf_cleanup), true]) :-
+  rar_hdf_entry(E),
+  use:stabilize_required_use(E, use_state([hl], []), Out),
+  use:use_dep_atom_satisfiable(E, Out).
+
+% Two soft antecedents of the same HARD-disabled consequent.
+test(both_soft_antecedents_retracted,
+     [setup(rar_two_setup), cleanup(rar_two_cleanup),
+      true(Out == use_state([], [a, b, x]))]) :-
+  rar_two_entry(E),
+  use:stabilize_required_use(E, use_state([], [x]), Out).
+
+rar_two_entry(qtest://'dev-libs/twoimpl-0').
+
+rar_two_setup :-
+  rar_two_cleanup,
+  rar_two_entry(Repo://Id),
+  A = use_conditional_group(positive, a, Repo://Id, [required(x)]),
+  B = use_conditional_group(positive, b, Repo://Id, [required(x)]),
+  assertz(cache:ordered_entry(Repo, Id, 'dev-libs', twoimpl,
+                              version([0],'',4,0,[],0,'0'))),
+  assertz(cache:entry_metadata(Repo, Id, required_use, A)),
+  assertz(cache:entry_metadata(Repo, Id, required_use, B)),
+  assertz(memo:eff_use_cache_(Repo, Id, a, positive)),
+  assertz(memo:eff_use_cache_(Repo, Id, b, positive)),
+  assertz(memo:eff_use_cache_(Repo, Id, x, negative)).
+
+rar_two_cleanup :-
+  rar_two_entry(Repo://Id),
+  retractall(cache:ordered_entry(Repo, Id, _, _, _)),
+  retractall(cache:entry_metadata(Repo, Id, required_use, _)),
+  use_entry_memo_reset(Repo://Id).
+
+:- end_tests(rules_requse_antecedent_retract).
 
 
 % Leftover REQUIRED_USE ^^ conflict after stabilize (portage-ng#120).

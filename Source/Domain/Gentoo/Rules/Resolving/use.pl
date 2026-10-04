@@ -43,6 +43,9 @@ only the directives from the current dependency edge apply.
 REQUIRED_USE evaluation checks whether the current effective USE state
 satisfies boolean constraints (any-of, exactly-one-of, at-most-one-of,
 conditionals).  `required_use_term_satisfied/2` drives this recursively.
+When a committed HARD `build_with_use` pin blocks an implication body
+(`gpg? ( addc )` vs `[ -addc ]`), stabilize retracts a soft antecedent
+rather than failing closed. Empty-BWU seeding still ignores conditionals.
 
 == Newuse ==
 
@@ -1308,14 +1311,24 @@ use:bwu_conflict_disable(use_conditional_group(negative, Use, _, SubDeps), Enabl
 % support)").  This stabilization step goes beyond Portage by
 % proactively adjusting the BWU Enable/Disable sets to satisfy
 % constraints, reducing false domain-assumption rejections.
+%
+% Conditional implications (`gpg? ( addc )`) are repaired in two
+% directions, in preference order: first push the body when that does
+% not fight a HARD pin already in BWU; if the body is blocked by a
+% HARD disable/enable, retract a *soft* antecedent instead (disable
+% `gpg` when a consumer already pinned `-addc`). Empty-BWU seeding
+% still never touches conditionals — that path is what used to poison
+% samba via global `USE=gpg`. Negative conditionals are not retracted
+% (no auto-`unsupported`).
 
 %! use:stabilize_required_use(+RepoEntry, +BWU_In, -BWU_Out)
 %
 % Adjusts the build_with_use state to satisfy REQUIRED_USE constraints
 % that build_with_use_resolve_required_use could not handle.  Handles
 % any_of_group (enable one member), exactly_one_of_group (enable one
-% when zero satisfied), nested conditional groups, and simple
-% required(Flag) implications.
+% when zero satisfied), nested conditional groups, simple
+% required(Flag) implications, and soft-antecedent retract when a
+% HARD BWU pin blocks the implied body.
 %
 % Uses a fixed-point loop: enabling a flag to satisfy one constraint
 % (e.g. webengine requires quick) may activate another conditional
@@ -1458,7 +1471,11 @@ use:stabilize_requse_term(RepoEntry, Term, use_state(En0, Dis0), use_state(EnOut
 %! use:requse_term_fixes(+RepoEntry, +Enable, +Disable, +Term, -Fixes)
 %
 % Computes a list of enable(Flag)/disable(Flag) fixes for a violated
-% REQUIRED_USE term.
+% REQUIRED_USE term. Enable/Disable are the HARD BWU pins already
+% committed by a consumer (plus earlier stabilize steps). Body-push
+% fixes that fight those pins are dropped; a positive conditional
+% whose body cannot be repaired that way falls back to disabling a
+% soft antecedent.
 
 use:requse_term_fixes(RepoEntry, _En, _Dis, any_of_group(Deps), [enable(Flag)]) :-
     use:requse_pick_satisfying_flag(RepoEntry, Deps, Flag), !.
@@ -1484,14 +1501,22 @@ use:requse_term_fixes(RepoEntry, En, Dis, exactly_one_of_group(Deps), [enable(Fl
     aggregate_all(count, (member(D, Deps), use:requse_term_ok_with_bwu(RepoEntry, En, Dis, D)), 0),
     use:requse_pick_satisfying_flag(RepoEntry, Deps, Flag), !.
 use:requse_term_fixes(RepoEntry, En, Dis,
-                  use_conditional_group(positive, Use, _, SubDeps), Fixes) :-
+                  use_conditional_group(positive, Use, Self, SubDeps), Fixes) :-
     use:requse_flag_is_positive(RepoEntry, En, Dis, Use),
-    foldl(use:collect_requse_fixes(RepoEntry, En, Dis), SubDeps, [], Fixes),
-    Fixes \== [], !.
+    !,
+    foldl(use:collect_requse_fixes(RepoEntry, En, Dis), SubDeps, [], BodyFixes0),
+    use:requse_keep_legal_fixes(RepoEntry, En, Dis, BodyFixes0, BodyFixes),
+    Term = use_conditional_group(positive, Use, Self, SubDeps),
+    ( use:requse_fixes_satisfy(RepoEntry, En, Dis, Term, BodyFixes) ->
+        Fixes = BodyFixes
+    ; use:requse_soft_antecedent_disable(RepoEntry, En, Use) ->
+        Fixes = [disable(Use)]
+    ).
 use:requse_term_fixes(RepoEntry, En, Dis,
                   use_conditional_group(negative, Use, _, SubDeps), Fixes) :-
     use:requse_flag_is_negative(RepoEntry, En, Dis, Use),
-    foldl(use:collect_requse_fixes(RepoEntry, En, Dis), SubDeps, [], Fixes),
+    foldl(use:collect_requse_fixes(RepoEntry, En, Dis), SubDeps, [], BodyFixes0),
+    use:requse_keep_legal_fixes(RepoEntry, En, Dis, BodyFixes0, Fixes),
     Fixes \== [], !.
 use:requse_term_fixes(RepoEntry, En, Dis, required(Use), [enable(Use)]) :-
     Use \= minus(_),
@@ -1506,6 +1531,50 @@ use:requse_term_fixes(RepoEntry, En, Dis, at_most_one_of_group(Deps), []) :-
     aggregate_all(count, (member(D, Deps), use:requse_term_ok_with_bwu(RepoEntry, En, Dis, D)), N),
     N > 1, !.
 use:requse_term_fixes(_RepoEntry, _En, _Dis, _, []).
+
+
+%! use:requse_keep_legal_fixes(+RepoEntry, +Enable, +Disable, +Fixes0, -Fixes)
+%
+% Drop enable/disable fixes that fight a HARD BWU pin or a profile
+% use.mask / use.force. Those are not repairs: applying them would
+% undo a consumer atom or a profile-hard flag.
+
+use:requse_keep_legal_fixes(RepoEntry, En, Dis, Fixes0, Fixes) :-
+    include(use:requse_fix_legal(RepoEntry, En, Dis), Fixes0, Fixes).
+
+
+%! use:requse_fix_legal(+RepoEntry, +Enable, +Disable, +Fix) is semidet.
+
+use:requse_fix_legal(RepoEntry, _En, Dis, enable(Flag)) :-
+    \+ memberchk(Flag, Dis),
+    \+ preference:profile_masked_use_flag(Flag),
+    \+ catch(preference:profile_use_hard(RepoEntry, Flag, negative, _), _, fail).
+use:requse_fix_legal(RepoEntry, En, _Dis, disable(Flag)) :-
+    \+ memberchk(Flag, En),
+    \+ preference:profile_forced_use_flag(Flag),
+    \+ catch(preference:profile_use_hard(RepoEntry, Flag, positive, _), _, fail).
+
+
+%! use:requse_fixes_satisfy(+RepoEntry, +Enable, +Disable, +Term, +Fixes) is semidet.
+%
+% True when applying Fixes to the current HARD pins makes Term hold.
+
+use:requse_fixes_satisfy(RepoEntry, En, Dis, Term, Fixes) :-
+    Fixes \== [],
+    foldl(use:apply_requse_fix, Fixes, use_state(En, Dis), use_state(En1, Dis1)),
+    use:requse_term_ok_with_bwu(RepoEntry, En1, Dis1, Term).
+
+
+%! use:requse_soft_antecedent_disable(+RepoEntry, +Enable, +Use) is semidet.
+%
+% True when Use may be turned off to vacuum a positive conditional.
+% HARD Enable (another consumer's `[Use]`) and profile use.force are
+% not soft: retracting them would hide a real meet failure.
+
+use:requse_soft_antecedent_disable(RepoEntry, En, Use) :-
+    \+ memberchk(Use, En),
+    \+ preference:profile_forced_use_flag(Use),
+    \+ catch(preference:profile_use_hard(RepoEntry, Use, positive, _), _, fail).
 
 
 %! use:requse_pick_satisfying_flag(+RepoEntry, +Deps, -Flag)
