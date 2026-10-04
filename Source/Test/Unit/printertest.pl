@@ -158,71 +158,64 @@ test(installed_copy_unmerged_by_plan_is_silent,
 
 
 % -----------------------------------------------------------------------------
-%  Live 9999 assumed self-install leftover
+%  Model-unavailable assumption (not assumed self-install)
 % -----------------------------------------------------------------------------
 %
-% A keyword-accepted live ebuild plans its own :install, then a second
-% install_dep_model failure records assumed(Repo://Entry:install) with
-% issue_with_model. The verify and the domain-assumption list must drop
-% that leftover when the concrete merge is already in the proof.
+% When install_dep_model fails, resolve assumes issue_with_model(Entry),
+% not the :install goal it is proving. That leftover stays in the
+% domain-assumption list and prints as "model unavailable" even when
+% the same CN is already planned — hiding it was a printer bandaid.
 
-:- begin_tests(annotation_assumed_entry_covered).
+:- begin_tests(annotation_model_unavailable).
 
-aec_entry(qtest://'dev-vcs/mercurial-9999').
-aec_ver(version([9999],'',4,0,[],0,'9999')).
-aec_assumed(qtest://'dev-vcs/mercurial-9999':install?{[issue_with_model(explanation)]}).
+amu_entry(qtest://'dev-vcs/mercurial-9999').
+amu_ver(version([9999],'',4,0,[],0,'9999')).
+amu_assumed(issue_with_model(qtest://'dev-vcs/mercurial-9999')?{[issue_with_model(explanation)]}).
 
-aec_setup :-
-  aec_cleanup,
-  aec_entry(Repo://Id),
-  aec_ver(V),
+amu_setup :-
+  amu_cleanup,
+  amu_entry(Repo://Id),
+  amu_ver(V),
   assertz(cache:ordered_entry(Repo, Id, 'dev-vcs', mercurial, V)).
 
-aec_cleanup :-
-  aec_entry(Repo://Id),
+amu_cleanup :-
+  amu_entry(Repo://Id),
   retractall(cache:ordered_entry(Repo, Id, _, _, _)).
 
-aec_proof(Steps, Content, Proof) :-
+amu_proof(Steps, Content, Proof) :-
   findall(rule(qtest://E:A)-(dep(_,[])?{[]}), member(E:A, Steps), Planned),
   list_to_assoc([rule(assumed(Content))-(dep(_,[])?{[]})|Planned], Proof).
 
-aec_state(Plan, State) :-
+amu_state(Plan, State) :-
   empty_assoc(Notes),
   plan:build_planned_pkg_set(Plan, Set),
   State = ps([], Notes, Set).
 
-test(domain_drops_assumed_install_when_cn_planned,
-     [setup(aec_setup), cleanup(aec_cleanup)]) :-
-  aec_assumed(Content),
-  aec_proof(['dev-vcs/mercurial-9999':install], Content, Proof),
-  annotation:collect(Proof, Ann),
-  annotation:domain_assumptions(Ann, Domain),
-  \+ memberchk(Content, Domain).
-
-test(domain_keeps_assumed_install_when_cn_unplanned,
-     [setup(aec_setup), cleanup(aec_cleanup)]) :-
-  aec_assumed(Content),
-  aec_proof([], Content, Proof),
+test(domain_keeps_model_unavailable_when_cn_planned,
+     [setup(amu_setup), cleanup(amu_cleanup)]) :-
+  amu_assumed(Content),
+  amu_proof(['dev-vcs/mercurial-9999':install], Content, Proof),
   annotation:collect(Proof, Ann),
   annotation:domain_assumptions(Ann, Domain),
   memberchk(Content, Domain).
 
-test(verify_hidden_when_concrete_install_planned,
-     [setup(aec_setup), cleanup(aec_cleanup)]) :-
-  aec_entry(Repo://Id),
+test(verify_shows_model_unavailable_when_install_planned,
+     [setup(amu_setup), cleanup(amu_cleanup)]) :-
+  amu_entry(Repo://Id),
   Plan = [[rule(Repo://Id:install?{[]}, [])]],
-  aec_state(Plan, State),
-  Rule = rule(assumed(Repo://Id:install?{[issue_with_model(explanation)]}), []),
-  \+ plan:printable_element(State, Rule).
+  amu_state(Plan, State),
+  Rule = rule(assumed(issue_with_model(Repo://Id)?{[issue_with_model(explanation)]}), []),
+  plan:printable_element(State, Rule).
 
-test(verify_shown_when_no_concrete_install,
-     [setup(aec_setup), cleanup(aec_cleanup)]) :-
-  aec_entry(Repo://Id),
-  aec_state([[]], State),
+test(does_not_hide_assumed_install_when_cn_planned,
+     [setup(amu_setup), cleanup(amu_cleanup)]) :-
+  amu_entry(Repo://Id),
+  Plan = [[rule(Repo://Id:install?{[]}, [])]],
+  amu_state(Plan, State),
   Rule = rule(assumed(Repo://Id:install?{[issue_with_model(explanation)]}), []),
   plan:printable_element(State, Rule).
 
-:- end_tests(annotation_assumed_entry_covered).
+:- end_tests(annotation_model_unavailable).
 
 
 % -----------------------------------------------------------------------------
@@ -278,6 +271,12 @@ assumption_type_vector(negative,
 assumption_type_vector(negative,
   grouped_package_dependency(no, 'acct-user', git, []):install?{[required_use_violation(use_dep_unsat(x, use_state([gitea], []), profile_hard_conflict))]},
   use_dep_unsat).
+assumption_type_vector(negative,
+  issue_with_model(portage://'app-misc/x-1.0')?{[issue_with_model(explanation)]},
+  issue_with_model).
+assumption_type_vector(negative,
+  issue_with_model(portage://'app-misc/x-1.0'),
+  issue_with_model).
 
 % CYCLE axis (benign, separate from domain assumptions)
 assumption_type_vector(cycle, cycle_break(foo),                                cycle_break).

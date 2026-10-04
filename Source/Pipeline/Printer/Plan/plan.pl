@@ -243,6 +243,10 @@ plan:printable_element(_, Rule) :-
   fail.
 plan:printable_element(_,rule(uri(_,_,_),_)) :- !.
 plan:printable_element(_,rule(uri(_),_)) :- !.
+plan:printable_element(_, Rule) :-
+  prover:rule_parts(Rule, Head, _, domain_assumption),
+  prover:canon_literal(Head, issue_with_model(_Repo://_Entry), _),
+  !.
 plan:printable_element(State, Rule) :-
   plan:rule_pkg_info(Rule, Action, Body, Kind, Core),
   plan:printable_kind_action(Kind, Core, Action),
@@ -345,10 +349,11 @@ plan:wrapper_update_body(Body, Action) :-
 
 %! plan:suppress_assumed_planned(+State, +Core) is semidet.
 %
-% Hide an assumed verify when a concrete ebuild for the same package is
-% already scheduled in the plan. Covers assumed dependency groups and
-% the entry-level `assumed(Repo://Entry:install)` leftover that live
-% `9999` targets leave next to their own keyword-accepted merge.
+% Hide an assumed dependency-group verify when a concrete ebuild for
+% the same package is already scheduled in the plan. Entry-level
+% `assumed(Repo://Entry:install)` is not suppressed here: resolve no
+% longer assumes the install it is proving, so a leftover of that
+% shape is a real domain assumption.
 
 plan:suppress_assumed_planned(State, grouped_package_dependency(_, C, N, _):Phase) :-
   ( Phase == install ; Phase == run ),
@@ -358,10 +363,6 @@ plan:suppress_assumed_planned(State, grouped_package_dependency(C, N, _):Phase) 
   plan:planned_pkg(State, Phase, C, N).
 plan:suppress_assumed_planned(State, package_dependency(Phase, no, C, N, _, _, _, _):Phase) :-
   ( Phase == install ; Phase == run ),
-  plan:planned_pkg(State, Phase, C, N).
-plan:suppress_assumed_planned(State, Repo://Entry:Phase) :-
-  ( Phase == install ; Phase == run ),
-  cache:ordered_entry(Repo, Entry, C, N, _),
   plan:planned_pkg(State, Phase, C, N).
 
 
@@ -746,6 +747,14 @@ plan:print_element(_,rule(assumed(Repository://Entry:unmask?{_Context}),_Body)) 
   !,
   plan:print_assumed_entry_verify(Repository://Entry, 'masked, assumed unmasked').
 
+plan:print_element(_,rule(assumed(issue_with_model(Repository://Entry)?{_Context}),_Body)) :-
+  !,
+  plan:print_assumed_entry_verify(Repository://Entry, 'model unavailable').
+
+plan:print_element(_,rule(assumed(issue_with_model(Repository://Entry)),_Body)) :-
+  !,
+  plan:print_assumed_entry_verify(Repository://Entry, 'model unavailable').
+
 plan:print_element(_,rule(assumed(Repository://Entry:Action?{_Context}),_Body)) :-
   ( plan:assumed_phase_word(Action, Word) -> true ; Word = Action ),
   format(atom(Text), 'assumed ~w', [Word]),
@@ -1077,9 +1086,8 @@ plan:print_pre_action_continuation(StartColumn) :-
 
 
 % Build a set of planned packages (category/name) for actions install/run.
-% Only regular (non-assumed) merge rules count: an assumed self-install
-% must not hide itself. This lets suppress_assumed_planned/2 drop the
-% verify leftover when a concrete ebuild for the same CN is scheduled.
+% Only regular (non-assumed) merge rules count, so an assumed dependency
+% group does not hide itself via suppress_assumed_planned/2.
 plan:build_planned_pkg_set(Plan, Set) :-
   empty_assoc(Empty),
   foldl(plan:build_planned_pkg_set_step, Plan, Empty, Set).

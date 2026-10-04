@@ -502,6 +502,8 @@ test:in_model(assumed(Template),Model) :-
 test:assumed_matches(Predicate:Action?{Context}, Predicate:Action, Context).
 test:assumed_matches(Predicate:Action?{Context}, Predicate:Action?{Context}, _).
 test:assumed_matches(Predicate:Action?{Context}, _Repo://(Predicate:Action?{Context}), _).
+test:assumed_matches(issue_with_model(E)?{_}, issue_with_model(E)?{_}, _).
+test:assumed_matches(issue_with_model(_)?{_}, issue_with_model(_)?{_}, _).
 
 
 % =============================================================================
@@ -662,11 +664,14 @@ test:expect(overlay://'test16/web-1.0':run?{[]},
 %  Circular dependencies (test03..test08)
 % -----------------------------------------------------------------------------
 
-% test03: os depends on itself (compile) -- cycle-break assumption expected
+% test03: os depends on itself (compile). The config-phase self-dep
+% rule fails when os is not installed (so an any_of_group can try a
+% bootstrap arm). A lone self-dep therefore cannot build an install
+% model; resolve records issue_with_model, not assumed(:install).
 test:expect(overlay://'test03/web-1.0':run?{[]},
             [ test:must_have(overlay://'test03/web-1.0':run?{_}),
               test:must_have(overlay://'test03/os-1.0':run?{_}),
-              test:must_have(assumed(_:install?{_}))
+              test:must_have(assumed(issue_with_model(_)?{_}))
             ]).
 
 % test04: os depends on itself (runtime) -- the install/run action split
@@ -677,13 +682,13 @@ test:expect(overlay://'test04/web-1.0':run?{[]},
               test:must_have(overlay://'test04/os-1.0':install?{_})
             ]).
 
-% test05: os depends on itself (compile + runtime) -- the compile self-dep
-% needs a cycle-break assumption on os:install; the runtime leg resolves
+% test05: os depends on itself (compile + runtime). Same compile
+% self-dep model failure as test03; the runtime leg still resolves
 % via the install/run action split.
 test:expect(overlay://'test05/web-1.0':run?{[]},
             [ test:must_have(overlay://'test05/web-1.0':run?{_}),
               test:must_have(overlay://'test05/os-1.0':run?{_}),
-              test:must_have(assumed(_:install?{_}))
+              test:must_have(assumed(issue_with_model(_)?{_}))
             ]).
 
 % test06: indirect cycle (os -> web compile, web -> os) -- dissolved by the

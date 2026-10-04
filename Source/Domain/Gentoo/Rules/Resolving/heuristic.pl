@@ -312,6 +312,8 @@ heuristic:restart_seed(bwu_force_flush(Pending), Lit0) :-
   heuristic:strip_ctx(Lit0, Lit),
   ( Lit = Repo://Entry:_Action ->
       cache:ordered_entry(Repo, Entry, C, N, _)
+  ; heuristic:issue_with_model_entry(Lit, Repo, Entry) ->
+      cache:ordered_entry(Repo, Entry, C, N, _)
   ; Lit = grouped_package_dependency(_Strength, C, N, _Deps):_Action1 ->
       true
   ; Lit = grouped_package_dependency(C, N, _Deps2):_Action2 ->
@@ -319,6 +321,17 @@ heuristic:restart_seed(bwu_force_flush(Pending), Lit0) :-
   ; fail
   ),
   heuristic:pending_use_force_cn(Pending, C, N).
+
+
+%! heuristic:issue_with_model_entry(+Lit, -Repo, -Entry) is semidet.
+%
+% True when Lit is a model-unavailable assumption for Repo://Entry.
+% `prover:canon_literal/3` does not peel a generic `F?{Ctx}` (the
+% catch-all `L, L, {}` clause commits first), so both the bare and
+% context-carrying shapes have to match here.
+
+heuristic:issue_with_model_entry(issue_with_model(Repo://Entry), Repo, Entry).
+heuristic:issue_with_model_entry(issue_with_model(Repo://Entry)?{_}, Repo, Entry).
 
 
 %! heuristic:pending_use_force_cn(+Pending, +C, +N) is semidet

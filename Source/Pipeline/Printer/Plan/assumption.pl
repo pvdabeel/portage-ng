@@ -125,6 +125,7 @@ assumption:assumption_type(grouped_package_dependency(_,_,_,_):install,        a
 assumption:assumption_type(grouped_package_dependency(_,_,_,_):run,            assumed_running) :- !.
 assumption:assumption_type(blocker(_Strength,_Phase,_C,_N,_O,_V,_SlotReq),     blocker_assumption) :- !.
 
+assumption:assumption_type(issue_with_model(_), issue_with_model) :- !.
 assumption:assumption_type(Term, issue_with_model) :-
   explainer:term_ctx(Term, Ctx),
   memberchk(issue_with_model(_), Ctx),
@@ -189,6 +190,7 @@ assumption:assumption_is_package_level(_://_:install) :- !.
 assumption:assumption_is_package_level(_://_:run) :- !.
 assumption:assumption_is_package_level(_://_:fetchonly) :- !.
 assumption:assumption_is_package_level(_://_:unmask) :- !.
+assumption:assumption_is_package_level(issue_with_model(_://_)) :- !.
 assumption:assumption_is_package_level(grouped_package_dependency(_,_,_,_):_) :- !.
 assumption:assumption_is_package_level(package_dependency(_,_,_,_,_,_,_,_):_) :- !.
 

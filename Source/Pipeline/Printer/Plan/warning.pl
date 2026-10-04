@@ -1144,6 +1144,25 @@ warning:print_assumption_detail(rule(R://E:_Action?{Ctx0}, _Body)) :-
     format('  (some dependencies may be missing from the tree or keyword-filtered)~n', []),
     warning:print_assumption_provenance(Ctx).
 
+warning:print_assumption_detail(rule(issue_with_model(R://E)?{Ctx0}, _Body)) :-
+    !,
+    warning:unwrap_ctx(Ctx0, Ctx),
+    message:color(lightred),
+    message:style(bold),
+    message:print('- Model unavailable: '),
+    message:style(normal),
+    message:color(normal),
+    nl,
+    ( query:search([category(C), name(N)], R://E) ->
+        format('  ~w/~w — dependency model could not be built~n', [C, N])
+    ; format('  ~w — dependency model could not be built~n', [R://E])
+    ),
+    format('  (some dependencies may be missing from the tree or keyword-filtered)~n', []),
+    warning:print_assumption_provenance(Ctx).
+warning:print_assumption_detail(rule(issue_with_model(R://E), Body)) :-
+    !,
+    warning:print_assumption_detail(rule(issue_with_model(R://E)?{[]}, Body)).
+
 warning:print_assumption_detail(rule(C,_)) :-
     message:color(lightred),
     message:style(bold),

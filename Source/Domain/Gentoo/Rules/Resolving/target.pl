@@ -845,8 +845,8 @@ candidate:resolve(Repository://Ebuild:fetchonly?{Context}, Conditions) :-
                         Repository://Ebuild:download?{DownloadCtx}
                         |MergedDeps]
       )
-  ; feature_unification:unify([issue_with_model(explanation)], Context, Ctx1),
-    Conditions = [assumed(Repository://Ebuild:install?{Ctx1})]
+  ; candidate:model_unavailable_assumption(Repository://Ebuild, Context, Assumed),
+    Conditions = [Assumed]
   ).
 
 
@@ -867,8 +867,9 @@ candidate:resolve(Repository://Ebuild:install?{Context}, Conditions) :-
   candidate:resolve_required_use(install, C, N, Repository://Ebuild, Context1, R, BResolved, Model),
   ( candidate:install_dep_model(Repository://Ebuild, Model, AfterForDeps, install,
                              Selected, C, N, S, R, BResolved, After, Context1, Conditions)
-  ; feature_unification:unify([issue_with_model(explanation)], Context1, Ctx1),
-    Conditions = [assumed(Repository://Ebuild:install?{Ctx1})]
+  -> true
+  ; candidate:model_unavailable_assumption(Repository://Ebuild, Context1, Assumed),
+    Conditions = [Assumed]
   ).
 
 
@@ -890,8 +891,9 @@ candidate:resolve(Repository://Ebuild:run?{Context}, Conditions) :-
   candidate:resolve_required_use(run, C, N, Repository://Ebuild, Context1, R, BResolved, Model),
   ( candidate:run_dep_model(Repository://Ebuild, Model, AfterForDeps, run,
                          Selected, C, N, S, R, BResolved, After, Context1, Conditions)
-  ; feature_unification:unify([issue_with_model(explanation)], Context1, Ctx1),
-    Conditions = [assumed(Repository://Ebuild:run?{Ctx1})]
+  -> true
+  ; candidate:model_unavailable_assumption(Repository://Ebuild, Context1, Assumed),
+    Conditions = [Assumed]
   ).
 
 
@@ -902,7 +904,9 @@ candidate:resolve(Repository://Ebuild:run?{Context}, Conditions) :-
 %! candidate:install_dep_model(+Entry, +Model, +AfterForDeps, +Phase, +Selected, +C, +N, +S, +R, +BResolved, +After, +Context, -Conditions) is semidet.
 %
 % Computes and assembles the dependency model for the :install proof.
-% The model-fallback assumption in resolve_install only wraps this step.
+% Failure is committed-choice: resolve does not backtrack into the
+% model-unavailable assumption, and that assumption is not the :install
+% goal itself (see model_unavailable_assumption/3).
 % Context is the literal's proof context (after the ordering markers were
 % taken out); its `with_test_deps` marker widens the walk to `test?` groups.
 
@@ -942,7 +946,9 @@ candidate:install_dep_model(Repository://Ebuild, Model, AfterForDeps, install,
 %! candidate:run_dep_model(+Entry, +Model, +AfterForDeps, +Phase, +Selected, +C, +N, +S, +R, +BResolved, +After, +Context, -Conditions) is semidet.
 %
 % Computes and assembles the dependency model for the :run proof.
-% The model-fallback assumption in resolve_run only wraps this step.
+% Failure is committed-choice: resolve does not backtrack into the
+% model-unavailable assumption, and that assumption is not the :run
+% goal itself (see model_unavailable_assumption/3).
 
 candidate:run_dep_model(Repository://Ebuild, Model, AfterForDeps, run,
                      Selected, C, N, S, R, BResolved, After, Context1, Conditions) :-
@@ -969,6 +975,25 @@ candidate:run_dep_model(Repository://Ebuild, Model, AfterForDeps, run,
              InstallOrUpdate],
   append(Prefix0, MergedDepsOrdered, Conditions0),
   featureterm:add_after_condition(After, AfterForDeps, Conditions0, Conditions).
+
+
+% -----------------------------------------------------------------------------
+%  Shared: model-unavailable assumption
+% -----------------------------------------------------------------------------
+
+%! candidate:model_unavailable_assumption(+Entry, +Context, -Assumed) is det.
+%
+% Domain assumption used when an ebuild's dependency model cannot be
+% built. Assumed is `issue_with_model(Entry)`, not the :install / :run
+% / :fetchonly goal being resolved. Assuming that goal printed
+% "assumed installed" next to the same merge and forced the printer to
+% hide a leftover that was the body of the rule it was proving.
+% Committed-choice (`->`) in the callers keeps a later body failure
+% from backtracking into this fallback after a successful model.
+
+candidate:model_unavailable_assumption(Repository://Ebuild, Context, Assumed) :-
+  feature_unification:unify([issue_with_model(explanation)], Context, Ctx1),
+  Assumed = assumed(issue_with_model(Repository://Ebuild)?{Ctx1}).
 
 
 % -----------------------------------------------------------------------------

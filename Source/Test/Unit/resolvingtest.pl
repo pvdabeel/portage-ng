@@ -128,6 +128,7 @@ test(restart_seed_matches_pending_provider_actions,
   % the context-carrying shape has to seed as well or the stale assumption
   % survives the flush.
   heuristic:restart_seed(Info, fakerepo://'cat/pkg-1.0':install?{[issue_with_model(explanation)]}),
+  heuristic:restart_seed(Info, issue_with_model(fakerepo://'cat/pkg-1.0')?{[issue_with_model(explanation)]}),
   \+ heuristic:restart_seed(Info, fakerepo://'cat/other-1.0':install),
   \+ heuristic:restart_seed(Info, fakerepo://'cat/other-1.0':install?{[]}),
   \+ heuristic:restart_seed(Info, grouped_dep(cat, pkg, []):install).
@@ -526,3 +527,19 @@ test(drops_text_outside_learned_bound,
   candidate:config_learned_domain_allows('dev-haskell', text, [], New).
 
 :- end_tests(learned_choice_arm).
+
+
+% -----------------------------------------------------------------------------
+%  Model-unavailable fallback is not the install being resolved
+% -----------------------------------------------------------------------------
+
+:- begin_tests(model_unavailable_assumption).
+
+test(assumes_issue_with_model_not_the_install) :-
+  Entry = fakerepo://'cat/pkg-1.0',
+  candidate:model_unavailable_assumption(Entry, [], Assumed),
+  Assumed = assumed(issue_with_model(Entry)?{Ctx}),
+  memberchk(issue_with_model(explanation), Ctx),
+  Assumed \= assumed(Entry:install?{_}).
+
+:- end_tests(model_unavailable_assumption).
