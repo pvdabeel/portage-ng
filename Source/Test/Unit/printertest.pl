@@ -14,6 +14,8 @@ printer head normalisation (Source/Pipeline/Printer/Plan/).
 Blocker relevance in annotation:collect/2, the assumption polarity
 table of assumption:assumption_type/2, `--fetchonly` print filtering,
 and printable/render agreement across canon_literal head shapes.
+Assumed live-`9999` self-install leftovers are dropped when the same
+CN already has a concrete merge.
 */
 
 :- module(printertest, []).
@@ -153,6 +155,74 @@ test(installed_copy_unmerged_by_plan_is_silent,
   abr_silent(Proof, Content).
 
 :- end_tests(annotation_blocker_relevance).
+
+
+% -----------------------------------------------------------------------------
+%  Live 9999 assumed self-install leftover
+% -----------------------------------------------------------------------------
+%
+% A keyword-accepted live ebuild plans its own :install, then a second
+% install_dep_model failure records assumed(Repo://Entry:install) with
+% issue_with_model. The verify and the domain-assumption list must drop
+% that leftover when the concrete merge is already in the proof.
+
+:- begin_tests(annotation_assumed_entry_covered).
+
+aec_entry(qtest://'dev-vcs/mercurial-9999').
+aec_ver(version([9999],'',4,0,[],0,'9999')).
+aec_assumed(qtest://'dev-vcs/mercurial-9999':install?{[issue_with_model(explanation)]}).
+
+aec_setup :-
+  aec_cleanup,
+  aec_entry(Repo://Id),
+  aec_ver(V),
+  assertz(cache:ordered_entry(Repo, Id, 'dev-vcs', mercurial, V)).
+
+aec_cleanup :-
+  aec_entry(Repo://Id),
+  retractall(cache:ordered_entry(Repo, Id, _, _, _)).
+
+aec_proof(Steps, Content, Proof) :-
+  findall(rule(qtest://E:A)-(dep(_,[])?{[]}), member(E:A, Steps), Planned),
+  list_to_assoc([rule(assumed(Content))-(dep(_,[])?{[]})|Planned], Proof).
+
+aec_state(Plan, State) :-
+  empty_assoc(Notes),
+  plan:build_planned_pkg_set(Plan, Set),
+  State = ps([], Notes, Set).
+
+test(domain_drops_assumed_install_when_cn_planned,
+     [setup(aec_setup), cleanup(aec_cleanup)]) :-
+  aec_assumed(Content),
+  aec_proof(['dev-vcs/mercurial-9999':install], Content, Proof),
+  annotation:collect(Proof, Ann),
+  annotation:domain_assumptions(Ann, Domain),
+  \+ memberchk(Content, Domain).
+
+test(domain_keeps_assumed_install_when_cn_unplanned,
+     [setup(aec_setup), cleanup(aec_cleanup)]) :-
+  aec_assumed(Content),
+  aec_proof([], Content, Proof),
+  annotation:collect(Proof, Ann),
+  annotation:domain_assumptions(Ann, Domain),
+  memberchk(Content, Domain).
+
+test(verify_hidden_when_concrete_install_planned,
+     [setup(aec_setup), cleanup(aec_cleanup)]) :-
+  aec_entry(Repo://Id),
+  Plan = [[rule(Repo://Id:install?{[]}, [])]],
+  aec_state(Plan, State),
+  Rule = rule(assumed(Repo://Id:install?{[issue_with_model(explanation)]}), []),
+  \+ plan:printable_element(State, Rule).
+
+test(verify_shown_when_no_concrete_install,
+     [setup(aec_setup), cleanup(aec_cleanup)]) :-
+  aec_entry(Repo://Id),
+  aec_state([[]], State),
+  Rule = rule(assumed(Repo://Id:install?{[issue_with_model(explanation)]}), []),
+  plan:printable_element(State, Rule).
+
+:- end_tests(annotation_assumed_entry_covered).
 
 
 % -----------------------------------------------------------------------------

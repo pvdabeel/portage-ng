@@ -345,8 +345,10 @@ plan:wrapper_update_body(Body, Action) :-
 
 %! plan:suppress_assumed_planned(+State, +Core) is semidet.
 %
-% Hide an assumed dependency verify when a concrete ebuild for the same
-% package is already scheduled in the plan.
+% Hide an assumed verify when a concrete ebuild for the same package is
+% already scheduled in the plan. Covers assumed dependency groups and
+% the entry-level `assumed(Repo://Entry:install)` leftover that live
+% `9999` targets leave next to their own keyword-accepted merge.
 
 plan:suppress_assumed_planned(State, grouped_package_dependency(_, C, N, _):Phase) :-
   ( Phase == install ; Phase == run ),
@@ -356,6 +358,10 @@ plan:suppress_assumed_planned(State, grouped_package_dependency(C, N, _):Phase) 
   plan:planned_pkg(State, Phase, C, N).
 plan:suppress_assumed_planned(State, package_dependency(Phase, no, C, N, _, _, _, _):Phase) :-
   ( Phase == install ; Phase == run ),
+  plan:planned_pkg(State, Phase, C, N).
+plan:suppress_assumed_planned(State, Repo://Entry:Phase) :-
+  ( Phase == install ; Phase == run ),
+  cache:ordered_entry(Repo, Entry, C, N, _),
   plan:planned_pkg(State, Phase, C, N).
 
 
@@ -1071,8 +1077,9 @@ plan:print_pre_action_continuation(StartColumn) :-
 
 
 % Build a set of planned packages (category/name) for actions install/run.
-% This allows suppressing "assumed dependency verify" lines when a concrete
-% ebuild for the same package is already scheduled in the plan.
+% Only regular (non-assumed) merge rules count: an assumed self-install
+% must not hide itself. This lets suppress_assumed_planned/2 drop the
+% verify leftover when a concrete ebuild for the same CN is scheduled.
 plan:build_planned_pkg_set(Plan, Set) :-
   empty_assoc(Empty),
   foldl(plan:build_planned_pkg_set_step, Plan, Empty, Set).
@@ -1081,17 +1088,12 @@ plan:build_planned_pkg_set_step(Step, In, Out) :-
   foldl(plan:build_planned_pkg_set_rule, Step, In, Out).
 
 plan:build_planned_pkg_set_rule(Rule, In, Out) :-
-  ( Rule = rule(HeadWithCtx, _Body)
-  ; Rule = rule(assumed(HeadWithCtx), _Body)
-  ),
-  prover:canon_literal(HeadWithCtx, Head, _),
-  ( Head = Repo://Entry:Action,
-    ( Action == run ; Action == install ),
-    cache:ordered_entry(Repo, Entry, C, N, _),
-    Key = Action-C-N,
-    ( get_assoc(Key, In, true) -> Out = In ; put_assoc(Key, In, true, Out) )
-  ; Out = In
-  ),
+  prover:rule_parts(Rule, HeadWithCtx, _Body, regular),
+  prover:canon_literal(HeadWithCtx, Repo://Entry:Action, _),
+  ( Action == run ; Action == install ),
+  cache:ordered_entry(Repo, Entry, C, N, _),
+  Key = Action-C-N,
+  ( get_assoc(Key, In, true) -> Out = In ; put_assoc(Key, In, true, Out) ),
   !.
 plan:build_planned_pkg_set_rule(_Other, Set, Set).
 

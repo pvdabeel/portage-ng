@@ -71,6 +71,9 @@ annotation:unwrap_ctx(Ctx0, Ctx) :-
 %                      assumptions (proof key assumed(rule(Content)))
 % - DomainAssumptions: Content for domain assumptions (proof key
 %                      rule(assumed(Content))), minus ineffective blockers
+%                      and minus entry-level assumed :install/:run whose
+%                      CN already has a concrete merge in the proof
+%                      (live `9999` self-install leftovers)
 %
 % Blocker relevance: pass 1 records every weak blocker it walks past as
 % `assumed(blocker(Strength, Phase, C, N, O, V, SlotReq))` because, mid
@@ -107,7 +110,13 @@ annotation:collect(ProofAVL, proof_annotations(Unmasks, Licenses, Keywords,
   partition(annotation:blocker_effective(PlannedIdx), Blockers0,
             Effective, Ineffective),
   findall(Content, member(blk(Content,_,_,_,_,_,_,_,_), Ineffective), Dropped0),
-  sort(Dropped0, Dropped),
+  findall(Content,
+          ( member(Content, DomainAssumptions0),
+            annotation:assumed_entry_covered(PlannedIdx, Content)
+          ),
+          Covered0),
+  append(Dropped0, Covered0, Dropped1),
+  sort(Dropped1, Dropped),
   ord_subtract(DomainAssumptions0, Dropped, DomainAssumptions),
   findall(key(C,N,Phase)-note(Strength,Origin),
           member(blk(_,Strength,Phase,C,N,_,_,_,Origin), Effective),
@@ -226,6 +235,22 @@ annotation:planned_index(Planned, Index) :-
           ),
           Pairs),
   list_to_assoc(Pairs, Index).
+
+
+%! annotation:assumed_entry_covered(+PlannedIndex, +Content) is semidet.
+%
+% True when Content is an assumed package :install or :run whose CN
+% already has a concrete merge in the proof. Those leftovers sit next
+% to the keyword-accepted live ebuild they failed to model a second
+% time; reporting them would turn a successful plan into exit 2.
+
+annotation:assumed_entry_covered(PlannedIdx, Content) :-
+  prover:canon_literal(Content, Repo://Entry:Action, _),
+  ( Action == install ; Action == run ),
+  cache:ordered_entry(Repo, Entry, C, N, _),
+  get_assoc(C-N, PlannedIdx, Planned),
+  member(planned(A, _, _), Planned),
+  memberchk(A, [install, update, downgrade, reinstall]).
 
 
 %! annotation:blocker_effective(+PlannedIndex, +Blocker) is semidet.
