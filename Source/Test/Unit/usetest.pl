@@ -825,3 +825,126 @@ test(not_atom, [fail]) :-
   use:is_abi_x86_flag(123).
 
 :- end_tests(use_abi_x86_flag).
+
+
+% Portage profile-use-stable stack: package.use.stable > package.use >
+% use.stable, and only when KEYWORDS lists the host arch as stable.
+% make.conf (local_env_use) beats use.stable. use.stable.mask beats
+% use.stable.force.
+
+:- begin_tests(use_stable_files).
+
+test(stable_keyword_stack,
+     [setup(sus_setup(stable)), cleanup(sus_cleanup)]) :-
+  E = sustest://'test-stable/pkg-0',
+  use:effective_use_for_entry(E, stabletest_a, positive),
+  use:effective_use_for_entry(E, stabletest_b, negative),
+  use:effective_use_for_entry(E, stabletest_c, negative),
+  use:effective_use_for_entry(E, stabletest_d, positive),
+  use:effective_use_for_entry(E, stabletest_e, positive),
+  use:effective_use_for_entry(E, stabletest_f, positive).
+
+test(unstable_ignores_stable_files,
+     [setup(sus_setup(unstable)), cleanup(sus_cleanup)]) :-
+  E = sustest://'test-stable/pkg-0',
+  use:effective_use_for_entry(E, stabletest_a, negative),
+  use:effective_use_for_entry(E, stabletest_b, negative),
+  use:effective_use_for_entry(E, stabletest_c, negative),
+  use:effective_use_for_entry(E, stabletest_d, positive),
+  use:effective_use_for_entry(E, stabletest_e, negative),
+  use:effective_use_for_entry(E, stabletest_f, negative).
+
+test(make_conf_beats_use_stable,
+     [setup(sus_env_setup), cleanup(sus_env_cleanup)]) :-
+  use:effective_use_for_entry(sustest://'test-stable/pkg-0',
+                              stabletest_e, negative).
+
+test(stable_mask_beats_stable_force,
+     [setup(sus_mask_setup), cleanup(sus_cleanup)]) :-
+  use:effective_use_for_entry(sustest://'test-stable/pkg-0',
+                              stabletest_e, negative).
+
+:- end_tests(use_stable_files).
+
+
+sus_flags([stabletest_a, stabletest_b, stabletest_c,
+           stabletest_d, stabletest_e, stabletest_f]).
+
+sus_neg(Flag, Map0, Map) :-
+  put_assoc(Flag, Map0, negative, Map).
+
+sus_setup(Keyword) :-
+  ( userconfig:current_arch(_) ->
+      true
+  ; setenv('ACCEPT_KEYWORDS', amd64)
+  ),
+  userconfig:current_arch(Arch),
+  Repo = sustest,
+  Id = 'test-stable/pkg-0',
+  use_entry_cleanup(Repo://Id),
+  retractall(cache:entry_metadata(Repo, Id, _, _)),
+  assertz(cache:ordered_entry(Repo, Id, 'test-stable', pkg,
+                              version([0], '', 4, 0, [], 0, '0'))),
+  empty_assoc(Empty),
+  sus_flags(Flags),
+  foldl(sus_neg, Flags, Empty, Map),
+  assertz(memo:iuse_default_cache_(Repo, Id, Map)),
+  ( Keyword == stable ->
+      assertz(cache:entry_metadata(Repo, Id, keywords, stable(Arch)))
+  ; assertz(cache:entry_metadata(Repo, Id, keywords, unstable(Arch)))
+  ),
+  preference:profile_package_use_spec('test-stable/pkg', Spec),
+  assertz(preference:local_profile_use_soft(Spec, stabletest_a, negative)),
+  assertz(preference:local_profile_use_soft(Spec, stabletest_d, positive)),
+  preference:assert_stable_use_soft(Spec, stabletest_a, positive),
+  preference:assert_stable_use_soft(Spec, stabletest_b, negative),
+  preference:assert_stable_use_soft(Spec, stabletest_c, negative),
+  preference:assert_stable_use_soft(Spec, stabletest_f, positive),
+  assertz(preference:local_profile_stable_use(stabletest_a)),
+  assertz(preference:local_profile_stable_use(stabletest_b)),
+  assertz(preference:local_profile_stable_use(stabletest_c)),
+  assertz(preference:local_profile_stable_use(stabletest_e)),
+  sus_drop_soft_index.
+
+sus_env_setup :-
+  sus_setup(stable),
+  assertz(preference:local_env_use(minus(stabletest_e))).
+
+sus_env_cleanup :-
+  retractall(preference:local_env_use(minus(stabletest_e))),
+  sus_cleanup.
+
+sus_mask_setup :-
+  sus_setup(stable),
+  assertz(preference:local_profile_stable_forced_use_flag(stabletest_e)),
+  assertz(preference:local_profile_stable_masked_use_flag(stabletest_e)).
+
+sus_cleanup :-
+  Repo = sustest,
+  Id = 'test-stable/pkg-0',
+  use_entry_cleanup(Repo://Id),
+  retractall(cache:entry_metadata(Repo, Id, _, _)),
+  ( preference:profile_package_use_spec('test-stable/pkg', Spec) ->
+      retractall(preference:local_profile_use_soft(Spec, _, _)),
+      retractall(preference:local_profile_stable_use_soft(Spec, _, _))
+  ; true
+  ),
+  sus_flags(Flags),
+  forall(member(Flag, Flags),
+         ( retractall(preference:local_profile_stable_use(Flag)),
+           retractall(preference:local_profile_stable_use(minus(Flag))),
+           retractall(preference:local_profile_stable_soft_flag(Flag)),
+           retractall(preference:local_profile_stable_masked_use_flag(Flag)),
+           retractall(preference:local_profile_stable_forced_use_flag(Flag))
+         )),
+  sus_drop_soft_index.
+
+sus_drop_soft_index :-
+  ( nb_current(pref_profile_use_soft_flags, _) ->
+      nb_delete(pref_profile_use_soft_flags)
+  ; true
+  ),
+  ( nb_current(pref_profile_use_soft_cns, _) ->
+      nb_delete(pref_profile_use_soft_cns)
+  ; true
+  ).

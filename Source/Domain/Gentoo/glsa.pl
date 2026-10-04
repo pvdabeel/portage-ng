@@ -446,7 +446,7 @@ glsa:range_element(Block, Kind, Op, Ver, Slot) :-
     sub_string(From, 0, OpenLen, _, OpenTag),
     glsa:xml_attr(OpenTag, "range", OpStr),
     atom_string(Op0, OpStr),
-    glsa:normalize_op(Op0, Op),
+    glsa:normalize_op(Op0, Op1),
     ( glsa:xml_attr(OpenTag, "slot", SlotStr) ->
         atom_string(Slot0, SlotStr),
         ( Slot0 == '' -> Slot = '*' ; Slot = Slot0 )
@@ -459,7 +459,7 @@ glsa:range_element(Block, Kind, Op, Ver, Slot) :-
     sub_string(AfterOpen, 0, VLen, _, VerStr0),
     normalize_space(string(VerStr), VerStr0),
     atom_string(VerAtom, VerStr),
-    glsa:parse_version_atom(VerAtom, Ver)
+    glsa:store_range_version(Op1, VerAtom, Op, Ver)
   )).
 
 
@@ -476,6 +476,20 @@ glsa:normalize_op(rge, rge).
 glsa:normalize_op(rle, rle).
 glsa:normalize_op(rgt, rgt).
 glsa:normalize_op(rlt, rlt).
+
+
+%! glsa:store_range_version(+Op, +Atom, -StoredOp, -StoredVer) is semidet.
+%
+% A trailing `*` on an `eq` range is a version glob (`1.5*` matches
+% `1.5.1` and does not match `1.50`). Any other operator combined with
+% a glob is rejected, so the range element is dropped.
+
+glsa:store_range_version(eq, VerAtom, glob, VerAtom) :-
+  atom_concat(_, '*', VerAtom),
+  !.
+glsa:store_range_version(Op, VerAtom, Op, Ver) :-
+  \+ atom_concat(_, '*', VerAtom),
+  glsa:parse_version_atom(VerAtom, Ver).
 
 
 %! glsa:parse_version_atom(+Atom, -Version) is semidet.
@@ -998,6 +1012,9 @@ glsa:arch_matches(ArchSpec) :-
 %
 % True when Candidate satisfies the GLSA range Op against Bound.
 
+glsa:version_matches(glob, Pattern, version(_,_,_,_,_,_,Full)) :-
+  !,
+  eapi:version_glob_match(Pattern, Full).
 glsa:version_matches(le, Bound, Cand) :-
   !,
   \+ eapi:version_compare(>, Cand, Bound).
@@ -1052,24 +1069,63 @@ glsa:revision_compare(Op, version(_,_,_,_,_, RevC, _),
   ).
 
 
-%! glsa:slot_matches(+Req, +EntrySlot) is semidet.
+%! glsa:slot_matches(+Req, +EntrySlot, +EntrySubslot) is semidet.
 %
-% Slot filter: `*` matches any; otherwise exact canonical slot match.
+% Slot filter. `*` matches any slot and sub-slot. `0/esr78` matches
+% slot 0 and sub-slot esr78. `0` matches slot 0 with any sub-slot.
 
-glsa:slot_matches('*', _) :- !.
-glsa:slot_matches(Req, EntrySlot) :-
-  slotmeta:canon_slot(Req, R),
-  slotmeta:canon_slot(EntrySlot, E),
-  R == E.
+glsa:slot_matches('*', _, _) :- !.
+glsa:slot_matches(Req, EntrySlot, EntrySub) :-
+  ( sub_atom(Req, Before, 1, _, '/') ->
+      sub_atom(Req, 0, Before, _, ReqSlot),
+      After is Before + 1,
+      sub_atom(Req, After, _, 0, ReqSub),
+      glsa:slot_canon_eq(ReqSlot, EntrySlot),
+      glsa:slot_canon_eq(ReqSub, EntrySub)
+  ; glsa:slot_canon_eq(Req, EntrySlot)
+  ).
+
+
+%! glsa:slot_canon_eq(+A, +B) is semidet.
+%
+% Canonical slot atoms are identical.
+
+glsa:slot_canon_eq(A, B) :-
+  slotmeta:canon_slot(A, CA),
+  slotmeta:canon_slot(B, CB),
+  CA == CB.
+
+
+%! glsa:entry_subslot(+Repo, +Entry, -Subslot) is det.
+%
+% Sub-slot metadata of Entry, or `none` when the entry has none.
+
+glsa:entry_subslot(Repo, Entry, Subslot) :-
+  ( query:search(subslot(S), Repo://Entry),
+    atom(S),
+    S \== '' ->
+      Subslot = S
+  ; Subslot = none
+  ).
 
 
 %! glsa:range_matches(+Id, +C, +N, +Kind, +Ver, +Slot) is semidet.
 %
-% True when some Kind range for Id/C/N matches Ver in Slot.
+% True when some Kind range for Id/C/N matches Ver in Slot, ignoring
+% sub-slot (a sub-slot-qualified range does not match).
 
 glsa:range_matches(Id, C, N, Kind, Ver, Slot) :-
+  glsa:range_matches(Id, C, N, Kind, Ver, Slot, none).
+
+
+%! glsa:range_matches(+Id, +C, +N, +Kind, +Ver, +Slot, +Subslot) is semidet.
+%
+% True when some Kind range matches Ver, Slot and Subslot. Glob
+% versions use the same component boundary as `=pkg-1*`.
+
+glsa:range_matches(Id, C, N, Kind, Ver, Slot, Subslot) :-
   glsa:range(Id, C, N, Kind, Op, Bound, ReqSlot),
-  glsa:slot_matches(ReqSlot, Slot),
+  glsa:slot_matches(ReqSlot, Slot, Subslot),
   glsa:version_matches(Op, Bound, Ver).
 
 
@@ -1102,8 +1158,9 @@ glsa:vulnerable_installed(Id, C, N, Ver, Slot) :-
   query:search([category(C), name(N), version(Ver)], Vdb://Entry),
   Ver \== version_none,
   slotmeta:entry_slot_default(Vdb, Entry, Slot),
-  glsa:range_matches(Id, C, N, vulnerable, Ver, Slot),
-  \+ glsa:range_matches(Id, C, N, unaffected, Ver, Slot).
+  glsa:entry_subslot(Vdb, Entry, Subslot),
+  glsa:range_matches(Id, C, N, vulnerable, Ver, Slot, Subslot),
+  \+ glsa:range_matches(Id, C, N, unaffected, Ver, Slot, Subslot).
 
 
 %! glsa:entry_covered(+Id, +Repo://+Entry) is semidet.
@@ -1116,9 +1173,10 @@ glsa:entry_covered(Id, Repo://Entry) :-
   query:search([category(C), name(N), version(Ver)], Repo://Entry),
   Ver \== version_none,
   slotmeta:entry_slot_default(Repo, Entry, Slot),
+  glsa:entry_subslot(Repo, Entry, Subslot),
   glsa:package(Id, C, N, _),
-  glsa:range_matches(Id, C, N, vulnerable, Ver, Slot),
-  \+ glsa:range_matches(Id, C, N, unaffected, Ver, Slot).
+  glsa:range_matches(Id, C, N, vulnerable, Ver, Slot, Subslot),
+  \+ glsa:range_matches(Id, C, N, unaffected, Ver, Slot, Subslot).
 
 
 %! glsa:least_upgrade(+C, +N, +Slot, +InstalledVer, +Id, -UpgradeEntry) is semidet.
@@ -1132,9 +1190,10 @@ glsa:least_upgrade(C, N, Slot, InstalledVer, Id, BestRepo://BestEntry) :-
                           category(C), name(N), version(Ver)], Repo://Entry),
             \+ knowledgebase:is_vdb_repository(Repo),
             slotmeta:entry_slot_default(Repo, Entry, Slot),
+            glsa:entry_subslot(Repo, Entry, Subslot),
             sets:entry_visible(Repo://Entry),
             eapi:version_compare(>, Ver, InstalledVer),
-            glsa:range_matches(Id, C, N, unaffected, Ver, Slot)
+            glsa:range_matches(Id, C, N, unaffected, Ver, Slot, Subslot)
           ),
           Pairs),
   Pairs \== [],
@@ -1252,10 +1311,11 @@ glsa:entry_status(Id, Repo://Entry, Status) :-
   (   query:search([category(C), name(N), version(Ver)], Repo://Entry),
       Ver \== version_none,
       slotmeta:entry_slot_default(Repo, Entry, Slot),
+      glsa:entry_subslot(Repo, Entry, Subslot),
       glsa:package(Id, C, N, _)
-  ->  (   glsa:range_matches(Id, C, N, unaffected, Ver, Slot)
+  ->  (   glsa:range_matches(Id, C, N, unaffected, Ver, Slot, Subslot)
       ->  Status = unaffected
-      ;   glsa:range_matches(Id, C, N, vulnerable, Ver, Slot)
+      ;   glsa:range_matches(Id, C, N, vulnerable, Ver, Slot, Subslot)
       ->  Status = vulnerable
       ;   Status = unlisted
       )
@@ -1282,11 +1342,12 @@ glsa:security_atoms(Filter, Atoms) :-
             query:search([category(C), name(N), version(Ver)], Vdb://Entry),
             Ver \== version_none,
             slotmeta:entry_slot_default(Vdb, Entry, Slot),
+            glsa:entry_subslot(Vdb, Entry, Subslot),
             glsa:package(Id, C, N, Arch),
             glsa:arch_matches(Arch),
             glsa:filter_allows(Filter, Id),
-            glsa:range_matches(Id, C, N, vulnerable, Ver, Slot),
-            \+ glsa:range_matches(Id, C, N, unaffected, Ver, Slot),
+            glsa:range_matches(Id, C, N, vulnerable, Ver, Slot, Subslot),
+            \+ glsa:range_matches(Id, C, N, unaffected, Ver, Slot, Subslot),
             glsa:least_upgrade(C, N, Slot, Ver, Id, _://UpEntry),
             atom_concat('=', UpEntry, Atom)
           ),

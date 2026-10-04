@@ -890,6 +890,35 @@ test(string_member_coerced,
 :- end_tests(eapi_nested_sets).
 
 
+:- begin_tests(eapi_version_glob).
+
+test(one_star_matches_component) :-
+  eapi:version_glob_match('1*', '1'),
+  eapi:version_glob_match('1*', '1.2'),
+  eapi:version_glob_match('1*', '1-r1'),
+  eapi:version_glob_match('1*', '1a'),
+  eapi:version_glob_match('1*', '1_alpha'),
+  eapi:version_glob_match('1.2*', '1.2_alpha'),
+  eapi:version_glob_match('1.5*', '1.5.1').
+
+test(one_star_rejects_longer_digit, [fail]) :-
+  eapi:version_glob_match('1*', '10').
+
+test(dotted_star_rejects_longer_digit, [fail]) :-
+  eapi:version_glob_match('1.5*', '1.50').
+
+test(name_glob_is_character_prefix) :-
+  query:wildcard_match('mini*', minimal).
+
+test(profile_eapi_gate) :-
+  profile:eapi_at_least('9-pre1', 9),
+  profile:eapi_at_least('5', 5),
+  \+ profile:eapi_at_least('8', 9),
+  profile:eapi_major('10', 10).
+
+:- end_tests(eapi_version_glob).
+
+
 %! eapitest:set_pairs_(+Id, -Pairs) is det.
 %
 % Named `preference:local_set/2` fixtures for nested-set tests.

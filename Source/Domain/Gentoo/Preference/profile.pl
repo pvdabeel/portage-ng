@@ -828,6 +828,10 @@ profile:cache_save_profile(ProfileRel, RawFile) :-
   profile:collect_profile_package_use(ProfileRel, PkgUseEntries),
   profile:collect_profile_package_use_mask(ProfileRel, PkgUseMaskEntries),
   profile:collect_profile_package_use_force(ProfileRel, PkgUseForceEntries),
+  profile:profile_stable_globals(ProfileRel, StableMask, StableForce, StableOn, StableOff),
+  profile:collect_profile_package_use_stable(ProfileRel, PkgUseStableEntries),
+  profile:collect_profile_package_use_file(ProfileRel, 'package.use.stable.mask', PkgStableMaskEntries),
+  profile:collect_profile_package_use_file(ProfileRel, 'package.use.stable.force', PkgStableForceEntries),
   profile:collect_license_groups(LicenseGroups),
   ( catch(profile:system_packages(ProfileRel, SystemPkgs), _, SystemPkgs = []) -> true ; SystemPkgs = [] ),
   setup_call_cleanup(
@@ -842,6 +846,14 @@ profile:cache_save_profile(ProfileRel, RawFile) :-
              format(Out, '~q.~n', [entry(use, U, masked)])),
       forall(member(U, UseForce),
              format(Out, '~q.~n', [entry(use, U, forced)])),
+      forall(member(U, StableMask),
+             format(Out, '~q.~n', [entry(use, U, stable_masked)])),
+      forall(member(U, StableForce),
+             format(Out, '~q.~n', [entry(use, U, stable_forced)])),
+      forall(member(U, StableOn),
+             format(Out, '~q.~n', [entry(use, U, stable)])),
+      forall(member(U, StableOff),
+             format(Out, '~q.~n', [entry(use, minus(U), stable)])),
       forall(member(A, PkgMaskAtoms),
              ( A \== '' -> format(Out, '~q.~n', [entry(package_mask, A, true)]) ; true )),
       forall(member(pkg_use(Spec, Flag, State), PkgUseEntries),
@@ -850,6 +862,12 @@ profile:cache_save_profile(ProfileRel, RawFile) :-
              format(Out, '~q.~n', [entry(package_use_mask, Spec, Flag)])),
       forall(member(pkg_use_force(Spec, Flag), PkgUseForceEntries),
              format(Out, '~q.~n', [entry(package_use_force, Spec, Flag)])),
+      forall(member(pkg_use_stable(Spec, Flag, State), PkgUseStableEntries),
+             format(Out, '~q.~n', [entry(package_use_stable, Spec, use(Flag, State))])),
+      forall(member(pkg_use_stable_mask(Spec, Flag), PkgStableMaskEntries),
+             format(Out, '~q.~n', [entry(package_use_stable_mask, Spec, Flag)])),
+      forall(member(pkg_use_stable_force(Spec, Flag), PkgStableForceEntries),
+             format(Out, '~q.~n', [entry(package_use_stable_force, Spec, Flag)])),
       forall(member(lic_group(Name, Members), LicenseGroups),
              format(Out, '~q.~n', [entry(license_group, Name, Members)])),
       forall(member(Cat-Name, SystemPkgs),
@@ -924,6 +942,36 @@ profile:apply_entry(package_use_force, Spec, Flag) :-
   !,
   atom_string(Flag, FlagS),
   catch(preference:apply_profile_package_use_flag(forced, Spec, FlagS), _, true).
+
+profile:apply_entry(use, Flag, stable_masked) :-
+  !,
+  assertz(preference:local_profile_stable_masked_use_flag(Flag)).
+
+profile:apply_entry(use, Flag, stable_forced) :-
+  !,
+  assertz(preference:local_profile_stable_forced_use_flag(Flag)).
+
+profile:apply_entry(use, minus(Flag), stable) :-
+  !,
+  assertz(preference:local_profile_stable_use(minus(Flag))).
+
+profile:apply_entry(use, Flag, stable) :-
+  !,
+  assertz(preference:local_profile_stable_use(Flag)).
+
+profile:apply_entry(package_use_stable, Spec, use(Flag, State)) :-
+  !,
+  preference:assert_stable_use_soft(Spec, Flag, State).
+
+profile:apply_entry(package_use_stable_mask, Spec, Flag) :-
+  !,
+  atom_string(Flag, FlagS),
+  catch(preference:apply_profile_package_use_flag(stable_masked, Spec, FlagS), _, true).
+
+profile:apply_entry(package_use_stable_force, Spec, Flag) :-
+  !,
+  atom_string(Flag, FlagS),
+  catch(preference:apply_profile_package_use_flag(stable_forced, Spec, FlagS), _, true).
 
 profile:apply_entry(license_group, Name, Members) :-
   !,
@@ -1017,11 +1065,62 @@ profile:collect_profile_package_use_mask(ProfileRel, Entries) :-
 profile:collect_profile_package_use_force(ProfileRel, Entries) :-
   profile:collect_profile_package_use_file(ProfileRel, 'package.use.force', Entries).
 
+
+%! profile:profile_stable_globals(+ProfileRel, -Masked, -Forced, -Enabled, -Disabled) is det.
+%
+% Net use.stable.mask, use.stable.force and use.stable sets for the
+% profile chain. Disabled holds flags that use.stable turns off.
+
+profile:profile_stable_globals(ProfileRel, Masked, Forced, Enabled, Disabled) :-
+  ( current_predicate(profile:profile_dirs/2),
+    catch(profile:profile_dirs(ProfileRel, Dirs), _, fail),
+    Dirs \== [] ->
+      foldl(preference:dir_stable_globals, Dirs, []-[]-[]-[],
+            Masked-Forced-Enabled-Disabled)
+  ; Masked = [],
+    Forced = [],
+    Enabled = [],
+    Disabled = []
+  ).
+
+
+%! profile:collect_profile_package_use_stable(+ProfileRel, -Entries) is det.
+%
+% package.use.stable lines in profile-directory order. Last-wins is
+% resolved when the facts are queried, so every line is kept.
+
+profile:collect_profile_package_use_stable(ProfileRel, Entries) :-
+  ( current_predicate(profile:profile_dirs/2),
+    catch(profile:profile_dirs(ProfileRel, Dirs), _, fail) ->
+      findall(pkg_use_stable(Spec, Flag, State),
+              ( member(Dir, Dirs),
+                profile:package_use_file_applies(Dir, 'package.use.stable'),
+                profile:collect_package_use_stable_from_dir(Dir, Spec, Flag, State)
+              ),
+              Entries)
+  ; Entries = []
+  ).
+
+
+profile:collect_package_use_stable_from_dir(Dir, Spec, Flag, State) :-
+  os:compose_path(Dir, 'package.use.stable', File),
+  reader:config_lines(File, Lines),
+  member(Line, Lines),
+  split_string(Line, " ", "\t ", Ws0),
+  exclude(=(""), Ws0, Ws),
+  Ws = [AtomS|FlagSs],
+  FlagSs \== [],
+  atom_string(AtomA, AtomS),
+  preference:profile_package_use_spec(AtomA, Spec),
+  member(FlagS0, FlagSs),
+  profile:parse_use_flag(FlagS0, Flag, State).
+
 profile:collect_profile_package_use_file(ProfileRel, Basename, Entries) :-
   ( current_predicate(profile:profile_dirs/2),
     catch(profile:profile_dirs(ProfileRel, Dirs), _, fail) ->
       findall(op(Spec, Flag, State),
-              ( member(Dir, Dirs),
+              (                 member(Dir, Dirs),
+                profile:package_use_file_applies(Dir, Basename),
                 os:compose_path(Dir, Basename, File),
                 reader:config_lines(File, Lines),
                 member(L2, Lines),
@@ -1052,7 +1151,7 @@ profile:collect_profile_package_use_file(ProfileRel, Basename, Entries) :-
 % mirroring the live path in preference:apply_profile_package_use_op/4.
 
 profile:package_use_net_entries(Ops, Basename, Entries) :-
-  ( Basename == 'package.use.mask' -> Functor = pkg_use_mask ; Functor = pkg_use_force ),
+  profile:package_use_net_functor(Basename, Functor),
   foldl(profile:package_use_net_op, Ops, [], NetRev),
   reverse(NetRev, Net),
   findall(Entry,
@@ -1060,6 +1159,82 @@ profile:package_use_net_entries(Ops, Basename, Entries) :-
             Entry =.. [Functor, Spec, Flag]
           ),
           Entries).
+
+
+%! profile:package_use_net_functor(+Basename, -Functor) is det.
+%
+% Cache term functor for an incremental package-use mask or force file.
+
+profile:package_use_net_functor('package.use.mask', pkg_use_mask) :- !.
+profile:package_use_net_functor('package.use.force', pkg_use_force) :- !.
+profile:package_use_net_functor('package.use.stable.mask', pkg_use_stable_mask) :- !.
+profile:package_use_net_functor('package.use.stable.force', pkg_use_stable_force) :- !.
+profile:package_use_net_functor(_, pkg_use_force).
+
+
+%! profile:package_use_file_applies(+Dir, +Basename) is semidet.
+%
+% use.stable and package.use.stable apply from profile EAPI 9.
+% use.stable.mask / force and their package forms apply from EAPI 5.
+% Every other basename is unconditional.
+
+profile:package_use_file_applies(Dir, Basename) :-
+  profile:stable_use_basename_min(Basename, Min),
+  profile:dir_eapi(Dir, Eapi),
+  profile:eapi_at_least(Eapi, Min).
+
+
+profile:stable_use_basename_min('package.use.stable.mask', 5) :- !.
+profile:stable_use_basename_min('package.use.stable.force', 5) :- !.
+profile:stable_use_basename_min('package.use.stable', 9) :- !.
+profile:stable_use_basename_min(_, 0).
+
+
+%! profile:dir_eapi(+Dir, -Eapi) is det.
+%
+% Profile EAPI atom from Dir/eapi. A missing file is EAPI 0, matching
+% Portage when the directory does not declare one.
+
+profile:dir_eapi(Dir, Eapi) :-
+  os:compose_path(Dir, eapi, File),
+  ( exists_file(File),
+    catch(read_file_to_string(File, S, []), _, fail),
+    normalize_space(atom(Eapi), S),
+    Eapi \== '' ->
+      true
+  ; Eapi = '0'
+  ).
+
+
+%! profile:eapi_at_least(+Eapi, +Min) is semidet.
+%
+% True when the leading integer of Eapi is at least Min. `9-pre1` is 9.
+
+profile:eapi_at_least(Eapi, Min) :-
+  profile:eapi_major(Eapi, N),
+  N >= Min.
+
+
+%! profile:eapi_major(+Eapi, -Major) is det.
+%
+% Leading decimal run of a profile EAPI token, or 0 when there is none.
+
+profile:eapi_major(Eapi, N) :-
+  atom(Eapi),
+  atom_codes(Eapi, Codes),
+  profile:leading_digits(Codes, Digits),
+  Digits \== [],
+  number_codes(N, Digits),
+  !.
+profile:eapi_major(_, 0).
+
+
+profile:leading_digits([C|Cs], [C|Ds]) :-
+  between(0'0, 0'9, C),
+  !,
+  profile:leading_digits(Cs, Ds).
+profile:leading_digits(_, []).
+
 
 profile:package_use_net_op(op(Spec, Flag, positive), Acc0, Acc) :-
   ( memberchk(Spec-Flag, Acc0) -> Acc = Acc0 ; Acc = [Spec-Flag|Acc0] ).

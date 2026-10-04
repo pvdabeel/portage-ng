@@ -71,6 +71,21 @@ Materialized preference state is written to `Knowledge/preference.qlf` via
 :- dynamic preference:local_profile_use_masked/2.      % Spec, Use
 :- dynamic preference:local_profile_use_forced/2.      % Spec, Use
 
+% -- Stable USE (use.stable*, package.use.stable*) --
+%    Applied only when the ebuild KEYWORDS list the host arch as stable.
+%    use.stable is an explicit enable/disable (minus(Flag) stays negative).
+%    use.stable.mask / use.stable.force are incremental sets, like use.mask.
+
+:- dynamic preference:local_profile_stable_masked_use_flag/1.
+:- dynamic preference:local_profile_stable_forced_use_flag/1.
+:- dynamic preference:local_profile_stable_use/1.            % Flag | minus(Flag)
+:- dynamic preference:local_profile_stable_use_soft/3.      % Spec, Flag, State
+:- dynamic preference:local_profile_stable_use_masked/2.    % Spec, Flag
+:- dynamic preference:local_profile_stable_use_forced/2.    % Spec, Flag
+:- dynamic preference:local_profile_stable_soft_flag/1.
+:- dynamic preference:local_profile_stable_pkg_masked/1.
+:- dynamic preference:local_profile_stable_pkg_forced/1.
+
 % -- System packages (@system profile set) --
 
 :- dynamic preference:system_pkg/2.
@@ -143,6 +158,7 @@ preference:init_fresh :-
   retractall(preference:local_profile_forced_use_flag(_)),
   retractall(preference:local_profile_use_masked(_,_)),
   retractall(preference:local_profile_use_forced(_,_)),
+  preference:clear_profile_stable_use,
   retractall(preference:local_profile_use_soft(_,_,_)),
   retractall(preference:local_userconfig_use_versioned(_,_,_)),
   retractall(preference:local_license_group_raw(_,_)),
@@ -241,6 +257,7 @@ preference:init_fresh :-
     catch(preference:apply_profile_package_use_force, _, true),
     catch(preference:apply_profile_package_use,  _, true)
   ),
+  catch(preference:apply_profile_stable_use, _, true),
   ( current_predicate(config:portage_confdir/1),
     config:portage_confdir(_) ->
       true
@@ -741,6 +758,105 @@ preference:profile_use_forced(Spec, Use) :-
   ).
 
 
+%! preference:profile_stable_use(?Flag) is nondet.
+%
+% Global use.stable token: a bare flag is enabled, minus(Flag) is disabled.
+
+preference:profile_stable_use(Flag) :-
+  ( preference:pengine_module(M) ->
+      M:local_profile_stable_use(Flag)
+  ; preference:local_profile_stable_use(Flag)
+  ).
+
+
+%! preference:profile_stable_masked_use_flag(?Use) is nondet.
+%
+% Global use.stable.mask flag.
+
+preference:profile_stable_masked_use_flag(Use) :-
+  ( preference:pengine_module(M) ->
+      M:local_profile_stable_masked_use_flag(Use)
+  ; preference:local_profile_stable_masked_use_flag(Use)
+  ).
+
+
+%! preference:profile_stable_forced_use_flag(?Use) is nondet.
+%
+% Global use.stable.force flag.
+
+preference:profile_stable_forced_use_flag(Use) :-
+  ( preference:pengine_module(M) ->
+      M:local_profile_stable_forced_use_flag(Use)
+  ; preference:local_profile_stable_forced_use_flag(Use)
+  ).
+
+
+%! preference:profile_stable_use_soft(?Spec, ?Use, ?State) is nondet.
+%
+% package.use.stable fact. Last-wins is applied by the matcher.
+
+preference:profile_stable_use_soft(Spec, Use, State) :-
+  ( preference:pengine_module(M) ->
+      M:local_profile_stable_use_soft(Spec, Use, State)
+  ; preference:local_profile_stable_use_soft(Spec, Use, State)
+  ).
+
+
+%! preference:profile_stable_use_masked(?Spec, ?Use) is nondet.
+%
+% package.use.stable.mask fact.
+
+preference:profile_stable_use_masked(Spec, Use) :-
+  ( preference:pengine_module(M) ->
+      M:local_profile_stable_use_masked(Spec, Use)
+  ; preference:local_profile_stable_use_masked(Spec, Use)
+  ).
+
+
+%! preference:profile_stable_use_forced(?Spec, ?Use) is nondet.
+%
+% package.use.stable.force fact.
+
+preference:profile_stable_use_forced(Spec, Use) :-
+  ( preference:pengine_module(M) ->
+      M:local_profile_stable_use_forced(Spec, Use)
+  ; preference:local_profile_stable_use_forced(Spec, Use)
+  ).
+
+
+%! preference:profile_stable_soft_flag(?Use) is semidet.
+%
+% True when Use appears in package.use.stable.
+
+preference:profile_stable_soft_flag(Use) :-
+  ( preference:pengine_module(M) ->
+      M:local_profile_stable_soft_flag(Use)
+  ; preference:local_profile_stable_soft_flag(Use)
+  ).
+
+
+%! preference:profile_stable_pkg_masked(?Use) is semidet.
+%
+% True when Use appears in package.use.stable.mask.
+
+preference:profile_stable_pkg_masked(Use) :-
+  ( preference:pengine_module(M) ->
+      M:local_profile_stable_pkg_masked(Use)
+  ; preference:local_profile_stable_pkg_masked(Use)
+  ).
+
+
+%! preference:profile_stable_pkg_forced(?Use) is semidet.
+%
+% True when Use appears in package.use.stable.force.
+
+preference:profile_stable_pkg_forced(Use) :-
+  ( preference:pengine_module(M) ->
+      M:local_profile_stable_pkg_forced(Use)
+  ; preference:local_profile_stable_pkg_forced(Use)
+  ).
+
+
 %! preference:profile_masked_use_flag(?Use) is nondet.
 %
 % Global USE flags masked by the profile.
@@ -973,6 +1089,9 @@ preference:profile_use_hard(Repo://Id, Use, State, Reason) :-
     ) ->
       State = negative,
       Reason = profile_package_use_mask
+  ; preference:stable_package_masked(Repo, Id, C, N, ProposedVersion, Use) ->
+      State = negative,
+      Reason = profile_package_use_mask
   ; preference:profile_forced_cn_known(C, N),
     ( preference:profile_use_forced(simple(C,N,SlotReq), Use),
       preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
@@ -980,6 +1099,9 @@ preference:profile_use_hard(Repo://Id, Use, State, Reason) :-
       preference:version_match(Op, ProposedVersion, ReqVer),
       preference:entry_satisfies_slot_req_(Repo, Id, SlotReq)
     ) ->
+      State = positive,
+      Reason = profile_package_use_force
+  ; preference:stable_package_forced(Repo, Id, C, N, ProposedVersion, Use) ->
       State = positive,
       Reason = profile_package_use_force
   ),
@@ -1095,6 +1217,40 @@ preference:apply_profile_package_use_op(del, forced, Spec, Flag) :-
   ),
   !.
 
+preference:apply_profile_package_use_op(add, stable_masked, Spec, Flag) :-
+  ( preference:profile_stable_use_masked(Spec, Flag) ->
+      true
+  ; assertz(preference:local_profile_stable_use_masked(Spec, Flag)),
+    preference:note_stable_pkg_flag(masked, Flag)
+  ),
+  !.
+
+preference:apply_profile_package_use_op(del, stable_masked, Spec, Flag) :-
+  ( preference:profile_package_use_cp_from_spec_(Spec, C, N) ->
+      retractall(preference:local_profile_stable_use_masked(simple(C, N, _), Flag)),
+      retractall(preference:local_profile_stable_use_masked(versioned(_, C, N, _, _), Flag))
+  ; retractall(preference:local_profile_stable_use_masked(Spec, Flag))
+  ),
+  preference:forget_stable_pkg_flag(masked, Flag),
+  !.
+
+preference:apply_profile_package_use_op(add, stable_forced, Spec, Flag) :-
+  ( preference:profile_stable_use_forced(Spec, Flag) ->
+      true
+  ; assertz(preference:local_profile_stable_use_forced(Spec, Flag)),
+    preference:note_stable_pkg_flag(forced, Flag)
+  ),
+  !.
+
+preference:apply_profile_package_use_op(del, stable_forced, Spec, Flag) :-
+  ( preference:profile_package_use_cp_from_spec_(Spec, C, N) ->
+      retractall(preference:local_profile_stable_use_forced(simple(C, N, _), Flag)),
+      retractall(preference:local_profile_stable_use_forced(versioned(_, C, N, _, _), Flag))
+  ; retractall(preference:local_profile_stable_use_forced(Spec, Flag))
+  ),
+  preference:forget_stable_pkg_flag(forced, Flag),
+  !.
+
 
 %! preference:apply_profile_package_use is det.
 %
@@ -1174,6 +1330,289 @@ preference:profile_use_soft_match(Repo://Id, Use, State) :-
           States),
   States \== [],
   last(States, State),
+  !.
+
+
+%! preference:clear_profile_stable_use is det.
+%
+% Drop every stable-USE fact so a live profile walk can replace a cache
+% snapshot without leaving both copies asserted.
+
+preference:clear_profile_stable_use :-
+  retractall(preference:local_profile_stable_masked_use_flag(_)),
+  retractall(preference:local_profile_stable_forced_use_flag(_)),
+  retractall(preference:local_profile_stable_use(_)),
+  retractall(preference:local_profile_stable_use_soft(_, _, _)),
+  retractall(preference:local_profile_stable_use_masked(_, _)),
+  retractall(preference:local_profile_stable_use_forced(_, _)),
+  retractall(preference:local_profile_stable_soft_flag(_)),
+  retractall(preference:local_profile_stable_pkg_masked(_)),
+  retractall(preference:local_profile_stable_pkg_forced(_)).
+
+
+%! preference:apply_profile_stable_use is det.
+%
+% Load use.stable, use.stable.mask, use.stable.force, package.use.stable,
+% package.use.stable.mask and package.use.stable.force from the profile
+% tree. When the tree is readable it replaces any facts just applied from
+% the profile cache, so a stale cache does not hide the files on disk.
+% use.stable / package.use.stable require profile EAPI 9; the mask and
+% force files require profile EAPI 5.
+
+preference:apply_profile_stable_use :-
+  ( current_predicate(config:gentoo_profile/1),
+    catch(config:gentoo_profile(ProfileRel), _, fail),
+    current_predicate(profile:profile_dirs/2),
+    catch(profile:profile_dirs(ProfileRel, Dirs), _, fail),
+    Dirs \== [],
+    foldl(preference:dir_stable_globals, Dirs, []-[]-[]-[],
+          Masked-Forced-Enabled-Disabled) ->
+      preference:clear_profile_stable_use,
+      forall(member(Flag, Masked),
+             assertz(preference:local_profile_stable_masked_use_flag(Flag))),
+      forall(member(Flag, Forced),
+             assertz(preference:local_profile_stable_forced_use_flag(Flag))),
+      forall(member(Flag, Enabled),
+             assertz(preference:local_profile_stable_use(Flag))),
+      forall(member(Flag, Disabled),
+             assertz(preference:local_profile_stable_use(minus(Flag)))),
+      forall(member(Dir, Dirs),
+             catch(preference:apply_stable_package_dir(Dir), _, true))
+  ; true
+  ).
+
+
+%! preference:dir_stable_globals(+Dir, +Acc0, -Acc) is det.
+%
+% Fold one profile directory into Masked-Forced-Enabled-Disabled ordsets.
+% A `-flag` in use.stable is an explicit disable, so it stays in Disabled
+% rather than merely leaving the enabled set.
+
+preference:dir_stable_globals(Dir, M0-F0-E0-D0, M-F-E-D) :-
+  profile:dir_eapi(Dir, Eapi),
+  ( profile:eapi_at_least(Eapi, 5) ->
+      profile:parse_use_op_file(Dir, 'use.stable.mask', MaskOps),
+      profile:apply_set_ops(MaskOps, M0, M),
+      profile:parse_use_op_file(Dir, 'use.stable.force', ForceOps),
+      profile:apply_set_ops(ForceOps, F0, F)
+  ; M = M0,
+    F = F0
+  ),
+  ( profile:eapi_at_least(Eapi, 9) ->
+      profile:parse_use_op_file(Dir, 'use.stable', UseOps),
+      preference:apply_stable_use_ops(UseOps, E0, D0, E, D)
+  ; E = E0,
+    D = D0
+  ).
+
+
+%! preference:apply_stable_use_ops(+Ops, +Enabled0, +Disabled0, -Enabled, -Disabled) is det.
+%
+% Incremental use.stable: add enables the flag, del disables it. The two
+% sets stay disjoint.
+
+preference:apply_stable_use_ops([], Enabled, Disabled, Enabled, Disabled).
+preference:apply_stable_use_ops([op(add, Flag)|Ops], E0, D0, E, D) :-
+  ord_del_element(D0, Flag, D1),
+  ord_add_element(E0, Flag, E1),
+  preference:apply_stable_use_ops(Ops, E1, D1, E, D).
+preference:apply_stable_use_ops([op(del, Flag)|Ops], E0, D0, E, D) :-
+  ord_del_element(E0, Flag, E1),
+  ord_add_element(D0, Flag, D1),
+  preference:apply_stable_use_ops(Ops, E1, D1, E, D).
+
+
+%! preference:apply_stable_package_dir(+Dir) is det.
+%
+% package.use.stable.mask / force from EAPI 5 directories, and
+% package.use.stable from EAPI 9 directories.
+
+preference:apply_stable_package_dir(Dir) :-
+  profile:dir_eapi(Dir, Eapi),
+  ( profile:eapi_at_least(Eapi, 5) ->
+      preference:apply_profile_package_use_file(Dir, 'package.use.stable.mask', stable_masked),
+      preference:apply_profile_package_use_file(Dir, 'package.use.stable.force', stable_forced)
+  ; true
+  ),
+  ( profile:eapi_at_least(Eapi, 9) ->
+      preference:apply_stable_package_use_dir(Dir)
+  ; true
+  ).
+
+
+%! preference:apply_stable_package_use_dir(+Dir) is det.
+%
+% Assert package.use.stable lines. Last-wins is resolved at lookup time.
+
+preference:apply_stable_package_use_dir(Dir) :-
+  os:compose_path(Dir, 'package.use.stable', File),
+  ( exists_file(File) ->
+      reader:config_lines(File, Lines),
+      forall(member(Line, Lines),
+             ( split_string(Line, " ", "\t ", Ws0),
+               exclude(=(""), Ws0, Ws),
+               ( Ws = [AtomS|FlagSs],
+                 atom_string(AtomA, AtomS),
+                 preference:profile_package_use_spec(AtomA, Spec) ->
+                   forall(member(FlagS0, FlagSs),
+                          preference:apply_stable_use_soft_flag(Spec, FlagS0))
+               ; true
+               )
+             ))
+  ; true
+  ).
+
+
+%! preference:apply_stable_use_soft_flag(+Spec, +FlagS0) is det.
+%
+% Parse one package.use.stable token and record its last state.
+
+preference:apply_stable_use_soft_flag(Spec, FlagS0) :-
+  normalize_space(string(FlagS), FlagS0),
+  ( FlagS == "" ->
+      true
+  ; sub_string(FlagS, 0, 1, _, "-") ->
+      sub_string(FlagS, 1, _, 0, Name0),
+      normalize_space(string(Name), Name0),
+      Name \== "",
+      atom_string(Flag, Name),
+      preference:assert_stable_use_soft(Spec, Flag, negative)
+  ; atom_string(Flag, FlagS),
+    preference:assert_stable_use_soft(Spec, Flag, positive)
+  ),
+  !.
+
+
+%! preference:assert_stable_use_soft(+Spec, +Flag, +State) is det.
+%
+% Replace any previous state of Flag on Spec and keep the flag index.
+
+preference:assert_stable_use_soft(Spec, Flag, State) :-
+  retractall(preference:local_profile_stable_use_soft(Spec, Flag, _)),
+  assertz(preference:local_profile_stable_use_soft(Spec, Flag, State)),
+  ( preference:local_profile_stable_soft_flag(Flag) ->
+      true
+  ; assertz(preference:local_profile_stable_soft_flag(Flag))
+  ).
+
+
+%! preference:note_stable_pkg_flag(+Kind, +Flag) is det.
+%
+% Remember that Flag occurs in a stable package mask or force file.
+
+preference:note_stable_pkg_flag(masked, Flag) :-
+  ( preference:local_profile_stable_pkg_masked(Flag) -> true
+  ; assertz(preference:local_profile_stable_pkg_masked(Flag))
+  ).
+preference:note_stable_pkg_flag(forced, Flag) :-
+  ( preference:local_profile_stable_pkg_forced(Flag) -> true
+  ; assertz(preference:local_profile_stable_pkg_forced(Flag))
+  ).
+
+
+%! preference:forget_stable_pkg_flag(+Kind, +Flag) is det.
+%
+% Drop the flag index when no spec still carries Flag.
+
+preference:forget_stable_pkg_flag(masked, Flag) :-
+  ( preference:local_profile_stable_use_masked(_, Flag) ->
+      true
+  ; retractall(preference:local_profile_stable_pkg_masked(Flag))
+  ).
+preference:forget_stable_pkg_flag(forced, Flag) :-
+  ( preference:local_profile_stable_use_forced(_, Flag) ->
+      true
+  ; retractall(preference:local_profile_stable_pkg_forced(Flag))
+  ).
+
+
+%! preference:entry_has_stable_keyword(+Repo://Id) is semidet.
+%
+% True when Id's KEYWORDS contain the host arch as a stable keyword.
+% Accepting ~arch does not make the package stable.
+
+preference:entry_has_stable_keyword(Repo://Id) :-
+  userconfig:current_arch(Arch),
+  cache:entry_metadata(Repo, Id, keywords, stable(Arch)),
+  !.
+
+
+%! preference:stable_globally_masked(+Repo://Id, +Use) is semidet.
+%
+% use.stable.mask hit for a stable-keyworded entry.
+
+preference:stable_globally_masked(Repo://Id, Use) :-
+  preference:entry_has_stable_keyword(Repo://Id),
+  preference:profile_stable_masked_use_flag(Use),
+  !.
+
+
+%! preference:stable_globally_forced(+Repo://Id, +Use) is semidet.
+%
+% use.stable.force hit. A global or stable mask still wins.
+
+preference:stable_globally_forced(Repo://Id, Use) :-
+  preference:entry_has_stable_keyword(Repo://Id),
+  preference:profile_stable_forced_use_flag(Use),
+  \+ preference:profile_masked_use_flag(Use),
+  \+ preference:profile_stable_masked_use_flag(Use),
+  !.
+
+
+%! preference:stable_global_use(+Repo://Id, +Use, -State) is semidet.
+%
+% use.stable enable or disable for a stable-keyworded entry.
+
+preference:stable_global_use(Repo://Id, Use, State) :-
+  preference:entry_has_stable_keyword(Repo://Id),
+  ( preference:profile_stable_use(Use) ->
+      State = positive
+  ; preference:profile_stable_use(minus(Use)) ->
+      State = negative
+  ),
+  !.
+
+
+%! preference:profile_stable_use_soft_match(+Entry, +Use, -State) is semidet.
+%
+% Last-wins package.use.stable state. Fails unless the entry is stable
+% on the host arch.
+
+preference:profile_stable_use_soft_match(Repo://Id, Use, State) :-
+  preference:profile_stable_soft_flag(Use),
+  preference:entry_has_stable_keyword(Repo://Id),
+  cache:ordered_entry(Repo, Id, C, N, ProposedVersion),
+  findall(State0,
+          ( preference:profile_stable_use_soft(Spec, Use, State0),
+            preference:profile_package_use_spec_matches_entry_(Spec, Repo, Id, C, N, ProposedVersion)
+          ),
+          States),
+  States \== [],
+  last(States, State),
+  !.
+
+
+%! preference:stable_package_masked(+Repo, +Id, +C, +N, +Version, +Use) is semidet.
+%
+% package.use.stable.mask hit for a stable-keyworded entry.
+
+preference:stable_package_masked(Repo, Id, C, N, ProposedVersion, Use) :-
+  preference:profile_stable_pkg_masked(Use),
+  preference:entry_has_stable_keyword(Repo://Id),
+  preference:profile_stable_use_masked(Spec, Use),
+  preference:profile_package_use_spec_matches_entry_(Spec, Repo, Id, C, N, ProposedVersion),
+  !.
+
+
+%! preference:stable_package_forced(+Repo, +Id, +C, +N, +Version, +Use) is semidet.
+%
+% package.use.stable.force hit for a stable-keyworded entry.
+
+preference:stable_package_forced(Repo, Id, C, N, ProposedVersion, Use) :-
+  preference:profile_stable_pkg_forced(Use),
+  preference:entry_has_stable_keyword(Repo://Id),
+  preference:profile_stable_use_forced(Spec, Use),
+  preference:profile_package_use_spec_matches_entry_(Spec, Repo, Id, C, N, ProposedVersion),
   !.
 
 
@@ -1617,7 +2056,7 @@ preference:version_match(tilde, Proposed, Req) :-
 preference:version_match(wildcard, Proposed, version(_,_,_,_,_,_,Pattern)) :-
   !,
   Proposed = version(_,_,_,_,_,_,ProposedStr),
-  query:wildcard_match(Pattern, ProposedStr).
+  eapi:version_glob_match(Pattern, ProposedStr).
 
 % Standard comparison operators share eapi:version_op_match/3; unknown operators
 % (other than tilde/wildcard above) fail, as before.
@@ -2077,6 +2516,7 @@ preference:cache_retract_preference_facts :-
   retractall(preference:local_profile_forced_use_flag(_)),
   retractall(preference:local_profile_use_masked(_,_)),
   retractall(preference:local_profile_use_forced(_,_)),
+  preference:clear_profile_stable_use,
   retractall(preference:local_set(_,_)),
   retractall(preference:local_world_entry(_)),
   retractall(preference:local_license_group_raw(_,_)),
@@ -2110,6 +2550,18 @@ preference:cache_apply_entry(local_profile_use_masked, [Spec,Flag]) :-
   assertz(preference:local_profile_use_masked(Spec,Flag)).
 preference:cache_apply_entry(local_profile_use_forced, [Spec,Flag]) :-
   assertz(preference:local_profile_use_forced(Spec,Flag)).
+preference:cache_apply_entry(local_profile_stable_masked_use_flag, [U]) :-
+  assertz(preference:local_profile_stable_masked_use_flag(U)).
+preference:cache_apply_entry(local_profile_stable_forced_use_flag, [U]) :-
+  assertz(preference:local_profile_stable_forced_use_flag(U)).
+preference:cache_apply_entry(local_profile_stable_use, [U]) :-
+  assertz(preference:local_profile_stable_use(U)).
+preference:cache_apply_entry(local_profile_stable_use_soft, [Spec,Flag,State]) :-
+  preference:assert_stable_use_soft(Spec, Flag, State).
+preference:cache_apply_entry(local_profile_stable_use_masked, [Spec,Flag]) :-
+  preference:apply_profile_package_use_op(add, stable_masked, Spec, Flag).
+preference:cache_apply_entry(local_profile_stable_use_forced, [Spec,Flag]) :-
+  preference:apply_profile_package_use_op(add, stable_forced, Spec, Flag).
 preference:cache_apply_entry(local_set, [Name,Entries]) :-
   assertz(preference:local_set(Name,Entries)).
 preference:cache_apply_entry(local_world_entry, [Entry]) :-
@@ -2183,6 +2635,18 @@ preference:cache_collect_entry(local_profile_use_masked, [Spec,Flag]) :-
   preference:local_profile_use_masked(Spec,Flag).
 preference:cache_collect_entry(local_profile_use_forced, [Spec,Flag]) :-
   preference:local_profile_use_forced(Spec,Flag).
+preference:cache_collect_entry(local_profile_stable_masked_use_flag, [U]) :-
+  preference:local_profile_stable_masked_use_flag(U).
+preference:cache_collect_entry(local_profile_stable_forced_use_flag, [U]) :-
+  preference:local_profile_stable_forced_use_flag(U).
+preference:cache_collect_entry(local_profile_stable_use, [U]) :-
+  preference:local_profile_stable_use(U).
+preference:cache_collect_entry(local_profile_stable_use_soft, [Spec,Flag,State]) :-
+  preference:local_profile_stable_use_soft(Spec,Flag,State).
+preference:cache_collect_entry(local_profile_stable_use_masked, [Spec,Flag]) :-
+  preference:local_profile_stable_use_masked(Spec,Flag).
+preference:cache_collect_entry(local_profile_stable_use_forced, [Spec,Flag]) :-
+  preference:local_profile_stable_use_forced(Spec,Flag).
 preference:cache_collect_entry(local_set, [Name,Entries]) :-
   preference:local_set(Name,Entries).
 preference:cache_collect_entry(local_world_entry, [Entry]) :-

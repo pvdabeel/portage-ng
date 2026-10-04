@@ -219,4 +219,39 @@ glsa_pkg_setup :-
   assertz(glsa:loaded),
   assertz(glsa:cache_source(test)).
 
+test(glob_range_parsed) :-
+  Block = "<vulnerable range=\"eq\" slot=\"0/esr78\">1.5*</vulnerable>",
+  once(glsa:range_element(Block, vulnerable, glob, '1.5*', '0/esr78')).
+
+test(non_eq_glob_dropped, [fail]) :-
+  Block = "<vulnerable range=\"ge\">1.5*</vulnerable>",
+  glsa:range_element(Block, _, _, _, _).
+
+test(glob_range_component) :-
+  atom_codes('1.5.1', C1), once(phrase(eapi:version(V1), C1, [])),
+  atom_codes('1.50', C2), once(phrase(eapi:version(V2), C2, [])),
+  glsa:version_matches(glob, '1.5*', V1),
+  \+ glsa:version_matches(glob, '1.5*', V2).
+
+test(slot_and_subslot) :-
+  glsa:slot_matches('0/esr78', '0', esr78),
+  \+ glsa:slot_matches('0/esr78', '0', none),
+  glsa:slot_matches('0', '0', none),
+  glsa:slot_matches('*', '4', other).
+
+test(unaffected_glob_clears,
+     [setup(glsa_glob_setup), cleanup(glsa_glob_cleanup)]) :-
+  atom_codes('1.5.1', C), once(phrase(eapi:version(V), C, [])),
+  glsa:range_matches('glob-1', c, n, vulnerable, V, '0', esr78),
+  glsa:range_matches('glob-1', c, n, unaffected, V, '0', esr78),
+  \+ glsa:range_matches('glob-1', c, n, vulnerable, V, '0', none).
+
+glsa_glob_setup :-
+  atom_codes('1.5.1', C), once(phrase(eapi:version(V), C, [])),
+  assertz(glsa:range('glob-1', c, n, vulnerable, glob, '1.5*', '0/esr78')),
+  assertz(glsa:range('glob-1', c, n, unaffected, eq, V, '0/esr78')).
+
+glsa_glob_cleanup :-
+  retractall(glsa:range('glob-1', _, _, _, _, _, _)).
+
 :- end_tests(glsa).

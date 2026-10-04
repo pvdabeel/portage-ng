@@ -403,7 +403,7 @@ compile_query_compound(select(Key, Op, Ver), Repo://Id, Expanded) :-
   ; Op == wildcard ->
       ( Ver = version(_,_,_,_,_,_,VW),
         cache:ordered_entry(Repo, Id, _, _, version(_,_,_,_,_,_,PV6)),
-        wildcard_match(VW, PV6) )
+        eapi:version_glob_match(VW, PV6) )
   ; Op == tilde ->
       ( Ver = version(VT,LT,SRT,SNT,SReT,_,_),
         cache:ordered_entry(Repo, Id, _, _, version(VT,LT,SRT,SNT,SReT,_,_)) )
@@ -458,7 +458,7 @@ compile_query_compound(select(repository,tilde,R), Repo://Id,
 
 compile_query_compound(select(repository,wildcard,R), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,_),
-    wildcard_match(R,Repo) ) ) :- !.
+    query:wildcard_match(R,Repo) ) ) :- !.
 
 compile_query_compound(select(name,equal,N), Repo://Id,
   cache:ordered_entry(Repo,Id,_,N,_)) :- !.
@@ -473,7 +473,7 @@ compile_query_compound(select(name,tilde,N), Repo://Id,
 
 compile_query_compound(select(name,wildcard,N), Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,M,_),
-    wildcard_match(N,M) ) ) :- !.
+    query:wildcard_match(N,M) ) ) :- !.
 
 compile_query_compound(select(category,equal,C), Repo://Id,
   cache:ordered_entry(Repo,Id,C,_,_)) :- !.
@@ -488,7 +488,7 @@ compile_query_compound(select(category,tilde,C), Repo://Id,
 
 compile_query_compound(select(category,wildcard,C),	Repo://Id,
   ( cache:ordered_entry(Repo,Id,M,_,_),
-    wildcard_match(C,M) ) ) :- !.
+    query:wildcard_match(C,M) ) ) :- !.
 
 compile_query_compound(select(version,none,_), Repo://Id,
   cache:ordered_entry(Repo,Id,_,_,_)) :- !.
@@ -523,7 +523,7 @@ compile_query_compound(select(version,notequal,ReqVer), Repo://Id,
 
 compile_query_compound(select(version,wildcard,version(_,_,_,_,_,_,V)),Repo://Id,
   ( cache:ordered_entry(Repo,Id,_,_,version(_,_,_,_,_,_,ProposedVersion)),
-    wildcard_match(V,ProposedVersion) )) :- !.
+    eapi:version_glob_match(V,ProposedVersion) )) :- !.
 
 compile_query_compound(select(version,tilde,version(V,L,SR,SN,SRe,_,_)), Repo://Id,
   cache:ordered_entry(Repo,Id,_,_,version(V,L,SR,SN,SRe,_,_)) ) :- !.
@@ -537,7 +537,7 @@ compile_query_compound(select(eapi,equal,version(_,_,_,_,_,_,V)), Repo://Id,
 
 compile_query_compound(select(eapi,wildcard,version(_,_,_,_,_,_,V)), Repo://Id,
   ( cache:entry_metadata(Repo,Id,eapi,version(_,_,_,_,_,_,ProposedVersion)),
-    wildcard_match(V,ProposedVersion) ) ) :- !.
+    query:wildcard_match(V,ProposedVersion) ) ) :- !.
 
 compile_query_compound(select(eapi,smaller,ReqVer), Repo://Id,
   ( cache:entry_metadata(Repo,Id,eapi,ProposedVersion),
@@ -570,7 +570,7 @@ compile_query_compound(select(eclass,tilde,E), Repo://Id,
 
 compile_query_compound(select(eclass,wildcard,E),	Repo://Id,
   ( cache:entry_metadata(Repo,Id,eclasses,[eclass(M),_]),
-    wildcard_match(E,M) ) ) :- !.
+    query:wildcard_match(E,M) ) ) :- !.
 
 compile_query_compound(select(eclasses,notequal,E),	Repo://Id,
   ( cache:entry_metadata(Repo,Id,eclasses,[eclass(O),_]),
@@ -585,7 +585,7 @@ compile_query_compound(select(eclasses,tilde,E), Repo://Id,
 
 compile_query_compound(select(eclasses,wildcard,E),	Repo://Id,
   ( cache:entry_metadata(Repo,Id,eclasses,[eclass(M),_]),
-    wildcard_match(E,M) ) ) :- !.
+    query:wildcard_match(E,M) ) ) :- !.
 
 compile_query_compound(select(download,notequal,F),	Repo://Id,
   ( cache:entry_metadata(Repo,Id,src_uri,uri(_,_,O)),
@@ -600,7 +600,7 @@ compile_query_compound(select(download,tilde,F), Repo://Id,
 
 compile_query_compound(select(download,wildcard,F), Repo://Id,
   ( cache:entry_metadata(Repo,Id,src_uri,uri(_,_,M)),
-    wildcard_match(F,M) ) ) :- !.
+    query:wildcard_match(F,M) ) ) :- !.
 
 compile_query_compound(select(slot,notequal,S),	Repo://Id,
   ( cache:entry_metadata(Repo,Id,slot,slot(O)),
@@ -615,7 +615,7 @@ compile_query_compound(select(slot,tilde,S), Repo://Id,
 
 compile_query_compound(select(slot,wildcard,S),	Repo://Id,
   ( cache:entry_metadata(Repo,Id,slot,slot(M)),
-    wildcard_match(S,M) ) ) :- !.
+    query:wildcard_match(S,M) ) ) :- !.
 
 compile_query_compound(select(subslot,notequal,S), Repo://Id,
   ( cache:entry_metadata(Repo,Id,slot,subslot(O)),
@@ -630,7 +630,7 @@ compile_query_compound(select(subslot,tilde,S), Repo://Id,
 
 compile_query_compound(select(subslot,wildcard,S), Repo://Id,
   ( cache:entry_metadata(Repo,Id,slot,subslot(M)),
-    wildcard_match(S,M) ) ) :- !.
+    query:wildcard_match(S,M) ) ) :- !.
 
 
 %! query:slot_constraint_goal(+Constraint, ?Sn, +RepoId, -Goal)
@@ -693,7 +693,7 @@ compile_query_compound(select(maintainer,equal,Pattern), Repo://Id,
 compile_query_compound(select(maintainer,wildcard,Pattern), Repo://Id,
   ( cache:entry_metadata(Repo,Id,maintainer,Maintainers),
     member(M,Maintainers),
-    wildcard_match(Pattern,M) )) :- !.
+    query:wildcard_match(Pattern,M) )) :- !.
 
 compile_query_compound(select(maintainer,tilde,Pattern), Repo://Id,
   ( cache:entry_metadata(Repo,Id,maintainer,Maintainers),
@@ -1700,7 +1700,7 @@ select(set,tilde,N,R://I) :-
 select(set,wildcard,N,R://I) :-
   !,
   preference:set(S,Set),
-  wildcard_match(N,S),
+  query:wildcard_match(N,S),
   member(Ta,Set),
   atom_codes(Ta,Tc),
   phrase(eapi:qualified_target(Q),Tc),
@@ -1755,14 +1755,14 @@ select(iuse,wildcard,Pattern,R://I) :-
   eapi:parse_iuse_search_value(Pattern, RequiredSign, Pattern1),
   query:iuse_sign_matches(Raw, RequiredSign),
   eapi:use_flag_name(Raw, Flag),
-  wildcard_match(Pattern1, Flag).
+  query:wildcard_match(Pattern1, Flag).
 
 
 
 select(Key,wildcard,Value,R://I) :-
   !,
   cache:entry_metadata(R,I,Key,Match),
-  wildcard_match(Value,Match).
+  query:wildcard_match(Value,Match).
 
 
 % -----------------------------------------------------------------------------
@@ -1899,6 +1899,39 @@ query:iuse_sign_matches(minus(_), minus) :- !.
 % -----------------------------------------------------------------------------
 %  Helper predicates
 % -----------------------------------------------------------------------------
+
+%! query:wildcard_match(+Pattern, +Text) is semidet.
+%
+% Shell-style `*` / `?` match. Used for names, IUSE, slots and other
+% non-version selects. Version `=pkg-1*` atoms use
+% eapi:version_glob_match/2 so a digit run is a component boundary.
+
+query:wildcard_match(Pattern, Text) :-
+  atom(Pattern),
+  atom(Text),
+  atom_codes(Pattern, PCodes),
+  atom_codes(Text, TCodes),
+  query:wildcard_codes(PCodes, TCodes),
+  !.
+
+
+query:wildcard_codes([], []).
+query:wildcard_codes([0'*|PRest], TCodes) :-
+  query:wildcard_star(PRest, TCodes).
+query:wildcard_codes([0'?|PRest], [_|TRest]) :-
+  query:wildcard_codes(PRest, TRest).
+query:wildcard_codes([Code|PRest], [Code|TRest]) :-
+  Code \== 0'*,
+  Code \== 0'?,
+  query:wildcard_codes(PRest, TRest).
+
+
+
+query:wildcard_star(PRest, TCodes) :-
+  query:wildcard_codes(PRest, TCodes).
+query:wildcard_star(PRest, [_|TRest]) :-
+  query:wildcard_star(PRest, TRest).
+
 
 %! deep_member(Type,Predicate,Model)
 %

@@ -102,9 +102,14 @@ use:effective_use_in_context(Context, Use, State) :-
 % of extracting it from a context. Used by use_conditional_group rules
 % for the ebuild that owns the conditional. This is the single
 % implementation of the USE precedence chain (variant override ->
-% package use.mask/force -> global use.mask/use.force -> userconfig
-% per-CN -> userconfig match -> profile soft -> global USE -> IUSE
-% default).
+% package use.mask/force, including package.use.stable.mask/force ->
+% global use.mask/use.force, including use.stable.mask/force on an
+% ebuild whose KEYWORDS list the host arch as stable -> userconfig
+% per-CN -> userconfig match -> package.use.stable -> profile
+% package.use -> make.conf -> use.stable -> global USE -> IUSE
+% default). make.conf beats use.stable; use.stable beats profile
+% make.defaults. package.use.stable beats profile package.use.
+% Accepting ~arch does not make an ebuild stable.
 %
 % Global use.mask/use.force beat soft package.use (profile or user): a
 % profile `package.use` line cannot enable a use.mask'd flag (Portage;
@@ -131,7 +136,11 @@ use:effective_use_for_entry(RepoEntry0, Use, State) :-
           true
       ; preference:profile_masked_use_flag(Use) ->
           Eff = negative
+      ; preference:stable_globally_masked(Repo://Id, Use) ->
+          Eff = negative
       ; preference:profile_forced_use_flag(Use) ->
+          Eff = positive
+      ; preference:stable_globally_forced(Repo://Id, Use) ->
           Eff = positive
       ; preference:userconfig_use(C, N, Use, positive) ->
           Eff = positive
@@ -139,7 +148,15 @@ use:effective_use_for_entry(RepoEntry0, Use, State) :-
           Eff = negative
       ; preference:userconfig_use_match(Repo://Id, Use, Eff0) ->
           Eff = Eff0
+      ; preference:profile_stable_use_soft_match(Repo://Id, Use, Eff0) ->
+          Eff = Eff0
       ; preference:profile_use_soft_match(Repo://Id, Use, Eff0) ->
+          Eff = Eff0
+      ; preference:global_use(Use, env) ->
+          Eff = positive
+      ; preference:global_use(minus(Use), env) ->
+          Eff = negative
+      ; preference:stable_global_use(Repo://Id, Use, Eff0) ->
           Eff = Eff0
       ; preference:global_use(Use) ->
           Eff = positive
@@ -163,7 +180,9 @@ use:profile_hard_use_state(RepoEntry, Use, State) :-
   preference:profile_use_hard(RepoEntry, Use, State0, Reason0),
   \+ ( State0 == positive,
        Reason0 == profile_package_use_force,
-       preference:profile_masked_use_flag(Use)
+       ( preference:profile_masked_use_flag(Use)
+       ; preference:stable_globally_masked(RepoEntry, Use)
+       )
      ),
   State = State0.
 
@@ -802,7 +821,11 @@ use:candidate_effective_use_enabled_raw(Repo://Entry, Use) :-
   ; % Global use.mask beats use.force (arch/base big-endian pattern).
     preference:profile_masked_use_flag(Use) ->
       fail
+  ; preference:stable_globally_masked(Repo://Entry, Use) ->
+      fail
   ; preference:profile_forced_use_flag(Use) ->
+      true
+  ; preference:stable_globally_forced(Repo://Entry, Use) ->
       true
   ; preference:userconfig_use(C, N, Use, positive) ->
       true
@@ -812,9 +835,22 @@ use:candidate_effective_use_enabled_raw(Repo://Entry, Use) :-
       true
   ; preference:userconfig_use_match(Repo://Entry, Use, negative) ->
       fail
+  ; preference:profile_stable_use_soft_match(Repo://Entry, Use, positive) ->
+      true
+  ; preference:profile_stable_use_soft_match(Repo://Entry, Use, negative) ->
+      fail
   ; preference:profile_use_soft_match(Repo://Entry, Use, positive) ->
       true
   ; preference:profile_use_soft_match(Repo://Entry, Use, negative) ->
+      fail
+  ; preference:global_use(Use, env) ->
+      true
+  ; preference:global_use(minus(Use), env),
+    \+ use:is_abi_x86_flag(Use) ->
+      fail
+  ; preference:stable_global_use(Repo://Entry, Use, positive) ->
+      true
+  ; preference:stable_global_use(Repo://Entry, Use, negative) ->
       fail
   ; preference:global_use(Use) ->
       true

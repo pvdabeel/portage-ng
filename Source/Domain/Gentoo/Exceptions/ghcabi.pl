@@ -516,7 +516,7 @@ ghcabi:cabal_core_matches(PVs, GhcNumeric) :-
   -> fail  % PM: patterns need the package-manager PV; numeric path is enough here
   ;  Pat = Pat0
   ),
-  wildcard_match(Pat, GhcNumeric),
+  query:wildcard_match(Pat, GhcNumeric),
   !.
 
 

@@ -2212,16 +2212,26 @@ eapi:categorize_use_for_entry(RawIuse, Repo://Id, State, Reason) :-
     % entry from an earlier parent profile would otherwise force it.
     \+ ( State0 == positive,
          Reason0 == profile_package_use_force,
-         preference:profile_masked_use_flag(Use)
+         ( preference:profile_masked_use_flag(Use)
+         ; preference:stable_globally_masked(Repo://Id, Use)
+         )
        ) ->
       State = State0,
       Reason = Reason0
   ; % Global use.mask / use.force beat soft package.use. Mask wins when
     % both apply (arch/base big-endian: forced and masked by default).
+    % use.stable.mask / use.stable.force join that pair for ebuilds
+    % whose KEYWORDS list the host arch as stable.
     preference:profile_masked_use_flag(Use) ->
       State = negative,
       Reason = profile_use_mask
+  ; preference:stable_globally_masked(Repo://Id, Use) ->
+      State = negative,
+      Reason = profile_use_mask
   ; preference:profile_forced_use_flag(Use) ->
+      State = positive,
+      Reason = profile_use_force
+  ; preference:stable_globally_forced(Repo://Id, Use) ->
       State = positive,
       Reason = profile_use_force
   ; % User /etc/portage/package.use (soft; overridden by profile mask/force)
@@ -2232,10 +2242,23 @@ eapi:categorize_use_for_entry(RawIuse, Repo://Id, State, Reason) :-
     preference:userconfig_use_match(Repo://Id, Use, State0) ->
       State = State0,
       Reason = package_use
+  ; % package.use.stable beats profile package.use on a stable keyword
+    preference:profile_stable_use_soft_match(Repo://Id, Use, State0) ->
+      State = State0,
+      Reason = package_use
   ; % Profile package.use (soft; version/slot-aware)
     preference:profile_use_soft_match(Repo://Id, Use, State0) ->
       State = State0,
       Reason = package_use
+  ; preference:global_use(Use, env) ->
+      State = positive,
+      Reason = preference
+  ; preference:global_use(minus(Use), env) ->
+      State = negative,
+      Reason = preference
+  ; preference:stable_global_use(Repo://Id, Use, State0) ->
+      State = State0,
+      Reason = preference
   ; eapi:categorize_use(RawIuse, State, Reason)
   ).
 
@@ -2252,6 +2275,62 @@ eapi:categorize_use_for_entry(RawIuse, Repo://Id, State, Reason) :-
 
 eapi:select_operator(equal, '*', wildcard) :- !.
 eapi:select_operator(Op, _, Op).
+
+
+%! eapi:version_glob_match(+Pattern, +Text) is semidet.
+%
+% Component-boundary match for a `=pkg-ver*` atom. Pattern is the version
+% text including its trailing `*`. After the prefix, the next character of
+% Text must be absent, a separator in `._-`, or a digit/non-digit change
+% against the prefix's last character. So `1*` matches `1`, `1.2`, `1-r1`,
+% `1a` and `1_alpha`, and does not match `10`.
+
+eapi:version_glob_match(version(_,_,_,_,_,_,Full), Text) :-
+  !,
+  eapi:version_glob_match(Full, Text).
+
+eapi:version_glob_match(Pattern, version(_,_,_,_,_,_,Full)) :-
+  !,
+  eapi:version_glob_match(Pattern, Full).
+
+eapi:version_glob_match(Pattern, Text) :-
+  atom(Pattern),
+  atom(Text),
+  ( atom_concat(Prefix, '*', Pattern) ->
+      true
+  ; Prefix = Pattern
+  ),
+  atom_concat(Prefix, Rest, Text),
+  eapi:version_glob_boundary(Prefix, Rest),
+  !.
+
+
+%! eapi:version_glob_boundary(+Prefix, +Rest) is semidet.
+%
+% True when Rest continues Prefix at a version-component boundary.
+
+eapi:version_glob_boundary(_, '') :- !.
+eapi:version_glob_boundary('', _) :- !.
+eapi:version_glob_boundary(Prefix, Rest) :-
+  sub_atom(Rest, 0, 1, _, Next),
+  ( memberchk(Next, ['.', '_', '-']) ->
+      true
+  ; sub_atom(Prefix, _, 1, 0, Last),
+    eapi:version_glob_digit(Last, LastDigit),
+    eapi:version_glob_digit(Next, NextDigit),
+    LastDigit \== NextDigit
+  ).
+
+
+%! eapi:version_glob_digit(+Char, -Digit) is det.
+%
+% Digit is `yes` when Char is a single decimal digit, `no` otherwise.
+
+eapi:version_glob_digit(Char, yes) :-
+  atom_length(Char, 1),
+  char_type(Char, digit),
+  !.
+eapi:version_glob_digit(_, no).
 
 
 %! eapi:version2atom(+N, +W, +A, +S, -V)
