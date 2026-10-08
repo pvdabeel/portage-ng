@@ -263,11 +263,18 @@ profile:profile_dirs(ProfileRel, Dirs) :-
 % Recursive worker for profile_dirs/2.  Follows `parent` file entries
 % and falls back to implicit filesystem-parent inheritance when no
 % `parent` file exists but the parent directory looks like a valid profile.
+% The repository catalog is read once and threaded through the chain.
 
-profile:profile_dirs_from_dir(Dir, Seen, Seen) :-
+profile:profile_dirs_from_dir(Dir, Seen0, Seen) :-
+  profile:repo_catalog(Repos),
+  profile:profile_dirs_from_dir(Repos, Dir, Seen0, Seen).
+
+
+
+profile:profile_dirs_from_dir(_Repos, Dir, Seen, Seen) :-
   memberchk(Dir, Seen),
   !.
-profile:profile_dirs_from_dir(Dir, Seen0, Seen) :-
+profile:profile_dirs_from_dir(Repos, Dir, Seen0, Seen) :-
   profile:parent_file(Dir, ParentFile),
   % Cycle guard: register Dir as seen *before* recursing into its parents so
   % a parent chain that loops back here terminates. Seen doubles as the
@@ -275,7 +282,7 @@ profile:profile_dirs_from_dir(Dir, Seen0, Seen) :-
   % back to the head to keep the leaf-last (root-first after reverse) order.
   ( exists_file(ParentFile) ->
       reader:config_lines(ParentFile, Lines),
-      foldl(profile:profile_parent_dir(Dir), Lines, [Dir|Seen0], Seen1),
+      foldl(profile:profile_parent_dir(Repos, Dir), Lines, [Dir|Seen0], Seen1),
       selectchk(Dir, Seen1, Seen2),
       Seen = [Dir|Seen2]
   ; % Gentoo profile trees contain some subprofiles without an explicit `parent`
@@ -285,7 +292,7 @@ profile:profile_dirs_from_dir(Dir, Seen0, Seen) :-
     % Emulate this by implicitly inheriting from the filesystem parent *if* that
     % parent looks like a real profile directory (has make.defaults or parent).
     ( profile:profile_implicit_parent_dir(Dir, ParentDir) ->
-        profile:profile_dirs_from_dir(ParentDir, [Dir|Seen0], Seen1),
+        profile:profile_dirs_from_dir(Repos, ParentDir, [Dir|Seen0], Seen1),
         selectchk(Dir, Seen1, Seen2),
         Seen = [Dir|Seen2]
     ; Seen = [Dir|Seen0]
@@ -359,15 +366,166 @@ profile:package_unmask_file(Dir, File) :-
   os:compose_path(Dir, 'package.unmask', File).
 
 
-%! profile:profile_parent_dir(+ChildDir, +ParentRel, +Seen0, -Seen) is det
+%! profile:profile_parent_dir(+Repos, +ChildDir, +ParentRel, +Seen0, -Seen) is det
 %
-% Resolve a single parent-relative path from a `parent` file entry and
-% recurse into its profile chain.  Used as foldl/4 goal.
+% Resolve one `parent` file entry and recurse into its profile chain.
+% A `repo:path` entry (portage-2, or any profile that sits outside a
+% repository) names `<repo>/profiles/path`. An unknown repository is
+% reported and skipped. A relative path that does not exist still
+% raises, as before. Used as a foldl/4 goal.
 
-profile:profile_parent_dir(ChildDir, ParentRel, Seen0, Seen) :-
-  os:compose_path(ChildDir, ParentRel, ParentDir0),
-  absolute_file_name(ParentDir0, ParentDir, [file_type(directory), access(read)]),
-  profile:profile_dirs_from_dir(ParentDir, Seen0, Seen).
+profile:profile_parent_dir(Repos, ChildDir, ParentRel, Seen0, Seen) :-
+  ( profile:parent_colon(Repos, ChildDir, ParentRel, RepoId, ProfilePath) ->
+      ( profile:repo_profiles_dir(Repos, ChildDir, RepoId, RepoProfiles) ->
+          profile:join_profile_path(RepoProfiles, ProfilePath, ParentDir0),
+          absolute_file_name(ParentDir0, ParentDir, [file_type(directory), access(read)]),
+          profile:profile_dirs_from_dir(Repos, ParentDir, Seen0, Seen)
+      ; profile:warn_bad_parent(ParentRel, RepoId),
+        Seen = Seen0
+      )
+  ; os:compose_path(ChildDir, ParentRel, ParentDir0),
+    absolute_file_name(ParentDir0, ParentDir, [file_type(directory), access(read)]),
+    profile:profile_dirs_from_dir(Repos, ParentDir, Seen0, Seen)
+  ).
+
+
+%! profile:parent_colon(+Repos, +ChildDir, +Line, -RepoId, -ProfilePath) is semidet
+%
+% Split a `repo:path` parent. RepoId is `''` for a `:path` line, which
+% means the repository that contains ChildDir. Fails for a relative
+% path, an absolute path, and a colon form in a repository whose
+% layout.conf does not list `portage-2`.
+
+profile:parent_colon(Repos, ChildDir, Line, RepoId, ProfilePath) :-
+  \+ sub_atom(Line, 0, 1, _, '/'),
+  sub_atom(Line, Before, 1, _, ':'),
+  !,
+  profile:parent_colon_allowed(Repos, ChildDir),
+  sub_atom(Line, 0, Before, _, RepoId),
+  After is Before + 1,
+  sub_atom(Line, After, _, 0, ProfilePath).
+
+
+%! profile:parent_colon_allowed(+Repos, +Dir) is semidet
+%
+% Colon parents are allowed for a profile outside every known
+% repository, and inside a repository whose layout.conf lists
+% `portage-2`.
+
+profile:parent_colon_allowed(Repos, Dir) :-
+  profile:repo_containing(Repos, Dir, _Name, Loc),
+  !,
+  profile:repo_allows_parent_colon(Loc).
+profile:parent_colon_allowed(_Repos, _Dir).
+
+
+%! profile:repo_profiles_dir(+Repos, +ChildDir, +RepoId, -ProfilesDir) is semidet
+%
+% Profiles directory of RepoId. An empty RepoId is the repository that
+% contains ChildDir.
+
+profile:repo_profiles_dir(Repos, ChildDir, '', ProfilesDir) :-
+  !,
+  profile:repo_containing(Repos, ChildDir, _Name, Loc),
+  os:compose_path(Loc, profiles, ProfilesDir).
+profile:repo_profiles_dir(Repos, _ChildDir, RepoId, ProfilesDir) :-
+  member(RepoId-Loc, Repos),
+  !,
+  os:compose_path(Loc, profiles, ProfilesDir).
+
+
+%! profile:join_profile_path(+ProfilesDir, +ProfilePath, -Dir) is det
+%
+% ProfilePath empty means the profiles directory itself.
+
+profile:join_profile_path(ProfilesDir, '', ProfilesDir) :- !.
+profile:join_profile_path(ProfilesDir, ProfilePath, Dir) :-
+  os:compose_path(ProfilesDir, ProfilePath, Dir).
+
+
+%! profile:warn_bad_parent(+Line, +RepoId) is det
+%
+% Report a `repo:path` parent that cannot be resolved. An empty RepoId
+% is a `:path` line whose profile is not inside a repository.
+
+profile:warn_bad_parent(Line, '') :-
+  !,
+  format(user_error, '% profile: bad profile parent ~q: not in a repo~n', [Line]).
+profile:warn_bad_parent(Line, RepoId) :-
+  format(user_error, '% profile: bad profile parent ~q: unknown repo ~q~n', [Line, RepoId]).
+
+
+%! profile:repo_catalog(-Repos) is det
+%
+% Name-location pairs for repositories that publish profiles/repo_name.
+% Locations are absolute.
+
+profile:repo_catalog(Repos) :-
+  findall(Name-Loc, profile:registered_repo(Name, Loc), Repos0),
+  sort(Repos0, Repos).
+
+
+%! profile:registered_repo(-Name, -Loc) is nondet
+%
+% A loaded repository module whose tree contains profiles/repo_name.
+
+profile:registered_repo(Name, Loc) :-
+  current_module(Mod),
+  current_predicate(Mod:get_location/1),
+  catch(Mod:get_location(Loc0), _, fail),
+  atom(Loc0),
+  Loc0 \== '',
+  os:compose_path(Loc0, 'profiles/repo_name', File),
+  exists_file(File),
+  catch(read_file_to_string(File, S, []), _, fail),
+  split_string(S, "\n", "\r\t ", [NameS|_]),
+  NameS \== "",
+  atom_string(Name, NameS),
+  absolute_file_name(Loc0, Loc, [file_type(directory), access(read)]).
+
+
+%! profile:repo_containing(+Repos, +Dir, -Name, -Loc) is semidet
+%
+% The repository whose location is the longest prefix of Dir.
+
+profile:repo_containing(Repos, Dir, Name, Loc) :-
+  absolute_file_name(Dir, DirAbs, [file_type(directory), access(read)]),
+  findall(Len-(Name0-Loc0),
+          ( member(Name0-Loc0, Repos),
+            profile:path_under(Loc0, DirAbs),
+            atom_length(Loc0, Len)
+          ),
+          Pairs),
+  Pairs \== [],
+  sort(1, @>=, Pairs, [_-(Name-Loc)|_]).
+
+
+%! profile:path_under(+Root, +Dir) is semidet
+%
+% Dir is Root or a directory inside Root.
+
+profile:path_under(Root, Dir) :-
+  Dir == Root,
+  !.
+profile:path_under(Root, Dir) :-
+  atom_concat(Root, Rest, Dir),
+  atom_concat('/', _, Rest).
+
+
+%! profile:repo_allows_parent_colon(+Loc) is semidet
+%
+% True when metadata/layout.conf lists `portage-2` in profile-formats.
+
+profile:repo_allows_parent_colon(Loc) :-
+  os:compose_path(Loc, 'metadata/layout.conf', File),
+  exists_file(File),
+  catch(read_file_to_string(File, S, []), _, fail),
+  reader:string_config_lines(S, Lines),
+  member(Line, Lines),
+  split_string(Line, "=", " \t", ["profile-formats", Rest]),
+  split_string(Rest, " ", " \t", Tokens),
+  member("portage-2", Tokens),
+  !.
 
 
 % =============================================================================
