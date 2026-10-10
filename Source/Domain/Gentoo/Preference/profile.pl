@@ -304,12 +304,13 @@ profile:profile_dirs_from_dir(Repos, Dir, Seen0, Seen) :-
 %
 % Compute an implicit parent profile directory for Dir.  Only succeeds
 % when the filesystem parent is still inside profiles/ and contains
-% make.defaults or a parent file.
+% make.defaults or a parent file. Fails when the profiles root cannot
+% be resolved, so a chain outside a configured tree stops cleanly.
 
 profile:profile_implicit_parent_dir(Dir, ParentDir) :-
   os:compose_path(Dir, '..', ParentDir0),
   absolute_file_name(ParentDir0, ParentDir, [file_type(directory), access(read)]),
-  profile:profiles_root(Root),
+  catch(profile:profiles_root(Root), _, fail),
   sub_atom(ParentDir, 0, _, _, Root),
   ParentDir \== Dir,
   ( os:compose_path(ParentDir, 'make.defaults', MD),
