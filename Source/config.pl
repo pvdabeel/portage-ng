@@ -376,47 +376,6 @@ config:proving_target(run).
 config:reprove_max_retries(20).
 
 
-%! config:reprove_partial_restart(?Bool)
-%
-% When true, a reprove retry triggered by a DEFERRED conflict (one
-% reported by heuristic:reprove_pending/1 after a pass completed, e.g.
-% the batched shared-dep USE-force flush of portage-ng#94) performs a
-% conflict-driven PARTIAL restart instead of a full restart: the prover
-% prunes only the literals affected by the conflict (the transitive
-% dependents-closure of the forced providers over the Triggers index)
-% from the completed pass's Proof/Model/Triggers/Constraints and
-% resumes proving from that state. Unaffected literals hit the `proven`
-% fast path, so deep KDE/GNOME-style stacks avoid re-deriving the
-% ~95% of the closure a USE force does not touch.
-%
-% Conflicts THROWN mid-pass (e.g. cn_domain version conflicts) always
-% use the classical full restart: their pass never completed, so there
-% is no consistent state to resume from.
-%
-% Equivalence to a full restart: package actions, USE configurations,
-% domain assumptions and cycle-breaks are identical. Cycle-break
-% parity relies on the prior-proven witness
-% (prover:restart_note_prior_proven/2): benign-cycle classification
-% inspects the cycle-stack path, and a resumed pass reaches pruned
-% literals through different stacks (kept literals short-circuit via
-% the `proven` fast path), so a cycle re-detected on a literal the
-% pre-restart pass proved cycle-free is classified benign from the
-% witness instead of the path. Wave/step ORDERING may still differ
-% slightly: a kept literal retains the body it derived at its
-% pass-1 derivation time, while a full restart re-derives it after the
-% pass's cross-dep USE accumulation has grown (e.g. a `glib` dep edge
-% resolved to "installed glib satisfies" early in pass 1 vs "wait for
-% glib update" on the re-pass). Both are valid topological orders of
-% their own proofs; making them byte-identical would require
-% re-deriving every literal whose resolution consulted mutable
-% accumulation state - i.e. a full restart.
-%
-% Set to `false` to fall back to full restarts for deferred conflicts
-% (useful for A/B validation).
-
-config:reprove_partial_restart(true).
-
-
 %! config:avoid_reinstall(?Bool)
 %
 % If a package is already installed, when this config item is set to true,

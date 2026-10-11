@@ -562,23 +562,21 @@ prover:assuming(Literal) :-
 %
 % The mechanism is fully generic: what constitutes a seed, an affected
 % constraint, or per-pass domain state to preserve on resume is decided
-% by the heuristic hooks.  Without those hooks (or with
-% config:reprove_partial_restart(false)) the prover falls back to the
-% classical full restart.
+% by the heuristic hooks.  Without those hooks the prover falls back to
+% the classical full restart.
 
 
 %! prover:partial_restart_state(+Info, +Proof, +Model, +Cons, +Trig, -RProof, -RModel, -RCons, -RTrig, -ResumeLits) is semidet
 %
 % Compute pruned artifacts for a partial restart after a deferred
-% conflict Info.  Fails (falling back to a full restart) when partial
-% restart is disabled, the domain does not provide the seed hook, or no
-% seed literal is found in the Model.
+% conflict Info.  Fails (falling back to a full restart) when the domain
+% does not provide the seed hook, or no seed literal is found in the
+% Model.
 %
 % ResumeLits are literals the resumed pass must be handed alongside the
 % proof targets; see restart_resume_anchors/4.
 
 prover:partial_restart_state(Info, Proof, Model, Cons, Trig, RProof, RModel, RCons, RTrig, ResumeLits) :-
-  prover:partial_restart_enabled,
   current_predicate(heuristic:restart_seed/2),
   prover:restart_seeds(Info, Model, Seeds),
   Seeds \== [],
@@ -683,19 +681,6 @@ prover:restart_note_prior_proven(Model, Affected) :-
 prover:restart_prior_proven(Lit) :-
   nb_current(prover_restart_prior_proven, PriorProven),
   get_assoc(Lit, PriorProven, _).
-
-
-%! prover:partial_restart_enabled is semidet
-%
-% Partial restart is enabled unless config:reprove_partial_restart(false).
-
-prover:partial_restart_enabled :-
-  ( current_predicate(config:reprove_partial_restart/1),
-    config:reprove_partial_restart(Enabled)
-  ->
-    Enabled == true
-  ; true
-  ).
 
 
 %! prover:restart_seeds(+Info, +Model, -Seeds) is det

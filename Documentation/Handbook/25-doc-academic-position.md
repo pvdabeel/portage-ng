@@ -120,7 +120,7 @@ A `prover_reprove(cn_domain(...))` thrown in the middle of a pass
 still restarts from scratch, because the pass never finished and the
 cycle stack holds literals whose bodies are open.  Carrying the
 partial restart over to that case is the clasp technique still
-missing.  See `config:reprove_partial_restart/1`.
+missing.  See `prover:partial_restart_state/10`.
 
 Three techniques from the same solvers were left out.  Each one is a
 poor fit for the cost of a node in this search:
