@@ -376,57 +376,27 @@ config:proving_target(run).
 config:reprove_max_retries(20).
 
 
-%! config:shared_dep_use_forcing(?Bool)
-%
-% When true, the resolver folds a consumer's HARD bracketed USE requirement
-% (`dep[flag]`, an unconditional/forcing directive -- NOT a following `[flag=]`)
-% onto an already-committed shared provider and reproves so the provider is
-% rebuilt with that flag enabled, instead of degrading the consumer to a
-% `unsatisfied_constraints` domain assumption (portage-ng#91 sub-mechanism B).
-%
-% The canonical case is the KDE-Frameworks stack: `dev-qt/qtbase` is committed
-% (its `:install` proved) before `kde-frameworks/kcoreaddons` and ~21 siblings
-% are resolved, and those need `>=dev-qt/qtbase-6.10.1:6 [ dbus? icu network ]`,
-% i.e. `qtbase[icu]`. Because `icu` is not a profile/IUSE default and arrived
-% after qtbase was committed `-icu`, the consumers degrade. With this flag the
-% resolver learns a persistent `bwu_force(C,N)` for the missing HARD flag; the
-% pass continues with the force applied in-place, and all forces learned
-% during the pass are flushed as ONE batched reprove when the pass completes
-% (portage-ng#94). On the re-proof qtbase's `:install` builds with `icu` and
-% the cascade clears.
-%
-% Scope is deliberately narrow (and self-limiting): it fires only when the
-% provider is *already* committed in the current proof pass (so its USE was
-% frozen before the flag arrived), only for HARD (forcing) flags that are
-% seedable (not profile-masked) and not already default-on, and at most once
-% per (provider, flag-set) via the learned-store dedup. Set to `false` to
-% disable.
-
-config:shared_dep_use_forcing(true).
-
-
 %! config:equality_use_follow(?Bool)
 %
-% When true, a `[flag=]` / `[!flag=]` dependency whose provider could not
-% take the projected value is satisfied from the CONSUMER side instead: the
-% resolver learns an `eq_follow(C,N)` for the consumer and flushes it through
-% the same batched reprove as the shared-dep HARD forces (portage-ng#121).
+% When true, a package changes one of its own USE flags so it agrees with
+% a dependency that could not change to agree with it.
 %
-% An equality bracket means "provider.flag == my flag", and the resolver
-% projects the consumer's solved value onto the provider. That projection can
-% fail to stick two ways: the provider's own REQUIRED_USE overturns it, or a
-% hard bracket from another consumer outranks it in the cross-dependency
-% merge. Either way the finished plan violates the equality with nothing
-% reported. The canonical case is `app-emulation/virtualbox` with X off
-% depending on `dev-qt/qtbase:6[X=]`: `gui? ( any-of ( X eglfs wayland ) )`
-% puts X straight back on (it is the `+`-default arm), so the provider cannot
-% follow and the consumer has to -- which is also the change emerge proposes.
+% `pkg[flag=]` means the two packages must have `flag` set the same way.
+% `[!flag=]` means they must differ. The resolver first tries to change
+% the dependency. That change does not stick when the dependency's own
+% REQUIRED_USE turns the flag back, or when another package already
+% required the opposite value. The two packages would then disagree, and
+% the plan would not say so. This setting changes the package that asked
+% for the match, then reproves once so the flags agree.
 %
-% Narrow by construction: it fires only for a flag an equality edge
-% projected, only when the provider's settled value contradicts it, only for
-% a flag the consumer can flip (in IUSE, not USE_EXPAND, not profile-masked),
-% and once per consumer flag-set via the learned-store dedup. Set to `false`
-% to disable.
+% Example: `app-emulation/virtualbox` is built with `X` off and depends on
+% `dev-qt/qtbase:6[X=]`. qtbase must keep `X` on, so virtualbox is rebuilt
+% with `X` on. emerge proposes the same change (portage-ng#121).
+%
+% The package must be able to change the flag: it is in IUSE, it is not a
+% USE_EXPAND flag, and the profile does not mask it. Each package and set
+% of flags is recorded once. Default `true`. `false` leaves the
+% disagreement in the plan and does not report it.
 
 config:equality_use_follow(true).
 

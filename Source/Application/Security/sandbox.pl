@@ -64,7 +64,6 @@ sandbox:safe_primitive(config:proving_target(_)).
 sandbox:safe_primitive(config:reprove_max_retries(_)).
 sandbox:safe_primitive(config:server_port(_)).
 sandbox:safe_primitive(config:server_bind(_)).
-sandbox:safe_primitive(config:shared_dep_use_forcing(_)).
 sandbox:safe_primitive(config:server_host(_)).
 sandbox:safe_primitive(config:systemconfig(_)).
 sandbox:safe_primitive(config:test_style(_)).

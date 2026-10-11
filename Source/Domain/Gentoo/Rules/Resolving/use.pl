@@ -2096,19 +2096,6 @@ use:record_eq_follow_pending(C, N, BWU, Provider) :-
     assertz(memo:eq_follow_pending_(C, N, BWU, Provider)).
 
 
-%! use:shared_dep_use_forcing_enabled is semidet.
-%
-% Gate for the shared-dependency HARD-USE forcing pass (portage-ng#91
-% sub-mechanism B). Enabled by default; set config:shared_dep_use_forcing(false)
-% to disable.
-
-use:shared_dep_use_forcing_enabled :-
-    ( current_predicate(config:shared_dep_use_forcing/1) ->
-        config:shared_dep_use_forcing(true)
-    ; true
-    ).
-
-
 %! use:maybe_force_shared_dep_use(+C, +N, +RepoEntry) is det.
 %
 % portage-ng#91 sub-mechanism B. Detect that a consumer hard-requires
@@ -2145,8 +2132,7 @@ use:shared_dep_use_forcing_enabled :-
 % force a rebuild -- they follow via ranking:apply_equality_pins/3.
 
 use:maybe_force_shared_dep_use(C, N, RepoEntry) :-
-    ( use:shared_dep_use_forcing_enabled,
-      cnselect:cn_domain_reprove_enabled,
+    ( cnselect:cn_domain_reprove_enabled,
       cnselect:snapshot_selected_cn_candidates(C, N, _Committed),
       memo:candidate_bwu_hard_(C, N, use_state(HardEn, _)),
       HardEn \== [],
