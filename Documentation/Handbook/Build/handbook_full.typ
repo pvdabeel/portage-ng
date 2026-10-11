@@ -3623,9 +3623,9 @@ attempts, and `memo:selected_cn_snap_` evolves during the proof. Two
 early cache attempts that tried to #emph[clear] the cache when this
 state changed were abandoned as unsound. The current design instead
 encodes every mutable input #strong[in the cache key]: results are
-memoised per proof in `memo:dep_model_cache_/5` under a hazard-encoded
-key (proof-context USE state, assumption flags, choice-group signature),
-gated by `config:dep_model_cache/1`. See the "Dependency-model cache
+memoised per proof in `memo:dep_model_cache_/5` under a key
+(proof-context USE state, assumption flags, choice-group signature).
+See the "Dependency-model cache
 key" section in `Source/Knowledge/query.pl` for the full key design.
 
 == Further reading

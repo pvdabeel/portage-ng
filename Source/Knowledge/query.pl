@@ -850,8 +850,8 @@ compile_query_compound(all(dependency(D,fetchonly)):A?{C}, Repo://Id,
 %  Dependency-model cache key (hazard encoding)
 % -----------------------------------------------------------------------------
 
-% model(dependency) queries are cached per proof with a hazard-encoded key
-% (memo:dep_model_cache_/5, gated by config:dep_model_cache/1).
+% model(dependency) queries are cached per proof with a key that includes
+% every input that can change the model (memo:dep_model_cache_/5).
 %
 % Model construction depends on mutable proof state beyond the explicit
 % proof-context (`?{Context}`) argument.  Instead of clearing the cache
@@ -922,13 +922,12 @@ compile_query_compound(all(dependency(D,fetchonly)):A?{C}, Repo://Id,
 
 %! query:dep_model_key(+Repo, +Id, +Context, -Key) is det
 %
-% Compute the hazard-encoded cache key for a model(dependency) query, or
-% `none` when the query must not be cached (cache disabled, variant
-% exploration active, or non-ground context).
+% Compute the cache key for a model(dependency) query, or `none` when the
+% query must not be cached (variant exploration active, or non-ground
+% context).
 
 query:dep_model_key(Repo, Id, Context, Key) :-
-  ( query:dep_model_cache_enabled,
-    \+ query:dep_model_variant_active,
+  ( \+ query:dep_model_variant_active,
     ground(Context)
   ->
     query:dep_model_assuming(Assuming),
@@ -948,18 +947,6 @@ query:dep_model_learned(Learned) :-
   ( nb_current(prover_learned_constraints, Store) ->
       Learned = Store
   ; Learned = none
-  ).
-
-
-%! query:dep_model_cache_enabled is semidet
-%
-% Gate for the dependency-model cache; config:dep_model_cache(false)
-% disables it.
-
-query:dep_model_cache_enabled :-
-  ( current_predicate(config:dep_model_cache/1) ->
-      config:dep_model_cache(true)
-  ; true
   ).
 
 

@@ -516,8 +516,7 @@ The canonical load graph for standalone is in `portage-ng.pl`:
 - Proof/Model/Triggers are assoc/AVL-based; avoid repeated full traversals when possible.
 - Query performance uses `goal_expansion/2` macros in `Source/Knowledge/query.pl`.
 - `query:search(model(dependency(Merged,Phase)):config?{Ctx}, Repo://Id)` is
-  cached per proof (`memo:dep_model_cache_/5`, gated by
-  `config:dep_model_cache/1`).  The goal-expansion inlines self-context
+  cached per proof (`memo:dep_model_cache_/5`).  The goal-expansion inlines self-context
   injection, `prove_model`, and `group_dependencies` at compile time.
   Model construction depends on mutable proof state, so every hazard is
   encoded in the cache key rather than clearing the cache (two earlier

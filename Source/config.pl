@@ -376,22 +376,6 @@ config:proving_target(run).
 config:reprove_max_retries(20).
 
 
-%! config:dep_model_cache(?Bool)
-%
-% When true (default), model(dependency(...)):config?{Ctx} query results
-% are cached per proof in memo:dep_model_cache_/5 under a hazard-encoded
-% key: the full ground context, the prover:assuming flag bits, and a
-% selected_cn snapshot signature over the entry's choice-group members
-% (variant exploration bypasses the cache).  Because every mutable input
-% is part of the key, entries stay valid across fallback tiers, reprove
-% passes and partial restarts within one proof; memo:clear_caches drops
-% the cache between proofs.  See the design comment at the top of
-% Source/Knowledge/query.pl.  Set to `false` to recompute every model
-% query (useful for A/B validation).
-
-config:dep_model_cache(true).
-
-
 %! config:reprove_partial_restart(?Bool)
 %
 % When true, a reprove retry triggered by a DEFERRED conflict (one
