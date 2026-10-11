@@ -28,8 +28,8 @@ The sub-slot rebuild pass (portage-ng#89) cannot see this: there is no
 sub-slot delta to observe (the hash lives only in ghc-pkg's registry). The
 real fix is at the ebuild/eclass level (encoding the ABI identity where
 the resolver can see it); until then, traditional emerge fails the same
-way and defers to a manual haskell-updater run. We do better: gated by
-config:ghc_abi_repair/1, the failure is recovered in-transaction by
+way and defers to a manual haskell-updater run. We do better: when
+`ghcabi` is listed in config:build_fixup/1, the failure is recovered in-transaction by
 parsing the broken package list from the log segment of the failed phase,
 rebuilding each broken package from source at its installed version
 (re-registering it with a hash consistent with the just-rebuilt
@@ -79,8 +79,8 @@ fixup:mechanism(ghcabi).
 %! ghcabi:repair_enabled is semidet.
 
 ghcabi:repair_enabled :-
-  ( catch(config:ghc_abi_repair(V), _, fail), ground(V)
-  -> V == true
+  ( catch(config:build_fixup(Strategies), _, fail), is_list(Strategies)
+  -> memberchk(ghcabi, Strategies)
   ;  true
   ).
 

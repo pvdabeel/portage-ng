@@ -62,11 +62,12 @@ fixup:mechanism(kernelconfig).
 
 %! kernelconfig:enabled is semidet.
 %
-% True unless config:kernel_config_repair/1 is explicitly false.
+% True when `kernelconfig` is listed in config:build_learned/1.
+% A missing list leaves the strategy enabled.
 
 kernelconfig:enabled :-
-  ( catch(config:kernel_config_repair(V), _, fail), ground(V)
-  -> V == true
+  ( catch(config:build_learned(Strategies), _, fail), is_list(Strategies)
+  -> memberchk(kernelconfig, Strategies)
   ;  true
   ).
 

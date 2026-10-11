@@ -614,7 +614,8 @@ ebuild_exec:dual_progress(BytesSoFar, ExpBytes, Elapsed, ExpSeconds, Pct) :-
 % the retry only, without touching the user's configuration. Make
 % resumes incrementally from the already-built objects, so the retry
 % is cheap; deterministic build failures simply fail again and keep
-% their original semantics. Gated by config:build_serial_retry/1.
+% their original semantics. Tried when `makeopts` is in
+% config:build_retry/1.
 
 %! ebuild_exec:serial_retry_phase(+Phase) is semidet.
 %
@@ -635,12 +636,6 @@ ebuild_exec:serial_retry_phase(install).
 % suffices.
 
 ebuild_exec:serial_env(['MAKEOPTS'='-j1']).
-
-
-%! ebuild_exec:serial_retry_enabled is semidet.
-
-ebuild_exec:serial_retry_enabled :-
-  catch(config:build_serial_retry(true), _, fail).
 
 
 %! ebuild_exec:log_serial_retry(+LogPath, +Phase, +ExitCode) is det.
@@ -668,8 +663,7 @@ ebuild_exec:log_serial_retry(LogPath, Phase, ExitCode) :-
 ebuild_exec:maybe_serial_retry(_, _, _, _, _, 0, 0) :- !.
 
 ebuild_exec:maybe_serial_retry(EbuildPath, Phase, LogPath, UseString, Callback, ExitCode0, ExitCode) :-
-  ( ebuild_exec:serial_retry_enabled,
-    ebuild_exec:serial_retry_phase(Phase)
+  ( ebuild_exec:serial_retry_phase(Phase)
   -> ebuild_exec:log_serial_retry(LogPath, Phase, ExitCode0),
      ebuild_exec:serial_env(Env),
      ebuild_exec:start_phase_async(EbuildPath, Phase, LogPath, UseString, Env, Pid),
@@ -702,14 +696,8 @@ ebuild_exec:maybe_serial_retry(EbuildPath, Phase, LogPath, UseString, Callback, 
 %
 % Detection is signature-based on the log segment written by the
 % failed phase (never earlier phases), so deterministic build
-% failures never match and keep their original semantics. Gated by
-% config:build_transient_retry/1.
-
-%! ebuild_exec:transient_retry_enabled is semidet.
-
-ebuild_exec:transient_retry_enabled :-
-  catch(config:build_transient_retry(true), _, fail).
-
+% failures never match and keep their original semantics. Tried when
+% `pid` is in config:build_retry/1.
 
 %! ebuild_exec:transient_phase_error(+LogPath, +SizeBefore) is semidet.
 %
@@ -742,23 +730,56 @@ ebuild_exec:log_transient_retry(LogPath, Phase, ExitCode) :-
 % non-zero exit whose log segment (bytes after SizeBefore) matches
 % the PID-reuse signature, re-runs that single phase once and returns
 % the retry's exit code; otherwise passes ExitCode0 through unchanged.
-% Runs before maybe_serial_retry/7 in the retry chain: the signature
-% match is more specific than the serial heuristic, and the retry
-% keeps the original (parallel) environment since the failure has
-% nothing to do with make-level parallelism.
+% The retry keeps the original environment. `config:build_retry/1`
+% decides whether this strategy is tried, and where it sits among
+% the others.
 
 :- meta_predicate ebuild_exec:maybe_transient_retry(+, +, +, +, 2, +, +, -).
 
 ebuild_exec:maybe_transient_retry(_, _, _, _, _, _, 0, 0) :- !.
 
 ebuild_exec:maybe_transient_retry(EbuildPath, Phase, LogPath, UseString, Callback, SizeBefore, ExitCode0, ExitCode) :-
-  ( ebuild_exec:transient_retry_enabled,
-    ebuild_exec:transient_phase_error(LogPath, SizeBefore)
+  ( ebuild_exec:transient_phase_error(LogPath, SizeBefore)
   -> ebuild_exec:log_transient_retry(LogPath, Phase, ExitCode0),
      ebuild_exec:start_phase_async(EbuildPath, Phase, LogPath, UseString, Pid),
      ebuild_exec:poll_phase_spinning(Pid, Phase, Callback, ExitCode)
   ;  ExitCode = ExitCode0
   ).
+
+
+%! ebuild_exec:apply_build_retries(+EbuildPath, +Phase, +LogPath, +UseString, :Callback, +SizeBefore, +ExitCode0, -ExitCode) is det.
+%
+% Walks `config:build_retry/1` and tries each named strategy while the
+% phase is still failing. `pid` matches a lost bash pid and
+% reruns the phase as it was. `makeopts` reruns `compile`, `test`, or
+% `install` with `MAKEOPTS=-j1`. A name this code does not know is
+% skipped.
+
+:- meta_predicate ebuild_exec:apply_build_retries(+, +, +, +, 2, +, +, -).
+
+ebuild_exec:apply_build_retries(EbuildPath, Phase, LogPath, UseString, Callback, SizeBefore, ExitCode0, ExitCode) :-
+  ( catch(config:build_retry(Strategies), _, fail)
+  -> ebuild_exec:apply_retry_list(Strategies, EbuildPath, Phase, LogPath, UseString, Callback, SizeBefore, ExitCode0, ExitCode)
+  ;  ExitCode = ExitCode0
+  ).
+
+
+:- meta_predicate ebuild_exec:apply_retry_list(+, +, +, +, +, 2, +, +, -).
+
+ebuild_exec:apply_retry_list([], _, _, _, _, _, _, ExitCode, ExitCode).
+
+ebuild_exec:apply_retry_list([pid|Rest], EbuildPath, Phase, LogPath, UseString, Callback, SizeBefore, ExitCode0, ExitCode) :-
+  !,
+  ebuild_exec:maybe_transient_retry(EbuildPath, Phase, LogPath, UseString, Callback, SizeBefore, ExitCode0, ExitCode1),
+  ebuild_exec:apply_retry_list(Rest, EbuildPath, Phase, LogPath, UseString, Callback, SizeBefore, ExitCode1, ExitCode).
+
+ebuild_exec:apply_retry_list([makeopts|Rest], EbuildPath, Phase, LogPath, UseString, Callback, SizeBefore, ExitCode0, ExitCode) :-
+  !,
+  ebuild_exec:maybe_serial_retry(EbuildPath, Phase, LogPath, UseString, Callback, ExitCode0, ExitCode1),
+  ebuild_exec:apply_retry_list(Rest, EbuildPath, Phase, LogPath, UseString, Callback, SizeBefore, ExitCode1, ExitCode).
+
+ebuild_exec:apply_retry_list([_|Rest], EbuildPath, Phase, LogPath, UseString, Callback, SizeBefore, ExitCode0, ExitCode) :-
+  ebuild_exec:apply_retry_list(Rest, EbuildPath, Phase, LogPath, UseString, Callback, SizeBefore, ExitCode0, ExitCode).
 
 
 % =============================================================================
@@ -859,14 +880,14 @@ ebuild_exec:maybe_reactivate_toolchain(_Action, _Repo, _Entry, _Outcome).
 % `dev-lang/ghc`, run `ghc-pkg recache` so boot libraries (bytestring,
 % deepseq, ghc-prim, template-haskell, …) are visible to subsequent
 % `dev-haskell/*` configures. Needed especially on the binpkg/qmerge path
-% where package-DB registration can lag the merge. Gated by
-% config:ghc_pkg_register/1 (default true). Always succeeds; a missing
-% `ghc-pkg` is a silent no-op (e.g. macOS standalone).
+% where package-DB registration can lag the merge. Tried when `ghcpkg`
+% is in config:build_fixup/1. Always succeeds; a missing `ghc-pkg` is
+% a silent no-op (e.g. macOS standalone).
 
 ebuild_exec:maybe_register_ghc_pkg(Action, Repo, Entry, done) :-
   memberchk(Action, [install, reinstall, update, downgrade]),
-  ( current_predicate(config:ghc_pkg_register/1)
-  -> config:ghc_pkg_register(true)
+  ( catch(config:build_fixup(Strategies), _, fail), is_list(Strategies)
+  -> memberchk(ghcpkg, Strategies)
   ;  true
   ),
   cache:ordered_entry(Repo, Entry, 'dev-lang', ghc, _Ver),
@@ -1104,7 +1125,8 @@ ebuild_exec:run_phases_unlocked(EbuildPath, Phases, UseString, ExitCode) :-
   ebuild_exec:run_phases_once(EbuildPath, Phases, UseString, [], ExitCode0),
   ( ExitCode0 =:= 0
   -> ExitCode = 0
-  ;  ( ebuild_exec:serial_retry_enabled,
+  ;  ( catch(config:build_retry(Strategies), _, fail),
+       memberchk(makeopts, Strategies),
        member(P, Phases),
        ebuild_exec:serial_retry_phase(P)
      -> subtract(Phases, [clean], RetryPhases),
@@ -1211,8 +1233,7 @@ ebuild_exec:run_phases_sequential(EbuildPath, Entry, [Phase|Rest], DisplayPhases
   ebuild_exec:with_portage_pkg_merge_lock(Phase,
     ( ebuild_exec:start_phase_async(EbuildPath, Phase, LogPath, UseString, Pid),
       ebuild_exec:poll_phase(Poller, Pid, Phase, LogPath, SizeBefore, T0, Callback, ExitCode0),
-      ebuild_exec:maybe_transient_retry(EbuildPath, Phase, LogPath, UseString, Callback, SizeBefore, ExitCode0, ExitCode1),
-      ebuild_exec:maybe_serial_retry(EbuildPath, Phase, LogPath, UseString, Callback, ExitCode1, ExitCode2),
+      ebuild_exec:apply_build_retries(EbuildPath, Phase, LogPath, UseString, Callback, SizeBefore, ExitCode0, ExitCode2),
       fixup:maybe_phase_retry(EbuildPath, Entry, Phase, LogPath, UseString, Callback, SizeBefore, ExitCode2, ExitCode) )),
   get_time(T1),
   TotalSecs is T1 - T0,

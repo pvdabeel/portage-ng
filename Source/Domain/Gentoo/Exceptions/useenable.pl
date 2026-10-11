@@ -58,11 +58,12 @@ fixup:mechanism(useenable).
 
 %! useenable:enabled is semidet.
 %
-% True unless config:use_enable_feedback/1 is explicitly false.
+% True when `useenable` is listed in config:build_learned/1.
+% A missing list leaves the strategy enabled.
 
 useenable:enabled :-
-  ( catch(config:use_enable_feedback(V), _, fail), ground(V)
-  -> V == true
+  ( catch(config:build_learned(Strategies), _, fail), is_list(Strategies)
+  -> memberchk(useenable, Strategies)
   ;  true
   ).
 

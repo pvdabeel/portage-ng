@@ -27,8 +27,8 @@ heterogeneous compiler/ocamlfind messages:
   /usr/lib64/ocaml/site-lib/foo/foo.cmi is not a compiled interface
 
 The sub-slot rebuild pass (portage-ng#89) cannot see this breakage (no
-sub-slot delta), and traditional emerge simply fails the build. Gated by
-config:ocaml_abi_repair/1, this mechanism recovers the failure
+sub-slot delta), and traditional emerge simply fails the build. When
+`ocamlabi` is listed in config:build_fixup/1, this mechanism recovers the failure
 in-transaction: it extracts the stale compiled-unit file paths and findlib
 package names from the failed phase's log segment, maps them to their
 installed VDB owners through the CONTENTS records (the active enumerator
@@ -68,8 +68,8 @@ fixup:mechanism(ocamlabi).
 %! ocamlabi:repair_enabled is semidet.
 
 ocamlabi:repair_enabled :-
-  ( catch(config:ocaml_abi_repair(V), _, fail), ground(V)
-  -> V == true
+  ( catch(config:build_fixup(Strategies), _, fail), is_list(Strategies)
+  -> memberchk(ocamlabi, Strategies)
   ;  true
   ).
 

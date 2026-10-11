@@ -1533,25 +1533,27 @@ The machine config file is where repositories are created and registered
     align: (left,left,left,),
     table.header([#strong[Setting]], [#strong[Default]], [#strong[Purpose]],),
     table.hline(),
-    [`config:build_transient_retry/1`], [`true`], [Retry a phase once
-    when it fails with bash's PID-reuse race
-    (`wait: pid N is not a child of this shell`).],
-    [`config:build_serial_retry/1`], [`true`], [Retry a failed
-    compile/test/install phase once with `MAKEOPTS=-j1` to rule out
-    parallel-make races.],
+    [`config:build_retry/1`], [`[pid, makeopts]`], [Retries after a
+    phase fails, in list order. `pid` reruns a phase whose log says
+    bash lost a waited pid. `makeopts` reruns a failed compile, test,
+    or install with `MAKEOPTS=-j1`.],
     [`config:deconflict_collisions/1`], [`override`], [Merge-time file
     collision handling when a blocker atom is missing from metadata:
     `off` (fail as usual), `report` (fail, but surface the collision as
     a deconfliction assumption), or `override` (re-merge with collision
     protection disabled so the merge succeeds).],
-    [`config:ghc_abi_repair/1`], [`true`], [Repair GHC ABI-hash breakage
-    in-transaction: rebuild the packages listed by haskell-cabal's
-    broken-package check, then re-run the failed phase (native
-    `haskell-updater`).],
-    [`config:ocaml_abi_repair/1`], [`true`], [Repair OCaml/findlib ABI
-    breakage in-transaction: map stale compiled-unit errors to their
-    installed owners via the VDB, rebuild them, then re-run the failed
-    phase.],
+    [`config:build_fixup/1`], [`[ghcabi, ocamlabi, ghcpkg]`], [Builder
+    fixups. `ghcabi` rebuilds the packages haskell-cabal reports as
+    broken. `ocamlabi` rebuilds the installed owner of a stale OCaml
+    interface or a missing findlib package. `ghcpkg` runs `ghc-pkg
+    recache` after `dev-lang/ghc` merges.],
+    [`config:build_learned/1`], [`[missing_provider, useenable,
+    kernelconfig]`], [Facts learned from a failed phase. The phase
+    still fails and the next plan is derived with the new fact.
+    `missing_provider` adds the package that provides a missing
+    command or file. `useenable` rebuilds a provider with a required
+    USE flag on. `kernelconfig` sets a missing `CONFIG_*` option
+    before the package builds.],
     [`config:subslot_rebuild/1`], [`true`], [Plan same-version rebuilds
     of installed reverse dependencies when a sub-slot (`:=`) provider's
     ABI changes inside a transaction. Complementary to the
@@ -7557,12 +7559,11 @@ keep their original semantics. The chain has two layers:
       align: (left,left,left,left,),
       table.header([#strong[Retry]], [#strong[Signature]], [#strong[Recovery]], [#strong[Gate]],),
       table.hline(),
-      [Transient (bash PID
-      reuse)], [`wait: pid N is not a child of this shell`], [re-run the
-      phase once], [`config:build_transient_retry/1`],
-      [Serial make (parallel-make race)], [failed compile/test/install
+      [pid], [`wait: pid N is not a child of this shell`], [re-run the
+      phase once], [`pid` in `config:build_retry/1`],
+      [makeopts], [failed compile/test/install
       phase], [re-run with
-      `MAKEOPTS=-j1`], [`config:build_serial_retry/1`],
+      `MAKEOPTS=-j1`], [`makeopts` in `config:build_retry/1`],
     )]
     , kind: table
     )
@@ -7641,7 +7642,7 @@ bifunctors-5.6.3-9AmA3NO9963FDwV9BBcxcZ
 Because the hash lives only in ghc-pkg's registry, there is no sub-slot
 delta for the resolver to observe, and traditional emerge fails the same
 configure and defers to a manual `haskell-updater` run. portage-ng does
-better: gated by `config:ghc_abi_repair/1`, the mechanism parses the
+better: when `ghcabi` is in `config:build_fixup/1`, the mechanism parses the
 broken package list from the failed phase's log, rebuilds each broken
 package from source at its installed version and with its VDB-recorded
 USE configuration (never from a binary package --- a stale binpkg ABI is
@@ -7671,7 +7672,7 @@ Error: Unbound module Camlp5
 ocamlfind: Package `camlp5' not found
 ```
 
-Gated by `config:ocaml_abi_repair/1`, the mechanism extracts the stale
+When `ocamlabi` is in `config:build_fixup/1`, the mechanism extracts the stale
 compiled-unit paths and findlib package names from the failed phase's
 log, maps them to their installed owners through the VDB CONTENTS
 records (the active enumerator this domain lacks an eclass check for),
@@ -7704,8 +7705,8 @@ builder, could not chase the provider's own transitive needs, would
 break the invariant that the plan equals `prove_plan(Goals, KB)`, and
 would forget the discovery so the next run fails again.
 
-So `missing_provider.pl` (portage-ng\#102), gated by
-`config:missing_provider_feedback/1`, does the opposite of a repair:
+So `missing_provider.pl` (portage-ng\#102), when `missing_provider` is in
+`config:build_learned/1`, does the opposite of a repair:
 #strong[it emits a structured diagnostic, that diagnostic becomes
 learned knowledge, the pipeline re-derives a fresh provable plan that
 orders the provider before the target, and the builder resumes that new
@@ -7781,7 +7782,7 @@ installed, but was built with the wrong USE set --- e.g.
 is a no-op: the package is already in the plan/VDB. What is missing is a
 HARD `[flag]` usedep.
 
-`useenable.pl`, gated by `config:use_enable_feedback/1`, mirrors the
+`useenable.pl`, when `useenable` is in `config:build_learned/1`, mirrors the
 \#102 three seams: detect a compile/configure symbol, resolve it via a
 curated seed table to `Provider + HARD usedeps`, record a durable
 `feedback:discovered_usedep/4`, and let `builder:build_loop/2`

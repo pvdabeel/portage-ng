@@ -228,8 +228,8 @@ same plan:
   (and related toolchain CNs), re-select the gcc-config profile and/or
   run `env-update` so a later package's `pkg_setup` sees the new
   compiler (portage-ng#86, especially under `FEATURES=ccache`).
-- **`ghc-pkg recache`** (`maybe_register_ghc_pkg/4`, gated by
-  `config:ghc_pkg_register/1`) — after merging `dev-lang/ghc`, refresh
+- **`ghc-pkg recache`** (`maybe_register_ghc_pkg/4`, when `ghcpkg` is in
+  `config:build_fixup/1`) — after merging `dev-lang/ghc`, refresh
   the package DB so boot libraries are visible to subsequent
   `dev-haskell/*` configures (portage-ng#108).
 
@@ -317,8 +317,8 @@ original semantics.  The chain has two layers:
 
    | **Retry** | **Signature** | **Recovery** | **Gate** |
    | :--- | :--- | :--- | :--- |
-   | Transient (bash PID reuse) | `wait: pid N is not a child of this shell` | re-run the phase once | `config:build_transient_retry/1` |
-   | Serial make (parallel-make race) | failed compile/test/install phase | re-run with `MAKEOPTS=-j1` | `config:build_serial_retry/1` |
+   | pid | `wait: pid N is not a child of this shell` | re-run the phase once | `pid` in `config:build_retry/1` |
+   | makeopts | failed compile/test/install phase | re-run with `MAKEOPTS=-j1` | `makeopts` in `config:build_retry/1` |
 
 2. **Domain exception fixups** (see next section) — failures caused by
    a problem that should really be fixed at the ebuild or metadata
@@ -396,7 +396,7 @@ bifunctors-5.6.3-9AmA3NO9963FDwV9BBcxcZ
 Because the hash lives only in ghc-pkg's registry, there is no
 sub-slot delta for the resolver to observe, and traditional emerge
 fails the same configure and defers to a manual `haskell-updater`
-run.  portage-ng does better: gated by `config:ghc_abi_repair/1`, the
+run.  portage-ng does better: when `ghcabi` is in `config:build_fixup/1`, the
 mechanism parses the broken package list from the failed phase's log,
 rebuilds each broken package from source at its installed version and
 with its VDB-recorded USE configuration (never from a binary package —
@@ -426,7 +426,7 @@ Error: Unbound module Camlp5
 ocamlfind: Package `camlp5' not found
 ```
 
-Gated by `config:ocaml_abi_repair/1`, the mechanism extracts the
+When `ocamlabi` is in `config:build_fixup/1`, the mechanism extracts the
 stale compiled-unit paths and findlib package names from the failed
 phase's log, maps them to their installed owners through the VDB
 CONTENTS records (the active enumerator this domain lacks an eclass
@@ -460,8 +460,8 @@ builder, could not chase the provider's own transitive needs, would
 break the invariant that the plan equals `prove_plan(Goals, KB)`, and
 would forget the discovery so the next run fails again.
 
-So `missing_provider.pl` (portage-ng#102), gated by
-`config:missing_provider_feedback/1`, does the opposite of a repair:
+So `missing_provider.pl` (portage-ng#102), when `missing_provider` is in
+`config:build_learned/1`, does the opposite of a repair:
 **it emits a structured diagnostic, that diagnostic becomes learned
 knowledge, the pipeline re-derives a fresh provable plan that orders the
 provider before the target, and the builder resumes that new plan.**
@@ -539,7 +539,7 @@ a HARD `[flag]` usedep — an unconditional USE dependency, as opposed to
 a `[flag?]` / `[flag=]` one that follows the consumer (terminology box,
 Chapter 13).
 
-`useenable.pl`, gated by `config:use_enable_feedback/1`, mirrors the
+`useenable.pl`, when `useenable` is in `config:build_learned/1`, mirrors the
 #102 three seams: detect a compile/configure symbol, resolve it via a
 curated seed table to `Provider + HARD usedeps`, record a durable
 `feedback:discovered_usedep/4`, and let `builder:build_loop/2`

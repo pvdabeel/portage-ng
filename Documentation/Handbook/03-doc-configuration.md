@@ -80,11 +80,10 @@ The machine config file is where repositories are created and registered — cov
 
 | **Setting** | **Default** | **Purpose** |
 |:---|:---|:---|
-| `config:build_transient_retry/1` | `true` | Retry a phase once when it fails with bash's PID-reuse race (`wait: pid N is not a child of this shell`). |
-| `config:build_serial_retry/1` | `true` | Retry a failed compile/test/install phase once with `MAKEOPTS=-j1` to rule out parallel-make races. |
+| `config:build_retry/1` | `[pid, makeopts]` | Retries after a phase fails, in list order. `pid` reruns a phase whose log says bash lost a waited pid. `makeopts` reruns a failed compile, test, or install with `MAKEOPTS=-j1`. |
 | `config:deconflict_collisions/1` | `override` | Merge-time file collision handling when a blocker atom is missing from metadata: `off` (fail as usual), `report` (fail, but surface the collision as a deconfliction assumption), or `override` (re-merge with collision protection disabled so the merge succeeds). |
-| `config:ghc_abi_repair/1` | `true` | Repair GHC ABI-hash breakage in-transaction: rebuild the packages listed by haskell-cabal's broken-package check, then re-run the failed phase (native `haskell-updater`). |
-| `config:ocaml_abi_repair/1` | `true` | Repair OCaml/findlib ABI breakage in-transaction: map stale compiled-unit errors to their installed owners via the VDB, rebuild them, then re-run the failed phase. |
+| `config:build_fixup/1` | `[ghcabi, ocamlabi, ghcpkg]` | Builder fixups. `ghcabi` rebuilds the packages haskell-cabal reports as broken. `ocamlabi` rebuilds the installed owner of a stale OCaml interface or a missing findlib package. `ghcpkg` runs `ghc-pkg recache` after `dev-lang/ghc` merges. |
+| `config:build_learned/1` | `[missing_provider, useenable, kernelconfig]` | Facts learned from a failed phase. The phase still fails and the next plan is derived with the new fact. `missing_provider` adds the package that provides a missing command or file. `useenable` rebuilds a provider with a required USE flag on. `kernelconfig` sets a missing `CONFIG_*` option before the package builds. |
 | `config:subslot_rebuild/1` | `true` | Plan same-version rebuilds of installed reverse dependencies when a sub-slot (`:=`) provider’s ABI changes inside a transaction. Complementary to the `@preserved-rebuild` *set* (FEATURES=preserve-libs consumers); this pass is automatic during prove/plan. |
 | `config:toolchain_reactivation/1` | `true` | Re-activate the toolchain right after a toolchain package merges, before dependent builds continue. |
 

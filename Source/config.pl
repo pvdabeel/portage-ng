@@ -621,39 +621,19 @@ config:print_blockers(gentoo).
 config:build_phases([clean, setup, unpack, prepare, configure, compile, test, install, merge]).
 
 
-%! config:build_serial_retry(?Bool)
+%! config:build_retry(?Strategies)
 %
-% When true, a failed `compile`, `test`, or `install` is run once more
-% with `MAKEOPTS=-j1` before the build is declared failed.
-% Those three phases are a fixed list: they are the phases that run
-% make, and any non-zero exit is retried.
+% Retries after a phase fails, tried in this order. A name left out
+% is not tried.
 %
-% A failure that is still there on the second run stays a failure.
-% Make continues from the objects it already built, so the
-% second run only changes the outcome when the first failure was a
-% scheduling race (for example net-analyzer/nsat linking before its
-% objects exist).
-%
-% `MAKEOPTS` is set in the environment, which overrides make.conf.
-% `setup`, `unpack`, `configure`, and `merge` are not retried.
+%   pid      - a lost bash pid. The log contains
+%              "wait: pid N is not a child of this shell".
+%              The same phase is run once more.
+%   makeopts - `compile`, `test`, or `install` failed. The phase is
+%              run once more with `MAKEOPTS=-j1`. Make continues
+%              from the objects it already built.
 
-config:build_serial_retry(true).
-
-
-%! config:build_transient_retry(?Bool)
-%
-% When true, a failed phase whose log tail carries the bash PID-reuse
-% signature ("wait: pid N is not a child of this shell") is retried
-% once before the build is declared failed (portage-ng#76). The
-% signature comes from Portage helpers (ecompress, ...) that `wait`
-% on a process-substitution pid which bash has lost track of due to
-% PID recycling under high fork rates (Gentoo bug #965423, fixed
-% upstream in Nov 2025). The failure is environmental and transient,
-% not a property of the ebuild, so a single retry of the same phase
-% recovers it. Deterministic failures don't match the signature and
-% fail immediately, keeping their original semantics.
-
-config:build_transient_retry(true).
+config:build_retry([pid, makeopts]).
 
 
 %! config:deconflict_collisions(?Mode)
@@ -688,153 +668,55 @@ config:build_transient_retry(true).
 config:deconflict_collisions(override).
 
 
-%! config:ghc_abi_repair(?Bool)
+%! config:build_fixup(?Strategies)
 %
-% When true, a setup/configure/compile phase failure carrying
-% haskell-cabal.eclass's broken-package signature ("Detected broken
-% packages: ...", "Please, run 'haskell-updater'") is recovered
-% in-transaction (portage-ng#93): the listed packages are rebuilt from
-% source at their installed version -- re-registering them in ghc-pkg's
-% database with ABI hashes consistent with their just-rebuilt
-% dependencies -- and the failed phase is re-run. This is the native
-% equivalent of Gentoo's haskell-updater, which traditional emerge
-% defers to a manual run (emerge fails the same configure and exits).
-% The GHC ABI hash lives only in ghc-pkg's registry, so the sub-slot
-% rebuild pass (config:subslot_rebuild/1, portage-ng#89) cannot observe
-% this class of breakage.
+% Fixups the builder may apply. A name left out is not tried.
 %
-% Bounded: each broken package is rebuilt at most once per session, the
-% failed phase is retried at most twice, and repairs are serialized
-% across build workers. Every repair leaves a marker in both the
-% consumer's and the rebuilt package's build logs and is recorded via
-% `fixup:record/3` (see Source/Domain/Gentoo/Exceptions/ghcabi.pl). Set
-% to `false` to keep emerge-compatible behaviour (fail and defer to
-% haskell-updater).
+%   ghcabi   - a phase fails because haskell-cabal reports broken
+%              packages. Those packages are rebuilt at the installed
+%              version, then the failed phase is run again.
+%   ocamlabi - a phase fails because the log names a stale compiled
+%              interface or a missing findlib package. The installed
+%              owner is rebuilt, then the failed phase is run again.
+%   ghcpkg   - `dev-lang/ghc` has merged. `ghc-pkg recache` runs so
+%              the boot libraries are visible to later `dev-haskell/*`
+%              builds. Nothing happens when `ghc-pkg` is not on PATH.
 
-config:ghc_abi_repair(true).
+config:build_fixup([ghcabi, ocamlabi, ghcpkg]).
 
 
-%! config:ghc_pkg_register(?Bool)
+%! config:build_learned(?Strategies)
 %
-% When true, a successful merge of `dev-lang/ghc` triggers
-% `ghc-pkg recache` so GHC boot libraries are visible to subsequent
-% `dev-haskell/*` configures (portage-ng#108). Complements the reactive
-% ghcabi repair for Cabal "Encountered missing or private dependencies"
-% (bytestring / deepseq / ghc-prim / template-haskell). Default true;
-% silent no-op when `ghc-pkg` is not on PATH.
-
-config:ghc_pkg_register(true).
-
-
-%! config:ocaml_abi_repair(?Bool)
+% Facts learned from a failed phase. The phase still fails, and the
+% next plan is derived with the new fact. A name left out is not tried.
 %
-% When true, a configure/compile phase failure carrying an OCaml
-% stale-ABI signature (the compiler's "make inconsistent assumptions
-% over interface" / "is not a compiled interface" digest errors, an
-% "Error: Unbound module" abort, or an ocamlfind package-not-found
-% error) is recovered in-transaction (portage-ng#99): the stale
-% compiled-unit paths and findlib package names are extracted from the
-% failed phase's log, mapped to their installed owners through the VDB
-% CONTENTS records, and those owners are rebuilt from source at their
-% installed version before the failed phase is re-run. This is the
-% OCaml analogue of the GHC ABI repair (config:ghc_abi_repair/1,
-% portage-ng#93): OCaml package identity lives in the .cmi interface
-% digests and findlib's registry, not in the ebuild sub-slot, so the
-% sub-slot rebuild pass (config:subslot_rebuild/1, portage-ng#89)
-% cannot observe this class of breakage and traditional emerge simply
-% fails the build.
-%
-% Bounded: each stale owner is rebuilt at most once per session, the
-% failed phase is retried at most twice, and repairs are serialized
-% across build workers. Every repair leaves a marker in both the
-% consumer's and the rebuilt package's build logs and is recorded via
-% `fixup:record/3` (see Source/Domain/Gentoo/Exceptions/ocamlabi.pl).
-% Set to `false` to keep emerge-compatible behaviour (fail the build).
+%   missing_provider - the log says a command or file is missing.
+%                      The package that provides it is added as a
+%                      build dependency.
+%   useenable        - the log says a file is missing because a
+%                      provider was built with a USE flag off. The
+%                      next plan rebuilds that provider with the
+%                      flag on.
+%   kernelconfig     - `setup` dies because the kernel `.config`
+%                      lacks a `CONFIG_*` option. The next plan sets
+%                      that option before the package builds.
 
-config:ocaml_abi_repair(true).
-
-
-%! config:missing_provider_feedback(?Bool)
-%
-% When true, a build phase that dies because a required command/file
-% provider is missing (e.g. `semodule_package: command not found`,
-% exit 127) is turned into learned knowledge rather than repaired in
-% place (portage-ng#102). The `missing_provider` exception mechanism
-% (Source/Domain/Gentoo/Exceptions/missing_provider.pl) scans the failed
-% phase's log for a missing-provider signature, resolves it to a concrete
-% package (via the VDB CONTENTS reverse-owner index and a small curated
-% seed table), and records a `feedback:discovered_dep/4`. The phase still
-% fails (the exit code is threaded through unchanged); the builder's
-% bounded replan loop (config:missing_provider_max_replan/1) then
-% re-derives a plan with the provider unioned into BDEPEND, so the
-% provider is proved and ordered before the target on the retry pass.
-%
-% Unlike the ABI repair mechanisms (ghc/ocaml), this one never rebuilds a
-% package in place: plans are derived, never patched. Set to `false` to
-% keep emerge-compatible behaviour (fail the build with no discovery).
-
-config:missing_provider_feedback(true).
+config:build_learned([missing_provider, useenable, kernelconfig]).
 
 
 %! config:missing_provider_max_replan(?N)
 %
-% Upper bound on the number of times builder:build_loop/2 will re-derive
-% and re-run a plan after a build pass records new missing-provider
-% discoveries (portage-ng#102). Combined with discovery deduplication in
-% feedback:record_discovery/4, this guarantees the replan loop always
-% terminates. Must be a non-negative integer.
+% How many times a build may derive a new plan after
+% `config:build_learned/1` records a fact. Must be a non-negative
+% integer.
 
 config:missing_provider_max_replan(3).
 
 
-%! config:use_enable_feedback(?Bool)
-%
-% When true, a build phase that dies because a provider was built with
-% the wrong USE set (e.g. `KX11Extras: No such file` when
-% `kwindowsystem` was merged `-X`) is turned into learned knowledge
-% rather than repaired in place (portage-ng#110). The `useenable`
-% exception mechanism records a `feedback:discovered_usedep/4` with HARD
-% bracketed USE deps; the builder's bounded replan loop then re-derives
-% a plan that forces those flags and rebuilds the provider. Plans are
-% derived, never patched — no imperative package.use write from the
-% hook. Set to `false` to disable.
-
-config:use_enable_feedback(true).
-
-
-%! config:kernel_config_repair(?Bool)
-%
-% When true, a build that dies in its `setup` phase because Gentoo's
-% linux-info.eclass `CONFIG_CHECK` found the kernel source configuration
-% missing (or carrying) a required option is turned into learned knowledge
-% rather than repaired in place (portage-ng#105). The `kernelconfig`
-% exception mechanism (Source/Domain/Gentoo/Exceptions/kernelconfig.pl)
-% parses the required `CONFIG_*` options from the failed phase's log and
-% records a `feedback:required_kernel_config/3`. The phase still fails (the
-% exit code is threaded through unchanged); the builder's bounded replan
-% loop (config:missing_provider_max_replan/1) then re-derives a plan
-% carrying a kernel-config-change pre-action ordered before the target,
-% and the builder applies the option to the kernel source .config
-% (scripts/config + `make olddefconfig`/`modules_prepare`) before the
-% packages build, so the CONFIG_CHECK passes.
-%
-% Like the missing-provider feedback (config:missing_provider_feedback/1),
-% this never rebuilds a package in place: plans are derived, never patched.
-% It unblocks userspace packages gated on a kernel option (apparmor, ...);
-% kernel-module packages that need a full kernel rebuild are only partly
-% helped (the option is set, but no kernel rebuild/reboot happens). Set to
-% `false` to keep emerge-compatible behaviour (fail the build).
-
-config:kernel_config_repair(true).
-
-
 %! config:kernel_source_dir(?Dir)
 %
-% Kernel source directory whose `.config` the linux-info `CONFIG_CHECK`
-% reads and the kernelconfig repair (config:kernel_config_repair/1,
-% portage-ng#105) edits. Defaults to the eselect-managed /usr/src/linux
-% symlink when unset; override per host if the active kernel tree lives
-% elsewhere.
+% Kernel source directory whose `.config` the `kernelconfig` strategy
+% reads and edits. Defaults to `/usr/src/linux`.
 
 config:kernel_source_dir('/usr/src/linux').
 

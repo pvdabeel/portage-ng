@@ -69,11 +69,12 @@ fixup:mechanism(missing_provider).
 
 %! missing_provider:enabled is semidet.
 %
-% True unless config:missing_provider_feedback/1 is explicitly false.
+% True when `missing_provider` is listed in config:build_learned/1.
+% A missing list leaves the strategy enabled.
 
 missing_provider:enabled :-
-  ( catch(config:missing_provider_feedback(V), _, fail), ground(V)
-  -> V == true
+  ( catch(config:build_learned(Strategies), _, fail), is_list(Strategies)
+  -> memberchk(missing_provider, Strategies)
   ;  true
   ).
 
