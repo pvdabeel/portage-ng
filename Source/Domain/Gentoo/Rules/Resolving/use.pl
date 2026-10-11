@@ -113,8 +113,10 @@ use:effective_use_in_context(Context, Use, State) :-
 % ebuild whose KEYWORDS list the host arch as stable -> userconfig
 % per-CN -> userconfig match -> package.use.stable -> profile
 % package.use -> make.conf -> use.stable -> global USE -> IUSE
-% default). make.conf beats use.stable; use.stable beats profile
-% make.defaults. package.use.stable beats profile package.use.
+% default). User package.use and profile package.use both beat
+% make.conf and the USE environment variable. make.conf beats
+% use.stable; use.stable beats profile make.defaults.
+% package.use.stable beats profile package.use.
 % Accepting ~arch does not make an ebuild stable.
 %
 % Global use.mask/use.force beat soft package.use (profile or user): a
