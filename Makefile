@@ -44,7 +44,7 @@ check:
 	else \
 	  echo "OK: swipl found ($$(swipl --version 2>&1 | head -1))"; \
 	fi; \
-	if ! command -v portage-ng-dev >/dev/null 2>&1; then \
+	if ! zsh -ic 'alias portage-ng-dev' >/dev/null 2>&1; then \
 	  echo "WARNING: portage-ng-dev not found as alias."; \
 	  echo "  Add the following to your ~/.zshrc or ~/.bash_profile:"; \
 	  echo ""; \
@@ -57,7 +57,7 @@ check:
 	  echo ""; \
 	  echo "  Then reload your shell: source ~/.zshrc or ~/.bash_profile"; \
 	else \
-	  echo "OK: portage-ng-dev found"; \
+	  echo "OK: portage-ng-dev alias found"; \
 	fi; \
 	if [ "$$ok" = false ]; then exit 1; fi
 
