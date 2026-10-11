@@ -461,66 +461,6 @@ config:color_output.
 config:color_palette(full).
 
 
-%! config:output_tty is semidet.
-%
-% Succeeds when the ultimate output destination is a real TTY.
-% In daemon/IPC mode the daemon's user_output is a socket, but
-% the client's stdout may be a TTY -- daemon:client_is_tty is
-% asserted when the client reports a TTY.
-
-:- dynamic config:output_tty_cached/1.
-
-config:output_tty :-
-  ( config:output_tty_cached(Val)
-  -> Val == true
-  ; ( ( stream_property(user_output, tty(true))
-      ; catch(daemon:client_is_tty, _, fail)
-      )
-    -> asserta(config:output_tty_cached(true))
-    ;  asserta(config:output_tty_cached(false)),
-       fail
-    )
-  ).
-
-
-%! config:powerline_bubbles is semidet.
-%
-% Succeeds when Powerline private-use bubble caps (U+E0B6/U+E0B4)
-% are appropriate for the output terminal. Fails on the Linux console
-% (TERM=linux), where angle-bracket bubbles are used instead.
-
-:- dynamic config:powerline_bubbles_cached/1.
-
-config:powerline_bubbles :-
-  ( config:powerline_bubbles_cached(Val)
-  -> Val == true
-  ; ( config:powerline_bubbles_env_ok
-    -> asserta(config:powerline_bubbles_cached(true))
-    ;  asserta(config:powerline_bubbles_cached(false)),
-       fail
-    )
-  ).
-
-
-%! config:terminal_env_term(-Term) is semidet.
-%
-% TERM from the client-forwarded environment (daemon/IPC) or the
-% local process environment.
-
-config:terminal_env_term(Term) :-
-  ( catch(daemon:client_env('TERM', Term), _, fail)
-  -> true
-  ;  catch(system:getenv('TERM', Term), _, fail)
-  ).
-
-
-config:powerline_bubbles_env_ok :-
-  ( catch(config:terminal_env_term(Term), _, fail)
-  -> Term \== linux
-  ;  true
-  ).
-
-
 % Interface can dynamically set the printing style
 
 :- dynamic config:interface_printing_style/1.
@@ -529,67 +469,6 @@ config:powerline_bubbles_env_ok :-
 % The default printing style
 
 config:default_printing_style('fancy').
-
-
-%! confg:printing_style(?Setting)
-%
-% Retrieves the printing style ('short', 'column' or 'fancy')
-%
-% 1. Running as a server, use client style
-
-config:printing_style(Style) :-
-  pengine_self(M),
-  !,
-  M:printing_style(Style).
-
-% 2. Not running as a server, use interface style when specified,
-%    otherwise default
-
-config:printing_style(Style) :-
-  config:interface_printing_style(Style),!.
-
-config:printing_style(Style) :-
-  \+(config:interface_printing_style(_)),
-  config:default_printing_style(Style).
-
-
-%! config:printing_tty_size(?H,?W)
-%
-% Retrieves the tty_size to use for printing, applying client-server
-% "context routing": in pengines (server) mode the connected client's
-% terminal is used, in ipc mode the daemon uses the size forwarded by the
-% ipc client, and otherwise the local terminal is used.
-%
-% 1. Running as a server, use client tty_size
-
-config:printing_tty_size(H,W) :-
-  pengine_self(M),
-  !,
-  M:printing_tty_size(H,W).
-
-% 1b. Running as daemon, use client-provided tty_size
-
-config:printing_tty_size(H,W) :-
-  catch(daemon:client_tty_size(H,W), _, fail),
-  !.
-
-% 2. Otherwise use the local terminal size
-
-config:printing_tty_size(H,W) :-
-  config:local_tty_size(H,W).
-
-
-%! config:local_tty_size(-H,-W) is det.
-%
-% The local process terminal size, falling back to a sane default when
-% stdout is not a tty (tty_size/2 may throw outside a real terminal).
-%
-% This performs no client-server context routing, so it is safe for the
-% lightweight ipc client to call without pulling in library(pengines). It
-% also backs the local fallback clause of config:printing_tty_size/2.
-
-config:local_tty_size(H,W) :-
-  ( catch(tty_size(H,W), _, fail) -> true ; H = 80, W = 160 ).
 
 
 %! config:print_expand_use(?Bool)

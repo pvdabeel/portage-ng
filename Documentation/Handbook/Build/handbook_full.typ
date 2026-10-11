@@ -6761,7 +6761,7 @@ bubbles to draw attention.
 === Printing styles
 <printing-styles>
 portage-ng supports three printing styles, selectable via
-`config:printing_style/1` (default: `fancy`):
+`console:printing_style/1` (default: `fancy`):
 
 - #strong[`fancy`] (default) --- the bubble style: a compact visual
   layout where each action line includes colour-coded indicators and

@@ -147,7 +147,7 @@ std::string quote_atom(const std::string& s) {
 
 //! ipcclient:tty_size(-Cols, -Rows)
 //
-// Same defaults as `config:local_tty_size/2` / ipclient (80 rows, 160 cols).
+// Same defaults as `console:local_tty_size/2` / ipclient (80 rows, 160 cols).
 
 void tty_size(int& cols, int& rows) {
   cols = 160;

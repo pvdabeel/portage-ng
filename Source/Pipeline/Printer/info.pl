@@ -71,7 +71,7 @@ info:print_system :-
   -> format('Install dir:     ~w~n', [Dir])
   ;  true
   ),
-  ( config:printing_tty_size(H, W)
+  ( console:printing_tty_size(H, W)
   -> format('Terminal size:   ~wx~w~n', [W, H])
   ;  format('Terminal size:   (not a TTY)~n')
   ),

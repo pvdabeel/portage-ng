@@ -410,7 +410,7 @@ cycle:cycle_tree_parts_([Node|Rest], GuardMap, Indent, [part(Indent, Entry, Acti
 cycle:cycle_tree_right_width(Parts, RightWidth) :-
   findall(W, member(part(_,_,_,_,_,W), Parts), Ws),
   max_list(Ws, MaxW),
-  ( config:printing_tty_size(_, TermW) -> true ; TermW = 120 ),
+  ( console:printing_tty_size(_, TermW) -> true ; TermW = 120 ),
   TargetW is MaxW + 6,
   CapW is max(0, TermW - 2),
   RightWidth0 is min(CapW, TargetW),

@@ -131,7 +131,7 @@ build:print_skipped_slots([_|Rest], NumSteps) :-
 % first print_config_prefix('conf') column-104 alignment lands correctly.
 
 build:print_build_config(RuleHead) :-
-  config:printing_style('column'), !,
+  console:printing_style('column'), !,
   with_output_to(string(S), catch(useflags:print_config(RuleHead), _, true)),
   ( S \== ""
   -> nl, write('             │ '),
@@ -187,7 +187,7 @@ build:print_skipped_exec_and_logs(_Action, PhaseList, LogPath) :-
 % When stdout is not a TTY, prints a log line instead.
 
 build:update_slot(_Slot, _NumSlots, Status, PlanStep, NumSteps, ActionIdx, Action, RepoEntry) :-
-  \+ config:output_tty,
+  \+ console:output_tty,
   !,
   build:log_slot(Status, PlanStep, NumSteps, ActionIdx, Action, RepoEntry).
 
@@ -372,14 +372,14 @@ build:print_file_subslots_([dist(Filename, Size, _)|Rest], N, Distdir) :-
 % Tree prefix for the first file line. Style-aware.
 
 build:file_prefix_first :-
-  config:printing_style('fancy'), !,
+  console:printing_style('fancy'), !,
   write('             \u2502           '),
   message:color(darkgray),
   message:print('\u2514\u2500 file \u2500\u2524 '),
   message:color(normal).
 
 build:file_prefix_first :-
-  config:printing_style('column'), !,
+  console:printing_style('column'), !,
   write('             \u2502 '),
   message:column(104, ' ').
 
@@ -392,14 +392,14 @@ build:file_prefix_first :-
 % Tree prefix for subsequent file lines. Style-aware.
 
 build:file_prefix_rest :-
-  config:printing_style('fancy'), !,
+  console:printing_style('fancy'), !,
   write('             \u2502          '),
   message:color(darkgray),
   message:print('          \u2502 '),
   message:color(normal).
 
 build:file_prefix_rest :-
-  config:printing_style('column'), !,
+  console:printing_style('column'), !,
   write('             \u2502 '),
   message:column(104, ' ').
 
@@ -420,7 +420,7 @@ build:file_prefix_rest :-
 % TotalLines is the total display lines for the step.
 
 build:update_file_subslot(_FileIdx, _FileStartLine, _TotalLines, Status, Filename, Size, Distdir) :-
-  \+ config:output_tty,
+  \+ console:output_tty,
   !,
   ( Status == done
   -> format('  file OK   ~w (~w)~n', [Filename, Size])
@@ -538,14 +538,14 @@ build:print_live_subslot :-
 % Tree prefix for live source sub-slot. Style-aware.
 
 build:live_prefix :-
-  config:printing_style('fancy'), !,
+  console:printing_style('fancy'), !,
   write('             \u2502           '),
   message:color(darkgray),
   message:print('\u2514\u2500 live \u2500\u2524 '),
   message:color(normal).
 
 build:live_prefix :-
-  config:printing_style('column'), !,
+  console:printing_style('column'), !,
   write('             \u2502 '),
   message:column(104, ' ').
 
@@ -559,7 +559,7 @@ build:live_prefix :-
 % Must be called inside with_mutex(build_display, ...).
 
 build:update_live_subslot(_Idx, _LiveStartLine, _TotalLines, Status) :-
-  \+ config:output_tty,
+  \+ console:output_tty,
   !,
   ( Status == done
   -> format('  live OK~n')
@@ -651,14 +651,14 @@ build:print_exec_and_logs(_Action, PhaseList, LogPath) :-
 % -----------------------------------------------------------------------------
 
 build:exec_prefix :-
-  config:printing_style('fancy'), !,
+  console:printing_style('fancy'), !,
   write('             \u2502           '),
   message:color(darkgray),
   message:print('\u2514\u2500 exec \u2500\u2524 '),
   message:color(normal).
 
 build:exec_prefix :-
-  config:printing_style('column'), !,
+  console:printing_style('column'), !,
   write('             \u2502 '),
   message:column(104, ' ').
 
@@ -667,14 +667,14 @@ build:exec_prefix :-
 
 
 build:exec_continuation_prefix :-
-  config:printing_style('fancy'), !,
+  console:printing_style('fancy'), !,
   write('             \u2502                    '),
   message:color(darkgray),
   message:print('\u2502 '),
   message:color(normal).
 
 build:exec_continuation_prefix :-
-  config:printing_style('column'), !,
+  console:printing_style('column'), !,
   write('             \u2502 '),
   message:column(104, ' ').
 
@@ -692,7 +692,7 @@ build:exec_continuation_prefix :-
 % Must be called inside with_mutex(build_display, ...).
 
 build:update_exec_line(_ExecLine, _TotalLines, _Action, _PhaseStates) :-
-  \+ config:output_tty, !.
+  \+ console:output_tty, !.
 
 build:update_exec_line(ExecLine, TotalLines, _Action, PhaseStates) :-
   LinesUp is TotalLines - ExecLine,
@@ -712,7 +712,7 @@ build:update_exec_line(ExecLine, TotalLines, _Action, PhaseStates) :-
 % phase failed. Must be called inside with_mutex(build_display, ...).
 
 build:update_logs_line(_LogsLine, _TotalLines, _LogPath, _OverallStatus) :-
-  \+ config:output_tty, !.
+  \+ console:output_tty, !.
 
 build:update_logs_line(LogsLine, TotalLines, LogPath, OverallStatus) :-
   LinesUp is TotalLines - LogsLine,
@@ -756,9 +756,9 @@ build:render_inline_phases_wrapped(PhaseStates) :-
 % line when the terminal width would be exceeded.
 
 build:render_phases_wrapped(PhaseStates) :-
-  config:printing_style('short'), !,
+  console:printing_style('short'), !,
   catch(
-    ( config:printing_tty_size(_, TermWidth),
+    ( console:printing_tty_size(_, TermWidth),
       build:exec_content_start_col(StartCol),
       build:render_phases_wrap_(PhaseStates, StartCol, TermWidth, StartCol)
     ),
@@ -878,7 +878,7 @@ build:render_phase_word(Phase, stub) :-
 % a red bold ! if any phase failed, or a phase fraction N/M if running.
 
 build:render_overall_indicator(_) :-
-  config:printing_style('column'), !.
+  console:printing_style('column'), !.
 
 build:render_overall_indicator(PhaseStates) :-
   ( member(_-Status, PhaseStates),
@@ -972,11 +972,11 @@ build:render_log_name(LogPath, OverallStatus) :-
 % phases on a single line (required for ANSI in-place updates).
 
 build:exec_phase_line_count(_, 1) :-
-  \+ config:printing_style('short'), !.
+  \+ console:printing_style('short'), !.
 
 build:exec_phase_line_count(PhaseList, NumLines) :-
   catch(
-    ( config:printing_tty_size(_, TermWidth),
+    ( console:printing_tty_size(_, TermWidth),
       build:exec_content_start_col(StartCol),
       build:count_phase_lines(PhaseList, StartCol, TermWidth, StartCol, 1, NumLines)
     ),
@@ -985,9 +985,9 @@ build:exec_phase_line_count(PhaseList, NumLines) :-
   ).
 
 build:exec_content_start_col(Col) :-
-  ( config:printing_style('fancy') ->
+  ( console:printing_style('fancy') ->
     Col = 48
-  ; config:printing_style('column') ->
+  ; console:printing_style('column') ->
     Col = 117
   ; Col = 37
   ).

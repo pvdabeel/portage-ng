@@ -272,8 +272,8 @@ daemon:isolate_state(Args0, Cols, Rows, Env) :-
   ;  true
   ),
   retractall(daemon:client_is_tty),
-  retractall(config:output_tty_cached(_)),
-  retractall(config:powerline_bubbles_cached(_)),
+  retractall(console:output_tty_cached(_)),
+  retractall(console:powerline_bubbles_cached(_)),
   ( memberchk('_CLIENT_IS_TTY'-true, Env)
   -> assertz(daemon:client_is_tty)
   ;  true

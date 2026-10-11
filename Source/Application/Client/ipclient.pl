@@ -207,7 +207,7 @@ ipclient:send_request(Out) :-
 
 %! ipclient:local_tty_size(-Rows, -Cols) is det.
 %
-% Same defaults as config:local_tty_size/2 (80 rows, 160 cols when not a tty).
+% Same defaults as console:local_tty_size/2 (80 rows, 160 cols when not a tty).
 
 ipclient:local_tty_size(Rows, Cols) :-
   ( catch(tty_size(Rows, Cols), _, fail)

@@ -8639,7 +8639,7 @@ Do not create ad-hoc compare scripts outside these two locations.
 - Do NOT create `metadata/md5-cache/*` manually --- `--sync` produces
   those.
 - Do NOT use direct `tty_size/2` calls --- use
-  `config:printing_tty_size/2` (safe in non-tty environments).
+  `console:printing_tty_size/2` (safe in non-tty environments).
 - Do NOT run ad-hoc `swipl -g "..."` snippets --- always use the dev
   wrapper.
 

@@ -128,10 +128,10 @@ useflags:resolve_slot(Repository://Entry, Context, Slot) :-
 %! useflags:print_config(+Repository://+Entry:+Action:+Context)
 %
 % Prints the configuration for a given repository entry (USE flags, USE expand, ...)
-% using the ambient printing style (config:printing_style/1).
+% using the ambient printing style (console:printing_style/1).
 
 useflags:print_config(Term) :-
-  config:printing_style(Style),
+  console:printing_style(Style),
   useflags:print_config(Style, Term).
 
 
@@ -367,7 +367,7 @@ useflags:print_config_item_aligned(Ctx, 'use', List, Assumed) :-
   message:bubble(darkgray,KeyU),
   message:print(' = "'),
   catch(
-      ( config:printing_tty_size(_, TermWidth),
+      ( console:printing_tty_size(_, TermWidth),
         line_position(current_output, StartCol),
         useflags:collect_all_flags(List, Assumed, AllFlags),
         useflags:print_flags_wrapped(Ctx, AllFlags, StartCol, TermWidth)
@@ -398,7 +398,7 @@ useflags:print_config_item_aligned(Ctx, Key, Keyflags, Assumed) :-
   message:bubble(darkgray,KeyU),
   message:print(' = "'),
   catch(
-      ( config:printing_tty_size(_, TermWidth),
+      ( console:printing_tty_size(_, TermWidth),
         line_position(current_output, StartCol),
         useflags:collect_all_flags(Keyflags, Assumed, AllFlags),
         useflags:print_flags_wrapped(Ctx, AllFlags, StartCol, TermWidth)

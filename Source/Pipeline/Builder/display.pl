@@ -182,9 +182,9 @@ display:count_conf_lines(_, _, _, _, 0).
 % slots concurrently are unaffected.
 
 display:count_conf_lines_as_short(Repo, Entry, Action, Ctx, Count) :-
-  ( config:printing_style('column')
+  ( console:printing_style('column')
   -> Style = 'short'
-  ;  config:printing_style(Style)
+  ;  console:printing_style(Style)
   ),
   with_output_to(string(S),
     catch(useflags:print_config(Style, Repo://Entry:Action?{Ctx}), _, true)),

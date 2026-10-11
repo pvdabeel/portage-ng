@@ -1030,7 +1030,7 @@ plan:print_use_change_flags_wrapped(Changes) :-
   -> true
   ;  write(' ('),
      catch(
-       ( config:printing_tty_size(_, TermWidth),
+       ( console:printing_tty_size(_, TermWidth),
          line_position(current_output, StartCol),
          plan:print_flag_atoms_wrapped(FlagAtoms, StartCol, TermWidth, StartCol, true)
        ),
@@ -1067,15 +1067,15 @@ plan:print_flag_atoms_wrapped([F|Rest], StartCol, TermWidth, ColIn, IsFirst) :-
 
 plan:print_pre_action_continuation(StartColumn) :-
   nl,
-  ( config:printing_style('short')  ->
+  ( console:printing_style('short')  ->
       write('             │ '),
       Indent is StartColumn - 1,
       message:column(Indent, '')
-  ; config:printing_style('column') ->
+  ; console:printing_style('column') ->
       write('             │ '),
       Indent is StartColumn - 1,
       message:column(Indent, '')
-  ; config:printing_style('fancy')  ->
+  ; console:printing_style('fancy')  ->
       write('             │                    '),
       message:color(darkgray),
       write('│ '),

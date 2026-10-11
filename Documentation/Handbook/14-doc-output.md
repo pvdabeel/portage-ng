@@ -72,7 +72,7 @@ red bubbles to draw attention.
 ### Printing styles
 
 portage-ng supports three printing styles, selectable via
-`config:printing_style/1` (default: `fancy`):
+`console:printing_style/1` (default: `fancy`):
 
 - **`fancy`** (default) — the bubble style: a compact visual layout
   where each action line includes colour-coded indicators and
@@ -93,7 +93,7 @@ then select **MesloLGS NF** as the profile font in Terminal.app
 (**Settings → Profiles → Text → Font**). Open a new window afterwards.
 
 On the Linux console (`TERM=linux`), portage-ng falls back to
-angle-bracket labels (`<install>`) via `config:powerline_bubbles/0`;
+angle-bracket labels (`<install>`) via `console:powerline_bubbles/0`;
 no special font is required there.
 
 ### Pre-action steps

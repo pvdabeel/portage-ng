@@ -81,8 +81,8 @@ client:remote_predicate_template(preference:local_set(_,_)).
 %
 % Predicates whose ground instances (matching facts) are shipped individually.
 
-client:remote_predicate_instance(config:printing_style(_)).
-client:remote_predicate_instance(config:printing_tty_size(_,_)).
+client:remote_predicate_instance(console:printing_style(_)).
+client:remote_predicate_instance(console:printing_tty_size(_,_)).
 client:remote_predicate_instance(preference:local_accept_license_wildcard).
 client:remote_predicate_instance(preference:use_expand_env(_,_)).
 client:remote_predicate_instance(config:use_expand_hidden(_)).

@@ -356,7 +356,7 @@ builder:num_workers(N) :-
   ( config:cli_jobs(J)
   -> N = J
   ;  config:number_of_cpus(Cpus),
-     config:printing_tty_size(H, _W),
+     console:printing_tty_size(H, _W),
      ReservedLines = 6,
      MaxDisplay is max(1, H - ReservedLines),
      N is min(Cpus, MaxDisplay)

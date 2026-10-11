@@ -254,14 +254,14 @@ user:goal_expansion(Goal, (config:color_output -> Emit ; true)) :-
 % -----------------------------------------------------------------------------
 
 user:goal_expansion(bell,                  (format("\a",[]),flush_output)).
-user:goal_expansion(el,                    (config:output_tty -> format("\e[K",[]) ; true)).
-user:goal_expansion(hc,                    (config:output_tty -> Emit ; true)) :-
+user:goal_expansion(el,                    (console:output_tty -> format("\e[K",[]) ; true)).
+user:goal_expansion(hc,                    (console:output_tty -> Emit ; true)) :-
   message:wrap_ansi(format("\e[?25l",[]), Emit).
-user:goal_expansion(sc,                    (config:output_tty -> Emit ; true)) :-
+user:goal_expansion(sc,                    (console:output_tty -> Emit ; true)) :-
   message:wrap_ansi(format("\e[?25h",[]), Emit).
-user:goal_expansion(bl,                    (config:output_tty -> format("\e[1G",[]) ; true)).
-user:goal_expansion(cl,                    (config:output_tty -> format("\e[2J\e[H",[]) ; true)).
-user:goal_expansion(clean,                 (config:output_tty -> format("\e[K",[]) ; true)).
+user:goal_expansion(bl,                    (console:output_tty -> format("\e[1G",[]) ; true)).
+user:goal_expansion(cl,                    (console:output_tty -> format("\e[2J\e[H",[]) ; true)).
+user:goal_expansion(clean,                 (console:output_tty -> format("\e[K",[]) ; true)).
 
 
 % -----------------------------------------------------------------------------
@@ -328,7 +328,7 @@ user:goal_expansion(label(_),
 % darkgray foreground (brackets included).
 
 message:bubble(Color, Text) :-
-  ( config:powerline_bubbles
+  ( console:powerline_bubbles
   -> message:bubble_powerline(Color, Text)
   ;  message:bubble_angle(Color, Text)
   ).
@@ -451,7 +451,7 @@ user:goal_expansion(msg(Scroll,Level,Msg),
       -> Output = (atomic_list_concat(Msg,String),format('~a', [String]))
       ;  Output = (format(Msg,[])) ),
     ( Scroll == true
-      -> Post = (( config:output_tty
+      -> Post = (( console:output_tty
                  -> message:el, message:bl, flush_output
                  ;  message:color(normal), nl ))
       ;  Post = (message:color(normal),nl) ),
@@ -627,7 +627,7 @@ message:logo(List,Mode) :-
 % Prints Msg right-aligned near the end of the terminal line (column W-2).
 
 eend(Msg) :-
-  config:printing_tty_size(_,W),
+  console:printing_tty_size(_,W),
   Col is W - 2,
   format('~t~a~*|', [Msg, Col]).
 
@@ -637,7 +637,7 @@ eend(Msg) :-
 % to the full terminal width.
 
 hl(Title) :-
-  config:printing_tty_size(_,W),
+  console:printing_tty_size(_,W),
   atom_chars('-', [C]),
   atomic_list_concat(['--- ',Title,' ~`', C, 't~*|\n'], Fmt),
   write('\r'),
@@ -648,7 +648,7 @@ hl(Title) :-
 % Prints a full-width horizontal rule line of dashes.
 
 hl :-
-  config:printing_tty_size(_,W),
+  console:printing_tty_size(_,W),
   atom_chars('-', [C]),
   atomic_list_concat(['~`', C, 't~*|\n'], Fmt),
   write('\r'),
@@ -840,10 +840,10 @@ message:spinner_frame(Style, Tick, Frame) :-
 :- meta_predicate message:at_right_edge(+, 0).
 
 message:at_right_edge(_Width, _Goal) :-
-  \+ config:output_tty, !.
+  \+ console:output_tty, !.
 message:at_right_edge(Width, Goal) :-
   message:el,
-  config:printing_tty_size(_, W),
+  console:printing_tty_size(_, W),
   Col is W - Width,
   format("\e[~dG", [Col]),
   call(Goal).
