@@ -16,13 +16,21 @@ same `profile:apply_entry/3` path used at startup, collects the resulting
 embedded in this file (profile_mask_golden_ids/1). Needs
 `Knowledge/kb.qlf` and `Knowledge/profile.qlf`.
 
-Usage:
+Usage from the project wrapper:
 
-  make test-profile-mask-golden
+  ./Source/Application/Wrapper/portage-ng-dev --mode standalone --shell <<'PL'
+  load_files(portage('Source/Test/profilemask'), [if(true)]).
+  profile_mask_golden_main.
+  halt.
+  PL
 
 Regenerate the golden snapshot after an intentional change:
 
-  make test-profile-mask-golden-update
+  ./Source/Application/Wrapper/portage-ng-dev --mode standalone --shell <<'PL'
+  load_files(portage('Source/Test/profilemask'), [if(true)]).
+  profile_mask_golden_update.
+  halt.
+  PL
 
 The golden list pins a specific Portage tree snapshot (the tree from
 which `Knowledge/kb.qlf` / `Knowledge/profile.qlf` were last generated).
@@ -45,7 +53,7 @@ expected: review the diff and regenerate the snapshot.
 % =============================================================================
 
 % profile-mask-golden-begin
-% Golden snapshot (465 entries). Regenerate: make test-profile-mask-golden-update
+% Golden snapshot (465 entries). Regenerate: profile_mask_golden_update.
 
 profile_mask_golden_ids([
   'acct-group/automx2-0-r3',
@@ -572,7 +580,7 @@ profile_mask_golden_validate_(Options) :-
 
 %! profile_mask_golden_main is det.
 %
-% Makefile/CI entry point: load kb, then validate against the golden snapshot.
+% Load kb, then validate against the golden snapshot.
 
 profile_mask_golden_main :-
   kb:load,
@@ -581,7 +589,7 @@ profile_mask_golden_main :-
 
 %! profile_mask_golden_update is det.
 %
-% Makefile entry point: load kb, then rewrite the golden snapshot in this file.
+% Load kb, then rewrite the golden snapshot in this file.
 
 profile_mask_golden_update :-
   kb:load,
@@ -649,7 +657,7 @@ profile_mask_golden_format_block(Ids, Block) :-
   profile_mask_golden_ids_list_lines(Ids, Lines),
   atomic_list_concat(Lines, "\n", Body),
   format(string(Header),
-         '% Golden snapshot (~D entries). Regenerate: make test-profile-mask-golden-update~n',
+         '% Golden snapshot (~D entries). Regenerate: profile_mask_golden_update.~n',
          [N]),
   format(string(List), 'profile_mask_golden_ids([~n~s~n]).~n', [Body]),
   atomic_list_concat([Begin, Header, "\n", List, "\n", End], Block).

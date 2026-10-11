@@ -29,15 +29,6 @@ Run via the project wrapper:
 Or via make:
 
   make test
-
-Profile-mask golden regression (requires `Knowledge/kb.qlf` and
-`Knowledge/profile.qlf`; snapshot embedded in Source/Test/profilemask.pl):
-
-  make test-profile-mask-golden
-
-Regenerate the golden snapshot after an intentional mask-logic change:
-
-  make test-profile-mask-golden-update
 */
 
 :- module(unittest, []).

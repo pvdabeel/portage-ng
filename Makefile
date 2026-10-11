@@ -1,113 +1,117 @@
-# Portage-ng makefile
+# Portage-ng
+#
+# Requires SWI-Prolog >= 10.0.0, preferably a development build.
+# `make help` lists the targets.
 
-## ----------------------------------------------------------------------
-## You need to have a recent version of SWI-Prolog installed. Preferably 
-## a development version (version 10.0.0 or higher). This Makefile will 
-## create a 'portage-ng' binary.
-##
-## See manpage for more information on how to use portage-ng.
-## ----------------------------------------------------------------------
+SUDO                 = sudo
+TARGET               = portage-ng
+BUILDDIR             = $(shell pwd)
 
+IPCCLIENT            = Source/Application/Wrapper/ipcclient
+IPCCLIENT_SRC        = Source/Application/Client/ipcclient.cpp
+CXX                 ?= c++
+CXXFLAGS            ?= -O3 -Wall -march=native -Wextra
+# C++17 stays on even when the environment overrides CXXFLAGS.
+IPCCLIENT_CXXFLAGS   = $(CXXFLAGS) -std=c++17
 
-SUDO=sudo
-TARGET=portage-ng
-IPCCLIENT=Source/Application/Wrapper/ipcclient
-IPCCLIENT_SRC=Source/Application/Client/ipcclient.cpp
-CXX?=c++
-CXXFLAGS?=-O3 -Wall -march=native -Wextra
-# Always request C++17 even when the environment overrides CXXFLAGS.
-IPCCLIENT_CXXFLAGS=$(CXXFLAGS) -std=c++17
+CERTDIR              = Certificates
+HOST                ?= $(shell hostname)
 
-BUILDDIR=$(shell pwd)
+.PHONY: help check all build install test test-overlay ipcclient clean certs passwordfile certs-check certs-renew
 
-help:     ## Show this help.
-	  @sed -ne '/@sed/!s/## //p' $(MAKEFILE_LIST)
+# Show this help.
+help:
+	@awk '\
+	  /^# / { desc = substr($$0, 3); next } \
+	  /^[a-zA-Z0-9_.-]+:/ { \
+	    if (desc != "") { \
+	      tgt = $$1; sub(/:.*/, "", tgt); \
+	      printf "%-16s %s\n", tgt ":", desc; \
+	      desc = "" \
+	    } \
+	    next \
+	  } \
+	  { desc = "" } \
+	' $(MAKEFILE_LIST)
 
-check:    ## Verify development environment (SWI-Prolog, shell aliases).
-	  @ok=true; \
-	  if ! command -v swipl >/dev/null 2>&1; then \
-	    echo "ERROR: swipl not found in PATH."; \
-	    echo "  Install SWI-Prolog >= 10.0.0: https://www.swi-prolog.org/download/devel"; \
-	    ok=false; \
-	  else \
-	    echo "OK: swipl found ($$(swipl --version 2>&1 | head -1))"; \
-	  fi; \
-	  if ! command -v portage-ng-dev >/dev/null 2>&1; then \
-	    echo "WARNING: portage-ng-dev not found as alias."; \
-	    echo "  Add the following to your ~/.zshrc or ~/.bash_profile:"; \
-	    echo ""; \
-	    echo "  alias portage-ng-dev=\"swipl -O \\\\"; \
-	    echo "    --stack-limit=32G \\\\"; \
-	    echo "    -f $(BUILDDIR)/portage-ng.pl \\\\"; \
-	    echo "    -p portage=$(BUILDDIR) \\\\"; \
-	    echo "    -Dverbose_autoload=false \\\\"; \
-	    echo "    -g main --\""; \
-	    echo ""; \
-	    echo "  Then reload your shell: source ~/.zshrc or ~/.bash_profile"; \
-	  else \
-	    echo "OK: portage-ng-dev found"; \
-	  fi; \
-	  if [ "$$ok" = false ]; then exit 1; fi
+# Verify development environment (SWI-Prolog, shell aliases).
+check:
+	@ok=true; \
+	if ! command -v swipl >/dev/null 2>&1; then \
+	  echo "ERROR: swipl not found in PATH."; \
+	  echo "  Install SWI-Prolog >= 10.0.0: https://www.swi-prolog.org/download/devel"; \
+	  ok=false; \
+	else \
+	  echo "OK: swipl found ($$(swipl --version 2>&1 | head -1))"; \
+	fi; \
+	if ! command -v portage-ng-dev >/dev/null 2>&1; then \
+	  echo "WARNING: portage-ng-dev not found as alias."; \
+	  echo "  Add the following to your ~/.zshrc or ~/.bash_profile:"; \
+	  echo ""; \
+	  echo "  alias portage-ng-dev=\"swipl -O \\\\"; \
+	  echo "    --stack-limit=32G \\\\"; \
+	  echo "    -f $(BUILDDIR)/portage-ng.pl \\\\"; \
+	  echo "    -p portage=$(BUILDDIR) \\\\"; \
+	  echo "    -Dverbose_autoload=false \\\\"; \
+	  echo "    -g main --\""; \
+	  echo ""; \
+	  echo "  Then reload your shell: source ~/.zshrc or ~/.bash_profile"; \
+	else \
+	  echo "OK: portage-ng-dev found"; \
+	fi; \
+	if [ "$$ok" = false ]; then exit 1; fi
 
-## all:      build & install
-all:	  check build install 
+# Build and install.
+all:
+	check build install
 
-build:	  ## Build the application.
-	  swipl -O --stack_limit=32G -o $(TARGET)  -q -f portage-ng.pl -p portage=${BUILDDIR} -g main --stand_alone=true -c portage-ng.pl
+# Build the application.
+build:
+	swipl -O --stack_limit=32G -o $(TARGET) -q -f portage-ng.pl -p portage=${BUILDDIR} -g main --stand_alone=true -c portage-ng.pl
 
-install:  ## Install the application.
-	  $(SUDO) cp $(TARGET) /usr/local/bin
+# Install the application.
+install:
+	$(SUDO) cp $(TARGET) /usr/local/bin
 
-test:     ## Run PLUnit tests.
-	  printf '%s\n' \
-	    "load_files(portage('Source/Test/unittest'), [if(true)])." \
-	    "run_tests." \
-	    "halt." | \
-	    ./Source/Application/Wrapper/portage-ng-dev --mode standalone --shell
+# Run PLUnit tests.
+test:
+	printf '%s\n' \
+	  "load_files(portage('Source/Test/unittest'), [if(true)])." \
+	  "run_tests." \
+	  "halt." | \
+	  ./Source/Application/Wrapper/portage-ng-dev --mode standalone --shell
 
-test-overlay: ## Run overlay regression tests (requires loaded overlay repository).
-	  printf '%s\n' \
-	    "test:run(cases)." \
-	    "halt." | \
-	    ./Source/Application/Wrapper/portage-ng-dev --mode standalone --shell
+# Run overlay regression tests (requires loaded overlay repository).
+test-overlay:
+	printf '%s\n' \
+	  "test:run(cases)." \
+	  "halt." | \
+	  ./Source/Application/Wrapper/portage-ng-dev --mode standalone --shell
 
-test-profile-mask-golden: ## Validate profile package.mask against the golden snapshot (needs kb.qlf + profile.qlf).
-	  printf '%s\n' \
-	    "load_files(portage('Source/Test/profilemask'), [if(true)])." \
-	    "profile_mask_golden_main." \
-	    "halt." | \
-	    ./Source/Application/Wrapper/portage-ng-dev --mode standalone --shell
+# Build the native Unix-socket IPC client (C++ prototype).
+ipcclient:
+	$(CXX) $(IPCCLIENT_CXXFLAGS) -o $(IPCCLIENT) $(IPCCLIENT_SRC)
 
-test-profile-mask-golden-update: ## Regenerate the profile package.mask golden snapshot in Source/Test/profilemask.pl.
-	  printf '%s\n' \
-	    "load_files(portage('Source/Test/profilemask'), [if(true)])." \
-	    "profile_mask_golden_update." \
-	    "halt." | \
-	    ./Source/Application/Wrapper/portage-ng-dev --mode standalone --shell
+# Remove built binaries.
+clean:
+	rm -f $(TARGET) $(IPCCLIENT)
 
-ipcclient: ## Build the native Unix-socket IPC client (C++ prototype).
-	  $(CXX) $(IPCCLIENT_CXXFLAGS) -o $(IPCCLIENT) $(IPCCLIENT_SRC)
+# Generate local CA and per-host TLS certificates (make certs HOST=mac-pro.local).
+certs:
+	sh $(CERTDIR)/Scripts/generate.sh $(HOST)
+	@if [ ! -f $(CERTDIR)/passwordfile ]; then \
+	  echo "NOTE: $(CERTDIR)/passwordfile missing."; \
+	  echo "  Set Source/Config/Private/passwords.pl then: make passwordfile"; \
+	fi
 
-clean:    ## Remove the built binary.
-	  rm -f $(TARGET) $(IPCCLIENT)
+# Derive Certificates/passwordfile from Source/Config/Private/passwords.pl.
+passwordfile:
+	sh $(CERTDIR)/Scripts/digestpassword.sh
 
-CERTDIR=Certificates
-HOST?=$(shell hostname)
+# Check TLS certificate expiry for all hosts.
+certs-check:
+	@sh $(CERTDIR)/Scripts/generate.sh --check
 
-certs:    ## Generate local CA + per-host client/server TLS certs (for --mode client/server). Usage: make certs HOST=mac-pro.local
-	  sh $(CERTDIR)/Scripts/generate.sh $(HOST)
-	  @if [ ! -f $(CERTDIR)/passwordfile ]; then \
-	    echo "NOTE: $(CERTDIR)/passwordfile missing."; \
-	    echo "  Set Source/Config/Private/passwords.pl then: make passwordfile"; \
-	  fi
-
-passwordfile: ## Derive Certificates/passwordfile from Source/Config/Private/passwords.pl
-	  sh $(CERTDIR)/Scripts/digestpassword.sh
-
-certs-check: ## Check TLS certificate expiry status for all hosts.
-	  @sh $(CERTDIR)/Scripts/generate.sh --check
-
-certs-renew: ## Renew expired/expiring TLS certificates for all hosts.
-	  sh $(CERTDIR)/Scripts/generate.sh --renew
-
-.PHONY: help check all build install test test-overlay test-profile-mask-golden test-profile-mask-golden-update ipcclient clean certs passwordfile certs-check certs-renew
+# Renew expired or expiring TLS certificates.
+certs-renew:
+	sh $(CERTDIR)/Scripts/generate.sh --renew
