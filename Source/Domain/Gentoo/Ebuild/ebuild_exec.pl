@@ -48,17 +48,18 @@ merge/VDB code.
 % When --buildpkg is active, the `package` phase is inserted after
 % `install` to create a binary package before merging.
 
-ebuild_exec:action_phases(install,   _Ctx, Phases) :- ebuild_exec:build_phases(Phases).
+ebuild_exec:action_phases(install,   _Ctx, Phases) :- ebuild_exec:phase_sequence(Phases).
 ebuild_exec:action_phases(run,       _Ctx, []).
-ebuild_exec:action_phases(reinstall, _Ctx, Phases) :- ebuild_exec:build_phases(Phases).
-ebuild_exec:action_phases(update,    _Ctx, Phases) :- ebuild_exec:build_phases(Phases).
-ebuild_exec:action_phases(downgrade, _Ctx, Phases) :- ebuild_exec:build_phases(Phases).
+ebuild_exec:action_phases(reinstall, _Ctx, Phases) :- ebuild_exec:phase_sequence(Phases).
+ebuild_exec:action_phases(update,    _Ctx, Phases) :- ebuild_exec:phase_sequence(Phases).
+ebuild_exec:action_phases(downgrade, _Ctx, Phases) :- ebuild_exec:phase_sequence(Phases).
 ebuild_exec:action_phases(uninstall, _Ctx, [unmerge]).
 
 
-%! ebuild_exec:build_phases(-Phases) is det.
+%! ebuild_exec:phase_sequence(-Phases) is det.
 %
-% Returns the build phase sequence. When --buildpkgonly is active,
+% Phase sequence for a build action on this run. When --buildpkgonly
+% is active,
 % the merge phase is omitted (binary package only). When --buildpkg
 % is active, the `package` phase is inserted after `install` before
 % merging. When --resume is active, the `clean` phase is omitted so
@@ -68,9 +69,10 @@ ebuild_exec:action_phases(uninstall, _Ctx, [unmerge]).
 % when FEATURES contains positive `test` (see config:features_test_enabled).
 % Otherwise it is omitted entirely from the phase list -- matching
 % emerge's behaviour, where `src_test` is skipped unless explicitly
-% enabled via FEATURES="test".
+% enabled via FEATURES="test". `config:build_phases/1` decides how
+% far into this sequence `ebuild` is called.
 
-ebuild_exec:build_phases(Phases) :-
+ebuild_exec:phase_sequence(Phases) :-
   ( ebuild_exec:resuming -> Clean = [] ; Clean = [clean] ),
   ( config:features_test_enabled -> Test = [test] ; Test = [] ),
   ( (preference:flag(buildpkgonly) ; preference:flag(buildpkg))
@@ -1127,18 +1129,18 @@ ebuild_exec:run_phases_once(EbuildPath, Phases, UseString, ExtraEnv, ExitCode) :
 %  Live/stub phase splitting
 % =============================================================================
 
-%! ebuild_exec:compute_live_prefix(+AllPhases, +LiveConfig, -LivePrefix, -StubTail) is det.
+%! ebuild_exec:compute_live_prefix(+AllPhases, +BuildPhases, -LivePrefix, -StubTail) is det.
 %
-% Splits AllPhases into a leading "live prefix" (phases that appear in
-% LiveConfig) and a "stub tail" (the rest). Stops at the first phase
-% NOT in LiveConfig -- you can't skip a phase in the middle.
+% Splits AllPhases into a leading live prefix (phases named by
+% `config:build_phases/1`) and a stub tail (the rest). Stops at the
+% first phase that list does not name.
 
 ebuild_exec:compute_live_prefix([], _, [], []).
 
-ebuild_exec:compute_live_prefix([Phase|Rest], LiveConfig, LivePrefix, StubTail) :-
-  ( memberchk(Phase, LiveConfig)
+ebuild_exec:compute_live_prefix([Phase|Rest], BuildPhases, LivePrefix, StubTail) :-
+  ( memberchk(Phase, BuildPhases)
   -> LivePrefix = [Phase|MoreLive],
-     ebuild_exec:compute_live_prefix(Rest, LiveConfig, MoreLive, StubTail)
+     ebuild_exec:compute_live_prefix(Rest, BuildPhases, MoreLive, StubTail)
   ;  LivePrefix = [],
      StubTail = [Phase|Rest]
   ).
@@ -1159,8 +1161,8 @@ ebuild_exec:compute_live_prefix([Phase|Rest], LiveConfig, LivePrefix, StubTail) 
 :- meta_predicate ebuild_exec:run_phases_with_config(+, +, +, +, +, +, 2, -).
 
 ebuild_exec:run_phases_with_config(EbuildPath, Entry, AllPhases, DisplayPhases, LogPath, UseString, Callback, Outcome) :-
-  config:build_live_phases(LiveConfig),
-  ebuild_exec:compute_live_prefix(AllPhases, LiveConfig, LivePrefix, StubTail),
+  config:build_phases(BuildPhases),
+  ebuild_exec:compute_live_prefix(AllPhases, BuildPhases, LivePrefix, StubTail),
   ( LivePrefix \= []
   -> ebuild_exec:run_phases_sequential(EbuildPath, Entry, LivePrefix, DisplayPhases, LogPath, UseString, Callback, LiveOutcome)
   ;  LiveOutcome = done

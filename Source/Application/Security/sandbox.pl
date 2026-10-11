@@ -23,7 +23,7 @@ architecture
 
 sandbox:safe_primitive(config:certificate(_,_)).
 sandbox:safe_primitive(config:certificate(_,_,_)).
-sandbox:safe_primitive(config:build_live_phases(_)).
+sandbox:safe_primitive(config:build_phases(_)).
 sandbox:safe_primitive(config:dry_run_build(_)).
 sandbox:safe_primitive(config:failsilenton(_)).
 sandbox:safe_primitive(config:graph_directory(_)).

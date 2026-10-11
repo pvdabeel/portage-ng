@@ -444,7 +444,7 @@ location, md5-cache path, VDB path, and repository registration.
 
 | Directive | Description |
 |-----------|-------------|
-| `config:build_live_phases/1` | Controls which ebuild phases are actually executed during `--build`. |
+| `config:build_phases/1` | Controls which ebuild phases are actually executed during `--build`. |
 | `config:mirror_url/1` | HTTP base URL of the local distfiles mirror. |
 | `config:build_log_dir/1` | Directory for build log files. |
 

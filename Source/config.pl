@@ -428,7 +428,7 @@ config:verbose(false).
 :- dynamic config:dep_early/1.
 :- dynamic config:dep_late/1.
 :- dynamic config:continue_on_failure/1.
-:- dynamic config:build_live_phases/1.
+:- dynamic config:build_phases/1.
 :- dynamic config:show_use_descriptions/1.
 :- dynamic config:show_build_logs/1.
 
@@ -605,7 +605,7 @@ config:print_blockers(gentoo).
 %  Building
 % -----------------------------------------------------------------------------
 
-%! config:build_live_phases(?Phases)
+%! config:build_phases(?Phases)
 %
 % The ebuild phases `--build` hands to `ebuild`, in order. The build
 % stops at the first phase this list does not name, and does not call
@@ -618,7 +618,7 @@ config:print_blockers(gentoo).
 % `test` is omitted unless FEATURES enables it
 % (`config:features_test_enabled/0`).
 
-config:build_live_phases([clean, setup, unpack, prepare, configure, compile, test, install, merge]).
+config:build_phases([clean, setup, unpack, prepare, configure, compile, test, install, merge]).
 
 
 %! config:build_serial_retry(?Bool)
@@ -920,10 +920,10 @@ config:features_resolve_test([_ | Rest], State, Out) :-
 %! config:dry_run_build(?Bool)
 %
 % Derived predicate for backward compatibility.
-% Succeeds with true when build_live_phases is empty (fully stubbed).
+% Succeeds with true when build_phases is empty (fully stubbed).
 
 config:dry_run_build(true) :-
-  config:build_live_phases([]).
+  config:build_phases([]).
 
 
 %! config:time_limit_build(?Limit)

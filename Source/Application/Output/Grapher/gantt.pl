@@ -781,7 +781,7 @@ gantt:stats_entry_cn(Entry, Cat, Name) :-
 %
 % Ebuild phases that belong to an install / update / reinstall /
 % downgrade bar. `fetch` is the download bar; `clean` is included
-% because it is part of `ebuild_exec:build_phases/1`.
+% because it is part of `ebuild_exec:phase_sequence/1`.
 
 gantt:merge_phase(clean).
 gantt:merge_phase(setup).

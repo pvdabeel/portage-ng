@@ -1275,7 +1275,7 @@ updates and downgrades), and runs
 .PP
 Which phases are actually executed versus stubbed (displayed but
 skipped) is controlled by the
-.B build_live_phases
+.B build_phases
 configuration directive.
 For
 .B uninstall
@@ -1333,7 +1333,7 @@ files:
 etc.
 .SS Build configuration
 .TP
-.B config:build_live_phases/1
+.B config:build_phases/1
 Controls which ebuild phases are actually executed during
 .BR \-\-build .
 Phases not in this list are stubbed (shown in the display but not

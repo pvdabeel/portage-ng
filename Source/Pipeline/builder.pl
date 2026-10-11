@@ -13,7 +13,7 @@ Build execution orchestrator.
 Takes the same pipeline output as printer (Plan, Proof, Model, Triggers)
 and executes each step in parallel via the jobserver. Downloads use
 parallel curl with per-file progress; other build phases dispatch to
-ebuild_exec (Portage's ebuild CLI) when config:build_live_phases is
+ebuild_exec (Portage's ebuild CLI) when config:build_phases is
 non-empty, or return stub when fully stubbed.
 
 The full plan is printed first (normal colors, via printer:print/5), then
@@ -448,9 +448,9 @@ builder:plan_entries(Plan, Entries) :-
 %
 % The check is intentionally cheap (one directory-stat per install
 % action) and is gated so it only runs when a real merge could have
-% happened: `merge` must be in `config:build_live_phases/1` and the
+% happened: `merge` must be in `config:build_phases/1` and the
 % `pkg` repository (VDB) must be registered with a stat'able location.
-% Stubbed runs (build_live_phases empty, --pretend-style) are skipped
+% Stubbed runs (build_phases empty, --pretend-style) are skipped
 % silently.
 
 %! builder:apply_vdb_reconciliation(+Plan, +F0, -F, -Missing) is det.
@@ -477,7 +477,7 @@ builder:apply_vdb_reconciliation(Plan, F0, F, Missing) :-
 % corresponding directory under the VDB root. Failed or skipped installs
 % are excluded so reconciliation does not inflate the failure tally
 % (portage-ng#11). Active is `true` when the check actually ran,
-% `false` when it was skipped (no merge in live phases, or no pkg
+% `false` when it was skipped (no merge in the build phases, or no pkg
 % repository). When Active is `false`, callers MUST ignore Missing.
 
 builder:reconcile_install_actions(Plan, Missing, Active) :-
@@ -504,8 +504,8 @@ builder:reconcile_install_actions(Plan, Missing, Active) :-
 % a registered `pkg` repository.
 
 builder:reconciliation_should_run(VdbRoot) :-
-  config:build_live_phases(LP),
-  memberchk(merge, LP),
+  config:build_phases(Phases),
+  memberchk(merge, Phases),
   current_predicate(pkg:get_location/1),
   catch(pkg:get_location(VdbRoot), _, fail),
   exists_directory(VdbRoot).
@@ -727,20 +727,20 @@ builder:execute_build_job(Job, _WorkerSlot, result(unknown, failed(unrecognised_
 % Execute a non-download action. Downloads are handled by
 % fetch:run_download_parallel via execute_build_job.
 %
-% Dispatches to ebuild_exec for real builds when config:build_live_phases
+% Dispatches to ebuild_exec for real builds when config:build_phases
 % is non-empty. Falls back to stub when fully stubbed or ebuild_exec
 % is unavailable.
 
 builder:run_action(Action, Repo, Entry, Ctx, Outcome) :-
   Repo:get_type(eapi),
-  config:build_live_phases(LP), LP \= [],
+  config:build_phases(Phases), Phases \= [],
   predicate_property(ebuild_exec:execute(_,_,_,_,_), defined),
   !,
   ebuild_exec:execute(Action, Repo, Entry, Ctx, Outcome).
 
 builder:run_action(Action, Repo, Entry, Ctx, Outcome) :-
   Repo == binpkg,
-  config:build_live_phases(LP), LP \= [],
+  config:build_phases(Phases), Phases \= [],
   predicate_property(binpkg_exec:execute(_,_,_,_,_,_), defined),
   !,
   builder:run_binpkg_action(Action, Entry, Ctx, Outcome).
@@ -805,7 +805,7 @@ builder:run_action_with_phases(Action, Repo, Entry, Ctx,
                                 TotalLines, _ExecLine, _ExecLineCount, _LogsLine, _PhaseList, _LogPath,
                                 LineOff, PlanStep, NumSteps, ActionIdx, Outcome) :-
   Repo == binpkg,
-  config:build_live_phases(LP), LP \= [],
+  config:build_phases(Phases), Phases \= [],
   predicate_property(binpkg_exec:execute(_,_,_,_,_,_), defined),
   !,
   builder:run_binpkg_action(Action, Entry, Ctx, Outcome),
@@ -829,7 +829,7 @@ builder:run_action_with_phases(Action, Repo, Entry, Ctx,
                                 TotalLines, ExecLine, _ExecLineCount, LogsLine, PhaseList, LogPath,
                                 LineOff, PlanStep, NumSteps, ActionIdx, Outcome) :-
   Repo:get_type(eapi),
-  config:build_live_phases(LP), LP \= [],
+  config:build_phases(Phases), Phases \= [],
   predicate_property(ebuild_exec:execute_with_progress(_,_,_,_,_,_), defined),
   !,
   builder:init_exec_phase_state(ExecLine, PhaseList),
@@ -1433,7 +1433,7 @@ builder:test_step_downloads([Rule|Rest]) :-
 %! builder:test_plan_phases(+Plan) is det.
 %
 % Walk the plan and execute safe build phases for all non-download rules.
-% Uses ebuild_exec:execute/5 when config:build_live_phases is non-empty.
+% Uses ebuild_exec:execute/5 when config:build_phases is non-empty.
 
 builder:test_plan_phases([]).
 
@@ -1451,7 +1451,7 @@ builder:test_step_phases([Rule|Rest]) :-
     prover:canon_literal(Head, Core, Ctx),
     Core = Repo://Entry:Action,
     \+ memberchk(Action, [download, fetchonly])
-  -> ( config:build_live_phases(LP), LP \= [],
+  -> ( config:build_phases(Phases), Phases \= [],
        predicate_property(ebuild_exec:execute(_,_,_,_,_), defined)
      -> ( ebuild_exec:execute(Action, Repo, Entry, Ctx, Outcome),
           ( Outcome == done -> true

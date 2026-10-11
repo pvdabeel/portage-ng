@@ -126,7 +126,7 @@ as argv elements.
 
 Plan actions map to a phase list in `ebuild_exec:action_phases/3`.
 Build-shaped actions share one sequence from
-`ebuild_exec:build_phases/1`:
+`ebuild_exec:phase_sequence/1`:
 
 | **Plan action** | **Phases** |
 | :--- | :--- |
@@ -157,7 +157,7 @@ not unmerge the old version before building (that would break
 compile-time use of the installed predecessor).
 
 Which of those phases actually run is further gated by
-`config:build_live_phases/1`: a leading *live prefix* executes; the
+`config:build_phases/1`: a leading *live prefix* executes; the
 trailing *stub tail* is displayed but not run.  An empty list stubs the
 whole build (display-only).  The live prefix cannot skip a middle phase
 and continue — `compute_live_prefix/4` stops at the first phase absent

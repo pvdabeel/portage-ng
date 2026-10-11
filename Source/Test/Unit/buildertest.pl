@@ -193,27 +193,27 @@ test(is_install_rule_rejects_non_eapi_repo, [fail]) :-
 test(vdb_entry_present_false_for_bogus, [fail]) :-
   builder:vdb_entry_present('/var/db/pkg', 'no-such-cat/no-such-pkg-0.0').
 
-test(reconcile_active_false_when_merge_missing, [setup(stash_live_phases(Saved)),
-                                                   cleanup(restore_live_phases(Saved))]) :-
-  % Drop `merge` from live phases. Reconciliation must short-circuit
+test(reconcile_active_false_when_merge_missing, [setup(stash_build_phases(Saved)),
+                                                   cleanup(restore_build_phases(Saved))]) :-
+  % Drop `merge` from the build phases. Reconciliation must short-circuit
   % to Active=false with Missing=[] regardless of plan contents.
-  retractall(config:build_live_phases(_)),
-  assertz(config:build_live_phases([clean, setup, unpack, prepare, configure, compile, test, install])),
+  retractall(config:build_phases(_)),
+  assertz(config:build_phases([clean, setup, unpack, prepare, configure, compile, test, install])),
   Plan = [[rule(portage://'no-such-cat/no-such-pkg-0.0':install?{[]}, [])]],
   builder:reconcile_install_actions(Plan, Missing, Active),
   Active == false,
   Missing == [].
 
 test(reconcile_flags_missing_install_when_active,
-     [setup(( stash_live_phases(Saved), stash_done_marks(Marks) )),
-      cleanup(( restore_live_phases(Saved), restore_done_marks(Marks) )),
+     [setup(( stash_build_phases(Saved), stash_done_marks(Marks) )),
+      cleanup(( restore_build_phases(Saved), restore_done_marks(Marks) )),
       condition((eapi_repo_registered, pkg_repo_registered))]) :-
-  % Full live phases (including merge) AND a registered pkg repo on
+  % Build phases include merge, and a registered pkg repo on
   % the host = reconciliation is active. Only install steps recorded
   % as done (resume:done/2) are checked; a succeeded merge with no VDB
   % row must be reported missing.
-  retractall(config:build_live_phases(_)),
-  assertz(config:build_live_phases([clean, setup, unpack, prepare, configure, compile, test, install, merge])),
+  retractall(config:build_phases(_)),
+  assertz(config:build_phases([clean, setup, unpack, prepare, configure, compile, test, install, merge])),
   assertz(resume:done('no-such-cat/no-such-pkg-0.0', install)),
   Plan = [[rule(portage://'no-such-cat/no-such-pkg-0.0':install?{[]}, [])]],
   builder:reconcile_install_actions(Plan, Missing, Active),
@@ -222,24 +222,24 @@ test(reconcile_flags_missing_install_when_active,
   member(portage://'no-such-cat/no-such-pkg-0.0':install, Missing).
 
 test(reconcile_ignores_failed_install_without_resume_done,
-     [setup(( stash_live_phases(Saved), stash_done_marks(Marks) )),
-      cleanup(( restore_live_phases(Saved), restore_done_marks(Marks) )),
+     [setup(( stash_build_phases(Saved), stash_done_marks(Marks) )),
+      cleanup(( restore_build_phases(Saved), restore_done_marks(Marks) )),
       condition((eapi_repo_registered, pkg_repo_registered))]) :-
   % portage-ng#11: failed/skipped installs stay out of the plan but must
   % not inflate the reconciliation failure tally.
-  retractall(config:build_live_phases(_)),
-  assertz(config:build_live_phases([clean, setup, unpack, prepare, configure, compile, test, install, merge])),
+  retractall(config:build_phases(_)),
+  assertz(config:build_phases([clean, setup, unpack, prepare, configure, compile, test, install, merge])),
   Plan = [[rule(portage://'no-such-cat/no-such-pkg-0.0':install?{[]}, [])]],
   builder:reconcile_install_actions(Plan, Missing, Active),
   Active == true,
   Missing == [].
 
 test(apply_reconciliation_increments_failed_count,
-     [setup(( stash_live_phases(Saved), stash_done_marks(Marks) )),
-      cleanup(( restore_live_phases(Saved), restore_done_marks(Marks) )),
+     [setup(( stash_build_phases(Saved), stash_done_marks(Marks) )),
+      cleanup(( restore_build_phases(Saved), restore_done_marks(Marks) )),
       condition((eapi_repo_registered, pkg_repo_registered))]) :-
-  retractall(config:build_live_phases(_)),
-  assertz(config:build_live_phases([clean, setup, unpack, prepare, configure, compile, test, install, merge])),
+  retractall(config:build_phases(_)),
+  assertz(config:build_phases([clean, setup, unpack, prepare, configure, compile, test, install, merge])),
   assertz(resume:done('no-such-cat/no-such-pkg-0.0', install)),
   Plan = [[rule(portage://'no-such-cat/no-such-pkg-0.0':install?{[]}, [])]],
   with_output_to(string(_),
@@ -247,10 +247,10 @@ test(apply_reconciliation_increments_failed_count,
   Missing \= [],
   Failed > 0.
 
-test(apply_reconciliation_leaves_failed_alone_when_inactive, [setup(stash_live_phases(Saved)),
-                                                               cleanup(restore_live_phases(Saved))]) :-
-  retractall(config:build_live_phases(_)),
-  assertz(config:build_live_phases([])),
+test(apply_reconciliation_leaves_failed_alone_when_inactive, [setup(stash_build_phases(Saved)),
+                                                               cleanup(restore_build_phases(Saved))]) :-
+  retractall(config:build_phases(_)),
+  assertz(config:build_phases([])),
   Plan = [[rule(portage://'no-such-cat/no-such-pkg-0.0':install?{[]}, [])]],
   builder:apply_vdb_reconciliation(Plan, 7, Failed, Missing),
   Failed == 7,
@@ -258,12 +258,12 @@ test(apply_reconciliation_leaves_failed_alone_when_inactive, [setup(stash_live_p
 
 % --- helpers -----------------------------------------------------------------
 
-stash_live_phases(Saved) :-
-  findall(P, config:build_live_phases(P), Saved).
+stash_build_phases(Saved) :-
+  findall(P, config:build_phases(P), Saved).
 
-restore_live_phases(Saved) :-
-  retractall(config:build_live_phases(_)),
-  forall(member(P, Saved), assertz(config:build_live_phases(P))).
+restore_build_phases(Saved) :-
+  retractall(config:build_phases(_)),
+  forall(member(P, Saved), assertz(config:build_phases(P))).
 
 % The resume ledger (resume:done/2) belongs to the running build; the
 % reconciliation tests start from an empty ledger and put the real marks
