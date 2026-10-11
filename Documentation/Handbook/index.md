@@ -1,7 +1,7 @@
 # portage-ng Handbook
 
 A comprehensive guide to portage-ng — a declarative reasoning engine for
-software configuration, applied to Gentoo Linux.
+software configuration management, applied to Gentoo Linux.
 
 ## Part I — Getting Started
 
