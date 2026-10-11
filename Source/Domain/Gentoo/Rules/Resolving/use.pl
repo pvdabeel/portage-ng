@@ -1967,18 +1967,6 @@ use:apply_learned_eq_follow(C, N, use_state(En0, Dis0), use_state(En, Dis)) :-
     ).
 
 
-%! use:equality_follow_enabled is semidet.
-%
-% Gate for consumer-side equality following (portage-ng#121). Enabled by
-% default; set config:equality_use_follow(false) to disable.
-
-use:equality_follow_enabled :-
-    ( current_predicate(config:equality_use_follow/1) ->
-        config:equality_use_follow(true)
-    ; true
-    ).
-
-
 %! use:maybe_follow_equality_overturns(+C, +N, +RepoEntry, +BResolved) is det.
 %
 % portage-ng#121. Provider (C,N) has settled on BResolved. For every
@@ -2003,8 +1991,7 @@ use:equality_follow_enabled :-
 % then agrees with the provider, so nothing new is learned.
 
 use:maybe_follow_equality_overturns(C, N, RepoEntry, BResolved) :-
-    ( use:equality_follow_enabled,
-      memo:bwu_eq_origin_(C, N, _, _, _, _)
+    ( memo:bwu_eq_origin_(C, N, _, _, _, _)
     ->
         forall( ( memo:bwu_eq_origin_(C, N, Flag, Projected, Mode, Consumer),
                   use:bwu_flag_settled_state(RepoEntry, BResolved, Flag, Settled),
@@ -2573,8 +2560,7 @@ use:check_bwu_ed_conflict_pv(C, N, ParentCtx, UseDeps, Context) :-
 % these records (portage-ng#121).
 
 use:record_eq_edge_origins(C, N, ParentCtx, UseDeps) :-
-    ( use:equality_follow_enabled,
-      memberchk(self(Consumer), ParentCtx)
+    ( memberchk(self(Consumer), ParentCtx)
     ->
         forall( ( member(Dep, UseDeps),
                   use:eq_directive_flag_mode(Dep, Flag, Mode),

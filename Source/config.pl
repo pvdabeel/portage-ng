@@ -376,31 +376,6 @@ config:proving_target(run).
 config:reprove_max_retries(20).
 
 
-%! config:equality_use_follow(?Bool)
-%
-% When true, a package changes one of its own USE flags so it agrees with
-% a dependency that could not change to agree with it.
-%
-% `pkg[flag=]` means the two packages must have `flag` set the same way.
-% `[!flag=]` means they must differ. The resolver first tries to change
-% the dependency. That change does not stick when the dependency's own
-% REQUIRED_USE turns the flag back, or when another package already
-% required the opposite value. The two packages would then disagree, and
-% the plan would not say so. This setting changes the package that asked
-% for the match, then reproves once so the flags agree.
-%
-% Example: `app-emulation/virtualbox` is built with `X` off and depends on
-% `dev-qt/qtbase:6[X=]`. qtbase must keep `X` on, so virtualbox is rebuilt
-% with `X` on. emerge proposes the same change (portage-ng#121).
-%
-% The package must be able to change the flag: it is in IUSE, it is not a
-% USE_EXPAND flag, and the profile does not mask it. Each package and set
-% of flags is recorded once. Default `true`. `false` leaves the
-% disagreement in the plan and does not report it.
-
-config:equality_use_follow(true).
-
-
 %! config:dep_model_cache(?Bool)
 %
 % When true (default), model(dependency(...)):config?{Ctx} query results
