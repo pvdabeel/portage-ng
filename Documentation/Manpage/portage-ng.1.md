@@ -310,7 +310,7 @@ prints an informational message and exits 0.
 | **@changed-deps** | ChangedDepsSet | `=cat/name-version` | Installed packages whose VDB RDEPEND/PDEPEND diverge from the same-version tree ebuild after use-reduce and `:=` stripping (libc injects stripped, as in emerge `--changed-deps`). |
 
 Related flags (not sets): `--changed-deps` applies the same outdated-deps
-test while resolving other targets; `config:subslot_rebuild/1` plans
+test while resolving other targets. The plan also includes
 same-version reverse-dep rebuilds when a `:=` provider's subslot changes
 (transaction-driven; complementary to `@preserved-rebuild`).
 

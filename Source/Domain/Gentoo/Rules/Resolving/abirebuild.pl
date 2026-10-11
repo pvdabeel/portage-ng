@@ -62,19 +62,11 @@ reported as `assumed(... assumption_reason(no_tree_ebuild))`.
 
 %! abirebuild:enabled is semidet.
 %
-% True when sub-slot rebuild obligations should be produced:
-% `--rebuild-if-new-slot` or config:subslot_rebuild/1 not false (defaults
-% to enabled when unset), the mechanism is not suspended, and this is not
-% an emptytree run (rebuilding installed consumers contradicts emptytree
-% semantics — the VDB is ignored there).
+% True when sub-slot rebuild obligations should be produced: the
+% mechanism is not suspended, and this is not an emptytree run.
 
 abirebuild:enabled :-
-  abirebuild:active,
-  ( preference:flag(rebuildnewslot)
-  -> true
-  ;  catch(config:subslot_rebuild(Bool), _, fail) -> Bool == true
-  ;  true
-  ).
+  abirebuild:active.
 
 
 %! abirebuild:unbuilt_enabled is semidet.

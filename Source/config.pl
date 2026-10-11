@@ -678,11 +678,15 @@ config:deconflict_collisions(override).
 %   ocamlabi - a phase fails because the log names a stale compiled
 %              interface or a missing findlib package. The installed
 %              owner is rebuilt, then the failed phase is run again.
-%   ghcpkg   - `dev-lang/ghc` has merged. `ghc-pkg recache` runs so
-%              the boot libraries are visible to later `dev-haskell/*`
-%              builds. Nothing happens when `ghc-pkg` is not on PATH.
+%   ghcpkg    - `dev-lang/ghc` has merged. `ghc-pkg recache` runs so
+%               the boot libraries are visible to later `dev-haskell/*`
+%               builds. Nothing happens when `ghc-pkg` is not on PATH.
+%   toolchain - a toolchain package has merged. `gcc-config` and
+%               `env-update` run so later packages see the new
+%               compiler. Nothing happens when those commands are
+%               not on PATH.
 
-config:build_fixup([ghcabi, ocamlabi, ghcpkg]).
+config:build_fixup([ghcabi, ocamlabi, ghcpkg, toolchain]).
 
 
 %! config:build_learned(?Strategies)
@@ -719,57 +723,6 @@ config:missing_provider_max_replan(3).
 % reads and edits. Defaults to `/usr/src/linux`.
 
 config:kernel_source_dir('/usr/src/linux').
-
-
-%! config:toolchain_reactivation(?Bool)
-%
-% When true, the Gentoo build domain (`ebuild_exec:maybe_reactivate_toolchain/4`,
-% a post-merge hook) re-activates the toolchain right after a toolchain
-% package (gcc/clang/binutils/glibc) merges: it runs `gcc-config`
-% (regenerating the gcc + ccache-masquerade wrappers) followed by
-% `env-update` (regenerating `/etc/profile.env` and the `ld.so.cache`).
-% This mirrors what `emerge` does between merges and is required so a
-% freshly rebuilt compiler is actually active for the `pkg_setup` probes of
-% later packages -- e.g. `gnustep-base/gnustep-make`'s Objective-C runtime
-% probe after a `sys-devel/gcc[objc]` rebuild under `FEATURES=ccache`
-% (portage-ng#86). The bare `ebuild` CLI, unlike `emerge`, never reactivates
-% the toolchain on its own.
-%
-% The reactivation is serialized under the `portage_pkg_merge` mutex (so it
-% never overlaps a concurrent merge) and is tolerant of missing host
-% commands: on a non-Gentoo host (e.g. macOS standalone) `gcc-config` /
-% `env-update` are simply absent and the hook is a silent no-op.
-
-config:toolchain_reactivation(true).
-
-
-%! config:subslot_rebuild(?Bool)
-%
-% When true, the resolver propagates sub-slot (`:=`) ABI changes to
-% already-installed reverse-dependencies -- the native equivalent of
-% Gentoo's `@preserved-rebuild` / `haskell-updater` pass. When pass 1
-% proves a merge whose sub-slot changes versus the installed copy (e.g. a
-% `dev-haskell/*` library rebuilt with a new GHC ABI hash, `dev-lang/ocaml`
-% with a new ABI, or a `dev-lang/perl` major bump), the proof-obligation
-% channel (heuristic:proof_obligation/4 -> abirebuild:obligations/3)
-% contributes rebuild goals (carrying `rebuild_reason(subslot_change(...))`)
-% for the installed packages that bound to it through a `:=` / `:slot=`
-% dependency. A masked CPV with a visible same-slot sibling is replaced
-% by that sibling; a keyword-filtered (live / `~arch`) or wholly-masked
-% consumer whose ebuild is still in the tree is repaired in place
-% without climbing the unmask / keyword_unmask tier (portage-ng#118);
-% a VDB-only orphan is reported as `no_tree_ebuild`. Each planned
-% rebuild is proven in the same pass and ordered after the provider
-% through its own dependency edges, keeping `ghc-pkg check` / OCaml's
-% findlib registry consistent before the next consumer configures
-% (portage-ng#89).
-%
-% The obligation is transaction-driven: it only fires when a proven merge
-% itself changes a `:=` provider's sub-slot, so for the common case it is
-% a cheap per-merge-literal check that adds nothing. Set to `false` to
-% disable.
-
-config:subslot_rebuild(true).
 
 
 %! config:features_test_enabled is semidet.

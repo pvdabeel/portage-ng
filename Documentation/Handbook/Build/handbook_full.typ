@@ -1542,11 +1542,12 @@ The machine config file is where repositories are created and registered
     `off` (fail as usual), `report` (fail, but surface the collision as
     a deconfliction assumption), or `override` (re-merge with collision
     protection disabled so the merge succeeds).],
-    [`config:build_fixup/1`], [`[ghcabi, ocamlabi, ghcpkg]`], [Builder
-    fixups. `ghcabi` rebuilds the packages haskell-cabal reports as
-    broken. `ocamlabi` rebuilds the installed owner of a stale OCaml
-    interface or a missing findlib package. `ghcpkg` runs `ghc-pkg
-    recache` after `dev-lang/ghc` merges.],
+    [`config:build_fixup/1`], [`[ghcabi, ocamlabi, ghcpkg, toolchain]`],
+    [Builder fixups. `ghcabi` rebuilds the packages haskell-cabal
+    reports as broken. `ocamlabi` rebuilds the installed owner of a
+    stale OCaml interface or a missing findlib package. `ghcpkg` runs
+    `ghc-pkg recache` after `dev-lang/ghc` merges. `toolchain` runs
+    `gcc-config` and `env-update` after a toolchain package merges.],
     [`config:build_learned/1`], [`[missing_provider, useenable,
     kernelconfig]`], [Facts learned from a failed phase. The phase
     still fails and the next plan is derived with the new fact.
@@ -1554,14 +1555,6 @@ The machine config file is where repositories are created and registered
     command or file. `useenable` rebuilds a provider with a required
     USE flag on. `kernelconfig` sets a missing `CONFIG_*` option
     before the package builds.],
-    [`config:subslot_rebuild/1`], [`true`], [Plan same-version rebuilds
-    of installed reverse dependencies when a sub-slot (`:=`) provider's
-    ABI changes inside a transaction. Complementary to the
-    `@preserved-rebuild` #emph[set] (FEATURES=preserve-libs consumers);
-    this pass is automatic during prove/plan.],
-    [`config:toolchain_reactivation/1`], [`true`], [Re-activate the
-    toolchain right after a toolchain package merges, before dependent
-    builds continue.],
   )]
   , kind: table
   )
@@ -7286,8 +7279,7 @@ An empty computed set prints an informational line and exits 0 under
 JSON (default: derive from `config:pkg_directory/1` as
 `…/lib/portage/preserved_libs_registry`\; override with
 `config:preserved_libs_registry_override/1`) and matches consumers via
-VDB `NEEDED.ELF.2`. It is complementary to the automatic
-`config:subslot_rebuild/1` pass, which rebuilds `:=` reverse deps when a
+VDB `NEEDED.ELF.2`. The plan also rebuilds `:=` reverse deps when a
 provider's subslot changes inside a plan.
 
 #strong[`@changed-deps`] compares installed RDEPEND/PDEPEND (from the

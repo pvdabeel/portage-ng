@@ -42,7 +42,7 @@ working-directory init)
 % | nodeps, onlydeps          | rule(target(_,_):run), rule(_:install)              |
 % | nodynamicdeps             | depclean:direct_deps_installed/2 (VDB-recorded deps) |
 % | rebuildnewrev, rebuildnewver | target:rebuild_if_newer_available/1              |
-% | rebuildnewslot            | abirebuild:enabled (forces sub-slot rebuilds on)    |
+% | rebuildnewslot            | accepted; := rebuilds follow abirebuild:active      |
 % | rebuildunbuilt            | abirebuild:build_consumers/3                        |
 % | nobdeps (--with-bdeps=n)  | target:bdepend_only_dep/1 (--deep skips BDEPEND-only deps) |
 % | withtestdeps              | target:target_context/2 -> candidate:eligible `test?` groups |

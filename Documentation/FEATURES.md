@@ -141,7 +141,7 @@ is logged and reported in the build summary -- never silent.
 
 **Native ABI rebuild and haskell-updater.**
 Sub-slot (`:=`) ABI changes trigger same-version rebuilds of installed reverse
-dependencies as part of the plan (`config:subslot_rebuild/1`).  The
+dependencies as part of the plan.  The
 `@preserved-rebuild` computed set separately targets consumers of libraries
 kept only by FEATURES=preserve-libs (Portage `PreservedLibraryConsumerSet`).
 GHC ABI-hash and OCaml/findlib breakage -- invisible to sub-slots -- are

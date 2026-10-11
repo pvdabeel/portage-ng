@@ -108,8 +108,9 @@ Sub-slot (`:=`) ABI rebuilds (portage-ng#89/#118):
   wholly-masked consumer whose ebuild is still in the tree is repaired
   in place via `candidate:abi_repair_eligible/3` so the proof does not
   climb the unmask / keyword_unmask tier; a VDB-only orphan is
-  `assumed(... no_tree_ebuild)`. Gate: `config:subslot_rebuild/1`; the
-  bulk harness `pipeline:test_stats` suspends via `abirebuild:suspended`.
+  `assumed(... no_tree_ebuild)`. The rebuilds are planned whenever the
+  pass can see the installed system; the bulk harness
+  `pipeline:test_stats` suspends via `abirebuild:suspended`.
   `pipeline.pl` contains no domain logic for this — prove, don't patch
   the plan.
 

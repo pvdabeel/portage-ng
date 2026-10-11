@@ -850,16 +850,16 @@ ebuild_exec:with_portage_pkg_merge_lock(_, Goal) :-
 % `FEATURES=ccache` (portage-ng#86).
 %
 % Fires only for a completed (`done`) install-family action whose (C,N) is a
-% recognised toolchain package (toolchain_cn/3). Gated by
-% config:toolchain_reactivation/1 (default true). Always succeeds; the
-% reactivation is fully guarded so it can never turn a successful merge into
-% a failure. Keeping the policy here (not in Pipeline/builder) keeps the
+% recognised toolchain package (toolchain_cn/3). Tried when `toolchain`
+% is in config:build_fixup/1. Always succeeds; the reactivation is
+% fully guarded so it can never turn a successful merge into a
+% failure. Keeping the policy here (not in Pipeline/builder) keeps the
 % generic plan orchestrator free of Gentoo toolchain knowledge.
 
 ebuild_exec:maybe_reactivate_toolchain(Action, Repo, Entry, done) :-
   memberchk(Action, [install, reinstall, update, downgrade]),
-  ( current_predicate(config:toolchain_reactivation/1)
-  -> config:toolchain_reactivation(true)
+  ( catch(config:build_fixup(Strategies), _, fail), is_list(Strategies)
+  -> memberchk(toolchain, Strategies)
   ;  true
   ),
   cache:ordered_entry(Repo, Entry, C, N, _Ver),

@@ -237,8 +237,7 @@ An empty computed set prints an informational line and exits 0 under
 (default: derive from `config:pkg_directory/1` as
 `…/lib/portage/preserved_libs_registry`; override with
 `config:preserved_libs_registry_override/1`) and matches consumers via
-VDB `NEEDED.ELF.2`. It is complementary to the automatic
-`config:subslot_rebuild/1` pass, which rebuilds `:=` reverse deps when a
+VDB `NEEDED.ELF.2`. The plan also rebuilds `:=` reverse deps when a
 provider’s subslot changes inside a plan.
 
 **`@changed-deps`** compares installed RDEPEND/PDEPEND (from the on-disk

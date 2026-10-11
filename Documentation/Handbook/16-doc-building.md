@@ -223,8 +223,8 @@ packages.  After a successful install-family action, portage-ng runs
 domain hooks that keep the live root coherent for later phases in the
 same plan:
 
-- **Toolchain reactivation** (`maybe_reactivate_toolchain/4`, gated by
-  `config:toolchain_reactivation/1`) — after merging `sys-devel/gcc`
+- **Toolchain reactivation** (`maybe_reactivate_toolchain/4`, when
+  `toolchain` is in `config:build_fixup/1`) — after merging `sys-devel/gcc`
   (and related toolchain CNs), re-select the gcc-config profile and/or
   run `env-update` so a later package's `pkg_setup` sees the new
   compiler (portage-ng#86, especially under `FEATURES=ccache`).

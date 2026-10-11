@@ -1088,9 +1088,8 @@ path.
 .PP
 Related flags (not sets):
 .B \-\-changed\-deps
-applies the same outdated\-deps test while resolving other targets;
-.B config:subslot_rebuild/1
-plans same\-version reverse\-dep rebuilds when a
+applies the same outdated\-deps test while resolving other targets.
+The plan also includes same\-version reverse\-dep rebuilds when a
 .B :=
 provider's subslot changes (transaction\-driven; complementary to
 .BR @preserved\-rebuild ).

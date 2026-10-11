@@ -82,10 +82,8 @@ The machine config file is where repositories are created and registered — cov
 |:---|:---|:---|
 | `config:build_retry/1` | `[pid, makeopts]` | Retries after a phase fails, in list order. `pid` reruns a phase whose log says bash lost a waited pid. `makeopts` reruns a failed compile, test, or install with `MAKEOPTS=-j1`. |
 | `config:deconflict_collisions/1` | `override` | Merge-time file collision handling when a blocker atom is missing from metadata: `off` (fail as usual), `report` (fail, but surface the collision as a deconfliction assumption), or `override` (re-merge with collision protection disabled so the merge succeeds). |
-| `config:build_fixup/1` | `[ghcabi, ocamlabi, ghcpkg]` | Builder fixups. `ghcabi` rebuilds the packages haskell-cabal reports as broken. `ocamlabi` rebuilds the installed owner of a stale OCaml interface or a missing findlib package. `ghcpkg` runs `ghc-pkg recache` after `dev-lang/ghc` merges. |
+| `config:build_fixup/1` | `[ghcabi, ocamlabi, ghcpkg, toolchain]` | Builder fixups. `ghcabi` rebuilds the packages haskell-cabal reports as broken. `ocamlabi` rebuilds the installed owner of a stale OCaml interface or a missing findlib package. `ghcpkg` runs `ghc-pkg recache` after `dev-lang/ghc` merges. `toolchain` runs `gcc-config` and `env-update` after a toolchain package merges. |
 | `config:build_learned/1` | `[missing_provider, useenable, kernelconfig]` | Facts learned from a failed phase. The phase still fails and the next plan is derived with the new fact. `missing_provider` adds the package that provides a missing command or file. `useenable` rebuilds a provider with a required USE flag on. `kernelconfig` sets a missing `CONFIG_*` option before the package builds. |
-| `config:subslot_rebuild/1` | `true` | Plan same-version rebuilds of installed reverse dependencies when a sub-slot (`:=`) provider’s ABI changes inside a transaction. Complementary to the `@preserved-rebuild` *set* (FEATURES=preserve-libs consumers); this pass is automatic during prove/plan. |
-| `config:toolchain_reactivation/1` | `true` | Re-activate the toolchain right after a toolchain package merges, before dependent builds continue. |
 
 See [Chapter 16: Building and Execution](16-doc-building.md) for how the
 retry chain and the domain exception fixups work.
