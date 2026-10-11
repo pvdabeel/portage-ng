@@ -583,6 +583,10 @@ config:print_prover_cycles_max_depth(25).
 config:print_prover_cycles_max_inferences(10000000).
 
 
+% -----------------------------------------------------------------------------
+%  Blocker printing
+% -----------------------------------------------------------------------------
+
 %! config:print_blockers(?Style)
 %
 % How to display blocker assumptions in plan output.
@@ -603,39 +607,35 @@ config:print_blockers(gentoo).
 
 %! config:build_live_phases(?Phases)
 %
-% List of ebuild phases that are actually executed during --build.
-% Phases not in this list are stubbed (displayed but not run).
-% An empty list means fully stubbed (equivalent to old dry_run_build(true)).
-% The full sequence [clean,setup,unpack,prepare,configure,compile,test,install,merge]
-% means fully live (equivalent to old dry_run_build(false)).
-% When --buildpkg is active, the `package` phase appears between
-% `install` and `merge` (added dynamically by ebuild_exec:build_phases/1).
+% The ebuild phases `--build` hands to `ebuild`, in order. The build
+% stops at the first phase this list does not name, and does not call
+% `ebuild` for that phase or any phase after it.
 %
-% Default is fully live: `--build` behaves like `emerge` and actually
-% installs each ebuild into the live filesystem and VDB. Without merge,
-% downstream packages cannot find their build deps in /usr (e.g.
-% apr-util's configure cannot locate apr-1-config). To dry-run a build
-% without touching the live FS, use `--pretend` instead.
+% Leaving out `merge` runs the earlier phases and never calls
+% `ebuild merge`, so a builder test does not install the package.
 %
-% Note: ebuild_exec:build_phases/1 is responsible for omitting the
-% `test` phase based on FEATURES (see config:features_test_enabled).
-% Compute_live_prefix stops at the first phase NOT in this list, so
-% removing intermediate phases here would also stub install/merge.
+% Note: `--buildpkg` inserts `package` between `install` and `merge`.
+% `test` is omitted unless FEATURES enables it
+% (`config:features_test_enabled/0`).
 
 config:build_live_phases([clean, setup, unpack, prepare, configure, compile, test, install, merge]).
 
 
 %! config:build_serial_retry(?Bool)
 %
-% When true, a failed parallel-make-sensitive phase (compile, test,
-% install) is retried once with MAKEOPTS=-j1 before the build is
-% declared failed (portage-ng#25). Environment variables override
-% make.conf in Portage's config stack, so the retry forces a serial
-% make without touching the user's configuration. Make resumes
-% incrementally, so the retry is cheap: it only changes the outcome
-% when the original failure was a parallel-make scheduling race
-% (e.g. net-analyzer/nsat's link step running before its objects are
-% compiled). Deterministic failures fail again immediately.
+% When true, a failed `compile`, `test`, or `install` is run once more
+% with `MAKEOPTS=-j1` before the build is declared failed.
+% Those three phases are a fixed list: they are the phases that run
+% make, and any non-zero exit is retried.
+%
+% A failure that is still there on the second run stays a failure.
+% Make continues from the objects it already built, so the
+% second run only changes the outcome when the first failure was a
+% scheduling race (for example net-analyzer/nsat linking before its
+% objects exist).
+%
+% `MAKEOPTS` is set in the environment, which overrides make.conf.
+% `setup`, `unpack`, `configure`, and `merge` are not retried.
 
 config:build_serial_retry(true).
 
