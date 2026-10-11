@@ -145,7 +145,7 @@ Optional segments:
 | **Segment** | **When included** |
 | :--- | :--- |
 | `clean` | omitted under `--resume` (`ebuild_exec:resuming`) so workdirs are reused |
-| `test` | only when `FEATURES` contains positive `test` (`config:features_test_enabled`) |
+| `test` | only when `FEATURES` contains positive `test` (`ebuild_exec:features_test_enabled/0`) |
 | `package` | when `--buildpkg` or `--buildpkgonly` is set |
 | `merge` | omitted under `--buildpkgonly` (binary package only) |
 

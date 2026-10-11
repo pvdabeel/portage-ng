@@ -615,8 +615,7 @@ config:print_blockers(gentoo).
 % `ebuild merge`, so a builder test does not install the package.
 %
 % Note: `--buildpkg` inserts `package` between `install` and `merge`.
-% `test` is omitted unless FEATURES enables it
-% (`config:features_test_enabled/0`).
+% `test` is omitted unless FEATURES enables it.
 
 config:build_phases([clean, setup, unpack, prepare, configure, compile, test, install, merge]).
 
@@ -723,33 +722,6 @@ config:missing_provider_max_replan(3).
 % reads and edits. Defaults to `/usr/src/linux`.
 
 config:kernel_source_dir('/usr/src/linux').
-
-
-%! config:features_test_enabled is semidet.
-%
-% True iff FEATURES (env > make.conf > fallback) contains 'test' with
-% positive sense, applying Portage's incremental left-to-right semantics
-% ('-test' removes, 'test' adds, last occurrence wins). Returns false if
-% FEATURES is unset or preference:getenv is unavailable.
-
-config:features_test_enabled :-
-  catch(
-    ( preference:getenv('FEATURES', Atom),
-      Atom \== '',
-      atomic_list_concat(Tokens, ' ', Atom),
-      config:features_resolve_test(Tokens, false, true)
-    ),
-    _,
-    fail
-  ).
-
-config:features_resolve_test([], State, State).
-config:features_resolve_test([test | Rest], _, Out) :-
-  !, config:features_resolve_test(Rest, true, Out).
-config:features_resolve_test(['-test' | Rest], _, Out) :-
-  !, config:features_resolve_test(Rest, false, Out).
-config:features_resolve_test([_ | Rest], State, Out) :-
-  config:features_resolve_test(Rest, State, Out).
 
 
 %! config:dry_run_build(?Bool)

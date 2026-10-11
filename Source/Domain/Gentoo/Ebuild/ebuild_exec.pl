@@ -66,7 +66,8 @@ ebuild_exec:action_phases(uninstall, _Ctx, [unmerge]).
 % ebuild can pick up from the preserved work directory.
 %
 % The `test` phase follows Portage semantics: it is included only
-% when FEATURES contains positive `test` (see config:features_test_enabled).
+% when FEATURES contains positive `test`
+% (`ebuild_exec:features_test_enabled/0`).
 % Otherwise it is omitted entirely from the phase list -- matching
 % emerge's behaviour, where `src_test` is skipped unless explicitly
 % enabled via FEATURES="test". `config:build_phases/1` decides how
@@ -74,7 +75,7 @@ ebuild_exec:action_phases(uninstall, _Ctx, [unmerge]).
 
 ebuild_exec:phase_sequence(Phases) :-
   ( ebuild_exec:resuming -> Clean = [] ; Clean = [clean] ),
-  ( config:features_test_enabled -> Test = [test] ; Test = [] ),
+  ( ebuild_exec:features_test_enabled -> Test = [test] ; Test = [] ),
   ( (preference:flag(buildpkgonly) ; preference:flag(buildpkg))
   -> Pkg = [package]
   ;  Pkg = []
@@ -84,6 +85,37 @@ ebuild_exec:phase_sequence(Phases) :-
   ;  Merge = [merge]
   ),
   append([Clean, [setup, unpack, prepare, configure, compile], Test, [install], Pkg, Merge], Phases).
+
+
+%! ebuild_exec:features_test_enabled is semidet.
+%
+% True when FEATURES contains `test` and the last mention of it is not
+% `-test`. False when FEATURES is unset or cannot be read.
+
+ebuild_exec:features_test_enabled :-
+  catch(
+    ( preference:getenv('FEATURES', Atom),
+      Atom \== '',
+      atomic_list_concat(Tokens, ' ', Atom),
+      ebuild_exec:features_resolve_test(Tokens, false, true)
+    ),
+    _,
+    fail
+  ).
+
+
+%! ebuild_exec:features_resolve_test(+Tokens, +StateIn, -StateOut) is det.
+%
+% Left-to-right FEATURES scan. `test` turns the state on, `-test`
+% turns it off, and any other token is ignored.
+
+ebuild_exec:features_resolve_test([], State, State).
+ebuild_exec:features_resolve_test([test | Rest], _, Out) :-
+  !, ebuild_exec:features_resolve_test(Rest, true, Out).
+ebuild_exec:features_resolve_test(['-test' | Rest], _, Out) :-
+  !, ebuild_exec:features_resolve_test(Rest, false, Out).
+ebuild_exec:features_resolve_test([_ | Rest], State, Out) :-
+  ebuild_exec:features_resolve_test(Rest, State, Out).
 
 
 % =============================================================================
