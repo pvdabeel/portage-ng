@@ -55,6 +55,45 @@ config:working_dir(Dir) :-
 
 
 % -----------------------------------------------------------------------------
+%  System
+% -----------------------------------------------------------------------------
+
+%! config:systemconfig(?Filename)
+%
+% Declares the systemconfig for the host this program is running. This file
+% contains system specific configuration settings. The standard setting
+% looks whether <hostname>.pl exists in the Source/Config directory. If not
+% then Source/Config/default.pl is used. Typically this is used to define the
+% different repositories / overlays per hostname.
+
+config:systemconfig(Filename) :-
+  config:installation_dir(Dir),
+  config:hostname(Hostname),
+  os:compose_path([Dir,'Source/Config','default'],Default),
+  os:compose_path([Dir,'Source/Config',Hostname],Configuration),
+  system:file_name_extension(Configuration,'pl',ConfigFile),
+  ( system:exists_file(ConfigFile)
+    -> Filename = ConfigFile
+    ;  Filename = Default ).
+
+
+%! config:number_of_cpus(?Count)
+%
+% This application parallellizes parsing, proving, planning and building.
+% SWI prolog is automatically able to determine the maximum cpu count, but
+% sometimes we may want to change this to a value of our choice.
+
+config:number_of_cpus(C) :- current_prolog_flag(cpu_count,C).
+
+
+%! config:verbosity(?Level)
+%
+% Different verbosity levels may be configured for printing runtime information
+
+config:verbosity(debug).
+
+
+% -----------------------------------------------------------------------------
 %  Repository
 % -----------------------------------------------------------------------------
 
@@ -83,131 +122,6 @@ config:write_metadata(true).
 
 
 % -----------------------------------------------------------------------------
-%  Binary package consumption ($PKGDIR/Packages, gpkg multi-instance)
-% -----------------------------------------------------------------------------
-%
-% These knobs control whether the builder consumes matching binpkgs from a
-% locally-registered binpkg repository (instead of building from source).
-% The check is gated on `cache:repository(binpkg)` being present, so all
-% knobs are effectively no-ops on hosts that haven't registered a binpkg
-% repository in their Source/Config/<host>.local.pl.
-
-%! config:use_binpkg(?Bool)
-%
-% Master switch for binpkg consumption. When `true`, the builder asks
-% `binpkg_exec:available_for/4` for a USE-matching variant before falling
-% back to the source-build phase sequence in `ebuild_exec`. Default: true.
-
-config:use_binpkg(true).
-
-
-%! config:binpkg_respect_use(?Mode)
-%
-% Mirrors emerge's `--binpkg-respect-use=y|n`. When `strict`, only binpkgs
-% whose stored `USE:` exactly matches the resolver's resolved USE (after
-% IUSE_EFFECTIVE projection) are eligible. When `relaxed`, USE-mismatched
-% binpkgs may still be selected (a warning is logged). Default: strict.
-
-config:binpkg_respect_use(strict).
-
-
-%! config:binpkg_respect_user_patches(?Bool)
-%
-% Mirrors emerge's `--binpkg-respect-user-patches=y|n`. When `true` (the
-% default), a binpkg is not selected if `/etc/portage/patches` would
-% apply to the corresponding ebuild (`${PN}`, `${P}`, `${PF}` or
-% `${P}-${PR}`, each optionally `:${SLOT}`). This prevents a binary from
-% silently reverting user patches. `--usepkg-include` does not override
-% it. Set `false` or pass `--binpkg-respect-user-patches n` to accept
-% the binpkg anyway.
-
-config:binpkg_respect_user_patches(true).
-
-
-%! config:binpkg_changed_deps(?Mode)
-%
-% Mirrors emerge's `--binpkg-changed-deps=y|n`. When `skip`, binpkgs whose
-% recorded RDEPEND differs from the current ebuild's RDEPEND are excluded
-% from the candidate set. When `warn`, they are still eligible (a warning
-% is logged). Default: warn (less restrictive; binpkg-multi-instance
-% already isolates USE drift).
-
-config:binpkg_changed_deps(warn).
-
-
-%! config:binpkg_refresh(?Policy)
-%
-% Controls when the in-memory binpkg index is refreshed against the
-% on-disk `Packages` file:
-%
-%   manual : never auto-refresh; the index reflects the last `kb:sync(binpkg)`
-%            run. Cheapest, fully predictable.
-%   mtime  : on each `binpkg_exec:available_for/4` call, stat the index
-%            file and re-run sync(kb) if its mtime is newer than the last
-%            load. Useful when external producers are adding binpkgs
-%            concurrently with portage-ng builds.
-%
-% Default: mtime so concurrent binpkg producers (tinderbox-ng shared
-% cache) are visible without restarting portage-ng.
-
-config:binpkg_refresh(mtime).
-
-
-%! config:binpkg_self_inject(?Bool)
-%
-% Controls whether portage-ng incrementally registers the binary
-% packages it produces itself (a source build with `--buildpkg` /
-% `--buildpkgonly`, i.e. the `package` phase) directly into the
-% in-memory binpkg cache, instead of waiting for the next mtime-driven
-% full re-parse of `Packages` to discover them.
-%
-% When `true`, a successful source build asserts a single
-% `cache:ordered_entry/5` (+ minimal metadata) for the freshly produced
-% gpkg via `binpkg_exec:inject_built_binpkg/3`, and advances the
-% `mtime` baseline so the resident process does NOT re-parse the whole
-% ~27 MB index just to pick up its own output (portage-ng#80). This is
-% the analogue of emerge's in-memory `bintree.inject()` and is most
-% valuable in daemon mode, where the cache is resident across requests.
-%
-% The `mtime` refresh policy still applies to EXTERNAL producers
-% (concurrent emerge / sibling matrix workers): a `Packages` mtime that
-% advances past the baseline AFTER an inject still triggers a refresh,
-% so cross-process visibility is preserved. Default: true.
-
-config:binpkg_self_inject(true).
-
-
-%! config:binpkg_debug(?Bool)
-%
-% When `true`, `binpkg_exec:available_for/4` logs (to `user_error`) the
-% reason every binpkg variant of a scheduled package was rejected by the
-% acceptance filters whenever NO usable binpkg was found and the build
-% therefore falls through to a source compile. The first failing filter
-% per variant is reported (gpkg-on-disk / slot / keywords / USE / subslot
-% `:=` pin / RDEPEND drift), with the resolved gpkg path for the on-disk
-% case so an in-chroot vs host PKGDIR mismatch is visible at a glance.
-%
-% This is a pure diagnostic: it never changes which binpkgs are accepted.
-% Default `false` (zero overhead on the hot path). Intended for pinpointing
-% why a closure that emerge satisfies from `[binary]` is rebuilt from
-% source instead (e.g. the OCaml stack, portage-ng#81).
-
-config:binpkg_debug(false).
-
-
-%! config:choice_log(?Bool)
-%
-% When `true`, the resolver arms the structured choice-event log
-% (`choicelog`) at runtime. Hot-path emit/wrap sites are only present
-% when loaded with `-Dchoice_log=true` (set by `portage-ng-dev` for
-% `--choice-log`); otherwise they are compiled out. Default `false`.
-
-:- dynamic config:choice_log/1.
-
-config:choice_log(false).
-
-
-% -----------------------------------------------------------------------------
 %  Gentoo profile (for Portage parity)
 % -----------------------------------------------------------------------------
 %
@@ -220,6 +134,7 @@ config:choice_log(false).
 % preference (user/package preferences).
 
 config:gentoo_profile('default/linux/amd64/23.0/split-usr/no-multilib').
+
 
 % -----------------------------------------------------------------------------
 %  Profile loading strategy
@@ -251,6 +166,7 @@ config:preference_cache(daemon,     cached).
 config:preference_cache(worker,     cached).
 config:preference_cache(client,     live).
 config:preference_cache(server,     cached).
+
 
 % -----------------------------------------------------------------------------
 %  /etc/portage configuration directory
@@ -394,752 +310,6 @@ config:snapshot_dir(Dir) :-
 % Disabled by default. Enable in per-machine config files.
 
 :- dynamic config:snapshot_enabled/0.
-
-
-% -----------------------------------------------------------------------------
-%  System
-% -----------------------------------------------------------------------------
-
-%! config:systemconfig(?Filename)
-%
-% Declares the systemconfig for the host this program is running. This file
-% contains system specific configuration settings. The standard setting
-% looks whether <hostname>.pl exists in the Source/Config directory. If not
-% then Source/Config/default.pl is used. Typically this is used to define the
-% different repositories / overlays per hostname.
-
-config:systemconfig(Filename) :-
-  config:installation_dir(Dir),
-  config:hostname(Hostname),
-  os:compose_path([Dir,'Source/Config','default'],Default),
-  os:compose_path([Dir,'Source/Config',Hostname],Configuration),
-  system:file_name_extension(Configuration,'pl',ConfigFile),
-  ( system:exists_file(ConfigFile)
-    -> Filename = ConfigFile
-    ;  Filename = Default ).
-
-
-%! config:number_of_cpus(?Count)
-%
-% This application parallellizes parsing, proving, planning and building.
-% SWI prolog is automatically able to determine the maximum cpu count, but
-% sometimes we may want to change this to a value of our choice.
-
-config:number_of_cpus(C) :- current_prolog_flag(cpu_count,C).
-
-
-%! config:verbosity(?Level)
-%
-% Different verbosity levels may be configured for printing runtime information
-
-config:verbosity(debug).
-
-
-% -----------------------------------------------------------------------------
-%  Passwords
-% -----------------------------------------------------------------------------
-
-% The private passwords file is optional for standalone builds. Client
-% and server modes call interface:require_digest_password/0 and refuse
-% an empty digest password (do not pair empty defaults with a real
-% Certificates/passwordfile). Copy template_passwords.pl → passwords.pl,
-% set a secret, then `make passwordfile`.
-
-:- if(exists_source(portage('Source/Config/Private/passwords'))).
-:- include(portage('Source/Config/Private/passwords')).
-:- else.
-
-%! config:certificate_password(?Key,?Pass)
-%
-% Default (empty) passwords for unencrypted SSL client/server keys.
-% Override by creating Source/Config/Private/passwords.pl from the template.
-
-config:certificate_password(server,'').
-config:certificate_password(client,'').
-
-
-%! config:digest_password(?User,?Pass)
-%
-% Placeholder only when Private/passwords.pl is absent. Empty Pass is
-% rejected by interface:require_digest_password/0 before any digest auth.
-
-config:digest_password('portage-ng','').
-
-
-%! config:digest_realm(?Realm)
-%
-% Default realm for digest user authentication.
-
-config:digest_realm('portage-ng').
-
-:- endif.
-
-
-% -----------------------------------------------------------------------------
-%  Network
-% -----------------------------------------------------------------------------
-
-%! config:bonjour_service(?Service)
-%
-% The mDNS service used to advertise and discover the server on the network.
-
-config:bonjour_service('_portage-ng._tcp.').
-
-
-%! config:bonjour_worker_service(?Service)
-%
-% The mDNS service used by workers to advertise compute capacity.
-
-config:bonjour_worker_service('_portage-ng-worker._tcp.').
-
-
-%! config:server_host(?Url)
-%
-% Declares the server hostname the client/worker connects to. This can be
-% overridden using the --host option in the interface. Workers that use
-% Bonjour discovery only accept a discovered host that matches this pin
-% (hostile LAN advertisements are ignored).
-
-config:server_host('mac-pro.local').
-
-
-%! config:server_bind(?Address)
-%
-% Interface the HTTPS Pengine server binds to. Default `localhost` keeps
-% mutating POSTs (/sync, /clear, /load, …) off the public network; mTLS
-% + digest still apply, but binding all interfaces would expose those
-% endpoints to any peer that holds a CA-signed client cert and the digest
-% password. Override with `*` / `0.0.0.0` only on a trusted VPN/LAN.
-
-config:server_bind(localhost).
-
-
-%! config:server_port(?Number)
-%
-% Declares the port on which the server needs to be launched (HTTPS/SSL).
-% Combined with config:server_bind/1 (default localhost). Override with
-% the --port option in the interface.
-
-config:server_port(4000).
-
-
-%! config:server_workers(?Count)
-%
-% Number of HTTP worker threads the server spawns to handle requests.
-
-config:server_workers(32).
-
-
-%! config:server_keep_alive_timeout(?Seconds)
-%
-% How long an idle keep-alive HTTP connection is kept open before the
-% server closes it.
-
-config:server_keep_alive_timeout(2).
-
-
-%! config:cluster_result_timeout(?Seconds)
-%
-% How long a single result poll blocks while collecting distributed
-% proving results. On expiry the collector checks for stale in-flight
-% jobs (and re-queues them) before polling again.
-
-config:cluster_result_timeout(60).
-
-
-%! config:cluster_global_deadline(?Seconds)
-%
-% Overall deadline for collecting all results of a distributed proving
-% batch. When reached, cluster:wait/1 returns the results collected so
-% far and warns about missing ones instead of waiting forever.
-
-config:cluster_global_deadline(3600).
-
-
-%! config:cluster_worker_timeout(?Seconds)
-%
-% A worker is presumed dead when it has not contacted the server for
-% this many seconds; its in-flight jobs are then re-queued for other
-% workers. Should exceed the longest expected single prove job, since a
-% busy single-threaded worker only heartbeats between jobs.
-
-config:cluster_worker_timeout(900).
-
-
-%! config:server_chunk(?Chunksize)
-%
-% When set to false, when working in client-server mode, one RPC call is
-% performed per solution. When generating large number of solutions, such as
-% backtracking over a goal, it is best to transfer multiple solutions in one
-% chunk over one rpc call.
-
-% Setting this to a higher value speeds up searching in client-server mode.
-% Shouldn't be higher than the total number of entries in your repositories.
-
-config:server_chunk(50000).
-
-
-%! config:client_auto_import_vdb(?Bool)
-%
-% When true, client mode automatically (re-)imports the local VDB into the
-% server before executing a command (--pretend, --merge, --search, ...):
-% the import runs when no import record exists for the target server, or
-% when the local VDB changed since the last import (cheap mtime check over
-% the VDB root and its category directories). When false, the VDB is only
-% shipped explicitly via --import-vdb. See knowledgebase:vdb_repository/1.
-
-config:client_auto_import_vdb(true).
-
-
-% -----------------------------------------------------------------------------
-%  Certificates
-% -----------------------------------------------------------------------------
-
-%! config:initialize_cacert
-%
-% Initializes the certificate authority. We use certificates in our
-% client-server communication.
-
-config:initialize_cacert :-
-  config:certificate('cacert.pem',Fullpath),
-  create_prolog_flag(system_cacert_filename,Fullpath,[access(read_only)]).
-
-
-%! config:certificate(+Certificate,-Fullpath)
-%
-% Returns an absolute path for a given certificate name
-
-config:certificate(Certificate,Fullpath) :-
-  config:installation_dir(Dir),
-  os:compose_path([Dir,'Certificates',Certificate],Fullpath).
-
-
-%! config:certificate(+Hostname,+Certificate,-Fullpath)
-%
-% Return an absolute path for a given hostname certificate name
-
-config:certificate(Hostname,Certificate,FullPath) :-
-  atomic_list_concat([Hostname,Certificate],'.',HostCertificate),
-  config:certificate(HostCertificate,FullPath).
-
-
-%! config:digest_passwordfile(?File)
-%
-% Declares the password file for http(s) digest user authentication
-
-config:digest_passwordfile(Filename) :-
-  config:installation_dir(Dir),
-  os:compose_path([Dir,'Certificates/passwordfile'],Filename).
-
-
-% -----------------------------------------------------------------------------
-%  Graphing
-% -----------------------------------------------------------------------------
-
-% Interface can dynamically override graphing behavior for a single run
-% (set by action:graph/1 for `--graph modified` and `--graph full`).
-
-:- dynamic config:interface_graph_modified_only/1.
-
-%! config:graph_directory(?FullPath)
-%
-% This application is capable of writing Graphviz dot files and will turn
-% them into interactive scalable vector graphics (svg) to enable you to
-% browse through a dependency graph.
-%
-% Directory doesn't need a trailing '/'.
-%
-% Host-specific: defined in Source/Config/<host>.local.pl (the file loaded
-% via config:systemconfig/1), NOT here. Callers guard with
-% current_predicate/1 so hosts without a clause fail cleanly.
-
-
-%! config:graph_modified_only(?Bool)
-%
-% Set when you want Graphviz dot file to be created for new ebuilds only
-
-% Note: call sites often query this as `config:graph_modified_only(true)` in an
-% if-then-else. Therefore this predicate must *not* have an unconditional
-% `.../1` clause that makes `config:graph_modified_only(true)` succeed when the
-% effective value is false.
-%
-% Resolution order:
-% - CLI/runtime override (dynamic) via config:interface_graph_modified_only/1
-% - Default (can be changed by editing config:graph_modified_only_default/1)
-
-config:graph_modified_only(Bool) :-
-  ( config:interface_graph_modified_only(Bool0) ->
-      Bool = Bool0
-  ; config:graph_modified_only_default(Bool)
-  ).
-
-% Default graphing behavior (when CLI didn't override):
-% true = graph only modified/new ebuilds
-% false = graph everything
-
-config:graph_modified_only_default(true).
-
-
-%! config:graph_repository(?Repository)
-%
-% Name of the repository graphed by default when `--graph` / `kb:graph`
-% (and `--graph emerge` / `kb:graph_emerge`) is invoked. Must match a
-% registered repository instance name (typically `portage`).
-
-config:graph_repository(portage).
-
-
-% -----------------------------------------------------------------------------
-%  Emerge file generation (--graph emerge)
-% -----------------------------------------------------------------------------
-
-% Interface can dynamically force full regeneration for a single run.
-% (Used by `--graph emerge full`.)
-
-:- dynamic config:force_emerge_regen/1.
-
-%! config:emerge_vp_path(?Path)
-%
-% Per-host path to the `emerge-vp` wrapper used by `--graph emerge` to
-% generate `.emerge` files alongside the `.merge` files in the graph
-% directory. The wrapper invokes Gentoo's traditional `emerge -vp` so
-% portage-ng can render side-by-side comparisons in HTML.
-%
-% Host-specific: defined in Source/Config/<host>.local.pl (the file loaded
-% via config:systemconfig/1), NOT here. When the host config defines no
-% clause, `--graph emerge` prints a clear warning instead of writing
-% `.emerge` files.
-
-
-%! config:emerge_vp_timeout(?Seconds)
-%
-% Per-ebuild timeout for emerge-vp invocations. Mirrors the legacy
-% generate-emerge-files.sh default.
-
-config:emerge_vp_timeout(120).
-
-
-%! config:emerge_vp_concurrency(?N)
-%
-% Number of parallel emerge-vp workers spawned by `--graph emerge`.
-% Defaults to 1 (matches the legacy shell). Increase cautiously: emerge-vp
-% inside a gentoo-prefix is fork-heavy and concurrent runs can saturate I/O.
-
-config:emerge_vp_concurrency(1).
-
-
-%! config:graph_include_emerge(?Bool)
-%
-% When true, the default `--graph` run also generates `.emerge` files at
-% the end of the pipeline (after writing proof files). False by default;
-% use `--graph emerge` for explicit regeneration. Set to true on hosts
-% where the gentoo-prefix emerge-vp wrapper is available and you want
-% one-command refresh of the entire graph directory.
-
-config:graph_include_emerge(false).
-
-
-% -----------------------------------------------------------------------------
-%  Pmerge file generation (--graph pmerge)
-% -----------------------------------------------------------------------------
-
-% Interface can dynamically force full regeneration for a single run.
-% (Used by `--graph pmerge full`.)
-
-:- dynamic config:force_pmerge_regen/1.
-
-%! config:pmerge_path(?Path)
-%
-% Per-host path to the `pmerge` wrapper used by `--graph pmerge` to
-% generate `.pmerge` files alongside the `.merge` files in the graph
-% directory. The wrapper invokes pkgcore as
-% `pmerge --pretend --verbose` against the same gentoo-prefix config
-% and VDB as `emerge-vp`.
-%
-% Host-specific: defined in Source/Config/<host>.local.pl (the file loaded
-% via config:systemconfig/1), NOT here. When the host config defines no
-% clause, `--graph pmerge` prints a clear warning instead of writing
-% `.pmerge` files.
-
-
-%! config:pmerge_timeout(?Seconds)
-%
-% Per-ebuild timeout for pmerge invocations.
-
-config:pmerge_timeout(120).
-
-
-%! config:pmerge_concurrency(?N)
-%
-% Number of parallel pmerge workers spawned by `--graph pmerge`.
-% Defaults to 1. Increase cautiously: concurrent pkgcore runs load the
-% same Portage tree and can saturate I/O.
-
-config:pmerge_concurrency(1).
-
-
-%! config:graph_include_pmerge(?Bool)
-%
-% When true, the default `--graph` run also generates `.pmerge` files at
-% the end of the pipeline (after writing proof files). False by default;
-% use `--graph pmerge` for explicit regeneration.
-
-config:graph_include_pmerge(false).
-
-
-%! config:graph_html_type(?List)
-%
-% Defines all HTML graph types produced by --graph.  Each type maps to a
-% self-contained interactive HTML file per ebuild.
-
-config:graph_html_type([detail,deptree,gantt,merge,fetchonly,info,glsa,bugs,emerge,pmerge]).
-
-
-%! config:graph_site_url(?Url)
-%
-% Public origin of the generated graph site, with no trailing slash.
-% `--graph` writes robots.txt and sitemap.xml against this host
-% (default https://ebuild.portage-ng.ai). Override per host if needed.
-
-config:graph_site_url('https://ebuild.portage-ng.ai').
-
-
-%! config:graph_dependency_type(?List)
-%
-% Legacy: dependency types for which DOT graphs can be produced.
-% No longer part of the default --graph output (superseded by deptree + detail).
-
-config:graph_dependency_type([detail,
-                              bdepend,
-                              cdepend,
-                              depend,
-                              idepend,
-                              rdepend,
-                              pdepend]).
-
-
-%! config:graph_proof_type(?List)
-%
-% Legacy: proof types for which DOT graphs can be produced.
-% No longer part of the default --graph output (superseded by terminal HTML).
-
-config:graph_proof_type([merge,fetchonly,info]).
-
-
-%! config:graph_legacy_type(?List)
-%
-% Legacy: legacy types for which DOT graphs can be produced.
-% No longer part of the default --graph output (superseded by terminal HTML).
-
-config:graph_legacy_type([emerge,pmerge]).
-
-
-% -----------------------------------------------------------------------------
-%  Cycle printing
-% -----------------------------------------------------------------------------
-
-%! config:print_prover_cycles(?Bool)
-%
-% Whether to print cycle-break explanations (DFS/BFS cycle paths) for
-% prover cycle-break assumptions in plan output.  These assumptions
-% already appear in the plan as "(assumed running)" / "(assumed
-% installed)" line items, so the tree visualisation is redundant.
-% Expensive to compute and can produce very large output.
-
-config:print_prover_cycles(false).
-
-
-%! config:print_prover_cycles_style(?Style)
-%
-% Display style for the cycle breaks section:
-%   - `off`      : do not print cycle breaks section
-%   - `flat`     : one cycle break per line, compact list (default)
-%   - `detailed` : each cycle break on two lines with "- Cycle break:" header
-
-config:print_prover_cycles_style(flat).
-
-
-%! config:print_prover_cycles_max_total(?N)
-%
-% Maximum number of prover cycle-break assumptions for which a cycle
-% explanation tree is printed.  Additional cycle breaks are summarised
-% as "(… N more cycle breaks omitted)".
-
-config:print_prover_cycles_max_total(10).
-
-
-%! config:print_prover_cycles_max_depth(?N)
-%
-% Maximum DFS/BFS search depth when constructing prover cycle paths.
-% Lower values produce shorter (but possibly incomplete) cycle trees;
-% higher values find longer cycles at the cost of more search time.
-
-config:print_prover_cycles_max_depth(25).
-
-
-%! config:print_prover_cycles_max_inferences(?N)
-%
-% Inference budget for the search that reconstructs one prover cycle
-% path (cycle:print_cycle_explanation/3). The depth-bounded searches are
-% exponential in the branching factor in the worst case; the budget caps
-% them deterministically, so the same plan prints the same explanation
-% on every machine. When it is exhausted the explanation is omitted.
-
-config:print_prover_cycles_max_inferences(10000000).
-
-
-%! config:print_blockers(?Style)
-%
-% How to display blocker assumptions in plan output.
-% Blockers are separated from other domain assumptions into their own
-% section.
-%
-% Styles:
-%   off    - no blocker section printed
-%   gentoo - compact Portage-like dark-gray lines
-%   fancy  - detailed multi-line assumption format with provenance
-
-config:print_blockers(gentoo).
-
-
-% -----------------------------------------------------------------------------
-%  Graphing: static assets
-% -----------------------------------------------------------------------------
-
-
-% When generating HTML (index pages + proofs) we copy a few static assets into the
-% repository graph directory (the dir created by repository:prepare_directory/1).
-%
-% Targets (fixed names in output directory):
-%
-% - .portage-ng.css (shared CSS for all HTML graph pages)
-% - .proof.css   (used by Scripts/*/print-aha to render proof output)
-% - .meslo.ttf   (font used by proof rendering)
-% - favicon.svg  (portage-ng.ai mark, linked from every graph page)
-%
-% Sources are configurable here (defaults are in Documentation/Assets/Graph/).
-
-
-%! config:graph_asset_source(+Key, -SourcePath)
-%
-% Returns the source path for a given asset key
-
-config:graph_asset_source(portage_ng_css, Source) :-
-  config:installation_dir(Dir),
-  os:compose_path([Dir,'Documentation/Assets/Graph/Stylesheets/portage-ng.css'], Source).
-
-config:graph_asset_source(proof_css, Source) :-
-  config:installation_dir(Dir),
-  os:compose_path([Dir,'Documentation/Assets/Graph/Stylesheets/proof.css'], Source).
-
-config:graph_asset_source(meslo_ttf, Source) :-
-  config:installation_dir(Dir),
-  os:compose_path([Dir,'Documentation/Assets/Graph/Fonts/meslo.ttf'], Source).
-
-config:graph_asset_source(favicon_svg, Source) :-
-  config:installation_dir(Dir),
-  os:compose_path([Dir,'Documentation/Images/icon.svg'], Source).
-
-
-% -----------------------------------------------------------------------------
-%  Distfiles / mirrors (analysis + future downloader)
-% -----------------------------------------------------------------------------
-
-
-%! config:mirror_root(?Path)
-%
-% Default paths used by mirror:test_stats/1 and related tooling.
-% These can be overridden at call-site (mirror:test_stats/2), but having a single
-% source of truth here makes behavior consistent across CLI and scripts.
-%
-% - mirror_root/1: hashed distfiles mirror root (GLEP 75 layout.conf aware)
-% - Local distfiles directory is configured per machine via distfiles repository
-
-config:mirror_root('/Volumes/Storage/Distfiles/distfiles').
-
-
-%! config:mirror_url(?URL) is multi.
-%
-% HTTPS base URL(s) of distfiles mirrors. The mirror has the same GLEP 75
-% directory layout as mirror_root/1. Multiple facts may be present; the
-% downloader tries them in declaration order, then falls back to the
-% SRC_URI chain. Prefer https. Cleartext http mirrors require
-% config:curl_allow_http(true) (see host configs).
-
-:- multifile config:mirror_url/1.
-
-config:mirror_url('https://distfiles.gentoo.org/distfiles').
-
-
-%! config:curl_allow_http(?Bool)
-%
-% When false (default), curl is restricted to `--proto =https` and
-% cleartext http/ftp URLs are skipped. Set true on a host that uses a
-% trusted LAN mirror (e.g. http://mac-pro.local/distfiles). Integrity
-% still depends on Manifest hashes (empty checksum lists are rejected).
-
-:- dynamic config:curl_allow_http/1.
-:- multifile config:curl_allow_http/1.
-
-config:curl_allow_http(false).
-
-
-%! config:file_integrity(?Mode)
-%
-% Integrity policy for Knowledge sidecars (kb.qlf, resume.pl, feedback.pl):
-%   * prefer  — verify .sha256 when present; warn and load when absent
-%   * require — refuse to load without a matching .sha256 sidecar
-%   * off     — skip verification
-% Sidecars are written on every save/append by the corresponding writers.
-
-config:file_integrity(prefer).
-
-
-%! config:mirror_verify_hashes_default(?Policy)
-%
-% Default hash verification policy for mirror:test_stats:
-%
-% - none: only check existence + size
-% - sample(N): verify hashes for the first N unique distfiles (fast sanity)
-% - all: verify hashes for all unique distfiles (expensive)
-
-config:mirror_verify_hashes_default(none).
-
-
-%! config:mirror_layout_cache_ttl(?Seconds)
-%
-% TTL (in seconds) for the on-disk cache of the GLEP 75 layout.conf
-% reply, written under the active distdir (see download:disk_cache_path/1).
-% Mirror layout almost never changes, but clusters of short-lived
-% portage-ng processes (external compare matrices, server worker
-% pool) would otherwise re-fetch layout.conf for every invocation,
-% which both wastes a curl per session (~1s) and adds a real failure
-% mode if the mirror flaps. Default 24h is conservative; bump it for
-% offline / network-restricted runs.
-
-config:mirror_layout_cache_ttl(86400).
-
-
-%! config:bugzilla_url(?URL)
-%
-% Base URL of the Bugzilla instance for --search-bugs (e.g. bugs.gentoo.org).
-% Used to query the REST API at <URL>/rest/bug?quicksearch=<term>.
-
-config:bugzilla_url('https://bugs.gentoo.org').
-
-
-%! config:bugzilla_user_agent(?UA) is det.
-%
-% User-Agent string for Bugzilla API requests.
-
-config:bugzilla_user_agent('portage-ng/2026 (https://github.com/pvdabeel/portage-ng)').
-
-
-%! config:bugzilla_scope(?Scope)
-%
-% Bug population kept by a `bugzilla`-type repository (see
-% Source/Domain/Gentoo/bugs.pl): `all` public bugs, or `open` only
-% (UNCONFIRMED / CONFIRMED / IN_PROGRESS). The initial crawl of `all`
-% fetches roughly 600 pages of 1000 bugs; later syncs only fetch bugs
-% whose last_change_time moved.
-%
-% The bugzilla_* knobs below are dynamic so a host config can override
-% them with retractall/assertz (same pattern as config:curl_allow_http/1).
-
-:- dynamic config:bugzilla_scope/1.
-:- dynamic config:bugzilla_page_size/1.
-:- dynamic config:bugzilla_request_delay/1.
-:- dynamic config:bugzilla_search/1.
-:- dynamic config:bugzilla_annotate/1.
-
-config:bugzilla_scope(all).
-
-
-%! config:bugzilla_page_size(?N)
-%
-% Bugs requested per REST page during a bugzilla repository sync.
-
-config:bugzilla_page_size(1000).
-
-
-%! config:bugzilla_request_delay(?Seconds)
-%
-% Politeness pause between consecutive REST pages of one sync.
-
-config:bugzilla_request_delay(2).
-
-
-%! config:bugzilla_search(?Policy)
-%
-% Where --search-bugs looks first: `cache_first` answers from the synced
-% local bug store and only falls back to the live REST quicksearch when
-% nothing matches locally (or no store exists); `rest` always queries the
-% Bugzilla REST API directly.
-
-config:bugzilla_search(cache_first).
-
-
-%! config:bugzilla_annotate(?Bool)
-%
-% When true, the plan printer lists known open bugs (from the local bug
-% store) under each domain assumption that names a package. Silent when
-% no store has been synced.
-
-config:bugzilla_annotate(true).
-
-
-%! config:repository_sync_limit(?Repository, ?PerDay) is multi.
-%
-% Maximum number of network syncs (`sync(repository)`) of a registered
-% repository in any rolling 24-hour window. Repositories without a clause
-% are unlimited. Enforced in repository:sync/0; the metadata and kb steps
-% still run from local data when the cap is reached. Stamps live in
-% Knowledge/<Repository>.sync. Declared in the host config next to the
-% repository instance, e.g. `config:repository_sync_limit(bugzilla, 1).`
-
-:- multifile config:repository_sync_limit/2.
-:- dynamic config:repository_sync_limit/2.
-
-
-% -----------------------------------------------------------------------------
-%  Repology (--upstream)
-% -----------------------------------------------------------------------------
-
-%! config:repology_url(?URL)
-%
-% Base URL of the Repology instance used by `--upstream`. The API path
-% `/api/v1/project/<name>` is appended. The official host is still
-% `https://repology.org`. Since 2026-09-13 that domain has been on
-% registrar hold and public DNS returns `127.0.0.1` (see
-% https://github.com/repology/repology-rs/issues/560). Do not point this
-% at another hostname unless AMDmi3 publishes a replacement domain —
-% pin the still-live address with `config:repology_address/1` instead.
-
-:- dynamic config:repology_url/1.
-:- multifile config:repology_url/1.
-
-config:repology_url('https://repology.org').
-
-
-%! config:repology_user_agent(?UA) is det.
-%
-% User-Agent string for Repology API requests (required by their TOS).
-
-config:repology_user_agent('portage-ng/2026 (https://github.com/pvdabeel/prolog)').
-
-
-%! config:repology_address(?IP)
-%
-% Optional IPv4 or IPv6 pin passed to curl as
-% `--resolve <host>:443:<IP>` so `--upstream` can reach the still-live
-% Repology host while public DNS is on hold. No default clause. AMDmi3
-% published `92.63.176.157` / `2a03:6f01:1:2::f159` in
-% https://github.com/repology/repology-rs/issues/560 — set one of those
-% in a host config only as a temporary workaround, and retract it once
-% DNS recovers. TLS still verifies the `repology.org` certificate.
-
-:- dynamic config:repology_address/1.
-:- multifile config:repology_address/1.
 
 
 % -----------------------------------------------------------------------------
@@ -1324,6 +494,22 @@ config:reprove_partial_restart(true).
 % we will verify installation, rather than reinstall the package.
 
 config:avoid_reinstall(false).
+
+
+% -----------------------------------------------------------------------------
+%  Choice log
+% -----------------------------------------------------------------------------
+
+%! config:choice_log(?Bool)
+%
+% When `true`, the resolver arms the structured choice-event log
+% (`choicelog`) at runtime. Hot-path emit/wrap sites are only present
+% when loaded with `-Dchoice_log=true` (set by `portage-ng-dev` for
+% `--choice-log`); otherwise they are compiled out. Default `false`.
+
+:- dynamic config:choice_log/1.
+
+config:choice_log(false).
 
 
 % -----------------------------------------------------------------------------
@@ -1577,88 +763,71 @@ config:printable_metadata([blank,
 
 
 % -----------------------------------------------------------------------------
-%  Testing
+%  Cycle printing
 % -----------------------------------------------------------------------------
 
-%! config:test_style(?Style)
+%! config:print_prover_cycles(?Bool)
 %
-% Sets the default test style for executing tests. Can be either:
-% - single_verbose
-% - parallel_verbose
-% - parallel_fast
+% Whether to print cycle-break explanations (DFS/BFS cycle paths) for
+% prover cycle-break assumptions in plan output.  These assumptions
+% already appear in the plan as "(assumed running)" / "(assumed
+% installed)" line items, so the tree visualisation is redundant.
+% Expensive to compute and can produce very large output.
 
-config:test_style(parallel_verbose).
+config:print_prover_cycles(false).
 
 
-%! config:test_stats_top_n(?N)
+%! config:print_prover_cycles_style(?Style)
 %
-% How many items to show in "Top cycle mentions" in test statistics output.
+% Display style for the cycle breaks section:
+%   - `off`      : do not print cycle breaks section
+%   - `flat`     : one cycle break per line, compact list (default)
+%   - `detailed` : each cycle break on two lines with "- Cycle break:" header
+
+config:print_prover_cycles_style(flat).
+
+
+%! config:print_prover_cycles_max_total(?N)
 %
-% Note: must be a non-negative integer.
+% Maximum number of prover cycle-break assumptions for which a cycle
+% explanation tree is printed.  Additional cycle breaks are summarised
+% as "(… N more cycle breaks omitted)".
 
-config:test_stats_top_n(25).
+config:print_prover_cycles_max_total(10).
 
 
-%! config:test_stats_table_width(?Width)
+%! config:print_prover_cycles_max_depth(?N)
 %
-% Total table width (characters) including the 2-space left indent.
+% Maximum DFS/BFS search depth when constructing prover cycle paths.
+% Lower values produce shorter (but possibly incomplete) cycle trees;
+% higher values find longer cycles at the cost of more search time.
 
-config:test_stats_table_width(80).
+config:print_prover_cycles_max_depth(25).
 
 
-%! config:test_stats_label_col_width(?Width)
+%! config:print_prover_cycles_max_inferences(?N)
 %
-% Width of the leftmost label/metric column.
+% Inference budget for the search that reconstructs one prover cycle
+% path (cycle:print_cycle_explanation/3). The depth-bounded searches are
+% exponential in the branching factor in the worst case; the budget caps
+% them deterministically, so the same plan prints the same explanation
+% on every machine. When it is exhausted the explanation is omitted.
 
-config:test_stats_label_col_width(34).
+config:print_prover_cycles_max_inferences(10000000).
 
 
-%! config:test_stats_pct_col_width(?Width)
+%! config:print_blockers(?Style)
 %
-% Width of a percentage column.
-
-config:test_stats_pct_col_width(10).
-
-
-%! config:test_stats_rank_col_width(?Width)
+% How to display blocker assumptions in plan output.
+% Blockers are separated from other domain assumptions into their own
+% section.
 %
-% Width of the rank-number column in ranked tables.
+% Styles:
+%   off    - no blocker section printed
+%   gentoo - compact Portage-like dark-gray lines
+%   fancy  - detailed multi-line assumption format with provenance
 
-config:test_stats_rank_col_width(4).
-
-
-%! config:test_stats_count_col_width(?Width)
-%
-% Width of a count column (aligned with pct columns at 10 chars).
-
-config:test_stats_count_col_width(10).
-
-
-%! config:bugreport_drafts_enabled(?Bool)
-%
-% Whether to print "Bug report drafts (Gentoo Bugzilla)" in the warnings section
-% when domain assumptions are present.
-%
-config:bugreport_drafts_enabled(true).
-
-
-%! config:bugreport_drafts_max_assumptions(?N)
-%
-% Only print bug report drafts when the number of domain assumptions is small,
-% to avoid overwhelming output for bulk runs.
-%
-% Note: must be a non-negative integer.
-%
-config:bugreport_drafts_max_assumptions(25).
-
-
-%! config:failsilenton(?Key)
-%
-% Fails silently (i.e. without messaging failure on the termimal.
-% Key can be:
-% - version : fails silently when trying to parse versions from git repositories
-
-config:failsilenton(version).
+config:print_blockers(gentoo).
 
 
 % -----------------------------------------------------------------------------
@@ -2030,6 +1199,900 @@ config:build_log_dir('/var/tmp/portage-ng/logs').
 
 
 % -----------------------------------------------------------------------------
+%  Binary package consumption ($PKGDIR/Packages, gpkg multi-instance)
+% -----------------------------------------------------------------------------
+%
+% These knobs control whether the builder consumes matching binpkgs from a
+% locally-registered binpkg repository (instead of building from source).
+% The check is gated on `cache:repository(binpkg)` being present, so all
+% knobs are effectively no-ops on hosts that haven't registered a binpkg
+% repository in their Source/Config/<host>.local.pl.
+
+%! config:use_binpkg(?Bool)
+%
+% Master switch for binpkg consumption. When `true`, the builder asks
+% `binpkg_exec:available_for/4` for a USE-matching variant before falling
+% back to the source-build phase sequence in `ebuild_exec`. Default: true.
+
+config:use_binpkg(true).
+
+
+%! config:binpkg_respect_use(?Mode)
+%
+% Mirrors emerge's `--binpkg-respect-use=y|n`. When `strict`, only binpkgs
+% whose stored `USE:` exactly matches the resolver's resolved USE (after
+% IUSE_EFFECTIVE projection) are eligible. When `relaxed`, USE-mismatched
+% binpkgs may still be selected (a warning is logged). Default: strict.
+
+config:binpkg_respect_use(strict).
+
+
+%! config:binpkg_respect_user_patches(?Bool)
+%
+% Mirrors emerge's `--binpkg-respect-user-patches=y|n`. When `true` (the
+% default), a binpkg is not selected if `/etc/portage/patches` would
+% apply to the corresponding ebuild (`${PN}`, `${P}`, `${PF}` or
+% `${P}-${PR}`, each optionally `:${SLOT}`). This prevents a binary from
+% silently reverting user patches. `--usepkg-include` does not override
+% it. Set `false` or pass `--binpkg-respect-user-patches n` to accept
+% the binpkg anyway.
+
+config:binpkg_respect_user_patches(true).
+
+
+%! config:binpkg_changed_deps(?Mode)
+%
+% Mirrors emerge's `--binpkg-changed-deps=y|n`. When `skip`, binpkgs whose
+% recorded RDEPEND differs from the current ebuild's RDEPEND are excluded
+% from the candidate set. When `warn`, they are still eligible (a warning
+% is logged). Default: warn (less restrictive; binpkg-multi-instance
+% already isolates USE drift).
+
+config:binpkg_changed_deps(warn).
+
+
+%! config:binpkg_refresh(?Policy)
+%
+% Controls when the in-memory binpkg index is refreshed against the
+% on-disk `Packages` file:
+%
+%   manual : never auto-refresh; the index reflects the last `kb:sync(binpkg)`
+%            run. Cheapest, fully predictable.
+%   mtime  : on each `binpkg_exec:available_for/4` call, stat the index
+%            file and re-run sync(kb) if its mtime is newer than the last
+%            load. Useful when external producers are adding binpkgs
+%            concurrently with portage-ng builds.
+%
+% Default: mtime so concurrent binpkg producers (tinderbox-ng shared
+% cache) are visible without restarting portage-ng.
+
+config:binpkg_refresh(mtime).
+
+
+%! config:binpkg_self_inject(?Bool)
+%
+% Controls whether portage-ng incrementally registers the binary
+% packages it produces itself (a source build with `--buildpkg` /
+% `--buildpkgonly`, i.e. the `package` phase) directly into the
+% in-memory binpkg cache, instead of waiting for the next mtime-driven
+% full re-parse of `Packages` to discover them.
+%
+% When `true`, a successful source build asserts a single
+% `cache:ordered_entry/5` (+ minimal metadata) for the freshly produced
+% gpkg via `binpkg_exec:inject_built_binpkg/3`, and advances the
+% `mtime` baseline so the resident process does NOT re-parse the whole
+% ~27 MB index just to pick up its own output (portage-ng#80). This is
+% the analogue of emerge's in-memory `bintree.inject()` and is most
+% valuable in daemon mode, where the cache is resident across requests.
+%
+% The `mtime` refresh policy still applies to EXTERNAL producers
+% (concurrent emerge / sibling matrix workers): a `Packages` mtime that
+% advances past the baseline AFTER an inject still triggers a refresh,
+% so cross-process visibility is preserved. Default: true.
+
+config:binpkg_self_inject(true).
+
+
+%! config:binpkg_debug(?Bool)
+%
+% When `true`, `binpkg_exec:available_for/4` logs (to `user_error`) the
+% reason every binpkg variant of a scheduled package was rejected by the
+% acceptance filters whenever NO usable binpkg was found and the build
+% therefore falls through to a source compile. The first failing filter
+% per variant is reported (gpkg-on-disk / slot / keywords / USE / subslot
+% `:=` pin / RDEPEND drift), with the resolved gpkg path for the on-disk
+% case so an in-chroot vs host PKGDIR mismatch is visible at a glance.
+%
+% This is a pure diagnostic: it never changes which binpkgs are accepted.
+% Default `false` (zero overhead on the hot path). Intended for pinpointing
+% why a closure that emerge satisfies from `[binary]` is rebuilt from
+% source instead (e.g. the OCaml stack, portage-ng#81).
+
+config:binpkg_debug(false).
+
+
+% -----------------------------------------------------------------------------
+%  Distfiles / mirrors (analysis + future downloader)
+% -----------------------------------------------------------------------------
+
+
+%! config:mirror_root(?Path)
+%
+% Default paths used by mirror:test_stats/1 and related tooling.
+% These can be overridden at call-site (mirror:test_stats/2), but having a single
+% source of truth here makes behavior consistent across CLI and scripts.
+%
+% - mirror_root/1: hashed distfiles mirror root (GLEP 75 layout.conf aware)
+% - Local distfiles directory is configured per machine via distfiles repository
+
+config:mirror_root('/Volumes/Storage/Distfiles/distfiles').
+
+
+%! config:mirror_url(?URL) is multi.
+%
+% HTTPS base URL(s) of distfiles mirrors. The mirror has the same GLEP 75
+% directory layout as mirror_root/1. Multiple facts may be present; the
+% downloader tries them in declaration order, then falls back to the
+% SRC_URI chain. Prefer https. Cleartext http mirrors require
+% config:curl_allow_http(true) (see host configs).
+
+:- multifile config:mirror_url/1.
+
+config:mirror_url('https://distfiles.gentoo.org/distfiles').
+
+
+%! config:curl_allow_http(?Bool)
+%
+% When false (default), curl is restricted to `--proto =https` and
+% cleartext http/ftp URLs are skipped. Set true on a host that uses a
+% trusted LAN mirror (e.g. http://mac-pro.local/distfiles). Integrity
+% still depends on Manifest hashes (empty checksum lists are rejected).
+
+:- dynamic config:curl_allow_http/1.
+:- multifile config:curl_allow_http/1.
+
+config:curl_allow_http(false).
+
+
+%! config:file_integrity(?Mode)
+%
+% Integrity policy for Knowledge sidecars (kb.qlf, resume.pl, feedback.pl):
+%   * prefer  — verify .sha256 when present; warn and load when absent
+%   * require — refuse to load without a matching .sha256 sidecar
+%   * off     — skip verification
+% Sidecars are written on every save/append by the corresponding writers.
+
+config:file_integrity(prefer).
+
+
+%! config:mirror_verify_hashes_default(?Policy)
+%
+% Default hash verification policy for mirror:test_stats:
+%
+% - none: only check existence + size
+% - sample(N): verify hashes for the first N unique distfiles (fast sanity)
+% - all: verify hashes for all unique distfiles (expensive)
+
+config:mirror_verify_hashes_default(none).
+
+
+%! config:mirror_layout_cache_ttl(?Seconds)
+%
+% TTL (in seconds) for the on-disk cache of the GLEP 75 layout.conf
+% reply, written under the active distdir (see download:disk_cache_path/1).
+% Mirror layout almost never changes, but clusters of short-lived
+% portage-ng processes (external compare matrices, server worker
+% pool) would otherwise re-fetch layout.conf for every invocation,
+% which both wastes a curl per session (~1s) and adds a real failure
+% mode if the mirror flaps. Default 24h is conservative; bump it for
+% offline / network-restricted runs.
+
+config:mirror_layout_cache_ttl(86400).
+
+
+% -----------------------------------------------------------------------------
+%  Passwords
+% -----------------------------------------------------------------------------
+
+% The private passwords file is optional for standalone builds. Client
+% and server modes call interface:require_digest_password/0 and refuse
+% an empty digest password (do not pair empty defaults with a real
+% Certificates/passwordfile). Copy template_passwords.pl → passwords.pl,
+% set a secret, then `make passwordfile`.
+
+:- if(exists_source(portage('Source/Config/Private/passwords'))).
+:- include(portage('Source/Config/Private/passwords')).
+:- else.
+
+%! config:certificate_password(?Key,?Pass)
+%
+% Default (empty) passwords for unencrypted SSL client/server keys.
+% Override by creating Source/Config/Private/passwords.pl from the template.
+
+config:certificate_password(server,'').
+config:certificate_password(client,'').
+
+
+%! config:digest_password(?User,?Pass)
+%
+% Placeholder only when Private/passwords.pl is absent. Empty Pass is
+% rejected by interface:require_digest_password/0 before any digest auth.
+
+config:digest_password('portage-ng','').
+
+
+%! config:digest_realm(?Realm)
+%
+% Default realm for digest user authentication.
+
+config:digest_realm('portage-ng').
+
+:- endif.
+
+
+% -----------------------------------------------------------------------------
+%  Certificates
+% -----------------------------------------------------------------------------
+
+%! config:initialize_cacert
+%
+% Initializes the certificate authority. We use certificates in our
+% client-server communication.
+
+config:initialize_cacert :-
+  config:certificate('cacert.pem',Fullpath),
+  create_prolog_flag(system_cacert_filename,Fullpath,[access(read_only)]).
+
+
+%! config:certificate(+Certificate,-Fullpath)
+%
+% Returns an absolute path for a given certificate name
+
+config:certificate(Certificate,Fullpath) :-
+  config:installation_dir(Dir),
+  os:compose_path([Dir,'Certificates',Certificate],Fullpath).
+
+
+%! config:certificate(+Hostname,+Certificate,-Fullpath)
+%
+% Return an absolute path for a given hostname certificate name
+
+config:certificate(Hostname,Certificate,FullPath) :-
+  atomic_list_concat([Hostname,Certificate],'.',HostCertificate),
+  config:certificate(HostCertificate,FullPath).
+
+
+%! config:digest_passwordfile(?File)
+%
+% Declares the password file for http(s) digest user authentication
+
+config:digest_passwordfile(Filename) :-
+  config:installation_dir(Dir),
+  os:compose_path([Dir,'Certificates/passwordfile'],Filename).
+
+
+% -----------------------------------------------------------------------------
+%  Network
+% -----------------------------------------------------------------------------
+
+%! config:bonjour_service(?Service)
+%
+% The mDNS service used to advertise and discover the server on the network.
+
+config:bonjour_service('_portage-ng._tcp.').
+
+
+%! config:bonjour_worker_service(?Service)
+%
+% The mDNS service used by workers to advertise compute capacity.
+
+config:bonjour_worker_service('_portage-ng-worker._tcp.').
+
+
+%! config:server_host(?Url)
+%
+% Declares the server hostname the client/worker connects to. This can be
+% overridden using the --host option in the interface. Workers that use
+% Bonjour discovery only accept a discovered host that matches this pin
+% (hostile LAN advertisements are ignored).
+
+config:server_host('mac-pro.local').
+
+
+%! config:server_bind(?Address)
+%
+% Interface the HTTPS Pengine server binds to. Default `localhost` keeps
+% mutating POSTs (/sync, /clear, /load, …) off the public network; mTLS
+% + digest still apply, but binding all interfaces would expose those
+% endpoints to any peer that holds a CA-signed client cert and the digest
+% password. Override with `*` / `0.0.0.0` only on a trusted VPN/LAN.
+
+config:server_bind(localhost).
+
+
+%! config:server_port(?Number)
+%
+% Declares the port on which the server needs to be launched (HTTPS/SSL).
+% Combined with config:server_bind/1 (default localhost). Override with
+% the --port option in the interface.
+
+config:server_port(4000).
+
+
+%! config:server_workers(?Count)
+%
+% Number of HTTP worker threads the server spawns to handle requests.
+
+config:server_workers(32).
+
+
+%! config:server_keep_alive_timeout(?Seconds)
+%
+% How long an idle keep-alive HTTP connection is kept open before the
+% server closes it.
+
+config:server_keep_alive_timeout(2).
+
+
+%! config:cluster_result_timeout(?Seconds)
+%
+% How long a single result poll blocks while collecting distributed
+% proving results. On expiry the collector checks for stale in-flight
+% jobs (and re-queues them) before polling again.
+
+config:cluster_result_timeout(60).
+
+
+%! config:cluster_global_deadline(?Seconds)
+%
+% Overall deadline for collecting all results of a distributed proving
+% batch. When reached, cluster:wait/1 returns the results collected so
+% far and warns about missing ones instead of waiting forever.
+
+config:cluster_global_deadline(3600).
+
+
+%! config:cluster_worker_timeout(?Seconds)
+%
+% A worker is presumed dead when it has not contacted the server for
+% this many seconds; its in-flight jobs are then re-queued for other
+% workers. Should exceed the longest expected single prove job, since a
+% busy single-threaded worker only heartbeats between jobs.
+
+config:cluster_worker_timeout(900).
+
+
+%! config:server_chunk(?Chunksize)
+%
+% When set to false, when working in client-server mode, one RPC call is
+% performed per solution. When generating large number of solutions, such as
+% backtracking over a goal, it is best to transfer multiple solutions in one
+% chunk over one rpc call.
+
+% Setting this to a higher value speeds up searching in client-server mode.
+% Shouldn't be higher than the total number of entries in your repositories.
+
+config:server_chunk(50000).
+
+
+%! config:client_auto_import_vdb(?Bool)
+%
+% When true, client mode automatically (re-)imports the local VDB into the
+% server before executing a command (--pretend, --merge, --search, ...):
+% the import runs when no import record exists for the target server, or
+% when the local VDB changed since the last import (cheap mtime check over
+% the VDB root and its category directories). When false, the VDB is only
+% shipped explicitly via --import-vdb. See knowledgebase:vdb_repository/1.
+
+config:client_auto_import_vdb(true).
+
+
+% -----------------------------------------------------------------------------
+%  Daemon (ultralight mode)
+% -----------------------------------------------------------------------------
+
+%! config:daemon_runtime_dir(-Dir) is det.
+%
+% Directory holding the daemon socket and PID file. Uses XDG_RUNTIME_DIR
+% if available, otherwise a per-user directory under /tmp. Pure accessor:
+% creation, ownership verification, and permission enforcement (0700) are
+% performed by daemon:ensure_runtime_dir/1 at daemon startup.
+
+config:daemon_runtime_dir(Dir) :-
+  ( getenv('XDG_RUNTIME_DIR', Dir)
+  -> true
+  ;  getenv('USER', User),
+     atomic_list_concat(['/tmp/portage-ng-', User], Dir)
+  ).
+
+
+%! config:daemon_socket_path(-Path) is det.
+%
+% Path to the Unix domain socket used by the ultralight daemon.
+
+config:daemon_socket_path(Path) :-
+  config:daemon_runtime_dir(Dir),
+  atomic_list_concat([Dir, '/portage-ng.sock'], Path).
+
+
+%! config:daemon_pid_path(-Path) is det.
+%
+% Path to the PID file co-located with the daemon socket.
+
+config:daemon_pid_path(Path) :-
+  config:daemon_runtime_dir(Dir),
+  atomic_list_concat([Dir, '/portage-ng.pid'], Path).
+
+
+%! config:daemon_inactivity_timeout(?Seconds) is det.
+%
+% Seconds of inactivity after which the daemon auto-shuts down.
+% 0 means never auto-shutdown.
+
+config:daemon_inactivity_timeout(1800).
+
+
+%! config:daemon_autostart(?Bool) is det.
+%
+% When true (default), --mode ipc auto-starts a background daemon if
+% none is running. When false, prints an error instead.
+
+config:daemon_autostart(true).
+
+
+% -----------------------------------------------------------------------------
+%  Graphing
+% -----------------------------------------------------------------------------
+
+% Interface can dynamically override graphing behavior for a single run
+% (set by action:graph/1 for `--graph modified` and `--graph full`).
+
+:- dynamic config:interface_graph_modified_only/1.
+
+%! config:graph_directory(?FullPath)
+%
+% This application is capable of writing Graphviz dot files and will turn
+% them into interactive scalable vector graphics (svg) to enable you to
+% browse through a dependency graph.
+%
+% Directory doesn't need a trailing '/'.
+%
+% Host-specific: defined in Source/Config/<host>.local.pl (the file loaded
+% via config:systemconfig/1), NOT here. Callers guard with
+% current_predicate/1 so hosts without a clause fail cleanly.
+
+
+%! config:graph_modified_only(?Bool)
+%
+% Set when you want Graphviz dot file to be created for new ebuilds only
+
+% Note: call sites often query this as `config:graph_modified_only(true)` in an
+% if-then-else. Therefore this predicate must *not* have an unconditional
+% `.../1` clause that makes `config:graph_modified_only(true)` succeed when the
+% effective value is false.
+%
+% Resolution order:
+% - CLI/runtime override (dynamic) via config:interface_graph_modified_only/1
+% - Default (can be changed by editing config:graph_modified_only_default/1)
+
+config:graph_modified_only(Bool) :-
+  ( config:interface_graph_modified_only(Bool0) ->
+      Bool = Bool0
+  ; config:graph_modified_only_default(Bool)
+  ).
+
+% Default graphing behavior (when CLI didn't override):
+% true = graph only modified/new ebuilds
+% false = graph everything
+
+config:graph_modified_only_default(true).
+
+
+%! config:graph_repository(?Repository)
+%
+% Name of the repository graphed by default when `--graph` / `kb:graph`
+% (and `--graph emerge` / `kb:graph_emerge`) is invoked. Must match a
+% registered repository instance name (typically `portage`).
+
+config:graph_repository(portage).
+
+
+% -----------------------------------------------------------------------------
+%  Emerge file generation (--graph emerge)
+% -----------------------------------------------------------------------------
+
+% Interface can dynamically force full regeneration for a single run.
+% (Used by `--graph emerge full`.)
+
+:- dynamic config:force_emerge_regen/1.
+
+%! config:emerge_vp_path(?Path)
+%
+% Per-host path to the `emerge-vp` wrapper used by `--graph emerge` to
+% generate `.emerge` files alongside the `.merge` files in the graph
+% directory. The wrapper invokes Gentoo's traditional `emerge -vp` so
+% portage-ng can render side-by-side comparisons in HTML.
+%
+% Host-specific: defined in Source/Config/<host>.local.pl (the file loaded
+% via config:systemconfig/1), NOT here. When the host config defines no
+% clause, `--graph emerge` prints a clear warning instead of writing
+% `.emerge` files.
+
+
+%! config:emerge_vp_timeout(?Seconds)
+%
+% Per-ebuild timeout for emerge-vp invocations. Mirrors the legacy
+% generate-emerge-files.sh default.
+
+config:emerge_vp_timeout(120).
+
+
+%! config:emerge_vp_concurrency(?N)
+%
+% Number of parallel emerge-vp workers spawned by `--graph emerge`.
+% Defaults to 1 (matches the legacy shell). Increase cautiously: emerge-vp
+% inside a gentoo-prefix is fork-heavy and concurrent runs can saturate I/O.
+
+config:emerge_vp_concurrency(1).
+
+
+%! config:graph_include_emerge(?Bool)
+%
+% When true, the default `--graph` run also generates `.emerge` files at
+% the end of the pipeline (after writing proof files). False by default;
+% use `--graph emerge` for explicit regeneration. Set to true on hosts
+% where the gentoo-prefix emerge-vp wrapper is available and you want
+% one-command refresh of the entire graph directory.
+
+config:graph_include_emerge(false).
+
+
+% -----------------------------------------------------------------------------
+%  Pmerge file generation (--graph pmerge)
+% -----------------------------------------------------------------------------
+
+% Interface can dynamically force full regeneration for a single run.
+% (Used by `--graph pmerge full`.)
+
+:- dynamic config:force_pmerge_regen/1.
+
+%! config:pmerge_path(?Path)
+%
+% Per-host path to the `pmerge` wrapper used by `--graph pmerge` to
+% generate `.pmerge` files alongside the `.merge` files in the graph
+% directory. The wrapper invokes pkgcore as
+% `pmerge --pretend --verbose` against the same gentoo-prefix config
+% and VDB as `emerge-vp`.
+%
+% Host-specific: defined in Source/Config/<host>.local.pl (the file loaded
+% via config:systemconfig/1), NOT here. When the host config defines no
+% clause, `--graph pmerge` prints a clear warning instead of writing
+% `.pmerge` files.
+
+
+%! config:pmerge_timeout(?Seconds)
+%
+% Per-ebuild timeout for pmerge invocations.
+
+config:pmerge_timeout(120).
+
+
+%! config:pmerge_concurrency(?N)
+%
+% Number of parallel pmerge workers spawned by `--graph pmerge`.
+% Defaults to 1. Increase cautiously: concurrent pkgcore runs load the
+% same Portage tree and can saturate I/O.
+
+config:pmerge_concurrency(1).
+
+
+%! config:graph_include_pmerge(?Bool)
+%
+% When true, the default `--graph` run also generates `.pmerge` files at
+% the end of the pipeline (after writing proof files). False by default;
+% use `--graph pmerge` for explicit regeneration.
+
+config:graph_include_pmerge(false).
+
+
+%! config:graph_html_type(?List)
+%
+% Defines all HTML graph types produced by --graph.  Each type maps to a
+% self-contained interactive HTML file per ebuild.
+
+config:graph_html_type([detail,deptree,gantt,merge,fetchonly,info,glsa,bugs,emerge,pmerge]).
+
+
+%! config:graph_site_url(?Url)
+%
+% Public origin of the generated graph site, with no trailing slash.
+% `--graph` writes robots.txt and sitemap.xml against this host
+% (default https://ebuild.portage-ng.ai). Override per host if needed.
+
+config:graph_site_url('https://ebuild.portage-ng.ai').
+
+
+%! config:graph_dependency_type(?List)
+%
+% Legacy: dependency types for which DOT graphs can be produced.
+% No longer part of the default --graph output (superseded by deptree + detail).
+
+config:graph_dependency_type([detail,
+                              bdepend,
+                              cdepend,
+                              depend,
+                              idepend,
+                              rdepend,
+                              pdepend]).
+
+
+%! config:graph_proof_type(?List)
+%
+% Legacy: proof types for which DOT graphs can be produced.
+% No longer part of the default --graph output (superseded by terminal HTML).
+
+config:graph_proof_type([merge,fetchonly,info]).
+
+
+%! config:graph_legacy_type(?List)
+%
+% Legacy: legacy types for which DOT graphs can be produced.
+% No longer part of the default --graph output (superseded by terminal HTML).
+
+config:graph_legacy_type([emerge,pmerge]).
+
+
+% -----------------------------------------------------------------------------
+%  Graphing: static assets
+% -----------------------------------------------------------------------------
+
+
+% When generating HTML (index pages + proofs) we copy a few static assets into the
+% repository graph directory (the dir created by repository:prepare_directory/1).
+%
+% Targets (fixed names in output directory):
+%
+% - .portage-ng.css (shared CSS for all HTML graph pages)
+% - .proof.css   (used by Scripts/*/print-aha to render proof output)
+% - .meslo.ttf   (font used by proof rendering)
+% - favicon.svg  (portage-ng.ai mark, linked from every graph page)
+%
+% Sources are configurable here (defaults are in Documentation/Assets/Graph/).
+
+
+%! config:graph_asset_source(+Key, -SourcePath)
+%
+% Returns the source path for a given asset key
+
+config:graph_asset_source(portage_ng_css, Source) :-
+  config:installation_dir(Dir),
+  os:compose_path([Dir,'Documentation/Assets/Graph/Stylesheets/portage-ng.css'], Source).
+
+config:graph_asset_source(proof_css, Source) :-
+  config:installation_dir(Dir),
+  os:compose_path([Dir,'Documentation/Assets/Graph/Stylesheets/proof.css'], Source).
+
+config:graph_asset_source(meslo_ttf, Source) :-
+  config:installation_dir(Dir),
+  os:compose_path([Dir,'Documentation/Assets/Graph/Fonts/meslo.ttf'], Source).
+
+config:graph_asset_source(favicon_svg, Source) :-
+  config:installation_dir(Dir),
+  os:compose_path([Dir,'Documentation/Images/icon.svg'], Source).
+
+
+% -----------------------------------------------------------------------------
+%  Testing
+% -----------------------------------------------------------------------------
+
+%! config:test_style(?Style)
+%
+% Sets the default test style for executing tests. Can be either:
+% - single_verbose
+% - parallel_verbose
+% - parallel_fast
+
+config:test_style(parallel_verbose).
+
+
+%! config:test_stats_top_n(?N)
+%
+% How many items to show in "Top cycle mentions" in test statistics output.
+%
+% Note: must be a non-negative integer.
+
+config:test_stats_top_n(25).
+
+
+%! config:test_stats_table_width(?Width)
+%
+% Total table width (characters) including the 2-space left indent.
+
+config:test_stats_table_width(80).
+
+
+%! config:test_stats_label_col_width(?Width)
+%
+% Width of the leftmost label/metric column.
+
+config:test_stats_label_col_width(34).
+
+
+%! config:test_stats_pct_col_width(?Width)
+%
+% Width of a percentage column.
+
+config:test_stats_pct_col_width(10).
+
+
+%! config:test_stats_rank_col_width(?Width)
+%
+% Width of the rank-number column in ranked tables.
+
+config:test_stats_rank_col_width(4).
+
+
+%! config:test_stats_count_col_width(?Width)
+%
+% Width of a count column (aligned with pct columns at 10 chars).
+
+config:test_stats_count_col_width(10).
+
+
+%! config:bugreport_drafts_enabled(?Bool)
+%
+% Whether to print "Bug report drafts (Gentoo Bugzilla)" in the warnings section
+% when domain assumptions are present.
+%
+config:bugreport_drafts_enabled(true).
+
+
+%! config:bugreport_drafts_max_assumptions(?N)
+%
+% Only print bug report drafts when the number of domain assumptions is small,
+% to avoid overwhelming output for bulk runs.
+%
+% Note: must be a non-negative integer.
+%
+config:bugreport_drafts_max_assumptions(25).
+
+
+%! config:failsilenton(?Key)
+%
+% Fails silently (i.e. without messaging failure on the termimal.
+% Key can be:
+% - version : fails silently when trying to parse versions from git repositories
+
+config:failsilenton(version).
+
+
+% -----------------------------------------------------------------------------
+%  Bugzilla (--search-bugs)
+% -----------------------------------------------------------------------------
+
+%! config:bugzilla_url(?URL)
+%
+% Base URL of the Bugzilla instance for --search-bugs (e.g. bugs.gentoo.org).
+% Used to query the REST API at <URL>/rest/bug?quicksearch=<term>.
+
+config:bugzilla_url('https://bugs.gentoo.org').
+
+
+%! config:bugzilla_user_agent(?UA) is det.
+%
+% User-Agent string for Bugzilla API requests.
+
+config:bugzilla_user_agent('portage-ng/2026 (https://github.com/pvdabeel/portage-ng)').
+
+
+%! config:bugzilla_scope(?Scope)
+%
+% Bug population kept by a `bugzilla`-type repository (see
+% Source/Domain/Gentoo/bugs.pl): `all` public bugs, or `open` only
+% (UNCONFIRMED / CONFIRMED / IN_PROGRESS). The initial crawl of `all`
+% fetches roughly 600 pages of 1000 bugs; later syncs only fetch bugs
+% whose last_change_time moved.
+%
+% The bugzilla_* knobs below are dynamic so a host config can override
+% them with retractall/assertz (same pattern as config:curl_allow_http/1).
+
+:- dynamic config:bugzilla_scope/1.
+:- dynamic config:bugzilla_page_size/1.
+:- dynamic config:bugzilla_request_delay/1.
+:- dynamic config:bugzilla_search/1.
+:- dynamic config:bugzilla_annotate/1.
+
+config:bugzilla_scope(all).
+
+
+%! config:bugzilla_page_size(?N)
+%
+% Bugs requested per REST page during a bugzilla repository sync.
+
+config:bugzilla_page_size(1000).
+
+
+%! config:bugzilla_request_delay(?Seconds)
+%
+% Politeness pause between consecutive REST pages of one sync.
+
+config:bugzilla_request_delay(2).
+
+
+%! config:bugzilla_search(?Policy)
+%
+% Where --search-bugs looks first: `cache_first` answers from the synced
+% local bug store and only falls back to the live REST quicksearch when
+% nothing matches locally (or no store exists); `rest` always queries the
+% Bugzilla REST API directly.
+
+config:bugzilla_search(cache_first).
+
+
+%! config:bugzilla_annotate(?Bool)
+%
+% When true, the plan printer lists known open bugs (from the local bug
+% store) under each domain assumption that names a package. Silent when
+% no store has been synced.
+
+config:bugzilla_annotate(true).
+
+
+%! config:repository_sync_limit(?Repository, ?PerDay) is multi.
+%
+% Maximum number of network syncs (`sync(repository)`) of a registered
+% repository in any rolling 24-hour window. Repositories without a clause
+% are unlimited. Enforced in repository:sync/0; the metadata and kb steps
+% still run from local data when the cap is reached. Stamps live in
+% Knowledge/<Repository>.sync. Declared in the host config next to the
+% repository instance, e.g. `config:repository_sync_limit(bugzilla, 1).`
+
+:- multifile config:repository_sync_limit/2.
+:- dynamic config:repository_sync_limit/2.
+
+
+% -----------------------------------------------------------------------------
+%  Repology (--upstream)
+% -----------------------------------------------------------------------------
+
+%! config:repology_url(?URL)
+%
+% Base URL of the Repology instance used by `--upstream`. The API path
+% `/api/v1/project/<name>` is appended. The official host is still
+% `https://repology.org`. Since 2026-09-13 that domain has been on
+% registrar hold and public DNS returns `127.0.0.1` (see
+% https://github.com/repology/repology-rs/issues/560). Do not point this
+% at another hostname unless AMDmi3 publishes a replacement domain —
+% pin the still-live address with `config:repology_address/1` instead.
+
+:- dynamic config:repology_url/1.
+:- multifile config:repology_url/1.
+
+config:repology_url('https://repology.org').
+
+
+%! config:repology_user_agent(?UA) is det.
+%
+% User-Agent string for Repology API requests (required by their TOS).
+
+config:repology_user_agent('portage-ng/2026 (https://github.com/pvdabeel/prolog)').
+
+
+%! config:repology_address(?IP)
+%
+% Optional IPv4 or IPv6 pin passed to curl as
+% `--resolve <host>:443:<IP>` so `--upstream` can reach the still-live
+% Repology host while public DNS is on hold. No default clause. AMDmi3
+% published `92.63.176.157` / `2a03:6f01:1:2::f159` in
+% https://github.com/repology/repology-rs/issues/560 — set one of those
+% in a host config only as a temporary workaround, and retract it once
+% DNS recovers. TLS still verifies the `repology.org` certificate.
+
+:- dynamic config:repology_address/1.
+:- multifile config:repology_address/1.
+
+
+% -----------------------------------------------------------------------------
 %  Large Language Models
 % -----------------------------------------------------------------------------
 
@@ -2369,56 +2432,3 @@ config:buildtime_enabled(true).
 % link. Default is 100 Mbit/s.
 
 config:download_mbit(100).
-
-
-% -----------------------------------------------------------------------------
-%  Daemon (ultralight mode)
-% -----------------------------------------------------------------------------
-
-%! config:daemon_runtime_dir(-Dir) is det.
-%
-% Directory holding the daemon socket and PID file. Uses XDG_RUNTIME_DIR
-% if available, otherwise a per-user directory under /tmp. Pure accessor:
-% creation, ownership verification, and permission enforcement (0700) are
-% performed by daemon:ensure_runtime_dir/1 at daemon startup.
-
-config:daemon_runtime_dir(Dir) :-
-  ( getenv('XDG_RUNTIME_DIR', Dir)
-  -> true
-  ;  getenv('USER', User),
-     atomic_list_concat(['/tmp/portage-ng-', User], Dir)
-  ).
-
-
-%! config:daemon_socket_path(-Path) is det.
-%
-% Path to the Unix domain socket used by the ultralight daemon.
-
-config:daemon_socket_path(Path) :-
-  config:daemon_runtime_dir(Dir),
-  atomic_list_concat([Dir, '/portage-ng.sock'], Path).
-
-
-%! config:daemon_pid_path(-Path) is det.
-%
-% Path to the PID file co-located with the daemon socket.
-
-config:daemon_pid_path(Path) :-
-  config:daemon_runtime_dir(Dir),
-  atomic_list_concat([Dir, '/portage-ng.pid'], Path).
-
-
-%! config:daemon_inactivity_timeout(?Seconds) is det.
-%
-% Seconds of inactivity after which the daemon auto-shuts down.
-% 0 means never auto-shutdown.
-
-config:daemon_inactivity_timeout(1800).
-
-
-%! config:daemon_autostart(?Bool) is det.
-%
-% When true (default), --mode ipc auto-starts a background daemon if
-% none is running. When false, prints an error instead.
-
-config:daemon_autostart(true).
