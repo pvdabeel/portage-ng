@@ -15,7 +15,7 @@ Loads the unit test files under Source/Test/Unit/, one per subject
 sanitize, depclean,
 exception fixups, USE rules, ranking, rebuilds, resolving heuristics,
 query layer, synthetic-rule prover core, printer, builder, binpkg,
-interface, VDB import, GLSA, profile parents), and re-exports the two standalone harnesses
+interface, VDB import, GLSA, profile parents, ebuild protocol), and re-exports the two standalone harnesses
 (Source/Test/md5cache.pl, Source/Test/profilemask.pl).
 
 Run via the project wrapper:
@@ -68,3 +68,7 @@ Or via make:
 :- use_module(portage('Source/Test/Unit/navthemetest')).
 :- use_module(portage('Source/Test/Unit/messagetest')).
 :- use_module(portage('Source/Test/Unit/httpfetchtest')).
+:- use_module(portage('Source/Test/Unit/downloadtest')).
+:- use_module(portage('Source/Test/Unit/daemontest')).
+:- use_module(portage('Source/Test/Unit/ebuildtest')).
+:- use_module(portage('Source/Test/Unit/jobtest')).

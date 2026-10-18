@@ -89,7 +89,7 @@ function drawOverlays(){
      leave the first screen stay attached to their bars. */
   svg.style.left=wr.scrollLeft+"px";svg.style.top=wr.scrollTop+"px";
   svg.style.width=wr.clientWidth+"px";svg.style.height=wr.clientHeight+"px";
-  svg.setAttribute("width",wr.clientWidth);svg.setAttribute("height",wr.clientHeight);svg.innerHTML="";
+  svg.setAttribute("width",wr.clientWidth);svg.setAttribute("height",wr.clientHeight);svg.replaceChildren();
   const defs=document.createElementNS(ns,"defs");
   for(const[t,c]of Object.entries(depColors)){
     const m=document.createElementNS(ns,"marker");m.setAttribute("id","arrow-"+t);
@@ -243,7 +243,7 @@ function layoutTimeView(){
   tv.querySelectorAll(".gantt-time-track").forEach(tr=>{tr.style.flex="none";tr.style.width=width+"px";});
   bars.forEach(b=>{const d=Math.max(secs(b),0);b.style.left=((waveStart.get(waveOf(b))||0)*px)+"px";
     b.style.width=Math.max(d>0?d*px:8,8)+"px";});
-  const ruler=document.getElementById("gantt-time-ruler");ruler.innerHTML="";
+  const ruler=document.getElementById("gantt-time-ruler");ruler.replaceChildren();
   ruler.style.width=width+"px";
   const step=maxEnd<=120?30:maxEnd<=600?60:maxEnd<=1800?300:maxEnd<=7200?600:1800;
   for(let u=0;u<=maxEnd;u+=step){const tick=document.createElement("span");tick.className="gantt-time-tick";

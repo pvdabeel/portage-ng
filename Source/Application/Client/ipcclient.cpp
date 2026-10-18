@@ -97,12 +97,13 @@ std::string g_argv0;
 // XDG_RUNTIME_DIR when set, otherwise `/tmp/portage-ng-$USER`.
 
 std::string runtime_dir() {
-  if (const char* xdg = std::getenv("XDG_RUNTIME_DIR"); xdg && *xdg)
-    return xdg;
-  const char* user = std::getenv("USER");
-  if (!user || !*user)
-    user = "unknown";
-  return std::string("/tmp/portage-ng-") + user;
+  const uid_t euid = geteuid();
+  if (euid == 0)
+    return "/var/run/portage-ng";
+  if (const char* xdg = std::getenv("XDG_RUNTIME_DIR");
+      xdg && *xdg && xdg[0] == '/')
+    return std::string(xdg) + "/portage-ng";
+  return std::string("/tmp/portage-ng-") + std::to_string(euid);
 }
 
 
@@ -120,6 +121,24 @@ std::string pid_path() { return runtime_dir() + "/portage-ng.pid"; }
 
 bool file_exists(const std::string& path) {
   return access(path.c_str(), F_OK) == 0;
+}
+
+
+bool socket_connectable(const std::string& path) {
+  int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+  if (fd < 0)
+    return false;
+  sockaddr_un addr{};
+  addr.sun_family = AF_UNIX;
+  if (path.size() >= sizeof(addr.sun_path)) {
+    ::close(fd);
+    return false;
+  }
+  std::memcpy(addr.sun_path, path.c_str(), path.size() + 1);
+  const bool ok =
+      ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0;
+  ::close(fd);
+  return ok;
 }
 
 
@@ -567,7 +586,7 @@ int start_daemon_background() {
   }
   const std::string sock = socket_path();
   wait_for_file(sock, 600);
-  if (file_exists(sock)) {
+  if (socket_connectable(sock)) {
     std::cout << "Daemon ready.\n";
     return 0;
   }
@@ -582,7 +601,7 @@ int start_daemon_background() {
 // process. The hot path (socket already present) does no fork.
 
 int maybe_autostart() {
-  if (file_exists(socket_path()))
+  if (socket_connectable(socket_path()))
     return 0;
   if (!autostart_enabled())
     return 0;
@@ -595,7 +614,7 @@ int maybe_autostart() {
 int cmd_status() {
   const std::string sock = socket_path();
   const std::string pidf = pid_path();
-  if (!file_exists(sock)) {
+  if (!socket_connectable(sock)) {
     std::cout << "No daemon running.\n";
     return 1;
   }
@@ -619,7 +638,7 @@ int cmd_status() {
 
 int cmd_halt() {
   const std::string sock = socket_path();
-  if (!file_exists(sock)) {
+  if (!socket_connectable(sock)) {
     std::cerr << "No daemon running.\n";
     return 0;
   }
@@ -753,7 +772,7 @@ int main(int argc, char** argv) {
     return 1;
 
   const std::string sock = socket_path();
-  if (!file_exists(sock)) {
+  if (!socket_connectable(sock)) {
     std::cerr << "Error: No daemon running (socket " << sock
               << " not found).\n"
               << "Start one with: portage-ng --mode daemon\n";

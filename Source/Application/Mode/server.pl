@@ -41,15 +41,12 @@ Three roles interact in the portage-ng architecture:
 % State-mutating or expensive operations require POST; only informational
 % endpoints remain GET (avoids crawlers with credentials triggering e.g. /clear).
 
-:- http_handler('/',           reply, [id('portage-ng'), methods([get])]).
-:- http_handler('/sync',       reply, [id('sync'),       methods([post]), time_limit(infinite)]).
-:- http_handler('/save',       reply, [id('save'),       methods([post])]).
-:- http_handler('/load',       reply, [id('load'),       methods([post])]).
-:- http_handler('/clear',      reply, [id('clear'),      methods([post])]).
-:- http_handler('/graph',      reply, [id('graph'),      methods([post]), time_limit(infinite)]).
-:- http_handler('/prove',      reply, [id('prove'),      methods([post]), time_limit(infinite)]).
-:- http_handler('/import-vdb', reply, [id('importvdb'),  methods([post]), time_limit(300)]).
-:- http_handler('/info',       reply, [id('info'),       methods([get])]).
+% Handlers come from routes:endpoint/3 so the client proxy and the server
+% register the same paths.
+:- initialization(server:install_handlers, after_load).
+
+:- multifile http:authenticate/3.
+:- multifile pengines:authentication_hook/3.
 
 
 %! server:start_server
@@ -61,6 +58,7 @@ Three roles interact in the portage-ng architecture:
 % private (make passwordfile) and only widen the bind on a trusted VPN.
 
 server:start_server  :-
+  sandbox:activate,
   interface:process_server(_,Port),
   config:hostname(Hostname),
   config:certificate('cacert.pem',CaCert),
@@ -68,7 +66,6 @@ server:start_server  :-
   config:certificate(Hostname,'server-key.pem',ServerKey),
   config:certificate_password(server,Pass),
   config:digest_passwordfile(Pwdfile),
-  config:digest_realm(Realm),
   server:require_tls_files(Hostname, CaCert, ServerCert, ServerKey),
   server:require_digest_passwordfile(Pwdfile),
   interface:require_digest_password,
@@ -79,7 +76,6 @@ server:start_server  :-
   nl,
   http:http_server(http_dispatch,
                    [ port(Address),
- 		     authentication(digest(Pwdfile,Realm)),
                      workers(Workers) ,
 		     keep_alive_timeout(KeepAlive),
                      ssl([ certificate_file(ServerCert),
@@ -92,6 +88,67 @@ server:start_server  :-
   message:datetime(T),
   message:notice([T, ' listening on ', Address]),
   nl.
+
+
+%! http:authenticate(+Type, +Request, -Fields) is semidet.
+%
+% Application authentication combines HTTP digest identity with the verified
+% mTLS client certificate. Authentication is attached to handlers, not to
+% http_server/2.
+
+http:authenticate(portage_ng, Request,
+                  [user(Principal), client_certificate_hash(Hash)]) :-
+  config:digest_passwordfile(Pwdfile),
+  config:digest_realm(Realm),
+  http:authenticate(digest(Pwdfile, Realm), Request, DigestFields),
+  memberchk(user(DigestUser), DigestFields),
+  server:request_certificate_identity(Request, CertificateCN, Hash),
+  Principal = tenant(DigestUser, CertificateCN).
+
+
+%! pengines:authentication_hook(+Request, +Application, -Principal) is semidet.
+
+pengines:authentication_hook(Request, 'portage-ng', Principal) :-
+  http:authenticate(portage_ng, Request, Fields),
+  memberchk(user(Principal), Fields).
+
+
+%! server:request_certificate_identity(+Request, -CN, -Hash) is semidet.
+%
+% Extract and validate the host-specific client certificate identity.
+
+server:request_certificate_identity(Request, CN, Hash) :-
+  memberchk(protocol(https), Request),
+  memberchk(input(Stream), Request),
+  ssl:ssl_peer_certificate(Stream, Certificate),
+  server:certificate_identity(Certificate, CN, Hash).
+
+
+%! server:certificate_identity(+Certificate, -CN, -Hash) is semidet.
+
+server:certificate_identity(Certificate, CN, Hash) :-
+  ssl:certificate_field(Certificate, subject(Subject)),
+  memberchk('CN'=CN0, Subject),
+  memberchk('OU'=OU0, Subject),
+  server:certificate_atom(CN0, CN),
+  server:certificate_atom(OU0, OU),
+  server:valid_hostname(CN),
+  format(atom(ExpectedOU), 'Client - ~w', [CN]),
+  OU == ExpectedOU,
+  ( ssl:certificate_field(Certificate, hash(Hash0))
+  -> server:certificate_atom(Hash0, Hash)
+  ;  Hash = unknown
+  ),
+  !.
+
+
+%! server:certificate_atom(+Value, -Atom) is det.
+
+server:certificate_atom(Value, Atom) :-
+  ( atom(Value) -> Atom = Value
+  ; string(Value) -> atom_string(Atom, Value)
+  ; term_to_atom(Value, Atom)
+  ).
 
 
 %! server:server_address(+Port, -Address) is det.
@@ -148,47 +205,75 @@ server:require_tls_files(Hostname, CaCert, ServerCert, ServerKey) :-
 %  HTTP request handlers
 % =============================================================================
 
-server:reply(Request) :-
-    member(path('/sync'), Request),
-    !,
-    server:chunked_reply('/sync', kb:sync).
+%! server:install_handlers is det.
+%
+% Register every routes:endpoint/3 on the HTTP dispatch table.
+
+server:install_handlers :-
+  forall(routes:endpoint(Name, Path, Method),
+         ( routes:handler_options(Name, Extra),
+           ( Name == sync_named -> Location = root(sync) ; Location = Path ),
+           http_handler(Location, reply,
+                        [id(Name), methods([Method]), authentication(portage_ng)|Extra])
+         )).
+
+
+%! server:reply(+Request) is det.
+%
+% Dispatch one authenticated request. /sync/<repository> is the named
+% sync prefix; every other path is a routes:endpoint/3 name.
 
 server:reply(Request) :-
-    member(path('/save'), Request),
-    !,
-    server:chunked_reply('/save', kb:save).
+  member(path(Path), Request),
+  server:reply_path(Path, Request),
+  !.
 
-server:reply(Request) :-
-    member(path('/load'), Request),
-    !,
-    server:chunked_reply('/load', kb:load).
+server:reply_path(Path, _Request) :-
+  atom_concat('/sync/', Name, Path),
+  Name \== '',
+  !,
+  server:chunked_reply(Path, kb:sync(Name)).
 
-server:reply(Request) :-
-    member(path('/clear'), Request),
-    !,
-    server:chunked_reply('/clear', kb:clear).
+server:reply_path(Path, Request) :-
+  routes:endpoint(Name, Path, _),
+  server:dispatch(Name, Request).
 
-server:reply(Request) :-
-    member(path('/graph'), Request),
-    !,
-    server:chunked_reply('/graph', kb:graph).
 
-server:reply(Request) :-
-    member(path('/prove'), Request),
-    !,
-    server:chunked_reply('/prove', resolver:test_latest(portage,parallel_verbose)).
+%! server:dispatch(+Name, +Request) is det.
+%
+% Run the body for an endpoint name. Import reads its body before the
+% chunked response starts. Graph and prove load their capability groups
+% in this process first.
 
-server:reply(Request) :-
-    member(path('/import-vdb'), Request),
-    !,
-    % Read the POST body before switching the reply to chunked mode.
-    http_client:http_read_data(Request, Payload, [to(string)]),
-    server:chunked_reply('/import-vdb', server:import_vdb(Payload)).
+server:dispatch(import_vdb, Request) :-
+  !,
+  server:import_vdb_request(Request, Result),
+  server:chunked_reply('/import-vdb', server:print_vdb_import_result(Result)).
 
-server:reply(Request) :-
-    member(path('/info'), Request),
-    !,
-    server:chunked_reply('/info', server:info).
+server:dispatch(vdb_status, Request) :-
+  !,
+  server:chunked_reply('/vdb-status', server:vdb_status(Request)).
+
+server:dispatch(Name, _Request) :-
+  routes:endpoint(Name, Path, _),
+  server:endpoint_goal(Name, Goal),
+  server:chunked_reply(Path, Goal).
+
+
+%! server:endpoint_goal(+Name, -Goal) is det.
+
+server:endpoint_goal(root, server:info) :- !.
+server:endpoint_goal(sync, kb:sync) :- !.
+server:endpoint_goal(save, kb:save) :- !.
+server:endpoint_goal(load, kb:load) :- !.
+server:endpoint_goal(clear, kb:clear) :- !.
+server:endpoint_goal(info, server:info) :- !.
+server:endpoint_goal(graph, (loader:ensure(graph), loader:ensure(bulk), kb:graph)) :- !.
+server:endpoint_goal(graph_emerge, (loader:ensure(graph), kb:graph_emerge)) :- !.
+server:endpoint_goal(graph_pmerge, (loader:ensure(graph), kb:graph_pmerge)) :- !.
+server:endpoint_goal(prove, (loader:ensure(bulk), resolver:test_latest(portage, parallel_verbose))) :- !.
+server:endpoint_goal(Name, true) :-
+  throw(error(existence_error(endpoint, Name), context(server:endpoint_goal/2, _))).
 
 
 %! server:chunked_reply(+Path, +Goal)
@@ -245,8 +330,6 @@ server:info :-
 % =============================================================================
 
 :- dynamic server:queue_created/1.
-:- dynamic server:submitted_counter/1.
-:- dynamic server:inflight_job/3.
 :- dynamic server:workers_done/0.
 
 %! server:ensure_queues
@@ -280,21 +363,17 @@ server:destroy_queues :-
       ;  true
     )).
 
-%! server:post_job(+Job)
+%! server:post_job(+Target)
 %
-% Enqueue a prove target. Job = Repo://Entry:Action.
-% Increments the submitted counter so collectors know how many results
-% to expect, independently of the job queue size (jobs leave the queue
-% the moment a worker dequeues them).
+% Enqueue a prove target. The queued envelope is
+% job(Id, Token, Batch, Target). Id stays stable across requeues; Token
+% is the lease. The submitted counter counts expected results, not
+% queue length.
 
-server:post_job(Job) :-
+server:post_job(Target) :-
   server:ensure_queues,
-  with_mutex(server_progress,
-    ( ( retract(server:submitted_counter(N0)) -> true ; N0 = 0 ),
-      N is N0 + 1,
-      assertz(server:submitted_counter(N))
-    )),
-  thread_send_message(server_jobs, Job).
+  jobs:enqueue(Target, Envelope),
+  thread_send_message(server_jobs, Envelope).
 
 %! server:get_job(-Job)
 %
@@ -313,9 +392,8 @@ server:get_job(Job, Timeout) :-
 %! server:get_job(-Job, +Timeout, +Worker)
 %
 % Dequeue a prove target with timeout on behalf of Worker. Fails on
-% timeout. Records the job as in flight for Worker and refreshes the
-% worker's liveness timestamp, so stale jobs can be re-queued if the
-% worker dies.
+% timeout. Job is job(Id, Token, Target). The token is that worker's
+% lease. Envelopes from a previous batch are discarded.
 
 server:get_job(Job, Timeout, Worker) :-
   server:get_job_for(Job, Timeout, Worker).
@@ -336,14 +414,25 @@ server:get_job_for(Job, _Timeout, Worker) :-
   Job = done.
 server:get_job_for(Job, Timeout, Worker) :-
   server:ensure_queues,
-  ( Timeout == infinite ->
-      thread_get_message(server_jobs, Job)
-  ; thread_get_message(server_jobs, Job, [timeout(Timeout)])
-  ),
+  server:dequeue_envelope(Timeout, Envelope),
   server:worker_heartbeat(Worker),
-  ( Job == done -> true
-  ; get_time(Now),
-    assertz(server:inflight_job(Job, Worker, Now))
+  get_time(Now),
+  jobs:accept(Envelope, Worker, Now, Job).
+
+
+%! server:dequeue_envelope(+Timeout, -Envelope) is semidet.
+%
+% Next queue message that belongs to the current batch. A previous
+% batch's envelope is dropped and the dequeue continues.
+
+server:dequeue_envelope(Timeout, Envelope) :-
+  ( Timeout == infinite
+  -> thread_get_message(server_jobs, Next)
+  ;  thread_get_message(server_jobs, Next, [timeout(Timeout)])
+  ),
+  ( jobs:current_envelope(Next)
+  -> Envelope = Next
+  ;  server:dequeue_envelope(Timeout, Envelope)
   ).
 
 %! server:stop_workers
@@ -364,37 +453,62 @@ server:resume_workers :-
   retractall(server:workers_done).
 
 
-%! server:post_result(+Job, +Result)
+%! server:post_result(+Id, +Token, +Result)
 %
-% Post a completed proof/plan result back to the server. Succeeds only
-% when Job is currently in flight (was dequeued via get_job); clears that
-% record. Rejects forged results for jobs the caller never took.
+% Publish Result when Token is still the lease for Id. A second post of
+% an id that was already published succeeds and does not enqueue again.
+% A token that lost its lease is rejected.
 
-server:post_result(Job, Result) :-
+server:post_result(Id, Token, Result) :-
   server:ensure_queues,
-  ( retract(server:inflight_job(Job, _Worker, _))
-  -> thread_send_message(server_results, result(Job, Result))
-  ;  message:warning(['Ignoring post_result for non-inflight job: ', Job]),
-     fail
+  jobs:complete(Id, Token, Result, Outcome),
+  ( Outcome = publish(Target, Result)
+  -> thread_send_message(server_results, result(Id, Target, Result))
+  ; Outcome == duplicate
+  -> true
+  ; message:warning(['Ignoring post_result for job ', Id]),
+    fail
   ).
 
 
-%! server:get_result(-Job, -Result)
+%! server:renew_lease(+Id, +Token) is semidet.
+%
+% A worker's heartbeat while it is still proving Id. Fails when the
+% lease has moved to another token.
+
+server:renew_lease(Id, Token) :-
+  get_time(Now),
+  jobs:renew(Id, Token, Now).
+
+
+%! server:get_result(-Target, -Result)
 %
 % Collect a result (blocks until one is available).
 
-server:get_result(Job, Result) :-
-  server:ensure_queues,
-  thread_get_message(server_results, result(Job, Result)).
+server:get_result(Target, Result) :-
+  server:get_result(_Id, Target, Result, infinite).
 
 
-%! server:get_result(-Job, -Result, +Timeout)
+%! server:get_result(-Target, -Result, +Timeout)
 %
 % Collect a result with timeout. Fails on timeout.
 
-server:get_result(Job, Result, Timeout) :-
+server:get_result(Target, Result, Timeout) :-
+  server:get_result(_Id, Target, Result, Timeout).
+
+
+%! server:get_result(-Id, -Target, -Result, +Timeout)
+%
+% Collect one published result. Id is the submission id used to ignore
+% duplicates. Timeout `infinite` waits until a result arrives.
+
+server:get_result(Id, Target, Result, infinite) :-
+  !,
   server:ensure_queues,
-  thread_get_message(server_results, result(Job, Result), [timeout(Timeout)]).
+  thread_get_message(server_results, result(Id, Target, Result)).
+server:get_result(Id, Target, Result, Timeout) :-
+  server:ensure_queues,
+  thread_get_message(server_results, result(Id, Target, Result), [timeout(Timeout)]).
 
 
 %! server:job_count(-N)
@@ -418,7 +532,7 @@ server:result_count(N) :-
 % the authoritative number of results to wait for.
 
 server:submitted_count(N) :-
-  ( server:submitted_counter(N0) -> N = N0 ; N = 0 ).
+  jobs:submitted_count(N).
 
 
 %! server:inflight_count(-N)
@@ -426,22 +540,18 @@ server:submitted_count(N) :-
 % Number of jobs currently dequeued by workers but not yet resulted.
 
 server:inflight_count(N) :-
-  aggregate_all(count, server:inflight_job(_, _, _), N).
+  jobs:inflight_count(N).
 
 
 %! server:reset_progress
 %
-% Reset the submitted counter and in-flight records, and drain both
-% queues. Called after a collection cycle completes so the next batch
-% starts from a clean state (late stragglers from a previous batch are
-% discarded rather than counted against the new batch).
+% Open a new batch, drop leases and the submitted counter, and drain
+% both queues. Envelopes and results from the previous batch no longer
+% match, so a late worker cannot publish into the next collection.
 
 server:reset_progress :-
   server:ensure_queues,
-  with_mutex(server_progress,
-    ( retractall(server:submitted_counter(_)),
-      retractall(server:inflight_job(_, _, _))
-    )),
+  jobs:reset,
   server:drain_queue(server_jobs),
   server:drain_queue(server_results).
 
@@ -466,12 +576,12 @@ server:drain_queue(Queue) :-
 
 server:requeue_stale_jobs(Timeout) :-
   get_time(Now),
-  findall(Job-Worker,
-          ( server:inflight_job(Job, Worker, Since),
+  findall(Id-Token-Worker,
+          ( jobs:held(Id, Token, Worker, Since),
             server:job_is_stale(Worker, Since, Now, Timeout) ),
           Stale),
-  forall(member(Job-Worker, Stale),
-         server:requeue_job(Job, Worker)).
+  forall(member(Id-Token-Worker, Stale),
+         server:requeue_job(Id, Token, Worker)).
 
 
 %! server:job_is_stale(+Worker, +Since, +Now, +Timeout)
@@ -486,14 +596,19 @@ server:job_is_stale(_Worker, Since, Now, Timeout) :-
   Now - Since > Timeout.
 
 
-%! server:requeue_job(+Job, +Worker)
+%! server:requeue_job(+Id, +Token, +Worker)
 %
-% Put a presumed-lost job back on the job queue.
+% Put a presumed-lost lease back on the job queue when Token is still
+% current. The id does not change and the submitted counter does not
+% increase. A result that won the race leaves this call with nothing
+% to queue.
 
-server:requeue_job(Job, Worker) :-
-  retractall(server:inflight_job(Job, _, _)),
-  thread_send_message(server_jobs, Job),
-  message:warning(['Re-queued job from unresponsive worker ', Worker, ': ', Job]).
+server:requeue_job(Id, Token, Worker) :-
+  ( jobs:requeue(Id, Token, Envelope)
+  -> thread_send_message(server_jobs, Envelope),
+     message:warning(['Re-queued job ', Id, ' from unresponsive worker ', Worker])
+  ;  true
+  ).
 
 
 % =============================================================================
@@ -593,6 +708,175 @@ server:vdb_import_max_metadata(5000000).
 server:vdb_import_max_payload_bytes(67108864).
 server:vdb_import_max_term_length(100000).
 
+:- dynamic server:vdb_import_reservation/2.
+
+
+%! server:import_vdb_request(+Request, -Result) is det.
+%
+% Authenticate-derived, Content-Length-bounded import path used by HTTP.
+
+server:import_vdb_request(Request, Result) :-
+  memberchk(user(Principal), Request),
+  ( memberchk(content_length(Bytes), Request)
+  -> true
+  ;  throw(http_reply(length_required))
+  ),
+  server:vdb_import_max_payload_bytes(MaxBytes),
+  ( integer(Bytes), Bytes >= 0, Bytes =< MaxBytes
+  -> true
+  ;  throw(http_reply(payload_too_large))
+  ),
+  memberchk(input(Input), Request),
+  setup_call_cleanup(
+    server:reserve_vdb_import(Principal, Bytes),
+    setup_call_cleanup(
+      http_stream:stream_range_open(Input, Body, [size(Bytes)]),
+      ( set_stream(Body, encoding(utf8)),
+        server:parse_vdb_import(Body, Hostname, Stamp, Entries, Metadata),
+        server:require_vdb_stream_end(Body),
+        byte_count(Body, Consumed),
+        ( Consumed =:= Bytes
+        -> true
+        ;  throw(error(syntax_error(vdb_import_byte_count(Bytes, Consumed)),
+                       server:import_vdb_request/2))
+        ),
+        server:principal_hostname(Principal, Hostname),
+        atom_concat('pkg@', Hostname, Repo),
+        length(Entries, EntryCount),
+        length(Metadata, MdCount),
+        server:assert_client_vdb(Principal, Repo, Stamp, Bytes,
+                                 Entries, Metadata),
+        Result = vdb_import_ok(Repo, Stamp, EntryCount, MdCount)
+      ),
+      close(Body)),
+    server:release_vdb_import(Principal)).
+
+
+%! server:principal_hostname(+Principal, ?Hostname) is semidet.
+
+server:principal_hostname(tenant(_DigestUser, CertificateCN), Hostname) :-
+  ( Hostname == CertificateCN
+  -> true
+  ;  throw(error(permission_error(import, hostname, Hostname),
+                  context(server:import_vdb_request/2,
+                          certificate_cn(CertificateCN))))
+  ).
+
+
+%! server:reserve_vdb_import(+Principal, +Bytes) is det.
+
+server:reserve_vdb_import(Principal, Bytes) :-
+  with_mutex(server_vdb_import,
+    ( server:prune_expired_vdbs_locked,
+      ( server:vdb_import_reservation(Principal, _)
+      -> throw(error(permission_error(import, client_vdb, already_in_progress),
+                     server:reserve_vdb_import/2))
+      ;  true
+      ),
+      server:check_vdb_tenant_quota(Principal, Bytes),
+      assertz(server:vdb_import_reservation(Principal, Bytes))
+    )).
+
+
+%! server:release_vdb_import(+Principal) is det.
+
+server:release_vdb_import(Principal) :-
+  with_mutex(server_vdb_import,
+             retractall(server:vdb_import_reservation(Principal, _))).
+
+
+%! server:check_vdb_tenant_quota(+Principal, +Bytes) is det.
+
+server:check_vdb_tenant_quota(Principal, Bytes) :-
+  server:vdb_quota(max_tenants, MaxTenants),
+  findall(P, knowledgebase:client_vdb_import(P, _, _, _, _, _, _), Ps0),
+  sort(Ps0, Principals),
+  ( memberchk(Principal, Principals) -> AddedTenant = 0 ; AddedTenant = 1 ),
+  length(Principals, TenantCount),
+  TenantCount + AddedTenant =< MaxTenants,
+  server:vdb_quota(max_bytes, MaxBytes),
+  aggregate_all(sum(B),
+                knowledgebase:client_vdb_import(_, _, _, B, _, _, _),
+                StoredBytes0),
+  ( knowledgebase:client_vdb_import(Principal, _, _, OldBytes, _, _, _)
+  -> StoredBytes is StoredBytes0 - OldBytes
+  ;  StoredBytes = StoredBytes0
+  ),
+  aggregate_all(sum(R), server:vdb_import_reservation(_, R), Reserved),
+  StoredBytes + Reserved + Bytes =< MaxBytes,
+  !.
+server:check_vdb_tenant_quota(_, _) :-
+  throw(error(resource_error(vdb_import_quota),
+              server:reserve_vdb_import/2)).
+
+
+%! server:vdb_quota(+Name, -Value) is det.
+
+server:vdb_quota(max_tenants, Value) :-
+  ( config:client_vdb_max_tenants(Value) -> true ; Value = 32 ).
+server:vdb_quota(max_bytes, Value) :-
+  ( config:client_vdb_max_total_bytes(Value) -> true ; Value = 268435456 ).
+server:vdb_quota(max_entries, Value) :-
+  ( config:client_vdb_max_total_entries(Value) -> true ; Value = 100000 ).
+server:vdb_quota(max_metadata, Value) :-
+  ( config:client_vdb_max_total_metadata(Value) -> true ; Value = 2000000 ).
+server:vdb_quota(idle_ttl, Value) :-
+  ( config:client_vdb_idle_ttl(Value) -> true ; Value = 86400 ).
+
+
+%! server:prune_expired_vdbs_locked is det.
+%
+% Called only while server_vdb_import is held.
+
+server:prune_expired_vdbs_locked :-
+  server:vdb_quota(idle_ttl, TTL),
+  get_time(Now),
+  findall(Principal-Repo,
+          ( knowledgebase:client_vdb_import(Principal, Repo, _, _, _, _, Seen),
+            Now - Seen > TTL
+          ),
+          Expired),
+  forall(member(Principal-Repo, Expired),
+         transaction(
+           ( server:retract_client_vdb_facts(Repo),
+             knowledgebase:remove_client_vdb(Principal, Repo)
+           ))).
+
+
+%! server:require_vdb_stream_end(+Stream) is det.
+
+server:require_vdb_stream_end(Stream) :-
+  server:vdb_import_max_term_length(MaxLength),
+  read_term(Stream, Tail, [max_term_length(MaxLength)]),
+  ( Tail == end_of_file
+  -> true
+  ;  throw(error(syntax_error(vdb_import_trailing_term(Tail)),
+                  server:parse_vdb_import/5))
+  ).
+
+
+%! server:print_vdb_import_result(+Result) is det.
+
+server:print_vdb_import_result(Result) :-
+  format('~q.~n', [Result]),
+  flush_output.
+
+
+%! server:vdb_status(+Request) is det.
+
+server:vdb_status(Request) :-
+  memberchk(user(Principal), Request),
+  with_mutex(server_vdb_import,
+    ( server:prune_expired_vdbs_locked,
+      ( knowledgebase:client_vdb_import(Principal, Repo, Stamp,
+                                         _Bytes, _Entries, _Metadata, _Seen)
+      -> knowledgebase:touch_client_vdb(Principal, Repo),
+         Status = vdb_status(current, Repo, Stamp)
+      ;  Status = vdb_status(missing)
+      )
+    )),
+  format('~q.~n', [Status]).
+
 
 %! server:import_vdb(+Payload) is det.
 %
@@ -608,15 +892,18 @@ server:import_vdb(Payload) :-
   server:check_vdb_payload_size(Payload, MaxBytes),
   setup_call_cleanup(
     open_string(Payload, Stream),
-    server:parse_vdb_import(Stream, Hostname, Stamp, Entries, Metadata),
+    ( server:parse_vdb_import(Stream, Hostname, Stamp, Entries, Metadata),
+      server:require_vdb_stream_end(Stream)
+    ),
     close(Stream)),
+  Principal = tenant(legacy, Hostname),
   atom_concat('pkg@', Hostname, Repo),
-  server:assert_client_vdb(Repo, Stamp, Entries, Metadata),
+  string_length(Payload, Bytes),
+  server:assert_client_vdb(Principal, Repo, Stamp, Bytes, Entries, Metadata),
   length(Entries, EntryCount),
   length(Metadata, MdCount),
-  format('vdb-import: ok ~w (~d entries, ~d metadata facts)~n',
-         [Repo, EntryCount, MdCount]),
-  flush_output.
+  server:print_vdb_import_result(
+    vdb_import_ok(Repo, Stamp, EntryCount, MdCount)).
 
 
 %! server:parse_vdb_import(+Stream, -Hostname, -Stamp, -Entries, -Metadata) is det.
@@ -645,7 +932,9 @@ server:parse_vdb_import(Stream, Hostname, Stamp, Entries, Metadata) :-
                   server:import_vdb/1))
   ),
   server:read_vdb_term(Stream, stamp(Stamp)),
-  ( Stamp = stamp(Count, Sha), integer(Count), atom(Sha) ->
+  ( Stamp = stamp(Count, Sha),
+    integer(Count), Count >= 0,
+    server:valid_sha1(Sha) ->
       true
   ;   throw(error(type_error(vdb_import_stamp, Stamp), server:import_vdb/1))
   ),
@@ -653,7 +942,12 @@ server:parse_vdb_import(Stream, Hostname, Stamp, Entries, Metadata) :-
   ( Trailer = end_of_vdb_import(EntryCount, MdCount),
     length(Entries, EntryCount),
     length(Metadata, MdCount),
-    EntryCount =:= Count ->
+    EntryCount =:= Count,
+    findall(Id, member(oe(Id, _, _, _), Entries), EntryIds0),
+    sort(EntryIds0, EntryIds),
+    length(EntryIds, EntryCount),
+    forall(member(md(MdId, _, _), Metadata),
+           ord_memberchk(MdId, EntryIds)) ->
       true
   ;   throw(error(type_error(vdb_import_trailer, Trailer), server:import_vdb/1))
   ).
@@ -729,8 +1023,12 @@ server:read_vdb_term(Stream, Term) :-
 %! server:validate_vdb_entry(+Id, +C, +N, +V) is det.
 
 server:validate_vdb_entry(Id, C, N, V) :-
-  ( atom(Id), atom(C), atom(N),
-    ( V == version_none ; compound(V), functor(V, version, 7) ) ->
+  ( atom(Id), atom(C), atom(N), ground(V),
+    compound(V), functor(V, version, 7),
+    atomic_list_concat([C, Pf], '/', Id),
+    eapi:packageversion(Pf, ParsedName, ParsedVersion),
+    ParsedName == N,
+    ParsedVersion == V ->
       true
   ;   throw(error(type_error(vdb_import_entry, oe(Id, C, N, V)),
                   server:import_vdb/1))
@@ -744,6 +1042,22 @@ server:validate_vdb_metadata(Id, Key, Value) :-
       true
   ;   throw(error(type_error(vdb_import_metadata, md(Id, Key, Value)),
                   server:import_vdb/1))
+  ).
+
+
+%! server:valid_sha1(+Sha) is semidet.
+
+server:valid_sha1(Sha) :-
+  atom(Sha),
+  atom_length(Sha, 40),
+  atom_codes(Sha, Codes),
+  forall(member(Code, Codes), server:hex_code(Code)).
+
+
+server:hex_code(Code) :-
+  ( between(0'0, 0'9, Code)
+  ; between(0'a, 0'f, Code)
+  ; between(0'A, 0'F, Code)
   ).
 
 
@@ -765,33 +1079,70 @@ server:valid_hostname(Hostname) :-
          ( char_type(Ch, alnum) ; Ch == '.' ; Ch == '-' )).
 
 
-%! server:assert_client_vdb(+Repo, +Stamp, +Entries, +Metadata) is det.
+%! server:assert_client_vdb(+Principal, +Repo, +Stamp, +Bytes, +Entries, +Metadata) is det.
 %
 % Atomically replace the cache facts for the per-client repository:
 % retract any previous import, assert the new ordered entries (preserving
 % the client's version-descending order), derive category/package facts,
 % and register the import stamp with the knowledgebase.
 
-server:assert_client_vdb(Repo, Stamp, Entries, Metadata) :-
+server:assert_client_vdb(Principal, Repo, Stamp, Bytes, Entries, Metadata) :-
+  length(Entries, EntryCount),
+  length(Metadata, MetadataCount),
   with_mutex(server_vdb_import,
-    ( retractall(cache:repository(Repo)),
-      retractall(cache:category(Repo, _)),
-      retractall(cache:package(Repo, _, _)),
-      retractall(cache:ordered_entry(Repo, _, _, _, _)),
-      retractall(cache:entry_metadata(Repo, _, _, _)),
-      forall(member(oe(Id, C, N, V), Entries),
-             assertz(cache:ordered_entry(Repo, Id, C, N, V))),
-      forall(member(md(Id, Key, Value), Metadata),
-             assertz(cache:entry_metadata(Repo, Id, Key, Value))),
-      findall(C, member(oe(_, C, _, _), Entries), Cs0),
-      sort(Cs0, Cs),
-      forall(member(C, Cs), assertz(cache:category(Repo, C))),
-      findall(C-N, member(oe(_, C, N, _), Entries), CNs0),
-      sort(CNs0, CNs),
-      forall(member(C-N, CNs), assertz(cache:package(Repo, C, N))),
-      assertz(cache:repository(Repo)),
-      knowledgebase:register_client_vdb(Repo, Stamp)
+    ( server:check_vdb_fact_quota(Principal, EntryCount, MetadataCount),
+      transaction(
+        ( server:retract_client_vdb_facts(Repo),
+          forall(member(oe(Id, C, N, V), Entries),
+                 assertz(cache:ordered_entry(Repo, Id, C, N, V))),
+          forall(member(md(Id, Key, Value), Metadata),
+                 assertz(cache:entry_metadata(Repo, Id, Key, Value))),
+          findall(C, member(oe(_, C, _, _), Entries), Cs0),
+          sort(Cs0, Cs),
+          forall(member(C, Cs), assertz(cache:category(Repo, C))),
+          findall(C-N, member(oe(_, C, N, _), Entries), CNs0),
+          sort(CNs0, CNs),
+          forall(member(C-N, CNs), assertz(cache:package(Repo, C, N))),
+          assertz(cache:repository(Repo)),
+          knowledgebase:register_client_vdb(Principal, Repo, Stamp, Bytes,
+                                             EntryCount, MetadataCount)
+        ))
     )).
+
+
+%! server:check_vdb_fact_quota(+Principal, +Entries, +Metadata) is det.
+
+server:check_vdb_fact_quota(Principal, Entries, Metadata) :-
+  server:vdb_quota(max_entries, MaxEntries),
+  server:vdb_quota(max_metadata, MaxMetadata),
+  aggregate_all(sum(E),
+                knowledgebase:client_vdb_import(_, _, _, _, E, _, _),
+                StoredEntries0),
+  aggregate_all(sum(M),
+                knowledgebase:client_vdb_import(_, _, _, _, _, M, _),
+                StoredMetadata0),
+  ( knowledgebase:client_vdb_import(Principal, _, _, _, OldE, OldM, _)
+  -> StoredEntries is StoredEntries0 - OldE,
+     StoredMetadata is StoredMetadata0 - OldM
+  ;  StoredEntries = StoredEntries0,
+     StoredMetadata = StoredMetadata0
+  ),
+  StoredEntries + Entries =< MaxEntries,
+  StoredMetadata + Metadata =< MaxMetadata,
+  !.
+server:check_vdb_fact_quota(_, _, _) :-
+  throw(error(resource_error(vdb_import_fact_quota),
+              server:assert_client_vdb/6)).
+
+
+%! server:retract_client_vdb_facts(+Repo) is det.
+
+server:retract_client_vdb_facts(Repo) :-
+  retractall(cache:repository(Repo)),
+  retractall(cache:category(Repo, _)),
+  retractall(cache:package(Repo, _, _)),
+  retractall(cache:ordered_entry(Repo, _, _, _, _)),
+  retractall(cache:entry_metadata(Repo, _, _, _)).
 
 
 % =============================================================================

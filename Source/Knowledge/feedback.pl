@@ -67,7 +67,7 @@ like resume.pl / phase_stats.pl):
 % Path to the persisted discovered-dependency file (Knowledge/feedback.pl).
 
 feedback:discovered_file(Path) :-
-  config:installation_dir(Dir),
+  config:state_dir(Dir),
   os:compose_path([Dir, 'Knowledge', 'feedback.pl'], Path).
 
 
@@ -77,7 +77,7 @@ feedback:discovered_file(Path) :-
 % (Knowledge/feedback.unresolved.pl).
 
 feedback:unresolved_file(Path) :-
-  config:installation_dir(Dir),
+  config:state_dir(Dir),
   os:compose_path([Dir, 'Knowledge', 'feedback.unresolved.pl'], Path).
 
 

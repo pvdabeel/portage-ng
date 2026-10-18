@@ -20,7 +20,7 @@ lines (one per metadata field).
 The first record in the file is the header (it carries `ARCH`,
 `ACCEPT_KEYWORDS`, etc., but no `CPV`). Every subsequent record describes
 one BUILD_ID and contains at minimum `CPV`, `PATH`, `USE`, `IUSE`, `SLOT`
-and integrity fields (`MD5`, `SIZE`, `MTIME`).
+and integrity fields (`MD5`, `SHA1`, `SIZE`, `MTIME`).
 
 This module is a *pure parser*: it reads the file and yields an in-memory
 representation. It performs no cache writes, no asserts, and no validation
@@ -177,6 +177,16 @@ binpkg_index:record_get(Record, Key, Value) :-
   memberchk(Key-Value, Record).
 
 
+%! binpkg_index:record_safe_path(+Record, -Path) is semidet.
+%
+% Return a lexically safe relative PATH from a Packages record. Physical
+% canonical containment is rechecked against the binpkg root at execution.
+
+binpkg_index:record_safe_path(Record, Path) :-
+  binpkg_index:record_get(Record, path, Path),
+  sanitize:safe_relative_path(Path).
+
+
 %! binpkg_index:record_cpv(+Record, -Cpv) is semidet.
 %
 % Returns the package's CPV (e.g. `'app-misc/jq-1.8.1'`) from the `cpv`
@@ -330,6 +340,7 @@ binpkg_index:split_cpv(Cpv, Category, Pf) :-
 binpkg_index:project_records(Records, Rows, Categories, Packages) :-
   findall(binpkg_row(EntryId, Cat, Name, Version, Meta),
           ( member(R, Records),
+            binpkg_index:record_safe_path(R, _),
             binpkg_index:record_entry_id(R, EntryId),
             binpkg_index:record_split_cpv(R, Cat, Name, Version),
             binpkg_index:record_build_id(R, Bid),

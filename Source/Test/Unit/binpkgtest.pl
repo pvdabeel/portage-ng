@@ -150,6 +150,113 @@ test(ignore_policy_allows_patched_entry,
 
 
 % -----------------------------------------------------------------------------
+%  Binpkg path containment
+% -----------------------------------------------------------------------------
+
+:- begin_tests(binpkg_path_security).
+
+test(accepts_contained_regular_file) :-
+  binpkgtest:mktemp_dir(Root),
+  setup_call_cleanup(
+    true,
+    ( os:compose_path([Root, cat, pkg], Dir),
+      make_directory_path(Dir),
+      os:compose_path(Dir, archive, Path),
+      setup_call_cleanup(open(Path, write, Out), write(Out, data), close(Out)),
+      sanitize:contained_regular_file(Root, 'cat/pkg/archive', Canonical),
+      Canonical == Path
+    ),
+    binpkgtest:rm_rf(Root)).
+
+test(rejects_relative_traversal, [fail]) :-
+  sanitize:safe_relative_path('../outside').
+
+test(rejects_absolute_path, [fail]) :-
+  sanitize:safe_relative_path('/tmp/outside').
+
+test(rejects_intermediate_symlink,
+     [condition(current_predicate(link_file/3)), fail]) :-
+  binpkgtest:mktemp_dir(Root),
+  setup_call_cleanup(
+    true,
+    ( binpkgtest:mktemp_dir(Outside),
+      setup_call_cleanup(
+        true,
+        ( os:compose_path(Outside, archive, Archive),
+          setup_call_cleanup(open(Archive, write, Out), write(Out, data), close(Out)),
+          os:compose_path(Root, linked, Link),
+          link_file(Outside, Link, symbolic),
+          sanitize:contained_regular_file(Root, 'linked/archive', _)
+        ),
+        binpkgtest:rm_rf(Outside))
+    ),
+    binpkgtest:rm_rf(Root)).
+
+:- end_tests(binpkg_path_security).
+
+
+% -----------------------------------------------------------------------------
+%  Internal Manifest and OpenPGP signatures
+% -----------------------------------------------------------------------------
+
+:- begin_tests(binpkg_manifest_security).
+
+test(unsigned_manifest_valid) :-
+  binpkgtest:gpkg_inner_fixture(unsigned, State),
+  setup_call_cleanup(
+    true,
+    ( State = state(_Root, Inner, _Home),
+      binpkg_extract:verify_gpkg_manifest(Inner)
+    ),
+    binpkgtest:gpkg_inner_cleanup(State)).
+
+test(unsigned_rejected_when_required, [fail]) :-
+  binpkgtest:gpkg_inner_fixture(unsigned, State),
+  setup_call_cleanup(
+    asserta(config:binpkg_signature_policy(require), Ref),
+    ( State = state(_Root, Inner, _Home),
+      binpkg_extract:verify_gpkg_manifest(Inner)
+    ),
+    ( erase(Ref), binpkgtest:gpkg_inner_cleanup(State) )).
+
+test(tampered_member_rejected, [fail]) :-
+  binpkgtest:gpkg_inner_fixture(unsigned, State),
+  setup_call_cleanup(
+    true,
+    ( State = state(_Root, Inner, _Home),
+      os:compose_path(Inner, 'image.tar.zst', Image),
+      setup_call_cleanup(open(Image, append, Out), write(Out, tampered), close(Out)),
+      binpkg_extract:verify_gpkg_manifest(Inner)
+    ),
+    binpkgtest:gpkg_inner_cleanup(State)).
+
+test(trusted_signed_manifest,
+     [condition(binpkgtest:gpg_available), nondet]) :-
+  binpkgtest:gpkg_inner_fixture(signed, State),
+  State = state(_Root, Inner, Home),
+  setup_call_cleanup(
+    asserta(config:binpkg_gpg_verify_home(Home), Ref),
+    binpkg_extract:verify_gpkg_manifest(Inner),
+    ( erase(Ref), binpkgtest:gpkg_inner_cleanup(State) )).
+
+test(signed_unknown_key_rejected,
+     [condition(binpkgtest:gpg_available), fail]) :-
+  binpkgtest:gpkg_inner_fixture(signed, State),
+  binpkgtest:mktemp_dir(EmptyHome),
+  filesex:chmod(EmptyHome, 0o700),
+  State = state(_Root, Inner, _Home),
+  setup_call_cleanup(
+    asserta(config:binpkg_gpg_verify_home(EmptyHome), Ref),
+    binpkg_extract:verify_gpkg_manifest(Inner),
+    ( erase(Ref),
+      binpkgtest:rm_rf(EmptyHome),
+      binpkgtest:gpkg_inner_cleanup(State)
+    )).
+
+:- end_tests(binpkg_manifest_security).
+
+
+% -----------------------------------------------------------------------------
 %  Test fixtures
 % -----------------------------------------------------------------------------
 
@@ -295,3 +402,104 @@ binpkgtest:write_patch(ConfDir, Cat, Leaf, File) :-
     open(Path, write, Out),
     write(Out, '--- a\n+++ b\n'),
     close(Out)).
+
+
+%! binpkgtest:gpg_available is semidet.
+
+binpkgtest:gpg_available :-
+  absolute_file_name(path(gpg), _, [access(execute), file_errors(fail)]).
+
+
+%! binpkgtest:gpkg_inner_fixture(+Mode, -State) is det.
+
+binpkgtest:gpkg_inner_fixture(Mode, state(Root, Inner, Home)) :-
+  binpkgtest:mktemp_dir(Root),
+  os:compose_path(Root, inner, Inner),
+  make_directory(Inner),
+  binpkgtest:write_bytes(Inner, 'gpkg-1', "gpkg-1\n"),
+  binpkgtest:write_bytes(Inner, 'image.tar.zst', "image payload\n"),
+  binpkgtest:write_bytes(Inner, 'metadata.tar.zst', "metadata payload\n"),
+  ( Mode == signed
+  -> os:compose_path(Root, gnupg, Home),
+     make_directory(Home),
+     filesex:chmod(Home, 0o700),
+     binpkgtest:gpg_generate_key(Home),
+     binpkgtest:gpg_sign_member(Home, Inner, 'image.tar.zst'),
+     binpkgtest:gpg_sign_member(Home, Inner, 'metadata.tar.zst')
+  ;  Home = ''
+  ),
+  binpkgtest:write_inner_manifest(Root, Inner, PlainManifest),
+  ( Mode == signed
+  -> os:compose_path(Inner, 'Manifest', Manifest),
+     binpkgtest:run_gpg(
+       ['--homedir', Home, '--batch', '--yes', '--armor',
+        '--output', Manifest, '--clearsign', PlainManifest])
+  ;  os:compose_path(Inner, 'Manifest', Manifest),
+     copy_file(PlainManifest, Manifest)
+  ).
+
+
+%! binpkgtest:gpkg_inner_cleanup(+State) is det.
+
+binpkgtest:gpkg_inner_cleanup(state(Root, _, _)) :-
+  binpkgtest:rm_rf(Root).
+
+
+%! binpkgtest:write_bytes(+Dir, +Name, +Contents) is det.
+
+binpkgtest:write_bytes(Dir, Name, Contents) :-
+  os:compose_path(Dir, Name, Path),
+  setup_call_cleanup(
+    open(Path, write, Out, [type(binary)]),
+    format(Out, '~s', [Contents]),
+    close(Out)).
+
+
+%! binpkgtest:write_inner_manifest(+Root, +Inner, -Path) is det.
+
+binpkgtest:write_inner_manifest(Root, Inner, Path) :-
+  directory_files(Inner, Names0),
+  exclude(binpkgtest:dot_name, Names0, Names),
+  os:compose_path(Root, 'Manifest.plain', Path),
+  setup_call_cleanup(
+    open(Path, write, Out, [encoding(utf8)]),
+    forall(member(Name, Names),
+      ( os:compose_path(Inner, Name, File),
+        size_file(File, Size),
+        mirror:openssl_file_hash(File, '-blake2b512', Blake),
+        mirror:openssl_file_hash(File, '-sha512', Sha),
+        format(Out, 'DATA ~w ~d BLAKE2B ~w SHA512 ~w~n',
+               [Name, Size, Blake, Sha])
+      )),
+    close(Out)).
+
+
+binpkgtest:dot_name('.').
+binpkgtest:dot_name('..').
+
+
+%! binpkgtest:gpg_generate_key(+Home) is det.
+
+binpkgtest:gpg_generate_key(Home) :-
+  binpkgtest:run_gpg(
+    ['--homedir', Home, '--batch', '--passphrase', '',
+     '--quick-gen-key', 'portage-ng unit test <unit@example.invalid>',
+     'default', 'default', 'never']).
+
+
+%! binpkgtest:gpg_sign_member(+Home, +Inner, +Name) is det.
+
+binpkgtest:gpg_sign_member(Home, Inner, Name) :-
+  os:compose_path(Inner, Name, Path),
+  atom_concat(Path, '.sig', Signature),
+  binpkgtest:run_gpg(
+    ['--homedir', Home, '--batch', '--yes', '--armor',
+     '--output', Signature, '--detach-sign', Path]).
+
+
+%! binpkgtest:run_gpg(+Args) is det.
+
+binpkgtest:run_gpg(Args) :-
+  process_create(path(gpg), Args,
+                 [stdin(null), stdout(null), stderr(null), process(Pid)]),
+  process_wait(Pid, exit(0)).

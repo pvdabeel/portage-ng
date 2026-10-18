@@ -367,11 +367,11 @@ emit_legend :-
 % inline block, then the external script element for the verbatim
 % detail.js asset (state, renderers, layout, controls, init).
 
-emit_script(Repo, Entry, Cat, Name, Ver, InstallTree, RunTree, BothTree) :-
+emit_script(_Repo, _Entry, Cat, Name, Ver, InstallTree, RunTree, BothTree) :-
+    format(atom(RootLabel), '~w/~w-~w', [Cat, Name, Ver]),
+    navtheme:js_escape_atom(RootLabel, RootLabelE),
     write('<script>'), nl,
-    format('const rootLabel = "~w/~w-~w";~n', [Cat, Name, Ver]),
-    format('const rootEntry = "~w";~n', [Entry]),
-    format('const rootRepo = "~w";~n', [Repo]),
+    format('const rootLabel = "~w";~n', [RootLabelE]),
     emit_dep_data(InstallTree, RunTree, BothTree),
     write('</script>'), nl,
     navtheme:emit_script_src('../', detail).

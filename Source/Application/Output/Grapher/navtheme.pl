@@ -187,7 +187,9 @@ navtheme:emit_crumb(Prefix, RepoE, Cat, Name, Ver) :-
     write('    <span class="crumb-sep">/</span>'), nl,
     format('    <a href="./index.html">~w</a>~n', [CatE]),
     write('    <span class="crumb-sep">/</span>'), nl,
-    format('    <a href="./~w.html">~w</a>~n', [NameE, NameE]),
+    navtheme:encode_segment(Name, NamePath),
+    navtheme:html_escape(NamePath, NamePathE),
+    format('    <a href="./~w.html">~w</a>~n', [NamePathE, NameE]),
     write('    <span class="crumb-sep">/</span>'), nl,
     format('    <span class="crumb-current">~w</span>~n', [VerE]).
 
@@ -419,8 +421,10 @@ navtheme:emit_type_link(_Entry, Type, Label, Type) :-
     !,
     format('    <a class="nav-link active">~w</a>~n', [Label]).
 navtheme:emit_type_link(Entry, Type, Label, _) :-
+    navtheme:entry_path(Entry, EntryPath),
+    navtheme:html_escape(EntryPath, EntryPathE),
     format('    <a class="nav-link" href="../~w-~w.html">~w</a>~n',
-           [Entry, Type, Label]).
+           [EntryPathE, Type, Label]).
 
 
 %! navtheme:emit_version_link(+Entry, +Label, +Type)
@@ -431,8 +435,11 @@ navtheme:emit_version_link('', Label, _) :-
     !,
     format('    <a class="nav-link disabled">~w</a>~n', [Label]).
 navtheme:emit_version_link(Entry, Label, Type) :-
+    navtheme:entry_path(Entry, EntryPath),
+    navtheme:html_escape(EntryPath, EntryPathE),
+    navtheme:html_escape(Entry, EntryE),
     format('    <a class="nav-link" href="../~w-~w.html" title="~w">~w</a>~n',
-           [Entry, Type, Entry, Label]).
+           [EntryPathE, Type, EntryE, Label]).
 
 
 % -----------------------------------------------------------------------------
@@ -468,6 +475,61 @@ navtheme:emit_theme_script :-
     write('  try { localStorage.setItem("png-theme", light ? "dark" : "light"); } catch (e) {}'), nl,
     write('}'), nl,
     write('</script>'), nl.
+
+
+% -----------------------------------------------------------------------------
+%  URL and relative-path helpers
+% -----------------------------------------------------------------------------
+
+%! navtheme:safe_http_url(+Input, -URL) is semidet.
+%
+% Normalize Input to an atom and accept only absolute HTTP(S) URLs with a
+% non-empty authority and no control characters.
+
+navtheme:safe_http_url(Input, URL) :-
+    ( atom(Input) -> URL = Input
+    ; string(Input) -> atom_string(URL, Input)
+    ),
+    atom_codes(URL, Codes),
+    Codes \== [],
+    forall(member(Code, Codes), (Code > 31, Code =\= 127)),
+    uri_components(URL, Components),
+    uri_data(scheme, Components, Scheme),
+    nonvar(Scheme),
+    memberchk(Scheme, [http, https]),
+    uri_data(authority, Components, Authority),
+    nonvar(Authority),
+    Authority \== ''.
+
+
+%! navtheme:entry_path(+Entry, -Encoded) is semidet.
+%
+% Encode exactly two safe path segments while preserving their separator.
+
+navtheme:entry_path(Entry, Encoded) :-
+    atom(Entry),
+    atomic_list_concat([Category, Package], '/', Entry),
+    Category \== '',
+    Package \== '',
+    Category \== '.',
+    Category \== '..',
+    Package \== '.',
+    Package \== '..',
+    navtheme:encode_segment(Category, CategoryEncoded),
+    navtheme:encode_segment(Package, PackageEncoded),
+    atomic_list_concat([CategoryEncoded, PackageEncoded], '/', Encoded).
+
+
+%! navtheme:encode_segment(+Segment, -Encoded) is semidet.
+
+navtheme:encode_segment(Segment, Encoded) :-
+    atom(Segment),
+    Segment \== '',
+    Segment \== '.',
+    Segment \== '..',
+    \+ sub_atom(Segment, _, _, _, '/'),
+    \+ sub_atom(Segment, _, _, _, '\\'),
+    uri_encoded(segment, Segment, Encoded).
 
 
 % -----------------------------------------------------------------------------

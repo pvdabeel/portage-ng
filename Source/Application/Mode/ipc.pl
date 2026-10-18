@@ -166,9 +166,9 @@ ipc:background_command(Mode, Exe, Args) :-
 
 ipc:wait_for_ready(daemon, Pid) :-
   !,
-  config:daemon_pid_path(PidPath),
-  ipclient:wait_for_file(PidPath, 600),
-  ( exists_file(PidPath)
+  config:daemon_socket_path(SocketPath),
+  ipclient:wait_for_file(SocketPath, 600),
+  ( ipclient:socket_connectable(SocketPath)
   -> format('Daemon ready (PID ~w).~n', [Pid])
   ;  format(user_error, 'Warning: daemon may not have started.~n', [])
   ).

@@ -174,7 +174,7 @@ md5cache_collect_entries(CacheDir, Entries) :-
 %! md5cache_build_batch(+Entries, +RepoRoot, -BatchLines, -EntryMap, -Skipped) is det.
 %
 % For each cache entry, locate the matching .ebuild file under RepoRoot
-% and emit a single-line descriptor for ebuild-depend.sh --batch.
+% and emit one NUL-framed entry request for ebuild-depend.sh --batch.
 % EntryMap is a list of map(Idx, Cat, PF, Path, EntryId) entries indexed
 % by their position in the batch input (= their position in the script's
 % output blocks).
@@ -190,11 +190,11 @@ md5cache_build_batch_([], _, _, BL, BL, EM, EM, S, S).
 md5cache_build_batch_([entry(Cat, PF, Path)|Rest], RepoRoot, Idx,
                        BLAcc, BLOut, EMAcc, EMOut, SAcc, SOut) :-
   ( md5cache_find_ebuild(RepoRoot, Cat, PF, Ebuild, PN)
-  -> md5cache_descriptor_line(Cat, PN, PF, Ebuild, Line),
+  -> md5cache_descriptor_fields(Cat, PN, PF, Ebuild, Fields),
      atomic_list_concat([Cat, '/', PF], EntryId),
      Idx1 is Idx + 1,
      md5cache_build_batch_(Rest, RepoRoot, Idx1,
-                           [Line|BLAcc], BLOut,
+                           [Fields|BLAcc], BLOut,
                            [map(Idx, Cat, PF, Path, EntryId)|EMAcc], EMOut,
                            SAcc, SOut)
   ;  S1 is SAcc + 1,
@@ -219,14 +219,14 @@ md5cache_find_ebuild(RepoRoot, Cat, PF, Ebuild, PN) :-
   !.
 
 
-%! md5cache_descriptor_line(+Cat, +PN, +PF, +Ebuild, -Line) is det.
+%! md5cache_descriptor_fields(+Cat, +PN, +PF, +Ebuild, -Fields) is det.
+%
+% Eight entry-frame fields, in the order ebuild:write_entry_frame/2 writes.
 
-md5cache_descriptor_line(Cat, PN, PF, Ebuild, Line) :-
+md5cache_descriptor_fields(Cat, PN, PF, Ebuild, Fields) :-
   md5cache_split_pf(PN, PF, PV, PR, PVR),
   atomic_list_concat([PN, '-', PV], P),
-  format(atom(Line),
-    'CATEGORY=~w PN=~w PV=~w PR=~w PVR=~w PF=~w P=~w EBUILD=~w',
-    [Cat, PN, PV, PR, PVR, PF, P, Ebuild]).
+  Fields = [Cat, PN, PV, PR, PVR, PF, P, Ebuild].
 
 
 %! md5cache_split_pf(+PN, +PF, -PV, -PR, -PVR) is det.
@@ -261,20 +261,24 @@ md5cache_split_pvr(PVR, PV, PR) :-
 %  Subprocess invocation
 % -----------------------------------------------------------------------------
 
-%! md5cache_run_batch(+Script, +RepoRoot, +Lines, -Blocks, -ExitCode) is det.
+%! md5cache_run_batch(+Script, +RepoRoot, +Requests, -Blocks, -ExitCode) is det.
 %
-% Spawn ebuild-depend.sh --batch, write the descriptor lines to its
+% Spawn ebuild-depend.sh --batch, write NUL-framed entry requests to its
 % stdin, and slurp its stdout into ---END--- delimited blocks.
 
-md5cache_run_batch(Script, RepoRoot, Lines, Blocks, ExitCode) :-
+md5cache_run_batch(Script, RepoRoot, Requests, Blocks, ExitCode) :-
   process_create(Script, ['--batch', RepoRoot],
                  [ stdin(pipe(In)),
                    stdout(pipe(Out)),
                    stderr(null),
                    process(Pid)
                  ]),
+  set_stream(In, encoding(utf8)),
   catch(
-    ( forall(member(L, Lines), format(In, '~w~n', [L])),
+    ( forall(member(Fields, Requests),
+             ( ebuild:write_entry_frame(In, Fields),
+               flush_output(In)
+             )),
       close(In)
     ),
     E,

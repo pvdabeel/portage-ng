@@ -406,5 +406,12 @@ interface:init_line_editor.
 % paths resolve.
 
 interface:init_working_dir :-
+  config:state_dir(Dir),
+  catch(make_directory_path(Dir), _, true),
+  os:compose_path(Dir, 'Knowledge', Knowledge),
+  catch(make_directory_path(Knowledge), _, true),
+  ( exists_directory(Dir) -> working_directory(_, Dir) ; true ),
+  !.
+interface:init_working_dir :-
   config:working_dir(Dir),
   cd(Dir).

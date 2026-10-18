@@ -57,6 +57,9 @@ terminal:graph(Type, Repository://Entry) :-
 % `:run` and prints under preference:local_flag(fetchonly).
 
 terminal:capture_content(merge, Repository://Entry, Content) :-
+    terminal:stored_output(Repository, Entry, '.merge', Content),
+    !.
+terminal:capture_content(merge, Repository://Entry, Content) :-
     Goals = [Repository://Entry:run?{[]}],
     get_time(T0),
     (   catch(
@@ -75,6 +78,9 @@ terminal:capture_content(merge, Repository://Entry, Content) :-
     ;   Content = "Failed to compute merge plan."
     ).
 
+terminal:capture_content(fetchonly, Repository://Entry, Content) :-
+    terminal:stored_output(Repository, Entry, '.fetchonly', Content),
+    !.
 terminal:capture_content(fetchonly, Repository://Entry, Content) :-
     Goals = [Repository://Entry:run?{[]}],
     get_time(T0),
@@ -149,6 +155,18 @@ terminal:capture_output(Goal, String) :-
         catch(delete_file(TmpFile), _, true)
     ;   String = ""
     ).
+
+
+%! terminal:stored_output(+Repository, +Entry, +Extension, -Content) is semidet.
+%
+% Content is the plan file already written for Entry. HTML renderers
+% read this instead of proving the plan again.
+
+terminal:stored_output(Repository, Entry, Extension, Content) :-
+    terminal:resolve_graph_dir(Repository, Dir),
+    atomic_list_concat([Dir, '/', Entry, Extension], File),
+    exists_file(File),
+    read_file_to_string(File, Content, [encoding(utf8)]).
 
 
 %! terminal:resolve_graph_dir(+Repository, -Dir)

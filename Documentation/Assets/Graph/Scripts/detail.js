@@ -2,10 +2,6 @@ let currentPhase = "install";
 let currentView = "graph";
 let gZoom = 1;
 let isPanning = false, panStart = {x:0,y:0}, vbStart = {x:0,y:0};
-function escHTML(s) {
-  if (typeof s !== "string") s = String(s);
-  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-}
 function countDeps(nodes) {
   let c = 0;
   (nodes||[]).forEach(n => { if (n.type==="pkg_dep") c++; if (n.children) c += countDeps(n.children); });
@@ -28,14 +24,18 @@ function countChildren(node) {
 function renderTree() {
   const data = depData[currentPhase] || [];
   const el = document.getElementById("tree-container");
+  el.replaceChildren();
   if (!data.length) {
     const empty = currentPhase === "both"
       ? "No dependencies declared in both install and run."
       : "No dependencies for this phase.";
-    el.innerHTML = "<div class=\"tree-empty\">" + empty + "</div>";
+    const note = document.createElement("div");
+    note.className = "tree-empty";
+    note.textContent = empty;
+    el.appendChild(note);
     updateSubtitle(); return;
   }
-  el.innerHTML = buildTreeHTML(data);
+  el.appendChild(buildTreeDOM(data));
   updateSubtitle();
 }
 function updateSubtitle() {
@@ -44,21 +44,38 @@ function updateSubtitle() {
   document.getElementById("subtitle").textContent =
     d + " dependencies \u00b7 " + c + " use conditionals \u00b7 " + k + " candidates";
 }
-function buildTreeHTML(nodes) {
-  let h = "";
+function textEl(tag, className, text) {
+  const el = document.createElement(tag);
+  if (className) el.className = className;
+  el.textContent = text;
+  return el;
+}
+function encodedEntryHref(id) {
+  if (typeof id !== "string" || /[\u0000-\u001f\u007f\\]/.test(id)) return null;
+  const parts = id.split("/");
+  if (parts.length !== 2 || parts.some(p => !p || p === "." || p === "..")) return null;
+  return "../" + parts.map(encodeURIComponent).join("/") + "-detail.html";
+}
+function buildTreeDOM(nodes) {
+  const fragment = document.createDocumentFragment();
   (nodes||[]).forEach(node => {
-    h += "<div class=\"tree-node\">";
+    const wrapper = document.createElement("div");
+    wrapper.className = "tree-node";
     if (node.type === "use_cond") {
       const cls = node.cond === "positive" ? "badge-use-pos" : "badge-use-neg";
       const sign = node.cond === "positive" ? "+" : "-";
       const n = countChildren(node);
-      h += "<div class=\"group-row\" onclick=\"toggleGroup(this)\">";
-      h += "<span class=\"toggle-icon\">&#9662;</span>";
-      h += "<span class=\"type-badge " + cls + "\">" + sign + escHTML(node.flag) + "</span>";
-      h += "<span class=\"group-label\">use_conditional</span>";
-      h += "<span class=\"group-count\">" + n + " dep" + (n!==1?"s":"") + "</span>";
-      h += "</div>";
-      h += "<div class=\"tree-children\">" + buildTreeHTML(node.children) + "</div>";
+      const row = document.createElement("div");
+      row.className = "group-row";
+      row.addEventListener("click", () => toggleGroup(row));
+      row.append(textEl("span", "toggle-icon", "\u25be"));
+      row.append(textEl("span", "type-badge " + cls, sign + String(node.flag)));
+      row.append(textEl("span", "group-label", "use_conditional"));
+      row.append(textEl("span", "group-count", n + " dep" + (n!==1?"s":"")));
+      const children = document.createElement("div");
+      children.className = "tree-children";
+      children.appendChild(buildTreeDOM(node.children));
+      wrapper.append(row, children);
     } else if (["any_of","all_of","exactly_one_of","at_most_one_of"].indexOf(node.type) >= 0) {
       const info = {any_of:["any of","badge-any-of","at least one required"],
                     all_of:["all of","badge-all-of","all required"],
@@ -66,38 +83,64 @@ function buildTreeHTML(nodes) {
                     at_most_one_of:["at most one of","badge-at-most-one","at most one required"]};
       const [label, cls, desc] = info[node.type];
       const n = (node.children||[]).length;
-      h += "<div class=\"group-row\" onclick=\"toggleGroup(this)\">";
-      h += "<span class=\"toggle-icon\">&#9662;</span>";
-      h += "<span class=\"type-badge " + cls + "\">" + label + "</span>";
-      h += "<span class=\"group-label\">" + desc + "</span>";
-      h += "<span class=\"group-count\">" + n + " option" + (n!==1?"s":"") + "</span>";
-      h += "</div>";
-      h += "<div class=\"tree-children\">" + buildTreeHTML(node.children) + "</div>";
+      const row = document.createElement("div");
+      row.className = "group-row";
+      row.addEventListener("click", () => toggleGroup(row));
+      row.append(textEl("span", "toggle-icon", "\u25be"));
+      row.append(textEl("span", "type-badge " + cls, label));
+      row.append(textEl("span", "group-label", desc));
+      row.append(textEl("span", "group-count", n + " option" + (n!==1?"s":"")));
+      const children = document.createElement("div");
+      children.className = "tree-children";
+      children.appendChild(buildTreeDOM(node.children));
+      wrapper.append(row, children);
     } else if (node.type === "pkg_dep") {
       const nc = (node.candidates||[]).length;
       const firstId = nc > 0 ? node.candidates[0].id : "";
-      h += "<div class=\"pkg-row\">";
-      h += "<span class=\"pkg-connector\"></span>";
-      h += "<span class=\"pkg-cat\">" + escHTML(node.cat) + "/</span>";
-      h += "<span class=\"pkg-name\"><a href=\"../" + firstId + "-detail.html\">" + escHTML(node.name) + "</a></span>";
-      h += "<span class=\"pkg-constraint\">" + escHTML(node.constraint) + "</span>";
-      if (node.strength !== "no") {
-        h += "<span class=\"pkg-blocker " + node.strength + "\">" + node.strength + " blocker</span>";
+      const row = document.createElement("div");
+      row.className = "pkg-row";
+      row.append(textEl("span", "pkg-connector", ""));
+      row.append(textEl("span", "pkg-cat", String(node.cat) + "/"));
+      const nameSpan = textEl("span", "pkg-name", "");
+      const firstHref = encodedEntryHref(firstId);
+      if (firstHref) {
+        const link = textEl("a", "", String(node.name));
+        link.setAttribute("href", firstHref);
+        nameSpan.appendChild(link);
+      } else {
+        nameSpan.textContent = String(node.name);
       }
-      h += "<span class=\"candidates-toggle\" onclick=\"toggleCandidates(this)\">" + nc + " candidate" + (nc!==1?"s":"") + " <span class=\"arrow\">&#9662;</span></span>";
-      h += "</div>";
-      h += "<div class=\"candidates-list open\">";
+      row.append(nameSpan);
+      row.append(textEl("span", "pkg-constraint", String(node.constraint)));
+      if (node.strength !== "no") {
+        const strength = ["weak", "strong"].includes(node.strength) ? node.strength : "weak";
+        row.append(textEl("span", "pkg-blocker " + strength, strength + " blocker"));
+      }
+      const toggle = textEl("span", "candidates-toggle", nc + " candidate" + (nc!==1?"s":"") + " ");
+      toggle.append(textEl("span", "arrow", "\u25be"));
+      toggle.addEventListener("click", () => toggleCandidates(toggle));
+      row.append(toggle);
+      const list = document.createElement("div");
+      list.className = "candidates-list open";
       (node.candidates||[]).forEach(c => {
-        h += "<div class=\"candidate-item\">";
-        h += "<a href=\"../" + c.id + "-detail.html\">" + escHTML(c.id) + "</a>";
-        if (c.inst) h += " <span class=\"candidate-installed\">installed</span>";
-        h += "</div>";
+        const item = document.createElement("div");
+        item.className = "candidate-item";
+        const href = encodedEntryHref(c.id);
+        if (href) {
+          const link = textEl("a", "", String(c.id));
+          link.setAttribute("href", href);
+          item.appendChild(link);
+        } else {
+          item.appendChild(document.createTextNode(String(c.id)));
+        }
+        if (c.inst) item.append(" ", textEl("span", "candidate-installed", "installed"));
+        list.appendChild(item);
       });
-      h += "</div>";
+      wrapper.append(row, list);
     }
-    h += "</div>";
+    fragment.appendChild(wrapper);
   });
-  return h;
+  return fragment;
 }
 function toggleGroup(row) {
   const icon = row.querySelector(".toggle-icon");
@@ -111,7 +154,7 @@ function toggleCandidates(el) {
   if (!list || !list.classList.contains("candidates-list")) return;
   list.classList.toggle("open");
   const arrow = el.querySelector(".arrow");
-  arrow.innerHTML = list.classList.contains("open") ? "&#9662;" : "&#9656;";
+  arrow.textContent = list.classList.contains("open") ? "\u25be" : "\u25b8";
 }
 function expandAll() {
   document.querySelectorAll(".tree-children").forEach(c => c.style.display = "block");
@@ -123,11 +166,11 @@ function collapseAll() {
 }
 function expandCandidates() {
   document.querySelectorAll(".candidates-list").forEach(c => c.classList.add("open"));
-  document.querySelectorAll(".candidates-toggle .arrow").forEach(a => a.innerHTML = "&#9662;");
+  document.querySelectorAll(".candidates-toggle .arrow").forEach(a => a.textContent = "\u25be");
 }
 function collapseCandidates() {
   document.querySelectorAll(".candidates-list").forEach(c => c.classList.remove("open"));
-  document.querySelectorAll(".candidates-toggle .arrow").forEach(a => a.innerHTML = "&#9656;");
+  document.querySelectorAll(".candidates-toggle .arrow").forEach(a => a.textContent = "\u25b8");
 }
 const CARD_W = 160, CARD_H = 36, LAYER_X = 210, GAP_Y = 10;
 const nodeColors = {
@@ -188,11 +231,19 @@ function flattenTree(nodes, parentId, depth) {
 function renderGraph() {
   const data = depData[currentPhase] || [];
   const svg = document.getElementById("graph-svg");
-  if (!data.length) { svg.innerHTML = ""; return; }
+  if (!data.length) { svg.replaceChildren(); return; }
   const {flat, edges} = flattenTree(data, "root", 1);
   flat.unshift({id:"root", nodeType:"ebuild", label1:rootLabel, label2:"ebuild", depth:0});
   const positions = layoutGraph(flat, edges);
-  let svgContent = "";
+  const ns = "http://www.w3.org/2000/svg";
+  const graph = document.createElementNS(ns, "g");
+  graph.setAttribute("id", "graph-g");
+  const makeSvg = (name, attrs, text) => {
+    const el = document.createElementNS(ns, name);
+    Object.entries(attrs || {}).forEach(([key, value]) => el.setAttribute(key, String(value)));
+    if (text !== undefined) el.textContent = String(text);
+    return el;
+  };
   edges.forEach(e => {
     const fp = positions[e.from], tp = positions[e.to];
     if (!fp || !tp) return;
@@ -200,33 +251,48 @@ function renderGraph() {
     const x2 = tp.x, y2 = tp.y + CARD_H / 2;
     const mx = (x1 + x2) / 2;
     let dash = "";
-    if (e.style === "dashed") dash = " stroke-dasharray=\"6,3\"";
-    if (e.style === "dotted") dash = " stroke-dasharray=\"2,4\"";
-    svgContent += "<path d=\"M" + x1 + "," + y1 + " C" + mx + "," + y1 + " " + mx + "," + y2 + " " + x2 + "," + y2 + "\"" +
-      " fill=\"none\" stroke=\"var(--edge-color)\" stroke-width=\"1.3\"" + dash + " opacity=\"0.5\"/>";
+    if (e.style === "dashed") dash = "6,3";
+    if (e.style === "dotted") dash = "2,4";
+    const path = makeSvg("path", {
+      d: `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`,
+      fill: "none", stroke: "var(--edge-color)",
+      "stroke-width": "1.3", opacity: "0.5"
+    });
+    if (dash) path.setAttribute("stroke-dasharray", dash);
+    graph.appendChild(path);
     const aS = 4;
-    svgContent += "<polygon points=\"" + x2 + "," + y2 + " " + (x2-aS*1.5) + "," + (y2-aS) + " " + (x2-aS*1.5) + "," + (y2+aS) + "\" fill=\"var(--edge-color)\" opacity=\"0.5\"/>";
+    graph.appendChild(makeSvg("polygon", {
+      points: `${x2},${y2} ${x2-aS*1.5},${y2-aS} ${x2-aS*1.5},${y2+aS}`,
+      fill: "var(--edge-color)", opacity: "0.5"
+    }));
   });
   flat.forEach(n => {
     const pos = positions[n.id];
     if (!pos) return;
     const c = nodeColors[n.nodeType] || nodeColors.pkg_dep;
-    svgContent += "<g>";
-    svgContent += "<rect x=\"" + pos.x + "\" y=\"" + pos.y + "\" width=\"" + CARD_W + "\" height=\"" + CARD_H + "\"" +
-      " rx=\"5\" fill=\"" + c.fill + "\" stroke=\"" + c.stroke + "\" stroke-width=\"1.5\"/>";
-    svgContent += "<text x=\"" + (pos.x + CARD_W/2) + "\" y=\"" + (pos.y + 14) + "\"" +
-      " text-anchor=\"middle\" font-size=\"11\" font-weight=\"600\" fill=\"" + c.text + "\">" + escHTML(n.label1) + "</text>";
+    const group = makeSvg("g");
+    group.appendChild(makeSvg("rect", {
+      x: pos.x, y: pos.y, width: CARD_W, height: CARD_H,
+      rx: 5, fill: c.fill, stroke: c.stroke, "stroke-width": "1.5"
+    }));
+    group.appendChild(makeSvg("text", {
+      x: pos.x + CARD_W/2, y: pos.y + 14,
+      "text-anchor": "middle", "font-size": "11",
+      "font-weight": "600", fill: c.text
+    }, n.label1));
     if (n.label2) {
-      svgContent += "<text x=\"" + (pos.x + CARD_W/2) + "\" y=\"" + (pos.y + 27) + "\"" +
-        " text-anchor=\"middle\" font-size=\"10\" fill=\"var(--text2)\">" + escHTML(n.label2) + "</text>";
+      group.appendChild(makeSvg("text", {
+        x: pos.x + CARD_W/2, y: pos.y + 27,
+        "text-anchor": "middle", "font-size": "10", fill: "var(--text2)"
+      }, n.label2));
     }
-    svgContent += "</g>";
+    graph.appendChild(group);
   });
   let maxX = 0, maxY = 0;
   flat.forEach(n => { const p = positions[n.id]; if (p) { if (p.x+CARD_W > maxX) maxX = p.x+CARD_W; if (p.y+CARD_H > maxY) maxY = p.y+CARD_H; }});
   const pad = 40;
   svg.setAttribute("viewBox", (-pad) + " " + (-pad) + " " + (maxX+pad*2) + " " + (maxY+pad*2));
-  svg.innerHTML = "<g id=\"graph-g\">" + svgContent + "</g>";
+  svg.replaceChildren(graph);
 }
 function layoutGraph(nodes, edges) {
   const layers = {};

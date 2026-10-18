@@ -254,7 +254,7 @@ client:maybe_auto_import_vdb(Server, Port) :-
       true
   ;   assertz(client:vdb_auto_checked(Server)),
       ( config:client_auto_import_vdb(true),
-        client:vdb_import_needed(Server) ->
+        client:vdb_import_needed(Server, Port) ->
           ( catch(client:import_vdb(Server, Port), _, fail) ->
               true
           ;   message:warning(['Automatic VDB import failed - continuing; ',
@@ -266,17 +266,16 @@ client:maybe_auto_import_vdb(Server, Port) :-
   ).
 
 
-%! client:vdb_import_needed(+Server) is semidet.
+%! client:vdb_import_needed(+Server, +Port) is semidet.
 %
-% True when no import record exists for Server, or when the local VDB
-% changed since the last import. Change detection stats the VDB root and
-% its category directories (a merge or unmerge touches the category dir),
-% so the fresh path costs a few hundred stat calls, not a VDB parse.
+% True when no matching import exists on the server, or the local VDB changed.
 
-client:vdb_import_needed(Server) :-
-  ( catch(client:stored_vdb_import(Server, _, _, Time), _, fail) ->
-      client:local_vdb_mtime(MTime),
-      MTime > Time
+client:vdb_import_needed(Server, Port) :-
+  ( catch(client:stored_vdb_import(Server, Repo, Stamp, Time), _, fail),
+    catch(client:remote_vdb_status(Server, Port,
+                                   vdb_status(current, Repo, Stamp)), _, fail)
+  ->
+      ( client:local_vdb_mtime(MTime) -> MTime > Time ; true )
   ;   true
   ).
 
@@ -337,7 +336,7 @@ client:reset_vdb_state :-
 % Path of the persisted VDB import stamp file.
 
 client:vdb_import_file(File) :-
-  config:working_dir(Dir),
+  config:state_dir(Dir),
   os:compose_path(Dir, 'Knowledge/vdbimport.pl', File).
 
 
@@ -367,7 +366,8 @@ client:save_vdb_import_record(Server, Repo, Stamp) :-
     open(File, write, Out),
     forall(member(Term, [vdb_import(Server, Repo, Stamp, Now)|Others]),
            format(Out, '~q.~n', [Term])),
-    close(Out)).
+    close(Out)),
+  filesex:chmod(File, 0o600).
 
 
 %! client:read_file_terms(+File, -Terms) is det.
@@ -410,14 +410,28 @@ client:import_vdb(Hostname, Port) :-
   config:hostname(LocalHostname),
   client:vdb_payload(LocalHostname, Stamp, Payload),
   client:post_remotely(Hostname, Port, '/import-vdb', Payload, Output),
-  write(Output),
-  ( sub_string(Output, _, _, _, "vdb-import: ok") ->
-      atom_concat('pkg@', LocalHostname, Repo),
+  ( client:parse_vdb_import_response(Output,
+                                     vdb_import_ok(Repo, Stamp, EntryCount, MdCount)) ->
       client:save_vdb_import_record(Hostname, Repo, Stamp),
       client:reset_vdb_state,
-      message:inform(['Installed-state repository registered as ', Repo])
-  ;   message:failure(['VDB import failed - see server response above.'])
+      message:inform(['Installed-state repository registered as ', Repo,
+                      ' (', EntryCount, ' entries, ', MdCount,
+                      ' metadata facts)'])
+  ;   write(Output),
+      message:failure(['VDB import failed - see server response above.'])
   ).
+
+
+%! client:parse_vdb_import_response(+Text, -Term) is semidet.
+
+client:parse_vdb_import_response(Text, Term) :-
+  term_string(Term0, Text, [syntax_errors(error)]),
+  Term0 = vdb_import_ok(Repo, Stamp, Entries, Metadata),
+  atom(Repo),
+  ground(Stamp),
+  integer(Entries),
+  integer(Metadata),
+  Term = Term0.
 
 
 %! client:ensure_vdb_import_modules is det.
@@ -529,3 +543,37 @@ client:post_remotely(Hostname, Port, Page, Payload, Output) :-
               ]),
     read_string(In, _, Output),
     close(In)).
+
+
+%! client:remote_vdb_status(+Hostname, +Port, -Status) is semidet.
+%
+% Query the authenticated server-side import state for this certificate.
+
+client:remote_vdb_status(Hostname, Port, Status) :-
+  format(atom(URL), 'https://~w:~d/vdb-status', [Hostname, Port]),
+  config:certificate('cacert.pem', CaCert),
+  config:hostname(LocalHostname),
+  config:certificate(LocalHostname, 'client-cert.pem', ClientCert),
+  config:certificate(LocalHostname, 'client-key.pem', ClientKey),
+  config:certificate_password(client, Pass),
+  config:digest_password(User, Digestpwd),
+  interface:require_digest_password,
+  client:require_tls_files(LocalHostname, CaCert, ClientCert, ClientKey),
+  setup_call_cleanup(
+    http:http_open(URL, In,
+              [ host(Hostname),
+                authorization(digest(User, Digestpwd)),
+                cacerts([file(CaCert)]),
+                certificate_file(ClientCert),
+                key_file(ClientKey),
+                password(Pass)
+              ]),
+    read_string(In, _, Text),
+    close(In)),
+  term_string(Status0, Text, [syntax_errors(error)]),
+  ( Status0 = vdb_status(missing)
+  ; Status0 = vdb_status(current, Repo, Stamp),
+    atom(Repo),
+    ground(Stamp)
+  ),
+  Status = Status0.

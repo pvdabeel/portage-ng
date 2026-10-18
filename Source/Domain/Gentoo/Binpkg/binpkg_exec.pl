@@ -71,8 +71,9 @@ acceptable in lieu of a source build.
   - Implement preinst/install/postinst/VDB-write itself. That logic
     (~6700 lines of Python) is delegated to `ebuild qmerge`, which calls
     `portage/dbapi/vartree.py:merge()` internally.
-  - Re-fetch / verify the gpkg. We trust the `Packages` index hash
-    fields. (qmerge does its own MD5 verification anyway.)
+  - Re-fetch the gpkg. The local archive is verified against the
+    `Packages` SIZE/MD5/SHA1 fields and its internal strong Manifest before
+    extraction; qmerge itself does not verify the archive.
   - Mutate the binpkg repository. Production of binpkgs is owned by
     `ebuild_exec` (when `--buildpkg` is active) or external producers
     such as concurrent build-harness matrix sessions.
@@ -674,11 +675,26 @@ binpkg_exec:built_gpkg(Cat, Name, Version, RelPath, BuildId) :-
 binpkg_exec:built_binpkg_metadata(SrcRepo, SrcEntry, Ctx, BuildId, RelPath, Meta) :-
   binpkg_exec:resolver_positive_use(SrcRepo, SrcEntry, Ctx, UseToks),
   atomic_list_concat(UseToks, ' ', UseAtom),
+  binpkg_exec:built_integrity_metadata(RelPath, IntegrityPairs),
   ( binpkg_exec:src_slot_combined(SrcRepo, SrcEntry, SlotComb)
   -> SlotPairs = [slot-SlotComb]
   ;  SlotPairs = []
   ),
-  append([build_id-BuildId, path-RelPath, use-UseAtom], SlotPairs, Meta).
+  append([[build_id-BuildId, path-RelPath, use-UseAtom],
+          SlotPairs, IntegrityPairs], Meta).
+
+
+%! binpkg_exec:built_integrity_metadata(+RelPath, -Metadata) is semidet.
+%
+% SIZE/MD5/SHA1 fields for a gpkg just produced by this process.
+
+binpkg_exec:built_integrity_metadata(RelPath, Metadata) :-
+  binpkg:get_location(Root),
+  sanitize:contained_regular_file(Root, RelPath, Path),
+  size_file(Path, Size),
+  mirror:openssl_file_hash(Path, '-md5', Md5),
+  mirror:openssl_file_hash(Path, '-sha1', Sha1),
+  Metadata = [size-Size, md5-Md5, sha1-Sha1].
 
 
 %! binpkg_exec:src_slot_combined(+SrcRepo, +SrcEntry, -Combined) is semidet.
@@ -1315,19 +1331,26 @@ binpkg_exec:execute_inner(SrcRepo, SrcEntry, BinpkgEntryId, Ctx, Outcome) :-
   binpkg_exec:source_ebuild_path(SrcRepo, SrcEntry, EbuildPath),
   binpkg_exec:builddir_for(SrcRepo, SrcEntry, BuildDir),
   binpkg_exec:inner_name_for(BinpkgEntryId, InnerName),
+  binpkg_exec:gpkg_integrity_metadata(BinpkgEntryId, ExpectedSize, Hashes),
 
   % --- preconditions + qmerge (single branch tree; never fall through) -----
   ( \+ exists_file(GpkgPath)
   -> Outcome = failed(missing_gpkg(GpkgPath))
   ; \+ exists_file(EbuildPath)
   -> Outcome = failed(missing_ebuild(EbuildPath))
-  ; binpkg_extract:prepare_builddir(GpkgPath, InnerName, BuildDir)
-  -> ebuild_exec:collect_use_string(SrcRepo, SrcEntry, Ctx, UseString),
-     binpkg_exec:run_qmerge(BinpkgEntryId, EbuildPath, GpkgPath, BuildDir, UseString, ExitCode),
-     ( ExitCode =:= 0
-     -> Outcome = done
-     ;  Outcome = failed(qmerge_exit(ExitCode))
-     )
+  ; setup_call_cleanup(
+      binpkg_extract:prepare_builddir(GpkgPath, InnerName, BuildDir,
+                                      ExpectedSize, Hashes, StagedGpkg),
+      ( ebuild_exec:collect_use_string(SrcRepo, SrcEntry, Ctx, UseString),
+        binpkg_exec:run_qmerge(BinpkgEntryId, EbuildPath, StagedGpkg,
+                               BuildDir, UseString, ExitCode),
+        ( ExitCode =:= 0
+        -> Outcome = done
+        ;  Outcome = failed(qmerge_exit(ExitCode))
+        )
+      ),
+      catch(delete_file(StagedGpkg), _, true))
+  -> true
   ;  Outcome = failed(extract_failed(GpkgPath))
   ).
 
@@ -1345,7 +1368,51 @@ binpkg_exec:execute_inner(SrcRepo, SrcEntry, BinpkgEntryId, Ctx, Outcome) :-
 binpkg_exec:gpkg_path(BinpkgEntryId, GpkgPath) :-
   cache:entry_metadata(binpkg, BinpkgEntryId, path, RelPathAtom),
   binpkg:get_location(Root),
-  os:compose_path(Root, RelPathAtom, GpkgPath).
+  sanitize:contained_regular_file(Root, RelPathAtom, GpkgPath).
+
+
+%! binpkg_exec:gpkg_integrity_metadata(+EntryId, -Size, -Pairs) is semidet.
+%
+% Required outer archive integrity from the Packages record. Current Portage
+% indexes provide SIZE, MD5 and SHA1; all three are mandatory and both hashes
+% are verified before extraction.
+
+binpkg_exec:gpkg_integrity_metadata(EntryId, Size, Pairs) :-
+  cache:entry_metadata(binpkg, EntryId, size, Size0),
+  binpkg_exec:nonnegative_integer(Size0, Size),
+  cache:entry_metadata(binpkg, EntryId, md5, Md5),
+  binpkg_exec:valid_hex_digest(Md5, 32),
+  cache:entry_metadata(binpkg, EntryId, sha1, Sha1),
+  binpkg_exec:valid_hex_digest(Sha1, 40),
+  downcase_atom(Md5, Md5Lower),
+  downcase_atom(Sha1, Sha1Lower),
+  Pairs = [alg_hash(md5, Md5Lower), alg_hash(sha1, Sha1Lower)].
+
+
+%! binpkg_exec:nonnegative_integer(+Raw, -Integer) is semidet.
+
+binpkg_exec:nonnegative_integer(Raw, Integer) :-
+  ( integer(Raw) -> Integer = Raw
+  ; atom(Raw), catch(atom_number(Raw, Integer), _, fail)
+  ),
+  integer(Integer),
+  Integer >= 0.
+
+
+%! binpkg_exec:valid_hex_digest(+Digest, +Length) is semidet.
+
+binpkg_exec:valid_hex_digest(Digest, Length) :-
+  atom(Digest),
+  atom_length(Digest, Length),
+  atom_codes(Digest, Codes),
+  forall(member(Code, Codes), binpkg_exec:hex_code(Code)).
+
+
+binpkg_exec:hex_code(Code) :-
+  ( between(0'0, 0'9, Code)
+  ; between(0'a, 0'f, Code)
+  ; between(0'A, 0'F, Code)
+  ).
 
 
 %! binpkg_exec:source_ebuild_path(+SrcRepo, +SrcEntry, -EbuildPath) is semidet.

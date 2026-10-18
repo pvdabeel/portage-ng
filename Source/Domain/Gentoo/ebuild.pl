@@ -39,22 +39,72 @@ ebuild:invoke(cache,Location,Entry,Stream) :-
 %  Batch metadata extraction
 % -----------------------------------------------------------------------------
 
-%! ebuild:entry_to_descriptor(+Location, +Entry, -Descriptor)
+%! ebuild:entry_fields(+Location, +Entry, -Fields)
 %
-% Convert a repository Entry (Category/Package) to a batch descriptor line
-% for ebuild-depend.sh --batch.
+% Eight protocol fields for one repository entry: Category, PN, PV, PR,
+% PVR, PF, P, EBUILD. PR is empty at revision 0 and otherwise `-rN`.
 
-ebuild:entry_to_descriptor(Location, Entry, Descriptor) :-
+ebuild:entry_fields(Location, Entry, Fields) :-
   split_string(Entry, "/", "/", [Category, Package]),
   eapi:packageversion(Package, Name, version(_,_,_,_,_,Rev,Version)),
   ( Rev =:= 0 -> Revision = '' ; format(atom(Revision), '-r~d', [Rev]) ),
   string_concat(UpstreamVersion, Revision, Version),
   string_concat(UpstreamPackage, Revision, Package),
   atomic_list_concat([Location,'/',Category,"/",Name,"/",Package,'.ebuild'], Ebuild),
-  format(atom(Descriptor),
-    'CATEGORY=~w PN=~w PV=~w PR=~w PVR=~w PF=~w P=~w EBUILD=~w',
-    [Category, Name, UpstreamVersion, Revision, Version, Package,
-     UpstreamPackage, Ebuild]).
+  Fields = [Category, Name, UpstreamVersion, Revision, Version, Package,
+            UpstreamPackage, Ebuild].
+
+
+%! ebuild:nul_free_field(+Field) is semidet.
+%
+% A protocol field is text and contains no NUL byte.
+
+ebuild:nul_free_field(Field) :-
+  ( atom(Field)
+  -> atom_codes(Field, Codes)
+  ; string(Field)
+  -> string_codes(Field, Codes)
+  ),
+  \+ memberchk(0, Codes).
+
+
+%! ebuild:write_nul_record(+Stream, +Fields) is semidet.
+%
+% Write each field followed by a NUL delimiter. Every field is checked
+% before the first byte, so a rejected record cannot split a frame.
+
+ebuild:write_nul_record(Stream, Fields) :-
+  maplist(ebuild:nul_free_field, Fields),
+  ebuild:emit_nul_record(Stream, Fields).
+
+
+%! ebuild:emit_nul_record(+Stream, +Fields) is det.
+%
+% Emit an already-validated NUL-delimited record.
+
+ebuild:emit_nul_record(_, []).
+ebuild:emit_nul_record(Stream, [Field|Rest]) :-
+  format(Stream, '~w', [Field]),
+  put_code(Stream, 0),
+  ebuild:emit_nul_record(Stream, Rest).
+
+
+%! ebuild:write_entry_frame(+Stream, +Fields) is semidet.
+%
+% Write one `entry` request. Fields is the eight-element list from
+% ebuild:entry_fields/3, or the same layout built by md5cache.
+
+ebuild:write_entry_frame(Stream, Fields) :-
+  Fields = [_, _, _, _, _, _, _, _],
+  ebuild:write_nul_record(Stream, [entry|Fields]).
+
+
+%! ebuild:write_quit_frame(+Stream) is det.
+%
+% Write the coprocess shutdown request.
+
+ebuild:write_quit_frame(Stream) :-
+  ebuild:write_nul_record(Stream, [quit]).
 
 
 %! ebuild:invoke_batch(+Location, +Entries, -Results)
@@ -79,13 +129,13 @@ ebuild:invoke_batch(Location, Entries, Results) :-
 
 %! ebuild:write_batch_descriptors(+Stream, +Location, +Entries)
 %
-% Write batch descriptor lines to the stdin pipe.
+% Write one NUL-framed entry request per repository entry.
 
 ebuild:write_batch_descriptors(_, _, []).
 ebuild:write_batch_descriptors(In, Location, [Entry|Rest]) :-
-  ( ebuild:entry_to_descriptor(Location, Entry, Descriptor)
-  -> format(In, '~w~n', [Descriptor]),
-     flush_output(In)
+  ( ebuild:entry_fields(Location, Entry, Fields),
+    ebuild:write_entry_frame(In, Fields)
+  -> flush_output(In)
   ; true
   ),
   ebuild:write_batch_descriptors(In, Location, Rest).
@@ -138,18 +188,18 @@ ebuild:coprocess_start(Location) :-
       [stdin(pipe(In)), stdout(pipe(Out)), stderr(null), process(Pid)]),
     set_stream(In, encoding(utf8)),
     set_stream(Out, encoding(utf8)),
-    set_stream(In, buffer(line)),
+    set_stream(In, buffer(full)),
     assert(ebuild:coprocess_state(Location, In-Out, Pid))
   ).
 
 
 %! ebuild:coprocess_stop(+Location)
 %
-% Send QUIT to the server and close the coprocess.
+% Send quit to the server and close the coprocess.
 
 ebuild:coprocess_stop(Location) :-
   ( retract(ebuild:coprocess_state(Location, In-Out, Pid))
-  -> ( catch(format(In, 'QUIT~n', []), _, true),
+  -> ( catch((ebuild:write_quit_frame(In), flush_output(In)), _, true),
        catch(close(In), _, true),
        catch(close(Out), _, true),
        catch(process_wait(Pid, _), _, true)
@@ -164,8 +214,8 @@ ebuild:coprocess_stop(Location) :-
 
 ebuild:coprocess_invoke(Location, Entry, Contents) :-
   ebuild:coprocess_state(Location, In-Out, _),
-  ebuild:entry_to_descriptor(Location, Entry, Descriptor),
-  format(In, '~w~n', [Descriptor]),
+  ebuild:entry_fields(Location, Entry, Fields),
+  ebuild:write_entry_frame(In, Fields),
   flush_output(In),
   ebuild:read_until_delimiter(Out, Contents).
 

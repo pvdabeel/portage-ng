@@ -124,9 +124,7 @@ deregister(Repository) ::-
 
 sync ::-
   proxy,!,
-  ::host(Host),
-  ::port(Port),
-  client:execute_remotely(Host,Port,'/sync'),!.
+  knowledgebase:remote(sync),!.
 
 sync ::-
   \+ proxy,!,
@@ -153,10 +151,7 @@ sync(Name) ::-
   ; throw(error(permission_error(sync, repository, Name),
                 context(knowledgebase:sync/1, 'Invalid repository name')))
   ),
-  ::host(Host),
-  ::port(Port),
-  atom_concat('/sync/', Name, Path),
-  client:execute_remotely(Host,Port,Path),!.
+  knowledgebase:remote(sync_named, Name),!.
 
 sync(Name) ::-
   \+ proxy,!,
@@ -181,13 +176,11 @@ sync(Name) ::-
 
 save ::-
   proxy,!,
-  ::host(Host),
-  ::port(Port),
-  client:execute_remotely(Host,Port,'/save'),!.
+  knowledgebase:remote(save),!.
 
 save ::-
   \+ proxy,!,
-  config:working_dir(Dir),
+  config:state_dir(Dir),
   os:compose_path(Dir,'Knowledge/kb.raw',Raw),
   os:compose_path(Dir,'Knowledge/kb.qlf',Qlf),
   lock:with_system_lock(kb_save(Dir),
@@ -219,13 +212,11 @@ save ::-
 
 load ::-
   proxy,!,
-  ::host(Host),
-  ::port(Port),
-  client:execute_remotely(Host,Port,'/load'),!.
+  knowledgebase:remote(load),!.
 
 load ::-
   \+ proxy,
-  config:working_dir(Dir),
+  config:state_dir(Dir),
   os:compose_path(Dir,'Knowledge/kb.qlf',Qlf),
   exists_file(Qlf),!,
   sanitize:ensure_file_integrity(Qlf),
@@ -249,20 +240,23 @@ load ::-
 
 clear ::-
   proxy,!,
-  ::host(Host),
-  ::port(Port),
-  client:execute_remotely(Host,Port,'/clear'),!.
+  knowledgebase:remote(clear),!.
 
 clear ::-
   \+ proxy,
-  exists_file('Knowledge/kb.qlf'),
-  delete_file('Knowledge/kb.qlf'),
+  config:state_dir(Dir),
+  os:compose_path(Dir, 'Knowledge/kb.qlf', Qlf),
+  exists_file(Qlf),
+  delete_file(Qlf),
   fail.
 
 clear ::-
   \+ proxy,
-  exists_file('Knowledge/kb.raw'),!,
-  delete_file('Knowledge/kb.raw').
+  config:state_dir(Dir),
+  os:compose_path(Dir, 'Knowledge/kb.raw', Raw),
+  exists_file(Raw),
+  !,
+  delete_file(Raw).
 
 clear ::-
   \+ proxy,
@@ -278,9 +272,7 @@ clear ::-
 
 graph ::-
   proxy,!,
-  ::host(Host),
-  ::port(Port),
-  client:execute_remotely(Host,Port,'/graph'),!.
+  knowledgebase:remote(graph),!.
 
 graph ::-
   \+ proxy,!,
@@ -298,9 +290,7 @@ graph ::-
 
 graph_emerge ::-
   proxy,!,
-  ::host(Host),
-  ::port(Port),
-  client:execute_remotely(Host,Port,'/graph_emerge'),!.
+  knowledgebase:remote(graph_emerge),!.
 
 graph_emerge ::-
   \+ proxy,!,
@@ -319,9 +309,7 @@ graph_emerge ::-
 
 graph_pmerge ::-
   proxy,!,
-  ::host(Host),
-  ::port(Port),
-  client:execute_remotely(Host,Port,'/graph_pmerge'),!.
+  knowledgebase:remote(graph_pmerge),!.
 
 graph_pmerge ::-
   \+ proxy,!,
@@ -536,7 +524,11 @@ wait_thread_done(Id, T0, Timeout) :-
 % with the snapshot stamp the client shipped at import time. Asserted by
 % server:import_vdb/1 and consulted by vdb_repository/1 to detect stale
 % imports.
-:- dynamic knowledgebase:client_vdb_stamp/2.
+:- dynamic knowledgebase:client_vdb_import/7.
+% client_vdb_import(Principal, Repo, Stamp, Bytes, Entries, Metadata, LastSeen)
+
+knowledgebase:client_vdb_stamp(Repo, Stamp) :-
+  knowledgebase:client_vdb_import(_, Repo, Stamp, _, _, _, _).
 
 
 %! knowledgebase:vdb_repository(-Repository) is det.
@@ -588,31 +580,37 @@ knowledgebase:resolve_vdb_repository(Repository) :-
 % memoizes the resolution per thread.
 
 knowledgebase:pengine_vdb_repository(M, Repository) :-
-  ( catch(M:vdb_repository(R), _, fail) ->
-      ( knowledgebase:client_vdb_valid(M, R) ->
-          Repository = R
-      ;   message:warning(
-            ['Client VDB import \'', R, '\' is missing or stale on this ',
-             'server. Falling back to the server VDB - re-run --import-vdb.']),
-          Repository = pkg
-      )
-  ;   message:warning(
-        ['No client VDB imported - this plan reflects the server\'s ',
-         'installed packages. Run --import-vdb to ship your local VDB.']),
-      Repository = pkg
-  ).
+  pengines:pengine_user(Principal),
+  knowledgebase:principal_vdb_repository(Principal, Expected),
+  catch(M:vdb_repository(R), _, fail),
+  R == Expected,
+  knowledgebase:client_vdb_valid(Principal, M, R),
+  !,
+  knowledgebase:touch_client_vdb(Principal, R),
+  Repository = R.
+knowledgebase:pengine_vdb_repository(_, _) :-
+  throw(error(permission_error(use, client_vdb, missing_or_stale),
+              context(knowledgebase:vdb_repository/1,
+                      'Import the authenticated client VDB before proving'))).
 
 
-%! knowledgebase:client_vdb_valid(+Module, +Repository) is semidet.
+%! knowledgebase:principal_vdb_repository(+Principal, -Repository) is semidet.
+
+knowledgebase:principal_vdb_repository(tenant(_DigestUser, CN), Repository) :-
+  atom(CN),
+  atom_concat('pkg@', CN, Repository).
+
+
+%! knowledgebase:client_vdb_valid(+Principal, +Module, +Repository) is semidet.
 %
 % True when the client-shipped repository name corresponds to a registered
 % import whose facts are resident and whose stamp matches the stamp the
 % client shipped alongside it.
 
-knowledgebase:client_vdb_valid(M, Repository) :-
+knowledgebase:client_vdb_valid(Principal, M, Repository) :-
   atom(Repository),
   cache:repository(Repository),
-  knowledgebase:client_vdb_stamp(Repository, Stamp),
+  knowledgebase:client_vdb_import(Principal, Repository, Stamp, _, _, _, _),
   catch(M:vdb_import_stamp(Stamp0), _, fail),
   Stamp0 == Stamp.
 
@@ -630,12 +628,58 @@ knowledgebase:is_vdb_repository(Repository) :-
   sub_atom(Repository, 0, _, _, 'pkg@').
 
 
-%! knowledgebase:register_client_vdb(+Repository, +Stamp) is det.
+%! knowledgebase:register_client_vdb(+Principal, +Repository, +Stamp, +Bytes, +Entries, +Metadata) is det.
 %
-% Record (or refresh) the snapshot stamp for an imported client VDB
-% repository. Called by the server-side import handler after the facts
-% have been asserted.
+% Record (or refresh) the authenticated import and resource accounting.
 
-knowledgebase:register_client_vdb(Repository, Stamp) :-
-  retractall(knowledgebase:client_vdb_stamp(Repository, _)),
-  assertz(knowledgebase:client_vdb_stamp(Repository, Stamp)).
+knowledgebase:register_client_vdb(Principal, Repository, Stamp,
+                                  Bytes, Entries, Metadata) :-
+  get_time(Now),
+  retractall(knowledgebase:client_vdb_import(Principal, Repository,
+                                             _, _, _, _, _)),
+  assertz(knowledgebase:client_vdb_import(Principal, Repository, Stamp,
+                                          Bytes, Entries, Metadata, Now)).
+
+
+%! knowledgebase:touch_client_vdb(+Principal, +Repository) is det.
+
+knowledgebase:touch_client_vdb(Principal, Repository) :-
+  with_mutex(server_vdb_import,
+    ( retract(knowledgebase:client_vdb_import(Principal, Repository, Stamp,
+                                              Bytes, Entries, Metadata, _))
+    -> get_time(Now),
+       assertz(knowledgebase:client_vdb_import(Principal, Repository, Stamp,
+                                               Bytes, Entries, Metadata, Now))
+    ;  true
+    )).
+
+
+%! knowledgebase:remove_client_vdb(+Principal, +Repository) is det.
+
+knowledgebase:remove_client_vdb(Principal, Repository) :-
+  retractall(knowledgebase:client_vdb_import(Principal, Repository,
+                                             _, _, _, _, _)).
+
+
+%! knowledgebase:remote(+Name) is det.
+%
+% POST the routes:endpoint/3 path for Name on the proxy host.
+
+knowledgebase:remote(Name) :-
+  ::host(Host),
+  ::port(Port),
+  routes:endpoint(Name, Path, _),
+  client:execute_remotely(Host, Port, Path).
+
+
+%! knowledgebase:remote(+Name, +Repository) is det.
+%
+% POST /sync/<Repository>. Name is sync_named; the path comes from the
+% route table with the repository appended.
+
+knowledgebase:remote(sync_named, Repository) :-
+  ::host(Host),
+  ::port(Port),
+  routes:endpoint(sync_named, Prefix, _),
+  atom_concat(Prefix, Repository, Path),
+  client:execute_remotely(Host, Port, Path).

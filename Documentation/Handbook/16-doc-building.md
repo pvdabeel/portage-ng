@@ -261,7 +261,22 @@ stays on the source path in `ebuild_exec`.
 an absolute path, contains `..`, is a device/fifo node, is a hardlink
 that escapes, or would write through a symlink whose target leaves the
 destination directory (Gentoo bug 982208).  Metadata members must be
-regular files or directories.
+regular files or directories.  The `Packages` index path must also stay
+inside the binpkg root.  Before qmerge, portage-ng copies the gpkg into
+a private staging directory and checks the index `SIZE`, `MD5`, and
+`SHA1` fields, then checks every inner member against a strong
+`BLAKE2B` or `SHA512` Manifest record.
+
+Unsigned gpkg-1 remains acceptable under
+`config:binpkg_signature_policy(auto)` (the default) once those digests
+match.  If the inner Manifest is clear-signed, or any member has a
+detached `.sig`, every signature must verify with
+`config:binpkg_gpg_command/1` against `config:binpkg_gpg_verify_home/1`
+(or `BINPKG_GPG_VERIFY_GPG_HOME`).  Acceptance requires GnuPG
+`VALIDSIG` together with `TRUST_FULLY` or `TRUST_ULTIMATE`.  Missing
+trust configuration, an unknown key, a partial signature set, or a
+tampered member fails closed.  `config:binpkg_signature_policy(require)`
+rejects unsigned packages as well.
 
 `binpkg_exec:entry_allowed/2` also skips a binpkg when
 `/etc/portage/patches` would apply to the corresponding ebuild
@@ -753,6 +768,14 @@ The `download.pl` module handles source archive fetching:
 - Parallel downloads across multiple mirrors
 - Hash verification via `openssl dgst`
 - Resume support for interrupted downloads
+
+A distfile name must be a single relative path component. Cached files are
+accepted only when they are regular files (no symlink), sit inside the
+distfiles directory, match the Manifest size, and carry at least one strong
+digest (`BLAKE2B`, `SHA512`, or `SHA256`). An empty hash set, or a set that
+contains only unsupported or weak algorithms, is rejected. Bytes are written
+into a private mode-0700 staging directory and renamed into place only after
+verification succeeds.
 
 Downloads are scheduled as early as possible in the plan — `:download`
 actions have no unmet requirements, so they land in the earliest waves

@@ -289,6 +289,7 @@ emit_js_tree_data(Repo, RootEntry, TypeTrees) :-
 
 emit_js_type_entries(_, _, []).
 emit_js_type_entries(Repo, RootEntry, [deptree(Type, Nodes, Edges)|Rest]) :-
+    navtheme:js_escape_atom(RootEntry, ERootEntry),
     format('  ~w: {~n', [Type]),
     write('    nodes: ['), nl,
     emit_js_nodes(Repo, Nodes),
@@ -296,7 +297,7 @@ emit_js_type_entries(Repo, RootEntry, [deptree(Type, Nodes, Edges)|Rest]) :-
     write('    edges: ['), nl,
     emit_js_edges(Edges),
     write('    ],'), nl,
-    format('    root: "~w"~n', [RootEntry]),
+    format('    root: "~w"~n', [ERootEntry]),
     (   Rest == []
     ->  write('  }'), nl
     ;   write('  },'), nl

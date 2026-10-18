@@ -36,7 +36,7 @@ layout (under `$PORTAGE_BUILDDIR`) matches what `ebuild qmerge` and
       environment            <- decompressed from build-info/environment.bz2
     .installed               <- mandatory marker, qmerge bails without it
 
-After `prepare_builddir/3` succeeds, callers (i.e. `binpkg_exec`) can
+After `prepare_builddir/6` succeeds, callers (i.e. `binpkg_exec`) can
 spawn `ebuild --skip-manifest <SOURCE_EBUILD> qmerge` with environment
 `MERGE_TYPE=binary`, `PORTAGE_BINPKG_FILE=<gpkg>`, `PORTAGE_BUILDDIR=...`.
 
@@ -52,6 +52,8 @@ BUILD_IDs 8 (oniguruma=on) and 10 (oniguruma=off) during initial bring-up.
 
 :- module(binpkg_extract, []).
 
+:- use_module(library(uuid), [uuid/1]).
+
 % =============================================================================
 %  BINPKG_EXTRACT declarations
 % =============================================================================
@@ -60,7 +62,7 @@ BUILD_IDs 8 (oniguruma=on) and 10 (oniguruma=off) during initial bring-up.
 %  Top-level orchestrator
 % -----------------------------------------------------------------------------
 
-%! binpkg_extract:prepare_builddir(+GpkgPath, +InnerName, +BuildDir) is semidet.
+%! binpkg_extract:prepare_builddir(+GpkgPath, +InnerName, +BuildDir, +ExpectedSize, +Hashes, -StagedGpkg) is semidet.
 %
 % Idempotent end-to-end build directory preparation:
 %
@@ -82,12 +84,18 @@ BUILD_IDs 8 (oniguruma=on) and 10 (oniguruma=off) during initial bring-up.
 % directory is always cleaned up. Caller is responsible for assembling the
 % `ebuild qmerge` invocation that consumes the prepared directory.
 
-binpkg_extract:prepare_builddir(GpkgPath, InnerName, BuildDir) :-
+binpkg_extract:prepare_builddir(GpkgPath, InnerName, BuildDir,
+                                ExpectedSize, Hashes, StagedGpkg) :-
   binpkg_extract:wipe_and_create_builddir(BuildDir),
-  setup_call_cleanup(
-    binpkg_extract:make_scratch_dir(ScratchDir),
-    binpkg_extract:populate_builddir(GpkgPath, InnerName, BuildDir, ScratchDir),
-    binpkg_extract:remove_scratch_dir(ScratchDir)
+  ( binpkg_extract:stage_verified_gpkg(GpkgPath, BuildDir,
+                                       ExpectedSize, Hashes, StagedGpkg)
+  -> setup_call_cleanup(
+       binpkg_extract:make_scratch_dir(BuildDir, ScratchDir),
+       binpkg_extract:populate_builddir(StagedGpkg, InnerName,
+                                        BuildDir, ScratchDir),
+       binpkg_extract:remove_scratch_dir(ScratchDir))
+  ;  catch(delete_file(StagedGpkg), _, true),
+     fail
   ).
 
 
@@ -104,6 +112,7 @@ binpkg_extract:populate_builddir(GpkgPath, InnerName, BuildDir, ScratchDir) :-
   ;  format(user_error, 'binpkg_extract: expected inner dir ~w not found in gpkg ~w~n', [InnerDir, GpkgPath]),
      fail
   ),
+  binpkg_extract:verify_gpkg_manifest(InnerDir),
   os:compose_path([InnerDir, 'image.tar.zst'],    ImageTar),
   os:compose_path([InnerDir, 'metadata.tar.zst'], MetaTar),
   binpkg_extract:extract_image(ImageTar, BuildDir),
@@ -138,17 +147,18 @@ binpkg_extract:wipe_and_create_builddir(BuildDir) :-
     )).
 
 
-%! binpkg_extract:make_scratch_dir(-ScratchDir) is det.
+%! binpkg_extract:make_scratch_dir(+BuildDir, -ScratchDir) is det.
 %
-% Allocates a fresh scratch directory under the system temp dir.
+% Allocates a fresh private scratch directory under BuildDir.
 % Used for the outer-tar extraction (we don't want to clutter the
 % PORTAGE_BUILDDIR with the inner gpkg contents).
 
-binpkg_extract:make_scratch_dir(ScratchDir) :-
-  tmp_file(binpkg_extract, Tmp),
-  ( exists_file(Tmp) -> delete_file(Tmp) ; true ),
-  os:make_directory(Tmp),
-  ScratchDir = Tmp.
+binpkg_extract:make_scratch_dir(BuildDir, ScratchDir) :-
+  uuid(UUID),
+  format(atom(Name), '.portage-ng-extract-~w', [UUID]),
+  os:compose_path(BuildDir, Name, ScratchDir),
+  make_directory(ScratchDir),
+  filesex:chmod(ScratchDir, 0o700).
 
 
 %! binpkg_extract:remove_scratch_dir(+ScratchDir) is det.
@@ -162,6 +172,266 @@ binpkg_extract:remove_scratch_dir(ScratchDir) :-
            _, true)
   ;  true
   ).
+
+
+%! binpkg_extract:stage_verified_gpkg(+Source, +BuildDir, +Size, +Pairs, -Staged) is semidet.
+%
+% Copy Source into the private build directory and verify that immutable copy
+% against the Packages SIZE/MD5/SHA1 metadata before any tar command runs.
+
+binpkg_extract:stage_verified_gpkg(Source, BuildDir, Size, Pairs, Staged) :-
+  os:compose_path(BuildDir, '.portage-ng-verified.gpkg.tar', Staged),
+  setup_call_cleanup(
+    open(Source, read, In, [type(binary)]),
+    setup_call_cleanup(
+      open(Staged, write, Out, [type(binary)]),
+      copy_stream_data(In, Out),
+      close(Out)),
+    close(In)),
+  sanitize:existing_file(Staged),
+  mirror:verify_size(Staged, Size, true),
+  mirror:verify_hashes(Staged, Pairs, true, 0).
+
+
+% -----------------------------------------------------------------------------
+%  Internal gpkg Manifest and OpenPGP verification
+% -----------------------------------------------------------------------------
+
+%! binpkg_extract:verify_gpkg_manifest(+InnerDir) is semidet.
+%
+% Verify every outer member against the internal Manifest before either
+% compressed tar is opened. Unsigned gpkg-1 is accepted under the default
+% `auto` policy. If any signature is present, the clear-signed Manifest and
+% every detached member signature are mandatory and must be fully trusted.
+
+binpkg_extract:verify_gpkg_manifest(InnerDir) :-
+  os:compose_path(InnerDir, 'Manifest', ManifestPath),
+  sanitize:existing_file(ManifestPath),
+  read_file_to_string(ManifestPath, ManifestWire, [encoding(utf8)]),
+  binpkg_extract:inner_files(InnerDir, Files),
+  binpkg_extract:signature_mode(ManifestWire, Files, Signed),
+  binpkg_extract:signature_policy(Policy),
+  ( Signed == true
+  -> binpkg_extract:gpg_cleartext(InnerDir, ManifestPath, ManifestText)
+  ; Policy == require
+  -> format(user_error, 'binpkg_extract: unsigned gpkg rejected by signature policy~n', []),
+     fail
+  ;  ManifestText = ManifestWire
+  ),
+  binpkg_extract:parse_gpkg_manifest(ManifestText, Records),
+  binpkg_extract:verify_manifest_correspondence(Files, Records),
+  forall(member(gpkg_record(Name, Size, Pairs), Records),
+         binpkg_extract:verify_manifest_record(InnerDir, Name, Size, Pairs)),
+  ( Signed == true
+  -> binpkg_extract:verify_member_signatures(InnerDir, Files)
+  ;  true
+  ).
+
+
+%! binpkg_extract:signature_policy(-Policy) is det.
+
+binpkg_extract:signature_policy(Policy) :-
+  ( current_predicate(config:binpkg_signature_policy/1),
+    config:binpkg_signature_policy(P)
+  -> ( memberchk(P, [auto, require]) -> Policy = P ; Policy = require )
+  ;  Policy = auto
+  ).
+
+
+%! binpkg_extract:inner_files(+InnerDir, -Files) is det.
+%
+% Sorted regular non-symlink leaf names other than Manifest.
+
+binpkg_extract:inner_files(InnerDir, Files) :-
+  directory_files(InnerDir, Names0),
+  exclude(binpkg_extract:hidden_or_manifest, Names0, Names),
+  findall(Name,
+          ( member(Name, Names),
+            sanitize:safe_distfile_name(Name),
+            os:compose_path(InnerDir, Name, Path),
+            sanitize:existing_file(Path)
+          ),
+          Files0),
+  sort(Files0, Files),
+  length(Names, N),
+  length(Files, N).
+
+
+binpkg_extract:hidden_or_manifest(Name) :-
+  ( Name == '.'
+  ; Name == '..'
+  ; Name == 'Manifest'
+  ).
+
+
+%! binpkg_extract:signature_mode(+ManifestWire, +Files, -Signed) is det.
+
+binpkg_extract:signature_mode(ManifestWire, Files, true) :-
+  ( sub_string(ManifestWire, _, _, _, "-----BEGIN PGP SIGNED MESSAGE-----")
+  ; member(File, Files), sub_atom(File, _, 4, 0, '.sig')
+  ),
+  !.
+binpkg_extract:signature_mode(_, _, false).
+
+
+%! binpkg_extract:parse_gpkg_manifest(+Text, -Records) is semidet.
+%
+% Parse DATA leaf size algorithm/hash records, rejecting duplicates and
+% malformed or unsupported-only records.
+
+binpkg_extract:parse_gpkg_manifest(Text, Records) :-
+  split_string(Text, "\n", "\r", Lines0),
+  exclude(=(""), Lines0, Lines),
+  maplist(binpkg_extract:parse_gpkg_manifest_line, Lines, Records),
+  findall(Name, member(gpkg_record(Name, _, _), Records), Names),
+  sort(Names, Unique),
+  same_length(Names, Unique).
+
+
+binpkg_extract:parse_gpkg_manifest_line(Line, gpkg_record(Name, Size, Pairs)) :-
+  split_string(Line, " \t", " \t", ["DATA", NameString, SizeString|HashTokens]),
+  atom_string(Name, NameString),
+  sanitize:safe_distfile_name(Name),
+  number_string(Size, SizeString),
+  integer(Size),
+  Size >= 0,
+  mirror:tokens_to_pairs(HashTokens, Pairs),
+  include(mirror:strong_hash_pair, Pairs, Strong),
+  Strong \== [].
+
+
+%! binpkg_extract:verify_manifest_correspondence(+Files, +Records) is semidet.
+
+binpkg_extract:verify_manifest_correspondence(Files, Records) :-
+  findall(Name, member(gpkg_record(Name, _, _), Records), Names0),
+  sort(Names0, Names),
+  Files == Names,
+  memberchk('gpkg-1', Files),
+  memberchk('image.tar.zst', Files),
+  memberchk('metadata.tar.zst', Files).
+
+
+%! binpkg_extract:verify_manifest_record(+Dir, +Name, +Size, +Pairs) is semidet.
+
+binpkg_extract:verify_manifest_record(Dir, Name, Size, Pairs) :-
+  os:compose_path(Dir, Name, Path),
+  sanitize:existing_file(Path),
+  mirror:verify_size(Path, Size, true),
+  mirror:verify_strong_hashes(Path, Pairs).
+
+
+%! binpkg_extract:verify_member_signatures(+InnerDir, +Files) is semidet.
+
+binpkg_extract:verify_member_signatures(InnerDir, Files) :-
+  forall(
+    ( member(Name, Files),
+      Name \== 'gpkg-1',
+      \+ sub_atom(Name, _, 4, 0, '.sig')
+    ),
+    ( atom_concat(Name, '.sig', SignatureName),
+      memberchk(SignatureName, Files),
+      os:compose_path(InnerDir, SignatureName, SignaturePath),
+      os:compose_path(InnerDir, Name, DataPath),
+      binpkg_extract:gpg_verify_detached(InnerDir, SignaturePath, DataPath)
+    )).
+
+
+%! binpkg_extract:gpg_cleartext(+WorkDir, +Manifest, -PlainText) is semidet.
+
+binpkg_extract:gpg_cleartext(WorkDir, Manifest, PlainText) :-
+  binpkg_extract:gpg_home(Home),
+  binpkg_extract:run_gpg(WorkDir,
+    ['--homedir', Home, '--batch', '--no-tty', '--status-fd', '2',
+     '--decrypt', Manifest],
+    PlainText, Status),
+  binpkg_extract:gpg_status_trusted(Status).
+
+
+%! binpkg_extract:gpg_verify_detached(+WorkDir, +Signature, +Data) is semidet.
+
+binpkg_extract:gpg_verify_detached(WorkDir, Signature, Data) :-
+  binpkg_extract:gpg_home(Home),
+  binpkg_extract:run_gpg(WorkDir,
+    ['--homedir', Home, '--batch', '--no-tty', '--status-fd', '2',
+     '--verify', Signature, Data],
+    _Output, Status),
+  binpkg_extract:gpg_status_trusted(Status).
+
+
+%! binpkg_extract:gpg_home(-Home) is semidet.
+
+binpkg_extract:gpg_home(Home) :-
+  ( current_predicate(config:binpkg_gpg_verify_home/1),
+    config:binpkg_gpg_verify_home(Home0)
+  -> Home = Home0
+  ;  catch(preference:getenv('BINPKG_GPG_VERIFY_GPG_HOME', Home1), _, fail),
+     Home1 \== '',
+     Home = Home1
+  ),
+  exists_directory(Home).
+
+
+%! binpkg_extract:run_gpg(+WorkDir, +Args, -Output, -StatusText) is semidet.
+%
+% Run GPG with stdout/status captured in private files to avoid pipe deadlock.
+
+binpkg_extract:run_gpg(WorkDir, Args, Output, StatusText) :-
+  uuid(UUID),
+  format(atom(OutName), '.portage-ng-gpg-~w.out', [UUID]),
+  format(atom(StatusName), '.portage-ng-gpg-~w.status', [UUID]),
+  os:compose_path(WorkDir, OutName, OutPath),
+  os:compose_path(WorkDir, StatusName, StatusPath),
+  setup_call_cleanup(
+    ( open(OutPath, write, Out, [type(binary)]),
+      open(StatusPath, write, Err, [type(binary)])
+    ),
+    ( binpkg_extract:gpg_command(Command),
+      binpkg_extract:executable_spec(Command, Executable),
+      process_create(Executable, Args,
+                     [stdin(null), stdout(stream(Out)), stderr(stream(Err)),
+                      process(Pid)]),
+      process_wait(Pid, Exit),
+      close(Out),
+      close(Err),
+      Exit == exit(0),
+      read_file_to_string(OutPath, Output, [encoding(utf8)]),
+      read_file_to_string(StatusPath, StatusText, [encoding(utf8)])
+    ),
+    ( catch(close(Out, [force(true)]), _, true),
+      catch(close(Err, [force(true)]), _, true),
+      catch(delete_file(OutPath), _, true),
+      catch(delete_file(StatusPath), _, true)
+    )).
+
+
+%! binpkg_extract:gpg_command(-Command) is det.
+
+binpkg_extract:gpg_command(Command) :-
+  ( current_predicate(config:binpkg_gpg_command/1),
+    config:binpkg_gpg_command(C)
+  -> Command = C
+  ;  Command = gpg
+  ).
+
+
+%! binpkg_extract:executable_spec(+Command, -Spec) is det.
+
+binpkg_extract:executable_spec(Command, Command) :-
+  atom(Command),
+  sub_atom(Command, 0, 1, _, '/'),
+  !.
+binpkg_extract:executable_spec(Command, path(Command)).
+
+
+%! binpkg_extract:gpg_status_trusted(+Status) is semidet.
+
+binpkg_extract:gpg_status_trusted(Status) :-
+  sub_string(Status, _, _, _, "[GNUPG:] VALIDSIG "),
+  ( sub_string(Status, _, _, _, "[GNUPG:] TRUST_FULLY")
+  ; sub_string(Status, _, _, _, "[GNUPG:] TRUST_ULTIMATE")
+  ),
+  \+ sub_string(Status, _, _, _, "[GNUPG:] BADSIG "),
+  \+ sub_string(Status, _, _, _, "[GNUPG:] ERRSIG ").
 
 
 % -----------------------------------------------------------------------------
@@ -385,6 +655,8 @@ binpkg_extract:forbidden_type(_, device).
 binpkg_extract:forbidden_type(_, fifo).
 binpkg_extract:forbidden_type(_, socket).
 binpkg_extract:forbidden_type(_, other).
+binpkg_extract:forbidden_type(outer, symlink).
+binpkg_extract:forbidden_type(outer, hardlink).
 binpkg_extract:forbidden_type(metadata, symlink).
 binpkg_extract:forbidden_type(metadata, hardlink).
 

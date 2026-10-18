@@ -16,6 +16,9 @@ IPCCLIENT_CXXFLAGS   = $(CXXFLAGS) -std=c++17
 
 CERTDIR              = Certificates
 HOST                ?= $(shell hostname)
+PREFIX              ?= /usr/local
+SHARE                = $(PREFIX)/share/portage-ng
+STATEDIR             = /var/lib/portage-ng
 
 .PHONY: help check all build install test test-overlay ipcclient clean certs passwordfile certs-check certs-renew
 
@@ -69,9 +72,13 @@ all:
 build:
 	swipl -O --stack_limit=32G -o $(TARGET) -q -f portage-ng.pl -p portage=${BUILDDIR} -g main --stand_alone=true -c portage-ng.pl
 
-# Install the application.
+# Install the binary under PREFIX, assets under share, state under /var/lib.
 install:
-	$(SUDO) cp $(TARGET) /usr/local/bin
+	$(SUDO) mkdir -p $(PREFIX)/bin $(SHARE)/Documentation $(STATEDIR)/Knowledge
+	$(SUDO) cp $(TARGET) $(PREFIX)/bin/portage-ng
+	$(SUDO) cp -R Documentation/Assets Documentation/Images $(SHARE)/Documentation/
+	$(SUDO) cp -R Source $(SHARE)/
+	$(SUDO) rm -rf $(SHARE)/Source/Config/Private
 
 # Run PLUnit tests.
 test:

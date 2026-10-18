@@ -35,11 +35,13 @@ clash with user:main/0 there. Callers name it as ipclient:main.
             relaunch/0,
             socket_path/1,
             pid_path/1,
+            socket_connectable/1,
             wait_for_file/2,
             wait_for_socket_gone/2
           ]).
 
 :- use_module(library(socket)).
+:- use_module('../System/runtimepath', []).
 
 % =============================================================================
 %  IPCLIENT declarations
@@ -91,11 +93,7 @@ ipclient:cmd_arg([Arg|Rest], Cmd) :-
 %! ipclient:runtime_dir(-Dir) is det.
 
 ipclient:runtime_dir(Dir) :-
-  ( getenv('XDG_RUNTIME_DIR', Dir)
-  -> true
-  ;  ( getenv('USER', User) -> true ; User = unknown ),
-     atom_concat('/tmp/portage-ng-', User, Dir)
-  ).
+  runtimepath:daemon_runtime_dir(Dir).
 
 
 %! ipclient:socket_path(-Path) is det.
@@ -110,6 +108,18 @@ ipclient:socket_path(Path) :-
 ipclient:pid_path(Path) :-
   runtime_dir(Dir),
   atom_concat(Dir, '/portage-ng.pid', Path).
+
+
+%! ipclient:socket_connectable(+Path) is semidet.
+
+ipclient:socket_connectable(Path) :-
+  catch(
+    setup_call_cleanup(
+      unix_domain_socket(Socket),
+      tcp_connect(Socket, Path),
+      tcp_close_socket(Socket)),
+    _,
+    fail).
 
 
 %! ipclient:autostart_enabled is semidet.

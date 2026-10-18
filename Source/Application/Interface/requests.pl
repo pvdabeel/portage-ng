@@ -151,12 +151,48 @@ interface:request_select(Mode, Args, Options, Flag, Goal) :-
 % predicate, but silently: actions signal their own errors.
 
 interface:dispatch_request(Mode, Args, Options) :-
-  interface:request_select(Mode, Args, Options, _Flag, Goal),
+  interface:request_select(Mode, Args, Options, Flag, Goal),
   !,
+  interface:ensure_for_request(Flag, Options),
   Goal.
 interface:dispatch_request(_, _, Options) :-
   format(atom(Msg), 'No action recognised for options: ~w', [Options]),
   message:failure([Msg]).
+
+
+%! interface:ensure_for_request(+Flag, +Options) is det.
+%
+% Load the capability groups the selected action needs. Pretend and
+% merge stay on the resolver. Build, graph and the shell load the
+% groups that used to start with every standalone process. Explain
+% loads the language-model groups only when an explain mode is set.
+
+interface:ensure_for_request(shell, _) :-
+  !,
+  loader:ensure(build),
+  loader:ensure(graph),
+  loader:ensure(bulk),
+  loader:ensure(cluster),
+  ( config:load_llm_modules(true) -> loader:ensure(llm) ; true ).
+interface:ensure_for_request(Flag, _) :-
+  memberchk(Flag, [build, resume, snapshots, rollback]),
+  !,
+  loader:ensure(build).
+interface:ensure_for_request(graph, _) :-
+  !,
+  loader:ensure(graph),
+  loader:ensure(bulk).
+interface:ensure_for_request(Flag, _) :-
+  memberchk(Flag, [llm, diagnose, trainmodel, similar]),
+  !,
+  loader:ensure(llm).
+interface:ensure_for_request(Flag, Options) :-
+  memberchk(Flag, [merge, update, fetchonly, fetchall, shellrun, upgrade]),
+  memberchk(explain(Explain), Options),
+  Explain \== none,
+  !,
+  loader:ensure(llm).
+interface:ensure_for_request(_, _).
 
 
 % -----------------------------------------------------------------------------

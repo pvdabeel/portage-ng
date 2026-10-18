@@ -75,11 +75,17 @@ From the project root:
 ```bash
 make check    # verify SWI-Prolog is installed
 make build    # create the portage-ng binary
-make install  # install to /usr/local/bin (requires sudo)
+make install  # binary, share and state directory (requires sudo)
 ```
 
 The `build` target uses `swipl --stand_alone=true` to produce a
-self-contained binary.
+self-contained binary. `make install` copies that binary to
+`/usr/local/bin/portage-ng`, the graph assets and `Source/` tree to
+`/usr/local/share/portage-ng`, and creates `/var/lib/portage-ng/Knowledge`
+for caches. A development checkout keeps using its own `Knowledge/`
+directory. `PORTAGE_NG_HOME` and `PORTAGE_NG_STATE` override the share
+and the state directory. Certificates are not copied; generate them
+with `make certs` on the machine that runs the server.
 
 
 ## First run

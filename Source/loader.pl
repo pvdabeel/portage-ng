@@ -12,9 +12,9 @@
 Per-mode module loading.
 
 Module groups are declared as loader:group/2 facts. Operating modes
-are declared as loader:mode/2 facts (an ordered group list), with
-loader:optional/3 naming the groups a mode loads only when a
-condition holds.
+are declared as loader:mode/2 facts (an ordered group list).
+loader:ensure/1 loads build, graph, bulk, cluster and language-model
+groups when an action needs them.
 load_modules/1 is the single entry point. A module needed by several
 modes lives in exactly one shared group, so additions propagate
 automatically and the delta between modes (e.g. standalone vs worker)
@@ -65,6 +65,7 @@ loader:group(common_modules,
     portage('Source/config'),
     portage('Source/Application/Output/console.pl'),
     portage('Source/Application/System/os.pl'),
+    portage('Source/Application/System/runtimepath.pl'),
     portage('Source/Application/System/lock.pl'),
     portage('Source/Application/Security/sanitize.pl'),
     portage('Source/Application/Output/message.pl'),
@@ -95,7 +96,8 @@ loader:group(client_libraries,
     library('http/http_digest')]).
 
 loader:group(client_core_modules,
-   [portage('Source/Application/Mode/stubs.pl'),
+   [    portage('Source/Application/Mode/stubs.pl'),
+    portage('Source/Application/Mode/routes.pl'),
     portage('Source/Knowledge/knowledgebase.pl'),
     portage('Source/Domain/Gentoo/ebuild.pl')]).
 
@@ -131,6 +133,7 @@ loader:group(knowledge_modules,
     portage('Source/Knowledge/cache.pl'),
     portage('Source/Knowledge/feedback.pl'),
     portage('Source/Knowledge/repository.pl'),
+    portage('Source/Application/Mode/routes.pl'),
     portage('Source/Knowledge/knowledgebase.pl'),
     portage('Source/Knowledge/query.pl')]).
 
@@ -177,7 +180,8 @@ loader:group(pipeline_modules,
     portage('Source/Pipeline/prover.pl'),
     portage('Source/Logic/constraint.pl'),
     portage('Source/Pipeline/resolver.pl'),
-    portage('Source/Pipeline/orderer.pl')]).
+    portage('Source/Pipeline/orderer.pl'),
+    portage('Source/Application/Mode/jobs.pl')]).
 
 loader:group(printer_modules,
    [portage('Source/Pipeline/Printer/Plan/assumption.pl'),
@@ -201,8 +205,20 @@ loader:group(standalone_libraries,
     library('http/http_json')]).
 
 loader:group(standalone_modules,
+   [portage('Source/Pipeline/Builder/buildtime.pl'),
+    portage('Source/Domain/Gentoo/variant.pl'),
+    portage('Source/Domain/Gentoo/depclean.pl'),
+    portage('Source/Application/System/linkage.pl'),
+    portage('Source/Application/Output/Report/report.pl'),
+    portage('Source/Application/System/httpfetch.pl'),
+    portage('Source/Domain/Gentoo/upstream.pl'),
+    portage('Source/Domain/Gentoo/bugs.pl')]).
+
+% Build, graph and bulk-test files load through loader:ensure/1 when an
+% action needs them. The server mode does not include these groups.
+
+loader:group(builder_modules,
    [portage('Source/Domain/Gentoo/mirror.pl'),
-    portage('Source/Pipeline/Builder/buildtime.pl'),
     portage('Source/Domain/Gentoo/Exceptions/fixup.pl'),
     portage('Source/Domain/Gentoo/Exceptions/collision.pl'),
     portage('Source/Domain/Gentoo/Exceptions/ghcabi.pl'),
@@ -215,7 +231,6 @@ loader:group(standalone_modules,
     portage('Source/Domain/Gentoo/Binpkg/binpkg_extract.pl'),
     portage('Source/Domain/Gentoo/Binpkg/binpkg_exec.pl'),
     portage('Source/Pipeline/Printer/Build/build.pl'),
-    portage('Source/Domain/Gentoo/variant.pl'),
     portage('Source/Pipeline/Builder/snapshot.pl'),
     portage('Source/Pipeline/Builder/jobserver.pl'),
     portage('Source/Pipeline/Builder/download.pl'),
@@ -223,8 +238,10 @@ loader:group(standalone_modules,
     portage('Source/Pipeline/Builder/fetch.pl'),
     portage('Source/Pipeline/Builder/resume.pl'),
     portage('Source/Domain/Gentoo/Ebuild/ebuild_exec.pl'),
-    portage('Source/Pipeline/builder.pl'),
-    portage('Source/Application/Output/writer.pl'),
+    portage('Source/Pipeline/builder.pl')]).
+
+loader:group(graph_modules,
+   [portage('Source/Application/Output/writer.pl'),
     portage('Source/Application/Output/Grapher/navtheme.pl'),
     portage('Source/Application/Output/Grapher/gantt.pl'),
     portage('Source/Application/Output/Grapher/deptree.pl'),
@@ -234,19 +251,17 @@ loader:group(standalone_modules,
     portage('Source/Application/Output/Grapher/tracker.pl'),
     portage('Source/Application/Output/Grapher/dot.pl'),
     portage('Source/Application/Output/Grapher/sitefiles.pl'),
-    portage('Source/Application/Output/grapher.pl'),
-    portage('Source/Application/Mode/worker.pl'),
-    % tester.pl lives under Source/Test but is production: it is the
-    % bulk-iteration harness behind --graph, index/proof file writing
-    % and the resolver/pipeline/printer test_stats entry points.
-    portage('Source/Test/tester.pl'),
-    portage('Source/Application/Mode/cluster.pl'),
-    portage('Source/Domain/Gentoo/depclean.pl'),
-    portage('Source/Application/System/linkage.pl'),
-    portage('Source/Application/Output/Report/report.pl'),
-    portage('Source/Application/System/httpfetch.pl'),
-    portage('Source/Domain/Gentoo/upstream.pl'),
-    portage('Source/Domain/Gentoo/bugs.pl')]).
+    portage('Source/Application/Output/grapher.pl')]).
+
+% tester.pl lives under Source/Test but is production: it is the
+% bulk-iteration harness behind --graph, index/proof file writing
+% and the resolver/pipeline/printer test_stats entry points.
+loader:group(bulk_modules,
+   [portage('Source/Test/tester.pl')]).
+
+loader:group(cluster_modules,
+   [portage('Source/Application/Mode/worker.pl'),
+    portage('Source/Application/Mode/cluster.pl')]).
 
 % The overlay regression harness (module test, Source/Test/test.pl) is
 % NOT part of any operating mode: no production predicate calls it, so
@@ -266,9 +281,11 @@ loader:group(server_libraries,
    [library('http/http_server'),
     library('http/http_open'),
     library('http/http_client'),
+    library('http/http_stream'),
     library('http/http_ssl_plugin'),
     library('http/http_digest'),
     library('http/thread_httpd'),
+    library('ssl'),
     library('streams'),
     library('pengines')]).
 
@@ -306,8 +323,9 @@ loader:group(llm_modules,
 % Declares the module groups of an operating mode. Groups is an ordered
 % list of loader:group/2 names.
 %
-% common is a prerequisite loaded before mode dispatch. daemon and
-% server extend standalone so pipeline additions propagate.
+% common is a prerequisite loaded before mode dispatch. daemon extends
+% standalone. server is the resolver, queue and HTTP surface: build,
+% graph, bulk-test and LLM modules load only through loader:ensure/1.
 
 loader:mode(common,
    [common_libraries,
@@ -343,33 +361,58 @@ loader:mode(worker,
 loader:mode(daemon, [daemon_modules|Groups]) :-
    loader:mode(standalone, Groups).
 
-loader:mode(server, Groups) :-
-   loader:mode(standalone, Standalone),
-   append(Standalone, [server_libraries, server_modules], Groups).
+loader:mode(server,
+   [pipeline_libraries,
+    knowledge_modules,
+    domain_modules,
+    pipeline_modules,
+    printer_modules,
+    standalone_modules,
+    server_libraries,
+    server_modules]).
 
 
-%! loader:optional(?Mode, ?Groups, :Condition) is nondet.
-%
-% Declares module groups that Mode loads after its loader:mode/2 groups,
-% only when Condition holds. The Generative AI groups are gated by
-% config:load_llm_modules/1; when false the builder / CLI continue
-% without LLM backends, and call sites must tolerate that (stubs + soft
-% call_llm). daemon and server inherit standalone's optional groups.
-
-loader:optional(client,     [llm_libraries, llm_modules], config:load_llm_modules(true)).
-loader:optional(standalone, [llm_libraries, llm_modules], config:load_llm_modules(true)).
-loader:optional(worker,     [llm_libraries, llm_modules], config:load_llm_modules(true)).
-
-loader:optional(daemon, Groups, Condition) :-
-   loader:optional(standalone, Groups, Condition).
-
-loader:optional(server, Groups, Condition) :-
-   loader:optional(standalone, Groups, Condition).
+% Startup groups are unconditional. build, graph, bulk, cluster and llm
+% load through loader:ensure/1.
 
 
 % -----------------------------------------------------------------------------
 %  Group loading
 % -----------------------------------------------------------------------------
+
+%! loader:capability(?Name, ?Groups) is nondet.
+%
+% Groups loaded by loader:ensure/1. build, graph and bulk stay out of
+% the server process until a request needs them.
+
+loader:capability(build, [builder_modules]).
+loader:capability(graph, [graph_modules]).
+loader:capability(bulk, [bulk_modules]).
+loader:capability(cluster, [cluster_modules]).
+loader:capability(llm, [llm_libraries, llm_modules]).
+
+:- dynamic loader:capability_loaded/1.
+
+%! loader:ensure(+Name) is det.
+%
+% Load Name's groups once. llm is a no-op when
+% config:load_llm_modules(false).
+
+loader:ensure(Name) :-
+  with_mutex(loader_capabilities, loader:ensure_locked(Name)).
+
+loader:ensure_locked(llm) :-
+  \+ config:load_llm_modules(true),
+  !.
+loader:ensure_locked(Name) :-
+  loader:capability_loaded(Name),
+  !.
+loader:ensure_locked(Name) :-
+  loader:capability(Name, Groups),
+  loader:load_groups(Groups),
+  assertz(loader:capability_loaded(Name)),
+  ( current_predicate(sandbox:activate/0) -> sandbox:activate ; true ).
+
 
 %! loader:load_group(+Group) is det.
 %
@@ -411,8 +454,5 @@ loader:load_test_modules :-
 load_modules(Mode) :-
    loader:mode(Mode, Groups),
    loader:load_groups(Groups),
-   forall(( loader:optional(Mode, Optional, Condition),
-            call(Condition) ),
-          loader:load_groups(Optional)),
    format(atom(Msg), 'Loaded ~w modules...', [Mode]),
    message:log(Msg).

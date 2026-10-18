@@ -17,6 +17,11 @@ architecture
 %  SANDBOX declarations
 % =============================================================================
 
+% Predicates that are loaded with a capability, or by the host config
+% after this file, are recorded here and promoted by sandbox:activate/0.
+:- discontiguous sandbox:when_loaded/1.
+:- discontiguous sandbox:safe_primitive/1.
+
 % -----------------------------------------------------------------------------
 %  Config
 % -----------------------------------------------------------------------------
@@ -26,15 +31,15 @@ sandbox:safe_primitive(config:certificate(_,_,_)).
 sandbox:safe_primitive(config:build_phases(_)).
 sandbox:safe_primitive(config:dry_run_build(_)).
 sandbox:safe_primitive(config:failsilenton(_)).
-sandbox:safe_primitive(config:graph_directory(_)).
+sandbox:when_loaded(config:graph_directory(_)).
 sandbox:safe_primitive(config:graph_modified_only(_)).
 sandbox:safe_primitive(config:graph_include_emerge(_)).
-sandbox:safe_primitive(config:emerge_vp_path(_)).
+sandbox:when_loaded(config:emerge_vp_path(_)).
 sandbox:safe_primitive(config:emerge_vp_timeout(_)).
 sandbox:safe_primitive(config:emerge_vp_concurrency(_)).
 sandbox:safe_primitive(config:force_emerge_regen(_)).
 sandbox:safe_primitive(config:graph_include_pmerge(_)).
-sandbox:safe_primitive(config:pmerge_path(_)).
+sandbox:when_loaded(config:pmerge_path(_)).
 sandbox:safe_primitive(config:pmerge_timeout(_)).
 sandbox:safe_primitive(config:pmerge_concurrency(_)).
 sandbox:safe_primitive(config:force_pmerge_regen(_)).
@@ -56,7 +61,7 @@ sandbox:safe_primitive(config:hostname(_)).
 sandbox:safe_primitive(config:installation_dir(_)).
 sandbox:safe_primitive(config:name(_)).
 sandbox:safe_primitive(config:number_of_cpus(_)).
-sandbox:safe_primitive(config:pkg_directory(_)).
+sandbox:when_loaded(config:pkg_directory(_)).
 sandbox:safe_primitive(console:printing_style(_)).
 sandbox:safe_primitive(console:printing_tty_size(_,_)).
 sandbox:safe_primitive(console:powerline_bubbles).
@@ -148,26 +153,26 @@ sandbox:safe_primitive(feedback:discovery_count(_)).
 sandbox:safe_primitive(feedback:version_excluded(_,_,_)).
 sandbox:safe_primitive(feedback:discovered_bdepend_dep(_,_,_)).
 
-sandbox:safe_primitive(missing_provider:package_in_tree(_)).
-sandbox:safe_primitive(missing_provider:provider_of(_,_,_,_)).
+sandbox:when_loaded(missing_provider:package_in_tree(_)).
+sandbox:when_loaded(missing_provider:provider_of(_,_,_,_)).
 
-sandbox:safe_primitive(metacircular:provider_in_tree(_)).
-sandbox:safe_primitive(metacircular:parse_proposal(_,_)).
-sandbox:safe_primitive(metacircular:valid_action(_)).
+sandbox:when_loaded(metacircular:provider_in_tree(_)).
+sandbox:when_loaded(metacircular:parse_proposal(_,_)).
+sandbox:when_loaded(metacircular:valid_action(_)).
 
 % -----------------------------------------------------------------------------
 %  LLM knowledge pack (read-only Handbook / Source excerpts)
 % -----------------------------------------------------------------------------
 
-sandbox:safe_primitive(llmknowledge:topics(_)).
-sandbox:safe_primitive(llmknowledge:topic(_,_)).
-sandbox:safe_primitive(llmknowledge:print_topic(_)).
-sandbox:safe_primitive(llmknowledge:list_topics).
-sandbox:safe_primitive(llmknowledge:handbook(_,_)).
-sandbox:safe_primitive(llmknowledge:print_handbook(_)).
-sandbox:safe_primitive(llmknowledge:handbook_catalogue(_)).
-sandbox:safe_primitive(llmknowledge:source(_,_,_,_)).
-sandbox:safe_primitive(llmknowledge:print_source(_,_,_)).
+sandbox:when_loaded(llmknowledge:topics(_)).
+sandbox:when_loaded(llmknowledge:topic(_,_)).
+sandbox:when_loaded(llmknowledge:print_topic(_)).
+sandbox:when_loaded(llmknowledge:list_topics).
+sandbox:when_loaded(llmknowledge:handbook(_,_)).
+sandbox:when_loaded(llmknowledge:print_handbook(_)).
+sandbox:when_loaded(llmknowledge:handbook_catalogue(_)).
+sandbox:when_loaded(llmknowledge:source(_,_,_,_)).
+sandbox:when_loaded(llmknowledge:print_source(_,_,_)).
 sandbox:safe_primitive(config:llm_knowledge_max_bytes(_)).
 sandbox:safe_primitive(config:llm_knowledge_max_source_lines(_)).
 
@@ -201,15 +206,15 @@ sandbox:safe_primitive(resolver:test_stats(_,_,_)).
 sandbox:safe_primitive(resolver:test_stats_pkgs(_,_)).
 sandbox:safe_primitive(resolver:test_stats_pkgs(_,_,_,_)).
 
-sandbox:safe_primitive(plancompare:run(_,_)).
-sandbox:safe_primitive(plancompare:diff(_,_)).
+sandbox:when_loaded(plancompare:run(_,_)).
+sandbox:when_loaded(plancompare:diff(_,_)).
 
-sandbox:safe_primitive(builder:test_stats(_)).
-sandbox:safe_primitive(builder:test_stats(_,_)).
-sandbox:safe_primitive(builder:test_stats(_,_,_)).
-sandbox:safe_primitive(builder:test_stats_pkgs(_,_)).
-sandbox:safe_primitive(builder:test_stats_pkgs(_,_,_,_)).
-sandbox:safe_primitive(builder:test_single(_,_)).
+sandbox:when_loaded(builder:test_stats(_)).
+sandbox:when_loaded(builder:test_stats(_,_)).
+sandbox:when_loaded(builder:test_stats(_,_,_)).
+sandbox:when_loaded(builder:test_stats_pkgs(_,_)).
+sandbox:when_loaded(builder:test_stats_pkgs(_,_,_,_)).
+sandbox:when_loaded(builder:test_single(_,_)).
 
 sandbox:safe_primitive(constraint:is_constraint(_)).
 sandbox:safe_primitive(constraint:unify_constraints(_,_,_)).
@@ -374,7 +379,8 @@ sandbox:safe_primitive(config:preserved_libs_registry(_)).
 % -----------------------------------------------------------------------------
 
 sandbox:safe_primitive(server:get_job(_,_,_)).
-sandbox:safe_primitive(server:post_result(_,_)).
+sandbox:safe_primitive(server:post_result(_,_,_)).
+sandbox:safe_primitive(server:renew_lease(_,_)).
 sandbox:safe_primitive(server:register_worker(_,_,_)).
 sandbox:safe_primitive(server:snapshot(_,_)).
 
@@ -383,3 +389,29 @@ sandbox:safe_primitive(server:snapshot(_,_)).
 % -----------------------------------------------------------------------------
 
 sandbox:safe_meta(streams:with_output_to(_,_,_),_).
+
+
+%! sandbox:activate is det.
+%
+% Compile sandbox:when_loaded/1 goals whose predicate now exists. The
+% sandbox only accepts a whitelist clause while the predicate is
+% visible, and host configuration plus capability groups are loaded
+% after this file.
+
+sandbox:activate :-
+  findall(Line, sandbox:pending_line(Line), Lines),
+  ( Lines == []
+  -> true
+  ;  atomic_list_concat(Lines, Src),
+     setup_call_cleanup(open_string(Src, In),
+                        load_files('sandbox-when-loaded', [stream(In), if(true)]),
+                        close(In))
+  ).
+
+sandbox:pending_line(Line) :-
+  sandbox:when_loaded(Module:Goal),
+  atom(Module),
+  callable(Goal),
+  functor(Goal, Name, Arity),
+  current_predicate(Module:Name/Arity),
+  format(atom(Line), 'sandbox:safe_primitive(~q).~n', [Module:Goal]).

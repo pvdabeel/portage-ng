@@ -368,6 +368,26 @@ Source/Config/Gentoo/
 
 These contain commented examples that mirror a typical Gentoo setup.  On a real Gentoo system, point `config:portage_confdir/1` directly at `/etc/portage` instead.
 
+### Binary package signatures
+
+`config:binpkg_signature_policy/1` is `auto` or `require`.  `auto`
+accepts an unsigned gpkg after digest verification and demands a
+complete trusted OpenPGP signature set as soon as one signature is
+present.  `require` rejects unsigned packages.  Verification uses
+`config:binpkg_gpg_command/1` (default `gpg`) and
+`config:binpkg_gpg_verify_home/1` when that fact is defined; otherwise
+the home is `BINPKG_GPG_VERIFY_GPG_HOME` from the Portage configuration.
+See [Chapter 16](16-doc-building.md).
+
+### Remote VDB quotas
+
+Authenticated client VDB imports are bounded by
+`config:client_vdb_max_tenants/1`,
+`config:client_vdb_max_total_bytes/1`,
+`config:client_vdb_max_total_entries/1`,
+`config:client_vdb_max_total_metadata/1`, and
+`config:client_vdb_idle_ttl/1`.  See [Chapter 18](18-doc-distributed.md).
+
 ## Precedence
 
 When the same setting appears in more than one place, portage-ng resolves it by checking sources from most specific to most general.  The first match wins.  For environment-like settings such as use flags, keywords, licenses, etc., the lookup order is:

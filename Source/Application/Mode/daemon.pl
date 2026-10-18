@@ -55,9 +55,8 @@ daemon:start :-
   ensure_runtime_dir,
   config:daemon_socket_path(SocketPath),
   config:daemon_pid_path(PidPath),
-  ( access_file(SocketPath, exist) -> delete_file(SocketPath) ; true ),
   unix_domain_socket(Socket),
-  tcp_bind(Socket, SocketPath),
+  daemon:bind_socket(Socket, SocketPath),
   secure_socket_file(SocketPath),
   tcp_listen(Socket, 5),
   write_pid(PidPath),
@@ -66,6 +65,50 @@ daemon:start :-
   current_prolog_flag(pid, Pid),
   format('Daemon started (PID ~w), listening on ~w~n', [Pid, SocketPath]),
   accept_loop(Socket).
+
+
+%! daemon:bind_socket(+Socket, +SocketPath) is det.
+%
+% Bind first. On failure, preserve a live daemon; reclaim one stale,
+% non-symlink socket entry inside the verified private runtime directory and
+% retry once.
+
+daemon:bind_socket(Socket, SocketPath) :-
+  catch(tcp_bind(Socket, SocketPath),
+        Error,
+        daemon:bind_socket_retry(Socket, SocketPath, Error)).
+
+
+%! daemon:bind_socket_retry(+Socket, +SocketPath, +OriginalError) is det.
+
+daemon:bind_socket_retry(_Socket, SocketPath, _OriginalError) :-
+  daemon:socket_live(SocketPath),
+  !,
+  throw(error(permission_error(start, daemon, already_running(SocketPath)), _)).
+daemon:bind_socket_retry(Socket, SocketPath, _OriginalError) :-
+  access_file(SocketPath, exist),
+  !,
+  ( sanitize:not_symlink(SocketPath)
+  -> delete_file(SocketPath),
+     catch(tcp_bind(Socket, SocketPath), RetryError, throw(RetryError))
+  ;  daemon:insecure_runtime_error(SocketPath, 'is a symlink')
+  ).
+daemon:bind_socket_retry(_Socket, _SocketPath, OriginalError) :-
+  throw(OriginalError).
+
+
+%! daemon:socket_live(+SocketPath) is semidet.
+%
+% True when a process accepts a connection at SocketPath.
+
+daemon:socket_live(SocketPath) :-
+  catch(
+    setup_call_cleanup(
+      unix_domain_socket(Probe),
+      tcp_connect(Probe, SocketPath),
+      tcp_close_socket(Probe)),
+    _,
+    fail).
 
 
 %! daemon:ensure_runtime_dir is det.
@@ -121,10 +164,15 @@ daemon:insecure_runtime_error(Path, Reason) :-
 
 daemon:write_pid(PidPath) :-
   current_prolog_flag(pid, Pid),
+  format(atom(TmpPath), '~w.~w.tmp', [PidPath, Pid]),
   setup_call_cleanup(
-    open(PidPath, write, S),
-    format(S, '~w~n', [Pid]),
-    close(S)).
+    open(TmpPath, write, S),
+    ( format(S, '~w~n', [Pid]),
+      flush_output(S)
+    ),
+    close(S)),
+  filesex:chmod(TmpPath, 0o600),
+  rename_file(TmpPath, PidPath).
 
 
 %! daemon:cleanup(+SocketPath, +PidPath) is det.
@@ -132,8 +180,29 @@ daemon:write_pid(PidPath) :-
 % Removes the socket and PID files on daemon exit.
 
 daemon:cleanup(SocketPath, PidPath) :-
-  ( access_file(SocketPath, exist) -> delete_file(SocketPath) ; true ),
-  ( access_file(PidPath, exist) -> delete_file(PidPath) ; true ).
+  ( access_file(SocketPath, exist),
+    sanitize:not_symlink(SocketPath)
+  -> catch(delete_file(SocketPath), _, true)
+  ;  true
+  ),
+  ( daemon:pid_file_is_current(PidPath)
+  -> catch(delete_file(PidPath), _, true)
+  ;  true
+  ).
+
+
+%! daemon:pid_file_is_current(+PidPath) is semidet.
+
+daemon:pid_file_is_current(PidPath) :-
+  access_file(PidPath, exist),
+  sanitize:not_symlink(PidPath),
+  setup_call_cleanup(
+    open(PidPath, read, S),
+    read_string(S, _, Raw),
+    close(S)),
+  normalize_space(atom(PidAtom), Raw),
+  atom_number(PidAtom, StoredPid),
+  current_prolog_flag(pid, StoredPid).
 
 
 :- dynamic daemon:inactivity_alarm/1.

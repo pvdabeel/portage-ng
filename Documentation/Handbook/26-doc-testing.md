@@ -175,7 +175,11 @@ plancompare:diff('/tmp/before.tsv', '/tmp/after.tsv').
 standalone bash extractor at
 `Source/Domain/Gentoo/Ebuild/ebuild-depend.sh --batch` over every
 md5-cache entry in the configured Portage tree and diffs the produced
-metadata against the on-disk cache, key by key.
+metadata against the on-disk cache, key by key.  Batch and coprocess
+requests are NUL-framed `entry` / `quit` records.  The fields are data:
+the extractor assigns them and does not evaluate the request.
+`Source/Test/Unit/ebuildtest.pl` checks paths that contain spaces,
+shell metacharacters, truncated frames, and the coprocess `quit`.
 
 ```sh
 ./Source/Application/Wrapper/portage-ng-dev --mode standalone --shell <<'PL'

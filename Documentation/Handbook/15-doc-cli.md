@@ -48,6 +48,13 @@ for incoming requests.  Use `--background` to fork the daemon into a
 detached process.  The daemon avoids the startup cost of reloading
 the knowledge base on every invocation, making repeated queries fast.
 
+The socket and PID file live in a directory derived from the effective
+UID, never from `$USER`.  Root uses `/var/run/portage-ng`.  Any other
+user uses `$XDG_RUNTIME_DIR/portage-ng`, or `/tmp/portage-ng-<uid>` when
+that variable is unset.  The daemon binds the socket before publishing
+a mode-0600 PID file by atomic rename, and a later start treats a live
+socket as an already-running daemon.
+
 ### IPC
 
 A thin front-end that does **not** load the full resolver stack.

@@ -84,7 +84,8 @@ cluster:wait(Results) :-
   config:cluster_global_deadline(MaxWait),
   get_time(Now),
   Deadline is Now + MaxWait,
-  cluster:collect_results(Expected, Deadline, Poll, [], Results),
+  empty_assoc(Seen),
+  cluster:collect_results(Expected, Seen, Deadline, Poll, [], Results),
   length(Results, Collected),
   ( Collected < Expected ->
       Missing is Expected - Collected,
@@ -94,30 +95,31 @@ cluster:wait(Results) :-
   ),
   server:reset_progress.
 
-%! cluster:collect_results(+Expected, +Deadline, +Poll, +Acc, -Results)
+%! cluster:collect_results(+Remaining, +Seen, +Deadline, +Poll, +Acc, -Results)
 %
-% Collect results until Expected results are in or Deadline passes.
-% Duplicate results for the same job (a re-queued job completed twice)
-% are dropped so they cannot mask a genuinely missing result.
+% Collect results until Remaining hits zero or Deadline passes. Seen is
+% an assoc of submission ids already counted. A duplicate id does not
+% decrement Remaining, so a requeued job that finishes twice cannot
+% hide a different job that never returned.
 
-cluster:collect_results(Expected, _, _, Acc, Results) :-
-  length(Acc, Expected),
+cluster:collect_results(0, _, _, _, Acc, Results) :-
   !,
   reverse(Acc, Results).
-cluster:collect_results(Expected, Deadline, Poll, Acc, Results) :-
+cluster:collect_results(Remaining, Seen, Deadline, Poll, Acc, Results) :-
   get_time(Now),
   ( Now >= Deadline ->
       reverse(Acc, Results)
   ; Wait is min(Poll, Deadline - Now),
-    ( server:get_result(Job, Result, Wait) ->
-        ( memberchk(result(Job, _), Acc) ->
-            cluster:collect_results(Expected, Deadline, Poll, Acc, Results)
-        ; cluster:collect_results(Expected, Deadline, Poll,
-                                  [result(Job, Result)|Acc], Results)
+    ( server:get_result(Id, Target, Result, Wait) ->
+        jobs:note_result(Id, Seen, Remaining, Seen1, Remaining1),
+        ( Remaining1 < Remaining
+        -> cluster:collect_results(Remaining1, Seen1, Deadline, Poll,
+                                   [result(Target, Result)|Acc], Results)
+        ;  cluster:collect_results(Remaining, Seen1, Deadline, Poll, Acc, Results)
         )
     ; config:cluster_worker_timeout(LivenessTimeout),
       server:requeue_stale_jobs(LivenessTimeout),
-      cluster:collect_results(Expected, Deadline, Poll, Acc, Results)
+      cluster:collect_results(Remaining, Seen, Deadline, Poll, Acc, Results)
     )
   ).
 

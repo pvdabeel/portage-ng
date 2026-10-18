@@ -55,7 +55,8 @@ semantic:embedding_endpoint(Endpoint) :-
 % Path to the serialized embedding index.
 
 semantic:index_file(Path) :-
-  absolute_file_name(portage('Knowledge/embeddings.pl'), Path).
+  config:state_dir(Dir),
+  os:compose_path(Dir, 'Knowledge/embeddings.pl', Path).
 
 
 % -----------------------------------------------------------------------------

@@ -111,6 +111,22 @@ grapher:graph(bugs,Repository://Id) :-
   tracker:graph(Repository://Id).
 
 
+%! grapher:graph(+Type, +Repository://Id, +Bundle)
+%
+% Render Type from Bundle when the caller already proved the plan.
+% Bundle is a writer bundle, `failed`, or `none`. none proves inside
+% the renderer, which is the single-page path.
+
+grapher:graph(gantt, Repository://Id, bundle(_Goals, Proof, _Model, Plan, _Triggers, _T0)) :-
+  !,
+  gantt:emit(Repository://Id, Proof, Plan).
+grapher:graph(gantt, _Repository://_Id, failed) :-
+  !,
+  write('Failed to compute plan.'), nl.
+grapher:graph(Type, Repository://Id, _Bundle) :-
+  grapher:graph(Type, Repository://Id).
+
+
 % -----------------------------------------------------------------------------
 %  Legacy DOT pass-through
 % -----------------------------------------------------------------------------
@@ -134,19 +150,28 @@ grapher:graph_dot(Type, Repository://Id) :-
 % Assumes directory exists. (See repository:prepare_directory)
 
 grapher:write_graph_file(D,Repository://Entry) :-
+  grapher:write_graph_file(D, Repository://Entry, none).
+
+
+%! grapher:write_graph_file(+Directory, +Repository://Entry, +Bundle) is det.
+%
+% Write one HTML file per graph type. Bundle is passed through so Gantt
+% and the plan pages do not prove again when the caller already did.
+
+grapher:write_graph_file(D, Repository://Entry, Bundle) :-
   config:graph_html_type(Types),
-  forall(member(Type,Types),
-    ( atomic_list_concat([D,'/',Entry,'-',Type,'.html'],F),
+  forall(member(Type, Types),
+    ( atomic_list_concat([D, '/', Entry, '-', Type, '.html'], F),
       setup_call_cleanup(
-        open(F,write,S),
+        open(F, write, S),
         catch(
-          ( with_output_to(S,grapher:graph(Type,Repository://Entry))
+          ( with_output_to(S, grapher:graph(Type, Repository://Entry, Bundle))
           -> true
-          ;  message:warning([Repository,'://',Entry,' ',Type])
+          ;  message:warning([Repository, '://', Entry, ' ', Type])
           ),
           E,
           ( term_to_atom(E, EA),
-            message:warning([Repository,'://',Entry,' ',Type,' (',EA,')'])
+            message:warning([Repository, '://', Entry, ' ', Type, ' (', EA, ')'])
           )
         ),
         close(S)

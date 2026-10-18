@@ -58,6 +58,101 @@ sanitize:safe_filename(Atom) :-
   sanitize:safe_path_component(Atom).
 
 
+%! sanitize:safe_distfile_name(+Name) is semidet.
+%
+% True when Name is a safe DIST filename (one leaf component). Unlike
+% safe_filename/1, an embedded `..` is allowed because it is harmless inside
+% a leaf (`foo..tar`); the dot components `.` and `..`, separators, controls,
+% and NUL are rejected.
+
+sanitize:safe_distfile_name(Name) :-
+  atom(Name),
+  Name \== '',
+  Name \== '.',
+  Name \== '..',
+  atom_codes(Name, Codes),
+  Codes \== [],
+  forall(member(Code, Codes),
+         ( Code > 31,
+           Code =\= 127,
+           Code =\= 0'/,
+           Code =\= 0'\\,
+           Code =\= 0
+         )).
+
+
+%! sanitize:safe_relative_path(+Path) is semidet.
+%
+% True when Path is a non-empty relative path made only of ordinary leaf
+% components. Absolute paths, empty/dot components, backslashes, controls,
+% and NUL are rejected.
+
+sanitize:safe_relative_path(Path) :-
+  atom(Path),
+  Path \== '',
+  \+ sub_atom(Path, 0, 1, _, '/'),
+  \+ sub_atom(Path, _, _, _, '\\'),
+  \+ sub_atom(Path, _, _, _, '\x00\'),
+  atomic_list_concat(Components, '/', Path),
+  Components \== [],
+  forall(member(Component, Components),
+         sanitize:safe_relative_component(Component)).
+
+
+%! sanitize:safe_relative_component(+Component) is semidet.
+%
+% Validate one component of a relative path.
+
+sanitize:safe_relative_component(Component) :-
+  Component \== '',
+  Component \== '.',
+  Component \== '..',
+  atom_codes(Component, Codes),
+  forall(member(Code, Codes), (Code > 31, Code =\= 127)).
+
+
+%! sanitize:contained_regular_file(+Root, +Relative, -Canonical) is semidet.
+%
+% Resolve Relative below Root and return its canonical path. Every relative
+% component and the final file must be a non-symlink, and canonical resolution
+% must remain below Root. Root itself may be a trusted configured symlink.
+
+sanitize:contained_regular_file(Root, Relative, Canonical) :-
+  sanitize:safe_relative_path(Relative),
+  absolute_file_name(Root, CanonicalRoot,
+                     [file_type(directory), access(read), file_errors(fail)]),
+  atomic_list_concat(Components, '/', Relative),
+  sanitize:no_symlink_components(CanonicalRoot, Components),
+  os:compose_path(CanonicalRoot, Relative, Candidate),
+  sanitize:not_symlink(Candidate),
+  absolute_file_name(Candidate, Canonical,
+                     [file_type(regular), access(read), file_errors(fail)]),
+  sanitize:path_below(CanonicalRoot, Canonical).
+
+
+%! sanitize:no_symlink_components(+Root, +Components) is semidet.
+%
+% Fail when any path component below Root is a symbolic link.
+
+sanitize:no_symlink_components(_, []).
+sanitize:no_symlink_components(Root, [Component|Rest]) :-
+  os:compose_path(Root, Component, Path),
+  sanitize:not_symlink(Path),
+  sanitize:no_symlink_components(Path, Rest).
+
+
+%! sanitize:path_below(+Root, +Path) is semidet.
+%
+% True when canonical Path is strictly below canonical Root.
+
+sanitize:path_below(Root, Path) :-
+  ( sub_atom(Root, _, 1, 0, '/')
+  -> Prefix = Root
+  ;  atom_concat(Root, '/', Prefix)
+  ),
+  atom_concat(Prefix, _, Path).
+
+
 %! sanitize:safe_portage_category(+Cat) is semidet.
 %
 % True when Cat is safe to use as a single path component (no slashes,
@@ -293,7 +388,8 @@ sanitize:safe_phase(nofetch).
 
 sanitize:existing_file(Path) :-
   exists_file(Path),
-  \+ exists_directory(Path).
+  \+ exists_directory(Path),
+  sanitize:not_symlink(Path).
 
 
 % -----------------------------------------------------------------------------
@@ -392,5 +488,5 @@ sanitize:safe_config_line(Line) :-
 sanitize:not_symlink(Path) :-
   catch(
     ( read_link(Path, _, _) -> fail ; true ),
-    _, true
+    _, fail
   ).

@@ -78,6 +78,47 @@ test(passthrough_plain, [true(Out == 'A fast package manager')]) :-
 
 
 % -----------------------------------------------------------------------------
+%  URL/path and HTML sink tests
+% -----------------------------------------------------------------------------
+
+:- begin_tests(navtheme_url_safety).
+
+test(accepts_https) :-
+  navtheme:safe_http_url('https://example.org/path?q=1', _).
+
+test(rejects_javascript, [fail]) :-
+  navtheme:safe_http_url('javascript:alert(1)', _).
+
+test(rejects_protocol_relative, [fail]) :-
+  navtheme:safe_http_url('//example.org/path', _).
+
+test(encodes_entry_segments,
+     [true(Path == 'cat/pkg%3Fname-1.0')]) :-
+  navtheme:entry_path('cat/pkg?name-1.0', Path).
+
+test(rejects_dot_entry, [fail]) :-
+  navtheme:entry_path('../pkg-1.0', _).
+
+test(gantt_unsafe_url_is_plain_text, [nondet]) :-
+  with_output_to(string(Output),
+    gantt:emit_src_row(src('javascript:alert(1)',
+                           '\"><img src=x onerror=alert(1)>',
+                           0, pending))),
+  \+ sub_string(Output, _, _, _, '<a '),
+  \+ sub_string(Output, _, _, _, '<img '),
+  sub_string(Output, _, _, _, '&lt;img').
+
+test(gantt_https_link_is_hardened, [nondet]) :-
+  with_output_to(string(Output),
+    gantt:emit_src_row(src('https://example.org/source.tar',
+                           'source.tar', 1, cached))),
+  sub_string(Output, _, _, _, 'href=\"https://example.org/source.tar\"'),
+  sub_string(Output, _, _, _, 'rel=\"noopener noreferrer\"').
+
+:- end_tests(navtheme_url_safety).
+
+
+% -----------------------------------------------------------------------------
 %  Verbatim JavaScript asset tests
 % -----------------------------------------------------------------------------
 
@@ -96,7 +137,10 @@ test(assets_exist_and_are_script_safe,
            exists_file(Source),
            read_file_to_string(Source, Content, []),
            string_length(Content, Len), Len > 0,
-           \+ sub_string(Content, _, _, _, "</script")
+           \+ sub_string(Content, _, _, _, "</script"),
+           \+ sub_string(Content, _, _, _, "innerHTML"),
+           \+ sub_string(Content, _, _, _, "outerHTML"),
+           \+ sub_string(Content, _, _, _, "insertAdjacentHTML")
          )).
 
 test(copy_graph_assets_copies_js) :-

@@ -227,38 +227,85 @@ worker:poll_once(Host, Port, Continue) :-
       ( Job == done ->
           ( worker:stopping -> true ; assertz(worker:stopping) ),
           Continue = stop
-      ; worker:execute_job(Job, Result),
-        worker:post_result(Host, Port, Job, Result),
+      ; Job = job(Id, Token, Target),
+        worker:with_lease_heartbeat(Host, Port, Id, Token,
+          worker:execute_job(Target, Result)),
+        worker:post_result(Host, Port, Id, Token, Result),
         Continue = continue
       )
   ; Continue = continue
   ).
 
 
-%! worker:post_result(+Host, +Port, +Job, +Result)
+%! worker:post_result(+Host, +Port, +Id, +Token, +Result)
 %
 % Post a computed result back to the server, retrying with backoff so a
 % transient RPC failure does not discard an already-computed result. If
 % all attempts fail, the result is dropped with a warning; the server
 % re-queues the job once this worker is presumed dead (stale-job
-% re-queueing), so the job is not lost.
+% re-queueing), so the job is not lost. A repeat post of the same id is
+% accepted by the server without publishing a second result.
 
-worker:post_result(Host, Port, Job, Result) :-
+worker:post_result(Host, Port, Id, Token, Result) :-
   between(1, 5, Attempt),
-  ( catch(client:rpc_execute(Host, Port, server:post_result(Job, Result)),
+  ( catch(client:rpc_execute(Host, Port, server:post_result(Id, Token, Result)),
           Error,
-          ( message:warning(['Posting result for ', Job, ' failed (attempt ',
+          ( message:warning(['Posting result for job ', Id, ' failed (attempt ',
                              Attempt, '): ', Error]),
             fail ))
   -> !
   ; ( Attempt =:= 5 ->
-        message:warning(['Dropping result for ', Job,
+        message:warning(['Dropping result for job ', Id,
                          '; server will re-queue the job.'])
     ; Wait is 2 ** Attempt,
       sleep(Wait),
       fail
     )
   ).
+
+
+%! worker:with_lease_heartbeat(+Host, +Port, +Id, +Token, :Goal)
+%
+% Run Goal while a side thread renews the lease. The heartbeat stops
+% when Goal finishes, succeeds or throws.
+
+worker:with_lease_heartbeat(Host, Port, Id, Token, Goal) :-
+  thread_create(worker:heartbeat_loop(Host, Port, Id, Token), Tid, []),
+  setup_call_cleanup(true, call(Goal), worker:stop_heartbeat(Tid)).
+
+
+%! worker:stop_heartbeat(+Tid) is det.
+
+worker:stop_heartbeat(Tid) :-
+  catch(thread_send_message(Tid, stop), _, true),
+  catch(thread_join(Tid, _), _, true).
+
+
+%! worker:heartbeat_loop(+Host, +Port, +Id, +Token) is det.
+%
+% Renew Id's lease until this thread receives stop.
+
+worker:heartbeat_loop(Host, Port, Id, Token) :-
+  thread_self(Me),
+  worker:heartbeat_interval(Seconds),
+  repeat,
+  ( thread_get_message(Me, stop, [timeout(Seconds)])
+  -> !
+  ; catch(client:rpc_execute(Host, Port, server:renew_lease(Id, Token)), _, true),
+    fail
+  ).
+
+
+%! worker:heartbeat_interval(-Seconds) is det.
+%
+% How often a live proof renews its lease. Short enough that
+% config:cluster_worker_timeout/1 measures liveness rather than the
+% length of the proof, and at least five seconds.
+
+worker:heartbeat_interval(Seconds) :-
+  config:cluster_worker_timeout(Timeout),
+  Step is Timeout // 3,
+  Seconds is max(5, min(30, Step)).
 
 
 % =============================================================================

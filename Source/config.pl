@@ -43,15 +43,46 @@ config:hostname(Hostname) :- socket:gethostname(Hostname).
 % Needs to be passed to prolog as a system flag (See portage-ng.pl)
 
 config:installation_dir(Dir) :-
-  file_search_path(portage,Dir),!.
+  getenv('PORTAGE_NG_HOME', Home),
+  Home \== '',
+  exists_directory(Home),
+  !,
+  Dir = Home.
+config:installation_dir(Dir) :-
+  file_search_path(portage, Baked),
+  exists_directory(Baked),
+  !,
+  Dir = Baked.
+config:installation_dir('/usr/local/share/portage-ng').
 
 
 %! config:working_dir(+FullPath)
 %
-% Declares the current working directory
+% Declares the directory that holds the application sources. Mutable
+% Knowledge files use config:state_dir/1.
 
 config:working_dir(Dir) :-
   config:installation_dir(Dir).
+
+
+%! config:state_dir(-Dir) is det.
+%
+% Directory for Knowledge caches and other mutable state. A checkout
+% keeps that state beside the sources. An installed copy uses
+% /var/lib/portage-ng unless PORTAGE_NG_STATE names another directory.
+
+config:state_dir(Dir) :-
+  getenv('PORTAGE_NG_STATE', State),
+  State \== '',
+  !,
+  Dir = State.
+config:state_dir(Dir) :-
+  config:installation_dir(Install),
+  os:compose_path(Install, 'Knowledge', Knowledge),
+  exists_directory(Knowledge),
+  !,
+  Dir = Install.
+config:state_dir('/var/lib/portage-ng').
 
 
 % -----------------------------------------------------------------------------
@@ -867,6 +898,37 @@ config:binpkg_refresh(mtime).
 config:binpkg_self_inject(true).
 
 
+%! config:binpkg_signature_policy(?Policy)
+%
+% OpenPGP policy for gpkg archives:
+%   auto    — accept unsigned gpkg-1 after digest verification; when any
+%             signature exists, require a complete trusted signature set
+%   require — reject unsigned packages and require trusted signatures
+%
+% Signed packages always fail closed on missing trust configuration.
+
+:- dynamic config:binpkg_signature_policy/1.
+
+config:binpkg_signature_policy(auto).
+
+
+%! config:binpkg_gpg_command(?Command)
+%
+% GnuPG executable used for clear-signed Manifest and detached member
+% verification.
+
+config:binpkg_gpg_command(gpg).
+
+
+%! config:binpkg_gpg_verify_home(?Path)
+%
+% Optional trusted GnuPG home. A host may define this predicate; otherwise
+% BINPKG_GPG_VERIFY_GPG_HOME from Portage configuration is used.
+
+:- multifile config:binpkg_gpg_verify_home/1.
+:- dynamic config:binpkg_gpg_verify_home/1.
+
+
 %! config:binpkg_debug(?Bool)
 %
 % When `true`, `binpkg_exec:available_for/4` logs (to `user_error`) the
@@ -1144,10 +1206,10 @@ config:cluster_global_deadline(3600).
 
 %! config:cluster_worker_timeout(?Seconds)
 %
-% A worker is presumed dead when it has not contacted the server for
-% this many seconds; its in-flight jobs are then re-queued for other
-% workers. Should exceed the longest expected single prove job, since a
-% busy single-threaded worker only heartbeats between jobs.
+% A worker is presumed dead when it has not renewed a lease or otherwise
+% contacted the server for this many seconds. Workers renew the lease
+% while a proof is running, so this bounds liveness rather than the
+% length of one prove.
 
 config:cluster_worker_timeout(900).
 
@@ -1177,23 +1239,33 @@ config:server_chunk(50000).
 config:client_auto_import_vdb(true).
 
 
+%! config:client_vdb_max_tenants(?Count)
+%! config:client_vdb_max_total_bytes(?Bytes)
+%! config:client_vdb_max_total_entries(?Count)
+%! config:client_vdb_max_total_metadata(?Count)
+%! config:client_vdb_idle_ttl(?Seconds)
+%
+% Server-wide limits for authenticated per-client VDB imports.
+
+config:client_vdb_max_tenants(32).
+config:client_vdb_max_total_bytes(268435456).
+config:client_vdb_max_total_entries(100000).
+config:client_vdb_max_total_metadata(2000000).
+config:client_vdb_idle_ttl(86400).
+
+
 % -----------------------------------------------------------------------------
 %  Daemon (ultralight mode)
 % -----------------------------------------------------------------------------
 
 %! config:daemon_runtime_dir(-Dir) is det.
 %
-% Directory holding the daemon socket and PID file. Uses XDG_RUNTIME_DIR
-% if available, otherwise a per-user directory under /tmp. Pure accessor:
-% creation, ownership verification, and permission enforcement (0700) are
-% performed by daemon:ensure_runtime_dir/1 at daemon startup.
+% Directory holding the daemon socket and PID file. Derived from effective UID:
+% root uses /var/run/portage-ng; non-root uses XDG_RUNTIME_DIR/portage-ng or
+% /tmp/portage-ng-<uid>. Creation and permission enforcement happen at startup.
 
 config:daemon_runtime_dir(Dir) :-
-  ( getenv('XDG_RUNTIME_DIR', Dir)
-  -> true
-  ;  getenv('USER', User),
-     atomic_list_concat(['/tmp/portage-ng-', User], Dir)
-  ).
+  runtimepath:daemon_runtime_dir(Dir).
 
 
 %! config:daemon_socket_path(-Path) is det.

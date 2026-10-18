@@ -30,6 +30,8 @@ rendering is handled by the builder and build printer.
 
 :- module(download, []).
 
+:- use_module(library(uuid), [uuid/1]).
+
 % =============================================================================
 %  DOWNLOAD declarations
 % =============================================================================
@@ -341,18 +343,71 @@ download:join_mirror_url(MirrorBase, RelPath, URL) :-
 % the temp path; the shared DestPath is treated as immutable from
 % outside our own successful rename.
 
-%! download:tmp_dest_path(+DestPath, -TmpPath) is det.
+%! download:create_distfile_stage(+DestPath, -StageDir, -TmpPath) is det.
 %
-% Per-process, per-thread staging path for a distfile download.
-% Including both PID and TID makes it safe even when multiple
-% threads inside one portage-ng-dev process race for the same
-% distfile (e.g. parallel `--jobs N` with the same distfile shared
-% between two packages in the same wave).
+% Create an unpredictable mode-0700 staging directory next to DestPath so
+% verification and the final rename stay on one filesystem. The private
+% directory prevents a peer in a shared distdir from replacing the curl output
+% with a symlink while it is being written.
 
-download:tmp_dest_path(DestPath, TmpPath) :-
-  current_prolog_flag(pid, Pid),
-  ( catch(thread_self(TidRaw), _, fail) -> Tid = TidRaw ; Tid = main ),
-  format(atom(TmpPath), '~w.~w.~w.partial', [DestPath, Pid, Tid]).
+download:create_distfile_stage(DestPath, StageDir, TmpPath) :-
+  uuid(UUID),
+  format(atom(StageDir), '~w.portage-ng.~w.partial', [DestPath, UUID]),
+  make_directory(StageDir),
+  filesex:chmod(StageDir, 0o700),
+  os:compose_path(StageDir, payload, TmpPath).
+
+
+%! download:cleanup_distfile_stage(+StageDir) is det.
+%
+% Best-effort removal of one private staging directory.
+
+download:cleanup_distfile_stage(StageDir) :-
+  catch(delete_directory_and_contents(StageDir), _, true).
+
+
+%! download:distfile_destination(+Distdir, +Filename, -Path) is det.
+%
+% Validate Filename as one DIST leaf and compose its final path.
+
+download:distfile_destination(Distdir, Filename, Path) :-
+  ( sanitize:safe_distfile_name(Filename)
+  -> os:compose_path(Distdir, Filename, Path)
+  ;  throw(error(permission_error(write, distfile, Filename),
+                  context(download:distfile_destination/3,
+                          'Invalid distfile filename')))
+  ).
+
+
+%! download:validate_distfile_spec(+Spec) is det.
+%
+% Validate a dist(Filename, Size, Hashes) term before any process starts.
+
+download:validate_distfile_spec(dist(Filename, Size, Pairs)) :-
+  download:distfile_destination('.', Filename, _),
+  ( ( integer(Size), Size >= 0
+    ; atom(Size), catch(atom_number(Size, N), _, fail), integer(N), N >= 0
+    )
+  -> true
+  ;  throw(error(type_error(distfile_size, Size),
+                  context(download:validate_distfile_spec/1, Filename)))
+  ),
+  ( include(mirror:strong_hash_pair, Pairs, Strong), Strong \== []
+  -> true
+  ;  throw(error(domain_error(strong_manifest_hashes, Pairs),
+                  context(download:validate_distfile_spec/1, Filename)))
+  ).
+
+
+%! download:verified_distfile(+Path, +ExpectedSize, +Pairs) is semidet.
+%
+% True when Path is a regular non-symlink file with the expected size and at
+% least one approved strong Manifest digest, all of which match.
+
+download:verified_distfile(Path, ExpectedSize, Pairs) :-
+  sanitize:existing_file(Path),
+  download:verify_size(Path, ExpectedSize),
+  download:verify_hashes(Path, Pairs).
 
 
 %! download:finalize_temp_download(+TmpPath, +DestPath, +ExpectedSize, +Pairs, -OK) is det.
@@ -369,10 +424,15 @@ download:tmp_dest_path(DestPath, TmpPath) :-
 
 download:finalize_temp_download(TmpPath, DestPath, ExpectedSize, Pairs, OK) :-
   ( exists_file(TmpPath),
-    download:verify_size(TmpPath, ExpectedSize),
-    download:verify_hashes(TmpPath, Pairs)
-  -> catch(rename_file(TmpPath, DestPath), _, true),
-     OK = true
+    download:verified_distfile(TmpPath, ExpectedSize, Pairs)
+  -> ( catch(rename_file(TmpPath, DestPath), _, fail)
+     -> OK = true
+     ;  catch(delete_file(TmpPath), _, true),
+        ( download:race_recover(DestPath, ExpectedSize, Pairs)
+        -> OK = true
+        ;  OK = false
+        )
+     )
   ;  catch(delete_file(TmpPath), _, true),
      ( download:race_recover(DestPath, ExpectedSize, Pairs)
      -> OK = true
@@ -390,9 +450,7 @@ download:finalize_temp_download(TmpPath, DestPath, ExpectedSize, Pairs, OK) :-
 % in the same wave) has already produced a valid copy.
 
 download:race_recover(DestPath, ExpectedSize, Pairs) :-
-  exists_file(DestPath),
-  download:verify_size(DestPath, ExpectedSize),
-  download:verify_hashes(DestPath, Pairs).
+  download:verified_distfile(DestPath, ExpectedSize, Pairs).
 
 
 % -----------------------------------------------------------------------------
@@ -429,7 +487,8 @@ download:collect_distfile_specs(Repository, Entry, Specs) :-
       download:lookup_checksums(Repository, Entry, Filename, Pairs)
     ),
     Specs0),
-  sort(1, @<, Specs0, Specs).
+  sort(1, @<, Specs0, Specs),
+  maplist(download:validate_distfile_spec, Specs).
 
 
 %! download:lookup_checksums(+Repository, +Entry, +Filename, -Pairs) is det.
@@ -472,26 +531,27 @@ download:fetch_all(MirrorUrl, Layout, Distdir, [dist(Filename, Size, Pairs)|Rest
 % are treated as immutable from outside our own atomic rename. See
 % the "Race-safe distfile staging" section above for context.
 
-download:fetch_one(_MirrorUrl, _Layout, Distdir, Filename, _ExpectedSize, _Pairs) :-
-  mirror:flat_present(Distdir, Filename), !.
+download:fetch_one(_MirrorUrl, _Layout, Distdir, Filename, ExpectedSize, Pairs) :-
+  download:distfile_destination(Distdir, Filename, DestPath),
+  download:verified_distfile(DestPath, ExpectedSize, Pairs),
+  !.
 
 download:fetch_one(MirrorUrl, Layout, Distdir, Filename, ExpectedSize, Pairs) :-
-  ( sanitize:safe_filename(Filename) -> true
-  ; throw(error(permission_error(write, distfile, Filename),
-                context(download:fetch_one/6, 'Invalid distfile name (path traversal rejected)')))
-  ),
+  download:validate_distfile_spec(dist(Filename, ExpectedSize, Pairs)),
   download:mirror_download_url(MirrorUrl, Layout, Filename, URL),
-  os:compose_path(Distdir, Filename, DestPath),
-  download:tmp_dest_path(DestPath, TmpPath),
-  download:curl_download(URL, TmpPath, ExitCode),
-  ( ExitCode =:= 0
-  -> download:finalize_temp_download(TmpPath, DestPath, ExpectedSize, Pairs, OK)
-  ;  catch(delete_file(TmpPath), _, true),
-     ( download:race_recover(DestPath, ExpectedSize, Pairs)
-     -> OK = true
-     ;  OK = false
-     )
-  ),
+  download:distfile_destination(Distdir, Filename, DestPath),
+  setup_call_cleanup(
+    download:create_distfile_stage(DestPath, StageDir, TmpPath),
+    ( download:curl_download(URL, TmpPath, ExitCode),
+      ( ExitCode =:= 0
+      -> download:finalize_temp_download(TmpPath, DestPath, ExpectedSize, Pairs, OK)
+      ;  ( download:race_recover(DestPath, ExpectedSize, Pairs)
+         -> OK = true
+         ;  OK = false
+         )
+      )
+    ),
+    download:cleanup_distfile_stage(StageDir)),
   OK == true.
 
 
@@ -630,12 +690,7 @@ download:async_multi_url_curl(URLs, DestPath, Pid) :-
 % Verify that the downloaded file matches the expected size from the Manifest.
 
 download:verify_size(Path, ExpectedSize) :-
-  ( atom(ExpectedSize)
-  -> atom_number(ExpectedSize, Expected)
-  ;  Expected = ExpectedSize
-  ),
-  size_file(Path, ActualSize),
-  ActualSize =:= Expected.
+  mirror:verify_size(Path, ExpectedSize, true).
 
 
 %! download:verify_hashes(+Path, +ChecksumPairs) is semidet.
@@ -645,13 +700,8 @@ download:verify_size(Path, ExpectedSize) :-
 % Fails on an empty checksum list: size-only acceptance would let an
 % MITM on http/ftp swap a same-sized payload.
 
-download:verify_hashes(_Path, []) :-
-  !,
-  fail.
-
 download:verify_hashes(Path, Pairs) :-
-  mirror:verify_hashes(Path, Pairs, OK, _UnsupportedCount),
-  OK == true.
+  mirror:verify_strong_hashes(Path, Pairs).
 
 
 % -----------------------------------------------------------------------------

@@ -964,9 +964,12 @@ gantt:emit_tbody(Grid, MinStep, NumSteps, Repo) :-
 
 gantt:emit_pkg_rows(MinStep, NumSteps, Repo, pkg(Id, Repo, Entry, Cat, Name, Ver, Actions)) :-
     action_types_atom(Actions, TypesAtom),
-    format('    <tr data-pkg="~w" data-actions="~w">~n', [Id, TypesAtom]),
+    maplist(navtheme:html_escape,
+            [Id, TypesAtom, Cat, Name, Ver],
+            [IdE, TypesE, CatE, NameE, VerE]),
+    format('    <tr data-pkg="~w" data-actions="~w">~n', [IdE, TypesE]),
     format('      <td class="pkg"><span class="toggle" onclick="toggleDetail(this)">&#9654;</span>~w/~w-~w</td>~n',
-           [Cat, Name, Ver]),
+           [CatE, NameE, VerE]),
     emit_step_cells(Id, Repo, Entry, Actions, MinStep, NumSteps),
     write('    </tr>'), nl,
     TotalCols is NumSteps - MinStep + 1,
@@ -1020,11 +1023,14 @@ gantt:emit_action_cell(Id, Repo, Entry, Action) :-
     ),
     (   Timed == true, SecsI > 0
     ->  buildtime:format_duration(SecsI, Dur),
-        format(atom(Title), ' title="~w"', [Dur])
+        navtheme:html_escape(Dur, DurE),
+        format(atom(Title), ' title="~w"', [DurE])
     ;   Title = ''
     ),
+    maplist(navtheme:html_escape, [Css, Action, Id, Suf, Label],
+            [CssE, ActionE, IdE, SufE, LabelE]),
     format('<span class="cell ~w" data-type="~w" data-seconds="~d" data-timed="~d" data-id="~w-~w" id="~w-~w"~w>~w</span>',
-           [Css, Action, SecsI, TimedN, Id, Suf, Id, Suf, Title, Label]),
+           [CssE, ActionE, SecsI, TimedN, IdE, SufE, IdE, SufE, Title, LabelE]),
     nl.
 
 
@@ -1086,7 +1092,8 @@ gantt:action_id_suffix(useflag, uf).
 % Emit the collapsible detail row showing USE flags and source URIs.
 
 gantt:emit_detail_row(Id, Repo, Entry, TotalCols) :-
-    format('    <tr class="detail-row" data-parent="~w">~n', [Id]),
+    navtheme:html_escape(Id, IdE),
+    format('    <tr class="detail-row" data-parent="~w">~n', [IdE]),
     write('      <td class="detail-pkg">'), nl,
     gantt:pkg_use_flags(Repo, Entry, Flags),
     emit_use_section(Flags),
@@ -1116,9 +1123,11 @@ gantt:emit_use_section(Flags) :-
 % Emit a single USE flag span element with on/off styling.
 
 gantt:emit_use_flag_span(flag(Name, on)) :-
-    format('          <span class="use-flag on">+~w</span>~n', [Name]).
+    navtheme:html_escape(Name, NameE),
+    format('          <span class="use-flag on">+~w</span>~n', [NameE]).
 gantt:emit_use_flag_span(flag(Name, off)) :-
-    format('          <span class="use-flag off">-~w</span>~n', [Name]).
+    navtheme:html_escape(Name, NameE),
+    format('          <span class="use-flag off">-~w</span>~n', [NameE]).
 
 %! gantt:emit_src_table(+Uris) is det.
 %
@@ -1137,8 +1146,18 @@ gantt:emit_src_table(Uris) :-
 gantt:emit_src_row(src(Url, Filename, SizeBytes, Status)) :-
     format_size(SizeBytes, SizeStr),
     status_label(Status, CssClass, Label),
-    format('          <tr><td><a href="~w" target="_blank">~w</a></td><td class="sz">~w</td><td><span class="src-status ~w">~w</span></td></tr>~n',
-           [Url, Filename, SizeStr, CssClass, Label]).
+    maplist(navtheme:html_escape,
+            [Filename, SizeStr, CssClass, Label],
+            [FilenameE, SizeE, CssE, LabelE]),
+    write('          <tr><td>'),
+    ( navtheme:safe_http_url(Url, SafeUrl)
+    -> navtheme:html_escape(SafeUrl, UrlE),
+       format('<a href="~w" target="_blank" rel="noopener noreferrer">~w</a>',
+              [UrlE, FilenameE])
+    ;  format('~w', [FilenameE])
+    ),
+    format('</td><td class="sz">~w</td><td><span class="src-status ~w">~w</span></td></tr>~n',
+           [SizeE, CssE, LabelE]).
 
 %! gantt:status_label(+Status, -CssClass, -Label) is det.
 %
@@ -1224,7 +1243,11 @@ gantt:emit_dep_entries([]).
 gantt:emit_dep_entries([dep(DepId, DepAct, PkgId, PkgAct, DepType)|Rest]) :-
     action_id_suffix(DepAct, DepSuf),
     action_id_suffix(PkgAct, PkgSuf),
-    format('  ["~w-~w","~w-~w","~w"]', [DepId, DepSuf, PkgId, PkgSuf, DepType]),
+    maplist(navtheme:js_escape_atom,
+            [DepId, DepSuf, PkgId, PkgSuf, DepType],
+            [DepIdE, DepSufE, PkgIdE, PkgSufE, DepTypeE]),
+    format('  ["~w-~w","~w-~w","~w"]',
+           [DepIdE, DepSufE, PkgIdE, PkgSufE, DepTypeE]),
     (Rest == [] -> nl ; (write(','), nl)),
     emit_dep_entries(Rest).
 

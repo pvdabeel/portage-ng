@@ -103,6 +103,7 @@ fetch:git_progress_callback(_, _, _, _).
 fetch:run_download_parallel(Repo, Entry, Ctx, LineOff, TotalLines, PlanStep, NumSteps, ActionIdx, Action,
                             FileStartLine, DistFiles, Distdir, Outcome) :-
   ( \+ exists_directory(Distdir) -> make_directory_path(Distdir) ; true ),
+  maplist(download:validate_distfile_spec, DistFiles),
   ( download:is_fetch_restricted(Repo, Entry)
   -> fetch:handle_restricted_files(DistFiles, 0, TotalLines, FileStartLine, Distdir, MissingCount),
      ( MissingCount =:= 0
@@ -178,16 +179,16 @@ fetch:safe_mirror_layout(Layout) :-
 
 %! fetch:prepare_download_jobs(+Layout, +Distdir, +DistFiles, +Idx, +Repo, +Entry, -DlJobs) is det.
 %
-% Start async curl processes for files not already present. Returns
-% dl_job/8 terms for tracking. Already-present files are skipped (they
-% already show checkmarks from print_file_subslots). Each curl walks
+% Start async curl processes for files not already present and verified.
+% Returns dl_job/10 terms carrying the private staging directory/path.
+% Each curl walks
 % every configured mirror_url in declaration order, exiting at the first
 % successful download. Upstream SRC_URI fallback is handled later by
 % fetch:try_upstream_fallback/11 when the file still fails verification.
 %
-% Race-safety: curl is told to write into a per-process temp path
-% (`download:tmp_dest_path/2`), never directly into the shared DestPath.
-% fetch:finalize_download/12 verifies the temp path and atomic-renames
+% Race-safety: curl writes into an unpredictable mode-0700 staging
+% directory, never directly into the shared DestPath.
+% fetch:finalize_download/13 verifies the temp path and atomic-renames
 % to DestPath only after a successful checksum match, then falls
 % through to a race-recovery check on DestPath when our own download
 % failed (so a concurrent writer that produced a valid file is honoured
@@ -198,16 +199,28 @@ fetch:prepare_download_jobs(_, _, [], _, _, _, []).
 
 fetch:prepare_download_jobs(Layout, Distdir, [dist(Filename, Size, Pairs)|Rest], Idx, Repo, Entry, Jobs) :-
   Idx1 is Idx + 1,
-  ( mirror:flat_present(Distdir, Filename)
+  download:distfile_destination(Distdir, Filename, DestPath),
+  ( download:verified_distfile(DestPath, Size, Pairs)
   -> fetch:prepare_download_jobs(Layout, Distdir, Rest, Idx1, Repo, Entry, Jobs)
   ;  fetch:mirror_urls_for_file(Layout, Filename, URLs),
-     os:compose_path(Distdir, Filename, DestPath),
-     download:tmp_dest_path(DestPath, TmpPath),
-     catch(delete_file(TmpPath), _, true),
-     download:start_curl_async(URLs, TmpPath, Pid),
-     Jobs = [dl_job(Pid, Idx, Filename, Size, Pairs, DestPath, Repo, Entry)|MoreJobs],
+     fetch:start_download_job(URLs, DestPath, StageDir, TmpPath, Pid),
+     Jobs = [dl_job(Pid, Idx, Filename, Size, Pairs, DestPath,
+                    StageDir, TmpPath, Repo, Entry)|MoreJobs],
      fetch:prepare_download_jobs(Layout, Distdir, Rest, Idx1, Repo, Entry, MoreJobs)
   ).
+
+
+%! fetch:start_download_job(+URLs, +DestPath, -StageDir, -TmpPath, -Pid) is det.
+%
+% Create private staging and start curl, cleaning the directory if spawn fails.
+
+fetch:start_download_job(URLs, DestPath, StageDir, TmpPath, Pid) :-
+  download:create_distfile_stage(DestPath, StageDir, TmpPath),
+  catch(download:start_curl_async(URLs, TmpPath, Pid),
+        Error,
+        ( download:cleanup_distfile_stage(StageDir),
+          throw(Error)
+        )).
 
 
 %! fetch:mirror_urls_for_file(+Layout, +Filename, -URLs) is det.
@@ -235,7 +248,7 @@ fetch:mirror_urls_for_file(Layout, Filename, URLs) :-
 
 fetch:init_speed_tracking([], _, _).
 
-fetch:init_speed_tracking([dl_job(_, Idx, _, _, _, _, _, _)|Rest], T0, FileStartLine) :-
+fetch:init_speed_tracking([dl_job(_, Idx, _, _, _, _, _, _, _, _)|Rest], T0, FileStartLine) :-
   Key is FileStartLine + Idx,
   retractall(fetch:dl_prev_snapshot(Key, _, _)),
   assertz(fetch:dl_prev_snapshot(Key, 0, T0)),
@@ -299,20 +312,25 @@ fetch:poll_download_loop(ActiveJobs, TotalLines, FileStartLine, Distdir, TotalFa
 fetch:poll_all_jobs([], _, _, _, [], 0).
 
 fetch:poll_all_jobs([Job|Rest], TotalLines, FileStartLine, Distdir, StillActive, Fails) :-
-  Job = dl_job(Pid, FileIdx, Filename, ExpSize, Pairs, DestPath, Repo, Entry),
+  Job = dl_job(Pid, FileIdx, Filename, ExpSize, Pairs, DestPath,
+               StageDir, TmpPath, Repo, Entry),
   ( subprocess:poll_exit(Pid, ExitCode)
-  -> fetch:finalize_download(ExitCode, FileIdx, Filename, ExpSize, Pairs, DestPath, Repo, Entry,
-                             TotalLines, FileStartLine, Distdir, OK),
+  -> setup_call_cleanup(
+       true,
+       fetch:finalize_download(ExitCode, FileIdx, Filename, ExpSize, Pairs,
+                               DestPath, TmpPath, Repo, Entry,
+                               TotalLines, FileStartLine, Distdir, OK),
+       download:cleanup_distfile_stage(StageDir)),
      fetch:poll_all_jobs(Rest, TotalLines, FileStartLine, Distdir, StillActive, RestFails),
      ( OK == true -> Fails = RestFails ; Fails is RestFails + 1 )
-  ;  fetch:update_download_progress(FileIdx, Filename, ExpSize, DestPath,
+  ;  fetch:update_download_progress(FileIdx, Filename, ExpSize, DestPath, TmpPath,
                                     TotalLines, FileStartLine, Distdir),
      StillActive = [Job|MoreActive],
      fetch:poll_all_jobs(Rest, TotalLines, FileStartLine, Distdir, MoreActive, Fails)
   ).
 
 
-%! fetch:finalize_download(+ExitCode, +FileIdx, +Filename, +ExpSize, +Pairs, +DestPath, +Repo, +Entry, +TotalLines, +FileStartLine, +Distdir, -OK) is det.
+%! fetch:finalize_download(+ExitCode, +FileIdx, +Filename, +ExpSize, +Pairs, +DestPath, +TmpPath, +Repo, +Entry, +TotalLines, +FileStartLine, +Distdir, -OK) is det.
 %
 % Called when a curl process exits. Verifies the per-process temp
 % download (see prepare_download_jobs) and atomic-renames it onto
@@ -324,13 +342,12 @@ fetch:poll_all_jobs([Job|Rest], TotalLines, FileStartLine, Distdir, StillActive,
 % our temp nor a peer-supplied DestPath verifies, falls through to
 % the upstream SRC_URI fallback chain.
 
-fetch:finalize_download(ExitCode, FileIdx, Filename, ExpSize, Pairs, DestPath, Repo, Entry,
+fetch:finalize_download(ExitCode, FileIdx, Filename, ExpSize, Pairs,
+                        DestPath, TmpPath, Repo, Entry,
                         TotalLines, FileStartLine, Distdir, OK) :-
-  download:tmp_dest_path(DestPath, TmpPath),
   ( ExitCode =:= 0
   -> download:finalize_temp_download(TmpPath, DestPath, ExpSize, Pairs, MirrorOK)
-  ;  catch(delete_file(TmpPath), _, true),
-     ( download:race_recover(DestPath, ExpSize, Pairs)
+  ;  ( download:race_recover(DestPath, ExpSize, Pairs)
      -> MirrorOK = true
      ;  MirrorOK = false
      )
@@ -372,8 +389,7 @@ fetch:try_upstream_fallback(FileIdx, Filename, ExpSize, Pairs, DestPath, Repo, E
 %! fetch:try_url_chain(+URLs, +FileIdx, +Filename, +ExpSize, +Pairs, +DestPath, +TotalLines, +FileStartLine, +Distdir, -OK) is det.
 %
 % Walk a list of candidate download URLs in order. Each curl writes
-% into the same per-process temp path used by the mirror download
-% (see download:tmp_dest_path/2); on success the temp is atomic-
+% into a new private same-filesystem staging directory; on success the temp is atomic-
 % renamed onto DestPath. Stops at the first URL whose curl exits 0
 % AND whose temp passes size + checksum verification, OR at the
 % first race_recover/3 success (peer writer landed a valid file at
@@ -387,17 +403,18 @@ fetch:try_url_chain([], FileIdx, Filename, ExpSize, _Pairs, _DestPath,
 
 fetch:try_url_chain([URL|Rest], FileIdx, Filename, ExpSize, Pairs, DestPath,
                     TotalLines, FileStartLine, Distdir, OK) :-
-  download:tmp_dest_path(DestPath, TmpPath),
-  catch(delete_file(TmpPath), _, true),
-  download:curl_download(URL, TmpPath, ExitCode),
-  ( ExitCode =:= 0
-  -> download:finalize_temp_download(TmpPath, DestPath, ExpSize, Pairs, AttemptOK)
-  ;  catch(delete_file(TmpPath), _, true),
-     ( download:race_recover(DestPath, ExpSize, Pairs)
-     -> AttemptOK = true
-     ;  AttemptOK = false
-     )
-  ),
+  setup_call_cleanup(
+    download:create_distfile_stage(DestPath, StageDir, TmpPath),
+    ( download:curl_download(URL, TmpPath, ExitCode),
+      ( ExitCode =:= 0
+      -> download:finalize_temp_download(TmpPath, DestPath, ExpSize, Pairs, AttemptOK)
+      ;  ( download:race_recover(DestPath, ExpSize, Pairs)
+         -> AttemptOK = true
+         ;  AttemptOK = false
+         )
+      )
+    ),
+    download:cleanup_distfile_stage(StageDir)),
   ( AttemptOK == true
   -> OK = true,
      with_mutex(build_display,
@@ -418,9 +435,10 @@ fetch:try_url_chain([URL|Rest], FileIdx, Filename, ExpSize, Pairs, DestPath,
 
 fetch:handle_restricted_files([], _, _, _, _, 0).
 
-fetch:handle_restricted_files([dist(Filename, Size, _)|Rest], Idx, TotalLines, FileStartLine, Distdir, MissingCount) :-
+fetch:handle_restricted_files([dist(Filename, Size, Pairs)|Rest], Idx, TotalLines, FileStartLine, Distdir, MissingCount) :-
   Idx1 is Idx + 1,
-  ( mirror:flat_present(Distdir, Filename)
+  download:distfile_destination(Distdir, Filename, DestPath),
+  ( download:verified_distfile(DestPath, Size, Pairs)
   -> with_mutex(build_display,
        build:update_file_subslot(Idx, FileStartLine, TotalLines, done, Filename, Size, Distdir)),
      fetch:handle_restricted_files(Rest, Idx1, TotalLines, FileStartLine, Distdir, MissingCount)
@@ -431,7 +449,7 @@ fetch:handle_restricted_files([dist(Filename, Size, _)|Rest], Idx, TotalLines, F
   ).
 
 
-%! fetch:update_download_progress(+FileIdx, +Filename, +ExpSize, +DestPath, +TotalLines, +FileStartLine, +Distdir) is det.
+%! fetch:update_download_progress(+FileIdx, +Filename, +ExpSize, +DestPath, +TmpPath, +TotalLines, +FileStartLine, +Distdir) is det.
 %
 % Update a file sub-slot with current download progress (percentage + speed).
 %
@@ -439,10 +457,9 @@ fetch:handle_restricted_files([dist(Filename, Size, _)|Rest], Idx, TotalLines, F
 % if the temp file exists we use its size for live progress and fall
 % back to the final DestPath only after a successful atomic rename.
 
-fetch:update_download_progress(FileIdx, Filename, ExpSize, DestPath,
+fetch:update_download_progress(FileIdx, Filename, ExpSize, DestPath, TmpPath,
                                TotalLines, FileStartLine, Distdir) :-
   SpeedKey is FileStartLine + FileIdx,
-  download:tmp_dest_path(DestPath, TmpPath),
   ( exists_file(TmpPath) -> SizeSrc = TmpPath
   ; exists_file(DestPath) -> SizeSrc = DestPath
   ; SizeSrc = none

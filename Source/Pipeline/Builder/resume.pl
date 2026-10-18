@@ -58,7 +58,7 @@ resume:clear_done_marks :-
 % Returns the path to the resume state file (Knowledge/resume.pl).
 
 resume:state_file(Path) :-
-  config:installation_dir(Dir),
+  config:state_dir(Dir),
   os:compose_path([Dir, 'Knowledge', 'resume.pl'], Path).
 
 

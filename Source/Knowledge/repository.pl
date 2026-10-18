@@ -853,8 +853,7 @@ graph ::-
   atomic_concat(graph,Repository,Mutex),
   with_mutex(Mutex,
     (:prepare_directory(D),
-     writer:write_graph_files(D,Repository),
-     writer:write_proof_files(D,Repository),
+     writer:write_repository(D,Repository),
      writer:write_index_files(D,Repository)
      )).
 
@@ -1172,7 +1171,7 @@ type(Type) ::-
 % Path of the network-sync stamp file for Repository.
 
 repository:sync_stamp_file(Repository, File) :-
-  config:working_dir(Dir),
+  config:state_dir(Dir),
   format(atom(Name), 'Knowledge/~w.sync', [Repository]),
   os:compose_path(Dir, Name, File).
 

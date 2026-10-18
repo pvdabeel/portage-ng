@@ -178,17 +178,27 @@ function fitView(positions) {
 }
 function render() {
   const tree = getTree();
-  if (!tree || !tree.nodes.length) { svg.innerHTML = ""; return; }
+  if (!tree || !tree.nodes.length) { svg.replaceChildren(); return; }
   const {positions, hiddenSet, childMap, nodeMap, rankdir} = buildLayout();
   const descCounts = precomputeDescendants(childMap);
   fitView(positions);
-  const parts = [];
-  parts.push("<defs>");
+  const makeSvg = (name, attrs, text) => {
+    const el = document.createElementNS(ns, name);
+    Object.entries(attrs || {}).forEach(([key, value]) => el.setAttribute(key, String(value)));
+    if (text !== undefined) el.textContent = String(text);
+    return el;
+  };
+  const defs = makeSvg("defs");
   ["normal","weak","strong"].forEach(t => {
     const col = t === "weak" ? "var(--edge-weak)" : t === "strong" ? "var(--edge-strong)" : "var(--edge-normal)";
-    parts.push(`<marker id="arrow-${t}" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto"><polygon points="0 0,7 2.5,0 5" fill="${col}"/></marker>`);
+    const marker = makeSvg("marker", {
+      id: "arrow-" + t, markerWidth: 7, markerHeight: 5,
+      refX: 7, refY: 2.5, orient: "auto"
+    });
+    marker.appendChild(makeSvg("polygon", {points:"0 0,7 2.5,0 5", fill:col}));
+    defs.appendChild(marker);
   });
-  parts.push("</defs><g class=\"edge-layer\">");
+  const edgeLayer = makeSvg("g", {class:"edge-layer"});
   tree.edges.forEach(e => {
     if (hiddenSet.has(e.to) || !positions[e.from] || !positions[e.to]) return;
     const fp = positions[e.from], tp = positions[e.to];
@@ -203,13 +213,16 @@ function render() {
       d = `M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`;
     }
     const col = e.type === "weak" ? "var(--edge-weak)" : e.type === "strong" ? "var(--edge-strong)" : "var(--edge-normal)";
-    const mt = e.type === "no" ? "normal" : e.type;
-    let extra = "";
-    if (e.type === "weak") extra = ' stroke-dasharray="5,3"';
-    if (e.type === "strong") extra = ' stroke-dasharray="3,2"';
-    parts.push(`<path d="${d}" stroke="${col}" stroke-width="1.3" fill="none" marker-end="url(#arrow-${mt})" opacity="0.6"${extra}/>`);
+    const mt = ["weak", "strong"].includes(e.type) ? e.type : "normal";
+    const path = makeSvg("path", {
+      d, stroke:col, "stroke-width":1.3, fill:"none",
+      "marker-end":"url(#arrow-" + mt + ")", opacity:0.6
+    });
+    if (e.type === "weak") path.setAttribute("stroke-dasharray", "5,3");
+    if (e.type === "strong") path.setAttribute("stroke-dasharray", "3,2");
+    edgeLayer.appendChild(path);
   });
-  parts.push("</g><g class=\"node-layer\">");
+  const nodeLayer = makeSvg("g", {class:"node-layer"});
   tree.nodes.forEach(n => {
     if (hiddenSet.has(n.id) || !positions[n.id]) return;
     const pos = positions[n.id], isRoot = n.id === tree.root;
@@ -218,29 +231,45 @@ function render() {
     const dc = descCounts[n.id]||0;
     const x = pos.x - CARD_W / 2, y = pos.y - CARD_H / 2;
     const cursor = cc > 0 ? "pointer" : "default";
-    let s = `<g class="node-g" data-id="${n.id}" style="cursor:${cursor}">`;
+    const group = makeSvg("g", {class:"node-g"});
+    group.dataset.id = String(n.id);
+    group.style.cursor = cursor;
     if (n.installed) {
-      s += `<rect x="${x}" y="${y}" width="3" height="${CARD_H}" fill="var(--node-installed)" rx="2"/>`;
+      group.appendChild(makeSvg("rect", {
+        x, y, width:3, height:CARD_H, fill:"var(--node-installed)", rx:2
+      }));
     }
     const rx = n.installed ? x + 3 : x, rw = n.installed ? CARD_W - 3 : CARD_W;
     const sc = isRoot ? "var(--node-root-border)" : "var(--node-border)";
     const sw = isRoot ? 2 : 1.5;
-    const op = isColl ? ' opacity="0.7"' : "";
-    s += `<rect x="${rx}" y="${y}" width="${rw}" height="${CARD_H}" rx="5" ry="5" fill="var(--node-bg)" stroke="${sc}" stroke-width="${sw}"${op}/>`;
-    s += `<text x="${pos.x}" y="${pos.y - 4}" text-anchor="middle" font-size="11" font-weight="600" fill="var(--text)" font-family="Helvetica Neue,Helvetica,sans-serif">${n.name}</text>`;
+    group.appendChild(makeSvg("rect", {
+      x:rx, y, width:rw, height:CARD_H, rx:5, ry:5,
+      fill:"var(--node-bg)", stroke:sc, "stroke-width":sw,
+      opacity:isColl ? 0.7 : 1
+    }));
+    group.appendChild(makeSvg("text", {
+      x:pos.x, y:pos.y - 4, "text-anchor":"middle", "font-size":11,
+      "font-weight":600, fill:"var(--text)",
+      "font-family":"Helvetica Neue,Helvetica,sans-serif"
+    }, n.name));
     const vt = n.ver + (n.slot !== "0" ? "  :" + n.slot : "");
-    s += `<text x="${pos.x}" y="${pos.y + 10}" text-anchor="middle" font-size="10" fill="var(--text2)" font-family="Helvetica Neue,Helvetica,sans-serif">${vt}</text>`;
+    group.appendChild(makeSvg("text", {
+      x:pos.x, y:pos.y + 10, "text-anchor":"middle", "font-size":10,
+      fill:"var(--text2)", "font-family":"Helvetica Neue,Helvetica,sans-serif"
+    }, vt));
     if (cc > 0) {
       const fc = isColl ? "var(--rdepend)" : "var(--text2)";
       const fw = isColl ? "600" : "normal";
       const txt = isColl ? "+" + dc : "\u25BE";
-      s += `<text x="${pos.x + CARD_W/2 - 6}" y="${pos.y + CARD_H/2 - 3}" text-anchor="end" font-size="9" fill="${fc}" font-weight="${fw}" font-family="Helvetica Neue,Helvetica,sans-serif">${txt}</text>`;
+      group.appendChild(makeSvg("text", {
+        x:pos.x + CARD_W/2 - 6, y:pos.y + CARD_H/2 - 3,
+        "text-anchor":"end", "font-size":9, fill:fc, "font-weight":fw,
+        "font-family":"Helvetica Neue,Helvetica,sans-serif"
+      }, txt));
     }
-    s += "</g>";
-    parts.push(s);
+    nodeLayer.appendChild(group);
   });
-  parts.push("</g>");
-  svg.innerHTML = parts.join("");
+  svg.replaceChildren(defs, edgeLayer, nodeLayer);
 }
 const nodeIndex = {};
 Object.values(treeData).forEach(t => t.nodes.forEach(n => nodeIndex[n.id] = n));
@@ -272,18 +301,56 @@ svg.addEventListener("mouseout", ev => {
   if (g && !g.contains(ev.relatedTarget)) hideTooltip();
 });
 function showTooltip(ev, n) {
-  const useHtml = (n.use||[]).map(u => {
-    const on = u.startsWith("+");
-    return `<span class="use-flag ${on?"on":"off"}">${u}</span>`;
-  }).join("");
-  tooltip.innerHTML = `
-    <div class="tt-title">${n.cat}/${n.name}-${n.ver}</div>
-    ${n.desc ? `<div class="tt-desc">${n.desc}</div>` : ""}
-    <div class="tt-row"><span class="tt-label">Slot</span><span class="tt-value">${n.slot}</span></div>
-    <div class="tt-row"><span class="tt-label">Status</span><span class="${n.installed?"tt-installed":"tt-not-installed"}">${n.installed?"Installed":"Not installed"}</span></div>
-    ${n.homepage ? `<div class="tt-row"><span class="tt-label">Home</span><a class="tt-link" href="${n.homepage}" target="_blank">${n.homepage.replace(/https?:\/\//,"").substring(0,40)}...</a></div>` : ""}
-    ${useHtml ? `<div style="margin-top:4px"><span class="tt-label">USE</span><div class="use-flags">${useHtml}</div></div>` : ""}
-  `; tooltip.style.display = "block"; moveTooltip(ev);
+  const make = (tag, className, text) => {
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text !== undefined) el.textContent = String(text);
+    return el;
+  };
+  const row = (label, valueNode) => {
+    const el = make("div", "tt-row");
+    el.append(make("span", "tt-label", label), valueNode);
+    return el;
+  };
+  const children = [make("div", "tt-title", `${n.cat}/${n.name}-${n.ver}`)];
+  if (n.desc) children.push(make("div", "tt-desc", n.desc));
+  children.push(row("Slot", make("span", "tt-value", n.slot)));
+  children.push(row("Status", make("span",
+    n.installed ? "tt-installed" : "tt-not-installed",
+    n.installed ? "Installed" : "Not installed")));
+  const homepage = safeHomepage(n.homepage);
+  if (homepage) {
+    const link = make("a", "tt-link",
+      homepage.replace(/^https?:\/\//i, "").substring(0, 40) + "...");
+    link.href = homepage;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    children.push(row("Home", link));
+  }
+  if ((n.use||[]).length) {
+    const useBlock = make("div", "");
+    useBlock.style.marginTop = "4px";
+    useBlock.appendChild(make("span", "tt-label", "USE"));
+    const flags = make("div", "use-flags");
+    (n.use||[]).forEach(u => flags.appendChild(
+      make("span", "use-flag " + (String(u).startsWith("+") ? "on" : "off"), u)));
+    useBlock.appendChild(flags);
+    children.push(useBlock);
+  }
+  tooltip.replaceChildren(...children);
+  tooltip.style.display = "block"; moveTooltip(ev);
+}
+function safeHomepage(value) {
+  if (typeof value !== "string") return null;
+  for (const candidate of value.trim().split(/\s+/)) {
+    try {
+      const parsed = new URL(candidate);
+      if ((parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.host) {
+        return parsed.href;
+      }
+    } catch (_) {}
+  }
+  return null;
 }
 function moveTooltip(ev) {
   const pad = 12; let x = ev.clientX + pad, y = ev.clientY + pad;

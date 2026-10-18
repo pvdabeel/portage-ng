@@ -181,9 +181,11 @@ mirror:pick_structure_([_|Rest], Layout) :-
 % filename is hashed and split into directory segments per the cutoff widths.
 
 mirror:distfile_path(Root, flat, Filename, Path) :-
+  sanitize:safe_distfile_name(Filename),
   os:compose_path(Root, Filename, Path).
 
 mirror:distfile_path(Root, filename_hash(Alg, CutoffsBits), Filename, Path) :-
+  sanitize:safe_distfile_name(Filename),
   mirror:filename_hash_hex(Alg, Filename, Hex),
   mirror:hash_segments(Hex, CutoffsBits, Segments),
   atomic_list_concat([Root|Segments], '/', Dir0),
@@ -551,8 +553,44 @@ mirror:normalize_manifest_alg('blake2b',  blake2b512) :- !.
 mirror:normalize_manifest_alg('sha512',   sha512)     :- !.
 mirror:normalize_manifest_alg('sha256',   sha256)     :- !.
 mirror:normalize_manifest_alg('sha1',     sha1)       :- !.
+mirror:normalize_manifest_alg('md5',      md5)        :- !.
 mirror:normalize_manifest_alg('rmd160',   rmd160)     :- !.
 mirror:normalize_manifest_alg(Other,      Other).
+
+
+%! mirror:supported_hash_algorithm(+Algorithm) is semidet.
+%
+% Hash algorithms for which openssl_file_hash/3 has an implementation.
+
+mirror:supported_hash_algorithm(Algorithm) :-
+  mirror:openssl_alg_flag(Algorithm, _).
+
+
+%! mirror:strong_hash_algorithm(+Algorithm) is semidet.
+%
+% Strong algorithms accepted as the security basis for distfiles and gpkg
+% inner members. MD5/SHA1 remain supported only for outer Packages-index
+% compatibility.
+
+mirror:strong_hash_algorithm(blake2b512).
+mirror:strong_hash_algorithm(sha512).
+mirror:strong_hash_algorithm(sha256).
+
+
+%! mirror:verify_strong_hashes(+Path, +Pairs) is semidet.
+%
+% Verify every strong digest in Pairs and require at least one.
+
+mirror:verify_strong_hashes(Path, Pairs) :-
+  include(mirror:strong_hash_pair, Pairs, Strong),
+  Strong \== [],
+  mirror:verify_hashes(Path, Strong, true, 0).
+
+
+%! mirror:strong_hash_pair(+Pair) is semidet.
+
+mirror:strong_hash_pair(alg_hash(Algorithm, _)) :-
+  mirror:strong_hash_algorithm(Algorithm).
 
 
 %! mirror:verify_specs(+Specs, +MirrorRoot, +Layout, +Distdir, +Options, -Stats) is det.
@@ -645,8 +683,11 @@ mirror:verify_one(MirrorRoot, Layout, Distdir, HashSet, spec(F, S, Pairs),
 % True when the file at Path has exactly Expected bytes; OK is `true` or `false`.
 
 mirror:verify_size(Path, Expected, true) :-
+  ( atom(Expected) -> atom_number(Expected, ExpectedNumber)
+  ; ExpectedNumber = Expected
+  ),
   catch(size_file(Path, Size), _Any, fail),
-  Size =:= Expected,
+  Size =:= ExpectedNumber,
   !.
 
 mirror:verify_size(_Path, _Expected, false).
@@ -661,7 +702,9 @@ mirror:verify_size(_Path, _Expected, false).
 mirror:verify_hashes(_Path, [], true, 0) :- !.
 
 mirror:verify_hashes(Path, Pairs, OK, UnsupportedCount) :-
-  foldl(mirror:verify_one_hash(Path), Pairs, state(true,0), state(OK,UnsupportedCount)).
+  foldl(mirror:verify_one_hash(Path), Pairs,
+        state(true,0,0), state(HashesOK,UnsupportedCount,SupportedCount)),
+  ( SupportedCount > 0 -> OK = HashesOK ; OK = false ).
 
 
 %! mirror:verify_one_hash(+Path, +AlgHash, +StateIn, -StateOut) is det.
@@ -669,15 +712,20 @@ mirror:verify_hashes(Path, Pairs, OK, UnsupportedCount) :-
 % Verify a single algorithm/hash pair. Folds into `state(OK, UnsupportedCount)`.
 % Uses openssl dgst externally to avoid crypto_file_hash bugs with large files.
 
-mirror:verify_one_hash(Path, alg_hash(Alg, Expected), state(OK0,U0), state(OK,U)) :-
+mirror:verify_one_hash(Path, alg_hash(Alg, Expected),
+                       state(OK0,U0,S0), state(OK,U,S)) :-
   ( mirror:openssl_alg_flag(Alg, Flag) ->
       ( mirror:openssl_file_hash(Path, Flag, Got)
-      -> ( Got == Expected -> OK1 = OK0 ; OK1 = false ),
-         OK = OK1, U = U0
-      ;  OK = false, U = U0
-      )
+      -> downcase_atom(Expected, ExpectedLower),
+         ( Got == ExpectedLower -> OK1 = OK0 ; OK1 = false ),
+         OK = OK1
+      ;  OK = false
+      ),
+      U = U0,
+      S is S0 + 1
   ;  OK = OK0,
-     U is U0 + 1
+     U is U0 + 1,
+     S = S0
   ).
 
 
@@ -689,6 +737,7 @@ mirror:openssl_alg_flag(blake2b512, '-blake2b512').
 mirror:openssl_alg_flag(sha512, '-sha512').
 mirror:openssl_alg_flag(sha256, '-sha256').
 mirror:openssl_alg_flag(sha1, '-sha1').
+mirror:openssl_alg_flag(md5, '-md5').
 mirror:openssl_alg_flag(rmd160, '-rmd160').
 
 
@@ -706,7 +755,8 @@ mirror:openssl_file_hash(Path, Flag, Hash) :-
   sub_string(Line, Before, 2, _, "= "),
   After is Before + 2,
   sub_string(Line, After, _, 0, HexStr),
-  atom_string(Hash, HexStr).
+  string_lower(HexStr, Lower),
+  atom_string(Hash, Lower).
 
 
 %! mirror:print_test_stats(+Repo, +MirrorRoot, +Layout, +Distdir, +TotalFiles, +TotalBytes, +Stats) is det.

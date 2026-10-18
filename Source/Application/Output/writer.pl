@@ -44,31 +44,35 @@ to produce the content written to files.
 % Assumes directory exists. (See repository:prepare_directory)
 
 writer:write_merge_file(Directory,Repository://Entry) :-
-  Action = run,
-  Extension = '.merge',
-  Goals = [Repository://Entry:Action?{[]}],
+  Target = Repository://Entry,
+  ( writer:prove_bundle(Target, Bundle)
+  -> writer:write_merge_from_bundle(Directory, Target, Bundle)
+  ; with_mutex(mutex, message:warning([Repository, '://', Entry, ' run']))
+  ).
+
+
+%! writer:prove_bundle(+Repository://Entry, -Bundle) is semidet.
+%
+% One :run proof shared by the merge file, the fetchonly file and the
+% Gantt page. Bundle is bundle(Goals, Proof, Model, Plan, Triggers, T0).
+
+writer:prove_bundle(Repository://Entry, bundle(Goals, Proof, Model, Plan, Triggers, T0)) :-
+  Goals = [Repository://Entry:run?{[]}],
   get_time(T0),
-  ( pipeline:prove_plan_with_fallback(Goals, Proof, Model, Plan, Triggers, _FallbackUsed),
-    atomic_list_concat([Directory,'/',Entry,Extension],File)
-  ),
-  atomic_list_concat([File,'.tmp'], TmpFile),
-  ( catch(
-      setup_call_cleanup(
-        tell(TmpFile),
-        ( set_stream(current_output,tty(true)),
-          timing:print_timing_header('merge', T0),
-          printer:print(Goals,Model,Proof,Plan,Triggers),
-          timing:print_timing_footer('merge', T0)
-        ),
-        told
-      ),
-      _E,
-      ( told, fail )
-    )
-  -> catch(rename_file(TmpFile, File), _, true)
-  ; ( ( catch(delete_file(TmpFile), _, true) ),
-      with_mutex(mutex,message:warning([Repository,'://',Entry,' ',Action]))
-    )
+  pipeline:prove_plan_with_fallback(Goals, Proof, Model, Plan, Triggers, _).
+
+
+%! writer:write_merge_from_bundle(+Directory, +Target, +Bundle) is det.
+%
+% Write the .merge file from a bundle that was already proved.
+
+writer:write_merge_from_bundle(Directory, Repository://Entry,
+                               bundle(Goals, Proof, Model, Plan, Triggers, T0)) :-
+  atomic_list_concat([Directory, '/', Entry, '.merge'], File),
+  ( writer:write_timed_file(File, merge, T0,
+      printer:print(Goals, Model, Proof, Plan, Triggers))
+  -> true
+  ; with_mutex(mutex, message:warning([Repository, '://', Entry, ' run']))
   ).
 
 
@@ -80,33 +84,69 @@ writer:write_merge_file(Directory,Repository://Entry) :-
 % canonical 5-tier fallback chain. Assumes directory exists.
 
 writer:write_fetchonly_file(Directory,Repository://Entry) :-
-  Action = run,
-  Extension = '.fetchonly',
-  Goals = [Repository://Entry:Action?{[]}],
-  get_time(T0),
-  ( pipeline:prove_plan_with_fallback(Goals, Proof, Model, Plan, Triggers, _FallbackUsed),
-    atomic_list_concat([Directory,'/',Entry,Extension],File)
-  ),
-  atomic_list_concat([File,'.tmp'], TmpFile),
+  Target = Repository://Entry,
+  ( writer:prove_bundle(Target, Bundle)
+  -> writer:write_fetchonly_from_bundle(Directory, Target, Bundle)
+  ; with_mutex(mutex, message:warning([Repository, '://', Entry, ' fetchonly']))
+  ).
+
+
+%! writer:write_fetchonly_from_bundle(+Directory, +Target, +Bundle) is det.
+%
+% Write the .fetchonly file from a bundle. The printer runs under
+% preference:local_flag(fetchonly); the proof is not repeated.
+
+writer:write_fetchonly_from_bundle(Directory, Repository://Entry,
+                                   bundle(Goals, Proof, Model, Plan, Triggers, T0)) :-
+  atomic_list_concat([Directory, '/', Entry, '.fetchonly'], File),
+  ( writer:write_timed_file(File, fetchonly, T0,
+      preference:with_local_flag(fetchonly,
+        printer:print(Goals, Model, Proof, Plan, Triggers)))
+  -> true
+  ; with_mutex(mutex, message:warning([Repository, '://', Entry, ' fetchonly']))
+  ).
+
+
+%! writer:write_timed_file(+File, +Label, +T0, :Goal) is semidet.
+%
+% Write Goal between the timing header and footer, then rename the temp
+% file onto File. Fails when Goal or the write fails, and removes the
+% temp file in that case.
+
+writer:write_timed_file(File, Label, T0, Goal) :-
+  atomic_list_concat([File, '.tmp'], TmpFile),
   ( catch(
       setup_call_cleanup(
         tell(TmpFile),
-        ( set_stream(current_output,tty(true)),
-          timing:print_timing_header('fetchonly', T0),
-          preference:with_local_flag(fetchonly,
-            printer:print(Goals,Model,Proof,Plan,Triggers)),
-          timing:print_timing_footer('fetchonly', T0)
+        ( set_stream(current_output, tty(true)),
+          timing:print_timing_header(Label, T0),
+          call(Goal),
+          timing:print_timing_footer(Label, T0)
         ),
         told
       ),
-      _E,
+      _,
       ( told, fail )
     )
   -> catch(rename_file(TmpFile, File), _, true)
-  ; ( ( catch(delete_file(TmpFile), _, true) ),
-      with_mutex(mutex,message:warning([Repository,'://',Entry,' fetchonly']))
-    )
+  ; catch(delete_file(TmpFile), _, true),
+    fail
   ).
+
+
+%! writer:write_plan_failure(+Directory, +Entry, +Label) is det.
+%
+% Leave a short failure file so a later HTML page can render it without
+% proving again.
+
+writer:write_plan_failure(Directory, Entry, Label) :-
+  ( Label == fetchonly -> Ext = '.fetchonly' ; Ext = '.merge' ),
+  atomic_list_concat([Directory, '/', Entry, Ext], File),
+  ( Label == fetchonly
+  -> Text = "Failed to compute fetchonly plan.\n"
+  ;  Text = "Failed to compute merge plan.\n"
+  ),
+  setup_call_cleanup(open(File, write, Out), write(Out, Text), close(Out)).
 
 
 %! writer:write_info_file(+Directory,+Repository://Entry)
@@ -412,9 +452,60 @@ writer:write_index_files(Directory,Repository) :-
 %
 % Write HTML graph files for all entries in a repository.
 % Assumes directory exists. (See repository:prepare_directory)
+% Prefer writer:write_repository/2, which proves once per entry and
+% writes the plan files before the HTML.
 
 writer:write_graph_files(Directory,Repository) :-
   grapher:write_graph_files(Directory,Repository).
+
+
+%! writer:write_repository(+Directory, +Repository) is det.
+%
+% Prove each entry once. Write .merge and .fetchonly from that bundle,
+% then the HTML pages. Emerge and pmerge captures, when enabled, run
+% first so their HTML pages read the fresh files.
+
+writer:write_repository(Directory, Repository) :-
+  ( config:graph_include_emerge(true)
+  -> writer:write_emerge_files(Directory, Repository)
+  ;  true
+  ),
+  ( config:graph_include_pmerge(true)
+  -> writer:write_pmerge_files(Directory, Repository)
+  ;  true
+  ),
+  tester:test(parallel_verbose,
+              'Writing plans',
+              Repository://Entry,
+              ( Repository:entry(Entry),
+                ( config:graph_modified_only(true)
+                -> Repository:entry(Entry, Time),
+                   Repository:get_ebuild_file(Entry, Ebuild),
+                   system:exists_file(Ebuild),
+                   system:time_file(Ebuild, Modified),
+                   Modified > Time
+                ;  true
+                )
+              ),
+              writer:write_entry(Directory, Repository://Entry)).
+
+
+%! writer:write_entry(+Directory, +Repository://Entry) is det.
+%
+% One proof, then the text plans, then the HTML that consumes them.
+
+writer:write_entry(Directory, Repository://Entry) :-
+  Target = Repository://Entry,
+  ( writer:prove_bundle(Target, Bundle)
+  -> writer:write_merge_from_bundle(Directory, Target, Bundle),
+     writer:write_fetchonly_from_bundle(Directory, Target, Bundle)
+  ; writer:write_plan_failure(Directory, Entry, merge),
+    writer:write_plan_failure(Directory, Entry, fetchonly),
+    Bundle = failed,
+    with_mutex(mutex, message:warning([Repository, '://', Entry, ' run']))
+  ),
+  ( writer:write_info_file(Directory, Target) -> true ; true ),
+  grapher:write_graph_file(Directory, Target, Bundle).
 
 
 %! writer:write_proof_files(+Directory,+Repository)

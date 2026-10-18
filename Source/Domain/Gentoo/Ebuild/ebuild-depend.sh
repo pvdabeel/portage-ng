@@ -8,10 +8,14 @@
 # Three modes:
 #
 #   --single EBUILD REPO   Process one ebuild, output KEY=VALUE, exit.
-#   --batch  REPO          Read ebuild descriptors from stdin, output
+#   --batch  REPO          Read NUL-framed entry requests from stdin, output
 #                          KEY=VALUE blocks delimited by ---END---.
-#   --server REPO          Persistent coprocess: read requests from stdin,
-#                          output KEY=VALUE blocks delimited by ---END---.
+#   --server REPO          Persistent coprocess: same request protocol,
+#                          until a quit frame. Responses are ---END--- blocks.
+#
+# Request frames (fields are data; they are never evaluated):
+#   entry \0 CATEGORY \0 PN \0 PV \0 PR \0 PVR \0 PF \0 P \0 EBUILD \0
+#   quit \0
 #
 # Copyright (c) 2026, Pieter Van den Abeele
 #
@@ -620,45 +624,84 @@ __mode_single() {
 	)
 }
 
+# Read NUL-delimited entry/quit requests. A field may contain spaces,
+# quotes, and shell metacharacters; it is assigned as data and never eval'd.
+# EOF ends a batch. quit ends a coprocess. A truncated or unknown frame
+# emits one error block and stops, because the stream can no longer be resynced.
+__serve_requests() {
+	local cmd category pn pv pr pvr pf p ebuild status
+	while true; do
+		IFS= read -r -d '' cmd
+		status=$?
+		if (( status != 0 )); then
+			# EOF after a complete frame is normal. Bytes without a
+			# terminating NUL are a truncated frame and must not be used.
+			if [[ -n ${cmd} ]]; then
+				printf '%s\n' '---ERROR--- truncated request'
+				printf '%s\n' '---END---'
+				return 1
+			fi
+			return 0
+		fi
+		case "${cmd}" in
+			quit)
+				return 0
+				;;
+			entry)
+				if ! IFS= read -r -d '' category \
+					|| ! IFS= read -r -d '' pn \
+					|| ! IFS= read -r -d '' pv \
+					|| ! IFS= read -r -d '' pr \
+					|| ! IFS= read -r -d '' pvr \
+					|| ! IFS= read -r -d '' pf \
+					|| ! IFS= read -r -d '' p \
+					|| ! IFS= read -r -d '' ebuild; then
+					printf '%s\n' '---ERROR--- truncated request'
+					printf '%s\n' '---END---'
+					return 1
+				fi
+				(
+					CATEGORY=${category}
+					PN=${pn}
+					PV=${pv}
+					PR=${pr}
+					PVR=${pvr}
+					PF=${pf}
+					P=${p}
+					EBUILD=${ebuild}
+
+					if [[ -z ${EBUILD} || ! -f ${EBUILD} ]]; then
+						printf '%s\n' "---ERROR--- invalid or missing EBUILD: ${EBUILD:-<empty>}"
+						printf '%s\n' '---END---'
+						return
+					fi
+
+					[[ -z ${PR} ]] && PR=r0
+					[[ -z ${PVR} ]] && PVR="${PV}${PR:+-${PR}}"
+					[[ ${PR} == r0 ]] && PVR="${PV}"
+
+					export CATEGORY P PN PV PR PVR PF EBUILD
+
+					__process_ebuild
+					printf '%s\n' '---END---'
+				)
+				;;
+			*)
+				printf '%s\n' '---ERROR--- unknown request'
+				printf '%s\n' '---END---'
+				return 1
+				;;
+		esac
+	done
+}
+
 __mode_batch() {
 	local repo_location="$1"
 
 	[[ -d "${repo_location}" ]] || die "--batch: repo not found: ${repo_location}"
 
 	PORTAGE_ECLASS_LOCATIONS=( "${repo_location}" )
-
-	local line
-	while IFS= read -r line; do
-		[[ -z "${line}" ]] && continue
-
-		# Parse descriptor: space-separated KEY=VALUE pairs
-		# Required: CATEGORY, PN, PV, PF, P, EBUILD
-		# Optional: PR, PVR
-		(
-			eval "${line}" 2>/dev/null
-
-			if [[ -z "${EBUILD}" ]]; then
-				echo "---ERROR--- missing EBUILD in descriptor: ${line}"
-				echo "---END---"
-				return
-			fi
-
-			if [[ ! -f "${EBUILD}" ]]; then
-				echo "---ERROR--- ebuild not found: ${EBUILD}"
-				echo "---END---"
-				return
-			fi
-
-			[[ -z "${PR}" ]] && PR=r0
-			[[ -z "${PVR}" ]] && PVR="${PV}${PR:+-${PR}}"
-			[[ "${PR}" == "r0" ]] && PVR="${PV}"
-
-			export CATEGORY P PN PV PR PVR PF EBUILD
-
-			__process_ebuild
-			echo "---END---"
-		)
-	done
+	__serve_requests
 }
 
 __mode_server() {
@@ -667,31 +710,7 @@ __mode_server() {
 	[[ -d "${repo_location}" ]] || die "--server: repo not found: ${repo_location}"
 
 	PORTAGE_ECLASS_LOCATIONS=( "${repo_location}" )
-
-	local line
-	while IFS= read -r line; do
-		[[ -z "${line}" ]] && continue
-		[[ "${line}" == "QUIT" ]] && break
-
-		(
-			eval "${line}" 2>/dev/null
-
-			if [[ -z "${EBUILD}" || ! -f "${EBUILD}" ]]; then
-				echo "---ERROR--- invalid or missing EBUILD: ${EBUILD:-<empty>}"
-				echo "---END---"
-				return
-			fi
-
-			[[ -z "${PR}" ]] && PR=r0
-			[[ -z "${PVR}" ]] && PVR="${PV}${PR:+-${PR}}"
-			[[ "${PR}" == "r0" ]] && PVR="${PV}"
-
-			export CATEGORY P PN PV PR PVR PF EBUILD
-
-			__process_ebuild
-			echo "---END---"
-		)
-	done
+	__serve_requests
 }
 
 

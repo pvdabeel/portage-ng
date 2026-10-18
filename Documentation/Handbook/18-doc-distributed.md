@@ -30,7 +30,13 @@ across workers through a job queue and result queue.
 **Workers** are symmetric compute nodes.  Each worker carries its own
 copy of the knowledge base and runs the full proving pipeline
 locally.  You can add as many workers as you need — they scale
-horizontally, and the server distributes work evenly.
+horizontally, and the server distributes work evenly.  Each queued
+job carries an id and a lease token.  The worker renews that lease
+while the proof runs.  A result is published once for the token that
+still holds the lease, and a reset starts a new batch so a late
+result from the previous batch is ignored.  HTTP paths such as
+`/sync/<repository>`, `/graph_emerge` and `/graph_pmerge` come from
+one route table shared by the server and the client proxy.
 
 The **client** submits target packages and collects results.  It does
 not need the knowledge base itself; it talks to the server over HTTPS
@@ -157,9 +163,25 @@ stamp (entry count + content hash), and POSTs the payload to the
 authenticated `/import-vdb` endpoint (same digest + client-certificate
 TLS as `/sync`).
 
-The server validates the payload (whitelisted fact shapes, sanitized
-hostname, capped counts) and registers the facts atomically as a
-per-client repository named `pkg@<clienthost>`, recording the stamp.
+Every explicit HTTP route, including `/import-vdb` and `/vdb-status`,
+authenticates as `portage_ng`: HTTP digest identity plus the mTLS
+client certificate.  The resulting principal is
+`tenant(DigestUser, CertificateCN)`.  Pengines use the same check, so
+`pengine_user/1` carries that tenant.  The certificate subject OU must be `Client - <CN>`, and the payload
+hostname must match the certificate CN.  A client-supplied repository name is only a
+freshness assertion; the stored repository is bound to the
+authenticated principal.
+
+The body must declare a `Content-Length` within the configured quota.
+Chunked or missing lengths are rejected, and the parser reads only that
+many UTF-8 bytes.  Terms are checked before any fact is published.
+Replacement of the previous import, the repository registry, and the
+byte accounting happens in one transaction.  Idle imports expire after
+`config:client_vdb_idle_ttl/1` (default one day), and the server also
+caps the number of tenants, total bytes, entries, and metadata terms
+(`config:client_vdb_max_tenants/1` and the matching total predicates).
+`/vdb-status` lets the client see whether its stamp is still current;
+expiry or a server restart causes the next command to import again.
 
 At prove time, every rule that consults the installed set goes through
 a single accessor, `knowledgebase:vdb_repository/1`:

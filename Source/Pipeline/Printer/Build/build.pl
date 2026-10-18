@@ -348,19 +348,31 @@ build:print_file_subslots(DistFiles, Distdir) :-
 
 build:print_file_subslots_([], _, _).
 
-build:print_file_subslots_([dist(Filename, Size, _)|Rest], 0, Distdir) :-
+build:print_file_subslots_([dist(Filename, Size, Pairs)|Rest], 0, Distdir) :-
   build:file_prefix_first,
-  build:render_file_content(pending, Filename, Size, Distdir),
+  build:initial_file_status(Distdir, Filename, Size, Pairs, Status),
+  build:render_file_content(Status, Filename, Size, Distdir),
   nl,
   build:print_file_subslots_(Rest, 1, Distdir).
 
-build:print_file_subslots_([dist(Filename, Size, _)|Rest], N, Distdir) :-
+build:print_file_subslots_([dist(Filename, Size, Pairs)|Rest], N, Distdir) :-
   N > 0,
   build:file_prefix_rest,
-  build:render_file_content(pending, Filename, Size, Distdir),
+  build:initial_file_status(Distdir, Filename, Size, Pairs, Status),
+  build:render_file_content(Status, Filename, Size, Distdir),
   nl,
   N1 is N + 1,
   build:print_file_subslots_(Rest, N1, Distdir).
+
+
+%! build:initial_file_status(+Distdir, +Filename, +Size, +Pairs, -Status) is det.
+
+build:initial_file_status(Distdir, Filename, Size, Pairs, Status) :-
+  ( catch(download:distfile_destination(Distdir, Filename, Path), _, fail),
+    download:verified_distfile(Path, Size, Pairs)
+  -> Status = cached
+  ;  Status = pending
+  ).
 
 
 % -----------------------------------------------------------------------------
@@ -453,21 +465,21 @@ build:update_file_subslot(FileIdx, FileStartLine, TotalLines, Status, Filename, 
 % Render file content for a sub-slot. Matches the plan's layout:
 % size (magenta) then filename, followed by status indicator.
 
-build:render_file_content(pending, Filename, Size, Distdir) :-
-  ( mirror:flat_present(Distdir, Filename)
-  -> message:color(magenta),
-     message:print_bytes(Size),
-     message:color(normal),
-     message:print(' '),
-     message:print(Filename),
-     message:right_edge_ok
-  ;  message:color(darkgray),
-     message:print_bytes(Size),
-     message:color(darkgray),
-     message:print(' '),
-     message:print(Filename),
-     message:color(normal)
-  ).
+build:render_file_content(cached, Filename, Size, _Distdir) :-
+  message:color(magenta),
+  message:print_bytes(Size),
+  message:color(normal),
+  message:print(' '),
+  message:print(Filename),
+  message:right_edge_ok.
+
+build:render_file_content(pending, Filename, Size, _Distdir) :-
+  message:color(darkgray),
+  message:print_bytes(Size),
+  message:color(darkgray),
+  message:print(' '),
+  message:print(Filename),
+  message:color(normal).
 
 build:render_file_content(progress(Pct, Speed), Filename, Size, _Distdir) :-
   message:color(magenta),
