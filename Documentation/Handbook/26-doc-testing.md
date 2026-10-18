@@ -34,9 +34,11 @@ see [Policy by example](Policy/examples.md) and the
 make test-overlay
 ```
 
-Or from the interactive shell:
+Or from the interactive shell (the overlay harness is not loaded by
+default in production modes; load it on demand first):
 
 ```prolog
+loader:load_test_modules.
 test:run(cases).
 ```
 

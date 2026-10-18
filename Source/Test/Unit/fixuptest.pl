@@ -301,3 +301,28 @@ test(keeps_in_domain_core_lib_when_sibling_is_outside,
     version_domain(any, [bound(smaller, NV)]), Old).
 
 :- end_tests(ghcabi_core_lib_domain).
+
+
+% -----------------------------------------------------------------------------
+%  Metacircular draft_fixup filename guard
+% -----------------------------------------------------------------------------
+%
+% The mechanism name of an LLM-proposed draft_fixup becomes a filename
+% under Knowledge/drafts/; traversal shapes must be rejected at
+% validation time (and again at write time).
+
+:- begin_tests(metacircular_draft_guard).
+
+test(valid_draft_mechanism) :-
+  metacircular:valid_action(action(draft_fixup, collision, 'synopsis', 'body')).
+
+test(reject_draft_traversal, [fail]) :-
+  metacircular:valid_action(action(draft_fixup, '../../tmp/evil', 's', 'b')).
+
+test(reject_draft_subdirectory, [fail]) :-
+  metacircular:valid_action(action(draft_fixup, 'a/b', 's', 'b')).
+
+test(write_draft_refuses_traversal, [fail]) :-
+  metacircular:write_draft_fixup('../../tmp/evil', 's', 'b').
+
+:- end_tests(metacircular_draft_guard).

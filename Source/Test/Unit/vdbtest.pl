@@ -177,4 +177,24 @@ test(reject_truncated_payload,
     )),
   with_output_to(string(_), server:import_vdb(Payload)).
 
+test(reject_oversized_term, [condition(vdb_import_env_ready)]) :-
+  % A single md/3 value longer than the per-term cap must be rejected
+  % while reading, before the fact-count caps could ever fire.
+  server:vdb_import_max_term_length(Max),
+  BigLen is Max + 1000,
+  length(BigCodes, BigLen),
+  maplist(=(0'a), BigCodes),
+  atom_codes(BigAtom, BigCodes),
+  term_string(md('c/p-1.0', big, BigAtom), BigLine),
+  format(string(Payload), 'vdb_import_v1.~nhostname(~q).~nstamp(stamp(1, sha)).~n~w.~nend_of_vdb_import(1, 1).~n',
+         ['unittest.local', BigLine]),
+  ( catch(with_output_to(string(_), server:import_vdb(Payload)), E, Caught = E)
+  -> nonvar(Caught)
+  ;  fail
+  ).
+
+test(payload_size_cap) :-
+  server:check_vdb_payload_size("small", 100),
+  \+ catch(server:check_vdb_payload_size("this payload is too large", 4), _, fail).
+
 :- end_tests(vdb_import_roundtrip).

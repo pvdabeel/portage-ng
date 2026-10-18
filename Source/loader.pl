@@ -158,6 +158,8 @@ loader:group(domain_modules,
     portage('Source/Domain/Gentoo/Rules/Resolving/featureterm.pl'),
     portage('Source/Domain/Gentoo/ebuild.pl'),
     portage('Source/Application/System/script.pl'),
+    % stat.pl lives under Source/Test but is production: the progress
+    % statistics OO class instantiated at startup (stats:newinstance).
     portage('Source/Test/stat.pl'),
     portage('Source/Domain/Gentoo/vdb.pl'),
     portage('Source/Domain/Gentoo/distfiles.pl'),
@@ -234,14 +236,25 @@ loader:group(standalone_modules,
     portage('Source/Application/Output/Grapher/sitefiles.pl'),
     portage('Source/Application/Output/grapher.pl'),
     portage('Source/Application/Mode/worker.pl'),
+    % tester.pl lives under Source/Test but is production: it is the
+    % bulk-iteration harness behind --graph, index/proof file writing
+    % and the resolver/pipeline/printer test_stats entry points.
     portage('Source/Test/tester.pl'),
     portage('Source/Application/Mode/cluster.pl'),
     portage('Source/Domain/Gentoo/depclean.pl'),
     portage('Source/Application/System/linkage.pl'),
     portage('Source/Application/Output/Report/report.pl'),
+    portage('Source/Application/System/httpfetch.pl'),
     portage('Source/Domain/Gentoo/upstream.pl'),
-    portage('Source/Domain/Gentoo/bugs.pl'),
-    portage('Source/Test/test.pl')]).
+    portage('Source/Domain/Gentoo/bugs.pl')]).
+
+% The overlay regression harness (module test, Source/Test/test.pl) is
+% NOT part of any operating mode: no production predicate calls it, so
+% standalone/daemon/server no longer pay its load (or ship its surface
+% in `make build`). Entry points load it on demand via
+% loader:load_test_modules/0 (Makefile test-overlay, CI, handbook).
+loader:group(test_modules,
+   [portage('Source/Test/test.pl')]).
 
 loader:group(worker_modules,
    [portage('Source/Application/Output/writer.pl'),
@@ -374,6 +387,16 @@ loader:load_group(Group) :-
 
 loader:load_groups(Groups) :-
    forall(member(Group, Groups), loader:load_group(Group)).
+
+
+%! loader:load_test_modules is det.
+%
+% Load the overlay regression harness (loader:group(test_modules))
+% on demand. Idempotent (ensure_loaded semantics), so test entry
+% points can call it unconditionally before test:run/1,2.
+
+loader:load_test_modules :-
+   loader:load_group(test_modules).
 
 
 % -----------------------------------------------------------------------------

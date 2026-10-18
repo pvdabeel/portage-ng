@@ -21,9 +21,6 @@ public DNS is on registrar hold.
 :- module(upstream, []).
 
 :- use_module(library(uri)).
-:- use_module(library(http/json)).
-:- use_module(library(http/http_open)).
-:- use_module(library(process)).
 
 % =============================================================================
 %  UPSTREAM declarations
@@ -97,33 +94,16 @@ upstream:fetch_project(Name, Result) :-
 %! upstream:fetch_json_curl(+URL, +UA, -Packages, -Status) is det.
 %
 % Status is `ok` (Packages bound), `no_curl` (binary missing) or
-% `error(Why)` (curl exit / unparsable body).
+% `error(Why)` (curl exit / unparsable body). Wire mechanics live in
+% httpfetch:fetch_json_curl/5; only the Repology-specific `--resolve`
+% pin is added here (as extra curl arguments).
 
 upstream:fetch_json_curl(URL, UA, Packages, Status) :-
-  format(atom(UAHeader), 'User-Agent: ~w', [UA]),
   upstream:curl_resolve_opts(URL, ResolveOpts),
-  append([['-s', '-f', '-L', '--proto', '=https',
-           '--max-time', '60',
-           '-H', UAHeader, '-H', 'Accept: application/json'],
-          ResolveOpts,
-          [URL]],
-         Args),
-  catch(process_create(path(curl),
-                       Args,
-                       [stdout(pipe(Out)), stderr(null), process(Pid)]),
-        error(existence_error(_, _), _),
-        Status = no_curl),
-  ( Status == no_curl
-  -> true
-  ;  set_stream(Out, encoding(utf8)),
-     catch(call_cleanup(json_read_dict(Out, Dict0, [default_tag(json)]), close(Out)),
-           _, Dict0 = none),
-     process_wait(Pid, exit(Code)),
-     ( Code =:= 0, Dict0 \== none
-     -> Packages = Dict0, Status = ok
-     ;  upstream:curl_exit_text(Code, Why),
-        Status = error(Why) )
-  ).
+  httpfetch:fetch_json_curl(URL, UA,
+                            [timeout(60), proto('=https'),
+                             extra_curl_args(ResolveOpts)],
+                            Packages, Status).
 
 
 %! upstream:curl_resolve_opts(+URL, -Opts) is det.
@@ -148,42 +128,31 @@ upstream:curl_resolve_opts(_, []).
 
 %! upstream:curl_exit_text(+Code, -Text) is det.
 %
-% Human-readable reason for a curl exit code.
+% Human-readable reason for a curl exit code. Delegates to the shared
+% transport (kept as an upstream-local name for existing callers).
 
-upstream:curl_exit_text(0,  'unparsable JSON') :- !.
-upstream:curl_exit_text(22, 'HTTP error reply') :- !.
-upstream:curl_exit_text(28, 'timeout') :- !.
-upstream:curl_exit_text(6,  'could not resolve host') :- !.
-upstream:curl_exit_text(7,  'connection refused') :- !.
 upstream:curl_exit_text(Code, Text) :-
-  format(atom(Text), 'curl exit ~w', [Code]).
+  httpfetch:curl_exit_text(Code, Text).
 
 
 %! upstream:fetch_json_http_open(+URL, +UA, -Result) is det.
 %
 % Fallback transport through SWI-Prolog's HTTP client. Cannot honour
-% `config:repology_address/1`.
+% `config:repology_address/1`. A non-200 reply maps to packages([])
+% (no such project), other transport errors to error(Text).
 
 upstream:fetch_json_http_open(URL, UA, Result) :-
-  catch(
-    setup_call_cleanup(
-      http_open(URL, In, [
-        request_header('User-Agent' = UA),
-        request_header('Accept' = 'application/json'),
-        status_code(Code),
-        timeout(60)
-      ]),
-      ( Code == 200
-      -> set_stream(In, encoding(utf8)),
-         json_read_dict(In, Packages, [default_tag(json)]),
-         Result = packages(Packages)
-      ;  Result = packages([])
-      ),
-      close(In)
-    ),
-    E,
-    ( upstream:error_text(E, Text),
-      Result = error(Text) )
+  ( catch(httpfetch:fetch_json_http_open(URL, UA, [timeout(60)], Packages),
+          E, Packages = http_error(E))
+  -> true
+  ;  Packages = http_error(failed)
+  ),
+  ( Packages = http_error(error(http_status(_, _), _))
+  -> Result = packages([])
+  ;  Packages = http_error(E)
+  -> upstream:error_text(E, Text),
+     Result = error(Text)
+  ;  Result = packages(Packages)
   ).
 
 
@@ -192,7 +161,7 @@ upstream:fetch_json_http_open(URL, UA, Result) :-
 % Render an exception term as a single atom.
 
 upstream:error_text(E, Text) :-
-  format(atom(Text), '~w', [E]).
+  httpfetch:error_text(E, Text).
 
 
 % -----------------------------------------------------------------------------

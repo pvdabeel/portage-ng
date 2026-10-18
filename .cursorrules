@@ -507,6 +507,55 @@ The canonical load graph for standalone is in `portage-ng.pl`:
 - `load_modules(common)`
 - `load_modules(standalone)`
 
+### Test harness loading (do not regress)
+- `Source/Test/test.pl` (module `test`, the overlay regression harness) is
+  NOT part of any operating mode. No production predicate calls it, so it
+  was removed from `loader:group(standalone_modules)`; production modes
+  (standalone/daemon/server, and the `make build` binary) neither pay
+  its load nor ship its surface. Entry points load it on demand first:
+  `loader:load_test_modules.` then `test:run(cases[,batch])` (Makefile
+  `test-overlay`, CI overlay job, handbook Ch. 26). Bare `test:run`
+  in a fresh `--shell` is an existence error until then — that is
+  intended, not a broken shell.
+- Two files under `Source/Test/` ARE production despite the path; keep
+  them in their loader groups: `Source/Test/tester.pl` (module `tester`,
+  the bulk-iteration harness behind `--graph`, index/proof file writing
+  and the `resolver:`/`pipeline:`/`printer:`/`builder:` `test_stats`
+  entry points) and `Source/Test/stat.pl` (module `stat`, the progress
+  statistics OO class instantiated at startup via `stats:newinstance`).
+  Do not "clean these up" out of the load graph without moving the
+  files and every caller.
+
+### Best-effort errors (do not regress)
+- Best-effort hooks (fixups, news checks, binpkg index refreshes,
+  post-write config reloads, metadata warming) must run through
+  `message:catch_log(Label, Goal)`: it always succeeds, goal failure
+  stays silent (normal control flow), and a thrown exception is logged
+  once per Label as `Ignored error in <Label>: <Error>`. A broken hook
+  must be visible, not indistinguishable from success.
+- Plain `catch(Goal, _, true)` remains correct ONLY for probes and
+  cleanup: `current_predicate`/`config` fallbacks where failure is the
+  answer, stream close, file deletion, mutex/thread teardown. When in
+  doubt, ask "would I want to know if this threw?" — if yes, catch_log.
+
+### Shared HTTP transport + grapher JS assets (do not regress)
+- JSON API fetches go through `Source/Application/System/httpfetch.pl`
+  (`httpfetch:fetch_json_curl/5`, `httpfetch:fetch_json_http_open/4`,
+  `httpfetch:curl_exit_text/2`): curl primary (headers, `--proto`
+  allowlist, `--max-time`, caller `extra_curl_args` such as Repology
+  `--resolve`), http_open fallback. `bugs:` and `upstream:` keep only
+  thin wrappers mapping the shared `ok|no_curl|error(Why)` status onto
+  their own failure policies; `download.pl` keeps its specialised
+  distfile fetcher. Do not re-inline a curl fetch in a new caller.
+- Grapher JavaScript is verbatim asset files under
+  `Documentation/Assets/Graph/Scripts/{deptree,detail,gantt,security,
+  tracker}.js`, referenced via `navtheme:emit_script_src/2` and copied
+  by `grapher:copy_graph_assets/1` (`config:graph_asset_source/2`).
+  Prolog emits only the escaped page data in a preceding inline block.
+  Do not re-inline JS as `write/1` lines in a grapher: edit the `.js`
+  file (it is ordinary JavaScript — `node --check` it) and keep it
+  free of the literal text `</script`.
+
 ### Non-interactive / sandbox robustness
 - Terminal size lookups must go through `console:printing_tty_size/2` (direct `tty_size/2` may throw in non-tty environments).
 - Do NOT run `--sync` / repository syncing from inside the sandbox. The user will run `--sync` externally when needed.

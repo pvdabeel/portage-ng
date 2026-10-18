@@ -188,8 +188,8 @@ preference:init_fresh :-
   ; true
   ),
   forall(preference:env_use_expand(Use),     (assertz(preference:local_env_use(Use)), assertz(preference:local_use(Use)))),
-  ( preference:use_cached_profile ->
-      profile:cache_load(CachedUseTerms, Masked, Forced),
+  ( ( preference:use_cached_profile,
+        profile:cache_load(CachedUseTerms, Masked, Forced) ) ->
       ProfileTerms = CachedUseTerms
   ; preference:profile_use_terms(ProfileTerms),
     ( config:gentoo_profile(ProfileRel),
@@ -250,7 +250,7 @@ preference:init_fresh :-
 
   % 4. Apply profile, then userconfig overrides (or fallback if no portage_confdir).
 
-  ( preference:use_cached_profile ->
+  ( preference:cached_profile_loaded ->
       catch(profile:apply_cached_profile_data, _, true)
   ; catch(preference:apply_profile_package_mask, _, true),
     catch(preference:apply_profile_package_use_mask, _, true),
@@ -279,7 +279,7 @@ preference:init_fresh :-
 
   % 5. Load license groups and apply ACCEPT_LICENSE.
 
-  ( preference:use_cached_profile ->
+  ( preference:cached_profile_loaded ->
       true
   ; catch(preference:load_license_groups, _, true)
   ),
@@ -350,6 +350,19 @@ preference:use_cached_profile :-
   config:profile_loading(Mode, cached),
   current_predicate(profile:cache_available/0),
   profile:cache_available.
+
+
+%! preference:cached_profile_loaded is semidet.
+%
+% Succeeds when cached profile loading applies and the cache was
+% actually loaded (profile:ensure_loaded_cache/1 verified and loaded
+% it). Sites that consume cached profile data use this instead of
+% use_cached_profile/0, so an integrity-rejected cache (require mode)
+% falls back to the live profile paths everywhere, not just at load.
+
+preference:cached_profile_loaded :-
+  preference:use_cached_profile,
+  catch(profile:cache_loaded, _, fail).
 
 
 % -----------------------------------------------------------------------------
@@ -2240,7 +2253,7 @@ preference:license_accepted(License) :-
 
 preference:init_system_pkgs :-
   retractall(preference:system_pkg(_, _)),
-  ( preference:use_cached_profile ->
+  ( preference:cached_profile_loaded ->
       true
   ; current_predicate(config:gentoo_profile/1),
     config:gentoo_profile(ProfileRel) ->
@@ -2321,7 +2334,9 @@ preference:init_world_entries :-
 %! preference:cache_try_load is semidet.
 %
 % Load `Knowledge/preference.qlf` when the on-disk stamp matches current
-% inputs.  On success, preference/userconfig/profile dynamics are restored
+% inputs and the file passes the effective integrity policy
+% (sanitize:ensure_file_integrity/1 — require in server/daemon modes).
+% On success, preference/userconfig/profile dynamics are restored
 % and AVL index invalidation flags are set.
 
 preference:cache_try_load :-
@@ -2334,6 +2349,7 @@ preference:cache_try_load :-
   preference:cache_current_stamp(Current),
   Stored =@= Current,
   !,
+  sanitize:ensure_file_integrity(QlfFile),
   preference:cache_load_qlf(QlfFile),
   preference:init_reset_indexes.
 
@@ -2358,6 +2374,7 @@ preference:cache_save :-
 
 preference:cache_invalidate :-
   forall(member(File, ['Knowledge/preference.qlf',
+                       'Knowledge/preference.qlf.sha256',
                        'Knowledge/preference.raw',
                        'Knowledge/preference.stamp']),
          catch(delete_file(File), _, true)),
@@ -2595,6 +2612,10 @@ preference:cache_save_locked :-
     preference:cache_write_raw(Out, Entries),
     close(Out)),
   catch(qcompile(RawFile), _, true),
+  ( preference:cache_file(QlfFile), exists_file(QlfFile)
+  -> sanitize:write_sha256_sidecar(QlfFile)
+  ;  true
+  ),
   preference:cache_current_stamp(Stamp),
   preference:cache_write_stamp(Stamp).
 
@@ -2691,7 +2712,7 @@ preference:status :-
       format('    Profile:        ~w~n', [P])
   ; format('    Profile:        not configured~n')
   ),
-  ( preference:use_cached_profile ->
+  ( preference:cached_profile_loaded ->
       format('    Profile cache:  active (Knowledge/profile.qlf)~n')
   ; format('    Profile cache:  not used (live parsing)~n')
   ),

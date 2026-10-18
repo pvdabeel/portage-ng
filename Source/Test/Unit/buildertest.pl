@@ -389,3 +389,97 @@ test(require_unsafe_fails, [fail]) :-
   download:require_git_uri_safe('--upload-pack=evil').
 
 :- end_tests(download_git_uri_safe).
+
+
+% -----------------------------------------------------------------------------
+%  Auto-config write boundary (package.* persistence)
+% -----------------------------------------------------------------------------
+%
+% Lines persisted to /etc/portage/package.* are validated at the write
+% boundary: single line, well-formed atom token, safe keyword/flag
+% tokens. Invalid lines are refused and never reach the file.
+
+:- begin_tests(builder_auto_config).
+
+%! autoconf_mktemp_dir(-Dir) is det.
+%
+% Fresh empty temporary directory used as a scratch portage_confdir.
+
+autoconf_mktemp_dir(Dir) :-
+  tmp_file(builderautoconf, Tmp),
+  ( exists_file(Tmp) -> delete_file(Tmp) ; true ),
+  make_directory(Tmp),
+  Dir = Tmp.
+
+
+%! autoconf_rm_rf(+Dir) is det.
+%
+% Remove a scratch confdir tree created by autoconf_mktemp_dir/1.
+
+autoconf_rm_rf(Dir) :-
+  ( exists_directory(Dir)
+  -> catch(process_create(path(rm), ['-rf', Dir], [process(Pid)]), _, true),
+     ( var(Pid) -> true ; process_wait(Pid, _) )
+  ;  true
+  ).
+
+test(format_use_changes_keeps_safe_flags,
+     [true(Atom == 'ssl -doc')]) :-
+  builder:format_use_changes(
+    [use_change(ssl, enable), use_change(doc, disable)], Atom).
+
+test(format_use_changes_drops_unsafe_flags,
+     [true(Atom == 'ssl')]) :-
+  builder:format_use_changes(
+    [use_change(ssl, enable),
+     use_change('evil flag', enable),
+     use_change('x\ny', disable)], Atom).
+
+test(keyword_token_shapes,
+     [true(A-B-C-D == amd64-'~amd64'-amd64-'**')]) :-
+  builder:keyword_token(stable(amd64), A),
+  builder:keyword_token(unstable(amd64), B),
+  builder:keyword_token(amd64, C),
+  builder:keyword_token('**', D).
+
+test(keyword_token_rejects_term, [fail]) :-
+  builder:keyword_token(evil(amd64), _).
+
+test(write_valid_use_line) :-
+  autoconf_mktemp_dir(Dir),
+  setup_call_cleanup(
+    true,
+    ( builder:write_auto_config(Dir, 'package.use',
+                                '=cat/pkg-1.0 ssl -doc'),
+      os:compose_path([Dir, 'package.use', '00portage-ng-auto'], Path),
+      exists_file(Path),
+      read_file_to_string(Path, Content, []),
+      once(sub_string(Content, _, _, _, "=cat/pkg-1.0 ssl -doc"))
+    ),
+    autoconf_rm_rf(Dir)).
+
+test(write_refuses_newline_injection) :-
+  autoconf_mktemp_dir(Dir),
+  setup_call_cleanup(
+    true,
+    ( format(atom(Bad), '~w~n~w',
+             ['=cat/pkg-1.0 ssl', '=evil/pkg-9.9 pwned']),
+      builder:write_auto_config(Dir, 'package.use', Bad),
+      os:compose_path([Dir, 'package.use', '00portage-ng-auto'], Path),
+      \+ exists_file(Path)
+    ),
+    autoconf_rm_rf(Dir)).
+
+test(write_refuses_bad_keyword) :-
+  autoconf_mktemp_dir(Dir),
+  setup_call_cleanup(
+    true,
+    ( builder:write_auto_config(Dir, 'package.accept_keywords',
+                                '=cat/pkg-1.0 stable(amd64)'),
+      os:compose_path([Dir, 'package.accept_keywords',
+                       '00portage-ng-auto'], Path),
+      \+ exists_file(Path)
+    ),
+    autoconf_rm_rf(Dir)).
+
+:- end_tests(builder_auto_config).

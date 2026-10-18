@@ -157,3 +157,126 @@ test(reject_bad_args, [fail]) :-
   sanitize:safe_daemon_request(request(notalist, 80, 24)).
 
 :- end_tests(sanitize_daemon_request).
+
+
+:- begin_tests(sanitize_config_tokens).
+
+test(valid_use_flag) :-
+  sanitize:safe_use_flag(ssl).
+
+test(valid_use_flag_expand, [nondet]) :-
+  sanitize:safe_use_flag('cpu_flags_x86_sse4_1').
+
+test(reject_use_flag_space, [fail]) :-
+  sanitize:safe_use_flag('foo bar').
+
+test(reject_use_flag_comment, [fail]) :-
+  sanitize:safe_use_flag('#foo').
+
+test(reject_use_flag_semicolon, [fail]) :-
+  sanitize:safe_use_flag('foo;reboot').
+
+test(reject_use_flag_leading_dash, [fail]) :-
+  sanitize:safe_use_flag('-foo').
+
+test(valid_keyword) :-
+  sanitize:safe_keyword(amd64).
+
+test(valid_keyword_unstable) :-
+  sanitize:safe_keyword('~amd64').
+
+test(valid_keyword_wildcard) :-
+  sanitize:safe_keyword('**').
+
+test(reject_keyword_space, [fail]) :-
+  sanitize:safe_keyword('amd64 ~arm').
+
+test(reject_keyword_term_shape, [fail]) :-
+  sanitize:safe_keyword('stable(amd64)').
+
+test(valid_atom_token) :-
+  sanitize:safe_atom_token('=sys-apps/portage-3.0.70').
+
+test(reject_atom_token_no_equals, [fail]) :-
+  sanitize:safe_atom_token('sys-apps/portage-3.0.70').
+
+test(reject_atom_token_space, [fail]) :-
+  sanitize:safe_atom_token('=sys-apps/portage 3.0.70').
+
+test(valid_config_line) :-
+  sanitize:safe_config_line('=sys-apps/portage-3.0.70 ~amd64').
+
+test(reject_config_line_newline, [fail]) :-
+  format(atom(Line), '~w~n~w', ['=a/b-1', '=c/d-2']),
+  sanitize:safe_config_line(Line).
+
+test(reject_config_line_empty, [fail]) :-
+  sanitize:safe_config_line('').
+
+:- end_tests(sanitize_config_tokens).
+
+
+%! integrity_cleanup(+Path) is det.
+%
+% Remove a test file and its SHA-256 sidecar.
+
+integrity_cleanup(Path) :-
+  sanitize:sha256_sidecar(Path, Side),
+  ( exists_file(Side) -> delete_file(Side) ; true ),
+  ( exists_file(Path) -> delete_file(Path) ; true ).
+
+
+:- begin_tests(sanitize_file_integrity).
+
+test(effective_default_prefer) :-
+  sanitize:effective_file_integrity(prefer).
+
+test(require_with_sidecar) :-
+  tmp_file(sanitize_integrity, Path),
+  setup_call_cleanup(
+    ( setup_call_cleanup(
+        open(Path, write, S),
+        format(S, 'hello~n', []),
+        close(S)),
+      sanitize:write_sha256_sidecar(Path)
+    ),
+    sanitize:ensure_file_integrity(Path, require),
+    integrity_cleanup(Path)).
+
+test(require_tampered, [fail]) :-
+  tmp_file(sanitize_integrity, Path),
+  setup_call_cleanup(
+    ( setup_call_cleanup(
+        open(Path, write, S),
+        format(S, 'hello~n', []),
+        close(S)),
+      sanitize:write_sha256_sidecar(Path),
+      setup_call_cleanup(
+        open(Path, write, S2),
+        format(S2, 'tampered~n', []),
+        close(S2))
+    ),
+    sanitize:ensure_file_integrity(Path, require),
+    integrity_cleanup(Path)).
+
+test(require_missing_sidecar, [fail]) :-
+  tmp_file(sanitize_integrity, Path),
+  setup_call_cleanup(
+    setup_call_cleanup(
+      open(Path, write, S),
+      format(S, 'hello~n', []),
+      close(S)),
+    sanitize:ensure_file_integrity(Path, require),
+    integrity_cleanup(Path)).
+
+test(prefer_missing_sidecar) :-
+  tmp_file(sanitize_integrity, Path),
+  setup_call_cleanup(
+    setup_call_cleanup(
+      open(Path, write, S),
+      format(S, 'hello~n', []),
+      close(S)),
+    sanitize:ensure_file_integrity(Path, prefer),
+    integrity_cleanup(Path)).
+
+:- end_tests(sanitize_file_integrity).

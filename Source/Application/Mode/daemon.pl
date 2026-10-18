@@ -359,7 +359,7 @@ daemon:run_with_output(Out, ExitCodeTerm) :-
 
 daemon:refresh_binpkg_index :-
   ( current_predicate(binpkg_exec:ensure_index_fresh/0)
-  -> catch(binpkg_exec:ensure_index_fresh, _, true)
+  -> message:catch_log('binpkg_exec:ensure_index_fresh', binpkg_exec:ensure_index_fresh)
   ;  true
   ).
 

@@ -751,6 +751,46 @@ msg_atom(Compound, Atom) :-
 
 
 % -----------------------------------------------------------------------------
+%  Best-effort execution
+% -----------------------------------------------------------------------------
+
+:- dynamic message:catch_log_warned/1.
+
+:- meta_predicate message:catch_log(+, 0).
+
+%! message:catch_log(+Label, :Goal) is det.
+%
+% Run Goal as a best-effort step: always succeed. Goal failing is the
+% caller's normal control flow and stays silent; Goal *throwing* is
+% logged once per Label (`warning: Ignored error in <Label>: <Error>`)
+% so a broken hook is visible instead of indistinguishable from
+% success. Use this for best-effort hooks (fixups, news checks, index
+% refreshes, post-write reloads). Do NOT use it for probes
+% (current_predicate/config fallbacks where failure is the answer) —
+% those keep plain catch/3.
+
+message:catch_log(Label, Goal) :-
+  ( catch(Goal, Error, message:catch_log_report(Label, Error))
+  -> true
+  ;  true
+  ).
+
+
+%! message:catch_log_report(+Label, +Error) is det.
+%
+% Report an exception caught by catch_log/2, once per Label per
+% process so a per-request hook cannot spam the same warning.
+
+message:catch_log_report(Label, Error) :-
+  ( message:catch_log_warned(Label)
+  -> true
+  ;  assertz(message:catch_log_warned(Label)),
+     term_to_atom(Error, ErrorAtom),
+     msg(warning, ['Ignored error in ', Label, ': ', ErrorAtom])
+  ).
+
+
+% -----------------------------------------------------------------------------
 %  Convertor: Byte
 % -----------------------------------------------------------------------------
 

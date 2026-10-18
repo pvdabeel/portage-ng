@@ -182,12 +182,9 @@ bugs:bug_url(Base, Id, URL) :-
 % on network errors and on non-2xx replies, so callers can stop a crawl
 % and resume on the next sync.
 %
-% Transport is curl piped straight into the JSON reader — the same
-% choice as download.pl. SWI's own http_open/3 was observed to block
-% indefinitely in the TLS handshake on one macOS host (imac-pro) while
-% curl on the same host answered in under a second; curl is also what
-% every other network fetch in portage-ng already relies on. http_open/3
-% remains as the fallback when no curl binary is installed.
+% Transport is the shared httpfetch module (curl first, http_open/3
+% fallback when no curl binary is installed) — see
+% Source/Application/System/httpfetch.pl for why curl is primary.
 
 bugs:fetch_json(URL, Dict) :-
   config:bugzilla_user_agent(UA),
@@ -205,43 +202,31 @@ bugs:fetch_json(URL, Dict) :-
 %! bugs:fetch_json_curl(+URL, +UA, -Dict, -Status) is det.
 %
 % Status is `ok` (Dict bound), `no_curl` (binary missing) or `failed`
-% (curl exit code / unparsable body, already reported).
+% (curl exit code / unparsable body, already reported). Wire mechanics
+% live in httpfetch:fetch_json_curl/5; this wrapper only maps the
+% shared status onto Bugzilla's log-and-fail policy.
 
 bugs:fetch_json_curl(URL, UA, Dict, Status) :-
-  format(atom(UAHeader), 'User-Agent: ~w', [UA]),
-  catch(process_create(path(curl),
-                       ['-s', '-f', '-L', '--proto', '=http,https',
-                        '--max-time', '180',
-                        '-H', UAHeader, '-H', 'Accept: application/json',
-                        URL],
-                       [stdout(pipe(Out)), stderr(null), process(Pid)]),
-        error(existence_error(_, _), _),
-        Status = no_curl),
-  ( Status == no_curl
-  -> true
-  ;  set_stream(Out, encoding(utf8)),
-     catch(call_cleanup(json_read_dict(Out, Dict0, [default_tag(json)]), close(Out)),
-           _, Dict0 = none),
-     process_wait(Pid, exit(Code)),
-     ( Code =:= 0, Dict0 \== none
-     -> Dict = Dict0, Status = ok
-     ;  bugs:curl_exit_text(Code, Why),
-        message:warning(['Bugzilla request failed (', Why, '): ', URL]),
-        Status = failed )
+  httpfetch:fetch_json_curl(URL, UA,
+                            [timeout(180), proto('=http,https')],
+                            Dict, RawStatus),
+  ( RawStatus == ok
+  -> Status = ok
+  ;  RawStatus == no_curl
+  -> Status = no_curl
+  ;  RawStatus = error(Why),
+     message:warning(['Bugzilla request failed (', Why, '): ', URL]),
+     Status = failed
   ).
 
 
 %! bugs:curl_exit_text(+Code, -Text) is det.
 %
-% Human-readable reason for a curl exit code.
+% Human-readable reason for a curl exit code. Delegates to the shared
+% transport (kept as a bugs-local name for existing callers).
 
-bugs:curl_exit_text(0,  'unparsable JSON') :- !.
-bugs:curl_exit_text(22, 'HTTP error reply') :- !.
-bugs:curl_exit_text(28, 'timeout') :- !.
-bugs:curl_exit_text(6,  'could not resolve host') :- !.
-bugs:curl_exit_text(7,  'connection refused') :- !.
 bugs:curl_exit_text(Code, Text) :-
-  format(atom(Text), 'curl exit ~w', [Code]).
+  httpfetch:curl_exit_text(Code, Text).
 
 
 %! bugs:fetch_json_http_open(+URL, +UA, -Dict) is semidet.
@@ -250,21 +235,7 @@ bugs:curl_exit_text(Code, Text) :-
 
 bugs:fetch_json_http_open(URL, UA, Dict) :-
   catch(
-    setup_call_cleanup(
-      http_open(URL, In, [
-        request_header('User-Agent' = UA),
-        request_header('Accept' = 'application/json'),
-        status_code(Code),
-        timeout(180)
-      ]),
-      ( Code == 200
-      -> set_stream(In, encoding(utf8)),
-         json_read_dict(In, Dict, [default_tag(json)])
-      ;  message:warning(['Bugzilla replied HTTP ', Code, ' for ', URL]),
-         fail
-      ),
-      close(In)
-    ),
+    httpfetch:fetch_json_http_open(URL, UA, [timeout(180)], Dict),
     E,
     ( bugs:error_text(E, Text),
       message:warning(['Bugzilla request failed: ', Text]), fail )
@@ -925,7 +896,7 @@ bugs:detach_store_file(Raw) :-
 % Render an exception term as a single atom for message lists.
 
 bugs:error_text(E, Text) :-
-  format(atom(Text), '~w', [E]).
+  httpfetch:error_text(E, Text).
 
 
 % -----------------------------------------------------------------------------

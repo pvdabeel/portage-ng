@@ -55,6 +55,7 @@ own md5-cache) is the substitute for a real tree:
 - Overlay regression (full resolve+order+print, 80 cases):
   ```sh
   ./Source/Application/Wrapper/portage-ng-dev --mode standalone --shell --timeout 900 <<'PL'
+  loader:load_test_modules.
   ( catch(test:run(cases,batch),E,(print_message(error,E),fail)) -> halt(0) ; halt(1) ).
   PL
   ```

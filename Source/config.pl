@@ -930,13 +930,29 @@ config:curl_allow_http(false).
 
 %! config:file_integrity(?Mode)
 %
-% Integrity policy for Knowledge sidecars (kb.qlf, resume.pl, feedback.pl):
+% Integrity policy for Knowledge sidecars (kb.qlf, profile.qlf,
+% preference.qlf, resume.pl, feedback.pl):
 %   * prefer  — verify .sha256 when present; warn and load when absent
 %   * require — refuse to load without a matching .sha256 sidecar
 %   * off     — skip verification
 % Sidecars are written on every save/append by the corresponding writers.
+% This global policy is the default; config:file_integrity_mode/2
+% overrides it per operating mode (see sanitize:effective_file_integrity/1).
 
 config:file_integrity(prefer).
+
+
+%! config:file_integrity_mode(?Mode, ?Policy)
+%
+% Per-mode integrity policy override. The .qlf caches are loaded code,
+% so the long-lived, network-facing server and daemon modes require a
+% matching .sha256 sidecar instead of warn-and-load; standalone keeps
+% the global prefer default above. Regenerate a missing sidecar with
+% --sync (kb.qlf, profile.qlf) or by letting preference:init rebuild
+% its cache once (preference.qlf).
+
+config:file_integrity_mode(server, require).
+config:file_integrity_mode(daemon, require).
 
 
 %! config:mirror_verify_hashes_default(?Policy)
@@ -1453,6 +1469,26 @@ config:graph_asset_source(meslo_ttf, Source) :-
 config:graph_asset_source(favicon_svg, Source) :-
   config:installation_dir(Dir),
   os:compose_path([Dir,'Documentation/Images/icon.svg'], Source).
+
+config:graph_asset_source(deptree_js, Source) :-
+  config:installation_dir(Dir),
+  os:compose_path([Dir,'Documentation/Assets/Graph/Scripts/deptree.js'], Source).
+
+config:graph_asset_source(detail_js, Source) :-
+  config:installation_dir(Dir),
+  os:compose_path([Dir,'Documentation/Assets/Graph/Scripts/detail.js'], Source).
+
+config:graph_asset_source(gantt_js, Source) :-
+  config:installation_dir(Dir),
+  os:compose_path([Dir,'Documentation/Assets/Graph/Scripts/gantt.js'], Source).
+
+config:graph_asset_source(security_js, Source) :-
+  config:installation_dir(Dir),
+  os:compose_path([Dir,'Documentation/Assets/Graph/Scripts/security.js'], Source).
+
+config:graph_asset_source(tracker_js, Source) :-
+  config:installation_dir(Dir),
+  os:compose_path([Dir,'Documentation/Assets/Graph/Scripts/tracker.js'], Source).
 
 
 % -----------------------------------------------------------------------------

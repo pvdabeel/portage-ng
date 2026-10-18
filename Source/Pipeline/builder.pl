@@ -130,7 +130,9 @@ builder:maybe_metacircular_replan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL,
   Attempt < Max,
   catch(metacircular:diagnose_after_build(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL,
                                           FallbackUsed, Applied),
-        _, Applied = 0),
+        MetacircularError,
+        ( message:catch_log_report('metacircular:diagnose_after_build', MetacircularError),
+          Applied = 0 )),
   Applied > 0,
   feedback:learned_count(After),
   After > Before.
@@ -278,7 +280,7 @@ builder:run_plan(Plan, StartStep, Opts, Completed, Failed, Stubs) :-
 
 builder:apply_kernel_config_pre_actions(PreActions) :-
   ( current_predicate(kernelconfig:apply_planned/1)
-  -> catch(kernelconfig:apply_planned(PreActions), _, true)
+  -> message:catch_log('kernelconfig:apply_planned', kernelconfig:apply_planned(PreActions))
   ;  true
   ).
 
@@ -318,7 +320,7 @@ builder:alert :-
 
 builder:prepare_binpkg_index :-
   ( current_predicate(binpkg_exec:ensure_index_fresh/0)
-  -> catch(binpkg_exec:ensure_index_fresh, _, true)
+  -> message:catch_log('binpkg_exec:ensure_index_fresh', binpkg_exec:ensure_index_fresh)
   ;  true
   ).
 
@@ -331,7 +333,7 @@ builder:prepare_binpkg_index :-
 builder:ask_confirmation :-
   ( preference:flag(ask)
   -> ( preference:flag(readnews)
-     -> catch(news:check, _, true), nl
+     -> message:catch_log('news:check', news:check), nl
      ;  true
      ),
      builder:alert,
@@ -1180,22 +1182,26 @@ builder:auto_confdir(Dir) :-
 
 builder:atom_for_entry(Repo, Entry, Atom) :-
   cache:ordered_entry(Repo, Entry, Cat, Name, Version),
-  atom(Cat), atom(Name),
+  sanitize:safe_portage_category(Cat),
+  sanitize:safe_portage_name(Name),
   version_domain:display_atom(Version, VAtom),
   VAtom \== '',
-  atomic_list_concat(['=', Cat, '/', Name, '-', VAtom], Atom).
+  atomic_list_concat(['=', Cat, '/', Name, '-', VAtom], Atom),
+  sanitize:safe_atom_token(Atom).
 
 
 %! builder:format_use_changes(+Changes, -Atom) is det.
 %
 % Convert a list of use_change(Flag, enable/disable) terms into a
 % portage-style flag list ("flag1 -flag2 flag3"). Empty atom if no
-% supported changes are present.
+% supported changes are present. Flags that are not single safe USE
+% tokens (sanitize:safe_use_flag/1) are dropped: they could otherwise
+% break out of the persisted package.use line.
 
 builder:format_use_changes(Changes, Atom) :-
   findall(Tok,
     ( member(use_change(F, Dir), Changes),
-      atom(F),
+      sanitize:safe_use_flag(F),
       ( Dir == enable  -> Tok = F
       ; Dir == disable -> atom_concat('-', F, Tok)
       )
@@ -1210,13 +1216,74 @@ builder:format_use_changes(Changes, Atom) :-
 %! builder:keyword_token(+Kw, -Atom) is semidet.
 %
 % Normalize a keyword argument from the prover (atom, string, or term
-% like keyword(Arch)) to a single atom suitable for the second column
-% of a package.accept_keywords line.
+% like keyword(Arch), stable(Arch) or unstable(Arch) — the shapes
+% warning:keyword_atom/2 renders) to a single atom suitable for the
+% second column of a package.accept_keywords line. Fails when the
+% result is not a single safe keyword token
+% (sanitize:safe_keyword/1), so an arbitrary term can no longer be
+% formatted into the persisted line.
 
-builder:keyword_token(Kw, Atom) :- atom(Kw), !, Atom = Kw.
-builder:keyword_token(Kw, Atom) :- string(Kw), !, atom_string(Atom, Kw).
-builder:keyword_token(keyword(K), Atom) :- !, builder:keyword_token(K, Atom).
-builder:keyword_token(Kw, Atom) :- format(atom(Atom), '~w', [Kw]).
+builder:keyword_token(stable(Arch), Atom) :-
+  !, builder:keyword_token(Arch, Atom).
+builder:keyword_token(unstable(Arch), Atom) :-
+  !,
+  atom(Arch),
+  atom_concat('~', Arch, Atom),
+  sanitize:safe_keyword(Atom).
+builder:keyword_token(Kw, Atom) :-
+  atom(Kw), !,
+  sanitize:safe_keyword(Kw),
+  Atom = Kw.
+builder:keyword_token(Kw, Atom) :-
+  string(Kw), !,
+  atom_string(Atom, Kw),
+  sanitize:safe_keyword(Atom).
+builder:keyword_token(keyword(K), Atom) :-
+  !, builder:keyword_token(K, Atom).
+
+
+%! builder:auto_config_line_ok(+SubDir, +Line) is semidet.
+%
+% Grammar check for a line about to be persisted to
+% ConfDir/SubDir/00portage-ng-auto: the exact-version atom token must
+% be well-formed, and every following token must be valid for the
+% target file (keyword for package.accept_keywords, USE flags for
+% package.use). Combined with sanitize:safe_config_line/1 (single
+% line, no line breaks) this is the write-boundary invariant for the
+% one privileged write the builder makes.
+
+builder:auto_config_line_ok('package.unmask', Line) :-
+  !,
+  atomic_list_concat([AtomTok], ' ', Line),
+  sanitize:safe_atom_token(AtomTok).
+builder:auto_config_line_ok('package.accept_keywords', Line) :-
+  !,
+  atomic_list_concat([AtomTok, KwTok], ' ', Line),
+  sanitize:safe_atom_token(AtomTok),
+  sanitize:safe_keyword(KwTok).
+builder:auto_config_line_ok('package.use', Line) :-
+  !,
+  atomic_list_concat([AtomTok | FlagToks], ' ', Line),
+  FlagToks \== [],
+  sanitize:safe_atom_token(AtomTok),
+  forall(member(Tok, FlagToks),
+         builder:use_flag_token_ok(Tok)).
+builder:auto_config_line_ok(_, Line) :-
+  atomic_list_concat([AtomTok | _], ' ', Line),
+  sanitize:safe_atom_token(AtomTok).
+
+
+%! builder:use_flag_token_ok(+Token) is semidet.
+%
+% True when Token is a package.use flag token: a safe USE flag,
+% optionally prefixed with `-`.
+
+builder:use_flag_token_ok(Token) :-
+  ( atom_concat('-', Flag, Token)
+  -> true
+  ;  Flag = Token
+  ),
+  sanitize:safe_use_flag(Flag).
 
 
 %! builder:write_auto_config(+ConfDir, +SubDir, +Line) is det.
@@ -1225,19 +1292,27 @@ builder:keyword_token(Kw, Atom) :- format(atom(Atom), '~w', [Kw]).
 % first use, creates the SubDir (if missing) and writes a clarifying
 % header. Skips when the line is already present (whitespace- and
 % trailing-comment-tolerant compare). After writing, reload userconfig
-% so the next ebuild in this build picks up the override.
+% so the next ebuild in this build picks up the override. The line is
+% validated first (builder:auto_config_line_ok/2): an invalid line is
+% refused with a warning and never reaches the file.
 %
 % Safe to call from parallel workers; serialized via build_auto_config.
 
 builder:write_auto_config(ConfDir, SubDir, Line) :-
-  catch(
-    with_mutex(build_auto_config,
-      builder:write_auto_config_locked(ConfDir, SubDir, Line)),
-    Err,
-    ( print_message(warning,
-        format('portage-ng: failed to persist ~w override "~w": ~w', [SubDir, Line, Err])),
-      true
-    )).
+  ( sanitize:safe_config_line(Line),
+    builder:auto_config_line_ok(SubDir, Line)
+  -> catch(
+       with_mutex(build_auto_config,
+         builder:write_auto_config_locked(ConfDir, SubDir, Line)),
+       Err,
+       ( print_message(warning,
+           format('portage-ng: failed to persist ~w override "~w": ~w', [SubDir, Line, Err])),
+         true
+       ))
+  ;  message:warning(['portage-ng: refusing to persist invalid ',
+                      SubDir, ' override line: ', Line]),
+     true
+  ).
 
 builder:write_auto_config_locked(ConfDir, SubDir, Line) :-
   os:compose_path(ConfDir, SubDir, DirPath),
@@ -1246,7 +1321,8 @@ builder:write_auto_config_locked(ConfDir, SubDir, Line) :-
   ( builder:line_already_present(Path, Line)
   -> true
   ;  builder:append_with_header(Path, SubDir, Line),
-     catch(userconfig:load, _, true)
+     message:inform(['Persisted ', SubDir, ' override: ', Line]),
+     message:catch_log('userconfig:load (after auto-config write)', userconfig:load)
   ).
 
 

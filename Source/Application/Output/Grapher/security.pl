@@ -90,7 +90,7 @@ count_status(Rows, Status, Count) :-
 emit_html(Repository://Entry, Rows) :-
     cache:ordered_entry(Repository, Entry, Cat, Name, Version),
     version_domain:display_atom(Version, Ver),
-    format(atom(Title), '~w/~w-~w &mdash; Security Advisories', [Cat, Name, Ver]),
+    format(atom(Title), '~w/~w-~w — Security Advisories', [Cat, Name, Ver]),
     navtheme:emit_doctype,
     navtheme:emit_head_open(Title, '../'),
     navtheme:emit_head_close,
@@ -482,23 +482,9 @@ emit_references(Detail) :-
 
 %! security:emit_script
 %
-% Expand / collapse all, the affecting-only filter, and opening the
-% advisory addressed by the URL fragment (`#glsa-<id>`).
+% Emit the external script element for the verbatim security.js asset
+% (expand / collapse all, the affecting-only filter, and opening the
+% advisory addressed by the URL fragment `#glsa-<id>`).
 
 emit_script :-
-    write('<script>'), nl,
-    write('function glsaSetAll(open) {'), nl,
-    write('  document.querySelectorAll("details.glsa-item").forEach(d => { d.open = open; });'), nl,
-    write('}'), nl,
-    write('function glsaFilter(mode, btn) {'), nl,
-    write('  document.querySelectorAll("details.glsa-item").forEach(d => {'), nl,
-    write('    d.classList.toggle("hidden", mode === "affecting" && d.dataset.status !== "vulnerable");'), nl,
-    write('  });'), nl,
-    write('  document.querySelectorAll(".glsa-toolbar .filter-btn").forEach(b => b.classList.toggle("active", b === btn));'), nl,
-    write('}'), nl,
-    write('(function () {'), nl,
-    write('  if (!location.hash) return;'), nl,
-    write('  const el = document.getElementById(location.hash.slice(1));'), nl,
-    write('  if (el && el.tagName === "DETAILS") { el.open = true; el.scrollIntoView(); }'), nl,
-    write('})();'), nl,
-    write('</script>'), nl.
+    navtheme:emit_script_src('../', security).

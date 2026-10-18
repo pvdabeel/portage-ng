@@ -8,6 +8,7 @@ Knowledge/kb.qlf
 Knowledge/kb.qlf.sha256
 Knowledge/kb.raw
 Knowledge/profile.qlf
+Knowledge/profile.qlf.sha256
 Knowledge/profile.raw
 Knowledge/glsa.qlf
 Knowledge/glsa.raw
@@ -15,6 +16,7 @@ Knowledge/bugs.qlf
 Knowledge/bugs.raw
 Knowledge/*.sync
 Knowledge/preference.qlf
+Knowledge/preference.qlf.sha256
 Knowledge/preference.raw
 Knowledge/preference.stamp
 Knowledge/embeddings.pl

@@ -479,7 +479,8 @@ kb_warm_metadata_index :-
 % can reap it cleanly at halt instead of leaving SWI-Prolog to forcibly kill it.
 
 start_metadata_warmer :-
-  thread_create(ignore(catch(knowledgebase:kb_warm_metadata_index, _, true)),
+  thread_create(message:catch_log('knowledgebase:kb_warm_metadata_index',
+                                  knowledgebase:kb_warm_metadata_index),
                 Id, []),
   retractall(knowledgebase:warmer_thread(_)),
   assertz(knowledgebase:warmer_thread(Id)).

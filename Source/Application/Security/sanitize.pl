@@ -183,20 +183,49 @@ sanitize:verify_sha256_sidecar(Path) :-
   Got == Expected.
 
 
+%! sanitize:effective_file_integrity(-Mode) is det.
+%
+% Resolve the integrity policy in force. A per-mode override
+% (config:file_integrity_mode/2 — `require` for the long-lived server
+% and daemon modes, whose Knowledge/*.qlf files are loaded code) wins
+% over the global config:file_integrity/1. The fallback default is
+% prefer.
+
+sanitize:effective_file_integrity(Mode) :-
+  ( sanitize:current_run_mode(RunMode),
+    current_predicate(config:file_integrity_mode/2),
+    config:file_integrity_mode(RunMode, Mode)
+  -> true
+  ; ( current_predicate(config:file_integrity/1),
+      config:file_integrity(Mode)
+    -> true
+    ;  Mode = prefer
+    )
+  ).
+
+
+%! sanitize:current_run_mode(-Mode) is semidet.
+%
+% The operating mode of this run, when the interface module is loaded
+% and has parsed one from the command line.
+
+sanitize:current_run_mode(Mode) :-
+  current_predicate(interface:get_mode/1),
+  catch(interface:get_mode(Mode), _, fail),
+  !.
+
+
 %! sanitize:ensure_file_integrity(+Path) is semidet.
 %
-% Enforce config:file_integrity/1 against Path:
+% Enforce the effective integrity policy (see
+% sanitize:effective_file_integrity/1) against Path:
 %   * require — sidecar must verify (fail otherwise)
 %   * prefer  — verify when sidecar exists; warn and succeed when missing
 %   * off     — always succeed
-% Default is prefer.
+% Default is prefer, overridden to require in server/daemon modes.
 
 sanitize:ensure_file_integrity(Path) :-
-  ( current_predicate(config:file_integrity/1),
-    config:file_integrity(Mode0)
-  -> Mode = Mode0
-  ;  Mode = prefer
-  ),
+  sanitize:effective_file_integrity(Mode),
   sanitize:ensure_file_integrity(Path, Mode).
 
 sanitize:ensure_file_integrity(_Path, off) :- !.
@@ -289,6 +318,67 @@ sanitize:safe_daemon_request(request(Args, Cols, Rows, Env)) :-
   integer(Cols),
   integer(Rows),
   is_list(Env).
+
+
+% -----------------------------------------------------------------------------
+%  Portage config tokens (package.* lines)
+% -----------------------------------------------------------------------------
+
+%! sanitize:safe_use_flag(+Flag) is semidet.
+%
+% True when Flag is a single USE flag token for a package.use line:
+% starts alphanumeric or underscore, then alphanumerics plus
+% `_ + @ . -`. Whitespace, `#`, quotes and newlines never pass, so a
+% validated flag cannot break out of its config line.
+
+sanitize:safe_use_flag(Flag) :-
+  atom(Flag),
+  atom_string(Flag, S),
+  re_match("^[A-Za-z0-9_][A-Za-z0-9_+@.\\-]*$", S).
+
+
+%! sanitize:safe_keyword(+Keyword) is semidet.
+%
+% True when Keyword is a single package.accept_keywords token: an
+% arch keyword (`amd64`, `~amd64`, `-amd64`), or a wildcard (`*`,
+% `**`, `-*`, `~*`).
+
+sanitize:safe_keyword(Keyword) :-
+  atom(Keyword),
+  atom_string(Keyword, S),
+  re_match("^(~|-)?[a-z][a-z0-9_\\-]*$|^(~|-)?\\*\\*?$", S).
+
+
+%! sanitize:safe_atom_token(+Atom) is semidet.
+%
+% True when Atom is an exact-version package atom token of the form
+% `=category/name-version` with no whitespace or line breaks (the
+% shape builder:atom_for_entry/3 persists to package.* files).
+
+sanitize:safe_atom_token(Atom) :-
+  atom(Atom),
+  atom_string(Atom, S),
+  re_match("^=[A-Za-z0-9._\\-]+/[A-Za-z0-9_+@.\\-]+$", S).
+
+
+%! sanitize:safe_config_line(+Line) is semidet.
+%
+% True when Line is a single config line: non-empty, at most 8192
+% characters, and free of newline, carriage-return and NUL bytes. A
+% validated line appended to a package.* file cannot inject further
+% lines into that file.
+
+sanitize:safe_config_line(Line) :-
+  ( atom(Line)
+  -> atom_string(Line, S)
+  ;  string(Line)
+  -> S = Line
+  ;  fail
+  ),
+  string_length(S, Len), Len > 0, Len =< 8192,
+  \+ sub_string(S, _, _, _, "\n"),
+  \+ sub_string(S, _, _, _, "\r"),
+  \+ sub_string(S, _, _, _, "\x00\").
 
 
 % -----------------------------------------------------------------------------

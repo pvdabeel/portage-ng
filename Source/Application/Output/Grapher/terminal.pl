@@ -520,7 +520,7 @@ terminal:emit_html(Type, Target, HtmlContent, TimingStats) :-
     cache:ordered_entry(Repo, Entry, Cat, Name, Version),
     version_domain:display_atom(Version, Ver),
     type_label(Type, Label),
-    format(atom(Title), '~w/~w-~w &mdash; ~w', [Cat, Name, Ver, Label]),
+    format(atom(Title), '~w/~w-~w — ~w', [Cat, Name, Ver, Label]),
     navtheme:emit_doctype,
     navtheme:emit_head_open(Title, '../'),
     navtheme:emit_head_close,

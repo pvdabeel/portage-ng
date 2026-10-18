@@ -193,6 +193,11 @@ grapher:copy_graph_assets(Directory) :-
   grapher:copy_graph_asset(portage_ng_css, '.portage-ng.css', Directory),
   grapher:copy_graph_asset(meslo_ttf, '.meslo.ttf', Directory),
   grapher:copy_graph_asset(favicon_svg, 'favicon.svg', Directory),
+  grapher:copy_graph_asset(deptree_js, '.deptree.js', Directory),
+  grapher:copy_graph_asset(detail_js, '.detail.js', Directory),
+  grapher:copy_graph_asset(gantt_js, '.gantt.js', Directory),
+  grapher:copy_graph_asset(security_js, '.security.js', Directory),
+  grapher:copy_graph_asset(tracker_js, '.tracker.js', Directory),
   !.
 
 

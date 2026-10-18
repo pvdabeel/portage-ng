@@ -64,12 +64,13 @@ navtheme:emit_doctype :-
 % embed script, title, the favicon, and the shared CSS link at Prefix.
 
 navtheme:emit_head_open(Title, Prefix) :-
+    navtheme:html_escape(Title, TitleE),
     write('<html lang="en" data-theme="light">'), nl,
     write('<head>'), nl,
     write('<meta charset="UTF-8">'), nl,
     write('<meta name="viewport" content="width=device-width, initial-scale=1.0">'), nl,
     write('<script>try{if(window.parent!==window)document.documentElement.classList.add("embedded");if(localStorage.getItem("png-theme")==="dark")document.documentElement.removeAttribute("data-theme")}catch(e){}</script>'), nl,
-    format('<title>~w</title>~n', [Title]),
+    format('<title>~w</title>~n', [TitleE]),
     navtheme:emit_favicon_link(Prefix),
     navtheme:emit_css_link(Prefix).
 
@@ -240,12 +241,13 @@ navtheme:emit_page_head_close :-
 % a term-body wrapper for the page content.
 
 navtheme:emit_term_open(Title) :-
+    navtheme:html_escape(Title, TitleE),
     write('<div class="term">'), nl,
     write('  <div class="term-bar">'), nl,
     write('    <span class="term-dot r"></span>'),
     write('<span class="term-dot y"></span>'),
     write('<span class="term-dot g"></span>'), nl,
-    format('    <span class="term-title">~w</span>~n', [Title]),
+    format('    <span class="term-title">~w</span>~n', [TitleE]),
     write('  </div>'), nl,
     write('  <div class="term-body">'), nl.
 
@@ -437,6 +439,20 @@ navtheme:emit_version_link(Entry, Label, Type) :-
 %  JavaScript: theme toggle and persistence
 % -----------------------------------------------------------------------------
 
+%! navtheme:emit_script_src(+Prefix, +Name) is det.
+%
+% Emit an external script element for the verbatim JavaScript asset
+% Name (Documentation/Assets/Graph/Scripts/<Name>.js, copied into the
+% graph root as `.<Name>.js` by grapher:copy_graph_assets/1). Prefix is
+% the relative path prefix to the graph root, as for the stylesheet.
+% Page data stays in a preceding inline block (escaped); only static
+% code lives in the assets, so it can be linted and syntax-checked
+% as ordinary JavaScript.
+
+navtheme:emit_script_src(Prefix, Name) :-
+    format('<script src="~w.~w.js"></script>~n', [Prefix, Name]).
+
+
 %! navtheme:emit_theme_script is det.
 %
 % Emit the png-theme toggle. Light sets data-theme="light"; dark removes
@@ -463,7 +479,9 @@ navtheme:emit_theme_script :-
 
 %! navtheme:html_escape(+In, -Out) is det.
 %
-% Escape the HTML special characters (< > & ") of an atom.
+% Escape the HTML special characters (< > & " ') of an atom. The
+% single quote is escaped too, so the result is safe in both double-
+% and single-quoted attribute values.
 
 navtheme:html_escape(In, Out) :-
     atom_codes(In, Codes),
@@ -491,13 +509,20 @@ navtheme:html_escape_code(0'<, `&lt;`)   :- !.
 navtheme:html_escape_code(0'>, `&gt;`)   :- !.
 navtheme:html_escape_code(0'&, `&amp;`)  :- !.
 navtheme:html_escape_code(0'", `&quot;`) :- !.
+navtheme:html_escape_code(0'', `&#39;`)  :- !.
 navtheme:html_escape_code(C, [C]).
 
 
 %! navtheme:js_escape_atom(+In, -Out) is det.
 %
 % Escape an atom for safe embedding in a double-quoted JavaScript string
-% literal.
+% literal inside an inline <script> block. Beyond the string syntax
+% itself (backslash, quotes, line terminators), `<`, `>`, `&` and `/`
+% are unicode-escaped: the HTML parser ends a script element at the
+% literal text `</script` even inside a JS string, so escaping only
+% quotes would let ebuild-controlled text (DESCRIPTION, HOMEPAGE, …)
+% break out of the script block. U+2028/U+2029 are JS line terminators
+% and control characters below U+0020 have no literal form in strings.
 
 navtheme:js_escape_atom(In, Out) :-
     atom_codes(In, Codes),
@@ -508,6 +533,50 @@ navtheme:js_escape_atom(In, Out) :-
 navtheme:js_escape_codes([], []).
 navtheme:js_escape_codes([0'\\|T], [0'\\, 0'\\ |R]) :- !, navtheme:js_escape_codes(T, R).
 navtheme:js_escape_codes([0'"|T],  [0'\\, 0'" |R])  :- !, navtheme:js_escape_codes(T, R).
+navtheme:js_escape_codes([0''|T],  [0'\\, 0'' |R])  :- !, navtheme:js_escape_codes(T, R).
 navtheme:js_escape_codes([0'\n|T], [0'\\, 0'n |R])  :- !, navtheme:js_escape_codes(T, R).
 navtheme:js_escape_codes([0'\r|T], [0'\\, 0'r |R])  :- !, navtheme:js_escape_codes(T, R).
+navtheme:js_escape_codes([0'\t|T], [0'\\, 0't |R])  :- !, navtheme:js_escape_codes(T, R).
+navtheme:js_escape_codes([0'<|T], Out) :- !, navtheme:js_unicode_escape(0'<, T, Out).
+navtheme:js_escape_codes([0'>|T], Out) :- !, navtheme:js_unicode_escape(0'>, T, Out).
+navtheme:js_escape_codes([0'&|T], Out) :- !, navtheme:js_unicode_escape(0'&, T, Out).
+navtheme:js_escape_codes([0'/|T], Out) :- !, navtheme:js_unicode_escape(0'/, T, Out).
+navtheme:js_escape_codes([8232|T], Out) :- !, navtheme:js_unicode_escape(8232, T, Out).
+navtheme:js_escape_codes([8233|T], Out) :- !, navtheme:js_unicode_escape(8233, T, Out).
+navtheme:js_escape_codes([H|T], Out) :-
+    H < 0x20, !,
+    navtheme:js_unicode_escape(H, T, Out).
+navtheme:js_escape_codes([127|T], Out) :- !, navtheme:js_unicode_escape(127, T, Out).
 navtheme:js_escape_codes([H|T], [H|R]) :- navtheme:js_escape_codes(T, R).
+
+
+%! navtheme:js_unicode_escape(+Code, +Rest, -Out) is det.
+%
+% Emit Code as a `\uXXXX` escape, followed by the escaping of Rest.
+
+navtheme:js_unicode_escape(Code, Rest, Out) :-
+    navtheme:hex4(Code, Hex),
+    append([0'\\, 0'u | Hex], EscapedRest, Out),
+    navtheme:js_escape_codes(Rest, EscapedRest).
+
+
+%! navtheme:hex4(+Code, -Digits) is det.
+%
+% The four lowercase hexadecimal digit codes of Code (Code =< 0xFFFF).
+
+navtheme:hex4(Code, [D3, D2, D1, D0]) :-
+    navtheme:hex_digit(Code // 4096, D3),
+    navtheme:hex_digit((Code // 256) mod 16, D2),
+    navtheme:hex_digit((Code // 16) mod 16, D1),
+    navtheme:hex_digit(Code mod 16, D0).
+
+
+%! navtheme:hex_digit(+Value, -Code) is det.
+%
+% The lowercase hexadecimal digit code for Value (0–15).
+
+navtheme:hex_digit(Value, Code) :-
+    ( Value < 10
+    -> Code is 0'0 + Value
+    ;  Code is 0'a + Value - 10
+    ).

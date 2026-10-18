@@ -326,9 +326,12 @@ metacircular:valid_action(action(record_kernel_config, Target, Options, Evidence
   nonvar(Evidence).
 
 metacircular:valid_action(action(draft_fixup, Mechanism, Synopsis, SketchBody)) :-
-  atom(Mechanism),
-  ( atom(Synopsis) ; string(Synopsis) ),
-  ( atom(SketchBody) ; string(SketchBody) ).
+  % Mechanism becomes the draft filename (see write_draft_fixup/3), so
+  % it must be a single safe path component: `/` or `..` in LLM output
+  % would otherwise write the draft outside Knowledge/drafts/.
+  sanitize:safe_filename(Mechanism),
+  ( atom(Synopsis) -> true ; string(Synopsis) ),
+  ( atom(SketchBody) -> true ; string(SketchBody) ).
 
 
 %! metacircular:valid_usedep(+Term) is semidet.
@@ -411,7 +414,8 @@ metacircular:describe_action(action(record_kernel_config, Target, Options, _), D
 
 metacircular:describe_action(action(draft_fixup, Mechanism, Synopsis, _), Desc) :-
   !,
-  format(atom(Desc), 'draft_fixup ~w (~w) -> Knowledge/drafts/', [Mechanism, Synopsis]).
+  format(atom(Desc), 'draft_fixup ~w (~w) -> Knowledge/drafts/~w-<unixtime>.pl',
+         [Mechanism, Synopsis, Mechanism]).
 
 metacircular:describe_action(Action, Desc) :-
   format(atom(Desc), '~w', [Action]).
@@ -470,8 +474,19 @@ metacircular:normalize_kernel_option(Name, config(Name, y)) :-
 
 
 %! metacircular:write_draft_fixup(+Mechanism, +Synopsis, +SketchBody) is det.
+%
+% Write the draft sketch to Knowledge/drafts/<Mechanism>-<unixtime>.pl.
+% Fails (with a warning) when Mechanism is not a safe filename — a
+% defence-in-depth recheck of valid_action/1, since the filename is
+% built from LLM-proposed text.
 
 metacircular:write_draft_fixup(Mechanism, Synopsis, SketchBody) :-
+  ( sanitize:safe_filename(Mechanism)
+  -> true
+  ;  message:warning(['Metacircular: refusing draft fixup with unsafe mechanism name: ',
+                      Mechanism]),
+     fail
+  ),
   config:installation_dir(Dir),
   os:compose_path([Dir, 'Knowledge', 'drafts'], DraftDir),
   os:make_directory_path(DraftDir),

@@ -1036,6 +1036,10 @@ profile:cache_save_profile(ProfileRel, RawFile) :-
   ),
   catch(qcompile(RawFile), E,
         format(user_error, '% profile:cache_save — qcompile failed: ~w~n', [E])),
+  ( profile:cache_file(QlfFile), exists_file(QlfFile)
+  -> sanitize:write_sha256_sidecar(QlfFile)
+  ;  true
+  ),
   format('% Updated profile~n~n', []).
 
 
@@ -1160,9 +1164,17 @@ profile:cache_available :-
 
 :- dynamic profile:cache_loaded/0.
 
+%! profile:ensure_loaded_cache(+File) is semidet.
+%
+% Load the qcompiled profile cache once. Fails when the file fails
+% the effective integrity policy (sanitize:ensure_file_integrity/1 —
+% require in server/daemon modes), so callers fall back to live
+% profile loading instead of executing unverified cache code.
+
 profile:ensure_loaded_cache(File) :-
   ( profile:cache_loaded -> true
-  ; ensure_loaded(File),
+  ; sanitize:ensure_file_integrity(File),
+    ensure_loaded(File),
     assertz(profile:cache_loaded)
   ).
 

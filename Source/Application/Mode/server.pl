@@ -48,7 +48,7 @@ Three roles interact in the portage-ng architecture:
 :- http_handler('/clear',      reply, [id('clear'),      methods([post])]).
 :- http_handler('/graph',      reply, [id('graph'),      methods([post]), time_limit(infinite)]).
 :- http_handler('/prove',      reply, [id('prove'),      methods([post]), time_limit(infinite)]).
-:- http_handler('/import-vdb', reply, [id('importvdb'),  methods([post]), time_limit(infinite)]).
+:- http_handler('/import-vdb', reply, [id('importvdb'),  methods([post]), time_limit(300)]).
 :- http_handler('/info',       reply, [id('info'),       methods([get])]).
 
 
@@ -585,6 +585,14 @@ server:total_cpus(N) :-
 server:vdb_import_max_entries(200000).
 server:vdb_import_max_metadata(5000000).
 
+% Caps on the payload size and on each individual wire term, enforced
+% before / while parsing: the count caps above only fire after a term
+% has been fully read, so without these a single huge md/3 value could
+% exhaust server memory first. The per-term cap mirrors the daemon's
+% max_term_length (Mode/daemon.pl). The handler time limit is 300s.
+server:vdb_import_max_payload_bytes(67108864).
+server:vdb_import_max_term_length(100000).
+
 
 %! server:import_vdb(+Payload) is det.
 %
@@ -596,6 +604,8 @@ server:vdb_import_max_metadata(5000000).
 % wire. Fact shapes are whitelisted and counts are capped.
 
 server:import_vdb(Payload) :-
+  server:vdb_import_max_payload_bytes(MaxBytes),
+  server:check_vdb_payload_size(Payload, MaxBytes),
   setup_call_cleanup(
     open_string(Payload, Stream),
     server:parse_vdb_import(Stream, Hostname, Stamp, Entries, Metadata),
@@ -684,13 +694,32 @@ server:read_vdb_facts(Stream, NE, NM, Entries, Metadata, Trailer) :-
   ).
 
 
+%! server:check_vdb_payload_size(+Payload, +MaxBytes) is det.
+%
+% Throw a resource error when the payload exceeds MaxBytes, before any
+% term is read from it.
+
+server:check_vdb_payload_size(Payload, MaxBytes) :-
+  ( string(Payload)
+  -> string_length(Payload, Len)
+  ;  atom_length(Payload, Len)
+  ),
+  ( Len =< MaxBytes
+  -> true
+  ;  throw(error(resource_error(vdb_import_payload), server:import_vdb/1))
+  ).
+
+
 %! server:read_vdb_term(+Stream, -Term) is det.
 %
-% Read one term from the payload stream. end_of_file is a protocol error
-% (the trailer terminates a well-formed payload first).
+% Read one term from the payload stream, bounded by
+% server:vdb_import_max_term_length/1 so a single term cannot exhaust
+% memory before the fact-count caps fire. end_of_file is a protocol
+% error (the trailer terminates a well-formed payload first).
 
 server:read_vdb_term(Stream, Term) :-
-  read_term(Stream, Term0, []),
+  server:vdb_import_max_term_length(MaxLength),
+  read_term(Stream, Term0, [max_term_length(MaxLength)]),
   ( Term0 == end_of_file ->
       throw(error(type_error(vdb_import_term, end_of_file), server:import_vdb/1))
   ;   Term = Term0

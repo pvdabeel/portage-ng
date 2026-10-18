@@ -84,6 +84,7 @@ test:
 # Run overlay regression tests (requires loaded overlay repository).
 test-overlay:
 	printf '%s\n' \
+	  "loader:load_test_modules." \
 	  "test:run(cases)." \
 	  "halt." | \
 	  ./Source/Application/Wrapper/portage-ng-dev --mode standalone --shell

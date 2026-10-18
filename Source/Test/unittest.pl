@@ -65,3 +65,6 @@ Or via make:
 :- use_module(portage('Source/Test/Unit/glsatest')).
 :- use_module(portage('Source/Test/Unit/profiletest')).
 :- use_module(portage('Source/Test/Unit/bugstest')).
+:- use_module(portage('Source/Test/Unit/navthemetest')).
+:- use_module(portage('Source/Test/Unit/messagetest')).
+:- use_module(portage('Source/Test/Unit/httpfetchtest')).
