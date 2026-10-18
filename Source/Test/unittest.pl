@@ -37,6 +37,18 @@ Or via make:
 
 :- set_test_options([load(always)]).
 
+% GitHub Actions loads standalone and then this file. It does not pass
+% through --shell, so the build, graph, bulk, cluster and language-model
+% groups are still unloaded. The tests call those modules.
+unittest:ensure_runtime :-
+  loader:ensure(build),
+  loader:ensure(graph),
+  loader:ensure(bulk),
+  loader:ensure(cluster),
+  ( config:load_llm_modules(true) -> loader:ensure(llm) ; true ).
+
+:- initialization(unittest:ensure_runtime, now).
+
 :- reexport(portage('Source/Test/md5cache')).
 :- reexport(portage('Source/Test/profilemask')).
 
