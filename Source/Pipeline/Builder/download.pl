@@ -1006,17 +1006,28 @@ download:poll_git_progress(Pid, LogPath, Callback, ExitCode) :-
   ).
 
 
+%! download:git_progress_window(-Bytes) is det.
+%
+% How much of the git clone log each poll tick examines. Git keeps the
+% latest percentage at the end of the log (carriage-return updates on a
+% tty, newlines on a pipe), so the trailing 4KB holds it. The poll runs
+% every 0.5s for the whole clone; reading the file from the start would
+% copy a growing log into memory on every tick.
+
+download:git_progress_window(4096).
+
+
 %! download:read_git_progress(+LogPath, -Pct) is det.
 %
-% Reads the last few lines of the git log file and extracts the most
-% recent progress percentage. Returns 0 if no percentage is found.
+% Reads a bounded tail of the git log and extracts the most recent
+% progress percentage. Returns 0 when the log is missing, empty, or
+% has no percentage yet. A read error stays at 0 so a poll tick cannot
+% abort the clone.
 
 download:read_git_progress(LogPath, Pct) :-
-  ( exists_file(LogPath)
-  -> catch(
-       ( read_file_to_string(LogPath, Content, []),
-         download:extract_last_pct(Content, Pct)
-       ), _, Pct = 0)
+  download:git_progress_window(Window),
+  ( catch(fixup:log_tail(LogPath, 0, Window, Content), _, fail)
+  -> catch(download:extract_last_pct(Content, Pct), _, Pct = 0)
   ;  Pct = 0
   ).
 

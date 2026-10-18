@@ -8,7 +8,8 @@
 */
 
 /** <module> DOWNLOADTEST
-Security tests for distfile validation, verification and staging.
+Security tests for distfile validation, verification and staging,
+and git clone progress parsing.
 */
 
 :- module(downloadtest, []).
@@ -142,3 +143,70 @@ test(race_recovery_keeps_valid_peer, [nondet]) :-
     )).
 
 :- end_tests(download_security).
+
+
+% -----------------------------------------------------------------------------
+% Git clone progress tail
+% -----------------------------------------------------------------------------
+
+:- begin_tests(download_git_progress).
+
+test(missing_log_is_zero) :-
+  downloadtest:with_temp_dir(
+    [Dir]>>(
+      os:compose_path(Dir, 'absent.log', Path),
+      download:read_git_progress(Path, Pct),
+      assertion(Pct == 0)
+    )).
+
+test(empty_log_is_zero) :-
+  downloadtest:with_temp_dir(
+    [Dir]>>(
+      os:compose_path(Dir, 'empty.log', Path),
+      setup_call_cleanup(open(Path, write, Out), true, close(Out)),
+      download:read_git_progress(Path, Pct),
+      assertion(Pct == 0)
+    )).
+
+test(carriage_return_keeps_latest) :-
+  downloadtest:with_temp_dir(
+    [Dir]>>(
+      os:compose_path(Dir, 'git.log', Path),
+      setup_call_cleanup(
+        open(Path, write, Out),
+        format(Out, 'Receiving objects: 10%\rReceiving objects: 73%\r', []),
+        close(Out)),
+      download:read_git_progress(Path, Pct),
+      assertion(Pct == 73)
+    )).
+
+test(tail_ignores_prefix_beyond_window) :-
+  downloadtest:with_temp_dir(
+    [Dir]>>(
+      os:compose_path(Dir, 'git.log', Path),
+      download:git_progress_window(Window),
+      Padding is Window + 64,
+      setup_call_cleanup(
+        open(Path, write, Out),
+        ( format(Out, 'Receiving objects:  1%\n', []),
+          forall(between(1, Padding, _), put_char(Out, x)),
+          format(Out, '\nReceiving objects: 87% (1/2)\n', [])
+        ),
+        close(Out)),
+      download:read_git_progress(Path, Pct),
+      assertion(Pct == 87)
+    )).
+
+test(complete_percentage_caps_at_99) :-
+  downloadtest:with_temp_dir(
+    [Dir]>>(
+      os:compose_path(Dir, 'git.log', Path),
+      setup_call_cleanup(
+        open(Path, write, Out),
+        format(Out, 'Receiving objects: 100% (2/2), done.\n', []),
+        close(Out)),
+      download:read_git_progress(Path, Pct),
+      assertion(Pct == 99)
+    )).
+
+:- end_tests(download_git_progress).
