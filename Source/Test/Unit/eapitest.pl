@@ -356,6 +356,82 @@ test(iuse_empty, [true(I == [])]) :-
 
 
 % -----------------------------------------------------------------------------
+%  EAPI IUSE_RUNTIME parsing tests (GLEP 62)
+% -----------------------------------------------------------------------------
+
+:- begin_tests(eapi_iuse_runtime_parsing).
+
+test(iuse_runtime_value, [true(M == iuse_runtime([bar, baz]))]) :-
+  atom_codes('IUSE_RUNTIME=bar baz', Codes),
+  phrase(eapi:keyvalue(metadata, repo://entry, M), Codes, []).
+
+test(iuse_runtime_default_marker, [true(M == iuse_runtime([plus(bar), baz]))]) :-
+  atom_codes('IUSE_RUNTIME=+bar baz', Codes),
+  phrase(eapi:keyvalue(metadata, repo://entry, M), Codes, []).
+
+test(iuse_runtime_empty, [true(M == iuse_runtime([]))]) :-
+  atom_codes('IUSE_RUNTIME=', Codes),
+  phrase(eapi:keyvalue(metadata, repo://entry, M), Codes, []).
+
+:- end_tests(eapi_iuse_runtime_parsing).
+
+
+% -----------------------------------------------------------------------------
+%  Reader compressed file tests (GLEP 61)
+% -----------------------------------------------------------------------------
+
+:- begin_tests(reader_compressed).
+
+test(gz_manifest_lines) :-
+  eapitest:compressed_manifest_fixture(gz, Path),
+  reader:invoke(Path, Lines),
+  Lines == ["DIST foo-1.0.tar.gz 123 BLAKE2B abc"].
+
+test(xz_manifest_lines, [condition(eapitest:tool_available(xz))]) :-
+  eapitest:compressed_manifest_fixture(xz, Path),
+  reader:invoke(Path, Lines),
+  Lines == ["DIST foo-1.0.tar.gz 123 BLAKE2B abc"].
+
+test(missing_compressed_file_is_empty) :-
+  reader:invoke('/tmp/portage-ng-no-such-file.gz', Lines),
+  Lines == [].
+
+:- end_tests(reader_compressed).
+
+
+%! eapitest:tool_available(+Tool) is semidet.
+%
+% True when Tool is an executable on PATH (test condition helper).
+
+eapitest:tool_available(Tool) :-
+  catch(absolute_file_name(path(Tool), _,
+                           [file_type(executable), access(execute)]),
+        _, fail).
+
+
+%! eapitest:compressed_manifest_fixture(+Ext, -Path) is det.
+%
+% Write a one-line Manifest and compress it with the system tool for
+% Ext (`gz` or `xz`) under a deterministic temp path. The compressed
+% file is left in place (temp directory, overwritten per run).
+
+eapitest:compressed_manifest_fixture(Ext, Path) :-
+  format(atom(Path), '/tmp/portage-ng-test-manifest.~w', [Ext]),
+  Plain = '/tmp/portage-ng-test-manifest.plain',
+  setup_call_cleanup(
+    open(Plain, write, S),
+    writeln(S, 'DIST foo-1.0.tar.gz 123 BLAKE2B abc'),
+    close(S)),
+  ( Ext == gz -> Tool = path(gzip) ; Tool = path(xz) ),
+  process_create(Tool, ['-kf', Plain], [process(Pid)]),
+  process_wait(Pid, exit(0)),
+  ( Ext == gz -> Tmp = '/tmp/portage-ng-test-manifest.plain.gz'
+  ; Tmp = '/tmp/portage-ng-test-manifest.plain.xz'
+  ),
+  rename_file(Tmp, Path).
+
+
+% -----------------------------------------------------------------------------
 %  EAPI package name parsing tests
 % -----------------------------------------------------------------------------
 

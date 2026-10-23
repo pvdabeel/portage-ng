@@ -124,7 +124,8 @@ test:cases([overlay://'test01/web-1.0':run?{[]},
             overlay://'test78/web-1.0':run?{[onlydeps_target]},
             overlay://'test79/server-1.0':run?{[]},
             overlay://'test80/app-1.0':run?{[]},
-            overlay://'test81/app-1.0':run?{[]}
+            overlay://'test81/app-1.0':run?{[]},
+            overlay://'test82/foo-1.0':run?{[]}
             ]).
 
 
@@ -1243,6 +1244,26 @@ test:expect(overlay://'test81/app-1.0':run?{[]},
               member(build_with_use:use_state(LibEn,_LibDis), LibCtx),
               memberchk(x11, LibEn),
               \+ test:must_have(assumed(grouped_package_dependency(test81,lib,_):install?{_}))
+            ]).
+
+% -----------------------------------------------------------------------------
+%  Runtime-switchable USE flags (test82, GLEP 62)
+% -----------------------------------------------------------------------------
+
+% test82: foo declares IUSE_RUNTIME="bar baz" (both also in IUSE).
+% For a source ebuild the runtime flags behave as ordinary IUSE flags:
+% +bar (IUSE default) pulls in test82/bar, while the disabled baz and
+% the disabled regular flag pull in nothing. The binpkg-side semantics
+% (no rejection on runtime-flag differences, config-valued flags,
+% REQUIRED_USE fallback) are covered by the binpkg_iuse_runtime
+% PLUnit tests in Source/Test/Unit/binpkgtest.pl.
+test:expect(overlay://'test82/foo-1.0':run?{[]},
+            [ test:must_have(overlay://'test82/foo-1.0':run?{_}),
+              ( test:must_have(overlay://'test82/bar-1.0':run?{_})
+              ; test:must_have(overlay://'test82/bar-1.0':install?{_})
+              ),
+              \+ test:must_have(overlay://'test82/baz-1.0':_?{_}),
+              \+ test:must_have(overlay://'test82/reg-1.0':_?{_})
             ]).
 
 % -----------------------------------------------------------------------------

@@ -220,6 +220,16 @@ eapi:value('IUSE', R://E, iuse(I)) -->
   !,
   eapi:iuse(R://E, I).
 
+% GLEP 62 (IUSE_RUNTIME): runtime-switchable USE flags, a subset of IUSE
+% whose values may change on an installed package without a rebuild.
+% Not part of PMS (dropped from the EAPI 7 draft before final) and not
+% EAPI-gated in Portage, so it is accepted for every EAPI. Same token
+% syntax as IUSE; consumers strip any default markers and intersect
+% with the entry's IUSE (see binpkg_exec:entry_runtime_flags/3).
+eapi:value('IUSE_RUNTIME', R://E, iuse_runtime(I)) -->
+  !,
+  eapi:iuse(R://E, I).
+
 % PMS 9, Section 7.3 (KEYWORDS)
 eapi:value('KEYWORDS', _, keywords(K)) -->
   !,
@@ -2893,13 +2903,18 @@ eapi:split_ws_atoms(Line, Atoms) :-
 % so we can reuse the existing `parser:invoke(metadata, ...)` pipeline.
 %
 % We keep the knowledge of *which* VDB files exist (SLOT/EAPI/USE/repository)
-% in the parser/EAPI layer, not in `repository.pl`.
+% in the parser/EAPI layer, not in `repository.pl`. IUSE_RUNTIME and
+% REQUIRED_USE are read when present: Portage only writes them for
+% packages with runtime-switchable USE flags (GLEP 62), so their absence
+% in older VDB entries is normal and yields no lines.
 
 eapi:vdb_dir_kv_lines(Dir, Lines) :-
   findall(Line,
           ( eapi:vdb_kv_file(Dir, 'SLOT', 'SLOT', Line)
           ; eapi:vdb_kv_file(Dir, 'EAPI', 'EAPI', Line)
           ; eapi:vdb_kv_file(Dir, 'IUSE', 'IUSE', Line)
+          ; eapi:vdb_kv_file(Dir, 'IUSE_RUNTIME', 'IUSE_RUNTIME', Line)
+          ; eapi:vdb_kv_file(Dir, 'REQUIRED_USE', 'REQUIRED_USE', Line)
           ; eapi:vdb_kv_file(Dir, 'USE',  'USE',  Line)
           ; eapi:vdb_kv_file(Dir, 'PROPERTIES', 'PROPERTIES', Line)
           ; eapi:vdb_kv_file(Dir, 'BUILD_TIME', 'BUILD_TIME', Line)

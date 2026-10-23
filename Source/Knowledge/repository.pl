@@ -625,8 +625,7 @@ find_manifest(Entry,Timestamp,Category,Name) ::-
   os:directory_content(CategoryDir,Name),
   os:compose_path(CategoryDir,Name,PackageDir),
   exists_directory(PackageDir),
-  os:compose_path(PackageDir,'Manifest',Entry),
-  exists_file(Entry),
+  repository:manifest_file(PackageDir,Entry),
   system:time_file(Entry,Timestamp).
 
 
@@ -1165,6 +1164,28 @@ type(Type) ::-
 % maximum number of network syncs (`sync(repository)`) in any rolling
 % 24-hour window; repositories without a declaration are unlimited. The
 % stamps live in `Knowledge/<Repo>.sync`, one POSIX time per line.
+
+%! repository:manifest_file(+PackageDir, -File) is semidet.
+%
+% The Manifest file for a package directory, following GLEP 61: the
+% plain `Manifest` is preferred; when it does not exist, the first
+% compressed form (`Manifest.gz`, `.bz2`, `.xz`, `.lzma`) is used in
+% its place. Compressed files are decompressed transparently by
+% `reader:invoke/2`, so metadata consumers see identical lines either
+% way. Deterministic: when several forms exist they are required to
+% be identical, and the plain form wins.
+
+repository:manifest_file(PackageDir, File) :-
+  ( os:compose_path(PackageDir, 'Manifest', Plain),
+    exists_file(Plain)
+  -> File = Plain
+  ;  member(Name, ['Manifest.gz', 'Manifest.bz2',
+                   'Manifest.xz', 'Manifest.lzma']),
+     os:compose_path(PackageDir, Name, File),
+     exists_file(File)
+  ),
+  !.
+
 
 %! repository:sync_stamp_file(+Repository, -File) is det.
 %

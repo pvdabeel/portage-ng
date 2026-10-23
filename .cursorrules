@@ -92,7 +92,29 @@ Version representation:
 PDEPEND handling:
 - PDEPEND is always enabled; there is no preference flag for it.
 - PDEPEND deps are resolved single-pass inside the prover via the
-  `heuristic:proof_obligation/4` hook.
+ `heuristic:proof_obligation/4` hook.
+
+IUSE_RUNTIME (GLEP 62, Portage PR #1746 — not PMS, not EAPI-gated):
+- Parsed/stored everywhere metadata flows: `eapi:value('IUSE_RUNTIME')`
+ -> `iuse_runtime/1` (md5-cache and VDB, via `eapi:vdb_dir_kv_lines`),
+ `ebuild-depend.sh` accumulation + key list, binpkg `Packages` rows
+ verbatim. Source candidates treat the flags as ordinary IUSE flags.
+- Binpkg parity lives in `binpkg_exec`: `runtime_flags/4` (source n
+ binpkg, each intersected with its IUSE) are subtracted in
+ `use_compatible/4`; `effective_use/5`/`adjust_runtime_use/5` take
+ config values for them unless the binpkg's REQUIRED_USE forbids it
+ (then built values); RDEPEND drift and `:=` pin walks evaluate the
+ preserved (unevaluated) conditionals under that effective set.
+- Installed packages still rebuild on a runtime-flag change
+ (`use:newuse_mismatch/2` unchanged), matching Portage PR #1746; the
+ in-place "runtime-use" VDB update is upstream's follow-up, not yet
+ implemented on either side.
+
+GLEP 61 (compressed Manifests):
+- `repository:manifest_file/2` prefers plain `Manifest`, else the
+ first of `Manifest.gz/.bz2/.xz/.lzma`; `reader:invoke/2`
+ decompresses those suffixes transparently via `reader:decompressor/2`,
+ so manifest metadata is identical either way.
 
 Sub-slot (`:=`) ABI rebuilds (portage-ng#89/#118):
 - Same proof-obligation channel as PDEPEND: when pass 1 proves a merge

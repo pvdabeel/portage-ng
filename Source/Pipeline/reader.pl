@@ -37,11 +37,50 @@ reader:invoke(Stream, Contents) :-
 
 reader:invoke(File, Contents) :-
   exists_file(File), !,
-  open(File, read, Stream, [lock(none)]),
-  reader:read_lines_to_strings(Stream, Contents),
-  close(Stream).
+  ( reader:decompressor(File, Program, Args)
+  -> reader:invoke_compressed(Program, Args, Contents)
+  ;  open(File, read, Stream, [lock(none)]),
+     reader:read_lines_to_strings(Stream, Contents),
+     close(Stream)
+  ).
 
 reader:invoke(_, []) :-
+  !.
+
+
+%! reader:decompressor(+File, -Program, -Args) is semidet.
+%
+% External decompressor for a compressed file, by suffix: gzip,
+% bzip2, xz and lzma (xz reads lzma streams). Used for GLEP 61
+% compressed Manifest files; any compressed file handed to the reader
+% is decompressed transparently. Fails for uncompressed files.
+
+reader:decompressor(File, path(gzip), ['-dc', File]) :-
+  file_name_extension(_, gz, File), !.
+reader:decompressor(File, path(bzip2), ['-dc', File]) :-
+  file_name_extension(_, bz2, File), !.
+reader:decompressor(File, path(xz), ['-dc', File]) :-
+  file_name_extension(_, xz, File), !.
+reader:decompressor(File, path(xz), ['-dc', File]) :-
+  file_name_extension(_, lzma, File), !.
+
+
+%! reader:invoke_compressed(+Program, +Args, -Contents) is det.
+%
+% Run Program with Args and read its standard output as lines. A
+% missing or failing decompressor yields [] (the reader's usual
+% unreadable-file answer).
+
+reader:invoke_compressed(Program, Args, Contents) :-
+  ( catch(process_create(Program, Args,
+                         [stdout(pipe(Out)), stderr(null), process(Pid)]),
+          _, fail)
+  -> setup_call_cleanup(true,
+                        reader:read_lines_to_strings(Out, Contents),
+                        close(Out)),
+     process_wait(Pid, _)
+  ;  Contents = []
+  ),
   !.
 
 

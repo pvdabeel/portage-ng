@@ -169,7 +169,7 @@ binpkg_exec:respect_use_policy(Mode) :-
 
 %! binpkg_exec:changed_deps_policy(-Mode) is det.
 %
-% RDEPEND-drift policy for rdepend_acceptable/3: `--binpkg-changed-deps`
+% RDEPEND-drift policy for rdepend_acceptable/4: `--binpkg-changed-deps`
 % forces `skip`, otherwise `config:binpkg_changed_deps/1` (default warn).
 
 binpkg_exec:changed_deps_policy(Mode) :-
@@ -410,10 +410,12 @@ binpkg_exec:diagnose_candidate(SrcRepo, SrcEntry, Eid, Ctx) :-
   -> binpkg_exec:respect_use_policy(Mode),
      binpkg_exec:log_binpkg_debug("reject ~w: USE incompatible (binpkg_respect_use=~w)",
                                   [Eid, Mode])
-  ; \+ binpkg_exec:subslot_pins_compatible(Eid)
+  ; \+ ( binpkg_exec:effective_use(SrcRepo, SrcEntry, Eid, Ctx, EffUse),
+         binpkg_exec:subslot_pins_compatible(Eid, EffUse) )
   -> binpkg_exec:log_binpkg_debug("reject ~w: subslot := pin mismatch vs live VDB (ABI cascade)",
                                   [Eid])
-  ; \+ binpkg_exec:rdepend_acceptable(SrcRepo, SrcEntry, Eid)
+  ; \+ ( binpkg_exec:effective_use(SrcRepo, SrcEntry, Eid, Ctx, EffUse),
+         binpkg_exec:rdepend_acceptable(SrcRepo, SrcEntry, Eid, EffUse) )
   -> binpkg_exec:log_binpkg_debug("reject ~w: RDEPEND drift", [Eid])
   ;  binpkg_exec:log_binpkg_debug("~w: passes all filters (not the rejection cause)", [Eid])
   ).
@@ -785,8 +787,9 @@ binpkg_exec:candidate_passes_filters(SrcRepo, SrcEntry, BinpkgEid, Ctx) :-
   binpkg_exec:slot_compatible(SrcRepo, SrcEntry, BinpkgEid),
   binpkg_exec:keywords_acceptable(BinpkgEid),
   binpkg_exec:use_compatible(SrcRepo, SrcEntry, BinpkgEid, Ctx),
-  binpkg_exec:subslot_pins_compatible(BinpkgEid),
-  binpkg_exec:rdepend_acceptable(SrcRepo, SrcEntry, BinpkgEid).
+  binpkg_exec:effective_use(SrcRepo, SrcEntry, BinpkgEid, Ctx, EffectiveUse),
+  binpkg_exec:subslot_pins_compatible(BinpkgEid, EffectiveUse),
+  binpkg_exec:rdepend_acceptable(SrcRepo, SrcEntry, BinpkgEid, EffectiveUse).
 
 
 %! binpkg_exec:gpkg_on_disk(+BinpkgEntryId) is semidet.
@@ -900,6 +903,12 @@ binpkg_exec:host_arch(Arch) :-
 %
 % Defensive: if the binpkg has no `use` metadata, accept; if the source
 % has no IUSE, accept (degenerate ebuild with no USE flags).
+%
+% Runtime-switchable flags (GLEP 62, IUSE_RUNTIME) never reject a
+% binpkg: the values on both sides are removed before comparing, since
+% the merged package takes those flags from the current configuration
+% (see binpkg_exec:effective_use/5). This mirrors Portage's
+% _reinstall_for_flags with the runtime flags subtracted.
 
 binpkg_exec:use_compatible(SrcRepo, SrcEntry, BinpkgEid, Ctx) :-
   ( cache:entry_metadata(binpkg, BinpkgEid, use, BinpkgUseAtom)
@@ -912,8 +921,11 @@ binpkg_exec:use_compatible(SrcRepo, SrcEntry, BinpkgEid, Ctx) :-
   -> true
   ;  intersection(BinpkgUseSet, IuseSet, BinpkgIuse),
      intersection(ResolverSet,   IuseSet, ResolverIuse),
+     binpkg_exec:runtime_flags(SrcRepo, SrcEntry, BinpkgEid, RuntimeFlags),
+     subtract(BinpkgIuse,  RuntimeFlags, BinpkgCmp),
+     subtract(ResolverIuse, RuntimeFlags, ResolverCmp),
      binpkg_exec:respect_use_policy(Mode),
-     binpkg_exec:use_sets_match(Mode, BinpkgIuse, ResolverIuse)
+     binpkg_exec:use_sets_match(Mode, BinpkgCmp, ResolverCmp)
   ).
 
 
@@ -986,10 +998,263 @@ binpkg_exec:iuse_flag_name(F,        F).
 
 
 % -----------------------------------------------------------------------------
+%  Runtime-switchable USE flags (GLEP 62, IUSE_RUNTIME)
+% -----------------------------------------------------------------------------
+%
+% Flags listed in IUSE_RUNTIME only gate optional runtime dependencies:
+% changing one must not rebuild the package. For binary packages this
+% means (mirroring Portage's IUSE_RUNTIME support):
+%
+%   * a binpkg is never rejected for a difference in these flags alone
+%     (use_compatible/4 subtracts them before comparing),
+%   * the merged binpkg takes the flags' values from the current
+%     configuration rather than the values it was built with, unless
+%     that would violate its REQUIRED_USE, in which case it keeps the
+%     built values (effective_use/5),
+%   * its recorded RDEPEND/PDEPEND may keep conditionals on these flags
+%     unevaluated (Portage use_reduce_preserving), so drift and
+%     slot-pin checks evaluate them under the effective USE set, with
+%     slot operators only bound in branches active at build time.
+%
+% Installed packages are deliberately not covered here: changing a
+% runtime flag on an installed package still triggers a rebuild
+% (use:newuse_mismatch/2), exactly as in Portage, whose in-place
+% "runtime-use" update is a separate follow-up.
+
+%! binpkg_exec:entry_flag_set(+Repo, +Entry, +Key, -Flags) is det.
+%
+% Sorted bare flag names recorded under Key (`iuse` or `iuse_runtime`)
+% for an entry, in either storage shape: parsed cache rows (one term
+% per flag, e.g. `plus(F)` or a bare atom, from the eapi grammar) or a
+% single verbatim space-separated atom (binpkg `Packages` index rows,
+% where a leading `+`/`-` default marker is stripped).
+
+binpkg_exec:entry_flag_set(Repo, Entry, Key, Flags) :-
+  findall(F,
+          ( cache:entry_metadata(Repo, Entry, Key, Raw),
+            binpkg_exec:flag_set_member(Raw, F)
+          ),
+          Fs0),
+  sort(Fs0, Flags).
+
+
+%! binpkg_exec:flag_set_member(+Raw, -Flag) is nondet.
+%
+% One bare flag name from one entry_flag_set/4 metadata row.
+
+binpkg_exec:flag_set_member(Raw, Flag) :-
+  atom(Raw),
+  !,
+  atomic_list_concat(Tokens, ' ', Raw),
+  member(Token, Tokens),
+  Token \== '',
+  binpkg_exec:strip_default_marker(Token, Flag).
+
+binpkg_exec:flag_set_member(Raw, Flag) :-
+  binpkg_exec:iuse_flag_name(Raw, Flag).
+
+
+%! binpkg_exec:strip_default_marker(+Token, -Flag) is det.
+%
+% Strip one leading `+` or `-` IUSE default marker, if present.
+
+binpkg_exec:strip_default_marker(Token, Flag) :-
+  ( atom_concat('+', Flag, Token) -> true
+  ; atom_concat('-', Flag, Token) -> true
+  ; Flag = Token
+  ),
+  !.
+
+
+%! binpkg_exec:entry_runtime_flags(+Repo, +Entry, -Flags) is det.
+%
+% The entry's runtime-switchable flags: its IUSE_RUNTIME intersected
+% with its IUSE. Portage silently drops runtime flags missing from
+% IUSE for built packages and invalidates source metadata instead; we
+% intersect for both, which is the safe reading of either. When the
+% entry records no IUSE at all (field omitted), the runtime set is
+% taken as recorded.
+
+binpkg_exec:entry_runtime_flags(Repo, Entry, Flags) :-
+  binpkg_exec:entry_flag_set(Repo, Entry, iuse_runtime, Runtime),
+  ( Runtime == []
+  -> Flags = []
+  ;  binpkg_exec:entry_flag_set(Repo, Entry, iuse, Iuse),
+     ( Iuse == []
+     -> Flags = Runtime
+     ;  intersection(Runtime, Iuse, Flags)
+     )
+  ).
+
+
+%! binpkg_exec:runtime_flags(+SrcRepo, +SrcEntry, +BinpkgEid, -Flags) is det.
+%
+% Runtime-switchable flags shared by the source ebuild and the binpkg
+% (Portage subtracts binpkg.iuse_runtime n ebuild.iuse_runtime when
+% deciding whether a USE difference triggers reinstallation).
+
+binpkg_exec:runtime_flags(SrcRepo, SrcEntry, BinpkgEid, Flags) :-
+  binpkg_exec:entry_runtime_flags(SrcRepo, SrcEntry, SrcFlags),
+  ( SrcFlags == []
+  -> Flags = []
+  ;  binpkg_exec:entry_runtime_flags(binpkg, BinpkgEid, BinFlags),
+     intersection(SrcFlags, BinFlags, Flags)
+  ).
+
+
+%! binpkg_exec:effective_use(+SrcRepo, +SrcEntry, +BinpkgEid, +Ctx, -Effective) is det.
+%
+% The positive USE set a merged binpkg effectively runs with: the
+% built set, except that runtime-switchable flags take their values
+% from the resolver's configured set for the source entry. If taking
+% the configured values would violate the binpkg's recorded
+% REQUIRED_USE (or that value cannot be parsed), the built set is
+% kept unchanged (Portage Package.with_runtime_use).
+
+binpkg_exec:effective_use(SrcRepo, SrcEntry, BinpkgEid, Ctx, Effective) :-
+  ( cache:entry_metadata(binpkg, BinpkgEid, use, BuiltAtom)
+  -> binpkg_exec:tokenize_use(BuiltAtom, Built)
+  ;  Built = []
+  ),
+  binpkg_exec:runtime_flags(SrcRepo, SrcEntry, BinpkgEid, RuntimeFlags),
+  ( RuntimeFlags == []
+  -> Effective = Built
+  ;  binpkg_exec:resolver_positive_use(SrcRepo, SrcEntry, Ctx, Config),
+     binpkg_exec:binpkg_required_use(BinpkgEid, ReqUse),
+     binpkg_exec:adjust_runtime_use(Built, Config, RuntimeFlags,
+                                    ReqUse, Effective)
+  ).
+
+
+%! binpkg_exec:adjust_runtime_use(+Built, +Config, +RuntimeFlags, +ReqUse, -Effective) is det.
+%
+% Pure core of effective_use/5: Effective is Built with the
+% RuntimeFlags values replaced by their Config values, unless ReqUse
+% (`absent`, `invalid`, or `terms(Terms)` from binpkg_required_use/2)
+% forbids it: a REQUIRED_USE violation -- or an unparseable
+% REQUIRED_USE -- keeps Built unchanged.
+
+binpkg_exec:adjust_runtime_use(Built, Config, RuntimeFlags, ReqUse, Effective) :-
+  subtract(Built, RuntimeFlags, Kept),
+  intersection(Config, RuntimeFlags, Wanted),
+  union(Kept, Wanted, Candidate),
+  sort(Candidate, CandidateSorted),
+  sort(Built, BuiltSorted),
+  ( CandidateSorted == BuiltSorted
+  -> Effective = Built
+  ;  ReqUse = terms(Terms)
+  -> ( binpkg_exec:required_use_holds(Terms, Candidate)
+     -> Effective = Candidate
+     ;  Effective = Built
+     )
+  ;  ReqUse = absent
+  -> Effective = Candidate
+  ;  Effective = Built
+  ).
+
+
+%! binpkg_exec:binpkg_required_use(+BinpkgEid, -Result) is det.
+%
+% The binpkg's recorded REQUIRED_USE, parsed with the EAPI grammar.
+% Result is `absent` (no field recorded), `invalid` (unparseable), or
+% `terms(Terms)`. Portage only records REQUIRED_USE for binpkgs that
+% have runtime-switchable flags, so `absent` is the common case.
+
+binpkg_exec:binpkg_required_use(BinpkgEid, Result) :-
+  ( cache:entry_metadata(binpkg, BinpkgEid, required_use, Raw),
+    Raw \== ''
+  -> ( atom(Raw)   -> atom_string(Raw, RawS)
+     ; string(Raw) -> RawS = Raw
+     ; RawS = ""
+     ),
+     split_string(RawS, " \t", " \t", Tokens),
+     atomic_list_concat(Tokens, ' ', Normalized),
+     atom_codes(Normalized, Codes),
+     ( catch(phrase(eapi:required_use(_://_, Terms), Codes), _, fail)
+     -> Result = terms(Terms)
+     ;  Result = invalid
+     )
+  ;  Result = absent
+  ).
+
+
+%! binpkg_exec:required_use_holds(+Terms, +Use) is semidet.
+%
+% True when the positive USE set Use satisfies every REQUIRED_USE
+% term. Terms are the eapi grammar's `use` dependency elements:
+% required/1, blocking/1, use_conditional_group/4 and the
+% any/all/exactly-one/at-most-one groups over them.
+
+binpkg_exec:required_use_holds([], _).
+
+binpkg_exec:required_use_holds([Term|Terms], Use) :-
+  binpkg_exec:required_use_term_holds(Term, Use),
+  binpkg_exec:required_use_holds(Terms, Use).
+
+
+%! binpkg_exec:required_use_term_holds(+Term, +Use) is semidet.
+%
+% Single-term worker for required_use_holds/2.
+
+binpkg_exec:required_use_term_holds(required(Flag), Use) :-
+  !,
+  memberchk(Flag, Use).
+
+binpkg_exec:required_use_term_holds(blocking(Flag), Use) :-
+  !,
+  \+ memberchk(Flag, Use).
+
+binpkg_exec:required_use_term_holds(use_conditional_group(positive, Flag, _, Deps), Use) :-
+  !,
+  ( memberchk(Flag, Use)
+  -> binpkg_exec:required_use_holds(Deps, Use)
+  ;  true
+  ).
+
+binpkg_exec:required_use_term_holds(use_conditional_group(negative, Flag, _, Deps), Use) :-
+  !,
+  ( memberchk(Flag, Use)
+  -> true
+  ;  binpkg_exec:required_use_holds(Deps, Use)
+  ).
+
+binpkg_exec:required_use_term_holds(any_of_group(Deps), Use) :-
+  !,
+  member(Term, Deps),
+  binpkg_exec:required_use_term_holds(Term, Use).
+
+binpkg_exec:required_use_term_holds(all_of_group(Deps), Use) :-
+  !,
+  binpkg_exec:required_use_holds(Deps, Use).
+
+binpkg_exec:required_use_term_holds(exactly_one_of_group(Deps), Use) :-
+  !,
+  binpkg_exec:required_use_true_count(Deps, Use, 1).
+
+binpkg_exec:required_use_term_holds(at_most_one_of_group(Deps), Use) :-
+  !,
+  binpkg_exec:required_use_true_count(Deps, Use, Count),
+  Count =< 1.
+
+
+%! binpkg_exec:required_use_true_count(+Terms, +Use, -Count) is det.
+%
+% Number of Terms satisfied by Use.
+
+binpkg_exec:required_use_true_count(Terms, Use, Count) :-
+  findall(1,
+          ( member(Term, Terms),
+            binpkg_exec:required_use_term_holds(Term, Use)
+          ),
+          Ones),
+  length(Ones, Count).
+
+
+% -----------------------------------------------------------------------------
 %  Subslot-pin (`:slot/subslot=`) validation against the live VDB
 % -----------------------------------------------------------------------------
 
-%! binpkg_exec:subslot_pins_compatible(+BinpkgEid) is semidet.
+%! binpkg_exec:subslot_pins_compatible(+BinpkgEid, +Use) is semidet.
 %
 % Mirrors emerge's binpkg-acceptance rule for slot-operator (`:=`)
 % dependencies (PMS 8.2 / EAPI 7): when a binpkg was produced its
@@ -1007,33 +1272,40 @@ binpkg_exec:iuse_flag_name(F,        F).
 % group constructors (`all_of_group`, `any_of_group`,
 % `use_conditional_group`, `exactly_one_of_group`,
 % `at_most_one_of_group`) so conditional / nested deps are not
-% silently skipped. Per-atom rejection rule is conservative: we only
+% silently skipped, but a `use_conditional_group` is only entered when
+% its flag condition holds under Use: Portage binds slot operators
+% only in branches active at build time, and a GLEP 62 binpkg's
+% preserved (unevaluated) runtime-flag branches carry no bound pin
+% for the branches that were inactive then. Per-atom rejection rule
+% is conservative: we only
 % reject when we can positively confirm a mismatch (recorded subslot
 % present, live install for the dep at the same slot exists, and
 % their canonicalised subslots differ). Missing live install, missing
 % live subslot or parse failure all degrade to "accept" so this check
 % only ever causes regressions when emerge would also reject.
 
-binpkg_exec:subslot_pins_compatible(BinpkgEid) :-
+binpkg_exec:subslot_pins_compatible(BinpkgEid, Use) :-
   forall(
     member(Key, [depend, rdepend, pdepend, bdepend, idepend]),
-    binpkg_exec:dep_field_subslot_compatible(BinpkgEid, Key)).
+    binpkg_exec:dep_field_subslot_compatible(BinpkgEid, Key, Use)).
 
 
-%! binpkg_exec:dep_field_subslot_compatible(+BinpkgEid, +Key) is semidet.
+%! binpkg_exec:dep_field_subslot_compatible(+BinpkgEid, +Key, +Use) is semidet.
 %
 % Reads one dep field (lowercased atom: `depend`, `rdepend`, ...) from
 % the binpkg cache, parses it with the EAPI dependency grammar, and
-% requires every embedded `:slot/subslot=` pin to be satisfied. A
-% missing field accepts. A parse failure also accepts (defensive: the
-% binpkg may be in a slightly newer format than our grammar handles,
-% and we would rather defer to emerge's logic than over-reject).
+% requires every embedded `:slot/subslot=` pin in a branch active
+% under Use (the binpkg's effective USE, see effective_use/5) to be
+% satisfied. A missing field accepts. A parse failure also accepts
+% (defensive: the binpkg may be in a slightly newer format than our
+% grammar handles, and we would rather defer to emerge's logic than
+% over-reject).
 
-binpkg_exec:dep_field_subslot_compatible(BinpkgEid, Key) :-
+binpkg_exec:dep_field_subslot_compatible(BinpkgEid, Key, Use) :-
   ( cache:entry_metadata(binpkg, BinpkgEid, Key, ValueAtom),
     ValueAtom \== ''
   -> ( binpkg_exec:parse_dep_value(ValueAtom, Deps)
-     -> binpkg_exec:walk_deps_subslot(Deps)
+     -> binpkg_exec:walk_deps_subslot(Deps, Use)
      ;  true
      )
   ;  true
@@ -1056,44 +1328,55 @@ binpkg_exec:parse_dep_value(ValueAtom, Deps) :-
   catch(phrase(eapi:depend(_://_, Deps), Codes), _, fail).
 
 
-%! binpkg_exec:walk_deps_subslot(+Deps) is semidet.
+%! binpkg_exec:walk_deps_subslot(+Deps, +Use) is semidet.
 %
 % Walks a parsed dependency list, descending into group constructors
-% and validating any atom-level `:slot/subslot=` pin against the live
-% VDB. Succeeds iff every confirmed pin matches.
+% and validating any atom-level `:slot/subslot=` pin in a branch
+% active under Use against the live VDB. Succeeds iff every confirmed
+% pin matches.
 
-binpkg_exec:walk_deps_subslot([]).
-binpkg_exec:walk_deps_subslot([D|Ds]) :-
-  binpkg_exec:walk_dep_subslot(D),
-  binpkg_exec:walk_deps_subslot(Ds).
+binpkg_exec:walk_deps_subslot([], _).
+binpkg_exec:walk_deps_subslot([D|Ds], Use) :-
+  binpkg_exec:walk_dep_subslot(D, Use),
+  binpkg_exec:walk_deps_subslot(Ds, Use).
 
 
-%! binpkg_exec:walk_dep_subslot(+Dep) is semidet.
+%! binpkg_exec:walk_dep_subslot(+Dep, +Use) is semidet.
 %
-% Per-node visitor. Group constructors recurse into their child list;
-% `package_dependency/8` atoms are validated against the live VDB;
-% anything else (blocker-only atoms, virtuals already lowered, etc.)
-% passes through.
+% Per-node visitor. Group constructors recurse into their child list
+% (a `use_conditional_group` only when its condition holds under
+% Use); `package_dependency/8` atoms are validated against the live
+% VDB; anything else (blocker-only atoms, virtuals already lowered,
+% etc.) passes through.
 
-binpkg_exec:walk_dep_subslot(package_dependency(_, _, C, P, _, _, Slot, _)) :- !,
+binpkg_exec:walk_dep_subslot(package_dependency(_, _, C, P, _, _, Slot, _), _) :- !,
   binpkg_exec:check_atom_subslot_pin(C, P, Slot).
 
-binpkg_exec:walk_dep_subslot(all_of_group(D)) :- !,
-  binpkg_exec:walk_deps_subslot(D).
+binpkg_exec:walk_dep_subslot(all_of_group(D), Use) :- !,
+  binpkg_exec:walk_deps_subslot(D, Use).
 
-binpkg_exec:walk_dep_subslot(any_of_group(D)) :- !,
-  binpkg_exec:walk_deps_subslot(D).
+binpkg_exec:walk_dep_subslot(any_of_group(D), Use) :- !,
+  binpkg_exec:walk_deps_subslot(D, Use).
 
-binpkg_exec:walk_dep_subslot(use_conditional_group(_, _, _, D)) :- !,
-  binpkg_exec:walk_deps_subslot(D).
+binpkg_exec:walk_dep_subslot(use_conditional_group(positive, Flag, _, D), Use) :- !,
+  ( memberchk(Flag, Use)
+  -> binpkg_exec:walk_deps_subslot(D, Use)
+  ;  true
+  ).
 
-binpkg_exec:walk_dep_subslot(exactly_one_of_group(D)) :- !,
-  binpkg_exec:walk_deps_subslot(D).
+binpkg_exec:walk_dep_subslot(use_conditional_group(negative, Flag, _, D), Use) :- !,
+  ( memberchk(Flag, Use)
+  -> true
+  ;  binpkg_exec:walk_deps_subslot(D, Use)
+  ).
 
-binpkg_exec:walk_dep_subslot(at_most_one_of_group(D)) :- !,
-  binpkg_exec:walk_deps_subslot(D).
+binpkg_exec:walk_dep_subslot(exactly_one_of_group(D), Use) :- !,
+  binpkg_exec:walk_deps_subslot(D, Use).
 
-binpkg_exec:walk_dep_subslot(_).
+binpkg_exec:walk_dep_subslot(at_most_one_of_group(D), Use) :- !,
+  binpkg_exec:walk_deps_subslot(D, Use).
+
+binpkg_exec:walk_dep_subslot(_, _).
 
 
 %! binpkg_exec:check_atom_subslot_pin(+Category, +Name, +Slot) is semidet.
@@ -1241,17 +1524,18 @@ binpkg_exec:find_live_install_for_slot(Cat, Name, RecSlot, VdbRepo://Entry) :-
   !.
 
 
-%! binpkg_exec:rdepend_acceptable(+SrcRepo, +SrcEntry, +BinpkgEid) is semidet.
+%! binpkg_exec:rdepend_acceptable(+SrcRepo, +SrcEntry, +BinpkgEid, +EffectiveUse) is semidet.
 %
 % Checks whether the binpkg's recorded RDEPEND+PDEPEND (index fields,
-% use-reduced under the binpkg's own USE) still match the current
-% ebuild's. Mirrors emerge's `--binpkg-changed-deps`; the mode comes from
+% use-reduced under EffectiveUse, the set the merged binpkg runs
+% with) still match the current ebuild's. Mirrors emerge's
+% `--binpkg-changed-deps`; the mode comes from
 % changed_deps_policy/1:
 %   skip : refuse the binpkg on drift
 %   warn : accept the binpkg and warn
 
-binpkg_exec:rdepend_acceptable(SrcRepo, SrcEntry, BinpkgEid) :-
-  ( binpkg_exec:rdepend_drift(SrcRepo, SrcEntry, BinpkgEid)
+binpkg_exec:rdepend_acceptable(SrcRepo, SrcEntry, BinpkgEid, EffectiveUse) :-
+  ( binpkg_exec:rdepend_drift(SrcRepo, SrcEntry, BinpkgEid, EffectiveUse)
   -> binpkg_exec:changed_deps_policy(Mode),
      Mode \== skip,
      message:warning(['binpkg ', BinpkgEid,
@@ -1260,20 +1544,20 @@ binpkg_exec:rdepend_acceptable(SrcRepo, SrcEntry, BinpkgEid) :-
   ).
 
 
-%! binpkg_exec:rdepend_drift(+SrcRepo, +SrcEntry, +BinpkgEid) is semidet.
+%! binpkg_exec:rdepend_drift(+SrcRepo, +SrcEntry, +BinpkgEid, +Use) is semidet.
 %
-% The binpkg's recorded runtime dependencies differ from the source
-% ebuild's (sets:runtime_deps_differ/3). A binpkg without `rdepend` /
-% `pdepend` index fields recorded none.
+% The binpkg's recorded runtime dependencies, use-reduced under Use,
+% differ from the source ebuild's (sets:runtime_deps_differ/3). A
+% binpkg without `rdepend` / `pdepend` index fields recorded none.
+% Reducing under the effective USE (rather than the built USE)
+% evaluates the unevaluated conditionals a GLEP 62 binpkg preserves
+% on its runtime-switchable flags with the values it will be merged
+% with, reproducing the fully-reduced form older binpkgs recorded.
 
-binpkg_exec:rdepend_drift(SrcRepo, SrcEntry, BinpkgEid) :-
+binpkg_exec:rdepend_drift(SrcRepo, SrcEntry, BinpkgEid, Use) :-
   binpkg_exec:index_dep_terms(BinpkgEid, rdepend, Rd),
   binpkg_exec:index_dep_terms(BinpkgEid, pdepend, Pd),
   append(Rd, Pd, Recorded),
-  ( cache:entry_metadata(binpkg, BinpkgEid, use, UseAtom)
-  -> binpkg_exec:tokenize_use(UseAtom, Use)
-  ;  Use = []
-  ),
   sets:runtime_deps_differ(Recorded, Use, SrcRepo://SrcEntry).
 
 

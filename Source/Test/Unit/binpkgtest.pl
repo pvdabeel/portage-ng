@@ -257,8 +257,118 @@ test(signed_unknown_key_rejected,
 
 
 % -----------------------------------------------------------------------------
+%  Runtime-switchable USE flags (GLEP 62, IUSE_RUNTIME)
+% -----------------------------------------------------------------------------
+
+:- begin_tests(binpkg_iuse_runtime).
+
+test(source_runtime_flags, [setup(binpkgtest:runtime_fixture(_)),
+                            cleanup(binpkgtest:runtime_cleanup)]) :-
+  binpkg_exec:entry_runtime_flags(testsrc, 'app-misc/foo-1.0', Flags),
+  Flags == [bar, baz].
+
+test(runtime_flag_missing_from_iuse_dropped,
+     [setup(binpkgtest:runtime_fixture(_)),
+      cleanup(binpkgtest:runtime_cleanup)]) :-
+  binpkg_exec:entry_runtime_flags(testsrc, 'app-misc/bad-1.0', Flags),
+  Flags == [bar].
+
+test(binpkg_runtime_flags_verbatim_shape,
+     [setup(binpkgtest:runtime_fixture(_)),
+      cleanup(binpkgtest:runtime_cleanup)]) :-
+  binpkg_exec:entry_runtime_flags(binpkg, 'app-misc/foo-1.0-1', Flags),
+  Flags == [bar, baz].
+
+test(shared_runtime_flags, [setup(binpkgtest:runtime_fixture(_)),
+                            cleanup(binpkgtest:runtime_cleanup)]) :-
+  binpkg_exec:runtime_flags(testsrc, 'app-misc/foo-1.0',
+                            'app-misc/foo-1.0-1', Flags),
+  Flags == [bar, baz].
+
+test(adjust_takes_config_values) :-
+  binpkg_exec:adjust_runtime_use([baz], [bar], [bar, baz], absent, Eff),
+  sort(Eff, Sorted),
+  Sorted == [bar].
+
+test(adjust_keeps_non_runtime_flags) :-
+  binpkg_exec:adjust_runtime_use([baz, regular], [bar], [bar, baz],
+                                 absent, Eff),
+  sort(Eff, Sorted),
+  Sorted == [bar, regular].
+
+test(adjust_no_change_when_config_matches) :-
+  binpkg_exec:adjust_runtime_use([baz], [baz], [bar, baz], absent, Eff),
+  Eff == [baz].
+
+test(adjust_required_use_violation_keeps_built) :-
+  ReqUse = terms([at_most_one_of_group([required(bar), required(baz)])]),
+  binpkg_exec:adjust_runtime_use([baz], [bar, baz], [bar, baz],
+                                 ReqUse, Eff),
+  Eff == [baz].
+
+test(adjust_required_use_satisfied_takes_config) :-
+  ReqUse = terms([at_most_one_of_group([required(bar), required(baz)])]),
+  binpkg_exec:adjust_runtime_use([baz], [bar], [bar, baz], ReqUse, Eff),
+  sort(Eff, Sorted),
+  Sorted == [bar].
+
+test(adjust_invalid_required_use_keeps_built) :-
+  binpkg_exec:adjust_runtime_use([baz], [bar], [bar, baz], invalid, Eff),
+  Eff == [baz].
+
+test(required_use_conditional_group) :-
+  Terms = [use_conditional_group(positive, bar, _://_,
+                                 [required(baz)])],
+  binpkg_exec:required_use_holds(Terms, []),
+  binpkg_exec:required_use_holds(Terms, [bar, baz]),
+  \+ binpkg_exec:required_use_holds(Terms, [bar]).
+
+test(required_use_exactly_one) :-
+  Terms = [exactly_one_of_group([required(bar), required(baz)])],
+  binpkg_exec:required_use_holds(Terms, [bar]),
+  \+ binpkg_exec:required_use_holds(Terms, []),
+  \+ binpkg_exec:required_use_holds(Terms, [bar, baz]).
+
+:- end_tests(binpkg_iuse_runtime).
+
+
+% -----------------------------------------------------------------------------
 %  Test fixtures
 % -----------------------------------------------------------------------------
+
+%! binpkgtest:runtime_fixture(-State) is det.
+%
+% Cache facts for the GLEP 62 tests: a source entry (parsed-row
+% shape) and a binpkg entry (verbatim-atom shape), both declaring
+% IUSE "bar baz regular" with IUSE_RUNTIME "bar baz", plus a source
+% entry whose IUSE_RUNTIME names a flag missing from its IUSE.
+
+binpkgtest:runtime_fixture(state) :-
+  forall(member(F, [bar, baz, regular]),
+         assertz(cache:entry_metadata(testsrc, 'app-misc/foo-1.0', iuse, F))),
+  forall(member(F, [bar, baz]),
+         assertz(cache:entry_metadata(testsrc, 'app-misc/foo-1.0',
+                                      iuse_runtime, F))),
+  assertz(cache:entry_metadata(testsrc, 'app-misc/bad-1.0', iuse, bar)),
+  forall(member(F, [bar, bogus]),
+         assertz(cache:entry_metadata(testsrc, 'app-misc/bad-1.0',
+                                      iuse_runtime, F))),
+  assertz(cache:entry_metadata(binpkg, 'app-misc/foo-1.0-1',
+                               iuse, 'bar baz regular')),
+  assertz(cache:entry_metadata(binpkg, 'app-misc/foo-1.0-1',
+                               iuse_runtime, 'bar baz')),
+  assertz(cache:entry_metadata(binpkg, 'app-misc/foo-1.0-1', use, 'baz')).
+
+
+%! binpkgtest:runtime_cleanup is det.
+%
+% Retract the cache facts asserted by runtime_fixture/1.
+
+binpkgtest:runtime_cleanup :-
+  retractall(cache:entry_metadata(testsrc, 'app-misc/foo-1.0', _, _)),
+  retractall(cache:entry_metadata(testsrc, 'app-misc/bad-1.0', _, _)),
+  retractall(cache:entry_metadata(binpkg, 'app-misc/foo-1.0-1', _, _)).
+
 
 %! binpkgtest:mktemp_dir(-Dir) is det.
 

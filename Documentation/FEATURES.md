@@ -155,6 +155,16 @@ VDB/tree-derived sets mirror Portage `sets.conf` classes — including
 `@security` (GLSA), `@preserved-rebuild`, `@changed-deps`, `@installed`,
 `@live-rebuild`, `@changed-subslot`, and related names — via `sets:expand/2`.
 
+**Runtime-switchable USE flags (GLEP 62).**
+`IUSE_RUNTIME` metadata is parsed from md5-cache, binpkg and VDB
+records. Binary packages are never rejected for a difference in these
+flags alone: the merged binpkg takes their values from the current
+configuration (falling back to its built values when that would
+violate its `REQUIRED_USE`), and preserved runtime-flag conditionals
+in its recorded dependencies are evaluated under those effective
+values. Compressed Manifest files (`Manifest.gz`/`.bz2`/`.xz`/`.lzma`)
+are read transparently per GLEP 61.
+
 **Collision deconfliction.**
 Merge-time file collisions caused by missing blocker atoms are recognised and
 resolved (configurable: off / report / override), letting tinderbox-style runs
