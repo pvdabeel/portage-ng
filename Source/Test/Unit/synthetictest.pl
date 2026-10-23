@@ -448,6 +448,74 @@ test(grouped_bdepend_waits_for_provider_rebuild) :-
   issue73_wave(Plan, Try, WTry),
   WPerl < WXSPK, WXSPK < WTry.
 
+% Grouped alias respects the stated slot: a junit:0 group must not
+% alias onto a planned junit-4 merge of the same CN (the alias index
+% is keyed by category-name). Without the slot check this closed a
+% hard cycle (jmock -> junit:0 group -> junit-4 -> jmock) and left
+% an unreachable assumption, exactly the virtual/libusb:0 vs
+% virtual/libusb:1 shape found tree-wide.
+test(grouped_install_alias_respects_slot,
+     [setup(( assertz(ordering:slot_override('dev-java/junit-0', 0)),
+              assertz(ordering:slot_override('dev-java/junit-4', 4)) )),
+      cleanup(retractall(ordering:slot_override(_, _)))]) :-
+  G0     = grouped_package_dependency(no, 'dev-java', junit,
+               [package_dependency(install, no, 'dev-java', junit, none,
+                                   version_none, [slot(0)], [])]):install,
+  Jmock  = portage://'dev-java/jmock-0':install,
+  JUnit0 = portage://'dev-java/junit-0':install,
+  JUnit4 = portage://'dev-java/junit-4':install,
+  issue73_rules([Jmock-[G0], G0-[JUnit0], JUnit0-[], JUnit4-[Jmock]]),
+  ordering_engine_plan([JUnit4, Jmock], ProofOut, Plan),
+  ordering_engine_unreachables(ProofOut, []),
+  issue73_wave(Plan, JUnit0, W0),
+  issue73_wave(Plan, Jmock, WM),
+  issue73_wave(Plan, JUnit4, W4),
+  W0 < WM, WM < W4.
+
+% Grouped alias skips a group the installed system already
+% satisfies (and that carries no sub-slot pin): the consumer builds
+% against the installed provider, so a planned update of that
+% provider must not gate it — here the update even depends back on
+% the consumer (the glib/gobject-introspection shape, which
+% traditional emerge orders by building against the installed
+% intermediates). The alias would close a hard cycle.
+test(grouped_install_alias_skips_satisfied_group,
+     [setup(assertz(ordering:group_satisfied_override(cat, lib))),
+      cleanup(retractall(ordering:group_satisfied_override(_, _)))]) :-
+  G      = grouped_package_dependency(no, cat, lib,
+               [package_dependency(install, no, cat, lib, greaterequal,
+                                   version([1], '', 4, 0, [], 0, '1'),
+                                   [], [])]):install,
+  App    = portage://'cat/app-0':install,
+  LibNew = portage://'cat/lib-0':update,
+  issue73_rules([App-[G], G-[], LibNew-[App]]),
+  ordering_engine_plan([App, LibNew], ProofOut, Plan),
+  ordering_engine_unreachables(ProofOut, []),
+  issue73_wave(Plan, App, WApp),
+  issue73_wave(Plan, LibNew, WLib),
+  WApp < WLib.
+
+% ...but a sub-slot-pinned (`:=`) group keeps the hard alias even
+% when the installed system satisfies it as stated (the perl case,
+% portage-ng#119): the consumer must still wait for the planned
+% rebuild, so the cycle against the rebuild's own dep on the
+% consumer surfaces as an unreachable assumption.
+test(grouped_install_alias_keeps_subslot_pinned_group,
+     [setup(assertz(ordering:group_satisfied_override(cat, lib))),
+      cleanup(retractall(ordering:group_satisfied_override(_, _)))]) :-
+  G      = grouped_package_dependency(no, cat, lib,
+               [package_dependency(install, no, cat, lib, greaterequal,
+                                   version([1], '', 4, 0, [], 0, '1'),
+                                   [slot(0), equal], [])]):install,
+  App    = portage://'cat/app-0':install,
+  LibNew = portage://'cat/lib-0':update,
+  issue73_rules([App-[G], G-[], LibNew-[App]]),
+  ordering_engine_plan([App, LibNew], ProofOut, Plan),
+  ordering_engine_unreachables(ProofOut, [unreachable(LibNew, App)]),
+  issue73_wave(Plan, LibNew, WLib),
+  issue73_wave(Plan, App, WApp),
+  WLib < WApp.
+
 % Virtual collapse (portage-ng#119): typeprof DEPENDs on the empty
 % virtual/rubygems whose RDEPEND is dev-ruby/rubygems. The virtual's
 % :install body names that provider as a grouped :run head. As a mere

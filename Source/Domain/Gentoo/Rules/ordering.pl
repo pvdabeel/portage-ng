@@ -163,7 +163,10 @@ step_body(H, Body) :-
 %     CN *is* planned, the consumer must wait for that rebuild — otherwise
 %     it co-waves with the provider and configures against the stale
 %     install (perl 5.42→5.44 / Syntax-Keyword-Try before
-%     XS-Parse-Keyword). Assumed grouped deps stay a preference
+%     XS-Parse-Keyword). The alias only fires onto a merge of the
+%     slot the group states, and only when the installed provider
+%     cannot serve as-is (see grouped_install_planned/2). Assumed
+%     grouped deps stay a preference
 %     (portage-ng#95); this clause is the hard edge for the
 %     keep-installed path. Blocker groups never alias: a blocker names
 %     a package that must be *absent*, so `!dev-ml/findlib` in ocaml's
@@ -523,6 +526,25 @@ entry_cn(_Repository, Entry, C, N) :-
 % :install BDEPEND/DEPEND. Fails for assumed wrappers (those stay a
 % preference, portage-ng#95), for :run/:fetchonly, and when no merge
 % of that CN is in the pass-1 proof.
+%
+% The alias is deliberately narrow, in two ways (whole-tree
+% unreachable scan, 602 affected entries):
+%
+%   - slot-aware: the concrete action must carry one of the slots
+%     the group states (`slot(S)` requirements). The index is keyed
+%     by category-name, so without this check a `junit:0` group
+%     aliased onto a planned junit-4 merge (and a `virtual/libusb:0`
+%     group onto the planned `virtual/libusb:1` merge), inventing
+%     hard cycles that no ebuild declares — 101 entries;
+%   - satisfaction-aware: when the installed system already
+%     satisfies the group as stated and no member dep carries a
+%     sub-slot (`:=`, req `equal`) pin, the consumer can build
+%     against the installed provider (the keep-installed case), so
+%     the planned update must not gate it. Traditional emerge
+%     orders the glib/gobject-introspection cycle exactly this
+%     way. Sub-slot-pinned groups keep the hard alias (the perl
+%     case, portage-ng#119), as do groups whose `Deps` are empty
+%     (nothing stated to satisfy — the synthetic #119 shape).
 
 grouped_install_planned(Core, D) :-
   Core = G:install,
@@ -531,7 +553,96 @@ grouped_install_planned(Core, D) :-
   ordering:phase_action(install, A),
   get_assoc(cn(C-N)-A, Idx, Steps),
   member(D, Steps),
-  ordering:step(D).
+  ordering:step(D),
+  ordering:grouped_slot_admits(G, D),
+  ordering:grouped_alias_needed(G, C, N).
+
+
+%! ordering:grouped_deps(+G, -Deps)
+%
+% The package_dependency list carried by a grouped dependency
+% literal (empty for the strength-stripped 3-argument shape when it
+% carries no list).
+
+ordering:grouped_deps(grouped_package_dependency(no, _, _, Deps), Deps) :- !.
+ordering:grouped_deps(grouped_package_dependency(_, _, Deps), Deps) :- !.
+ordering:grouped_deps(_, []).
+
+
+%! ordering:grouped_slot_admits(+G, +D)
+%
+% D's slot is one of the `slot(S)` requirements stated in G's deps.
+% Admits unconditionally when the group states no slot, or when
+% D's slot cannot be determined (KB-free synthetic entries).
+
+ordering:grouped_slot_admits(G, D) :-
+  ordering:grouped_deps(G, Deps),
+  findall(S,
+          ( member(package_dependency(_, _, _, _, _, _, SlotReqs, _), Deps),
+            member(slot(S), SlotReqs)
+          ),
+          Slots),
+  ( Slots == []
+  -> true
+  ;  ordering:entry_slot(D, DSlot)
+  -> memberchk(DSlot, Slots)
+  ;  true
+  ).
+
+
+%! ordering:entry_slot(+Step, -Slot)
+%
+% Slot of a concrete plan step. Prefers the KB query; falls back
+% to the slot_override/2 test hook (KB-free synthetic tests,
+% mirroring world_override/1).
+
+:- dynamic slot_override/2.
+
+ordering:entry_slot(Repository://Entry:_Action, Slot) :-
+  ( ordering:slot_override(Entry, Slot)
+  -> true
+  ;  catch(query:search(slot(Slot), Repository://Entry), _, fail)
+  ).
+
+
+%! ordering:group_satisfied_override(+C, +N)
+%
+% Test hook: synthetic tests assert this to state that the
+% installed system satisfies the group for C/N without a VDB
+% (mirrors world_override/1).
+
+:- dynamic group_satisfied_override/2.
+
+
+%! ordering:group_installed_satisfied(+C, +N, +Deps)
+%
+% The installed system satisfies the group for C/N as stated in
+% Deps (or a test override says so).
+
+ordering:group_installed_satisfied(C, N, Deps) :-
+  ( ordering:group_satisfied_override(C, N)
+  -> true
+  ;  catch(ordering:installed_satisfies(C, N, Deps), _, fail)
+  ).
+
+
+%! ordering:grouped_alias_needed(+G, +C, +N)
+%
+% The hard alias onto a planned merge is only needed when the
+% installed provider cannot serve the consumer as-is: the group
+% states nothing (empty Deps), a member dep is sub-slot pinned
+% (`:=`), or the installed system does not satisfy the group.
+
+ordering:grouped_alias_needed(G, C, N) :-
+  ordering:grouped_deps(G, Deps),
+  ( Deps == []
+  -> true
+  ;  ( member(package_dependency(_, _, _, _, _, _, SlotReqs, _), Deps),
+       memberchk(equal, SlotReqs)
+     )
+  -> true
+  ;  \+ ordering:group_installed_satisfied(C, N, Deps)
+  ).
 
 
 %! ordering:grouped_cn(+G, -C, -N)
