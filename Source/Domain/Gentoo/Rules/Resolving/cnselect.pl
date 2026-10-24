@@ -155,7 +155,16 @@ cnselect:grouped_dep_candidate_satisfies_effective_domain_precomputed(EffectiveD
   \+ version_domain:domain_inconsistent(EffectiveDomain),
   \+ cn_domain_candidate_rejected(C, N, RejectDomain, RepoEntry),
   \+ feedback:version_excluded(C, N, RepoEntry),
-  \+ ghcabi:version_incompatible_with_selected_ghc(C, N, EffectiveDomain, RepoEntry),
+  % The prove-time GHC filter (portage-ng#112) lives in the builder
+  % capability (Exceptions/ghcabi.pl), which only the shell/build
+  % requests load (loader:ensure(build)); the resolver itself runs
+  % in every mode (pretend, server, worker), where the module may
+  % be absent. Treat it as the optional hook it is — skip the
+  % filter when unloaded instead of throwing unknown-procedure
+  % and aborting the prove.
+  \+ ( current_predicate(ghcabi:version_incompatible_with_selected_ghc/4),
+       ghcabi:version_incompatible_with_selected_ghc(C, N, EffectiveDomain, RepoEntry)
+     ),
   version_domain:domain_allows_candidate(EffectiveDomain, RepoEntry),
   !.
 
