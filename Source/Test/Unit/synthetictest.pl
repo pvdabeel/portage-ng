@@ -495,6 +495,66 @@ test(grouped_install_alias_skips_satisfied_group,
   issue73_wave(Plan, LibNew, WLib),
   WApp < WLib.
 
+% A satisfied grouped step is not a hard requirement of its
+% consumer at all (satisfied_group_step/1, the generalisation of
+% the alias guard to grouped steps): glib builds against the
+% installed docutils although the group selected a docutils update
+% that itself depends back on the consumer. Without this the
+% update-selecting chain closed an unreachable cycle; the selected
+% provider remains scheduled (as a preference it lands first when
+% acyclic — next test).
+test(satisfied_group_step_not_hard,
+     [setup(assertz(ordering:group_satisfied_override(cat, lib))),
+      cleanup(retractall(ordering:group_satisfied_override(_, _)))]) :-
+  G      = grouped_package_dependency(no, cat, lib,
+               [package_dependency(install, no, cat, lib, greaterequal,
+                                   version([1], '', 4, 0, [], 0, '1'),
+                                   [], [])]):install,
+  App    = portage://'cat/app-0':install,
+  LibNew = portage://'cat/lib-0':update,
+  issue73_rules([App-[G], G-[LibNew], LibNew-[App]]),
+  ordering_engine_plan([App], ProofOut, Plan),
+  ordering_engine_unreachables(ProofOut, []),
+  issue73_wave(Plan, App, WApp),
+  issue73_wave(Plan, LibNew, WLib),
+  WApp < WLib.
+
+% The satisfied group's selected provider is still preferred
+% earlier: acyclically, the provider lands before its consumer.
+test(satisfied_group_provider_preferred_first,
+     [setup(assertz(ordering:group_satisfied_override(cat, lib))),
+      cleanup(retractall(ordering:group_satisfied_override(_, _)))]) :-
+  G      = grouped_package_dependency(no, cat, lib,
+               [package_dependency(install, no, cat, lib, greaterequal,
+                                   version([1], '', 4, 0, [], 0, '1'),
+                                   [], [])]):install,
+  App    = portage://'cat/app-0':install,
+  LibNew = portage://'cat/lib-0':update,
+  issue73_rules([App-[G], G-[LibNew], LibNew-[]]),
+  ordering_engine_plan([App], ProofOut, Plan),
+  ordering_engine_unreachables(ProofOut, []),
+  issue73_wave(Plan, LibNew, WLib),
+  issue73_wave(Plan, App, WApp),
+  WLib < WApp.
+
+% A sub-slot-pinned (`:=`) grouped step stays hard even when the
+% installed system satisfies it as stated: the cycle against the
+% provider's own dep on the consumer surfaces as an unreachable
+% assumption, exactly as for the alias.
+test(subslot_group_step_stays_hard,
+     [setup(assertz(ordering:group_satisfied_override(cat, lib))),
+      cleanup(retractall(ordering:group_satisfied_override(_, _)))]) :-
+  G      = grouped_package_dependency(no, cat, lib,
+               [package_dependency(install, no, cat, lib, greaterequal,
+                                   version([1], '', 4, 0, [], 0, '1'),
+                                   [slot(0), equal], [])]):install,
+  App    = portage://'cat/app-0':install,
+  LibNew = portage://'cat/lib-0':update,
+  issue73_rules([App-[G], G-[LibNew], LibNew-[App]]),
+  ordering_engine_plan([App], ProofOut, _Plan),
+  ordering_engine_unreachables(ProofOut, Us),
+  Us \== [].
+
 % ...but a sub-slot-pinned (`:=`) group keeps the hard alias even
 % when the installed system satisfies it as stated (the perl case,
 % portage-ng#119): the consumer must still wait for the planned

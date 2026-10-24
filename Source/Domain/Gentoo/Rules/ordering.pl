@@ -157,6 +157,19 @@ step_body(H, Body) :-
 %     deps (`runtime_dep/1`: grouped :run heads, and :fetchonly heads).
 %     A runtime dep does not gate the build; fetching another package's
 %     sources does not gate fetching this one;
+%   - satisfied grouped :install steps are not hard either
+%     (satisfied_group_step/1): when the installed system already
+%     satisfies the group as stated and no member dep is sub-slot
+%     pinned, the installed provider can serve the build — the
+%     keep-installed situation — so a provider update the group
+%     happens to select must not gate the consumer. The selected
+%     provider stays a preference (see prefers0/2), so it still
+%     lands first whenever that closes no cycle. Without this, the
+%     BDEPEND chain of a glib update (docutils/pillow/harfbuzz
+%     updates selected for new Python targets) closed a hard cycle
+%     back through gobject-introspection to glib itself, although
+%     traditional emerge builds glib against the installed
+%     intermediates and floats those updates later;
 %   - grouped BDEPEND/DEPEND alias: a concrete grouped :install is often
 %     *not* the plan step (keep-installed groups have an empty body, so
 %     they are a wave-1 leaf). When a merge-family action for the same
@@ -195,6 +208,7 @@ requires(H, D) :-
   \+ constraint:is_constraint(Core),
   Core \== H,
   \+ ordering:runtime_dep(Core),
+  \+ ordering:satisfied_group_step(Core),
   ordering:step(Core),
   D = Core.
 
@@ -213,6 +227,25 @@ requires(H, D) :-
   Core = grouped_package_dependency(no, _, _, _):run,
   ordering:step(Core),
   D = Core.
+
+
+%! ordering:satisfied_group_step(+Core)
+%
+% Core is a grouped :install step the installed system already
+% satisfies as stated, with no sub-slot (`:=`, req `equal`) pin
+% among its member deps and at least one stated dep: the
+% keep-installed situation, in which the consumer can build
+% against the installed provider (see requires/2). Groups with
+% empty Deps state nothing to satisfy, and sub-slot-pinned groups
+% need the planned rebuild's ABI, so neither is satisfied here.
+% Mirrors the satisfaction guard in grouped_install_planned/2
+% (which uses group_installed_satisfied/3 directly).
+
+ordering:satisfied_group_step(grouped_package_dependency(no, C, N, Deps):install) :-
+  Deps \== [],
+  \+ ( member(package_dependency(_, _, _, _, _, _, SlotReqs, _), Deps),
+       memberchk(equal, SlotReqs) ),
+  ordering:group_installed_satisfied(C, N, Deps).
 
 
 %! ordering:prefers(+H, -D)
@@ -295,7 +328,12 @@ edge(H, D) :- ordering:prefers0(H, D).
 %   - assumed-dep alias (portage-ng#95): a dep that degraded to a domain
 %     assumption (e.g. a REQUIRED_USE conflict on the provider) still
 %     prefers the concretely planned action of the same package earlier,
-%     when another proof path planned that package for the same phase.
+%     when another proof path planned that package for the same phase;
+%   - satisfied groups (satisfied_group_step/1): a grouped :install the
+%     installed system already satisfies is not hard (requires/2), but
+%     its consumer still prefers the group's selected provider steps
+%     earlier, exactly like a runtime group — new files first when
+%     possible, installed files when the update must float later.
 
 prefers0(H, D) :-
   ordering:step_body(H, Body),
@@ -309,6 +347,20 @@ prefers0(H, D) :-
     ordering:runtime_dep(Core),
     D = Core
   ),
+  D \== H,
+  ordering:step(D).
+
+% Satisfied groups: the selected provider steps of a group the
+% installed system already satisfies (not hard, see requires/2).
+prefers0(H, D) :-
+  ordering:step_body(H, Body),
+  member(Literal, Body),
+  prover:canon_literal(Literal, Core, _),
+  ordering:satisfied_group_step(Core),
+  ordering:step_body(Core, GroupBody),
+  member(GroupLiteral, GroupBody),
+  prover:canon_literal(GroupLiteral, D, _),
+  \+ constraint:is_constraint(D),
   D \== H,
   ordering:step(D).
 
