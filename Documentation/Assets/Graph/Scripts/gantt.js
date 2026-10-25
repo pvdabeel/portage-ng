@@ -85,18 +85,23 @@ function dashPath(x1,y1,x2,y2){
    The model (cell geometry in content coordinates, the edge list, the
    critical-path sets) is rebuilt only when the layout can change:
    load, resize, filter/expand/collapse and time-mode changes mark it
-   dirty. A scroll frame then does no layout reads at all (no
-   getBoundingClientRect), only culls the cached edges to the visible
-   viewport and reuses a pool of SVG path nodes — previously every
-   scroll frame destroyed and rebuilt the whole SVG, measuring every
-   cell again. The viewport pinning and clipping are unchanged, so
-   the rendered page is identical. */
+   dirty. The SVG itself is anchored in *content* coordinates over the
+   visible viewport plus one viewport of overscan on every side, so
+   ordinary scrolling moves it natively with the page (compositor
+   scroll, no DOM mutation per scroll frame — Safari otherwise
+   repaints the overlay band by band). Only when the viewport
+   approaches the overscan edge does a scroll frame re-anchor and
+   re-cull the cached edges, reusing a pool of SVG path nodes;
+   previously every scroll frame destroyed and rebuilt the whole
+   SVG, measuring every cell again. Clipping and dash construction
+   are unchanged, so the rendered page is identical. */
 const SVGNS="http://www.w3.org/2000/svg";
 let overlayDirty=true;
 let overlayGeom=new Map();
 let overlayEdges=[];
 let critPathEdges=new Set();
 let svgDefsReady=false;
+let overlayAnchor=null;
 const svgPathPool=[];
 function markOverlayDirty(){overlayDirty=true;}
 function measureOverlayGeometry(){
@@ -167,17 +172,31 @@ function ensureSvgDefs(svg){
   }
   svg.appendChild(defs);svgDefsReady=true;
 }
+function overlayCoversViewport(wr){
+  if(!overlayAnchor)return false;
+  const a=overlayAnchor,vw=wr.clientWidth,vh=wr.clientHeight,
+        sl=wr.scrollLeft,st=wr.scrollTop;
+  return (a.x===0||sl>=a.x+vw/2) && (a.y===0||st>=a.y+vh/2) &&
+         (sl+vw>=wr.scrollWidth-1||sl+vw<=a.x+a.w-vw/2) &&
+         (st+vh>=wr.scrollHeight-1||st+vh<=a.y+a.h-vh/2);
+}
 function renderOverlays(){
   const svg=document.getElementById("dep-svg"),wr=document.getElementById("gantt-wrapper");
   if(!svg||!wr)return;
   const barColor=getComputedStyle(document.documentElement).getPropertyValue("--bar").trim(),
         vw=wr.clientWidth,vh=wr.clientHeight,sl=wr.scrollLeft,st=wr.scrollTop;
-  /* Pin the overlay to the visible scrollport. Edge coordinates are
-     relative to that viewport; scroll redraws them so curves that
-     leave the first screen stay attached to their bars. */
-  svg.style.left=sl+"px";svg.style.top=st+"px";
-  svg.style.width=vw+"px";svg.style.height=vh+"px";
-  svg.setAttribute("width",vw);svg.setAttribute("height",vh);
+  /* Anchor the overlay in content coordinates over the viewport plus
+     one viewport of overscan on every side. It scrolls natively with
+     the content; edge coordinates are relative to the anchor. */
+  const content=document.getElementById(timeMode?"gantt-time":"gantt"),
+        cw=content?content.offsetLeft+content.offsetWidth:wr.scrollWidth,
+        ch=content?content.offsetTop+content.offsetHeight:wr.scrollHeight,
+        ax=Math.max(0,sl-vw),ay=Math.max(0,st-vh),
+        aw=Math.min(sl+vw+vw,cw)-ax,ah=Math.min(st+vh+vh,ch)-ay;
+  overlayAnchor={x:ax,y:ay,w:aw,h:ah};
+  svg.style.left=ax+"px";svg.style.top=ay+"px";
+  svg.style.width=aw+"px";svg.style.height=ah+"px";
+  svg.setAttribute("width",aw);svg.setAttribute("height",ah);
   ensureSvgDefs(svg);
   let used=0;
   for(const e of overlayEdges){
@@ -185,17 +204,17 @@ function renderOverlays(){
     if(!a||!b)continue;
     let x1,y1,x2,y2,d;
     if(e.kind==="bar"){
-      x1=a.r-sl;y1=(a.t+a.h/2)-st;x2=b.l-sl;y2=(b.t+b.h/2)-st;
-      if(Math.max(x1,x2)<-8||Math.min(x1,x2)>vw+8||Math.max(y1,y2)<-8||Math.min(y1,y2)>vh+8)continue;
-      const seg=clipSeg(x1,y1,x2,y2,vw,vh);
+      x1=a.r-ax;y1=(a.t+a.h/2)-ay;x2=b.l-ax;y2=(b.t+b.h/2)-ay;
+      if(Math.max(x1,x2)<-8||Math.min(x1,x2)>aw+8||Math.max(y1,y2)<-8||Math.min(y1,y2)>ah+8)continue;
+      const seg=clipSeg(x1,y1,x2,y2,aw,ah);
       if(!seg)continue;
       /* stroke-dasharray on a long connector stops painting partway.
          Each dash is its own short stroke. */
       d=dashPath(seg[0],seg[1],seg[2],seg[3]);
       if(!d)continue;
     }else{
-      x1=a.r-sl+2;y1=(a.t+a.h/2)-st;x2=b.l-sl-2;y2=(b.t+b.h/2)-st;
-      if(Math.max(x1,x2)<-8||Math.min(x1,x2)>vw+8||Math.max(y1,y2)<-8||Math.min(y1,y2)>vh+8)continue;
+      x1=a.r-ax+2;y1=(a.t+a.h/2)-ay;x2=b.l-ax-2;y2=(b.t+b.h/2)-ay;
+      if(Math.max(x1,x2)<-8||Math.min(x1,x2)>aw+8||Math.max(y1,y2)<-8||Math.min(y1,y2)>ah+8)continue;
       const mx=(x1+x2)/2;
       d=`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
     }
@@ -326,7 +345,9 @@ function toggleUseExpand(){
 let overlayFrame=0;
 function scheduleOverlays(){
   if(overlayFrame)return;
-  overlayFrame=requestAnimationFrame(()=>{overlayFrame=0;drawOverlays();});
+  overlayFrame=requestAnimationFrame(()=>{overlayFrame=0;
+    const wr=document.getElementById("gantt-wrapper");
+    if(overlayDirty||!wr||!overlayCoversViewport(wr))drawOverlays();});
 }
 window.addEventListener("load",drawOverlays);
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{markOverlayDirty();scheduleOverlays();});
