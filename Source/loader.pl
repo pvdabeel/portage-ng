@@ -218,7 +218,8 @@ loader:group(standalone_modules,
 % action needs them. The server mode does not include these groups.
 
 loader:group(builder_modules,
-   [portage('Source/Domain/Gentoo/mirror.pl'),
+   [portage('Source/Pipeline/Builder/phasestats.pl'),
+    portage('Source/Domain/Gentoo/mirror.pl'),
     portage('Source/Domain/Gentoo/Exceptions/fixup.pl'),
     portage('Source/Domain/Gentoo/Exceptions/collision.pl'),
     portage('Source/Domain/Gentoo/Exceptions/ghcabi.pl'),
@@ -241,7 +242,8 @@ loader:group(builder_modules,
     portage('Source/Pipeline/builder.pl')]).
 
 loader:group(graph_modules,
-   [portage('Source/Application/Output/writer.pl'),
+   [portage('Source/Pipeline/Builder/phasestats.pl'),
+    portage('Source/Application/Output/writer.pl'),
     portage('Source/Application/Output/Grapher/navtheme.pl'),
     portage('Source/Application/Output/Grapher/gantt.pl'),
     portage('Source/Application/Output/Grapher/deptree.pl'),

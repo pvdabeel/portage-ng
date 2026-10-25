@@ -473,7 +473,7 @@ gantt:manifest_size(Repo, Entry, Filename, Size) :-
 % Load Knowledge/phase_stats.pl once and drop the per-emit duration cache.
 
 gantt:prepare_durations :-
-    ebuild_exec:load_phase_stats,
+    phasestats:load_phase_stats,
     retractall(gantt:seconds_cache(_, _, _)),
     retractall(gantt:dir_bytes_cache(_, _)),
     gantt:ensure_cn_index.
@@ -488,7 +488,7 @@ gantt:prepare_durations :-
 % concurrent `--graph` worker cannot freeze an empty index.
 
 gantt:ensure_cn_index :-
-    ebuild_exec:load_phase_stats,
+    phasestats:load_phase_stats,
     gantt:cn_index_ready, !.
 gantt:ensure_cn_index :-
     with_mutex(gantt_cn_index,
@@ -505,7 +505,7 @@ gantt:ensure_cn_index :-
 
 gantt:build_cn_index :-
     retractall(gantt:cn_entry(_, _, _)),
-    findall(E, ebuild_exec:phase_seconds(E, _, _), Es0),
+    findall(E, phasestats:phase_seconds(E, _, _), Es0),
     sort(Es0, Es),
     forall(
         (   member(E, Es),
@@ -710,7 +710,7 @@ gantt:directory_bytes(Dir, Bytes) :-
 % Look up a single recorded phase duration. Fails when absent or zero.
 
 gantt:entry_phase_seconds(Entry, Phase, Seconds) :-
-    ebuild_exec:phase_seconds(Entry, Phase, Seconds),
+    phasestats:phase_seconds(Entry, Phase, Seconds),
     Seconds > 0.
 
 
@@ -722,7 +722,7 @@ gantt:entry_phase_seconds(Entry, Phase, Seconds) :-
 gantt:entry_merge_seconds(Entry, Seconds) :-
     findall(S,
             (   gantt:merge_phase(Phase),
-                ebuild_exec:phase_seconds(Entry, Phase, S),
+                phasestats:phase_seconds(Entry, Phase, S),
                 S > 0
             ),
             Ss),

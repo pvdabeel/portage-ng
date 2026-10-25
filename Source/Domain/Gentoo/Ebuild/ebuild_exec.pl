@@ -24,13 +24,9 @@ merge/VDB code.
 
 :- module(ebuild_exec, []).
 
-:- dynamic ebuild_exec:phase_bytes/3.
-:- dynamic ebuild_exec:phase_seconds/3.
-:- dynamic ebuild_exec:phase_stats_loaded/0.
 :- dynamic ebuild_exec:resuming/0.
 
 :- mutex_create(portage_pkg_merge).
-:- mutex_create(phase_stats_io).
 
 
 % =============================================================================
@@ -182,108 +178,70 @@ ebuild_exec:ensure_log_dir :-
 
 
 % =============================================================================
-%  Phase log stats (persisted across builds for progress estimates)
+%  Phase log stats (delegates to phasestats)
 % =============================================================================
+%
+% The store itself lives in phasestats (Source/Pipeline/Builder/
+% phasestats.pl), which the graph capability also loads: the Gantt
+% grapher reads recorded durations without the builder capability
+% ever being loaded. These wrappers keep the historical
+% ebuild_exec entry points working for builder-side callers.
 
 %! ebuild_exec:phase_stats_file(-Path) is det.
+%
+% On-disk location of the persisted phase statistics.
 
 ebuild_exec:phase_stats_file(Path) :-
-  working_directory(Cwd, Cwd),
-  os:compose_path(Cwd, 'Knowledge/phase_stats.pl', Path).
+  phasestats:phase_stats_file(Path).
 
 
 %! ebuild_exec:load_phase_stats is det.
 %
-% Load Knowledge/phase_stats.pl once per process. The loaded flag is
-% asserted only after the file has been read, and the read holds
-% `phase_stats_io`, so a concurrent caller waits for that read or
-% observes a complete table. `--graph full` runs one worker per CPU;
-% publishing the flag first let those workers index an empty table.
+% Load Knowledge/phase_stats.pl once per process (phasestats).
 
 ebuild_exec:load_phase_stats :-
-  ebuild_exec:phase_stats_loaded, !.
-ebuild_exec:load_phase_stats :-
-  with_mutex(phase_stats_io,
-    ( ebuild_exec:phase_stats_loaded -> true
-    ;  ebuild_exec:load_phase_stats_file,
-       assertz(ebuild_exec:phase_stats_loaded)
-    )).
+  phasestats:load_phase_stats.
 
 
 %! ebuild_exec:load_phase_stats_file is det.
 %
-% Read the on-disk phase stats into the dynamic store. A missing file
-% is a completed empty load. A failed read drops the facts it already
-% asserted so the next attempt does not duplicate them.
+% Read the on-disk phase stats into the phasestats store.
 
 ebuild_exec:load_phase_stats_file :-
-  ebuild_exec:phase_stats_file(Path),
-  ( exists_file(Path)
-  -> catch(ebuild_exec:read_phase_stats_file(Path),
-           E,
-           ( retractall(ebuild_exec:phase_bytes(_, _, _)),
-             retractall(ebuild_exec:phase_seconds(_, _, _)),
-             throw(E)))
-  ;  true
-  ).
+  phasestats:load_phase_stats_file.
 
 
-%! ebuild_exec:read_phase_stats_file(+Path) is det.
+%! ebuild_exec:phase_bytes(+Entry, +Phase, -Bytes) is nondet.
 %
-% Open Path and assert every phase_bytes/3 and phase_seconds/3 term.
+% Recorded log byte count for a phase (phasestats store).
 
-ebuild_exec:read_phase_stats_file(Path) :-
-  setup_call_cleanup(
-    open(Path, read, S),
-    ebuild_exec:read_phase_stats(S),
-    close(S)).
+ebuild_exec:phase_bytes(Entry, Phase, Bytes) :-
+  phasestats:phase_bytes(Entry, Phase, Bytes).
 
 
-ebuild_exec:read_phase_stats(S) :-
-  read_term(S, Term, []),
-  ( Term == end_of_file -> true
-  ;  ( Term = phase_bytes(Entry, Phase, Bytes)
-     -> assertz(ebuild_exec:phase_bytes(Entry, Phase, Bytes))
-     ;  Term = phase_seconds(Entry, Phase, Secs)
-     -> assertz(ebuild_exec:phase_seconds(Entry, Phase, Secs))
-     ;  true
-     ),
-     ebuild_exec:read_phase_stats(S)
-  ).
+%! ebuild_exec:phase_seconds(+Entry, +Phase, -Seconds) is nondet.
+%
+% Recorded wall-clock seconds for a phase (phasestats store).
+
+ebuild_exec:phase_seconds(Entry, Phase, Seconds) :-
+  phasestats:phase_seconds(Entry, Phase, Seconds).
 
 
 %! ebuild_exec:save_phase_stats is det.
 %
-% Writes all phase_bytes/3 and phase_seconds/3 facts to disk.
+% Writes all phasestats facts to disk.
 
 ebuild_exec:save_phase_stats :-
-  with_mutex(phase_stats_io,
-    ( ebuild_exec:phase_stats_file(Path),
-      setup_call_cleanup(
-        open(Path, write, S),
-        ( forall(
-            ebuild_exec:phase_bytes(Entry, Phase, Bytes),
-            format(S, 'phase_bytes(~q, ~q, ~d).~n', [Entry, Phase, Bytes])
-          ),
-          forall(
-            ebuild_exec:phase_seconds(Entry, Phase, Secs),
-            format(S, 'phase_seconds(~q, ~q, ~f).~n', [Entry, Phase, Secs])
-          )
-        ),
-        close(S))
-    )).
+  phasestats:save_phase_stats.
 
 
 %! ebuild_exec:record_phase_stats(+Entry, +Phase, +Bytes, +Seconds) is det.
 %
 % Record (or update) both log byte count and wall-clock seconds
-% for a completed phase.
+% for a completed phase (phasestats store).
 
 ebuild_exec:record_phase_stats(Entry, Phase, Bytes, Seconds) :-
-  retractall(ebuild_exec:phase_bytes(Entry, Phase, _)),
-  retractall(ebuild_exec:phase_seconds(Entry, Phase, _)),
-  assertz(ebuild_exec:phase_bytes(Entry, Phase, Bytes)),
-  assertz(ebuild_exec:phase_seconds(Entry, Phase, Seconds)).
+  phasestats:record_phase_stats(Entry, Phase, Bytes, Seconds).
 
 
 %! ebuild_exec:expected_phase_stats(+Entry, +Phase, -ExpBytes, -ExpSeconds) is semidet.
@@ -292,10 +250,7 @@ ebuild_exec:record_phase_stats(Entry, Phase, Bytes, Seconds) :-
 % Succeeds only when at least one signal (bytes or seconds) is available.
 
 ebuild_exec:expected_phase_stats(Entry, Phase, ExpBytes, ExpSeconds) :-
-  ( ebuild_exec:phase_bytes(Entry, Phase, ExpBytes) -> true ; ExpBytes = 0 ),
-  ( ebuild_exec:phase_seconds(Entry, Phase, ExpSeconds) -> true ; ExpSeconds = 0.0 ),
-  ( ExpBytes > 0 ; ExpSeconds > 0.0 ),
-  !.
+  phasestats:expected_phase_stats(Entry, Phase, ExpBytes, ExpSeconds).
 
 
 % =============================================================================
