@@ -15,7 +15,7 @@ function toggleDetail(t){
   t.classList.toggle("open");
   const p=t.closest("tr").dataset.pkg;
   document.querySelectorAll(`tr.detail-row[data-parent="${p}"]`).forEach(d=>d.classList.toggle("visible"));
-  setTimeout(drawOverlays,20);
+  setTimeout(()=>{markOverlayDirty();drawOverlays();},20);
 }
 function expandAll(){
   document.querySelectorAll("#gantt tbody tr[data-pkg]:not(.row-hidden)").forEach(r=>{
@@ -23,12 +23,12 @@ function expandAll(){
     const p=r.dataset.pkg;
     document.querySelectorAll(`tr.detail-row[data-parent="${p}"]`).forEach(d=>d.classList.add("visible"));
   });
-  setTimeout(drawOverlays,20);
+  setTimeout(()=>{markOverlayDirty();drawOverlays();},20);
 }
 function collapseAll(){
   document.querySelectorAll(".toggle.open").forEach(t=>t.classList.remove("open"));
   document.querySelectorAll("tr.detail-row.visible").forEach(d=>d.classList.remove("visible"));
-  setTimeout(drawOverlays,20);
+  setTimeout(()=>{markOverlayDirty();drawOverlays();},20);
 }
 function applyFilters(){
   document.querySelectorAll(".cell[data-type]").forEach(c=>c.classList.toggle("hidden",filters[c.dataset.type]===false));
@@ -41,6 +41,7 @@ function applyFilters(){
   });
   syncTimeRows();
   if(timeMode)layoutTimeView();
+  markOverlayDirty();
   drawOverlays();
 }
 function secs(n){const s=parseFloat(n.dataset.seconds);return Number.isFinite(s)?s:1;}
@@ -80,43 +81,41 @@ function dashPath(x1,y1,x2,y2){
     d+=`M${x1+ux*t},${y1+uy*t}L${x1+ux*b},${y1+uy*b}`;t+=step;}
   return d;
 }
-function drawOverlays(){
-  const svg=document.getElementById("dep-svg"),wr=document.getElementById("gantt-wrapper"),
-        wR=wr.getBoundingClientRect(),ns="http://www.w3.org/2000/svg",
-        barColor=getComputedStyle(document.documentElement).getPropertyValue("--bar").trim();
-  /* Pin the overlay to the visible scrollport. Edge coordinates are
-     relative to that viewport; scroll redraws them so curves that
-     leave the first screen stay attached to their bars. */
-  svg.style.left=wr.scrollLeft+"px";svg.style.top=wr.scrollTop+"px";
-  svg.style.width=wr.clientWidth+"px";svg.style.height=wr.clientHeight+"px";
-  svg.setAttribute("width",wr.clientWidth);svg.setAttribute("height",wr.clientHeight);svg.replaceChildren();
-  const defs=document.createElementNS(ns,"defs");
-  for(const[t,c]of Object.entries(depColors)){
-    const m=document.createElementNS(ns,"marker");m.setAttribute("id","arrow-"+t);
-    m.setAttribute("markerWidth","6");m.setAttribute("markerHeight","5");
-    m.setAttribute("refX","6");m.setAttribute("refY","2.5");m.setAttribute("orient","auto");
-    const p=document.createElementNS(ns,"polygon");p.setAttribute("points","0 0,6 2.5,0 5");
-    p.setAttribute("fill",c);m.appendChild(p);defs.appendChild(m);
-  }svg.appendChild(defs);
-  const edges=[];
+/* Overlay rendering is split into a layout model and a scroll render.
+   The model (cell geometry in content coordinates, the edge list, the
+   critical-path sets) is rebuilt only when the layout can change:
+   load, resize, filter/expand/collapse and time-mode changes mark it
+   dirty. A scroll frame then does no layout reads at all (no
+   getBoundingClientRect), only culls the cached edges to the visible
+   viewport and reuses a pool of SVG path nodes — previously every
+   scroll frame destroyed and rebuilt the whole SVG, measuring every
+   cell again. The viewport pinning and clipping are unchanged, so
+   the rendered page is identical. */
+const SVGNS="http://www.w3.org/2000/svg";
+let overlayDirty=true;
+let overlayGeom=new Map();
+let overlayEdges=[];
+let critPathEdges=new Set();
+let svgDefsReady=false;
+const svgPathPool=[];
+function markOverlayDirty(){overlayDirty=true;}
+function measureOverlayGeometry(){
+  const wr=document.getElementById("gantt-wrapper");
+  const wR=wr.getBoundingClientRect(),sl=wr.scrollLeft,st=wr.scrollTop;
+  overlayGeom.clear();
+  document.querySelectorAll("#gantt .cell, #gantt-time .cell").forEach(c=>{
+    const r=c.getBoundingClientRect();
+    overlayGeom.set(c,{l:r.left-wR.left+sl,t:r.top-wR.top+st,
+                       r:r.right-wR.left+sl,b:r.bottom-wR.top+st,h:r.height});
+  });
+}
+function buildOverlayModel(){
+  overlayEdges=[];
+  measureOverlayGeometry();
   visRows().forEach(row=>{
     const f=rowCells(row);
-    for(let i=0;i<f.length-1;i++){
-      const a=f[i].getBoundingClientRect(),b=f[i+1].getBoundingClientRect(),
-            x1=a.right-wR.left,y1=a.top+a.height/2-wR.top,
-            x2=b.left-wR.left,y2=b.top+b.height/2-wR.top,
-            seg=clipSeg(x1,y1,x2,y2,wr.clientWidth,wr.clientHeight),
-            l=document.createElementNS(ns,"path");
-      /* stroke-dasharray on a long connector stops painting partway.
-         Each dash is its own short stroke. */
-      if(seg){
-        const d=dashPath(seg[0],seg[1],seg[2],seg[3]);
-        if(d){l.setAttribute("d",d);
-        l.setAttribute("fill","none");
-        l.setAttribute("stroke",barColor);l.setAttribute("stroke-width","2");
-        l.setAttribute("class","bar-edge");
-        l.dataset.pkg=row.dataset.pkg;svg.appendChild(l);}}
-      edges.push({el:l,from:f[i],to:f[i+1]});}
+    for(let i=0;i<f.length-1;i++)
+      overlayEdges.push({kind:"bar",from:f[i],to:f[i+1],rowPkg:row.dataset.pkg,crit:true});
   });
   deps.forEach(([fid,tid,dt])=>{
     if(!filters[dt])return;
@@ -124,35 +123,20 @@ function drawOverlays(){
     if(!fe||!te||fe.classList.contains("hidden")||te.classList.contains("hidden"))return;
     const fr=rowOf(fe),tr2=rowOf(te);
     if(!fr||!tr2||fr.classList.contains("row-hidden")||tr2.classList.contains("row-hidden"))return;
-    const fR=fe.getBoundingClientRect(),tR=te.getBoundingClientRect(),
-          x1=fR.right-wR.left+2,y1=fR.top+fR.height/2-wR.top,
-          x2=tR.left-wR.left-2,y2=tR.top+tR.height/2-wR.top,
-          mx=(x1+x2)/2,p=document.createElementNS(ns,"path");
-    p.setAttribute("d",`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`);
-    p.setAttribute("stroke",depColors[dt]);p.setAttribute("stroke-width","1.2");
-    p.setAttribute("fill","none");p.setAttribute("marker-end",`url(#arrow-${dt})`);
-    p.setAttribute("opacity","0.7");if(depDash[dt])p.setAttribute("stroke-dasharray",depDash[dt]);
-    p.setAttribute("class","dep-edge");p.dataset.fromPkg=fr.dataset.pkg;p.dataset.toPkg=tr2.dataset.pkg;p.dataset.depType=dt;
-    svg.appendChild(p);
-    if(waveOf(fe)<waveOf(te))edges.push({el:p,from:fe,to:te});
-    else{p.classList.add("back-edge");
-      if(dt==="rdepend")p.setAttribute("stroke-dasharray","4,3");}
+    const fwd=waveOf(fe)<waveOf(te);
+    overlayEdges.push({kind:"dep",from:fe,to:te,dt:dt,fromPkg:fr.dataset.pkg,toPkg:tr2.dataset.pkg,
+                       crit:fwd,back:!fwd});
   });
-  markCritical(edges);
-  if(hoverMode&&hoverPkg)litEdges(hoverPkg);
+  overlayDirty=false;
+  refreshCritical();
 }
-function toggleCritMode(btn){
-  critMode=!critMode;
-  btn.classList.toggle("active",critMode);btn.setAttribute("aria-pressed",critMode);
-  document.getElementById("dep-svg").classList.toggle("crit-mode",critMode);
-  document.getElementById("gantt").classList.toggle("crit-mode",critMode);
-  const tv=document.getElementById("gantt-time");if(tv)tv.classList.toggle("crit-mode",critMode);
-  drawOverlays();
-}
-function markCritical(edges){
+function refreshCritical(){
+  critPathEdges=new Set();
   document.querySelectorAll(".cell.crit").forEach(c=>c.classList.remove("crit"));
   const btn=document.getElementById("crit-mode-btn");
+  if(!btn)return;
   if(!critMode){btn.textContent="Critical path";return;}
+  const edges=overlayEdges.filter(e=>e.crit);
   const len=new Map(),pred=new Map(),nodes=new Set();
   edges.forEach(e=>{nodes.add(e.from);nodes.add(e.to);});
   const order=[...nodes].sort((a,b)=>waveOf(a)-waveOf(b)||stepOf(a)-stepOf(b));
@@ -169,7 +153,90 @@ function markCritical(edges){
   btn.textContent=timed?`Critical path (${fmtDur(total)})`:`Critical path (${Math.round(total)})`;
   if(path.length<2)return;
   path.forEach(c=>c.classList.add("crit"));
-  for(let c=end;;){const e=pred.get(c);if(!e)break;e.el.classList.add("crit");c=e.from;}
+  for(let c=end;;){const e=pred.get(c);if(!e)break;critPathEdges.add(e);c=e.from;}
+}
+function ensureSvgDefs(svg){
+  if(svgDefsReady)return;
+  const defs=document.createElementNS(SVGNS,"defs");
+  for(const[t,c]of Object.entries(depColors)){
+    const m=document.createElementNS(SVGNS,"marker");m.setAttribute("id","arrow-"+t);
+    m.setAttribute("markerWidth","6");m.setAttribute("markerHeight","5");
+    m.setAttribute("refX","6");m.setAttribute("refY","2.5");m.setAttribute("orient","auto");
+    const p=document.createElementNS(SVGNS,"polygon");p.setAttribute("points","0 0,6 2.5,0 5");
+    p.setAttribute("fill",c);m.appendChild(p);defs.appendChild(m);
+  }
+  svg.appendChild(defs);svgDefsReady=true;
+}
+function renderOverlays(){
+  const svg=document.getElementById("dep-svg"),wr=document.getElementById("gantt-wrapper");
+  if(!svg||!wr)return;
+  const barColor=getComputedStyle(document.documentElement).getPropertyValue("--bar").trim(),
+        vw=wr.clientWidth,vh=wr.clientHeight,sl=wr.scrollLeft,st=wr.scrollTop;
+  /* Pin the overlay to the visible scrollport. Edge coordinates are
+     relative to that viewport; scroll redraws them so curves that
+     leave the first screen stay attached to their bars. */
+  svg.style.left=sl+"px";svg.style.top=st+"px";
+  svg.style.width=vw+"px";svg.style.height=vh+"px";
+  svg.setAttribute("width",vw);svg.setAttribute("height",vh);
+  ensureSvgDefs(svg);
+  let used=0;
+  for(const e of overlayEdges){
+    const a=overlayGeom.get(e.from),b=overlayGeom.get(e.to);
+    if(!a||!b)continue;
+    let x1,y1,x2,y2,d;
+    if(e.kind==="bar"){
+      x1=a.r-sl;y1=(a.t+a.h/2)-st;x2=b.l-sl;y2=(b.t+b.h/2)-st;
+      if(Math.max(x1,x2)<-8||Math.min(x1,x2)>vw+8||Math.max(y1,y2)<-8||Math.min(y1,y2)>vh+8)continue;
+      const seg=clipSeg(x1,y1,x2,y2,vw,vh);
+      if(!seg)continue;
+      /* stroke-dasharray on a long connector stops painting partway.
+         Each dash is its own short stroke. */
+      d=dashPath(seg[0],seg[1],seg[2],seg[3]);
+      if(!d)continue;
+    }else{
+      x1=a.r-sl+2;y1=(a.t+a.h/2)-st;x2=b.l-sl-2;y2=(b.t+b.h/2)-st;
+      if(Math.max(x1,x2)<-8||Math.min(x1,x2)>vw+8||Math.max(y1,y2)<-8||Math.min(y1,y2)>vh+8)continue;
+      const mx=(x1+x2)/2;
+      d=`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
+    }
+    let p=svgPathPool[used];
+    if(!p){p=document.createElementNS(SVGNS,"path");svgPathPool.push(p);svg.appendChild(p);}
+    used++;
+    p.setAttribute("d",d);
+    p.setAttribute("fill","none");
+    p.removeAttribute("marker-end");p.removeAttribute("stroke-dasharray");p.removeAttribute("opacity");
+    let cls;
+    if(e.kind==="bar"){
+      p.setAttribute("stroke",barColor);p.setAttribute("stroke-width","2");
+      cls="bar-edge";p.dataset.pkg=e.rowPkg;delete p.dataset.fromPkg;delete p.dataset.toPkg;delete p.dataset.depType;
+    }else{
+      p.setAttribute("stroke",depColors[e.dt]);p.setAttribute("stroke-width","1.2");
+      p.setAttribute("marker-end",`url(#arrow-${e.dt})`);
+      p.setAttribute("opacity","0.7");
+      const dash=e.back&&e.dt==="rdepend"?"4,3":depDash[e.dt];
+      if(dash)p.setAttribute("stroke-dasharray",dash);
+      cls="dep-edge"+(e.back?" back-edge":"");
+      delete p.dataset.pkg;p.dataset.fromPkg=e.fromPkg;p.dataset.toPkg=e.toPkg;p.dataset.depType=e.dt;
+    }
+    if(critPathEdges.has(e))cls+=" crit";
+    if(hoverMode&&hoverPkg&&(e.rowPkg===hoverPkg||e.fromPkg===hoverPkg||e.toPkg===hoverPkg))cls+=" lit";
+    p.setAttribute("class",cls);
+  }
+  while(svgPathPool.length>used){const p=svgPathPool.pop();p.remove();}
+  if(hoverMode&&hoverPkg)litEdges(hoverPkg);
+}
+function drawOverlays(){
+  if(overlayDirty)buildOverlayModel();
+  renderOverlays();
+}
+function toggleCritMode(btn){
+  critMode=!critMode;
+  btn.classList.toggle("active",critMode);btn.setAttribute("aria-pressed",critMode);
+  document.getElementById("dep-svg").classList.toggle("crit-mode",critMode);
+  document.getElementById("gantt").classList.toggle("crit-mode",critMode);
+  const tv=document.getElementById("gantt-time");if(tv)tv.classList.toggle("crit-mode",critMode);
+  if(!overlayDirty)refreshCritical();
+  drawOverlays();
 }
 function toggleHoverMode(btn){
   hoverMode=!hoverMode;
@@ -203,6 +270,7 @@ function toggleTimeMode(btn){
   btn.classList.toggle("active",timeMode);btn.setAttribute("aria-pressed",timeMode);
   document.getElementById("gantt-wrapper").classList.toggle("time-mode",timeMode);
   if(timeMode)layoutTimeView();
+  markOverlayDirty();
   drawOverlays();
 }
 function ensureTimeView(){
@@ -261,5 +329,6 @@ function scheduleOverlays(){
   overlayFrame=requestAnimationFrame(()=>{overlayFrame=0;drawOverlays();});
 }
 window.addEventListener("load",drawOverlays);
-window.addEventListener("resize",scheduleOverlays);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{markOverlayDirty();scheduleOverlays();});
+window.addEventListener("resize",()=>{markOverlayDirty();scheduleOverlays();});
 document.getElementById("gantt-wrapper").addEventListener("scroll",scheduleOverlays);
