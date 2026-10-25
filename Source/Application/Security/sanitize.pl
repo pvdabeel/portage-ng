@@ -449,12 +449,34 @@ sanitize:safe_keyword(Keyword) :-
 %
 % True when Atom is an exact-version package atom token of the form
 % `=category/name-version` with no whitespace or line breaks (the
-% shape builder:atom_for_entry/3 persists to package.* files).
+% shape sanitize:atom_for_entry/3 persists to package.* files).
 
 sanitize:safe_atom_token(Atom) :-
   atom(Atom),
   atom_string(Atom, S),
   re_match("^=[A-Za-z0-9._\\-]+/[A-Za-z0-9_+@.\\-]+$", S).
+
+
+%! sanitize:atom_for_entry(+Repo, +Entry, -Atom) is semidet.
+%
+% Build an exact-version Portage atom (=cat/name-version) from a
+% repo entry. Fails when the entry can't be resolved. Lives here
+% (loaded in every mode) rather than in the builder: the plan
+% printer's suggestion lines print these atoms in pretend mode,
+% where the builder capability is not loaded.
+%
+% Version comes back from cache:ordered_entry/5 as a `version/7`
+% compound term whose 7th argument is the canonical version string;
+% see Source/Domain/Gentoo/version.pl. We extract that here.
+
+sanitize:atom_for_entry(Repo, Entry, Atom) :-
+  cache:ordered_entry(Repo, Entry, Cat, Name, Version),
+  sanitize:safe_portage_category(Cat),
+  sanitize:safe_portage_name(Name),
+  version_domain:display_atom(Version, VAtom),
+  VAtom \== '',
+  atomic_list_concat(['=', Cat, '/', Name, '-', VAtom], Atom),
+  sanitize:safe_atom_token(Atom).
 
 
 %! sanitize:safe_config_line(+Line) is semidet.
