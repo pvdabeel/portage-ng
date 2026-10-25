@@ -88,13 +88,19 @@ function dashPath(x1,y1,x2,y2){
    dirty. The SVG itself is anchored in *content* coordinates over the
    visible viewport plus one viewport of overscan on every side, so
    ordinary scrolling moves it natively with the page (compositor
-   scroll, no DOM mutation per scroll frame — Safari otherwise
-   repaints the overlay band by band). Only when the viewport
+   scroll, no DOM mutation per scroll frame). Only when the viewport
    approaches the overscan edge does a scroll frame re-anchor and
-   re-cull the cached edges, reusing a pool of SVG path nodes;
-   previously every scroll frame destroyed and rebuilt the whole
-   SVG, measuring every cell again. Clipping and dash construction
-   are unchanged, so the rendered page is identical. */
+   re-cull the cached edges, reusing a pool of SVG path nodes.
+   Clipping and dash construction are unchanged, so a settled frame is
+   the live SVG on every browser.
+   Safari still repaints those antialiased strokes for every newly
+   exposed tile, which shows up as row-by-row redraws. While a scroll
+   gesture is in progress there, the live SVG is taken out of painting
+   and a retina bitmap of the same edges (the whole chart, when that
+   fits in one image) scrolls in its place. The bitmap is not rebuilt
+   during the gesture. When the gesture settles the bitmap is hidden
+   and the live SVG is shown again, so hover, critical-path and filter
+   styling stay on the SVG and a still frame matches Chrome. */
 const SVGNS="http://www.w3.org/2000/svg";
 let overlayDirty=true;
 let overlayGeom=new Map();
@@ -102,8 +108,24 @@ let overlayEdges=[];
 let critPathEdges=new Set();
 let svgDefsReady=false;
 let overlayAnchor=null;
+let overlayEpoch=0;
 const svgPathPool=[];
-function markOverlayDirty(){overlayDirty=true;}
+/* Desktop Safari only. Chrome's UA also contains "Safari/". */
+const overlayBitmapScroll=/Safari\//.test(navigator.userAgent)
+  && !/Chrome\/|Chromium\/|CriOS\/|Edg\/|Android/.test(navigator.userAgent);
+let overlayHeld=false;
+let overlayHoldTimer=0;
+let overlayRestTop=0;
+let overlayRestLeft=0;
+let overlayBitmapKey="";
+let overlayBitmapToken=0;
+let overlayBitmapBusy=false;
+let overlayBitmapPending=false;
+let overlayBitmapTimer=0;
+function markOverlayDirty(){
+  overlayDirty=true;overlayEpoch++;
+  overlayBitmapKey="";overlayBitmapToken++;overlayBitmapPending=true;
+}
 function measureOverlayGeometry(){
   const wr=document.getElementById("gantt-wrapper");
   const wR=wr.getBoundingClientRect(),sl=wr.scrollLeft,st=wr.scrollTop;
@@ -160,8 +182,7 @@ function refreshCritical(){
   path.forEach(c=>c.classList.add("crit"));
   for(let c=end;;){const e=pred.get(c);if(!e)break;critPathEdges.add(e);c=e.from;}
 }
-function ensureSvgDefs(svg){
-  if(svgDefsReady)return;
+function makeArrowDefs(){
   const defs=document.createElementNS(SVGNS,"defs");
   for(const[t,c]of Object.entries(depColors)){
     const m=document.createElementNS(SVGNS,"marker");m.setAttribute("id","arrow-"+t);
@@ -170,34 +191,14 @@ function ensureSvgDefs(svg){
     const p=document.createElementNS(SVGNS,"polygon");p.setAttribute("points","0 0,6 2.5,0 5");
     p.setAttribute("fill",c);m.appendChild(p);defs.appendChild(m);
   }
-  svg.appendChild(defs);svgDefsReady=true;
+  return defs;
 }
-function overlayCoversViewport(wr){
-  if(!overlayAnchor)return false;
-  const a=overlayAnchor,vw=wr.clientWidth,vh=wr.clientHeight,
-        sl=wr.scrollLeft,st=wr.scrollTop;
-  return (a.x===0||sl>=a.x+vw/2) && (a.y===0||st>=a.y+vh/2) &&
-         (sl+vw>=wr.scrollWidth-1||sl+vw<=a.x+a.w-vw/2) &&
-         (st+vh>=wr.scrollHeight-1||st+vh<=a.y+a.h-vh/2);
+function ensureSvgDefs(svg){
+  if(svgDefsReady)return;
+  svg.appendChild(makeArrowDefs());svgDefsReady=true;
 }
-function renderOverlays(){
-  const svg=document.getElementById("dep-svg"),wr=document.getElementById("gantt-wrapper");
-  if(!svg||!wr)return;
-  const barColor=getComputedStyle(document.documentElement).getPropertyValue("--bar").trim(),
-        vw=wr.clientWidth,vh=wr.clientHeight,sl=wr.scrollLeft,st=wr.scrollTop;
-  /* Anchor the overlay in content coordinates over the viewport plus
-     one viewport of overscan on every side. It scrolls natively with
-     the content; edge coordinates are relative to the anchor. */
-  const content=document.getElementById(timeMode?"gantt-time":"gantt"),
-        cw=content?content.offsetLeft+content.offsetWidth:wr.scrollWidth,
-        ch=content?content.offsetTop+content.offsetHeight:wr.scrollHeight,
-        ax=Math.max(0,sl-vw),ay=Math.max(0,st-vh),
-        aw=Math.min(sl+vw+vw,cw)-ax,ah=Math.min(st+vh+vh,ch)-ay;
-  overlayAnchor={x:ax,y:ay,w:aw,h:ah};
-  svg.style.left=ax+"px";svg.style.top=ay+"px";
-  svg.style.width=aw+"px";svg.style.height=ah+"px";
-  svg.setAttribute("width",aw);svg.setAttribute("height",ah);
-  ensureSvgDefs(svg);
+function paintOverlayEdges(svg,ax,ay,aw,ah,usePool){
+  const barColor=getComputedStyle(document.documentElement).getPropertyValue("--bar").trim();
   let used=0;
   for(const e of overlayEdges){
     const a=overlayGeom.get(e.from),b=overlayGeom.get(e.to);
@@ -218,8 +219,11 @@ function renderOverlays(){
       const mx=(x1+x2)/2;
       d=`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
     }
-    let p=svgPathPool[used];
-    if(!p){p=document.createElementNS(SVGNS,"path");svgPathPool.push(p);svg.appendChild(p);}
+    let p;
+    if(usePool){
+      p=svgPathPool[used];
+      if(!p){p=document.createElementNS(SVGNS,"path");svgPathPool.push(p);svg.appendChild(p);}
+    }else{p=document.createElementNS(SVGNS,"path");svg.appendChild(p);}
     used++;
     p.setAttribute("d",d);
     p.setAttribute("fill","none");
@@ -241,12 +245,178 @@ function renderOverlays(){
     if(hoverMode&&hoverPkg&&(e.rowPkg===hoverPkg||e.fromPkg===hoverPkg||e.toPkg===hoverPkg))cls+=" lit";
     p.setAttribute("class",cls);
   }
-  while(svgPathPool.length>used){const p=svgPathPool.pop();p.remove();}
+  if(usePool)while(svgPathPool.length>used){const p=svgPathPool.pop();p.remove();}
+}
+function overlayCoversViewport(wr){
+  if(!overlayAnchor)return false;
+  const a=overlayAnchor,vw=wr.clientWidth,vh=wr.clientHeight,
+        sl=wr.scrollLeft,st=wr.scrollTop;
+  return (a.x===0||sl>=a.x+vw/2) && (a.y===0||st>=a.y+vh/2) &&
+         (sl+vw>=wr.scrollWidth-1||sl+vw<=a.x+a.w-vw/2) &&
+         (st+vh>=wr.scrollHeight-1||st+vh<=a.y+a.h-vh/2);
+}
+function renderOverlays(){
+  const svg=document.getElementById("dep-svg"),wr=document.getElementById("gantt-wrapper");
+  if(!svg||!wr)return;
+  const vw=wr.clientWidth,vh=wr.clientHeight,sl=wr.scrollLeft,st=wr.scrollTop;
+  /* Anchor the overlay in content coordinates over the viewport plus
+     one viewport of overscan on every side. It scrolls natively with
+     the content; edge coordinates are relative to the anchor. */
+  const content=document.getElementById(timeMode?"gantt-time":"gantt"),
+        cw=content?content.offsetLeft+content.offsetWidth:wr.scrollWidth,
+        ch=content?content.offsetTop+content.offsetHeight:wr.scrollHeight,
+        ax=Math.max(0,sl-vw),ay=Math.max(0,st-vh),
+        aw=Math.min(sl+vw+vw,cw)-ax,ah=Math.min(st+vh+vh,ch)-ay;
+  overlayAnchor={x:ax,y:ay,w:aw,h:ah};
+  svg.style.left=ax+"px";svg.style.top=ay+"px";
+  svg.style.width=aw+"px";svg.style.height=ah+"px";
+  svg.setAttribute("width",aw);svg.setAttribute("height",ah);
+  ensureSvgDefs(svg);
+  paintOverlayEdges(svg,ax,ay,aw,ah,true);
   if(hoverMode&&hoverPkg)litEdges(hoverPkg);
+}
+/* A standalone SVG image does not see the page stylesheet, so hover and
+   critical-path styling has to be written onto the clone as attributes. */
+function bakeOverlayLook(clone){
+  if(!critMode&&!hoverMode)return;
+  const accent=getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+  clone.querySelectorAll("path").forEach(p=>{
+    const crit=p.classList.contains("crit"),lit=p.classList.contains("lit"),bar=p.classList.contains("bar-edge");
+    if(hoverMode&&!lit&&!(critMode&&crit)){p.setAttribute("visibility","hidden");return;}
+    if(critMode&&crit){
+      p.setAttribute("opacity","1");p.setAttribute("stroke-width",bar?"3":"2.4");
+      if(bar&&accent)p.setAttribute("stroke",accent);
+    }else if(critMode)p.setAttribute("opacity","0.12");
+    else if(lit)p.setAttribute("opacity","1");
+  });
+}
+function overlayBitmapBox(){
+  const wr=document.getElementById("gantt-wrapper");
+  if(!wr)return null;
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const content=document.getElementById(timeMode?"gantt-time":"gantt");
+  const cw=content?content.offsetLeft+content.offsetWidth:wr.scrollWidth;
+  const ch=content?content.offsetTop+content.offsetHeight:wr.scrollHeight;
+  /* One retina image of the whole chart scrolls with no further
+     rasterization. Past the pixel cap, fall back to the live anchor. */
+  if(cw>0&&ch>0&&cw*ch*dpr*dpr<=32e6)return {x:0,y:0,w:cw,h:ch,dpr:dpr};
+  if(!overlayAnchor)return null;
+  const a=overlayAnchor;
+  if(a.w<1||a.h<1||a.w*a.h*dpr*dpr>32e6)return null;
+  return {x:a.x,y:a.y,w:a.w,h:a.h,dpr:dpr};
+}
+function overlayBitmapWantedKey(){
+  const b=overlayBitmapBox();
+  if(!b)return "";
+  return [b.x,b.y,b.w,b.h,hoverMode?1:0,critMode?1:0,hoverPkg||"",overlayEpoch].join(":");
+}
+function ensureOverlayCanvas(){
+  let c=document.getElementById("dep-canvas");
+  if(c)return c;
+  const svg=document.getElementById("dep-svg");
+  c=document.createElement("canvas");
+  c.id="dep-canvas";c.setAttribute("aria-hidden","true");
+  c.style.position="absolute";c.style.pointerEvents="none";c.style.display="none";
+  svg.parentNode.insertBefore(c,svg.nextSibling);
+  return c;
+}
+function buildOverlayBitmap(){
+  if(!overlayBitmapScroll)return;
+  /* A warm that runs before the redraw would bake the previous edges
+     under the new epoch and then look up to date. Wait for the redraw. */
+  if(overlayDirty){overlayBitmapPending=true;return;}
+  const box=overlayBitmapBox();
+  if(!box){
+    overlayBitmapKey="";
+    const stale=document.getElementById("dep-canvas");
+    if(stale)stale.style.display="none";
+    return;
+  }
+  const key=overlayBitmapWantedKey();
+  if(!key||key===overlayBitmapKey)return;
+  if(overlayBitmapBusy){overlayBitmapPending=true;return;}
+  const ax=box.x,ay=box.y,aw=box.w,ah=box.h,dpr=box.dpr;
+  overlayBitmapBusy=true;overlayBitmapPending=false;
+  const token=++overlayBitmapToken;
+  const shot=document.createElementNS(SVGNS,"svg");
+  shot.setAttribute("xmlns",SVGNS);
+  shot.setAttribute("width",String(aw*dpr));
+  shot.setAttribute("height",String(ah*dpr));
+  shot.setAttribute("viewBox","0 0 "+aw+" "+ah);
+  shot.appendChild(makeArrowDefs());
+  paintOverlayEdges(shot,ax,ay,aw,ah,false);
+  bakeOverlayLook(shot);
+  const url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(shot)],{type:"image/svg+xml;charset=utf-8"}));
+  const img=new Image();
+  const finish=function(ok){
+    URL.revokeObjectURL(url);
+    overlayBitmapBusy=false;
+    if(token!==overlayBitmapToken)ok=false;
+    if(ok){
+      const c=ensureOverlayCanvas();
+      c.width=Math.round(aw*dpr);c.height=Math.round(ah*dpr);
+      c.style.left=ax+"px";c.style.top=ay+"px";c.style.width=aw+"px";c.style.height=ah+"px";
+      const ctx=c.getContext("2d");
+      ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,c.width,c.height);ctx.drawImage(img,0,0,c.width,c.height);
+      overlayBitmapKey=key;
+      c.style.display=overlayHeld?"block":"none";
+    }
+    if(overlayBitmapPending){overlayBitmapPending=false;buildOverlayBitmap();}
+  };
+  img.onload=function(){finish(true);};
+  img.onerror=function(){finish(false);};
+  img.src=url;
+}
+function scheduleOverlayBitmap(){
+  if(!overlayBitmapScroll||overlayHeld)return;
+  clearTimeout(overlayBitmapTimer);
+  overlayBitmapTimer=setTimeout(()=>{overlayBitmapTimer=0;if(!overlayHeld)buildOverlayBitmap();},80);
+}
+/* A nudge below this distance keeps the live SVG. Past it, Safari is
+   about to repaint the stroke overlay tile by tile, so the gesture
+   switches to the bitmap until it has been still for a moment. */
+function noteOverlayScroll(){
+  const wr=document.getElementById("gantt-wrapper");
+  if(!wr)return;
+  if(!overlayHeld){
+    if(Math.abs(wr.scrollTop-overlayRestTop)<32&&Math.abs(wr.scrollLeft-overlayRestLeft)<32){
+      clearTimeout(overlayHoldTimer);
+      overlayHoldTimer=setTimeout(()=>{
+        overlayHoldTimer=0;
+        const w=document.getElementById("gantt-wrapper");
+        if(w&&!overlayHeld){overlayRestTop=w.scrollTop;overlayRestLeft=w.scrollLeft;}
+      },160);
+      return;
+    }
+    beginOverlayHold();
+  }
+  clearTimeout(overlayHoldTimer);
+  overlayHoldTimer=setTimeout(releaseOverlayScroll,140);
+}
+function beginOverlayHold(){
+  overlayHeld=true;
+  const readyKey=overlayBitmapKey&&overlayBitmapKey===overlayBitmapWantedKey();
+  const c=document.getElementById("dep-canvas");
+  if(readyKey&&c)c.style.display="block";
+  const svg=document.getElementById("dep-svg");
+  if(svg)svg.style.display="none";
+  if(!readyKey)buildOverlayBitmap();
+}
+function releaseOverlayScroll(){
+  overlayHoldTimer=0;overlayHeld=false;
+  const wr=document.getElementById("gantt-wrapper");
+  const svg=document.getElementById("dep-svg");
+  if(overlayDirty||!wr||!overlayCoversViewport(wr))drawOverlays();
+  if(svg)svg.style.display="";
+  const c=document.getElementById("dep-canvas");
+  if(c)c.style.display="none";
+  if(wr){overlayRestTop=wr.scrollTop;overlayRestLeft=wr.scrollLeft;}
+  scheduleOverlayBitmap();
 }
 function drawOverlays(){
   if(overlayDirty)buildOverlayModel();
   renderOverlays();
+  scheduleOverlayBitmap();
 }
 function toggleCritMode(btn){
   critMode=!critMode;
@@ -269,11 +439,13 @@ function litEdges(p){
   hoverPkg=p;
   document.querySelectorAll("#dep-svg .lit").forEach(e=>e.classList.remove("lit"));
   document.querySelectorAll(".hover-lit").forEach(r=>r.classList.remove("hover-lit"));
-  if(!p)return;
-  document.querySelectorAll(`#dep-svg [data-pkg="${p}"],#dep-svg [data-from-pkg="${p}"],#dep-svg [data-to-pkg="${p}"]`)
-    .forEach(e=>e.classList.add("lit"));
-  document.querySelectorAll(`#gantt tr[data-pkg="${p}"],#gantt-time .gantt-time-row[data-pkg="${p}"]`)
-    .forEach(r=>r.classList.add("hover-lit"));
+  if(p){
+    document.querySelectorAll(`#dep-svg [data-pkg="${p}"],#dep-svg [data-from-pkg="${p}"],#dep-svg [data-to-pkg="${p}"]`)
+      .forEach(e=>e.classList.add("lit"));
+    document.querySelectorAll(`#gantt tr[data-pkg="${p}"],#gantt-time .gantt-time-row[data-pkg="${p}"]`)
+      .forEach(r=>r.classList.add("hover-lit"));
+  }
+  scheduleOverlayBitmap();
 }
 (function(){
   const wr=document.getElementById("gantt-wrapper");if(!wr)return;
@@ -346,10 +518,19 @@ let overlayFrame=0;
 function scheduleOverlays(){
   if(overlayFrame)return;
   overlayFrame=requestAnimationFrame(()=>{overlayFrame=0;
+    /* A matching bitmap is already scrolling. Re-anchoring the live
+       SVG here would rasterize it again, which is the Safari cost. */
+    if(overlayHeld){
+      if(!overlayBitmapKey||overlayBitmapKey!==overlayBitmapWantedKey())buildOverlayBitmap();
+      return;
+    }
     const wr=document.getElementById("gantt-wrapper");
     if(overlayDirty||!wr||!overlayCoversViewport(wr))drawOverlays();});
 }
 window.addEventListener("load",drawOverlays);
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{markOverlayDirty();scheduleOverlays();});
 window.addEventListener("resize",()=>{markOverlayDirty();scheduleOverlays();});
-document.getElementById("gantt-wrapper").addEventListener("scroll",scheduleOverlays);
+document.getElementById("gantt-wrapper").addEventListener("scroll",()=>{
+  if(overlayBitmapScroll)noteOverlayScroll();
+  scheduleOverlays();
+});
