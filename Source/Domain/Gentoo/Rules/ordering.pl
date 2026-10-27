@@ -256,12 +256,14 @@ ordering:satisfied_group_step(grouped_package_dependency(no, C, N, Deps):install
 %
 %   - parallelism (default): a preference whose provider depends back on
 %     its consumer — H and D lie in the same mutual-reachability class
-%     over requires ∪ prefers0 — is void. Inside a cycle the runtime
-%     order is free (Portage treats runtime cycles as freely orderable),
-%     so the cycle's members merge side by side instead of one per step;
-%     preferences between classes are always kept. The accepted edge set
-%     is acyclic by construction (an edge on a cycle is, by definition,
-%     inside a class), so the projection never has to arbitrate;
+%     over requires ∪ prefers0 — is void, except for explicit PDEPEND
+%     `order_after` anchors (`ordering:order_after_step/2`), which stay
+%     active so a post-dependency is placed after its parent even when
+%     it RDEPENDs back on that parent (portage-ng#124). Inside a pure
+%     runtime cycle the order is free (Portage treats runtime cycles as
+%     freely orderable), so the cycle's members merge side by side
+%     instead of one per step; preferences between classes are always
+%     kept;
 %   - soft-requirements: every raw preference is handed to the projection,
 %     which honors as many as it can in processing order and drops only
 %     the ones that would close a cycle (orderer:honor_preferences/4).
@@ -273,6 +275,7 @@ ordering:satisfied_group_step(grouped_package_dependency(no, C, N, Deps):install
 prefers(H, D) :-
   ordering:prefers0(H, D),
   ( preference:local_flag(optimize_soft_requirements) -> true
+  ; ordering:order_after_step(H, D) -> true
   ; \+ ordering:same_component(H, D)
   ).
 
@@ -336,12 +339,13 @@ edge(H, D) :- ordering:prefers0(H, D).
 %     possible, installed files when the update must float later.
 
 prefers0(H, D) :-
+  ordering:order_after_step(H, D).
+
+prefers0(H, D) :-
   ordering:step_body(H, Body),
   member(Literal, Body),
   prover:canon_literal(Literal, Core, _),
-  ( Core = constraint(order_after(Anchor0):_) ->
-      prover:canon_literal(Anchor0, D, _)
-  ; Core = constraint(schedule_after(Anchor0):_) ->
+  ( Core = constraint(schedule_after(Anchor0):_) ->
       prover:canon_literal(Anchor0, D, _)
   ; \+ constraint:is_constraint(Core),
     ordering:runtime_dep(Core),
@@ -364,16 +368,23 @@ prefers0(H, D) :-
   D \== H,
   ordering:step(D).
 
-% PDEPEND completion (portage-ng#18/#19).
+% PDEPEND completion (portage-ng#18/#19/#124).
+% Only genuine external consumers H of the anchor package qualify:
+% grouped_package_dependency wrappers, the anchor package itself, and
+% the PDEPEND target package itself are excluded so completion never
+% hoists a post-dependency ahead of its parent.
 prefers0(H, T) :-
+  \+ ordering:is_grouped_dep_step(H),
   ordering:step_body(H, Body),
   member(Literal, Body),
   prover:canon_literal(Literal, Core, _),
   ordering:dep_anchor_key(Core, Key),
   ordering:pdepend_anchor_index(Idx),
-  get_assoc(Key, Idx, Targets),
-  member(T, Targets),
-  T \== H.
+  get_assoc(Key, Idx, Pairs),
+  member(ACore-T, Pairs),
+  T \== H,
+  \+ ordering:same_package_entry(H, ACore),
+  \+ ordering:same_package_entry(H, T).
 
 % Configure closure (portage-ng#21).
 prefers0(Repository://Entry:install, D) :-
@@ -446,6 +457,7 @@ runtime_dep(_://_:fetchonly).
 prepare_pass :-
   nb_setval(portage_ordering_component_idx, none),
   nb_setval(portage_ordering_pdepend_idx, none),
+  nb_setval(portage_ordering_order_after_idx, none),
   nb_setval(portage_ordering_cnaction_idx, none).
 
 
@@ -486,7 +498,7 @@ pdepend_anchor_index(Idx) :-
 
 build_pdepend_anchor_index(Idx) :-
   ordering:proof(Proof),
-  findall(Key-T,
+  findall(Key-(ACore-T),
           ( assoc:gen_assoc(ProofKey, Proof, dep(_, Body)?_),
             ( ProofKey = rule(T) -> true ; ProofKey = assumed(rule(T)) ),
             member(Literal, Body),
@@ -504,14 +516,125 @@ anchor_index_put(Key-T, In, Out) :-
   put_assoc(Key, In, [T|Ts], Out).
 
 
+%! ordering:order_after_step(+H, -D)
+%
+% Step H is ordered after step D via the PDEPEND order_after / after_only
+% channel (portage-ng#124). Covers both direct `constraint(order_after(D))`
+% literals in H's body and merge-family actions (`:install`/`:update`/...)
+% of an entry whose `:run` step carries the PDEPEND anchor (including when
+% `:run` was already proven before the PDEPEND obligation fired, leaving
+% `after_only(D)` on the grouped PDEPEND body literal).
+
+order_after_step(H, D) :-
+  ordering:step_body(H, Body),
+  member(Literal, Body),
+  prover:canon_literal(Literal, constraint(order_after(Anchor0):_), _),
+  prover:canon_literal(Anchor0, D, _),
+  D \== H,
+  ordering:step(D).
+
+order_after_step(Repository://Entry:Action, D) :-
+  ( Action == run ; ordering:merge_action(Action) ),
+  ordering:step(Repository://Entry:Action),
+  ordering:entry_order_after_anchor(Repository, Entry, D),
+  D \== Repository://Entry:Action,
+  ordering:step(D).
+
+
+%! ordering:entry_order_after_anchor(+Repository, +Entry, -Anchor)
+%
+% Entry's `:run` step carries a PDEPEND anchor (either in its own body or
+% via an incoming `after_only/1` context from a PDEPEND group). Read from
+% the per-pass order_after entry index.
+
+entry_order_after_anchor(Repository, Entry, D) :-
+  ordering:order_after_entry_index(Idx),
+  get_assoc(Repository://Entry, Idx, Anchors),
+  member(D, Anchors).
+
+
+%! ordering:order_after_entry_index(-Idx)
+%
+% Per-pass index mapping `Repository://Entry` to the list of canonical
+% anchor steps `D` that its `:run` action is ordered after (either via a
+% `constraint(order_after(D))` body literal or an incoming `after_only(D)`
+% context on a grouped `:run` body literal). Built once per pass on first
+% use and reset by `ordering:prepare_pass/0`.
+
+order_after_entry_index(Idx) :-
+  ( nb_current(portage_ordering_order_after_idx, Idx0), Idx0 \== none ->
+      Idx = Idx0
+  ; ordering:build_order_after_entry_index(Idx),
+    nb_setval(portage_ordering_order_after_idx, Idx)
+  ).
+
+build_order_after_entry_index(Idx) :-
+  ordering:proof(Proof),
+  findall((Repository://Entry)-D,
+          ( assoc:gen_assoc(ProofKey, Proof, dep(_, Body)?_),
+            ( ( ProofKey = rule(Repository://Entry:run)
+              ; ProofKey = assumed(rule(Repository://Entry:run))
+              ),
+              member(Literal, Body),
+              prover:canon_literal(Literal, constraint(order_after(Anchor0):_), _),
+              prover:canon_literal(Anchor0, D, _)
+            ; ( ProofKey = rule(grouped_package_dependency(no, _, _, _):run)
+              ; ProofKey = assumed(rule(grouped_package_dependency(no, _, _, _):run))
+              ),
+              member(Literal, Body),
+              prover:canon_literal(Literal, Repository://Entry:_, Ctx0),
+              ordering:ctx_list(Ctx0, Ctx),
+              memberchk(after_only(Anchor0), Ctx),
+              prover:canon_literal(Anchor0, D, _)
+            )
+          ),
+          Pairs0),
+  sort(Pairs0, Pairs),
+  empty_assoc(I0),
+  foldl(ordering:anchor_index_put, Pairs, I0, Idx).
+
+
+%! ordering:ctx_list(+Ctx0, -Ctx)
+%
+% Unwraps a proof-context term into a plain list.
+
+ctx_list(Ctx, Ctx) :- is_list(Ctx), !.
+ctx_list({Ctx}, Ctx) :- is_list(Ctx), !.
+ctx_list(_, []).
+
+
+%! ordering:is_grouped_dep_step(+Step)
+%
+% True when Step is a grouped_package_dependency head rather than a
+% concrete package action.
+
+is_grouped_dep_step(grouped_package_dependency(_, _, _, _):_).
+is_grouped_dep_step(grouped_package_dependency(_, _, _):_).
+
+
+%! ordering:same_package_entry(+StepA, +StepB)
+%
+% True when StepA and StepB are actions of the same repository entry
+% (or identical bare atoms in synthetic tests).
+
+same_package_entry(Repository://Entry:_, Repository://Entry:_) :- !.
+same_package_entry(Step, Step).
+
+
 %! ordering:dep_anchor_key(+Core, -Key)
 %
 % The provider-identity key a dependency literal resolves to: concrete
 % actions key on their entry, dependency groups on category-name.
-% Blocker groups carry no provider identity.
+% Blocker groups and download/fetchonly actions carry no provider identity.
 
-dep_anchor_key(Repository://Entry:_, entry(Repository://Entry)) :- !.
-dep_anchor_key(grouped_package_dependency(no, C, N, _):_, cn(C-N)) :- !.
+dep_anchor_key(Repository://Entry:Action, entry(Repository://Entry)) :-
+  Action \== download,
+  Action \== fetchonly,
+  !.
+dep_anchor_key(grouped_package_dependency(no, C, N, _):Action, cn(C-N)) :-
+  Action \== download,
+  Action \== fetchonly,
+  !.
 dep_anchor_key(Core, entry(Core)) :-
   atom(Core).
 

@@ -326,3 +326,63 @@ test(write_draft_refuses_traversal, [fail]) :-
   metacircular:write_draft_fixup('../../tmp/evil', 's', 'b').
 
 :- end_tests(metacircular_draft_guard).
+
+
+% -----------------------------------------------------------------------------
+%  Kernel CONFIG_CHECK detector and cascade recording (portage-ng#105/#127)
+% -----------------------------------------------------------------------------
+
+:- begin_tests(kernelconfig_detectors).
+
+test(stock_is_not_set_and_is_required_for,
+     [true(Opts == [config('CONFIG_IIO', y),
+                    config('CONFIG_LEDS_CLASS_MULTICOLOR', y)])]) :-
+  Lines = [
+    " *   CONFIG_IIO:\t is not set when it should be.",
+    " *   CONFIG_LEDS_CLASS_MULTICOLOR: is required for keyboard backlight"
+  ],
+  kernelconfig:detect_options(Lines, Opts, _).
+
+test(nvidia_drm_ttm_helper_maps_to_drm_qxl_and_ignores_prose,
+     [true(Opts == [config('CONFIG_DRM_QXL', m)])]) :-
+  Lines = [
+    " *   CONFIG_DRM_TTM_HELPER: is not set but is needed to compile when using",
+    " * \tkernel version 6.11.x or newer while DRM_FBDEV_EMULATION is set.",
+    " * \tCannot be directly selected in the kernel's config menus, and may need",
+    " * \tselection of a DRM device even if unused, e.g. CONFIG_DRM_QXL=m or",
+    " * \tDRM_AMDGPU=m (among others, consult the kernel config's help), can",
+    " * \talso use DRM_NOUVEAU=m as long as built as module *not* built-in."
+  ],
+  kernelconfig:detect_options(Lines, Opts, _).
+
+test(cascade_records_second_option_for_same_target) :-
+  T = qtest://'x11-drivers/nvidia-drivers-615.78.08',
+  tmp_file(kcstate, TmpDir),
+  ( getenv('PORTAGE_NG_STATE', OldEnv) -> HadEnv = true ; HadEnv = false ),
+  setup_call_cleanup(
+    ( make_directory(TmpDir),
+      atom_concat(TmpDir, '/Knowledge', KDir),
+      make_directory(KDir),
+      setenv('PORTAGE_NG_STATE', TmpDir),
+      retractall(feedback:required_kernel_config(T, _, _)),
+      retractall(feedback:session_kernel_config(T, _, _))
+    ),
+    ( feedback:kernel_config_count(C0),
+      feedback:record_kernel_config(T, [config('CONFIG_DRM_FBDEV_EMULATION', y)], ev1),
+      feedback:kernel_config_count(C1),
+      C1 =:= C0 + 1,
+      feedback:record_kernel_config(T, [config('CONFIG_DRM_QXL', m)], ev2),
+      feedback:kernel_config_count(C2),
+      C2 =:= C1 + 1,
+      feedback:record_kernel_config(T, [config('CONFIG_DRM_QXL', m)], ev3),
+      feedback:kernel_config_count(C3),
+      C3 =:= C2
+    ),
+    ( retractall(feedback:required_kernel_config(T, _, _)),
+      retractall(feedback:session_kernel_config(T, _, _)),
+      ( HadEnv == true -> setenv('PORTAGE_NG_STATE', OldEnv) ; unsetenv('PORTAGE_NG_STATE') ),
+      catch(process_create(path(rm), ['-rf', TmpDir], [process(Pid)]), _, true),
+      ( var(Pid) -> true ; process_wait(Pid, _) )
+    )).
+
+:- end_tests(kernelconfig_detectors).

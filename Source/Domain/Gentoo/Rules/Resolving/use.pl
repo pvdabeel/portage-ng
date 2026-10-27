@@ -2294,8 +2294,10 @@ use:accumulate_candidate_bwu_pv(C, N, HardState, EqState) :-
     use:current_bwu_component(candidate_bwu_eq_, C, N, OldEq),
     ( use:merge_bwu_state(OldHard, HardState, NewHard),
       use:merge_eq_states_under_hard(NewHard, OldEq, EqState, NewEq),
-      use:combine_hard_eq_bwu(NewHard, NewEq, Effective)
+      use:combine_hard_eq_bwu(NewHard, NewEq, Effective0)
     ->
+        use:apply_learned_eq_follow(C, N, Effective0, Effective1),
+        use:apply_learned_bwu_force(C, N, Effective1, Effective),
         use:store_bwu_component(candidate_bwu_hard_, C, N, NewHard),
         use:store_bwu_component(candidate_bwu_eq_, C, N, NewEq),
         use:replace_candidate_bwu(C, N, Effective)

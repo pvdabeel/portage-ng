@@ -104,9 +104,9 @@ candidate:blocker_spec_matches_selected(SelVer, SelSlotMeta, Repo, Entry, O, V, 
   blocker_version_matches(O, V, SelVer, Repo, Entry),
   blocker_slot_matches(SlotReq, SelSlotMeta, Repo, Entry).
 
-% Standard comparison operators use the shared eapi:version_op_match/3 core
-% (note arg order: SelVer is the proposed version, Req the required); any other
-% operator (tilde/wildcard/...) falls back to the query engine.
+% Standard comparison and wildcard operators use the shared eapi:version_op_match/3
+% core (note arg order: SelVer is the proposed version, Req the required); tilde
+% and any other operator fall back to the query engine.
 candidate:blocker_version_matches(Op, Req, SelVer, _Repo, _Entry) :-
   eapi:version_op(Op),
   !,
@@ -713,12 +713,15 @@ candidate:grouped_dep_keep_installed(Action, C, N, PackageDeps1, Context) :-
   ),
   dependency:process_build_with_use(MergedUse, Context, ContextWU, _BWUCons, VdbRepo://InstalledEntry),
   use:context_build_with_use_state(ContextWU, BWUEdge),
-  use:accumulate_candidate_bwu(C, N, BWUEdge),
-  ( memo:candidate_bwu_(C, N, BWUEff) -> true ; BWUEff = BWUEdge ),
   ( C == 'virtual'
   -> true
   ; use:installed_entry_satisfies_build_with_use(VdbRepo://InstalledEntry,
-                                                 [build_with_use:BWUEff])
+                                                 [build_with_use:BWUEdge]),
+    ( memo:candidate_bwu_(C, N, BWUMemo)
+    -> use:installed_entry_satisfies_build_with_use(VdbRepo://InstalledEntry,
+                                                    [build_with_use:BWUMemo])
+    ; true
+    )
   ),
   ( preference:flag(newuse) ->
       \+ use:newuse_mismatch(VdbRepo://InstalledEntry)
@@ -740,6 +743,10 @@ candidate:grouped_dep_keep_installed(Action, C, N, PackageDeps1, Context) :-
   ),
   \+ target:rebuild_if_newer_available(VdbRepo://InstalledEntry),
   \+ target:is_excluded_cn(C, N),
+  ( use:bwu_respects_profile_hard(VdbRepo://InstalledEntry, BWUEdge) ->
+      use:accumulate_candidate_bwu(C, N, BWUEdge)
+  ; true
+  ),
   !.
 
 

@@ -864,6 +864,7 @@ eapi:comparator_symbol(greater,      '>')  :- !.
 eapi:comparator_symbol(smallerequal, '<=') :- !.
 eapi:comparator_symbol(smaller,      '<')  :- !.
 eapi:comparator_symbol(equal,        '=')  :- !.
+eapi:comparator_symbol(wildcard,     '=')  :- !.
 eapi:comparator_symbol(tilde,        '~')  :- !.
 eapi:comparator_symbol(none,         '')   :- !.
 eapi:comparator_symbol(Op,           Op).
@@ -2623,10 +2624,9 @@ eapi:version_full(version(_,_,_,_,_,_,Full), Full).
 
 %! eapi:version_op(?Op) is nondet.
 %
-% The order/equality comparison operators understood by eapi:version_op_match/3:
-% none, equal, notequal, smaller, smallerequal, greater, greaterequal. Excludes
-% tilde and wildcard, which need version structure beyond plain compare/3 and
-% are therefore handled by the callers that support them.
+% The comparison and prefix operators understood by eapi:version_op_match/3:
+% none, equal, notequal, smaller, smallerequal, greater, greaterequal, wildcard.
+% Excludes tilde, which is handled by callers that support it.
 
 eapi:version_op(none).
 eapi:version_op(equal).
@@ -2635,6 +2635,7 @@ eapi:version_op(smaller).
 eapi:version_op(smallerequal).
 eapi:version_op(greater).
 eapi:version_op(greaterequal).
+eapi:version_op(wildcard).
 
 
 %! eapi:version_op_match(+Op, +Proposed, +Required) is semidet.
@@ -2659,6 +2660,8 @@ eapi:version_op_match(greaterequal, Proposed, Required) :-
   ( compare(>, Proposed, Required)
   ; compare(=, Proposed, Required)
   ).
+eapi:version_op_match(wildcard, Proposed, Required) :-
+  eapi:version_glob_match(Required, Proposed).
 
 
 % -----------------------------------------------------------------------------

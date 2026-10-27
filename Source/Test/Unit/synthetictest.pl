@@ -637,6 +637,58 @@ test(blocker_group_does_not_alias_onto_planned_merge) :-
   issue73_wave(Plan, Fl, WFl),
   WOc < WFl.
 
+% PDEPEND cycle break keeps the parent install before the post-dependency
+% install (portage-ng#124): libvirt PDEPENDs on libvirt-python
+% (`order_after(libvirt:install)` on `libvirt-python:run`), and
+% libvirt-python RDEPENDs on libvirt. PDEPEND completion must not treat
+% libvirt itself, its grouped dep, or libvirt-python as external consumers
+% that hoist libvirt-python ahead of libvirt.
+test(pdepend_cycle_keeps_parent_install_before_bindings, [nondet]) :-
+  Ldl  = portage://'app-emulation/libvirt-0':download,
+  Lins = portage://'app-emulation/libvirt-0':install,
+  Lrun = portage://'app-emulation/libvirt-0':run,
+  Glib = grouped_package_dependency(no, 'app-emulation', libvirt, []):run,
+  Pdl  = portage://'dev-python/libvirt-python-0':download,
+  Pins = portage://'dev-python/libvirt-python-0':install,
+  Prun = portage://'dev-python/libvirt-python-0':run,
+  issue73_rules([ Ldl-[],
+                  Lins-[Ldl],
+                  Lrun-[Lins],
+                  Glib-[Lrun],
+                  Pdl-[],
+                  Pins-[Pdl, Glib],
+                  Prun-[constraint(order_after(Lins):{[]}), Pins, Glib] ]),
+  ordering_engine_plan([Lrun, Prun], ProofOut, Plan),
+  ordering_engine_unreachables(ProofOut, []),
+  issue73_wave(Plan, Lins, WLins),
+  issue73_wave(Plan, Pins, WPins),
+  WLins < WPins.
+
+test(pdepend_after_only_context_and_external_consumer, [nondet]) :-
+  Ldl  = portage://'app-emulation/libvirt-0':download,
+  Lins = portage://'app-emulation/libvirt-0':install,
+  Lrun = portage://'app-emulation/libvirt-0':run,
+  Glib = grouped_package_dependency(no, 'app-emulation', libvirt, []):run,
+  Gpdp = grouped_package_dependency(no, 'dev-python', 'libvirt-python', []):run,
+  Pdl  = portage://'dev-python/libvirt-python-0':download,
+  Pins = portage://'dev-python/libvirt-python-0':install,
+  Prun = portage://'dev-python/libvirt-python-0':run,
+  Cons = portage://'app-emulation/virt-viewer-0':install,
+  issue73_rules([ Ldl-[],
+                  Lins-[Ldl],
+                  Lrun-[Lins],
+                  Glib-[Lrun],
+                  Gpdp-[Prun?{[after_only(Lins)]}],
+                  Pdl-[],
+                  Pins-[Pdl, Glib],
+                  Prun-[Pins, Glib],
+                  Cons-[Glib] ]),
+  ordering_engine_plan([Cons, Gpdp], ProofOut, Plan),
+  ordering_engine_unreachables(ProofOut, []),
+  issue73_wave(Plan, Lins, WLins),
+  issue73_wave(Plan, Pins, WPins),
+  WLins < WPins.
+
 :- end_tests(ordering_engine_synthetic).
 
 

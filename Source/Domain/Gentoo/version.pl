@@ -75,7 +75,7 @@ version_domain:domain_from_packagedeps(_Action, C, N, PackageDeps, Domain) :-
 version_domain:collect_slots_and_bounds([], _, _, [], []).
 version_domain:collect_slots_and_bounds([package_dependency(_, no, C, N, Op0, Ver0, SlotReq, _)|Rest], C, N, [SlotReq|SRs], Bounds) :-
   !,
-  ( normalize_bound_op(Op0, OpN),
+  ( dep_bound_op(Op0, OpN),
     OpN \== none,
     normalize_version_term(Ver0, VerN)
   ->
@@ -198,8 +198,8 @@ version_domain:lower_upper_conflict(Bounds) :-
 
 version_domain:strongest_lower(Bounds, Lower) :-
   findall(lower(V, Strict),
-          ( member(bound(Op, V), Bounds),
-            lower_op(Op, Strict)
+          ( member(B, Bounds),
+            bound_lower(B, V, Strict)
           ),
           Ls),
   Ls \== [],
@@ -221,8 +221,8 @@ version_domain:strongest_lower_([lower(V1,S1), lower(V2,S2)|Rest], Out) :-
 
 version_domain:strongest_upper(Bounds, Upper) :-
   findall(upper(V, Strict),
-          ( member(bound(Op, V), Bounds),
-            upper_op(Op, Strict)
+          ( member(B, Bounds),
+            bound_upper(B, V, Strict)
           ),
           Us),
   Us \== [],
@@ -241,6 +241,18 @@ version_domain:strongest_upper_([upper(V1,S1), upper(V2,S2)|Rest], Out) :-
   ; Best = upper(V1, false)
   ),
   strongest_upper_([Best|Rest], Out).
+
+version_domain:bound_lower(bound(Op, V), V, Strict) :-
+  lower_op(Op, Strict),
+  !.
+version_domain:bound_lower(bound(wildcard, V0), LowerVer, false) :-
+  wildcard_lower_bound(V0, LowerVer).
+
+version_domain:bound_upper(bound(Op, V), V, Strict) :-
+  upper_op(Op, Strict),
+  !.
+version_domain:bound_upper(bound(wildcard, V0), UpperVer, true) :-
+  wildcard_upper_sentinel(V0, UpperVer).
 
 version_domain:lower_op(greater, true).
 version_domain:lower_op(greaterequal, false).
@@ -335,22 +347,63 @@ version_domain:display_atom(V, V) :- atomic(V), !.
 version_domain:display_atom(V, A) :- format(atom(A), '~w', [V]).
 
 
+%! version_domain:dep_bound_op(+Op0, -OpN) is det.
+%
+% Per-dep cn_domain constraints stay conservative (upper-bounds and exact
+% equality only): wildcard and tilde ranges are enforced directly at
+% candidate selection time (grouped_dep_verify_candidate /
+% grouped_dep_candidate_satisfies_constraints), and only enter cn_domain
+% when learned on conflict via cnselect:wildcard_upper_bound_domain/4.
+
+version_domain:dep_bound_op(smallerorequal, smallerequal) :- !.
+version_domain:dep_bound_op(smallerequal, smallerequal) :- !.
+version_domain:dep_bound_op(smaller, smaller) :- !.
+version_domain:dep_bound_op(equal, equal) :- !.
+version_domain:dep_bound_op(_Other, none).
+
+
+% Domain bound normalization preserves `wildcard` bounds (learned by
+% cnselect:wildcard_upper_bound_domain/4, portage-ng#126) alongside upper
+% and exact-equality bounds. `bound_lower/3` and `bound_upper/3` give
+% `bound(wildcard, V)` the interval `[prefix_alpha, next_prefix)`, and
+% `candidate_satisfies_bound/2` / `version_constraint_holds/2` enforce
+% `eapi:version_glob_match/2`.
 version_domain:normalize_bound_op(smallerorequal, smallerequal) :- !.
 version_domain:normalize_bound_op(smallerequal, smallerequal) :- !.
 version_domain:normalize_bound_op(smaller, smaller) :- !.
-% Keep domain narrowing conservative:
-% - include upper-bounds and exact-equality bounds;
-% - still avoid lower-bounds, which were a major source of broad search blowups.
-% Wildcard and tilde ops map to none: their version ranges are enforced
-% at candidate selection time (grouped_dep_find_candidate), not via
-% cn_domain constraints.  Generating domain constraints for wildcards
-% caused cross-package conflicts (e.g. =pkg-0.25* vs =pkg-0.26* from
-% different parents) to produce unresolvable domain assumptions instead
-% of being handled by the selected_cn reprove mechanism.
 version_domain:normalize_bound_op(equal, equal) :- !.
-version_domain:normalize_bound_op(wildcard, none) :- !.
+version_domain:normalize_bound_op(wildcard, wildcard) :- !.
 version_domain:normalize_bound_op(tilde, none) :- !.
 version_domain:normalize_bound_op(_Other, none).
+
+
+%! version_domain:wildcard_lower_bound(+Ver, -LowerVer) is semidet.
+%
+% Computes the inclusive lower bound sentinel for a wildcard version
+% constraint. =pkg-6.31* matches [6.31_alpha, 6.32), so the sentinel uses
+% the wildcard prefix's numeric components with SuffixRank 0 and tail
+% [s(0,0)] (which sorts below every real _alpha version with [6,31]).
+% Fails for bare wildcards ('*').
+
+version_domain:wildcard_lower_bound(Ver0, version(Nums, '', 0, 0, [s(0,0)], 0, LowerFull)) :-
+  wildcard_base_nums(Ver0, Nums),
+  Nums \== [],
+  atomic_list_concat(Nums, '.', LowerFull).
+
+
+%! version_domain:wildcard_upper_sentinel(+Ver, -UpperVer) is semidet.
+%
+% Computes the exclusive upper bound sentinel for a wildcard version
+% constraint in `bound_upper/3`. Uses the same rank-0 sentinel shape as
+% `wildcard_lower_bound/2` on the incremented prefix so adjacent
+% wildcards (`6.30*` vs `6.31*`) meet at the exact boundary and are
+% detected as inconsistent by `lower_upper_conflict/1`.
+
+version_domain:wildcard_upper_sentinel(Ver0, version(UpperNums, '', 0, 0, [s(0,0)], 0, UpperFull)) :-
+  wildcard_base_nums(Ver0, Nums),
+  Nums \== [],
+  increment_last(Nums, UpperNums),
+  atomic_list_concat(UpperNums, '.', UpperFull).
 
 
 %! version_domain:wildcard_upper_bound(+Ver, -UpperVer) is semidet.

@@ -483,3 +483,34 @@ test(write_refuses_bad_keyword) :-
     autoconf_rm_rf(Dir)).
 
 :- end_tests(builder_auto_config).
+
+
+% -----------------------------------------------------------------------------
+%  Blocking domain assumption gate (portage-ng#125)
+% -----------------------------------------------------------------------------
+
+:- begin_tests(builder_blocking_assumptions).
+
+test(use_dep_unsat_blocks_build) :-
+  Unsat = grouped_package_dependency('x11-libs', libXau, []):install?{
+            [assumption_reason(unsatisfied_constraints),
+             required_use_violation(use_dep_unsat(portage://'x11-libs/libXau-1.0.12',
+                                                  use_state([abi_x86_32], []),
+                                                  profile_hard_conflict))]},
+  empty_assoc(E),
+  Ann = proof_annotations([], [], [], [], [], E, [], [Unsat]),
+  builder:plan_has_blocking_domain_assumptions(Ann).
+
+test(soft_blocker_alone_does_not_block_build, [fail]) :-
+  Blk = blocker(weak, run, 'media-libs', mesa, none, version_none, []),
+  empty_assoc(E),
+  Ann = proof_annotations([], [], [], [], [], E, [], [Blk]),
+  builder:plan_has_blocking_domain_assumptions(Ann).
+
+test(no_tree_ebuild_orphan_does_not_block_build, [fail]) :-
+  Orphan = (pkg://'dev-libs/orphan-1.0':update)?{[assumption_reason(no_tree_ebuild)]},
+  empty_assoc(E),
+  Ann = proof_annotations([], [], [], [], [], E, [], [Orphan]),
+  builder:plan_has_blocking_domain_assumptions(Ann).
+
+:- end_tests(builder_blocking_assumptions).

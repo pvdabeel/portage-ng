@@ -140,7 +140,8 @@ ranking:seed_bwu_memo_for_cn(C, N, UseReqs) :-
   ( SeedReqs == [] ->
       true
   ; dependency:process_build_with_use(SeedReqs, [], Ctx, _, _),
-    ( use:context_build_with_use_state(Ctx, BWU) ->
+    ( use:context_build_with_use_state(Ctx, BWU),
+      use:bwu_respects_profile_hard(none, BWU) ->
         ranking:seed_accumulate_bwu(C, N, BWU)
     ; true
     )
@@ -247,6 +248,18 @@ ranking:equality_pin_from_usedep(PC, PN, use(inverse(F), _), F, Mode) :-
 % Mode is enable/disable iff provider (PC,PN) has Flag pinned on/off in the
 % BWU memo.  Fails when the flag is unpinned (equality resolves normally).
 
+ranking:provider_pin_mode(PC, PN, F, enable) :-
+  prover:learned(bwu_force(PC, PN), use_state(ForceEn, _)),
+  memberchk(F, ForceEn),
+  !.
+ranking:provider_pin_mode(PC, PN, F, enable) :-
+  prover:learned(eq_follow(PC, PN), use_state(FollowEn, _)),
+  memberchk(F, FollowEn),
+  !.
+ranking:provider_pin_mode(PC, PN, F, disable) :-
+  prover:learned(eq_follow(PC, PN), use_state(_, FollowDis)),
+  memberchk(F, FollowDis),
+  !.
 ranking:provider_pin_mode(PC, PN, F, enable) :-
   memo:candidate_bwu_(PC, PN, use_state(En, _Dis)),
   memberchk(F, En),

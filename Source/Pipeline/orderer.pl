@@ -138,7 +138,20 @@ preference_edges(Steps, Prefs) :-
             ordering:prefers(H, D)
           ),
           Prefs0),
-  sort(Prefs0, Prefs).
+  sort(Prefs0, Prefs1),
+  partition(orderer:is_order_after_edge, Prefs1, OrderAfter, OtherPrefs),
+  append(OrderAfter, OtherPrefs, Prefs).
+
+
+%! orderer:is_order_after_edge(+Edge) is semidet.
+%
+% True when Edge (H-D) is a PDEPEND order_after preference (placed ahead
+% of competing soft preferences so the parent install precedes its
+% post-dependency, portage-ng#124).
+
+is_order_after_edge(H-D) :-
+  ordering:order_after_step(H, D),
+  !.
 
 
 % -----------------------------------------------------------------------------
@@ -220,13 +233,11 @@ waves_of([D|Ds], Edges, WIn, WOut, MaxIn, MaxOut) :-
 %
 % Which preferences reach this fold is the ordering strategy's business
 % (ordering:prefers/2, `--optimize`). Under the default `parallelism`
-% strategy the bindings already withhold every preference that lies on a
-% cycle, so the set handed in is acyclic and the fold is a pure
-% evaluator: the cycle branch below is never taken. Under
-% `soft-requirements` the raw preferences arrive, conflicts (the cyclic
-% case) are resolved here in processing order, and the ones processed
-% later are simply not honored — silently and safely, matching the
-% retired scheduler's :run relaxation but without SCC machinery.
+% strategy the bindings withhold runtime preferences that lie on a cycle
+% while keeping explicit `order_after` PDEPEND anchors (portage-ng#124).
+% Under `soft-requirements` all raw preferences arrive. In both modes any
+% preference that would close a cycle against the hard edges or previously
+% accepted preferences is skipped silently and safely here.
 %
 % Cycle test: accepting H-D is unsafe iff H is reachable from D over the
 % accepted edge set (consumer -> provider direction). Preferences whose

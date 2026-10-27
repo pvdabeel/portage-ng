@@ -118,14 +118,19 @@ fixup:phase_retry_hook(kernelconfig, _EbuildPath, Entry, Phase, LogPath, _UseStr
 
 %! kernelconfig:detect_options(+Lines, -Options, -EvidenceLines) is det.
 %
-% Runs the CONFIG_CHECK detectors over the log lines, deduplicating on the
-% option name: the first CONFIG_CHECK verdict per option wins, so a later
-% line asking for a different state of the same option is ignored.
-% Options is a sorted list of config(Name, State) with State in {y, n}.
+% Runs the CONFIG_CHECK detectors over the log lines, maps non-selectable
+% Kconfig helpers onto a driver option that selects them, and deduplicates
+% on the effective option name: the first CONFIG_CHECK verdict per option
+% wins, so a later line asking for a different state of the same option is
+% ignored. Options is a sorted list of config(Name, State) with State in
+% {y, m, n}.
 
 kernelconfig:detect_options(Lines, Options, EvidenceLines) :-
-  findall(Name-(config(Name, State)-Line),
-          kernelconfig:detector(Lines, config(Name, State), Line),
+  findall(Name-(Opt-Line),
+          ( kernelconfig:detector(Lines, RawOpt, Line),
+            kernelconfig:selectable_option(RawOpt, Opt),
+            Opt = config(Name, _State)
+          ),
           Pairs0),
   fixup:dedup_first(Pairs0, Pairs),
   findall(Opt, member(_-(Opt-_), Pairs), Options0),
@@ -136,45 +141,153 @@ kernelconfig:detect_options(Lines, Options, EvidenceLines) :-
 
 %! kernelconfig:detector(+Lines, -Option, -Line) is nondet.
 %
-% linux-info.eclass emits one line per unsatisfied option:
+% linux-info.eclass emits one verdict line per unsatisfied option, either
+% using its stock sentences or a custom `ERROR_<OPTION>` string that starts
+% with `CONFIG_<NAME>:` (portage-ng#105/#127):
 %   "CONFIG_FOO:\t is not set when it should be."  -> enable  (config(Name,y))
+%   "CONFIG_FOO: is not set ..."                   -> enable  (config(Name,y))
+%   "CONFIG_FOO: is required ..."                  -> enable  (config(Name,y))
 %   "CONFIG_FOO:\t is set when it should not be."  -> disable (config(Name,n))
+%   "CONFIG_FOO:\t should not be set. But it is."  -> disable (config(Name,n))
+%   "CONFIG_FOO: is set but is unsupported ..."    -> disable (config(Name,n))
 
 kernelconfig:detector(Lines, config(Name, y), Line) :-
   member(Line, Lines),
-  sub_string(Line, _, _, _, "is not set when it should be"),
-  kernelconfig:config_token(Line, Name).
+  kernelconfig:config_verdict_line(Line, Name, Rest),
+  \+ kernelconfig:present_verdict_text(Rest),
+  kernelconfig:missing_verdict_text(Rest).
 
 kernelconfig:detector(Lines, config(Name, n), Line) :-
   member(Line, Lines),
-  sub_string(Line, _, _, _, "is set when it should not be"),
-  \+ sub_string(Line, _, _, _, "is not set when it should be"),
-  kernelconfig:config_token(Line, Name).
+  kernelconfig:config_verdict_line(Line, Name, Rest),
+  \+ kernelconfig:missing_verdict_text(Rest),
+  kernelconfig:present_verdict_text(Rest).
+
+
+%! kernelconfig:missing_verdict_text(+Rest) is semidet.
+%
+% True when the text after `CONFIG_<NAME>:` states the option is missing
+% or required.
+
+kernelconfig:missing_verdict_text(Rest) :-
+  sub_string(Rest, _, _, _, "is not set"),
+  !.
+kernelconfig:missing_verdict_text(Rest) :-
+  sub_string(Rest, _, _, _, "is unset"),
+  !.
+kernelconfig:missing_verdict_text(Rest) :-
+  sub_string(Rest, _, _, _, "is required").
+
+
+%! kernelconfig:present_verdict_text(+Rest) is semidet.
+%
+% True when the text after `CONFIG_<NAME>:` states the option is set when
+% it must not be.
+
+kernelconfig:present_verdict_text(Rest) :-
+  sub_string(Rest, _, _, _, "is set when it should not be"),
+  !.
+kernelconfig:present_verdict_text(Rest) :-
+  sub_string(Rest, _, _, _, "should not be set"),
+  !.
+kernelconfig:present_verdict_text(Rest) :-
+  sub_string(Rest, _, _, _, "not be set"),
+  !.
+kernelconfig:present_verdict_text(Rest) :-
+  sub_string(Rest, _, _, _, "be unset"),
+  !.
+kernelconfig:present_verdict_text(Rest) :-
+  sub_string(Rest, _, _, _, "is set but is unsupported").
+
+
+%! kernelconfig:selectable_option(+RawOption, -EffectiveOption) is det.
+%
+% Maps a CONFIG_CHECK option that has no Kconfig menu prompt (and is
+% therefore dropped by `make olddefconfig` when enabled directly) onto a
+% driver option that `select`s it in Kconfig (portage-ng#127).
+%
+% CONFIG_DRM_TTM_HELPER is a hidden tristate helper selected by DRM
+% drivers such as CONFIG_DRM_QXL=m.
+
+kernelconfig:selectable_option(config('CONFIG_DRM_TTM_HELPER', y),
+                               config('CONFIG_DRM_QXL', m)) :- !.
+kernelconfig:selectable_option(Opt, Opt).
+
+
+%! kernelconfig:config_verdict_line(+Line, -Name, -Rest) is semidet.
+%
+% Splits a CONFIG_CHECK verdict line at its first colon into the leading
+% `CONFIG_<NAME>` token (preceded only by optional ANSI colour sequences,
+% eerror `*` bullets, and whitespace) and the verdict text `Rest` after
+% the colon. Continuation lines of a multi-line `ERROR_<OPTION>` message
+% that mention `CONFIG_*` in prose (e.g. "while DRM_FBDEV_EMULATION is
+% set" or "e.g. CONFIG_DRM_QXL=m") do not start with `CONFIG_<NAME>:` and
+% therefore fail here.
+
+kernelconfig:config_verdict_line(Line, Name, Rest) :-
+  sub_string(Line, ColonPos, 1, After, ":"),
+  sub_string(Line, 0, ColonPos, _, Head),
+  sub_string(Line, _, After, 0, Rest),
+  kernelconfig:head_config_token(Head, Name),
+  !.
+
+
+%! kernelconfig:head_config_token(+Head, -Name) is semidet.
+%
+% Extracts `CONFIG_<NAME>` from the text before the colon and checks that
+% anything preceding `CONFIG_` on the line is only eerror prefix noise
+% (whitespace, `*`, or ANSI SGR escape sequences).
+
+kernelconfig:head_config_token(Head, Name) :-
+  sub_string(Head, Before, _, After, "CONFIG_"),
+  sub_string(Head, 0, Before, _, Prefix),
+  kernelconfig:leading_prefix_only(Prefix),
+  TokLen is After + 7,
+  sub_string(Head, Before, TokLen, 0, RawTok),
+  split_string(RawTok, "", " \t", [Tok]),
+  Tok \== "",
+  sub_string(Tok, 0, 7, _, "CONFIG_"),
+  kernelconfig:name_string(Tok),
+  atom_string(Name, Tok),
+  !.
+
+
+%! kernelconfig:leading_prefix_only(+Prefix) is semidet.
+%
+% True when Prefix (ignoring ANSI CSI escape sequences) contains only
+% spaces, tabs, and `*`.
+
+kernelconfig:leading_prefix_only(Prefix) :-
+  string_chars(Prefix, Chars),
+  kernelconfig:prefix_chars_only(Chars).
+
+kernelconfig:prefix_chars_only([]) :- !.
+kernelconfig:prefix_chars_only(['\e', '['|Rest0]) :-
+  !,
+  kernelconfig:skip_csi_chars(Rest0, Rest),
+  kernelconfig:prefix_chars_only(Rest).
+kernelconfig:prefix_chars_only([Ch|Rest]) :-
+  kernelconfig:prefix_char(Ch),
+  kernelconfig:prefix_chars_only(Rest).
+
+kernelconfig:skip_csi_chars([Ch|Rest], Rest) :-
+  char_type(Ch, alpha),
+  !.
+kernelconfig:skip_csi_chars([_|Rest0], Rest) :-
+  kernelconfig:skip_csi_chars(Rest0, Rest).
+
+kernelconfig:prefix_char(' ').
+kernelconfig:prefix_char('\t').
+kernelconfig:prefix_char('*').
 
 
 %! kernelconfig:config_token(+Line, -Name) is semidet.
 %
-% Extracts the CONFIG_<NAME> token (the text from the first "CONFIG_"
-% occurrence up to the following colon) and validates it is a single
-% config-option identifier.
+% Extracts the CONFIG_<NAME> token from a line. Kept as a convenience
+% wrapper over config_verdict_line/3.
 
 kernelconfig:config_token(Line, Name) :-
-  sub_string(Line, Before, _, 0, FromConfig0),
-  sub_string(FromConfig0, 0, 7, _, "CONFIG_"),
-  !,
-  kernelconfig:config_token_at(Line, Before, Name).
-kernelconfig:config_token(Line, Name) :-
-  sub_string(Line, Before, _, _, "CONFIG_"),
-  kernelconfig:config_token_at(Line, Before, Name).
-
-kernelconfig:config_token_at(Line, Before, Name) :-
-  sub_string(Line, Before, _, 0, FromConfig),
-  split_string(FromConfig, ":", " \t", [Tok|_]),
-  Tok \== "",
-  \+ sub_string(Tok, _, _, _, " "),
-  sub_string(Tok, 0, 7, _, "CONFIG_"),
-  kernelconfig:name_string(Tok),
-  atom_string(Name, Tok).
+  kernelconfig:config_verdict_line(Line, Name, _).
 
 
 %! kernelconfig:name_string(+Str) is semidet.
@@ -289,7 +402,7 @@ kernelconfig:apply_options(Options) :-
 
 %! kernelconfig:run_scripts_config(+KDir, +ConfigPath, +Options) is det.
 %
-% Run scripts/config --enable/--disable for each option via argv.
+% Run scripts/config --enable/--module/--disable for each option via argv.
 % Skips options whose bare suffix is not a safe CONFIG token.
 
 kernelconfig:run_scripts_config(KDir, ConfigPath, Options) :-
@@ -299,7 +412,7 @@ kernelconfig:run_scripts_config(KDir, ConfigPath, Options) :-
        member(config(Name, State), Options),
        ( kernelconfig:strip_prefix(Name, Suffix),
          ( kernelconfig:safe_config_suffix(Suffix),
-           ( State == y -> Op = '--enable' ; Op = '--disable' )
+           kernelconfig:state_script_op(State, Op)
          -> catch(
               ( process_create(Script,
                                ['--file', ConfigPath, Op, Suffix],
@@ -312,6 +425,16 @@ kernelconfig:run_scripts_config(KDir, ConfigPath, Options) :-
        ))
   ;  true
   ).
+
+
+%! kernelconfig:state_script_op(+State, -Op) is semidet.
+%
+% Maps a desired Kconfig state ({y, m, n}) onto the corresponding
+% scripts/config flag.
+
+kernelconfig:state_script_op(y, '--enable').
+kernelconfig:state_script_op(m, '--module').
+kernelconfig:state_script_op(n, '--disable').
 
 
 %! kernelconfig:run_make(+KDir, +Target) is det.

@@ -250,22 +250,29 @@ feedback:record_usedep(Target, Provider, UseDeps, Evidence) :-
 %! feedback:record_kernel_config(+Target, +Options, +Evidence) is det.
 %
 % Records that Target (Repo://Entry) requires the kernel CONFIG_* Options
-% (a list of config(Name, State) with State in {y, n}), as learned from a
-% setup-phase CONFIG_CHECK failure (portage-ng#105). Deduplicated on
-% Target: the first learned option set for a target is kept and appended to
-% the persisted file so future runs plan the kernel-config change
-% proactively. Also marked in the session store for this build's summary.
+% (a list of config(Name, State) with State in {y, m, n}), as learned from a
+% setup-phase CONFIG_CHECK failure (portage-ng#105/#127). Filters out options
+% already recorded for Target so a cascading CONFIG_CHECK on a subsequent
+% replan pass records the newly revealed options and grows the learned
+% store (triggering the next replan), while repeating the same option set
+% is a no-op so the replan loop terminates.
 
 feedback:record_kernel_config(Target, Options, Evidence) :-
-  ( feedback:required_kernel_config(Target, _, _)
+  findall(Opt,
+          ( member(Opt, Options),
+            \+ ( feedback:required_kernel_config(Target, Existing, _),
+                 memberchk(Opt, Existing) )
+          ),
+          NewOptions),
+  ( NewOptions == []
   -> true
-  ;  assertz(feedback:required_kernel_config(Target, Options, Evidence)),
+  ;  assertz(feedback:required_kernel_config(Target, NewOptions, Evidence)),
      feedback:discovered_file(Path),
-     feedback:append_term(Path, required_kernel_config(Target, Options, Evidence))
+     feedback:append_term(Path, required_kernel_config(Target, NewOptions, Evidence))
   ),
-  ( feedback:session_kernel_config(Target, _, _)
+  ( NewOptions == []
   -> true
-  ;  assertz(feedback:session_kernel_config(Target, Options, Evidence))
+  ;  assertz(feedback:session_kernel_config(Target, NewOptions, Evidence))
   ).
 
 
@@ -317,7 +324,7 @@ feedback:excluded_version_count(Count) :-
 
 %! feedback:kernel_config_count(-Count) is det.
 %
-% Number of distinct targets with a learned kernel-config requirement.
+% Number of learned kernel-config requirement records currently stored.
 
 feedback:kernel_config_count(Count) :-
   aggregate_all(count, feedback:required_kernel_config(_, _, _), Count).

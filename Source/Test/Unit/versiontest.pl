@@ -120,6 +120,16 @@ test(two_different_exact_bounds_inconsistent) :-
 test(single_exact_bound_consistent, [fail]) :-
   version_domain:bounds_inconsistent([bound(equal, v1)]).
 
+test(two_disjoint_wildcard_bounds_inconsistent) :-
+  V29 = version([6,29], '', 4, 0, [], 0, '6.29*'),
+  V31 = version([6,31], '', 4, 0, [], 0, '6.31*'),
+  version_domain:bounds_inconsistent([bound(wildcard, V29), bound(wildcard, V31)]).
+
+test(two_adjacent_wildcard_bounds_inconsistent) :-
+  V30 = version([6,30], '', 4, 0, [], 0, '6.30*'),
+  V31 = version([6,31], '', 4, 0, [], 0, '6.31*'),
+  version_domain:bounds_inconsistent([bound(wildcard, V30), bound(wildcard, V31)]).
+
 :- end_tests(version_domain_consistency).
 
 
@@ -140,6 +150,9 @@ test(normalize_smaller, [true(N == smaller)]) :-
 
 test(normalize_equal, [true(N == equal)]) :-
   version_domain:normalize_bound_op(equal, N).
+
+test(normalize_wildcard, [true(N == wildcard)]) :-
+  version_domain:normalize_bound_op(wildcard, N).
 
 test(normalize_greater_drops, [true(N == none)]) :-
   version_domain:normalize_bound_op(greater, N).
@@ -176,6 +189,16 @@ test(notequal_fails, [fail]) :-
 
 test(unknown_op_non_blocking) :-
   version_domain:version_constraint_holds(v1, bound(weird_op, v2)).
+
+test(wildcard_holds_for_matching_prefix) :-
+  Pat = version([6,31], '', 4, 0, [], 0, '6.31*'),
+  Ver = version([6,31,0], '', 4, 0, [], 0, '6.31.0'),
+  version_domain:version_constraint_holds(Ver, bound(wildcard, Pat)).
+
+test(wildcard_fails_for_older_prefix, [fail]) :-
+  Pat = version([6,31], '', 4, 0, [], 0, '6.31*'),
+  Ver = version([6,29,0], '', 4, 0, [], 0, '6.29.0'),
+  version_domain:version_constraint_holds(Ver, bound(wildcard, Pat)).
 
 :- end_tests(version_constraint_holds).
 

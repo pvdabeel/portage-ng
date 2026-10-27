@@ -62,7 +62,10 @@ builder:build(Goals) :-
 %! builder:build_loop(+Goals, +Attempt) is det.
 %
 % One prove/print/confirm/run pass. Confirmation is asked only on the
-% first attempt; a replan re-runs non-interactively. On a failed pass
+% first attempt; a replan re-runs non-interactively. Refuses to start execution
+% when the derived plan contains blocking domain assumptions (e.g.
+% use_dep_unsat or unsatisfied_constraints where a required dependency was
+% assumed installed rather than planned, portage-ng#125). On a failed pass
 % that grew the discovery store (builder:should_replan/4), re-enters with
 % Attempt+1, bounded by config:missing_provider_max_replan/1. When the
 % pass failed without new deterministic discoveries, optionally invokes
@@ -73,40 +76,72 @@ builder:build_loop(Goals, Attempt) :-
   pipeline:prove_plan_with_fallback(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL, FallbackUsed),
   printer:print(Goals, ModelAVL, ProofAVL, Plan, TriggersAVL),
   nl,
-  ( Attempt =:= 0
-  -> ( builder:ask_confirmation
-     -> true
-     ;  message:inform('Aborted.'),
-        !,
-        fail
-     )
-  ;  true
-  ),
-  builder:maybe_create_snapshot(Plan),
-  resume:save_state(Goals, Plan),
   annotation:collect(ProofAVL, Annotations),
-  annotation:pre_actions(Annotations, AnnPreActions),
-  builder:plan_entries(Plan, PlanEntries),
-  feedback:plan_kernel_config_pre_actions(PlanEntries, KcPreActions),
-  append(KcPreActions, AnnPreActions, PreActions),
-  length(PreActions, PreCount),
-  ( PreCount > 0 -> PreSteps = 1 ; PreSteps = 0 ),
-  StartStep is PreSteps + 1,
-  feedback:learned_count(Before),
-  builder:run_plan(Plan, StartStep, [pre_actions(PreActions)],
-                   _Completed, Failed, _Stubs),
-  feedback:learned_count(After),
-  ( builder:should_replan(Attempt, Failed, Before, After)
-  -> Next is Attempt + 1,
-     builder:announce_replan(Next),
-     builder:build_loop(Goals, Next)
-  ;  builder:maybe_metacircular_replan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL,
-                                       FallbackUsed, Attempt, Failed, Before)
-  -> Next is Attempt + 1,
-     builder:announce_replan(Next),
-     builder:build_loop(Goals, Next)
-  ;  true
+  ( builder:plan_has_blocking_domain_assumptions(Annotations)
+  -> ignore(message:failure('Build aborted: plan contains unresolvable domain assumptions.')),
+     retractall(builder:last_build_status(_, _, _)),
+     assertz(builder:last_build_status(0, 1, 0))
+  ;  ( Attempt =:= 0
+     -> ( builder:ask_confirmation
+        -> true
+        ;  message:inform('Aborted.'),
+           !,
+           fail
+        )
+     ;  true
+     ),
+     builder:maybe_create_snapshot(Plan),
+     resume:save_state(Goals, Plan),
+     annotation:pre_actions(Annotations, AnnPreActions),
+     builder:plan_entries(Plan, PlanEntries),
+     feedback:plan_kernel_config_pre_actions(PlanEntries, KcPreActions),
+     append(KcPreActions, AnnPreActions, PreActions),
+     length(PreActions, PreCount),
+     ( PreCount > 0 -> PreSteps = 1 ; PreSteps = 0 ),
+     StartStep is PreSteps + 1,
+     feedback:learned_count(Before),
+     builder:run_plan(Plan, StartStep, [pre_actions(PreActions)],
+                      _Completed, Failed, _Stubs),
+     feedback:learned_count(After),
+     ( builder:should_replan(Attempt, Failed, Before, After)
+     -> Next is Attempt + 1,
+        builder:announce_replan(Next),
+        builder:build_loop(Goals, Next)
+     ;  builder:maybe_metacircular_replan(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL,
+                                          FallbackUsed, Attempt, Failed, Before)
+     -> Next is Attempt + 1,
+        builder:announce_replan(Next),
+        builder:build_loop(Goals, Next)
+     ;  true
+     )
   ).
+
+
+%! builder:plan_has_blocking_domain_assumptions(+Annotations) is semidet.
+%
+% True when the derived plan contains at least one domain assumption that
+% leaves a required dependency unbuilt or the plan unsatisfiable (e.g.
+% use_dep_unsat, unsatisfied_constraints_dependency, required_use_violation,
+% missing_dependency, slot_conflict, issue_with_model, unreachable). Soft
+% blocker assumptions (`blocker_assumption`) and VDB-only ABI-rebuild
+% orphan notices (`no_tree_ebuild`) are excluded because they do not
+% replace a required dependency with an unbuilt verify stub
+% (portage-ng#125).
+
+builder:plan_has_blocking_domain_assumptions(Annotations) :-
+  annotation:domain_assumptions(Annotations, DomainAssumptions),
+  member(Content, DomainAssumptions),
+  assumption:assumption_type(Content, Type),
+  \+ builder:non_blocking_domain_assumption_type(Type),
+  !.
+
+
+%! builder:non_blocking_domain_assumption_type(+Type) is semidet.
+%
+% Domain assumption types that do not leave a required dependency unbuilt.
+
+builder:non_blocking_domain_assumption_type(blocker_assumption).
+builder:non_blocking_domain_assumption_type(no_tree_ebuild).
 
 
 %! builder:maybe_metacircular_replan(+Goals, +ProofAVL, +ModelAVL, +Plan, +TriggersAVL, +FallbackUsed, +Attempt, +Failed, +Before) is semidet.

@@ -719,6 +719,7 @@ cnselect:maybe_learn_wildcard_domain(C, N, PackageDeps, Context) :-
   ( cn_previously_narrowed(ParentC, ParentN)
   ; parent_is_single_version(ParentC, ParentN)
   ),
+  child_reselection_possible(C, N, PackageDeps, Context),
   wildcard_upper_bound_domain(C, N, PackageDeps, Domain),
   dep_slot_key(PackageDeps, Slot),
   prover:learn(cn_domain(C, N, Slot), Domain, Added),
@@ -1237,20 +1238,20 @@ cnselect:wildcard_cn_domain_constraints_([C-N-PackageDeps|Rest], Cons) :-
 
 %! cnselect:wildcard_upper_bound_domain(+C, +N, +PackageDeps, -Domain) is semidet.
 %
-% Derives an upper-bound version_domain from wildcard deps on (C,N).
-% For =pkg-0.6* the upper bound is <0.7 (last component incremented).
-% Only upper bounds are produced to avoid cross-package conflicts from
-% lower bounds. The domain is used by cn_domain_constraints to populate
-% the constraint store, enabling selected_cn_unique_or_reprove to
-% resolve conflicts when a sibling's transitive dep selects a version
-% outside the wildcard range. Bound derivation is delegated to
-% version_domain:wildcard_upper_bound/2 (bare wildcards yield no bound).
+% Derives a learned version_domain from wildcard deps on (C,N)
+% (portage-ng#126). Each non-bare wildcard spec `=pkg-6.31*` becomes a
+% `bound(wildcard, VerN)` constraint, which enforces both ends of the
+% prefix range (`[6.31_alpha, 6.32)`) in `version_domain` consistency
+% checks and `eapi:version_glob_match/2` in candidate admission. Bare
+% wildcards (`*`) yield no bound.
 
 cnselect:wildcard_upper_bound_domain(C, N, PackageDeps, version_domain(any, Bounds)) :-
-  findall(bound(smaller, UpperVer),
+  findall(bound(wildcard, VerN),
           ( member(package_dependency(_, no, C, N, Op, V0, _, _), PackageDeps),
             ( Op == wildcard -> true ; Op == equal, version_term_has_wildcard_(V0) ),
-            version_domain:wildcard_upper_bound(V0, UpperVer)
+            version_domain:wildcard_base_nums(V0, Nums),
+            Nums \== [],
+            version_domain:normalize_version_term(V0, VerN)
           ),
           Bounds0),
   Bounds0 \== [],
