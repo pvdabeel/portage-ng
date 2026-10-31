@@ -27,6 +27,7 @@ jobs:
 
       - name: Run PLUnit tests
         run: |
+          set +e
           swipl -O --stack-limit=4G \
             -f portage-ng.pl \
             -p portage=. \
@@ -36,7 +37,28 @@ jobs:
               load_modules(standalone),
               load_files(portage('Source/Test/unittest'), [if(true)]),
               (run_tests -> halt(0) ; halt(1))
-            " -t 'halt(2)'
+            " -t 'halt(2)' > "$RUNNER_TEMP/plunit.log" 2>&1
+          code=$?
+          set -e
+          if [ "$code" != 0 ]; then
+            CODE="$code" python3 - << 'PY'
+          import os, pathlib
+          log = pathlib.Path(os.environ["RUNNER_TEMP"]) / "plunit.log"
+          text = log.read_text(errors="replace") if log.exists() else ""
+          picked = [ln for ln in text.splitlines()
+                    if "ERROR:" in ln or "FAILED" in ln or "test failed" in ln
+                    or "tests passed" in ln]
+          if not picked:
+              picked = text.splitlines()[-40:]
+          def esc(s):
+              return s.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+          ver = os.popen("swipl --version").read().strip()
+          print("::error::" + esc(ver + " exit " + os.environ.get("CODE", "?")))
+          for ln in picked[:40]:
+              print("::error::" + esc(ln))
+          PY
+            exit "$code"
+          fi
 
   overlay:
     name: Overlay regression suite
