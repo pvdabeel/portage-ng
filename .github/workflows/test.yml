@@ -13,12 +13,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Ubuntu 26 ships SWI-Prolog 9.2.9. directory_member/3 there has no
+      # file_type(regular) clause, so os:find_files/3 matches nothing.
+      # This project requires SWI 10; install it from the devel PPA.
       - name: Install SWI-Prolog
         run: |
-          sudo apt-add-repository -y ppa:swi-prolog/devel
+          sudo apt-get update -q
+          sudo apt-get install -y ca-certificates curl gnupg
+          sudo mkdir -p /etc/apt/keyrings
+          curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xE8B739E3753FF4A12360BA6A4AB3A5F60EA9AEB3" \
+            | sudo gpg --batch --yes --dearmor -o /etc/apt/keyrings/swi-prolog-devel.gpg
+          codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
+          echo "deb [signed-by=/etc/apt/keyrings/swi-prolog-devel.gpg] https://ppa.launchpadcontent.net/swi-prolog/devel/ubuntu ${codename} main" \
+            | sudo tee /etc/apt/sources.list.d/swi-prolog-devel.list >/dev/null
           sudo apt-get update -q
           sudo apt-get install -y swi-prolog
           swipl --version
+          swipl -g 'current_prolog_flag(version,V),(V>=100000->halt(0);halt(1))' -t 'halt(1)'
 
       - name: Create private config files from templates
         run: |
@@ -66,12 +77,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Ubuntu 26 ships SWI-Prolog 9.2.9. This project requires SWI 10.
       - name: Install SWI-Prolog
         run: |
-          sudo apt-add-repository -y ppa:swi-prolog/devel
+          sudo apt-get update -q
+          sudo apt-get install -y ca-certificates curl gnupg
+          sudo mkdir -p /etc/apt/keyrings
+          curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xE8B739E3753FF4A12360BA6A4AB3A5F60EA9AEB3" \
+            | sudo gpg --batch --yes --dearmor -o /etc/apt/keyrings/swi-prolog-devel.gpg
+          codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
+          echo "deb [signed-by=/etc/apt/keyrings/swi-prolog-devel.gpg] https://ppa.launchpadcontent.net/swi-prolog/devel/ubuntu ${codename} main" \
+            | sudo tee /etc/apt/sources.list.d/swi-prolog-devel.list >/dev/null
           sudo apt-get update -q
           sudo apt-get install -y swi-prolog
           swipl --version
+          swipl -g 'current_prolog_flag(version,V),(V>=100000->halt(0);halt(1))' -t 'halt(1)'
 
       - name: Create private config files from templates
         run: |
