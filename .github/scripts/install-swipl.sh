@@ -10,8 +10,14 @@ echo "OS ${PRETTY_NAME:-unknown} codename=${VERSION_CODENAME:-}"
 
 sudo apt-get update -q
 sudo apt-get install -y software-properties-common ca-certificates
+
+set +e
 sudo add-apt-repository -y ppa:swi-prolog/devel
+repo_rc=$?
 sudo apt-get update
+upd_rc=$?
+set -e
+echo "ADD_APT_RC=${repo_rc} UPDATE_RC=${upd_rc}"
 echo "---- policy ----"
 apt-cache policy swi-prolog || true
 echo "---- madison ----"
