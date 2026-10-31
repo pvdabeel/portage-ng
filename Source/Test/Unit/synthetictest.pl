@@ -973,7 +973,8 @@ otest_empty_repo:get_cache_file(_, _) :- fail.
 :- begin_tests(pipeline_and_explainer_coverage, [cleanup(resolving:disable_test_rules)]).
 
 test(pipeline_resolver_parser_printer_harnesses,
-     [setup(( unittest:accept_stable_amd64,
+     [nondet,
+      setup(( unittest:accept_stable_amd64,
               ( catch(stats:declared(type(instance(stat))), _, fail) ->
                   true
               ; stats:newinstance(stat)

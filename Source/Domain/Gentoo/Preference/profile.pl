@@ -1034,6 +1034,11 @@ profile:cache_save_profile(ProfileRel, RawFile) :-
     ),
     close(Out)
   ),
+  ( module_property(profiledata, file(OldProfileFile)),
+    OldProfileFile \== RawFile
+  -> unload_file(OldProfileFile)
+  ; true
+  ),
   catch(qcompile(RawFile), E,
         format(user_error, '% profile:cache_save — qcompile failed: ~w~n', [E])),
   ( profile:cache_file(QlfFile), exists_file(QlfFile)
@@ -1174,6 +1179,11 @@ profile:cache_available :-
 profile:ensure_loaded_cache(File) :-
   ( profile:cache_loaded -> true
   ; sanitize:ensure_file_integrity(File),
+    ( module_property(profiledata, file(OldProfileFile)),
+      OldProfileFile \== File
+    -> unload_file(OldProfileFile)
+    ; true
+    ),
     ensure_loaded(File),
     assertz(profile:cache_loaded)
   ).

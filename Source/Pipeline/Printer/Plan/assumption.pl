@@ -89,47 +89,15 @@ assumption:assumption_type(domain(X), Type) :-
   assumption:assumption_type(X, Type),
   !.
 
-assumption:assumption_type(domain(X), Type) :-
-  ( assumption:assumption_reason_from_term(X, Reason) ->
-      assumption:assumption_reason_type(Reason, Type),
-      !
-  ; fail
-  ).
-
-assumption:assumption_type(Term, use_dep_unsat) :-
-  explainer:term_ctx(Term, Ctx),
-  ( memberchk(use_dep_unsat(_), Ctx)
-  ; memberchk(required_use_violation(use_dep_unsat(_,_,_)), Ctx)
-  ),
-  !.
-
-assumption:assumption_type(Term, required_use_violation) :-
-  explainer:term_ctx(Term, Ctx),
-  memberchk(required_use_violation(_), Ctx),
-  !.
-
-assumption:assumption_type(Term, slot_conflict) :-
-  explainer:term_ctx(Term, Ctx),
-  memberchk(slot_conflict(_), Ctx),
-  !.
-
 assumption:assumption_type(package_dependency(_,_,_,_,_,_,_,_):_,              non_existent_dependency) :- !.
 assumption:assumption_type(grouped_package_dependency(_,_,_):_,                non_existent_dependency) :- !.
 assumption:assumption_type(grouped_package_dependency(_,_,_,_):_,              non_existent_dependency) :- !.
 assumption:assumption_type(_://_:unmask,                                       masked) :- !.
 assumption:assumption_type(_://_:install,                                      assumed_installed) :- !.
 assumption:assumption_type(_://_:run,                                          assumed_running) :- !.
-assumption:assumption_type(grouped_package_dependency(_,_,_,_):install?{_},    assumed_installed) :- !.
-assumption:assumption_type(grouped_package_dependency(_,_,_,_):run?{_},        assumed_running) :- !.
-assumption:assumption_type(grouped_package_dependency(_,_,_,_):install,        assumed_installed) :- !.
-assumption:assumption_type(grouped_package_dependency(_,_,_,_):run,            assumed_running) :- !.
 assumption:assumption_type(blocker(_Strength,_Phase,_C,_N,_O,_V,_SlotReq),     blocker_assumption) :- !.
 
 assumption:assumption_type(issue_with_model(_), issue_with_model) :- !.
-assumption:assumption_type(Term, issue_with_model) :-
-  explainer:term_ctx(Term, Ctx),
-  memberchk(issue_with_model(_), Ctx),
-  !.
 
 % Rule-based ordering engine (pass 2): no plan step and no installed
 % package can provide D for consumer H — the genuine bootstrap boundary.
@@ -144,12 +112,6 @@ assumption:assumption_type(all_of_group(_),                                    d
 assumption:assumption_type(exactly_one_of_group(_),                            dependency_group_cycle) :- !.
 assumption:assumption_type(at_most_one_of_group(_),                            dependency_group_cycle) :- !.
 assumption:assumption_type(naf(_),                                             naf_cycle) :- !.
-
-assumption:assumption_type(Term, Type) :-
-  explainer:term_ctx(Term, Ctx),
-  memberchk(assumption_reason(Reason), Ctx),
-  assumption:assumption_reason_type(Reason, Type),
-  !.
 
 assumption:assumption_type(_,                                                  other).
 

@@ -166,7 +166,7 @@ val({V1}, {V2}, {V3}) :-
 % Feature values represented as lists use "union" semantics (CASE 3).
 % The empty list must therefore behave as the identity element, not as a
 % literal value that gets inserted into the merged list.
-val([], [], []) :- !.
+% (`val([], [], [])` is already handled by CASE 1 above.)
 val([], [V2|V2r], [V2|V2r]) :- !.
 val([V1|V1r], [], [V1|V1r]) :- !.
 

@@ -191,14 +191,6 @@ warning:print_blockers_section(BlockerAssumptions) :-
     nl
   ).
 warning:print_blockers_section(BlockerAssumptions) :-
-  config:print_blockers(fancy), !,
-  nl,
-  message:header('Blockers added during proving & planning:'),
-  nl,
-  forall(member(Content, BlockerAssumptions),
-         ( warning:print_assumption_detail(rule(Content, [])),
-           nl )).
-warning:print_blockers_section(BlockerAssumptions) :-
   nl,
   message:header('Blockers added during proving & planning:'),
   nl,
@@ -1278,10 +1270,10 @@ warning:print_domain_bound(Domain) :-
 %
 % Converts a parsed REQUIRED_USE term back into human-readable PMS notation.
 
-warning:requse_term_to_text(required(Use), Text) :- !,
-    atom_string(Use, Text).
 warning:requse_term_to_text(required(minus(Use)), Text) :- !,
     format(atom(Text), '-~w', [Use]).
+warning:requse_term_to_text(required(Use), Text) :- !,
+    atom_string(Use, Text).
 warning:requse_term_to_text(blocking(Use), Text) :- !,
     format(atom(Text), '!~w', [Use]).
 warning:requse_term_to_text(exactly_one_of_group(Deps), Text) :- !,

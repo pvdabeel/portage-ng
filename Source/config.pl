@@ -164,6 +164,8 @@ config:write_metadata(true).
 % NOTE: This is intentionally in config (host/system configuration), not in
 % preference (user/package preferences).
 
+:- dynamic config:gentoo_profile/1.
+
 config:gentoo_profile('default/linux/amd64/23.0/split-usr/no-multilib').
 
 
@@ -211,6 +213,8 @@ config:preference_cache(server,     cached).
 % For development, use the bundled templates in Source/Domain/Gentoo/Preference/UserConfig.
 % Comment out to disable file-based configuration entirely (falls back to the
 % fallback:env/2 and fallback:package_*/1-2 facts in Preference/fallback.pl).
+
+:- dynamic config:portage_confdir/1.
 
 % config:portage_confdir('/etc/portage').
 
@@ -630,6 +634,8 @@ config:print_prover_cycles_max_inferences(10000000).
 %   off    - no blocker section printed
 %   gentoo - compact Portage-like dark-gray lines
 %   fancy  - detailed multi-line assumption format with provenance
+
+:- dynamic config:print_blockers/1.
 
 config:print_blockers(gentoo).
 

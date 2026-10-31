@@ -223,7 +223,7 @@ test(pkgmoves_loading_translation_and_world_moves, [nondet]) :-
       depcleantest_rm_rf(TmpDir)
     )).
 
-test(depclean_end_to_end_and_helpers) :-
+test(depclean_end_to_end_and_helpers, [nondet]) :-
   depcleantest_mktemp(dc_test, TmpDir),
   V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
   knowledgebase:vdb_repository(Vdb),

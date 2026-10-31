@@ -1110,7 +1110,8 @@ plan:planned_pkg(ps(_, _, Set), Action, C, N) :-
 
 plan:is_run_cycle_break(Content) :-
   ( prover:canon_literal(Content, Core, _Ctx) -> true ; Core = Content ),
-  Core = _ : run.
+  ( Core = _://_:run ; Core = _:run ),
+  !.
 
 plan:print_cycle_break_detail(Content) :-
   ( prover:canon_literal(Content, Core, _Ctx) -> true ; Core = Content ),
@@ -1351,8 +1352,6 @@ plan:already_downloaded_size(Repository, Entry, Bytes) :-
       distfiles:present(File)
     ),
     Bytes), !.
-
-plan:already_downloaded_size(_, _, 0).
 
 
 % -----------------------------------------------------------------------------

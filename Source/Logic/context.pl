@@ -370,6 +370,7 @@ dmutex(List) :-
 % Throws an error if parent context does not exist.
 
 inherit([Parent|Parents]) :-
+  !,
   inherit(Parent),
   inherit(Parents).
 
@@ -491,7 +492,7 @@ context:freeze(Context) :-
 
 '~'(DestructorCall) :-
   DestructorCall =.. [Context|_Arguments],
-  current_module(Context,_),
+  module_property(Context, file(_)),
   throw(error(permission_error(destroy, static_context, Context), context(destroy, _))).
 
 '~'(DestructorCall) :-
