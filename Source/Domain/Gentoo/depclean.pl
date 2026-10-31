@@ -127,7 +127,7 @@ depclean:prove_required(Roots, RequiredInstalled) :-
 % the resulting model.
 
 depclean:prove_required_(Roots, RequiredInstalled) :-
-  findall(Root:depclean?{[]}, member(Root, Roots), Proposal),
+  findall(Repo://Entry:depclean?{[]}, member(Repo://Entry, Roots), Proposal),
   resolver:resolve(Proposal, t, _ProofAVL, t, ModelAVL, t, _Constraints, t, _Triggers),
   prover:model_to_list(ModelAVL, ModelList),
   depclean:model_required_installed(ModelList, RequiredInstalled0),

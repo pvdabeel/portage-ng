@@ -180,4 +180,42 @@ test(truncated_frame_fails_closed, [true(Status == 1)]) :-
 test(server_frame_then_quit, [true(Status == 0)]) :-
   ebuildtest:server_status(Status).
 
+test(ebuild_batch_coprocess_and_sugar_helpers) :-
+  ebuild:entry_fields('/repo', 'cat/pkg-1.0-r2',
+                      ["cat", pkg, "1.0", '-r2', '1.0-r2', "pkg-1.0-r2", "pkg-1.0",
+                       '/repo/cat/pkg/pkg-1.0-r2.ebuild']),
+  open_string("KEY=VAL\n---ERROR--- bad\n", S1),
+  setup_call_cleanup(true, ebuild:read_until_delimiter(S1, ["KEY=VAL"]), close(S1)),
+  open_string("KEY=VAL\n", S2),
+  setup_call_cleanup(true, ebuild:read_until_delimiter(S2, ["KEY=VAL"]), close(S2)),
+  ebuildtest:with_repo(
+    [Repo]>>(
+      ebuildtest:write_ebuild(Repo, 'app/hello', 'hello-1.0.ebuild', _),
+      ebuild:invoke_batch(Repo, ['app/hello-1.0', 'bad_entry_no_slash'], Results),
+      Results = ['app/hello-1.0'-Lines, 'bad_entry_no_slash'-_],
+      Lines \== [],
+      setup_call_cleanup(
+        ( ebuild:coprocess_start(Repo),
+          ebuild:coprocess_start(Repo)
+        ),
+        ( ebuild:coprocess_invoke(Repo, 'app/hello-1.0', CoLines),
+          CoLines \== []
+        ),
+        ( ebuild:coprocess_stop(Repo),
+          ebuild:coprocess_stop(Repo)
+        ))
+    )),
+  V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  setup_call_cleanup(
+    ( assertz(cache:ordered_entry(qtest, 'virtual/vpkg-1.0', virtual, vpkg, V1)),
+      assertz(cache:entry_metadata(qtest, 'virtual/vpkg-1.0', properties, interactive))
+    ),
+    ( ebuild:download_size(preference, qtest://'virtual/vpkg-1.0', 0),
+      ebuild:is_virtual(qtest://'virtual/vpkg-1.0'),
+      ebuild:is_interactive(qtest://'virtual/vpkg-1.0')
+    ),
+    ( retractall(cache:ordered_entry(qtest, 'virtual/vpkg-1.0', _, _, _)),
+      retractall(cache:entry_metadata(qtest, 'virtual/vpkg-1.0', _, _))
+    )).
+
 :- end_tests(ebuild_protocol).

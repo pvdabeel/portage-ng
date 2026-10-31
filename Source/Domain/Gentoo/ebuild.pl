@@ -146,11 +146,10 @@ ebuild:write_batch_descriptors(In, Location, [Entry|Rest]) :-
 % Read KEY=VALUE blocks delimited by ---END--- from stdout pipe.
 % Returns Entry-Contents pairs.
 
-ebuild:read_batch_results(_, [], []).
+ebuild:read_batch_results(_, [], []) :- !.
 ebuild:read_batch_results(Out, [Entry|RestEntries], [Entry-Contents|RestResults]) :-
   ebuild:read_until_delimiter(Out, Contents),
   ebuild:read_batch_results(Out, RestEntries, RestResults).
-ebuild:read_batch_results(_, _, []).
 
 
 %! ebuild:read_until_delimiter(+Stream, -Lines)
@@ -244,8 +243,6 @@ ebuild:distfile_scope(Scope) :-
 
 ebuild:download_size(Scope,Repository://Entry,T) :-
   aggregate_all(sum(S),F,query:search(manifest(Scope,_,F,S),Repository://Entry),T),!.
-
-ebuild:download_size(_,_://_,0) :- !.
 
 
 %! ebuild:is_virtual(+Repository://+Entry)

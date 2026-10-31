@@ -82,3 +82,218 @@ test(existing_token, [true(V == [pkg://e1, pkg://e2])]) :-
   get_assoc('libfoo.so', Out, V).
 
 :- end_tests(depclean_provides_tok).
+
+
+% -----------------------------------------------------------------------------
+%  Full depclean, pkgmoves, distfiles, set, and issue coverage
+% -----------------------------------------------------------------------------
+
+depcleantest_mktemp(Prefix, Dir) :-
+  tmp_file(Prefix, Tmp),
+  ( exists_file(Tmp) -> delete_file(Tmp) ; true ),
+  make_directory(Tmp),
+  Dir = Tmp.
+
+depcleantest_rm_rf(Dir) :-
+  ( exists_directory(Dir)
+  -> catch(process_create(path(rm), ['-rf', Dir], [process(Pid)]), _, true),
+     ( var(Pid) -> true ; process_wait(Pid, _) )
+  ;  true
+  ).
+
+:- begin_tests(depclean_and_gentoo_domain_full).
+
+test(issue_known_tree_issues) :-
+  issue:known_tree_issue('dev-php', 'composer', _),
+  issue:known_tree_issue('dev-python', 'cryptography', _).
+
+test(set_class_operations, [nondet]) :-
+  depcleantest_mktemp(set_test, TmpDir),
+  setup_call_cleanup(
+    true,
+    ( os:compose_path([TmpDir, 'sub', 'world_test'], SetFile),
+      tset1:newinstance(set),
+      tset1:init(SetFile),
+      tset1:load,
+      tset2:newinstance(set(SetFile)),
+      tset2:register(['cat/a', 'cat/b']),
+      tset2:register('cat/c'),
+      tset2:register('cat/c'),
+      tset2:save,
+      tset1:load,
+      tset1::entry("cat/a"),
+      tset1::file(SetFile),
+      tset1:unregister(["cat/a"]),
+      tset1:unregister("cat/b"),
+      forall(set:(_ ::- _), true)
+    ),
+    depcleantest_rm_rf(TmpDir)).
+
+test(distfiles_operations) :-
+  depcleantest_mktemp(dist_test, TmpDir),
+  setup_call_cleanup(
+    ( assertz(distfiles:get_location(TmpDir)),
+      os:compose_path(TmpDir, 'foo-1.0.tar.gz', F1),
+      os:compose_path(TmpDir, 'orphan-1.0.tar.gz', F2),
+      setup_call_cleanup(open(F1, write, S1), write(S1, '12345'), close(S1)),
+      setup_call_cleanup(open(F2, write, S2), write(S2, '678'), close(S2)),
+      V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+      assertz(cache:ordered_entry(qtest, 'dcat/dpkg-1.0', dcat, dpkg, V1)),
+      assertz(cache:entry_metadata(qtest, 'dcat/dpkg-1.0', src_uri,
+                                   uri(https, 'example.com/foo-1.0.tar.gz', 'foo-1.0.tar.gz'))),
+      assertz(cache:manifest(qtest, m1, 0, dcat, dpkg)),
+      assertz(cache:manifest_metadata(qtest, m1, dist, 'foo-1.0.tar.gz', 5, []))
+    ),
+    ( distfiles:present('foo-1.0.tar.gz'),
+      distfiles:path('foo-1.0.tar.gz', _),
+      catch(distfiles:path('../evil', _), error(permission_error(access, distfile, _), _), true),
+      distfiles:list(['foo-1.0.tar.gz', 'orphan-1.0.tar.gz']),
+      distfiles:file_size('foo-1.0.tar.gz', 5),
+      distfiles:total_size(8),
+      distfiles:orphans(qtest, ['orphan-1.0.tar.gz']),
+      distfiles:clean(qtest),
+      \+ distfiles:present('orphan-1.0.tar.gz'),
+      retractall(distfiles:get_location(TmpDir)),
+      assertz(distfiles:get_location('/tmp/nonexistent-portage-ng-distfiles-dir')),
+      distfiles:list([])
+    ),
+    ( retractall(distfiles:get_location(_)),
+      retractall(cache:ordered_entry(qtest, 'dcat/dpkg-1.0', _, _, _)),
+      retractall(cache:entry_metadata(qtest, 'dcat/dpkg-1.0', _, _)),
+      retractall(cache:manifest(qtest, m1, _, _, _)),
+      retractall(cache:manifest_metadata(qtest, m1, _, _, _, _)),
+      depcleantest_rm_rf(TmpDir)
+    )).
+
+test(pkgmoves_loading_translation_and_world_moves, [nondet]) :-
+  depcleantest_mktemp(pm_test, TmpDir),
+  setup_call_cleanup(
+    ( os:compose_path([TmpDir, 'profiles', 'updates'], UpdDir),
+      make_directory_path(UpdDir),
+      os:compose_path(UpdDir, '1Q-2025', Q1),
+      setup_call_cleanup(open(Q1, write, SQ1),
+        ( writeln(SQ1, 'move old-cat/old-pkg mid-cat/mid-pkg'),
+          writeln(SQ1, 'slotmove ~app-editors/emacs-27.0.91 0 27'),
+          writeln(SQ1, 'slotmove dev-libs/foo 1 2'),
+          writeln(SQ1, 'malformed line')
+        ),
+        close(SQ1)),
+      os:compose_path(UpdDir, '2Q-2025', Q2),
+      setup_call_cleanup(open(Q2, write, SQ2),
+        ( writeln(SQ2, 'move mid-cat/mid-pkg new-cat/new-pkg'),
+          writeln(SQ2, 'move self-cat/self-pkg self-cat/self-pkg')
+        ),
+        close(SQ2)),
+      assertz(cache:repository(pmtest_repo)),
+      assertz(pmtest_repo:get_type(eapi)),
+      assertz(pmtest_repo:get_location(TmpDir)),
+      assertz(cache:package(pmtest_repo, 'in-tree-cat', 'in-tree-pkg')),
+      os:compose_path(TmpDir, 'world', WorldFile),
+      ( catch(world:declared(type(instance(set))), _, fail)
+      -> world:init(WorldFile)
+      ;  world:newinstance(set(WorldFile))
+      ),
+      world:register('old-cat/old-pkg'),
+      world:save
+    ),
+    ( pkgmoves:load,
+      pkgmoves:load_updates_dir('/tmp/nonexistent-portage-ng-updates-dir'),
+      pkgmoves:moved('old-cat', 'old-pkg', 'new-cat', 'new-pkg'),
+      pkgmoves:slotmoved('app-editors', emacs, _, '0', '27'),
+      pkgmoves:slotmoved('dev-libs', foo, _, '1', '2'),
+      pkgmoves:cn_in_tree('in-tree-cat', 'in-tree-pkg'),
+      pkgmoves:strip_version('plainname', 'plainname'),
+      pkgmoves:translate_atom('=old-cat/old-pkg-1.0:0[use]', '=new-cat/new-pkg-1.0:0[use]'),
+      pkgmoves:translate_atom("old-cat/old-pkg:0", 'new-cat/new-pkg:0'),
+      pkgmoves:translate_atom('old-cat/old-pkg[use]', 'new-cat/new-pkg[use]'),
+      pkgmoves:translate_atom('old-cat/old-pkg', 'new-cat/new-pkg'),
+      with_output_to(string(_),
+        ( pkgmoves:apply_world_moves,
+          pkgmoves:apply_world_moves
+        )),
+      world::entry('new-cat/new-pkg')
+    ),
+    ( retractall(cache:repository(pmtest_repo)),
+      retractall(pmtest_repo:get_type(_)),
+      retractall(pmtest_repo:get_location(_)),
+      retractall(cache:package(pmtest_repo, _, _)),
+      retractall(pkgmoves:pmove_(_, _, _, _)),
+      retractall(pkgmoves:pslotmove_(_, _, _, _, _)),
+      retractall(pkgmoves:loaded_),
+      depcleantest_rm_rf(TmpDir)
+    )).
+
+test(depclean_end_to_end_and_helpers) :-
+  depcleantest_mktemp(dc_test, TmpDir),
+  V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  knowledgebase:vdb_repository(Vdb),
+  setup_call_cleanup(
+    ( asserta(config:pkg_directory(TmpDir)),
+      os:compose_path([TmpDir, 'dcat/root-1.0'], RootVdbDir),
+      make_directory_path(RootVdbDir),
+      os:compose_path(RootVdbDir, 'RDEPEND', RdepFile),
+      setup_call_cleanup(open(RdepFile, write, SR),
+        writeln(SR, '|| ( dcat/dep ) !dcat/blk'),
+        close(SR)),
+      assertz(cache:ordered_entry(Vdb, 'dcat/root-1.0', dcat, root, V1)),
+      assertz(cache:entry_metadata(Vdb, 'dcat/root-1.0', slot, slot('0'))),
+      assertz(cache:entry_metadata(Vdb, 'dcat/root-1.0', needed_elf2, ['liborphan.so'])),
+      assertz(cache:ordered_entry(Vdb, 'dcat/dep-1.0', dcat, dep, V1)),
+      assertz(cache:entry_metadata(Vdb, 'dcat/dep-1.0', slot, slot('0'))),
+      assertz(cache:ordered_entry(Vdb, 'dcat/nokw-1.0', dcat, nokw, V1)),
+      assertz(cache:entry_metadata(Vdb, 'dcat/nokw-1.0', slot, slot('0'))),
+      assertz(cache:ordered_entry(Vdb, 'dcat/orphan-1.0', dcat, orphan, V1)),
+      assertz(cache:entry_metadata(Vdb, 'dcat/orphan-1.0', slot, slot('0'))),
+      assertz(cache:entry_metadata(Vdb, 'dcat/orphan-1.0', provides_elf2, ['liborphan.so'])),
+      assertz(cache:ordered_entry(qtest, 'dcat/root-1.0', dcat, root, V1)),
+      assertz(cache:entry_metadata(qtest, 'dcat/root-1.0', slot, slot('0'))),
+      assertz(cache:entry_metadata(qtest, 'dcat/root-1.0', keywords, stable(amd64))),
+      assertz(cache:entry_metadata(qtest, 'dcat/root-1.0', rdepend,
+        package_dependency(run, no, dcat, dep, none, version_none, [], []))),
+      assertz(cache:ordered_entry(qtest, 'dcat/dep-1.0', dcat, dep, V1)),
+      assertz(cache:entry_metadata(qtest, 'dcat/dep-1.0', slot, slot('0'))),
+      assertz(cache:entry_metadata(qtest, 'dcat/dep-1.0', keywords, stable(amd64))),
+      assertz(cache:ordered_entry(qtest, 'dcat/nokw-1.0', dcat, nokw, V1)),
+      assertz(cache:entry_metadata(qtest, 'dcat/nokw-1.0', slot, slot('0'))),
+      assertz(cache:ordered_entry(qtest, 'dcat/orphan-1.0', dcat, orphan, V1)),
+      assertz(cache:entry_metadata(qtest, 'dcat/orphan-1.0', slot, slot('0'))),
+      assertz(cache:entry_metadata(qtest, 'dcat/orphan-1.0', keywords, stable(amd64))),
+      os:compose_path(TmpDir, 'world', WorldFile),
+      ( catch(world:declared(type(instance(set))), _, fail)
+      -> world:init(WorldFile)
+      ;  world:newinstance(set(WorldFile))
+      )
+    ),
+    ( depclean:uninstall_order([], [], []),
+      depclean:installed_to_repo_entry(Vdb://'dcat/nokw-1.0', qtest://'dcat/nokw-1.0'),
+      depclean:roots_from_args(['dcat/root', 'dcat/nonexistent'], [qtest://'dcat/root-1.0']),
+      depclean:direct_deps_installed(Vdb://'dcat/root-1.0', [Vdb://'dcat/dep-1.0']),
+      assertz(preference:local_flag(nodynamicdeps)),
+      depclean:direct_deps_installed(Vdb://'dcat/root-1.0', [Vdb://'dcat/dep-1.0']),
+      retractall(preference:local_flag(nodynamicdeps)),
+      depclean:recorded_dep_leaves([non_pkg_leaf], []),
+      depclean:build_provides_map([Vdb://'dcat/orphan-1.0', Vdb://'dcat/dep-1.0'], ProvMap),
+      depclean:collect_broken_needed([Vdb://'dcat/root-1.0'], [Vdb://'dcat/root-1.0'],
+                                     [Vdb://'dcat/orphan-1.0'], ProvMap,
+                                     [broken(Vdb://'dcat/root-1.0', 'liborphan.so', [Vdb://'dcat/orphan-1.0'])]),
+      with_output_to(string(_),
+        ( depclean:run([]),
+          depclean:run(['dcat/root'])
+        ))
+    ),
+    ( retractall(config:pkg_directory(TmpDir)),
+      retractall(cache:ordered_entry(Vdb, _, dcat, _, _)),
+      retractall(cache:entry_metadata(Vdb, 'dcat/root-1.0', _, _)),
+      retractall(cache:entry_metadata(Vdb, 'dcat/dep-1.0', _, _)),
+      retractall(cache:entry_metadata(Vdb, 'dcat/nokw-1.0', _, _)),
+      retractall(cache:entry_metadata(Vdb, 'dcat/orphan-1.0', _, _)),
+      retractall(cache:ordered_entry(qtest, _, dcat, _, _)),
+      retractall(cache:entry_metadata(qtest, 'dcat/root-1.0', _, _)),
+      retractall(cache:entry_metadata(qtest, 'dcat/dep-1.0', _, _)),
+      retractall(cache:entry_metadata(qtest, 'dcat/nokw-1.0', _, _)),
+      retractall(cache:entry_metadata(qtest, 'dcat/orphan-1.0', _, _)),
+      memo:clear_caches,
+      depcleantest_rm_rf(TmpDir)
+    )).
+
+:- end_tests(depclean_and_gentoo_domain_full).

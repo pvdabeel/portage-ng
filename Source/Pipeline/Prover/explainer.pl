@@ -344,13 +344,13 @@ why_assumption(ModelAVL, ProofAVL, Key0, AssumptionType, Why) :-
 % Canonicalize assumption keys to their standard forms. Handles all three
 % key shapes: `assumed(X)`, `rule(assumed(X))`, `assumed(rule(X))`.
 
-explainer:normalize_assumption_key(assumed(X0), assumed(X), X) :-
+explainer:normalize_assumption_key(assumed(rule(X0)), assumed(rule(X)), X) :-
   prover:canon_literal(X0, X, _),
   !.
 explainer:normalize_assumption_key(rule(assumed(X0)), rule(assumed(X)), X) :-
   prover:canon_literal(X0, X, _),
   !.
-explainer:normalize_assumption_key(assumed(rule(X0)), assumed(rule(X)), X) :-
+explainer:normalize_assumption_key(assumed(X0), assumed(X), X) :-
   prover:canon_literal(X0, X, _),
   !.
 explainer:normalize_assumption_key(Key, Key, Key).

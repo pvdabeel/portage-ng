@@ -961,3 +961,155 @@ test(ordering_installed_satisfies_empty_deps_checks_vdb,
   ordering:installed_satisfies(ord_test_cat, ord_test_pkg, []).
 
 :- end_tests(prover_and_orderer_helpers).
+
+
+% -----------------------------------------------------------------------------
+%  Pipeline, resolver, parser, printer, explainer, and explanation coverage
+% -----------------------------------------------------------------------------
+
+mock_llm_service:mock_llm_service(_Prompt, 'mock llm explanation').
+otest_empty_repo:get_cache_file(_, _) :- fail.
+
+:- begin_tests(pipeline_and_explainer_coverage, [cleanup(resolving:disable_test_rules)]).
+
+test(pipeline_resolver_parser_printer_harnesses,
+     [setup(( V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+              V2 = version([2,0], '', 4, 0, [], 0, '2.0'),
+              assertz(cache:ordered_entry(qtest, 'pcat/ppkg-1.0', pcat, ppkg, V1)),
+              assertz(cache:entry_metadata(qtest, 'pcat/ppkg-1.0', slot, slot('0'))),
+              assertz(cache:entry_metadata(qtest, 'pcat/ppkg-1.0', keywords, stable(amd64))),
+              assertz(cache:entry_metadata(qtest, 'pcat/ppkg-1.0', pdepend,
+                package_dependency(run, no, pcat, pdep, none, version_none, [], []))),
+              assertz(cache:ordered_entry(qtest, 'pcat/ppkg-2.0', pcat, ppkg, V2)),
+              assertz(cache:entry_metadata(qtest, 'pcat/ppkg-2.0', slot, slot('1'))),
+              assertz(cache:entry_metadata(qtest, 'pcat/ppkg-2.0', keywords, stable(amd64))),
+              assertz(cache:ordered_entry(qtest, 'pcat/pdep-1.0', pcat, pdep, V1)),
+              assertz(cache:entry_metadata(qtest, 'pcat/pdep-1.0', slot, slot('0'))),
+              assertz(cache:entry_metadata(qtest, 'pcat/pdep-1.0', keywords, stable(amd64))),
+              assertz(cache:ordered_entry(qtest, 'pcat/other-1.0', pcat, other, V1)),
+              assertz(cache:entry_metadata(qtest, 'pcat/other-1.0', slot, slot('0'))),
+              assertz(cache:entry_metadata(qtest, 'pcat/other-1.0', keywords, stable(amd64))),
+              memo:clear_caches )),
+      cleanup(( retractall(cache:ordered_entry(qtest, _, pcat, _, _)),
+                retractall(cache:entry_metadata(qtest, 'pcat/ppkg-1.0', _, _)),
+                retractall(cache:entry_metadata(qtest, 'pcat/ppkg-2.0', _, _)),
+                retractall(cache:entry_metadata(qtest, 'pcat/pdep-1.0', _, _)),
+                retractall(cache:entry_metadata(qtest, 'pcat/other-1.0', _, _)),
+                memo:clear_caches ))]) :-
+  V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  V2 = version([2,0], '', 4, 0, [], 0, '2.0'),
+  Q1 = qualified_target(equal, qtest, pcat, ppkg, V1, [[], []]),
+  Q2 = qualified_target(equal, qtest, pcat, ppkg, V2, [[], []]),
+  QOther = qualified_target(equal, qtest, pcat, other, V1, [[], []]),
+  GoalsMulti = [target(Q1, 'pcat/ppkg:0'):run?{[]},
+                target(Q1, 'pcat/ppkg:0'):run?{[]},
+                target(Q2, 'pcat/ppkg:1'):run?{[]},
+                target(QOther, 'pcat/other'):run?{[]}],
+  pipeline:multislot_initial_constraints(GoalsMulti, InitCons),
+  get_assoc(selected_cn_allow_multislot(pcat, ppkg), InitCons, true),
+  pipeline:prove_plan([qtest://'pcat/other-1.0':run?{[]}], Proof0, Model0, Plan0, Trig0),
+  pipeline:prove_plan_with_fallback([qtest://'pcat/other-1.0':run?{[]}], _, _, _, _),
+  pipeline:prove_plan_with_pdepend([qtest://'pcat/other-1.0':run?{[]}], _, _, _, _),
+  pipeline:prove_plan_with_pdepend([qtest://'pcat/ppkg-1.0':run?{[]}], _, _, _, _),
+  pipeline:prove_variants_parallel([qtest://'pcat/other-1.0':run?{[]}], [], []),
+  pipeline:prove_plan_variants([qtest://'pcat/other-1.0':run?{[]}],
+                               [qtest://'pcat/other-1.0'],
+                               [variant(other, none, none, none, 'lbl')],
+                               baseline(_, _, _, _),
+                               [variant_result(_, _, _, _, _)]),
+  with_output_to(string(_),
+    ( printer:print([qtest://'pcat/other-1.0':run?{[]}], Model0, Proof0, Plan0, nonvar, Trig0),
+      pipeline:test(otest_empty_repo),
+      pipeline:test_stats(otest_empty_repo),
+      printer:test(otest_empty_repo, parallel_fast),
+      printer:test_latest(otest_empty_repo),
+      resolver:test(otest_empty_repo),
+      resolver:test_latest(otest_empty_repo),
+      resolver:test_stats(otest_empty_repo),
+      resolver:test_stats(otest_empty_repo, 5),
+      resolver:test_stats_pkgs(otest_empty_repo, []),
+      resolver:timed_prove_and_record(qtest://'pcat/other-1.0', run),
+      resolver:timed_prove_and_record(qtest://'pcat/nonexistent-9.9', run),
+      parser:test(otest_empty_repo)
+    )),
+  tmp_file(vdb_parse, TmpDir),
+  ( exists_file(TmpDir) -> delete_file(TmpDir) ; true ),
+  make_directory(TmpDir),
+  setup_call_cleanup(
+    true,
+    ( parser:invoke(vdb, qtest://'pcat/other-1.0', TmpDir, _),
+      parser:invoke(metadata, qtest://'pcat/other-1.0', ["EAPI=8", "NOT_A_KEYVALUE_LINE"], _)
+    ),
+    catch(delete_directory_and_contents(TmpDir), _, true)).
+
+test(explainer_and_explanation_full_coverage,
+     [setup(( V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+              V2 = version([2,0], '', 4, 0, [], 0, '2.0'),
+              knowledgebase:vdb_repository(Vdb),
+              assertz(cache:ordered_entry(Vdb, 'ecat/epkg-1.0', ecat, epkg, V1)),
+              assertz(cache:ordered_entry(qtest, 'ecat/epkg-1.0', ecat, epkg, V1)),
+              assertz(cache:ordered_entry(qtest, 'ecat/epkg-2.0', ecat, epkg, V2)) )),
+      cleanup(( knowledgebase:vdb_repository(Vdb),
+                retractall(cache:ordered_entry(Vdb, 'ecat/epkg-1.0', _, _, _)),
+                retractall(cache:ordered_entry(qtest, _, ecat, _, _)) ))]) :-
+  V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  V2 = version([2,0], '', 4, 0, [], 0, '2.0'),
+  % explainer:assumption_content_from_proof_key & assumption_normalize
+  explainer:assumption_content_from_proof_key(rule(assumed(qtest://a:run)), domain(qtest://a:run)),
+  explainer:assumption_content_from_proof_key(assumed(rule(qtest://a:run)), cycle_break(qtest://a:run)),
+  explainer:assumption_normalize(domain(pkg_a:run?{[c]}), domain(pkg_a:run?{[c]})),
+  explainer:assumption_normalize(domain(qtest://a:run), domain(qtest://a:run)),
+  explainer:assumption_normalize(cycle_break(pkg_a:run?{[c]}), cycle_break(pkg_a:run?{[c]})),
+  explainer:assumption_normalize(cycle_break(qtest://a:run), cycle_break(qtest://a:run)),
+  explainer:assumption_normalize(qtest://a:run, qtest://a:run),
+  % explainer:why_in_proof & explanation:why_in_proof_hook
+  ReasonCtx = [domain_reason(cn_domain(ecat, epkg, [r_tag])), assumption_reason(missing)],
+  list_to_assoc([rule(qtest://a:run)-(dep(1, [qtest://b:run])?ReasonCtx),
+                 assumed(rule(qtest://b:run))-(dep(0, [])?[]),
+                 rule(assumed(qtest://c:run))-(dep(0, [])?[])], ProofAVL),
+  list_to_assoc([assumed(qtest://d:run)-[]], ModelAVL),
+  explainer:why_in_proof(ProofAVL, qtest://a:run, _),
+  explainer:why_in_proof(ProofAVL, qtest://b:run, _, _),
+  explainer:why_in_proof(ProofAVL, qtest://c:run, _, _),
+  % explainer:why_in_plan (requested, required_by, has_dependents, unknown)
+  Plan = [[qtest://x:run, qtest://a:run], [qtest://b:run, qtest://c:run]],
+  list_to_assoc([(qtest://b:run)-[qtest://a:run, qtest://b:run],
+                 (qtest://c:run)-[qtest://unplanned:run]], TriggersAVL),
+  explainer:why_in_plan([qtest://a:run], Plan, ProofAVL, TriggersAVL, qtest://a:run,
+                        why_in_plan(_, _, requested)),
+  explainer:why_in_plan([qtest://a:run], Plan, ProofAVL, TriggersAVL, qtest://b:run,
+                        why_in_plan(_, _, required_by(_))),
+  explainer:why_in_plan([qtest://a:run], Plan, ProofAVL, TriggersAVL, qtest://c:run,
+                        why_in_plan(_, _, has_dependents(_))),
+  explainer:why_in_plan(Plan, ProofAVL, TriggersAVL, qtest://x:run,
+                        why_in_plan(_, _, unknown)),
+  % explainer:why_assumption & explanation:why_assumption_hook
+  explainer:why_assumption(ModelAVL, ProofAVL, assumed(qtest://c:run?{ReasonCtx}), _),
+  explainer:why_assumption(ModelAVL, ProofAVL, assumed(qtest://b:run), cycle_break, _),
+  explainer:why_assumption(ModelAVL, ProofAVL, rule(assumed(qtest://c:run)), domain, _),
+  explainer:why_assumption(ModelAVL, ProofAVL, assumed(rule(qtest://b:run)), cycle_break, _),
+  explainer:why_assumption(ModelAVL, ProofAVL, assumed(qtest://d:run), model_only, _),
+  \+ explainer:why_assumption(ModelAVL, ProofAVL, non_assumption_key, _, _),
+  explanation:why_assumption_hook(
+    why_assumption(k, type(domain), term(pkg_a:run?{ReasonCtx}), reason(missing)),
+    why_assumption(k, type(domain), term(pkg_a:run?{ReasonCtx}), reason(missing), domain_reasons([r_tag]))),
+  % explainer:explain & call_llm
+  setup_call_cleanup(
+    asserta(config:llm_default(mock_llm_service)),
+    once(explainer:explain(why_test, 'mock llm explanation')),
+    retractall(config:llm_default(mock_llm_service))),
+  with_output_to(string(_), explainer:call_llm(nonexistent_llm_xyz, 'prompt', '')),
+  % explanation:context_domain_reasons, target_ctx, is_installed_candidate, any_candidate_matches_versions, version_constraint_analysis
+  explanation:context_domain_reasons(not_a_list, []),
+  explanation:target_ctx(assumed(pkg_a:run?{[t]}), [t]),
+  explanation:target_ctx(domain(pkg_a:run?{[t]}), [t]),
+  explanation:target_ctx(cycle_break(pkg_a:run?{[t]}), [t]),
+  explanation:target_ctx(pkg_a:run?{[t]}, [t]),
+  explanation:is_installed_candidate(qtest://'ecat/epkg-1.0'),
+  PDs = [package_dependency(run, no, ecat, epkg, greaterequal, V1, [], []),
+         package_dependency(run, no, ecat, epkg, smallerequal, V2, [], [])],
+  Cands = [qtest://'ecat/epkg-1.0', qtest://'ecat/epkg-2.0'],
+  explanation:any_candidate_matches_versions(run, ecat, epkg, PDs, Cands, Cands),
+  explanation:version_constraint_analysis(run, ecat, epkg, PDs, Cands, Cands, _).
+
+:- end_tests(pipeline_and_explainer_coverage).

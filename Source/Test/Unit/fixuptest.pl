@@ -96,29 +96,29 @@ test(usedep_shape,
 % USE-enable learning from build failures (portage-ng#110).
 :- begin_tests(useenable_detectors).
 
-test(kx11extras_header) :-
+test(kx11extras_header, [nondet]) :-
   useenable:detector(
     ["fatal error: KX11Extras: No such file or directory"],
     symbol(kf_header, 'KX11Extras'), _).
 
-test(kstartupinfo_header) :-
+test(kstartupinfo_header, [nondet]) :-
   useenable:detector(
     ["error: KStartupInfo: No such file or directory"],
     symbol(kf_header, 'KStartupInfo'), _).
 
-test(pimcommon_activities_header) :-
+test(pimcommon_activities_header, [nondet]) :-
   useenable:detector(
     ["fatal error: KPim6PimCommonActivities: No such file or directory"],
     symbol(kf_header, 'KPim6PimCommonActivities'), _).
 
 % Real kaddressbook configure log: CMake find_package, not a fatal #include.
-test(pimcommon_activities_could_not_find) :-
+test(pimcommon_activities_could_not_find, [nondet]) :-
   useenable:detector(
     ["-- Could NOT find KPim6PimCommonActivities (missing: KPim6PimCommonActivities_DIR)"],
     symbol(kf_header, 'KPim6PimCommonActivities'), _).
 
 % Real kget compile log: GCC colors wrap the header token in CSI sequences.
-test(kx11extras_ansi_colored) :-
+test(kx11extras_ansi_colored, [nondet]) :-
   useenable:detector(
     ["\u001b[01m\u001b[K/tmp/droptarget.cpp:37:10:\u001b[m\u001b[K \u001b[01;31m\u001b[Kfatal error: \u001b[m\u001b[KKX11Extras: No such file or directory"],
     symbol(kf_header, 'KX11Extras'), _).
@@ -129,7 +129,7 @@ test(strip_ansi_removes_embedded_csi) :-
     Clean),
   Clean == "fatal error: KX11Extras: No such file".
 
-test(cmake_xdamage) :-
+test(cmake_xdamage, [nondet]) :-
   useenable:detector(
     ["-- Looking for X11_Xdamage_LIB - NOTFOUND"],
     symbol(cmake_lib, 'X11_Xdamage'), _).
@@ -197,7 +197,8 @@ test(excluded_version_roundtrip,
      [setup(( feedback:record_excluded_version('dev-haskell', text,
                  version([1,2,5], '', 4, 0, [], 1, '1.2.5.0-r1'),
                  evidence(test)) )),
-      cleanup(retractall(feedback:excluded_version('dev-haskell', text, _, _)))]) :-
+      cleanup(retractall(feedback:excluded_version('dev-haskell', text, _, _))),
+      nondet]) :-
   feedback:excluded_version('dev-haskell', text, _, evidence(test)),
   feedback:excluded_version_count(N),
   N >= 1.
@@ -386,3 +387,288 @@ test(cascade_records_second_option_for_same_target) :-
     )).
 
 :- end_tests(kernelconfig_detectors).
+
+
+% -----------------------------------------------------------------------------
+%  Comprehensive exception fixup mechanisms coverage
+% -----------------------------------------------------------------------------
+
+fixup_noop_cb(_Phase, _Event).
+
+fixup_mktemp_dir(Prefix, Dir) :-
+  tmp_file(Prefix, Tmp),
+  ( exists_file(Tmp) -> delete_file(Tmp) ; true ),
+  make_directory(Tmp),
+  Dir = Tmp.
+
+fixup_rm_rf(Dir) :-
+  ( exists_directory(Dir)
+  -> catch(process_create(path(rm), ['-rf', Dir], [process(Pid)]), _, true),
+     ( var(Pid) -> true ; process_wait(Pid, _) )
+  ;  true
+  ).
+
+:- begin_tests(exceptions_full_coverage).
+
+test(fixup_registry_and_helpers, [nondet]) :-
+  fixup_mktemp_dir(fixup_reg, TmpDir),
+  ( getenv('PORTAGE_NG_STATE', OldEnv) -> HadEnv = true ; HadEnv = false ),
+  V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  setup_call_cleanup(
+    ( setenv('PORTAGE_NG_STATE', TmpDir),
+      os:compose_path(TmpDir, 'Knowledge', KDir),
+      make_directory(KDir),
+      os:compose_path(TmpDir, 'pkg', PkgDir),
+      make_directory_path(PkgDir),
+      asserta(config:pkg_directory(PkgDir)),
+      asserta(config:ebuild_command('/usr/bin/true')),
+      os:compose_path(TmpDir, 'fake.ebuild', FakeEbuild),
+      setup_call_cleanup(open(FakeEbuild, write, S0),
+        writeln(S0, 'CABAL_CORE_LIB_GHC_PV="9.0.2  9.2.8"'),
+        close(S0)),
+      assertz(qtest:get_ebuild_file('fcat/fpkg-1.0', FakeEbuild)),
+      assertz(qtest:get_ebuild_file('fcat/missing_eb-1.0', '/tmp/no-such-portage-ng.ebuild')),
+      assertz(cache:ordered_entry(pkg, 'fcat/fpkg-1.0', fcat, fpkg, V1)),
+      assertz(cache:ordered_entry(qtest, 'fcat/fpkg-1.0', fcat, fpkg, V1)),
+      assertz(cache:entry_metadata(qtest, 'fcat/fpkg-1.0', iuse, fa)),
+      assertz(cache:entry_metadata(qtest, 'fcat/fpkg-1.0', iuse, fb)),
+      os:compose_path([PkgDir, 'fcat/fpkg-1.0'], VdbEntryDir),
+      make_directory_path(VdbEntryDir),
+      os:compose_path(VdbEntryDir, 'USE', UseFile),
+      setup_call_cleanup(open(UseFile, write, SU), writeln(SU, 'fa'), close(SU)),
+      os:compose_path(VdbEntryDir, 'CONTENTS', ContentsFile),
+      setup_call_cleanup(open(ContentsFile, write, SC),
+        ( writeln(SC, 'obj /usr/lib64/ocaml/site-lib/res/res.cmi abc 123'),
+          writeln(SC, 'dir /usr/lib64/ocaml/site-lib/camlp5'),
+          writeln(SC, 'obj /usr/include/myhdr.h abc 123'),
+          writeln(SC, 'obj /usr/lib64/pkgconfig/mypkg.pc abc 123'),
+          writeln(SC, 'obj /usr/lib64/libmylib.so abc 123')
+        ),
+        close(SC)),
+      assertz(cache:ordered_entry(pkg, 'dev-lang/ocaml-5.0', 'dev-lang', ocaml, V1)),
+      fixup:clear
+    ),
+    ( % 1. fixup.pl core helpers & repair_rebuild
+      fixup:record(collision, 'fcat/fpkg-1.0', d1),
+      fixup:record(collision, 'fcat/fpkg-1.0', d2),
+      fixup:applied(collision, 'fcat/fpkg-1.0', d1),
+      fixup:clear,
+      \+ fixup:applied(_, _, _),
+      fixup:tree_entry('fcat/fpkg-1.0', qtest, fcat, fpkg),
+      fixup:installed_tree_entry('fcat/fpkg-1.0', qtest),
+      os:compose_path(TmpDir, 'test.log', LogFile),
+      fixup:scan_log('/tmp/nonexistent-portage-ng-log-xyz', 0, []),
+      fixup:log_marker(LogFile, 'marker ~w', [1]),
+      fixup:scan_log(LogFile, 0, ScanLines),
+      ScanLines \== [],
+      fixup:packages_word(1, package),
+      fixup:packages_word(2, packages),
+      forall(member(M, [collision, ghcabi, gitlock, kernelconfig, missing_provider, ocamlabi, useenable]),
+             ( fixup:mechanism(M),
+               fixup:mechanism_note(M, 1, _),
+               fixup:mechanism_note(M, 2, _)
+             )),
+      fixup:repair_rebuild_use(qtest, 'fcat/fpkg-1.0', UseStr1),
+      sub_atom(UseStr1, _, _, _, 'fa'),
+      sub_atom(UseStr1, _, _, _, '-fb'),
+      fixup:repair_rebuild_use(qtest, 'fcat/other-1.0', _UseStr2),
+      fixup:repair_rebuild(qtest, 'fcat/fpkg-1.0', 'test repair', 0),
+      fixup:repair_rebuild(qtest, 'fcat/no_ebuild_path-1.0', 'test repair', -1),
+      fixup:maybe_phase_retry(FakeEbuild, 'fcat/fpkg-1.0', compile, LogFile, '', fixuptest:fixup_noop_cb, 0, 0, 0),
+      fixup:fold_phase_retry([], FakeEbuild, 'fcat/fpkg-1.0', compile, LogFile, '', fixuptest:fixup_noop_cb, 0, 1, 1),
+      fixup:fold_phase_retry([collision], FakeEbuild, 'fcat/fpkg-1.0', compile, LogFile, '', fixuptest:fixup_noop_cb, 0, 0, 0),
+
+      % 2. collision.pl
+      collision:deconflict_mode(override),
+      setup_call_cleanup(open(LogFile, write, SCol),
+        writeln(SCol, ' * Package NOT merged due to file collisions.'),
+        close(SCol)),
+      collision:phase_error(LogFile, 0),
+      fixup:maybe_phase_retry(FakeEbuild, 'fcat/fpkg-1.0', merge, LogFile, '', fixuptest:fixup_noop_cb, 0, 1, 0),
+
+      % 3. gitlock.pl
+      gitlock:retry_phase(unpack),
+      setup_call_cleanup(open(LogFile, write, SGit),
+        writeln(SGit, 'error: Unable to update HEAD'),
+        close(SGit)),
+      gitlock:phase_error(LogFile, 0),
+      gitlock:retry(FakeEbuild, 'fcat/fpkg-1.0', unpack, LogFile, '', fixuptest:fixup_noop_cb, 1, 6, 1),
+      fixup:phase_retry_hook(gitlock, FakeEbuild, 'fcat/fpkg-1.0', compile, LogFile, '', fixuptest:fixup_noop_cb, 0, 1, 1),
+      fixup:phase_retry_hook(gitlock, FakeEbuild, 'fcat/fpkg-1.0', unpack, LogFile, '', fixuptest:fixup_noop_cb, 0, 1, 0),
+
+      % 4. ghcabi.pl
+      ghcabi:repair_enabled,
+      ghcabi:retry_phase(setup),
+      ghcabi:retry_phase(configure),
+      ghcabi:retry_phase(compile),
+      ghcabi:strip_ansi("fpkg-1.0\u001b[0m", "fpkg-1.0"),
+      ghcabi:pv_token('fpkg-1.0'),
+      ghcabi:token_entry('fpkg-1.0', qtest, 'fcat/fpkg-1.0'),
+      ghcabi:read_cabal_core_from_ebuild(qtest://'fcat/fpkg-1.0', ['9.0.2', '9.2.8']),
+      ghcabi:read_cabal_core_from_ebuild(qtest://'fcat/missing_eb-1.0', []),
+      open_string("# comment\n", SStream),
+      setup_call_cleanup(true, ghcabi:scan_cabal_core_stream(SStream, []), close(SStream)),
+      ghcabi:empty_string(""),
+      retractall(ghcabi:repair_applied_(_, _)),
+      setup_call_cleanup(open(LogFile, write, SGhc),
+        ( writeln(SGhc, 'haskell-updater'),
+          writeln(SGhc, 'Detected broken packages: fpkg-1.0\u001b[0m unmappable-2.0')
+        ),
+        close(SGhc)),
+      ghcabi:phase_error(LogFile, 0, ['fpkg-1.0', 'unmappable-2.0']),
+      fixup:phase_retry_hook(ghcabi, FakeEbuild, 'fcat/fpkg-1.0', compile, LogFile, '', fixuptest:fixup_noop_cb, 0, 1, 0),
+      ghcabi:repair_tokens(['fpkg-1.0'], 1),
+      ghcabi:retry_loop(0, FakeEbuild, 'fcat/fpkg-1.0', compile, LogFile, '', fixuptest:fixup_noop_cb, 0, 1, 1),
+      fixup:phase_retry_hook(ghcabi, FakeEbuild, 'fcat/fpkg-1.0', unpack, LogFile, '', fixuptest:fixup_noop_cb, 0, 1, 1),
+      % boot_dep_error -> recache on round 1, then exclude_failing_version on round 2
+      retractall(ghcabi:repair_applied_(_, _)),
+      setup_call_cleanup(open(LogFile, write, SBoot),
+        writeln(SBoot, 'Encountered missing or private dependencies: bytestring >= 0.10'),
+        close(SBoot)),
+      fixup:phase_retry_hook(ghcabi, FakeEbuild, 'fcat/fpkg-1.0', configure, LogFile, '', fixuptest:fixup_noop_cb, 0, 1, 0),
+      with_output_to(string(_),
+        fixup:phase_retry_hook(ghcabi, FakeEbuild, 'fcat/fpkg-1.0', configure, LogFile, '', fixuptest:fixup_noop_cb, 0, 1, 1)),
+
+      % 5. ocamlabi.pl
+      ocamlabi:repair_enabled,
+      ocamlabi:retry_phase(configure),
+      ocamlabi:retry_phase(compile),
+      forall(member(Ext, [".cmi", ".cmo", ".cma", ".cmx", ".cmxa", ".cmxs"]),
+             ocamlabi:cm_extension(Ext)),
+      retractall(ocamlabi:repair_applied_(_, _)),
+      setup_call_cleanup(open(LogFile, write, SOcaml),
+        ( writeln(SOcaml, 'Error: The files /usr/lib64/ocaml/site-lib/res/res.cmi'),
+          writeln(SOcaml, '       and /usr/lib64/ocaml/stdlib.cmi'),
+          writeln(SOcaml, '       make inconsistent assumptions over interface Stdlib'),
+          writeln(SOcaml, 'ocamlfind: Package `camlp5'' not found'),
+          writeln(SOcaml, 'Error: Unbound module Camlp5')
+        ),
+        close(SOcaml)),
+      ocamlabi:phase_error(LogFile, 0, OTail),
+      ocamlabi:stale_units(OTail, OPaths, ONames),
+      OPaths \== [], ONames \== [],
+      ocamlabi:compiler_entry('dev-lang/ocaml-5.0'),
+      ocamlabi:stale_owners([], ONames, 'fcat/self-1.0', ['fcat/fpkg-1.0']),
+      ocamlabi:stale_owners(OPaths, ONames, 'fcat/self-1.0', ['fcat/fpkg-1.0']),
+      fixup:phase_retry_hook(ocamlabi, FakeEbuild, 'fcat/self-1.0', compile, LogFile, '', fixuptest:fixup_noop_cb, 0, 1, 0),
+      ocamlabi:repair_owners(['fcat/fpkg-1.0', 'fcat/gone-1.0'], 1),
+      ocamlabi:retry_loop(0, FakeEbuild, 'fcat/self-1.0', compile, LogFile, '', fixuptest:fixup_noop_cb, 0, 1, 1),
+      fixup:phase_retry_hook(ocamlabi, FakeEbuild, 'fcat/self-1.0', unpack, LogFile, '', fixuptest:fixup_noop_cb, 0, 1, 1),
+
+      % 6. kernelconfig.pl
+      kernelconfig:enabled,
+      os:compose_path(TmpDir, 'linux', KSrcDir),
+      os:compose_path(KSrcDir, 'scripts', KScriptsDir),
+      make_directory_path(KScriptsDir),
+      os:compose_path(KSrcDir, '.config', KConfigFile),
+      setup_call_cleanup(open(KConfigFile, write, SKC), writeln(SKC, '# config'), close(SKC)),
+      os:compose_path(KScriptsDir, 'config', KScriptBin),
+      setup_call_cleanup(open(KScriptBin, write, SKS),
+        ( writeln(SKS, '#!/bin/sh'), writeln(SKS, 'exit 0') ),
+        close(SKS)),
+      process_create(path(chmod), ['+x', KScriptBin], [process(ChPid)]),
+      process_wait(ChPid, _),
+      asserta(config:kernel_source_dir(KSrcDir)),
+      kernelconfig:kernel_source_dir(KSrcDir),
+      kernelconfig:config_token("\e[31m * \tCONFIG_FOO: is not set", 'CONFIG_FOO'),
+      kernelconfig:strip_prefix('FOO_NO_PREFIX', 'FOO_NO_PREFIX'),
+      setup_call_cleanup(open(LogFile, write, SKLog),
+        ( writeln(SKLog, "\e[01;31m * \tCONFIG_IIO: is not set when it should be."),
+          writeln(SKLog, " * CONFIG_BAR: is set when it should not be."),
+          writeln(SKLog, " * CONFIG_DRM_TTM_HELPER: is required")
+        ),
+        close(SKLog)),
+      with_output_to(string(_),
+        ( fixup:phase_retry_hook(kernelconfig, FakeEbuild, 'fcat/fpkg-1.0', setup, LogFile, '', fixuptest:fixup_noop_cb, 0, 1, 1),
+          kernelconfig:apply_planned([kernel_config([config('CONFIG_IIO', y),
+                                                     config('CONFIG_DRM_QXL', m),
+                                                     config('CONFIG_BAR', n),
+                                                     config('bad-token!', y)], ev)]),
+          delete_file(KConfigFile),
+          kernelconfig:apply_options([config('CONFIG_IIO', y)])
+        )),
+
+      % 7. missing_provider.pl
+      missing_provider:enabled,
+      forall(member(Ph, [prepare, configure, compile, install, test]),
+             missing_provider:retry_phase(Ph)),
+      forall(member(Ch, ['_', '-', '.', '+']),
+             missing_provider:name_char(Ch)),
+      forall(missing_provider:provides(Kind, SymName, Prov),
+             once(missing_provider:provider_of(Kind, SymName, Prov, _))),
+      once(missing_provider:provider_of(header, 'foo/myhdr.h', 'fcat/fpkg', vdb_index)),
+      once(missing_provider:provider_of(pkgconfig, mypkg, 'fcat/fpkg', vdb_index)),
+      once(missing_provider:provider_of(soname, 'libmylib.so', 'fcat/fpkg', vdb_index)),
+      once(missing_provider:provider_of(lib, mylib, 'fcat/fpkg', vdb_index)),
+      PDM = package_dependency(install, no, 'sys-apps', 'semodule-utils', none, version_none, [], []),
+      once(missing_provider:dep_mentions(use_conditional_group(positive, fa, qtest://'fcat/fpkg-1.0', [PDM]), 'sys-apps', 'semodule-utils')),
+      once(missing_provider:dep_mentions(any_of_group([PDM]), 'sys-apps', 'semodule-utils')),
+      once(missing_provider:dep_mentions(all_of_group([PDM]), 'sys-apps', 'semodule-utils')),
+      once(missing_provider:dep_mentions(exactly_one_of_group([PDM]), 'sys-apps', 'semodule-utils')),
+      once(missing_provider:dep_mentions(at_most_one_of_group([PDM]), 'sys-apps', 'semodule-utils')),
+      once(missing_provider:dep_mentions([PDM], 'sys-apps', 'semodule-utils')),
+      assertz(cache:ordered_entry(qtest, 'sys-apps/semodule-utils-1.0', 'sys-apps', 'semodule-utils', V1)),
+      setup_call_cleanup(open(LogFile, write, SMP),
+        ( writeln(SMP, '/bin/sh: line 1: semodule_package: command not found'),
+          writeln(SMP, '/bin/sh: line 2: unknown_cmd_xyz: command not found')
+        ),
+        close(SMP)),
+      with_output_to(string(_),
+        ( fixup:phase_retry_hook(missing_provider, FakeEbuild, 'fcat/fpkg-1.0', compile, LogFile, '', fixuptest:fixup_noop_cb, 0, 1, 1),
+          assertz(cache:entry_metadata(qtest, 'fcat/fpkg-1.0', bdepend, PDM)),
+          fixup:phase_retry_hook(missing_provider, FakeEbuild, 'fcat/fpkg-1.0', compile, LogFile, '', fixuptest:fixup_noop_cb, 0, 1, 1)
+        )),
+
+      % 8. useenable.pl
+      useenable:enabled,
+      forall(member(PhU, [configure, compile, prepare]),
+             useenable:retry_phase(PhU)),
+      useenable:provides_usedep(kf_header, 'KStartupInfo', 'kde-frameworks/kwindowsystem', _),
+      useenable:strip_ansi(atom_input, "atom_input"),
+      useenable:strip_ansi(123, "123"),
+      useenable:strip_ansi("\u001b[", ""),
+      useenable:strip_ansi("\u001b", ""),
+      useenable:strip_ansi("\u001b(Bhello\u001bM", "hello"),
+      UDep = [use(enable('X'), none)],
+      PDU = package_dependency(install, no, 'kde-frameworks', kwindowsystem, none, version_none, [], UDep),
+      once(useenable:dep_has_hard_usedeps(use_conditional_group(positive, fa, qtest://'fcat/fpkg-1.0', [PDU]), 'kde-frameworks', kwindowsystem, UDep)),
+      once(useenable:dep_has_hard_usedeps(any_of_group([PDU]), 'kde-frameworks', kwindowsystem, UDep)),
+      once(useenable:dep_has_hard_usedeps(all_of_group([PDU]), 'kde-frameworks', kwindowsystem, UDep)),
+      once(useenable:dep_has_hard_usedeps(exactly_one_of_group([PDU]), 'kde-frameworks', kwindowsystem, UDep)),
+      once(useenable:dep_has_hard_usedeps(at_most_one_of_group([PDU]), 'kde-frameworks', kwindowsystem, UDep)),
+      once(useenable:dep_has_hard_usedeps([PDU], 'kde-frameworks', kwindowsystem, UDep)),
+      assertz(cache:ordered_entry(qtest, 'kde-frameworks/kwindowsystem-1.0', 'kde-frameworks', kwindowsystem, V1)),
+      assertz(cache:ordered_entry(qtest, 'x11-libs/libXdamage-1.0', 'x11-libs', 'libXdamage', V1)),
+      setup_call_cleanup(open(LogFile, write, SUE),
+        ( writeln(SUE, 'fatal error: KX11Extras: No such file or directory'),
+          writeln(SUE, '-- Looking for X11_Xdamage_LIB - NOTFOUND')
+        ),
+        close(SUE)),
+      with_output_to(string(_),
+        ( fixup:phase_retry_hook(useenable, FakeEbuild, 'fcat/fpkg-1.0', compile, LogFile, '', fixuptest:fixup_noop_cb, 0, 1, 1),
+          assertz(cache:entry_metadata(qtest, 'fcat/fpkg-1.0', depend, PDU)),
+          fixup:phase_retry_hook(useenable, FakeEbuild, 'fcat/fpkg-1.0', compile, LogFile, '', fixuptest:fixup_noop_cb, 0, 1, 1)
+        ))
+    ),
+    ( retractall(config:pkg_directory(PkgDir)),
+      retractall(config:ebuild_command('/usr/bin/true')),
+      retractall(config:kernel_source_dir(_)),
+      assertz(config:kernel_source_dir('/usr/src/linux')),
+      retractall(qtest:get_ebuild_file(_, _)),
+      retractall(cache:ordered_entry(pkg, 'fcat/fpkg-1.0', _, _, _)),
+      retractall(cache:ordered_entry(pkg, 'dev-lang/ocaml-5.0', _, _, _)),
+      retractall(cache:ordered_entry(qtest, _, fcat, _, _)),
+      retractall(cache:ordered_entry(qtest, 'sys-apps/semodule-utils-1.0', _, _, _)),
+      retractall(cache:ordered_entry(qtest, 'kde-frameworks/kwindowsystem-1.0', _, _, _)),
+      retractall(cache:ordered_entry(qtest, 'x11-libs/libXdamage-1.0', _, _, _)),
+      retractall(cache:entry_metadata(qtest, 'fcat/fpkg-1.0', _, _)),
+      retractall(ghcabi:repair_applied_(_, _)),
+      retractall(ghcabi:cabal_core_cache_(_, _)),
+      retractall(ocamlabi:repair_applied_(_, _)),
+      retractall(feedback:excluded_version(fcat, fpkg, _, _)),
+      fixup:clear,
+      ( HadEnv == true -> setenv('PORTAGE_NG_STATE', OldEnv) ; unsetenv('PORTAGE_NG_STATE') ),
+      fixup_rm_rf(TmpDir)
+    )).
+
+:- end_tests(exceptions_full_coverage).

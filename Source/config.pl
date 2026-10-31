@@ -233,6 +233,8 @@ config:preference_cache(server,     cached).
 % via config:systemconfig/1), NOT here. Callers guard with
 % current_predicate/1 so hosts without a clause fail cleanly.
 
+:- dynamic config:pkg_directory/1.
+
 
 % -----------------------------------------------------------------------------
 %  World file
@@ -751,6 +753,8 @@ config:missing_provider_max_replan(3).
 %
 % Kernel source directory whose `.config` the `kernelconfig` strategy
 % reads and edits. Defaults to `/usr/src/linux`.
+
+:- dynamic config:kernel_source_dir/1.
 
 config:kernel_source_dir('/usr/src/linux').
 
@@ -2005,6 +2009,8 @@ config:llm_sandboxed_execution(true).
 %! config:llm_default(?Service)
 %
 % Declares the default LLM service used by explainer:explain/2.
+
+:- dynamic config:llm_default/1.
 
 config:llm_default(claude).
 
