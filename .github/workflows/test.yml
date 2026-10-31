@@ -20,7 +20,10 @@ jobs:
           bash .github/scripts/install-swipl.sh > "$RUNNER_TEMP/swi-install.log" 2>&1
           code=$?
           if [ "$code" != 0 ]; then
-            tail -n 30 "$RUNNER_TEMP/swi-install.log" | while IFS= read -r line; do
+            {
+              echo "install_exit=$code"
+              grep -E '^(OS |Installing |From |No SWI|E:|Err:|W: )' "$RUNNER_TEMP/swi-install.log" || true
+            } | head -n 25 | while IFS= read -r line; do
               line=${line//%/%25}
               line=${line//$'\r'/%0D}
               echo "::error title=SWI install::$line"
@@ -81,7 +84,10 @@ jobs:
           bash .github/scripts/install-swipl.sh > "$RUNNER_TEMP/swi-install.log" 2>&1
           code=$?
           if [ "$code" != 0 ]; then
-            tail -n 30 "$RUNNER_TEMP/swi-install.log" | while IFS= read -r line; do
+            {
+              echo "install_exit=$code"
+              grep -E '^(OS |Installing |From |No SWI|E:|Err:|W: )' "$RUNNER_TEMP/swi-install.log" || true
+            } | head -n 25 | while IFS= read -r line; do
               line=${line//%/%25}
               line=${line//$'\r'/%0D}
               echo "::error title=SWI install::$line"
