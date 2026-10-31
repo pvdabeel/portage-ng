@@ -922,7 +922,13 @@ test(orderer_refcount_ignores_self_and_unplanned_dependents) :-
   First == R1,
   Second == R2.
 
+% The harness counts through the stat instance that main/1 creates.
+% The PLUnit goal never enters main/1, so create it here when absent.
 test(orderer_test_harnesses_empty_repo) :-
+  ( catch(stats:declared(type(instance(stat))), _, fail)
+  -> true
+  ;  stats:newinstance(stat)
+  ),
   with_output_to(string(_),
     ( orderer:test(otest_empty_repo),
       orderer:test_latest(otest_empty_repo),
