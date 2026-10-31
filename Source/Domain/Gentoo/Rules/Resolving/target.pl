@@ -431,6 +431,36 @@ candidate:resolve(strong_blocker(C,N,PackageDeps)?{Context}, Conditions) :-
 
 
 % -----------------------------------------------------------------------------
+%  Depclean resolution
+% -----------------------------------------------------------------------------
+
+%! candidate:resolve(grouped_dep(+C,+N,+PackageDeps):depclean?{+Ctx}, -Conditions)
+%
+% Follows the depclean closure through installed packages only. Finds an
+% installed entry satisfying the version/slot constraints and maps it
+% back to a repository entry for continued traversal. Produces [] when
+% nothing installed matches. Must precede the general `:Action` clauses
+% below so `:depclean` does not short-circuit to `[]` via keep-installed.
+
+candidate:resolve(grouped_dep(C,N,PackageDeps):depclean?{_}, Conditions) :-
+  !,
+  slotmeta:merge_slot_restriction(run, C, N, PackageDeps, SlotReq),
+  knowledgebase:vdb_repository(VdbRepo),
+  ( query:search([name(N),category(C),installed(true)], VdbRepo://Installed),
+    slotmeta:query_search_slot_constraint(SlotReq, VdbRepo://Installed, _),
+    cnselect:installed_entry_satisfies_package_deps(run, C, N, PackageDeps, VdbRepo://Installed),
+    query:search(version(V), VdbRepo://Installed),
+    preference:accept_keywords(K),
+    query:search([select(repository,notequal,pkg),category(C),name(N),keywords(K),version(V)],
+                 Repo://Installed)
+  ->
+    Conditions = [Repo://Installed:depclean?{[]}]
+  ;
+    Conditions = []
+  ).
+
+
+% -----------------------------------------------------------------------------
 %  Grouped-dependency resolution
 % -----------------------------------------------------------------------------
 
@@ -508,34 +538,6 @@ candidate:resolve(grouped_dep(C,N,PackageDeps):Action?{Context}, Conditions) :-
 candidate:resolve(grouped_dep(C,N,PackageDeps):Action?{Context}, Conditions) :-
   candidate:augment_package_deps_with_self_rdepend(Action, C, N, Context, PackageDeps, PackageDeps1),
   candidate:grouped_dep_build_assumption(Action, C, N, PackageDeps1, PackageDeps, Context, Conditions).
-
-
-% -----------------------------------------------------------------------------
-%  Depclean resolution
-% -----------------------------------------------------------------------------
-
-%! candidate:resolve(grouped_dep(+C,+N,+PackageDeps):depclean?{+Ctx}, -Conditions)
-%
-% Follows the depclean closure through installed packages only. Finds an
-% installed entry satisfying the version/slot constraints and maps it
-% back to a repository entry for continued traversal. Produces [] when
-% nothing installed matches.
-
-candidate:resolve(grouped_dep(C,N,PackageDeps):depclean?{_}, Conditions) :-
-  slotmeta:merge_slot_restriction(run, C, N, PackageDeps, SlotReq),
-  knowledgebase:vdb_repository(VdbRepo),
-  ( query:search([name(N),category(C),installed(true)], VdbRepo://Installed),
-    slotmeta:query_search_slot_constraint(SlotReq, VdbRepo://Installed, _),
-    cnselect:installed_entry_satisfies_package_deps(run, C, N, PackageDeps, VdbRepo://Installed),
-    query:search(version(V), VdbRepo://Installed),
-    preference:accept_keywords(K),
-    query:search([select(repository,notequal,pkg),category(C),name(N),keywords(K),version(V)],
-                 Repo://Installed)
-  ->
-    Conditions = [Repo://Installed:depclean?{[]}]
-  ;
-    Conditions = []
-  ).
 
 
 %! candidate:resolve(+R://+E:depclean?{+Context}, -Conditions)

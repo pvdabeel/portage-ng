@@ -595,6 +595,14 @@ rule(package_dependency(_,_,_,_,_,_,_,_):config?{_},[]) :- !.
 % -----------------------------------------------------------------------------
 
 % Grouped package dependencies are used to resolve blockers and regular dependencies.
+% Depclean traversal rules come first so `:depclean` is not intercepted by the
+% general `:Action` clauses below.
+
+rule(grouped_package_dependency(no,C,N,PackageDeps):depclean?{_}, Conditions) :-
+  !,
+  candidate:resolve(grouped_dep(C,N,PackageDeps):depclean?{[]}, Conditions).
+
+rule(grouped_package_dependency(_,_,_,_):depclean?{_}, []) :- !.
 
 
 % Case 1: a weak blocker — assumed, never enforced as a hard constraint.
@@ -625,21 +633,6 @@ rule(grouped_package_dependency(strong,C,N,PackageDeps):_Action?{Context}, Condi
 rule(grouped_package_dependency(no,C,N,PackageDeps):Action?{Context},Conditions) :-
   !,
   candidate:resolve(grouped_dep(C,N,PackageDeps):Action?{Context}, Conditions).
-
-
-% -----------------------------------------------------------------------------
-%  Depclean traversal rules
-% -----------------------------------------------------------------------------
-%
-% depclean computes a closure over installed packages to find removable
-% orphans. These rules walk the runtime dependency graph of each
-% installed ebuild, following only packages that are themselves installed.
-
-rule(grouped_package_dependency(no,C,N,PackageDeps):depclean?{_}, Conditions) :-
-  !,
-  candidate:resolve(grouped_dep(C,N,PackageDeps):depclean?{[]}, Conditions).
-
-rule(grouped_package_dependency(_,_,_,_):depclean?{_}, []) :- !.
 
 
 % =============================================================================
@@ -821,9 +814,13 @@ rule(required(minus(Use)):_?{Context},[]) :-
 % to bare rules for assumption/conflict handling.
 
 rule(required(Use):_?{_}, Conditions) :-
+  Use \= minus(_),
+  !,
   rule(required(Use), Conditions).
 
 rule(required(minus(Use)):_?{_}, Conditions) :-
+  Use \= minus(_),
+  !,
   rule(required(minus(Use)), Conditions).
 
 rule(required(minus(Use)),[minus(Use)]) :-

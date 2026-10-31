@@ -145,6 +145,68 @@ test(obligations_empty_when_suspended,
 test(obligations_empty_without_provider_change, [true(Lits == [])]) :-
   abirebuild:obligations(portage://'dev-x/does-not-exist-1':install, t, Lits).
 
+% Full end-to-end synthetic fixture for abirebuild obligations:
+% - provider changes subslot from 1 (in pkg) to 2 (in qtest)
+% - visible consumer `abicons/vis-1` stays on same-CPV :update
+% - masked consumer `abicons/masked-2` with visible sibling `abicons/masked-1`
+%   replaces with sibling (:downgrade)
+% - orphan consumer `abicons/orphan-1` (only in pkg) emits assumed(no_tree_ebuild)
+% - build consumer `abicons/bcons-1` is picked up when rebuildunbuilt flag is set
+abi_full_setup :-
+  abi_full_cleanup,
+  V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  V2 = version([2,0], '', 4, 0, [], 0, '2.0'),
+  % Provider in pkg (subslot 1) and qtest (subslot 2)
+  assertz(cache:ordered_entry(pkg, 'abicat/prov-1.0', abicat, prov, V1)),
+  assertz(cache:entry_metadata(pkg, 'abicat/prov-1.0', slot, slot('0'))),
+  assertz(cache:entry_metadata(pkg, 'abicat/prov-1.0', slot, subslot('1'))),
+  assertz(cache:ordered_entry(qtest, 'abicat/prov-1.0', abicat, prov, V1)),
+  assertz(cache:entry_metadata(qtest, 'abicat/prov-1.0', slot, slot('0'))),
+  assertz(cache:entry_metadata(qtest, 'abicat/prov-1.0', slot, subslot('2'))),
+  % Visible consumer in pkg + qtest
+  DepSub = package_dependency(run, no, abicat, prov, none, version_none, [any_same_slot], []),
+  assertz(cache:ordered_entry(pkg, 'abicat/vis-1.0', abicat, vis, V1)),
+  assertz(cache:ordered_entry(qtest, 'abicat/vis-1.0', abicat, vis, V1)),
+  assertz(cache:entry_metadata(qtest, 'abicat/vis-1.0', rdepend, DepSub)),
+  assertz(cache:entry_metadata(qtest, 'abicat/vis-1.0', keywords, stable(amd64))),
+  % Masked consumer in pkg + qtest (V2) with visible older sibling in qtest (V1)
+  assertz(cache:ordered_entry(pkg, 'abicat/masked-2.0', abicat, masked, V2)),
+  assertz(cache:ordered_entry(qtest, 'abicat/masked-2.0', abicat, masked, V2)),
+  assertz(cache:entry_metadata(qtest, 'abicat/masked-2.0', rdepend, DepSub)),
+  assertz(preference:local_masked('abicat/masked-2.0', qtest)),
+  assertz(cache:ordered_entry(qtest, 'abicat/masked-1.0', abicat, masked, V1)),
+  assertz(cache:entry_metadata(qtest, 'abicat/masked-1.0', keywords, stable(amd64))),
+  % Orphan consumer only in pkg (no tree copy, no sibling)
+  assertz(cache:ordered_entry(pkg, 'abicat/orphan-1.0', abicat, orphan, V1)),
+  assertz(cache:entry_metadata(pkg, 'abicat/orphan-1.0', rdepend, DepSub)),
+  % Build-time consumer for --rebuild-if-unbuilt
+  DepBuild = package_dependency(install, no, abicat, prov, none, version_none, [], []),
+  assertz(cache:ordered_entry(pkg, 'abicat/bcons-1.0', abicat, bcons, V1)),
+  assertz(cache:ordered_entry(qtest, 'abicat/bcons-1.0', abicat, bcons, V1)),
+  assertz(cache:entry_metadata(qtest, 'abicat/bcons-1.0', depend, DepBuild)),
+  assertz(cache:entry_metadata(qtest, 'abicat/bcons-1.0', keywords, stable(amd64))).
+
+abi_full_cleanup :-
+  retractall(cache:ordered_entry(pkg, _, abicat, _, _)),
+  retractall(cache:ordered_entry(qtest, _, abicat, _, _)),
+  retractall(cache:entry_metadata(pkg, 'abicat/prov-1.0', _, _)),
+  retractall(cache:entry_metadata(pkg, 'abicat/orphan-1.0', _, _)),
+  retractall(cache:entry_metadata(qtest, 'abicat/prov-1.0', _, _)),
+  retractall(cache:entry_metadata(qtest, 'abicat/vis-1.0', _, _)),
+  retractall(cache:entry_metadata(qtest, 'abicat/masked-2.0', _, _)),
+  retractall(preference:local_masked('abicat/masked-2.0', qtest)),
+  retractall(cache:entry_metadata(qtest, 'abicat/masked-1.0', _, _)),
+  retractall(cache:entry_metadata(qtest, 'abicat/bcons-1.0', _, _)),
+  retractall(preference:local_flag(rebuildunbuilt)).
+
+test(obligations_full_consumer_matrix,
+     [setup(abi_full_setup), cleanup(abi_full_cleanup)]) :-
+  assertz(preference:local_flag(rebuildunbuilt)),
+  once(abirebuild:installed_tree_entry(abicat, prov, 'abicat/vis-1.0', qtest)),
+  empty_assoc(EmptyModel),
+  abirebuild:obligations(qtest://'abicat/prov-1.0':update, EmptyModel, Lits),
+  length(Lits, 4).
+
 :- end_tests(abirebuild).
 
 

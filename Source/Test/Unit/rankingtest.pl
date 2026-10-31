@@ -450,4 +450,89 @@ test(dep_priority_non_package_dep_last) :-
   length(Cs, Len),
   Pos =:= Len - 1.
 
+test(tightness_other_slot_req_and_multiple_upper_bounds) :-
+  V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  V2 = version([2,0], '', 4, 0, [], 0, '2.0'),
+  ranking:in_tightness_class(dep(cat, pkg, [], [custom_slot_req], none), other_slot_req),
+  PDs = [package_dependency(install, no, cat, pkg, smaller, V2, [], []),
+         package_dependency(install, no, cat, pkg, smallerorequal, V1, [], [])],
+  ranking:dep_tightest_upper_bound(cat, pkg, PDs, Tightest),
+  Tightest == V1,
+  ranking:dep_extract_cn_packagedeps(grouped_package_dependency(no, cat, pkg, PDs):install?{[]},
+                                     cat, pkg, PDs),
+  ranking:dep_extract_cn_packagedeps(grouped_package_dependency(no, cat, pkg, PDs):install,
+                                     cat, pkg, PDs).
+
+test(seed_bwu_memo_all_group_shapes_and_inactive_use,
+     [setup(( plunit_ranking_any_of_preference_keys:rap_use_setup,
+              use:clear_bwu_cross_dep_memos )),
+      cleanup(( use:clear_bwu_cross_dep_memos,
+                plunit_ranking_any_of_preference_keys:rap_use_cleanup ))]) :-
+  plunit_ranking_any_of_preference_keys:rap_foo_entry(RE),
+  Leaf = package_dependency(run, no, cat, foo, none, version_none, [],
+                            [use(enable(a), none)]),
+  Tree = [grouped_package_dependency(no, cat, foo, [Leaf]):run,
+          all_of_group([Leaf]),
+          any_of_group([Leaf]),
+          exactly_one_of_group([Leaf]),
+          at_most_one_of_group([Leaf]),
+          use_conditional_group(negative, a, RE, [Leaf]),
+          use_conditional_group(positive, b, RE, [Leaf]),
+          use_conditional_group(positive, a, RE, [Leaf])],
+  ranking:seed_bwu_memo_from_dep_tree(Tree),
+  ranking:seed_bwu_memo_from_dep_tree(not_a_list),
+  ranking:seed_accumulate_bwu(cat, foo, use_state([], [])).
+
+test(blocker_strength_overlap_and_preferred_dep_branches,
+     [setup(( plunit_ranking_any_of_preference_keys:rap_use_setup,
+              plunit_ranking_any_of_preference_keys:rap_foo_entry(R://Id),
+              assertz(memo:eff_use_cache_(R, Id, a, positive)),
+              assertz(memo:eff_use_cache_(R, Id, b, negative)) )),
+      cleanup(( plunit_ranking_any_of_preference_keys:rap_foo_entry(R://Id),
+                retractall(memo:eff_use_cache_(R, Id, _, _)),
+                plunit_ranking_any_of_preference_keys:rap_use_cleanup ))]) :-
+  plunit_ranking_any_of_preference_keys:rap_foo_entry(RE),
+  ranking:dep_blocker_strength(weak),
+  ranking:dep_blocker_strength(strong),
+  D1 = package_dependency(run, no, cat, foo, none, version_none, [], []),
+  ranking:dep_matches_prefer(D1, D1),
+  AnyOf = any_of_group([D1]),
+  ranking:dep_entry_active_any_of_with_cn(
+    use_conditional_group(positive, a, RE, [all_of_group([AnyOf])]),
+    RE, cat, foo),
+  UGPos = use_conditional_group(positive, a, RE, [D1]),
+  UGNeg = use_conditional_group(negative, b, RE, [D1]),
+  ranking:is_preferred_dep([], UGNeg),
+  ranking:group_member_preferred([], UGPos),
+  ranking:group_member_preferred([], UGNeg),
+  ranking:group_member_preferred([], all_of_group([UGPos, UGNeg])).
+
+test(use_expand_score_signals_and_any_of) :-
+  D1 = package_dependency(run, no, cat, foo, none, version_none, [],
+                          [use(optenable(llvm_slot_20), none),
+                           use(disable(llvm_slot_19), none),
+                           use(optdisable(llvm_slot_18), none)]),
+  ranking:use_expand_score(any_of_group([D1]), Score),
+  integer(Score).
+
+test(candidates_prefer_proven_providers_virtual,
+     [setup(( stash_selected_cn_snap(Saved),
+              V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+              assertz(cache:ordered_entry(qtest, 'dev-db/mysql-1.0', 'dev-db', mysql, V1)),
+              assertz(cache:entry_metadata(qtest, 'dev-db/mysql-1.0', slot, slot('0'))),
+              assertz(cache:entry_metadata(qtest, 'virtual/mysql-1.0', rdepend,
+                any_of_group([package_dependency(run, no, 'dev-db', mysql, none, version_none, [slot('0')], [])]))),
+              cnselect:record_selected_cn_snapshot('dev-db', mysql,
+                [selected(qtest, 'dev-db/mysql-1.0', install, V1, [slot('0')])]) )),
+      cleanup(( restore_selected_cn_snap(Saved),
+                retractall(cache:ordered_entry(qtest, 'dev-db/mysql-1.0', _, _, _)),
+                retractall(cache:entry_metadata(qtest, 'dev-db/mysql-1.0', _, _)),
+                retractall(cache:entry_metadata(qtest, 'virtual/mysql-1.0', _, _)) ))]) :-
+  ranking:candidates_prefer_proven_providers(
+    virtual, mysql, [],
+    [qtest://'virtual/other-1.0', qtest://'virtual/mysql-1.0'],
+    [First, Second]),
+  First == (qtest://'virtual/mysql-1.0'),
+  Second == (qtest://'virtual/other-1.0').
+
 :- end_tests(ranking_declarative).
