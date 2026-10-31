@@ -13,46 +13,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Ubuntu 26 ships SWI-Prolog 9.2.9. directory_member/3 there has no
-      # file_type(regular) clause, so os:find_files/3 matches nothing.
-      # This project requires SWI 10; install it from the devel PPA.
+      # Ubuntu 26 ships SWI-Prolog 9.2.9. This project requires SWI 10.
       - name: Install SWI-Prolog
         run: |
           set +e
-          {
-            set -e
-            sudo apt-get update -q
-            sudo apt-get install -y ca-certificates curl gnupg
-            sudo mkdir -p /etc/apt/keyrings
-            # sudo would steal the pipe (use_pty), so dearmor as the current user.
-            curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xE8B739E3753FF4A12360BA6A4AB3A5F60EA9AEB3" \
-              | gpg --batch --yes --dearmor -o /tmp/swi-prolog-devel.gpg
-            sudo mv /tmp/swi-prolog-devel.gpg /etc/apt/keyrings/swi-prolog-devel.gpg
-            codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
-            echo "deb [signed-by=/etc/apt/keyrings/swi-prolog-devel.gpg] https://ppa.launchpadcontent.net/swi-prolog/devel/ubuntu ${codename} main" \
-              | sudo tee /etc/apt/sources.list.d/swi-prolog-devel.list
-            sudo apt-get update
-            pkgver=$(apt-cache madison swi-prolog | awk '$3 ~ /^10\./ { print $3; exit }')
-            if [ -z "$pkgver" ]; then
-              echo "No SWI-Prolog 10 candidate for ${codename}"
-              apt-cache madison swi-prolog
-              exit 1
-            fi
-            sudo apt-get install -y "swi-prolog=${pkgver}"
-            swipl --version
-            swipl -g 'current_prolog_flag(version,V),(V>=100000->halt(0);halt(1))' -t 'halt(1)'
-          } > "$RUNNER_TEMP/swi-install.log" 2>&1
+          bash .github/scripts/install-swipl.sh > "$RUNNER_TEMP/swi-install.log" 2>&1
           code=$?
           if [ "$code" != 0 ]; then
-            python3 - << 'PY'
-          import os, pathlib
-          log = pathlib.Path(os.environ["RUNNER_TEMP"]) / "swi-install.log"
-          lines = log.read_text(errors="replace").splitlines() if log.exists() else []
-          def esc(s):
-              return s.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
-          for ln in lines[-40:]:
-              print("::error::" + esc(ln))
-          PY
+            tail -n 30 "$RUNNER_TEMP/swi-install.log" | while IFS= read -r line; do
+              line=${line//%/%25}
+              line=${line//$'\r'/%0D}
+              echo "::error title=SWI install::$line"
+            done
             exit "$code"
           fi
 
@@ -106,40 +78,14 @@ jobs:
       - name: Install SWI-Prolog
         run: |
           set +e
-          {
-            set -e
-            sudo apt-get update -q
-            sudo apt-get install -y ca-certificates curl gnupg
-            sudo mkdir -p /etc/apt/keyrings
-            # sudo would steal the pipe (use_pty), so dearmor as the current user.
-            curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xE8B739E3753FF4A12360BA6A4AB3A5F60EA9AEB3" \
-              | gpg --batch --yes --dearmor -o /tmp/swi-prolog-devel.gpg
-            sudo mv /tmp/swi-prolog-devel.gpg /etc/apt/keyrings/swi-prolog-devel.gpg
-            codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
-            echo "deb [signed-by=/etc/apt/keyrings/swi-prolog-devel.gpg] https://ppa.launchpadcontent.net/swi-prolog/devel/ubuntu ${codename} main" \
-              | sudo tee /etc/apt/sources.list.d/swi-prolog-devel.list
-            sudo apt-get update
-            pkgver=$(apt-cache madison swi-prolog | awk '$3 ~ /^10\./ { print $3; exit }')
-            if [ -z "$pkgver" ]; then
-              echo "No SWI-Prolog 10 candidate for ${codename}"
-              apt-cache madison swi-prolog
-              exit 1
-            fi
-            sudo apt-get install -y "swi-prolog=${pkgver}"
-            swipl --version
-            swipl -g 'current_prolog_flag(version,V),(V>=100000->halt(0);halt(1))' -t 'halt(1)'
-          } > "$RUNNER_TEMP/swi-install.log" 2>&1
+          bash .github/scripts/install-swipl.sh > "$RUNNER_TEMP/swi-install.log" 2>&1
           code=$?
           if [ "$code" != 0 ]; then
-            python3 - << 'PY'
-          import os, pathlib
-          log = pathlib.Path(os.environ["RUNNER_TEMP"]) / "swi-install.log"
-          lines = log.read_text(errors="replace").splitlines() if log.exists() else []
-          def esc(s):
-              return s.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
-          for ln in lines[-40:]:
-              print("::error::" + esc(ln))
-          PY
+            tail -n 30 "$RUNNER_TEMP/swi-install.log" | while IFS= read -r line; do
+              line=${line//%/%25}
+              line=${line//$'\r'/%0D}
+              echo "::error title=SWI install::$line"
+            done
             exit "$code"
           fi
 
