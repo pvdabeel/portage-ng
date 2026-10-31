@@ -1558,14 +1558,6 @@ prover:debug_hook(Target, Proof, Model, Constraints) :-
   !.
 
 
-%! prover:debug
-%
-% Debug all predicates in the prover module.
-
-prover:debug :-
-  forall(current_predicate(prover:X),trace(prover:X)).
-
-
 % =============================================================================
 % Triggers Helpers
 % =============================================================================
@@ -1802,22 +1794,16 @@ prover:conflictrule(rule(Lit,_), Proof) :-
 
 prover:canon_literal(R://(L:A),               R://L:A, {})  :- !.
 prover:canon_literal(R://(L:A?{Ctx1}),        R://L:A, Ctx1) :- !.
-prover:canon_literal(R://(L:A)?{Ctx2},        R://L:A, Ctx2) :- !.
 prover:canon_literal(R://(L:A?{Ctx1})?{Ctx2}, R://L:A, Ctx) :-
   !,
   sampler:ctx_union(Ctx1, Ctx2, Ctx).
 
 prover:canon_literal(R://(L),                 R://L,   {})  :- !.
 prover:canon_literal(R://(L?{Ctx1}),          R://L,   Ctx1) :- !.
-prover:canon_literal(R://(L)?{Ctx2},          R://L,   Ctx2) :- !.
 prover:canon_literal(R://(L?{Ctx1})?{Ctx2},   R://L,   Ctx) :-
   !,
   sampler:ctx_union(Ctx1, Ctx2, Ctx).
 
-prover:canon_literal(R://L:A,       R://L:A,  {})  :- !.
-prover:canon_literal(R://L:A?{Ctx}, R://L:A,  Ctx) :- !.
-prover:canon_literal(R://L,         R://L,    {})  :- !.
-prover:canon_literal(R://L?{Ctx},   R://L,    Ctx) :- !.
 prover:canon_literal(L:A,           L:A,      {})  :- !.
 prover:canon_literal(L:A?{Ctx},     L:A,      Ctx) :- !.
 prover:canon_literal(L,             L,        {})  :- !.

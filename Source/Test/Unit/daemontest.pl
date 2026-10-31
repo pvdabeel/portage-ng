@@ -46,6 +46,27 @@ test(nonroot_fallback_uses_numeric_uid,
      [true(Dir == '/tmp/portage-ng-501')]) :-
   runtimepath:daemon_runtime_dir_for(501, '', Dir).
 
+test(daemon_runtime_dir_returns_atom) :-
+  runtimepath:daemon_runtime_dir(Dir),
+  atom(Dir).
+
+test(os_make_directory_and_find_files) :-
+  daemontest:with_temp_dir(
+    [Dir]>>(
+      os:compose_path(Dir, sub, SubDir),
+      os:make_directory(SubDir),
+      os:make_directory(SubDir),
+      os:compose_path(SubDir, 'sample.txt', FilePath),
+      setup_call_cleanup(open(FilePath, write, S), writeln(S, ok), close(S)),
+      findall(F, os:find_files(Dir, '*.txt', F), Found),
+      Found == [FilePath]
+    )).
+
+test(os_current_load_average_is_nonnegative_number) :-
+  os:current_load_average(Load),
+  number(Load),
+  Load >= 0.0.
+
 test(pid_symlink_target_is_not_followed,
      [condition((daemontest:env_ready,
                  current_predicate(link_file/3))), nondet]) :-

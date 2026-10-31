@@ -154,6 +154,14 @@ test(installed_copy_unmerged_by_plan_is_silent,
   abr_proof(['abrtest/blk-6.10':uninstall, 'abrtest/parent-1':install], Content, Proof),
   abr_silent(Proof, Content).
 
+test(legacy_build_with_use_proof_key_use_changes,
+     [setup(abr_setup), cleanup(abr_cleanup),
+      true(Bwu == [use_change(qtest://'abrtest/blk-6.10', [custom_en], [])])]) :-
+  Key = qtest://'abrtest/blk-6.10':install?{[build_with_use:use_state([custom_en], [custom_dis])]},
+  list_to_assoc([Key-(dep(_,[])?{[]})], Proof),
+  annotation:collect(Proof, Ann),
+  annotation:bwu_changes(Ann, Bwu).
+
 :- end_tests(annotation_blocker_relevance).
 
 

@@ -20,7 +20,7 @@ PREFIX              ?= /usr/local
 SHARE                = $(PREFIX)/share/portage-ng
 STATEDIR             = /var/lib/portage-ng
 
-.PHONY: help check all build install test test-overlay ipcclient clean certs passwordfile certs-check certs-renew
+.PHONY: help check all build install test test-overlay coverage ipcclient clean certs passwordfile certs-check certs-renew
 
 # Show this help.
 help:
@@ -95,6 +95,15 @@ test-overlay:
 	  "test:run(cases)." \
 	  "halt." | \
 	  ./Source/Application/Wrapper/portage-ng-dev --mode standalone --shell
+
+# Run PLUnit + overlay suites under library(prolog_coverage) and report clause coverage.
+coverage:
+	swipl --stack-limit=4G \
+	  -f portage-ng.pl \
+	  -p portage=$(BUILDDIR) \
+	  -Dverbose_autoload=false \
+	  -g "load_modules(common), load_modules(standalone), load_files(portage('Source/Test/coverage'), [if(true)]), (coverage_run -> halt(0) ; halt(1))" \
+	  -t 'halt(2)'
 
 # Build the native Unix-socket IPC client (C++ prototype).
 ipcclient:

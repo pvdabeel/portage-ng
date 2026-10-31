@@ -144,14 +144,16 @@ os:current_load_average(Load) :-
 % vm.loadavg on macOS, /proc/loadavg on Linux. The 1-minute average is
 % the first whitespace-delimited field of the returned string.
 
+:- if(current_prolog_flag(apple, true)).
+
 os:load_average_raw(S) :-
-  current_prolog_flag(apple, true),
-  !,
   setup_call_cleanup(
     process_create(path(sysctl), ['-n', 'vm.loadavg'], [stdout(pipe(Out))]),
     read_string(Out, _, S),
     close(Out)
   ).
+
+:- else.
 
 os:load_average_raw(S) :-
   setup_call_cleanup(
@@ -159,3 +161,5 @@ os:load_average_raw(S) :-
     read_string(In, _, S),
     close(In)
   ).
+
+:- endif.

@@ -249,12 +249,20 @@ test(slots_intersection, [true(D == slots([b]))]) :-
 :- begin_tests(version_normalize_term).
 
 test(var_passthrough) :-
-  version_domain:normalize_version_term(X, Y),
+  Goal = version_domain:normalize_version_term(X, Y),
+  call(Goal),
   var(Y),
   X == Y.
 
+test(version_compound_passthrough) :-
+  V = version([1,0], '', 4, 0, [], 0, '1.0'),
+  Goal = version_domain:normalize_version_term(V, Out),
+  call(Goal),
+  Out == V.
+
 test(wildcard_atom, [true(Ver == version([0],'',4,0,[],0,'1.0.*'))]) :-
-  version_domain:normalize_version_term('1.0.*', Ver).
+  Goal = version_domain:normalize_version_term('1.0.*', Ver),
+  call(Goal).
 
 test(compound_passthrough, [true(Ver == foo(bar))]) :-
   version_domain:normalize_version_term(foo(bar), Ver).
@@ -278,5 +286,49 @@ test(any_same_slot, [true(D == any)]) :-
 
 test(any_different_slot, [true(D == any)]) :-
   version_domain:slot_domain_from_reqs([[any_different_slot]], D).
+
+test(unknown_slot_req_defaults_to_any, [true(D == any)]) :-
+  version_domain:slot_req_domain([other_req], D).
+
+test(normalize_slot_domain_fallback, [true(D == any)]) :-
+  version_domain:normalize_slot_domain(other_domain_shape, D).
+
+test(feature_unification_val_hook_variants) :-
+  D1 = version_domain(any, [bound(equal, v1)]),
+  D2 = version_domain(any, [bound(smallerequal, v2)]),
+  feature_unification:val_hook(D1, D2, version_domain(any, Bounds)),
+  length(Bounds, 2),
+  feature_unification:val_hook(none, D1, D1),
+  feature_unification:val_hook(D1, none, D1).
+
+test(collect_slots_and_bounds_skips_other_cn) :-
+  V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  Deps = [package_dependency(install, no, other_cat, other_pkg, smaller, V1, [slot('0')], []),
+          package_dependency(install, no, my_cat, my_pkg, smallerorequal, V1, [slot('1')], [])],
+  version_domain:domain_from_packagedeps(install, my_cat, my_pkg, Deps, Dom),
+  Dom == version_domain(slots(['1']), [bound(smallerequal, V1)]).
+
+test(lower_and_upper_op_conflicts) :-
+  V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  V2 = version([2,0], '', 4, 0, [], 0, '2.0'),
+  version_domain:bounds_inconsistent([bound(greater, V2), bound(smaller, V1)]),
+  version_domain:bounds_inconsistent([bound(greaterequal, V2), bound(smallerequal, V1)]).
+
+test(candidate_satisfies_none_bound_and_domain_satisfiable,
+     [setup(assertz(cache:ordered_entry(vtest_repo, 'vtest_cat/vtest_pkg-1.0',
+                                        vtest_cat, vtest_pkg,
+                                        version([1,0],'',4,0,[],0,'1.0')))),
+      cleanup(retractall(cache:ordered_entry(vtest_repo, _, _, _, _)))]) :-
+  version_domain:candidate_satisfies_bound(vtest_repo://'vtest_cat/vtest_pkg-1.0',
+                                           bound(none, anything)),
+  version_domain:domain_satisfiable(vtest_cat, vtest_pkg, none),
+  version_domain:domain_satisfiable(vtest_cat, vtest_pkg, version_domain(any, [])).
+
+test(display_atom_and_upper_bound_helpers) :-
+  version_domain:display_atom(custom_term(1), 'custom_term(1)'),
+  version_domain:dep_bound_op(smallerorequal, smallerequal),
+  version_domain:wildcard_base_nums([1, 2, 3, '0.6*'], [0, 6]),
+  version_domain:wildcard_upper_bound('0.6*', version([0, 7], '', 4, 0, [], 0, '0.7')),
+  version_domain:tilde_upper_bound('8.1.1', version([8, 1, 2], '', 4, 0, [], 0, '8.1.2')).
 
 :- end_tests(version_slot_domain_from_reqs).

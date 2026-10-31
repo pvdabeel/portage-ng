@@ -396,6 +396,28 @@ test(missing_compressed_file_is_empty) :-
   reader:invoke('/tmp/portage-ng-no-such-file.gz', Lines),
   Lines == [].
 
+test(read_lines_to_codes_stream, [true(Codes == [`alpha`, `beta`])]) :-
+  open_string("alpha\nbeta\n", S),
+  setup_call_cleanup(
+    true,
+    reader:read_lines_to_codes(S, Codes),
+    close(S)).
+
+test(reader_test_repository_smoke) :-
+  Plain = '/tmp/portage-ng-test-manifest.plain',
+  setup_call_cleanup(
+    open(Plain, write, S),
+    writeln(S, 'DIST foo-1.0.tar.gz 123 BLAKE2B abc'),
+    close(S)),
+  setup_call_cleanup(
+    ( assertz(rtest_mock_repo:get_cache_file('cat/pkg-1.0', Plain)),
+      assertz(rtest_mock_repo:get_size(1))
+    ),
+    with_output_to(string(_), reader:test(rtest_mock_repo)),
+    ( retractall(rtest_mock_repo:get_cache_file(_, _)),
+      retractall(rtest_mock_repo:get_size(_))
+    )).
+
 :- end_tests(reader_compressed).
 
 

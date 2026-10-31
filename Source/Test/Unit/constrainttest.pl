@@ -59,6 +59,35 @@ test(unify_atom_new) :-
   get_assoc(k, C1, V),
   V == hello.
 
+test(unify_atom_same_existing) :-
+  empty_assoc(C0),
+  put_assoc(k, C0, hello, C1),
+  constraint:unify_constraints(constraint(k:{hello}), C1, C2),
+  get_assoc(k, C2, V),
+  V == hello.
+
+test(unify_empty_list_new) :-
+  empty_assoc(C0),
+  constraint:unify_constraints(constraint(k:{[]}), C0, C1),
+  get_assoc(k, C1, V),
+  is_assoc(V).
+
+test(unify_list_new) :-
+  empty_assoc(C0),
+  constraint:unify_constraints(constraint(k:{[a:install]}), C0, C1),
+  get_assoc(k, C1, V),
+  get_assoc(a:install, V, {}).
+
+test(unify_empty_list_into_existing_assoc) :-
+  empty_assoc(E),
+  constraint:unify_constraint([], E, Out),
+  Out == E.
+
+test(unify_list_into_empty_assoc) :-
+  empty_assoc(E),
+  constraint:unify_constraint([a:install], E, Out),
+  get_assoc(a:install, Out, {}).
+
 :- end_tests(constraint_unification).
 
 
@@ -66,6 +95,10 @@ test(unify_atom_new) :-
 
 test(empty_to_list, [true(L == [])]) :-
   empty_assoc(A),
+  constraint:constraints_to_list(A, L).
+
+test(list_to_constraints_roundtrip, [true(L == [pkg:install?{[flag]}])]) :-
+  constraint:list_to_constraints([pkg:install?{[flag]}], A),
   constraint:constraints_to_list(A, L).
 
 :- end_tests(constraint_conversion).

@@ -752,6 +752,10 @@ test(unmerge_cycle_bridged_by_world, [true(Order-Retained == [b,a]-[])]) :-
   depclean:uninstall_order([a, b], Order, Retained),
   retractall(unmerging:world_override(_)).
 
+% Context-wrapped literals delegate to the bare unmerging:rule/2 clause.
+test(unmerge_rule_strips_proof_context, [true(Body == [])]) :-
+  unmerging:rule(assumed(unreachable(a, b))?{[ctx]}, Body).
+
 :- end_tests(unmerging_engine_synthetic).
 
 
@@ -842,3 +846,112 @@ test(assuming_flags_restored_after_fallback) :-
   \+ prover:assuming(unmask).
 
 :- end_tests(pipeline_fallback_tiers).
+
+
+% -----------------------------------------------------------------------------
+%  Prover and orderer helper predicates
+% -----------------------------------------------------------------------------
+
+otest_empty_repo:entry(_) :- fail.
+otest_empty_repo:package(_, _) :- fail.
+otest_empty_repo:ebuild(_, _, _, _) :- fail.
+
+debug_hook_recorder(Target, _Proof, _Model, _Cons) :-
+  nb_setval(test_debug_hook_seen, Target).
+
+:- begin_tests(prover_and_orderer_helpers, [cleanup(resolving:disable_test_rules)]).
+
+test(canon_literal_repo_entry_variants) :-
+  prover:canon_literal(myrepo://pkg, myrepo://pkg, {}),
+  prover:canon_literal(Full1, myrepo://pkg, [flag]),
+  Full1 == (myrepo://(pkg?{[flag]})),
+  Inner = [build_with_use:use_state([icu], [])],
+  Outer = [self(b)],
+  prover:canon_literal(myrepo://(pkg?{Inner})?{Outer}, myrepo://pkg, Ctx),
+  memberchk(self(b), Ctx).
+
+test(canon_rule_assumed_variants) :-
+  prover:canon_rule(assumed(rule(myrepo://pkg, [dep1])),
+                    assumed(rule(myrepo://pkg)), dep(_, [dep1])?{}),
+  prover:canon_rule(assumed(rule(bare_lit, [dep1])),
+                    assumed(rule(bare_lit)), dep(_, [dep1])?{}),
+  prover:canon_rule(assumed(rule(bare_lit?{[c]}, [dep1])),
+                    assumed(rule(bare_lit)), dep(_, [dep1])?[c]).
+
+test(rule_body_extracts_body, [true(Body == [d1, d2])]) :-
+  prover:rule_body(rule(myrepo://pkg:install, [d1, d2]), Body).
+
+test(proof_and_model_list_roundtrips) :-
+  Rules = [rule(myrepo://pkg:install, [d1]),
+           assumed(rule(myrepo://cyc:run, []))],
+  prover:list_to_proof(Rules, ProofAssoc),
+  prover:proof_to_list(ProofAssoc, ProofList),
+  length(ProofList, 2),
+  Lits = [myrepo://pkg:install?{[u]}, bare_atom],
+  prover:list_to_model(Lits, ModelAssoc),
+  prover:model_to_list(ModelAssoc, ModelList),
+  length(ModelList, 2).
+
+test(prove_model_5_entry_point) :-
+  issue73_rules([pm_root-[pm_leaf], pm_leaf-[]]),
+  empty_assoc(E),
+  prover:with_rule_module(resolving,
+    prover:prove_model([pm_root], E, Model, E, _Cons)),
+  get_assoc(pm_root, Model, _),
+  get_assoc(pm_leaf, Model, _).
+
+test(debug_hooks_and_goal_expansion) :-
+  user:goal_expansion(debug_hook(a, b, c, d), true),
+  user:goal_expansion(maybe_debug_hook(a, b, c, d), true),
+  empty_assoc(E),
+  nb_setval(test_debug_hook_seen, none),
+  prover:with_debug_hook(synthetictest:debug_hook_recorder,
+    ( prover:debug_hook(target1, E, E, E),
+      prover:maybe_debug_hook(target2, E, E, E)
+    )),
+  nb_getval(test_debug_hook_seen, Seen),
+  Seen == target2.
+
+test(orderer_refcount_ignores_self_and_unplanned_dependents) :-
+  R1 = rule(r://a:install, []),
+  R2 = rule(r://b:install, []),
+  list_to_assoc([(r://a:install)-[r://a:install, r://unplanned:install, r://b:install]],
+                Triggers),
+  empty_assoc(Proof),
+  orderer:merge_order_bias(Proof, Triggers, [[R2, R1]], [[First, Second]]),
+  First == R1,
+  Second == R2.
+
+test(orderer_test_harnesses_empty_repo) :-
+  with_output_to(string(_),
+    ( orderer:test(otest_empty_repo),
+      orderer:test_latest(otest_empty_repo),
+      orderer:test_stats(otest_empty_repo)
+    )).
+
+test(ordering_helper_edge_clauses) :-
+  ordering:rule(assumed(unreachable(a, b))?{[ctx]}, []),
+  ordering:runtime_dep(grouped_package_dependency(no, c, n, []):fetchonly),
+  ordering:runtime_dep(grouped_package_dependency(c, n, []):fetchonly),
+  ordering:runtime_dep(r://e:fetchonly),
+  ordering:ctx_list({[a]}, [a]),
+  ordering:ctx_list(none, []),
+  ordering:is_grouped_dep_step(grouped_package_dependency(c, n, []):install),
+  ordering:same_package_entry(step_a, step_a),
+  ordering:grouped_deps(grouped_package_dependency(c, n, [d1]), [d1]),
+  ordering:grouped_deps(other_term, []),
+  ordering:world(h, r://e:fetchonly),
+  ordering:world(h, r://e:download),
+  ordering:world(h, grouped_package_dependency(no, c, n, []):fetchonly),
+  ordering:world(h, grouped_package_dependency(c, n, []):fetchonly).
+
+test(ordering_installed_satisfies_empty_deps_checks_vdb,
+     [setup(( knowledgebase:vdb_repository(Vdb),
+              assertz(cache:ordered_entry(Vdb, 'ord_test_cat/ord_test_pkg-1.0',
+                                          ord_test_cat, ord_test_pkg,
+                                          version([1,0],'',4,0,[],0,'1.0'))) )),
+      cleanup(( knowledgebase:vdb_repository(Vdb),
+                retractall(cache:ordered_entry(Vdb, 'ord_test_cat/ord_test_pkg-1.0', _, _, _)) ))]) :-
+  ordering:installed_satisfies(ord_test_cat, ord_test_pkg, []).
+
+:- end_tests(prover_and_orderer_helpers).

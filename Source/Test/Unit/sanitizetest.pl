@@ -213,6 +213,14 @@ test(reject_config_line_newline, [fail]) :-
 test(reject_config_line_empty, [fail]) :-
   sanitize:safe_config_line('').
 
+test(atom_for_entry_builds_versioned_atom,
+     [setup(assertz(cache:ordered_entry(san_test_repo, 'sys-apps/portage-3.0.70',
+                                        'sys-apps', portage,
+                                        version([3,0,70],'',4,0,[],0,'3.0.70')))),
+      cleanup(retractall(cache:ordered_entry(san_test_repo, _, _, _, _))),
+      true(Atom == '=sys-apps/portage-3.0.70')]) :-
+  sanitize:atom_for_entry(san_test_repo, 'sys-apps/portage-3.0.70', Atom).
+
 :- end_tests(sanitize_config_tokens).
 
 
@@ -277,6 +285,21 @@ test(prefer_missing_sidecar) :-
       format(S, 'hello~n', []),
       close(S)),
     sanitize:ensure_file_integrity(Path, prefer),
+    integrity_cleanup(Path)).
+
+test(off_mode_always_succeeds) :-
+  sanitize:ensure_file_integrity('/tmp/nonexistent-portage-ng-integrity-file', off).
+
+test(default_arity1_dispatches_to_effective_policy) :-
+  tmp_file(sanitize_integrity, Path),
+  setup_call_cleanup(
+    ( setup_call_cleanup(
+        open(Path, write, S),
+        format(S, 'hello~n', []),
+        close(S)),
+      sanitize:write_sha256_sidecar(Path)
+    ),
+    sanitize:ensure_file_integrity(Path),
     integrity_cleanup(Path)).
 
 :- end_tests(sanitize_file_integrity).
