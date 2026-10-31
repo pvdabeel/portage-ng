@@ -191,6 +191,11 @@ glsa:cache_load :-
   glsa:cache_file(File),
   exists_file(File),
   glsa:clear_facts,
+  ( module_property(glsadata, file(OldGlsaFile)),
+    OldGlsaFile \== File
+  -> unload_file(OldGlsaFile)
+  ; true
+  ),
   ensure_loaded(File),
   ( current_predicate(glsadata:advisory/2) ->
       forall(glsadata:advisory(Id, Title),
@@ -283,6 +288,11 @@ glsa:write_cache(Advisories, Packages, Ranges) :-
              format(Out, '~q.~n', [range(Id, C, N, Kind, Op, Ver, Slot)]))
     ),
     close(Out)
+  ),
+  ( module_property(glsadata, file(OldGlsaFile)),
+    OldGlsaFile \== RawFile
+  -> unload_file(OldGlsaFile)
+  ; true
   ),
   catch(qcompile(RawFile), E,
         format(user_error, '% glsa:cache_save — qcompile failed: ~w~n', [E])),
@@ -976,24 +986,12 @@ glsa:entity_char(Entity, Char) :-
 
 %! glsa:host_arch(-Arch) is semidet.
 %
-% Host ARCH via `userconfig:current_arch/1` when available, else ARCH /
-% ACCEPT_KEYWORDS from preference/env.
+% Host ARCH via `userconfig:current_arch/1`.
 
 glsa:host_arch(Arch) :-
   current_predicate(userconfig:current_arch/1),
   catch(userconfig:current_arch(Arch), _, fail),
   !.
-glsa:host_arch(Arch) :-
-  catch(preference:getenv('ARCH', Arch0), _, fail),
-  Arch0 \== '',
-  !,
-  Arch = Arch0.
-glsa:host_arch(Arch) :-
-  catch(preference:getenv('ACCEPT_KEYWORDS', KW), _, fail),
-  KW \== '',
-  atomic_list_concat([Tok|_], ' ', KW),
-  Tok \== '',
-  ( atom_concat('~', Arch, Tok) -> true ; Arch = Tok ).
 
 
 %! glsa:arch_matches(+ArchSpec) is semidet.
@@ -1186,8 +1184,7 @@ glsa:entry_covered(Id, Repo://Entry) :-
 
 glsa:least_upgrade(C, N, Slot, InstalledVer, Id, BestRepo://BestEntry) :-
   findall(Ver-(Repo://Entry),
-          ( query:search([select(repository, notequal, pkg),
-                          category(C), name(N), version(Ver)], Repo://Entry),
+          ( query:search([category(C), name(N), version(Ver)], Repo://Entry),
             \+ knowledgebase:is_vdb_repository(Repo),
             slotmeta:entry_slot_default(Repo, Entry, Slot),
             glsa:entry_subslot(Repo, Entry, Subslot),

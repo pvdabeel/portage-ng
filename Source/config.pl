@@ -275,6 +275,7 @@ config:set_dir(Dir) :-
 % uses `$PORTDIR/metadata/glsa` from the registered portage repository.
 % Declare a host-specific clause in Source/Config/<host>.local.pl if needed.
 
+:- dynamic config:glsa_dir/1.
 % config:glsa_dir('/path/to/metadata/glsa').
 
 
@@ -291,6 +292,8 @@ config:glsa_remote('https://anongit.gentoo.org/git/data/glsa.git').
 %
 % Path of the glsa_injected applied-ID file (Portage PRIVATE_PATH equivalent).
 % Defaults to a host-local Knowledge path.
+
+:- dynamic config:glsa_injected_file/1.
 
 config:glsa_injected_file(File) :-
   config:installation_dir(Dir),
@@ -671,6 +674,7 @@ config:build_phases([clean, setup, unpack, prepare, configure, compile, test, in
 %              run once more with `MAKEOPTS=-j1`. Make continues
 %              from the objects it already built.
 
+:- dynamic config:build_retry/1.
 config:build_retry([pid, makeopts]).
 
 
@@ -703,6 +707,7 @@ config:build_retry([pid, makeopts]).
 % Default is `override` (tinderbox-oriented). A production deployment that
 % wants emerge-like safety should set this to `report` in its host config.
 
+:- dynamic config:deconflict_collisions/1.
 config:deconflict_collisions(override).
 
 
@@ -724,6 +729,7 @@ config:deconflict_collisions(override).
 %               compiler. Nothing happens when those commands are
 %               not on PATH.
 
+:- dynamic config:build_fixup/1.
 config:build_fixup([ghcabi, ocamlabi, ghcpkg, toolchain]).
 
 
@@ -801,6 +807,7 @@ config:ebuild_command(ebuild).
 % Root directory for build work (PORTAGE_TMPDIR equivalent).
 % Portage defaults to /var/tmp/portage; override here or per-machine.
 
+:- dynamic config:build_root/1.
 config:build_root('/var/tmp/portage').
 
 
@@ -810,6 +817,7 @@ config:build_root('/var/tmp/portage').
 % produces a log file that captures all phase stdout/stderr output.
 % Override per-machine if desired.
 
+:- dynamic config:build_log_dir/1.
 config:build_log_dir('/var/tmp/portage-ng/logs').
 
 
@@ -829,6 +837,7 @@ config:build_log_dir('/var/tmp/portage-ng/logs').
 % `binpkg_exec:available_for/4` for a USE-matching variant before falling
 % back to the source-build phase sequence in `ebuild_exec`. Default: true.
 
+:- dynamic config:use_binpkg/1.
 config:use_binpkg(true).
 
 
@@ -839,6 +848,7 @@ config:use_binpkg(true).
 % IUSE_EFFECTIVE projection) are eligible. When `relaxed`, USE-mismatched
 % binpkgs may still be selected (a warning is logged). Default: strict.
 
+:- dynamic config:binpkg_respect_use/1.
 config:binpkg_respect_use(strict).
 
 
@@ -852,6 +862,7 @@ config:binpkg_respect_use(strict).
 % it. Set `false` or pass `--binpkg-respect-user-patches n` to accept
 % the binpkg anyway.
 
+:- dynamic config:binpkg_respect_user_patches/1.
 config:binpkg_respect_user_patches(true).
 
 
@@ -863,6 +874,7 @@ config:binpkg_respect_user_patches(true).
 % is logged). Default: warn (less restrictive; binpkg-multi-instance
 % already isolates USE drift).
 
+:- dynamic config:binpkg_changed_deps/1.
 config:binpkg_changed_deps(warn).
 
 
@@ -881,6 +893,7 @@ config:binpkg_changed_deps(warn).
 % Default: mtime so concurrent binpkg producers (tinderbox-ng shared
 % cache) are visible without restarting portage-ng.
 
+:- dynamic config:binpkg_refresh/1.
 config:binpkg_refresh(mtime).
 
 
@@ -905,6 +918,7 @@ config:binpkg_refresh(mtime).
 % advances past the baseline AFTER an inject still triggers a refresh,
 % so cross-process visibility is preserved. Default: true.
 
+:- dynamic config:binpkg_self_inject/1.
 config:binpkg_self_inject(true).
 
 
@@ -954,6 +968,7 @@ config:binpkg_gpg_command(gpg).
 % why a closure that emerge satisfies from `[binary]` is rebuilt from
 % source instead (e.g. the OCaml stack, portage-ng#81).
 
+:- dynamic config:binpkg_debug/1.
 config:binpkg_debug(false).
 
 
@@ -1655,6 +1670,7 @@ config:bugreport_drafts_max_assumptions(25).
 % Key can be:
 % - version : fails silently when trying to parse versions from git repositories
 
+:- dynamic config:failsilenton/1.
 config:failsilenton(version).
 
 

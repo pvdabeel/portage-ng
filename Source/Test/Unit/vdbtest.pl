@@ -284,3 +284,180 @@ test(certificate_identity_from_fixture,
   server:certificate_identity(Certificate, 'mac-pro.local', _).
 
 :- end_tests(vdb_import_roundtrip).
+
+
+% -----------------------------------------------------------------------------
+%  Full coverage for Domain/Gentoo/vdb.pl and Domain/Gentoo/upstream.pl
+% -----------------------------------------------------------------------------
+
+vdbtest_mktemp(Prefix, Dir) :-
+  tmp_file_stream(text, Base, Stream),
+  close(Stream),
+  delete_file(Base),
+  atomic_list_concat([Base, '_', Prefix], Dir),
+  make_directory(Dir).
+
+vdbtest_rm_rf(Path) :-
+  exists_directory(Path), !,
+  directory_files(Path, Entries),
+  forall((member(E, Entries), E \== '.', E \== '..'),
+         ( os:compose_path(Path, E, Child),
+           vdbtest_rm_rf(Child) )),
+  catch(delete_directory(Path), _, true).
+vdbtest_rm_rf(Path) :-
+  exists_file(Path), !,
+  catch(delete_file(Path), _, true).
+vdbtest_rm_rf(_).
+
+vdb_mock_repo:category('vcat').
+
+:- begin_tests(vdb_and_upstream_full_coverage).
+
+test(vdb_module_full_coverage, [nondet]) :-
+  vdbtest_mktemp(vdb_cov, TmpDir),
+  os:compose_path(TmpDir, 'pkg', PkgDir),
+  os:compose_path(TmpDir, 'root', RootDir),
+  os:compose_path(RootDir, 'sub', SubDir),
+  make_directory_path(SubDir),
+  os:compose_path(RootDir, 'owned.bin', OwnedFile),
+  setup_call_cleanup(open(OwnedFile, write, SO), write(SO, 'hello'), close(SO)),
+  crypto_file_hash(OwnedFile, OwnedMd5, [algorithm(md5), encoding(octet)]),
+  os:compose_path(SubDir, 'unmanaged.txt', UnmanagedFile),
+  setup_call_cleanup(open(UnmanagedFile, write, SU), write(SU, 'extra'), close(SU)),
+  os:compose_path(PkgDir, 'vcat/vpkg-1.0', EntryDir),
+  make_directory_path(EntryDir),
+  os:compose_path(EntryDir, 'CONTENTS', ContentsFile),
+  setup_call_cleanup(
+    open(ContentsFile, write, SC),
+    ( format(SC, 'obj ~w ~w 12345~n', [OwnedFile, OwnedMd5]),
+      format(SC, 'obj /usr/bin/vpkg-missing 00000000000000000000000000000000 12345~n', []),
+      format(SC, 'dir ~w~n', [SubDir]),
+      format(SC, 'sym /usr/bin/vpkg-link -> /usr/bin/vpkg-target 12345~n', []),
+      format(SC, 'sym /usr/sbin/vpkg-short -> targetonly~n', []),
+      format(SC, 'sym /bin/vpkg-malformed~n', [])
+    ),
+    close(SC)),
+  V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  V2 = version([2,0], '', 4, 0, [], 0, '2.0'),
+  setup_call_cleanup(
+    ( unittest:accept_stable_amd64,
+      asserta(config:pkg_directory(PkgDir)),
+      assertz(cache:ordered_entry(pkg, 'vcat/vpkg-1.0', vcat, vpkg, V1)),
+      assertz(cache:ordered_entry(portage, 'vcat/vpkg-2.0', vcat, vpkg, V2)),
+      assertz(cache:entry_metadata(portage, 'vcat/vpkg-2.0', keywords, stable(amd64))),
+      assertz(cache:entry_metadata(portage, 'vcat/vpkg-2.0', rdepend,
+        all_of_group([
+          any_of_group([
+            use_conditional_group(positive, u, portage://'vcat/vpkg-2.0',
+              [package_dependency(run, no, vcat, vpkg, none, version_none, [], [])])
+          ])
+        ])))
+    ),
+    with_output_to(string(_),
+      ( os:compose_path(TmpDir, 'scaff1', Scaff1),
+        vdb:make_repository_dirs(vdb_mock_repo, Scaff1),
+        vdb:create_repository_dirs(vdb_mock_repo, Scaff1),
+        vdb:outdated(vcat, vpkg, pkg://'vcat/vpkg-1.0', portage://'vcat/vpkg-2.0'),
+        vdb:print_contents('vcat/vpkg-1.0'),
+        vdb:print_contents('vcat/nonexistent-1.0'),
+        vdb:print_owner(OwnedFile),
+        vdb:print_owner('owned.bin'),
+        vdb:print_owner('/no/such/file'),
+        vdb:format_size(2000000000, _),
+        vdb:format_size(2000000, _),
+        vdb:format_size(2000, _),
+        vdb:format_size(20, _),
+        vdb:print_size('vcat/vpkg-1.0'),
+        vdb:verify_package('vcat/vpkg-1.0'),
+        vdb:verify_package('vcat/nonexistent-1.0'),
+        vdb:print_executables('vcat/vpkg-1.0'),
+        vdb:print_executables('vcat/nonexistent-1.0'),
+        vdb:resolve_vdb_entries('vcat/vpkg-1.0', ['vcat/vpkg-1.0']),
+        vdb:resolve_vdb_entries('vcat/vpkg', ['vcat/vpkg-1.0']),
+        vdb:resolve_vdb_entries('vpkg', ['vcat/vpkg-1.0']),
+        vdb:reverse_deps(vcat, vpkg, [portage://'vcat/vpkg-2.0']),
+        vdb:import_package(vcat, imported, '1.0'),
+        vdb:import_package(vcat, imported, '1.0'),
+        vdb:read_metadata_file('vcat/imported-1.0', 'SLOT', '0'),
+        vdb:split_pv("my-pkg-1.2.3", 'my-pkg', '1.2.3'),
+        vdb:split_pv("noversion", noversion, '0'),
+        vdb:build_contents_index(OwnedSet),
+        vdb:find_unmanaged(RootDir, OwnedSet, Unmanaged),
+        memberchk(UnmanagedFile, Unmanaged),
+        vdb:find_unmanaged(RootDir, OwnedSet, 0, [])
+      )),
+    ( retractall(config:pkg_directory(PkgDir)),
+      retractall(cache:ordered_entry(pkg, 'vcat/vpkg-1.0', _, _, _)),
+      retractall(cache:ordered_entry(pkg, 'vcat/imported-1.0', _, _, _)),
+      retractall(cache:ordered_entry(portage, 'vcat/vpkg-2.0', _, _, _)),
+      retractall(cache:entry_metadata(portage, 'vcat/vpkg-2.0', _, _)),
+      vdbtest_rm_rf(TmpDir)
+    )).
+
+test(upstream_module_full_coverage, [nondet]) :-
+  V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  V9 = version([9999], '', 4, 0, [], 0, '9999'),
+  setup_call_cleanup(
+    ( assertz(cache:ordered_entry(portage, 'ucat/upkg-9999', ucat, upkg, V9)),
+      assertz(cache:ordered_entry(portage, 'ucat/upkg-1.0',  ucat, upkg, V1)),
+      assertz(cache:ordered_entry(portage, 'ucat/liveonly-9999', ucat, liveonly, V9)),
+      assertz(config:repology_address('1.2.3.4'))
+    ),
+    with_output_to(string(_),
+      ( upstream:repology_user_agent(_),
+        upstream:normalize_project_name('gtk+', 'gtk'),
+        upstream:repology_url('gtk+', URL),
+        upstream:curl_resolve_opts(URL, ['--resolve', _]),
+        retractall(config:repology_address(_)),
+        upstream:curl_resolve_opts(URL, []),
+        upstream:curl_exit_text(28, timeout),
+        upstream:error_text(err, 'err'),
+        % local_version (non-9999 and 9999-only fallback)
+        upstream:local_version(ucat, upkg, '1.0'),
+        upstream:local_version(ucat, liveonly, '9999'),
+        % newest_version, gentoo_version, gentoo_status
+        Pkgs = [json{repo: "gentoo", status: "outdated", version: "1.0"},
+                json{repo: "arch",   status: "newest",   version: "2.0"}],
+        upstream:newest_version(Pkgs, "2.0"),
+        upstream:gentoo_version(Pkgs, "1.0"),
+        upstream:gentoo_status(Pkgs, outdated),
+        % print_result branches: equal, outdated, other
+        upstream:print_result(ucat, upkg, '1.0', "1.0", newest),
+        upstream:print_result(ucat, upkg, '1.0', "2.0", outdated),
+        upstream:print_result(ucat, upkg, '1.0', "2.0", devel),
+        % fetch_project & check_package branches via mocked httpfetch
+        assertz(httpfetch:mock_response(curl, any, ok(Pkgs))),
+        upstream:check_package(ucat, upkg),
+        retractall(httpfetch:mock_response(_, _, _)),
+        assertz(httpfetch:mock_response(curl, any, ok([]))),
+        upstream:check_package(ucat, upkg),
+        retractall(httpfetch:mock_response(_, _, _)),
+        assertz(httpfetch:mock_response(curl, any, ok([json{repo: "other", status: "devel", version: "1.0"}]))),
+        upstream:check_package(ucat, upkg),
+        retractall(httpfetch:mock_response(_, _, _)),
+        assertz(httpfetch:mock_response(curl, any, no_curl)),
+        assertz(httpfetch:mock_response(http_open, any, ok(Pkgs))),
+        upstream:fetch_project(upkg, packages(Pkgs)),
+        retractall(httpfetch:mock_response(http_open, _, _)),
+        assertz(httpfetch:mock_response(http_open, any, throw(error(http_status(u, 404), _)))),
+        upstream:fetch_project(upkg, packages([])),
+        retractall(httpfetch:mock_response(http_open, _, _)),
+        assertz(httpfetch:mock_response(http_open, any, throw(net_err))),
+        upstream:fetch_project(upkg, error(_)),
+        retractall(httpfetch:mock_response(_, _, _)),
+        assertz(httpfetch:mock_response(curl, any, throw(boom))),
+        upstream:fetch_project(upkg, error(_)),
+        retractall(httpfetch:mock_response(_, _, _)),
+        assertz(httpfetch:mock_response(curl, any, error('unreachable'))),
+        upstream:check(['ucat/upkg', 'nonexistent/pkg']),
+        upstream:check_packages([])
+      )),
+    ( retractall(httpfetch:mock_response(_, _, _)),
+      retractall(config:repology_address(_)),
+      retractall(cache:ordered_entry(portage, 'ucat/upkg-9999', _, _, _)),
+      retractall(cache:ordered_entry(portage, 'ucat/upkg-1.0', _, _, _)),
+      retractall(cache:ordered_entry(portage, 'ucat/liveonly-9999', _, _, _))
+    )).
+
+:- end_tests(vdb_and_upstream_full_coverage).
+

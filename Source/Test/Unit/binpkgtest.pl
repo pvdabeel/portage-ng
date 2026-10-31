@@ -613,3 +613,244 @@ binpkgtest:run_gpg(Args) :-
   process_create(path(gpg), Args,
                  [stdin(null), stdout(null), stderr(null), process(Pid)]),
   process_wait(Pid, exit(0)).
+
+
+% -----------------------------------------------------------------------------
+%  Full coverage for binpkg_index.pl, binpkg_extract.pl, and binpkg_exec.pl
+% -----------------------------------------------------------------------------
+
+:- dynamic binpkg:get_location/1.
+:- dynamic binpkg:get_cache/1.
+:- dynamic binpkg:sync/1.
+:- dynamic pkg:get_location/1.
+:- dynamic bsrc_repo:get_ebuild_file/2.
+
+:- begin_tests(binpkg_full_coverage).
+
+test(binpkg_index_full_coverage, [nondet]) :-
+  binpkgtest:mktemp_dir(Dir),
+  setup_call_cleanup(
+    true,
+    ( os:compose_path(Dir, 'Packages', PkgFile),
+      IndexContent =
+        "ARCH: amd64\nVERSION: 2\n\n\nCPV: app-misc/jq-1.8.1\nBUILD_ID: 9\nPATH: app-misc/jq/jq-1.8.1-9.gpkg.tar\nUSE: oniguruma\nbad line without separator\n\nCPV: app-misc/legacy-1.0\nPATH: app-misc/legacy/legacy-1.0-3.xpak\n",
+      setup_call_cleanup(
+        open(PkgFile, write, Out, [encoding(utf8)]),
+        write(Out, IndexContent),
+        close(Out)),
+      binpkg_index:parse_file(PkgFile, _Header, Records),
+      binpkg_index:record_count(PkgFile, 2),
+      binpkg_index:project_records(Records, Rows, ['app-misc'], ['app-misc'-jq, 'app-misc'-legacy]),
+      length(Rows, 2),
+      % Also test parse_stream on open stream & empty file
+      setup_call_cleanup(
+        open_string(IndexContent, S1),
+        binpkg_index:parse_stream(S1, _, [_, _]),
+        close(S1)),
+      setup_call_cleanup(
+        open_string("", S2),
+        binpkg_index:parse_stream(S2, [], []),
+        close(S2)),
+      binpkg_index:parse_file('/no/such/Packages', [], []),
+      \+ binpkg_index:trailing_dash_int(nodash, _)
+    ),
+    binpkgtest:rm_rf(Dir)).
+
+test(binpkg_extract_full_coverage, [nondet]) :-
+  binpkgtest:mktemp_dir(Root),
+  setup_call_cleanup(
+    true,
+    ( % 1. Pure helpers in binpkg_extract
+      forall(member(Ch-Tp, [
+        "-"-file, "d"-dir, "l"-symlink, "h"-hardlink,
+        "b"-device, "c"-device, "p"-fifo, "s"-socket,
+        "g"-skip, "x"-skip, "?"-other
+      ]), binpkg_extract:type_char(Ch, Tp)),
+      forall(member(K-FT, [
+        image-device, image-fifo, image-socket, image-other,
+        outer-symlink, outer-hardlink, metadata-symlink, metadata-hardlink
+      ]), binpkg_extract:forbidden_type(K, FT)),
+      binpkg_extract:members_safe(image, [member(skip, 'pax_global_header', ''),
+                                          member(dir, 'image/.', ''),
+                                          member(symlink, 'image/sub/l', 'a'),
+                                          member(file, 'image/sub/l/f', '')]),
+      binpkg_extract:skip_component(""),
+      binpkg_extract:join_target(["image", "sub"], '../a', ["image", "a"]),
+      binpkg_extract:strip_build_id_suffix('jq-1.8.1-9', 'jq-1.8.1'),
+      binpkg_extract:strip_build_id_suffix('nodash', 'nodash'),
+      % 2. Build a complete valid gpkg.tar with image.tar.zst + metadata.tar.zst + environment.bz2
+      InnerName = 'jq-1.8.1-9',
+      os:compose_path([Root, 'stage', InnerName], StageInner),
+      make_directory_path(StageInner),
+      % Create image/etc/env.d/99jq inside image staging
+      os:compose_path([Root, 'img_stage', 'image', 'etc', 'env.d'], ImgEnvDir),
+      make_directory_path(ImgEnvDir),
+      os:compose_path(ImgEnvDir, '99jq', ImgEnvFile),
+      setup_call_cleanup(open(ImgEnvFile, write, SE), writeln(SE, 'FOO=1'), close(SE)),
+      os:compose_path(StageInner, 'image.tar.zst', ImageTarZst),
+      os:compose_path(Root, 'img_stage', ImgStageRoot),
+      binpkg_extract:run_command(path(tar), ['--zstd', '-cf', ImageTarZst, '-C', ImgStageRoot, 'image'], 0),
+      % Create metadata/environment.bz2 inside metadata staging
+      os:compose_path([Root, 'meta_stage', 'metadata'], MetaStageDir),
+      make_directory_path(MetaStageDir),
+      os:compose_path(MetaStageDir, 'environment', RawEnv),
+      setup_call_cleanup(
+        open(RawEnv, write, SRE),
+        format(SRE, 'export MERGE_TYPE="source"~nexport EMERGE_FROM="ebuild"~nKEEP_VAR="1"~n', []),
+        close(SRE)),
+      binpkg_extract:run_command(path(bzip2), ['-f', RawEnv], 0),
+      os:compose_path(StageInner, 'metadata.tar.zst', MetaTarZst),
+      os:compose_path(Root, 'meta_stage', MetaStageRoot),
+      binpkg_extract:run_command(path(tar), ['--zstd', '-cf', MetaTarZst, '-C', MetaStageRoot, 'metadata'], 0),
+      binpkgtest:write_bytes(StageInner, 'gpkg-1', "gpkg-1\n"),
+      binpkgtest:write_inner_manifest(Root, StageInner, PlainMan),
+      os:compose_path(StageInner, 'Manifest', InnerManifest),
+      copy_file(PlainMan, InnerManifest),
+      os:compose_path(Root, 'jq-1.8.1-9.gpkg.tar', GpkgPath),
+      os:compose_path(Root, 'stage', StageRoot),
+      binpkg_extract:run_command(path(tar), ['-cf', GpkgPath, '-C', StageRoot, InnerName], 0),
+      size_file(GpkgPath, GpkgSize),
+      mirror:openssl_file_hash(GpkgPath, '-md5', GpkgMd5),
+      mirror:openssl_file_hash(GpkgPath, '-sha1', GpkgSha1),
+      Hashes = [alg_hash(md5, GpkgMd5), alg_hash(sha1, GpkgSha1)],
+      os:compose_path(Root, 'builddir', BuildDir),
+      make_directory_path(BuildDir),
+      binpkg_extract:prepare_builddir(GpkgPath, InnerName, BuildDir, GpkgSize, Hashes, StagedGpkg),
+      exists_file(StagedGpkg),
+      % Also exercise rewrite_binary_merge_markers when EnvFile is absent
+      os:compose_path(Root, 'fresh_env', FreshEnv),
+      binpkg_extract:rewrite_binary_merge_markers(FreshEnv),
+      exists_file(FreshEnv)
+    ),
+    binpkgtest:rm_rf(Root)).
+
+test(binpkg_exec_full_coverage, [nondet]) :-
+  binpkgtest:mktemp_dir(Root),
+  os:compose_path([Root, 'app-misc', 'jq'], PkgSubDir),
+  make_directory_path(PkgSubDir),
+  os:compose_path(PkgSubDir, 'jq-1.8.1-9.gpkg.tar', GpkgPath),
+  setup_call_cleanup(open(GpkgPath, write, SG), write(SG, 'dummy'), close(SG)),
+  size_file(GpkgPath, GpkgSize),
+  mirror:openssl_file_hash(GpkgPath, '-md5', GpkgMd5),
+  mirror:openssl_file_hash(GpkgPath, '-sha1', GpkgSha1),
+  os:compose_path(Root, 'Packages', IndexFile),
+  setup_call_cleanup(open(IndexFile, write, SI), writeln(SI, 'ARCH: amd64'), close(SI)),
+  os:compose_path(Root, 'jq-1.8.1.ebuild', EbuildPath),
+  setup_call_cleanup(open(EbuildPath, write, SEB), writeln(SEB, '# ebuild'), close(SEB)),
+  os:compose_path([Root, 'vdb', 'dev-libs', 'onig-1.0'], VdbEntryDir),
+  make_directory_path(VdbEntryDir),
+  os:compose_path(VdbEntryDir, 'SLOT', VdbSlotFile),
+  setup_call_cleanup(open(VdbSlotFile, write, SVS), writeln(SVS, '0/5'), close(SVS)),
+  V1 = version([1,8,1], '', 4, 0, [], 0, '1.8.1'),
+  setup_call_cleanup(
+    ( asserta(binpkg:get_location(Root)),
+      asserta(binpkg:get_cache(IndexFile)),
+      asserta((binpkg:sync(kb) :- !)),
+      asserta(pkg:get_location(Root)),
+      asserta(bsrc_repo:get_ebuild_file('app-misc/jq-1.8.1', EbuildPath)),
+      asserta(config:build_root(Root)),
+      asserta(config:ebuild_command(true)),
+      assertz(cache:repository(binpkg)),
+      assertz(cache:ordered_entry(bsrc_repo, 'app-misc/jq-1.8.1', 'app-misc', jq, V1)),
+      assertz(cache:entry_metadata(bsrc_repo, 'app-misc/jq-1.8.1', slot, slot('0'))),
+      assertz(cache:entry_metadata(bsrc_repo, 'app-misc/jq-1.8.1', slot, subslot('1'))),
+      assertz(cache:entry_metadata(bsrc_repo, 'app-misc/jq-1.8.1', iuse, plus(onig))),
+      assertz(cache:entry_metadata(bsrc_repo, 'app-misc/jq-1.8.1', iuse, minus(doc))),
+      assertz(cache:ordered_entry(binpkg, 'app-misc/jq-1.8.1-9', 'app-misc', jq, V1)),
+      assertz(cache:entry_metadata(binpkg, 'app-misc/jq-1.8.1-9', build_id, 9)),
+      assertz(cache:entry_metadata(binpkg, 'app-misc/jq-1.8.1-9', path, 'app-misc/jq/jq-1.8.1-9.gpkg.tar')),
+      assertz(cache:entry_metadata(binpkg, 'app-misc/jq-1.8.1-9', slot, '0/1')),
+      assertz(cache:entry_metadata(binpkg, 'app-misc/jq-1.8.1-9', keywords, 'amd64 ~x86')),
+      assertz(cache:entry_metadata(binpkg, 'app-misc/jq-1.8.1-9', use, 'onig')),
+      assertz(cache:entry_metadata(binpkg, 'app-misc/jq-1.8.1-9', size, GpkgSize)),
+      assertz(cache:entry_metadata(binpkg, 'app-misc/jq-1.8.1-9', md5, GpkgMd5)),
+      assertz(cache:entry_metadata(binpkg, 'app-misc/jq-1.8.1-9', sha1, GpkgSha1)),
+      assertz(cache:entry_metadata(binpkg, 'app-misc/jq-1.8.1-9', required_use, 'onig !doc')),
+      assertz(cache:entry_metadata(binpkg, 'app-misc/jq-1.8.1-9', depend,
+        'dev-libs/onig:0/5= ( dev-libs/a ) || ( dev-libs/b ) onig? ( dev-libs/c ) !onig? ( dev-libs/d ) ^^ ( dev-libs/e ) ?? ( dev-libs/f )')),
+      assertz(cache:ordered_entry(pkg, 'dev-libs/onig-1.0', 'dev-libs', onig, V1)),
+      assertz(cache:entry_metadata(pkg, 'dev-libs/onig-1.0', slot, slot('0'))),
+      assertz(cache:entry_metadata(pkg, 'dev-libs/onig-1.0', slot, subslot('5'))),
+      assertz(cache:entry_metadata(pkg, 'dev-libs/onig-1.0', installed, true))
+    ),
+    with_output_to(string(_),
+      ( % Policy helpers
+        binpkg_exec:consumption_enabled,
+        preference:with_local_flag(usepkgonly, binpkg_exec:binary_only),
+        binpkg_exec:respect_use_policy(strict),
+        binpkg_exec:changed_deps_policy(warn),
+        binpkg_exec:respect_user_patches_policy(respect),
+        binpkg_exec:src_slot(bsrc_repo, 'app-misc/jq-1.8.1', '0'),
+        binpkg_exec:src_slot(bsrc_repo, 'app-misc/unknown', '0'),
+        binpkg_exec:version_pvr(V1, '1.8.1', '1.8.1', 0),
+        binpkg_exec:version_pvr(version_none, none, none, 0),
+        binpkg_exec:version_pvr('1.8.1-r2', '1.8.1', '1.8.1-r2', 2),
+        binpkg_exec:use_sets_match(strict, [a], [a]),
+        binpkg_exec:use_sets_match(relaxed, [a, b], [a]),
+        binpkg_exec:iuse_flag_name(minus(doc), doc),
+        binpkg_exec:iuse_flag_name(bare_flag, bare_flag),
+        binpkg_exec:flag_set_member(minus(doc), doc),
+        binpkg_exec:binpkg_required_use('app-misc/jq-1.8.1-9', _),
+        binpkg_exec:required_use_holds([
+          blocking(doc),
+          use_conditional_group(negative, doc, _://_, [required(onig)]),
+          any_of_group([required(onig)]),
+          all_of_group([required(onig)])
+        ], [onig]),
+        % Subslot walk & VDB disk/cache lookup BEFORE inject_built_binpkg overwrites metadata
+        os:compose_path(Root, 'vdb', VdbDiskRoot),
+        retractall(pkg:get_location(_)),
+        asserta(pkg:get_location(VdbDiskRoot)),
+        binpkg_exec:available_for(bsrc_repo, 'app-misc/jq-1.8.1', [], 'app-misc/jq-1.8.1-9'),
+        retractall(pkg:get_location(_)),
+        binpkg_exec:live_install_subslot('dev-libs', onig, '0', '5'),
+        binpkg_exec:find_live_install_for_slot('dev-libs', onig, (-), _),
+        binpkg_exec:find_live_install_for_slot('dev-libs', onig, '0', _),
+        binpkg_exec:walk_dep_subslot(other_term, []),
+        % Index refresh & baseline
+        binpkg_exec:record_index_baseline(binpkg, none),
+        binpkg_exec:record_index_baseline(binpkg, 1.0),
+        binpkg_exec:apply_refresh_policy(manual),
+        binpkg_exec:apply_refresh_policy(mtime),
+        binpkg_exec:apply_refresh_policy(other),
+        binpkg_exec:ensure_index_fresh,
+        binpkg_exec:refresh_if_stale(nonexistent_repo),
+        % Self-inject
+        binpkg_exec:inject_built_binpkg(bsrc_repo, 'app-misc/jq-1.8.1', []),
+        % Rejection diagnostics
+        asserta(config:binpkg_debug(true)),
+        binpkg_exec:maybe_diagnose_rejection(bsrc_repo, 'app-misc/none-1.0', [], 'app-misc', none, V1),
+        binpkg_exec:diagnose_candidate(bsrc_repo, 'app-misc/jq-1.8.1', 'app-misc/jq-1.8.1-9', []),
+        binpkg_exec:diagnose_candidate(bsrc_repo, 'app-misc/jq-1.8.1', 'app-misc/missing-1.0-1', []),
+        retractall(config:binpkg_debug(true)),
+        % Execution & qmerge
+        binpkg_exec:execute(install, bsrc_repo, 'app-misc/jq-1.8.1', 'app-misc/jq-1.8.1-9', [], _),
+        binpkg_exec:run_qmerge('app-misc/jq-1.8.1-9', EbuildPath, GpkgPath, Root, 'onig', 0),
+        retractall(config:deconflict_collisions(_)),
+        asserta(config:deconflict_collisions(off)),
+        binpkg_exec:run_qmerge('app-misc/jq-1.8.1-9', EbuildPath, GpkgPath, Root, 'onig', 0),
+        retractall(config:deconflict_collisions(_)),
+        assertz(config:deconflict_collisions(override)),
+        binpkg_exec:log_qmerge_collision_retry('app-misc/jq-1.8.1-9', 1)
+      )),
+    ( retractall(binpkg:get_location(_)),
+      retractall(binpkg:get_cache(_)),
+      retractall(binpkg:sync(_)),
+      retractall(pkg:get_location(_)),
+      retractall(bsrc_repo:get_ebuild_file(_, _)),
+      retractall(config:build_root(Root)),
+      retractall(config:ebuild_command(true)),
+      retractall(cache:repository(binpkg)),
+      retractall(cache:category(binpkg, _)),
+      retractall(cache:package(binpkg, _, _)),
+      retractall(cache:ordered_entry(bsrc_repo, _, _, _, _)),
+      retractall(cache:entry_metadata(bsrc_repo, _, _, _)),
+      retractall(cache:ordered_entry(binpkg, _, _, _, _)),
+      retractall(cache:entry_metadata(binpkg, _, _, _)),
+      retractall(cache:ordered_entry(pkg, 'dev-libs/onig-1.0', _, _, _)),
+      retractall(cache:entry_metadata(pkg, 'dev-libs/onig-1.0', _, _)),
+      binpkgtest:rm_rf(Root)
+    )).
+
+:- end_tests(binpkg_full_coverage).
+

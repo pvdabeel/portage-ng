@@ -41,19 +41,23 @@ script:exec(S,Args,Env,Stream) :-
 % closes the pipe stream. Suitable for long-running operations where real-time
 % output is desired (e.g. repository sync).
 
+:- dynamic script:mock_exec/3.
+
 script:exec_streaming(S,Args,Env) :-
-  !,
-  atomic_list_concat(['Source/Application/System/Scripts/',S],Script),
-  process_set_method(vfork),
-  process_create(portage(Script),Args,[stdout(pipe(Stream)),process(Pid)|Env]),
-  set_stream(Stream,buffer(false)),
-  call_cleanup(
-    script:stream_prefix_chars(Stream,true),
-    ( close(Stream), process_wait(Pid,Status) )
-  ),
-  ( Status = exit(0) -> true
-  ; format('% Script ~w exited with status: ~w~n', [S, Status]),
-    flush_output
+  ( script:mock_exec(S, Args, Env)
+  -> true
+  ; atomic_list_concat(['Source/Application/System/Scripts/',S],Script),
+    process_set_method(vfork),
+    process_create(portage(Script),Args,[stdout(pipe(Stream)),process(Pid)|Env]),
+    set_stream(Stream,buffer(false)),
+    call_cleanup(
+      script:stream_prefix_chars(Stream,true),
+      ( close(Stream), process_wait(Pid,Status) )
+    ),
+    ( Status = exit(0) -> true
+    ; format('% Script ~w exited with status: ~w~n', [S, Status]),
+      flush_output
+    )
   ),
   !.
 

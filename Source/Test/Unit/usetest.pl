@@ -1057,7 +1057,8 @@ test(stable_mask_beats_stable_force,
                               stabletest_e, negative).
 
 test(use_remaining_coverage,
-     [setup(( unittest:accept_stable_amd64,
+     [nondet,
+      setup(( unittest:accept_stable_amd64,
               V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
               knowledgebase:vdb_repository(Vdb),
               assertz(cache:ordered_entry(Vdb, 'ucat/upkg-1.0', ucat, upkg, V1)),

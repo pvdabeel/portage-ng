@@ -387,7 +387,10 @@ preference:cached_profile_loaded :-
 % downstream build failures for packages that the user never asked for.
 
 preference:getenv(Name, Value) :-
-  ( interface:getenv(Name, Value) ->
+  ( ( current_predicate(interface:getenv/2)
+    -> interface:getenv(Name, Value)
+    ;  system:getenv(Name, Value)
+    ) ->
       true
   ; current_predicate(userconfig:env/2),
     userconfig:env(Name, Value),
@@ -2434,7 +2437,13 @@ preference:cache_stamp_input(src(Path, Mtime)) :-
 
 preference:cache_stamp_input(env(Name, Value)) :-
   member(Name, ['USE', 'ACCEPT_KEYWORDS', 'ACCEPT_LICENSE']),
-  ( interface:getenv(Name, Value) -> true ; Value = '' ).
+  ( ( current_predicate(interface:getenv/2)
+    -> interface:getenv(Name, Value)
+    ;  system:getenv(Name, Value)
+    )
+  -> true
+  ;  Value = ''
+  ).
 
 
 preference:cache_tracked_path('Knowledge/kb.qlf').
@@ -2505,6 +2514,11 @@ preference:cache_write_stamp(Stamp) :-
 
 preference:cache_load_qlf(QlfFile) :-
   preference:cache_clear_loaded_state,
+  ( module_property(preferencedata, file(OldPrefFile)),
+    OldPrefFile \== QlfFile
+  -> unload_file(OldPrefFile)
+  ; true
+  ),
   ensure_loaded(QlfFile),
   assertz(preference:cache_loaded),
   forall(preferencedata:entry(Type, Args),
@@ -2611,6 +2625,11 @@ preference:cache_save_locked :-
     open(RawFile, write, Out, [encoding(utf8)]),
     preference:cache_write_raw(Out, Entries),
     close(Out)),
+  ( module_property(preferencedata, file(OldPrefFile)),
+    OldPrefFile \== RawFile
+  -> unload_file(OldPrefFile)
+  ; true
+  ),
   catch(qcompile(RawFile), _, true),
   ( preference:cache_file(QlfFile), exists_file(QlfFile)
   -> sanitize:write_sha256_sidecar(QlfFile)

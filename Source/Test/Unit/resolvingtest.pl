@@ -934,7 +934,8 @@ test(target_and_resolving_rules_coverage,
   once(resolving:rule(plain_atom_literal, [])).
 
 test(candidate_remaining_coverage,
-     [setup(( unittest:accept_stable_amd64,
+     [nondet,
+      setup(( unittest:accept_stable_amd64,
               V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
               V2 = version([2,0], '', 4, 0, [], 0, '2.0'),
               knowledgebase:vdb_repository(Vdb),

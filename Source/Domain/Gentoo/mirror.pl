@@ -366,13 +366,13 @@ mirror:report(RepositoryAtom, MirrorRoot, Distdir) :-
   format('Mirror layout: ~w~n', [Layout]),
   format('Local distdir: ~w~n~n', [Distdir]),
   mirror:repo_manifest_distfiles(RepositoryAtom, Needed),
-  ord_set_size(Needed, NeededN),
+  length(Needed, NeededN),
   format('Manifest DIST files: ~d~n', [NeededN]),
   mirror:missing_on_mirror(RepositoryAtom, MirrorRoot, MissingM),
-  ord_set_size(MissingM, MissingMN),
+  length(MissingM, MissingMN),
   format('Missing on mirror: ~d~n', [MissingMN]),
   mirror:missing_on_distdir(RepositoryAtom, Distdir, MissingD),
-  ord_set_size(MissingD, MissingDN),
+  length(MissingD, MissingDN),
   format('Missing on distdir: ~d~n', [MissingDN]),
   true.
 

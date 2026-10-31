@@ -334,7 +334,7 @@ vdb:verify_files([obj(Path, MD5, _MTime)|Rest], MAcc, MiAcc, M, Mi) :-
         ( size_file(Path, Size),
           ( Size > 1073741824 ->
             MAcc1 = MAcc, MiAcc1 = MiAcc
-          ; crypto_file_hash(Path, Hash, [algorithm(md5), encoding(hex)]),
+          ; crypto_file_hash(Path, Hash, [algorithm(md5), encoding(octet)]),
             ( Hash == MD5 ->
               MAcc1 = MAcc
             ; MAcc1 is MAcc + 1,

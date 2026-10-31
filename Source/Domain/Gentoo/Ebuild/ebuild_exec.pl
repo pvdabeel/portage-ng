@@ -1019,7 +1019,7 @@ ebuild_exec:run_logged_cmd(Exe, Args) :-
   -> open(LogPath, append, Out),
      call_cleanup(
        ( process_create(Exe, Args,
-                        [stdout(Out), stderr(Out), process(Pid)]),
+                        [stdout(stream(Out)), stderr(stream(Out)), process(Pid)]),
          process_wait(Pid, Status)
        ),
        close(Out))

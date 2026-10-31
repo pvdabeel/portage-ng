@@ -1082,6 +1082,14 @@ query:dep_model_cn_under(use_conditional_group(_, _, _, Deps), CN) :-
   query:dep_model_cn_under(D, CN).
 
 
+compile_query_compound(model(S), Repo://Id,
+  search(model(S), Repo://Id)) :-
+  var(S), !.
+
+compile_query_compound(model(S):A?{C}, Repo://Id,
+  search(model(S):A?{C}, Repo://Id)) :-
+  var(S), !.
+
 compile_query_compound(model(FullModel,required_use(Model),build_with_use(Input)), Repo://Id,
   ( findall(ReqUse,
             cache:entry_metadata(Repo,Id,required_use,ReqUse),
@@ -1324,14 +1332,6 @@ search(Q, Repository://Entry) :-
   !,
   call(Goal).
 
-search([],_Repository://_Entry) :- !.
-
-search([Statement|Rest],Repository://Entry) :-
-  !,
-  search(Statement,Repository://Entry),
-  search(Rest,Repository://Entry).
-
-
 
 % -----------------------------------------------------------------------------
 %  Query  meta predicates
@@ -1347,10 +1347,10 @@ search([Statement|Rest],Repository://Entry) :-
 
 % Case : an all statement (single argument, with ?{Context})
 
-search(all(Statement):Context,Repository://Entry) :-
+search(all(Statement):Action?{Context},Repository://Entry) :-
   Statement =.. [Key,Values],
   !,
-  findall(InnerValueA:Context,
+  findall(InnerValueA:Action?{Context},
           (InnerStatement =.. [Key,InnerValueA],
            search(InnerStatement,Repository://Entry)),
           Values).
@@ -1369,10 +1369,10 @@ search(all(Statement),Repository://Entry) :-
 
 % Case : an all statement (dual argument, with ?{Context})
 
-search(all(Statement):Context,Repository://Entry) :-
+search(all(Statement):Action?{Context},Repository://Entry) :-
   Statement =.. [Key,Values,Filter],
   !,
-  findall(InnerValueA:Context,
+  findall(InnerValueA:Action?{Context},
           (InnerStatement =.. [Key,InnerValueA,Filter],
            search(InnerStatement,Repository://Entry)),
           Values).

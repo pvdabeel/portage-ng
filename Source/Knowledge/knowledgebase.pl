@@ -661,13 +661,27 @@ knowledgebase:remove_client_vdb(Principal, Repository) :-
                                              _, _, _, _, _)).
 
 
+%! knowledgebase:remote_target(-Host, -Port) is semidet.
+%
+% Resolve the proxy Host and Port from either the current context or the
+% active knowledgebase proxy instance.
+
+knowledgebase:remote_target(Host, Port) :-
+  ( ::host(Host), ::port(Port) -> true
+  ; current_module(M),
+    catch(M:'$__meta'(type(instance(knowledgebase))), _, fail),
+    M::host(Host),
+    M::port(Port)
+  ),
+  !.
+
+
 %! knowledgebase:remote(+Name) is det.
 %
 % POST the routes:endpoint/3 path for Name on the proxy host.
 
 knowledgebase:remote(Name) :-
-  ::host(Host),
-  ::port(Port),
+  knowledgebase:remote_target(Host, Port),
   routes:endpoint(Name, Path, _),
   client:execute_remotely(Host, Port, Path).
 
@@ -678,8 +692,7 @@ knowledgebase:remote(Name) :-
 % route table with the repository appended.
 
 knowledgebase:remote(sync_named, Repository) :-
-  ::host(Host),
-  ::port(Port),
+  knowledgebase:remote_target(Host, Port),
   routes:endpoint(sync_named, Prefix, _),
   atom_concat(Prefix, Repository, Path),
   client:execute_remotely(Host, Port, Path).

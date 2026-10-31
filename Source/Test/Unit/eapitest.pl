@@ -1060,3 +1060,208 @@ eapitest:uninstall_sets_(Id) :-
 eapitest:uninstall_set_pairs_(Pairs) :-
   forall(member(Name-_, Pairs),
          retractall(preference:local_set(Name, _))).
+
+
+% -----------------------------------------------------------------------------
+%  Full coverage for Domain/Gentoo/eapi.pl
+% -----------------------------------------------------------------------------
+
+:- begin_tests(eapi_full_coverage).
+
+test(eapi_grammar_and_helpers_full_coverage, [nondet]) :-
+  % 1. Abstract syntax constructs
+  forall(member(AST, [
+    package_dependency(1,2,3,4,5,6,7,8),
+    use_conditional_group(1,2,3,4),
+    any_of_group(1),
+    all_of_group(1),
+    at_most_one_of_group(1),
+    exactly_one_of_group(1),
+    conflict(1,2)
+  ]), eapi:abstract_syntax_construct(AST)),
+  % 2. All eapi:value/5 and eapi:key/4 branches via eapi:parse/4
+  MetaLines = [
+    "DEFINED_PHASES=- compile_test+1.0",
+    "DEPEND=cat/pkg",
+    "DESCRIPTION=desc",
+    "EAPI=8",
+    "HOMEPAGE=https://example.org",
+    "IUSE=+a -b c_1+2@3.4",
+    "IUSE_RUNTIME=+a -b",
+    "KEYWORDS=* ~amd64_linux -x86-fbsd",
+    "LICENSE=MIT || ( GPL-2+ BSD_1.0 )",
+    "RDEPEND=cat/pkg",
+    "SLOT=0/1.2_a*=",
+    "SRC_URI=https://a_b+c@d.e-1://example.org/f.tar.gz -> local.tar.gz",
+    "USE=a b",
+    "NEEDED.ELF.2=libc.so.6",
+    "PROVIDES.ELF.2=libfoo.so.1",
+    "RESTRICT=mirror strip",
+    "REQUIRED_USE=a !b ^^ ( c d ) ?? ( e f )",
+    "PDEPEND=cat/pkg",
+    "IDEPEND=cat/pkg",
+    "BDEPEND=cat/pkg",
+    "PROVIDE=virtual/foo",
+    "PROPERTIES=live interactive",
+    "_eclasses_=cmake\t1234567890abcdef\tmeson\tabcdef1234567890",
+    "_md5_=1234567890abcdef",
+    "repository=gentoo",
+    "BUILD_TIME=12345",
+    "BUILD_TIME=notanumber",
+    "UNUSED_KEY=some value"
+  ],
+  forall(member(ML, MetaLines),
+         ( string_codes(ML, MC),
+           eapi:parse(metadata, repo://entry, MC, _) )),
+  ManifestLines = [
+    "EBUILD foo-1.0.ebuild 100 SHA256 00",
+    "MISC metadata.xml 200 SHA256 00",
+    "AUX patch.diff 50 SHA256 00",
+    "DIST foo-1.0.tar.gz 1000 SHA256 00"
+  ],
+  forall(member(ManL, ManifestLines),
+         ( string_codes(ManL, ManC),
+           eapi:parse(manifest, repo://entry, ManC, _) )),
+  % 3. cdepend, qualified_package, virtual, subslot, timestamp, stringlist, chars_to_dash, chars_to_space
+  string_codes("cat/pkg", DepC),
+  phrase(eapi:cdepend(repo://entry, _), DepC),
+  string_codes("cat/pkg-1.0", QPkgC),
+  phrase(eapi:qualified_package(cat, pkg, _), QPkgC),
+  string_codes("virtual/editor", VirtC),
+  phrase(eapi:virtual(_), VirtC),
+  string_codes("/1.0", SubC),
+  phrase(eapi:subslot(_), SubC),
+  string_codes("12345.67", TsC),
+  phrase(eapi:timestamp(_), TsC),
+  string_codes("foo bar", StrLC),
+  phrase(eapi:stringlist(_), StrLC),
+  string_codes("abc-def", DashC),
+  phrase(eapi:chars_to_dash(_), DashC, _),
+  phrase(eapi:chars_to_space(_), [], []),
+  % 4. qualified_target and query / chars_to_comparator
+  Targets = [
+    "world", "system", "@myset", "./foo.ebuild", "/abs/foo.tbz2",
+    ">=repo://cat/pkg-1.0:0=[a,b]", "=cat/pkg-1.0*:0/1", "pkg"
+  ],
+  forall(member(TgtS, Targets),
+         ( string_codes(TgtS, TgtC),
+           phrase(eapi:qualified_target(_), TgtC) )),
+  QueryAtoms = [
+    'version=1.0', 'eapi<=8', 'keywords=~amd64', 'iuse:=+foo*',
+    'name!=bar', 'category~cat', 'slot>0', 'subslot<1',
+    'license=>MIT', 'description=<text', 'maintainer>=dev'
+  ],
+  phrase(eapi:query(_), QueryAtoms),
+  % 5. comparator_symbol, jumprule, pchar, versionrevision, versioninteger, use_dependency_list
+  forall(member(Op, [greaterequal, greater, smallerequal, smaller, equal, wildcard, tilde, none, custom_op]),
+         eapi:comparator_symbol(Op, _)),
+  forall(member(Type-Ch, [
+    c-45, c-95, c-43, c-46, c-0'a,
+    u-45, u-95, u-43, u-64, u-46, u-0'a,
+    s-45, s-95, s-43, s-46, s-0'a,
+    k-45, k-95, k-0'a,
+    v-45, v-95, v-42, v-46, v-0'a,
+    r-45, r-95, r-42, r-46, r-0'a,
+    f-45, f-95, f-43, f-46, f-0'a,
+    p-45, p-95, p-43, p-46, p-64, p-0'a,
+    t-46, t-0'1,
+    m-0'a
+  ]), eapi:jumprule(Type, Ch)),
+  \+ phrase(eapi:pchar(_), [58]),
+  \+ phrase(eapi:uri_chars(_), [41, 32]),
+  \+ phrase(eapi:uri_chars(_), [40, 32]),
+  phrase(eapi:use_dependency_list([]), []),
+  string_codes("cat/my-pkg-1.0-r1-2.0", BadEndC),
+  ignore(phrase(eapi:qualified_target(_), BadEndC)),
+  string_codes("=cat/pkg-*", StarVerC),
+  phrase(eapi:qualified_target(_), StarVerC),
+  string_codes("=cat/pkg-1*", IntStarVerC),
+  phrase(eapi:qualified_target(_), IntStarVerC),
+  % 6. use_expand, file:lines, packageversion
+  findall(UE, eapi:use_expand(UE), [_|_]),
+  string_codes("line1\nline2\n", FileLinesC),
+  phrase(file:lines(_), FileLinesC),
+  eapi:packageversion('foo-1.0', foo, _),
+  \+ eapi:packageversion('not_a_valid_pkg_version', _, _),
+  setup_call_cleanup(
+    retractall(config:failsilenton(version)),
+    with_output_to(string(_), \+ eapi:packageversion('not_a_valid_pkg_version', _, _)),
+    assertz(config:failsilenton(version))),
+  % 7. version_glob_match, substitute_sets, elem, normalize_slot_term_, version_op, compare_ordered_entry
+  V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  V2 = version([2,0], '', 4, 0, [], 0, '2.0'),
+  eapi:version_glob_match(V1, '1.0'),
+  eapi:version_glob_match('1.0*', V1),
+  eapi:version_glob_boundary('', 'anything'),
+  setup_call_cleanup(
+    ( assertz(preference:local_world_entry('cat/worldpkg')),
+      assertz(preference:system_pkg(sys, syspkg))
+    ),
+    ( eapi:substitute_sets([world], _),
+      eapi:substitute_sets([system], _),
+      eapi:substitute_sets(['@world'], _),
+      eapi:substitute_sets(['@system'], _) ),
+    ( retractall(preference:local_world_entry('cat/worldpkg')),
+      retractall(preference:system_pkg(sys, syspkg))
+    )),
+  eapi:elem(b, [a(1), b(2)], 2),
+  eapi:normalize_slot_term_(slot(1), slot('1')),
+  eapi:normalize_slot_term_(subslot(2), subslot('2')),
+  eapi:normalize_slot_term_(other, other),
+  findall(VOp, eapi:version_op(VOp), VOps),
+  forall(member(VOp, VOps),
+         ignore(eapi:version_op_match(VOp, V1, V2))),
+  ignore(eapi:version_op_match(smallerequal, V1, V1)),
+  ignore(eapi:version_op_match(greaterequal, V1, V1)),
+  eapi:compare_ordered_entry_version_desc(<, [V2, 'a'], [V1, 'b']),
+  eapi:compare_ordered_entry_version_desc(>, [V1, 'a'], [V2, 'b']),
+  eapi:compare_ordered_entry_version_desc(<, [V1, 'a'], [V1, 'b']),
+  eapi:split_revision("_rc1-rfoo", "_rc1-rfoo", 0),
+  eapi:suffix_keys("_unknown", [s(6, '_unknown')]),
+  eapi:strip_prefix_atom(python_targets, python_targets_python3_12, python3_12),
+  string_codes("a_1", UCharsC),
+  phrase(eapi:uchars(_), UCharsC),
+  string_codes("1.", VDotC),
+  phrase(eapi:versionnumberpart(_, _), VDotC),
+  string_codes("r1", RevC),
+  phrase(eapi:versionrevision(_), RevC),
+  setup_call_cleanup(
+    ( assertz(preference:local_use(u_pos_cov)),
+      assertz(preference:local_use(minus(u_neg_cov)))
+    ),
+    ( eapi:categorize_use(plus(u_neg_cov), negative, preference),
+      eapi:categorize_use(minus(u_pos_cov), positive, preference),
+      eapi:categorize_use(minus(u_neg_cov), negative, preference),
+      eapi:categorize_use(minus(u_eb_cov), negative, ebuild),
+      eapi:categorize_use(u_neg_cov, negative, preference),
+      eapi:categorize_use(u_eb_cov, negative, default)
+    ),
+    ( retractall(preference:local_use(u_pos_cov)),
+      retractall(preference:local_use(minus(u_neg_cov)))
+    )),
+  % 8. VDB kv lines & metadata.xml maintainers
+  tmp_file(eapi_vdb_cov, TmpDir),
+  make_directory_path(TmpDir),
+  setup_call_cleanup(
+    true,
+    ( forall(member(F-Content, [
+        'SLOT'-'0/0', 'EAPI'-'8', 'IUSE'-'a b', 'IUSE_RUNTIME'-'a',
+        'REQUIRED_USE'-'a', 'USE'-'a', 'PROPERTIES'-'live',
+        'BUILD_TIME'-'100', 'NEEDED.ELF.2'-'libc.so.6',
+        'PROVIDES.ELF.2'-'liba.so', 'repository'-'gentoo'
+      ]), ( os:compose_path(TmpDir, F, FP),
+            setup_call_cleanup(open(FP, write, S), writeln(S, Content), close(S)) )),
+      eapi:vdb_dir_kv_lines(TmpDir, [_|_]),
+      os:compose_path(TmpDir, 'metadata.xml', MetaXml),
+      setup_call_cleanup(
+        open(MetaXml, write, SMX),
+        writeln(SMX, '<pkgmetadata><maintainer><email>dev@gentoo.org</email></maintainer></pkgmetadata>'),
+        close(SMX)),
+      eapi:metadata_maintainers(MetaXml, ['dev@gentoo.org']),
+      eapi:metadata_maintainers('/no/such/metadata.xml', []),
+      eapi:metadata_emails_from_string(not_a_string, [])
+    ),
+    catch(delete_directory_and_contents(TmpDir), _, true)).
+
+:- end_tests(eapi_full_coverage).
+

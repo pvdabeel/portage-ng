@@ -457,7 +457,7 @@ binpkg_extract:extract_outer(GpkgPath, ScratchDir) :-
 % command in PATH). Refuses the archive when the listing is unsafe.
 
 binpkg_extract:extract_image(ImageTarZst, BuildDir) :-
-  binpkg_extract:safe_extract(ImageTarZst, BuildDir, ['-I', 'zstd'], image).
+  binpkg_extract:safe_extract(ImageTarZst, BuildDir, ['--zstd'], image).
 
 
 %! binpkg_extract:extract_metadata_to_build_info(+MetaTarZst, +BuildDir) is semidet.
@@ -469,7 +469,7 @@ binpkg_extract:extract_image(ImageTarZst, BuildDir) :-
 % unsafe (including metadata symlinks, Gentoo bug 982208).
 
 binpkg_extract:extract_metadata_to_build_info(MetaTarZst, BuildDir) :-
-  binpkg_extract:safe_extract(MetaTarZst, BuildDir, ['-I', 'zstd'], metadata),
+  binpkg_extract:safe_extract(MetaTarZst, BuildDir, ['--zstd'], metadata),
   binpkg_extract:relocate_metadata_prefix(BuildDir).
 
 

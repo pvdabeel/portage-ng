@@ -871,7 +871,7 @@ sets:entry_visible(Repo://Entry) :-
 
 sets:highest_visible_in_slot(C, N, Slot, BestEntry, BestVersion) :-
   findall(Version-(Repo://Entry),
-          ( query:search([select(repository,notequal,pkg),category(C),name(N),version(Version)],
+          ( query:search([category(C),name(N),version(Version)],
                          Repo://Entry),
             \+ knowledgebase:is_vdb_repository(Repo),
             slotmeta:entry_slot_default(Repo, Entry, Slot),

@@ -67,7 +67,7 @@ test(prose_version_does_not_throw) :-
 
 :- begin_tests(bugs_tracker).
 
-test(slug_lowercases_and_collapses_punctuation) :-
+test(slug_lowercases_and_collapses_punctuation, [nondet]) :-
   tracker:slug('Current packages', 'current-packages'),
   tracker:slug('[OLD] Core system', 'old-core-system'),
   tracker:slug('TEST-REQUEST', 'test-request'),
@@ -254,3 +254,131 @@ test(cap_counts_recent_syncs_only, [setup(cap_setup), cleanup(cap_cleanup)]) :-
   length(Stamps, 1).
 
 :- end_tests(bugs_sync_cap).
+
+
+% -----------------------------------------------------------------------------
+%  Full coverage for Domain/Gentoo/bugs.pl
+% -----------------------------------------------------------------------------
+
+:- dynamic bugzilla:get_location/1.
+:- dynamic bugzilla:get_cache/1.
+
+:- begin_tests(bugs_full_coverage).
+
+test(bugs_transport_crawl_queries_and_display, [nondet]) :-
+  tmp_file(bugstest_cov, Dir),
+  make_directory_path(Dir),
+  os:compose_path(Dir, 'bugs.qlf', Qlf),
+  os:compose_path(Dir, 'Knowledge', KDir),
+  make_directory_path(KDir),
+  V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  setup_call_cleanup(
+    ( retractall(bugs:location_override(_)),
+      retractall(bugs:cache_file_override(_)),
+      retractall(bugzilla:get_location(_)),
+      retractall(bugzilla:get_cache(_)),
+      assertz(bugzilla:get_location(Dir)),
+      assertz(bugzilla:get_cache(Qlf)),
+      retractall(config:bugzilla_page_size(_)),
+      assertz(config:bugzilla_page_size(10)),
+      retractall(config:bugzilla_request_delay(_)),
+      assertz(config:bugzilla_request_delay(0)),
+      retractall(config:bugzilla_scope(_)),
+      assertz(config:bugzilla_scope(open)),
+      retractall(config:bugzilla_search(_)),
+      assertz(config:bugzilla_search(cache_first)),
+      assertz(cache:ordered_entry(qtest, 'dev-libs/foo-1.0', 'dev-libs', foo, V1))
+    ),
+    with_output_to(string(_),
+      ( bugs:base_url(Base),
+        bugs:rest_fields(_),
+        bugs:page_size(10),
+        bugs:request_delay(0),
+        bugs:scope(open),
+        bugs:scope_params([_|_]),
+        bugs:location(Dir),
+        bugs:cache_file(Qlf),
+        retractall(bugzilla:get_cache(_)),
+        bugs:cache_file(_DefaultQlf),
+        assertz(bugzilla:get_cache(Qlf)),
+        bugs:bug_url(123, _),
+        bugs:bug_url(Base, 123, _),
+        bugs:curl_exit_text(28, timeout),
+        bugs:error_text(err, 'err'),
+        bugs:to_atom(42, '42'),
+        bugs:to_atom(f(1), 'f(1)'),
+        bugs:now_iso(_),
+        bugs:stamp_iso(0, _),
+        bugs:search_url(mesa, _),
+        bugs:page_url([f1=bug_id], _),
+        BugDict = json{
+          id: 500, product: "Gentoo Linux", component: "Current packages",
+          status: "IN_PROGRESS", resolution: "", severity: "normal",
+          priority: "Normal", assigned_to: "dev@gentoo.org",
+          creation_time: "2026-01-01T00:00:00Z",
+          last_change_time: "2026-01-02T00:00:00Z",
+          keywords: [123],
+          cf_stabilisation_atoms: "=dev-libs/foo-1.0 amd64",
+          summary: "dev-libs/foo-1.0 fails to build"
+        },
+        assertz(httpfetch:mock_response(curl, any, ok(json{bugs: [BugDict]}))),
+        bugs:fetch_json('https://bugs.gentoo.org/rest/bug', _),
+        bugs:fetch_bugs(foo, [_]),
+        bugs:highest_bug_id(500),
+        bugs:sync_pages(Dir, 'https://bugs.gentoo.org'),
+        bugs:sync_pages(Dir, 'https://bugs.gentoo.org'),
+        bugs:sync_time(_),
+        retractall(httpfetch:mock_response(_, _, _)),
+        assertz(httpfetch:mock_response(curl, any, no_curl)),
+        assertz(httpfetch:mock_response(http_open, any, ok(json{bugs: []}))),
+        bugs:fetch_json('https://bugs.gentoo.org/rest/bug', _),
+        retractall(httpfetch:mock_response(http_open, _, _)),
+        assertz(httpfetch:mock_response(http_open, any, throw(net_err))),
+        \+ bugs:fetch_json('https://bugs.gentoo.org/rest/bug', _),
+        retractall(httpfetch:mock_response(_, _, _)),
+        assertz(httpfetch:mock_response(curl, any, error('timeout'))),
+        \+ bugs:fetch_json('https://bugs.gentoo.org/rest/bug', _),
+        retractall(httpfetch:mock_response(_, _, _)),
+        assertz(httpfetch:mock_response(curl, any, throw(boom))),
+        \+ bugs:fetch_json('https://bugs.gentoo.org/rest/bug', _),
+        retractall(httpfetch:mock_response(_, _, _)),
+        bugs:build_cache(Dir, Qlf, _),
+        bugs:cache_available,
+        bugs:clear_facts,
+        bugs:ensure_loaded,
+        bugs:ensure_loaded,
+        bugs:ensure_loaded_locked,
+        bugs:open_status('UNCONFIRMED'),
+        bugs:open_status('CONFIRMED'),
+        bugs:open_status('IN_PROGRESS'),
+        bugs:bug_detail(500, _),
+        bugs:entry_bugs(qtest://'dev-libs/foo-1.0', [500]),
+        bugs:print_bug(Base, json{id: 1, summary: "s1", status: "CONFIRMED", resolution: ""}),
+        bugs:print_bug(Base, json{id: 2, summary: "s2", status: "RESOLVED", resolution: "FIXED"}),
+        bugs:print_bugs(foo, []),
+        bugs:print_bugs(foo, [json{id: 1, summary: "s1", status: "CONFIRMED", resolution: ""}]),
+        bugs:search_policy(cache_first),
+        bugs:check([]),
+        bugs:check([foo]),
+        assertz(httpfetch:mock_response(curl, any, ok(json{bugs: []}))),
+        bugs:check([nonexistent_search_term_xyz]),
+        retractall(httpfetch:mock_response(_, _, _))
+      )),
+    ( retractall(httpfetch:mock_response(_, _, _)),
+      retractall(bugzilla:get_location(_)),
+      retractall(bugzilla:get_cache(_)),
+      retractall(config:bugzilla_page_size(_)),
+      assertz(config:bugzilla_page_size(1000)),
+      retractall(config:bugzilla_request_delay(_)),
+      assertz(config:bugzilla_request_delay(2)),
+      retractall(config:bugzilla_scope(_)),
+      assertz(config:bugzilla_scope(all)),
+      retractall(config:bugzilla_search(_)),
+      assertz(config:bugzilla_search(cache_first)),
+      retractall(cache:ordered_entry(qtest, 'dev-libs/foo-1.0', _, _, _)),
+      bugs:clear_facts,
+      catch(delete_directory_and_contents(Dir), _, true)
+    )).
+
+:- end_tests(bugs_full_coverage).
+

@@ -108,28 +108,28 @@ test(empty_bwu_still_applies_suggestion,
 % -----------------------------------------------------------------------------
 :- begin_tests(linkage_is_linkable).
 
-test(shared_object) :-
+test(shared_object, [nondet]) :-
   linkage:is_linkable('/usr/lib64/libz.so').
 
-test(versioned_so) :-
+test(versioned_so, [nondet]) :-
   linkage:is_linkable('/usr/lib64/libz.so.1.2.13').
 
-test(usr_bin) :-
+test(usr_bin, [nondet]) :-
   linkage:is_linkable('/usr/bin/bash').
 
-test(usr_sbin) :-
+test(usr_sbin, [nondet]) :-
   linkage:is_linkable('/usr/sbin/sshd').
 
-test(usr_lib_prefix) :-
+test(usr_lib_prefix, [nondet]) :-
   linkage:is_linkable('/usr/lib64/something').
 
-test(bin) :-
+test(bin, [nondet]) :-
   linkage:is_linkable('/bin/sh').
 
-test(sbin) :-
+test(sbin, [nondet]) :-
   linkage:is_linkable('/sbin/init').
 
-test(lib_prefix) :-
+test(lib_prefix, [nondet]) :-
   linkage:is_linkable('/lib64/ld-linux-x86-64.so.2').
 
 test(reject_etc, [fail]) :-
@@ -514,3 +514,159 @@ test(no_tree_ebuild_orphan_does_not_block_build, [fail]) :-
   builder:plan_has_blocking_domain_assumptions(Ann).
 
 :- end_tests(builder_blocking_assumptions).
+
+
+% -----------------------------------------------------------------------------
+%  Full coverage for Domain/Gentoo/Ebuild/ebuild_exec.pl
+% -----------------------------------------------------------------------------
+
+:- dynamic ebtest_repo:get_ebuild_file/2.
+
+ebuild_exec:ebtest_cb(_Phase, _Event).
+ebtest_cb(_Phase, _Event).
+
+:- begin_tests(ebuild_exec_full_coverage).
+
+test(ebuild_exec_all_phases_and_hooks, [nondet]) :-
+  tmp_file(ebtest_cov, TmpDir),
+  make_directory_path(TmpDir),
+  os:compose_path(TmpDir, 'logs', LogDir),
+  os:compose_path(TmpDir, 'Knowledge', KDir),
+  make_directory_path(LogDir),
+  make_directory_path(KDir),
+  os:compose_path(TmpDir, 'pkg-1.0.ebuild', EbuildPath),
+  setup_call_cleanup(open(EbuildPath, write, SE), writeln(SE, '# ebuild'), close(SE)),
+  os:compose_path(LogDir, 'test.log', LogPath),
+  setup_call_cleanup(
+    open(LogPath, write, SL),
+    writeln(SL, 'ecompress: line 106: wait: pid 822745 is not a child of this shell'),
+    close(SL)),
+  V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  setup_call_cleanup(
+    ( working_directory(OldCwd, TmpDir),
+      setenv('PORTAGE_NG_STATE', TmpDir),
+      asserta(config:build_log_dir(LogDir)),
+      asserta(config:ebuild_command(true)),
+      asserta(config:cli_prefix('/opt/gentoo')),
+      asserta(ebtest_repo:get_ebuild_file('ecat/epkg-1.0', EbuildPath)),
+      asserta(ebtest_repo:get_ebuild_file('sys-devel/gcc-15.0', EbuildPath)),
+      asserta(ebtest_repo:get_ebuild_file('dev-lang/ghc-9.8', EbuildPath)),
+      assertz(cache:ordered_entry(ebtest_repo, 'ecat/epkg-1.0', ecat, epkg, V1)),
+      assertz(cache:entry_metadata(ebtest_repo, 'ecat/epkg-1.0', defined_phases, [compile, install])),
+      assertz(cache:entry_metadata(ebtest_repo, 'ecat/epkg-1.0', iuse, plus(flag_a))),
+      assertz(cache:entry_metadata(ebtest_repo, 'ecat/epkg-1.0', iuse, minus(flag_b))),
+      assertz(cache:ordered_entry(ebtest_repo, 'sys-devel/gcc-15.0', 'sys-devel', gcc, V1)),
+      assertz(cache:entry_metadata(ebtest_repo, 'sys-devel/gcc-15.0', slot, slot('15'))),
+      assertz(cache:ordered_entry(ebtest_repo, 'dev-lang/ghc-9.8', 'dev-lang', ghc, V1)),
+      retractall(config:build_phases(_)),
+      asserta(config:build_phases([clean, setup]))
+    ),
+    with_output_to(string(_),
+      ( % 1. Action phases & FEATURES=test
+        forall(member(Act, [install, run, reinstall, update, downgrade, uninstall]),
+               ebuild_exec:action_phases(Act, [], _)),
+        setenv('FEATURES', 'test -test test other'),
+        ebuild_exec:features_test_enabled,
+        unsetenv('FEATURES'),
+        % 2. Ebuild path, defined_phases, display_phases, build_log_path, ensure_log_dir
+        ebuild_exec:ebuild_path(ebtest_repo, 'ecat/epkg-1.0', EbuildPath),
+        ebuild_exec:defined_phases(ebtest_repo, 'ecat/epkg-1.0', _),
+        ebuild_exec:display_phases(install, ebtest_repo, 'ecat/epkg-1.0', [], _),
+        ebuild_exec:ensure_log_dir,
+        ebuild_exec:build_log_path('ecat/epkg-1.0', _),
+        % 3. Phase stats wrappers
+        ebuild_exec:phase_stats_file(_),
+        ebuild_exec:record_phase_stats('ecat/epkg-1.0', compile, 100, 1.5),
+        ebuild_exec:save_phase_stats,
+        ebuild_exec:load_phase_stats_file,
+        ebuild_exec:load_phase_stats,
+        ebuild_exec:phase_bytes('ecat/epkg-1.0', compile, _),
+        ebuild_exec:phase_seconds('ecat/epkg-1.0', compile, _),
+        ebuild_exec:expected_phase_stats('ecat/epkg-1.0', compile, _, _),
+        ebuild_exec:log_file_size(LogPath, _),
+        % 4. USE string & prefix_env & dual_progress
+        ebuild_exec:collect_use_string(ebtest_repo, 'ecat/epkg-1.0', [], _),
+        ebuild_exec:prefix_env(['EPREFIX'='/opt/gentoo']),
+        ebuild_exec:dual_progress(50, 100, 1.0, 2.0, _),
+        % 5. Serial & transient retry helpers
+        forall(member(SP, [compile, test, install]), ebuild_exec:serial_retry_phase(SP)),
+        ebuild_exec:serial_env(_),
+        ebuild_exec:log_serial_retry(LogPath, compile, 2),
+        ebuild_exec:maybe_serial_retry(EbuildPath, compile, LogPath, '', ebtest_cb, 0, 0),
+        ebuild_exec:maybe_serial_retry(EbuildPath, compile, LogPath, '', ebtest_cb, 2, 0),
+        ebuild_exec:transient_phase_error(LogPath, 0),
+        ebuild_exec:log_transient_retry(LogPath, install, 1),
+        ebuild_exec:maybe_transient_retry(EbuildPath, install, LogPath, '', ebtest_cb, 0, 0, 0),
+        ebuild_exec:maybe_transient_retry(EbuildPath, install, LogPath, '', ebtest_cb, 0, 1, 0),
+        ebuild_exec:apply_build_retries(EbuildPath, compile, LogPath, '', ebtest_cb, 0, 1, _),
+        ebuild_exec:apply_retry_list([unknown_strategy], EbuildPath, compile, LogPath, '', ebtest_cb, 0, 0, 0),
+        % 6. Phase execution & locks
+        ebuild_exec:run_phase_logged(EbuildPath, setup, LogPath, '', 0),
+        ebuild_exec:with_portage_pkg_merge_lock(merge, true),
+        ebuild_exec:with_portage_pkg_merge_lock(qmerge, true),
+        ebuild_exec:with_portage_pkg_merge_lock(compile, true),
+        % 7. Toolchain & GHC reactivation hooks
+        forall(member(TC-TN-TK, [
+          'sys-devel'-gcc-compiler,
+          'llvm-core'-clang-runtime,
+          'sys-devel'-clang-runtime,
+          'sys-devel'-binutils-runtime,
+          'sys-libs'-glibc-runtime
+        ]), ebuild_exec:toolchain_cn(TC, TN, TK)),
+        ebuild_exec:gcc_profile_major(ebtest_repo, 'sys-devel/gcc-15.0', '15'),
+        ebuild_exec:gcc_chost_from_profile('x86_64-pc-linux-gnu-15', 'x86_64-pc-linux-gnu'),
+        \+ ebuild_exec:select_gcc_profile('../unsafe'),
+        os:compose_path(TmpDir, 'gcc-config', FakeGccConfig),
+        setup_call_cleanup(
+          open(FakeGccConfig, write, SGC),
+          format(SGC, '#!/bin/sh~necho x86_64-pc-linux-gnu-15~n', []),
+          close(SGC)),
+        filesex:chmod(FakeGccConfig, 0o755),
+        getenv('PATH', OldPath),
+        atomic_list_concat([TmpDir, ':', OldPath], NewPath),
+        setup_call_cleanup(
+          setenv('PATH', NewPath),
+          ebuild_exec:select_gcc_profile('15'),
+          setenv('PATH', OldPath)),
+        ebuild_exec:run_logged_cmd(path(true), []),
+        ebuild_exec:capture_cmd(path(echo), ['hello'], 'hello'),
+        ebuild_exec:maybe_reactivate_toolchain(install, ebtest_repo, 'sys-devel/gcc-15.0', done),
+        ebuild_exec:maybe_reactivate_toolchain(run, ebtest_repo, 'sys-devel/gcc-15.0', done),
+        ebuild_exec:maybe_register_ghc_pkg(install, ebtest_repo, 'dev-lang/ghc-9.8', done),
+        ebuild_exec:maybe_register_ghc_pkg(run, ebtest_repo, 'dev-lang/ghc-9.8', done),
+        % 8. Bulk & sequential execution, execute, execute_with_progress, fail_clean, inject_built
+        ebuild_exec:run_phases(EbuildPath, [clean, setup, merge], '', 0),
+        ebuild_exec:compute_live_prefix([], [clean], [], []),
+        ebuild_exec:execute(run, ebtest_repo, 'ecat/epkg-1.0', [], done),
+        ebuild_exec:execute(uninstall, ebtest_repo, 'ecat/epkg-1.0', [], done),
+        ebuild_exec:execute(install, ebtest_repo, 'ecat/epkg-1.0', [], done),
+        ebuild_exec:execute_with_progress(install, ebtest_repo, 'ecat/epkg-1.0', [], ebtest_cb, done),
+        preference:with_local_flag(usepkgonly,
+          ( ebuild_exec:execute(install, ebtest_repo, 'ecat/epkg-1.0', [], failed(no_binpkg)),
+            ebuild_exec:execute_with_progress(install, ebtest_repo, 'ecat/epkg-1.0', [], ebtest_cb, failed(no_binpkg)),
+            ebuild_exec:binpkg_fallback(failed(b), install, ebtest_repo, 'ecat/epkg-1.0', [], failed(b)),
+            ebuild_exec:binpkg_fallback_with_progress(failed(b), install, ebtest_repo, 'ecat/epkg-1.0', [], ebtest_cb, failed(b))
+          )),
+        ebuild_exec:binpkg_fallback(failed(b), install, ebtest_repo, 'ecat/epkg-1.0', [], done),
+        ebuild_exec:binpkg_fallback_with_progress(failed(b), install, ebtest_repo, 'ecat/epkg-1.0', [], ebtest_cb, done),
+        ebuild_exec:binpkg_outcome(true, done, done),
+        preference:with_local_flag(buildpkg,
+          ebuild_exec:maybe_inject_built(install, ebtest_repo, 'ecat/epkg-1.0', [], done)),
+        preference:with_local_flag(failclean,
+          ebuild_exec:maybe_fail_clean(ebtest_repo, 'ecat/epkg-1.0', [], failed(1)))
+      )),
+    ( working_directory(_, OldCwd),
+      unsetenv('PORTAGE_NG_STATE'),
+      retractall(config:build_log_dir(LogDir)),
+      retractall(config:ebuild_command(true)),
+      retractall(config:cli_prefix('/opt/gentoo')),
+      retractall(ebtest_repo:get_ebuild_file(_, _)),
+      retractall(cache:ordered_entry(ebtest_repo, _, _, _, _)),
+      retractall(cache:entry_metadata(ebtest_repo, _, _, _)),
+      retractall(config:build_phases(_)),
+      assertz(config:build_phases([clean, setup, unpack, prepare, configure, compile, test, install, merge])),
+      catch(delete_directory_and_contents(TmpDir), _, true)
+    )).
+
+:- end_tests(ebuild_exec_full_coverage).
+

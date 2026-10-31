@@ -30,9 +30,17 @@ The curl path is exercised offline against a file:// JSON fixture.
 
 test(curl_exit_text_known,
      [true(A-B-C == 'HTTP error reply'-timeout-'curl exit 99')]) :-
+  httpfetch:curl_exit_text(0,  'unparsable JSON'),
+  httpfetch:curl_exit_text(6,  'could not resolve host'),
+  httpfetch:curl_exit_text(7,  'connection refused'),
   httpfetch:curl_exit_text(22, A),
   httpfetch:curl_exit_text(28, B),
   httpfetch:curl_exit_text(99, C).
+
+test(fetch_json_http_open_mocked,
+     [cleanup(retractall(httpfetch:mock_response(_, _, _)))]) :-
+  assertz(httpfetch:mock_response(http_open, 'https://example.org/api', ok(json{ok: 1}))),
+  httpfetch:fetch_json_http_open('https://example.org/api', 'ua', [timeout(5)], json{ok: 1}).
 
 test(error_text, [true(Text == 'error(foo,bar)')]) :-
   httpfetch:error_text(error(foo, bar), Text).

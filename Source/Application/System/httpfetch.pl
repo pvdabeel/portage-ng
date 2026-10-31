@@ -47,35 +47,45 @@ arguments, and curl exit-code rendering.
 %   * proto(Proto)          — curl --proto allowlist (default '=https')
 %   * extra_curl_args(List) — extra arguments before the URL (default [])
 
+:- dynamic httpfetch:mock_response/3.
+
 httpfetch:fetch_json_curl(URL, UA, Options, Dict, Status) :-
-  option(timeout(Timeout), Options, 60),
-  option(proto(Proto), Options, '=https'),
-  option(extra_curl_args(ExtraArgs), Options, []),
-  format(atom(UAHeader), 'User-Agent: ~w', [UA]),
-  format(atom(TimeoutArg), '~w', [Timeout]),
-  append([['-s', '-f', '-L', '--proto', Proto,
-           '--max-time', TimeoutArg,
-           '-H', UAHeader, '-H', 'Accept: application/json'],
-          ExtraArgs,
-          [URL]],
-         Args),
-  catch(process_create(path(curl),
-                       Args,
-                       [stdout(pipe(Out)), stderr(null), process(Pid)]),
-        error(existence_error(_, _), _),
-        Status = no_curl),
-  ( Status == no_curl
-  -> true
-  ;  set_stream(Out, encoding(utf8)),
-     catch(call_cleanup(json_read_dict(Out, Dict0, [default_tag(json)]),
-                        close(Out)),
-           _, Dict0 = none),
-     process_wait(Pid, exit(Code)),
-     ( Code =:= 0, Dict0 \== none
-     -> Dict = Dict0, Status = ok
-     ;  httpfetch:curl_exit_text(Code, Why),
-        Status = error(Why)
+  ( ( httpfetch:mock_response(curl, URL, MockAction)
+    ; httpfetch:mock_response(curl, any, MockAction) )
+  -> ( MockAction = ok(Dict) -> Status = ok
+     ; MockAction = no_curl  -> Status = no_curl
+     ; MockAction = error(W) -> Status = error(W)
+     ; MockAction = throw(E) -> throw(E)
      )
+  ; option(timeout(Timeout), Options, 60),
+    option(proto(Proto), Options, '=https'),
+    option(extra_curl_args(ExtraArgs), Options, []),
+    format(atom(UAHeader), 'User-Agent: ~w', [UA]),
+    format(atom(TimeoutArg), '~w', [Timeout]),
+    append([['-s', '-f', '-L', '--proto', Proto,
+             '--max-time', TimeoutArg,
+             '-H', UAHeader, '-H', 'Accept: application/json'],
+            ExtraArgs,
+            [URL]],
+           Args),
+    catch(process_create(path(curl),
+                         Args,
+                         [stdout(pipe(Out)), stderr(null), process(Pid)]),
+          error(existence_error(_, _), _),
+          Status = no_curl),
+    ( Status == no_curl
+    -> true
+    ;  set_stream(Out, encoding(utf8)),
+       catch(call_cleanup(json_read_dict(Out, Dict0, [default_tag(json)]),
+                          close(Out)),
+             _, Dict0 = none),
+       process_wait(Pid, exit(Code)),
+       ( Code =:= 0, Dict0 \== none
+       -> Dict = Dict0, Status = ok
+       ;  httpfetch:curl_exit_text(Code, Why),
+          Status = error(Why)
+       )
+    )
   ).
 
 
@@ -104,21 +114,28 @@ httpfetch:curl_exit_text(Code, Text) :-
 % propagate to the caller, which owns the failure policy.
 
 httpfetch:fetch_json_http_open(URL, UA, Options, Dict) :-
-  option(timeout(Timeout), Options, 60),
-  setup_call_cleanup(
-    http_open(URL, In, [
-      request_header('User-Agent' = UA),
-      request_header('Accept' = 'application/json'),
-      status_code(Code),
-      timeout(Timeout)
-    ]),
-    ( Code == 200
-    -> set_stream(In, encoding(utf8)),
-       json_read_dict(In, Dict, [default_tag(json)])
-    ;  throw(error(http_status(URL, Code),
-                   httpfetch:fetch_json_http_open/4))
-    ),
-    close(In)
+  ( ( httpfetch:mock_response(http_open, URL, MockAction)
+    ; httpfetch:mock_response(http_open, any, MockAction) )
+  -> ( MockAction = ok(Dict) -> true
+     ; MockAction = throw(E) -> throw(E)
+     ; fail
+     )
+  ; option(timeout(Timeout), Options, 60),
+    setup_call_cleanup(
+      http_open(URL, In, [
+        request_header('User-Agent' = UA),
+        request_header('Accept' = 'application/json'),
+        status_code(Code),
+        timeout(Timeout)
+      ]),
+      ( Code == 200
+      -> set_stream(In, encoding(utf8)),
+         json_read_dict(In, Dict, [default_tag(json)])
+      ;  throw(error(http_status(URL, Code),
+                     httpfetch:fetch_json_http_open/4))
+      ),
+      close(In)
+    )
   ).
 
 

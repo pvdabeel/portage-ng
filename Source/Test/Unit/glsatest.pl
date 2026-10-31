@@ -255,3 +255,161 @@ glsa_glob_cleanup :-
   retractall(glsa:range('glob-1', _, _, _, _, _, _)).
 
 :- end_tests(glsa).
+
+
+% -----------------------------------------------------------------------------
+%  Full coverage for Domain/Gentoo/glsa.pl
+% -----------------------------------------------------------------------------
+
+glsatest_mktemp(Prefix, Dir) :-
+  tmp_file_stream(text, Base, Stream),
+  close(Stream),
+  delete_file(Base),
+  atomic_list_concat([Base, '_', Prefix], Dir),
+  make_directory(Dir).
+
+glsatest_rm_rf(Path) :-
+  exists_directory(Path), !,
+  directory_files(Path, Entries),
+  forall((member(E, Entries), E \== '.', E \== '..'),
+         ( os:compose_path(Path, E, Child),
+           glsatest_rm_rf(Child) )),
+  catch(delete_directory(Path), _, true).
+glsatest_rm_rf(Path) :-
+  exists_file(Path), !,
+  catch(delete_file(Path), _, true).
+glsatest_rm_rf(_).
+
+:- dynamic portage:get_location/1.
+
+:- begin_tests(glsa_full_coverage).
+
+test(glsa_cache_search_upgrade_and_security_sets, [nondet]) :-
+  glsatest_mktemp(glsa_cov, TmpDir),
+  os:compose_path(TmpDir, 'Knowledge', KDir),
+  make_directory(KDir),
+  os:compose_path(TmpDir, 'metadata/glsa', GlsaDir),
+  make_directory_path(GlsaDir),
+  os:compose_path(GlsaDir, 'glsa-209901-01.xml', XmlDest),
+  setup_call_cleanup(
+    open(XmlDest, write, SX),
+    format(SX, '<?xml version="1.0" encoding="UTF-8"?>~n<glsa id="209901-01">~n  <title>libfoo: test</title>~n  <synopsis>s</synopsis>~n  <product type="ebuild">libfoo</product>~n  <announced>2026-01-01</announced>~n  <revised count="1">2026-01-01</revised>~n  <affected>~n    <package name="dev-libs/libfoo" auto="yes" arch="*">~n      <unaffected range="ge">1.5</unaffected>~n      <vulnerable range="lt">1.5</vulnerable>~n    </package>~n  </affected>~n</glsa>~n', []),
+    close(SX)),
+  os:compose_path(TmpDir, 'injected', InjectedFile),
+  V10 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  V15 = version([1,5], '', 4, 0, [], 0, '1.5'),
+  V20 = version([2,0], '', 4, 0, [], 0, '2.0'),
+  knowledgebase:vdb_repository(Vdb),
+  setup_call_cleanup(
+    ( working_directory(OldCwd, TmpDir),
+      retractall(config:glsa_dir(_)),
+      asserta(config:glsa_dir(GlsaDir)),
+      retractall(glsa:injected_file_override(_)),
+      asserta(config:glsa_injected_file(InjectedFile)),
+      asserta(script:mock_exec(sync, _, _)),
+      assertz(cache:ordered_entry(Vdb, 'dev-libs/libfoo-1.0', 'dev-libs', libfoo, V10)),
+      assertz(cache:entry_metadata(Vdb, 'dev-libs/libfoo-1.0', slot, slot('0'))),
+      assertz(cache:ordered_entry(qtest, 'dev-libs/libfoo-1.0', 'dev-libs', libfoo, V10)),
+      assertz(cache:entry_metadata(qtest, 'dev-libs/libfoo-1.0', slot, slot('0'))),
+      assertz(cache:entry_metadata(qtest, 'dev-libs/libfoo-1.0', keywords, stable(amd64))),
+      assertz(cache:ordered_entry(qtest, 'dev-libs/libfoo-1.5', 'dev-libs', libfoo, V15)),
+      assertz(cache:entry_metadata(qtest, 'dev-libs/libfoo-1.5', slot, slot('0'))),
+      assertz(cache:entry_metadata(qtest, 'dev-libs/libfoo-1.5', keywords, stable(amd64))),
+      assertz(cache:ordered_entry(qtest, 'dev-libs/libfoo-2.0', 'dev-libs', libfoo, V20)),
+      assertz(cache:entry_metadata(qtest, 'dev-libs/libfoo-2.0', slot, slot('0'))),
+      assertz(cache:entry_metadata(qtest, 'dev-libs/libfoo-2.0', keywords, stable(amd64))),
+      unittest:accept_stable_amd64,
+      glsa:clear_facts
+    ),
+    with_output_to(string(_),
+      ( % Source dir via config:glsa_dir and via portage:get_location
+        glsa:source_dir(GlsaDir),
+        retractall(config:glsa_dir(_)),
+        asserta(portage:get_location(TmpDir)),
+        glsa:source_dir(GlsaDir),
+        asserta(config:glsa_dir(GlsaDir)),
+        glsa:directory(GlsaDir),
+        glsa:git_dir(GlsaDir, GitDir),
+        % Injected file paths and inject/applied
+        glsa:injected_file(InjectedFile),
+        retractall(config:glsa_injected_file(_)),
+        glsa:injected_file(_DefaultInj),
+        asserta(config:glsa_injected_file(InjectedFile)),
+        glsa:inject('209901-99'),
+        glsa:inject('209901-99'),
+        glsa:applied('209901-99'),
+        % ensure_directory branches (rsync tree, git tree, missing tree)
+        glsa:ensure_directory(GlsaDir),
+        make_directory(GitDir),
+        glsa:ensure_directory(GlsaDir),
+        os:compose_path(TmpDir, 'missing_glsa', MissingDir),
+        retractall(config:glsa_dir(_)),
+        asserta(config:glsa_dir(MissingDir)),
+        \+ glsa:ensure_directory(_),
+        glsa:cache_save,
+        retractall(config:glsa_dir(_)),
+        asserta(config:glsa_dir(GlsaDir)),
+        % cache_save / cache_available / cache_load / ensure_loaded
+        glsa:cache_save,
+        glsa:cache_available,
+        glsa:clear_facts,
+        glsa:ensure_loaded,
+        % Detail & URLs
+        glsa:advisory_file('209901-01', XmlDest),
+        glsa:advisory_url('209901-01', _),
+        glsa:bug_url('12345', _),
+        glsa:detail('209901-01', _),
+        glsa:strip_tags("<unclosed", ""),
+        % Operators & version_matches
+        forall(member(Op, [le, lt, eq, gt, ge, rge, rle, rgt, rlt]),
+               ( glsa:normalize_op(Op, Op),
+                 ignore(glsa:version_matches(Op, V15, V10)) )),
+        % host_arch fallbacks (when config:portage_confdir suppresses fallback:env)
+        asserta(config:portage_confdir(TmpDir)),
+        retractall(userconfig:env(_, _)),
+        setenv('ARCH', 'amd64'),
+        glsa:host_arch(amd64),
+        unsetenv('ARCH'),
+        setenv('ACCEPT_KEYWORDS', '~amd64'),
+        glsa:host_arch(amd64),
+        unsetenv('ACCEPT_KEYWORDS'),
+        retractall(config:portage_confdir(TmpDir)),
+        glsa:arch_matches('amd64 x86'),
+        % range_matches/6, entry_covered/2, least_upgrade/6, merge_list/2, search/2, entry_status/3
+        ignore(glsa:range_matches('209901-01', 'dev-libs', libfoo, vulnerable, V10, '0')),
+        glsa:entry_covered('209901-01', qtest://'dev-libs/libfoo-1.0'),
+        glsa:least_upgrade('dev-libs', libfoo, '0', V10, '209901-01', _),
+        glsa:merge_list('209901-01', _),
+        findall(Id, glsa:search([id('209901-01'), title(_), package('dev-libs', libfoo),
+                                 applied(false), vulnerable(true)], Id), _),
+        glsa:search_goal(vulnerable(false), '209901-99', _),
+        findall(Id2, glsa:search([applied(true), vulnerable(false)], Id2), _),
+        glsa:entry_status('209901-01', qtest://'dev-libs/libfoo-1.0', vulnerable),
+        glsa:entry_status('209901-01', qtest://'dev-libs/libfoo-1.5', unaffected),
+        glsa:entry_status('209901-01', qtest://'dev-libs/unknown-1.0', unlisted),
+        % security_atoms / reduce_atoms / atom_cn_slot_ver / keep_highest_per_key
+        forall(member(Filt, [security, affected, new_glsa, new_affected]),
+               glsa:security_atoms(Filt, _)),
+        glsa:reduce_atoms([], []),
+        glsa:reduce_atoms(['=dev-libs/libfoo-1.5', '=dev-libs/libfoo-2.0', '=dev-libs/unlisted-1.0'], _),
+        phrase(prolog:message(glsa_parse_error('209901-01', err)), _)
+      )),
+    ( working_directory(_, OldCwd),
+      retractall(config:glsa_dir(_)),
+      retractall(config:glsa_injected_file(_)),
+      retractall(portage:get_location(TmpDir)),
+      retractall(script:mock_exec(_, _, _)),
+      retractall(cache:ordered_entry(Vdb, 'dev-libs/libfoo-1.0', _, _, _)),
+      retractall(cache:entry_metadata(Vdb, 'dev-libs/libfoo-1.0', _, _)),
+      retractall(cache:ordered_entry(qtest, 'dev-libs/libfoo-1.0', _, _, _)),
+      retractall(cache:entry_metadata(qtest, 'dev-libs/libfoo-1.0', _, _)),
+      retractall(cache:ordered_entry(qtest, 'dev-libs/libfoo-1.5', _, _, _)),
+      retractall(cache:entry_metadata(qtest, 'dev-libs/libfoo-1.5', _, _)),
+      retractall(cache:ordered_entry(qtest, 'dev-libs/libfoo-2.0', _, _, _)),
+      retractall(cache:entry_metadata(qtest, 'dev-libs/libfoo-2.0', _, _)),
+      glsa:clear_facts,
+      glsatest_rm_rf(TmpDir)
+    )).
+
+:- end_tests(glsa_full_coverage).
+
