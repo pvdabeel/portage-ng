@@ -47,6 +47,30 @@ unittest:ensure_runtime :-
   loader:ensure(cluster),
   ( config:load_llm_modules(true) -> loader:ensure(llm) ; true ).
 
+% The GitHub Actions PLUnit job never runs preference:init, so
+% ACCEPT_KEYWORDS is empty and keyworded fixtures have no visible
+% candidate. A booted standalone process already has keywords; leave
+% those in place. Paired with unittest:restore_stable_amd64/0 from
+% the test cleanup.
+
+unittest:accept_stable_amd64 :-
+  ( preference:local_accept_keywords(_) ->
+      nb_setval(unittest_added_amd64, false)
+  ; assertz(preference:local_accept_keywords(stable(amd64))),
+    nb_setval(unittest_added_amd64, true)
+  ).
+
+
+unittest:restore_stable_amd64 :-
+  ( nb_current(unittest_added_amd64, true) ->
+      retractall(preference:local_accept_keywords(stable(amd64)))
+  ; true
+  ),
+  ( nb_current(unittest_added_amd64, _) ->
+      nb_delete(unittest_added_amd64)
+  ; true
+  ).
+
 :- initialization(unittest:ensure_runtime, now).
 
 :- reexport(portage('Source/Test/md5cache')).

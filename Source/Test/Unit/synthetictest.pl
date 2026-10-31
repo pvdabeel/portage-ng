@@ -973,7 +973,12 @@ otest_empty_repo:get_cache_file(_, _) :- fail.
 :- begin_tests(pipeline_and_explainer_coverage, [cleanup(resolving:disable_test_rules)]).
 
 test(pipeline_resolver_parser_printer_harnesses,
-     [setup(( V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+     [setup(( unittest:accept_stable_amd64,
+              ( catch(stats:declared(type(instance(stat))), _, fail) ->
+                  true
+              ; stats:newinstance(stat)
+              ),
+              V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
               V2 = version([2,0], '', 4, 0, [], 0, '2.0'),
               assertz(cache:ordered_entry(qtest, 'pcat/ppkg-1.0', pcat, ppkg, V1)),
               assertz(cache:entry_metadata(qtest, 'pcat/ppkg-1.0', slot, slot('0'))),
@@ -990,7 +995,8 @@ test(pipeline_resolver_parser_printer_harnesses,
               assertz(cache:entry_metadata(qtest, 'pcat/other-1.0', slot, slot('0'))),
               assertz(cache:entry_metadata(qtest, 'pcat/other-1.0', keywords, stable(amd64))),
               memo:clear_caches )),
-      cleanup(( retractall(cache:ordered_entry(qtest, _, pcat, _, _)),
+      cleanup(( unittest:restore_stable_amd64,
+                retractall(cache:ordered_entry(qtest, _, pcat, _, _)),
                 retractall(cache:entry_metadata(qtest, 'pcat/ppkg-1.0', _, _)),
                 retractall(cache:entry_metadata(qtest, 'pcat/ppkg-2.0', _, _)),
                 retractall(cache:entry_metadata(qtest, 'pcat/pdep-1.0', _, _)),

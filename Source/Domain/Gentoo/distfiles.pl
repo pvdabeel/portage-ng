@@ -30,6 +30,7 @@ providing predicates to query, verify and clean the distfiles store.
 
 distfiles:present(Filename) :-
   sanitize:safe_filename(Filename),
+  current_predicate(distfiles:get_location/1),
   distfiles:get_location(Dir),
   os:compose_path(Dir, Filename, Path),
   exists_file(Path).
@@ -115,7 +116,9 @@ distfiles:total_size(TotalBytes) :-
 
 distfiles:orphans(RepositoryAtom, Orphans) :-
   distfiles:list(Present),
-  findall(F, kb:query(manifest(all, dist, F, _), RepositoryAtom://_), Needed0),
+  % Local cache lookup. query:search/2 inlines at compile time and does
+  % not need the kb instance (kb:query/2 exists only after newinstance).
+  findall(F, query:search(manifest(all, dist, F, _), RepositoryAtom://_), Needed0),
   sort(Needed0, Needed),
   ord_subtract(Present, Needed, Orphans).
 

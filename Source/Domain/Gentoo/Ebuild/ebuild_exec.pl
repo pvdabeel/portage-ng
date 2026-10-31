@@ -289,7 +289,10 @@ ebuild_exec:collect_use_string(Repo, Entry, Ctx, UseString) :-
   % on but `X` off, breaking REQUIRED_USE="spell? ( X )" in the setup phase
   % (issue #22). Resolving via effective_use_for_entry/3 makes the
   % builder's base USE agree with the plan by construction.
-  findall(Flag, kb:query(iuse(Flag, _State0:_Reason), Repo://Entry), Flags0),
+  % query:search/2, not kb:query/2: the builder only runs against a
+  % local knowledge base, so the compile-time macros inline the lookup
+  % (issue #57) and the call does not need the kb instance.
+  findall(Flag, query:search(iuse(Flag, _State0:_Reason), Repo://Entry), Flags0),
   sort(Flags0, Flags),
   findall(Flag-State,
     ( member(Flag, Flags),
@@ -413,7 +416,7 @@ ebuild_exec:base_use_state(Repo://Entry, Flag, State) :-
   ( use:effective_use_for_entry(Repo://Entry, Flag, Eff) ->
       State = Eff
   ; findall(S,
-      ( kb:query(iuse(Flag, S0:_R), Repo://Entry),
+      ( query:search(iuse(Flag, S0:_R), Repo://Entry),
         ( S0 == positive -> S = positive ; S = negative )
       ),
       Ss),

@@ -234,7 +234,9 @@ fixup:packages_word(_, packages).
 % the VDB USE file is unavailable.
 
 fixup:repair_rebuild_use(TreeRepo, Entry, UseString) :-
-  findall(Flag, kb:query(iuse(Flag, _:_), TreeRepo://Entry), Flags0),
+  % Local cache lookup. query:search/2 inlines at compile time and does
+  % not need the kb instance (kb:query/2 exists only after newinstance).
+  findall(Flag, query:search(iuse(Flag, _:_), TreeRepo://Entry), Flags0),
   sort(Flags0, Flags),
   ( Flags \== [],
     catch(vdb:read_metadata_file(Entry, 'USE', UseAtom), _, fail)

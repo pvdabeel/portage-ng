@@ -228,7 +228,8 @@ test(depclean_end_to_end_and_helpers) :-
   V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
   knowledgebase:vdb_repository(Vdb),
   setup_call_cleanup(
-    ( asserta(config:pkg_directory(TmpDir)),
+    ( unittest:accept_stable_amd64,
+      asserta(config:pkg_directory(TmpDir)),
       os:compose_path([TmpDir, 'dcat/root-1.0'], RootVdbDir),
       make_directory_path(RootVdbDir),
       os:compose_path(RootVdbDir, 'RDEPEND', RdepFile),
@@ -281,7 +282,8 @@ test(depclean_end_to_end_and_helpers) :-
           depclean:run(['dcat/root'])
         ))
     ),
-    ( retractall(config:pkg_directory(TmpDir)),
+    ( unittest:restore_stable_amd64,
+      retractall(config:pkg_directory(TmpDir)),
       retractall(cache:ordered_entry(Vdb, _, dcat, _, _)),
       retractall(cache:entry_metadata(Vdb, 'dcat/root-1.0', _, _)),
       retractall(cache:entry_metadata(Vdb, 'dcat/dep-1.0', _, _)),
