@@ -80,11 +80,10 @@ action:run_build_with_ci_guard(Proposal, Options) :-
 % always rethrown so explicit halts inside builder:build/1 keep their
 % exit code.
 
-action:handle_build_exception(unwind(halt(Code)), _Options) :- !,
-  throw(unwind(halt(Code))).
-
-action:handle_build_exception(halt(Code), _Options) :- !,
-  throw(halt(Code)).
+action:handle_build_exception(Err, _Options) :-
+  ( Err = unwind(halt(_)) ; Err = halt(_) ),
+  !,
+  throw(Err).
 
 action:handle_build_exception(Err, Options) :-
   format(user_error, '[builder] exception during build: ~q~n', [Err]),

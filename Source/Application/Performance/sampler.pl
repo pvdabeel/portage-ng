@@ -1546,7 +1546,7 @@ sampler:skip_frame_pi(apply:exclude_/3).
 % failure.
 
 sampler:frame_predicate_indicator(Frame, PI) :-
-  prolog_frame_attribute(Frame, predicate_indicator, PI),
+  catch(prolog_frame_attribute(Frame, predicate_indicator, PI), _, fail),
   !.
 sampler:frame_predicate_indicator(_Frame, unknown/0).
 

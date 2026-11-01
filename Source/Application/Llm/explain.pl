@@ -334,6 +334,7 @@ explain:format_ctx_use_info(Ctx, Str) :-
        ( member(Term, Ctx),
          ( Term = build_with_use(Uses) ; Term = required_use(Uses) ),
          member(assumed(Flag), Uses),
+         atom(Flag),
          atom_string(Flag, Token)
        ),
        AssumedPos),

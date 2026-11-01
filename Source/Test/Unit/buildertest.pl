@@ -771,7 +771,10 @@ test(display_jobserver_resume_and_snapshot_coverage, [nondet]) :-
       asserta(config:snapshot_dir(SnapBase)),
       asserta(config:world_file(WorldFile)),
       asserta(config:ebuild_command(true)),
-      asserta(world:load),
+      ( catch(world:declared(type(instance(set))), _, fail)
+      -> world:init(WorldFile)
+      ;  world:newinstance(set(WorldFile))
+      ),
       asserta(ebtest_repo:get_type(eapi)),
       asserta(ebtest_repo:get_ebuild_file('ecat/epkg-1.0', EbuildPath)),
       asserta(ebtest_repo:get_ebuild_file('ecat/epkg-2.0', EbuildPath)),
@@ -874,7 +877,6 @@ test(display_jobserver_resume_and_snapshot_coverage, [nondet]) :-
       retractall(config:snapshot_dir(SnapBase)),
       retractall(config:world_file(WorldFile)),
       retractall(config:ebuild_command(true)),
-      retractall(world:load),
       retractall(ebtest_repo:get_type(eapi)),
       retractall(ebtest_repo:get_ebuild_file(_, _)),
       retractall(cache:ordered_entry(ebtest_repo, _, _, _, _)),

@@ -64,7 +64,9 @@ daemon:start :-
   at_halt(cleanup(SocketPath, PidPath)),
   current_prolog_flag(pid, Pid),
   format('Daemon started (PID ~w), listening on ~w~n', [Pid, SocketPath]),
-  accept_loop(Socket).
+  call_cleanup(
+    accept_loop(Socket),
+    catch(tcp_close_socket(Socket), _, true)).
 
 
 %! daemon:bind_socket(+Socket, +SocketPath) is det.
@@ -242,14 +244,17 @@ daemon:accept_loop(Socket) :-
   tcp_accept(Socket, ClientSocket, _Peer),
   tcp_open_socket(ClientSocket, StreamPair),
   stream_pair(StreamPair, In, Out),
-  set_stream(In, encoding(utf8)),
-  set_stream(Out, encoding(utf8)),
-  ( handle_request(In, Out)
-  -> true
-  ;  true
-  ),
-  catch(close(In), _, true),
-  catch(close(Out), _, true),
+  setup_call_cleanup(
+    ( set_stream(In, encoding(utf8)),
+      set_stream(Out, encoding(utf8))
+    ),
+    ( handle_request(In, Out)
+    -> true
+    ;  true
+    ),
+    ( catch(close(In), _, true),
+      catch(close(Out), _, true)
+    )),
   accept_loop(Socket).
 
 
@@ -438,11 +443,8 @@ daemon:refresh_binpkg_index :-
 % Interprets exceptions thrown during request processing.
 % halt/1 throws unwind(halt(Code)) in SWI-Prolog.
 
-daemon:handle_error(_Out, unwind(halt(Code)), ExitCodeTerm) :-
-  integer(Code), !,
-  nb_setarg(1, ExitCodeTerm, Code).
-
-daemon:handle_error(_Out, halt(Code), ExitCodeTerm) :-
+daemon:handle_error(_Out, Error, ExitCodeTerm) :-
+  ( Error = unwind(halt(Code)) ; Error = halt(Code) ),
   integer(Code), !,
   nb_setarg(1, ExitCodeTerm, Code).
 

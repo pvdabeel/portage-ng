@@ -92,12 +92,12 @@ depclean:arg_installed_repo_entry(Arg, RepoEntry) :-
 depclean:installed_to_repo_entry(VdbRepo://InstalledEntry, RepoEntry) :-
   query:search([category(C),name(N),version(V)], VdbRepo://InstalledEntry),
   preference:accept_keywords(K),
-  ( query:search([select(repository,notequal,pkg),category(C),name(N),keywords(K),version(V)],
+  ( query:search([category(C),name(N),keywords(K),version(V)],
                  Repo://InstalledEntry),
     \+ knowledgebase:is_vdb_repository(Repo)
   -> RepoEntry = Repo://InstalledEntry
   ; % Fallback: if keywords/overlay differ, allow any non-VDB repo.
-    query:search([select(repository,notequal,pkg),category(C),name(N),version(V)],
+    query:search([category(C),name(N),version(V)],
                  Repo2://InstalledEntry),
     \+ knowledgebase:is_vdb_repository(Repo2),
     RepoEntry = Repo2://InstalledEntry

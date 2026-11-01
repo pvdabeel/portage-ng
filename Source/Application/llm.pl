@@ -104,7 +104,7 @@ llm:stream(Endpoint, APIKey, Model, Messages, Response) :-
   config:llm_temperature(Temperature),
 
   % This ensures emoji are displayed properly
-  set_stream(current_output,encoding(utf8)),
+  catch(set_stream(current_output,encoding(utf8)), _, true),
 
   % Prepare payload dict
   Payload = _{
@@ -126,7 +126,7 @@ llm:stream(Endpoint, APIKey, Model, Messages, Response) :-
   catch(( http_open(Endpoint,In,Headers),
 
           % ensure we support emojo and complex characters
-          set_stream(In,encoding(utf8)),
+          catch(set_stream(In,encoding(utf8)), _, true),
 
           % stream the message and nicely wrap its output
           setup_call_cleanup((llm:begin_stream(Model)),

@@ -170,8 +170,8 @@ lock:lock_read_kv(Meta, Pid, CreatedAt) :-
 lock:kv_value(Lines, Key, Value) :-
   atom_concat(Key, "=", Prefix),
   member(Line, Lines),
-  sub_string(Line, 0, _, _, Prefix),
-  sub_string(Line, _, _, 0, Value),
+  sub_string(Line, 0, Len, _, Prefix),
+  sub_string(Line, Len, _, 0, Value),
   !.
 
 
@@ -184,7 +184,16 @@ lock:kv_value(Lines, Key, Value) :-
 % True if the process with Pid is still running (signal 0 probe).
 
 lock:lock_pid_alive(Pid) :-
-  catch(process_kill(Pid, 0), _Any, fail).
+  integer(Pid),
+  Pid > 0,
+  atom_number(PidAtom, Pid),
+  catch(
+    ( process_create(path(kill), ['-0', PidAtom],
+                     [stdout(null), stderr(null), process(KPid)]),
+      process_wait(KPid, exit(0))
+    ),
+    _Any,
+    fail).
 
 
 % -----------------------------------------------------------------------------

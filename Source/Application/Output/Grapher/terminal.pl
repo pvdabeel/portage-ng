@@ -608,9 +608,6 @@ terminal:emit_content(Type, HtmlContent, TimingStats) :-
 
 terminal:emit_terminal_stats(_, timing_display(none, _)) :-
     !.
-terminal:emit_terminal_stats(_, timing_display(W, _)) :-
-    W == none,
-    !.
 terminal:emit_terminal_stats(Type, timing_display(WallSec, CompareNg)) :-
     write('<div class="terminal-stats" role="status">'), nl,
     write('  <dl>'), nl,

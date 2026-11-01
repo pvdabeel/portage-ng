@@ -148,7 +148,8 @@ choicelog:clog_emit(Kind, Outcome, Data) :-
 % Alias for clog_emit/3 (shell / documentation convenience).
 
 choicelog:emit(Kind, Outcome, Data) :-
-  choicelog:clog_emit(Kind, Outcome, Data).
+  G = clog_emit(Kind, Outcome, Data),
+  choicelog:G.
 
 
 %! choicelog:do_emit(+Kind, +Outcome, +Data) is det.

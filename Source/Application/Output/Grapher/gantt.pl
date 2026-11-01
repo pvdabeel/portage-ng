@@ -413,9 +413,7 @@ gantt:pkg_use_flags(Repo, Entry, Flags) :-
             (State == positive -> OnOff = on ; OnOff = off)
         ),
         Flags0),
-    sort(Flags0, Flags),
-    !.
-gantt:pkg_use_flags(_, _, []).
+    sort(Flags0, Flags).
 
 
 %! gantt:pkg_src_uris(+Repo, +Entry, -Uris)
@@ -432,9 +430,7 @@ gantt:pkg_src_uris(Repo, Entry, Uris) :-
             (distfiles:present(Local) -> Status = cached ; Status = pending)
         ),
         Uris0),
-    sort(2, @<, Uris0, Uris),
-    !.
-gantt:pkg_src_uris(_, _, []).
+    sort(2, @<, Uris0, Uris).
 
 %! gantt:resolve_url(+Proto, +Base, +Local, -Url) is det.
 %

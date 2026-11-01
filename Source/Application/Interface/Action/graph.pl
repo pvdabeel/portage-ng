@@ -118,5 +118,6 @@ action:process_graph([legacy, full]) :-
   !.
 
 action:process_graph(Args) :-
-  message:warning(['--graph: ignoring unexpected args: ', Args]),
+  atomic_list_concat(Args, ' ', ArgsAtom),
+  message:warning(['--graph: ignoring unexpected args: ', ArgsAtom]),
   kb:graph.

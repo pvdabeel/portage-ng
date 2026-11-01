@@ -18,6 +18,7 @@ any repository.
 :- module(profiletest, []).
 
 :- use_module(library(plunit)).
+:- use_module(library(prolog_wrap)).
 :- use_module(library(filesex)).
 
 % =============================================================================
@@ -183,8 +184,6 @@ profiletest:write_file(Path, Text) :-
 % -----------------------------------------------------------------------------
 %  Full coverage of fallback.pl, userconfig.pl, sets.pl, variant.pl, profile.pl
 % -----------------------------------------------------------------------------
-
-:- dynamic interface:get_mode/1.
 
 :- begin_tests(preference_and_variant_full_coverage).
 
@@ -470,8 +469,7 @@ test(preference_module_full_coverage, [nondet]) :-
           asserta(portage:get_location(Repo)),
           retractall(config:gentoo_profile(_)),
           asserta(config:gentoo_profile('base')),
-          retractall(interface:get_mode(_)),
-          asserta(interface:get_mode(standalone)),
+          wrap_predicate(interface:get_mode(IMode), test_cov, _, IMode = standalone),
           assertz(cache:ordered_entry(portage, 'pcat/pmasked-1.0', pcat, pmasked, V1)),
           assertz(cache:ordered_entry(portage, 'pcat/pver-1.0', pcat, pver, V1)),
           assertz(cache:entry_metadata(portage, 'pcat/pver-1.0', slot, slot('0'))),
@@ -570,7 +568,7 @@ test(preference_module_full_coverage, [nondet]) :-
           unsetenv('PYTHON_TARGETS'),
           unsetenv('ACCEPT_LICENSE'),
           working_directory(_, OldCwd),
-          retractall(interface:get_mode(standalone)),
+          unwrap_predicate(interface:get_mode/1, test_cov),
           retractall(portage:get_location(Repo)),
           retractall(config:gentoo_profile(_)),
           assertz(config:gentoo_profile('default/linux/amd64/23.0/split-usr/no-multilib')),

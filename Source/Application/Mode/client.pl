@@ -199,7 +199,7 @@ client:execute_remotely(Hostname,Port,Page) :-
                 post(atom('')),
                 chunked
               ]),
-    set_stream(In, buffer(false)),
+    catch(set_stream(In, buffer(false)), _, true),
     call_cleanup(
         client:stream_flush_cr(In),
         close(In)

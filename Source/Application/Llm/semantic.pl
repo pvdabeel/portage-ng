@@ -462,6 +462,7 @@ semantic:is_self(Cat, Name, _-Cat/Name).
 % Display semantic search results with similarity scores.
 
 semantic:print_results([]) :-
+  !,
   message:inform('No results found.').
 
 semantic:print_results(Results) :-

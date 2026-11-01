@@ -1332,6 +1332,14 @@ search(Q, Repository://Entry) :-
   !,
   call(Goal).
 
+search([Statement|Rest],Repository://Entry) :-
+  !,
+  search(Statement,Repository://Entry),
+  ( is_list(Rest), Rest == []
+  -> true
+  ;  search(Rest,Repository://Entry)
+  ).
+
 
 % -----------------------------------------------------------------------------
 %  Query  meta predicates

@@ -81,7 +81,8 @@ interface:resolve_pkg_arg(Arg, Cat, Arg) :-
   sort(Cats0, Cats),
   Cats = [Cat|Rest],
   ( Rest \== []
-  -> message:inform(['Multiple categories for ', Arg, ': ',
-                      Cat, ' (using first). Others: ', Rest])
+  -> atomic_list_concat(Rest, ', ', RestAtom),
+     message:inform(['Multiple categories for ', Arg, ': ',
+                      Cat, ' (using first). Others: ', RestAtom])
   ; true
   ).

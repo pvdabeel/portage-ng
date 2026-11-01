@@ -53,7 +53,7 @@ update_history(History) :-
 llm_stream_claude(Endpoint, APIKey, Model, Messages, Response) :-
     config:llm_max_tokens(Max),
     config:llm_temperature(Temperature),
-    set_stream(current_output, encoding(utf8)),
+    catch(set_stream(current_output, encoding(utf8)), _, true),
     Payload = _{
         model: Model,
         messages: Messages,
@@ -73,7 +73,7 @@ llm_stream_claude(Endpoint, APIKey, Model, Messages, Response) :-
     catch(
         (
             http_open(Endpoint, In, Headers),
-            set_stream(In, encoding(utf8)),
+            catch(set_stream(In, encoding(utf8)), _, true),
 
             message:color(lightgray),
             message:style(italic),
@@ -125,7 +125,7 @@ process_stream_claude(In, Contents, Acc) :-
         ->  sub_string(Line, 6, _, 0, Data),
             (   Data == "[DONE]"
             ->  reverse(Acc, Contents)
-            ;   (   atom_json_dict(Data, Dict, [])
+            ;   (   catch(atom_json_dict(Data, Dict, []), _, fail)
                 ->  (   get_dict(type, Dict, "content_block_delta")
                     ->  get_dict(delta, Dict, Delta),
                         get_dict(text, Delta, Content)

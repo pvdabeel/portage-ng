@@ -487,7 +487,7 @@ metacircular:write_draft_fixup(Mechanism, Synopsis, SketchBody) :-
                       Mechanism]),
      fail
   ),
-  config:installation_dir(Dir),
+  config:state_dir(Dir),
   os:compose_path([Dir, 'Knowledge', 'drafts'], DraftDir),
   os:make_directory_path(DraftDir),
   get_time(StampF),

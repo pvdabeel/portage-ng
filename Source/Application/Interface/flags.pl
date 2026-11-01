@@ -337,7 +337,8 @@ interface:require_tls_files(Role, Hostname, CaCert, Cert, Key) :-
           Missing),
   ( Missing == []
   -> true
-  ;  message:failure(['Missing TLS files for ', Role, ' mode: ', Missing, '\n',
+  ;  atomic_list_concat(Missing, ', ', MissingAtom),
+     message:failure(['Missing TLS files for ', Role, ' mode: ', MissingAtom, '\n',
                       'Expected CA cert:      ', CaCert, '\n',
                       'Expected ', Role, ' cert:  ', Cert, '\n',
                       'Expected ', Role, ' key:   ', Key, '\n\n',
@@ -392,12 +393,10 @@ interface:init_tty :-
 % the editor; we do not wrap explicitly.
 
 interface:init_line_editor :-
-  catch(ensure_loaded(library('editline')), _, fail),
-  !.
-interface:init_line_editor :-
-  catch(ensure_loaded(library('readline')), _, fail),
-  !.
-interface:init_line_editor.
+  ( catch(ensure_loaded(library('editline')), _, fail)
+  -> true
+  ;  catch(ensure_loaded(library('readline')), _, true)
+  ).
 
 
 %! interface:init_working_dir is det.
@@ -412,6 +411,3 @@ interface:init_working_dir :-
   catch(make_directory_path(Knowledge), _, true),
   ( exists_directory(Dir) -> working_directory(_, Dir) ; true ),
   !.
-interface:init_working_dir :-
-  config:working_dir(Dir),
-  cd(Dir).

@@ -227,8 +227,9 @@ test(depclean_end_to_end_and_helpers, [nondet]) :-
   depcleantest_mktemp(dc_test, TmpDir),
   V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
   knowledgebase:vdb_repository(Vdb),
+  findall(K, retract(preference:local_accept_keywords(K)), SavedKws),
   setup_call_cleanup(
-    ( unittest:accept_stable_amd64,
+    ( assertz(preference:local_accept_keywords(stable(amd64))),
       asserta(config:pkg_directory(TmpDir)),
       os:compose_path([TmpDir, 'dcat/root-1.0'], RootVdbDir),
       make_directory_path(RootVdbDir),
@@ -282,7 +283,8 @@ test(depclean_end_to_end_and_helpers, [nondet]) :-
           depclean:run(['dcat/root'])
         ))
     ),
-    ( unittest:restore_stable_amd64,
+    ( retractall(preference:local_accept_keywords(_)),
+      forall(member(K, SavedKws), assertz(preference:local_accept_keywords(K))),
       retractall(config:pkg_directory(TmpDir)),
       retractall(cache:ordered_entry(Vdb, _, dcat, _, _)),
       retractall(cache:entry_metadata(Vdb, 'dcat/root-1.0', _, _)),

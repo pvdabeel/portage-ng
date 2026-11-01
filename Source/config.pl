@@ -1424,6 +1424,8 @@ config:emerge_vp_timeout(120).
 % Defaults to 1 (matches the legacy shell). Increase cautiously: emerge-vp
 % inside a gentoo-prefix is fork-heavy and concurrent runs can saturate I/O.
 
+:- dynamic config:emerge_vp_path/1.
+:- dynamic config:emerge_vp_concurrency/1.
 config:emerge_vp_concurrency(1).
 
 
@@ -1435,6 +1437,7 @@ config:emerge_vp_concurrency(1).
 % where the gentoo-prefix emerge-vp wrapper is available and you want
 % one-command refresh of the entire graph directory.
 
+:- dynamic config:graph_include_emerge/1.
 config:graph_include_emerge(false).
 
 
@@ -1446,6 +1449,7 @@ config:graph_include_emerge(false).
 % (Used by `--graph pmerge full`.)
 
 :- dynamic config:force_pmerge_regen/1.
+:- dynamic config:pmerge_path/1.
 
 %! config:pmerge_path(?Path)
 %
@@ -1474,6 +1478,7 @@ config:pmerge_timeout(120).
 % Defaults to 1. Increase cautiously: concurrent pkgcore runs load the
 % same Portage tree and can saturate I/O.
 
+:- dynamic config:pmerge_concurrency/1.
 config:pmerge_concurrency(1).
 
 
@@ -1483,6 +1488,7 @@ config:pmerge_concurrency(1).
 % the end of the pipeline (after writing proof files). False by default;
 % use `--graph pmerge` for explicit regeneration.
 
+:- dynamic config:graph_include_pmerge/1.
 config:graph_include_pmerge(false).
 
 

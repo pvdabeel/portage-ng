@@ -287,7 +287,7 @@ server:endpoint_goal(Name, true) :-
 server:chunked_reply(Path, Goal) :-
     format('Transfer-encoding: chunked~n~n', []),
     current_output(S),
-    set_stream(S,buffer(false)),
+    catch(set_stream(S,buffer(false)), _, true),
     ( catch(Goal, Error, server:handler_error(Path, Error))
     -> true
     ;  server:handler_failed(Path)

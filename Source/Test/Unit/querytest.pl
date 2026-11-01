@@ -20,6 +20,7 @@ repository; no knowledge base is needed.
 
 :- use_module(library(plunit)).
 :- use_module(library(lists)).
+:- use_module(library(prolog_wrap)).
 :- use_module(portage('Source/Test/Unit/fixture')).
 
 % =============================================================================
@@ -538,7 +539,7 @@ test(knowledgebase_and_repository_full_coverage, [nondet]) :-
   setup_call_cleanup(
     ( setenv('PORTAGE_NG_STATE', TmpDir),
       load_files(portage('Source/Application/Mode/routes'), [if(not_loaded)]),
-      asserta((client:execute_remotely(_, _, _) :- !)),
+      wrap_predicate(client:execute_remotely(_, _, _), test_cov, _, true),
       assertz(cache:ordered_entry(qtest, 'kcat/kpkg-1.0', kcat, kpkg, V1)),
       assertz(cache:entry_metadata(qtest, 'kcat/kpkg-1.0', slot, slot('0')))
     ),
@@ -592,7 +593,7 @@ test(knowledgebase_and_repository_full_coverage, [nondet]) :-
         retractall(config:repository_sync_limit(r_capped, _))
       )),
     ( unsetenv('PORTAGE_NG_STATE'),
-      retractall(client:execute_remotely(_, _, _)),
+      unwrap_predicate(client:execute_remotely/3, test_cov),
       retractall(cache:ordered_entry(qtest, 'kcat/kpkg-1.0', _, _, _)),
       retractall(cache:entry_metadata(qtest, 'kcat/kpkg-1.0', _, _)),
       qt_rm_rf(TmpDir)
