@@ -228,7 +228,7 @@ builder:build_resume :-
      format(atom(ResumeMsg), '>>> Resuming: ~d completed, ~d remaining', [CompletedCount, RemainingActions]),
      message:color(green),
      message:print(ResumeMsg),
-     message:reset,
+     message:color(normal),
      nl, nl,
      setup_call_cleanup(
        assertz(ebuild_exec:resuming),
@@ -769,18 +769,18 @@ builder:execute_build_job(Job, _WorkerSlot, result(unknown, failed(unrecognised_
 % is unavailable.
 
 builder:run_action(Action, Repo, Entry, Ctx, Outcome) :-
-  Repo:get_type(eapi),
-  config:build_phases(Phases), Phases \= [],
-  predicate_property(ebuild_exec:execute(_,_,_,_,_), defined),
-  !,
-  ebuild_exec:execute(Action, Repo, Entry, Ctx, Outcome).
-
-builder:run_action(Action, Repo, Entry, Ctx, Outcome) :-
   Repo == binpkg,
   config:build_phases(Phases), Phases \= [],
   predicate_property(binpkg_exec:execute(_,_,_,_,_,_), defined),
   !,
   builder:run_binpkg_action(Action, Entry, Ctx, Outcome).
+
+builder:run_action(Action, Repo, Entry, Ctx, Outcome) :-
+  Repo:get_type(eapi),
+  config:build_phases(Phases), Phases \= [],
+  predicate_property(ebuild_exec:execute(_,_,_,_,_), defined),
+  !,
+  ebuild_exec:execute(Action, Repo, Entry, Ctx, Outcome).
 
 builder:run_action(_Action, Repo, _Entry, _Ctx, Outcome) :-
   Repo:get_type(Type),

@@ -297,3 +297,170 @@ test(mirror_layout_paths_diffs_and_verification, [nondet]) :-
 
 :- end_tests(mirror_full_coverage).
 
+
+% -----------------------------------------------------------------------------
+% Full coverage for Pipeline/Builder/download.pl and Pipeline/Builder/fetch.pl
+% -----------------------------------------------------------------------------
+
+:- dynamic distfiles:get_location/1.
+:- dynamic portage:get_location/1.
+:- dynamic dltest_repo:get_ebuild_file/2.
+:- dynamic dltest_repo:get_type/1.
+
+:- begin_tests(download_and_fetch_full_coverage).
+
+test(download_and_fetch_modules_full_coverage, [nondet]) :-
+  downloadtest:with_temp_dir(
+    [Dir]>>(
+      os:compose_path(Dir, 'distdir', Distdir),
+      os:compose_path(Dir, 'portage/profiles', ProfilesDir),
+      os:compose_path(Dir, 'logs', LogDir),
+      make_directory_path(Distdir),
+      make_directory_path(ProfilesDir),
+      make_directory_path(LogDir),
+      % Write thirdpartymirrors
+      os:compose_path(ProfilesDir, 'thirdpartymirrors', TpmFile),
+      setup_call_cleanup(
+        open(TpmFile, write, STPM),
+        format(STPM, '# comment~n~ngnu\thttps://ftp.gnu.org/gnu/ https://mirror.gnu.org/gnu~nbadline~n', []),
+        close(STPM)),
+      % Write live ebuild with EGIT_REPO_URI
+      os:compose_path(Dir, 'live-9999.ebuild', LiveEbuild),
+      setup_call_cleanup(
+        open(LiveEbuild, write, SLE),
+        format(SLE, '# ebuild~nEGIT_REPO_URI="https://example.org/${PN}.git"~n', []),
+        close(SLE)),
+      % Write verified distfile in Distdir
+      Filename = 'verified.tar.gz',
+      os:compose_path(Distdir, Filename, DestPath),
+      setup_call_cleanup(open(DestPath, write, SDF), write(SDF, 'payload'), close(SDF)),
+      size_file(DestPath, Size),
+      mirror:openssl_file_hash(DestPath, '-sha256', Sha256),
+      Pairs = [alg_hash(sha256, Sha256)],
+      format(string(CksumStr), 'SHA256 ~w', [Sha256]),
+      V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+      % Create a fake curl & git in Dir/bin so curl/git calls are instant and local
+      os:compose_path(Dir, 'bin', BinDir),
+      make_directory_path(BinDir),
+      os:compose_path(BinDir, 'curl', FakeCurl),
+      setup_call_cleanup(
+        open(FakeCurl, write, SFC),
+        format(SFC, '#!/bin/sh~nfor arg in "$@"; do case "$arg" in *layout.conf) printf "[structure]\\n0 = flat\\n"; exit 0;; esac; done~nexit 22~n', []),
+        close(SFC)),
+      filesex:chmod(FakeCurl, 0o755),
+      os:compose_path(BinDir, 'git', FakeGit),
+      setup_call_cleanup(
+        open(FakeGit, write, SFG),
+        format(SFG, '#!/bin/sh~necho "Receiving objects: 50%%" >&2~nexit 0~n', []),
+        close(SFG)),
+      filesex:chmod(FakeGit, 0o755),
+      getenv('PATH', OldPath),
+      atomic_list_concat([BinDir, ':', OldPath], NewPath),
+      os:compose_path(Dir, 'portage', PortageRoot),
+      setup_call_cleanup(
+        ( setenv('PATH', NewPath),
+          retractall(distfiles:get_location(_)),
+          asserta(distfiles:get_location(Distdir)),
+          retractall(portage:get_location(_)),
+          asserta(portage:get_location(PortageRoot)),
+          retractall(config:build_log_dir(_)),
+          asserta(config:build_log_dir(LogDir)),
+          retractall(download:cached_mirror_layout(_)),
+          retractall(download:cached_thirdpartymirror(_, _)),
+          asserta(dltest_repo:get_ebuild_file('dcat/dpkg-1.0', LiveEbuild)),
+          asserta(dltest_repo:get_ebuild_file('dcat/unindexed-1.0', LiveEbuild)),
+          asserta(dltest_repo:get_type(eapi)),
+          assertz(cache:ordered_entry(dltest_repo, 'dcat/dpkg-1.0', dcat, dpkg, V1)),
+          assertz(cache:entry_metadata(dltest_repo, 'dcat/dpkg-1.0', src_uri,
+                    uri('mirror', 'gnu/dpkg/verified.tar.gz', Filename))),
+          assertz(cache:entry_metadata(dltest_repo, 'dcat/dpkg-1.0', src_uri,
+                    uri('https', 'example.org/verified.tar.gz', Filename))),
+          assertz(cache:manifest(dltest_repo, '/m/Manifest', 100, dcat, dpkg)),
+          assertz(cache:manifest_metadata(dltest_repo, '/m/Manifest', dist, Filename, Size, CksumStr))
+        ),
+        with_output_to(string(_),
+          ( % 1. Mirror layout disk cache + network fetch
+            download:write_disk_cache(flat),
+            download:read_disk_cache(flat),
+            download:mirror_layout(flat),
+            download:mirror_layout(flat),
+            retractall(download:cached_mirror_layout(_)),
+            download:disk_cache_path(CachePath),
+            catch(delete_file(CachePath), _, true),
+            download:mirror_layout(flat),
+            download:mirror_layout_walk([], flat, fallback),
+            % 2. Thirdpartymirrors & upstream_url
+            download:load_thirdpartymirrors,
+            download:load_thirdpartymirrors,
+            findall(U, download:upstream_url(dltest_repo, 'dcat/dpkg-1.0', Filename, U), [_, _, _]),
+            % 3. collect_distfile_specs, lookup_checksums, fetch_distfiles, fetch_one, curl_download, start_curl_async
+            download:collect_distfile_specs(dltest_repo, 'dcat/dpkg-1.0', Specs),
+            download:lookup_checksums(dltest_repo, 'dcat/none-1.0', 'none', []),
+            download:fetch_distfiles(dltest_repo, 'dcat/dpkg-1.0', [], []),
+            os:compose_path(Distdir, 'missing.tar.gz', MissingDest),
+            \+ download:fetch_one('https://mirror.example.org', flat, Distdir, 'missing.tar.gz', Size, Pairs),
+            asserta(config:curl_allow_http(true)),
+            download:curl_proto_flag('=https,http'),
+            download:url_allowed('http://example.org/a'),
+            retractall(config:curl_allow_http(true)),
+            download:curl_download([], MissingDest, 22),
+            download:curl_download(['ftp://disallowed', 'https://example.org/a', 'https://example.org/b'], MissingDest, _),
+            download:start_curl_async([], MissingDest, PidEmpty),
+            process_wait(PidEmpty, _),
+            download:start_curl_async(['https://example.org/a'], MissingDest, PidSingle),
+            process_wait(PidSingle, _),
+            download:start_curl_async(['https://example.org/a', 'https://example.org/b'], MissingDest, PidMulti),
+            process_wait(PidMulti, _),
+            % 4. Git URI extraction, repo cache path, start_git_clone_async, poll_git_progress
+            download:extract_git_uri(dltest_repo, 'dcat/dpkg-1.0', 'https://example.org/dpkg.git'),
+            download:extract_git_uri(dltest_repo, 'dcat/unindexed-1.0', 'https://example.org/unindexed.git'),
+            download:entry_package_name(dltest_repo, 'not_a_cpv', ''),
+            download:expand_git_uri_vars("https://example.org/a.git", '', "https://example.org/a.git"),
+            download:git_cache_dir(Distdir, GitCacheDir),
+            download:git_repo_cache_path(GitCacheDir, 'https://example.org/repo', _),
+            download:git_repo_cache_path(GitCacheDir, 'https://example.org/repo.git', RepoPath),
+            % 5. fetch.pl: run_git_download, run_download_parallel, speed tracking, poll_download_loop, try_upstream_fallback, handle_restricted_files
+            fetch:run_git_download(dltest_repo, 'dcat/dpkg-1.0', 1, 2, 0, 1, 1, 0, download, done),
+            make_directory_path(RepoPath),
+            fetch:run_git_download(dltest_repo, 'dcat/dpkg-1.0', 1, 2, 0, 1, 1, 0, download, done),
+            fetch:run_git_download(dltest_repo, 'dcat/no_ebuild', 1, 2, 0, 1, 1, 0, download, done),
+            fetch:git_progress_callback(1, 2, git, progress(50)),
+            fetch:git_progress_callback(1, 2, git, other),
+            fetch:safe_mirror_layout(_),
+            fetch:run_download_parallel(dltest_repo, 'dcat/dpkg-1.0', [], 0, 2, 1, 1, 0, download, 1, Specs, Distdir, done),
+            % Restricted fetch (both present and missing)
+            assertz(cache:entry_metadata(dltest_repo, 'dcat/dpkg-1.0', restrict, fetch)),
+            fetch:run_download_parallel(dltest_repo, 'dcat/dpkg-1.0', [], 0, 2, 1, 1, 0, download, 1, Specs, Distdir, done),
+            MissingSpec = [dist('missing_restr.tar.gz', Size, Pairs)],
+            fetch:run_download_parallel(dltest_repo, 'dcat/dpkg-1.0', [], 0, 2, 1, 1, 0, download, 1, MissingSpec, Distdir, _),
+            retractall(cache:entry_metadata(dltest_repo, 'dcat/dpkg-1.0', restrict, fetch)),
+            % Failing download job + speed tracking + upstream fallback
+            fetch:run_download_parallel(dltest_repo, 'dcat/dpkg-1.0', [], 0, 2, 1, 1, 0, download, 1, MissingSpec, Distdir, _),
+            fetch:init_speed_tracking([dl_job(1, 0, 'f', 100, Pairs, DestPath, Dir, DestPath, dltest_repo, 'dcat/dpkg-1.0')], 0.0, 1),
+            fetch:compute_speed(1, 50, _),
+            fetch:compute_speed(999, 50, _),
+            fetch:update_download_progress(0, Filename, Size, DestPath, DestPath, 2, 1, Distdir),
+            fetch:update_download_progress(0, 'none', Size, '/no/file', '/no/tmp', 2, 1, Distdir),
+            fetch:try_upstream_fallback(0, Filename, Size, Pairs, DestPath, dltest_repo, 'dcat/dpkg-1.0', 2, 1, Distdir, _),
+            fetch:try_upstream_fallback(0, Filename, Size, Pairs, MissingDest, dltest_repo, 'dcat/dpkg-1.0', 2, 1, Distdir, false),
+            fetch:clear_speed_tracking
+          )),
+        ( setenv('PATH', OldPath),
+          retractall(distfiles:get_location(Distdir)),
+          retractall(portage:get_location(PortageRoot)),
+          retractall(config:build_log_dir(LogDir)),
+          assertz(config:build_log_dir('/var/tmp/portage-ng/logs')),
+          retractall(download:cached_mirror_layout(_)),
+          retractall(download:cached_thirdpartymirror(_, _)),
+          retractall(dltest_repo:get_ebuild_file(_, _)),
+          retractall(dltest_repo:get_type(_)),
+          retractall(cache:ordered_entry(dltest_repo, _, _, _, _)),
+          retractall(cache:entry_metadata(dltest_repo, _, _, _)),
+          retractall(cache:manifest(dltest_repo, _, _, _, _)),
+          retractall(cache:manifest_metadata(dltest_repo, _, _, _, _, _))
+        ))
+    )).
+
+:- end_tests(download_and_fetch_full_coverage).
+
+

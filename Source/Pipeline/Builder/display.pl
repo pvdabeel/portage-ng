@@ -145,8 +145,9 @@ display:rule_file_info(rule(Repo://Entry:Action?{Ctx}, _Body), _Distdir, LineOff
   ExecLine is LineOff + 1,
   build:exec_phase_line_count(PhaseList, ExecLineCount),
   display:count_conf_lines(Repo, Entry, Action, Ctx, ConfCount),
-  ( predicate_property(ebuild_exec:build_log_path(_,_), defined)
-  -> catch(ebuild_exec:build_log_path(Entry, LogPath), _, LogPath = '')
+  ( predicate_property(ebuild_exec:build_log_path(_,_), defined),
+    catch(ebuild_exec:build_log_path(Entry, LogPath), _, fail)
+  -> true
   ;  LogPath = ''
   ),
   ( catch(config:show_build_logs(true), _, fail)

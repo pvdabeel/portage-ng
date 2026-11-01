@@ -814,6 +814,7 @@ convert_bytes(Bytes, String) :-
 % of a numeric value.
 
 print_bytes(live) :-
+  !,
   format('live   \t', []).
 
 print_bytes(Bytes) :-

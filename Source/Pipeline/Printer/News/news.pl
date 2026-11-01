@@ -33,7 +33,7 @@ after the item containing a .en.txt file with RFC 2822-style headers
 % metadata/news/ directory.
 
 news:check :-
-  ( kb:repository(portage),
+  ( ( cache:repository(portage) ; catch(kb::repository(portage), _, fail) ),
     portage:get_location(Location)
   -> atomic_list_concat([Location, '/metadata/news'], NewsDir),
      ( exists_directory(NewsDir)

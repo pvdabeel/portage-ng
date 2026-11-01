@@ -999,3 +999,243 @@ test(warning_and_plan_modules_full_coverage,
     )).
 
 :- end_tests(printer_plan_full_coverage).
+
+
+% -----------------------------------------------------------------------------
+%  Full coverage for Build/build.pl, News/news.pl, index.pl, info.pl, state.pl, stats.pl
+% -----------------------------------------------------------------------------
+
+:- dynamic kb:repository/1.
+:- dynamic portage:get_location/1.
+
+:- begin_tests(printer_remaining_modules_full_coverage).
+
+test(build_printer_full_coverage, [nondet]) :-
+  tmp_file(bp_cov, TmpDir),
+  make_directory_path(TmpDir),
+  os:compose_path(TmpDir, 'dist.tar.gz', DistPath),
+  setup_call_cleanup(open(DistPath, write, SD), write(SD, 'data'), close(SD)),
+  size_file(DistPath, Size),
+  mirror:openssl_file_hash(DistPath, '-sha256', Sha256),
+  Pairs = [alg_hash(sha256, Sha256)],
+  DistFiles = [dist('dist.tar.gz', Size, Pairs),
+               dist('missing.tar.gz', 100, Pairs)],
+  PhaseList = [clean, setup, unpack, prepare, configure, compile, test, install, package, merge],
+  Jobs = [
+    slotted(0, 10, 1, 2, 0, rule(qtest://'bcat/bpkg-1.0':download?{[]}, []), live_source(1)),
+    slotted(2, 10, 1, 2, 1, rule(qtest://'bcat/bpkg-1.0':download?{[]}, []), files(3, 2, DistFiles, TmpDir)),
+    slotted(5, 10, 2, 2, 0, rule(qtest://'bcat/bpkg-1.0':install?{[]}, []), phases(6, 1, 7, PhaseList, '/tmp/b.log')),
+    slotted(8, 10, 2, 2, 1, rule(qtest://'bcat/bpkg-1.0':run?{[]}, []), no_files),
+    slotted(9, 10, 2, 2, 2, rule(world('bcat/bpkg'):register?{[]}, []), no_files),
+    other_job
+  ],
+  setup_call_cleanup(
+    asserta(config:show_build_logs(true)),
+    with_output_to(string(_),
+      ( build:header(1, 1),
+        build:header(2, 3),
+        forall(member(Style, ['fancy', 'column', 'short']),
+          setup_call_cleanup(
+            ( retractall(config:interface_printing_style(_)),
+              asserta(config:interface_printing_style(Style)) ),
+            ( build:print_job_slots(Jobs, 2),
+              build:print_skipped_slots(Jobs, 2),
+              build:exec_phase_line_count(PhaseList, _),
+              build:exec_content_start_col(_),
+              build:exec_wrap_newline(40),
+              forall(member(TtyVal, [false, true]),
+                setup_call_cleanup(
+                  ( retractall(console:output_tty_cached(_)),
+                    asserta(console:output_tty_cached(TtyVal)) ),
+                  ( forall(member(St, [pending, active, done, failed(err), failed, skipped, stub, other_st]),
+                           ignore(build:update_slot(0, 10, St, 1, 2, 0, install, qtest://'bcat/bpkg-1.0'))),
+                    forall(member(FSt, [cached, pending, progress(50, 1024), progress(50), done, failed, failed(1), restricted]),
+                           ( ignore(build:update_file_subslot(0, 3, 10, FSt, 'dist.tar.gz', Size, TmpDir)),
+                             ignore(build:update_file_subslot(1, 3, 10, FSt, 'missing.tar.gz', 100, TmpDir)),
+                             ignore(build:render_file_content(FSt, 'dist.tar.gz', Size, TmpDir)) )),
+                    forall(member(LSt, [pending, progress(40), done, failed]),
+                           ( build:update_live_subslot(0, 1, 10, LSt),
+                             build:render_live_content(LSt) )),
+                    AllPhaseStates = [clean-done, setup-active, unpack-progress(50), prepare-pending,
+                                      configure-failed, compile-failed(1), test-failed(1, '/l'),
+                                      install-skipped, package-stub],
+                    build:update_exec_line(6, 10, install, AllPhaseStates),
+                    build:update_exec_line(6, 10, install, [clean-done, setup-active, package-stub]),
+                    build:update_exec_line(6, 10, install, [clean-done, unpack-progress(50), package-stub]),
+                    build:update_exec_line(6, 10, install, [clean-done, merge-stub]),
+                    build:update_exec_line(6, 10, install, [clean-done, setup-pending]),
+                    build:update_exec_line(6, 10, install, [clean-stub]),
+                    build:render_phases_wrapped([]),
+                    build:print_skipped_conf(not_a_valid_rule_head),
+                    build:update_logs_line(7, 10, '/tmp/b.log', failed),
+                    build:update_logs_line(7, 10, '/tmp/b.log', failed(1, '/tmp/b.log')),
+                    build:update_logs_line(7, 10, '', done)
+                  ),
+                  retractall(console:output_tty_cached(_))))
+            ),
+            retractall(config:interface_printing_style(_)))),
+        fixup:record(collision, 'bcat/bpkg-1.0', collision_protect),
+        fixup:record(custom_mech, 'bcat/bpkg-1.0', detail),
+        build:summary(0, 0, 0),
+        build:summary(1, 0, 0),
+        build:summary(1, 1, 0),
+        build:summary(1, 1, 1),
+        fixup:clear
+      )),
+    ( retractall(config:show_build_logs(true)),
+      retractall(console:output_tty_cached(_)),
+      retractall(config:interface_printing_style(_)),
+      fixup:clear,
+      catch(delete_directory_and_contents(TmpDir), _, true)
+    )).
+
+test(news_index_info_state_and_stats_full_coverage, [nondet]) :-
+  tmp_file(ni_cov, TmpDir),
+  make_directory_path(TmpDir),
+  os:compose_path([TmpDir, 'metadata', 'news', '2026-01-01-test'], NewsItemDir),
+  make_directory_path(NewsItemDir),
+  os:compose_path(NewsItemDir, '2026-01-01-test.en.txt', NewsTxt),
+  setup_call_cleanup(
+    open(NewsTxt, write, SN),
+    format(SN, 'Title: Test News~nAuthor: Dev~nPosted: 2026-01-01~n~nBody line 1~nBody line 2~n', []),
+    close(SN)),
+  V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  V2 = version([2,0], '', 4, 0, [], 0, '2.0'),
+  setup_call_cleanup(
+    ( ( catch(kb:declared(type(instance(knowledgebase))), _, fail) -> true ; kb:newinstance(knowledgebase) ),
+      assertz(cache:repository(portage)),
+      asserta(portage:get_location(TmpDir)),
+      assertz(cache:category(qtest, 'acat')),
+      assertz(cache:category(qtest, 'bcat')),
+      assertz(cache:package(qtest, 'acat', apkg)),
+      assertz(cache:package(qtest, 'acat', bpkg)),
+      assertz(cache:ordered_entry(qtest, 'acat/apkg-1.0', 'acat', apkg, V1)),
+      assertz(cache:ordered_entry(qtest, 'acat/apkg-2.0', 'acat', apkg, V2)),
+      assertz(cache:entry_metadata(qtest, 'acat/apkg-1.0', eapi, V1)),
+      assertz(cache:entry_metadata(qtest, 'acat/apkg-1.0', description, 'desc')),
+      assertz(cache:entry_metadata(qtest, 'acat/apkg-1.0', homepage, 'https://ex.org')),
+      assertz(cache:entry_metadata(qtest, 'acat/apkg-1.0', license, 'MIT')),
+      assertz(cache:entry_metadata(qtest, 'acat/apkg-1.0', keywords, stable(amd64))),
+      assertz(cache:entry_metadata(qtest, 'acat/apkg-1.0', slot, slot('0'))),
+      assertz(cache:entry_metadata(qtest, 'acat/apkg-1.0', iuse, plus(u1))),
+      assertz(cache:entry_metadata(qtest, 'acat/apkg-1.0', iuse, minus(u2))),
+      assertz(cache:entry_metadata(qtest, 'acat/apkg-1.0', required_use, required(u1))),
+      assertz(cache:entry_metadata(qtest, 'acat/apkg-1.0', required_use, blocking(u2))),
+      assertz(cache:entry_metadata(qtest, 'acat/apkg-1.0', src_uri, uri('https', 'ex.org', 'a.tar.gz'))),
+      assertz(cache:entry_metadata(qtest, 'acat/apkg-1.0', depend,
+        use_conditional_group(negative, u2, qtest://'acat/apkg-1.0', [
+          any_of_group([
+            all_of_group([
+              exactly_one_of_group([
+                at_most_one_of_group([
+                  package_dependency(install, no, acat, bpkg, none, version_none, [], []),
+                  package_dependency(install, weak, acat, bpkg, greater, V1, [any_different_slot],
+                    [use(inverse(u1), positive), use(equal(u1), negative),
+                     use(optdisable(u1), none), use(optenable(u1), none),
+                     use(disable(u1), none), use(enable(u1), none), other_use]),
+                  package_dependency(install, strong, acat, bpkg, equal, V1, [any_same_slot], _)
+                ])
+              ])
+            ])
+          ])
+        ])))
+    ),
+    with_output_to(string(_),
+      ( % 1. news.pl
+        news:check,
+        news:extract_header([], "Title", "unknown"),
+        news:skip_headers(["Header: 1"], []),
+        os:compose_path(TmpDir, 'empty_news', EmptyNewsDir),
+        make_directory_path(EmptyNewsDir),
+        news:display_items(EmptyNewsDir),
+        retractall(cache:repository(portage)),
+        news:check,
+        % 2. index.pl
+        index:print_repository_index(qtest),
+        index:print_category_index(qtest, 'acat'),
+        index:print_package_index(qtest, 'acat', apkg),
+        index:emit_grid_open,
+        index:index_unit_label(1, versions, version),
+        index:index_unit_label(1, packages, package),
+        index:index_unit_label(1, categories, category),
+        index:print_index(repository, 'T', 'TH', member(E1, [r1]), E1, 's.css'),
+        index:print_index(category, 'T', 'TH', member(E2, [c1]), E2, 's.css'),
+        index:print_index(package, 'T', 'TH', member(E3, [[p1, '1.0']]), E3, 's.css'),
+        % 3. info.pl
+        info:print_system,
+        info:print_entry(qtest://'acat/apkg-1.0'),
+        info:print_metadata_item_detail(depend, '  ',
+          grouped_package_dependency(acat, bpkg,
+            [package_dependency(install, no, acat, bpkg, none, version_none, [slot('0')], [])])),
+        info:print_metadata_item_detail(depend, '  ',
+          grouped_package_dependency(no, acat, bpkg,
+            [package_dependency(install, no, acat, bpkg, none, version_none, [slot('0'), equal], [])])),
+        forall(member(SR, [[], [any_different_slot], [any_same_slot], [slot('0')],
+                           [slot('0'), equal], [slot('0'), subslot('1')], [slot('0'), subslot('1'), equal]]),
+               info:print_slot_restriction(SR)),
+        % 4. state.pl
+        state:display_state([], t, t, t),
+        empty_assoc(EmptyA),
+        put_assoc(rule(a, []), EmptyA, true, ProofA),
+        put_assoc(a, EmptyA, [], ModelA),
+        put_assoc(constraint(c, [1]), EmptyA, true, ConsA),
+        state:display_state([a, b], ProofA, ModelA, ConsA),
+        state:display_state(a, EmptyA, EmptyA, EmptyA),
+        state:wait_for_input,
+        % 5. stats.pl
+        stats:test_stats_to_atom(atom_val, atom_val),
+        stats:test_stats_to_atom(compound(1), _),
+        stats:test_stats_fit_atom('longatom', 1, _),
+        stats:test_stats_fit_atom('longatom', 2, _),
+        stats:test_stats_fit_atom('longatom', 4, _),
+        stats:test_stats_fit_atom('ok', 10, 'ok'),
+        stats:test_stats_print_kv_int('K', 1),
+        stats:test_stats_print_kv_int_percent('K', 1, 2),
+        stats:test_stats_print_ranked_table_rows([2-a, 1-b], 1, 1, 80),
+        stats:test_stats_print_top_cycle_mentions([], 5, 1),
+        stats:test_stats_print_top_cycle_mentions([2-(qtest://'acat/apkg-1.0'), 1-(qtest://'acat/apkg-2.0')], 1, 1),
+        sampler:reset('Testing', 2),
+        sampler:set_expected_pkgs(1),
+        sampler:record(entry(qtest://'acat/apkg-1.0', EmptyA, EmptyA, EmptyA, true)),
+        sampler:record(failed(blocker)),
+        sampler:record(failed(timeout)),
+        sampler:record(failed(other)),
+        forall(member(SFact, [
+          failed_entry(qtest://'acat/apkg-2.0', other),
+          pkg(processed, 'acat', apkg),
+          type(blocker_assumption, entries, 1),
+          type(blocker_assumption, occurrences, 2),
+          type(other, entries, 1),
+          type(other, occurrences, 1),
+          type_entry_mention(blocker_assumption, qtest://'acat/apkg-1.0', 2),
+          other_head(some_other_head, 1),
+          blocker_sp(weak, run, 1),
+          blocker_reason(version_mismatch, 1),
+          blocker_rp(version_mismatch, install, 1),
+          blocker_rp(version_mismatch, run, 1),
+          blocker_cn('acat', bpkg, 1),
+          cycle_mention(run, qtest://'acat/apkg-1.0', 1),
+          cycle_mention(install, qtest://'acat/apkg-1.0', 1),
+          entry_time(qtest://'acat/apkg-1.0', 10),
+          pkg_time('acat', apkg, 10, 10, 1),
+          pkg_cost('acat', apkg, 10, 100, 5, 1),
+          pkg_ctx('acat', apkg, 20, 5, 2, 1),
+          ctx_len_bin(2, 3),
+          ctx_len_bin(5, 2),
+          ctx_cost_model(100, 20, 5)
+        ]), assertz(sampler:fact(SFact))),
+        stats:test_stats_print
+      )),
+    ( retractall(sampler:fact(_)),
+      retractall(cache:repository(portage)),
+      retractall(portage:get_location(TmpDir)),
+      retractall(cache:category(qtest, _)),
+      retractall(cache:package(qtest, _, _)),
+      retractall(cache:ordered_entry(qtest, 'acat/apkg-1.0', _, _, _)),
+      retractall(cache:ordered_entry(qtest, 'acat/apkg-2.0', _, _, _)),
+      retractall(cache:entry_metadata(qtest, 'acat/apkg-1.0', _, _)),
+      catch(delete_directory_and_contents(TmpDir), _, true)
+    )).
+
+:- end_tests(printer_remaining_modules_full_coverage).
+

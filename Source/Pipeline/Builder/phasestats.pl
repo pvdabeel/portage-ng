@@ -41,8 +41,8 @@ module without ebuild_exec ever being loaded).
 % On-disk location of the persisted phase statistics.
 
 phasestats:phase_stats_file(Path) :-
-  working_directory(Cwd, Cwd),
-  os:compose_path(Cwd, 'Knowledge/phase_stats.pl', Path).
+  config:state_dir(Dir),
+  os:compose_path(Dir, 'Knowledge/phase_stats.pl', Path).
 
 
 %! phasestats:load_phase_stats is det.

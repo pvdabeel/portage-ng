@@ -543,8 +543,7 @@ test(ebuild_exec_all_phases_and_hooks, [nondet]) :-
     close(SL)),
   V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
   setup_call_cleanup(
-    ( working_directory(OldCwd, TmpDir),
-      setenv('PORTAGE_NG_STATE', TmpDir),
+    ( setenv('PORTAGE_NG_STATE', TmpDir),
       asserta(config:build_log_dir(LogDir)),
       asserta(config:ebuild_command(true)),
       asserta(config:cli_prefix('/opt/gentoo')),
@@ -655,8 +654,7 @@ test(ebuild_exec_all_phases_and_hooks, [nondet]) :-
         preference:with_local_flag(failclean,
           ebuild_exec:maybe_fail_clean(ebtest_repo, 'ecat/epkg-1.0', [], failed(1)))
       )),
-    ( working_directory(_, OldCwd),
-      unsetenv('PORTAGE_NG_STATE'),
+    ( unsetenv('PORTAGE_NG_STATE'),
       retractall(config:build_log_dir(LogDir)),
       retractall(config:ebuild_command(true)),
       retractall(config:cli_prefix('/opt/gentoo')),
@@ -669,4 +667,342 @@ test(ebuild_exec_all_phases_and_hooks, [nondet]) :-
     )).
 
 :- end_tests(ebuild_exec_full_coverage).
+
+
+% -----------------------------------------------------------------------------
+%  Full coverage for buildtime, display, jobserver, resume, snapshot, builder
+% -----------------------------------------------------------------------------
+
+:- dynamic btest_script_repo:get_type/1.
+:- dynamic btest_script_repo:get_location/1.
+:- dynamic world:load/0.
+
+ebtest_repo:entry(E) :- cache:ordered_entry(ebtest_repo, E, _, _, _).
+ebtest_repo:package(C, N) :- cache:package(ebtest_repo, C, N).
+ebtest_repo:ebuild(E, C, N, V) :-
+  cache:ordered_entry(ebtest_repo, E, C, N, Ver),
+  eapi:version_full(Ver, V).
+
+js_test_exec(Job, _Slot, Result) :-
+  ( Job = slotted(LineOff, _, _, _, _, rule(_://ok:_?{_}, _), _)
+  -> Result = result(LineOff, done)
+  ; Job = slotted(_, _, _, _, _, rule(_://throw_err:_?{_}, _), _)
+  -> throw(boom)
+  ; Job = slotted(_, _, _, _, _, rule(_://fail_exec:_?{_}, _), _)
+  -> fail
+  ; Result = malformed_non_result_term
+  ).
+
+js_test_cb(_Slot, _Outcome).
+
+:- begin_tests(builder_submodules_and_orchestrator_full_coverage).
+
+test(buildtime_module_full_coverage, [nondet]) :-
+  tmp_file(bt_cov, TmpDir),
+  make_directory_path(TmpDir),
+  os:compose_path([TmpDir, 'vdb', 'dev-libs', 'foo-1.0'], VdbEntryDir),
+  make_directory_path(VdbEntryDir),
+  os:compose_path(VdbEntryDir, 'SIZE', SizeFile),
+  setup_call_cleanup(open(SizeFile, write, SS), writeln(SS, '500000'), close(SS)),
+  os:compose_path(TmpDir, 'emerge.log', EmergeLog),
+  setup_call_cleanup(
+    open(EmergeLog, write, SE),
+    ( writeln(SE, '1000:  >>> emerge (1 of 2) app-misc/bar-1.0 to /'),
+      writeln(SE, '1045:  ::: completed emerge (1 of 2) app-misc/bar-1.0 to /'),
+      writeln(SE, '1050:  >>> emerge (2 of 2) app-misc/bad_pv to /'),
+      writeln(SE, '1060:  ::: completed emerge (2 of 2) app-misc/bad_pv to /'),
+      writeln(SE, 'unrelated line')
+    ),
+    close(SE)),
+  V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  os:compose_path(TmpDir, 'vdb', VdbDir),
+  setup_call_cleanup(
+    ( retractall(buildtime:loaded),
+      retractall(buildtime:duration(_, _, _, _)),
+      retractall(buildtime:pkg_size(_, _, _)),
+      asserta(config:pkg_directory(VdbDir)),
+      asserta(config:emerge_log_path(EmergeLog)),
+      assertz(cache:ordered_entry(pkg, 'dev-libs/foo-1.0', 'dev-libs', foo, V1)),
+      assertz(cache:ordered_entry(portage, 'dev-libs/foo-1.0', 'dev-libs', foo, V1))
+    ),
+    with_output_to(string(_),
+      ( buildtime:load,
+        buildtime:load,
+        buildtime:estimate('app-misc', bar, 45),
+        buildtime:estimate('dev-libs', foo, 10),
+        buildtime:estimate('dev-qt', qtbase, 300),
+        buildtime:estimate('app-misc', unknown_pkg, 30),
+        forall(buildtime:heavy_category(_), true),
+        buildtime:format_duration(7200, _),
+        buildtime:format_duration(120, _),
+        buildtime:format_duration(15, _),
+        buildtime:estimate_plan(['app-misc'/bar, 'dev-libs'/foo], _, _),
+        buildtime:estimate_plan_waves([[], ['app-misc'/bar, 'dev-libs'/foo]], _, _),
+        buildtime:print_estimate('app-misc', bar),
+        buildtime:print_plan_estimate(['app-misc'/bar, 'dev-libs'/foo])
+      )),
+    ( retractall(config:pkg_directory(VdbDir)),
+      retractall(config:emerge_log_path(EmergeLog)),
+      retractall(cache:ordered_entry(pkg, 'dev-libs/foo-1.0', _, _, _)),
+      retractall(cache:ordered_entry(portage, 'dev-libs/foo-1.0', _, _, _)),
+      retractall(buildtime:loaded),
+      retractall(buildtime:duration(_, _, _, _)),
+      retractall(buildtime:pkg_size(_, _, _)),
+      catch(delete_directory_and_contents(TmpDir), _, true)
+    )).
+
+test(display_jobserver_resume_and_snapshot_coverage, [nondet]) :-
+  tmp_file(bsub_cov, TmpDir),
+  make_directory_path(TmpDir),
+  os:compose_path(TmpDir, 'Knowledge', KDir),
+  os:compose_path(TmpDir, 'snapshots', SnapBase),
+  os:compose_path(TmpDir, 'world', WorldFile),
+  make_directory_path(KDir),
+  make_directory_path(SnapBase),
+  setup_call_cleanup(open(WorldFile, write, SW), writeln(SW, 'ecat/epkg'), close(SW)),
+  os:compose_path(TmpDir, 'epkg-1.0.ebuild', EbuildPath),
+  setup_call_cleanup(open(EbuildPath, write, SE), writeln(SE, '# ebuild'), close(SE)),
+  V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  V2 = version([2,0], '', 4, 0, [], 0, '2.0'),
+  setup_call_cleanup(
+    ( setenv('PORTAGE_NG_STATE', TmpDir),
+      retractall(distfiles:get_location(_)),
+      asserta(distfiles:get_location(TmpDir)),
+      asserta(config:snapshot_dir(SnapBase)),
+      asserta(config:world_file(WorldFile)),
+      asserta(config:ebuild_command(true)),
+      asserta(world:load),
+      asserta(ebtest_repo:get_type(eapi)),
+      asserta(ebtest_repo:get_ebuild_file('ecat/epkg-1.0', EbuildPath)),
+      asserta(ebtest_repo:get_ebuild_file('ecat/epkg-2.0', EbuildPath)),
+      assertz(cache:ordered_entry(ebtest_repo, 'ecat/epkg-1.0', ecat, epkg, V1)),
+      assertz(cache:entry_metadata(ebtest_repo, 'ecat/epkg-1.0', properties, live)),
+      assertz(cache:ordered_entry(ebtest_repo, 'ecat/epkg-2.0', ecat, epkg, V2)),
+      assertz(cache:ordered_entry(pkg, 'ecat/epkg-1.0', ecat, epkg, V1)),
+      assertz(cache:entry_metadata(pkg, 'ecat/epkg-1.0', slot, slot('0')))
+    ),
+    with_output_to(string(_),
+      ( % 1. display.pl
+        display:print_pre_action_step([], 0),
+        PreAct1 = unmask(ebtest_repo, 'ecat/epkg-1.0', ecat, epkg),
+        PreAct2 = accept_keyword(ebtest_repo, 'ecat/epkg-1.0', ecat, epkg, unstable(amd64)),
+        display:print_pre_action_step([PreAct1], 1),
+        display:print_pre_action_step([PreAct1, PreAct2], 1),
+        RulesDisp = [
+          rule(ebtest_repo://'ecat/epkg-1.0':download?{[]}, []),
+          rule(ebtest_repo://'ecat/epkg-2.0':download?{[]}, []),
+          rule(ebtest_repo://'ecat/epkg-2.0':install?{[]}, []),
+          rule(ebtest_repo://'ecat/epkg-2.0':uninstall?{[]}, []),
+          rule(world('ecat/epkg'):register?{[]}, []),
+          other_rule
+        ],
+        asserta(config:show_build_logs(true)),
+        display:assign_slots(RulesDisp, 1, 1, SlottedDisp, TotalLines),
+        retractall(config:show_build_logs(true)),
+        display: assign_slots(RulesDisp, 1, 1, _, _),
+        display:register_slot_info(SlottedDisp),
+        display:get_slot_info(0, _, _, _, _, _),
+        display:get_slot_info(999, 0, 0, 0, unknown, unknown),
+        display:mark_skipped(SlottedDisp, TotalLines),
+        display:clear_slot_info,
+        % 2. jobserver.pl
+        asserta(config:cli_load_average(9999.0)),
+        jobserver:init(1, buildertest:js_test_exec),
+        JobsJS = [
+          slotted(0, 4, 1, 1, 0, rule(ebtest_repo://ok:install?{[]}, []), no_files),
+          slotted(1, 4, 1, 1, 1, rule(ebtest_repo://throw_err:install?{[]}, []), no_files),
+          slotted(2, 4, 1, 1, 2, rule(ebtest_repo://fail_exec:install?{[]}, []), no_files),
+          unrecognised_job
+        ],
+        jobserver:submit(JobsJS),
+        jobserver:collect(4, buildertest:js_test_cb),
+        jobserver:shutdown(1),
+        retractall(config:cli_load_average(9999.0)),
+        % 3. resume.pl
+        PlanRes = [[rule(ebtest_repo://'ecat/epkg-1.0':install?{[]}, []),
+                    rule(ebtest_repo://'ecat/epkg-2.0':install?{[]}, [])]],
+        resume:save_state([ebtest_repo://'ecat/epkg-2.0':run?{[]}], PlanRes),
+        resume:mark_done(ebtest_repo://'ecat/epkg-1.0', install),
+        resume:flush_done_to_disk,
+        resume:load_state(_, LoadedPlan, DoneList),
+        asserta(config:skip_atom('epkg-2.0')),
+        resume:collect_skip_entries(LoadedPlan, SkipDone),
+        retractall(config:skip_atom('epkg-2.0')),
+        append(DoneList, SkipDone, AllDone),
+        resume:filter_completed_plan(LoadedPlan, AllDone, [[]]),
+        resume:clear_state,
+        % 4. snapshot.pl
+        snapshot:generate_id(_),
+        snapshot:pad2(5, '05'),
+        snapshot:pad2(12, '12'),
+        PlanSnap = [[rule(ebtest_repo://'ecat/epkg-2.0':update?{[replaces(pkg://'ecat/epkg-1.0')]}, []),
+                     assumed(rule(ebtest_repo://'ecat/epkg-1.0':install?{[replaces(pkg://'ecat/epkg-1.0')]}, []))]],
+        snapshot:create('snap1', PlanSnap),
+        \+ snapshot:create('snap1', PlanSnap),
+        snapshot:quickpkg_old(ebtest_repo, 'ecat/epkg-1.0'),
+        % Place a dummy .gpkg.tar inside snap1/binpkgs/ecat/
+        snapshot:binpkg_dir('snap1', SnapBinDir),
+        os:compose_path(SnapBinDir, 'ecat', SnapCatDir),
+        make_directory_path(SnapCatDir),
+        os:compose_path(SnapCatDir, 'epkg-1.0.gpkg.tar', SnapGpkg),
+        setup_call_cleanup(open(SnapGpkg, write, SSG), write(SSG, 'x'), close(SSG)),
+        % Prepend a non-timestamp term to manifest.pl to exercise find_timestamp recursion
+        snapshot:manifest_path('snap1', SnapManPath),
+        setup_call_cleanup(
+          open(SnapManPath, write, SSM),
+          ( writeln(SSM, 'other_header_fact.'),
+            writeln(SSM, 'snapshot_timestamp(1000).'),
+            format(SSM, 'installed(~q, ~q, ~q, ~q).~n', [ecat, epkg, V1, '0'])
+          ),
+          close(SSM)),
+        snapshot:list,
+        snapshot:diff('snap1'),
+        % Mutate VDB to exercise Added / Removed / Changed in snapshot:diff
+        retractall(cache:ordered_entry(pkg, 'ecat/epkg-1.0', _, _, _)),
+        assertz(cache:ordered_entry(pkg, 'ecat/epkg-2.0', ecat, epkg, V2)),
+        assertz(cache:ordered_entry(pkg, 'ecat/newpkg-1.0', ecat, newpkg, V1)),
+        assertz(cache:ordered_entry(pkg, 'ecat/oldpkg-1.0', ecat, oldpkg, V1)),
+        retractall(cache:ordered_entry(pkg, 'ecat/oldpkg-1.0', _, _, _)),
+        snapshot:diff('snap1'),
+        snapshot:rollback('snap1'),
+        snapshot:delete('snap1'),
+        snapshot:delete('snap_nonexistent'),
+        snapshot:finalize
+      )),
+    ( unsetenv('PORTAGE_NG_STATE'),
+      retractall(distfiles:get_location(TmpDir)),
+      retractall(config:snapshot_dir(SnapBase)),
+      retractall(config:world_file(WorldFile)),
+      retractall(config:ebuild_command(true)),
+      retractall(world:load),
+      retractall(ebtest_repo:get_type(eapi)),
+      retractall(ebtest_repo:get_ebuild_file(_, _)),
+      retractall(cache:ordered_entry(ebtest_repo, _, _, _, _)),
+      retractall(cache:entry_metadata(ebtest_repo, _, _, _)),
+      retractall(cache:ordered_entry(pkg, 'ecat/epkg-1.0', _, _, _)),
+      retractall(cache:ordered_entry(pkg, 'ecat/epkg-2.0', _, _, _)),
+      retractall(cache:ordered_entry(pkg, 'ecat/newpkg-1.0', _, _, _)),
+      retractall(cache:entry_metadata(pkg, 'ecat/epkg-1.0', _, _)),
+      snapshot:finalize,
+      catch(delete_directory_and_contents(TmpDir), _, true)
+    )).
+
+test(builder_orchestrator_full_coverage, [nondet]) :-
+  tmp_file(borch_cov, TmpDir),
+  make_directory_path(TmpDir),
+  os:compose_path(TmpDir, 'Knowledge', KDir),
+  os:compose_path(TmpDir, 'confdir', ConfDir),
+  os:compose_path(TmpDir, 'logs', LogDir),
+  make_directory_path(KDir),
+  make_directory_path(ConfDir),
+  make_directory_path(LogDir),
+  os:compose_path(TmpDir, 'epkg-1.0.ebuild', EbuildPath),
+  setup_call_cleanup(open(EbuildPath, write, SE), writeln(SE, '# ebuild'), close(SE)),
+  V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  setup_call_cleanup(
+    ( unittest:accept_stable_amd64,
+      setenv('PORTAGE_NG_STATE', TmpDir),
+      retractall(distfiles:get_location(_)),
+      asserta(distfiles:get_location(TmpDir)),
+      asserta(config:portage_confdir(ConfDir)),
+      asserta(config:build_log_dir(LogDir)),
+      asserta(config:ebuild_command(true)),
+      asserta(config:cli_jobs(1)),
+      asserta(ebtest_repo:get_type(eapi)),
+      asserta(ebtest_repo:get_ebuild_file('ecat/epkg-1.0', EbuildPath)),
+      asserta(btest_script_repo:get_type(git)),
+      asserta(btest_script_repo:get_location(TmpDir)),
+      assertz(cache:repository(ebtest_repo)),
+      assertz(cache:category(ebtest_repo, ecat)),
+      assertz(cache:package(ebtest_repo, ecat, epkg)),
+      assertz(cache:ordered_entry(ebtest_repo, 'ecat/epkg-1.0', ecat, epkg, V1)),
+      assertz(cache:entry_metadata(ebtest_repo, 'ecat/epkg-1.0', keywords, stable(amd64))),
+      assertz(cache:entry_metadata(ebtest_repo, 'ecat/epkg-1.0', slot, slot('0')))
+    ),
+    with_output_to(string(_),
+      ( % 1. End-to-end builder:build and builder:build_resume
+        retractall(config:build_phases(_)),
+        asserta(config:build_phases([])),
+        builder:build([ebtest_repo://'ecat/epkg-1.0':run?{[]}]),
+        % Save state and test build_resume (both with remaining work and with all done)
+        Plan1 = [[rule(ebtest_repo://'ecat/epkg-1.0':install?{[]}, []),
+                  rule(world('ecat/epkg'):register?{[]}, []),
+                  rule(world('ecat/epkg'):unregister?{[]}, [])]],
+        resume:save_state([ebtest_repo://'ecat/epkg-1.0':run?{[]}], Plan1),
+        builder:build_resume,
+        resume:save_state([ebtest_repo://'ecat/epkg-1.0':run?{[]}], Plan1),
+        resume:mark_done(ebtest_repo://'ecat/epkg-1.0', install),
+        resume:flush_done_to_disk,
+        builder:build_resume,
+        \+ builder:build_resume,
+        % 2. Replan, skip_remaining, VDB reconciliation warning
+        builder:should_replan(0, 1, 0, 1),
+        builder:announce_replan(1),
+        builder:print_reconciliation_warning([ebtest_repo://'ecat/epkg-1.0':install], 1),
+        asserta(config:continue_on_failure(always)),
+        builder:should_continue_on_failure,
+        retractall(config:continue_on_failure(always)),
+        builder:skip_remaining(Plan1, 1, 1, 0, 1, 0, _, _, _),
+        % 3. Suggestions & auto-config
+        CtxSugg = [suggestion(unmask, ebtest_repo://'ecat/epkg-1.0'),
+                   suggestion(accept_keyword, unstable(amd64)),
+                   suggestion(use_change, ebtest_repo://'ecat/epkg-1.0', [use_change(ssl, enable)])],
+        builder:dispatch_suggestions(ebtest_repo, 'ecat/epkg-1.0', CtxSugg),
+        builder:dispatch_suggestions(ebtest_repo, 'ecat/epkg-1.0', [suggestion(accept_keyword, keyword("amd64"))]),
+        builder:dispatch_suggestions(ebtest_repo, 'ecat/epkg-1.0', not_a_list),
+        builder:auto_config_line_ok('package.unmask', '=ecat/epkg-1.0'),
+        builder:auto_config_line_ok('package.other', '=ecat/epkg-1.0 foo'),
+        % 4. run_action, run_binpkg_action, run_action_with_phases, phase_callback, outcome_to_status
+        builder:binpkg_merge_action(run, install),
+        builder:binpkg_merge_action(install, install),
+        \+ builder:is_executable_rule(rule(ebtest_repo://'ecat/epkg-1.0':annotate?{[]}, [])),
+        \+ builder:is_executable_rule(non_rule_term),
+        ignore(catch(builder:run_action(install, btest_script_repo, 'ecat/epkg-1.0', [], _), _, true)),
+        builder:run_binpkg_action(install, 'ecat/missing-1.0-1', [], failed(no_source_ebuild)),
+        builder:run_action(install, ebtest_repo, 'ecat/epkg-1.0', [], stub),
+        retractall(config:build_phases(_)),
+        asserta(config:build_phases([setup])),
+        builder:run_action(install, ebtest_repo, 'ecat/epkg-1.0', [], done),
+        builder:run_action(install, binpkg, 'ecat/missing-1.0-1', [], failed(no_source_ebuild)),
+        builder:run_action_with_phases(install, binpkg, 'ecat/missing-1.0-1', [],
+                                       2, 1, 1, -1, [setup], '', 0, 1, 1, 0, _),
+        builder:run_action_with_phases(install, ebtest_repo, 'ecat/epkg-1.0', [],
+                                       3, 1, 1, 2, [setup], '/tmp/t.log', 0, 1, 1, 0, _),
+        builder:phase_callback(3, 1, 2, install, [setup], '/tmp/t.log', setup, failed(1)),
+        builder:phase_callback(3, 1, 2, install, [setup], '/tmp/t.log', unlisted_phase, done),
+        forall(member(Out-St, [
+          done-done, stub-stub, failed(r)-failed(r),
+          failed-failed('error'), error(e)-failed(e), other-failed('unknown')
+        ]), builder:outcome_to_status(Out, St)),
+        builder:execute_build_job(bad_job, 1, _),
+        % 5. builder:test_stats and test_single
+        retractall(config:build_phases(_)),
+        asserta(config:build_phases([setup])),
+        builder:test_stats(ebtest_repo),
+        builder:test_stats(ebtest_repo, 5),
+        builder:test_stats_pkgs(ebtest_repo, [ecat-epkg]),
+        builder:test_plan_downloads([[rule(ebtest_repo://'ecat/epkg-1.0':download?{[]}, [])]])
+      )),
+    ( unsetenv('PORTAGE_NG_STATE'),
+      retractall(distfiles:get_location(TmpDir)),
+      retractall(config:portage_confdir(ConfDir)),
+      retractall(config:build_log_dir(LogDir)),
+      retractall(config:ebuild_command(true)),
+      retractall(config:cli_jobs(1)),
+      retractall(ebtest_repo:get_type(eapi)),
+      retractall(ebtest_repo:get_ebuild_file(_, _)),
+      retractall(btest_script_repo:get_type(_)),
+      retractall(btest_script_repo:get_location(_)),
+      retractall(cache:repository(ebtest_repo)),
+      retractall(cache:category(ebtest_repo, _)),
+      retractall(cache:package(ebtest_repo, _, _)),
+      retractall(cache:ordered_entry(ebtest_repo, _, _, _, _)),
+      retractall(cache:entry_metadata(ebtest_repo, _, _, _)),
+      retractall(config:build_phases(_)),
+      assertz(config:build_phases([clean, setup, unpack, prepare, configure, compile, test, install, merge])),
+      catch(delete_directory_and_contents(TmpDir), _, true)
+    )).
+
+:- end_tests(builder_submodules_and_orchestrator_full_coverage).
+
 

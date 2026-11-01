@@ -249,6 +249,7 @@ config:preference_cache(server,     cached).
 % Declaration of the world file path. The world file holds the requirements
 % for installed packages.
 
+:- dynamic config:world_file/1.
 config:world_file(Filename) :-
   config:installation_dir(Dir),
   config:hostname(Hostname),
@@ -338,6 +339,7 @@ config:preserved_libs_registry(File) :-
 %
 % Returns the base directory for snapshots on the current host.
 
+:- dynamic config:snapshot_dir/1.
 config:snapshot_dir(Dir) :-
   config:installation_dir(Base),
   config:hostname(Hostname),
@@ -758,6 +760,7 @@ config:build_learned([missing_provider, useenable, kernelconfig]).
 % `config:build_learned/1` records a fact. Must be a non-negative
 % integer.
 
+:- dynamic config:missing_provider_max_replan/1.
 config:missing_provider_max_replan(3).
 
 
@@ -997,6 +1000,7 @@ config:mirror_root('/Volumes/Storage/Distfiles/distfiles').
 % SRC_URI chain. Prefer https. Cleartext http mirrors require
 % config:curl_allow_http(true) (see host configs).
 
+:- dynamic config:mirror_url/1.
 :- multifile config:mirror_url/1.
 
 config:mirror_url('https://distfiles.gentoo.org/distfiles').
@@ -1941,6 +1945,7 @@ config:load_llm_modules(true).
 %
 % Kill-switch for LLM metacircular diagnose-after-build (propose + confirm).
 
+:- dynamic config:llm_metacircular/1.
 config:llm_metacircular(true).
 
 
@@ -2122,6 +2127,7 @@ config:semantic_top_n(10).
 % Path to emerge.log for reading historical build durations.
 % Comment out or remove to disable emerge.log parsing.
 
+:- dynamic config:emerge_log_path/1.
 config:emerge_log_path('/var/log/emerge.log').
 
 
