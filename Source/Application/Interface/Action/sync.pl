@@ -93,22 +93,35 @@ action:apply_package_moves :-
 % performing a network sync (no git pull) or reloading into the
 % knowledge base. This is the equivalent of running egencache.
 % The knowledge base is updated on the next --sync or restart.
+%
+% Registered repositories are enumerated through the public cache
+% (declared(cache(repository(Name)))), not kb:repository/1. That slot is
+% private and its clause body is unconditionally true; membership lives
+% only in the cache asserted by register/1. A direct call throws
+% permission_error unless a public method is holding the access token.
+
+%! action:registered_repository(?Name) is nondet.
+%
+% Name is a repository registered with the knowledge base.
+
+action:registered_repository(Name) :-
+  kb:declared(cache(repository(Name))).
 
 action:process_regen(_Mode, []) :-
   !,
-  aggregate_all(count, kb:repository(_), Count),
+  aggregate_all(count, action:registered_repository(_), Count),
   ( Count == 1 ->
     message:topheader(['Regenerating metadata for ',Count,' registered repository'])
   ; message:topheader(['Regenerating metadata for ',Count,' registered repositories'])
   ),
-  forall(kb:repository(Repository),
+  forall(action:registered_repository(Repository),
     ( message:header(['Regenerating metadata for \"',Repository,'\"']), nl,
       ( catch(Repository:sync(metadata), _, true) -> true ; true )
     )).
 
 action:process_regen(_Mode, RepoNames) :-
   forall(member(Name, RepoNames),
-    ( kb:repository(Name) ->
+    ( action:registered_repository(Name) ->
       ( message:header(['Regenerating metadata for \"',Name,'\"']), nl,
         ( catch(Name:sync(metadata), _, true) -> true ; true )
       )
