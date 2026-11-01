@@ -2259,11 +2259,13 @@ preference:init_system_pkgs :-
   ( preference:cached_profile_loaded ->
       true
   ; current_predicate(config:gentoo_profile/1),
-    config:gentoo_profile(ProfileRel) ->
-      catch(( profile:system_packages(ProfileRel, Pkgs),
-              forall(member(Cat-Name, Pkgs),
-                     assertz(preference:system_pkg(Cat, Name)))
-            ), _, true)
+    config:gentoo_profile(ProfileRel),
+    % catch/3 only traps exceptions. profile:system_packages/2 fails when
+    % the profile tree is absent, and a failing Then-branch of -> does not
+    % fall through. Treat both as an empty @system set.
+    catch(profile:system_packages(ProfileRel, Pkgs), _, fail) ->
+      forall(member(Cat-Name, Pkgs),
+             assertz(preference:system_pkg(Cat, Name)))
   ; true
   ).
 
