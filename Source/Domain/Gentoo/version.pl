@@ -171,8 +171,25 @@ version_domain:bounds_inconsistent(Bounds) :-
 version_domain:bounds_inconsistent(Bounds) :-
   lower_upper_conflict(Bounds),
   !.
+version_domain:bounds_inconsistent(Bounds) :-
+  inconsistent_tilde_bounds(Bounds),
+  !.
 version_domain:bounds_inconsistent(_Bounds) :-
   fail.
+
+% Two tilde bounds whose base versions differ (revision ignored) are
+% disjoint even when their outer intervals overlap (`~1` vs `~1.0`).
+% The interval view in bound_lower/3 / bound_upper/3 misses that pair;
+% this check does not invent a conflict for `~1.2` and `~1.2-r3`.
+version_domain:inconsistent_tilde_bounds(Bounds) :-
+  member(bound(tilde, V1), Bounds),
+  member(bound(tilde, V2), Bounds),
+  \+ tilde_same_base(V1, V2),
+  !.
+
+version_domain:tilde_same_base(V1, V2) :-
+  normalize_version_term(V1, version(N, A, SR, SN, ST, _, _)),
+  normalize_version_term(V2, version(N, A, SR, SN, ST, _, _)).
 
 version_domain:inconsistent_exact_bounds(Bounds) :-
   findall(V, member(bound(equal, V), Bounds), Eq0),
@@ -247,12 +264,39 @@ version_domain:bound_lower(bound(Op, V), V, Strict) :-
   !.
 version_domain:bound_lower(bound(wildcard, V0), LowerVer, false) :-
   wildcard_lower_bound(V0, LowerVer).
+% Revision 0, not the stored revision: `~1.2-r2` matches `1.2` and
+% `1.2-r1`. Using the stored `-r2` as the inclusive lower bound invents
+% a conflict with those revisions (portage-ng#128).
+version_domain:bound_lower(bound(tilde, V0), Lower, false) :-
+  normalize_version_term(V0, version(N, A, SR, SN, ST, _, Full0)),
+  N \== [],
+  tilde_base_full(Full0, Full),
+  Lower = version(N, A, SR, SN, ST, 0, Full).
 
 version_domain:bound_upper(bound(Op, V), V, Strict) :-
   upper_op(Op, Strict),
   !.
 version_domain:bound_upper(bound(wildcard, V0), UpperVer, true) :-
   wildcard_upper_sentinel(V0, UpperVer).
+version_domain:bound_upper(bound(tilde, V0), Upper, true) :-
+  tilde_upper_bound(V0, Upper).
+
+% Strip a trailing `-rN` from a version's display atom so the rev-0
+% lower bound's Full field agrees with its Rev field.
+version_domain:tilde_base_full(Full0, Full) :-
+  ( atom(Full0),
+    sub_atom(Full0, Before, _, _, '-r'),
+    sub_atom(Full0, Before, _, 0, Tail),
+    sub_atom(Tail, 2, _, 0, RevAtom),
+    atom_codes(RevAtom, Codes),
+    Codes \== [],
+    maplist(is_digit_code, Codes)
+  -> sub_atom(Full0, 0, Before, _, Full)
+  ; Full = Full0
+  ).
+
+version_domain:is_digit_code(C) :-
+  code_type(C, digit).
 
 version_domain:lower_op(greater, true).
 version_domain:lower_op(greaterequal, false).
@@ -352,8 +396,12 @@ version_domain:display_atom(V, A) :- format(atom(A), '~w', [V]).
 % Per-dep cn_domain constraints stay conservative (upper-bounds and exact
 % equality only): wildcard and tilde ranges are enforced directly at
 % candidate selection time (grouped_dep_verify_candidate /
-% grouped_dep_candidate_satisfies_constraints), and only enter cn_domain
-% when learned on conflict via cnselect:wildcard_upper_bound_domain/4.
+% grouped_dep_candidate_satisfies_constraints). They enter a cn_domain
+% only when learned on conflict — wildcard via
+% cnselect:wildcard_upper_bound_domain/4 (portage-ng#126), tilde via
+% cnselect:selected_cn_unique_or_reprove/5 (portage-ng#128). An unslotted
+% tilde must not be emitted on every edge: two slots of one package
+% would both key cn_domain(C,N,any) and the meet would fail.
 
 version_domain:dep_bound_op(smallerorequal, smallerequal) :- !.
 version_domain:dep_bound_op(smallerequal, smallerequal) :- !.
@@ -363,17 +411,19 @@ version_domain:dep_bound_op(_Other, none).
 
 
 % Domain bound normalization preserves `wildcard` bounds (learned by
-% cnselect:wildcard_upper_bound_domain/4, portage-ng#126) alongside upper
-% and exact-equality bounds. `bound_lower/3` and `bound_upper/3` give
-% `bound(wildcard, V)` the interval `[prefix_alpha, next_prefix)`, and
-% `candidate_satisfies_bound/2` / `version_constraint_holds/2` enforce
-% `eapi:version_glob_match/2`.
+% cnselect:wildcard_upper_bound_domain/4, portage-ng#126) and `tilde`
+% bounds (learned by cnselect:selected_cn_unique_or_reprove/5,
+% portage-ng#128) alongside upper and exact-equality bounds.
+% `bound_lower/3` and `bound_upper/3` give `bound(wildcard, V)` the
+% interval `[prefix_alpha, next_prefix)` and `bound(tilde, V)` the
+% interval `[base revision 0, next numeric component)`. Admission stays
+% exact: `candidate_satisfies_bound/2` / `version_constraint_holds/2`.
 version_domain:normalize_bound_op(smallerorequal, smallerequal) :- !.
 version_domain:normalize_bound_op(smallerequal, smallerequal) :- !.
 version_domain:normalize_bound_op(smaller, smaller) :- !.
 version_domain:normalize_bound_op(equal, equal) :- !.
 version_domain:normalize_bound_op(wildcard, wildcard) :- !.
-version_domain:normalize_bound_op(tilde, none) :- !.
+version_domain:normalize_bound_op(tilde, tilde) :- !.
 version_domain:normalize_bound_op(_Other, none).
 
 
@@ -492,6 +542,12 @@ version_domain:normalize_version_term_other(Num, Ver) :-
   normalize_version_term_other(Full, Ver).
 version_domain:normalize_version_term_other(Other, Other).
 
+% Tilde is not an eapi:version_op/1 (that core excludes it). Without this
+% clause the generic fallback below is non-blocking, so an exact bound
+% inside a disjoint tilde was treated as consistent (portage-ng#128).
+version_domain:version_constraint_holds(Ver, bound(tilde, Req)) :-
+  !,
+  tilde_same_base(Ver, Req).
 % Known operators dispatch onto the shared eapi:version_op_match/3 core; unknown
 % operators stay non-blocking (true) for symbolic consistency checks.
 version_domain:version_constraint_holds(Ver, bound(Op, Req)) :-

@@ -1054,3 +1054,212 @@ test(candidate_remaining_coverage,
   memberchk(suggestion(unmask), CtxMask).
 
 :- end_tests(resolving_submodules_unit).
+
+
+% -----------------------------------------------------------------------------
+%  Tilde pin learning (portage-ng#128)
+% -----------------------------------------------------------------------------
+
+:- begin_tests(tilde_pin_domain).
+
+test(learn_holding_tilde_and_narrow_chooser,
+     [setup(tilde_pin_setup),
+      cleanup(tilde_pin_cleanup)]) :-
+  V812 = version([8,1,2], '', 4, 0, [], 0, '8.1.2'),
+  V813 = version([8,1,3,1], '', 4, 0, [], 0, '8.1.3.1'),
+  Sel812 = selected(qtest, 'td/ap-8.1.2', run, V812, [slot('8.1')]),
+  Sel813 = selected(qtest, 'td/ap-8.1.3.1', run, V813, [slot('8.1')]),
+  At = qtest://'td/at-8.1.2',
+  Rl = qtest://'td/rl-8.1.3.1',
+  Reasons = [introduced_by(At, run, version(tilde, V812)),
+             introduced_by(Rl, run, version(tilde, V813))],
+  % actiontext itself was selected under a version pin; railties was not.
+  AtReasons = [introduced_by(qtest://'td/root-1.0', run, version(tilde, V812))],
+  list_to_assoc([selected_cn(td, ap)-ordset([Sel812, Sel813]),
+                 selected_cn_allow_multislot(td, ap)-true,
+                 cn_domain_reason(td, ap)-ordset(Reasons),
+                 cn_domain_reason(td, at)-ordset(AtReasons)], Cons),
+  Dep813 = package_dependency(run, no, td, ap, tilde, V813, [], []),
+  % 8.1.3.1 is a real candidate until the holding tilde is learned.
+  cnselect:child_reselection_possible(td, ap, [Dep813], []),
+  % Reported order: 8.1.2 is already committed, 8.1.3.1 arrives.
+  \+ cnselect:selected_cn_unique_or_reprove(td, ap, [Sel813], [Sel812, Sel813], Cons),
+  Dom = version_domain(any, [bound(tilde, V812)]),
+  prover:learned(cn_domain(td, ap, '8.1'), Dom),
+  prover:learned(cn_domain(td, ap, any), Dom),
+  \+ cnselect:child_reselection_possible(td, ap, [Dep813], []),
+  Ctx = [self(Rl)],
+  catch(cnselect:maybe_learn_parent_narrowing(td, ap, [Dep813], Ctx),
+        prover_reprove(cn_domain(td, rl, none, [Rl], [parent_narrowing])),
+        true),
+  % A root chooser is the request. Rejecting it does not move the plan.
+  nb_setval(prover_root_goals, [qtest://'td/rl-8.1.3.1':run]),
+  \+ cnselect:maybe_learn_parent_narrowing(td, ap, [Dep813], Ctx).
+
+test(order_flip_prefers_root_tilde,
+     [setup(tilde_pin_setup),
+      cleanup(tilde_pin_cleanup)]) :-
+  V812 = version([8,1,2], '', 4, 0, [], 0, '8.1.2'),
+  V813 = version([8,1,3,1], '', 4, 0, [], 0, '8.1.3.1'),
+  Sel812 = selected(qtest, 'td/ap-8.1.2', run, V812, [slot('8.1')]),
+  Sel813 = selected(qtest, 'td/ap-8.1.3.1', run, V813, [slot('8.1')]),
+  Q = qualified_target(equal, qtest, td, at, V812, [[], []]),
+  nb_setval(prover_root_goals, [target(Q, '=td/at-8.1.2'):run?{[]}]),
+  Reasons = [introduced_by(qtest://'td/at-8.1.2', run, version(tilde, V812)),
+             introduced_by(qtest://'td/rl-8.1.3.1', run, version(tilde, V813))],
+  list_to_assoc([selected_cn(td, ap)-ordset([Sel813, Sel812]),
+                 selected_cn_allow_multislot(td, ap)-true,
+                 cn_domain_reason(td, ap)-ordset(Reasons)], Cons),
+  % The root's pin arrives after the unconstrained chooser committed 8.1.3.1.
+  \+ heuristic:constraint_guard(constraint(selected_cn(td, ap):{ordset([Sel812])}), Cons),
+  prover:learned(cn_domain(td, ap, '8.1'), version_domain(any, [bound(tilde, V812)])).
+
+test(constrained_origin_beats_committed_tilde,
+     [setup(tilde_pin_setup),
+      cleanup(tilde_pin_cleanup)]) :-
+  V812 = version([8,1,2], '', 4, 0, [], 0, '8.1.2'),
+  V813 = version([8,1,3,1], '', 4, 0, [], 0, '8.1.3.1'),
+  Sel812 = selected(qtest, 'td/ap-8.1.2', run, V812, [slot('8.1')]),
+  Sel813 = selected(qtest, 'td/ap-8.1.3.1', run, V813, [slot('8.1')]),
+  nb_setval(prover_root_goals, []),
+  AtPin = [introduced_by(qtest://'td/root-1.0', run, version(tilde, V812))],
+  Reasons = [introduced_by(qtest://'td/at-8.1.2', run, version(tilde, V812)),
+             introduced_by(qtest://'td/rl-8.1.3.1', run, version(tilde, V813))],
+  list_to_assoc([selected_cn_allow_multislot(td, ap)-true,
+                 cn_domain_reason(td, ap)-ordset(Reasons),
+                 cn_domain_reason(td, at)-ordset(AtPin)], Cons),
+  \+ cnselect:selected_cn_unique_or_reprove(td, ap, [Sel812], [Sel813, Sel812], Cons),
+  prover:learned(cn_domain(td, ap, '8.1'), version_domain(any, [bound(tilde, V812)])).
+
+test(unversioned_reasons_learn_nothing,
+     [setup(tilde_pin_setup),
+      cleanup(tilde_pin_cleanup)]) :-
+  V812 = version([8,1,2], '', 4, 0, [], 0, '8.1.2'),
+  V813 = version([8,1,3,1], '', 4, 0, [], 0, '8.1.3.1'),
+  Sel812 = selected(qtest, 'td/ap-8.1.2', run, V812, [slot('8.1')]),
+  Sel813 = selected(qtest, 'td/ap-8.1.3.1', run, V813, [slot('8.1')]),
+  nb_setval(prover_root_goals, []),
+  Reasons = [introduced_by(qtest://'td/at-8.1.2', run, slot('8.1'))],
+  list_to_assoc([selected_cn_allow_multislot(td, ap)-true,
+                 cn_domain_reason(td, ap)-ordset(Reasons)], Cons),
+  \+ cnselect:selected_cn_unique_or_reprove(td, ap, [Sel813], [Sel812, Sel813], Cons),
+  \+ prover:learned(cn_domain(td, ap, _), _).
+
+test(empty_delta_does_not_learn,
+     [setup(tilde_pin_setup),
+      cleanup(tilde_pin_cleanup)]) :-
+  V812 = version([8,1,2], '', 4, 0, [], 0, '8.1.2'),
+  V813 = version([8,1,3,1], '', 4, 0, [], 0, '8.1.3.1'),
+  Sel812 = selected(qtest, 'td/ap-8.1.2', run, V812, [slot('8.1')]),
+  Sel813 = selected(qtest, 'td/ap-8.1.3.1', run, V813, [slot('8.1')]),
+  Reasons = [introduced_by(qtest://'td/at-8.1.2', run, version(tilde, V812))],
+  list_to_assoc([selected_cn_allow_multislot(td, ap)-true,
+                 cn_domain_reason(td, ap)-ordset(Reasons)], Cons),
+  \+ cnselect:selected_cn_unique_or_reprove(td, ap, [Sel812, Sel813], Cons),
+  \+ prover:learned(cn_domain(td, ap, _), _).
+
+test(equal_newcomer_meets_learned_tilde,
+     [setup(tilde_pin_setup),
+      cleanup(tilde_pin_cleanup)]) :-
+  V812 = version([8,1,2], '', 4, 0, [], 0, '8.1.2'),
+  V813 = version([8,1,3,1], '', 4, 0, [], 0, '8.1.3.1'),
+  prover:learn(cn_domain(td, ap, any), version_domain(any, [bound(tilde, V812)]), true),
+  DepEq = package_dependency(run, no, td, ap, equal, V813, [], []),
+  \+ cnselect:child_reselection_possible(td, ap, [DepEq], []).
+
+test(slot_learn_excludes_without_any_key,
+     [setup(tilde_pin_setup),
+      cleanup(tilde_pin_cleanup)]) :-
+  V812 = version([8,1,2], '', 4, 0, [], 0, '8.1.2'),
+  V813 = version([8,1,3,1], '', 4, 0, [], 0, '8.1.3.1'),
+  prover:learn(cn_domain(td, ap, '8.1'), version_domain(any, [bound(tilde, V812)]), true),
+  Dep813 = package_dependency(run, no, td, ap, tilde, V813, [], []),
+  \+ cnselect:child_reselection_possible(td, ap, [Dep813], []),
+  \+ prover:learned(cn_domain(td, ap, any), _).
+
+test(distinct_slots_stay_unique,
+     [setup(tilde_pin_setup),
+      cleanup(tilde_pin_cleanup)]) :-
+  V18 = version([18], '', 4, 0, [], 0, '18'),
+  V19 = version([19], '', 4, 0, [], 0, '19'),
+  Sel18 = selected(qtest, 'td/crt-18', run, V18, [slot('18')]),
+  Sel19 = selected(qtest, 'td/crt-19', run, V19, [slot('19')]),
+  Reasons = [introduced_by(qtest://'td/at-8.1.2', run, version(tilde, V18)),
+             introduced_by(qtest://'td/rl-8.1.3.1', run, version(tilde, V19))],
+  list_to_assoc([selected_cn_allow_multislot(td, crt)-true,
+                 cn_domain_reason(td, crt)-ordset(Reasons)], Cons),
+  cnselect:selected_cn_unique_or_reprove(td, crt, [Sel19], [Sel18, Sel19], Cons),
+  \+ prover:learned(cn_domain(td, crt, _), _).
+
+test(cli_root_goal_matches_this_entry,
+     [setup(tilde_pin_setup),
+      cleanup(tilde_pin_cleanup)]) :-
+  V812 = version([8,1,2], '', 4, 0, [], 0, '8.1.2'),
+  nb_setval(prover_root_goals, [qtest://'td/at-8.1.2':run?{[]}]),
+  cnselect:entry_is_root_target(qtest://'td/at-8.1.2'),
+  \+ cnselect:entry_is_root_target(qtest://'td/ap-8.1.2'),
+  Q = qualified_target(equal, qtest, td, at, V812, [[], []]),
+  nb_setval(prover_root_goals, [target(Q, '=td/at-8.1.2'):run?{[]}]),
+  cnselect:entry_is_root_target(qtest://'td/at-8.1.2'),
+  \+ cnselect:entry_is_root_target(qtest://'td/at-8.1.3.1'),
+  Qu = qualified_target(none, qtest, td, at, version_none, [[], []]),
+  nb_setval(prover_root_goals, [target(Qu, 'td/at'):run?{[]}]),
+  cnselect:entry_is_root_target(qtest://'td/at-8.1.2'),
+  cnselect:entry_is_root_target(qtest://'td/at-8.1.3.1'),
+  \+ cnselect:entry_is_root_target(qtest://'td/ap-8.1.2').
+
+test(origin_reject_skips_root,
+     [setup(tilde_pin_setup),
+      cleanup(tilde_pin_cleanup)]) :-
+  V812 = version([8,1,2], '', 4, 0, [], 0, '8.1.2'),
+  nb_setval(prover_root_goals, [qtest://'td/at-8.1.2':run]),
+  Reasons = [introduced_by(qtest://'td/at-8.1.2', run, version(tilde, V812))],
+  cnselect:add_cn_domain_origin_rejects(Reasons, false),
+  \+ cnselect:cn_domain_candidate_rejected(td, at, none, qtest://'td/at-8.1.2').
+
+tilde_pin_setup :-
+  V812 = version([8,1,2], '', 4, 0, [], 0, '8.1.2'),
+  V812r1 = version([8,1,2], '', 4, 0, [], 1, '8.1.2-r1'),
+  V813 = version([8,1,3,1], '', 4, 0, [], 0, '8.1.3.1'),
+  V18 = version([18], '', 4, 0, [], 0, '18'),
+  V19 = version([19], '', 4, 0, [], 0, '19'),
+  V1 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  assertz(cache:ordered_entry(qtest, 'td/ap-8.1.2', td, ap, V812)),
+  assertz(cache:entry_metadata(qtest, 'td/ap-8.1.2', slot, slot('8.1'))),
+  assertz(cache:ordered_entry(qtest, 'td/ap-8.1.3.1', td, ap, V813)),
+  assertz(cache:entry_metadata(qtest, 'td/ap-8.1.3.1', slot, slot('8.1'))),
+  assertz(cache:ordered_entry(qtest, 'td/at-8.1.2', td, at, V812)),
+  assertz(cache:entry_metadata(qtest, 'td/at-8.1.2', slot, slot('8.1'))),
+  assertz(cache:ordered_entry(qtest, 'td/at-8.1.3.1', td, at, V813)),
+  assertz(cache:entry_metadata(qtest, 'td/at-8.1.3.1', slot, slot('8.1'))),
+  assertz(cache:ordered_entry(qtest, 'td/rl-8.1.3.1', td, rl, V813)),
+  assertz(cache:entry_metadata(qtest, 'td/rl-8.1.3.1', slot, slot('8.1'))),
+  assertz(cache:ordered_entry(qtest, 'td/rl-8.1.2-r1', td, rl, V812r1)),
+  assertz(cache:entry_metadata(qtest, 'td/rl-8.1.2-r1', slot, slot('8.1'))),
+  assertz(cache:ordered_entry(qtest, 'td/crt-18', td, crt, V18)),
+  assertz(cache:entry_metadata(qtest, 'td/crt-18', slot, slot('18'))),
+  assertz(cache:ordered_entry(qtest, 'td/crt-19', td, crt, V19)),
+  assertz(cache:entry_metadata(qtest, 'td/crt-19', slot, slot('19'))),
+  assertz(cache:ordered_entry(qtest, 'td/root-1.0', td, root, V1)),
+  assertz(cache:entry_metadata(qtest, 'td/root-1.0', slot, slot('0'))),
+  forall(cache:ordered_entry(qtest, Id, td, _, _),
+         assertz(cache:entry_metadata(qtest, Id, keywords, stable(amd64)))),
+  heuristic:init_state.
+
+tilde_pin_cleanup :-
+  heuristic:cleanup_state,
+  retractall(cache:ordered_entry(qtest, _, td, _, _)),
+  retractall(cache:entry_metadata(qtest, 'td/ap-8.1.2', _, _)),
+  retractall(cache:entry_metadata(qtest, 'td/ap-8.1.3.1', _, _)),
+  retractall(cache:entry_metadata(qtest, 'td/at-8.1.2', _, _)),
+  retractall(cache:entry_metadata(qtest, 'td/at-8.1.3.1', _, _)),
+  retractall(cache:entry_metadata(qtest, 'td/rl-8.1.3.1', _, _)),
+  retractall(cache:entry_metadata(qtest, 'td/rl-8.1.2-r1', _, _)),
+  retractall(cache:entry_metadata(qtest, 'td/crt-18', _, _)),
+  retractall(cache:entry_metadata(qtest, 'td/crt-19', _, _)),
+  retractall(cache:entry_metadata(qtest, 'td/root-1.0', _, _)),
+  ( nb_current(prover_learned_constraints, _) -> nb_delete(prover_learned_constraints) ; true ),
+  ( nb_current(prover_root_goals, _) -> nb_delete(prover_root_goals) ; true ),
+  memo:clear_caches.
+
+:- end_tests(tilde_pin_domain).

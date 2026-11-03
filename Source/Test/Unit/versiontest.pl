@@ -130,6 +130,43 @@ test(two_adjacent_wildcard_bounds_inconsistent) :-
   V31 = version([6,31], '', 4, 0, [], 0, '6.31*'),
   version_domain:bounds_inconsistent([bound(wildcard, V30), bound(wildcard, V31)]).
 
+test(disjoint_tildes_inconsistent) :-
+  V812 = version([8,1,2], '', 4, 0, [], 0, '8.1.2'),
+  V813 = version([8,1,3,1], '', 4, 0, [], 0, '8.1.3.1'),
+  version_domain:bounds_inconsistent([bound(tilde, V812), bound(tilde, V813)]).
+
+test(same_base_tildes_consistent, [fail]) :-
+  V812 = version([8,1,2], '', 4, 0, [], 0, '8.1.2'),
+  V812r1 = version([8,1,2], '', 4, 0, [], 1, '8.1.2-r1'),
+  version_domain:bounds_inconsistent([bound(tilde, V812), bound(tilde, V812r1)]).
+
+test(tilde_and_matching_equal_consistent, [fail]) :-
+  V812 = version([8,1,2], '', 4, 0, [], 0, '8.1.2'),
+  V812r1 = version([8,1,2], '', 4, 0, [], 1, '8.1.2-r1'),
+  version_domain:bounds_inconsistent([bound(tilde, V812), bound(equal, V812r1)]).
+
+test(tilde_and_disjoint_equal_inconsistent) :-
+  V812 = version([8,1,2], '', 4, 0, [], 0, '8.1.2'),
+  V813 = version([8,1,3,1], '', 4, 0, [], 0, '8.1.3.1'),
+  version_domain:bounds_inconsistent([bound(tilde, V812), bound(equal, V813)]).
+
+test(tilde_lower_bound_drops_revision) :-
+  version_domain:bound_lower(
+    bound(tilde, version([8,1,2], '', 4, 0, [], 2, '8.1.2-r2')),
+    version([8,1,2], '', 4, 0, [], 0, '8.1.2'),
+    false).
+
+test(tilde_upper_bound_next_component) :-
+  version_domain:bound_upper(
+    bound(tilde, version([8,1,2], '', 4, 0, [], 0, '8.1.2')),
+    version([8,1,3], '', 4, 0, [], 0, '8.1.3'),
+    true).
+
+test(overlapping_tilde_prefixes_still_inconsistent) :-
+  V1 = version([1], '', 4, 0, [], 0, '1'),
+  V10 = version([1,0], '', 4, 0, [], 0, '1.0'),
+  version_domain:bounds_inconsistent([bound(tilde, V1), bound(tilde, V10)]).
+
 :- end_tests(version_domain_consistency).
 
 
@@ -162,6 +199,9 @@ test(normalize_greaterequal_drops, [true(N == none)]) :-
 
 test(normalize_unknown_drops, [true(N == none)]) :-
   version_domain:normalize_bound_op(random_op, N).
+
+test(normalize_tilde, [true(N == tilde)]) :-
+  version_domain:normalize_bound_op(tilde, N).
 
 :- end_tests(version_domain_bound_ops).
 
@@ -199,6 +239,16 @@ test(wildcard_fails_for_older_prefix, [fail]) :-
   Pat = version([6,31], '', 4, 0, [], 0, '6.31*'),
   Ver = version([6,29,0], '', 4, 0, [], 0, '6.29.0'),
   version_domain:version_constraint_holds(Ver, bound(wildcard, Pat)).
+
+test(tilde_holds_any_revision) :-
+  V = version([8,1,2], '', 4, 0, [], 1, '8.1.2-r1'),
+  Req = version([8,1,2], '', 4, 0, [], 0, '8.1.2'),
+  version_domain:version_constraint_holds(V, bound(tilde, Req)).
+
+test(tilde_rejects_different_base, [fail]) :-
+  V = version([8,1,3,1], '', 4, 0, [], 0, '8.1.3.1'),
+  Req = version([8,1,2], '', 4, 0, [], 0, '8.1.2'),
+  version_domain:version_constraint_holds(V, bound(tilde, Req)).
 
 :- end_tests(version_constraint_holds).
 

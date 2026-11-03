@@ -495,7 +495,7 @@ heuristic:constraint_guard(constraint(blocked_cn_source(C,N):{ordset(Sources)}),
   cnselect:record_blocked_cn_source_snapshot(C, N, Sources).
 heuristic:constraint_guard(constraint(selected_cn_allow_multislot(_C,_N):{_}), _Constraints) :-
   !.
-heuristic:constraint_guard(constraint(selected_cn(C,N):{ordset(_SelectedNew)}), Constraints) :-
+heuristic:constraint_guard(constraint(selected_cn(C,N):{ordset(SelectedNew)}), Constraints) :-
   !,
   get_assoc(selected_cn(C,N), Constraints, ordset(SelectedMerged)),
   cnselect:record_selected_cn_snapshot(C, N, SelectedMerged),
@@ -503,7 +503,9 @@ heuristic:constraint_guard(constraint(selected_cn(C,N):{ordset(_SelectedNew)}), 
       cnselect:selected_cn_domain_compatible_or_reprove(C, N, Domain, SelectedMerged, Constraints)
   ; true
   ),
-  cnselect:selected_cn_unique_or_reprove(C, N, SelectedMerged, Constraints),
+  % SelectedNew is the arriving delta; SelectedMerged is the ordset union
+  % already stored. The tilde-pin learner (portage-ng#128) needs both.
+  cnselect:selected_cn_unique_or_reprove(C, N, SelectedNew, SelectedMerged, Constraints),
   ( get_assoc(blocked_cn(C,N), Constraints, ordset(Specs)) ->
       cnselect:selected_cn_not_blocked_or_reprove(C, N, Specs, SelectedMerged, Constraints)
   ; true

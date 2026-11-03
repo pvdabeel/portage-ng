@@ -20,7 +20,8 @@ the proof:
   * CN-domain reject map (bounded reprove retries)
   * selected_cn uniqueness / constraint enforcement, including the
     learned constraint refinement entry points
-    (maybe_learn_parent_narrowing/4, maybe_learn_wildcard_domain/4)
+    (maybe_learn_parent_narrowing/4, maybe_learn_wildcard_domain/4,
+     the tilde pin learned by selected_cn_unique_or_reprove/5)
   * cn_domain constraint construction (cn_domain_constraints/7,
     wildcard_cn_domain_constraints/2) and dep constraint inspectors
 */
@@ -571,6 +572,14 @@ cnselect:add_cn_domain_origin_rejects(_Reasons, false) :-
 
 cnselect:add_cn_domain_origin_rejects_([], Added, Added) :-
   !.
+% A root target is the request. Rejecting its entry does not change the
+% next pass (the root literal is proved regardless) and only spends a
+% retry. Tilde deps now carry introduced_by reasons (portage-ng#128),
+% so a root with an unsatisfiable tilde would otherwise buy that pass.
+cnselect:add_cn_domain_origin_rejects_([_-_-Repo://Entry|Rest], Added0, Added) :-
+  entry_is_root_target(Repo://Entry),
+  !,
+  add_cn_domain_origin_rejects_(Rest, Added0, Added).
 cnselect:add_cn_domain_origin_rejects_([C-N-Repo://Entry|Rest], Added0, Added) :-
   add_cn_domain_rejects(C, N, none, [Repo://Entry], Added1),
   ( Added0 == true ->
@@ -621,12 +630,23 @@ cnselect:maybe_request_cn_domain_reprove(_C, _N, _Domain, _Selected, _Reasons) :
 % Enforces that at most one concrete entry is selected per (C,N) (or per
 % slot when multislot is allowed). If uniqueness is violated and reprove
 % is enabled, learns the conflict and throws prover_reprove/1.
-% Called by constraint_guard for selected_cn constraints.
+% Called by older unit tests; the guard passes the arriving delta via
+% selected_cn_unique_or_reprove/5. An empty delta skips the tilde-pin
+% learner, so these callers keep the pre-#128 behaviour.
 
 cnselect:selected_cn_unique_or_reprove(C, N, SelectedMerged, Constraints) :-
+  selected_cn_unique_or_reprove(C, N, [], SelectedMerged, Constraints).
+
+
+%! cnselect:selected_cn_unique_or_reprove(+C, +N, +SelectedNew, +SelectedMerged, +Constraints)
+%
+% SelectedNew is the arriving selected_cn delta; SelectedMerged is the
+% ordset union already in the constraint store. See /4.
+
+cnselect:selected_cn_unique_or_reprove(C, N, _SelectedNew, SelectedMerged, Constraints) :-
   selected_cn_unique(C, N, SelectedMerged, Constraints),
   !.
-cnselect:selected_cn_unique_or_reprove(C, N, SelectedMerged, Constraints) :-
+cnselect:selected_cn_unique_or_reprove(C, N, _SelectedNew, SelectedMerged, Constraints) :-
   cn_domain_reprove_enabled,
   cn_domain_for_slot(C, N, any, Constraints, Domain),
   \+ selected_cn_requires_same_slot_multiversion(C, N, Constraints),
@@ -639,7 +659,7 @@ cnselect:selected_cn_unique_or_reprove(C, N, SelectedMerged, Constraints) :-
   ( Slot \== any -> prover:learn(cn_domain(C,N,any), Domain, _) ; true ),
   maybe_request_cn_domain_reprove(C, N, none, Conflicting, [unique_conflict_with_domain]),
   fail.
-cnselect:selected_cn_unique_or_reprove(C, N, _SelectedMerged, Constraints) :-
+cnselect:selected_cn_unique_or_reprove(C, N, _SelectedNew, _SelectedMerged, Constraints) :-
   cn_domain_reprove_enabled,
   cn_domain_for_slot(C, N, any, Constraints, _Domain),
   selected_cn_requires_same_slot_multiversion(C, N, Constraints),
@@ -652,8 +672,141 @@ cnselect:selected_cn_unique_or_reprove(C, N, _SelectedMerged, Constraints) :-
   Added == true,
   maybe_request_cn_domain_reprove(OriginC, OriginN, none, [OriginRepo://OriginEntry], [inconsistency_driven]),
   fail.
-cnselect:selected_cn_unique_or_reprove(_C, _N, _SelectedMerged, _Constraints) :-
+% A same-slot clash with no cn_domain to partition on. Tilde pins never
+% enter the per-dep domain (dep_bound_op drops them) but, once
+% normalize_bound_op keeps tilde, cn_domain_reason names every pin that
+% held or challenged the slot. Learn the pin that should win — the root
+% target's, else a version-constrained origin's, else whatever the
+% already-committed candidate satisfies — and fail. The grouped-dep
+% ladder then sees that the child cannot move and narrows the newcomer's
+% parent (portage-ng#128, actiontext ~8.1.2 vs railties-8.1.3.1).
+cnselect:selected_cn_unique_or_reprove(C, N, SelectedNew, SelectedMerged, Constraints) :-
+  cn_domain_reprove_enabled,
+  SelectedNew \== [],
+  \+ selected_cn_requires_same_slot_multiversion(C, N, Constraints),
+  get_assoc(cn_domain_reason(C,N), Constraints, ordset(Reasons)),
+  newcomer_slot_key(SelectedNew, Slot),
+  heuristic:filter_selected_by_slot(Slot, SelectedMerged, SlotSelected),
+  ord_subtract(SlotSelected, SelectedNew, Committed),
+  reason_pin_domain(Reasons, Committed, Constraints, Domain),
+  \+ version_domain:domain_inconsistent(Domain),
+  selected_cn_partition_by_domain(Domain, SlotSelected, Allowed, Conflicting),
+  Allowed \== [],
+  Conflicting \== [],
+  prover:learn(cn_domain(C,N,Slot), Domain, _),
+  ( Slot \== any,
+    ord_subtract(SelectedMerged, SlotSelected, OtherSlots),
+    selected_cn_partition_by_domain(Domain, OtherSlots, _, [])
+  -> prover:learn(cn_domain(C,N,any), Domain, _)
+  ; true
+  ),
   fail.
+cnselect:selected_cn_unique_or_reprove(_C, _N, _SelectedNew, _SelectedMerged, _Constraints) :-
+  fail.
+
+
+%! cnselect:newcomer_slot_key(+SelectedNew, -Slot) is det.
+%
+% Slot of the arriving selected_cn delta, or `any` when the newcomer
+% carries no slot metadata.
+
+cnselect:newcomer_slot_key([selected(_, _, _, _, SlotMeta)|_], Slot) :-
+  selected_cn_slot_key_(SlotMeta, Slot),
+  !.
+cnselect:newcomer_slot_key(_, any).
+
+
+%! cnselect:reason_pin_domain(+Reasons, +Committed, +Constraints, -Domain) is semidet.
+%
+% The version domain that holds the slot in a tilde (or other reason)
+% clash (portage-ng#128). Preference order:
+%   1. pins whose origin is a root target of this prove, when that set
+%      is itself consistent;
+%   2. pins whose origin cannot move (root, single version, already
+%      narrowed, or itself selected under a version pin);
+%   3. pins that every already-committed candidate of the slot satisfies.
+% An unconstrained newest-first choice (railties-8.1.3.1 pulled by
+% unversioned trix) loses to a version-constrained sibling that is
+% proved later (actiontext's ~8.1.2), so the learned bound is the pin
+% that cannot be given up.
+
+cnselect:reason_pin_domain(Reasons, Committed, Constraints, version_domain(any, Bounds)) :-
+  findall(bound(Op, V)-Origin,
+          ( member(introduced_by(Origin, _, version(Op, V)), Reasons),
+            Origin \== unknown
+          ),
+          Pairs0),
+  sort(Pairs0, Pairs),
+  Pairs \== [],
+  ( pin_bounds_from(Pairs, root, Constraints, RootBounds),
+    \+ version_domain:bounds_inconsistent(RootBounds)
+  -> Bounds = RootBounds
+  ; pin_bounds_from(Pairs, constrained, Constraints, ConstrainedBounds),
+    \+ version_domain:bounds_inconsistent(ConstrainedBounds)
+  -> Bounds = ConstrainedBounds
+  ; Committed \== [],
+    pin_bounds_admitted_by_all(Pairs, Committed, CommBounds)
+  -> Bounds = CommBounds
+  ).
+
+
+%! cnselect:pin_bounds_from(+Pairs, +Kind, +Constraints, -Bounds) is semidet.
+%
+% Bounds in Pairs (bound-Origin pairs) whose origin has Kind. Fails
+% when none do. Bounds are deduplicated; Origin and Action are dropped
+% so the same pin proved under install and run is one bound.
+
+cnselect:pin_bounds_from(Pairs, Kind, Constraints, Bounds) :-
+  findall(B,
+          ( member(B-Origin, Pairs),
+            pin_origin_kind(Kind, Origin, Constraints)
+          ),
+          Bounds0),
+  Bounds0 \== [],
+  sort(Bounds0, Bounds).
+
+
+%! cnselect:pin_origin_kind(+Kind, +Origin, +Constraints) is semidet.
+
+cnselect:pin_origin_kind(root, Origin, _Constraints) :-
+  entry_is_root_target(Origin).
+cnselect:pin_origin_kind(constrained, Origin, Constraints) :-
+  origin_is_constrained(Origin, Constraints).
+
+
+%! cnselect:pin_bounds_admitted_by_all(+Pairs, +Committed, -Bounds) is semidet.
+%
+% Bounds that every committed selected/5 satisfies, tested one bound at
+% a time. Testing the whole set at once lets the newcomer's own pin
+% empty the result.
+
+cnselect:pin_bounds_admitted_by_all(Pairs, Committed, Bounds) :-
+  findall(B,
+          ( member(B-_, Pairs),
+            forall(member(selected(R, E, _, _, _), Committed),
+                   version_domain:domain_allows_candidate(version_domain(any, [B]), R://E))
+          ),
+          Bounds0),
+  sort(Bounds0, Bounds),
+  Bounds \== [].
+
+
+%! cnselect:origin_is_constrained(+Origin, +Constraints) is semidet.
+%
+% True when Origin cannot be swapped for another version: it is a root
+% target, the only version of its CN, already narrowed in this proof,
+% or itself selected under a version pin recorded in cn_domain_reason.
+
+cnselect:origin_is_constrained(Repo://Entry, Constraints) :-
+  ( entry_is_root_target(Repo://Entry) -> true
+  ; cache:ordered_entry(Repo, Entry, C, N, _),
+    ( parent_is_single_version(C, N) -> true
+    ; cn_previously_narrowed(C, N) -> true
+    ; get_assoc(cn_domain_reason(C, N), Constraints, ordset(OReasons)),
+      member(introduced_by(_, _, version(_, _)), OReasons)
+    )
+  ),
+  !.
 
 %! cnselect:record_slot_conflict_if_multiple(+C, +N, +Selected)
 %
@@ -767,7 +920,11 @@ cnselect:parent_is_single_version(C, N) :-
 % pass (dev-ada/gnatformat-25.0.0-r3: libadalang-26.0.0's ~gpr-26.0.0
 % after gpr-26.0.0 had been rejected for gnatformat's own <gpr-26 walked
 % through gpr-25.0.0-r4, 24.2.0-r1 and 24.0.0-r3 instead of narrowing
-% libadalang to 25.0.0-r1, which is the consistent plan).
+% libadalang to 25.0.0-r1, which is the consistent plan). A tilde that
+% already holds the slot is the same shape once it has been learned as
+% a cn_domain (portage-ng#128): reselection of the disjoint tilde is
+% impossible, so parent narrowing of the package that asked for it
+% proceeds.
 
 cnselect:dep_target_selected_conflict(C, N, PackageDeps, Context) :-
   ( context_selected_cn_candidates(C, N, Context, Selected)
@@ -787,6 +944,13 @@ cnselect:dep_target_selected_conflict(C, N, PackageDeps, Context) :-
 % constraint of PackageDeps, lies inside the effective (dep + proof
 % context + learned) domain, and is not in the reject map for that
 % domain: the candidate a child-level reprove could switch to.
+%
+% A learned tilde is keyed by the newcomer's slot (portage-ng#128). A
+% slotless dep has dep_slot_key `any`, so apply_learned_domain/5 does
+% not consult that slot key. learned_slot_excludes/3 does. A learned
+% domain that contradicts the dep's own domain (an `=8.1.3.1` newcomer
+% against a learned `~8.1.2`) is also not a reselection:
+% apply_learned_domain falls back to the dep domain when the meet fails.
 
 cnselect:child_reselection_possible(C, N, PackageDeps, Context) :-
   ( member(package_dependency(Phase, no, C, N, _, _, _, _), PackageDeps),
@@ -794,9 +958,40 @@ cnselect:child_reselection_possible(C, N, PackageDeps, Context) :-
   -> Action = Phase
   ;  Action = run
   ),
+  \+ learned_domain_conflicts(Action, C, N, PackageDeps),
   grouped_dep_effective_domain_precomputed(Action, C, N, PackageDeps, Context, EffDom, RejectDom),
   cache:ordered_entry(Repo, Entry, C, N, _),
   grouped_dep_candidate_satisfies_constraints_precomputed(C, N, PackageDeps, EffDom, RejectDom, Repo://Entry),
+  \+ learned_slot_excludes(C, N, Repo://Entry),
+  !.
+
+
+%! cnselect:learned_domain_conflicts(+Action, +C, +N, +PackageDeps) is semidet.
+%
+% True when a learned cn_domain for (C,N) has an empty meet with this
+% dep's own domain. Reselection cannot land in an empty domain.
+
+cnselect:learned_domain_conflicts(Action, C, N, PackageDeps) :-
+  version_domain:domain_from_packagedeps(Action, C, N, PackageDeps, DepDomain),
+  dep_slot_key(PackageDeps, Slot),
+  ( Slot \== any, prover:learned(cn_domain(C, N, Slot), L1) -> true ; L1 = none ),
+  ( prover:learned(cn_domain(C, N, any), L2) -> true ; L2 = none ),
+  ( L1 \== none, \+ version_domain:domain_meet(DepDomain, L1, _)
+  ; L2 \== none, \+ version_domain:domain_meet(DepDomain, L2, _)
+  ),
+  !.
+
+
+%! cnselect:learned_slot_excludes(+C, +N, +RepoEntry) is semidet.
+%
+% True when RepoEntry's own slot has a learned cn_domain that does not
+% admit it (portage-ng#128). Slotless deps never read that key via
+% apply_learned_domain/5.
+
+cnselect:learned_slot_excludes(C, N, Repo://Entry) :-
+  version_domain:candidate_slot(Repo://Entry, Slot),
+  prover:learned(cn_domain(C, N, Slot), Domain),
+  \+ version_domain:domain_allows_candidate(Domain, Repo://Entry),
   !.
 
 
@@ -884,15 +1079,32 @@ cnselect:maybe_learn_parent_narrowing(C, N, PackageDeps, Context) :-
 
 %! cnselect:entry_is_root_target(+RepoEntry) is semidet.
 %
-% True when RepoEntry is the entry of one of the literals the current
-% prove was asked to prove (prover:root_goal/1), whatever its action or
-% proof context.
+% True when RepoEntry is one of the literals the current prove was asked
+% to prove (prover:root_goal/1), whatever its action or proof context.
+% CLI proposals are target(Q, Arg):run rather than a concrete entry
+% (action:build_proposal/3). The entry matches when it satisfies Q, not
+% when it is the first hit of target:resolve_candidate/2 — that first
+% hit can be a different version of the same atom (portage-ng#128).
 
 cnselect:entry_is_root_target(Repo://Entry) :-
   prover:root_goal(Goal),
-  ( Goal = (Repo://Entry:_?{_}) -> true
-  ; Goal = (Repo://Entry:_)
+  entry_matches_root_goal(Repo://Entry, Goal),
+  !.
+
+
+%! cnselect:entry_matches_root_goal(+RepoEntry, +Goal) is semidet.
+
+cnselect:entry_matches_root_goal(Repo://Entry, Goal) :-
+  Goal = (Repo://Entry:_?{_}),
+  !.
+cnselect:entry_matches_root_goal(Repo://Entry, Goal) :-
+  Goal = (Repo://Entry:_),
+  !.
+cnselect:entry_matches_root_goal(Repo://Entry, Goal) :-
+  ( Goal = (target(Q, _):_?{_})
+  ; Goal = (target(Q, _):_)
   ),
+  query:search(Q, Repo://Entry),
   !.
 
 %! cnselect:is_pdepend_failure(+PackageDeps, +Context)
