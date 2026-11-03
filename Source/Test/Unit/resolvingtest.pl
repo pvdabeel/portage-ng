@@ -1244,9 +1244,14 @@ tilde_pin_setup :-
   assertz(cache:entry_metadata(qtest, 'td/root-1.0', slot, slot('0'))),
   forall(cache:ordered_entry(qtest, Id, td, _, _),
          assertz(cache:entry_metadata(qtest, Id, keywords, stable(amd64)))),
+  % CI boots PLUnit without preference:init, so ACCEPT_KEYWORDS is empty
+  % and a keyworded candidate is keyword_filtered. Parent narrowing then
+  % yields and the chooser is never rejected.
+  unittest:accept_stable_amd64,
   heuristic:init_state.
 
 tilde_pin_cleanup :-
+  unittest:restore_stable_amd64,
   heuristic:cleanup_state,
   retractall(cache:ordered_entry(qtest, _, td, _, _)),
   retractall(cache:entry_metadata(qtest, 'td/ap-8.1.2', _, _)),
