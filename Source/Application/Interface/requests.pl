@@ -50,7 +50,9 @@ Source/Test/Unit/interfacetest.pl).
 % configuration pre-actions (unmask / keyword / USE / license). 'fetchall'
 % (--fetch-all-uri) additionally widens distfile scope to every SRC_URI
 % (ebuild:distfile_scope/1). 'build' precedes both so `--build --fetchonly`
-% executes that filtered plan rather than only printing it.
+% executes that filtered plan rather than only printing it. `--pretend`
+% suppresses the build handler, so `--build --pretend` prints the plan
+% and does not execute.
 
 interface:request_handler(snapshots,       _,    _,    _,       snapshot:list).
 interface:request_handler(rollback,        _,    _,    Options, (memberchk(rollback(Id), Options),
@@ -124,6 +126,10 @@ interface:request_matches(shellrun, Args, Options) :-
   !,
   memberchk(shell(true), Options),
   Args \== [].
+interface:request_matches(build, _, Options) :-
+  !,
+  memberchk(build(true), Options),
+  \+ memberchk(pretend(true), Options).
 interface:request_matches(Flag, _, Options) :-
   Opt =.. [Flag, true],
   memberchk(Opt, Options).

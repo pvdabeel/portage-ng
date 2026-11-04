@@ -30,12 +30,18 @@ action:assert_resume_skip_args([A|Rest]) :-
 %! action:process_build(+Args, +Options) is det.
 %
 % Handles the --build CLI flag. Resolves targets, proves a plan, then
-% builds with live progress output.
+% builds with live progress output. `--pretend` prints that plan and
+% does not execute it.
 
 action:process_build([], Options) :-
   !,
   ignore(message:failure('No targets specified for --build.')),
   action:exit_on_invalid_targets(Options).
+
+action:process_build(ArgsSets, Options) :-
+  memberchk(pretend(true), Options),
+  !,
+  action:process_action(run, ArgsSets, Options).
 
 action:process_build(ArgsSets, Options) :-
   eapi:substitute_sets(ArgsSets, Args),

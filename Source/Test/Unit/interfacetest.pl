@@ -130,6 +130,33 @@ test(select_build_over_fetchonly) :-
   Flag == build,
   Goal == action:process_build(['app-misc/foo'], Opts).
 
+% `--build --pretend` prints the plan and does not execute.
+test(select_build_pretend_does_not_build) :-
+  Opts = [build(true), pretend(true), merge(true)],
+  interface:request_select(standalone, ['app-misc/foo'], Opts, Flag, Goal),
+  Flag == merge,
+  Goal == action:process_action(run, ['app-misc/foo'], Opts).
+
+test(select_build_fetchonly_pretend_does_not_build) :-
+  Opts = [build(true), fetchonly(true), pretend(true), merge(true)],
+  interface:request_select(standalone, ['app-misc/foo'], Opts, Flag, Goal),
+  Flag == fetchonly,
+  Goal == action:process_action(run, ['app-misc/foo'], Opts).
+
+test(process_build_pretend_does_not_execute) :-
+  setup_call_cleanup(
+    ( wrap_predicate(action:process_action(Action, Args, Opts), test_bp, _,
+                     ( Action == run,
+                       Args == ['app-misc/foo'],
+                       memberchk(pretend(true), Opts)
+                     )),
+      wrap_predicate(builder:build(_), test_bb, _, throw(built))
+    ),
+    action:process_build(['app-misc/foo'], [pretend(true)]),
+    ( unwrap_predicate(action:process_action/3, test_bp),
+      unwrap_predicate(builder:build/1, test_bb)
+    )).
+
 % No handler triggered -> selection fails (process_requests then reports
 % the unrecognised options and falls through to its catch-all halt(1)).
 test(select_fails_on_unrecognised_options, [fail]) :-
@@ -396,8 +423,11 @@ test(actions_full_coverage) :-
         ignore(action:process_build([], [])),
         catch(action:process_build([], [ci(true)]), act_halt(3), true),
         ignore(action:process_build(['cat/nonexistent'], [])),
-        wrap_predicate(builder:build(_), test_cov, _, true),
+        wrap_predicate(action:process_action(_, _, _), test_cov_pretend, _, true),
         action:process_build(['cat/pkg'], [pretend(true)]),
+        unwrap_predicate(action:process_action/3, test_cov_pretend),
+        wrap_predicate(builder:build(_), test_cov, _, true),
+        action:process_build(['cat/pkg'], []),
         unwrap_predicate(builder:build/1, test_cov),
         catch(action:handle_build_exception(halt(2), []), halt(2), true),
         catch(action:handle_build_exception(boom, [ci(true)]), act_halt(3), true),
