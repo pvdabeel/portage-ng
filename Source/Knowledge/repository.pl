@@ -21,6 +21,8 @@ Examples of repositories: Gentoo Portage, Github repositories, ...
 %  REPOSITORY declarations
 % =============================================================================
 
+:- dynamic repository:sync_report/0.
+
 :- class.
 
 % public interface
@@ -134,22 +136,10 @@ init(Location,Cache,Remote,Protocol,Type) ::-
 
 sync ::-
   :this(Repository),
-  % Network step, subject to the optional per-repository daily cap
-  % (config:repository_sync_limit/2). When the cap is exhausted the
-  % remote fetch is skipped with a notice; metadata and kb still rebuild
-  % from what is on disk.
-  ( repository:network_sync_allowed(Repository)
-  -> ( message:wrap(Repository:sync(repository))
-     -> repository:record_network_sync(Repository)
-     ; format('% sync(repository) failed for ~w~n', [Repository]), flush_output, fail )
-  ;  repository:sync_limit_notice(Repository) ),
-  ( message:wrap(Repository:sync(metadata))
-  -> true
-  ; format('% sync(metadata) failed for ~w~n', [Repository]), flush_output, fail ),
-  ( message:wrap(Repository:sync(kb))
-  -> true
-  ; format('% sync(kb) failed for ~w~n', [Repository]), flush_output, fail ),
-  nl,!.
+  setup_call_cleanup(
+    assertz(repository:sync_report),
+    repository:sync_reported(Repository),
+    retractall(repository:sync_report)).
 
 
 %! repository:sync(+Repository)
@@ -222,11 +212,14 @@ sync(metadata) ::-
 % metadata for a binpkg repository -- there is no per-entry metadata
 % directory to regenerate. The on-disk Packages index is maintained
 % incrementally by `emerge` (or whatever produced the binpkgs) via
-% bintree.inject(). Must precede the generic ::type(Type) clause below,
+% bintree.inject(). The step still reports the same line as the other
+% repositories. Must precede the generic ::type(Type) clause below,
 % which would otherwise match 'binpkg' and cut (clause order is dispatch
 % order in the OO context system).
 sync(metadata) ::-
-  ::type('binpkg'),!.
+  ::type('binpkg'),!,
+  message:scroll(['Updated metadata.']),
+  nl.
 
 
 % Bugzilla sync(metadata): no-op. The JSON pages written by
@@ -334,9 +327,17 @@ sync(kb) ::-
     )),
 
   message:sc,
-  ( config:verbose(true)
+  ( repository:sync_report
+  -> message:scroll(['Updated prolog knowledgebase.']),
+     nl,
+     ( config:verbose(true)
+     -> message:scroll(['Binpkg variants: ', NRec]),
+        nl
+     ;  true
+     )
+  ;  config:verbose(true)
   -> message:scroll(['Updated prolog knowledgebase. Binpkg variants: ', NRec]),
-     nl, nl
+     nl
   ;  true
   ),
   message:clean,
@@ -1277,3 +1278,30 @@ repository:sync_limit_notice(Repository) :-
   % Second newline: keep the blank line message:wrap/1 would have left
   % after the network step this notice replaces.
   nl, nl.
+
+
+%! repository:sync_reported(+Repository) is det.
+%
+% The body of sync/0. repository:sync_report is set for this call so a
+% binpkg knowledge-base load prints the same summary the other
+% repositories print. A build-time index refresh calls sync(kb)
+% directly and stays quiet.
+
+repository:sync_reported(Repository) :-
+  % Network step, subject to the optional per-repository daily cap
+  % (config:repository_sync_limit/2). When the cap is exhausted the
+  % remote fetch is skipped with a notice; metadata and kb still rebuild
+  % from what is on disk.
+  ( repository:network_sync_allowed(Repository)
+  -> ( message:wrap(Repository:sync(repository))
+     -> repository:record_network_sync(Repository)
+     ; format('% sync(repository) failed for ~w~n', [Repository]), flush_output, fail )
+  ;  repository:sync_limit_notice(Repository) ),
+  ( message:wrap(Repository:sync(metadata))
+  -> true
+  ; format('% sync(metadata) failed for ~w~n', [Repository]), flush_output, fail ),
+  ( message:wrap(Repository:sync(kb))
+  -> true
+  ; format('% sync(kb) failed for ~w~n', [Repository]), flush_output, fail ),
+  nl,
+  !.
