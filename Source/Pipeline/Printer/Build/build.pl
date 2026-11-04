@@ -26,6 +26,8 @@ the display side of builder execution, while builder.pl handles orchestration.
 %  BUILD declarations
 % =============================================================================
 
+:- dynamic build:spinner_tick/2.
+
 % -----------------------------------------------------------------------------
 %  Header
 % -----------------------------------------------------------------------------
@@ -212,37 +214,22 @@ build:update_slot(Slot, NumSlots, Status, PlanStep, NumSteps, ActionIdx, Action,
 
 build:render_slot(pending, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
   build:print_slot_prefix(PlanStep, ActionIdx),
-  message:color(darkgray),
-  message:print(Action),
-  message:color(darkgray),
-  message:column(24, RepoEntry),
-  message:color(normal).
+  build:print_slot_label(pending, Action, RepoEntry).
 
 build:render_slot(active, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
   build:print_slot_prefix(PlanStep, ActionIdx),
-  message:color(cyan),
-  message:print(Action),
-  message:color(green),
-  message:column(24, RepoEntry),
-  message:color(normal),
-  message:right_edge_spinner(0).
+  build:print_slot_label(active, Action, RepoEntry),
+  build:next_spinner_tick(PlanStep-ActionIdx, Tick),
+  message:right_edge_spinner(Tick).
 
 build:render_slot(done, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
   build:print_slot_prefix(PlanStep, ActionIdx),
-  message:color(cyan),
-  message:print(Action),
-  message:color(green),
-  message:column(24, RepoEntry),
-  message:color(normal),
+  build:print_slot_label(done, Action, RepoEntry),
   message:right_edge_ok.
 
 build:render_slot(failed(_Reason), PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
   build:print_slot_prefix(PlanStep, ActionIdx),
-  message:color(cyan),
-  message:print(Action),
-  message:color(green),
-  message:column(24, RepoEntry),
-  message:color(normal),
+  build:print_slot_label(failed, Action, RepoEntry),
   message:right_edge_fail.
 
 build:render_slot(failed, PlanStep, NumSteps, ActionIdx, Action, RepoEntry) :-
@@ -250,21 +237,110 @@ build:render_slot(failed, PlanStep, NumSteps, ActionIdx, Action, RepoEntry) :-
 
 build:render_slot(skipped, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
   build:print_slot_prefix(PlanStep, ActionIdx),
-  message:color(darkgray),
-  message:print(Action),
-  message:color(darkgray),
-  message:column(24, RepoEntry),
-  message:color(normal).
+  build:print_slot_label(skipped, Action, RepoEntry).
 
 build:render_slot(stub, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
   build:print_slot_prefix(PlanStep, ActionIdx),
-  message:color(cyan),
-  message:print(Action),
-  message:color(green),
-  message:column(24, RepoEntry),
+  build:print_slot_label(stub, Action, RepoEntry),
   message:color(darkgray),
   message:print(' (stub)'),
   message:color(normal).
+
+
+%! build:print_slot_label(+Status, +Action, +RepoEntry) is det.
+%
+% Action name and package column. The plan target (`run`) is a bubble,
+% the same mark the pretend plan uses. Every other action stays plain.
+
+build:print_slot_label(Status, Action, RepoEntry) :-
+  build:print_slot_action(Status, Action),
+  build:print_slot_entry(Status, Action, RepoEntry).
+
+
+%! build:print_slot_action(+Status, +Action) is det.
+%
+% `run` is bubbled. Pending and skipped bubbles are dark gray; a live
+% or finished target uses the plan's green bubble.
+
+build:print_slot_action(Status, run) :-
+  !,
+  build:target_bubble_color(Status, Color),
+  message:bubble(Color, run).
+build:print_slot_action(Status, Action) :-
+  build:plain_action_color(Status, Color),
+  message:color(Color),
+  message:print(Action).
+
+
+%! build:target_bubble_color(+Status, -Color) is det.
+%
+% Bubble colour for the `run` target.
+
+build:target_bubble_color(pending, darkgray) :- !.
+build:target_bubble_color(skipped, darkgray) :- !.
+build:target_bubble_color(_, green).
+
+
+%! build:plain_action_color(+Status, -Color) is det.
+%
+% Colour of a non-target action name.
+
+build:plain_action_color(pending, darkgray) :- !.
+build:plain_action_color(skipped, darkgray) :- !.
+build:plain_action_color(_, cyan).
+
+
+%! build:print_slot_entry(+Status, +Action, +RepoEntry) is det.
+%
+% Package column. A live `run` target is bold green, matching the plan.
+
+build:print_slot_entry(Status, Action, RepoEntry) :-
+  ( build:entry_is_bold(Status, Action)
+  -> message:style(bold)
+  ;  true
+  ),
+  build:entry_color(Status, Color),
+  message:color(Color),
+  message:column(24, RepoEntry),
+  message:style(normal),
+  message:color(normal).
+
+
+%! build:entry_is_bold(+Status, +Action) is semidet.
+%
+% The finished or in-progress plan target is printed bold.
+
+build:entry_is_bold(Status, run) :-
+  \+ memberchk(Status, [pending, skipped]).
+
+
+%! build:entry_color(+Status, -Color) is det.
+%
+% Package-name colour for a slot.
+
+build:entry_color(pending, darkgray) :- !.
+build:entry_color(skipped, darkgray) :- !.
+build:entry_color(_, green).
+
+
+%! build:next_spinner_tick(+Key, -Tick) is det.
+%
+% Next braille frame for this header. The first draw is frame 0.
+
+build:next_spinner_tick(Key, Tick) :-
+  ( retract(build:spinner_tick(Key, Prev))
+  -> Tick is Prev + 1
+  ;  Tick = 0
+  ),
+  assertz(build:spinner_tick(Key, Tick)).
+
+
+%! build:clear_spinner_ticks is det.
+%
+% Drop header spinner frames at the end of a step.
+
+build:clear_spinner_ticks :-
+  retractall(build:spinner_tick(_, _)).
 
 
 % -----------------------------------------------------------------------------

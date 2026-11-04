@@ -334,7 +334,11 @@ sync(kb) ::-
     )),
 
   message:sc,
-  message:scroll(['Updated prolog knowledgebase. Binpkg variants: ', NRec]), nl,
+  ( config:verbose(true)
+  -> message:scroll(['Updated prolog knowledgebase. Binpkg variants: ', NRec]),
+     nl, nl
+  ;  true
+  ),
   message:clean,
   !.
 

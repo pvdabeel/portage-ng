@@ -608,11 +608,13 @@ Potential fix (suggestion):
 
 ## Live build display
 
-During a `--merge` run, portage-ng keeps the terminal display
-up-to-date so you can see exactly where the build process stands at
-any moment.  The static plan that was printed during the `--pretend`
-phase is reprinted once, and below it a live "Executing" area shows
-the current state of every active build slot.
+During a `--merge` or `--build` run, portage-ng keeps the terminal
+display up-to-date so you can see exactly where the build process
+stands at any moment.  The static pretend plan is printed only with
+`--verbose` (also with `--ask`, and when the plan is blocked).  The
+live "Executing" area shows the current state of every active build
+slot.  The plan target (`run`) keeps the bubble it has in the pretend
+plan.
 
 The following example shows the pretend output for
 `sys-kernel/gentoo-sources`.  The plan has three steps: download the
@@ -660,18 +662,18 @@ Executing 3 actions, grouped into 3 steps...
              │           └─ exec ─┤ ACTION = setup → unpack → prepare   (8%) 3/7  ETA 4m 10s
              │                    │ LOG = /var/log/portage/sys-kernel:gentoo-sources.log
 
- └─[step  3]─┤ run       portage://sys-kernel/gentoo-sources-6.19.11
+ └─[step  3]─┤ <run>     portage://sys-kernel/gentoo-sources-6.19.11
 ```
 
 In this snapshot, step 1 (download) has completed — each file shows
 a green check mark on the right edge.  Step 2 (install) is active:
-the action line shows a spinning indicator, and the phase line
-reveals that `setup` and `unpack` have finished (shown in cyan)
-while `prepare` is the current phase.  The right edge displays the
-time-weighted progress (`8%`), the phase counter (`3/7`), and the
-remaining time from phase stats (`ETA 4m 10s`).  Step 3
-(run) is still pending in dark grey, waiting for the install to
-finish.
+the right edge of the action line is a braille spinner that advances
+while the phase runs, and the phase line reveals that `setup` and
+`unpack` have finished (shown in cyan) while `prepare` is the current
+phase.  That line also displays the time-weighted progress (`8%`),
+the phase counter (`3/7`), and the remaining time from phase stats
+(`ETA 4m 10s`).  Step 3 (`<run>`, the plan target) is still pending
+in dark grey, waiting for the install to finish.
 
 ### Slot states and colours
 

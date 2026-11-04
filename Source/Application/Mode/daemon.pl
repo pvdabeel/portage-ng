@@ -429,7 +429,8 @@ daemon:run_with_output(Out, ExitCodeTerm) :-
 % atomic (a concurrent build's `available_for/4` probe never sees an empty
 % index during the swap). Runs with output redirected to the client, so
 % the one-line "Updated prolog knowledgebase" summary surfaces to the
-% requester rather than the daemon console. Always succeeds.
+% requester rather than the daemon console when --verbose is set.
+% Always succeeds.
 
 daemon:refresh_binpkg_index :-
   ( current_predicate(binpkg_exec:ensure_index_fresh/0)

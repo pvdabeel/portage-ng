@@ -16,8 +16,9 @@ parallel curl with per-file progress; other build phases dispatch to
 ebuild_exec (Portage's ebuild CLI) when config:build_phases is
 non-empty, or return stub when fully stubbed.
 
-The full plan is printed first (normal colors, via printer:print/5), then
-a progress area below shows slot-based live updates as workers execute
+The pretend plan (printer:print/5) is printed first only with --verbose,
+when --ask needs it for the confirmation, or when the plan is blocked.
+A progress area below shows slot-based live updates as workers execute
 jobs. Within each plan step, all executable rules run in parallel; steps
 are sequential (the next step starts only after the previous completes).
 
@@ -38,6 +39,7 @@ supporting concerns are split into sibling modules:
 
 :- dynamic builder:slot_outcome/2.
 :- dynamic builder:exec_phase_state/3.
+:- dynamic builder:header_slot/2.
 :- dynamic builder:last_build_status/3.
 :- dynamic builder:last_failed/3.
 
@@ -48,7 +50,8 @@ supporting concerns are split into sibling modules:
 %! builder:build(+Goals) is det.
 %
 % Top-level entry point. Delegates to the bounded replan loop
-% (build_loop/2): each pass proves goals, prints the plan, and runs it;
+% (build_loop/2): each pass proves goals, prints the plan when
+% requested, and runs it;
 % if the pass fails AND recorded new missing-provider discoveries
 % (portage-ng#102), the plan is re-derived with the discovered providers
 % unioned into BDEPEND and re-run, so the provider is proved and ordered
@@ -74,9 +77,12 @@ builder:build(Goals) :-
 
 builder:build_loop(Goals, Attempt) :-
   pipeline:prove_plan_with_fallback(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL, FallbackUsed),
-  printer:print(Goals, ModelAVL, ProofAVL, Plan, TriggersAVL),
-  nl,
   annotation:collect(ProofAVL, Annotations),
+  ( builder:show_build_plan(Annotations)
+  -> printer:print(Goals, ModelAVL, ProofAVL, Plan, TriggersAVL),
+     nl
+  ;  true
+  ),
   ( builder:plan_has_blocking_domain_assumptions(Annotations)
   -> ignore(message:failure('Build aborted: plan contains unresolvable domain assumptions.')),
      retractall(builder:last_build_status(_, _, _)),
@@ -358,6 +364,36 @@ builder:prepare_binpkg_index :-
   -> message:catch_log('binpkg_exec:ensure_index_fresh', binpkg_exec:ensure_index_fresh)
   ;  true
   ).
+
+
+%! builder:show_build_plan(+Annotations) is semidet.
+%
+% The pretend plan is printed for --verbose, for --ask (the confirmation
+% prompt otherwise has nothing to confirm), and when the plan is blocked
+% so the refusal shows the assumptions. A plain --build stays on the
+% live display.
+
+builder:show_build_plan(_Annotations) :-
+  config:verbose(true),
+  !.
+builder:show_build_plan(_Annotations) :-
+  preference:flag(ask),
+  !.
+builder:show_build_plan(Annotations) :-
+  builder:plan_has_blocking_domain_assumptions(Annotations).
+
+
+%! builder:spin_header(+ExecLine) is det.
+%
+% Advance the braille spinner on the action header for ExecLine.
+% A phase poll ticks this every half second. No-op when that header
+% was not registered (the callback outlived the step).
+
+builder:spin_header(ExecLine) :-
+  builder:header_slot(ExecLine, slot(LineOff, TotalLines, PlanStep, NumSteps, ActionIdx, Action, RepoEntry)),
+  !,
+  build:update_slot(LineOff, TotalLines, active, PlanStep, NumSteps, ActionIdx, Action, RepoEntry).
+builder:spin_header(_ExecLine).
 
 
 %! builder:ask_confirmation is semidet.
@@ -695,6 +731,8 @@ builder:execute_step(Step, PlanStep, NumSteps, C0, F0, S0, C, F, S, HasJobs) :-
 builder:clear_step_state :-
   display:clear_slot_info,
   retractall(builder:slot_outcome(_, _)),
+  retractall(builder:header_slot(_, _)),
+  build:clear_spinner_ticks,
   fetch:clear_speed_tracking,
   retractall(builder:exec_phase_state(_, _, _)).
 
@@ -871,7 +909,11 @@ builder:run_action_with_phases(Action, Repo, Entry, Ctx,
   !,
   builder:init_exec_phase_state(ExecLine, PhaseList),
   Callback = builder:phase_callback(TotalLines, ExecLine, LogsLine, Action, PhaseList, LogPath, Entry),
-  ebuild_exec:execute_with_progress(Action, Repo, Entry, Ctx, Callback, Outcome),
+  setup_call_cleanup(
+    assertz(builder:header_slot(ExecLine,
+              slot(LineOff, TotalLines, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry))),
+    ebuild_exec:execute_with_progress(Action, Repo, Entry, Ctx, Callback, Outcome),
+    retractall(builder:header_slot(ExecLine, _))),
   builder:outcome_to_status(Outcome, FinalStatus),
   builder:clear_exec_phase_state(ExecLine),
   ( LogsLine >= 0
@@ -894,7 +936,8 @@ builder:run_action_with_phases(Action, Repo, Entry, _Ctx,
 %
 % Display callback invoked by ebuild_exec for each phase transition.
 % Updates the exec_phase_state facts and re-renders the inline exec line.
-% Entry is the ebuild whose phase stats weight the progress and ETA.
+% A progress(_) tick also advances the header spinner. Entry is the
+% ebuild whose phase stats weight the progress and ETA.
 
 builder:phase_callback(TotalLines, ExecLine, LogsLine, Action, PhaseList, LogPath, Entry, Phase, Status) :-
   memberchk(Phase, PhaseList),
@@ -903,7 +946,12 @@ builder:phase_callback(TotalLines, ExecLine, LogsLine, Action, PhaseList, LogPat
   assertz(builder:exec_phase_state(ExecLine, Phase, Status)),
   builder:collect_phase_states(ExecLine, PhaseList, PhaseStates),
   with_mutex(build_display,
-    build:update_exec_line(ExecLine, TotalLines, Action, PhaseStates, Entry)),
+    ( build:update_exec_line(ExecLine, TotalLines, Action, PhaseStates, Entry),
+      ( Status = progress(_)
+      -> builder:spin_header(ExecLine)
+      ;  true
+      )
+    )),
   ( build:is_failed_status(Status), LogsLine >= 0
   -> with_mutex(build_display,
        build:update_logs_line(LogsLine, TotalLines, LogPath, failed))

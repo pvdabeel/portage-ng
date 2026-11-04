@@ -1285,3 +1285,42 @@ test(time_weighted_eta_uses_sibling_version) :-
   retractall(phasestats:cn_entry(_, zzpkg, _)).
 
 :- end_tests(build_phase_eta).
+
+
+:- begin_tests(build_slot_target).
+
+% The plan target is a bubble. Other actions stay plain text.
+test(run_target_is_bubbled) :-
+  setup_call_cleanup(
+    asserta(console:powerline_bubbles_cached(false)),
+    ( with_output_to(string(Run),
+        build:render_slot(done, 2, 2, 0, run, portage://'app-editors/vim-1')),
+      with_output_to(string(Inst),
+        build:render_slot(done, 1, 2, 0, reinstall, portage://'app-editors/vim-1')),
+      once(sub_string(Run, _, _, _, '<run>')),
+      \+ sub_string(Inst, _, _, _, '<reinstall>')
+    ),
+    retractall(console:powerline_bubbles_cached(_))
+  ).
+
+% Each active redraw takes the next braille frame. Frame 0 is the
+% static mark a build used to leave on the header for the whole phase.
+test(header_spinner_advances) :-
+  retractall(build:spinner_tick(_, _)),
+  setup_call_cleanup(
+    asserta(console:output_tty_cached(true)),
+    ( with_output_to(string(First),
+        build:render_slot(active, 1, 1, 0, install, portage://'app-editors/vim-1')),
+      with_output_to(string(Second),
+        build:render_slot(active, 1, 1, 0, install, portage://'app-editors/vim-1')),
+      First \== Second,
+      message:spinner_frame(braille, 0, Frame0),
+      message:spinner_frame(braille, 1, Frame1),
+      once(sub_string(First, _, _, _, Frame0)),
+      once(sub_string(Second, _, _, _, Frame1))
+    ),
+    ( retractall(console:output_tty_cached(_)),
+      retractall(build:spinner_tick(_, _))
+    )).
+
+:- end_tests(build_slot_target).
