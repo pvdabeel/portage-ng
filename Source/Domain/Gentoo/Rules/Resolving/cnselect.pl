@@ -688,18 +688,17 @@ cnselect:selected_cn_unique_or_reprove(C, N, SelectedNew, SelectedMerged, Constr
   newcomer_slot_key(SelectedNew, Slot),
   heuristic:filter_selected_by_slot(Slot, SelectedMerged, SlotSelected),
   ord_subtract(SlotSelected, SelectedNew, Committed),
+  % A different slot of this package is not a holding pin. Learning
+  % from it, or publishing the pin under cn_domain(any), blocks every
+  % other slot (sys-libs/db 5.3 vs 6.2). The slot key is what a
+  % slotless dep consults via learned_slot_excludes/3.
+  Committed \== [],
   reason_pin_domain(Reasons, Committed, Constraints, Domain),
   \+ version_domain:domain_inconsistent(Domain),
   selected_cn_partition_by_domain(Domain, SlotSelected, Allowed, Conflicting),
   Allowed \== [],
   Conflicting \== [],
   prover:learn(cn_domain(C,N,Slot), Domain, _),
-  ( Slot \== any,
-    ord_subtract(SelectedMerged, SlotSelected, OtherSlots),
-    selected_cn_partition_by_domain(Domain, OtherSlots, _, [])
-  -> prover:learn(cn_domain(C,N,any), Domain, _)
-  ; true
-  ),
   fail.
 cnselect:selected_cn_unique_or_reprove(_C, _N, _SelectedNew, _SelectedMerged, _Constraints) :-
   fail.
