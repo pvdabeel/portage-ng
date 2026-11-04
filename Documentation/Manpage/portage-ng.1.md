@@ -78,6 +78,7 @@ action is performed per invocation.
 | **-s**, **--search** | Search the knowledge base for matching packages using `key=value` queries (see [SEARCH SYNTAX](#search-syntax) below), or natural-language queries via semantic search (requires Ollama). |
 | **--bugs** | Print Gentoo Bugzilla bug report drafts for unresolvable dependencies (domain assumptions) of the given targets. |
 | **--search-bugs** | Search for bugs matching the given term. With a synced `bugzilla` repository the local bug store (`Knowledge/bugs.qlf`) answers first and the live Gentoo Bugzilla REST quicksearch is the fallback; `config:bugzilla_search(rest)` queries Bugzilla directly. |
+| **-h**, **--help** | Show the available command-line options and exit. |
 | **-V**, **--version** | Print version information for portage-ng and all registered repositories. |
 
 ### Repository management

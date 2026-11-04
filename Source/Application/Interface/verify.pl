@@ -20,7 +20,7 @@ INTERFACE module via interface.pl).
 %! interface:verify_mode(+Mode) is det.
 %
 % Verify CLI flags for the given mode. If an early-exit flag is set
-% (--background, --status, --cmd, --shell), performs the requested
+% (--help, --background, --status, --cmd, --shell), performs the requested
 % action and halts. Succeeds silently when no early-exit flag matches,
 % allowing main/1 to continue.
 
@@ -36,8 +36,15 @@ interface:check_flags(_, _).
 
 %! interface:early_exit(+Mode, +Options) is semidet.
 %
-% Per-mode early-exit handlers. Each clause matches a specific flag,
-% performs its action, and halts. Clauses are tried in definition order.
+% Per-mode early-exit handlers. --help is mode-independent and runs
+% before the knowledge base is loaded. Each clause matches a specific
+% flag, performs its action, and halts. Clauses are tried in definition
+% order.
+
+interface:early_exit(_, Options) :-
+  memberchk(help(true), Options), !,
+  interface:print_help,
+  halt(0).
 
 interface:early_exit(ipc, Options) :-
   memberchk(shell(true), Options), !,

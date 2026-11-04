@@ -33,10 +33,15 @@ IPCLIENT_PL="$ROOT_DIR/Source/Application/Client/ipclient.pl"
 # or a hard timeout is requested (those need the slower path below).
 _early_ipc=1
 _early_mode=""
+_want_help=0
 _prev=""
 for a in "$@"; do
   case "$a" in
-    -h|--help|-V|--version|help|--profile|--choice-log|--timeout|--hard-time-limit)
+    -h|--help|help)
+      _early_ipc=0
+      _want_help=1
+      ;;
+    -V|--version|--profile|--choice-log|--timeout|--hard-time-limit)
       _early_ipc=0
       ;;
     --timeout=*|--hard-time-limit=*)
@@ -64,35 +69,15 @@ fi
 
 
 # -----------------------------------------------------------------------------
-# Fast-path: --help / -h
+# Fast-path: -V / --version
 # -----------------------------------------------------------------------------
 #
-# `portage-ng.pl`'s `main/0` initializes the knowledgebase and preferences, which
-# can fail in partial environments (e.g. when running with restricted FS perms).
-# For a help request we should not boot Prolog at all.
+# Version is printed from git without booting the knowledge base. --help is
+# not handled here: it is a real option of portage-ng.pl and exits from
+# interface:verify_mode/1 before the knowledge base is loaded.
 #
 for a in "$@"; do
   case "$a" in
-    -h|--help|help)
-      cat <<'EOF'
-portage-ng-dev
-
-Usage:
-  portage-ng-dev [--timeout SECONDS] [--mode standalone] <target>
-  portage-ng-dev --mode standalone --shell
-
-Notes:
-  - --timeout enforces a hard wall-clock timeout (kills process group).
-  - --profile enables compile-time instrumentation (sampler counters,
-    debug hooks, timeout traces). Without it, these are compiled out
-    for zero overhead.
-  - --choice-log enables compile-time choice-event logging (-Dchoice_log)
-    and arms the runtime buffer. Without it, emit/wrap sites are
-    compiled out for zero overhead.
-  - This wrapper passes all other args to portage-ng's Prolog main/0.
-EOF
-      exit 0
-      ;;
     -V|--version)
       # Collect all entries into a temp file (tab-separated: name, version, path)
       _ver_tmp=$(mktemp)
@@ -310,6 +295,7 @@ sys.exit(rc if rc is not None else 124)
 # for A/B comparison. Instrumentation/choice-log also force the legacy path.
 # -----------------------------------------------------------------------------
 if [ "$MODE" = "ipc" ] \
+   && [ "${_want_help:-0}" != "1" ] \
    && [ "${PORTAGE_NG_IPC_LEGACY:-0}" != "1" ] \
    && [ -z "$INSTRUMENTATION" ] \
    && [ -z "$CHOICE_LOG" ] \

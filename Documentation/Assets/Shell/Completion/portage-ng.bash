@@ -84,6 +84,7 @@ _portage_ng() {
     --shell
     --save
     --load
+    -h --help
     -V --version
     --snapshot
     --rollback

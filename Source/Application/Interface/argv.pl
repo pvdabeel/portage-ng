@@ -70,6 +70,23 @@ interface:argv_handle_parse_error(E) :-
   throw(E).
 
 
+% -----------------------------------------------------------------------------
+%  Help text
+% -----------------------------------------------------------------------------
+
+%! interface:print_help is det.
+%
+% Writes a usage line and the option summary synthesised from
+% interface:spec/1. The --help early-exit calls this before the
+% knowledge base is loaded.
+
+interface:print_help :-
+  interface:spec(Spec),
+  opt_help(Spec, Help),
+  format('Usage: portage-ng [--mode MODE] [OPTIONS] [TARGETS...]~n~n~w', [Help]).
+
+
+
 %! interface:suggest_similar_flag(+Unknown, -Suggestion) is semidet.
 %
 % Suggests the closest known flag to an unknown flag using prefix matching

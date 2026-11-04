@@ -24,8 +24,11 @@ module via interface.pl).
 
 interface:spec(S) :-
   config:hostname(Hostname),
-  
-  S = [[opt(mode),      type(atom),      default('standalone'),                   longflags(['mode'] ),
+
+  S = [[opt(help),      type(boolean),   default(false),       shortflags(['h']), longflags(['help']),
+        help('Show this help and exit')],
+
+       [opt(mode),      type(atom),      default('standalone'),                   longflags(['mode'] ),
         help([ '  standalone: start standalone (all in memory, no server required)'
              , '  ipc:        thin IPC client, requires running daemon'
              , '  daemon:     persistent daemon, serves ipc clients via Unix socket'

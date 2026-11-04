@@ -9,6 +9,7 @@ _portage-ng() {
   flags=(
     # Modes
     '--mode[Operation mode]:mode:(standalone ipc daemon client server worker)'
+    {-h,--help}'[Show this help and exit]'
 
     # Core actions
     {-a,--ask}'[Ask for confirmation before proceeding]'

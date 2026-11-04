@@ -135,6 +135,14 @@ test(select_build_over_fetchonly) :-
 test(select_fails_on_unrecognised_options, [fail]) :-
   interface:request_select(standalone, [], [merge(false)], _, _).
 
+% --help is rendered from the option spec, before any request dispatch.
+test(print_help_lists_declared_flags) :-
+  with_output_to(string(Text), interface:print_help),
+  once(sub_string(Text, _, _, _, 'Usage:')),
+  once(sub_string(Text, _, _, _, '--help')),
+  once(sub_string(Text, _, _, _, '--merge')),
+  once(sub_string(Text, _, _, _, '--mode')).
+
 :- end_tests(interface_request_dispatch).
 
 
@@ -281,6 +289,7 @@ test(argv_version_exitcodes_target_flags_verify_requests) :-
         retractall(interface:argv_(_, _)),
         assertz(interface:argv_([], [])),
         interface:verify_mode(standalone),
+        catch(interface:early_exit(standalone, [help(true)]), test_halt(0), true),
         catch(interface:early_exit(ipc, [shell(true)]), test_halt(1), true),
         catch(interface:early_exit(ipc, [status(true)]), test_halt(_), true),
         catch(interface:early_exit(ipc, [cmd(unknown_cmd)]), test_halt(0), true),
