@@ -657,7 +657,7 @@ Executing 3 actions, grouped into 3 steps...
              │                    │ 148.84 Mb    linux-6.19.tar.xz                  ✓
 
  └─[step  2]─┤ install   portage://sys-kernel/gentoo-sources-6.19.11    ⣾
-             │           └─ exec ─┤ ACTION = setup → unpack → prepare   (42%) 2/7
+             │           └─ exec ─┤ ACTION = setup → unpack → prepare   (8%) 3/7  ETA 4m 10s
              │                    │ LOG = /var/log/portage/sys-kernel:gentoo-sources.log
 
  └─[step  3]─┤ run       portage://sys-kernel/gentoo-sources-6.19.11
@@ -668,7 +668,8 @@ a green check mark on the right edge.  Step 2 (install) is active:
 the action line shows a spinning indicator, and the phase line
 reveals that `setup` and `unpack` have finished (shown in cyan)
 while `prepare` is the current phase.  The right edge displays the
-accumulated progress (`42%`) and a phase counter (`2/7`).  Step 3
+time-weighted progress (`8%`), the phase counter (`3/7`), and the
+remaining time from phase stats (`ETA 4m 10s`).  Step 3
 (run) is still pending in dark grey, waiting for the install to
 finish.
 
@@ -709,11 +710,17 @@ portage-ng shows progress at multiple levels:
   builder polls the build log every 0.5 seconds and computes a
   progress estimate.  This blends two signals: the growth of the log
   file (bytes written) and historical data from previous builds of
-  the same package (stored in `Knowledge/phase_stats.pl`).
-- **Overall progress** — the right edge of the display shows an
-  accumulated percentage and a counter (`Current/Total`) reflecting
-  how many actions have completed out of the total plan.  Stub
-  actions (already satisfied) are excluded from the total.
+  the same package, or of another version of that package (stored in
+  `Knowledge/phase_stats.pl`).
+- **Overall progress** — the right edge shows a percentage and a
+  phase counter (`Current/Total`).  Stub phases are excluded from the
+  total.  When phase stats have a duration for at least one live
+  phase, the percentage is the share of those durations already spent
+  (a two-second `setup` barely moves it; a half-hour `compile` does)
+  and the edge also shows the remaining time, for example
+  `(3%) 2/8  ETA 27m 12s`.  A phase with no measurement takes the
+  median of the measured ones.  With no history at all, every phase
+  weighs the same and no ETA is shown.
 - **Download progress** — for parallel downloads, each file shows a
   percentage and transfer speed.  Git clones show a separate
   percentage based on the git progress output.

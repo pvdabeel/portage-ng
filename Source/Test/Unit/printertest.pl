@@ -1239,3 +1239,49 @@ test(news_index_info_state_and_stats_full_coverage, [nondet]) :-
 
 :- end_tests(printer_remaining_modules_full_coverage).
 
+
+% -----------------------------------------------------------------------------
+%  Phase-stats ETA on the build progress edge
+% -----------------------------------------------------------------------------
+
+:- begin_tests(build_phase_eta).
+
+test(equal_weight_without_history) :-
+  States = [setup-done, compile-progress(0)],
+  build:forecast_progress(States, none, Pct, Current, Total, Remain),
+  Pct =:= 50,
+  Current =:= 2,
+  Total =:= 2,
+  Remain == none.
+
+test(time_weighted_eta_uses_sibling_version) :-
+  Entry = 'zzeta/zzpkg-2.0',
+  Sibling = 'zzeta/zzpkg-1.0',
+  retractall(phasestats:phase_seconds(Sibling, _, _)),
+  retractall(phasestats:phase_seconds(Entry, _, _)),
+  retractall(phasestats:forecast_cache(Entry, _, _, _)),
+  retractall(phasestats:forecast_cache(Sibling, _, _, _)),
+  retractall(phasestats:cn_entry(_, zzpkg, _)),
+  assertz(phasestats:phase_seconds(Sibling, setup, 10.0)),
+  assertz(phasestats:phase_seconds(Sibling, compile, 100.0)),
+  ( phasestats:cn_index_ready
+  -> phasestats:entry_cn(Sibling, Cat, Name),
+     assertz(phasestats:cn_entry(Cat, Name, Sibling))
+  ;  true
+  ),
+  States = [setup-done, compile-progress(50), merge-pending],
+  build:forecast_progress(States, Entry, Pct, Current, Total, Remain),
+  Pct =:= 36,
+  Current =:= 2,
+  Total =:= 3,
+  Remain = seconds(Left),
+  Delta is abs(Left - 105.0),
+  Delta < 0.001,
+  build:eta_label(Pct, Current, Total, Remain, Label),
+  Label == '(36%) 2/3  ETA 1m 45s',
+  retractall(phasestats:phase_seconds(Sibling, _, _)),
+  retractall(phasestats:forecast_cache(Entry, _, _, _)),
+  retractall(phasestats:forecast_cache(Sibling, _, _, _)),
+  retractall(phasestats:cn_entry(_, zzpkg, _)).
+
+:- end_tests(build_phase_eta).

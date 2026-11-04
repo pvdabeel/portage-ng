@@ -970,8 +970,8 @@ test(builder_orchestrator_full_coverage, [nondet]) :-
                                        2, 1, 1, -1, [setup], '', 0, 1, 1, 0, _),
         builder:run_action_with_phases(install, ebtest_repo, 'ecat/epkg-1.0', [],
                                        3, 1, 1, 2, [setup], '/tmp/t.log', 0, 1, 1, 0, _),
-        builder:phase_callback(3, 1, 2, install, [setup], '/tmp/t.log', setup, failed(1)),
-        builder:phase_callback(3, 1, 2, install, [setup], '/tmp/t.log', unlisted_phase, done),
+        builder:phase_callback(3, 1, 2, install, [setup], '/tmp/t.log', 'ecat/epkg-1.0', setup, failed(1)),
+        builder:phase_callback(3, 1, 2, install, [setup], '/tmp/t.log', 'ecat/epkg-1.0', unlisted_phase, done),
         forall(member(Out-St, [
           done-done, stub-stub, failed(r)-failed(r),
           failed-failed('error'), error(e)-failed(e), other-failed('unknown')

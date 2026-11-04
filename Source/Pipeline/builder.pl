@@ -870,7 +870,7 @@ builder:run_action_with_phases(Action, Repo, Entry, Ctx,
   predicate_property(ebuild_exec:execute_with_progress(_,_,_,_,_,_), defined),
   !,
   builder:init_exec_phase_state(ExecLine, PhaseList),
-  Callback = builder:phase_callback(TotalLines, ExecLine, LogsLine, Action, PhaseList, LogPath),
+  Callback = builder:phase_callback(TotalLines, ExecLine, LogsLine, Action, PhaseList, LogPath, Entry),
   ebuild_exec:execute_with_progress(Action, Repo, Entry, Ctx, Callback, Outcome),
   builder:outcome_to_status(Outcome, FinalStatus),
   builder:clear_exec_phase_state(ExecLine),
@@ -890,26 +890,27 @@ builder:run_action_with_phases(Action, Repo, Entry, _Ctx,
     build:update_slot(LineOff, TotalLines, stub, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry)).
 
 
-%! builder:phase_callback(+TotalLines, +ExecLine, +LogsLine, +Action, +PhaseList, +LogPath, +Phase, +Status) is det.
+%! builder:phase_callback(+TotalLines, +ExecLine, +LogsLine, +Action, +PhaseList, +LogPath, +Entry, +Phase, +Status) is det.
 %
 % Display callback invoked by ebuild_exec for each phase transition.
 % Updates the exec_phase_state facts and re-renders the inline exec line.
+% Entry is the ebuild whose phase stats weight the progress and ETA.
 
-builder:phase_callback(TotalLines, ExecLine, LogsLine, Action, PhaseList, LogPath, Phase, Status) :-
+builder:phase_callback(TotalLines, ExecLine, LogsLine, Action, PhaseList, LogPath, Entry, Phase, Status) :-
   memberchk(Phase, PhaseList),
   !,
   ( retract(builder:exec_phase_state(ExecLine, Phase, _)) -> true ; true ),
   assertz(builder:exec_phase_state(ExecLine, Phase, Status)),
   builder:collect_phase_states(ExecLine, PhaseList, PhaseStates),
   with_mutex(build_display,
-    build:update_exec_line(ExecLine, TotalLines, Action, PhaseStates)),
+    build:update_exec_line(ExecLine, TotalLines, Action, PhaseStates, Entry)),
   ( build:is_failed_status(Status), LogsLine >= 0
   -> with_mutex(build_display,
        build:update_logs_line(LogsLine, TotalLines, LogPath, failed))
   ;  true
   ).
 
-builder:phase_callback(_, _, _, _, _, _, _, _).
+builder:phase_callback(_, _, _, _, _, _, _, _, _).
 
 
 %! builder:collect_phase_states(+ExecLine, +PhaseList, -PhaseStates) is det.

@@ -703,16 +703,27 @@ build:exec_continuation_prefix :-
 % Re-render the inline exec line at ExecLine with current phase states.
 % Must be called inside with_mutex(build_display, ...).
 
-build:update_exec_line(_ExecLine, _TotalLines, _Action, _PhaseStates) :-
+build:update_exec_line(ExecLine, TotalLines, Action, PhaseStates) :-
+  build:update_exec_line(ExecLine, TotalLines, Action, PhaseStates, none).
+
+
+%! build:update_exec_line(+ExecLine, +TotalLines, +Action, +PhaseStates, +Entry) is det.
+%
+% Re-render the inline exec line. Entry is the ebuild being built, or
+% `none` when the caller has no package to forecast. A known Entry
+% weights the right-edge percentage by phase_stats durations and
+% appends the remaining time.
+
+build:update_exec_line(_ExecLine, _TotalLines, _Action, _PhaseStates, _Entry) :-
   \+ console:output_tty, !.
 
-build:update_exec_line(ExecLine, TotalLines, _Action, PhaseStates) :-
+build:update_exec_line(ExecLine, TotalLines, _Action, PhaseStates, Entry) :-
   LinesUp is TotalLines - ExecLine,
   format("\e[~dA\r", [LinesUp]),
   build:exec_prefix,
   message:bubble(darkgray, 'ACTION'),
   message:print(' = '),
-  build:render_inline_phases(PhaseStates),
+  build:render_inline_phases(PhaseStates, Entry),
   message:el,
   format("\e[~dB\r", [LinesUp]),
   flush_output.
@@ -747,9 +758,18 @@ build:update_logs_line(LogsLine, TotalLines, LogPath, OverallStatus) :-
 % Renders phases inline on a single line (used for in-place ANSI updates).
 
 build:render_inline_phases(PhaseStates) :-
+  build:render_inline_phases(PhaseStates, none).
+
+
+%! build:render_inline_phases(+PhaseStates, +Entry) is det.
+%
+% render_inline_phases/1 with a package Entry for the duration forecast.
+% Entry `none` keeps the equal-weight phase counter.
+
+build:render_inline_phases(PhaseStates, Entry) :-
   build:render_phases_with_arrows(PhaseStates),
   message:el,
-  build:render_overall_indicator(PhaseStates).
+  build:render_overall_indicator(PhaseStates, Entry).
 
 
 %! build:render_inline_phases_wrapped(+PhaseStates) is det.
@@ -889,10 +909,19 @@ build:render_phase_word(Phase, stub) :-
 % Appends a green checkmark if all phases are done/stub,
 % a red bold ! if any phase failed, or a phase fraction N/M if running.
 
-build:render_overall_indicator(_) :-
+build:render_overall_indicator(PhaseStates) :-
+  build:render_overall_indicator(PhaseStates, none).
+
+
+%! build:render_overall_indicator(+PhaseStates, +Entry) is det.
+%
+% render_overall_indicator/1. When Entry names a package with phase
+% stats, the running edge is a duration-weighted percentage plus ETA.
+
+build:render_overall_indicator(_, _) :-
   console:printing_style('column'), !.
 
-build:render_overall_indicator(PhaseStates) :-
+build:render_overall_indicator(PhaseStates, Entry) :-
   ( member(_-Status, PhaseStates),
     build:is_failed_status(Status)
   -> message:right_edge_fail
@@ -900,8 +929,8 @@ build:render_overall_indicator(PhaseStates) :-
        \+ member(_-active, PhaseStates),
        \+ member(_-progress(_), PhaseStates)
      -> message:right_edge_ok
-     ;  build:phase_progress(PhaseStates, AccPct, Current, LiveTotal),
-        build:right_edge_progress(AccPct, Current, LiveTotal)
+     ;  build:forecast_progress(PhaseStates, Entry, AccPct, Current, LiveTotal, Remain),
+        build:right_edge_progress(AccPct, Current, LiveTotal, Remain)
      )
   ).
 
@@ -935,17 +964,166 @@ build:current_phase_index([_|Rest], N, Current) :-
   build:current_phase_index(Rest, N1, Current).
 
 
-%! build:right_edge_progress(+AccPct, +Current, +LiveTotal) is det.
+
+%! build:forecast_progress(+PhaseStates, +Entry, -AccPct, -Current, -LiveTotal, -Remain) is det.
+%
+% AccPct and Current/LiveTotal describe the live phases. Remain is
+% `seconds(Left)` when phase stats give a duration for at least one
+% live phase, and `none` otherwise. With stats, AccPct is the share of
+% expected seconds already spent and Left is the expected remainder.
+% A phase with no measurement takes the median of the measured ones.
+% Without stats every live phase weighs the same and Remain is `none`.
+
+build:forecast_progress(PhaseStates, Entry, AccPct, Current, LiveTotal, Remain) :-
+  build:phase_progress(PhaseStates, CountPct, Current, LiveTotal),
+  ( build:timed_progress(PhaseStates, Entry, TimedPct, Left)
+  -> AccPct = TimedPct,
+     Remain = seconds(Left)
+  ;  AccPct = CountPct,
+     Remain = none
+  ).
+
+
+%! build:timed_progress(+PhaseStates, +Entry, -AccPct, -Left) is semidet.
+%
+% Duration-weighted percentage and remaining seconds. Fails when Entry
+% is `none`, phase stats are unavailable, or no live phase has a duration.
+
+build:timed_progress(PhaseStates, Entry, AccPct, Left) :-
+  Entry \== none,
+  current_predicate(phasestats:expected_seconds/3),
+  include(build:is_live_phase, PhaseStates, Live),
+  Live \== [],
+  build:phase_durations(Live, Entry, Durations),
+  sum_list(Durations, Total),
+  Total > 0,
+  build:accumulate_duration(Live, Durations, 0, Done, 0, Left),
+  Raw is round((100 * Done) / Total),
+  AccPct is min(99, max(0, Raw)).
+
+
+%! build:phase_durations(+LiveStates, +Entry, -Durations) is semidet.
+%
+% One positive duration per live phase. Measured phases use their
+% forecast. An unmeasured phase uses the median of the measured ones.
+% Fails when nothing was measured.
+
+build:phase_durations(Live, Entry, Durations) :-
+  maplist(build:raw_seconds(Entry), Live, Raw),
+  include(build:positive_seconds, Raw, Measured),
+  Measured \== [],
+  build:median_seconds(Measured, Fill),
+  maplist(build:fill_seconds(Fill), Raw, Durations).
+
+
+%! build:raw_seconds(+Entry, +PhaseState, -Seconds) is det.
+%
+% Forecast seconds for the phase, or 0 when phase stats have none.
+
+build:raw_seconds(Entry, Phase-_, Seconds) :-
+  ( phasestats:expected_seconds(Entry, Phase, Seconds) -> true ; Seconds = 0 ).
+
+
+%! build:positive_seconds(+Seconds) is semidet.
+%
+% True when Seconds is a positive duration.
+
+build:positive_seconds(Seconds) :-
+  Seconds > 0.
+
+
+%! build:fill_seconds(+Fill, +Raw, -Seconds) is det.
+%
+% Replace a zero raw duration with Fill.
+
+build:fill_seconds(Fill, 0, Fill) :- !.
+build:fill_seconds(_, Seconds, Seconds).
+
+
+%! build:median_seconds(+List, -Median) is det.
+%
+% Median of a non-empty list of durations. An even count uses the mean
+% of the two central values.
+
+build:median_seconds(List, Median) :-
+  msort(List, Sorted),
+  length(Sorted, N),
+  Mid is N // 2,
+  ( N mod 2 =:= 1
+  -> nth0(Mid, Sorted, Median)
+  ;  Mid1 is Mid - 1,
+     nth0(Mid1, Sorted, Lo),
+     nth0(Mid, Sorted, Hi),
+     Median is (Lo + Hi) / 2
+  ).
+
+
+%! build:accumulate_duration(+Live, +Durations, +Done0, -Done, +Left0, -Left) is det.
+%
+% Add each phase's duration to the spent total or the remainder.
+% `done` is fully spent. `progress(P)` spends P percent of the duration.
+% Any other live status (active, pending) is still ahead.
+
+build:accumulate_duration([], [], Done, Done, Left, Left).
+build:accumulate_duration([_-done|Ps], [W|Ws], D0, Done, L0, Left) :-
+  !,
+  D1 is D0 + W,
+  build:accumulate_duration(Ps, Ws, D1, Done, L0, Left).
+build:accumulate_duration([_-progress(P)|Ps], [W|Ws], D0, Done, L0, Left) :-
+  !,
+  Frac is max(0, min(100, P)) / 100,
+  D1 is D0 + W * Frac,
+  L1 is L0 + W * (1 - Frac),
+  build:accumulate_duration(Ps, Ws, D1, Done, L1, Left).
+build:accumulate_duration([_|Ps], [W|Ws], D0, Done, L0, Left) :-
+  L1 is L0 + W,
+  build:accumulate_duration(Ps, Ws, D0, Done, L1, Left).
+
+
+%! build:right_edge_progress(+AccPct, +Current, +LiveTotal, +Remain) is det.
 %
 % Print "(AccPct%) Current/LiveTotal" at the right edge of the terminal.
+% Remain `seconds(N)` appends "ETA <duration>". Remain `none` does not.
 
-build:right_edge_progress(AccPct, Current, LiveTotal) :-
-  format(atom(Label), '(~d%) ~d/~d', [AccPct, Current, LiveTotal]),
+build:right_edge_progress(AccPct, Current, LiveTotal, Remain) :-
+  build:eta_label(AccPct, Current, LiveTotal, Remain, Label),
   atom_length(Label, Len),
   message:at_right_edge(Len,
     ( message:color(cyan),
       message:print(Label),
       message:color(normal) )).
+
+
+%! build:eta_label(+AccPct, +Current, +LiveTotal, +Remain, -Label) is det.
+%
+% Right-edge text. Remain is `none` or `seconds(N)`.
+
+build:eta_label(AccPct, Current, LiveTotal, none, Label) :-
+  !,
+  format(atom(Label), '(~d%) ~d/~d', [AccPct, Current, LiveTotal]).
+build:eta_label(AccPct, Current, LiveTotal, seconds(Secs), Label) :-
+  build:format_eta(Secs, Eta),
+  format(atom(Label), '(~d%) ~d/~d  ETA ~w', [AccPct, Current, LiveTotal, Eta]).
+
+
+
+%! build:format_eta(+Seconds, -Formatted) is det.
+%
+% Format a remaining time as "12s", "4m 12s", or "1h 5m".
+
+build:format_eta(Seconds, Formatted) :-
+  S is max(0, round(Seconds)),
+  ( S >= 3600
+  -> Hours is S // 3600,
+     Rem is S mod 3600,
+     Mins is Rem // 60,
+     format(atom(Formatted), '~wh ~wm', [Hours, Mins])
+  ;  S >= 60
+  -> Mins is S // 60,
+     Secs is S mod 60,
+     format(atom(Formatted), '~wm ~ws', [Mins, Secs])
+  ;  format(atom(Formatted), '~ws', [S])
+  ).
 
 
 build:is_failed_status(failed).
