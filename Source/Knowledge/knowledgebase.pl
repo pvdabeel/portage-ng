@@ -208,7 +208,9 @@ save ::-
 %
 % Public predicate
 %
-% Load state from file
+% Load state from file. A QLF left by another SWI-Prolog VM is
+% recompiled from Knowledge/kb.raw (sanitize:load_qlf/1), so `--sync`
+% still runs after a Prolog upgrade.
 
 load ::-
   proxy,!,
@@ -220,12 +222,16 @@ load ::-
   os:compose_path(Dir,'Knowledge/kb.qlf',Qlf),
   exists_file(Qlf),!,
   sanitize:ensure_file_integrity(Qlf),
-  ensure_loaded(Qlf),
-  % Warm the JIT indexes off the critical path: index building is
-  % mutex-protected per predicate, so an early query at worst blocks on
-  % the build already in progress (same cost as warming synchronously,
-  % but overlapped with the remainder of startup).
-  knowledgebase:start_metadata_warmer.
+  ( catch(sanitize:load_qlf(Qlf),
+          error(qlf_format_error(_, _), _),
+          fail)
+  -> % Warm the JIT indexes off the critical path: index building is
+     % mutex-protected per predicate, so an early query at worst blocks
+     % on the build already in progress.
+     knowledgebase:start_metadata_warmer
+  ;  message:warning(['Skipping ', Qlf,
+                      ': incompatible with this SWI-Prolog and Knowledge/kb.raw is absent.'])
+  ).
 
 load ::-
   \+ proxy,

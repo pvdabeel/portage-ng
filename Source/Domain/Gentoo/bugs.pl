@@ -768,7 +768,7 @@ bugs:load_store(Qlf) :-
     exists_file(Qlf)
   -> bugs:raw_file(Qlf, Raw),
      bugs:detach_store_file(Raw),
-     catch(ensure_loaded(Qlf), E,
+     catch(sanitize:load_qlf(Qlf), E,
            ( bugs:error_text(E, Text),
              message:warning(['bugs: could not load ', Qlf, ': ', Text]) ))
   ;  true ).
@@ -923,8 +923,12 @@ bugs:cache_load :-
   bugs:raw_file(File, Raw),
   bugs:detach_store_file(Raw),
   % if(true): the facts were just retracted, so an "already loaded"
-  % short-cut would leave the store empty.
-  load_files(File, [if(true)]),
+  % short-cut would leave the store empty. An incompatible QLF is
+  % recompiled from the sibling .raw (sanitize:load_qlf/2). With no
+  % source the load fails and the caller keeps an empty store.
+  catch(sanitize:load_qlf(File, [if(true)]),
+        error(qlf_format_error(_, _), _),
+        fail),
   retractall(bugs:loaded),
   assertz(bugs:loaded).
 

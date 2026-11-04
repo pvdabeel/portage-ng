@@ -185,7 +185,8 @@ glsa:sync_git(Dir) :-
 %! glsa:cache_load is semidet.
 %
 % Load Knowledge/glsa.qlf into the local dynamic store. Fails when the
-% cache file is absent.
+% cache file is absent. An incompatible QLF is recompiled from the
+% sibling `.raw` (sanitize:load_qlf/1).
 
 glsa:cache_load :-
   glsa:cache_file(File),
@@ -196,7 +197,9 @@ glsa:cache_load :-
   -> unload_file(OldGlsaFile)
   ; true
   ),
-  ensure_loaded(File),
+  catch(sanitize:load_qlf(File),
+        error(qlf_format_error(_, _), _),
+        fail),
   ( current_predicate(glsadata:advisory/2) ->
       forall(glsadata:advisory(Id, Title),
              assertz(glsa:advisory(Id, Title))),

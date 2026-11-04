@@ -1174,7 +1174,9 @@ profile:cache_available :-
 % Load the qcompiled profile cache once. Fails when the file fails
 % the effective integrity policy (sanitize:ensure_file_integrity/1 —
 % require in server/daemon modes), so callers fall back to live
-% profile loading instead of executing unverified cache code.
+% profile loading instead of executing unverified cache code. An
+% incompatible QLF is recompiled from the sibling `.raw`
+% (sanitize:load_qlf/1).
 
 profile:ensure_loaded_cache(File) :-
   ( profile:cache_loaded -> true
@@ -1184,7 +1186,9 @@ profile:ensure_loaded_cache(File) :-
     -> unload_file(OldProfileFile)
     ; true
     ),
-    ensure_loaded(File),
+    catch(sanitize:load_qlf(File),
+          error(qlf_format_error(_, _), _),
+          fail),
     assertz(profile:cache_loaded)
   ).
 

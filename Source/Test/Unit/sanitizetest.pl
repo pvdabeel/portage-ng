@@ -11,7 +11,7 @@
 Unit tests for input validation (Source/Application/Security/sanitize.pl).
 
 Paths, filenames, categories, names, snapshots, git commits, build
-phases and daemon requests.
+phases, daemon requests and QLF reload after a Prolog upgrade.
 */
 
 :- module(sanitizetest, []).
@@ -303,3 +303,84 @@ test(default_arity1_dispatches_to_effective_policy) :-
     integrity_cleanup(Path)).
 
 :- end_tests(sanitize_file_integrity).
+
+
+% -----------------------------------------------------------------------------
+%  QLF reload
+% -----------------------------------------------------------------------------
+
+%! qlf_source(+Raw, +Module) is det.
+%
+% Write a one-clause module source at Raw.
+
+qlf_source(Raw, Module) :-
+  setup_call_cleanup(
+    open(Raw, write, S),
+    format(S, ':- module(~q, []).~n:- dynamic probe/1.~nprobe(ok).~n', [Module]),
+    close(S)).
+
+
+%! qlf_cleanup(+Module, +Raw, +Qlf) is det.
+%
+% Unload Module and delete its source, QLF and sidecar.
+
+qlf_cleanup(Module, Raw, Qlf) :-
+  ( module_property(Module, file(Loaded))
+  -> catch(unload_file(Loaded), _, true)
+  ;  true ),
+  sanitize:sha256_sidecar(Qlf, Side),
+  forall(member(F, [Raw, Qlf, Side]),
+         ( exists_file(F) -> catch(delete_file(F), _, true) ; true )).
+
+
+:- begin_tests(sanitize_qlf).
+
+test(load_current) :-
+  tmp_file(sanitize_qlf, Base),
+  file_name_extension(Base, raw, Raw),
+  file_name_extension(Base, qlf, Qlf),
+  setup_call_cleanup(
+    ( qlf_source(Raw, qlfloadok),
+      qcompile(Raw),
+      unload_file(Raw),
+      delete_file(Raw)
+    ),
+    ( sanitize:load_qlf(Qlf),
+      findall(X, qlfloadok:probe(X), Xs),
+      Xs == [ok]
+    ),
+    qlf_cleanup(qlfloadok, Raw, Qlf)).
+
+test(recompile_incompatible) :-
+  tmp_file(sanitize_qlf, Base),
+  file_name_extension(Base, raw, Raw),
+  file_name_extension(Base, qlf, Qlf),
+  setup_call_cleanup(
+    ( qlf_source(Raw, qlfrebuildok),
+      qcompile(Raw),
+      unload_file(Raw),
+      setup_call_cleanup(
+        open(Qlf, write, S),
+        format(S, 'garbage~n', []),
+        close(S))
+    ),
+    ( sanitize:load_qlf(Qlf),
+      findall(X, qlfrebuildok:probe(X), Xs),
+      Xs == [ok],
+      sanitize:verify_sha256_sidecar(Qlf)
+    ),
+    qlf_cleanup(qlfrebuildok, Raw, Qlf)).
+
+test(rethrow_without_source, [error(qlf_format_error(_, _))]) :-
+  tmp_file(sanitize_qlf, Base),
+  file_name_extension(Base, raw, Raw),
+  file_name_extension(Base, qlf, Qlf),
+  setup_call_cleanup(
+    setup_call_cleanup(
+      open(Qlf, write, S),
+      format(S, 'garbage~n', []),
+      close(S)),
+    sanitize:load_qlf(Qlf),
+    qlf_cleanup(qlfnosource, Raw, Qlf)).
+
+:- end_tests(sanitize_qlf).

@@ -2521,7 +2521,9 @@ preference:cache_load_qlf(QlfFile) :-
   -> unload_file(OldPrefFile)
   ; true
   ),
-  ensure_loaded(QlfFile),
+  catch(sanitize:load_qlf(QlfFile),
+        error(qlf_format_error(_, _), _),
+        fail),
   assertz(preference:cache_loaded),
   forall(preferencedata:entry(Type, Args),
          preference:cache_apply_entry(Type, Args)).

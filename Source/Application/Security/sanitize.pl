@@ -350,6 +350,57 @@ sanitize:ensure_file_integrity(Path, prefer) :-
 
 
 % -----------------------------------------------------------------------------
+%  QLF load recovery
+% -----------------------------------------------------------------------------
+
+%! sanitize:load_qlf(+Qlf) is det.
+%
+% Load the qcompiled file Qlf, skipping the load when that file is
+% already loaded. A QLF whose VM-signature does not match this
+% SWI-Prolog (the error after a Prolog upgrade) is recompiled from
+% the sibling `.raw` source, the same recovery SWI-Prolog applies to
+% its own libraries, and the `.sha256` sidecar is rewritten for the
+% new bytes. `qcompile/1` leaves that source loaded.
+
+sanitize:load_qlf(Qlf) :-
+  sanitize:load_qlf(Qlf, [if(not_loaded)]).
+
+
+%! sanitize:load_qlf(+Qlf, +Options) is det.
+%
+% As sanitize:load_qlf/1, passing Options through to load_files/2.
+% A caller that has retracted the loaded clauses and must read them
+% again passes `if(true)` (see bugs:cache_load/0).
+
+sanitize:load_qlf(Qlf, Options) :-
+  catch(load_files(Qlf, Options),
+        error(qlf_format_error(_, Message), _),
+        sanitize:recompile_qlf(Qlf, Message)).
+
+
+%! sanitize:recompile_qlf(+Qlf, +Message) is det.
+%
+% Recompile Qlf from its sibling `.raw` after load_files/2 raised
+% qlf_format_error. Message is the loader's reason (for example the
+% incompatible VM-signature text). The original error is re-raised
+% when that source is absent.
+
+sanitize:recompile_qlf(Qlf, _Message) :-
+  file_name_extension(Base, _, Qlf),
+  file_name_extension(Base, raw, Raw),
+  exists_file(Raw),
+  !,
+  print_message(informational,
+                qlf(recompile(Raw, Raw, Qlf, incompatible))),
+  qcompile(Raw),
+  sanitize:write_sha256_sidecar(Qlf).
+sanitize:recompile_qlf(Qlf, Message) :-
+  throw(error(qlf_format_error(Qlf, Message),
+              context(sanitize:load_qlf/1,
+                      'no sibling .raw source to recompile'))).
+
+
+% -----------------------------------------------------------------------------
 %  Ebuild phase validation
 % -----------------------------------------------------------------------------
 
