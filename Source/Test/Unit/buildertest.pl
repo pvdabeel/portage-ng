@@ -1201,6 +1201,20 @@ test(removal_forgets_a_version_whose_directory_is_gone) :-
       retractall(cache:entry_metadata(Repo, _, _, _))
     )).
 
+test(sync_does_not_warn_about_a_stale_vdb) :-
+  findall(O-A, interface:argv_(O, A), Saved),
+  setup_call_cleanup(
+    ( retractall(interface:argv_(_, _)),
+      assertz(interface:argv_([sync(true), mode(standalone)], [pkg])),
+      wrap_predicate(pkgdelta:report_external_changes, test_dw, _,
+                     throw(warned))
+    ),
+    pkgdelta:warn_external_changes,
+    ( unwrap_predicate(pkgdelta:report_external_changes/0, test_dw),
+      retractall(interface:argv_(_, _)),
+      forall(member(O-A, Saved), assertz(interface:argv_(O, A)))
+    )).
+
 test(drift_names_packages_removed_and_installed) :-
   pkgdelta:vdb_drift(['app-editors/neovim-0.12.6', 'dev-libs/glib-2.0'],
                      ['app-editors/neovim-0.12.6', 'dev-libs/oldlib-1'],

@@ -339,10 +339,27 @@ pkgdelta:write_ops(Path, Removes, Refreshes) :-
 % Warns when the on-disk VDB and the loaded pkg facts name different
 % packages. portage-ng's own builds are already in the facts via the
 % delta file. What remains was written by another tool. A missing VDB
-% is silent.
+% is silent. `--sync` is silent too: that command is what reloads the
+% facts, so the warning would only tell the user to run the command
+% they are already running.
 
 pkgdelta:warn_external_changes :-
+  pkgdelta:sync_requested,
+  !.
+pkgdelta:warn_external_changes :-
   catch(pkgdelta:report_external_changes, _, true).
+
+
+%! pkgdelta:sync_requested is semidet.
+%
+% True when this process was started with `--sync`.
+
+pkgdelta:sync_requested :-
+  current_predicate(interface:argv/2),
+  interface:argv(Options, _),
+  memberchk(sync(true), Options),
+  !.
+
 
 
 %! pkgdelta:report_external_changes is det.
