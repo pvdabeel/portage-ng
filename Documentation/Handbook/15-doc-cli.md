@@ -105,7 +105,7 @@ everyday workflows.
 | **Flag** | **Action** |
 | :--- | :--- |
 | `--pretend` | Generate and display a build plan (dry-run) |
-| `--merge` | Execute the build plan |
+| `--merge` | Build and merge the target. This is the default, so a bare target builds the way `emerge` does |
 | `--unmerge <target>` | Remove a package |
 | `--depclean` | Remove unneeded packages |
 | `--fetchonly` / `-f` | Same `:run` proof as `--merge`; print and execute downloads (and unmask / keyword / USE / license pre-actions) only |

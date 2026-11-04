@@ -27,6 +27,21 @@ action:assert_resume_skip_args([A|Rest]) :-
 %  Action: BUILD
 % -----------------------------------------------------------------------------
 
+%! action:process_default(+Mode, +Args, +Options) is det.
+%
+% The merge catch-all. Standalone builds the target, as emerge does
+% with a bare package name. `--pretend` is handled by process_build/2
+% and only prints. Other modes keep the prove-and-print merge path,
+% including the client RPC.
+
+action:process_default(standalone, Args, Options) :-
+  !,
+  action:process_build(Args, Options).
+action:process_default(_Mode, Args, Options) :-
+  action:process_action(run, Args, Options).
+
+
+
 %! action:process_build(+Args, +Options) is det.
 %
 % Handles the --build CLI flag. Resolves targets, proves a plan, then

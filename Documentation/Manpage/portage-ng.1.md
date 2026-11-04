@@ -48,7 +48,7 @@ action is performed per invocation.
 
 | Flag | Description |
 |------|-------------|
-| **-m**, **--merge** | Resolve the full dependency closure and print the resulting plan. This is the default action when no other action flag is given. Equivalent to Portage's `emerge --pretend`. |
+| **-m**, **--merge** | Build and merge the target. This is the default action when no other action flag is given, so `portage-ng vim` builds vim the way `emerge vim` does. `--pretend` prints the plan and does not build. |
 | **-u**, **--update** | Update the given targets. Resolves the full runtime closure and performs a transactional replace if needed. |
 | **--upgrade** | Two-phase upgrade: first compute a fresh plan under `--emptytree` semantics, then run `--depclean` on the real installed graph. Defaults to `@world` when no targets are given. |
 
@@ -56,7 +56,7 @@ action is performed per invocation.
 
 | Flag | Description |
 |------|-------------|
-| **--build** | Build target: resolve the plan, then execute it with live progress display. Downloads distfiles, runs ebuild phases, and shows per-phase status inline. The plan is saved to `Knowledge/resume.pl` so that an interrupted build can be continued with `--resume`. |
+| **--build** | Same execution as the default action: resolve the plan, then execute it with live progress display. Downloads distfiles, runs ebuild phases, and shows per-phase status inline. The plan is saved to `Knowledge/resume.pl` so that an interrupted build can be continued with `--resume`. |
 | **-r**, **--resume** | Resume a previously interrupted `--build` run. Loads the saved plan from `Knowledge/resume.pl` and re-executes only the packages that did not complete successfully. The `clean` phase is skipped so that ebuild can pick up from the preserved work directory. |
 | **--skip** *PACKAGE* | Used with `--resume`. Skip the named package instead of re-executing it. The flag is repeatable. Additionally, when `--resume` is active, positional arguments are interpreted as packages to skip. |
 | **-f**, **--fetchonly** | Restriction on the `:run` merge plan, not a second proof. Proves the same dependency closure as `--merge`, then prints and (with `--build`) executes only downloads plus configuration pre-actions (unmask / keyword / USE / license). Does not install, run, or write `@world`. |
@@ -460,6 +460,9 @@ location, md5-cache path, VDB path, and repository registration.
 ## EXAMPLES
 
 ```bash
+# Build vim (same as emerge vim)
+portage-ng --mode standalone vim
+
 # Resolve dependencies for vim in pretend mode
 portage-ng --mode standalone --pretend vim
 

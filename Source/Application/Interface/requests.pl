@@ -34,7 +34,9 @@ Source/Test/Unit/interfacetest.pl).
 % request_matches/3 guard succeeds wins. Order is load-bearing at the end of
 % the table: 'shellrun' and 'shell' must precede 'merge', because merge(true)
 % is the optparse default (spec.pl) and therefore matches almost any command
-% line — it acts as the final catch-all.
+% line — it acts as the final catch-all. In standalone mode that
+% catch-all builds the target, the way emerge does. --pretend still
+% prints the plan and stops. Other modes keep the prove-and-print path.
 %
 % Flag is normally the option name exactly as declared in interface:spec/1.
 % Handlers with a dedicated guard in request_matches/3: 'rollback' (atom
@@ -106,7 +108,7 @@ interface:request_handler(llm,             _,    _,    Options, (action:extract_
 interface:request_handler(diagnose,        _,    Args, Options, action:process_diagnose(Args, Options)).
 interface:request_handler(shellrun,        _,    Args, Options, action:process_action(run, Args, Options)).
 interface:request_handler(shell,           _,    _,    _,       true).
-interface:request_handler(merge,           _,    Args, Options, action:process_action(run, Args, Options)).
+interface:request_handler(merge,           Mode, Args, Options, action:process_default(Mode, Args, Options)).
 
 
 %! interface:request_matches(+Flag, +Args, +Options) is semidet.

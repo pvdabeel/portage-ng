@@ -106,7 +106,13 @@ test(select_merge_catchall) :-
   Opts = [merge(true)],
   interface:request_select(standalone, ['app-misc/foo'], Opts, Flag, Goal),
   Flag == merge,
-  Goal == action:process_action(run, ['app-misc/foo'], Opts).
+  Goal == action:process_default(standalone, ['app-misc/foo'], Opts).
+
+test(select_client_merge_stays_print) :-
+  Opts = [merge(true)],
+  interface:request_select(client, ['app-misc/foo'], Opts, Flag, Goal),
+  Flag == merge,
+  Goal == action:process_default(client, ['app-misc/foo'], Opts).
 
 % `--fetchonly` / `-F` prove the same :run plan as --merge.
 test(fetchonly_handler_proves_run) :-
@@ -135,13 +141,35 @@ test(select_build_pretend_does_not_build) :-
   Opts = [build(true), pretend(true), merge(true)],
   interface:request_select(standalone, ['app-misc/foo'], Opts, Flag, Goal),
   Flag == merge,
-  Goal == action:process_action(run, ['app-misc/foo'], Opts).
+  Goal == action:process_default(standalone, ['app-misc/foo'], Opts).
 
 test(select_build_fetchonly_pretend_does_not_build) :-
   Opts = [build(true), fetchonly(true), pretend(true), merge(true)],
   interface:request_select(standalone, ['app-misc/foo'], Opts, Flag, Goal),
   Flag == fetchonly,
   Goal == action:process_action(run, ['app-misc/foo'], Opts).
+
+test(process_default_standalone_builds) :-
+  setup_call_cleanup(
+    wrap_predicate(action:process_build(Args, Opts), test_pd, _,
+                   ( Args == ['app-misc/foo'],
+                     Opts == [merge(true)]
+                   )),
+    action:process_default(standalone, ['app-misc/foo'], [merge(true)]),
+    unwrap_predicate(action:process_build/2, test_pd)).
+
+test(process_default_client_does_not_build) :-
+  setup_call_cleanup(
+    ( wrap_predicate(action:process_action(Action, Args, _), test_pa, _,
+                     ( Action == run,
+                       Args == ['app-misc/foo']
+                     )),
+      wrap_predicate(builder:build(_), test_bb2, _, throw(built))
+    ),
+    action:process_default(client, ['app-misc/foo'], [merge(true)]),
+    ( unwrap_predicate(action:process_action/3, test_pa),
+      unwrap_predicate(builder:build/1, test_bb2)
+    )).
 
 test(process_build_pretend_does_not_execute) :-
   setup_call_cleanup(

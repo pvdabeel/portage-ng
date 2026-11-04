@@ -42,14 +42,14 @@ interface:spec(S) :-
        [opt(pretend),           type(boolean),   default(false),       shortflags(['p']), longflags(['pretend']),              help('Turn on pretend mode')],
        [opt(fetchonly),         type(boolean),   default(false),       shortflags(['f']), longflags(['fetchonly']),            help('Turn on fetchonly mode')],
        [opt(fetchall),          type(boolean),   default(false),       shortflags(['F']), longflags(['fetch-all-uri']),        help('Fetch all SRC_URI files regardless of USE flags')],
-       [opt(merge),             type(boolean),   default(true),        shortflags(['m']), longflags(['merge']),                help('Merge target package')],
+       [opt(merge),             type(boolean),   default(true),        shortflags(['m']), longflags(['merge']),                help('Build and merge the target (default)')],
        [opt(update),            type(boolean),   default(false),       shortflags(['u']), longflags(['update']),               help('Update target package')],
        [opt(upgrade),           type(boolean),   default(false),                          longflags(['upgrade']),              help('Upgrade set (default: @world): first compute a fresh plan under --emptytree, then run depclean')],
        [opt(deep),              type(boolean),   default(false),       shortflags(['d']), longflags(['deep']),                 help('Also consider dependencies')],
        [opt(emptytree),         type(boolean),   default(false),       shortflags(['e']), longflags(['emptytree']),            help('Pretend no other packages are installed')],
        [opt(buildpkg),          type(boolean),   default(false),       shortflags(['b']), longflags(['buildpkg']),             help('Create binary packages after building from source')],
        [opt(buildpkgonly),      type(boolean),   default(false),       shortflags(['B']), longflags(['buildpkgonly']),         help('Build binary packages but do not merge to live filesystem')],
-       [opt(build),             type(boolean),   default(false),                          longflags(['build']),                help('Build target (print plan then execute with live progress)')],
+       [opt(build),             type(boolean),   default(false),                          longflags(['build']),                help('Build target with live progress (same as the default action)')],
        [opt(resume),            type(boolean),   default(false),       shortflags(['r']), longflags(['resume']),               help('Resume previous command')],
        [opt(newuse),            type(boolean),   default(false),       shortflags(['N']), longflags(['newuse']),               help('Rebuild if USE or IUSE changed since install')],
        [opt(changeduse),        type(boolean),   default(false),       shortflags(['U']), longflags(['changed-use']),          help('Rebuild only if effective USE flags changed')],
@@ -181,7 +181,7 @@ interface:spec(S) :-
 
        % build options
 
-       [opt(logs),              type(boolean),   default(false),       shortflags(['l']), longflags(['logs']),                 help('Show build log paths in --build output')],
+       [opt(logs),              type(boolean),   default(true),        shortflags(['l']), longflags(['logs']),                 help('Show build log paths in --build output')],
 
        % debugging purposes
 
