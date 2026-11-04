@@ -69,7 +69,10 @@ builder:build(Goals) :-
 % first attempt; a replan re-runs non-interactively. Refuses to start execution
 % when the derived plan contains blocking domain assumptions (e.g.
 % use_dep_unsat or unsatisfied_constraints where a required dependency was
-% assumed installed rather than planned, portage-ng#125). On a failed pass
+% assumed installed rather than planned, portage-ng#125). Refuses to
+% start when an ebuild the plan will hand to the ebuild CLI is not on
+% disk, which is what a knowledge base left behind by a newer tree looks
+% like. On a failed pass
 % that grew the discovery store (builder:should_replan/4), re-enters with
 % Attempt+1, bounded by config:missing_provider_max_replan/1. When the
 % pass failed without new deterministic discoveries, optionally invokes
@@ -79,16 +82,21 @@ builder:build(Goals) :-
 builder:build_loop(Goals, Attempt) :-
   pipeline:prove_plan_with_fallback(Goals, ProofAVL, ModelAVL, Plan, TriggersAVL, FallbackUsed),
   annotation:collect(ProofAVL, Annotations),
-  ( builder:show_build_plan(Annotations)
-  -> printer:print(Goals, ModelAVL, ProofAVL, Plan, TriggersAVL),
-     nl
-  ;  true
-  ),
-  ( builder:plan_has_blocking_domain_assumptions(Annotations)
-  -> ignore(message:failure('Build aborted: plan contains unresolvable domain assumptions.')),
+  ( builder:missing_plan_ebuilds(Plan, Missing),
+    Missing \== []
+  -> builder:report_missing_ebuilds(Missing),
      retractall(builder:last_build_status(_, _, _)),
      assertz(builder:last_build_status(0, 1, 0))
-  ;  ( Attempt =:= 0
+  ;  ( builder:show_build_plan(Annotations)
+     -> printer:print(Goals, ModelAVL, ProofAVL, Plan, TriggersAVL),
+        nl
+     ;  true
+     ),
+     ( builder:plan_has_blocking_domain_assumptions(Annotations)
+     -> ignore(message:failure('Build aborted: plan contains unresolvable domain assumptions.')),
+        retractall(builder:last_build_status(_, _, _)),
+        assertz(builder:last_build_status(0, 1, 0))
+     ;  ( Attempt =:= 0
      -> ( builder:ask_confirmation
         -> true
         ;  message:inform('Aborted.'),
@@ -126,6 +134,7 @@ builder:build_loop(Goals, Attempt) :-
         builder:announce_replan(Next),
         builder:build_loop(Goals, Next)
      ;  true
+     )
      )
   ).
 
@@ -237,6 +246,11 @@ builder:build_resume :-
   ( RemainingActions =:= 0
   -> message:inform('Nothing to resume — all packages completed successfully.'),
      resume:clear_state
+  ;  builder:missing_plan_ebuilds(FilteredPlan, Missing),
+     Missing \== []
+  -> builder:report_missing_ebuilds(Missing),
+     retractall(builder:last_build_status(_, _, _)),
+     assertz(builder:last_build_status(0, 1, 0))
   ;  length(DoneList, CompletedCount),
      format(atom(ResumeMsg), '>>> Resuming: ~d completed, ~d remaining', [CompletedCount, RemainingActions]),
      message:color(green),
@@ -532,6 +546,101 @@ builder:plan_entries(Plan, Entries) :-
             Rule = rule(Repo://Entry:_Action?{_Ctx}, _Body) ),
           Entries0),
   sort(Entries0, Entries).
+
+
+%! builder:missing_plan_ebuilds(+Plan, -Missing) is det.
+%
+% Missing is a sorted list of missing(Repo, Entry, Path) for every
+% executable merge the plan will hand to the ebuild CLI whose file is
+% not on disk. A `run` does not open an ebuild. A binary merge still
+% needs the source ebuild, because qmerge is an ebuild invocation.
+
+builder:missing_plan_ebuilds(Plan, Missing) :-
+  findall(missing(Repo, Entry, Path),
+          ( member(Step, Plan),
+            member(Rule, Step),
+            builder:is_executable_rule(Rule),
+            Rule = rule(Head, _Body),
+            builder:rule_ebuild_file(Head, Repo, Entry, Path),
+            \+ exists_file(Path)
+          ),
+          Raw),
+  sort(Raw, Missing).
+
+
+%! builder:rule_ebuild_file(+Head, -Repo, -Entry, -Path) is semidet.
+%
+% Path is the ebuild file this rule will pass to the ebuild CLI.
+% Fails when the rule does not invoke ebuild.
+
+builder:rule_ebuild_file(binpkg://Entry:Action?{_Ctx}, binpkg, Entry, Path) :-
+  builder:action_opens_ebuild(Action),
+  !,
+  builder:binpkg_source_ebuild(Entry, Path).
+builder:rule_ebuild_file(Repo://Entry:Action?{_Ctx}, Repo, Entry, Path) :-
+  builder:action_opens_ebuild(Action),
+  builder:repository_ebuild_file(Repo, Entry, Path),
+  !.
+builder:rule_ebuild_file(Repo://Entry:Action?{_Ctx}, Repo, Entry, Path) :-
+  builder:action_opens_ebuild(Action),
+  catch(Repo:get_type(binpkg), _, fail),
+  builder:binpkg_source_ebuild(Entry, Path).
+
+
+%! builder:action_opens_ebuild(+Action) is semidet.
+%
+% True when Action runs at least one ebuild phase. `run` has an empty
+% phase list and does not open a file.
+
+builder:action_opens_ebuild(Action) :-
+  ebuild_exec:action_phases(Action, [], Phases),
+  Phases \== [].
+
+
+%! builder:repository_ebuild_file(+Repo, +Entry, -Path) is semidet.
+%
+% The on-disk path the repository computes for Entry. A repository that
+% is not an ebuild tree fails. A tree that cannot name a path still
+% yields a token so the caller treats the ebuild as missing.
+
+builder:repository_ebuild_file(Repo, Entry, Path) :-
+  catch(Repo:get_type(eapi), _, fail),
+  ( catch(Repo:get_ebuild_file(Entry, Path), _, fail)
+  -> true
+  ;  Path = '(no ebuild path)'
+  ).
+
+
+%! builder:binpkg_source_ebuild(+BinpkgEntry, -Path) is det.
+%
+% The source ebuild qmerge will open for a binary package, or a token
+% when that source ebuild cannot be named. The lookup is the same one
+% run_binpkg_action/4 uses.
+
+builder:binpkg_source_ebuild(BinpkgEntry, Path) :-
+  ( cache:ordered_entry(binpkg, BinpkgEntry, Cat, Name, Version),
+    cache:repository(portage),
+    cache:ordered_entry(portage, SrcEntry, Cat, Name, Version),
+    catch(portage:get_ebuild_file(SrcEntry, Path), _, fail)
+  -> true
+  ;  Path = '(no source ebuild)'
+  ).
+
+
+%! builder:report_missing_ebuilds(+Missing) is det.
+%
+% Tell the user which planned ebuilds are not on disk, and that the
+% knowledge base has to be rebuilt from the current tree.
+
+builder:report_missing_ebuilds(Missing) :-
+  nl,
+  message:color(red),
+  format('Build aborted: the knowledge base names ebuilds that are not on disk.~n', []),
+  message:color(normal),
+  forall(member(missing(Repo, Entry, Path), Missing),
+         format('  ~w://~w~n    ~w~n', [Repo, Entry, Path])),
+  format('Sync the tree and rebuild the knowledge base before building.~n', []),
+  nl.
 
 
 % -----------------------------------------------------------------------------

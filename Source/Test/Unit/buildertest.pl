@@ -1052,3 +1052,63 @@ test(recorded_failure_skips_the_rest, [cleanup(retractall(builder:exec_phase_sta
   builder:exec_phase_state(99, merge, skipped).
 
 :- end_tests(builder_exec_phase_finish).
+
+
+% -----------------------------------------------------------------------------
+%  A build does not start when a planned ebuild is not on disk
+% -----------------------------------------------------------------------------
+
+:- dynamic ebcheck_repo:get_type/1.
+:- dynamic ebcheck_repo:get_ebuild_file/2.
+
+:- begin_tests(builder_missing_ebuild, [setup(ebcheck_reset), cleanup(ebcheck_reset)]).
+
+test(missing_install_is_reported) :-
+  asserta(ebcheck_repo:get_ebuild_file('app-editors/neovim-0.12.3',
+                                       '/tmp/portage-ng-no-such-neovim-0.12.3.ebuild')),
+  Plan = [[rule(ebcheck_repo://'app-editors/neovim-0.12.3':install?{[]}, []),
+           rule(ebcheck_repo://'app-editors/neovim-0.12.3':run?{[]}, []),
+           rule(world(neovim):register?{[]}, [])]],
+  builder:missing_plan_ebuilds(Plan, Missing),
+  Missing == [missing(ebcheck_repo, 'app-editors/neovim-0.12.3',
+                      '/tmp/portage-ng-no-such-neovim-0.12.3.ebuild')].
+
+test(present_ebuild_is_not_missing) :-
+  Path = '/tmp/portage-ng-ebuild-present.ebuild',
+  open(Path, write, Stream),
+  close(Stream),
+  setup_call_cleanup(
+    asserta(ebcheck_repo:get_ebuild_file('app-editors/neovim-0.12.3', Path)),
+    ( Plan = [[rule(ebcheck_repo://'app-editors/neovim-0.12.3':reinstall?{[]}, [])]],
+      builder:missing_plan_ebuilds(Plan, Missing),
+      Missing == []
+    ),
+    catch(delete_file(Path), _, true)).
+
+test(run_does_not_require_an_ebuild) :-
+  Plan = [[rule(ebcheck_repo://'app-editors/neovim-0.12.3':run?{[]}, [])]],
+  builder:missing_plan_ebuilds(Plan, Missing),
+  Missing == [].
+
+test(duplicate_missing_ebuild_is_listed_once) :-
+  asserta(ebcheck_repo:get_ebuild_file('app-editors/neovim-0.12.3',
+                                       '/tmp/portage-ng-no-such-neovim-0.12.3.ebuild')),
+  Rule = rule(ebcheck_repo://'app-editors/neovim-0.12.3':install?{[]}, []),
+  builder:missing_plan_ebuilds([[Rule], [Rule]], Missing),
+  length(Missing, 1).
+
+test(report_names_the_missing_file) :-
+  Missing = [missing(ebcheck_repo, 'app-editors/neovim-0.12.3',
+                     '/tmp/portage-ng-no-such-neovim-0.12.3.ebuild')],
+  with_output_to(string(Text), builder:report_missing_ebuilds(Missing)),
+  once(sub_string(Text, _, _, _, 'not on disk')),
+  once(sub_string(Text, _, _, _, '/tmp/portage-ng-no-such-neovim-0.12.3.ebuild')),
+  once(sub_string(Text, _, _, _, 'rebuild the knowledge base')).
+
+:- end_tests(builder_missing_ebuild).
+
+
+ebcheck_reset :-
+  retractall(ebcheck_repo:get_type(_)),
+  retractall(ebcheck_repo:get_ebuild_file(_, _)),
+  asserta(ebcheck_repo:get_type(eapi)).
