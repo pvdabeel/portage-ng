@@ -1301,21 +1301,24 @@ build:print_emerging(Header) :-
 
 %! build:summary(+Plan, +PreActions, +Failed, +Stubs) is det.
 %
-% Closing lines in the pretend footer's shape. Counts are the actions
-% the plan footer counts (a world register is not one of them). Bytes
-% are what this run fetched.
+% Closing lines in the pretend footer's shape. The counts are the
+% actions and steps the live display just ran, including a world
+% register. Bytes are what this run fetched.
 
 build:summary(Plan, PreActions, Failed, Stubs) :-
   nl,
   plan:footer_stats_from_plan(Plan, S0),
   plan:footer_add_pre_actions(PreActions, S0, S),
-  plan:pluralize(S.actions, action, actions, ActionWord),
-  build:counted_steps(Plan, PlanSteps),
-  ( PreActions == [] -> Steps = PlanSteps ; Steps is PlanSteps + 1 ),
+  builder:count_actions(Plan, 0, PlanActions),
+  length(PreActions, PreCount),
+  Actions is PlanActions + PreCount,
+  builder:count_nonempty_steps(Plan, 0, PlanSteps),
+  ( PreCount > 0 -> Steps is PlanSteps + 1 ; Steps = PlanSteps ),
+  plan:pluralize(Actions, action, actions, ActionWord),
   plan:pluralize(Steps, step, steps, StepWord),
-  plan:footer_action_breakdown(S, Breakdown),
+  build:executed_breakdown(Plan, PreActions, Breakdown),
   format('Total: Executed ~d ~w (~w), grouped into ~d ~w.',
-         [S.actions, ActionWord, Breakdown, Steps, StepWord]),
+         [Actions, ActionWord, Breakdown, Steps, StepWord]),
   ( Failed > 0
   -> format(' ~d failed.', [Failed])
   ;  true
@@ -1350,27 +1353,112 @@ build:summary_download_line(S) :-
 
 
 
-%! build:counted_steps(+Plan, -N) is det.
+%! build:executed_breakdown(+Plan, +PreActions, -Breakdown) is det.
 %
-% Steps that contain an action the pretend footer counts.
+% Parenthetical of the summary. Pre-actions come first, then each
+% executed action, in the same order the pretend footer uses.
+% Register is included.
 
-build:counted_steps(Plan, N) :-
-  include(build:step_has_counted_action, Plan, Steps),
-  length(Steps, N).
+build:executed_breakdown(Plan, PreActions, Breakdown) :-
+  Empty = stats{actions:0, downloads:0, runs:0, installs:0, updates:0,
+                downgrades:0, reinstalls:0, total_dl:0, already_dl:0},
+  plan:footer_add_pre_actions(PreActions, Empty, Pre),
+  plan:footer_action_breakdown(Pre, PreBreak),
+  build:action_counts(Plan, Counts),
+  findall(Part, build:action_count_part(Counts, Part), ActionParts),
+  ( PreBreak == none -> Parts = ActionParts
+  ; ActionParts == [] -> Parts = [PreBreak]
+  ; append([PreBreak], ActionParts, Parts)
+  ),
+  ( Parts == [] -> Breakdown = none
+  ; atomic_list_concat(Parts, ', ', Breakdown)
+  ).
 
 
 
-%! build:step_has_counted_action(+Step) is semidet.
+%! build:action_counts(+Plan, -Counts) is det.
 %
-% True when Step contributes to the pretend action total.
+% Counts is an Action-N list for the rules the live display runs.
 
-build:step_has_counted_action(Step) :-
-  member(Rule, Step),
-  S0 = stats{actions:0, downloads:0, runs:0, installs:0, updates:0,
-             downgrades:0, reinstalls:0, total_dl:0, already_dl:0},
-  plan:footer_stats_from_rule(Rule, S0, S),
-  S.actions > 0,
+build:action_counts(Plan, Counts) :-
+  findall(Action,
+          ( member(Step, Plan),
+            member(Rule, Step),
+            builder:is_executable_rule(Rule),
+            build:rule_action(Rule, Action)
+          ),
+          Actions),
+  msort(Actions, Sorted),
+  clumped(Sorted, Counts).
+
+
+
+%! build:rule_action(+Rule, -Action) is semidet.
+%
+% Action atom of an executable rule.
+
+build:rule_action(rule(HeadWithCtx, _), Action) :-
+  prover:canon_literal(HeadWithCtx, Head, _),
+  build:head_action(Head, Action),
   !.
+
+
+%! build:head_action(+Head, -Action) is semidet.
+
+build:head_action(_://_:Action, Action) :- !.
+build:head_action(_:Action, Action).
+
+
+
+%! build:action_count_part(+Counts, -Part) is nondet.
+%
+% One "~d ~w" fragment, in display order, then any other action.
+
+build:action_count_part(Counts, Part) :-
+  build:summary_action_order(Order),
+  member(Action, Order),
+  memberchk(Action-N, Counts),
+  build:action_part(Action, N, Part).
+build:action_count_part(Counts, Part) :-
+  build:summary_action_order(Order),
+  member(Action-N, Counts),
+  \+ memberchk(Action, Order),
+  build:action_part(Action, N, Part).
+
+
+
+%! build:summary_action_order(-Actions) is det.
+%
+% Action names in the order the summary parenthetical prints them.
+
+build:summary_action_order([download, install, update, downgrade,
+                            reinstall, run, register, fetchonly]).
+
+
+
+%! build:action_part(+Action, +N, -Part) is det.
+%
+% One count fragment, singular when N is 1.
+
+build:action_part(Action, N, Part) :-
+  build:action_plural(Action, Plural),
+  plan:pluralize(N, Action, Plural, Word),
+  format(atom(Part), '~d ~w', [N, Word]).
+
+
+
+%! build:action_plural(+Action, -Plural) is det.
+
+build:action_plural(download, downloads) :- !.
+build:action_plural(install, installs) :- !.
+build:action_plural(update, updates) :- !.
+build:action_plural(downgrade, downgrades) :- !.
+build:action_plural(reinstall, reinstalls) :- !.
+build:action_plural(run, runs) :- !.
+build:action_plural(register, registers) :- !.
+build:action_plural(fetchonly, fetchonly) :- !.
+build:action_plural(Action, Plural) :-
+  atom_concat(Action, s, Plural).
 
 
 
