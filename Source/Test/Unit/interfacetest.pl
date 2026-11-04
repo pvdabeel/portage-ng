@@ -136,12 +136,28 @@ test(select_fails_on_unrecognised_options, [fail]) :-
   interface:request_select(standalone, [], [merge(false)], _, _).
 
 % --help is rendered from the option spec, before any request dispatch.
+% Descriptions share one column, including the preformatted --mode lines.
 test(print_help_lists_declared_flags) :-
   with_output_to(string(Text), interface:print_help),
   once(sub_string(Text, _, _, _, 'Usage:')),
-  once(sub_string(Text, _, _, _, '--help')),
+  once(sub_string(Text, _, _, _, '-h, --help')),
   once(sub_string(Text, _, _, _, '--merge')),
-  once(sub_string(Text, _, _, _, '--mode')).
+  once(sub_string(Text, _, _, _, '--mode')),
+  \+ sub_string(Text, _, _, _, 'boolean=false'),
+  help_column(Text, 'Show this help and exit', ShowCol),
+  help_column(Text, 'Ask for confirmation', AskCol),
+  help_column(Text, 'standalone:', ModeCol),
+  help_column(Text, 'ipc:', IpcCol),
+  ShowCol =:= AskCol,
+  ModeCol =:= IpcCol,
+  ModeCol =:= ShowCol.
+
+help_column(Text, Needle, Col) :-
+  split_string(Text, "\n", "", Lines),
+  member(Line, Lines),
+  sub_string(Line, Before, _, _, Needle),
+  !,
+  Col = Before.
 
 :- end_tests(interface_request_dispatch).
 

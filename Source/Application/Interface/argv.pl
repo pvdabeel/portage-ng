@@ -76,15 +76,208 @@ interface:argv_handle_parse_error(E) :-
 
 %! interface:print_help is det.
 %
-% Writes a usage line and the option summary synthesised from
-% interface:spec/1. The --help early-exit calls this before the
+% Writes a usage line and one aligned row per flag in interface:spec/1.
+% The description column is fixed. A flag longer than that column puts
+% its text on the following lines, so a missing short flag cannot pull
+% the rest of the row left. The --help early-exit calls this before the
 % knowledge base is loaded.
 
 interface:print_help :-
   interface:spec(Spec),
-  opt_help(Spec, Help),
-  format('Usage: portage-ng [--mode MODE] [OPTIONS] [TARGETS...]~n~n~w', [Help]).
+  format('Usage: portage-ng [--mode MODE] [OPTIONS] [TARGETS...]~n~n', []),
+  interface:help_rows(Spec, Rows),
+  interface:help_flag_width(Rows, Width),
+  interface:help_text_width(Width, TextWidth),
+  forall(member(row(Flag, Lines), Rows),
+         interface:print_help_row(Width, TextWidth, Flag, Lines)).
 
+
+
+%! interface:help_rows(+Spec, -Rows) is det.
+%
+% One row(Flag, Lines) per option that has a short or long flag.
+% Lines is either plain(Text) or block(Lines) for a preformatted list.
+
+interface:help_rows(Spec, Rows) :-
+  findall(row(Flag, Lines),
+          ( member(Opt, Spec),
+            interface:help_flag(Opt, Flag),
+            interface:help_lines(Opt, Lines)
+          ),
+          Rows).
+
+
+
+%! interface:help_flag(+Opt, -Flag) is semidet.
+%
+% Flag text such as `-h, --help` or `--jobs ARG`. Non-booleans take ARG
+% so the row shows that a value is required.
+
+interface:help_flag(Opt, Flag) :-
+  ( memberchk(shortflags(Shorts), Opt) -> true ; Shorts = [] ),
+  ( memberchk(longflags(Longs), Opt) -> true ; Longs = [] ),
+  findall(S, ( member(C, Shorts), atom_concat('-', C, S) ), ShortAtoms),
+  findall(L, ( member(N, Longs), atom_concat('--', N, L) ), LongAtoms),
+  append(ShortAtoms, LongAtoms, Atoms),
+  Atoms \== [],
+  atomic_list_concat(Atoms, ', ', Joined),
+  ( memberchk(type(boolean), Opt)
+  -> Flag = Joined
+  ;  atom_concat(Joined, ' ARG', Flag)
+  ).
+
+
+
+%! interface:help_lines(+Opt, -Lines) is det.
+%
+% plain(Text) for a single help atom. block(Lines) for a list, with the
+% shared leading indent removed so the authored columns stay aligned.
+
+interface:help_lines(Opt, Lines) :-
+  ( memberchk(help(Help), Opt) -> true ; Help = '' ),
+  ( is_list(Help)
+  -> maplist(interface:help_strip, Help, Block),
+     Lines = block(Block)
+  ;  Lines = plain(Help)
+  ).
+
+
+
+%! interface:help_strip(+Line0, -Line) is det.
+%
+% Drop leading spaces from a preformatted help line.
+
+interface:help_strip(Line0, Line) :-
+  atom_codes(Line0, Codes0),
+  interface:skip_spaces(Codes0, Codes),
+  atom_codes(Line, Codes).
+
+
+
+%! interface:skip_spaces(+Codes0, -Codes) is det.
+%
+% Codes is Codes0 without a leading run of spaces.
+
+interface:skip_spaces([32|Rest], Codes) :-
+  !,
+  interface:skip_spaces(Rest, Codes).
+interface:skip_spaces(Codes, Codes).
+
+
+
+%! interface:help_flag_width(+Rows, -Width) is det.
+%
+% Width of the flag column. Flags longer than 32 characters do not
+% stretch the column; their description goes on the next line.
+
+interface:help_flag_width(Rows, Width) :-
+  findall(N,
+          ( member(row(Flag, _), Rows),
+            atom_length(Flag, N),
+            N =< 32
+          ),
+          Ns),
+  max_list([12|Ns], Width).
+
+
+
+%! interface:help_text_width(+FlagWidth, -TextWidth) is det.
+%
+% Characters available for wrapped help text after the flag column.
+
+interface:help_text_width(FlagWidth, TextWidth) :-
+  console:printing_tty_size(_, Cols),
+  Room is Cols - (FlagWidth + 4),
+  ( Room >= 24
+  -> TextWidth = Room
+  ;  TextWidth = 56
+  ).
+
+
+
+%! interface:print_help_row(+Width, +TextWidth, +Flag, +Lines) is det.
+%
+% Print one option. The description starts at column Width+4.
+
+interface:print_help_row(Width, TextWidth, Flag, Lines) :-
+  interface:help_body(Lines, TextWidth, Body),
+  atom_length(Flag, FL),
+  ( FL =< Width, Body = [First|Rest]
+  -> Pad is Width - FL,
+     format('  ~w', [Flag]),
+     forall(between(1, Pad, _), put_char(' ')),
+     format('  ~w~n', [First]),
+     interface:print_help_cont(Width, Rest)
+  ;  format('  ~w~n', [Flag]),
+     interface:print_help_cont(Width, Body)
+  ).
+
+
+
+%! interface:print_help_cont(+Width, +Lines) is det.
+%
+% Print Lines at the description column.
+
+interface:print_help_cont(Width, Lines) :-
+  Indent is Width + 4,
+  forall(member(Line, Lines),
+         format('~*|~w~n', [Indent, Line])).
+
+
+
+%! interface:help_body(+Lines, +TextWidth, -Body) is det.
+%
+% Body lines to print. A preformatted block is kept intact. A plain
+% sentence is wrapped to TextWidth.
+
+interface:help_body(block(Lines), _, Lines) :- !.
+interface:help_body(plain(Text), TextWidth, Body) :-
+  interface:wrap_line(Text, TextWidth, Body).
+
+
+
+%! interface:wrap_line(+Text, +Width, -Lines) is det.
+%
+% Break Text into lines of at most Width characters, splitting on spaces.
+
+interface:wrap_line(Text, Width, [Text]) :-
+  atom_length(Text, N),
+  N =< Width,
+  !.
+interface:wrap_line(Text, Width, Lines) :-
+  atomic_list_concat(Words, ' ', Text),
+  interface:wrap_words(Words, Width, [], Lines).
+
+
+
+%! interface:wrap_words(+Words, +Width, +Acc, -Lines) is det.
+%
+% Greedy word wrap. Acc is the current line in reverse.
+
+interface:wrap_words([], _, [], []) :- !.
+interface:wrap_words([], _, Acc, [Line]) :-
+  !,
+  reverse(Acc, Words),
+  atomic_list_concat(Words, ' ', Line).
+interface:wrap_words([Word|Words], Width, [], Lines) :-
+  !,
+  atom_length(Word, WL),
+  ( WL > Width
+  -> Lines = [Word|Rest],
+     interface:wrap_words(Words, Width, [], Rest)
+  ;  interface:wrap_words(Words, Width, [Word], Lines)
+  ).
+interface:wrap_words([Word|Words], Width, Acc, Lines) :-
+  reverse(Acc, Current),
+  atomic_list_concat(Current, ' ', Cur),
+  atom_length(Cur, CL),
+  atom_length(Word, WL),
+  Need is CL + 1 + WL,
+  ( Need =< Width
+  -> interface:wrap_words(Words, Width, [Word|Acc], Lines)
+  ;  Lines = [Cur|Rest],
+     interface:wrap_words([Word|Words], Width, [], Rest)
+  ).
 
 
 %! interface:suggest_similar_flag(+Unknown, -Suggestion) is semidet.
