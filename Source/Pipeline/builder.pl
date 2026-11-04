@@ -951,6 +951,7 @@ builder:run_action_with_phases(Action, Repo, Entry, Ctx,
     ebuild_exec:execute_with_progress(Action, Repo, Entry, Ctx, Callback, Outcome),
     retractall(builder:header_slot(ExecLine, _))),
   builder:outcome_to_status(Outcome, FinalStatus),
+  builder:finish_exec_phases(ExecLine, TotalLines, Action, PhaseList, Entry, FinalStatus),
   builder:clear_exec_phase_state(ExecLine),
   ( LogsLine >= 0
   -> with_mutex(build_display,
@@ -1028,6 +1029,75 @@ builder:init_exec_phase_state(ExecLine, [Phase|Rest]) :-
 
 builder:clear_exec_phase_state(ExecLine) :-
   retractall(builder:exec_phase_state(ExecLine, _, _)).
+
+
+%! builder:finish_exec_phases(+ExecLine, +TotalLines, +Action, +PhaseList, +Entry, +FinalStatus) is det.
+%
+% The package line is about to show the outcome. Bring the phase line
+% with it. A binary merge reports `qmerge`, which is not one of the
+% displayed phases, so those phases would otherwise stay at the
+% initial "(0%) 1/N" next to the finished package.
+
+builder:finish_exec_phases(ExecLine, TotalLines, Action, PhaseList, Entry, done) :-
+  !,
+  builder:close_open_phases(ExecLine, PhaseList, done),
+  builder:redraw_exec_line(ExecLine, TotalLines, Action, PhaseList, Entry).
+builder:finish_exec_phases(ExecLine, TotalLines, Action, PhaseList, Entry, failed(_)) :-
+  !,
+  ( builder:phase_already_failed(ExecLine)
+  -> builder:close_open_phases(ExecLine, PhaseList, skipped)
+  ;  builder:close_open_phases(ExecLine, PhaseList, failed)
+  ),
+  builder:redraw_exec_line(ExecLine, TotalLines, Action, PhaseList, Entry).
+builder:finish_exec_phases(ExecLine, TotalLines, Action, PhaseList, Entry, _) :-
+  builder:redraw_exec_line(ExecLine, TotalLines, Action, PhaseList, Entry).
+
+
+%! builder:redraw_exec_line(+ExecLine, +TotalLines, +Action, +PhaseList, +Entry) is det.
+%
+% Re-render the exec line from the phase facts.
+
+builder:redraw_exec_line(ExecLine, TotalLines, Action, PhaseList, Entry) :-
+  builder:collect_phase_states(ExecLine, PhaseList, PhaseStates),
+  with_mutex(build_display,
+    build:update_exec_line(ExecLine, TotalLines, Action, PhaseStates, Entry)).
+
+
+%! builder:phase_already_failed(+ExecLine) is semidet.
+%
+% True when a displayed phase was already recorded as failed.
+
+builder:phase_already_failed(ExecLine) :-
+  builder:exec_phase_state(ExecLine, _, Status),
+  build:is_failed_status(Status),
+  !.
+
+
+%! builder:close_open_phases(+ExecLine, +PhaseList, +Closed) is det.
+%
+% Replace a phase that is still pending, active, or in progress.
+% A phase that already finished (done, stub, skipped, failed) stays.
+
+builder:close_open_phases(_, [], _).
+builder:close_open_phases(ExecLine, [Phase|Rest], Closed) :-
+  ( builder:exec_phase_state(ExecLine, Phase, Status),
+    builder:phase_is_closed(Status)
+  -> true
+  ;  ( retract(builder:exec_phase_state(ExecLine, Phase, _)) -> true ; true ),
+     assertz(builder:exec_phase_state(ExecLine, Phase, Closed))
+  ),
+  builder:close_open_phases(ExecLine, Rest, Closed).
+
+
+%! builder:phase_is_closed(+Status) is semidet.
+%
+% True when Status is a terminal phase state.
+
+builder:phase_is_closed(done) :- !.
+builder:phase_is_closed(stub) :- !.
+builder:phase_is_closed(skipped) :- !.
+builder:phase_is_closed(Status) :-
+  build:is_failed_status(Status).
 
 
 %! builder:stub_all_phases(+Action, +PhaseList, +TotalLines, +ExecLine, +LogsLine, +LogPath) is det.

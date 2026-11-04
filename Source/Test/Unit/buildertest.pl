@@ -1007,3 +1007,48 @@ test(builder_orchestrator_full_coverage, [nondet]) :-
 :- end_tests(builder_submodules_and_orchestrator_full_coverage).
 
 
+% -----------------------------------------------------------------------------
+%  A finished install closes phases the callback never named
+% -----------------------------------------------------------------------------
+
+:- begin_tests(builder_exec_phase_finish).
+
+test(pending_phases_close_done, [cleanup(retractall(builder:exec_phase_state(99, _, _)))]) :-
+  Phases = [clean, setup, unpack, prepare, configure, compile, install, merge],
+  builder:init_exec_phase_state(99, Phases),
+  builder:close_open_phases(99, Phases, done),
+  builder:collect_phase_states(99, Phases, States),
+  maplist([_-done]>>true, States).
+
+test(closed_phase_is_kept, [cleanup(retractall(builder:exec_phase_state(99, _, _)))]) :-
+  Phases = [clean, setup, merge],
+  builder:init_exec_phase_state(99, Phases),
+  retract(builder:exec_phase_state(99, clean, _)),
+  assertz(builder:exec_phase_state(99, clean, done)),
+  retract(builder:exec_phase_state(99, setup, _)),
+  assertz(builder:exec_phase_state(99, setup, stub)),
+  builder:close_open_phases(99, Phases, done),
+  builder:exec_phase_state(99, clean, done),
+  builder:exec_phase_state(99, setup, stub),
+  builder:exec_phase_state(99, merge, done).
+
+test(unmarked_failure_fails_open_phases, [cleanup(retractall(builder:exec_phase_state(99, _, _)))]) :-
+  Phases = [clean, merge],
+  builder:init_exec_phase_state(99, Phases),
+  \+ builder:phase_already_failed(99),
+  builder:close_open_phases(99, Phases, failed),
+  builder:exec_phase_state(99, clean, failed),
+  builder:exec_phase_state(99, merge, failed).
+
+test(recorded_failure_skips_the_rest, [cleanup(retractall(builder:exec_phase_state(99, _, _)))]) :-
+  Phases = [clean, compile, merge],
+  builder:init_exec_phase_state(99, Phases),
+  retract(builder:exec_phase_state(99, compile, _)),
+  assertz(builder:exec_phase_state(99, compile, failed(1))),
+  builder:phase_already_failed(99),
+  builder:close_open_phases(99, Phases, skipped),
+  builder:exec_phase_state(99, clean, skipped),
+  builder:exec_phase_state(99, compile, failed(1)),
+  builder:exec_phase_state(99, merge, skipped).
+
+:- end_tests(builder_exec_phase_finish).
