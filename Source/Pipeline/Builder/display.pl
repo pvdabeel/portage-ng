@@ -150,13 +150,9 @@ display:rule_file_info(rule(Repo://Entry:Action?{Ctx}, _Body), _Distdir, LineOff
   -> true
   ;  LogPath = ''
   ),
-  ( catch(config:show_build_logs(true), _, fail)
-  -> LogsLine is ExecLine + ExecLineCount,
-     SubInfo = phases(ExecLine, ExecLineCount, LogsLine, PhaseList, LogPath),
-     Lines is 1 + ConfCount + ExecLineCount + 1
-  ;  SubInfo = phases(ExecLine, ExecLineCount, -1, PhaseList, LogPath),
-     Lines is 1 + ConfCount + ExecLineCount
-  ).
+  LogsLine is ExecLine + ExecLineCount,
+  SubInfo = phases(ExecLine, ExecLineCount, LogsLine, PhaseList, LogPath),
+  Lines is 1 + ConfCount + ExecLineCount + 1.
 
 display:rule_file_info(_, _, _, no_files, 1).
 

@@ -346,9 +346,8 @@ test(null_sink_prefixes_helper) :-
 
 test(log_sink_prefixes_helper) :-
   ebuild_exec:ebuild_argv(log('/tmp/x.log'), ebuild, '/tmp/x.ebuild', ["compile"],
-                          path(sh), Argv, []),
-  Argv = ['-c', _Script, '_', python3, Helper, ebuild, '/tmp/x.ebuild',
-          '/tmp/x.log', "compile"],
+                          path(python3), Argv, []),
+  Argv = [Helper, ebuild, '--skip-manifest', '/tmp/x.ebuild', "compile"],
   atom_concat(_, 'exec-unblocked', Helper).
 
 test(helper_clears_sigint_mask) :-

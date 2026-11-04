@@ -571,7 +571,8 @@ At the end of a build, the printer renders one block per mechanism
 that applied fixups, using the mechanism's own note:
 
 ```
-Total: 46 completed.
+Total: Executed 46 actions (46 reinstall), grouped into 46 steps.
+       0.00 Kb downloaded.
 
 Deconfliction: collision protection was disabled to merge 1 package over
                files owned by other installed packages (portage-ng#90):
@@ -729,11 +730,11 @@ portage-ng shows progress at multiple levels:
 
 ### Log file locations
 
-Each build action writes its output to a log file.  The path is
-computed from the build log directory (`config:build_log_dir/1`) and
-the ebuild name.  When `--logs` is enabled, the log path is displayed
-below the phase line for each slot.  If a phase fails, the log path
-turns red so you can quickly find the relevant output.
+Each build action appends its output to a log file under
+`config:build_log_dir/1` (by default `/var/tmp/portage-ng/logs`). The
+live display prints that path on the `LOG` line under the phases.
+Merge output stays in the file, so it does not tear the progress
+display.
 
 ### Terminal refresh
 

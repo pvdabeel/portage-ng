@@ -166,16 +166,13 @@ build:print_skipped_exec_and_logs(_Action, PhaseList, LogPath) :-
   maplist([P, P-pending]>>true, PhaseList, PhaseStates),
   build:render_phases_wrapped(PhaseStates),
   message:color(normal),
-  ( catch(config:show_build_logs(true), _, fail)
-  -> nl,
-     build:exec_continuation_prefix,
-     message:bubble(darkgray, 'LOG'),
-     message:print(' = '),
-     message:color(darkgray),
-     message:print(LogPath),
-     message:color(normal)
-  ;  true
-  ).
+  nl,
+  build:exec_continuation_prefix,
+  message:bubble(darkgray, 'LOG'),
+  message:print(' = '),
+  message:color(darkgray),
+  message:print(LogPath),
+  message:color(normal).
 
 
 % -----------------------------------------------------------------------------
@@ -249,78 +246,81 @@ build:render_slot(stub, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
 
 %! build:print_slot_label(+Status, +Action, +RepoEntry) is det.
 %
-% Action name and package column. The plan target (`run`) is a bubble,
-% the same mark the pretend plan uses. Every other action stays plain.
+% Action name and package column. The plan target (`run`) is a green
+% bubble with a bold green package. Every other action is cyan with a
+% green package, the same colours the pretend plan uses.
 
 build:print_slot_label(Status, Action, RepoEntry) :-
-  build:print_slot_action(Status, Action),
+  build:print_slot_action(Status, Action, RepoEntry),
   build:print_slot_entry(Status, Action, RepoEntry).
 
 
-%! build:print_slot_action(+Status, +Action) is det.
+%! build:print_slot_action(+Status, +Action, +RepoEntry) is det.
 %
-% `run` is bubbled. Pending and skipped bubbles are dark gray; a live
-% or finished target uses the plan's green bubble.
+% The plan target is a green bubble. Every other action, including a
+% `run` that is only a dependency, is cyan once it runs. Pending and
+% skipped stay dark gray. The colour atom is written literally:
+% message:color/1 only emits ANSI for a compile-time atom.
 
-build:print_slot_action(Status, run) :-
+build:print_slot_action(Status, Action, RepoEntry) :-
+  build:slot_is_target(RepoEntry, Action),
   !,
-  build:target_bubble_color(Status, Color),
-  message:bubble(Color, run).
-build:print_slot_action(Status, Action) :-
-  build:plain_action_color(Status, Color),
-  message:color(Color),
+  ( memberchk(Status, [pending, skipped])
+  -> message:bubble(darkgray, Action)
+  ;  message:bubble(green, Action)
+  ).
+build:print_slot_action(pending, Action, _) :-
+  !,
+  message:color(darkgray),
+  message:print(Action).
+build:print_slot_action(skipped, Action, _) :-
+  !,
+  message:color(darkgray),
+  message:print(Action).
+build:print_slot_action(_, Action, _) :-
+  message:color(cyan),
   message:print(Action).
 
 
-%! build:target_bubble_color(+Status, -Color) is det.
+%! build:slot_is_target(+RepoEntry, +Action) is semidet.
 %
-% Bubble colour for the `run` target.
+% True when this slot is one of the packages the user asked to build.
+% Registered by the builder from the resolved print target. A dependency
+% whose action happens to be `run` is not a target.
 
-build:target_bubble_color(pending, darkgray) :- !.
-build:target_bubble_color(skipped, darkgray) :- !.
-build:target_bubble_color(_, green).
-
-
-%! build:plain_action_color(+Status, -Color) is det.
-%
-% Colour of a non-target action name.
-
-build:plain_action_color(pending, darkgray) :- !.
-build:plain_action_color(skipped, darkgray) :- !.
-build:plain_action_color(_, cyan).
+build:slot_is_target(Repo://Entry, Action) :-
+  current_predicate(builder:plan_target/3),
+  builder:plan_target(Repo, Entry, Action),
+  !.
 
 
 %! build:print_slot_entry(+Status, +Action, +RepoEntry) is det.
 %
-% Package column. A live `run` target is bold green, matching the plan.
+% Package column. The plan target is bold green. Every other running
+% action is green. Pending and skipped stay dark gray.
 
-build:print_slot_entry(Status, Action, RepoEntry) :-
-  ( build:entry_is_bold(Status, Action)
-  -> message:style(bold)
-  ;  true
-  ),
-  build:entry_color(Status, Color),
-  message:color(Color),
+build:print_slot_entry(pending, _, RepoEntry) :-
+  !,
+  message:color(darkgray),
+  message:column(24, RepoEntry),
+  message:color(normal).
+build:print_slot_entry(skipped, _, RepoEntry) :-
+  !,
+  message:color(darkgray),
+  message:column(24, RepoEntry),
+  message:color(normal).
+build:print_slot_entry(_, Action, RepoEntry) :-
+  build:slot_is_target(RepoEntry, Action),
+  !,
+  message:style(bold),
+  message:color(green),
   message:column(24, RepoEntry),
   message:style(normal),
   message:color(normal).
-
-
-%! build:entry_is_bold(+Status, +Action) is semidet.
-%
-% The finished or in-progress plan target is printed bold.
-
-build:entry_is_bold(Status, run) :-
-  \+ memberchk(Status, [pending, skipped]).
-
-
-%! build:entry_color(+Status, -Color) is det.
-%
-% Package-name colour for a slot.
-
-build:entry_color(pending, darkgray) :- !.
-build:entry_color(skipped, darkgray) :- !.
-build:entry_color(_, green).
+build:print_slot_entry(_, _, RepoEntry) :-
+  message:color(green),
+  message:column(24, RepoEntry),
+  message:color(normal).
 
 
 %! build:next_spinner_tick(+Key, -Tick) is det.
@@ -563,15 +563,7 @@ build:render_file_content(progress(Pct, Speed), Filename, Size, _Distdir) :-
   message:color(normal),
   message:print(' '),
   message:print(Filename),
-  message:color(cyan),
-  format('  ~d%%', [Pct]),
-  ( Speed > 0
-  -> message:color(darkgray),
-     message:convert_bytes(Speed, SpeedStr),
-     format('  ~w/s', [SpeedStr])
-  ;  true
-  ),
-  message:color(normal).
+  build:right_edge_download(Pct, Speed).
 
 build:render_file_content(progress(Pct), Filename, Size, Distdir) :-
   build:render_file_content(progress(Pct, 0), Filename, Size, Distdir).
@@ -724,14 +716,11 @@ build:print_exec_and_logs(_Action, PhaseList, LogPath) :-
   message:bubble(darkgray, 'ACTION'),
   message:print(' = '),
   build:render_inline_phases_wrapped(PhaseStates),
-  ( catch(config:show_build_logs(true), _, fail)
-  -> nl,
-     build:exec_continuation_prefix,
-     message:bubble(darkgray, 'LOG'),
-     message:print(' = '),
-     build:render_log_name(LogPath, pending)
-  ;  true
-  ).
+  nl,
+  build:exec_continuation_prefix,
+  message:bubble(darkgray, 'LOG'),
+  message:print(' = '),
+  build:render_log_name(LogPath, pending).
 
 
 % -----------------------------------------------------------------------------
@@ -1156,6 +1145,24 @@ build:accumulate_duration([_|Ps], [W|Ws], D0, Done, L0, Left) :-
   build:accumulate_duration(Ps, Ws, D0, Done, L1, Left).
 
 
+%! build:right_edge_download(+Pct, +Speed) is det.
+%
+% Download percentage at the right edge, the same place an install
+% shows its phase percentage. Speed is bytes per second, or 0.
+
+build:right_edge_download(Pct, Speed) :-
+  ( Speed > 0
+  -> message:convert_bytes(Speed, SpeedStr),
+     format(atom(Label), '(~d%)  ~w/s', [Pct, SpeedStr])
+  ;  format(atom(Label), '(~d%)', [Pct])
+  ),
+  atom_length(Label, Len),
+  message:at_right_edge(Len,
+    ( message:color(cyan),
+      message:print(Label),
+      message:color(normal) )).
+
+
 %! build:right_edge_progress(+AccPct, +Current, +LiveTotal, +Remain) is det.
 %
 % Print "(AccPct%) Current/LiveTotal" at the right edge of the terminal.
@@ -1276,19 +1283,95 @@ build:count_phase_lines([Phase|Rest], StartCol, TermWidth, Col, Acc, N) :-
 %  Summary
 % =============================================================================
 
-%! build:summary(+Completed, +Failed, +Stubs) is det.
+%! build:print_emerging(+Header) is det.
 %
-% Print a summary line at the end of the build.
+% The same `>>> Emerging` line the pretend plan prints, above the live
+% display.
 
-build:summary(Completed, Failed, Stubs) :-
+build:print_emerging(Header) :-
+  is_list(Header),
+  Header \== [],
+  !,
   nl,
-  format('Total: ', []),
-  build:summary_collect(Completed, Failed, Stubs, Parts),
-  build:print_summary_parts(Parts),
-  format('.~n~n', []),
+  message:header('Emerging ', Header).
+build:print_emerging(Header) :-
+  nl,
+  message:header('Emerging ', [Header]).
+
+
+%! build:summary(+Plan, +PreActions, +Failed, +Stubs) is det.
+%
+% Closing lines in the pretend footer's shape. Counts are the actions
+% the plan footer counts (a world register is not one of them). Bytes
+% are what this run fetched.
+
+build:summary(Plan, PreActions, Failed, Stubs) :-
+  nl,
+  plan:footer_stats_from_plan(Plan, S0),
+  plan:footer_add_pre_actions(PreActions, S0, S),
+  plan:pluralize(S.actions, action, actions, ActionWord),
+  build:counted_steps(Plan, PlanSteps),
+  ( PreActions == [] -> Steps = PlanSteps ; Steps is PlanSteps + 1 ),
+  plan:pluralize(Steps, step, steps, StepWord),
+  plan:footer_action_breakdown(S, Breakdown),
+  format('Total: Executed ~d ~w (~w), grouped into ~d ~w.',
+         [S.actions, ActionWord, Breakdown, Steps, StepWord]),
+  ( Failed > 0
+  -> format(' ~d failed.', [Failed])
+  ;  true
+  ),
+  ( Stubs > 0
+  -> format(' ~d stubbed.', [Stubs])
+  ;  true
+  ),
+  nl,
+  build:summary_download_line(S),
+  nl,
   build:print_fixup_summary,
   ( catch(warning:print_discovered_bugreport_drafts, _, true) -> true ; true ),
   flush_output.
+
+
+
+%! build:summary_download_line(+Stats) is det.
+%
+% Second summary line. Stats is the pretend footer dict.
+
+build:summary_download_line(S) :-
+  AlreadyDl = S.already_dl,
+  RemainingDl is S.total_dl - AlreadyDl,
+  ( AlreadyDl > 0
+  -> message:convert_bytes(RemainingDl, RemStr),
+     message:convert_bytes(AlreadyDl, AlrStr),
+     format('~7|~w downloaded, ~w already downloaded.~n', [RemStr, AlrStr])
+  ;  message:convert_bytes(S.total_dl, BytesStr),
+     format('~7|~w downloaded.~n', [BytesStr])
+  ).
+
+
+
+%! build:counted_steps(+Plan, -N) is det.
+%
+% Steps that contain an action the pretend footer counts.
+
+build:counted_steps(Plan, N) :-
+  include(build:step_has_counted_action, Plan, Steps),
+  length(Steps, N).
+
+
+
+%! build:step_has_counted_action(+Step) is semidet.
+%
+% True when Step contributes to the pretend action total.
+
+build:step_has_counted_action(Step) :-
+  member(Rule, Step),
+  S0 = stats{actions:0, downloads:0, runs:0, installs:0, updates:0,
+             downgrades:0, reinstalls:0, total_dl:0, already_dl:0},
+  plan:footer_stats_from_rule(Rule, S0, S),
+  S.actions > 0,
+  !.
+
 
 
 %! build:print_fixup_summary is det.
@@ -1334,37 +1417,3 @@ build:print_fixup_mechanism(Mechanism) :-
      message:color(normal),
      nl
   ).
-
-
-build:summary_collect(Completed, Failed, Stubs, Parts) :-
-  ( Completed > 0 -> CP = [completed-Completed] ; CP = [] ),
-  ( Failed > 0    -> FP = [failed-Failed]       ; FP = [] ),
-  ( Stubs > 0     -> SP = [stubs-Stubs]         ; SP = [] ),
-  append([CP, FP, SP], Parts).
-
-build:print_summary_parts([]).
-
-build:print_summary_parts([Label-Count]) :-
-  build:print_summary_one(Label, Count).
-
-build:print_summary_parts([Label-Count, Last]) :-
-  build:print_summary_one(Label, Count),
-  format(' and ', []),
-  build:print_summary_parts([Last]).
-
-build:print_summary_parts([Label-Count, B, C | Rest]) :-
-  build:print_summary_one(Label, Count),
-  format(', ', []),
-  build:print_summary_parts([B, C | Rest]).
-
-build:print_summary_one(completed, N) :-
-  message:color(green), format('~d', [N]), message:color(normal),
-  format(' completed', []).
-
-build:print_summary_one(failed, N) :-
-  message:color(red), format('~d', [N]), message:color(normal),
-  format(' failed', []).
-
-build:print_summary_one(stubs, N) :-
-  message:color(darkgray), format('~d', [N]), message:color(normal),
-  format(' stubs', []).

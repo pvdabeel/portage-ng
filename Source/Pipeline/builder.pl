@@ -40,6 +40,7 @@ supporting concerns are split into sibling modules:
 :- dynamic builder:slot_outcome/2.
 :- dynamic builder:exec_phase_state/3.
 :- dynamic builder:header_slot/2.
+:- dynamic builder:plan_target/3.
 :- dynamic builder:last_build_status/3.
 :- dynamic builder:last_failed/3.
 
@@ -106,7 +107,13 @@ builder:build_loop(Goals, Attempt) :-
      ( PreCount > 0 -> PreSteps = 1 ; PreSteps = 0 ),
      StartStep is PreSteps + 1,
      feedback:learned_count(Before),
-     builder:run_plan(Plan, StartStep, [pre_actions(PreActions)],
+     ( plan:resolve_print_target(Goals, ProofAVL, TargetPrint, EmergingHeader)
+     -> builder:note_plan_targets(TargetPrint),
+        RunOpts = [pre_actions(PreActions), emerging(EmergingHeader)]
+     ;  builder:note_plan_targets([]),
+        RunOpts = [pre_actions(PreActions)]
+     ),
+     builder:run_plan(Plan, StartStep, RunOpts,
                       _Completed, Failed, _Stubs),
      feedback:learned_count(After),
      ( builder:should_replan(Attempt, Failed, Before, After)
@@ -289,6 +296,10 @@ builder:run_plan(Plan, StartStep, Opts, Completed, Failed, Stubs) :-
   TotalActions is PlanActions + PreCount,
   builder:count_nonempty_steps(Plan, 0, PlanSteps),
   NumSteps is PlanSteps + PreSteps,
+  ( memberchk(emerging(EmergingHeader), Opts)
+  -> build:print_emerging(EmergingHeader)
+  ;  true
+  ),
   build:header(NumSteps, TotalActions),
   display:print_pre_action_step(PreActions, PreSteps),
   builder:apply_kernel_config_pre_actions(PreActions),
@@ -304,7 +315,7 @@ builder:run_plan(Plan, StartStep, Opts, Completed, Failed, Stubs) :-
   -> resume:clear_state
   ;  true
   ),
-  build:summary(Completed, Failed, Stubs),
+  build:summary(Plan, PreActions, Failed, Stubs),
   retractall(builder:last_build_status(_, _, _)),
   assertz(builder:last_build_status(Completed, Failed, Stubs)),
   builder:alert.
@@ -394,6 +405,31 @@ builder:spin_header(ExecLine) :-
   !,
   build:update_slot(LineOff, TotalLines, active, PlanStep, NumSteps, ActionIdx, Action, RepoEntry).
 builder:spin_header(_ExecLine).
+
+
+%! builder:note_plan_targets(+TargetPrint) is det.
+%
+% Remember the packages the user asked to build. Only those slots are
+% drawn as the green target bubble. TargetPrint is one literal or a list.
+
+builder:note_plan_targets(TargetPrint) :-
+  retractall(builder:plan_target(_, _, _)),
+  ( is_list(TargetPrint) -> Terms = TargetPrint ; Terms = [TargetPrint] ),
+  forall(member(Term, Terms), builder:note_one_target(Term)).
+
+
+%! builder:note_one_target(+Term) is det.
+%
+% Record one resolved target literal. Other shapes are ignored.
+
+builder:note_one_target(Repo://(Entry:Action?{_})) :-
+  !,
+  assertz(builder:plan_target(Repo, Entry, Action)).
+builder:note_one_target(Repo://Entry:Action?{_}) :-
+  !,
+  assertz(builder:plan_target(Repo, Entry, Action)).
+builder:note_one_target(_).
+
 
 
 %! builder:ask_confirmation is semidet.

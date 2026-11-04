@@ -1076,10 +1076,9 @@ test(build_printer_full_coverage, [nondet]) :-
             retractall(config:interface_printing_style(_)))),
         fixup:record(collision, 'bcat/bpkg-1.0', collision_protect),
         fixup:record(custom_mech, 'bcat/bpkg-1.0', detail),
-        build:summary(0, 0, 0),
-        build:summary(1, 0, 0),
-        build:summary(1, 1, 0),
-        build:summary(1, 1, 1),
+        build:summary([], [], 0, 0),
+        build:summary([], [], 1, 0),
+        build:summary([], [], 1, 1),
         fixup:clear
       )),
     ( retractall(config:show_build_logs(true)),
@@ -1292,15 +1291,27 @@ test(time_weighted_eta_uses_sibling_version) :-
 % The plan target is a bubble. Other actions stay plain text.
 test(run_target_is_bubbled) :-
   setup_call_cleanup(
-    asserta(console:powerline_bubbles_cached(false)),
+    ( asserta(console:powerline_bubbles_cached(false)),
+      assertz(builder:plan_target(portage, 'app-editors/vim-1', run))
+    ),
     ( with_output_to(string(Run),
         build:render_slot(done, 2, 2, 0, run, portage://'app-editors/vim-1')),
+      with_output_to(string(Dep),
+        build:render_slot(done, 1, 2, 0, run, portage://'dev-lang/lua-1')),
       with_output_to(string(Inst),
         build:render_slot(done, 1, 2, 0, reinstall, portage://'app-editors/vim-1')),
       once(sub_string(Run, _, _, _, '<run>')),
+      once(sub_string(Run, _, _, _, "\e[32m")),
+      once(sub_string(Run, _, _, _, "\e[01m")),
+      \+ sub_string(Dep, _, _, _, '<run>'),
+      once(sub_string(Dep, _, _, _, "\e[36m")),
+      once(sub_string(Inst, _, _, _, "\e[36m")),
+      once(sub_string(Inst, _, _, _, "\e[32m")),
       \+ sub_string(Inst, _, _, _, '<reinstall>')
     ),
-    retractall(console:powerline_bubbles_cached(_))
+    ( retractall(console:powerline_bubbles_cached(_)),
+      retractall(builder:plan_target(_, _, _))
+    )
   ).
 
 % Each active redraw takes the next braille frame. Frame 0 is the

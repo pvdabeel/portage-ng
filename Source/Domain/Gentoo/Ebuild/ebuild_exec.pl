@@ -25,6 +25,7 @@ merge/VDB code.
 :- module(ebuild_exec, []).
 
 :- dynamic ebuild_exec:resuming/0.
+:- dynamic ebuild_exec:child_log/2.
 
 :- mutex_create(portage_pkg_merge).
 
@@ -475,11 +476,10 @@ ebuild_exec:start_phase_async(EbuildPath, Phase, LogPath, UseString, ExtraEnv, P
 %
 % Sink selects where the child's stdout/stderr go:
 %   * null          -- discarded
-%   * log(LogPath)  -- appended to LogPath through a fixed `sh -c` script
-%                      whose variable parts (command, ebuild, log, phases)
-%                      all arrive as positional parameters, so no path or
-%                      phase name is ever interpolated into shell syntax
-%                      (sanitize argv contract).
+%   * log(LogPath)  -- appended to LogPath. The log is opened here and
+%                      passed as the child's stdout and stderr, so merge
+%                      output cannot reach the terminal. close_child_log/1
+%                      closes that stream after the child exits.
 %
 % Both sinks exec through Source/Domain/Gentoo/Ebuild/exec-unblocked so
 % the child does not inherit the SWI worker-thread SIGINT mask (netkit
@@ -491,6 +491,23 @@ ebuild_exec:start_phase_async(EbuildPath, Phase, LogPath, UseString, ExtraEnv, P
 % serial-make MAKEOPTS override; env overrides make.conf in Portage's
 % config stack).
 
+ebuild_exec:spawn_ebuild(EbuildPath, Phases, log(LogPath), UseString, ExtraEnv, Pid) :-
+  !,
+  config:ebuild_command(EbuildCmd),
+  maplist(atom_string, Phases, PhaseStrs),
+  subprocess:noninteractive_git_env(GitEnv),
+  ebuild_exec:prefix_env(PrefixEnv),
+  append([['USE'=UseString|GitEnv], PrefixEnv, ExtraEnv], Env),
+  ebuild_exec:ebuild_argv(log(LogPath), EbuildCmd, EbuildPath, PhaseStrs, Exe, Argv, _),
+  open(LogPath, append, Stream, [type(binary)]),
+  catch(
+    process_create(Exe, Argv,
+      [process(Pid), environment(Env), stdout(stream(Stream)), stderr(stream(Stream))]),
+    Error,
+    ( catch(close(Stream), _, true), throw(Error) )
+  ),
+  assertz(ebuild_exec:child_log(Pid, Stream)).
+
 ebuild_exec:spawn_ebuild(EbuildPath, Phases, Sink, UseString, ExtraEnv, Pid) :-
   config:ebuild_command(EbuildCmd),
   maplist(atom_string, Phases, PhaseStrs),
@@ -499,6 +516,18 @@ ebuild_exec:spawn_ebuild(EbuildPath, Phases, Sink, UseString, ExtraEnv, Pid) :-
   append([['USE'=UseString|GitEnv], PrefixEnv, ExtraEnv], Env),
   ebuild_exec:ebuild_argv(Sink, EbuildCmd, EbuildPath, PhaseStrs, Exe, Argv, SinkOpts),
   process_create(Exe, Argv, [process(Pid), environment(Env)|SinkOpts]).
+
+
+%! ebuild_exec:close_child_log(+Pid) is det.
+%
+% Close the build-log stream attached to Pid, once that child has
+% exited. The child's own writes already landed in the file.
+
+ebuild_exec:close_child_log(Pid) :-
+  ( retract(ebuild_exec:child_log(Pid, Stream))
+  -> catch(close(Stream), _, true)
+  ;  true
+  ).
 
 
 %! ebuild_exec:prefix_env(-Env) is det.
@@ -538,12 +567,11 @@ ebuild_exec:ebuild_argv(null, EbuildCmd, EbuildPath, PhaseStrs,
                         [Helper, EbuildCmd, '--skip-manifest', EbuildPath|PhaseStrs],
                         [stdout(null), stderr(null)]) :-
   ebuild_exec:exec_unblocked(Helper).
-ebuild_exec:ebuild_argv(log(LogPath), EbuildCmd, EbuildPath, PhaseStrs,
-                        path(sh),
-                        ['-c', Script, '_', python3, Helper, EbuildCmd, EbuildPath, LogPath|PhaseStrs],
+ebuild_exec:ebuild_argv(log(_LogPath), EbuildCmd, EbuildPath, PhaseStrs,
+                        path(python3),
+                        [Helper, EbuildCmd, '--skip-manifest', EbuildPath|PhaseStrs],
                         []) :-
-  ebuild_exec:exec_unblocked(Helper),
-  Script = 'py="$1"; helper="$2"; cmd="$3"; ebuild="$4"; log="$5"; shift 5; "$py" "$helper" "$cmd" --skip-manifest "$ebuild" "$@" >>"$log" 2>&1'.
+  ebuild_exec:exec_unblocked(Helper).
 
 
 %! ebuild_exec:poll_phase_progress(+Pid, +Phase, +LogPath, +SizeBefore, +T0, +ExpBytes, +ExpSeconds, :Callback, -ExitCode) is det.
@@ -555,7 +583,8 @@ ebuild_exec:ebuild_argv(log(LogPath), EbuildCmd, EbuildPath, PhaseStrs,
 
 ebuild_exec:poll_phase_progress(Pid, Phase, LogPath, SizeBefore, T0, ExpBytes, ExpSeconds, Callback, ExitCode) :-
   ( subprocess:poll_exit(Pid, EC)
-  -> ExitCode = EC
+  -> ebuild_exec:close_child_log(Pid),
+     ExitCode = EC
   ;  ebuild_exec:log_file_size(LogPath, CurrentSize),
      BytesSoFar is CurrentSize - SizeBefore,
      get_time(Now),
@@ -794,7 +823,10 @@ ebuild_exec:run_phase_logged(EbuildPath, Phase, LogPath, UseString, ExitCode) :-
 
 ebuild_exec:run_phase_logged_unlocked(EbuildPath, Phase, LogPath, UseString, ExitCode) :-
   ebuild_exec:spawn_ebuild(EbuildPath, [Phase], log(LogPath), UseString, [], Pid),
-  process_wait(Pid, exit(ExitCode)).
+  setup_call_cleanup(
+    true,
+    process_wait(Pid, exit(ExitCode)),
+    ebuild_exec:close_child_log(Pid)).
 
 
 %! ebuild_exec:with_portage_pkg_merge_lock(+Phase, :Goal) is det.
@@ -1255,7 +1287,8 @@ ebuild_exec:run_phases_sequential(EbuildPath, Entry, [Phase|Rest], DisplayPhases
 
 ebuild_exec:poll_phase_spinning(Pid, Phase, Callback, ExitCode) :-
   ( subprocess:poll_exit(Pid, EC)
-  -> ExitCode = EC
+  -> ebuild_exec:close_child_log(Pid),
+     ExitCode = EC
   ;  call(Callback, Phase, progress(0)),
      sleep(0.5),
      ebuild_exec:poll_phase_spinning(Pid, Phase, Callback, ExitCode)
