@@ -47,6 +47,10 @@ Source/Test/Unit/interfacetest.pl).
 % resolves the full runtime closure and replaces where needed, which is
 % exactly what proving :run does.
 %
+% 'unmerge' (`-C`) executes the uninstall plan. `--pretend` prints
+% that plan and does not unmerge. Other modes keep the prove-and-print
+% path.
+%
 % 'fetchonly' / 'fetchall' prove the same :run plan as --merge. The
 % preference flag then restricts print and execute to downloads plus
 % configuration pre-actions (unmask / keyword / USE / license). 'fetchall'
@@ -67,7 +71,7 @@ interface:request_handler(bugs,            _,    Args, Options, action:process_b
 interface:request_handler(clear,           _,    _,    _,       kb:clear).
 interface:request_handler(graph,           _,    Args, _,       (action:process_graph(Args), nl)).
 interface:request_handler(deselect,        _,    Args, _,       action:process_deselect(Args)).
-interface:request_handler(unmerge,         _,    Args, Options, action:process_action(uninstall, Args, Options)).
+interface:request_handler(unmerge,         _,    Args, Options, action:process_unmerge(Args, Options)).
 interface:request_handler(depclean,        _,    Args, Options, action:process_action(depclean, Args, Options)).
 interface:request_handler(upgrade,         _,    Args, Options, action:process_upgrade(Args, Options)).
 interface:request_handler(update,          _,    Args, Options, action:process_action(run, Args, Options)).

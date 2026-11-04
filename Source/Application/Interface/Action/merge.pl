@@ -239,14 +239,11 @@ action:execute_world_step([]) :- !.
 
 action:execute_world_step([Rule|Rest]) :-
   ( Rule = rule(Head,_Body),
-    prover:canon_literal(Head, Core, _Ctx),
-    Core = world(Atom):Action ->
-      ( Action == register ->
-          world:register(Atom)
-      ; Action == unregister ->
-          world:unregister(Atom)
-      ; true
-      )
+    prover:canon_literal(Head, Core, Ctx0),
+    Core = world(Atom):Action,
+    memberchk(Action, [register, unregister]) ->
+      ( is_list(Ctx0) -> Ctx = Ctx0 ; Ctx = [] ),
+      builder:execute_world(Action, Atom, Ctx)
   ; true
   ),
   execute_world_step(Rest).

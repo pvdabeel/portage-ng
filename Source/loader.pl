@@ -134,6 +134,7 @@ loader:group(knowledge_modules,
     portage('Source/Knowledge/cache.pl'),
     portage('Source/Knowledge/feedback.pl'),
     portage('Source/Knowledge/repository.pl'),
+    portage('Source/Knowledge/pkgdelta.pl'),
     portage('Source/Application/Mode/routes.pl'),
     portage('Source/Knowledge/knowledgebase.pl'),
     portage('Source/Knowledge/query.pl')]).

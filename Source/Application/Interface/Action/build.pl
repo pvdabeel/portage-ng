@@ -78,6 +78,36 @@ action:process_build(ArgsSets, Options) :-
   ).
 
 
+%! action:process_unmerge(+Args, +Options) is det.
+%
+% `--unmerge` / `-C`. `--pretend` prints the uninstall plan. A
+% standalone run without `--pretend` executes it, including the
+% world-file unregister the plan carries. Other modes keep the
+% prove-and-print path.
+
+action:process_unmerge(Args, Options) :-
+  ( memberchk(pretend(true), Options)
+  ; interface:get_mode(Mode),
+    Mode \== standalone
+  ),
+  !,
+  action:process_action(uninstall, Args, Options).
+action:process_unmerge([], Options) :-
+  !,
+  ignore(message:failure('No targets specified for --unmerge.')),
+  action:exit_on_invalid_targets(Options).
+action:process_unmerge(ArgsSets, Options) :-
+  eapi:substitute_sets(ArgsSets, Args),
+  interface:report_unresolvable_targets(uninstall, Args),
+  action:build_proposal(uninstall, Args, Proposal),
+  !,
+  ( Proposal == []
+  -> action:handle_empty_proposal(ArgsSets, Args, Options)
+  ;  action:run_build_with_ci_guard(Proposal, Options),
+     action:maybe_ci_exit_on_build_failure(Options)
+  ).
+
+
 %! action:run_build_with_ci_guard(+Proposal, +Options) is det.
 %
 % Runs `builder:build/1` with an exception guard. In `--ci` mode any

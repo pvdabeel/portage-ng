@@ -546,6 +546,16 @@ test(grouped_deps_do_not_emit_blank_rows_or_empty_steps) :-
   findall(_, sub_string(Out, _, _, _, '             │ '), Prefs),
   length(Prefs, 1).
 
+test(license_downgrade_names_the_installed_package) :-
+  printer_empty_state(State),
+  Old = pkg://'dev-libs/tree-sitter-0.26.14',
+  Ctx = [replaces(Old), suggestion(accept_license, 'MIT')],
+  Rule = rule(portage://'dev-libs/tree-sitter-0.26.13':downgrade?{Ctx}, []),
+  with_output_to(string(Out), plan:print_element(State, Rule)),
+  once(sub_string(Out, _, _, _, '(replaces ')),
+  once(sub_string(Out, _, _, _, 'pkg://dev-libs/tree-sitter-0.26.14')),
+  once(sub_string(Out, _, _, _, '(license)')).
+
 :- end_tests(printer_plan_head_shapes).
 
 
@@ -1256,6 +1266,7 @@ test(equal_weight_without_history) :-
 test(time_weighted_eta_uses_sibling_version) :-
   Entry = 'zzeta/zzpkg-2.0',
   Sibling = 'zzeta/zzpkg-1.0',
+  retractall(build:phase_clock(Entry, _, _)),
   retractall(phasestats:phase_seconds(Sibling, _, _)),
   retractall(phasestats:phase_seconds(Entry, _, _)),
   retractall(phasestats:forecast_cache(Entry, _, _, _)),
@@ -1282,6 +1293,44 @@ test(time_weighted_eta_uses_sibling_version) :-
   retractall(phasestats:forecast_cache(Entry, _, _, _)),
   retractall(phasestats:forecast_cache(Sibling, _, _, _)),
   retractall(phasestats:cn_entry(_, zzpkg, _)).
+
+test(compile_eta_follows_the_clock_past_the_forecast) :-
+  Entry = 'zzeta/zzpkg-2.0',
+  Sibling = 'zzeta/zzpkg-1.0',
+  States = [setup-done, compile-progress(99), merge-pending],
+  setup_call_cleanup(
+    ( retractall(build:phase_clock(Entry, _, _)),
+      retractall(phasestats:phase_seconds(Sibling, _, _)),
+      retractall(phasestats:phase_seconds(Entry, _, _)),
+      retractall(phasestats:forecast_cache(Entry, _, _, _)),
+      retractall(phasestats:forecast_cache(Sibling, _, _, _)),
+      retractall(phasestats:cn_entry(_, zzpkg, _)),
+      assertz(phasestats:phase_seconds(Sibling, setup, 10.0)),
+      assertz(phasestats:phase_seconds(Sibling, compile, 100.0)),
+      ( phasestats:cn_index_ready
+      -> phasestats:entry_cn(Sibling, Cat, Name),
+         assertz(phasestats:cn_entry(Cat, Name, Sibling))
+      ;  true
+      )
+    ),
+    ( get_time(Now),
+      MidStart is Now - 200,
+      assertz(build:phase_clock(Entry, compile, MidStart)),
+      build:forecast_progress(States, Entry, _, _, _, seconds(Mid)),
+      retractall(build:phase_clock(Entry, _, _)),
+      LateStart is Now - 400,
+      assertz(build:phase_clock(Entry, compile, LateStart)),
+      build:forecast_progress(States, Entry, _, _, _, seconds(Late)),
+      Mid < 90,
+      Mid > 70,
+      Late < Mid
+    ),
+    ( retractall(build:phase_clock(Entry, _, _)),
+      retractall(phasestats:phase_seconds(Sibling, _, _)),
+      retractall(phasestats:forecast_cache(Entry, _, _, _)),
+      retractall(phasestats:forecast_cache(Sibling, _, _, _)),
+      retractall(phasestats:cn_entry(_, zzpkg, _))
+    )).
 
 :- end_tests(build_phase_eta).
 
@@ -1312,6 +1361,20 @@ test(run_target_is_bubbled) :-
     ( retractall(console:powerline_bubbles_cached(_)),
       retractall(builder:plan_target(_, _, _))
     )
+  ).
+
+test(downgrade_names_the_installed_package) :-
+  Old = pkg://'dev-libs/tree-sitter-0.26.8',
+  setup_call_cleanup(
+    assertz(build:slot_replaces(3, 0, Old)),
+    ( with_output_to(string(Text),
+        build:render_slot(done, 3, 7, 0, downgrade,
+                          portage://'dev-libs/tree-sitter-0.26.13')),
+      once(sub_string(Text, _, _, _, '(replaces ')),
+      once(sub_string(Text, _, _, _, 'dev-libs/tree-sitter-0.26.8')),
+      once(sub_string(Text, _, _, _, 'dev-libs/tree-sitter-0.26.13'))
+    ),
+    retractall(build:slot_replaces(_, _, _))
   ).
 
 % Each active redraw takes the next braille frame. Frame 0 is the

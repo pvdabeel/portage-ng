@@ -274,7 +274,9 @@ builder:build_resume :-
 % binpkg index refresh, header, jobserver init, step-at-a-time plan
 % execution, jobserver shutdown, snapshot finalization, VDB
 % reconciliation backstop, resume-state cleanup on success, summary,
-% last_build_status/3 bookkeeping, and the optional terminal alert.
+% last_build_status/3 bookkeeping, the optional terminal alert, and a
+% silent incremental refresh of the pkg facts for packages this plan
+% actually merged or unmerged.
 % Any fix to this sequence (e.g. the planned build exit codes 10-16)
 % lands here exactly once.
 %
@@ -325,6 +327,9 @@ builder:run_plan(Plan, StartStep, Opts, Completed, Failed, Stubs) :-
       snapshot:finalize
     )),
   builder:apply_vdb_reconciliation(Plan, Failed0, Failed, _Missing),
+  % Before clear_state/0: done marks live in the resume file, and a
+  % successful build deletes that file.
+  builder:refresh_pkg_facts(Plan),
   ( Failed =:= 0
   -> resume:clear_state
   ;  true
@@ -333,6 +338,66 @@ builder:run_plan(Plan, StartStep, Opts, Completed, Failed, Stubs) :-
   retractall(builder:last_build_status(_, _, _)),
   assertz(builder:last_build_status(Completed, Failed, Stubs)),
   builder:alert.
+
+
+%! builder:refresh_pkg_facts(+Plan) is det.
+%
+% Brings the loaded pkg facts in line with VDB directories this plan
+% wrote. Only actions that finished (`resume:done/2`) are recorded, and
+% only `install` / `update` / `downgrade` / `reinstall` / `uninstall`.
+% The replaced version of an update or downgrade is removed. Nothing is
+% printed, and profile / GLSA caches are not touched. A build that
+% could not have merged (no `merge` phase, no pkg repository) records
+% nothing.
+
+builder:refresh_pkg_facts(Plan) :-
+  ( builder:reconciliation_should_run(_) ->
+      findall(Op, builder:pkg_change(Plan, Op), Ops),
+      ( Ops == [] ->
+          true
+      ; message:catch_log('pkgdelta:record', pkgdelta:record(Ops))
+      )
+  ;  true
+  ).
+
+
+%! builder:pkg_change(+Plan, -Op) is nondet.
+%
+% Op is one installed-package fact this plan changed. `remove(Entry)`
+% is emitted before `refresh(Entry)` for the same rule, so a reinstall
+% of one version keeps the refresh.
+
+builder:pkg_change(Plan, Op) :-
+  member(Step, Plan),
+  member(Rule, Step),
+  builder:pkg_change_rule(Rule, Op).
+
+builder:pkg_change_rule(rule(Repo://Entry:Action?{Ctx}, _), remove(OldEntry)) :-
+  memberchk(Action, [install, update, downgrade, reinstall]),
+  builder:completed_action(Repo://Entry, Action),
+  memberchk(replaces(_://OldEntry), Ctx),
+  OldEntry \== Entry.
+builder:pkg_change_rule(rule(Repo://Entry:Action?{_Ctx}, _), refresh(Entry)) :-
+  memberchk(Action, [install, update, downgrade, reinstall]),
+  builder:completed_action(Repo://Entry, Action).
+builder:pkg_change_rule(rule(_://Entry:uninstall?{_Ctx}, _), remove(Entry)) :-
+  builder:completed_action(_://Entry, uninstall).
+
+
+%! builder:completed_action(?Entry, ?Action) is nondet.
+%
+% An action that finished in this run. Step completion flushes the mark
+% to the resume file and retracts it, so both stores are consulted.
+% Entry is `Repo://Id`.
+
+builder:completed_action(Entry, Action) :-
+  resume:done(Entry, Action).
+builder:completed_action(Entry, Action) :-
+  resume:state_file(Path),
+  exists_file(Path),
+  catch(resume:load_state(_, _, Done), _, fail),
+  member(done(Entry, Action), Done),
+  \+ resume:done(Entry, Action).
 
 
 %! builder:apply_kernel_config_pre_actions(+PreActions) is det.
@@ -878,6 +943,7 @@ builder:clear_step_state :-
   retractall(builder:slot_outcome(_, _)),
   retractall(builder:header_slot(_, _)),
   build:clear_spinner_ticks,
+  build:clear_replaces,
   fetch:clear_speed_tracking,
   retractall(builder:exec_phase_state(_, _, _)).
 
@@ -923,10 +989,10 @@ builder:execute_build_job(
   builder:dispatch_suggestions(Repo, Entry, Ctx).
 
 builder:execute_build_job(
-    slotted(LineOff, TotalLines, PlanStep, NumSteps, ActionIdx, rule(world(Atom):Action?{_Ctx}, _Body), _FileInfo),
+    slotted(LineOff, TotalLines, PlanStep, NumSteps, ActionIdx, rule(world(Atom):Action?{Ctx}, _Body), _FileInfo),
     _WorkerSlot, result(LineOff, display_handled(done))) :-
   !,
-  builder:execute_world(Action, Atom),
+  builder:execute_world(Action, Atom, Ctx),
   with_mutex(build_display,
     build:update_slot(LineOff, TotalLines, done, PlanStep, NumSteps, ActionIdx, Action, Atom)).
 
@@ -959,13 +1025,14 @@ builder:run_action(Action, Repo, Entry, Ctx, Outcome) :-
   builder:run_binpkg_action(Action, Entry, Ctx, Outcome).
 
 builder:run_action(Action, Repo, Entry, Ctx, Outcome) :-
-  Repo:get_type(eapi),
+  ebuild_exec:runs_ebuild(Action, Repo),
   config:build_phases(Phases), Phases \= [],
   predicate_property(ebuild_exec:execute(_,_,_,_,_), defined),
   !,
   ebuild_exec:execute(Action, Repo, Entry, Ctx, Outcome).
 
-builder:run_action(_Action, Repo, _Entry, _Ctx, Outcome) :-
+builder:run_action(Action, Repo, _Entry, _Ctx, Outcome) :-
+  \+ ebuild_exec:runs_ebuild(Action, Repo),
   Repo:get_type(Type),
   Type \= eapi,
   !,
@@ -1036,6 +1103,7 @@ builder:run_action_with_phases(Action, Repo, Entry, Ctx,
 builder:run_action_with_phases(Action, Repo, Entry, _Ctx,
                                 TotalLines, _ExecLine, _ExecLineCount, _LogsLine, _PhaseList, _LogPath,
                                 LineOff, PlanStep, NumSteps, ActionIdx, Outcome) :-
+  \+ ebuild_exec:runs_ebuild(Action, Repo),
   Repo:get_type(Type),
   Type \= eapi,
   !,
@@ -1048,7 +1116,7 @@ builder:run_action_with_phases(Action, Repo, Entry, _Ctx,
 builder:run_action_with_phases(Action, Repo, Entry, Ctx,
                                 TotalLines, ExecLine, _ExecLineCount, LogsLine, PhaseList, LogPath,
                                 LineOff, PlanStep, NumSteps, ActionIdx, Outcome) :-
-  Repo:get_type(eapi),
+  ebuild_exec:runs_ebuild(Action, Repo),
   config:build_phases(Phases), Phases \= [],
   predicate_property(ebuild_exec:execute_with_progress(_,_,_,_,_,_), defined),
   !,
@@ -1090,6 +1158,10 @@ builder:phase_callback(TotalLines, ExecLine, LogsLine, Action, PhaseList, LogPat
   !,
   ( retract(builder:exec_phase_state(ExecLine, Phase, _)) -> true ; true ),
   assertz(builder:exec_phase_state(ExecLine, Phase, Status)),
+  ( ( Status == active ; Status = progress(_) ) ->
+      build:note_phase_clock(Entry, Phase)
+  ; true
+  ),
   builder:collect_phase_states(ExecLine, PhaseList, PhaseStates),
   with_mutex(build_display,
     ( build:update_exec_line(ExecLine, TotalLines, Action, PhaseStates, Entry),
@@ -1150,16 +1222,19 @@ builder:clear_exec_phase_state(ExecLine) :-
 builder:finish_exec_phases(ExecLine, TotalLines, Action, PhaseList, Entry, done) :-
   !,
   builder:close_open_phases(ExecLine, PhaseList, done),
-  builder:redraw_exec_line(ExecLine, TotalLines, Action, PhaseList, Entry).
+  builder:redraw_exec_line(ExecLine, TotalLines, Action, PhaseList, Entry),
+  build:clear_phase_clocks(Entry).
 builder:finish_exec_phases(ExecLine, TotalLines, Action, PhaseList, Entry, failed(_)) :-
   !,
   ( builder:phase_already_failed(ExecLine)
   -> builder:close_open_phases(ExecLine, PhaseList, skipped)
   ;  builder:close_open_phases(ExecLine, PhaseList, failed)
   ),
-  builder:redraw_exec_line(ExecLine, TotalLines, Action, PhaseList, Entry).
+  builder:redraw_exec_line(ExecLine, TotalLines, Action, PhaseList, Entry),
+  build:clear_phase_clocks(Entry).
 builder:finish_exec_phases(ExecLine, TotalLines, Action, PhaseList, Entry, _) :-
-  builder:redraw_exec_line(ExecLine, TotalLines, Action, PhaseList, Entry).
+  builder:redraw_exec_line(ExecLine, TotalLines, Action, PhaseList, Entry),
+  build:clear_phase_clocks(Entry).
 
 
 %! builder:redraw_exec_line(+ExecLine, +TotalLines, +Action, +PhaseList, +Entry) is det.
@@ -1342,16 +1417,95 @@ builder:maybe_quickpkg_old(_, _).
 
 
 % -----------------------------------------------------------------------------
-%  World action execution (stubs)
+%  World action execution
 % -----------------------------------------------------------------------------
 
-%! builder:execute_world(+Op, +Arg) is det.
+%! builder:execute_world(+Op, +Arg, +Ctx) is det.
 %
-% Stub for world set modifications. Currently a no-op; future
-% implementation will call world:register/1 or world:unregister/1.
+% Writes a finished register or unregister through to the world file.
+% Arg is the atom the user typed. The line stored is `category/name`,
+% taken from Arg when it has both, otherwise from the package the
+% action is anchored to. A register of a package already in @world
+% does not rewrite the file.
 
-builder:execute_world(register, _Arg).
-builder:execute_world(unregister, _Arg).
+builder:execute_world(Op, Arg, Ctx) :-
+  message:catch_log('world', builder:commit_world(Op, Arg, Ctx)).
+
+
+%! builder:commit_world(+Op, +Arg, +Ctx) is det.
+%
+% Applies one world-file change and saves it.
+
+builder:commit_world(register, Arg, Ctx) :-
+  !,
+  builder:apply_world(register, Arg, Ctx).
+builder:commit_world(unregister, Arg, Ctx) :-
+  !,
+  builder:apply_world(unregister, Arg, Ctx).
+builder:commit_world(_, _, _).
+
+
+%! builder:apply_world(+Op, +Arg, +Ctx) is det.
+%
+% Registers or unregisters the `category/name` line and saves the
+% world file. A line that is not `category/name` is reported and
+% left unwritten.
+
+builder:apply_world(Op, Arg, Ctx) :-
+  builder:world_line(Arg, Ctx, Atom),
+  target:arg_category_name(Atom, _, _),
+  !,
+  builder:write_world(Op, Atom).
+builder:apply_world(Op, Arg, _) :-
+  message:warning(['Cannot ', Op, ' ', Arg, ' in @world (no category/name).']).
+
+
+%! builder:write_world(+Op, +Atom) is det.
+%
+% Applies Op to Atom when it changes membership, then saves.
+
+builder:write_world(register, Atom) :-
+  !,
+  ( target:world_has(Atom) ->
+      true
+  ; world:register(Atom),
+    world:save,
+    preference:init_world_entries
+  ).
+builder:write_world(unregister, Atom) :-
+  ( target:world_has(Atom) ->
+      world:unregister(Atom),
+      world:save,
+      preference:init_world_entries
+  ; true
+  ).
+
+
+%! builder:world_line(+Arg, +Ctx, -Atom) is det.
+%
+% Atom is the `category/name` line for a world action. The planned
+% `world_package` marker wins. Otherwise Arg itself, then the package
+% the `after` anchor names.
+
+builder:world_line(_Arg, Ctx, Atom) :-
+  is_list(Ctx),
+  memberchk(world_package(Atom), Ctx),
+  !.
+builder:world_line(Arg, _Ctx, Atom) :-
+  target:arg_category_name(Arg, C, N),
+  !,
+  atomic_list_concat([C, N], '/', Atom).
+builder:world_line(_Arg, Ctx, Atom) :-
+  is_list(Ctx),
+  memberchk(after(Repo://Entry:_Action), Ctx),
+  ( cache:ordered_entry(Repo, Entry, C, N, _)
+  -> true
+  ;  query:search([category(C), name(N)], Repo://Entry)
+  ),
+  atom(C), atom(N),
+  !,
+  atomic_list_concat([C, N], '/', Atom).
+builder:world_line(Arg, _, Arg).
 
 
 % -----------------------------------------------------------------------------

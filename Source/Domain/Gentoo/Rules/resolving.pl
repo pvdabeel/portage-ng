@@ -241,9 +241,14 @@ rule(target(Q, _Arg):fetchonly?{Context}, Conditions) :-
 rule(target(Q, Arg):uninstall?{Context}, Conditions) :-
   !,
   target:resolve_installed_candidate(Q, Repository://Ebuild),
-  ( preference:flag(oneshot) 
-    -> WorldConds = []
-    ;  WorldConds = [world(Arg):unregister?{[after(Repository://Ebuild:uninstall)]}]
+  ( preference:flag(oneshot) ->
+      WorldConds = []
+  ; target:already_in_world(Arg, Repository://Ebuild) ->
+      target:world_action_context(Arg, Repository://Ebuild,
+                                  [after(Repository://Ebuild:uninstall)],
+                                  WorldCtx),
+      WorldConds = [world(Arg):unregister?{WorldCtx}]
+  ; WorldConds = []
   ),
   Conditions = [Repository://Ebuild:uninstall?{Context}|WorldConds].
 
@@ -252,13 +257,15 @@ rule(target(Q, Arg):uninstall?{Context}, Conditions) :-
 %
 % Portage-style merge semantics for a requested target:
 % - prove the run action
-% - then register the original atom in @world (unless --oneshot)
+% - then register the original atom in @world (unless --oneshot,
+%   or the category/name is already a member of @world)
 %
 % Cases to consider: 
 % --exclude:              skip atoms matching config:excluded_atom/1.
 % --update-if-installed:  skip targets of which no version is installed.
 % --noreplace/--selective: skip targets an installed package already
-%                         satisfies (the @world registration still happens).
+%                         satisfies. @world registration still happens
+%                         when that category/name is not a member yet.
 % --nodeps:               resolve target without proving dependencies.
 % --onlydeps:             prove deps only, exclude the target from the plan.
 % --oneshot:              prove the run action, but do not register the
@@ -282,7 +289,10 @@ rule(target(Q, Arg):run?{Context0}, Conditions) :-
     target:query_installed(Q) ->
       ( preference:flag(oneshot) ->
           Conditions = []
-      ;   Conditions = [world(Arg):register?{[]}]
+      ; target:already_in_world(Arg, Repository://Ebuild) ->
+          Conditions = []
+      ; target:world_action_context(Arg, Repository://Ebuild, [], WorldCtx),
+        Conditions = [world(Arg):register?{WorldCtx}]
       )
 
   ; preference:flag(nodeps) ->
@@ -294,8 +304,14 @@ rule(target(Q, Arg):run?{Context0}, Conditions) :-
   ; preference:flag(oneshot) ->
       Conditions = [Repository://Ebuild:run?{Context}]
 
-  ;   Conditions = [Repository://Ebuild:run?{Context},
-                    world(Arg):register?{[after(Repository://Ebuild:run)]}]
+  ; target:already_in_world(Arg, Repository://Ebuild) ->
+      Conditions = [Repository://Ebuild:run?{Context}]
+
+  ;   target:world_action_context(Arg, Repository://Ebuild,
+                                [after(Repository://Ebuild:run)],
+                                WorldCtx),
+      Conditions = [Repository://Ebuild:run?{Context},
+                    world(Arg):register?{WorldCtx}]
   ).
 
 

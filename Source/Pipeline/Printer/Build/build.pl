@@ -27,6 +27,8 @@ the display side of builder execution, while builder.pl handles orchestration.
 % =============================================================================
 
 :- dynamic build:spinner_tick/2.
+:- dynamic build:slot_replaces/3.
+:- dynamic build:phase_clock/3.
 
 % -----------------------------------------------------------------------------
 %  Header
@@ -65,6 +67,7 @@ build:print_job_slots([], _NumSteps) :- !.
 
 build:print_job_slots([slotted(_LineOff, _TotalLines, PlanStep, NumSteps, ActionIdx, rule(Repo://Entry:Action?{Ctx}, _Body), SubInfo)|Rest], _) :-
   !,
+  build:note_replaces(PlanStep, ActionIdx, Action, Ctx),
   build:render_slot(pending, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry),
   ( SubInfo = live_source(_LiveStart)
   -> nl,
@@ -104,6 +107,7 @@ build:print_skipped_slots([], _) :- !.
 
 build:print_skipped_slots([slotted(_LineOff, _TotalLines, PlanStep, NumSteps, ActionIdx, rule(Repo://Entry:Action?{Ctx}, _Body), SubInfo)|Rest], _) :-
   !,
+  build:note_replaces(PlanStep, ActionIdx, Action, Ctx),
   build:render_slot(skipped, PlanStep, NumSteps, ActionIdx, Action, Repo://Entry),
   ( SubInfo = phases(_ExecLine, _ExecLineCount, _LogsLine, PhaseList, LogPath)
   -> nl,
@@ -211,22 +215,22 @@ build:update_slot(Slot, NumSlots, Status, PlanStep, NumSteps, ActionIdx, Action,
 
 build:render_slot(pending, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
   build:print_slot_prefix(PlanStep, ActionIdx),
-  build:print_slot_label(pending, Action, RepoEntry).
+  build:print_slot_label(pending, PlanStep, ActionIdx, Action, RepoEntry).
 
 build:render_slot(active, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
   build:print_slot_prefix(PlanStep, ActionIdx),
-  build:print_slot_label(active, Action, RepoEntry),
+  build:print_slot_label(active, PlanStep, ActionIdx, Action, RepoEntry),
   build:next_spinner_tick(PlanStep-ActionIdx, Tick),
   message:right_edge_spinner(Tick).
 
 build:render_slot(done, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
   build:print_slot_prefix(PlanStep, ActionIdx),
-  build:print_slot_label(done, Action, RepoEntry),
+  build:print_slot_label(done, PlanStep, ActionIdx, Action, RepoEntry),
   message:right_edge_ok.
 
 build:render_slot(failed(_Reason), PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
   build:print_slot_prefix(PlanStep, ActionIdx),
-  build:print_slot_label(failed, Action, RepoEntry),
+  build:print_slot_label(failed, PlanStep, ActionIdx, Action, RepoEntry),
   message:right_edge_fail.
 
 build:render_slot(failed, PlanStep, NumSteps, ActionIdx, Action, RepoEntry) :-
@@ -234,25 +238,27 @@ build:render_slot(failed, PlanStep, NumSteps, ActionIdx, Action, RepoEntry) :-
 
 build:render_slot(skipped, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
   build:print_slot_prefix(PlanStep, ActionIdx),
-  build:print_slot_label(skipped, Action, RepoEntry).
+  build:print_slot_label(skipped, PlanStep, ActionIdx, Action, RepoEntry).
 
 build:render_slot(stub, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
   build:print_slot_prefix(PlanStep, ActionIdx),
-  build:print_slot_label(stub, Action, RepoEntry),
+  build:print_slot_label(stub, PlanStep, ActionIdx, Action, RepoEntry),
   message:color(darkgray),
   message:print(' (stub)'),
   message:color(normal).
 
 
-%! build:print_slot_label(+Status, +Action, +RepoEntry) is det.
+%! build:print_slot_label(+Status, +PlanStep, +ActionIdx, +Action, +RepoEntry) is det.
 %
 % Action name and package column. The plan target (`run`) is a green
 % bubble with a bold green package. Every other action is cyan with a
-% green package, the same colours the pretend plan uses.
+% green package, the same colours the pretend plan uses. An update or
+% downgrade appends the installed package it replaces.
 
-build:print_slot_label(Status, Action, RepoEntry) :-
+build:print_slot_label(Status, PlanStep, ActionIdx, Action, RepoEntry) :-
   build:print_slot_action(Status, Action, RepoEntry),
-  build:print_slot_entry(Status, Action, RepoEntry).
+  build:print_slot_entry(Status, Action, RepoEntry),
+  build:print_replaces(Status, PlanStep, ActionIdx).
 
 
 %! build:print_slot_action(+Status, +Action, +RepoEntry) is det.
@@ -323,6 +329,53 @@ build:print_slot_entry(_, _, RepoEntry) :-
   message:color(normal).
 
 
+%! build:note_replaces(+PlanStep, +ActionIdx, +Action, +Ctx) is det.
+%
+% Remember the installed package an update or downgrade replaces, so
+% every redraw of the slot can print it the way the pretend plan does.
+
+build:note_replaces(PlanStep, ActionIdx, Action, Ctx) :-
+  retractall(build:slot_replaces(PlanStep, ActionIdx, _)),
+  ( memberchk(Action, [update, downgrade]),
+    memberchk(replaces(OldRepo://OldEntry), Ctx)
+  -> assertz(build:slot_replaces(PlanStep, ActionIdx, OldRepo://OldEntry))
+  ;  true
+  ).
+
+
+%! build:clear_replaces is det.
+%
+% Drop remembered replacements at the end of a step.
+
+build:clear_replaces :-
+  retractall(build:slot_replaces(_, _, _)).
+
+
+%! build:print_replaces(+Status, +PlanStep, +ActionIdx) is det.
+%
+% `(replaces <installed>)` after the package column. Pending and
+% skipped stay dark gray. A running slot uses the pretend colours.
+
+build:print_replaces(Status, PlanStep, ActionIdx) :-
+  build:slot_replaces(PlanStep, ActionIdx, Old),
+  !,
+  ( memberchk(Status, [pending, skipped])
+  -> message:color(darkgray),
+     message:print(' (replaces '),
+     message:print(Old),
+     message:print(')'),
+     message:color(normal)
+  ;  message:color(lightgray),
+     message:print(' (replaces '),
+     message:color(green),
+     message:print(Old),
+     message:color(lightgray),
+     message:print(')'),
+     message:color(normal)
+  ).
+build:print_replaces(_, _, _).
+
+
 %! build:next_spinner_tick(+Key, -Tick) is det.
 %
 % Next braille frame for this header. The first draw is frame 0.
@@ -356,7 +409,7 @@ build:clear_spinner_ticks :-
 build:log_slot(active, _, _, _, _, _) :- !.
 build:log_slot(pending, _, _, _, _, _) :- !.
 
-build:log_slot(Status, PlanStep, _NumSteps, _ActionIdx, Action, RepoEntry) :-
+build:log_slot(Status, PlanStep, _NumSteps, ActionIdx, Action, RepoEntry) :-
   build:status_label(Status, Label),
   message:color(normal),
   format('[step ~0f] ', [PlanStep]),
@@ -365,6 +418,12 @@ build:log_slot(Status, PlanStep, _NumSteps, _ActionIdx, Action, RepoEntry) :-
   message:print(Action),
   message:print(' '),
   message:print(RepoEntry),
+  ( build:slot_replaces(PlanStep, ActionIdx, Old)
+  -> message:print(' (replaces '),
+     message:print(Old),
+     message:print(')')
+  ;  true
+  ),
   nl,
   flush_output.
 
@@ -1037,7 +1096,11 @@ build:current_phase_index([_|Rest], N, Current) :-
 % live phase, and `none` otherwise. With stats, AccPct is the share of
 % expected seconds already spent and Left is the expected remainder.
 % A phase with no measurement takes the median of the measured ones.
-% Without stats every live phase weighs the same and Remain is `none`.
+% The live phase's remainder follows the wall clock and, when the
+% phase reports a percentage below 99, the faster of that clock and
+% the percentage, so a compile that outruns or overruns its forecast
+% does not keep showing the same ETA. Without stats every live phase
+% weighs the same and Remain is `none`.
 
 build:forecast_progress(PhaseStates, Entry, AccPct, Current, LiveTotal, Remain) :-
   build:phase_progress(PhaseStates, CountPct, Current, LiveTotal),
@@ -1062,7 +1125,7 @@ build:timed_progress(PhaseStates, Entry, AccPct, Left) :-
   build:phase_durations(Live, Entry, Durations),
   sum_list(Durations, Total),
   Total > 0,
-  build:accumulate_duration(Live, Durations, 0, Done, 0, Left),
+  build:accumulate_duration(Entry, Live, Durations, 0, Done, 0, Left),
   Raw is round((100 * Done) / Total),
   AccPct is min(99, max(0, Raw)).
 
@@ -1123,26 +1186,85 @@ build:median_seconds(List, Median) :-
   ).
 
 
-%! build:accumulate_duration(+Live, +Durations, +Done0, -Done, +Left0, -Left) is det.
+%! build:accumulate_duration(+Entry, +Live, +Durations, +Done0, -Done, +Left0, -Left) is det.
 %
 % Add each phase's duration to the spent total or the remainder.
-% `done` is fully spent. `progress(P)` spends P percent of the duration.
-% Any other live status (active, pending) is still ahead.
+% `done` is fully spent. A live phase with a start time spends time
+% as the wall clock advances. `progress(P)` without a start time
+% spends P percent of the duration. Any other status is still ahead.
 
-build:accumulate_duration([], [], Done, Done, Left, Left).
-build:accumulate_duration([_-done|Ps], [W|Ws], D0, Done, L0, Left) :-
+build:accumulate_duration(_, [], [], Done, Done, Left, Left).
+build:accumulate_duration(Entry, [Phase-Status|Ps], [W|Ws], D0, Done, L0, Left) :-
+  build:phase_time_split(Entry, Phase, Status, W, Spent, Rem),
+  D1 is D0 + Spent,
+  L1 is L0 + Rem,
+  build:accumulate_duration(Entry, Ps, Ws, D1, Done, L1, Left).
+
+
+%! build:phase_time_split(+Entry, +Phase, +Status, +Weight, -Spent, -Remaining) is det.
+%
+% Splits one phase's forecast weight into time already counted and
+% time still ahead.
+
+build:phase_time_split(_, _, done, W, W, 0) :- !.
+build:phase_time_split(Entry, Phase, progress(P), W, Spent, Rem) :-
   !,
-  D1 is D0 + W,
-  build:accumulate_duration(Ps, Ws, D1, Done, L0, Left).
-build:accumulate_duration([_-progress(P)|Ps], [W|Ws], D0, Done, L0, Left) :-
+  build:moving_phase_remaining(Entry, Phase, P, W, Spent, Rem).
+build:phase_time_split(Entry, Phase, active, W, Spent, Rem) :-
   !,
+  build:moving_phase_remaining(Entry, Phase, 0, W, Spent, Rem).
+build:phase_time_split(_, _, _, W, 0, W).
+
+
+%! build:moving_phase_remaining(+Entry, +Phase, +Percent, +Weight, -Spent, -Remaining) is det.
+%
+% Without a start time, Percent of Weight is spent. With a start
+% time, the remainder is `Weight^2 / (Weight + elapsed)`, which
+% counts down through the forecast and keeps falling if the phase
+% runs long. A percentage strictly below 99 may pull that remainder
+% down further when the phase is ahead of the clock. A percentage
+% stuck at the 99 cap is ignored, because that cap is what froze
+% the ETA after the forecast was used up.
+
+build:moving_phase_remaining(Entry, Phase, P, W, Spent, Rem) :-
+  build:phase_clock(Entry, Phase, T0),
+  !,
+  get_time(Now),
+  Elapsed is max(0, Now - T0),
+  ( W > 0 ->
+      ClockRem is (W * W) / (W + Elapsed)
+  ; ClockRem = 0
+  ),
+  ( P > 0, P < 99, Elapsed > 0.5 ->
+      ProgRem is Elapsed * (100 - P) / P,
+      Rem is min(ClockRem, ProgRem)
+  ; Rem = ClockRem
+  ),
+  Spent is max(0, W - Rem).
+build:moving_phase_remaining(_, _, P, W, Spent, Rem) :-
   Frac is max(0, min(100, P)) / 100,
-  D1 is D0 + W * Frac,
-  L1 is L0 + W * (1 - Frac),
-  build:accumulate_duration(Ps, Ws, D1, Done, L1, Left).
-build:accumulate_duration([_|Ps], [W|Ws], D0, Done, L0, Left) :-
-  L1 is L0 + W,
-  build:accumulate_duration(Ps, Ws, D0, Done, L1, Left).
+  Spent is W * Frac,
+  Rem is W * (1 - Frac).
+
+
+%! build:note_phase_clock(+Entry, +Phase) is det.
+%
+% Records the wall-clock start of Phase for Entry, once.
+
+build:note_phase_clock(Entry, Phase) :-
+  ( build:phase_clock(Entry, Phase, _) ->
+      true
+  ; get_time(Now),
+    assertz(build:phase_clock(Entry, Phase, Now))
+  ).
+
+
+%! build:clear_phase_clocks(+Entry) is det.
+%
+% Drops every phase start recorded for Entry.
+
+build:clear_phase_clocks(Entry) :-
+  retractall(build:phase_clock(Entry, _, _)).
 
 
 %! build:right_edge_download(+Pct, +Speed) is det.

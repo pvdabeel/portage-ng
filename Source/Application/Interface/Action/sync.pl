@@ -57,7 +57,7 @@ action:process_sync(Mode, []) :-
   catch(glsa:cache_save, _, true),
   catch(preference:cache_invalidate, _, true),
   action:apply_package_moves,
-  ( Mode == standalone -> kb:save ; true ).
+  action:persist_sync(Mode, []).
 
 action:process_sync(Mode, RepoNames) :-
   forall(member(Name, RepoNames),
@@ -67,7 +67,27 @@ action:process_sync(Mode, RepoNames) :-
   catch(glsa:cache_save, _, true),
   catch(preference:cache_invalidate, _, true),
   action:apply_package_moves,
-  ( Mode == standalone -> kb:save ; true ).
+  action:persist_sync(Mode, RepoNames).
+
+
+%! action:persist_sync(+Mode, +RepoNames) is det.
+%
+% In standalone mode, saves the knowledge base. RepoNames [] is a sync
+% of every repository. When that save includes pkg, the incremental
+% installed-package file is dropped: kb.qlf now matches the VDB walk,
+% and reapplying the file would undo packages installed since the
+% builds that wrote it.
+
+action:persist_sync(Mode, RepoNames) :-
+  ( Mode == standalone ->
+      kb:save,
+      ( ( RepoNames == [] ; memberchk(pkg, RepoNames) ),
+        current_predicate(pkgdelta:clear/0)
+      -> pkgdelta:clear
+      ;  true
+      )
+  ;  true
+  ).
 
 
 %! action:apply_package_moves is det.

@@ -125,7 +125,39 @@ ebuild_exec:features_resolve_test([_ | Rest], State, Out) :-
 % the repository's location and entry metadata.
 
 ebuild_exec:ebuild_path(Repo, Entry, EbuildPath) :-
+  catch(Repo:get_type(vdb), _, fail),
+  !,
+  ebuild_exec:vdb_ebuild_path(Repo, Entry, EbuildPath).
+ebuild_exec:ebuild_path(Repo, Entry, EbuildPath) :-
   Repo:get_ebuild_file(Entry, EbuildPath).
+
+
+
+%! ebuild_exec:runs_ebuild(+Action, +Repo) is semidet.
+%
+% True when Action on Repo is an ebuild CLI invocation. A tree
+% repository is `eapi`. Uninstall of an installed package is a `vdb`
+% entry, and its unmerge still runs through ebuild.
+
+ebuild_exec:runs_ebuild(_, Repo) :-
+  catch(Repo:get_type(eapi), _, fail),
+  !.
+ebuild_exec:runs_ebuild(uninstall, Repo) :-
+  catch(Repo:get_type(vdb), _, fail).
+
+
+
+%! ebuild_exec:vdb_ebuild_path(+Repo, +Entry, -EbuildPath) is semidet.
+%
+% EbuildPath is the ebuild Portage stored in the VDB when Entry was
+% merged: `<vdb>/<category>/<pf>/<pf>.ebuild`.
+
+ebuild_exec:vdb_ebuild_path(Repo, Entry, EbuildPath) :-
+  Repo:get_location(Root),
+  atomic_list_concat([_Category, PF], '/', Entry),
+  os:compose_path(Root, Entry, Dir),
+  atom_concat(PF, '.ebuild', File),
+  os:compose_path(Dir, File, EbuildPath).
 
 
 % =============================================================================

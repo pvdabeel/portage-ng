@@ -180,6 +180,75 @@ target:query_installed(Q) :-
   !.
 
 
+%! target:already_in_world(+Arg, +Entry) is semidet.
+%
+% The category/name Arg names, or the category/name of Entry when Arg
+% is only a package name, is already a member of @world. A merge of a
+% package that is already registered does not need another register
+% action.
+
+target:already_in_world(Arg, Entry) :-
+  target:world_atom(Arg, Entry, Atom),
+  target:world_has(Atom),
+  !.
+
+
+%! target:world_atom(+Arg, +Entry, -Atom) is det.
+%
+% Atom is the `category/name` world-file line for this target.
+
+target:world_atom(Arg, _Entry, Atom) :-
+  target:arg_category_name(Arg, C, N),
+  !,
+  atomic_list_concat([C, N], '/', Atom).
+target:world_atom(_Arg, Repo://Ebuild, Atom) :-
+  query:search([category(C), name(N)], Repo://Ebuild),
+  atom(C), atom(N),
+  !,
+  atomic_list_concat([C, N], '/', Atom).
+target:world_atom(Arg, _, Arg).
+
+
+%! target:arg_category_name(+Arg, -Category, -Name) is semidet.
+%
+% Category and Name parsed from a CLI atom that already contains both.
+
+target:arg_category_name(Arg, C, N) :-
+  atom(Arg),
+  atom_codes(Arg, Codes),
+  phrase(eapi:qualified_target(qualified_target(_, _, C, N, _, _)), Codes),
+  atom(C),
+  atom(N).
+
+
+%! target:world_has(+Atom) is semidet.
+%
+% Atom is a current @world member, either in the live set or in the
+% snapshot taken at startup.
+
+target:world_has(Atom) :-
+  catch(world::entry(Atom), _, fail),
+  !.
+target:world_has(Atom) :-
+  preference:local_world_entry(Atom),
+  !.
+
+
+%! target:world_action_context(+Arg, +Entry, +Extra, -Context) is det.
+%
+% Context for a world register or unregister. Extra holds an `after`
+% anchor when the action follows a merge or uninstall. `world_package`
+% carries the `category/name` line so the build can write the world
+% file even when Arg is only a package name.
+
+target:world_action_context(Arg, Entry, Extra, Context) :-
+  target:world_atom(Arg, Entry, Atom),
+  ( target:arg_category_name(Atom, _, _) ->
+      Context = [world_package(Atom)|Extra]
+  ; Context = Extra
+  ).
+
+
 %! target:target_context(+Context0, -Context) is det.
 %
 % The proof context of a requested target's run literal: Context0 plus

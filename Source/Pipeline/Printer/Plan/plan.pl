@@ -180,6 +180,27 @@ plan:print_newuse_note_if_any(update, Context) :-
   message:color(normal).
 plan:print_newuse_note_if_any(_Action, _Context).
 
+
+%! plan:print_replaces_note(+Action, +Context) is det.
+%
+% Prints `(replaces OldRepo://OldEntry)` when an update or downgrade
+% names the installed package it replaces. Suggestion notes (license,
+% keyword, unmask, USE) are separate clauses and would otherwise hide it.
+
+plan:print_replaces_note(Action, Context) :-
+  memberchk(Action, [update, downgrade]),
+  memberchk(replaces(OldRepo://OldEntry), Context),
+  !,
+  message:color(lightgray),
+  message:print(' (replaces '),
+  message:color(green),
+  message:print(OldRepo://OldEntry),
+  message:color(lightgray),
+  message:print(')'),
+  message:color(normal).
+plan:print_replaces_note(_, _).
+
+
 plan:print_blocker_note_if_any(ps(_, Notes, _), Action, Repository, Entry) :-
   ( ( Action == install ; Action == run ),
     plan:action_phase(Action, Phase),
@@ -531,17 +552,7 @@ plan:print_element(State,rule(Repository://Entry:Action?{Context},_Body)) :-
   message:style(bold),
   message:color(green),
   message:column(24,Repository://Entry),
-  ( memberchk(Action, [update,downgrade]),
-    memberchk(replaces(OldRepo2://OldEntry2), Context)
-  -> message:color(lightgray),
-     message:print(' (replaces '),
-     message:color(green),
-     message:print(OldRepo2://OldEntry2),
-     message:color(lightgray),
-     message:print(')'),
-     message:color(normal)
-  ; true
-  ),
+  plan:print_replaces_note(Action, Context),
   % Ensure inline notes (e.g. blocker annotations) don't inherit the bold style
   % used for target entries.
   message:style(normal),
@@ -564,6 +575,7 @@ plan:print_element(_,rule(Repository://Entry:Action?{Context},_Body)) :-
   message:print(Action),
   message:color(green),
   message:column(24,Repository://Entry),
+  plan:print_replaces_note(Action, Context),
   message:color(darkgray),
   format(atom(Msg), ' (~w)', [KAtom]),
   message:print(Msg),
@@ -583,6 +595,7 @@ plan:print_element(_,rule(Repository://Entry:Action?{Context},_Body)) :-
   message:print(Action),
   message:color(green),
   message:column(24,Repository://Entry),
+  plan:print_replaces_note(Action, Context),
   message:color(darkgray),
   message:print(' (license)'),
   message:color(normal),
@@ -602,6 +615,7 @@ plan:print_element(_,rule(Repository://Entry:Action?{Context},_Body)) :-
   message:print(Action),
   message:color(green),
   message:column(24,Repository://Entry),
+  plan:print_replaces_note(Action, Context),
   message:color(darkgray),
   message:print(' (unmasked)'),
   message:color(normal),
@@ -623,6 +637,7 @@ plan:print_element(_,rule(Repository://Entry:Action?{Context},_Body)) :-
   message:print(Action),
   message:color(green),
   message:column(24,Repository://Entry),
+  plan:print_replaces_note(Action, Context),
   message:color(darkgray),
   message:print(' (USE modified)'),
   message:color(normal),
@@ -638,17 +653,7 @@ plan:print_element(State,rule(Repository://Entry:Action?{Context},_)) :-
   message:print(Action),
   message:color(green),
   message:column(24,Repository://Entry),
-  ( memberchk(Action, [update,downgrade]),
-    memberchk(replaces(OldRepo://OldEntry), Context)
-  -> message:color(lightgray),
-     message:print(' (replaces '),
-     message:color(green),
-     message:print(OldRepo://OldEntry),
-     message:color(lightgray),
-     message:print(')'),
-     message:color(normal)
-  ; true
-  ),
+  plan:print_replaces_note(Action, Context),
   plan:print_blocker_note_if_any(State, Action, Repository, Entry),
   plan:print_newuse_note_if_any(Action, Context),
   message:color(normal),

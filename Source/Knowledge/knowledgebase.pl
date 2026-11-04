@@ -228,7 +228,15 @@ load ::-
   -> % Warm the JIT indexes off the critical path: index building is
      % mutex-protected per predicate, so an early query at worst blocks
      % on the build already in progress.
-     knowledgebase:start_metadata_warmer
+     knowledgebase:start_metadata_warmer,
+     % Builds record VDB changes in Knowledge/pkgdelta.pl instead of
+     % rewriting kb.qlf. Apply that file on top of the loaded facts,
+     % then warn when the directory still disagrees with those facts
+     % (an emerge -C, or any other tool, wrote the VDB directly).
+     ( current_predicate(pkgdelta:apply/0) ->
+         pkgdelta:apply,
+         pkgdelta:warn_external_changes
+     ; true )
   ;  message:warning(['Skipping ', Qlf,
                       ': incompatible with this SWI-Prolog and Knowledge/kb.raw is absent.'])
   ).

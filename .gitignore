@@ -21,6 +21,8 @@ Knowledge/preference.raw
 Knowledge/preference.stamp
 Knowledge/embeddings.pl
 Knowledge/phase_stats.pl
+Knowledge/pkgdelta.pl
+Knowledge/pkgdelta.pl.tmp
 Knowledge/resume.pl
 Knowledge/resume.pl.sha256
 Knowledge/feedback.pl

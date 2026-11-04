@@ -1108,6 +1108,203 @@ test(report_names_the_missing_file) :-
 :- end_tests(builder_missing_ebuild).
 
 
+:- begin_tests(pkg_delta).
+
+test(refresh_replaces_a_remove_of_the_same_entry) :-
+  pkgdelta:normalize([remove('dev-libs/tree-sitter-0.26.13'),
+                      refresh('dev-libs/tree-sitter-0.26.13')],
+                     Removes, Refreshes),
+  Removes == [],
+  Refreshes == ['dev-libs/tree-sitter-0.26.13'].
+
+test(downgrade_keeps_the_old_version_removed) :-
+  pkgdelta:normalize([remove('dev-libs/tree-sitter-0.27.1'),
+                      refresh('dev-libs/tree-sitter-0.26.13')],
+                     Removes, Refreshes),
+  Removes == ['dev-libs/tree-sitter-0.27.1'],
+  Refreshes == ['dev-libs/tree-sitter-0.26.13'].
+
+test(completed_downgrade_names_both_versions,
+     [setup(retractall(resume:done(_, _))),
+      cleanup(retractall(resume:done(_, _)))]) :-
+  New = 'dev-libs/tree-sitter-0.26.13',
+  Old = 'dev-libs/tree-sitter-0.27.1',
+  assertz(resume:done(portage://New, downgrade)),
+  Plan = [[rule(portage://New:downgrade?{[replaces(pkg://Old)]}, [])]],
+  findall(Op, builder:pkg_change(Plan, Op), Ops),
+  memberchk(remove(Old), Ops),
+  memberchk(refresh(New), Ops).
+
+test(install_that_did_not_finish_is_ignored,
+     [setup(retractall(resume:done(_, _))),
+      cleanup(retractall(resume:done(_, _)))]) :-
+  Plan = [[rule(portage://'dev-libs/tree-sitter-0.26.13':install?{[]}, [])]],
+  findall(Op, builder:pkg_change(Plan, Op), Ops),
+  Ops == [].
+
+test(forget_drops_the_package_when_it_was_the_last_version) :-
+  Repo = pkdtest,
+  Entry = 'dev-libs/tree-sitter-0.27.1',
+  setup_call_cleanup(
+    ( assertz(cache:ordered_entry(Repo, Entry, 'dev-libs', 'tree-sitter', version_none)),
+      assertz(cache:package(Repo, 'dev-libs', 'tree-sitter')),
+      assertz(cache:category(Repo, 'dev-libs')),
+      assertz(cache:entry_metadata(Repo, Entry, slot, slot('0')))
+    ),
+    ( pkgdelta:forget_entry(Repo, Entry),
+      \+ cache:ordered_entry(Repo, Entry, _, _, _),
+      \+ cache:entry_metadata(Repo, Entry, _, _),
+      \+ cache:package(Repo, 'dev-libs', 'tree-sitter'),
+      \+ cache:category(Repo, 'dev-libs')
+    ),
+    ( retractall(cache:ordered_entry(Repo, _, _, _, _)),
+      retractall(cache:package(Repo, _, _)),
+      retractall(cache:category(Repo, _)),
+      retractall(cache:entry_metadata(Repo, _, _, _))
+    )).
+
+test(place_version_orders_the_newer_entry_first) :-
+  Repo = pkdtest,
+  Old = 'dev-libs/tree-sitter-0.26.13',
+  New = 'dev-libs/tree-sitter-0.27.1',
+  VOld = version([0, 26, 13], '', 4, 0, [], 0, '0.26.13'),
+  VNew = version([0, 27, 1], '', 4, 0, [], 0, '0.27.1'),
+  setup_call_cleanup(
+    assertz(cache:ordered_entry(Repo, Old, 'dev-libs', 'tree-sitter', VOld)),
+    ( pkgdelta:place_version(Repo, 'dev-libs', 'tree-sitter', New, VNew),
+      findall(Id, cache:ordered_entry(Repo, Id, 'dev-libs', 'tree-sitter', _), Ids),
+      Ids == [New, Old]
+    ),
+    ( retractall(cache:ordered_entry(Repo, _, _, _, _)),
+      retractall(cache:package(Repo, _, _)),
+      retractall(cache:category(Repo, _))
+    )).
+
+test(removal_forgets_a_version_whose_directory_is_gone) :-
+  Repo = pkdtest,
+  Old = 'dev-libs/tree-sitter-0.27.1',
+  Kept = 'dev-libs/tree-sitter-0.26.13',
+  setup_call_cleanup(
+    ( assertz(cache:ordered_entry(Repo, Old, 'dev-libs', 'tree-sitter', version_none)),
+      assertz(cache:ordered_entry(Repo, Kept, 'dev-libs', 'tree-sitter', version_none)),
+      assertz(cache:package(Repo, 'dev-libs', 'tree-sitter')),
+      assertz(cache:category(Repo, 'dev-libs'))
+    ),
+    ( pkgdelta:apply_lists(Repo, [Old], []),
+      \+ cache:ordered_entry(Repo, Old, _, _, _),
+      \+ cache:ordered_entry(Repo, Kept, _, _, _),
+      \+ cache:package(Repo, 'dev-libs', 'tree-sitter')
+    ),
+    ( retractall(cache:ordered_entry(Repo, _, _, _, _)),
+      retractall(cache:package(Repo, _, _)),
+      retractall(cache:category(Repo, _)),
+      retractall(cache:entry_metadata(Repo, _, _, _))
+    )).
+
+test(drift_names_packages_removed_and_installed) :-
+  pkgdelta:vdb_drift(['app-editors/neovim-0.12.6', 'dev-libs/glib-2.0'],
+                     ['app-editors/neovim-0.12.6', 'dev-libs/oldlib-1'],
+                     Gone, Added),
+  Gone == ['dev-libs/oldlib-1'],
+  Added == ['dev-libs/glib-2.0'].
+
+test(disk_entries_are_package_directories) :-
+  tmp_file(vdbdrift, Root),
+  make_directory_path(Root),
+  os:compose_path([Root, 'app-editors', 'neovim-0.12.6'], PkgDir),
+  make_directory_path(PkgDir),
+  os:compose_path([Root, 'app-editors', 'notes'], Notes),
+  make_directory_path(Notes),
+  setup_call_cleanup(
+    ( os:compose_path(Root, 'ignored.txt', File),
+      open(File, write, S), writeln(S, 'x'), close(S)
+    ),
+    ( findall(E, pkgdelta:disk_entry(Root, E), Entries),
+      sort(Entries, Sorted),
+      Sorted == ['app-editors/neovim-0.12.6']
+    ),
+    true).
+
+:- end_tests(pkg_delta).
+
+
+:- dynamic vdbpath_repo:get_type/1.
+:- dynamic vdbpath_repo:get_location/1.
+
+:- begin_tests(vdb_unmerge).
+
+test(installed_ebuild_is_the_vdb_copy) :-
+  tmp_file(vdbpath, Root),
+  make_directory_path(Root),
+  os:compose_path([Root, 'app-editors', 'neovim-0.12.6'], Dir),
+  make_directory_path(Dir),
+  os:compose_path(Dir, 'neovim-0.12.6.ebuild', Ebuild),
+  setup_call_cleanup(
+    ( open(Ebuild, write, S), writeln(S, '# ebuild'), close(S) ),
+    true,
+    true),
+  setup_call_cleanup(
+    ( asserta(vdbpath_repo:get_type(vdb)),
+      asserta(vdbpath_repo:get_location(Root))
+    ),
+    ( ebuild_exec:ebuild_path(vdbpath_repo, 'app-editors/neovim-0.12.6', Path),
+      Path == Ebuild,
+      ebuild_exec:runs_ebuild(uninstall, vdbpath_repo)
+    ),
+    ( retractall(vdbpath_repo:get_type(_)),
+      retractall(vdbpath_repo:get_location(_))
+    )).
+
+test(uninstall_of_a_vdb_entry_calls_ebuild) :-
+  setup_call_cleanup(
+    ( asserta(vdbpath_repo:get_type(vdb)),
+      asserta(vdbpath_repo:get_location('/tmp')),
+      wrap_predicate(ebuild_exec:execute(Action, Repo, Entry, _, Outcome), test_ue, _,
+                     ( Action == uninstall,
+                       Repo == vdbpath_repo,
+                       Entry == 'app-editors/neovim-0.12.6',
+                       Outcome = done(unmerged)
+                     )),
+      wrap_predicate(script:exec(_, _), test_sc, _, throw(script_ran))
+    ),
+    ( builder:run_action(uninstall, vdbpath_repo,
+                         'app-editors/neovim-0.12.6', [], Outcome),
+      Outcome == done(unmerged)
+    ),
+    ( unwrap_predicate(ebuild_exec:execute/5, test_ue),
+      unwrap_predicate(script:exec/2, test_sc),
+      retractall(vdbpath_repo:get_type(_)),
+      retractall(vdbpath_repo:get_location(_))
+    )).
+
+:- end_tests(vdb_unmerge).
+
+
+:- begin_tests(world_register).
+
+test(category_name_already_in_world_is_not_registered_again) :-
+  Atom = 'zzcat/zzpkg',
+  setup_call_cleanup(
+    assertz(preference:local_world_entry(Atom)),
+    ( target:already_in_world(Atom, portage://'zzcat/zzpkg-1'),
+      \+ target:already_in_world('zzcat/zzother', portage://'zzcat/zzother-1')
+    ),
+    retractall(preference:local_world_entry(Atom))
+  ).
+
+test(register_context_carries_the_world_line) :-
+  target:world_action_context('zzcat/zzpkg', portage://'zzcat/zzpkg-1',
+                              [after(portage://'zzcat/zzpkg-1':run)], Ctx),
+  memberchk(world_package('zzcat/zzpkg'), Ctx),
+  memberchk(after(portage://'zzcat/zzpkg-1':run), Ctx).
+
+test(world_line_prefers_the_planned_package) :-
+  builder:world_line(neovim, [world_package('zzcat/zzpkg')], Atom),
+  Atom == 'zzcat/zzpkg'.
+
+:- end_tests(world_register).
+
+
 ebcheck_reset :-
   retractall(ebcheck_repo:get_type(_)),
   retractall(ebcheck_repo:get_ebuild_file(_, _)),

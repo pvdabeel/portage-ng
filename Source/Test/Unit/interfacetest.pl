@@ -171,6 +171,45 @@ test(process_default_client_does_not_build) :-
       unwrap_predicate(builder:build/1, test_bb2)
     )).
 
+test(select_unmerge_executes) :-
+  Opts = [unmerge(true), merge(true)],
+  interface:request_select(standalone, ['app-editors/neovim'], Opts, Flag, Goal),
+  Flag == unmerge,
+  Goal == action:process_unmerge(['app-editors/neovim'], Opts).
+
+test(process_unmerge_pretend_does_not_execute) :-
+  setup_call_cleanup(
+    ( wrap_predicate(action:process_action(Action, Args, Opts), test_up, _,
+                     ( Action == uninstall,
+                       Args == ['app-editors/neovim'],
+                       memberchk(pretend(true), Opts)
+                     )),
+      wrap_predicate(builder:build(_), test_ub, _, throw(built))
+    ),
+    action:process_unmerge(['app-editors/neovim'], [pretend(true)]),
+    ( unwrap_predicate(action:process_action/3, test_up),
+      unwrap_predicate(builder:build/1, test_ub)
+    )).
+
+test(process_unmerge_executes_the_plan) :-
+  Goal = target(none, 'app-editors/neovim'):uninstall?{[]},
+  setup_call_cleanup(
+    ( wrap_predicate(interface:report_unresolvable_targets(_, _), test_ur, _, true),
+      wrap_predicate(action:build_proposal(Action, _, Proposal), test_um, _,
+                     ( Action == uninstall,
+                       Proposal = [Goal]
+                     )),
+      wrap_predicate(builder:build(Goals), test_ub2, _,
+                     Goals == [Goal]),
+      wrap_predicate(action:process_action(_, _, _), test_ua, _, throw(printed))
+    ),
+    action:process_unmerge(['app-editors/neovim'], [unmerge(true)]),
+    ( unwrap_predicate(interface:report_unresolvable_targets/2, test_ur),
+      unwrap_predicate(action:build_proposal/3, test_um),
+      unwrap_predicate(builder:build/1, test_ub2),
+      unwrap_predicate(action:process_action/3, test_ua)
+    )).
+
 test(process_build_pretend_does_not_execute) :-
   setup_call_cleanup(
     ( wrap_predicate(action:process_action(Action, Args, Opts), test_bp, _,

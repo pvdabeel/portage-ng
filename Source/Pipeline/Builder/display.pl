@@ -137,7 +137,7 @@ display:rule_file_info(rule(Repo://Entry:Action?{_Ctx}, _Body), Distdir, LineOff
 
 display:rule_file_info(rule(Repo://Entry:Action?{Ctx}, _Body), _Distdir, LineOff, SubInfo, Lines) :-
   \+ memberchk(Action, [download, fetchonly]),
-  Repo:get_type(eapi),
+  ebuild_exec:runs_ebuild(Action, Repo),
   predicate_property(ebuild_exec:display_phases(_,_,_,_,_), defined),
   catch(ebuild_exec:display_phases(Action, Repo, Entry, Ctx, PhaseList), _, fail),
   PhaseList \= [],
