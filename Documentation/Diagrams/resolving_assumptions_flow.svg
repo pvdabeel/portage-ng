@@ -38,8 +38,8 @@
 </g>
 <g id="clust6" class="cluster">
 <title>cluster_cn_reprove</title>
-<polygon fill="none" stroke="#888888" points="4557,-8 4557,-862.01 4997,-862.01 4997,-8 4557,-8"/>
-<text text-anchor="middle" x="4777" y="-846.61" font-family="Times,serif" font-size="12.00">heuristic.pl + prover.pl : CN&#45;domain reprove retry loop</text>
+<polygon fill="none" stroke="#888888" points="4172,-8 4172,-862.01 4612,-862.01 4612,-8 4172,-8"/>
+<text text-anchor="middle" x="4392" y="-846.61" font-family="Times,serif" font-size="12.00">heuristic.pl + prover.pl : CN&#45;domain reprove retry loop</text>
 </g>
 <g id="clust7" class="cluster">
 <title>cluster_reason</title>
@@ -145,21 +145,21 @@
 <!-- g_select -->
 <g id="node42" class="node">
 <title>g_select</title>
-<polygon fill="none" stroke="black" points="2571.12,-2910.28 2330.88,-2910.28 2330.88,-2810.78 2571.12,-2810.78 2571.12,-2910.28"/>
-<text text-anchor="middle" x="2451" y="-2896.78" font-family="Helvetica,sans-Serif" font-size="10.00">candidate selection (candidate.pl):</text>
-<text text-anchor="middle" x="2451" y="-2885.53" font-family="Helvetica,sans-Serif" font-size="10.00">─────────────────</text>
-<text text-anchor="middle" x="2451" y="-2874.28" font-family="Helvetica,sans-Serif" font-size="10.00">1. explicit slot dep → accepted_keyword_candidate</text>
-<text text-anchor="middle" x="2451" y="-2861.53" font-family="Helvetica,sans-Serif" font-size="10.00">2. selected_cn_candidate_compatible</text>
-<text text-anchor="middle" x="2451" y="-2850.28" font-family="Helvetica,sans-Serif" font-size="10.00"> &#160;&#160;(slot+domain check, CandPreVerified=true)</text>
-<text text-anchor="middle" x="2451" y="-2839.03" font-family="Helvetica,sans-Serif" font-size="10.00">3. accepted_keyword_candidate</text>
-<text text-anchor="middle" x="2451" y="-2827.78" font-family="Helvetica,sans-Serif" font-size="10.00"> &#160;&#160;with lazy inline rejection check</text>
-<text text-anchor="middle" x="2451" y="-2816.53" font-family="Helvetica,sans-Serif" font-size="10.00"> &#160;&#160;(CandPreVerified=false)</text>
+<polygon fill="none" stroke="black" points="2572.12,-2910.28 2331.88,-2910.28 2331.88,-2810.78 2572.12,-2810.78 2572.12,-2910.28"/>
+<text text-anchor="middle" x="2452" y="-2896.78" font-family="Helvetica,sans-Serif" font-size="10.00">candidate selection (candidate.pl):</text>
+<text text-anchor="middle" x="2452" y="-2885.53" font-family="Helvetica,sans-Serif" font-size="10.00">─────────────────</text>
+<text text-anchor="middle" x="2452" y="-2874.28" font-family="Helvetica,sans-Serif" font-size="10.00">1. explicit slot dep → accepted_keyword_candidate</text>
+<text text-anchor="middle" x="2452" y="-2861.53" font-family="Helvetica,sans-Serif" font-size="10.00">2. selected_cn_candidate_compatible</text>
+<text text-anchor="middle" x="2452" y="-2850.28" font-family="Helvetica,sans-Serif" font-size="10.00"> &#160;&#160;(slot+domain check, CandPreVerified=true)</text>
+<text text-anchor="middle" x="2452" y="-2839.03" font-family="Helvetica,sans-Serif" font-size="10.00">3. accepted_keyword_candidate</text>
+<text text-anchor="middle" x="2452" y="-2827.78" font-family="Helvetica,sans-Serif" font-size="10.00"> &#160;&#160;with lazy inline rejection check</text>
+<text text-anchor="middle" x="2452" y="-2816.53" font-family="Helvetica,sans-Serif" font-size="10.00"> &#160;&#160;(CandPreVerified=false)</text>
 </g>
 <!-- t_keyword&#45;&gt;g_select -->
 <g id="edge132" class="edge">
 <title>t_keyword&#45;&gt;g_select</title>
-<path fill="none" stroke="black" stroke-dasharray="5,2" d="M263.47,-3587.03C314.33,-3573.25 389.25,-3555.09 456,-3547.25 478.11,-3544.66 2042.76,-3544.48 2059,-3529.25 2158.15,-3436.25 2044.55,-3354.93 2082,-3224.25 2113.9,-3112.93 2121.37,-3075.63 2203,-2993.5 2236.81,-2959.48 2281.25,-2932.12 2323.15,-2911.33"/>
-<polygon fill="black" stroke="black" points="2324.1,-2913.6 2329.31,-2908.32 2321.94,-2909.19 2324.1,-2913.6"/>
+<path fill="none" stroke="black" stroke-dasharray="5,2" d="M263.47,-3587.03C314.33,-3573.25 389.25,-3555.09 456,-3547.25 478.11,-3544.66 2042.76,-3544.48 2059,-3529.25 2158.15,-3436.25 2044.33,-3354.87 2082,-3224.25 2114.15,-3112.79 2122.08,-3075.64 2204,-2993.5 2237.79,-2959.62 2282.1,-2932.33 2323.91,-2911.54"/>
+<polygon fill="black" stroke="black" points="2324.85,-2913.82 2330.06,-2908.54 2322.69,-2909.42 2324.85,-2913.82"/>
 <text text-anchor="middle" x="2143.5" y="-3235.2" font-family="Helvetica,sans-Serif" font-size="9.00">accepted_keyword_candidate</text>
 <text text-anchor="middle" x="2143.5" y="-3225.45" font-family="Helvetica,sans-Serif" font-size="9.00">accepts ~arch</text>
 </g>
@@ -221,15 +221,15 @@
 <!-- b_assume_blockers -->
 <g id="node20" class="node">
 <title>b_assume_blockers</title>
-<polygon fill="none" stroke="black" points="591,-3182.5 471.55,-3164.5 591,-3146.5 710.45,-3164.5 591,-3182.5"/>
-<text text-anchor="middle" x="591" y="-3160.63" font-family="Helvetica,sans-Serif" font-size="10.00">candidate:assume_blockers?</text>
+<polygon fill="none" stroke="black" points="651,-3182.5 531.55,-3164.5 651,-3146.5 770.45,-3164.5 651,-3182.5"/>
+<text text-anchor="middle" x="651" y="-3160.63" font-family="Helvetica,sans-Serif" font-size="10.00">candidate:assume_blockers?</text>
 </g>
 <!-- t_blockers&#45;&gt;b_assume_blockers -->
 <g id="edge131" class="edge">
 <title>t_blockers&#45;&gt;b_assume_blockers</title>
-<path fill="none" stroke="black" stroke-dasharray="5,2" d="M266.42,-3273.77C341.23,-3248.81 477.27,-3203.44 547.08,-3180.15"/>
-<polygon fill="black" stroke="black" points="547.55,-3182.58 553.42,-3178.04 546,-3177.93 547.55,-3182.58"/>
-<text text-anchor="middle" x="482.43" y="-3230.33" font-family="Helvetica,sans-Serif" font-size="9.00">sets rules_assume_blockers=true</text>
+<path fill="none" stroke="black" stroke-dasharray="5,2" d="M274.76,-3273.77C362.62,-3248.48 523.34,-3202.24 603.26,-3179.24"/>
+<polygon fill="black" stroke="black" points="603.7,-3181.66 609.75,-3177.37 602.34,-3176.95 603.7,-3181.66"/>
+<text text-anchor="middle" x="514.23" y="-3230.33" font-family="Helvetica,sans-Serif" font-size="9.00">sets rules_assume_blockers=true</text>
 </g>
 <!-- t_unmask -->
 <g id="node8" class="node">
@@ -402,71 +402,71 @@
 <!-- b_pkg_strong_uncond -->
 <g id="node16" class="node">
 <title>b_pkg_strong_uncond</title>
-<polygon fill="none" stroke="black" points="1165.12,-3182.5 1026.88,-3182.5 1026.88,-3146.5 1165.12,-3146.5 1165.12,-3182.5"/>
-<text text-anchor="middle" x="1096" y="-3166.25" font-family="Helvetica,sans-Serif" font-size="10.00">unconditional (U == []):</text>
-<text text-anchor="middle" x="1096" y="-3155" font-family="Helvetica,sans-Serif" font-size="10.00">constraint(blocked_cn(C,N))</text>
+<polygon fill="none" stroke="black" points="1176.12,-3182.5 1037.88,-3182.5 1037.88,-3146.5 1176.12,-3146.5 1176.12,-3182.5"/>
+<text text-anchor="middle" x="1107" y="-3166.25" font-family="Helvetica,sans-Serif" font-size="10.00">unconditional (U == []):</text>
+<text text-anchor="middle" x="1107" y="-3155" font-family="Helvetica,sans-Serif" font-size="10.00">constraint(blocked_cn(C,N))</text>
 </g>
 <!-- b_pkg_strong&#45;&gt;b_pkg_strong_uncond -->
 <g id="edge18" class="edge">
 <title>b_pkg_strong&#45;&gt;b_pkg_strong_uncond</title>
-<path fill="none" stroke="black" d="M1231.17,-3267.89C1200.92,-3244.98 1155.13,-3210.29 1125.39,-3187.76"/>
-<polygon fill="black" stroke="black" points="1127.19,-3186.06 1120.13,-3183.79 1124.24,-3189.96 1127.19,-3186.06"/>
-<text text-anchor="middle" x="1211.88" y="-3230.33" font-family="Helvetica,sans-Serif" font-size="9.00">U == []</text>
+<path fill="none" stroke="black" d="M1232.85,-3267.6C1204.76,-3244.81 1162.56,-3210.57 1134.9,-3188.13"/>
+<polygon fill="black" stroke="black" points="1136.69,-3186.44 1129.71,-3183.93 1133.61,-3190.24 1136.69,-3186.44"/>
+<text text-anchor="middle" x="1216.07" y="-3230.33" font-family="Helvetica,sans-Serif" font-size="9.00">U == []</text>
 </g>
 <!-- b_pkg_strong_cond -->
 <g id="node17" class="node">
 <title>b_pkg_strong_cond</title>
-<polygon fill="none" stroke="black" points="1386.38,-3182.5 1183.62,-3182.5 1183.62,-3146.5 1386.38,-3146.5 1386.38,-3182.5"/>
-<text text-anchor="middle" x="1285" y="-3166.25" font-family="Helvetica,sans-Serif" font-size="10.00">conditional (U \= []):</text>
-<text text-anchor="middle" x="1285" y="-3155" font-family="Helvetica,sans-Serif" font-size="10.00">assume blocker (avoid over&#45;approximation)</text>
+<polygon fill="none" stroke="black" points="1397.38,-3182.5 1194.62,-3182.5 1194.62,-3146.5 1397.38,-3146.5 1397.38,-3182.5"/>
+<text text-anchor="middle" x="1296" y="-3166.25" font-family="Helvetica,sans-Serif" font-size="10.00">conditional (U \= []):</text>
+<text text-anchor="middle" x="1296" y="-3155" font-family="Helvetica,sans-Serif" font-size="10.00">assume blocker (avoid over&#45;approximation)</text>
 </g>
 <!-- b_pkg_strong&#45;&gt;b_pkg_strong_cond -->
 <g id="edge19" class="edge">
 <title>b_pkg_strong&#45;&gt;b_pkg_strong_cond</title>
-<path fill="none" stroke="black" d="M1267.28,-3262.4C1271.2,-3240.96 1276.5,-3211.96 1280.28,-3191.28"/>
-<polygon fill="black" stroke="black" points="1282.68,-3191.79 1281.53,-3184.47 1277.86,-3190.91 1282.68,-3191.79"/>
-<text text-anchor="middle" x="1285.81" y="-3230.33" font-family="Helvetica,sans-Serif" font-size="9.00">U \= []</text>
+<path fill="none" stroke="black" d="M1269.63,-3263.03C1275.48,-3241.39 1283.48,-3211.79 1289.14,-3190.89"/>
+<polygon fill="black" stroke="black" points="1291.47,-3191.65 1290.93,-3184.25 1286.74,-3190.37 1291.47,-3191.65"/>
+<text text-anchor="middle" x="1291.64" y="-3230.33" font-family="Helvetica,sans-Serif" font-size="9.00">U \= []</text>
 </g>
 <!-- b_grouped_strong&#45;&gt;b_assume_blockers -->
 <g id="edge22" class="edge">
 <title>b_grouped_strong&#45;&gt;b_assume_blockers</title>
-<path fill="none" stroke="black" d="M714.38,-3271.05C686.88,-3247.52 641.74,-3208.91 614.36,-3185.48"/>
-<polygon fill="black" stroke="black" points="616.19,-3183.83 609.28,-3181.14 613.01,-3187.55 616.19,-3183.83"/>
+<path fill="none" stroke="black" d="M724.02,-3271.05C708.35,-3248.4 683,-3211.76 666.67,-3188.15"/>
+<polygon fill="black" stroke="black" points="668.77,-3186.88 662.78,-3182.52 664.74,-3189.67 668.77,-3186.88"/>
 </g>
 <!-- b_strong_assume_all -->
 <g id="node21" class="node">
 <title>b_strong_assume_all</title>
-<polygon fill="none" stroke="black" points="608,-3053.25 472,-3053.25 472,-3017.25 608,-3017.25 608,-3053.25"/>
-<text text-anchor="middle" x="540" y="-3037" font-family="Helvetica,sans-Serif" font-size="10.00">assume all strong blockers:</text>
-<text text-anchor="middle" x="540" y="-3025.75" font-family="Helvetica,sans-Serif" font-size="10.00">assume Enforce + Assume</text>
+<polygon fill="none" stroke="black" points="634,-3053.25 498,-3053.25 498,-3017.25 634,-3017.25 634,-3053.25"/>
+<text text-anchor="middle" x="566" y="-3037" font-family="Helvetica,sans-Serif" font-size="10.00">assume all strong blockers:</text>
+<text text-anchor="middle" x="566" y="-3025.75" font-family="Helvetica,sans-Serif" font-size="10.00">assume Enforce + Assume</text>
 </g>
 <!-- b_assume_blockers&#45;&gt;b_strong_assume_all -->
 <g id="edge23" class="edge">
 <title>b_assume_blockers&#45;&gt;b_strong_assume_all</title>
-<path fill="none" stroke="black" d="M584.44,-3147.13C575.7,-3125.32 560.16,-3086.55 549.97,-3061.13"/>
-<polygon fill="black" stroke="black" points="552.3,-3060.37 547.43,-3054.78 547.76,-3062.19 552.3,-3060.37"/>
-<text text-anchor="middle" x="574.15" y="-3096.2" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
+<path fill="none" stroke="black" d="M640.41,-3147.64C625.76,-3125.72 599.21,-3085.97 582.1,-3060.36"/>
+<polygon fill="black" stroke="black" points="584.31,-3059.25 578.38,-3054.79 580.24,-3061.97 584.31,-3059.25"/>
+<text text-anchor="middle" x="618.17" y="-3096.2" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
 </g>
 <!-- b_strong_enforce -->
 <g id="node22" class="node">
 <title>b_strong_enforce</title>
-<polygon fill="none" stroke="black" points="791.62,-3056.13 626.38,-3056.13 626.38,-3014.38 791.62,-3014.38 791.62,-3056.13"/>
-<text text-anchor="middle" x="709" y="-3042.63" font-family="Helvetica,sans-Serif" font-size="10.00">strict strong blockers:</text>
-<text text-anchor="middle" x="709" y="-3031.38" font-family="Helvetica,sans-Serif" font-size="10.00">constraint(blocked_cn) for Enforce</text>
-<text text-anchor="middle" x="709" y="-3020.13" font-family="Helvetica,sans-Serif" font-size="10.00">+ assume for Assume</text>
+<polygon fill="none" stroke="black" points="817.62,-3056.13 652.38,-3056.13 652.38,-3014.38 817.62,-3014.38 817.62,-3056.13"/>
+<text text-anchor="middle" x="735" y="-3042.63" font-family="Helvetica,sans-Serif" font-size="10.00">strict strong blockers:</text>
+<text text-anchor="middle" x="735" y="-3031.38" font-family="Helvetica,sans-Serif" font-size="10.00">constraint(blocked_cn) for Enforce</text>
+<text text-anchor="middle" x="735" y="-3020.13" font-family="Helvetica,sans-Serif" font-size="10.00">+ assume for Assume</text>
 </g>
 <!-- b_assume_blockers&#45;&gt;b_strong_enforce -->
 <g id="edge24" class="edge">
 <title>b_assume_blockers&#45;&gt;b_strong_enforce</title>
-<path fill="none" stroke="black" d="M605,-3148.41C624.67,-3127.2 660.76,-3088.27 684.82,-3062.32"/>
-<polygon fill="black" stroke="black" points="686.37,-3064.26 689.33,-3057.46 682.78,-3060.93 686.37,-3064.26"/>
-<text text-anchor="middle" x="658.79" y="-3096.2" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
+<path fill="none" stroke="black" d="M661.47,-3147.64C675.38,-3126.57 700.16,-3089.03 717.08,-3063.41"/>
+<polygon fill="black" stroke="black" points="718.98,-3064.97 720.79,-3057.78 714.89,-3062.27 718.98,-3064.97"/>
+<text text-anchor="middle" x="700.77" y="-3096.2" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
 </g>
 <!-- b_conflict -->
 <g id="node23" class="node">
 <title>b_conflict</title>
-<polygon fill="none" stroke="black" points="952,-3623.5 865.18,-3605.5 952,-3587.5 1038.82,-3605.5 952,-3623.5"/>
-<text text-anchor="middle" x="952" y="-3601.63" font-family="Helvetica,sans-Serif" font-size="10.00">rule(conflict(A,B),...)</text>
+<polygon fill="none" stroke="black" points="967,-3623.5 880.18,-3605.5 967,-3587.5 1053.82,-3605.5 967,-3623.5"/>
+<text text-anchor="middle" x="967" y="-3601.63" font-family="Helvetica,sans-Serif" font-size="10.00">rule(conflict(A,B),...)</text>
 </g>
 <!-- b_conflict_assume -->
 <g id="node24" class="node">
@@ -478,9 +478,9 @@
 <!-- b_conflict&#45;&gt;b_conflict_assume -->
 <g id="edge25" class="edge">
 <title>b_conflict&#45;&gt;b_conflict_assume</title>
-<path fill="none" stroke="black" d="M946.34,-3588.19C937.25,-3562.03 919.36,-3510.5 908.66,-3479.69"/>
-<polygon fill="black" stroke="black" points="911.08,-3479.2 906.47,-3473.39 906.45,-3480.81 911.08,-3479.2"/>
-<text text-anchor="middle" x="970.43" y="-3548.45" font-family="Helvetica,sans-Serif" font-size="9.00">assume_conflicts</text>
+<path fill="none" stroke="black" d="M951.95,-3590.39C943.35,-3581.55 933,-3569.5 926.5,-3557 913.78,-3532.55 906.86,-3501.57 903.32,-3480.15"/>
+<polygon fill="black" stroke="black" points="905.76,-3479.92 902.27,-3473.38 900.92,-3480.67 905.76,-3479.92"/>
+<text text-anchor="middle" x="961.75" y="-3548.45" font-family="Helvetica,sans-Serif" font-size="9.00">assume_conflicts</text>
 </g>
 <!-- b_conflict_fail -->
 <g id="node25" class="node">
@@ -491,16 +491,16 @@
 <!-- b_conflict&#45;&gt;b_conflict_fail -->
 <g id="edge26" class="edge">
 <title>b_conflict&#45;&gt;b_conflict_fail</title>
-<path fill="none" stroke="black" d="M973.35,-3591.44C985.6,-3582.97 1000.41,-3570.94 1010,-3557 1026.1,-3533.6 1035.07,-3501.99 1039.69,-3480.14"/>
-<polygon fill="black" stroke="black" points="1042.05,-3480.82 1041.02,-3473.48 1037.25,-3479.87 1042.05,-3480.82"/>
-<text text-anchor="middle" x="1024.05" y="-3548.45" font-family="Helvetica,sans-Serif" font-size="9.00">strict</text>
+<path fill="none" stroke="black" d="M977.25,-3589.41C983.31,-3580.22 990.95,-3568.15 997,-3557 1010.9,-3531.38 1024.56,-3500.89 1033.54,-3479.92"/>
+<polygon fill="black" stroke="black" points="1035.79,-3480.89 1036.27,-3473.49 1031.28,-3478.98 1035.79,-3480.89"/>
+<text text-anchor="middle" x="1010.66" y="-3548.45" font-family="Helvetica,sans-Serif" font-size="9.00">strict</text>
 </g>
 <!-- b_anyof_guard -->
 <g id="node26" class="node">
 <title>b_anyof_guard</title>
-<polygon fill="none" stroke="black" points="1233,-3636 1086.5,-3605.5 1233,-3575 1379.5,-3605.5 1233,-3636"/>
-<text text-anchor="middle" x="1233" y="-3607.25" font-family="Helvetica,sans-Serif" font-size="10.00">any_of_config_dep_ok/2</text>
-<text text-anchor="middle" x="1233" y="-3596" font-family="Helvetica,sans-Serif" font-size="10.00">(USE&#45;dep option unsatisfied?)</text>
+<polygon fill="none" stroke="black" points="1234,-3636 1087.5,-3605.5 1234,-3575 1380.5,-3605.5 1234,-3636"/>
+<text text-anchor="middle" x="1234" y="-3607.25" font-family="Helvetica,sans-Serif" font-size="10.00">any_of_config_dep_ok/2</text>
+<text text-anchor="middle" x="1234" y="-3596" font-family="Helvetica,sans-Serif" font-size="10.00">(USE&#45;dep option unsatisfied?)</text>
 </g>
 <!-- b_anyof_assume -->
 <g id="node27" class="node">
@@ -512,8 +512,8 @@
 <!-- b_anyof_guard&#45;&gt;b_anyof_assume -->
 <g id="edge27" class="edge">
 <title>b_anyof_guard&#45;&gt;b_anyof_assume</title>
-<path fill="none" stroke="black" d="M1224.38,-3576.38C1222.44,-3570.01 1220.39,-3563.28 1218.5,-3557 1210.6,-3530.82 1201.66,-3500.82 1195.52,-3480.12"/>
-<polygon fill="black" stroke="black" points="1197.92,-3479.6 1193.58,-3473.58 1193.22,-3480.99 1197.92,-3479.6"/>
+<path fill="none" stroke="black" d="M1224.78,-3576.66C1222.69,-3570.22 1220.49,-3563.38 1218.5,-3557 1210.35,-3530.89 1201.45,-3500.89 1195.38,-3480.16"/>
+<polygon fill="black" stroke="black" points="1197.79,-3479.65 1193.47,-3473.61 1193.08,-3481.02 1197.79,-3479.65"/>
 <text text-anchor="middle" x="1265.75" y="-3548.45" font-family="Helvetica,sans-Serif" font-size="9.00">yes + assume_conflicts</text>
 </g>
 <!-- b_anyof_fail -->
@@ -525,9 +525,9 @@
 <!-- b_anyof_guard&#45;&gt;b_anyof_fail -->
 <g id="edge28" class="edge">
 <title>b_anyof_guard&#45;&gt;b_anyof_fail</title>
-<path fill="none" stroke="black" d="M1279.75,-3584.39C1291.97,-3577.25 1304.18,-3568.15 1313,-3557 1330.62,-3534.72 1338.61,-3502.63 1342.18,-3480.37"/>
-<polygon fill="black" stroke="black" points="1344.59,-3480.84 1343.17,-3473.57 1339.74,-3480.14 1344.59,-3480.84"/>
-<text text-anchor="middle" x="1340.96" y="-3548.45" font-family="Helvetica,sans-Serif" font-size="9.00">yes + strict</text>
+<path fill="none" stroke="black" d="M1280.17,-3584.28C1292.24,-3577.14 1304.29,-3568.07 1313,-3557 1330.56,-3534.67 1338.56,-3502.59 1342.15,-3480.34"/>
+<polygon fill="black" stroke="black" points="1344.56,-3480.83 1343.14,-3473.55 1339.71,-3480.12 1344.56,-3480.83"/>
+<text text-anchor="middle" x="1340.94" y="-3548.45" font-family="Helvetica,sans-Serif" font-size="9.00">yes + strict</text>
 </g>
 <!-- g_start -->
 <g id="node29" class="node">
@@ -572,7 +572,7 @@
 <!-- g_split&#45;&gt;g_split_emit -->
 <g id="edge31" class="edge">
 <title>g_split&#45;&gt;g_split_emit</title>
-<path fill="none" stroke="black" d="M2263.35,-3808.92C2239.18,-3795.77 2210,-3773.61 2210,-3743.25 2210,-3743.25 2210,-3743.25 2210,-3291.25 2210,-2889.27 2037.39,-2791.21 2097.75,-2393.78 2102.95,-2359.55 2120.8,-2270.72 2144,-2245.03 2186.1,-2198.4 2237.11,-2240.38 2274,-2189.53 2303.74,-2148.54 2284,-2126.67 2284,-2076.03 2284,-2076.03 2284,-2076.03 2284,-986.76 2284,-918.66 2327.26,-848.08 2354.13,-810.82"/>
+<path fill="none" stroke="black" d="M2263.35,-3808.92C2239.18,-3795.77 2210,-3773.61 2210,-3743.25 2210,-3743.25 2210,-3743.25 2210,-3291.25 2210,-3261.39 2208.73,-3253.88 2205,-3224.25 2200.88,-3191.48 2104.28,-2671.65 2101,-2638.78 2090.17,-2530.42 2081.4,-2501.44 2097.75,-2393.78 2102.95,-2359.55 2120.8,-2270.72 2144,-2245.03 2186.1,-2198.4 2237.11,-2240.38 2274,-2189.53 2303.74,-2148.54 2284,-2126.67 2284,-2076.03 2284,-2076.03 2284,-2076.03 2284,-986.76 2284,-918.66 2327.26,-848.08 2354.13,-810.82"/>
 <polygon fill="black" stroke="black" points="2355.88,-812.57 2358.05,-805.48 2351.93,-809.67 2355.88,-812.57"/>
 <text text-anchor="middle" x="2104.88" y="-2443.1" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
 </g>
@@ -592,28 +592,28 @@
 <!-- g_ok_self -->
 <g id="node34" class="node">
 <title>g_ok_self</title>
-<polygon fill="none" stroke="black" points="2332.25,-3623.5 2251.75,-3623.5 2251.75,-3587.5 2332.25,-3587.5 2332.25,-3623.5"/>
-<text text-anchor="middle" x="2292" y="-3601.63" font-family="Helvetica,sans-Serif" font-size="10.00">Conditions = []</text>
+<polygon fill="none" stroke="black" points="2320.25,-3623.5 2239.75,-3623.5 2239.75,-3587.5 2320.25,-3587.5 2320.25,-3623.5"/>
+<text text-anchor="middle" x="2280" y="-3601.63" font-family="Helvetica,sans-Serif" font-size="10.00">Conditions = []</text>
 </g>
 <!-- g_self_run&#45;&gt;g_ok_self -->
 <g id="edge33" class="edge">
 <title>g_self_run&#45;&gt;g_ok_self</title>
-<path fill="none" stroke="black" d="M2344.76,-3725C2334.38,-3701.68 2315.17,-3658.54 2303.02,-3631.25"/>
-<polygon fill="black" stroke="black" points="2305.34,-3630.44 2300.26,-3625.05 2300.87,-3632.44 2305.34,-3630.44"/>
-<text text-anchor="middle" x="2343.03" y="-3697.7" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
+<path fill="none" stroke="black" d="M2343.46,-3725.27C2331,-3701.94 2307.73,-3658.39 2293.09,-3631.01"/>
+<polygon fill="black" stroke="black" points="2295.38,-3630.1 2289.92,-3625.08 2291.06,-3632.41 2295.38,-3630.1"/>
+<text text-anchor="middle" x="2339.82" y="-3697.7" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
 </g>
 <!-- g_emptytree_core -->
 <g id="node35" class="node">
 <title>g_emptytree_core</title>
-<polygon fill="none" stroke="black" points="2480,-3623.5 2349.88,-3605.5 2480,-3587.5 2610.12,-3605.5 2480,-3623.5"/>
-<text text-anchor="middle" x="2480" y="-3601.63" font-family="Helvetica,sans-Serif" font-size="10.00">emptytree AND core_pkg(C,N)?</text>
+<polygon fill="none" stroke="black" points="2468,-3623.5 2337.88,-3605.5 2468,-3587.5 2598.12,-3605.5 2468,-3623.5"/>
+<text text-anchor="middle" x="2468" y="-3601.63" font-family="Helvetica,sans-Serif" font-size="10.00">emptytree AND core_pkg(C,N)?</text>
 </g>
 <!-- g_self_run&#45;&gt;g_emptytree_core -->
 <g id="edge34" class="edge">
 <title>g_self_run&#45;&gt;g_emptytree_core</title>
-<path fill="none" stroke="black" d="M2366.43,-3726.06C2389.29,-3702 2433.87,-3655.06 2459.86,-3627.7"/>
-<polygon fill="black" stroke="black" points="2461.33,-3629.71 2464.38,-3622.95 2457.78,-3626.33 2461.33,-3629.71"/>
-<text text-anchor="middle" x="2398.65" y="-3697.7" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
+<path fill="none" stroke="black" d="M2365.31,-3725.79C2386.02,-3701.73 2426.04,-3655.25 2449.53,-3627.95"/>
+<polygon fill="black" stroke="black" points="2451.15,-3629.83 2453.86,-3622.93 2447.44,-3626.63 2451.15,-3629.83"/>
+<text text-anchor="middle" x="2394.77" y="-3697.7" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
 </g>
 <!-- g_ok_core -->
 <g id="node36" class="node">
@@ -624,9 +624,9 @@
 <!-- g_emptytree_core&#45;&gt;g_ok_core -->
 <g id="edge35" class="edge">
 <title>g_emptytree_core&#45;&gt;g_ok_core</title>
-<path fill="none" stroke="black" d="M2460.35,-3589.98C2441.79,-3575.72 2413.78,-3552.73 2393,-3529.25 2379.25,-3513.71 2366.27,-3494.17 2356.99,-3479.01"/>
-<polygon fill="black" stroke="black" points="2359.23,-3477.98 2353.52,-3473.24 2355.03,-3480.5 2359.23,-3477.98"/>
-<text text-anchor="middle" x="2426.84" y="-3548.45" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
+<path fill="none" stroke="black" d="M2451.27,-3589.49C2435.42,-3574.87 2411.38,-3551.63 2393,-3529.25 2379.92,-3513.32 2367,-3493.95 2357.57,-3478.95"/>
+<polygon fill="black" stroke="black" points="2359.81,-3477.92 2354.04,-3473.26 2355.65,-3480.5 2359.81,-3477.92"/>
+<text text-anchor="middle" x="2423.47" y="-3548.45" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
 </g>
 <!-- g_keep_installed -->
 <g id="node37" class="node">
@@ -642,35 +642,35 @@
 <!-- g_emptytree_core&#45;&gt;g_keep_installed -->
 <g id="edge36" class="edge">
 <title>g_emptytree_core&#45;&gt;g_keep_installed</title>
-<path fill="none" stroke="black" d="M2491.35,-3588.76C2503.29,-3572.22 2522.84,-3545.1 2541.26,-3519.57"/>
-<polygon fill="black" stroke="black" points="2543.16,-3521.11 2545.27,-3514 2539.19,-3518.24 2543.16,-3521.11"/>
-<text text-anchor="middle" x="2526.4" y="-3548.45" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
+<path fill="none" stroke="black" d="M2480.62,-3588.76C2494.21,-3571.8 2516.7,-3543.72 2537.6,-3517.64"/>
+<polygon fill="black" stroke="black" points="2539.46,-3519.24 2541.93,-3512.24 2535.64,-3516.17 2539.46,-3519.24"/>
+<text text-anchor="middle" x="2518.97" y="-3548.45" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
 </g>
 <!-- g_ok_installed -->
 <g id="node38" class="node">
 <title>g_ok_installed</title>
-<polygon fill="none" stroke="black" points="2546.25,-3310.25 2465.75,-3310.25 2465.75,-3274.25 2546.25,-3274.25 2546.25,-3310.25"/>
-<text text-anchor="middle" x="2506" y="-3288.38" font-family="Helvetica,sans-Serif" font-size="10.00">Conditions = []</text>
+<polygon fill="none" stroke="black" points="2535.25,-3310.25 2454.75,-3310.25 2454.75,-3274.25 2535.25,-3274.25 2535.25,-3310.25"/>
+<text text-anchor="middle" x="2495" y="-3288.38" font-family="Helvetica,sans-Serif" font-size="10.00">Conditions = []</text>
 </g>
 <!-- g_keep_installed&#45;&gt;g_ok_installed -->
 <g id="edge37" class="edge">
 <title>g_keep_installed&#45;&gt;g_ok_installed</title>
-<path fill="none" stroke="black" d="M2556.3,-3391.09C2543.23,-3365.66 2528.82,-3337.65 2518.79,-3318.13"/>
-<polygon fill="black" stroke="black" points="2520.98,-3317.03 2515.6,-3311.93 2516.62,-3319.28 2520.98,-3317.03"/>
-<text text-anchor="middle" x="2546.78" y="-3346.83" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
+<path fill="none" stroke="black" d="M2552.84,-3392.45C2537.7,-3366.48 2520.85,-3337.58 2509.26,-3317.7"/>
+<polygon fill="black" stroke="black" points="2511.49,-3316.67 2505.85,-3311.86 2507.26,-3319.14 2511.49,-3316.67"/>
+<text text-anchor="middle" x="2540.3" y="-3346.83" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
 </g>
 <!-- g_slotreq -->
 <g id="node39" class="node">
 <title>g_slotreq</title>
-<polygon fill="none" stroke="black" points="2738.12,-3310.25 2563.88,-3310.25 2563.88,-3274.25 2738.12,-3274.25 2738.12,-3310.25"/>
-<text text-anchor="middle" x="2651" y="-3288.38" font-family="Helvetica,sans-Serif" font-size="10.00">SlotReq = merge_slot_restriction(...)</text>
+<polygon fill="none" stroke="black" points="2727.12,-3310.25 2552.88,-3310.25 2552.88,-3274.25 2727.12,-3274.25 2727.12,-3310.25"/>
+<text text-anchor="middle" x="2640" y="-3288.38" font-family="Helvetica,sans-Serif" font-size="10.00">SlotReq = merge_slot_restriction(...)</text>
 </g>
 <!-- g_keep_installed&#45;&gt;g_slotreq -->
 <g id="edge38" class="edge">
 <title>g_keep_installed&#45;&gt;g_slotreq</title>
-<path fill="none" stroke="black" d="M2613.44,-3388.34C2623.14,-3363.78 2633.63,-3337.22 2641.06,-3318.42"/>
-<polygon fill="black" stroke="black" points="2643.29,-3319.44 2643.58,-3312.03 2638.73,-3317.64 2643.29,-3319.44"/>
-<text text-anchor="middle" x="2635.87" y="-3346.83" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
+<path fill="none" stroke="black" d="M2609.6,-3386.5C2617.44,-3362.45 2625.83,-3336.71 2631.81,-3318.39"/>
+<polygon fill="black" stroke="black" points="2634.06,-3319.37 2633.9,-3311.96 2629.4,-3317.85 2634.06,-3319.37"/>
+<text text-anchor="middle" x="2628.43" y="-3346.83" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
 </g>
 <!-- g_sslock -->
 <g id="node40" class="node">
@@ -682,8 +682,8 @@
 <!-- g_slotreq&#45;&gt;g_sslock -->
 <g id="edge39" class="edge">
 <title>g_slotreq&#45;&gt;g_sslock</title>
-<path fill="none" stroke="black" d="M2618.32,-3273.77C2578.3,-3252.35 2510.17,-3215.89 2464.15,-3191.27"/>
-<polygon fill="black" stroke="black" points="2465.34,-3189.12 2458.01,-3187.98 2463.02,-3193.44 2465.34,-3189.12"/>
+<path fill="none" stroke="black" d="M2608.85,-3273.77C2571.01,-3252.52 2506.8,-3216.48 2462.95,-3191.86"/>
+<polygon fill="black" stroke="black" points="2464.18,-3189.74 2456.87,-3188.45 2461.78,-3194.01 2464.18,-3189.74"/>
 </g>
 <!-- g_deep_keep -->
 <g id="node58" class="node">
@@ -696,48 +696,48 @@
 <!-- g_slotreq&#45;&gt;g_deep_keep -->
 <g id="edge67" class="edge">
 <title>g_slotreq&#45;&gt;g_deep_keep</title>
-<path fill="none" stroke="black" stroke-dasharray="5,2" d="M2662.12,-3273.77C2673.01,-3256.66 2690.01,-3229.94 2704.39,-3207.33"/>
-<polygon fill="black" stroke="black" points="2706.46,-3208.65 2708.15,-3201.43 2702.32,-3206.02 2706.46,-3208.65"/>
-<text text-anchor="middle" x="2748.9" y="-3230.33" font-family="Helvetica,sans-Serif" font-size="9.00">no viable candidate branch</text>
+<path fill="none" stroke="black" stroke-dasharray="5,2" d="M2652.65,-3273.77C2665.28,-3256.32 2685.12,-3228.9 2701.68,-3206.02"/>
+<polygon fill="black" stroke="black" points="2703.47,-3207.72 2705.59,-3200.61 2699.5,-3204.85 2703.47,-3207.72"/>
+<text text-anchor="middle" x="2743.73" y="-3230.33" font-family="Helvetica,sans-Serif" font-size="9.00">no viable candidate branch</text>
 </g>
 <!-- g_sslock_bind -->
 <g id="node41" class="node">
 <title>g_sslock_bind</title>
-<polygon fill="none" stroke="black" points="2415.75,-3053.25 2212.25,-3053.25 2212.25,-3017.25 2415.75,-3017.25 2415.75,-3053.25"/>
-<text text-anchor="middle" x="2314" y="-3037" font-family="Helvetica,sans-Serif" font-size="10.00">SsLock = canon_any_same_slot_meta(Ss)</text>
-<text text-anchor="middle" x="2314" y="-3025.75" font-family="Helvetica,sans-Serif" font-size="10.00">(:= slot lock binding)</text>
+<polygon fill="none" stroke="black" points="2416.75,-3053.25 2213.25,-3053.25 2213.25,-3017.25 2416.75,-3017.25 2416.75,-3053.25"/>
+<text text-anchor="middle" x="2315" y="-3037" font-family="Helvetica,sans-Serif" font-size="10.00">SsLock = canon_any_same_slot_meta(Ss)</text>
+<text text-anchor="middle" x="2315" y="-3025.75" font-family="Helvetica,sans-Serif" font-size="10.00">(:= slot lock binding)</text>
 </g>
 <!-- g_sslock&#45;&gt;g_sslock_bind -->
 <g id="edge40" class="edge">
 <title>g_sslock&#45;&gt;g_sslock_bind</title>
-<path fill="none" stroke="black" d="M2395.36,-3137.75C2377.11,-3114.98 2350.69,-3082.03 2332.96,-3059.91"/>
-<polygon fill="black" stroke="black" points="2335,-3058.53 2328.71,-3054.6 2331.17,-3061.59 2335,-3058.53"/>
-<text text-anchor="middle" x="2375.18" y="-3096.2" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
+<path fill="none" stroke="black" d="M2395.56,-3137.75C2377.49,-3114.98 2351.34,-3082.03 2333.78,-3059.91"/>
+<polygon fill="black" stroke="black" points="2335.84,-3058.56 2329.57,-3054.6 2332,-3061.61 2335.84,-3058.56"/>
+<text text-anchor="middle" x="2375.65" y="-3096.2" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
 </g>
 <!-- g_sslock&#45;&gt;g_select -->
 <g id="edge41" class="edge">
 <title>g_sslock&#45;&gt;g_select</title>
-<path fill="none" stroke="black" d="M2419.39,-3134.27C2425.13,-3084.69 2436.89,-2983.25 2444.34,-2919.02"/>
-<polygon fill="black" stroke="black" points="2446.77,-2919.34 2445.14,-2912.11 2441.9,-2918.78 2446.77,-2919.34"/>
-<text text-anchor="middle" x="2440.5" y="-3031.58" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
+<path fill="none" stroke="black" d="M2419.48,-3134.27C2425.4,-3084.69 2437.49,-2983.25 2445.15,-2919.02"/>
+<polygon fill="black" stroke="black" points="2447.57,-2919.35 2445.97,-2912.11 2442.71,-2918.77 2447.57,-2919.35"/>
+<text text-anchor="middle" x="2441.05" y="-3031.58" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
 </g>
 <!-- g_sslock_bind&#45;&gt;g_select -->
 <g id="edge42" class="edge">
 <title>g_sslock_bind&#45;&gt;g_select</title>
-<path fill="none" stroke="black" d="M2327.64,-3017.06C2345.99,-2993.92 2379.5,-2951.68 2406.96,-2917.05"/>
-<polygon fill="black" stroke="black" points="2408.65,-2918.87 2411.08,-2911.86 2404.81,-2915.82 2408.65,-2918.87"/>
+<path fill="none" stroke="black" d="M2328.64,-3017.06C2346.99,-2993.92 2380.5,-2951.68 2407.96,-2917.05"/>
+<polygon fill="black" stroke="black" points="2409.65,-2918.87 2412.08,-2911.86 2405.81,-2915.82 2409.65,-2918.87"/>
 </g>
 <!-- g_self_guard -->
 <g id="node43" class="node">
 <title>g_self_guard</title>
-<polygon fill="none" stroke="black" points="2250,-2742.78 2148.12,-2724.78 2250,-2706.78 2351.88,-2724.78 2250,-2742.78"/>
-<text text-anchor="middle" x="2250" y="-2720.9" font-family="Helvetica,sans-Serif" font-size="10.00">candidate == self entry?</text>
+<polygon fill="none" stroke="black" points="2251,-2742.78 2149.12,-2724.78 2251,-2706.78 2352.88,-2724.78 2251,-2742.78"/>
+<text text-anchor="middle" x="2251" y="-2720.9" font-family="Helvetica,sans-Serif" font-size="10.00">candidate == self entry?</text>
 </g>
 <!-- g_select&#45;&gt;g_self_guard -->
 <g id="edge43" class="edge">
 <title>g_select&#45;&gt;g_self_guard</title>
-<path fill="none" stroke="black" d="M2377.01,-2810.29C2342.22,-2787.15 2302.87,-2760.96 2277.31,-2743.95"/>
-<polygon fill="black" stroke="black" points="2278.93,-2742.09 2271.75,-2740.25 2276.22,-2746.17 2278.93,-2742.09"/>
+<path fill="none" stroke="black" d="M2378.01,-2810.29C2343.22,-2787.15 2303.87,-2760.96 2278.31,-2743.95"/>
+<polygon fill="black" stroke="black" points="2279.93,-2742.09 2272.75,-2740.25 2277.22,-2746.17 2279.93,-2742.09"/>
 </g>
 <!-- g_self_installed -->
 <g id="node44" class="node">
@@ -749,9 +749,9 @@
 <!-- g_self_guard&#45;&gt;g_self_installed -->
 <g id="edge44" class="edge">
 <title>g_self_guard&#45;&gt;g_self_installed</title>
-<path fill="none" stroke="black" d="M2255.36,-2707.34C2261.41,-2688.8 2271.42,-2658.08 2279.3,-2633.92"/>
-<polygon fill="black" stroke="black" points="2281.57,-2634.86 2281.41,-2627.45 2276.91,-2633.34 2281.57,-2634.86"/>
-<text text-anchor="middle" x="2278.85" y="-2662.85" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
+<path fill="none" stroke="black" d="M2256.23,-2707.34C2262.13,-2688.8 2271.9,-2658.08 2279.58,-2633.92"/>
+<polygon fill="black" stroke="black" points="2281.85,-2634.86 2281.64,-2627.45 2277.18,-2633.38 2281.85,-2634.86"/>
+<text text-anchor="middle" x="2279.32" y="-2662.85" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
 </g>
 <!-- g_version_guard -->
 <g id="node45" class="node">
@@ -765,16 +765,16 @@
 <!-- g_self_guard&#45;&gt;g_version_guard -->
 <g id="edge45" class="edge">
 <title>g_self_guard&#45;&gt;g_version_guard</title>
-<path fill="none" stroke="black" d="M2215.67,-2712.41C2184.03,-2699.89 2138.97,-2676.38 2118.5,-2638.78 2100.76,-2606.18 2101.07,-2588.04 2118.5,-2555.28 2136.07,-2522.25 2168.8,-2497.55 2200.06,-2480.2"/>
+<path fill="none" stroke="black" d="M2216.42,-2712.49C2184.54,-2700.02 2139.14,-2676.55 2118.5,-2638.78 2100.7,-2606.21 2101.07,-2588.04 2118.5,-2555.28 2136.07,-2522.25 2168.8,-2497.55 2200.06,-2480.2"/>
 <polygon fill="black" stroke="black" points="2201.21,-2482.37 2206.21,-2476.89 2198.89,-2478.05 2201.21,-2482.37"/>
 <text text-anchor="middle" x="2123.75" y="-2593.35" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
 </g>
 <!-- g_self_installed&#45;&gt;g_select -->
 <g id="edge47" class="edge">
 <title>g_self_installed&#45;&gt;g_select</title>
-<path fill="none" stroke="black" d="M2311.26,-2623.94C2325.78,-2642.96 2345.43,-2669.65 2361,-2694.28 2383.32,-2729.58 2405.79,-2770.83 2422.69,-2803.28"/>
-<polygon fill="black" stroke="black" points="2420.34,-2804.06 2425.73,-2809.15 2424.68,-2801.8 2420.34,-2804.06"/>
-<text text-anchor="middle" x="2418.14" y="-2721.1" font-family="Helvetica,sans-Serif" font-size="9.00">no: try next</text>
+<path fill="none" stroke="black" d="M2311.59,-2623.9C2326.33,-2642.89 2346.27,-2669.58 2362,-2694.28 2384.43,-2729.5 2406.9,-2770.75 2423.78,-2803.23"/>
+<polygon fill="black" stroke="black" points="2421.42,-2804 2426.82,-2809.09 2425.78,-2801.75 2421.42,-2804"/>
+<text text-anchor="middle" x="2419.24" y="-2721.1" font-family="Helvetica,sans-Serif" font-size="9.00">no: try next</text>
 </g>
 <!-- g_self_installed&#45;&gt;g_version_guard -->
 <g id="edge46" class="edge">
@@ -786,9 +786,9 @@
 <!-- g_version_guard&#45;&gt;g_select -->
 <g id="edge49" class="edge">
 <title>g_version_guard&#45;&gt;g_select</title>
-<path fill="none" stroke="black" d="M2354.65,-2474.31C2391.36,-2491.33 2431.85,-2517.47 2453,-2555.28 2471.12,-2587.67 2454.29,-2601.69 2453,-2638.78 2452.72,-2646.79 2452.04,-2648.76 2451.75,-2656.78 2449.96,-2705.71 2449.9,-2761.33 2450.21,-2801.92"/>
-<polygon fill="black" stroke="black" points="2447.76,-2801.85 2450.27,-2808.83 2452.66,-2801.81 2447.76,-2801.85"/>
-<text text-anchor="middle" x="2473.88" y="-2662.85" font-family="Helvetica,sans-Serif" font-size="9.00">no: try next</text>
+<path fill="none" stroke="black" d="M2354.65,-2474.31C2391.36,-2491.33 2431.85,-2517.47 2453,-2555.28 2471.12,-2587.67 2453.26,-2601.67 2453,-2638.78 2452.94,-2646.78 2452.82,-2648.78 2452.75,-2656.78 2452.32,-2705.74 2452.14,-2761.36 2452.06,-2801.94"/>
+<polygon fill="black" stroke="black" points="2449.61,-2801.85 2452.04,-2808.85 2454.51,-2801.85 2449.61,-2801.85"/>
+<text text-anchor="middle" x="2474.88" y="-2662.85" font-family="Helvetica,sans-Serif" font-size="9.00">no: try next</text>
 </g>
 <!-- g_reverse_dep -->
 <g id="node46" class="node">
@@ -808,9 +808,9 @@
 <!-- g_reverse_dep&#45;&gt;g_select -->
 <g id="edge51" class="edge">
 <title>g_reverse_dep&#45;&gt;g_select</title>
-<path fill="none" stroke="black" d="M2372.54,-2317.88C2397.47,-2336.74 2426.72,-2363.24 2444,-2393.78 2451.34,-2406.74 2494.55,-2641.95 2496,-2656.78 2496.84,-2665.4 2497.04,-2667.67 2496,-2676.28 2490.81,-2719.21 2479,-2766.6 2468.79,-2802.43"/>
-<polygon fill="black" stroke="black" points="2466.51,-2801.49 2466.92,-2808.89 2471.21,-2802.85 2466.51,-2801.49"/>
-<text text-anchor="middle" x="2515.23" y="-2593.35" font-family="Helvetica,sans-Serif" font-size="9.00">no: try next</text>
+<path fill="none" stroke="black" d="M2372.5,-2317.9C2397.42,-2336.78 2426.67,-2363.28 2444,-2393.78 2451.36,-2406.74 2495.52,-2641.95 2497,-2656.78 2497.86,-2665.4 2498.04,-2667.67 2497,-2676.28 2491.81,-2719.21 2480,-2766.6 2469.79,-2802.43"/>
+<polygon fill="black" stroke="black" points="2467.51,-2801.49 2467.92,-2808.89 2472.21,-2802.85 2467.51,-2801.49"/>
+<text text-anchor="middle" x="2516.17" y="-2593.35" font-family="Helvetica,sans-Serif" font-size="9.00">no: try next</text>
 </g>
 <!-- g_pdepend -->
 <g id="node47" class="node">
@@ -863,16 +863,16 @@
 <!-- g_use_guard&#45;&gt;g_select -->
 <g id="edge56" class="edge">
 <title>g_use_guard&#45;&gt;g_select</title>
-<path fill="none" stroke="black" d="M2492.17,-1838.04C2500.54,-1848.13 2509.51,-1860.21 2516,-1872.27 2567.1,-1967.27 2574.89,-1996.27 2592,-2102.78 2598.11,-2140.85 2615.22,-2158.75 2592,-2189.53 2574.46,-2212.78 2548.29,-2185.71 2529,-2207.53 2492.94,-2248.31 2537.2,-2281.37 2510,-2328.53 2503.64,-2339.55 2493.23,-2335.05 2487.75,-2346.53 2458.41,-2408 2463.64,-2436.56 2489,-2499.78 2501.58,-2531.15 2528.57,-2523.84 2541,-2555.28 2554.64,-2589.79 2548.06,-2602.34 2541,-2638.78 2529.69,-2697.16 2502.72,-2759.55 2481.24,-2803.05"/>
-<polygon fill="black" stroke="black" points="2479.18,-2801.7 2478.24,-2809.06 2483.56,-2803.89 2479.18,-2801.7"/>
+<path fill="none" stroke="black" d="M2492.17,-1838.04C2500.54,-1848.13 2509.51,-1860.21 2516,-1872.27 2567.1,-1967.27 2574.89,-1996.27 2592,-2102.78 2598.11,-2140.85 2615.22,-2158.75 2592,-2189.53 2574.46,-2212.78 2548.29,-2185.71 2529,-2207.53 2492.94,-2248.31 2537.2,-2281.37 2510,-2328.53 2503.64,-2339.55 2493.23,-2335.05 2487.75,-2346.53 2458.41,-2408 2463.34,-2436.68 2489,-2499.78 2501.85,-2531.37 2529.31,-2523.62 2542,-2555.28 2555.81,-2589.73 2549.06,-2602.34 2542,-2638.78 2530.69,-2697.16 2503.72,-2759.55 2482.24,-2803.05"/>
+<polygon fill="black" stroke="black" points="2480.18,-2801.7 2479.24,-2809.06 2484.56,-2803.89 2480.18,-2801.7"/>
 <text text-anchor="middle" x="2509.88" y="-2357.48" font-family="Helvetica,sans-Serif" font-size="9.00">no: try next</text>
 </g>
 <!-- g_use_slot -->
 <g id="node50" class="node">
 <title>g_use_slot</title>
-<polygon fill="none" stroke="black" points="2546.75,-1703.27 2391.25,-1703.27 2391.25,-1661.52 2546.75,-1661.52 2546.75,-1703.27"/>
-<text text-anchor="middle" x="2469" y="-1689.77" font-family="Helvetica,sans-Serif" font-size="10.00">process_build_with_use (use.pl)</text>
-<text text-anchor="middle" x="2469" y="-1678.52" font-family="Helvetica,sans-Serif" font-size="10.00">+ process_slot (candidate.pl)</text>
+<polygon fill="none" stroke="black" points="2564.38,-1703.27 2373.62,-1703.27 2373.62,-1661.52 2564.38,-1661.52 2564.38,-1703.27"/>
+<text text-anchor="middle" x="2469" y="-1689.77" font-family="Helvetica,sans-Serif" font-size="10.00">process_build_with_use (dependency.pl)</text>
+<text text-anchor="middle" x="2469" y="-1678.52" font-family="Helvetica,sans-Serif" font-size="10.00">+ process_slot (dependency.pl)</text>
 <text text-anchor="middle" x="2469" y="-1667.27" font-family="Helvetica,sans-Serif" font-size="10.00">(query_search_slot_constraint)</text>
 </g>
 <!-- g_use_guard&#45;&gt;g_use_slot -->
@@ -932,8 +932,8 @@
 <!-- g_bwu_ed_fail&#45;&gt;g_select -->
 <g id="edge60" class="edge">
 <title>g_bwu_ed_fail&#45;&gt;g_select</title>
-<path fill="none" stroke="black" d="M2707.07,-1350.23C2710.6,-1458.2 2715.78,-1874.59 2603,-2189.53 2596.33,-2208.16 2593.09,-2213.13 2579,-2227.03 2568.2,-2237.68 2558.26,-2232.31 2550,-2245.03 2518.05,-2294.22 2563.56,-2326.33 2532,-2375.78 2524.04,-2388.25 2511.09,-2380.79 2504,-2393.78 2481.42,-2435.13 2487.26,-2455.74 2504,-2499.78 2507.8,-2509.78 2513.1,-2509.6 2520,-2517.78 2533.76,-2534.09 2542.94,-2535.14 2550,-2555.28 2585.83,-2657.43 2555.44,-2702.3 2496,-2792.78 2493.71,-2796.27 2491.34,-2799.85 2488.94,-2803.46"/>
-<polygon fill="black" stroke="black" points="2486.99,-2801.96 2485.15,-2809.15 2491.07,-2804.68 2486.99,-2801.96"/>
+<path fill="none" stroke="black" d="M2707.07,-1350.23C2710.6,-1458.2 2715.78,-1874.59 2603,-2189.53 2596.33,-2208.16 2593.09,-2213.13 2579,-2227.03 2568.2,-2237.68 2558.26,-2232.31 2550,-2245.03 2518.05,-2294.22 2563.56,-2326.33 2532,-2375.78 2524.04,-2388.25 2511.09,-2380.79 2504,-2393.78 2481.42,-2435.13 2486.59,-2456 2504,-2499.78 2508.07,-2510 2513.78,-2509.47 2521,-2517.78 2535.01,-2533.88 2543.94,-2535.14 2551,-2555.28 2586.83,-2657.43 2556.44,-2702.3 2497,-2792.78 2494.71,-2796.27 2492.34,-2799.85 2489.94,-2803.46"/>
+<polygon fill="black" stroke="black" points="2487.99,-2801.96 2486.15,-2809.15 2492.07,-2804.68 2487.99,-2801.96"/>
 <text text-anchor="middle" x="2676.14" y="-2152.23" font-family="Helvetica,sans-Serif" font-size="9.00">fail: try next</text>
 <text text-anchor="middle" x="2676.14" y="-2142.48" font-family="Helvetica,sans-Serif" font-size="9.00">(but requse_violation_</text>
 <text text-anchor="middle" x="2676.14" y="-2132.73" font-family="Helvetica,sans-Serif" font-size="9.00">memo is set)</text>
@@ -993,15 +993,15 @@
 <!-- u_start -->
 <g id="node105" class="node">
 <title>u_start</title>
-<ellipse fill="none" stroke="black" cx="5122" cy="-987.76" rx="21.01" ry="21.01"/>
-<text text-anchor="middle" x="5122" y="-983.89" font-family="Helvetica,sans-Serif" font-size="10.00">start</text>
+<ellipse fill="none" stroke="black" cx="5078" cy="-987.76" rx="21.01" ry="21.01"/>
+<text text-anchor="middle" x="5078" y="-983.89" font-family="Helvetica,sans-Serif" font-size="10.00">start</text>
 </g>
 <!-- g_action_update&#45;&gt;u_start -->
 <g id="edge128" class="edge">
 <title>g_action_update&#45;&gt;u_start</title>
-<path fill="none" stroke="black" stroke-dasharray="5,2" d="M2606.96,-1099.25C2609.65,-1098.44 2612.33,-1097.7 2615,-1097.02 2866.89,-1032.85 4828.07,-994.24 5092.53,-989.3"/>
-<polygon fill="black" stroke="black" points="5092.42,-991.75 5099.37,-989.17 5092.33,-986.85 5092.42,-991.75"/>
-<text text-anchor="middle" x="2887.33" y="-1070.47" font-family="Helvetica,sans-Serif" font-size="9.00">when ActionGoal is update</text>
+<path fill="none" stroke="black" stroke-dasharray="5,2" d="M2606.97,-1099.25C2609.65,-1098.45 2612.33,-1097.7 2615,-1097.02 2862.2,-1033.94 4785.24,-994.46 5048.24,-989.33"/>
+<polygon fill="black" stroke="black" points="5048.09,-991.78 5055.04,-989.2 5047.99,-986.88 5048.09,-991.78"/>
+<text text-anchor="middle" x="2883.51" y="-1070.47" font-family="Helvetica,sans-Serif" font-size="9.00">when ActionGoal is update</text>
 </g>
 <!-- g_action_install&#45;&gt;g_emit -->
 <g id="edge64" class="edge">
@@ -1042,35 +1042,35 @@
 <!-- bwu_start -->
 <g id="node67" class="node">
 <title>bwu_start</title>
-<ellipse fill="none" stroke="black" cx="3022" cy="-783.01" rx="49.5" ry="49.5"/>
-<text text-anchor="middle" x="3022" y="-784.76" font-family="Helvetica,sans-Serif" font-size="10.00">:install / :run</text>
-<text text-anchor="middle" x="3022" y="-773.51" font-family="Helvetica,sans-Serif" font-size="10.00">rule body</text>
+<ellipse fill="none" stroke="black" cx="3013" cy="-783.01" rx="49.5" ry="49.5"/>
+<text text-anchor="middle" x="3013" y="-784.76" font-family="Helvetica,sans-Serif" font-size="10.00">:install / :run</text>
+<text text-anchor="middle" x="3013" y="-773.51" font-family="Helvetica,sans-Serif" font-size="10.00">rule body</text>
 </g>
 <!-- g_emit&#45;&gt;bwu_start -->
 <g id="edge84" class="edge">
 <title>g_emit&#45;&gt;bwu_start</title>
-<path fill="none" stroke="black" stroke-dasharray="5,2" d="M2833.3,-949.65C2843.58,-944.19 2853.71,-938.28 2863,-932.01 2908.32,-901.43 2953.3,-858.02 2983.79,-826.12"/>
-<polygon fill="black" stroke="black" points="2985.23,-828.17 2988.27,-821.4 2981.68,-824.79 2985.23,-828.17"/>
-<text text-anchor="middle" x="2959.02" y="-923.46" font-family="Helvetica,sans-Serif" font-size="9.00">after :install/:run</text>
-<text text-anchor="middle" x="2959.02" y="-913.71" font-family="Helvetica,sans-Serif" font-size="9.00">goal emitted, BWU</text>
-<text text-anchor="middle" x="2959.02" y="-903.96" font-family="Helvetica,sans-Serif" font-size="9.00">checked before</text>
-<text text-anchor="middle" x="2959.02" y="-894.21" font-family="Helvetica,sans-Serif" font-size="9.00">required_use resolution</text>
+<path fill="none" stroke="black" stroke-dasharray="5,2" d="M2833.64,-949.53C2843.8,-944.11 2853.81,-938.24 2863,-932.01 2906.28,-902.65 2948,-859.92 2976.41,-827.92"/>
+<polygon fill="black" stroke="black" points="2978.13,-829.68 2980.91,-822.8 2974.45,-826.44 2978.13,-829.68"/>
+<text text-anchor="middle" x="2957.11" y="-923.46" font-family="Helvetica,sans-Serif" font-size="9.00">after :install/:run</text>
+<text text-anchor="middle" x="2957.11" y="-913.71" font-family="Helvetica,sans-Serif" font-size="9.00">goal emitted, BWU</text>
+<text text-anchor="middle" x="2957.11" y="-903.96" font-family="Helvetica,sans-Serif" font-size="9.00">checked before</text>
+<text text-anchor="middle" x="2957.11" y="-894.21" font-family="Helvetica,sans-Serif" font-size="9.00">required_use resolution</text>
 </g>
 <!-- r_guard -->
 <g id="node81" class="node">
 <title>r_guard</title>
-<polygon fill="none" stroke="black" points="4916.88,-809.51 4693.12,-809.51 4693.12,-756.51 4916.88,-756.51 4916.88,-809.51"/>
-<text text-anchor="middle" x="4805" y="-796.01" font-family="Helvetica,sans-Serif" font-size="10.00">constraint_guard hooks that may throw reprove:</text>
-<text text-anchor="middle" x="4805" y="-784.76" font-family="Helvetica,sans-Serif" font-size="10.00">&#45; cn_domain + selected_cn compatibility</text>
-<text text-anchor="middle" x="4805" y="-773.51" font-family="Helvetica,sans-Serif" font-size="10.00">&#45; selected_cn uniqueness/domain partition</text>
-<text text-anchor="middle" x="4805" y="-762.26" font-family="Helvetica,sans-Serif" font-size="10.00">&#45; blocked_cn vs selected_cn source reprove</text>
+<polygon fill="none" stroke="black" points="4439.88,-809.51 4216.12,-809.51 4216.12,-756.51 4439.88,-756.51 4439.88,-809.51"/>
+<text text-anchor="middle" x="4328" y="-796.01" font-family="Helvetica,sans-Serif" font-size="10.00">constraint_guard hooks that may throw reprove:</text>
+<text text-anchor="middle" x="4328" y="-784.76" font-family="Helvetica,sans-Serif" font-size="10.00">&#45; cn_domain + selected_cn compatibility</text>
+<text text-anchor="middle" x="4328" y="-773.51" font-family="Helvetica,sans-Serif" font-size="10.00">&#45; selected_cn uniqueness/domain partition</text>
+<text text-anchor="middle" x="4328" y="-762.26" font-family="Helvetica,sans-Serif" font-size="10.00">&#45; blocked_cn vs selected_cn source reprove</text>
 </g>
 <!-- g_emit&#45;&gt;r_guard -->
 <g id="edge129" class="edge">
 <title>g_emit&#45;&gt;r_guard</title>
-<path fill="none" stroke="black" stroke-dasharray="5,2" d="M2857.07,-975.82C3211.97,-940.88 4316.85,-832.08 4684.58,-795.87"/>
-<polygon fill="black" stroke="black" points="4684.64,-798.33 4691.36,-795.2 4684.16,-793.45 4684.64,-798.33"/>
-<text text-anchor="middle" x="3729.85" y="-908.84" font-family="Helvetica,sans-Serif" font-size="9.00">constraint_guard may request reprove</text>
+<path fill="none" stroke="black" stroke-dasharray="5,2" d="M2857.24,-972.5C3144.67,-935.67 3910.28,-837.55 4207.59,-799.44"/>
+<polygon fill="black" stroke="black" points="4207.69,-801.9 4214.32,-798.58 4207.07,-797.04 4207.69,-801.9"/>
+<text text-anchor="middle" x="3519.91" y="-908.84" font-family="Helvetica,sans-Serif" font-size="9.00">constraint_guard may request reprove</text>
 </g>
 <!-- g_ok_deep -->
 <g id="node59" class="node">
@@ -1105,7 +1105,7 @@
 <title>g_learn_parent</title>
 <polygon fill="none" stroke="black" points="2901,-2898.28 2687,-2898.28 2687,-2822.78 2901,-2822.78 2901,-2898.28"/>
 <text text-anchor="middle" x="2794" y="-2884.78" font-family="Helvetica,sans-Serif" font-size="10.00">maybe_learn_parent_narrowing(C,N,...)</text>
-<text text-anchor="middle" x="2794" y="-2873.53" font-family="Helvetica,sans-Serif" font-size="10.00">(heuristic.pl)</text>
+<text text-anchor="middle" x="2794" y="-2873.53" font-family="Helvetica,sans-Serif" font-size="10.00">(cnselect.pl)</text>
 <text text-anchor="middle" x="2794" y="-2862.28" font-family="Helvetica,sans-Serif" font-size="10.00">─────────────────</text>
 <text text-anchor="middle" x="2794" y="-2851.03" font-family="Helvetica,sans-Serif" font-size="10.00">Parent introduced a dep that made</text>
 <text text-anchor="middle" x="2794" y="-2839.78" font-family="Helvetica,sans-Serif" font-size="10.00">(C,N) unsatisfiable: narrow parent.</text>
@@ -1121,27 +1121,27 @@
 <!-- g_reason_call -->
 <g id="node63" class="node">
 <title>g_reason_call</title>
-<polygon fill="none" stroke="black" points="2784,-2623.53 2606,-2623.53 2606,-2570.53 2784,-2570.53 2784,-2623.53"/>
-<text text-anchor="middle" x="2695" y="-2610.03" font-family="Helvetica,sans-Serif" font-size="10.00">call explanation:</text>
-<text text-anchor="middle" x="2695" y="-2598.78" font-family="Helvetica,sans-Serif" font-size="10.00">assumption_reason_for_grouped_dep</text>
-<text text-anchor="middle" x="2695" y="-2587.53" font-family="Helvetica,sans-Serif" font-size="10.00">(..., _Reason)</text>
-<text text-anchor="middle" x="2695" y="-2576.28" font-family="Helvetica,sans-Serif" font-size="10.00">for classification</text>
+<polygon fill="none" stroke="black" points="2785,-2623.53 2607,-2623.53 2607,-2570.53 2785,-2570.53 2785,-2623.53"/>
+<text text-anchor="middle" x="2696" y="-2610.03" font-family="Helvetica,sans-Serif" font-size="10.00">call explanation:</text>
+<text text-anchor="middle" x="2696" y="-2598.78" font-family="Helvetica,sans-Serif" font-size="10.00">assumption_reason_for_grouped_dep</text>
+<text text-anchor="middle" x="2696" y="-2587.53" font-family="Helvetica,sans-Serif" font-size="10.00">(..., _Reason)</text>
+<text text-anchor="middle" x="2696" y="-2576.28" font-family="Helvetica,sans-Serif" font-size="10.00">for classification</text>
 </g>
 <!-- g_requse_guard&#45;&gt;g_reason_call -->
 <g id="edge70" class="edge">
 <title>g_requse_guard&#45;&gt;g_reason_call</title>
-<path fill="none" stroke="black" d="M2706.47,-3002.44C2695.13,-2989.77 2683.93,-2974.27 2678,-2957.75 2637.2,-2844.03 2667.68,-2697.03 2685.08,-2631.79"/>
-<polygon fill="black" stroke="black" points="2687.36,-2632.73 2686.83,-2625.33 2682.63,-2631.44 2687.36,-2632.73"/>
-<text text-anchor="middle" x="2710.7" y="-2784.23" font-family="Helvetica,sans-Serif" font-size="9.00">yes: skip reprove,</text>
-<text text-anchor="middle" x="2710.7" y="-2774.48" font-family="Helvetica,sans-Serif" font-size="9.00">go straight to assumption</text>
+<path fill="none" stroke="black" d="M2706.47,-3002.44C2695.13,-2989.77 2683.93,-2974.27 2678,-2957.75 2637.2,-2844.02 2668.25,-2697.03 2685.93,-2631.78"/>
+<polygon fill="black" stroke="black" points="2688.21,-2632.73 2687.71,-2625.33 2683.48,-2631.42 2688.21,-2632.73"/>
+<text text-anchor="middle" x="2711.01" y="-2784.23" font-family="Helvetica,sans-Serif" font-size="9.00">yes: skip reprove,</text>
+<text text-anchor="middle" x="2711.01" y="-2774.48" font-family="Helvetica,sans-Serif" font-size="9.00">go straight to assumption</text>
 </g>
 <!-- g_reprove -->
 <g id="node62" class="node">
 <title>g_reprove</title>
 <polygon fill="none" stroke="black" points="2892,-2746.4 2696,-2746.4 2696,-2703.15 2892,-2703.15 2892,-2746.4"/>
 <text text-anchor="middle" x="2794" y="-2732.9" font-family="Helvetica,sans-Serif" font-size="10.00">maybe_request_grouped_dep_reprove(...)</text>
-<text text-anchor="middle" x="2794" y="-2721.65" font-family="Helvetica,sans-Serif" font-size="10.00">(heuristic.pl)</text>
-<text text-anchor="middle" x="2794" y="-2710.4" font-family="Helvetica,sans-Serif" font-size="10.00">→ throw rules_reprove_cn_domain(...)</text>
+<text text-anchor="middle" x="2794" y="-2721.65" font-family="Helvetica,sans-Serif" font-size="10.00">(cnselect.pl)</text>
+<text text-anchor="middle" x="2794" y="-2710.4" font-family="Helvetica,sans-Serif" font-size="10.00">→ throw prover_reprove(cn_domain(...))</text>
 </g>
 <!-- g_learn_parent&#45;&gt;g_reprove -->
 <g id="edge72" class="edge">
@@ -1154,24 +1154,24 @@
 <!-- g_reprove&#45;&gt;g_reason_call -->
 <g id="edge73" class="edge">
 <title>g_reprove&#45;&gt;g_reason_call</title>
-<path fill="none" stroke="black" d="M2777.43,-2702.73C2761.9,-2683 2738.45,-2653.22 2720.53,-2630.46"/>
-<polygon fill="black" stroke="black" points="2722.59,-2629.11 2716.34,-2625.13 2718.74,-2632.14 2722.59,-2629.11"/>
-<text text-anchor="middle" x="2794.9" y="-2667.73" font-family="Helvetica,sans-Serif" font-size="9.00">no reprove request</text>
-<text text-anchor="middle" x="2794.9" y="-2657.98" font-family="Helvetica,sans-Serif" font-size="9.00">(or not eligible)</text>
+<path fill="none" stroke="black" d="M2777.6,-2702.73C2762.22,-2683 2739.01,-2653.22 2721.27,-2630.46"/>
+<polygon fill="black" stroke="black" points="2723.36,-2629.15 2717.12,-2625.13 2719.49,-2632.16 2723.36,-2629.15"/>
+<text text-anchor="middle" x="2795.28" y="-2667.73" font-family="Helvetica,sans-Serif" font-size="9.00">no reprove request</text>
+<text text-anchor="middle" x="2795.28" y="-2657.98" font-family="Helvetica,sans-Serif" font-size="9.00">(or not eligible)</text>
 </g>
 <!-- r_throw -->
 <g id="node80" class="node">
 <title>r_throw</title>
-<polygon fill="none" stroke="black" points="4988.12,-662.51 4705.88,-662.51 4705.88,-626.51 4988.12,-626.51 4988.12,-662.51"/>
-<text text-anchor="middle" x="4847" y="-646.26" font-family="Helvetica,sans-Serif" font-size="10.00">rules_reprove_cn_domain(C,N,Domain,Candidates,Reasons)</text>
-<text text-anchor="middle" x="4847" y="-635.01" font-family="Helvetica,sans-Serif" font-size="10.00">(thrown from heuristic.pl)</text>
+<polygon fill="none" stroke="black" points="4577.5,-662.51 4288.5,-662.51 4288.5,-626.51 4577.5,-626.51 4577.5,-662.51"/>
+<text text-anchor="middle" x="4433" y="-646.26" font-family="Helvetica,sans-Serif" font-size="10.00">prover_reprove(cn_domain(C,N,Domain,Candidates,Reasons))</text>
+<text text-anchor="middle" x="4433" y="-635.01" font-family="Helvetica,sans-Serif" font-size="10.00">(thrown from cnselect.pl / heuristic.pl guards)</text>
 </g>
 <!-- g_reprove&#45;&gt;r_throw -->
 <g id="edge74" class="edge">
 <title>g_reprove&#45;&gt;r_throw</title>
-<path fill="none" stroke="black" stroke-dasharray="5,2" d="M2892.19,-2723.47C3323.55,-2721.46 5029,-2706.66 5029,-2598.03 5029,-2598.03 5029,-2598.03 5029,-782.01 5029,-722.84 4966.67,-686.18 4914.97,-665.95"/>
-<polygon fill="black" stroke="black" points="4915.93,-663.69 4908.51,-663.5 4914.19,-668.27 4915.93,-663.69"/>
-<text text-anchor="middle" x="5095.38" y="-1749.84" font-family="Helvetica,sans-Serif" font-size="9.00">throw rules_reprove_cn_domain</text>
+<path fill="none" stroke="black" stroke-dasharray="5,2" d="M2892.19,-2723.47C3323.55,-2721.46 5029,-2706.66 5029,-2598.03 5029,-2598.03 5029,-2598.03 5029,-782.01 5029,-691.17 4762.58,-660.78 4585.99,-650.62"/>
+<polygon fill="black" stroke="black" points="4586.29,-648.18 4579.17,-650.24 4586.02,-653.08 4586.29,-648.18"/>
+<text text-anchor="middle" x="5104" y="-1749.84" font-family="Helvetica,sans-Serif" font-size="9.00">throw prover_reprove(cn_domain(..))</text>
 </g>
 <!-- g_requse_ctx -->
 <g id="node65" class="node">
@@ -1183,21 +1183,21 @@
 <!-- g_reason_call&#45;&gt;g_requse_ctx -->
 <g id="edge75" class="edge">
 <title>g_reason_call&#45;&gt;g_requse_ctx</title>
-<path fill="none" stroke="black" d="M2697.09,-2570.2C2698.98,-2546.85 2701.79,-2512.16 2703.93,-2485.67"/>
-<polygon fill="black" stroke="black" points="2706.36,-2486.06 2704.48,-2478.89 2701.48,-2485.67 2706.36,-2486.06"/>
+<path fill="none" stroke="black" d="M2697.92,-2570.2C2699.65,-2546.85 2702.22,-2512.16 2704.19,-2485.67"/>
+<polygon fill="black" stroke="black" points="2706.62,-2486.05 2704.69,-2478.89 2701.73,-2485.69 2706.62,-2486.05"/>
 </g>
 <!-- e_start -->
 <g id="node88" class="node">
 <title>e_start</title>
-<ellipse fill="none" stroke="black" cx="1996" cy="-3453.75" rx="21.01" ry="21.01"/>
-<text text-anchor="middle" x="1996" y="-3449.88" font-family="Helvetica,sans-Serif" font-size="10.00">start</text>
+<ellipse fill="none" stroke="black" cx="1995" cy="-3453.75" rx="21.01" ry="21.01"/>
+<text text-anchor="middle" x="1995" y="-3449.88" font-family="Helvetica,sans-Serif" font-size="10.00">start</text>
 </g>
 <!-- g_reason_call&#45;&gt;e_start -->
 <g id="edge130" class="edge">
 <title>g_reason_call&#45;&gt;e_start</title>
-<path fill="none" stroke="black" stroke-dasharray="5,2" d="M2608.9,-2623.96C2586.94,-2629.7 2563.25,-2635.15 2541,-2638.78 2503.92,-2644.82 2207.48,-2623.55 2139,-2694.28 2010.45,-2827.06 2043,-2914.06 2043,-3098.88 2043,-3293.25 2043,-3293.25 2043,-3293.25 2043,-3342.22 2022.37,-3396.32 2008.44,-3427.26"/>
-<polygon fill="black" stroke="black" points="2006.39,-3425.85 2005.69,-3433.23 2010.84,-3427.89 2006.39,-3425.85"/>
-<text text-anchor="middle" x="2079.18" y="-3031.58" font-family="Helvetica,sans-Serif" font-size="9.00">classification path</text>
+<path fill="none" stroke="black" stroke-dasharray="5,2" d="M2609.9,-2623.97C2587.94,-2629.71 2564.25,-2635.15 2542,-2638.78 2503.54,-2645.04 2208.79,-2623.06 2140,-2694.28 2136.01,-2698.41 2043,-2976.65 2043,-3098.88 2043,-3293.25 2043,-3293.25 2043,-3293.25 2043,-3342.3 2021.93,-3396.38 2007.71,-3427.28"/>
+<polygon fill="black" stroke="black" points="2005.66,-3425.88 2004.9,-3433.26 2010.09,-3427.96 2005.66,-3425.88"/>
+<text text-anchor="middle" x="2091.59" y="-3031.58" font-family="Helvetica,sans-Serif" font-size="9.00">classification path</text>
 </g>
 <!-- g_slot_conflict_check -->
 <g id="node64" class="node">
@@ -1298,8 +1298,8 @@
 <!-- bwu_start&#45;&gt;bwu_check -->
 <g id="edge78" class="edge">
 <title>bwu_start&#45;&gt;bwu_check</title>
-<path fill="none" stroke="black" d="M3038.45,-736.18C3044.47,-719.41 3051.22,-700.6 3057.01,-684.49"/>
-<polygon fill="black" stroke="black" points="3059.19,-685.65 3059.25,-678.24 3054.58,-684 3059.19,-685.65"/>
+<path fill="none" stroke="black" d="M3032.15,-736.94C3039.35,-719.99 3047.48,-700.87 3054.43,-684.52"/>
+<polygon fill="black" stroke="black" points="3056.66,-685.53 3057.14,-678.13 3052.15,-683.61 3056.66,-685.53"/>
 </g>
 <!-- bwu_merge_ok -->
 <g id="node69" class="node">
@@ -1467,101 +1467,101 @@
 <!-- r_catch -->
 <g id="node82" class="node">
 <title>r_catch</title>
-<polygon fill="none" stroke="black" points="4975,-554.14 4719,-554.14 4719,-518.14 4975,-518.14 4975,-554.14"/>
-<text text-anchor="middle" x="4847" y="-532.26" font-family="Helvetica,sans-Serif" font-size="10.00">prover:prove_with_cn_domain_retries/11 catches throw</text>
+<polygon fill="none" stroke="black" points="4534.75,-554.14 4331.25,-554.14 4331.25,-518.14 4534.75,-518.14 4534.75,-554.14"/>
+<text text-anchor="middle" x="4433" y="-532.26" font-family="Helvetica,sans-Serif" font-size="10.00">prover:prove_with_retries/11 catches throw</text>
 </g>
 <!-- r_throw&#45;&gt;r_catch -->
 <g id="edge92" class="edge">
 <title>r_throw&#45;&gt;r_catch</title>
-<path fill="none" stroke="black" d="M4847,-626.42C4847,-609.31 4847,-582.76 4847,-563.05"/>
-<polygon fill="black" stroke="black" points="4849.45,-563.05 4847,-556.05 4844.55,-563.05 4849.45,-563.05"/>
+<path fill="none" stroke="black" d="M4433,-626.42C4433,-609.31 4433,-582.76 4433,-563.05"/>
+<polygon fill="black" stroke="black" points="4435.45,-563.05 4433,-556.05 4430.55,-563.05 4435.45,-563.05"/>
 </g>
 <!-- r_guard&#45;&gt;r_throw -->
 <g id="edge91" class="edge">
 <title>r_guard&#45;&gt;r_throw</title>
-<path fill="none" stroke="black" stroke-dasharray="5,2" d="M4813,-756.02C4820.54,-731.52 4831.76,-695.06 4839.22,-670.8"/>
-<polygon fill="black" stroke="black" points="4841.53,-671.62 4841.25,-664.21 4836.85,-670.18 4841.53,-671.62"/>
-<text text-anchor="middle" x="4863.25" y="-695.84" font-family="Helvetica,sans-Serif" font-size="9.00">reprove request</text>
+<path fill="none" stroke="black" stroke-dasharray="5,2" d="M4348,-756.02C4367.25,-730.99 4396.12,-693.46 4414.76,-669.23"/>
+<polygon fill="black" stroke="black" points="4416.48,-671.01 4418.81,-663.97 4412.6,-668.02 4416.48,-671.01"/>
+<text text-anchor="middle" x="4425.24" y="-695.84" font-family="Helvetica,sans-Serif" font-size="9.00">reprove request</text>
 </g>
 <!-- r_add -->
 <g id="node83" class="node">
 <title>r_add</title>
-<polygon fill="none" stroke="black" points="4868.5,-437.64 4615.5,-437.64 4615.5,-401.64 4868.5,-401.64 4868.5,-437.64"/>
-<text text-anchor="middle" x="4742" y="-421.39" font-family="Helvetica,sans-Serif" font-size="10.00">candidate:add_cn_domain_rejects(...)</text>
-<text text-anchor="middle" x="4742" y="-410.14" font-family="Helvetica,sans-Serif" font-size="10.00">(+ add_cn_domain_origin_rejects when Candidates=[])</text>
+<polygon fill="none" stroke="black" points="4483.5,-437.64 4230.5,-437.64 4230.5,-401.64 4483.5,-401.64 4483.5,-437.64"/>
+<text text-anchor="middle" x="4357" y="-421.39" font-family="Helvetica,sans-Serif" font-size="10.00">candidate:add_cn_domain_rejects(...)</text>
+<text text-anchor="middle" x="4357" y="-410.14" font-family="Helvetica,sans-Serif" font-size="10.00">(+ add_cn_domain_origin_rejects when Candidates=[])</text>
 </g>
 <!-- r_catch&#45;&gt;r_add -->
 <g id="edge93" class="edge">
 <title>r_catch&#45;&gt;r_add</title>
-<path fill="none" stroke="black" d="M4831.05,-517.75C4812.99,-498.05 4783.45,-465.84 4763.4,-443.97"/>
-<polygon fill="black" stroke="black" points="4765.31,-442.44 4758.78,-438.93 4761.7,-445.75 4765.31,-442.44"/>
+<path fill="none" stroke="black" d="M4421.46,-517.75C4408.55,-498.3 4387.55,-466.67 4373.05,-444.82"/>
+<polygon fill="black" stroke="black" points="4375.15,-443.56 4369.24,-439.08 4371.07,-446.27 4375.15,-443.56"/>
 </g>
 <!-- r_retry -->
 <g id="node84" class="node">
 <title>r_retry</title>
-<polygon fill="none" stroke="black" points="4733,-333.64 4594,-303.14 4733,-272.64 4872,-303.14 4733,-333.64"/>
-<text text-anchor="middle" x="4733" y="-304.89" font-family="Helvetica,sans-Serif" font-size="10.00">Attempt &lt; MaxRetries</text>
-<text text-anchor="middle" x="4733" y="-293.64" font-family="Helvetica,sans-Serif" font-size="10.00">AND any new reject added?</text>
+<polygon fill="none" stroke="black" points="4348,-333.64 4209,-303.14 4348,-272.64 4487,-303.14 4348,-333.64"/>
+<text text-anchor="middle" x="4348" y="-304.89" font-family="Helvetica,sans-Serif" font-size="10.00">Attempt &lt; MaxRetries</text>
+<text text-anchor="middle" x="4348" y="-293.64" font-family="Helvetica,sans-Serif" font-size="10.00">AND any new reject added?</text>
 </g>
 <!-- r_add&#45;&gt;r_retry -->
 <g id="edge94" class="edge">
 <title>r_add&#45;&gt;r_retry</title>
-<path fill="none" stroke="black" d="M4740.63,-401.25C4739.39,-385.48 4737.53,-361.71 4735.95,-341.64"/>
-<polygon fill="black" stroke="black" points="4738.4,-341.59 4735.41,-334.8 4733.52,-341.97 4738.4,-341.59"/>
+<path fill="none" stroke="black" d="M4355.63,-401.25C4354.39,-385.48 4352.53,-361.71 4350.95,-341.64"/>
+<polygon fill="black" stroke="black" points="4353.4,-341.59 4350.41,-334.8 4348.52,-341.97 4353.4,-341.59"/>
 </g>
 <!-- r_recurse -->
 <g id="node85" class="node">
 <title>r_recurse</title>
-<polygon fill="none" stroke="black" points="4989,-218.39 4793,-218.39 4793,-182.39 4989,-182.39 4989,-218.39"/>
-<text text-anchor="middle" x="4891" y="-196.51" font-family="Helvetica,sans-Serif" font-size="10.00">retry prove_once with updated reject map</text>
+<polygon fill="none" stroke="black" points="4604,-218.39 4408,-218.39 4408,-182.39 4604,-182.39 4604,-218.39"/>
+<text text-anchor="middle" x="4506" y="-196.51" font-family="Helvetica,sans-Serif" font-size="10.00">retry prove_once with updated reject map</text>
 </g>
 <!-- r_retry&#45;&gt;r_recurse -->
 <g id="edge95" class="edge">
 <title>r_retry&#45;&gt;r_recurse</title>
-<path fill="none" stroke="black" d="M4767.67,-280.03C4794.08,-263.19 4830.25,-240.13 4856.59,-223.33"/>
-<polygon fill="black" stroke="black" points="4857.88,-225.41 4862.47,-219.58 4855.25,-221.28 4857.88,-225.41"/>
-<text text-anchor="middle" x="4828.58" y="-246.09" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
+<path fill="none" stroke="black" d="M4382.67,-280.03C4409.08,-263.19 4445.25,-240.13 4471.59,-223.33"/>
+<polygon fill="black" stroke="black" points="4472.88,-225.41 4477.47,-219.58 4470.25,-221.28 4472.88,-225.41"/>
+<text text-anchor="middle" x="4443.58" y="-246.09" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
 </g>
 <!-- r_fallback -->
 <g id="node86" class="node">
 <title>r_fallback</title>
-<polygon fill="none" stroke="black" points="4774.75,-218.39 4565.25,-218.39 4565.25,-182.39 4774.75,-182.39 4774.75,-218.39"/>
-<text text-anchor="middle" x="4670" y="-202.14" font-family="Helvetica,sans-Serif" font-size="10.00">exhausted/no&#45;new&#45;rejects:</text>
-<text text-anchor="middle" x="4670" y="-190.89" font-family="Helvetica,sans-Serif" font-size="10.00">prove_once with cn&#45;domain reprove disabled</text>
+<polygon fill="none" stroke="black" points="4389.75,-218.39 4180.25,-218.39 4180.25,-182.39 4389.75,-182.39 4389.75,-218.39"/>
+<text text-anchor="middle" x="4285" y="-202.14" font-family="Helvetica,sans-Serif" font-size="10.00">exhausted/no&#45;new&#45;rejects:</text>
+<text text-anchor="middle" x="4285" y="-190.89" font-family="Helvetica,sans-Serif" font-size="10.00">prove_once with cn&#45;domain reprove disabled</text>
 </g>
 <!-- r_retry&#45;&gt;r_fallback -->
 <g id="edge96" class="edge">
 <title>r_retry&#45;&gt;r_fallback</title>
-<path fill="none" stroke="black" d="M4716.61,-275.93C4706.9,-260.4 4694.67,-240.85 4685.18,-225.67"/>
-<polygon fill="black" stroke="black" points="4687.35,-224.52 4681.57,-219.88 4683.2,-227.12 4687.35,-224.52"/>
-<text text-anchor="middle" x="4706.75" y="-246.09" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
+<path fill="none" stroke="black" d="M4331.61,-275.93C4321.9,-260.4 4309.67,-240.85 4300.18,-225.67"/>
+<polygon fill="black" stroke="black" points="4302.35,-224.52 4296.57,-219.88 4298.2,-227.12 4302.35,-224.52"/>
+<text text-anchor="middle" x="4321.75" y="-246.09" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
 </g>
 <!-- r_recurse&#45;&gt;r_catch -->
 <g id="edge98" class="edge">
 <title>r_recurse&#45;&gt;r_catch</title>
-<path fill="none" stroke="black" stroke-dasharray="5,2" d="M4891.85,-218.8C4893.46,-259.67 4895.39,-364.75 4878,-450.14 4873.77,-470.91 4865.39,-493.39 4858.4,-510.02"/>
-<polygon fill="black" stroke="black" points="4856.22,-508.89 4855.71,-516.29 4860.73,-510.82 4856.22,-508.89"/>
-<text text-anchor="middle" x="4917.59" y="-357.71" font-family="Helvetica,sans-Serif" font-size="9.00">on next throw</text>
+<path fill="none" stroke="black" stroke-dasharray="5,2" d="M4508.29,-218.6C4513.11,-259.91 4521.66,-367.39 4493,-450.14 4484.96,-473.34 4468.54,-495.87 4454.91,-511.9"/>
+<polygon fill="black" stroke="black" points="4453.4,-509.9 4450.64,-516.79 4457.09,-513.12 4453.4,-509.9"/>
+<text text-anchor="middle" x="4538.97" y="-357.71" font-family="Helvetica,sans-Serif" font-size="9.00">on next throw</text>
 </g>
 <!-- r_done -->
 <g id="node87" class="node">
 <title>r_done</title>
-<ellipse fill="none" stroke="black" cx="4780" cy="-72.07" rx="52.07" ry="52.07"/>
-<ellipse fill="none" stroke="black" cx="4780" cy="-72.07" rx="56.07" ry="56.07"/>
-<text text-anchor="middle" x="4780" y="-68.19" font-family="Helvetica,sans-Serif" font-size="10.00">final prove result</text>
+<ellipse fill="none" stroke="black" cx="4395" cy="-72.07" rx="52.07" ry="52.07"/>
+<ellipse fill="none" stroke="black" cx="4395" cy="-72.07" rx="56.07" ry="56.07"/>
+<text text-anchor="middle" x="4395" y="-68.19" font-family="Helvetica,sans-Serif" font-size="10.00">final prove result</text>
 </g>
 <!-- r_recurse&#45;&gt;r_done -->
 <g id="edge97" class="edge">
 <title>r_recurse&#45;&gt;r_done</title>
-<path fill="none" stroke="black" stroke-dasharray="5,2" d="M4875.8,-182.09C4862.02,-166.41 4841.05,-142.54 4822.23,-121.13"/>
-<polygon fill="black" stroke="black" points="4824.2,-119.65 4817.73,-116.01 4820.51,-122.89 4824.2,-119.65"/>
-<text text-anchor="middle" x="4901.43" y="-147.34" font-family="Helvetica,sans-Serif" font-size="9.00">success/no further throw</text>
+<path fill="none" stroke="black" stroke-dasharray="5,2" d="M4490.8,-182.09C4477.02,-166.41 4456.05,-142.54 4437.23,-121.13"/>
+<polygon fill="black" stroke="black" points="4439.2,-119.65 4432.73,-116.01 4435.51,-122.89 4439.2,-119.65"/>
+<text text-anchor="middle" x="4516.43" y="-147.34" font-family="Helvetica,sans-Serif" font-size="9.00">success/no further throw</text>
 </g>
 <!-- r_fallback&#45;&gt;r_done -->
 <g id="edge99" class="edge">
 <title>r_fallback&#45;&gt;r_done</title>
-<path fill="none" stroke="black" d="M4685.06,-182.09C4698.67,-166.47 4719.34,-142.73 4737.93,-121.38"/>
-<polygon fill="black" stroke="black" points="4739.62,-123.17 4742.37,-116.29 4735.92,-119.96 4739.62,-123.17"/>
+<path fill="none" stroke="black" d="M4300.06,-182.09C4313.67,-166.47 4334.34,-142.73 4352.93,-121.38"/>
+<polygon fill="black" stroke="black" points="4354.62,-123.17 4357.37,-116.29 4350.92,-119.96 4354.62,-123.17"/>
 </g>
 <!-- e_any -->
 <g id="node89" class="node">
@@ -1573,62 +1573,62 @@
 <!-- e_start&#45;&gt;e_any -->
 <g id="edge100" class="edge">
 <title>e_start&#45;&gt;e_any</title>
-<path fill="none" stroke="black" d="M1985.96,-3434.77C1971.3,-3408.48 1943.76,-3359.14 1925.4,-3326.23"/>
-<polygon fill="black" stroke="black" points="1927.69,-3325.3 1922.14,-3320.38 1923.41,-3327.69 1927.69,-3325.3"/>
+<path fill="none" stroke="black" d="M1985.08,-3434.77C1970.58,-3408.48 1943.35,-3359.14 1925.19,-3326.23"/>
+<polygon fill="black" stroke="black" points="1927.5,-3325.33 1921.97,-3320.39 1923.21,-3327.7 1927.5,-3325.33"/>
 </g>
 <!-- e_missing -->
 <g id="node90" class="node">
 <title>e_missing</title>
-<polygon fill="none" stroke="black" points="2003.75,-3182.5 1908.25,-3182.5 1908.25,-3146.5 2003.75,-3146.5 2003.75,-3182.5"/>
-<text text-anchor="middle" x="1956" y="-3160.63" font-family="Helvetica,sans-Serif" font-size="10.00">Reason = missing</text>
+<polygon fill="none" stroke="black" points="1999.75,-3182.5 1904.25,-3182.5 1904.25,-3146.5 1999.75,-3146.5 1999.75,-3182.5"/>
+<text text-anchor="middle" x="1952" y="-3160.63" font-family="Helvetica,sans-Serif" font-size="10.00">Reason = missing</text>
 </g>
 <!-- e_any&#45;&gt;e_missing -->
 <g id="edge101" class="edge">
 <title>e_any&#45;&gt;e_missing</title>
-<path fill="none" stroke="black" d="M1917.51,-3264.28C1926.04,-3242.39 1937.97,-3211.78 1946.28,-3190.46"/>
-<polygon fill="black" stroke="black" points="1948.46,-3191.6 1948.72,-3184.19 1943.9,-3189.82 1948.46,-3191.6"/>
-<text text-anchor="middle" x="1938.22" y="-3230.33" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
+<path fill="none" stroke="black" d="M1916.65,-3264.28C1924.45,-3242.49 1935.34,-3212.05 1942.97,-3190.74"/>
+<polygon fill="black" stroke="black" points="1945.26,-3191.62 1945.31,-3184.2 1940.64,-3189.97 1945.26,-3191.62"/>
+<text text-anchor="middle" x="1936.1" y="-3230.33" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
 </g>
 <!-- e_need_inst -->
 <g id="node91" class="node">
 <title>e_need_inst</title>
-<polygon fill="none" stroke="black" points="1755,-3195 1651.25,-3164.5 1755,-3134 1858.75,-3164.5 1755,-3195"/>
-<text text-anchor="middle" x="1755" y="-3166.25" font-family="Helvetica,sans-Serif" font-size="10.00">self&#45;hosting requires</text>
-<text text-anchor="middle" x="1755" y="-3155" font-family="Helvetica,sans-Serif" font-size="10.00">installed&#45;only?</text>
+<polygon fill="none" stroke="black" points="1737,-3195 1633.25,-3164.5 1737,-3134 1840.75,-3164.5 1737,-3195"/>
+<text text-anchor="middle" x="1737" y="-3166.25" font-family="Helvetica,sans-Serif" font-size="10.00">self&#45;hosting requires</text>
+<text text-anchor="middle" x="1737" y="-3155" font-family="Helvetica,sans-Serif" font-size="10.00">installed&#45;only?</text>
 </g>
 <!-- e_any&#45;&gt;e_need_inst -->
 <g id="edge102" class="edge">
 <title>e_any&#45;&gt;e_need_inst</title>
-<path fill="none" stroke="black" d="M1880.18,-3269.06C1854.45,-3247.78 1815.56,-3215.6 1787.96,-3192.77"/>
-<polygon fill="black" stroke="black" points="1789.68,-3191.01 1782.72,-3188.44 1786.55,-3194.79 1789.68,-3191.01"/>
-<text text-anchor="middle" x="1856.21" y="-3230.33" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
+<path fill="none" stroke="black" d="M1877.78,-3269.64C1848.65,-3248.09 1803.88,-3214.98 1772.68,-3191.89"/>
+<polygon fill="black" stroke="black" points="1774.14,-3189.93 1767.06,-3187.74 1771.23,-3193.87 1774.14,-3189.93"/>
+<text text-anchor="middle" x="1849.35" y="-3230.33" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
 </g>
 <!-- e_missing&#45;&gt;g_assume -->
 <g id="edge171" class="edge">
 <title>e_missing&#45;&gt;g_assume</title>
-<path fill="none" stroke="black" stroke-dasharray="5,2" d="M1964.4,-3146.26C1975.31,-3122.22 1993,-3076.97 1993,-3036.25 1993,-3036.25 1993,-3036.25 1993,-2723.78 1993,-2504.84 2021.96,-2445.92 2109,-2245.03 2116.05,-2228.76 2125.37,-2211.92 2134.51,-2196.89"/>
+<path fill="none" stroke="black" stroke-dasharray="5,2" d="M1961.08,-3146.34C1972.88,-3122.38 1992,-3077.24 1992,-3036.25 1992,-3036.25 1992,-3036.25 1992,-2723.78 1992,-2504.74 2021.92,-2446.02 2109,-2245.03 2116.05,-2228.76 2125.37,-2211.92 2134.51,-2196.89"/>
 <polygon fill="black" stroke="black" points="2136.58,-2198.2 2138.18,-2190.96 2132.42,-2195.62 2136.58,-2198.2"/>
-<text text-anchor="middle" x="2028.51" y="-2662.85" font-family="Helvetica,sans-Serif" font-size="9.00">Reason=missing</text>
+<text text-anchor="middle" x="2027.54" y="-2662.85" font-family="Helvetica,sans-Serif" font-size="9.00">Reason=missing</text>
 </g>
 <!-- e_inst_empty -->
 <g id="node92" class="node">
 <title>e_inst_empty</title>
-<polygon fill="none" stroke="black" points="1615,-3053.25 1510.61,-3035.25 1615,-3017.25 1719.39,-3035.25 1615,-3053.25"/>
-<text text-anchor="middle" x="1615" y="-3031.38" font-family="Helvetica,sans-Serif" font-size="10.00">installed&#45;only set empty?</text>
+<polygon fill="none" stroke="black" points="1597,-3053.25 1492.61,-3035.25 1597,-3017.25 1701.39,-3035.25 1597,-3053.25"/>
+<text text-anchor="middle" x="1597" y="-3031.38" font-family="Helvetica,sans-Serif" font-size="10.00">installed&#45;only set empty?</text>
 </g>
 <!-- e_need_inst&#45;&gt;e_inst_empty -->
 <g id="edge103" class="edge">
 <title>e_need_inst&#45;&gt;e_inst_empty</title>
-<path fill="none" stroke="black" d="M1730.29,-3141.05C1703.95,-3117.1 1662.62,-3079.53 1637.25,-3056.48"/>
-<polygon fill="black" stroke="black" points="1639.12,-3054.86 1632.29,-3051.97 1635.82,-3058.49 1639.12,-3054.86"/>
-<text text-anchor="middle" x="1696.32" y="-3096.2" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
+<path fill="none" stroke="black" d="M1712.29,-3141.05C1685.95,-3117.1 1644.62,-3079.53 1619.25,-3056.48"/>
+<polygon fill="black" stroke="black" points="1621.12,-3054.86 1614.29,-3051.97 1617.82,-3058.49 1621.12,-3054.86"/>
+<text text-anchor="middle" x="1678.32" y="-3096.2" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
 </g>
 <!-- e_need_inst&#45;&gt;e_unmasked1 -->
 <g id="edge104" class="edge">
 <title>e_need_inst&#45;&gt;e_unmasked1</title>
-<path fill="none" stroke="black" d="M1750.63,-3134.82C1741.67,-3075.99 1721.34,-2942.51 1712.84,-2886.74"/>
-<polygon fill="black" stroke="black" points="1715.29,-2886.53 1711.81,-2879.98 1710.44,-2887.27 1715.29,-2886.53"/>
-<text text-anchor="middle" x="1746.94" y="-3031.58" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
+<path fill="none" stroke="black" d="M1734.32,-3134.55C1728.85,-3075.56 1716.49,-2942.33 1711.33,-2886.69"/>
+<polygon fill="black" stroke="black" points="1713.79,-2886.7 1710.71,-2879.95 1708.92,-2887.15 1713.79,-2886.7"/>
+<text text-anchor="middle" x="1734.15" y="-3031.58" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
 </g>
 <!-- e_inst_req -->
 <g id="node93" class="node">
@@ -1639,16 +1639,16 @@
 <!-- e_inst_empty&#45;&gt;e_inst_req -->
 <g id="edge105" class="edge">
 <title>e_inst_empty&#45;&gt;e_inst_req</title>
-<path fill="none" stroke="black" d="M1605.13,-3018.62C1586.02,-2988.33 1543.84,-2921.49 1521.15,-2885.54"/>
-<polygon fill="black" stroke="black" points="1523.5,-2884.67 1517.69,-2880.06 1519.36,-2887.28 1523.5,-2884.67"/>
-<text text-anchor="middle" x="1583.76" y="-2966.95" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
+<path fill="none" stroke="black" d="M1588.6,-3018.31C1572.66,-2988.06 1537.93,-2922.14 1518.98,-2886.16"/>
+<polygon fill="black" stroke="black" points="1521.32,-2885.35 1515.89,-2880.3 1516.98,-2887.63 1521.32,-2885.35"/>
+<text text-anchor="middle" x="1572.09" y="-2966.95" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
 </g>
 <!-- e_inst_empty&#45;&gt;e_unmasked1 -->
 <g id="edge106" class="edge">
 <title>e_inst_empty&#45;&gt;e_unmasked1</title>
-<path fill="none" stroke="black" d="M1623.67,-3018.31C1640.39,-2987.59 1677.13,-2920.09 1696.49,-2884.51"/>
-<polygon fill="black" stroke="black" points="1698.43,-2886.08 1699.62,-2878.76 1694.12,-2883.74 1698.43,-2886.08"/>
-<text text-anchor="middle" x="1656.07" y="-2966.95" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
+<path fill="none" stroke="black" d="M1607.14,-3018.62C1627.04,-2987.92 1671.31,-2919.65 1694.38,-2884.07"/>
+<polygon fill="black" stroke="black" points="1696.39,-2885.48 1698.14,-2878.27 1692.28,-2882.81 1696.39,-2885.48"/>
+<text text-anchor="middle" x="1644.92" y="-2966.95" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
 </g>
 <!-- e_inst_req&#45;&gt;g_assume -->
 <g id="edge177" class="edge">
@@ -1848,8 +1848,8 @@
 <!-- u_start&#45;&gt;u_has_replaces -->
 <g id="edge118" class="edge">
 <title>u_start&#45;&gt;u_has_replaces</title>
-<path fill="none" stroke="black" d="M5126.49,-966.95C5134.94,-929.74 5153.14,-849.49 5162.38,-808.78"/>
-<polygon fill="black" stroke="black" points="5164.71,-809.57 5163.87,-802.2 5159.94,-808.48 5164.71,-809.57"/>
+<path fill="none" stroke="black" d="M5086.31,-968.05C5102.75,-931.01 5139.41,-848.43 5157.49,-807.68"/>
+<polygon fill="black" stroke="black" points="5159.64,-808.89 5160.24,-801.5 5155.16,-806.9 5159.64,-808.89"/>
 </g>
 <!-- u_txn -->
 <g id="node107" class="node">
@@ -1896,28 +1896,28 @@
 <!-- u_delegate_latest -->
 <g id="node109" class="node">
 <title>u_delegate_latest</title>
-<polygon fill="none" stroke="black" points="5320.62,-554.14 5113.38,-554.14 5113.38,-518.14 5320.62,-518.14 5320.62,-554.14"/>
-<text text-anchor="middle" x="5217" y="-532.26" font-family="Helvetica,sans-Serif" font-size="10.00">delegate to Latest:update?{replaces(Target)}</text>
+<polygon fill="none" stroke="black" points="5319.62,-554.14 5112.38,-554.14 5112.38,-518.14 5319.62,-518.14 5319.62,-554.14"/>
+<text text-anchor="middle" x="5216" y="-532.26" font-family="Helvetica,sans-Serif" font-size="10.00">delegate to Latest:update?{replaces(Target)}</text>
 </g>
 <!-- u_installed_target&#45;&gt;u_delegate_latest -->
 <g id="edge121" class="edge">
 <title>u_installed_target&#45;&gt;u_delegate_latest</title>
-<path fill="none" stroke="black" d="M5257.09,-616.12C5248.61,-599.4 5237.84,-578.2 5229.61,-561.97"/>
-<polygon fill="black" stroke="black" points="5231.83,-560.93 5226.47,-555.8 5227.46,-563.15 5231.83,-560.93"/>
-<text text-anchor="middle" x="5252.74" y="-585.84" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
+<path fill="none" stroke="black" d="M5256.84,-616.12C5248.19,-599.4 5237.23,-578.2 5228.84,-561.97"/>
+<polygon fill="black" stroke="black" points="5231.04,-560.89 5225.64,-555.79 5226.68,-563.14 5231.04,-560.89"/>
+<text text-anchor="middle" x="5252.27" y="-585.84" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
 </g>
 <!-- u_target_not_installed -->
 <g id="node110" class="node">
 <title>u_target_not_installed</title>
-<polygon fill="none" stroke="black" points="5424,-554.14 5339.07,-536.14 5424,-518.14 5508.93,-536.14 5424,-554.14"/>
-<text text-anchor="middle" x="5424" y="-532.26" font-family="Helvetica,sans-Serif" font-size="10.00">target not installed?</text>
+<polygon fill="none" stroke="black" points="5423,-554.14 5338.07,-536.14 5423,-518.14 5507.93,-536.14 5423,-554.14"/>
+<text text-anchor="middle" x="5423" y="-532.26" font-family="Helvetica,sans-Serif" font-size="10.00">target not installed?</text>
 </g>
 <!-- u_installed_target&#45;&gt;u_target_not_installed -->
 <g id="edge122" class="edge">
 <title>u_installed_target&#45;&gt;u_target_not_installed</title>
-<path fill="none" stroke="black" d="M5305.34,-619.64C5333.36,-600.16 5372.37,-573.04 5397.89,-555.29"/>
-<polygon fill="black" stroke="black" points="5399.12,-557.42 5403.47,-551.41 5396.32,-553.4 5399.12,-557.42"/>
-<text text-anchor="middle" x="5357.34" y="-585.84" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
+<path fill="none" stroke="black" d="M5305.11,-619.64C5332.95,-600.16 5371.7,-573.04 5397.06,-555.29"/>
+<polygon fill="black" stroke="black" points="5398.27,-557.44 5402.6,-551.42 5395.46,-553.42 5398.27,-557.44"/>
+<text text-anchor="middle" x="5356.81" y="-585.84" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
 </g>
 <!-- u_same_slot_old -->
 <g id="node111" class="node">
@@ -1928,9 +1928,9 @@
 <!-- u_target_not_installed&#45;&gt;u_same_slot_old -->
 <g id="edge123" class="edge">
 <title>u_target_not_installed&#45;&gt;u_same_slot_old</title>
-<path fill="none" stroke="black" d="M5425.18,-518.24C5426.51,-499.24 5428.68,-468.17 5430.21,-446.2"/>
-<polygon fill="black" stroke="black" points="5432.64,-446.64 5430.68,-439.49 5427.75,-446.3 5432.64,-446.64"/>
-<text text-anchor="middle" x="5435.6" y="-474.21" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
+<path fill="none" stroke="black" d="M5424.33,-518.24C5425.82,-499.24 5428.26,-468.17 5429.99,-446.2"/>
+<polygon fill="black" stroke="black" points="5432.41,-446.66 5430.52,-439.49 5427.53,-446.27 5432.41,-446.66"/>
+<text text-anchor="middle" x="5435.16" y="-474.21" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
 </g>
 <!-- u_noop -->
 <g id="node113" class="node">
@@ -1941,9 +1941,9 @@
 <!-- u_target_not_installed&#45;&gt;u_noop -->
 <g id="edge124" class="edge">
 <title>u_target_not_installed&#45;&gt;u_noop</title>
-<path fill="none" stroke="black" d="M5397.67,-523.32C5354.61,-503.98 5268.6,-465.36 5215.21,-441.39"/>
-<polygon fill="black" stroke="black" points="5216.35,-439.21 5208.96,-438.58 5214.34,-443.68 5216.35,-439.21"/>
-<text text-anchor="middle" x="5317.02" y="-474.21" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
+<path fill="none" stroke="black" d="M5396.77,-523.32C5353.89,-503.98 5268.21,-465.36 5215.03,-441.39"/>
+<polygon fill="black" stroke="black" points="5216.19,-439.22 5208.8,-438.58 5214.18,-443.69 5216.19,-439.22"/>
+<text text-anchor="middle" x="5316.46" y="-474.21" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
 </g>
 <!-- u_same_slot_old&#45;&gt;u_txn -->
 <g id="edge125" class="edge">
@@ -1968,15 +1968,15 @@
 <!-- at_requse_check -->
 <g id="node117" class="node">
 <title>at_requse_check</title>
-<polygon fill="#ffe0e0" stroke="black" points="3236,-1842.27 3106.75,-1811.77 3236,-1781.27 3365.25,-1811.77 3236,-1842.27"/>
-<text text-anchor="middle" x="3236" y="-1813.52" font-family="Helvetica,sans-Serif" font-size="10.00">has ?{Ctx} with</text>
-<text text-anchor="middle" x="3236" y="-1802.27" font-family="Helvetica,sans-Serif" font-size="10.00">required_use_violation(_)?</text>
+<polygon fill="#ffe0e0" stroke="black" points="3199,-1842.27 3069.75,-1811.77 3199,-1781.27 3328.25,-1811.77 3199,-1842.27"/>
+<text text-anchor="middle" x="3199" y="-1813.52" font-family="Helvetica,sans-Serif" font-size="10.00">has ?{Ctx} with</text>
+<text text-anchor="middle" x="3199" y="-1802.27" font-family="Helvetica,sans-Serif" font-size="10.00">required_use_violation(_)?</text>
 </g>
 <!-- at_start&#45;&gt;at_requse_check -->
 <g id="edge135" class="edge">
 <title>at_start&#45;&gt;at_requse_check</title>
-<path fill="none" stroke="black" d="M3155.33,-1905.98C3172.17,-1886.52 3192.93,-1862.53 3209.18,-1843.76"/>
-<polygon fill="black" stroke="black" points="3210.78,-1845.65 3213.51,-1838.75 3207.08,-1842.44 3210.78,-1845.65"/>
+<path fill="none" stroke="black" d="M3148.21,-1900.79C3158.37,-1883.18 3170.15,-1862.76 3179.81,-1846.02"/>
+<polygon fill="black" stroke="black" points="3181.68,-1847.7 3183.05,-1840.41 3177.43,-1845.25 3181.68,-1847.7"/>
 </g>
 <!-- at_ctx_check -->
 <g id="node116" class="node">
@@ -2031,16 +2031,16 @@
 <!-- at_slot_check -->
 <g id="node118" class="node">
 <title>at_slot_check</title>
-<polygon fill="#e0e0ff" stroke="black" points="3236,-1712.89 3151,-1682.39 3236,-1651.89 3321,-1682.39 3236,-1712.89"/>
-<text text-anchor="middle" x="3236" y="-1684.14" font-family="Helvetica,sans-Serif" font-size="10.00">has ?{Ctx} with</text>
-<text text-anchor="middle" x="3236" y="-1672.89" font-family="Helvetica,sans-Serif" font-size="10.00">slot_conflict(_)?</text>
+<polygon fill="#e0e0ff" stroke="black" points="3199,-1712.89 3114,-1682.39 3199,-1651.89 3284,-1682.39 3199,-1712.89"/>
+<text text-anchor="middle" x="3199" y="-1684.14" font-family="Helvetica,sans-Serif" font-size="10.00">has ?{Ctx} with</text>
+<text text-anchor="middle" x="3199" y="-1672.89" font-family="Helvetica,sans-Serif" font-size="10.00">slot_conflict(_)?</text>
 </g>
 <!-- at_requse_check&#45;&gt;at_slot_check -->
 <g id="edge137" class="edge">
 <title>at_requse_check&#45;&gt;at_slot_check</title>
-<path fill="none" stroke="black" d="M3236,-1780.9C3236,-1763.18 3236,-1740.52 3236,-1721.51"/>
-<polygon fill="black" stroke="black" points="3238.45,-1721.58 3236,-1714.58 3233.55,-1721.58 3238.45,-1721.58"/>
-<text text-anchor="middle" x="3241.25" y="-1749.84" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
+<path fill="none" stroke="black" d="M3199,-1780.9C3199,-1763.18 3199,-1740.52 3199,-1721.51"/>
+<polygon fill="black" stroke="black" points="3201.45,-1721.58 3199,-1714.58 3196.55,-1721.58 3201.45,-1721.58"/>
+<text text-anchor="middle" x="3204.25" y="-1749.84" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
 </g>
 <!-- at_requse_type -->
 <g id="node119" class="node">
@@ -2051,29 +2051,29 @@
 <!-- at_requse_check&#45;&gt;at_requse_type -->
 <g id="edge136" class="edge">
 <title>at_requse_check&#45;&gt;at_requse_type</title>
-<path fill="none" stroke="black" d="M3267.14,-1788.3C3287.18,-1772.59 3312.62,-1750.13 3330,-1725.77 3351.56,-1695.54 3366.61,-1654.99 3374.79,-1629.18"/>
-<polygon fill="black" stroke="black" points="3377.04,-1630.2 3376.76,-1622.79 3372.35,-1628.76 3377.04,-1630.2"/>
-<text text-anchor="middle" x="3321.62" y="-1749.84" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
+<path fill="none" stroke="black" d="M3227.55,-1787.61C3246.95,-1771.26 3272.67,-1748.32 3293,-1725.77 3321.4,-1694.25 3349.49,-1653.87 3366.3,-1628.46"/>
+<polygon fill="black" stroke="black" points="3368.31,-1629.86 3370.11,-1622.66 3364.22,-1627.17 3368.31,-1629.86"/>
+<text text-anchor="middle" x="3281.26" y="-1749.84" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
 </g>
 <!-- at_slot_check&#45;&gt;at_ctx_check -->
 <g id="edge139" class="edge">
 <title>at_slot_check&#45;&gt;at_ctx_check</title>
-<path fill="none" stroke="black" d="M3223.09,-1656.12C3208.43,-1627.42 3184.44,-1580.47 3168.2,-1548.68"/>
-<polygon fill="black" stroke="black" points="3170.51,-1547.82 3165.14,-1542.7 3166.14,-1550.04 3170.51,-1547.82"/>
-<text text-anchor="middle" x="3208.86" y="-1599.34" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
+<path fill="none" stroke="black" d="M3191.18,-1654.29C3183.06,-1626.14 3170.31,-1581.96 3161.36,-1550.92"/>
+<polygon fill="black" stroke="black" points="3163.77,-1550.44 3159.48,-1544.39 3159.06,-1551.8 3163.77,-1550.44"/>
+<text text-anchor="middle" x="3185.96" y="-1599.34" font-family="Helvetica,sans-Serif" font-size="9.00">no</text>
 </g>
 <!-- at_slot_type -->
 <g id="node120" class="node">
 <title>at_slot_type</title>
-<polygon fill="#e0e0ff" stroke="black" points="3394.75,-1443.02 3293.25,-1443.02 3293.25,-1407.02 3394.75,-1407.02 3394.75,-1443.02"/>
-<text text-anchor="middle" x="3344" y="-1421.14" font-family="Helvetica,sans-Serif" font-size="10.00">Type = slot_conflict</text>
+<polygon fill="#e0e0ff" stroke="black" points="3393.75,-1443.02 3292.25,-1443.02 3292.25,-1407.02 3393.75,-1407.02 3393.75,-1443.02"/>
+<text text-anchor="middle" x="3343" y="-1421.14" font-family="Helvetica,sans-Serif" font-size="10.00">Type = slot_conflict</text>
 </g>
 <!-- at_slot_check&#45;&gt;at_slot_type -->
 <g id="edge138" class="edge">
 <title>at_slot_check&#45;&gt;at_slot_type</title>
-<path fill="none" stroke="black" d="M3246.95,-1655.5C3267.79,-1606.23 3312.88,-1499.59 3333.42,-1451.02"/>
-<polygon fill="black" stroke="black" points="3335.67,-1451.99 3336.14,-1444.59 3331.16,-1450.09 3335.67,-1451.99"/>
-<text text-anchor="middle" x="3283.38" y="-1599.34" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
+<path fill="none" stroke="black" d="M3217.48,-1658.2C3234.9,-1635.7 3261.08,-1600.2 3280,-1567.02 3302.21,-1528.06 3322.3,-1479.81 3333.55,-1451.05"/>
+<polygon fill="black" stroke="black" points="3335.69,-1452.3 3335.93,-1444.89 3331.12,-1450.53 3335.69,-1452.3"/>
+<text text-anchor="middle" x="3275.89" y="-1599.34" font-family="Helvetica,sans-Serif" font-size="9.00">yes</text>
 </g>
 <!-- at_out -->
 <g id="node123" class="node">
@@ -2095,7 +2095,7 @@
 <!-- at_slot_type&#45;&gt;at_out -->
 <g id="edge143" class="edge">
 <title>at_slot_type&#45;&gt;at_out</title>
-<path fill="none" stroke="black" d="M3395.2,-1411.91C3406.54,-1406.75 3417.2,-1399.42 3424,-1389.02 3456.23,-1339.73 3444.26,-1311.81 3424,-1256.52 3414.06,-1229.37 3393.3,-1204.5 3374.68,-1186.15"/>
+<path fill="none" stroke="black" d="M3393.99,-1412.41C3405.78,-1407.23 3416.93,-1399.77 3424,-1389.02 3456.34,-1339.81 3444.26,-1311.81 3424,-1256.52 3414.06,-1229.37 3393.3,-1204.5 3374.68,-1186.15"/>
 <polygon fill="black" stroke="black" points="3376.81,-1184.81 3370.07,-1181.72 3373.42,-1188.34 3376.81,-1184.81"/>
 </g>
 <!-- at_reason_type&#45;&gt;at_out -->

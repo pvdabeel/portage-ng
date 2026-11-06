@@ -355,7 +355,9 @@ resolution by the rules layer (see [Chapter 12](12-doc-resolution.md)).
 **How is this cached?**  Model construction depends on mutable proof
 state beyond the explicit context argument: `build_with_use` varies per
 dependency path, `prover:assuming` flags change between fallback
-attempts, and `memo:selected_cn_snap_` evolves during the proof.  Two
+attempts, and the `memo_selected_cn_snap` selection mirror (the
+`selected_cn(C,N)` entries of the constraint store, re-recorded by
+`heuristic:constraint_guard/2`) evolves during the proof.  Two
 early cache attempts that tried to *clear* the cache when this state
 changed were abandoned as unsound.  The current design instead encodes
 every mutable input **in the cache key**: results are memoised per

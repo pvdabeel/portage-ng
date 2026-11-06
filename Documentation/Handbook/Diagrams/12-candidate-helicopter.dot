@@ -1,0 +1,34 @@
+digraph candidate_helicopter {
+  rankdir=TB; nodesep=0.35; ranksep=0.45; bgcolor="white";
+  node [shape=box, style="rounded,filled", fillcolor="#f4f4f4", color="#666666", fontname="Helvetica", fontsize=11, margin="0.20,0.11"];
+  edge [fontname="Helvetica", fontsize=10, color="#555555", arrowsize=0.8];
+
+  in [fillcolor="#e4ecf7", label=<<b>A package in the plan (the parent)</b><br/><b>needs <i>category/name</i> (the child)</b><br/>possibly with a version range, a slot,<br/>and USE flags it insists on>];
+
+  q1 [shape=box, style="filled", fillcolor="#fff4cc", color="#c9a400", label=<<b>1. Is this need already covered?</b><br/>by the parent itself (it depends on its own<br/>package), or by an installed copy of the<br/>child that fits version, slot and USE flags>];
+  done1 [fillcolor="#e1f2e1", label=<<b>Nothing to do</b>>];
+
+  q2 [shape=box, style="filled", fillcolor="#fff4cc", color="#c9a400", label=<<b>2. Can we pick a version from the tree?</b><br/>versions are tried newest first; one qualifies<br/>when it is visible, in the right slot and range,<br/>not ruled out earlier, consistent with versions<br/>already chosen, and its USE flags work>];
+  plan [fillcolor="#e1f2e1", label=<<b>Plan that version</b><br/>install, update or downgrade it,<br/>and remember the choice so every<br/>other package that needs it agrees>];
+
+  q3 [shape=box, style="filled", fillcolor="#fff4cc", color="#c9a400", label=<<b>3. Did an earlier choice cause this dead end?</b><br/>the version of the parent we picked asks for<br/>the impossible, or the child version chosen<br/>for another parent does not fit this one>];
+  learn [fillcolor="#fae6d2", label=<<b>Learn, then redo the pass</b><br/>rule out the offending version or<br/>version range and prove again<br/>with that knowledge>];
+
+  q4 [shape=box, style="filled", fillcolor="#fff4cc", color="#c9a400", label=<<b>4. Is the only problem that every</b><br/><b>version is hidden?</b><br/>masked by the profile, or not<br/>keyworded for this architecture>];
+  hidden [fillcolor="#e1f2e1", label=<<b>Plan it anyway, with a suggestion</b><br/>"unmask this" or "accept the<br/>~arch keyword"; the plan stays actionable>];
+
+  assume [fillcolor="#f5dcdc", label=<<b>Give up on this one dependency</b><br/>record an assumption and the reason<br/>(nothing in the tree, impossible USE<br/>combination, no version fits, ...) so the<br/>rest of the plan can still complete>];
+
+  in -> q1;
+  q1 -> done1 [label=" yes"];
+  q1 -> q2 [label=" no"];
+  q2 -> plan [label=" yes"];
+  q2 -> q3 [label=" no version qualifies"];
+  q3 -> learn [label=" yes"];
+  q3 -> q4 [label=" no"];
+  q4 -> hidden [label=" yes"];
+  q4 -> assume [label=" no"];
+  learn -> in [style=dashed, constraint=false, label=" whole pass retried", color="#c0392b", fontcolor="#c0392b"];
+
+  in [group=spine]; q1 [group=spine]; q2 [group=spine]; q3 [group=spine]; q4 [group=spine]; assume [group=spine];
+}

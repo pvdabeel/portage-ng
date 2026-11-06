@@ -196,7 +196,7 @@ The following page shows the full system architecture in landscape orientation, 
   #align(center + horizon)[
     #text(font: "Helvetica Neue", size: 14pt, weight: "bold")[portage-ng: Full System Architecture]
     #v(8pt)
-    #image("Diagrams/04-architecture-full.svg", width: 100%, height: auto, fit: "contain")
+    #image("Diagrams/04-architecture-full.svg", width: 100%, height: 150mm, fit: "contain")
   ]
 ]
 ```

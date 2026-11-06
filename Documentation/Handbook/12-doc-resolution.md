@@ -96,93 +96,245 @@ rule applies.
 
 ## Candidate resolution
 
-When the rules layer encounters a dependency, it must choose a
-concrete version of the target package.  This process has three
-stages: eligibility filtering, version-ordered selection, and a
-fallback chain for when no candidate works.
+Every dependency line in an ebuild has to become one concrete package
+in the plan.  This section explains how that choice is made, first
+from a helicopter, then step by step.  The implementation is spread
+over `target.pl`, `candidate.pl`, `cnselect.pl`, `acceptance.pl` and
+`ranking.pl` (see [Rules submodules](#rules-submodules)); the diagrams
+name the predicate behind each box in small grey type so the prose
+can be followed into the source.
 
-### Eligibility filtering
+Four words are used throughout:
 
-Before a candidate version is considered, `candidate:eligible/1`
-checks two things:
+- **parent** — the package being planned whose DEPEND / RDEPEND /
+  BDEPEND / PDEPEND list we are reading.  It is either what the user
+  asked for, or a package an earlier step already put in the plan;
+  every planned package in turn becomes the parent of its own
+  dependency lines.  The source code calls the parent `self`: it is
+  carried in the proof-term context as `self(Repo://ParentEntry)`,
+  meaning "the package this proof step is about".
+- **child** — the `category/name` one line of that list asks for.
+  All atoms for the same child are merged into one *request*
+  (`grouped_package_dependency(Strength, C, N, Atoms)`).
+- **candidate** — one concrete version of the child, taken from the
+  tree.
+- **self-dependency** — a line where the child is the parent's own
+  package (an ebuild depending on itself, e.g. a bootstrap compiler).
 
-- **Masking** — is the ebuild masked by the profile or user
-  configuration?
-- **Keyword acceptance** — does the ebuild have an accepted keyword
-  for the current architecture?
+What the user typed on the command line is not a dependency line and
+does not go through this machinery: `target:resolve_candidate/2`
+binds the query to the newest visible ebuild (visible first, then all
+candidates, so relaxation tiers can reach masked ones), and that
+ebuild's `:run` or `:install` rule becomes the first parent.
+Everything below is about the dependency lines of a parent.
 
-(Installed status is a separate check, `candidate:installed/1`, used
-by the entry rules' already-installed short-circuit.)
+### The helicopter view: four questions
 
-If a candidate fails these checks and no relaxation tier is active
-(see [Chapter 9, Progressive Relaxation](09-doc-prover-assumptions.md#progressive-relaxation)),
-the entry rule fails and Prolog backtracks to try the next candidate.
+For every request the resolver asks the same four questions, in order.
+The first question answered *yes* ends the matter.
 
-### Version-ordered selection
+1. **Is this need already covered?**  By the parent itself (a runtime
+   self-dependency), or by an installed copy of the child that fits
+   the version range, the slot and the required USE flags — and that
+   nobody asked to rebuild.  If so, nothing is merged.
+2. **Can we pick a version of the child from the tree?**  Candidates
+   are tried newest first.  One qualifies when it is visible
+   (keyworded, not masked), in the right slot and range, not ruled
+   out by an earlier failed pass, consistent with the version already
+   chosen for the same child elsewhere in the proof, and buildable
+   with the USE flags the request demands.  The first qualifying
+   candidate is planned, and the choice is remembered so every other
+   parent that needs this child agrees on it.
+3. **Did an earlier choice cause this dead end?**  If no candidate
+   qualifies because the version we picked for the *parent* asks for
+   something impossible, or because the child version already chosen
+   for *another* parent does not fit this one, the resolver learns a
+   lesson — a version range to avoid, or an exact version to reject —
+   and **restarts the whole pass** with that knowledge.  This is why a
+   plan can take several passes.
+4. **Is the only problem that every version is hidden?**  If all
+   candidates are merely masked or not keyworded for this
+   architecture, one is planned anyway and the plan carries a
+   suggestion ("unmask this", "accept ~arch"); the plan stays
+   actionable.  Otherwise the resolver gives up on *this one request*,
+   records an assumption with the reason (nothing in the tree,
+   impossible USE combination, no version fits) and lets the rest of
+   the plan complete.
 
-`target:resolve_candidate/2` resolves a query to a specific
-`Repository://Ebuild` pair.  Candidates are tried newest-first via
-`cache:ordered_entry/5`, so the prover naturally prefers the latest
-eligible version.
+![Candidate selection: the four questions](Diagrams/12-candidate-helicopter.svg)
+
+All four questions read and write the same shared memory: the versions
+already chosen in this proof (the `selected_cn(C,N)` entries of the
+prover's constraint store — an AVL keyed by package, so "already
+chosen?" is a logarithmic lookup, never a walk over the proof; one
+entry per child, so two parents never pull two versions of one child
+into the same slot); the
+lessons from failed passes (learned `cn_domain` ranges and the reject
+map, [Chapter 10](10-doc-version-domains.md)); the user's
+configuration (masks, keywords, USE, licenses); and the relaxation
+tier, i.e. how far that configuration may be bent in this attempt
+([Chapter 9](09-doc-prover-assumptions.md#progressive-relaxation)).
+
+### The decision ladder: eight steps
+
+`candidate:resolve(grouped_dep(C,N,Atoms):Action?{Context}, Conditions)`
+in `target.pl` is an eight-clause ladder.  Each clause is tried in
+order; the first that succeeds decides the outcome, and a clause that
+is "not applicable" simply fails through to the next.  Steps 1–3 answer
+"already covered?" and "pick a version"; steps 4–6 are three different
+lessons the resolver can learn before restarting; steps 7–8 are the
+fallbacks when there is nothing left to learn.
+
+| **Step** | **In plain words** | **Predicate** |
+| :--- | :--- | :--- |
+| 1 | Is this a runtime self-dependency?  The child is the parent's own package and the request is for runtime: the parent provides it itself once merged, so there is nothing to do. | clause 1, `memberchk(self(..), Context)` |
+| — | Tighten the request with the parent's own RDEPEND bounds (install-time requests only): if the parent's RDEPEND *also* names this child with a version range, add it now so we never pick a child version the parent will reject at runtime. | `candidate:augment_package_deps_with_self_rdepend/6` |
+| 2 | Does an installed copy of the child already do the job?  Same slot, every version bound holds, required USE flags are built in (PDEPEND ignores USE drift), and no rebuild was requested (`--newuse`, `--changed-use`, `--changed-deps`, `--changed-slot`, `--rebuilt-binaries`, `--rebuild-if-new-*`).  Skipped under `--emptytree` and for `--exclude`d packages. | `candidate:grouped_dep_keep_installed/5` |
+| 3 | Pick a version of the child from the tree (next section).  On success the proof gains the chosen entry and its action, the `selected_cn` commitment, the `cn_domain` range this request demands, and the `build_with_use` flags. | `candidate:grouped_dep_select_and_build/6` |
+| — | Guard before learning anything: not when the failure is a USE / REQUIRED_USE clash already recorded, and not when a shared provider is about to be rebuilt with a forced USE flag — that rebuild may fix it (#94). | `\+ memo:requse_violation_/3`, `\+ memo:bwu_force_pending_/3` |
+| 4 | Was it a wildcard range we can learn as a hard bound?  `=pkg-6.31*` becomes a learned range `[6.31, 6.32)` for the child — if the parent has only one version or was already narrowed; otherwise step 5 goes first (#126). | `cnselect:maybe_learn_wildcard_domain/4` |
+| 5 | Blame the parent: this version of the parent asks for something no child version can give.  Reject exactly this parent version so the retry picks the next one.  Not done for PDEPEND, for a slot not met yet, when the child itself can be re-chosen, when the only problem is visibility, or when the parent is what the user asked for. | `cnselect:maybe_learn_parent_narrowing/4` |
+| 6 | Blame an earlier choice: the version of the child already chosen for another parent does not fit this one.  Reject that chosen version (or the package whose blocker introduced the conflict) and retry. | `cnselect:maybe_request_grouped_dep_reprove/5` |
+| 7 | Is the only problem that every version is hidden (masked, or not keyworded)?  Rerun step 3 while pretending the visibility rule is relaxed for this one request, remember that the entry may pass its own visibility check, and tag the plan with "unmask" or "accept keyword" (#14). | `candidate:grouped_dep_concretize_hidden/7`, `memo:visibility_override_/2` |
+| 8 | Give up on this request, but say why.  The proof continues with a domain assumption that carries the reason and the best suggestion. | `candidate:grouped_dep_build_assumption/7` |
+
+Steps 4, 5 and 6 all end in
+`throw(prover_reprove(cn_domain(C, N, Domain, Rejected, Reasons)))`,
+which the prover catches to restart the pass with the learned range or
+rejection in place (the reprove loop of
+[Chapter 9](09-doc-prover-assumptions.md#reprove-mechanism)).
+
+```{=typst}
+#page(flipped: true, margin: (left: 15mm, right: 15mm, top: 20mm, bottom: 20mm))[
+  #set text(size: 9pt)
+  #align(center + horizon)[
+    #text(font: "Helvetica Neue", size: 14pt, weight: "bold")[Candidate selection: the eight-step decision ladder]
+    #v(8pt)
+    #image("Diagrams/12-candidate-ladder.svg", width: 100%, height: 150mm, fit: "contain")
+  ]
+]
+```
+
+### Inside step 3: picking a version from the tree
+
+`candidate:grouped_dep_select_and_build/6` works top to bottom:
+
+1. **Which slot of the child does the request mean?**  The slot parts
+   of all atoms (`:6`, `:=`, `:0/2=`, `:*`) are merged into one slot
+   requirement (`slotmeta:merge_slot_restriction/5`).  If the request
+   says `:=` and a version of the child was already chosen for this
+   parent, the request locks onto that sub-slot
+   (`grouped_dep_slot_lock/2`).
+2. **Was a version of the child already chosen for another parent, and
+   does it fit this request too?**  This is one lookup in the proof's
+   constraint store, not a scan of the proof: every committed choice is
+   a `selected_cn(C,N)` entry in the prover's constraint store (an AVL
+   keyed by package), mirrored into the `memo_selected_cn_snap` AVL by
+   `heuristic:constraint_guard/2` so rule code can read it without the
+   store in hand.  A fitting entry is reused and committed without
+   backtracking into alternatives
+   (`cnselect:selected_cn_candidate_compatible/7`, #91).  Its version
+   was verified when first chosen, so the version checks below are
+   skipped; the reverse-dependency and USE checks still run.
+3. **Otherwise list the candidates, newest version first**
+   (`acceptance:accepted_keyword_candidate/7`).  Under the normal rule a
+   candidate must carry a keyword in `ACCEPT_KEYWORDS` (or
+   `package.accept_keywords`), be unmasked, not be a binary package and
+   sit in the requested slot; when the child is the parent's own
+   package (self-dependency) the parent's version only counts if it is
+   already installed (bootstrap).  Under `prover:assuming(keyword_acceptance)`
+   any keyword is accepted; under `prover:assuming(unmask)` masked
+   versions are listed too.  For `virtual/*` children, providers already
+   being installed are tried first
+   (`ranking:candidates_prefer_proven_providers/5`).
+4. **Does this candidate qualify?**  Each check can reject it, after
+   which the next-newest candidate is tried:
+   - Is it the parent's own version (self-dependency)?  Then only if
+     already installed (`grouped_dep_avoid_self/2`).
+   - Does its version satisfy every bound of the request
+     (`>=1.2`, `~3.1`, `=0.6*`, `<2`)?
+   - Is it inside the allowed range for the child — this request ∩
+     what the proof context already demands ∩ what failed passes taught
+     us (`cnselect:grouped_dep_candidate_satisfies_effective_domain/6`)?
+   - Was it ruled out by an earlier failed pass or by a build-failure
+     fixup (`memo:cn_domain_reject_/2`, `feedback:version_excluded/3`,
+     the `ghcabi` hook, #112)?
+   - Is there an equally valid other version of the child whose own
+     version pins agree with what we already chose?  Then step aside
+     for it (`yield_to_selected_compatible_sibling/6`, #123).
+   - Does the candidate accept the parent in return?  If its own
+     RDEPEND names the parent's package, the parent's version must
+     satisfy it (`candidate_reverse_deps_compatible_with_parent/2`).
+   - Can it be built with the USE flags the request demands?  Bracket
+     flags must be settable, REQUIRED_USE must still hold, `[flag=]`
+     ties are followed, and a shared provider that must gain a flag is
+     scheduled for a forced rebuild (`grouped_dep_use_and_slot/5`;
+     #91, #94, #109, #121).
+5. **Attach advice for the user** — accept this keyword, unmask this,
+   accept this license, change these USE flags
+   (`grouped_dep_tag_suggestions/3`).
+6. **Is a copy installed in the same slot?**  No: fresh install (or
+   `--emptytree`).  Yes, other version: update or downgrade.  Yes, same
+   version with a rebuild reason (USE change, `--newuse`,
+   `--changed-*`, `--rebuilt-binaries`, `--rebuild-if-new-*`): rebuild
+   (`grouped_dep_determine_action/5`).
+7. **Hand the result to the prover** (`grouped_dep_assemble_conditions/6`):
+   the `selected_cn` commitment, the `cn_domain` range this request
+   demands, the `build_with_use` flags and the action literal.  The
+   prover merges these into the shared constraint store through
+   `heuristic:constraint_guard/2`; if they clash with another request's
+   choice, it learns the range and restarts the pass — the same retry
+   as steps 4–6 of the ladder (#128).
+
+Visibility is checked once more when the chosen entry's own rule runs:
+`candidate:eligible/1` lets a masked or unkeyworded entry pass only
+under the active relaxation tier, the step-7 override, or when the
+merge is a same-version ABI repair of an installed package (#118).
+
+![Inside step 3: picking a version from the tree](Diagrams/12-candidate-select.svg)
 
 ### Dependency ordering within a group
 
-Before proving the dependencies of a package, `ranking:dep_priority/2`
+Before proving the dependencies of a parent, `ranking:dep_priority/2`
 sorts them so that tightly constrained siblings are proved first.  This
-reduces greedy conflicts where an unconstrained sibling selects a version
-that later clashes with a tighter constraint:
+reduces greedy conflicts where an unconstrained sibling selects a
+version that later clashes with a tighter constraint.  The order is
+declared, not weighted: `ranking:tightness_classes/1` is an ordered
+list of classes, and a request is proved in the position of the
+*first* class that applies to it.
 
-| **BaseK** | **Constraint type** | **Example** |
-| :--- | :--- | :--- |
-| 1 | Tight upper bound (range) | `>=1.0 <2.0` |
-| 4 | Tilde constraint | `~dev-ruby/railties-8.1.1` |
-| 8 | Wildcard constraint | `=dev-python/gast-0.6*` |
-| 999 | Unconstrained | `dev-libs/openssl` |
+| **Class** | **Request looks like** |
+| :--- | :--- |
+| `subslot_pinned` | `dev-libs/foo:0/2=` — slot and sub-slot given |
+| `upper_bounded` | `>=dev-libs/foo-1.0 <dev-libs/foo-2.0` — tight upper bound (tighter bound first) |
+| `tilde` | `~dev-ruby/railties-8.1.1` |
+| `slot_pinned` | `dev-libs/foo:3` |
+| `wildcard` | `=dev-python/gast-0.6*` |
+| `any_same_slot` | `dev-libs/foo:=` |
+| `any_different_slot` | `dev-libs/foo:*` |
+| `unconstrained` | `dev-libs/foo` |
 
-Lower keys are proved first.  Slot specificity is folded into the base
-key via `min` — a fully slot-qualified dependency (slot + subslot) gets
-key 0 and outranks every tier above.  The effect is that slotted, tilde
-and wildcard dependencies lock their `selected_cn` before unconstrained
-siblings pick a potentially conflicting version.
+Classes earlier in the list are proved first, so slotted, tilde and
+wildcard requests lock their `selected_cn` before unconstrained
+siblings pick a potentially conflicting version.  Nothing but the
+position in that list encodes the order.
 
 ### Self-dependencies and cross-slot handling
 
-When a package lists itself as a build dependency (e.g. `antlr-tool:4`
-needing `antlr-tool:3.5` to bootstrap), the rules layer distinguishes
-**same-slot self-deps** from **cross-slot self-deps**.
+When a parent lists its own package as a build dependency (e.g.
+`antlr-tool:4` needing `antlr-tool:3.5` to bootstrap), the rules layer
+distinguishes **same-slot self-dependencies** from **cross-slot
+self-dependencies**.
 
-Same-slot self-deps (same category, name, and slot as the parent) are
-treated as bootstrap dependencies: if the package is already installed,
-the dependency is satisfied; otherwise the rule fails so that
-backtracking can reach a bootstrap alternative.
+Same-slot self-dependencies (same category, name, and slot as the
+parent) are treated as bootstrap dependencies: if the package is
+already installed, the dependency is satisfied; otherwise the rule
+fails so that backtracking can reach a bootstrap alternative.
 
-Cross-slot self-deps (same category and name but a *different* slot)
-are treated as **regular dependencies** and resolved normally.  This
-prevents model build failures when the cross-slot version is not yet
-installed.
-
-### Fallback chain
-
-When every candidate for a grouped dependency has been tried and none
-succeeded, the rules layer activates a fallback chain before giving
-up:
-
-- **Wildcard domain learning** — `maybe_learn_wildcard_domain` fires
-  when a wildcard dependency (e.g. `=dev-python/gast-0.6*`) fails
-  resolution and the parent has already been narrowed by a prior
-  parent-narrowing attempt, or the parent is a single-version package
-  (where parent narrowing would be futile).  It derives an upper-bound
-  `cn_domain` from the wildcard constraint (e.g. `< 0.7`) and learns
-  it via `prover:learn/3`, then throws `prover_reprove`.
-- **Parent narrowing** — `maybe_learn_parent_narrowing` records that
-  the current parent version led to a dead end and throws
-  `prover_reprove`, so the prover can retry with a different parent.
-- **Domain reprove** — `maybe_request_grouped_dep_reprove` checks
-  whether domain or constraint conflicts exist and, if so, triggers a
-  reprove with learned constraints.
-- **Domain assumption** — as a last resort, the rules layer emits
-  `assumed(grouped_package_dependency(...))`.  This records the
-  failure as a domain assumption so the proof can still complete.
+Cross-slot self-dependencies (same category and name but a *different*
+slot) are treated as **regular requests** and resolved through the
+ladder normally.  This prevents model build failures when the
+cross-slot version is not yet installed.
 
 
 ## Cycles and how portage-ng handles them

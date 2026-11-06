@@ -198,7 +198,7 @@ It is critical for:
   model of the ebuild in `self/1` to evaluate USE conditionals.
 - **Blocker source**: `candidate:make_blocker_constraint/5` uses `self/1`
   to determine who is blocking whom.
-- **Parent narrowing**: `candidate:maybe_learn_parent_narrowing/4` uses
+- **Parent narrowing**: `cnselect:maybe_learn_parent_narrowing/4` uses
   `self/1` to learn that the parent version should be excluded when a child
   dependency cannot be satisfied.
 - **REQUIRED_USE**: `query:with_required_use_validate/3` annotates REQUIRED_USE

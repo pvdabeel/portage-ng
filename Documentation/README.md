@@ -8,6 +8,7 @@ This directory contains documentation for portage-ng.
   - `architecture.dot` / `.svg` — top-level system architecture and data flow (module-group granularity; details live in the dedicated diagrams below and in `Handbook/Diagrams/`)
   - `resolving_assumptions_flow.dot` / `.svg` — BPMN-style flow diagram of the resolving/prover assumption pipeline
   - `resolving_dispatch.dot` / `.svg` — visual overview of `resolving:rule/2` dispatch
+  - the plain-language walk through *candidate selection* (helicopter view, eight-step ladder, inside `grouped_dep_select_and_build`) lives in `Handbook/Diagrams/12-candidate-*.dot` and is explained in `Handbook/12-doc-resolution.md`
 - `Handbook/` — topic guides
   - `doc-context-terms.md` — how context terms evolve across dependencies (self, build_with_use, constraints, feature logic)
   - `doc-contextual-logic-programming.md` — object-oriented paradigm for Prolog with contexts, classes, and inheritance

@@ -1,0 +1,52 @@
+digraph candidate_ladder {
+  rankdir=TB; nodesep=0.30; ranksep=0.40; bgcolor="white";
+  node [shape=box, style="rounded,filled", fillcolor="#f4f4f4", color="#666666", fontname="Helvetica", fontsize=10.5, margin="0.18,0.10"];
+  edge [fontname="Helvetica", fontsize=9.5, color="#555555", arrowsize=0.8];
+
+  in [fillcolor="#e4ecf7", label=<<b>A grouped dependency arrives</b><br/>The <b>parent</b> is the package whose DEPEND / RDEPEND / BDEPEND / PDEPEND we are reading, because it is itself being planned;<br/>the <b>child</b> is the <i>category/name</i> that dependency names. All atoms for that one child are grouped into a single request.<br/>The proof context carries: the parent's identity, a slot lock, the versions already chosen in this proof, and learned ranges<br/><font point-size="8.5" color="#777777" face="Courier">parent = self(Repo://ParentEntry) in ?{Context};  rule(grouped_package_dependency(no,C,N,Deps):Action) → candidate:resolve(grouped_dep(C,N,Deps):Action)   target.pl:546</font>>];
+
+  vocab [shape=note, fillcolor="#ffffff", color="#999999", label=<<b>Vocabulary used on this page</b><br align="left"/><br align="left"/><b>parent</b>   the package being planned whose dependency list names the child<br align="left"/>          (the code calls it <font face="Courier">self</font>: "the package this proof step is about")<br align="left"/><b>child</b>    the <i>category/name</i> the dependency asks for; we must pick a version of it<br align="left"/><b>candidate</b>  one concrete version of the child, taken from the tree<br align="left"/><b>self-dependency</b>  the child has the same <i>category/name</i> as the parent<br align="left"/>          (an ebuild depending on itself, e.g. a bootstrap compiler)<br align="left"/>>];
+  {rank=same; in; vocab}
+
+  s1 [shape=box, style="filled", fillcolor="#fff4cc", color="#c9a400", label=<<b>1 · Is this a runtime self-dependency?</b><br/>the child has the same <i>category/name</i> as the parent, and the request is for runtime:<br/>the parent will provide it itself once merged, so it is satisfied by definition<br/><font point-size="8.5" color="#777777" face="Courier">memberchk(self(Repo://Parent), Ctx), Parent has C/N, Action = run</font>>];
+  r1 [fillcolor="#e1f2e1", label=<<b>Nothing to do</b><br/><font point-size="8.5" color="#777777" face="Courier">Conditions = []</font>>];
+
+  aug [label=<<b>Tighten the request with the parent's own RDEPEND bounds</b><br/>install-time requests only: if the parent's RDEPEND <i>also</i> names this child with a version range,<br/>add that range to the request now, so we do not pick a child version the parent will reject at runtime<br/><font point-size="8.5" color="#777777" face="Courier">candidate:augment_package_deps_with_self_rdepend/6</font>>];
+
+  s2 [shape=box, style="filled", fillcolor="#fff4cc", color="#c9a400", label=<<b>2 · Does an installed copy of the child already do the job?</b><br/>same slot, every version bound holds, required USE flags are built in<br/>(PDEPEND ignores USE drift), and no rebuild was requested<br/>(--newuse, --changed-use, --changed-deps, --changed-slot, --rebuilt-binaries, --rebuild-if-new-*)<br/><font point-size="8.5" color="#777777" face="Courier">candidate:grouped_dep_keep_installed/5   (skipped under --emptytree and for --exclude'd packages)</font>>];
+  r2 [fillcolor="#e1f2e1", label=<<b>Keep the installed copy, nothing to merge</b><br/><font point-size="8.5" color="#777777" face="Courier">Conditions = []</font>>];
+
+  s3 [fillcolor="#e4ecf7", label=<<b>3 · Pick a version of the child from the tree</b>  (see the next page)<br/>enumerate candidates newest first, check each against every rule,<br/>work out the USE flags it must be built with, decide install vs update vs downgrade<br/><font point-size="8.5" color="#777777" face="Courier">candidate:grouped_dep_select_and_build/6</font>>];
+  r3 [fillcolor="#e1f2e1", label=<<b>Plan that version</b><br/>the proof gains: the chosen entry and its action, "this C/N is now fixed to this version" (selected_cn),<br/>the version range this edge demands (cn_domain), and the USE flags it must be built with<br/><font point-size="8.5" color="#777777" face="Courier">Conditions = [cn_domain.., allow_multislot, selected_cn.., build_with_use.., Repo://Cand:Action]</font>>];
+
+  guard [shape=box, style="filled", fillcolor="#fff4cc", color="#c9a400", label=<<b>Is it safe to learn from this failure?</b><br/>not when the failure is a USE/REQUIRED_USE clash already recorded, and not when a<br/>shared provider is about to be rebuilt with a forced USE flag (that rebuild may fix it)<br/><font point-size="8.5" color="#777777" face="Courier">\\+ memo:requse_violation_(C,N,_),  \\+ memo:bwu_force_pending_(C,N,_)   (issue 94)</font>>];
+
+  s4 [fillcolor="#fae6d2", label=<<b>4 · Was it a wildcard range we can learn as a hard bound?</b><br/>"=pkg-6.31*" becomes a learned range [6.31, 6.32) for this package, if the parent<br/>has only one version or was already narrowed (otherwise step 5 goes first)<br/><font point-size="8.5" color="#777777" face="Courier">cnselect:maybe_learn_wildcard_domain/4   (issue 126)</font>>];
+  s5 [fillcolor="#fae6d2", label=<<b>5 · Blame the parent: this version of the parent asks for something no child version can give</b><br/>reject exactly this parent version, so the retry picks the next parent version (which may ask for something else).<br/>Not done when: the request is PDEPEND, a slot we have not met yet, the child itself<br/>can be re-chosen instead, the only problem is visibility, or the parent is what the user asked for<br/><font point-size="8.5" color="#777777" face="Courier">cnselect:maybe_learn_parent_narrowing/4</font>>];
+  s6 [fillcolor="#fae6d2", label=<<b>6 · Blame an earlier choice: the version of the child already chosen for another parent does not fit this one</b><br/>reject that chosen child version (or the package whose blocker introduced the conflict) and retry<br/><font point-size="8.5" color="#777777" face="Courier">cnselect:maybe_request_grouped_dep_reprove/5</font>>];
+  retry [shape=ellipse, fillcolor="#fae6d2", label=<<b>Prover restarts the pass with the new knowledge</b><br/><font point-size="8.5" color="#777777" face="Courier">throw(prover_reprove(cn_domain(C,N,Domain,Rejected,Reasons)))</font>>];
+
+  s7 [shape=box, style="filled", fillcolor="#fff4cc", color="#c9a400", label=<<b>7 · Is the only problem that every version is hidden?</b><br/>masked by the profile, or not keyworded for this architecture<br/><font point-size="8.5" color="#777777" face="Courier">explanation:assumption_reason_for_grouped_dep/6 ∈ {masked, keyword_filtered}</font>>];
+  r7 [fillcolor="#e1f2e1", label=<<b>Plan it anyway, with a suggestion</b><br/>rerun step 3 while pretending the mask / keyword rule is relaxed for this one dependency,<br/>remember that this entry may pass its own visibility check, tag "unmask" or "accept keyword"<br/><font point-size="8.5" color="#777777" face="Courier">candidate:grouped_dep_concretize_hidden/7, memo:visibility_override_/2   (issue 14)</font>>];
+
+  s8 [fillcolor="#f5dcdc", label=<<b>8 · Give up on this dependency, but say why</b><br/>the proof continues with an assumption that carries the reason (nothing in the tree,<br/>no version fits, impossible USE, slot conflict) and the best suggestion<br/><font point-size="8.5" color="#777777" face="Courier">candidate:grouped_dep_build_assumption/7 → assumed(grouped_package_dependency(C,N,Deps):Action)</font>>];
+
+  in -> s1;
+  s1 -> r1 [label=" yes"];
+  s1 -> aug [label=" no"];
+  aug -> s2;
+  s2 -> r2 [label=" yes"];
+  s2 -> s3 [label=" no"];
+  s3 -> r3 [label=" a version qualified"];
+  s3 -> guard [label=" none qualified"];
+  guard -> s4 [label=" yes"];
+  guard -> s8 [label=" no", constraint=false];
+  s4 -> retry [label=" learned"];
+  s4 -> s5 [label=" not applicable"];
+  s5 -> retry [label=" rejected"];
+  s5 -> s6 [label=" not applicable"];
+  s6 -> retry [label=" rejected"];
+  s6 -> s7 [label=" not applicable"];
+  s7 -> r7 [label=" yes"];
+  s7 -> s8 [label=" no"];
+}

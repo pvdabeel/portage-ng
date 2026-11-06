@@ -89,7 +89,7 @@ digraph resolving_assumptions_bpmn {
     g_ctx_drop [shape=box, label="MergedUse = [],\ndrop parent build_with_use\n+ assumption_reason for this dep"];
 
     g_use_guard [shape=diamond, label="candidate_satisfies_use_deps?\n(use.pl)"];
-    g_use_slot [shape=box, label="process_build_with_use (use.pl)\n+ process_slot (candidate.pl)\n(query_search_slot_constraint)"];
+    g_use_slot [shape=box, label="process_build_with_use (dependency.pl)\n+ process_slot (dependency.pl)\n(query_search_slot_constraint)"];
 
     g_bwu_ed_check [shape=diamond, style=filled, fillcolor="#ffe0e0",
                      label="check_bwu_ed_conflict(C,N,Ctx):\nBWU from context vs\nmemo:candidate_bwu_(C,N)?\n(feature_unification:val_hook)"];
@@ -112,9 +112,9 @@ digraph resolving_assumptions_bpmn {
     g_requse_guard [shape=diamond, style=filled, fillcolor="#ffe0e0",
                      label="memo:requse_violation_(C,N,_)?\n(skip reprove when\nUSE conflict already recorded)"];
 
-    g_learn_parent [shape=box, label="maybe_learn_parent_narrowing(C,N,...)\n(heuristic.pl)\n─────────────────\nParent introduced a dep that made\n(C,N) unsatisfiable: narrow parent.\nSkipped for PDEPEND and multislot misses."];
+    g_learn_parent [shape=box, label="maybe_learn_parent_narrowing(C,N,...)\n(cnselect.pl)\n─────────────────\nParent introduced a dep that made\n(C,N) unsatisfiable: narrow parent.\nSkipped for PDEPEND and multislot misses."];
 
-    g_reprove [shape=box, label="maybe_request_grouped_dep_reprove(...)\n(heuristic.pl)\n→ throw rules_reprove_cn_domain(...)"];
+    g_reprove [shape=box, label="maybe_request_grouped_dep_reprove(...)\n(cnselect.pl)\n→ throw prover_reprove(cn_domain(...))"];
 
     g_reason_call [shape=box, label="call explanation:\nassumption_reason_for_grouped_dep\n(..., _Reason)\nfor classification"];
 
@@ -162,9 +162,9 @@ digraph resolving_assumptions_bpmn {
   subgraph cluster_cn_reprove {
     label="heuristic.pl + prover.pl : CN-domain reprove retry loop";
     color="#888888";
-    r_throw [shape=box, label="rules_reprove_cn_domain(C,N,Domain,Candidates,Reasons)\n(thrown from heuristic.pl)"];
+    r_throw [shape=box, label="prover_reprove(cn_domain(C,N,Domain,Candidates,Reasons))\n(thrown from cnselect.pl / heuristic.pl guards)"];
     r_guard [shape=box, label="constraint_guard hooks that may throw reprove:\n- cn_domain + selected_cn compatibility\n- selected_cn uniqueness/domain partition\n- blocked_cn vs selected_cn source reprove"];
-    r_catch [shape=box, label="prover:prove_with_cn_domain_retries/11 catches throw"];
+    r_catch [shape=box, label="prover:prove_with_retries/11 catches throw"];
     r_add [shape=box, label="candidate:add_cn_domain_rejects(...)\n(+ add_cn_domain_origin_rejects when Candidates=[])"];
     r_retry [shape=diamond, label="Attempt < MaxRetries\nAND any new reject added?"];
     r_recurse [shape=box, label="retry prove_once with updated reject map"];
@@ -312,7 +312,7 @@ digraph resolving_assumptions_bpmn {
   g_requse_guard -> g_learn_parent [label="no: no USE violation"];
   g_learn_parent -> g_reprove [label="narrowing did not help\n(or not applicable)"];
   g_reprove -> g_reason_call [label="no reprove request\n(or not eligible)"];
-  g_reprove -> r_throw [style=dashed, label="throw rules_reprove_cn_domain"];
+  g_reprove -> r_throw [style=dashed, label="throw prover_reprove(cn_domain(..))"];
 
   g_reason_call -> g_requse_ctx;
   g_requse_ctx -> g_slot_conflict_check [label="add required_use_violation\nto Ctx (if memo set)"];

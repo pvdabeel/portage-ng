@@ -1,0 +1,60 @@
+digraph candidate_select {
+  rankdir=TB; nodesep=0.30; ranksep=0.38; bgcolor="white"; compound=true;
+  node [shape=box, style="rounded,filled", fillcolor="#f4f4f4", color="#666666", fontname="Helvetica", fontsize=10.5, margin="0.18,0.10"];
+  edge [fontname="Helvetica", fontsize=9.5, color="#555555", arrowsize=0.8];
+
+  vocab [shape=note, fillcolor="#ffffff", color="#999999", label=<<b>Vocabulary</b><br align="left"/><br align="left"/><b>parent</b>  the package being planned whose dependency list we are reading<br align="left"/>        (the code calls it <font face="Courier">self</font>)<br align="left"/><b>child</b>   the <i>category/name</i> one line of that list asks for<br align="left"/><b>candidate</b>  one concrete version of the child, taken from the tree<br align="left"/><b>request</b>  all atoms for that child from the parent's list, merged<br align="left"/>>];
+  slot [fillcolor="#e4ecf7", label=<<b>Step 3 begins: the parent needs the child <i>category/name</i>; which slot of the child does the request mean?</b><br/>merge the slot parts of all atoms (":6", ":=", ":0/2=", ":*"); if the request says ":="<br/>and a version of the child was already chosen for this parent, lock onto that sub-slot<br/><font point-size="8.5" color="#777777" face="Courier">slotmeta:merge_slot_restriction/5 → SlotReq,  candidate:grouped_dep_slot_lock/2</font>>];
+
+  reuse [shape=box, style="filled", fillcolor="#fff4cc", color="#c9a400", label=<<b>Was a version of the child already chosen for another parent in this proof,</b><br/><b>and does it fit this parent's request too?</b> (slot, version bounds, learned ranges)<br/>answered from the proof's constraint store (keyed by <i>category/name</i>) — one lookup, no scan of the proof<br/><font point-size="8.5" color="#777777" face="Courier">cnselect:selected_cn_candidate_compatible/7   (issue 91)</font>>];
+  reused [fillcolor="#e1f2e1", label=<<b>Reuse it and commit</b> (no backtracking into alternatives)<br/>its version was already verified when first chosen, so the version checks below are skipped<br/><font point-size="8.5" color="#777777" face="Courier">PreVerified = true</font>>];
+
+  subgraph cluster_enum {
+    label=<<b>Otherwise: list the candidates, newest version first</b>  <font point-size="8.5" color="#777777" face="Courier">acceptance:accepted_keyword_candidate/7</font>>;
+    fontname="Helvetica"; fontsize=10.5; style="rounded,dashed"; color="#999999";
+    t0 [label=<<b>Normal rule</b>: keyword is in ACCEPT_KEYWORDS (or package.accept_keywords),<br/>not masked, not a binary package, right slot;<br/>when the child is the parent's own package (self-dependency),<br/>the parent's version only counts if it is already installed (bootstrap)<br/><font point-size="8.5" color="#777777" face="Courier">memoized in memo:keyword_cache_/6</font>>];
+    t1 [fillcolor="#fff9e6", label=<<b>Relaxed once</b>: any keyword accepted, still not masked<br/><font point-size="8.5" color="#777777" face="Courier">prover:assuming(keyword_acceptance)</font>>];
+    t2 [fillcolor="#fff9e6", label=<<b>Relaxed twice</b>: masked versions allowed too<br/><font point-size="8.5" color="#777777" face="Courier">prover:assuming(unmask)</font>>];
+    t0 -> t1 -> t2 [style=dashed, label=" only when the whole proof (or step 7) runs in that tier"];
+  }
+
+  virt [label=<<b>For virtual/* only: try providers we are already installing first</b><br/><font point-size="8.5" color="#777777" face="Courier">ranking:candidates_prefer_proven_providers/5</font>>];
+
+  subgraph cluster_checks {
+    label=<<b>Does this candidate qualify?</b>  (each check can reject it; then the next-newest candidate is tried)>;
+    fontname="Helvetica"; fontsize=10.5; style="rounded"; color="#999999"; bgcolor="#fbfbfb";
+    c1 [label=<<b>Is this candidate the parent's own version?</b> (self-dependency) then only if it is already installed<br/><font point-size="8.5" color="#777777" face="Courier">candidate:grouped_dep_avoid_self/2</font>>];
+    c2 [label=<<b>Does its version satisfy every bound of the request?</b> ("&gt;=1.2", "~3.1", "=0.6*", "&lt;2")<br/><font point-size="8.5" color="#777777" face="Courier">forall(package_dependency(..Op,V..), version_match)</font>>];
+    c3 [label=<<b>Is it inside the allowed range for this package?</b><br/>= this request ∩ what the proof context already demands ∩ what failed passes taught us<br/><font point-size="8.5" color="#777777" face="Courier">cnselect:grouped_dep_candidate_satisfies_effective_domain/6</font>>];
+    c4 [label=<<b>Was it ruled out by an earlier failed pass, or by a build-failure fixup?</b><br/><font point-size="8.5" color="#777777" face="Courier">memo:cn_domain_reject_/2,  feedback:version_excluded/3,  ghcabi hook (issue 112)</font>>];
+    c5 [label=<<b>Is there an equally valid other version of the child whose own version pins agree with what we chose?</b><br/>then step aside for it (e.g. opam-installer-2.5 yields to 2.3 when opam-common is locked at 2.3)<br/><font point-size="8.5" color="#777777" face="Courier">candidate:yield_to_selected_compatible_sibling/6   (issue 123)</font>>];
+    c6 [label=<<b>Does the candidate accept the parent in return?</b><br/>if the candidate's own RDEPEND names the parent's package, the parent's version must satisfy it<br/><font point-size="8.5" color="#777777" face="Courier">candidate:candidate_reverse_deps_compatible_with_parent/2</font>>];
+    c7 [label=<<b>Can it be built with the USE flags this request demands?</b><br/>bracket flags ("[ssl,-static]") must be settable; REQUIRED_USE must still hold; "[flag=]" ties<br/>are followed; a shared provider that must gain a flag is scheduled for a forced rebuild<br/><font point-size="8.5" color="#777777" face="Courier">candidate:grouped_dep_use_and_slot/5   (issues 91, 94, 109, 121)</font>>];
+    c1 -> c2 -> c3 -> c4 -> c5 -> c6 -> c7;
+  }
+
+  tag [label=<<b>Attach advice for the user</b>: accept this keyword, unmask this, accept this license, change these USE flags<br/><font point-size="8.5" color="#777777" face="Courier">candidate:grouped_dep_tag_suggestions/3</font>>];
+
+  act [shape=box, style="filled", fillcolor="#fff4cc", color="#c9a400", label=<<b>Is a copy installed in the same slot?</b><br/><font point-size="8.5" color="#777777" face="Courier">candidate:grouped_dep_determine_action/5</font>>];
+  a1 [fillcolor="#e1f2e1", label=<<b>Fresh install</b> (or --emptytree)<br/><font point-size="8.5" color="#777777" face="Courier">Cand:install / :run</font>>];
+  a2 [fillcolor="#e1f2e1", label=<<b>Update or downgrade</b> to this version<br/><font point-size="8.5" color="#777777" face="Courier">Cand:update / :downgrade, replaces(Installed)</font>>];
+  a3 [fillcolor="#e1f2e1", label=<<b>Rebuild the same version</b><br/>USE flags changed, --newuse, --changed-*, --rebuilt-binaries, --rebuild-if-new-*<br/><font point-size="8.5" color="#777777" face="Courier">Cand:update, rebuild_reason(..)</font>>];
+
+  out [fillcolor="#e4ecf7", label=<<b>Hand the result to the prover</b><br/>"this package is now fixed to this version" + the range this edge demands + the USE flags to build with + the action.<br/>The prover merges these into the shared constraint store; if they clash with another edge's choice,<br/>it learns the range and restarts the pass (the same retry as steps 4-6)<br/><font point-size="8.5" color="#777777" face="Courier">candidate:grouped_dep_assemble_conditions/6 → heuristic:constraint_guard/2 (issue 128)</font>>];
+  elig [label=<<b>Later, when the chosen entry's own rule runs, visibility is checked once more</b><br/>masked or unkeyworded entries pass only under the relaxation tier, the step-7 override,<br/>or when this is a same-version ABI repair of an installed package<br/><font point-size="8.5" color="#777777" face="Courier">candidate:eligible/1   (issue 118)</font>>];
+
+  slot -> reuse;
+  {rank=same; slot; vocab}
+  reuse -> reused [label=" yes"];
+  reuse -> t0 [label=" no", lhead=cluster_enum];
+  t2 -> virt [ltail=cluster_enum];
+  virt -> c1 [lhead=cluster_checks];
+  reused -> c6;
+  c7 -> tag [ltail=cluster_checks];
+  tag -> act;
+  act -> a1 [label=" no"];
+  act -> a2 [label=" yes, other version"];
+  act -> a3 [label=" yes, same version,\l rebuild reason"];
+  a1 -> out; a2 -> out; a3 -> out;
+  out -> elig [style=dashed];
+}

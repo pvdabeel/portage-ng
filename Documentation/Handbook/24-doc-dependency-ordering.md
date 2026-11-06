@@ -136,10 +136,12 @@ Before proving the dependencies within a single package,
 Tightly constrained dependencies are proved first so that their
 `selected_cn` locks early, preventing greedy conflicts where an
 unconstrained sibling picks a version that later clashes.  The
-priority ladder (lower = proved first): tight upper bound (1) →
-tilde (4) → wildcard (8) → unconstrained (999).  Within each tier,
-slot specificity further refines the order.  See
-[Chapter 12](12-doc-resolution.md) for details.
+order is the declared `ranking:tightness_classes/1` list, proved
+first to last: sub-slot pin → tight upper bound → tilde → slot pin →
+wildcard → any-same-slot (`:=`) → any-different-slot (`:*`) →
+unconstrained.  Among upper-bounded requests the tighter bound goes
+first.  See [Chapter 12](12-doc-resolution.md#dependency-ordering-within-a-group)
+for the table.
 
 ![portage-ng two-phase dependency model](Diagrams/22-portage-ng-model.svg){width=55%}
 
