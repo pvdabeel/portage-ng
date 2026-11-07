@@ -545,6 +545,8 @@ knowledgebase:client_vdb_stamp(Repo, Stamp) :-
   knowledgebase:client_vdb_import(_, Repo, Stamp, _, _, _, _).
 
 
+:- thread_local knowledgebase:vdb_repository_/1.
+
 %! knowledgebase:vdb_repository(-Repository) is det.
 %
 % Unifies Repository with the repository name holding the installed-package
@@ -556,17 +558,17 @@ knowledgebase:client_vdb_stamp(Repo, Stamp) :-
 %     `vdb_repository/1` instance fact after a successful `--import-vdb`,
 %     otherwise `pkg` (the server VDB) with a loud warning.
 %
-% The result is memoized in a per-thread global variable: the accessor is
-% called from resolver hot paths (installed(true) query macros), so it must
-% cost a single nb_current/2 lookup after the first call. Memoization is
-% safe because a thread is either a pengine thread (one request) or a
-% regular thread for its entire lifetime.
+% The result is memoized as the thread-local fact vdb_repository_/1: the
+% accessor is called from resolver hot paths (installed(true) query
+% macros), so it must cost a single first-argument lookup after the first
+% call. Memoization is safe because a thread is either a pengine thread
+% (one request) or a regular thread for its entire lifetime.
 
 knowledgebase:vdb_repository(Repository) :-
-  ( nb_current(kb_vdb_repository, R0) ->
-      Repository = R0
+  ( knowledgebase:vdb_repository_(Cached) ->
+      Repository = Cached
   ;   knowledgebase:resolve_vdb_repository(R1),
-      nb_setval(kb_vdb_repository, R1),
+      assertz(knowledgebase:vdb_repository_(R1)),
       Repository = R1
   ).
 
@@ -591,7 +593,7 @@ knowledgebase:resolve_vdb_repository(Repository) :-
 % reported loudly (never a silent fallback to the server VDB), as required
 % by the --import-vdb design (issue #78). The warnings fire once per
 % pengine request: each pengine runs on a fresh thread, and vdb_repository/1
-% memoizes the resolution per thread.
+% memoizes the resolution per thread in vdb_repository_/1.
 
 knowledgebase:pengine_vdb_repository(M, Repository) :-
   pengines:pengine_user(Principal),

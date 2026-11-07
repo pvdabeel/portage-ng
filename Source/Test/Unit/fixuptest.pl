@@ -266,7 +266,8 @@ cc_setup :-
   assertz(cache:ordered_entry(GRepo, GId, 'dev-lang', ghc, GV)),
   assertz(ghcabi:cabal_core_cache_(ORepo://OId, ['9.2.8'])),
   assertz(ghcabi:cabal_core_cache_(NRepo://NId, ['9.8.4'])),
-  ( nb_current(memo_selected_cn_snap, Old) -> assertz(cc_saved_snap(Old)) ; true ),
+  cnselect:save_cn_snapshots(Old), assertz(cc_saved_snap(Old)),
+  cnselect:clear_cn_snapshots,
   cnselect:record_selected_cn_snapshot('dev-lang', ghc,
     [selected(GRepo, GId, install, GV, slot(0))]).
 
@@ -280,8 +281,8 @@ cc_cleanup :-
   cc_ghc(GRepo://GId),
   retractall(cache:ordered_entry(GRepo, GId, _, _, _)),
   ( retract(cc_saved_snap(Saved)) ->
-      nb_setval(memo_selected_cn_snap, Saved)
-  ; nbstore:reset(memo_selected_cn_snap)
+      cnselect:restore_cn_snapshots(Saved)
+  ; cnselect:clear_cn_snapshots
   ).
 
 % Unconstrained domain: the GHC-9.8 sibling is a real alternative, so the

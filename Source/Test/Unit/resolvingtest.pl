@@ -434,9 +434,9 @@ py_setup :-
   py_old(OId),
   assertz(cache:entry_metadata(qtest, OId, depend,
     package_dependency(install, no, 'dev-ml', common, tilde, CV, [], []))),
-  ( nb_current(memo_selected_cn_snap, Old) -> nb_setval(py_saved_snap, Old)
-  ; nb_setval(py_saved_snap, none)
-  ),
+  cnselect:save_cn_snapshots(Old),
+  nb_setval(py_saved_snap, Old),
+  cnselect:clear_cn_snapshots,
   cnselect:record_selected_cn_snapshot('dev-ml', common,
     [selected(qtest, CId, install, CV, slot(0))]).
 
@@ -449,9 +449,9 @@ py_cleanup :-
   py_old(OId),
   retractall(cache:entry_metadata(qtest, OId, _, _)),
   retractall(memo:entry_version_pins_(qtest://OId, _)),
-  ( nb_current(py_saved_snap, Saved), Saved \== none ->
-      nb_setval(memo_selected_cn_snap, Saved)
-  ; nbstore:reset(memo_selected_cn_snap)
+  ( nb_current(py_saved_snap, Saved) ->
+      cnselect:restore_cn_snapshots(Saved)
+  ; cnselect:clear_cn_snapshots
   ).
 
 test(newer_sibling_conflicts_with_selected_pin,

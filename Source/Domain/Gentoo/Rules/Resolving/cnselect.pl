@@ -388,6 +388,40 @@ cnselect:record_blocked_cn_source_snapshot(C, N, Sources0) :-
 cnselect:record_blocked_cn_source_snapshot(_C, _N, _Sources) :-
   !.
 
+
+%! cnselect:save_cn_snapshots(-Saved) is det
+%
+% Saved captures the calling thread's selected-CN and blocked-CN-source
+% snapshot stores (memo_selected_cn_snap, memo_blocked_cn_source_snap),
+% so a nested or test-scoped proof can start from empty stores and hand
+% the originals back through restore_cn_snapshots/1. A store that was
+% never reset counts as empty. Saved holds the live store terms, which
+% later puts update in place: copy it (nb_setval/2 and assertz/1 do) or
+% call clear_cn_snapshots/0 before recording anything.
+
+cnselect:save_cn_snapshots(snapshots(Selected, Blocked)) :-
+  ( nb_current(memo_selected_cn_snap, Selected) -> true ; nbstore:empty(Selected) ),
+  ( nb_current(memo_blocked_cn_source_snap, Blocked) -> true ; nbstore:empty(Blocked) ).
+
+
+%! cnselect:clear_cn_snapshots is det
+%
+% Installs empty snapshot stores for the calling thread.
+
+cnselect:clear_cn_snapshots :-
+  nbstore:reset(memo_selected_cn_snap),
+  nbstore:reset(memo_blocked_cn_source_snap).
+
+
+%! cnselect:restore_cn_snapshots(+Saved) is det
+%
+% Reinstates the stores captured by save_cn_snapshots/1.
+
+cnselect:restore_cn_snapshots(snapshots(Selected, Blocked)) :-
+  nb_setval(memo_selected_cn_snap, Selected),
+  nb_setval(memo_blocked_cn_source_snap, Blocked).
+
+
 %! cnselect:reason_linked_selected_reprove_target(+Reasons, -SourceC, -SourceN, -SourceCandidates)
 %
 % Follows introduced_by reason chains to find the originally-selected

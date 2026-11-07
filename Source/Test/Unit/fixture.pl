@@ -27,19 +27,15 @@ loaded it.
 
 %! stash_selected_cn_snap(-Saved) is det.
 %
-% Save the live selected-CN snapshot (memo_selected_cn_snap, see
-% cnselect.pl) and start the unit from an empty one. Saved is the
-% previous store, or `none` when the global was not set.
+% Save the live selected-CN / blocked-CN-source snapshot stores (see
+% cnselect:save_cn_snapshots/1) and start the unit from empty ones.
 
 stash_selected_cn_snap(Saved) :-
-  ( nb_current(memo_selected_cn_snap, Saved) -> true ; Saved = none ),
-  nbstore:reset(memo_selected_cn_snap).
+  cnselect:save_cn_snapshots(Saved),
+  cnselect:clear_cn_snapshots.
 
 
 %! restore_selected_cn_snap(+Saved) is det.
 
-restore_selected_cn_snap(none) :-
-  !,
-  nb_delete(memo_selected_cn_snap).
 restore_selected_cn_snap(Saved) :-
-  nb_setval(memo_selected_cn_snap, Saved).
+  cnselect:restore_cn_snapshots(Saved).

@@ -601,12 +601,17 @@ use:self_context_use_state(Ctx, Use, State) :-
 %
 % Compute the USE state for a flag on an entry by inspecting IUSE
 % metadata and categorizing the flag via eapi:categorize_use_for_entry/4.
-% Handles both plain flags and USE_EXPAND-prefixed flags.
+% A plain flag takes the effective state over every IUSE entry naming
+% it (iuse_effective_state_/3); a USE_EXPAND-prefixed flag takes the
+% state of the first IUSE entry naming it. The name test comes before
+% the categorisation in both branches: categorising is the expensive
+% half (the whole profile / user-config precedence chain), and it must
+% only run for the entries that name Use.
 
 use:self_context_use_state_compute_(Repo, Id, Use, State) :-
   use:entry_iuse_info(Repo://Id, iuse_info(IuseSet, _PlusSet)),
   memberchk(Use, IuseSet),
-  ( \+ eapi:check_use_expand_atom(Use),
+  ( \+ eapi:check_use_expand_atom(Use) ->
     findall(S0:R0,
             ( cache:entry_metadata(Repo, Id, iuse, Arg),
               eapi:use_flag_name(Arg, Use),
@@ -615,17 +620,11 @@ use:self_context_use_state_compute_(Repo, Id, Use, State) :-
             States0),
     States0 \== [],
     query:iuse_effective_state_(States0, State, _)
-  ; atom(Use),
-    sub_atom(Use, Before, 1, _, '_'),
-    Before > 0,
-    sub_atom(Use, 0, Before, _, Prefix),
-    eapi:use_expand(Prefix),
-    eapi:strip_prefix_atom(Prefix, Use, Value),
-    cache:entry_metadata(Repo, Id, iuse, UEArg),
-    eapi:categorize_use_for_entry(UEArg, Repo://Id, State, _),
+  ; cache:entry_metadata(Repo, Id, iuse, UEArg),
     eapi:use_flag_name(UEArg, UEArgB),
-    eapi:check_prefix_atom(Prefix, UEArgB),
-    eapi:strip_prefix_atom(Prefix, UEArgB, Value)
+    UEArgB == Use,
+    eapi:categorize_use_for_entry(UEArg, Repo://Id, State, _),
+    !
   ).
 
 

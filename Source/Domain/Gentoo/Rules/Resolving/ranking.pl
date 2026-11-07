@@ -539,9 +539,9 @@ ranking:choice_criteria([license_ok,
 
 ranking:prioritize_deps_keep_all(Deps, Context, SortedDeps) :-
   setup_call_cleanup(
-    nbstore:reset(ranking_choice_cache),
+    ranking:choice_cache_open,
     ranking:prioritize_deps_keep_all_body(Deps, Context, SortedDeps),
-    catch(nb_delete(ranking_choice_cache), _, true)
+    ranking:choice_cache_close
   ).
 
 
@@ -850,9 +850,9 @@ ranking:dep_no_downgrade_value(_, _, yes).
 % Cached per prioritize_deps_keep_all/3 call. version_none if neither.
 
 ranking:reference_highest_version(C, N, Ver) :-
-  ( ranking:choice_cache_get(refver(C-N), Ver) -> true
+  ( ranking:choice_cache_get(refver, C, N, Ver) -> true
   ; ranking:lookup_reference_highest_version(C, N, Ver),
-    ranking:choice_cache_put(refver(C-N), Ver)
+    ranking:choice_cache_put(refver, C, N, Ver)
   ).
 
 
@@ -894,33 +894,47 @@ ranking:dep_installed_count(Atoms, Count) :-
 %! ranking:cn_is_installed(+C, +N) is semidet.
 
 ranking:cn_is_installed(C, N) :-
-  ( ranking:choice_cache_get(inst(C-N), Hit) -> Hit == true
+  ( ranking:choice_cache_get(inst, C, N, Hit) -> Hit == true
   ; ( catch(( knowledgebase:vdb_repository(VdbRepo),
               query:search([name(N), category(C), installed(true)], VdbRepo://_)
             ), _, fail)
-    -> ranking:choice_cache_put(inst(C-N), true),
+    -> ranking:choice_cache_put(inst, C, N, true),
        true
-    ; ranking:choice_cache_put(inst(C-N), false),
+    ; ranking:choice_cache_put(inst, C, N, false),
       fail
     )
   ).
 
 
-%! ranking:choice_cache_get(+Key, -Value) is semidet.
-%! ranking:choice_cache_put(+Key, +Value) is det.
+%! ranking:choice_cache_open is det.
+%! ranking:choice_cache_close is det.
+%! ranking:choice_cache_get(+Kind, +C, +N, -Value) is semidet.
+%! ranking:choice_cache_put(+Kind, +C, +N, +Value) is det.
 %
-% The per-choice-group memo of prioritize_deps_keep_all/3. It exists
-% only inside that predicate's setup_call_cleanup scope: a put from
-% outside the scope is dropped rather than creating a global that would
-% outlive the choice group and never be invalidated.
+% The per-choice-group memo of prioritize_deps_keep_all/3: the
+% ranking_choice_cache nbstore keyed Kind-C-N, with Kind one of `inst`
+% (cn_is_installed/2) or `refver` (reference_highest_version/3). The
+% store exists only inside that predicate's setup_call_cleanup scope:
+% open installs an empty one, close deletes it, and a put while no store
+% exists is dropped rather than creating one that would outlive the
+% choice group and never be invalidated.
 
-ranking:choice_cache_get(Key, Value) :-
-  nbstore:get(ranking_choice_cache, Key, Value),
+ranking:choice_cache_open :-
+  nbstore:reset(ranking_choice_cache).
+
+
+ranking:choice_cache_close :-
+  catch(nb_delete(ranking_choice_cache), _, true).
+
+
+ranking:choice_cache_get(Kind, C, N, Value) :-
+  nbstore:get(ranking_choice_cache, Kind-C-N, Value),
   !.
 
-ranking:choice_cache_put(Key, Value) :-
+
+ranking:choice_cache_put(Kind, C, N, Value) :-
   ( nb_current(ranking_choice_cache, _)
-  -> nbstore:put(ranking_choice_cache, Key, Value)
+  -> nbstore:put(ranking_choice_cache, Kind-C-N, Value)
   ;  true
   ).
 

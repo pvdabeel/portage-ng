@@ -196,8 +196,8 @@ slotmeta:query_search_slot_constraint(SlotReq, RepoEntry, SlotMeta) :-
 
 %! slotmeta:cached_slot_meta(+Repo, +Id, -AllMeta)
 %
-% Returns the full slot metadata list for Repo/Id, using the
-% memo_slot_meta_cache store to avoid redundant findall allocations.
+% Returns the full slot metadata list for Repo/Id, memoised per proof in
+% the memo_slot_meta_cache store to avoid redundant findall allocations.
 
 slotmeta:cached_slot_meta(Repo, Id, AllMeta) :-
   ( nbstore:get(memo_slot_meta_cache, Repo-Id, Cached)

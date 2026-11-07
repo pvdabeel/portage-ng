@@ -10,15 +10,31 @@
 /** <module> NBSTORE
 Backtrack-safe key/value stores held in thread global variables.
 
-A store is a red-black tree (library(rbtrees)) kept under a global
-variable name with nb_setval/2 and updated in place with
-library(nb_rbtrees). Puts therefore cost O(log n) and copy only the key
-and value, where storing a fresh copy of an AVL with nb_setval/2 after
-every put_assoc/4 copies the whole tree (O(n) per put, O(n^2) per proof).
+A store is a hash table kept under a global variable name with
+nb_setval/2 and updated in place with nb_setarg/3: a store(Count,
+Buckets) term whose Buckets compound holds one Key-Value chain per
+argument, the bucket count being its arity. get/3 costs one term_hash/2
+and one arg/3; put/3 rewrites a single chain and, when Count exceeds the
+bucket count, swaps in a compound of twice the arity with one nb_setarg/3,
+so the store is consistent at every step.
+
+Why this and not the two obvious alternatives, both measured:
+
+  - An AVL (library(assoc)) stored back with nb_setval/2 after every
+    put copies the whole tree per put: O(n) per update, O(n^2) per
+    proof.
+  - A thread_local fact table reads faster still (first-argument JIT
+    index), but every assertz/retract on a thread_local predicate takes
+    a process-wide lock in SWI-Prolog. Ten threads each doing 300k
+    updates ran 6-23x slower per thread than one thread did; the
+    resolver's single-thread gain from fact tables vanished entirely
+    under `resolver:test_stats`. Global-variable terms live on the
+    thread's own stacks, so this store scales linearly.
 
 Like nb_setval/2, every value put into a store is copied, survives
-backtracking, and is returned by get/3 without copying. The stores are
-per thread, exactly as the global variables that hold them.
+backtracking, and is returned by get/3 without copying. Keys must be
+ground. The stores are per thread, exactly as the global variables
+that hold them.
 
 This module stays domain-agnostic: callers choose the store names and
 key shapes.
@@ -30,12 +46,6 @@ key shapes.
 %  NBSTORE declarations
 % =============================================================================
 
-:- use_module(library(rbtrees), [rb_new/1, rb_lookup/3]).
-:- use_module(library(nb_rbtrees), [nb_rb_insert/3,
-                                    nb_rb_get_node/3,
-                                    nb_rb_set_node_value/2]).
-
-
 % -----------------------------------------------------------------------------
 %  Store lifecycle
 % -----------------------------------------------------------------------------
@@ -46,7 +56,7 @@ key shapes.
 % "nothing recorded" state of a store that has not been reset yet.
 
 nbstore:empty(Store) :-
-  rb_new(Store).
+  nbstore:new_store(16, Store).
 
 
 %! nbstore:reset(+Name) is det.
@@ -55,8 +65,26 @@ nbstore:empty(Store) :-
 % whatever Name held before.
 
 nbstore:reset(Name) :-
-  rb_new(Store),
+  nbstore:empty(Store),
   nb_setval(Name, Store).
+
+
+%! nbstore:new_store(+Size, -Store) is det.
+%
+% An empty store with Size buckets.
+
+nbstore:new_store(Size, store(0, Buckets)) :-
+  nbstore:empty_buckets(Size, Buckets).
+
+
+%! nbstore:empty_buckets(+Size, -Buckets) is det.
+%
+% A buckets compound of arity Size with every chain empty.
+
+nbstore:empty_buckets(Size, Buckets) :-
+  length(Chains, Size),
+  maplist(=([]), Chains),
+  compound_name_arguments(Buckets, b, Chains).
 
 
 % -----------------------------------------------------------------------------
@@ -65,28 +93,72 @@ nbstore:reset(Name) :-
 
 %! nbstore:get(+Name, +Key, -Value) is semidet.
 %
-% Value is the value recorded under Key in store Name. Fails when Name
-% holds no store or Key has no entry.
+% Value is the value recorded under ground Key in store Name. Fails when
+% Name holds no store or Key has no entry.
 
 nbstore:get(Name, Key, Value) :-
-  nb_current(Name, Store),
-  rb_lookup(Key, Value, Store).
+  nb_current(Name, store(_, Buckets)),
+  nbstore:bucket(Key, Buckets, I),
+  arg(I, Buckets, Chain),
+  memberchk(Key-Value, Chain).
 
 
 %! nbstore:put(+Name, +Key, +Value) is det.
 %
-% Records Value under Key in store Name, replacing a previous value for
-% Key. A missing store is created first. Value is copied, as nb_setval/2
-% would copy it.
+% Records Value under ground Key in store Name, replacing a previous
+% value for Key. A missing store is created first. Value is copied, as
+% nb_setval/2 would copy it.
 
 nbstore:put(Name, Key, Value) :-
   ( nb_current(Name, Store) ->
       true
-  ; rb_new(Store0),
-    nb_setval(Name, Store0),
+  ; nbstore:reset(Name),
     nb_current(Name, Store)
   ),
-  ( nb_rb_get_node(Store, Key, Node) ->
-      nb_rb_set_node_value(Node, Value)
-  ; nb_rb_insert(Store, Key, Value)
+  Store = store(Count, Buckets),
+  nbstore:bucket(Key, Buckets, I),
+  arg(I, Buckets, Chain),
+  ( selectchk(Key-_, Chain, Rest) ->
+      nb_setarg(I, Buckets, [Key-Value|Rest])
+  ; nb_setarg(I, Buckets, [Key-Value|Chain]),
+    Count1 is Count + 1,
+    nb_setarg(1, Store, Count1),
+    functor(Buckets, _, Size),
+    ( Count1 > Size ->
+        nbstore:grow(Store)
+    ; true
+    )
   ).
+
+
+%! nbstore:bucket(+Key, +Buckets, -I) is det.
+%
+% I is the 1-based argument of Buckets that holds Key's chain.
+
+nbstore:bucket(Key, Buckets, I) :-
+  term_hash(Key, Hash),
+  functor(Buckets, _, Size),
+  I is Hash mod Size + 1.
+
+
+%! nbstore:grow(!Store) is det.
+%
+% Doubles the bucket count of Store: every pair is rehashed into a fresh
+% Buckets compound of twice the arity, which then replaces the old one
+% with a single in-place assignment. An exception before that assignment
+% leaves the old table intact and the next put retries the growth.
+
+nbstore:grow(Store) :-
+  Store = store(_, Buckets),
+  functor(Buckets, _, Size),
+  Size2 is Size * 2,
+  nbstore:empty_buckets(Size2, Buckets2),
+  forall(( arg(_, Buckets, Chain),
+           member(Pair, Chain)
+         ),
+         ( Pair = Key-_,
+           nbstore:bucket(Key, Buckets2, I),
+           arg(I, Buckets2, Chain2),
+           nb_setarg(I, Buckets2, [Pair|Chain2])
+         )),
+  nb_setarg(2, Store, Buckets2).

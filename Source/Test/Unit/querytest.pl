@@ -109,6 +109,24 @@ test(key_encodes_learned_store,
   query:dep_model_key(testrepo, 'x/y-1', Ctx, key(_, _, _, After)),
   Before \== After.
 
+% Hazard 5 is cn_domain only: bwu_force / eq_follow are read by
+% resolve-time rules, never while a model is built, so learning one must
+% keep every cached model valid (the key must not change).
+test(key_ignores_learned_use_forces,
+     [setup(( stash_selected_cn_snap(Saved),
+              ( nb_current(prover_learned_constraints, OldL) -> nb_setval(qt_saved_learned, OldL)
+              ; nb_setval(qt_saved_learned, none) ) )),
+      cleanup(( restore_selected_cn_snap(Saved),
+                ( nb_current(qt_saved_learned, S), S \== none ->
+                    nb_setval(prover_learned_constraints, S)
+                ; nb_delete(prover_learned_constraints) ) ))]) :-
+  Ctx = [build_with_use:use_state([], [])],
+  query:dep_model_key(testrepo, 'x/y-1', Ctx, key(_, _, _, Before)),
+  prover:learn(bwu_force('dev-qt', qtbase), use_state([icu], []), _),
+  prover:learn(eq_follow('app-emulation', virtualbox), use_state(['X'], []), _),
+  query:dep_model_key(testrepo, 'x/y-1', Ctx, key(_, _, _, After)),
+  Before == After.
+
 :- end_tests(dep_model_cache).
 
 

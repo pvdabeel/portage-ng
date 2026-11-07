@@ -869,8 +869,8 @@ compile_query_compound(all(dependency(D,fetchonly)):A?{C}, Repo://Id,
 %      output embeds exactly the keyed proof context.
 %
 %   2. prover:assuming(keyword_acceptance) / assuming(unmask) / assuming
-%      (conflicts) / assuming(blockers) — nb_setval flags that change between
-%      fallback tiers.  any_of_config_dep_ok calls
+%      (conflicts) / assuming(blockers) — thread-local assuming_/1 facts
+%      that change between fallback tiers.  any_of_config_dep_ok calls
 %      acceptance:accepted_keyword_candidate, which checks these flags.
 %      -> the list of active flags among dep_model_assuming_hazards/1 is
 %      part of the key (dep_model_assuming/1).
@@ -900,9 +900,17 @@ compile_query_compound(all(dependency(D,fetchonly)):A?{C}, Repo://Id,
 %      outside a learned domain, or whose hard pins have no candidate left
 %      inside one, is not kept; portage-ng#123). A model cached before
 %      `ghc < 9.5` was learned must not answer after it.
-%      -> the learned store term is part of the key
-%      (dep_model_learned/1); `none` when no store is active. Learning is
-%      rare (pass boundaries), so this costs one miss per change.
+%      -> the store's cn_domain/3 entries, as a key-ordered list, are
+%      part of the key (dep_model_learned/1). Config-phase rules read
+%      the learned store only through cn_domain — the two readers are
+%      candidate:config_candidate_blocked (via cnselect:apply_learned_domain)
+%      and candidate:learned_pin_miss; the ranking choice criteria do not
+%      read the learned store at all. The
+%      bwu_force/eq_follow literals are read by resolve-time rules only
+%      (use:merge_memo_candidate_bwu, ranking:apply_equality_pins), so a
+%      USE force learned mid-pass leaves every cached model valid.
+%      Keying the whole store term instead invalidated the cache on each
+%      such force, which is the common kind of learning.
 %
 % Remaining inputs (VDB installed state, /etc/portage preferences, profile,
 % keyword/license/mask config, favour/avoid flags) are constant within one
@@ -940,13 +948,20 @@ query:dep_model_key(Repo, Id, Context, Key) :-
 
 %! query:dep_model_learned(-Learned) is det
 %
-% The prover's learned constraint store as it stands now (hazard 5), or
-% `none` outside any reprove-managed proof.
+% The cn_domain/3 entries of the prover's learned constraint store as it
+% stands now (hazard 5): a list of cn_domain(C,N,Slot)-Domain pairs in
+% store (standard) order, so equal projections are equal terms. [] when
+% nothing is learned or no store is active — model construction cannot
+% tell those apart (prover:learned/2 fails in both cases).
 
 query:dep_model_learned(Learned) :-
   ( nb_current(prover_learned_constraints, Store) ->
-      Learned = Store
-  ; Learned = none
+      findall(Lit-Domain,
+              ( Lit = cn_domain(_, _, _),
+                gen_assoc(Lit, Store, Domain)
+              ),
+              Learned)
+  ; Learned = []
   ).
 
 

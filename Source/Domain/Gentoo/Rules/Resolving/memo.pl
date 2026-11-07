@@ -37,10 +37,15 @@ Each thread-local predicate caches a different aspect of resolver state:
 |                                    | (seeded from full dep tree, then provider        |
 |                                    | :install/:run and grouped_dep contexts)        |
 
+The three nbstore entries are per-thread hash stores (Source/Logic/nbstore.pl)
+rather than thread_local facts: they are rewritten thousands of times per
+proof, and writes to thread_local predicates serialise process-wide.
+
 All caches are invalidated together by clear_caches/0 at the start of each
-proof run.  Individual caches (selected_cn_snap_, blocked_cn_source_snap_,
-cn_domain_reject_) may also be saved/restored by heuristic:init_state/0 and
-heuristic:cleanup_state/0 during reprove retries.
+proof run.  Individual caches (memo_selected_cn_snap,
+memo_blocked_cn_source_snap, cn_domain_reject_) may also be saved/restored
+by heuristic:init_state/0 and heuristic:cleanup_state/0 during reprove
+retries.
 */
 
 :- module(memo, []).

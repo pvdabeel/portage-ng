@@ -483,10 +483,12 @@ points in the pipeline module:
 
 ### How `assuming/2` works
 
-`prover:assuming(Flag, Goal)` stores a dynamic flag
-(`prover_assuming_<Flag>`) for the duration of `Goal`, using
-`setup_call_cleanup` to guarantee cleanup even on exceptions.  Domain
-predicates test this flag with the unary
+`prover:assuming(Flag, Goal)` asserts a thread-local fact
+(`prover:assuming_(Flag)`) for the duration of `Goal`, using
+`setup_call_cleanup` to guarantee cleanup even on exceptions.  A nested
+activation of a flag that is already active just runs `Goal`: it pushes
+no second fact and retracts nothing on the way out, so the outer
+activation stays in force.  Domain predicates test this flag with the unary
 `prover:assuming(Flag)`:
 
 - **`candidate:eligible/1`** — when `keyword_acceptance` is active,

@@ -221,14 +221,12 @@ reprove_exhausted :-
 
 init_state :-
   ( nb_current(prover_reprove_enabled, OldEnabled) -> true ; OldEnabled = '$absent' ),
-  ( nb_current(memo_selected_cn_snap, SavedSnap) -> true ; nbstore:empty(SavedSnap) ),
-  ( nb_current(memo_blocked_cn_source_snap, SavedBlocked) -> true ; nbstore:empty(SavedBlocked) ),
+  cnselect:save_cn_snapshots(SavedSnapshots),
   findall(K-V, memo:cn_domain_reject_(K, V), SavedRejects),
-  nb_setval(rules_reprove_saved_state, state(OldEnabled, SavedSnap, SavedRejects, SavedBlocked)),
+  nb_setval(rules_reprove_saved_state, state(OldEnabled, SavedSnapshots, SavedRejects)),
   nb_setval(prover_reprove_enabled, true),
   retractall(memo:cn_domain_reject_(_, _)),
-  nbstore:reset(memo_selected_cn_snap),
-  nbstore:reset(memo_blocked_cn_source_snap),
+  cnselect:clear_cn_snapshots,
   !.
 
 
@@ -237,11 +235,10 @@ init_state :-
 % Restore domain state saved by init_state/0.
 
 cleanup_state :-
-  ( nb_current(rules_reprove_saved_state, state(OldEnabled, SavedSnap, SavedRejects, SavedBlocked)) ->
+  ( nb_current(rules_reprove_saved_state, state(OldEnabled, SavedSnapshots, SavedRejects)) ->
       ( OldEnabled == '$absent' -> nb_delete(prover_reprove_enabled) ; nb_setval(prover_reprove_enabled, OldEnabled) ),
       retractall(memo:cn_domain_reject_(_, _)),
-      nb_setval(memo_selected_cn_snap, SavedSnap),
-      nb_setval(memo_blocked_cn_source_snap, SavedBlocked),
+      cnselect:restore_cn_snapshots(SavedSnapshots),
       forall(member(K-V, SavedRejects), assertz(memo:cn_domain_reject_(K, V))),
       nb_delete(rules_reprove_saved_state)
   ; true

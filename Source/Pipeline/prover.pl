@@ -517,16 +517,22 @@ prover:reprove_enabled :-
 % Example usage:
 %   prover:assuming(blockers, Goal)   — treat blockers as assumptions
 %   prover:assuming(conflicts, Goal)  — treat conflicts as assumptions
+%
+% The active literals are the thread-local facts assuming_/1: one
+% first-argument lookup per test, where a per-literal global variable
+% cost an atom_concat/3 on every test. Nested activation of a literal
+% that is already active leaves the fact in place, so the outer scope
+% still owns it.
+
+:- thread_local prover:assuming_/1.
 
 prover:assuming(Literal, Goal) :-
-  atom_concat('prover_assuming_', Literal, Key),
-  ( nb_current(Key, Old) -> true ; Old = unset ),
-  nb_setval(Key, true),
-  setup_call_cleanup(true,
-                     Goal,
-                     ( Old == unset -> nb_delete(Key)
-                     ; nb_setval(Key, Old)
-                     )).
+  ( prover:assuming_(Literal) ->
+      call(Goal)
+  ; setup_call_cleanup(assertz(prover:assuming_(Literal)),
+                       Goal,
+                       retractall(prover:assuming_(Literal)))
+  ).
 
 
 %! prover:assuming(+Literal) is semidet.
@@ -534,8 +540,8 @@ prover:assuming(Literal, Goal) :-
 % Succeeds when Literal-class proof failures are currently being assumed.
 
 prover:assuming(Literal) :-
-  atom_concat('prover_assuming_', Literal, Key),
-  nb_current(Key, true).
+  prover:assuming_(Literal),
+  !.
 
 
 % -----------------------------------------------------------------------------
