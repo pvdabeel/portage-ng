@@ -893,8 +893,25 @@ use:use_expand_selector_flag_unset(Use) :-
 %
 % True if any USE flag with the given USE_EXPAND prefix is explicitly
 % set (positively or negatively) in the user/profile configuration.
+%
+% The answer is a function of the global USE set, which does not change
+% inside a proof, so it is memoized per prefix per proof
+% (memo:use_expand_selection_cache_/2, cleared with the other per-proof
+% memos). Unmemoized, every USE_EXPAND flag an entry declares cost a scan
+% of all few hundred global flags with a sub_atom/5 test each.
 
 use:use_expand_prefix_has_explicit_selection(Prefix) :-
+  ( memo:use_expand_selection_cache_(Prefix, Answer) ->
+      Answer == true
+  ; ( use:use_expand_prefix_has_explicit_selection_(Prefix) ->
+        Answer = true
+    ; Answer = false
+    ),
+    assertz(memo:use_expand_selection_cache_(Prefix, Answer)),
+    Answer == true
+  ).
+
+use:use_expand_prefix_has_explicit_selection_(Prefix) :-
   atom_concat(Prefix, '_', PrefixUnderscore),
   ( preference:global_use(Use0)
   ; preference:global_use(minus(Use0))
@@ -1138,23 +1155,28 @@ use:changeduse_mismatch(VdbRepo://InstalledEntry, CurRepo://CurEntry) :-
 
 %! use:vdb_enabled_use_set(+RepoEntry, -UseSet)
 %
-% Collect the USE flags recorded as enabled in the VDB for an entry.
+% Collect the USE flags recorded as enabled in the VDB for an entry
+% (sorted).  Memoized per entry per proof in memo:enabled_use_cache_/3:
+% the keep-installed check asks for the same installed package's built
+% USE once per consumer edge, and each answer is a scan of the entry's
+% metadata clauses.
 
-use:vdb_enabled_use_set(RepoEntry, UseSet) :-
-  findall(U, query:search(use(U), RepoEntry), Us0),
-  sort(Us0, UseSet).
+use:vdb_enabled_use_set(Repo://Entry, UseSet) :-
+  ( memo:enabled_use_cache_(Repo, Entry, Cached) ->
+      UseSet = Cached
+  ; findall(U, query:search(use(U), Repo://Entry), Us0),
+    sort(Us0, UseSet),
+    assertz(memo:enabled_use_cache_(Repo, Entry, UseSet))
+  ).
 
 %! use:entry_iuse_set(+RepoEntry, -IuseSet)
 %
-% Collect the bare IUSE flag names for an entry (stripping defaults).
+% Collect the bare IUSE flag names for an entry (stripping defaults),
+% sorted.  This is the IuseSet of use:entry_iuse_info/2, so it shares
+% that per-entry memo.
 
 use:entry_iuse_set(RepoEntry, IuseSet) :-
-  findall(U,
-          ( query:search(iuse(Value), RepoEntry),
-            eapi:use_flag_name(Value, U)
-          ),
-          Us0),
-  sort(Us0, IuseSet).
+  use:entry_iuse_info(RepoEntry, iuse_info(IuseSet, _PlusSet)).
 
 %! use:vdb_iuse_set(+RepoEntry, -IuseSet)
 %

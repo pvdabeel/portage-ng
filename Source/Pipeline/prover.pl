@@ -371,11 +371,13 @@ prover:prove_once(Rules, Target, InProof, OutProof, InModel, OutModel, InCons, O
 %! prover:prove_once(+Target, +InProof, -OutProof, +InModel, -OutModel, +InCons, -OutCons, +InTriggers, -OutTriggers) is det
 %
 % Single-attempt prove: runs the core recursive engine with cycle-stack
-% bookkeeping.  Triggers are maintained incrementally during the proof;
-% dependent lists are deduplicated once here, after the proof completes
-% (see `prover:add_trigger/4` / issue #53).  InTriggers = `none` opts
-% out of the index altogether (see `prover:add_triggers/4`).  Internal:
-% runs under the rule module already scoped by prove/10 or prove_once/10.
+% bookkeeping.  Trigger edges are accumulated during the proof and the
+% reverse-dependency index is built (and its dependent lists
+% deduplicated) once here, after the proof completes (see
+% `prover:add_trigger/4` / `prover:dedup_triggers/2` / issue #53).
+% InTriggers = `none` opts out of the index altogether (see
+% `prover:add_triggers/4`).  Internal: runs under the rule module already
+% scoped by prove/10 or prove_once/10.
 
 prover:prove_once(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers) :-
   prover:debug_hook(Target, InProof, InModel, InCons),
@@ -1127,6 +1129,14 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 %
 % `prove_model/*` keeps the same semantics for constraints and for "already proven"
 % context refinement, but uses a dedicated in-progress set for cycle detection.
+%
+% That set is the chain of literals whose bodies are being walked right
+% now -- a handful deep for a dependency model -- so it is a plain list
+% searched with ==/2 (see in_progress/2), not an AVL: an AVL cost a
+% put_assoc per literal entered and a get_assoc per literal met, a
+% million operations per thousand entries proved.  The atom `t`
+% (the empty AVL callers historically passed) still denotes the empty
+% set.
 
 
 %! prover:prove_model(+Target, +InModel, -OutModel, +InCons, -OutCons) is det
@@ -1135,7 +1145,27 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
 % without maintaining Proof or Triggers bookkeeping.
 
 prover:prove_model(Target, InModel, OutModel, InCons, OutCons) :-
-  prover:prove_model(Target, InModel, OutModel, InCons, OutCons, t).
+  prover:prove_model(Target, InModel, OutModel, InCons, OutCons, []).
+
+
+%! prover:in_progress(+Lit, +InProg) is semidet
+%
+% Lit is ==-identical to a literal in the in-progress set InProg (a
+% list, or `t` for the empty set).  Identity, not unification: a body
+% literal may carry unbound variables (constraints with fresh slot
+% variables), and unifying membership would report a spurious cycle.
+
+prover:in_progress(_, t) :- !, fail.
+prover:in_progress(Lit, [L|Ls]) :-
+  ( Lit == L -> true ; prover:in_progress(Lit, Ls) ).
+
+
+%! prover:in_progress_push(+Lit, +InProg0, -InProg) is det
+%
+% InProg is InProg0 with Lit entered.
+
+prover:in_progress_push(Lit, t, [Lit]) :- !.
+prover:in_progress_push(Lit, InProg0, [Lit|InProg0]).
 
 prover:prove_model([], Model, Model, Cons, Cons, _InProg) :-
   !.
@@ -1180,7 +1210,7 @@ prover:prove_model(Full, Model0, Model, Constraints0, Constraints, InProg0) :-
       )
 
   ;   % Case: circular model proof (cycle-break)
-      get_assoc(Lit, InProg0, true) ->
+      prover:in_progress(Lit, InProg0) ->
       !,
       % Keep the same taxonomy as the full prover's cycle-breaks: store assumed(Lit)
       % in the model (note: dependency-model extraction ignores assumed/1 keys).
@@ -1188,7 +1218,7 @@ prover:prove_model(Full, Model0, Model, Constraints0, Constraints, InProg0) :-
       Constraints = Constraints0
 
   ;   % Case: regular proof (model-only)
-      put_assoc(Lit, InProg0, true, InProg1),
+      prover:in_progress_push(Lit, InProg0, InProg1),
       sampler:rule_call,
       prover:rule_call(Full, Body),
       prover:prove_model(Body, Model0, BodyModel, Constraints0, BodyConstraints, InProg1),
@@ -1566,10 +1596,22 @@ prover:debug_hook(Target, Proof, Model, Constraints) :-
 
 %! prover:add_triggers(+Head, +Body, +InTriggers, -OutTriggers)
 %
-% Add the triggers for a rule to the Triggers tree.  A caller that has
-% no use for the reverse-dependency index passes the atom `none` as its
-% initial Triggers (the orderer's pass 2 discards it): the index is then
-% not maintained and comes back as `none`.
+% Record the trigger edges of a rule (every non-constraint body literal
+% -> Head).  A caller that has no use for the reverse-dependency index
+% passes the atom `none` as its initial Triggers (the orderer's pass 2
+% discards it): the index is then not maintained and comes back as
+% `none`.
+%
+% During a pass the edges are only ACCUMULATED: the in-pass form is
+% `trig(Base, Pairs)` where Base is the AVL the pass started from (`t`
+% for a fresh pass, the pruned index of the previous pass for a partial
+% restart) and Pairs is the list of `DepLit-HeadCanon` edges recorded so
+% far, newest first.  Nothing reads the index while a pass runs, so
+% there is no reason to keep it balanced edge by edge: a bare AVL
+% `InTriggers` is wrapped on the first edge, and `dedup_triggers/2`
+% builds the index from the pairs once the pass completes.  Before this
+% every edge cost a get_assoc + put_assoc on an index of tens of
+% thousands of keys (one in nine inferences of the resolve pass).
 
 prover:add_triggers(_, [], Triggers, Triggers) :- !.
 
@@ -1606,26 +1648,80 @@ prover:add_trigger(Head, Dep, InTriggers, OutTriggers) :-
         % dependents) O(D²) on the proving hot path.
         prover:canon_literal(Dep, DepLit, _),
         prover:canon_literal(Head, HeadCanon, _),
-        (get_assoc(DepLit, InTriggers, Dependents) -> true ; Dependents = []),
-        put_assoc(DepLit, InTriggers, [HeadCanon|Dependents], OutTriggers)
+        (   InTriggers = trig(Base, Pairs)
+        ->  OutTriggers = trig(Base, [DepLit-HeadCanon|Pairs])
+        ;   OutTriggers = trig(InTriggers, [DepLit-HeadCanon])
+        )
     ).
 
 
 %! prover:dedup_triggers(+InTriggers, -OutTriggers)
 %
-% Remove duplicate dependents from every trigger key in one pass.
+% Build the reverse-dependency index from the edges a pass accumulated
+% (see add_triggers/4), with the dependents of every key deduplicated.
 %
-% `add_trigger/4` conses dependents without deduplication (see issue #53);
-% this runs once per completed proof.  The dedup is order-preserving and
-% reproduces exactly the list `memberchk/2`-based insertion used to build:
-% reverse insertion order of first occurrences.  Membership is tracked in
-% an assoc, so a list with I insertions and U unique dependents costs
-% O(I log U) instead of the O(I·U) of an inline scan.  The `none`
-% opt-out (see add_triggers/4) passes through.
+% The result is, key for key, the list the historical per-edge
+% construction produced: each edge consed its head onto the key's list
+% (newest first, on top of whatever the pass started with), and
+% dedup_dependents/2 then kept the first-inserted occurrence of each
+% head.  Here the edges are grouped per key with a stable sort (newest
+% first within a key, as consed), prepended to the key's list from the
+% base index, and deduplicated the same way.  A pass that recorded no
+% edge, or that was handed a bare AVL, deduplicates that AVL as before.
+% The `none` opt-out passes through.
 
 prover:dedup_triggers(none, none) :- !.
+prover:dedup_triggers(trig(Base, Pairs), OutTriggers) :-
+    !,
+    sort(1, @=<, Pairs, Sorted),
+    group_pairs_by_key(Sorted, Groups),
+    ( Base == t ->
+        prover:dedup_groups(Groups, Deduped)
+    ; assoc_to_list(Base, BasePairs),
+      prover:merge_trigger_groups(Groups, BasePairs, Deduped)
+    ),
+    ord_list_to_assoc(Deduped, OutTriggers).
 prover:dedup_triggers(InTriggers, OutTriggers) :-
     map_assoc(prover:dedup_dependents, InTriggers, OutTriggers).
+
+
+%! prover:dedup_groups(+Groups, -Deduped)
+%
+% Deduplicate the dependents of every `Key-Dependents` group.
+
+prover:dedup_groups([], []).
+prover:dedup_groups([Key-Dependents|Groups], [Key-Deduped|Rest]) :-
+    prover:dedup_dependents(Dependents, Deduped),
+    prover:dedup_groups(Groups, Rest).
+
+
+%! prover:merge_trigger_groups(+Groups, +BasePairs, -Merged)
+%
+% Merge the pass's edge groups into the base index's `Key-Dependents`
+% pairs; both inputs are ascending by key in the standard order of terms
+% and so is Merged.  New dependents go in front of a key's base list
+% (they were consed on top of it), then the list is deduplicated.  Base
+% lists without new edges are already deduplicated (they come out of an
+% earlier dedup_triggers/2, possibly pruned) and pass through unchanged.
+
+prover:merge_trigger_groups([], BasePairs, BasePairs) :- !.
+prover:merge_trigger_groups(Groups, [], Merged) :-
+    !,
+    prover:dedup_groups(Groups, Merged).
+prover:merge_trigger_groups([GKey-GDeps|Groups], [BKey-BDeps|BasePairs], Merged) :-
+    compare(Order, GKey, BKey),
+    (   Order == (=)
+    ->  append(GDeps, BDeps, Raw),
+        prover:dedup_dependents(Raw, Deduped),
+        Merged = [GKey-Deduped|Rest],
+        prover:merge_trigger_groups(Groups, BasePairs, Rest)
+    ;   Order == (<)
+    ->  prover:dedup_dependents(GDeps, Deduped),
+        Merged = [GKey-Deduped|Rest],
+        prover:merge_trigger_groups(Groups, [BKey-BDeps|BasePairs], Rest)
+    ;   Merged = [BKey-BDeps|Rest],
+        prover:merge_trigger_groups([GKey-GDeps|Groups], BasePairs, Rest)
+    ).
 
 
 %! prover:dedup_dependents(+Dependents, -Deduped)

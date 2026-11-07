@@ -108,6 +108,21 @@ Materialized preference state is written to `Knowledge/preference.qlf` via
 % Memoised ACCEPT_KEYWORDS parses, keyed by the variable's text
 :- dynamic preference:env_keywords_parsed_/2.
 
+% -- Lazily built per-thread "is this flag / CN mentioned at all" indexes --
+%    Fact tables (first-argument + JIT indexed) consulted by the hot
+%    per-package USE lookups before they scan the spec facts.  Thread-local
+%    because the spec facts they summarise are dispatched per thread
+%    (Pengines sandbox clauses in client-server mode); each thread builds
+%    its own copy on first use.  Dropped by preference:init_reset_indexes/0.
+
+:- thread_local preference:known_index_built_/1.           % IndexName
+:- thread_local preference:known_userconfig_soft_flag_/1.  % Use
+:- thread_local preference:known_profile_soft_flag_/1.     % Use
+:- thread_local preference:known_userconfig_soft_cn_/2.    % Category, Name
+:- thread_local preference:known_profile_soft_cn_/2.       % Category, Name
+:- thread_local preference:known_profile_forced_cn_/2.     % Category, Name
+:- thread_local preference:known_profile_masked_cn_/2.     % Category, Name
+
 
 % -----------------------------------------------------------------------------
 %  Initialization
@@ -132,21 +147,19 @@ preference:init :-
 
 %! preference:init_reset_indexes is det.
 %
-% Invalidate preference AVL index caches.  Called at the start of a fresh
-% init and after loading `Knowledge/preference.qlf`.
-%
-% The indexes are lazily rebuilt by their lookup predicates on the first
-% `nb_current/2` miss, so invalidation must delete the globals.  Writing an
-% empty AVL instead would make every later lookup succeed against an empty
-% index and never rebuild.
+% Invalidate the lazily built `*_known` index tables of the calling
+% thread.  Called at the start of a fresh init and after loading
+% `Knowledge/preference.qlf`; tests that assert spec facts directly call
+% it as well so the next lookup rebuilds the index over the new facts.
 
 preference:init_reset_indexes :-
-  nb_delete(pref_userconfig_use_soft_flags),
-  nb_delete(pref_userconfig_use_soft_cns),
-  nb_delete(pref_profile_use_soft_flags),
-  nb_delete(pref_profile_use_soft_cns),
-  nb_delete(pref_profile_forced_cns),
-  nb_delete(pref_profile_masked_cns).
+  retractall(preference:known_index_built_(_)),
+  retractall(preference:known_userconfig_soft_flag_(_)),
+  retractall(preference:known_profile_soft_flag_(_)),
+  retractall(preference:known_userconfig_soft_cn_(_, _)),
+  retractall(preference:known_profile_soft_cn_(_, _)),
+  retractall(preference:known_profile_forced_cn_(_, _)),
+  retractall(preference:known_profile_masked_cn_(_, _)).
 
 
 %! preference:init_fresh is det.
@@ -1784,85 +1797,41 @@ preference:userconfig_use_match(Repo://Id, Use, State) :-
 %! preference:userconfig_use_soft_flag_known(+Use) is semidet.
 %
 % True if any userconfig_use_versioned/3 fact references Use.
-% Builds a lazy AVL index on first call.
+% Consults the lazily built per-thread index table.
 
 preference:userconfig_use_soft_flag_known(Use) :-
-  ( nb_current(pref_userconfig_use_soft_flags, FlagSet) ->
-      true
-  ;
-      findall(F-true, preference:userconfig_use_versioned(_, F, _), Pairs0),
-      sort(1, @<, Pairs0, Pairs),
-      ( Pairs == [] ->
-          empty_assoc(FlagSet)
-      ;
-          list_to_assoc(Pairs, FlagSet)
-      ),
-      nb_setval(pref_userconfig_use_soft_flags, FlagSet)
-  ),
-  get_assoc(Use, FlagSet, _).
+  preference:known_index_ready(userconfig_soft_flag),
+  preference:known_userconfig_soft_flag_(Use).
 
 
 %! preference:profile_use_soft_flag_known(+Use) is semidet.
 %
 % True if any profile_use_soft/3 fact references Use.
-% Builds a lazy AVL index on first call.
+% Consults the lazily built per-thread index table.
 
 preference:profile_use_soft_flag_known(Use) :-
-  ( nb_current(pref_profile_use_soft_flags, FlagSet) ->
-      true
-  ;
-      findall(F-true, preference:profile_use_soft(_, F, _), Pairs0),
-      sort(1, @<, Pairs0, Pairs),
-      ( Pairs == [] ->
-          empty_assoc(FlagSet)
-      ;
-          list_to_assoc(Pairs, FlagSet)
-      ),
-      nb_setval(pref_profile_use_soft_flags, FlagSet)
-  ),
-  get_assoc(Use, FlagSet, _).
+  preference:known_index_ready(profile_soft_flag),
+  preference:known_profile_soft_flag_(Use).
 
 
 %! preference:userconfig_use_soft_cn_known(+C, +N) is semidet.
 %
 % True if any userconfig_use_versioned/3 fact references category C, name N.
-% Builds a lazy AVL index on first call.
+% Consults the lazily built per-thread index table.
 
 preference:userconfig_use_soft_cn_known(C, N) :-
-  ( nb_current(pref_userconfig_use_soft_cns, CNSet) ->
-      true
-  ;
-      findall(cn(C0,N0)-true,
-              ( preference:userconfig_use_versioned(Spec, _, _),
-                preference:soft_spec_cn(Spec, C0, N0)
-              ),
-              Pairs0),
-      sort(1, @<, Pairs0, Pairs),
-      ( Pairs == [] -> empty_assoc(CNSet) ; list_to_assoc(Pairs, CNSet) ),
-      nb_setval(pref_userconfig_use_soft_cns, CNSet)
-  ),
-  get_assoc(cn(C,N), CNSet, _).
+  preference:known_index_ready(userconfig_soft_cn),
+  preference:known_userconfig_soft_cn_(C, N).
 
 
 %! preference:profile_use_soft_cn_known(+C, +N) is semidet.
 %
 % True if any profile_use_soft/3 fact references category C, name N.
-% Builds a lazy AVL index on first call.
+% Consults the lazily built per-thread index table.
 
 preference:profile_use_soft_cn_known(C, N) :-
-  ( nb_current(pref_profile_use_soft_cns, CNSet) ->
-      true
-  ;
-      findall(cn(C0,N0)-true,
-              ( preference:profile_use_soft(Spec, _, _),
-                preference:soft_spec_cn(Spec, C0, N0)
-              ),
-              Pairs0),
-      sort(1, @<, Pairs0, Pairs),
-      ( Pairs == [] -> empty_assoc(CNSet) ; list_to_assoc(Pairs, CNSet) ),
-      nb_setval(pref_profile_use_soft_cns, CNSet)
-  ),
-  get_assoc(cn(C,N), CNSet, _).
+  preference:known_index_ready(profile_soft_cn),
+  preference:known_profile_soft_cn_(C, N).
 
 
 %! preference:soft_spec_cn(+Spec, -C, -N) is semidet.
@@ -1876,43 +1845,84 @@ preference:soft_spec_cn(versioned(_, C, N, _, _), C, N).
 %! preference:profile_forced_cn_known(+C, +N) is semidet.
 %
 % True if any profile_use_forced/2 fact references category C, name N.
-% Builds a lazy AVL index on first call.
+% Consults the lazily built per-thread index table.
 
 preference:profile_forced_cn_known(C, N) :-
-  ( nb_current(pref_profile_forced_cns, CNSet) ->
-      true
-  ;
-      findall(cn(C0,N0)-true,
-              ( preference:profile_use_forced(Spec, _),
-                preference:soft_spec_cn(Spec, C0, N0)
-              ),
-              Pairs0),
-      sort(1, @<, Pairs0, Pairs),
-      ( Pairs == [] -> empty_assoc(CNSet) ; list_to_assoc(Pairs, CNSet) ),
-      nb_setval(pref_profile_forced_cns, CNSet)
-  ),
-  get_assoc(cn(C,N), CNSet, _).
+  preference:known_index_ready(profile_forced_cn),
+  preference:known_profile_forced_cn_(C, N).
 
 
 %! preference:profile_masked_cn_known(+C, +N) is semidet.
 %
 % True if any profile_use_masked/2 fact references category C, name N.
-% Builds a lazy AVL index on first call.
+% Consults the lazily built per-thread index table.
 
 preference:profile_masked_cn_known(C, N) :-
-  ( nb_current(pref_profile_masked_cns, CNSet) ->
+  preference:known_index_ready(profile_masked_cn),
+  preference:known_profile_masked_cn_(C, N).
+
+
+%! preference:known_index_ready(+Name) is det.
+%
+% Ensure the calling thread's `*_known` index table Name is built.  The
+% table summarises the per-package USE spec facts visible to this thread
+% as plain indexed facts, so the hot "is this flag / CN mentioned at all"
+% guards cost one indexed clause lookup instead of a scan over the specs.
+% Built once per thread on first use; preference:init_reset_indexes/0
+% drops it again.
+
+preference:known_index_ready(Name) :-
+  ( preference:known_index_built_(Name) ->
       true
-  ;
-      findall(cn(C0,N0)-true,
-              ( preference:profile_use_masked(Spec, _),
-                preference:soft_spec_cn(Spec, C0, N0)
-              ),
-              Pairs0),
-      sort(1, @<, Pairs0, Pairs),
-      ( Pairs == [] -> empty_assoc(CNSet) ; list_to_assoc(Pairs, CNSet) ),
-      nb_setval(pref_profile_masked_cns, CNSet)
-  ),
-  get_assoc(cn(C,N), CNSet, _).
+  ; preference:build_known_index(Name),
+    assertz(preference:known_index_built_(Name))
+  ).
+
+
+%! preference:build_known_index(+Name) is det.
+%
+% Populate the index table Name from the spec facts (deduplicated).
+
+preference:build_known_index(userconfig_soft_flag) :-
+  findall(F, preference:userconfig_use_versioned(_, F, _), Fs0),
+  sort(Fs0, Fs),
+  forall(member(F, Fs), assertz(preference:known_userconfig_soft_flag_(F))).
+preference:build_known_index(profile_soft_flag) :-
+  findall(F, preference:profile_use_soft(_, F, _), Fs0),
+  sort(Fs0, Fs),
+  forall(member(F, Fs), assertz(preference:known_profile_soft_flag_(F))).
+preference:build_known_index(userconfig_soft_cn) :-
+  findall(C-N,
+          ( preference:userconfig_use_versioned(Spec, _, _),
+            preference:soft_spec_cn(Spec, C, N)
+          ),
+          CNs0),
+  sort(CNs0, CNs),
+  forall(member(C-N, CNs), assertz(preference:known_userconfig_soft_cn_(C, N))).
+preference:build_known_index(profile_soft_cn) :-
+  findall(C-N,
+          ( preference:profile_use_soft(Spec, _, _),
+            preference:soft_spec_cn(Spec, C, N)
+          ),
+          CNs0),
+  sort(CNs0, CNs),
+  forall(member(C-N, CNs), assertz(preference:known_profile_soft_cn_(C, N))).
+preference:build_known_index(profile_forced_cn) :-
+  findall(C-N,
+          ( preference:profile_use_forced(Spec, _),
+            preference:soft_spec_cn(Spec, C, N)
+          ),
+          CNs0),
+  sort(CNs0, CNs),
+  forall(member(C-N, CNs), assertz(preference:known_profile_forced_cn_(C, N))).
+preference:build_known_index(profile_masked_cn) :-
+  findall(C-N,
+          ( preference:profile_use_masked(Spec, _),
+            preference:soft_spec_cn(Spec, C, N)
+          ),
+          CNs0),
+  sort(CNs0, CNs),
+  forall(member(C-N, CNs), assertz(preference:known_profile_masked_cn_(C, N))).
 
 
 % -----------------------------------------------------------------------------

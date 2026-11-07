@@ -467,8 +467,7 @@ candidate:eligible(use_conditional(positive, test, _R://_E):_?{Context}) :-
 candidate:eligible(use_conditional(positive, Use, R://E):_?{_}) :-
   Use \= minus(_),
   preference:global_use(Use),
-  \+ ( query:search(iuse(Value), R://E),
-       eapi:use_flag_name(Value, Use) ), !.
+  \+ candidate:entry_declares_iuse(R://E, Use), !.
 candidate:eligible(use_conditional(positive, Use, R://E):_?{_}) :-
   use:effective_use_for_entry(R://E, Use, positive), !.
 
@@ -476,15 +475,25 @@ candidate:eligible(use_conditional(negative, Use, _R://_E):_?{Context}) :-
   use:assumed_minus(Context, Use), !.
 candidate:eligible(use_conditional(negative, Use, R://E):_?{_}) :-
   preference:global_use(minus(Use)),
-  \+ ( query:search(iuse(Value), R://E),
-       eapi:use_flag_name(Value, Use) ), !.
+  \+ candidate:entry_declares_iuse(R://E, Use), !.
 candidate:eligible(use_conditional(negative, Use, R://E):_?{_}) :-
   \+ preference:global_use(Use),
   \+ preference:global_use(minus(Use)),
-  \+ ( query:search(iuse(Value), R://E),
-       eapi:use_flag_name(Value, Use) ), !.
+  \+ candidate:entry_declares_iuse(R://E, Use), !.
 candidate:eligible(use_conditional(negative, Use, R://E):_?{_}) :-
   use:effective_use_for_entry(R://E, Use, negative), !.
+
+
+%! candidate:entry_declares_iuse(+RepoEntry, +Use) is semidet.
+%
+% True when the entry's IUSE declares flag Use (with any `+`/`-`
+% default).  Reads the per-proof memoised IUSE name set
+% (use:entry_iuse_set/2) instead of re-scanning the entry's iuse
+% metadata on every USE conditional.
+
+candidate:entry_declares_iuse(RepoEntry, Use) :-
+  use:entry_iuse_set(RepoEntry, IuseSet),
+  memberchk(Use, IuseSet).
 
 
 %! candidate:abi_repair_eligible(+Repo, +Entry, +Context) is semidet.

@@ -29,6 +29,8 @@ Each thread-local predicate caches a different aspect of resolver state:
 | keyword_cache_/6                   | Keyword-filtered candidate lists per action     |
 | iuse_default_cache_/3              | Per-entry IUSE default map (AVL)                |
 | iuse_info_cache_/3                 | Per-entry IUSE flag set + IUSE(+) set           |
+| enabled_use_cache_/3               | Per-entry recorded (VDB) enabled USE set         |
+| use_expand_selection_cache_/2      | Per-USE_EXPAND-prefix "explicitly selected" flag |
 | eff_use_cache_/4                   | Per-entry effective USE resolution               |
 | self_use_cache_/4                  | Per-entry self-context USE resolution            |
 | candidate_bwu_/3                   | Per-(C,N) union of bracketed USE from all edges  |
@@ -57,6 +59,8 @@ heuristic:cleanup_state/0 during reprove retries.
 :- thread_local memo:keyword_cache_/6.          % keyword_cache_(Action, C, N, SlotReq, LockKey, Sorted)
 :- thread_local memo:iuse_default_cache_/3.     % iuse_default_cache_(Repo, Entry, DefaultAVL)
 :- thread_local memo:iuse_info_cache_/3.        % iuse_info_cache_(Repo, Entry, iuse_info(Set, PlusSet))
+:- thread_local memo:enabled_use_cache_/3.      % enabled_use_cache_(Repo, Entry, EnabledSet) -- sorted use/1 metadata (VDB built USE)
+:- thread_local memo:use_expand_selection_cache_/2. % use_expand_selection_cache_(Prefix, true|false) -- some global USE flag carries the USE_EXPAND prefix
 :- thread_local memo:eff_use_cache_/4.          % eff_use_cache_(Repo, Entry, Use, State)
 :- thread_local memo:self_use_cache_/4.         % self_use_cache_(Repo, Entry, Use, State)
 :- thread_local memo:assumption_reason_cache_/4. % assumption_reason_cache_(Action, C, N, Reason)
@@ -92,6 +96,8 @@ clear_caches :-
   retractall(memo:keyword_cache_(_, _, _, _, _, _)),
   retractall(memo:iuse_default_cache_(_, _, _)),
   retractall(memo:iuse_info_cache_(_, _, _)),
+  retractall(memo:enabled_use_cache_(_, _, _)),
+  retractall(memo:use_expand_selection_cache_(_, _)),
   retractall(memo:eff_use_cache_(_, _, _, _)),
   retractall(memo:self_use_cache_(_, _, _, _)),
   retractall(memo:assumption_reason_cache_(_, _, _, _)),

@@ -1243,11 +1243,4 @@ sus_cleanup :-
   sus_drop_soft_index.
 
 sus_drop_soft_index :-
-  ( nb_current(pref_profile_use_soft_flags, _) ->
-      nb_delete(pref_profile_use_soft_flags)
-  ; true
-  ),
-  ( nb_current(pref_profile_use_soft_cns, _) ->
-      nb_delete(pref_profile_use_soft_cns)
-  ; true
-  ).
+  preference:init_reset_indexes.

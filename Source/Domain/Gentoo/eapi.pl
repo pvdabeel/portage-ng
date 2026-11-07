@@ -2047,16 +2047,49 @@ eapi:use_expand('xtables_addons').
 :- compile_predicates([eapi:use_expand_underscore/2]).
 
 
+%! eapi:use_expand_rank(?Prefix, ?Rank) is nondet.
+%
+% Rank is the 1-based position of Prefix in the eapi:use_expand/1
+% declaration order. Derived once at load time (compiled static) so the
+% prefixes a flag matches can be reported in declaration order without
+% scanning the table.
+
+:- dynamic eapi:use_expand_rank/2.
+:- findall(Prefix0, eapi:use_expand(Prefix0), Prefixes),
+   forall(nth1(Rank, Prefixes, Prefix),
+          assertz(eapi:use_expand_rank(Prefix, Rank))).
+:- compile_predicates([eapi:use_expand_rank/2]).
+
+
 %! eapi:use_expand_flag_prefix(+Flag, -Prefix) is nondet.
 %
 % Prefix is a USE_EXPAND prefix that Flag starts with, followed by '_'
 % (e.g. python_targets for python_targets_python3_12), enumerated in
-% eapi:use_expand/1 declaration order. The prefix test is a plain
-% sub_atom/5 comparison: no atom is created for the matched remainder.
+% eapi:use_expand/1 declaration order.
+%
+% The candidates are read off the flag rather than the table: every
+% underscore in Flag ends a potential prefix, and each one is checked
+% against the first-argument indexed eapi:use_expand/1. A flag has two
+% to four underscores and the table has 60-odd prefixes, so this is
+% roughly twenty times fewer sub_atom/5 tests than trying every prefix,
+% on a path that runs tens of thousands of times per proof. Matches are
+% emitted in declaration order (via eapi:use_expand_rank/2), exactly as
+% the table scan did.
 
 eapi:use_expand_flag_prefix(Flag, Prefix) :-
-  eapi:use_expand_underscore(Prefix, PrefixUnderscore),
-  sub_atom(Flag, 0, _, _, PrefixUnderscore).
+  atom(Flag),
+  findall(Rank-Prefix0,
+          ( sub_atom(Flag, Before, 1, _, '_'),
+            Before > 0,
+            sub_atom(Flag, 0, Before, _, Prefix0),
+            eapi:use_expand_rank(Prefix0, Rank)
+          ),
+          Ranked0),
+  ( Ranked0 = [_-Prefix1] ->
+      Prefix = Prefix1
+  ; keysort(Ranked0, Ranked),
+    member(_-Prefix, Ranked)
+  ).
 
 
 % -----------------------------------------------------------------------------
