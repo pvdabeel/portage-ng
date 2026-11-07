@@ -76,7 +76,9 @@ with_ordering_pass(Pass1Proof, Goal) :-
       ordering:prepare_pass
     ),
     Goal,
-    nb_setval(portage_ordering_proof, t)).
+    ( nb_setval(portage_ordering_proof, t),
+      ordering:release_pass
+    )).
 
 
 % -----------------------------------------------------------------------------
@@ -97,13 +99,17 @@ order(Pass1Proof, TriggersAVL, ProofOut, Plan) :-
   orderer:steps_of_proof(Pass1Proof, Steps),
   findall(scheduled(H), member(H, Steps), Goals),
   orderer:with_ordering_pass(Pass1Proof,
-    ( once(prover:prove_once(ordering, Goals, t, OrdProof, t, _OrdModel, t, _OrdCons, t, _OrdTrig)),
+    ( % Pass 2 has no use for the prover's reverse-dependency index
+      % (the merge-order bias reads the pass-1 TriggersAVL), so it is
+      % not maintained: `none` in, `none` out.
+      once(prover:prove_once(ordering, Goals, t, OrdProof, t, _OrdModel, t, _OrdCons, none, none)),
       orderer:preference_edges(Steps, Prefs)
     )),
   orderer:provider_edges(OrdProof, Edges),
-  orderer:assign_waves(Steps, Edges, WaveAVL0),
-  orderer:honor_preferences(Prefs, Edges, WaveAVL0, WaveAVL),
-  orderer:project_plan(Pass1Proof, WaveAVL, Plan0),
+  orderer:step_graph(Steps, Edges, Graph),
+  orderer:assign_waves(Steps, Graph),
+  orderer:honor_preferences(Prefs, Graph),
+  orderer:project_plan(Pass1Proof, Graph, Plan0),
   orderer:merge_unreachable(OrdProof, Pass1Proof, ProofOut),
   orderer:merge_order_bias(ProofOut, TriggersAVL, Plan0, Plan).
 
@@ -191,34 +197,81 @@ group_pairs_same([H-D|Rest], H, [D|Ds], Tail) :-
 group_pairs_same(Rest, _, [], Rest).
 
 
-%! orderer:assign_waves(+Steps, +EdgesAVL, -WaveAVL)
+%! orderer:step_graph(+Steps, +EdgesAVL, -Graph)
+%
+% Graph maps every step to its cell(Wave, Providers, Consumers): the
+% wave it is placed in (`none` until assigned), the providers its
+% availability proofs cite (ascending, from EdgesAVL) and the steps that
+% cite it (ascending). The AVL is built once, from the sorted step list;
+% the projection and the preference fold below update the cells in place
+% (setarg/3) instead of rebuilding wave and edge maps on every change.
+% Both are deterministic, so no update is ever undone by backtracking
+% before project_plan/3 reads the waves out.
+
+step_graph(Steps, Edges, Graph) :-
+  orderer:step_cells(Steps, Edges, Cells),
+  ord_list_to_assoc(Cells, Graph),
+  findall(D-H,
+          ( assoc:gen_assoc(H, Edges, Ds),
+            member(D, Ds)
+          ),
+          Pairs),
+  keysort(Pairs, Sorted),
+  orderer:group_pairs(Sorted, Grouped),
+  orderer:set_consumers(Grouped, Graph).
+
+step_cells([], _Edges, []).
+step_cells([H|Hs], Edges, [H-cell(none, Providers, [])|Cells]) :-
+  ( get_assoc(H, Edges, Providers) -> true ; Providers = [] ),
+  orderer:step_cells(Hs, Edges, Cells).
+
+set_consumers([], _Graph).
+set_consumers([D-Hs|Rest], Graph) :-
+  ( get_assoc(D, Graph, Cell) -> setarg(3, Cell, Hs) ; true ),
+  orderer:set_consumers(Rest, Graph).
+
+
+%! orderer:assign_waves(+Steps, +Graph)
 %
 % Least-wave assignment: memoized depth-first evaluation of
 % wave(H) = 1 + max(wave(D) for providers D), 1 when H has none.
 
-assign_waves(Steps, Edges, WaveAVL) :-
-  empty_assoc(W0),
-  foldl(orderer:assign_wave(Edges), Steps, W0, WaveAVL).
+assign_waves([], _Graph).
+assign_waves([H|Hs], Graph) :-
+  orderer:wave_of(H, Graph, _Wave),
+  orderer:assign_waves(Hs, Graph).
 
-assign_wave(Edges, H, WIn, WOut) :-
-  orderer:wave_of(H, Edges, WIn, WOut, _Wave).
-
-wave_of(H, Edges, WIn, WOut, Wave) :-
-  ( get_assoc(H, WIn, Wave) ->
-      WOut = WIn
-  ; get_assoc(H, Edges, Providers) ->
-      orderer:waves_of(Providers, Edges, WIn, WMid, 0, Deepest),
-      Wave is Deepest + 1,
-      put_assoc(H, WMid, Wave, WOut)
-  ; Wave = 1,
-    put_assoc(H, WIn, Wave, WOut)
+wave_of(H, Graph, Wave) :-
+  ( get_assoc(H, Graph, Cell) ->
+      ( arg(1, Cell, Known), Known \== none ->
+          Wave = Known
+      ; arg(2, Cell, Providers),
+        orderer:waves_of(Providers, Graph, 0, Deepest),
+        Wave is Deepest + 1,
+        setarg(1, Cell, Wave)
+      )
+  ; Wave = 1
   ).
 
-waves_of([], _, W, W, Max, Max) :- !.
-waves_of([D|Ds], Edges, WIn, WOut, MaxIn, MaxOut) :-
-  orderer:wave_of(D, Edges, WIn, WMid, WD),
+waves_of([], _Graph, Max, Max).
+waves_of([D|Ds], Graph, MaxIn, MaxOut) :-
+  orderer:wave_of(D, Graph, WD),
   MaxMid is max(MaxIn, WD),
-  orderer:waves_of(Ds, Edges, WMid, WOut, MaxMid, MaxOut).
+  orderer:waves_of(Ds, Graph, MaxMid, MaxOut).
+
+
+%! orderer:wave_assignment(+Steps, +EdgesAVL, -WaveAVL)
+%
+% The least-wave assignment as a plain AVL (step -> wave), for callers
+% that project availability proofs without honoring preferences
+% (depclean:uninstall_order/3, the unmerge pass).
+
+wave_assignment(Steps, Edges, WaveAVL) :-
+  orderer:step_graph(Steps, Edges, Graph),
+  orderer:assign_waves(Steps, Graph),
+  map_assoc(orderer:cell_wave, Graph, WaveAVL).
+
+cell_wave(cell(Wave, _Providers, _Consumers), Wave).
 
 
 % -----------------------------------------------------------------------------
@@ -244,107 +297,127 @@ waves_of([D|Ds], Edges, WIn, WOut, MaxIn, MaxOut) :-
 % provider already sits in an earlier wave are recorded without any
 % reachability walk (the wave invariant proves acyclicity), so the walk
 % only runs for the contested minority.
-
-%! orderer:honor_preferences(+Prefs, +HardEdges, +WaveIn, -WaveOut)
 %
-% Fold the sorted preference list over the wave assignment.
+% Wave invariant: every edge X -> Y in the accepted set has
+% wave(Y) < wave(X). The least-wave assignment establishes it for the
+% hard edges, and each accepted preference re-establishes it by raising
+% the consumer (and, cascading, its consumers) above the provider. The
+% reachability walk relies on it to prune: a node whose wave is at most
+% wave(H) cannot reach H (every provider it leads to sits in a strictly
+% earlier wave), so the walk only descends into nodes placed after H,
+% and a provider in H's own wave cannot reach H at all.
 
-honor_preferences(Prefs, HardEdges, WaveIn, WaveOut) :-
-  orderer:reverse_edges(HardEdges, Consumers),
-  foldl(orderer:honor_preference,
-        Prefs,
-        state(HardEdges, Consumers, WaveIn),
-        state(_, _, WaveOut)).
+%! orderer:honor_preferences(+Prefs, +Graph)
+%
+% Fold the sorted preference list over the step graph, updating waves
+% and accepted edges in place.
 
-honor_preference(H-D,
-                 state(Edges, Consumers, Waves),
-                 state(EdgesOut, ConsumersOut, WavesOut)) :-
-  ( get_assoc(H, Waves, WH),
-    get_assoc(D, Waves, WD)
+honor_preferences([], _Graph).
+honor_preferences([H-D|Prefs], Graph) :-
+  orderer:honor_preference(H, D, Graph),
+  orderer:honor_preferences(Prefs, Graph).
+
+honor_preference(H, D, Graph) :-
+  ( get_assoc(H, Graph, HCell),
+    get_assoc(D, Graph, DCell),
+    arg(1, HCell, WH),
+    arg(1, DCell, WD)
   ->
     ( WD < WH ->
         % Already satisfied: record the edge so later preferences cannot
         % contradict this one, no waves move.
-        orderer:add_edge(H, D, Edges, Consumers, EdgesOut, ConsumersOut),
-        WavesOut = Waves
-    ; orderer:reachable(D, H, Edges) ->
-        % Honoring would close a cycle: skip.
-        EdgesOut = Edges, ConsumersOut = Consumers, WavesOut = Waves
+        orderer:add_edge(H, D, HCell, DCell)
+    ; WD > WH,
+      orderer:reachable(D, H, WH, Graph) ->
+        % Honoring would close a cycle: skip. (A provider in H's own
+        % wave cannot reach H, see the wave invariant above.)
+        true
     ; % Accept: delay H after D and cascade the delay to H's consumers.
-      orderer:add_edge(H, D, Edges, Consumers, EdgesOut, ConsumersOut),
+      orderer:add_edge(H, D, HCell, DCell),
       W1 is WD + 1,
-      orderer:raise_wave(H, W1, ConsumersOut, Waves, WavesOut)
+      orderer:raise_wave(HCell, W1, Graph)
     )
   ; % One side is not a step (defensive): nothing to order.
-    EdgesOut = Edges, ConsumersOut = Consumers, WavesOut = Waves
+    true
   ).
 
-add_edge(H, D, Edges, Consumers, EdgesOut, ConsumersOut) :-
-  ( get_assoc(H, Edges, Ds) -> true ; Ds = [] ),
-  put_assoc(H, Edges, [D|Ds], EdgesOut),
-  ( get_assoc(D, Consumers, Hs) -> true ; Hs = [] ),
-  put_assoc(D, Consumers, [H|Hs], ConsumersOut).
-
-reverse_edges(Edges, Consumers) :-
-  findall(D-H,
-          ( assoc:gen_assoc(H, Edges, Ds),
-            member(D, Ds)
-          ),
-          Pairs),
-  keysort(Pairs, Sorted),
-  orderer:group_pairs(Sorted, Grouped),
-  ord_list_to_assoc(Grouped, Consumers).
+add_edge(H, D, HCell, DCell) :-
+  arg(2, HCell, Ds),
+  setarg(2, HCell, [D|Ds]),
+  arg(3, DCell, Hs),
+  setarg(3, DCell, [H|Hs]).
 
 
-%! orderer:reachable(+From, +To, +EdgesAVL)
+%! orderer:reachable(+From, +To, +WaveTo, +Graph)
 %
 % To is reachable from From over consumer -> provider edges
-% (visited-set depth-first walk).
+% (visited-set depth-first walk). WaveTo is To's wave: by the wave
+% invariant a provider placed in wave WaveTo or earlier cannot lead to
+% To, so such providers are not queued (other than To itself).
 
-reachable(From, To, _Edges) :-
+reachable(From, To, _WaveTo, _Graph) :-
   From == To,
   !.
-reachable(From, To, Edges) :-
+reachable(From, To, WaveTo, Graph) :-
   empty_assoc(Visited),
-  orderer:reachable_walk([From], To, Edges, Visited).
+  ( get_assoc(From, Graph, FromCell) -> true ; FromCell = none ),
+  orderer:reachable_walk([From-FromCell], To, WaveTo, Graph, Visited).
 
-reachable_walk([Node|_], To, _Edges, _Visited) :-
+reachable_walk([Node-_|_], To, _WaveTo, _Graph, _Visited) :-
   Node == To,
   !.
-reachable_walk([Node|Rest], To, Edges, Visited) :-
+reachable_walk([Node-Cell|Rest], To, WaveTo, Graph, Visited) :-
   ( get_assoc(Node, Visited, _) ->
-      orderer:reachable_walk(Rest, To, Edges, Visited)
+      orderer:reachable_walk(Rest, To, WaveTo, Graph, Visited)
   ; put_assoc(Node, Visited, true, V1),
-    ( get_assoc(Node, Edges, Providers) -> true ; Providers = [] ),
-    append(Providers, Rest, Queue),
-    orderer:reachable_walk(Queue, To, Edges, V1)
+    ( Cell == none -> Providers = [] ; arg(2, Cell, Providers) ),
+    orderer:queue_later(Providers, To, WaveTo, Graph, Rest, Queue),
+    orderer:reachable_walk(Queue, To, WaveTo, Graph, V1)
   ).
 
+queue_later([], _To, _WaveTo, _Graph, Queue, Queue).
+queue_later([P|Ps], To, WaveTo, Graph, Tail, Queue) :-
+  ( get_assoc(P, Graph, PCell) -> true ; PCell = none ),
+  ( P \== To,
+    PCell \== none,
+    arg(1, PCell, WP),
+    WP =< WaveTo ->
+      Queue = Queue1
+  ; Queue = [P-PCell|Queue1]
+  ),
+  orderer:queue_later(Ps, To, WaveTo, Graph, Tail, Queue1).
 
-%! orderer:raise_wave(+H, +MinWave, +ConsumersAVL, +WavesIn, -WavesOut)
+
+%! orderer:raise_wave(+Cell, +MinWave, +Graph)
 %
-% Ensure wave(H) >= MinWave and cascade to H's consumers (each must stay
-% strictly after its providers). Waves only ever increase, so the cascade
-% terminates.
+% Ensure the step of Cell sits in wave MinWave or later and cascade to
+% its consumers (each must stay strictly after its providers). Waves
+% only ever increase, so the cascade terminates.
 
-raise_wave(H, MinWave, Consumers, WavesIn, WavesOut) :-
-  ( get_assoc(H, WavesIn, W), W >= MinWave ->
-      WavesOut = WavesIn
-  ; put_assoc(H, WavesIn, MinWave, W1),
-    ( get_assoc(H, Consumers, Cs) -> true ; Cs = [] ),
+raise_wave(Cell, MinWave, Graph) :-
+  arg(1, Cell, W),
+  ( W >= MinWave ->
+      true
+  ; setarg(1, Cell, MinWave),
+    arg(3, Cell, Consumers),
     W2 is MinWave + 1,
-    foldl(orderer:raise_consumer(Consumers, W2), Cs, W1, WavesOut)
+    orderer:raise_consumers(Consumers, W2, Graph)
   ).
 
-raise_consumer(Consumers, MinWave, C, WavesIn, WavesOut) :-
-  orderer:raise_wave(C, MinWave, Consumers, WavesIn, WavesOut).
+raise_consumers([], _MinWave, _Graph).
+raise_consumers([C|Cs], MinWave, Graph) :-
+  ( get_assoc(C, Graph, CCell) ->
+      orderer:raise_wave(CCell, MinWave, Graph)
+  ; true
+  ),
+  orderer:raise_consumers(Cs, MinWave, Graph).
 
 
 % -----------------------------------------------------------------------------
 % Plan emission
 % -----------------------------------------------------------------------------
 
-%! orderer:project_plan(+Pass1Proof, +WaveAVL, -Plan)
+%! orderer:project_plan(+Pass1Proof, +Graph, -Plan)
 %
 % Emit the wave-list Plan: for every pass-1 proof rule, the
 % full-format rule term (prover:canon_rule/3 — heads keep their ?{Ctx},
@@ -353,7 +426,7 @@ raise_consumer(Consumers, MinWave, C, WavesIn, WavesOut) :-
 % complete rule(L) term is emitted — one plan item per action
 % (membership invariant).
 
-project_plan(Pass1Proof, WaveAVL, Plan) :-
+project_plan(Pass1Proof, Graph, Plan) :-
   findall(Wave-Full,
           ( assoc:gen_assoc(Key, Pass1Proof, Value),
             ( Key = rule(H)
@@ -361,7 +434,12 @@ project_plan(Pass1Proof, WaveAVL, Plan) :-
               \+ get_assoc(rule(H), Pass1Proof, _)
             ),
             prover:canon_rule(Full, Key, Value),
-            ( get_assoc(H, WaveAVL, Wave) -> true ; Wave = 1 )
+            ( get_assoc(H, Graph, Cell),
+              arg(1, Cell, Wave),
+              Wave \== none
+            -> true
+            ;  Wave = 1
+            )
           ),
           Pairs),
   keysort(Pairs, Sorted),
@@ -512,29 +590,40 @@ merge_order_bias(_ProofAVL, TriggersAVL, PlanIn, PlanOut) :-
 % on it (= reference count / number of dependents in the full graph).
 
 build_refcount_map(AllRules, TriggersAVL, RefCountMap) :-
-  empty_assoc(HeadSet0),
-  foldl(orderer:add_rule_to_head_set_, AllRules, HeadSet0, HeadSet),
-  assoc_to_keys(HeadSet, AllHeads),
-  empty_assoc(M0),
-  foldl(orderer:compute_refcount(TriggersAVL, HeadSet), AllHeads, M0, RefCountMap).
+  orderer:rule_heads(AllRules, Heads0),
+  sort(Heads0, AllHeads),
+  orderer:head_set_pairs(AllHeads, HeadPairs),
+  ord_list_to_assoc(HeadPairs, HeadSet),
+  orderer:refcount_pairs(AllHeads, TriggersAVL, HeadSet, CountPairs),
+  ord_list_to_assoc(CountPairs, RefCountMap).
 
-add_rule_to_head_set_(Rule, In, Out) :-
+rule_heads([], []).
+rule_heads([Rule|Rules], Heads) :-
   ( prover:rule_head(Rule, Head) ->
-      put_assoc(Head, In, true, Out)
-  ; Out = In
-  ).
+      Heads = [Head|Heads1]
+  ; Heads = Heads1
+  ),
+  orderer:rule_heads(Rules, Heads1).
 
-compute_refcount(TriggersAVL, HeadSet, Head, In, Out) :-
+head_set_pairs([], []).
+head_set_pairs([Head|Heads], [Head-true|Pairs]) :-
+  orderer:head_set_pairs(Heads, Pairs).
+
+refcount_pairs([], _TriggersAVL, _HeadSet, []).
+refcount_pairs([Head|Heads], TriggersAVL, HeadSet, [Head-Count|Pairs]) :-
+  orderer:compute_refcount(TriggersAVL, HeadSet, Head, Count),
+  orderer:refcount_pairs(Heads, TriggersAVL, HeadSet, Pairs).
+
+compute_refcount(TriggersAVL, HeadSet, Head, Count) :-
   % The rule set decides which heads count as references to Head (for
   % Gentoo: a merge step and its :run head, ordering:reference_heads/2).
   ordering:reference_heads(Head, TriggerKeys),
-  % Assoc-set uniqueness avoids findall + sort over the dependents bag.
-  empty_assoc(U0),
+  % Collect the planned dependents of every reference head, then count
+  % them once each (sort/2 removes duplicates).
   foldl(orderer:refcount_add_key(TriggersAVL, HeadSet, Head),
-        TriggerKeys, U0, Unique),
-  assoc_to_keys(Unique, UniqueDepHeads),
-  length(UniqueDepHeads, Count),
-  put_assoc(Head, In, Count, Out).
+        TriggerKeys, [], DepHeads),
+  sort(DepHeads, UniqueDepHeads),
+  length(UniqueDepHeads, Count).
 
 refcount_add_key(TriggersAVL, HeadSet, Head, TK, In, Out) :-
   ( get_assoc(TK, TriggersAVL, Dependents) ->
@@ -547,7 +636,7 @@ refcount_add_dep(HeadSet, Head, D0, In, Out) :-
   DepHead \= Head,
   get_assoc(DepHead, HeadSet, _),
   !,
-  put_assoc(DepHead, In, true, Out).
+  Out = [DepHead|In].
 refcount_add_dep(_HeadSet, _Head, _D0, In, In).
 
 

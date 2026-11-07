@@ -194,7 +194,7 @@ depclean:uninstall_order(Removable, Order, Retained) :-
   unmerging:with_unmerge_pass(Nodes,
     once(prover:prove_once(unmerging, Goals, t, OrdProof, t, _Model, t, _Cons, t, _Triggers))),
   orderer:provider_edges(OrdProof, Edges),
-  orderer:assign_waves(Steps, Edges, WaveAVL),
+  orderer:wave_assignment(Steps, Edges, WaveAVL),
   depclean:waves_to_order(WaveAVL, Order),
   depclean:retained_claims(OrdProof, Retained).
 

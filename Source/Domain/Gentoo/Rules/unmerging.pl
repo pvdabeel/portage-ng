@@ -31,7 +31,7 @@ assumptions (`assumed(unreachable(R, C))`): the claimant C could not be
 ordered before the package R it depends on, so R unmerges while C is
 still installed — reported, not silently cut.  The wave projection over
 the resulting availability proofs is the orderer's
-(orderer:provider_edges/2 + orderer:assign_waves/3); depclean flattens
+(orderer:provider_edges/2 + orderer:wave_assignment/3); depclean flattens
 the waves to the uninstall order.
 
 Deliberately conservative: a claim by a removable consumer always

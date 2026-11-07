@@ -412,7 +412,13 @@ under `parallelism`.  The mutual-reachability classes come from a
 generic, domain-free library predicate (`components:classes/3` in
 `Source/Logic/components.pl`), built once per ordering pass over all plan
 steps and looked up by the rule — the ordering rules still contain no
-graph algorithm, and the cost is linear in the size of the plan.
+graph algorithm, and the cost is linear in the size of the plan.  The
+readings themselves (`requires`, `prefers0`, `order_after_step`) are
+asked for the same step several times per pass — by the `scheduled/1`
+law, by the component index and by the preference filter — and the
+pass-1 proof they read never changes while the pass runs, so they too
+are read once per step and served from a per-pass index
+(`ordering:step_relation/3`); outside a pass they are read directly.
 
 Within a wave, actions are finally reordered by **merge-order bias**: the
 actions other packages wait on most (highest reference count in the

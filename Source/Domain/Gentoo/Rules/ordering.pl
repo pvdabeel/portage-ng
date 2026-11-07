@@ -144,6 +144,22 @@ step_body(H, Body) :-
   ).
 
 
+%! ordering:step_cores(+H, -Cores)
+%
+% The canonical literals of step H's proof body (prover:canon_literal/3
+% on every body literal, proof contexts dropped), in body order. The
+% readings below work on this list rather than on the raw body.
+
+step_cores(H, Cores) :-
+  ordering:step_body(H, Body),
+  ordering:canon_cores(Body, Cores).
+
+canon_cores([], []).
+canon_cores([Literal|Literals], [Core|Cores]) :-
+  prover:canon_literal(Literal, Core, _),
+  ordering:canon_cores(Literals, Cores).
+
+
 % -----------------------------------------------------------------------------
 % Requirements and preferences: a reading of the proof bodies
 % -----------------------------------------------------------------------------
@@ -200,11 +216,20 @@ step_body(H, Body) :-
 %
 % Constraints and body literals without a proof entry and without a
 % planned same-CN merge carry no ordering information.
+%
+% The reading itself is read_requires/3, over the canonical body
+% literals of H (step_cores/2); requires/2 serves it from the per-pass
+% relation index (step_relation/3), because every step's requirements
+% are asked for twice per pass — by the scheduled/1 law and by the
+% component index (edge/2) — and the published proof does not change
+% between the two.
 
 requires(H, D) :-
-  ordering:step_body(H, Body),
-  member(Literal, Body),
-  prover:canon_literal(Literal, Core, _),
+  ordering:step_relation(requires, H, Ds),
+  member(D, Ds).
+
+read_requires(H, Cores, D) :-
+  member(Core, Cores),
   \+ constraint:is_constraint(Core),
   Core \== H,
   \+ ordering:runtime_dep(Core),
@@ -212,18 +237,14 @@ requires(H, D) :-
   ordering:step(Core),
   D = Core.
 
-requires(H, D) :-
-  ordering:step_body(H, Body),
-  member(Literal, Body),
-  prover:canon_literal(Literal, Core, _),
+read_requires(H, Cores, D) :-
+  member(Core, Cores),
   ordering:grouped_install_planned(Core, D),
   D \== H.
 
-requires(H, D) :-
+read_requires(H, Cores, D) :-
   ordering:virtual_merge_step(H),
-  ordering:step_body(H, Body),
-  member(Literal, Body),
-  prover:canon_literal(Literal, Core, _),
+  member(Core, Cores),
   Core = grouped_package_dependency(no, _, _, _):run,
   ordering:step(Core),
   D = Core.
@@ -337,14 +358,21 @@ edge(H, D) :- ordering:prefers0(H, D).
 %     its consumer still prefers the group's selected provider steps
 %     earlier, exactly like a runtime group — new files first when
 %     possible, installed files when the update must float later.
+%
+% Like requires/2, prefers0/2 serves the reading (read_prefers0/3, over
+% the canonical body literals of H) from the per-pass relation index:
+% prefers/2 and the component index (edge/2) both enumerate it for
+% every step.
 
 prefers0(H, D) :-
-  ordering:order_after_step(H, D).
+  ordering:step_relation(prefers0, H, Ds),
+  member(D, Ds).
 
-prefers0(H, D) :-
-  ordering:step_body(H, Body),
-  member(Literal, Body),
-  prover:canon_literal(Literal, Core, _),
+read_prefers0(H, Cores, D) :-
+  ordering:read_order_after_step(H, Cores, D).
+
+read_prefers0(H, Cores, D) :-
+  member(Core, Cores),
   ( Core = constraint(schedule_after(Anchor0):_) ->
       prover:canon_literal(Anchor0, D, _)
   ; \+ constraint:is_constraint(Core),
@@ -356,14 +384,11 @@ prefers0(H, D) :-
 
 % Satisfied groups: the selected provider steps of a group the
 % installed system already satisfies (not hard, see requires/2).
-prefers0(H, D) :-
-  ordering:step_body(H, Body),
-  member(Literal, Body),
-  prover:canon_literal(Literal, Core, _),
+read_prefers0(H, Cores, D) :-
+  member(Core, Cores),
   ordering:satisfied_group_step(Core),
-  ordering:step_body(Core, GroupBody),
-  member(GroupLiteral, GroupBody),
-  prover:canon_literal(GroupLiteral, D, _),
+  ordering:step_cores(Core, GroupCores),
+  member(D, GroupCores),
   \+ constraint:is_constraint(D),
   D \== H,
   ordering:step(D).
@@ -373,11 +398,9 @@ prefers0(H, D) :-
 % grouped_package_dependency wrappers, the anchor package itself, and
 % the PDEPEND target package itself are excluded so completion never
 % hoists a post-dependency ahead of its parent.
-prefers0(H, T) :-
+read_prefers0(H, Cores, T) :-
   \+ ordering:is_grouped_dep_step(H),
-  ordering:step_body(H, Body),
-  member(Literal, Body),
-  prover:canon_literal(Literal, Core, _),
+  member(Core, Cores),
   ordering:dep_anchor_key(Core, Key),
   ordering:pdepend_anchor_index(Idx),
   get_assoc(Key, Idx, Pairs),
@@ -387,20 +410,16 @@ prefers0(H, T) :-
   \+ ordering:same_package_entry(H, T).
 
 % Configure closure (portage-ng#21).
-prefers0(Repository://Entry:install, D) :-
-  ordering:step(Repository://Entry:run),
-  ordering:step_body(Repository://Entry:run, RunBody),
-  member(Literal, RunBody),
-  prover:canon_literal(Literal, Core, _),
+read_prefers0(Repository://Entry:install, _Cores, D) :-
+  ordering:step_cores(Repository://Entry:run, RunCores),
+  member(Core, RunCores),
   ordering:runtime_dep(Core),
   ordering:step(Core),
   D = Core.
 
 % Assumed-dep alias (portage-ng#95).
-prefers0(H, D) :-
-  ordering:step_body(H, Body),
-  member(Literal, Body),
-  prover:canon_literal(Literal, assumed(Inner), _),
+read_prefers0(H, Cores, D) :-
+  member(assumed(Inner), Cores),
   prover:canon_literal(Inner, G:Action, _),
   ordering:grouped_cn(G, C, N),
   ordering:cn_action_index(Idx),
@@ -449,6 +468,23 @@ runtime_dep(_://_:fetchonly).
 %     concrete plan steps for that package, so grouped :install deps
 %     (hard requires) and assumed grouped deps (portage-ng#95 preference)
 %     can alias to the planned provider.
+%
+% Next to those, the per-pass relation index (step_relation/3) holds
+% the answers of requires/2, prefers0/2 and order_after_step/2 for every
+% step: each is asked for the same step more than once per pass (by the
+% scheduled/1 law, the component index, prefers/2 and the orderer's
+% preference partition) and reads only the immutable published proof,
+% the indexes above and the VDB. The index is built once per pass, on
+% the first question, by reading all three relations for every proof
+% head over its canonical body literals (step_cores/2, canonicalised
+% once per head); being an AVL keyed by the step it answers with one
+% get_assoc/3. The VDB readings behind world/2 are memoised per pass as
+% well, in the `portage_ordering_memo` nbstore (world_fact/2), because
+% their key set is not known in advance.
+%
+% All of this is reset by prepare_pass/0 and released by release_pass/0,
+% so outside a pass nothing is memoised and every question is answered
+% from scratch, as before.
 
 %! ordering:prepare_pass
 %
@@ -458,7 +494,129 @@ prepare_pass :-
   nb_setval(portage_ordering_component_idx, none),
   nb_setval(portage_ordering_pdepend_idx, none),
   nb_setval(portage_ordering_order_after_idx, none),
-  nb_setval(portage_ordering_cnaction_idx, none).
+  nb_setval(portage_ordering_cnaction_idx, none),
+  nb_setval(portage_ordering_heads, none),
+  nb_setval(portage_ordering_relation_idx, none),
+  nbstore:reset(portage_ordering_memo),
+  nb_setval(portage_ordering_memo_active, true).
+
+
+%! ordering:release_pass
+%
+% Drop the per-pass memo once the pass is over. Called by
+% orderer:with_ordering_pass/2 on the way out.
+
+release_pass :-
+  nb_setval(portage_ordering_memo_active, false),
+  nb_setval(portage_ordering_heads, none),
+  nb_setval(portage_ordering_relation_idx, none),
+  nbstore:reset(portage_ordering_memo).
+
+
+%! ordering:memo_active
+%
+% An ordering pass is running: answers may be recorded in the per-pass
+% memo.
+
+memo_active :-
+  nb_current(portage_ordering_memo_active, true).
+
+
+%! ordering:proof_heads(-Heads)
+%
+% The sorted, duplicate-free heads of every pass-1 proof rule (keys
+% rule(H) and assumed(rule(H))), kept for the pass.
+
+proof_heads(Heads) :-
+  ( nb_current(portage_ordering_heads, Heads0), Heads0 \== none ->
+      Heads = Heads0
+  ; ordering:proof(Proof),
+    findall(H,
+            ( assoc:gen_assoc(Key, Proof, _),
+              ( Key = rule(H) -> true ; Key = assumed(rule(H)) )
+            ),
+            Heads0),
+    sort(Heads0, Heads),
+    nb_setval(portage_ordering_heads, Heads)
+  ).
+
+
+%! ordering:step_relation(+Relation, +H, -Ds)
+%
+% Ds is the list of every D with ordering:read_<Relation>(H, Cores, D)
+% over H's canonical body literals, in derivation order with
+% duplicates kept, so `member(D, Ds)` yields exactly the solutions the
+% reading yields. Inside a pass the answer comes from the relation
+% index (built on first use for every proof head); a literal outside
+% the index — or any question outside a pass — is read directly.
+
+step_relation(Relation, H, Ds) :-
+  ( ordering:memo_active,
+    ordering:relation_index(Idx),
+    get_assoc(H, Idx, Relations) ->
+      ordering:relation_of(Relation, Relations, Ds)
+  ; ordering:read_relations(H, Relations),
+    ordering:relation_of(Relation, Relations, Ds)
+  ).
+
+relation_of(requires,         relations(Ds, _, _), Ds).
+relation_of(prefers0,         relations(_, Ds, _), Ds).
+relation_of(order_after_step, relations(_, _, Ds), Ds).
+
+
+%! ordering:read_relations(+H, -Relations)
+%
+% Relations = relations(Requires, Prefers0, OrderAfter): the three
+% readings of H, each a list in derivation order. A literal without a
+% proof body (not a step) has no canonical literals, so the readings
+% over the body are empty for it, exactly as they were when the body
+% lookup failed.
+
+read_relations(H, relations(Requires, Prefers0, OrderAfter)) :-
+  ( ordering:step_cores(H, Cores) -> true ; Cores = [] ),
+  findall(D, ordering:read_order_after_step(H, Cores, D), OrderAfter),
+  findall(D, ordering:read_prefers0(H, Cores, D), Prefers0),
+  findall(D, ordering:read_requires(H, Cores, D), Requires).
+
+
+%! ordering:relation_index(-Idx)
+%
+% The per-pass relation index: step -> relations/3, built on first use
+% by reading every proof head.
+
+relation_index(Idx) :-
+  ( nb_current(portage_ordering_relation_idx, Idx0), Idx0 \== none ->
+      Idx = Idx0
+  ; ordering:build_relation_index(Idx),
+    nb_setval(portage_ordering_relation_idx, Idx)
+  ).
+
+build_relation_index(Idx) :-
+  ordering:proof_heads(Heads),
+  findall(H-Relations,
+          ( member(H, Heads),
+            ordering:read_relations(H, Relations)
+          ),
+          Pairs),
+  ord_list_to_assoc(Pairs, Idx).
+
+
+%! ordering:world_fact(+Key, :Goal)
+%
+% Semidet memo of a VDB reading: succeeds iff Goal succeeds, with the
+% outcome recorded per pass under Key. Exceptions raised by Goal count
+% as failure, as the world/2 clauses treated them before the memo.
+
+world_fact(Key, Goal) :-
+  ( nbstore:get(portage_ordering_memo, Key, Known) ->
+      Known == true
+  ; ( catch(Goal, _, fail) -> Known = true ; Known = false ),
+    ( ordering:memo_active ->
+        nbstore:put(portage_ordering_memo, Key, Known)
+    ; true
+    ),
+    Known == true
+  ).
 
 
 %! ordering:component_index(-Idx)
@@ -475,13 +633,7 @@ component_index(Idx) :-
   ).
 
 build_component_index(Idx) :-
-  ordering:proof(Proof),
-  findall(H,
-          ( assoc:gen_assoc(Key, Proof, _),
-            ( Key = rule(H) -> true ; Key = assumed(rule(H)) )
-          ),
-          Heads0),
-  sort(Heads0, Heads),
+  ordering:proof_heads(Heads),
   components:classes(Heads, ordering:edge, Idx).
 
 
@@ -524,16 +676,23 @@ anchor_index_put(Key-T, In, Out) :-
 % of an entry whose `:run` step carries the PDEPEND anchor (including when
 % `:run` was already proven before the PDEPEND obligation fired, leaving
 % `after_only(D)` on the grouped PDEPEND body literal).
+%
+% Served from the per-pass relation index (read_order_after_step/3,
+% over the canonical body literals of H, is the reading): asked once
+% per step by prefers0/2 and again for every raw preference by
+% prefers/2 and the orderer's preference partition.
 
 order_after_step(H, D) :-
-  ordering:step_body(H, Body),
-  member(Literal, Body),
-  prover:canon_literal(Literal, constraint(order_after(Anchor0):_), _),
+  ordering:step_relation(order_after_step, H, Ds),
+  member(D, Ds).
+
+read_order_after_step(H, Cores, D) :-
+  member(constraint(order_after(Anchor0):_), Cores),
   prover:canon_literal(Anchor0, D, _),
   D \== H,
   ordering:step(D).
 
-order_after_step(Repository://Entry:Action, D) :-
+read_order_after_step(Repository://Entry:Action, _Cores, D) :-
   ( Action == run ; ordering:merge_action(Action) ),
   ordering:step(Repository://Entry:Action),
   ordering:entry_order_after_anchor(Repository, Entry, D),
@@ -797,7 +956,8 @@ ordering:entry_slot(Repository://Entry:_Action, Slot) :-
 ordering:group_installed_satisfied(C, N, Deps) :-
   ( ordering:group_satisfied_override(C, N)
   -> true
-  ;  catch(ordering:installed_satisfies(C, N, Deps), _, fail)
+  ;  ordering:world_fact(satisfies(C, N, Deps),
+                         ordering:installed_satisfies(C, N, Deps))
   ).
 
 
@@ -925,16 +1085,19 @@ world(_H, grouped_package_dependency(_, _, _):fetchonly) :- !.
 
 world(grouped_package_dependency(no, C, N, Deps):_, _Repository://_Entry:_Action) :-
   !,
-  catch(ordering:installed_satisfies(C, N, Deps), _, fail).
+  ordering:world_fact(satisfies(C, N, Deps),
+                      ordering:installed_satisfies(C, N, Deps)).
 
 world(_H, grouped_package_dependency(no, C, N, Deps):_) :-
   !,
-  catch(ordering:installed_satisfies(C, N, Deps), _, fail).
+  ordering:world_fact(satisfies(C, N, Deps),
+                      ordering:installed_satisfies(C, N, Deps)).
 
 world(_H, Repository://Entry:Action) :-
   memberchk(Action, [install, run]),
   !,
-  catch(ordering:installed_same_version(Repository, Entry), _, fail).
+  ordering:world_fact(same_version(Repository, Entry),
+                      ordering:installed_same_version(Repository, Entry)).
 
 % A planned :update/:downgrade/:reinstall is a step, so the availability
 % law waits for it whenever that is acyclic. This clause is only reached
@@ -944,7 +1107,8 @@ world(_H, Repository://Entry:Action) :-
   ordering:merge_action(Action),
   Action \== install,
   !,
-  catch(ordering:installed_same_cn(Repository, Entry), _, fail).
+  ordering:world_fact(same_cn(Repository, Entry),
+                      ordering:installed_same_cn(Repository, Entry)).
 
 
 %! ordering:installed_satisfies(+C, +N, +Deps)

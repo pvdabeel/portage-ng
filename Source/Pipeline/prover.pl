@@ -373,8 +373,9 @@ prover:prove_once(Rules, Target, InProof, OutProof, InModel, OutModel, InCons, O
 % Single-attempt prove: runs the core recursive engine with cycle-stack
 % bookkeeping.  Triggers are maintained incrementally during the proof;
 % dependent lists are deduplicated once here, after the proof completes
-% (see `prover:add_trigger/4` / issue #53).  Internal: runs under the
-% rule module already scoped by prove/10 or prove_once/10.
+% (see `prover:add_trigger/4` / issue #53).  InTriggers = `none` opts
+% out of the index altogether (see `prover:add_triggers/4`).  Internal:
+% runs under the rule module already scoped by prove/10 or prove_once/10.
 
 prover:prove_once(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers) :-
   prover:debug_hook(Target, InProof, InModel, InCons),
@@ -1565,9 +1566,14 @@ prover:debug_hook(Target, Proof, Model, Constraints) :-
 
 %! prover:add_triggers(+Head, +Body, +InTriggers, -OutTriggers)
 %
-% Add the triggers for a rule to the Triggers tree.
+% Add the triggers for a rule to the Triggers tree.  A caller that has
+% no use for the reverse-dependency index passes the atom `none` as its
+% initial Triggers (the orderer's pass 2 discards it): the index is then
+% not maintained and comes back as `none`.
 
 prover:add_triggers(_, [], Triggers, Triggers) :- !.
+
+prover:add_triggers(_, _, none, none) :- !.
 
 prover:add_triggers(Head, Body, InTriggers, OutTriggers) :-
     foldl(prover:add_trigger(Head), Body, InTriggers, OutTriggers).
@@ -1614,8 +1620,10 @@ prover:add_trigger(Head, Dep, InTriggers, OutTriggers) :-
 % reproduces exactly the list `memberchk/2`-based insertion used to build:
 % reverse insertion order of first occurrences.  Membership is tracked in
 % an assoc, so a list with I insertions and U unique dependents costs
-% O(I log U) instead of the O(I·U) of an inline scan.
+% O(I log U) instead of the O(I·U) of an inline scan.  The `none`
+% opt-out (see add_triggers/4) passes through.
 
+prover:dedup_triggers(none, none) :- !.
 prover:dedup_triggers(InTriggers, OutTriggers) :-
     map_assoc(prover:dedup_dependents, InTriggers, OutTriggers).
 
@@ -1625,8 +1633,10 @@ prover:dedup_triggers(InTriggers, OutTriggers) :-
 % Dedup a single dependent list, keeping the first-inserted occurrence of
 % each head.  The input list is in reverse insertion order (newest first),
 % so we walk it reversed (insertion order) and cons unseen heads, yielding
-% reverse insertion order of first occurrences.
+% reverse insertion order of first occurrences.  A single dependent (the
+% common case) is already deduplicated.
 
+prover:dedup_dependents([Head], [Head]) :- !.
 prover:dedup_dependents(Dependents, Deduped) :-
     reverse(Dependents, InsertionOrder),
     empty_assoc(Seen),
