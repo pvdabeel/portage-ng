@@ -68,7 +68,11 @@ dependency:add_self_to_dep_contexts(Self, [D0|Rest0], [D|Rest]) :-
 %
 % Replaces or inserts a `self(Self)` term in proof-context list Ctx0.
 % If Ctx0 already contains a self/1 term it is replaced (not stacked).
+% The first clause is the common case: self/1 is kept at the head of
+% the list, so the replacement needs no scan.
 
+dependency:ctx_set_self([self(_)|Rest], Self, [self(Self)|Rest]) :-
+  !.
 dependency:ctx_set_self(Ctx0, Self, Ctx) :-
   ( is_list(Ctx0) ->
       ( selectchk(self(_), Ctx0, Ctx1) -> true ; Ctx1 = Ctx0 ),

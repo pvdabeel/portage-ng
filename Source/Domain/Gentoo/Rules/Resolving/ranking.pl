@@ -134,18 +134,45 @@ ranking:seed_use_conditional_inactive(negative, Use, Repo://Id) :-
 % parent context (e.g. net-misc/curl[curl_ssl_openssl=] from a consumer
 % with openssl on, issue #82).  These directives are accumulated correctly
 % at proof time via use:check_bwu_ed_conflict/3.
+%
+% The same (C, N, SeedReqs) edge is seeded from many parents and from
+% both the :install and :run model walks of each parent; the memo is a
+% union, so only the first seeding of an edge in a pass can change it
+% (seed_first_time/3).  In a KDE closure nine out of ten seed calls are
+% such repeats.
 
 ranking:seed_bwu_memo_for_cn(C, N, UseReqs) :-
   include(ranking:context_independent_use_directive, UseReqs, SeedReqs),
   ( SeedReqs == [] ->
       true
-  ; dependency:process_build_with_use(SeedReqs, [], Ctx, _, _),
-    ( use:context_build_with_use_state(Ctx, BWU),
-      use:bwu_respects_profile_hard(none, BWU) ->
-        ranking:seed_accumulate_bwu(C, N, BWU)
-    ; true
-    )
+  ; ranking:seed_first_time(C, N, SeedReqs) ->
+      dependency:process_build_with_use(SeedReqs, [], Ctx, _, _),
+      ( use:context_build_with_use_state(Ctx, BWU),
+        use:bwu_respects_profile_hard(none, BWU) ->
+          ranking:seed_accumulate_bwu(C, N, BWU)
+      ; true
+      )
+  ; true
   ).
+
+
+%! ranking:seed_first_time(+C, +N, +SeedReqs) is semidet
+%
+% Succeeds, and records the edge, the first time (C, N, SeedReqs) is
+% seeded in the current pass under the current learned USE forces for
+% (C, N); fails for every repeat.  The learned bwu_force/eq_follow
+% constraints are part of the key because use:accumulate_candidate_bwu/3
+% applies them while merging, so a force learned mid-pass must let the
+% edge seed once more.  The record lives in the per-thread
+% `memo_bwu_seed_seen` store, reset with the memos it mirrors by
+% use:clear_bwu_cross_dep_memos/0.
+
+ranking:seed_first_time(C, N, SeedReqs) :-
+  ( prover:learned(bwu_force(C, N), Force) -> true ; Force = none ),
+  ( prover:learned(eq_follow(C, N), Follow) -> true ; Follow = none ),
+  Key = seed(C, N, SeedReqs, Force, Follow),
+  \+ nbstore:get(memo_bwu_seed_seen, Key, true),
+  nbstore:put(memo_bwu_seed_seen, Key, true).
 
 
 %! ranking:context_independent_use_directive(+Directive) is semidet
@@ -368,12 +395,17 @@ ranking:tightness_classes([subslot_pinned,
 
 %! ranking:tightness_position(+Class, -Pos) is det.
 %
-% Position of Class in tightness_classes/1 (lower is proved first).
+% Position of Class in tightness_classes/1 (lower is proved first). One
+% fact per class, generated at load time from the declaration above so
+% the list stays the single place that encodes the order.
 
-ranking:tightness_position(Class, Pos) :-
+ranking:term_expansion(ranking:tightness_position_table, Facts) :-
   ranking:tightness_classes(Classes),
-  nth0(Pos, Classes, Class),
-  !.
+  findall(ranking:tightness_position(Class, Pos),
+          nth0(Pos, Classes, Class),
+          Facts).
+
+ranking:tightness_position_table.
 
 
 %! ranking:dep_priority(+DepLiteral, -Key)
@@ -391,11 +423,10 @@ ranking:dep_priority(grouped_package_dependency(_T,C,N,PackageDeps):Action?{_Con
       ( ranking:dep_tightest_upper_bound(C, N, PackageDeps, TightUpper) -> true
       ; TightUpper = none
       ),
-      ranking:tightness_class(dep(C, N, PackageDeps, SlotReq, TightUpper), Class)
+      ranking:tightness_class(dep(C, N, PackageDeps, SlotReq, TightUpper), _Class, Pos)
   ; TightUpper = none,
-    Class = no_slot_restriction
-  ),
-  ranking:tightness_position(Class, Pos).
+    ranking:tightness_position(no_slot_restriction, Pos)
+  ).
 ranking:dep_priority(_Other, key(Pos, none, zz, zz)) :-
   ranking:tightness_position(not_a_package_dep, Pos).
 
@@ -406,15 +437,32 @@ ranking:dep_priority_kv(Dep, K-Dep) :-
 
 
 %! ranking:tightness_class(+Dep, -Class) is det.
+%! ranking:tightness_class(+Dep, -Class, -Pos) is det.
 %
 % First class in tightness_classes/1 that applies to
-% dep(C, N, PackageDeps, SlotReq, TightUpper).
+% dep(C, N, PackageDeps, SlotReq, TightUpper), and its position. One
+% walk over the declared list yields both.
 
 ranking:tightness_class(Dep, Class) :-
+  ranking:tightness_class(Dep, Class, _).
+
+ranking:tightness_class(Dep, Class, Pos) :-
   ranking:tightness_classes(Classes),
-  member(Class, Classes),
-  ranking:in_tightness_class(Dep, Class),
-  !.
+  ranking:first_tightness_class(Classes, 0, Dep, Class, Pos).
+
+
+%! ranking:first_tightness_class(+Classes, +Pos0, +Dep, -Class, -Pos) is det.
+%
+% Class is the first element of Classes that Dep belongs to; Pos its
+% index counted from Pos0.
+
+ranking:first_tightness_class([Class0|Classes], Pos0, Dep, Class, Pos) :-
+  ( ranking:in_tightness_class(Dep, Class0) ->
+      Class = Class0,
+      Pos = Pos0
+  ; Pos1 is Pos0 + 1,
+    ranking:first_tightness_class(Classes, Pos1, Dep, Class, Pos)
+  ).
 
 
 %! ranking:in_tightness_class(+Dep, +Class) is semidet.

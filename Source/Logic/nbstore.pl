@@ -79,8 +79,12 @@ nbstore:new_store(Size, store(0, Buckets)) :-
 
 %! nbstore:empty_buckets(+Size, -Buckets) is det.
 %
-% A buckets compound of arity Size with every chain empty.
+% A buckets compound of arity Size with every chain empty. The initial
+% size is a literal: every store is reset at the start of every proof,
+% and nb_setval/2 copies the term anyway.
 
+nbstore:empty_buckets(16, b([],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[])) :-
+  !.
 nbstore:empty_buckets(Size, Buckets) :-
   length(Chains, Size),
   maplist(=([]), Chains),

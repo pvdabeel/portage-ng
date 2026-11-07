@@ -222,10 +222,13 @@ reprove_exhausted :-
 init_state :-
   ( nb_current(prover_reprove_enabled, OldEnabled) -> true ; OldEnabled = '$absent' ),
   cnselect:save_cn_snapshots(SavedSnapshots),
-  findall(K-V, memo:cn_domain_reject_(K, V), SavedRejects),
+  ( memo:cn_domain_reject_(_, _) ->
+      findall(K-V, memo:cn_domain_reject_(K, V), SavedRejects),
+      retractall(memo:cn_domain_reject_(_, _))
+  ; SavedRejects = []
+  ),
   nb_setval(rules_reprove_saved_state, state(OldEnabled, SavedSnapshots, SavedRejects)),
   nb_setval(prover_reprove_enabled, true),
-  retractall(memo:cn_domain_reject_(_, _)),
   cnselect:clear_cn_snapshots,
   !.
 

@@ -190,7 +190,6 @@ test(all_masked_falls_back_to_full_list,
 
 use_entry_memo_reset(Repo://Id) :-
   retractall(memo:eff_use_cache_(Repo, Id, _, _)),
-  retractall(memo:iuse_default_cache_(Repo, Id, _)),
   retractall(memo:iuse_info_cache_(Repo, Id, _)),
   retractall(memo:self_use_cache_(Repo, Id, _, _)).
 
@@ -204,9 +203,7 @@ use_entry_setup(Repo://Id, Category, Name, Flag) :-
   use_entry_cleanup(Repo://Id),
   assertz(cache:ordered_entry(Repo, Id, Category, Name,
                               version([0],'',4,0,[],0,'0'))),
-  empty_assoc(Empty),
-  put_assoc(Flag, Empty, negative, Map),
-  assertz(memo:iuse_default_cache_(Repo, Id, Map)).
+  assertz(memo:iuse_info_cache_(Repo, Id, iuse_info([Flag], []))).
 
 
 %! use_entry_cleanup(+Repo://Id) is det.
@@ -964,25 +961,29 @@ test(seed_conditional_non_entry_recurses, [fail]) :-
 :- end_tests(equality_use_pin_propagation).
 
 
-:- begin_tests(use_iuse_assoc).
+:- begin_tests(use_iuse_default).
 
-test(single_pair, [true(V == positive)]) :-
-  use:iuse_default_pairs_to_assoc([foo-positive], M),
-  get_assoc(foo, M, V).
+test(split_plus_minus_bare, [true(Flags-Plus == [a,b,c]-[a])]) :-
+  use:split_raw_iuse([plus(a), minus(b), c], Flags, Plus).
 
-test(positive_wins, [true(V == positive)]) :-
-  use:iuse_default_pairs_to_assoc([foo-negative, foo-positive], M),
-  get_assoc(foo, M, V).
+test(positive_wins, [true(D == positive)]) :-
+  use_entry_cleanup(iusetest://'x/y-1'),
+  assertz(memo:iuse_info_cache_(iusetest, 'x/y-1', iuse_info([foo], [foo]))),
+  use:entry_iuse_default(iusetest://'x/y-1', foo, D),
+  use_entry_cleanup(iusetest://'x/y-1').
 
-test(negative_no_override, [true(V == negative)]) :-
-  use:iuse_default_pairs_to_assoc([foo-negative, foo-negative], M),
-  get_assoc(foo, M, V).
+test(declared_bare_is_negative, [true(D == negative)]) :-
+  use_entry_cleanup(iusetest://'x/y-1'),
+  assertz(memo:iuse_info_cache_(iusetest, 'x/y-1', iuse_info([bar, foo], [bar]))),
+  use:entry_iuse_default(iusetest://'x/y-1', foo, D),
+  use_entry_cleanup(iusetest://'x/y-1').
 
-test(empty_list) :-
-  use:iuse_default_pairs_to_assoc([], M),
-  empty_assoc(M).
+test(undeclared_fails, [fail]) :-
+  use_entry_cleanup(iusetest://'x/y-1'),
+  assertz(memo:iuse_info_cache_(iusetest, 'x/y-1', iuse_info([foo], []))),
+  use:entry_iuse_default(iusetest://'x/y-1', baz, _).
 
-:- end_tests(use_iuse_assoc).
+:- end_tests(use_iuse_default).
 
 
 :- begin_tests(use_symmetric_diff).
@@ -1173,9 +1174,6 @@ test(use_remaining_coverage,
 sus_flags([stabletest_a, stabletest_b, stabletest_c,
            stabletest_d, stabletest_e, stabletest_f]).
 
-sus_neg(Flag, Map0, Map) :-
-  put_assoc(Flag, Map0, negative, Map).
-
 sus_setup(Keyword) :-
   ( userconfig:current_arch(_) ->
       true
@@ -1188,10 +1186,9 @@ sus_setup(Keyword) :-
   retractall(cache:entry_metadata(Repo, Id, _, _)),
   assertz(cache:ordered_entry(Repo, Id, 'test-stable', pkg,
                               version([0], '', 4, 0, [], 0, '0'))),
-  empty_assoc(Empty),
   sus_flags(Flags),
-  foldl(sus_neg, Flags, Empty, Map),
-  assertz(memo:iuse_default_cache_(Repo, Id, Map)),
+  sort(Flags, FlagSet),
+  assertz(memo:iuse_info_cache_(Repo, Id, iuse_info(FlagSet, []))),
   ( Keyword == stable ->
       assertz(cache:entry_metadata(Repo, Id, keywords, stable(Arch)))
   ; assertz(cache:entry_metadata(Repo, Id, keywords, unstable(Arch)))

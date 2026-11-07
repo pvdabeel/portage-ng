@@ -951,11 +951,13 @@ query:dep_model_key(Repo, Id, Context, Key) :-
 % The cn_domain/3 entries of the prover's learned constraint store as it
 % stands now (hazard 5): a list of cn_domain(C,N,Slot)-Domain pairs in
 % store (standard) order, so equal projections are equal terms. [] when
-% nothing is learned or no store is active — model construction cannot
-% tell those apart (prover:learned/2 fails in both cases).
+% nothing is learned (the store is the empty AVL `t`, the common case) or
+% no store is active — model construction cannot tell those apart
+% (prover:learned/2 fails in both cases).
 
 query:dep_model_learned(Learned) :-
-  ( nb_current(prover_learned_constraints, Store) ->
+  ( nb_current(prover_learned_constraints, Store),
+    Store \== t ->
       findall(Lit-Domain,
               ( Lit = cn_domain(_, _, _),
                 gen_assoc(Lit, Store, Domain)

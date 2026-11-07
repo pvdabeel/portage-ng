@@ -566,7 +566,19 @@ cnselect:cn_domain_candidate_rejected(C, N, Domain0, RepoEntry) :-
 % Records Candidates as rejected for (C,N) under Domain. Added is
 % `true` if any new entries were added, `false` otherwise. Called by
 % heuristic:handle_reprove/2 when a reprove conflict is processed.
+%
+% When every candidate is a root target nothing is recorded (Added is
+% `false`): a root target is the request, its literal is proved
+% regardless of the reject map, so the retry would meet the same
+% conflict and only spend a pass before the final reprove-disabled one.
+% add_cn_domain_origin_rejects_/3 applies the same rule to origins;
+% parent narrowing of a root (maybe_learn_parent_narrowing/4) is the
+% usual source of this shape.
 
+cnselect:add_cn_domain_rejects(_C, _N, _Domain, Candidates, false) :-
+  Candidates \== [],
+  forall(member(RepoEntry, Candidates), entry_is_root_target(RepoEntry)),
+  !.
 cnselect:add_cn_domain_rejects(C, N, Domain0, Candidates0, Added) :-
   cn_domain_reject_key(C, N, Domain0, Key),
   sort(Candidates0, Candidates),

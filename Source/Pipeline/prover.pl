@@ -1465,6 +1465,16 @@ prover:learn(Literal, Constraint, Added) :-
 % maintain a lightweight per-proof stack of literals currently being proven,
 % and store a compact cycle witness in the proof under `cycle_path(Lit)`.
 %
+% The stack (`prover_cycle_stack`, a list) is what cycle_path_for/2
+% reads.  The membership test currently_proving/1 runs once per body
+% literal against a stack that is hundreds deep in a desktop closure, so
+% a mirror of the stack as an AVL set is kept beside it
+% (`prover_cycle_sets`): a list of `set(Avl, NonGround)` versions, one
+% per push, newest first, so that a pop is a drop of the head.  NonGround
+% counts the stack entries that carry variables; while it is zero and
+% the tested literal is ground, AVL lookup and memberchk/2 agree, and
+% the set answers.  Otherwise the list is searched as before.
+%
 %! prover:with_cycle_stack(:Goal) is det
 %
 % Run Goal with a fresh per-proof cycle stack.  Literals are pushed/popped
@@ -1473,34 +1483,52 @@ prover:learn(Literal, Constraint, Added) :-
 
 prover:with_cycle_stack(Goal) :-
   ( nb_current(prover_cycle_stack, Old) -> true ; Old = unset ),
+  ( nb_current(prover_cycle_sets, OldSets) -> true ; OldSets = unset ),
   nb_setval(prover_cycle_stack, []),
+  nb_setval(prover_cycle_sets, [set(t, 0)]),
   setup_call_cleanup(true,
                      Goal,
-                     ( Old == unset -> nb_delete(prover_cycle_stack)
-                     ; nb_setval(prover_cycle_stack, Old)
+                     ( ( Old == unset -> nb_delete(prover_cycle_stack)
+                       ; nb_setval(prover_cycle_stack, Old)
+                       ),
+                       ( OldSets == unset -> nb_delete(prover_cycle_sets)
+                       ; nb_setval(prover_cycle_sets, OldSets)
+                       )
                      )).
 
 
 %! prover:cycle_stack_push(+Lit) is det
 %
-% Push Lit onto the thread-local cycle stack.
-% Uses b_setval (backtrackable, O(1) reference store) instead of
-% nb_setval (non-backtrackable, O(N) deep copy) to avoid GC pressure
+% Push Lit onto the thread-local cycle stack and record the new set
+% version.  Uses b_setval (backtrackable, O(1) reference store) instead
+% of nb_setval (non-backtrackable, O(N) deep copy) to avoid GC pressure
 % from copying the entire stack on every push.
 
 prover:cycle_stack_push(Lit) :-
   nb_getval(prover_cycle_stack, S0),
-  b_setval(prover_cycle_stack, [Lit|S0]).
+  b_setval(prover_cycle_stack, [Lit|S0]),
+  nb_getval(prover_cycle_sets, Sets0),
+  Sets0 = [set(Set0, NonGround0)|_],
+  ( ground(Lit) ->
+      put_assoc(Lit, Set0, true, Set1),
+      NonGround1 = NonGround0
+  ; Set1 = Set0,
+    NonGround1 is NonGround0 + 1
+  ),
+  b_setval(prover_cycle_sets, [set(Set1, NonGround1)|Sets0]).
 
 
 %! prover:cycle_stack_pop(+Lit) is det
 %
-% Pop the top element from the thread-local cycle stack.
-% Uses b_setval for O(1) store (see cycle_stack_push/1).
+% Pop the top element from the thread-local cycle stack and drop the
+% matching set version.  Uses b_setval for O(1) store (see
+% cycle_stack_push/1).
 
 prover:cycle_stack_pop(_) :-
   nb_getval(prover_cycle_stack, [_|Rest]),
-  b_setval(prover_cycle_stack, Rest).
+  b_setval(prover_cycle_stack, Rest),
+  nb_getval(prover_cycle_sets, [_|Sets]),
+  b_setval(prover_cycle_sets, Sets).
 
 
 %! prover:take_until(+List, +Stop, -Prefix) is semidet
@@ -1533,8 +1561,12 @@ prover:cycle_path_for(Lit, CyclePath) :-
 % ancestor in the current proof derivation).
 
 prover:currently_proving(Lit) :-
-  nb_getval(prover_cycle_stack, Stack),
-  memberchk(Lit, Stack),
+  ( nb_current(prover_cycle_sets, [set(Set, 0)|_]),
+    ground(Lit) ->
+      get_assoc(Lit, Set, _)
+  ; nb_getval(prover_cycle_stack, Stack),
+    memberchk(Lit, Stack)
+  ),
   !.
 
 
@@ -1624,11 +1656,21 @@ prover:add_triggers(_, [], Triggers, Triggers) :- !.
 prover:add_triggers(_, _, none, none) :- !.
 
 prover:add_triggers(Head, Body, InTriggers, OutTriggers) :-
-    foldl(prover:add_trigger(Head), Body, InTriggers, OutTriggers).
+    prover:canon_literal(Head, HeadCanon, _),
+    ( InTriggers = trig(Base, Pairs0) -> true ; Base = InTriggers, Pairs0 = [] ),
+    prover:add_trigger_edges(Body, HeadCanon, Pairs0, Pairs),
+    ( Pairs == [] -> OutTriggers = InTriggers ; OutTriggers = trig(Base, Pairs) ).
 
-prover:add_trigger(Head, Dep, InTriggers, OutTriggers) :-
+
+%! prover:add_trigger_edges(+Body, +HeadCanon, +Pairs0, -Pairs)
+%
+% Cons one `DepLit-HeadCanon` edge per non-constraint body literal onto
+% Pairs0, in body order (so the last literal ends up first).
+
+prover:add_trigger_edges([], _, Pairs, Pairs).
+prover:add_trigger_edges([Dep|Deps], HeadCanon, Pairs0, Pairs) :-
     (   constraint:is_constraint(Dep)
-    ->  OutTriggers = InTriggers
+    ->  Pairs1 = Pairs0
     ;
         % CRITICAL: dependents are keyed by CANONICAL head (no proof context).
         %
@@ -1653,12 +1695,9 @@ prover:add_trigger(Head, Dep, InTriggers, OutTriggers) :-
         % cost per popular dependency literal (glibc-style, hundreds of
         % dependents) O(D²) on the proving hot path.
         prover:canon_literal(Dep, DepLit, _),
-        prover:canon_literal(Head, HeadCanon, _),
-        (   InTriggers = trig(Base, Pairs)
-        ->  OutTriggers = trig(Base, [DepLit-HeadCanon|Pairs])
-        ;   OutTriggers = trig(InTriggers, [DepLit-HeadCanon])
-        )
-    ).
+        Pairs1 = [DepLit-HeadCanon|Pairs0]
+    ),
+    prover:add_trigger_edges(Deps, HeadCanon, Pairs1, Pairs).
 
 
 %! prover:dedup_triggers(+InTriggers, -OutTriggers)
@@ -1733,24 +1772,49 @@ prover:merge_trigger_groups([GKey-GDeps|Groups], [BKey-BDeps|BasePairs], Merged)
 %! prover:dedup_dependents(+Dependents, -Deduped)
 %
 % Dedup a single dependent list, keeping the first-inserted occurrence of
-% each head.  The input list is in reverse insertion order (newest first),
-% so we walk it reversed (insertion order) and cons unseen heads, yielding
-% reverse insertion order of first occurrences.  A single dependent (the
-% common case) is already deduplicated.
+% each head, in reverse insertion order (newest first) like the input.
+% Each head is paired with its insertion index; a stable sort on the
+% head puts the oldest occurrence first within a head's run, the first
+% of every run is kept, and a sort on the index descending restores
+% newest-first.  Two sorts replace the AVL seen-set the walk used to
+% build.  A single dependent (the common case) is already deduplicated.
 
 prover:dedup_dependents([Head], [Head]) :- !.
 prover:dedup_dependents(Dependents, Deduped) :-
-    reverse(Dependents, InsertionOrder),
-    empty_assoc(Seen),
-    prover:dedup_dependents_(InsertionOrder, Seen, [], Deduped).
+    length(Dependents, N),
+    prover:index_from_newest(Dependents, N, Indexed),
+    sort(0, @=<, Indexed, ByHead),
+    prover:first_of_each_head(ByHead, Firsts),
+    sort(2, @>=, Firsts, NewestFirst),
+    pairs_keys(NewestFirst, Deduped).
 
-prover:dedup_dependents_([], _, Acc, Acc).
-prover:dedup_dependents_([Head|Rest], Seen, Acc, Deduped) :-
-    (   get_assoc(Head, Seen, _)
-    ->  prover:dedup_dependents_(Rest, Seen, Acc, Deduped)
-    ;   put_assoc(Head, Seen, true, NewSeen),
-        prover:dedup_dependents_(Rest, NewSeen, [Head|Acc], Deduped)
-    ).
+
+%! prover:index_from_newest(+Dependents, +N, -Indexed)
+%
+% Pair each of the N heads with its insertion index: the newest (first)
+% head gets N-1, the oldest 0.
+
+prover:index_from_newest([], _, []).
+prover:index_from_newest([Head|Rest], N, [Head-I|Indexed]) :-
+    I is N - 1,
+    prover:index_from_newest(Rest, I, Indexed).
+
+
+%! prover:first_of_each_head(+ByHead, -Firsts)
+%
+% ByHead is sorted by head; keep the first pair of each run of equal
+% heads.
+
+prover:first_of_each_head([], []).
+prover:first_of_each_head([Head-I|Rest], [Head-I|Firsts]) :-
+    prover:skip_head_run(Rest, Head, Rest1),
+    prover:first_of_each_head(Rest1, Firsts).
+
+prover:skip_head_run([Head1-_|Rest], Head, Rest1) :-
+    Head1 == Head,
+    !,
+    prover:skip_head_run(Rest, Head, Rest1).
+prover:skip_head_run(Rest, _, Rest).
 
 
 % -----------------------------------------------------------------------------

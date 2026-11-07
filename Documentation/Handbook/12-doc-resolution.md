@@ -693,7 +693,7 @@ concern:
 | `dependency` | `dependency.pl` | Self-entry injection, USE-requirement collection, slot/BWU proof-context propagation |
 | `featureterm` | `featureterm.pl` | Proof-context list helpers (`after/1`, strip `build_with_use`, etc.) |
 | `heuristic` | `heuristic.pl` | Prover hooks: constraint guard, cycle classification, PDEPEND obligations, reprove state |
-| `memo` | `memo.pl` | Thread-local caching declarations, `clear_caches/0` |
+| `memo` | `memo.pl` | Thread-local caching declarations, `clear_caches/0`; `with_pinned_knowledge/1` lets a read-only bulk harness keep the knowledge-derived caches across proofs |
 | `ranking` | `ranking.pl` | Dependency ordering (`dep_priority/2`), choice-group ranking, BWU memo seeding |
 | `slotmeta` | `slotmeta.pl` | Slot canonicalization, restriction merging, constraint queries |
 | `target` | `target.pl` | Target resolution, update/downgrade transactions, depclean, `--exclude` helpers |

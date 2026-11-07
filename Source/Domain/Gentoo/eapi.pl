@@ -2074,21 +2074,34 @@ eapi:use_expand('xtables_addons').
 % roughly twenty times fewer sub_atom/5 tests than trying every prefix,
 % on a path that runs tens of thousands of times per proof. Matches are
 % emitted in declaration order (via eapi:use_expand_rank/2), exactly as
-% the table scan did.
+% the table scan did. The underscores are walked left to right without a
+% findall bag (most flags have no match, or one).
 
 eapi:use_expand_flag_prefix(Flag, Prefix) :-
   atom(Flag),
-  findall(Rank-Prefix0,
-          ( sub_atom(Flag, Before, 1, _, '_'),
-            Before > 0,
-            sub_atom(Flag, 0, Before, _, Prefix0),
-            eapi:use_expand_rank(Prefix0, Rank)
-          ),
-          Ranked0),
+  eapi:use_expand_prefixes_from(Flag, 0, Ranked0),
   ( Ranked0 = [_-Prefix1] ->
       Prefix = Prefix1
   ; keysort(Ranked0, Ranked),
     member(_-Prefix, Ranked)
+  ).
+
+
+%! eapi:use_expand_prefixes_from(+Flag, +MinBefore, -Ranked) is det.
+%
+% Ranked lists `Rank-Prefix` for every underscore of Flag after position
+% MinBefore whose preceding text is a USE_EXPAND prefix, in position
+% order. sub_atom/5 enumerates the positions ascending, so each step
+% takes the first qualifying underscore after the previous one.
+
+eapi:use_expand_prefixes_from(Flag, MinBefore, Ranked) :-
+  ( sub_atom(Flag, Before, 1, _, '_'),
+    Before > MinBefore,
+    sub_atom(Flag, 0, Before, _, Prefix0),
+    eapi:use_expand_rank(Prefix0, Rank) ->
+      Ranked = [Rank-Prefix0|Rest],
+      eapi:use_expand_prefixes_from(Flag, Before, Rest)
+  ; Ranked = []
   ).
 
 

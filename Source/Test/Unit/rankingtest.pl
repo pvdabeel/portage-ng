@@ -83,6 +83,7 @@ rap_use_setup :-
   rap_foo_ver(V),
   retractall(cache:ordered_entry(qtest, _, cat, foo, _)),
   retractall(memo:iuse_info_cache_(qtest, Id, _)),
+  retractall(memo:eff_use_cache_(qtest, Id, _, _)),
   retractall(memo:effective_use_fact(qtest, Id, _)),
   assertz(cache:ordered_entry(R, Id, cat, foo, V)),
   assertz(memo:iuse_info_cache_(R, Id, iuse_info([a, b], []))),
@@ -92,6 +93,7 @@ rap_use_cleanup :-
   rap_foo_entry(_://Id),
   retractall(cache:ordered_entry(qtest, _, cat, foo, _)),
   retractall(memo:iuse_info_cache_(qtest, Id, _)),
+  retractall(memo:eff_use_cache_(qtest, Id, _, _)),
   retractall(memo:effective_use_fact(qtest, Id, _)),
   retractall(preference:local_profile_masked_use_flag(b)).
 

@@ -64,10 +64,18 @@ tester:trace_to_string(Trace, String) :-
 %
 % Runs Test for every entry produced by Generator. Dispatches to the
 % 7-argument form with default Report and Scroll settings.
+%
+% The knowledge base is pinned for the run (memo:with_pinned_knowledge/1):
+% Test reads repository, VDB and configuration facts without modifying
+% them, so the resolver's knowledge-derived memos survive from one entry
+% to the next.  A harness whose Test may write cache facts (the builder
+% harness: a build can inject a binpkg row) calls the 7-argument form
+% directly and is not pinned.
 
 tester:test(Style,Name,Repository://Item,Generator,Test) :-
   !,
-  tester:test(Style,Name,Repository://Item,Generator,Test,true,true).
+  memo:with_pinned_knowledge(
+    tester:test(Style,Name,Repository://Item,Generator,Test,true,true)).
 
 
 %! tester:test(+single_verbose, +Name, +Repository://Item, :Generator, :Test, :Report, +Scroll)

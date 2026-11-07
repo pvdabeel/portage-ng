@@ -196,61 +196,6 @@ use:profile_hard_use_state(RepoEntry, Use, State) :-
 
 
 % -----------------------------------------------------------------------------
-%  Per-entry IUSE default map
-% -----------------------------------------------------------------------------
-
-%! use:entry_iuse_default(+RepoEntry, +Use, -Default)
-%
-% Look up the IUSE default polarity for Use in the given ebuild.
-% Fails if Use is not declared in IUSE. Defaults are determined by
-% `+flag` (positive) or `-flag`/bare (negative) syntax in IUSE.
-% Results are memoized in an AVL map per entry (memo:iuse_default_cache_/3).
-
-use:entry_iuse_default(Repo://Entry, Use, Default) :-
-  ( memo:iuse_default_cache_(Repo, Entry, Map) ->
-    get_assoc(Use, Map, Default),
-    !
-  ;
-    findall(Raw, query:search(iuse(Raw), Repo://Entry), RawIuse0),
-    sort(RawIuse0, RawIuse),
-    findall(U-Def,
-            ( member(Raw, RawIuse),
-              ( Raw = plus(U)  -> Def = positive
-              ; Raw = minus(U) -> Def = negative
-              ; eapi:use_flag_name(Raw, U),
-                Def = negative
-              )
-            ),
-            Pairs0),
-    sort(Pairs0, Pairs),
-    use:iuse_default_pairs_to_assoc(Pairs, Map),
-    assertz(memo:iuse_default_cache_(Repo, Entry, Map)),
-    get_assoc(Use, Map, Default),
-    !
-  ).
-
-%! use:iuse_default_pairs_to_assoc(+Pairs, -Map)
-%
-% Build an AVL map from Use-Default pairs. If a flag appears multiple
-% times, `positive` wins (IUSE `+flag` overrides bare `flag`).
-
-use:iuse_default_pairs_to_assoc(Pairs, Map) :-
-  empty_assoc(M0),
-  use:iuse_default_pairs_to_assoc_(Pairs, M0, Map).
-
-use:iuse_default_pairs_to_assoc_([], M, M) :- !.
-use:iuse_default_pairs_to_assoc_([U-Def|Rest], M0, M) :-
-  ( get_assoc(U, M0, Existing) ->
-      ( Existing == positive -> M1 = M0
-      ; Def == positive -> put_assoc(U, M0, positive, M1)
-      ; M1 = M0
-      )
-  ; put_assoc(U, M0, Def, M1)
-  ),
-  use:iuse_default_pairs_to_assoc_(Rest, M1, M).
-
-
-% -----------------------------------------------------------------------------
 %  Per-entry IUSE memoization
 % -----------------------------------------------------------------------------
 
@@ -259,27 +204,49 @@ use:iuse_default_pairs_to_assoc_([U-Def|Rest], M0, M) :-
 % Retrieve the memoized IUSE info for an entry. Info is a compound
 % `iuse_info(IuseSet, PlusSet)` where IuseSet is the sorted list of
 % all IUSE flag atoms and PlusSet is the sorted list of flags declared
-% with `+` (default-on).
+% with `+` (default-on). Built in one pass over the raw IUSE entries
+% (memo:iuse_info_cache_/3); the default polarity of a flag is derived
+% from the same two sets by use:entry_iuse_default/3.
 
 use:entry_iuse_info(Repo://Entry, Info) :-
   ( memo:iuse_info_cache_(Repo, Entry, Info) ->
     true
   ;
-    findall(Raw, query:search(iuse(Raw), Repo://Entry), RawIuse0),
-    sort(RawIuse0, RawIuse),
-    findall(U,
-            ( member(Raw, RawIuse),
-              eapi:use_flag_name(Raw, U)
-            ),
-            Iuse0),
+    findall(Raw, query:search(iuse(Raw), Repo://Entry), RawIuse),
+    use:split_raw_iuse(RawIuse, Iuse0, Plus0),
     sort(Iuse0, IuseSet),
-    findall(U,
-            member(plus(U), RawIuse),
-            Plus0),
     sort(Plus0, PlusSet),
     Info = iuse_info(IuseSet, PlusSet),
     assertz(memo:iuse_info_cache_(Repo, Entry, Info))
   ).
+
+
+%! use:split_raw_iuse(+RawIuse, -Flags, -PlusFlags)
+%
+% Flags is the bare flag name of every raw IUSE entry; PlusFlags the
+% names of those declared `+flag` (default-on). Neither list is sorted.
+
+use:split_raw_iuse([], [], []).
+use:split_raw_iuse([Raw|Rest], [U|Us], Plus) :-
+  ( Raw = plus(U0)  -> U = U0, Plus = [U0|Plus1]
+  ; Raw = minus(U0) -> U = U0, Plus = Plus1
+  ; eapi:use_flag_name(Raw, U), Plus = Plus1
+  ),
+  use:split_raw_iuse(Rest, Us, Plus1).
+
+
+%! use:entry_iuse_default(+RepoEntry, +Use, -Default)
+%
+% Look up the IUSE default polarity for Use in the given ebuild.
+% Fails if Use is not declared in IUSE. A flag declared `+flag`
+% anywhere in IUSE is positive (`+flag` overrides a bare or `-flag`
+% declaration of the same name); every other declared flag is negative.
+
+use:entry_iuse_default(RepoEntry, Use, Default) :-
+  use:entry_iuse_info(RepoEntry, iuse_info(IuseSet, PlusSet)),
+  ord_memberchk(Use, IuseSet),
+  ( ord_memberchk(Use, PlusSet) -> Default = positive ; Default = negative ),
+  !.
 
 
 % -----------------------------------------------------------------------------
@@ -2188,6 +2155,7 @@ use:bwu_force_pending_any(Pending) :-
 % flush applies everything the pass discovered in a single re-proof.
 
 use:deferred_use_pending(Pending) :-
+    ( memo:bwu_force_pending_(_, _, _) -> true ; memo:eq_follow_pending_(_, _, _, _) ),
     findall(bwu_force(C, N, ForceEn),
             memo:bwu_force_pending_(C, N, ForceEn),
             Forces),
@@ -2540,9 +2508,11 @@ use:check_bwu_cross_dep(C, N, RepoEntry, BWU) :-
 
 %! use:clear_bwu_cross_dep_memos
 %
-% Cleans up candidate_bwu_ memos.  Called at proof initialization.
+% Cleans up candidate_bwu_ memos and the seeded-edge record that mirrors
+% them (ranking:seed_first_time/3).  Called at proof initialization.
 
 use:clear_bwu_cross_dep_memos :-
+    nbstore:reset(memo_bwu_seed_seen),
     retractall(memo:candidate_bwu_(_, _, _)),
     retractall(memo:candidate_bwu_hard_(_, _, _)),
     retractall(memo:candidate_bwu_eq_(_, _, _)),

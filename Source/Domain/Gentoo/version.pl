@@ -351,27 +351,45 @@ version_domain:domain_satisfiable(C, N, Domain0) :-
 %  Provenance helpers
 % -----------------------------------------------------------------------------
 
+%! version_domain:domain_reason_terms(+Action, +C, +N, +PackageDeps, +Context, -Reasons) is det.
+%
+% The sorted `introduced_by(Origin, Action, What)` provenance terms of the
+% non-blocking (C, N) atoms in PackageDeps: one `version(Op, Ver)` per
+% atom with a normalisable bound and one `slot(SlotReq)` per atom with a
+% slot requirement. Origin is the `self/1` entry of the proof context,
+% or `unknown`. A single walk collects both kinds; most calls see one
+% atom with neither and return [].
+
 version_domain:domain_reason_terms(Action, C, N, PackageDeps, Context, Reasons) :-
   ( is_list(Context),
     memberchk(self(Self), Context) ->
       Origin = Self
   ; Origin = unknown
   ),
-  findall(introduced_by(Origin, Action, version(OpN, VerN)),
-          ( member(package_dependency(_, no, C, N, Op0, Ver0, _SlotReq, _), PackageDeps),
-            normalize_bound_op(Op0, OpN),
-            OpN \== none,
-            normalize_version_term(Ver0, VerN)
-          ),
-          VersionReasons),
-  findall(introduced_by(Origin, Action, slot(SlotReq)),
-          ( member(package_dependency(_, no, C, N, _Op, _Ver, SlotReq, _), PackageDeps),
-            SlotReq \== []
-          ),
-          SlotReasons),
-  append(VersionReasons, SlotReasons, R0),
-  sort(R0, Reasons),
+  collect_domain_reasons(PackageDeps, C, N, Origin, Action, Reasons0),
+  sort(Reasons0, Reasons),
   !.
+
+
+%! version_domain:collect_domain_reasons(+PackageDeps, +C, +N, +Origin, +Action, -Reasons) is det.
+
+version_domain:collect_domain_reasons([], _, _, _, _, []).
+version_domain:collect_domain_reasons([package_dependency(_, no, C, N, Op0, Ver0, SlotReq, _)|Rest],
+                                      C, N, Origin, Action, Reasons) :-
+  !,
+  ( normalize_bound_op(Op0, OpN),
+    OpN \== none,
+    normalize_version_term(Ver0, VerN) ->
+      Reasons = [introduced_by(Origin, Action, version(OpN, VerN))|Reasons1]
+  ; Reasons = Reasons1
+  ),
+  ( SlotReq \== [] ->
+      Reasons1 = [introduced_by(Origin, Action, slot(SlotReq))|Reasons2]
+  ; Reasons1 = Reasons2
+  ),
+  collect_domain_reasons(Rest, C, N, Origin, Action, Reasons2).
+version_domain:collect_domain_reasons([_|Rest], C, N, Origin, Action, Reasons) :-
+  collect_domain_reasons(Rest, C, N, Origin, Action, Reasons).
 
 % -----------------------------------------------------------------------------
 %  Utilities

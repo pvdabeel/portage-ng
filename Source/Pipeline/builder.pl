@@ -1842,11 +1842,14 @@ builder:test_stats(Repository, Style, TopN) :-
   sampler:reset('Building', ExpectedTotal),
   aggregate_all(count, (Repository:package(_C,_N)), ExpectedPkgs),
   sampler:set_expected_pkgs(ExpectedPkgs),
+  % 7-argument form: a build may inject a binpkg cache row, so the
+  % knowledge base is not pinned for this harness (see tester:test/5).
   tester:test(Style,
               'Building',
               Repository://Entry,
               Repository:entry(Entry),
-              builder:test_single(Repository, Entry)),
+              builder:test_single(Repository, Entry),
+              true, true),
   stats:test_stats_print(TopN).
 
 
@@ -1873,7 +1876,8 @@ builder:test_stats_pkgs(Repository, Style, TopN, Pkgs) :-
               ( member(C-N, Pkgs),
                 once(Repository:ebuild(Entry, C, N, _))
               ),
-              builder:test_single(Repository, Entry)),
+              builder:test_single(Repository, Entry),
+              true, true),
   stats:test_stats_print(TopN).
 
 
