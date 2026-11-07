@@ -281,8 +281,7 @@ cc_cleanup :-
   retractall(cache:ordered_entry(GRepo, GId, _, _, _)),
   ( retract(cc_saved_snap(Saved)) ->
       nb_setval(memo_selected_cn_snap, Saved)
-  ; empty_assoc(Empty),
-    nb_setval(memo_selected_cn_snap, Empty)
+  ; nbstore:reset(memo_selected_cn_snap)
   ).
 
 % Unconstrained domain: the GHC-9.8 sibling is a real alternative, so the

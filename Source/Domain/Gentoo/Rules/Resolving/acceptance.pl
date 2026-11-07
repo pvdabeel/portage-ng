@@ -47,7 +47,7 @@ acceptance:license_masked(Repo://Entry) :-
 % in /etc/portage/package.license (loaded into userconfig:package_license_entry/2).
 
 acceptance:package_license_accepted(Repo://Entry, Lic) :-
-  current_predicate(userconfig:package_license_entry/2),
+  hook:defined(userconfig:package_license_entry/2),
   query:search([category(C), name(N)], Repo://Entry),
   atomic_list_concat([C, N], '/', CatPkg),
   userconfig:package_license_entry(CatPkg, Lic).
@@ -298,7 +298,7 @@ acceptance:accepted_keyword_candidates_cached(Action, C, N, SlotReq, LockKey, Ca
 % /etc/portage/package.accept_keywords overrides.
 
 acceptance:package_keyword_entry(C, N, K) :-
-  current_predicate(userconfig:package_keyword/2),
+  hook:defined(userconfig:package_keyword/2),
   userconfig:package_keyword(Spec, RawKW),
   acceptance:keyword_spec_matches(Spec, C, N, Repo),
   ( RawKW == '**'
@@ -415,7 +415,7 @@ acceptance:compare_candidate_version_desc(Delta, RepoA://IdA, RepoB://IdB) :-
 % provide the same CPV. Unlisted repositories default to 0.
 
 acceptance:repository_priority(Repo, Priority) :-
-  current_predicate(config:repository_priority/2),
+  hook:defined(config:repository_priority/2),
   config:repository_priority(Repo, Priority),
   !.
 acceptance:repository_priority(_Repo, 0).

@@ -163,7 +163,7 @@ cnselect:grouped_dep_candidate_satisfies_effective_domain_precomputed(EffectiveD
   % be absent. Treat it as the optional hook it is — skip the
   % filter when unloaded instead of throwing unknown-procedure
   % and aborting the prove.
-  \+ ( current_predicate(ghcabi:version_incompatible_with_selected_ghc/4),
+  \+ ( hook:defined(ghcabi:version_incompatible_with_selected_ghc/4),
        ghcabi:version_incompatible_with_selected_ghc(C, N, EffectiveDomain, RepoEntry)
      ),
   version_domain:domain_allows_candidate(EffectiveDomain, RepoEntry),
@@ -347,8 +347,7 @@ cnselect:cn_reject_scoped_domain(Scope0, Domain, scoped(Scope, Domain)) :-
 % Retrieves the memoized snapshot of selected candidates for (C,N).
 
 cnselect:snapshot_selected_cn_candidates(C, N, Candidates) :-
-  nb_current(memo_selected_cn_snap, AVL),
-  get_assoc(C-N, AVL, Candidates),
+  nbstore:get(memo_selected_cn_snap, C-N, Candidates),
   Candidates \== [],
   !.
 
@@ -362,9 +361,7 @@ cnselect:record_selected_cn_snapshot(C, N, SelectedSet) :-
           member(selected(Repo,Entry,_Act,_SelVer,_SelSlotMeta), SelectedSet),
           Candidates0),
   sort(Candidates0, Candidates),
-  ( nb_current(memo_selected_cn_snap, AVL0) -> true ; empty_assoc(AVL0) ),
-  put_assoc(C-N, AVL0, Candidates, AVL1),
-  nb_setval(memo_selected_cn_snap, AVL1),
+  nbstore:put(memo_selected_cn_snap, C-N, Candidates),
   !.
 
 %! cnselect:snapshot_blocked_cn_sources(+C, +N, -Sources)
@@ -372,8 +369,7 @@ cnselect:record_selected_cn_snapshot(C, N, SelectedSet) :-
 % Retrieves the memoized blocker source snapshot for (C,N).
 
 cnselect:snapshot_blocked_cn_sources(C, N, Sources) :-
-  nb_current(memo_blocked_cn_source_snap, AVL),
-  get_assoc(C-N, AVL, Sources),
+  nbstore:get(memo_blocked_cn_source_snap, C-N, Sources),
   Sources \== [],
   !.
 
@@ -385,11 +381,9 @@ cnselect:snapshot_blocked_cn_sources(C, N, Sources) :-
 cnselect:record_blocked_cn_source_snapshot(C, N, Sources0) :-
   sort(Sources0, Sources),
   Sources \== [],
-  ( nb_current(memo_blocked_cn_source_snap, AVL0) -> true ; empty_assoc(AVL0) ),
-  ( get_assoc(C-N, AVL0, OldSources) -> true ; OldSources = [] ),
+  ( nbstore:get(memo_blocked_cn_source_snap, C-N, OldSources) -> true ; OldSources = [] ),
   ord_union(OldSources, Sources, MergedSources),
-  put_assoc(C-N, AVL0, MergedSources, AVL1),
-  nb_setval(memo_blocked_cn_source_snap, AVL1),
+  nbstore:put(memo_blocked_cn_source_snap, C-N, MergedSources),
   !.
 cnselect:record_blocked_cn_source_snapshot(_C, _N, _Sources) :-
   !.

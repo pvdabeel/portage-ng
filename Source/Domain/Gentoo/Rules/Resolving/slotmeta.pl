@@ -196,19 +196,16 @@ slotmeta:query_search_slot_constraint(SlotReq, RepoEntry, SlotMeta) :-
 
 %! slotmeta:cached_slot_meta(+Repo, +Id, -AllMeta)
 %
-% Returns the full slot metadata list for Repo/Id, using
-% memo_slot_meta_cache AVL to avoid redundant findall allocations.
+% Returns the full slot metadata list for Repo/Id, using the
+% memo_slot_meta_cache store to avoid redundant findall allocations.
 
 slotmeta:cached_slot_meta(Repo, Id, AllMeta) :-
-  ( nb_current(memo_slot_meta_cache, CacheAVL),
-    get_assoc(Repo-Id, CacheAVL, Cached)
+  ( nbstore:get(memo_slot_meta_cache, Repo-Id, Cached)
   ->
     AllMeta = Cached
   ;
     findall(R, cache:entry_metadata(Repo, Id, slot, R), AllMeta),
-    ( nb_current(memo_slot_meta_cache, AVL0) -> true ; empty_assoc(AVL0) ),
-    put_assoc(Repo-Id, AVL0, AllMeta, AVL1),
-    nb_setval(memo_slot_meta_cache, AVL1)
+    nbstore:put(memo_slot_meta_cache, Repo-Id, AllMeta)
   ).
 
 

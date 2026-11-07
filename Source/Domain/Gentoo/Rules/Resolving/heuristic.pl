@@ -86,8 +86,6 @@ and obligation filtering.
                       init_state/0,
                       cleanup_state/0]).
 
-:- use_module(library(assoc), [empty_assoc/1]).
-
 % =============================================================================
 %  HEURISTIC declarations
 % =============================================================================
@@ -223,15 +221,14 @@ reprove_exhausted :-
 
 init_state :-
   ( nb_current(prover_reprove_enabled, OldEnabled) -> true ; OldEnabled = '$absent' ),
-  ( nb_current(memo_selected_cn_snap, SavedSnapAVL) -> true ; empty_assoc(SavedSnapAVL) ),
-  ( nb_current(memo_blocked_cn_source_snap, SavedBlockedAVL) -> true ; empty_assoc(SavedBlockedAVL) ),
+  ( nb_current(memo_selected_cn_snap, SavedSnap) -> true ; nbstore:empty(SavedSnap) ),
+  ( nb_current(memo_blocked_cn_source_snap, SavedBlocked) -> true ; nbstore:empty(SavedBlocked) ),
   findall(K-V, memo:cn_domain_reject_(K, V), SavedRejects),
-  nb_setval(rules_reprove_saved_state, state(OldEnabled, SavedSnapAVL, SavedRejects, SavedBlockedAVL)),
+  nb_setval(rules_reprove_saved_state, state(OldEnabled, SavedSnap, SavedRejects, SavedBlocked)),
   nb_setval(prover_reprove_enabled, true),
   retractall(memo:cn_domain_reject_(_, _)),
-  empty_assoc(EmptyAVL),
-  nb_setval(memo_selected_cn_snap, EmptyAVL),
-  nb_setval(memo_blocked_cn_source_snap, EmptyAVL),
+  nbstore:reset(memo_selected_cn_snap),
+  nbstore:reset(memo_blocked_cn_source_snap),
   !.
 
 
@@ -240,11 +237,11 @@ init_state :-
 % Restore domain state saved by init_state/0.
 
 cleanup_state :-
-  ( nb_current(rules_reprove_saved_state, state(OldEnabled, SavedSnapAVL, SavedRejects, SavedBlockedAVL)) ->
+  ( nb_current(rules_reprove_saved_state, state(OldEnabled, SavedSnap, SavedRejects, SavedBlocked)) ->
       ( OldEnabled == '$absent' -> nb_delete(prover_reprove_enabled) ; nb_setval(prover_reprove_enabled, OldEnabled) ),
       retractall(memo:cn_domain_reject_(_, _)),
-      nb_setval(memo_selected_cn_snap, SavedSnapAVL),
-      nb_setval(memo_blocked_cn_source_snap, SavedBlockedAVL),
+      nb_setval(memo_selected_cn_snap, SavedSnap),
+      nb_setval(memo_blocked_cn_source_snap, SavedBlocked),
       forall(member(K-V, SavedRejects), assertz(memo:cn_domain_reject_(K, V))),
       nb_delete(rules_reprove_saved_state)
   ; true

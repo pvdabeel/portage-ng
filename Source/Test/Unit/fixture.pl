@@ -29,12 +29,11 @@ loaded it.
 %
 % Save the live selected-CN snapshot (memo_selected_cn_snap, see
 % cnselect.pl) and start the unit from an empty one. Saved is the
-% previous AVL, or `none` when the global was not set.
+% previous store, or `none` when the global was not set.
 
 stash_selected_cn_snap(Saved) :-
   ( nb_current(memo_selected_cn_snap, Saved) -> true ; Saved = none ),
-  empty_assoc(Empty),
-  nb_setval(memo_selected_cn_snap, Empty).
+  nbstore:reset(memo_selected_cn_snap).
 
 
 %! restore_selected_cn_snap(+Saved) is det.

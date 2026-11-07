@@ -273,7 +273,7 @@ prover:prove_with_retries(Target, InProof, OutProof, InModel, OutModel, InCons, 
 
 prover:deferred_reprove_pending(Attempt, MaxRetries, Info) :-
   Attempt < MaxRetries,
-  current_predicate(heuristic:reprove_pending/1),
+  hook:defined(heuristic:reprove_pending/1),
   heuristic:reprove_pending(Info).
 
 
@@ -290,7 +290,7 @@ prover:deferred_reprove_pending(Attempt, MaxRetries, Info) :-
 
 prover:reprove_from_completed(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers,
                               Attempt, MaxRetries, Info, Proof1, Model1, Cons1, Trig1) :-
-  ( current_predicate(heuristic:handle_reprove/2),
+  ( hook:defined(heuristic:handle_reprove/2),
     heuristic:handle_reprove(Info, Added),
     Added == true
   ->
@@ -341,7 +341,7 @@ prover:reprove_from_completed(Target, InProof, OutProof, InModel, OutModel, InCo
 prover:handle_reprove(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers,
                       Attempt, MaxRetries, Info) :-
   ( Attempt < MaxRetries,
-    current_predicate(heuristic:handle_reprove/2),
+    hook:defined(heuristic:handle_reprove/2),
     heuristic:handle_reprove(Info, Added),
     Added == true
   ->
@@ -349,7 +349,7 @@ prover:handle_reprove(Target, InProof, OutProof, InModel, OutModel, InCons, OutC
     prover:prove_with_retries(
       Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers, Attempt1, MaxRetries
     )
-  ; ( current_predicate(heuristic:reprove_exhausted/0) -> heuristic:reprove_exhausted ; true ),
+  ; ( hook:defined(heuristic:reprove_exhausted/0) -> heuristic:reprove_exhausted ; true ),
     prover:with_reprove_disabled(
       prover:prove_once(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers)
     )
@@ -408,10 +408,10 @@ prover:begin_pass :-
     ; true
     )
   ),
-  ( current_predicate(heuristic:begin_pass/1) ->
+  ( hook:defined(heuristic:begin_pass/1) ->
       heuristic:begin_pass(Kind)
   ; Kind == fresh,
-    current_predicate(use:clear_bwu_cross_dep_memos/0) ->
+    hook:defined(use:clear_bwu_cross_dep_memos/0) ->
       use:clear_bwu_cross_dep_memos
   ; true
   ).
@@ -431,7 +431,7 @@ prover:mark_resume_pass :-
 % Maximum number of reprove retries (default 3).
 
 prover:reprove_max_retries(Max) :-
-  ( current_predicate(config:reprove_max_retries/1),
+  ( hook:defined(config:reprove_max_retries/1),
     config:reprove_max_retries(Max0),
     integer(Max0),
     Max0 >= 0
@@ -451,10 +451,10 @@ prover:with_reprove_state(Goal) :-
   ( nb_current(prover_learned_constraints, SavedAVL) -> true ; empty_assoc(SavedAVL) ),
   empty_assoc(EmptyAVL),
   nb_setval(prover_learned_constraints, EmptyAVL),
-  ( current_predicate(heuristic:init_state/0) -> heuristic:init_state ; true ),
+  ( hook:defined(heuristic:init_state/0) -> heuristic:init_state ; true ),
   setup_call_cleanup(true,
                      Goal,
-                     ( ( current_predicate(heuristic:cleanup_state/0) -> heuristic:cleanup_state ; true ),
+                     ( ( hook:defined(heuristic:cleanup_state/0) -> heuristic:cleanup_state ; true ),
                        nb_setval(prover_learned_constraints, SavedAVL)
                      )).
 
@@ -577,7 +577,7 @@ prover:assuming(Literal) :-
 % proof targets; see restart_resume_anchors/4.
 
 prover:partial_restart_state(Info, Proof, Model, Cons, Trig, RProof, RModel, RCons, RTrig, ResumeLits) :-
-  current_predicate(heuristic:restart_seed/2),
+  hook:defined(heuristic:restart_seed/2),
   prover:restart_seeds(Info, Model, Seeds),
   Seeds \== [],
   prover:triggers_closure(Seeds, Trig, Affected),
@@ -606,7 +606,7 @@ prover:partial_restart_state(Info, Proof, Model, Cons, Trig, RProof, RModel, RCo
 % different context.
 
 prover:restart_resume_anchors(Proof, Affected, RModel, ResumeLits) :-
-  ( current_predicate(heuristic:restart_obligation_head/2) ->
+  ( hook:defined(heuristic:restart_obligation_head/2) ->
       findall(Full,
               ( gen_assoc(obligation_done(OKey), Proof, Cores),
                 prover:obligation_contribution_affected(Cores, Affected),
@@ -813,7 +813,7 @@ prover:proof_pair_affected(Affected, _Info, Key-Value) :-
 % re-proves and walks its body -- and the obligation re-fires with it.
 
 prover:obligation_anchor_affected(OKey, Affected) :-
-  current_predicate(heuristic:restart_obligation_head/2),
+  hook:defined(heuristic:restart_obligation_head/2),
   heuristic:restart_obligation_head(OKey, Anchor),
   prover:restart_affected(Affected, Anchor).
 
@@ -870,8 +870,8 @@ prover:prune_trigger_pairs([Core-Dependents|Pairs], Affected, Kept) :-
 % constraints are kept.
 
 prover:prune_constraints(Cons, Affected, Info, RCons) :-
-  ( current_predicate(heuristic:restart_constraint_scope/3),
-    current_predicate(heuristic:restart_drop_constraint/2),
+  ( hook:defined(heuristic:restart_constraint_scope/3),
+    hook:defined(heuristic:restart_drop_constraint/2),
     heuristic:restart_constraint_scope(Info, Affected, Scope)
   ->
     assoc_to_list(Cons, Pairs),
@@ -925,7 +925,7 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
       constraint:unify_constraints(Lit, Constraints, Constraints1),
       % Domain hook (keeps prover generic): if the domain provides a constraint
       % guard, it can reject inconsistent states by failing here.
-      ( current_predicate(heuristic:constraint_guard/2) ->
+      ( hook:defined(heuristic:constraint_guard/2) ->
           ( heuristic:constraint_guard(Lit, Constraints1) ->
               NewConstraints = Constraints1
           ; fail
@@ -1052,7 +1052,7 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
           \+ prover:assumed_proving(Lit, Proof) ->
 
           prover:cycle_path_for(Lit, CyclePath),
-          ( ( current_predicate(heuristic:cycle_benign/2),
+          ( ( hook:defined(heuristic:cycle_benign/2),
               heuristic:cycle_benign(Lit, CyclePath)
             ; % Partial-restart witness: the completed pass that preceded
               % this resume proved Lit without a cycle-break, so this cycle
@@ -1224,7 +1224,7 @@ prover:collect_proof_obligations(Literal, Proof, Proof, _Model, Rest, Rest) :-
   \+ prover:obligation_candidate(Literal),
   !.
 prover:collect_proof_obligations(_Literal, Proof, Proof, _Model, Rest, Rest) :-
-  \+ current_predicate(heuristic:proof_obligation/4),
+  \+ hook:defined(heuristic:proof_obligation/4),
   !.
 prover:collect_proof_obligations(Literal, Proof0, Proof, Model, Rest0, Rest) :-
   % Cheap skip: when the domain can compute the obligation key without
@@ -1252,9 +1252,9 @@ prover:collect_proof_obligations(Literal, Proof0, Proof, Model, Rest0, Rest) :-
 % has no key for Literal.
 
 prover:obligation_key(Literal, Model, Key, NeedsFull) :-
-  ( current_predicate(heuristic:proof_obligation_key/4) ->
+  ( hook:defined(heuristic:proof_obligation_key/4) ->
       once(heuristic:proof_obligation_key(Literal, Model, Key, NeedsFull))
-  ; current_predicate(heuristic:proof_obligation_key/3) ->
+  ; hook:defined(heuristic:proof_obligation_key/3) ->
       once(heuristic:proof_obligation_key(Literal, Model, Key)),
       NeedsFull = true
   ).
@@ -1737,7 +1737,7 @@ prover:assumed_proven(Lit, Model) :- get_assoc(assumed(Lit), Model, _).
 
 prover:ctx_equivalent(C, C) :- !.
 prover:ctx_equivalent(C1, C2) :-
-  current_predicate(heuristic:ctx_equivalent/2),
+  hook:defined(heuristic:ctx_equivalent/2),
   heuristic:ctx_equivalent(C1, C2).
 
 
@@ -1754,7 +1754,7 @@ prover:ctx_equivalent(C1, C2) :-
 % like a plain SLD resolver with last-write-wins on stored Ctx.
 
 prover:should_union_ctx(Lit) :-
-  current_predicate(heuristic:should_union_ctx/1),
+  hook:defined(heuristic:should_union_ctx/1),
   heuristic:should_union_ctx(Lit).
 
 

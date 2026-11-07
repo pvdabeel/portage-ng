@@ -883,12 +883,10 @@ use:candidate_effective_use_enabled_raw(Repo://Entry, Use) :-
 
 use:use_expand_selector_flag_unset(Use) :-
   atom(Use),
-  preference:use_expand_env(_EnvVar, Prefix),
-  atom_concat(Prefix, '_', PrefixUnderscore),
-  atom_concat(PrefixUnderscore, _, Use),
-  use:use_expand_prefix_has_explicit_selection(Prefix),
   \+ preference:global_use(Use),
   \+ preference:global_use(minus(Use)),
+  eapi:use_expand_flag_prefix(Use, Prefix),
+  use:use_expand_prefix_has_explicit_selection(Prefix),
   !.
 
 %! use:use_expand_prefix_has_explicit_selection(+Prefix)
@@ -902,7 +900,7 @@ use:use_expand_prefix_has_explicit_selection(Prefix) :-
   ; preference:global_use(minus(Use0))
   ),
   atom(Use0),
-  atom_concat(PrefixUnderscore, _, Use0),
+  sub_atom(Use0, 0, _, _, PrefixUnderscore),
   !.
 
 %! use:is_abi_x86_flag(+Use)
@@ -2225,9 +2223,7 @@ use:shared_dep_force_flags(RepoEntry, HardEn, ForceEn) :-
 % normal resolution path rather than learning a persistent bwu_force for them.
 
 use:is_use_expand_flag(Flag) :-
-    eapi:use_expand(Prefix),
-    atom_concat(Prefix, '_', PrefixUnderscore),
-    atom_concat(PrefixUnderscore, _, Flag),
+    eapi:use_expand_flag_prefix(Flag, _Prefix),
     !.
 
 
@@ -2249,11 +2245,17 @@ use:unify_memo_bwu_into_context(C, N, Ctx0, Ctx) :-
 
 %! use:replace_candidate_bwu(+C, +N, +BWU) is det.
 %
-% Store (or replace) the aggregated build_with_use state for (C,N).
+% Store (or replace) the aggregated build_with_use state for (C,N). A
+% store of the value already held is a no-op: the memo is only ever read
+% by (C,N), so rewriting an identical clause would change nothing but
+% leave an erased clause behind for clause garbage collection.
 
 use:replace_candidate_bwu(C, N, BWU) :-
-    retractall(memo:candidate_bwu_(C, N, _)),
-    assertz(memo:candidate_bwu_(C, N, BWU)).
+    ( memo:candidate_bwu_(C, N, Old), Old == BWU ->
+        true
+    ; retractall(memo:candidate_bwu_(C, N, _)),
+      assertz(memo:candidate_bwu_(C, N, BWU))
+    ).
 
 
 %! use:accumulate_candidate_bwu(+C, +N, +BWU)
@@ -2323,14 +2325,24 @@ use:current_bwu_component(candidate_bwu_eq_, C, N, State) :-
 
 %! use:store_bwu_component(+Memo, +C, +N, +State)
 %
-% Replace a HARD/EQ provenance component memo for (C,N) (no-op for empty).
+% Replace a HARD/EQ provenance component memo for (C,N) (no-op for empty,
+% and no-op when the memo already holds State — see
+% replace_candidate_bwu/3).
 
 use:store_bwu_component(candidate_bwu_hard_, C, N, State) :-
-    retractall(memo:candidate_bwu_hard_(C, N, _)),
-    ( State == use_state([], []) -> true ; assertz(memo:candidate_bwu_hard_(C, N, State)) ).
+    use:current_bwu_component(candidate_bwu_hard_, C, N, Old),
+    ( Old == State ->
+        true
+    ; retractall(memo:candidate_bwu_hard_(C, N, _)),
+      ( State == use_state([], []) -> true ; assertz(memo:candidate_bwu_hard_(C, N, State)) )
+    ).
 use:store_bwu_component(candidate_bwu_eq_, C, N, State) :-
-    retractall(memo:candidate_bwu_eq_(C, N, _)),
-    ( State == use_state([], []) -> true ; assertz(memo:candidate_bwu_eq_(C, N, State)) ).
+    use:current_bwu_component(candidate_bwu_eq_, C, N, Old),
+    ( Old == State ->
+        true
+    ; retractall(memo:candidate_bwu_eq_(C, N, _)),
+      ( State == use_state([], []) -> true ; assertz(memo:candidate_bwu_eq_(C, N, State)) )
+    ).
 
 
 %! use:merge_bwu_state(+A, +B, -Merged)

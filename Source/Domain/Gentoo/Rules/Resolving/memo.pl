@@ -21,8 +21,9 @@ Each thread-local predicate caches a different aspect of resolver state:
 | Predicate                          | Cached data                                    |
 |------------------------------------|------------------------------------------------|
 | effective_use_fact/3               | Effective USE set for a repo entry (candidate)  |
-| memo_selected_cn_snap (nb_setval)  | AVL of selected CN candidates (keyed by C-N)    |
-| memo_blocked_cn_source_snap (nb)   | AVL of blocked CN sources (keyed by C-N)        |
+| memo_selected_cn_snap (nbstore)    | Selected CN candidates (keyed by C-N)           |
+| memo_blocked_cn_source_snap (nbstore) | Blocked CN sources (keyed by C-N)            |
+| memo_slot_meta_cache (nbstore)     | Slot metadata list per Repo-Id                  |
 | cn_domain_reject_/2               | Rejected candidates per CN-domain key           |
 | rdepend_vbounds_cache_/5           | Self-RDEPEND version bounds for a (C,N) pair    |
 | keyword_cache_/6                   | Keyword-filtered candidate lists per action     |
@@ -41,8 +42,6 @@ heuristic:cleanup_state/0 during reprove retries.
 */
 
 :- module(memo, []).
-
-:- use_module(library(assoc), [empty_assoc/1]).
 
 % =============================================================================
 %  MEMO declarations
@@ -73,6 +72,7 @@ heuristic:cleanup_state/0 during reprove retries.
 :- thread_local memo:bwu_eq_origin_/6.          % bwu_eq_origin_(C, N, Flag, Projected, Mode, Consumer) -- which consumer's [F=]/[!F=] edge projected Projected onto provider (C,N) (#121)
 :- thread_local memo:eq_follow_pending_/4.      % eq_follow_pending_(C, N, BWU, provider(PC,PN)) -- consumer-side equality follows learned this pass, awaiting the same batched reprove (#121)
 :- thread_local memo:entry_version_pins_/2.     % entry_version_pins_(Repo://Entry, Pins) -- hard version pins in DEPEND/RDEPEND/BDEPEND (#123)
+:- thread_local memo:entry_equality_usedeps_/2. % entry_equality_usedeps_(Repo://Entry, EqDeps) -- unconditional [F=]/[!F=] USE deps in DEPEND/RDEPEND/BDEPEND
 :- thread_local memo:dep_model_cache_/5.        % dep_model_cache_(Repo, Id, Phase, Key, Merged) -- dependency-model query results, hazard-encoded key (see query.pl)
 :- thread_local memo:dep_model_choice_cns_/3.   % dep_model_choice_cns_(Repo, Id, CNs) -- static C-N pairs appearing in choice groups of the entry's dep metadata
 
@@ -84,10 +84,9 @@ heuristic:cleanup_state/0 during reprove retries.
 
 clear_caches :-
   retractall(memo:effective_use_fact(_, _, _)),
-  empty_assoc(EmptyAVL),
-  nb_setval(memo_selected_cn_snap, EmptyAVL),
-  nb_setval(memo_blocked_cn_source_snap, EmptyAVL),
-  nb_setval(memo_slot_meta_cache, EmptyAVL),
+  nbstore:reset(memo_selected_cn_snap),
+  nbstore:reset(memo_blocked_cn_source_snap),
+  nbstore:reset(memo_slot_meta_cache),
   retractall(memo:cn_domain_reject_(_, _)),
   retractall(memo:rdepend_vbounds_cache_(_, _, _, _, _)),
   retractall(memo:keyword_cache_(_, _, _, _, _, _)),
@@ -106,5 +105,6 @@ clear_caches :-
   retractall(memo:bwu_eq_origin_(_, _, _, _, _, _)),
   retractall(memo:eq_follow_pending_(_, _, _, _)),
   retractall(memo:entry_version_pins_(_, _)),
+  retractall(memo:entry_equality_usedeps_(_, _)),
   retractall(memo:dep_model_cache_(_, _, _, _, _)),
   retractall(memo:dep_model_choice_cns_(_, _, _)).

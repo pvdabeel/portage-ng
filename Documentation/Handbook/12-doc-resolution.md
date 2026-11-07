@@ -229,7 +229,7 @@ rejection in place (the reprove loop of
    does it fit this request too?**  This is one lookup in the proof's
    constraint store, not a scan of the proof: every committed choice is
    a `selected_cn(C,N)` entry in the prover's constraint store (an AVL
-   keyed by package), mirrored into the `memo_selected_cn_snap` AVL by
+   keyed by package), mirrored into the `memo_selected_cn_snap` store by
    `heuristic:constraint_guard/2` so rule code can read it without the
    store in hand.  A fitting entry is reused and committed without
    backtracking into alternatives

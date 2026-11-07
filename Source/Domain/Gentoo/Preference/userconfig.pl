@@ -45,6 +45,9 @@ development).
 :- dynamic userconfig:package_keyword/2.
 :- dynamic userconfig:package_license_entry/2.
 
+% Memoised arch per distinct ACCEPT_KEYWORDS value (`none` when it names no arch)
+:- dynamic userconfig:accept_keywords_arch_/2.
+
 
 % -----------------------------------------------------------------------------
 % Main entry point
@@ -215,19 +218,49 @@ userconfig:bare_atom_keyword(KW) :-
 % Resolves the current architecture from ACCEPT_KEYWORDS (preferring a
 % stable arch over a testing one, skipping '*'/'**' wildcards) or, when
 % ACCEPT_KEYWORDS is unavailable, from the ARCH variable.
+%
+% The ACCEPT_KEYWORDS step is a pure function of the variable's text and
+% is memoised per distinct value (userconfig:accept_keywords_arch/2); the
+% variable itself is re-read on every call so a reloaded make.conf takes
+% effect immediately. This predicate runs once per keyword check in the
+% resolver, hundreds of thousands of times per proof.
 
 userconfig:current_arch(Arch) :-
-  catch(findall(K, preference:env_accept_keywords(K), Ks), _, Ks = []),
-  ( member(stable(Arch), Ks)
-  ; member(unstable(Arch), Ks)
-  ),
-  Arch \== '*',
-  Arch \== '**',
-  !.
+  catch(preference:getenv('ACCEPT_KEYWORDS', Raw), _, fail),
+  catch(userconfig:accept_keywords_arch(Raw, Arch0), _, fail),
+  Arch0 \== none,
+  !,
+  Arch = Arch0.
 userconfig:current_arch(Arch) :-
   catch(preference:getenv('ARCH', Arch), _, fail),
   Arch \== '',
   !.
+
+
+%! userconfig:accept_keywords_arch(+Raw, -Arch) is det.
+%
+% Arch is the first stable arch named in the ACCEPT_KEYWORDS text Raw,
+% else its first testing arch, skipping the '*' and '**' wildcards; `none`
+% when Raw names no arch. Memoised per Raw.
+
+userconfig:accept_keywords_arch(Raw, Arch) :-
+  ( userconfig:accept_keywords_arch_(Raw, Arch0) ->
+      true
+  ; preference:env_keywords_parsed(Raw, Keywords),
+    ( ( member(stable(A), Keywords)
+      ; member(unstable(A), Keywords)
+      ),
+      A \== '*',
+      A \== '**' ->
+        Arch0 = A
+    ; Arch0 = none
+    ),
+    ( userconfig:accept_keywords_arch_(Raw, _) ->
+        true
+    ; assertz(userconfig:accept_keywords_arch_(Raw, Arch0))
+    )
+  ),
+  Arch = Arch0.
 
 
 % -----------------------------------------------------------------------------

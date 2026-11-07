@@ -48,7 +48,7 @@ constraint:is_constraint(constraint(_)).
 % merge logic is delegated to =heuristic:constraint_unify_hook/4=.
 
 constraint:unify_constraints(constraint(Key:{Value}), Constraints, NewConstraints) :-
-  current_predicate(heuristic:constraint_unify_hook/4),
+  hook:defined(heuristic:constraint_unify_hook/4),
   heuristic:constraint_unify_hook(Key, Value, Constraints, NewConstraints),
   !.
 

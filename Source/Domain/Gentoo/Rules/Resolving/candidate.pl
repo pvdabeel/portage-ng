@@ -1313,7 +1313,7 @@ candidate:grouped_dep_update_reason(_C, _N, FoundRepo://Candidate,
 candidate:grouped_dep_update_reason(C, _N, _FoundRepo://_Candidate,
                                     VdbRepo://InstalledEntry2, NewerContext,
                                     update, UpdateCtx) :-
-  ( current_predicate(config:avoid_reinstall/1),
+  ( hook:defined(config:avoid_reinstall/1),
     config:avoid_reinstall(true) ->
       fail
   ; C \== 'virtual',

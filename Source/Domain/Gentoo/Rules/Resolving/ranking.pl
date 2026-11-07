@@ -188,12 +188,15 @@ ranking:seed_accumulate_bwu(C, N, BWU) :-
 % use_state([],[]) when nothing is pinned (the common case).
 
 ranking:equality_pins_from_providers(Repo://Entry, PinState) :-
-  findall(F-Mode,
-          ( member(Key, [depend, rdepend, bdepend]),
-            cache:entry_metadata(Repo, Entry, Key, Term),
-            ranking:equality_pin_from_term(Term, F, Mode)
-          ),
-          Pins0),
+  ranking:entry_equality_usedeps(Repo://Entry, EqDeps),
+  ( EqDeps == [] ->
+      Pins0 = []
+  ; findall(F-Mode,
+            ( member(eq(PC, PN, UseDep), EqDeps),
+              ranking:equality_pin_from_usedep(PC, PN, UseDep, F, Mode)
+            ),
+            Pins0)
+  ),
   ( Pins0 == [] ->
       use:empty_use_state(PinState)
   ; sort(Pins0, Pins),
@@ -216,18 +219,58 @@ ranking:pin_flags_conflict(En, Dis) :-
   !.
 
 
+%! ranking:entry_equality_usedeps(+RepoEntry, -EqDeps) is det
+%
+% EqDeps lists every unconditional equality bracket USE dep declared by
+% the entry as eq(ProviderC, ProviderN, UseDep), in DEPEND, RDEPEND,
+% BDEPEND metadata order. This is the static half of
+% equality_pins_from_providers/2 — the metadata does not change during a
+% proof — so it is memoised per entry while the BWU pin lookup, which
+% does change, is re-evaluated on every call.
+
+ranking:entry_equality_usedeps(Repo://Entry, EqDeps) :-
+  ( memo:entry_equality_usedeps_(Repo://Entry, Cached) ->
+      EqDeps = Cached
+  ; findall(eq(PC, PN, UseDep),
+            ( member(Key, [depend, rdepend, bdepend]),
+              cache:entry_metadata(Repo, Entry, Key, Term),
+              ranking:equality_usedep_in_term(Term, PC, PN, UseDep)
+            ),
+            EqDeps),
+    assertz(memo:entry_equality_usedeps_(Repo://Entry, EqDeps))
+  ).
+
+
+%! ranking:equality_usedep_in_term(+DepTerm, -PC, -PN, -UseDep) is nondet
+%
+% Yield each unconditional `use(equal(F),_)` / `use(inverse(F),_)` bracket
+% dep in DepTerm together with its provider (PC,PN). Descends only
+% all_of_group; choice and USE-conditional groups are skipped.
+
+ranking:equality_usedep_in_term(package_dependency(_P, _S, PC, PN, _O, _V, _Slot, UseDeps), PC, PN, UseDep) :-
+  member(UseDep, UseDeps),
+  ranking:equality_usedep(UseDep).
+ranking:equality_usedep_in_term(all_of_group(Deps), PC, PN, UseDep) :-
+  member(D, Deps),
+  ranking:equality_usedep_in_term(D, PC, PN, UseDep).
+
+
+%! ranking:equality_usedep(+UseDep) is semidet
+
+ranking:equality_usedep(use(equal(_), _)).
+ranking:equality_usedep(use(inverse(_), _)).
+
+
 %! ranking:equality_pin_from_term(+DepTerm, -Flag, -Mode) is nondet
 %
 % Yield Flag-Mode (Mode = enable|disable) for each unconditional equality
-% bracket USE dep in DepTerm whose provider is pinned in the BWU memo.
-% Descends only all_of_group; choice and USE-conditional groups are skipped.
+% bracket USE dep in DepTerm whose provider is pinned in the BWU memo:
+% the unmemoised composition of equality_usedep_in_term/4 and
+% equality_pin_from_usedep/5.
 
-ranking:equality_pin_from_term(package_dependency(_P, _S, PC, PN, _O, _V, _Slot, UseDeps), F, Mode) :-
-  member(UseDep, UseDeps),
+ranking:equality_pin_from_term(Term, F, Mode) :-
+  ranking:equality_usedep_in_term(Term, PC, PN, UseDep),
   ranking:equality_pin_from_usedep(PC, PN, UseDep, F, Mode).
-ranking:equality_pin_from_term(all_of_group(Deps), F, Mode) :-
-  member(D, Deps),
-  ranking:equality_pin_from_term(D, F, Mode).
 
 
 %! ranking:equality_pin_from_usedep(+PC, +PN, +UseDep, -Flag, -Mode) is nondet
@@ -496,9 +539,7 @@ ranking:choice_criteria([license_ok,
 
 ranking:prioritize_deps_keep_all(Deps, Context, SortedDeps) :-
   setup_call_cleanup(
-    ( empty_assoc(Empty),
-      nb_setval(ranking_choice_cache, Empty)
-    ),
+    nbstore:reset(ranking_choice_cache),
     ranking:prioritize_deps_keep_all_body(Deps, Context, SortedDeps),
     catch(nb_delete(ranking_choice_cache), _, true)
   ).
@@ -874,14 +915,12 @@ ranking:cn_is_installed(C, N) :-
 % outlive the choice group and never be invalidated.
 
 ranking:choice_cache_get(Key, Value) :-
-  nb_current(ranking_choice_cache, AVL),
-  get_assoc(Key, AVL, Value),
+  nbstore:get(ranking_choice_cache, Key, Value),
   !.
 
 ranking:choice_cache_put(Key, Value) :-
-  ( nb_current(ranking_choice_cache, AVL0)
-  -> put_assoc(Key, AVL0, Value, AVL1),
-     nb_setval(ranking_choice_cache, AVL1)
+  ( nb_current(ranking_choice_cache, _)
+  -> nbstore:put(ranking_choice_cache, Key, Value)
   ;  true
   ).
 
@@ -1060,8 +1099,7 @@ ranking:required_use_target(_, none).
 
 ranking:use_expand_target_key(Use, Key) :-
   atom(Use),
-  preference:use_expand_env(_EnvVar, Prefix),
-  atom_concat(Prefix, '_', PrefixU),
+  eapi:use_expand_underscore(_Prefix, PrefixU),
   atom_concat(PrefixU, Value, Use),
   Value \== '',
   ranking:version_key(Value, Key),
@@ -1247,9 +1285,7 @@ ranking:use_dep_use_expand_signal(use(optdisable(Flag), _), Sig) :-
 
 ranking:flag_is_use_expand(Flag) :-
   atom(Flag),
-  preference:use_expand_env(_EnvVar, Prefix),
-  atom_concat(Prefix, '_', PrefixUnderscore),
-  atom_concat(PrefixUnderscore, _, Flag),
+  eapi:use_expand_flag_prefix(Flag, _Prefix),
   !.
 
 

@@ -956,7 +956,7 @@ query:dep_model_learned(Learned) :-
 % the cache is bypassed entirely in that case.
 
 query:dep_model_variant_active :-
-  current_predicate(variant:use_override/4),
+  hook:defined(variant:use_override/4),
   ( variant:use_override(_, _, _, _) -> true ; variant:branch_prefer(_) ),
   !.
 

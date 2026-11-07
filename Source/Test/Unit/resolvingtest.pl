@@ -451,8 +451,7 @@ py_cleanup :-
   retractall(memo:entry_version_pins_(qtest://OId, _)),
   ( nb_current(py_saved_snap, Saved), Saved \== none ->
       nb_setval(memo_selected_cn_snap, Saved)
-  ; empty_assoc(Empty),
-    nb_setval(memo_selected_cn_snap, Empty)
+  ; nbstore:reset(memo_selected_cn_snap)
   ).
 
 test(newer_sibling_conflicts_with_selected_pin,

@@ -105,6 +105,9 @@ Materialized preference state is written to `Knowledge/preference.qlf` via
 :- dynamic preference:local_accepted_license/1.        % individual accepted license atoms
 :- dynamic preference:local_denied_license/1.          % individual denied license atoms (for '* -X' patterns)
 
+% Memoised ACCEPT_KEYWORDS parses, keyed by the variable's text
+:- dynamic preference:env_keywords_parsed_/2.
+
 
 % -----------------------------------------------------------------------------
 %  Initialization
@@ -387,18 +390,18 @@ preference:cached_profile_loaded :-
 % downstream build failures for packages that the user never asked for.
 
 preference:getenv(Name, Value) :-
-  ( ( current_predicate(interface:getenv/2)
+  ( ( hook:defined(interface:getenv/2)
     -> interface:getenv(Name, Value)
     ;  system:getenv(Name, Value)
     ) ->
       true
-  ; current_predicate(userconfig:env/2),
+  ; hook:defined(userconfig:env/2),
     userconfig:env(Name, Value),
     Value \== '' ->
       true
-  ; \+ ( current_predicate(config:portage_confdir/1),
+  ; \+ ( hook:defined(config:portage_confdir/1),
          config:portage_confdir(_) ),
-    current_predicate(fallback:env/2),
+    hook:defined(fallback:env/2),
     fallback:env(Name, Value),
     Value \== '' ->
       true
@@ -451,12 +454,36 @@ preference:use_expand_env(EnvVar, Prefix) :-
 %
 % Returns individual parsed ACCEPT_KEYWORDS terms as read from the
 % ACCEPT_KEYWORDS environment variable.
+%
+% The parse is a pure function of the variable's text, so it is memoised
+% per distinct value in preference:env_keywords_parsed_/2: the variable is
+% re-read on every call (a reloaded make.conf changes the key), but the
+% grammar runs once per value instead of once per call.
 
 preference:env_accept_keywords(Keyword) :-
   preference:getenv('ACCEPT_KEYWORDS',Atom),
-  atom_codes(Atom,Codes),
-  phrase(eapi:keywords(List),Codes),
-  member(Keyword,List).
+  preference:env_keywords_parsed(Atom,Keywords),
+  member(Keyword,Keywords).
+
+
+%! preference:env_keywords_parsed(+Atom, -Keywords) is det.
+%
+% Keywords is the list of every keyword term eapi:keywords//1 derives
+% from Atom, in derivation order, memoised per Atom.
+
+preference:env_keywords_parsed(Atom, Keywords) :-
+  ( preference:env_keywords_parsed_(Atom, Keywords0) ->
+      Keywords = Keywords0
+  ; atom_codes(Atom, Codes),
+    findall(Keyword,
+            ( phrase(eapi:keywords(List), Codes),
+              member(Keyword, List) ),
+            Keywords),
+    ( preference:env_keywords_parsed_(Atom, _) ->
+        true
+    ; assertz(preference:env_keywords_parsed_(Atom, Keywords))
+    )
+  ).
 
 
 %! preference:any_local_use_prefix(+Prefix) is semidet.
@@ -603,7 +630,7 @@ preference:accept_keywords(X) :-
 % (loaded into userconfig:package_keyword/2 by userconfig:load).
 
 preference:package_keyword_accepted(C, N, K) :-
-  current_predicate(userconfig:package_keyword/2),
+  hook:defined(userconfig:package_keyword/2),
   userconfig:package_keyword(Spec, RawKW),
   preference:keyword_spec_matches_cn(Spec, C, N),
   preference:raw_keyword_matches_(RawKW, K),
@@ -1555,11 +1582,13 @@ preference:entry_has_stable_keyword(Repo://Id) :-
 
 %! preference:stable_globally_masked(+Repo://Id, +Use) is semidet.
 %
-% use.stable.mask hit for a stable-keyworded entry.
+% use.stable.mask hit for a stable-keyworded entry. The indexed flag
+% lookup runs before the keyword scan: use.stable.* lists are short, so
+% most calls fail on the flag without reading the entry's KEYWORDS.
 
 preference:stable_globally_masked(Repo://Id, Use) :-
-  preference:entry_has_stable_keyword(Repo://Id),
   preference:profile_stable_masked_use_flag(Use),
+  preference:entry_has_stable_keyword(Repo://Id),
   !.
 
 
@@ -1568,10 +1597,10 @@ preference:stable_globally_masked(Repo://Id, Use) :-
 % use.stable.force hit. A global or stable mask still wins.
 
 preference:stable_globally_forced(Repo://Id, Use) :-
-  preference:entry_has_stable_keyword(Repo://Id),
   preference:profile_stable_forced_use_flag(Use),
   \+ preference:profile_masked_use_flag(Use),
   \+ preference:profile_stable_masked_use_flag(Use),
+  preference:entry_has_stable_keyword(Repo://Id),
   !.
 
 
@@ -1580,12 +1609,13 @@ preference:stable_globally_forced(Repo://Id, Use) :-
 % use.stable enable or disable for a stable-keyworded entry.
 
 preference:stable_global_use(Repo://Id, Use, State) :-
-  preference:entry_has_stable_keyword(Repo://Id),
   ( preference:profile_stable_use(Use) ->
-      State = positive
+      State0 = positive
   ; preference:profile_stable_use(minus(Use)) ->
-      State = negative
+      State0 = negative
   ),
+  preference:entry_has_stable_keyword(Repo://Id),
+  State = State0,
   !.
 
 

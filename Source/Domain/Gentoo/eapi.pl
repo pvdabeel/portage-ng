@@ -2033,6 +2033,32 @@ eapi:use_expand('xfce_plugins').
 eapi:use_expand('xtables_addons').
 
 
+%! eapi:use_expand_underscore(?Prefix, ?PrefixUnderscore) is nondet.
+%
+% PrefixUnderscore is Prefix followed by '_', for every eapi:use_expand/1
+% prefix in declaration order. Derived once at load time (and compiled
+% static) so that flag classification does not rebuild the atom on each
+% of its millions of calls per proof.
+
+:- dynamic eapi:use_expand_underscore/2.
+:- forall(eapi:use_expand(Prefix),
+          ( atom_concat(Prefix, '_', PrefixUnderscore),
+            assertz(eapi:use_expand_underscore(Prefix, PrefixUnderscore)) )).
+:- compile_predicates([eapi:use_expand_underscore/2]).
+
+
+%! eapi:use_expand_flag_prefix(+Flag, -Prefix) is nondet.
+%
+% Prefix is a USE_EXPAND prefix that Flag starts with, followed by '_'
+% (e.g. python_targets for python_targets_python3_12), enumerated in
+% eapi:use_expand/1 declaration order. The prefix test is a plain
+% sub_atom/5 comparison: no atom is created for the matched remainder.
+
+eapi:use_expand_flag_prefix(Flag, Prefix) :-
+  eapi:use_expand_underscore(Prefix, PrefixUnderscore),
+  sub_atom(Flag, 0, _, _, PrefixUnderscore).
+
+
 % -----------------------------------------------------------------------------
 %  Various helper predicates
 % -----------------------------------------------------------------------------
