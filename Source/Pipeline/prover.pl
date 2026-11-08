@@ -1014,9 +1014,9 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
         put_assoc(rule(Lit), Proof, dep(NewCount, NewBody)?NewCtx,Proof1),
         prover:add_triggers(NewFull, NewBody, Triggers, Triggers1),
 
-        setup_call_cleanup(prover:cycle_stack_push(Lit),
-                           prover:prove_recursive(DiffBody, Proof1, NewProof, Model, BodyModel, Constraints, BodyConstraints, Triggers1, NewTriggers),
-                           prover:cycle_stack_pop(Lit)),
+        prover:cycle_stack_push(Lit),
+        call_cleanup(prover:prove_recursive(DiffBody, Proof1, NewProof, Model, BodyModel, Constraints, BodyConstraints, Triggers1, NewTriggers),
+                     prover:cycle_stack_pop(Lit)),
 
         put_assoc(Lit, BodyModel, NewCtx, NewModel),
         NewConstraints = BodyConstraints
@@ -1115,9 +1115,9 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
           length(Body, DepCount),
           put_assoc(rule(Lit), Proof, dep(DepCount, Body)?Ctx, Proof1),
           prover:add_triggers(Full, Body, Triggers, Triggers1),
-          setup_call_cleanup(prover:cycle_stack_push(Lit),
-                             prover:prove_recursive(Body, Proof1, NewProof, Model, BodyModel, Constraints, BodyConstraints, Triggers1, NewTriggers),
-                             prover:cycle_stack_pop(Lit)),
+          prover:cycle_stack_push(Lit),
+          call_cleanup(prover:prove_recursive(Body, Proof1, NewProof, Model, BodyModel, Constraints, BodyConstraints, Triggers1, NewTriggers),
+                       prover:cycle_stack_pop(Lit)),
           put_assoc(Lit, BodyModel, Ctx, NewModel),
           NewConstraints = BodyConstraints
       )
@@ -1505,6 +1505,16 @@ prover:with_cycle_stack(Goal) :-
 % version.  Uses b_setval (backtrackable, O(1) reference store) instead
 % of nb_setval (non-backtrackable, O(N) deep copy) to avoid GC pressure
 % from copying the entire stack on every push.
+%
+% The push is called as a plain goal in front of call_cleanup/2, not as
+% the Setup of setup_call_cleanup/3: that Setup runs through
+% sig_atomic/1, a C-to-Prolog re-entry whose setjmp/longjmp pair saves
+% and restores the signal mask on macOS (two sigprocmask system calls,
+% each under the process-wide proc lock).  Once per proven literal on 56
+% threads that lock convoyed and cost more kernel time than the proof
+% itself (resolver:test 3m59 -> 1m34 on a 28-core Mac Pro).  Signal
+% atomicity buys nothing here: the only asynchronous signal is the
+% per-entry timeout, whose exception unwinds the backtrackable push.
 
 prover:cycle_stack_push(Lit) :-
   nb_getval(prover_cycle_stack, S0),

@@ -611,9 +611,10 @@ ranking:choice_criteria([license_ok,
 % override moves its arms to the front afterwards.
 
 ranking:prioritize_deps_keep_all(Deps, Context, SortedDeps) :-
-  setup_call_cleanup(
-    ranking:choice_cache_open,
-    ranking:prioritize_deps_keep_all_body(Deps, Context, SortedDeps),
+  call_cleanup(
+    ( ranking:choice_cache_open,
+      ranking:prioritize_deps_keep_all_body(Deps, Context, SortedDeps)
+    ),
     ranking:choice_cache_close
   ).
 
@@ -987,10 +988,13 @@ ranking:cn_is_installed(C, N) :-
 % The per-choice-group memo of prioritize_deps_keep_all/3: the
 % ranking_choice_cache nbstore keyed Kind-C-N, with Kind one of `inst`
 % (cn_is_installed/2) or `refver` (reference_highest_version/3). The
-% store exists only inside that predicate's setup_call_cleanup scope:
-% open installs an empty one, close deletes it, and a put while no store
+% store exists only inside that predicate's call_cleanup scope: open
+% installs an empty one, close deletes it, and a put while no store
 % exists is dropped rather than creating one that would outlive the
-% choice group and never be invalidated.
+% choice group and never be invalidated.  Open runs inside the protected
+% goal rather than as a setup_call_cleanup/3 Setup, which would re-enter
+% Prolog from C through sig_atomic/1 once per choice group (see
+% prover:cycle_stack_push/1 for the macOS signal-mask cost).
 
 ranking:choice_cache_open :-
   nbstore:reset(ranking_choice_cache).
