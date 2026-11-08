@@ -62,7 +62,7 @@ bindings and the two ordering strategies).
 % The availability tie-break "prefer an earlier plan step over the
 % installed world" is an if-then-else, NOT alternative clauses: pass-2
 % derivations must succeed without choicepoints so the prover's
-% cycle-stack pops (setup_call_cleanup cleanups around each rule body)
+% cycle-stack pops (prover:prove_on_cycle_stack/2 around each rule body)
 % fire eagerly. A nondet rule would defer the pops, leave completed
 % literals on the stack, and make the guard below see stale "ancestors".
 % (Pass 1 tolerates nondet rules because completed literals short-circuit

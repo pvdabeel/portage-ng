@@ -138,10 +138,8 @@ prove_lits(Lit, Proof0, Proof, Model0, Model) :-
   ; ordering:rule(Lit, Body),
     length(Body, Count),
     put_assoc(rule(Lit), Proof0, dep(Count, Body)?{}, Proof1),
-    setup_call_cleanup(
-      prover:cycle_stack_push(Lit),
-      orderer:prove_lits(Body, Proof1, Proof, Model0, BodyModel),
-      prover:cycle_stack_pop(Lit)),
+    prover:prove_on_cycle_stack(Lit,
+      orderer:prove_lits(Body, Proof1, Proof, Model0, BodyModel)),
     put_assoc(Lit, BodyModel, {}, Model)
   ).
 

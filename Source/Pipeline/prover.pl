@@ -1014,9 +1014,8 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
         put_assoc(rule(Lit), Proof, dep(NewCount, NewBody)?NewCtx,Proof1),
         prover:add_triggers(NewFull, NewBody, Triggers, Triggers1),
 
-        prover:cycle_stack_push(Lit),
-        call_cleanup(prover:prove_recursive(DiffBody, Proof1, NewProof, Model, BodyModel, Constraints, BodyConstraints, Triggers1, NewTriggers),
-                     prover:cycle_stack_pop(Lit)),
+        prover:prove_on_cycle_stack(Lit,
+          prover:prove_recursive(DiffBody, Proof1, NewProof, Model, BodyModel, Constraints, BodyConstraints, Triggers1, NewTriggers)),
 
         put_assoc(Lit, BodyModel, NewCtx, NewModel),
         NewConstraints = BodyConstraints
@@ -1115,9 +1114,8 @@ prover:prove_recursive(Full, Proof, NewProof, Model, NewModel, Constraints, NewC
           length(Body, DepCount),
           put_assoc(rule(Lit), Proof, dep(DepCount, Body)?Ctx, Proof1),
           prover:add_triggers(Full, Body, Triggers, Triggers1),
-          prover:cycle_stack_push(Lit),
-          call_cleanup(prover:prove_recursive(Body, Proof1, NewProof, Model, BodyModel, Constraints, BodyConstraints, Triggers1, NewTriggers),
-                       prover:cycle_stack_pop(Lit)),
+          prover:prove_on_cycle_stack(Lit,
+            prover:prove_recursive(Body, Proof1, NewProof, Model, BodyModel, Constraints, BodyConstraints, Triggers1, NewTriggers)),
           put_assoc(Lit, BodyModel, Ctx, NewModel),
           NewConstraints = BodyConstraints
       )
@@ -1506,15 +1504,7 @@ prover:with_cycle_stack(Goal) :-
 % of nb_setval (non-backtrackable, O(N) deep copy) to avoid GC pressure
 % from copying the entire stack on every push.
 %
-% The push is called as a plain goal in front of call_cleanup/2, not as
-% the Setup of setup_call_cleanup/3: that Setup runs through
-% sig_atomic/1, a C-to-Prolog re-entry whose setjmp/longjmp pair saves
-% and restores the signal mask on macOS (two sigprocmask system calls,
-% each under the process-wide proc lock).  Once per proven literal on 56
-% threads that lock convoyed and cost more kernel time than the proof
-% itself (resolver:test 3m59 -> 1m34 on a 28-core Mac Pro).  Signal
-% atomicity buys nothing here: the only asynchronous signal is the
-% per-entry timeout, whose exception unwinds the backtrackable push.
+% Callers do not pair push and pop by hand: prove_on_cycle_stack/2 does.
 
 prover:cycle_stack_push(Lit) :-
   nb_getval(prover_cycle_stack, S0),
@@ -1541,6 +1531,49 @@ prover:cycle_stack_pop(_) :-
   b_setval(prover_cycle_stack, Rest),
   nb_getval(prover_cycle_sets, [_|Sets]),
   b_setval(prover_cycle_sets, Sets).
+
+
+%! prover:prove_on_cycle_stack(+Lit, :Goal)
+%
+% Run Goal (the proof of Lit's rule body) with Lit on the cycle stack.
+% Lit is popped when Goal is finished: at once when Goal exits without
+% choice points, and otherwise when its last choice point is cut or
+% exhausted, so that a literal whose rule may still be retried stays
+% "currently proving" for the continuation.  Failure and exceptions need
+% no pop: the push is backtrackable and the trail undoes it.
+%
+% This is the behaviour of setup_call_cleanup(Push, Goal, Pop), which is
+% what the provers used to write here, without its two C-to-Prolog
+% re-entries per literal (sig_atomic/1 around the setup and the cleanup
+% handler).  Each re-entry is a setjmp/longjmp pair, which on macOS saves
+% and restores the signal mask: two sigprocmask system calls, each taken
+% under the process-wide proc lock.  Once per proven literal, 56 worker
+% threads convoyed on that lock and spent more time in the kernel than
+% proving (resolver:test 3m59 -> 1m32, orderer:test 6m33 -> 1m51,
+% on a 28-core Mac Pro).  Deterministic exits, the common case, now pop
+% inline; only a non-deterministic exit installs a cleanup, attached to
+% a marker choice point that is cut or exhausted together with Goal's
+% own, so the deferred pop fires at the same moment it always did.
+
+prover:prove_on_cycle_stack(Lit, Goal) :-
+  prover:cycle_stack_push(Lit),
+  prolog_current_choice(Before),
+  call(Goal),
+  prolog_current_choice(After),
+  ( After == Before ->
+      prover:cycle_stack_pop(Lit)
+  ; call_cleanup(prover:choice_point_marker, prover:cycle_stack_pop(Lit))
+  ).
+
+
+%! prover:choice_point_marker is nondet
+%
+% Succeeds once leaving a choice point, then fails.  The companion of a
+% call_cleanup/2 whose cleanup must run when an enclosing goal's choice
+% points are cut or exhausted (see prove_on_cycle_stack/2).
+
+prover:choice_point_marker.
+prover:choice_point_marker :- fail.
 
 
 %! prover:take_until(+List, +Stop, -Prefix) is semidet
