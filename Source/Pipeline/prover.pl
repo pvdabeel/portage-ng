@@ -1319,6 +1319,8 @@ prover:run_proof_obligation(Literal, Proof0, Proof, Model, Rest0, Rest) :-
 % for domain-specific action filtering.
 
 prover:obligation_candidate(Literal) :-
+  Literal \= scheduled(_),
+  Literal \= available(_, _),
   heuristic:obligation_candidate(Literal).
 
 

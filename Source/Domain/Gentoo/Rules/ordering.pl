@@ -11,7 +11,7 @@
 Order rule set (pass 2): planning laws + Gentoo bindings.
 
 The rule set the orderer stage hands the generic prover
-(`prover:prove_once(ordering, ...)`).  Two layers in one module:
+(`orderer:prove_scheduled/2`).  Two layers in one module:
 
 The *planning laws* (rule/2) are domain-generic: a step can be placed
 once everything it requires is available; a requirement is available
@@ -38,7 +38,7 @@ the pass-1 proof and the VDB (installed packages):
 No graph algorithms live here: requires/prefers are a reading of the
 pass-1 proof bodies (dependency provenance), world is a reading of the
 VDB, and the mutual-reachability classes behind same_component/2 come
-from the generic components:classes/3 (Source/Logic/components.pl). See
+from the generic components:classes_succ/3 (Source/Logic/components.pl). See
 Documentation/Handbook/13-doc-planning.md (the planning laws, the Gentoo
 bindings and the two ordering strategies).
 */
@@ -46,6 +46,7 @@ bindings and the two ordering strategies).
 :- module(ordering, []).
 
 :- use_module(library(assoc)).
+:- use_module(library(ordsets)).
 
 % =============================================================================
 %  ORDERING declarations
@@ -116,6 +117,7 @@ rule(assumed(unreachable(_, _)), []).
 
 proof(ProofAVL) :-
   nb_current(portage_ordering_proof, ProofAVL),
+  !,
   ProofAVL \== t.
 
 
@@ -370,8 +372,17 @@ prefers0(H, D) :-
 
 read_prefers0(H, Cores, D) :-
   ordering:read_order_after_step(H, Cores, D).
-
 read_prefers0(H, Cores, D) :-
+  ordering:read_prefers0_other(H, Cores, D).
+
+
+%! ordering:read_prefers0_other(+H, +Cores, -D)
+%
+% Raw preferences of H other than the `order_after` channel, which
+% `read_relations/2` already collected. Same sources as prefers0/2
+% minus that first clause.
+
+read_prefers0_other(H, Cores, D) :-
   member(Core, Cores),
   ( Core = constraint(schedule_after(Anchor0):_) ->
       prover:canon_literal(Anchor0, D, _)
@@ -384,7 +395,7 @@ read_prefers0(H, Cores, D) :-
 
 % Satisfied groups: the selected provider steps of a group the
 % installed system already satisfies (not hard, see requires/2).
-read_prefers0(H, Cores, D) :-
+read_prefers0_other(H, Cores, D) :-
   member(Core, Cores),
   ordering:satisfied_group_step(Core),
   ordering:step_cores(Core, GroupCores),
@@ -398,11 +409,12 @@ read_prefers0(H, Cores, D) :-
 % grouped_package_dependency wrappers, the anchor package itself, and
 % the PDEPEND target package itself are excluded so completion never
 % hoists a post-dependency ahead of its parent.
-read_prefers0(H, Cores, T) :-
+read_prefers0_other(H, Cores, T) :-
+  ordering:pdepend_anchor_index(Idx),
+  Idx \== t,
   \+ ordering:is_grouped_dep_step(H),
   member(Core, Cores),
   ordering:dep_anchor_key(Core, Key),
-  ordering:pdepend_anchor_index(Idx),
   get_assoc(Key, Idx, Pairs),
   member(ACore-T, Pairs),
   T \== H,
@@ -410,7 +422,7 @@ read_prefers0(H, Cores, T) :-
   \+ ordering:same_package_entry(H, T).
 
 % Configure closure (portage-ng#21).
-read_prefers0(Repository://Entry:install, _Cores, D) :-
+read_prefers0_other(Repository://Entry:install, _Cores, D) :-
   ordering:step_cores(Repository://Entry:run, RunCores),
   member(Core, RunCores),
   ordering:runtime_dep(Core),
@@ -418,13 +430,13 @@ read_prefers0(Repository://Entry:install, _Cores, D) :-
   D = Core.
 
 % Assumed-dep alias (portage-ng#95).
-read_prefers0(H, Cores, D) :-
+read_prefers0_other(H, Cores, D) :-
   member(assumed(Inner), Cores),
   prover:canon_literal(Inner, G:Action, _),
   ordering:grouped_cn(G, C, N),
+  ordering:dep_action_phase(Action, Phase),
   ordering:cn_action_index(Idx),
-  ordering:phase_action(Action, A),
-  get_assoc(cn(C-N)-A, Idx, Steps),
+  get_assoc(cn(C, N, Phase), Idx, Steps),
   member(D, Steps),
   D \== H.
 
@@ -455,10 +467,11 @@ runtime_dep(_://_:fetchonly).
 % ordering:prepare_pass/0); thread-local like the published proof itself.
 %
 %   - the component index maps every plan step to its mutual-reachability
-%     class over ordering:edge/2, so prefers/2 can tell a preference on a
-%     cycle from one between cycles (same_component/2). The classes are
-%     computed by the generic components:classes/3 (Source/Logic); this
-%     module only names the nodes and the edges;
+%     class over requires ∪ prefers0, so prefers/2 can tell a preference
+%     on a cycle from one between cycles (same_component/2). The classes
+%     are computed by the generic components:classes_succ/3
+%     (Source/Logic) from the per-step successor lists in the relation
+%     index; this module only names the nodes and the edges;
 %   - the PDEPEND anchor index maps a provider identity to the steps that
 %     carry a `constraint(order_after(Provider))` marker — i.e. the
 %     provider's PDEPEND group. Consumers of the provider look themselves
@@ -566,16 +579,20 @@ relation_of(order_after_step, relations(_, _, Ds), Ds).
 
 %! ordering:read_relations(+H, -Relations)
 %
-% Relations = relations(Requires, Prefers0, OrderAfter): the three
-% readings of H, each a list in derivation order. A literal without a
-% proof body (not a step) has no canonical literals, so the readings
-% over the body are empty for it, exactly as they were when the body
-% lookup failed.
+% Relations = relations(Requires, Prefers0, OrderAfter): Requires in
+% derivation order (duplicates kept); OrderAfter and Prefers0 sorted
+% unique, with OrderAfter collected once and reused inside Prefers0.
+% A literal without a proof body (not a step) has no canonical
+% literals, so the readings over the body are empty for it, exactly as
+% they were when the body lookup failed.
 
 read_relations(H, relations(Requires, Prefers0, OrderAfter)) :-
   ( ordering:step_cores(H, Cores) -> true ; Cores = [] ),
-  findall(D, ordering:read_order_after_step(H, Cores, D), OrderAfter),
-  findall(D, ordering:read_prefers0(H, Cores, D), Prefers0),
+  findall(D, ordering:read_order_after_step(H, Cores, D), OrderAfter0),
+  sort(OrderAfter0, OrderAfter),
+  findall(D, ordering:read_prefers0_other(H, Cores, D), PrefersOther0),
+  sort(PrefersOther0, PrefersOther),
+  ord_union(OrderAfter, PrefersOther, Prefers0),
   findall(D, ordering:read_requires(H, Cores, D), Requires).
 
 
@@ -622,8 +639,8 @@ world_fact(Key, Goal) :-
 %! ordering:component_index(-Idx)
 %
 % The component index for the current pass, built on first use: plan
-% step -> class identifier (components:classes/3 over all pass-1 proof
-% heads and ordering:edge/2).
+% step -> class identifier (components:classes_succ/3 over all pass-1
+% proof heads and the requires ∪ prefers0 successor lists).
 
 component_index(Idx) :-
   ( nb_current(portage_ordering_component_idx, Idx0), Idx0 \== none ->
@@ -634,7 +651,20 @@ component_index(Idx) :-
 
 build_component_index(Idx) :-
   ordering:proof_heads(Heads),
-  components:classes(Heads, ordering:edge, Idx).
+  ordering:relation_index(RelIdx),
+  ordering:successor_pairs(Heads, RelIdx, Pairs),
+  list_to_assoc(Pairs, SuccAVL),
+  components:classes_succ(Heads, SuccAVL, Idx).
+
+
+successor_pairs([], _, []).
+successor_pairs([H|Hs], RelIdx, [H-Ws|Pairs]) :-
+  ( get_assoc(H, RelIdx, relations(Req, Pref, _)) ->
+      append(Req, Pref, Ws0),
+      sort(Ws0, Ws)
+  ; Ws = []
+  ),
+  ordering:successor_pairs(Hs, RelIdx, Pairs).
 
 
 %! ordering:pdepend_anchor_index(-Idx)
@@ -660,12 +690,8 @@ build_pdepend_anchor_index(Idx) :-
           ),
           Pairs0),
   sort(Pairs0, Pairs),
-  empty_assoc(I0),
-  foldl(ordering:anchor_index_put, Pairs, I0, Idx).
-
-anchor_index_put(Key-T, In, Out) :-
-  ( get_assoc(Key, In, Ts) -> true ; Ts = [] ),
-  put_assoc(Key, In, [T|Ts], Out).
+  ordering:group_pairs_rev(Pairs, Grouped),
+  ord_list_to_assoc(Grouped, Idx).
 
 
 %! ordering:order_after_step(+H, -D)
@@ -694,9 +720,9 @@ read_order_after_step(H, Cores, D) :-
 
 read_order_after_step(Repository://Entry:Action, _Cores, D) :-
   ( Action == run ; ordering:merge_action(Action) ),
-  ordering:step(Repository://Entry:Action),
   ordering:entry_order_after_anchor(Repository, Entry, D),
   D \== Repository://Entry:Action,
+  ordering:step(Repository://Entry:Action),
   ordering:step(D).
 
 
@@ -749,8 +775,8 @@ build_order_after_entry_index(Idx) :-
           ),
           Pairs0),
   sort(Pairs0, Pairs),
-  empty_assoc(I0),
-  foldl(ordering:anchor_index_put, Pairs, I0, Idx).
+  ordering:group_pairs_rev(Pairs, Grouped),
+  ord_list_to_assoc(Grouped, Idx).
 
 
 %! ordering:ctx_list(+Ctx0, -Ctx)
@@ -816,7 +842,9 @@ anchor_key(ACore, entry(ACore)) :-
 %! ordering:cn_action_index(-Idx)
 %
 % The concrete-action index for the current pass, built on first use:
-% cn(Category-Name)-Action -> concrete plan steps of that package.
+% cn(Category, Name, Phase) -> concrete plan steps of that package
+% for the given dependency phase (`install` or `run`), ordered by
+% action rank so a single lookup replaces four merge-family keys.
 
 cn_action_index(Idx) :-
   ( nb_current(portage_ordering_cnaction_idx, Idx0), Idx0 \== none ->
@@ -827,31 +855,95 @@ cn_action_index(Idx) :-
 
 build_cn_action_index(Idx) :-
   ordering:proof(Proof),
-  findall((cn(C-N)-Action)-Head,
+  findall(cn(C, N, Phase)-(Rank-Head),
           ( assoc:gen_assoc(ProofKey, Proof, _),
             ( ProofKey = rule(Head) -> true ; ProofKey = assumed(rule(Head)) ),
             Head = Repository://Entry:Action,
+            ordering:action_phase_rank(Action, Phase, Rank),
             ordering:entry_cn(Repository, Entry, C, N)
           ),
           Pairs0),
   sort(Pairs0, Pairs),
-  empty_assoc(I0),
-  foldl(ordering:anchor_index_put, Pairs, I0, Idx).
+  ordering:group_cn_phase_pairs(Pairs, Grouped),
+  ord_list_to_assoc(Grouped, Idx).
+
+
+%! ordering:action_phase_rank(+Action, -Phase, -Rank) is semidet
+%
+% Maps a plan action onto the dependency phase it satisfies and a
+% rank used to keep merge-family steps in install/update/downgrade/
+% reinstall order inside a phase bucket.
+
+action_phase_rank(install,   install, 1).
+action_phase_rank(update,    install, 2).
+action_phase_rank(downgrade, install, 3).
+action_phase_rank(reinstall, install, 4).
+action_phase_rank(run,       run,     1).
+
+
+%! ordering:dep_action_phase(+Action, -Phase) is semidet
+%
+% Dependency-literal action to the cn_action_index phase key.
+
+dep_action_phase(install, install).
+dep_action_phase(run,     run).
+
+
+%! ordering:group_pairs_rev(+SortedPairs, -Grouped)
+%
+% Group consecutive Key-Val pairs into Key-Vals, prepending so the
+% last sorted value comes first — the same bucket order
+% foldl(anchor_index_put) produced.
+
+group_pairs_rev([], []).
+group_pairs_rev([K-V|Rest], [K-Vs|Groups]) :-
+  ordering:group_pairs_same_rev(Rest, K, [V], Vs, Tail),
+  ordering:group_pairs_rev(Tail, Groups).
+
+group_pairs_same_rev([K-V|Rest], K, Acc, Vs, Tail) :-
+  !,
+  ordering:group_pairs_same_rev(Rest, K, [V|Acc], Vs, Tail).
+group_pairs_same_rev(Rest, _, Vs, Vs, Rest).
+
+
+%! ordering:group_cn_phase_pairs(+SortedPairs, -Grouped)
+%
+% Group cn(C,N,Phase)-(Rank-Head) pairs. Same rank prepends (reverse
+% sorted heads); a rank change appends the next rank's heads so
+% member/2 walks install, then update, then downgrade, then reinstall.
+
+group_cn_phase_pairs([], []).
+group_cn_phase_pairs([Key-(Rank-Head)|Rest], [Key-Heads|Groups]) :-
+  ordering:group_cn_same_key(Rest, Key, Rank, [Head], Heads, Tail),
+  ordering:group_cn_phase_pairs(Tail, Groups).
+
+group_cn_same_key([Key-(Rank-Head)|Rest], Key, Rank, Acc, Heads, Tail) :-
+  !,
+  ordering:group_cn_same_key(Rest, Key, Rank, [Head|Acc], Heads, Tail).
+group_cn_same_key([Key-(Rank2-Head)|Rest], Key, _Rank1, Acc, Heads, Tail) :-
+  !,
+  ordering:group_cn_same_key(Rest, Key, Rank2, [Head], MoreHeads, Tail),
+  append(Acc, MoreHeads, Heads).
+group_cn_same_key(Rest, _Key, _Rank, Acc, Acc, Rest).
 
 
 %! ordering:entry_cn(+Repository, +Entry, -C, -N)
 %
-% Category and name of a repository entry. Prefers the KB query; falls
-% back to parsing `Category/PF` so the concrete-action index works in
-% KB-free synthetic tests (`portage://'fake/sg-1'`).
+% Category and name of a repository entry. Prefers the ordered-entry
+% cache, then the KB query; falls back to parsing `Category/PF` so the
+% concrete-action index works in KB-free synthetic tests
+% (`portage://'fake/sg-1'`).
 
 entry_cn(Repository, Entry, C, N) :-
-  catch(query:search([category(C), name(N)], Repository://Entry), _, fail),
+  ( cache:ordered_entry(Repository, Entry, C, N, _) ->
+      true
+  ; catch(query:search([category(C), name(N)], Repository://Entry), _, fail) ->
+      true
+  ; atomic(Entry),
+    atomic_list_concat([C, PF], '/', Entry),
+    eapi:packageversion(PF, N, _)
+  ),
   !.
-entry_cn(_Repository, Entry, C, N) :-
-  atomic(Entry),
-  atomic_list_concat([C, PF], '/', Entry),
-  eapi:packageversion(PF, N, _).
 
 
 %! ordering:grouped_install_planned(+Core, -D)
@@ -884,10 +976,8 @@ grouped_install_planned(Core, D) :-
   Core = G:install,
   ordering:grouped_cn(G, C, N),
   ordering:cn_action_index(Idx),
-  ordering:phase_action(install, A),
-  get_assoc(cn(C-N)-A, Idx, Steps),
+  get_assoc(cn(C, N, install), Idx, Steps),
   member(D, Steps),
-  ordering:step(D),
   ordering:grouped_slot_admits(G, D),
   ordering:grouped_alias_needed(G, C, N).
 
@@ -911,17 +1001,32 @@ ordering:grouped_deps(_, []).
 
 ordering:grouped_slot_admits(G, D) :-
   ordering:grouped_deps(G, Deps),
-  findall(S,
-          ( member(package_dependency(_, _, _, _, _, _, SlotReqs, _), Deps),
-            member(slot(S), SlotReqs)
-          ),
-          Slots),
+  ordering:deps_slots(Deps, Slots),
   ( Slots == []
   -> true
   ;  ordering:entry_slot(D, DSlot)
   -> memberchk(DSlot, Slots)
   ;  true
   ).
+
+
+%! ordering:deps_slots(+Deps, -Slots)
+%
+% Slot atoms stated in the group's package_dependency list, in
+% declaration order.
+
+deps_slots([], []).
+deps_slots([package_dependency(_, _, _, _, _, _, SlotReqs, _)|Deps], Slots) :-
+  !,
+  ordering:slot_reqs_slots(SlotReqs, Slots, Tail),
+  ordering:deps_slots(Deps, Tail).
+deps_slots([_|Deps], Slots) :-
+  ordering:deps_slots(Deps, Slots).
+
+slot_reqs_slots([], Tail, Tail).
+slot_reqs_slots([Req|Reqs], Slots, Tail) :-
+  ( Req = slot(S) -> Slots = [S|Rest] ; Slots = Rest ),
+  ordering:slot_reqs_slots(Reqs, Rest, Tail).
 
 
 %! ordering:entry_slot(+Step, -Slot)

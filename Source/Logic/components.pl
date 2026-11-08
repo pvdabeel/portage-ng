@@ -43,14 +43,30 @@ cycle (Source/Domain/Gentoo/Rules/ordering.pl, ordering:same_component/2).
 :- meta_predicate components:classes(+, 2, -).
 
 classes(Nodes, EdgeGoal, ClassAVL) :-
-  empty_assoc(E),
-  foldl(components:root(EdgeGoal), Nodes,
-        state(0, E, [], 0),
-        state(_, Visited, _, _)),
-  map_assoc(components:node_class, Visited, ClassAVL).
+  components:classes_enum(Nodes, components:edge_succs(EdgeGoal), ClassAVL).
+
+
+%! components:classes_succ(+Nodes, +SuccAVL, -ClassAVL)
+%
+% Like classes/3, but the successors of each node are the sorted list
+% stored under that node in SuccAVL (empty when the node is absent).
+% Callers that already hold an adjacency list skip the per-node
+% findall of EdgeGoal.
+
+classes_succ(Nodes, SuccAVL, ClassAVL) :-
+  components:classes_enum(Nodes, components:avl_succs(SuccAVL), ClassAVL).
 
 
 node_class(node(_Index, _Lowlink, Class), Class).
+
+
+edge_succs(EdgeGoal, V, Ws) :-
+  findall(W, call(EdgeGoal, V, W), Ws0),
+  sort(Ws0, Ws).
+
+
+avl_succs(SuccAVL, V, Ws) :-
+  ( get_assoc(V, SuccAVL, Ws) -> true ; Ws = [] ).
 
 
 % -----------------------------------------------------------------------------
@@ -59,30 +75,46 @@ node_class(node(_Index, _Lowlink, Class), Class).
 %
 % state(NextIndex, NodeAVL, Stack, NextClass).
 %
-% NodeAVL maps every visited node to its record node(Index, Lowlink,
-% Class); Class is `none` while the node is on the stack. A record is
-% inserted once, when its node is first reached, and updated in place
-% afterwards (setarg/3 on the lowlink and the class), so the walk costs
-% one AVL insertion per node rather than one per lowlink update. The walk
-% is deterministic, so the in-place updates are never undone by
+% NodeAVL is pre-allocated for every node in Nodes with Index 0 meaning
+% unvisited; discovery indexes run from 1. A record is updated in place
+% (setarg/3 on the index, the lowlink and the class), so the walk costs
+% one AVL insertion per node rather than one per lowlink update.
+% Successors outside Nodes are inserted on first reach. The walk is
+% deterministic, so the in-place updates are never undone by
 % backtracking before classes/3 reads them out. The stack holds
 % Node-Record pairs so popping a class needs no lookups.
 
-root(EdgeGoal, V, S0, S) :-
+classes_enum(Nodes, SuccGoal, ClassAVL) :-
+  sort(Nodes, Sorted),
+  components:empty_node_pairs(Sorted, Pairs),
+  list_to_assoc(Pairs, NodeAVL),
+  foldl(components:root(SuccGoal), Sorted,
+        state(1, NodeAVL, [], 0),
+        state(_, Visited, _, _)),
+  map_assoc(components:node_class, Visited, ClassAVL).
+
+
+empty_node_pairs([], []).
+empty_node_pairs([V|Vs], [V-node(0, 0, none)|Pairs]) :-
+  components:empty_node_pairs(Vs, Pairs).
+
+
+root(SuccGoal, V, S0, S) :-
   S0 = state(_, Nodes, _, _),
-  ( get_assoc(V, Nodes, _) -> S = S0
-  ; components:connect(EdgeGoal, V, S0, S, _)
+  get_assoc(V, Nodes, Record),
+  ( arg(1, Record, 0) ->
+      components:connect(SuccGoal, V, Record, S0, S)
+  ; S = S0
   ).
 
 
-connect(EdgeGoal, V, state(N0, Nodes0, Stack0, K0), S, Record) :-
+connect(SuccGoal, V, Record, state(N0, Nodes0, Stack0, K0), S) :-
   N1 is N0 + 1,
-  Record = node(N0, N0, none),
-  put_assoc(V, Nodes0, Record, Nodes1),
-  findall(W, call(EdgeGoal, V, W), Ws0),
-  sort(Ws0, Ws),
-  foldl(components:successor(EdgeGoal, Record), Ws,
-        state(N1, Nodes1, [V-Record|Stack0], K0),
+  setarg(1, Record, N0),
+  setarg(2, Record, N0),
+  call(SuccGoal, V, Ws),
+  foldl(components:successor(SuccGoal, Record), Ws,
+        state(N1, Nodes0, [V-Record|Stack0], K0),
         S1),
   S1 = state(N2, Nodes2, Stack2, K2),
   arg(2, Record, LowV),
@@ -94,19 +126,28 @@ connect(EdgeGoal, V, state(N0, Nodes0, Stack0, K0), S, Record) :-
   ).
 
 
-successor(EdgeGoal, VRecord, W, S0, S) :-
-  S0 = state(_, Nodes, _, _),
-  ( get_assoc(W, Nodes, WRecord) ->
-      ( arg(3, WRecord, none) ->
+successor(SuccGoal, VRecord, W, S0, S) :-
+  S0 = state(_, Nodes0, _, _),
+  ( get_assoc(W, Nodes0, WRecord) ->
+      ( arg(1, WRecord, 0) ->
+          % Pre-allocated, still unvisited: tree edge.
+          components:connect(SuccGoal, W, WRecord, S0, S),
+          arg(2, WRecord, LowW),
+          components:lower(VRecord, LowW)
+      ; arg(3, WRecord, none) ->
           % Back edge to a node still on the stack: take its index.
           arg(1, WRecord, IdxW),
-          components:lower(VRecord, IdxW)
+          components:lower(VRecord, IdxW),
+          S = S0
       ; % Cross edge to a completed class: no information.
-        true
-      ),
-      S = S0
-  ; % Tree edge: recurse, then inherit W's lowlink.
-    components:connect(EdgeGoal, W, S0, S, WRecord),
+        S = S0
+      )
+  ; % Successor outside Nodes: insert, then recurse.
+    WRecord = node(0, 0, none),
+    S0 = state(N0, Nodes0, Stack0, K0),
+    put_assoc(W, Nodes0, WRecord, Nodes1),
+    components:connect(SuccGoal, W, WRecord,
+                       state(N0, Nodes1, Stack0, K0), S),
     arg(2, WRecord, LowW),
     components:lower(VRecord, LowW)
   ).
