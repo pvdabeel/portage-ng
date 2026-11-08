@@ -379,22 +379,62 @@ use:process_bwu_directive(_ParentContext, _Other, State, State) :- !.
 % the candidate's current effective state.  Each element of Changes
 % is `use_change(Flag, enable)` or `use_change(Flag, disable)`.
 % Empty list if no changes are needed.
+%
+% The candidate's IUSE set is fetched once and the flags it does not
+% declare are dropped first; the effective USE set is computed only when
+% a declared flag remains, as the per-flag tests did.
 
 use:build_with_use_changes(use_state([], []), _, []) :- !.
 use:build_with_use_changes(use_state(Enable, Disable), Repo://Entry, Changes) :-
-    findall(use_change(F, enable),
-            ( member(F, Enable),
-              use:candidate_iuse_present(Repo://Entry, F),
-              \+ use:candidate_effective_use_enabled_in_iuse(Repo://Entry, F)
-            ),
-            EnableChanges),
-    findall(use_change(F, disable),
-            ( member(F, Disable),
-              use:candidate_iuse_present(Repo://Entry, F),
-              use:candidate_effective_use_enabled_in_iuse(Repo://Entry, F)
-            ),
-            DisableChanges),
-    append(EnableChanges, DisableChanges, Changes).
+  use:entry_iuse_info(Repo://Entry, iuse_info(IuseSet, _PlusSet)),
+  use:flags_in_iuse(Enable, IuseSet, Enable1),
+  use:flags_in_iuse(Disable, IuseSet, Disable1),
+  ( Enable1 == [], Disable1 == [] ->
+      Changes = []
+  ; use:entry_effective_use_set(Repo://Entry, EnabledSet),
+    use:bwu_enable_changes(Enable1, EnabledSet, Changes, DisableChanges),
+    use:bwu_disable_changes(Disable1, EnabledSet, DisableChanges)
+  ).
+
+
+%! use:flags_in_iuse(+Flags, +IuseSet, -Declared) is det.
+%
+% The flags of Flags that IuseSet declares, in order.
+
+use:flags_in_iuse([], _IuseSet, []).
+use:flags_in_iuse([F|Fs], IuseSet, Declared) :-
+  ( memberchk(F, IuseSet) ->
+      Declared = [F|Declared1]
+  ; Declared = Declared1
+  ),
+  use:flags_in_iuse(Fs, IuseSet, Declared1).
+
+
+%! use:bwu_enable_changes(+Flags, +EnabledSet, -Changes, ?Tail) is det.
+%
+% `use_change(F, enable)` for every flag of Flags not in EnabledSet,
+% as a difference list closed by Tail.
+
+use:bwu_enable_changes([], _EnabledSet, Tail, Tail).
+use:bwu_enable_changes([F|Fs], EnabledSet, Changes, Tail) :-
+  ( memberchk(F, EnabledSet) ->
+      Changes = Changes1
+  ; Changes = [use_change(F, enable)|Changes1]
+  ),
+  use:bwu_enable_changes(Fs, EnabledSet, Changes1, Tail).
+
+
+%! use:bwu_disable_changes(+Flags, +EnabledSet, -Changes) is det.
+%
+% `use_change(F, disable)` for every flag of Flags in EnabledSet.
+
+use:bwu_disable_changes([], _EnabledSet, []).
+use:bwu_disable_changes([F|Fs], EnabledSet, Changes) :-
+  ( memberchk(F, EnabledSet) ->
+      Changes = [use_change(F, disable)|Changes1]
+  ; Changes = Changes1
+  ),
+  use:bwu_disable_changes(Fs, EnabledSet, Changes1).
 
 
 %! use:model_required_use_changes(+ModelKeys, -Changes)
@@ -501,19 +541,21 @@ use:required_use_group_excess_flags(Deps, Flag) :-
 %
 % True if Use is positively assumed in Context -- either via an explicit
 % `assumed(Use)` term or via the enable set of a `build_with_use` state.
+% One walk over the list; the `build_with_use` item (at most one per
+% context) is inspected where it occurs.
 
-use:assumed(Ctx, Use) :-
-  memberchk(assumed(Use), Ctx),
-  !.
-use:assumed(Ctx, Use) :-
-  memberchk(build_with_use:BU, Ctx),
-  BU = use_state(En, _Dis),
-  memberchk(Use, En),
-  !.
-use:assumed(Ctx, Use) :-
-  memberchk(build_with_use:BU, Ctx),
-  is_list(BU),
-  memberchk(assumed(Use), BU),
+use:assumed([H|T], Use) :-
+  ( H = (build_with_use:BU) ->
+      ( BU = use_state(En, _Dis) ->
+          ( memberchk(Use, En) -> true ; use:assumed(T, Use) )
+      ; is_list(BU), memberchk(assumed(Use), BU) ->
+          true
+      ; use:assumed(T, Use)
+      )
+  ; H = assumed(Use) ->
+      true
+  ; use:assumed(T, Use)
+  ),
   !.
 
 %! use:assumed_minus(+Context, +Use)
@@ -521,19 +563,52 @@ use:assumed(Ctx, Use) :-
 % True if Use is negatively assumed in Context -- either via an explicit
 % `assumed(minus(Use))` term or via the disable set of a `build_with_use`.
 
-use:assumed_minus(Ctx, Use) :-
-  memberchk(assumed(minus(Use)), Ctx),
+use:assumed_minus([H|T], Use) :-
+  ( H = (build_with_use:BU) ->
+      ( BU = use_state(_En, Dis) ->
+          ( memberchk(Use, Dis) -> true ; use:assumed_minus(T, Use) )
+      ; is_list(BU), memberchk(assumed(minus(Use)), BU) ->
+          true
+      ; use:assumed_minus(T, Use)
+      )
+  ; H = assumed(minus(Use)) ->
+      true
+  ; use:assumed_minus(T, Use)
+  ),
   !.
-use:assumed_minus(Ctx, Use) :-
-  memberchk(build_with_use:BU, Ctx),
-  BU = use_state(_En, Dis),
-  memberchk(Use, Dis),
-  !.
-use:assumed_minus(Ctx, Use) :-
-  memberchk(build_with_use:BU, Ctx),
-  is_list(BU),
-  memberchk(assumed(minus(Use)), BU),
-  !.
+
+%! use:context_use_assumptions(+Context, +Use, -Pos, -Neg, -Self)
+%
+% The three facts about Use that use_dep_requirement/4 reads from a
+% ?{Context} list, gathered in one walk: Pos is `yes` when assumed/2
+% would hold, Neg is `yes` when assumed_minus/2 would hold (`no`
+% otherwise), and Self is the first `self(RepoEntry)` item (unbound when
+% there is none).  Pos and Neg are unbound while the walk runs and
+% closed to `no` at the end.
+
+use:context_use_assumptions([], _Use, Pos, Neg, _Self) :-
+  ( var(Pos) -> Pos = no ; true ),
+  ( var(Neg) -> Neg = no ; true ).
+use:context_use_assumptions([H|T], Use, Pos, Neg, Self) :-
+  ( H = self(S) ->
+      ( var(Self) -> Self = S ; true )
+  ; H = (build_with_use:BU) ->
+      ( BU = use_state(En, Dis) ->
+          ( memberchk(Use, En)  -> Pos = yes ; true ),
+          ( memberchk(Use, Dis) -> Neg = yes ; true )
+      ; is_list(BU) ->
+          ( memberchk(assumed(Use), BU)        -> Pos = yes ; true ),
+          ( memberchk(assumed(minus(Use)), BU) -> Neg = yes ; true )
+      ; true
+      )
+  ; H = assumed(A) ->
+      ( A == Use -> Pos = yes
+      ; A = minus(M), M == Use -> Neg = yes
+      ; true
+      )
+  ; true
+  ),
+  use:context_use_assumptions(T, Use, Pos, Neg, Self).
 
 
 % -----------------------------------------------------------------------------
@@ -548,8 +623,14 @@ use:assumed_minus(Ctx, Use) :-
 % Results are memoized in memo:self_use_cache_/4.
 
 use:self_context_use_state(Ctx, Use, State) :-
-  memberchk(self(RepoEntry0), Ctx),
-  RepoEntry0 = Repo://Id,
+  memberchk(self(RepoEntry), Ctx),
+  use:self_context_use_state_entry(RepoEntry, Use, State).
+
+%! use:self_context_use_state_entry(+RepoEntry, +Use, -State)
+%
+% self_context_use_state/3 for an already extracted self entry.
+
+use:self_context_use_state_entry(Repo://Id, Use, State) :-
   ( memo:self_use_cache_(Repo, Id, Use, Cached) ->
       Cached \== miss,
       State = Cached
@@ -619,65 +700,77 @@ use:self_context_use_state_compute_(Repo, Id, Use, State) :-
 % a USE change onto the provider that emerge never asks for
 % (portage-ng#121); the symmetric case turned `[!F?]` into a spurious
 % `-F`.
+%
+% The consumer-gated forms read the ?{Context} list once
+% (context_use_assumptions/5): a positive assumption is consulted before
+% a negative one, then the consumer's effective USE (`=` forms) or its
+% own IUSE state (`?` forms), then the bracket default.
 
 use:use_dep_requirement(_Ctx, enable(Use), Default, requirement(enable, Use, Default)) :- !.
 use:use_dep_requirement(_Ctx, disable(Use), Default, requirement(disable, Use, Default)) :- !.
 
-use:use_dep_requirement(Ctx, equal(Use), Default, requirement(enable, Use, Default)) :-
-  use:assumed(Ctx, Use), !.
-use:use_dep_requirement(Ctx, equal(Use), Default, requirement(disable, Use, Default)) :-
-  use:assumed_minus(Ctx, Use), !.
-use:use_dep_requirement(Ctx, equal(Use), Default, requirement(enable, Use, Default)) :-
-  use:effective_use_in_context(Ctx, Use, positive), !.
-use:use_dep_requirement(Ctx, equal(Use), Default, requirement(disable, Use, Default)) :-
-  use:effective_use_in_context(Ctx, Use, negative), !.
-use:use_dep_requirement(_Ctx, equal(Use), Default, Requirement) :-
-  ( Default == positive -> Requirement = requirement(enable, Use, Default)
+use:use_dep_requirement(Ctx, equal(Use), Default, Requirement) :-
+  !,
+  use:consumer_use_state(Ctx, Use, Pos, Neg, Self),
+  ( Pos == yes -> Requirement = requirement(enable, Use, Default)
+  ; Neg == yes -> Requirement = requirement(disable, Use, Default)
+  ; nonvar(Self), use:effective_use_for_entry(Self, Use, Eff), Eff == positive ->
+      Requirement = requirement(enable, Use, Default)
+  ; nonvar(Self), use:effective_use_for_entry(Self, Use, Eff), Eff == negative ->
+      Requirement = requirement(disable, Use, Default)
+  ; Default == positive -> Requirement = requirement(enable, Use, Default)
   ; Default == negative -> Requirement = requirement(disable, Use, Default)
   ; Requirement = none
-  ),
-  !.
+  ).
 
-use:use_dep_requirement(Ctx, inverse(Use), Default, requirement(disable, Use, Default)) :-
-  use:assumed(Ctx, Use), !.
-use:use_dep_requirement(Ctx, inverse(Use), Default, requirement(enable, Use, Default)) :-
-  use:assumed_minus(Ctx, Use), !.
-use:use_dep_requirement(Ctx, inverse(Use), Default, requirement(disable, Use, Default)) :-
-  use:effective_use_in_context(Ctx, Use, positive), !.
-use:use_dep_requirement(Ctx, inverse(Use), Default, requirement(enable, Use, Default)) :-
-  use:effective_use_in_context(Ctx, Use, negative), !.
-use:use_dep_requirement(_Ctx, inverse(Use), Default, Requirement) :-
-  ( Default == positive -> Requirement = requirement(disable, Use, Default)
+use:use_dep_requirement(Ctx, inverse(Use), Default, Requirement) :-
+  !,
+  use:consumer_use_state(Ctx, Use, Pos, Neg, Self),
+  ( Pos == yes -> Requirement = requirement(disable, Use, Default)
+  ; Neg == yes -> Requirement = requirement(enable, Use, Default)
+  ; nonvar(Self), use:effective_use_for_entry(Self, Use, Eff), Eff == positive ->
+      Requirement = requirement(disable, Use, Default)
+  ; nonvar(Self), use:effective_use_for_entry(Self, Use, Eff), Eff == negative ->
+      Requirement = requirement(enable, Use, Default)
+  ; Default == positive -> Requirement = requirement(disable, Use, Default)
   ; Default == negative -> Requirement = requirement(enable, Use, Default)
   ; Requirement = none
-  ),
-  !.
+  ).
 
-use:use_dep_requirement(Ctx, optenable(Use), Default, requirement(enable, Use, Default)) :-
-  use:assumed(Ctx, Use), !.
-use:use_dep_requirement(Ctx, optenable(Use), _Default, none) :-
-  use:assumed_minus(Ctx, Use), !.
-use:use_dep_requirement(Ctx, optenable(Use), Default, requirement(enable, Use, Default)) :-
-  ( use:self_context_use_state(Ctx, Use, positive)
-  ; \+ memberchk(self(_), Ctx),
-    use:effective_use_in_context(Ctx, Use, positive)
-  ),
-  !.
-use:use_dep_requirement(_Ctx, optenable(_Use), _Default, none) :- !.
+use:use_dep_requirement(Ctx, optenable(Use), Default, Requirement) :-
+  !,
+  use:consumer_use_state(Ctx, Use, Pos, Neg, Self),
+  ( Pos == yes -> Requirement = requirement(enable, Use, Default)
+  ; Neg == yes -> Requirement = none
+  ; nonvar(Self), use:self_context_use_state_entry(Self, Use, positive) ->
+      Requirement = requirement(enable, Use, Default)
+  ; Requirement = none
+  ).
 
-use:use_dep_requirement(Ctx, optdisable(Use), Default, requirement(disable, Use, Default)) :-
-  use:assumed_minus(Ctx, Use), !.
-use:use_dep_requirement(Ctx, optdisable(Use), _Default, none) :-
-  use:assumed(Ctx, Use), !.
-use:use_dep_requirement(Ctx, optdisable(Use), Default, requirement(disable, Use, Default)) :-
-  ( use:self_context_use_state(Ctx, Use, negative)
-  ; \+ memberchk(self(_), Ctx),
-    use:effective_use_in_context(Ctx, Use, negative)
-  ),
-  !.
-use:use_dep_requirement(_Ctx, optdisable(_Use), _Default, none) :- !.
+use:use_dep_requirement(Ctx, optdisable(Use), Default, Requirement) :-
+  !,
+  use:consumer_use_state(Ctx, Use, Pos, Neg, Self),
+  ( Neg == yes -> Requirement = requirement(disable, Use, Default)
+  ; Pos == yes -> Requirement = none
+  ; nonvar(Self), use:self_context_use_state_entry(Self, Use, negative) ->
+      Requirement = requirement(disable, Use, Default)
+  ; Requirement = none
+  ).
 
 use:use_dep_requirement(_Ctx, _Directive, _Default, none).
+
+
+%! use:consumer_use_state(+Context, +Use, -Pos, -Neg, -Self)
+%
+% context_use_assumptions/5 on a ?{Context} list; a non-list context
+% (`{}`) carries no assumptions and no self entry.
+
+use:consumer_use_state(Ctx, Use, Pos, Neg, Self) :-
+  ( is_list(Ctx) ->
+      use:context_use_assumptions(Ctx, Use, Pos, Neg, Self)
+  ; Pos = no,
+    Neg = no
+  ).
 
 
 % -----------------------------------------------------------------------------

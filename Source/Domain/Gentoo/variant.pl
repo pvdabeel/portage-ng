@@ -380,8 +380,17 @@ variant:branch_label(GroupType, Chosen, Alt, Label) :-
 % A use_flip override is keyed on the Category/Name of the pivot's
 % Repo://Entry so it applies to that package only (any version the
 % resolver ends up selecting), never to dependencies sharing the flag.
+%
+% The memo caches that read effective USE (memo:clear_variant_caches/0)
+% are dropped before the override is installed: while the knowledge is
+% pinned they outlive a proof, and an entry resolved under the previous
+% USE reading must not be reused under this one.
 
-variant:apply(variant(use_flip, Repo://Entry, Flag, NewState, _Label)) :-
+variant:apply(Spec) :-
+  memo:clear_variant_caches,
+  variant:install_override(Spec).
+
+variant:install_override(variant(use_flip, Repo://Entry, Flag, NewState, _Label)) :-
   !,
   cache:ordered_entry(Repo, Entry, Category, Name, _),
   ( NewState == positive
@@ -389,20 +398,22 @@ variant:apply(variant(use_flip, Repo://Entry, Flag, NewState, _Label)) :-
   ;  assertz(variant:use_override(Category, Name, Flag, negative))
   ).
 
-variant:apply(variant(branch_alt, _None, AltDep, _None2, _Label)) :-
+variant:install_override(variant(branch_alt, _None, AltDep, _None2, _Label)) :-
   !,
   assertz(variant:branch_prefer(AltDep)).
 
-variant:apply(_).
+variant:install_override(_).
 
 
 %! variant:cleanup is det.
 %
-% Retracts all thread-local variant overrides.
+% Retracts all thread-local variant overrides, and the memo caches that
+% were filled under them (see variant:apply/1).
 
 variant:cleanup :-
   retractall(variant:use_override(_, _, _, _)),
-  retractall(variant:branch_prefer(_)).
+  retractall(variant:branch_prefer(_)),
+  memo:clear_variant_caches.
 
 
 % -----------------------------------------------------------------------------

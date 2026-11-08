@@ -440,14 +440,23 @@ heuristic:restart_drop_constraint(scope(_Entries, CNs), selected_cn(C, N)) :-
 % Domain-specific constraint merge for `cn_domain(C,N,Slot)` keys:
 % normalises the incoming version domain and intersects it with any
 % existing domain via `version_domain:domain_meet/3`.  Per-slot keys
-% prevent cross-slot domain collisions for multi-slot packages.
+% prevent cross-slot domain collisions for multi-slot packages.  A delta
+% that does not narrow the stored domain returns the store unchanged
+% (see constraint:unify_constraints/3); re-asserting a consistent domain
+% is the meet of that domain with itself, so it skips the meet.
 
 heuristic:constraint_unify_hook(cn_domain(C,N,Slot), DomainDelta0, Constraints, NewConstraints) :-
   !,
   version_domain:domain_normalize(DomainDelta0, DomainDelta),
-  ( get_assoc(cn_domain(C,N,Slot), Constraints, CurrentDomain, Constraints1, CurrentDomain) ->
-      ( version_domain:domain_meet(CurrentDomain, DomainDelta, MergedDomain) ->
-          put_assoc(cn_domain(C,N,Slot), Constraints1, MergedDomain, NewConstraints)
+  ( get_assoc(cn_domain(C,N,Slot), Constraints, CurrentDomain) ->
+      ( CurrentDomain == DomainDelta,
+        \+ version_domain:domain_inconsistent(CurrentDomain) ->
+          NewConstraints = Constraints
+      ; version_domain:domain_meet(CurrentDomain, DomainDelta, MergedDomain) ->
+          ( MergedDomain == CurrentDomain ->
+              NewConstraints = Constraints
+          ; put_assoc(cn_domain(C,N,Slot), Constraints, MergedDomain, NewConstraints)
+          )
       ; ( \+ memo:slot_conflict_(C, N, _) ->
             assertz(memo:slot_conflict_(C, N,
                         domain_conflict(CurrentDomain, DomainDelta)))
@@ -565,9 +574,34 @@ heuristic:ctx_sem_key({}, key([], none)) :- !.
 heuristic:ctx_sem_key(Ctx, key(RU, BWU)) :-
   is_list(Ctx),
   !,
-  ( memberchk(required_use:RU0, Ctx) -> RU = RU0 ; RU = [] ),
-  ( memberchk(build_with_use:BWU0, Ctx) -> BWU = BWU0 ; BWU = none ).
+  heuristic:ctx_sem_key_scan(Ctx, '$unset', '$unset', RU, BWU).
 heuristic:ctx_sem_key(_Other, key([], none)).
+
+
+%! heuristic:ctx_sem_key_scan(+Ctx, +RU0, +BWU0, -RU, -BWU) is det.
+%
+% One walk over the ?{Context} list: RU is the first `required_use:_`
+% value (default `[]`) and BWU the first `build_with_use:_` value
+% (default `none`).  RU0 / BWU0 hold the values found so far, `'$unset'`
+% until the first occurrence; the walk stops as soon as both are set, and
+% a later duplicate is ignored exactly as memberchk/2 would ignore it.
+% The outputs are unified only at the end so the predicate also works
+% as a check when the caller passes a bound key (ctx_equivalent/2).
+
+heuristic:ctx_sem_key_scan([], RU0, BWU0, RU, BWU) :-
+  ( RU0 == '$unset' -> RU = [] ; RU = RU0 ),
+  ( BWU0 == '$unset' -> BWU = none ; BWU = BWU0 ).
+heuristic:ctx_sem_key_scan([H|T], RU0, BWU0, RU, BWU) :-
+  ( H = (required_use:R), RU0 == '$unset' ->
+      RU1 = R, BWU1 = BWU0
+  ; H = (build_with_use:B), BWU0 == '$unset' ->
+      RU1 = RU0, BWU1 = B
+  ; RU1 = RU0, BWU1 = BWU0
+  ),
+  ( RU1 \== '$unset', BWU1 \== '$unset' ->
+      RU = RU1, BWU = BWU1
+  ; heuristic:ctx_sem_key_scan(T, RU1, BWU1, RU, BWU)
+  ).
 
 
 %! heuristic:should_union_ctx(+Lit) is semidet.

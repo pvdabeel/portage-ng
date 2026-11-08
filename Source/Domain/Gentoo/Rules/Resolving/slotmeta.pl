@@ -333,9 +333,12 @@ slotmeta:multiple_distinct_exactish_versions(Deps) :-
 %! slotmeta:should_split_grouped_dep(+PackageDeps)
 %
 % True if the grouped dependency should be split into per-slot or
-% per-version sub-groups for independent resolution.
+% per-version sub-groups for independent resolution.  A group of fewer
+% than two deps has nothing to split (and most groups are singletons),
+% so the head only matches two or more.
 
 slotmeta:should_split_grouped_dep(PackageDeps) :-
+  PackageDeps = [_, _|_],
   ( all_deps_have_explicit_slot(PackageDeps),
     multiple_distinct_slots(PackageDeps)
   ; all_deps_exactish_versioned(PackageDeps),

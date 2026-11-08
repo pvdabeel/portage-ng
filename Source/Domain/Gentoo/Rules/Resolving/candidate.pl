@@ -260,18 +260,21 @@ candidate:augment_package_deps_with_self_rdepend(install, C, N, Context, Package
   ( dep_has_version_constraints(C, N, PackageDeps0) ->
       PackageDeps = PackageDeps0
   ; self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra0),
-    ( slotmeta:merge_slot_restriction(install, C, N, PackageDeps0, BaseSlotReq) ->
-        true
-    ; BaseSlotReq = []
-    ),
-    findall(ExtraDep,
-            ( member(ExtraDep, Extra0),
-              self_rdepend_extra_slot_compatible(BaseSlotReq, ExtraDep)
-            ),
-            Extra),
-    ( Extra == [] ->
+    ( Extra0 == [] ->
         PackageDeps = PackageDeps0
-    ; append(PackageDeps0, Extra, PackageDeps)
+    ; ( slotmeta:merge_slot_restriction(install, C, N, PackageDeps0, BaseSlotReq) ->
+          true
+      ; BaseSlotReq = []
+      ),
+      findall(ExtraDep,
+              ( member(ExtraDep, Extra0),
+                self_rdepend_extra_slot_compatible(BaseSlotReq, ExtraDep)
+              ),
+              Extra),
+      ( Extra == [] ->
+          PackageDeps = PackageDeps0
+      ; append(PackageDeps0, Extra, PackageDeps)
+      )
     )
   ),
   !.
@@ -304,63 +307,102 @@ candidate:self_rdepend_extra_slot_compatible(_BaseSlotReq, _ExtraDep) :-
 %! candidate:self_rdepend_vbounds_for_cn(+Repo, +SelfId, +C, +N, -Extra)
 %
 % Returns version-bound deps from the parent's RDEPEND on (C,N), with
-% memoization via memo:rdepend_vbounds_cache_/5.
+% memoization via memo:rdepend_vbounds_cache_/5.  The parent's RDEPEND
+% is walked once (collect_self_rdepend_vbounds/2): the first child dep
+% asked about stores the bounds for every (C,N) the RDEPEND mentions and
+% marks the parent walked (memo:rdepend_vbounds_walked_/2), so a parent
+% with K children costs one walk instead of K.
 
 candidate:self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra) :-
   ( memo:rdepend_vbounds_cache_(Repo, SelfId, C, N, Extra0) ->
-    Extra = Extra0
-  ;
-    build_self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra1),
-    assertz(memo:rdepend_vbounds_cache_(Repo, SelfId, C, N, Extra1)),
-    Extra = Extra1
+      Extra = Extra0
+  ; memo:rdepend_vbounds_walked_(Repo, SelfId) ->
+      Extra = []
+  ; collect_self_rdepend_vbounds(Repo, SelfId),
+    ( memo:rdepend_vbounds_cache_(Repo, SelfId, C, N, Extra1) ->
+        Extra = Extra1
+    ; Extra = []
+    )
   ),
   !.
 
-candidate:build_self_rdepend_vbounds_for_cn(Repo, SelfId, C, N, Extra) :-
+%! candidate:collect_self_rdepend_vbounds(+Repo, +SelfId) is det.
+%
+% Collects the version-bounded deps of the parent's RDEPEND for every
+% (C,N) at once and stores one memo:rdepend_vbounds_cache_/5 fact per
+% (C,N) (sorted bounds, as the per-CN collection produced them), then
+% marks the parent walked.
+
+candidate:collect_self_rdepend_vbounds(Repo, SelfId) :-
   SelfRepoEntry = Repo://SelfId,
-  findall(Term, cache:entry_metadata(Repo, SelfId, rdepend, Term), Terms),
   findall(Dep,
-          ( member(Term, Terms),
-            rdepend_collect_vbounds_for_cn(Term, C, N, SelfRepoEntry, Deps0),
+          ( cache:entry_metadata(Repo, SelfId, rdepend, Term),
+            rdepend_collect_vbounds(Term, SelfRepoEntry, Deps0),
             member(Dep, Deps0)
           ),
-          Extra0),
-  sort(Extra0, Extra),
-  !.
+          Bounds0),
+  sort(Bounds0, Bounds),
+  store_rdepend_vbounds(Bounds, Repo, SelfId),
+  assertz(memo:rdepend_vbounds_walked_(Repo, SelfId)).
 
-candidate:rdepend_collect_vbounds_for_cn(package_dependency(_P, no, C, N, Op, V, SlotReq, _UseDeps),
-                                C, N, _SelfRepoEntry,
-                                [package_dependency(run, no, C, N, Op, V, SlotReq, [])]) :-
+%! candidate:store_rdepend_vbounds(+Bounds, +Repo, +SelfId) is det.
+%
+% Bounds is sorted, so the deps on one (C,N) are consecutive: each run
+% becomes one cache fact.
+
+candidate:store_rdepend_vbounds([], _Repo, _SelfId).
+candidate:store_rdepend_vbounds([First|Rest], Repo, SelfId) :-
+  First = package_dependency(run, no, C, N, _, _, _, []),
+  take_same_cn_vbounds(Rest, C, N, Same, Remaining),
+  assertz(memo:rdepend_vbounds_cache_(Repo, SelfId, C, N, [First|Same])),
+  store_rdepend_vbounds(Remaining, Repo, SelfId).
+
+candidate:take_same_cn_vbounds([D|Rest], C, N, [D|Same], Remaining) :-
+  D = package_dependency(run, no, C, N, _, _, _, []),
+  !,
+  take_same_cn_vbounds(Rest, C, N, Same, Remaining).
+candidate:take_same_cn_vbounds(Remaining, _C, _N, [], Remaining).
+
+%! candidate:rdepend_collect_vbounds(+Term, +SelfRepoEntry, -Deps) is det.
+%
+% The version-bounded package deps of one RDEPEND term, as
+% `package_dependency(run, no, C, N, Op, V, SlotReq, [])`: USE
+% conditionals are followed when active for the parent, choice groups
+% contribute the bounds common to all their arms.
+
+candidate:rdepend_collect_vbounds(package_dependency(_P, no, C, N, Op, V, SlotReq, _UseDeps),
+                                  _SelfRepoEntry,
+                                  [package_dependency(run, no, C, N, Op, V, SlotReq, [])]) :-
   Op \== none,
   !.
-candidate:rdepend_collect_vbounds_for_cn(package_dependency(_P, _Strength, _C, _N, _Op, _V, _SlotReq, _UseDeps),
-                                _C0, _N0, _SelfRepoEntry, []) :-
+candidate:rdepend_collect_vbounds(package_dependency(_P, _Strength, _C, _N, _Op, _V, _SlotReq, _UseDeps),
+                                  _SelfRepoEntry, []) :-
   !.
-candidate:rdepend_collect_vbounds_for_cn(use_conditional_group(Pol, Use, _Self, Deps0), C, N, SelfRepoEntry, Deps) :-
+candidate:rdepend_collect_vbounds(use_conditional_group(Pol, Use, _Self, Deps0), SelfRepoEntry, Deps) :-
   !,
   ( rdepend_self_use_conditional_active(Pol, Use, SelfRepoEntry) ->
-      rdepend_collect_vbounds_for_cn_list(Deps0, C, N, SelfRepoEntry, Deps)
+      rdepend_collect_vbounds_list(Deps0, SelfRepoEntry, Deps)
   ; Deps = []
   ).
-candidate:rdepend_collect_vbounds_for_cn(any_of_group(Deps0), C, N, SelfRepoEntry, Deps) :-
+candidate:rdepend_collect_vbounds(any_of_group(Deps0), SelfRepoEntry, Deps) :-
   !,
-  rdepend_collect_vbounds_for_cn_choice_intersection(Deps0, C, N, SelfRepoEntry, Deps).
-candidate:rdepend_collect_vbounds_for_cn(all_of_group(Deps0), C, N, SelfRepoEntry, Deps) :-
+  rdepend_collect_vbounds_choice_intersection(Deps0, SelfRepoEntry, Deps).
+candidate:rdepend_collect_vbounds(all_of_group(Deps0), SelfRepoEntry, Deps) :-
   !,
-  rdepend_collect_vbounds_for_cn_list(Deps0, C, N, SelfRepoEntry, Deps).
-candidate:rdepend_collect_vbounds_for_cn(exactly_one_of_group(Deps0), C, N, SelfRepoEntry, Deps) :-
+  rdepend_collect_vbounds_list(Deps0, SelfRepoEntry, Deps).
+candidate:rdepend_collect_vbounds(exactly_one_of_group(Deps0), SelfRepoEntry, Deps) :-
   !,
-  rdepend_collect_vbounds_for_cn_choice_intersection(Deps0, C, N, SelfRepoEntry, Deps).
-candidate:rdepend_collect_vbounds_for_cn(at_most_one_of_group(Deps0), C, N, SelfRepoEntry, Deps) :-
+  rdepend_collect_vbounds_choice_intersection(Deps0, SelfRepoEntry, Deps).
+candidate:rdepend_collect_vbounds(at_most_one_of_group(Deps0), SelfRepoEntry, Deps) :-
   !,
-  rdepend_collect_vbounds_for_cn_choice_intersection(Deps0, C, N, SelfRepoEntry, Deps).
-candidate:rdepend_collect_vbounds_for_cn(_Other, _C, _N, _SelfRepoEntry, []) :-
+  rdepend_collect_vbounds_choice_intersection(Deps0, SelfRepoEntry, Deps).
+candidate:rdepend_collect_vbounds(_Other, _SelfRepoEntry, []) :-
   !.
 
-candidate:rdepend_collect_vbounds_for_cn_list([], _C, _N, _SelfRepoEntry, []) :- !.
-candidate:rdepend_collect_vbounds_for_cn_list([T|Ts], C, N, SelfRepoEntry, Deps) :-
-  rdepend_collect_vbounds_for_cn(T, C, N, SelfRepoEntry, D0),
-  rdepend_collect_vbounds_for_cn_list(Ts, C, N, SelfRepoEntry, D1),
+candidate:rdepend_collect_vbounds_list([], _SelfRepoEntry, []) :- !.
+candidate:rdepend_collect_vbounds_list([T|Ts], SelfRepoEntry, Deps) :-
+  rdepend_collect_vbounds(T, SelfRepoEntry, D0),
+  rdepend_collect_vbounds_list(Ts, SelfRepoEntry, D1),
   append(D0, D1, Deps),
   !.
 
@@ -396,21 +438,28 @@ candidate:rdepend_self_entry_has_iuse_flag(Repo://Entry, Use) :-
 candidate:rdepend_self_entry_has_iuse_flag(_RepoEntry, _Use) :-
   fail.
 
-candidate:rdepend_collect_vbounds_for_cn_choice_intersection([], _C, _N, _SelfRepoEntry, []) :-
+%! candidate:rdepend_collect_vbounds_choice_intersection(+Arms, +SelfRepoEntry, -Common) is det.
+%
+% The bounds every arm of a choice group places (set intersection over
+% the arms); an empty intersection needs no further arms.
+
+candidate:rdepend_collect_vbounds_choice_intersection([], _SelfRepoEntry, []) :-
   !.
-candidate:rdepend_collect_vbounds_for_cn_choice_intersection([Dep|Deps], C, N, SelfRepoEntry, Common) :-
-  rdepend_collect_vbounds_for_cn(Dep, C, N, SelfRepoEntry, First0),
+candidate:rdepend_collect_vbounds_choice_intersection([Dep|Deps], SelfRepoEntry, Common) :-
+  rdepend_collect_vbounds(Dep, SelfRepoEntry, First0),
   sort(First0, First),
-  rdepend_collect_vbounds_for_cn_choice_intersection_(Deps, C, N, SelfRepoEntry, First, Common),
+  rdepend_collect_vbounds_choice_intersection_(Deps, SelfRepoEntry, First, Common),
   !.
 
-candidate:rdepend_collect_vbounds_for_cn_choice_intersection_([], _C, _N, _SelfRepoEntry, Acc, Acc) :-
+candidate:rdepend_collect_vbounds_choice_intersection_([], _SelfRepoEntry, Acc, Acc) :-
   !.
-candidate:rdepend_collect_vbounds_for_cn_choice_intersection_([Dep|Deps], C, N, SelfRepoEntry, Acc0, Common) :-
-  rdepend_collect_vbounds_for_cn(Dep, C, N, SelfRepoEntry, Next0),
+candidate:rdepend_collect_vbounds_choice_intersection_(_Deps, _SelfRepoEntry, [], []) :-
+  !.
+candidate:rdepend_collect_vbounds_choice_intersection_([Dep|Deps], SelfRepoEntry, Acc0, Common) :-
+  rdepend_collect_vbounds(Dep, SelfRepoEntry, Next0),
   sort(Next0, Next),
   ord_intersection(Acc0, Next, Acc1),
-  rdepend_collect_vbounds_for_cn_choice_intersection_(Deps, C, N, SelfRepoEntry, Acc1, Common),
+  rdepend_collect_vbounds_choice_intersection_(Deps, SelfRepoEntry, Acc1, Common),
   !.
 
 
@@ -997,14 +1046,26 @@ candidate:entry_conflicts_with_learned(Repo://Entry) :-
 % explicit slot only judges the selected candidates of that slot: another
 % slot can be installed side by side (`>=python-3.12:3.12` while
 % python:3.11 is selected is not a conflict).
+%
+% Nearly every CN has exactly one selected candidate and nearly every
+% pin admits it, so for a singleton the version test runs first and the
+% slot test only when the version misses; for a singleton the two
+% orders are the same conjunction.
 
 candidate:selected_pin_miss(pin(C, N, Op, Ver, SlotReq)) :-
   cnselect:snapshot_selected_cn_candidates(C, N, Selected0),
-  candidate:pin_slot_selected(SlotReq, Selected0, Selected),
-  Selected \== [],
-  \+ ( member(SRepo://SEntry, Selected),
-       query:search(select(version, Op, Ver), SRepo://SEntry)
-     ).
+  ( Selected0 = [SRepo://SEntry] ->
+      \+ query:search(select(version, Op, Ver), SRepo://SEntry),
+      ( SlotReq = [slot(_)|_] ->
+          slotmeta:query_search_slot_constraint(SlotReq, SRepo://SEntry, _)
+      ; true
+      )
+  ; candidate:pin_slot_selected(SlotReq, Selected0, Selected),
+    Selected \== [],
+    \+ ( member(SRepo://SEntry, Selected),
+         query:search(select(version, Op, Ver), SRepo://SEntry)
+       )
+  ).
 
 
 %! candidate:pin_slot_selected(+SlotReq, +Selected0, -Selected) is det.
@@ -1014,13 +1075,17 @@ candidate:selected_pin_miss(pin(C, N, Op, Ver, SlotReq)) :-
 
 candidate:pin_slot_selected(SlotReq, Selected0, Selected) :-
   ( SlotReq = [slot(_)|_] ->
-      findall(RE,
-              ( member(RE, Selected0),
-                slotmeta:query_search_slot_constraint(SlotReq, RE, _)
-              ),
-              Selected)
+      candidate:in_pin_slot(Selected0, SlotReq, Selected)
   ; Selected = Selected0
   ).
+
+candidate:in_pin_slot([], _SlotReq, []).
+candidate:in_pin_slot([RE|Rest], SlotReq, Selected) :-
+  ( slotmeta:query_search_slot_constraint(SlotReq, RE, _) ->
+      Selected = [RE|Selected1]
+  ; Selected = Selected1
+  ),
+  candidate:in_pin_slot(Rest, SlotReq, Selected1).
 
 
 %! candidate:learned_pin_miss(+Pin) is semidet.

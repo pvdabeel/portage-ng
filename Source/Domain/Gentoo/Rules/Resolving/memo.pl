@@ -26,6 +26,8 @@ Each thread-local predicate caches a different aspect of resolver state:
 | memo_slot_meta_cache (nbstore)     | Slot metadata list per Repo-Id                  |
 | cn_domain_reject_/2               | Rejected candidates per CN-domain key           |
 | rdepend_vbounds_cache_/5           | Self-RDEPEND version bounds for a (C,N) pair    |
+| rdepend_vbounds_walked_/2          | Parents whose RDEPEND bounds are all cached     |
+| overlap_count_cache_/4             | Active `||` groups of a parent naming a (C,N)   |
 | keyword_cache_/6                   | Keyword-filtered candidate lists per action     |
 | iuse_info_cache_/3                 | Per-entry IUSE flag set + IUSE(+) set (also     |
 |                                    | answers the per-flag default polarity)          |
@@ -56,20 +58,31 @@ retries.
 
 == Knowledge caches ==
 
-Six of the caches are functions of the knowledge base alone — repository
+Seven of the caches are functions of the knowledge base alone — repository
 and VDB metadata plus the loaded profile and user configuration — and of
 nothing the proof decides: iuse_info_cache_, enabled_use_cache_,
-use_expand_selection_cache_, entry_version_pins_, entry_equality_usedeps_
-and dep_model_choice_cns_.  A bulk harness that proves thousands of
-entries against a knowledge base it never modifies may pin the knowledge
-(with_pinned_knowledge/1): clear_caches/0 then keeps these six from one
-proof to the next, so a popular dependency's IUSE set is derived once per
-worker thread instead of once per proof (about one write in four of a
-proof's memo traffic, and every write to a thread_local predicate takes a
-process-wide lock).  Outside a pin they are cleared with everything else;
-no reload hook is needed anywhere.  rdepend_vbounds_cache_ is NOT a
-knowledge cache: it reads the parent's effective USE, which variant mode
-overrides per proof.
+use_expand_selection_cache_, entry_version_pins_, entry_equality_usedeps_,
+dep_model_choice_cns_ and self_use_cache_ (an entry's own IUSE state read
+through eapi:categorize_use_for_entry/4).  A bulk harness that proves
+thousands of entries against a knowledge base it never modifies may pin
+the knowledge (with_pinned_knowledge/1): clear_caches/0 then keeps these
+from one proof to the next, so a popular dependency's IUSE set is derived
+once per worker thread instead of once per proof (about one write in four
+of a proof's memo traffic, and every write to a thread_local predicate
+takes a process-wide lock).  Outside a pin they are cleared with
+everything else; no reload hook is needed anywhere.
+
+== Variant caches ==
+
+Three more caches are functions of the knowledge base and of the
+variant-mode USE overrides (variant:use_override/4) only:
+eff_use_cache_ (the USE precedence chain, which starts at the override),
+and rdepend_vbounds_cache_ / rdepend_vbounds_walked_ /
+overlap_count_cache_, which read the parent's effective USE.  They are
+kept across proofs while the knowledge is pinned, like the knowledge
+caches, and cleared whenever an override is installed or removed
+(variant:apply/1, variant:cleanup/0 call clear_variant_caches/0), so
+within a variant scope they have the per-proof lifetime they always had.
 */
 
 :- module(memo, []).
@@ -85,6 +98,8 @@ overrides per proof.
 :- thread_local memo:effective_use_fact/3.      % effective_use_fact(Repo, Entry, EnabledUseSet)
 :- thread_local memo:cn_domain_reject_/2.       % cn_domain_reject_(Key, RejectedSet)
 :- thread_local memo:rdepend_vbounds_cache_/5.  % rdepend_vbounds_cache_(Repo, Entry, C, N, ExtraDeps)
+:- thread_local memo:rdepend_vbounds_walked_/2. % rdepend_vbounds_walked_(Repo, Entry) -- every (C,N) of the entry's RDEPEND bounds is cached
+:- thread_local memo:overlap_count_cache_/4.    % overlap_count_cache_(Repo, Entry, C-N, Count) -- active || groups of the entry naming (C,N)
 :- thread_local memo:keyword_cache_/6.          % keyword_cache_(Action, C, N, SlotReq, LockKey, Sorted)
 :- thread_local memo:iuse_info_cache_/3.        % iuse_info_cache_(Repo, Entry, iuse_info(Set, PlusSet))
 :- thread_local memo:enabled_use_cache_/3.      % enabled_use_cache_(Repo, Entry, EnabledSet) -- sorted use/1 metadata (VDB built USE)
@@ -115,7 +130,8 @@ overrides per proof.
 %
 % Resets the caching facts managed by this module.  Called at the start
 % of each proof run to ensure a clean state.  While the knowledge base is
-% pinned (with_pinned_knowledge/1) the knowledge caches are kept.
+% pinned (with_pinned_knowledge/1) the knowledge and variant caches are
+% kept.
 
 clear_caches :-
   memo:clear_proof_caches,
@@ -136,10 +152,7 @@ clear_proof_caches :-
   nbstore:reset(memo_slot_meta_cache),
   nbstore:reset(memo_bwu_seed_seen),
   retractall(memo:cn_domain_reject_(_, _)),
-  retractall(memo:rdepend_vbounds_cache_(_, _, _, _, _)),
   retractall(memo:keyword_cache_(_, _, _, _, _, _)),
-  retractall(memo:eff_use_cache_(_, _, _, _)),
-  retractall(memo:self_use_cache_(_, _, _, _)),
   retractall(memo:assumption_reason_cache_(_, _, _, _)),
   retractall(memo:visibility_override_(_, _)),
   retractall(memo:keyword_suggestion_cache_(_, _, _)),
@@ -156,7 +169,8 @@ clear_proof_caches :-
 %! memo:clear_knowledge_caches
 %
 % Resets the caches that are functions of the knowledge base alone (see
-% the module documentation).
+% the module documentation), and with them the variant caches, which
+% depend on the knowledge base as well.
 
 clear_knowledge_caches :-
   retractall(memo:iuse_info_cache_(_, _, _)),
@@ -164,7 +178,22 @@ clear_knowledge_caches :-
   retractall(memo:use_expand_selection_cache_(_, _)),
   retractall(memo:entry_version_pins_(_, _)),
   retractall(memo:entry_equality_usedeps_(_, _)),
-  retractall(memo:dep_model_choice_cns_(_, _, _)).
+  retractall(memo:dep_model_choice_cns_(_, _, _)),
+  retractall(memo:self_use_cache_(_, _, _, _)),
+  memo:clear_variant_caches.
+
+
+%! memo:clear_variant_caches
+%
+% Resets the caches that depend on the variant-mode USE overrides (see
+% the module documentation).  Called from variant:apply/1 and
+% variant:cleanup/0 around every override.
+
+clear_variant_caches :-
+  retractall(memo:eff_use_cache_(_, _, _, _)),
+  retractall(memo:rdepend_vbounds_cache_(_, _, _, _, _)),
+  retractall(memo:rdepend_vbounds_walked_(_, _)),
+  retractall(memo:overlap_count_cache_(_, _, _, _)).
 
 
 %! memo:with_pinned_knowledge(:Goal)

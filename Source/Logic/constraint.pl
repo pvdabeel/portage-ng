@@ -46,30 +46,47 @@ constraint:is_constraint(constraint(_)).
 %
 % Unify a constraint with the current constraints.  Domain-specific
 % merge logic is delegated to =heuristic:constraint_unify_hook/4=.
+%
+% A merge that leaves the stored value unchanged (the common case: the
+% same ordset or atom is asserted again) returns the store itself.  The
+% lookup is get_assoc/3 followed by put_assoc/4 rather than get_assoc/5:
+% the latter copies the AVL spine on every call, including the ones
+% that end up storing the value already there.
 
 constraint:unify_constraints(constraint(Key:{Value}), Constraints, NewConstraints) :-
   hook:defined(heuristic:constraint_unify_hook/4),
   heuristic:constraint_unify_hook(Key, Value, Constraints, NewConstraints),
   !.
 
-constraint:unify_constraints(constraint(Key:{Value}),Constraints,NewConstraints) :-
+constraint:unify_constraints(constraint(Key:{Value}), Constraints, NewConstraints) :-
   Value = ordset(List),
   is_list(List),
   !,
-  sort(List, NewSet),
-  ( get_assoc(Key, Constraints, ordset(CurSet0), Constraints1, ordset(CurSet0)) ->
-      ord_union(CurSet0, NewSet, CurSet),
-      put_assoc(Key, Constraints1, ordset(CurSet), NewConstraints)
+  ( List = [_] -> NewSet = List ; sort(List, NewSet) ),
+  ( get_assoc(Key, Constraints, ordset(CurSet0)) ->
+      ( CurSet0 == NewSet ->
+          NewConstraints = Constraints
+      ; ord_union(CurSet0, NewSet, CurSet),
+        ( CurSet == CurSet0 ->
+            NewConstraints = Constraints
+        ; put_assoc(Key, Constraints, ordset(CurSet), NewConstraints)
+        )
+      )
   ; put_assoc(Key, Constraints, ordset(NewSet), NewConstraints)
   ).
 
-constraint:unify_constraints(constraint(Key:{Value}),Constraints,NewConstraints) :-
-  get_assoc(Key,Constraints,CurrentValue,NewConstraints,NewValue),!,
-  constraint:unify_constraint(Value,CurrentValue,NewValue).
+constraint:unify_constraints(constraint(Key:{Value}), Constraints, NewConstraints) :-
+  get_assoc(Key, Constraints, CurrentValue),
+  !,
+  constraint:unify_constraint(Value, CurrentValue, NewValue),
+  ( NewValue == CurrentValue ->
+      NewConstraints = Constraints
+  ; put_assoc(Key, Constraints, NewValue, NewConstraints)
+  ).
 
-constraint:unify_constraints(constraint(Key:{Value}),Constraints,NewConstraints) :-
-  constraint:unify_constraint(Value,{},NewValue),
-  put_assoc(Key,Constraints,NewValue,NewConstraints).
+constraint:unify_constraints(constraint(Key:{Value}), Constraints, NewConstraints) :-
+  constraint:unify_constraint(Value, {}, NewValue),
+  put_assoc(Key, Constraints, NewValue, NewConstraints).
 
 
 %! constraint:unify_constraint(+Value, +Current, -Merged) is det

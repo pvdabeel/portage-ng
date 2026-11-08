@@ -986,10 +986,10 @@ test(candidate_remaining_coverage,
   candidate:self_rdepend_extra_slot_compatible([], PD1),
   candidate:self_rdepend_extra_slot_compatible([slot('0')], PD1),
   candidate:self_rdepend_extra_slot_compatible([any_same_slot], PD1),
-  % rdepend_collect_vbounds_for_cn, rdepend_self_use_conditional_active
-  candidate:rdepend_collect_vbounds_for_cn(all_of_group([PD1]), ccat, cpkg, qtest://'ccat/cpkg-1.0', [_]),
-  candidate:rdepend_collect_vbounds_for_cn(other_term, ccat, cpkg, qtest://'ccat/cpkg-1.0', []),
-  candidate:rdepend_collect_vbounds_for_cn_choice_intersection([], ccat, cpkg, qtest://'ccat/cpkg-1.0', []),
+  % rdepend_collect_vbounds, rdepend_self_use_conditional_active
+  candidate:rdepend_collect_vbounds(all_of_group([PD1]), qtest://'ccat/cpkg-1.0', [_]),
+  candidate:rdepend_collect_vbounds(other_term, qtest://'ccat/cpkg-1.0', []),
+  candidate:rdepend_collect_vbounds_choice_intersection([], qtest://'ccat/cpkg-1.0', []),
   candidate:rdepend_self_use_conditional_active(negative, non_iuse_flag_xyz, qtest://'ccat/cpkg-1.0'),
   % eligible & installed (called through Goal variable to bypass compile-time goal_expansion)
   GEligDl = candidate:eligible(qtest://'ccat/cpkg-1.0':download?{[]}), call(GEligDl),

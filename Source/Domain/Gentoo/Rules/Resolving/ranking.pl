@@ -142,7 +142,7 @@ ranking:seed_use_conditional_inactive(negative, Use, Repo://Id) :-
 % such repeats.
 
 ranking:seed_bwu_memo_for_cn(C, N, UseReqs) :-
-  include(ranking:context_independent_use_directive, UseReqs, SeedReqs),
+  ranking:context_independent_use_directives(UseReqs, SeedReqs),
   ( SeedReqs == [] ->
       true
   ; ranking:seed_first_time(C, N, SeedReqs) ->
@@ -168,21 +168,43 @@ ranking:seed_bwu_memo_for_cn(C, N, UseReqs) :-
 % use:clear_bwu_cross_dep_memos/0.
 
 ranking:seed_first_time(C, N, SeedReqs) :-
-  ( prover:learned(bwu_force(C, N), Force) -> true ; Force = none ),
-  ( prover:learned(eq_follow(C, N), Follow) -> true ; Follow = none ),
+  ( ranking:learned_store(AVL) ->
+      ( get_assoc(bwu_force(C, N), AVL, Force) -> true ; Force = none ),
+      ( get_assoc(eq_follow(C, N), AVL, Follow) -> true ; Follow = none )
+  ; Force = none,
+    Follow = none
+  ),
   Key = seed(C, N, SeedReqs, Force, Follow),
   \+ nbstore:get(memo_bwu_seed_seen, Key, true),
   nbstore:put(memo_bwu_seed_seen, Key, true).
 
 
-%! ranking:context_independent_use_directive(+Directive) is semidet
+%! ranking:learned_store(-AVL) is semidet
 %
-% True for bracketed USE directives whose enable/disable outcome does not
-% depend on the parent ebuild's effective USE state, i.e. plain `enable`
-% and `disable`.  Equality/inverse/optional directives are excluded.
+% The prover's learned constraint store when it holds at least one
+% constraint; fails for the empty store or outside a proof.  Lets the
+% USE-force readers below test for the common "nothing learned" case
+% once instead of consulting prover:learned/2 per key.
 
-ranking:context_independent_use_directive(use(enable(_), _)).
-ranking:context_independent_use_directive(use(disable(_), _)).
+ranking:learned_store(AVL) :-
+  nb_current(prover_learned_constraints, AVL),
+  AVL \== t.
+
+
+%! ranking:context_independent_use_directives(+Directives, -Independent) is det
+%
+% The bracketed USE directives of Directives whose enable/disable
+% outcome does not depend on the parent ebuild's effective USE state,
+% i.e. plain `enable` and `disable`.  Equality/inverse/optional
+% directives are excluded.
+
+ranking:context_independent_use_directives([], []).
+ranking:context_independent_use_directives([D|Ds], Independent) :-
+  ( ( D = use(enable(_), _) ; D = use(disable(_), _) ) ->
+      Independent = [D|Independent1]
+  ; Independent = Independent1
+  ),
+  ranking:context_independent_use_directives(Ds, Independent1).
 
 
 %! ranking:seed_accumulate_bwu(+C, +N, +BWU) is det
@@ -217,21 +239,21 @@ ranking:seed_accumulate_bwu(C, N, BWU) :-
 ranking:equality_pins_from_providers(Repo://Entry, PinState) :-
   ranking:entry_equality_usedeps(Repo://Entry, EqDeps),
   ( EqDeps == [] ->
-      Pins0 = []
+      use:empty_use_state(PinState)
   ; findall(F-Mode,
             ( member(eq(PC, PN, UseDep), EqDeps),
               ranking:equality_pin_from_usedep(PC, PN, UseDep, F, Mode)
             ),
-            Pins0)
-  ),
-  ( Pins0 == [] ->
-      use:empty_use_state(PinState)
-  ; sort(Pins0, Pins),
-    findall(EF, member(EF-enable, Pins), En0), sort(En0, En),
-    findall(DF, member(DF-disable, Pins), Dis0), sort(Dis0, Dis),
-    ( ranking:pin_flags_conflict(En, Dis) ->
+            Pins0),
+    ( Pins0 == [] ->
         use:empty_use_state(PinState)
-    ; PinState = use_state(En, Dis)
+    ; sort(Pins0, Pins),
+      findall(EF, member(EF-enable, Pins), En0), sort(En0, En),
+      findall(DF, member(DF-disable, Pins), Dis0), sort(Dis0, Dis),
+      ( ranking:pin_flags_conflict(En, Dis) ->
+          use:empty_use_state(PinState)
+      ; PinState = use_state(En, Dis)
+      )
     )
   ).
 
@@ -317,27 +339,29 @@ ranking:equality_pin_from_usedep(PC, PN, use(inverse(F), _), F, Mode) :-
 %
 % Mode is enable/disable iff provider (PC,PN) has Flag pinned on/off in the
 % BWU memo.  Fails when the flag is unpinned (equality resolves normally).
+% A learned HARD force on the provider wins, then a learned equality
+% follow, then the accumulated BWU memo.
 
-ranking:provider_pin_mode(PC, PN, F, enable) :-
-  prover:learned(bwu_force(PC, PN), use_state(ForceEn, _)),
-  memberchk(F, ForceEn),
+ranking:provider_pin_mode(PC, PN, F, Mode) :-
+  ( ranking:learned_store(AVL),
+    ranking:learned_pin_mode(AVL, PC, PN, F, Mode0) ->
+      Mode = Mode0
+  ; memo:candidate_bwu_(PC, PN, use_state(En, Dis)),
+    ( memberchk(F, En) -> Mode = enable
+    ; memberchk(F, Dis) -> Mode = disable
+    )
+  ),
   !.
-ranking:provider_pin_mode(PC, PN, F, enable) :-
-  prover:learned(eq_follow(PC, PN), use_state(FollowEn, _)),
-  memberchk(F, FollowEn),
-  !.
-ranking:provider_pin_mode(PC, PN, F, disable) :-
-  prover:learned(eq_follow(PC, PN), use_state(_, FollowDis)),
-  memberchk(F, FollowDis),
-  !.
-ranking:provider_pin_mode(PC, PN, F, enable) :-
-  memo:candidate_bwu_(PC, PN, use_state(En, _Dis)),
-  memberchk(F, En),
-  !.
-ranking:provider_pin_mode(PC, PN, F, disable) :-
-  memo:candidate_bwu_(PC, PN, use_state(_En, Dis)),
-  memberchk(F, Dis),
-  !.
+
+ranking:learned_pin_mode(AVL, PC, PN, F, Mode) :-
+  ( get_assoc(bwu_force(PC, PN), AVL, use_state(ForceEn, _)),
+    memberchk(F, ForceEn) ->
+      Mode = enable
+  ; get_assoc(eq_follow(PC, PN), AVL, use_state(FollowEn, FollowDis)),
+    ( memberchk(F, FollowEn) -> Mode = enable
+    ; memberchk(F, FollowDis) -> Mode = disable
+    )
+  ).
 
 
 %! ranking:invert_pin_mode(+Mode, -Inverted) is det
@@ -397,13 +421,20 @@ ranking:tightness_classes([subslot_pinned,
 %
 % Position of Class in tightness_classes/1 (lower is proved first). One
 % fact per class, generated at load time from the declaration above so
-% the list stays the single place that encodes the order.
+% the list stays the single place that encodes the order.  The clauses
+% of tightness_class/3 (below) are generated from the same declaration.
 
 ranking:term_expansion(ranking:tightness_position_table, Facts) :-
   ranking:tightness_classes(Classes),
   findall(ranking:tightness_position(Class, Pos),
           nth0(Pos, Classes, Class),
           Facts).
+ranking:term_expansion(ranking:tightness_class_table, Clauses) :-
+  ranking:tightness_classes(Classes),
+  findall((ranking:tightness_class(Dep, Class, Pos) :-
+             ( ranking:in_tightness_class(Dep, Class), ! )),
+          nth0(Pos, Classes, Class),
+          Clauses).
 
 ranking:tightness_position_table.
 
@@ -441,28 +472,14 @@ ranking:dep_priority_kv(Dep, K-Dep) :-
 %
 % First class in tightness_classes/1 that applies to
 % dep(C, N, PackageDeps, SlotReq, TightUpper), and its position. One
-% walk over the declared list yields both.
+% clause per declared class, generated at load time in declaration
+% order (like tightness_position/2), so the first clause whose
+% membership test succeeds commits.
 
 ranking:tightness_class(Dep, Class) :-
   ranking:tightness_class(Dep, Class, _).
 
-ranking:tightness_class(Dep, Class, Pos) :-
-  ranking:tightness_classes(Classes),
-  ranking:first_tightness_class(Classes, 0, Dep, Class, Pos).
-
-
-%! ranking:first_tightness_class(+Classes, +Pos0, +Dep, -Class, -Pos) is det.
-%
-% Class is the first element of Classes that Dep belongs to; Pos its
-% index counted from Pos0.
-
-ranking:first_tightness_class([Class0|Classes], Pos0, Dep, Class, Pos) :-
-  ( ranking:in_tightness_class(Dep, Class0) ->
-      Class = Class0,
-      Pos = Pos0
-  ; Pos1 is Pos0 + 1,
-    ranking:first_tightness_class(Classes, Pos1, Dep, Class, Pos)
-  ).
+ranking:tightness_class_table.
 
 
 %! ranking:in_tightness_class(+Dep, +Class) is semidet.
@@ -486,24 +503,32 @@ ranking:in_tightness_class(dep(_, _, _, _, _), other_slot_req).
 
 %! ranking:dep_tightest_upper_bound(+C, +N, +PackageDeps, -Tightest) is semidet.
 %
-% Tightest `<` / `<=` version bound on (C, N) among PackageDeps.
+% Tightest `<` / `<=` version bound on (C, N) among PackageDeps; fails
+% when there is none.  One walk: the first upper bound seeds the
+% minimum, the rest of the list lowers it.
 
-ranking:dep_tightest_upper_bound(C, N, PackageDeps, Tightest) :-
-  member(package_dependency(_, no, C, N, Op0, _, _, _), PackageDeps),
-  ( Op0 == smaller ; Op0 == smallerorequal ),
-  !,
-  findall(V,
-          ( member(package_dependency(_Phase, no, C, N, Op, V, _S, _U), PackageDeps),
-            ( Op == smaller ; Op == smallerorequal )
-          ),
-          [First|Rest]),
-  foldl(min_version_bound_, Rest, First, Tightest).
+ranking:dep_tightest_upper_bound(C, N, [Dep|Deps], Tightest) :-
+  ( ranking:dep_upper_bound(Dep, C, N, V) ->
+      ranking:dep_tightest_upper_bound_acc(Deps, C, N, V, Tightest)
+  ; ranking:dep_tightest_upper_bound(C, N, Deps, Tightest)
+  ).
 
-ranking:min_version_bound_(V, Best0, Best) :-
-  ( eapi:version_compare(<, V, Best0) ->
+ranking:dep_tightest_upper_bound_acc([], _C, _N, Best, Best).
+ranking:dep_tightest_upper_bound_acc([Dep|Deps], C, N, Best0, Tightest) :-
+  ( ranking:dep_upper_bound(Dep, C, N, V),
+    eapi:version_compare(<, V, Best0) ->
       Best = V
   ; Best = Best0
   ),
+  ranking:dep_tightest_upper_bound_acc(Deps, C, N, Best, Tightest).
+
+
+%! ranking:dep_upper_bound(+Dep, +C, +N, -V) is semidet.
+%
+% V is the `<` / `<=` bound Dep places on (C, N).
+
+ranking:dep_upper_bound(package_dependency(_, no, C, N, Op, V, _, _), C, N, V) :-
+  ( Op == smaller ; Op == smallerorequal ),
   !.
 
 
@@ -840,13 +865,13 @@ ranking:dep_snap_admits(Atoms) :-
   forall(member(package_dependency(_, Str, C, N, Op, Ver, SlotReq, _), Atoms),
          ( ranking:dep_blocker_strength(Str) -> true
          ; C == virtual -> true
-         ; \+ cnselect:snapshot_selected_cn_candidates(C, N, _) -> true
-         ; cnselect:snapshot_selected_cn_candidates(C, N, Selected0),
-           candidate:pin_slot_selected(SlotReq, Selected0, Selected),
-           ( Selected == [] -> true
-           ; member(SRepo://SEntry, Selected),
-             query:search(select(version, Op, Ver), SRepo://SEntry)
-           )
+         ; cnselect:snapshot_selected_cn_candidates(C, N, Selected0) ->
+             candidate:pin_slot_selected(SlotReq, Selected0, Selected),
+             ( Selected == [] -> true
+             ; member(SRepo://SEntry, Selected),
+               query:search(select(version, Op, Ver), SRepo://SEntry)
+             )
+         ; true
          )).
 
 
@@ -1042,15 +1067,21 @@ ranking:dep_matches_prefer(Pref, Dep) :-
 %
 % Number of active `||` groups in the parent ebuild's dependency strings
 % that mention Dep's (C,N); 0 for non-package arms or without a parent.
+% A function of the parent's metadata and effective USE, memoised per
+% (parent, C, N) in memo:overlap_count_cache_/4.
 
 ranking:dep_overlap_group_count(Context, package_dependency(_,_,C,N,_,_,_,_), Count) :-
   memberchk(self(Repo://Ebuild), Context),
   !,
-  aggregate_all(count, (
-    member(DepKey, [rdepend, depend, bdepend, pdepend, cdepend, idepend]),
-    cache:entry_metadata(Repo, Ebuild, DepKey, DepEntry),
-    dep_entry_active_any_of_with_cn(DepEntry, Repo://Ebuild, C, N)
-  ), Count).
+  ( memo:overlap_count_cache_(Repo, Ebuild, C-N, Cached) ->
+      Count = Cached
+  ; aggregate_all(count, (
+      member(DepKey, [rdepend, depend, bdepend, pdepend, cdepend, idepend]),
+      cache:entry_metadata(Repo, Ebuild, DepKey, DepEntry),
+      dep_entry_active_any_of_with_cn(DepEntry, Repo://Ebuild, C, N)
+    ), Count),
+    assertz(memo:overlap_count_cache_(Repo, Ebuild, C-N, Count))
+  ).
 ranking:dep_overlap_group_count(_, _, 0).
 
 ranking:dep_entry_active_any_of_with_cn(any_of_group(Deps), _, C, N) :-
