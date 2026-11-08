@@ -585,6 +585,25 @@ The canonical load graph for standalone is in `portage-ng.pl`:
 - Do NOT run `--graph` / repository graphing from inside the sandbox. The user will run `--graph` externally when needed.
 
 ## Performance/engineering notes
+- No C-to-Prolog re-entry inside per-literal / per-token / per-line
+  loops (do not regress). `setup_call_cleanup/3` (its Setup runs via
+  `sig_atomic/1`, its Cleanup via the cleanup handler), `call_cleanup/2`,
+  `with_mutex/2`, `with_output_to/2`, `call_with_time_limit/2` and
+  `format` `~p`/`~@` (only when `user:portray/1` exists) each open a
+  nested query from C. SWI 10.x built with Clang (`VMI_FUNCTIONS`) exits
+  every such query with a `longjmp`; on macOS `setjmp`/`longjmp` save
+  and restore the signal mask, two `sigprocmask` syscalls serialised on
+  the process-wide proc lock. Once per proven literal on 56 threads that
+  lock convoyed and the kernel ate more CPU than the proof
+  (`resolver:test` 3m59 -> 1m32, `orderer:test` 6m33 -> 1m51). Linux
+  glibc does not touch the mask, so the problem only shows on macOS and
+  only at high thread counts. Per-ebuild wrappers (one `with_mutex` or
+  `call_with_time_limit` per entry) are fine. `findall/3`, `catch/3`,
+  `forall/2`, `aggregate_all/3`, `nb_setval`/`b_setval`, `assertz`,
+  `format` to atom/string sinks and `~w`/`~q`/`~a` do not re-enter. For
+  "push, prove, pop when finished" use `prover:prove_on_cycle_stack/2`:
+  inline pop on a deterministic exit, deferred cleanup only on a
+  non-deterministic one.
 - Proof/Model/Triggers are assoc/AVL-based; avoid repeated full traversals when possible.
 - Query performance uses `goal_expansion/2` macros in `Source/Knowledge/query.pl`.
 - `query:search(model(dependency(Merged,Phase)):config?{Ctx}, Repo://Id)` is
