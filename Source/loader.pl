@@ -19,6 +19,11 @@ load_modules/1 is the single entry point. A module needed by several
 modes lives in exactly one shared group, so additions propagate
 automatically and the delta between modes (e.g. standalone vs worker)
 stays explicit and reviewable.
+
+Project files are compiled to .qlf files on their first load and loaded
+from those afterwards. The .qlf files live in a directory of their own
+(the compiled module cache, Build/qlf in the state directory), never
+beside the sources.
 */
 
 % =============================================================================
@@ -429,7 +434,7 @@ loader:ensure_locked(Name) :-
 
 loader:load_group(Group) :-
    loader:group(Group, Specs),
-   forall(member(Spec, Specs), user:ensure_loaded(Spec)).
+   forall(member(Spec, Specs), loader:load_spec(Spec)).
 
 
 %! loader:load_groups(+Groups) is det.
@@ -451,15 +456,224 @@ loader:load_test_modules :-
 
 
 % -----------------------------------------------------------------------------
+%  Compiled module cache
+% -----------------------------------------------------------------------------
+
+% A portage/1 file is compiled to a .qlf file on its first load and loaded
+% from that file afterwards. The .qlf files mirror the source tree in a
+% directory of their own:
+%
+%   <state>/Build/qlf/<arch>-<prolog build>/<mode>/Source/.../<file>.qlf
+%
+% SWI-Prolog decides whether a .qlf file is still valid. It records the
+% source, the files the source includes and the files named by
+% prolog:qlf_dependency/2, and compares their content when a time stamp
+% says one may have changed. What it cannot see is either part of the
+% directory name (platform, SWI-Prolog build, operating mode) or switches
+% the cache off (loader:cache_enabled/0).
+
+%! loader:compile_time_source(?Spec) is nondet.
+%
+% Declares a file whose operators or goal expansions are compiled into
+% other files. Every cached file is recompiled when one of these changes.
+% A new file that defines operators or goal expansions for other files
+% must be added here: without it, its dependents keep the old expansion
+% until they are edited themselves.
+
+loader:compile_time_source(portage('Source/Logic/context.pl')).
+loader:compile_time_source(portage('Source/Application/Output/message.pl')).
+loader:compile_time_source(portage('Source/Application/Performance/choicelog.pl')).
+loader:compile_time_source(portage('Source/Application/Performance/sampler.pl')).
+loader:compile_time_source(portage('Source/Knowledge/query.pl')).
+loader:compile_time_source(portage('Source/Domain/Gentoo/version.pl')).
+loader:compile_time_source(portage('Source/Pipeline/prover.pl')).
+
+
+%! loader:source_only(?Spec) is nondet.
+%
+% Declares a file that is always loaded from source. Spec is written
+% without the .pl extension.
+%
+% config.pl includes the private password and key files when they exist.
+% Their content does not belong in the cache, and a .qlf file would keep
+% serving it after the files are removed. ipc.pl locates ipclient.pl
+% relative to the directory it is loaded from, which for a cached file is
+% the cache directory.
+
+loader:source_only(portage('Source/config')).
+loader:source_only(portage('Source/Application/Mode/ipc')).
+
+
+:- dynamic loader:cache_directory/1.
+:- dynamic loader:compiling/1.
+
+
+%! loader:cache_enabled is semidet.
+%
+% True when files may be loaded from, and compiled into, the cache. The
+% cache holds code compiled with -O and with the debug, instrumentation
+% and choice-log expansions compiled away, so a run without -O and a run
+% with -Ddebug, --profile or --choice-log load from source, as does a run
+% with PORTAGE_NG_SOURCE=1. So does a SWI-Prolog without the two system
+% predicates the cache relies on.
+
+loader:cache_enabled :-
+   current_prolog_flag(optimise, true),
+   \+ current_prolog_flag(debug, true),
+   \+ current_prolog_flag(instrumentation, true),
+   \+ current_prolog_flag(choice_log, true),
+   \+ getenv('PORTAGE_NG_SOURCE', '1'),
+   predicate_property(system:'$qlf_out_of_date'(_, _, _), defined),
+   predicate_property(system:'$qlf_dependency'(_), defined).
+
+
+%! loader:select_cache(+Mode) is det.
+%
+% Selects the cache directory of Mode for the files loaded from here on,
+% or none when the cache is off. Mode is part of the path because the
+% modes differ in what is loaded before a shared file, and so in the
+% expansions that file is compiled with.
+
+loader:select_cache(Mode) :-
+   retractall(loader:cache_directory(_)),
+   (   loader:cache_enabled
+   ->  loader:cache_root(Root),
+       current_prolog_flag(arch, Arch),
+       loader:prolog_build(Build),
+       atomic_list_concat([Root, '/', Arch, '-', Build, '/', Mode], Directory),
+       assertz(loader:cache_directory(Directory))
+   ;   true
+   ).
+
+
+%! loader:cache_root(-Root) is det.
+%
+% Root of the cache: Build/qlf in the state directory. The state directory
+% follows the rule of config:state_dir/1, restated here because the cache
+% is selected before config.pl is loaded.
+
+loader:cache_root(Root) :-
+   loader:state_directory(State),
+   directory_file_path(State, 'Build/qlf', Root).
+
+loader:state_directory(State) :-
+   getenv('PORTAGE_NG_STATE', State),
+   State \== '',
+   !.
+loader:state_directory(State) :-
+   absolute_file_name(portage('Knowledge'), Knowledge,
+                      [file_type(directory), file_errors(fail)]),
+   !,
+   file_directory_name(Knowledge, State).
+loader:state_directory('/var/lib/portage-ng').
+
+
+%! loader:prolog_build(-Build) is det.
+%
+% Identifies the SWI-Prolog build: the git description when it was built
+% from git, the version number otherwise.
+
+loader:prolog_build(Build) :-
+   current_prolog_flag(version_git, Build),
+   !.
+loader:prolog_build(Build) :-
+   current_prolog_flag(version, Build).
+
+
+%! loader:load_spec(+Spec) is det.
+%
+% Loads one file spec into the user module: through the cache when Spec
+% has a place in it, as a plain ensure_loaded/1 otherwise.
+
+loader:load_spec(Spec) :-
+   loader:cached_source(Spec, Source, Qlf),
+   !,
+   loader:load_cached(Source, Qlf).
+loader:load_spec(Spec) :-
+   user:ensure_loaded(Spec).
+
+
+%! loader:cached_source(+Spec, -Source, -Qlf) is semidet.
+%
+% Source is the source file of the portage/1 term Spec and Qlf its place
+% in the selected cache directory. Fails for a library, for a source-only
+% file and when no cache directory is selected.
+
+loader:cached_source(portage(Path), Source, Qlf) :-
+   loader:cache_directory(Directory),
+   (   file_name_extension(Base, pl, Path)
+   ->  true
+   ;   Base = Path
+   ),
+   \+ loader:source_only(portage(Base)),
+   absolute_file_name(portage(Path), Source,
+                      [file_type(prolog), access(read), file_errors(fail)]),
+   atomic_list_concat([Directory, '/', Base, '.qlf'], Qlf).
+
+
+%! loader:load_cached(+Source, +Qlf) is det.
+%
+% Loads Source once: from Qlf when that is up to date, else from source
+% while writing Qlf, else (cache not writable) from source alone.
+
+loader:load_cached(Source, _Qlf) :-
+   source_file(Source),
+   !.
+loader:load_cached(Source, Qlf) :-
+   exists_file(Qlf),
+   \+ '$qlf_out_of_date'(Source, Qlf, _),
+   !,
+   user:load_files(Qlf, []).
+loader:load_cached(Source, Qlf) :-
+   loader:writable_cache_file(Qlf),
+   !,
+   setup_call_cleanup(
+       assertz(loader:compiling(Source), Ref),
+       user:load_files(Source, ['$qlf'(Qlf)]),
+       erase(Ref)).
+loader:load_cached(Source, _Qlf) :-
+   user:ensure_loaded(Source).
+
+
+%! loader:writable_cache_file(+Qlf) is semidet.
+%
+% Creates the directory of Qlf and succeeds when Qlf can be written.
+
+loader:writable_cache_file(Qlf) :-
+   file_directory_name(Qlf, Directory),
+   catch(make_directory_path(Directory), error(_, _), fail),
+   access_file(Qlf, write).
+
+
+%! prolog:qlf_dependency(+File, -Dependency) is nondet.
+%
+% SWI-Prolog hook: Dependency is recorded in the .qlf file of File, which
+% is recompiled when Dependency changes. Every file this loader compiles
+% depends on the compile-time sources. Limited to those files, so the
+% knowledge base .qlf files stay free of dependencies.
+
+:- multifile prolog:qlf_dependency/2.
+
+prolog:qlf_dependency(File, Dependency) :-
+   loader:compiling(File),
+   loader:compile_time_source(Spec),
+   absolute_file_name(Spec, Dependency,
+                      [file_type(prolog), access(read), file_errors(fail)]),
+   Dependency \== File.
+
+
+% -----------------------------------------------------------------------------
 %  Mode loading
 % -----------------------------------------------------------------------------
 
 %! load_modules(+Mode) is det.
 %
-% Loads the module groups declared for Mode, then its optional groups
-% whose condition holds.
+% Selects the compiled module cache of Mode, then loads the module groups
+% declared for Mode. Groups loaded later through loader:ensure/1 use the
+% cache of the mode loaded last.
 
 load_modules(Mode) :-
+   loader:select_cache(Mode),
    loader:mode(Mode, Groups),
    loader:load_groups(Groups),
    format(atom(Msg), 'Loaded ~w modules...', [Mode]),

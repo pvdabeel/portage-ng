@@ -548,6 +548,25 @@ The canonical load graph for standalone is in `portage-ng.pl`:
   Do not "clean these up" out of the load graph without moving the
   files and every caller.
 
+### Compiled module cache (do not regress)
+- `Source/loader.pl` compiles every `portage/1` file to a `.qlf` file on
+  its first load and loads that afterwards (`loader:load_spec/1`). The
+  files live under `Build/qlf/<arch>-<swipl build>/<mode>/`, mirroring
+  `Source/`, in the state directory; never beside the sources. SWI-Prolog
+  itself decides staleness by source content, so edits need no manual
+  step. `make clean` (or deleting `Build/`) resets the cache.
+- A file whose operators or goal expansions are compiled into OTHER files
+  must be listed in `loader:compile_time_source/1`; otherwise dependents
+  keep the old expansion after an edit. `Source/Test/Unit/loadertest.pl`
+  checks the goal-expansion part.
+- A file that depends on where or when it is loaded (`prolog_load_context`
+  in a directive, optional `:- include`) goes in `loader:source_only/1`
+  (today `config.pl`, which includes the private files, and `ipc.pl`).
+- The cache is off under `--profile`, `--choice-log`, `-Ddebug`, without
+  `-O`, and with `PORTAGE_NG_SOURCE=1` (use that to rule the cache out when
+  debugging). Do not add new compile-time switches without either adding
+  them to `loader:cache_enabled/0` or to the cache path.
+
 ### Best-effort errors (do not regress)
 - Best-effort hooks (fixups, news checks, binpkg index refreshes,
   post-write config reloads, metadata warming) must run through

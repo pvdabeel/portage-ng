@@ -108,3 +108,4 @@ unittest:restore_stable_amd64 :-
 :- use_module(portage('Source/Test/Unit/daemontest')).
 :- use_module(portage('Source/Test/Unit/ebuildtest')).
 :- use_module(portage('Source/Test/Unit/jobtest')).
+:- use_module(portage('Source/Test/Unit/loadertest')).

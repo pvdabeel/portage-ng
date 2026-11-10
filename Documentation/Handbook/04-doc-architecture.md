@@ -131,6 +131,34 @@ load_modules(daemon)       — Standalone groups plus the daemon accept loop
 load_modules(ipc)          — Ultralight IPC client (no LLM)
 ```
 
+### Compiled module cache
+
+The loader compiles each project file to a `.qlf` file on its first load
+and loads that file afterwards.  The `.qlf` files never sit beside the
+sources.  They mirror the source tree under the state directory:
+
+```
+Build/qlf/<arch>-<SWI-Prolog build>/<mode>/Source/Pipeline/prover.qlf
+```
+
+SWI-Prolog checks each `.qlf` file against the content of its source on
+every start, so an edited file is recompiled on the next run without any
+manual step.  Three things are worth knowing:
+
+- **Compile-time sources.**  A file whose operators or goal expansions are
+  compiled into other files is declared in `loader:compile_time_source/1`.
+  Editing one of them recompiles every cached file.  A new file of that
+  kind must be added to the list (a unit test checks the goal expansions).
+- **One cache per mode, platform and SWI-Prolog build.**  The modes differ
+  in what is loaded before a shared file, so each has its own directory.
+- **When the cache is off.**  `--profile`, `--choice-log`, `-Ddebug`, a run
+  without `-O` and `PORTAGE_NG_SOURCE=1` load from source.  So does a cache
+  directory that cannot be written.
+
+`config.pl` and `ipc.pl` always load from source
+(`loader:source_only/1`).  `config.pl` includes the private password and
+key files, which stay out of the cache.  `make clean` removes the cache.
+
 
 ## Domain-agnostic core vs Gentoo-specific rules
 

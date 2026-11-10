@@ -109,9 +109,10 @@ coverage:
 ipcclient:
 	$(CXX) $(IPCCLIENT_CXXFLAGS) -o $(IPCCLIENT) $(IPCCLIENT_SRC)
 
-# Remove built binaries.
+# Remove built binaries and the compiled module cache.
 clean:
 	rm -f $(TARGET) $(IPCCLIENT)
+	rm -rf Build
 
 # Generate local CA and per-host TLS certificates (make certs HOST=mac-pro.local).
 certs:

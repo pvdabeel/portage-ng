@@ -37,6 +37,7 @@ Source/Knowledge/Sets/glsa_injected/**
 Source/Tests/
 Source/Application/Wrapper/ipcclient
 Source/Application/Client/ipclient.qlf
+/Build/
 __pycache__/
 *.pyc
 .DS_Store

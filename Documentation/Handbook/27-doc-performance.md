@@ -46,6 +46,13 @@ background thread.  Start-up waits for that thread before the first request, and
 build: a query that does makes SWI-Prolog build a second index of its own, which
 costs seconds and about 75 MB on a full tree.
 
+**Compiled modules.**  The application's own source files are cached the same
+way: `Source/loader.pl` compiles each one to a `.qlf` file under `Build/qlf/` on
+its first load and loads that file afterwards.  Loading the standalone modules
+drops from about 0.77 s to about 0.25 s.  See "Compiled module cache" in
+[Chapter 4: Architecture](04-doc-architecture.md) for when files are recompiled
+and when the cache is off.
+
 
 ## Pillar 2: Goal expansion macros
 
