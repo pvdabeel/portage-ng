@@ -673,8 +673,10 @@ config:build_phases([clean, setup, unpack, prepare, configure, compile, test, in
 %              "wait: pid N is not a child of this shell".
 %              The same phase is run once more.
 %   makeopts - `compile`, `test`, or `install` failed. The phase is
-%              run once more with `MAKEOPTS=-j1`. Make continues
-%              from the objects it already built.
+%              run once more with `MAKEOPTS=-j1`. The saved
+%              ${T}/environment is rewritten first: Portage sources it
+%              on resume and would otherwise put the parallel MAKEOPTS
+%              back. Make continues from the objects it already built.
 
 :- dynamic config:build_retry/1.
 config:build_retry([pid, makeopts]).

@@ -521,7 +521,8 @@ ebuild_exec:start_phase_async(EbuildPath, Phase, LogPath, UseString, ExtraEnv, P
 % ebuild's git fetch must fail on a 401 rather than prompt), the EPREFIX
 % of `--prefix` when given (prefix_env/1) and ExtraEnv (e.g. the
 % serial-make MAKEOPTS override; env overrides make.conf in Portage's
-% config stack).
+% config stack, and pin_saved_makeopts/1 keeps a resumed phase from
+% sourcing the parallel value back out of ${T}/environment).
 
 ebuild_exec:spawn_ebuild(EbuildPath, Phases, log(LogPath), UseString, ExtraEnv, Pid) :-
   !,
@@ -530,6 +531,7 @@ ebuild_exec:spawn_ebuild(EbuildPath, Phases, log(LogPath), UseString, ExtraEnv, 
   subprocess:noninteractive_git_env(GitEnv),
   ebuild_exec:prefix_env(PrefixEnv),
   append([['USE'=UseString|GitEnv], PrefixEnv, ExtraEnv], Env),
+  ebuild_exec:maybe_pin_saved_makeopts(ExtraEnv, EbuildPath),
   ebuild_exec:ebuild_argv(log(LogPath), EbuildCmd, EbuildPath, PhaseStrs, Exe, Argv, _),
   open(LogPath, append, Stream, [type(binary)]),
   catch(
@@ -546,6 +548,7 @@ ebuild_exec:spawn_ebuild(EbuildPath, Phases, Sink, UseString, ExtraEnv, Pid) :-
   subprocess:noninteractive_git_env(GitEnv),
   ebuild_exec:prefix_env(PrefixEnv),
   append([['USE'=UseString|GitEnv], PrefixEnv, ExtraEnv], Env),
+  ebuild_exec:maybe_pin_saved_makeopts(ExtraEnv, EbuildPath),
   ebuild_exec:ebuild_argv(Sink, EbuildCmd, EbuildPath, PhaseStrs, Exe, Argv, SinkOpts),
   process_create(Exe, Argv, [process(Pid), environment(Env)|SinkOpts]).
 
@@ -660,12 +663,17 @@ ebuild_exec:dual_progress(BytesSoFar, ExpBytes, Elapsed, ExpSeconds, Pct) :-
 % the race.
 %
 % Recovery: when a parallel-make-sensitive phase fails, retry it once
-% with MAKEOPTS=-j1 in the environment. Portage gives environment
-% variables priority over make.conf, so this forces a serial make for
-% the retry only, without touching the user's configuration. Make
-% resumes incrementally from the already-built objects, so the retry
-% is cheap; deterministic build failures simply fail again and keep
-% their original semantics. Tried when `makeopts` is in
+% with MAKEOPTS=-j1. The process environment overrides make.conf, but
+% a resumed phase sources ${T}/environment, and that file was saved on
+% the first attempt (`declare -x MAKEOPTS="-jN ..."`). Sourcing it puts
+% the parallel value back. A makefile that runs `make` rather than
+% $(MAKE) (nsat's `cd src; make all`, whose link target lists no
+% objects) then races again. The retry rewrites MAKEOPTS, MAKEFLAGS
+% and NINJAOPTS in that file before spawning, and sets the same three
+% in the process environment for the case where the file does not
+% exist yet. Make resumes incrementally from the already-built objects,
+% so the retry is cheap; deterministic build failures simply fail again
+% and keep their original semantics. Tried when `makeopts` is in
 % config:build_retry/1.
 
 %! ebuild_exec:serial_retry_phase(+Phase) is semidet.
@@ -681,12 +689,144 @@ ebuild_exec:serial_retry_phase(install).
 
 %! ebuild_exec:serial_env(-Env) is det.
 %
-% Environment overrides forcing a serial build for the retry attempt.
-% MAKEOPTS covers emake; eninja (ninja-utils.eclass) falls back to
-% MAKEOPTS job parsing when NINJAOPTS is unset, so one variable
-% suffices.
+% Process environment for the retry. MAKEOPTS covers emake. NINJAOPTS
+% covers eninja, which keeps its own -j when set. MAKEFLAGS stops a
+% saved jobserver token from reaching a nested `make`. The same three
+% are rewritten into ${T}/environment by pin_saved_makeopts/1; these
+% process values are what applies when that file is not there yet.
 
-ebuild_exec:serial_env(['MAKEOPTS'='-j1']).
+ebuild_exec:serial_env(['MAKEOPTS'='-j1', 'NINJAOPTS'='-j1', 'MAKEFLAGS'='-j1']).
+
+
+%! ebuild_exec:maybe_pin_saved_makeopts(+ExtraEnv, +EbuildPath) is det.
+%
+% Serial retries pass MAKEOPTS=-j1. Other spawns do not touch the
+% saved environment.
+
+ebuild_exec:maybe_pin_saved_makeopts(ExtraEnv, EbuildPath) :-
+  ( memberchk('MAKEOPTS'='-j1', ExtraEnv)
+  -> ebuild_exec:pin_saved_makeopts(EbuildPath)
+  ;  true
+  ).
+
+
+%! ebuild_exec:pin_saved_makeopts(+EbuildPath) is det.
+%
+% Rewrite job-control assignments in ${T}/environment, when that file
+% exists. A missing file cannot overwrite the process environment.
+
+ebuild_exec:pin_saved_makeopts(EbuildPath) :-
+  ( ebuild_exec:saved_environment_path(EbuildPath, EnvFile),
+    exists_file(EnvFile)
+  -> ebuild_exec:rewrite_makeopts_file(EnvFile)
+  ;  true
+  ).
+
+
+%! ebuild_exec:saved_environment_path(+EbuildPath, -EnvFile) is semidet.
+%
+% <config:build_root>/<category>/<pf>/temp/environment. Category is the
+% directory above the ebuild's package directory; pf is the ebuild
+% basename. That is the tree layout (.../<category>/<pn>/<pf>.ebuild)
+% and the VDB layout (.../<category>/<pf>/<pf>.ebuild).
+
+ebuild_exec:saved_environment_path(EbuildPath, EnvFile) :-
+  file_base_name(EbuildPath, EbuildFile),
+  atom_concat(Pf, '.ebuild', EbuildFile),
+  file_directory_name(EbuildPath, PkgDir),
+  file_directory_name(PkgDir, CatDir),
+  file_base_name(CatDir, Cat),
+  Cat \== '',
+  config:build_root(Root),
+  os:compose_path([Root, Cat, Pf, temp, environment], EnvFile).
+
+
+% Job-control variables a parallel first attempt stores in
+% ${T}/environment. Matched only at column zero, as an export, so an
+% ebuild snippet that mentions the name is left alone.
+
+ebuild_exec:serial_make_var("MAKEOPTS").
+ebuild_exec:serial_make_var("MAKEFLAGS").
+ebuild_exec:serial_make_var("NINJAOPTS").
+
+
+%! ebuild_exec:rewrite_makeopts_file(+EnvFile) is det.
+%
+% Replace column-zero MAKEOPTS, MAKEFLAGS and NINJAOPTS exports with
+% -j1. Append MAKEOPTS when the first attempt never saved one. The
+% rewrite lands via rename so a crash cannot truncate the file Portage
+% is about to source.
+
+ebuild_exec:rewrite_makeopts_file(EnvFile) :-
+  setup_call_cleanup(
+    open(EnvFile, read, In, [type(binary)]),
+    ebuild_exec:read_env_lines(In, Lines),
+    close(In)
+  ),
+  maplist(ebuild_exec:rewrite_make_line, Lines, Mapped),
+  ( member(Line, Lines),
+    ebuild_exec:serial_make_assignment(Line, "MAKEOPTS")
+  -> OutLines = Mapped
+  ;  append(Mapped, ["declare -x MAKEOPTS=\"-j1\""], OutLines)
+  ),
+  atom_concat(EnvFile, '.pin', Tmp),
+  setup_call_cleanup(
+    open(Tmp, write, Out, [type(binary)]),
+    ebuild_exec:write_env_lines(Out, OutLines),
+    close(Out)
+  ),
+  rename_file(Tmp, EnvFile).
+
+
+%! ebuild_exec:rewrite_make_line(+Line, -Out) is det.
+
+ebuild_exec:rewrite_make_line(Line, Out) :-
+  ebuild_exec:serial_make_assignment(Line, Var),
+  !,
+  ebuild_exec:serial_make_replacement(Var, Out).
+ebuild_exec:rewrite_make_line(Line, Line).
+
+
+%! ebuild_exec:serial_make_assignment(+Line, -Var) is semidet.
+%
+% True when Line is a column-zero export of one job-control variable.
+% `declare -x` is what current Portage writes; `export` and `declare --`
+% are the other forms `export -p` has used.
+
+ebuild_exec:serial_make_assignment(Line, Var) :-
+  ebuild_exec:serial_make_var(Var),
+  ( atomic_list_concat(["declare -x ", Var, "="], Prefix)
+  ; atomic_list_concat(["export ", Var, "="], Prefix)
+  ; atomic_list_concat(["declare -- ", Var, "="], Prefix)
+  ),
+  sub_string(Line, 0, _, _, Prefix),
+  !.
+
+
+%! ebuild_exec:serial_make_replacement(+Var, -Line) is det.
+
+ebuild_exec:serial_make_replacement(Var, Line) :-
+  atomic_list_concat(["declare -x ", Var, "=\"-j1\""], Line).
+
+
+%! ebuild_exec:read_env_lines(+Stream, -Lines) is det.
+
+ebuild_exec:read_env_lines(In, Lines) :-
+  read_line_to_string(In, Line0),
+  ebuild_exec:read_env_lines_loop(In, Line0, Lines).
+
+ebuild_exec:read_env_lines_loop(_, end_of_file, []) :- !.
+ebuild_exec:read_env_lines_loop(In, Line, [Line|Rest]) :-
+  read_line_to_string(In, Next),
+  ebuild_exec:read_env_lines_loop(In, Next, Rest).
+
+
+%! ebuild_exec:write_env_lines(+Stream, +Lines) is det.
+
+ebuild_exec:write_env_lines(_, []).
+ebuild_exec:write_env_lines(Out, [Line|Rest]) :-
+  format(Out, '~s~n', [Line]),
+  ebuild_exec:write_env_lines(Out, Rest).
 
 
 %! ebuild_exec:log_serial_retry(+LogPath, +Phase, +ExitCode) is det.

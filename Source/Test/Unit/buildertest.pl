@@ -1319,6 +1319,89 @@ test(world_line_prefers_the_planned_package) :-
 :- end_tests(world_register).
 
 
+% -----------------------------------------------------------------------------
+%  Serial-make retry must survive ${T}/environment (nsat parallel link)
+% -----------------------------------------------------------------------------
+
+:- begin_tests(ebuild_exec_serial_makeopts).
+
+test(resume_environment_is_forced_to_j1) :-
+  tmp_file(serial_mk, Root),
+  make_directory_path(Root),
+  os:compose_path(Root, build, Build),
+  os:compose_path([Root, tree, 'net-analyzer', nsat], PkgDir),
+  make_directory_path(PkgDir),
+  os:compose_path(PkgDir, 'nsat-1.5-r7.ebuild', Ebuild),
+  setup_call_cleanup(
+    open(Ebuild, write, SE),
+    writeln(SE, '# ebuild'),
+    close(SE)),
+  os:compose_path([Build, 'net-analyzer', 'nsat-1.5-r7', temp], TempDir),
+  make_directory_path(TempDir),
+  os:compose_path(TempDir, environment, EnvFile),
+  serial_mk_write(EnvFile, present),
+  os:compose_path([Root, tree, 'dev-libs', foo], FooDir),
+  make_directory_path(FooDir),
+  os:compose_path(FooDir, 'foo-1.ebuild', FooEbuild),
+  setup_call_cleanup(
+    open(FooEbuild, write, SF),
+    writeln(SF, '# ebuild'),
+    close(SF)),
+  os:compose_path([Build, 'dev-libs', 'foo-1', temp], FooTemp),
+  make_directory_path(FooTemp),
+  os:compose_path(FooTemp, environment, FooEnv),
+  serial_mk_write(FooEnv, absent),
+  setup_call_cleanup(
+    asserta(config:build_root(Build), Ref),
+    ( ebuild_exec:maybe_pin_saved_makeopts([], Ebuild),
+      serial_mk_read(EnvFile, Untouched),
+      memberchk("declare -x MAKEOPTS=\"-j32 -l32\"", Untouched),
+      ebuild_exec:maybe_pin_saved_makeopts(
+        ['MAKEOPTS'='-j1', 'NINJAOPTS'='-j1', 'MAKEFLAGS'='-j1'], Ebuild),
+      serial_mk_read(EnvFile, Pinned),
+      memberchk("declare -x MAKEOPTS=\"-j1\"", Pinned),
+      memberchk("declare -x MAKEFLAGS=\"-j1\"", Pinned),
+      memberchk("declare -x NINJAOPTS=\"-j1\"", Pinned),
+      memberchk("declare -x FEATURES=\"test\"", Pinned),
+      memberchk("echo MAKEOPTS stays", Pinned),
+      \+ memberchk("declare -x MAKEOPTS=\"-j32 -l32\"", Pinned),
+      \+ memberchk("declare -x MAKEFLAGS=\"--jobserver-auth=3,4 -j32\"", Pinned),
+      \+ memberchk("export NINJAOPTS=\"-j32\"", Pinned),
+      ebuild_exec:pin_saved_makeopts(FooEbuild),
+      serial_mk_read(FooEnv, Appended),
+      memberchk("declare -x FEATURES=\"test\"", Appended),
+      memberchk("declare -x MAKEOPTS=\"-j1\"", Appended),
+      os:compose_path(FooDir, 'missing-9.ebuild', Missing),
+      ebuild_exec:pin_saved_makeopts(Missing)
+    ),
+    erase(Ref)
+  ).
+
+serial_mk_write(EnvFile, present) :-
+  setup_call_cleanup(
+    open(EnvFile, write, Out, [type(binary)]),
+    ( format(Out, 'declare -x FEATURES="test"~n', []),
+      format(Out, 'declare -x MAKEOPTS="-j32 -l32"~n', []),
+      format(Out, 'declare -x MAKEFLAGS="--jobserver-auth=3,4 -j32"~n', []),
+      format(Out, 'export NINJAOPTS="-j32"~n', []),
+      format(Out, 'echo MAKEOPTS stays~n', [])
+    ),
+    close(Out)).
+serial_mk_write(EnvFile, absent) :-
+  setup_call_cleanup(
+    open(EnvFile, write, Out, [type(binary)]),
+    format(Out, 'declare -x FEATURES="test"~n', []),
+    close(Out)).
+
+serial_mk_read(EnvFile, Lines) :-
+  setup_call_cleanup(
+    open(EnvFile, read, In, [type(binary)]),
+    ebuild_exec:read_env_lines(In, Lines),
+    close(In)).
+
+:- end_tests(ebuild_exec_serial_makeopts).
+
+
 ebcheck_reset :-
   retractall(ebcheck_repo:get_type(_)),
   retractall(ebcheck_repo:get_ebuild_file(_, _)),
